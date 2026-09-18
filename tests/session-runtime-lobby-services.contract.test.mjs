@@ -851,6 +851,8 @@ test('LAN lobby discovery returns joinable directory entries', async () => {
         gameMode: '',
         modePath: '',
         winsNeeded: 1,
+        inMatch: false,
+        lastSeen: 0,
         signalingUrl: 'http://192.168.1.8:9090',
         transport: 'lan',
     }]);
@@ -894,7 +896,7 @@ test('LAN lobby discovery waits for the first broadcast event instead of samplin
 
     const lobbies = await lobbiesPromise;
 
-    assert.deepEqual(calls, ['subscribe', 'start', 'getHosts', 'unsubscribe', 'stop']);
+    assert.deepEqual(calls, ['subscribe', 'start', 'getHosts', 'getHosts', 'unsubscribe', 'stop']);
     assert.deepEqual(lobbies, [{
         lobbyCode: 'LAN-EVENT',
         memberCount: 1,
@@ -904,6 +906,8 @@ test('LAN lobby discovery waits for the first broadcast event instead of samplin
         gameMode: 'HUNT',
         modePath: 'fight',
         winsNeeded: 7,
+        inMatch: false,
+        lastSeen: 0,
         signalingUrl: 'http://192.168.1.12:9090',
         transport: 'lan',
     }]);

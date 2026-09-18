@@ -25,6 +25,7 @@ import {
 import { hasConfiguredOnlineSignalingUrl } from '../../shared/contracts/OnlineSignalingConfig.js';
 import { appendMutationChangedKeys, resolveMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 import { resolvePresetFailureMessage } from './MenuRuntimeQuickStartService.js';
+import { MODE_PATH_TO_PRESET_ID } from '../settings/FreshProfileSettingsOps.js';
 
 // Re-exported so existing call sites keep a stable MenuRuntimeSessionService entry point.
 export {
@@ -32,12 +33,6 @@ export {
     handleQuickStartLastStartAction,
     handleQuickStartRandomStartAction,
 } from './MenuRuntimeQuickStartService.js';
-
-const MODE_PATH_TO_PRESET_ID = Object.freeze({
-    arcade: 'arcade',
-    fight: 'fight-standard',
-    normal: 'normal-standard',
-});
 
 const SESSION_SWITCH_CHANGED_KEYS = Object.freeze([
     SETTINGS_CHANGE_KEYS.SESSION_TYPE,
@@ -66,9 +61,7 @@ const SESSION_SWITCH_CHANGED_KEYS = Object.freeze([
     SETTINGS_CHANGE_KEYS.GAMEPLAY_FIGHT_PLAYER_HP,
     SETTINGS_CHANGE_KEYS.GAMEPLAY_FIGHT_MG_DAMAGE,
     SETTINGS_CHANGE_KEYS.GAMEPLAY_PLANAR_MODE,
-    SETTINGS_CHANGE_KEYS.GAMEPLAY_PORTAL_COUNT,
     SETTINGS_CHANGE_KEYS.GAMEPLAY_PLANAR_LEVEL_COUNT,
-    SETTINGS_CHANGE_KEYS.LOCAL_THEME_MODE,
 ]);
 
 export { SESSION_SWITCH_CHANGED_KEYS, MODE_PATH_TO_PRESET_ID };
@@ -193,11 +186,18 @@ export function handleModePathChangeAction(ctx) {
     if (modePath === 'fight' && !huntFeatureEnabled) {
         modePath = 'normal';
     }
+    const previousModePath = String(game.settings.localSettings.modePath || '').trim().toLowerCase();
     game.settings.localSettings.modePath = modePath;
 
     const changedKeys = [SETTINGS_CHANGE_KEYS.MODE_PATH];
     const presetId = MODE_PATH_TO_PRESET_ID[modePath];
-    if (presetId) {
+    const seededModePaths = Array.isArray(game.settings.localSettings.seededModePaths)
+        ? game.settings.localSettings.seededModePaths
+        : [];
+    // A style preset seeds a style once. Re-clicking the current style or returning to a
+    // style with own values is navigation and must not throw the player's tuning away.
+    const keepsOwnValues = modePath === previousModePath || seededModePaths.includes(modePath);
+    if (presetId && !keepsOwnValues) {
         // Bot difficulty is a player preference, not part of the curated style setup.
         // Choosing a style is navigation, so its preset must not silently overwrite it.
         const savedBotDifficulty = game.settings.botDifficulty;
@@ -208,9 +208,10 @@ export function handleModePathChangeAction(ctx) {
         );
         if (presetResult.success) {
             game.settings.botDifficulty = savedBotDifficulty;
+            game.settings.localSettings.seededModePaths = [...seededModePaths, modePath];
             appendMutationChangedKeys(changedKeys, presetResult);
         } else {
-            game._showStatusToast(resolvePresetFailureMessage(presetResult, 'Preset konnte nicht angewendet werden.'), 1700, 'error');
+            game._showStatusToast(resolvePresetFailureMessage(presetResult, 'Vorlage konnte nicht angewendet werden.'), 1700, 'error');
             return;
         }
     }
@@ -258,6 +259,12 @@ export function handleModePathChangeAction(ctx) {
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
     } else if (requestedModePath === 'fight' && !huntFeatureEnabled) {
         game._showStatusToast('Kampf ist deaktiviert. Klassisch wurde gesetzt.', 1500, 'warning');
+    } else if (presetId && keepsOwnValues && modePath !== previousModePath) {
+        game._showStatusToast(
+            `Modus gewählt: ${label} – deine Werte bleiben. Vorlage unter „Vorlagen“ anwenden.`,
+            2200,
+            'info'
+        );
     } else {
         game._showStatusToast(`Modus gewählt: ${label}`, 1200, 'info');
     }
@@ -285,17 +292,11 @@ export function handleLevel3ResetAction(ctx) {
             { modePath }
         );
     }
-    if (!game.settings.localSettings || typeof game.settings.localSettings !== 'object') {
-        game.settings.localSettings = {};
-    }
-    game.settings.localSettings.themeMode = defaults.themeMode;
-
     onSettingsChanged({
         changedKeys: [
             SETTINGS_CHANGE_KEYS.MAP_KEY,
             SETTINGS_CHANGE_KEYS.VEHICLES_PLAYER_1,
             SETTINGS_CHANGE_KEYS.VEHICLES_PLAYER_2,
-            SETTINGS_CHANGE_KEYS.LOCAL_THEME_MODE,
         ],
     });
     game._showStatusToast('Auswahl zurückgesetzt', 1200, 'info');
@@ -329,12 +330,34 @@ export function handleLevel4CloseAction(ctx) {
     delete game.settings.localSettings.toolsState.level4ReturnTarget;
     game.settings.localSettings.toolsState.level4Open = false;
     game.uiManager?.setLevel4Open?.(false);
+    // Store the closed state now: otherwise a stale stored flag reopens the window after a restart.
+    game._saveSettings?.();
+}
+
+// A fresh profile plays its style with the style preset on top of the defaults, so the
+// reset hands back the same gameplay values. Map, bots and rules stay outside its scope.
+function resolveStylePresetGameplayValues(game) {
+    const modePath = String(game?.settings?.localSettings?.modePath || 'normal').trim().toLowerCase();
+    const presetId = MODE_PATH_TO_PRESET_ID[modePath];
+    const presets = game?.settingsManager?.listMenuPresets?.();
+    const preset = Array.isArray(presets) ? presets.find((entry) => entry?.id === presetId) : null;
+    const gameplay = {};
+    for (const [path, value] of Object.entries(preset?.values || {})) {
+        if (path.startsWith('gameplay.')) gameplay[path.slice('gameplay.'.length)] = value;
+    }
+    return gameplay;
 }
 
 export function handleLevel4ResetAction(ctx) {
     const { game, onSettingsChanged } = ctx;
     const defaults = game.settingsManager.createDefaultSettings();
-    game.settings.gameplay = { ...defaults.gameplay };
+    game.settings.gameplay = { ...defaults.gameplay, ...resolveStylePresetGameplayValues(game) };
+    game.settings.matchSettings = {
+        ...(game.settings.matchSettings || {}),
+        activePresetId: '',
+        activePresetKind: '',
+        activePresetSourceId: '',
+    };
     if (!game.settings.localSettings || typeof game.settings.localSettings !== 'object') {
         game.settings.localSettings = {};
     }
@@ -350,6 +373,8 @@ export function handleLevel4ResetAction(ctx) {
 
     onSettingsChanged({
         changedKeys: [
+            SETTINGS_CHANGE_KEYS.PRESET_ACTIVE_ID,
+            SETTINGS_CHANGE_KEYS.PRESET_ACTIVE_KIND,
             SETTINGS_CHANGE_KEYS.RULES_AUTO_ROLL,
             SETTINGS_CHANGE_KEYS.RULES_INVERT_P1,
             SETTINGS_CHANGE_KEYS.RULES_INVERT_P2,

@@ -25,6 +25,7 @@ export const MENU_CONTROLLER_EVENT_TYPES = Object.freeze({
     MULTIPLAYER_LEAVE_LOBBY: 'multiplayer_leave_lobby',
     MULTIPLAYER_READY_TOGGLE: 'multiplayer_ready_toggle',
     MULTIPLAYER_SETTINGS_RETRY: 'multiplayer_settings_retry',
+    MULTIPLAYER_SET_LOBBY_NAME: 'multiplayer_set_lobby_name',
     DEVELOPER_MODE_TOGGLE: 'developer_mode_toggle',
     DEVELOPER_THEME_CHANGE: 'developer_theme_change',
     DEVELOPER_VISIBILITY_CHANGE: 'developer_visibility_change',

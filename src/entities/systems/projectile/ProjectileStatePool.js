@@ -54,6 +54,11 @@ export class ProjectileStatePool {
             homingRange: 0,
             homingReacquireInterval: 0,
             homingReacquireTimer: 0,
+            guidedActive: false,
+            steerYaw: 0,
+            steerPitch: 0,
+            boostRemaining: 0,
+            boostUsed: false,
             foamBounces: 0,
             foamBounceCooldown: 0,
             rocketTrailHandle: null,
@@ -110,6 +115,11 @@ export class ProjectileStatePool {
         projectile.homingRange = 0;
         projectile.homingReacquireInterval = 0;
         projectile.homingReacquireTimer = 0;
+        projectile.guidedActive = false;
+        projectile.steerYaw = 0;
+        projectile.steerPitch = 0;
+        projectile.boostRemaining = 0;
+        projectile.boostUsed = false;
         projectile.foamBounces = 0;
         projectile.foamBounceCooldown = 0;
         projectile.rocketTrailHandle = null;

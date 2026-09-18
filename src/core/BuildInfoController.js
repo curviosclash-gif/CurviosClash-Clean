@@ -1,11 +1,11 @@
 // ============================================
-// BuildInfoController.js - build metadata render + clipboard copy helpers
+// BuildInfoController.js - build metadata render helpers
 // ============================================
 //
 // Contract:
 // - Inputs: ui refs + build metadata + status-toast callback
-// - Outputs: formatted build-time metadata and clipboard payload text
-// - Side effects: updates build-info DOM nodes and optionally writes clipboard
+// - Outputs: formatted build-time metadata
+// - Side effects: updates build-info DOM nodes (copying lives in src/ui/menu/MenuClipboardCopy.js)
 
 export class BuildInfoController {
     constructor(options = {}) {
@@ -55,30 +55,5 @@ export class BuildInfoController {
             this.ui.buildInfoDetail.textContent = detailInfo;
         }
         return detailInfo;
-    }
-
-    copyBuildInfoToClipboard(clipboardText = '') {
-        const payload = clipboardText || `v${this.appVersion} \u00b7 Build ${this.buildId}`;
-        const fallbackCopy = () => {
-            const helper = document.createElement('textarea');
-            helper.value = payload;
-            helper.setAttribute('readonly', 'readonly');
-            helper.style.position = 'fixed';
-            helper.style.top = '-9999px';
-            document.body.appendChild(helper);
-            helper.select();
-            const copied = document.execCommand('copy');
-            document.body.removeChild(helper);
-            this.showStatusToast(copied ? 'Build-Info kopiert' : 'Kopieren nicht möglich', 1400, copied ? 'success' : 'error');
-        };
-
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(payload)
-                .then(() => this.showStatusToast('Build-Info kopiert', 1400, 'success'))
-                .catch(() => fallbackCopy());
-            return;
-        }
-
-        fallbackCopy();
     }
 }

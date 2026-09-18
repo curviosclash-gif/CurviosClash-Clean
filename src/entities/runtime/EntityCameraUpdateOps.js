@@ -3,6 +3,7 @@ import {
     findNearestProjectedCameraOpponentPosition,
     updateEntityCameraContext,
 } from './EntityCameraContext.js';
+import { applyGuidedRocketCameras, ownsGuidedRocketCamera } from './GuidedRocketCameraOps.js';
 
 function updateProjectedPlayerCameras(manager, projectedPlayers, dt) {
     for (const projectedPlayer of projectedPlayers) {
@@ -11,7 +12,8 @@ function updateProjectedPlayerCameras(manager, projectedPlayers, dt) {
             ? projectedPlayer.playerIndex
             : -1;
         if (playerIndex < 0 || playerIndex >= manager.renderer.cameras.length) continue;
-        if (manager._killcamSystem?.ownsCamera?.(playerIndex) === true) continue;
+        if (manager._killcamSystem?.ownsCamera?.(playerIndex) === true
+            || ownsGuidedRocketCamera(manager, playerIndex)) continue;
 
         const mode = manager.renderer.getCameraMode(playerIndex);
         manager._tmpCamRenderPos.set(
@@ -72,7 +74,8 @@ function updateProjectedPlayerCameras(manager, projectedPlayers, dt) {
 function updateLivePlayerCameras(manager, dt, renderAlpha, useRenderedTransforms) {
     for (const player of manager.players) {
         if (player.isBot || player.index >= manager.renderer.cameras.length) continue;
-        if (manager._killcamSystem?.ownsCamera?.(player.index) === true) continue;
+        if (manager._killcamSystem?.ownsCamera?.(player.index) === true
+            || ownsGuidedRocketCamera(manager, player.index)) continue;
         const mode = manager.renderer.getCameraMode(player.index);
         const reusedRenderedTransform = useRenderedTransforms
             && player.view?.copyRenderTransform?.(manager._tmpCamRenderPos, manager._tmpCamRenderQuat);
@@ -129,4 +132,5 @@ export function updateEntityCameras(
         updateLivePlayerCameras(manager, dt, renderAlpha, useRenderedTransforms);
     }
     manager._killcamSystem?.applyCinematicCamera?.(dt);
+    applyGuidedRocketCameras(manager, dt);
 }

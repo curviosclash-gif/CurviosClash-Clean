@@ -24,9 +24,12 @@ import {
     RECORDING_HUD_MODE,
 } from '../shared/contracts/RecordingCaptureContract.js';
 import { normalizeHudAppearance } from '../shared/contracts/HudAppearanceContract.js';
-import { applyRuntimeHudAppearance, resolveHudColorPresetLabel } from './HudAppearance.js';
+import { applyRuntimeHudAppearance, formatHudAppearanceHint } from './HudAppearance.js';
 import { syncArcadeRunSettings } from './menu/MenuArcadeRunSettingsBindings.js';
+import { syncBotHeuristicControls } from './menu/MenuBotHeuristicBindings.js';
+import { syncTrailLengthControl } from './menu/MenuTrailLengthControl.js';
 import { syncHuntRespawnToggle } from './menu/MenuHuntRespawnToggleSync.js';
+import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
 import { syncMenuPresetState } from './menu/MenuPresetStateSync.js';
 import { syncMenuDeveloperState } from './menu/MenuDeveloperStateSync.js';
 import { syncNormalCameraPerspectiveUi } from './menu/CameraPerspectiveUiSync.js';
@@ -40,6 +43,7 @@ import {
 } from '../shared/runtime/UiControllerRuntimePorts.js';
 import { UIStartSyncController } from './UIStartSyncController.js';
 import { UINavigationLifecycleController } from './UINavigationLifecycleController.js';
+import { closeLevel4InPause, openLevel4InPause } from './menu/Level4PauseHost.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { createRuntimeSettingsLimitsForRuntime } from '../shared/contracts/SettingsRuntimeLimitsContract.js';
 import { normalizeMobileClassicControlSettings } from '../shared/contracts/MobileClassicControlsContract.js';
@@ -286,6 +290,8 @@ export class UIManager {
     showMainNav()                          { return this._navLifecycle.showMainNav(); }
     setLevel4Open(isOpen)                  { return this._navLifecycle.setLevel4Open(isOpen); }
     setLevel4Section(sectionId, options)   { return this._navLifecycle.setLevel4Section(sectionId, options); }
+    openPauseSettings()                    { return openLevel4InPause(this); }
+    closePauseSettings()                   { return closeLevel4InPause(this); }
     showToast(message, durationOrTone, tone) { return this._navLifecycle.showToast(message, durationOrTone, tone); }
     updateContext(settings = this.settings) { return this._navLifecycle.updateContext(this._resolveMenuUiContext(settings)); }
 
@@ -361,12 +367,6 @@ export class UIManager {
             menuTextRuntime: this.menuTextRuntime,
             releaseState: menuUiContext.releaseState,
         });
-        const themeMode = String(settings?.localSettings?.themeMode || 'dunkel').toLowerCase() === 'hell'
-            ? 'hell'
-            : 'dunkel';
-        if (this.ui.mainMenu) {
-            this.ui.mainMenu.setAttribute('data-menu-local-theme', themeMode);
-        }
         this._syncStartSetupSnapshot(settings, { menuUiContext });
     }
 
@@ -407,13 +407,27 @@ export class UIManager {
             ui.huntDeathmatchRules.classList.toggle('hidden', !huntRespawnEnabled);
             ui.huntDeathmatchRules.setAttribute('aria-hidden', String(!huntRespawnEnabled));
         }
+        const huntWinCondition = normalizeHuntWinCondition(settings?.hunt?.winCondition);
+        const showTarget = huntRespawnEnabled && huntWinCondition !== HUNT_WIN_CONDITIONS.LAST_ALIVE;
+        const showTimeLimit = huntRespawnEnabled && huntWinCondition === HUNT_WIN_CONDITIONS.KILLS_TIME;
+        if (ui.huntKillLimitLabel) {
+            ui.huntKillLimitLabel.textContent = huntWinCondition === HUNT_WIN_CONDITIONS.SCORE_TARGET
+                ? 'Punktziel' : 'Abschusslimit';
+            ui.huntKillLimitLabel.classList.toggle('hidden', !showTarget);
+        }
+        if (ui.huntTimeLimitRow) ui.huntTimeLimitRow.classList.toggle('hidden', !showTimeLimit);
         if (ui.huntKillLimitSelect) {
             ui.huntKillLimitSelect.value = String(settings?.hunt?.deathmatchKillLimit || 10);
-            ui.huntKillLimitSelect.disabled = !huntRespawnEnabled;
+            ui.huntKillLimitSelect.disabled = !showTarget;
+            ui.huntKillLimitSelect.classList.toggle('hidden', !showTarget);
+        }
+        if (ui.huntWinConditionSelect) {
+            ui.huntWinConditionSelect.value = huntWinCondition;
+            ui.huntWinConditionSelect.disabled = !huntRespawnEnabled;
         }
         if (ui.huntTimeLimitToggle) {
             ui.huntTimeLimitToggle.checked = settings?.hunt?.timeLimitEnabled !== false;
-            ui.huntTimeLimitToggle.disabled = !huntRespawnEnabled;
+            ui.huntTimeLimitToggle.disabled = !showTimeLimit;
         }
         syncArcadeRunSettings(ui, settings);
     }
@@ -431,6 +445,7 @@ export class UIManager {
         ui.botLabel.textContent = settings.numBots;
         if (ui.botDifficultySelect) ui.botDifficultySelect.value = settings.botDifficulty;
         if (ui.botPolicyStrategySelect) ui.botPolicyStrategySelect.value = settings.botPolicyStrategy || 'auto';
+        syncBotHeuristicControls(ui, settings);
     }
 
     syncRules(settings = this.settings) {
@@ -440,10 +455,6 @@ export class UIManager {
         ui.autoRollToggle.checked = !!settings.autoRoll;
         ui.invertP1.checked = !!settings.invertPitch.PLAYER_1;
         ui.invertP2.checked = !!settings.invertPitch.PLAYER_2;
-        ui.cockpitCamP1.checked = true;
-        ui.cockpitCamP1.disabled = true;
-        ui.cockpitCamP2.checked = true;
-        ui.cockpitCamP2.disabled = true;
         ui.portalsToggle.checked = !!settings.portalsEnabled;
     }
 
@@ -500,6 +511,7 @@ export class UIManager {
         ui.planeSizeLabel.textContent = gp.planeScale.toFixed(1);
         syncRangeInput(ui.trailWidthSlider, gp.trailWidth, runtimeLimits.gameplay.trailWidth, gp.trailWidth);
         ui.trailWidthLabel.textContent = gp.trailWidth.toFixed(1);
+        syncTrailLengthControl(ui, settings, runtimeLimits.gameplay.trailLength);
         syncRangeInput(ui.gapSizeSlider, gp.gapSize, runtimeLimits.gameplay.gapSize, gp.gapSize);
         ui.gapSizeLabel.textContent = gp.gapSize.toFixed(2);
         syncRangeInput(ui.gapFrequencySlider, gp.gapFrequency, runtimeLimits.gameplay.gapFrequency, gp.gapFrequency);
@@ -524,8 +536,6 @@ export class UIManager {
             : Math.max(runtimeLimits.gameplay.mgTrailAimRadius.min, Number(runtimeConfig?.HUNT?.MG?.TRAIL_HIT_RADIUS) || 0.78);
         syncRangeInput(ui.mgTrailAimSlider, mgTrailAimRadius, runtimeLimits.gameplay.mgTrailAimRadius, mgTrailAimRadius);
         if (ui.mgTrailAimLabel) ui.mgTrailAimLabel.textContent = mgTrailAimRadius.toFixed(2);
-        syncRangeInput(ui.portalCountSlider, gp.portalCount, runtimeLimits.gameplay.portalCount, gp.portalCount);
-        if (ui.portalCountLabel) ui.portalCountLabel.textContent = String(gp.portalCount);
         syncRangeInput(ui.planarLevelCountSlider, gp.planarLevelCount, runtimeLimits.gameplay.planarLevelCount, gp.planarLevelCount);
         if (ui.planarLevelCountLabel) ui.planarLevelCountLabel.textContent = String(gp.planarLevelCount);
         applyRangeInputLimits(ui.fightPlayerHpSlider, runtimeLimits.gameplay.fightPlayerHp);
@@ -580,7 +590,7 @@ export class UIManager {
         if (ui.hudOpacityLabel) ui.hudOpacityLabel.textContent = `${hudOpacityPercent}%`;
         if (ui.hudColorPresetSelect) ui.hudColorPresetSelect.value = hudAppearance.colorPreset;
         if (ui.hudAppearanceHint) {
-            ui.hudAppearanceHint.textContent = `HUD: ${hudScalePercent}% – ${hudOpacityPercent}% – ${resolveHudColorPresetLabel(hudAppearance.colorPreset)}`;
+            ui.hudAppearanceHint.textContent = formatHudAppearanceHint(hudAppearance, ui.hud?.ownerDocument?.defaultView);
         }
         applyRuntimeHudAppearance(ui.hud, hudAppearance);
 

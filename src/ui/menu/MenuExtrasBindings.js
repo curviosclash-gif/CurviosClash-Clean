@@ -3,6 +3,8 @@ import { PLATFORM_SURFACE_FEATURE_IDS } from '../../shared/contracts/PlatformSur
 import { clamp } from '../../shared/utils/MathOps.js';
 import { setupArcadeMenuSurface } from '../arcade/ArcadeMenuSurface.js';
 import { bindMenuMultiplayerActionButtons } from './MenuMultiplayerActionBindings.js';
+import { bindStaticInfoHints } from './InfoHintToggle.js';
+import { bindBuildInfoCopy } from './MenuClipboardCopy.js';
 import { resolveSurfaceFeatureLaunchGuard } from './MenuSurfaceFeatureAccess.js';
 import { createRuntimeSettingsLimitsForRuntime } from '../../shared/contracts/SettingsRuntimeLimitsContract.js';
 
@@ -119,20 +121,6 @@ export function bindMenuExtrasButtons(ctx) {
         });
     }
 
-    if (ui.portalCountSlider && ui.portalCountLabel) {
-        bind(ui.portalCountSlider, 'input', (e) => {
-            const val = clamp(
-                parseInt(e.target.value, 10),
-                gameplayLimits.portalCount.min,
-                gameplayLimits.portalCount.max
-            );
-            ui.portalCountLabel.textContent = val;
-            if (!settings.gameplay) settings.gameplay = {};
-            settings.gameplay.portalCount = val;
-            queueInputSettingsChanged([keys.GAMEPLAY_PORTAL_COUNT]);
-        });
-    }
-
     if (ui.planarLevelCountSlider && ui.planarLevelCountLabel) {
         bind(ui.planarLevelCountSlider, 'input', (e) => {
             const val = clamp(
@@ -146,6 +134,9 @@ export function bindMenuExtrasButtons(ctx) {
             queueInputSettingsChanged([keys.GAMEPLAY_PLANAR_LEVEL_COUNT]);
         });
     }
+
+    bindStaticInfoHints(ui.mainMenu?.ownerDocument || globalThis.document);
+    bindBuildInfoCopy({ ui, bind, emit, eventTypes });
 
     bindMenuMultiplayerActionButtons({
         ui,

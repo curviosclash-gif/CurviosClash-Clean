@@ -5,6 +5,7 @@ import {
     ARCADE_SEED_STORAGE_KEY,
 } from './ArcadeMenuPersistenceContract.js';
 import { HANGAR_BUILD_STORAGE_KEYS } from './HangarModeContract.js';
+import { LOBBY_NAME_STORAGE_KEY } from './LobbyNameStorageContract.js';
 
 export const PLAYER_PROFILE_REGISTRY_STORAGE_KEY = 'cuviosclash.player-profiles.v1';
 export const PLAYER_PROFILE_MIGRATION_STORAGE_KEY = 'cuviosclash.player-profile-migration.v1';
@@ -23,7 +24,11 @@ export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
     ARCADE_HANGAR_DRAFTS: 'arcadeHangarDrafts',
     FIGHT_HANGAR_DRAFTS: 'fightHangarDrafts',
     ARCADE_LOADOUT_PRESETS: 'arcadeLoadoutPresets',
+    LOBBY_NAME: 'lobbyName',
 });
+
+// The name a player last used in a multiplayer lobby; each player profile keeps its own.
+export { LOBBY_NAME_STORAGE_KEY };
 
 const RECORD_DEFINITIONS = Object.freeze([
     { kind: PLAYER_PROFILE_RECORD_KINDS.LEGACY_ARCADE_RUN_PROFILE, legacyKey: LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY, suffix: 'arcade-run-profile.v1' },
@@ -38,6 +43,7 @@ const RECORD_DEFINITIONS = Object.freeze([
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_HANGAR_DRAFTS, legacyKey: 'curviosclash.hangar.arcade-drafts.v1', suffix: 'hangar.arcade-drafts.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.FIGHT_HANGAR_DRAFTS, legacyKey: 'curviosclash.hangar.fight-drafts.v1', suffix: 'hangar.fight-drafts.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_LOADOUT_PRESETS, legacyKey: 'cuviosclash.arcade-vehicle-loadouts.v1', suffix: 'arcade-vehicle-loadouts.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.LOBBY_NAME, legacyKey: LOBBY_NAME_STORAGE_KEY, suffix: 'lobby-name.v1' },
 ]);
 
 const DEFINITION_BY_LEGACY_KEY = new Map(RECORD_DEFINITIONS.map((entry) => [entry.legacyKey, entry]));

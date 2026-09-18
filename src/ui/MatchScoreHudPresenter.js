@@ -1,4 +1,7 @@
 import { MatchHudAnnouncement, rankScoreRows } from './MatchHudAnnouncement.js';
+import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
+import { getHuntScoreValue } from './HuntMatchStatusHelpers.js';
+import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
 
 export class MatchScoreHudPresenter {
     constructor(hud) {
@@ -21,9 +24,8 @@ export class MatchScoreHudPresenter {
         const firstScore = Number(first?.score) || 0;
         const secondScore = Number(ranked[1]?.score) || 0;
         const leader = first && firstScore > secondScore ? first : null;
-        const leaderIndex = leader?.playerIndex ?? leader?.index ?? 0;
         const nextText = leader
-            ? `${leader.isBot ? `Bot ${leaderIndex + 1}` : `P${leaderIndex + 1}`} führt · +${firstScore - secondScore}`
+            ? `${formatPlayerDisplayLabel(leader)} führt · +${firstScore - secondScore}`
             : 'Gleichstand';
         if (this.classicLabel.textContent !== nextText) this.classicLabel.textContent = nextText;
         this.classicLabel.classList.toggle('hidden', ranked.length < 2);
@@ -39,17 +41,24 @@ export class MatchScoreHudPresenter {
             ? projection.players : fallbackPlayers;
         const fightRows = projection?.hunt?.active === true && Array.isArray(projection.hunt.scoreboardRows)
             ? projection.hunt.scoreboardRows : null;
-        const killCounts = fightRows && new Map(fightRows.map((row) => [row.playerIndex, Number(row.kills) || 0]));
-        const players = killCounts
+        const winCondition = normalizeHuntWinCondition(projection?.hunt?.winCondition);
+        const lives = projection?.hunt?.livesRemainingByPlayer || {};
+        const fightScores = fightRows && new Map(fightRows.map((row) =>
+            [row.playerIndex, getHuntScoreValue(row, winCondition, lives)]));
+        const players = fightScores
             ? [...(sourcePlayers || [])].sort((left, right) =>
-                (killCounts.get(right?.playerIndex ?? right?.index) || 0)
-                - (killCounts.get(left?.playerIndex ?? left?.index) || 0))
+                (fightScores.get(right?.playerIndex ?? right?.index) || 0)
+                - (fightScores.get(left?.playerIndex ?? left?.index) || 0))
             : rankScoreRows(sourcePlayers);
         if (players.length === 0) return;
         const container = this._ensureNetworkBoard();
-        const metric = killCounts ? 'kills' : 'score';
+        const metric = fightScores ? (winCondition === HUNT_WIN_CONDITIONS.LAST_ALIVE ? 'lives'
+            : winCondition === HUNT_WIN_CONDITIONS.SCORE_TARGET ? 'points' : 'kills') : 'score';
         if (container.dataset.metric !== metric) container.dataset.metric = metric;
-        const boardLabel = killCounts ? 'Fight-Rangliste nach Abschüssen' : 'Rangliste nach Punkten';
+        const boardLabel = fightScores ? (winCondition === HUNT_WIN_CONDITIONS.LAST_ALIVE
+            ? 'Fight-Rangliste nach verbleibenden Leben'
+            : winCondition === HUNT_WIN_CONDITIONS.SCORE_TARGET
+                ? 'Fight-Rangliste nach Punkten' : 'Fight-Rangliste nach Abschüssen') : 'Rangliste nach Punkten';
         if (container.getAttribute('aria-label') !== boardLabel) container.setAttribute('aria-label', boardLabel);
         while (container.children.length < players.length) {
             const row = this.hud.ownerDocument.createElement('div');
@@ -66,8 +75,8 @@ export class MatchScoreHudPresenter {
         }
         const sessionPlayers = Array.isArray(projection?.sessionPlayers)
             ? projection.sessionPlayers : [];
-        const scoreOf = (player) => killCounts
-            ? (killCounts.get(player?.playerIndex ?? player?.index) || 0)
+        const scoreOf = (player) => fightScores
+            ? (fightScores.get(player?.playerIndex ?? player?.index) || 0)
             : (Number(player?.score) || 0);
         const topScore = scoreOf(players[0]);
         const uniqueLeader = players.length === 1 || topScore > scoreOf(players[1]);
@@ -76,7 +85,7 @@ export class MatchScoreHudPresenter {
             const player = players[index];
             const row = container.children[index];
             const playerIndex = player.playerIndex ?? player.index ?? index;
-            const name = player.isBot ? `Bot ${playerIndex + 1}` : `P${playerIndex + 1}`;
+            const name = formatPlayerDisplayLabel({ ...player, index: playerIndex });
             const score = String(scoreOf(player));
             const peer = sessionPlayers.find((entry) =>
                 (entry?.playerIndex ?? entry?.index) === playerIndex);

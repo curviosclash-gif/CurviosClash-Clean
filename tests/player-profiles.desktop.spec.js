@@ -3,22 +3,30 @@ import { waitForLoadedGame } from './helpers.js';
 
 async function activatePlayerProfile(page, profileId) {
     await page.evaluate((id) => {
+        // Survives only until the page reloads; the app has to reload on its own.
+        window.__beforeProfileSwitch = true;
         const select = document.getElementById('player-profile-select');
         select.value = id;
         select.dispatchEvent(new Event('change', { bubbles: true }));
         document.getElementById('btn-player-profile-activate').click();
     }, profileId);
+    await expect.poll(async () => {
+        try {
+            return await page.evaluate(() => window.__beforeProfileSwitch !== true);
+        } catch {
+            return false;
+        }
+    }, { timeout: 15000 }).toBe(true);
+    await waitForLoadedGame(page);
     await expect.poll(() => page.evaluate(() => (
         JSON.parse(localStorage.getItem('cuviosclash.player-profiles.v1'))?.activeProfileId || ''
     ))).toBe(profileId);
-    await page.reload();
-    await waitForLoadedGame(page);
 }
 
 test('Desktop-Spielerprofile isolate progression across activation and renderer reload', async ({ page }) => {
     await waitForLoadedGame(page);
     await expect(page.locator('#player-profile-summary')).toContainText('Spieler:');
-    await expect(page.getByText('Einstellungsprofile', { exact: true })).toBeAttached();
+    await expect(page.getByText('Gespeicherte Einstellungen', { exact: true }).first()).toBeAttached();
 
     const setup = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;

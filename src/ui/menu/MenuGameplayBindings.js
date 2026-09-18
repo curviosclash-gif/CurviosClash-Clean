@@ -10,7 +10,10 @@ import { createRuntimeSettingsLimitsForRuntime } from '../../shared/contracts/Se
 import { bindMenuExtrasButtons } from './MenuExtrasBindings.js';
 import { bindArcadeGhostDuelModeSelect } from './MenuArcadeGhostDuelBindings.js';
 import { bindArcadeRunSettings } from './MenuArcadeRunSettingsBindings.js';
+import { bindBotHeuristicControls } from './MenuBotHeuristicBindings.js';
+import { bindTrailLengthControl } from './MenuTrailLengthControl.js';
 import { bindMenuMobileTiltControls } from './MenuMobileTiltBindings.js';
+import { bindHuntWinConditionSelect } from './MenuHuntWinConditionBindings.js';
 import { bindMenuRecordingCameraControls } from './MenuRecordingCameraBindings.js';
 import {
     HANGAR_SELECTION_PLAYER_SLOTS,
@@ -40,15 +43,11 @@ export function setupMenuGameplayBindings(ctx) {
     const mgTrailAimLimits = gameplayLimits.mgTrailAimRadius;
     const fightMgDamageLimits = gameplayLimits.fightMgDamage;
     settings.cockpitCamera = { ...(settings.cockpitCamera && typeof settings.cockpitCamera === 'object' ? settings.cockpitCamera : {}), PLAYER_1: GAMEPLAY_COCKPIT_CAMERA_ENABLED, PLAYER_2: GAMEPLAY_COCKPIT_CAMERA_ENABLED };
-    [ui.cockpitCamP1, ui.cockpitCamP2].forEach((toggle) => { if (toggle) { toggle.checked = GAMEPLAY_COCKPIT_CAMERA_ENABLED; toggle.disabled = true; } });
     const resolveCurrentHangarModePath = () => String(settings?.localSettings?.modePath || 'normal').trim().toLowerCase() || 'normal';
     const isFightModePathActive = () => resolveCurrentHangarModePath() === 'fight';
     const planarModeMemory = { portalsBeforePlanar: null };
     const applyPlanarMode = (enabled) => {
-        const { changedKeys, portalCountRaised } = applyMenuPlanarMode(settings, enabled, keys, planarModeMemory);
-        if (portalCountRaised) {
-            emit(eventTypes.SHOW_STATUS_TOAST, { message: 'Ebenen-Modus: 4 Portal-Eingänge aktiviert' });
-        }
+        const { changedKeys } = applyMenuPlanarMode(settings, enabled, keys, planarModeMemory);
         emitSettingsChangedImmediate(changedKeys);
     };
 
@@ -181,6 +180,7 @@ export function setupMenuGameplayBindings(ctx) {
         });
     }
 
+    bindHuntWinConditionSelect({ ui, settings, bind, emitSettingsChangedImmediate, keys });
     if (ui.huntRespawnToggle) {
         bind(ui.huntRespawnToggle, 'change', () => {
             if (!settings.hunt) settings.hunt = {};
@@ -247,17 +247,10 @@ export function setupMenuGameplayBindings(ctx) {
         }
     });
 
-    if (ui.themeModeSelect) {
-        bind(ui.themeModeSelect, 'change', () => {
-            if (!settings.localSettings || typeof settings.localSettings !== 'object') {
-                settings.localSettings = {};
-            }
-            settings.localSettings.themeMode = ui.themeModeSelect.value === 'hell' ? 'hell' : 'dunkel';
-            emitSettingsChangedImmediate([keys.LOCAL_THEME_MODE]);
-        });
-    }
     bindArcadeGhostDuelModeSelect({ ui, settings, bind, emitSettingsChangedImmediate, keys });
     bindArcadeRunSettings({ ui, settings, bind, emitSettingsChangedImmediate, keys });
+    bindBotHeuristicControls({ ui, settings, bind, emitSettingsChangedImmediate, keys });
+    bindTrailLengthControl({ ui, settings, bind, limits: gameplayLimits.trailLength, emit: queueInputSettingsChanged, keys });
 
     bind(ui.botSlider, 'input', () => {
         settings.numBots = clamp(parseInt(ui.botSlider.value, 10), sessionLimits.numBots.min, sessionLimits.numBots.max);
@@ -310,18 +303,6 @@ export function setupMenuGameplayBindings(ctx) {
     bind(ui.invertP2, 'change', () => {
         settings.invertPitch.PLAYER_2 = !!ui.invertP2.checked;
         emitSettingsChangedImmediate([keys.RULES_INVERT_P2]);
-    });
-
-    bind(ui.cockpitCamP1, 'change', () => {
-        settings.cockpitCamera.PLAYER_1 = GAMEPLAY_COCKPIT_CAMERA_ENABLED;
-        ui.cockpitCamP1.checked = GAMEPLAY_COCKPIT_CAMERA_ENABLED;
-        emitSettingsChangedImmediate([keys.RULES_COCKPIT_P1]);
-    });
-
-    bind(ui.cockpitCamP2, 'change', () => {
-        settings.cockpitCamera.PLAYER_2 = GAMEPLAY_COCKPIT_CAMERA_ENABLED;
-        ui.cockpitCamP2.checked = GAMEPLAY_COCKPIT_CAMERA_ENABLED;
-        emitSettingsChangedImmediate([keys.RULES_COCKPIT_P2]);
     });
 
     if (ui.planarModeToggle) {

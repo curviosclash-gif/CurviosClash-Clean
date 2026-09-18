@@ -839,6 +839,7 @@
 
 select,
 input[type="text"],
+.menu-input,
 textarea,
 input[type="range"],
 .secondary-btn {
@@ -847,6 +848,7 @@ input[type="range"],
 
 select,
 input[type="text"],
+.menu-input,
 textarea {
     padding: 10px 12px;
     font-size: 0.95em;
@@ -859,7 +861,8 @@ textarea {
     appearance: none;
 }
 
-input[type="text"] {
+input[type="text"],
+.menu-input {
     cursor: text;
     user-select: text;
     -webkit-user-select: text;
@@ -870,11 +873,13 @@ textarea {
     min-height: 72px;
 }
 
-input[type="text"]::placeholder {
+input[type="text"]::placeholder,
+.menu-input::placeholder {
     color: #8190aa;
 }
 
 input[type="text"]:focus,
+.menu-input:focus,
 textarea:focus,
 select:focus {
     outline: none;
@@ -885,6 +890,7 @@ select:focus {
 button:focus-visible,
 select:focus-visible,
 input[type="text"]:focus-visible,
+.menu-input:focus-visible,
 input[type="range"]:focus-visible,
 input[type="checkbox"]:focus-visible {
     outline: 2px solid rgba(80, 216, 255, 0.95);
@@ -896,23 +902,53 @@ select option {
     color: #dde;
 }
 
+/* The input is the 24px hit area; the slim 6px bar is drawn by the track. */
 input[type="range"] {
-    height: 6px;
+    height: 24px;
+    margin: 0;
     -webkit-appearance: none;
     appearance: none;
+    background: transparent;
+    outline: none;
+    cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
     background: rgba(255, 255, 255, 0.12);
     border-radius: 3px;
-    outline: none;
+}
+
+input[type="range"]::-moz-range-track {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 3px;
 }
 
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 17px;
-    height: 17px;
+    width: 20px;
+    height: 20px;
+    margin-top: -7px;
     border-radius: 50%;
     background: #00aaff;
     cursor: pointer;
     box-shadow: 0 0 8px rgba(0, 170, 255, 0.4);
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border: 0;
+    border-radius: 50%;
+    background: #00aaff;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(0, 170, 255, 0.4);
+}
+
+input[type="range"]:hover::-webkit-slider-thumb,
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px rgba(0, 170, 255, 0.25), 0 0 8px rgba(0, 170, 255, 0.5);
 }
 
 .toggle-grid {
@@ -1068,53 +1104,6 @@ input[type="range"]::-webkit-slider-thumb {
 #config-share-status[data-tone="success"],
 #profile-transfer-status[data-tone="success"] {
     color: #9ff2c7;
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-content {
-    background: linear-gradient(170deg, rgba(246, 251, 255, 0.95), rgba(225, 236, 250, 0.92));
-    border-color: rgba(90, 130, 180, 0.35);
-    color: #1f2e45;
-}
-
-#main-menu[data-menu-local-theme="hell"] .subtitle,
-#main-menu[data-menu-local-theme="hell"] .menu-context,
-#main-menu[data-menu-local-theme="hell"] .menu-hint,
-#main-menu[data-menu-local-theme="hell"] .menu-field-hint,
-#main-menu[data-menu-local-theme="hell"] .section-title,
-#main-menu[data-menu-local-theme="hell"] .setup-chip-label {
-    color: #405c84;
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-field-hint {
-    border-left-color: rgba(69, 109, 159, 0.35);
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-field-hint.is-error {
-    border-left-color: rgba(209, 84, 84, 0.7);
-    color: #9f2e2e;
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-field-hint.is-lock {
-    border-left-color: rgba(164, 121, 26, 0.7);
-    color: #765618;
-}
-
-#main-menu[data-menu-local-theme="hell"] .nav-btn,
-#main-menu[data-menu-local-theme="hell"] .mode-btn,
-#main-menu[data-menu-local-theme="hell"] .secondary-btn,
-#main-menu[data-menu-local-theme="hell"] select,
-#main-menu[data-menu-local-theme="hell"] input[type="text"],
-#main-menu[data-menu-local-theme="hell"] textarea {
-    background: rgba(255, 255, 255, 0.72);
-    border-color: rgba(114, 145, 188, 0.35);
-    color: #233b5c;
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-summary,
-#main-menu[data-menu-local-theme="hell"] .menu-preview {
-    background: rgba(255, 255, 255, 0.78);
-    border-color: rgba(114, 145, 188, 0.35);
-    color: #233b5c;
 }
 
 /* ============================================
@@ -1370,10 +1359,38 @@ input[type="range"]::-webkit-slider-thumb {
     margin-top: 12px;
 }
 
+.expert-tuning-card {
+    max-width: 520px;
+}
+
+.expert-tuning-subtitle {
+    margin: 14px 0 4px;
+    font-size: 0.9rem;
+    color: #88bbff;
+}
+
 .preset-chip-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 8px;
+}
+
+/* A preset chip shows its name and, below it, what applying it changes. */
+.preset-chip-grid button {
+    display: grid;
+    gap: 3px;
+    text-align: left;
+}
+
+.preset-chip-name {
+    font-weight: 600;
+}
+
+.preset-chip-summary {
+    font-size: 0.8rem;
+    font-weight: 400;
+    opacity: 0.78;
+    white-space: normal;
 }
 
 .menu-preview-card {
@@ -1495,11 +1512,17 @@ input[type="range"]::-webkit-slider-thumb {
     transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
+/* An inner edge marks the active tab; a sideways shift made the tab column scroll. */
 .level4-section-tab[aria-selected="true"] {
     background: linear-gradient(135deg, rgba(0, 170, 255, 0.2), rgba(0, 120, 255, 0.08));
     border-color: rgba(120, 210, 255, 0.45);
     color: #f4fbff;
-    transform: translateX(2px);
+    box-shadow: inset 3px 0 0 rgba(120, 210, 255, 0.75);
+}
+
+/* Tilt and touch tuning only exists in the Mobile Classic app. */
+body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-mobile-controls) {
+    display: none !important;
 }
 
 .level4-section-stack {
@@ -1528,34 +1551,6 @@ input[type="range"]::-webkit-slider-thumb {
 
 .level4-keybind-columns {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-footer,
-#main-menu[data-menu-local-theme="hell"] .build-info,
-#main-menu[data-menu-local-theme="hell"] .menu-accordion,
-#main-menu[data-menu-local-theme="hell"] .level4-section-panel .menu-section,
-#main-menu[data-menu-local-theme="hell"] .start-rail,
-#main-menu[data-menu-local-theme="hell"] .start-summary-block,
-#main-menu[data-menu-local-theme="hell"] .preview-kv,
-#main-menu[data-menu-local-theme="hell"] .level4-section-tab {
-    background: rgba(255, 255, 255, 0.82);
-    color: #1f3454;
-}
-
-#main-menu[data-menu-local-theme="hell"] .nav-btn-meta,
-#main-menu[data-menu-local-theme="hell"] .menu-choice-copy,
-#main-menu[data-menu-local-theme="hell"] .menu-accordion-copy,
-#main-menu[data-menu-local-theme="hell"] .start-summary-label,
-#main-menu[data-menu-local-theme="hell"] .preview-kv-label {
-    color: #4f6f9a;
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-summary-value,
-#main-menu[data-menu-local-theme="hell"] .preview-kv-value,
-#main-menu[data-menu-local-theme="hell"] .preview-card-title,
-#main-menu[data-menu-local-theme="hell"] .menu-choice-title,
-#main-menu[data-menu-local-theme="hell"] .menu-context {
-    color: #193252;
 }
 
 @media (max-width: 980px) {
@@ -3061,65 +3056,41 @@ input[type="range"]::-webkit-slider-thumb {
     text-align: center;
 }
 
-#pause-settings {
-    margin-top: 24px;
-    min-width: 260px;
-    max-height: 70vh;
-    overflow-y: auto;
-    padding: 16px 20px;
-    border-radius: 14px;
-    background: rgba(15, 15, 30, 0.7);
-    border: 1px solid rgba(110, 180, 255, 0.2);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+/* Pause settings: the menu root only carries its settings drawer over the paused match. */
+#main-menu[data-pause-settings="true"] {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    justify-content: flex-end;
+    padding: 0;
+    background: none;
+    animation: none;
 }
 
-.pause-settings-title {
-    font-family: var(--menu-theme-display-font);
-    font-size: 1rem;
-    font-weight: 700;
-    color: #88bbff;
-    margin: 0 0 4px;
-    text-align: center;
+#main-menu[data-pause-settings="true"] .menu-content {
+    width: min(560px, 100%);
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none !important;
+    box-shadow: none;
+    backdrop-filter: none;
 }
 
-.pause-toggle {
-    color: rgba(208, 226, 255, 0.9);
-    font-size: 0.95rem;
+/* The pause title and buttons stay readable in the space left of the drawer. */
+#hud.pause-settings-open #pause-overlay {
+    padding-right: min(560px, 100%);
 }
 
-#pause-settings .secondary-btn {
-    margin-top: 6px;
-    width: 100%;
-    text-align: center;
+#main-menu[data-pause-settings="true"] :is(.menu-shell, .submenu-panel) {
+    display: none !important;
 }
 
-.pause-keybinds-section {
-    margin-top: 10px;
-    width: 100%;
-}
-
-.pause-settings-subtitle {
-    font-family: var(--menu-theme-display-font);
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #88bbff;
-    margin: 0 0 8px;
-    text-align: center;
-}
-
-.pause-keybind-columns {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-}
-
-.pause-keybind-header {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: rgba(208, 226, 255, 0.7);
-    margin: 0 0 6px;
+#main-menu[data-pause-settings="true"] .level4-section-tab:not([data-level4-section-target="controls"]):not([data-level4-section-target="audio"]):not([data-level4-section-target="graphics"]):not([data-level4-section-target="hud"]) {
+    display: none !important;
 }
 
 #status-toast {
@@ -4687,15 +4658,34 @@ input[type="range"]::-webkit-slider-thumb {
     font-size: 0.92rem;
 }
 
-.arcade-surface-cta {
-    display: flex;
-    justify-content: flex-end;
+/* "Lauf starten": one row per way to start, button on the left, its sentence beside it. */
+.arcade-start-group,
+.arcade-stats-block {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 190, 90, 0.3);
+    background: rgba(24, 18, 10, 0.55);
 }
 
-.arcade-surface-cta .start-btn {
-    width: auto;
-    min-width: 220px;
+.arcade-start-option {
+    display: grid;
+    grid-template-columns: minmax(200px, 240px) 1fr;
+    gap: 12px;
+    align-items: center;
+}
+
+.arcade-start-option .start-btn {
+    width: 100%;
     margin-top: 0;
+}
+
+.arcade-start-option-copy {
+    margin: 0;
+    color: #f5e1c5;
+    font-size: 0.82rem;
+    line-height: 1.35;
 }
 
 .arcade-vehicle-manager {
@@ -5423,7 +5413,41 @@ input[type="range"]::-webkit-slider-thumb {
     font-size: 0.85rem;
     font-weight: 800;
     line-height: 1;
-    cursor: help;
+    cursor: pointer;
+}
+
+.menu-info-hint[aria-expanded="true"] {
+    border-color: #72dcf4;
+    color: #ffffff;
+}
+
+/* The note opens in place next to its "i"; the parent anchors it. */
+:has(> .menu-info-note:not([hidden])) {
+    position: relative;
+}
+
+.menu-info-note {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 40;
+    max-width: min(340px, 80vw);
+    padding: 8px 10px;
+    border: 1px solid rgba(145, 205, 255, 0.5);
+    border-radius: 8px;
+    background: rgba(8, 20, 38, 0.97);
+    color: #dde8ff;
+    font-family: var(--menu-theme-ui-font);
+    font-size: 0.82rem;
+    font-weight: 400;
+    letter-spacing: normal;
+    line-height: 1.45;
+    text-transform: none;
+    white-space: normal;
+}
+
+.menu-info-note[hidden] {
+    display: none;
 }
 
 .section-title-with-info {
@@ -5716,6 +5740,26 @@ input[type="range"]::-webkit-slider-thumb {
     text-align: right;
 }
 
+.level4-section-panel .menu-section[inert] {
+    opacity: 0.55;
+}
+
+.lobby-guest-lock-hint {
+    margin: 0 0 8px;
+}
+
+.hangar-stat-section-title {
+    margin: 10px 0 2px;
+    color: #8fc9ff;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.hangar-stat-section-title:first-child {
+    margin-top: 0;
+}
+
 .hangar-stat-comparisons {
     display: grid;
     grid-column: 1 / -1;
@@ -5995,66 +6039,14 @@ input[type="range"]::-webkit-slider-thumb {
     }
 }
 
-#main-menu[data-menu-local-theme="hell"] .arcade-inline-surface {
-    background: linear-gradient(165deg, rgba(255, 245, 225, 0.94), rgba(248, 236, 210, 0.9));
-    border-color: rgba(194, 136, 42, 0.34);
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-surface-card {
-    background: linear-gradient(180deg, rgba(255, 248, 232, 0.96), rgba(252, 241, 216, 0.92));
-    border-color: rgba(194, 136, 42, 0.3);
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-surface-card-title {
-    color: #8a5b12;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-surface-card-value,
-#main-menu[data-menu-local-theme="hell"] .arcade-hud-metric-value {
-    color: #5b4022;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-hud-metric-label {
-    color: #8f6a3d;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-panel {
-    background: rgba(255, 246, 224, 0.65);
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-card {
-    background: rgba(255, 248, 233, 0.92);
-    color: #5f4420;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-card-meta,
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-detail-meta,
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-slot-label,
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-slot-tier {
-    color: #7a5a2f;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-detail-title {
-    color: #6c4814;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-search {
-    background: rgba(255, 253, 246, 0.9);
-    color: #5a4020;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-preview-stage {
-    background: radial-gradient(circle at 50% 25%, rgba(236, 226, 197, 0.95), rgba(231, 216, 181, 0.9));
-}
-
 @media (max-width: 560px) {
     .arcade-surface-grid {
         grid-template-columns: 1fr;
     }
 
-    .arcade-surface-cta .start-btn {
-        width: 100%;
-        min-width: 0;
+    .arcade-start-option {
+        grid-template-columns: 1fr;
+        gap: 4px;
     }
 }
 
@@ -6309,15 +6301,6 @@ input[type="range"]::-webkit-slider-thumb {
 .level4-section-stack {
     height: 100%;
     max-height: none;
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-primary-start-summary {
-    color: rgba(255, 255, 255, 0.88);
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-breadcrumb,
-#main-menu[data-menu-local-theme="hell"] #submenu-custom .menu-choice-copy {
-    color: #4f6f9a;
 }
 
 @media (max-width: 980px) {
@@ -6633,21 +6616,6 @@ input[type="range"]::-webkit-slider-thumb {
     color: #f4fbff;
 }
 
-#main-menu[data-menu-local-theme="hell"] .start-vehicle-details {
-    background: rgba(255, 255, 255, 0.84);
-    color: #20344f;
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-vehicle-title,
-#main-menu[data-menu-local-theme="hell"] .start-vehicle-choice.active {
-    color: #183450;
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-vehicle-description,
-#main-menu[data-menu-local-theme="hell"] .start-vehicle-stat {
-    color: #526b85;
-}
-
 @media (max-width: 940px) {
     .start-vehicle-picker {
         grid-template-columns: 1fr;
@@ -6892,19 +6860,6 @@ input[type="range"]::-webkit-slider-thumb {
     text-align: left;
 }
 
-#main-menu[data-menu-local-theme="hell"] .start-map-details {
-    background: rgba(255, 255, 255, 0.84);
-    color: #20344f;
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-map-choice.active {
-    color: #183450;
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-map-choice-group-label {
-    color: rgba(32, 52, 79, 0.68);
-}
-
 @media (max-width: 940px) {
     .start-map-picker {
         grid-template-columns: 1fr;
@@ -7110,10 +7065,6 @@ input[type="range"]::-webkit-slider-thumb {
     border-color: rgba(255, 105, 125, 0.8);
     background: linear-gradient(135deg, rgba(173, 42, 66, 0.86), rgba(112, 26, 45, 0.92));
     box-shadow: 0 0 0 2px rgba(255, 87, 116, 0.15);
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-inline-advanced {
-    background: rgba(236, 244, 251, 0.8);
 }
 
 @media (max-width: 700px) {
@@ -7420,20 +7371,6 @@ input[type="range"]::-webkit-slider-thumb {
 
     #submenu-game .level3-body > #multiplayer-inline-stub > .menu-accordion-body {
         padding: 0 13px 13px;
-    }
-
-    #main-menu[data-menu-local-theme="hell"] .start-step-rail,
-    #main-menu[data-menu-local-theme="hell"] #submenu-game .level3-body > .start-section-card:not(#multiplayer-inline-stub) {
-        background: rgba(246, 250, 255, 0.9);
-        color: #1f3454;
-    }
-
-    #main-menu[data-menu-local-theme="hell"] .start-step-tab {
-        color: #294764;
-    }
-
-    #main-menu[data-menu-local-theme="hell"] .start-step-tab small {
-        color: #627d99;
     }
 }
 
@@ -8083,9 +8020,6 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     background: #101c2e;
     width: min(900px, 100%);
 }
-#main-menu[data-menu-local-theme="hell"] .level4-drawer {
-    background: #edf3fa;
-}
 .level4-header {
     align-items: flex-start;
     gap: 12px;
@@ -8103,9 +8037,6 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     font-size: 0.8rem;
     line-height: 1.5;
     color: #b8c8df;
-}
-#main-menu[data-menu-local-theme="hell"] .menu-reset-scope {
-    color: #364862;
 }
 .level4-section-nav {
     overflow-y: auto;
@@ -8139,10 +8070,43 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     margin-bottom: 10px;
     font-size: 0.8rem;
 }
-#multiplayer-open-lobbies-controls .btn-group {
+#multiplayer-open-lobbies-controls .mp-lobby-search-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    margin-bottom: 8px;
 }
+#multiplayer-open-lobbies-controls .mp-lobby-search-row .secondary-btn { width: auto; margin: 0; }
+.mp-lobby-table {
+    max-height: min(260px, 36vh);
+    overflow-y: auto;
+    border: 1px solid var(--lobby-line, rgba(114, 220, 244, 0.35));
+    border-radius: 10px;
+    padding: 4px;
+}
+.mp-lobby-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "host state join" "details details join";
+    gap: 2px 10px;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.mp-lobby-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-lobby-hostName { grid-area: host; font-weight: 600; }
+.mp-lobby-stateLabel { grid-area: state; font-size: 0.8rem; color: #56e595; }
+.mp-lobby-details { grid-area: details; font-size: 0.8rem; opacity: 0.75; }
+.mp-lobby-row .mp-lobby-join { grid-area: join; }
+.mp-lobby-row.is-full .mp-lobby-stateLabel, .mp-lobby-row.is-running .mp-lobby-stateLabel { color: #ffb561; }
+.mp-lobby-row.is-unreachable .mp-lobby-stateLabel { color: #8190aa; }
+.mp-lobby-row[role="option"]:hover { background: rgba(114, 220, 244, 0.08); }
+.mp-lobby-row[aria-selected="true"] { background: rgba(24, 181, 230, 0.18); outline: 1px solid #18b5e6; }
+.mp-lobby-row[role="option"]:focus-visible { outline: 2px solid #72dcf4; outline-offset: 1px; }
+.mp-lobby-row.is-unreachable, .mp-lobby-row.is-running, .mp-lobby-row.is-full { opacity: 0.55; }
+.mp-lobby-row .mp-lobby-join { width: auto; min-height: 32px; margin: 0; padding: 4px 10px; }
+.mp-lobby-empty { margin: 8px; font-size: 0.85rem; line-height: 1.5; }
 @media (min-width: 1180px) {
     #submenu-game .level3-body {
         grid-template-columns: 180px minmax(0, 1fr) 270px;

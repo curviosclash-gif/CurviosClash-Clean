@@ -88,6 +88,10 @@ export class NetworkLobbyTransportSession {
         return this._lobby.setReady(ready);
     }
 
+    setLobbyName(lobbyName) {
+        return this._lobby.setLobbyName?.(lobbyName);
+    }
+
     invalidateReadyForAll() {
         return this._lobby.invalidateReadyForAll();
     }

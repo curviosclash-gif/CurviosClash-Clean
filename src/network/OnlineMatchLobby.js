@@ -322,7 +322,7 @@ export class OnlineMatchLobby extends MatchLobby {
                     const msg = this._parseSocketMessage(event.data);
                     this._handleMessage(msg, connectResolve, connectReject, connectState);
                 } catch (error) {
-                    const payload = toErrorPayload(error, 'Online-Signaling hat eine ungültige Nachricht geliefert.');
+                    const payload = toErrorPayload(error, 'Der Online-Server hat eine ungültige Nachricht geschickt.');
                     this._emit('error', payload);
                     if (!connectState.settled) {
                         connectReject(error);
@@ -347,7 +347,7 @@ export class OnlineMatchLobby extends MatchLobby {
                     const msg = this._parseSocketMessage(event.data);
                     this._handleMessage(msg, connectResolve, connectReject, connectState);
                 } catch (error) {
-                    const payload = toErrorPayload(error, 'Online-Signaling hat eine ungültige Nachricht geliefert.');
+                    const payload = toErrorPayload(error, 'Der Online-Server hat eine ungültige Nachricht geschickt.');
                     this._emit('error', payload);
                     if (!connectState.settled) {
                         connectReject(error);
@@ -384,7 +384,7 @@ export class OnlineMatchLobby extends MatchLobby {
                     const msg = this._parseSocketMessage(event.data);
                     this._handleMessage(msg, connectResolve, connectReject, connectState);
                 } catch (error) {
-                    const payload = toErrorPayload(error, 'Online-Signaling hat eine ungültige Nachricht geliefert.');
+                    const payload = toErrorPayload(error, 'Der Online-Server hat eine ungültige Nachricht geschickt.');
                     this._emit('error', payload);
                     if (!connectState.settled) {
                         connectReject(error);
@@ -467,7 +467,7 @@ export class OnlineMatchLobby extends MatchLobby {
         const expectedReady = ready === true;
         const localPeerId = String(this._playerId || '').trim();
         if (!localPeerId) {
-            throw createLobbyUsageError('not_in_lobby', 'Ready-Status kann ohne aktive Lobby nicht gesetzt werden.');
+            throw createLobbyUsageError('not_in_lobby', 'Bereitschaft geht nur in einer aktiven Lobby.');
         }
         return this._sendMutationWithAck({
             commandType: SIGNALING_COMMAND_TYPES.READY,
@@ -487,7 +487,7 @@ export class OnlineMatchLobby extends MatchLobby {
 
     async invalidateReadyForAll() {
         if (this.isHost !== true) {
-            throw createLobbyUsageError('host_required', 'Nur der Host darf Ready für alle invalidieren.');
+            throw createLobbyUsageError('host_required', 'Nur der Host darf die Bereitschaft aller zurücksetzen.');
         }
         const hasAnyClientReady = this.sessionState.members.some((member) => (
             member?.isHost !== true && member?.ready === true

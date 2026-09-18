@@ -3,6 +3,7 @@ import test from 'node:test';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
 import { createLANSignalingServer } from '../server/lan-signaling.js';
+import { closeLanTestServer } from './lan-server-teardown.mjs';
 import { createSignalingServer } from '../server/signaling-server.js';
 import { LANMatchLobby } from '../src/network/LANMatchLobby.js';
 import { OnlineMatchLobby } from '../src/network/OnlineMatchLobby.js';
@@ -67,7 +68,7 @@ test('LAN publishes summary and readiness atomically, rejects stale Ready/Start,
         await assert.rejects(host.updateSettings({ metadata: createPublicLobbyMetadata(settings()) }), (error) => error.code === 'match_start_pending');
     } finally {
         client.dispose(); host.dispose();
-        await new Promise((resolve) => server.close(resolve));
+        await closeLanTestServer(server);
     }
 });
 

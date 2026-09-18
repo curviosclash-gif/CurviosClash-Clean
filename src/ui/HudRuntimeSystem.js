@@ -3,6 +3,7 @@
 // ============================================
 
 import { ArcadeMissionHUD } from './arcade/ArcadeMissionHUD.js';
+import { resolveLocalHudTile } from './LocalHudPlayers.js';
 import { ArcadeScoreHUD } from './arcade/ArcadeScoreHUD.js';
 import { ParcoursOverlayController } from './arcade/ParcoursOverlayController.js';
 import { updateActiveEffectBar, updateItemBar, updateRocketBar } from './ItemBarPresenter.js';
@@ -128,6 +129,10 @@ export class HudRuntimeSystem {
                 this._updateItemBar(game.ui.p1Items, localPlayer, runtimeProjection, 0);
                 updateTraversalStatus(game.ui.p1TraversalStatus, localPlayer);
             }
+            // The top-left tile shows the own player, counted like the scoreboard.
+            const tile = resolveLocalHudTile(runtimeProjection);
+            if (tile && game.ui.p1Name && game.ui.p1Name.textContent !== tile.name) game.ui.p1Name.textContent = tile.name;
+            if (tile && game.ui.p1Score && game.ui.p1Score.textContent !== tile.score) game.ui.p1Score.textContent = tile.score;
             return;
         }
 

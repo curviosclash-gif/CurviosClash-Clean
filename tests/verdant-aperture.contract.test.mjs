@@ -15,6 +15,7 @@ import { normalizeMapAnimationClock } from '../src/shared/contracts/MapAnimation
 
 const map = VERDANT_APERTURE_MAP.verdant_aperture;
 const SETPIECE_PREFIX = 'assets/maps/verdant_aperture/glb/';
+const WILDWUCHS_PREFIX = 'assets/models/verdant_wildwuchs/';
 const BEAT_SECONDS = 6;
 const DECK_CELL = 30;
 const DECK_CELLS_PER_AXIS = 10;
@@ -83,6 +84,40 @@ test('every setpiece states a clip name and a phase on the shared map beat', () 
 
     for (const model of map.glbModels) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local GLB`);
+    }
+});
+
+test('Verdant Wildwuchs stays on level edges and clear of spawns and moving joins', () => {
+    const decorations = map.glbModels.filter((model) => model.url.startsWith(WILDWUCHS_PREFIX));
+    assert.equal(decorations.length, 9);
+    for (const family of ['root', 'fern', 'vine']) {
+        const variants = decorations.filter((model) => model.url.endsWith(`/${family}_v01.glb`)
+            || model.url.endsWith(`/${family}_v02.glb`) || model.url.endsWith(`/${family}_v03.glb`));
+        assert.equal(variants.length, 3, `${family} has three distinct variants`);
+        assert.deepEqual(variants.map((model) => model.position[1]),
+            Array(3).fill({ root: 8, fern: 58, vine: 116 }[family]));
+    }
+    const tree = map.glbModels.filter((model) => model.url.includes('/ancient_tree/'));
+    assert.equal(tree.length, 1, 'one existing tree variant is the only hero');
+
+    const anchors = [map.playerSpawn, ...map.botSpawns,
+        ...map.portals.flatMap((portal) => [portal.a, portal.b].map(([x, y, z]) => ({ x, y, z })))];
+    const joins = setpieces().filter((model) => model.position[1] === ROOT_DECK_Y
+        || model.position[1] === CROWN_DECK_Y);
+    for (const model of decorations) {
+        assert.equal(model.animationClock, undefined, `${model.id} adds no loop`);
+        assert.ok(existsSync(path.resolve(model.url)), `${model.id} has a runtime asset`);
+        assert.ok(Math.abs(model.position[0]) >= 75 || Math.abs(model.position[2]) >= 105,
+            `${model.id} leaves the central flight lanes open`);
+        for (const anchor of anchors) {
+            if (Math.abs(anchor.y - model.position[1]) > 25) continue;
+            assert.ok(Math.hypot(anchor.x - model.position[0], anchor.z - model.position[2]) > model.targetSize / 2 + 12,
+                `${model.id} stays away from a spawn or portal`);
+        }
+        for (const join of joins) {
+            assert.ok(Math.hypot(join.position[0] - model.position[0], join.position[2] - model.position[2])
+                > model.targetSize / 2 + 25, `${model.id} stays away from a moving join`);
+        }
     }
 });
 

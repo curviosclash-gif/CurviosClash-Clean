@@ -52,6 +52,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
             isRespawnPending: (player) => owner._respawnSystem?.isRespawnPending?.(player) === true,
             isOutcomeAuthority: () => owner.isFightOutcomeAuthority !== false,
             getDeathmatchKillLimit: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,
+            getWinCondition: () => owner.entityRuntimeConfig?.HUNT?.WIN_CONDITION,
             getDeathmatchTimeLimitSeconds: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_TIME_LIMIT_SECONDS || 0,
             getElapsedSeconds: () => Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
             getObjectiveOutcome: () => isFivePortalsConfig(owner.runtimeConfig)

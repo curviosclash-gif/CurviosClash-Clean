@@ -105,7 +105,7 @@ export class ProfileManager {
 
         const persisted = this.store.saveProfiles(this.profiles);
         if (!isPersistenceSuccess(persisted)) {
-            return { success: false, error: 'Profil konnte nicht gespeichert werden (Speicher voll?)' };
+            return { success: false, error: 'Einstellungen konnten nicht gespeichert werden (Speicher voll?)' };
         }
 
         return { success: true, isUpdate, name };
@@ -147,7 +147,7 @@ export class ProfileManager {
 
         const persisted = this.store.saveProfiles(this.profiles);
         if (!isPersistenceSuccess(persisted)) {
-            return { success: false, error: 'Profil konnte nicht dupliziert werden' };
+            return { success: false, error: 'Einstellungen konnten nicht dupliziert werden' };
         }
 
         return { success: true, name: duplicateName, sourceName: sourceProfile.name };
@@ -157,7 +157,7 @@ export class ProfileManager {
         const name = this.normalizeProfileName(profileName);
         const profile = this.findProfileByName(name);
         if (!profile) {
-            return { success: false, error: 'Profil nicht gefunden' };
+            return { success: false, error: 'Gespeicherte Einstellungen nicht gefunden' };
         }
 
         this.activeProfileName = profile.name;
@@ -171,7 +171,7 @@ export class ProfileManager {
         const name = this.normalizeProfileName(profileName);
         const profile = this.findProfileByName(name);
         if (!profile) {
-            return { success: false, error: 'Profil nicht gefunden' };
+            return { success: false, error: 'Gespeicherte Einstellungen nicht gefunden' };
         }
 
         return {
@@ -179,7 +179,7 @@ export class ProfileManager {
             name: profile.name,
             serialized: exportProfileAsJson(profile),
             contractVersion: PROFILE_EXPORT_CONTRACT_VERSION,
-            message: `Profil exportiert (${PROFILE_EXPORT_CONTRACT_VERSION}).`,
+            message: `Einstellungen exportiert (${PROFILE_EXPORT_CONTRACT_VERSION}).`,
             tone: 'success',
         };
     }
@@ -224,7 +224,7 @@ export class ProfileManager {
 
         const persisted = this.store.saveProfiles(this.profiles);
         if (!isPersistenceSuccess(persisted)) {
-            return { success: false, error: 'Profil konnte nicht importiert werden' };
+            return { success: false, error: 'Einstellungen konnten nicht importiert werden' };
         }
 
         return {
@@ -238,8 +238,8 @@ export class ProfileManager {
             message: String(
                 parsed.message
                 || (parsed.usedLegacyFallback
-                    ? 'Legacy-Profil importiert und auf den aktuellen Vertragsstand normalisiert.'
-                    : 'Profil importiert.')
+                    ? 'Ältere Einstellungen importiert und auf den aktuellen Stand gebracht.'
+                    : 'Einstellungen importiert.')
             ),
             tone: String(parsed.tone || (parsed.usedLegacyFallback ? 'warning' : 'success')),
             migration: parsed.migration && typeof parsed.migration === 'object'
@@ -252,7 +252,7 @@ export class ProfileManager {
         const name = this.normalizeProfileName(profileName);
         const result = setDefaultProfileByName(this.profiles, name, this.getProfileDataOps());
         if (!result.success) {
-            return { success: false, error: 'Profil nicht gefunden' };
+            return { success: false, error: 'Gespeicherte Einstellungen nicht gefunden' };
         }
 
         this.profiles = result.profiles;
@@ -273,7 +273,7 @@ export class ProfileManager {
         const name = this.normalizeProfileName(profileName);
         const index = this.findProfileIndexByName(name);
         if (index < 0) {
-            return { success: false, error: 'Profil nicht gefunden' };
+            return { success: false, error: 'Gespeicherte Einstellungen nicht gefunden' };
         }
 
         const removeResult = removeProfileByName(this.profiles, name, this.getProfileDataOps());
@@ -283,7 +283,7 @@ export class ProfileManager {
 
         const persisted = this.store.saveProfiles(this.profiles);
         if (!isPersistenceSuccess(persisted)) {
-            return { success: false, error: 'Profil konnte nicht gelöscht werden' };
+            return { success: false, error: 'Einstellungen konnten nicht gelöscht werden' };
         }
 
         return { success: true, removedName };

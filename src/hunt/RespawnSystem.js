@@ -1,9 +1,12 @@
 import { grantShield } from './HealthSystem.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
+import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
+import { HUNT_WIN_CONDITIONS } from '../shared/contracts/HuntWinConditionContract.js';
+import { HUNT_LAST_ALIVE_LIVES } from '../shared/contracts/HuntLivesContract.js';
 
 function getLabel(player) {
     if (!player) return 'Spieler';
-    return player.isBot ? `Bot ${player.index + 1}` : `P${player.index + 1}`;
+    return formatPlayerDisplayLabel(player);
 }
 
 function getRespawnConfig(runtimeContext = null) {
@@ -46,6 +49,7 @@ export class RespawnSystem {
     constructor(runtimeContext) {
         this.runtime = runtimeContext || null;
         this.pendingByPlayer = new Map();
+        this.livesRemainingByPlayer = new Map();
     }
 
     isEnabled() {
@@ -56,6 +60,7 @@ export class RespawnSystem {
 
     reset() {
         this.pendingByPlayer.clear();
+        this.livesRemainingByPlayer.clear();
     }
 
     onPlayerDied(player) {
@@ -64,6 +69,14 @@ export class RespawnSystem {
         const huntRespawnEnabled = strategy?.isRespawnEnabled?.() === true;
         const parcoursPlan = this.runtime?.callbacks?.parcours?.takeRespawnPlan?.(player) || null;
         if (!huntRespawnEnabled && !parcoursPlan) return false;
+        if (!parcoursPlan && resolveEntityRuntimeConfig(this.runtime)?.HUNT?.WIN_CONDITION === HUNT_WIN_CONDITIONS.LAST_ALIVE) {
+            const remaining = Math.max(0, this.getLivesRemainingForPlayer(player) - 1);
+            this.livesRemainingByPlayer.set(player.index, remaining);
+            if (remaining === 0) {
+                this.pendingByPlayer.delete(player.index);
+                return false;
+            }
+        }
         const delaySeconds = Math.max(
             0.1,
             Number(parcoursPlan?.delaySeconds ?? getRespawnConfig(this.runtime)?.DELAY_SECONDS ?? 3) || 3
@@ -81,6 +94,22 @@ export class RespawnSystem {
     isRespawnPending(player) {
         if (!player) return false;
         return this.pendingByPlayer.has(player.index);
+    }
+
+    getLivesRemainingForPlayer(playerOrIndex) {
+        const index = Number.isInteger(playerOrIndex) ? playerOrIndex : playerOrIndex?.index;
+        if (!Number.isInteger(index)) return 0;
+        return this.livesRemainingByPlayer.get(index) ?? HUNT_LAST_ALIVE_LIVES;
+    }
+
+    getLivesRemainingByPlayer(players = []) {
+        if (resolveEntityRuntimeConfig(this.runtime)?.HUNT?.WIN_CONDITION !== HUNT_WIN_CONDITIONS.LAST_ALIVE) return {};
+        const remaining = {};
+        for (const player of players) {
+            if (player?.entitySlotActive === false || !Number.isInteger(player?.index)) continue;
+            remaining[player.index] = this.getLivesRemainingForPlayer(player);
+        }
+        return remaining;
     }
 
     getRemainingByPlayer() {
@@ -117,7 +146,8 @@ export class RespawnSystem {
         const safeDt = Math.max(0, Number(dt) || 0);
         for (const [playerIndex, pending] of this.pendingByPlayer.entries()) {
             const player = pending?.player;
-            if (!player || player.alive) {
+            // An inactive slot (a guest who left the match) must not come back.
+            if (!player || player.alive || player.entitySlotActive === false) {
                 this.pendingByPlayer.delete(playerIndex);
                 continue;
             }

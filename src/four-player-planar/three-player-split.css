@@ -19,8 +19,18 @@
 }
 
 .three-player-split-setup-header {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 1fr;
     align-items: start;
+}
+
+/* .menu-hint sets its own display, which would otherwise override the hidden attribute. */
+.three-player-split-setup [hidden] {
+    display: none !important;
+}
+
+.three-player-split-device-status {
+    margin: 0;
+    color: #ffb561;
 }
 
 .three-player-split-fields {

@@ -73,16 +73,20 @@ export function resolveRuntimeNetworkPlayerSlots({
     const hostPeerId = resolveHostPeerId({ session, lobbyState });
     const entriesByPeerId = new Map();
 
-    const addEntry = (entry) => {
+    const addEntry = (entry, fromLobby = false) => {
         const normalized = normalizeSlotEntry(entry, {
             hostPeerId,
             localPeerId: resolvedLocalPeerId,
         });
         if (!normalized) return;
         const existing = entriesByPeerId.get(normalized.peerId);
+        // Only the lobby knows the name a player chose; session entries carry transport ids.
+        const displayName = existing?.displayName || (fromLobby ? normalizePeerId(entry?.name) : '');
         entriesByPeerId.set(normalized.peerId, {
             ...(existing || {}),
             ...normalized,
+            name: existing?.name || normalized.name,
+            displayName,
             isHost: normalized.isHost || existing?.isHost === true,
             isLocal: normalized.isLocal || existing?.isLocal === true,
             connected: normalized.connected || existing?.connected === true,
@@ -92,7 +96,7 @@ export function resolveRuntimeNetworkPlayerSlots({
     };
 
     for (const member of collectLobbyEntries(lobbyState)) {
-        addEntry(member);
+        addEntry(member, true);
     }
     for (const player of collectSessionEntries(session)) {
         addEntry(player);

@@ -134,7 +134,7 @@ export function resolveOnlineSignalingUrl(primaryValue, fallbackValue = '') {
     } catch (error) {
         throw createOnlineSignalingError(
             'signaling_endpoint_invalid_url',
-            'Die Online-Konfiguration ist ungültig.',
+            'Die Online-Einrichtung ist ungültig.',
             { rawValue },
             error
         );
@@ -220,7 +220,7 @@ export function createServerSignalingError(code, message = '', details = null, c
 export function createInvalidSignalingPayloadError(details = null, cause = null) {
     return createOnlineSignalingError(
         'signaling_payload_invalid',
-        'Online-Signaling hat eine ungültige Nachricht geliefert.',
+        'Der Online-Server hat eine ungültige Nachricht geschickt.',
         details,
         cause
     );

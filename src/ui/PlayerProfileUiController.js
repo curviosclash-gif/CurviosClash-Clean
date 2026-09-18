@@ -1,3 +1,5 @@
+import { PLAYER_PROFILE_MAX_NAME_LENGTH } from '../shared/contracts/PlayerProfileContract.js';
+
 function sanitizeFilePart(value) {
     return String(value || 'spieler')
         .normalize('NFKD')
@@ -6,8 +8,11 @@ function sanitizeFilePart(value) {
         .toLowerCase() || 'spieler';
 }
 
-function reasonMessage(reason) {
+const PROFILE_RELOAD_WATCHDOG_MS = 2000;
+
+export function resolvePlayerProfileReasonMessage(reason) {
     const messages = {
+        invalid_root: 'Die Datei enthält kein Spielerprofil.',
         profile_not_found: 'Spielerprofil nicht gefunden.',
         profile_limit: 'Die maximale Anzahl Spielerprofile ist erreicht.',
         last_profile: 'Das letzte Spielerprofil kann nicht archiviert werden.',
@@ -30,6 +35,9 @@ export class PlayerProfileUiController {
         this.activateProfile = typeof options.activateProfile === 'function' ? options.activateProfile : null;
         this.showStatusToast = typeof options.showStatusToast === 'function' ? options.showStatusToast : () => {};
         this.document = options.document || globalThis.document;
+        this.setTimeout = typeof options.setTimeout === 'function'
+            ? options.setTimeout
+            : (callback, delayMs) => globalThis.setTimeout(callback, delayMs);
         this.cleanups = [];
         this.refs = {};
     }
@@ -56,6 +64,13 @@ export class PlayerProfileUiController {
             target.addEventListener(eventName, handler);
             this.cleanups.push(() => target.removeEventListener(eventName, handler));
         };
+        // The field stops at the limit by itself (maxlength), so say why instead of cutting silently.
+        bind(this.refs.name, 'input', () => {
+            if (!this.refs.status) return;
+            const atLimit = Array.from(String(this.refs.name?.value || '')).length >= PLAYER_PROFILE_MAX_NAME_LENGTH;
+            this.refs.status.textContent = atLimit ? `Namen haben höchstens ${PLAYER_PROFILE_MAX_NAME_LENGTH} Zeichen.` : '';
+            this.refs.status.dataset.tone = 'info';
+        });
         bind(this.refs.select, 'change', () => {
             const selected = this._selected();
             if (selected && this.refs.name) this.refs.name.value = selected.displayName;
@@ -70,12 +85,7 @@ export class PlayerProfileUiController {
             if (typeof globalThis.confirm === 'function' && !globalThis.confirm(`Spielerprofil „${selected.displayName}“ archivieren?`)) return;
             this._handle(this.manager?.archiveProfile?.(selected.id), 'Spielerprofil archiviert.');
         });
-        bind(this.refs.activate, 'click', async () => {
-            const selected = this._selected();
-            if (!selected || !this.activateProfile) return;
-            const result = await this.activateProfile(selected.id);
-            if (!result?.ok) this._setStatus(reasonMessage(result?.reason), 'error');
-        });
+        bind(this.refs.activate, 'click', () => this._activateSelected());
         bind(this.refs.export, 'click', () => this._exportSelected());
         bind(this.refs.import, 'click', () => {
             if (this.refs.transfer?.value?.trim()) this._import(this.refs.transfer.value);
@@ -88,7 +98,23 @@ export class PlayerProfileUiController {
             this.refs.file.value = '';
         });
         this.sync();
-        if (this.manager?.lastError) this._setStatus(reasonMessage(this.manager.lastError), 'error');
+        if (this.manager?.lastError) this._setStatus(resolvePlayerProfileReasonMessage(this.manager.lastError), 'error');
+    }
+
+    async _activateSelected() {
+        const selected = this._selected();
+        if (!selected || !this.activateProfile) return null;
+        const result = await this.activateProfile(selected.id);
+        if (!result?.ok) {
+            this._setStatus(resolvePlayerProfileReasonMessage(result?.reason), 'error');
+            return result;
+        }
+        this.sync(selected.id);
+        // The page reloads right after a switch; if it is still here, the new profile never loaded.
+        this.setTimeout(() => {
+            this._setStatus('Spielerprofil wurde nicht geladen. Bitte die App neu starten.', 'error');
+        }, PROFILE_RELOAD_WATCHDOG_MS);
+        return result;
     }
 
     _selected() {
@@ -98,7 +124,7 @@ export class PlayerProfileUiController {
 
     _handle(result, successMessage) {
         if (!result?.ok) {
-            this._setStatus(reasonMessage(result?.reason), 'error');
+            this._setStatus(resolvePlayerProfileReasonMessage(result?.reason), 'error');
             return result;
         }
         this._setStatus(successMessage, 'success');

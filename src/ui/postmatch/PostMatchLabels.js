@@ -4,6 +4,8 @@
 // need the same three things: a safe number, the name of a player and the reason a round ended.
 // Keeping them here means one wording per concept instead of four copies drifting apart.
 
+import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../../shared/contracts/PlayerDisplayLabelContract.js';
+
 /**
  * @param {unknown} value
  * @returns {unknown[]}
@@ -31,13 +33,12 @@ export function toCount(value) {
 }
 
 /**
- * @param {{ isBot?: boolean, index?: unknown }|null|undefined} player
+ * @param {{ isBot?: boolean, index?: unknown, name?: unknown }|null|undefined} player
  * @returns {string}
  */
 export function formatPlayerName(player) {
     if (!player) return 'Unbekannt';
-    const number = normalizeNumber(player.index, 0) + 1;
-    return player.isBot ? `Bot ${number}` : `Spieler ${number}`;
+    return formatPlayerDisplayLabel({ ...player, index: normalizeNumber(player.index, 0) }, { style: PLAYER_LABEL_STYLES.LONG });
 }
 
 /**
@@ -71,6 +72,8 @@ const OBJECTIVE_LABELS = Object.freeze({
     KILL_LIMIT: 'Abschusslimit erreicht',
     TIME_LIMIT: 'Zeitlimit erreicht',
     OVERTIME: 'Golden Kill',
+    SCORE_TARGET: 'Punktziel erreicht',
+    LAST_ALIVE: 'Letzter Überlebender',
 });
 
 /**

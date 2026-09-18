@@ -377,9 +377,9 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
     applyBotLightningInput(input, player, runtimeContext);
     applyBotRailgunInput(policy, input, player, runtimeContext);
 
-    const retreatRequested = enemy && !finisherOpportunity
+    const retreatRequested = enemy && (player.autopilotActive === true || (!finisherOpportunity
         && (vitalityRatio <= policy.profile.retreatVitality
-            || (vitalityRatio < 0.52 && survivalPressure > policy.profile.retreatPressure));
+            || (vitalityRatio < 0.52 && survivalPressure > policy.profile.retreatPressure))));
     const pickupTarget = !retreatRequested && survivalPressure < 0.82
         ? findPreferredPickupTarget(player, runtimeContext, { pressure: survivalPressure, maxDistance: 75 })
         : null;
@@ -390,6 +390,8 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         && policy._huntState.openingTimer > 0;
     const requestedMovementIntent = trafficThreat
         ? 'traffic-avoid'
+        : player.autopilotActive === true && retreatRequested
+        ? 'retreat'
         : openingHook
         ? 'opening-hook'
         : openingFanout
@@ -427,7 +429,8 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         intent = movementIntent;
     } else if (enemy && movementIntent === 'retreat') {
         intent = 'retreat';
-        retreatReason = vitalityRatio <= policy.profile.retreatVitality ? 'low-vitality' : 'pressure';
+        retreatReason = player.autopilotActive === true ? 'guided-rocket'
+            : vitalityRatio <= policy.profile.retreatVitality ? 'low-vitality' : 'pressure';
         const huntConfig = resolveGameplayConfig(player).HUNT;
         const gateAssistRange = Math.max(24, Number(huntConfig?.RETREAT_GATE_RANGE || 54));
         const specialGates = Array.isArray(runtimeContext?.arena?.specialGates) ? runtimeContext.arena.specialGates : [];

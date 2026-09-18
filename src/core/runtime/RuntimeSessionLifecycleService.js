@@ -15,6 +15,10 @@ import {
     detachMultiplayerLifecycleKernel,
 } from './MultiplayerMatchLifecycleKernel.js';
 import {
+    attachNetworkPlayerDepartureHandler,
+    detachNetworkPlayerDepartureHandler,
+} from './NetworkPlayerDepartureOps.js';
+import {
     applyRuntimeNetworkPlayerSlotContext,
     resolveRuntimeNetworkPlayerSlotContext,
 } from './RuntimeNetworkPlayerSlots.js';
@@ -127,6 +131,7 @@ export async function initRuntimeSession(facade) {
     if (facade.session.isHost && sessionContract.isNetworkSession) {
         startRuntimeStateBroadcast(facade);
         setupRuntimeHostFullStateSyncHandler(facade);
+        facade._playerDepartureHandlers = attachNetworkPlayerDepartureHandler(facade);
     }
 
     if (!facade.session.isHost && sessionContract.isNetworkSession) {
@@ -485,8 +490,12 @@ export function teardownRuntimeSession(facade) {
     if (facade?._lifecycleKernelHandlers && facade.session) {
         detachMultiplayerLifecycleKernel(facade.session, facade._lifecycleKernelHandlers);
     }
+    if (facade?._playerDepartureHandlers && facade.session) {
+        detachNetworkPlayerDepartureHandler(facade.session, facade._playerDepartureHandlers);
+    }
     if (facade) {
         facade._lifecycleKernelHandlers = null;
+        facade._playerDepartureHandlers = null;
     }
     facade?._arenaLoadedPeers?.clear?.();
     if (Array.isArray(facade?._pendingStateUpdates)) {

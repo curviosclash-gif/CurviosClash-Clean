@@ -75,43 +75,15 @@ export class PauseOverlayController {
                         this._showSettings();
                     }
                 },
-                onPauseSettingsBackClick: () => {
-                    if (this._isPauseActive()) {
-                        this._hideSettings();
-                    }
-                },
                 onPauseMenuClick: () => {
                     this.returnToMenuFromPause();
-                },
-                onPauseKeybindP1Click: (event) => this._handleKeybindClick(event, 'PLAYER_1'),
-                onPauseKeybindP2Click: (event) => this._handleKeybindClick(event, 'PLAYER_2'),
-                onAutoRollChange: () => {
-                    if (!this._isPauseActive()) return;
-                    const checked = !!game.ui.pauseAutoRollToggle?.checked;
-                    this.runtimePort?.applyAutoRoll?.(checked);
-                },
-                onInvertP1Change: () => {
-                    if (!this._isPauseActive()) return;
-                    const checked = !!game.ui.pauseInvertP1?.checked;
-                    this._applyInvertPitch(0, 'PLAYER_1', checked);
-                },
-                onInvertP2Change: () => {
-                    if (!this._isPauseActive()) return;
-                    const checked = !!game.ui.pauseInvertP2?.checked;
-                    this._applyInvertPitch(1, 'PLAYER_2', checked);
                 },
             };
         }
 
         this._addManagedListener(game.ui.pauseResumeButton, 'click', this._boundHandlers.onPauseResumeClick);
         this._addManagedListener(game.ui.pauseSettingsButton, 'click', this._boundHandlers.onPauseSettingsClick);
-        this._addManagedListener(game.ui.pauseSettingsBackButton, 'click', this._boundHandlers.onPauseSettingsBackClick);
         this._addManagedListener(game.ui.pauseMenuButton, 'click', this._boundHandlers.onPauseMenuClick);
-        this._addManagedListener(game.ui.pauseKeybindP1, 'click', this._boundHandlers.onPauseKeybindP1Click);
-        this._addManagedListener(game.ui.pauseKeybindP2, 'click', this._boundHandlers.onPauseKeybindP2Click);
-        this._addManagedListener(game.ui.pauseAutoRollToggle, 'change', this._boundHandlers.onAutoRollChange);
-        this._addManagedListener(game.ui.pauseInvertP1, 'change', this._boundHandlers.onInvertP1Change);
-        this._addManagedListener(game.ui.pauseInvertP2, 'change', this._boundHandlers.onInvertP2Change);
     }
 
     pause() {
@@ -212,62 +184,14 @@ export class PauseOverlayController {
         }
     }
 
-    _handleKeybindClick(event, playerKey) {
-        if (!this._isPauseActive()) return;
-        const button = event?.target?.closest?.('button.keybind-btn');
-        if (!button) return;
-        this.runtimePort?.startKeyCapture?.(playerKey, button.dataset.action);
-    }
-
-    _applyInvertPitch(playerIndex, playerKey, checked) {
-        const game = this.game;
-        if (this.runtimePort?.dispatchAction) {
-            this.runtimePort.dispatchAction({
-                type: 'settings.invertPitch',
-                payload: { playerIndex, playerKey, value: checked },
-            });
-        } else {
-            game.settings.invertPitch[playerKey] = checked;
-            const players = game.entityManager?.players;
-            if (players) {
-                const human = players.find((player) => !player.isBot && player.index === playerIndex);
-                human?.setControlOptions?.({ invertPitch: checked });
-            }
-        }
-    }
-
-    _syncSettingsToggles() {
-        const game = this.game;
-        if (game.ui.pauseAutoRollToggle) {
-            game.ui.pauseAutoRollToggle.checked = !!game.settings.autoRoll;
-        }
-        if (game.ui.pauseInvertP1) {
-            game.ui.pauseInvertP1.checked = !!game.settings.invertPitch?.PLAYER_1;
-        }
-        if (game.ui.pauseInvertP2) {
-            game.ui.pauseInvertP2.checked = !!game.settings.invertPitch?.PLAYER_2;
-        }
-    }
-
+    // The pause opens the menu's own settings window, limited to the tabs that fit mid-match.
     _showSettings() {
-        const game = this.game;
-        this._syncSettingsToggles();
-        game.keybindEditorController?.renderPauseEditor?.();
-        if (game.ui.pauseSettingsPanel) {
-            game.ui.pauseSettingsPanel.classList.remove('hidden');
-        }
-        game.ui.hud?.classList.add('pause-settings-open');
-        if (game.ui.pauseSettingsButton) {
-            game.ui.pauseSettingsButton.classList.add('hidden');
-        }
+        return this.game?.uiManager?.openPauseSettings?.() === true;
     }
 
     // Escape backs out of the pause settings first; only the next Escape resumes the match.
     closeSettingsIfOpen() {
-        const panel = this.game?.ui?.pauseSettingsPanel;
-        if (!panel || panel.classList.contains('hidden')) return false;
-        this._hideSettings();
-        return true;
+        return this.game?.uiManager?.closePauseSettings?.() === true;
     }
 
     _hideSettings() {
@@ -275,16 +199,7 @@ export class PauseOverlayController {
         if (game) {
             game.keyCapture = null;
         }
-        if (!game?.ui) {
-            return;
-        }
-        if (game.ui.pauseSettingsPanel) {
-            game.ui.pauseSettingsPanel.classList.add('hidden');
-        }
-        game.ui.hud?.classList.remove('pause-settings-open');
-        if (game.ui.pauseSettingsButton) {
-            game.ui.pauseSettingsButton.classList.remove('hidden');
-        }
+        this.closeSettingsIfOpen();
     }
 
     dispose() {

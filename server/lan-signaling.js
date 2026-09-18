@@ -4,6 +4,11 @@
 
 import http from 'node:http';
 import { isLobbySettingsRevisionCurrent } from '../src/shared/contracts/LobbyMatchSummaryContract.js';
+import {
+    normalizeMultiplayerPlayerName,
+    normalizeOptionalMultiplayerPlayerName,
+    resolveDefaultMultiplayerPlayerName,
+} from '../src/shared/contracts/MultiplayerSessionContract.js';
 import crypto from 'node:crypto';
 import {
     SIGNALING_HTTP_ROUTES,
@@ -33,6 +38,15 @@ const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 function isLoopbackRequest(req) {
     const remoteAddress = String(req?.socket?.remoteAddress || '').trim();
     return LOOPBACK_ADDRESSES.has(remoteAddress);
+}
+
+/**
+ * The name other players see for this lobby in the network search: the host's
+ * chosen lobby name, otherwise "<profile name> 1" like in the member list.
+ */
+export function resolveLanLobbyPublicHostName(lobby) {
+    const profileName = String(lobby?.metadata?.hostName || lobby?.hostName || '').trim();
+    return normalizeMultiplayerPlayerName(lobby?.hostLobbyName, resolveDefaultMultiplayerPlayerName(profileName, 1));
 }
 
 function normalizeLobbyCode(value) {
@@ -141,6 +155,7 @@ function buildLobbyState(lobby) {
         hostReady: lobby.hostReady === true,
         hostActorId: String(lobby.hostActorId || 'Host').trim() || 'Host',
         hostName: String(lobby.hostName || lobby.hostActorId || 'Host').trim() || 'Host',
+        hostLobbyName: normalizeOptionalMultiplayerPlayerName(lobby.hostLobbyName),
         maxPlayers: Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS),
         metadata: { ...lobby.metadata },
         settingsRevision: lobby.settingsRevision,
@@ -152,6 +167,7 @@ function buildLobbyState(lobby) {
             isHost: false,
             actorId: String(player.actorId || player.playerId).trim(),
             name: String(player.name || player.actorId || player.playerId).trim(),
+            lobbyName: normalizeOptionalMultiplayerPlayerName(player.lobbyName),
             participantMetadata: { ...player.participantMetadata },
         })),
         pendingPlayers: lobby.pendingPlayers.map((entry) => ({ playerId: entry.playerId })),
@@ -373,6 +389,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             lobby.hostReady = true;
             lobby.hostActorId = String(body.actorId || body.name || 'Host').trim() || 'Host';
             lobby.hostName = String(body.name || body.actorId || 'Host').trim() || 'Host';
+            lobby.hostLobbyName = normalizeOptionalMultiplayerPlayerName(body.lobbyName);
             lobby.maxPlayers = Number.isFinite(requestedMaxPlayers)
                 ? Math.max(2, Math.min(DEFAULT_MAX_PLAYERS, Math.floor(requestedMaxPlayers)))
                 : DEFAULT_MAX_PLAYERS;
@@ -423,6 +440,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 ready: false,
                 actorId: String(body.actorId || body.name || playerId).trim() || playerId,
                 name: String(body.name || body.actorId || playerId).trim() || playerId,
+                lobbyName: normalizeOptionalMultiplayerPlayerName(body.lobbyName),
                 participantMetadata: normalizeSignalingParticipantMetadata(body.participantMetadata),
                 joinedAt: timestamp,
                 lastActivityAt: timestamp,
@@ -434,6 +452,43 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 lobbyCode: lobby.code,
                 sessionState: buildLobbyState(lobby),
             });
+            return;
+        }
+
+        if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_NAME) {
+            const body = await readBody(req);
+            if (body?.__tooLarge === true) {
+                rejectOversizedRequest(req, res);
+                return;
+            }
+            if (body?.__badJson === true) {
+                jsonResponse(res, { ok: false, message: 'bad_json' }, 400);
+                return;
+            }
+            // Each player renames only itself: the token must belong to the named seat.
+            const playerId = toPlayerId(body.playerId);
+            const lobbyName = normalizeOptionalMultiplayerPlayerName(body.lobbyName);
+            if (isHostPeerId(playerId)) {
+                if (String(body.hostToken || '') !== String(lobby.hostToken || '')) {
+                    jsonResponse(res, { ok: false, message: 'host_auth_failed' }, 403);
+                    return;
+                }
+                lobby.hostLobbyName = lobbyName;
+                jsonResponse(res, { ok: true, sessionState: buildLobbyState(lobby) });
+                return;
+            }
+            const player = lobby.players.find((entry) => entry.playerId === playerId);
+            if (!player) {
+                jsonResponse(res, { ok: false, message: 'player_not_found' }, 404);
+                return;
+            }
+            if (String(body.playerToken || '') !== String(player.token || '')) {
+                jsonResponse(res, { ok: false, message: 'player_auth_failed' }, 403);
+                return;
+            }
+            player.lobbyName = lobbyName;
+            touchPlayerActivity(playerId);
+            jsonResponse(res, { ok: true, sessionState: buildLobbyState(lobby) });
             return;
         }
 
@@ -943,7 +998,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 matchesLobby: requestedLobbyCode !== '' && requestedLobbyCode === normalizeLobbyCode(lobby.code),
                 playerCount: countLobbyMembers(lobby),
                 maxPlayers: Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS),
-                hostName: lobby.metadata.hostName,
+                hostName: resolveLanLobbyPublicHostName(lobby),
                 mapKey: lobby.metadata.mapKey,
                 gameMode: lobby.metadata.gameMode,
                 modePath: lobby.metadata.modePath,

@@ -270,7 +270,8 @@ export class ProjectileHitResolver {
                 break;
             }
 
-            const huntRocketHit = isHuntHealthActive(resolveEntityRuntimeConfig(this.system)) && isRocketTierType(projectile.type);
+            const huntRocketHit = isRocketTierType(projectile.type)
+                && (isHuntHealthActive(resolveEntityRuntimeConfig(this.system)) || projectile.type === 'ROCKET_GUIDED');
             if (huntRocketHit) {
                 const damage = resolveEndlessProjectileDamage(
                     projectile.owner,

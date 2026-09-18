@@ -37,16 +37,45 @@ export function buildArcadeSurface(level3Body, ui) {
 
     const body = createElement('div', 'menu-accordion-body arcade-surface-body');
 
+    // The four ways to start a run come first, each with one sentence; seed and
+    // statistics follow below as their own block.
+    const startGroup = createElement('section', 'arcade-start-group');
+    startGroup.appendChild(createElement('h3', 'arcade-surface-card-title', 'Lauf starten'));
     const runLine = createElement('p', 'menu-hint arcade-run-line');
     runLine.id = 'arcade-run-line';
-    body.appendChild(runLine);
+    startGroup.appendChild(runLine);
+    // "Albtraum" only hardens the arcade sector plan, so it sits with the starts it affects.
+    const nightmareToggle = createArcadeNightmareToggle();
+    startGroup.appendChild(nightmareToggle.label);
+    const createStartOption = (id, label, copy) => {
+        const option = createElement('div', 'arcade-start-option');
+        const button = createElement('button', 'start-btn', label);
+        button.type = 'button';
+        button.id = id;
+        option.appendChild(button);
+        option.appendChild(createElement('p', 'arcade-start-option-copy', copy));
+        startGroup.appendChild(option);
+        return button;
+    };
+    const startRunButton = createStartOption('btn-arcade-start-inline', t('menu.arcade.start.label', 'Arcade Run starten'),
+        'Sektoren nacheinander meistern und Punkte sammeln – derselbe Lauf wie „Spiel starten“.');
+    const startEndlessButton = createStartOption('btn-arcade-endless-start-inline', 'Endlosjagd starten',
+        'Endloser Kampf-Parcours: Tore bringen Punkte und verlängern deine Serie.');
+    const startFiveFrontsButton = createStartOption('btn-arcade-five-fronts-start-inline', 'Fünf Fronten',
+        'Fünf Arenen mit anrollenden Bot-Wellen; zwischen den Wellen wählst du Verbesserungen.');
+    const startFivePortalsButton = createStartOption('btn-arcade-five-portals-start-inline', 'Fünf Portale',
+        'Fünf Parcours-Karten auf Zeit; das Ausgangsportal bringt dich jeweils zur nächsten.');
+    body.appendChild(startGroup);
+
+    const statsBlock = createElement('section', 'arcade-stats-block');
+    statsBlock.appendChild(createElement('h3', 'arcade-surface-card-title', 'Seed & Statistik'));
     const recordsLine = createElement('p', 'menu-hint');
     recordsLine.id = 'arcade-records-line';
-    body.appendChild(recordsLine);
+    statsBlock.appendChild(recordsLine);
     // Eigene Zeile fuer die Endlosjagd: Bestwert, Top-Liste und Meilensteine.
     const endlessRecordsLine = createElement('p', 'menu-hint');
     endlessRecordsLine.id = 'arcade-endless-records-line';
-    body.appendChild(endlessRecordsLine);
+    statsBlock.appendChild(endlessRecordsLine);
 
     const cardGrid = createElement('div', 'arcade-surface-grid');
 
@@ -122,31 +151,11 @@ export function buildArcadeSurface(level3Body, ui) {
     masteryCard.appendChild(masteryLine);
     cardGrid.appendChild(masteryCard);
 
-    body.appendChild(cardGrid);
+    statsBlock.appendChild(cardGrid);
+    body.appendChild(statsBlock);
 
     const { card: hangarLaunchCard, button: openHangarButton } = createHangarWindowLauncher(createElement);
     body.appendChild(hangarLaunchCard);
-
-    const ctaRow = createElement('div', 'arcade-surface-cta');
-    const startRunButton = createElement('button', 'start-btn', t('menu.arcade.start.label', 'Arcade Run starten'));
-    startRunButton.type = 'button';
-    startRunButton.id = 'btn-arcade-start-inline';
-    const startEndlessButton = createElement('button', 'start-btn', 'Endlosjagd starten');
-    startEndlessButton.type = 'button';
-    startEndlessButton.id = 'btn-arcade-endless-start-inline';
-    const startFiveFrontsButton = createElement('button', 'start-btn', 'Fünf Fronten');
-    startFiveFrontsButton.type = 'button';
-    startFiveFrontsButton.id = 'btn-arcade-five-fronts-start-inline';
-    const startFivePortalsButton = createElement('button', 'start-btn', 'Fünf Portale');
-    startFivePortalsButton.type = 'button';
-    startFivePortalsButton.id = 'btn-arcade-five-portals-start-inline';
-    ctaRow.appendChild(startRunButton);
-    ctaRow.appendChild(startEndlessButton);
-    ctaRow.appendChild(startFiveFrontsButton);
-    ctaRow.appendChild(startFivePortalsButton);
-    const nightmareToggle = createArcadeNightmareToggle();
-    body.appendChild(nightmareToggle.label);
-    body.appendChild(ctaRow);
 
     details.appendChild(body);
 

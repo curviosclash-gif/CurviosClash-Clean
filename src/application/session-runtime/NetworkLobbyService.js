@@ -36,6 +36,7 @@ import {
 } from './NetworkLobbyExperienceSupport.js';
 import {
     requestNetworkLobbyMatchStart,
+    setNetworkLobbyName,
     toggleNetworkLobbyReady,
 } from './NetworkLobbyMutationActions.js';
 
@@ -294,6 +295,7 @@ export class NetworkLobbyService {
                 maxPlayers: Number(options.maxPlayers || 10),
                 actorId,
                 name,
+                lobbyName: options.lobbyName,
                 metadata: createPublicLobbyMetadata(this._hostSettingsSnapshot, name),
             });
         } catch (error) {
@@ -331,9 +333,12 @@ export class NetworkLobbyService {
         this._actorId = actorId;
         this._name = name;
         this._connectionPhase = 'connecting';
+        // leave() bumps the generation; a join that gets past that point was cancelled.
+        const joinGeneration = this._joinGeneration = (this._joinGeneration || 0) + 1;
         const resolvedUrl = await tryResolveNetworkLobbyUrl(
             () => this._resolveJoinSignalingUrl(requestedLobbyCode, options.signalingUrl)
         );
+        if (joinGeneration !== this._joinGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
         if (resolvedUrl.error) {
             this._connectionPhase = 'disconnected';
             return this._fail(
@@ -359,14 +364,17 @@ export class NetworkLobbyService {
                 lobbyCode: requestedLobbyCode,
                 actorId,
                 name,
+                lobbyName: options.lobbyName,
                 participantMetadata: this._participantMetadata,
             }));
         } catch (error) {
+            if (joinGeneration !== this._joinGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
             this._connectionPhase = 'disconnected';
             const message = error instanceof Error ? error.message : 'Lobby konnte nicht beigetreten werden.';
             const code = normalizeString(error?.code, 'join_failed');
             return this._fail(message, code);
         }
+        if (joinGeneration !== this._joinGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
 
         const sessionState = this.getSessionState();
         const event = this._emit(LOBBY_SERVICE_EVENT_TYPES.JOIN, {
@@ -390,6 +398,10 @@ export class NetworkLobbyService {
         return toggleNetworkLobbyReady(this, options);
     }
 
+    setLobbyName(lobbyName) {
+        return setNetworkLobbyName(this, lobbyName);
+    }
+
     invalidateReadyForAll(reason = 'host_settings_changed') {
         const sessionState = this.getSessionState();
         if (!this._transportSession.hasLobby() || !sessionState.isHost) return null;
@@ -400,7 +412,7 @@ export class NetworkLobbyService {
                 lobbyCode: updatedSessionState.lobbyCode,
                 peerId: updatedSessionState.peerId,
             });
-            this._setStatus('Ready-Status zurückgesetzt (Host-Änderung)');
+            this._setStatus('Bereitschaft zurückgesetzt, weil der Host etwas geändert hat');
             return {
                 ok: true,
                 event,
@@ -408,7 +420,7 @@ export class NetworkLobbyService {
                 snapshot: this.getSnapshot(),
             };
         }).catch((error) => this._fail(
-            error instanceof Error ? error.message : 'Ready-Invalidierung fehlgeschlagen.',
+            error instanceof Error ? error.message : 'Bereitschaft konnte nicht zurückgesetzt werden.',
             normalizeString(error?.code, 'ready_invalidation_failed')
         ));
     }
@@ -435,6 +447,7 @@ export class NetworkLobbyService {
     }
 
     leave(options = {}) {
+        this._joinGeneration = (this._joinGeneration || 0) + 1;
         const previousState = this.getSessionState();
         this._settingsPublisher.reset();
         this._transportSession.dispose();

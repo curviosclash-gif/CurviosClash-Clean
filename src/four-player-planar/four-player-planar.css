@@ -19,7 +19,7 @@
 }
 
 .four-player-planar-setup-header {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 1fr;
     align-items: start;
 }
 

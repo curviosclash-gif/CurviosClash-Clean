@@ -15,15 +15,15 @@ function requireCallback(fn, name) {
 
 function getSaveButtonLabel({ typedName, canUpdateActive, typedProfileIdx }) {
     if (!typedName) {
-        return 'Profil unter Namen speichern';
+        return 'Unter diesem Namen speichern';
     }
     if (canUpdateActive) {
-        return 'Aktives Profil aktualisieren';
+        return 'Geladene Einstellungen aktualisieren';
     }
     if (typedProfileIdx >= 0) {
         return 'Name bereits vergeben';
     }
-    return 'Neues Profil speichern';
+    return 'Neu speichern';
 }
 
 export function deriveProfileActionUiState(profiles, inputs = {}, options = {}) {

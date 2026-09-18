@@ -24,7 +24,8 @@ function resolveMapLabel(mapKey, definition) {
 }
 
 function resolveVehicleLabel(vehicleId) {
-    const definition = VEHICLE_DEFINITIONS?.[vehicleId];
+    // VEHICLE_DEFINITIONS is a list, not a lookup by id.
+    const definition = VEHICLE_DEFINITIONS.find((entry) => entry.id === vehicleId);
     return String(definition?.name || definition?.label || vehicleId);
 }
 

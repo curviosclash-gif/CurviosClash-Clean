@@ -1,6 +1,7 @@
 import { createUiNode as el } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { FIGHT_MACHINE_GUN_MODELS } from '../../shared/contracts/FightMachineGunContract.js';
 import { HANGAR_STARTER_BUILDS } from './HangarStarterBuildCatalog.js';
+import { createInfoHintButton } from '../menu/InfoHintToggle.js';
 
 const STONE_COLORS = Object.freeze([
     ['all', 'Alle Farben'], ['blue', 'Blau · Geschwindigkeit'], ['green', 'Grün · Wendigkeit'],
@@ -20,11 +21,7 @@ function button(className, text, title = '') {
 }
 
 function infoHint(text, className = '') {
-    const node = el('span', `menu-info-hint ${className}`.trim(), 'i');
-    node.title = text;
-    node.setAttribute('role', 'img');
-    node.setAttribute('aria-label', text);
-    return node;
+    return createInfoHintButton(document, text, className);
 }
 
 function labeledSelect(labelText, select) {
@@ -367,7 +364,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const statusMessage = el('span', 'hangar-status-message', 'Hangar wird geladen …');
     statusMessage.setAttribute('role', 'status');
     statusMessage.setAttribute('aria-live', 'polite');
-    const activeBuildLabel = el('span', 'hangar-active-build-label', 'Aktiver Run-Build: Standard');
+    const activeBuildLabel = el('span', 'hangar-active-build-label', mode === 'fight' ? 'Aktiver Kampf-Build: Standard' : 'Aktiver Run-Build: Standard');
     statusBar.append(statusMessage, activeBuildLabel);
     container.appendChild(statusBar);
 

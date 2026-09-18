@@ -1,4 +1,6 @@
 import { resolveMapPreview } from '../menu/MenuPreviewCatalog.js';
+import { applyLobbyGuestMatchLock, isLobbyGuestMatchLocked } from './LobbyGuestMatchLock.js';
+import { syncLobbyNameField } from './LobbyNameField.js';
 
 export function resolveLobbyStatus(state) {
     if (state?.connectionPhase === 'reconnecting') return `Verbindung wird wiederhergestellt (${state.reconnectAttempt}/${state.reconnectMaxAttempts}) …`;
@@ -21,7 +23,7 @@ export function resolveLobbyMatchFacts(metadata) {
     const unavailable = 'Nicht verfügbar';
     const mode = { normal: 'Klassisch', fight: 'Kampf', arcade: 'Arcade', quick_action: 'Schnellstart' }[metadata?.modePath];
     const difficulty = { EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' }[summary?.botDifficulty];
-    const targets = { wins: 'Siege', kills: 'Abschüsse', sectors: 'Sektoren' };
+    const targets = { wins: 'Siege', kills: 'Abschüsse', sectors: 'Sektoren', points: 'Punkte', lives: 'Leben pro Spieler' };
     return [
         ['Spielstil', mode || unavailable],
         ['Karte', metadata?.mapKey ? resolveMapPreview(metadata.mapKey).name : unavailable],
@@ -32,10 +34,21 @@ export function resolveLobbyMatchFacts(metadata) {
     ];
 }
 
+// A lost connection usually means the host is gone, so the found lobbies are stale.
+// Clear them once on the way into "disconnected"; a new search afterwards stays.
+function clearStaleLobbyListOnConnectionLoss(ui, panel, state) {
+    const phase = String(state?.connectionPhase || '');
+    const previousPhase = panel?.dataset?.lobbyConnectionPhase || '';
+    if (panel?.dataset) panel.dataset.lobbyConnectionPhase = phase;
+    if (phase !== 'disconnected' || previousPhase === 'disconnected') return;
+    ui.openLobbyTable?.reset?.('Verbindung verloren – die Liste sucht gleich neu.');
+}
+
 export function syncLobbyScreen(ui, state, isMultiplayerSession) {
     const joined = isMultiplayerSession && state?.joined === true;
     const host = joined && state.isHost === true;
     const panel = ui.multiplayerPanel;
+    clearStaleLobbyListOnConnectionLoss(ui, panel, state);
     if (panel?.dataset) {
         panel.dataset.lobbyJoined = String(joined);
         panel.dataset.lobbyHost = String(host);
@@ -44,6 +57,8 @@ export function syncLobbyScreen(ui, state, isMultiplayerSession) {
     toggle(ui.multiplayerLeaveLobbyButton, joined);
     toggle(ui.lobbyEditMatchButton, host);
     toggle(ui.lobbyHostSettingsHint, joined && !host);
+    applyLobbyGuestMatchLock(panel?.ownerDocument || ui.level4Drawer?.ownerDocument, isLobbyGuestMatchLocked(state, isMultiplayerSession));
+    syncLobbyNameField(ui, state, joined);
     toggle(ui.lobbyRetrySettingsButton, host && !!state.settingsSyncError);
     if (ui.lobbyRetrySettingsButton) ui.lobbyRetrySettingsButton.disabled = state?.settingsSyncPending === true;
     toggle(ui.setupLobbyButton, joined);

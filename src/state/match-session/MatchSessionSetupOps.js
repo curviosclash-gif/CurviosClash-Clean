@@ -51,22 +51,27 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
     const localPlayerIndex = Math.max(0, Number(session?.localPlayerIndex) || 0);
     const localHumanCount = Math.max(1, Number(session?.localHumanCount) || configuredHumanCount);
     const isLocalSlot = (index) => index >= localPlayerIndex && index < localPlayerIndex + localHumanCount;
+    // A network match names each human after the lobby name of its slot.
+    const slotNames = new Map((Array.isArray(session?.networkPlayerSlots) ? session.networkPlayerSlots : [])
+        .filter((slot) => typeof slot?.displayName === 'string' && slot.displayName.trim())
+        .map((slot) => [Number(slot.playerIndex), slot.displayName.trim()]));
+    const withName = (index, config) => (slotNames.has(index) ? { ...config, name: slotNames.get(index) } : config);
     const configs = [];
     for (let index = 0; index < configuredHumanCount; index += 1) {
         const slot = `PLAYER_${index + 1}`;
-        configs.push({
+        configs.push(withName(index, {
             invertPitch: !!settings?.invertPitch?.[slot],
             smoothSteering: isLocalSlot(index) && smoothSteering,
             cockpitCamera: true,
             vehicleId: runtimeVehicles?.[slot] || settings?.vehicles?.[slot] || fallbackVehicleId,
             fightLoadout: fightLoadouts?.[slot] || fightLoadouts?.PLAYER_1 || null,
             color: resolveLocalSplitScreenPlayerColor(runtimeConfig?.session?.splitScreenVariant, index),
-        });
+        }));
     }
     // Slots beyond the local count keep the sparse shape they had before (the
     // entity setup falls back per field); only the steering preference is filled in.
     for (let index = configuredHumanCount; index < totalHumanCount; index += 1) {
-        configs.push({ smoothSteering: isLocalSlot(index) && smoothSteering });
+        configs.push(withName(index, { smoothSteering: isLocalSlot(index) && smoothSteering }));
     }
     return configs;
 }

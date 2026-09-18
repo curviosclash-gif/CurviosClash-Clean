@@ -6,6 +6,7 @@ import {
     DEFAULT_HUD_APPEARANCE,
     HUD_COLOR_PRESET,
     normalizeHudAppearance,
+    resolveEffectiveHudScale,
 } from '../shared/contracts/HudAppearanceContract.js';
 
 const HUD_COLOR_PRESET_VARS = Object.freeze({
@@ -67,6 +68,25 @@ export function resolveHudColorPresetLabel(colorPreset) {
 }
 
 /**
+ * Summary line under the HUD controls. Says so when the window is too small for the chosen size.
+ * @param {object} appearance
+ * @param {{ innerWidth?: number, innerHeight?: number } | null} [view]
+ */
+export function formatHudAppearanceHint(appearance, view = null) {
+    const normalized = normalizeHudAppearance(appearance);
+    const scalePercent = Math.round(normalized.scale * 100);
+    const opacityPercent = Math.round(normalized.opacity * 100);
+    const base = `HUD: ${scalePercent}% – ${opacityPercent}% – ${resolveHudColorPresetLabel(normalized.colorPreset)}`;
+    const fittedPercent = Math.round(resolveEffectiveHudScale(
+        normalized.scale,
+        view ? { width: view.innerWidth, height: view.innerHeight } : null
+    ) * 100);
+    return fittedPercent < scalePercent
+        ? `${base} · Für dieses Fenster zu groß, angezeigt ${fittedPercent}%`
+        : base;
+}
+
+/**
  * Writes the HUD appearance as CSS custom properties onto the given root
  * element (usually #hud). Falls back to the canonical defaults for invalid
  * input so the HUD never becomes invisible.
@@ -107,11 +127,33 @@ export function applyHudAppearance(rootElement, appearance) {
  * #hud alone.
  */
 export function applyRuntimeHudAppearance(hudElement, appearance) {
-    applyHudAppearance(hudElement, appearance);
-    const documentElement = hudElement?.ownerDocument?.documentElement
-        || globalThis.document?.documentElement
-        || null;
+    const ownerDocument = hudElement?.ownerDocument || globalThis.document || null;
+    const view = ownerDocument?.defaultView || null;
+    const normalized = normalizeHudAppearance(appearance);
+    // Draw the HUD only as large as the window leaves room for; the chosen scale stays stored.
+    const fitted = {
+        ...normalized,
+        scale: resolveEffectiveHudScale(normalized.scale, view ? { width: view.innerWidth, height: view.innerHeight } : null),
+    };
+    applyHudAppearance(hudElement, fitted);
+    const documentElement = ownerDocument?.documentElement || null;
     if (documentElement && documentElement !== hudElement) {
-        applyHudAppearance(documentElement, appearance);
+        applyHudAppearance(documentElement, fitted);
     }
+    watchViewportForHudFit(view, hudElement, normalized);
+}
+
+// A resized window changes how large the HUD may be drawn, so the last appearance is re-applied.
+let hudFitWatch = null;
+function watchViewportForHudFit(view, hudElement, appearance) {
+    if (!view || typeof view.addEventListener !== 'function') return;
+    if (!hudFitWatch || hudFitWatch.view !== view) {
+        hudFitWatch = { view, hudElement, appearance };
+        view.addEventListener('resize', () => {
+            applyRuntimeHudAppearance(hudFitWatch.hudElement, hudFitWatch.appearance);
+        });
+        return;
+    }
+    hudFitWatch.hudElement = hudElement;
+    hudFitWatch.appearance = appearance;
 }

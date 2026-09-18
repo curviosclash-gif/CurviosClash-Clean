@@ -1,12 +1,12 @@
 import { renderGamepadBindingEditor } from './GamepadBindingEditor.js';
-import { GLOBAL_KEY_BIND_ACTIONS, KEY_BIND_ACTIONS } from './KeybindActionCatalog.js';
+import { GLOBAL_KEY_BIND_ACTIONS, KEY_BIND_ACTIONS, resolveKeybindActionLabel } from './KeybindActionCatalog.js';
 import { formatKeyCode } from './KeybindLabels.js';
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
 
 const KEY_BIND_SCOPES = [
-    { key: 'PLAYER_1', actions: KEY_BIND_ACTIONS },
-    { key: 'PLAYER_2', actions: KEY_BIND_ACTIONS },
-    { key: 'GLOBAL', actions: GLOBAL_KEY_BIND_ACTIONS },
+    { key: 'PLAYER_1', label: 'Spieler 1', actions: KEY_BIND_ACTIONS },
+    { key: 'PLAYER_2', label: 'Spieler 2', actions: KEY_BIND_ACTIONS },
+    { key: 'GLOBAL', label: 'Allgemein', actions: GLOBAL_KEY_BIND_ACTIONS },
 ];
 
 export function createKeybindEditorRuntimeAccess(runtime) {
@@ -41,14 +41,12 @@ export function createKeybindEditorRuntimeAccess(runtime) {
             game.keyCapture = keyCapture;
         },
         getControls: () => game?.settings?.controls || {},
+        // The pitch rows name the nose direction, which flips with this per-player setting.
+        getInvertPitch: (playerKey) => game?.settings?.invertPitch?.[playerKey] !== false,
         actionEnsurePlayerControls,
         actionOnSettingsChanged,
         actionApplyPauseBindings,
         actionShowStatusToast,
-        actionSaveControllerSettings() {
-            game?._saveSettings?.();
-            return game?.settingsDirty === false;
-        },
         // Backward-compatible aliases for transitional call sites.
         ensurePlayerControls: actionEnsurePlayerControls,
         onSettingsChanged: actionOnSettingsChanged,
@@ -75,15 +73,6 @@ export class KeybindEditorController {
         renderGamepadBindingEditor(ui?.keybindGlobal, this.runtimeAccess);
     }
 
-    renderPauseEditor() {
-        const ui = this.runtimeAccess.getUi?.() || null;
-        const conflicts = this.collectKeyConflicts();
-        this.renderKeybindRows('PLAYER_1', ui?.pauseKeybindP1, KEY_BIND_ACTIONS, conflicts);
-        this.renderKeybindRows('PLAYER_2', ui?.pauseKeybindP2, KEY_BIND_ACTIONS, conflicts);
-        this._updateWarningElement(ui?.pauseKeybindWarning, conflicts);
-        renderGamepadBindingEditor(ui?.pauseKeybindP2, this.runtimeAccess);
-    }
-
     renderKeybindRows(playerKey, container, actions, conflicts) {
         if (!container) return;
 
@@ -96,7 +85,7 @@ export class KeybindEditorController {
 
             const label = document.createElement('div');
             label.className = 'key-action';
-            label.textContent = action.label;
+            label.textContent = resolveKeybindActionLabel(action, { invertPitch: this.runtimeAccess.getInvertPitch?.(playerKey) });
 
             const value = this.getControlValue(playerKey, action.key);
             const button = document.createElement('button');
@@ -124,19 +113,12 @@ export class KeybindEditorController {
     startKeyCapture(playerKey, actionKey) {
         this.runtimeAccess.setKeyCapture?.({ playerKey, actionKey });
         this.renderEditor();
-        this.renderPauseEditor();
     }
 
+    // The pause shows the menu's settings window, so the menu root is visible there too.
     _isKeybindEditorVisible() {
         const ui = this.runtimeAccess.getUi?.() || null;
-        const state = this.runtimeAccess.getState?.() || '';
-        if (ui?.mainMenu && !ui.mainMenu.classList.contains('hidden')) {
-            return true;
-        }
-        if (state === 'PAUSED' && ui?.pauseSettingsPanel && !ui.pauseSettingsPanel.classList.contains('hidden')) {
-            return true;
-        }
-        return false;
+        return !!ui?.mainMenu && !ui.mainMenu.classList.contains('hidden');
     }
 
     handleKeyCapture(event) {
@@ -152,24 +134,25 @@ export class KeybindEditorController {
         if (event.code === 'Escape') {
             this.runtimeAccess.setKeyCapture?.(null);
             this.renderEditor();
-            this.renderPauseEditor();
             return true;
         }
 
-        if (this._hasControlValueConflict(keyCapture.playerKey, keyCapture.actionKey, event.code)) {
+        const conflict = this._findControlValueConflict(keyCapture.playerKey, keyCapture.actionKey, event.code);
+        if (conflict) {
             this.runtimeAccess.setKeyCapture?.(null);
             this.renderEditor();
-            this.renderPauseEditor();
-            this._showKeyConflictFeedback(event.code);
+            this._showKeyConflictFeedback(event.code, conflict);
             return true;
         }
 
         this.setControlValue(keyCapture.playerKey, keyCapture.actionKey, event.code);
         this.runtimeAccess.setKeyCapture?.(null);
+        // A successful binding replaces the rejected-key hint with the real conflict state.
+        this.updateKeyConflictWarning(this.collectKeyConflicts());
         this.runtimeAccess.actionOnSettingsChanged?.();
         if (state === 'PAUSED') {
             this.runtimeAccess.actionApplyPauseBindings?.();
-            this.renderPauseEditor();
+            this.renderEditor();
         }
         this.runtimeAccess.actionShowStatusToast?.('Taste gespeichert!');
         return true;
@@ -181,29 +164,32 @@ export class KeybindEditorController {
         return playerControls[actionKey] || '';
     }
 
-    _hasControlValueConflict(playerKey, actionKey, value) {
-        if (!value) return false;
+    // Returns the scope and action that already use the key, so the hint can name them.
+    _findControlValueConflict(playerKey, actionKey, value) {
+        if (!value) return null;
         for (const scope of KEY_BIND_SCOPES) {
             for (const action of scope.actions) {
                 if (scope.key === playerKey && action.key === actionKey) continue;
                 if (this.getControlValue(scope.key, action.key) === value) {
-                    return true;
+                    return { scope, action };
                 }
             }
         }
-        return false;
+        return null;
     }
 
-    _showKeyConflictFeedback(code) {
-        const conflicts = this.collectKeyConflicts();
-        conflicts.set(code, Math.max(conflicts.get(code) || 0, 2));
-        this.updateKeyConflictWarning(conflicts);
-        this._updateWarningElement(this.runtimeAccess.getUi?.()?.pauseKeybindWarning, conflicts);
-        this.runtimeAccess.actionShowStatusToast?.(
-            `Taste bereits belegt: ${this.formatKeyCode(code)}`,
-            1800,
-            'error'
-        );
+    _hasControlValueConflict(playerKey, actionKey, value) {
+        return this._findControlValueConflict(playerKey, actionKey, value) !== null;
+    }
+
+    _showKeyConflictFeedback(code, conflict) {
+        const message = `Taste ${this.formatKeyCode(code)} ist bereits mit ${conflict.action.label} (${conflict.scope.label}) belegt`;
+        const warningElement = this.runtimeAccess.getUi?.()?.keybindWarning;
+        if (warningElement) {
+            warningElement.classList.remove('hidden');
+            warningElement.textContent = message;
+        }
+        this.runtimeAccess.actionShowStatusToast?.(message, 1800, 'error');
     }
 
     setControlValue(playerKey, actionKey, value) {

@@ -503,7 +503,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(Number(await speedSlider.inputValue())).toBeGreaterThan(speedBefore);
         expect(await page.evaluate(() => document.activeElement?.id || '')).toBe('speed-slider');
 
-        await page.click('#level4-tab-graphics');
+        await page.click('#level4-tab-recording');
         const cameraSelect = page.locator('#normal-camera-perspective-select');
         await cameraSelect.selectOption('classic');
         await cameraSelect.focus();
@@ -1068,10 +1068,10 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.selectOption('#recording-profile-select', 'youtube_short');
         await page.selectOption('#recording-hud-mode-select', 'with_hud');
         await page.selectOption('#recording-orientation-select', 'portrait');
+        await page.selectOption('#normal-camera-perspective-select', 'cinematic_soft');
         // The drawer is already open; switch its tab instead of reopening it.
         await page.click('#submenu-level4 [data-level4-section-target="graphics"]');
         await page.waitForSelector('#submenu-level4 [data-level4-section="graphics"].is-active', { timeout: 4000 });
-        await page.selectOption('#normal-camera-perspective-select', 'cinematic_soft');
         await page.uncheck('#normal-camera-reduce-motion-toggle');
         await page.evaluate(() => window.GAME_INSTANCE?._saveSettings?.());
 
@@ -1423,7 +1423,6 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             const baseSettings = mod.createMenuBaseSettingsDefaults();
             return {
                 level3MapKey: level3Reset.mapKey,
-                level3ThemeMode: level3Reset.themeMode,
                 level3VehicleP1: level3Reset.vehicles.PLAYER_1,
                 level4Speed: String(baseSettings.gameplay.speed),
                 level4PerspectiveNormal: String(baseSettings.cameraPerspective?.normal || 'classic'),
@@ -1437,23 +1436,29 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             game.settings.vehicles.PLAYER_1 = 'ship8';
             game.runtimeFacade.onSettingsChanged({ changedKeys: ['vehicles.player1'] });
         });
-        await openStartSetupSection(page, 'match');
-        await page.locator('.start-inline-advanced > summary').click();
-        await page.selectOption('#theme-mode-select', 'hell');
         await page.click('#btn-level3-reset');
         expect(await page.inputValue('#map-select')).toBe(expectedDefaults.level3MapKey);
-        expect(await page.inputValue('#theme-mode-select')).toBe(expectedDefaults.level3ThemeMode);
         expect(await page.inputValue('#vehicle-select-p1')).toBe(expectedDefaults.level3VehicleP1);
 
         await openLevel4Drawer(page, { section: 'gameplay' });
         await page.evaluate(() => {
             const slider = document.getElementById('speed-slider');
             if (!slider) return;
-            slider.value = '30';
+            slider.value = '33';
             slider.dispatchEvent(new Event('input', { bubbles: true }));
         });
-        await page.click('#level4-tab-graphics');
+        // Reset = defaults plus the style preset of the current game style (fresh profile values).
+        expectedDefaults.level4Speed = await page.evaluate(async () => {
+            const mod = await window.__curviosImport('/src/ui/menu/MenuDefaultsEditorConfig.js');
+            const modePath = window.GAME_INSTANCE.settings.localSettings.modePath;
+            const presetId = { fight: 'fight-standard', arcade: 'arcade', normal: 'normal-standard' }[modePath];
+            const presetSpeed = mod.findFixedMenuPresetSeedById(presetId)?.values?.['gameplay.speed'];
+            return String(presetSpeed ?? mod.createMenuBaseSettingsDefaults().gameplay.speed);
+        });
+        // The video perspective lives with the recording options; calmer camera stays in graphics.
+        await page.click('#level4-tab-recording');
         await page.selectOption('#normal-camera-perspective-select', 'cinematic_action');
+        await page.click('#level4-tab-graphics');
         await page.uncheck('#normal-camera-reduce-motion-toggle');
         await page.click('#level4-tab-gameplay');
         await page.click('#btn-level4-reset');
@@ -1750,7 +1755,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await openLevel4Drawer(page, { section: 'tools' });
         await expect(page.locator('#level4-section-tools .section-title .menu-info-hint')).toHaveAttribute(
             'title',
-            'Speichere vollständige Einstellungen für unterschiedliche Spieler oder Geräte.'
+            'Speichere den aktuellen Stand aller Einstellungen unter einem Namen.'
         );
         await expect(page.locator('#level4-section-presets .section-title .menu-info-hint')).toHaveAttribute(
             'title',
@@ -3002,9 +3007,8 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await expect(page.locator('#start-vehicle-section')).toHaveJSProperty('open', false);
         await expect(page.locator('#start-match-section')).toHaveJSProperty('open', true);
         await expect(page.locator('#bot-count')).toBeVisible();
-        await expect(page.locator('#theme-mode-select')).not.toBeVisible();
+        await expect(page.locator('#bot-policy-strategy')).not.toBeVisible();
         await page.click('.start-inline-advanced > summary');
-        await expect(page.locator('#theme-mode-select')).toBeVisible();
         await expect(page.locator('#bot-policy-strategy')).toBeVisible();
 
         await page.click('.start-step-tab[data-start-section-target="map"]');

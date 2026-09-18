@@ -13,20 +13,22 @@ import {
     readPathValue,
     writePathValue,
 } from './SettingsOverrideMergeOps.js';
+import { dropRetiredOverridePaths } from './SettingsOverrideRetiredPaths.js';
 import {
     normalizeLimitOverrides,
     resolveEffectiveLimits,
     validateLimitRule,
 } from './SettingsOverrideRangeContract.js';
 
-export const SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v3';
+export const SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v4';
 export const LEGACY_SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v1';
 export const SETTINGS_STUDIO_SCHEMA_CONTRACT_VERSION = 'settings-studio-schema.v1';
 
-/** Older drafts that migrate forward without losing a stored value. */
+/** Older drafts that migrate forward; only fields the product no longer has are dropped. */
 const UPGRADABLE_SCHEMA_VERSIONS = new Set([
     LEGACY_SETTINGS_OVERRIDE_SCHEMA_VERSION,
     'menu-defaults-override.v2',
+    'menu-defaults-override.v3',
 ]);
 
 /**
@@ -64,7 +66,6 @@ const FIELD_HELP_METADATA = Object.freeze({
     'baseSettings.gameplay.mgTrailAimRadius': Object.freeze({ riskLevel: 'low', unit: null, example: '0.15', help: { de: 'Trefferradius der Bordkanone auf der Spur.', en: 'Machine gun hit radius on the trail.' }, impact: { de: 'Größerer Radius = treffsicherer, aber ggf. weniger präzises Gefühl.', en: 'Larger radius = more accurate, but potentially less precise feel.' } }),
     'baseSettings.gameplay.fightPlayerHp': Object.freeze({ riskLevel: 'medium', unit: null, example: '100', help: { de: 'Trefferpunkte der Spieler im Kampfmodus.', en: 'Player hit points in fight mode.' }, impact: { de: 'Niedrigere Werte = kürzere Kämpfe. Sehr hohe Werte verlängern Matches stark.', en: 'Lower values = shorter fights. Very high values extend matches significantly.' } }),
     'baseSettings.gameplay.fightMgDamage': Object.freeze({ riskLevel: 'medium', unit: null, example: '10', help: { de: 'Schaden pro Bordkanonen-Treffer im Kampfmodus.', en: 'Damage per machine gun hit in fight mode.' }, impact: { de: 'Zusammen mit HP bestimmt dies die Kampfdauer. Nicht isoliert anpassen.', en: 'Together with HP determines fight duration. Do not adjust in isolation.' } }),
-    'baseSettings.gameplay.portalCount': Object.freeze({ riskLevel: 'low', unit: null, example: '8', help: { de: 'Anzahl der Portal-Eingänge auf der Karte; je zwei bilden ein Paar.', en: 'Number of portal endpoints on the map; two endpoints form one pair.' }, impact: { de: 'Mehr Portale erhöhen die Bewegungsvielfalt auf dem Spielfeld.', en: 'More portals increase movement variety on the field.' } }),
     'baseSettings.gameplay.planarLevelCount': Object.freeze({ riskLevel: 'low', unit: null, example: '5', help: { de: 'Anzahl der Ebenen im planaren Modus.', en: 'Number of levels in planar mode.' }, impact: { de: 'Bestimmt die Arena-Größe im Planar-Modus.', en: 'Determines arena size in planar mode.' } }),
     'baseSettings.botBridge.timeoutMs': Object.freeze({ riskLevel: 'high', unit: 'ms', example: '1000', help: { de: 'Zeitlimit für KI-Entscheidungen in ms.', en: 'Timeout for AI decisions in ms.' }, impact: { de: 'Zu kurz: Bots fallen aus. Zu lang: blockiert den Spielablauf. Sorgfältig anpassen.', en: 'Too short: bots fail. Too long: blocks game flow. Adjust carefully.' } }),
     'baseSettings.botBridge.maxRetries': Object.freeze({ riskLevel: 'medium', unit: null, example: '3', help: { de: 'Maximale Bot-Verbindungswiederholungen bei Fehlern.', en: 'Maximum bot connection retries on failure.' }, impact: { de: 'Mehr Versuche = robusterer Bot, aber langsamerer Fehlerrecovery.', en: 'More retries = more robust bot, but slower error recovery.' } }),
@@ -108,7 +109,6 @@ const DEFAULT_FIELD_LIMITS = Object.freeze({
     'baseSettings.gameplay.mgTrailAimRadius': Object.freeze({ ...SETTINGS_LIMITS.gameplay.mgTrailAimRadius, step: 0.01 }),
     'baseSettings.gameplay.fightPlayerHp': Object.freeze({ ...SETTINGS_LIMITS.gameplay.fightPlayerHp, step: 1 }),
     'baseSettings.gameplay.fightMgDamage': Object.freeze({ ...SETTINGS_LIMITS.gameplay.fightMgDamage, step: 0.25 }),
-    'baseSettings.gameplay.portalCount': Object.freeze({ ...SETTINGS_LIMITS.gameplay.portalCount, step: 1 }),
     'baseSettings.gameplay.planarLevelCount': Object.freeze({ ...SETTINGS_LIMITS.gameplay.planarLevelCount, step: 1 }),
     'baseSettings.cameraPerspective.speedFovIntensity': Object.freeze({ min: 0, max: 1.5, step: 0.05 }),
     'baseSettings.cameraPerspective.thrusterExhaustIntensity': Object.freeze({ min: 0, max: 1.5, step: 0.05 }),
@@ -130,7 +130,6 @@ const DEFAULT_FIELD_LIMITS = Object.freeze({
     'configShare.gameplay.mgTrailAimRadius': Object.freeze({ ...SETTINGS_LIMITS.gameplay.mgTrailAimRadius, step: 0.01 }),
     'configShare.gameplay.fightPlayerHp': Object.freeze({ ...SETTINGS_LIMITS.gameplay.fightPlayerHp, step: 1 }),
     'configShare.gameplay.fightMgDamage': Object.freeze({ ...SETTINGS_LIMITS.gameplay.fightMgDamage, step: 0.25 }),
-    'configShare.gameplay.portalCount': Object.freeze({ ...SETTINGS_LIMITS.gameplay.portalCount, step: 1 }),
     'configShare.gameplay.planarLevelCount': Object.freeze({ ...SETTINGS_LIMITS.gameplay.planarLevelCount, step: 1 }),
     'configShare.cameraPerspective.speedFovIntensity': Object.freeze({ min: 0, max: 1.5, step: 0.05 }),
     'configShare.cameraPerspective.thrusterExhaustIntensity': Object.freeze({ min: 0, max: 1.5, step: 0.05 }),
@@ -551,7 +550,7 @@ export function migrateOverrideDraft(rawDraft, migration) {
                 }
             }
         }
-        return migrateHuntKillLimitIntoContractRange(migrated);
+        return dropRetiredOverridePaths(migrateHuntKillLimitIntoContractRange(migrated));
     }
     return rawDraft;
 }

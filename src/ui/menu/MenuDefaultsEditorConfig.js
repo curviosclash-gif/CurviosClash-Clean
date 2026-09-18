@@ -10,6 +10,7 @@ import { DEFAULT_VIEW_DISTANCE } from '../../shared/contracts/ViewDistanceContra
 import { createDefaultHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import { createDefaultAudioSettings, normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 import { createDefaultArcadeRunSettings } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+import { HUNT_WIN_CONDITIONS } from '../../shared/contracts/HuntWinConditionContract.js';
 import { createBotHeuristicTuningSnapshot } from '../../shared/contracts/BotHeuristicTuningContract.js';
 import {
     SPLIT_SCREEN_VARIANTS,
@@ -67,6 +68,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
             respawnEnabled: !!HUNT_CONFIG.DEFAULT_RESPAWN_ENABLED,
             deathmatchKillLimit: Number(HUNT_CONFIG.DEATHMATCH_KILL_LIMIT) || 10,
             timeLimitEnabled: true,
+            winCondition: HUNT_WIN_CONDITIONS.KILLS_TIME,
         },
         arcade: createDefaultArcadeRunSettings(),
         gameplay: {
@@ -85,7 +87,6 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
             fightPlayerHp: HUNT_CONFIG.PLAYER_MAX_HP,
             fightMgDamage: DEFAULT_FIGHT_MG_DAMAGE,
             planarMode: false,
-            portalCount: 8,
             planarLevelCount: 5,
             portalBeams: false,
         },
@@ -115,7 +116,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         fourPlayerPlanar: normalizeFourPlayerPlanarSettings(),
         threePlayerSplit: normalizeThreePlayerSplitSettings(),
         modePath: 'fight',
-        themeMode: 'dunkel',
+        seededModePaths: [],
         graphicsStyle: GRAPHICS_STYLES.MODERN,
         mapBrightness: DEFAULT_MAP_BRIGHTNESS,
         viewDistance: DEFAULT_VIEW_DISTANCE,
@@ -155,7 +156,6 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
     },
     level3Reset: {
         mapKey: 'standard',
-        themeMode: 'dunkel',
         vehicles: {
             PLAYER_1: 'ship5',
             PLAYER_2: 'ship5',
@@ -164,7 +164,6 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
     configShare: {
         sessionType: 'single',
         modePath: 'normal',
-        themeMode: 'dunkel',
         mode: '1p',
         gameMode: 'CLASSIC',
         mapKey: 'standard',
@@ -208,7 +207,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         },
         {
             id: 'arcade',
-            name: 'Arcade',
+            name: 'Arcade Standard',
             description: 'Schnelles Setup für direkten Einstieg.',
             lockedFields: ['mode', 'gameMode', 'numBots', 'winsNeeded'],
             values: {
@@ -227,7 +226,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         },
         {
             id: 'competitive',
-            name: 'Competitive',
+            name: 'Wettkampf',
             description: 'Turniernahes Regelset mit engeren Limits.',
             lockedFields: ['mode', 'numBots', 'winsNeeded', 'gameplay.speed', 'gameplay.turnSensitivity', 'gameplay.itemAmount'],
             values: {
@@ -291,7 +290,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         },
         {
             id: 'normal-standard',
-            name: 'Normal Standard',
+            name: 'Klassisch Standard',
             description: 'Empfohlene Normal-Kombination für Classic-Sessions.',
             lockedFields: ['gameMode'],
             values: {
@@ -414,7 +413,6 @@ export function createMenuDefaultsEditorSnapshotFromSettings(settings = {}) {
         localSettings: {
             sessionType: String(localSettings.sessionType || MENU_DEFAULT_EDITOR_CONFIG.localSettings.sessionType),
             modePath: String(localSettings.modePath || MENU_DEFAULT_EDITOR_CONFIG.localSettings.modePath),
-            themeMode: String(localSettings.themeMode || MENU_DEFAULT_EDITOR_CONFIG.localSettings.themeMode),
             graphicsStyle: String(localSettings.graphicsStyle || MENU_DEFAULT_EDITOR_CONFIG.localSettings.graphicsStyle),
             mapBrightness: String(localSettings.mapBrightness || MENU_DEFAULT_EDITOR_CONFIG.localSettings.mapBrightness),
             viewDistance: Number(localSettings.viewDistance ?? MENU_DEFAULT_EDITOR_CONFIG.localSettings.viewDistance),

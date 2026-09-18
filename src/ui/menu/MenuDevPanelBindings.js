@@ -1,4 +1,5 @@
 import { setupMenuTelemetryControls } from './MenuDeveloperStateSync.js';
+import { syncPresetDeleteButton } from './MenuPresetStateSync.js';
 
 export function setupMenuDevPanelBindings(ctx) {
     const ui = ctx.ui;
@@ -29,7 +30,7 @@ export function setupMenuDevPanelBindings(ctx) {
             const presetId = String(ui.presetSelect?.value || '').trim();
             if (!presetId) {
                 emit(eventTypes.SHOW_STATUS_TOAST, {
-                    message: 'Preset auswählen, bevor es angewendet wird.',
+                    message: 'Wähle zuerst eine Vorlage aus.',
                     tone: 'error',
                     duration: 1700,
                 });
@@ -59,12 +60,16 @@ export function setupMenuDevPanelBindings(ctx) {
         });
     }
 
+    if (ui.presetSelect && ui.presetDeleteButton) {
+        bind(ui.presetSelect, 'change', () => syncPresetDeleteButton(ui.presetDeleteButton, ui.presetSelect.value));
+    }
+
     if (ui.presetDeleteButton) {
         bind(ui.presetDeleteButton, 'click', () => {
             const presetId = String(ui.presetSelect?.value || '').trim();
             if (!presetId) {
                 emit(eventTypes.SHOW_STATUS_TOAST, {
-                    message: 'Kein Preset zum Löschen ausgewählt.',
+                    message: 'Keine Vorlage zum Löschen ausgewählt.',
                     tone: 'error',
                     duration: 1700,
                 });

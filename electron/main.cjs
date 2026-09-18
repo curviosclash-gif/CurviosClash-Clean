@@ -27,6 +27,7 @@ const { registerTuningIpc } = require('./tuning-ipc.cjs');
 const { createHangarWindowController } = require('./hangar-window.cjs');
 const {
     createEditorWindowOpenHandler,
+    createMainWindowNavigationGuard,
     createPlaytestWindowOpenHandler,
     createSecureWindowWebPreferences,
     isTrustedEditorUrl,
@@ -291,13 +292,14 @@ function startBroadcast(resolveState) {
                     ip,
                     port: signalingPort,
                     lobbyCode,
-                    hostName: String(metadata.hostName || state?.hostName || hostName).trim(),
+                    hostName: String(state?.hostName || metadata.hostName || hostName).trim(),
                     playerCount: Number(state?.playerCount || 0),
                     maxPlayers: Number(state?.maxPlayers || 10),
                     mapKey: String(metadata.mapKey || 'standard').trim(),
                     gameMode: String(metadata.gameMode || 'CLASSIC').trim(),
                     modePath: String(metadata.modePath || 'normal').trim(),
                     winsNeeded: Number(metadata.winsNeeded || 5),
+                    inMatch: state?.inMatch === true,
                 });
                 const buffer = Buffer.from(payload);
                 broadcastSocket.send(buffer, 0, buffer.length, DISCOVERY_PORT, '255.255.255.255');
@@ -361,7 +363,7 @@ async function startSignalingServer() {
     updateTrayTooltip();
 
     signalingStartPromise = (async () => {
-        const { createLANSignalingServer } = await loadLanSignalingModule();
+        const { createLANSignalingServer, resolveLanLobbyPublicHostName } = await loadLanSignalingModule();
         const candidatePorts = [...SIGNALING_PORTS, SIGNALING_PORT_FALLBACK];
 
         let runtime = null;
@@ -426,10 +428,12 @@ async function startSignalingServer() {
         resetSignalingError();
         startBroadcast(() => ({
             lobbyCode: runtime.lobby?.code || '',
-            hostName: runtime.lobby?.hostName || '',
+            hostName: runtime.lobby ? resolveLanLobbyPublicHostName(runtime.lobby) : '',
             playerCount: runtime.lobby ? 1 + (runtime.lobby.players?.length || 0) : 0,
             maxPlayers: runtime.lobby?.maxPlayers || 10,
             metadata: runtime.lobby?.metadata || null,
+            // The signaling server keeps the start command until the host resets the lobby.
+            inMatch: !!runtime.lobby?.pendingMatchStart,
         }));
         updateTrayTooltip();
         return runtime;
@@ -574,9 +578,7 @@ async function createWindow() {
         mainWindow.showInactive();
     }
 
-    mainWindow.webContents.on('will-navigate', (event) => {
-        event.preventDefault();
-    });
+    mainWindow.webContents.on('will-navigate', createMainWindowNavigationGuard(appServer.url));
     installEditorDownloadTarget(session.defaultSession, {
         isTrustedEditorUrl: (url) => isTrustedEditorUrl(url, appServer.url),
         getDownloadsDirectory: () => app.getPath('downloads'),
@@ -1036,6 +1038,7 @@ function startDiscoveryListener() {
                 gameMode: String(data.gameMode || '').trim(),
                 modePath: String(data.modePath || '').trim(),
                 winsNeeded: Math.max(1, Math.floor(Number(data.winsNeeded) || 5)),
+                inMatch: data.inMatch === true,
                 lastSeen: Date.now(),
             };
             discoveredHosts.set(buildDiscoveryHostKey(hostRecord), hostRecord);

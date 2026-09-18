@@ -1,8 +1,8 @@
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
+// The 3D-art marker belongs to the map details, not into the name in the list.
 export function formatStartSetupMapLabel(entry = {}) {
-    const name = String(entry?.name || entry?.key || 'Map');
-    return entry?.hasGlbModel ? `${name} [GLB]` : name;
+    return String(entry?.name || entry?.key || 'Karte');
 }
 
 export function getStartFieldBinding(ui, fieldKey) {
@@ -12,7 +12,6 @@ export function getStartFieldBinding(ui, fieldKey) {
         map: { control: ui?.mapSelect || null, hint: ui?.mapFieldHint || null, sectionId: 'map' },
         vehicleP1: { control: ui?.vehicleSelectP1 || null, hint: ui?.vehicleP1FieldHint || null, sectionId: 'vehicle' },
         vehicleP2: { control: ui?.vehicleSelectP2 || null, hint: ui?.vehicleP2FieldHint || null, sectionId: 'vehicle' },
-        theme: { control: ui?.themeModeSelect || null, hint: ui?.themeFieldHint || null, sectionId: 'match' },
         match: { control: dimensionModeButton || gameModeButton || ui?.huntRespawnToggle || null, hint: ui?.matchFieldHint || null, sectionId: 'match' },
         multiplayer: { control: ui?.multiplayerLobbyCodeInput || null, hint: ui?.matchFieldHint || null, sectionId: 'multiplayer' },
     };

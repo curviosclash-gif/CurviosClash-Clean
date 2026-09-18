@@ -10,22 +10,22 @@ import {
     createInitialLobbySessionState,
     normalizeLobbySessionState,
 } from './MatchLobbySessionState.js';
-import {
-    SIGNALING_HTTP_ROUTES,
-} from '../shared/contracts/SignalingSessionContract.js';
+import { SIGNALING_HTTP_ROUTES } from '../shared/contracts/SignalingSessionContract.js';
 import {
     createNetworkUnavailableSignalingError,
     toErrorPayload,
 } from './OnlineSignalingSupport.js';
 import {
     buildLanRequestError,
-    publishLanLobbyMetadata,
+    publishLanLobbyMetadata, publishLanLobbyName,
 } from './LANSignalingSupport.js';
 import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 500;
 const DEFAULT_POLL_TIMEOUT_MS = 2500;
-const POLL_FAILURE_THRESHOLD = 3;
+// One lost poll starts the reconnect loop; its three attempts are the tolerance, so the
+// guest sees "Verbindung wird wiederhergestellt" at once instead of a stale "connected".
+const POLL_FAILURE_THRESHOLD = 1;
 
 /**
  * Lobby for LAN play. Communicates with the embedded LAN signaling server
@@ -79,6 +79,7 @@ export class LANMatchLobby extends MatchLobby {
                 maxPlayers: Number(options.maxPlayers || 10),
                 actorId: options.actorId,
                 name: options.name || options.actorId,
+                lobbyName: options.lobbyName,
                 metadata: options.metadata,
             }),
         });
@@ -119,13 +120,15 @@ export class LANMatchLobby extends MatchLobby {
         this._cancelReconnect = false;
 
         try {
+            // An unreachable host must not keep the menu waiting for the operating system (~10 s).
             const res = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_JOIN}`, {
-                method: 'POST',
+                signal: AbortSignal.timeout(this._pollTimeoutMs * 2), method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     lobbyCode: this.lobbyCode,
                     actorId: joinOptions.actorId,
                     name: joinOptions.name || joinOptions.actorId,
+                    lobbyName: joinOptions.lobbyName,
                     participantMetadata: joinOptions.participantMetadata,
                 }),
             });
@@ -160,7 +163,7 @@ export class LANMatchLobby extends MatchLobby {
                 throw err;
             }
             throw buildLanRequestError({
-                fallbackMessage: `LAN-Signaling nicht erreichbar: ${this._signalingUrl}`,
+                fallbackMessage: `Host im LAN nicht erreichbar: ${this._signalingUrl}`,
                 fallbackCode: 'signaling_network_unavailable',
             });
         }
@@ -189,6 +192,7 @@ export class LANMatchLobby extends MatchLobby {
                 peerId,
                 actorId: String(player?.actorId || existing?.actorId || player?.name || (peerId === hostPeerId ? 'Host' : peerId)).trim(),
                 name: String(player?.name || existing?.name || peerId).trim(),
+                lobbyName: typeof player?.lobbyName === 'string' ? player.lobbyName : (existing?.lobbyName || ''),
                 role: peerId === hostPeerId ? 'host' : fallbackRole,
                 ready: resolvedReady,
                 joinedAt: Number(existing?.joinedAt || now),
@@ -200,6 +204,7 @@ export class LANMatchLobby extends MatchLobby {
             playerId: hostPeerId,
             actorId: status.hostActorId,
             name: status.hostName || status.hostActorId || 'Host',
+            lobbyName: status.hostLobbyName,
             ready: status.hostReady === true,
         }, 'host');
         for (const player of serverPlayers) {
@@ -248,6 +253,8 @@ export class LANMatchLobby extends MatchLobby {
     }
 
     _startPolling() {
+        // leave()/dispose() during a running join: the late answer must not revive the lobby.
+        if (this._cancelReconnect) return;
         this._stopPolling();
         this._pollClosed = false;
         const pollLoop = async () => {
@@ -342,7 +349,7 @@ export class LANMatchLobby extends MatchLobby {
                     data = await this._pollStatusOnce();
                 } else {
                     const response = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_REJOIN}`, {
-                        method: 'POST',
+                        signal: AbortSignal.timeout(this._pollTimeoutMs), method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             playerId: this._localPeerId,
@@ -438,13 +445,19 @@ export class LANMatchLobby extends MatchLobby {
             throw buildLanRequestError({
                 response: res,
                 payload,
-                fallbackMessage: 'Ready-Status setzen fehlgeschlagen.',
+                fallbackMessage: 'Bereitschaft konnte nicht gesetzt werden.',
                 fallbackCode: 'ready_failed',
             });
         }
         const data = await res.json();
         this._processServerStatus(data);
         this._emit('readyChanged', { ready: ready === true, sessionState: this.sessionState });
+        return data;
+    }
+
+    async setLobbyName(lobbyName) {
+        const data = await publishLanLobbyName({ signalingUrl: this._signalingUrl, playerId: this._localPeerId || 'host', isHost: this.isHost, token: this._localPeerToken, lobbyName });
+        this._processServerStatus(data);
         return data;
     }
 
@@ -479,7 +492,7 @@ export class LANMatchLobby extends MatchLobby {
             throw buildLanRequestError({
                 response: res,
                 payload,
-                fallbackMessage: 'Ready-Invalidierung fehlgeschlagen.',
+                fallbackMessage: 'Bereitschaft konnte nicht zurückgesetzt werden.',
                 fallbackCode: 'ready_invalidation_failed',
             });
         }

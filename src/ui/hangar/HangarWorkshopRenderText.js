@@ -40,6 +40,25 @@ export function signed(value, suffix = '') {
     return `${number > 0 ? '+' : ''}${number}${suffix}`;
 }
 
+export const FIGHT_BALANCE_HINT = 'Im Kampf muss jeder Vorteil durch einen Nachteil ausgeglichen sein.';
+
+// Weights of FightHangarBalanceContract: one percent of speed or turning counts three hit points.
+const FIGHT_BALANCE_SIDES = Object.freeze([
+    Object.freeze({ key: 'speedBonusPct', label: 'Tempo', weight: 3 }),
+    Object.freeze({ key: 'turningBonusPct', label: 'Wendigkeit', weight: 3 }),
+    Object.freeze({ key: 'maxHpBonus', label: 'Lebenspunkte', weight: 1 }),
+]);
+
+/** Reads the fight balance score as a balance, not as a budget: 0 means balanced. */
+export function formatFightBalanceText(validation) {
+    const score = Math.round((Number(validation?.balanceScore) || 0) * 10) / 10;
+    if (score === 0) return 'Ausgleich: ausgeglichen';
+    const bonuses = validation?.bonuses || {};
+    const weighted = FIGHT_BALANCE_SIDES.map((side) => ({ ...side, value: (Number(bonuses[side.key]) || 0) * side.weight }));
+    const leaning = weighted.reduce((best, side) => (score > 0 ? side.value > best.value : side.value < best.value) ? side : best);
+    return `Ausgleich: ${signed(score)} ${score > 0 ? 'zugunsten' : 'zulasten'} ${leaning.label}`;
+}
+
 export function partRunBonusesText(part, multiplier = 1, mode = 'arcade') {
     const bonuses = mode === 'fight' ? resolveFightPartTradeoff(part) : (part.bonuses || {});
     return [

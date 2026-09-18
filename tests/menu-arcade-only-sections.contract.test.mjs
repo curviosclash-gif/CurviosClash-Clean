@@ -34,5 +34,5 @@ test('Arcade run options only show for an Arcade run', () => {
 test('only the Arcade run section is marked Arcade-only; the ghost duel serves every single player mode', () => {
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     assert.match(html, /class="menu-section menu-arcade-only">\s*<h3[^>]*>Arcade-Lauf</);
-    assert.match(html, /class="menu-section">\s*<h3[^>]*>Arcade Selbstduell</);
+    assert.match(html, /class="menu-section">\s*<h3[^>]*>Selbstduell</);
 });

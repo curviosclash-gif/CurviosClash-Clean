@@ -86,8 +86,8 @@ export function transformElectronMain(source) {
     result = result.replace("const { registerTuningIpc } = require('./tuning-ipc.cjs');\n", '');
     result = replacePatternRequired(
         result,
-        /const \{\n    createEditorWindowOpenHandler,\n    createPlaytestWindowOpenHandler,\n    createSecureWindowWebPreferences,\n    isTrustedEditorUrl,\n\} = require\('\.\/window-security-options\.cjs'\);/,
-        "const { createSecureWindowWebPreferences } = require('./window-security-options.cjs');",
+        /const \{\n    createEditorWindowOpenHandler,\n    createMainWindowNavigationGuard,\n    createPlaytestWindowOpenHandler,\n    createSecureWindowWebPreferences,\n    isTrustedEditorUrl,\n\} = require\('\.\/window-security-options\.cjs'\);/,
+        "const {\n    createMainWindowNavigationGuard,\n    createSecureWindowWebPreferences,\n} = require('./window-security-options.cjs');",
         'editor window security imports'
     );
     result = replaceRequired(

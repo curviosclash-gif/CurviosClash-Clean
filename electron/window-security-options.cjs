@@ -103,9 +103,32 @@ function createPlaytestWindowOpenHandler(appServerUrl) {
     );
 }
 
+const MAIN_WINDOW_APP_PATHS = new Set(['/', '/index.html']);
+
+/**
+ * Navigationswaechter fuers Hauptfenster: Nur die eigene Spielseite darf geladen werden.
+ * Electron meldet auch location.reload() als will-navigate; ein pauschales Verbot
+ * verhinderte deshalb das Neuladen nach einem Spielerprofilwechsel.
+ * @param {string} appServerUrl
+ * @returns {(event: {preventDefault: () => void}, url: string) => void}
+ */
+function createMainWindowNavigationGuard(appServerUrl) {
+    const trustedOrigin = new URL(appServerUrl).origin;
+    return (event, url) => {
+        try {
+            const target = new URL(url);
+            if (target.origin === trustedOrigin && MAIN_WINDOW_APP_PATHS.has(target.pathname)) return;
+        } catch {
+            // Invalid and non-absolute URLs remain blocked.
+        }
+        event.preventDefault();
+    };
+}
+
 module.exports = {
     EDITOR_WINDOW_BOUNDS,
     createEditorWindowOpenHandler,
+    createMainWindowNavigationGuard,
     createPlaytestWindowOpenHandler,
     createSecureWindowWebPreferences,
     isTrustedEditorUrl,

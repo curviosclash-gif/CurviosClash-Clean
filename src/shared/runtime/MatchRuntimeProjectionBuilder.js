@@ -92,6 +92,7 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
     const slowMoCharge = Math.max(0, Math.min(slowMoCapacity, Number(player?.slowMoCharge) || 0));
     return createMatchRuntimePlayerProjection({
         playerIndex: Number.isInteger(player?.index) ? player.index : 0,
+        name: typeof player?.name === 'string' ? player.name : '',
         isBot: player?.isBot === true,
         alive: player?.alive !== false,
         score: Math.max(0, Math.round(Number(player?.score) || 0)),
@@ -197,7 +198,10 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
             damageIndicator: huntState.damageIndicator || null,
             respawnEnabled: entityManager?.gameModeStrategy?.isRespawnEnabled?.() === true,
             deathmatchKillLimit: authoritativeFightState?.killLimit || entityManager?.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,
+            winCondition: authoritativeFightState?.winCondition || entityManager?.entityRuntimeConfig?.HUNT?.WIN_CONDITION,
             respawnRemainingByPlayer: entityManager?.getHuntRespawnRemainingByPlayer?.() || {},
+            livesRemainingByPlayer: authoritativeFightState?.livesRemainingByPlayer
+                || entityManager?.getHuntLivesRemainingByPlayer?.() || {},
             scoreboardRows,
             scoreboardSummary: entityManager?.getHuntScoreboardSummary?.(4, scoreboardRows) || '',
             elapsedSeconds: deathmatchState.elapsedSeconds || 0,

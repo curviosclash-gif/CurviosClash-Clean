@@ -10,11 +10,12 @@ import { HANGAR_SLOT_DEFINITIONS, listHangarParts, resolveHangarPart, resolvePar
 import { resolveHangarStoneAvailability } from './HangarStoneInventory.js';
 import { validateHangarBuild } from './HangarBuildValidation.js';
 import { compareHangarStats, projectHangarStats } from './HangarStatProjection.js';
+import { prependFightEffectRows } from './FightHangarEffectView.js';
 import { projectHangarProgression } from './HangarProgressionProjection.js';
 import {
     STAT_VALUE_HINTS,
     VEHICLE_CATEGORY_LABELS,
-    deltaText,
+    deltaText, FIGHT_BALANCE_HINT, formatFightBalanceText,
     partCostsText,
     partRunBonusesText,
     partStatsText,
@@ -234,6 +235,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
             );
             statRows.appendChild(row);
         });
+        if (mode === 'fight') prependFightEffectRows(statRows, { draft: state.draft, baselineBuild: state.baselineBuild || state.savedBuild, baselineLabel }, validateBuild);
         budgetRows.replaceChildren();
         [
             ['Editorbudget', validation.stats.budgetUsed, validation.limits.editorBudget],
@@ -376,9 +378,9 @@ export function createArcadeHangarWorkshopRenderer(options) {
         const xp = state.xpToNextLevel(profile);
         const progression = projectHangarProgression(profile, state.draft, xp);
         levelLine.textContent = mode === 'fight'
-            ? `Fight-Sidegrade · Leistungsbudget ${validation.balanceScore ?? 0}`
+            ? formatFightBalanceText(validation)
             : progressionSummaryText(progression);
-        levelDetail.textContent = mode === 'fight' ? '' : progressionDetailText(progression);
+        levelDetail.textContent = mode === 'fight' ? FIGHT_BALANCE_HINT : progressionDetailText(progression);
         xpFill.style.width = mode === 'fight' ? '100%' : `${(xp.progress * 100).toFixed(1)}%`;
         if (mode === 'fight') {
             const machineGun = resolveFightMachineGunModel(state.draft.machineGunId);
@@ -490,7 +492,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         redoButton.disabled = !state.history?.canRedo();
         revertButton.disabled = !state.baselineBuild || !dirty;
         activateButton.disabled = !validation.ok;
-        activeBuildLabel.textContent = `Aktiver Run-Build: ${persistence.getActiveBuild(state.draft.vehicleId)?.name || 'Standard'}`;
+        activeBuildLabel.textContent = `Aktiver ${mode === 'fight' ? 'Kampf' : 'Run'}-Build: ${persistence.getActiveBuild(state.draft.vehicleId)?.name || 'Standard'}`;
     }
 
     return Object.freeze({ sync });

@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import { PauseOverlayController } from '../src/ui/PauseOverlayController.js';
 import { MatchFlowUiController } from '../src/ui/MatchFlowUiController.js';
+import { enterLevel4PauseHost, leaveLevel4PauseHost } from '../src/ui/menu/Level4PauseHost.js';
 
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 
@@ -72,13 +73,17 @@ test('showing and hiding the round result flags the HUD', () => {
 
 test('opening and closing the pause settings flags the HUD', () => {
     const hud = { classList: createClassList() };
+    const ui = {
+        hud,
+        mainMenu: { dataset: {}, classList: createClassList(['hidden']) },
+        level4Drawer: { dataset: {} },
+    };
     const game = {
         keyCapture: null,
-        settings: { invertPitch: {} },
-        ui: {
-            hud,
-            pauseSettingsPanel: { classList: createClassList(['hidden']) },
-            pauseSettingsButton: { classList: createClassList() },
+        ui,
+        uiManager: {
+            openPauseSettings: () => enterLevel4PauseHost(ui),
+            closePauseSettings: () => leaveLevel4PauseHost(ui),
         },
     };
     const controller = new PauseOverlayController({ matchFlowUiController: { game }, runtime: game });

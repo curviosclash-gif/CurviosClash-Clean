@@ -9,9 +9,7 @@ import {
 } from '../../application/session-runtime/MenuLobbyServiceFactory.js';
 import { MATCH_LIFECYCLE_CONTRACT_VERSION } from '../../shared/contracts/MatchLifecycleContract.js';
 import { PLATFORM_PRODUCT_SURFACE_IDS, resolveDefaultLobbyTransport, resolveLobbyProviderKind, resolveSurfacePolicy } from '../../shared/contracts/PlatformCapabilityRegistry.js';
-import {
-    resolveSurfaceMultiplayerGateAccess,
-} from '../../shared/contracts/PlatformSurfacePolicyOps.js';
+import { resolveSurfaceMultiplayerGateAccess } from '../../shared/contracts/PlatformSurfacePolicyOps.js';
 import {
     isNetworkLobbyServiceTransport,
     normalizeLobbyServiceTransport,
@@ -28,6 +26,7 @@ import { recordSessionRuntimeEvent } from '../../shared/runtime/SessionRuntimeOb
 import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
 import { createLobbyPlatformBindings } from '../../platform/LobbyPlatformBindings.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
+import { loadRememberedLobbyName } from './MultiplayerLobbyNameOps.js';
 import {
     beginMultiplayerAction,
     clearMultiplayerFieldError,
@@ -293,40 +292,29 @@ export function invalidateMultiplayerReadyIfHostChangedSettings({
     }).catch(() => null);
 }
 
-function renderOpenLobbyOptions(game, lobbies = []) {
-    const select = game?.ui?.multiplayerOpenLobbiesSelect;
-    const doc = select?.ownerDocument;
-    if (!select || typeof doc?.createElement !== 'function') return;
-
-    const placeholder = doc.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = lobbies.length > 0
-        ? 'Offene Lobby auswählen'
-        : 'Keine offenen Lobbys gefunden';
-    const options = [placeholder, ...lobbies.map((lobby) => {
-        const option = doc.createElement('option');
-        option.value = lobby.lobbyCode;
-        if (option.dataset) {
-            option.dataset.signalingUrl = normalizeString(lobby.signalingUrl, '');
-        }
-        const context = [
-            normalizeString(lobby.hostName, ''),
-            normalizeString(lobby.modePath || lobby.gameMode, ''),
-            normalizeString(lobby.mapKey, ''),
-        ].filter(Boolean).join(' · ');
-        option.textContent = `${lobby.lobbyCode} · ${lobby.memberCount}/${lobby.maxPlayers} Spieler${context ? ` · ${context}` : ''}`;
-        return option;
-    })];
-    select.replaceChildren(...options);
-    select.value = '';
-    select.disabled = lobbies.length === 0;
-}
+// The menu's lobby table (ui.openLobbyTable) draws the rows; the runtime only hands over data.
+const lobbyListRefreshesInFlight = new WeakSet();
 
 export async function handleMultiplayerLobbyListRefreshAction({
     game,
+    event = null,
     menuMultiplayerBridge,
 }) {
     if (!game) return null;
+    if (event?.auto === true) {
+        // A background refresh stays silent and never overlaps a running search.
+        if (lobbyListRefreshesInFlight.has(game) || typeof menuMultiplayerBridge?.listOpenLobbies !== 'function') return null;
+        lobbyListRefreshesInFlight.add(game);
+        try {
+            const lobbies = await Promise.resolve(menuMultiplayerBridge.listOpenLobbies());
+            game.ui?.openLobbyTable?.update?.(lobbies);
+            return { ok: true, lobbies };
+        } catch {
+            return { ok: false };
+        } finally {
+            lobbyListRefreshesInFlight.delete(game);
+        }
+    }
     const selectedTransport = normalizeRuntimeMultiplayerTransport(
         game?.settings?.localSettings?.multiplayerTransport,
         MULTIPLAYER_TRANSPORTS.LAN
@@ -339,21 +327,23 @@ export async function handleMultiplayerLobbyListRefreshAction({
     const wasDisabled = refreshButton?.disabled === true;
     if (refreshButton) refreshButton.disabled = true;
     const transportLabel = selectedTransport === MULTIPLAYER_TRANSPORTS.ONLINE ? 'Online' : 'LAN';
-    setMultiplayerStatus(game, `${transportLabel}-Lobbys werden gesucht ...`);
+    setMultiplayerStatus(game, `${transportLabel}-Lobbys werden gesucht …`);
+    lobbyListRefreshesInFlight.add(game);
     try {
         const lobbies = await Promise.resolve(menuMultiplayerBridge.listOpenLobbies());
-        renderOpenLobbyOptions(game, lobbies);
+        game.ui?.openLobbyTable?.update?.(lobbies);
         setMultiplayerStatus(game, lobbies.length === 1
             ? `1 offene ${transportLabel}-Lobby gefunden.`
             : `${lobbies.length} offene ${transportLabel}-Lobbys gefunden.`);
         return { ok: true, lobbies };
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Lobby-Suche fehlgeschlagen.';
-        renderOpenLobbyOptions(game, []);
+        game.ui?.openLobbyTable?.update?.([]);
         setMultiplayerStatus(game, `Lobby-Suche fehlgeschlagen: ${message}`);
         game._showStatusToast?.(message, 1800, 'error');
         return { ok: false, message };
     } finally {
+        lobbyListRefreshesInFlight.delete(game);
         if (refreshButton) refreshButton.disabled = wasDisabled;
     }
 }
@@ -386,8 +376,8 @@ export async function handleMultiplayerHostAction({
     const hostGate = resolveSurfaceMultiplayerGateAccess('host', resolveSurfaceResolverOptions());
     if (!hostGate.allowed) {
         finishPendingAction();
-        setMultiplayerStatus(game, hostGate.message || 'Hosting ist nicht verfügbar.');
-        game._showStatusToast(hostGate.message || 'Hosting ist nicht verfügbar.', hostGate.durationMs || 1800, 'error');
+        setMultiplayerStatus(game, hostGate.message || 'Eine Lobby zu erstellen ist hier nicht möglich.');
+        game._showStatusToast(hostGate.message || 'Eine Lobby zu erstellen ist hier nicht möglich.', hostGate.durationMs || 1800, 'error');
         return { ok: false, message: hostGate.message, reason: hostGate.reason };
     }
     const accessContext = resolveMenuAccessContext?.(); const profile = game?.playerProfileManager?.getActiveProfile?.(); const settingsSnapshot = captureSettingsSnapshot?.();
@@ -396,7 +386,7 @@ export async function handleMultiplayerHostAction({
     try {
         result = await Promise.resolve(menuMultiplayerBridge?.host({
             actorId: profile?.id || accessContext?.actorId, name: String(profile?.displayName || accessContext?.actorId || 'Host'),
-            lobbyCode: String(event?.lobbyCode || '').trim(),
+            lobbyCode: String(event?.lobbyCode || '').trim(), lobbyName: loadRememberedLobbyName(game),
             settingsSnapshot,
         }));
     } catch (error) {
@@ -434,7 +424,7 @@ export async function handleMultiplayerJoinAction({
     if (!game) return null;
     clearMultiplayerFieldError(game.ui?.multiplayerLobbyCodeInput);
     clearMultiplayerFieldError(game.ui?.multiplayerHostAddressInput);
-    const finishPendingAction = beginMultiplayerAction(game, 'Lobby wird gesucht …');
+    const finishPendingAction = beginMultiplayerAction(game, 'Lobby wird gesucht …', { cancellable: true });
     const selectedTransport = normalizeRuntimeMultiplayerTransport(
         game?.settings?.localSettings?.multiplayerTransport,
         MULTIPLAYER_TRANSPORTS.LAN
@@ -457,7 +447,7 @@ export async function handleMultiplayerJoinAction({
     try {
         result = await Promise.resolve(menuMultiplayerBridge?.join({
             actorId: profile?.id || accessContext?.actorId, name: String(profile?.displayName || accessContext?.actorId || 'Spieler'),
-            lobbyCode: String(event?.lobbyCode || '').trim(),
+            lobbyCode: String(event?.lobbyCode || '').trim(), lobbyName: loadRememberedLobbyName(game),
             signalingUrl: manualSignalingUrl,
         }));
     } catch (error) {
@@ -469,13 +459,14 @@ export async function handleMultiplayerJoinAction({
     if (!result?.ok) {
         const message = result?.message || 'Lobby konnte nicht beigetreten werden.';
         finishPendingAction();
-        setMultiplayerStatus(game, `Join fehlgeschlagen: ${message}`);
+        const cancelled = result?.code === 'join_cancelled';
+        setMultiplayerStatus(game, cancelled ? 'Beitritt abgebrochen.' : `Beitritt fehlgeschlagen: ${message}`);
         if (result?.code === 'manual_signaling_url_invalid') {
             markMultiplayerFieldError(game.ui?.multiplayerHostAddressInput);
         } else if (result?.code === 'missing_lobby_code' || result?.code === 'lobby_not_found') {
             markMultiplayerFieldError(game.ui?.multiplayerLobbyCodeInput);
         }
-        game._showStatusToast(message, 1800, 'error');
+        if (!cancelled) game._showStatusToast(message, 1800, 'error');
         return result;
     }
 
@@ -530,11 +521,11 @@ export async function handleMultiplayerReadyToggleAction({
     } catch (error) {
         result = {
             ok: false,
-            message: error instanceof Error ? error.message : 'Ready-Status konnte nicht gesetzt werden.',
+            message: error instanceof Error ? error.message : 'Bereitschaft konnte nicht gesetzt werden.',
         };
     }
     if (!result?.ok) {
-        game?._showStatusToast?.(result?.message || 'Ready-Status konnte nicht gesetzt werden.', 1700, 'error');
+        game?._showStatusToast?.(result?.message || 'Bereitschaft konnte nicht gesetzt werden.', 1700, 'error');
         if (game?.ui?.multiplayerReadyToggle) {
             game.ui.multiplayerReadyToggle.checked = false;
         }

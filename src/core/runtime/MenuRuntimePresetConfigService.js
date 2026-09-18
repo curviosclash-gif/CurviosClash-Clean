@@ -14,14 +14,16 @@ import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.
 import { PLATFORM_PRODUCT_SURFACE_IDS } from '../../shared/contracts/PlatformCapabilityRegistry.js';
 import { resolveMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 
-function resolvePresetFailureMessage(result, fallbackMessage) {
+export function resolvePresetFailureMessage(result, fallbackMessage) {
     switch (result?.reason) {
     case 'invalid_preset_id':
-        return 'Preset-ID ist ungültig.';
+        return 'Die Vorlagen-Kennung ist ungültig.';
     case 'preset_not_found':
-        return 'Preset wurde nicht gefunden.';
+        return 'Vorlage wurde nicht gefunden.';
     case 'owner_required':
-        return 'Nur der Host darf dieses Preset verändern.';
+        return 'Nur der Host darf diese Vorlage verändern.';
+    case 'catalog_fixed_locked':
+        return 'Eingebaute Vorlagen können nicht gelöscht werden.';
     default:
         return fallbackMessage;
     }
@@ -69,7 +71,7 @@ export function handleConfigImportAction({
     if (!game) return;
     const result = importMenuConfigFromInput(game.settings, inputValue);
     if (!result.success) {
-        const errorMessage = String(result.error || 'Config-Import fehlgeschlagen');
+        const errorMessage = String(result.message || result.error || 'Config-Import fehlgeschlagen');
         setConfigShareStatus(game.ui, 'Import fehlgeschlagen', 'error');
         game._showStatusToast(errorMessage, 1700, 'error');
         return;
@@ -109,18 +111,18 @@ export function applyMenuPresetAction({
 }) {
     if (!game) return;
     if (!presetId) {
-        game._showStatusToast('Preset fehlt.', 1500, 'error');
+        game._showStatusToast('Vorlage fehlt.', 1500, 'error');
         return;
     }
     if (!getSurfacePort(game).isPresetAllowed(presetId)) {
-        const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Dieses Preset');
+        const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Diese Vorlage');
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
         return;
     }
 
     const result = game.settingsManager.applyMenuPreset(game.settings, presetId, resolveMenuAccessContext?.());
     if (!result.success) {
-        game._showStatusToast(resolvePresetFailureMessage(result, 'Preset konnte nicht angewendet werden.'), 1700, 'error');
+        game._showStatusToast(resolvePresetFailureMessage(result, 'Vorlage konnte nicht angewendet werden.'), 1700, 'error');
         return;
     }
 
@@ -129,6 +131,12 @@ export function applyMenuPresetAction({
             settingsChangeKeys.PRESET_ACTIVE_KIND,
             settingsChangeKeys.PRESET_STATUS,
         ]);
+    // A preset only reports mapKey when the value changed; the hangar selection the
+    // summary reads can still hold another map, so align it whenever the preset has one.
+    const presetCarriesMap = typeof result.preset?.values?.mapKey === 'string';
+    if (presetCarriesMap && !changedKeys.includes(settingsChangeKeys.MAP_KEY)) {
+        changedKeys.push(settingsChangeKeys.MAP_KEY);
+    }
     if (changedKeys.includes(settingsChangeKeys.MAP_KEY)) {
         writeHangarMapSelection(
             game.settings,
@@ -140,10 +148,10 @@ export function applyMenuPresetAction({
     onSettingsChanged?.({ changedKeys });
 
     if (result.blockedPaths?.length > 0) {
-        game._showStatusToast('Preset teilweise angewendet (Host-Felder blieben unverändert).', 1900, 'info');
+        game._showStatusToast('Vorlage teilweise angewendet (vom Host festgelegte Werte blieben unverändert).', 1900, 'info');
         return;
     }
-    game._showStatusToast(`Preset geladen: ${presetId}`, 1300, 'success');
+    game._showStatusToast(`Vorlage geladen: ${presetId}`, 1300, 'success');
 }
 
 export function saveMenuPresetAction({
@@ -166,7 +174,7 @@ export function saveMenuPresetAction({
         resolveMenuAccessContext?.()
     );
     if (!result.success) {
-        game._showStatusToast(resolvePresetFailureMessage(result, 'Preset konnte nicht gespeichert werden.'), 1700, 'error');
+        game._showStatusToast(resolvePresetFailureMessage(result, 'Vorlage konnte nicht gespeichert werden.'), 1700, 'error');
         return;
     }
     onSettingsChanged?.({
@@ -176,7 +184,7 @@ export function saveMenuPresetAction({
             ]),
     });
     const label = kind === 'fixed' ? 'verbindlich' : 'frei';
-    game._showStatusToast(`Preset gespeichert (${label}): ${result.preset?.name || result.preset?.id}`, 1400, 'success');
+    game._showStatusToast(`Vorlage gespeichert (${label}): ${result.preset?.name || result.preset?.id}`, 1400, 'success');
 }
 
 export function deleteMenuPresetAction({
@@ -188,12 +196,12 @@ export function deleteMenuPresetAction({
 }) {
     if (!game) return;
     if (!presetId) {
-        game._showStatusToast('Kein Preset ausgewählt.', 1500, 'error');
+        game._showStatusToast('Keine Vorlage ausgewählt.', 1500, 'error');
         return;
     }
     const result = game.settingsManager.deleteMenuPreset(presetId, game.settings, resolveMenuAccessContext?.());
     if (!result.success) {
-        game._showStatusToast(resolvePresetFailureMessage(result, 'Preset konnte nicht gelöscht werden.'), 1700, 'error');
+        game._showStatusToast(resolvePresetFailureMessage(result, 'Vorlage konnte nicht gelöscht werden.'), 1700, 'error');
         return;
     }
     onSettingsChanged?.({
@@ -202,5 +210,5 @@ export function deleteMenuPresetAction({
                 settingsChangeKeys.PRESET_STATUS,
             ]),
     });
-    game._showStatusToast(`Preset gelöscht: ${presetId}`, 1200, 'success');
+    game._showStatusToast(`Vorlage gelöscht: ${presetId}`, 1200, 'success');
 }

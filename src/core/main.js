@@ -16,6 +16,7 @@ import { PlayingStateSystem } from './PlayingStateSystem.js';
 import { RoundStateTickSystem } from '../state/RoundStateTickSystem.js';
 import { GameDebugApi } from './GameDebugApi.js';
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
+import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
 import {
     MATCH_LIFECYCLE_CONTRACT_VERSION,
 } from '../shared/contracts/MatchLifecycleContract.js';
@@ -180,12 +181,7 @@ export class Game {
         if (typeof planarRequested === 'boolean') {
             if (!this.settings.gameplay) this.settings.gameplay = {};
             this.settings.gameplay.planarMode = planarRequested;
-            if (planarRequested) {
-                if ((this.settings.gameplay.portalCount || 0) === 0) {
-                    this.settings.gameplay.portalCount = 4;
-                }
-                this.settings.portalsEnabled = true;
-            }
+            if (planarRequested) this.settings.portalsEnabled = true;
         }
         this._onSettingsChanged();
 
@@ -421,7 +417,7 @@ export class Game {
 
     _showPlayerFeedback(player, message) {
         if (!player) return;
-        const prefix = player.isBot ? `Bot ${player.index + 1}` : `P${player.index + 1}`;
+        const prefix = formatPlayerDisplayLabel(player);
         this._showStatusToast(`${prefix}: ${message}`);
     }
 

@@ -1,5 +1,7 @@
 import { isArenaWavesConfig } from '../shared/contracts/ArenaWavesContract.js';
 import { isEndlessParcoursConfig } from '../shared/contracts/EndlessParcoursContract.js';
+import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
+import { HUNT_LAST_ALIVE_LIVES } from '../shared/contracts/HuntLivesContract.js';
 
 export function formatHuntClock(seconds) {
     const whole = Math.max(0, Math.ceil(Number(seconds) || 0));
@@ -7,15 +9,31 @@ export function formatHuntClock(seconds) {
 }
 
 // Top three plus every local player below them, so a split screen shows both humans.
-export function formatHuntScoreboard(rows, localPlayerIndices, fallback) {
+export function getHuntScoreValue(row, winCondition, livesRemainingByPlayer = {}) {
+    const mode = normalizeHuntWinCondition(winCondition);
+    const value = mode === HUNT_WIN_CONDITIONS.LAST_ALIVE
+        ? (livesRemainingByPlayer?.[row?.playerIndex] ?? HUNT_LAST_ALIVE_LIVES)
+        : mode === HUNT_WIN_CONDITIONS.SCORE_TARGET ? row?.points : row?.kills;
+    return Math.max(0, Number(value) || 0);
+}
+
+export function rankHuntScoreboardRows(rows, winCondition, livesRemainingByPlayer = {}) {
+    if (normalizeHuntWinCondition(winCondition) !== HUNT_WIN_CONDITIONS.LAST_ALIVE) return rows;
+    return [...rows].sort((left, right) =>
+        getHuntScoreValue(right, winCondition, livesRemainingByPlayer)
+        - getHuntScoreValue(left, winCondition, livesRemainingByPlayer));
+}
+
+export function formatHuntScoreboard(rows, localPlayerIndices, fallback, winCondition, livesRemainingByPlayer = {}) {
     const locals = new Set(Array.isArray(localPlayerIndices) ? localPlayerIndices : [localPlayerIndices]);
     const visible = rows.slice(0, 3);
     for (const row of rows) {
         if (locals.has(row?.playerIndex) && !visible.includes(row)) visible.push(row);
     }
     return visible.length > 0
-        ? visible.map((row) => `${locals.has(row.playerIndex) ? '▶ ' : ''}${row.label} ${row.kills}`).join('   |   ')
-        : String(fallback || 'Noch keine Abschüsse');
+        ? visible.map((row) => `${locals.has(row.playerIndex) ? '▶ ' : ''}${row.label} ${getHuntScoreValue(row, winCondition, livesRemainingByPlayer)}`).join('   |   ')
+        : String(fallback || (normalizeHuntWinCondition(winCondition) === HUNT_WIN_CONDITIONS.SCORE_TARGET
+            ? 'Noch keine Punkte' : 'Noch keine Abschüsse'));
 }
 
 export function updateHuntTargetProgress(progress, state, target, score) {
@@ -43,7 +61,9 @@ export function updateHuntTargetProgress(progress, state, target, score) {
 export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLimit, timeText, matchPointText }) {
     if (isArenaWavesConfig(runtimeConfig)) return 'Fünf Fronten · halte jede Welle auf';
     if (isEndlessParcoursConfig(runtimeConfig)) return 'Endlosjagd · überlebe so lange wie möglich';
-    return huntProjection?.respawnEnabled === true
-        ? `Deathmatch · zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`
-        : 'Elimination · letzter Überlebender gewinnt';
+    if (huntProjection?.respawnEnabled !== true) return 'Elimination · letzter Überlebender gewinnt';
+    const mode = normalizeHuntWinCondition(huntProjection?.winCondition);
+    if (mode === HUNT_WIN_CONDITIONS.LAST_ALIVE) return `Letzter Überlebender · ${HUNT_LAST_ALIVE_LIVES} Leben pro Spieler`;
+    if (mode === HUNT_WIN_CONDITIONS.SCORE_TARGET) return `Punktziel · zuerst ${killLimit} Punkte${matchPointText}`;
+    return `Deathmatch · zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`;
 }

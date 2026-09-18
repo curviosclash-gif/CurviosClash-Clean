@@ -1,8 +1,10 @@
+import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
+
 function formatCombatantLabel(player) {
     const explicitLabel = typeof player?.combatLabel === 'string' ? player.combatLabel.trim() : '';
     if (explicitLabel) return explicitLabel;
     if (!player) return 'Umgebung';
-    return player.isBot ? `Bot ${player.index + 1}` : `P${player.index + 1}`;
+    return formatPlayerDisplayLabel(player);
 }
 
 export function rememberFightAttacker(target, sourcePlayer) {

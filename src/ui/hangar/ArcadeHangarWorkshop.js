@@ -397,7 +397,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         presetName.value = '';
         if (options.activate) commitProfileForRun(draft);
         draftPersistence.clear(draft.vehicleId);
-        toast(options.activate ? 'Build gespeichert und für den nächsten Run aktiviert.' : `Build gespeichert: ${draft.name}`, 'success');
+        toast(options.activate ? (hangarMode === 'fight' ? 'Build gespeichert und für den nächsten Kampf aktiviert.' : 'Build gespeichert und für den nächsten Run aktiviert.') : `Build gespeichert: ${draft.name}`, 'success');
         syncDisplay();
         return result;
     }

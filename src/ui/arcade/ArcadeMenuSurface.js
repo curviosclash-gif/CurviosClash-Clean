@@ -25,8 +25,16 @@ import {
 } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
 import { FIVE_PORTALS_RECORD_KEY } from '../../shared/contracts/FivePortalsContract.js';
 import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
+import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 import { observeMenuReturn } from './MenuReturnObserver.js';
 import { bindArcadeNightmareToggle, syncArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
+
+const BOT_DIFFICULTY_LABELS = Object.freeze({ EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' });
+// Only phases worth showing; unknown or idle phases stay out of the line.
+const ARCADE_PHASE_LABELS = Object.freeze({
+    countdown: 'Countdown', running: 'läuft', combat: 'Kampf', intermission: 'Zwischenstopp',
+    upgrade: 'Vorteil wählen', finished: 'beendet', ended: 'beendet',
+});
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
@@ -247,17 +255,19 @@ export function setupArcadeMenuSurface(ctx = {}) {
             ? runtimeState.intermission
             : null;
 
-        const phaseLabel = runtimeState?.phase ? ` | ${String(runtimeState.phase).toUpperCase()}` : '';
-        const dailyLabel = runtimeState?.isDailyChallenge === true ? ' | DAILY' : '';
-        const tierLabel = settings.arcade?.nightmare === true && !settings.arcade?.dailyChallenge ? ' | ALBTRAUM' : '';
+        const phaseText = ARCADE_PHASE_LABELS[String(runtimeState?.phase || '')] || '';
+        const phaseLabel = phaseText ? ` · ${phaseText}` : '';
+        const dailyLabel = runtimeState?.isDailyChallenge === true ? ' · Daily' : '';
+        const difficultyLabel = BOT_DIFFICULTY_LABELS[difficulty] || difficulty;
+        const tierLabel = settings.arcade?.nightmare === true && !settings.arcade?.dailyChallenge ? ' · Albtraum' : '';
         syncArcadeNightmareToggle(refs.nightmareInput, settings);
         const fivePortalsSelected = settings.arcade?.runType === 'five_portals';
         const fivePortalsRecord = runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(FIVE_PORTALS_RECORD_KEY, null) || null;
         refs.runLine.textContent = fivePortalsSelected
             ? 'Fünf Portale: fünf Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.'
             : settings.arcade?.dailyChallenge
-            ? 'Daily: Solo · ship5 ohne Leistungsboni · 5 Sektoren · NORMAL. Ergebnis bis zum Boss zählt.'
-            : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${mapKey} | Bots ${botCount} | ${difficulty}${tierLabel}${dailyLabel}${phaseLabel}`;
+            ? `Daily: Solo · ${resolveVehiclePreview('ship5').label} ohne Leistungsboni · 5 Sektoren · Normal. Ergebnis bis zum Boss zählt.`
+            : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${resolveMapPreview(mapKey).name} · ${botCount} Bots · ${difficultyLabel}${tierLabel}${dailyLabel}${phaseLabel}`;
         refs.recordsLine.textContent = fivePortalsSelected
             ? `Persönliche Bestzeit: ${fivePortalsRecord?.bestTotalMs > 0 ? `${(fivePortalsRecord.bestTotalMs / 1000).toFixed(2)} s` : '–'}`
             : `Neue Wertung: ${Math.round(runtimeState?.records?.bestScore || 0)} Punkte`
@@ -338,50 +348,29 @@ export function setupArcadeMenuSurface(ctx = {}) {
         emit(eventTypes.START_MATCH);
     });
 
-    bind(refs.startEndlessButton, 'click', () => {
+    // These runs play on their own map and bot count. Both only ride along with the start
+    // (borrowedSettings), so the menu keeps the player's map and bots afterwards.
+    const startRunWithOwnMap = (runType, borrowedSettings) => {
         applySeedToSettings(activeSeed, { dailyChallenge: false });
-        settings.arcade.runType = 'endless_parcours';
+        settings.arcade.runType = runType;
         settings.arcade.combatProfile = 'hunt';
         settings.gameMode = 'ARCADE';
-        settings.mapKey = 'standard';
-        settings.numBots = 0;
         if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
         settings.localSettings.modePath = 'arcade';
         const prepared = prepareHangarRunStart();
         if (prepared?.ok === false) return;
-        recordRunStart(prepared?.build);
-        emit(eventTypes.START_MATCH);
-    });
+        const snapshot = createArcadeRunSnapshot({ ...settings, ...borrowedSettings }, activeSeed, prepared?.build);
+        if (shouldShowArcade(settings)) {
+            lastRunSnapshot = snapshot;
+            saveLastRunSnapshot(snapshot, runtimeAccess?.getSettingsStore?.());
+            sync();
+        }
+        emit(eventTypes.START_MATCH, { borrowedSettings });
+    };
 
-    bind(refs.startFiveFrontsButton, 'click', () => {
-        applySeedToSettings(activeSeed, { dailyChallenge: false });
-        settings.arcade.runType = 'arena_waves';
-        settings.arcade.combatProfile = 'hunt';
-        settings.gameMode = 'ARCADE';
-        settings.mapKey = 'notre_dame_arena';
-        settings.numBots = 12;
-        if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
-        settings.localSettings.modePath = 'arcade';
-        const prepared = prepareHangarRunStart();
-        if (prepared?.ok === false) return;
-        recordRunStart(prepared?.build);
-        emit(eventTypes.START_MATCH);
-    });
-
-    bind(refs.startFivePortalsButton, 'click', () => {
-        applySeedToSettings(activeSeed, { dailyChallenge: false });
-        settings.arcade.runType = 'five_portals';
-        settings.arcade.combatProfile = 'hunt';
-        settings.gameMode = 'ARCADE';
-        settings.mapKey = 'micro_maw';
-        settings.numBots = 0;
-        if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
-        settings.localSettings.modePath = 'arcade';
-        const prepared = prepareHangarRunStart();
-        if (prepared?.ok === false) return;
-        recordRunStart(prepared?.build);
-        emit(eventTypes.START_MATCH);
-    });
+    bind(refs.startEndlessButton, 'click', () => startRunWithOwnMap('endless_parcours', { mapKey: 'standard', numBots: 0 }));
+    bind(refs.startFiveFrontsButton, 'click', () => startRunWithOwnMap('arena_waves', { mapKey: 'notre_dame_arena', numBots: 12 }));
+    bind(refs.startFivePortalsButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: 'micro_maw', numBots: 0 }));
 
     bind(refs.openHangarButton, 'click', async () => {
         const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });

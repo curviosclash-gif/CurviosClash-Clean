@@ -44,15 +44,17 @@ test('V103 SettingsManager loadSettings rewrites persisted snapshots to canonica
     assert.deepEqual(persistedSettings, manager.sanitizeSettings(persistedSettings));
 });
 
-test('SettingsManager repairs primitive persisted settings with the canonical default snapshot', () => {
+test('SettingsManager repairs primitive persisted settings with the fresh profile snapshot', () => {
     const storagePlatform = createMemoryStoragePlatform({
         [STORAGE_KEYS.settings]: 'corrupt-settings-record',
     });
     const manager = new SettingsManager({ storagePlatform });
 
     const loadedSettings = manager.loadSettings();
+    // An unusable record counts as no settings: the profile starts like a fresh one.
+    const freshProfileSettings = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() }).loadSettings();
 
-    assert.deepEqual(loadedSettings, manager.createDefaultSettings());
+    assert.deepEqual(loadedSettings, freshProfileSettings);
     assert.deepEqual(storagePlatform.getRecord(STORAGE_KEYS.settings), loadedSettings);
 });
 

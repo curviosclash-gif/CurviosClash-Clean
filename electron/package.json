@@ -66,6 +66,7 @@
           "core/settings/SettingsOverrideContract.js",
           "core/settings/SettingsOverrideMergeOps.js",
           "core/settings/SettingsOverrideRangeContract.js",
+          "core/settings/SettingsOverrideRetiredPaths.js",
           "dev/tuning/*.js",
           "entities/GeneratedLocalMaps.js",
           "entities/PickupRegistry.js",

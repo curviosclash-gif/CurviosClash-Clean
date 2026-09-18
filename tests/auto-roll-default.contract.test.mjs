@@ -33,13 +33,11 @@ test('explicit auto-roll choices remain unchanged', () => {
     assert.equal(createMultiplayerMatchSettingsSnapshot({ autoRoll: false }).autoRoll, false);
 });
 
-test('auto-roll checkboxes are not preselected before settings synchronization', () => {
+// Menu and pause share one settings window, so there is a single auto-roll checkbox.
+test('the auto-roll checkbox is not preselected before settings synchronization', () => {
     const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     const menuToggle = indexHtml.match(/<input[^>]*id="auto-roll-toggle"[^>]*>/)?.[0] || '';
-    const pauseToggle = indexHtml.match(/<input[^>]*id="pause-auto-roll-toggle"[^>]*>/)?.[0] || '';
 
     assert.ok(menuToggle);
-    assert.ok(pauseToggle);
     assert.doesNotMatch(menuToggle, /\schecked(?:\s|>|=)/);
-    assert.doesNotMatch(pauseToggle, /\schecked(?:\s|>|=)/);
 });

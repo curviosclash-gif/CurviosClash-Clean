@@ -10,7 +10,7 @@ test('three-player split setup guards missing pads and starts with swapped devic
     await page.locator('#btn-three-player-split').click();
     await expect(page.locator('#three-player-split-setup')).toBeVisible();
 
-    await page.locator('[data-three-player-split-start]').click();
+    await expect(page.locator('[data-three-player-split-start]')).toBeDisabled();
     await expect(page.locator('[data-three-player-split-device-status]')).toContainText('Gamepad 1 fehlt');
     expect(await page.evaluate(() => window.GAME_INSTANCE?.state)).toBe('MENU');
 
@@ -24,6 +24,7 @@ test('three-player split setup guards missing pads and starts with swapped devic
         window.dispatchEvent(new Event('gamepadconnected'));
     });
     await expect(page.locator('[data-three-player-split-device-status]')).toBeHidden();
+    await expect(page.locator('[data-three-player-split-start]')).toBeEnabled();
     await page.locator('[data-three-player-split-start]').click();
     await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
         && window.GAME_INSTANCE?.entityManager?.humanPlayers?.length === 3);

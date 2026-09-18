@@ -45,6 +45,7 @@ export const SIGNALING_HTTP_ROUTES = Object.freeze({
     LOBBY_JOIN: '/lobby/join',
     LOBBY_REJOIN: '/lobby/rejoin',
     LOBBY_READY: '/lobby/ready',
+    LOBBY_NAME: '/lobby/name',
     LOBBY_LEAVE: '/lobby/leave',
     LOBBY_ACK_PENDING: '/lobby/ack-pending',
     LOBBY_MATCH_START: '/lobby/match-start',

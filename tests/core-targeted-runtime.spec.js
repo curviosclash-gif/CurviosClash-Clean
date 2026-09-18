@@ -43,6 +43,7 @@ import {
     buildLegacyRuntimeCustomMap,
     createMockEditorManager,
 } from './core-targeted.shared.js';
+import { resolveMapPortalEntryCount } from '../src/shared/contracts/PortalAuthoringContract.js';
 
 test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm', () => {
     test('T20ab: GameLoop akkumuliert Sub-Step-Frames ohne Doppel-Simulation', async ({ page }) => {
@@ -1769,38 +1770,14 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             const { PauseOverlayController } = await window.__curviosImport('/src/ui/PauseOverlayController.js');
 
             const makeButton = () => document.createElement('button');
-            const makeCheckbox = () => {
-                const input = document.createElement('input');
-                input.type = 'checkbox';
-                return input;
-            };
-
-            const keybindP1 = document.createElement('div');
-            const keybindButton = document.createElement('button');
-            keybindButton.className = 'keybind-btn';
-            keybindButton.dataset.action = 'THRUST';
-            keybindP1.appendChild(keybindButton);
-
-            const keybindP2 = document.createElement('div');
-            const pauseOverlay = document.createElement('div');
-            const pauseSettingsPanel = document.createElement('div');
-            pauseSettingsPanel.classList.add('hidden');
-
             const ui = {
-                pauseOverlay,
+                pauseOverlay: document.createElement('div'),
                 pauseResumeButton: makeButton(),
                 pauseSettingsButton: makeButton(),
-                pauseSettingsBackButton: makeButton(),
                 pauseMenuButton: makeButton(),
-                pauseSettingsPanel,
-                pauseKeybindP1: keybindP1,
-                pauseKeybindP2: keybindP2,
-                pauseAutoRollToggle: makeCheckbox(),
-                pauseInvertP1: makeCheckbox(),
-                pauseInvertP2: makeCheckbox(),
             };
 
-            let keyCaptureCalls = 0;
+            let settingsOpenCalls = 0;
             const game = {
                 state: 'PAUSED',
                 ui,
@@ -1809,7 +1786,10 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                     invertPitch: { PLAYER_1: false, PLAYER_2: false },
                 },
                 entityManager: { players: [] },
-                keybindEditorController: { renderPauseEditor() { } },
+                uiManager: {
+                    openPauseSettings() { settingsOpenCalls += 1; return true; },
+                    closePauseSettings() { return false; },
+                },
                 gameLoop: { requestDeltaReset() { } },
                 runtimeFacade: {
                     isNetworkSession: () => false,
@@ -1830,7 +1810,6 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             const ports = {
                 inputPort: {
                     clearJustPressed() { },
-                    startKeyCapture() { keyCaptureCalls += 1; },
                 },
                 settingsPort: { applyAutoRoll() { } },
                 sessionPort: {
@@ -1863,34 +1842,34 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
 
             ui.pauseResumeButton.click();
             ui.pauseMenuButton.click();
-            keybindButton.click();
+            ui.pauseSettingsButton.click();
 
             const beforeDispose = {
                 resumeCalls,
                 menuCalls,
-                keyCaptureCalls,
+                settingsOpenCalls,
             };
 
             controller.dispose();
             ui.pauseResumeButton.click();
             ui.pauseMenuButton.click();
-            keybindButton.click();
+            ui.pauseSettingsButton.click();
 
             const afterDispose = {
                 resumeCalls,
                 menuCalls,
-                keyCaptureCalls,
+                settingsOpenCalls,
             };
 
             controller.setupListeners();
             ui.pauseResumeButton.click();
             ui.pauseMenuButton.click();
-            keybindButton.click();
+            ui.pauseSettingsButton.click();
 
             const afterRebind = {
                 resumeCalls,
                 menuCalls,
-                keyCaptureCalls,
+                settingsOpenCalls,
             };
 
             controller.dispose();
@@ -1904,13 +1883,13 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
 
         expect(result.beforeDispose.resumeCalls).toBe(1);
         expect(result.beforeDispose.menuCalls).toBe(1);
-        expect(result.beforeDispose.keyCaptureCalls).toBe(1);
+        expect(result.beforeDispose.settingsOpenCalls).toBe(1);
         expect(result.afterDispose.resumeCalls).toBe(result.beforeDispose.resumeCalls);
         expect(result.afterDispose.menuCalls).toBe(result.beforeDispose.menuCalls);
-        expect(result.afterDispose.keyCaptureCalls).toBe(result.beforeDispose.keyCaptureCalls);
+        expect(result.afterDispose.settingsOpenCalls).toBe(result.beforeDispose.settingsOpenCalls);
         expect(result.afterRebind.resumeCalls).toBe(2);
         expect(result.afterRebind.menuCalls).toBe(2);
-        expect(result.afterRebind.keyCaptureCalls).toBe(2);
+        expect(result.afterRebind.settingsOpenCalls).toBe(2);
     });
 
     test('T20ae2: PauseOverlayController delegiert Return-to-Menu an den Lifecycle-Port', async ({ page }) => {
@@ -1919,11 +1898,6 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             const { PauseOverlayController } = await window.__curviosImport('/src/ui/PauseOverlayController.js');
 
             const makeButton = () => document.createElement('button');
-            const makeCheckbox = () => {
-                const input = document.createElement('input');
-                input.type = 'checkbox';
-                return input;
-            };
 
             let lifecycleReturnCalls = 0;
             let sessionTeardownCalls = 0;
@@ -1935,21 +1909,13 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                     pauseOverlay: document.createElement('div'),
                     pauseResumeButton: makeButton(),
                     pauseSettingsButton: makeButton(),
-                    pauseSettingsBackButton: makeButton(),
                     pauseMenuButton: makeButton(),
-                    pauseSettingsPanel: document.createElement('div'),
-                    pauseKeybindP1: document.createElement('div'),
-                    pauseKeybindP2: document.createElement('div'),
-                    pauseAutoRollToggle: makeCheckbox(),
-                    pauseInvertP1: makeCheckbox(),
-                    pauseInvertP2: makeCheckbox(),
                 },
                 settings: {
                     autoRoll: false,
                     invertPitch: { PLAYER_1: false, PLAYER_2: false },
                 },
                 entityManager: { players: [] },
-                keybindEditorController: { renderPauseEditor() { } },
                 gameLoop: { requestDeltaReset() { } },
                 runtimeFacade: {
                     isNetworkSession: () => false,
@@ -2378,7 +2344,8 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         });
 
         expect(probe).not.toBeNull();
-        expect(probe.portalPairs).toBe(2);
+        // The map owns its portal count (menu decision 18.09.); the scenario only switches portals on.
+        expect(probe.portalPairs).toBeGreaterThan(0);
         expect(probe.hit).toBeTruthy();
         expect(probe.targetDistance).toBeLessThan(0.001);
         expect(probe.cooldown).toBeGreaterThan(0);
@@ -2417,24 +2384,20 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         expect(probe.nonWallObstacleCount).toBeGreaterThan(0);
     });
 
-    test('T10d: Ebenen- und Portal-Anzahl steuern das planare Prewarm-Layout', async ({ page }) => {
+    test('T10d: Ebenen-Anzahl und Karten-Portalzahl steuern das planare Prewarm-Layout', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
         await openStartSetupSection(page, 'match');
         await page.click('#btn-dimension-planar');
         await openLevel4Drawer(page, { section: 'advanced_map' });
+        // The portal count belongs to the map; the menu has no slider for it any more.
+        await expect(page.locator('#portal-count-slider')).toHaveCount(0);
         await page.evaluate(() => {
             const toggle = document.getElementById('portals-toggle');
-            const portalSlider = document.getElementById('portal-count-slider');
             const levelSlider = document.getElementById('planar-level-count-slider');
             if (toggle && !toggle.checked) {
                 toggle.checked = true;
                 toggle.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            if (portalSlider) {
-                portalSlider.value = '6';
-                portalSlider.dispatchEvent(new Event('input', { bubbles: true }));
-                portalSlider.dispatchEvent(new Event('change', { bubbles: true }));
             }
             if (levelSlider) {
                 levelSlider.value = '4';
@@ -2451,7 +2414,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             return hud && !hud.classList.contains('hidden') && g?.entityManager?.players?.length > 0;
         }, null, { timeout: 15000 });
 
-        const probe = await page.evaluate(() => {
+        const probe = await page.evaluate(async () => {
             const game = window.GAME_INSTANCE;
             const arena = game?.arena;
             const player = game?.entityManager?.players?.[0];
@@ -2462,15 +2425,17 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             ));
             return {
                 configuredPortalEntries: game?.runtimeConfig?.gameplay?.portalCount,
+                mapPortalCount: arena?.currentMapDefinition?.portalCount,
                 configuredLevelCount: game?.runtimeConfig?.gameplay?.planarLevelCount,
                 portalPairCount: arena?.portals?.length ?? 0,
                 portalLevelCount: portalLevels.length,
                 spawnLevelHasPortal,
             };
         });
-        expect(probe.configuredPortalEntries).toBe(6);
+        const mapPortalEntries = resolveMapPortalEntryCount({ portalCount: probe.mapPortalCount }, { planarMode: true });
+        expect(probe.configuredPortalEntries).toBe(mapPortalEntries);
         expect(probe.configuredLevelCount).toBe(4);
-        expect(probe.portalPairCount).toBe(3);
+        expect(probe.portalPairCount).toBe(mapPortalEntries / 2);
         expect(probe.portalLevelCount).toBe(4);
         expect(probe.spawnLevelHasPortal).toBeTruthy();
     });

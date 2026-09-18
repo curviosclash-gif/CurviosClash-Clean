@@ -1,14 +1,12 @@
 import { createElectronPreloadHangarAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
 import { STORAGE_KEYS } from '../../shared/storage/StorageKeys.js';
+import { createInfoHintButton } from '../menu/InfoHintToggle.js';
 
 export function createHangarWindowLauncher(createElement) {
     const card = createElement('section', 'arcade-surface-card hangar-window-launch-card');
     card.appendChild(createElement('h3', 'arcade-surface-card-title', 'Desktop Hangar'));
-    const hint = createElement('span', 'menu-info-hint', 'i');
-    hint.title = 'Öffnet den Fahrzeug-Workshop bildschirmfüllend in einem eigenen Fenster.';
-    hint.setAttribute('role', 'img');
-    hint.setAttribute('aria-label', hint.title);
-    card.appendChild(hint);
+    card.appendChild(createInfoHintButton(card.ownerDocument || document,
+        'Öffnet den Fahrzeug-Workshop bildschirmfüllend in einem eigenen Fenster.'));
     const button = createElement('button', 'start-btn hangar-window-open', 'Hangar im großen Fenster öffnen');
     button.type = 'button';
     card.appendChild(button);

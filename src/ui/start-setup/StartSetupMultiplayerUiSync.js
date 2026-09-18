@@ -11,6 +11,8 @@ import {
     renderSummaryBlocks,
 } from './StartSetupUiOps.js';
 import { resolveArcadeGhostDuelModeLabel } from './StartSetupSelectionSync.js';
+import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../../shared/contracts/HuntWinConditionContract.js';
+import { HUNT_LAST_ALIVE_LIVES } from '../../shared/contracts/HuntLivesContract.js';
 
 function resolveSessionLabel(surfaceEntryCopy, sessionType) {
     return surfaceEntryCopy.sessionSummaryLabels[sessionType]
@@ -36,9 +38,12 @@ export function formatMenuRulesSummary(settings, modePath) {
     const bots = count ? `${count} Bots · ${difficulty}` : 'Ohne Bots';
     const winsNeeded = Math.max(1, Number(settings?.winsNeeded) || 1);
     const winsLabel = `${winsNeeded} ${winsNeeded === 1 ? 'Sieg' : 'Siege'}`;
-    const objective = settings?.gameMode === 'HUNT' && settings?.hunt?.respawnEnabled
-        ? `${settings.hunt.deathmatchKillLimit || 10} Abschüsse${winsNeeded > 1 ? ` · ${winsLabel}` : ''}`
-        : winsLabel;
+    const fight = settings?.gameMode === 'HUNT' && settings?.hunt?.respawnEnabled;
+    const winCondition = normalizeHuntWinCondition(settings?.hunt?.winCondition);
+    const fightGoal = winCondition === HUNT_WIN_CONDITIONS.LAST_ALIVE
+        ? `${HUNT_LAST_ALIVE_LIVES} Leben · letzter Überlebender`
+        : `${settings?.hunt?.deathmatchKillLimit || 10} ${winCondition === HUNT_WIN_CONDITIONS.SCORE_TARGET ? 'Punkte' : 'Abschüsse'}`;
+    const objective = fight ? `${fightGoal}${winsNeeded > 1 ? ` · ${winsLabel}` : ''}` : winsLabel;
     return `${bots} · ${objective}`;
 }
 
@@ -116,7 +121,6 @@ function createSummaryBlocks({
     vehiclePreviewP2,
     ghostDuelState,
 }) {
-    const themeLabel = String(settings?.localSettings?.themeMode || 'dunkel').toLowerCase() === 'hell' ? 'Hell' : 'Dunkel';
     const summaryBlocks = [
         { label: 'Session', value: resolveSessionLabel(surfaceEntryCopy, sessionType), secondary: true },
         { label: 'Spielstil', value: resolveModeLabel(modePath) },
@@ -135,7 +139,6 @@ function createSummaryBlocks({
             muted: !ghostDuelState.trailCollisionSelectable,
             secondary: true,
         },
-        { label: 'Ansicht', value: themeLabel, secondary: true },
     ];
     if (sessionType === MENU_SESSION_TYPES.SPLITSCREEN
         || sessionType === MENU_SESSION_TYPES.MULTIPLAYER) {
@@ -184,10 +187,7 @@ function renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePrevie
             facts: [
                 { label: 'Größe', value: mapPreview.sizeText },
                 { label: 'Hindernisse', value: String(mapPreview.obstacleCount) },
-                {
-                    label: 'Portal-Paare',
-                    value: mapPreview.portalMode === 'dynamic' ? 'Dynamisch' : String(mapPreview.portalCount),
-                },
+                { label: 'Portal-Paare', value: String(mapPreview.portalCount) },
                 mapPreview.gateCount > 0 ? { label: 'Tore', value: String(mapPreview.gateCount) } : null,
                 mapPreview.tunnelCount > 0 ? { label: 'Tunnel', value: String(mapPreview.tunnelCount) } : null,
                 mapPreview.spawnCount > 0 ? { label: 'Startpunkte', value: String(mapPreview.spawnCount) } : null,
@@ -328,16 +328,15 @@ export function syncStartSetupMultiplayerUi({
             && multiplayerTransportUiState.isOnlineUnconfigured);
     if (ui.multiplayerOpenLobbiesControls) {
         ui.multiplayerOpenLobbiesControls.classList.toggle('hidden', !showOpenLobbies);
+        // The automatic lobby search only runs while browsing is possible.
+        ui.multiplayerOpenLobbiesControls.dataset.canBrowse = String(canBrowseOpenLobbies);
     }
     if (ui.multiplayerOpenLobbiesLabel) {
         ui.multiplayerOpenLobbiesLabel.textContent = multiplayerTransportUiState.selectedTransport === MULTIPLAYER_TRANSPORTS.ONLINE
             ? 'Offene Online-Lobbys'
             : 'Lobbys im LAN';
     }
-    if (ui.multiplayerOpenLobbiesSelect) {
-        ui.multiplayerOpenLobbiesSelect.disabled = !canBrowseOpenLobbies
-            || Number(ui.multiplayerOpenLobbiesSelect.options?.length || 0) <= 1;
-    }
+    if (ui.multiplayerLobbySearchInput) ui.multiplayerLobbySearchInput.disabled = !canBrowseOpenLobbies;
     if (ui.multiplayerOpenLobbiesRefreshButton) {
         ui.multiplayerOpenLobbiesRefreshButton.disabled = !canBrowseOpenLobbies;
     }
@@ -355,8 +354,8 @@ export function syncStartSetupMultiplayerUi({
         ui.multiplayerHostAddressInput.disabled = !isMultiplayerSession || !isLanTransportSelected;
         ui.multiplayerHostAddressInput.readOnly = hasActiveLobbySession;
         ui.multiplayerHostAddressInput.title = hasActiveLobbySession
-            ? 'Host-Adresse ist für die aktive Session festgelegt.'
-            : (isLanTransportSelected ? '' : 'Host-Adresse wird nur für LAN-Join verwendet.');
+            ? 'Die Host-Adresse ist für die aktive Sitzung festgelegt.'
+            : (isLanTransportSelected ? '' : 'Die Host-Adresse wird nur für den Beitritt im LAN verwendet.');
     }
     if (ui.multiplayerManualAddress) {
         const showManualAddress = isMultiplayerSession
@@ -421,7 +420,7 @@ export function syncStartSetupMultiplayerUi({
             : (isHost
                 ? (resolvedMultiplayerSessionState?.memberCount < 2
                     ? 'Mindestens ein weiterer Teilnehmer wird benötigt.'
-                    : 'Alle Clients müssen bereit sein.')
+                    : 'Alle Mitspieler müssen bereit sein.')
                 : 'Der Host startet das Match.');
     }
     renderMultiplayerMembers(ui, resolvedMultiplayerSessionState, hasActiveLobbySession);
@@ -449,7 +448,7 @@ export function syncStartSetupMultiplayerUi({
                 ? `Lobbystatus: ${lobbyCode} | ${sessionContract.transportAudienceLabel}`
                 : 'Lobbystatus: Legacy-Fallback aktiv | lokaler Menu-Bridge-Pfad, kein produktives LAN/Online';
         } else if (multiplayerTransportUiState.isOnlineUnconfigured) {
-            ui.multiplayerLobbyState.textContent = 'Lobbystatus: Online ausgewählt | nicht konfiguriert, bitte LAN verwenden';
+            ui.multiplayerLobbyState.textContent = 'Lobbystatus: Online gewählt, aber nicht eingerichtet. Bitte LAN verwenden.';
         } else if (lobbyCode) {
             ui.multiplayerLobbyState.textContent = `Lobbystatus: ${lobbyCode} | ${surfaceEntryCopy.joinButtonLabel} noch nicht verbunden`;
         } else {
