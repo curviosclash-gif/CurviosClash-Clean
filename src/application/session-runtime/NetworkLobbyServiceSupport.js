@@ -1,5 +1,9 @@
 import { LOBBY_SERVICE_TRANSPORTS, normalizeLobbyServiceTransport } from '../../shared/contracts/LobbyServiceContract.js';
 import { tryParseLocalLanSignalingOrigin } from '../../shared/contracts/LocalNetworkAddressContract.js';
+import {
+    normalizeMultiplayerPlayerName,
+    resolveDefaultMultiplayerPlayerName,
+} from '../../shared/contracts/MultiplayerSessionContract.js';
 import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
 
 export function normalizeString(value, fallback = '') {
@@ -71,12 +75,14 @@ export function buildSessionState(lobbyState, options = {}) {
     const members = Array.isArray(lobbyState.members) ? lobbyState.members : [];
     const hostPeerId = normalizeString(lobbyState.hostPeerId, '');
     const hostConnected = members.some((member) => normalizeString(member?.peerId, '') === hostPeerId);
-    const normalizedMembers = members.map((member) => {
+    const normalizedMembers = members.map((member, index) => {
         const peerId = normalizeString(member?.peerId, '');
         const isLocal = peerId === localPeerId;
+        const actorId = isLocal && localActorId ? localActorId : normalizeString(member?.actorId, peerId || 'Spieler');
         return {
             ...member,
-            actorId: isLocal && localActorId ? localActorId : normalizeString(member?.actorId, peerId || 'Spieler'),
+            actorId,
+            name: normalizeMultiplayerPlayerName(member?.name, resolveDefaultMultiplayerPlayerName(actorId, index + 1)),
             isLocal,
             isHost: peerId === hostPeerId,
         };
