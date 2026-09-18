@@ -1,6 +1,6 @@
 {
   "$comment": "Playwright tests that are red without anyone's current change. The list is a ratchet: `count` may sink, never rise. Raise it only on an explicit instruction. Every entry must point at an existing spec and an existing test title - tests/playwright-known-failures.contract.test.mjs enforces that, so a fixed or renamed test forces the entry out.",
-  "count": 41,
+  "count": 39,
   "entries": [
     {
       "spec": "tests/physics-hunt.spec.js",
@@ -208,22 +208,6 @@
       "since": "2026-09-13",
       "commit": "",
       "reason": "expects surface_policy_blocked, receives saved_via_app; both values exist since the seed commit",
-      "kind": "stale-test"
-    },
-    {
-      "spec": "tests/core-targeted-runtime.spec.js",
-      "title": "T20am: Collision-Bounce nutzt Runtime-RNG statt unseeded Math.random",
-      "since": "2026-08-07",
-      "commit": "f317794",
-      "reason": "CollisionResponseSystem no longer reads the spawnProtection option at all",
-      "kind": "stale-test"
-    },
-    {
-      "spec": "tests/core-targeted-runtime.spec.js",
-      "title": "T20am1: Arcade-Map- und Missionsfolge folgen dem aktiven Run-Seed",
-      "since": "2026-09-11",
-      "commit": "ef95e95",
-      "reason": "the mission list contains SURVIVE_DURATION instead of ITEM_CHAIN",
       "kind": "stale-test"
     },
     {

@@ -4,7 +4,6 @@ import {
     loadGame,
     openGameSubmenu,
     openLevel4Drawer,
-    openMultiplayerSubmenu,
     selectSessionType,
     returnToMenu,
     resolveAppUrl,
@@ -275,38 +274,10 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         expect(errors).toHaveLength(0);
     });
 
-    test('T75: Host-Settings invalidieren Ready-Status per Event-Contract', async ({ page }) => {
-        await page.context().addInitScript(() => {
-            globalThis.__CURVIOS_APP__ = true;
-        });
-        await loadGame(page);
-        await openMultiplayerSubmenu(page);
-        await page.fill('#multiplayer-lobby-code', 'STRESS-T75');
-        await page.click('[data-connection-intent-target="host"]');
-        await page.click('#btn-multiplayer-host');
-        await page.waitForFunction(() => {
-            const state = window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.();
-            return state?.joined === true && state?.isHost === true;
-        }, null, { timeout: 5000 });
-        await page.check('#multiplayer-ready-toggle');
-        await waitForRenderFrames(page, 2);
-
-        await openGameSubmenu(page);
-        await page.evaluate(() => {
-            const slider = document.getElementById('bot-count');
-            slider.value = '4';
-            slider.dispatchEvent(new Event('input', { bubbles: true }));
-        });
-        await waitForRenderFrames(page, 2);
-
-        const hasInvalidationEvent = await page.evaluate(() => {
-            const events = window.GAME_INSTANCE?.getMenuLifecycleEvents?.() || [];
-            return events.some((entry) =>
-                entry.contractVersion === 'lifecycle.v1' && entry.type === 'multiplayer_ready_invalidated'
-            );
-        });
-        expect(hasInvalidationEvent).toBeTruthy();
-    });
+    // T75 ("Host-Settings invalidieren Ready-Status per Event-Contract") lives in
+    // tests/lobby-ready-invalidation.contract.test.mjs now. It could not hold here: a second lobby
+    // member needs a second tab, which Electron refuses, and the desktop default transport (LAN)
+    // resets readiness through the transport without ever emitting multiplayer_ready_invalidated.
 
     test('T76: Owner-Only Guard bleibt unter Actor-Wechsel stabil', async ({ page }) => {
         await loadGame(page);

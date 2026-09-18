@@ -125,6 +125,22 @@ export function buildContractSummaryReporterArgs(summaryPath) {
     ];
 }
 
+// Which contract files cost the most is only visible per file; the run totals hide it. The
+// slowest files are printed as their own lines above the summary, because other scripts read
+// the summary line as the last line of the run. Files whose duration the reporter could not
+// determine (duration_ms null, see contract-summary-reporter.mjs) cannot be ranked and are
+// left out instead of being sorted in as the fastest ones.
+export const CONTRACT_SLOW_FILE_COUNT = 5;
+
+export function formatContractSlowFileLines(summary, limit = CONTRACT_SLOW_FILE_COUNT) {
+    const files = Array.isArray(summary?.files) ? summary.files : [];
+    return files
+        .filter((entry) => Number.isFinite(entry?.duration_ms))
+        .sort((left, right) => right.duration_ms - left.duration_ms)
+        .slice(0, limit)
+        .map((entry) => `[contract:slow] ${(entry.duration_ms / 1000).toFixed(1)}s ${entry.file}`);
+}
+
 export function formatContractSummaryLine(summary, summaryPath) {
     const pass = Number(summary?.pass) || 0;
     const fail = Number(summary?.fail) || 0;
@@ -187,17 +203,23 @@ function runSelectedContractTests({ coverageDirectory, contractSummaryPath, sele
     if (result.error) throw result.error;
     const testStatus = result.status ?? 1;
     // Die Zusammenfassung ist bewusst die letzte Zeile des Laufs, damit sie sich ohne
-    // Parsen der Spec-Ausgabe lesen laesst.
-    const summaryLine = formatContractSummaryLine(readContractSummary(contractSummaryPath), contractSummaryPath);
-    if (!coverageEnabled) {
+    // Parsen der Spec-Ausgabe lesen laesst. Die langsamsten Dateien stehen davor.
+    const summary = readContractSummary(contractSummaryPath);
+    const slowLines = formatContractSlowFileLines(summary);
+    const summaryLine = formatContractSummaryLine(summary, contractSummaryPath);
+    const logSummary = () => {
+        for (const slowLine of slowLines) log(slowLine);
         log(summaryLine);
+    };
+    if (!coverageEnabled) {
+        logSummary();
         return testStatus;
     }
 
     // Der Ratchet laeuft auch bei roten Tests, damit ein Coverage-Einbruch nicht erst
     // beim naechsten gruenen Lauf auffaellt. Der Testfehler bleibt der Rueckgabewert.
     const ratchetStatus = runCoverageRatchet(summaryPath);
-    log(summaryLine);
+    logSummary();
     return testStatus || ratchetStatus;
 }
 

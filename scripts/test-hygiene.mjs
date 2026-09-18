@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readdirSync, rmSync, statSync, statfsSync } from 'node:fs';
+import { lstatSync, readdirSync, realpathSync, rmSync, statfsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -14,32 +14,106 @@ export const ARTIFACT_MAX_AGE_DAYS = 7;
 export const TEMP_MAX_AGE_DAYS = 2;
 export const DAY_MS = 86_400_000;
 export const ORPHAN_COMMAND_MARKERS = Object.freeze(['--inspect=0', '--remote-debugging-port=0']);
+export const ARTIFACT_ROOT_KIND = 'artifact';
+export const TEMP_ROOT_KIND = 'temp';
+// Grounds on which an entry is reported instead of removed.
+export const SKIP_OUTSIDE_ROOTS = 'outside-the-allowed-roots';
+export const SKIP_ENTRY_IS_LINK = 'entry-is-a-link (never followed)';
+export const SKIP_ROOT_IS_LINK = 'root-is-a-link (never followed)';
+export const SKIP_LEAVES_ROOT = 'resolves-outside-its-root';
+export const SKIP_GONE = 'already-gone';
 
 // Jede Wurzel traegt ihre Einschraenkung selbst; so haengt die Temp-Regel nicht an einem
 // Stringvergleich mit dem globalen tmpdir(), der bei einem anderen tempRoot stumm entfiele.
 export function resolveAllowedRoots(repoRoot = process.cwd(), tempRoot = tmpdir()) {
     return Object.freeze([
-        { path: path.resolve(repoRoot, 'test-results'), requiredPrefix: '' },
-        { path: path.resolve(repoRoot, 'playwright-report'), requiredPrefix: '' },
-        { path: path.resolve(repoRoot, 'tmp', 'playwright'), requiredPrefix: '' },
-        { path: path.resolve(repoRoot, 'tmp', 'contract'), requiredPrefix: '' },
+        { path: path.resolve(repoRoot, 'test-results'), requiredPrefix: '', kind: ARTIFACT_ROOT_KIND },
+        { path: path.resolve(repoRoot, 'playwright-report'), requiredPrefix: '', kind: ARTIFACT_ROOT_KIND },
+        { path: path.resolve(repoRoot, 'tmp', 'playwright'), requiredPrefix: '', kind: TEMP_ROOT_KIND },
+        // Contract summaries land in tmp/contract/<timestamp>/ on every run; age them out too.
+        { path: path.resolve(repoRoot, 'tmp', 'contract'), requiredPrefix: '', kind: ARTIFACT_ROOT_KIND },
         // Unterhalb des Temp-Ordners gehoert uns nur, was wir selbst angelegt haben.
-        { path: path.resolve(tempRoot), requiredPrefix: 'curvios-' },
+        { path: path.resolve(tempRoot), requiredPrefix: 'curvios-', kind: TEMP_ROOT_KIND },
     ]);
+}
+
+function normalizeRoot(rawRoot) {
+    const rootPath = typeof rawRoot === 'string' ? rawRoot : rawRoot?.path;
+    return {
+        path: path.resolve(String(rootPath || '')),
+        requiredPrefix: typeof rawRoot === 'string' ? '' : String(rawRoot?.requiredPrefix || ''),
+        kind: typeof rawRoot === 'string' ? ARTIFACT_ROOT_KIND : String(rawRoot?.kind || ARTIFACT_ROOT_KIND),
+    };
+}
+
+/** True when child sits strictly below parent (path.relative compares case-insensitively on win32). */
+function isInside(parentPath, childPath) {
+    const relative = path.relative(parentPath, childPath);
+    return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+function findOwningRoot(absoluteCandidate, allowedRoots) {
+    for (const rawRoot of allowedRoots || []) {
+        const root = normalizeRoot(rawRoot);
+        if (!isInside(root.path, absoluteCandidate)) continue;
+        const firstSegment = path.relative(root.path, absoluteCandidate).split(path.sep)[0];
+        if (firstSegment.startsWith(root.requiredPrefix)) return root;
+    }
+    return null;
 }
 
 export function isDeletablePath(candidatePath, allowedRoots) {
     const candidate = String(candidatePath || '').trim();
     if (!candidate) return false;
-    const absoluteCandidate = path.resolve(candidate);
-    return (allowedRoots || []).some((rawRoot) => {
-        const rootPath = typeof rawRoot === 'string' ? rawRoot : rawRoot?.path;
-        const requiredPrefix = typeof rawRoot === 'string' ? '' : String(rawRoot?.requiredPrefix || '');
-        const root = path.resolve(String(rootPath || ''));
-        const relative = path.relative(root, absoluteCandidate);
-        if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return false;
-        return relative.split(path.sep)[0].startsWith(requiredPrefix);
-    });
+    return Boolean(findOwningRoot(path.resolve(candidate), allowedRoots));
+}
+
+function lstatOrNull(targetPath) {
+    try {
+        return lstatSync(targetPath);
+    } catch {
+        return null;
+    }
+}
+
+// Both sides of the containment check go through the same realpathSync. On Windows os.tmpdir()
+// may be an 8.3 short name (C:\Users\GUNDAB~1\...), which realpathSync keeps while
+// realpathSync.native expands it; switching only one side to .native would refuse every temp entry.
+function realpathOrNull(targetPath) {
+    try {
+        return realpathSync(path.resolve(targetPath));
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Letzte Pruefung unmittelbar vor dem Loeschen. Eine Verknuepfung (Symlink oder Junction)
+ * wird nie betreten: weder als Eintrag noch als Wurzel. Zusaetzlich muessen Wurzel und
+ * Eintrag aufgeloest noch ineinander liegen: das faengt einen Link ZWISCHEN Wurzel und
+ * Eintrag ab (wurzel/link/kind). Ein Link OBERHALB der Wurzel ist bewusst erlaubt - beide
+ * Seiten laufen durch ihn, und sonst fiele jedes Repo aus, das selbst ueber eine Junction
+ * erreicht wird.
+ */
+export function classifyRemovalTarget(entryPath, allowedRoots) {
+    const absolute = path.resolve(String(entryPath || '').trim() || '.');
+    const root = findOwningRoot(absolute, allowedRoots);
+    if (!root) return { ok: false, reason: SKIP_OUTSIDE_ROOTS };
+
+    const rootStats = lstatOrNull(root.path);
+    if (!rootStats) return { ok: false, reason: SKIP_GONE };
+    if (rootStats.isSymbolicLink()) return { ok: false, reason: SKIP_ROOT_IS_LINK };
+
+    const entryStats = lstatOrNull(absolute);
+    if (!entryStats) return { ok: false, reason: SKIP_GONE };
+    if (entryStats.isSymbolicLink()) return { ok: false, reason: SKIP_ENTRY_IS_LINK };
+
+    const realRoot = realpathOrNull(root.path);
+    const realEntry = realpathOrNull(absolute);
+    if (!realRoot || !realEntry || !isInside(realRoot, realEntry)) {
+        return { ok: false, reason: SKIP_LEAVES_ROOT };
+    }
+    return { ok: true, reason: '', root: root.path };
 }
 
 export function selectStaleArtifacts(entries, now = Date.now(), maxAgeDays = ARTIFACT_MAX_AGE_DAYS) {
@@ -127,11 +201,16 @@ export function formatHygieneLine(report) {
         ? ` freeGbTemp=${toGigabytes(report.freeBytesTemp)}`
         : '';
     const lockSuffix = report?.staleLock ? ' staleLock=1' : '';
+    // Links are the exception, not the rule: they only show up in the line when there are any.
+    const skippedRootCount = report?.skippedRoots?.length ?? 0;
+    const skippedLinkCount = report?.skippedLinks?.length ?? 0;
+    const linkSuffix = (skippedRootCount ? ` skippedRoots=${skippedRootCount}` : '')
+        + (skippedLinkCount ? ` skippedLinks=${skippedLinkCount}` : '');
     return `[test:hygiene] freeGb=${toGigabytes(report?.freeBytes) ?? 'unknown'}${tempSuffix} `
         + `staleArtifacts=${report?.staleArtifacts?.length ?? 0} `
         + `staleTempDirs=${report?.staleTempDirs?.length ?? 0} `
         + `orphanElectron=${report?.processes?.orphaned?.length ?? 0} `
-        + `worktrees=${report?.worktrees?.length ?? 0}${lockSuffix}`;
+        + `worktrees=${report?.worktrees?.length ?? 0}${lockSuffix}${linkSuffix}`;
 }
 
 export function assertEnoughFreeSpace(freeBytes, minBytes = MIN_FREE_BYTES) {
@@ -158,18 +237,34 @@ function listDirectoryEntries(directoryPath) {
     const entries = [];
     for (const name of names) {
         const entryPath = path.join(directoryPath, name);
-        try {
-            entries.push({ path: entryPath, mtimeMs: statSync(entryPath).mtimeMs });
-        } catch {
-            // Ein Eintrag, der gerade verschwindet, ist kein Fehler des Berichts.
-        }
+        // lstat, nie stat: eine Junction wird nach sich selbst beurteilt, nicht nach ihrem Ziel.
+        const stats = lstatOrNull(entryPath);
+        // Ein Eintrag, der gerade verschwindet, ist kein Fehler des Berichts.
+        if (!stats) continue;
+        entries.push({ path: entryPath, mtimeMs: stats.mtimeMs, isLink: stats.isSymbolicLink() });
     }
     return entries;
 }
 
-function listCurviosTempEntries(tempRoot) {
-    return listDirectoryEntries(tempRoot)
-        .filter((entry) => path.basename(entry.path).startsWith('curvios-'));
+/**
+ * Listet eine Wegwerf-Wurzel auf. Ist die Wurzel selbst eine Verknuepfung, bleibt sie
+ * komplett aussen vor - sonst stuende dahinter ein fremder Ordner, dessen Kinder wir
+ * rekursiv loeschen wuerden. Verknuepfte Kinder werden gemeldet, nie angefasst.
+ */
+function listRootEntries(rawRoot) {
+    const root = normalizeRoot(rawRoot);
+    const rootStats = lstatOrNull(root.path);
+    if (!rootStats) return { entries: [], links: [], skippedRoot: null };
+    if (rootStats.isSymbolicLink()) {
+        return { entries: [], links: [], skippedRoot: { path: root.path, reason: SKIP_ROOT_IS_LINK } };
+    }
+    const listed = listDirectoryEntries(root.path)
+        .filter((entry) => path.basename(entry.path).startsWith(root.requiredPrefix));
+    return {
+        entries: listed.filter((entry) => !entry.isLink),
+        links: listed.filter((entry) => entry.isLink).map((entry) => ({ path: entry.path, reason: SKIP_ENTRY_IS_LINK })),
+        skippedRoot: null,
+    };
 }
 
 export function readElectronProcessList(spawn = spawnSync, platform = process.platform) {
@@ -205,15 +300,27 @@ export function listWorktrees(spawn = spawnSync, repoRoot = process.cwd()) {
         .filter(Boolean);
 }
 
-export function collectHygieneReport({ repoRoot = process.cwd(), tempRoot = tmpdir(), now = Date.now() } = {}) {
-    const artifactEntries = [
-        ...listDirectoryEntries(path.resolve(repoRoot, 'test-results')),
-        ...listDirectoryEntries(path.resolve(repoRoot, 'playwright-report')),
-        // Contract summaries land in tmp/contract/<timestamp>/ on every run; age them out too.
-        ...listDirectoryEntries(path.resolve(repoRoot, 'tmp', 'contract')),
-    ];
-    const playwrightTempEntries = listDirectoryEntries(path.resolve(repoRoot, 'tmp', 'playwright'));
-    const tempEntries = listCurviosTempEntries(tempRoot);
+export function collectHygieneReport({
+    repoRoot = process.cwd(),
+    tempRoot = tmpdir(),
+    now = Date.now(),
+    readProcessList = readElectronProcessList,
+    listWorktreePaths = listWorktrees,
+} = {}) {
+    const allowedRoots = resolveAllowedRoots(repoRoot, tempRoot);
+    const artifactEntries = [];
+    const tempEntries = [];
+    const skippedRoots = [];
+    const skippedLinks = [];
+    for (const root of allowedRoots) {
+        const listing = listRootEntries(root);
+        if (listing.skippedRoot) {
+            skippedRoots.push(listing.skippedRoot);
+            continue;
+        }
+        skippedLinks.push(...listing.links);
+        (root.kind === TEMP_ROOT_KIND ? tempEntries : artifactEntries).push(...listing.entries);
+    }
     // The repo may sit on F: while the temp folder (Chromium profiles, recorder scratch) is on C:;
     // the fuller of the two drives is the one that ends a run with ENOSPC.
     const freeBytesRepo = resolveFreeBytes(repoRoot);
@@ -225,14 +332,13 @@ export function collectHygieneReport({ repoRoot = process.cwd(), tempRoot = tmpd
         freeBytesRepo,
         freeBytesTemp,
         staleLock: detectStaleRunLock(),
-        allowedRoots: resolveAllowedRoots(repoRoot, tempRoot),
+        allowedRoots,
         staleArtifacts: selectStaleArtifacts(artifactEntries, now, ARTIFACT_MAX_AGE_DAYS),
-        staleTempDirs: [
-            ...selectStaleArtifacts(playwrightTempEntries, now, TEMP_MAX_AGE_DAYS),
-            ...selectStaleArtifacts(tempEntries, now, TEMP_MAX_AGE_DAYS),
-        ],
-        processes: classifyElectronProcesses(readElectronProcessList()),
-        worktrees: listWorktrees(spawnSync, repoRoot),
+        staleTempDirs: selectStaleArtifacts(tempEntries, now, TEMP_MAX_AGE_DAYS),
+        skippedRoots,
+        skippedLinks,
+        processes: classifyElectronProcesses(readProcessList()),
+        worktrees: listWorktreePaths(spawnSync, repoRoot),
     };
 }
 
@@ -254,18 +360,24 @@ function killOrphanProcess(pid) {
     }
 }
 
-function applyHygiene(report) {
+export function applyHygiene(report) {
     const removed = [];
+    const skipped = [];
     for (const entry of [...report.staleArtifacts, ...report.staleTempDirs]) {
-        if (!isDeletablePath(entry.path, report.allowedRoots)) {
-            console.warn(`[test:hygiene] refused (outside the allowed roots): ${entry.path}`);
+        const verdict = classifyRemovalTarget(entry.path, report.allowedRoots);
+        if (!verdict.ok) {
+            console.warn(`[test:hygiene] skipped (${verdict.reason}): ${entry.path}`);
+            skipped.push({ path: entry.path, reason: verdict.reason });
             continue;
         }
         try {
+            // Nachgemessen auf Node 24 / Windows: rmSync haengt eine enthaltene Junction nur aus,
+            // es laeuft nicht in sie hinein - das Ziel behaelt seinen Inhalt.
             rmSync(entry.path, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
             removed.push(entry.path);
         } catch (error) {
             console.warn(`[test:hygiene] could not remove ${entry.path}: ${error?.message || error}`);
+            skipped.push({ path: entry.path, reason: `error: ${error?.code || error?.message || error}` });
         }
     }
 
@@ -274,7 +386,7 @@ function applyHygiene(report) {
         if (killOrphanProcess(orphan.pid)) killed.push(orphan.pid);
     }
 
-    return { removed, killed };
+    return { removed, skipped, killed };
 }
 
 function printReport(report) {
@@ -284,6 +396,12 @@ function printReport(report) {
     }
     for (const entry of report.staleTempDirs) {
         console.log(`  stale temp dir (${entry.ageDays} d): ${entry.path}`);
+    }
+    for (const root of report.skippedRoots || []) {
+        console.log(`  root skipped, nothing behind it is touched (${root.reason}): ${root.path}`);
+    }
+    for (const link of report.skippedLinks || []) {
+        console.log(`  entry skipped, left as it is (${link.reason}): ${link.path}`);
     }
     for (const orphan of report.processes.orphaned) {
         console.log(`  orphan electron pid=${orphan.pid} parent=${orphan.parentPid} (parent gone)`);
@@ -309,7 +427,7 @@ export function runTestHygiene(argv = process.argv.slice(2)) {
     const applied = applyHygiene(report);
     const freeAfter = minFreeBytes(resolveFreeBytes(report.repoRoot), resolveFreeBytes(tmpdir()));
     console.log(
-        `[test:hygiene] removed=${applied.removed.length} killed=${applied.killed.length} `
+        `[test:hygiene] removed=${applied.removed.length} skipped=${applied.skipped.length} killed=${applied.killed.length} `
         + `freeGbBefore=${toGigabytes(report.freeBytes) ?? 'unknown'} freeGbAfter=${toGigabytes(freeAfter) ?? 'unknown'}`
     );
     return 0;

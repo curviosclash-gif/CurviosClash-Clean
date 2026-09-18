@@ -233,6 +233,54 @@ test('EMP telemetry preview virtually migrates legacy rockets without mutation',
     assert.equal(selectedPlayer.selectedItemIndex, 3, 'telemetry keeps the legacy selection untouched');
 });
 
+// Der Stellvertreter fuer die Slot-Faelle: EMP blockt die Aktion, bevor ein Item
+// gelesen wird. Genau dann fuellt die Vorschau den Typ des Ereignisses, und nur
+// dann entscheidet der uebergebene Slot, welches Item die Statistik bucht.
+function logBlockedShootType(shootInput) {
+    const recorder = createRecorderSpy();
+    const entityManager = {
+        recorder,
+        _useInventoryItem: () => { throw new Error('darf bei EMP nicht aufgerufen werden'); },
+        _shootItemProjectile: () => { throw new Error('darf bei EMP nicht aufgerufen werden'); },
+        _shootHuntGun: () => ({ ok: true, type: 'MG_BULLET' }),
+        _notifyPlayerFeedback: () => {},
+    };
+    const player = {
+        index: 0,
+        isBot: true,
+        itemActionsDisabled: true,
+        inventory: ['SHIELD', 'EMP'],
+        selectedItemIndex: 1,
+        cycleItem() {},
+        dropItem() {},
+    };
+
+    new PlayerActionPhase(entityManager).run(player, { shootItem: true, shootMG: false, ...shootInput }, {
+        requiresShootItemIndex: () => false,
+        hasMachineGun: () => true,
+    });
+
+    assert.equal(recorder.events.length, 1);
+    return recorder.events[0].type;
+}
+
+test('Ein unsinniger Item-Slot bucht kein Item statt des gerade gewaehlten', () => {
+    for (const brokenIndex of [Number.NaN, 1.5, '2', -2, Number.POSITIVE_INFINITY]) {
+        assert.equal(
+            logBlockedShootType({ shootItemIndex: brokenIndex }),
+            'UNKNOWN',
+            `slot ${String(brokenIndex)} is no slot at all and must not book the selected item`
+        );
+    }
+});
+
+test('Ein fehlender Item-Slot bleibt die vereinbarte Bitte um den gewaehlten Platz', () => {
+    assert.equal(logBlockedShootType({ shootItemIndex: -1 }), 'EMP', '-1 asks for the selected slot');
+    assert.equal(logBlockedShootType({}), 'EMP', 'a missing slot asks for the selected slot');
+    assert.equal(logBlockedShootType({ shootItemIndex: 0 }), 'SHIELD', 'a real slot wins over the selection');
+    assert.equal(logBlockedShootType({ shootItemIndex: 5 }), 'UNKNOWN', 'a slot beyond the inventory books nothing');
+});
+
 test('Leeres Inventar bleibt UNKNOWN, weil dort wirklich kein Item feststeht', () => {
     const recorder = createRecorderSpy();
     const huntCombat = new HuntCombatSystem({
