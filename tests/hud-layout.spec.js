@@ -144,8 +144,10 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                 const headingTape = rect(p1.querySelector('.hud-tape.top'));
                 const matchStatus = rect(document.querySelector('.hunt-match-status'));
                 const p1Root = rect(document.querySelector('#hunt-p1-panel'));
-                const vitals = rect(document.querySelector('.hunt-vitals'));
+                const hp = rect(document.querySelector('#hunt-p1-panel .hunt-meter-hp'));
+                const shield = rect(document.querySelector('#hunt-p1-panel .hunt-meter-shield'));
                 const boost = rect(document.querySelector('.hunt-arc-boost'));
+                const slowmo = rect(document.querySelector('.hunt-arc-slowmo'));
                 const overheat = rect(document.querySelector('.hunt-arc-overheat'));
                 const p2Panel = rect(document.querySelector('#hunt-p2-panel'));
                 const itemSlots = [...itemBar.children].map(rect);
@@ -159,13 +161,17 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                     p2Reticle,
                     headingMatchOverlap: overlaps(headingTape, matchStatus),
                     p1Root,
-                    vitals,
+                    hp,
+                    shield,
                     boost,
+                    slowmo,
                     overheat,
                     p2Panel,
                     itemSlots,
                     arcOverlap: overlaps(boost, overheat),
                     p2Overlap: overlaps(overheat, p2Panel),
+                    arcLabelCount: document.querySelectorAll('.hunt-arc-meter .hunt-label').length,
+                    arcOpacity: getComputedStyle(document.querySelector('.hunt-arc-boost')).opacity,
                     tapes: [...p1.querySelectorAll('.hud-tape'), ...p2.querySelectorAll('.hud-tape')]
                         .map((element) => ({
                             owner: element.closest('#p1-fighter-hud') ? 'p1' : 'p2',
@@ -211,15 +217,20 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
 
             expectNear(layout.p1Root.left, 0);
             expectNear(layout.p1Root.right, halfWidth);
-            expectNear(layout.vitals.left, layout.p1Root.left + 20);
-            // The vitals sit above the centered item and rocket rows.
-            expect(layout.vitals.bottom).toBeLessThan(layout.itemSlots[0].top - layout.itemSlots[0].height);
-            for (const arc of [layout.boost, layout.overheat]) {
+            expect(layout.hp.left).toBeLessThan(layout.p1Root.left);
+            expect(layout.shield.right).toBeGreaterThan(layout.p1Root.right);
+            expect(layout.hp.top).toBeLessThan(viewport.height);
+            expect(layout.shield.top).toBeLessThan(viewport.height);
+            expect(layout.hp.bottom).toBeGreaterThan(viewport.height);
+            expect(layout.shield.bottom).toBeGreaterThan(viewport.height);
+            for (const arc of [layout.boost, layout.slowmo, layout.overheat]) {
                 expect(arc.left).toBeGreaterThanOrEqual(layout.p1Root.left - 1);
                 expect(arc.right).toBeLessThanOrEqual(layout.p1Root.right + 1);
             }
             expect(layout.arcOverlap).toBe(false);
             expect(layout.p2Overlap).toBe(false);
+            expect(layout.arcLabelCount).toBe(0);
+            expect(layout.arcOpacity).toBe('0.5');
             expect(layout.itemSlots).toHaveLength(5);
             for (const [index, slot] of layout.itemSlots.entries()) {
                 expect(
@@ -507,7 +518,10 @@ test('rocket queue stacks between the item bar and the effect badges in every mo
 
                             const box = rect(items.closest('.player-hud'));
                             const rocketRect = rect(rocket);
-                            const vitals = hunt ? rect(document.querySelector(`#hunt-${id}-panel .hunt-vitals`)) : null;
+                            const vitals = hunt ? [
+                                rect(document.querySelector(`#hunt-${id}-panel .hunt-meter-hp`)),
+                                rect(document.querySelector(`#hunt-${id}-panel .hunt-meter-shield`)),
+                            ] : [];
                             const label = getComputedStyle(rocket, '::before');
                             players.push({
                                 id,
@@ -519,8 +533,8 @@ test('rocket queue stacks between the item bar and the effect badges in every mo
                                 labelText: label.content,
                                 rocketOverItems: overlaps(rocketRect, rect(items)),
                                 rocketOverEffects: overlaps(rocketRect, rect(effects)),
-                                rocketOverVitals: overlaps(rocketRect, vitals),
-                                itemsOverVitals: overlaps(rect(items), vitals),
+                                rocketOverVitals: vitals.some((meter) => overlaps(rocketRect, meter)),
+                                itemsOverVitals: vitals.some((meter) => overlaps(rect(items), meter)),
                             });
                         }
                         return players;
@@ -537,13 +551,20 @@ test('rocket queue stacks between the item bar and the effect badges in every mo
                         }
                         expect(player.labelPosition, `rocket label stays out of the slot grid (${context})`).toBe('absolute');
                         expect(player.labelText).toBe('"RAKETEN"');
-                        expectNear(player.rocket.left, player.items.left);
-                        expectNear(player.rocket.right, player.items.right);
-                        if (scale === 1) {
+                        if (hudMode === 'fight') {
+                            expect(player.rocketSlotTops).toEqual([...player.rocketSlotTops].sort((a, b) => a - b));
+                            for (let index = 1; index < player.rocketSlotTops.length; index += 1) {
+                                expect(player.rocketSlotTops[index]).toBeGreaterThan(player.rocketSlotTops[index - 1]);
+                            }
+                        } else {
+                            expectNear(player.rocket.left, player.items.left);
+                            expectNear(player.rocket.right, player.items.right);
+                            for (const top of player.rocketSlotTops) expectNear(top, player.rocketSlotTops[0]);
+                        }
+                        if (scale === 1 && hudMode !== 'fight') {
                             expect(player.rocket.left, `rocket bar stays in its view (${context})`).toBeGreaterThanOrEqual(player.box.left - 1);
                             expect(player.rocket.right, `rocket bar stays in its view (${context})`).toBeLessThanOrEqual(player.box.right + 1);
                         }
-                        for (const top of player.rocketSlotTops) expectNear(top, player.rocketSlotTops[0]);
                     }
                 }
             }

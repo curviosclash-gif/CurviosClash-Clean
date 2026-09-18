@@ -134,12 +134,12 @@ export class HuntHUD {
             ? options.getSlowMoCapacity
             : () => DEFAULT_BOOST_CAPACITY;
 
-        for (const arcFill of [
-            this.p1BoostFill, this.p1SlowMoFill, this.p1OverheatFill,
-            this.p2BoostFill, this.p2SlowMoFill, this.p2OverheatFill,
-        ]) {
-            initializeHudSegmentedArc(arcFill);
-        }
+        initializeHudSegmentedArc(this.p1BoostFill);
+        initializeHudSegmentedArc(this.p1SlowMoFill, 'horizontal');
+        initializeHudSegmentedArc(this.p1OverheatFill);
+        initializeHudSegmentedArc(this.p2BoostFill);
+        initializeHudSegmentedArc(this.p2SlowMoFill, 'horizontal');
+        initializeHudSegmentedArc(this.p2OverheatFill);
     }
 
     _getMatchRuntimeProjection() {
@@ -319,6 +319,7 @@ export class HuntHUD {
         const hpTxt = `${Math.round(hp)} / ${Math.round(maxHp)}`;
         if (refs.hpFill && hpW !== cache?.hpW) {
             refs.hpFill.style.width = hpW;
+            refs.hpFill.parentElement?.parentElement?.style.setProperty?.('--hunt-vital-filled', hpW);
             if (cache) cache.hpW = hpW;
         }
         if (refs.hpText && hpTxt !== cache?.hpTxt) {
@@ -333,6 +334,7 @@ export class HuntHUD {
         const shieldTxt = `${Math.round(shield)} / ${Math.round(maxShield)}`;
         if (refs.shieldFill && shieldW !== cache?.shieldW) {
             refs.shieldFill.style.width = shieldW;
+            refs.shieldFill.parentElement?.parentElement?.style.setProperty?.('--hunt-vital-filled', shieldW);
             if (cache) cache.shieldW = shieldW;
         }
         if (refs.shieldText && shieldTxt !== cache?.shieldTxt) {
@@ -373,6 +375,7 @@ export class HuntHUD {
         }
         if (refs.overheatText && overheatTxt !== cache?.overheatTxt) {
             refs.overheatText.textContent = overheatTxt;
+            refs.overheatText.parentElement?.setAttribute?.('aria-valuenow', String(Math.round(overheatValue)));
             if (cache) cache.overheatTxt = overheatTxt;
         }
 

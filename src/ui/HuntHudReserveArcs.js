@@ -88,6 +88,7 @@ export function updateHuntReserveArcs(
         const text = `${Math.round(ratio * 100)}%`;
         if (refs[keys.text] && text !== cache?.[keys.textCache]) {
             refs[keys.text].textContent = text;
+            refs[keys.text].parentElement?.setAttribute?.('aria-valuenow', String(Math.round(ratio * 100)));
             if (cache) cache[keys.textCache] = text;
         }
     }

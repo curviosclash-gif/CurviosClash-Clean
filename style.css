@@ -7661,6 +7661,283 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     bottom: var(--hud-rocket-row-bottom);
 }
 
+/* Fight HUD composition: clipped corner vitals, an open targeting triangle and
+   a dedicated vertical FIFO. These selectors stay scoped to Hunt so the shared
+   item bar keeps its established layout in every mode. */
+#hud:has(#hunt-hud:not(.hidden)) .hunt-vitals {
+    inset: 0;
+    width: auto;
+    display: block;
+    scale: 1;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-meter {
+    --hunt-vital-color: #70ff45;
+    --hunt-vital-track: rgba(112, 255, 69, 0.14);
+    position: absolute;
+    bottom: -82px;
+    width: 270px;
+    height: 270px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(2, 14, 27, 0.5);
+    clip-path: none;
+    filter: drop-shadow(0 0 12px color-mix(in srgb, var(--hunt-vital-color) 24%, transparent));
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-meter-hp {
+    left: -66px;
+    scale: var(--hud-scale, 1);
+    transform-origin: left bottom;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-meter-shield {
+    --hunt-vital-color: #31e6ff;
+    --hunt-vital-track: rgba(49, 230, 255, 0.14);
+    right: -66px;
+    scale: var(--hud-scale, 1);
+    transform-origin: right bottom;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-meter::before,
+#hud:has(#hunt-hud:not(.hidden)) .hunt-meter::after {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    background: var(--hunt-vital-track);
+    -webkit-mask:
+        radial-gradient(farthest-side, transparent calc(100% - 30px), #000 calc(100% - 29px)),
+        repeating-conic-gradient(#000 0deg 7deg, transparent 7deg 10deg);
+    -webkit-mask-composite: source-in;
+    mask:
+        radial-gradient(farthest-side, transparent calc(100% - 30px), #000 calc(100% - 29px)),
+        repeating-conic-gradient(#000 0deg 7deg, transparent 7deg 10deg);
+    mask-composite: intersect;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-meter::after {
+    background: conic-gradient(from 180deg, var(--hunt-vital-color) 0 var(--hunt-vital-filled, 0%), transparent 0);
+    filter: drop-shadow(0 0 5px var(--hunt-vital-color));
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-meter-heading {
+    position: absolute;
+    z-index: 1;
+    top: 112px;
+    left: 66px;
+    width: 138px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-meter-heading .hunt-label {
+    color: var(--hunt-vital-color);
+    font-size: 0.8rem;
+    font-weight: 900;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-meter-heading .hunt-value {
+    margin: 3px 0 0;
+    color: var(--hud-text, #f6fbff);
+    font-size: 0.62rem;
+    opacity: 0.72;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-vital-icon {
+    width: 50px;
+    height: 42px;
+    margin-top: 4px;
+    overflow: visible;
+    fill: none;
+    stroke: var(--hunt-vital-color);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 5px var(--hunt-vital-color));
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-meter > .hunt-bar {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    border: 0;
+    opacity: 0;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter {
+    top: 50%;
+    width: 150px;
+    height: 240px;
+    opacity: 0.5;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter .hunt-bar {
+    width: 150px;
+    height: 240px;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-boost {
+    left: calc(50% - 190px);
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat {
+    --hunt-arc-color: #ff5b5b;
+    --hunt-arc-track: rgba(255, 91, 91, 0.16);
+    right: calc(50% - 190px);
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat:has(.warning),
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat:has(.danger) {
+    --hunt-arc-color: #ff5b5b;
+    --hunt-arc-track: rgba(255, 91, 91, 0.16);
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-slowmo {
+    top: calc(50% + 155px);
+    left: 50%;
+    width: 240px;
+    height: 150px;
+    transform: translate(-50%, -50%) scale(var(--hunt-widget-scale, var(--hud-scale, 1)));
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-slowmo .hunt-bar {
+    width: 240px;
+    height: 150px;
+    transform: scaleY(-1);
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter .hunt-value {
+    top: 49%;
+    font-size: 1rem;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-slowmo .hunt-value {
+    top: 75%;
+    right: 50%;
+    transform: translateX(50%);
+    text-align: center;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .player-hud > .item-bar.rocket-bar {
+    top: 42%;
+    right: 20px;
+    bottom: auto;
+    left: auto;
+    width: 112px;
+    margin: 0;
+    padding: 42px 10px 12px;
+    display: grid;
+    grid-auto-flow: row;
+    grid-auto-rows: 54px;
+    grid-template-columns: 1fr;
+    gap: 7px;
+    box-sizing: border-box;
+    border: 1px solid rgba(49, 230, 255, 0.74);
+    background: linear-gradient(135deg, rgba(3, 27, 38, 0.92), rgba(2, 12, 24, 0.68));
+    clip-path: polygon(18% 0, 100% 0, 100% 100%, 18% 100%, 0 92%, 0 8%);
+    transform: translateY(-50%) scale(var(--hud-scale, 1));
+    transform-origin: right center;
+    counter-reset: none;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .player-hud > .item-bar.rocket-bar::before {
+    top: 12px;
+    bottom: auto;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    color: #31e6ff;
+    font-size: 0.72rem;
+    text-align: center;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .rocket-bar .item-slot {
+    width: 100%;
+    height: 54px;
+    min-width: 0;
+    padding: 0;
+    justify-content: center;
+    border: 1px solid rgba(174, 196, 207, 0.58) !important;
+    border-radius: 3px;
+    background: rgba(5, 15, 25, 0.82);
+    clip-path: none;
+    opacity: 0.48;
+    transform: none;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .rocket-bar .item-slot::before,
+#hud:has(#hunt-hud:not(.hidden)) .rocket-bar .item-slot::after,
+#hud:has(#hunt-hud:not(.hidden)) .rocket-bar .item-tier-badge,
+#hud:has(#hunt-hud:not(.hidden)) .rocket-bar .item-cooldown-text {
+    display: none;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .rocket-bar .item-slot.next-rocket {
+    border-color: #70ffb4 !important;
+    opacity: 1;
+    background: rgba(0, 50, 55, 0.9);
+    box-shadow: inset 0 0 0 2px rgba(49, 230, 255, 0.35), 0 0 13px rgba(65, 255, 185, 0.72);
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .rocket-bar .item-icon {
+    filter: grayscale(1);
+    opacity: 0.65;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .rocket-bar .next-rocket .item-icon {
+    filter: none;
+    opacity: 1;
+}
+
+#hud.split-screen:has(#hunt-hud:not(.hidden)) .hunt-arc-boost {
+    right: auto;
+    left: calc(50% - 178px);
+}
+
+#hud.split-screen:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat {
+    right: calc(50% - 178px);
+    left: auto;
+}
+
+#hud.split-screen:has(#hunt-hud:not(.hidden)) .hunt-arc-slowmo {
+    display: block;
+}
+
+@media (max-width: 900px), (max-height: 720px) {
+    #hud:has(#hunt-hud:not(.hidden)) .hunt-meter {
+        bottom: -55px;
+        width: 235px;
+        height: 235px;
+    }
+
+    #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-hp { left: -72px; }
+    #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-shield { right: -72px; }
+
+    #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-heading {
+        top: 91px;
+        left: 58px;
+        width: 119px;
+    }
+
+    #hud:has(#hunt-hud:not(.hidden)) .player-hud > .item-bar.rocket-bar {
+        top: 40%;
+        right: 10px;
+        width: 82px;
+        padding: 34px 7px 8px;
+        grid-auto-rows: 42px;
+        gap: 5px;
+    }
+
+    #hud:has(#hunt-hud:not(.hidden)) .rocket-bar .item-slot { height: 42px; }
+    #hud:has(#hunt-hud:not(.hidden)) .player-hud > .item-bar.rocket-bar::before { top: 9px; }
+}
+
 #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot {
     width: auto;
     min-width: 0;
