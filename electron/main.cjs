@@ -292,7 +292,7 @@ function startBroadcast(resolveState) {
                     ip,
                     port: signalingPort,
                     lobbyCode,
-                    hostName: String(metadata.hostName || state?.hostName || hostName).trim(),
+                    hostName: String(state?.hostName || metadata.hostName || hostName).trim(),
                     playerCount: Number(state?.playerCount || 0),
                     maxPlayers: Number(state?.maxPlayers || 10),
                     mapKey: String(metadata.mapKey || 'standard').trim(),
@@ -363,7 +363,7 @@ async function startSignalingServer() {
     updateTrayTooltip();
 
     signalingStartPromise = (async () => {
-        const { createLANSignalingServer } = await loadLanSignalingModule();
+        const { createLANSignalingServer, resolveLanLobbyPublicHostName } = await loadLanSignalingModule();
         const candidatePorts = [...SIGNALING_PORTS, SIGNALING_PORT_FALLBACK];
 
         let runtime = null;
@@ -428,7 +428,7 @@ async function startSignalingServer() {
         resetSignalingError();
         startBroadcast(() => ({
             lobbyCode: runtime.lobby?.code || '',
-            hostName: runtime.lobby?.hostName || '',
+            hostName: runtime.lobby ? resolveLanLobbyPublicHostName(runtime.lobby) : '',
             playerCount: runtime.lobby ? 1 + (runtime.lobby.players?.length || 0) : 0,
             maxPlayers: runtime.lobby?.maxPlayers || 10,
             metadata: runtime.lobby?.metadata || null,

@@ -177,7 +177,8 @@ test('LAN discovery publishes host-inclusive counts and current lobby metadata',
         ).json();
         assert.equal(initialDiscovery.playerCount, 1);
         assert.equal(initialDiscovery.maxPlayers, 4);
-        assert.equal(initialDiscovery.hostName, 'Captain');
+        // Without a chosen lobby name the host shows up as "<profile name> <seat>".
+        assert.equal(initialDiscovery.hostName, 'Captain 1');
         assert.equal(initialDiscovery.mapKey, 'maze');
         assert.equal(initialDiscovery.gameMode, 'HUNT');
         assert.equal(initialDiscovery.modePath, 'fight');

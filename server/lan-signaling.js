@@ -4,7 +4,11 @@
 
 import http from 'node:http';
 import { isLobbySettingsRevisionCurrent } from '../src/shared/contracts/LobbyMatchSummaryContract.js';
-import { normalizeOptionalMultiplayerPlayerName } from '../src/shared/contracts/MultiplayerSessionContract.js';
+import {
+    normalizeMultiplayerPlayerName,
+    normalizeOptionalMultiplayerPlayerName,
+    resolveDefaultMultiplayerPlayerName,
+} from '../src/shared/contracts/MultiplayerSessionContract.js';
 import crypto from 'node:crypto';
 import {
     SIGNALING_HTTP_ROUTES,
@@ -34,6 +38,15 @@ const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 function isLoopbackRequest(req) {
     const remoteAddress = String(req?.socket?.remoteAddress || '').trim();
     return LOOPBACK_ADDRESSES.has(remoteAddress);
+}
+
+/**
+ * The name other players see for this lobby in the network search: the host's
+ * chosen lobby name, otherwise "<profile name> 1" like in the member list.
+ */
+export function resolveLanLobbyPublicHostName(lobby) {
+    const profileName = String(lobby?.metadata?.hostName || lobby?.hostName || '').trim();
+    return normalizeMultiplayerPlayerName(lobby?.hostLobbyName, resolveDefaultMultiplayerPlayerName(profileName, 1));
 }
 
 function normalizeLobbyCode(value) {
@@ -985,7 +998,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 matchesLobby: requestedLobbyCode !== '' && requestedLobbyCode === normalizeLobbyCode(lobby.code),
                 playerCount: countLobbyMembers(lobby),
                 maxPlayers: Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS),
-                hostName: lobby.metadata.hostName,
+                hostName: resolveLanLobbyPublicHostName(lobby),
                 mapKey: lobby.metadata.mapKey,
                 gameMode: lobby.metadata.gameMode,
                 modePath: lobby.metadata.modePath,
