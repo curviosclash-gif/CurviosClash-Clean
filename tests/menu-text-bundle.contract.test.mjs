@@ -13,12 +13,15 @@ test('the preset chips take their names from the preset catalog, not from the pa
     assert.ok(chips.length >= 5);
     chips.forEach(([, , text]) => assert.equal(text.trim(), '', 'no second copy of a preset name in the page'));
 
+    const ownerDocument = { createElement: () => ({ className: '', textContent: '' }) };
     const buttons = chips.map(([, presetId]) => ({
-        dataset: { presetId }, textContent: '', disabled: false,
+        dataset: { presetId }, ownerDocument, children: [], disabled: false,
         classList: { toggle() {} }, setAttribute() {},
+        replaceChildren(...nodes) { this.children = nodes; },
     }));
     syncMenuPresetState({ ui: { quickstartPresetButtons: buttons }, settings: { matchSettings: {} } });
-    buttons.forEach((button) => assert.equal(button.textContent, findFixedMenuPresetSeedById(button.dataset.presetId).name));
+    // The chip's first line is its name; the second line says what the preset changes.
+    buttons.forEach((button) => assert.equal(button.children[0].textContent, findFixedMenuPresetSeedById(button.dataset.presetId).name));
 });
 
 test('the options drawer presets heading comes from the text catalog', () => {

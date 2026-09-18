@@ -1,5 +1,21 @@
 import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';
 import { findFixedMenuPresetSeedById } from './MenuDefaultsEditorConfig.js';
+import { formatMenuPresetChangeSummary, resolveMenuPresetModePath } from './MenuPresetChipSummary.js';
+
+// Name on the first line, what the preset changes below it; rebuilt only when either changes.
+function renderPresetChip(button, name, summary) {
+    const signature = `${name}\n${summary}`;
+    if (button.dataset.chipSignature === signature) return;
+    button.dataset.chipSignature = signature;
+    const doc = button.ownerDocument;
+    const nameNode = doc.createElement('span');
+    nameNode.className = 'preset-chip-name';
+    nameNode.textContent = name;
+    const summaryNode = doc.createElement('span');
+    summaryNode.className = 'preset-chip-summary';
+    summaryNode.textContent = summary;
+    button.replaceChildren(nameNode, summaryNode);
+}
 
 // Built-in presets ship with the game; only presets the player saved can be deleted.
 export function syncPresetDeleteButton(button, selectedPresetId) {
@@ -63,12 +79,16 @@ export function syncMenuPresetState({ ui, settings, settingsManager, surfacePoli
     }
 
     if (Array.isArray(ui.quickstartPresetButtons)) {
+        const modePath = String(settings?.localSettings?.modePath || 'normal').trim().toLowerCase();
         ui.quickstartPresetButtons.forEach((button) => {
             const buttonPresetId = String(button?.dataset?.presetId || '').trim();
-            // The chip name lives only in the preset catalog.
-            const chipName = findFixedMenuPresetSeedById(buttonPresetId)?.name || buttonPresetId;
-            if (button.textContent !== chipName) button.textContent = chipName;
-            const visible = !buttonPresetId || isPresetVisible(buttonPresetId);
+            // The chip name and its change summary live only in the preset catalog.
+            const preset = findFixedMenuPresetSeedById(buttonPresetId);
+            renderPresetChip(button, preset?.name || buttonPresetId, preset ? formatMenuPresetChangeSummary(preset.values) : '');
+            button.title = preset?.description || '';
+            const presetModePath = resolveMenuPresetModePath(preset);
+            const matchesStyle = !presetModePath || presetModePath === modePath;
+            const visible = (!buttonPresetId || isPresetVisible(buttonPresetId)) && matchesStyle;
             const isActive = !!buttonPresetId && buttonPresetId === visibleActivePresetId;
             button.classList.toggle('hidden', !visible);
             button.setAttribute('aria-hidden', String(!visible));

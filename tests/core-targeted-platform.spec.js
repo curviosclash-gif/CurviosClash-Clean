@@ -555,6 +555,10 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             return mod.findFixedMenuPresetSeedById('competitive');
         });
         await page.evaluate(() => {
+            // The start setup only offers presets of the current play style; Wettkampf is classic.
+            const game = window.GAME_INSTANCE;
+            game.settings.localSettings.modePath = 'normal';
+            game.uiManager?.syncByChangeKeys?.(['session.modePath']);
             const button = document.querySelector('#submenu-game [data-preset-id="competitive"]');
             button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });

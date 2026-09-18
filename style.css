@@ -1365,6 +1365,24 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     gap: 8px;
 }
 
+/* A preset chip shows its name and, below it, what applying it changes. */
+.preset-chip-grid button {
+    display: grid;
+    gap: 3px;
+    text-align: left;
+}
+
+.preset-chip-name {
+    font-weight: 600;
+}
+
+.preset-chip-summary {
+    font-size: 0.8rem;
+    font-weight: 400;
+    opacity: 0.78;
+    white-space: normal;
+}
+
 .menu-preview-card {
     display: grid;
     gap: 10px;
