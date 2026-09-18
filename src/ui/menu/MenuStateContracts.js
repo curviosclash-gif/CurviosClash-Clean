@@ -106,6 +106,15 @@ function normalizeModePath(value, fallback = MENU_MODE_PATHS.NORMAL) {
     return VALID_MODE_PATH_SET.has(requested) ? requested : fallback;
 }
 
+// Game styles whose preset was applied once; from then on the style keeps the player's own values.
+function normalizeSeededModePaths(value) {
+    if (!Array.isArray(value)) return [];
+    const seeded = value
+        .map((entry) => normalizeString(entry, '').toLowerCase())
+        .filter((entry) => VALID_MODE_PATH_SET.has(entry));
+    return Array.from(new Set(seeded));
+}
+
 function deriveLegacyMultiplayerTransport(sessionType) {
     const normalizedSessionType = normalizeString(sessionType, '').toLowerCase();
     if (normalizedSessionType === MENU_SESSION_TYPES.LAN) {
@@ -217,6 +226,7 @@ function normalizeLocalSettingsState(localSettings = null) {
         threePlayerSplit: normalizeThreePlayerSplitSettings(source.threePlayerSplit),
         multiplayerTransport,
         modePath,
+        seededModePaths: normalizeSeededModePaths(source.seededModePaths),
         themeMode: normalizeString(source.themeMode, defaults.themeMode).toLowerCase() === 'hell' ? 'hell' : 'dunkel',
         graphicsStyle: normalizeGraphicsStyle(source.graphicsStyle, defaults.graphicsStyle),
         mapBrightness: normalizeMapBrightness(source.mapBrightness, defaults.mapBrightness),

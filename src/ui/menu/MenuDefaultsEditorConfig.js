@@ -115,6 +115,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         fourPlayerPlanar: normalizeFourPlayerPlanarSettings(),
         threePlayerSplit: normalizeThreePlayerSplitSettings(),
         modePath: 'fight',
+        seededModePaths: [],
         themeMode: 'dunkel',
         graphicsStyle: GRAPHICS_STYLES.MODERN,
         mapBrightness: DEFAULT_MAP_BRIGHTNESS,

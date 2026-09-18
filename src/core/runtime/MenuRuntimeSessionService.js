@@ -193,11 +193,18 @@ export function handleModePathChangeAction(ctx) {
     if (modePath === 'fight' && !huntFeatureEnabled) {
         modePath = 'normal';
     }
+    const previousModePath = String(game.settings.localSettings.modePath || '').trim().toLowerCase();
     game.settings.localSettings.modePath = modePath;
 
     const changedKeys = [SETTINGS_CHANGE_KEYS.MODE_PATH];
     const presetId = MODE_PATH_TO_PRESET_ID[modePath];
-    if (presetId) {
+    const seededModePaths = Array.isArray(game.settings.localSettings.seededModePaths)
+        ? game.settings.localSettings.seededModePaths
+        : [];
+    // A style preset seeds a style once. Re-clicking the current style or returning to a
+    // style with own values is navigation and must not throw the player's tuning away.
+    const keepsOwnValues = modePath === previousModePath || seededModePaths.includes(modePath);
+    if (presetId && !keepsOwnValues) {
         // Bot difficulty is a player preference, not part of the curated style setup.
         // Choosing a style is navigation, so its preset must not silently overwrite it.
         const savedBotDifficulty = game.settings.botDifficulty;
@@ -208,6 +215,7 @@ export function handleModePathChangeAction(ctx) {
         );
         if (presetResult.success) {
             game.settings.botDifficulty = savedBotDifficulty;
+            game.settings.localSettings.seededModePaths = [...seededModePaths, modePath];
             appendMutationChangedKeys(changedKeys, presetResult);
         } else {
             game._showStatusToast(resolvePresetFailureMessage(presetResult, 'Preset konnte nicht angewendet werden.'), 1700, 'error');
@@ -258,6 +266,12 @@ export function handleModePathChangeAction(ctx) {
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
     } else if (requestedModePath === 'fight' && !huntFeatureEnabled) {
         game._showStatusToast('Kampf ist deaktiviert. Klassisch wurde gesetzt.', 1500, 'warning');
+    } else if (presetId && keepsOwnValues && modePath !== previousModePath) {
+        game._showStatusToast(
+            `Modus gewählt: ${label} – deine Werte bleiben. Vorlage unter „Vorlagen“ anwenden.`,
+            2200,
+            'info'
+        );
     } else {
         game._showStatusToast(`Modus gewaehlt: ${label}`, 1200, 'info');
     }
