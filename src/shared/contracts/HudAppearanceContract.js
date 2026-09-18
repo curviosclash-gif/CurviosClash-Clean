@@ -26,6 +26,29 @@ export const DEFAULT_HUD_APPEARANCE = Object.freeze({
 
 const HUD_COLOR_PRESET_SET = new Set(Object.values(HUD_COLOR_PRESET));
 
+// HUD blocks are laid out in fixed pixels and scale around their own centre, so a larger
+// HUD needs a larger window. Measured in the desktop app: overlap-free up to 1.3 at
+// 1920x1080 and only 1.0 at 1280x720, which gives the room per scale step below.
+const HUD_FIT_WIDTH_PER_SCALE = 1477;
+const HUD_FIT_HEIGHT_PER_SCALE = 831;
+
+/**
+ * The scale the HUD is drawn with: the chosen scale, but never larger than the window leaves
+ * room for without overlaps. A scale of 1 or below always stays as chosen.
+ * @param {number} requestedScale
+ * @param {{ width?: number, height?: number } | null} viewport
+ * @returns {number}
+ */
+export function resolveEffectiveHudScale(requestedScale, viewport) {
+    const scale = Number(requestedScale);
+    if (!Number.isFinite(scale) || scale <= 1) return Number.isFinite(scale) ? scale : DEFAULT_HUD_APPEARANCE.scale;
+    const width = Number(viewport?.width);
+    const height = Number(viewport?.height);
+    if (!(width > 0) || !(height > 0)) return scale;
+    const fit = Math.max(1, Math.min(width / HUD_FIT_WIDTH_PER_SCALE, height / HUD_FIT_HEIGHT_PER_SCALE));
+    return Math.round(Math.min(scale, fit) * 100) / 100;
+}
+
 function clampHudNumber(value, min, max, fallback) {
     // null/undefined/'' coerce to 0 via Number(); treat them as missing.
     if (value === null || value === undefined || value === '') return fallback;

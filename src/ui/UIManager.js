@@ -24,7 +24,7 @@ import {
     RECORDING_HUD_MODE,
 } from '../shared/contracts/RecordingCaptureContract.js';
 import { normalizeHudAppearance } from '../shared/contracts/HudAppearanceContract.js';
-import { applyRuntimeHudAppearance, resolveHudColorPresetLabel } from './HudAppearance.js';
+import { applyRuntimeHudAppearance, formatHudAppearanceHint } from './HudAppearance.js';
 import { syncArcadeRunSettings } from './menu/MenuArcadeRunSettingsBindings.js';
 import { syncHuntRespawnToggle } from './menu/MenuHuntRespawnToggleSync.js';
 import { syncMenuPresetState } from './menu/MenuPresetStateSync.js';
@@ -577,7 +577,7 @@ export class UIManager {
         if (ui.hudOpacityLabel) ui.hudOpacityLabel.textContent = `${hudOpacityPercent}%`;
         if (ui.hudColorPresetSelect) ui.hudColorPresetSelect.value = hudAppearance.colorPreset;
         if (ui.hudAppearanceHint) {
-            ui.hudAppearanceHint.textContent = `HUD: ${hudScalePercent}% – ${hudOpacityPercent}% – ${resolveHudColorPresetLabel(hudAppearance.colorPreset)}`;
+            ui.hudAppearanceHint.textContent = formatHudAppearanceHint(hudAppearance, ui.hud?.ownerDocument?.defaultView);
         }
         applyRuntimeHudAppearance(ui.hud, hudAppearance);
 
