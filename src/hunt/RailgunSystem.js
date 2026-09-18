@@ -73,6 +73,22 @@ export class RailgunSystem {
         this._effect = null;
     }
 
+    /** Host truth for clients: the last beam, so every screen draws it once. Null before the first. */
+    serializeNetworkState() {
+        return this.lastBeam ? { ...this.lastBeam } : null;
+    }
+
+    applyNetworkState(beam) {
+        // The first snapshot a client sees only learns the last beam: an old one is not redrawn.
+        const firstState = this._stateInitialized !== true;
+        this._stateInitialized = true;
+        const id = Math.trunc(Number(beam?.id));
+        if (!Number.isFinite(id) || id === this._appliedBeamId) return;
+        this._appliedBeamId = id;
+        this.lastBeam = beam;
+        if (!firstState) this._showBeam(beam);
+    }
+
     _config(player) {
         return resolveEntityRuntimeConfig(player)?.HUNT?.RAILGUN || HUNT_CONFIG.RAILGUN;
     }
