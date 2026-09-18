@@ -48,8 +48,8 @@ class LodProfile:
 
 
 PROFILES = (
-    LodProfile("HERO", 252, 12, 12, 20, 6),
-    LodProfile("LOD1", 150, 8, 10, 14, 3),
+    LodProfile("HERO", 252, 12, 12, 20, 9),
+    LodProfile("LOD1", 150, 8, 10, 14, 5),
     LodProfile("LOD2", 72, 5, 8, 10, 0),
 )
 
@@ -379,6 +379,27 @@ def append_detached_seed(builder, rng, pappus_center, axis, bristle_count):
     append_pappus(builder, rng, Vector(pappus_center), axis, bristle_count, 1)
 
 
+def flight_seed_specs(count, rng):
+    """Yield a correlated wind plume rather than independent seed positions."""
+    wind = Vector((0.965, 0.08, 0.25)).normalized()
+    crosswind = Vector((-wind.y, wind.x, 0)).normalized()
+    upward = Vector((0, 0, 1))
+    phase = rng.uniform(-0.35, 0.35)
+    for index in range(count):
+        progress = (index + 0.42) / max(1, count)
+        distance = 2.62 + 6.45 * (progress ** 1.38) + rng.uniform(-0.18, 0.18)
+        plume_radius = 0.18 + 1.45 * progress
+        swirl = sin(progress * pi * 2.7 + phase) * plume_radius
+        cross_offset = swirl + rng.uniform(-0.28, 0.28) * (0.4 + progress)
+        lift = (0.12 + 0.78 * sqrt(progress)
+                + 0.52 * sin(progress * pi * 3.4 + phase)
+                + rng.uniform(-0.28, 0.28))
+        pappus_center = HEAD_CENTER + wind * distance + crosswind * cross_offset + upward * lift
+        axis = (upward + wind * rng.uniform(0.10, 0.20)
+                + crosswind * rng.uniform(-0.11, 0.11)).normalized()
+        yield pappus_center, axis
+
+
 def build_head(collection, profile, materials, rng):
     core = MeshBuilder()
     core.add_uv_sphere(HEAD_CENTER - Vector((0, 0, 0.12)), (0.62, 0.62, 0.49),
@@ -398,7 +419,7 @@ def build_head(collection, profile, materials, rng):
                                    "receptacle_and_bracts", profile.label)
 
     seeds = MeshBuilder()
-    patch_axis = Vector((-0.70, -0.62, 0.34)).normalized()
+    patch_axis = Vector((0.965, 0.08, 0.25)).normalized()
     attached_count = 0
     missing_count = 0
     for direction in fibonacci_directions(profile.seed_count, rng):
@@ -411,18 +432,8 @@ def build_head(collection, profile, materials, rng):
         append_attached_seed(seeds, rng, direction, profile.bristles_per_seed, shade_index)
         attached_count += 1
 
-    flight_positions = (
-        HEAD_CENTER + Vector((3.0, -0.45, 1.15)),
-        HEAD_CENTER + Vector((4.15, 0.30, 2.05)),
-        HEAD_CENTER + Vector((5.15, -0.20, 0.68)),
-        HEAD_CENTER + Vector((6.10, 0.44, 2.78)),
-        HEAD_CENTER + Vector((4.60, -0.58, 3.38)),
-        HEAD_CENTER + Vector((7.00, 0.10, 1.48)),
-    )
-    for index in range(profile.detached_seed_count):
-        axis = Vector((0.35 + index * 0.025, 0.05 * sin(index), 0.93)).normalized()
-        append_detached_seed(seeds, rng, flight_positions[index], axis,
-                             profile.bristles_per_seed)
+    for pappus_center, axis in flight_seed_specs(profile.detached_seed_count, rng):
+        append_detached_seed(seeds, rng, pappus_center, axis, profile.bristles_per_seed)
     seed_obj = object_from_builder(f"SeedsAndPappus_{profile.label}", seeds, collection,
                                    [materials["achene"], materials["pappus"],
                                     materials["pappus_shadow"]],
@@ -443,6 +454,9 @@ def add_wind_shape(obj, kind, strength):
         co = source.co
         if kind == "leaf":
             factor = min(1.0, sqrt(co.x * co.x + co.y * co.y) / 4.6)
+        elif kind == "seed":
+            downwind = max(0.0, co.x - HEAD_CENTER.x)
+            factor = 0.78 + 0.22 * min(1.0, downwind / 8.5)
         else:
             factor = min(1.0, max(0.0, co.z / 14.5)) ** 2
         target.co.x += strength * factor
@@ -458,7 +472,12 @@ def add_wind_shape(obj, kind, strength):
             for curve in action.fcurves:
                 for point in curve.keyframe_points:
                     point.interpolation = "SINE"
-    obj["wind_stiffness"] = {"leaf": 0.28, "stem": 0.72, "head": 0.44}[kind]
+    obj["wind_stiffness"] = {
+        "leaf": 0.28,
+        "stem": 0.72,
+        "head": 0.44,
+        "seed": 0.18,
+    }[kind]
 
 
 def build_variant(scene, profile, materials):
@@ -472,7 +491,7 @@ def build_variant(scene, profile, materials):
         add_wind_shape(stem, "stem", 0.42)
         add_wind_shape(leaves, "leaf", 0.36)
         add_wind_shape(core, "head", 0.44)
-        add_wind_shape(seeds, "head", 0.49)
+        add_wind_shape(seeds, "seed", 0.58)
     return collection
 
 
@@ -560,10 +579,10 @@ def build_presentation(scene, materials):
 
     target = Vector((1.35, 0, 8.15))
     cameras = {
-        "front": add_camera(collection, "Camera_front", (0, -34, 10.8), target, 53),
-        "quarter": add_camera(collection, "Camera_quarter", (26, -26, 12.0), target, 55),
+        "front": add_camera(collection, "Camera_front", (0, -37, 11.0), target, 53),
+        "quarter": add_camera(collection, "Camera_quarter", (29, -29, 12.4), target, 55),
         "side": add_camera(collection, "Camera_side", (35, 0, 11.2), target, 55),
-        "top": add_camera(collection, "Camera_top", (15, -17, 28), HEAD_CENTER, 55),
+        "top": add_camera(collection, "Camera_top", (17, -20, 31), HEAD_CENTER, 49),
     }
     return cameras
 

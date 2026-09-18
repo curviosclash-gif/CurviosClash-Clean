@@ -1,8 +1,8 @@
 # Giant dandelion
 
 Giant, game-ready common dandelion (`Taraxacum`) seed head with a basal lobed rosette, one
-leafless curved scape, a full spherical pappus crown, a naturally missing leeward patch and six
-airborne seeds. At roughly 18 metres tall it reads as environmental landmark vegetation rather
+leafless curved scape, a full spherical pappus crown, a naturally missing leeward patch and nine
+airborne seeds arranged as a coherent turbulent wind plume. At roughly 18 metres tall it reads as environmental landmark vegetation rather
 than a normal-scale prop.
 
 The morphology follows the genus description from

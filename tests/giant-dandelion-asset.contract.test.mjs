@@ -27,6 +27,11 @@ function triangleCount(document) {
     return count;
 }
 
+function airborneSeedCount(document) {
+    return document.nodes.find((node) => node.extras?.role === 'seeds_and_pappus')
+        ?.extras?.detached_seed_count;
+}
+
 test('giant dandelion package contains editable source and four QA views', async () => {
     const blend = await stat(path.join(ASSET_DIR, 'blender', 'giant_dandelion.blend'));
     assert.ok(blend.size > 250_000, 'editable Blender source is unexpectedly small');
@@ -52,5 +57,7 @@ test('runtime GLBs are valid, animated, and decrease in complexity by LOD', asyn
     assert.ok((hero.animations?.length ?? 0) > 0, 'hero GLB must export WindGust animation');
     assert.ok(hero.meshes.some((mesh) => mesh.primitives?.some((primitive) => primitive.targets?.length)),
         'hero GLB must contain morph targets');
+    assert.equal(airborneSeedCount(hero), 9, 'hero wind plume must carry nine seeds');
+    assert.equal(airborneSeedCount(lod1), 5, 'middle-distance plume must stay visible');
     assert.ok(triangleCount(collision) <= 500, 'collision proxy exceeds its triangle budget');
 });
