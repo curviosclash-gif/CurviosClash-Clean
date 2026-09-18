@@ -336,6 +336,16 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
             storageKey: CUSTOM_MAP_STORAGE_KEY,
             mapJson: brokenRuntimeMap,
         });
+        // Die Custom-Karte sitzt in der Sammlung "Eigene Karten". Ein Vorgaenger im
+        // gemeinsamen Testprofil kann den Kartenfilter auf einer anderen Sammlung
+        // stehen lassen, deshalb stellt der Test seine Vorbedingung selbst her,
+        // statt sich auf den Filterstand des vorherigen Tests zu verlassen.
+        await page.selectOption('#map-filter-select', 'all');
+        await page.waitForFunction(() => {
+            const select = document.getElementById('map-select');
+            return select instanceof HTMLSelectElement
+                && Array.from(select.options).some((option) => String(option.value || '').trim() === 'custom');
+        }, null, { timeout: 5000 }).catch(() => {});
         const customMapAvailable = await page.evaluate(() => {
             const select = document.getElementById('map-select');
             if (!(select instanceof HTMLSelectElement)) return false;

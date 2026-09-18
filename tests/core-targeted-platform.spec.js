@@ -177,13 +177,27 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             const baseY0 = Number(players[0]?.position?.y) || 5;
             const baseY1 = Number(players[1]?.position?.y) || 5;
 
+            // Der Recorder stempelt jeden Schnappschuss mit performance.now(), und Chromium
+            // rastert diese Uhr auf 0,1 ms. Eine enge Schleife legt daher alle sechs Bilder
+            // auf denselben Zeitpunkt; das 12-Sekunden-Fenster des Clips behaelt davon nur
+            // die letzten zwei. Im Spiel liegen Schnappschuesse 50 ms auseinander, deshalb
+            // wartet der Test zwischen den Bildern auf echten Zeitfortschritt.
+            const waitForClockGap = (minimumGapMs) => {
+                const startedAt = performance.now();
+                while (performance.now() - startedAt < minimumGapMs) {
+                    // Aktives Warten: setTimeout wuerde im verdeckten Fenster gedrosselt.
+                }
+            };
+
             game.recorder._snapshotInterval = 1;
             game.recorder.startRound(players);
+            waitForClockGap(2);
 
             for (let step = 0; step < 6; step += 1) {
                 applyPose(players[0], -18 + step * 4.2, baseY0, 9 - step * 1.8, step * 0.2);
                 applyPose(players[1], 16 - step * 3.1, baseY1, -7 + step * 2.4, -step * 0.16);
                 game.recorder.recordFrame(players);
+                if (step < 5) waitForClockGap(2);
             }
 
             game.matchFlowUiController.onRoundEnd(players[0]);
