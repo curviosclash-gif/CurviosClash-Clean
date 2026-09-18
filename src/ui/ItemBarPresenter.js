@@ -178,6 +178,21 @@ export function updateRocketBar(container, player, projection = null, gameplayCo
     }
 }
 
+/**
+ * What an effect badge counts down. Two effects do not count seconds until they expire:
+ * the hunt shield goes away by hit points, and the flamethrower by tank - its 30 second
+ * expiry says nothing about whether the next press still sprays fire, the fuel does.
+ */
+export function resolveActiveEffectTimeLabel(effect, player = null) {
+    if (effect?.type === 'FLAMETHROWER') {
+        return `${Math.max(0, Number(effect.fuelSeconds) || 0).toFixed(1)}s Tank`;
+    }
+    if (effect?.type === 'SHIELD' && player?.hasShield && Number(player?.shieldHP) > 0) {
+        return `${Math.ceil(Number(player.shieldHP))} HP`;
+    }
+    return `${Math.max(0, Number(effect?.remaining) || 0).toFixed(1)}s`;
+}
+
 function ensureEffectBadges(container, desired) {
     while (container.children.length < desired) {
         const badge = document.createElement('div');
@@ -238,10 +253,7 @@ export function updateActiveEffectBar(container, player, globalFog = null) {
             ? effect.sourcePlayerIndex
             : null;
         const isExternal = sourcePlayerIndex !== null && sourcePlayerIndex !== ownIndex;
-        const isHpShield = effect.type === 'SHIELD' && player?.hasShield && Number(player?.shieldHP) > 0;
-        const remainingLabel = isHpShield
-            ? `${Math.ceil(Number(player.shieldHP))} HP`
-            : `${Math.max(0, Number(effect.remaining) || 0).toFixed(1)}s`;
+        const remainingLabel = resolveActiveEffectTimeLabel(effect, player);
         badge.children[0].textContent = definition.icon || '?';
         badge.children[1].textContent = definition.name || effect.type;
         badge.children[2].textContent = remainingLabel;

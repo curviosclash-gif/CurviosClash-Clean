@@ -78,11 +78,11 @@ function collectHumanPlayerIndices(players) {
 // The arcade sector score rates the player's own performance, so bot-vs-bot kills
 // must not inflate it. Scoreboard rows only carry playerIndex, so human identity is
 // resolved through the authoritative player list. Unknown rows stay excluded.
-function sumHumanScoreboardKills(scoreboardRows, players) {
+function sumHumanScoreboardStat(scoreboardRows, players, field) {
     const humanIndices = collectHumanPlayerIndices(players);
     return scoreboardRows.reduce((total, row) => {
         if (!humanIndices.has(Number(row?.playerIndex))) return total;
-        return total + Math.max(0, Math.trunc(Number(row?.kills) || 0));
+        return total + Math.max(0, Math.trunc(Number(row?.[field]) || 0));
     }, 0);
 }
 
@@ -233,7 +233,10 @@ export class MatchFlowTelemetryController {
             .reduce((total, row) => total + Math.max(0, Number(row?.spawnDeaths) || 0), 0);
         const humanPlayers = game?.entityManager?.getHumanPlayers?.()
             || game?.entityManager?.players;
-        const kills = sumHumanScoreboardKills(scoreboardRows, humanPlayers);
+        const kills = sumHumanScoreboardStat(scoreboardRows, humanPlayers, 'kills');
+        // S2.4: intercepts ride the same scoreboard rows as the kills, so they share
+        // the per-sector reset and never count a bot's defence rocket for the player.
+        const intercepts = sumHumanScoreboardStat(scoreboardRows, humanPlayers, 'intercepts');
 
         return {
             telemetrySchemaVersion: 'round-telemetry.v2',
@@ -263,6 +266,7 @@ export class MatchFlowTelemetryController {
             heatmap: normalizeHeatmapCells(roundMetrics.heatmap),
             spawnDeaths,
             kills,
+            intercepts,
             parcoursCompleted: roundMetrics.parcoursCompleted === true,
             parcoursRouteId: normalizeTelemetryString(roundMetrics.parcoursRouteId, ''),
             parcoursCompletionTimeMs: Math.max(0, Number(roundMetrics.parcoursCompletionTimeMs) || 0),

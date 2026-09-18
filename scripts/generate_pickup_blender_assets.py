@@ -20,6 +20,7 @@ SEMANTIC_BASELINES = {
     "EMP": 1.860, "MAGNET": 1.350, "DECOY": 1.942, "PURGE": 1.590,
     "SWAP": 1.590, "MINE": 1.739, "ROCKET_WEAK": 1.915, "ROCKET_MEDIUM": 2.176,
     "ROCKET_HEAVY": 2.480, "ROCKET_MEGA": 3.206,
+    "FLAMETHROWER": 1.915,
 }
 
 LEGACY_EXTENTS = {
@@ -44,6 +45,7 @@ COLORS = {
     "SWAP": (.55, .12, 1.0, 1), "MINE": (1.0, .08, .02, 1),
     "ROCKET_WEAK": (1.0, .55, .12, 1), "ROCKET_MEDIUM": (1.0, .25, .03, 1),
     "ROCKET_HEAVY": (1.0, .2, .267, 1), "ROCKET_MEGA": (.55, .0, 1.0, 1),
+    "FLAMETHROWER": (1.0, .48, .10, 1),
 }
 
 ROOTS = {}
@@ -144,8 +146,9 @@ def sphere(root, name, loc, radius, role="metal", scale=(1, 1, 1), ring_count=8)
     return attach(obj, root, role, name)
 
 
-def cone(root, name, loc, radius, depth, role="accent", vertices=12, direction="UP"):
-    rot = (math.pi, 0, 0) if direction == "DOWN" else (0, 0, 0)
+def cone(root, name, loc, radius, depth, role="accent", vertices=12, direction="UP", rot=None):
+    if rot is None:
+        rot = (math.pi, 0, 0) if direction == "DOWN" else (0, 0, 0)
     bpy.ops.mesh.primitive_cone_add(vertices=vertices, radius1=radius, radius2=0, depth=depth, location=loc, rotation=rot)
     obj = attach(bpy.context.object, root, role, name)
     bevel(obj, min(.035, radius * .15), 1)
@@ -572,6 +575,19 @@ def build_pilot_rocket(root, tier="HEAVY"):
     root["tierMarkers"] = marker_count
 
 
+def build_flamethrower(root):
+    # A tank on the back, a short barrel with a nozzle in front and a flame tongue leaving it:
+    # readable as "fire sprayer" at pickup size, like the machine gun turret reads as a gun.
+    # Laid out along X so the profile faces the viewer, like the rockets stand along Z.
+    cylinder(root, "flame_tank", (.55, 0, 0), .34, 1.05, "metal", 14, "X")
+    torus(root, "flame_tank_band", (.55, 0, 0), .36, .05, "frame", rot=(0, math.pi / 2, 0))
+    box(root, "flame_grip", (.05, 0, -.3), (.42, .22, .3), "frame", .05)
+    cylinder(root, "flame_barrel", (-.42, 0, .05), .1, .9, "metal", 12, "X")
+    cylinder(root, "flame_nozzle", (-.95, 0, .05), .17, .22, "accent", 12, "X")
+    # The tongue points along -X, out of the nozzle.
+    cone(root, "flame_tongue", (-1.32, 0, .05), .2, .5, "glow", 12, rot=(0, -math.pi / 2, 0))
+
+
 def build_rocket(root, tier="WEAK"):
     build_pilot_rocket(root, tier)
 
@@ -801,6 +817,7 @@ def build_all():
         "MINE": build_mine, "ROCKET_WEAK": lambda r: build_rocket(r,"WEAK"),
         "ROCKET_MEDIUM": lambda r: build_rocket(r,"MEDIUM"),
         "ROCKET_HEAVY": lambda r: build_pilot_rocket(r,"HEAVY"), "ROCKET_MEGA": lambda r: build_rocket(r,"MEGA"),
+        "FLAMETHROWER": build_flamethrower,
     }
     for identifier, builder in builders.items():
         root = root_for(identifier, COLORS[identifier])

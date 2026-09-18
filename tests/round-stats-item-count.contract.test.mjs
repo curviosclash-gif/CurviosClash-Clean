@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { RoundRecorder } from '../src/state/RoundRecorder.js';
-import { buildPostMatchStatsSummary } from '../src/state/PostMatchStatsAggregator.js';
 import { coordinateRoundEnd } from '../src/ui/MatchFlowRoundEndCoordinator.js';
 
 const PLAYERS = [
@@ -31,24 +30,8 @@ function readRow(summary, blockId, rowKey) {
     return summary?.blocks?.find((block) => block.id === blockId)?.rows?.find((row) => row.key === rowKey)?.value ?? null;
 }
 
-test('the post match stats count used items, not machine gun trigger frames', () => {
-    const recorder = recordRound();
-    recorder.finalizeRound(PLAYERS[0], PLAYERS, { reason: 'KILL_LIMIT' });
-
-    const summary = buildPostMatchStatsSummary({
-        recorder,
-        players: PLAYERS,
-        outcome: { state: 'ROUND_END', requiredWins: 2 },
-    });
-
-    assert.equal(readRow(summary, 'round', 'item-uses'), '3');
-    assert.equal(readRow(summary, 'match', 'item-use-per-round'), '3.0');
-    assert.equal(recorder.getLastRoundMetrics().itemUseEvents, 405, 'the raw telemetry count stays untouched');
-});
-
-test('the round result overlay shows the same item count', () => {
-    const recorder = recordRound();
-    const result = coordinateRoundEnd({
+function endRound(recorder) {
+    return coordinateRoundEnd({
         recorder,
         winner: PLAYERS[0],
         players: PLAYERS.map((player) => ({ ...player })),
@@ -61,7 +44,20 @@ test('the round result overlay shows the same item count', () => {
         outcomeReason: 'KILL_LIMIT',
         logger: { log() {} },
     });
+}
 
-    assert.equal(readRow(result.statsSummary, 'round', 'item-uses'), '3');
-    assert.equal(readRow(result.statsSummary, 'match', 'item-use-per-round'), '3.0');
+test('the round result overlay counts used items, not machine gun trigger frames', () => {
+    const recorder = recordRound();
+    const result = endRound(recorder);
+
+    // v2 carries raw numbers, so the board can show "3" and a tooltip can show "3,0".
+    assert.equal(readRow(result.statsSummary, 'round', 'item-uses'), 3);
+    assert.equal(readRow(result.statsSummary, 'match', 'item-use-per-round'), 3);
+});
+
+test('the raw telemetry count stays untouched by the overlay figure', () => {
+    const recorder = recordRound();
+    endRound(recorder);
+
+    assert.equal(recorder.getLastRoundMetrics().itemUseEvents, 405);
 });

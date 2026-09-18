@@ -60,6 +60,9 @@ export function normalizeStaticTurretDefinition(entry, index = 0, { spatialScale
         rocketType: VALID_TURRET_ROCKETS.has(rocketCandidate) ? rocketCandidate : 'ROCKET_WEAK',
         destructible: entry?.destructible === true,
         maxHp: finiteNumber(entry?.maxHp, 90, 1, 500),
+        // Seconds until a destroyed emplacement stands there again. 0 - the fallback for a missing
+        // or unusable value - keeps the old promise: destroyed is destroyed.
+        respawnSeconds: finiteNumber(entry?.respawnSeconds, 0, 0, 3600),
         targetPlayers: entry?.targetPlayers === 'all' ? 'all' : 'humans',
         targetTrails: entry?.targetTrails === true,
         allowedModes: Object.freeze(modes),

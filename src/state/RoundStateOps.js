@@ -34,6 +34,20 @@ function getResultPlayerName(player) {
     return player.isBot ? `Bot ${player.index + 1}` : `Spieler ${player.index + 1}`;
 }
 
+/** Round wins of the strongest player who did not win the match - the right half of "3 : 1 Runden". */
+function getRunnerUpWins(players, matchWinner) {
+    let best = 0;
+    for (const player of players) {
+        if (!player || player === matchWinner) {
+            continue;
+        }
+        best = Math.max(best, normalizeCount(player.score));
+    }
+    return best;
+}
+
+// The key hints live on the result board's continue prompt (P7c), so the subtitle carries only
+// the outcome itself.
 export function deriveRoundEndOutcome(players, inputs = {}) {
     const safePlayers = ensureArray(players);
     const winner = inputs.winner || null;
@@ -57,11 +71,11 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
             reason,
             parcours,
             messageText: summary.isNewRecord === true
-                ? `Neuer Rekord - Score ${Math.floor(Number(summary.score) || 0)}`
-                : `Endlosjagd beendet - Score ${Math.floor(Number(summary.score) || 0)}`,
+                ? `Neuer Rekord - ${Math.floor(Number(summary.score) || 0)} Punkte`
+                : `Endlosjagd beendet - ${Math.floor(Number(summary.score) || 0)} Punkte`,
             messageSub: Array.isArray(summary.newMilestones) && summary.newMilestones.length > 0
-                ? `${summary.newMilestones.length} neue Meilensteine - ENTER für neuen Lauf`
-                : 'ENTER für neuen Lauf oder ESC für Menü',
+                ? `${summary.newMilestones.length} neue Meilensteine`
+                : '',
         };
     }
 
@@ -79,7 +93,7 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
                 reason,
                 parcours,
                 messageText: `Parcours abgeschlossen: ${name}${completionSuffix}`,
-                messageSub: 'ENTER für neues Match oder ESC für Menü',
+                messageSub: '',
             };
         }
         return {
@@ -89,8 +103,8 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
             matchWinner,
             reason,
             parcours,
-            messageText: `Sieg: ${name} (Score: ${matchWinner.score})`,
-            messageSub: 'ENTER für neues Match oder ESC für Menü',
+            messageText: `${name} gewinnt das Match`,
+            messageSub: `${normalizeCount(matchWinner.score)} : ${getRunnerUpWins(safePlayers, matchWinner)} Runden`,
         };
     }
 

@@ -16,6 +16,16 @@ import {
     MATCH_KERNEL_SURFACES,
     MATCH_KERNEL_TICK_DRIVERS,
 } from '../shared/contracts/MatchKernelRuntimeContract.js';
+import { CONTINUE_INTENT_KEY } from '../shared/input/ContinueIntentOps.js';
+import {
+    ROUND_END_INPUT_LOCK_PHASES,
+    armRoundEndInputLock,
+    consumeRoundEndInputLockClear,
+    createRoundEndInputLock,
+    readLatchedContinuePress,
+    readRoundEndInputLockState,
+    releaseRoundEndInputLock,
+} from './RoundEndInputLockOps.js';
 import {
     deriveMatchEndTickStep,
     deriveRoundEndTickStep,
@@ -113,7 +123,18 @@ export class MatchKernel {
             nextRoundPause: 0,
             shouldUpdateCameras: false,
             countdownMessageSub: null,
+            inputLockRemaining: 0,
+            inputLockTotal: 0,
         };
+        // "Continue on any key" opens with a short lock, so the last gameplay key
+        // does not dismiss the board; see RoundEndInputLockOps.
+        this._inputLock = createRoundEndInputLock();
+        this._roundStateContinueBlocked = false;
+    }
+
+    /** Lock snapshot for the result board: remaining seconds and full duration. */
+    getInputLockState() {
+        return readRoundEndInputLockState(this._inputLock);
     }
 
     get lifecycle() { return this._lifecycle; }
@@ -166,7 +187,46 @@ export class MatchKernel {
         result.nextRoundPause = this._roundPause;
         result.shouldUpdateCameras = tickStep?.shouldUpdateCameras === true;
         result.countdownMessageSub = tickStep?.countdownMessageSub || null;
+        result.inputLockRemaining = this._inputLock.remaining;
+        result.inputLockTotal = this._inputLock.total;
         return result;
+    }
+
+    /**
+     * _readRoundStateInputs – one read per frame of every board key.
+     * The continue intent polls the gamepads, so it must be asked exactly once;
+     * on the frame the board opens a pending intent is dropped first.
+     */
+    _readRoundStateInputs(dt, inputAdapter) {
+        if (consumeRoundEndInputLockClear(this._inputLock)) {
+            inputAdapter?.clearContinueIntent?.();
+        }
+        // Enter shares the edge latch with the continue intent: the headless adapter
+        // never consumes a command, so a held key would otherwise fire on every tick.
+        const enterRead = readPressedInput(inputAdapter, 'Enter');
+        const continueRead = readPressedInput(inputAdapter, CONTINUE_INTENT_KEY);
+        const boardPress = readLatchedContinuePress(this._inputLock, enterRead || continueRead)
+            && !this._roundStateContinueBlocked;
+        return {
+            dt,
+            roundPause: this._roundPause,
+            continuePressed: boardPress,
+            enterPressed: enterRead && boardPress,
+            escapePressed: readPressedInput(inputAdapter, 'Escape'),
+            inputLockRemaining: this._inputLock.remaining,
+        };
+    }
+
+    /**
+     * setRoundStateContinueBlocked – a network replica may not start a round or a
+     * match. The keys are still read (and consumed) every frame, they just do nothing.
+     */
+    setRoundStateContinueBlocked(blocked) {
+        this._roundStateContinueBlocked = blocked === true;
+    }
+
+    _applyRoundStateInputLock(tickStep) {
+        this._inputLock.remaining = Math.max(0, Number(tickStep?.nextInputLockRemaining) || 0);
     }
 
     _tickRunning(dt, inputAdapter, frameId, emitResult = true) {
@@ -183,13 +243,9 @@ export class MatchKernel {
     }
 
     _tickRoundEnd(dt, inputAdapter, emitResult = true) {
-        const tickStep = deriveRoundEndTickStep({
-            dt,
-            roundPause: this._roundPause,
-            enterPressed: readPressedInput(inputAdapter, 'Enter'),
-            escapePressed: readPressedInput(inputAdapter, 'Escape'),
-        });
+        const tickStep = deriveRoundEndTickStep(this._readRoundStateInputs(dt, inputAdapter));
         this._roundPause = normalizeRoundPause(tickStep?.nextRoundPause, this._roundPause);
+        this._applyRoundStateInputLock(tickStep);
         if (!emitResult) {
             this._createTickResult(dt, null, false);
             return this._fillRoundStateTickResult(dt, tickStep);
@@ -199,14 +255,14 @@ export class MatchKernel {
             nextRoundPause: this._roundPause,
             shouldUpdateCameras: tickStep?.shouldUpdateCameras === true,
             countdownMessageSub: tickStep?.countdownMessageSub || null,
+            inputLockRemaining: this._inputLock.remaining,
+            inputLockTotal: this._inputLock.total,
         });
     }
 
     _tickMatchEnd(dt, inputAdapter, emitResult = true) {
-        const tickStep = deriveMatchEndTickStep({
-            enterPressed: readPressedInput(inputAdapter, 'Enter'),
-            escapePressed: readPressedInput(inputAdapter, 'Escape'),
-        });
+        const tickStep = deriveMatchEndTickStep(this._readRoundStateInputs(dt, inputAdapter));
+        this._applyRoundStateInputLock(tickStep);
         if (!emitResult) {
             this._createTickResult(dt, null, false);
             return this._fillRoundStateTickResult(dt, tickStep);
@@ -214,6 +270,8 @@ export class MatchKernel {
         return this._createTickResult(dt, {
             action: tickStep?.action || 'WAIT',
             shouldUpdateCameras: tickStep?.shouldUpdateCameras === true,
+            inputLockRemaining: this._inputLock.remaining,
+            inputLockTotal: this._inputLock.total,
         });
     }
 
@@ -255,6 +313,7 @@ export class MatchKernel {
         if (this._lifecycle === 'running' || this._lifecycle === 'round_end') {
             this._lifecycle = 'round_end';
             this._roundPause = normalizeRoundPause(roundPause, 3);
+            armRoundEndInputLock(this._inputLock, ROUND_END_INPUT_LOCK_PHASES.ROUND_END);
         } else if (typeof console !== 'undefined') {
             console.debug(`[MatchKernel] signalRoundEnd ignored (lifecycle=${this._lifecycle})`);
         }
@@ -267,6 +326,7 @@ export class MatchKernel {
         if (this._lifecycle === 'running' || this._lifecycle === 'round_end') {
             this._lifecycle = 'match_end';
             this._roundPause = 0;
+            armRoundEndInputLock(this._inputLock, ROUND_END_INPUT_LOCK_PHASES.MATCH_END);
         } else if (typeof console !== 'undefined') {
             console.debug(`[MatchKernel] signalMatchEnd ignored (lifecycle=${this._lifecycle})`);
         }
@@ -282,6 +342,7 @@ export class MatchKernel {
             this._roundIndex++;
             this._tickIndex = 0;
             this._roundPause = 0;
+            releaseRoundEndInputLock(this._inputLock);
         } else if (typeof console !== 'undefined') {
             console.debug(`[MatchKernel] signalRoundRestart ignored (lifecycle=${this._lifecycle})`);
         }

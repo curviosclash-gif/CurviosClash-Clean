@@ -59,6 +59,8 @@ export function evaluatePortalIntent(bot, player, arena, allPlayers) {
 
     for (let i = 0; i < arena.portals.length; i++) {
         const portal = arena.portals[i];
+        // Secret rooms are a reward for the player who earned them; bots stay out of them.
+        if (portal.secret === true) continue;
         const entryA = portal.posA;
         const exitA = portal.posB;
         const distSqA = player.position.distanceToSquared(entryA);

@@ -9,5 +9,9 @@ export function dispatchGameStateUpdate(game, dt, hasInteractiveMatchRuntime) {
         game._updateRoundEndState(dt);
     } else if (game?.state === GAME_STATE_IDS.MATCH_END) {
         game._updateMatchEndState(dt);
+    } else {
+        // No result board on screen: its input lock must not survive into the next one,
+        // however the board was left (overlay button, host kick, arcade run advance).
+        game?.roundStateTickSystem?.resetRoundEndInputLock?.();
     }
 }

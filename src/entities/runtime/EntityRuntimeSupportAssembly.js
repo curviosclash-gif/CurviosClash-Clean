@@ -30,6 +30,29 @@ export function applyEnvironmentProjectileDamage(owner, target, projectile) {
     });
 }
 
+/**
+ * S2.3: a rocket shot down by a defence rocket is credited to the defender.
+ *
+ * Static turrets fire rockets too and carry index -1, so only a real player slot is
+ * counted. A mode without hunt scoring (plain CLASSIC) simply counts nothing. The
+ * position belongs to a pooled projectile state that is recycled right after this
+ * call, so it is only read here and never kept.
+ */
+export function handleRocketIntercept(owner, event) {
+    const defender = event?.defender || null;
+    const defenderIndex = Number(defender?.index);
+    if (!defender || defender.staticTurret === true || !Number.isInteger(defenderIndex) || defenderIndex < 0) return;
+    owner?._huntScoring?.registerIntercept?.(defenderIndex);
+    // The endless parcours pays its run xp per event (like a kill), and only to a human.
+    if (defender.isBot !== true) owner?.endlessParcoursRuntime?.collectRunXp?.('intercept', 1);
+    owner?.recorder?.logEvent?.(
+        'ROCKET_INTERCEPT',
+        defenderIndex,
+        String(event?.target?.type || ''),
+        event?.position || null
+    );
+}
+
 export function createEntityRuntimeSupport(owner) {
     let eventBus = null;
     const projectileSystem = new ProjectileSystem({
@@ -117,6 +140,7 @@ export function createEntityRuntimeSupport(owner) {
             }
         },
         applyEnvironmentDamage: (target, projectile) => applyEnvironmentProjectileDamage(owner, target, projectile),
+        onRocketIntercepted: (event) => handleRocketIntercept(owner, event),
         runtimeProfiler: owner.runtimeProfiler || null,
     });
 

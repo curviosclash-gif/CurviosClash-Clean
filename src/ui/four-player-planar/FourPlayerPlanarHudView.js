@@ -1,4 +1,6 @@
+import { HuntInterceptAnnouncer } from '../HuntInterceptAnnouncer.js';
 import { MatchHudAnnouncement } from '../MatchHudAnnouncement.js';
+import { MultiPlayerHudRocketWarnings } from './MultiPlayerHudRocketWarning.js';
 
 function createStaticElement(documentRef, markup) {
     const range = documentRef.createRange();
@@ -20,6 +22,9 @@ export class FourPlayerPlanarHudView {
         this._root = null;
         this._rows = [];
         this._announcement = null;
+        this._intercepts = new HuntInterceptAnnouncer();
+        this._warnings = new MultiPlayerHudRocketWarnings('four-player-planar');
+        this._localPlayerIndices = [];
     }
 
     hasRoot() {
@@ -59,6 +64,8 @@ export class FourPlayerPlanarHudView {
                 </section>`);
             row.style.setProperty('--player-color', colorToCss(playerColors[index]));
             root.appendChild(row);
+            this._warnings.mount(this.document, row, index);
+            this._localPlayerIndices.push(index);
             this._rows.push({
                 stat: row.querySelector('[data-fpp-stat]'),
                 rank: row.querySelector('[data-fpp-rank]'),
@@ -90,17 +97,39 @@ export class FourPlayerPlanarHudView {
         return !!this._rows[playerIndex];
     }
 
+    /**
+     * Writes the inbound rocket banner of one quadrant.
+     *
+     * @param {number} playerIndex
+     * @param {any} player live player of that quadrant, or null
+     * @param {any} rocketThreat threat of that player, or null
+     * @param {boolean} huntActive
+     * @param {boolean} reduceMotion
+     */
+    updateRocketWarning(playerIndex, player, rocketThreat, huntActive, reduceMotion) {
+        this._warnings.update(playerIndex, player, rocketThreat, huntActive, reduceMotion);
+    }
+
     observeScores(rows, options) {
         this._announcement?.observe(rows, options);
+        // Every human here shares one screen, so one announcement area serves all of
+        // them - the message therefore names the player who intercepted.
+        const interceptMessage = this._intercepts.consume(rows, this._localPlayerIndices);
+        if (interceptMessage) this._announcement?.show(interceptMessage);
     }
 
     resetScoreEvent() {
         this._announcement?.reset();
+        this._intercepts.reset();
+        this._warnings.hideAll();
     }
 
     dispose() {
         this._announcement?.dispose();
         this._announcement = null;
+        this._intercepts.reset();
+        this._warnings.dispose();
+        this._localPlayerIndices.length = 0;
         this._root?.remove?.();
         this._root = null;
         this._rows.length = 0;

@@ -271,8 +271,16 @@ export class ThreePlayerSplitModule {
         const fogLabel = globalFog?.active === true && Number(globalFog.remainingSeconds) > 0
             ? `☁ Nebel ${Math.ceil(Number(globalFog.remainingSeconds))}s`
             : '';
+        const reduceMotion = this.runtime.getRuntimeConfig()?.cameraPerspective?.reduceMotion !== false;
         for (let index = 0; index < THREE_PLAYER_SPLIT_HUMAN_COUNT; index += 1) {
             const player = players[index];
+            this.hudView.updateRocketWarning?.(
+                index,
+                player,
+                hunt ? this.runtime.getRocketThreat?.(index) : null,
+                hunt,
+                reduceMotion,
+            );
             if (!player || !this.hudView.hasRow(index)) continue;
             const availability = resolveInventoryActionAvailability({
                 player,

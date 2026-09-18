@@ -30,9 +30,10 @@ export class ArcadeRoundStateController {
             return { action: 'WAIT', nextRoundPause: inputs.roundPause,
                 shouldUpdateCameras: true, countdownMessageSub: null };
         }
-        // Native buttons own Enter during selection; only confirmation sets the pause to zero.
+        // Native buttons own Enter and any other key during selection; only confirmation
+        // sets the pause to zero, so the intermission never continues on a stray press.
         const tick = this.baseController.deriveRoundEndTick(phase === 'intermission'
-            ? { ...inputs, enterPressed: false } : inputs);
+            ? { ...inputs, enterPressed: false, continuePressed: false } : inputs);
         if (this.arcadeRuntime?.isEnabled?.() && tick?.action === 'START_ROUND') {
             this.arcadeRuntime.beginNextSector();
         }

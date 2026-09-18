@@ -2037,6 +2037,12 @@ input[type="range"]::-webkit-slider-thumb {
     box-shadow: 0 0 16px rgba(60, 170, 255, 0.16);
 }
 
+/* A secret room countdown and the "BEIN NW ZERSTÖRT" word can show at once on a destructible
+   map; the room line keeps the slot and the structure line moves one row down. */
+.map-expansion-status:not(.hidden) ~ .map-destructible-status {
+    top: calc(16% + 2.2rem);
+}
+
 .map-expansion-status.opening {
     border-color: #ff9a3c;
     color: #fff4e6;
@@ -2528,10 +2534,21 @@ input[type="range"]::-webkit-slider-thumb {
     left: 0;
     width: 100%;
     height: 100%;
+    /* P5: a tall board scrolls instead of clipping its top on 1024x768; "safe center" keeps the
+       first card reachable when the content is taller than the screen. */
+    max-height: 100dvh;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 24px 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: safe center;
+    /* Above the hunt HUD (100-102): the board is the last word of the round. */
+    z-index: 120;
+    /* #hud switches the pointer off for the whole layer; the board needs it back so the
+       buttons and the details toggle take clicks and a click on the board itself continues. */
+    pointer-events: auto;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(5px);
     animation: fadeIn 0.3s ease;
@@ -2554,16 +2571,20 @@ input[type="range"]::-webkit-slider-thumb {
 
 #message-sub {
     font-size: 1.1em;
-    color: #88a;
+    /* P5: the old #88a sat below 3:1 on the dark overlay. */
+    color: #c3d2f0;
     margin-top: 10px;
+    font-variant-numeric: tabular-nums;
 }
 
 #message-stats {
     width: min(920px, calc(100% - 32px));
     margin-top: 20px;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    /* P5: three columns on a wide screen, two below 980px, one below 560px (media rules below). */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
+    font-variant-numeric: tabular-nums;
 }
 
 .message-stats-card {
@@ -2609,6 +2630,125 @@ input[type="range"]::-webkit-slider-thumb {
     font-size: 0.95rem;
     font-weight: 700;
     text-align: right;
+}
+
+/* P4 base look for the standings table and the folded detail section; P5 does the real styling. */
+.message-stats-standings,
+.message-stats-details { grid-column: 1 / -1; }
+
+.message-stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.message-stats-table th,
+.message-stats-table td {
+    padding: 4px 8px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.message-stats-head {
+    color: rgba(208, 226, 255, 0.78);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.message-stats-rank,
+.message-stats-kda { text-align: right; }
+
+.message-stats-dot {
+    display: inline-block;
+    width: 0.7em;
+    height: 0.7em;
+    margin-right: 0.5em;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.message-stats-dot.no-color { background: rgba(255, 255, 255, 0.12); }
+.message-stats-pips { margin-right: 0.5em; letter-spacing: 0.1em; }
+.message-stats-tag,
+.message-stats-winner { margin-left: 0.4em; font-size: 0.85em; color: rgba(208, 226, 255, 0.9); }
+
+.message-stats-summary {
+    cursor: pointer;
+    padding: 6px 4px;
+    color: rgba(208, 226, 255, 0.85);
+    font-size: 0.9rem;
+}
+
+.message-stats-summary:focus-visible {
+    outline: 2px solid #8ecbff;
+    outline-offset: 2px;
+}
+
+.message-stats-details > .message-stats-card { margin-top: 10px; }
+
+/* Continue prompt below the board (P7c). Full layout follows in P5. */
+#message-actions {
+    width: min(920px, calc(100% - 32px));
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+}
+
+.message-actions-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+}
+
+/* Both buttons side by side at one width; .secondary-btn is 100% wide in the menu, not here. */
+.message-actions-btn {
+    width: auto;
+    min-width: 200px;
+    margin-top: 0;
+}
+
+.message-actions-btn:focus-visible {
+    outline: 2px solid #8ecbff;
+    outline-offset: 2px;
+}
+
+/* The input lock is one custom property: 0 right after the board opened, 1 once continue is free. */
+.message-actions-continue[aria-disabled="true"] {
+    cursor: default;
+    background-image: linear-gradient(
+        to right,
+        rgba(142, 203, 255, 0.35) calc(var(--progress, 0) * 100%),
+        rgba(8, 18, 36, 0.75) calc(var(--progress, 0) * 100%)
+    );
+}
+
+.message-actions-hints {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 14px;
+    color: rgba(208, 226, 255, 0.82);
+    font-size: 0.9rem;
+}
+
+.message-actions-key {
+    padding: 1px 6px;
+    border: 1px solid rgba(110, 180, 255, 0.45);
+    border-radius: 5px;
+    background: rgba(8, 18, 36, 0.8);
+    font-family: inherit;
+    font-size: 0.85em;
+}
+
+.message-actions-wait {
+    margin: 0;
+    color: rgba(208, 226, 255, 0.7);
+    font-size: 0.9rem;
 }
 
 #arcade-score-hud .hidden {
@@ -2821,13 +2961,18 @@ input[type="range"]::-webkit-slider-thumb {
     background: rgba(16, 42, 58, 0.84);
 }
 
-.arcade-overlay-list {
-    margin: 0;
-    padding-left: 18px;
+/* Every sector/map of a run stays reachable: the list scrolls instead of silently cutting off. */
+.arcade-overlay-scroll {
     display: grid;
-    gap: 4px;
-    font-size: 0.78rem;
-    color: #d5e8f4;
+    gap: 8px;
+    max-height: 38vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.arcade-overlay-scroll:focus-visible {
+    outline: 2px solid rgba(106, 226, 255, 0.72);
+    outline-offset: 2px;
 }
 
 .arcade-overlay-empty {
@@ -3036,12 +3181,18 @@ input[type="range"]::-webkit-slider-thumb {
 @media (max-width: 980px) {
     #message-stats {
         width: min(100%, calc(100% - 20px));
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
     }
 
     .message-stats-card {
         padding: 12px 14px;
+    }
+}
+
+@media (max-width: 560px) {
+    #message-stats {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -3802,6 +3953,77 @@ input[type="range"]::-webkit-slider-thumb {
 
 .hunt-damage-indicator.hidden {
     opacity: 0 !important;
+}
+
+/* Inbound homing rocket. It sits above the hit arrow but below the round result
+   (z-index 100), and it says the threat in words, distance and an arrow - never in
+   colour alone, because the pulse is switched off whenever motion is reduced. */
+.hunt-rocket-warning {
+    position: absolute;
+    top: 32%;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px;
+    transform: translate(-50%, -50%) scale(var(--hud-scale, 1));
+    border: 2px solid rgba(255, 91, 91, 0.85);
+    border-radius: 8px;
+    background: rgba(26, 6, 8, 0.72);
+    color: #ffd7d7;
+    font-family: var(--menu-theme-display-font, inherit);
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    text-shadow: 0 0 10px rgba(255, 42, 42, 0.6);
+    pointer-events: none;
+    z-index: 89;
+}
+
+.hunt-rocket-warning-arrow {
+    display: inline-block;
+    font-size: 1.2rem;
+    line-height: 1;
+    color: #ff5b5b;
+}
+
+.hunt-rocket-warning.near {
+    border-width: 3px;
+    border-color: #ff2a2a;
+    background: rgba(74, 8, 10, 0.86);
+    color: #fff;
+}
+
+.hunt-rocket-warning.pulse {
+    animation: huntRocketWarningPulse 0.65s ease-in-out infinite;
+}
+
+@keyframes huntRocketWarningPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.55;
+    }
+}
+
+/* The visible text changes ten times a second (distance), so it is hidden from
+   assistive tech; this fixed sentence is what a screen reader announces instead. */
+.hunt-rocket-warning-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.hunt-rocket-warning.hidden {
+    display: none;
 }
 
 @media (max-width: 900px) {
@@ -7794,7 +8016,8 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 #hud.killcam-active .hunt-arc-meter,
 #hud.killcam-active #hunt-p2-panel,
 #hud.killcam-active .hunt-kill-feed,
-#hud.killcam-active .hunt-damage-indicator {
+#hud.killcam-active .hunt-damage-indicator,
+#hud.killcam-active .hunt-rocket-warning {
     visibility: hidden;
 }
 
@@ -7813,6 +8036,7 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     #hunt-p2-panel,
     .hunt-kill-feed,
     .hunt-damage-indicator,
+    .hunt-rocket-warning,
     .hunt-respawn-status
 ) {
     visibility: hidden;

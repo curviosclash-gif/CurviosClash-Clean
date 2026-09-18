@@ -3,6 +3,7 @@
 // ============================================
 
 import { enterRecovery, updateRecovery } from './BotRecoveryOps.js';
+import { applyRocketDefenseDecision } from './BotRocketDefenseOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 
 function clamp01(value) {
@@ -177,6 +178,10 @@ export function decideSteering(bot, player) {
 }
 
 export function decideItemUsage(bot, player, itemRules) {
+    // S2.5: shooting an inbound rocket down beats every other weapon choice this tick.
+    // It is the same key a human presses, and S2.1 turns the shot into a defence rocket.
+    if (applyRocketDefenseDecision(bot, player)) return;
+
     const inventory = Array.isArray(player.inventory) ? player.inventory : [];
     const rocketInventory = Array.isArray(player.rocketInventory) ? player.rocketInventory : [];
     if (inventory.length === 0 && rocketInventory.length === 0) return;

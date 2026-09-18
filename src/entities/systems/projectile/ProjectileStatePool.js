@@ -63,6 +63,17 @@ export class ProjectileStatePool {
             networkId: '',
             environmentProjectile: false,
             targetPlayerIndex: -1,
+            // Who this projectile is steering at right now (-1 = nobody). Feeds the rocket
+            // warning; targetPlayerIndex stays the "may hit" rule of environment rockets.
+            lockedPlayerIndex: -1,
+            // Only a network replica fills this: it cannot derive a turret or zone source
+            // from `owner` alone, so the snapshot hands it the resolved value.
+            threatSource: '',
+            // A defence rocket chases another rocket instead of a player. The target is
+            // held as an id only: pooled states are recycled, so a kept object reference
+            // would point at a different rocket later on.
+            isInterceptor: false,
+            interceptTargetId: '',
             targetReacquireDisabled: false,
             ignoresTrails: false,
             ignoresTurrets: false,
@@ -108,6 +119,10 @@ export class ProjectileStatePool {
         projectile.networkId = '';
         projectile.environmentProjectile = false;
         projectile.targetPlayerIndex = -1;
+        projectile.lockedPlayerIndex = -1;
+        projectile.threatSource = '';
+        projectile.isInterceptor = false;
+        projectile.interceptTargetId = '';
         projectile.targetReacquireDisabled = false;
         projectile.ignoresTrails = false;
         projectile.ignoresTurrets = false;

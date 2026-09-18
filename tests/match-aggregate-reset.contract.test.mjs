@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { RoundRecorder } from '../src/state/RoundRecorder.js';
 import { wireMatchSessionRuntime } from '../src/state/MatchSessionFactory.js';
-import { buildPostMatchStatsSummary } from '../src/state/PostMatchStatsAggregator.js';
+import { coordinateRoundEnd } from '../src/ui/MatchFlowRoundEndCoordinator.js';
 
 function createRendererStub() {
     return {
@@ -19,18 +19,23 @@ function createPlayers() {
     ];
 }
 
-function readRoundsRow(recorder, players) {
-    const summary = buildPostMatchStatsSummary({
-        recorder,
-        players,
-        outcome: { state: 'ROUND_END', requiredWins: 5 },
-    });
-    const matchBlock = summary?.blocks?.find((block) => block.id === 'match') || null;
+function createRoundStateControllerStub(requiredWins) {
+    return {
+        deriveOnRoundEndPlan: () => ({
+            outcome: { state: 'ROUND_END', requiredWins },
+            transition: {},
+        }),
+    };
+}
+
+function readRoundsRow(statsSummary) {
+    const matchBlock = statsSummary?.blocks?.find((block) => block.id === 'match') || null;
     return matchBlock?.rows?.find((row) => row.key === 'rounds')?.value ?? null;
 }
 
-// Ein Match: Session verdrahten (Matchstart), eine Runde spielen und beenden.
-function playOneRoundInFreshMatch(recorder, renderer) {
+// Ein Match: Session verdrahten (Matchstart), eine Runde spielen und über den
+// produktiven Rundenende-Koordinator der UI beenden.
+function playOneRoundInFreshMatch(recorder, renderer, requiredWins = 5) {
     const players = createPlayers();
     wireMatchSessionRuntime({
         renderer,
@@ -38,19 +43,30 @@ function playOneRoundInFreshMatch(recorder, renderer) {
         numHumans: 1,
     });
     recorder.startRound(players);
-    recorder.finalizeRound(players[1], players, { reason: 'ELIMINATION' });
-    return players;
+    const result = coordinateRoundEnd({
+        recorder,
+        winner: players[1],
+        players,
+        roundStateController: createRoundStateControllerStub(requiredWins),
+        humanPlayerCount: 1,
+        totalBots: 1,
+        winsNeeded: requiredWins,
+        outcomeReason: 'ELIMINATION',
+        logger: { log() {} },
+    });
+    return result.statsSummary;
 }
 
 test('a new match restarts the aggregate round counter', () => {
     const recorder = new RoundRecorder();
     const renderer = createRendererStub();
 
-    const firstMatchPlayers = playOneRoundInFreshMatch(recorder, renderer);
-    assert.equal(readRoundsRow(recorder, firstMatchPlayers), '1');
+    // Die Tafel liefert seit v2 Rohzahlen statt fertiger Texte.
+    const firstSummary = playOneRoundInFreshMatch(recorder, renderer);
+    assert.equal(readRoundsRow(firstSummary), 1);
 
-    const secondMatchPlayers = playOneRoundInFreshMatch(recorder, renderer);
-    assert.equal(readRoundsRow(recorder, secondMatchPlayers), '1');
+    const secondSummary = playOneRoundInFreshMatch(recorder, renderer);
+    assert.equal(readRoundsRow(secondSummary), 1);
 });
 
 test('a new match also restarts the values derived from the round count', () => {

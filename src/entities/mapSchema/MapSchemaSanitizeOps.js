@@ -4,6 +4,7 @@ import { getPickupDefinition, normalizePickupType } from '../PickupRegistry.js';
 import { normalizeAllowedGLBUrl, sanitizeGLBModels } from './MapSchemaGlbOps.js';
 import { cloneJsonCompatibleValue } from '../../shared/utils/JsonClone.js';
 import { deriveItemSpawnModeDefault, derivePortalModeDefault } from './MapSchemaAuthoringModeDefaults.js';
+import { sanitizeSecretRoomList } from './MapSchemaSecretRoomOps.js';
 
 export function asFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -553,6 +554,9 @@ export function normalizeMapSchemaDocument(rawMap, options = {}) {
     if (parcours) {
         normalized.parcours = parcours;
     }
+
+    const secretRooms = sanitizeSecretRoomList(rawMap.secretRooms, { warnings });
+    if (secretRooms.length > 0) normalized.secretRooms = secretRooms;
 
     return normalized;
 }
