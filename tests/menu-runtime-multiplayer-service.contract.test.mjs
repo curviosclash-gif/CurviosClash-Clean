@@ -81,7 +81,7 @@ test('LAN join uses player profile identity while access actor remains separate'
         name: 'Gunda',
         signalingUrl: 'localhost:9090',
     }]);
-    assert.equal(game.ui.multiplayerStatus.textContent, 'Join fehlgeschlagen: Host-Adresse ungueltig. Bitte Host:Port verwenden, z. B. localhost:9090.');
+    assert.equal(game.ui.multiplayerStatus.textContent, 'Beitritt fehlgeschlagen: Host-Adresse ungueltig. Bitte Host:Port verwenden, z. B. localhost:9090.');
     assert.equal(hostAddressInput.attributes.get('aria-invalid'), 'true');
     assert.equal(hostAddressInput.classNames.has('menu-field-error'), true);
     assert.equal(hostAddressInput.focused, true);

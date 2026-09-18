@@ -333,9 +333,12 @@ export class NetworkLobbyService {
         this._actorId = actorId;
         this._name = name;
         this._connectionPhase = 'connecting';
+        // leave() bumps the generation; a join that gets past that point was cancelled.
+        const joinGeneration = this._joinGeneration = (this._joinGeneration || 0) + 1;
         const resolvedUrl = await tryResolveNetworkLobbyUrl(
             () => this._resolveJoinSignalingUrl(requestedLobbyCode, options.signalingUrl)
         );
+        if (joinGeneration !== this._joinGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
         if (resolvedUrl.error) {
             this._connectionPhase = 'disconnected';
             return this._fail(
@@ -365,11 +368,13 @@ export class NetworkLobbyService {
                 participantMetadata: this._participantMetadata,
             }));
         } catch (error) {
+            if (joinGeneration !== this._joinGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
             this._connectionPhase = 'disconnected';
             const message = error instanceof Error ? error.message : 'Lobby konnte nicht beigetreten werden.';
             const code = normalizeString(error?.code, 'join_failed');
             return this._fail(message, code);
         }
+        if (joinGeneration !== this._joinGeneration) return this._fail('Beitritt abgebrochen.', 'join_cancelled');
 
         const sessionState = this.getSessionState();
         const event = this._emit(LOBBY_SERVICE_EVENT_TYPES.JOIN, {
@@ -442,6 +447,7 @@ export class NetworkLobbyService {
     }
 
     leave(options = {}) {
+        this._joinGeneration = (this._joinGeneration || 0) + 1;
         const previousState = this.getSessionState();
         this._settingsPublisher.reset();
         this._transportSession.dispose();

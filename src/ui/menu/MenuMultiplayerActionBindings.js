@@ -1,6 +1,7 @@
 import { bindLobbyNameField } from '../start-setup/LobbyNameField.js';
 import { createOpenLobbyTable } from './multiplayer/OpenLobbyTable.js';
 import { startOpenLobbyAutoRefresh } from './multiplayer/OpenLobbyAutoRefresh.js';
+import { copyTextWithFeedback } from './MenuClipboardCopy.js';
 
 export function bindMenuMultiplayerActionButtons({
     ui,
@@ -31,26 +32,7 @@ export function bindMenuMultiplayerActionButtons({
     intentButtons.forEach((button) => bind(button, 'click', () => setConnectionIntent(button.dataset.connectionIntentTarget)));
     setConnectionIntent('join');
 
-    const copyValue = async (value, label) => {
-        const text = String(value || '').trim();
-        if (!text) return;
-        try {
-            const clipboard = globalThis.navigator?.clipboard;
-            if (typeof clipboard?.writeText !== 'function') throw new Error('clipboard_unavailable');
-            await clipboard.writeText(text);
-            emit(eventTypes.SHOW_STATUS_TOAST, {
-                message: `${label} kopiert.`,
-                duration: 1200,
-                tone: 'success',
-            });
-        } catch {
-            emit(eventTypes.SHOW_STATUS_TOAST, {
-                message: `${label} konnte nicht kopiert werden.`,
-                duration: 1600,
-                tone: 'error',
-            });
-        }
-    };
+    const copyValue = (value, label) => copyTextWithFeedback({ text: value, label, emit, eventTypes });
     const clearFieldError = (field) => {
         field?.removeAttribute?.('aria-invalid');
         field?.classList?.remove?.('menu-field-error');
@@ -81,6 +63,11 @@ export function bindMenuMultiplayerActionButtons({
                 signalingUrl: String(ui.multiplayerHostAddressInput?.value || '').trim(),
             });
         });
+    }
+
+    // Cancelling a running join goes the same way as leaving a lobby.
+    if (ui.multiplayerCancelJoinButton) {
+        bind(ui.multiplayerCancelJoinButton, 'click', () => emit(eventTypes.MULTIPLAYER_LEAVE_LOBBY));
     }
 
     if (ui.multiplayerOpenLobbiesRefreshButton) {

@@ -19,7 +19,10 @@ export function markMultiplayerFieldError(field) {
     field.focus?.();
 }
 
-export function beginMultiplayerAction(game, statusMessage) {
+export function beginMultiplayerAction(game, statusMessage, { cancellable = false } = {}) {
+    // A running join can be cancelled; the button only exists while it runs.
+    const cancelButton = cancellable ? game?.ui?.multiplayerCancelJoinButton : null;
+    cancelButton?.classList?.remove?.('hidden');
     const buttons = [
         game?.ui?.multiplayerHostButton,
         game?.ui?.multiplayerJoinButton,
@@ -37,5 +40,6 @@ export function beginMultiplayerAction(game, statusMessage) {
             button.disabled = previousDisabledStates[index];
         });
         game?.ui?.multiplayerInlineState?.removeAttribute?.('aria-busy');
+        cancelButton?.classList?.add?.('hidden');
     };
 }

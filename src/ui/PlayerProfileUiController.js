@@ -1,3 +1,5 @@
+import { PLAYER_PROFILE_MAX_NAME_LENGTH } from '../shared/contracts/PlayerProfileContract.js';
+
 function sanitizeFilePart(value) {
     return String(value || 'spieler')
         .normalize('NFKD')
@@ -8,8 +10,9 @@ function sanitizeFilePart(value) {
 
 const PROFILE_RELOAD_WATCHDOG_MS = 2000;
 
-function reasonMessage(reason) {
+export function resolvePlayerProfileReasonMessage(reason) {
     const messages = {
+        invalid_root: 'Die Datei enthält kein Spielerprofil.',
         profile_not_found: 'Spielerprofil nicht gefunden.',
         profile_limit: 'Die maximale Anzahl Spielerprofile ist erreicht.',
         last_profile: 'Das letzte Spielerprofil kann nicht archiviert werden.',
@@ -61,6 +64,13 @@ export class PlayerProfileUiController {
             target.addEventListener(eventName, handler);
             this.cleanups.push(() => target.removeEventListener(eventName, handler));
         };
+        // The field stops at the limit by itself (maxlength), so say why instead of cutting silently.
+        bind(this.refs.name, 'input', () => {
+            if (!this.refs.status) return;
+            const atLimit = Array.from(String(this.refs.name?.value || '')).length >= PLAYER_PROFILE_MAX_NAME_LENGTH;
+            this.refs.status.textContent = atLimit ? `Namen haben höchstens ${PLAYER_PROFILE_MAX_NAME_LENGTH} Zeichen.` : '';
+            this.refs.status.dataset.tone = 'info';
+        });
         bind(this.refs.select, 'change', () => {
             const selected = this._selected();
             if (selected && this.refs.name) this.refs.name.value = selected.displayName;
@@ -88,7 +98,7 @@ export class PlayerProfileUiController {
             this.refs.file.value = '';
         });
         this.sync();
-        if (this.manager?.lastError) this._setStatus(reasonMessage(this.manager.lastError), 'error');
+        if (this.manager?.lastError) this._setStatus(resolvePlayerProfileReasonMessage(this.manager.lastError), 'error');
     }
 
     async _activateSelected() {
@@ -96,7 +106,7 @@ export class PlayerProfileUiController {
         if (!selected || !this.activateProfile) return null;
         const result = await this.activateProfile(selected.id);
         if (!result?.ok) {
-            this._setStatus(reasonMessage(result?.reason), 'error');
+            this._setStatus(resolvePlayerProfileReasonMessage(result?.reason), 'error');
             return result;
         }
         this.sync(selected.id);
@@ -114,7 +124,7 @@ export class PlayerProfileUiController {
 
     _handle(result, successMessage) {
         if (!result?.ok) {
-            this._setStatus(reasonMessage(result?.reason), 'error');
+            this._setStatus(resolvePlayerProfileReasonMessage(result?.reason), 'error');
             return result;
         }
         this._setStatus(successMessage, 'success');

@@ -250,6 +250,18 @@ export function parseMenuConfigImportInput(inputValue) {
         });
     }
 
+    // Any JSON object used to pass as an old export; applying one without a single known
+    // field reset several values to defaults and still reported success.
+    const knownKeys = Object.keys(createSharePayload({}));
+    if (!knownKeys.some((key) => Object.prototype.hasOwnProperty.call(sourcePayload, key))) {
+        return createImportFeedback({
+            success: false,
+            reason: 'no_known_settings',
+            error: 'Config-Import enthält keine bekannten Einstellungsfelder.',
+            message: 'Im eingefügten Text wurden keine bekannten Einstellungen gefunden. Nichts wurde übernommen.',
+        });
+    }
+
     const usedLegacyFallback = !versionState.hasVersionField;
     const warnings = usedLegacyFallback ? [createLegacyImportWarning()] : [];
     const migration = usedLegacyFallback

@@ -424,7 +424,7 @@ export async function handleMultiplayerJoinAction({
     if (!game) return null;
     clearMultiplayerFieldError(game.ui?.multiplayerLobbyCodeInput);
     clearMultiplayerFieldError(game.ui?.multiplayerHostAddressInput);
-    const finishPendingAction = beginMultiplayerAction(game, 'Lobby wird gesucht …');
+    const finishPendingAction = beginMultiplayerAction(game, 'Lobby wird gesucht …', { cancellable: true });
     const selectedTransport = normalizeRuntimeMultiplayerTransport(
         game?.settings?.localSettings?.multiplayerTransport,
         MULTIPLAYER_TRANSPORTS.LAN
@@ -459,13 +459,14 @@ export async function handleMultiplayerJoinAction({
     if (!result?.ok) {
         const message = result?.message || 'Lobby konnte nicht beigetreten werden.';
         finishPendingAction();
-        setMultiplayerStatus(game, `Join fehlgeschlagen: ${message}`);
+        const cancelled = result?.code === 'join_cancelled';
+        setMultiplayerStatus(game, cancelled ? 'Beitritt abgebrochen.' : `Beitritt fehlgeschlagen: ${message}`);
         if (result?.code === 'manual_signaling_url_invalid') {
             markMultiplayerFieldError(game.ui?.multiplayerHostAddressInput);
         } else if (result?.code === 'missing_lobby_code' || result?.code === 'lobby_not_found') {
             markMultiplayerFieldError(game.ui?.multiplayerLobbyCodeInput);
         }
-        game._showStatusToast(message, 1800, 'error');
+        if (!cancelled) game._showStatusToast(message, 1800, 'error');
         return result;
     }
 

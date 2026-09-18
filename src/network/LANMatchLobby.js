@@ -10,9 +10,7 @@ import {
     createInitialLobbySessionState,
     normalizeLobbySessionState,
 } from './MatchLobbySessionState.js';
-import {
-    SIGNALING_HTTP_ROUTES,
-} from '../shared/contracts/SignalingSessionContract.js';
+import { SIGNALING_HTTP_ROUTES } from '../shared/contracts/SignalingSessionContract.js';
 import {
     createNetworkUnavailableSignalingError,
     toErrorPayload,
@@ -122,8 +120,9 @@ export class LANMatchLobby extends MatchLobby {
         this._cancelReconnect = false;
 
         try {
+            // An unreachable host must not keep the menu waiting for the operating system (~10 s).
             const res = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_JOIN}`, {
-                method: 'POST',
+                signal: AbortSignal.timeout(this._pollTimeoutMs * 2), method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     lobbyCode: this.lobbyCode,
@@ -254,6 +253,8 @@ export class LANMatchLobby extends MatchLobby {
     }
 
     _startPolling() {
+        // leave()/dispose() during a running join: the late answer must not revive the lobby.
+        if (this._cancelReconnect) return;
         this._stopPolling();
         this._pollClosed = false;
         const pollLoop = async () => {

@@ -71,7 +71,7 @@ export function handleConfigImportAction({
     if (!game) return;
     const result = importMenuConfigFromInput(game.settings, inputValue);
     if (!result.success) {
-        const errorMessage = String(result.error || 'Config-Import fehlgeschlagen');
+        const errorMessage = String(result.message || result.error || 'Config-Import fehlgeschlagen');
         setConfigShareStatus(game.ui, 'Import fehlgeschlagen', 'error');
         game._showStatusToast(errorMessage, 1700, 'error');
         return;

@@ -4,6 +4,7 @@ import { clamp } from '../../shared/utils/MathOps.js';
 import { setupArcadeMenuSurface } from '../arcade/ArcadeMenuSurface.js';
 import { bindMenuMultiplayerActionButtons } from './MenuMultiplayerActionBindings.js';
 import { bindStaticInfoHints } from './InfoHintToggle.js';
+import { bindBuildInfoCopy } from './MenuClipboardCopy.js';
 import { resolveSurfaceFeatureLaunchGuard } from './MenuSurfaceFeatureAccess.js';
 import { createRuntimeSettingsLimitsForRuntime } from '../../shared/contracts/SettingsRuntimeLimitsContract.js';
 
@@ -135,6 +136,7 @@ export function bindMenuExtrasButtons(ctx) {
     }
 
     bindStaticInfoHints(ui.mainMenu?.ownerDocument || globalThis.document);
+    bindBuildInfoCopy({ ui, bind, emit, eventTypes });
 
     bindMenuMultiplayerActionButtons({
         ui,

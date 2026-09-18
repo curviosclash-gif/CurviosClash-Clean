@@ -269,6 +269,7 @@ export function createGameUiRefs(doc = document) {
         setupLobbyButton: doc.getElementById('btn-setup-lobby'),
         setupModeButton: doc.getElementById('btn-setup-mode'),
         multiplayerJoinButton: doc.getElementById('btn-multiplayer-join'),
+        multiplayerCancelJoinButton: doc.getElementById('btn-multiplayer-cancel-join'),
         multiplayerLeaveLobbyButton: doc.getElementById('btn-multiplayer-leave'),
         multiplayerStartMatchButton: doc.getElementById('btn-multiplayer-start'),
         multiplayerReadyToggle: doc.getElementById('multiplayer-ready-toggle'),
