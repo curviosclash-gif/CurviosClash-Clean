@@ -329,7 +329,9 @@ export class EntityManager {
     }
 
     getHuntScoreboard() {
-        return this._huntScoring.getScoreboard(this.players);
+        return this._huntScoring.getScoreboard(this.players, {
+            winCondition: this.entityRuntimeConfig?.HUNT?.WIN_CONDITION,
+        });
     }
 
     getHuntScoreboardSummary(maxEntries = 3, rows = null) {

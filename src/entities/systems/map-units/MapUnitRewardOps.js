@@ -46,6 +46,6 @@ export function rewardMapUnitDestruction(system, unit, sourcePlayer) {
     }
     const index = sourcePlayer?.index;
     if (!Number.isInteger(index) || index < 0) return;
-    owner?._huntScoring?.registerUnitDestroyed?.(index);
+    owner?._huntScoring?.registerUnitDestroyed?.(index, unit.definition.kind);
     if (sourcePlayer.isBot !== true) owner?._notifyPlayerFeedback?.(sourcePlayer, 'Panzer zerstört');
 }

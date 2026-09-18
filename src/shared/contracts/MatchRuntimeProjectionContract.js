@@ -2,6 +2,7 @@ import { normalizeString } from './ContractNormalizeUtils.js';
 import { GAMEPLAY_CAMERA_MODE_ID } from './CameraModeContract.js';
 import { resolveArtifactVersionState } from './ArtifactVersionMigrationContract.js';
 import { createGlobalFogEffectState } from './GlobalFogEffectContract.js';
+import { normalizeHuntWinCondition } from './HuntWinConditionContract.js';
 
 export const MATCH_RUNTIME_PROJECTION_CONTRACT_VERSION = 'match-runtime-projection.v1';
 export const MATCH_RUNTIME_PROJECTION_VERSION_FIELDS = Object.freeze(['contractVersion']);
@@ -391,6 +392,7 @@ function createHuntProjection(value = null, nowMs = 0) {
             intercepts: normalizeNonNegativeInt(row?.intercepts, 0),
             // Tanks destroyed by this player (E19). Statistics and arcade XP only, never a kill.
             unitsDestroyed: normalizeNonNegativeInt(row?.unitsDestroyed, 0),
+            points: normalizeNonNegativeInt(row?.points, 0),
         }))
         : [];
     const respawnRemainingByPlayer = {};
@@ -408,6 +410,7 @@ function createHuntProjection(value = null, nowMs = 0) {
         damageIndicator: legacyIndicator,
         respawnEnabled: source.respawnEnabled === true,
         deathmatchKillLimit: Math.max(1, normalizeNonNegativeInt(source.deathmatchKillLimit, 10)),
+        winCondition: normalizeHuntWinCondition(source.winCondition),
         respawnRemainingByPlayer,
         scoreboardRows,
         scoreboardSummary: normalizeString(source.scoreboardSummary, ''),
