@@ -5745,6 +5745,18 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     text-align: right;
 }
 
+.hangar-stat-section-title {
+    margin: 10px 0 2px;
+    color: #8fc9ff;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.hangar-stat-section-title:first-child {
+    margin-top: 0;
+}
+
 .hangar-stat-comparisons {
     display: grid;
     grid-column: 1 / -1;

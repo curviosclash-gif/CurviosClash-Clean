@@ -10,6 +10,7 @@ import { HANGAR_SLOT_DEFINITIONS, listHangarParts, resolveHangarPart, resolvePar
 import { resolveHangarStoneAvailability } from './HangarStoneInventory.js';
 import { validateHangarBuild } from './HangarBuildValidation.js';
 import { compareHangarStats, projectHangarStats } from './HangarStatProjection.js';
+import { prependFightEffectRows } from './FightHangarEffectView.js';
 import { projectHangarProgression } from './HangarProgressionProjection.js';
 import {
     STAT_VALUE_HINTS,
@@ -234,6 +235,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
             );
             statRows.appendChild(row);
         });
+        if (mode === 'fight') prependFightEffectRows(statRows, { draft: state.draft, baselineBuild: state.baselineBuild || state.savedBuild, baselineLabel }, validateBuild);
         budgetRows.replaceChildren();
         [
             ['Editorbudget', validation.stats.budgetUsed, validation.limits.editorBudget],
