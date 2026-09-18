@@ -16,6 +16,7 @@ import {
     removeMapUnitVisual,
     updateMapUnitVisual,
 } from './map-units/MapUnitVisualOps.js';
+import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-units/MapUnitWeaponOps.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
@@ -31,6 +32,10 @@ export class MapUnitSystem {
         this.entityManager = entityManager || null;
         this.units = [];
         this._assets = null;
+        // Scratch vectors the static turret targeting and aiming code expects on its system.
+        this._tmpAim = new THREE.Vector3();
+        this._tmpPoint = new THREE.Vector3();
+        this._trailQueryStamp = 0;
     }
 
     startRound() {
@@ -70,12 +75,19 @@ export class MapUnitSystem {
             groundPosition: new THREE.Vector3(),
             position: new THREE.Vector3(),
             root: null,
+            source: null,
+            ownerPlayer: null,
+            mounts: [],
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
         this._placeCentre(unit);
         unit.root = createMapUnitVisual(this.entityManager?.renderer, this._resolveAssets(), scale);
         updateMapUnitVisual(unit);
+        unit.source = createUnitSource(unit);
+        // Its own shots must not hit it: the weapons skip targets owned by the shooter.
+        unit.ownerPlayer = unit.source;
+        unit.mounts = createUnitMounts(unit);
         return unit;
     }
 
@@ -99,6 +111,7 @@ export class MapUnitSystem {
             unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
             this._placeCentre(unit);
             updateMapUnitVisual(unit);
+            updateUnitWeapons(this, unit, safeDt, this.entityManager?.isFightOutcomeAuthority !== false);
         }
     }
 
