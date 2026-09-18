@@ -79,3 +79,16 @@ test('a client joining after a shot does not redraw it', () => {
     applyHuntNetworkState(late.manager, createHuntNetworkState(host.manager));
     assert.deepEqual(late.beams, []);
 });
+
+test('review fix: two beams between two snapshots are both drawn', () => {
+    const host = createSide(true);
+    const client = createSide(false);
+    applyPlayerPowerup(host.shooter, 'RAILGUN');
+    applyHuntNetworkState(client.manager, createHuntNetworkState(host.manager));
+    for (let i = 0; i < 2; i += 1) {
+        host.system.fire(host.shooter, 0.3, true);
+        host.system.fire(host.shooter, 0.016, false);
+    }
+    applyHuntNetworkState(client.manager, createHuntNetworkState(host.manager));
+    assert.deepEqual(client.beams, [1, 2]);
+});

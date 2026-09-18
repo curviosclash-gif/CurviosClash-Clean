@@ -39,3 +39,10 @@ test('an armed bot charges to 70 % and releases only with a target on its line',
     applyBotRailgunInput(policy(), input, player, { players: [player, aside], entityManager: { _targetableRegistry: { collect: () => [tank] } } });
     assert.equal(input.shootMG, false, 'a tank on the line is worth the shot');
 });
+
+test('review fix: a retreating bot keeps a started charge instead of wasting it', async () => {
+    const { holdsRailgunCharge } = await import('../src/hunt/HuntBotRailgunOps.js');
+    assert.equal(holdsRailgunCharge({ hasRailgun: true, railCharge: 0.4 }), true);
+    assert.equal(holdsRailgunCharge({ hasRailgun: true, railCharge: 0 }), false);
+    assert.equal(holdsRailgunCharge({ hasRailgun: false, railCharge: 0.4 }), false);
+});

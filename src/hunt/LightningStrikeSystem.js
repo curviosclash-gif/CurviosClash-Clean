@@ -4,6 +4,8 @@ import { isHuntHealthActive } from './HealthSystem.js';
 import { LightningStrikeEffect } from '../entities/effects/LightningStrikeEffect.js';
 
 export const LIGHTNING_CAUSE = 'LIGHTNING';
+// Strikes kept for the network: bots may cast together, so several can land between two snapshots.
+const RECENT_STRIKES = 6;
 
 function positive(value, fallback) {
     const number = Number(value);
@@ -56,6 +58,8 @@ export class LightningStrikeSystem {
         this._strikePositions = [];
         this._nextStrikeId = 1;
         this._effect = null;
+        this._recentStrikes = [];
+        this._appliedStrikeId = 0;
     }
 
     _resolveEffect() {
@@ -140,6 +144,8 @@ export class LightningStrikeSystem {
             }
         }
         this.lastStrike = { id: strike.id, casterIndex: strike.caster?.index ?? -1, targetIndices: hit };
+        this._recentStrikes.push(this.lastStrike);
+        if (this._recentStrikes.length > RECENT_STRIKES) this._recentStrikes.shift();
         this._showStrike(targets);
         owner?.recorder?.logEvent?.('LIGHTNING_STRIKE', Number.isInteger(strike.caster?.index) ? strike.caster.index : -1, `targets=${hit.join(',')}`);
     }
@@ -155,14 +161,16 @@ export class LightningStrikeSystem {
 
     setNetworkReplica(enabled) {
         this.networkReplica = enabled === true;
+        // Mirrored warnings carry no caster; an instance that becomes the host must not strike them.
+        if (!this.networkReplica) this.pending.length = 0;
     }
 
     /** Host truth for clients: the pending warnings and the last strike. Null while nothing happens. */
     serializeNetworkState() {
-        if (this.pending.length === 0 && !this.lastStrike) return null;
+        if (this.pending.length === 0 && this._recentStrikes.length === 0) return null;
         return {
             pending: this.pending.map((strike) => ({ id: strike.id, remaining: strike.remaining, duration: strike.duration })),
-            lastStrike: this.lastStrike ? { id: this.lastStrike.id, targetIndices: [...this.lastStrike.targetIndices] } : null,
+            strikes: this._recentStrikes.map((strike) => ({ id: strike.id, targetIndices: [...strike.targetIndices] })),
         };
     }
 
@@ -191,9 +199,9 @@ export class LightningStrikeSystem {
             this._resolveEffect();
             this._announce();
         }
-        const strike = state.lastStrike;
-        const strikeId = Math.trunc(Number(strike?.id));
-        if (Number.isFinite(strikeId) && strikeId !== this._appliedStrikeId) {
+        for (const strike of Array.isArray(state.strikes) ? state.strikes : []) {
+            const strikeId = Math.trunc(Number(strike?.id));
+            if (!Number.isFinite(strikeId) || strikeId <= this._appliedStrikeId) continue;
             this._appliedStrikeId = strikeId;
             this.lastStrike = { id: strikeId, casterIndex: -1, targetIndices: [...(strike.targetIndices || [])] };
             if (!firstState) {
@@ -212,5 +220,9 @@ export class LightningStrikeSystem {
     dispose() {
         this._effect?.dispose();
         this._effect = null;
+        this.reset();
+        this._recentStrikes.length = 0;
+        this._appliedStrikeId = 0;
+        this._stateInitialized = false;
     }
 }

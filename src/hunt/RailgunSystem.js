@@ -1,11 +1,13 @@
 import * as THREE from 'three';
-import { consumeRailgunShot } from '../entities/player/PlayerEffectOps.js';
+import { consumeRailgunShot, hasRailgunEffect } from '../entities/player/PlayerEffectOps.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { HUNT_CONFIG } from './HuntConfig.js';
 import { RailgunBeamEffect } from '../entities/effects/RailgunBeamEffect.js';
 
 export const RAILGUN_CAUSE = 'RAILGUN';
+// Beams kept for the network: more than can land between two snapshots.
+const RECENT_BEAMS = 6;
 
 function positive(value, fallback) {
     const number = Number(value);
@@ -49,6 +51,8 @@ export class RailgunSystem {
         this._scratch = new THREE.Vector3();
         this._hits = [];
         this._effect = null;
+        this._recentBeams = [];
+        this._appliedBeamId = 0;
     }
 
     _resolveEffect() {
@@ -71,22 +75,34 @@ export class RailgunSystem {
     dispose() {
         this._effect?.dispose();
         this._effect = null;
+        this._recentBeams.length = 0;
+        this._appliedBeamId = 0;
+        this._stateInitialized = false;
     }
 
-    /** Host truth for clients: the last beam, so every screen draws it once. Null before the first. */
+    /** A few recent beams, so two shots between two snapshots both reach the clients. */
+    _rememberBeam(beam) {
+        this._recentBeams.push(beam);
+        if (this._recentBeams.length > RECENT_BEAMS) this._recentBeams.shift();
+    }
+
+    /** Host truth for clients: the recent beams, each drawn once on every screen. Null before the first. */
     serializeNetworkState() {
-        return this.lastBeam ? { ...this.lastBeam } : null;
+        return this._recentBeams.length > 0 ? this._recentBeams.map((beam) => ({ ...beam })) : null;
     }
 
-    applyNetworkState(beam) {
-        // The first snapshot a client sees only learns the last beam: an old one is not redrawn.
+    applyNetworkState(beams) {
+        // The first snapshot a client sees only learns the ids: old beams are not redrawn.
         const firstState = this._stateInitialized !== true;
         this._stateInitialized = true;
-        const id = Math.trunc(Number(beam?.id));
-        if (!Number.isFinite(id) || id === this._appliedBeamId) return;
-        this._appliedBeamId = id;
-        this.lastBeam = beam;
-        if (!firstState) this._showBeam(beam);
+        const list = Array.isArray(beams) ? beams : [];
+        for (const beam of list) {
+            const id = Math.trunc(Number(beam?.id));
+            if (!Number.isFinite(id) || id <= this._appliedBeamId) continue;
+            this._appliedBeamId = id;
+            this.lastBeam = beam;
+            if (!firstState) this._showBeam(beam);
+        }
     }
 
     _config(player) {
@@ -95,11 +111,17 @@ export class RailgunSystem {
 
     /** One tick of the key. Answers true when the railgun took the key this tick. */
     fire(player, dt, held = true) {
-        if (player?.alive !== true) return false;
-        const armed = player.hasRailgun === true;
-        if (!armed) {
-            player.railCharge = 0;
+        if (player?.alive !== true) {
+            if (player) player.railCharge = 0;
             return false;
+        }
+        if (!hasRailgunEffect(player)) {
+            // The gun is gone (expired, respawned) while the key may still be down: a charge left
+            // over is dropped, never fired, and the key stays swallowed until it comes up, so the
+            // machine gun does not start in the middle of a held shot.
+            const swallow = held === true && (Number(player.railCharge) || 0) > 0;
+            if (!swallow) player.railCharge = 0;
+            return swallow;
         }
         if (this.entityManager?.isFightOutcomeAuthority === false) return held === true;
         const config = this._config(player);
@@ -111,8 +133,8 @@ export class RailgunSystem {
         const charge = Number(player.railCharge) || 0;
         player.railCharge = 0;
         if (charge <= 0) return false;
-        this._shoot(player, resolveRailgunDamage(charge, config), config);
-        consumeRailgunShot(player);
+        // A shot is only spent when a beam actually left the barrel.
+        if (this._shoot(player, resolveRailgunDamage(charge, config), config)) consumeRailgunShot(player);
         return true;
     }
 
@@ -143,7 +165,7 @@ export class RailgunSystem {
     _shoot(player, damage, config) {
         const owner = this.entityManager;
         const aim = player.getAimDirection?.(this._aim);
-        if (!aim || aim.lengthSq() <= 0.000001) return;
+        if (!aim || aim.lengthSq() <= 0.000001) return false;
         aim.normalize();
         const origin = player.position;
         let range = positive(config?.RANGE, 250);
@@ -183,7 +205,9 @@ export class RailgunSystem {
             damage,
             targetCount: struck.length,
         };
+        this._rememberBeam(this.lastBeam);
         this._showBeam(this.lastBeam);
         owner?.recorder?.logEvent?.('RAILGUN_SHOT', Number.isInteger(player.index) ? player.index : -1, `damage=${Math.round(damage)}:targets=${struck.length}`);
+        return true;
     }
 }

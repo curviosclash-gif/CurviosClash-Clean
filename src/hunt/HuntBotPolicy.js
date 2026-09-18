@@ -19,7 +19,7 @@ import {
 import { applyBotFlamethrowerInput } from './HuntBotFlamethrowerOps.js';
 import { applyBotMapUnitFire } from './HuntBotMapUnitOps.js';
 import { applyBotLightningInput } from './HuntBotLightningOps.js';
-import { applyBotRailgunInput } from './HuntBotRailgunOps.js';
+import { applyBotRailgunInput, holdsRailgunCharge } from './HuntBotRailgunOps.js';
 import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 export { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 
@@ -485,7 +485,7 @@ export class HuntBotPolicy {
             } else {
                 applyRetreatSteeringFallback(this, input, player, enemy);
             }
-            input.shootMG = false;
+            input.shootMG = holdsRailgunCharge(player);
             input.boost = true;
             if (rocketIndex < 0) {
                 input.shootItem = false;

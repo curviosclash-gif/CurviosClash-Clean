@@ -187,6 +187,14 @@ export function consumeFlamethrowerFuel(player, seconds) {
     return consumed;
 }
 
+/**
+ * Is the railgun really armed? Asked from the effect itself, not from player.hasRailgun: that cache is
+ * refreshed in player.update, after the action phase, so right after a respawn it still says true.
+ */
+export function hasRailgunEffect(player) {
+    return findLatestAllowedEffect(player, RAILGUN_EFFECT_TYPES, resolveModeType(player)) !== null;
+}
+
 /** One railgun shot fired; the last one ends the effect through the normal removal path. */
 export function consumeRailgunShot(player) {
     const effect = findLatestAllowedEffect(player, RAILGUN_EFFECT_TYPES, resolveModeType(player));

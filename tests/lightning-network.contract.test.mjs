@@ -85,3 +85,23 @@ test('a client joining after a strike does not replay the old one', () => {
     applyHuntNetworkState(late.manager, createHuntNetworkState(host.manager));
     assert.equal(late.strikes.length, 1, 'the next strike is shown');
 });
+
+test('review fix: two strikes between two snapshots are both shown', () => {
+    const host = createSide();
+    const client = createSide();
+    applyHuntNetworkState(client.manager, createHuntNetworkState(host.manager));
+    host.system.activate(host.players[0]);
+    host.system.activate(host.players[1]);
+    host.system.update(2);
+    applyHuntNetworkState(client.manager, createHuntNetworkState(host.manager));
+    assert.equal(client.strikes.length, 2);
+});
+
+test('review fix: an instance that stops being a replica forgets the mirrored warnings', () => {
+    const client = createSide();
+    client.system.applyNetworkState({ pending: [{ id: 4, remaining: 1, duration: 2 }], strikes: [] });
+    client.system.setNetworkReplica(false);
+    assert.equal(client.system.getWarningState(), null);
+    client.system.update(2);
+    assert.equal(client.players.every((player) => player.taken.length === 0), true);
+});

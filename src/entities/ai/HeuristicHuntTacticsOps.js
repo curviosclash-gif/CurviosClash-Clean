@@ -19,7 +19,7 @@ import {
 import { applyBotFlamethrowerInput } from '../../hunt/HuntBotFlamethrowerOps.js';
 import { applyBotMapUnitFire } from '../../hunt/HuntBotMapUnitOps.js';
 import { applyBotLightningInput } from '../../hunt/HuntBotLightningOps.js';
-import { applyBotRailgunInput } from '../../hunt/HuntBotRailgunOps.js';
+import { applyBotRailgunInput, holdsRailgunCharge } from '../../hunt/HuntBotRailgunOps.js';
 import { getPreferredFightEnemy } from '../../hunt/FightTargetSelector.js';
 import { HUNT_CONFIG } from '../../hunt/HuntConfig.js';
 import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
@@ -444,7 +444,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         else applyEvasiveRetreatSteering(policy, input, player, enemy, runtimeContext?.arena);
         if (!hasYaw(input)) applyRetreatSteering(policy, input, player, enemy);
         input.boost = wallFront > Math.max(policy.profile.safetyDistance, 0.34);
-        input.shootMG = false;
+        input.shootMG = holdsRailgunCharge(player);
         if (rocketIndex < 0) {
             input.shootItem = false;
             input.shootRocket = false;

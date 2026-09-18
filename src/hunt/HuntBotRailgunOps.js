@@ -21,6 +21,14 @@ function isEnemyTarget(player, target) {
     return target.ownerPlayer !== player && !(Number.isInteger(player.index) && target.ownerIndex === player.index);
 }
 
+/**
+ * A bot that stops attacking (retreat) must keep a started charge held: letting go of the key is
+ * what fires, and a release while turning away wastes the shot on empty air.
+ */
+export function holdsRailgunCharge(player) {
+    return player?.hasRailgun === true && (Number(player.railCharge) || 0) > 0;
+}
+
 /** Is any enemy (player or registry target) on the bot's line within beam range? */
 export function hasRailgunLine(player, candidates, range, aim, offset) {
     for (const target of candidates) {

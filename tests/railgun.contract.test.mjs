@@ -146,3 +146,30 @@ test('the action phase gives the key to the railgun before the machine gun', () 
     assert.match(source, /_railgunSystem\?\.fire\(player, dt, input\.shootMG === true\)/);
     assert.match(source, /!firedFlame && !firedRail && strategy\?\.hasMachineGun\(\)/);
 });
+
+test('review fix: no ghost shot after a respawn, and an expiring gun keeps the key until it comes up', () => {
+    const target = createPlayer(1, [0, 10, -30]);
+    const { system, shooter } = createWorld({ targets: [target] });
+    system.fire(shooter, 1.2, true);
+    // Respawn: the effects are gone, but the cached flag still says armed until player.update runs.
+    shooter.activeEffects.length = 0;
+    shooter.hasRailgun = true;
+    assert.equal(system.fire(shooter, 0.016, false), false, 'the release fires nothing');
+    assert.deepEqual(target.taken, []);
+    assert.equal(shooter.railCharge, 0);
+
+    const again = createWorld({ targets: [createPlayer(1, [0, 10, -30])] });
+    again.system.fire(again.shooter, 0.8, true);
+    again.shooter.activeEffects.length = 0; // the 30 seconds ran out while charging
+    assert.equal(again.system.fire(again.shooter, 0.1, true), true, 'the held key stays with the dead gun');
+    assert.equal(again.system.fire(again.shooter, 0.016, false), false, 'the release fires nothing');
+    assert.equal(again.system.fire(again.shooter, 0.1, true), false, 'a fresh press goes to the machine gun');
+});
+
+test('review fix: a shot without a beam is not spent', () => {
+    const { system, shooter } = createWorld();
+    shooter.getAimDirection = (out) => out.set(0, 0, 0);
+    system.fire(shooter, 0.5, true);
+    system.fire(shooter, 0.016, false);
+    assert.equal(shooter.railShots, 5);
+});
