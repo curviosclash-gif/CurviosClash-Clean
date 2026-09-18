@@ -160,6 +160,10 @@ export class GameRuntimeSettingsHandler {
         if (session.sessionType !== RUNTIME_SESSION_TYPES.SINGLE) {
             return { changed: false, changedKeys: [] };
         }
+        // Arcade runs pick mode and bots per sector; a map scenario would turn them into a plain fight.
+        if (settings.localSettings?.modePath === 'arcade') {
+            return { changed: false, changedKeys: [] };
+        }
 
         const mapDefinition = CONFIG?.MAPS?.[settings.mapKey];
         const scenario = resolveMapSinglePlayerScenario(mapDefinition);

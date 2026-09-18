@@ -67,6 +67,23 @@ test('a rematch on the scenario map still gets the scenario bots', () => {
     handler.dispose();
 });
 
+test('an arcade run on a scenario map stays an arcade run', () => {
+    for (const mapKey of ['parcours_assault', 'reactor_site']) {
+        const facade = createFacade(mapKey);
+        Object.assign(facade.game.settings, { gameMode: 'ARCADE', numBots: 2 });
+        facade.game.settings.localSettings.modePath = 'arcade';
+        const handler = new GameRuntimeSettingsHandler({ facade });
+
+        const result = handler.applyMapScenarioStartDefaults();
+
+        assert.equal(facade.game.settings.localSettings.modePath, 'arcade', mapKey);
+        assert.equal(facade.game.settings.gameMode, 'ARCADE', mapKey);
+        assert.equal(facade.game.settings.numBots, 2, `${mapKey}: sector profiles own the arcade bot count`);
+        assert.equal(result?.changed, false, mapKey);
+        handler.dispose();
+    }
+});
+
 test('maps without a scenario leave the bot count alone on the way back', () => {
     const facade = createFacade('standard');
     const handler = new GameRuntimeSettingsHandler({ facade });
