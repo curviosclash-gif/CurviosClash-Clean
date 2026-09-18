@@ -11,7 +11,7 @@ function axis(input, key, positive, negative) {
 /** Copy an owner's normal flight axes onto the rocket without keeping the input object. */
 export function applyGuidedRocketInput(projectile, input, config = {}) {
     if (!projectile) return;
-    projectile.steerYaw = axis(input, 'yawAxis', 'yawRight', 'yawLeft');
+    projectile.steerYaw = axis(input, 'yawAxis', 'yawLeft', 'yawRight');
     projectile.steerPitch = axis(input, 'pitchAxis', 'pitchUp', 'pitchDown');
     if (input?.boostPressed === true && projectile.boostUsed !== true) {
         projectile.boostUsed = true;

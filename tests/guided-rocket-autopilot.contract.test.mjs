@@ -5,6 +5,7 @@ import { CONFIG_BASE } from '../src/core/Config.js';
 import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
 import { PlayerInputSystem } from '../src/entities/systems/PlayerInputSystem.js';
 import { createDefensiveGuidedPolicy } from '../src/entities/ai/GuidedRocketAutopilotOps.js';
+import { HeuristicBotPolicy } from '../src/entities/ai/HeuristicBotPolicy.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
@@ -23,6 +24,23 @@ test('defensive policy flies and boosts while suppressing every attack and item 
     assert.equal(action.useItem, -1);
 });
 
+test('guided pilot retreats from an enemy with the real Hunt bot policy', () => {
+    const player = { index: 0, alive: true, isBot: false, autopilotActive: true,
+        position: new THREE.Vector3(), hp: 100, maxHp: 100, shieldHP: 0,
+        maxShieldHp: 40, speed: 18, baseSpeed: 18, hitboxRadius: 0.8,
+        inventory: [], getDirection(out) { return out.set(0, 0, -1); } };
+    const enemy = { index: 1, alive: true, isBot: true,
+        position: new THREE.Vector3(0, 0, -120), hp: 100, maxHp: 100 };
+    const base = new HeuristicBotPolicy({ difficulty: 'NORMAL', profile: 'aggressive' });
+    const action = createDefensiveGuidedPolicy(base).update(1 / 60, player, {
+        mode: 'HUNT', players: [player, enemy], projectiles: [], arena: {},
+        observationContext: { targetDistanceMax: 120 },
+    });
+    assert.equal(base.getDecisionSnapshot().intent, 'retreat');
+    assert.equal(action.shootMG, false);
+    assert.equal(action.shootRocket, false);
+});
+
 test('guided owner remains human and damageable while the bot flies; impact restores control', () => {
     const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
     const owner = {
@@ -34,9 +52,13 @@ test('guided owner remains human and damageable while the bot flies; impact rest
     };
     const manager = {
         players: [owner], humanPlayers: [owner], botByPlayer: new Map(),
-        botPolicyType: 'heuristic', entityRuntimeConfig,
-        botPolicyRegistry: { create: () => ({ type: 'heuristic', usesRuntimeContext: true,
-            update: () => ({ yawAxis: -0.6, boost: true, shootMG: true }) }) },
+        botPolicyType: 'hunt-3d', entityRuntimeConfig,
+        botPolicyRegistry: { create: (type, options) => {
+            assert.equal(type, 'heuristic');
+            assert.equal(options.heuristicProfile, 'defensive');
+            return { type: 'heuristic', usesRuntimeContext: true,
+                update: () => ({ yawAxis: -0.6, boost: true, shootMG: true }) };
+        } },
         createBotRuntimeContext: () => ({}),
     };
     owner.entityManager = manager;

@@ -49,6 +49,20 @@ test('last-alive waits for pending respawns and ends when one contender remains'
     assert.equal(outcome.resolve().reason, 'LAST_ALIVE');
 });
 
+test('solo last-alive ends when the human spends the final life', () => {
+    const player = createPlayer(0);
+    const outcome = new RoundOutcomeSystem({
+        getPlayers: () => [player],
+        isRespawnEnabled: () => true,
+        getWinCondition: () => 'last_alive',
+    });
+    assert.equal(outcome.resolve().shouldEnd, false);
+    player.alive = false;
+    assert.deepEqual(outcome.resolve(), {
+        shouldEnd: true, winner: null, reason: 'LAST_ALIVE', parcours: null,
+    });
+});
+
 test('remaining lives reach clients and HUD projection', () => {
     const players = [createPlayer(0), createPlayer(1)];
     const host = {

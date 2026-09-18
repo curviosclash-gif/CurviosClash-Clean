@@ -76,6 +76,18 @@ test('boost is 1.5x for exactly two seconds and turns more slowly', () => {
     assert.equal(boosted.boostUsed, true);
 });
 
+test('digital rocket yaw agrees with the normal analog flight axes', () => {
+    for (const [key, value] of [['yawLeft', 1], ['yawRight', -1]]) {
+        const digital = { velocity: new THREE.Vector3(0, 0, -70) };
+        const analog = { velocity: new THREE.Vector3(0, 0, -70) };
+        applyGuidedRocketInput(digital, { [key]: true });
+        applyGuidedRocketInput(analog, { yawAxis: value });
+        stepGuidedRocket(digital, 0.1, {}, new THREE.Vector3());
+        stepGuidedRocket(analog, 0.1, {}, new THREE.Vector3());
+        assert.ok(digital.velocity.distanceTo(analog.velocity) < 0.0001, key);
+    }
+});
+
 test('guided projectile state is cleared when the rocket is recycled', () => {
     const { owner, system, projectile } = createShot();
     system.applyGuidedInput(owner, { yawAxis: 1, boostPressed: true });

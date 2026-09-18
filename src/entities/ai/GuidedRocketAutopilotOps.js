@@ -31,8 +31,9 @@ export function beginGuidedRocketAutopilot(player) {
     player.autopilotActive = true;
     const manager = player.entityManager;
     if (!manager?.botByPlayer || !manager?.botPolicyRegistry) return;
-    const base = manager.botPolicyRegistry.create(manager.botPolicyType, {
+    const base = manager.botPolicyRegistry.create('heuristic', {
         difficulty: manager.botDifficulty,
+        heuristicProfile: 'defensive',
         runtimeConfig: manager.runtimeConfig,
         entityRuntimeConfig: manager.entityRuntimeConfig,
         activeGameMode: manager.combatModeType,
