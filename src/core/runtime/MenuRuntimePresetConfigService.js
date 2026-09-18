@@ -129,6 +129,12 @@ export function applyMenuPresetAction({
             settingsChangeKeys.PRESET_ACTIVE_KIND,
             settingsChangeKeys.PRESET_STATUS,
         ]);
+    // A preset only reports mapKey when the value changed; the hangar selection the
+    // summary reads can still hold another map, so align it whenever the preset has one.
+    const presetCarriesMap = typeof result.preset?.values?.mapKey === 'string';
+    if (presetCarriesMap && !changedKeys.includes(settingsChangeKeys.MAP_KEY)) {
+        changedKeys.push(settingsChangeKeys.MAP_KEY);
+    }
     if (changedKeys.includes(settingsChangeKeys.MAP_KEY)) {
         writeHangarMapSelection(
             game.settings,

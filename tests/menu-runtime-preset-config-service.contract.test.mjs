@@ -99,3 +99,45 @@ test('applyMenuPresetAction aligns the active hangar map before the menu sync', 
     assert.equal(game.settings.localSettings.startSetup.modeSelections.fight.mapKey, 'maze');
     assert.deepEqual(calls.settingsChanged[0]?.changedKeys, ['mapKey', 'matchSettings.activePresetId']);
 });
+
+test('applyMenuPresetAction aligns the hangar map even when mapKey already matched the preset', () => {
+    // A preset only reports mapKey when the value changes. When settings.mapKey already
+    // held the preset map but the hangar selection showed another one, the summary kept
+    // the old map ("Deine Auswahl" read the stale hangar selection).
+    const { game, calls } = createPresetGame(PLATFORM_PRODUCT_SURFACE_IDS.DESKTOP_APP);
+    game.settings.mapKey = 'maze';
+    game.settings.localSettings = {
+        modePath: 'fight',
+        startSetup: {
+            modeSelections: {
+                fight: { mapKey: 'empty', vehicles: {} },
+            },
+        },
+    };
+    game.settingsManager.applyMenuPreset = (_settings, presetId) => {
+        calls.appliedPresetIds.push(presetId);
+        return {
+            success: true,
+            preset: { id: presetId, values: { mapKey: 'maze' } },
+            changedKeys: ['matchSettings.activePresetId'],
+        };
+    };
+
+    applyMenuPresetAction({
+        game,
+        presetId: 'competitive',
+        resolveMenuAccessContext: () => null,
+        onSettingsChanged(payload) {
+            calls.settingsChanged.push(payload);
+        },
+        settingsChangeKeys: {
+            MAP_KEY: 'mapKey',
+            PRESET_ACTIVE_ID: 'matchSettings.activePresetId',
+            PRESET_ACTIVE_KIND: 'matchSettings.activePresetKind',
+            PRESET_STATUS: 'matchSettings.status',
+        },
+    });
+
+    assert.equal(game.settings.localSettings.startSetup.modeSelections.fight.mapKey, 'maze');
+    assert.ok(calls.settingsChanged[0]?.changedKeys.includes('mapKey'), 'the map sync runs');
+});
