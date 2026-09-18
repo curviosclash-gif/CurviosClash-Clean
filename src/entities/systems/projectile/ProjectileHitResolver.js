@@ -166,6 +166,8 @@ export class ProjectileHitResolver {
         const sourceName = simulationResult?.arenaCollision?.sourceName || '';
         if (!sourceName || projectile?.environmentProjectile === true) return null;
         if (!isRocketTierType(projectile?.type)) return null;
+        const arena = this.system?.getArena?.();
+        if (arena?.releaseDandelionSeed?.(sourceName)) return { applied: true, seed: sourceName };
         const destructibles = this.system?.getMapDestructibleSystem?.();
         if (typeof destructibles?.applyMeshHit !== 'function') return null;
         // atan2 only reads the direction, so the unnormalized velocity is enough.

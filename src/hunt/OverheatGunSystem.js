@@ -120,6 +120,7 @@ export class OverheatGunSystem {
      * mesh names, so only the position tells the segment that was struck.
      */
     _applyMapDestructibleHit(player, hitResult, aimDirection) {
+        if (this.entityManager?.arena?.releaseDandelionSeed?.(hitResult.arena?.sourceName)) return true;
         const destructibles = this.entityManager?.getMapDestructibleSystem?.();
         if (typeof destructibles?.applyMeshHit !== 'function') return false;
         const result = destructibles.applyMeshHit(

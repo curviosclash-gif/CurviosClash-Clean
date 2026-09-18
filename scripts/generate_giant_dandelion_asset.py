@@ -27,6 +27,7 @@ SOURCE_DIR = ASSET_DIR / "blender"
 PREVIEW_DIR = SOURCE_DIR / "previews"
 BLEND_PATH = SOURCE_DIR / "giant_dandelion.blend"
 HERO_PATH = ASSET_DIR / "giant_dandelion.glb"
+SHOOTABLE_PATH = ASSET_DIR / "giant_dandelion_shootable.glb"
 LOD1_PATH = ASSET_DIR / "giant_dandelion_lod1.glb"
 LOD2_PATH = ASSET_DIR / "giant_dandelion_lod2.glb"
 COLLISION_PATH = ASSET_DIR / "giant_dandelion_collision.glb"
@@ -52,6 +53,7 @@ PROFILES = (
     LodProfile("LOD1", 150, 8, 10, 14, 5),
     LodProfile("LOD2", 72, 5, 8, 10, 0),
 )
+SHOOTABLE_PROFILE = LodProfile("SHOOTABLE", 252, 12, 12, 20, 0)
 
 
 class MeshBuilder:
@@ -318,9 +320,9 @@ def build_leaves(collection, profile, materials, rng):
         angle = index * GOLDEN_ANGLE + rng.uniform(-0.13, 0.13)
         length = rng.uniform(3.55, 5.1) * (0.92 if profile.label == "LOD2" else 1.0)
         width = rng.uniform(0.58, 0.86)
-        material_index = 2 if index in (2, 9) and profile.label == "HERO" else index % 2
+        material_index = 2 if index in (2, 9) and profile.label in ("HERO", "SHOOTABLE") else index % 2
         append_leaf(builder, rng, angle, length, width, material_index,
-                    segments=16 if profile.label == "HERO" else 11)
+                    segments=16 if profile.label in ("HERO", "SHOOTABLE") else 11)
     return object_from_builder(f"RosetteLeaves_{profile.label}", builder, collection,
                                [materials["leaf"], materials["leaf_dark"], materials["leaf_dry"]],
                                "basal_rosette", profile.label)
@@ -369,6 +371,21 @@ def append_attached_seed(builder, rng, direction, bristle_count, shade_index):
     append_pappus(builder, rng, pappus_center, direction, bristle_count, shade_index)
 
 
+def append_shootable_seed(builder, rng, bristle_count, shade_index):
+    """Local +Z geometry lets one exported node detach without moving its neighbours."""
+    axis = Vector((0, 0, 1))
+    root = Vector((0, 0, 0))
+    achene_end = axis * rng.uniform(0.25, 0.34)
+    pappus_height = rng.uniform(1.68, 1.90)
+    pappus_center = axis * pappus_height
+    builder.add_spindle(root, achene_end, rng.uniform(0.048, 0.066), sides=7,
+                        material_index=0)
+    builder.add_cylinder(achene_end, pappus_center, 0.014, sides=5,
+                         material_index=0, end_radius=0.009, caps=False)
+    append_pappus(builder, rng, pappus_center, axis, bristle_count, shade_index)
+    return pappus_height
+
+
 def append_detached_seed(builder, rng, pappus_center, axis, bristle_count):
     axis = Vector(axis).normalized()
     achene_tip = Vector(pappus_center) - axis * rng.uniform(1.45, 1.72)
@@ -406,10 +423,10 @@ def flight_seed_specs(count, rng):
 def build_head(collection, profile, materials, rng):
     core = MeshBuilder()
     core.add_uv_sphere(HEAD_CENTER - Vector((0, 0, 0.12)), (0.62, 0.62, 0.49),
-                       segments=24 if profile.label == "HERO" else 16,
-                       rings=10 if profile.label == "HERO" else 7,
+                       segments=24 if profile.label in ("HERO", "SHOOTABLE") else 16,
+                       rings=10 if profile.label in ("HERO", "SHOOTABLE") else 7,
                        material_index=1)
-    bract_count = 30 if profile.label == "HERO" else (20 if profile.label == "LOD1" else 12)
+    bract_count = 30 if profile.label in ("HERO", "SHOOTABLE") else (20 if profile.label == "LOD1" else 12)
     for index in range(bract_count):
         angle = 2.0 * pi * index / bract_count
         radial = Vector((cos(angle), sin(angle), 0))
@@ -425,15 +442,34 @@ def build_head(collection, profile, materials, rng):
     patch_axis = Vector((0.965, 0.08, 0.25)).normalized()
     attached_count = 0
     missing_count = 0
-    for direction in fibonacci_directions(profile.seed_count, rng):
+    for site_index, direction in enumerate(fibonacci_directions(profile.seed_count, rng), 1):
         patch_strength = direction.dot(patch_axis)
         omit_chance = 0.78 if patch_strength > 0.80 else (0.30 if patch_strength > 0.66 else 0.02)
         if rng.random() < omit_chance:
             missing_count += 1
             continue
         shade_index = 2 if direction.z < -0.24 or rng.random() < 0.13 else 1
-        append_attached_seed(seeds, rng, direction, profile.bristles_per_seed, shade_index)
+        if profile.label == "SHOOTABLE":
+            separate = MeshBuilder()
+            pappus_height = append_shootable_seed(
+                separate, rng, profile.bristles_per_seed, shade_index)
+            obj = object_from_builder(f"AttachedSeed_{site_index:03d}_SHOOTABLE_nocol",
+                                      separate, collection,
+                                      [materials["achene"], materials["pappus"],
+                                       materials["pappus_shadow"]],
+                                      "shootable_seed", profile.label)
+            obj.location = HEAD_CENTER + direction * 0.47
+            obj.rotation_euler = Vector((0, 0, 1)).rotation_difference(direction).to_euler()
+            obj["seed_index"] = site_index
+            obj["pappus_height"] = pappus_height
+        else:
+            append_attached_seed(seeds, rng, direction, profile.bristles_per_seed, shade_index)
         attached_count += 1
+
+    if profile.label == "SHOOTABLE":
+        core_obj["attached_seed_count"] = attached_count
+        core_obj["missing_seed_sites"] = missing_count
+        return core_obj, None, []
 
     seed_obj = object_from_builder(f"AttachedSeedsAndPappus_{profile.label}", seeds, collection,
                                    [materials["achene"], materials["pappus"],
@@ -802,15 +838,24 @@ def main():
     materials = build_materials()
     collections = {profile.label: build_variant(scene, profile, materials)
                    for profile in PROFILES}
+    collections["SHOOTABLE"] = build_variant(scene, SHOOTABLE_PROFILE, materials)
     collision = build_collision(scene, materials)
     cameras = build_presentation(scene, materials)
     validate_scene(scene, collections)
+    shootable_seeds = [obj for obj in collections["SHOOTABLE"].objects
+                       if obj.get("role") == "shootable_seed"]
+    if not 180 <= len(shootable_seeds) <= SHOOTABLE_PROFILE.seed_count:
+        raise RuntimeError(f"unexpected number of individually shootable seeds: {len(shootable_seeds)}")
+    if len({obj["seed_index"] for obj in shootable_seeds}) != len(shootable_seeds):
+        raise RuntimeError("shootable seed IDs are not unique")
     render_previews(scene, cameras)
     export_collection(collections["HERO"], HERO_PATH, animations=True)
+    export_collection(collections["SHOOTABLE"], SHOOTABLE_PATH, animations=False)
     export_collection(collections["LOD1"], LOD1_PATH, animations=True)
     export_collection(collections["LOD2"], LOD2_PATH, animations=False)
     export_collection(collision, COLLISION_PATH, animations=False)
     validate_roundtrip(HERO_PATH)
+    validate_roundtrip(SHOOTABLE_PATH)
     validate_roundtrip(LOD1_PATH)
     validate_roundtrip(LOD2_PATH)
     validate_roundtrip(COLLISION_PATH, expected_max_triangles=500)

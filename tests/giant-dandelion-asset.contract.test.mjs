@@ -3,6 +3,14 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { DANDELION_SKY_MAP } from '../src/core/config/maps/presets/dandelion_sky.js';
+import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
+import { MAP_PRESETS_BASE } from '../src/core/config/maps/MapPresetsBase.js';
+import { resolveMapPickerCollection } from '../src/ui/menu/MenuMapCollectionCatalog.js';
+import { loadGLBMapCollection } from '../src/entities/GLBMapLoader.js';
+import { DandelionSeedController } from '../src/entities/arena/DandelionSeedController.js';
+import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
+import * as THREE from 'three';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ASSET_DIR = path.join(ROOT, 'assets', 'models', 'giant_dandelion');
@@ -136,4 +144,49 @@ test('runtime GLBs are valid, animated, and decrease in complexity by LOD', asyn
     }
     assert.equal(flyingSeeds(lod2.document).length, 0, 'far LOD should omit airborne seeds');
     assert.ok(triangleCount(collision.document) <= 500, 'collision proxy exceeds its triangle budget');
+});
+
+test('shootable GLB keeps every visible attached seed as an individually addressable node', async () => {
+    const { document } = parseGlb(await readFile(path.join(ASSET_DIR, 'giant_dandelion_shootable.glb')));
+    const seeds = document.nodes.filter((node) => node.extras?.role === 'shootable_seed');
+    const core = document.nodes.find((node) => node.extras?.role === 'receptacle_and_bracts');
+    assert.ok(seeds.length >= 180 && seeds.length <= 252);
+    assert.equal(seeds.length, core.extras.attached_seed_count);
+    assert.equal(new Set(seeds.map((seed) => seed.extras.seed_index)).size, seeds.length);
+    assert.ok(seeds.every((seed) => seed.mesh !== undefined
+        && seed.name.endsWith('_nocol')
+        && seed.extras.pappus_height > 1.6
+        && seed.extras.pappus_height < 2));
+    assert.equal(document.animations?.length ?? 0, 0,
+        'runtime flight must be triggered by hits, not autoplayed');
+});
+
+test('new dandelion map scales the reusable flower to Eiffel height and is selectable', () => {
+    const map = DANDELION_SKY_MAP.dandelion_sky;
+    assert.equal(MAP_PRESET_CATALOG.dandelion_sky, map);
+    assert.equal(MAP_PRESETS_BASE.dandelion_sky, map);
+    assert.equal(resolveMapPickerCollection('dandelion_sky').id, 'adventure');
+    assert.equal(map.glbModels[0].targetSize, 330);
+    assert.equal(map.glbModels[0].url, 'assets/models/giant_dandelion/giant_dandelion_shootable.glb');
+    assert.ok(map.size[1] > map.glbModels[0].targetSize);
+    assert.equal(map.singlePlayerScenario.gameMode, 'HUNT');
+});
+
+test('the actual shootable GLB loads at 330 m without 220 seed colliders', async () => {
+    const map = DANDELION_SKY_MAP.dandelion_sky;
+    const result = await loadGLBMapCollection(map.glbModels, {
+        loader: geometryOnlyGlbLoader,
+        placementScale: 1,
+        colliderMode: map.glbColliderMode,
+    });
+    const height = new THREE.Box3().setFromObject(result.scene).getSize(new THREE.Vector3()).y;
+    assert.ok(Math.abs(height - 330) < 1, `unexpected map flower height: ${height}`);
+    assert.ok(result.colliders.length <= 6, 'seeds should not create permanent physics colliders');
+    assert.ok(result.colliders.every((collider) => !collider.sourceName.startsWith('AttachedSeed_')));
+    const controller = new DandelionSeedController(result.scene);
+    assert.ok(controller.count >= 180);
+    const seed = controller.seeds[0];
+    const origin = seed.tip.clone().addScaledVector(seed.normal, 30);
+    const hit = controller.raycast(origin, seed.normal.clone().negate(), 50);
+    assert.ok(hit, 'the scaled seed crown must remain hittable');
 });

@@ -71,6 +71,19 @@ export class MGHitResolver {
             this._tmpAim,
             Math.min(maxRange, blockingDistance),
         );
+        const seedHit = this.runtime?.arena?.raycastDandelionSeed?.(
+            this._tmpMuzzle, this._tmpAim, Math.min(maxRange, blockingDistance),
+        );
+        if (seedHit && (!arenaHit || seedHit.distance < arenaHit.distance)) {
+            return {
+                target: null,
+                trail: null,
+                turret: null,
+                arena: { sourceName: seedHit.sourceName, distance: seedHit.distance },
+                distance: seedHit.distance,
+                point: seedHit.point,
+            };
+        }
         if (arenaHit) return arenaHit;
 
         if (turretHit) return turretHit;

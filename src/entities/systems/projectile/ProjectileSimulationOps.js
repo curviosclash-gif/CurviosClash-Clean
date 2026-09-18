@@ -91,18 +91,35 @@ export class ProjectileSimulationOps {
     _resolveArenaCollision(projectile, arena) {
         const hasCollisionInfo = typeof arena?.getCollisionInfo === 'function';
         const hasCollisionCheck = typeof arena?.checkCollision === 'function';
-        if (!hasCollisionInfo && !hasCollisionCheck) return null;
+        const hasSeedRaycast = typeof arena?.raycastDandelionSeed === 'function';
+        if (!hasCollisionInfo && !hasCollisionCheck && !hasSeedRaycast) return null;
 
         const previousPosition = projectile.previousPosition || projectile.position;
         this._tmpCollisionEnd.copy(projectile.position);
         const distance = previousPosition?.distanceTo?.(this._tmpCollisionEnd) || 0;
+        let seedHit = null;
+        if (hasSeedRaycast && distance > 0.000001) {
+            this._tmpDir.subVectors(this._tmpCollisionEnd, previousPosition).divideScalar(distance);
+            seedHit = arena.raycastDandelionSeed(
+                previousPosition, this._tmpDir, distance, Number(projectile.radius) || 0,
+            );
+            if (seedHit && typeof arena.raycast === 'function') {
+                const blocker = arena.raycast(previousPosition, this._tmpDir, seedHit.distance);
+                if (blocker?.hit && blocker.distance < seedHit.distance - 0.001) seedHit = null;
+            }
+        }
         const stepDistance = Math.max(0.1, (Number(projectile.radius) || 0.5) * 0.75);
         const steps = Math.min(64, Math.max(1, Math.ceil(distance / stepDistance)));
         for (let step = 1; step <= steps; step++) {
             this._tmpCollisionProbe.lerpVectors(previousPosition, this._tmpCollisionEnd, step / steps);
+            if (seedHit && seedHit.distance <= distance * step / steps) {
+                projectile.position.set(seedHit.point.x, seedHit.point.y, seedHit.point.z);
+                projectile.mesh?.position.copy(projectile.position);
+                return { hit: true, kind: 'hard', sourceName: seedHit.sourceName };
+            }
             const collision = hasCollisionInfo
                 ? arena.getCollisionInfo(this._tmpCollisionProbe, projectile.radius)
-                : (arena.checkCollision(this._tmpCollisionProbe, projectile.radius)
+                : (hasCollisionCheck && arena.checkCollision(this._tmpCollisionProbe, projectile.radius)
                     ? this._fallbackArenaCollision
                     : null);
             if (!collision?.hit) continue;

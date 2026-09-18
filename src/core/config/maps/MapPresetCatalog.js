@@ -19,6 +19,7 @@ import { CHRONO_FORGE_NEXUS_MAP } from './presets/chrono_forge_nexus.js';
 import { ECLIPSE_FOUNDRY_MAP } from './presets/eclipse_foundry.js';
 import { KINETIC_TIDE_MAP } from './presets/kinetic_tide.js';
 import { VERDANT_APERTURE_MAP } from './presets/verdant_aperture.js';
+import { DANDELION_SKY_MAP } from './presets/dandelion_sky.js';
 import { AETHERION_ORRERY_MAP } from './presets/aetherion_orrery.js';
 import { NOTRE_DAME_MAPS } from './presets/notre_dame/index.js';
 import { NOTRE_DAME_FIRE_MAPS } from './presets/notre_dame_fire/index.js';
@@ -50,6 +51,7 @@ export const MAP_PRESET_CATALOG = {
     ...(ECLIPSE_FOUNDRY_MAP || {}),
     ...(KINETIC_TIDE_MAP || {}),
     ...(VERDANT_APERTURE_MAP || {}),
+    ...(DANDELION_SKY_MAP || {}),
     ...(AETHERION_ORRERY_MAP || {}),
     ...(NOTRE_DAME_MAPS || {}),
     ...(NOTRE_DAME_FIRE_MAPS || {}),

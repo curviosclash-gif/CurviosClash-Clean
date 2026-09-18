@@ -41,6 +41,7 @@ const COLLECTION_DEFINITIONS = [
             'eclipse_foundry',
             'kinetic_tide',
             'verdant_aperture',
+            'dandelion_sky',
             'aetherion_orrery',
             'notre_dame',
             'notre_dame_fire',

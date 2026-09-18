@@ -24,6 +24,7 @@ test('renderer build copies every editor OBJ asset group', (context) => {
         'assets/models/jets/cc0/funky_aircraft_control.obj',
         'assets/models/jets/cc0/pinnace_lo.obj',
         'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship5.obj',
+        'assets/models/giant_dandelion/giant_dandelion_shootable.glb',
         'assets/maps/chrono_forge/glb/08_time_core.glb',
         'assets/maps/kinetic_tide/glb/08_reactor_heart.glb',
         'assets/maps/verdant_aperture/glb/08_heart_seed.glb',

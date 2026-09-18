@@ -6,6 +6,7 @@ const __dirname = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 
 const OBJ_ASSET_COPY_ENTRIES = [
     ['assets', 'models', 'optimized_cc0'],
+    ['assets', 'models', 'giant_dandelion', 'giant_dandelion_shootable.glb'],
     ['assets', 'items'],
     ['assets', 'portals'],
     ['assets', 'trails'],

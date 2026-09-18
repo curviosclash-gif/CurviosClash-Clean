@@ -17,6 +17,10 @@ double-sided runtime material is required.
   120-frame `SeedFlight` clip. The seeds release at staggered times with angles ranging from
   nearly vertical to nearly horizontal, then drift and rotate through a widening plume while
   the stem, leaves and head sway.
+- `giant_dandelion_shootable.glb`: reusable interactive plant. All 220 visible attached seeds
+  are separate `AttachedSeed_XXX_SHOOTABLE_nocol` nodes with stable `seed_index` and
+  `pappus_height` metadata. This file has no autoplaying seed flight clip: a hit releases only
+  the struck seed, and the game animates its flight.
 - `giant_dandelion_lod1.glb`: middle-distance mesh with five synchronized animated seeds.
 - `giant_dandelion_lod2.glb`: far-distance silhouette mesh.
 - `giant_dandelion_collision.glb`: simple stem-and-head collision proxy.
@@ -28,6 +32,15 @@ double-sided runtime material is required.
 frame, keep the pose or hide the airborne seed nodes. Each seed is an independent GLB node
 named `FlyingSeed_XX_HERO` and can be moved or hidden separately at runtime. The middle LOD
 uses corresponding odd-numbered seeds and the same timing. The far LOD omits airborne seeds.
+
+The `dandelion_sky` map places `giant_dandelion_shootable.glb` at `targetSize: 330`, matching
+the Eiffel Tower's [current 330 m height](https://www.toureiffel.paris/en/news/history-and-culture/300-330-meters-story-towers-height).
+Other maps can reuse the same GLB with any positive `targetSize`; the seed hit areas and flight
+speed follow the resulting world scale. MG and player rockets can detach each seed once. The
+wind direction turns gradually with match time, so seeds shot at different moments depart in
+different directions and keep drifting while airborne. Game-state snapshots synchronize the
+release times for other players. The interactive file intentionally excludes per-seed collision
+meshes; its seed hits use a bounded ray/sweep query instead of 220 permanent physics colliders.
 
 Regenerate deterministically with Blender 4.2 LTS:
 
