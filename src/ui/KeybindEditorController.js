@@ -1,5 +1,5 @@
 import { renderGamepadBindingEditor } from './GamepadBindingEditor.js';
-import { GLOBAL_KEY_BIND_ACTIONS, KEY_BIND_ACTIONS } from './KeybindActionCatalog.js';
+import { GLOBAL_KEY_BIND_ACTIONS, KEY_BIND_ACTIONS, resolveKeybindActionLabel } from './KeybindActionCatalog.js';
 import { formatKeyCode } from './KeybindLabels.js';
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
 
@@ -41,6 +41,8 @@ export function createKeybindEditorRuntimeAccess(runtime) {
             game.keyCapture = keyCapture;
         },
         getControls: () => game?.settings?.controls || {},
+        // The pitch rows name the nose direction, which flips with this per-player setting.
+        getInvertPitch: (playerKey) => game?.settings?.invertPitch?.[playerKey] !== false,
         actionEnsurePlayerControls,
         actionOnSettingsChanged,
         actionApplyPauseBindings,
@@ -96,7 +98,7 @@ export class KeybindEditorController {
 
             const label = document.createElement('div');
             label.className = 'key-action';
-            label.textContent = action.label;
+            label.textContent = resolveKeybindActionLabel(action, { invertPitch: this.runtimeAccess.getInvertPitch?.(playerKey) });
 
             const value = this.getControlValue(playerKey, action.key);
             const button = document.createElement('button');
