@@ -261,6 +261,8 @@ function createPlayerProjection(value = null) {
         slowMoCapacity: Math.max(0.001, normalizeNumber(value.slowMoCapacity, 1)),
         slowMoRecharging: value.slowMoRecharging === true,
         slowMoActive: value.slowMoActive === true,
+        // Seconds the railgun has been charged, 0 while the key is up.
+        railCharge: Math.max(0, normalizeNumber(value.railCharge, 0)),
         hp: Math.max(0, normalizeNumber(value.hp, 0)),
         maxHp: Math.max(1, normalizeNumber(value.maxHp, 1)),
         shieldHP: Math.max(0, normalizeNumber(value.shieldHP, 0)),
@@ -274,7 +276,7 @@ function createPlayerProjection(value = null) {
             .map((effect) => {
                 const type = normalizeString(effect?.type, '').trim().toUpperCase();
                 if (!type) return null;
-                /** @type {{ type: string, remaining: number, sourcePlayerIndex: number | null, fuelSeconds?: number }} */
+                /** @type {{ type: string, remaining: number, sourcePlayerIndex: number | null, fuelSeconds?: number, shots?: number }} */
                 const projected = {
                     type,
                     remaining: Math.max(0, normalizeNumber(effect?.remaining, 0)),
@@ -285,6 +287,9 @@ function createPlayerProjection(value = null) {
                 // Additive: the flamethrower tank, which the item bar shows instead of the expiry.
                 const fuelSeconds = Number(effect?.fuelSeconds);
                 if (Number.isFinite(fuelSeconds) && fuelSeconds >= 0) projected.fuelSeconds = fuelSeconds;
+                // Additive: the railgun's remaining shots, shown instead of the expiry.
+                const shots = Number(effect?.shots);
+                if (Number.isFinite(shots) && shots >= 0) projected.shots = Math.trunc(shots);
                 return projected;
             })
             .filter(Boolean) : [],

@@ -3,6 +3,7 @@ import { consumeRailgunShot } from '../entities/player/PlayerEffectOps.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { HUNT_CONFIG } from './HuntConfig.js';
+import { RailgunBeamEffect } from '../entities/effects/RailgunBeamEffect.js';
 
 export const RAILGUN_CAUSE = 'RAILGUN';
 
@@ -47,6 +48,29 @@ export class RailgunSystem {
         this._aim = new THREE.Vector3();
         this._scratch = new THREE.Vector3();
         this._hits = [];
+        this._effect = null;
+    }
+
+    _resolveEffect() {
+        const renderer = this.entityManager?.renderer;
+        if (!this._effect && renderer?.addToScene) this._effect = new RailgunBeamEffect(renderer);
+        return this._effect;
+    }
+
+    /** Fades the beams; the host and the replicas both call it every tick. */
+    update(dt) {
+        this._effect?.update(dt);
+    }
+
+    /** The rod and the sound. Also called on a replica when the host reports a shot. */
+    _showBeam(beam) {
+        this._resolveEffect()?.show(beam.from, beam.to);
+        this.entityManager?.audio?.play?.('SLINGSHOT', { intensity: 0.4 + 0.6 * Math.min(1, (Number(beam.damage) || 0) / 70) });
+    }
+
+    dispose() {
+        this._effect?.dispose();
+        this._effect = null;
     }
 
     _config(player) {
@@ -143,6 +167,7 @@ export class RailgunSystem {
             damage,
             targetCount: struck.length,
         };
+        this._showBeam(this.lastBeam);
         owner?.recorder?.logEvent?.('RAILGUN_SHOT', Number.isInteger(player.index) ? player.index : -1, `damage=${Math.round(damage)}:targets=${struck.length}`);
     }
 }
