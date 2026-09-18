@@ -191,7 +191,7 @@ export class FlamethrowerSystem {
     }
 
     _burnTurrets(player, origin, aim, range, tanHalfAngle, damage) {
-        const turrets = this.entityManager?._staticTurretSystem?.getDestructibleTargets?.() || [];
+        const turrets = this.entityManager?._targetableRegistry?.collect?.() || [];
         for (const turret of turrets) {
             if (!isDestructibleTurret(turret) || turret.hp <= 0 || !turret.position) continue;
             if (turret.ownerPlayer === player || turret.ownerIndex === player?.index) continue;

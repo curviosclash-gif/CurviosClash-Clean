@@ -19,6 +19,7 @@ import { ExclusionZoneSystem } from '../systems/ExclusionZoneSystem.js';
 import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { ObjectiveTargetMarkerSystem } from '../systems/ObjectiveTargetMarkerSystem.js';
 import { SecretRoomSystem } from '../systems/SecretRoomSystem.js';
+import { TargetableRegistry } from '../systems/TargetableRegistry.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -63,6 +64,10 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     // Published here rather than with the other systems in EntityManager: that file sits on the
     // 500 line limit, and this is the module that owns the wiring anyway.
     owner._secretRoomSystem = systems.secretRoomSystem;
+    // Every weapon reads its non-player targets from here; map units add their provider later.
+    systems.targetableRegistry = new TargetableRegistry();
+    systems.targetableRegistry.addProvider(() => systems.staticTurretSystem.getDestructibleTargets());
+    if (owner) owner._targetableRegistry = systems.targetableRegistry;
     systems.flamethrowerSystem = new FlamethrowerSystem(owner);
     if (owner) owner._flamethrowerSystem = systems.flamethrowerSystem;
     return systems;
