@@ -64,7 +64,9 @@ const SPEC_IDS = Object.freeze({
     physicsHunt: { spec: 'tests/physics-hunt.spec.js', ids: ['T61', 'T83', 'T86'] },
     physicsPolicy: { spec: 'tests/physics-policy.spec.js', ids: ['T70', 'T72', 'T77'] },
     surface: { spec: 'tests/core-targeted-surface.spec.js', ids: ['T20kb', 'T20kc', 'T20kd', 'T20i', 'T20ha', 'T66a'] },
-    runtime: { spec: 'tests/core-targeted-runtime.spec.js', ids: ['T20ab', 'T20ae3', 'T20ae4', 'T20am2'] },
+    // T20am2 moved to tests/arcade-run-regressions.contract.test.mjs (P3), so stage 2 names
+    // T10b instead: it is the remaining test in this spec that plays a real match.
+    runtime: { spec: 'tests/core-targeted-runtime.spec.js', ids: ['T20ab', 'T20ae3', 'T20ae4', 'T10b'] },
     shell: { spec: 'tests/core-targeted.spec.js', ids: ['T1', 'T4', 'T7', 'T10', 'T11'] },
     editor: { spec: 'tests/editor-map-ui.spec.js', ids: ['T65a', 'T65b', 'T65c', 'T65d'] },
     platform: { spec: 'tests/core-targeted-platform.spec.js', ids: [] },
