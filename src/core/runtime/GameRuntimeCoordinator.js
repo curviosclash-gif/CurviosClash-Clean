@@ -7,6 +7,7 @@ import {
     getSessionRuntimeState,
     setSessionRuntimeHandle,
 } from './GameRuntimeBundle.js';
+import { refreshLocalMapCatalog as refreshDesktopLocalMaps } from './LocalMapCatalogRefresh.js';
 
 export class GameRuntimeCoordinator {
     constructor({ runtime } = {}) {
@@ -86,6 +87,13 @@ export class GameRuntimeCoordinator {
 
     applySettingsToRuntime(options = undefined) {
         return this.getRuntimeFacade()?.applySettingsToRuntime?.(options);
+    }
+
+    refreshLocalMapCatalog() {
+        return refreshDesktopLocalMaps({
+            gameState: this.runtime?.state,
+            applySettings: () => this.applySettingsToRuntime({ schedulePrewarm: false }),
+        });
     }
 
     setupMenuListeners() {

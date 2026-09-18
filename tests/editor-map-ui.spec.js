@@ -384,8 +384,8 @@ test.describe('V65: Editor Build Dock', () => {
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
         await expect(page.locator('#exportResultView')).toBeVisible();
         if (desktopStore) {
-            // Das Spielfenster liest die Kartenliste nur beim Start.
-            await expect(page.locator('#exportResultView')).toContainText('nach einem Neustart der App');
+            // Das Spielfenster liest die Kartenliste neu, sobald es den Fokus bekommt.
+            await expect(page.locator('#exportResultView')).toContainText('beim naechsten Oeffnen der Kartenauswahl');
         }
         await expect(page.locator('#btnExportOpenFolder')).toBeVisible();
         await expect(page.locator('#btnExportCopyKey')).toBeVisible();

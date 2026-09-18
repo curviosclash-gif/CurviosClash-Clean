@@ -30,6 +30,25 @@ export function selectPlayableLocalMaps(localMaps) {
 }
 
 /**
+ * Traegt nachtraeglich gespeicherte Nutzerkarten in einen bestehenden Katalog
+ * ein. Es kommen nur gepruefte Editor-Karten hinzu oder werden aktualisiert;
+ * alle anderen Kennungen bleiben unberuehrt.
+ *
+ * @param {Record<string, unknown>} catalog
+ * @param {Record<string, unknown>} localMaps
+ * @returns {string[]} die neuen oder geaenderten Kennungen
+ */
+export function mergePlayableLocalMaps(catalog, localMaps) {
+    const changed = [];
+    for (const [mapKey, map] of Object.entries(selectPlayableLocalMaps(localMaps))) {
+        if (JSON.stringify(catalog[mapKey]) === JSON.stringify(map)) continue;
+        catalog[mapKey] = map;
+        changed.push(mapKey);
+    }
+    return changed;
+}
+
+/**
  * Karten aus dem Quellbaum (Entwicklungsserver) und aus dem Nutzerordner
  * (Desktop). Bei gleicher Kennung gewinnt der Nutzerordner, weil er den
  * zuletzt gespeicherten Stand haelt.

@@ -236,6 +236,12 @@ function readLocalMapsSnapshot() {
 function createLocalMapsContract() {
     return createNamedContract('localMaps', PRELOAD_CONTRACT_VERSIONS.localMaps, {
         getSnapshot: () => deepCloneJson(readLocalMapsSnapshot()),
+        // Der Editor speichert in einem eigenen Fenster. Das Spiel fragt beim
+        // Zurueckkehren ueber denselben Kanal neu, statt einen zweiten zu oeffnen.
+        refresh: () => {
+            cachedLocalMapsSnapshot = null;
+            return deepCloneJson(readLocalMapsSnapshot());
+        },
     });
 }
 

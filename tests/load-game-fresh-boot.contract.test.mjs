@@ -227,7 +227,7 @@ const NAVIGATION_SCOPED_CANDIDATES = Object.freeze([
 // file:line -> reason. Only for sites that need a manual decision, never for
 // something a wrapper already covers.
 const GUARD_EXCEPTIONS = Object.freeze({
-    'editor-local-maps.desktop.spec.js:23':
+    'editor-local-maps.desktop.spec.js:25':
         'moves the main-process userData folder; the next line loads with forceReload on purpose',
 });
 

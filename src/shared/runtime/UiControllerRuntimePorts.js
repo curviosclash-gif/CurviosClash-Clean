@@ -11,6 +11,7 @@ export function createStartSetupControllerPort(deps = {}) {
     const getMultiplayerSessionState = resolveCallback(deps.getMultiplayerSessionState, () => null);
     const resolveSurfacePolicy = resolveCallback(deps.resolveSurfacePolicy, () => null);
     const getProductSurfaceId = resolveCallback(deps.getProductSurfaceId, () => '');
+    const refreshLocalMapCatalog = resolveCallback(deps.refreshLocalMapCatalog, () => false);
 
     const surfacePolicyPort = createSurfacePolicyPort({
         getProductSurfaceId,
@@ -23,6 +24,7 @@ export function createStartSetupControllerPort(deps = {}) {
         getMapDefinitions: () => getMapDefinitions() || {},
         getMultiplayerSessionState: () => getMultiplayerSessionState() || null,
         resolveSurfacePolicy: (settings = undefined) => resolveSurfacePolicy(settings) || null,
+        refreshLocalMapCatalog: () => refreshLocalMapCatalog() === true,
         surfacePolicyPort,
     });
 }
@@ -67,6 +69,7 @@ export function createStartSetupControllerPortFromManager({
         getMultiplayerSessionState: () => game?.menuMultiplayerBridge?.getSessionState?.() || null,
         resolveSurfacePolicy: (settings = manager?.settings) => manager?.resolveSurfacePolicy?.(settings || manager?.settings) || null,
         getProductSurfaceId: () => game?.uiManager?._runtimeFeatureFlags?.surfacePolicy?.productSurfaceId || manager?.settings?.localSettings?.toolsState?.surfacePolicy?.productSurfaceId || '',
+        refreshLocalMapCatalog: () => game?.runtimeCoordinator?.refreshLocalMapCatalog?.() === true,
     });
 }
 

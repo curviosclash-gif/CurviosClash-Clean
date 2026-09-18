@@ -484,8 +484,8 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
                 : '';
             const saveMode = payload.overwritten ? 'aktualisiert' : 'neu gespeichert';
             editor.markSaved?.(`Map ${saveMode}: ${payload.mapName} (${payload.mapKey}).${warningSuffix}`, savedSignature);
-            const availability = payload.availableAfterRestart
-                ? ' Im Kartenmenue des Spiels erscheint sie nach einem Neustart der App.'
+            const availability = payload.availableInMapSelection
+                ? ' Im Spiel steht sie beim naechsten Oeffnen der Kartenauswahl bereit.'
                 : '';
             showExportResult({
                 summary: `Map ${saveMode}: ${payload.mapName} (${payload.mapKey}).${availability}`,

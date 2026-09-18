@@ -78,6 +78,26 @@ export function readElectronLocalMaps(runtimeGlobal = globalThis) {
     }
 }
 
+/**
+ * Liest die gespeicherten Editor-Karten neu, etwa nachdem der Editor in
+ * seinem eigenen Fenster gespeichert hat. Ausserhalb des Desktops: null,
+ * damit der Aufrufer weiss, dass es nichts nachzuladen gibt.
+ *
+ * @param {typeof globalThis} [runtimeGlobal]
+ * @returns {Record<string, unknown>|null}
+ */
+export function refreshElectronLocalMaps(runtimeGlobal = globalThis) {
+    const { appRuntime } = resolveAppRuntime(runtimeGlobal);
+    const contract = resolveNamedContract(appRuntime, 'localMaps');
+    if (typeof contract?.refresh !== 'function') return null;
+    try {
+        const maps = contract.refresh();
+        return maps && typeof maps === 'object' && !Array.isArray(maps) ? maps : null;
+    } catch {
+        return null;
+    }
+}
+
 function resolveNamedCapability(appRuntime, key) {
     const capabilities = appRuntime?.capabilities && typeof appRuntime.capabilities === 'object'
         ? appRuntime.capabilities

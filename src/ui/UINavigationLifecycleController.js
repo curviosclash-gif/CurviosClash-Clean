@@ -351,6 +351,8 @@ export class UINavigationLifecycleController {
                 if (panelId === 'submenu-expert') {
                     this._getExpertLoginRuntime()?.focusPrimaryControl?.();
                 }
+                // Die Kartenauswahl liest im Desktop neu gespeicherte Editor-Karten nach.
+                if (panelId === 'submenu-game') manager._startSync?.refreshLocalMapCatalog?.();
                 if (panelId !== 'submenu-game' && panelId !== 'submenu-multiplayer' && this._getSettings()?.localSettings?.toolsState?.level4Open) {
                     this._updateToolsState({ level4Open: false });
                     manager.setLevel4Open(false);
