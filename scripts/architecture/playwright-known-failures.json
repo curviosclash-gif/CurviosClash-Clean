@@ -1,6 +1,6 @@
 {
   "$comment": "Playwright tests that are red without anyone's current change. The list is a ratchet: `count` may sink, never rise. Raise it only on an explicit instruction. Every entry must point at an existing spec and an existing test title - tests/playwright-known-failures.contract.test.mjs enforces that, so a fixed or renamed test forces the entry out.",
-  "count": 38,
+  "count": 37,
   "entries": [
     {
       "spec": "tests/physics-hunt.spec.js",
@@ -272,14 +272,6 @@
       "since": "2026-09-07",
       "commit": "",
       "reason": "cluster only: earlier tests leave progress that already unlocks the part, so the lock reason is missing",
-      "kind": "flaky"
-    },
-    {
-      "spec": "tests/player-profiles.desktop.spec.js",
-      "title": "Desktop-Spielerprofile isolate progression across activation and renderer reload",
-      "since": "2026-09-14",
-      "commit": "",
-      "reason": "page.reload times out in the cluster; green alone in 4.7 s",
       "kind": "flaky"
     },
     {

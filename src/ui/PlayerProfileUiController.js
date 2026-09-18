@@ -6,6 +6,8 @@ function sanitizeFilePart(value) {
         .toLowerCase() || 'spieler';
 }
 
+const PROFILE_RELOAD_WATCHDOG_MS = 2000;
+
 function reasonMessage(reason) {
     const messages = {
         profile_not_found: 'Spielerprofil nicht gefunden.',
@@ -30,6 +32,9 @@ export class PlayerProfileUiController {
         this.activateProfile = typeof options.activateProfile === 'function' ? options.activateProfile : null;
         this.showStatusToast = typeof options.showStatusToast === 'function' ? options.showStatusToast : () => {};
         this.document = options.document || globalThis.document;
+        this.setTimeout = typeof options.setTimeout === 'function'
+            ? options.setTimeout
+            : (callback, delayMs) => globalThis.setTimeout(callback, delayMs);
         this.cleanups = [];
         this.refs = {};
     }
@@ -70,12 +75,7 @@ export class PlayerProfileUiController {
             if (typeof globalThis.confirm === 'function' && !globalThis.confirm(`Spielerprofil „${selected.displayName}“ archivieren?`)) return;
             this._handle(this.manager?.archiveProfile?.(selected.id), 'Spielerprofil archiviert.');
         });
-        bind(this.refs.activate, 'click', async () => {
-            const selected = this._selected();
-            if (!selected || !this.activateProfile) return;
-            const result = await this.activateProfile(selected.id);
-            if (!result?.ok) this._setStatus(reasonMessage(result?.reason), 'error');
-        });
+        bind(this.refs.activate, 'click', () => this._activateSelected());
         bind(this.refs.export, 'click', () => this._exportSelected());
         bind(this.refs.import, 'click', () => {
             if (this.refs.transfer?.value?.trim()) this._import(this.refs.transfer.value);
@@ -89,6 +89,22 @@ export class PlayerProfileUiController {
         });
         this.sync();
         if (this.manager?.lastError) this._setStatus(reasonMessage(this.manager.lastError), 'error');
+    }
+
+    async _activateSelected() {
+        const selected = this._selected();
+        if (!selected || !this.activateProfile) return null;
+        const result = await this.activateProfile(selected.id);
+        if (!result?.ok) {
+            this._setStatus(reasonMessage(result?.reason), 'error');
+            return result;
+        }
+        this.sync(selected.id);
+        // The page reloads right after a switch; if it is still here, the new profile never loaded.
+        this.setTimeout(() => {
+            this._setStatus('Spielerprofil wurde nicht geladen. Bitte die App neu starten.', 'error');
+        }, PROFILE_RELOAD_WATCHDOG_MS);
+        return result;
     }
 
     _selected() {

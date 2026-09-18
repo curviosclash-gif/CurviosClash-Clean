@@ -27,6 +27,7 @@ const { registerTuningIpc } = require('./tuning-ipc.cjs');
 const { createHangarWindowController } = require('./hangar-window.cjs');
 const {
     createEditorWindowOpenHandler,
+    createMainWindowNavigationGuard,
     createPlaytestWindowOpenHandler,
     createSecureWindowWebPreferences,
     isTrustedEditorUrl,
@@ -574,9 +575,7 @@ async function createWindow() {
         mainWindow.showInactive();
     }
 
-    mainWindow.webContents.on('will-navigate', (event) => {
-        event.preventDefault();
-    });
+    mainWindow.webContents.on('will-navigate', createMainWindowNavigationGuard(appServer.url));
     installEditorDownloadTarget(session.defaultSession, {
         isTrustedEditorUrl: (url) => isTrustedEditorUrl(url, appServer.url),
         getDownloadsDirectory: () => app.getPath('downloads'),
