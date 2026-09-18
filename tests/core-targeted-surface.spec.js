@@ -2922,7 +2922,9 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 eventHandlerAttributeCount,
                 startTextIncludesPayload: startText.includes(payload),
                 intermissionTextIncludesPayload: intermissionText.includes(payload),
-                postRunTextIncludesPayload: postRunText.includes(payload),
+                // The post-run cards go through the post-match stats contract, which caps a row
+                // label at 80 characters; the probe is longer, so the text check reads its head.
+                postRunTextIncludesPayload: postRunText.includes(payload.slice(0, 40)),
                 startHtmlEscaped: startHtml.includes('&lt;img'),
                 intermissionHtmlEscaped: intermissionHtml.includes('&lt;img'),
                 postRunHtmlEscaped: postRunHtml.includes('&lt;img'),
