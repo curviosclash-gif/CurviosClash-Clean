@@ -21,10 +21,20 @@ function normalizeOutcomeReason(value) {
     return normalized || 'ELIMINATION';
 }
 
+const GERMAN_TENTHS = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const GERMAN_COUNT = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+
+// Same form as the board's duration row (src/ui/postmatch/PostMatchFormat.js, which state may not
+// import): "12,5 s" below a minute, "1:15" from a minute on.
 function formatDurationMs(value) {
-    const ms = Math.max(0, Number(value) || 0);
-    const seconds = ms / 1000;
-    return `${seconds.toFixed(seconds >= 10 ? 1 : 2)}s`;
+    const seconds = Math.round(Math.max(0, Number(value) || 0) / 100) / 10;
+    if (seconds < 60) return `${GERMAN_TENTHS.format(seconds)} s`;
+    const whole = Math.round(seconds);
+    return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+}
+
+function formatScore(value) {
+    return GERMAN_COUNT.format(Math.floor(Number(value) || 0));
 }
 
 function getResultPlayerName(player) {
@@ -71,8 +81,8 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
             reason,
             parcours,
             messageText: summary.isNewRecord === true
-                ? `Neuer Rekord - ${Math.floor(Number(summary.score) || 0)} Punkte`
-                : `Endlosjagd beendet - ${Math.floor(Number(summary.score) || 0)} Punkte`,
+                ? `Neuer Rekord – ${formatScore(summary.score)} Punkte`
+                : `Endlosjagd beendet – ${formatScore(summary.score)} Punkte`,
             messageSub: Array.isArray(summary.newMilestones) && summary.newMilestones.length > 0
                 ? `${summary.newMilestones.length} neue Meilensteine`
                 : '',
