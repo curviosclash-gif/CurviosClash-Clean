@@ -13,6 +13,7 @@ blender --background --factory-startup --python-exit-code 1 --python scripts/gen
 The deterministic generator builds four art-directed main branches and a recursive hierarchy
 of secondary, tertiary and fine branches using pipe-model tapering. Three related procedural
 octaves form self-similar bark at plate, groove and fibre scales and are also baked into the
-geometry for the runtime GLB. It validates eight 45-degree presentation views,
+geometry for the runtime GLB. The bark uses a deliberately matte, non-metallic finish with
+minimal specular reflection. It validates eight 45-degree presentation views,
 crown silhouette consistency, ground contact, dimensions and mesh detail before writing the
 source, GLB and transparent review renders.

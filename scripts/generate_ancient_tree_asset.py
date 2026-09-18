@@ -89,6 +89,8 @@ def principled_material(name, color, roughness=0.7, metallic=0.0):
 def bark_material():
     mat = bpy.data.materials.new("AncientBark")
     mat.diffuse_color = (0.18, 0.12, 0.068, 1)
+    mat.metallic = 0.0
+    mat.roughness = 0.97
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
@@ -96,8 +98,11 @@ def bark_material():
 
     output = nodes.new("ShaderNodeOutputMaterial")
     shader = nodes.new("ShaderNodeBsdfPrincipled")
-    shader.inputs["Roughness"].default_value = 0.88
-    shader.inputs["Specular IOR Level"].default_value = 0.22
+    shader.inputs["Metallic"].default_value = 0.0
+    shader.inputs["Roughness"].default_value = 0.97
+    shader.inputs["Specular IOR Level"].default_value = 0.06
+    if "Coat Weight" in shader.inputs:
+        shader.inputs["Coat Weight"].default_value = 0.0
 
     texcoord = nodes.new("ShaderNodeTexCoord")
     mapping = nodes.new("ShaderNodeMapping")
@@ -174,6 +179,7 @@ def bark_material():
     links.new(shader.outputs["BSDF"], output.inputs["Surface"])
     mat["fractal_bark_octaves"] = 3
     mat["fractal_bark_scales"] = (3.2, 12.8, 51.2)
+    mat["finish"] = "matte"
     return mat
 
 
@@ -201,8 +207,8 @@ def leaf_material(name, dark, light):
 def build_materials():
     return {
         "bark": bark_material(),
-        "bark_dark": principled_material("BarkCrevice", (0.028, 0.012, 0.004, 1), 0.98),
-        "bark_light": principled_material("BarkRaisedFiber", (0.31, 0.22, 0.13, 1), 0.92),
+        "bark_dark": principled_material("BarkCrevice", (0.028, 0.012, 0.004, 1), 1.0),
+        "bark_light": principled_material("BarkRaisedFiber", (0.31, 0.22, 0.13, 1), 0.98),
         "leaf_1": leaf_material("LeafForest", (0.018, 0.09, 0.015, 1), (0.12, 0.34, 0.055, 1)),
         "leaf_2": leaf_material("LeafSage", (0.035, 0.12, 0.025, 1), (0.24, 0.47, 0.10, 1)),
         "leaf_3": leaf_material("LeafSunlit", (0.05, 0.15, 0.025, 1), (0.43, 0.62, 0.13, 1)),
