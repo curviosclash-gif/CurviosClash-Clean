@@ -33,7 +33,7 @@ export function deriveProfileControlSelectState(profiles, inputs = {}, options =
         resolvedActiveProfileName,
         placeholderOption: {
             value: '',
-            text: 'Kein Profil gewaehlt',
+            text: 'Kein Profil gewählt',
         },
         profileOptions: sortedProfiles.map((profile) => ({
             value: profile.name,

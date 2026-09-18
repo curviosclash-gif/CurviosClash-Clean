@@ -31,9 +31,9 @@ const NON_RETRYABLE_SIGNALING_ERROR_CODES = new Set([
 const SERVER_ERROR_MESSAGES = Object.freeze({
     lobby_not_found: 'Lobby nicht gefunden.',
     lobby_full: 'Lobby ist voll.',
-    host_required: 'Nur der Host darf diese Aktion ausfuehren.',
-    not_enough_members: 'Mindestens zwei Teilnehmer werden benoetigt.',
-    members_not_ready: 'Alle Teilnehmer muessen bereit sein.',
+    host_required: 'Nur der Host darf diese Aktion ausführen.',
+    not_enough_members: 'Mindestens zwei Teilnehmer werden benötigt.',
+    members_not_ready: 'Alle Teilnehmer müssen bereit sein.',
     rate_limit_exceeded: 'Zu viele Anfragen. Bitte kurz warten.',
     reconnect_window_expired: 'Die Wiederverbindungszeit ist abgelaufen.',
     connection_resume_failed: 'Wiederverbindung fehlgeschlagen.',
@@ -122,7 +122,7 @@ export function resolveOnlineSignalingUrl(primaryValue, fallbackValue = '') {
     if (!rawValue) {
         throw createOnlineSignalingError(
             'signaling_endpoint_missing',
-            'Online ist derzeit nicht eingerichtet. Bitte LAN verwenden oder die Online-Konfiguration pruefen.'
+            'Online ist derzeit nicht eingerichtet. Bitte LAN verwenden oder die Online-Konfiguration prüfen.'
         );
     }
 
@@ -134,7 +134,7 @@ export function resolveOnlineSignalingUrl(primaryValue, fallbackValue = '') {
     } catch (error) {
         throw createOnlineSignalingError(
             'signaling_endpoint_invalid_url',
-            'Die Online-Konfiguration ist ungueltig.',
+            'Die Online-Konfiguration ist ungültig.',
             { rawValue },
             error
         );
@@ -150,7 +150,7 @@ export function resolveOnlineSignalingUrl(primaryValue, fallbackValue = '') {
     if (parsedUrl.protocol !== 'ws:' && parsedUrl.protocol !== 'wss:') {
         throw createOnlineSignalingError(
             'signaling_endpoint_invalid_scheme',
-            'Die Online-Konfiguration verwendet ein nicht unterstuetztes Protokoll.',
+            'Die Online-Konfiguration verwendet ein nicht unterstütztes Protokoll.',
             { rawValue, protocol: originalProtocol || parsedUrl.protocol }
         );
     }
@@ -158,7 +158,7 @@ export function resolveOnlineSignalingUrl(primaryValue, fallbackValue = '') {
     if (!normalizeString(parsedUrl.hostname, '')) {
         throw createOnlineSignalingError(
             'signaling_endpoint_missing_host',
-            'Die Online-Konfiguration enthaelt keine Serveradresse.',
+            'Die Online-Konfiguration enthält keine Serveradresse.',
             { rawValue }
         );
     }
@@ -220,7 +220,7 @@ export function createServerSignalingError(code, message = '', details = null, c
 export function createInvalidSignalingPayloadError(details = null, cause = null) {
     return createOnlineSignalingError(
         'signaling_payload_invalid',
-        'Online-Signaling hat eine ungueltige Nachricht geliefert.',
+        'Online-Signaling hat eine ungültige Nachricht geliefert.',
         details,
         cause
     );
@@ -229,7 +229,7 @@ export function createInvalidSignalingPayloadError(details = null, cause = null)
 export function createNetworkUnavailableSignalingError(details = null, cause = null) {
     return createOnlineSignalingError(
         'signaling_network_unavailable',
-        'Online ist nicht erreichbar. Bitte Internetverbindung pruefen oder LAN verwenden.',
+        'Online ist nicht erreichbar. Bitte Internetverbindung prüfen oder LAN verwenden.',
         details,
         cause
     );

@@ -135,11 +135,11 @@ export class RuntimeDiagnosticsSystem {
             this._startAdaptiveCooldown();
             if (quality === 'LOW' && isCinematicRecordingActive(recorder)) {
                 this.runtimeAccess.actionShowStatusToast?.(
-                    'Grafik: Niedrig vorgemerkt (waehrend Cinematic-Aufnahme bleibt Hoch)'
+                    'Grafik: Niedrig vorgemerkt (während Cinematic-Aufnahme bleibt Hoch)'
                 );
             } else {
                 this.runtimeAccess.actionShowStatusToast?.(
-                    `Grafik: ${quality === 'LOW' ? 'Niedrig (Schnell)' : 'Hoch (Schoen)'}`
+                    `Grafik: ${quality === 'LOW' ? 'Niedrig (Schnell)' : 'Hoch (Schön)'}`
                 );
             }
             return;
@@ -197,7 +197,7 @@ export class RuntimeDiagnosticsSystem {
                     `Geometrien: ${geos}\n` +
                     `Texturen: ${texs}\n` +
                     `Spieler: ${players}\n` +
-                    `Qualitaet: ${quality}\n` +
+                    `Qualität: ${quality}\n` +
                     `Frame ms avg/p95/p99: ${formatMs(frameAvgMs)} / ${formatMs(frameP95Ms)} / ${formatMs(frameP99Ms)}\n` +
                     `Spikes>${formatMs(spikeThreshold)}ms: ${spikeRecent}`;
                 this._statsElement.replaceChildren(fpsLine, detailLines);
@@ -240,7 +240,7 @@ export class RuntimeDiagnosticsSystem {
         this.runtimeAccess.actionShowStatusToast?.(
             previousQuality === 'HIGH' || nextQuality === 'LOW'
                 ? 'Grafik automatisch reduziert'
-                : 'Grafik automatisch erhoeht'
+                : 'Grafik automatisch erhöht'
         );
     }
 

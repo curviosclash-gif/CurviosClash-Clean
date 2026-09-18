@@ -238,7 +238,7 @@ export class EndlessParcoursRuntime {
             ENDLESS_PARCOURS_ELITE.killScore - ENDLESS_PARCOURS_STREAK.killBaseScore
         );
         this.audio?.play?.('FIGHT_LEAD');
-        this.entityManager?._notifyPlayerFeedback?.(options.killer, 'Anfuehrer bezwungen');
+        this.entityManager?._notifyPlayerFeedback?.(options.killer, 'Anführer bezwungen');
     }
 
     _instantiateModule(module) {
@@ -366,7 +366,7 @@ export class EndlessParcoursRuntime {
         this._lastThreatLevel = threat;
         this._lastAnnouncedBotTarget = botTarget;
         const human = this.entityManager?.humanPlayers?.[0] || null;
-        this.entityManager?._notifyPlayerFeedback?.(human, `Bedrohungsstufe: ${threat} | Jaeger: ${botTarget}`);
+        this.entityManager?._notifyPlayerFeedback?.(human, `Bedrohungsstufe: ${threat} | Jäger: ${botTarget}`);
     }
 
     _updateProgress(player) {
@@ -426,7 +426,7 @@ export class EndlessParcoursRuntime {
         this.voidWarning = resolveEndlessVoidWarning(Number(human?.position?.z) || 0, this.maxProgressMeters);
         if (this.voidWarning.warning && !previous && this.voidWarning.remainingMeters > 0) {
             this.audio?.play?.('PARCOURS_WRONG');
-            this.entityManager?._notifyPlayerFeedback?.(human, 'Zurueckgefallen - sofort vorwaerts');
+            this.entityManager?._notifyPlayerFeedback?.(human, 'Zurückgefallen - sofort vorwärts');
         }
     }
 

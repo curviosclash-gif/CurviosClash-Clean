@@ -295,6 +295,7 @@ export class UIManager {
     // Start / Validierung
     showStartValidationError(issue, opts)  { return this._startSync.showStartValidationError(issue, opts); }
     clearStartValidationError()            { return this._startSync.clearStartValidationError(); }
+    refreshLocalMapCatalog()               { return this._startSync.refreshLocalMapCatalog(); }
 
     // ------------------------------------------------------------------
     // syncAll / syncByChangeKeys
@@ -653,7 +654,7 @@ export class UIManager {
                 : (sessionState.canStart
                     ? ''
                 : (sessionState.isHost
-                    ? 'Alle Teilnehmer muessen Ready sein und mindestens 2 Spieler verbunden sein.'
+                    ? 'Alle Teilnehmer müssen Ready sein und mindestens 2 Spieler verbunden sein.'
                     : surfaceEntryCopy.multiplayerClientStartTitle));
         }
     }

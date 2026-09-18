@@ -117,7 +117,7 @@ export function loadCustomMapFromStorage(storageOverride) {
         return createCustomMapResult({
             ok: false,
             reason: 'storage_unavailable',
-            error: 'Custom-Map-Speicher ist in dieser Umgebung nicht verfuegbar.',
+            error: 'Custom-Map-Speicher ist in dieser Umgebung nicht verfügbar.',
             message: 'Custom-Map konnte nicht geladen werden, weil Browser-Speicher fehlt.',
             capability,
         });
@@ -185,7 +185,7 @@ export function loadCustomMapFromStorage(storageOverride) {
             ok: false,
             reason: 'parse_failed',
             error: 'Gespeicherte Custom-Map ist inkompatibel oder defekt.',
-            message: 'Custom-Map konnte nicht gelesen werden und faellt auf die Standard-Map zurueck.',
+            message: 'Custom-Map konnte nicht gelesen werden und fällt auf die Standard-Map zurück.',
             capability,
             details: error?.message || 'Unknown custom map parsing error.',
         });

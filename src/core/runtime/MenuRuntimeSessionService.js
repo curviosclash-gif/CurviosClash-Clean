@@ -259,7 +259,7 @@ export function handleModePathChangeAction(ctx) {
     } else if (requestedModePath === 'fight' && !huntFeatureEnabled) {
         game._showStatusToast('Kampf ist deaktiviert. Klassisch wurde gesetzt.', 1500, 'warning');
     } else {
-        game._showStatusToast(`Modus gewaehlt: ${label}`, 1200, 'info');
+        game._showStatusToast(`Modus gewählt: ${label}`, 1200, 'info');
     }
 }
 

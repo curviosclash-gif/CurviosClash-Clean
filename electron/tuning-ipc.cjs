@@ -40,8 +40,8 @@ function resolveCapabilityStateSnapshot(resolveCapabilityState) {
         reason: String(sourceState?.reason || (available ? 'desktop_capability_enabled' : 'desktop_capability_blocked')),
         message: String(sourceState?.message || (
             available
-                ? 'Developer Tuning Console ist auf dieser Desktop-Surface verfuegbar.'
-                : 'Developer Tuning Console ist auf dieser Surface nicht verfuegbar.'
+                ? 'Developer Tuning Console ist auf dieser Desktop-Surface verfügbar.'
+                : 'Developer Tuning Console ist auf dieser Surface nicht verfügbar.'
         )),
         passwordGate: String(sourceState?.passwordGate || 'local-ux-only'),
     });
@@ -133,7 +133,7 @@ function registerTuningIpc({
         }
         const gameWindow = resolveGameWindow();
         if (!isWindowAlive(gameWindow)) {
-            return createForwardError('game_window_unavailable', capability, 'Game-Window ist nicht verfuegbar.');
+            return createForwardError('game_window_unavailable', capability, 'Game-Window ist nicht verfügbar.');
         }
 
         const requestId = createRequestId(requestCounterRef);
@@ -247,7 +247,7 @@ function registerTuningIpc({
             return createForwardError('capability_blocked', capability, capability.message);
         }
         if (!dialog || typeof dialog.showSaveDialog !== 'function') {
-            return createForwardError('dialog_unavailable', capability, 'Save-Dialog ist nicht verfuegbar.');
+            return createForwardError('dialog_unavailable', capability, 'Save-Dialog ist nicht verfügbar.');
         }
         const requestPayload = payload && typeof payload === 'object'
             ? payload
@@ -255,7 +255,7 @@ function registerTuningIpc({
         const fileName = normalizeExportFileName(requestPayload.fileName);
         const presetData = requestPayload.presetData;
         if (!presetData || typeof presetData !== 'object') {
-            return createForwardError('invalid_preset_payload', capability, 'Preset-Daten fehlen oder sind ungueltig.');
+            return createForwardError('invalid_preset_payload', capability, 'Preset-Daten fehlen oder sind ungültig.');
         }
 
         const dialogResult = await dialog.showSaveDialog(
@@ -299,7 +299,7 @@ function registerTuningIpc({
             return createForwardError('capability_blocked', capability, capability.message);
         }
         if (!dialog || typeof dialog.showOpenDialog !== 'function') {
-            return createForwardError('dialog_unavailable', capability, 'Open-Dialog ist nicht verfuegbar.');
+            return createForwardError('dialog_unavailable', capability, 'Open-Dialog ist nicht verfügbar.');
         }
 
         const dialogResult = await dialog.showOpenDialog(
@@ -319,7 +319,7 @@ function registerTuningIpc({
             const raw = readFileSync(sourcePath, 'utf-8');
             const parsed = JSON.parse(raw);
             if (!parsed || typeof parsed !== 'object') {
-                return createForwardError('import_invalid_payload', capability, 'Preset-Datei enthaelt kein Objekt.');
+                return createForwardError('import_invalid_payload', capability, 'Preset-Datei enthält kein Objekt.');
             }
             return {
                 ok: true,

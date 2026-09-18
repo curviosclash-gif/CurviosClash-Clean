@@ -31,14 +31,14 @@ export class ProjectileSystem {
             : (() => buildGameplayActionResult({
                 ok: false,
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
-                message: 'Kein Item verfuegbar',
+                message: 'Kein Item verfügbar',
             }));
         this.takeInventoryItem = typeof options.takeInventoryItem === 'function'
             ? options.takeInventoryItem
             : (() => buildGameplayActionResult({
                 ok: false,
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
-                message: 'Kein Item verfuegbar',
+                message: 'Kein Item verfügbar',
             }));
         // Destructible map geometry is attached after construction, because the runtime builds
         // the projectile system before the systems that own the map state.

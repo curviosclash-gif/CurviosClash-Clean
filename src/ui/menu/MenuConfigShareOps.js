@@ -181,8 +181,8 @@ export function importMenuConfigFromInput(settings, inputValue) {
         return createImportFeedback({
             success: false,
             reason: 'apply_failed',
-            error: 'Config-Import konnte nicht auf die aktuellen Menue-Einstellungen angewendet werden.',
-            message: 'Config-Import konnte nicht uebernommen werden.',
+            error: 'Config-Import konnte nicht auf die aktuellen Menü-Einstellungen angewendet werden.',
+            message: 'Config-Import konnte nicht übernommen werden.',
         });
     }
 
@@ -196,7 +196,7 @@ export function parseMenuConfigImportInput(inputValue) {
             success: false,
             reason: 'empty_input',
             error: 'Config-Import ist leer.',
-            message: 'Kein Config-Export eingefuegt.',
+            message: 'Kein Config-Export eingefügt.',
         });
     }
 
@@ -216,7 +216,7 @@ export function parseMenuConfigImportInput(inputValue) {
         return createImportFeedback({
             success: false,
             reason: 'invalid_payload',
-            error: 'Config-Import enthaelt weder gueltiges JSON noch einen lesbaren Code-Export.',
+            error: 'Config-Import enthält weder gültiges JSON noch einen lesbaren Code-Export.',
             message: 'Config-Import konnte nicht gelesen werden.',
         });
     }
@@ -234,7 +234,7 @@ export function parseMenuConfigImportInput(inputValue) {
             success: false,
             reason: 'unsupported_contract_version',
             error: `Config-Import verwendet eine inkompatible contractVersion. Erwartet wird ${MENU_CONFIG_SHARE_CONTRACT_VERSION}.`,
-            message: 'Config-Import stammt aus einer nicht unterstuetzten Version.',
+            message: 'Config-Import stammt aus einer nicht unterstützten Version.',
         });
     }
 
@@ -245,8 +245,8 @@ export function parseMenuConfigImportInput(inputValue) {
         return createImportFeedback({
             success: false,
             reason: 'invalid_payload_shape',
-            error: 'Config-Import-Huelle ist unvollstaendig oder veraltet (payload fehlt).',
-            message: 'Config-Import enthaelt keine nutzbaren Einstellungsdaten.',
+            error: 'Config-Import-Huelle ist unvollständig oder veraltet (payload fehlt).',
+            message: 'Config-Import enthält keine nutzbaren Einstellungsdaten.',
         });
     }
 

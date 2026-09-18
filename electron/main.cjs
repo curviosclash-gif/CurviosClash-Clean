@@ -384,7 +384,7 @@ async function startSignalingServer() {
                 break;
             } catch (err) {
                 if (err?.code === 'EADDRINUSE') {
-                    console.warn(`[Signaling] Port ${port} belegt, versuche naechsten...`);
+                    console.warn(`[Signaling] Port ${port} belegt, versuche nächsten...`);
                     try { candidate.server.close(); } catch { /* ignore */ }
                     continue;
                 }
@@ -398,7 +398,7 @@ async function startSignalingServer() {
             const attemptedPortsLabel = candidatePorts
                 .map((port) => (port === SIGNALING_PORT_FALLBACK ? 'ephemeral' : String(port)))
                 .join(', ');
-            const error = new Error(`Kein freier Port fuer Signaling Server (versucht: ${attemptedPortsLabel})`);
+            const error = new Error(`Kein freier Port für Signaling Server (versucht: ${attemptedPortsLabel})`);
             error.code = 'LAN_SIGNALING_PORT_UNAVAILABLE';
             recordSignalingError(error);
             signalingDiagnostics.state = 'error';
@@ -637,10 +637,10 @@ async function createWindow() {
         confirmExportClose: async () => {
             const result = await dialog.showMessageBox(mainWindow, {
                 type: 'warning',
-                title: 'Videoexport laeuft',
+                title: 'Videoexport läuft',
                 message: 'Ein Cinematic Replay wird noch als MP4 exportiert.',
-                detail: 'Du kannst den Export sauber abwarten, kontrolliert abbrechen oder zur Anwendung zurueckkehren.',
-                buttons: ['Export abwarten', 'Export abbrechen', 'Zurueck'],
+                detail: 'Du kannst den Export sauber abwarten, kontrolliert abbrechen oder zur Anwendung zurückkehren.',
+                buttons: ['Export abwarten', 'Export abbrechen', 'Zurück'],
                 defaultId: 0,
                 cancelId: 2,
                 noLink: true,
@@ -725,8 +725,8 @@ function resolveTuningConsoleCapabilityState() {
         accessMode: available ? 'desktop-capability' : 'blocked',
         reason: available ? 'desktop_surface_enabled' : 'desktop_surface_unavailable',
         message: available
-            ? 'Tuning Console ist als Desktop-Capability verfuegbar; Expertenpasswort bleibt nur lokale UX-Grenze.'
-            : 'Tuning Console ist fuer diese Surface nicht verfuegbar.',
+            ? 'Tuning Console ist als Desktop-Capability verfügbar; Expertenpasswort bleibt nur lokale UX-Grenze.'
+            : 'Tuning Console ist für diese Surface nicht verfügbar.',
         passwordGate: 'local-ux-only',
     });
 }
@@ -874,10 +874,10 @@ async function offerOrphanedCinematicReplayExports() {
     if (orphans.length <= 0) return;
     const result = await dialog.showMessageBox(desktopWindowShellCapability.getWindow(), {
         type: 'warning',
-        title: 'Unvollstaendige Videoexporte gefunden',
+        title: 'Unvollständige Videoexporte gefunden',
         message: `${orphans.length} verwaiste Cinematic-Exportdatei(en) wurden erkannt.`,
-        detail: 'Die Dateien werden nicht automatisch geloescht. Du kannst sie fuer eine spaetere Wiederherstellung behalten oder jetzt bestaetigt bereinigen.',
-        buttons: ['Wiederherstellen', 'Behalten', 'Bestaetigt bereinigen'],
+        detail: 'Die Dateien werden nicht automatisch gelöscht. Du kannst sie für eine spätere Wiederherstellung behalten oder jetzt bestätigt bereinigen.',
+        buttons: ['Wiederherstellen', 'Behalten', 'Bestätigt bereinigen'],
         defaultId: 1,
         cancelId: 1,
         noLink: true,

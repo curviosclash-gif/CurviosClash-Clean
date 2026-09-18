@@ -36,7 +36,7 @@ const EVENT_PLAYLIST_CATALOG = Object.freeze([
     createPlaylist({
         id: DEFAULT_EVENT_PLAYLIST_ID,
         name: 'Fun Rotation',
-        description: 'Rotiert ueber die vorhandenen Fun- und Fixed-Presets.',
+        description: 'Rotiert über die vorhandenen Fun- und Fixed-Presets.',
         entryPresetIds: ['arcade', 'chaos', 'competitive'],
     }),
 ]);

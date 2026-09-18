@@ -84,7 +84,7 @@ export class HuntCombatSystem {
             return buildGameplayActionResult({
                 ok: false,
                 code: codes.invalidIndex,
-                message: 'Item-Slot ungueltig',
+                message: 'Item-Slot ungültig',
                 type: null,
                 meta: { requestedIndex: preferredIndex },
             });
@@ -93,7 +93,7 @@ export class HuntCombatSystem {
             return buildGameplayActionResult({
                 ok: false,
                 code: codes.empty,
-                message: 'Kein Item verfuegbar',
+                message: 'Kein Item verfügbar',
                 type: null,
                 meta: { requestedIndex: preferredIndex },
             });
@@ -104,7 +104,7 @@ export class HuntCombatSystem {
             return buildGameplayActionResult({
                 ok: false,
                 code: codes.invalidType,
-                message: 'Item ungueltig',
+                message: 'Item ungültig',
                 type: null,
                 meta: { requestedIndex: preferredIndex, index },
             });
@@ -165,7 +165,7 @@ export class HuntCombatSystem {
             return buildGameplayActionResult({
                 ok: false,
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_INVALID_TYPE,
-                message: 'Item ungueltig',
+                message: 'Item ungültig',
                 type: itemPreview.type,
             });
         }

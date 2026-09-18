@@ -2,7 +2,7 @@ const ALL_GAME_MODES = Object.freeze(['CLASSIC', 'ARCADE', 'HUNT']);
 
 export const PICKUP_EXPANSION_DEFINITIONS = Object.freeze({
     TRAIL_GAP: {
-        name: 'Spurluecke', description: 'Der getroffene Gegner erzeugt 10 Sekunden lang keine neue Spur.',
+        name: 'Spurlücke', description: 'Der getroffene Gegner erzeugt 10 Sekunden lang keine neue Spur.',
         color: 0x42e8f4, icon: '---', duration: 10,
         selfUsable: false, shootable: true, offensive: true, projectileOnly: false,
         allowedModes: ALL_GAME_MODES, observationSlot: 14, visualKind: 'trail-gap',
@@ -20,7 +20,7 @@ export const PICKUP_EXPANSION_DEFINITIONS = Object.freeze({
         botRule: { self: 0.25, offense: 0, defensiveScale: 0, emergencyScale: 0, combatSelf: 1.2 },
     },
     MAGNET: {
-        name: 'Magnet', description: 'Verfuenffacht den Einsammelradius 6 Sekunden lang.',
+        name: 'Magnet', description: 'Verfünffacht den Einsammelradius 6 Sekunden lang.',
         color: 0xff4466, icon: 'U', duration: 6, pickupRadiusMultiplier: 5,
         selfUsable: true, shootable: false, offensive: false, projectileOnly: false,
         allowedModes: ALL_GAME_MODES, observationSlot: 16, visualKind: 'magnet',
@@ -29,7 +29,7 @@ export const PICKUP_EXPANSION_DEFINITIONS = Object.freeze({
         botRule: { self: 0.6, offense: 0, defensiveScale: 0.25, emergencyScale: 0.1, combatSelf: 0.1 },
     },
     DECOY: {
-        name: 'Koeder', description: 'Schuetzt 10 Sekunden lang vor Zielverfolgung.',
+        name: 'Köder', description: 'Schuetzt 10 Sekunden lang vor Zielverfolgung.',
         color: 0xff77dd, icon: 'D', duration: 10,
         selfUsable: true, shootable: false, offensive: false, projectileOnly: false,
         allowedModes: ALL_GAME_MODES, observationSlot: 17, visualKind: 'decoy',

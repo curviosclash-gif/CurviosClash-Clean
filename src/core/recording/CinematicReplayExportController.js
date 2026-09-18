@@ -53,10 +53,10 @@ function resolveExportErrorMessage(result) {
         return 'Speicherdialog wurde abgebrochen.';
     }
     if (code.includes('encoder') || code.includes('ffmpeg')) {
-        return 'H.264-Encoder (FFmpeg/libx264) ist nicht verfuegbar.';
+        return 'H.264-Encoder (FFmpeg/libx264) ist nicht verfügbar.';
     }
     if (code.includes('validation')) {
-        return 'Die erzeugte MP4-Datei hat die Abschlusspruefung nicht bestanden.';
+        return 'Die erzeugte MP4-Datei hat die Abschlussprüfung nicht bestanden.';
     }
     return result?.message || 'Cinematic Replay Render wurde abgebrochen.';
 }

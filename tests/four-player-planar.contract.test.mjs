@@ -459,6 +459,20 @@ async function createFourPlayerModule() {
     return { module, settings, state, setupView };
 }
 
+test('opening the four player setup reloads desktop maps before it fills the map list', async () => {
+    const { module, setupView } = await createFourPlayerModule();
+    const { CONFIG } = await import('../src/core/Config.js');
+    const order = [];
+    module.runtime.refreshLocalMapCatalog = () => { order.push('refresh'); return true; };
+    setupView.setMapOptions = (options) => { order.push('options'); setupView.mapOptions = options; };
+
+    module.openSetup();
+
+    assert.deepEqual(order, ['refresh', 'options']);
+    assert.deepEqual(setupView.mapOptions.map((option) => option.value), Object.keys(CONFIG.MAPS));
+    assert.equal(setupView.visible, true);
+});
+
 test('a four player match does not leave its values in the normal game settings', async () => {
     const { module, settings, state } = await createFourPlayerModule();
     const before = {

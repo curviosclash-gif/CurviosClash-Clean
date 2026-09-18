@@ -99,7 +99,7 @@ export function deleteSelectedManagedObject(editor) {
         return;
     }
     if (editor.isObjectLocked?.(editor.selectedObject)) {
-        editor.notify?.('Gesperrte Objekte koennen nicht geloescht werden.', 'warn');
+        editor.notify?.('Gesperrte Objekte können nicht gelöscht werden.', 'warn');
         return;
     }
     if (editor.mapManager) {

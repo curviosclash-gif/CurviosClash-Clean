@@ -52,7 +52,7 @@ test('V115.4.3 DownloadService keeps desktop failures on the desktop transport',
         true
     );
     assert.equal(
-        status.warnings.includes('Browser-Download-Handler ist nicht verfuegbar; Download-Fallback wurde uebersprungen.'),
+        status.warnings.includes('Browser-Download-Handler ist nicht verfügbar; Download-Fallback wurde übersprungen.'),
         false
     );
     assert.equal(new Set(status.warnings).size, status.warnings.length);

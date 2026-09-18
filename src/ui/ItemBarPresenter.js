@@ -91,7 +91,7 @@ export function updateItemBar(container, player, projection = null, gameplayConf
             titleParts.push(type.replace(/_/g, ' '));
             if (config?.description) titleParts.push(String(config.description));
             if (slotAction.canUse && slotAction.canShoot) titleParts.push('Use oder Shoot');
-            else if (slotAction.canShoot) titleParts.push('Verschiessbar');
+            else if (slotAction.canShoot) titleParts.push('Verschießbar');
             else if (slotAction.canUse) titleParts.push('Direkt nutzbar');
             else titleParts.push('Nur kontextbasiert');
             if (slotAction.useOnCooldown) titleParts.push(`Use-CD ${slotAction.useCooldownRemaining.toFixed(1)}s`);
@@ -174,7 +174,7 @@ export function updateRocketBar(container, player, projection = null, gameplayCo
         slot.classList.toggle('next-rocket', isNext);
         slot.dataset.selected = isNext ? '1' : '0';
         slot.classList.toggle('selected', isNext);
-        if (isNext) slot.title = `${slot.title}${slot.title ? ' | ' : ''}Naechste Rakete (FIFO)`;
+        if (isNext) slot.title = `${slot.title}${slot.title ? ' | ' : ''}Nächste Rakete (FIFO)`;
     }
 }
 

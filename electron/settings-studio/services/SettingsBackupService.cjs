@@ -134,7 +134,7 @@ class SettingsBackupService {
     async readBackupFile(fileName) {
         const safeName = sanitizeBackupFileName(fileName);
         if (!safeName) {
-            throw new Error('Ungueltiger Backup-Dateiname.');
+            throw new Error('Ungültiger Backup-Dateiname.');
         }
         const filePath = path.join(this.getBackupDirectoryPath(), safeName);
         return fs.readFile(filePath, 'utf-8');

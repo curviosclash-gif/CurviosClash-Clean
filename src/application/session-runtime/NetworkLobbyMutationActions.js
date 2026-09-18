@@ -55,10 +55,10 @@ export function requestNetworkLobbyMatchStart(service, options = {}) {
         return service._fail('Match-Einstellungen werden übertragen. Danach müssen alle erneut Ready sein.', 'settings_sync_pending');
     }
     if (sessionState.memberCount < 2) {
-        return service._fail('Mindestens zwei Teilnehmer werden benoetigt.', 'not_enough_members');
+        return service._fail('Mindestens zwei Teilnehmer werden benötigt.', 'not_enough_members');
     }
     if (!sessionState.allReady) {
-        return service._fail('Alle Teilnehmer muessen Ready sein.', 'members_not_ready');
+        return service._fail('Alle Teilnehmer müssen Ready sein.', 'members_not_ready');
     }
     const settingsSnapshot = deepClone(options.settingsSnapshot ?? service._hostSettingsSnapshot);
     service._matchStartPending = true;

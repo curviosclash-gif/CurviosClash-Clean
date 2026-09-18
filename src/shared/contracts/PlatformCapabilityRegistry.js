@@ -199,7 +199,7 @@ export function resolveSurfaceDeveloperAccess(options = {}) {
         developerPolicy?.message,
         available
             ? 'Developer- und Debug-Schalter bleiben lokale Diagnosepfade.'
-            : 'Developer- und Debug-Schalter sind fuer diese Surface nicht verfuegbar.'
+            : 'Developer- und Debug-Schalter sind für diese Surface nicht verfügbar.'
     );
 
     return Object.freeze({

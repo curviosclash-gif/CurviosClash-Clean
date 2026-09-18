@@ -79,7 +79,7 @@ export class ProfileManager {
     saveProfile(profileName, currentSettings, currentActiveProfileName) {
         const name = this.normalizeProfileName(profileName);
         if (!name || name.length < 2) {
-            return { success: false, error: 'Name zu kurz oder ungueltig (min. 2 Zeichen)' };
+            return { success: false, error: 'Name zu kurz oder ungültig (min. 2 Zeichen)' };
         }
 
         const idx = this.findProfileIndexByName(name);
@@ -283,7 +283,7 @@ export class ProfileManager {
 
         const persisted = this.store.saveProfiles(this.profiles);
         if (!isPersistenceSuccess(persisted)) {
-            return { success: false, error: 'Profil konnte nicht geloescht werden' };
+            return { success: false, error: 'Profil konnte nicht gelöscht werden' };
         }
 
         return { success: true, removedName };

@@ -1705,7 +1705,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
         expect(level1State.depth).toBe('1');
         expect(level1State.secondaryCopyVisible).toBeFalsy();
-        expect(level1State.contextText).toContain('Hauptmenue');
+        expect(level1State.contextText).toContain('Hauptmenü');
         expect(level1State.contextWidth).toBeLessThanOrEqual(1);
         expect(level1State.contextHeight).toBeLessThanOrEqual(1);
         expect(level1State.primaryVisible).toBeTruthy();

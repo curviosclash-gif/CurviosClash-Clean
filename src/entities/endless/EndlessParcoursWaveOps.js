@@ -80,7 +80,7 @@ export function reserveEndlessWaveSlots(runtime) {
                 runtime._eliteExchangeSlot = ordinary;
                 runtime.entityManager?._notifyPlayerFeedback?.(
                     runtime.entityManager?.humanPlayers?.[0] || null,
-                    `Jaeger ${ordinary.slot + 1} zieht fuer den Anfuehrer ab`
+                    `Jäger ${ordinary.slot + 1} zieht für den Anführer ab`
                 );
             }
         }

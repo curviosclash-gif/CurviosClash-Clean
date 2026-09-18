@@ -45,7 +45,7 @@ export function resolveTiltButtonUi(controlState) {
         active,
         text: controlState === TILT_CONTROL_STATES.CALIBRATING ? 'HALTEN' : (active ? 'NEU' : 'NEIGUNG'),
         title: active
-            ? 'Neu kalibrieren: Geraet kurz neutral halten'
-            : 'Neigungssteuerung aktivieren: Geraet kurz neutral halten',
+            ? 'Neu kalibrieren: Gerät kurz neutral halten'
+            : 'Neigungssteuerung aktivieren: Gerät kurz neutral halten',
     };
 }

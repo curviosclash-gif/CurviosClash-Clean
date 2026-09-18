@@ -71,7 +71,7 @@ export function usePlayerInventoryItem(player, modeType = null) {
         return buildGameplayActionResult({
             ok: false,
             code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_EMPTY,
-            message: 'Kein Item verfuegbar',
+            message: 'Kein Item verfügbar',
         });
     }
     const rawType = player.inventory[player.selectedItemIndex];
@@ -80,7 +80,7 @@ export function usePlayerInventoryItem(player, modeType = null) {
         return buildGameplayActionResult({
             ok: false,
             code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_INVALID_TYPE,
-            message: 'Item ungueltig',
+            message: 'Item ungültig',
             type: rawType || null,
         });
     }

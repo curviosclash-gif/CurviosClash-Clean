@@ -18,7 +18,7 @@ const EVENT_PLAYLIST_STATE_PATH = 'localSettings.eventPlaylistState';
 export function resolvePresetFailureMessage(result, fallbackMessage) {
     switch (result?.reason) {
     case 'invalid_preset_id':
-        return 'Preset-ID ist ungueltig.';
+        return 'Preset-ID ist ungültig.';
     case 'preset_not_found':
         return 'Preset wurde nicht gefunden.';
     case 'owner_required':
@@ -126,7 +126,7 @@ export async function handleQuickStartEventPlaylistStartAction(ctx) {
     const playlistStep = getNextEventPlaylistEntry(game?.settings?.localSettings?.eventPlaylistState);
     const presetId = String(playlistStep?.entry?.presetId || '').trim();
     if (!presetId) {
-        game._showStatusToast('Event-Playlist ist nicht verfuegbar.', 1500, 'error');
+        game._showStatusToast('Event-Playlist ist nicht verfügbar.', 1500, 'error');
         return;
     }
     const baselineSettingsSnapshot = cloneJsonSnapshot(game.settings);

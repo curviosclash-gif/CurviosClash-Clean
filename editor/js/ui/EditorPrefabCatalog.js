@@ -29,7 +29,7 @@ export const EDITOR_PREFABS = Object.freeze([
     Object.freeze({
         id: 'arena-corner',
         label: 'Arena-Ecke',
-        description: 'Zwei rechtwinklige Hartbloecke mit Schaum-Deckung.',
+        description: 'Zwei rechtwinklige Hartblöcke mit Schaum-Deckung.',
         parts: Object.freeze([
             part('hard', null, 0, 260, -420, 300, { sizeX: 900, sizeY: 520, sizeZ: 100 }),
             part('hard', null, -420, 260, 0, 300, { sizeX: 100, sizeY: 520, sizeZ: 900 }),

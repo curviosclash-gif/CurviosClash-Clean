@@ -63,5 +63,5 @@ export async function listMapsThroughDesktopBridge(bridge) {
  * @param {EditorDiskBridge} bridge
  */
 export async function openMapsFolderThroughDesktopBridge(bridge) {
-    return unwrap(await bridge.openMapsFolder(), 'Der Kartenordner konnte nicht geoeffnet werden.');
+    return unwrap(await bridge.openMapsFolder(), 'Der Kartenordner konnte nicht geöffnet werden.');
 }

@@ -322,7 +322,7 @@ export class OnlineMatchLobby extends MatchLobby {
                     const msg = this._parseSocketMessage(event.data);
                     this._handleMessage(msg, connectResolve, connectReject, connectState);
                 } catch (error) {
-                    const payload = toErrorPayload(error, 'Online-Signaling hat eine ungueltige Nachricht geliefert.');
+                    const payload = toErrorPayload(error, 'Online-Signaling hat eine ungültige Nachricht geliefert.');
                     this._emit('error', payload);
                     if (!connectState.settled) {
                         connectReject(error);
@@ -347,7 +347,7 @@ export class OnlineMatchLobby extends MatchLobby {
                     const msg = this._parseSocketMessage(event.data);
                     this._handleMessage(msg, connectResolve, connectReject, connectState);
                 } catch (error) {
-                    const payload = toErrorPayload(error, 'Online-Signaling hat eine ungueltige Nachricht geliefert.');
+                    const payload = toErrorPayload(error, 'Online-Signaling hat eine ungültige Nachricht geliefert.');
                     this._emit('error', payload);
                     if (!connectState.settled) {
                         connectReject(error);
@@ -384,7 +384,7 @@ export class OnlineMatchLobby extends MatchLobby {
                     const msg = this._parseSocketMessage(event.data);
                     this._handleMessage(msg, connectResolve, connectReject, connectState);
                 } catch (error) {
-                    const payload = toErrorPayload(error, 'Online-Signaling hat eine ungueltige Nachricht geliefert.');
+                    const payload = toErrorPayload(error, 'Online-Signaling hat eine ungültige Nachricht geliefert.');
                     this._emit('error', payload);
                     if (!connectState.settled) {
                         connectReject(error);
@@ -487,7 +487,7 @@ export class OnlineMatchLobby extends MatchLobby {
 
     async invalidateReadyForAll() {
         if (this.isHost !== true) {
-            throw createLobbyUsageError('host_required', 'Nur der Host darf Ready fuer alle invalidieren.');
+            throw createLobbyUsageError('host_required', 'Nur der Host darf Ready für alle invalidieren.');
         }
         const hasAnyClientReady = this.sessionState.members.some((member) => (
             member?.isHost !== true && member?.ready === true

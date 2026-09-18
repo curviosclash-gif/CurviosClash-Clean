@@ -56,7 +56,7 @@ export function createTuningPresetUi({
         presetSelect.innerHTML = '';
         const placeholderOption = document.createElement('option');
         placeholderOption.value = '';
-        placeholderOption.textContent = 'Preset waehlen';
+        placeholderOption.textContent = 'Preset wählen';
         presetSelect.appendChild(placeholderOption);
         presets.forEach((preset) => {
             const option = document.createElement('option');
@@ -102,7 +102,7 @@ export function createTuningPresetUi({
     async function loadPreset() {
         const presetId = String(presetSelect?.value || '').trim();
         if (!presetId) {
-            setStatus?.('Preset waehlen, bevor geladen wird.');
+            setStatus?.('Preset wählen, bevor geladen wird.');
             return;
         }
         const applyResult = await presetManager.applyPreset(
@@ -121,7 +121,7 @@ export function createTuningPresetUi({
     async function exportPreset() {
         const presetId = String(presetSelect?.value || '').trim();
         if (!presetId) {
-            setStatus?.('Preset waehlen, bevor exportiert wird.');
+            setStatus?.('Preset wählen, bevor exportiert wird.');
             return;
         }
         const exportResult = presetManager.createExportDocument(presetId);

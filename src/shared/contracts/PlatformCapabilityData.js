@@ -102,7 +102,7 @@ export const PLATFORM_CAPABILITY_REGISTRY = Object.freeze({
                     available: true,
                     accessMode: PLATFORM_SURFACE_DEVELOPER_ACCESS_MODES.LOCAL_UNLOCK,
                     reason: PLATFORM_SURFACE_DEVELOPER_ACCESS_REASONS.LOCAL_DEVTOOLS,
-                    message: 'Developer- und Debug-Schalter bleiben lokale Diagnosepfade und zaehlen nicht zum Produktversprechen der Vollversion.',
+                    message: 'Developer- und Debug-Schalter bleiben lokale Diagnosepfade und zählen nicht zum Produktversprechen der Vollversion.',
                 }),
             }),
             capabilities: Object.freeze({
@@ -204,7 +204,7 @@ export const PLATFORM_CAPABILITY_REGISTRY = Object.freeze({
                     available: false,
                     accessMode: PLATFORM_SURFACE_DEVELOPER_ACCESS_MODES.BLOCKED,
                     reason: PLATFORM_SURFACE_DEVELOPER_ACCESS_REASONS.UNAVAILABLE,
-                    message: 'Developer- und Desktop-Werkzeuge sind in der Android-App nicht verfuegbar.',
+                    message: 'Developer- und Desktop-Werkzeuge sind in der Android-App nicht verfügbar.',
                 }),
             }),
             capabilities: Object.freeze({

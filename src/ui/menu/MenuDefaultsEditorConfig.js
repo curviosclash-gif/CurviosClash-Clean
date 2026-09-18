@@ -191,7 +191,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         {
             id: 'endlosjagd',
             name: 'Endlosjagd',
-            description: 'Endloser Kampf-Parcours: Tore geben Punkte, Serie und eine Rettung; die Strecke knickt, Schleusen takten, Anfuehrer ruecken nach.',
+            description: 'Endloser Kampf-Parcours: Tore geben Punkte, Serie und eine Rettung; die Strecke knickt, Schleusen takten, Anführer rücken nach.',
             lockedFields: ['localSettings.modePath', 'mode', 'gameMode', 'numBots', 'arcade.runType', 'arcade.combatProfile'],
             values: {
                 'localSettings.modePath': 'arcade',
@@ -209,7 +209,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         {
             id: 'arcade',
             name: 'Arcade',
-            description: 'Schnelles Setup fuer direkten Einstieg.',
+            description: 'Schnelles Setup für direkten Einstieg.',
             lockedFields: ['mode', 'gameMode', 'numBots', 'winsNeeded'],
             values: {
                 mode: '1p',
@@ -269,7 +269,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         {
             id: 'fight-standard',
             name: 'Kampf Standard',
-            description: 'Empfohlene Deathmatch-Kombination fuer den 4-Ebenen-Flow.',
+            description: 'Empfohlene Deathmatch-Kombination für den 4-Ebenen-Flow.',
             lockedFields: ['gameMode', 'winsNeeded', 'hunt.respawnEnabled', 'hunt.deathmatchKillLimit'],
             values: {
                 mode: '1p',
@@ -292,7 +292,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         {
             id: 'normal-standard',
             name: 'Normal Standard',
-            description: 'Empfohlene Normal-Kombination fuer Classic-Sessions.',
+            description: 'Empfohlene Normal-Kombination für Classic-Sessions.',
             lockedFields: ['gameMode'],
             values: {
                 mode: '1p',

@@ -149,7 +149,7 @@ function createPendingExportStatus(masterContainer, timeoutMs) {
         fallbackReason: null,
         failureReason: null,
         apiStatus: null,
-        message: 'Aufnahme ist beendet; Speichern (Dialog oder Umwandlung) laeuft noch.',
+        message: 'Aufnahme ist beendet; Speichern (Dialog oder Umwandlung) läuft noch.',
         warnings: [`export_wait_timeout_${timeoutMs}ms`],
         filePath: null,
         container: masterContainer || null,

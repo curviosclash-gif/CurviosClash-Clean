@@ -52,7 +52,7 @@ export function toggleCinematicRecordingFromHotkey({
         : 'toggle';
     const support = recorder.getSupportState?.() || null;
     if (support && support.canRecord === false) {
-        showStatusToast('Videoaufnahme nicht verfuegbar', 1600, 'error');
+        showStatusToast('Videoaufnahme nicht verfügbar', 1600, 'error');
         return false;
     }
     const supportsDirectRecording = typeof recorder.startRecording === 'function'

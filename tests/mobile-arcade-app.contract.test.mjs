@@ -161,7 +161,7 @@ test('Unified Mobile Android shell carries Arcade HUD, Ghost, and pause affordan
   assert.match(mobileClassicApp, /modePath === MENU_MODE_PATHS\.ARCADE/);
   assert.match(mobileClassicSurface, /touch-button-pause/);
   assert.doesNotMatch(mobileClassicMenuUi, /mobile-android-entry-panel/);
-  assert.doesNotMatch(mobileClassicMenuUi, /mobileModeEntry|Spielstil waehlen|Start vorbereiten/);
+  assert.doesNotMatch(mobileClassicMenuUi, /mobileModeEntry|Spielstil wählen|Start vorbereiten/);
   assert.match(sharedMenuHtml, /id="menu-nav"/);
   assert.match(sharedMenuHtml, />Einzelspieler</);
   assert.match(sharedMenuHtml, />Arcade</);

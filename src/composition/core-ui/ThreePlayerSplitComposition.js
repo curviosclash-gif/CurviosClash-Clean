@@ -8,6 +8,6 @@ export function createThreePlayerSplitModule({ runtimePort, documentRef = global
         runtimePort,
         setupView: new ThreePlayerSplitSetupView({ documentRef }),
         hudView: new ThreePlayerSplitHudView({ documentRef }),
-        mapDefinitions: CONFIG.MAPS,
+        getMapDefinitions: () => CONFIG.MAPS,
     });
 }

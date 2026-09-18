@@ -18,19 +18,19 @@ function createLimitRule(rule, fallbackLimits = null) {
 
 export function validateLimitRule(path, limits, errors, field, createError) {
     if (!Number.isFinite(limits.min)) {
-        errors.push(createError(path, 'LIMIT_MIN_INVALID', `Limit min ist ungueltig fuer ${path}.`));
+        errors.push(createError(path, 'LIMIT_MIN_INVALID', `Limit min ist ungültig für ${path}.`));
     }
     if (!Number.isFinite(limits.max)) {
-        errors.push(createError(path, 'LIMIT_MAX_INVALID', `Limit max ist ungueltig fuer ${path}.`));
+        errors.push(createError(path, 'LIMIT_MAX_INVALID', `Limit max ist ungültig für ${path}.`));
     }
     if (!Number.isFinite(limits.step)) {
-        errors.push(createError(path, 'LIMIT_STEP_INVALID', `Limit step ist ungueltig fuer ${path}.`));
+        errors.push(createError(path, 'LIMIT_STEP_INVALID', `Limit step ist ungültig für ${path}.`));
     }
     if (Number.isFinite(limits.step) && limits.step <= 0) {
-        errors.push(createError(path, 'LIMIT_STEP_NON_POSITIVE', `Limit step muss groesser als 0 sein fuer ${path}.`));
+        errors.push(createError(path, 'LIMIT_STEP_NON_POSITIVE', `Limit step muss größer als 0 sein für ${path}.`));
     }
     if (Number.isFinite(limits.min) && Number.isFinite(limits.max) && limits.min > limits.max) {
-        errors.push(createError(path, 'LIMIT_RANGE_INVALID', `Limit min darf nicht groesser als max sein fuer ${path}.`));
+        errors.push(createError(path, 'LIMIT_RANGE_INVALID', `Limit min darf nicht größer als max sein für ${path}.`));
     }
     if (field?.limits?.integer === true) {
         for (const key of ['min', 'max', 'step']) {
@@ -64,7 +64,7 @@ export function normalizeLimitOverrides(rawLimitOverrides, fieldsByPath, errors,
                 errors.push(createError(
                     `${path}.${key}`,
                     'LIMIT_KEY_UNKNOWN',
-                    `Unbekannter Limit-Schluessel fuer ${path}: ${key}.`
+                    `Unbekannter Limit-Schlüssel für ${path}: ${key}.`
                 ));
                 continue;
             }
@@ -73,7 +73,7 @@ export function normalizeLimitOverrides(rawLimitOverrides, fieldsByPath, errors,
                 errors.push(createError(
                     `${path}.${key}`,
                     `LIMIT_${key.toUpperCase()}_INVALID`,
-                    `Limit ${key} ist ungueltig fuer ${path}.`
+                    `Limit ${key} ist ungültig für ${path}.`
                 ));
                 continue;
             }
