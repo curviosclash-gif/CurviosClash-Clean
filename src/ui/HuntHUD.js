@@ -10,7 +10,8 @@ import { createRocketWarningCache, hideRocketWarning, updateRocketWarning } from
 import { MatchHudAnnouncement } from './MatchHudAnnouncement.js';
 import { HuntInterceptAnnouncer } from './HuntInterceptAnnouncer.js';
 import { SecretRoomAnnouncer } from './SecretRoomAnnouncer.js';
-import { formatHuntClock, formatHuntScoreboard, resolveHuntObjectiveText, updateHuntTargetProgress } from './HuntMatchStatusHelpers.js';
+import { formatHuntClock, formatHuntScoreboard, getHuntScoreValue, rankHuntScoreboardRows, resolveHuntObjectiveText, updateHuntTargetProgress } from './HuntMatchStatusHelpers.js';
+import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
 import {
     HUD_ARC_SEGMENT_COUNT,
     initializeHudSegmentedArc,
@@ -406,26 +407,34 @@ export class HuntHUD {
     _updateMatchStatus(huntProjection = null, localPlayerIndices = []) {
         const respawnEnabled = huntProjection?.respawnEnabled === true;
         const killLimit = Math.max(1, Number(huntProjection?.deathmatchKillLimit) || 10);
-        const rows = Array.isArray(huntProjection?.scoreboardRows) ? huntProjection.scoreboardRows : [];
+        const winCondition = normalizeHuntWinCondition(huntProjection?.winCondition);
+        const lives = huntProjection?.livesRemainingByPlayer || {};
+        const rows = rankHuntScoreboardRows(
+            Array.isArray(huntProjection?.scoreboardRows) ? huntProjection.scoreboardRows : [], winCondition, lives);
         const leader = rows[0] || null;
+        const leaderValue = getHuntScoreValue(leader, winCondition, lives);
         const timeText = huntProjection?.overtime
             ? ' · Golden Kill'
             : (Number(huntProjection?.timeLimitSeconds) > 0 ? ` · ${formatHuntClock(huntProjection?.timeRemainingSeconds)}` : '');
-        const matchPointText = leader && leader.kills === killLimit - 1 ? ' · Matchball' : '';
+        const matchPointText = winCondition !== HUNT_WIN_CONDITIONS.LAST_ALIVE && leader
+            && leaderValue === killLimit - 1 ? ' · Matchball' : '';
         const objectiveText = resolveHuntObjectiveText(huntProjection, this.runtime?.runtimeConfig, { killLimit, timeText, matchPointText });
-        const scoreboardText = formatHuntScoreboard(rows, localPlayerIndices, huntProjection?.scoreboardSummary);
+        const scoreboardText = formatHuntScoreboard(rows, localPlayerIndices, huntProjection?.scoreboardSummary, winCondition, lives);
         const scoreboardDetails = rows.length > 0
-            ? rows.map((row) => `${row.label}: ${row.kills}/${killLimit} Abschüsse, ${row.deaths} Tode, ${row.assists} Assists`).join('. ')
+            ? rows.map((row) => winCondition === HUNT_WIN_CONDITIONS.LAST_ALIVE
+                ? `${row.label}: ${getHuntScoreValue(row, winCondition, lives)} Leben, ${row.deaths} Tode`
+                : `${row.label}: ${getHuntScoreValue(row, winCondition, lives)}/${killLimit} ${winCondition === HUNT_WIN_CONDITIONS.SCORE_TARGET ? 'Punkte' : 'Abschüsse'}, ${row.deaths} Tode, ${row.assists} Assists`).join('. ')
             : scoreboardText;
         updateHuntTargetProgress(this.targetProgress, this._progressState,
-            respawnEnabled ? killLimit : 0, leader?.kills || 0);
+            respawnEnabled && winCondition !== HUNT_WIN_CONDITIONS.LAST_ALIVE ? killLimit : 0, leaderValue);
         if (leader && this._leaderIndex !== null && leader.playerIndex !== this._leaderIndex) {
             this.runtime?.audio?.play?.('FIGHT_LEAD');
-        } else if (leader && leader.kills === killLimit - 1 && leader.kills !== this._leaderKills) {
+        } else if (leader && winCondition !== HUNT_WIN_CONDITIONS.LAST_ALIVE
+            && leaderValue === killLimit - 1 && leaderValue !== this._leaderKills) {
             this.runtime?.audio?.play?.('FIGHT_LEAD');
         }
         this._leaderIndex = leader?.playerIndex ?? null;
-        this._leaderKills = Number(leader?.kills) || 0;
+        this._leaderKills = leaderValue;
         if (this.objective && objectiveText !== this._objectiveText) {
             this.objective.textContent = objectiveText;
             this._objectiveText = objectiveText;
@@ -439,8 +448,8 @@ export class HuntHUD {
             this._scoreboardDetails = scoreboardDetails;
         }
         this._matchAnnouncement?.observe(rows, {
-            scoreKey: 'kills',
-            target: respawnEnabled ? killLimit : 0,
+            scoreKey: winCondition === HUNT_WIN_CONDITIONS.SCORE_TARGET ? 'points' : 'kills',
+            target: respawnEnabled && winCondition !== HUNT_WIN_CONDITIONS.LAST_ALIVE ? killLimit : 0,
         });
         const interceptMessage = this._interceptAnnouncer.consume(rows, localPlayerIndices);
         if (interceptMessage) this._matchAnnouncement?.show(interceptMessage);

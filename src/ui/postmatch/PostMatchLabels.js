@@ -71,6 +71,8 @@ const OBJECTIVE_LABELS = Object.freeze({
     KILL_LIMIT: 'Abschusslimit erreicht',
     TIME_LIMIT: 'Zeitlimit erreicht',
     OVERTIME: 'Golden Kill',
+    SCORE_TARGET: 'Punktziel erreicht',
+    LAST_ALIVE: 'Letzter Überlebender',
 });
 
 /**
