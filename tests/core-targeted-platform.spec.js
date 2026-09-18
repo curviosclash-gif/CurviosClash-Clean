@@ -727,7 +727,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         await page.fill('#profile-name', '');
         await page.click('#btn-profile-import');
         await expect(page.locator('#profile-select')).toHaveValue('QA Import');
-        await expect(page.locator('#profile-transfer-status')).toContainText('Profil importiert.');
+        await expect(page.locator('#profile-transfer-status')).toContainText('Einstellungen importiert.');
 
         const profileState = await page.evaluate((storageKey) => {
             return JSON.parse(localStorage.getItem(storageKey) || '[]');

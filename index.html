@@ -102,7 +102,7 @@
                         <button type="button" class="secondary-btn menu-utility-btn" data-menu-action="level4-open"
                             data-level4-section="controls" data-level4-return-target="main" data-menu-text-id="menu.utility.controls.label">Steuerung</button>
                         <button type="button" class="secondary-btn menu-utility-btn" data-menu-action="level4-open"
-                            data-level4-section="tools" data-level4-return-target="main" data-menu-text-id="menu.utility.profiles.label">Profile</button>
+                            data-level4-section="tools" data-level4-return-target="main" data-menu-text-id="menu.utility.profiles.label">Spieler</button>
                         <button type="button" class="secondary-btn menu-utility-btn" data-menu-action="level4-open"
                             data-level4-section="utilities" data-level4-return-target="main" data-menu-text-id="menu.utility.tools.label">Werkzeuge</button>
                         <button type="button" id="btn-open-expert" class="secondary-btn expert-entry-btn"
@@ -178,7 +178,7 @@
                                 <button type="button" id="btn-open-fight-hangar" class="secondary-btn hidden"
                                     aria-hidden="true">Kampf-Hangar öffnen</button>
                                 <button type="button" id="btn-open-level4" class="secondary-btn" data-level4-section="gameplay"
-                                    data-menu-text-id="menu.level3.open_level4.label">Erweiterte Optionen</button>
+                                    data-menu-text-id="menu.level3.open_level4.label">Einstellungen</button>
                                 <button type="button" id="btn-start" class="start-btn" data-menu-action="start-match"
                                     data-menu-text-id="menu.level3.start.label">Spiel starten</button>
                             </div>
@@ -470,8 +470,8 @@
 
                         <details class="menu-section menu-accordion start-section-card" data-start-section="presets">
                             <summary class="menu-accordion-summary">
-                                <span class="section-title" data-menu-text-id="menu.level3.presets.title">Preset-Standardkombinationen</span>
-                                <span class="menu-accordion-copy" data-menu-text-id="menu.level3.presets.description">Vorgefertigte Starts fuer Training, Arcade und Kampf</span>
+                                <span class="section-title" data-menu-text-id="menu.level3.presets.title">Vorlagen</span>
+                                <span class="menu-accordion-copy" data-menu-text-id="menu.level3.presets.description">Fertige Einstellungen für Training, Arcade und Kampf</span>
                             </summary>
                             <div class="menu-accordion-body" data-menu-panel="quickstart-presets">
                                 <div class="preset-chip-grid">
@@ -481,7 +481,7 @@
                                     <button type="button" class="secondary-btn" data-preset-id="fight-standard"></button>
                                     <button type="button" class="secondary-btn" data-preset-id="normal-standard"></button>
                                 </div>
-                                <small id="preset-status" class="menu-hint">Preset: custom</small>
+                                <small id="preset-status" class="menu-hint">Vorlage: eigene Einstellungen</small>
                             </div>
                         </details>
 
@@ -492,7 +492,7 @@
                     aria-labelledby="submenu-level4-title" aria-hidden="true">
                     <div class="level4-header">
                         <div>
-                            <h3 id="submenu-level4-title" class="submenu-title" data-menu-text-id="menu.level4.title">Erweiterte Optionen</h3>
+                            <h3 id="submenu-level4-title" class="submenu-title" data-menu-text-id="menu.level4.title">Einstellungen</h3>
                             <p class="menu-hint menu-copy-secondary">Änderungen werden automatisch gespeichert.</p>
                         </div>
                         <div class="btn-group">
@@ -508,7 +508,7 @@
                     <p id="level4-reset-scope" class="menu-reset-scope">Zurücksetzen betrifft Spielgefühl, Kampf-, Portal-, Grafik-, Kamera- und Aufnahmeoptionen. Audio, HUD und Tastenbelegung bleiben erhalten.</p>
                     <div class="submenu-body level4-body">
                         <div class="level4-layout">
-                            <div class="level4-section-nav" role="tablist" aria-label="Bereiche der erweiterten Optionen">
+                            <div class="level4-section-nav" role="tablist" aria-label="Bereiche der Einstellungen">
                                 <button type="button" id="level4-tab-controls" class="level4-section-tab"
                                     data-level4-section-target="controls" role="tab" aria-controls="level4-section-controls"
                                     aria-selected="true" data-menu-text-id="menu.level4.tabs.controls.label">Steuerung</button>
@@ -527,7 +527,7 @@
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.advanced_map.label">Map-Details</button>
                                 <button type="button" id="level4-tab-tools" class="level4-section-tab"
                                     data-level4-section-target="tools" role="tab" aria-controls="level4-section-tools"
-                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.tools.label">Profile</button>
+                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.tools.label">Spieler</button>
                                 <button type="button" id="level4-tab-presets" class="level4-section-tab"
                                     data-level4-section-target="presets" role="tab" aria-controls="level4-section-presets"
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.presets.label">Vorlagen</button>
@@ -659,7 +659,7 @@
                                         <label for="fight-mg-damage-slider"><span data-menu-text-id="menu.level4.gameplay.fight_damage.label">MG-Schaden im Kampf:</span> <span id="fight-mg-damage-label">7.75</span></label>
                                         <input type="range" id="fight-mg-damage-slider" min="4" max="20" step="0.25" value="7.75">
                                     </div>
-                                    <div id="fight-tuning-presets" class="fight-only-setting btn-group hidden" aria-label="Kampfdauer-Presets">
+                                    <div id="fight-tuning-presets" class="fight-only-setting btn-group hidden" aria-label="Kampfdauer-Vorlagen">
                                         <button type="button" class="secondary-btn" data-fight-tuning-preset="fast">Schnell</button>
                                         <button type="button" class="secondary-btn" data-fight-tuning-preset="standard">Standard</button>
                                         <button type="button" class="secondary-btn" data-fight-tuning-preset="tactical">Taktisch</button>
@@ -834,22 +834,23 @@
                         <section id="level4-section-tools" class="level4-section-panel" data-level4-section="tools"
                             role="tabpanel" aria-labelledby="level4-tab-tools" aria-hidden="true">
                         <div class="menu-section">
-                            <h2 class="section-title">Spielerprofile</h2>
+                            <h2 class="section-title">Spieler</h2>
+                            <p class="menu-hint">Jeder Spieler hat eigenen Fortschritt, eigene Fahrzeuge, Bestzeiten und einen eigenen Lobby-Namen. Hier wählst du, wer gerade spielt.</p>
                             <label for="player-profile-name">Spielername</label>
                             <input type="text" id="player-profile-name" maxlength="32" placeholder="z. B. Gunda">
                             <div class="btn-group secondary-btn-spaced">
                                 <button type="button" id="btn-player-profile-create" class="secondary-btn">Neu</button>
                                 <button type="button" id="btn-player-profile-rename" class="secondary-btn">Umbenennen</button>
                             </div>
-                            <label for="player-profile-select" class="secondary-btn-spaced">Lokale Spielerprofile</label>
+                            <label for="player-profile-select" class="secondary-btn-spaced">Spieler auf diesem Gerät</label>
                             <select id="player-profile-select"></select>
                             <div class="btn-group secondary-btn-spaced">
                                 <button type="button" id="btn-player-profile-activate" class="secondary-btn">Aktivieren</button>
                                 <button type="button" id="btn-player-profile-default" class="secondary-btn">Als Standard</button>
                                 <button type="button" id="btn-player-profile-archive" class="secondary-btn">Archivieren</button>
                             </div>
-                            <label for="player-profile-transfer" class="secondary-btn-spaced">Spielerprofil-Transfer</label>
-                            <textarea id="player-profile-transfer" rows="4" placeholder="Spielerprofil-JSON einfügen"></textarea>
+                            <label for="player-profile-transfer" class="secondary-btn-spaced">Spieler übertragen</label>
+                            <textarea id="player-profile-transfer" rows="4" placeholder="Exportierten Spieler hier einfügen"></textarea>
                             <input type="file" id="player-profile-file" accept="application/json,.json" hidden>
                             <div class="btn-group secondary-btn-spaced">
                                 <button type="button" id="btn-player-profile-export" class="secondary-btn">Exportieren</button>
@@ -859,34 +860,35 @@
                         </div>
                         <div class="menu-section">
                             <h2 class="section-title section-title-with-info"
-                                aria-description="Speichere vollständige Einstellungen für unterschiedliche Spieler oder Geräte.">
-                                <span data-menu-text-id="menu.level4.tools.title">Einstellungsprofile</span>
+                                aria-description="Speichere den aktuellen Stand aller Einstellungen unter einem Namen.">
+                                <span data-menu-text-id="menu.level4.tools.title">Gespeicherte Einstellungen</span>
                                 <button type="button" class="menu-info-hint"
-                                    aria-label="Hinweis: Speichere vollständige Einstellungen für unterschiedliche Spieler oder Geräte."
-                                    title="Speichere vollständige Einstellungen für unterschiedliche Spieler oder Geräte.">i</button>
+                                    aria-label="Hinweis: Speichere den aktuellen Stand aller Einstellungen unter einem Namen."
+                                    title="Speichere den aktuellen Stand aller Einstellungen unter einem Namen.">i</button>
                             </h2>
-                            <label for="profile-name" data-menu-text-id="menu.level4.tools.profile_name.label">Profilname</label>
+                            <p class="menu-hint">Speichere den aktuellen Stand aller Einstellungen unter einem Namen und lade ihn später wieder, zum Beispiel für ein Turnier oder ein anderes Gerät.</p>
+                            <label for="profile-name" data-menu-text-id="menu.level4.tools.profile_name.label">Name</label>
                             <input type="text" id="profile-name" maxlength="32" placeholder="z. B. Turnier">
                             <button type="button" id="btn-profile-save" class="secondary-btn secondary-btn-spaced"
                                 data-menu-action="profile-save" data-menu-text-id="menu.level4.tools.profile_save.label">
-                                Profil speichern
+                                Einstellungen speichern
                             </button>
-                            <label for="profile-select" data-menu-text-id="menu.level4.tools.profile_list.label">Gespeicherte Profile</label>
+                            <label for="profile-select" data-menu-text-id="menu.level4.tools.profile_list.label">Gespeicherte Einstellungen</label>
                             <select id="profile-select">
-                                <option value="">Kein Profil gewählt</option>
+                                <option value="">Nichts gewählt</option>
                             </select>
                             <button type="button" id="btn-profile-load" class="secondary-btn secondary-btn-spaced"
                                 data-menu-action="profile-load" data-menu-text-id="menu.level4.tools.profile_load.label">
-                                Profil laden
+                                Laden
                             </button>
                             <button type="button" id="btn-profile-delete" class="secondary-btn secondary-btn-spaced"
                                 data-menu-action="profile-delete" data-menu-text-id="menu.level4.tools.profile_delete.label">
-                                Profil löschen
+                                Löschen
                             </button>
                             <div class="btn-group secondary-btn-spaced">
                                 <button type="button" id="btn-profile-duplicate" class="secondary-btn"
                                     data-menu-action="profile-duplicate" data-menu-text-id="menu.level4.tools.profile_duplicate.label">
-                                    Profil duplizieren
+                                    Duplizieren
                                 </button>
                                 <button type="button" id="btn-profile-set-default" class="secondary-btn"
                                     data-menu-action="profile-default" data-menu-text-id="menu.level4.tools.profile_default.label">
@@ -894,19 +896,19 @@
                                 </button>
                             </div>
                             <label for="profile-transfer-input" class="secondary-btn-spaced"
-                                data-menu-text-id="menu.level4.tools.profile_transfer.label">Profil-Transfer</label>
-                            <textarea id="profile-transfer-input" rows="4" placeholder="Profil-JSON exportieren oder einfügen"></textarea>
+                                data-menu-text-id="menu.level4.tools.profile_transfer.label">Einstellungen übertragen</label>
+                            <textarea id="profile-transfer-input" rows="4" placeholder="Exportierte Einstellungen hier einfügen"></textarea>
                             <div class="btn-group secondary-btn-spaced">
                                 <button type="button" id="btn-profile-export" class="secondary-btn"
                                     data-menu-action="profile-export" data-menu-text-id="menu.level4.tools.profile_export.label">
-                                    Profil exportieren
+                                    Exportieren
                                 </button>
                                 <button type="button" id="btn-profile-import" class="secondary-btn"
                                     data-menu-action="profile-import" data-menu-text-id="menu.level4.tools.profile_import.label">
-                                    Profil importieren
+                                    Importieren
                                 </button>
                             </div>
-                            <p id="profile-transfer-status" class="menu-hint" role="status" aria-live="polite">Kein Profil-Import/Export ausgeführt.</p>
+                            <p id="profile-transfer-status" class="menu-hint" role="status" aria-live="polite">Noch nichts übertragen.</p>
                         </div>
                         </section>
 
@@ -915,33 +917,33 @@
                         <div class="menu-section">
                             <h2 class="section-title section-title-with-info"
                                 aria-description="Wende vorbereitete Match-Konfigurationen an oder speichere eine neue Vorlage.">
-                                <span data-menu-text-id="menu.level4.presets.title">Presets</span>
+                                <span data-menu-text-id="menu.level4.presets.title">Vorlagen</span>
                                 <button type="button" class="menu-info-hint"
                                     aria-label="Hinweis: Wende vorbereitete Match-Konfigurationen an oder speichere eine neue Vorlage."
                                     title="Wende vorbereitete Match-Konfigurationen an oder speichere eine neue Vorlage.">i</button>
                             </h2>
                             <label for="preset-select" class="secondary-btn-spaced"
-                                data-menu-text-id="menu.level4.tools.preset_catalog.label">Preset-Katalog</label>
+                                data-menu-text-id="menu.level4.tools.preset_catalog.label">Vorlage</label>
                             <select id="preset-select">
-                                <option value="">Preset wählen</option>
+                                <option value="">Vorlage wählen</option>
                             </select>
                             <button type="button" id="btn-preset-apply" class="secondary-btn secondary-btn-spaced"
                                 data-menu-action="preset-apply" data-menu-text-id="menu.level4.tools.preset_apply.label">
-                                Preset anwenden
+                                Vorlage anwenden
                             </button>
-                            <label for="preset-name" data-menu-text-id="menu.level4.tools.preset_name.label">Neuer Preset-Name</label>
+                            <label for="preset-name" data-menu-text-id="menu.level4.tools.preset_name.label">Name der neuen Vorlage</label>
                             <input type="text" id="preset-name" maxlength="40" placeholder="z. B. Team Scrim">
                             <button type="button" id="btn-preset-save-open" class="secondary-btn secondary-btn-spaced"
                                 data-menu-action="preset-save-open" data-menu-text-id="menu.level4.tools.preset_save_open.label">
-                                Als freies Preset speichern
+                                Als freie Vorlage speichern
                             </button>
                             <button type="button" id="btn-preset-save-fixed" class="secondary-btn secondary-btn-spaced"
                                 data-menu-action="preset-save-fixed" data-menu-text-id="menu.level4.tools.preset_save_fixed.label">
-                                Als verbindliches Preset speichern
+                                Als verbindliche Vorlage speichern
                             </button>
                             <button type="button" id="btn-preset-delete" class="secondary-btn secondary-btn-spaced"
                                 data-menu-action="preset-delete" data-menu-text-id="menu.level4.tools.preset_delete.label">
-                                Preset löschen
+                                Vorlage löschen
                             </button>
                         </div>
                         </section>
@@ -992,7 +994,7 @@
                     <div class="submenu-header">
                         <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
                             Zurück</button>
-                        <h2 id="submenu-expert-title" class="submenu-title" data-menu-text-id="menu.expert.locked.title">Erweiterter Bereich</h2>
+                        <h2 id="submenu-expert-title" class="submenu-title" data-menu-text-id="menu.expert.locked.title">Expertenbereich</h2>
                     </div>
                     <div class="submenu-body">
                         <p id="expert-login-status" class="menu-field-hint" role="status" aria-live="polite">
@@ -1240,16 +1242,16 @@
                     <div class="submenu-header">
                         <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
                             Zurück</button>
-                        <h2 id="submenu-profiles-title" class="submenu-title">👤 <span data-menu-text-id="menu.panels.profiles.title">Profile</span></h2>
+                        <h2 id="submenu-profiles-title" class="submenu-title">👤 <span data-menu-text-id="menu.panels.profiles.title">Spieler</span></h2>
                     </div>
 
                     <div class="submenu-body">
                         <div class="menu-section">
                             <p class="menu-hint menu-copy-secondary">
-                                Profile liegen jetzt in Ebene 4 im Bereich `Tools`.
+                                Spieler und gespeicherte Einstellungen liegen in den Einstellungen im Reiter „Spieler“.
                             </p>
                             <button type="button" class="secondary-btn" data-menu-action="level4-open"
-                                data-level4-section="tools" data-menu-text-id="menu.panels.profiles.open.label">Profile öffnen</button>
+                                data-level4-section="tools" data-menu-text-id="menu.panels.profiles.open.label">Spieler öffnen</button>
                         </div>
                     </div>
                 </div>

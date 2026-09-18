@@ -57,7 +57,7 @@ test('applyMenuPresetAction allows desktop default-full presets beyond browser-d
 
     assert.deepEqual(calls.appliedPresetIds, ['desktop-custom-preset']);
     assert.equal(calls.settingsChanged.length, 1);
-    assert.match(calls.toasts[0]?.message || '', /Preset geladen/);
+    assert.match(calls.toasts[0]?.message || '', /Vorlage geladen/);
 });
 
 test('applyMenuPresetAction aligns the active hangar map before the menu sync', () => {

@@ -504,9 +504,9 @@ export class UINavigationLifecycleController {
         const activeSection = this._resolveLevel4Section(settings?.localSettings?.toolsState?.activeSection);
         const activeSectionLabel = resolveMenuCatalogText(`menu.context.section.${activeSection}`, '')
             || resolveMenuCatalogText('menu.context.section.tools', 'Profile');
-        const level4Title = resolveMenuCatalogText('menu.context.level4.title', 'Erweiterte Optionen');
+        const level4Title = resolveMenuCatalogText('menu.context.level4.title', 'Einstellungen');
 
-        let contextText = `${section} | Profil: ${activeProfile} | ${dirtyState}`;
+        let contextText = `${section} | Einstellungen: ${activeProfile} | ${dirtyState}`;
         let breadcrumbText = '';
         if (settings?.localSettings?.toolsState?.level4Open) {
             contextText = `${level4Title} | ${activeSectionLabel} | ${sessionLabel} | ${dirtyState}`;
@@ -523,7 +523,7 @@ export class UINavigationLifecycleController {
                 ? 'lokaler Dev-Pfad'
                 : (expertState?.unlocked ? 'freigeschaltet' : 'gesperrt');
             contextText = `${section} | Expertenstatus: ${expertStateLabel} | ${dirtyState}`;
-            breadcrumbText = 'Erweiterter Bereich';
+            breadcrumbText = resolveMenuCatalogText('menu.expert.locked.title', 'Expertenbereich');
         }
         this.ui.menuContext.textContent = contextText;
         if (this.ui.menuBreadcrumb) {
@@ -536,7 +536,7 @@ export class UINavigationLifecycleController {
     _resolveActiveProfileName() {
         const typedProfile = this.ui?.profileNameInput?.value || '';
         const normalizedTypedProfile = this.port?.normalizeProfileName?.(typedProfile) || typedProfile.trim();
-        return this.port?.getActiveProfileName?.() || normalizedTypedProfile || 'kein Profil';
+        return this.port?.getActiveProfileName?.() || normalizedTypedProfile || 'nicht gespeichert';
     }
 
     _getMenuSectionLabel(panelId) {

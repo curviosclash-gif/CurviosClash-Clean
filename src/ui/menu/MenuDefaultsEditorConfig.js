@@ -208,7 +208,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         },
         {
             id: 'arcade',
-            name: 'Arcade',
+            name: 'Arcade Standard',
             description: 'Schnelles Setup fuer direkten Einstieg.',
             lockedFields: ['mode', 'gameMode', 'numBots', 'winsNeeded'],
             values: {
@@ -227,7 +227,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         },
         {
             id: 'competitive',
-            name: 'Competitive',
+            name: 'Wettkampf',
             description: 'Turniernahes Regelset mit engeren Limits.',
             lockedFields: ['mode', 'numBots', 'winsNeeded', 'gameplay.speed', 'gameplay.turnSensitivity', 'gameplay.itemAmount'],
             values: {
@@ -291,7 +291,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         },
         {
             id: 'normal-standard',
-            name: 'Normal Standard',
+            name: 'Klassisch Standard',
             description: 'Empfohlene Normal-Kombination fuer Classic-Sessions.',
             lockedFields: ['gameMode'],
             values: {

@@ -113,7 +113,7 @@ test('V85.2 profile import rejects unknown contract versions but keeps legacy fa
         },
     }), { normalizeProfileName });
     assert.equal(rejectResult.success, false);
-    assert.match(rejectResult.error || '', /contractVersion/i);
+    assert.match(rejectResult.error || '', /Version/);
 
     const legacyResult = parseProfileImport(JSON.stringify({
         name: 'Legacy Pilot',
@@ -122,8 +122,8 @@ test('V85.2 profile import rejects unknown contract versions but keeps legacy fa
     assert.equal(legacyResult.success, true);
     assert.equal(legacyResult.profile?.name, 'Legacy Pilot');
     assert.equal(legacyResult.usedLegacyFallback, true);
-    assert.match(legacyResult.message || '', /Legacy-Profil importiert/i);
-    assert.match(legacyResult.warnings?.[0] || '', /contractVersion/i);
+    assert.match(legacyResult.message || '', /Ältere Einstellungen importiert/i);
+    assert.match(legacyResult.warnings?.[0] || '', /Version/);
     assert.equal(legacyResult.migration?.applied, true);
 
     const invalidVersionResult = parseProfileImport(JSON.stringify({
@@ -134,7 +134,7 @@ test('V85.2 profile import rejects unknown contract versions but keeps legacy fa
         },
     }), { normalizeProfileName });
     assert.equal(invalidVersionResult.success, false);
-    assert.match(invalidVersionResult.error || '', /contractVersion/i);
+    assert.match(invalidVersionResult.error || '', /Version/);
 
     const currentResult = parseProfileImport(JSON.stringify({
         contractVersion: 'profile-export.v1',

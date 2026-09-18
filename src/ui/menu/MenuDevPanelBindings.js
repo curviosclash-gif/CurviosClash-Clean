@@ -30,7 +30,7 @@ export function setupMenuDevPanelBindings(ctx) {
             const presetId = String(ui.presetSelect?.value || '').trim();
             if (!presetId) {
                 emit(eventTypes.SHOW_STATUS_TOAST, {
-                    message: 'Preset auswählen, bevor es angewendet wird.',
+                    message: 'Wähle zuerst eine Vorlage aus.',
                     tone: 'error',
                     duration: 1700,
                 });
@@ -69,7 +69,7 @@ export function setupMenuDevPanelBindings(ctx) {
             const presetId = String(ui.presetSelect?.value || '').trim();
             if (!presetId) {
                 emit(eventTypes.SHOW_STATUS_TOAST, {
-                    message: 'Kein Preset zum Loeschen ausgewaehlt.',
+                    message: 'Keine Vorlage zum Löschen ausgewählt.',
                     tone: 'error',
                     duration: 1700,
                 });

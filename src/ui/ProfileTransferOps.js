@@ -52,7 +52,7 @@ function createProfileTransferFeedback({
 }
 
 function createLegacyImportWarning() {
-    return `Legacy-Profil ohne contractVersion erkannt. Import wurde auf ${PROFILE_EXPORT_CONTRACT_VERSION} normalisiert.`;
+    return `Ältere Einstellungen ohne Versionsangabe erkannt. Der Import wurde auf ${PROFILE_EXPORT_CONTRACT_VERSION} angepasst.`;
 }
 
 export const PROFILE_EXPORT_CONTRACT_VERSION = 'profile-export.v1';
@@ -83,8 +83,8 @@ export function parseProfileImport(inputValue, options = {}) {
         return createProfileTransferFeedback({
             success: false,
             reason: 'empty_input',
-            error: 'Kein Profil-Import vorhanden',
-            message: 'Kein Profil-Import eingefuegt.',
+            error: 'Kein Text zum Importieren vorhanden',
+            message: 'Nichts zum Importieren eingefügt.',
         });
     }
 
@@ -95,8 +95,8 @@ export function parseProfileImport(inputValue, options = {}) {
         return createProfileTransferFeedback({
             success: false,
             reason: 'invalid_json',
-            error: 'Profil-Import ist kein gueltiges JSON',
-            message: 'Profil-Import konnte nicht gelesen werden.',
+            error: 'Der Import ist kein gültiges JSON',
+            message: 'Der Import konnte nicht gelesen werden.',
         });
     }
 
@@ -114,8 +114,8 @@ export function parseProfileImport(inputValue, options = {}) {
         return createProfileTransferFeedback({
             success: false,
             reason: 'unsupported_contract_version',
-            error: 'Profil-Import verwendet ungueltige contractVersion "unbekannt"',
-            message: 'Profil-Import stammt aus einer nicht unterstuetzten Version.',
+            error: 'Der Import nutzt eine unbekannte Version',
+            message: 'Der Import stammt aus einer nicht unterstützten Version.',
         });
     }
     if (versionState.shouldReject) {
@@ -125,8 +125,8 @@ export function parseProfileImport(inputValue, options = {}) {
         return createProfileTransferFeedback({
             success: false,
             reason: 'unsupported_contract_version',
-            error: `Profil-Import verwendet ungueltige contractVersion "${receivedVersion}"`,
-            message: 'Profil-Import stammt aus einer nicht unterstuetzten Version.',
+            error: `Der Import nutzt die unbekannte Version "${receivedVersion}"`,
+            message: 'Der Import stammt aus einer nicht unterstützten Version.',
         });
     }
     if (
@@ -136,8 +136,8 @@ export function parseProfileImport(inputValue, options = {}) {
         return createProfileTransferFeedback({
             success: false,
             reason: 'invalid_payload_shape',
-            error: 'Profil-Import-Huelle ist unvollstaendig (profile fehlt)',
-            message: 'Profil-Import enthaelt keine nutzbaren Profildaten.',
+            error: 'Der Import ist unvollständig (Einstellungen fehlen)',
+            message: 'Der Import enthält keine nutzbaren Einstellungen.',
         });
     }
 
@@ -149,8 +149,8 @@ export function parseProfileImport(inputValue, options = {}) {
         return createProfileTransferFeedback({
             success: false,
             reason: 'missing_profile_name',
-            error: 'Profilname fehlt im Import',
-            message: 'Profil-Import enthaelt keinen gueltigen Namen.',
+            error: 'Im Import fehlt der Name',
+            message: 'Der Import enthält keinen gültigen Namen.',
         });
     }
 
@@ -177,8 +177,8 @@ export function parseProfileImport(inputValue, options = {}) {
         usedLegacyFallback,
         warnings,
         message: usedLegacyFallback
-            ? 'Legacy-Profil importiert und auf den aktuellen Vertragsstand normalisiert.'
-            : 'Profil importiert.',
+            ? 'Ältere Einstellungen importiert und auf den aktuellen Stand gebracht.'
+            : 'Einstellungen importiert.',
         tone: usedLegacyFallback ? 'warning' : 'success',
         migration,
     });

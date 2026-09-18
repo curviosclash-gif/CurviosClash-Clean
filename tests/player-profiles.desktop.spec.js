@@ -26,7 +26,7 @@ async function activatePlayerProfile(page, profileId) {
 test('Desktop-Spielerprofile isolate progression across activation and renderer reload', async ({ page }) => {
     await waitForLoadedGame(page);
     await expect(page.locator('#player-profile-summary')).toContainText('Spieler:');
-    await expect(page.getByText('Einstellungsprofile', { exact: true })).toBeAttached();
+    await expect(page.getByText('Gespeicherte Einstellungen', { exact: true }).first()).toBeAttached();
 
     const setup = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;

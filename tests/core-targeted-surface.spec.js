@@ -1758,7 +1758,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await openLevel4Drawer(page, { section: 'tools' });
         await expect(page.locator('#level4-section-tools .section-title .menu-info-hint')).toHaveAttribute(
             'title',
-            'Speichere vollständige Einstellungen für unterschiedliche Spieler oder Geräte.'
+            'Speichere den aktuellen Stand aller Einstellungen unter einem Namen.'
         );
         await expect(page.locator('#level4-section-presets .section-title .menu-info-hint')).toHaveAttribute(
             'title',

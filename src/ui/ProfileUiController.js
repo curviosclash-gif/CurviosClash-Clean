@@ -158,7 +158,7 @@ export class ProfileUiController {
         this.syncProfileControls();
 
         this._showStatusToast(
-            result.isUpdate ? `Profil aktualisiert: ${result.name}` : `Profil gespeichert: ${result.name}`,
+            result.isUpdate ? `Einstellungen aktualisiert: ${result.name}` : `Einstellungen gespeichert: ${result.name}`,
             1500,
             'success'
         );
@@ -182,7 +182,7 @@ export class ProfileUiController {
         }
 
         this.syncProfileControls();
-        this._showStatusToast(`Profil dupliziert: ${result.name}`, 1500, 'success');
+        this._showStatusToast(`Einstellungen dupliziert: ${result.name}`, 1500, 'success');
         return true;
     }
 
@@ -199,7 +199,7 @@ export class ProfileUiController {
         this.loadedProfileName = result.profile.name;
         this._onSettingsChanged();
         this._markSettingsDirty(false);
-        this._showStatusToast(`Profil geladen: ${result.profile.name}`, 1400, 'success');
+        this._showStatusToast(`Einstellungen geladen: ${result.profile.name}`, 1400, 'success');
         return true;
     }
 
@@ -216,7 +216,7 @@ export class ProfileUiController {
             ui.profileTransferInput.value = result.serialized;
         }
 
-        const exportMessage = String(result.message || `Profil exportiert: ${result.name}`);
+        const exportMessage = String(result.message || `Einstellungen exportiert: ${result.name}`);
         const exportTone = String(result.tone || 'success');
         this.setProfileTransferStatus(exportMessage, exportTone);
         this.syncProfileActionState();
@@ -247,7 +247,7 @@ export class ProfileUiController {
         this.syncProfileControls();
         const importMessage = String(
             result.message
-            || (result.usedLegacyFallback ? 'Legacy-Profil importiert und normalisiert.' : `Profil importiert: ${result.name}`)
+            || (result.usedLegacyFallback ? 'Ältere Einstellungen importiert und angepasst.' : `Einstellungen importiert: ${result.name}`)
         );
         const importTone = String(result.tone || (result.usedLegacyFallback ? 'warning' : 'success'));
         this.setProfileTransferStatus(importMessage, importTone);
@@ -289,7 +289,7 @@ export class ProfileUiController {
         }
         this.syncProfileControls();
 
-        this._showStatusToast(`Profil geloescht: ${result.removedName}`, 1400, 'success');
+        this._showStatusToast(`Einstellungen gelöscht: ${result.removedName}`, 1400, 'success');
         return true;
     }
 }

@@ -212,7 +212,7 @@ export function handleModePathChangeAction(ctx) {
             game.settings.localSettings.seededModePaths = [...seededModePaths, modePath];
             appendMutationChangedKeys(changedKeys, presetResult);
         } else {
-            game._showStatusToast(resolvePresetFailureMessage(presetResult, 'Preset konnte nicht angewendet werden.'), 1700, 'error');
+            game._showStatusToast(resolvePresetFailureMessage(presetResult, 'Vorlage konnte nicht angewendet werden.'), 1700, 'error');
             return;
         }
     }

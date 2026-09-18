@@ -39,7 +39,7 @@ export function syncMenuPresetState({ ui, settings, settingsManager, surfacePoli
 
         const placeholderOption = document.createElement('option');
         placeholderOption.value = '';
-        placeholderOption.textContent = 'Preset wählen';
+        placeholderOption.textContent = 'Vorlage wählen';
         ui.presetSelect.appendChild(placeholderOption);
 
         presets.forEach((preset) => {
@@ -80,11 +80,11 @@ export function syncMenuPresetState({ ui, settings, settingsManager, surfacePoli
 
     if (ui.presetStatus) {
         if (!visibleActivePresetId) {
-            ui.presetStatus.textContent = 'Preset: individuell';
+            ui.presetStatus.textContent = 'Vorlage: eigene Einstellungen';
         } else {
             const presetKindLabel = activePresetKind === 'fixed' ? 'verbindlich' : 'frei';
             const activePreset = (settingsManager?.listMenuPresets?.() || []).find((preset) => preset?.id === visibleActivePresetId);
-            ui.presetStatus.textContent = `Preset: ${activePreset?.name || visibleActivePresetId} (${presetKindLabel})`;
+            ui.presetStatus.textContent = `Vorlage: ${activePreset?.name || visibleActivePresetId} (${presetKindLabel})`;
         }
     }
 }
