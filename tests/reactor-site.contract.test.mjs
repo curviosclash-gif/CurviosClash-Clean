@@ -278,8 +278,13 @@ test('the field is wide enough for the wreck and the fallback ground covers it',
     assert.equal(ground.kind, 'foam');
     assert.equal(ground.compileWithGlb, true);
     assert.ok(ground.size[0] >= sizeX && ground.size[2] >= sizeZ, 'the fallback ground spans the field');
-    // Nothing authored is drawn beside the GLBs, so nothing can be left hanging where a structure was.
-    for (const obstacle of MAP.obstacles) assert.notEqual(obstacle.renderWithGlb, true, 'no drawn fallback box');
+    // Nothing authored above the apron is drawn beside the GLBs, so nothing can be left hanging
+    // where a structure was. The one exception is the secret room below the site: no GLB draws it,
+    // and no collapse can reach under the ground to leave it hanging.
+    for (const obstacle of MAP.obstacles) {
+        if (obstacle.pos?.[1] < 0) continue;
+        assert.notEqual(obstacle.renderWithGlb, true, 'no drawn fallback box');
+    }
     for (const spawn of [MAP.playerSpawn, ...MAP.botSpawns]) {
         assert.ok(Math.abs(spawn.x) < sizeX / 2 && Math.abs(spawn.z) < sizeZ / 2, `spawn (${spawn.x}, ${spawn.z}) is in the field`);
         assert.ok(spawn.y > REACTOR_SITE_GROUND && spawn.y < sizeY, `spawn y ${spawn.y}`);

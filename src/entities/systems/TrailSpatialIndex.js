@@ -94,6 +94,10 @@ export class TrailSpatialIndex {
         return this._segmentRegistry.damageTrailSegment(entry, damage);
     }
 
+    collectSegmentsInArea(minX, minZ, maxX, maxZ, out = []) {
+        return this._segmentRegistry.collectSegmentsInArea(minX, minZ, maxX, maxZ, out);
+    }
+
     resolveTrailEntry(playerIndex, segmentIdx) {
         return this._segmentRegistry.resolveTrailEntry(playerIndex, segmentIdx);
     }

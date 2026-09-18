@@ -23,6 +23,7 @@ import {
 import { resolveEntityRuntimeConfig } from '../../../shared/contracts/EntityRuntimeConfig.js';
 import { resolvePortalMode, resolvePortalPairCount } from '../../../shared/contracts/PortalAuthoringContract.js';
 import { isFivePortalsConfig } from '../../../shared/contracts/FivePortalsContract.js';
+import { buildSecretRoomPortals } from './SecretRoomPortalOps.js';
 
 const PORTAL_EXIT_OFFSET = 1.8;
 const PORTAL_NORMAL = new THREE.Vector3(0, 0, 1);
@@ -362,7 +363,7 @@ export class PortalLayoutBuilder {
             }
         }
 
-        this._validatePortalPlacements();
+        buildSecretRoomPortals(this, map, scale);
     }
 
     _createPortalFromDef(def, scale) {
@@ -523,10 +524,6 @@ export class PortalLayoutBuilder {
             }
         }
         return true;
-    }
-
-    _validatePortalPlacements() {
-        return this.arena.portalLayoutWarnings;
     }
 
     _warnPortalLayout(message) {

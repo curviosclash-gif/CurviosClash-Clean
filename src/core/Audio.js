@@ -666,7 +666,7 @@ export class AudioManager {
             case 'UI_DROP': this._playUiDrop(options); break;
             case 'UI_PICKUP': this._playUiPickup(options); break;
             case 'UI_REJECT': this._playUiReject(options); break; case 'EXCLUSION_WARNING': this._playExclusionWarning(options); break;
-            default: break;
+            default: playGameplayVoice(this, type, options); break;
         }
     }
 

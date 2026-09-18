@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PLAYABLE_VOLUME_INSIDE, probeArenaPlayableVolumes } from '../arena/ArenaPlayableVolumes.js';
 
 export const EXCLUSION_ZONE_PHASES = Object.freeze({
     SAFE: 'SAFE',
@@ -122,9 +123,12 @@ export class ExclusionZoneSystem {
             return;
         }
 
-        const outside = state.phase === EXCLUSION_ZONE_PHASES.SAFE
+        // A map room lies outside the arena box on purpose, so its visitor is not a runaway.
+        const inRoom = probeArenaPlayableVolumes(this.entityManager?.arena?.playableVolumes, player.position)
+            === PLAYABLE_VOLUME_INSIDE;
+        const outside = !inRoom && (state.phase === EXCLUSION_ZONE_PHASES.SAFE
             ? this._isFullyOutside(player, openFaces)
-            : !this._isInsideHysteresis(player, openFaces);
+            : !this._isInsideHysteresis(player, openFaces));
         if (!outside) {
             this._setSafe(player, state);
             return;

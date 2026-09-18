@@ -1,4 +1,5 @@
 import { WEAPON_FAN_PICKUP_DEFINITIONS } from '../shared/contracts/WeaponFanPickupDefinitionsContract.js';
+import { FLAMETHROWER_TARGET_SPAWN_WEIGHTS } from '../shared/contracts/FlamethrowerPickupDefinitionsContract.js';
 
 export const HUNT_CONFIG = Object.freeze({
     DEFAULT_MODE: 'HUNT',
@@ -114,6 +115,11 @@ export const HUNT_CONFIG = Object.freeze({
         HOMING_FALLBACK_REACQUIRE_INTERVAL: 0.2,
         HOMING_RANGE: 140,
         HOMING_MIN_RANGE: 10,
+        // How close a locked-on rocket has to be before its target is warned.
+        WARNING_RANGE: 140,
+        // How close a defence rocket has to pass its target to destroy it (E35). Both
+        // rockets are fast, so the check sweeps the whole frame, not just end points.
+        INTERCEPT_HIT_RADIUS: 3,
         HOMING_SPEED_EPSILON: 0.0001,
         HOMING_LEAD_TIME_MAX: 0.45,
         HOMING_FALLBACK_ANGLE_SCALE: 1.75,
@@ -255,6 +261,22 @@ export const HUNT_CONFIG = Object.freeze({
         FAN_3: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_3.spawnWeights.HUNT,
         FAN_4: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_4.spawnWeights.HUNT,
         FAN_5: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_5.spawnWeights.HUNT,
+        // Hunt picks from this table, not from the registry spawn weights, so the rarity of
+        // the flamethrower has to be kept in step with its definition by hand.
+        FLAMETHROWER: FLAMETHROWER_TARGET_SPAWN_WEIGHTS.HUNT,
+    }),
+    FLAMETHROWER: Object.freeze({
+        FUEL_SECONDS: 6,
+        RANGE: 18,
+        // Full opening angle of the cone, so the flame reaches 15 degrees to either side.
+        CONE_DEGREES: 30,
+        DAMAGE_PER_SECOND: 30,
+        // Seconds a trail segment has to sit in the flame before the gap opens.
+        TRAIL_BURN_SECONDS: 0.3,
+        // Afterburn: a hit target keeps burning for a fixed time. A later hit restarts
+        // the clock instead of extending it, so the fire never outlasts these seconds.
+        AFTERBURN_SECONDS: 3,
+        AFTERBURN_DAMAGE_PER_SECOND: 5,
     }),
     TRAIL_SEGMENT_HP: 3,
     RESPAWN: Object.freeze({

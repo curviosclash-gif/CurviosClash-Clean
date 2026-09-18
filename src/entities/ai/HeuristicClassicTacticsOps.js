@@ -12,6 +12,7 @@ import {
     clearSteeringInput,
     getNearestEnemy,
 } from '../../hunt/HuntBotPolicy.js';
+import { applyBotFlamethrowerInput } from '../../hunt/HuntBotFlamethrowerOps.js';
 import {
     isPickupTypeOffensive,
     isPickupTypeSelfUsable,
@@ -149,7 +150,10 @@ export function applyHeuristicClassicBehavior(policy, input, dt, player, runtime
         applySteeringTowardPosition(policy, input, player, pickupTarget.mesh.position);
         input.boost = wallFront > 0.55 && pressureLevel < 0.45;
     }
+    // E14: Classic has no machine gun, but it has the same key - and with a lit tank that key
+    // burns a gap into a trail, which is a way out even where no player can be hurt.
     input.shootMG = false;
+    applyBotFlamethrowerInput(policy, input, player, target, nearest.distSq);
     return {
         intent: pickupTarget ? 'pickup-seek' : (selectedItemReason && selectedItemReason !== 'held' ? 'classic-item' : state.intent),
         retreatReason: unsafe ? 'space-pressure' : '',

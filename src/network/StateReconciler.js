@@ -4,6 +4,7 @@
 import { normalizeMultiplayerStateUpdateEvent } from '../shared/contracts/MultiplayerSessionContract.js';
 import { applyHuntNetworkState } from '../hunt/HuntNetworkState.js';
 import { replayPlayerDeathPresentation } from '../entities/EntityPlayerDeathOps.js';
+import { spawnFlameJet } from '../hunt/FlamethrowerFlameEffect.js';
 
 const MIN_POSITION_DISTANCE = 0.01;
 const MIN_VECTOR_DISTANCE = 0.001;
@@ -139,13 +140,18 @@ function normalizeEffects(effects) {
         .map((effect) => {
             const type = String(effect?.type || '').trim();
             if (!type) return null;
-            return {
+            const normalized = {
                 type,
                 remaining: Math.max(0, toFiniteNumber(effect?.remaining, 0)),
                 sourcePlayerIndex: Number.isInteger(effect?.sourcePlayerIndex)
                     ? effect.sourcePlayerIndex
                     : null,
             };
+            // Additive field of the flamethrower (S4.6). A snapshot without it, or with
+            // nonsense in it, keeps the effect - the badge then simply shows no tank.
+            const fuelSeconds = Number(effect?.fuelSeconds);
+            if (Number.isFinite(fuelSeconds) && fuelSeconds >= 0) normalized.fuelSeconds = fuelSeconds;
+            return normalized;
         })
         .filter(Boolean);
 }
@@ -242,6 +248,11 @@ export class StateReconciler {
             localPlayer.rocketInventory.length = 0;
             localPlayer.rocketInventory.push(...serverPlayer.rocketInventory);
         }
+
+        // The host owns the fire, the replica only shows it: one jet per snapshot that says the
+        // host really burned fuel, no damage of its own (S4.2).
+        localPlayer.flameActive = serverPlayer.flameActive === true;
+        if (localPlayer.flameActive) spawnFlameJet(entityManager?.particles, localPlayer);
 
         if (typeof serverPlayer.score === 'number') {
             localPlayer.score = serverPlayer.score;

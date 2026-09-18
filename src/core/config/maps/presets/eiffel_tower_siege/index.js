@@ -27,6 +27,11 @@ import {
 } from '../eiffel_tower/EiffelTowerStructure.js';
 import { EIFFEL_TOWER_SIEGE_MODELS } from './EiffelTowerSiegeModels.js';
 import { EIFFEL_TOWER_SIEGE_DESTRUCTIBLES } from './EiffelTowerSiegeDestructibles.js';
+import {
+    EIFFEL_SIEGE_SECRET_ROOM,
+    EIFFEL_SIEGE_SECRET_ROOM_OBSTACLES,
+    EIFFEL_SIEGE_SECRET_ROOM_TURRETS,
+} from './EiffelTowerSiegeSecretRoom.js';
 
 /** Half the field, in authored units. The wreck of a toppled tower reaches 130.9 of them. */
 export const EIFFEL_SIEGE_HALF_SIZE = 155;
@@ -54,6 +59,9 @@ const isGalleryPlatform = (obstacle) => obstacle?.renderWithGlb === true
 const EIFFEL_TOWER_SIEGE_OBSTACLES = [
     SIEGE_GROUND_OBSTACLE,
     ...EIFFEL_TOWER_OBSTACLES.slice(1).filter((obstacle) => !isGalleryPlatform(obstacle)),
+    // The shell of the vault below the esplanade. It stands outside the room's own bounds, so the
+    // playable volume of the room stays free of it - see EiffelTowerSiegeSecretRoom.js.
+    ...EIFFEL_SIEGE_SECRET_ROOM_OBSTACLES,
 ];
 
 // Three rings of spawns, like the arena, but pushed off the structure. On this map the tower is
@@ -76,6 +84,10 @@ export const EIFFEL_TOWER_SIEGE_MAPS = {
         portals: [],
         glbModels: EIFFEL_TOWER_SIEGE_MODELS,
         destructibles: EIFFEL_TOWER_SIEGE_DESTRUCTIBLES,
+        // Breaking a part of the tower opens a portal on the esplanade four seconds later. What it
+        // leads to, and the three emplacements guarding it, live in EiffelTowerSiegeSecretRoom.js.
+        secretRooms: [EIFFEL_SIEGE_SECRET_ROOM],
+        staticTurrets: EIFFEL_SIEGE_SECRET_ROOM_TURRETS,
         // The arena light: high and calm, so it never hides the lattice a fight is flown through -
         // and so the falling tower stays readable against the sky.
         lighting: {

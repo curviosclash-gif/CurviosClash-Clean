@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { sphereIntersectsStaticMeshCollider } from './StaticMeshCollider.js';
 import { createArenaRayResult, raycastArenaObstacles } from './ArenaRayQuery.js';
+import { PLAYABLE_VOLUME_INSIDE, PLAYABLE_VOLUME_WALL, probeArenaPlayableVolumes } from './ArenaPlayableVolumes.js';
 
 // Static normals for arena wall collisions (single allocation).
 const NORMAL_PX = Object.freeze(new THREE.Vector3(1, 0, 0));
@@ -309,7 +310,21 @@ export class ArenaCollision {
         return raycastArenaObstacles(obstacles, origin, direction, maxDistance, this._rayResult);
     }
 
+    /**
+     * A map can declare rooms outside the arena box (see ArenaPlayableVolumes). Only a sphere that
+     * fits wholly into such a room is let through; one that reaches through a room wall is stopped
+     * by that wall instead of by the arena wall it also crosses, so it bounces back into the room.
+     */
     _getBoundsCollisionInfo(position, radius, openFaces) {
+        const hit = this._getMainBoundsCollisionInfo(position, radius, openFaces);
+        if (!hit) return hit;
+        const state = probeArenaPlayableVolumes(this.arena.playableVolumes, position, radius, this._tmpNormal);
+        if (state === PLAYABLE_VOLUME_INSIDE) return null;
+        if (state === PLAYABLE_VOLUME_WALL) hit.normal.copy(this._tmpNormal);
+        return hit;
+    }
+
+    _getMainBoundsCollisionInfo(position, radius, openFaces) {
         const b = this.arena.bounds;
         // An arena wall belongs to no mesh; clearing here keeps the previous hit out of it.
         this._collisionResult.sourceName = '';
@@ -403,6 +418,11 @@ export class ArenaCollision {
     }
 
     _checkBoundsCollision(position, radius, openFaces) {
+        if (!this._checkMainBoundsCollision(position, radius, openFaces)) return false;
+        return probeArenaPlayableVolumes(this.arena.playableVolumes, position, radius) !== PLAYABLE_VOLUME_INSIDE;
+    }
+
+    _checkMainBoundsCollision(position, radius, openFaces) {
         const b = this.arena.bounds;
         return (!openFaces?.includes('minX') && position.x - radius < b.minX)
             || (!openFaces?.includes('maxX') && position.x + radius > b.maxX)

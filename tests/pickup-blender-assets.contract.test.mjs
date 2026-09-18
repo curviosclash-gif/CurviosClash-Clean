@@ -201,7 +201,12 @@ function roleBounds(root, role) {
 
 test('real pickup GLB contains every semantic and legacy root within render budgets', async () => {
     const gltf = await parseLibrary();
-    const expected = [...getPickupTypes(), ...LEGACY_PICKUP_MODEL_TYPES];
+    // Every registered pickup has its baked root; a new item without one fails here on purpose
+    // (the model factory would fall back to a coloured cube).
+    const expected = [
+        ...getPickupTypes(),
+        ...LEGACY_PICKUP_MODEL_TYPES,
+    ];
     assert.equal(gltf.scene.children.filter((child) => child.name.startsWith('pickup_')).length, expected.length);
 
     for (const identifier of expected) {

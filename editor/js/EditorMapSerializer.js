@@ -59,6 +59,9 @@ function readManagerMapMetadata(manager) {
     if (source.parcours && typeof source.parcours === 'object') {
         metadata.parcours = cloneSerializable(source.parcours) || {};
     }
+    if (Array.isArray(source.secretRooms)) {
+        metadata.secretRooms = cloneSerializable(source.secretRooms) || [];
+    }
 
     return metadata;
 }
@@ -106,6 +109,13 @@ function extractMapMetadata(data) {
     }
     if (Array.isArray(data.gates) && data.gates.length > 0) {
         metadata.gates = cloneSerializable(data.gates) || [];
+    }
+    // The editor has no authoring surface for secret rooms, so the block is only carried through:
+    // it is remembered as it arrives and written back unchanged. Its numbers are map units like
+    // every other authored position, and nothing here scales or validates them - the schema and
+    // the secret room contract already did that on the way in.
+    if (Array.isArray(data.secretRooms) && data.secretRooms.length > 0) {
+        metadata.secretRooms = cloneSerializable(data.secretRooms) || [];
     }
     if (data.parcours && typeof data.parcours === 'object') {
         const parcoursMetadata = cloneSerializable(data.parcours) || {};

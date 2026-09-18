@@ -1268,6 +1268,7 @@ export class ArcadeRunRuntime {
         const totalMissions = this._missionState?.missions?.length || 0;
         const telemetry = {
             kills: toSafeNumber(telemetryPayload?.kills, 0),
+            intercepts: toSafeNumber(telemetryPayload?.intercepts, 0),
             multiplier: toSafeNumber(this._state?.score?.multiplier, 1),
             missionsCompleted,
             totalMissions,

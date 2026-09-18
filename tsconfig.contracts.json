@@ -10,6 +10,7 @@
     "src/shared/contracts/MapAnimationClockContract.js",
     "src/shared/contracts/MapDestructibleContract.js",
     "src/shared/contracts/MapExpansionContract.js",
+    "src/shared/contracts/SecretRoomContract.js",
     "src/shared/utils/CanonicalJson.js"
   ]
 }

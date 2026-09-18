@@ -16,6 +16,7 @@ import {
     applyScenarioRoleMovement,
     resolveScenarioBotTuning,
 } from './HuntScenarioBotRoles.js';
+import { applyBotFlamethrowerInput } from './HuntBotFlamethrowerOps.js';
 import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 export { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 
@@ -276,7 +277,8 @@ export function findNearestReadyPortal(policy, player, arena, maxDistanceSq = In
     let nearestDistSq = Infinity;
 
     for (const portal of arena.portals) {
-        if (!portal?.posA || !portal?.posB) continue;
+        // Secret rooms are a reward for the player who earned them; bots stay out of them.
+        if (!portal?.posA || !portal?.posB || portal.secret === true) continue;
         const cooldownRemaining = portal.cooldowns instanceof Map && cooldownKey != null
             ? Number(portal.cooldowns.get(cooldownKey) || 0)
             : 0;
@@ -339,6 +341,8 @@ export class HuntBotPolicy {
         this._tmpGate = new THREE.Vector3();
         this._tmpRoleTarget = new THREE.Vector3();
         this._tmpRoleForward = new THREE.Vector3();
+        this._tmpFlameAim = new THREE.Vector3();
+        this._tmpFlameOffset = new THREE.Vector3();
     }
 
     update(dt, player, runtimeContext = null) {
@@ -448,6 +452,8 @@ export class HuntBotPolicy {
             input.shootItem = true;
             input.shootItemIndex = fallbackItemAction.shootItemIndex;
         }
+
+        applyBotFlamethrowerInput(this, input, player, enemy, distSq);
 
         const shouldRetreat = !!enemy && (
             vitalityRatio <= scenarioTuning.retreatVitality

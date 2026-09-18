@@ -1,3 +1,5 @@
+import { SECRET_ROOM_LIMITS } from '../../shared/contracts/SecretRoomContract.js';
+
 export const MAP_SCHEMA_VERSION = 4;
 export const CUSTOM_MAP_KEY = 'custom';
 export const CUSTOM_MAP_STORAGE_KEY = 'custom_map_test';
@@ -17,6 +19,8 @@ export const MAP_SCHEMA_COLLECTION_LIMITS = Object.freeze({
     botSpawns: 128,
     parcoursCheckpoints: 1024,
     checkpointNextIds: 64,
+    // One truth: the contract caps how many rooms a map may hold, the schema refuses the rest.
+    secretRooms: SECRET_ROOM_LIMITS.maxRooms,
 });
 
 export const DEFAULT_ARENA_SIZE = Object.freeze({

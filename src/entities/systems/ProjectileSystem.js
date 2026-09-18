@@ -8,6 +8,7 @@ import { ProjectileSimulationOps } from './projectile/ProjectileSimulationOps.js
 import { ProjectileHitResolver } from './projectile/ProjectileHitResolver.js';
 import { deployMine } from './projectile/MineDeploymentOps.js';
 import { RocketTrailSystem } from './projectile/RocketTrailSystem.js';
+import { RocketThreatTracker } from './projectile/RocketThreatTracker.js';
 import { clearProjectilesForOwner, clearProjectilesInBounds } from './projectile/ProjectileCleanupOps.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { isPickupTypeShootable } from '../PickupRegistry.js';
@@ -60,6 +61,7 @@ export class ProjectileSystem {
             ? options.applyEnvironmentDamage
             : (() => null);
         this.onTrailSegmentHit = typeof options.onTrailSegmentHit === 'function' ? options.onTrailSegmentHit : (() => { });
+        this.onRocketIntercepted = typeof options.onRocketIntercepted === 'function' ? options.onRocketIntercepted : (() => { });
         this.runtimeProfiler = options.runtimeProfiler || null;
         this.entityRuntimeConfig = resolveEntityRuntimeConfig(options.entityRuntimeConfig || null);
 
@@ -84,8 +86,10 @@ export class ProjectileSystem {
         this._simulationOps = new ProjectileSimulationOps(this);
         this._hitResolver = new ProjectileHitResolver(this);
         this._rocketTrailSystem = RocketTrailSystem.forProjectileSystem(this);
-
+        this._rocketThreatTracker = new RocketThreatTracker(this);
     }
+
+    getRocketThreat(playerIndex) { return this._rocketThreatTracker.getThreat(playerIndex); }
 
     shootItemProjectile(player, preferredIndex = -1, rocketOnly = false) {
         return shootPlayerItemProjectile(this, player, preferredIndex, rocketOnly);
@@ -395,6 +399,8 @@ export class ProjectileSystem {
             projectile.environmentProjectile = entry.environmentProjectile === true;
             projectile.targetPlayerIndex = Number.isInteger(entry.targetPlayerIndex) ? entry.targetPlayerIndex : -1;
             projectile.zoneProjectile = entry.zoneProjectile === true;
+            projectile.lockedPlayerIndex = Number.isInteger(entry.lockedPlayerIndex) ? entry.lockedPlayerIndex : -1;
+            projectile.threatSource = typeof entry.threatSource === 'string' ? entry.threatSource : '';
             projectile.mesh.position.copy(projectile.position);
             projectile.visualScale = Math.max(0.01, Number(entry.visualScale) || 1);
             projectile.mesh.scale.setScalar(projectile.visualScale);
@@ -422,6 +428,7 @@ export class ProjectileSystem {
                 }
                 this._rocketTrailSystem.updateProjectile(projectile, dt, this.entityRuntimeConfig?.TRAIL?.UPDATE_INTERVAL);
             }
+            this._rocketThreatTracker.update(this.projectiles, this.getPlayers());
             return;
         }
         const arena = this.getArena();
@@ -461,6 +468,7 @@ export class ProjectileSystem {
             }
         }
         this._flushPendingRemovals();
+        this._rocketThreatTracker.update(this.projectiles, players);
     }
 
     _isPendingRemoval(projectile) {
@@ -521,6 +529,7 @@ export class ProjectileSystem {
         this._pendingRemovals.length = 0;
         this._elapsedSeconds = 0;
         this._rocketTrailSystem.clear();
+        this._rocketThreatTracker.clear();
     }
 
     dispose() {

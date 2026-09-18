@@ -27,6 +27,7 @@ import {
     buildAnchorKey, createAuthoredRespawnClock, refillAuthoredAnchors, resetAuthoredRespawnClock,
     resolveFixedItemRespawnSeconds, scheduleCollectedAnchorRespawn, spawnDueAuthoredAnchors,
 } from './powerup/PowerupAuthoredRespawnOps.js';
+import { countArenaPowerups } from './powerup/SecretRoomRefillOps.js';
 
 const SPAWN_TELEGRAPH_SECONDS = 0.75;
 const PICKUP_PREDICTION_GRACE_SECONDS = 0.35;
@@ -143,17 +144,19 @@ export class PowerupManager {
             : 0;
         const runtimeOwnsSpawns = strategy?.isEndlessParcours?.() === true;
         const fixedRespawns = resolveFixedItemRespawnSeconds(this.arena?.currentMapDefinition) > 0;
+        // Secret room items refill on their own clock and belong to the room, not to the arena, so
+        // every count against the arena limit asks for the arena items alone.
         if (!runtimeOwnsSpawns && !this.networkReplica && fixedRespawns) {
             spawnDueAuthoredAnchors(this, this._authoredRespawnClock, strategy);
             this.spawnTimer = 0;
         } else if (!runtimeOwnsSpawns && !this.networkReplica && authoredItemTarget > 0) {
-            while (this.items.length < authoredItemTarget) {
+            while (countArenaPowerups(this.items) < authoredItemTarget) {
                 const previousCount = this.items.length;
                 this._spawnRandom();
                 if (this.items.length === previousCount) break;
             }
             this.spawnTimer = 0;
-        } else if (!runtimeOwnsSpawns && !this.networkReplica && this.spawnTimer >= effectiveInterval && this.items.length < fieldLimit) {
+        } else if (!runtimeOwnsSpawns && !this.networkReplica && this.spawnTimer >= effectiveInterval && countArenaPowerups(this.items) < fieldLimit) {
             this.spawnTimer = 0;
             this._spawnRandom();
         }

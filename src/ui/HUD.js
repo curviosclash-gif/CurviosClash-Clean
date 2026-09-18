@@ -10,6 +10,7 @@ import {
 } from './HudSegmentedArc.js';
 import { formatMapDestructibleStatus } from './MapDestructibleStatusText.js';
 import { formatMapExpansionStatus } from './MapExpansionStatusText.js';
+import { formatSecretRoomStatus } from './SecretRoomStatusText.js';
 
 function toFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -69,8 +70,9 @@ export class HUD {
         this._setAttribute(this.mapExpansionStatus, 'aria-live', 'polite');
         this._setAttribute(this.mapExpansionStatus, 'aria-atomic', 'true');
         playerHud?.appendChild(this.mapExpansionStatus);
-        // Same layout again for the condition of a destructible map: a map either grows or can
-        // be shot apart, so the two lines never announce something at the same time.
+        // Same layout again for the condition of a destructible map. A map either grows or can
+        // be shot apart, but the expansion line also carries the secret room countdown, which
+        // a destructible map does have - the stylesheet moves this line down while both show.
         this.mapDestructibleStatus = document.createElement('div');
         this.mapDestructibleStatus.className = 'exclusion-zone-status map-expansion-status map-destructible-status hidden';
         this._setAttribute(this.mapDestructibleStatus, 'role', 'status');
@@ -273,7 +275,7 @@ export class HUD {
         }
 
         this._updateExclusionZoneStatus(player.exclusionZoneState);
-        this._updateMapExpansionStatus(player.mapExpansion);
+        this._updateMapExpansionStatus(player.mapExpansion, player.secretRoom);
         this._updateMapDestructibleStatus(player.mapDestructible);
 
         const fallbackGameplayConfig = resolveGameplayConfig({
@@ -504,11 +506,14 @@ export class HUD {
         this._setClassFlag(this.exclusionZoneStatus, 'salvo', phase === 'SALVO');
     }
 
-    _updateMapExpansionStatus(state) {
-        const text = formatMapExpansionStatus(state);
+    // One line, two senders: inside a secret room the countdown wins, because a hint about the
+    // next sector is worthless to someone who is about to be thrown out of the map.
+    _updateMapExpansionStatus(state, secretRoomState = null) {
+        const secretText = formatSecretRoomStatus(secretRoomState);
+        const text = secretText || formatMapExpansionStatus(state);
         this._setClassFlag(this.mapExpansionStatus, 'hidden', !text);
         this._setText(this.mapExpansionStatus, text);
-        this._setClassFlag(this.mapExpansionStatus, 'opening', state?.phase === 'OPENING');
+        this._setClassFlag(this.mapExpansionStatus, 'opening', !secretText && state?.phase === 'OPENING');
     }
 
     _updateMapDestructibleStatus(state) {

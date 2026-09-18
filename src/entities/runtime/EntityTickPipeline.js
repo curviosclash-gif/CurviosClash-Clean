@@ -1,3 +1,9 @@
+import {
+    createRocketWarningAudioState,
+    resolveLocalHumanCount,
+    updateRocketWarningAudio,
+} from '../systems/projectile/RocketWarningAudioOps.js';
+
 export class EntityTickPipeline {
     constructor(entityManager) {
         this.entityManager = entityManager || null;
@@ -7,6 +13,10 @@ export class EntityTickPipeline {
             mapScale: 1,
             elapsedSeconds: 0,
         };
+        this._rocketWarningState = createRocketWarningAudioState();
+        this._rocketWarningOptions = { localPlayerIndex: 0, localHumanCount: 1, roundEnded: false };
+        // Bound once so the per frame call allocates no closure.
+        this._getRocketThreat = (index) => this.entityManager?._projectileSystem?.getRocketThreat?.(index);
     }
 
     update(dt, inputManager, renderFrameId = 0) {
@@ -21,6 +31,8 @@ export class EntityTickPipeline {
         owner._staticTurretSystem?.update?.(safeDt);
         owner._exclusionZoneSystem?.update?.(safeDt);
         owner._mapDestructibleBlastSystem?.update?.();
+        // Before the projectiles: a portal that opens this tick has to take their shots too.
+        owner._secretRoomSystem?.update?.(safeDt);
         owner._objectiveTargetMarkerSystem?.update?.(safeDt);
         owner._projectileSystem.update(dt);
         owner._overheatGunSystem.update(dt);
@@ -48,6 +60,16 @@ export class EntityTickPipeline {
             ambienceOptions.mapScale = owner.entityRuntimeConfig?.ARENA?.MAP_SCALE;
             ambienceOptions.elapsedSeconds = owner.arena?.glbAnimationElapsedSeconds;
             owner.audio?.syncMapAmbienceFromPlayers?.(owner.players, ambienceOptions);
+
+            const warningOptions = this._rocketWarningOptions;
+            warningOptions.localPlayerIndex = owner.renderer?.viewportSystem?.localPlayerIndex
+                ?? owner.runtimeConfig?.session?.localPlayerIndex ?? 0;
+            warningOptions.localHumanCount = resolveLocalHumanCount(owner.runtimeConfig?.session);
+            warningOptions.roundEnded = owner._roundEnded === true;
+            updateRocketWarningAudio(
+                this._rocketWarningState, owner.players, this._getRocketThreat,
+                owner.audio, simulationNowMs, warningOptions,
+            );
 
             const outcome = owner._roundOutcomeSystem.resolve();
             if (outcome.shouldEnd) {

@@ -1,6 +1,8 @@
 // ============================================
 
 import { createHuntNetworkState } from '../hunt/HuntNetworkState.js';
+import { isRocketTierType } from '../hunt/RocketPickupSystem.js';
+import { ROCKET_THREAT_SOURCES, resolveRocketThreatSource } from '../entities/systems/projectile/RocketThreatTracker.js';
 // GameStateSnapshot.js - serializable game state for network transport
 // ============================================
 
@@ -40,6 +42,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
             serializedProjectile.targetPlayerIndex = Number.isInteger(proj.targetPlayerIndex) ? proj.targetPlayerIndex : -1;
             serializedProjectile.zoneProjectile = proj.zoneProjectile === true;
         }
+        appendRocketThreatFields(serializedProjectile, proj);
         projectiles.push(serializedProjectile);
     }
 
@@ -79,6 +82,24 @@ export function createGameStateSnapshot(entityManager, roundState) {
     };
 }
 
+/**
+ * Adds the rocket warning fields to a serialized projectile.
+ *
+ * Both fields are optional on the wire, so an older host stays readable and a snapshot
+ * only grows for the rockets that actually chase somebody: `lockedPlayerIndex` appears
+ * for rocket tier projectiles with a lock, `threatSource` only when the source is not a
+ * player - a replica resolves `owner` among the players and would otherwise mistake a
+ * turret rocket for a player rocket.
+ */
+function appendRocketThreatFields(serialized, projectile) {
+    if (!isRocketTierType(serialized.type)) return;
+    const lockedPlayerIndex = Number(projectile.lockedPlayerIndex);
+    if (!Number.isInteger(lockedPlayerIndex) || lockedPlayerIndex < 0) return;
+    serialized.lockedPlayerIndex = lockedPlayerIndex;
+    const threatSource = resolveRocketThreatSource(projectile);
+    if (threatSource !== ROCKET_THREAT_SOURCES.PLAYER) serialized.threatSource = threatSource;
+}
+
 export function serializePlayer(player) {
     if (!player) return null;
     return {
@@ -99,6 +120,10 @@ export function serializePlayer(player) {
         inventory: Array.isArray(player.inventory) ? [...player.inventory] : [],
         rocketInventory: Array.isArray(player.rocketInventory) ? [...player.rocketInventory] : [],
         effects: serializeEffects(player.activeEffects),
+        // A replica draws the flame jet but never simulates it: only the host knows whether this
+        // tick really burned fuel, so the fact travels as its own field (S4.6). A dead vehicle
+        // skips its action phase, so the flag is gated on alive instead of reset on death.
+        flameActive: player.alive === true && player.flameActive === true,
         hasShield: player.hasShield === true,
         shieldHP: toFiniteNumber(player.shieldHP, 0),
         speed: toFiniteNumber(player.speed, 0),
@@ -142,13 +167,18 @@ function serializeEffects(effects) {
         .map((effect) => {
             const type = String(effect?.type || '').trim();
             if (!type) return null;
-            return {
+            const serialized = {
                 type,
                 remaining: Number(effect?.remaining) || 0,
                 sourcePlayerIndex: Number.isInteger(effect?.sourcePlayerIndex)
                     ? effect.sourcePlayerIndex
                     : null,
             };
+            // Additive: only the flamethrower carries a tank, and only it needs the number on
+            // the client, where the item bar shows fuel instead of the expiry.
+            const fuelSeconds = Number(effect?.fuelSeconds);
+            if (Number.isFinite(fuelSeconds) && fuelSeconds >= 0) serialized.fuelSeconds = fuelSeconds;
+            return serialized;
         })
         .filter(Boolean);
 }

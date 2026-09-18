@@ -8,6 +8,13 @@ import {
     applyStaticTurretNetworkSnapshot,
     createStaticTurretNetworkSnapshot,
 } from './static-turret/StaticTurretNetworkOps.js';
+import { resolveStaticTurretDeployConfig } from './static-turret/StaticTurretDeployConfigOps.js';
+import { resolveLocalHumanCount } from './projectile/RocketWarningAudioOps.js';
+import {
+    clearStaticTurretRespawns,
+    queueStaticTurretRespawn,
+    updateStaticTurretRespawns,
+} from './static-turret/StaticTurretRespawnOps.js';
 import {
     hasStaticTurretLineOfSight,
     resolveStaticTurretTarget,
@@ -39,6 +46,7 @@ export class StaticTurretSystem {
     constructor(entityManager) {
         this.entityManager = entityManager || null;
         this.turrets = [];
+        this._pendingRespawns = [];
         this._tmpAim = new THREE.Vector3();
         this._tmpPoint = new THREE.Vector3();
         this._tmpMuzzle = new THREE.Vector3();
@@ -102,6 +110,7 @@ export class StaticTurretSystem {
         };
         const turret = {
             ...definition,
+            definition,
             range: Math.min(definition.range, 180) * authoredScale,
             authoredScale,
             position,
@@ -134,28 +143,6 @@ export class StaticTurretSystem {
         };
         if (destructible) turret.takeDamage = (amount, options = {}) => this.damageTurret(turret, amount, options);
         return turret;
-    }
-
-    _resolveTurretConfig(weapon = 'mg') {
-        const rocket = weapon === 'rocket';
-        const config = resolveGameplayConfig(this.entityManager).HUNT?.[rocket ? 'ROCKET_TURRET' : 'MG_TURRET'] || {};
-        return {
-            range: clampFinite(config.RANGE, rocket ? 90 : 58, 8, 120),
-            cooldown: clampFinite(config.COOLDOWN, rocket ? 3.4 : 0.24, 0.1, rocket ? 12 : 2),
-            damage: clampFinite(config.DAMAGE, 3, 1, 20),
-            duration: clampFinite(config.DURATION_SECONDS, 20, 3, 60),
-            maxHp: clampFinite(config.MAX_HP, 45, 10, 200),
-            hitboxRadius: clampFinite(config.HIT_RADIUS, 2.2, 1, 5),
-            maxPerOwner: Math.round(clampFinite(config.MAX_PER_OWNER, 1, 1, 4)),
-            deployOffset: clampFinite(config.DEPLOY_OFFSET, 3.2, 0, 8),
-            targetHoldSeconds: clampFinite(config.TARGET_HOLD_SECONDS, 0.3, 0, 2),
-            targetReacquireSeconds: clampFinite(config.TARGET_REACQUIRE_SECONDS, 0.12, 0.03, 1),
-            losSampleStep: clampFinite(config.LOS_SAMPLE_STEP, 0.5, 0.2, 2),
-            acquireDelaySeconds: clampFinite(config.ACQUIRE_DELAY_SECONDS, 0.22, 0, 2),
-            turnRateRadians: clampFinite(config.TURN_RATE_RADIANS_PER_SECOND, 8, 0.5, 30),
-            fireDotMin: clampFinite(config.FIRE_DOT_MIN, 0.985, 0.8, 1),
-            audioRange: clampFinite(config.AUDIO_RANGE, 80, 10, 200),
-        };
     }
 
     _resolveDeploymentPosition(player, config) {
@@ -221,7 +208,7 @@ export class StaticTurretSystem {
         ) {
             return null;
         }
-        const config = this._resolveTurretConfig(weapon);
+        const config = resolveStaticTurretDeployConfig(this.entityManager, weapon);
         const position = this._resolveDeploymentPosition(player, config);
         if (!position) {
             owner.recorder?.logEvent?.('TURRET_DEPLOY_FAILED', player.index, 'blocked');
@@ -325,6 +312,7 @@ export class StaticTurretSystem {
         }
         const isDead = turret.hp <= 0;
         if (isDead) {
+            queueStaticTurretRespawn(this, turret);
             const index = this.turrets.indexOf(turret);
             if (index >= 0) {
                 this._removeTurretAt(index, 'destroyed', options.sourcePlayer || null);
@@ -373,7 +361,7 @@ export class StaticTurretSystem {
         const owner = this.entityManager;
         const session = owner?.runtimeConfig?.session || {};
         const first = Math.max(0, Math.trunc(Number(owner?.renderer?.viewportSystem?.localPlayerIndex ?? session.localPlayerIndex) || 0));
-        const count = Math.max(1, Math.trunc(Number(session.localHumanCount) || 1));
+        const count = resolveLocalHumanCount(session);
         const rangeSq = turret.audioRange * turret.audioRange;
         for (let index = first; index < first + count; index += 1) {
             const player = owner?.players?.find?.((candidate) => candidate?.index === index);
@@ -424,6 +412,7 @@ export class StaticTurretSystem {
             }
             i += 1;
         }
+        updateStaticTurretRespawns(this, safeDt);
     }
 
     _disposeTurretVisual(turret) {
@@ -460,6 +449,7 @@ export class StaticTurretSystem {
             this._disposeTurretVisual(turret);
         }
         this.turrets.length = 0;
+        clearStaticTurretRespawns(this);
         this._tracerFx.clear();
     }
 

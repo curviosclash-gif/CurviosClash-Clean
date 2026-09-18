@@ -203,6 +203,49 @@ function createMapDestructibleProjection(value = null) {
     };
 }
 
+const ROCKET_THREAT_PROJECTION_SOURCES = Object.freeze(['player', 'turret', 'zone']);
+
+/**
+ * How many homing rockets are chasing this player right now, and from where.
+ *
+ * Additive v1 field: a producer that does not know it yields the inactive default.
+ * The tracker behind it reuses one object per player every frame, so this always
+ * returns a fresh copy - a HUD may hold on to it for a frame without seeing it change
+ * under its hands. `count` is the single source of truth: no rocket, no warning.
+ */
+export function createRocketThreatProjection(value = null) {
+    const source = value && typeof value === 'object' ? value : {};
+    const count = normalizeNonNegativeInt(source.count, 0);
+    const active = count > 0;
+    // The tracker names its nearest-rocket source `nearestSource`; both spellings are accepted.
+    const threatSource = normalizeString(source.source, normalizeString(source.nearestSource, ''));
+    return {
+        active,
+        count,
+        nearestDistance: active ? Math.max(0, normalizeNumber(source.nearestDistance, 0)) : 0,
+        // 0 seconds means unknown: the rocket is locked on but not closing in.
+        timeToImpactSeconds: active ? Math.max(0, normalizeNumber(source.timeToImpactSeconds, 0)) : 0,
+        direction: createVector3Projection(active ? source.direction : null),
+        source: active && ROCKET_THREAT_PROJECTION_SOURCES.includes(threatSource) ? threatSource : '',
+    };
+}
+
+/**
+ * How long this player may still stay in the hidden room he is standing in.
+ *
+ * Additive v1 field: a producer that knows no secret rooms yields "outside", and so does anything
+ * unreadable - a HUD must never count down for a player who is not in a room at all.
+ */
+function createSecretRoomProjection(value = null) {
+    const source = value && typeof value === 'object' ? value : {};
+    const inside = source.inside === true;
+    return {
+        inside,
+        remainingSeconds: inside ? Math.max(0, normalizeNumber(source.remainingSeconds, 0)) : 0,
+        roomId: inside ? normalizeString(source.roomId, '').slice(0, 80) : '',
+    };
+}
+
 function createPlayerProjection(value = null) {
     if (!value || typeof value !== 'object') return null;
     return {
@@ -231,13 +274,18 @@ function createPlayerProjection(value = null) {
             .map((effect) => {
                 const type = normalizeString(effect?.type, '').trim().toUpperCase();
                 if (!type) return null;
-                return {
+                /** @type {{ type: string, remaining: number, sourcePlayerIndex: number | null, fuelSeconds?: number }} */
+                const projected = {
                     type,
                     remaining: Math.max(0, normalizeNumber(effect?.remaining, 0)),
                     sourcePlayerIndex: Number.isInteger(effect?.sourcePlayerIndex)
                         ? effect.sourcePlayerIndex
                         : null,
                 };
+                // Additive: the flamethrower tank, which the item bar shows instead of the expiry.
+                const fuelSeconds = Number(effect?.fuelSeconds);
+                if (Number.isFinite(fuelSeconds) && fuelSeconds >= 0) projected.fuelSeconds = fuelSeconds;
+                return projected;
             })
             .filter(Boolean) : [],
         selectedItemIndex: normalizeInt(value.selectedItemIndex, 0),
@@ -246,8 +294,12 @@ function createPlayerProjection(value = null) {
         planarMode: value.planarMode === true,
         cameraModeId: normalizeString(value.cameraModeId, GAMEPLAY_CAMERA_MODE_ID),
         exclusionZoneState: createExclusionZoneProjection(value.exclusionZoneState),
+        rocketThreat: createRocketThreatProjection(value.rocketThreat),
         mapExpansion: createMapExpansionProjection(value.mapExpansion),
         mapDestructible: createMapDestructibleProjection(value.mapDestructible),
+        secretRoom: createSecretRoomProjection(value.secretRoom),
+        // Match wide, like the expansion above: opened rooms that had to be unlocked first.
+        secretRoomsOpen: normalizeNonNegativeInt(value.secretRoomsOpen, 0),
         traversal: createTraversalProjection(value.traversal),
         turrets: Array.isArray(value.turrets) ? value.turrets.filter((entry) => entry && (entry.weapon === 'mg' || entry.weapon === 'rocket')).map((entry) => ({
             weapon: entry.weapon,
@@ -330,6 +382,8 @@ function createHuntProjection(value = null, nowMs = 0) {
             damage: normalizeNonNegativeInt(row?.damage, 0),
             shieldDamage: normalizeNonNegativeInt(row?.shieldDamage, 0),
             spawnDeaths: normalizeNonNegativeInt(row?.spawnDeaths, 0),
+            // Rockets shot down by this player (E38). Statistics only, never a kill (E75).
+            intercepts: normalizeNonNegativeInt(row?.intercepts, 0),
         }))
         : [];
     const respawnRemainingByPlayer = {};

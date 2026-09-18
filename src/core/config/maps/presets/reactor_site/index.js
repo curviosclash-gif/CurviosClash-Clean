@@ -15,6 +15,11 @@
 import { REACTOR_SITE_MODELS } from './ReactorSiteModels.js';
 import { REACTOR_SITE_DESTRUCTIBLES } from './ReactorSiteDestructibles.js';
 import {
+    REACTOR_SITE_SECRET_ROOM,
+    REACTOR_SITE_SECRET_ROOM_OBSTACLES,
+    REACTOR_SITE_SECRET_ROOM_TURRETS,
+} from './ReactorSiteSecretRoom.js';
+import {
     GROUND,
     up,
     across,
@@ -37,9 +42,19 @@ export const REACTOR_SITE_MAPS = {
         // The destructible segments are anchored in authored units and the map is built at the
         // runtime scale, so the anchors a hit is measured against have to grow with it.
         scaleAuthoredAnchors: true,
-        obstacles: REACTOR_SITE_OBSTACLES,
+        obstacles: [
+            ...REACTOR_SITE_OBSTACLES,
+            // The shell of the bunker below the site. It stands outside the room's own bounds, so
+            // the playable volume of the room stays free of it - see ReactorSiteSecretRoom.js.
+            ...REACTOR_SITE_SECRET_ROOM_OBSTACLES,
+        ],
         // No portals: every one of them would end somewhere a collapse can take away.
         portals: [],
+        // Breaking any part of the plant opens a portal north of the containment four seconds
+        // later. What it leads to, and the three emplacements guarding it, live in
+        // ReactorSiteSecretRoom.js.
+        secretRooms: [REACTOR_SITE_SECRET_ROOM],
+        staticTurrets: REACTOR_SITE_SECRET_ROOM_TURRETS,
         gates: REACTOR_SITE_GATES,
         // Prefer the authored plant routes, but keep random fallback available once every
         // authored anchor is occupied. Without this explicit contract the runtime may ignore

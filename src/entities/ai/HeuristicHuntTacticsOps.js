@@ -16,6 +16,7 @@ import {
     resolveHuntFallbackItemAction,
     resolveShieldRatio,
 } from '../../hunt/HuntBotPolicy.js';
+import { applyBotFlamethrowerInput } from '../../hunt/HuntBotFlamethrowerOps.js';
 import { getPreferredFightEnemy } from '../../hunt/FightTargetSelector.js';
 import { HUNT_CONFIG } from '../../hunt/HuntConfig.js';
 import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
@@ -362,6 +363,13 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         input.shootItem = true;
         input.shootItemIndex = itemAction.shootItemIndex;
     }
+    applyBotFlamethrowerInput(
+        policy,
+        input,
+        player,
+        enemy,
+        enemy?.position && player?.position ? player.position.distanceToSquared(enemy.position) : Infinity,
+    );
 
     const retreatRequested = enemy && !finisherOpportunity
         && (vitalityRatio <= policy.profile.retreatVitality
