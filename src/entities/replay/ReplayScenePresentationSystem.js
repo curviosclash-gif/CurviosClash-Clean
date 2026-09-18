@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import { validateGhostClip } from '../../shared/contracts/GhostClipContract.js';
+import { createLogger } from '../../shared/logging/Logger.js';
 import { Trail } from '../Trail.js';
 import { buildReplaySceneFrames } from './ReplaySceneFrameBuilder.js';
 import { ReplaySceneObjectProjector } from './ReplaySceneObjectProjector.js';
+
+const defaultLogger = createLogger('ReplayScenePresentation');
 
 const SHARED_GHOST_GEOMETRIES = {};
 const GHOST_TRAIL_PLAYER_INDEX_OFFSET = 10000;
@@ -187,6 +190,7 @@ export class ReplayScenePresentationSystem {
         this.particles = options?.particles || null;
         this._presentationKind = String(options?.presentationKind || 'last-round-ghost');
         this._ghostTrailCollisionEnabled = options?.ghostTrailCollisionEnabled === true;
+        this._logger = options?.logger || defaultLogger;
         this.root = new THREE.Group();
         this.root.name = `${this._presentationKind}Root`;
         this.root.visible = false;
@@ -267,10 +271,24 @@ export class ReplayScenePresentationSystem {
         this._sceneProjector.clear();
     }
 
+    _reportRejectedClip(reason, clip) {
+        this._logger?.warn?.(
+            `${this._presentationKind}: clip rejected (${reason})`,
+            {
+                frames: Array.isArray(clip?.frames) ? clip.frames.length : 0,
+                players: Array.isArray(clip?.players) ? clip.players.length : 0,
+                sourceDuration: Number(clip?.sourceDuration) || 0,
+            }
+        );
+    }
+
     playClip(clip = null, options = {}) {
         this.clear();
         const clipValidation = validateGhostClip(clip);
         if (!clipValidation.valid || !clipValidation.clip) {
+            // Having nothing to replay is normal (no ghost recorded yet); a clip that was handed
+            // in and then rejected is not, and used to fail without a single word.
+            if (clip) this._reportRejectedClip(clipValidation.reason || 'invalid_clip', clip);
             return false;
         }
         const safeClip = clipValidation.clip;
@@ -290,6 +308,7 @@ export class ReplayScenePresentationSystem {
 
         if (this._entries.length === 0) {
             this.clear();
+            this._reportRejectedClip('no_renderable_entries', clip);
             return false;
         }
 

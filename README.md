@@ -48,6 +48,8 @@ npm run test:desktop:smoke
 npm run app:package
 ```
 
+`npm run app:package` läuft nur in einem Spiel-Export (`scripts/export-game-repo.mjs`, mit `--arch` und `.game-export.json`). Im vollen Repository entsteht das entpackte Paket mit `npm run build:app`, `cd electron` und `npx electron-builder --dir --x64`; `npm run app:package:verify` startet es danach probeweise.
+
 Das Paket entsteht unter `release/`: als Installer und als `win-unpacked/CurviosClash.exe`. Die CI prüft Renderer, LAN-Signaling, Runtime-Module, Preload, Recording-FFmpeg sowie den Start mit einem isolierten Benutzerprofil. `release/`, `dist-app/`, Testausgaben, Logs und Abhängigkeiten werden nie committet.
 
 Signaturzertifikate und Passwörter werden ausschließlich außerhalb des Repositories bereitgestellt. electron-builder verwendet dafür `WIN_CSC_LINK` und `WIN_CSC_KEY_PASSWORD` (alternativ `CSC_LINK` und `CSC_KEY_PASSWORD`). Es gibt keine Zertifikatspfade oder Secrets in der Paketkonfiguration. Ohne diese Variablen entsteht weiterhin ein funktionierender, aber bewusst unsignierter Installer.

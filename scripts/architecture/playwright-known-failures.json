@@ -1,6 +1,6 @@
 {
   "$comment": "Playwright tests that are red without anyone's current change. The list is a ratchet: `count` may sink, never rise. Raise it only on an explicit instruction. Every entry must point at an existing spec and an existing test title - tests/playwright-known-failures.contract.test.mjs enforces that, so a fixed or renamed test forces the entry out.",
-  "count": 41,
+  "count": 38,
   "entries": [
     {
       "spec": "tests/physics-hunt.spec.js",
@@ -132,14 +132,6 @@
     },
     {
       "spec": "tests/core-targeted-surface.spec.js",
-      "title": "T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und persistiert pro Map/Route",
-      "since": "2026-08-17",
-      "commit": "",
-      "reason": "failure folders of the same name since August; confirmed from a second worktree",
-      "kind": "regression"
-    },
-    {
-      "spec": "tests/core-targeted-surface.spec.js",
       "title": "T68b: Arcade-HUD zeigt Combo-Decay, Sudden-Death-Overlay und Sektor-Transition",
       "since": "2026-09-13",
       "commit": "",
@@ -208,22 +200,6 @@
       "since": "2026-09-13",
       "commit": "",
       "reason": "expects surface_policy_blocked, receives saved_via_app; both values exist since the seed commit",
-      "kind": "stale-test"
-    },
-    {
-      "spec": "tests/core-targeted-runtime.spec.js",
-      "title": "T20am: Collision-Bounce nutzt Runtime-RNG statt unseeded Math.random",
-      "since": "2026-08-07",
-      "commit": "f317794",
-      "reason": "CollisionResponseSystem no longer reads the spawnProtection option at all",
-      "kind": "stale-test"
-    },
-    {
-      "spec": "tests/core-targeted-runtime.spec.js",
-      "title": "T20am1: Arcade-Map- und Missionsfolge folgen dem aktiven Run-Seed",
-      "since": "2026-09-11",
-      "commit": "ef95e95",
-      "reason": "the mission list contains SURVIVE_DURATION instead of ITEM_CHAIN",
       "kind": "stale-test"
     },
     {

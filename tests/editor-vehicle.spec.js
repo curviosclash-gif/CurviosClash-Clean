@@ -2,6 +2,12 @@ import { expect, test } from './helpers.desktop.js';
 
 import { EDITOR_API_ROUTES, EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 import { resolveAppUrl, waitForRenderFrames } from './helpers.js';
+import { VEHICLE_PRESETS } from '../prototypes/vehicle-lab/src/VehiclePresets.js';
+import { listVehicleLabGameReferences } from '../prototypes/vehicle-lab/src/VehicleLabGameVehicleCatalog.js';
+
+// Die Liste der Standardfahrzeuge ist Lab-Vorlagen plus Spielfahrzeuge. Beide
+// Flotten wachsen; eine feste Zahl im Test waere nur ein Datum von gestern.
+const STANDARD_VEHICLE_COUNT = VEHICLE_PRESETS.length + listVehicleLabGameReferences().length;
 
 async function resetVehicleLab(page) {
     await page.goto(resolveAppUrl(page, EDITOR_VIEW_PATHS.VEHICLE_LAB), { waitUntil: 'domcontentloaded' });
@@ -34,7 +40,8 @@ test.describe('Vehicle Lab', () => {
         await resetVehicleLab(page);
 
         await expect(page.locator('.vehicle-library')).not.toHaveAttribute('open', '');
-        await expect(page.locator('#standardVehiclesList button', { hasText: 'Auswählen' })).toHaveCount(21);
+        expect(STANDARD_VEHICLE_COUNT).toBeGreaterThan(20);
+        await expect(page.locator('#standardVehiclesList button', { hasText: 'Auswählen' })).toHaveCount(STANDARD_VEHICLE_COUNT);
 
         await page.locator('#presetSelect').selectOption('lab_spaceship');
         await expect(page.locator('#partsList .part-item')).toHaveCount(8);

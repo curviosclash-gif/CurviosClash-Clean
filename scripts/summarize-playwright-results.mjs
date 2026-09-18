@@ -16,12 +16,23 @@
 // reported as outcome 'skipped' while it still expects 'passed' and carries no skip annotation.
 // That is `didNotRun`, and it is the number agents kept missing.
 //
-// Usage: node scripts/summarize-playwright-results.mjs <results.json> [--known <file>] [--out <summary.txt>]
+// `--durations` adds the timing block from ./playwright-durations.mjs in front of that line:
+// sum per spec, the slowest tests, the gaps between tests and the overhead figure. Without the
+// switch the output stays byte for byte the same, because other scripts parse it.
+//
+// Usage: node scripts/summarize-playwright-results.mjs <results.json> [--known <file>]
+//        [--out <summary.txt>] [--durations] [--gap-threshold=<seconds>]
 
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+
+import {
+    DEFAULT_GAP_THRESHOLD_SECONDS,
+    formatPlaywrightDurations,
+    summarizePlaywrightDurations,
+} from './playwright-durations.mjs';
 
 export const PLAYWRIGHT_SUMMARY_PREFIX = '[playwright:summary]';
 
@@ -199,7 +210,8 @@ export function readKnownFailures(knownFailuresPath = DEFAULT_KNOWN_FAILURES_PAT
  * Returns the summary; never throws when the file is missing - a run that died before the
  * reporter wrote anything is reported as such instead of masking the real error.
  */
-export function summarizePlaywrightResultsFile(resultsPath, { knownFailuresPath, summaryPath, log = console.log } = {}) {
+export function summarizePlaywrightResultsFile(resultsPath, options = {}) {
+    const { knownFailuresPath, summaryPath, log = console.log, durations = false, gapThresholdMs } = options;
     let report = null;
     try {
         report = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
@@ -209,7 +221,11 @@ export function summarizePlaywrightResultsFile(resultsPath, { knownFailuresPath,
     }
 
     const summary = summarizePlaywrightResults(report, readKnownFailures(knownFailuresPath || DEFAULT_KNOWN_FAILURES_PATH));
-    const text = formatPlaywrightSummary(summary);
+    // The timing block goes first so the `[playwright:summary]` line stays the last one.
+    const timing = durations
+        ? formatPlaywrightDurations(summarizePlaywrightDurations(report, { gapThresholdMs }))
+        : '';
+    const text = `${timing}${formatPlaywrightSummary(summary)}`;
     log(text.trimEnd());
     if (summaryPath) {
         try {
@@ -220,14 +236,32 @@ export function summarizePlaywrightResultsFile(resultsPath, { knownFailuresPath,
     return summary;
 }
 
+function toGapThresholdMs(rawSeconds) {
+    const seconds = Number(String(rawSeconds || '').trim());
+    if (!Number.isFinite(seconds) || seconds < 0) return DEFAULT_GAP_THRESHOLD_SECONDS * 1000;
+    return Math.round(seconds * 1000);
+}
+
 function parseCliArgs(argv) {
-    const options = { resultsPath: '', knownFailuresPath: '', summaryPath: '' };
+    const options = {
+        resultsPath: '',
+        knownFailuresPath: '',
+        summaryPath: '',
+        durations: false,
+        gapThresholdMs: DEFAULT_GAP_THRESHOLD_SECONDS * 1000,
+    };
     for (let index = 0; index < argv.length; index += 1) {
         const value = String(argv[index] || '');
         if (value === '--known') options.knownFailuresPath = String(argv[++index] || '');
         else if (value.startsWith('--known=')) options.knownFailuresPath = value.slice('--known='.length);
         else if (value === '--out') options.summaryPath = String(argv[++index] || '');
         else if (value.startsWith('--out=')) options.summaryPath = value.slice('--out='.length);
+        else if (value === '--durations') options.durations = true;
+        else if (value === '--gap-threshold') options.gapThresholdMs = toGapThresholdMs(argv[++index]);
+        else if (value.startsWith('--gap-threshold=')) {
+            options.gapThresholdMs = toGapThresholdMs(value.slice('--gap-threshold='.length));
+        } else if (value === '--file') options.resultsPath = String(argv[++index] || '');
+        else if (value.startsWith('--file=')) options.resultsPath = value.slice('--file='.length);
         else if (!value.startsWith('-') && !options.resultsPath) options.resultsPath = value;
     }
     return options;
@@ -236,7 +270,8 @@ function parseCliArgs(argv) {
 function main(argv) {
     const options = parseCliArgs(argv);
     if (!options.resultsPath) {
-        console.error('usage: node scripts/summarize-playwright-results.mjs <results.json> [--known <file>] [--out <summary.txt>]');
+        console.error('usage: node scripts/summarize-playwright-results.mjs <results.json> [--known <file>] '
+            + '[--out <summary.txt>] [--durations] [--gap-threshold=<seconds>]');
         process.exit(2);
     }
     const summary = summarizePlaywrightResultsFile(options.resultsPath, options);

@@ -7,6 +7,14 @@ const GHOST_POSITION_PRECISION = 10;
 const GHOST_QUATERNION_PRECISION = 10000;
 const GHOST_TIME_PRECISION = 1000;
 const MIN_GHOST_FRAME_COUNT = 2;
+
+/**
+ * Smallest playback time difference a ghost clip can carry: frame times are stored with
+ * millisecond precision, so producers have to keep their frames at least this far apart.
+ * @type {number}
+ */
+export const GHOST_CLIP_TIME_STEP_SECONDS = 1 / GHOST_TIME_PRECISION;
+
 const MIN_GHOST_DURATION_SECONDS = 0.0001;
 
 function isPlainObject(value) {

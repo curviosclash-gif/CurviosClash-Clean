@@ -25,6 +25,9 @@ export const EDITOR_API_ROUTES = Object.freeze({
 export const EDITOR_DISK_IPC_CHANNEL = 'editor-disk:request';
 
 export const EDITOR_DISK_ACTIONS = Object.freeze({
+    SAVE_MAP: 'save-map',
+    LIST_MAPS: 'list-maps',
+    OPEN_MAPS_FOLDER: 'open-maps-folder',
     SAVE_VEHICLE: 'save-vehicle',
     LIST_VEHICLES: 'list-vehicles',
     GET_VEHICLE: 'get-vehicle',
@@ -34,6 +37,9 @@ export const EDITOR_DISK_ACTIONS = Object.freeze({
 
 /** Zuordnung der HTTP-Entwicklungsrouten auf die Aktionen desselben Vertrags. */
 export const EDITOR_DISK_ACTION_BY_ROUTE = Object.freeze({
+    [EDITOR_API_ROUTES.SAVE_MAP_DISK]: EDITOR_DISK_ACTIONS.SAVE_MAP,
+    [EDITOR_API_ROUTES.LIST_MAPS_DISK]: EDITOR_DISK_ACTIONS.LIST_MAPS,
+    [EDITOR_API_ROUTES.OPEN_MAPS_FOLDER]: EDITOR_DISK_ACTIONS.OPEN_MAPS_FOLDER,
     [EDITOR_API_ROUTES.SAVE_VEHICLE_DISK]: EDITOR_DISK_ACTIONS.SAVE_VEHICLE,
     [EDITOR_API_ROUTES.LIST_VEHICLES_DISK]: EDITOR_DISK_ACTIONS.LIST_VEHICLES,
     [EDITOR_API_ROUTES.GET_VEHICLE_DISK]: EDITOR_DISK_ACTIONS.GET_VEHICLE,
@@ -44,6 +50,8 @@ export const EDITOR_DISK_ACTION_BY_ROUTE = Object.freeze({
 export const EDITOR_DATA_PATHS = Object.freeze({
     MAPS_DIR: 'data/maps',
     VEHICLES_DIR: 'data/vehicles',
+    /** Ordner unterhalb des Nutzerdatenordners der Desktop-App. */
+    USER_MAPS_DIR: 'maps',
     USER_VEHICLES_DIR: 'vehicles',
     GENERATED_LOCAL_MAPS_MODULE: 'src/entities/GeneratedLocalMaps.js',
     GENERATED_VEHICLE_CONFIGS_MODULE: 'src/entities/GeneratedVehicleConfigs.js',

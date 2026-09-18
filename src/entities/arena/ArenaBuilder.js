@@ -9,6 +9,7 @@ import { MapHazardVisualController } from './MapHazardVisualController.js';
 import { resolveVisibleShadowBounds } from './ShadowCoverageOps.js';
 import { resolveMapExclusionZone } from '../../shared/contracts/ExclusionZoneContract.js';
 import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
+import { resolveGLBColliderMode } from '../mapSchema/MapSchemaGlbOps.js';
 import { ArenaExpansionController } from './ArenaExpansionController.js';
 import { resolveArenaPlayableVolumes } from './ArenaPlayableVolumes.js';
 
@@ -105,7 +106,7 @@ export class ArenaBuilder {
                 : [],
             glbLoadDelayMs: Number(mapResolution.map?.glbLoadDelayMs) || 0,
             glbLoadConcurrency: Number(mapResolution.map?.glbLoadConcurrency) || 4,
-            glbColliderMode: typeof mapResolution.map?.glbColliderMode === 'string' ? mapResolution.map.glbColliderMode : 'mesh',
+            glbColliderMode: resolveGLBColliderMode(mapResolution.map?.glbColliderMode),
             glbAnimationClock: mapResolution.map?.glbAnimationClock ?? null,
             materialBundle,
             graphicsStyle,

@@ -5,6 +5,22 @@ import {
 } from '../../../shared/contracts/GameplayActionResultContract.js';
 import { isRocketPickupType, normalizePickupType } from '../../PickupRegistry.js';
 
+// Only -1 and a missing slot mean "take the selected one": rockets pass -1 on
+// purpose and remote inputs carry no slot at all. Any other value that is not a
+// slot (NaN, 1.5, '2', -2) comes from a broken caller, and falling back to the
+// selection would book a different item into the statistics. Returning -1 means
+// "report nothing".
+function resolveSelectableSlot(player, preferredIndex, selectableCount) {
+    if (preferredIndex !== undefined && preferredIndex !== -1) {
+        if (!Number.isInteger(preferredIndex) || preferredIndex < 0) return -1;
+        return preferredIndex < selectableCount ? preferredIndex : -1;
+    }
+    const selectedIndex = Number.isInteger(player?.selectedItemIndex)
+        ? Math.max(0, player.selectedItemIndex)
+        : 0;
+    return selectedIndex < selectableCount ? selectedIndex : 0;
+}
+
 // Abgelehnte Item-Aktionen nennen ihren Typ nicht immer: Cooldown- und
 // EMP-Absagen entstehen, bevor das Item ueberhaupt gelesen wird. In der
 // Telemetrie kamen sie deshalb als UNKNOWN an und liessen sich keinem Item
@@ -20,16 +36,9 @@ function resolvePendingItemType(player, preferredIndex) {
         const type = normalizePickupType(rawType, { fallback: rawType });
         if (!isRocketPickupType(type)) selectableCount += 1;
     }
-    if (selectableCount === 0 || (Number.isInteger(preferredIndex) && preferredIndex >= selectableCount)) {
-        return null;
-    }
-    let selectedIndex = Number.isInteger(player?.selectedItemIndex)
-        ? Math.max(0, player.selectedItemIndex)
-        : 0;
-    if (selectedIndex >= selectableCount) selectedIndex = 0;
-    const requestedIndex = Number.isInteger(preferredIndex) && preferredIndex >= 0
-        ? preferredIndex
-        : selectedIndex;
+    if (selectableCount === 0) return null;
+    const requestedIndex = resolveSelectableSlot(player, preferredIndex, selectableCount);
+    if (requestedIndex < 0) return null;
     let selectableIndex = 0;
     for (let index = 0; index < legacyInventory.length; index += 1) {
         const rawType = legacyInventory[index];

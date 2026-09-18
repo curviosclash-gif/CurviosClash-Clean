@@ -433,3 +433,30 @@ test('LastRoundGhostSystem rejects ghost clips that are not renderable', () => {
 
     system.dispose();
 });
+
+test('LastRoundGhostSystem meldet einen abgelehnten Clip genau einmal, Leerlauf bleibt still', () => {
+    const warnings = [];
+    const logger = { warn: (...args) => warnings.push(args) };
+
+    const silent = new LastRoundGhostSystem(createRendererStub(), { logger });
+    assert.equal(silent.playClip(null), false);
+    assert.equal(warnings.length, 0, 'no ghost to replay is not a failure');
+    silent.dispose();
+
+    const system = new LastRoundGhostSystem(createRendererStub(), { logger });
+    const rejected = system.playClip({
+        sourceDuration: 1,
+        displayDuration: 1,
+        frames: [
+            { time: 0, players: [{ idx: 0, x: 0, y: 0, z: 0, alive: false }] },
+            { time: 1, players: [{ idx: 0, x: 1, y: 0, z: 0, alive: false }] },
+        ],
+    });
+
+    assert.equal(rejected, false);
+    assert.equal(warnings.length, 1, 'a rejected clip has to say why');
+    assert.match(String(warnings[0][0]), /last-round-ghost: clip rejected \(not_renderable\)/);
+    assert.equal(warnings[0][1]?.frames, 2);
+
+    system.dispose();
+});

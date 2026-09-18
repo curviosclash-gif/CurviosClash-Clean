@@ -377,6 +377,13 @@ class VehicleLabApp {
     }
 
     persistCurrentConfig(statusMessage = 'Entwurf automatisch gesichert.') {
+        // Gespeichert wird jetzt der komplette Stand, also hat ein wartender Auto-Speicher-Timer
+        // nichts mehr zu tun. Bliebe er stehen, wuerde er 180 ms spaeter die Statusmeldung
+        // dieser Aktion mit seinem eigenen Text ueberschreiben.
+        if (this._saveTimeout) {
+            clearTimeout(this._saveTimeout);
+            this._saveTimeout = null;
+        }
         try {
             this.history.save(this.vehicle.config);
             localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(this.vehicle.config));
@@ -843,6 +850,7 @@ class VehicleLabApp {
             this.rebuildVehicle();
             this.selectPart(this.selectedIndex, newPath);
         }
+        this.updateArcadeBlueprintStatus();
         this.persistCurrentConfig('Bauteil dupliziert.');
         this.updateUI();
         this.authoringTelemetry.recordCounter('part_duplicated');
@@ -857,6 +865,7 @@ class VehicleLabApp {
         if (nextAxis) part.mirrorAxis = nextAxis;
         else delete part.mirrorAxis;
         this.rebuildVehicle();
+        this.updateArcadeBlueprintStatus();
         this.persistCurrentConfig(nextAxis ? `Spiegelung ${nextAxis.toUpperCase()} aktiviert.` : 'Spiegelung deaktiviert.');
         this.updateUI();
     }

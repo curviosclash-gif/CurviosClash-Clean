@@ -51,8 +51,6 @@ async function openMatchAdvancedSettings(page) {
 }
 
 test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
-    test.describe.configure({ mode: 'serial' });
-
     test('T20kb: Map- und Flugzeugauswahl bleiben in State und Match konsistent', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
@@ -474,10 +472,12 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await loadGame(page);
         await openCustomSubmenu(page);
 
+        // submenu-expert carries an OPEN access policy, so only the state machine can refuse it:
+        // the custom flow reaches path/start_setup/main/quickstart/multiplayer, never "expert".
         const result = await page.evaluate(() => {
             const runtime = window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime;
             return {
-                opened: runtime?.showPanel?.('submenu-multiplayer', { trigger: 'blocked_transition_test' }),
+                opened: runtime?.showPanel?.('submenu-expert', { trigger: 'blocked_transition_test' }),
                 menuState: window.GAME_INSTANCE?.uiManager?.menuStateMachine?.getState?.() || '',
                 visiblePanels: Array.from(document.querySelectorAll('.submenu-panel:not(.hidden)')).map((panel) => panel.id),
             };
@@ -1399,9 +1399,11 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
     test('T20p: Multiplayer-Join zeigt Feldgrund und fokussiert den Lobby-Code', async ({ page }) => {
         await loadGame(page);
-        await openMultiplayerSubmenu(page);
+        await openMultiplayerSubmenu(page, { requireActive: true });
         await expect(page.locator('#btn-start')).toBeHidden();
-        await expect(page.locator('#multiplayer-inline-stub')).toHaveJSProperty('open', true);
+        // The lobby surface is a div since 879e9ac4, so "open" no longer exists on it.
+        await expect(page.locator('#multiplayer-inline-stub')).toBeVisible();
+        await expect(page.locator('#multiplayer-connection-controls')).toBeVisible();
         await page.click('#btn-multiplayer-join');
         await expect(page.locator('#multiplayer-status')).toContainText('Lobby-Code fehlt');
         await expect(page.locator('#multiplayer-lobby-code')).toHaveAttribute('aria-invalid', 'true');
@@ -2075,6 +2077,10 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und persistiert pro Map/Route', async ({ page }) => {
         const ghostLibraryKey = 'cuviosclash.arcade-ghost-library.v1';
         const ghostLibrarySchemaVersion = 'arcade-ghost-library.v2';
+        // The library only replaces a route entry with a longer run. The seeded ghost is kept
+        // far shorter than any round played here, so a larger stored duration afterwards
+        // can only come from the game writing its own round.
+        const seededDurationMs = 100;
         const ghostClip = {
             frames: [
                 {
@@ -2082,13 +2088,13 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                     players: [{ idx: 0, alive: true, x: 0, y: 2, z: 0, qx: 0, qy: 0, qz: 0, qw: 1, bot: false }],
                 },
                 {
-                    time: 4.2,
+                    time: seededDurationMs / 1000,
                     players: [{ idx: 0, alive: true, x: 4, y: 2, z: 0, qx: 0, qy: 0.3, qz: 0, qw: 0.95, bot: false }],
                 },
             ],
             players: [{ idx: 0, color: 0xffffff, isBot: false, modelScale: 1 }],
-            sourceDuration: 4.2,
-            displayDuration: 4.2,
+            sourceDuration: seededDurationMs / 1000,
+            displayDuration: seededDurationMs / 1000,
         };
 
         await loadGame(page);
@@ -2098,6 +2104,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
             ghostLibraryStorageKey,
             schemaVersion,
             ghostClipPayload,
+            durationMs,
         }) => {
             const game = window.GAME_INSTANCE;
             game?.runtimeCoordinator?.getRuntimeFacade?.()?.arcadeRunRuntime?.flushGhostLibrarySaves?.();
@@ -2105,7 +2112,11 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 game?.config?.MAPS?.[selectedMapKey]?.parcours?.routeId
                 || selectedMapKey
             ).trim();
-            const rawLibrary = JSON.parse(localStorage.getItem(ghostLibraryStorageKey) || '{}');
+            // Player profiles moved every arcade record behind a profile-scoped storage key
+            // (PlayerProfileStorageContract), so the library has to be seeded through the same
+            // record store the runtime reads from - a raw localStorage write never arrives.
+            const recordStore = game?.settingsManager?.getPlayerRecordStorePort?.() || null;
+            const rawLibrary = recordStore?.loadJsonRecord?.(ghostLibraryStorageKey, {}) || {};
             const nextLibrary = rawLibrary?.schemaVersion === schemaVersion && rawLibrary?.routes
                 ? rawLibrary
                 : {
@@ -2126,19 +2137,20 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 canonicalRouteId: routeId,
                 routeAliases: routeId === selectedMapKey ? [] : [selectedMapKey],
                 longestGhostClip: ghostClipPayload,
-                durationMs: 4200,
+                durationMs,
                 updatedAt: new Date().toISOString(),
                 lastTouchSeq: nextLibrary.lastTouchSeq,
             };
             nextLibrary.aliasIndex[routeId] = routeId;
             nextLibrary.aliasIndex[selectedMapKey] = routeId;
-            localStorage.setItem(ghostLibraryStorageKey, JSON.stringify(nextLibrary));
-            return { mapKey: selectedMapKey, routeId };
+            recordStore?.saveJsonRecord?.(ghostLibraryStorageKey, nextLibrary);
+            return { mapKey: selectedMapKey, routeId, seeded: !!recordStore };
         }, {
             mapKey,
             ghostLibraryStorageKey: ghostLibraryKey,
             schemaVersion: ghostLibrarySchemaVersion,
             ghostClipPayload: ghostClip,
+            durationMs: seededDurationMs,
         });
 
         // --- Single + Normal (map-key based route fallback) ---
@@ -2164,6 +2176,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await openStartSetupSection(page, 'map');
         await page.selectOption('#map-select', normalMapKey);
         const normalSeed = await seedGhostForMap(normalMapKey);
+        expect(normalSeed.seeded).toBe(true);
 
         await page.click('#submenu-game:not(.hidden) #btn-start', { force: true });
         await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING', null, { timeout: 20000 });
@@ -2183,7 +2196,10 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
             if (players.length > 0) {
                 game.matchFlowUiController?.onRoundEnd?.(players[0]);
             }
-            const persistedLibrary = JSON.parse(localStorage.getItem('cuviosclash.arcade-ghost-library.v1') || '{}');
+            const arcadeRuntime = game?.runtimeCoordinator?.getRuntimeFacade?.()?.arcadeRunRuntime || null;
+            arcadeRuntime?.flushGhostLibrarySaves?.();
+            const recordStore = game?.settingsManager?.getPlayerRecordStorePort?.() || null;
+            const persistedLibrary = recordStore?.loadJsonRecord?.('cuviosclash.arcade-ghost-library.v1', {}) || {};
             const persistedRoute = persistedLibrary?.routes?.[routeId] || persistedLibrary?.[routeId] || null;
             return {
                 active: ghostState?.active === true,
@@ -2197,7 +2213,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(normalGhostState.entryCount).toBeGreaterThan(0);
         expect(normalGhostState.frameCount).toBeGreaterThan(1);
         expect(normalGhostState.routeId).toBe(normalSeed.routeId);
-        expect(normalGhostState.persistedDurationMs).toBeGreaterThan(0);
+        expect(normalGhostState.persistedDurationMs).toBeGreaterThan(seededDurationMs);
         await returnToMenu(page);
 
         // --- Single + Arcade (explicit parcours routeId) ---
@@ -2218,6 +2234,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await openStartSetupSection(page, 'map');
         await page.selectOption('#map-select', arcadeMapKey);
         const arcadeSeed = await seedGhostForMap(arcadeMapKey);
+        expect(arcadeSeed.seeded).toBe(true);
 
         await page.click('#submenu-game:not(.hidden) #btn-start', { force: true });
         await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING', null, { timeout: 20000 });
@@ -2240,7 +2257,10 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                     parcours: { routeId, completionTimeMs: 4200, checkpointCount: 3 },
                 });
             }
-            const persistedLibrary = JSON.parse(localStorage.getItem('cuviosclash.arcade-ghost-library.v1') || '{}');
+            const arcadeRuntime = game?.runtimeCoordinator?.getRuntimeFacade?.()?.arcadeRunRuntime || null;
+            arcadeRuntime?.flushGhostLibrarySaves?.();
+            const recordStore = game?.settingsManager?.getPlayerRecordStorePort?.() || null;
+            const persistedLibrary = recordStore?.loadJsonRecord?.('cuviosclash.arcade-ghost-library.v1', {}) || {};
             const persistedRoute = persistedLibrary?.routes?.[routeId] || persistedLibrary?.[routeId] || null;
             return {
                 active: ghostState?.active === true,
@@ -2254,7 +2274,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(arcadeGhostState.entryCount).toBeGreaterThan(0);
         expect(arcadeGhostState.frameCount).toBeGreaterThan(1);
         expect(arcadeGhostState.routeId).toBe(arcadeSeed.routeId);
-        expect(arcadeGhostState.persistedDurationMs).toBeGreaterThan(0);
+        expect(arcadeGhostState.persistedDurationMs).toBeGreaterThan(seededDurationMs);
     });
 
     test('T70a: syncAll/syncByChangeKeys mutieren map/vehicle ohne Input nicht still', async ({ page }) => {
