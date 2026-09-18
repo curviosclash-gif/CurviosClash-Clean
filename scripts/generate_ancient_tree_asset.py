@@ -13,7 +13,7 @@ runtime GLB and preview renders can be recreated together.
 
 from __future__ import annotations
 
-from math import atan2, cos, pi, sin
+from math import atan2, cos, degrees, pi, sin
 from pathlib import Path
 import random
 
@@ -101,20 +101,47 @@ def bark_material():
 
     texcoord = nodes.new("ShaderNodeTexCoord")
     mapping = nodes.new("ShaderNodeMapping")
-    mapping.inputs["Scale"].default_value = (2.2, 2.2, 0.55)
-    noise = nodes.new("ShaderNodeTexNoise")
-    noise.noise_dimensions = "3D"
-    noise.inputs["Scale"].default_value = 4.1
-    noise.inputs["Detail"].default_value = 9.0
-    noise.inputs["Roughness"].default_value = 0.82
-    noise.inputs["Distortion"].default_value = 0.28
+    mapping.inputs["Scale"].default_value = (1.7, 1.7, 0.38)
+
+    # Three related octaves create self-similar bark plates at trunk, branch and fibre scale.
+    fractal_noises = []
+    for label, scale, detail, roughness, distortion in (
+        ("Macro", 3.2, 6.0, 0.78, 0.24),
+        ("Meso", 12.8, 7.0, 0.82, 0.18),
+        ("Micro", 51.2, 4.0, 0.7, 0.08),
+    ):
+        noise = nodes.new("ShaderNodeTexNoise")
+        noise.label = f"FractalBark{label}"
+        noise.noise_dimensions = "3D"
+        noise.inputs["Scale"].default_value = scale
+        noise.inputs["Detail"].default_value = detail
+        noise.inputs["Roughness"].default_value = roughness
+        noise.inputs["Distortion"].default_value = distortion
+        links.new(mapping.outputs["Vector"], noise.inputs["Vector"])
+        fractal_noises.append(noise)
+
+    weighted = []
+    for noise, weight in zip(fractal_noises, (0.57, 0.3, 0.13)):
+        multiply = nodes.new("ShaderNodeMath")
+        multiply.operation = "MULTIPLY"
+        multiply.inputs[1].default_value = weight
+        links.new(noise.outputs["Fac"], multiply.inputs[0])
+        weighted.append(multiply)
+    macro_and_meso = nodes.new("ShaderNodeMath")
+    macro_and_meso.operation = "ADD"
+    fractal_height = nodes.new("ShaderNodeMath")
+    fractal_height.operation = "ADD"
+    links.new(weighted[0].outputs[0], macro_and_meso.inputs[0])
+    links.new(weighted[1].outputs[0], macro_and_meso.inputs[1])
+    links.new(macro_and_meso.outputs[0], fractal_height.inputs[0])
+    links.new(weighted[2].outputs[0], fractal_height.inputs[1])
 
     ramp = nodes.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].position = 0.22
+    ramp.color_ramp.elements[0].position = 0.2
     ramp.color_ramp.elements[0].color = (0.022, 0.012, 0.006, 1)
-    ramp.color_ramp.elements[1].position = 0.82
+    ramp.color_ramp.elements[1].position = 0.8
     ramp.color_ramp.elements[1].color = (0.30, 0.205, 0.115, 1)
-    mid = ramp.color_ramp.elements.new(0.52)
+    mid = ramp.color_ramp.elements.new(0.5)
     mid.color = (0.105, 0.063, 0.03, 1)
 
     moss_noise = nodes.new("ShaderNodeTexNoise")
@@ -132,20 +159,21 @@ def bark_material():
     moss_mix.inputs[2].default_value = (0.045, 0.14, 0.018, 1)
 
     bump = nodes.new("ShaderNodeBump")
-    bump.inputs["Strength"].default_value = 0.72
-    bump.inputs["Distance"].default_value = 0.32
+    bump.inputs["Strength"].default_value = 0.82
+    bump.inputs["Distance"].default_value = 0.3
 
     links.new(texcoord.outputs["Generated"], mapping.inputs["Vector"])
-    links.new(mapping.outputs["Vector"], noise.inputs["Vector"])
     links.new(mapping.outputs["Vector"], moss_noise.inputs["Vector"])
-    links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
+    links.new(fractal_height.outputs[0], ramp.inputs["Fac"])
     links.new(moss_noise.outputs["Fac"], moss_mask.inputs["Fac"])
     links.new(moss_mask.outputs["Color"], moss_mix.inputs["Fac"])
     links.new(ramp.outputs["Color"], moss_mix.inputs[1])
     links.new(moss_mix.outputs["Color"], shader.inputs["Base Color"])
-    links.new(noise.outputs["Fac"], bump.inputs["Height"])
+    links.new(fractal_height.outputs[0], bump.inputs["Height"])
     links.new(bump.outputs["Normal"], shader.inputs["Normal"])
     links.new(shader.outputs["BSDF"], output.inputs["Surface"])
+    mat["fractal_bark_octaves"] = 3
+    mat["fractal_bark_scales"] = (3.2, 12.8, 51.2)
     return mat
 
 
@@ -212,16 +240,21 @@ def convert_curve(obj, displacement=0.0):
     for polygon in obj.data.polygons:
         polygon.use_smooth = True
     if displacement > 0:
-        texture = bpy.data.textures.new(f"{obj.name}_surface", type="CLOUDS")
-        texture.noise_scale = max(0.12, displacement * 3.2)
-        texture.noise_depth = 2
-        modifier = obj.modifiers.new("OrganicSurface", "DISPLACE")
-        modifier.texture = texture
-        modifier.texture_coords = "GLOBAL"
-        modifier.strength = displacement
-        modifier.mid_level = 0.5
-        bpy.context.view_layer.objects.active = obj
-        bpy.ops.object.modifier_apply(modifier=modifier.name)
+        for label, scale_multiplier, strength, depth in (
+            ("Macro", 3.4, 0.58, 2),
+            ("Meso", 1.35, 0.28, 1),
+            ("Micro", 0.52, 0.14, 0),
+        ):
+            texture = bpy.data.textures.new(f"{obj.name}_FractalBark_{label}", type="CLOUDS")
+            texture.noise_scale = max(0.025, displacement * scale_multiplier)
+            texture.noise_depth = depth
+            modifier = obj.modifiers.new(f"FractalBark_{label}", "DISPLACE")
+            modifier.texture = texture
+            modifier.texture_coords = "GLOBAL"
+            modifier.strength = displacement * strength
+            modifier.mid_level = 0.5
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.modifier_apply(modifier=modifier.name)
     return obj
 
 
@@ -236,17 +269,17 @@ TRUNK_SPEC = (
 # Four art-directed leaders preserve the concept silhouette. All later levels are generated
 # recursively from these anchors, so the crown remains self-similar without losing its identity.
 MAIN_BRANCHES = (
-    ("MainFrontLeft", ((-0.05, -0.05, 5.2), (-0.8, -0.65, 7.4), (-1.9, -1.45, 9.8),
-                       (-3.2, -2.2, 12.2), (-4.3, -2.75, 14.1)),
+    ("MainFrontLeft", ((-0.05, -0.05, 5.2), (-1.2, -0.95, 6.8), (-2.8, -2.2, 8.6),
+                       (-4.6, -3.55, 10.3), (-6.2, -4.7, 11.8)),
      (1.28, 1.02, 0.74, 0.48, 0.24)),
-    ("MainFrontRight", ((0.08, -0.04, 5.8), (0.9, -0.65, 8.0), (2.0, -1.45, 10.4),
-                        (3.2, -2.25, 12.6), (4.15, -2.7, 14.0)),
+    ("MainFrontRight", ((0.08, -0.04, 5.8), (0.95, -0.75, 8.0), (2.05, -1.75, 10.7),
+                        (3.5, -3.1, 13.2), (4.8, -4.3, 15.2)),
      (1.22, 0.98, 0.71, 0.45, 0.22)),
-    ("MainRearLeft", ((-0.08, 0.1, 6.4), (-0.85, 0.95, 8.7), (-1.75, 2.0, 10.9),
-                      (-2.8, 3.0, 13.0), (-3.35, 3.55, 14.5)),
+    ("MainRearLeft", ((-0.08, 0.1, 6.4), (-1.0, 1.1, 7.9), (-2.0, 2.3, 9.8),
+                      (-3.1, 3.6, 11.7), (-4.2, 4.8, 13.4)),
      (1.14, 0.9, 0.65, 0.41, 0.2)),
-    ("MainRearRight", ((0.1, 0.12, 6.9), (0.95, 1.0, 9.2), (1.9, 2.05, 11.6),
-                       (2.75, 3.05, 13.8), (2.4, 3.8, 15.8)),
+    ("MainRearRight", ((0.1, 0.12, 6.9), (0.7, 0.85, 9.6), (1.6, 1.9, 12.5),
+                       (2.7, 3.1, 15.0), (4.0, 4.6, 17.5)),
      (1.08, 0.86, 0.61, 0.38, 0.18)),
 )
 
@@ -365,7 +398,7 @@ def build_fractal_wood(tree_collection, mats, rng):
             heading = sector + spread + rng.uniform(-0.16, 0.16)
             radial_direction = Vector((cos(heading), sin(heading), rng.uniform(0.32, 0.68))).normalized()
             direction = (tangent * 0.2 + radial_direction * 0.74 + Vector((0, 0, 0.18))).normalized()
-            length = rng.uniform(4.1, 5.7)
+            length = rng.uniform(5.2, 7.0)
             start_radius = pipe_child_radius(parent_radius, secondary_count) * rng.uniform(0.9, 1.08)
             points = branch_path(start, direction, length, rng, gravity=0.055, phototropism=0.1)
             radii = radius_profile(start_radius, max(0.045, start_radius * 0.14))
@@ -382,7 +415,7 @@ def build_fractal_wood(tree_collection, mats, rng):
                 t_direction = cone_direction(t_tangent, angle, azimuth)
                 t_direction = (t_direction * 0.67 + outward_vector(t_start) * 0.2
                                + Vector((0, 0, 0.24))).normalized()
-                t_length = rng.uniform(1.75, 2.95)
+                t_length = rng.uniform(2.15, 3.45)
                 t_start_radius = pipe_child_radius(t_parent_radius, tertiary_count) * rng.uniform(0.9, 1.1)
                 t_points = branch_path(t_start, t_direction, t_length, rng,
                                        gravity=0.035, phototropism=0.075)
@@ -402,7 +435,7 @@ def build_fractal_wood(tree_collection, mats, rng):
                     )
                     f_direction = (f_direction * 0.8 + Vector((0, 0, 0.18))
                                    + outward_vector(f_start) * 0.08).normalized()
-                    f_length = rng.uniform(0.72, 1.35)
+                    f_length = rng.uniform(0.9, 1.58)
                     f_start_radius = pipe_child_radius(f_parent_radius, fine_count) * rng.uniform(0.86, 1.05)
                     f_points = branch_path(f_start, f_direction, f_length, rng,
                                            gravity=0.018, phototropism=0.045)
@@ -410,7 +443,10 @@ def build_fractal_wood(tree_collection, mats, rng):
                     fine_name = (f"Fine_{main_index:02d}_{secondary_index:02d}_"
                                  f"{tertiary_index:02d}_{fine_index:02d}")
                     fine_specs.append((fine_name, f_points, f_radii))
-                    leaf_sites.append((Vector(f_points[-1]), f_direction, rng.uniform(0.34, 0.52)))
+                    cluster_radius = rng.uniform(0.44, 0.64)
+                    for point_index, scale in ((2, 0.72), (3, 0.88), (4, 1.0)):
+                        leaf_sites.append((Vector(f_points[point_index]), f_direction,
+                                           cluster_radius * scale))
 
     objects.append(curve_bundle("SecondaryBranches", secondary_specs, mats["bark"], tree_collection,
                                 resolution=3, bevel_resolution=3))
@@ -424,6 +460,13 @@ def build_fractal_wood(tree_collection, mats, rng):
         "tertiary": len(tertiary_specs),
         "fine": len(fine_specs),
         "leaf_sites": len(leaf_sites),
+        "main_lengths_m": tuple(round(sum(
+            (Vector(points[index + 1]) - Vector(points[index])).length
+            for index in range(len(points) - 1)
+        ), 3) for _name, points, _radii in main_specs),
+        "main_angles_deg": tuple(round(degrees(
+            (Vector(points[-1]) - Vector(points[0])).angle(Vector((0, 0, 1)))
+        ), 2) for _name, points, _radii in main_specs),
     }
     return objects, leaf_sites, counts
 
@@ -525,14 +568,14 @@ def build_foliage(tree_collection, mats, rng, leaf_sites):
     faces = []
     material_indices = []
     for cluster_index, (center, _branch_direction, radius) in enumerate(leaf_sites):
-        leaves_per_cluster = 10 + rng.randrange(5)
+        leaves_per_cluster = 9 + rng.randrange(5)
         for leaf_index in range(leaves_per_cluster):
             direction = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1)))
             if direction.length_squared == 0:
                 direction = Vector((1, 0, 0))
             direction.normalize()
             distance = rng.random() ** 0.55
-            cluster_scale = Vector((radius, radius * 0.78, radius * 0.68))
+            cluster_scale = Vector((radius, radius * 0.97, radius * 0.88))
             position = center + Vector((direction.x * cluster_scale.x,
                                         direction.y * cluster_scale.y,
                                         direction.z * cluster_scale.z)) * distance
@@ -616,7 +659,7 @@ def build_presentation(scene, collection):
     for label, location in views:
         camera_data = bpy.data.cameras.new(f"Camera_{label}")
         camera_data.type = "ORTHO"
-        camera_data.ortho_scale = 26.0
+        camera_data.ortho_scale = 30.0
         camera = bpy.data.objects.new(f"Camera_{label}", camera_data)
         camera.location = location
         aim_at(camera, target.location)
@@ -672,14 +715,18 @@ def validate_scene(scene, tree_collection, cameras, branch_counts):
         raise RuntimeError(f"secondary branch count outside target: {branch_counts['secondary']}")
     if branch_counts["tertiary"] < 80 or branch_counts["fine"] < 200:
         raise RuntimeError(f"branch hierarchy is too sparse: {branch_counts}")
+    if max(branch_counts["main_lengths_m"]) - min(branch_counts["main_lengths_m"]) < 1.5:
+        raise RuntimeError(f"main branch lengths are too uniform: {branch_counts['main_lengths_m']}")
+    if max(branch_counts["main_angles_deg"]) - min(branch_counts["main_angles_deg"]) < 12:
+        raise RuntimeError(f"main branch angles are too uniform: {branch_counts['main_angles_deg']}")
     if not any(obj.name == "AncientLeaves" for obj in meshes):
         raise RuntimeError("foliage mesh is missing")
     lows, highs = world_bounds(meshes)
     dimensions = highs - lows
-    if dimensions.z < 16 or dimensions.x < 12 or dimensions.y < 12:
+    if dimensions.z < 18 or dimensions.x < 18 or dimensions.y < 18:
         raise RuntimeError(f"tree bounds are too small: {tuple(round(value, 2) for value in dimensions)}")
     crown_roundness = min(dimensions.x, dimensions.y) / max(dimensions.x, dimensions.y)
-    if crown_roundness < 0.78:
+    if crown_roundness < 0.86:
         raise RuntimeError(f"tree crown footprint is too narrow: ratio={crown_roundness:.3f}")
     if lows.z < -0.25 or lows.z > 0.25:
         for obj in meshes:
@@ -741,10 +788,10 @@ def validate_silhouettes(scene, cameras):
     widest = max(cardinal_widths)
     narrowest = min(cardinal_widths)
     roundness = narrowest / widest
-    if roundness < 0.72:
+    if roundness < 0.84:
         raise RuntimeError(f"crown silhouette varies too much by view: ratio={roundness:.3f}, {widths}")
     for label in ("side", "rear", "opposite_side"):
-        if widths[label] / widths["front"] < 0.76:
+        if widths[label] / widths["front"] < 0.86:
             raise RuntimeError(f"{label} crown is too narrow relative to front: {widths}")
     scene["silhouette_widths"] = {label: round(value, 4) for label, value in widths.items()}
     scene["silhouette_roundness"] = round(roundness, 4)
