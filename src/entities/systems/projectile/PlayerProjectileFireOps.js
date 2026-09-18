@@ -10,6 +10,7 @@ import {
     buildGameplayActionResult,
 } from '../../../shared/contracts/GameplayActionResultContract.js';
 import { configureProjectileRange } from './ProjectileStatePool.js';
+import { beginGuidedRocketAutopilot } from '../../ai/GuidedRocketAutopilotOps.js';
 import {
     canRocketIntercept,
     pickWeakestRocketIndex,
@@ -191,6 +192,7 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     }
 
     player.shootCooldown = config.PROJECTILE.COOLDOWN;
+    if (guidedActive) beginGuidedRocketAutopilot(player);
     system.onShoot(player, type, firstProjectile);
     return buildGameplayActionResult({
         ok: true,

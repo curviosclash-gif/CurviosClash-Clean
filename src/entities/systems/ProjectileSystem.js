@@ -19,6 +19,7 @@ import {
 } from '../../shared/contracts/GameplayActionResultContract.js';
 import { shootPlayerItemProjectile } from './projectile/PlayerProjectileFireOps.js';
 import { applyGuidedRocketInput } from './projectile/GuidedRocketControlOps.js';
+import { endGuidedRocketAutopilot } from '../ai/GuidedRocketAutopilotOps.js';
 
 export class ProjectileSystem {
     constructor(options = {}) {
@@ -509,6 +510,7 @@ export class ProjectileSystem {
             return;
         }
 
+        if (projectile.guidedActive) endGuidedRocketAutopilot(projectile.owner);
         this._hitResolver.detonateProjectile(projectile);
         this._releaseProjectileMesh(projectile);
         const lastIndex = this.projectiles.length - 1;
@@ -535,6 +537,7 @@ export class ProjectileSystem {
     clear() {
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const projectile = this.projectiles[i];
+            if (projectile.guidedActive) endGuidedRocketAutopilot(projectile.owner);
             this._releaseProjectileMesh(projectile);
             this._releaseProjectileState(projectile);
         }

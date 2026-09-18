@@ -8,13 +8,13 @@ import {
     resolveCameraModeIndexFromModes,
 } from '../../shared/contracts/CameraModeContract.js';
 import { sanitizeBotAction } from '../ai/actions/BotActionContract.js';
+import { routeGuidedRocketOwnerInput } from '../ai/GuidedRocketAutopilotOps.js';
 
 const logger = createLogger('PlayerInputSystem');
 import { createBotRuntimeContext } from '../ai/BotRuntimeContextFactory.js';
 import { buildObservation } from '../ai/observation/ObservationSystem.js';
 import { OBSERVATION_LENGTH_V1 } from '../ai/observation/ObservationSchemaV1.js';
 
-// Reused input object to reduce GC
 const SHARED_EMPTY_INPUT = {
     pitchAxis: undefined, yawAxis: undefined, rollAxis: undefined,
     pitchUp: false,
@@ -44,8 +44,7 @@ function getEmptyInput() {
     SHARED_EMPTY_INPUT.yawRight = false;
     SHARED_EMPTY_INPUT.rollLeft = false;
     SHARED_EMPTY_INPUT.rollRight = false;
-    SHARED_EMPTY_INPUT.boost = false;
-    SHARED_EMPTY_INPUT.boostPressed = false;
+    SHARED_EMPTY_INPUT.boost = false; SHARED_EMPTY_INPUT.boostPressed = false;
     SHARED_EMPTY_INPUT.slowMo = false; SHARED_EMPTY_INPUT.slowMoPressed = false;
     SHARED_EMPTY_INPUT.cameraSwitch = false;
     SHARED_EMPTY_INPUT.dropItem = false;
@@ -103,7 +102,6 @@ export class PlayerInputSystem {
         this._observationMaxReuseFrames = OBSERVATION_MAX_REUSE_FRAMES;
         this._observationLastAdvanceAtMs = 0;
         this._managedFrameActive = false;
-        // Reusable sanitize options object to avoid per-frame allocation
         this._sharedSanitizeOptions = {
             inventoryLength: 0,
             onInvalid: null,
@@ -476,10 +474,10 @@ export class PlayerInputSystem {
 
     resolvePlayerInput(player, dt, inputManager) {
         const entityManager = this.entityManager;
-        let input = getEmptyInput();
+        let input = player.autopilotActive ? routeGuidedRocketOwnerInput(entityManager, player, dt, inputManager, getEmptyInput()) : getEmptyInput();
 
-        if (player.isBot) {
-            const botAI = entityManager.botByPlayer.get(player);
+        if (player.isBot || player.autopilotActive) {
+            const botAI = entityManager.botByPlayer?.get?.(player);
             if (botAI) {
                 const needsObservation = this._policyNeedsObservation(botAI);
                 const runtimeProfiler = entityManager?.runtimeProfiler || null;
