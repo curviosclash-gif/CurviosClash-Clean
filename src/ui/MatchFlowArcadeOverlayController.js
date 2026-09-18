@@ -12,6 +12,7 @@ import {
 import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/ArcadePostRunCards.js';
 import { createArenaWavesMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
+import { resolveArenaWavesChoiceLabel } from '../shared/contracts/ArenaWavesContract.js';
 import {
     getArcadeMenuSurfaceState,
     requestArcadeReplayPlayback,
@@ -336,8 +337,7 @@ export class MatchFlowArcadeOverlayController {
         const grid = document.createElement('div'); grid.className = 'arcade-overlay-choice-grid';
         for (const choiceId of runtimeState.choices || []) {
             const button = document.createElement('button'); button.type = 'button'; button.className = 'arcade-overlay-choice-btn';
-            const supplyLabels = { 'supply:shield': 'Kampfvorrat: Schild', 'supply:rocket': 'Kampfvorrat: Rakete', 'supply:health': 'Kampfvorrat: Reparatur', 'supply:thick': 'Kampfvorrat: Dicke Spur' };
-            button.textContent = supplyLabels[choiceId] || choiceId.replace('machine_gun:', 'MG: ').replace('_', ' ');
+            button.textContent = resolveArenaWavesChoiceLabel(choiceId);
             button.addEventListener('click', () => selectArcadeIntermissionChoice(this.runtimePort, this.game, choiceId));
             grid.appendChild(button);
         }

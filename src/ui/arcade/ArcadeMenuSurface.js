@@ -25,6 +25,14 @@ import {
 } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
 import { FIVE_PORTALS_RECORD_KEY } from '../../shared/contracts/FivePortalsContract.js';
 import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
+import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
+
+const BOT_DIFFICULTY_LABELS = Object.freeze({ EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' });
+// Only phases worth showing; unknown or idle phases stay out of the line.
+const ARCADE_PHASE_LABELS = Object.freeze({
+    countdown: 'Countdown', running: 'läuft', combat: 'Kampf', intermission: 'Zwischenstopp',
+    upgrade: 'Vorteil wählen', finished: 'beendet', ended: 'beendet',
+});
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
@@ -245,15 +253,17 @@ export function setupArcadeMenuSurface(ctx = {}) {
             ? runtimeState.intermission
             : null;
 
-        const phaseLabel = runtimeState?.phase ? ` | ${String(runtimeState.phase).toUpperCase()}` : '';
-        const dailyLabel = runtimeState?.isDailyChallenge === true ? ' | DAILY' : '';
+        const phaseText = ARCADE_PHASE_LABELS[String(runtimeState?.phase || '')] || '';
+        const phaseLabel = phaseText ? ` · ${phaseText}` : '';
+        const dailyLabel = runtimeState?.isDailyChallenge === true ? ' · Daily' : '';
+        const difficultyLabel = BOT_DIFFICULTY_LABELS[difficulty] || difficulty;
         const fivePortalsSelected = settings.arcade?.runType === 'five_portals';
         const fivePortalsRecord = runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(FIVE_PORTALS_RECORD_KEY, null) || null;
         refs.runLine.textContent = fivePortalsSelected
             ? 'Fünf Portale: fünf Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.'
             : settings.arcade?.dailyChallenge
-            ? 'Daily: Solo · ship5 ohne Leistungsboni · 5 Sektoren · NORMAL. Ergebnis bis zum Boss zählt.'
-            : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${mapKey} | Bots ${botCount} | ${difficulty}${dailyLabel}${phaseLabel}`;
+            ? `Daily: Solo · ${resolveVehiclePreview('ship5').label} ohne Leistungsboni · 5 Sektoren · Normal. Ergebnis bis zum Boss zählt.`
+            : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${resolveMapPreview(mapKey).name} · ${botCount} Bots · ${difficultyLabel}${dailyLabel}${phaseLabel}`;
         refs.recordsLine.textContent = fivePortalsSelected
             ? `Persönliche Bestzeit: ${fivePortalsRecord?.bestTotalMs > 0 ? `${(fivePortalsRecord.bestTotalMs / 1000).toFixed(2)} s` : '–'}`
             : `Neue Wertung: ${Math.round(runtimeState?.records?.bestScore || 0)} Punkte`

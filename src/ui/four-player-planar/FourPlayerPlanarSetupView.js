@@ -71,7 +71,7 @@ export class FourPlayerPlanarSetupView {
                 class="mode-btn menu-choice-card four-player-planar-entry hidden">
                 <span class="menu-choice-eyebrow">Lokales Modul</span>
                 <span class="menu-choice-title">4 Spieler – Planar</span>
-                <span class="menu-choice-copy">Classic oder Hunt im 2×2-Splitscreen</span>
+                <span class="menu-choice-copy">Klassisch oder Kampf im 2×2-Splitscreen</span>
             </button>`);
         grid.appendChild(card);
 
@@ -86,8 +86,8 @@ export class FourPlayerPlanarSetupView {
             </div>
             <div class="four-player-planar-fields">
                 <label>Modus<select data-four-player-planar-mode>
-                    <option value="classic">Classic</option>
-                    <option value="hunt">Hunt</option>
+                    <option value="classic">Klassisch</option>
+                    <option value="hunt">Kampf</option>
                 </select></label>
                 <label>Karte<select data-four-player-planar-map></select></label>
                 <label>Gemeinsames Fahrzeug<select data-four-player-planar-vehicle></select></label>

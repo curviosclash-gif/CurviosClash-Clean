@@ -1,8 +1,8 @@
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
+// The 3D-art marker belongs to the map details, not into the name in the list.
 export function formatStartSetupMapLabel(entry = {}) {
-    const name = String(entry?.name || entry?.key || 'Map');
-    return entry?.hasGlbModel ? `${name} [GLB]` : name;
+    return String(entry?.name || entry?.key || 'Karte');
 }
 
 export function getStartFieldBinding(ui, fieldKey) {

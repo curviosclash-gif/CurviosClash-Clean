@@ -81,8 +81,8 @@ export class ThreePlayerSplitSetupView {
             </div>
             <div class="three-player-split-fields">
                 <label>Modus<select data-three-player-split-mode>
-                    <option value="classic">Classic</option>
-                    <option value="hunt">Hunt</option>
+                    <option value="classic">Klassisch</option>
+                    <option value="hunt">Kampf</option>
                 </select></label>
                 <label>Karte<select data-three-player-split-map></select></label>
                 <label>Gemeinsames Fahrzeug<select data-three-player-split-vehicle></select></label>
