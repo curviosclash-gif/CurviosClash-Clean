@@ -98,6 +98,12 @@ export function transformElectronMain(source) {
     );
     result = replaceRequired(
         result,
+        "const { installEditorUnloadGuard } = require('./editor-unload-guard.cjs');\n",
+        '',
+        'editor unload guard import'
+    );
+    result = replaceRequired(
+        result,
         "const { createFocusScopedShortcut } = require('./focus-scoped-shortcut.cjs');\n",
         '',
         'focus scoped shortcut import'

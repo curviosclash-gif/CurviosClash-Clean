@@ -32,6 +32,7 @@
       "focus-scoped-shortcut.cjs",
       "editor-preload.cjs",
       "editor-map-store.cjs",
+      "editor-unload-guard.cjs",
       "editor-vehicle-store.cjs",
       "tuning-console/**/*",
       "settings-studio/**/*",

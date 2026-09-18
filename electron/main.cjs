@@ -32,6 +32,7 @@ const {
     isTrustedEditorUrl,
 } = require('./window-security-options.cjs');
 const { installEditorDownloadTarget } = require('./editor-download-target.cjs');
+const { installEditorUnloadGuard } = require('./editor-unload-guard.cjs');
 const { createFocusScopedShortcut } = require('./focus-scoped-shortcut.cjs');
 const { createMainWindowCloseLifecycle } = require('./main-window-lifecycle.cjs');
 const { createEditorVehicleStore } = require('./editor-vehicle-store.cjs');
@@ -597,6 +598,9 @@ async function createWindow() {
         editorWindow.webContents.on('will-navigate', (event, url) => {
             if (!isTrustedEditorUrl(url, appServer.url)) event.preventDefault();
         });
+        // Der Editor sperrt das Verlassen bei ungespeicherten Aenderungen;
+        // ohne diesen Dialog blockiert Electron still.
+        installEditorUnloadGuard(editorWindow, { dialog });
         showWindowForMode(editorWindow, testRenderMode);
         const isMapEditor = new URL(details.url).pathname === '/editor/map-editor-3d.html';
         editorWindow.webContents.setWindowOpenHandler(withTestRenderWindowOpenHandler(isMapEditor
