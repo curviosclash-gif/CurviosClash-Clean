@@ -17,6 +17,7 @@ export function createHuntNetworkState(entityManager) {
         mapDestructibles: entityManager._mapDestructibleSystem?.serializeNetworkState?.() || null,
         // Tanks: host truth for position, hit points and shots; null on maps without them.
         mapUnits: entityManager._mapUnitSystem?.serializeNetworkState?.() || null,
+        lightning: entityManager._lightningStrikeSystem?.serializeNetworkState?.() || null,
         outcome: normalizeOutcome(entityManager._lastRoundOutcome),
     };
 }
@@ -30,6 +31,8 @@ export function applyHuntNetworkState(entityManager, state) {
         entityManager._mapDestructibleSystem?.applyNetworkState?.(state.mapDestructibles);
     }
     if (state.mapUnits) entityManager._mapUnitSystem?.applyNetworkState?.(state.mapUnits);
+    // Always applied, also when null: a finished warning has to leave the client sky.
+    entityManager._lightningStrikeSystem?.applyNetworkState?.(state.lightning || { pending: [], lastStrike: null });
 
     const outcome = state.outcome;
     if (!outcome) return;

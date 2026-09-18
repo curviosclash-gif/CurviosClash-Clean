@@ -157,6 +157,52 @@ export class LightningStrikeSystem {
         this.networkReplica = enabled === true;
     }
 
+    /** Host truth for clients: the pending warnings and the last strike. Null while nothing happens. */
+    serializeNetworkState() {
+        if (this.pending.length === 0 && !this.lastStrike) return null;
+        return {
+            pending: this.pending.map((strike) => ({ id: strike.id, remaining: strike.remaining, duration: strike.duration })),
+            lastStrike: this.lastStrike ? { id: this.lastStrike.id, targetIndices: [...this.lastStrike.targetIndices] } : null,
+        };
+    }
+
+    /**
+     * A client mirrors the warnings (for the sky and the message) and replays each new strike once.
+     * It never picks targets or deals damage: that already happened on the host.
+     */
+    applyNetworkState(state) {
+        if (!state || typeof state !== 'object') return;
+        this.networkReplica = true;
+        // The first snapshot a client sees only learns the last strike id: an old strike is not replayed.
+        const firstState = this._stateInitialized !== true;
+        this._stateInitialized = true;
+        const known = new Set(this.pending.map((strike) => strike.id));
+        const incoming = Array.isArray(state.pending) ? state.pending : [];
+        this.pending.length = 0;
+        let fresh = false;
+        for (const entry of incoming) {
+            const id = Math.trunc(Number(entry?.id));
+            if (!Number.isFinite(id)) continue;
+            if (!known.has(id)) fresh = true;
+            const duration = positive(entry.duration, 2);
+            this.pending.push({ id, caster: null, remaining: Math.max(0, Number(entry.remaining) || 0), duration });
+        }
+        if (fresh) {
+            this._resolveEffect();
+            this._announce();
+        }
+        const strike = state.lastStrike;
+        const strikeId = Math.trunc(Number(strike?.id));
+        if (Number.isFinite(strikeId) && strikeId !== this._appliedStrikeId) {
+            this._appliedStrikeId = strikeId;
+            this.lastStrike = { id: strikeId, casterIndex: -1, targetIndices: [...(strike.targetIndices || [])] };
+            if (!firstState) {
+                const indices = new Set(this.lastStrike.targetIndices);
+                this._showStrike((this.entityManager?.players || []).filter((player) => indices.has(player?.index)));
+            }
+        }
+    }
+
     reset() {
         this.pending.length = 0;
         this.lastStrike = null;
