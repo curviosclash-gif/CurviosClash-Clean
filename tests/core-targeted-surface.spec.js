@@ -239,7 +239,10 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(overlayState.statsVisible).toBeTruthy();
         expect(overlayState.blockIds).toEqual(expect.arrayContaining(['round', 'match', 'scoreboard']));
         expect(overlayState.roundWinner).toBe('Spieler 1');
-        expect(Number.parseFloat(overlayState.roundDuration)).toBeCloseTo(overlayState.recordedDuration, 2);
+        // The board writes "2,4 s" (German decimal comma, one decimal), so parse the comma and
+        // allow the half-tenth the rounding may swallow.
+        const shownDuration = Number.parseFloat(String(overlayState.roundDuration).replace(',', '.'));
+        expect(Math.abs(shownDuration - overlayState.recordedDuration)).toBeLessThanOrEqual(0.051);
         expect(overlayState.matchRounds).toBe('1');
         expect(overlayState.scoreLeader).toBe('1/5');
         expect(overlayState.countdownText).toContain('Nächste Runde in 3');
@@ -284,11 +287,12 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
         expect(overlayState.error || '').toBe('');
         expect(overlayState.state).toBe('MATCH_END');
-        expect(overlayState.messageText).toContain('Sieg: Spieler 1');
+        expect(overlayState.messageText).toContain('Spieler 1 gewinnt das Match');
         expect(overlayState.roundTitle).toBe('Finalrunde');
         expect(overlayState.scoreboardTitle).toBe('Endstand');
         expect(overlayState.scoreLeader).toBe('3/3');
-        expect(overlayState.botWinRate).toBe('0%');
+        // German percent: a non-breaking space before the sign.
+        expect(overlayState.botWinRate).toBe('0 %');
     });
 
     test('T20ke: SettingsManager liefert Balancing-Telemetrie aus dem Round-End-Pfad', async ({ page }) => {
