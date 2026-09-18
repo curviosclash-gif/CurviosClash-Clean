@@ -1,4 +1,5 @@
 import { createRoundEndRecorderAdapter, getLastRoundGhostClip } from './MatchFlowTransitionHotspots.js';
+import { resolveLocalPlayerIndexes } from './postmatch/PostMatchStandingsBlock.js';
 
 export class MatchFlowLifecycleController {
     constructor(deps = {}) {
@@ -157,15 +158,9 @@ export class MatchFlowLifecycleController {
             displayDuration: game.roundPause,
         });
         this._persistRoundGhostForActiveRoute();
-        const huntProjection = controller._getMatchRuntimeProjection()?.hunt || null;
-        const huntSummary = huntProjection?.active === true
-            ? huntProjection.scoreboardSummary || ''
-            : '';
-        if (huntSummary) {
-            if (!roundEndPlan.uiState) roundEndPlan.uiState = {};
-            const baseText = String(roundEndPlan.uiState.messageText || '').trim();
-            roundEndPlan.uiState.messageText = baseText ? `${baseText}\n${huntSummary}` : huntSummary;
-        }
+        // The hunt kills/deaths/assists used to hang below the headline as one long line; since
+        // the result board's standings table carries those columns itself, the headline stays
+        // the winner alone.
         this.applyRoundEndCoordinatorPlan(roundEndPlan);
         this.telemetryController?.recordRoundEndTelemetry?.(roundEndPlan);
         game.hudRuntimeSystem?.refreshArcadeHud?.();
@@ -192,8 +187,18 @@ export class MatchFlowLifecycleController {
             winsNeeded: game.winsNeeded,
             outcomeReason: typeof normalizedOutcome.reason === 'string' ? normalizedOutcome.reason : '',
             parcours: normalizedOutcome.parcours || null,
+            huntScoreboard: this._resolveHuntScoreboard(),
+            localPlayerIndexes: resolveLocalPlayerIndexes(game?.runtimeConfig?.session || null),
             logger: console,
         };
+    }
+
+    // Only HUNT keeps kills, deaths and assists; in every other mode the standings would show three
+    // zeroes per player, so the board gets nothing and prints nothing.
+    _resolveHuntScoreboard() {
+        const huntProjection = this.controller?._getMatchRuntimeProjection?.()?.hunt || null;
+        if (huntProjection?.active !== true) return null;
+        return this.game?.entityManager?.getHuntScoreboard?.() || null;
     }
 
     applyRoundEndCoordinatorPlan(roundEndPlan) {

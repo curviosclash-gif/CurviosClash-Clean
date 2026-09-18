@@ -86,7 +86,7 @@ test('Daily desktop uses fixed vehicle and records victory before optional conti
     await page.screenshot({ path: testInfo.outputPath('arcade-daily-victory-1920.png') });
     await page.click('#btn-arcade-victory-finish');
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'MATCH_END');
-    await expect(page.locator('#arcade-overlay-panel')).toContainText('Daily-Ergebnis');
+    await expect(page.locator('#arcade-overlay-panel')).toContainText('Daily geschafft');
     await page.screenshot({ path: testInfo.outputPath('arcade-daily-result-1920.png') });
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'MENU');

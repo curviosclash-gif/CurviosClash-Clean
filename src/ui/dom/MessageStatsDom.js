@@ -1,52 +1,67 @@
+// Renders the post-match board (contract: post-match-stats.v2).
+//
+// The board has two parts. Everything the player cares about right away stays open: the standings as
+// a real table plus the primary cards. Everything that only helps development (stuck rate, bot
+// survival, bot win rate) moves into a single <details> that starts folded — decision E2. <details>
+// is used on purpose instead of a hand built toggle, because the browser already gives it keyboard
+// operation, an accessible state and a focusable summary.
+//
+// What must not change are `data-stats-block-id` and `data-stats-row-key`: the desktop tests hang on
+// them, and a folded <details> still keeps its content in the DOM, so a text search finds it.
+
+import { normalizePostMatchStats } from '../../shared/contracts/PostMatchStatsContract.js';
+import { createPostMatchCard, createStatsElement } from '../postmatch/PostMatchCards.js';
+import { createPostMatchStandingsTable } from '../postmatch/PostMatchStandingsTable.js';
+
+const DETAILS_SUMMARY_LABEL = 'Details';
+
 export function clearMessageStats(container) {
     if (!container) return;
     container.replaceChildren();
     container.classList.add('hidden');
 }
 
+/**
+ * @param {import('../../shared/contracts/PostMatchStatsContract.js').PostMatchStatsBlock} block
+ * @returns {HTMLElement|null}
+ */
+function createBlockElement(block) {
+    return block.kind === 'standings'
+        ? createPostMatchStandingsTable(block)
+        : createPostMatchCard(block);
+}
+
+/**
+ * @param {HTMLElement[]} blockElements
+ * @returns {HTMLElement}
+ */
+function createDetailsSection(blockElements) {
+    const details = createStatsElement('details', 'message-stats-details');
+    details.appendChild(createStatsElement('summary', 'message-stats-summary', DETAILS_SUMMARY_LABEL));
+    for (const element of blockElements) details.appendChild(element);
+    return details;
+}
+
 export function renderMessageStats(container, overlayStats) {
     if (!container) return;
 
-    const blocks = Array.isArray(overlayStats?.blocks) ? overlayStats.blocks : [];
-    if (overlayStats?.visible === false || blocks.length === 0) {
+    const stats = normalizePostMatchStats(overlayStats);
+    if (!stats.visible) {
         clearMessageStats(container);
         return;
     }
 
     container.replaceChildren();
-    for (const block of blocks) {
-        const blockElement = document.createElement('section');
-        blockElement.className = 'message-stats-card';
-        blockElement.setAttribute('data-stats-block-id', String(block?.id || 'block'));
-
-        const title = document.createElement('h3');
-        title.className = 'message-stats-title';
-        title.textContent = String(block?.title || 'Stats');
-        blockElement.appendChild(title);
-
-        const list = document.createElement('dl');
-        list.className = 'message-stats-list';
-        const rows = Array.isArray(block?.rows) ? block.rows : [];
-        for (const row of rows) {
-            const rowElement = document.createElement('div');
-            rowElement.className = 'message-stats-row';
-            rowElement.setAttribute('data-stats-row-key', String(row?.key || 'row'));
-
-            const label = document.createElement('dt');
-            label.className = 'message-stats-label';
-            label.textContent = String(row?.label || '');
-
-            const value = document.createElement('dd');
-            value.className = 'message-stats-value';
-            value.textContent = String(row?.value ?? '');
-
-            rowElement.appendChild(label);
-            rowElement.appendChild(value);
-            list.appendChild(rowElement);
-        }
-
-        blockElement.appendChild(list);
-        container.appendChild(blockElement);
+    /** @type {HTMLElement[]} */
+    const detailElements = [];
+    for (const block of stats.blocks) {
+        const element = createBlockElement(block);
+        if (!element) continue;
+        if (block.tier === 'detail') detailElements.push(element);
+        else container.appendChild(element);
+    }
+    if (detailElements.length > 0) {
+        container.appendChild(createDetailsSection(detailElements));
     }
 
     container.classList.remove('hidden');

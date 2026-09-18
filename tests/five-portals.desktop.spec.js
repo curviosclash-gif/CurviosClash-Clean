@@ -93,6 +93,7 @@ test('Fünf Portale starts solo, rebuilds each map and shows five times', async 
 
     await page.waitForFunction(() => window.GAME_INSTANCE?.runtimeFacade?._arcadeSupport?.fivePortalsRuntime?.phase === 'finished');
     await expect(page.locator('#arcade-overlay-panel')).toContainText('Fünf Portale abgeschlossen');
-    await expect(page.locator('#arcade-overlay-panel li')).toHaveCount(5);
-    await expect(page.locator('#arcade-overlay-panel')).toContainText('Gesamtzeit: 15.00 s');
+    // P8: the result is a card per block with one table row per map; times read German (comma, NBSP).
+    await expect(page.locator('#arcade-overlay-panel [data-stats-block-id="five-portals-maps"] [data-stats-row-key]')).toHaveCount(5);
+    await expect(page.locator('#arcade-overlay-panel [data-stats-block-id="five-portals-total"] [data-stats-row-key="total"] .message-stats-value')).toHaveText(/15,00\s*s/);
 });

@@ -88,6 +88,9 @@ export class Game {
             game: this,
             getLifecyclePort: () => this.runtimeCoordinator?.getPorts?.()?.lifecyclePort || null,
             getRuntimeIntentPort: () => this.runtimeCoordinator?.getPorts?.()?.runtimeIntentPort || null,
+            // Replicas must not start a round or a match with the "continue" key.
+            getSessionSnapshot: () => this.runtimeCoordinator?.getPorts?.()
+                ?.runtimeProjectionPort?.getSessionRuntimeSnapshot?.() || null,
         });
         this._hudTimer = 0;
         this._renderAlpha = 1;

@@ -2,16 +2,29 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createRoundStateHarness } from './helpers/round-state-tick-harness.mjs';
+import { ROUND_END_INPUT_LOCK_SECONDS } from '../src/state/RoundEndInputLockOps.js';
 
 test('round-end Enter reaches the round state tick and is consumed exactly once', () => {
+    const harness = createRoundStateHarness({ roundPause: 3 });
+    harness.kernel.signalRoundEnd({ roundPause: 3 });
+    // The board opens with a short input lock, so Enter only counts after it.
+    harness.system.updateRoundEnd(ROUND_END_INPUT_LOCK_SECONDS);
+    harness.input.press('Enter');
+
+    harness.system.updateRoundEnd(1 / 60);
+
+    assert.equal(harness.input.callCount('Enter'), 2, 'Enter must be read by exactly one owner per frame');
+    assert.equal(harness.calls.restartRound, 1, 'Enter must skip the round-end countdown');
+});
+
+test('round-end Enter is swallowed while the board input lock runs', () => {
     const harness = createRoundStateHarness({ roundPause: 3 });
     harness.kernel.signalRoundEnd({ roundPause: 3 });
     harness.input.press('Enter');
 
     harness.system.updateRoundEnd(1 / 60);
 
-    assert.equal(harness.input.callCount('Enter'), 1, 'Enter must be read by exactly one owner');
-    assert.equal(harness.calls.restartRound, 1, 'Enter must skip the round-end countdown');
+    assert.equal(harness.calls.restartRound, 0, 'the lock must also cover Enter');
 });
 
 test('round-end Escape returns to the menu and is consumed exactly once', () => {
