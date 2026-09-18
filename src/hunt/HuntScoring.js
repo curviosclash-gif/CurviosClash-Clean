@@ -37,6 +37,7 @@ export class HuntScoring {
                 shieldDamage: 0,
                 spawnDeaths: 0,
                 intercepts: 0,
+                unitsDestroyed: 0,
             });
         }
         return this._statsByPlayer.get(playerIndex);
@@ -94,6 +95,12 @@ export class HuntScoring {
         this._ensureStats(playerIndex).intercepts += 1;
     }
 
+    // E19: a destroyed tank is counted for its destroyer, but like an intercept it is no kill.
+    registerUnitDestroyed(playerIndex) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        this._ensureStats(playerIndex).unitsDestroyed += 1;
+    }
+
     registerElimination(targetPlayer, options = {}) {
         const targetIndex = targetPlayer?.index;
         if (!Number.isInteger(targetIndex)) return { killerIndex: -1, assistIndices: [] };
@@ -149,6 +156,7 @@ export class HuntScoring {
                 shieldDamage: Math.round(stats.shieldDamage || 0),
                 spawnDeaths: stats.spawnDeaths,
                 intercepts: stats.intercepts,
+                unitsDestroyed: stats.unitsDestroyed,
             });
         }
 
@@ -175,6 +183,7 @@ export class HuntScoring {
                 spawnDeaths: Math.max(0, Number(row?.spawnDeaths) || 0),
                 // A snapshot from a host that predates S2.3 has no field here and reads as 0.
                 intercepts: Math.max(0, Number(row?.intercepts) || 0),
+                unitsDestroyed: Math.max(0, Number(row?.unitsDestroyed) || 0),
             });
         }
     }

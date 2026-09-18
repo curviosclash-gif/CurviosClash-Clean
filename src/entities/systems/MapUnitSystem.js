@@ -85,6 +85,7 @@ export class MapUnitSystem {
             ownerPlayer: null,
             mounts: [],
             respawnRemaining: Infinity,
+            deaths: 0,
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;

@@ -384,6 +384,8 @@ function createHuntProjection(value = null, nowMs = 0) {
             spawnDeaths: normalizeNonNegativeInt(row?.spawnDeaths, 0),
             // Rockets shot down by this player (E38). Statistics only, never a kill (E75).
             intercepts: normalizeNonNegativeInt(row?.intercepts, 0),
+            // Tanks destroyed by this player (E19). Statistics and arcade XP only, never a kill.
+            unitsDestroyed: normalizeNonNegativeInt(row?.unitsDestroyed, 0),
         }))
         : [];
     const respawnRemainingByPlayer = {};

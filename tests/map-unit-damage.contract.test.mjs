@@ -39,7 +39,7 @@ function createWorld({ units = [TANK], players = [] } = {}) {
         humanPlayers: players,
         _emitHuntDamageEvent: (event) => damageEvents.push(event),
         _killPlayer: (player, cause, options) => { player.alive = false; kills.push({ player, cause, options }); },
-        _onMapUnitDestroyed: (unit, source) => destroyed.push({ unit, source }),
+        _huntScoring: { registerUnitDestroyed: (index) => destroyed.push(index) },
     };
     const registry = new TargetableRegistry();
     manager._targetableRegistry = registry;
@@ -60,7 +60,7 @@ test('a tank takes damage until its 150 hit points are gone', () => {
     const second = tank.takeDamage(120, { sourcePlayer: shooter, cause: 'ROCKET_HEAVY' });
     assert.equal(second.isDead, true, 'a heavy rocket after a medium one finishes it');
     assert.equal(tank.alive, false);
-    assert.deepEqual(destroyed.map((entry) => entry.source), [shooter], 'the destroyer is reported');
+    assert.deepEqual(destroyed, [0], 'the destroyer is credited');
     assert.equal(tank.takeDamage(50).hpApplied, 0, 'a destroyed tank takes nothing more');
 });
 

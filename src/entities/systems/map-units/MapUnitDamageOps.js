@@ -1,3 +1,5 @@
+import { rewardMapUnitDestruction } from './MapUnitRewardOps.js';
+
 /**
  * Hit points, destruction and return of map units (E19, E34).
  *
@@ -98,8 +100,9 @@ export function destroyMapUnit(system, unit, sourcePlayer) {
         Number.isInteger(sourcePlayer?.index) ? sourcePlayer.index : -1,
         `${unit.id}:${unit.kind}`,
     );
+    unit.deaths = (Number(unit.deaths) || 0) + 1;
     applyBlast(system, unit, sourcePlayer);
-    owner?._onMapUnitDestroyed?.(unit, sourcePlayer);
+    rewardMapUnitDestruction(system, unit, sourcePlayer);
 }
 
 /** Counts down destroyed units and answers the ones due to come back this tick. */
