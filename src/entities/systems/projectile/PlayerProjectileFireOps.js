@@ -112,13 +112,15 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     if (threatDirection && (threatDirection.x || threatDirection.y || threatDirection.z)) {
         system._tmpDir.set(threatDirection.x, threatDirection.y, threatDirection.z).normalize();
     }
-    const projectileCount = resolveWeaponFanProjectileCount(player.activeEffects, modeType);
+    const projectileCount = type === 'ROCKET_GUIDED' ? 1
+        : resolveWeaponFanProjectileCount(player.activeEffects, modeType);
     system._tmpFanRight.set(1, 0, 0);
     if (player?.quaternion) system._tmpFanRight.applyQuaternion(player.quaternion);
     system._tmpFanAxis.crossVectors(system._tmpDir, system._tmpFanRight);
     if (system._tmpFanAxis.lengthSq() <= 0.000001) system._tmpFanAxis.set(0, 1, 0);
     else system._tmpFanAxis.normalize();
-    const lockOnTarget = intercepting
+    const guidedActive = type === 'ROCKET_GUIDED' && !intercepting && player.isBot !== true;
+    const lockOnTarget = intercepting || guidedActive
         ? null
         : system.resolveLockOn(player, itemHomingProfile ? 'item' : 'rocket');
     if (itemHomingProfile && (!lockOnTarget || !lockOnTarget.alive || lockOnTarget.decoyActive)) {
@@ -141,11 +143,13 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         projectile.owner = player;
         projectile.type = type;
         projectile.huntRocket = huntRocket;
-        projectile.homingEnabled = homingEnabled;
+        projectile.homingEnabled = homingEnabled && !guidedActive;
+        projectile.guidedActive = guidedActive;
         projectile.itemHomingProfile = itemHomingProfile;
         projectile.visualScale = visualScale;
         projectile.position.copy(system._tmpVec);
-        projectile.velocity.copy(system._tmpFanDirection).multiplyScalar(config.PROJECTILE.SPEED);
+        projectile.velocity.copy(system._tmpFanDirection).multiplyScalar(guidedActive
+            ? (Number(config?.HUNT?.ROCKET?.GUIDED_SPEED) || 70) : config.PROJECTILE.SPEED);
         projectile.radius = config.PROJECTILE.RADIUS * collisionRadiusMultiplier;
         configureProjectileRange(projectile, config.PROJECTILE, huntRocket ? ROCKET_RANGE_MULTIPLIER : 1);
         if (type === 'ROCKET_GUIDED') {
@@ -161,7 +165,8 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         projectile.isInterceptor = intercepting;
         projectile.interceptTargetId = intercepting ? interceptTargetId : '';
         projectile.target = lockOnTarget;
-        if (!intercepting && homingEnabled && (!projectile.target || !projectile.target.alive)) {
+        projectile.targetReacquireDisabled = guidedActive;
+        if (!intercepting && !guidedActive && homingEnabled && (!projectile.target || !projectile.target.alive)) {
             projectile.target = system._acquireHomingTarget(
                 projectile,
                 system.getPlayers(),

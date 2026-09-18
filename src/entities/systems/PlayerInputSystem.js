@@ -549,6 +549,8 @@ export class PlayerInputSystem {
             }
         }
 
+        if (entityManager._projectileSystem?.applyGuidedInput?.(player, input)) return getEmptyInput();
+
         const gameplayCameraState = createGameplayCameraState(player?.gameplayConfig || null);
         const fallbackCameraModeIndex = resolveCameraModeIndexFromModes(
             player?.gameplayConfig?.CAMERA?.MODES,

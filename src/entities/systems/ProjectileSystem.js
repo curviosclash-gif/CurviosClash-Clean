@@ -18,6 +18,7 @@ import {
     buildGameplayActionResult,
 } from '../../shared/contracts/GameplayActionResultContract.js';
 import { shootPlayerItemProjectile } from './projectile/PlayerProjectileFireOps.js';
+import { applyGuidedRocketInput } from './projectile/GuidedRocketControlOps.js';
 
 export class ProjectileSystem {
     constructor(options = {}) {
@@ -93,6 +94,17 @@ export class ProjectileSystem {
 
     shootItemProjectile(player, preferredIndex = -1, rocketOnly = false) {
         return shootPlayerItemProjectile(this, player, preferredIndex, rocketOnly);
+    }
+
+    getGuidedProjectileForOwner(owner) {
+        return this.projectiles.find((projectile) => projectile.guidedActive && projectile.owner === owner) || null;
+    }
+
+    applyGuidedInput(owner, input) {
+        const projectile = this.getGuidedProjectileForOwner(owner);
+        if (!projectile) return false;
+        applyGuidedRocketInput(projectile, input, this.entityRuntimeConfig?.HUNT?.ROCKET);
+        return true;
     }
 
     deployMine(player) { return deployMine(this, player); }
@@ -394,6 +406,7 @@ export class ProjectileSystem {
             projectile.position.set(Number(pos[0]) || 0, Number(pos[1]) || 0, Number(pos[2]) || 0);
             projectile.velocity.set(Number(vel[0]) || 0, Number(vel[1]) || 0, Number(vel[2]) || 0);
             projectile.owner = players.find((player) => player?.index === entry.owner) || null;
+            projectile.guidedActive = type === 'ROCKET_GUIDED' && entry.guided === true;
             projectile.ttl = Math.max(0, Number(entry.ttl) || 0);
             projectile.radius = Math.max(0, Number(entry.radius) || 0);
             projectile.environmentProjectile = entry.environmentProjectile === true;
