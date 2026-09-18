@@ -68,6 +68,24 @@ test('saving a map writes both documents into the maps directory and lists them 
     assert.deepEqual(listed.maps, [{ mapKey: 'editor_testkarte-alpha', mapName: 'Testkarte Alpha' }]);
 });
 
+test('the game window reads the saved runtime maps by key', () => {
+    const { directory, store } = createStore();
+    store.saveMap({
+        mapName: 'Testkarte Beta',
+        runtimeJson: runtimeJsonFor('Testkarte Beta', { size: [80, 30, 80] }),
+        editorJson: editorJsonFor('Testkarte Beta'),
+    });
+    // Fremde oder kaputte Dateien im Ordner werden uebersprungen.
+    writeFileSync(path.join(directory, `editor_kaputt${EDITOR_MAP_RUNTIME_SUFFIX}`), '{nicht json');
+    writeFileSync(path.join(directory, `fremd${EDITOR_MAP_RUNTIME_SUFFIX}`), runtimeJsonFor('Fremd'));
+
+    const read = store.readRuntimeMaps();
+    assert.equal(read.ok, true);
+    assert.deepEqual(Object.keys(read.maps), ['editor_testkarte-beta']);
+    assert.deepEqual(read.maps['editor_testkarte-beta'].size, [80, 30, 80]);
+    assert.equal(read.maps['editor_testkarte-beta'].name, 'Testkarte Beta');
+});
+
 test('the same name overwrites, a copy gets its own key, a different name keeps both', () => {
     const { directory, store } = createStore();
     const first = store.saveMap({

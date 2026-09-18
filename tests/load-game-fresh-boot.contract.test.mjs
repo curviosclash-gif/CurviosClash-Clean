@@ -226,7 +226,10 @@ const NAVIGATION_SCOPED_CANDIDATES = Object.freeze([
 
 // file:line -> reason. Only for sites that need a manual decision, never for
 // something a wrapper already covers.
-const GUARD_EXCEPTIONS = Object.freeze({});
+const GUARD_EXCEPTIONS = Object.freeze({
+    'editor-local-maps.desktop.spec.js:23':
+        'moves the main-process userData folder; the next line loads with forceReload on purpose',
+});
 
 const FIXTURE_RECEIVERS = Object.freeze(['page', 'context', 'electronApp', 'desktopHarness']);
 // Subscribing adds a listener, and the listener baseline drops the mark for it. A second

@@ -48,7 +48,8 @@ export async function saveMapThroughDesktopBridge(bridge, { jsonText, mapName, e
         }),
         'Karte konnte im Desktop nicht gespeichert werden.'
     );
-    return { ...payload, warnings: [...built.warnings, ...(payload.warnings || [])] };
+    // Das Spielfenster liest die Kartenliste nur beim Start ein.
+    return { ...payload, availableAfterRestart: true, warnings: [...built.warnings, ...(payload.warnings || [])] };
 }
 
 /**

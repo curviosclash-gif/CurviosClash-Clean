@@ -13,6 +13,7 @@ const PRELOAD_CONTRACT_VERSIONS = Object.freeze({
     settingsDefaults: 'preload.settings-defaults.v1',
     tuningRuntime: 'preload.tuning-runtime.v1',
     hangar: 'preload.hangar-window.v1',
+    localMaps: 'preload.local-maps.v1',
 });
 const PLATFORM_CAPABILITY_SNAPSHOT_CONTRACT_VERSION = 'platform-capability-snapshot.v1';
 const RECORDING_VIDEO_EXPORT_REQUEST_CONTRACT_VERSION = 'recording-video-export-request.v1';
@@ -215,6 +216,29 @@ function readMenuDefaultsOverrideSnapshot() {
     return cachedOverrideSnapshot;
 }
 
+let cachedLocalMapsSnapshot = null;
+
+// Die Kartenliste des Spiels entsteht beim Laden der Module, also bevor ein
+// asynchroner Aufruf zurueck waere. Deshalb einmal synchron fragen und merken.
+function readLocalMapsSnapshot() {
+    if (cachedLocalMapsSnapshot !== null) return cachedLocalMapsSnapshot;
+    let maps = {};
+    try {
+        const snapshot = ipcRenderer.sendSync('local-maps:read-sync');
+        if (snapshot?.ok === true && snapshot.maps && typeof snapshot.maps === 'object') maps = snapshot.maps;
+    } catch {
+        maps = {};
+    }
+    cachedLocalMapsSnapshot = maps;
+    return cachedLocalMapsSnapshot;
+}
+
+function createLocalMapsContract() {
+    return createNamedContract('localMaps', PRELOAD_CONTRACT_VERSIONS.localMaps, {
+        getSnapshot: () => deepCloneJson(readLocalMapsSnapshot()),
+    });
+}
+
 function createSettingsDefaultsContract() {
     return createNamedContract('settingsDefaults', PRELOAD_CONTRACT_VERSIONS.settingsDefaults, {
         getOverrideSnapshot: () => deepCloneJson(readMenuDefaultsOverrideSnapshot()),
@@ -255,6 +279,7 @@ const lifecycleContract = createLifecycleContract();
 const settingsDefaultsContract = createSettingsDefaultsContract();
 const tuningRuntimeContract = createTuningRuntimeContract();
 const hangarContract = createHangarContract();
+const localMapsContract = createLocalMapsContract();
 const platformContracts = Object.freeze({
     discovery: discoveryContract,
     host: hostContract,
@@ -264,6 +289,7 @@ const platformContracts = Object.freeze({
     settingsDefaults: settingsDefaultsContract,
     tuningRuntime: tuningRuntimeContract,
     hangar: hangarContract,
+    localMaps: localMapsContract,
 });
 const platformCapabilities = Object.freeze({
     contractVersion: PLATFORM_CAPABILITY_SNAPSHOT_CONTRACT_VERSION,

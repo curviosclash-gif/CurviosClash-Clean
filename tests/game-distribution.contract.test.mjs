@@ -29,6 +29,16 @@ test('game Electron main strips authoring-only capabilities and denies popups', 
     );
 });
 
+test('game Electron preload drops the saved-map reader together with its main channel', async () => {
+    const source = readFileSync('electron/preload.cjs', 'utf8');
+    const gamePreload = isExportedRepository
+        ? source
+        : (await import('../scripts/export-game-repo.mjs')).transformElectronPreload(source);
+    assert.doesNotMatch(gamePreload, /localMaps|local-maps/);
+    assert.match(gamePreload, /function createSettingsDefaultsContract\(\)/);
+    assert.match(gamePreload, /hangar: hangarContract,/);
+});
+
 test('game menu bindings route developer telemetry to the distribution adapter', async () => {
     const source = readFileSync('src/ui/menu/MenuDevPanelBindings.js', 'utf8');
     const gameBindings = isExportedRepository

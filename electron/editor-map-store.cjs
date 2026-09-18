@@ -170,18 +170,38 @@ function createEditorMapStore({ getMapsDirectory, openFolder, renameFile = renam
         }
     }
 
-    function listMaps() {
+    /** @returns {Array<{mapKey: string, runtimeMap: object}>} */
+    function readRuntimeEntries() {
         const directory = resolveDirectory();
-        const maps = [];
+        const entries = [];
         for (const fileName of readdirSync(directory).sort((left, right) => left.localeCompare(right))) {
             if (!fileName.endsWith(MAP_RUNTIME_SUFFIX)) continue;
             const mapKey = fileName.slice(0, -MAP_RUNTIME_SUFFIX.length);
             if (!isValidEditorMapKey(mapKey)) continue;
             const runtimeMap = readMapFile(path.join(directory, fileName));
             if (!runtimeMap) continue;
-            maps.push({ mapKey, mapName: sanitizeEditorMapName(runtimeMap.name || mapKey) });
-            if (maps.length >= MAX_MAPS) break;
+            entries.push({ mapKey, runtimeMap });
+            if (entries.length >= MAX_MAPS) break;
         }
+        return entries;
+    }
+
+    function listMaps() {
+        const maps = readRuntimeEntries().map(({ mapKey, runtimeMap }) => ({
+            mapKey,
+            mapName: sanitizeEditorMapName(runtimeMap.name || mapKey),
+        }));
+        return { ok: true, maps };
+    }
+
+    /**
+     * Liefert die fertigen Laufzeitkarten fuer das Spielfenster. Das Spiel
+     * kennt eine Karte nur ueber seine Kartenliste; im Desktop gibt es keinen
+     * Quellcode, in den der Editor sie eintragen koennte.
+     */
+    function readRuntimeMaps() {
+        const maps = {};
+        for (const { mapKey, runtimeMap } of readRuntimeEntries()) maps[mapKey] = runtimeMap;
         return { ok: true, maps };
     }
 
@@ -306,7 +326,7 @@ function createEditorMapStore({ getMapsDirectory, openFolder, renameFile = renam
         return { ok: true, folderPath: directory };
     }
 
-    return { listMaps, saveMap, openMapsFolder };
+    return { listMaps, readRuntimeMaps, saveMap, openMapsFolder };
 }
 
 module.exports = {

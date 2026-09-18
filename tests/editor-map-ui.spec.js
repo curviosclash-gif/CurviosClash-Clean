@@ -383,6 +383,10 @@ test.describe('V65: Editor Build Dock', () => {
         await expect(page.locator('#workspaceStatusMessage')).toContainText(`Map neu gespeichert: ${mapName}`);
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
         await expect(page.locator('#exportResultView')).toBeVisible();
+        if (desktopStore) {
+            // Das Spielfenster liest die Kartenliste nur beim Start.
+            await expect(page.locator('#exportResultView')).toContainText('nach einem Neustart der App');
+        }
         await expect(page.locator('#btnExportOpenFolder')).toBeVisible();
         await expect(page.locator('#btnExportCopyKey')).toBeVisible();
         await page.locator('#btnExportOpenFolder').click();

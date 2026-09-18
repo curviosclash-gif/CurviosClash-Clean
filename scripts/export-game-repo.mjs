@@ -151,14 +151,26 @@ export function transformElectronMain(source) {
     return result;
 }
 
-function transformElectronPreload(source) {
+export function transformElectronPreload(source) {
     let result = source;
     result = result.replace("    tuningRuntime: 'preload.tuning-runtime.v1',\n", '');
     result = result.replace(/const TUNING_RUNTIME_REQUEST_CHANNEL[\s\S]*?const TUNING_RUNTIME_RESPONSE_CHANNEL = 'tuning-runtime:response';\n/, '');
     result = result.replace(/\nfunction createTuningRuntimeContract\(\) \{[\s\S]*?\n\}\n\nconst discoveryContract/, '\nconst discoveryContract');
     result = result.replace('const tuningRuntimeContract = createTuningRuntimeContract();\n', '');
     result = result.replace(/    tuningRuntime: tuningRuntimeContract,\n/g, '');
+    // Die gespeicherten Karten kommen aus dem Editor-Kartenspeicher, den der
+    // Export samt Kanal entfernt. Ohne Gegenstelle haette der Aufruf keinen Sinn.
+    result = replaceRequired(result, "    localMaps: 'preload.local-maps.v1',\n", '', 'local maps contract version');
+    result = replacePatternRequired(
+        result,
+        /\nlet cachedLocalMapsSnapshot = null;[\s\S]*?\n\}\n\nfunction createLocalMapsContract\(\) \{[\s\S]*?\n\}\n/,
+        '',
+        'local maps contract'
+    );
+    result = replaceRequired(result, 'const localMapsContract = createLocalMapsContract();\n', '', 'local maps contract instance');
+    result = replaceRequired(result, '    localMaps: localMapsContract,\n', '', 'local maps contract exposure');
     assert.doesNotMatch(result, /tuning|TUNING/i);
+    assert.doesNotMatch(result, /localMaps|local-maps/);
     return result;
 }
 

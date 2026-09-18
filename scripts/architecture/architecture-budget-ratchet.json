@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-21",
+  "updatedAt": "2026-09-18",
   "budgets": {
     "constructorGameFiles": 0,
     "domAccessFiles": 8,
@@ -24,7 +24,7 @@
     "legacySurface_curviosApp_totalFiles": 3,
     "legacySurface_ActiveRuntimeConfigStore_totalFiles": 3,
     "electronPreloadExposures": 8,
-    "electronIpcRendererChannels": 13,
-    "electronIpcMainChannels": 25
+    "electronIpcRendererChannels": 14,
+    "electronIpcMainChannels": 26
   }
 }

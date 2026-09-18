@@ -59,6 +59,25 @@ export function resolveElectronRuntimeSnapshot(runtimeGlobal = globalThis) {
     });
 }
 
+/**
+ * Die im Desktop gespeicherten Editor-Karten (userData/maps), so wie der
+ * Hauptprozess sie beim Start liefert. Ausserhalb des Desktops: leer.
+ *
+ * @param {typeof globalThis} [runtimeGlobal]
+ * @returns {Record<string, unknown>}
+ */
+export function readElectronLocalMaps(runtimeGlobal = globalThis) {
+    const { appRuntime } = resolveAppRuntime(runtimeGlobal);
+    const contract = resolveNamedContract(appRuntime, 'localMaps');
+    if (typeof contract?.getSnapshot !== 'function') return {};
+    try {
+        const maps = contract.getSnapshot();
+        return maps && typeof maps === 'object' && !Array.isArray(maps) ? maps : {};
+    } catch {
+        return {};
+    }
+}
+
 function resolveNamedCapability(appRuntime, key) {
     const capabilities = appRuntime?.capabilities && typeof appRuntime.capabilities === 'object'
         ? appRuntime.capabilities

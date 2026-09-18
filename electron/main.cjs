@@ -1086,6 +1086,21 @@ const EDITOR_DISK_HANDLERS = Object.freeze({
     'delete-vehicle': (payload) => editorVehicleStore.deleteVehicle(payload),
 });
 
+// Das Spielfenster liest die gespeicherten Karten einmal beim Start. Die
+// Kartenliste entsteht beim Laden der Module, deshalb muss die Antwort
+// synchron kommen. Nur das Hauptfenster bekommt sie.
+ipcMain.on('local-maps:read-sync', (event) => {
+    if (!isTrustedMainWindowSender(event)) {
+        event.returnValue = null;
+        return;
+    }
+    try {
+        event.returnValue = editorMapStore.readRuntimeMaps();
+    } catch (error) {
+        event.returnValue = { ok: false, error: String(error?.message || error), maps: {} };
+    }
+});
+
 // Ein Kanal fuer alle Dateizugriffe der Autorenwerkzeuge. Die Aktion wird
 // gegen die feste Liste oben geprueft, damit ein unbekannter Befehl nicht
 // durchrutscht.
