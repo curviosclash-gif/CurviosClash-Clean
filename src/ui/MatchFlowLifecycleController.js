@@ -158,15 +158,9 @@ export class MatchFlowLifecycleController {
             displayDuration: game.roundPause,
         });
         this._persistRoundGhostForActiveRoute();
-        const huntProjection = controller._getMatchRuntimeProjection()?.hunt || null;
-        const huntSummary = huntProjection?.active === true
-            ? huntProjection.scoreboardSummary || ''
-            : '';
-        if (huntSummary) {
-            if (!roundEndPlan.uiState) roundEndPlan.uiState = {};
-            const baseText = String(roundEndPlan.uiState.messageText || '').trim();
-            roundEndPlan.uiState.messageText = baseText ? `${baseText}\n${huntSummary}` : huntSummary;
-        }
+        // The hunt kills/deaths/assists used to hang below the headline as one long line; since
+        // the result board's standings table carries those columns itself, the headline stays
+        // the winner alone.
         this.applyRoundEndCoordinatorPlan(roundEndPlan);
         this.telemetryController?.recordRoundEndTelemetry?.(roundEndPlan);
         game.hudRuntimeSystem?.refreshArcadeHud?.();
