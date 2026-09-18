@@ -9,6 +9,7 @@ import {
     createStaticTurretNetworkSnapshot,
 } from './static-turret/StaticTurretNetworkOps.js';
 import { resolveStaticTurretDeployConfig } from './static-turret/StaticTurretDeployConfigOps.js';
+import { resolveLocalHumanCount } from './projectile/RocketWarningAudioOps.js';
 import {
     clearStaticTurretRespawns,
     queueStaticTurretRespawn,
@@ -360,7 +361,7 @@ export class StaticTurretSystem {
         const owner = this.entityManager;
         const session = owner?.runtimeConfig?.session || {};
         const first = Math.max(0, Math.trunc(Number(owner?.renderer?.viewportSystem?.localPlayerIndex ?? session.localPlayerIndex) || 0));
-        const count = Math.max(1, Math.trunc(Number(session.localHumanCount) || 1));
+        const count = resolveLocalHumanCount(session);
         const rangeSq = turret.audioRange * turret.audioRange;
         for (let index = first; index < first + count; index += 1) {
             const player = owner?.players?.find?.((candidate) => candidate?.index === index);
