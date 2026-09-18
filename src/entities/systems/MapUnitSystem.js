@@ -18,6 +18,7 @@ import {
 } from './map-units/MapUnitVisualOps.js';
 import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-units/MapUnitWeaponOps.js';
 import { applyMapUnitDamage, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
+import { crushTrailsUnderUnit } from './map-units/MapUnitTrailOps.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
@@ -39,6 +40,7 @@ export class MapUnitSystem {
         this._trailQueryStamp = 0;
         this._targets = [];
         this._dueRespawns = [];
+        this._trailScratch = [];
         this.networkReplica = false;
     }
 
@@ -137,7 +139,9 @@ export class MapUnitSystem {
             unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
             this._placeCentre(unit);
             updateMapUnitVisual(unit);
-            updateUnitWeapons(this, unit, safeDt, this.entityManager?.isFightOutcomeAuthority !== false);
+            const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;
+            updateUnitWeapons(this, unit, safeDt, authority);
+            if (authority && unit.alive) crushTrailsUnderUnit(this.entityManager, unit, safeDt, this._trailScratch);
         }
     }
 
