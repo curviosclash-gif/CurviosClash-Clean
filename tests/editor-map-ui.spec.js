@@ -1,4 +1,4 @@
-import { readFile, mkdtemp } from 'node:fs/promises';
+import { mkdir, readFile, mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test as baseTest, expect } from './helpers.desktop.js';
@@ -6,10 +6,18 @@ import { collectErrors, resolveAppUrl } from './helpers.js';
 import { EDITOR_API_ROUTES, EDITOR_DATA_PATHS, EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 import { EDITOR_BUILD_CATEGORIES } from '../editor/js/ui/EditorBuildCatalog.js';
 
+const IS_BROWSER_COMPAT = process.env.PW_RUN_PROFILE === 'browser-compat';
+
+// Im Desktop-Profil ist die Seite ein echtes Electron-Fenster. Die
+// Playwright-Option `viewport` gilt dort nicht, deshalb merkt sich der Test
+// die laufende Anwendung und setzt die Fenstergroesse selbst.
+let currentElectronApp = null;
+
 // Exercise the real editor window and leave the game window available for its
 // desktop shutdown handshake. Navigating the game window breaks that handshake.
-const test = process.env.PW_RUN_PROFILE === 'browser-compat' ? baseTest : baseTest.extend({
+const test = IS_BROWSER_COMPAT ? baseTest : baseTest.extend({
     page: async ({ page, electronApp }, use) => {
+        currentElectronApp = electronApp;
         const downloads = await mkdtemp(path.join(os.tmpdir(), 'curvios-editor-ui-downloads-'));
         await electronApp.evaluate(({ app }, directory) => app.setPath('downloads', directory), downloads);
         const popupPromise = page.waitForEvent('popup');
@@ -104,6 +112,31 @@ async function clickCanvas(page, xFactor, yFactor = 0.32) {
         box.x + (visibleWidth * xFactor),
         box.y + (box.height * yFactor)
     );
+}
+
+/**
+ * Legt den Kartenspeicher der Desktop-App in den Testordner und faengt das
+ * Oeffnen des Ordners ab, damit kein echter Explorer aufgeht.
+ */
+async function useIsolatedDesktopMapStore(testInfo) {
+    const userDataDirectory = testInfo.outputPath('user-data');
+    await mkdir(userDataDirectory, { recursive: true });
+    await currentElectronApp.evaluate(({ app }, directory) => app.setPath('userData', directory), userDataDirectory);
+    await currentElectronApp.evaluate(({ shell }) => {
+        globalThis.__CURVIOS_OPENED_FOLDERS__ = [];
+        shell.openPath = (target) => {
+            globalThis.__CURVIOS_OPENED_FOLDERS__.push(target);
+            return Promise.resolve('');
+        };
+    });
+    const mapsDirectory = path.join(userDataDirectory, EDITOR_DATA_PATHS.USER_MAPS_DIR);
+    await mkdir(mapsDirectory, { recursive: true });
+    return {
+        mapsDirectory,
+        countOpenedFolders: () => currentElectronApp.evaluate(
+            () => globalThis.__CURVIOS_OPENED_FOLDERS__.length
+        ),
+    };
 }
 
 async function activateInspectorTab(page, panelId) {
@@ -244,8 +277,11 @@ test.describe('V65: Editor Build Dock', () => {
         expect(errors).toHaveLength(0);
     });
 
-    test('T65d: Save/Export/Playtest bleiben ueber den Dock-Flow stabil nutzbar', async ({ page }) => {
+    test('T65d: Save/Export/Playtest bleiben ueber den Dock-Flow stabil nutzbar', async ({ page }, testInfo) => {
         const errors = collectErrors(page);
+        // Im Desktop gibt es keinen Entwicklungsserver: die Karte geht ueber den
+        // Hauptprozess auf die Platte. Der Test prueft deshalb echte Dateien.
+        const desktopStore = IS_BROWSER_COMPAT ? null : await useIsolatedDesktopMapStore(testInfo);
         await loadEditorPage(page);
 
         await activateDockEntry(page, 'build', 'build-hard');
@@ -263,37 +299,47 @@ test.describe('V65: Editor Build Dock', () => {
         const mapName = `V65 Smoke ${Date.now()}`;
         let saveRequestBody = null;
         let folderOpenRequests = 0;
-        await page.route(`**${EDITOR_API_ROUTES.LIST_MAPS_DISK}`, (route) => route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({ ok: true, maps: [{ mapName, mapKey: 'editor_v65_existing' }] }),
-        }));
-        await page.route(`**${EDITOR_API_ROUTES.OPEN_MAPS_FOLDER}`, (route) => {
-            folderOpenRequests += 1;
-            return route.fulfill({
+        if (desktopStore) {
+            // Eine gleichnamige Karte liegt schon im Speicher, damit der Dialog
+            // den Konfliktfall zeigt.
+            await writeFile(
+                path.join(desktopStore.mapsDirectory, 'editor_v65_existing.runtime.json'),
+                JSON.stringify({ name: mapName }),
+                'utf8'
+            );
+        } else {
+            await page.route(`**${EDITOR_API_ROUTES.LIST_MAPS_DISK}`, (route) => route.fulfill({
                 status: 200,
                 contentType: 'application/json',
-                body: JSON.stringify({ ok: true, folderPath: EDITOR_DATA_PATHS.MAPS_DIR }),
+                body: JSON.stringify({ ok: true, maps: [{ mapName, mapKey: 'editor_v65_existing' }] }),
+            }));
+            await page.route(`**${EDITOR_API_ROUTES.OPEN_MAPS_FOLDER}`, (route) => {
+                folderOpenRequests += 1;
+                return route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({ ok: true, folderPath: EDITOR_DATA_PATHS.MAPS_DIR }),
+                });
             });
-        });
-        await page.route(`**${EDITOR_API_ROUTES.SAVE_MAP_DISK}`, async (route) => {
-            const request = route.request();
-            saveRequestBody = JSON.parse(request.postData() || '{}');
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({
-                    ok: true,
-                    mapName,
-                    mapKey: 'editor_v65_smoke',
-                    overwritten: false,
-                    editorSchemaPath: `${EDITOR_DATA_PATHS.MAPS_DIR}/editor_v65_smoke.editor.json`,
-                    runtimeMapPath: `${EDITOR_DATA_PATHS.MAPS_DIR}/editor_v65_smoke.runtime.json`,
-                    generatedModulePath: EDITOR_DATA_PATHS.GENERATED_LOCAL_MAPS_MODULE,
-                    warnings: []
-                })
+            await page.route(`**${EDITOR_API_ROUTES.SAVE_MAP_DISK}`, async (route) => {
+                const request = route.request();
+                saveRequestBody = JSON.parse(request.postData() || '{}');
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        ok: true,
+                        mapName,
+                        mapKey: 'editor_v65_smoke',
+                        overwritten: false,
+                        editorSchemaPath: `${EDITOR_DATA_PATHS.MAPS_DIR}/editor_v65_smoke.editor.json`,
+                        runtimeMapPath: `${EDITOR_DATA_PATHS.MAPS_DIR}/editor_v65_smoke.runtime.json`,
+                        generatedModulePath: EDITOR_DATA_PATHS.GENERATED_LOCAL_MAPS_MODULE,
+                        warnings: []
+                    })
+                });
             });
-        });
+        }
 
         await page.locator('#btnSaveToGame').click();
         await expect(page.locator('#exportDialog')).toHaveAttribute('open', '');
@@ -304,18 +350,43 @@ test.describe('V65: Editor Build Dock', () => {
         await expect(page.locator('#exportConflictNotice')).toContainText('bleibt erhalten');
         await expect(page.locator('#btnExportConfirm')).toBeEnabled();
         await page.locator('#btnExportConfirm').click();
-        await expect.poll(() => saveRequestBody?.mapName || null).toBe(mapName);
-        expect(saveRequestBody?.saveAsCopy).toBe(true);
-        expect(saveRequestBody?.editorDocument?.contractVersion).toBe('curvios-editor-document.v1');
-        expect(saveRequestBody?.editorDocument?.authoring?.layerState?.layers?.geometry).toBeTruthy();
-        expect(saveRequestBody?.jsonText).not.toContain('workspaceMetadata');
+        if (desktopStore) {
+            // Die Kopie bekommt eine eigene Kennung, die gleichnamige Karte
+            // bleibt unberuehrt - zusammen der Beleg fuer "als Kopie speichern".
+            const savedKey = `editor_${mapName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+            await expect.poll(async () => {
+                try {
+                    return JSON.parse(await readFile(
+                        path.join(desktopStore.mapsDirectory, `${savedKey}.runtime.json`), 'utf8'
+                    )).name;
+                } catch { return null; }
+            }, { timeout: 15_000 }).toBe(mapName);
+            const runtimeMap = JSON.parse(await readFile(
+                path.join(desktopStore.mapsDirectory, `${savedKey}.runtime.json`), 'utf8'
+            ));
+            const editorDocument = JSON.parse(await readFile(
+                path.join(desktopStore.mapsDirectory, `${savedKey}.editor.json`), 'utf8'
+            ));
+            expect(JSON.parse(await readFile(
+                path.join(desktopStore.mapsDirectory, 'editor_v65_existing.runtime.json'), 'utf8'
+            ))).toEqual({ name: mapName });
+            expect(editorDocument.contractVersion).toBe('curvios-editor-document.v1');
+            expect(editorDocument.authoring?.layerState?.layers?.geometry).toBeTruthy();
+            expect(JSON.stringify(runtimeMap)).not.toContain('workspaceMetadata');
+        } else {
+            await expect.poll(() => saveRequestBody?.mapName || null).toBe(mapName);
+            expect(saveRequestBody?.saveAsCopy).toBe(true);
+            expect(saveRequestBody?.editorDocument?.contractVersion).toBe('curvios-editor-document.v1');
+            expect(saveRequestBody?.editorDocument?.authoring?.layerState?.layers?.geometry).toBeTruthy();
+            expect(saveRequestBody?.jsonText).not.toContain('workspaceMetadata');
+        }
         await expect(page.locator('#workspaceStatusMessage')).toContainText(`Map neu gespeichert: ${mapName}`);
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
         await expect(page.locator('#exportResultView')).toBeVisible();
         await expect(page.locator('#btnExportOpenFolder')).toBeVisible();
         await expect(page.locator('#btnExportCopyKey')).toBeVisible();
         await page.locator('#btnExportOpenFolder').click();
-        await expect.poll(() => folderOpenRequests).toBe(1);
+        await expect.poll(() => (desktopStore ? desktopStore.countOpenedFolders() : folderOpenRequests)).toBe(1);
         await page.locator('#btnExportClose').click();
 
         await page.locator('#playtestMenu > summary').click();

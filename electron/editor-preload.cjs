@@ -11,6 +11,9 @@ function request(action, payload = {}) {
 const editorDisk = Object.freeze({
     contractName: 'editor-disk',
     contractVersion: 'preload.editor-disk.v1',
+    saveMap: (payload) => request('save-map', payload),
+    listMaps: () => request('list-maps'),
+    openMapsFolder: () => request('open-maps-folder'),
     saveVehicle: (payload) => request('save-vehicle', payload),
     listVehicles: () => request('list-vehicles'),
     getVehicle: (payload) => request('get-vehicle', payload),

@@ -35,6 +35,7 @@ const { installEditorDownloadTarget } = require('./editor-download-target.cjs');
 const { createFocusScopedShortcut } = require('./focus-scoped-shortcut.cjs');
 const { createMainWindowCloseLifecycle } = require('./main-window-lifecycle.cjs');
 const { createEditorVehicleStore } = require('./editor-vehicle-store.cjs');
+const { createEditorMapStore } = require('./editor-map-store.cjs');
 const {
     UNTRUSTED_IPC_SENDER_CODE,
     assertTrustedWindowSender,
@@ -64,11 +65,22 @@ function withTrustedMainWindowSender(handler) {
 // ihre Dateizugriffe dieselbe Senderpruefung durchlaufen wie jede andere
 // privilegierte IPC (ADR 0001).
 const editorWindows = new Set();
+// Die eigene Serveradresse steht erst beim Fensterbau fest; der Kanalwaechter
+// braucht sie, um die Herkunft des Absenders zu pruefen.
+let editorTrustBaseUrl = '';
+
+function setEditorWindowTrustBase(appServerUrl) {
+    editorTrustBaseUrl = String(appServerUrl || '');
+}
 
 function withTrustedEditorWindowSender(handler) {
     return (event, ...args) => {
         const sender = [...editorWindows].find((candidate) => isTrustedWindowSender(event, candidate));
-        if (!sender) {
+        // Zweite Schranke direkt am Kanal: ein Autorenfenster, das trotz der
+        // Navigationssperre auf einer fremden Seite steht, behaelt zwar die
+        // Bruecke im Fenster, darf sie aber nicht mehr benutzen.
+        const senderFrameUrl = String(event?.senderFrame?.url || '');
+        if (!sender || !isTrustedEditorUrl(senderFrameUrl, editorTrustBaseUrl)) {
             const error = Object.assign(
                 new Error('Desktop capability request came from an unknown renderer.'),
                 { code: UNTRUSTED_IPC_SENDER_CODE }
@@ -549,9 +561,15 @@ async function createWindow() {
     mainWindow.webContents.setWindowOpenHandler(createEditorWindowOpenHandler(appServer.url, {
         editorPreloadPath: path.join(__dirname, 'editor-preload.cjs'),
     }));
+    setEditorWindowTrustBase(appServer.url);
     mainWindow.webContents.on('did-create-window', (editorWindow, details) => {
         editorWindows.add(editorWindow);
         editorWindow.on('closed', () => editorWindows.delete(editorWindow));
+        // Ohne diese Sperre koennte das Autorenfenster selbst auf eine fremde
+        // Seite wechseln und ihr die Dateibruecke des Fensters vererben.
+        editorWindow.webContents.on('will-navigate', (event, url) => {
+            if (!isTrustedEditorUrl(url, appServer.url)) event.preventDefault();
+        });
         const isMapEditor = new URL(details.url).pathname === '/editor/map-editor-3d.html';
         editorWindow.webContents.setWindowOpenHandler(isMapEditor
             ? createPlaytestWindowOpenHandler(appServer.url)
@@ -1006,7 +1024,23 @@ const editorVehicleStore = createEditorVehicleStore({
     getVehiclesDirectory: () => path.join(app.getPath('userData'), 'vehicles'),
 });
 
+// Karten liegen wie die Fahrzeuge im Nutzerdatenordner: die installierte App
+// hat den Kartenordner des Quellbaums nicht, und ein Werkzeug schreibt nicht
+// in sein eigenes Programmverzeichnis.
+const editorMapStore = createEditorMapStore({
+    getMapsDirectory: () => path.join(app.getPath('userData'), 'maps'),
+    // Die Shell wird erst hier geholt, damit der Spiel-Export den gesamten
+    // Autorenteil entfernen kann, ohne einen Import oben anzufassen.
+    openFolder: async (directory) => {
+        const failure = await require('electron').shell.openPath(directory);
+        if (failure) throw new Error(failure);
+    },
+});
+
 const EDITOR_DISK_HANDLERS = Object.freeze({
+    'save-map': (payload) => editorMapStore.saveMap(payload),
+    'list-maps': () => editorMapStore.listMaps(),
+    'open-maps-folder': () => editorMapStore.openMapsFolder(),
     'save-vehicle': (payload) => editorVehicleStore.saveVehicle(payload),
     'list-vehicles': () => editorVehicleStore.listVehicles(),
     'get-vehicle': (payload) => editorVehicleStore.getVehicle(payload),
@@ -1017,11 +1051,11 @@ const EDITOR_DISK_HANDLERS = Object.freeze({
 // Ein Kanal fuer alle Dateizugriffe der Autorenwerkzeuge. Die Aktion wird
 // gegen die feste Liste oben geprueft, damit ein unbekannter Befehl nicht
 // durchrutscht.
-ipcMain.handle('editor-disk:request', withTrustedEditorWindowSender((request = {}) => {
+ipcMain.handle('editor-disk:request', withTrustedEditorWindowSender(async (request = {}) => {
     const handler = EDITOR_DISK_HANDLERS[String(request?.action || '')];
     if (!handler) return { ok: false, error: 'unknown_action' };
     try {
-        return handler(request?.payload || {});
+        return await handler(request?.payload || {});
     } catch (error) {
         return { ok: false, error: String(error?.message || error) };
     }
