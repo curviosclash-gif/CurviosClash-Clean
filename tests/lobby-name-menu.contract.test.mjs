@@ -3,6 +3,7 @@ import test from 'node:test';
 import { once } from 'node:events';
 
 import { createLANSignalingServer } from '../server/lan-signaling.js';
+import { closeLanTestServer } from './lan-server-teardown.mjs';
 import { LANMatchLobby } from '../src/network/LANMatchLobby.js';
 import { NetworkLobbyService } from '../src/application/session-runtime/NetworkLobbyService.js';
 import { MENU_CONTROLLER_EVENT_TYPES } from '../src/shared/contracts/MenuControllerContract.js';
@@ -63,10 +64,7 @@ test('the lobby service carries the remembered name into the lobby and renames l
         assert.equal(local.lobbyName, 'Blitz');
     } finally {
         guest.leave(); host.leave();
-        // leave() sends its goodbye request without waiting; let it land before the server closes.
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        server.closeAllConnections?.();
-        await new Promise((resolve) => server.close(resolve));
+        await closeLanTestServer(server);
     }
 });
 

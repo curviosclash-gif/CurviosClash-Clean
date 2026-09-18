@@ -3,6 +3,7 @@ import test from 'node:test';
 import { once } from 'node:events';
 
 import { createLANSignalingServer } from '../server/lan-signaling.js';
+import { closeLanTestServer } from './lan-server-teardown.mjs';
 import { LANMatchLobby } from '../src/network/LANMatchLobby.js';
 import { buildSessionState } from '../src/application/session-runtime/NetworkLobbyServiceSupport.js';
 import { SIGNALING_HTTP_ROUTES } from '../src/shared/contracts/SignalingSessionContract.js';
@@ -28,7 +29,7 @@ async function withLobbies(run) {
         await run({ url, host, guest });
     } finally {
         guest.dispose(); host.dispose();
-        await new Promise((resolve) => server.close(resolve));
+        await closeLanTestServer(server);
     }
 }
 
