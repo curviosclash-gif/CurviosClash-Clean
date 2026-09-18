@@ -8214,7 +8214,8 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 #arcade-overlay-panel .arcade-overlay-section { align-content: start; }
 
 body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
-    #arcade-score-hud, #arcade-mission-hud, #arcade-sector-transition-overlay, #arcade-sudden-death-overlay
+    #arcade-score-hud, #arcade-mission-hud, #arcade-sector-transition-overlay, #arcade-sudden-death-overlay,
+    #hunt-hud, #parcours-hud, #p2-parcours-hud, #parcours-minimap
 ) { visibility: hidden; }
 
 /* Compact match header: keep the aiming area and the existing resource HUD clear. */

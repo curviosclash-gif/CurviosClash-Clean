@@ -517,7 +517,7 @@ export class MatchFlowArcadeOverlayController {
             this.clearArcadeOverlayPanel();
             return;
         }
-        game.ui.messageOverlay.classList.toggle?.('has-arcade-results', !!(runtimeState?.victory || runtimeState?.intermission || runtimeState?.postRunSummary));
+        game.ui.messageOverlay.classList.toggle?.('has-arcade-results', !!(runtimeState?.victory || runtimeState?.intermission || runtimeState?.postRunSummary || arenaUpgrade));
         const key = JSON.stringify([game.state, runtimeState]);
         const countdown = this._arcadeOverlayPanel?.querySelector('#arcade-intermission-countdown');
         if (countdown) countdown.textContent = runtimeState?.intermissionPaused
