@@ -8,18 +8,18 @@ const CLOSEUPS = [
     'HEALTH', 'SLOW_TIME', 'GHOST', 'FOG', 'INVERT',
     'SWAP', 'TRAIL_GAP', 'EMP', 'MAGNET', 'DECOY',
     'MINE', 'MG_TURRET', 'ROCKET_TURRET',
-    'ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA',
+    'ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA', 'ROCKET_GUIDED',
     'FAN_3', 'FAN_4', 'FAN_5', 'FLAMETHROWER', 'LIGHTNING', 'RAILGUN',
 ];
 
 async function waitForBlenderPickups(page, previousMeshId = null) {
-    await page.waitForFunction((previousId) => {
+    await page.waitForFunction(({ previousId, expectedCount }) => {
         const game = window.GAME_INSTANCE;
         const items = game?.entityManager?.powerupManager?.items || [];
-        return game?.state === 'PLAYING' && items.length === 28
+        return game?.state === 'PLAYING' && items.length === expectedCount
             && items.every((item) => item.mesh.uuid !== previousId)
             && items.every((item) => typeof item.mesh.userData.blenderPickupModel === 'string');
-    }, previousMeshId, { timeout: 30_000 });
+    }, { previousId: previousMeshId, expectedCount: CLOSEUPS.length }, { timeout: 30_000 });
 }
 
 test('desktop loads Blender pickups, preserves authored shapes and reloads after restart', async ({ page }, testInfo) => {
@@ -184,15 +184,16 @@ test('desktop loads Blender pickups, preserves authored shapes and reloads after
         }
     }, CLOSEUPS);
 
-    expect(result.models).toHaveLength(28);
-    expect(new Set(result.models.map((entry) => entry.type)).size).toBe(28);
+    expect(result.models).toHaveLength(CLOSEUPS.length);
+    expect(new Set(result.models.map((entry) => entry.type)).size).toBe(CLOSEUPS.length);
     expect(result.pickupRadius).toBe(2.5);
     for (const entry of result.models) {
         expect(entry.triangles, entry.type).toBeGreaterThan(0);
         expect(entry.triangles, entry.type).toBeLessThanOrEqual(2500);
         expect(entry.colors, entry.type).toContain(entry.expectedColor);
         if (entry.type.startsWith('ROCKET_') && entry.type !== 'ROCKET_TURRET') {
-            expect(entry.rocketTier).toBe(entry.type.slice('ROCKET_'.length));
+            expect(entry.rocketTier).toBe(entry.type === 'ROCKET_GUIDED'
+                ? 'MEGA' : entry.type.slice('ROCKET_'.length));
         }
         if (entry.type.startsWith('FAN_')) {
             const count = Number(entry.type.slice(4));
