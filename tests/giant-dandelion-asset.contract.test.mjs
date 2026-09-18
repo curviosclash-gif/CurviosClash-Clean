@@ -91,6 +91,14 @@ test('giant dandelion package contains editable source and six QA views', async 
     }
 });
 
+test('seed flight preview is a rendered MP4 video', async () => {
+    const video = await readFile(path.join(
+        ASSET_DIR, 'blender', 'previews', 'giant_dandelion_seedflight.mp4',
+    ));
+    assert.ok(video.length > 200_000, 'video preview is unexpectedly small');
+    assert.equal(video.toString('ascii', 4, 8), 'ftyp');
+});
+
 test('runtime GLBs are valid, animated, and decrease in complexity by LOD', async () => {
     const hero = parseGlb(await readFile(path.join(ASSET_DIR, 'giant_dandelion.glb')));
     const lod1 = parseGlb(await readFile(path.join(ASSET_DIR, 'giant_dandelion_lod1.glb')));
