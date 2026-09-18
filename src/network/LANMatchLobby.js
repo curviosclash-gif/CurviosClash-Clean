@@ -19,7 +19,7 @@ import {
 } from './OnlineSignalingSupport.js';
 import {
     buildLanRequestError,
-    publishLanLobbyMetadata,
+    publishLanLobbyMetadata, publishLanLobbyName,
 } from './LANSignalingSupport.js';
 import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
 
@@ -79,6 +79,7 @@ export class LANMatchLobby extends MatchLobby {
                 maxPlayers: Number(options.maxPlayers || 10),
                 actorId: options.actorId,
                 name: options.name || options.actorId,
+                lobbyName: options.lobbyName,
                 metadata: options.metadata,
             }),
         });
@@ -126,6 +127,7 @@ export class LANMatchLobby extends MatchLobby {
                     lobbyCode: this.lobbyCode,
                     actorId: joinOptions.actorId,
                     name: joinOptions.name || joinOptions.actorId,
+                    lobbyName: joinOptions.lobbyName,
                     participantMetadata: joinOptions.participantMetadata,
                 }),
             });
@@ -189,6 +191,7 @@ export class LANMatchLobby extends MatchLobby {
                 peerId,
                 actorId: String(player?.actorId || existing?.actorId || player?.name || (peerId === hostPeerId ? 'Host' : peerId)).trim(),
                 name: String(player?.name || existing?.name || peerId).trim(),
+                lobbyName: typeof player?.lobbyName === 'string' ? player.lobbyName : (existing?.lobbyName || ''),
                 role: peerId === hostPeerId ? 'host' : fallbackRole,
                 ready: resolvedReady,
                 joinedAt: Number(existing?.joinedAt || now),
@@ -200,6 +203,7 @@ export class LANMatchLobby extends MatchLobby {
             playerId: hostPeerId,
             actorId: status.hostActorId,
             name: status.hostName || status.hostActorId || 'Host',
+            lobbyName: status.hostLobbyName,
             ready: status.hostReady === true,
         }, 'host');
         for (const player of serverPlayers) {
@@ -445,6 +449,12 @@ export class LANMatchLobby extends MatchLobby {
         const data = await res.json();
         this._processServerStatus(data);
         this._emit('readyChanged', { ready: ready === true, sessionState: this.sessionState });
+        return data;
+    }
+
+    async setLobbyName(lobbyName) {
+        const data = await publishLanLobbyName({ signalingUrl: this._signalingUrl, playerId: this._localPeerId || 'host', isHost: this.isHost, token: this._localPeerToken, lobbyName });
+        this._processServerStatus(data);
         return data;
     }
 

@@ -82,7 +82,9 @@ export function buildSessionState(lobbyState, options = {}) {
         return {
             ...member,
             actorId,
-            name: normalizeMultiplayerPlayerName(member?.name, resolveDefaultMultiplayerPlayerName(actorId, index + 1)),
+            // Shown name: the one the player chose (lobbyName), otherwise "<profile name> <seat>".
+            // name carries the profile display name; actorId is the internal profile id.
+            name: normalizeMultiplayerPlayerName(member?.lobbyName, resolveDefaultMultiplayerPlayerName(member?.name || actorId, index + 1)),
             isLocal,
             isHost: peerId === hostPeerId,
         };
@@ -193,6 +195,7 @@ export function defaultJoinLobby(lobby, options = {}) {
         lobbyCode: options.lobbyCode,
         actorId: options.actorId,
         name: options.name,
+        lobbyName: options.lobbyName,
         participantMetadata: options.participantMetadata,
     });
 }

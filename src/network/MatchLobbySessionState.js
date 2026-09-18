@@ -1,6 +1,7 @@
 import { MULTIPLAYER_SESSION_ROLES } from '../shared/contracts/RuntimeSessionContract.js';
 import { normalizeString } from '../shared/contracts/ContractNormalizeUtils.js';
 import { normalizePublicLobbyMetadata } from '../shared/contracts/SignalingSessionContract.js';
+import { normalizeOptionalMultiplayerPlayerName } from '../shared/contracts/MultiplayerSessionContract.js';
 
 function normalizeBoolean(value) {
     return value === true;
@@ -23,6 +24,7 @@ export function normalizeLobbyMember(member, fallbackRole = MULTIPLAYER_SESSION_
         id: peerId,
         actorId: normalizeString(member?.actorId || member?.name, role === MULTIPLAYER_SESSION_ROLES.HOST ? 'Host' : peerId),
         name: normalizeString(member?.name || member?.actorId, role === MULTIPLAYER_SESSION_ROLES.HOST ? 'Host' : peerId),
+        lobbyName: normalizeOptionalMultiplayerPlayerName(member?.lobbyName),
         role,
         isHost: role === MULTIPLAYER_SESSION_ROLES.HOST,
         ready: normalizeBoolean(member?.ready),

@@ -58,6 +58,36 @@ export function buildLanRequestError({
  *   metadata?: object | null,
  * }} options
  */
+// Renames one seat; the token must belong to that seat (a player renames only itself).
+export async function publishLanLobbyName({
+    signalingUrl,
+    playerId,
+    isHost,
+    token,
+    lobbyName,
+} = {}) {
+    const res = await fetch(`${signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_NAME}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            playerId,
+            lobbyName: String(lobbyName ?? ''),
+            hostToken: isHost ? token : undefined,
+            playerToken: isHost ? undefined : token,
+        }),
+    });
+    if (res?.ok === false) {
+        const payload = await res.json().catch(() => ({}));
+        throw buildLanRequestError({
+            response: res,
+            payload,
+            fallbackMessage: 'Name konnte nicht geändert werden.',
+            fallbackCode: 'lobby_name_failed',
+        });
+    }
+    return res.json();
+}
+
 export async function publishLanLobbyMetadata({
     signalingUrl,
     hostPeerId,

@@ -9,9 +9,7 @@ import {
 } from '../../application/session-runtime/MenuLobbyServiceFactory.js';
 import { MATCH_LIFECYCLE_CONTRACT_VERSION } from '../../shared/contracts/MatchLifecycleContract.js';
 import { PLATFORM_PRODUCT_SURFACE_IDS, resolveDefaultLobbyTransport, resolveLobbyProviderKind, resolveSurfacePolicy } from '../../shared/contracts/PlatformCapabilityRegistry.js';
-import {
-    resolveSurfaceMultiplayerGateAccess,
-} from '../../shared/contracts/PlatformSurfacePolicyOps.js';
+import { resolveSurfaceMultiplayerGateAccess } from '../../shared/contracts/PlatformSurfacePolicyOps.js';
 import {
     isNetworkLobbyServiceTransport,
     normalizeLobbyServiceTransport,
@@ -28,6 +26,7 @@ import { recordSessionRuntimeEvent } from '../../shared/runtime/SessionRuntimeOb
 import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
 import { createLobbyPlatformBindings } from '../../platform/LobbyPlatformBindings.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
+import { loadRememberedLobbyName } from './MultiplayerLobbyNameOps.js';
 import {
     beginMultiplayerAction,
     clearMultiplayerFieldError,
@@ -396,7 +395,7 @@ export async function handleMultiplayerHostAction({
     try {
         result = await Promise.resolve(menuMultiplayerBridge?.host({
             actorId: profile?.id || accessContext?.actorId, name: String(profile?.displayName || accessContext?.actorId || 'Host'),
-            lobbyCode: String(event?.lobbyCode || '').trim(),
+            lobbyCode: String(event?.lobbyCode || '').trim(), lobbyName: loadRememberedLobbyName(game),
             settingsSnapshot,
         }));
     } catch (error) {
@@ -457,7 +456,7 @@ export async function handleMultiplayerJoinAction({
     try {
         result = await Promise.resolve(menuMultiplayerBridge?.join({
             actorId: profile?.id || accessContext?.actorId, name: String(profile?.displayName || accessContext?.actorId || 'Spieler'),
-            lobbyCode: String(event?.lobbyCode || '').trim(),
+            lobbyCode: String(event?.lobbyCode || '').trim(), lobbyName: loadRememberedLobbyName(game),
             signalingUrl: manualSignalingUrl,
         }));
     } catch (error) {

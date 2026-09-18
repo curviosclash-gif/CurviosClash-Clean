@@ -1,5 +1,6 @@
 import { resolveMapPreview } from '../menu/MenuPreviewCatalog.js';
 import { applyLobbyGuestMatchLock, isLobbyGuestMatchLocked } from './LobbyGuestMatchLock.js';
+import { syncLobbyNameField } from './LobbyNameField.js';
 
 export function resolveLobbyStatus(state) {
     if (state?.connectionPhase === 'reconnecting') return `Verbindung wird wiederhergestellt (${state.reconnectAttempt}/${state.reconnectMaxAttempts}) …`;
@@ -46,6 +47,7 @@ export function syncLobbyScreen(ui, state, isMultiplayerSession) {
     toggle(ui.lobbyEditMatchButton, host);
     toggle(ui.lobbyHostSettingsHint, joined && !host);
     applyLobbyGuestMatchLock(panel?.ownerDocument || ui.level4Drawer?.ownerDocument, isLobbyGuestMatchLocked(state, isMultiplayerSession));
+    syncLobbyNameField(ui, state, joined);
     toggle(ui.lobbyRetrySettingsButton, host && !!state.settingsSyncError);
     if (ui.lobbyRetrySettingsButton) ui.lobbyRetrySettingsButton.disabled = state?.settingsSyncPending === true;
     toggle(ui.setupLobbyButton, joined);

@@ -37,6 +37,20 @@ export async function toggleNetworkLobbyReady(service, options = {}) {
     return { ok: true, event, sessionState: service.getSessionState(), snapshot: service.getSnapshot() };
 }
 
+export async function setNetworkLobbyName(service, lobbyName) {
+    if (!service._transportSession.hasLobby() || !service.getSessionState().joined) {
+        return service._fail('Noch keiner Lobby beigetreten.', 'not_in_lobby');
+    }
+    try {
+        await service._transportSession.setLobbyName(lobbyName);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Name konnte nicht gesetzt werden.';
+        return service._fail(message, normalizeString(error?.code, 'lobby_name_failed'));
+    }
+    service.onStateChanged?.(service.getSessionState());
+    return { ok: true, sessionState: service.getSessionState(), snapshot: service.getSnapshot() };
+}
+
 export function requestNetworkLobbyMatchStart(service, options = {}) {
     const sessionState = service.getSessionState();
     if (!service._transportSession.hasLobby() || !sessionState.joined) {

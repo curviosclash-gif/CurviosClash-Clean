@@ -77,6 +77,7 @@ test('LAN join uses player profile identity while access actor remains separate'
     assert.deepEqual(calls[0], ['join', {
         actorId: '00000000-0000-4000-8000-000000000099',
         lobbyCode: 'LAN-QA',
+        lobbyName: '',
         name: 'Gunda',
         signalingUrl: 'localhost:9090',
     }]);

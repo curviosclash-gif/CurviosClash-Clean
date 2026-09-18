@@ -1,3 +1,5 @@
+import { bindLobbyNameField } from '../start-setup/LobbyNameField.js';
+
 export function bindMenuMultiplayerActionButtons({
     ui,
     bind,
@@ -137,4 +139,5 @@ export function bindMenuMultiplayerActionButtons({
     if (ui.lobbyRetrySettingsButton) {
         bind(ui.lobbyRetrySettingsButton, 'click', () => emit(eventTypes.MULTIPLAYER_SETTINGS_RETRY));
     }
+    bindLobbyNameField(ui, bind, emit, eventTypes);
 }

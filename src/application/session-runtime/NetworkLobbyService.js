@@ -36,6 +36,7 @@ import {
 } from './NetworkLobbyExperienceSupport.js';
 import {
     requestNetworkLobbyMatchStart,
+    setNetworkLobbyName,
     toggleNetworkLobbyReady,
 } from './NetworkLobbyMutationActions.js';
 
@@ -294,6 +295,7 @@ export class NetworkLobbyService {
                 maxPlayers: Number(options.maxPlayers || 10),
                 actorId,
                 name,
+                lobbyName: options.lobbyName,
                 metadata: createPublicLobbyMetadata(this._hostSettingsSnapshot, name),
             });
         } catch (error) {
@@ -359,6 +361,7 @@ export class NetworkLobbyService {
                 lobbyCode: requestedLobbyCode,
                 actorId,
                 name,
+                lobbyName: options.lobbyName,
                 participantMetadata: this._participantMetadata,
             }));
         } catch (error) {
@@ -388,6 +391,10 @@ export class NetworkLobbyService {
 
     async toggleReady(options = {}) {
         return toggleNetworkLobbyReady(this, options);
+    }
+
+    setLobbyName(lobbyName) {
+        return setNetworkLobbyName(this, lobbyName);
     }
 
     invalidateReadyForAll(reason = 'host_settings_changed') {
