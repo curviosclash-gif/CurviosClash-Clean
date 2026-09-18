@@ -2540,6 +2540,9 @@ input[type="range"]::-webkit-slider-thumb {
     justify-content: safe center;
     /* Above the hunt HUD (100-102): the board is the last word of the round. */
     z-index: 120;
+    /* #hud switches the pointer off for the whole layer; the board needs it back so the
+       buttons and the details toggle take clicks and a click on the board itself continues. */
+    pointer-events: auto;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(5px);
     animation: fadeIn 0.3s ease;
