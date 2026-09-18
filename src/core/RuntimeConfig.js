@@ -35,6 +35,7 @@ import { cloneJsonValue } from '../shared/utils/JsonClone.js';
 import { createRuntimeSettingsLimitsForRuntime } from './settings/SettingsRuntimeLimits.js';
 import { normalizeFightMachineGunId } from '../shared/contracts/FightMachineGunContract.js';
 import { VIEWPORT_LAYOUTS } from '../shared/contracts/ViewportLayoutContract.js';
+import { resolveMapPortalEntryCount } from '../shared/contracts/PortalAuthoringContract.js';
 import {
     FOUR_PLAYER_PLANAR_MODES,
     SPLIT_SCREEN_VARIANTS,
@@ -291,6 +292,10 @@ export function createRuntimeConfigSnapshot(settings, {
         ghostDuelMode: arcadeGhostDuelMode,
     });
 
+    const sessionMapKey = fivePortalsActive ? FIVE_PORTALS_MAPS[0] : fourPlayerPlanarActive
+        ? fourPlayerPlanarSelection.mapKey
+        : (threePlayerSplitActive ? threePlayerSplitSelection.mapKey : String(source.mapKey || 'standard'));
+
     const runtimeConfig = {
         session: {
             sessionType,
@@ -328,9 +333,7 @@ export function createRuntimeConfigSnapshot(settings, {
                     ? threePlayerSplitSelection.botCount
                     : clampSettingValue(source.numBots, runtimeLimits.session.numBots, 0)),
             winsNeeded: clampSettingValue(source.winsNeeded, runtimeLimits.session.winsNeeded, 5),
-            mapKey: fivePortalsActive ? FIVE_PORTALS_MAPS[0] : fourPlayerPlanarActive
-                ? fourPlayerPlanarSelection.mapKey
-                : (threePlayerSplitActive ? threePlayerSplitSelection.mapKey : String(source.mapKey || 'standard')),
+            mapKey: sessionMapKey,
             portalsEnabled: fivePortalsActive || !!source.portalsEnabled,
             activeGameMode,
         },
@@ -361,7 +364,8 @@ export function createRuntimeConfigSnapshot(settings, {
         },
         gameplay: {
             planarMode,
-            portalCount: clampSettingValue(gameplaySource.portalCount, runtimeLimits.gameplay.portalCount, gameplayDefaults.PORTAL_COUNT || 0),
+            // The map owns its portal count; there is no player setting for it.
+            portalCount: resolveMapPortalEntryCount((baseConfig?.MAPS || CONFIG.MAPS || {})[sessionMapKey], { planarMode }),
             planarLevelCount: clampSettingValue(gameplaySource.planarLevelCount, runtimeLimits.gameplay.planarLevelCount, gameplayDefaults.PLANAR_LEVEL_COUNT || 5),
             nextCheckpointGlowIntensity: clampSettingValue(
                 gameplaySource.nextCheckpointGlowIntensity,

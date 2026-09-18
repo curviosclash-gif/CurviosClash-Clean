@@ -119,20 +119,6 @@ export function bindMenuExtrasButtons(ctx) {
         });
     }
 
-    if (ui.portalCountSlider && ui.portalCountLabel) {
-        bind(ui.portalCountSlider, 'input', (e) => {
-            const val = clamp(
-                parseInt(e.target.value, 10),
-                gameplayLimits.portalCount.min,
-                gameplayLimits.portalCount.max
-            );
-            ui.portalCountLabel.textContent = val;
-            if (!settings.gameplay) settings.gameplay = {};
-            settings.gameplay.portalCount = val;
-            queueInputSettingsChanged([keys.GAMEPLAY_PORTAL_COUNT]);
-        });
-    }
-
     if (ui.planarLevelCountSlider && ui.planarLevelCountLabel) {
         bind(ui.planarLevelCountSlider, 'input', (e) => {
             const val = clamp(

@@ -1,7 +1,19 @@
 import { VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
 import { hasGLBMapSource, resolveGLBMapSourceFootprint } from '../../entities/GLBMapLoader.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
-import { resolvePortalMode } from '../../shared/contracts/PortalAuthoringContract.js';
+import {
+    resolveMapPortalEntryCount,
+    resolvePortalMode,
+    resolvePortalPairCount,
+} from '../../shared/contracts/PortalAuthoringContract.js';
+
+// Pairs the match builds on this map: authored pairs, or the map's own dynamic count.
+function resolvePreviewPortalPairCount(mapDefinition, authoredPairs) {
+    const portalMode = resolvePortalMode(mapDefinition);
+    if (portalMode === 'authored') return authoredPairs;
+    const dynamicPairs = resolvePortalPairCount(resolveMapPortalEntryCount(mapDefinition));
+    return portalMode === 'hybrid' ? Math.max(authoredPairs, dynamicPairs) : dynamicPairs;
+}
 import { compareMapPickerEntries, resolveMapPickerCollection } from './MenuMapCollectionCatalog.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
@@ -60,7 +72,7 @@ export function listMapPreviewEntries() {
             name: normalizeString(mapDefinition?.name, mapKey),
             sizeText: `${toNumber(size[0], 80)} x ${toNumber(size[1], 30)} x ${toNumber(size[2], 80)}`,
             obstacleCount: obstacles,
-            portalCount: portals,
+            portalCount: resolvePreviewPortalPairCount(mapDefinition, portals),
             portalMode: resolvePortalMode(mapDefinition),
             gateCount: gates,
             tunnelCount: countTunnelFeatures(mapDefinition?.obstacles),

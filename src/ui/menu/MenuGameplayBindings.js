@@ -45,10 +45,7 @@ export function setupMenuGameplayBindings(ctx) {
     const isFightModePathActive = () => resolveCurrentHangarModePath() === 'fight';
     const planarModeMemory = { portalsBeforePlanar: null };
     const applyPlanarMode = (enabled) => {
-        const { changedKeys, portalCountRaised } = applyMenuPlanarMode(settings, enabled, keys, planarModeMemory);
-        if (portalCountRaised) {
-            emit(eventTypes.SHOW_STATUS_TOAST, { message: 'Ebenen-Modus: 4 Portal-Eingänge aktiviert' });
-        }
+        const { changedKeys } = applyMenuPlanarMode(settings, enabled, keys, planarModeMemory);
         emitSettingsChangedImmediate(changedKeys);
     };
 

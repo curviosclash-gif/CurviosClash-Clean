@@ -302,7 +302,7 @@ export class BotValidationService {
         game.settings.botHeuristicProfile = scenario.heuristicProfile || 'balanced';
         game.settings.arcade.seed = scenario.seedBase;
         game.settings.gameplay.planarMode = !!scenario.planarMode;
-        game.settings.gameplay.portalCount = scenario.portalCount;
+        // The map owns its portal count; the scenario only decides whether portals are on.
         game.settings.portalsEnabled = scenario.portalCount > 0;
         game.settings.hunt.respawnEnabled = scenario.respawnEnabled === true;
         game.settings.hunt.deathmatchKillLimit = scenario.deathmatchKillLimit;

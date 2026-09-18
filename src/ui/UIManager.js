@@ -523,8 +523,6 @@ export class UIManager {
             : Math.max(runtimeLimits.gameplay.mgTrailAimRadius.min, Number(runtimeConfig?.HUNT?.MG?.TRAIL_HIT_RADIUS) || 0.78);
         syncRangeInput(ui.mgTrailAimSlider, mgTrailAimRadius, runtimeLimits.gameplay.mgTrailAimRadius, mgTrailAimRadius);
         if (ui.mgTrailAimLabel) ui.mgTrailAimLabel.textContent = mgTrailAimRadius.toFixed(2);
-        syncRangeInput(ui.portalCountSlider, gp.portalCount, runtimeLimits.gameplay.portalCount, gp.portalCount);
-        if (ui.portalCountLabel) ui.portalCountLabel.textContent = String(gp.portalCount);
         syncRangeInput(ui.planarLevelCountSlider, gp.planarLevelCount, runtimeLimits.gameplay.planarLevelCount, gp.planarLevelCount);
         if (ui.planarLevelCountLabel) ui.planarLevelCountLabel.textContent = String(gp.planarLevelCount);
         applyRangeInputLimits(ui.fightPlayerHpSlider, runtimeLimits.gameplay.fightPlayerHp);

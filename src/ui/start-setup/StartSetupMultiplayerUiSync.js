@@ -184,10 +184,7 @@ function renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePrevie
             facts: [
                 { label: 'Größe', value: mapPreview.sizeText },
                 { label: 'Hindernisse', value: String(mapPreview.obstacleCount) },
-                {
-                    label: 'Portal-Paare',
-                    value: mapPreview.portalMode === 'dynamic' ? 'Dynamisch' : String(mapPreview.portalCount),
-                },
+                { label: 'Portal-Paare', value: String(mapPreview.portalCount) },
                 mapPreview.gateCount > 0 ? { label: 'Tore', value: String(mapPreview.gateCount) } : null,
                 mapPreview.tunnelCount > 0 ? { label: 'Tunnel', value: String(mapPreview.tunnelCount) } : null,
                 mapPreview.spawnCount > 0 ? { label: 'Startpunkte', value: String(mapPreview.spawnCount) } : null,

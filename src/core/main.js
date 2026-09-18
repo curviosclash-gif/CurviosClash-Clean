@@ -180,12 +180,7 @@ export class Game {
         if (typeof planarRequested === 'boolean') {
             if (!this.settings.gameplay) this.settings.gameplay = {};
             this.settings.gameplay.planarMode = planarRequested;
-            if (planarRequested) {
-                if ((this.settings.gameplay.portalCount || 0) === 0) {
-                    this.settings.gameplay.portalCount = 4;
-                }
-                this.settings.portalsEnabled = true;
-            }
+            if (planarRequested) this.settings.portalsEnabled = true;
         }
         this._onSettingsChanged();
 

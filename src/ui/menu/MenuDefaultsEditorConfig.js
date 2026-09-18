@@ -85,7 +85,6 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
             fightPlayerHp: HUNT_CONFIG.PLAYER_MAX_HP,
             fightMgDamage: DEFAULT_FIGHT_MG_DAMAGE,
             planarMode: false,
-            portalCount: 8,
             planarLevelCount: 5,
             portalBeams: false,
         },
