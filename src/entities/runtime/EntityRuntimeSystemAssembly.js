@@ -19,6 +19,10 @@ import { ExclusionZoneSystem } from '../systems/ExclusionZoneSystem.js';
 import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { ObjectiveTargetMarkerSystem } from '../systems/ObjectiveTargetMarkerSystem.js';
 import { SecretRoomSystem } from '../systems/SecretRoomSystem.js';
+import { TargetableRegistry } from '../systems/TargetableRegistry.js';
+import { MapUnitSystem } from '../systems/MapUnitSystem.js';
+import { LightningStrikeSystem } from '../../hunt/LightningStrikeSystem.js';
+import { RailgunSystem } from '../../hunt/RailgunSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -48,6 +52,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
             isRespawnPending: (player) => owner._respawnSystem?.isRespawnPending?.(player) === true,
             isOutcomeAuthority: () => owner.isFightOutcomeAuthority !== false,
             getDeathmatchKillLimit: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,
+            getWinCondition: () => owner.entityRuntimeConfig?.HUNT?.WIN_CONDITION,
             getDeathmatchTimeLimitSeconds: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_TIME_LIMIT_SECONDS || 0,
             getElapsedSeconds: () => Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
             getObjectiveOutcome: () => isFivePortalsConfig(owner.runtimeConfig)
@@ -63,6 +68,17 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     // Published here rather than with the other systems in EntityManager: that file sits on the
     // 500 line limit, and this is the module that owns the wiring anyway.
     owner._secretRoomSystem = systems.secretRoomSystem;
+    // Every weapon reads its non-player targets from here; map units add their provider later.
+    systems.targetableRegistry = new TargetableRegistry();
+    systems.targetableRegistry.addProvider(() => systems.staticTurretSystem.getDestructibleTargets());
+    if (owner) owner._targetableRegistry = systems.targetableRegistry;
+    systems.mapUnitSystem = new MapUnitSystem(owner);
+    systems.targetableRegistry.addProvider(() => systems.mapUnitSystem.getTargets());
+    if (owner) owner._mapUnitSystem = systems.mapUnitSystem;
+    systems.lightningStrikeSystem = new LightningStrikeSystem(owner);
+    if (owner) owner._lightningStrikeSystem = systems.lightningStrikeSystem;
+    systems.railgunSystem = new RailgunSystem(owner);
+    if (owner) owner._railgunSystem = systems.railgunSystem;
     systems.flamethrowerSystem = new FlamethrowerSystem(owner);
     if (owner) owner._flamethrowerSystem = systems.flamethrowerSystem;
     return systems;

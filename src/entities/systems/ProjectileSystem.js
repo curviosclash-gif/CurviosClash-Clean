@@ -18,6 +18,8 @@ import {
     buildGameplayActionResult,
 } from '../../shared/contracts/GameplayActionResultContract.js';
 import { shootPlayerItemProjectile } from './projectile/PlayerProjectileFireOps.js';
+import { applyGuidedRocketInput } from './projectile/GuidedRocketControlOps.js';
+import { endGuidedRocketAutopilot } from '../ai/GuidedRocketAutopilotOps.js';
 
 export class ProjectileSystem {
     constructor(options = {}) {
@@ -31,14 +33,14 @@ export class ProjectileSystem {
             : (() => buildGameplayActionResult({
                 ok: false,
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
-                message: 'Kein Item verfuegbar',
+                message: 'Kein Item verfügbar',
             }));
         this.takeInventoryItem = typeof options.takeInventoryItem === 'function'
             ? options.takeInventoryItem
             : (() => buildGameplayActionResult({
                 ok: false,
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
-                message: 'Kein Item verfuegbar',
+                message: 'Kein Item verfügbar',
             }));
         // Destructible map geometry is attached after construction, because the runtime builds
         // the projectile system before the systems that own the map state.
@@ -93,6 +95,17 @@ export class ProjectileSystem {
 
     shootItemProjectile(player, preferredIndex = -1, rocketOnly = false) {
         return shootPlayerItemProjectile(this, player, preferredIndex, rocketOnly);
+    }
+
+    getGuidedProjectileForOwner(owner) {
+        return this.projectiles.find((projectile) => projectile.guidedActive && projectile.owner === owner) || null;
+    }
+
+    applyGuidedInput(owner, input) {
+        const projectile = this.getGuidedProjectileForOwner(owner);
+        if (!projectile) return false;
+        applyGuidedRocketInput(projectile, input, this.entityRuntimeConfig?.HUNT?.ROCKET);
+        return true;
     }
 
     deployMine(player) { return deployMine(this, player); }
@@ -394,6 +407,7 @@ export class ProjectileSystem {
             projectile.position.set(Number(pos[0]) || 0, Number(pos[1]) || 0, Number(pos[2]) || 0);
             projectile.velocity.set(Number(vel[0]) || 0, Number(vel[1]) || 0, Number(vel[2]) || 0);
             projectile.owner = players.find((player) => player?.index === entry.owner) || null;
+            projectile.guidedActive = type === 'ROCKET_GUIDED' && entry.guided === true;
             projectile.ttl = Math.max(0, Number(entry.ttl) || 0);
             projectile.radius = Math.max(0, Number(entry.radius) || 0);
             projectile.environmentProjectile = entry.environmentProjectile === true;
@@ -496,6 +510,7 @@ export class ProjectileSystem {
             return;
         }
 
+        if (projectile.guidedActive) endGuidedRocketAutopilot(projectile.owner);
         this._hitResolver.detonateProjectile(projectile);
         this._releaseProjectileMesh(projectile);
         const lastIndex = this.projectiles.length - 1;
@@ -522,6 +537,7 @@ export class ProjectileSystem {
     clear() {
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const projectile = this.projectiles[i];
+            if (projectile.guidedActive) endGuidedRocketAutopilot(projectile.owner);
             this._releaseProjectileMesh(projectile);
             this._releaseProjectileState(projectile);
         }

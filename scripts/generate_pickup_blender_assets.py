@@ -19,8 +19,8 @@ SEMANTIC_BASELINES = {
     "FAN_3": 2.311, "FAN_4": 2.230, "FAN_5": 2.311, "TRAIL_GAP": 1.603,
     "EMP": 1.860, "MAGNET": 1.350, "DECOY": 1.942, "PURGE": 1.590,
     "SWAP": 1.590, "MINE": 1.739, "ROCKET_WEAK": 1.915, "ROCKET_MEDIUM": 2.176,
-    "ROCKET_HEAVY": 2.480, "ROCKET_MEGA": 3.206,
-    "FLAMETHROWER": 1.915,
+    "ROCKET_HEAVY": 2.480, "ROCKET_MEGA": 3.206, "ROCKET_GUIDED": 3.206,
+    "FLAMETHROWER": 1.915, "LIGHTNING": 1.860, "RAILGUN": 2.230,
 }
 
 LEGACY_EXTENTS = {
@@ -44,8 +44,9 @@ COLORS = {
     "DECOY": (1.0, .18, .68, 1), "PURGE": (.8, .9, 1.0, 1),
     "SWAP": (.55, .12, 1.0, 1), "MINE": (1.0, .08, .02, 1),
     "ROCKET_WEAK": (1.0, .55, .12, 1), "ROCKET_MEDIUM": (1.0, .25, .03, 1),
-    "ROCKET_HEAVY": (1.0, .2, .267, 1), "ROCKET_MEGA": (.55, .0, 1.0, 1),
+    "ROCKET_HEAVY": (1.0, .2, .267, 1), "ROCKET_MEGA": (.55, .0, 1.0, 1), "ROCKET_GUIDED": (.63, .2, 1.0, 1),
     "FLAMETHROWER": (1.0, .48, .10, 1),
+    "LIGHTNING": (.72, .84, 1.0, 1), "RAILGUN": (.5, .9, 1.0, 1),
 }
 
 ROOTS = {}
@@ -803,6 +804,28 @@ def consolidate(root):
         join_meshes(role_objects, f"{root.name}_{role}", root, role)
 
 
+def build_lightning(root):
+    # A big storm cloud with a short, broad bolt below it. The cloud leads, so the item never reads
+    # as the green speed bolt: "strike from the sky" rather than "go fast".
+    sphere(root, "strike_cloud", (0, 0, .55), .5, "frame", scale=(1.5, 1, .75))
+    sphere(root, "strike_cloud_left", (-.62, 0, .42), .36, "frame")
+    sphere(root, "strike_cloud_right", (.62, 0, .46), .38, "frame")
+    sphere(root, "strike_cloud_top", (.15, 0, .85), .34, "frame")
+    bolt = [(.12, .2), (-.28, -.38), (-.02, -.38), (-.24, -1.0), (.34, -.16), (.08, -.16), (.3, .2)]
+    polygon_prism(root, "strike_bolt", bolt, .24, "accent", .04, loc=(0, 0, 0))
+
+
+def build_railgun(root):
+    # Two rails around a thin glowing core, three coils and a stock: a long charged gun, laid out
+    # along X like the flamethrower so its profile faces the viewer.
+    box(root, "rail_top", (0, 0, .19), (2.0, .2, .12), "metal", .03)
+    box(root, "rail_bottom", (0, 0, -.19), (2.0, .2, .12), "metal", .03)
+    cylinder(root, "rail_core", (0, 0, 0), .09, 2.0, "glow", 10, "X")
+    for index, x in enumerate((-.6, -.15, .3)):
+        torus(root, f"rail_coil_{index}", (x, 0, 0), .3, .06, "accent", rot=(0, math.pi / 2, 0))
+    box(root, "rail_stock", (1.0, 0, -.08), (.6, .34, .5), "frame", .05)
+    sphere(root, "rail_emitter", (-1.08, 0, 0), .16, "glow")
+
 def build_all():
     builders = {
         "SPEED_UP": build_speed, "SLOW_DOWN": build_slow,
@@ -816,8 +839,9 @@ def build_all():
         "DECOY": build_decoy, "PURGE": build_purge, "SWAP": lambda r: build_crossed_arrows(r, True),
         "MINE": build_mine, "ROCKET_WEAK": lambda r: build_rocket(r,"WEAK"),
         "ROCKET_MEDIUM": lambda r: build_rocket(r,"MEDIUM"),
-        "ROCKET_HEAVY": lambda r: build_pilot_rocket(r,"HEAVY"), "ROCKET_MEGA": lambda r: build_rocket(r,"MEGA"),
+        "ROCKET_HEAVY": lambda r: build_pilot_rocket(r,"HEAVY"), "ROCKET_MEGA": lambda r: build_rocket(r,"MEGA"), "ROCKET_GUIDED": lambda r: build_rocket(r,"MEGA"),
         "FLAMETHROWER": build_flamethrower,
+        "LIGHTNING": build_lightning, "RAILGUN": build_railgun,
     }
     for identifier, builder in builders.items():
         root = root_for(identifier, COLORS[identifier])

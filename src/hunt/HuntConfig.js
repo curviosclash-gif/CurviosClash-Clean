@@ -1,11 +1,14 @@
 import { WEAPON_FAN_PICKUP_DEFINITIONS } from '../shared/contracts/WeaponFanPickupDefinitionsContract.js';
 import { FLAMETHROWER_TARGET_SPAWN_WEIGHTS } from '../shared/contracts/FlamethrowerPickupDefinitionsContract.js';
+import { LIGHTNING_SPAWN_WEIGHTS } from '../shared/contracts/LightningPickupDefinitionsContract.js';
+import { RAILGUN_SPAWN_WEIGHTS } from '../shared/contracts/RailgunPickupDefinitionsContract.js';
 
 export const HUNT_CONFIG = Object.freeze({
     DEFAULT_MODE: 'HUNT',
     DEFAULT_RESPAWN_ENABLED: true,
     DEATHMATCH_KILL_LIMIT: 10,
     DEATHMATCH_TIME_LIMIT_SECONDS: 300,
+    WIN_CONDITION: 'kills_time',
     PLAYER_MAX_HP: 100,
     PLAYER_REGEN_PER_SECOND: 2.0,
     PLAYER_REGEN_DELAY: 3.0,
@@ -105,6 +108,11 @@ export const HUNT_CONFIG = Object.freeze({
         VISUAL_SCALE_MEDIUM: 1.95,
         VISUAL_SCALE_HEAVY: 2.2,
         VISUAL_SCALE_MEGA: 2.6,
+        GUIDED_SPEED: 70,
+        GUIDED_TURN_RATE: 2.5,
+        GUIDED_BOOST_MULTIPLIER: 1.5,
+        GUIDED_BOOST_SECONDS: 2,
+        GUIDED_BOOST_TURN_RATE: 1.8,
         COLLISION_RADIUS_MULTIPLIER: 1.65,
         HOMING_TURN_RATE: 10,
         HOMING_MIN_TURN_RATE: 0.1,
@@ -264,6 +272,28 @@ export const HUNT_CONFIG = Object.freeze({
         // Hunt picks from this table, not from the registry spawn weights, so the rarity of
         // the flamethrower has to be kept in step with its definition by hand.
         FLAMETHROWER: FLAMETHROWER_TARGET_SPAWN_WEIGHTS.HUNT,
+        LIGHTNING: LIGHTNING_SPAWN_WEIGHTS.HUNT,
+        RAILGUN: RAILGUN_SPAWN_WEIGHTS.HUNT,
+    }),
+    // Lightning (E23-E32): warning over the whole map, then a strike on the highest flyers.
+    LIGHTNING: Object.freeze({
+        WARNING_SECONDS: 2,
+        DAMAGE: 35,
+        // Below this many hit points the strike kills; at or above it the target keeps 1 HP.
+        LETHAL_BELOW_HP: 30,
+        // Share of the other living players that is hit, rounded up, at least one.
+        TARGET_SHARE: 0.2,
+    }),
+    // Railgun (E48, E81): hold to charge, release to fire.
+    RAILGUN: Object.freeze({
+        SHOTS: 5,
+        CHARGE_SECONDS: 1.5,
+        MIN_DAMAGE: 20,
+        MAX_DAMAGE: 70,
+        RANGE: 250,
+        MAX_TARGETS: 3,
+        // Added to a target's hitbox: the beam is thin, but it should not need pixel precision.
+        BEAM_RADIUS: 0.5,
     }),
     FLAMETHROWER: Object.freeze({
         FUEL_SECONDS: 6,

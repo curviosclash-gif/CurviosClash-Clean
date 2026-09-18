@@ -39,6 +39,8 @@ export class HuntScoring {
                 shieldDamage: 0,
                 spawnDeaths: 0,
                 intercepts: 0,
+                unitsDestroyed: 0,
+                points: 0,
             });
         }
         return this._statsByPlayer.get(playerIndex);
@@ -93,7 +95,17 @@ export class HuntScoring {
     // out of the kill tally, out of the sorting and out of the round decision.
     registerIntercept(playerIndex) {
         if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
-        this._ensureStats(playerIndex).intercepts += 1;
+        const stats = this._ensureStats(playerIndex);
+        stats.intercepts += 1;
+        stats.points += 1;
+    }
+
+    // E19: a destroyed tank is counted for its destroyer, but like an intercept it is no kill.
+    registerUnitDestroyed(playerIndex, kind = 'tank') {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        const stats = this._ensureStats(playerIndex);
+        stats.unitsDestroyed += 1;
+        stats.points += kind === 'boss' ? 3 : 1;
     }
 
     registerElimination(targetPlayer, options = {}) {
@@ -110,6 +122,7 @@ export class HuntScoring {
         if (killerIndex >= 0 && killerIndex !== targetIndex) {
             const killerStats = this._ensureStats(killerIndex);
             killerStats.kills += 1;
+            killerStats.points += 2;
         }
 
         const assistIndices = [];
@@ -136,7 +149,7 @@ export class HuntScoring {
         return { killerIndex, assistIndices };
     }
 
-    getScoreboard(players = []) {
+    getScoreboard(players = [], { winCondition = 'kills_time' } = {}) {
         const rows = [];
         for (const player of players) {
             if (!player || player.entitySlotActive === false || !Number.isInteger(player.index)) continue;
@@ -151,10 +164,13 @@ export class HuntScoring {
                 shieldDamage: Math.round(stats.shieldDamage || 0),
                 spawnDeaths: stats.spawnDeaths,
                 intercepts: stats.intercepts,
+                unitsDestroyed: stats.unitsDestroyed,
+                points: stats.points,
             });
         }
 
         rows.sort((a, b) => (
+            (winCondition === 'score_target' ? b.points - a.points : b.kills - a.kills) ||
             b.kills - a.kills ||
             b.assists - a.assists ||
             b.damage - a.damage ||
@@ -177,6 +193,8 @@ export class HuntScoring {
                 spawnDeaths: Math.max(0, Number(row?.spawnDeaths) || 0),
                 // A snapshot from a host that predates S2.3 has no field here and reads as 0.
                 intercepts: Math.max(0, Number(row?.intercepts) || 0),
+                unitsDestroyed: Math.max(0, Number(row?.unitsDestroyed) || 0),
+                points: Math.max(0, Number(row?.points) || 0),
             });
         }
     }

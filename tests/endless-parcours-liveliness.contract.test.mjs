@@ -600,7 +600,7 @@ test('the menu summary makes the stored progress visible', () => {
     assert.match(line, /weiteste Strecke 1450 m/);
     assert.match(line, /Top 1: 7400/);
     assert.match(line, /Meilensteine 3\//);
-    assert.equal(resolveEndlessMilestoneLabel('distance-1000'), '1000 m ueberlebt');
+    assert.equal(resolveEndlessMilestoneLabel('distance-1000'), '1000 m überlebt');
     assert.equal(resolveEndlessMilestoneLabel('does-not-exist'), '');
 });
 

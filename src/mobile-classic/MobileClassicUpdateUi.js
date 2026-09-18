@@ -124,7 +124,7 @@ export async function checkMobileClassicGithubRelease(doc = document, fetchImpl 
         refs.openButton.hidden = true;
     }
     if (refs.status) {
-        refs.status.textContent = 'GitHub prueft';
+        refs.status.textContent = 'GitHub prüft';
     }
 
     if (!fetcher) {

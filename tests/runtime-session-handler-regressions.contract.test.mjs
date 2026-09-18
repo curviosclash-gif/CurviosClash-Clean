@@ -198,6 +198,47 @@ test('V87.2 GameRuntimeSessionHandler dispose waits for finalize before clearing
     assert.strictEqual(result.menuBridgeCleared, true);
 });
 
+for (const [label, transition] of [
+    ['Five Portals', { requiresSessionRebuild: true, toMap: 'portal_map_2', botCount: 0, fivePortals: true }],
+    ['Five Fronts', { requiresSessionRebuild: true, toMap: 'notre_dame_fire_arena', botCount: 12, arenaWaves: true }],
+]) {
+    test(`${label} sector rebuild re-applies the next map after the settings refresh`, async () => {
+        const callLog = [];
+        const facade = {
+            game: {
+                state: GAME_STATE_IDS.MENU,
+                settings: { localSettings: { sessionType: 'single', modePath: 'arcade' } },
+            },
+            _clearMatchPrewarmTimer() { },
+            _recordMenuTelemetry() { },
+            _resolveStartValidationIssue() { return null; },
+            _applySettingsToRuntimeInternal() { callLog.push('refreshFromSettings'); },
+            _applyArcadeSectorRuntimeProfile(profile) { callLog.push(`applyProfile:${profile?.toMap}`); },
+            prepareArcadeMatchStartRuntime() { callLog.push('prepare'); },
+            getUiManager() { return null; },
+            getPorts() {
+                return {
+                    runtimeProjectionPort: {
+                        getSessionRuntimeSnapshot: () => ({ lifecycleState: 'menu', finalizeState: 'idle' }),
+                    },
+                    matchUiPort: { prepareMatchStartProjection: () => true, startRound() { } },
+                    lifecyclePort: { initializeSession: () => true, waitForAllPlayersLoaded: () => true },
+                };
+            },
+            getRuntimeHandle() { return { createMatchSession: () => ({}) }; },
+        };
+        const handler = new GameRuntimeSessionHandler({ facade, logger: console });
+
+        await handler.startMatch({ source: 'arcade_sector_transition', arcadeSectorTransition: transition });
+
+        const refreshAt = callLog.indexOf('refreshFromSettings');
+        const applyAt = callLog.indexOf(`applyProfile:${transition.toMap}`);
+        assert.ok(refreshAt >= 0, callLog.join(','));
+        assert.ok(applyAt > refreshAt, `next map must win over the settings map: ${callLog.join(',')}`);
+        assert.ok(applyAt < callLog.indexOf('prepare'), callLog.join(','));
+    });
+}
+
 test('V87.4 GameRuntimeSessionHandler returns a fresh promise after a settled synchronous start', async () => {
     const handler = new GameRuntimeSessionHandler({ facade: {}, logger: console });
     let startCalls = 0;

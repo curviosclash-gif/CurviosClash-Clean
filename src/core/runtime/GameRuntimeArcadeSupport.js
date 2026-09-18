@@ -268,7 +268,9 @@ export class GameRuntimeArcadeSupport {
         const plan = buildArcadeSectorPlan({
             seed: runtimeConfig?.arcade?.seed,
             sectorCount: runtimeConfig?.arcade?.sectorCount,
-            difficulty: runtimeConfig?.bot?.activeDifficulty || runtimeConfig?.bot?.difficulty || 'normal',
+            difficulty: runtimeConfig?.arcade?.nightmare === true
+                ? 'nightmare'
+                : (runtimeConfig?.bot?.activeDifficulty || runtimeConfig?.bot?.difficulty || 'normal'),
         });
         return lockSelectedMapToFirstSector(plan, runtimeConfig, getRuntimeMapCatalog());
     }

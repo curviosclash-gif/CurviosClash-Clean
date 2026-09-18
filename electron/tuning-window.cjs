@@ -23,7 +23,7 @@ function resolveShowWindowFlag() {
 }
 
 function createFallbackHtml(message) {
-    const safeMessage = String(message || 'Tuning Console ist derzeit nicht verfuegbar.');
+    const safeMessage = String(message || 'Tuning Console ist derzeit nicht verfügbar.');
         // Keep fallback intentionally plain to avoid depending on local assets.
     return `data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html>
 <html lang="de">
@@ -82,8 +82,8 @@ function resolveCapabilityStateSnapshot(resolveCapabilityState) {
         reason: String(sourceState?.reason || (available ? 'desktop_capability_enabled' : 'desktop_capability_blocked')),
         message: String(sourceState?.message || (
             available
-                ? 'Developer Tuning Console ist auf dieser Desktop-Surface verfuegbar.'
-                : 'Developer Tuning Console ist auf dieser Surface nicht verfuegbar.'
+                ? 'Developer Tuning Console ist auf dieser Desktop-Surface verfügbar.'
+                : 'Developer Tuning Console ist auf dieser Surface nicht verfügbar.'
         )),
         passwordGate: String(sourceState?.passwordGate || 'local-ux-only'),
     });

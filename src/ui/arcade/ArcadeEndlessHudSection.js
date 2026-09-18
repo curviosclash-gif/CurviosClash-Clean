@@ -6,17 +6,17 @@
  */
 
 const SIDE_LABELS = Object.freeze({
-    left: 'Jaeger links',
-    right: 'Jaeger rechts',
+    left: 'Jäger links',
+    right: 'Jäger rechts',
     ahead: 'Sperre vorn',
-    behind: 'Jaeger im Rueckraum',
+    behind: 'Jäger im Rückraum',
 });
 
 const METRICS = Object.freeze([
     ['distance', 'Distanz'],
     ['time', 'Zeit'],
     ['kills', 'Kills'],
-    ['bots', 'Jaeger'],
+    ['bots', 'Jäger'],
     ['threat', 'Gefahr'],
     ['gates', 'Tore'],
     ['best', 'Bestwert'],

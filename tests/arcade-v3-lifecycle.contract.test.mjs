@@ -60,6 +60,16 @@ test('victory waits explicitly; continuation keeps vitals, run id and escalating
     f.runtime.resetRunState();
 });
 
+test('escape on the victory panel goes back to the menu like on every other board', () => {
+    const f = fixture();
+    f.finishSector(); f.runtime.beginNextSector(); f.finishSector();
+    assert.equal(f.runtime.getPhase(), 'victory');
+    const controller = new ArcadeRoundStateController({ arcadeRuntime: f.runtime, baseController: new RoundStateController() });
+    assert.equal(controller.deriveRoundEndTick({ dt: 0, roundPause: 10 }).action, 'WAIT');
+    assert.equal(controller.deriveRoundEndTick({ dt: 0, roundPause: 10, escapePressed: true }).action, 'RETURN_TO_MENU');
+    f.runtime.resetRunState();
+});
+
 test('held countdown retains rest time and confirmation starts exactly once', () => {
     const f = fixture(); f.finishSector(); f.runtime.setIntermissionPaused(true);
     const controller = new ArcadeRoundStateController({ arcadeRuntime: f.runtime, baseController: new RoundStateController() });

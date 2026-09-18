@@ -8,7 +8,7 @@ export function installPlaytestReturnControl({ windowRef = window, documentRef =
     button.id = 'playtest-return-to-editor';
     button.type = 'button';
     button.textContent = 'Zum Map-Editor';
-    button.setAttribute('aria-label', 'Playtest beenden und zum Map-Editor zurueckkehren');
+    button.setAttribute('aria-label', 'Playtest beenden und zum Map-Editor zurückkehren');
     Object.assign(button.style, {
         position: 'fixed', top: '14px', right: '14px', zIndex: '10000',
         padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,.35)',

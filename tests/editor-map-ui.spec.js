@@ -171,7 +171,8 @@ test.describe('V65: Editor Build Dock', () => {
         await expect(page.locator('#dockRecentList')).toContainText('Noch nichts benutzt');
         await expect(page.locator('#dockFavoriteList')).toContainText('Keine Favoriten');
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
-        await expect(page.locator('#validationList li')).toHaveCount(10);
+        // Blocked checkpoint centres got their own (export blocking) item next to the reachability hint.
+        await expect(page.locator('#validationList li')).toHaveCount(11);
         await expect(page.locator('#validationStateBadge')).toHaveText('1 Fehler · 1 Warnung');
         await expect(page.locator('#validationIssueBadge')).toHaveText('2');
         await expect(page.locator('#btnDuplicateSelected')).toBeHidden();
@@ -385,7 +386,7 @@ test.describe('V65: Editor Build Dock', () => {
         await expect(page.locator('#exportResultView')).toBeVisible();
         if (desktopStore) {
             // Das Spielfenster liest die Kartenliste neu, sobald es den Fokus bekommt.
-            await expect(page.locator('#exportResultView')).toContainText('beim naechsten Oeffnen der Kartenauswahl');
+            await expect(page.locator('#exportResultView')).toContainText('beim nächsten Öffnen der Kartenauswahl');
         }
         await expect(page.locator('#btnExportOpenFolder')).toBeVisible();
         await expect(page.locator('#btnExportCopyKey')).toBeVisible();
@@ -606,7 +607,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.locator('#propX').press('Tab');
         await page.locator('#propWidth').fill('500');
         await page.locator('#propWidth').press('Tab');
-        await expect(page.locator('#validationList')).toContainText('Objekt(e) ausserhalb der Arena');
+        await expect(page.locator('#validationList')).toContainText('Objekt(e) außerhalb der Arena');
         await activateInspectorTab(page, 'objects');
 
         await page.locator('#btnToggleSelectedLock').click();
@@ -659,7 +660,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
             return { block: block.userData.id, item: item.userData.id };
         });
         await activateInspectorTab(page, 'objects');
-        await page.getByLabel(`${ids.block} fuer Mehrfachaktion markieren`).check();
+        await page.getByLabel(`${ids.block} für Mehrfachaktion markieren`).check();
         await page.locator('#btnTransformMarked').click();
         await page.locator('[data-transform-fields] [name=scale]').fill('2');
         await page.locator('#btnEditorModalConfirm').click();
@@ -886,7 +887,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         });
 
         await activateInspectorTab(page, 'selection');
-        await expect(page.locator('#propSizeLabel')).toHaveText('Groesse / Radius (gleichmaessig)');
+        await expect(page.locator('#propSizeLabel')).toHaveText('Größe / Radius (gleichmäßig)');
         await expect(page.locator('#propSize')).toHaveValue('5.5');
         await page.locator('#propSize').fill('9');
         await page.locator('#propSize').press('Tab');
@@ -1313,8 +1314,8 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.keyboard.press('Control+z');
         await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.mapManager.getObjectCount())).toBe(2);
         await activateInspectorTab(page, 'objects');
-        await page.getByLabel(`${ids.left} fuer Mehrfachaktion markieren`).check();
-        await page.getByLabel(`${ids.right} fuer Mehrfachaktion markieren`).check();
+        await page.getByLabel(`${ids.left} für Mehrfachaktion markieren`).check();
+        await page.getByLabel(`${ids.right} für Mehrfachaktion markieren`).check();
         await page.locator('#btnDuplicateMarked').click();
 
         const pairedDuplicates = await page.evaluate(([leftId, rightId]) => {
@@ -1445,6 +1446,8 @@ test('Raketenwerfer: Editor properties, duplicate, undo and saved roundtrip', as
     await page.locator('#propTurretCooldown').press('Tab');
     await page.locator('#propTurretRocketType').selectOption('ROCKET_MEDIUM');
     await page.locator('#propTurretHp').fill('130');
+    // Under load the queued workspace refresh lands between typing and blur; force it here.
+    await page.evaluate(() => window.CURVIOS_EDITOR.ui.refreshLayerState());
     await page.locator('#propTurretHp').press('Tab');
     const result = await page.evaluate(() => {
         const { ui } = window.CURVIOS_EDITOR;

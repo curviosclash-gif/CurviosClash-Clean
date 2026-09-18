@@ -8,6 +8,8 @@ export const XP_REWARD_TABLE = Object.freeze({
     killBase: 15,
     // E38: shooting down an incoming rocket pays, but clearly below a kill.
     interceptBase: 10,
+    // E19: a destroyed tank pays two kills' worth.
+    unitDestroyedBase: 30,
     missionComplete: 80,
     allMissionsBonus: 120,
     cleanSector: 40,
@@ -30,6 +32,7 @@ export function calculateSectorXp(telemetry) {
     if (!telemetry || typeof telemetry !== 'object') return 0;
     const kills = Math.max(0, toSafeNumber(telemetry.kills, 0));
     const intercepts = Math.max(0, toSafeNumber(telemetry.intercepts, 0));
+    const unitsDestroyed = Math.max(0, toSafeNumber(telemetry.unitsDestroyed, 0));
     const comboMultiplier = Math.min(
         XP_REWARD_TABLE.comboMultiplierCap,
         Math.max(1, toSafeNumber(telemetry.multiplier, 1))
@@ -41,6 +44,7 @@ export function calculateSectorXp(telemetry) {
     let xp = XP_REWARD_TABLE.sectorComplete;
     xp += kills * XP_REWARD_TABLE.killBase;
     xp += intercepts * XP_REWARD_TABLE.interceptBase;
+    xp += unitsDestroyed * XP_REWARD_TABLE.unitDestroyedBase;
     xp += missionsCompleted * XP_REWARD_TABLE.missionComplete;
     if (totalMissions > 0 && missionsCompleted >= totalMissions) {
         xp += XP_REWARD_TABLE.allMissionsBonus;

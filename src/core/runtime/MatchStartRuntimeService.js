@@ -100,7 +100,7 @@ export class MatchStartRuntimeService {
         } catch (error) {
             logger.error('match start failed:', error);
             this._getPorts()?.uiFeedbackPort?.showStatusToast?.(
-                'Map-Start fehlgeschlagen. Fallback oder Menue wird geladen.',
+                'Map-Start fehlgeschlagen. Fallback oder Menü wird geladen.',
                 2600,
                 'error'
             );

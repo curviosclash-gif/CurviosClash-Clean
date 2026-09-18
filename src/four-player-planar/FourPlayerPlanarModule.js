@@ -45,12 +45,16 @@ export class FourPlayerPlanarModule {
         this._lastHudValues = Array.from({ length: FOUR_PLAYER_PLANAR_HUMAN_COUNT }, () => ({}));
     }
 
+    _listMapOptions() {
+        return Object.entries(CONFIG.MAPS || {})
+            .map(([mapKey, definition]) => ({ value: mapKey, label: resolveMapLabel(mapKey, definition) }));
+    }
+
     mountSetupUi() {
         const mounted = this.setupView.mount({
             keyBindings: FOUR_PLAYER_PLANAR_KEY_BINDINGS,
             playerColors: FOUR_PLAYER_PLANAR_PLAYER_COLORS,
-            mapOptions: Object.entries(CONFIG.MAPS || {})
-                .map(([mapKey, definition]) => ({ value: mapKey, label: resolveMapLabel(mapKey, definition) })),
+            mapOptions: this._listMapOptions(),
             vehicleOptions: getVehicleIds()
                 .map((vehicleId) => ({ value: vehicleId, label: resolveVehicleLabel(vehicleId) })),
             handlers: {
@@ -177,6 +181,9 @@ export class FourPlayerPlanarModule {
         if (!this.setupView.isMounted()) return;
         const localSettings = this.runtime?.ensureLocalSettings?.();
         if (localSettings) localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
+        // Im Desktop-Editor gespeicherte oder geloeschte Karten nachziehen.
+        this.runtime?.refreshLocalMapCatalog?.();
+        this.setupView.setMapOptions?.(this._listMapOptions());
         this.syncSetupUi();
         this.setupView.openSetup();
     }

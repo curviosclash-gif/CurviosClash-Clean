@@ -108,7 +108,7 @@ export const VEHICLE_PRESETS = [
 
     {
         id: 'lab_wraith',
-        label: 'Lab-Vorlage: Wraith (Abfangjaeger)',
+        label: 'Lab-Vorlage: Wraith (Abfangjäger)',
         primaryColor: 0x38bdf8,
         parts: [
             { name: 'Spine', geo: 'cylinder', size: [0.3, 0.44, 5.0], pos: [0, 0, 0.2], rot: [90, 0, 0], material: 'primary', role: 'core' },
@@ -127,7 +127,7 @@ export const VEHICLE_PRESETS = [
 
     {
         id: 'lab_nautilus',
-        label: 'Lab-Vorlage: Nautilus (Ringtraeger)',
+        label: 'Lab-Vorlage: Nautilus (Ringträger)',
         primaryColor: 0x22d3ee,
         parts: [
             { name: 'Core', geo: 'sphere', size: [0.82], pos: [0, 0, 0], material: 'glow', emissive: 0x22d3ee, emissiveIntensity: 1.4, role: 'core' },

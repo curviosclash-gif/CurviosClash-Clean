@@ -3105,7 +3105,8 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     background: rgba(0, 0, 0, 0.65);
     border: 1px solid rgba(255, 255, 255, 0.2);
     pointer-events: none;
-    z-index: 20;
+    /* Above the hunt/player HUD (100/101) and the round board (120) it shares the top edge with. */
+    z-index: 130;
 }
 
 #status-toast.toast-info {
@@ -8168,6 +8169,8 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #message-overlay.has-arcade-results #message-stats { display: none; }
+/* "Replay ansehen": the result fades out for the playback; the HUD stays hidden behind it. */
+#message-overlay.arcade-replay-viewing { opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
 #arcade-overlay-panel .arcade-overlay-continue {
     grid-column: 1 / -1;
     display: flex;
@@ -8178,7 +8181,8 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 #arcade-overlay-panel .arcade-overlay-section { align-content: start; }
 
 body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
-    #arcade-score-hud, #arcade-mission-hud, #arcade-sector-transition-overlay, #arcade-sudden-death-overlay
+    #arcade-score-hud, #arcade-mission-hud, #arcade-sector-transition-overlay, #arcade-sudden-death-overlay,
+    #hunt-hud, #parcours-hud, #p2-parcours-hud, #parcours-minimap
 ) { visibility: hidden; }
 
 /* Compact match header: keep the aiming area and the existing resource HUD clear. */

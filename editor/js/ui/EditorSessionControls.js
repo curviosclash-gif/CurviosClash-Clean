@@ -117,7 +117,7 @@ export async function downloadJsonFile(jsonText, fileName) {
                 if (result.state === 'completed') resolve(result);
                 else reject(new Error('Download abgebrochen oder fehlgeschlagen. Der Arbeitsstand bleibt ungespeichert.'));
             });
-            timer = window.setTimeout(() => reject(new Error('Downloadabschluss konnte nicht bestaetigt werden.')), 30000);
+            timer = window.setTimeout(() => reject(new Error('Downloadabschluss konnte nicht bestätigt werden.')), 30000);
         }) : null;
         const link = document.createElement('a');
         link.href = url;
@@ -163,7 +163,7 @@ function applyAuthoringContractHints(dom) {
     if (!dom) return;
     const buildCatalogDescriptor = getEditorBuildCatalogDescriptor();
     const templateCapability = resolveEditorTemplateImportCapability();
-    const buildCatalogMessage = `Build-Katalog: ${String(buildCatalogDescriptor?.descriptorVersion || 'unbekannt')} mit ${Number(buildCatalogDescriptor?.entryCount) || 0} Eintraegen.`;
+    const buildCatalogMessage = `Build-Katalog: ${String(buildCatalogDescriptor?.descriptorVersion || 'unbekannt')} mit ${Number(buildCatalogDescriptor?.entryCount) || 0} Einträgen.`;
     const templateMessage = String(templateCapability?.message || '');
     const authoringHint = `${buildCatalogMessage} ${templateMessage}`.trim();
     if (dom.btnNew) dom.btnNew.title = authoringHint;
@@ -201,7 +201,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
     const fetchEditorApi = async (route, options = {}) => {
         const diskCapability = resolveEditorDiskSaveCapability(window);
         if (!diskCapability.available) {
-            throw new Error('Editor-Disk-Import/Export ist in dieser Umgebung nicht verfuegbar, weil kein Fetch-Transport bereitsteht.');
+            throw new Error('Editor-Disk-Import/Export ist in dieser Umgebung nicht verfügbar, weil kein Fetch-Transport bereitsteht.');
         }
         const response = await diskCapability.fetchImpl(route, options);
         let payload = null;
@@ -268,7 +268,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
             resolveWarningsTitle('Playtest startet mit normalisierten Map-Hinweisen:', warnings),
             warnings
         );
-        editor.notify?.(warningMessage || 'Playtest wird geoeffnet.', warningMessage ? 'warn' : 'success');
+        editor.notify?.(warningMessage || 'Playtest wird geöffnet.', warningMessage ? 'warn' : 'success');
 
         const playtestMode = String(dom.selPlaytestMode?.value || '3d').toLowerCase();
         const playtestSession = String(dom.selPlaytestSession?.value || 'single').toLowerCase();
@@ -319,7 +319,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
             dom.exportConflictNotice.textContent = target !== 'install'
                 ? ''
                 : exportState.listError
-                    ? 'Vorhandene Maps konnten nicht geladen werden; der Server prueft den Namen beim Speichern.'
+                    ? 'Vorhandene Maps konnten nicht geladen werden; der Server prüft den Namen beim Speichern.'
                     : existing
                         ? (saveAsCopy
                             ? `„${existing.mapName}“ bleibt erhalten; eine neue Kopie wird angelegt.`
@@ -451,7 +451,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
             exportState.jsonText = generateCurrentMapJson().jsonText;
             exportState.validationItems = editor.renderWorkspaceValidation?.() || [];
             if (target !== 'project' && exportState.validationItems.some((item) => item.severity === 'error')) {
-                throw new Error('Die Map enthaelt Spielbarkeitsfehler. Als Projekt kann der Entwurf gespeichert werden.');
+                throw new Error('Die Map enthält Spielbarkeitsfehler. Als Projekt kann der Entwurf gespeichert werden.');
             }
             const savedSignature = editor.captureStateSignature?.();
             if (target === 'project') {
@@ -462,7 +462,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
                 const fileName = `${slug}.curvios-map.json`;
                 const result = await downloadJsonFile(projectJson, fileName);
                 if (result) editor.markSaved?.(`Bearbeitbare Map-Datei erstellt: ${fileName}.`, savedSignature);
-                showExportResult({ summary: result ? 'Die bearbeitbare Map-Datei wurde gespeichert.' : 'Download gestartet. Der Abschluss kann im Browser nicht bestaetigt werden; Autosave bleibt erhalten.', paths: [result?.savePath || fileName] });
+                showExportResult({ summary: result ? 'Die bearbeitbare Map-Datei wurde gespeichert.' : 'Download gestartet. Der Abschluss kann im Browser nicht bestätigt werden; Autosave bleibt erhalten.', paths: [result?.savePath || fileName] });
                 editor.authoringTelemetry?.recordCounter?.('export');
                 editor.authoringTelemetry?.recordOutcome?.('export_succeeded', true, { flush: true });
                 return;
@@ -485,7 +485,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
             const saveMode = payload.overwritten ? 'aktualisiert' : 'neu gespeichert';
             editor.markSaved?.(`Map ${saveMode}: ${payload.mapName} (${payload.mapKey}).${warningSuffix}`, savedSignature);
             const availability = payload.availableInMapSelection
-                ? ' Im Spiel steht sie beim naechsten Oeffnen der Kartenauswahl bereit.'
+                ? ' Im Spiel steht sie beim nächsten Öffnen der Kartenauswahl bereit.'
                 : '';
             showExportResult({
                 summary: `Map ${saveMode}: ${payload.mapName} (${payload.mapKey}).${availability}`,
@@ -557,22 +557,22 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
             const payload = folderBridge
                 ? await openMapsFolderThroughDesktopBridge(folderBridge)
                 : await fetchEditorApi(EDITOR_API_ROUTES.OPEN_MAPS_FOLDER, { method: 'POST' });
-            editor.notify?.(`Map-Ordner geoeffnet: ${payload.folderPath}.`, 'success');
+            editor.notify?.(`Map-Ordner geöffnet: ${payload.folderPath}.`, 'success');
         } catch (error) {
-            editor.notify?.(`Map-Ordner konnte nicht geoeffnet werden: ${error.message}`, 'error');
+            editor.notify?.(`Map-Ordner konnte nicht geöffnet werden: ${error.message}`, 'error');
         }
     });
 
     dom.btnImport?.addEventListener("click", async () => {
         const txt = getJsonEditorText(editor).trim();
         if (!txt) {
-            editor.notify?.('Fuege JSON ein oder lade eine JSON-Datei.', 'warn');
+            editor.notify?.('Füge JSON ein oder lade eine JSON-Datei.', 'warn');
             return;
         }
         if (editor.mapManager?.getObjectCount?.() > 0) {
             const confirmed = await editor.confirmAction?.({
                 title: 'Map importieren?',
-                message: 'Der aktuelle Map-Inhalt wird durch den Import ersetzt. Undo bleibt danach verfuegbar.',
+                message: 'Der aktuelle Map-Inhalt wird durch den Import ersetzt. Undo bleibt danach verfügbar.',
                 confirmLabel: 'Importieren',
                 danger: true,
             });
@@ -612,7 +612,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         if (editor.mapManager?.getObjectCount?.() > 0 || editor.isDirty?.()) {
             const confirmed = await editor.confirmAction?.({
                 title: 'Neue Map beginnen?',
-                message: 'Alle aktuellen Objekte werden entfernt. Die Aktion kann danach mit Undo zurueckgenommen werden.',
+                message: 'Alle aktuellen Objekte werden entfernt. Die Aktion kann danach mit Undo zurückgenommen werden.',
                 confirmLabel: 'Neue Map',
                 danger: true,
             });
@@ -644,7 +644,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
             await navigator.clipboard.writeText(jsonText);
             editor.notify?.('Map-JSON in die Zwischenablage kopiert.', 'success');
         } catch (error) {
-            editor.notify?.(`Zwischenablage nicht verfuegbar: ${error.message}`, 'error');
+            editor.notify?.(`Zwischenablage nicht verfügbar: ${error.message}`, 'error');
         }
     });
 
@@ -656,10 +656,10 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         if (!file) return;
         try {
             if (file.size > MAX_MAP_JSON_BYTES) {
-                throw new Error(`Datei ist groesser als ${MAX_MAP_JSON_BYTES} Bytes.`);
+                throw new Error(`Datei ist größer als ${MAX_MAP_JSON_BYTES} Bytes.`);
             }
             setJsonEditorText(editor, await file.text());
-            editor.notify?.(`${file.name} geladen. Mit „Import JSON“ uebernehmen.`, 'success');
+            editor.notify?.(`${file.name} geladen. Mit „Import JSON“ übernehmen.`, 'success');
         } catch (error) {
             editor.notify?.(`Datei konnte nicht gelesen werden: ${error.message}`, 'error');
         } finally {

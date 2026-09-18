@@ -238,6 +238,7 @@ export class MatchFlowTelemetryController {
         // S2.4: intercepts ride the same scoreboard rows as the kills, so they share
         // the per-sector reset and never count a bot's defence rocket for the player.
         const intercepts = sumHumanScoreboardStat(scoreboardRows, humanPlayers, 'intercepts');
+        const unitsDestroyed = sumHumanScoreboardStat(scoreboardRows, humanPlayers, 'unitsDestroyed');
 
         return {
             telemetrySchemaVersion: 'round-telemetry.v2',
@@ -268,6 +269,7 @@ export class MatchFlowTelemetryController {
             spawnDeaths,
             kills,
             intercepts,
+            unitsDestroyed,
             parcoursCompleted: roundMetrics.parcoursCompleted === true,
             parcoursRouteId: normalizeTelemetryString(roundMetrics.parcoursRouteId, ''),
             parcoursCompletionTimeMs: Math.max(0, Number(roundMetrics.parcoursCompletionTimeMs) || 0),

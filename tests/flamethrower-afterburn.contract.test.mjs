@@ -90,7 +90,7 @@ function createWorld({ mode = 'HUNT', isFightOutcomeAuthority = true } = {}) {
         entityRuntimeConfig: config,
         _simulationClockMs: 0,
         gameModeStrategy: { hasMachineGun: () => mode === 'HUNT' },
-        _staticTurretSystem: { getDestructibleTargets: () => [] },
+        _targetableRegistry: { collect: () => [] },
         _emitHuntDamageEvent(event) { damageEvents.push(event); },
         _killPlayer(player, cause, options = {}) {
             player.alive = false;

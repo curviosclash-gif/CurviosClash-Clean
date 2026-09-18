@@ -284,7 +284,7 @@ export function renderTelemetryHistorySection(container, historySummary) {
     // zur Heatmap weiter oben: dort summieren sich alle Builds, hier laesst sich
     // "vor dem Fix" gegen "nach dem Fix" stellen.
     renderTelemetryHeatmapSection(container, historySummary.mapHeatmaps, {
-        title: 'Haeufungspunkte im aktiven Filter',
+        title: 'Häufungspunkte im aktiven Filter',
         sectionId: 'history-heatmap',
     });
 }

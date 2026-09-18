@@ -8,11 +8,14 @@ import {
     createArcadeRunBlocks,
     createArcadeSectorBlock,
     createArcadeVictoryBlocks,
+    resolveArcadeMapLabel,
 } from './arcade/postrun/ArcadePostRunBlocks.js';
+import { formatCount } from './postmatch/PostMatchFormat.js';
 import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/ArcadePostRunCards.js';
 import { createArenaWavesMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
+import { formatArenaWavesChoiceLabel, resolveArenaWavesBoardTexts } from './arcade/ArenaWavesOverlayTexts.js';
+import { createArcadeReplayActions } from './arcade/ArcadeReplayActions.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
-import { resolveArenaWavesChoiceLabel } from '../shared/contracts/ArenaWavesContract.js';
 import {
     getArcadeMenuSurfaceState,
     requestArcadeReplayPlayback,
@@ -100,7 +103,7 @@ export class MatchFlowArcadeOverlayController {
             if (token !== this._arcadeXpAnimToken) return;
             const progress = Math.min(1, (now - start) / duration);
             const eased = 1 - ((1 - progress) * (1 - progress));
-            node.textContent = `${Math.round(target * eased)} XP`;
+            node.textContent = `${formatCount(target * eased)} XP`;
             if (progress < 1) {
                 this._arcadeXpAnimFrame = requestAnimationFrame(step);
             } else {
@@ -131,7 +134,8 @@ export class MatchFlowArcadeOverlayController {
                 this.runtimePort.applyRoundEndTransition?.(transition);
                 this.matchFlowUiController?.applyMatchUiState({
                     messageText: choice === 'finish' ? 'Run abgeschlossen' : 'Sudden Death',
-                    messageSub: choice === 'finish' ? 'ENTER für neuen Run oder ESC fürs Menü' : 'Wähle deinen nächsten Sektor',
+                    // The continue prompt below the board already names the keys.
+                    messageSub: choice === 'finish' ? '' : 'Wähle deinen nächsten Sektor',
                 });
                 this.syncArcadeOverlayPanel();
             });
@@ -222,7 +226,7 @@ export class MatchFlowArcadeOverlayController {
                 btn.setAttribute('aria-pressed', String(active));
 
                 const strong = document.createElement('strong');
-                strong.textContent = String(entry?.mapLabel || entry?.mapKey || 'Unbekannte Map');
+                strong.textContent = resolveArcadeMapLabel(entry?.mapKey, entry?.mapLabel);
                 btn.appendChild(strong);
 
                 const span = document.createElement('span');
@@ -337,7 +341,7 @@ export class MatchFlowArcadeOverlayController {
         const grid = document.createElement('div'); grid.className = 'arcade-overlay-choice-grid';
         for (const choiceId of runtimeState.choices || []) {
             const button = document.createElement('button'); button.type = 'button'; button.className = 'arcade-overlay-choice-btn';
-            button.textContent = resolveArenaWavesChoiceLabel(choiceId);
+            button.textContent = formatArenaWavesChoiceLabel(choiceId);
             button.addEventListener('click', () => selectArcadeIntermissionChoice(this.runtimePort, this.game, choiceId));
             grid.appendChild(button);
         }
@@ -368,7 +372,8 @@ export class MatchFlowArcadeOverlayController {
         header.className = 'arcade-overlay-header';
         
         const h3 = document.createElement('h3');
-        h3.textContent = dailyResult ? (dailyResult.succeeded ? 'Daily geschafft' : 'Daily-Versuch beendet') : 'Arcade Run abgeschlossen';
+        h3.textContent = dailyResult ? (dailyResult.succeeded ? 'Daily geschafft' : 'Daily-Versuch beendet')
+            : (summary.succeeded === false ? 'Arcade Run gescheitert' : 'Arcade Run abgeschlossen');
         header.appendChild(h3);
         appendArcadeCards(header, createArcadeRunBlocks({
             ...summary,
@@ -420,51 +425,17 @@ export class MatchFlowArcadeOverlayController {
         replayP.textContent = replayHintText;
         sect3.appendChild(replayP);
         
-        const replayBtn = document.createElement('button');
-        replayBtn.type = 'button';
-        replayBtn.className = 'arcade-overlay-action-btn';
-        replayBtn.id = 'btn-arcade-overlay-replay';
-        replayBtn.textContent = 'Replay exportieren';
-        replayBtn.disabled = !replay.payloadAvailable;
-        
-        replayBtn.addEventListener('click', () => {
-            const result = requestArcadeReplayPlayback(this.runtimePort, this.game);
-            const code = String(result?.code || 'replay_unknown');
-            if (code === 'replay_playback_started') {
-                this.game?._showStatusToast?.('Replay der letzten Runde wird abgespielt.', 1800, 'info');
-                return;
-            }
-            if (code === 'replay_export_ready') {
-                const replayJson = typeof result?.replayJson === 'string' ? result.replayJson : '';
-                const copyPromise = replayJson
-                    && typeof navigator !== 'undefined'
-                    && typeof navigator.clipboard?.writeText === 'function'
-                    ? Promise.resolve(navigator.clipboard.writeText(replayJson)).then(() => true).catch(() => false)
-                    : Promise.resolve(false);
-                copyPromise.then((copied) => {
-                    this.game?._showStatusToast?.(
-                        copied ? 'Replay-JSON wurde in die Zwischenablage kopiert.' : 'Replay-JSON konnte nicht kopiert werden.',
-                        1800,
-                        copied ? 'info' : 'warning'
-                    );
-                });
-                return;
-            }
-            const tone = code === 'replay_player_unavailable' ? 'warning' : 'info';
-            const message = code === 'ghost_fallback_started'
-                ? 'Ghost-Wiedergabe gestartet.'
-                : (code === 'replay_player_unavailable'
-                ? 'Replay-Export bereit.'
-                : (code === 'replay_disabled'
-                    ? 'Replay ist in den Runtime-Einstellungen deaktiviert.'
-                    : (code === 'replay_unavailable'
-                        ? ARCADE_RESULT_TEXTS.replayUnavailable
-                        : 'Replay-Status aktualisiert.')));
-            this.game?._showStatusToast?.(message, 1800, tone);
+        const replayActions = createArcadeReplayActions({
+            payloadAvailable: replay.payloadAvailable === true,
+            overlay: this.game?.ui?.messageOverlay || null,
+            requestPlayback: () => requestArcadeReplayPlayback(this.runtimePort, this.game),
+            requestExport: () => this.runtimePort?.requestArcadeReplayPlayback?.(),
+            copyText: (text) => (typeof navigator !== 'undefined' && typeof navigator.clipboard?.writeText === 'function'
+                ? Promise.resolve(navigator.clipboard.writeText(text)).then(() => true).catch(() => false)
+                : false),
+            showToast: (message, tone) => this.game?._showStatusToast?.(message, 1800, tone),
         });
-        
-        sect3.appendChild(replayBtn);
-        bodyDiv.appendChild(sect3);
+        sect3.append(...replayActions.buttons);        bodyDiv.appendChild(sect3);
 
         panel.appendChild(bodyDiv);
         panel.classList.remove('hidden');
@@ -484,10 +455,10 @@ export class MatchFlowArcadeOverlayController {
         if (runtimeState?.runType !== 'arena_waves' || !summary || !Array.isArray(summary.maps)) return false;
         const panel = this._ensureArcadeOverlayPanel(); if (!panel) return false;
         while (panel.firstChild) panel.removeChild(panel.firstChild);
-        const title = document.createElement('h2'); title.textContent = `Fünf Fronten abgeschlossen – ${Math.round(toSafeNumber(summary.total, 0))} Punkte`;
+        const title = document.createElement('h2'); title.textContent = `Fünf Fronten abgeschlossen – ${formatCount(toSafeNumber(summary.total, 0))} Punkte`;
         const list = createArcadeCardScroller(createArenaWavesMapBlocks(summary), 'Karten', 'Keine Kartendaten.');
-        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Schließen';
-        close.addEventListener('click', () => { panel.classList.add('hidden'); this.game?.ui?.messageOverlay?.classList?.add?.('hidden'); });
+        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Zum Menü';
+        close.addEventListener('click', () => this.runtimePort?.returnToMenu?.({ reason: 'arena_waves_finished' }));
         panel.append(title, list, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
     }
 
@@ -517,11 +488,14 @@ export class MatchFlowArcadeOverlayController {
             this.clearArcadeOverlayPanel();
             return;
         }
-        game.ui.messageOverlay.classList.toggle?.('has-arcade-results', !!(runtimeState?.victory || runtimeState?.intermission || runtimeState?.postRunSummary));
+        game.ui.messageOverlay.classList.toggle?.('has-arcade-results', !!(runtimeState?.victory || runtimeState?.intermission || runtimeState?.postRunSummary || arenaUpgrade));
         const key = JSON.stringify([game.state, runtimeState]);
         const countdown = this._arcadeOverlayPanel?.querySelector('#arcade-intermission-countdown');
         if (countdown) countdown.textContent = runtimeState?.intermissionPaused
             ? 'Countdown angehalten.' : `Automatischer Start in ${Math.max(0, Math.ceil(game.roundPause))}s.`;
+        const arenaBoard = resolveArenaWavesBoardTexts(runtimeState);
+        if (arenaBoard && game.ui.messageText) game.ui.messageText.textContent = arenaBoard.title;
+        if (arenaBoard && game.ui.messageSub) game.ui.messageSub.textContent = arenaBoard.sub;
         if (runtimeState?.intermission && game.ui.messageSub) game.ui.messageSub.textContent = runtimeState.intermissionPaused
             ? 'Countdown angehalten – wähle Route und Belohnung.' : 'Wähle Route und Belohnung oder halte den Countdown an.';
         if (key === this._renderKey) return;

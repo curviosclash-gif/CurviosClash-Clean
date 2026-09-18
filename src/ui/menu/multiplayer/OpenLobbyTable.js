@@ -12,11 +12,14 @@ export const OPEN_LOBBY_EMPTY_TEXT = 'Keine Lobby im Netzwerk gefunden — der H
 const NO_MATCH_TEXT = 'Keine Lobby passt zur Suche.';
 // Two lines per row fit the narrow join column: host and state on top, the match below.
 const CELLS = Object.freeze([
-    ['hostName', (row) => row.hostName],
-    ['stateLabel', (row) => OPEN_LOBBY_STATE_LABELS[row.state] || row.state],
-    ['details', (row) => `${row.modeLabel} · ${row.mapLabel} · ${row.memberCount}/${row.maxPlayers} Spieler`],
+    Object.freeze({ key: 'hostName', read: (row) => row.hostName }),
+    Object.freeze({ key: 'stateLabel', read: (row) => OPEN_LOBBY_STATE_LABELS[row.state] || row.state }),
+    Object.freeze({ key: 'details', read: (row) => `${row.modeLabel} · ${row.mapLabel} · ${row.memberCount}/${row.maxPlayers} Spieler` }),
 ]);
 
+/**
+ * @param {{ container?: any, searchInput?: any, onSelect?: (row: any) => void, onJoin?: (row: any) => void }} [options]
+ */
 export function createOpenLobbyTable({ container, searchInput = null, onSelect = () => {}, onJoin = () => {} } = {}) {
     const doc = container?.ownerDocument;
     let rows = [];
@@ -45,7 +48,7 @@ export function createOpenLobbyTable({ container, searchInput = null, onSelect =
         option.dataset.lobbyCode = row.lobbyCode;
         option.setAttribute('aria-selected', String(row.lobbyCode === selectedCode));
         option.tabIndex = row.lobbyCode === selectedCode ? 0 : -1;
-        for (const [key, read] of CELLS) {
+        for (const { key, read } of CELLS) {
             const cell = doc.createElement('span');
             cell.className = `mp-lobby-cell mp-lobby-${key}`;
             cell.textContent = String(read(row) ?? '');

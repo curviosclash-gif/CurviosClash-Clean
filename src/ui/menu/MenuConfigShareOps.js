@@ -179,7 +179,7 @@ export function importMenuConfigFromInput(settings, inputValue) {
         return createImportFeedback({
             success: false,
             reason: 'apply_failed',
-            error: 'Config-Import konnte nicht auf die aktuellen Menue-Einstellungen angewendet werden.',
+            error: 'Config-Import konnte nicht auf die aktuellen Menü-Einstellungen angewendet werden.',
             message: 'Config-Import konnte nicht übernommen werden.',
         });
     }
@@ -194,7 +194,7 @@ export function parseMenuConfigImportInput(inputValue) {
             success: false,
             reason: 'empty_input',
             error: 'Config-Import ist leer.',
-            message: 'Kein Config-Export eingefuegt.',
+            message: 'Kein Config-Export eingefügt.',
         });
     }
 
@@ -243,7 +243,7 @@ export function parseMenuConfigImportInput(inputValue) {
         return createImportFeedback({
             success: false,
             reason: 'invalid_payload_shape',
-            error: 'Config-Import-Huelle ist unvollstaendig oder veraltet (payload fehlt).',
+            error: 'Config-Import-Hülle ist unvollständig oder veraltet (payload fehlt).',
             message: 'Config-Import enthält keine nutzbaren Einstellungsdaten.',
         });
     }

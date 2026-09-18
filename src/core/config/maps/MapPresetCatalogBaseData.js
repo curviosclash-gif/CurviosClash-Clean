@@ -208,7 +208,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ]
     },
     pillar_hall: {
-        name: 'Saeulen-Halle',
+        name: 'Säulen-Halle',
         size: [100, 30, 100],
         obstacles: [
             { pos: [-30, 15, -30], size: [4, 30, 4] }, { pos: [-30, 15, 0], size: [4, 30, 4] }, { pos: [-30, 15, 30], size: [4, 30, 4] },
@@ -312,6 +312,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { id: 'item_showcase_rocket_medium', pickupType: 'ROCKET_MEDIUM', x: 16, y: 12, z: 18 },
             { id: 'item_showcase_rocket_heavy', pickupType: 'ROCKET_HEAVY', x: 32, y: 12, z: 18 },
             { id: 'item_showcase_rocket_mega', pickupType: 'ROCKET_MEGA', x: 48, y: 12, z: 18 },
+            { id: 'item_showcase_rocket_guided', pickupType: 'ROCKET_GUIDED', x: 64, y: 12, z: 18 },
             { id: 'item_showcase_trail_gap', pickupType: 'TRAIL_GAP', x: -48, y: 12, z: 0 },
             { id: 'item_showcase_emp', pickupType: 'EMP', x: -32, y: 12, z: 0 },
             { id: 'item_showcase_magnet', pickupType: 'MAGNET', x: -16, y: 12, z: 0 },
@@ -324,6 +325,8 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { id: 'item_showcase_fan_4', pickupType: 'FAN_4', x: 16, y: 12, z: 36 },
             { id: 'item_showcase_fan_5', pickupType: 'FAN_5', x: 32, y: 12, z: 36 },
             { id: 'item_showcase_flamethrower', pickupType: 'FLAMETHROWER', x: 48, y: 12, z: 36 },
+            { id: 'item_showcase_lightning', pickupType: 'LIGHTNING', x: 64, y: 12, z: 36 },
+            { id: 'item_showcase_railgun', pickupType: 'RAILGUN', x: 80, y: 12, z: 36 },
         ],
     },
     showcase_nexus: {

@@ -373,6 +373,7 @@ export class HuntModeStrategy extends GameModeContract {
         const normalized = String(type || '').toUpperCase();
 
         const visualScaleMap = {
+            ROCKET_GUIDED: rocketConfig.VISUAL_SCALE_MEGA || 2.6,
             ROCKET_MEGA: rocketConfig.VISUAL_SCALE_MEGA || 2.6,
             ROCKET_HEAVY: rocketConfig.VISUAL_SCALE_HEAVY || 2.2,
             ROCKET_MEDIUM: rocketConfig.VISUAL_SCALE_MEDIUM || 1.95,

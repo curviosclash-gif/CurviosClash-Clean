@@ -46,7 +46,7 @@ export function deriveMapResolutionFeedbackPlan({ mapResolution, portalsEnabled,
 
     if (mapResolution.isFallback && mapResolution.requestedMapKey === CUSTOM_MAP_KEY) {
         toasts.push({
-            message: mapResolution.message || 'Custom-Map ungueltig, Standard-Map geladen',
+            message: mapResolution.message || 'Custom-Map ungültig, Standard-Map geladen',
             durationMs: 2600,
             tone: 'error',
         });
@@ -87,7 +87,7 @@ export function deriveMapResolutionFeedbackPlan({ mapResolution, portalsEnabled,
             : 0;
         if (runtimeObstacleCount === 0 && runtimePortalCount > 0 && runtimeGateCount === 0 && !portalsEnabled) {
             toasts.push({
-                message: 'Custom-Map hat nur Portale, aber Portale sind im Menue deaktiviert.',
+                message: 'Custom-Map hat nur Portale, aber Portale sind im Menü deaktiviert.',
                 durationMs: 3400,
                 tone: 'error',
             });

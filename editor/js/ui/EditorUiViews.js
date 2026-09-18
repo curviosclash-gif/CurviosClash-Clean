@@ -130,8 +130,8 @@ export function showPropertyPanelView(editor, obj) {
         if (propSizeRow) propSizeRow.style.display = "grid";
         if (propSizeLabel) {
             propSizeLabel.textContent = u.type === 'tunnel'
-                ? 'Radius (X/Z; Laenge ueber Y-Gizmo)'
-                : 'Groesse / Radius (gleichmaessig)';
+                ? 'Radius (X/Z; Länge über Y-Gizmo)'
+                : 'Größe / Radius (gleichmäßig)';
         }
         writePropertyFieldValue(editor, 'size', u.type === 'checkpoint' ? (u.cpRadius || 5.5) : (u.radius || u.sizeInfo));
     } else if (u.type === 'aircraft' || u.type === 'glb') {

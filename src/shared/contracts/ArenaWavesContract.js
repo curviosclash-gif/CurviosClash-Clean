@@ -85,27 +85,6 @@ export function resolveArenaWavesChoices(upgrades, activeModel, seed = 1, interm
     }
     return pool.slice(0, 4);
 }
-const ARENA_WAVES_CHOICE_LABELS = Object.freeze({
-    speed: 'Schneller fliegen (+4 Tempo)',
-    max_hp: 'Mehr Struktur (+12)',
-    pickup: 'Stärkere Items (+15 %)',
-    mg_tuning: 'MG verbessern (mehr Schaden, schnellere Kühlung)',
-    'supply:shield': 'Kampfvorrat: Schild',
-    'supply:rocket': 'Kampfvorrat: Rakete',
-    'supply:health': 'Kampfvorrat: Reparatur',
-    'supply:thick': 'Kampfvorrat: Dicke Spur',
-});
-
-/** Display text for an upgrade choice; the ids stay technical. */
-export function resolveArenaWavesChoiceLabel(choiceId) {
-    const choice = String(choiceId || '');
-    if (choice.startsWith('machine_gun:')) {
-        const model = FIGHT_MACHINE_GUN_MODELS.find((entry) => entry.id === normalizeFightMachineGunId(choice.slice(12)));
-        return `MG wechseln: ${model?.label || 'anderes Modell'}`;
-    }
-    return ARENA_WAVES_CHOICE_LABELS[choice] || 'Vorteil';
-}
-
 export function resolveArenaWavesSupplyPickup(choiceId) {
     return ARENA_WAVES_SUPPLY_PICKUPS[String(choiceId || '')] || null;
 }

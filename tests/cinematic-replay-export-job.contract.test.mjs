@@ -261,5 +261,5 @@ test('desktop shutdown waits out an approved export and aborts it only on a dead
     assert.match(lifecycle, /render_process_gone/);
     assert.match(lifecycle, /graceful_close_timeout/);
     assert.match(source, /Wiederherstellen/);
-    assert.match(source, /Bestaetigt bereinigen/);
+    assert.match(source, /Bestätigt bereinigen/);
 });

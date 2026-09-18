@@ -10,6 +10,7 @@ import {
     buildGameplayActionResult,
 } from '../../../shared/contracts/GameplayActionResultContract.js';
 import { configureProjectileRange } from './ProjectileStatePool.js';
+import { beginGuidedRocketAutopilot } from '../../ai/GuidedRocketAutopilotOps.js';
 import {
     canRocketIntercept,
     pickWeakestRocketIndex,
@@ -45,12 +46,12 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     const itemPreview = rocketOnly
         ? (rocketType
             ? buildGameplayActionResult({ ok: true, code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_SUCCESS, type: rocketType })
-            : failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY, 'Keine Rakete verfuegbar'))
+            : failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY, 'Keine Rakete verfügbar'))
         : system.peekInventoryItem(player, preferredIndex, 'shoot');
     if (!itemPreview?.ok) {
         return failed(
             itemPreview?.code || GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
-            itemPreview?.reason || 'Kein Item verfuegbar',
+            itemPreview?.reason || 'Kein Item verfügbar',
             itemPreview?.type || null
         );
     }
@@ -65,7 +66,7 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     const type = itemPreview.type;
     const power = config.POWERUP.TYPES[type];
     if (!power) {
-        return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_INVALID_TYPE, 'Item ungueltig', type);
+        return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_INVALID_TYPE, 'Item ungültig', type);
     }
     const rocketParams = strategy?.resolveRocketProjectileParams(type, config) || null;
     const huntRocket = !!rocketParams;
@@ -112,13 +113,15 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     if (threatDirection && (threatDirection.x || threatDirection.y || threatDirection.z)) {
         system._tmpDir.set(threatDirection.x, threatDirection.y, threatDirection.z).normalize();
     }
-    const projectileCount = resolveWeaponFanProjectileCount(player.activeEffects, modeType);
+    const projectileCount = type === 'ROCKET_GUIDED' ? 1
+        : resolveWeaponFanProjectileCount(player.activeEffects, modeType);
     system._tmpFanRight.set(1, 0, 0);
     if (player?.quaternion) system._tmpFanRight.applyQuaternion(player.quaternion);
     system._tmpFanAxis.crossVectors(system._tmpDir, system._tmpFanRight);
     if (system._tmpFanAxis.lengthSq() <= 0.000001) system._tmpFanAxis.set(0, 1, 0);
     else system._tmpFanAxis.normalize();
-    const lockOnTarget = intercepting
+    const guidedActive = type === 'ROCKET_GUIDED' && !intercepting && player.isBot !== true;
+    const lockOnTarget = intercepting || guidedActive
         ? null
         : system.resolveLockOn(player, itemHomingProfile ? 'item' : 'rocket');
     if (itemHomingProfile && (!lockOnTarget || !lockOnTarget.alive || lockOnTarget.decoyActive)) {
@@ -141,13 +144,19 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         projectile.owner = player;
         projectile.type = type;
         projectile.huntRocket = huntRocket;
-        projectile.homingEnabled = homingEnabled;
+        projectile.homingEnabled = homingEnabled && !guidedActive;
+        projectile.guidedActive = guidedActive;
         projectile.itemHomingProfile = itemHomingProfile;
         projectile.visualScale = visualScale;
         projectile.position.copy(system._tmpVec);
-        projectile.velocity.copy(system._tmpFanDirection).multiplyScalar(config.PROJECTILE.SPEED);
+        projectile.velocity.copy(system._tmpFanDirection).multiplyScalar(guidedActive
+            ? (Number(config?.HUNT?.ROCKET?.GUIDED_SPEED) || 70) : config.PROJECTILE.SPEED);
         projectile.radius = config.PROJECTILE.RADIUS * collisionRadiusMultiplier;
         configureProjectileRange(projectile, config.PROJECTILE, huntRocket ? ROCKET_RANGE_MULTIPLIER : 1);
+        if (type === 'ROCKET_GUIDED') {
+            projectile.ttl = 15;
+            projectile.maxDistance = Infinity;
+        }
         projectile.traveled = 0;
         projectile.homingTurnRate = homingTurnRate;
         projectile.homingLockOnAngle = homingLockOnAngle;
@@ -157,7 +166,8 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         projectile.isInterceptor = intercepting;
         projectile.interceptTargetId = intercepting ? interceptTargetId : '';
         projectile.target = lockOnTarget;
-        if (!intercepting && homingEnabled && (!projectile.target || !projectile.target.alive)) {
+        projectile.targetReacquireDisabled = guidedActive;
+        if (!intercepting && !guidedActive && homingEnabled && (!projectile.target || !projectile.target.alive)) {
             projectile.target = system._acquireHomingTarget(
                 projectile,
                 system.getPlayers(),
@@ -178,10 +188,11 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         ? { ok: rocketInventory.splice(rocketIndex, 1)[0] === rocketType, type: rocketType }
         : system.takeInventoryItem(player, preferredIndex, 'shoot');
     if (!itemResult.ok) {
-        return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY, 'Kein Item verfuegbar', type);
+        return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY, 'Kein Item verfügbar', type);
     }
 
     player.shootCooldown = config.PROJECTILE.COOLDOWN;
+    if (guidedActive) beginGuidedRocketAutopilot(player);
     system.onShoot(player, type, firstProjectile);
     return buildGameplayActionResult({
         ok: true,

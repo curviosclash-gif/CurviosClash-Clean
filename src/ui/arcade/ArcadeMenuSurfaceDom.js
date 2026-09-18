@@ -1,6 +1,7 @@
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import { createHangarWindowLauncher } from '../hangar/HangarWindowMenuBridge.js';
 import { createArcadeDailyMenuCard } from './ArcadeDailyMenuView.js';
+import { createArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
 
 function t(textId, fallback) {
     return resolveMenuCatalogText(textId, fallback);
@@ -43,6 +44,9 @@ export function buildArcadeSurface(level3Body, ui) {
     const runLine = createElement('p', 'menu-hint arcade-run-line');
     runLine.id = 'arcade-run-line';
     startGroup.appendChild(runLine);
+    // "Albtraum" only hardens the arcade sector plan, so it sits with the starts it affects.
+    const nightmareToggle = createArcadeNightmareToggle();
+    startGroup.appendChild(nightmareToggle.label);
     const createStartOption = (id, label, copy) => {
         const option = createElement('div', 'arcade-start-option');
         const button = createElement('button', 'start-btn', label);
@@ -199,5 +203,6 @@ export function buildArcadeSurface(level3Body, ui) {
         dailyButton,
         hangarLaunchCard,
         openHangarButton,
+        nightmareInput: nightmareToggle.input,
     };
 }

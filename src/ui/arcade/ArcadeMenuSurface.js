@@ -26,6 +26,8 @@ import {
 import { FIVE_PORTALS_RECORD_KEY } from '../../shared/contracts/FivePortalsContract.js';
 import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
+import { observeMenuReturn } from './MenuReturnObserver.js';
+import { bindArcadeNightmareToggle, syncArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
 
 const BOT_DIFFICULTY_LABELS = Object.freeze({ EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' });
 // Only phases worth showing; unknown or idle phases stay out of the line.
@@ -257,13 +259,15 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const phaseLabel = phaseText ? ` · ${phaseText}` : '';
         const dailyLabel = runtimeState?.isDailyChallenge === true ? ' · Daily' : '';
         const difficultyLabel = BOT_DIFFICULTY_LABELS[difficulty] || difficulty;
+        const tierLabel = settings.arcade?.nightmare === true && !settings.arcade?.dailyChallenge ? ' · Albtraum' : '';
+        syncArcadeNightmareToggle(refs.nightmareInput, settings);
         const fivePortalsSelected = settings.arcade?.runType === 'five_portals';
         const fivePortalsRecord = runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(FIVE_PORTALS_RECORD_KEY, null) || null;
         refs.runLine.textContent = fivePortalsSelected
             ? 'Fünf Portale: fünf Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.'
             : settings.arcade?.dailyChallenge
             ? `Daily: Solo · ${resolveVehiclePreview('ship5').label} ohne Leistungsboni · 5 Sektoren · Normal. Ergebnis bis zum Boss zählt.`
-            : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${resolveMapPreview(mapKey).name} · ${botCount} Bots · ${difficultyLabel}${dailyLabel}${phaseLabel}`;
+            : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${resolveMapPreview(mapKey).name} · ${botCount} Bots · ${difficultyLabel}${tierLabel}${dailyLabel}${phaseLabel}`;
         refs.recordsLine.textContent = fivePortalsSelected
             ? `Persönliche Bestzeit: ${fivePortalsRecord?.bestTotalMs > 0 ? `${(fivePortalsRecord.bestTotalMs / 1000).toFixed(2)} s` : '–'}`
             : `Neue Wertung: ${Math.round(runtimeState?.records?.bestScore || 0)} Punkte`
@@ -491,5 +495,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         bind(element, 'click', syncOnInteraction);
     });
 
+    bindArcadeNightmareToggle(refs.nightmareInput, settings, bind, sync);
+    observeMenuReturn(level3Body.closest?.('#main-menu'), syncOnInteraction);
     sync();
 }

@@ -1,4 +1,5 @@
 import { resolveArcadeDailySettings, ARCADE_DAILY_RULES_VERSION } from '../shared/contracts/ArcadeDailyRulesContract.js';
+import { normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
 import { CONFIG, CONFIG_BASE } from './Config.js';
 import { GAME_MODE_TYPES, isHuntMode, resolveActiveGameMode } from '../hunt/HuntMode.js';
 import { BOT_POLICY_TYPES, resolveMatchBotPolicyType } from '../entities/ai/BotPolicyTypes.js';
@@ -437,6 +438,7 @@ export function createRuntimeConfigSnapshot(settings, {
                 baseConfig?.HUNT?.DEATHMATCH_KILL_LIMIT ?? CONFIG?.HUNT?.DEATHMATCH_KILL_LIMIT ?? 10
             ),
             timeLimitSeconds: huntSource.timeLimitEnabled === false ? 0 : 300,
+            winCondition: normalizeHuntWinCondition(huntSource.winCondition),
         },
         arcade: {
             // Same normalizer the settings sanitizer uses, so persisted values and the
@@ -503,6 +505,7 @@ export function applyRuntimeConfigCompatibility(runtimeConfig, targetConfig = CO
         nextConfig.HUNT.RESPAWN_ENABLED = !!runtimeConfig?.hunt?.respawnEnabled;
         nextConfig.HUNT.DEATHMATCH_KILL_LIMIT = Math.max(1, Number(runtimeConfig?.hunt?.deathmatchKillLimit) || 10);
         nextConfig.HUNT.DEATHMATCH_TIME_LIMIT_SECONDS = Math.max(0, Number(runtimeConfig?.hunt?.timeLimitSeconds) || 0);
+        nextConfig.HUNT.WIN_CONDITION = normalizeHuntWinCondition(runtimeConfig?.hunt?.winCondition);
         const fightTuningEnabled = runtimeConfig?.huntCombat?.fightTuningEnabled === true;
         if (fightTuningEnabled) {
             nextConfig.HUNT.PLAYER_MAX_HP = Math.max(

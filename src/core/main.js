@@ -402,7 +402,7 @@ export class Game {
             return;
         }
         if (normalizedEvent.type === 'multiplayer_ready_invalidated') {
-            this._showStatusToast('Ready zurueckgesetzt: Host-Settings geaendert', 1500, 'info');
+            this._showStatusToast('Ready zurückgesetzt: Host-Settings geändert', 1500, 'info');
             return;
         }
         if (normalizedEvent.type === 'multiplayer_match_start') {

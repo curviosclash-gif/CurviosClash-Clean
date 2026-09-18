@@ -22,7 +22,7 @@ export function buildLanRequestError({
     } else if (signalingCode === 'lobby_not_found') {
         message = 'Lobby nicht gefunden.';
     } else if (signalingCode === 'host_required') {
-        message = 'Nur der Host darf diese Aktion ausfuehren.';
+        message = 'Nur der Host darf diese Aktion ausführen.';
     } else if (signalingCode === 'host_auth_failed') {
         message = 'Host-Autorisierung fehlgeschlagen.';
     } else if (signalingCode === 'player_auth_failed') {

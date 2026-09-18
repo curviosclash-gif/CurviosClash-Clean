@@ -91,7 +91,7 @@ export function updateItemBar(container, player, projection = null, gameplayConf
             titleParts.push(type.replace(/_/g, ' '));
             if (config?.description) titleParts.push(String(config.description));
             if (slotAction.canUse && slotAction.canShoot) titleParts.push('Use oder Shoot');
-            else if (slotAction.canShoot) titleParts.push('Verschiessbar');
+            else if (slotAction.canShoot) titleParts.push('Verschießbar');
             else if (slotAction.canUse) titleParts.push('Direkt nutzbar');
             else titleParts.push('Nur kontextbasiert');
             if (slotAction.useOnCooldown) titleParts.push(`Use-CD ${slotAction.useCooldownRemaining.toFixed(1)}s`);
@@ -186,6 +186,12 @@ export function updateRocketBar(container, player, projection = null, gameplayCo
 export function resolveActiveEffectTimeLabel(effect, player = null) {
     if (effect?.type === 'FLAMETHROWER') {
         return `${Math.max(0, Number(effect.fuelSeconds) || 0).toFixed(1)}s Tank`;
+    }
+    // The railgun counts shots, and while the key is held the charge towards a full shot.
+    if (effect?.type === 'RAILGUN') {
+        const shots = Math.max(0, Math.trunc(Number(effect.shots) || 0));
+        const charge = Math.max(0, Math.min(1, (Number(player?.railCharge) || 0) / 1.5));
+        return charge > 0 ? `${shots} Schuss · ${Math.round(charge * 100)} %` : `${shots} Schuss`;
     }
     if (effect?.type === 'SHIELD' && player?.hasShield && Number(player?.shieldHP) > 0) {
         return `${Math.ceil(Number(player.shieldHP))} HP`;

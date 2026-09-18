@@ -85,6 +85,37 @@ function createRuntime(settings) {
     return runtime;
 }
 
+test('opening the three player setup reloads desktop maps and lists the current catalog', () => {
+    const maps = { standard: CONFIG.MAPS.standard };
+    const runtime = createRuntime({ localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {} });
+    const order = [];
+    runtime.refreshLocalMapCatalog = () => {
+        order.push('refresh');
+        maps.editor_live = { ...CONFIG.MAPS.standard, name: 'Live' };
+        return true;
+    };
+    const setupView = createSetupView({
+        mode: 'classic', mapKey: 'standard', vehicleId: getVehicleIds()[0], botCount: '0',
+        deviceAssignment: ['keyboard', 'gamepad-1', 'gamepad-2'],
+    });
+    setupView.setMapOptions = (options) => { order.push('options'); setupView.mapOptions = options; };
+    const module = new ThreePlayerSplitModule({
+        runtimePort: runtime, setupView, hudView: createHudView(), getMapDefinitions: () => maps,
+        getGamepad: () => ({ connected: true }),
+    });
+
+    module.openSetup();
+
+    assert.deepEqual(order, ['refresh', 'options']);
+    assert.deepEqual(setupView.mapOptions.map((option) => option.value), ['standard', 'editor_live']);
+    assert.equal(setupView.calls.opened, 1);
+
+    // Eine im Desktop geloeschte Karte faellt beim naechsten Oeffnen wieder heraus.
+    runtime.refreshLocalMapCatalog = () => { delete maps.editor_live; return true; };
+    module.openSetup();
+    assert.deepEqual(setupView.mapOptions.map((option) => option.value), ['standard']);
+});
+
 test('startMatch stores the three-player selection, gives all three slots the shared vehicle and never forces planar mode', () => {
     const vehicleId = getVehicleIds()[0];
     const settings = {

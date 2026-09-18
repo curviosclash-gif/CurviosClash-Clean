@@ -329,6 +329,13 @@ export class ParcoursOverlayController {
         this._hideGuidanceEdges();
     }
 
+    /** The flashes only hide on the next HUD tick, and the menu never ticks the HUD. */
+    hideFlashes() {
+        for (const el of [this._xpNotificationOverlay, this._splitDeltaOverlay, this._penaltyOverlay, this._statsFlashOverlay]) {
+            el?.classList?.add?.('hidden');
+        }
+    }
+
     dispose() {
         if (this._xpNotificationOverlay?.parentElement) {
             this._xpNotificationOverlay.parentElement.removeChild(this._xpNotificationOverlay);

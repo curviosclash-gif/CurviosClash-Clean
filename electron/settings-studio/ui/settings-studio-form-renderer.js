@@ -259,7 +259,7 @@ function renderFieldRow(field, draft, baseDraft, t, validationErrors) {
     const input = renderFieldInput(field, value, dirty, resolvedLimits);
     const riskClass = field.riskLevel === 'high' ? ' field-row--risk-high' : '';
     const classes = ['field-row', dirty ? 'dirty' : '', hasError ? 'has-error' : ''].filter(Boolean).join(' ') + riskClass;
-    const resetBtn = `<button class="field-reset-btn" data-action="reset-field" data-path="${esc(field.path)}" ${dirty ? 'data-dirty="true"' : ''} aria-label="${esc(label)} zuruecksetzen">${t('buttonResetField')}</button>`;
+    const resetBtn = `<button class="field-reset-btn" data-action="reset-field" data-path="${esc(field.path)}" ${dirty ? 'data-dirty="true"' : ''} aria-label="${esc(label)} zurücksetzen">${t('buttonResetField')}</button>`;
     const infoBtn = `<button class="field-info-btn" data-action="show-info" data-path="${esc(field.path)}" type="button" aria-label="${esc(label)} - Informationen anzeigen" tabindex="0">${t('buttonInfo')}</button>`;
     const errorHtml = renderFieldError(fieldErrors, t);
     return `<div class="${classes}"><label class="field-label" title="${esc(field.path)}">${esc(label)}</label>${input}${resetBtn}${infoBtn}${errorHtml}</div>`;

@@ -28,6 +28,16 @@ function landmark(id, pack, model, position, targetSize, rotateY = 0) {
     };
 }
 
+function wildwuchs(family, variant, position, targetSize, rotateY = 0) {
+    return {
+        id: `verdant-aperture-wildwuchs-${family}-${variant}`,
+        url: `assets/models/verdant_wildwuchs/${family}_${variant}.glb`,
+        position,
+        rotation: [0, rotateY, 0],
+        targetSize,
+    };
+}
+
 function setpiece(id, file, clipName, phaseOffsetBeats, position, targetSize, rotation = [0, 0, 0]) {
     return {
         id: `verdant-aperture-${id}`,
@@ -123,6 +133,17 @@ const VERDANT_APERTURE_LANDMARKS = [
     // The slowest barrier on the map divides the cellar down the middle; its gap climbs over a
     // full 24 seconds, so crossing here is a commitment rather than a reflex.
     setpiece('vine-gate', '07_vine_gate', 'VineGateLoop', 0, [0, 28, 0], 34),
+    wildwuchs('root', 'v01', [-108, 8, -88], 15, 0.3),
+    wildwuchs('root', 'v02', [104, 8, -65], 18, -0.5),
+    wildwuchs('root', 'v03', [76, 8, 110], 14, 1.1),
+    // One existing, static ancient-tree variant anchors the cellar's far wall.
+    {
+        id: 'verdant-aperture-ancient-tree',
+        url: 'assets/models/ancient_tree/variants/variant_06/ancient_tree_06_lod1.glb',
+        position: [0, 8, 118],
+        rotation: [0, 0.35, 0],
+        targetSize: 42,
+    },
 
     // The two ways up into the crown hall, half a beat apart so they never show the same opening.
     joinSetpiece(ROOT_TO_CROWN[0], LEVEL_ROOT_DECK, 'leaf-shutter-west', '01_leaf_shutter', 'LeafShutterLoop', 0, JOIN_TARGET_SIZE.leafShutter),
@@ -140,6 +161,9 @@ const VERDANT_APERTURE_LANDMARKS = [
     setpiece('mill-south', '06_pollen_mill', 'PollenMillLoop', 0.5, [0, 80, 46], 28),
     // The prize sits in the open, readable from both the cellar holes and the roof.
     setpiece('heart-seed', '08_heart_seed', 'HeartSeedLoop', 0, [0, 64, 0], 30),
+    wildwuchs('fern', 'v01', [-112, 58, 30], 15, 0.4),
+    wildwuchs('fern', 'v02', [112, 58, 8], 16, -0.2),
+    wildwuchs('fern', 'v03', [0, 58, 118], 15, 1.0),
 
     // The three ways up onto the glass roof, spread across the beat.
     joinSetpiece(CROWN_TO_CANOPY[0], LEVEL_CROWN_DECK, 'bloom-west', '02_bloom_iris', 'BloomIrisLoop', 0.25, JOIN_TARGET_SIZE.bloomIris),
@@ -150,6 +174,9 @@ const VERDANT_APERTURE_LANDMARKS = [
     landmark('roof-crystal', 'pm-crystal-crossroads', 'Crystal_Cluster', [-84, 118, -78], 32, 0.8),
     landmark('roof-column', 'pm-crystal-crossroads', 'Column_Regular', [88, 118, 74], 34),
     landmark('roof-brush', 'pm-avatar-garden', 'Brush01', [-70, 118, 82], 24, 1.6),
+    wildwuchs('vine', 'v01', [-95, 116, -137], 8, 0.25),
+    wildwuchs('vine', 'v02', [100, 116, -137], 7, -0.3),
+    wildwuchs('vine', 'v03', [-90, 116, 137], 10, 0.7),
 ];
 
 const VERDANT_APERTURE_OBSTACLES = [

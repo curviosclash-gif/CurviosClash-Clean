@@ -11,6 +11,8 @@ import {
     renderSummaryBlocks,
 } from './StartSetupUiOps.js';
 import { resolveArcadeGhostDuelModeLabel } from './StartSetupSelectionSync.js';
+import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../../shared/contracts/HuntWinConditionContract.js';
+import { HUNT_LAST_ALIVE_LIVES } from '../../shared/contracts/HuntLivesContract.js';
 
 function resolveSessionLabel(surfaceEntryCopy, sessionType) {
     return surfaceEntryCopy.sessionSummaryLabels[sessionType]
@@ -36,9 +38,12 @@ export function formatMenuRulesSummary(settings, modePath) {
     const bots = count ? `${count} Bots · ${difficulty}` : 'Ohne Bots';
     const winsNeeded = Math.max(1, Number(settings?.winsNeeded) || 1);
     const winsLabel = `${winsNeeded} ${winsNeeded === 1 ? 'Sieg' : 'Siege'}`;
-    const objective = settings?.gameMode === 'HUNT' && settings?.hunt?.respawnEnabled
-        ? `${settings.hunt.deathmatchKillLimit || 10} Abschüsse${winsNeeded > 1 ? ` · ${winsLabel}` : ''}`
-        : winsLabel;
+    const fight = settings?.gameMode === 'HUNT' && settings?.hunt?.respawnEnabled;
+    const winCondition = normalizeHuntWinCondition(settings?.hunt?.winCondition);
+    const fightGoal = winCondition === HUNT_WIN_CONDITIONS.LAST_ALIVE
+        ? `${HUNT_LAST_ALIVE_LIVES} Leben · letzter Überlebender`
+        : `${settings?.hunt?.deathmatchKillLimit || 10} ${winCondition === HUNT_WIN_CONDITIONS.SCORE_TARGET ? 'Punkte' : 'Abschüsse'}`;
+    const objective = fight ? `${fightGoal}${winsNeeded > 1 ? ` · ${winsLabel}` : ''}` : winsLabel;
     return `${bots} · ${objective}`;
 }
 

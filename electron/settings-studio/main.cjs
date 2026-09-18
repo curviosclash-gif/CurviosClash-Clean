@@ -128,12 +128,12 @@ function createWindowShellCapability() {
 
                 const choice = dialog.showMessageBoxSync(mainWindow, {
                     type: 'warning',
-                    buttons: ['Verwerfen und schliessen', 'Abbrechen'],
+                    buttons: ['Verwerfen und schließen', 'Abbrechen'],
                     defaultId: 1,
                     cancelId: 1,
                     noLink: true,
-                    message: 'Es gibt ungespeicherte Aenderungen.',
-                    detail: 'Willst du das Settings Studio wirklich schliessen?',
+                    message: 'Es gibt ungespeicherte Änderungen.',
+                    detail: 'Willst du das Settings Studio wirklich schließen?',
                 });
 
                 if (choice !== 0) {

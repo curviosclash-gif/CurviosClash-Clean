@@ -29,6 +29,7 @@ import { syncArcadeRunSettings } from './menu/MenuArcadeRunSettingsBindings.js';
 import { syncBotHeuristicControls } from './menu/MenuBotHeuristicBindings.js';
 import { syncTrailLengthControl } from './menu/MenuTrailLengthControl.js';
 import { syncHuntRespawnToggle } from './menu/MenuHuntRespawnToggleSync.js';
+import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
 import { syncMenuPresetState } from './menu/MenuPresetStateSync.js';
 import { syncMenuDeveloperState } from './menu/MenuDeveloperStateSync.js';
 import { syncNormalCameraPerspectiveUi } from './menu/CameraPerspectiveUiSync.js';
@@ -300,6 +301,7 @@ export class UIManager {
     // Start / Validierung
     showStartValidationError(issue, opts)  { return this._startSync.showStartValidationError(issue, opts); }
     clearStartValidationError()            { return this._startSync.clearStartValidationError(); }
+    refreshLocalMapCatalog()               { return this._startSync.refreshLocalMapCatalog(); }
 
     // ------------------------------------------------------------------
     // syncAll / syncByChangeKeys
@@ -405,13 +407,27 @@ export class UIManager {
             ui.huntDeathmatchRules.classList.toggle('hidden', !huntRespawnEnabled);
             ui.huntDeathmatchRules.setAttribute('aria-hidden', String(!huntRespawnEnabled));
         }
+        const huntWinCondition = normalizeHuntWinCondition(settings?.hunt?.winCondition);
+        const showTarget = huntRespawnEnabled && huntWinCondition !== HUNT_WIN_CONDITIONS.LAST_ALIVE;
+        const showTimeLimit = huntRespawnEnabled && huntWinCondition === HUNT_WIN_CONDITIONS.KILLS_TIME;
+        if (ui.huntKillLimitLabel) {
+            ui.huntKillLimitLabel.textContent = huntWinCondition === HUNT_WIN_CONDITIONS.SCORE_TARGET
+                ? 'Punktziel' : 'Abschusslimit';
+            ui.huntKillLimitLabel.classList.toggle('hidden', !showTarget);
+        }
+        if (ui.huntTimeLimitRow) ui.huntTimeLimitRow.classList.toggle('hidden', !showTimeLimit);
         if (ui.huntKillLimitSelect) {
             ui.huntKillLimitSelect.value = String(settings?.hunt?.deathmatchKillLimit || 10);
-            ui.huntKillLimitSelect.disabled = !huntRespawnEnabled;
+            ui.huntKillLimitSelect.disabled = !showTarget;
+            ui.huntKillLimitSelect.classList.toggle('hidden', !showTarget);
+        }
+        if (ui.huntWinConditionSelect) {
+            ui.huntWinConditionSelect.value = huntWinCondition;
+            ui.huntWinConditionSelect.disabled = !huntRespawnEnabled;
         }
         if (ui.huntTimeLimitToggle) {
             ui.huntTimeLimitToggle.checked = settings?.hunt?.timeLimitEnabled !== false;
-            ui.huntTimeLimitToggle.disabled = !huntRespawnEnabled;
+            ui.huntTimeLimitToggle.disabled = !showTimeLimit;
         }
         syncArcadeRunSettings(ui, settings);
     }

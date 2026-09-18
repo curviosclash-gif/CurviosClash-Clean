@@ -90,7 +90,7 @@ export function applyParcoursDeathRespawn(route, state, player, options = {}) {
         resetParcoursProgressState(state, {
             countReset: true,
             preserveCounters: route?.rules?.resetAttemptOnExhaustion !== true,
-            errorMessage: 'Zurueck zu Checkpoint 1',
+            errorMessage: 'Zurück zu Checkpoint 1',
             now: options.now,
             setErrorState: options.setErrorState,
         });
@@ -98,7 +98,7 @@ export function applyParcoursDeathRespawn(route, state, player, options = {}) {
     } else {
         rewindParcoursProgressState(state, route, {
             now: options.now,
-            errorMessage: 'Rueckfall auf letzten Checkpoint',
+            errorMessage: 'Rückfall auf letzten Checkpoint',
             setErrorState: options.setErrorState,
         });
         state.checkpointRespawnsUsed = used;

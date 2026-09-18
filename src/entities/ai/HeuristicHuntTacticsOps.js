@@ -17,6 +17,9 @@ import {
     resolveShieldRatio,
 } from '../../hunt/HuntBotPolicy.js';
 import { applyBotFlamethrowerInput } from '../../hunt/HuntBotFlamethrowerOps.js';
+import { applyBotMapUnitFire } from '../../hunt/HuntBotMapUnitOps.js';
+import { applyBotLightningInput } from '../../hunt/HuntBotLightningOps.js';
+import { applyBotRailgunInput, holdsRailgunCharge } from '../../hunt/HuntBotRailgunOps.js';
 import { getPreferredFightEnemy } from '../../hunt/FightTargetSelector.js';
 import { HUNT_CONFIG } from '../../hunt/HuntConfig.js';
 import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
@@ -370,10 +373,13 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         enemy,
         enemy?.position && player?.position ? player.position.distanceToSquared(enemy.position) : Infinity,
     );
+    applyBotMapUnitFire(policy, input, player, runtimeContext);
+    applyBotLightningInput(input, player, runtimeContext);
+    applyBotRailgunInput(policy, input, player, runtimeContext);
 
-    const retreatRequested = enemy && !finisherOpportunity
+    const retreatRequested = enemy && (player.autopilotActive === true || (!finisherOpportunity
         && (vitalityRatio <= policy.profile.retreatVitality
-            || (vitalityRatio < 0.52 && survivalPressure > policy.profile.retreatPressure));
+            || (vitalityRatio < 0.52 && survivalPressure > policy.profile.retreatPressure))));
     const pickupTarget = !retreatRequested && survivalPressure < 0.82
         ? findPreferredPickupTarget(player, runtimeContext, { pressure: survivalPressure, maxDistance: 75 })
         : null;
@@ -384,6 +390,8 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         && policy._huntState.openingTimer > 0;
     const requestedMovementIntent = trafficThreat
         ? 'traffic-avoid'
+        : player.autopilotActive === true && retreatRequested
+        ? 'retreat'
         : openingHook
         ? 'opening-hook'
         : openingFanout
@@ -421,7 +429,8 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         intent = movementIntent;
     } else if (enemy && movementIntent === 'retreat') {
         intent = 'retreat';
-        retreatReason = vitalityRatio <= policy.profile.retreatVitality ? 'low-vitality' : 'pressure';
+        retreatReason = player.autopilotActive === true ? 'guided-rocket'
+            : vitalityRatio <= policy.profile.retreatVitality ? 'low-vitality' : 'pressure';
         const huntConfig = resolveGameplayConfig(player).HUNT;
         const gateAssistRange = Math.max(24, Number(huntConfig?.RETREAT_GATE_RANGE || 54));
         const specialGates = Array.isArray(runtimeContext?.arena?.specialGates) ? runtimeContext.arena.specialGates : [];
@@ -438,7 +447,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         else applyEvasiveRetreatSteering(policy, input, player, enemy, runtimeContext?.arena);
         if (!hasYaw(input)) applyRetreatSteering(policy, input, player, enemy);
         input.boost = wallFront > Math.max(policy.profile.safetyDistance, 0.34);
-        input.shootMG = false;
+        input.shootMG = holdsRailgunCharge(player);
         if (rocketIndex < 0) {
             input.shootItem = false;
             input.shootRocket = false;

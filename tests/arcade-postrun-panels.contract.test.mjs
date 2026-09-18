@@ -189,6 +189,26 @@ test('the arcade post-run panel shows cards instead of pipe separated lines', ()
     });
 });
 
+test('a failed run is not called finished', () => {
+    withDocument(() => {
+        const { controller, panel } = makeController();
+        controller._renderArcadePostRunPanel(postRunState({ succeeded: false }));
+        assert.match(textOf(panel()), /Arcade Run gescheitert/);
+        controller._renderArcadePostRunPanel(postRunState({ succeeded: true }));
+        assert.match(textOf(panel()), /Arcade Run abgeschlossen/);
+    });
+});
+
+test('the run summary tells the result board whether the run succeeded', async () => {
+    const { finalizeArcadeRun } = await import('../src/core/arcade/ArcadeRunCompletionOps.js');
+    const { ArcadeRunRuntime } = await import('../src/core/arcade/ArcadeRunRuntime.js');
+    const runtime = new ArcadeRunRuntime({ now: () => 1000 });
+    runtime.configure({ arcade: { enabled: true, seed: 3, sectorCount: 3 } });
+    runtime.startRun({});
+    finalizeArcadeRun(runtime, 2000);
+    assert.equal(runtime.getPostRunSummary()?.succeeded, false);
+});
+
 test('every sector is listed with its map name in one scrollable container', () => {
     withDocument(() => {
         const { controller, panel } = makeController();
@@ -216,6 +236,16 @@ test('the post-run panel keeps its replay button and xp counter hooks', () => {
         const root = panel();
         assert.ok(findFirst(root, (node) => node.id === 'btn-arcade-overlay-replay'), 'replay button stays');
         assert.ok(findFirst(root, (node) => node.id === 'arcade-overlay-xp-counter'), 'xp counter stays');
+    });
+});
+
+test('the post-run panel offers watching and exporting the replay separately', () => {
+    withDocument(() => {
+        const { controller, panel } = makeController();
+        controller._renderArcadePostRunPanel(postRunState());
+        const root = panel();
+        assert.equal(findFirst(root, (node) => node.id === 'btn-arcade-overlay-replay')?.textContent, 'Replay ansehen');
+        assert.equal(findFirst(root, (node) => node.id === 'btn-arcade-overlay-replay-export')?.textContent, 'Exportieren');
     });
 });
 

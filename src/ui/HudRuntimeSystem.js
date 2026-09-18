@@ -178,6 +178,7 @@ export class HudRuntimeSystem {
         this._hideArcadeHud();
         // The minimap canvas hangs on document.body, outside the HUD, so hiding the HUD misses it.
         this._parcoursOverlay?.hideMinimap?.();
+        this._parcoursOverlay?.hideFlashes?.();
     }
 
     _ensureArcadeHud() {

@@ -98,13 +98,13 @@ export function calculateEndlessScore({
 }
 
 export const ENDLESS_PARCOURS_MILESTONES = Object.freeze([
-    Object.freeze({ id: 'distance-1000', label: '1000 m ueberlebt', metric: 'distanceMeters', threshold: 1000 }),
-    Object.freeze({ id: 'distance-2500', label: '2500 m ueberlebt', metric: 'distanceMeters', threshold: 2500 }),
-    Object.freeze({ id: 'distance-5000', label: '5000 m ueberlebt', metric: 'distanceMeters', threshold: 5000 }),
+    Object.freeze({ id: 'distance-1000', label: '1000 m überlebt', metric: 'distanceMeters', threshold: 1000 }),
+    Object.freeze({ id: 'distance-2500', label: '2500 m überlebt', metric: 'distanceMeters', threshold: 2500 }),
+    Object.freeze({ id: 'distance-5000', label: '5000 m überlebt', metric: 'distanceMeters', threshold: 5000 }),
     Object.freeze({ id: 'survival-300', label: '5 Minuten gejagt', metric: 'survivalSeconds', threshold: 300 }),
     Object.freeze({ id: 'survival-600', label: '10 Minuten gejagt', metric: 'survivalSeconds', threshold: 600 }),
-    Object.freeze({ id: 'kills-10', label: '10 Jaeger erledigt', metric: 'botKills', threshold: 10 }),
-    Object.freeze({ id: 'kills-25', label: '25 Jaeger erledigt', metric: 'botKills', threshold: 25 }),
+    Object.freeze({ id: 'kills-10', label: '10 Jäger erledigt', metric: 'botKills', threshold: 10 }),
+    Object.freeze({ id: 'kills-25', label: '25 Jäger erledigt', metric: 'botKills', threshold: 25 }),
     Object.freeze({ id: 'elite-1', label: 'Ersten Anführer bezwungen', metric: 'eliteKills', threshold: 1 }),
     Object.freeze({ id: 'streak-5', label: 'Serie x5 gehalten', metric: 'bestStreak', threshold: 5 }),
     Object.freeze({ id: 'score-50000', label: '50000 Punkte', metric: 'score', threshold: 50000 }),

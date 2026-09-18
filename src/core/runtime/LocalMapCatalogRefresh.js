@@ -1,11 +1,13 @@
 import { CONFIG_BASE, refreshConfigRuntimeCache } from '../Config.js';
-import { mergePlayableLocalMaps } from '../config/maps/MapPresetsGenerated.js';
+import { DESKTOP_LOCAL_MAP_KEYS, mergePlayableLocalMaps } from '../config/maps/MapPresetsGenerated.js';
+import { GENERATED_LOCAL_MAPS } from '../../entities/GeneratedLocalMaps.js';
 import { refreshElectronLocalMaps } from '../../platform/electron/ElectronPlatformBridge.js';
 import { GAME_STATE_IDS } from '../../shared/contracts/GameStateIds.js';
 
 /**
- * Holt im Desktop die gespeicherten Editor-Karten neu und traegt neue oder
- * geaenderte in den Kartenkatalog ein. Die aktive Laufzeitkonfiguration haelt
+ * Holt im Desktop die gespeicherten Editor-Karten neu, traegt neue oder
+ * geaenderte in den Kartenkatalog ein und nimmt geloeschte wieder heraus.
+ * Die aktive Laufzeitkonfiguration haelt
  * eine eingefrorene Kopie der Karten; sie wird deshalb verworfen und aus den
  * Einstellungen neu gebaut, damit Menue, Pruefungen und Rundenstart dieselbe
  * Liste sehen. Waehrend einer Runde passiert nichts, damit die laufende
@@ -17,8 +19,10 @@ import { GAME_STATE_IDS } from '../../shared/contracts/GameStateIds.js';
  *   readLocalMaps?: () => Record<string, unknown>|null,
  *   catalog?: Record<string, unknown>,
  *   refreshRuntimeConfig?: () => unknown,
+ *   knownKeys?: Set<string>,
+ *   fallbackMaps?: Record<string, unknown>,
  * }} [options]
- * @returns {boolean} true, wenn der Katalog gewachsen oder sich geaendert hat
+ * @returns {boolean} true, wenn der Katalog sich geaendert hat
  */
 export function refreshLocalMapCatalog({
     gameState,
@@ -26,11 +30,13 @@ export function refreshLocalMapCatalog({
     readLocalMaps = refreshElectronLocalMaps,
     catalog = CONFIG_BASE.MAPS,
     refreshRuntimeConfig = refreshConfigRuntimeCache,
+    knownKeys = DESKTOP_LOCAL_MAP_KEYS,
+    fallbackMaps = GENERATED_LOCAL_MAPS,
 } = {}) {
     if (gameState !== GAME_STATE_IDS.MENU) return false;
     const localMaps = readLocalMaps();
     if (!localMaps) return false;
-    if (mergePlayableLocalMaps(catalog, localMaps).length === 0) return false;
+    if (mergePlayableLocalMaps(catalog, localMaps, { knownKeys, fallbackMaps }).length === 0) return false;
     refreshRuntimeConfig();
     applySettings?.();
     return true;

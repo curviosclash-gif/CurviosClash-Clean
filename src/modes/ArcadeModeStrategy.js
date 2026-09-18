@@ -593,7 +593,7 @@ export class ArcadeModeStrategy extends GameModeContract {
 
     // --- Projectiles ---
     resolveRocketProjectileParams(type, config) {
-        return this._huntCombat?.resolveRocketProjectileParams(type, config) || null;
+        return (this._huntCombat || (type === 'ROCKET_GUIDED' ? new HuntModeStrategy({ entityRuntimeConfig: config }) : null))?.resolveRocketProjectileParams(type, config) || null;
     }
     resolveProjectileHitOnPlayer(target, projectile, players, system) {
         if (this._huntCombat) {

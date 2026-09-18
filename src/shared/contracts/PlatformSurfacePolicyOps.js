@@ -213,8 +213,8 @@ export function resolveSurfaceFeatureClassification(featureId, options = {}) {
                 ? PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.DEMO_SAFE
                 : PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.DESKTOP_ONLY,
             rationale: isBrowserDemo
-                ? 'Replay-JSON ist in der Demo als begrenzter Browser-Download zulaessig.'
-                : 'Replay-Export bleibt der primaere Desktop-Vollversionspfad.',
+                ? 'Replay-JSON ist in der Demo als begrenzter Browser-Download zulässig.'
+                : 'Replay-Export bleibt der primäre Desktop-Vollversionspfad.',
         }),
         [PLATFORM_SURFACE_FEATURE_IDS.VIDEO_EXPORT]: Object.freeze({
             featureId: PLATFORM_SURFACE_FEATURE_IDS.VIDEO_EXPORT,
@@ -224,7 +224,7 @@ export function resolveSurfaceFeatureClassification(featureId, options = {}) {
                 : PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.DESKTOP_ONLY,
             rationale: isBrowserDemo
                 ? 'Video-Export bleibt in der Demo ein optionaler, bewusst degradierter Zukunftspfad.'
-                : 'Video-Export ist Teil des Desktop-Produkts und kein Browser-Paritaetsversprechen.',
+                : 'Video-Export ist Teil des Desktop-Produkts und kein Browser-Paritätsversprechen.',
         }),
         [PLATFORM_SURFACE_FEATURE_IDS.FILE_IO]: Object.freeze({
             featureId: PLATFORM_SURFACE_FEATURE_IDS.FILE_IO,
@@ -240,7 +240,7 @@ export function resolveSurfaceFeatureClassification(featureId, options = {}) {
                 : PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.DESKTOP_ONLY,
             rationale: isBrowserDemo
                 ? 'Demo-Diagnostics sind nur als expliziter Opt-in erlaubt, nicht als Standardfeature.'
-                : 'Desktop-Diagnostics gehoeren zum Vollversions- und Supportpfad.',
+                : 'Desktop-Diagnostics gehören zum Vollversions- und Supportpfad.',
         }),
         [PLATFORM_SURFACE_FEATURE_IDS.TOOLING]: Object.freeze({
             featureId: PLATFORM_SURFACE_FEATURE_IDS.TOOLING,
@@ -258,7 +258,7 @@ export function resolveSurfaceFeatureClassification(featureId, options = {}) {
             classification: PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.DESKTOP_ONLY,
             rationale: isBrowserDemo
                 ? 'Der Map-Editor bleibt eine Vollversions-Authoring-Funktion und ist in der Demo nicht verfügbar.'
-                : 'Der Map-Editor gehoert zur Desktop-Vollversion und bleibt eine Authoring-Funktion.',
+                : 'Der Map-Editor gehört zur Desktop-Vollversion und bleibt eine Authoring-Funktion.',
         }),
         [PLATFORM_SURFACE_FEATURE_IDS.VEHICLE_EDITOR]: Object.freeze({
             featureId: PLATFORM_SURFACE_FEATURE_IDS.VEHICLE_EDITOR,
@@ -266,7 +266,7 @@ export function resolveSurfaceFeatureClassification(featureId, options = {}) {
             classification: PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.DESKTOP_ONLY,
             rationale: isBrowserDemo
                 ? 'Der Vehicle-Editor bleibt eine Vollversions-Funktion und ist in der Demo nicht verfügbar.'
-                : 'Der Vehicle-Editor gehoert zur Desktop-Vollversion und bleibt eine lokale Tool-Funktion.',
+                : 'Der Vehicle-Editor gehört zur Desktop-Vollversion und bleibt eine lokale Tool-Funktion.',
         }),
     });
     if (!normalizedFeatureId) {

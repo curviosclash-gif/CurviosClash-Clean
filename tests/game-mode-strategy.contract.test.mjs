@@ -156,7 +156,7 @@ test('Fight fans receive 5/4/3 percent and every other base spawn chance shrinks
     const weights = HUNT_CONFIG.PICKUP_WEIGHTS;
     const turretWeight = weights.MG_TURRET;
     const otherWeights = otherTypes.map((type) => weights[type] ?? 1);
-    const weightedTypes = new Set(['FOG', 'FAN_3', 'FAN_4', 'FAN_5', 'FLAMETHROWER']);
+    const weightedTypes = new Set(['FOG', 'FAN_3', 'FAN_4', 'FAN_5', 'FLAMETHROWER', 'LIGHTNING', 'RAILGUN']);
     const standardOtherWeights = otherTypes
         .filter((type) => !weightedTypes.has(type))
         .map((type) => weights[type] ?? 1);
@@ -168,14 +168,16 @@ test('Fight fans receive 5/4/3 percent and every other base spawn chance shrinks
     const launcherChance = nonRocketChance * launcherWeight / totalNonRocketWeight;
     const otherChance = nonRocketChance - turretChance - launcherChance;
 
-    // The fan targets were tuned before the flamethrower existed. A new item in the pool takes its
-    // share from everyone, so every older target shrinks by the same factor.
-    const dilution = (totalNonRocketWeight - weights.FLAMETHROWER) / totalNonRocketWeight;
+    // The fan targets were tuned before the flamethrower, the lightning and the railgun existed. A new item in the
+    // pool takes its share from everyone, so every older target shrinks by the same factor.
+    const dilution = (totalNonRocketWeight - weights.FLAMETHROWER - weights.LIGHTNING - weights.RAILGUN) / totalNonRocketWeight;
     const remainingScale = 0.88 / (1 - 0.30 / 31.7);
     assert.ok(Math.abs(HUNT_CONFIG.ROCKET_PICKUP_SPAWN_CHANCE / 0.70 - remainingScale) < 1e-12);
     assert.ok(standardOtherWeights.every((weight) => weight === 1));
     assert.equal(weights.FOG, 0.7);
-    assert.equal(weights.FLAMETHROWER, 0.225, 'the flamethrower is the only item added after the fan split');
+    assert.equal(weights.FLAMETHROWER, 0.225, 'the flamethrower was added after the fan split');
+    assert.equal(weights.LIGHTNING, 0.225, 'and so was the lightning');
+    assert.equal(weights.RAILGUN, 0.225, 'and the railgun');
     for (const [type, chance] of [['FAN_3', 0.05], ['FAN_4', 0.04], ['FAN_5', 0.03]]) {
         assert.ok(Math.abs(nonRocketChance * weights[type] / totalNonRocketWeight - chance * dilution) < 1e-12, type);
     }

@@ -21,6 +21,13 @@ export function createFourPlayerPlanarRuntimePort({ getRuntime }) {
         getGlobalKeyBindings() {
             return runtime()?.input?.bindings?.GLOBAL || {};
         },
+        /**
+         * Reads maps saved in the desktop editor again. Runs through the UI so
+         * the main map picker is redrawn along with the split setups.
+         */
+        refreshLocalMapCatalog() {
+            return runtime()?.runtimeCoordinator?.getUiManager?.()?.refreshLocalMapCatalog?.() === true;
+        },
         notifySettingsChanged() {
             runtime()?._onSettingsChanged?.();
         },

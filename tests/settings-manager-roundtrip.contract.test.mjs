@@ -96,6 +96,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['mapKey', 'maze'],
     ['botDifficulty', 'EASY'],
     ['botPolicyStrategy', 'heuristic'],
+    ['hunt.winCondition', 'score_target'],
     ['botHeuristicProfile', 'aggressive'],
     ['vehicles.PLAYER_1', 'aircraft'],
     ['vehicles.PLAYER_2', 'drone'],

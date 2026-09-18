@@ -8,7 +8,7 @@ import { createMapDocument, toArenaMapDefinition, parseMapJSON } from '../src/en
 import { StaticTurretSystem } from '../src/entities/systems/StaticTurretSystem.js';
 import { findEditorBuildEntryById, resolveEditorBuildEntryAssetId } from '../editor/js/ui/EditorBuildCatalog.js';
 import { normalizeStaticTurretDefinition } from '../src/shared/contracts/MapSinglePlayerScenarioContract.js';
-import { getEditorTurretAuthoringScale, showEditorTurretProperties, clearEditorTurretRange } from '../editor/js/ui/EditorTurretProperties.js';
+import { getEditorTurretAuthoringScale, showEditorTurretProperties, clearEditorTurretRange, bindEditorTurretProperties } from '../editor/js/ui/EditorTurretProperties.js';
 
 function manager() {
     return new EditorMapManager({ objectsContainer: new THREE.Group(), transformControl: { object: null, detach() {} } },
@@ -96,4 +96,35 @@ test('turret schema enforces limits and unique IDs, while preserving optional co
     assert.equal(value.maxHp, 90);
     assert.equal(value.rocketType, 'ROCKET_WEAK');
     assert.deepEqual(createMapDocument({ schemaVersion: 4 }).staticTurrets, []);
+});
+
+test('a deferred panel refresh keeps a typed but uncommitted turret value', () => {
+    const maps = manager();
+    const input = () => Object.assign(new EventTarget(), { value: '', disabled: false });
+    const dom = { propTurretFields: {}, propTurretRange: input(), propTurretCooldown: input(), propTurretRocketType: input(), propTurretHp: input() };
+    const editor = { mapManager: maps, getArenaSizeForExport: () => arenaSize, core: { scene: new THREE.Scene() }, dom,
+        isObjectLocked: () => false, isManagedObjectAlive: () => true, executeHistoryMutation: (_label, fn) => fn(),
+        showPropPanel: (object) => showEditorTurretProperties(editor, object) };
+    try {
+        const first = maps.createMesh('turret', 'rocket', 0, 20, 0, 0, { id: 'first' });
+        const second = maps.createMesh('turret', 'rocket', 90, 20, 0, 0, { id: 'second', maxHp: 60 });
+        bindEditorTurretProperties(editor);
+        editor.selectedObject = first;
+        showEditorTurretProperties(editor, first);
+        dom.propTurretHp.value = '130';
+        dom.propTurretHp.dispatchEvent(new Event('input'));
+        showEditorTurretProperties(editor, first);
+        assert.equal(dom.propTurretHp.value, '130');
+        dom.propTurretHp.dispatchEvent(new Event('change'));
+        assert.equal(first.userData.maxHp, 130);
+        dom.propTurretHp.value = '999';
+        dom.propTurretHp.dispatchEvent(new Event('input'));
+        dom.propTurretHp.dispatchEvent(new Event('change'));
+        assert.equal(dom.propTurretHp.value, '500');
+        dom.propTurretHp.value = '77';
+        dom.propTurretHp.dispatchEvent(new Event('input'));
+        editor.selectedObject = second;
+        showEditorTurretProperties(editor, second);
+        assert.equal(dom.propTurretHp.value, '60');
+    } finally { clearEditorTurretRange(editor); maps.clearAllObjects(); }
 });

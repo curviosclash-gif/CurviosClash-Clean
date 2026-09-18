@@ -196,6 +196,19 @@ export class ThreePlayerSplitSetupView {
         });
     }
 
+    /**
+     * Fills the map list again, e.g. after the desktop editor saved or deleted a
+     * map. The current choice stays selected while it is still offered.
+     * @param {Array<{value: string, label: string}>} mapOptions
+     */
+    setMapOptions(mapOptions = []) {
+        const select = this._nodes?.map;
+        if (!select) return;
+        const previous = select.value;
+        select.replaceChildren(...mapOptions.map((option) => createOption(this.document, option.value, option.label)));
+        if (mapOptions.some((option) => option.value === previous)) select.value = previous;
+    }
+
     setEntryVisible(visible) {
         if (!this._nodes) return;
         this._nodes.card.classList.toggle('hidden', !visible);
@@ -243,7 +256,7 @@ export class ThreePlayerSplitSetupView {
         this._nodes.deviceStatus.hidden = !message;
     }
 
-    /** @param {{blocked: boolean, reason: string}} availability */
+    /** @param {{blocked?: boolean, reason?: string}} [availability] */
     setStartAvailability({ blocked = false, reason = '' } = {}) {
         if (!this._nodes) return;
         this._nodes.start.disabled = blocked === true;

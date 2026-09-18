@@ -30,17 +30,30 @@ export function selectPlayableLocalMaps(localMaps) {
 }
 
 /**
- * Traegt nachtraeglich gespeicherte Nutzerkarten in einen bestehenden Katalog
- * ein. Es kommen nur gepruefte Editor-Karten hinzu oder werden aktualisiert;
- * alle anderen Kennungen bleiben unberuehrt.
+ * Gleicht einen bestehenden Katalog mit dem Nutzerordner ab. Gepruefte
+ * Editor-Karten kommen hinzu oder werden aktualisiert. Mit `knownKeys` (den
+ * Kennungen, die bisher aus dem Nutzerordner stammten) verschwinden auch
+ * geloeschte Dateien wieder; hatte eine solche Karte eine Quellbaum-Karte
+ * verdeckt, kommt diese aus `fallbackMaps` zurueck. Alle anderen Kennungen
+ * bleiben unberuehrt.
  *
  * @param {Record<string, unknown>} catalog
  * @param {Record<string, unknown>} localMaps
- * @returns {string[]} die neuen oder geaenderten Kennungen
+ * @param {{knownKeys?: Set<string>, fallbackMaps?: Record<string, unknown>}} [options]
+ * @returns {string[]} die neuen, geaenderten oder entfernten Kennungen
  */
-export function mergePlayableLocalMaps(catalog, localMaps) {
+export function mergePlayableLocalMaps(catalog, localMaps, { knownKeys, fallbackMaps = {} } = {}) {
     const changed = [];
-    for (const [mapKey, map] of Object.entries(selectPlayableLocalMaps(localMaps))) {
+    const playable = selectPlayableLocalMaps(localMaps);
+    for (const mapKey of knownKeys ? [...knownKeys] : []) {
+        if (Object.prototype.hasOwnProperty.call(playable, mapKey)) continue;
+        if (Object.prototype.hasOwnProperty.call(fallbackMaps, mapKey)) catalog[mapKey] = fallbackMaps[mapKey];
+        else delete catalog[mapKey];
+        knownKeys.delete(mapKey);
+        changed.push(mapKey);
+    }
+    for (const [mapKey, map] of Object.entries(playable)) {
+        knownKeys?.add(mapKey);
         if (JSON.stringify(catalog[mapKey]) === JSON.stringify(map)) continue;
         catalog[mapKey] = map;
         changed.push(mapKey);
@@ -60,4 +73,12 @@ export function createGeneratedMapPresets(
     return Object.freeze({ ...generatedLocalMaps, ...selectPlayableLocalMaps(desktopLocalMaps) });
 }
 
-export const MAP_PRESETS_GENERATED = createGeneratedMapPresets();
+const STARTUP_DESKTOP_LOCAL_MAPS = readElectronLocalMaps();
+
+export const MAP_PRESETS_GENERATED = createGeneratedMapPresets(GENERATED_LOCAL_MAPS, STARTUP_DESKTOP_LOCAL_MAPS);
+
+/**
+ * Kennungen, die gerade aus dem Nutzerordner stammen. Das Nachladen pflegt
+ * die Menge, damit es geloeschte Dateien erkennt.
+ */
+export const DESKTOP_LOCAL_MAP_KEYS = new Set(Object.keys(selectPlayableLocalMaps(STARTUP_DESKTOP_LOCAL_MAPS)));

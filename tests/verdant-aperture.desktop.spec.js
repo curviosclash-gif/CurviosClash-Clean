@@ -71,6 +71,36 @@ test('Verdant Aperture loads all thirteen greenhouse loops on desktop', async ({
     expect(state.dynamicObstacles).toBeGreaterThan(0);
 });
 
+test('Wildwuchs and the single ancient tree render without adding colliders or clips', async ({ page }) => {
+    await startVerdantAperture(page);
+    const state = await page.evaluate(() => {
+        const arena = window.GAME_INSTANCE.arena;
+        const ids = ['root', 'fern', 'vine'].flatMap((family) => [1, 2, 3].map((index) =>
+            `verdant-aperture-wildwuchs-${family}-v0${index}`));
+        ids.push('verdant-aperture-ancient-tree');
+        return {
+            models: ids.map((id) => {
+                const slot = arena._glbScene.getObjectByName(`glb-slot-${id}`);
+                const meshes = [];
+                slot?.traverse((object) => { if (object.isMesh) meshes.push(object.name); });
+                return { id, meshes };
+            }),
+            colliders: arena.obstacles.filter((obstacle) => ids.includes(obstacle.modelId))
+                .map((obstacle) => obstacle.modelId),
+            clips: arena._glbAnimation.trackCount,
+        };
+    });
+    expect(state.models).toHaveLength(10);
+    for (const { id, meshes } of state.models) {
+        expect(meshes.length, `${id} has imported meshes`).toBeGreaterThan(0);
+        if (id.includes('wildwuchs')) {
+            expect(meshes.every((name) => name.includes('_nocol')), `${id} opts out of collision`).toBe(true);
+        }
+    }
+    expect(state.colliders).toEqual([]);
+    expect(state.clips).toBe(SETPIECE_COUNT);
+});
+
 test('the storey decks separate the levels and only open where a setpiece gates them', async ({ page }) => {
     test.setTimeout(180_000);
     await startVerdantAperture(page);

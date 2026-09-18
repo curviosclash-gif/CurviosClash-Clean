@@ -8,6 +8,7 @@ import {
     parseEditorAuthoringDocument,
 } from '../EditorAuthoringDocument.js';
 import { EDITOR_PREFABS, getEditorPrefabById } from './EditorPrefabCatalog.js';
+import { EDITOR_BLOCKING_CHECKPOINT_CODE, resolveCheckpointValidationItems } from './EditorCheckpointValidation.js';
 
 const AUTOSAVE_STORAGE_KEY = 'curviosclash.editor.autosave.v1';
 const PLAYTEST_RETURN_STORAGE_KEY = 'curviosclash.editor.playtest-return.v1';
@@ -88,6 +89,7 @@ const BLOCKING_EXPORT_VALIDATION_CODES = new Set([
     'parcours-finish',
     'spawn-trapped',
     'portal-blocked',
+    EDITOR_BLOCKING_CHECKPOINT_CODE,
 ]);
 
 function buildValidationItems(editor) {
@@ -125,14 +127,11 @@ function buildValidationItems(editor) {
     }
     const trappedSpawns = spawns.filter((spawn) => isBlocked(spawn.position));
     const blockedPortals = portals.filter((portal) => isBlocked(portal.position));
-    const blockedCheckpoints = checkpoints.filter((checkpoint) => isBlocked(checkpoint.position));
-    const unreachableCheckpoints = new Set(blockedCheckpoints.map((entry) => entry.userData.id));
-    const maxSegmentDistance = Math.max(arena.width, arena.depth, arena.height * 2) * 0.72;
-    for (let index = 1; index < checkpoints.length; index += 1) {
-        if (checkpoints[index - 1].position.distanceTo(checkpoints[index].position) > maxSegmentDistance) {
-            unreachableCheckpoints.add(checkpoints[index].userData.id);
-        }
-    }
+    const checkpointItems = resolveCheckpointValidationItems({
+        checkpoints,
+        isBlocked,
+        maxSegmentDistance: Math.max(arena.width, arena.depth, arena.height * 2) * 0.72,
+    });
     const unpairedPortals = portals.filter((portal) => {
         const partner = editor.mapManager?.getObjectById?.(String(portal.userData?.portalPartnerId || ''));
         return !partner
@@ -147,12 +146,12 @@ function buildValidationItems(editor) {
         { code: 'player-spawn', ok: status.playerSpawnPlaced, label: status.playerSpawnPlaced ? 'Spieler-Spawn vorhanden' : 'Spieler-Spawn fehlt', objectIds: [] },
         { code: 'bot-spawns', ok: status.botSpawnCount > 0, label: status.botSpawnCount > 0 ? `${status.botSpawnCount} Bot-Spawn(s)` : 'Keine Bot-Spawns', objectIds: [] },
         { code: 'portal-pairs', ok: portals.length % 2 === 0 && unpairedPortals.length === 0, label: unpairedPortals.length === 0 && portals.length % 2 === 0 ? 'Portale sind explizit gepaart' : `${Math.max(unpairedPortals.length, portals.length % 2)} Portal(e) ohne Partner`, objectIds: unpairedPortals.map((entry) => entry.userData.id) },
-        { code: 'parcours-finish', ok: !status.parcoursEnabled || status.parcourHasFinish, label: !status.parcoursEnabled || status.parcourHasFinish ? 'Parcours ist vollstaendig' : 'Parcours-Finish fehlt', objectIds: [] },
-        { code: 'outside-arena', ok: outside.length === 0, label: outside.length === 0 ? 'Objekte liegen im Arena-Rahmen' : `${outside.length} Objekt(e) ausserhalb der Arena`, objectIds: outside.map((entry) => entry.userData.id) },
-        { code: 'spawn-overlap', ok: overlappingSpawns.size === 0, label: overlappingSpawns.size === 0 ? 'Spawn-Abstaende sind frei' : `${overlappingSpawns.size} Spawn(s) ueberlappen`, objectIds: [...overlappingSpawns] },
-        { code: 'spawn-trapped', ok: trappedSpawns.length === 0, label: trappedSpawns.length === 0 ? 'Spawn-Freiraum fuer Standardfahrzeug vorhanden' : `${trappedSpawns.length} Spawn(s) ohne ausreichenden Freiraum`, objectIds: trappedSpawns.map((entry) => entry.userData.id) },
+        { code: 'parcours-finish', ok: !status.parcoursEnabled || status.parcourHasFinish, label: !status.parcoursEnabled || status.parcourHasFinish ? 'Parcours ist vollständig' : 'Parcours-Finish fehlt', objectIds: [] },
+        { code: 'outside-arena', ok: outside.length === 0, label: outside.length === 0 ? 'Objekte liegen im Arena-Rahmen' : `${outside.length} Objekt(e) außerhalb der Arena`, objectIds: outside.map((entry) => entry.userData.id) },
+        { code: 'spawn-overlap', ok: overlappingSpawns.size === 0, label: overlappingSpawns.size === 0 ? 'Spawn-Abstände sind frei' : `${overlappingSpawns.size} Spawn(s) überlappen`, objectIds: [...overlappingSpawns] },
+        { code: 'spawn-trapped', ok: trappedSpawns.length === 0, label: trappedSpawns.length === 0 ? 'Spawn-Freiraum für Standardfahrzeug vorhanden' : `${trappedSpawns.length} Spawn(s) ohne ausreichenden Freiraum`, objectIds: trappedSpawns.map((entry) => entry.userData.id) },
         { code: 'portal-blocked', ok: blockedPortals.length === 0, label: blockedPortals.length === 0 ? 'Portalzentren bieten Fahrzeug-Freiraum' : `${blockedPortals.length} Portal(e) blockiert`, objectIds: blockedPortals.map((entry) => entry.userData.id) },
-        { code: 'checkpoint-reachability', ok: unreachableCheckpoints.size === 0, label: unreachableCheckpoints.size === 0 ? 'Parcours-Segmente wirken erreichbar' : `${unreachableCheckpoints.size} Checkpoint(s) blockiert oder zu weit entfernt`, objectIds: [...unreachableCheckpoints] },
+        ...checkpointItems,
         { code: 'assets', ok: !assetsDegraded, label: assetsDegraded ? 'Assets verwenden Fallbacks' : 'Assets sind bereit', objectIds: [] },
     ].map((item) => ({
         ...item,
@@ -331,7 +330,7 @@ export function bindEditorWorkspaceControls(editor) {
         autosaveTimer = window.setTimeout(() => { autosaveTimer = null; writeAutosave(); }, AUTOSAVE_DELAY_MS);
     };
 
-    const markDirty = (reason = 'Map geaendert.') => {
+    const markDirty = (reason = 'Map geändert.') => {
         dirty = true;
         renderDirty();
         notify(reason, 'info');
@@ -460,7 +459,7 @@ export function bindEditorWorkspaceControls(editor) {
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.checked = markedIds.has(id);
-            checkbox.setAttribute('aria-label', `${id} fuer Mehrfachaktion markieren`);
+            checkbox.setAttribute('aria-label', `${id} für Mehrfachaktion markieren`);
             checkbox.addEventListener('change', () => {
                 const groupId = String(object.userData?.groupId || '');
                 const affected = groupId ? allObjects.filter((entry) => entry.userData?.groupId === groupId) : [object];
@@ -546,9 +545,9 @@ export function bindEditorWorkspaceControls(editor) {
         modalReturnFocus = null;
     };
 
-    const openModal = ({ title = '', message = '', confirmLabel = 'Bestaetigen', value = null, fields = null, danger = false } = {}) => {
+    const openModal = ({ title = '', message = '', confirmLabel = 'Bestätigen', value = null, fields = null, danger = false } = {}) => {
         if (!dom.editorModalBackdrop || modalResolve) return Promise.resolve(null);
-        dom.editorModalTitle.textContent = title || 'Bestaetigen';
+        dom.editorModalTitle.textContent = title || 'Bestätigen';
         dom.editorModalMessage.textContent = message || '';
         dom.btnEditorModalConfirm.textContent = confirmLabel;
         dom.btnEditorModalConfirm.classList.toggle('dangerAction', danger);
@@ -752,7 +751,7 @@ export function bindEditorWorkspaceControls(editor) {
     dom.btnGroupMarked?.addEventListener('click', () => {
         const objects = [...markedIds].map((id) => editor.mapManager?.getObjectById?.(id)).filter(Boolean);
         if (objects.some((object) => editor.isObjectLocked?.(object))) {
-            notify('Gesperrte Objekte koennen nicht gruppiert werden.', 'warn');
+            notify('Gesperrte Objekte können nicht gruppiert werden.', 'warn');
             return;
         }
         const groupId = `group_${Date.now().toString(36)}`;
@@ -775,7 +774,7 @@ export function bindEditorWorkspaceControls(editor) {
     dom.btnTransformMarked?.addEventListener('click', async () => {
         const objects = [...markedIds].map((id) => editor.mapManager?.getObjectById?.(id)).filter(Boolean);
         if (objects.some((object) => editor.isObjectLocked?.(object))) {
-            notify('Gesperrte Objekte koennen nicht transformiert werden.', 'warn');
+            notify('Gesperrte Objekte können nicht transformiert werden.', 'warn');
             return;
         }
         const value = await openModal({
@@ -791,10 +790,10 @@ export function bindEditorWorkspaceControls(editor) {
     dom.btnDeleteMarked?.addEventListener('click', async () => {
         const objects = [...markedIds].map((id) => editor.mapManager?.getObjectById?.(id)).filter(Boolean);
         if (objects.some((object) => editor.isObjectLocked?.(object))) {
-            notify('Gesperrte Objekte koennen nicht geloescht werden.', 'warn');
+            notify('Gesperrte Objekte können nicht gelöscht werden.', 'warn');
             return;
         }
-        const confirmed = await openModal({ title: 'Markierte Objekte loeschen?', message: `${markedIds.size} Objekt(e) werden aus der Map entfernt.`, confirmLabel: 'Objekte loeschen', danger: true });
+        const confirmed = await openModal({ title: 'Markierte Objekte löschen?', message: `${markedIds.size} Objekt(e) werden aus der Map entfernt.`, confirmLabel: 'Objekte löschen', danger: true });
         if (!confirmed) return;
         editor.executeHistoryMutation('Delete marked objects', () => editor.mapManager.withSceneMutation(() => {
             for (const id of [...markedIds]) {
@@ -811,7 +810,7 @@ export function bindEditorWorkspaceControls(editor) {
             notify(`Kamera: ${mode}.`, 'info');
         }));
     dom.btnFocusSelection?.addEventListener('click', () => {
-        if (!editor.core.focusObject?.(editor.selectedObject)) notify('Bitte zuerst ein Objekt auswaehlen.', 'warn');
+        if (!editor.core.focusObject?.(editor.selectedObject)) notify('Bitte zuerst ein Objekt auswählen.', 'warn');
     });
 
     dom.btnRestoreAutosave?.addEventListener('click', () => {
@@ -907,7 +906,7 @@ export function bindEditorWorkspaceControls(editor) {
             return true;
         } catch (error) {
             editor.authoringTelemetry?.recordError?.('playtest_return_failed');
-            notify(`Playtest-Rueckkehr konnte nicht wiederhergestellt werden: ${error.message}`, 'error');
+            notify(`Playtest-Rückkehr konnte nicht wiederhergestellt werden: ${error.message}`, 'error');
             return false;
         }
     };

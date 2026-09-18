@@ -114,6 +114,7 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         inventory: player?.inventory,
         rocketInventory: player?.rocketInventory,
         activeEffects: player?.activeEffects,
+        railCharge: player?.railCharge,
         selectedItemIndex: Number(player?.selectedItemIndex) || 0,
         itemUseCooldownRemaining: Math.max(0, Number(player?.itemUseCooldownRemaining) || 0),
         shootCooldown: Math.max(0, Number(player?.shootCooldown) || 0),
@@ -197,7 +198,10 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
             damageIndicator: huntState.damageIndicator || null,
             respawnEnabled: entityManager?.gameModeStrategy?.isRespawnEnabled?.() === true,
             deathmatchKillLimit: authoritativeFightState?.killLimit || entityManager?.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,
+            winCondition: authoritativeFightState?.winCondition || entityManager?.entityRuntimeConfig?.HUNT?.WIN_CONDITION,
             respawnRemainingByPlayer: entityManager?.getHuntRespawnRemainingByPlayer?.() || {},
+            livesRemainingByPlayer: authoritativeFightState?.livesRemainingByPlayer
+                || entityManager?.getHuntLivesRemainingByPlayer?.() || {},
             scoreboardRows,
             scoreboardSummary: entityManager?.getHuntScoreboardSummary?.(4, scoreboardRows) || '',
             elapsedSeconds: deathmatchState.elapsedSeconds || 0,

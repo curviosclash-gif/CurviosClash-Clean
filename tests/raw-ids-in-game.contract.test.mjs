@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 
-import { resolveArenaWavesChoiceLabel } from '../src/shared/contracts/ArenaWavesContract.js';
+import { formatArenaWavesChoiceLabel } from '../src/ui/arcade/ArenaWavesOverlayTexts.js';
 import { formatStartSetupMapLabel } from '../src/ui/start-setup/StartSetupValidationView.js';
 
 test('five-fronts advantages read as plain German, not as ids', () => {
-    const labels = ['speed', 'max_hp', 'pickup', 'mg_tuning', 'machine_gun:bastion_h3', 'supply:shield'].map(resolveArenaWavesChoiceLabel);
+    const labels = ['speed', 'max_hp', 'pickup', 'mg_tuning', 'machine_gun:bastion_h3', 'supply:shield'].map(formatArenaWavesChoiceLabel);
     labels.forEach((label) => assert.doesNotMatch(label, /_|machine_gun|supply:|\bmg\b|speed/u, label));
-    assert.match(resolveArenaWavesChoiceLabel('machine_gun:bastion_h3'), /Bastion H3/);
-    assert.match(resolveArenaWavesChoiceLabel('mg_tuning'), /MG/);
+    assert.match(formatArenaWavesChoiceLabel('machine_gun:bastion_h3'), /Bastion H3/);
+    assert.match(formatArenaWavesChoiceLabel('mg_tuning'), /MG/);
 });
 
 test('the map list shows the plain map name', () => {
