@@ -12,6 +12,7 @@ import {
 import { LEVEL4_SECTION_IDS, MENU_SESSION_TYPES } from './menu/MenuStateContracts.js';
 import { MenuNavigationRuntime } from './menu/MenuNavigationRuntime.js';
 import { resolveMapPreview } from './menu/MenuPreviewCatalog.js';
+import { resolveMenuCatalogText } from './menu/MenuTextCatalog.js';
 import { resolveDeveloperReleaseState } from './menu/MenuUiSyncContext.js';
 import { applyMenuChromeState } from './menu/MenuChromeStateOps.js';
 import { showStatusToast } from './menu/StatusToastOps.js';
@@ -479,50 +480,43 @@ export class UINavigationLifecycleController {
         this._syncMenuChromeState(activeSubmenu || null);
         const section = this._getMenuSectionLabel(activeSubmenu);
         const activeProfile = this._resolveActiveProfileName();
-        const dirtyState = this._isSettingsDirty() ? 'ungespeicherte Aenderungen' : 'alles gespeichert';
+        const dirtyState = this._isSettingsDirty()
+            ? resolveMenuCatalogText('menu.context.dirty', 'ungespeicherte Änderungen')
+            : resolveMenuCatalogText('menu.context.saved', 'alles gespeichert');
         const sessionType = String(
             resolvedContext?.surfaceMenuState?.sessionType
             || settings?.localSettings?.sessionType
             || MENU_SESSION_TYPES.SINGLE
         ).toLowerCase();
         const sessionLabel = sessionType === MENU_SESSION_TYPES.SPLITSCREEN
-            ? 'Geteilter Bildschirm'
-            : (sessionType === MENU_SESSION_TYPES.MULTIPLAYER ? 'Mehrspieler' : 'Einzelspieler');
+            ? resolveMenuCatalogText('menu.context.session.splitscreen', 'Geteilter Bildschirm')
+            : (sessionType === MENU_SESSION_TYPES.MULTIPLAYER
+                ? resolveMenuCatalogText('menu.context.session.multiplayer', 'Mehrspieler')
+                : resolveMenuCatalogText('menu.context.session.single', 'Einzelspieler'));
         const modePath = String(
             resolvedContext?.surfaceMenuState?.modePath
             || settings?.localSettings?.modePath
             || 'normal'
         ).toLowerCase();
-        const modeLabel = modePath === 'fight'
-            ? 'Kampf'
-            : (modePath === 'arcade' ? 'Arcade' : (modePath === 'quick_action' ? 'Schnellstart' : 'Klassisch'));
+        const modeLabel = resolveMenuCatalogText(`menu.context.mode.${modePath}`, '')
+            || resolveMenuCatalogText('menu.context.mode.normal', 'Klassisch');
         const mapLabel = resolveMapPreview(settings?.mapKey).name;
         const activeSection = this._resolveLevel4Section(settings?.localSettings?.toolsState?.activeSection);
-        const activeSectionLabel = {
-            [LEVEL4_SECTION_IDS.CONTROLS]: 'Steuerung',
-            [LEVEL4_SECTION_IDS.MOBILE_CONTROLS]: 'Mobile',
-            [LEVEL4_SECTION_IDS.GAMEPLAY]: 'Spielregeln',
-            [LEVEL4_SECTION_IDS.AUDIO]: 'Audio',
-            [LEVEL4_SECTION_IDS.GRAPHICS]: 'Grafik & Kamera',
-            [LEVEL4_SECTION_IDS.RECORDING]: 'Aufnahme',
-            [LEVEL4_SECTION_IDS.HUD]: 'HUD',
-            [LEVEL4_SECTION_IDS.ADVANCED_MAP]: 'Map-Details',
-            [LEVEL4_SECTION_IDS.TOOLS]: 'Profile',
-            [LEVEL4_SECTION_IDS.PRESETS]: 'Vorlagen',
-            [LEVEL4_SECTION_IDS.UTILITIES]: 'Werkzeuge',
-        }[activeSection] || 'Profile';
+        const activeSectionLabel = resolveMenuCatalogText(`menu.context.section.${activeSection}`, '')
+            || resolveMenuCatalogText('menu.context.section.tools', 'Profile');
+        const level4Title = resolveMenuCatalogText('menu.context.level4.title', 'Erweiterte Optionen');
 
         let contextText = `${section} | Profil: ${activeProfile} | ${dirtyState}`;
         let breadcrumbText = '';
         if (settings?.localSettings?.toolsState?.level4Open) {
-            contextText = `Erweiterte Optionen | ${activeSectionLabel} | ${sessionLabel} | ${dirtyState}`;
-            breadcrumbText = `${sessionLabel} › ${modeLabel} › Erweiterte Optionen › ${activeSectionLabel}`;
+            contextText = `${level4Title} | ${activeSectionLabel} | ${sessionLabel} | ${dirtyState}`;
+            breadcrumbText = `${sessionLabel} › ${modeLabel} › ${level4Title} › ${activeSectionLabel}`;
         } else if (activeSubmenu === 'submenu-game') {
             contextText = `${section} | ${sessionLabel} | ${modeLabel} | ${mapLabel}`;
-            breadcrumbText = `${sessionLabel} › ${modeLabel} › Match vorbereiten`;
+            breadcrumbText = `${sessionLabel} › ${modeLabel} › ${resolveMenuCatalogText('menu.context.game.step', 'Match vorbereiten')}`;
         } else if (activeSubmenu === 'submenu-custom') {
-            contextText = `${section} | ${sessionLabel} | Sofortstart oder Setup | ${dirtyState}`;
-            breadcrumbText = `${sessionLabel} › Spielstil wählen`;
+            contextText = `${section} | ${sessionLabel} | ${resolveMenuCatalogText('menu.context.custom.summary', 'Sofortstart oder Setup')} | ${dirtyState}`;
+            breadcrumbText = `${sessionLabel} › ${resolveMenuCatalogText('menu.context.custom.step', 'Spielstil wählen')}`;
         } else if (activeSubmenu === 'submenu-expert') {
             const expertState = this._getExpertLoginRuntime()?.getState?.() || null;
             const expertStateLabel = expertState?.available === false

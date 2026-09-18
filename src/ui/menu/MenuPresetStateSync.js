@@ -65,6 +65,9 @@ export function syncMenuPresetState({ ui, settings, settingsManager, surfacePoli
     if (Array.isArray(ui.quickstartPresetButtons)) {
         ui.quickstartPresetButtons.forEach((button) => {
             const buttonPresetId = String(button?.dataset?.presetId || '').trim();
+            // The chip name lives only in the preset catalog.
+            const chipName = findFixedMenuPresetSeedById(buttonPresetId)?.name || buttonPresetId;
+            if (button.textContent !== chipName) button.textContent = chipName;
             const visible = !buttonPresetId || isPresetVisible(buttonPresetId);
             const isActive = !!buttonPresetId && buttonPresetId === visibleActivePresetId;
             button.classList.toggle('hidden', !visible);
