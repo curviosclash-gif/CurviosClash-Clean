@@ -1359,6 +1359,16 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     margin-top: 12px;
 }
 
+.expert-tuning-card {
+    max-width: 520px;
+}
+
+.expert-tuning-subtitle {
+    margin: 14px 0 4px;
+    font-size: 0.9rem;
+    color: #88bbff;
+}
+
 .preset-chip-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

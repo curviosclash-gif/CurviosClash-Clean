@@ -10,6 +10,8 @@ import { createRuntimeSettingsLimitsForRuntime } from '../../shared/contracts/Se
 import { bindMenuExtrasButtons } from './MenuExtrasBindings.js';
 import { bindArcadeGhostDuelModeSelect } from './MenuArcadeGhostDuelBindings.js';
 import { bindArcadeRunSettings } from './MenuArcadeRunSettingsBindings.js';
+import { bindBotHeuristicControls } from './MenuBotHeuristicBindings.js';
+import { bindTrailLengthControl } from './MenuTrailLengthControl.js';
 import { bindMenuMobileTiltControls } from './MenuMobileTiltBindings.js';
 import { bindMenuRecordingCameraControls } from './MenuRecordingCameraBindings.js';
 import {
@@ -245,6 +247,8 @@ export function setupMenuGameplayBindings(ctx) {
 
     bindArcadeGhostDuelModeSelect({ ui, settings, bind, emitSettingsChangedImmediate, keys });
     bindArcadeRunSettings({ ui, settings, bind, emitSettingsChangedImmediate, keys });
+    bindBotHeuristicControls({ ui, settings, bind, emitSettingsChangedImmediate, keys });
+    bindTrailLengthControl({ ui, settings, bind, limits: gameplayLimits.trailLength, emit: queueInputSettingsChanged, keys });
 
     bind(ui.botSlider, 'input', () => {
         settings.numBots = clamp(parseInt(ui.botSlider.value, 10), sessionLimits.numBots.min, sessionLimits.numBots.max);

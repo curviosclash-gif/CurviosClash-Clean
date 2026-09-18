@@ -26,6 +26,8 @@ import {
 import { normalizeHudAppearance } from '../shared/contracts/HudAppearanceContract.js';
 import { applyRuntimeHudAppearance, formatHudAppearanceHint } from './HudAppearance.js';
 import { syncArcadeRunSettings } from './menu/MenuArcadeRunSettingsBindings.js';
+import { syncBotHeuristicControls } from './menu/MenuBotHeuristicBindings.js';
+import { syncTrailLengthControl } from './menu/MenuTrailLengthControl.js';
 import { syncHuntRespawnToggle } from './menu/MenuHuntRespawnToggleSync.js';
 import { syncMenuPresetState } from './menu/MenuPresetStateSync.js';
 import { syncMenuDeveloperState } from './menu/MenuDeveloperStateSync.js';
@@ -427,6 +429,7 @@ export class UIManager {
         ui.botLabel.textContent = settings.numBots;
         if (ui.botDifficultySelect) ui.botDifficultySelect.value = settings.botDifficulty;
         if (ui.botPolicyStrategySelect) ui.botPolicyStrategySelect.value = settings.botPolicyStrategy || 'auto';
+        syncBotHeuristicControls(ui, settings);
     }
 
     syncRules(settings = this.settings) {
@@ -492,6 +495,7 @@ export class UIManager {
         ui.planeSizeLabel.textContent = gp.planeScale.toFixed(1);
         syncRangeInput(ui.trailWidthSlider, gp.trailWidth, runtimeLimits.gameplay.trailWidth, gp.trailWidth);
         ui.trailWidthLabel.textContent = gp.trailWidth.toFixed(1);
+        syncTrailLengthControl(ui, settings, runtimeLimits.gameplay.trailLength);
         syncRangeInput(ui.gapSizeSlider, gp.gapSize, runtimeLimits.gameplay.gapSize, gp.gapSize);
         ui.gapSizeLabel.textContent = gp.gapSize.toFixed(2);
         syncRangeInput(ui.gapFrequencySlider, gp.gapFrequency, runtimeLimits.gameplay.gapFrequency, gp.gapFrequency);

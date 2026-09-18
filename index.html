@@ -622,6 +622,8 @@
                                     <input type="range" id="plane-size-slider" min="0.6" max="2.0" step="0.1" value="1.0">
                                     <label for="trail-width-slider"><span data-menu-text-id="menu.level4.gameplay.trail_width.label">Strahldicke:</span> <span id="trail-width-label">0.60</span></label>
                                     <input type="range" id="trail-width-slider" min="0.2" max="2.5" step="0.05" value="0.6">
+                                    <label for="trail-length-slider">Spurlänge: <span id="trail-length-label">5000 Segmente</span></label>
+                                    <input type="range" id="trail-length-slider" min="200" max="12000" step="100" value="5000">
                                     <label for="gap-size-slider"><span data-menu-text-id="menu.level4.gameplay.gap_size.label">Lückengröße:</span> <span id="gap-size-label">0.30</span></label>
                                     <input type="range" id="gap-size-slider" min="0.05" max="1.5" step="0.05" value="0.3">
                                     <label for="gap-frequency-slider"><span data-menu-text-id="menu.level4.gameplay.gap_frequency.label">Lückenhäufigkeit:</span> <span id="gap-frequency-label">0.020</span></label>
@@ -1002,6 +1004,31 @@
                                         Debug / Info öffnen
                                     </button>
                                 </div>
+                            </div>
+                            <div id="expert-tuning" class="menu-section expert-tuning-card">
+                                <h3 class="section-title">Feineinstellungen</h3>
+                                <p class="menu-hint">Wirken sofort und werden automatisch gespeichert.</p>
+                                <h4 class="expert-tuning-subtitle">Arcade</h4>
+                                <label for="arcade-intermission-slider">Pause zwischen Sektoren: <span id="arcade-intermission-label">10 s</span></label>
+                                <input type="range" id="arcade-intermission-slider" min="1" max="20" step="1" value="10">
+                                <label for="arcade-combo-decay-slider">Combo-Verfall: <span id="arcade-combo-decay-label">1.0 pro s</span></label>
+                                <input type="range" id="arcade-combo-decay-slider" min="0" max="10" step="0.5" value="1">
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="arcade-replay-hooks-toggle" checked>
+                                    <span>Läufe für Replay und Ghost mitschneiden</span>
+                                </label>
+                                <h4 class="expert-tuning-subtitle">Bot-Heuristik</h4>
+                                <label for="bot-heuristic-profile-select">Heuristik-Profil</label>
+                                <select id="bot-heuristic-profile-select">
+                                    <option value="defensive">Defensiv</option>
+                                    <option value="balanced" selected>Ausgewogen</option>
+                                    <option value="aggressive">Aggressiv</option>
+                                </select>
+                                <label for="bot-heuristic-aggression-slider">Aggressivität: <span id="bot-heuristic-aggression-label">50</span></label>
+                                <input type="range" id="bot-heuristic-aggression-slider" min="0" max="100" step="1" value="50">
+                                <label for="bot-heuristic-survival-slider">Überlebensfokus: <span id="bot-heuristic-survival-label">50</span></label>
+                                <input type="range" id="bot-heuristic-survival-slider" min="0" max="100" step="1" value="50">
+                                <p class="menu-hint">50 bewahrt das bisherige Verhalten. Gilt nur für Bots mit dem Bot-Typ „Heuristik“.</p>
                             </div>
                         </div>
                     </div>
