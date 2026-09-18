@@ -10,6 +10,7 @@ import { createRocketWarningCache, hideRocketWarning, updateRocketWarning } from
 import { MatchHudAnnouncement } from './MatchHudAnnouncement.js';
 import { HuntInterceptAnnouncer } from './HuntInterceptAnnouncer.js';
 import { SecretRoomAnnouncer } from './SecretRoomAnnouncer.js';
+import { resolveLocalHudHumans } from './LocalHudPlayers.js';
 import { formatHuntClock, formatHuntScoreboard, updateHuntTargetProgress } from './HuntMatchStatusHelpers.js';
 import {
     HUD_ARC_SEGMENT_COUNT,
@@ -232,11 +233,9 @@ export class HuntHUD {
 
         const projection = runtimeProjection || this._getMatchRuntimeProjection();
         const huntProjection = projection?.hunt || null;
-        const projectedHumans = Array.isArray(projection?.players)
-            ? projection.players.filter((player) => player?.isBot !== true)
-            : null;
-        const humans = projectedHumans
-            || (this.runtime.entityManager ? this.runtime.entityManager.getHumanPlayers() : []);
+        // Only the humans this screen shows: in a network match that is the own player, so the
+        // right panel never shows the opponent and the left one never shows the host on a guest.
+        const humans = resolveLocalHudHumans(projection, this.runtime.entityManager?.getHumanPlayers?.() || []);
         const huntActive = huntProjection
             ? huntProjection.active === true
             : this._isHuntActive(this.runtime);
