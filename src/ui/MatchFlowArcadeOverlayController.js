@@ -12,6 +12,7 @@ import {
 import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/ArcadePostRunCards.js';
 import { createArenaWavesMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
 import { formatArenaWavesChoiceLabel, resolveArenaWavesBoardTexts } from './arcade/ArenaWavesOverlayTexts.js';
+import { createArcadeReplayActions } from './arcade/ArcadeReplayActions.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
 import {
     getArcadeMenuSurfaceState,
@@ -421,51 +422,17 @@ export class MatchFlowArcadeOverlayController {
         replayP.textContent = replayHintText;
         sect3.appendChild(replayP);
         
-        const replayBtn = document.createElement('button');
-        replayBtn.type = 'button';
-        replayBtn.className = 'arcade-overlay-action-btn';
-        replayBtn.id = 'btn-arcade-overlay-replay';
-        replayBtn.textContent = 'Replay exportieren';
-        replayBtn.disabled = !replay.payloadAvailable;
-        
-        replayBtn.addEventListener('click', () => {
-            const result = requestArcadeReplayPlayback(this.runtimePort, this.game);
-            const code = String(result?.code || 'replay_unknown');
-            if (code === 'replay_playback_started') {
-                this.game?._showStatusToast?.('Replay der letzten Runde wird abgespielt.', 1800, 'info');
-                return;
-            }
-            if (code === 'replay_export_ready') {
-                const replayJson = typeof result?.replayJson === 'string' ? result.replayJson : '';
-                const copyPromise = replayJson
-                    && typeof navigator !== 'undefined'
-                    && typeof navigator.clipboard?.writeText === 'function'
-                    ? Promise.resolve(navigator.clipboard.writeText(replayJson)).then(() => true).catch(() => false)
-                    : Promise.resolve(false);
-                copyPromise.then((copied) => {
-                    this.game?._showStatusToast?.(
-                        copied ? 'Replay-JSON wurde in die Zwischenablage kopiert.' : 'Replay-JSON konnte nicht kopiert werden.',
-                        1800,
-                        copied ? 'info' : 'warning'
-                    );
-                });
-                return;
-            }
-            const tone = code === 'replay_player_unavailable' ? 'warning' : 'info';
-            const message = code === 'ghost_fallback_started'
-                ? 'Ghost-Wiedergabe gestartet.'
-                : (code === 'replay_player_unavailable'
-                ? 'Replay-Export bereit.'
-                : (code === 'replay_disabled'
-                    ? 'Replay ist in den Runtime-Einstellungen deaktiviert.'
-                    : (code === 'replay_unavailable'
-                        ? ARCADE_RESULT_TEXTS.replayUnavailable
-                        : 'Replay-Status aktualisiert.')));
-            this.game?._showStatusToast?.(message, 1800, tone);
+        const replayActions = createArcadeReplayActions({
+            payloadAvailable: replay.payloadAvailable === true,
+            overlay: this.game?.ui?.messageOverlay || null,
+            requestPlayback: () => requestArcadeReplayPlayback(this.runtimePort, this.game),
+            requestExport: () => this.runtimePort?.requestArcadeReplayPlayback?.(),
+            copyText: (text) => (typeof navigator !== 'undefined' && typeof navigator.clipboard?.writeText === 'function'
+                ? Promise.resolve(navigator.clipboard.writeText(text)).then(() => true).catch(() => false)
+                : false),
+            showToast: (message, tone) => this.game?._showStatusToast?.(message, 1800, tone),
         });
-        
-        sect3.appendChild(replayBtn);
-        bodyDiv.appendChild(sect3);
+        sect3.append(...replayActions.buttons);        bodyDiv.appendChild(sect3);
 
         panel.appendChild(bodyDiv);
         panel.classList.remove('hidden');
