@@ -11,7 +11,7 @@ import { normalizeMapUnits } from '../../shared/contracts/MapUnitContract.js';
  * @param {number} invScale
  */
 function toPlainUnit(unit, invScale) {
-    return {
+    const plain = {
         id: unit.id,
         kind: unit.kind,
         path: unit.path.map((/** @type {number[]} */ point) => point.map((value) => value * invScale)),
@@ -31,6 +31,12 @@ function toPlainUnit(unit, invScale) {
         allowedModes: [...unit.allowedModes],
         targetPlayers: unit.targetPlayers,
     };
+    if (unit.kind === 'swarm') {
+        plain.memberCount = unit.memberCount;
+        plain.memberHp = unit.memberHp;
+        plain.formationRadius = unit.formationRadius * invScale;
+    }
+    return plain;
 }
 
 /**
