@@ -343,6 +343,8 @@ export function handleLevel4CloseAction(ctx) {
     delete game.settings.localSettings.toolsState.level4ReturnTarget;
     game.settings.localSettings.toolsState.level4Open = false;
     game.uiManager?.setLevel4Open?.(false);
+    // Store the closed state now: otherwise a stale stored flag reopens the window after a restart.
+    game._saveSettings?.();
 }
 
 export function handleLevel4ResetAction(ctx) {

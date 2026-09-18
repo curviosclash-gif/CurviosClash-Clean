@@ -435,8 +435,8 @@ export class UIStartSyncController {
             this.ui.themeModeSelect.value = themeMode;
         }
 
-        const level4Open = !!settings?.localSettings?.toolsState?.level4Open;
-        this.manager.setLevel4Open(level4Open);
+        // Only the open action opens the options window; a stored flag must not pop it up again.
+        if (!settings?.localSettings?.toolsState?.level4Open) this.manager.setLevel4Open(false);
         this._renderStartFieldHints(settings);
         } finally {
             this._activeSyncSnapshot = previousSyncSnapshot;

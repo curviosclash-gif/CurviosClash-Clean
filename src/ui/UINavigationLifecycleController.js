@@ -341,7 +341,7 @@ export class UINavigationLifecycleController {
             panelRegistry: manager.menuPanelRegistry,
             stateMachine: manager.menuStateMachine,
             accessContext: manager._accessContext,
-            onLevel4CloseRequested: () => manager.setLevel4Open(false),
+            onLevel4CloseRequested: () => this._requestLevel4Close(),
             onPanelChanged: (panelId, _panelConfig, _transition, transitionMetadata) => {
                 const previousPanelId = this._getActiveSubmenu() || null;
                 this._setActiveSubmenu(panelId || null);
@@ -367,6 +367,15 @@ export class UINavigationLifecycleController {
         });
         manager.menuNavigationRuntime.init();
         this._syncMenuChromeState(this._getActiveSubmenu() || null);
+    }
+
+    // Escape takes the close button's path, so both emit LEVEL4_CLOSE and store the closed state.
+    _requestLevel4Close() {
+        if (this.ui.closeLevel4Button) {
+            this.ui.closeLevel4Button.click();
+            return;
+        }
+        this.manager.setLevel4Open(false);
     }
 
     showMainNav() {
