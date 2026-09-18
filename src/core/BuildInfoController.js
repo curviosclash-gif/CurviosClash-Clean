@@ -69,7 +69,7 @@ export class BuildInfoController {
             helper.select();
             const copied = document.execCommand('copy');
             document.body.removeChild(helper);
-            this.showStatusToast(copied ? 'Build-Info kopiert' : 'Kopieren nicht moeglich', 1400, copied ? 'success' : 'error');
+            this.showStatusToast(copied ? 'Build-Info kopiert' : 'Kopieren nicht möglich', 1400, copied ? 'success' : 'error');
         };
 
         if (navigator.clipboard && navigator.clipboard.writeText) {

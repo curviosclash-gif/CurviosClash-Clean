@@ -71,7 +71,7 @@ export function normalizeWorkspaceMetadata(value = {}) {
 
 export function createEditorAuthoringDocument({ map = null, workspaceMetadata = {}, layerState = {}, viewState = null, playerSpawnPlaced = null } = {}) {
     if (!map || typeof map !== 'object' || Array.isArray(map)) {
-        throw new Error('Editor-Dokument benoetigt ein gueltiges Map-Objekt.');
+        throw new Error('Editor-Dokument benötigt ein gültiges Map-Objekt.');
     }
     return {
         contractVersion: EDITOR_AUTHORING_DOCUMENT_VERSION,

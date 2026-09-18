@@ -177,7 +177,7 @@ export class OverheatGunSystem {
             return buildGameplayActionResult({
                 ok: false,
                 code: GAMEPLAY_ACTION_RESULT_CODES.MG_SHOOT_OVERHEATED,
-                message: `MG ueberhitzt (${lockout.toFixed(1)}s)`,
+                message: `MG überhitzt (${lockout.toFixed(1)}s)`,
                 mode: 'mg',
                 type: 'MG_BULLET',
             });

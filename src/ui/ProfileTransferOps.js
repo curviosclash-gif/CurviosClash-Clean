@@ -84,7 +84,7 @@ export function parseProfileImport(inputValue, options = {}) {
             success: false,
             reason: 'empty_input',
             error: 'Kein Profil-Import vorhanden',
-            message: 'Kein Profil-Import eingefuegt.',
+            message: 'Kein Profil-Import eingefügt.',
         });
     }
 
@@ -95,7 +95,7 @@ export function parseProfileImport(inputValue, options = {}) {
         return createProfileTransferFeedback({
             success: false,
             reason: 'invalid_json',
-            error: 'Profil-Import ist kein gueltiges JSON',
+            error: 'Profil-Import ist kein gültiges JSON',
             message: 'Profil-Import konnte nicht gelesen werden.',
         });
     }
@@ -114,8 +114,8 @@ export function parseProfileImport(inputValue, options = {}) {
         return createProfileTransferFeedback({
             success: false,
             reason: 'unsupported_contract_version',
-            error: 'Profil-Import verwendet ungueltige contractVersion "unbekannt"',
-            message: 'Profil-Import stammt aus einer nicht unterstuetzten Version.',
+            error: 'Profil-Import verwendet ungültige contractVersion "unbekannt"',
+            message: 'Profil-Import stammt aus einer nicht unterstützten Version.',
         });
     }
     if (versionState.shouldReject) {
@@ -125,8 +125,8 @@ export function parseProfileImport(inputValue, options = {}) {
         return createProfileTransferFeedback({
             success: false,
             reason: 'unsupported_contract_version',
-            error: `Profil-Import verwendet ungueltige contractVersion "${receivedVersion}"`,
-            message: 'Profil-Import stammt aus einer nicht unterstuetzten Version.',
+            error: `Profil-Import verwendet ungültige contractVersion "${receivedVersion}"`,
+            message: 'Profil-Import stammt aus einer nicht unterstützten Version.',
         });
     }
     if (
@@ -136,8 +136,8 @@ export function parseProfileImport(inputValue, options = {}) {
         return createProfileTransferFeedback({
             success: false,
             reason: 'invalid_payload_shape',
-            error: 'Profil-Import-Huelle ist unvollstaendig (profile fehlt)',
-            message: 'Profil-Import enthaelt keine nutzbaren Profildaten.',
+            error: 'Profil-Import-Huelle ist unvollständig (profile fehlt)',
+            message: 'Profil-Import enthält keine nutzbaren Profildaten.',
         });
     }
 
@@ -150,7 +150,7 @@ export function parseProfileImport(inputValue, options = {}) {
             success: false,
             reason: 'missing_profile_name',
             error: 'Profilname fehlt im Import',
-            message: 'Profil-Import enthaelt keinen gueltigen Namen.',
+            message: 'Profil-Import enthält keinen gültigen Namen.',
         });
     }
 

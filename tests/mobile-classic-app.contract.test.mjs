@@ -1345,7 +1345,7 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   assert.match(mobileClassicUpdateUi, /mobile-classic-update-check/);
   assert.match(mobileClassicUpdateUi, /checkMobileClassicGithubRelease/);
   assert.match(mobileClassicUpdateUi, /mobile-classic\.manifest\.json/);
-  assert.doesNotMatch(mobileClassicMenuUi, /Freier Flug fuer den schnellen Start/);
+  assert.doesNotMatch(mobileClassicMenuUi, /Freier Flug für den schnellen Start/);
   assert.doesNotMatch(mobileClassicMenuUi, /Zeitroute mit Ghost-Selbstduell/);
   assert.doesNotMatch(mobileClassicMenuUi, /mobile-android-route-panel/);
   assert.doesNotMatch(mobileClassicMenuUi, /mobileRouteKey|dispatchMapSelectChange/);

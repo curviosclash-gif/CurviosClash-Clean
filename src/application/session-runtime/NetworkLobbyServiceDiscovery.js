@@ -53,7 +53,7 @@ export async function resolveDefaultJoinSignalingUrl({
         }
         setJoinDiscoveryIssue(
             'manual_signaling_url_invalid',
-            'Host-Adresse ungueltig. Bitte Host:Port verwenden, z. B. localhost:9090.',
+            'Host-Adresse ungültig. Bitte Host:Port verwenden, z. B. localhost:9090.',
             { rawValue: rawExplicitUrl }
         );
         return '';

@@ -274,7 +274,7 @@ class VehicleLabApp {
             if (this.selectedIndex === null) return;
             this.syncGizmoToConfig();
             this.updateArcadeBlueprintStatus();
-            this.persistCurrentConfig('Gizmo-Aenderung gespeichert.');
+            this.persistCurrentConfig('Gizmo-Änderung gespeichert.');
             this.markSceneMetricsDirty();
             const part = this.resolveSelectedPart();
             if (part) {
@@ -1124,8 +1124,8 @@ class VehicleLabApp {
                 const existing = findVehicleLabHangarPublication(currentPublicationRecord, publication.vehicleId);
                 if (existing && existing.label !== publication.label) {
                     const confirmed = await this.ui.requestDialog({
-                        title: 'Bereits veroeffentlicht',
-                        message: `Unter diesem Schluessel liegt bereits „${existing.label}" im Hangar. Ersetzen?`,
+                        title: 'Bereits veröffentlicht',
+                        message: `Unter diesem Schlüssel liegt bereits „${existing.label}" im Hangar. Ersetzen?`,
                         confirmLabel: 'Ersetzen',
                         danger: true,
                     });
@@ -1307,7 +1307,7 @@ class VehicleLabApp {
             this.selectPart(null);
             this.updateUI();
         } else {
-            this.setStatus('Keine Undo-Schritte verfuegbar.', 'warning');
+            this.setStatus('Keine Undo-Schritte verfügbar.', 'warning');
         }
     }
 
@@ -1325,7 +1325,7 @@ class VehicleLabApp {
             this.selectPart(null);
             this.updateUI();
         } else {
-            this.setStatus('Keine Redo-Schritte verfuegbar.', 'warning');
+            this.setStatus('Keine Redo-Schritte verfügbar.', 'warning');
         }
     }
 

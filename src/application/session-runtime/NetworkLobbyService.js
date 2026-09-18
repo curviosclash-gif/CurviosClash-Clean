@@ -400,7 +400,7 @@ export class NetworkLobbyService {
                 lobbyCode: updatedSessionState.lobbyCode,
                 peerId: updatedSessionState.peerId,
             });
-            this._setStatus('Ready-Status zurueckgesetzt (Host-Aenderung)');
+            this._setStatus('Ready-Status zurückgesetzt (Host-Änderung)');
             return {
                 ok: true,
                 event,

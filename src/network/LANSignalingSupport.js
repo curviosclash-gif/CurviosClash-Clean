@@ -22,25 +22,25 @@ export function buildLanRequestError({
     } else if (signalingCode === 'lobby_not_found') {
         message = 'Lobby nicht gefunden.';
     } else if (signalingCode === 'host_required') {
-        message = 'Nur der Host darf diese Aktion ausfuehren.';
+        message = 'Nur der Host darf diese Aktion ausführen.';
     } else if (signalingCode === 'host_auth_failed') {
         message = 'Host-Autorisierung fehlgeschlagen.';
     } else if (signalingCode === 'player_auth_failed') {
         message = 'Spieler-Autorisierung fehlgeschlagen.';
     } else if (signalingCode === 'members_not_ready') {
-        message = 'Alle Teilnehmer muessen Ready sein.';
+        message = 'Alle Teilnehmer müssen Ready sein.';
     } else if (signalingCode === 'settings_revision_mismatch') {
         message = 'Match-Einstellungen wurden geändert. Bitte erneut bereit werden.';
     } else if (signalingCode === 'not_enough_members') {
-        message = 'Mindestens zwei Teilnehmer werden benoetigt.';
+        message = 'Mindestens zwei Teilnehmer werden benötigt.';
     } else if (signalingCode === 'mobile_protocol_incompatible') {
-        message = 'Die Lobby verwendet eine nicht unterstuetzte Multiplayer-Version.';
+        message = 'Die Lobby verwendet eine nicht unterstützte Multiplayer-Version.';
     } else if (signalingCode === 'mobile_mode_incompatible') {
-        message = 'Android-Crossplay unterstuetzt derzeit nur Normal / Classic ueber LAN.';
+        message = 'Android-Crossplay unterstützt derzeit nur Normal / Classic über LAN.';
     } else if (signalingCode === 'mobile_map_incompatible') {
-        message = 'Die Host-Karte ist in der Android-App nicht fuer Crossplay freigegeben.';
+        message = 'Die Host-Karte ist in der Android-App nicht für Crossplay freigegeben.';
     } else if (signalingCode === 'mobile_settings_mismatch') {
-        message = 'Die Host-Einstellungen haben sich nach dem Ready-Status geaendert.';
+        message = 'Die Host-Einstellungen haben sich nach dem Ready-Status geändert.';
     } else if (responseCode > 0) {
         message = `${fallbackMessage} (${responseCode})`;
     }

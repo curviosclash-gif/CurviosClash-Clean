@@ -302,7 +302,7 @@ export class UIStartSyncController {
     showStartValidationError(issue, options = {}) {
         const normalizedIssue = issue && typeof issue === 'object' ? issue : {};
         this._startValidationIssue = {
-            message: String(normalizedIssue.message || 'Start nicht moeglich.').trim(),
+            message: String(normalizedIssue.message || 'Start nicht möglich.').trim(),
             fieldKey: String(normalizedIssue.fieldKey || '').trim(),
             fieldMessage: String(normalizedIssue.fieldMessage || '').trim(),
         };

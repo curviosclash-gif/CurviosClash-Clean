@@ -208,7 +208,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ]
     },
     pillar_hall: {
-        name: 'Saeulen-Halle',
+        name: 'Säulen-Halle',
         size: [100, 30, 100],
         obstacles: [
             { pos: [-30, 15, -30], size: [4, 30, 4] }, { pos: [-30, 15, 0], size: [4, 30, 4] }, { pos: [-30, 15, 30], size: [4, 30, 4] },

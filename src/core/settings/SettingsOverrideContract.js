@@ -48,7 +48,7 @@ const SUPPORTED_LANGUAGES = new Set(['de', 'en']);
 
 const FIELD_HELP_METADATA = Object.freeze({
     ...BOT_HEURISTIC_FIELD_HELP_METADATA,
-    'baseSettings.gameplay.trailLength': Object.freeze({ riskLevel: 'medium', unit: 'segments', example: '5000', help: { de: 'Maximale Segmentanzahl der Kursspur.', en: 'Maximum segment count of each flight trail.' }, impact: { de: 'Hoehere Werte verlaengern die Spur, erhoehen aber Speicher-, GPU- und Kollisionskosten.', en: 'Higher values make trails longer, but increase memory, GPU, and collision cost.' } }),
+    'baseSettings.gameplay.trailLength': Object.freeze({ riskLevel: 'medium', unit: 'segments', example: '5000', help: { de: 'Maximale Segmentanzahl der Kursspur.', en: 'Maximum segment count of each flight trail.' }, impact: { de: 'Höhere Werte verlängern die Spur, erhöhen aber Speicher-, GPU- und Kollisionskosten.', en: 'Higher values make trails longer, but increase memory, GPU, and collision cost.' } }),
     'baseSettings.numBots': Object.freeze({ riskLevel: 'low', unit: null, example: '3', help: { de: 'Anzahl der KI-Gegner pro Match.', en: 'Number of AI opponents per match.' }, impact: { de: 'Mehr Bots erzeugen mehr Spielaktion, erhöhen aber den Rechenaufwand.', en: 'More bots create more action, but increase CPU load.' } }),
     'baseSettings.winsNeeded': Object.freeze({ riskLevel: 'low', unit: null, example: '3', help: { de: 'Rundensiege, die zum Matchgewinn benötigt werden.', en: 'Round wins needed to win the match.' }, impact: { de: 'Bestimmt die Matchlänge direkt.', en: 'Directly determines match length.' } }),
     'baseSettings.gameplay.speed': Object.freeze({ riskLevel: 'medium', unit: null, example: '21', help: { de: 'Grundgeschwindigkeit der Flugzeuge.', en: 'Base flight speed of the planes.' }, impact: { de: 'Beeinflusst Schwierigkeit und Reaktionszeit stark. Extreme Werte können das Spiel unspielbar machen.', en: 'Strongly affects difficulty and reaction time. Extreme values may make the game unplayable.' } }),
@@ -359,7 +359,7 @@ export function validateSettingsOverrideDraft(candidateDraft) {
         if (field.type === 'number') {
             const asNumber = toFiniteNumber(value, null);
             if (!Number.isFinite(asNumber)) {
-                errors.push(createError(field.path, 'FIELD_NUMBER_INVALID', `Zahl erwartet fuer ${field.path}.`));
+                errors.push(createError(field.path, 'FIELD_NUMBER_INVALID', `Zahl erwartet für ${field.path}.`));
                 continue;
             }
 
@@ -384,7 +384,7 @@ export function validateSettingsOverrideDraft(candidateDraft) {
                 errors.push(createError(
                     field.path,
                     'FIELD_NUMBER_ABOVE_MAX',
-                    `${field.path} liegt ueber max (${asNumber} > ${limits.max}).`
+                    `${field.path} liegt über max (${asNumber} > ${limits.max}).`
                 ));
             }
 
@@ -414,19 +414,19 @@ export function validateSettingsOverrideDraft(candidateDraft) {
                 errors.push(createError(
                     field.path,
                     'FIELD_ENUM_INVALID',
-                    `${field.path} enthaelt einen unbekannten Enum-Wert.`
+                    `${field.path} enthält einen unbekannten Enum-Wert.`
                 ));
             }
             continue;
         }
 
         if (field.type === 'boolean' && typeof value !== 'boolean') {
-            errors.push(createError(field.path, 'FIELD_BOOLEAN_INVALID', `Boolean erwartet fuer ${field.path}.`));
+            errors.push(createError(field.path, 'FIELD_BOOLEAN_INVALID', `Boolean erwartet für ${field.path}.`));
             continue;
         }
 
         if (field.type === 'string' && typeof value !== 'string') {
-            errors.push(createError(field.path, 'FIELD_STRING_INVALID', `String erwartet fuer ${field.path}.`));
+            errors.push(createError(field.path, 'FIELD_STRING_INVALID', `String erwartet für ${field.path}.`));
             continue;
         }
 
@@ -434,7 +434,7 @@ export function validateSettingsOverrideDraft(candidateDraft) {
             errors.push(createError(
                 field.path,
                 'FIELD_ENUM_INVALID',
-                `${field.path} enthaelt einen unbekannten Enum-Wert.`
+                `${field.path} enthält einen unbekannten Enum-Wert.`
             ));
         }
     }

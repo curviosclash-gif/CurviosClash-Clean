@@ -117,7 +117,7 @@ export class TouchButtonStateSync {
         this.apply('useItem', buttonEls.useItem, !!actionState?.canUseNow, true,
             this.resolveUseItemTitle(actionState), controlsVisible);
         this.apply('nextItem', buttonEls.nextItem, !!actionState?.canCycle, true,
-            actionState?.canCycle ? 'Naechstes Inventar-Item' : 'Kein weiteres Inventar-Item',
+            actionState?.canCycle ? 'Nächstes Inventar-Item' : 'Kein weiteres Inventar-Item',
             controlsVisible);
         this.apply('shootMG', buttonEls.shootMG, !!actionState?.showMg, !!actionState?.showMg,
             actionState?.showMg ? 'Maschinengewehr' : '', controlsVisible);

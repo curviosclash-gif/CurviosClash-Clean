@@ -7,13 +7,13 @@ import { resolveMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 function resolveDeveloperFailureMessage(result, fallbackMessage) {
     switch (result?.reason) {
     case 'owner_required':
-        return 'Nur der Host darf diese Einstellung aendern.';
+        return 'Nur der Host darf diese Einstellung ändern.';
     case 'hidden_for_player':
-        return 'Diese Einstellung ist fuer Mitspieler ausgeblendet.';
+        return 'Diese Einstellung ist für Mitspieler ausgeblendet.';
     case 'expert_login_required':
         return 'Expertenmodus ist gesperrt.';
     case 'expert_surface_policy':
-        return 'Expertenmodus ist auf dieser Surface nicht verfuegbar.';
+        return 'Expertenmodus ist auf dieser Surface nicht verfügbar.';
     case 'locked':
         return 'Developer-Funktion ist derzeit gesperrt.';
     case 'unknown_text_id':
@@ -168,11 +168,11 @@ export function handleDeveloperTextOverrideClearAction(ctx) {
     }
     const result = game.settingsManager.clearMenuTextOverride(textId);
     if (!result.success) {
-        game._showStatusToast(resolveDeveloperFailureMessage(result, 'Text-Override konnte nicht geloescht werden.'), 1700, 'error');
+        game._showStatusToast(resolveDeveloperFailureMessage(result, 'Text-Override konnte nicht gelöscht werden.'), 1700, 'error');
         return;
     }
     onSettingsChanged({
         changedKeys: resolveMutationChangedKeys(result, [SETTINGS_CHANGE_KEYS.DEVELOPER_TEXT_OVERRIDES]),
     });
-    game._showStatusToast('Text-Override geloescht.', 1200, 'success');
+    game._showStatusToast('Text-Override gelöscht.', 1200, 'success');
 }

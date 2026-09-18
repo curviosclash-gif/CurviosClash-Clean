@@ -152,7 +152,7 @@ export function telegraphEndlessSpawn(runtime, slotState, options = {}) {
     };
     runtime.audio?.play?.(elite ? 'FIGHT_LEAD' : 'PARCOURS_BRANCH');
     if (elite) {
-        runtime.entityManager?._notifyPlayerFeedback?.(human, 'Anfuehrer im Anflug');
+        runtime.entityManager?._notifyPlayerFeedback?.(human, 'Anführer im Anflug');
     }
     return true;
 }

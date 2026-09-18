@@ -198,7 +198,7 @@ export function createMultiplayerPanel(ctx) {
         });
         root.appendChild(joinBtn);
 
-        const backBtn = createButton('nav-btn mp-back-btn', t('menu.multiplayer.lobby.back', 'Zurueck'), () => {
+        const backBtn = createButton('nav-btn mp-back-btn', t('menu.multiplayer.lobby.back', 'Zurück'), () => {
             if (onNavigateBack) onNavigateBack();
         });
         root.appendChild(backBtn);
@@ -227,7 +227,7 @@ export function createMultiplayerPanel(ctx) {
         const submitBtn = createButton('nav-btn mp-join-submit-btn', t('menu.multiplayer.join.label', 'Spiel beitreten'), handleJoinSubmit);
         root.appendChild(submitBtn);
 
-        const backBtn = createButton('nav-btn mp-back-btn', t('menu.multiplayer.lobby.back', 'Zurueck'), () => {
+        const backBtn = createButton('nav-btn mp-back-btn', t('menu.multiplayer.lobby.back', 'Zurück'), () => {
             switchView(PANEL_VIEW.MENU);
         });
         root.appendChild(backBtn);
@@ -294,7 +294,7 @@ export function createMultiplayerPanel(ctx) {
         });
         root.appendChild(manualBtn);
 
-        const backBtn = createButton('nav-btn mp-back-btn', t('menu.multiplayer.lobby.back', 'Zurueck'), () => {
+        const backBtn = createButton('nav-btn mp-back-btn', t('menu.multiplayer.lobby.back', 'Zurück'), () => {
             stopDiscovery();
             switchView(PANEL_VIEW.MENU);
         });

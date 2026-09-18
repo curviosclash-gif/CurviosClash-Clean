@@ -64,7 +64,7 @@ export function setupMenuDevPanelBindings(ctx) {
             const presetId = String(ui.presetSelect?.value || '').trim();
             if (!presetId) {
                 emit(eventTypes.SHOW_STATUS_TOAST, {
-                    message: 'Kein Preset zum Loeschen ausgewaehlt.',
+                    message: 'Kein Preset zum Löschen ausgewählt.',
                     tone: 'error',
                     duration: 1700,
                 });

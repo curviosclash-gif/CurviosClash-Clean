@@ -45,12 +45,12 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     const itemPreview = rocketOnly
         ? (rocketType
             ? buildGameplayActionResult({ ok: true, code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_SUCCESS, type: rocketType })
-            : failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY, 'Keine Rakete verfuegbar'))
+            : failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY, 'Keine Rakete verfügbar'))
         : system.peekInventoryItem(player, preferredIndex, 'shoot');
     if (!itemPreview?.ok) {
         return failed(
             itemPreview?.code || GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
-            itemPreview?.reason || 'Kein Item verfuegbar',
+            itemPreview?.reason || 'Kein Item verfügbar',
             itemPreview?.type || null
         );
     }
@@ -65,7 +65,7 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     const type = itemPreview.type;
     const power = config.POWERUP.TYPES[type];
     if (!power) {
-        return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_INVALID_TYPE, 'Item ungueltig', type);
+        return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_INVALID_TYPE, 'Item ungültig', type);
     }
     const rocketParams = strategy?.resolveRocketProjectileParams(type, config) || null;
     const huntRocket = !!rocketParams;
@@ -178,7 +178,7 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         ? { ok: rocketInventory.splice(rocketIndex, 1)[0] === rocketType, type: rocketType }
         : system.takeInventoryItem(player, preferredIndex, 'shoot');
     if (!itemResult.ok) {
-        return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY, 'Kein Item verfuegbar', type);
+        return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY, 'Kein Item verfügbar', type);
     }
 
     player.shootCooldown = config.PROJECTILE.COOLDOWN;

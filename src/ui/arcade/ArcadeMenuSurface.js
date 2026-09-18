@@ -290,10 +290,10 @@ export function setupArcadeMenuSurface(ctx = {}) {
             refs.replayButton.textContent = 'Replay exportieren';
             refs.replayButton.title = replayState.payloadAvailable === true
                 ? 'Aufzeichnung des letzten Runs'
-                : 'Noch kein Replay verfuegbar';
+                : 'Noch kein Replay verfügbar';
         } else {
             refs.replayButton.disabled = true;
-            refs.replayButton.title = 'Noch kein Replay verfuegbar';
+            refs.replayButton.title = 'Noch kein Replay verfügbar';
         }
 
         const profile = resolveVehicleMasteryProfile(runtimeAccess, vehicleId);
@@ -422,7 +422,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         applySeedToSettings(activeSeed, { dailyChallenge: false });
         sync();
         emit(eventTypes.SHOW_STATUS_TOAST, {
-            message: `${t('menu.arcade.seed.applied.toast', 'Seed uebernommen')}: ${activeSeed}`,
+            message: `${t('menu.arcade.seed.applied.toast', 'Seed übernommen')}: ${activeSeed}`,
             tone: 'info',
             duration: 1300,
         });
@@ -454,7 +454,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
             showToast(runtimeAccess, t('menu.arcade.postrun.replay.toast.disabled', 'Replay ist deaktiviert.'), 'warning', 1300);
             return;
         }
-        showToast(runtimeAccess, t('menu.arcade.postrun.replay.toast.empty', 'Kein Replay verfuegbar.'), 'info', 1200);
+        showToast(runtimeAccess, t('menu.arcade.postrun.replay.toast.empty', 'Kein Replay verfügbar.'), 'info', 1200);
     });
 
     bind(refs.dailyButton, 'click', () => {

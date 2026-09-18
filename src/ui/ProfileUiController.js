@@ -289,7 +289,7 @@ export class ProfileUiController {
         }
         this.syncProfileControls();
 
-        this._showStatusToast(`Profil geloescht: ${result.removedName}`, 1400, 'success');
+        this._showStatusToast(`Profil gelöscht: ${result.removedName}`, 1400, 'success');
         return true;
     }
 }

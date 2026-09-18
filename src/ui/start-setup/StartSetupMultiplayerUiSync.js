@@ -355,8 +355,8 @@ export function syncStartSetupMultiplayerUi({
         ui.multiplayerHostAddressInput.disabled = !isMultiplayerSession || !isLanTransportSelected;
         ui.multiplayerHostAddressInput.readOnly = hasActiveLobbySession;
         ui.multiplayerHostAddressInput.title = hasActiveLobbySession
-            ? 'Host-Adresse ist fuer die aktive Session festgelegt.'
-            : (isLanTransportSelected ? '' : 'Host-Adresse wird nur fuer LAN-Join verwendet.');
+            ? 'Host-Adresse ist für die aktive Session festgelegt.'
+            : (isLanTransportSelected ? '' : 'Host-Adresse wird nur für LAN-Join verwendet.');
     }
     if (ui.multiplayerManualAddress) {
         const showManualAddress = isMultiplayerSession
@@ -420,8 +420,8 @@ export function syncStartSetupMultiplayerUi({
             ? 'Das Startsignal wurde an die Lobby gesendet.'
             : (isHost
                 ? (resolvedMultiplayerSessionState?.memberCount < 2
-                    ? 'Mindestens ein weiterer Teilnehmer wird benoetigt.'
-                    : 'Alle Clients muessen bereit sein.')
+                    ? 'Mindestens ein weiterer Teilnehmer wird benötigt.'
+                    : 'Alle Clients müssen bereit sein.')
                 : 'Der Host startet das Match.');
     }
     renderMultiplayerMembers(ui, resolvedMultiplayerSessionState, hasActiveLobbySession);
@@ -449,7 +449,7 @@ export function syncStartSetupMultiplayerUi({
                 ? `Lobbystatus: ${lobbyCode} | ${sessionContract.transportAudienceLabel}`
                 : 'Lobbystatus: Legacy-Fallback aktiv | lokaler Menu-Bridge-Pfad, kein produktives LAN/Online';
         } else if (multiplayerTransportUiState.isOnlineUnconfigured) {
-            ui.multiplayerLobbyState.textContent = 'Lobbystatus: Online ausgewaehlt | nicht konfiguriert, bitte LAN verwenden';
+            ui.multiplayerLobbyState.textContent = 'Lobbystatus: Online ausgewählt | nicht konfiguriert, bitte LAN verwenden';
         } else if (lobbyCode) {
             ui.multiplayerLobbyState.textContent = `Lobbystatus: ${lobbyCode} | ${surfaceEntryCopy.joinButtonLabel} noch nicht verbunden`;
         } else {

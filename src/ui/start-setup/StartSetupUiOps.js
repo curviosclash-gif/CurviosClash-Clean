@@ -69,7 +69,7 @@ export function humanizePreviewCategory(value) {
     const normalized = String(value || '').trim().toLowerCase();
     if (normalized === 'small') return 'Kompakt';
     if (normalized === 'medium') return 'Mittel';
-    if (normalized === 'large') return 'Gross';
+    if (normalized === 'large') return 'Groß';
     if (normalized === 'light') return 'Leicht';
     if (normalized === 'heavy') return 'Schwer';
     return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'Standard';

@@ -301,7 +301,7 @@ function renderOpenLobbyOptions(game, lobbies = []) {
     const placeholder = doc.createElement('option');
     placeholder.value = '';
     placeholder.textContent = lobbies.length > 0
-        ? 'Offene Lobby auswaehlen'
+        ? 'Offene Lobby auswählen'
         : 'Keine offenen Lobbys gefunden';
     const options = [placeholder, ...lobbies.map((lobby) => {
         const option = doc.createElement('option');
@@ -332,7 +332,7 @@ export async function handleMultiplayerLobbyListRefreshAction({
         MULTIPLAYER_TRANSPORTS.LAN
     );
     if (typeof menuMultiplayerBridge?.listOpenLobbies !== 'function') {
-        return { ok: false, message: 'Die Lobby-Suche ist nicht verfuegbar.' };
+        return { ok: false, message: 'Die Lobby-Suche ist nicht verfügbar.' };
     }
 
     const refreshButton = game.ui?.multiplayerOpenLobbiesRefreshButton;
@@ -386,8 +386,8 @@ export async function handleMultiplayerHostAction({
     const hostGate = resolveSurfaceMultiplayerGateAccess('host', resolveSurfaceResolverOptions());
     if (!hostGate.allowed) {
         finishPendingAction();
-        setMultiplayerStatus(game, hostGate.message || 'Hosting ist nicht verfuegbar.');
-        game._showStatusToast(hostGate.message || 'Hosting ist nicht verfuegbar.', hostGate.durationMs || 1800, 'error');
+        setMultiplayerStatus(game, hostGate.message || 'Hosting ist nicht verfügbar.');
+        game._showStatusToast(hostGate.message || 'Hosting ist nicht verfügbar.', hostGate.durationMs || 1800, 'error');
         return { ok: false, message: hostGate.message, reason: hostGate.reason };
     }
     const accessContext = resolveMenuAccessContext?.(); const profile = game?.playerProfileManager?.getActiveProfile?.(); const settingsSnapshot = captureSettingsSnapshot?.();

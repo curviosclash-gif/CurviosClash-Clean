@@ -308,7 +308,7 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
         } catch {
             renderer = null;
             controls = null;
-            setStatus('fallback', '3D-Preview aktuell nicht verfuegbar.');
+            setStatus('fallback', '3D-Preview aktuell nicht verfügbar.');
         }
     }
 

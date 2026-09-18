@@ -14,7 +14,7 @@ function resolveEntryAssetState(editor, entry) {
         return {
             state: 'builtin',
             label: 'Direkt',
-            detail: 'Keine externe Asset-Datei noetig.'
+            detail: 'Keine externe Asset-Datei nötig.'
         };
     }
 
@@ -40,8 +40,8 @@ function resolveEntryAssetState(editor, entry) {
     if (status.state === 'loading') {
         return {
             state: 'loading',
-            label: 'Laedt',
-            detail: 'Asset wird geladen, Platzierung bleibt moeglich.'
+            label: 'Lädt',
+            detail: 'Asset wird geladen, Platzierung bleibt möglich.'
         };
     }
 
@@ -67,14 +67,14 @@ function resolveEntryAssetState(editor, entry) {
             label: 'Fallback',
             detail: status.reason === 'missing'
                 ? 'Asset noch nicht im Cache, Platzierung nutzt Placeholder.'
-                : 'Asset wird ueber Placeholder abgesichert.'
+                : 'Asset wird über Placeholder abgesichert.'
         };
     }
 
     return {
         state: 'placeholder',
         label: 'Fallback',
-        detail: 'Assetstatus unbekannt, Fallback bleibt waehlbar.'
+        detail: 'Assetstatus unbekannt, Fallback bleibt wählbar.'
     };
 }
 
@@ -94,7 +94,7 @@ function createEntryButton(entry, options = {}) {
     const assetState = options.assetState || {
         state: 'builtin',
         label: 'Direkt',
-        detail: 'Keine externe Asset-Datei noetig.'
+        detail: 'Keine externe Asset-Datei nötig.'
     };
     button.type = 'button';
     button.dataset.entryId = entry.id;
@@ -212,7 +212,7 @@ function updateSummaryViews(dom, snapshot) {
         : (activeEntry?.label || 'Build-Dock');
     const description = isSelectionMode
         ? `Letzte Baukarte: ${activeEntry?.label || 'keine'}. Rechts eine Karte anklicken und dann in die Szene klicken.`
-        : `${activeEntry?.description || 'Objekt platzieren.'} ${snapshot.assetState?.detail || 'Klick in die Szene, um die Platzierung auszufuehren.'}`;
+        : `${activeEntry?.description || 'Objekt platzieren.'} ${snapshot.assetState?.detail || 'Klick in die Szene, um die Platzierung auszuführen.'}`;
     const badgeText = isSelectionMode ? 'Auswahl' : 'Bau-Modus';
 
     if (dom.inspectorToolModeBadge) dom.inspectorToolModeBadge.textContent = badgeText;
@@ -321,7 +321,7 @@ export function bindEditorToolPaletteControls(editor) {
 
         if (dom.btnDockFavoriteToggle) {
             const favoriteActive = !!activeEntry && snapshot.favoriteEntries.some((entry) => entry.id === activeEntry.id);
-            dom.btnDockFavoriteToggle.textContent = favoriteActive ? 'Favorit loesen' : 'Favorit merken';
+            dom.btnDockFavoriteToggle.textContent = favoriteActive ? 'Favorit lösen' : 'Favorit merken';
             dom.btnDockFavoriteToggle.classList.toggle('active', favoriteActive);
             dom.btnDockFavoriteToggle.disabled = !activeEntry;
         }

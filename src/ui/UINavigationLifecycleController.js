@@ -470,7 +470,7 @@ export class UINavigationLifecycleController {
         this._syncMenuChromeState(activeSubmenu || null);
         const section = this._getMenuSectionLabel(activeSubmenu);
         const activeProfile = this._resolveActiveProfileName();
-        const dirtyState = this._isSettingsDirty() ? 'ungespeicherte Aenderungen' : 'alles gespeichert';
+        const dirtyState = this._isSettingsDirty() ? 'ungespeicherte Änderungen' : 'alles gespeichert';
         const sessionType = String(
             resolvedContext?.surfaceMenuState?.sessionType
             || settings?.localSettings?.sessionType
@@ -538,7 +538,7 @@ export class UINavigationLifecycleController {
 
     _getMenuSectionLabel(panelId) {
         const manager = this.manager;
-        if (!panelId) return 'Hauptmenue';
+        if (!panelId) return 'Hauptmenü';
         const registeredPanel = manager.menuPanelRegistry.getPanelById(panelId);
         if (registeredPanel?.label) {
             return String(registeredPanel.label).replace(/\s+/g, ' ').trim();
@@ -548,7 +548,7 @@ export class UINavigationLifecycleController {
             return (linkedButton.textContent || '').replace(/\s+/g, ' ').trim();
         }
         const panelTitle = document.querySelector(`#${panelId} .submenu-title`);
-        return (panelTitle?.textContent || 'Untermenue').replace(/\s+/g, ' ').trim();
+        return (panelTitle?.textContent || 'Untermenü').replace(/\s+/g, ' ').trim();
     }
 
     // ------------------------------------------------------------------

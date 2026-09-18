@@ -17,11 +17,11 @@ import { resolveMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 function resolvePresetFailureMessage(result, fallbackMessage) {
     switch (result?.reason) {
     case 'invalid_preset_id':
-        return 'Preset-ID ist ungueltig.';
+        return 'Preset-ID ist ungültig.';
     case 'preset_not_found':
         return 'Preset wurde nicht gefunden.';
     case 'owner_required':
-        return 'Nur der Host darf dieses Preset veraendern.';
+        return 'Nur der Host darf dieses Preset verändern.';
     default:
         return fallbackMessage;
     }
@@ -140,7 +140,7 @@ export function applyMenuPresetAction({
     onSettingsChanged?.({ changedKeys });
 
     if (result.blockedPaths?.length > 0) {
-        game._showStatusToast('Preset teilweise angewendet (Host-Felder blieben unveraendert).', 1900, 'info');
+        game._showStatusToast('Preset teilweise angewendet (Host-Felder blieben unverändert).', 1900, 'info');
         return;
     }
     game._showStatusToast(`Preset geladen: ${presetId}`, 1300, 'success');
@@ -188,12 +188,12 @@ export function deleteMenuPresetAction({
 }) {
     if (!game) return;
     if (!presetId) {
-        game._showStatusToast('Kein Preset ausgewaehlt.', 1500, 'error');
+        game._showStatusToast('Kein Preset ausgewählt.', 1500, 'error');
         return;
     }
     const result = game.settingsManager.deleteMenuPreset(presetId, game.settings, resolveMenuAccessContext?.());
     if (!result.success) {
-        game._showStatusToast(resolvePresetFailureMessage(result, 'Preset konnte nicht geloescht werden.'), 1700, 'error');
+        game._showStatusToast(resolvePresetFailureMessage(result, 'Preset konnte nicht gelöscht werden.'), 1700, 'error');
         return;
     }
     onSettingsChanged?.({
@@ -202,5 +202,5 @@ export function deleteMenuPresetAction({
                 settingsChangeKeys.PRESET_STATUS,
             ]),
     });
-    game._showStatusToast(`Preset geloescht: ${presetId}`, 1200, 'success');
+    game._showStatusToast(`Preset gelöscht: ${presetId}`, 1200, 'success');
 }

@@ -265,7 +265,7 @@ export function renderParameterList({
     container.innerHTML = '';
 
     if (!Array.isArray(descriptors) || descriptors.length === 0) {
-        const emptyState = createElement('div', 'empty-state', 'Keine Parameter fuer diesen Filter gefunden.');
+        const emptyState = createElement('div', 'empty-state', 'Keine Parameter für diesen Filter gefunden.');
         container.appendChild(emptyState);
         return;
     }

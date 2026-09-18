@@ -162,8 +162,8 @@ export function undoHistory(editor) {
         const changed = editor.commandHistory.undo();
         if (changed) {
             editor.authoringTelemetry?.recordCounter?.('undo');
-            if (typeof editor.reconcileDirtyState === 'function') editor.reconcileDirtyState('Undo ausgefuehrt.');
-            else editor.markDirty?.('Undo ausgefuehrt.');
+            if (typeof editor.reconcileDirtyState === 'function') editor.reconcileDirtyState('Undo ausgeführt.');
+            else editor.markDirty?.('Undo ausgeführt.');
         }
         return changed;
     } catch (error) {
@@ -178,8 +178,8 @@ export function redoHistory(editor) {
         const changed = editor.commandHistory.redo();
         if (changed) {
             editor.authoringTelemetry?.recordCounter?.('redo');
-            if (typeof editor.reconcileDirtyState === 'function') editor.reconcileDirtyState('Redo ausgefuehrt.');
-            else editor.markDirty?.('Redo ausgefuehrt.');
+            if (typeof editor.reconcileDirtyState === 'function') editor.reconcileDirtyState('Redo ausgeführt.');
+            else editor.markDirty?.('Redo ausgeführt.');
         }
         return changed;
     } catch (error) {

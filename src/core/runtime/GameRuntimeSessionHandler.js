@@ -246,7 +246,7 @@ export class GameRuntimeSessionHandler {
             }
             const startResult = this._matchStartRuntime.executeSafely();
             if (startResult === undefined || startResult === null) {
-                facade?.game?._showStatusToast?.('Start nicht moeglich: Match-Controller nicht verfuegbar.', 2000, 'error');
+                facade?.game?._showStatusToast?.('Start nicht möglich: Match-Controller nicht verfügbar.', 2000, 'error');
                 return false;
             }
             if (typeof startResult.then === 'function') {

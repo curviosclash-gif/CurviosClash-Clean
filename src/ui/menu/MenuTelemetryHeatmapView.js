@@ -187,7 +187,7 @@ export function renderTelemetryHeatmapSection(container, topMaps, options = {}) 
 
     const title = document.createElement('h3');
     title.className = 'developer-telemetry-title';
-    title.textContent = String(options.title || 'Haeufungspunkte (Draufsicht)');
+    title.textContent = String(options.title || 'Häufungspunkte (Draufsicht)');
     section.appendChild(title);
 
     if (renderable.length === 0) {

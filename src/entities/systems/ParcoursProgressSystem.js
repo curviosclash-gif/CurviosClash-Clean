@@ -246,10 +246,10 @@ export class ParcoursProgressSystem {
         if (this._route.rules.resetToLastValid) {
             rewindParcoursProgressState(state, this._route, {
                 now: this.nowProvider(),
-                errorMessage: 'Rueckfall auf letzten Checkpoint',
+                errorMessage: 'Rückfall auf letzten Checkpoint',
                 setErrorState: this._setErrorState.bind(this),
             });
-            this._notifyPlayer(player, 'Parcours-Rueckfall nach Respawn');
+            this._notifyPlayer(player, 'Parcours-Rückfall nach Respawn');
             this._logRecorderEvent('PARCOURS_RESET', player, `cause=${reason} mode=last-valid`);
         }
     }
@@ -365,10 +365,10 @@ export class ParcoursProgressSystem {
         if (this._route?.rules?.resetToLastValid) {
             rewindParcoursProgressState(state, this._route, {
                 now,
-                errorMessage: 'Segment-Zeit ueberschritten',
+                errorMessage: 'Segment-Zeit überschritten',
                 setErrorState: this._setErrorState.bind(this),
             });
-            this._notifyPlayer(player, 'Segment-Zeitfenster verpasst (Rueckfall)');
+            this._notifyPlayer(player, 'Segment-Zeitfenster verpasst (Rückfall)');
             this._logRecorderEvent('PARCOURS_TIMEOUT', player, 'segment-timeout mode=last-valid');
             this._playProgressAudio('PARCOURS_TIMEOUT', player, { intensity: 0.9 });
             return;
@@ -377,7 +377,7 @@ export class ParcoursProgressSystem {
         resetParcoursProgressState(state, {
             countReset: true,
             preserveCounters: true,
-            errorMessage: 'Segment-Zeit ueberschritten',
+            errorMessage: 'Segment-Zeit überschritten',
             now,
             setErrorState: this._setErrorState.bind(this),
         });

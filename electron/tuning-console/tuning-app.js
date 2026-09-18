@@ -101,7 +101,7 @@ function computeSectionEntries(registry) {
 function updateChangedCount() {
     if (!dom.changedCount) return;
     const changedCount = state.presetManager.getChangedCount(state.valuesByPath, state.defaultsByPath);
-    dom.changedCount.textContent = `${changedCount} geaendert`;
+    dom.changedCount.textContent = `${changedCount} geändert`;
 }
 
 function filterDescriptors() {
@@ -187,7 +187,7 @@ async function handleResetParameter(path) {
 async function handleCapabilityStatus() {
     const result = await tuningApi.getCapability();
     if (!result || result.ok !== true || !result.capability) {
-        setCapabilityMessage('Capability-Status nicht verfuegbar.', 'error');
+        setCapabilityMessage('Capability-Status nicht verfügbar.', 'error');
         return;
     }
     if (result.capability.available !== true) {

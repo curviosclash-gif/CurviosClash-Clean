@@ -653,7 +653,7 @@ export class UIManager {
                 : (sessionState.canStart
                     ? ''
                 : (sessionState.isHost
-                    ? 'Alle Teilnehmer muessen Ready sein und mindestens 2 Spieler verbunden sein.'
+                    ? 'Alle Teilnehmer müssen Ready sein und mindestens 2 Spieler verbunden sein.'
                     : surfaceEntryCopy.multiplayerClientStartTitle));
         }
     }

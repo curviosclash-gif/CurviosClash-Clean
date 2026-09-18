@@ -171,7 +171,7 @@ export const ENDLESS_PARCOURS_MODULE_CATALOG = Object.freeze([
         exitCandidates: FLAT_EXITS,
     }),
     freezeModule({
-        id: 'sprint_shafts', label: 'Sprintschaechte', weight: 4, minimumTier: 3,
+        id: 'sprint_shafts', label: 'Sprintschächte', weight: 4, minimumTier: 3,
         colliders: [
             { x: -17, y: 9, z: 30, sx: 6, sy: 26, sz: 40 },
             { x: 17, y: 9, z: 82, sx: 6, sy: 26, sz: 40 },

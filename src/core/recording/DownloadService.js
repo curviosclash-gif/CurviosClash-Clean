@@ -264,7 +264,7 @@ export async function attemptAutoDownload({
             failureReason: 'surface-policy',
             message: blockedFeatureFeedback.message,
             warnings: [
-                'Video-Export bleibt fuer diese Surface ein future opt-in; Browser- und Disk-Fallbacks bleiben bis zu einem echten Demo-Mehrwert deaktiviert.',
+                'Video-Export bleibt für diese Surface ein future opt-in; Browser- und Disk-Fallbacks bleiben bis zu einem echten Demo-Mehrwert deaktiviert.',
             ],
             surfaceClassification: videoFeatureClassification.classification,
             masterContainer: containers.masterContainer,
@@ -329,7 +329,7 @@ export async function attemptAutoDownload({
             return false;
         }
         if (typeof browserSaveAdapter.saveVideo !== 'function') {
-            pushStatusWarning('Browser-Download-Handler ist nicht verfuegbar; Download-Fallback wurde uebersprungen.');
+            pushStatusWarning('Browser-Download-Handler ist nicht verfügbar; Download-Fallback wurde übersprungen.');
             if (error) {
                 logger?.warn?.(`[DownloadService] recording export fallback unavailable (${reason})`, error);
             }
@@ -375,7 +375,7 @@ export async function attemptAutoDownload({
                     requested: true,
                     transport: 'app',
                     status: 'saved_via_app',
-                    message: 'Recording wurde direkt ueber die Desktop-App gespeichert.',
+                    message: 'Recording wurde direkt über die Desktop-App gespeichert.',
                     warnings: appWarnings,
                     surfaceClassification: videoFeatureClassification.classification,
                     filePath: containers.deliveryPath,
@@ -410,7 +410,7 @@ export async function attemptAutoDownload({
                     failureReason: desktopCancelled ? 'cancelled' : (appResult?.failureReason || 'desktop-save-failed'),
                     message: desktopCancelled
                         ? 'Speicherdialog wurde abgebrochen; es wurde kein Fallback gestartet.'
-                        : 'Desktop-Speichern ist fehlgeschlagen; Browser-Fallback ist fuer dieses Profil nicht erlaubt.',
+                        : 'Desktop-Speichern ist fehlgeschlagen; Browser-Fallback ist für dieses Profil nicht erlaubt.',
                     warnings: [
                         ...statusWarnings,
                         ...(Array.isArray(appResult?.warnings) ? appResult.warnings : []),
@@ -469,10 +469,10 @@ export async function attemptAutoDownload({
             fallbackReason: 'fetch-unavailable',
             failureReason: downloaded ? null : 'fetch-unavailable',
             message: downloaded
-                ? 'Recording wurde als Browser-Download gespeichert, weil keine Disk-API verfuegbar ist.'
+                ? 'Recording wurde als Browser-Download gespeichert, weil keine Disk-API verfügbar ist.'
                 : 'Recording konnte ohne Disk-API auch nicht als Browser-Download gespeichert werden.',
             warnings: withTranscodeDegradationWarning(
-                [...statusWarnings, 'Disk-API ist in dieser Umgebung nicht verfuegbar.']
+                [...statusWarnings, 'Disk-API ist in dieser Umgebung nicht verfügbar.']
             ),
             surfaceClassification: videoFeatureClassification.classification,
             container: containers.deliveryContainer,
@@ -502,7 +502,7 @@ export async function attemptAutoDownload({
                 transport: 'api',
                 status: 'saved_via_api',
                 apiStatus: Number(response.status) || 200,
-                message: 'Recording wurde ueber die lokale Disk-API gespeichert.',
+                message: 'Recording wurde über die lokale Disk-API gespeichert.',
                 warnings: withTranscodeDegradationWarning(statusWarnings),
                 surfaceClassification: videoFeatureClassification.classification,
                 container: containers.deliveryContainer,
@@ -559,7 +559,7 @@ export async function attemptAutoDownload({
             failureReason: downloaded ? null : 'api-throw',
             message: downloaded
                 ? 'Recording wurde als Browser-Download gespeichert, weil die Disk-API nicht erreichbar war.'
-                : 'Recording konnte weder ueber die Disk-API noch als Browser-Download gespeichert werden.',
+                : 'Recording konnte weder über die Disk-API noch als Browser-Download gespeichert werden.',
             warnings: withTranscodeDegradationWarning(
                 [...statusWarnings, 'Disk-API war nicht erreichbar.']
             ),
