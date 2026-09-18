@@ -17,6 +17,7 @@ export function createHuntNetworkState(entityManager) {
             || entityManager._huntScoring?.getScoreboard?.(entityManager.players, { winCondition }) || [],
         killLimit: Math.max(1, Number(entityManager.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT) || 10),
         winCondition,
+        livesRemainingByPlayer: entityManager._respawnSystem?.getLivesRemainingByPlayer?.(entityManager.players) || {},
         ...matchState,
         // Null on every map without destructible geometry, so the block costs nothing there.
         mapDestructibles: entityManager._mapDestructibleSystem?.serializeNetworkState?.() || null,

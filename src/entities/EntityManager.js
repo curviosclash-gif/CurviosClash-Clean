@@ -339,6 +339,7 @@ export class EntityManager {
     }
 
     getHuntRespawnRemainingByPlayer() { return this._respawnSystem.getRemainingByPlayer(); }
+    getHuntLivesRemainingByPlayer() { return this._respawnSystem.getLivesRemainingByPlayer(this.players); }
 
     getParcoursHudState(playerIndex, now = undefined) {
         if (!this._parcoursProgressSystem) return null;

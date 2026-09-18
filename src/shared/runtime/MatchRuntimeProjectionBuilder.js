@@ -199,6 +199,8 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
             deathmatchKillLimit: authoritativeFightState?.killLimit || entityManager?.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,
             winCondition: authoritativeFightState?.winCondition || entityManager?.entityRuntimeConfig?.HUNT?.WIN_CONDITION,
             respawnRemainingByPlayer: entityManager?.getHuntRespawnRemainingByPlayer?.() || {},
+            livesRemainingByPlayer: authoritativeFightState?.livesRemainingByPlayer
+                || entityManager?.getHuntLivesRemainingByPlayer?.() || {},
             scoreboardRows,
             scoreboardSummary: entityManager?.getHuntScoreboardSummary?.(4, scoreboardRows) || '',
             elapsedSeconds: deathmatchState.elapsedSeconds || 0,

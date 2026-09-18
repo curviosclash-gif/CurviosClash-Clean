@@ -50,8 +50,8 @@ export class RoundOutcomeSystem {
     }
 
     getDeathmatchState() {
-        const timeLimitSeconds = normalizeHuntWinCondition(this.getWinCondition()) === HUNT_WIN_CONDITIONS.SCORE_TARGET
-            ? 0 : Math.max(0, Number(this.getDeathmatchTimeLimitSeconds()) || 0);
+        const timeLimitSeconds = normalizeHuntWinCondition(this.getWinCondition()) === HUNT_WIN_CONDITIONS.KILLS_TIME
+            ? Math.max(0, Number(this.getDeathmatchTimeLimitSeconds()) || 0) : 0;
         const elapsedSeconds = Math.max(0, Number(this.getElapsedSeconds()) || 0);
         return {
             elapsedSeconds,
@@ -89,6 +89,16 @@ export class RoundOutcomeSystem {
         }
 
         const combatants = this._getCombatants();
+        if (this.isRespawnEnabled() && normalizeHuntWinCondition(this.getWinCondition()) === HUNT_WIN_CONDITIONS.LAST_ALIVE) {
+            const contenders = combatants.filter((player) => player.alive || this.isRespawnPending(player));
+            const shouldEnd = combatants.length > 1 && contenders.length <= 1;
+            return {
+                shouldEnd,
+                winner: shouldEnd ? (contenders[0] || null) : null,
+                reason: shouldEnd ? 'LAST_ALIVE' : '',
+                parcours: null,
+            };
+        }
         if (this.isRespawnEnabled()) {
             const scoreTarget = normalizeHuntWinCondition(this.getWinCondition()) === HUNT_WIN_CONDITIONS.SCORE_TARGET;
             const killLimit = Math.max(1, Math.trunc(Number(this.getDeathmatchKillLimit()) || 10));
