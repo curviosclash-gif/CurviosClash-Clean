@@ -118,8 +118,10 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
 
     const nextSectorIsParcours = encounterEntry?.parcoursEnabled === true;
     const candidateMaps = mapCatalogKeys.filter((mapKey) => {
-        if (mapKey === baseMapKey) return false;
+        // "custom" is only a slot for a saved editor map; hidden maps belong to their own scenarios.
+        if (mapKey === baseMapKey || mapKey === 'custom') return false;
         const definition = getRuntimeMapDefinition(mapKey, runtimeMapCatalog);
+        if (definition?.hiddenFromMapPicker === true) return false;
         const mapIsParcours = definition?.parcours?.enabled === true;
         return mapIsParcours === nextSectorIsParcours;
     });
