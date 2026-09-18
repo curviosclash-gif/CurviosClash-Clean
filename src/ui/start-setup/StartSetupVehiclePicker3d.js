@@ -2,6 +2,7 @@ import { createVehicleManagerPreview3d } from '../arcade/vehicle-manager/Vehicle
 import { resolveVehicleManagerCatalogEntry } from '../arcade/VehicleManagerCatalog.js';
 import { HANGAR_SELECTION_PLAYER_SLOTS } from '../hangar/HangarSelectionWritebackContract.js';
 import { MENU_SESSION_TYPES } from '../menu/MenuStateContracts.js';
+import { bindChoiceStripKeys } from './ChoiceStripKeys.js';
 
 const PLAYER_COLORS = Object.freeze({
     [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1]: '#66b6ff',
@@ -223,6 +224,7 @@ export function createStartSetupVehiclePicker3d({ ui, listen } = {}) {
         const button = event.target?.closest?.('[data-vehicle-id]');
         if (button) selectVehicle(button.dataset.vehicleId);
     });
+    bindChoiceStripKeys({ strip: ui.vehiclePickerChoiceStrip, datasetKey: 'vehicleId', onChoose: selectVehicle, bind });
     bind(ui.vehiclePickerSection, 'toggle', syncVisibility);
     bind(document, 'visibilitychange', syncVisibility);
 

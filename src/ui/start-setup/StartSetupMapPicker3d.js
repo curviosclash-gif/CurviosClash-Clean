@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { bindChoiceStripKeys } from './ChoiceStripKeys.js';
 
 const FALLBACK_MAP_DEFINITION = Object.freeze({
     size: Object.freeze([80, 30, 80]),
@@ -453,9 +454,7 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
             button.setAttribute('aria-selected', String(selected));
             button.tabIndex = selected ? 0 : -1;
         });
-        const hasAlternatives = options.length > 1;
-        if (ui.mapPickerPreviousButton) ui.mapPickerPreviousButton.disabled = !hasAlternatives;
-        if (ui.mapPickerNextButton) ui.mapPickerNextButton.disabled = !hasAlternatives;
+        [ui.mapPickerPreviousButton, ui.mapPickerNextButton].forEach((button) => { if (button) button.disabled = options.length < 2; });
     }
 
     function sync({ mapKey, maps } = {}) {
@@ -490,6 +489,7 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
         const button = event.target?.closest?.('[data-map-key]');
         if (button) selectMap(button.dataset.mapKey);
     });
+    bindChoiceStripKeys({ strip: ui.mapPickerChoiceStrip, datasetKey: 'mapKey', onChoose: selectMap, bind });
     bind(ui.mapPickerSection, 'toggle', syncVisibility);
     bind(document, 'visibilitychange', syncVisibility);
 
