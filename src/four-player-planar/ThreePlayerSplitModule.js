@@ -43,26 +43,35 @@ export class ThreePlayerSplitModule {
      * @param {any} options.runtimePort
      * @param {any} options.setupView  ThreePlayerSplitSetupView or an object with the same methods
      * @param {any} options.hudView  ThreePlayerSplitHudView or an object with the same methods
-     * @param {Record<string, any>} [options.mapDefinitions]  CONFIG.MAPS, passed in from the composition side
+     * @param {Record<string, any>} [options.mapDefinitions]  fixed map list (tests)
+     * @param {() => Record<string, any>} [options.getMapDefinitions]  current CONFIG.MAPS, passed in from the composition side
      * @param {(index: number) => any} [options.getGamepad]
      */
-    constructor({ runtimePort, setupView, hudView, mapDefinitions = {}, getGamepad = readGamepad }) {
+    constructor({ runtimePort, setupView, hudView, mapDefinitions = {}, getMapDefinitions = null, getGamepad = readGamepad }) {
         this.runtime = runtimePort || null;
         this.setupView = setupView;
         this.hudView = hudView;
-        this.mapDefinitions = mapDefinitions;
+        // Ein Getter statt einer Momentaufnahme: die Kartenliste kann im
+        // Desktop wachsen oder schrumpfen, waehrend das Menue offen ist.
+        this._getMapDefinitions = typeof getMapDefinitions === 'function'
+            ? () => getMapDefinitions() || {}
+            : () => mapDefinitions;
         this.getGamepad = getGamepad;
         this._matchActive = false;
         this._hudTickTimer = 0;
         this._lastHudValues = Array.from({ length: THREE_PLAYER_SPLIT_HUMAN_COUNT }, () => ({}));
     }
 
+    _listMapOptions() {
+        return Object.entries(this._getMapDefinitions())
+            .map(([mapKey, definition]) => ({ value: mapKey, label: resolveMapLabel(mapKey, definition) }));
+    }
+
     mountSetupUi() {
         const mounted = this.setupView.mount({
             keyBindings: THREE_PLAYER_SPLIT_KEY_BINDINGS,
             playerColors: THREE_PLAYER_SPLIT_PLAYER_COLORS,
-            mapOptions: Object.entries(this.mapDefinitions)
-                .map(([mapKey, definition]) => ({ value: mapKey, label: resolveMapLabel(mapKey, definition) })),
+            mapOptions: this._listMapOptions(),
             vehicleOptions: getVehicleIds()
                 .map((vehicleId) => ({ value: vehicleId, label: resolveVehicleLabel(vehicleId) })),
             handlers: {
@@ -109,7 +118,7 @@ export class ThreePlayerSplitModule {
 
     _getEligibleMapKeys(mode) {
         const modePath = mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? 'fight' : 'normal';
-        return new Set(Object.entries(this.mapDefinitions)
+        return new Set(Object.entries(this._getMapDefinitions())
             .filter(([, definition]) => isMapEligibleForModePath(definition, modePath))
             .map(([mapKey]) => mapKey));
     }
@@ -129,6 +138,9 @@ export class ThreePlayerSplitModule {
         if (!this.setupView.isMounted()) return;
         const localSettings = this.runtime?.ensureLocalSettings?.();
         if (localSettings) localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.THREE_PLAYER;
+        // Im Desktop-Editor gespeicherte oder geloeschte Karten nachziehen.
+        this.runtime?.refreshLocalMapCatalog?.();
+        this.setupView.setMapOptions?.(this._listMapOptions());
         this.syncSetupUi();
         this.setupView.openSetup();
     }
