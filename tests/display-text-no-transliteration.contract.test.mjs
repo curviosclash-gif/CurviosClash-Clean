@@ -9,7 +9,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 // Player-facing text lives in these trees; developer logs and errors are exempt.
 const SCANNED_ROOTS = ['src/ui', 'src/core/runtime', 'src/shared', 'src/core/settings', 'src/core/recording'];
 
-const TRANSLITERATION = /\b\w*(druecken|Untermenue|UEBERSICHT|gewaehl|Geraet|Zurueck|zurueck|verfuegbar|benoetig|muess|ungueltig|moeglich|geaender|ausgewaehl|unterstuetz|waehl|loesch|oeffn|pruef|Groesse|groess|schliess|Schliess|fuehr|Fuehr|hoeh|laeuft|aender|Aender|koenn|Koenn|uebernomm|Uebersicht|gueltig|naechst|Naechst|spaet|waer|oeffentlich|zaehl|Zaehl)\w*\b|\b(fuer|ueber|Ueber|Fuer)\b/u;
+const TRANSLITERATION = /\b\w*(druecken|Untermenue|UEBERSICHT|gewaehl|Geraet|Zurueck|zurueck|verfuegbar|benoetig|muess|ungueltig|moeglich|geaender|ausgewaehl|unterstuetz|waehl|loesch|oeffn|pruef|Groesse|groess|schliess|Schliess|fuehr|Fuehr|hoeh|laeuft|aender|Aender|koenn|Koenn|uebernomm|Uebersicht|gueltig|naechst|Naechst|spaet|waer|oeffentlich|zaehl|Zaehl|laeng|Laeng)\w*\b|\b(fuer|ueber|Ueber|Fuer)\b/u;
 const DEVELOPER_TEXT = /console\.|logger\.|warn\(|Error\(/u;
 
 function collectJsFiles(dir, out = []) {

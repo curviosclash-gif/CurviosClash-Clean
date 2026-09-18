@@ -29,7 +29,7 @@ const MAP_FILTER_OPTIONS = Object.freeze([
 export function resolveArcadeGhostDuelModeLabel(mode) {
     if (mode === ARCADE_GHOST_DUEL_MODES.SELF_BEST_TIME_GHOST) return 'Persönliche Bestzeit';
     return mode === ARCADE_GHOST_DUEL_MODES.SELF_LONGEST_GHOST
-        ? 'Selbstduell (laengste Spur)'
+        ? 'Selbstduell (längste Spur)'
         : 'Aus';
 }
 

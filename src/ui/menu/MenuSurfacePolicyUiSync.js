@@ -99,10 +99,16 @@ export function syncMenuSurfacePolicyUi({
         ui.openFightHangarButton.disabled = !hangarWindowAvailable;
     }
 
-    // Sector count, combo window and multiplier only mean something for an Arcade run.
+    // Sector count, combo window and multiplier only mean something for an Arcade run;
+    // round wins mean nothing there because the sector count ends the run.
     if (Array.isArray(ui.arcadeOnlySections)) {
         ui.arcadeOnlySections.forEach((section) => {
             section.classList.toggle('hidden', modePath !== 'arcade');
+        });
+    }
+    if (Array.isArray(ui.nonArcadeSections)) {
+        ui.nonArcadeSections.forEach((section) => {
+            section.classList.toggle('hidden', modePath === 'arcade');
         });
     }
 

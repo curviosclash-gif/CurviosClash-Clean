@@ -91,7 +91,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level3.match.bot_difficulty.label': 'Bot-Schwierigkeit',
     'menu.level3.match.wins.label': 'Siege zum Gewinn:',
     'menu.level3.match.theme.label': 'Theme (nur lokal, nicht match-relevant)',
-    'menu.level3.match.ghost.title': 'Arcade Selbstduell',
+    'menu.level3.match.ghost.title': 'Selbstduell',
     'menu.level3.match.ghost_mode.label': 'Ghost-Wiedergabe',
     'menu.level3.match.ghost_collision.label': 'Ghost-Spur-Kollision',
     'menu.level3.match.arcade_run.title': 'Arcade-Lauf',
