@@ -18,7 +18,7 @@ from pathlib import Path
 import random
 
 import bpy
-from mathutils import Euler, Vector
+from mathutils import Vector
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +27,9 @@ SOURCE_DIR = ASSET_DIR / "blender"
 PREVIEW_DIR = SOURCE_DIR / "previews"
 BLEND_PATH = SOURCE_DIR / "ancient_tree.blend"
 GLB_PATH = ASSET_DIR / "ancient_tree.glb"
+LOD1_PATH = ASSET_DIR / "ancient_tree_lod1.glb"
+LOD2_PATH = ASSET_DIR / "ancient_tree_lod2.glb"
+COLLISION_PATH = ASSET_DIR / "ancient_tree_collision.glb"
 SEED = 41073
 GOLDEN_ANGLE = 2.399963229728653
 
@@ -50,7 +53,7 @@ def reset_scene():
     scene.view_settings.look = "AgX - Medium High Contrast"
     scene.render.fps = 30
     scene.frame_start = 1
-    scene.frame_end = 1
+    scene.frame_end = 56
     scene["asset"] = "ancient_tree"
     scene["generator"] = "scripts/generate_ancient_tree_asset.py"
     scene["reference"] = "user-approved watercolour ancient oak"
@@ -213,6 +216,8 @@ def build_materials():
         "leaf_1": leaf_material("LeafForest", (0.018, 0.09, 0.015, 1), (0.12, 0.34, 0.055, 1)),
         "leaf_2": leaf_material("LeafSage", (0.035, 0.12, 0.025, 1), (0.24, 0.47, 0.10, 1)),
         "leaf_3": leaf_material("LeafSunlit", (0.05, 0.15, 0.025, 1), (0.43, 0.62, 0.13, 1)),
+        "leaf_dry": leaf_material("LeafDry", (0.12, 0.055, 0.012, 1), (0.42, 0.24, 0.055, 1)),
+        "fungus": principled_material("ShelfFungus", (0.34, 0.21, 0.1, 1), 0.94),
     }
 
 
@@ -352,13 +357,13 @@ def radius_profile(start_radius, end_radius, count=5):
                  for fraction in (0.0, 0.24, 0.5, 0.76, 1.0)[:count])
 
 
-def curve_bundle(name, specs, material, collection, *, resolution, bevel_resolution):
+def curve_bundle(name, specs, material, collection, *, resolution, bevel_resolution, fill_caps=True):
     curve = bpy.data.curves.new(f"{name}_curve", "CURVE")
     curve.dimensions = "3D"
     curve.resolution_u = resolution
     curve.bevel_depth = 1.0
     curve.bevel_resolution = bevel_resolution
-    curve.use_fill_caps = True
+    curve.use_fill_caps = fill_caps
     for _branch_name, points, radii in specs:
         spline = curve.splines.new("BEZIER")
         spline.bezier_points.add(len(points) - 1)
@@ -388,14 +393,28 @@ def build_fractal_wood(tree_collection, mats, rng):
     objects.append(convert_curve(trunk, 0.16))
 
     main_specs = list(MAIN_BRANCHES)
+    collar_specs = []
+    deadwood_specs = []
     for name, points, radii in main_specs:
         curve = curve_object(name, points, radii, mats["bark"], tree_collection,
                              resolution=4, bevel_resolution=4)
         objects.append(convert_curve(curve, min(0.11, radii[0] * 0.07)))
+        start = Vector(points[0])
+        first_direction = (Vector(points[1]) - start).normalized()
+        collar_specs.append((
+            f"{name}_Collar",
+            (start - first_direction * 0.38, start + first_direction * 0.12,
+             start + first_direction * 0.62),
+            (radii[0] * 1.34, radii[0] * 1.18, radii[0] * 0.98),
+        ))
+
+    objects.append(curve_bundle("MainBranchCollars", collar_specs, mats["bark"], tree_collection,
+                                resolution=4, bevel_resolution=4, fill_caps=False))
 
     secondary_specs = []
     tertiary_specs = []
     fine_specs = []
+    inner_twig_specs = []
     leaf_sites = []
     fine_attachment_fractions = []
     fine_divergence_angles = []
@@ -418,6 +437,24 @@ def build_fractal_wood(tree_collection, mats, rng):
             radii = radius_profile(start_radius, max(0.045, start_radius * 0.14))
             secondary_name = f"Secondary_{main_index:02d}_{secondary_index:02d}"
             secondary_specs.append((secondary_name, points, radii))
+
+            # Sparse inward twigs soften the large gaps without filling the crown uniformly.
+            if (main_index + secondary_index) % 2 == 0:
+                inner_start, inner_tangent, inner_parent_radius = sample_branch(points, radii, 0.48)
+                inner_direction = (inner_tangent * 0.48 - outward_vector(inner_start) * 0.3
+                                   + Vector((0, 0, 0.38))).normalized()
+                inner_points = branch_path(inner_start, inner_direction, rng.uniform(1.35, 2.1), rng,
+                                           gravity=0.02, phototropism=0.08)
+                inner_radius = min(0.055, inner_parent_radius * 0.42)
+                inner_radii = radius_profile(inner_radius, 0.008)
+                inner_twig_specs.append((
+                    f"InnerTwig_{main_index:02d}_{secondary_index:02d}",
+                    inner_points,
+                    inner_radii,
+                ))
+                for point_index, scale in ((3, 0.7), (4, 0.9)):
+                    leaf_sites.append((Vector(inner_points[point_index]), inner_direction,
+                                       rng.uniform(0.32, 0.45) * scale))
 
             tertiary_count = ((4 + rng.randrange(3)) if main_name == "MainCentral"
                               else (5 + rng.randrange(4)))
@@ -473,17 +510,38 @@ def build_fractal_wood(tree_collection, mats, rng):
                         leaf_sites.append((Vector(f_points[point_index]), f_direction,
                                            cluster_radius * scale))
 
+        dead_start, dead_tangent, dead_parent_radius = sample_branch(
+            main_points, main_radii, 0.62 + 0.05 * (main_index % 3))
+        dead_direction = cone_direction(
+            dead_tangent,
+            0.48 + 0.08 * (main_index % 2),
+            main_index * GOLDEN_ANGLE + 0.35,
+        )
+        dead_direction = (dead_direction * 0.78 + Vector((0, 0, 0.12))).normalized()
+        dead_points = branch_path(dead_start, dead_direction, rng.uniform(1.4, 2.35), rng,
+                                  gravity=0.045, phototropism=0.0)
+        dead_radius = min(0.11, dead_parent_radius * 0.38)
+        deadwood_specs.append((f"Deadwood_{main_index:02d}", dead_points,
+                               radius_profile(dead_radius, 0.018)))
+
     objects.append(curve_bundle("SecondaryBranches", secondary_specs, mats["bark"], tree_collection,
                                 resolution=3, bevel_resolution=3))
     objects.append(curve_bundle("TertiaryBranches", tertiary_specs, mats["bark"], tree_collection,
                                 resolution=2, bevel_resolution=2))
-    objects.append(curve_bundle("FineBranches", fine_specs, mats["bark"], tree_collection,
-                                resolution=1, bevel_resolution=1))
+    if inner_twig_specs:
+        fine_specs.extend(inner_twig_specs)
+    fine_object = curve_bundle("FineBranches", fine_specs, mats["bark"], tree_collection,
+                               resolution=1, bevel_resolution=1)
+    fine_object["role"] = "wind_branches"
+    objects.append(curve_bundle("DeadwoodBranches", deadwood_specs, mats["bark_light"],
+                                tree_collection, resolution=2, bevel_resolution=2))
     counts = {
         "main": len(main_specs),
         "secondary": len(secondary_specs),
         "tertiary": len(tertiary_specs),
         "fine": len(fine_specs),
+        "inner_twigs": len(inner_twig_specs),
+        "deadwood": len(deadwood_specs),
         "leaf_sites": len(leaf_sites),
         "fine_attachment_span": round(
             max(fine_attachment_fractions) - min(fine_attachment_fractions), 3),
@@ -497,7 +555,7 @@ def build_fractal_wood(tree_collection, mats, rng):
             (Vector(points[-1]) - Vector(points[0])).angle(Vector((0, 0, 1)))
         ), 2) for _name, points, _radii in main_specs),
     }
-    return objects, leaf_sites, counts
+    return objects, fine_object, leaf_sites, counts
 
 
 def build_base_flare(tree_collection, mats):
@@ -520,11 +578,11 @@ def build_base_flare(tree_collection, mats):
     return pieces
 
 
-def root_path(index, count, rng):
-    angle = 2 * pi * index / count + rng.uniform(-0.12, 0.12)
-    length = rng.uniform(4.6, 7.0)
-    bend = rng.uniform(-0.28, 0.28)
-    start_radius = rng.uniform(0.72, 1.15)
+def root_path(index, count, prominence, rng):
+    angle = 2 * pi * index / count + rng.uniform(-0.24, 0.24)
+    length = rng.uniform(4.6, 7.0) * prominence
+    bend = rng.uniform(-0.38, 0.38)
+    start_radius = rng.uniform(0.72, 1.15) * (prominence ** 0.62)
     fractions = (0.0, 0.18, 0.42, 0.7, 1.0)
     radii = [start_radius * ((1.0 - fraction) ** 1.35) + 0.035 for fraction in fractions]
     points = []
@@ -533,7 +591,8 @@ def root_path(index, count, rng):
         distance = 0.45 + length * fraction
         # The curve radius expands around each control point. Keeping the centre at least one
         # radius above z=0 makes the complete root rest on the ground instead of intersecting it.
-        vertical = radius + 0.075 + 0.11 * sin(fraction * pi)
+        burial = (0.07 + radius * 0.55) * (fraction ** 4)
+        vertical = radius + 0.075 + 0.11 * sin(fraction * pi) - burial
         points.append((cos(theta) * distance, sin(theta) * distance, vertical))
     return points, radii
 
@@ -541,14 +600,15 @@ def root_path(index, count, rng):
 def build_roots(tree_collection, mats, rng):
     objects = []
     root_specs = []
-    count = 15
-    for index in range(count):
-        points, radii = root_path(index, count, rng)
+    prominences = (1.34, 0.7, 0.92, 0.62, 1.18, 0.78, 0.66, 1.28, 0.72, 0.98, 0.64, 0.86)
+    count = len(prominences)
+    for index, prominence in enumerate(prominences):
+        points, radii = root_path(index, count, prominence, rng)
         root_specs.append((points, radii))
         curve = curve_object(f"Root_{index:02d}", points, radii, mats["bark"], tree_collection,
                              resolution=4, bevel_resolution=4)
         objects.append(convert_curve(curve, min(0.12, radii[0] * 0.08)))
-        if index % 3 == 1:
+        if prominence >= 0.86 and index % 2 == 0:
             fork_start = Vector(points[2])
             end = Vector(points[-1])
             direction = (end - fork_start).normalized()
@@ -596,7 +656,8 @@ def build_foliage(tree_collection, mats, rng, leaf_sites):
     vertices = []
     faces = []
     material_indices = []
-    for cluster_index, (center, _branch_direction, radius) in enumerate(leaf_sites):
+    light_direction = Vector((-0.35, -0.5, 0.79)).normalized()
+    for cluster_index, (center, branch_direction, radius) in enumerate(leaf_sites):
         leaves_per_cluster = 9 + rng.randrange(5)
         for leaf_index in range(leaves_per_cluster):
             direction = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1)))
@@ -608,15 +669,25 @@ def build_foliage(tree_collection, mats, rng, leaf_sites):
             position = center + Vector((direction.x * cluster_scale.x,
                                         direction.y * cluster_scale.y,
                                         direction.z * cluster_scale.z)) * distance
-            rotation = Euler((rng.uniform(-pi, pi), rng.uniform(-pi, pi), rng.uniform(-pi, pi)))
-            long_axis = rotation.to_matrix() @ Vector((rng.uniform(0.095, 0.17), 0, 0))
-            short_axis = rotation.to_matrix() @ Vector((0, rng.uniform(0.045, 0.075), 0))
+            normal = (light_direction * rng.uniform(0.32, 0.58) + direction * 0.55).normalized()
+            random_tangent = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1))).cross(normal)
+            long_direction = (Vector(branch_direction).cross(normal) * 0.58
+                              + random_tangent * 0.42)
+            if long_direction.length_squared < 0.001:
+                long_direction = Vector((normal.y, -normal.x, 0.1))
+            long_direction.normalize()
+            short_direction = normal.cross(long_direction).normalized()
+            long_axis = long_direction * rng.uniform(0.085, 0.185)
+            short_axis = short_direction * rng.uniform(0.04, 0.082)
             add_leaf_quad(vertices, faces, position, long_axis, short_axis)
-            material_indices.append((cluster_index + leaf_index) % 3)
+            material_roll = rng.random()
+            material_index = (3 if material_roll < 0.045
+                              else (cluster_index + leaf_index + rng.randrange(2)) % 3)
+            material_indices.append(material_index)
             # A crossing blade prevents the canopy from disappearing at grazing angles.
-            cross_rotation = rotation.to_matrix() @ Vector((0, 0, rng.uniform(0.045, 0.072)))
-            add_leaf_quad(vertices, faces, position, long_axis, cross_rotation)
-            material_indices.append((cluster_index + leaf_index + 1) % 3)
+            cross_axis = normal * rng.uniform(0.038, 0.068)
+            add_leaf_quad(vertices, faces, position, long_axis, cross_axis)
+            material_indices.append(material_index)
 
     mesh = bpy.data.meshes.new("AncientLeaves_mesh")
     mesh.from_pydata(vertices, [], faces)
@@ -626,6 +697,7 @@ def build_foliage(tree_collection, mats, rng, leaf_sites):
     obj.data.materials.append(mats["leaf_1"])
     obj.data.materials.append(mats["leaf_2"])
     obj.data.materials.append(mats["leaf_3"])
+    obj.data.materials.append(mats["leaf_dry"])
     for polygon, material_index in zip(obj.data.polygons, material_indices):
         polygon.material_index = material_index
     obj["role"] = "foliage"
@@ -663,6 +735,91 @@ def build_knots(tree_collection, mats):
         link_to_collection(obj, tree_collection)
         knots.append(obj)
     return join_objects(knots, "TrunkCavities", tree_collection)
+
+
+def offset_surface_path(points, radii, phase):
+    coordinates = [Vector(point) for point in points]
+    result = []
+    for index, (coordinate, radius) in enumerate(zip(coordinates, radii)):
+        previous = coordinates[max(0, index - 1)]
+        following = coordinates[min(len(coordinates) - 1, index + 1)]
+        tangent = (following - previous).normalized()
+        helper = Vector((0, 0, 1)) if abs(tangent.z) < 0.9 else Vector((1, 0, 0))
+        side = tangent.cross(helper).normalized()
+        other = side.cross(tangent).normalized()
+        normal = side * cos(phase) + other * sin(phase)
+        result.append(coordinate + normal * (radius * 0.97 + 0.008))
+    return tuple(result)
+
+
+def build_bark_grooves(tree_collection, mats):
+    specs = []
+    trunk_points = TRUNK_SPEC[1]
+    trunk_radii = TRUNK_SPEC[2]
+    for index in range(7):
+        phase = 2 * pi * index / 7 + 0.12 * sin(index * 1.7)
+        points = offset_surface_path(trunk_points, trunk_radii, phase)
+        radii = tuple(0.024 - 0.01 * position / (len(points) - 1)
+                      for position in range(len(points)))
+        specs.append((f"TrunkGroove_{index:02d}", points, radii))
+    for main_index, (name, points, radii) in enumerate(MAIN_BRANCHES):
+        for strand in range(2):
+            phase = main_index * 0.73 + strand * pi
+            groove_points = offset_surface_path(points, radii, phase)
+            groove_radii = tuple(max(0.008, 0.018 - 0.008 * position / (len(points) - 1))
+                                  for position in range(len(points)))
+            specs.append((f"{name}_Groove_{strand}", groove_points, groove_radii))
+    obj = curve_bundle("DirectedBarkGrooves", specs, mats["bark_dark"], tree_collection,
+                       resolution=2, bevel_resolution=1)
+    obj["role"] = "bark_grooves"
+    return obj
+
+
+def build_age_details(tree_collection, mats):
+    shelves = []
+    specs = (
+        ((-0.9, -1.48, 2.95), (0.34, 0.11, 0.13), (0.08, 0.0, -0.18)),
+        ((-0.62, -1.36, 3.3), (0.24, 0.09, 0.1), (-0.06, 0.0, 0.14)),
+        ((0.92, -1.15, 4.15), (0.3, 0.1, 0.11), (0.04, 0.0, 0.2)),
+        ((1.03, -0.95, 4.48), (0.19, 0.075, 0.08), (-0.08, 0.0, -0.1)),
+    )
+    for index, (location, scale, rotation) in enumerate(specs):
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8,
+                                             location=location, rotation=rotation)
+        obj = bpy.context.object
+        obj.name = f"ShelfFungus_{index:02d}"
+        obj.scale = scale
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        obj.data.materials.append(mats["fungus"])
+        for polygon in obj.data.polygons:
+            polygon.use_smooth = True
+        link_to_collection(obj, tree_collection)
+        shelves.append(obj)
+    result = join_objects(shelves, "ShelfFungi", tree_collection)
+    result["role"] = "age_detail"
+    return result
+
+
+def add_wind_animation(obj, strength):
+    basis = obj.shape_key_add(name="Basis")
+    gust = obj.shape_key_add(name="WindGust")
+    gust.slider_min = -1.0
+    gust.slider_max = 1.0
+    for source, target in zip(basis.data, gust.data):
+        height = max(0.0, min(1.0, (source.co.z - 6.0) / 15.0))
+        weight = height * height
+        phase = sin(source.co.x * 0.37 + source.co.y * 0.29 + source.co.z * 0.11)
+        target.co.x += strength * weight * (0.72 + 0.28 * phase)
+        target.co.y += strength * weight * (0.22 + 0.16 * cos(source.co.x * 0.31))
+        target.co.z += strength * weight * 0.05 * phase
+    for frame, value in ((1, 0.0), (14, 0.72), (28, 0.0), (42, -0.42), (56, 0.0)):
+        gust.value = value
+        gust.keyframe_insert(data_path="value", frame=frame)
+    if obj.data.shape_keys.animation_data and obj.data.shape_keys.animation_data.action:
+        for fcurve in obj.data.shape_keys.animation_data.action.fcurves:
+            fcurve.modifiers.new("CYCLES")
+    obj["wind_morph"] = "WindGust"
+    obj["wind_loop_frames"] = 56
 
 
 def aim_at(obj, target):
@@ -754,6 +911,14 @@ def validate_scene(scene, tree_collection, cameras, branch_counts):
         raise RuntimeError(f"main branch angles are too uniform: {branch_counts['main_angles_deg']}")
     if not any(obj.name == "AncientLeaves" for obj in meshes):
         raise RuntimeError("foliage mesh is missing")
+    for animated_name in ("FineBranches", "AncientLeaves"):
+        animated = next((obj for obj in meshes if obj.name == animated_name), None)
+        if not animated or not animated.data.shape_keys or "WindGust" not in animated.data.shape_keys.key_blocks:
+            raise RuntimeError(f"wind morph is missing from {animated_name}")
+    required_roles = {"bark_grooves", "age_detail"}
+    actual_roles = {obj.get("role") for obj in meshes}
+    if not required_roles.issubset(actual_roles):
+        raise RuntimeError(f"age details are incomplete: roles={actual_roles}")
     lows, highs = world_bounds(meshes)
     dimensions = highs - lows
     if dimensions.z < 18 or dimensions.x < 18 or dimensions.y < 18:
@@ -769,7 +934,7 @@ def validate_scene(scene, tree_collection, cameras, branch_counts):
     face_count = sum(len(obj.data.polygons) for obj in meshes)
     if face_count < 16000:
         raise RuntimeError(f"tree detail budget is unexpectedly low: {face_count} faces")
-    if face_count > 70000:
+    if face_count > 90000:
         raise RuntimeError(f"tree detail budget is too high for the runtime asset: {face_count} faces")
     scene["mesh_count"] = len(meshes)
     scene["face_count"] = face_count
@@ -831,46 +996,121 @@ def validate_silhouettes(scene, cameras):
     print(f"validated crown silhouettes: roundness={roundness:.3f} widths={widths}")
 
 
-def export(scene, tree_collection):
-    SOURCE_DIR.mkdir(parents=True, exist_ok=True)
-    ASSET_DIR.mkdir(parents=True, exist_ok=True)
-    scene.camera = bpy.data.objects.get("Camera_front")
-    bpy.ops.wm.save_as_mainfile(filepath=str(BLEND_PATH), check_existing=False)
+def add_cylinder_between(name, start, end, radius, collection):
+    start = Vector(start)
+    end = Vector(end)
+    delta = end - start
+    bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=radius, depth=delta.length,
+                                        location=start.lerp(end, 0.5))
+    obj = bpy.context.object
+    obj.name = name
+    obj.rotation_euler = delta.to_track_quat("Z", "Y").to_euler()
+    obj["role"] = "collision"
+    obj.hide_render = True
+    obj.display_type = "WIRE"
+    link_to_collection(obj, collection)
+    return obj
 
+
+def build_collision_proxy(scene):
+    collection = bpy.data.collections.new("AncientTreeCollision")
+    scene.collection.children.link(collection)
+    objects = [
+        add_cylinder_between("COLLIDER_Base", (0, 0, 0), (0, 0, 3.0), 2.25, collection),
+        add_cylinder_between("COLLIDER_Trunk", (0, 0, 2.2), (0.15, 0, 10.4), 1.55, collection),
+    ]
+    for index, (_name, points, radii) in enumerate(MAIN_BRANCHES):
+        start = Vector(points[0])
+        end = Vector(points[3]).lerp(Vector(points[4]), 0.35)
+        objects.append(add_cylinder_between(f"COLLIDER_Main_{index:02d}", start, end,
+                                            max(0.28, radii[1] * 0.82), collection))
+    return collection, objects
+
+
+def export_glb(path, objects, *, animations):
     bpy.ops.object.select_all(action="DESELECT")
-    for obj in tree_collection.objects:
-        if obj.type == "MESH":
-            obj.select_set(True)
+    for obj in objects:
+        obj.hide_set(False)
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = objects[0]
     bpy.ops.export_scene.gltf(
-        filepath=str(GLB_PATH),
+        filepath=str(path),
         export_format="GLB",
         use_selection=True,
-        export_animations=False,
+        export_animations=animations,
         export_yup=True,
         export_cameras=False,
         export_lights=False,
         export_extras=True,
         export_apply=True,
     )
-    print(f"generated {BLEND_PATH.relative_to(ROOT)} and {GLB_PATH.relative_to(ROOT)}")
+
+
+def export_lod(scene, source_objects, path, label, ratio):
+    scene.frame_set(1)
+    collection = bpy.data.collections.new(f"Temporary_{label}")
+    scene.collection.children.link(collection)
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    duplicates = []
+    for source in source_objects:
+        evaluated = source.evaluated_get(depsgraph)
+        mesh = bpy.data.meshes.new_from_object(evaluated, depsgraph=depsgraph)
+        duplicate = bpy.data.objects.new(f"{source.name}_{label}", mesh)
+        collection.objects.link(duplicate)
+        duplicate["lod"] = label
+        if len(mesh.polygons) > 80:
+            modifier = duplicate.modifiers.new(f"{label}_Decimate", "DECIMATE")
+            modifier.ratio = ratio
+            modifier.use_collapse_triangulate = True
+            bpy.context.view_layer.objects.active = duplicate
+            duplicate.select_set(True)
+            bpy.ops.object.modifier_apply(modifier=modifier.name)
+            duplicate.select_set(False)
+        duplicates.append(duplicate)
+    export_glb(path, duplicates, animations=False)
+    for duplicate in duplicates:
+        bpy.data.objects.remove(duplicate, do_unlink=True)
+    bpy.data.collections.remove(collection)
+    print(f"generated {label}: {path.relative_to(ROOT)}")
+
+
+def export(scene, tree_collection, collision_objects):
+    SOURCE_DIR.mkdir(parents=True, exist_ok=True)
+    ASSET_DIR.mkdir(parents=True, exist_ok=True)
+    scene.camera = bpy.data.objects.get("Camera_front")
+    bpy.ops.wm.save_as_mainfile(filepath=str(BLEND_PATH), check_existing=False)
+
+    runtime_objects = [obj for obj in tree_collection.objects if obj.type == "MESH"]
+    export_glb(GLB_PATH, runtime_objects, animations=True)
+    export_lod(scene, runtime_objects, LOD1_PATH, "LOD1", 0.48)
+    export_lod(scene, runtime_objects, LOD2_PATH, "LOD2", 0.17)
+    export_glb(COLLISION_PATH, collision_objects, animations=False)
+    print(f"generated {BLEND_PATH.relative_to(ROOT)}, {GLB_PATH.relative_to(ROOT)}, "
+          f"{LOD1_PATH.relative_to(ROOT)}, {LOD2_PATH.relative_to(ROOT)} and "
+          f"{COLLISION_PATH.relative_to(ROOT)}")
 
 
 def main():
     rng = random.Random(SEED)
     scene, tree_collection, presentation = reset_scene()
     mats = build_materials()
-    wood, leaf_sites, branch_counts = build_fractal_wood(tree_collection, mats, rng)
+    wood, fine_branches, leaf_sites, branch_counts = build_fractal_wood(tree_collection, mats, rng)
     wood.extend(build_base_flare(tree_collection, mats))
     roots, root_specs = build_roots(tree_collection, mats, rng)
     roots.extend(build_root_ridges(tree_collection, mats, root_specs))
     join_objects(wood + roots, "AncientTreeWood", tree_collection)["role"] = "wood"
-    build_foliage(tree_collection, mats, rng, leaf_sites)
+    leaves = build_foliage(tree_collection, mats, rng, leaf_sites)
     build_knots(tree_collection, mats)
+    build_bark_grooves(tree_collection, mats)
+    build_age_details(tree_collection, mats)
+    add_wind_animation(fine_branches, 0.34)
+    add_wind_animation(leaves, 0.58)
+    _collision_collection, collision_objects = build_collision_proxy(scene)
     cameras = build_presentation(scene, presentation)
     validate_scene(scene, tree_collection, cameras, branch_counts)
     render_previews(scene, cameras)
     validate_silhouettes(scene, cameras)
-    export(scene, tree_collection)
+    export(scene, tree_collection, collision_objects)
     scene.camera = bpy.data.objects.get("Camera_front")
     bpy.ops.wm.save_as_mainfile(filepath=str(BLEND_PATH), check_existing=False)
 
