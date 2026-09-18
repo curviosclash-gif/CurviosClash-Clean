@@ -46,6 +46,8 @@ const {
     listTestRenderCommandLineSwitches,
     resolveTestRenderMode,
     shouldShowInactive,
+    showWindowForMode,
+    withTestRenderWindowOpenHandler,
 } = require('./test-render-window.cjs');
 
 // Playwright only: a packaged app ignores the switch (see test-render-window.cjs).
@@ -578,9 +580,14 @@ async function createWindow() {
         isTrustedEditorUrl: (url) => isTrustedEditorUrl(url, appServer.url),
         getDownloadsDirectory: () => app.getPath('downloads'),
     });
-    mainWindow.webContents.setWindowOpenHandler(createEditorWindowOpenHandler(appServer.url, {
-        editorPreloadPath: path.join(__dirname, 'editor-preload.cjs'),
-    }));
+    // Die Autorenfenster entstehen ueber window.open. Ohne die Huelle kaemen sie mit den
+    // Standardoptionen auf den Bildschirm und naehmen waehrend eines Testlaufs den Fokus.
+    mainWindow.webContents.setWindowOpenHandler(withTestRenderWindowOpenHandler(
+        createEditorWindowOpenHandler(appServer.url, {
+            editorPreloadPath: path.join(__dirname, 'editor-preload.cjs'),
+        }),
+        testRenderMode,
+    ));
     setEditorWindowTrustBase(appServer.url);
     mainWindow.webContents.on('did-create-window', (editorWindow, details) => {
         editorWindows.add(editorWindow);
@@ -590,12 +597,17 @@ async function createWindow() {
         editorWindow.webContents.on('will-navigate', (event, url) => {
             if (!isTrustedEditorUrl(url, appServer.url)) event.preventDefault();
         });
+        showWindowForMode(editorWindow, testRenderMode);
         const isMapEditor = new URL(details.url).pathname === '/editor/map-editor-3d.html';
-        editorWindow.webContents.setWindowOpenHandler(isMapEditor
+        editorWindow.webContents.setWindowOpenHandler(withTestRenderWindowOpenHandler(isMapEditor
             ? createPlaytestWindowOpenHandler(appServer.url)
-            : () => ({ action: 'deny' }));
+            : () => ({ action: 'deny' }), testRenderMode));
         editorWindow.webContents.on('did-create-window', (playtestWindow) => {
-            playtestWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+            showWindowForMode(playtestWindow, testRenderMode);
+            playtestWindow.webContents.setWindowOpenHandler(withTestRenderWindowOpenHandler(
+                () => ({ action: 'deny' }),
+                testRenderMode,
+            ));
         });
     });
     await mainWindow.loadURL(appServer.url);
@@ -831,12 +843,14 @@ const hangarWindowShellCapability = createHangarWindowController({
         const mode = String(options.mode || '').trim().toLowerCase() === 'fight' ? 'fight' : 'arcade';
         return new URL(`hangar.html?mode=${mode}`, appServer.url).href;
     },
+    testRenderMode,
 });
 const lanHostShellCapability = createLanHostShellCapability();
 const tuningWindowShellCapability = createTuningWindowController({
     BrowserWindow,
     resolveParentWindow: () => desktopWindowShellCapability.getWindow(),
     resolveCapabilityState: () => resolveTuningConsoleCapabilityState(),
+    testRenderMode,
 });
 const recordingVideoExportJob = createRecordingVideoExportJob({
     app,

@@ -1,6 +1,12 @@
 const path = require('node:path');
 const { existsSync } = require('node:fs');
 const { createSecureWindowWebPreferences } = require('./window-security-options.cjs');
+const {
+    TEST_RENDER_MODE_OFF,
+    createSecondaryWindowOptions,
+    shouldShowInactive,
+    showWindowForMode,
+} = require('./test-render-window.cjs');
 
 const TUNING_WINDOW_SHELL_CONTRACT_VERSION = 'tuning-window-shell.v1';
 const TUNING_WINDOW_DEFAULT_WIDTH = 420;
@@ -99,6 +105,8 @@ function createTuningWindowController({
     defaultAlwaysOnTop = false,
     shouldShowWindow = resolveShowWindowFlag,
     onWindowClosed = null,
+    // Nur Playwright setzt einen anderen Modus; die gepackte App kennt hier immer 'off'.
+    testRenderMode = TEST_RENDER_MODE_OFF,
 } = {}) {
     if (typeof BrowserWindow !== 'function') {
         throw new TypeError('createTuningWindowController erwartet BrowserWindow als Konstruktorfunktion.');
@@ -133,13 +141,13 @@ function createTuningWindowController({
         }
 
         if (isWindowAlive(tuningWindow)) {
-            if (options.focus !== false) {
+            if (options.focus !== false && !shouldShowInactive(testRenderMode)) {
                 if (tuningWindow.isMinimized()) {
                     tuningWindow.restore();
                 }
                 tuningWindow.focus();
             }
-            if (Object.prototype.hasOwnProperty.call(options, 'alwaysOnTop')) {
+            if (Object.prototype.hasOwnProperty.call(options, 'alwaysOnTop') && !shouldShowInactive(testRenderMode)) {
                 tuningWindow.setAlwaysOnTop(options.alwaysOnTop === true);
             }
             return {
@@ -155,21 +163,24 @@ function createTuningWindowController({
             : null;
         const resolvedAlwaysOnTop = resolveAlwaysOnTopFlag(options, defaultAlwaysOnTop);
 
-        tuningWindow = new BrowserWindow({
-            width: TUNING_WINDOW_DEFAULT_WIDTH,
-            height: TUNING_WINDOW_DEFAULT_HEIGHT,
-            minWidth: TUNING_WINDOW_MIN_WIDTH,
-            minHeight: TUNING_WINDOW_MIN_HEIGHT,
-            title: 'CurviosClash Tuning Console',
-            autoHideMenuBar: true,
-            show: typeof shouldShowWindow === 'function' ? shouldShowWindow() : resolveShowWindowFlag(),
-            alwaysOnTop: resolvedAlwaysOnTop,
-            parent: isWindowAlive(parentWindow) ? parentWindow : undefined,
-            webPreferences: createSecureWindowWebPreferences({
-                preload: preloadPath,
-                backgroundThrottling: false,
-            }),
-        });
+        tuningWindow = new BrowserWindow(createSecondaryWindowOptions({
+            mode: testRenderMode,
+            baseOptions: {
+                width: TUNING_WINDOW_DEFAULT_WIDTH,
+                height: TUNING_WINDOW_DEFAULT_HEIGHT,
+                minWidth: TUNING_WINDOW_MIN_WIDTH,
+                minHeight: TUNING_WINDOW_MIN_HEIGHT,
+                title: 'CurviosClash Tuning Console',
+                autoHideMenuBar: true,
+                show: typeof shouldShowWindow === 'function' ? shouldShowWindow() : resolveShowWindowFlag(),
+                alwaysOnTop: resolvedAlwaysOnTop,
+                parent: isWindowAlive(parentWindow) ? parentWindow : undefined,
+                webPreferences: createSecureWindowWebPreferences({
+                    preload: preloadPath,
+                    backgroundThrottling: false,
+                }),
+            },
+        }));
 
         tuningWindow.on('closed', () => {
             tuningWindow = null;
@@ -194,7 +205,10 @@ function createTuningWindowController({
             await windowRef.loadURL(createFallbackHtml('Datei tuning.html wurde nicht gefunden.'));
         }
 
-        if (options.focus === true && isWindowAlive(windowRef)) {
+        if (shouldShowInactive(testRenderMode)) {
+            // Testmodus: gezeichnet, aber ausserhalb des Schirms und ohne Fokus.
+            if (isWindowAlive(windowRef)) showWindowForMode(windowRef, testRenderMode);
+        } else if (options.focus === true && isWindowAlive(windowRef)) {
             windowRef.focus();
         }
 
