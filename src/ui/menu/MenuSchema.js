@@ -78,7 +78,7 @@ function createPanelSchema(featureFlags) {
                 },
                 {
                     id: 'multiplayer-back',
-                    label: 'Zurueck',
+                    label: 'Zurück',
                     textId: 'menu.multiplayer.lobby.back',
                     action: 'navigate_back',
                     accessPolicy: MENU_ACCESS_POLICIES.OPEN,

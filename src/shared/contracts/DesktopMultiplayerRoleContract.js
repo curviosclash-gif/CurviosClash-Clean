@@ -200,9 +200,9 @@ export function resolveDesktopConnectivityProfile() {
             RUNTIME_SESSION_TYPES.ONLINE,
         ]),
         /** User-facing hint shown when Online is unavailable (no internet or unreachable server). */
-        onlineUnavailableHint: 'Online nicht erreichbar: Internetverbindung und Signaling-Endpoint pruefen.',
+        onlineUnavailableHint: 'Online nicht erreichbar: Internetverbindung und Signaling-Endpoint prüfen.',
         /** User-facing hint shown when LAN is unavailable (no local network detected). */
-        lanOfflineHint: 'LAN nicht erreichbar: Lokale Netzwerkverbindung pruefen.',
+        lanOfflineHint: 'LAN nicht erreichbar: Lokale Netzwerkverbindung prüfen.',
     });
 }
 

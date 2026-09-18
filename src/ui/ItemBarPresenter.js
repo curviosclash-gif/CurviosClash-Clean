@@ -174,7 +174,7 @@ export function updateRocketBar(container, player, projection = null, gameplayCo
         slot.classList.toggle('next-rocket', isNext);
         slot.dataset.selected = isNext ? '1' : '0';
         slot.classList.toggle('selected', isNext);
-        if (isNext) slot.title = `${slot.title}${slot.title ? ' | ' : ''}Naechste Rakete (FIFO)`;
+        if (isNext) slot.title = `${slot.title}${slot.title ? ' | ' : ''}Nächste Rakete (FIFO)`;
     }
 }
 

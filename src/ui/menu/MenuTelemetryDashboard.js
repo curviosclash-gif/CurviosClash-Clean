@@ -185,7 +185,7 @@ export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null
     const grid = document.createElement('div');
     grid.className = 'developer-telemetry-grid';
 
-    const overview = createCard(grid, 'overview', 'Uebersicht');
+    const overview = createCard(grid, 'overview', 'Übersicht');
     appendRow(overview, 'rounds', 'Runden', String(Math.max(0, Number(balance?.rounds) || 0)));
     appendRow(overview, 'matches', 'Matches', String(Math.max(0, Number(balance?.matches) || 0)));
     appendRow(overview, 'quickstarts', 'Quickstarts', String(Math.max(0, Number(snapshot.quickStartCount) || 0)));

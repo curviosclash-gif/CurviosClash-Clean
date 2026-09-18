@@ -176,7 +176,7 @@ function normalizeOptionalStringArray(value, path, errors, normalizer) {
             errors.push(createError(
                 `${path}[${index}]`,
                 BROWSER_DEMO_SURFACE_POLICY_OVERRIDE_VALIDATION_CODES.FIELD_VALUE_INVALID,
-                `${path}[${index}] enthaelt einen ungueltigen Wert.`
+                `${path}[${index}] enthält einen ungültigen Wert.`
             ));
             return;
         }
@@ -209,7 +209,7 @@ function normalizeCuratedMapOverride(value, path, errors) {
             errors.push(createError(
                 `${path}.${rawModePath}`,
                 BROWSER_DEMO_SURFACE_POLICY_OVERRIDE_VALIDATION_CODES.FIELD_VALUE_INVALID,
-                `Ungueltiger Mode-Path in ${path}: ${rawModePath}.`
+                `Ungültiger Mode-Path in ${path}: ${rawModePath}.`
             ));
             return;
         }
@@ -607,7 +607,7 @@ export function classifyBrowserDemoSurfacePolicyOverrideMigration(rawDraft) {
     return Object.freeze({
         status: 'reject',
         code: BROWSER_DEMO_SURFACE_POLICY_OVERRIDE_MIGRATION_CODES.REJECT,
-        reason: `Ungueltige Vertragsversion: ${contractVersion}.`,
+        reason: `Ungültige Vertragsversion: ${contractVersion}.`,
     });
 }
 

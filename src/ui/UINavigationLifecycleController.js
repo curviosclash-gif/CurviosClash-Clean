@@ -551,7 +551,7 @@ export class UINavigationLifecycleController {
             return (linkedButton.textContent || '').replace(/\s+/g, ' ').trim();
         }
         const panelTitle = document.querySelector(`#${panelId} .submenu-title`);
-        return (panelTitle?.textContent || 'Untermenue').replace(/\s+/g, ' ').trim();
+        return (panelTitle?.textContent || 'Untermenü').replace(/\s+/g, ' ').trim();
     }
 
     // ------------------------------------------------------------------

@@ -255,7 +255,7 @@ export class ArcadeEndlessHudSection {
                 const side = String(warning.side);
                 setText(
                     this._spawnWarning,
-                    warning.elite === true ? 'Anfuehrer!' : (SIDE_LABELS[side] || SIDE_LABELS.behind)
+                    warning.elite === true ? 'Anführer!' : (SIDE_LABELS[side] || SIDE_LABELS.behind)
                 );
                 this._spawnWarning.style.display = 'block';
                 this._spawnWarning.style.left = side === 'right' ? 'auto' : '18px';
@@ -278,7 +278,7 @@ export class ArcadeEndlessHudSection {
         if (!this._voidWarning) return;
         const voidState = hudState.voidWarning || null;
         if (voidState?.active === true) {
-            setText(this._voidWarning, `Zurueckgefallen - ${formatRounded(voidState.remainingMeters)} m bis zum Absturz`);
+            setText(this._voidWarning, `Zurückgefallen - ${formatRounded(voidState.remainingMeters)} m bis zum Absturz`);
             this._voidWarning.style.display = 'flex';
         } else {
             this._voidWarning.style.display = 'none';

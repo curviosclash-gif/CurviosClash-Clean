@@ -114,7 +114,7 @@ export class KeybindEditorController {
 
             if (keyCapture && keyCapture.playerKey === playerKey && keyCapture.actionKey === action.key) {
                 button.classList.add('listening');
-                button.textContent = 'Taste druecken...';
+                button.textContent = 'Taste drücken...';
             }
 
             row.appendChild(label);

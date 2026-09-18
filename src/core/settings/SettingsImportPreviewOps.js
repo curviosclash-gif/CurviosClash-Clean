@@ -47,7 +47,7 @@ export function previewMenuConfigImport({
         return {
             success: false,
             reason: 'apply_failed',
-            message: 'Config-Import konnte nicht uebernommen werden.',
+            message: 'Config-Import konnte nicht übernommen werden.',
             tone: 'error',
             changedKeys: [],
             changes: [],

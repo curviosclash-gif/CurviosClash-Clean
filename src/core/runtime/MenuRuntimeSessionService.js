@@ -267,7 +267,7 @@ export function handleModePathChangeAction(ctx) {
             'info'
         );
     } else {
-        game._showStatusToast(`Modus gewaehlt: ${label}`, 1200, 'info');
+        game._showStatusToast(`Modus gewählt: ${label}`, 1200, 'info');
     }
 }
 

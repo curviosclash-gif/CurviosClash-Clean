@@ -126,7 +126,7 @@ export async function handleQuickStartEventPlaylistStartAction(ctx) {
     const playlistStep = getNextEventPlaylistEntry(game?.settings?.localSettings?.eventPlaylistState);
     const presetId = String(playlistStep?.entry?.presetId || '').trim();
     if (!presetId) {
-        game._showStatusToast('Event-Playlist ist nicht verfuegbar.', 1500, 'error');
+        game._showStatusToast('Event-Playlist ist nicht verfügbar.', 1500, 'error');
         return;
     }
     const baselineSettingsSnapshot = cloneJsonSnapshot(game.settings);

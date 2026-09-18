@@ -94,7 +94,7 @@ export class MenuPanelRegistry {
         return navItems.slice().sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
     }
 
-    getPanelLabel(requestedId, fallback = 'Untermenue') {
+    getPanelLabel(requestedId, fallback = 'Untermenü') {
         const panel = this.getPanelById(requestedId);
         const label = normalizeId(panel?.label);
         return label || fallback;

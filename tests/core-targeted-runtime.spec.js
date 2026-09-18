@@ -1598,7 +1598,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         expect(result.exportStatus?.status).toBe('surface_policy_blocked');
         expect(result.stopResultExportStatus?.status).toBe('surface_policy_blocked');
         expect(result.stopResultTransport).toBe('blocked');
-        expect(result.exportStatus?.message).toContain('Video-Export ist in dieser Demo nicht verfuegbar');
+        expect(result.exportStatus?.message).toContain('Video-Export ist in dieser Demo nicht verfügbar');
         expect(result.exportStatus?.surfaceClassification).toBe('future opt-in');
         expect(result.exportStatus?.warnings?.[0]).toContain('echten Demo-Mehrwert');
     });

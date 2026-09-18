@@ -249,15 +249,15 @@ export function resolveSurfaceFeatureClassification(featureId, options = {}) {
                 ? PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.LEGACY
                 : PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.FUTURE_OPT_IN,
             rationale: developerAccess.available === true
-                ? 'Tooling bleibt lokaler Dev-/Diagnosezugang und zaehlt nicht zum Produktversprechen.'
-                : 'Tooling ist fuer diese Surface aktuell nicht freigegeben.',
+                ? 'Tooling bleibt lokaler Dev-/Diagnosezugang und zählt nicht zum Produktversprechen.'
+                : 'Tooling ist für diese Surface aktuell nicht freigegeben.',
         }),
         [PLATFORM_SURFACE_FEATURE_IDS.MAP_EDITOR]: Object.freeze({
             featureId: PLATFORM_SURFACE_FEATURE_IDS.MAP_EDITOR,
             productSurfaceId: policy.productSurfaceId,
             classification: PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.DESKTOP_ONLY,
             rationale: isBrowserDemo
-                ? 'Der Map-Editor bleibt eine Vollversions-Authoring-Funktion und ist in der Demo nicht verfuegbar.'
+                ? 'Der Map-Editor bleibt eine Vollversions-Authoring-Funktion und ist in der Demo nicht verfügbar.'
                 : 'Der Map-Editor gehoert zur Desktop-Vollversion und bleibt eine Authoring-Funktion.',
         }),
         [PLATFORM_SURFACE_FEATURE_IDS.VEHICLE_EDITOR]: Object.freeze({
@@ -265,7 +265,7 @@ export function resolveSurfaceFeatureClassification(featureId, options = {}) {
             productSurfaceId: policy.productSurfaceId,
             classification: PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.DESKTOP_ONLY,
             rationale: isBrowserDemo
-                ? 'Der Vehicle-Editor bleibt eine Vollversions-Funktion und ist in der Demo nicht verfuegbar.'
+                ? 'Der Vehicle-Editor bleibt eine Vollversions-Funktion und ist in der Demo nicht verfügbar.'
                 : 'Der Vehicle-Editor gehoert zur Desktop-Vollversion und bleibt eine lokale Tool-Funktion.',
         }),
     });
@@ -359,7 +359,7 @@ export function resolveSurfaceBlockedFeatureFeedback(featureLabel = 'Diese Funkt
     return Object.freeze({
         reason: SURFACE_POLICY_BLOCKED_REASON,
         productSurfaceId: policy.productSurfaceId,
-        message: `${normalizedFeatureLabel} ist in dieser ${isBrowserDemo ? 'Demo' : 'Surface'} nicht verfuegbar.`,
+        message: `${normalizedFeatureLabel} ist in dieser ${isBrowserDemo ? 'Demo' : 'Surface'} nicht verfügbar.`,
         tone: SURFACE_POLICY_BLOCKED_TONE,
         durationMs: SURFACE_POLICY_BLOCKED_DURATION_MS,
     });
@@ -391,8 +391,8 @@ export function resolveSurfaceMultiplayerGateAccess(action, options = {}) {
                 multiplayerRole,
                 reason: 'surface_host_denied',
                 message: isBrowserDemo
-                    ? 'Hosting ist nur in der Desktop-Vollversion verfuegbar. Diese Demo kann nur beitreten.'
-                    : 'Hosting ist in dieser Surface nicht verfuegbar.',
+                    ? 'Hosting ist nur in der Desktop-Vollversion verfügbar. Diese Demo kann nur beitreten.'
+                    : 'Hosting ist in dieser Surface nicht verfügbar.',
                 tone: SURFACE_POLICY_BLOCKED_TONE,
                 durationMs: SURFACE_POLICY_BLOCKED_DURATION_MS,
             });
@@ -405,8 +405,8 @@ export function resolveSurfaceMultiplayerGateAccess(action, options = {}) {
                 multiplayerRole,
                 reason: 'surface_host_no_transport',
                 message: isBrowserDemo
-                    ? 'Kein produktiver Host-Transport fuer die Demo verfuegbar.'
-                    : 'Kein produktiver Host-Transport verfuegbar.',
+                    ? 'Kein produktiver Host-Transport für die Demo verfügbar.'
+                    : 'Kein produktiver Host-Transport verfügbar.',
                 tone: SURFACE_POLICY_BLOCKED_TONE,
                 durationMs: SURFACE_POLICY_BLOCKED_DURATION_MS,
             });
@@ -432,8 +432,8 @@ export function resolveSurfaceMultiplayerGateAccess(action, options = {}) {
                 multiplayerRole,
                 reason: 'surface_join_no_transport',
                 message: isBrowserDemo
-                    ? 'Kein produktiver Join-Transport fuer die Demo verfuegbar.'
-                    : 'Kein produktiver Join-Transport verfuegbar.',
+                    ? 'Kein produktiver Join-Transport für die Demo verfügbar.'
+                    : 'Kein produktiver Join-Transport verfügbar.',
                 tone: SURFACE_POLICY_BLOCKED_TONE,
                 durationMs: SURFACE_POLICY_BLOCKED_DURATION_MS,
             });
@@ -462,8 +462,8 @@ export function resolveSurfaceMultiplayerGateAccess(action, options = {}) {
                 multiplayerRole,
                 reason: 'surface_discovery_denied',
                 message: isBrowserDemo
-                    ? 'Discovery ist in dieser Demo nicht verfuegbar.'
-                    : 'Discovery ist in dieser Surface nicht verfuegbar.',
+                    ? 'Discovery ist in dieser Demo nicht verfügbar.'
+                    : 'Discovery ist in dieser Surface nicht verfügbar.',
                 tone: SURFACE_POLICY_BLOCKED_TONE,
                 durationMs: SURFACE_POLICY_BLOCKED_DURATION_MS,
             });
@@ -516,13 +516,13 @@ export function resolveSurfaceEntryCopy(options = {}) {
         sessionDescriptions: Object.freeze({
             [PLATFORM_SURFACE_SESSION_TYPES.SINGLE]: isBrowserDemo
                 ? 'Kuratierte Offline-Runde der Browser-Demo.'
-                : 'Lokaler Startpfad fuer Solo-Runden in der Vollversion.',
+                : 'Lokaler Startpfad für Solo-Runden in der Vollversion.',
             [PLATFORM_SURFACE_SESSION_TYPES.MULTIPLAYER]: isJoinOnly
                 ? 'Desktop-Lobbys beitreten, aber nicht hosten.'
                 : 'Hosten oder einer Lobby beitreten.',
             [PLATFORM_SURFACE_SESSION_TYPES.SPLITSCREEN]: isBrowserDemo
                 ? 'Der geteilte Bildschirm ist in dieser Demo nicht verfügbar.'
-                : 'Lokaler 2-Spieler-Modus auf einem Geraet.',
+                : 'Lokaler 2-Spieler-Modus auf einem Gerät.',
         }),
         sessionSummaryLabels: Object.freeze({
             [PLATFORM_SURFACE_SESSION_TYPES.SINGLE]: isBrowserDemo ? 'Demo offline' : 'Einzelspieler',
@@ -541,12 +541,12 @@ export function resolveSurfaceEntryCopy(options = {}) {
             : 'Session-Code, echte Lobby-Verbindung und Ready-Status.',
         hostButtonLabel: hostCapability.available === true
             ? 'Lobby erstellen'
-            : (isBrowserDemo ? 'Nur Desktop' : 'Nicht verfuegbar'),
+            : (isBrowserDemo ? 'Nur Desktop' : 'Nicht verfügbar'),
         hostButtonTitle: hostCapability.available === true
             ? 'Desktop kann Lobbys erstellen und Matchstart besitzen.'
             : (isBrowserDemo
-                ? 'Hosting ist nur in der Desktop-Vollversion verfuegbar.'
-                : 'Hosting ist in dieser Surface nicht verfuegbar.'),
+                ? 'Hosting ist nur in der Desktop-Vollversion verfügbar.'
+                : 'Hosting ist in dieser Surface nicht verfügbar.'),
         hostActionAvailable: hostCapability.available === true,
         joinButtonLabel: isBrowserDemo ? 'Beitreten' : 'Beitreten',
         joinButtonTitle: isJoinOnly

@@ -200,7 +200,7 @@ function resolveBrowserDemoSurfacePolicyOverrideDraftFromBuildArtifact(runtimeGl
         return createBrowserDemoOverrideDraftResolution({
             status: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_STATUS.SKIPPED,
             reasonCode: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_REASON_CODES.SOURCE_UNAVAILABLE,
-            reason: 'Build-Artefakt-Quelle fuer Browser-Demo-Override ist nicht verfuegbar.',
+            reason: 'Build-Artefakt-Quelle für Browser-Demo-Override ist nicht verfügbar.',
             source: BROWSER_DEMO_OVERRIDE_SOURCE_BUILD_ARTIFACT,
         });
     }
@@ -217,7 +217,7 @@ function resolveBrowserDemoSurfacePolicyOverrideDraftFromBuildArtifact(runtimeGl
             const unavailable = createBrowserDemoOverrideDraftResolution({
                 status: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_STATUS.SKIPPED,
                 reasonCode: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_REASON_CODES.SOURCE_UNAVAILABLE,
-                reason: `Build-Artefakt nicht verfuegbar (status: ${status}).`,
+                reason: `Build-Artefakt nicht verfügbar (status: ${status}).`,
                 source: BROWSER_DEMO_OVERRIDE_SOURCE_BUILD_ARTIFACT,
             });
             BROWSER_DEMO_BUILD_ARTIFACT_RESOLUTION_CACHE.set(runtimeGlobal, unavailable);
@@ -228,7 +228,7 @@ function resolveBrowserDemoSurfacePolicyOverrideDraftFromBuildArtifact(runtimeGl
             const missingDraft = createBrowserDemoOverrideDraftResolution({
                 status: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_STATUS.SKIPPED,
                 reasonCode: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_REASON_CODES.DRAFT_MISSING,
-                reason: 'Build-Artefakt fuer Browser-Demo-Override ist leer.',
+                reason: 'Build-Artefakt für Browser-Demo-Override ist leer.',
                 source: BROWSER_DEMO_OVERRIDE_SOURCE_BUILD_ARTIFACT,
             });
             BROWSER_DEMO_BUILD_ARTIFACT_RESOLUTION_CACHE.set(runtimeGlobal, missingDraft);
@@ -253,7 +253,7 @@ function resolveBrowserDemoSurfacePolicyOverrideDraftFromBuildArtifact(runtimeGl
             const invalidArtifact = createBrowserDemoOverrideDraftResolution({
                 status: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_STATUS.REJECT,
                 reasonCode: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_REASON_CODES.SNAPSHOT_INVALID,
-                reason: 'Build-Artefakt fuer Browser-Demo-Override muss ein Objekt sein.',
+                reason: 'Build-Artefakt für Browser-Demo-Override muss ein Objekt sein.',
                 source: BROWSER_DEMO_OVERRIDE_SOURCE_BUILD_ARTIFACT,
             });
             BROWSER_DEMO_BUILD_ARTIFACT_RESOLUTION_CACHE.set(runtimeGlobal, invalidArtifact);
@@ -265,7 +265,7 @@ function resolveBrowserDemoSurfacePolicyOverrideDraftFromBuildArtifact(runtimeGl
             const invalidArtifact = createBrowserDemoOverrideDraftResolution({
                 status: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_STATUS.REJECT,
                 reasonCode: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_REASON_CODES.SNAPSHOT_INVALID,
-                reason: `Build-Artefakt contractVersion ist ungueltig: ${contractVersion || '<missing>'}.`,
+                reason: `Build-Artefakt contractVersion ist ungültig: ${contractVersion || '<missing>'}.`,
                 source: BROWSER_DEMO_OVERRIDE_SOURCE_BUILD_ARTIFACT,
             });
             BROWSER_DEMO_BUILD_ARTIFACT_RESOLUTION_CACHE.set(runtimeGlobal, invalidArtifact);
@@ -276,7 +276,7 @@ function resolveBrowserDemoSurfacePolicyOverrideDraftFromBuildArtifact(runtimeGl
             const missingDraft = createBrowserDemoOverrideDraftResolution({
                 status: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_STATUS.SKIPPED,
                 reasonCode: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_REASON_CODES.DRAFT_MISSING,
-                reason: 'Build-Artefakt enthaelt keinen gueltigen Draft.',
+                reason: 'Build-Artefakt enthält keinen gültigen Draft.',
                 source: BROWSER_DEMO_OVERRIDE_SOURCE_BUILD_ARTIFACT,
             });
             BROWSER_DEMO_BUILD_ARTIFACT_RESOLUTION_CACHE.set(runtimeGlobal, missingDraft);
@@ -334,7 +334,7 @@ function resolveBrowserDemoSurfacePolicyOverrideDraftFromBuildArtifact(runtimeGl
                 const unavailable = createBrowserDemoOverrideDraftResolution({
                     status: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_STATUS.SKIPPED,
                     reasonCode: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_REASON_CODES.SOURCE_UNAVAILABLE,
-                    reason: 'Keine Fetch-API fuer den asynchronen Build-Artefakt-Lesepfad verfuegbar.',
+                    reason: 'Keine Fetch-API für den asynchronen Build-Artefakt-Lesepfad verfügbar.',
                     source: BROWSER_DEMO_OVERRIDE_SOURCE_BUILD_ARTIFACT,
                 });
                 BROWSER_DEMO_BUILD_ARTIFACT_RESOLUTION_CACHE.set(runtimeGlobal, unavailable);
@@ -483,7 +483,7 @@ export function resolveSurfacePolicySource(options = {}) {
             browserDemoOverrideDiagnostics: createBrowserDemoOverrideDiagnostics({
                 status: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_STATUS.SKIPPED,
                 reasonCode: BROWSER_DEMO_OVERRIDE_DIAGNOSTIC_REASON_CODES.NOT_APPLICABLE,
-                reason: 'Browser-Demo-Override ist nur fuer browser-demo relevant.',
+                reason: 'Browser-Demo-Override ist nur für browser-demo relevant.',
                 source: 'none',
             }),
         });

@@ -194,9 +194,9 @@ export class MenuExpertLoginRuntime {
         const unlocked = this.isUnlocked();
         const available = this.state.available === true;
         const statusText = !available
-            ? 'Debugpfade sind fuer diese Surface nicht verfuegbar.'
+            ? 'Debugpfade sind für diese Surface nicht verfügbar.'
             : (unlocked
-                ? 'Lokaler Diagnosebereich fuer diese Sitzung freigeschaltet.'
+                ? 'Lokaler Diagnosebereich für diese Sitzung freigeschaltet.'
                 : (this.state.error || 'Debugfunktionen sind lokal gesperrt.'));
 
         if (this.ui.openExpertButton) {

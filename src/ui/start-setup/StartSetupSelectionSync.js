@@ -71,7 +71,7 @@ function syncGhostDuelControls(ui, ghostDuelState) {
         if (ghostDuelState.duelSelectable) {
             ui.arcadeGhostDuelModeHint.textContent = `Aktiv: ${resolveArcadeGhostDuelModeLabel(ghostDuelState.configuredMode)}`;
         } else if (ghostDuelState.configuredMode !== ARCADE_GHOST_DUEL_MODES.OFF) {
-            ui.arcadeGhostDuelModeHint.textContent = 'Gespeichert: Selbstduell ist aktiv, sobald Single gewaehlt ist.';
+            ui.arcadeGhostDuelModeHint.textContent = 'Gespeichert: Selbstduell ist aktiv, sobald Single gewählt ist.';
         } else {
             ui.arcadeGhostDuelModeHint.textContent = 'Nur im Einzelspieler aktiv.';
         }
@@ -81,7 +81,7 @@ function syncGhostDuelControls(ui, ghostDuelState) {
         ui.arcadeGhostTrailCollisionToggle.disabled = !ghostDuelState.trailCollisionSelectable;
         ui.arcadeGhostTrailCollisionToggle.title = ghostDuelState.trailCollisionSelectable
             ? 'Ghost-Spur nimmt an der normalen Trail-Kollision teil.'
-            : 'Aktiv, sobald Ghost-Wiedergabe im Einzelspieler laeuft.';
+            : 'Aktiv, sobald Ghost-Wiedergabe im Einzelspieler läuft.';
     }
 }
 

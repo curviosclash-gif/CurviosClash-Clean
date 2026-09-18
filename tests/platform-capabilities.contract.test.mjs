@@ -418,9 +418,9 @@ test('V77.3.2 blocked demo actions share the same UX feedback contract', () => {
     assert.equal(blockedQuickStart.reason, 'surface_policy_blocked');
     assert.equal(blockedQuickStart.tone, 'warning');
     assert.equal(blockedQuickStart.durationMs, 1600);
-    assert.match(blockedQuickStart.message, /Direktstart ist in dieser Demo nicht verfuegbar/);
-    assert.match(blockedPreset.message, /ist in dieser Demo nicht verfuegbar/);
-    assert.match(blockedDesktop.message, /ist in dieser Surface nicht verfuegbar/);
+    assert.match(blockedQuickStart.message, /Direktstart ist in dieser Demo nicht verfügbar/);
+    assert.match(blockedPreset.message, /ist in dieser Demo nicht verfügbar/);
+    assert.match(blockedDesktop.message, /ist in dieser Surface nicht verfügbar/);
 });
 
 test('V77.3.3 surface entry copy cuts showcase, join-only and splitscreen access per surface', () => {
@@ -651,7 +651,7 @@ test('V77.5.3 launch guard blocks browser-demo editor entrypoints with structure
     assert.equal(blockedMapEditor.reason, 'surface_policy_blocked');
     assert.equal(blockedMapEditor.tone, 'warning');
     assert.equal(blockedMapEditor.durationMs, 1600);
-    assert.match(blockedMapEditor.message, /3D Map-Editor ist in dieser Demo nicht verfuegbar/);
+    assert.match(blockedMapEditor.message, /3D Map-Editor ist in dieser Demo nicht verfügbar/);
     assert.equal(blockedMapEditor.featureClassification?.classification, PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.DESKTOP_ONLY);
 
     assert.equal(allowedMapEditor.allowed, true);
