@@ -25,6 +25,7 @@ import {
 } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
 import { FIVE_PORTALS_RECORD_KEY } from '../../shared/contracts/FivePortalsContract.js';
 import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
+import { observeMenuReturn } from './MenuReturnObserver.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
@@ -502,5 +503,6 @@ export function setupArcadeMenuSurface(ctx = {}) {
         bind(element, 'click', syncOnInteraction);
     });
 
+    observeMenuReturn(level3Body.closest?.('#main-menu'), syncOnInteraction);
     sync();
 }
