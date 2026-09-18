@@ -586,8 +586,12 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.locator('#numArenaW').fill('-20');
         await page.locator('#numArenaW').press('Tab');
         await expect(page.locator('#numArenaW')).toHaveValue('2800');
+        // Die Hoehen-Ebene sitzt seit ae2bec6f im Reiter "Ebenen", die
+        // Arenamasse bleiben im Reiter "Map".
+        await activateInspectorTab(page, 'layers');
         await page.locator('#numYLayer').fill('900');
         await page.locator('#numYLayer').press('Tab');
+        await activateInspectorTab(page, 'map');
         await page.locator('#numArenaH').fill('700');
         await page.locator('#numArenaH').press('Tab');
         await expect(page.locator('#numYLayer')).toHaveValue('700');
@@ -766,6 +770,13 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
         await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.ui.capturePlaytestReturnState())).toBe(true);
 
+        // Der Arbeitsstand liegt jetzt im Speicher des Browsers. Im Produkt
+        // kehrt das Playtest-Fenster selbst zum Editor zurueck; hier wuerde die
+        // Verlassen-Sperre des dreckigen Editorfensters die Navigation in
+        // Electron still abbrechen, deshalb wird sie vorher geloest. Der
+        // wiederhergestellte Stand bleibt trotzdem "ungespeichert", weil das
+        // im aufgezeichneten Zustand steht.
+        await page.evaluate(() => window.CURVIOS_EDITOR?.ui?.markSaved?.());
         await page.goto(resolveAppUrl(page, `${EDITOR_VIEW_PATHS.MAP_EDITOR}?returnFromPlaytest=1`), { waitUntil: 'domcontentloaded' });
         await page.waitForFunction(() => !!window.CURVIOS_EDITOR?.getState, null, { timeout: 30_000 });
         await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
@@ -1352,10 +1363,36 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
     });
 });
 
+// Dieselbe Schwelle, an der EditorLayoutControls das Baudock einklappt.
+const COMPACT_WORKSPACE_MEDIA_QUERY = '(max-width: 1200px)';
+
+/**
+ * Verkleinert die Arbeitsflaeche so weit, dass das kompakte Layout greift.
+ * Im Browser genuegt die Playwright-Option; im Desktop ist die Seite ein
+ * echtes Fenster, das diese Option gar nicht kennt - dort wird das Fenster
+ * selbst kleiner gemacht. Kleiner als seine Mindestbreite geht es nicht, die
+ * liegt aber unter der Kompakt-Schwelle.
+ */
+async function useCompactWorkspace(page, { width = 1024, height = 768 } = {}) {
+    if (IS_BROWSER_COMPAT) {
+        await page.setViewportSize({ width, height });
+    } else {
+        const browserWindowHandle = await currentElectronApp.browserWindow(page);
+        await browserWindowHandle.evaluate((browserWindow, size) => {
+            browserWindow.setContentSize(size.width, size.height);
+        }, { width, height });
+    }
+    await expect.poll(
+        () => page.evaluate((query) => window.matchMedia(query).matches, COMPACT_WORKSPACE_MEDIA_QUERY),
+        { timeout: 15_000 }
+    ).toBe(true);
+}
+
 test.describe('Editor Small Desktop Layout', () => {
     test.use({ viewport: { width: 1024, height: 768 } });
 
     test('kompaktes Startlayout haelt Topbar und Arbeitsflaeche zugaenglich', async ({ page }) => {
+        await useCompactWorkspace(page);
         await loadEditorPage(page, { waitForDockVisible: false });
 
         await expect(page.locator('#buildDock')).toHaveClass(/is-collapsed/);
