@@ -85,6 +85,10 @@ export class SettingsStore {
         this.createDefaultSettings = typeof options.createDefaultSettings === 'function'
             ? options.createDefaultSettings
             : () => ({});
+        // What a profile without stored settings starts with; plain defaults unless the owner seeds more.
+        this.createInitialSettings = typeof options.createInitialSettings === 'function'
+            ? options.createInitialSettings
+            : this.createDefaultSettings;
         this.settingsStorageKey = options.settingsStorageKey || SETTINGS_STORAGE_KEY;
         this.settingsStorageLegacyKeys = Array.isArray(options.settingsStorageLegacyKeys)
             ? [...options.settingsStorageLegacyKeys]
@@ -139,7 +143,7 @@ export class SettingsStore {
     _createCanonicalSettingsPersistenceState(settings) {
         const hasInput = settings !== null && settings !== undefined;
         const hasObjectInput = !!settings && typeof settings === 'object';
-        const seedSettings = hasObjectInput ? settings : this.createDefaultSettings();
+        const seedSettings = hasObjectInput ? settings : this.createInitialSettings();
         const canonicalSettings = this.sanitizeSettings(seedSettings);
         return {
             hasObjectInput,

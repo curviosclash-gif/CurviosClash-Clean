@@ -32,6 +32,7 @@ import { createSettingsTelemetryFacade } from './settings/SettingsTelemetryFacad
 import { createSettingsBotPolicyFacade } from './settings/SettingsBotPolicyFacade.js';
 import { createSettingsDiagnosticsFacade } from './settings/SettingsDiagnosticsFacade.js';
 import { reconcileSettingsSnapshot } from './settings/SettingsDomainUtils.js';
+import { seedFreshProfileStylePreset } from './settings/FreshProfileSettingsOps.js';
 
 /**
  * @typedef {object} SettingsManagerOptions
@@ -78,6 +79,10 @@ export class SettingsManager {
             ...storeOptions,
             sanitizeSettings: (settings) => this.sanitizeSettings(settings),
             createDefaultSettings: () => this.createDefaultSettings(),
+            createInitialSettings: () => seedFreshProfileStylePreset(
+                this.createDefaultSettings(),
+                (settings, presetId) => this.applyMenuPreset(settings, presetId)
+            ),
         });
         this.#menuPresetStore = new MenuPresetStore({
             ...storeOptions,

@@ -25,6 +25,7 @@ import {
 import { hasConfiguredOnlineSignalingUrl } from '../../shared/contracts/OnlineSignalingConfig.js';
 import { appendMutationChangedKeys, resolveMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 import { resolvePresetFailureMessage } from './MenuRuntimeQuickStartService.js';
+import { MODE_PATH_TO_PRESET_ID } from '../settings/FreshProfileSettingsOps.js';
 
 // Re-exported so existing call sites keep a stable MenuRuntimeSessionService entry point.
 export {
@@ -32,12 +33,6 @@ export {
     handleQuickStartLastStartAction,
     handleQuickStartRandomStartAction,
 } from './MenuRuntimeQuickStartService.js';
-
-const MODE_PATH_TO_PRESET_ID = Object.freeze({
-    arcade: 'arcade',
-    fight: 'fight-standard',
-    normal: 'normal-standard',
-});
 
 const SESSION_SWITCH_CHANGED_KEYS = Object.freeze([
     SETTINGS_CHANGE_KEYS.SESSION_TYPE,
