@@ -28,6 +28,7 @@ PREVIEW_DIR = SOURCE_DIR / "previews"
 BLEND_PATH = SOURCE_DIR / "ancient_tree.blend"
 GLB_PATH = ASSET_DIR / "ancient_tree.glb"
 SEED = 41073
+GOLDEN_ANGLE = 2.399963229728653
 
 TREE_COLLECTION = "AncientTree"
 PRESENTATION_COLLECTION = "Presentation"
@@ -272,7 +273,7 @@ TRUNK_SPEC = (
 )
 
 
-# Four art-directed leaders preserve the concept silhouette. All later levels are generated
+# Five art-directed leaders preserve the concept silhouette. All later levels are generated
 # recursively from these anchors, so the crown remains self-similar without losing its identity.
 MAIN_BRANCHES = (
     ("MainFrontLeft", ((-0.05, -0.05, 5.2), (-1.2, -0.95, 6.8), (-2.8, -2.2, 8.6),
@@ -287,6 +288,10 @@ MAIN_BRANCHES = (
     ("MainRearRight", ((0.1, 0.12, 6.9), (0.7, 0.85, 9.6), (1.6, 1.9, 12.5),
                        (2.7, 3.1, 15.0), (4.0, 4.6, 17.5)),
      (1.08, 0.86, 0.61, 0.38, 0.18)),
+    # The central leader overlaps the old trunk cap, replacing the visible cut with living wood.
+    ("MainCentral", ((0.35, 0.05, 9.7), (0.25, -0.2, 11.2), (-0.1, 0.15, 12.8),
+                     (0.25, 0.25, 14.4), (-0.2, 0.0, 15.8)),
+     (0.68, 0.54, 0.39, 0.25, 0.12)),
 )
 
 
@@ -392,10 +397,12 @@ def build_fractal_wood(tree_collection, mats, rng):
     tertiary_specs = []
     fine_specs = []
     leaf_sites = []
+    fine_attachment_fractions = []
+    fine_divergence_angles = []
 
-    for main_index, (_main_name, main_points, main_radii) in enumerate(main_specs):
+    for main_index, (main_name, main_points, main_radii) in enumerate(main_specs):
         sector = atan2(main_points[-1][1], main_points[-1][0])
-        secondary_count = 4 + (main_index % 2)
+        secondary_count = 3 if main_name == "MainCentral" else 4 + (main_index % 2)
         for secondary_index in range(secondary_count):
             fraction = 0.28 + 0.62 * (secondary_index + 1) / (secondary_count + 1)
             fraction += rng.uniform(-0.025, 0.025)
@@ -404,14 +411,16 @@ def build_fractal_wood(tree_collection, mats, rng):
             heading = sector + spread + rng.uniform(-0.16, 0.16)
             radial_direction = Vector((cos(heading), sin(heading), rng.uniform(0.32, 0.68))).normalized()
             direction = (tangent * 0.2 + radial_direction * 0.74 + Vector((0, 0, 0.18))).normalized()
-            length = rng.uniform(5.2, 7.0)
+            length = (rng.uniform(3.8, 5.1) if main_name == "MainCentral"
+                      else rng.uniform(5.2, 7.0))
             start_radius = pipe_child_radius(parent_radius, secondary_count) * rng.uniform(0.9, 1.08)
             points = branch_path(start, direction, length, rng, gravity=0.055, phototropism=0.1)
             radii = radius_profile(start_radius, max(0.045, start_radius * 0.14))
             secondary_name = f"Secondary_{main_index:02d}_{secondary_index:02d}"
             secondary_specs.append((secondary_name, points, radii))
 
-            tertiary_count = 5 + rng.randrange(4)
+            tertiary_count = ((4 + rng.randrange(3)) if main_name == "MainCentral"
+                              else (5 + rng.randrange(4)))
             for tertiary_index in range(tertiary_count):
                 tertiary_fraction = 0.18 + 0.74 * (tertiary_index + 1) / (tertiary_count + 1)
                 tertiary_fraction += rng.uniform(-0.02, 0.02)
@@ -430,18 +439,26 @@ def build_fractal_wood(tree_collection, mats, rng):
                 tertiary_specs.append((tertiary_name, t_points, t_radii))
 
                 fine_count = 2 + rng.randrange(3)
+                fine_phase = rng.uniform(0, 2 * pi)
                 for fine_index in range(fine_count):
-                    fine_fraction = 0.42 + 0.5 * (fine_index + 1) / (fine_count + 1)
-                    fine_fraction += rng.uniform(-0.035, 0.035)
+                    band_start = 0.27 + 0.62 * fine_index / fine_count
+                    band_end = 0.27 + 0.62 * (fine_index + 0.72) / fine_count
+                    fine_fraction = rng.uniform(band_start, band_end)
                     f_start, f_tangent, f_parent_radius = sample_branch(t_points, t_radii, fine_fraction)
+                    divergence = max(0.32, min(
+                        0.75,
+                        0.78 - 0.34 * fine_fraction + rng.uniform(-0.09, 0.09),
+                    ))
+                    azimuth = (fine_phase + GOLDEN_ANGLE * fine_index
+                               + rng.uniform(-0.18, 0.18))
                     f_direction = cone_direction(
                         f_tangent,
-                        rng.uniform(0.34, 0.72),
-                        2 * pi * fine_index / fine_count + rng.uniform(-0.3, 0.3),
+                        divergence,
+                        azimuth,
                     )
-                    f_direction = (f_direction * 0.8 + Vector((0, 0, 0.18))
-                                   + outward_vector(f_start) * 0.08).normalized()
-                    f_length = rng.uniform(0.9, 1.58)
+                    f_direction = (f_direction * 0.78 + Vector((0, 0, 0.16))
+                                   + outward_vector(f_start) * 0.14).normalized()
+                    f_length = rng.uniform(0.95, 1.62) * (1.12 - 0.28 * fine_fraction)
                     f_start_radius = pipe_child_radius(f_parent_radius, fine_count) * rng.uniform(0.86, 1.05)
                     f_points = branch_path(f_start, f_direction, f_length, rng,
                                            gravity=0.018, phototropism=0.045)
@@ -449,6 +466,8 @@ def build_fractal_wood(tree_collection, mats, rng):
                     fine_name = (f"Fine_{main_index:02d}_{secondary_index:02d}_"
                                  f"{tertiary_index:02d}_{fine_index:02d}")
                     fine_specs.append((fine_name, f_points, f_radii))
+                    fine_attachment_fractions.append(fine_fraction)
+                    fine_divergence_angles.append(degrees(divergence))
                     cluster_radius = rng.uniform(0.44, 0.64)
                     for point_index, scale in ((2, 0.72), (3, 0.88), (4, 1.0)):
                         leaf_sites.append((Vector(f_points[point_index]), f_direction,
@@ -466,6 +485,10 @@ def build_fractal_wood(tree_collection, mats, rng):
         "tertiary": len(tertiary_specs),
         "fine": len(fine_specs),
         "leaf_sites": len(leaf_sites),
+        "fine_attachment_span": round(
+            max(fine_attachment_fractions) - min(fine_attachment_fractions), 3),
+        "fine_divergence_span_deg": round(
+            max(fine_divergence_angles) - min(fine_divergence_angles), 2),
         "main_lengths_m": tuple(round(sum(
             (Vector(points[index + 1]) - Vector(points[index])).length
             for index in range(len(points) - 1)
@@ -648,24 +671,24 @@ def aim_at(obj, target):
 
 def build_presentation(scene, collection):
     target = bpy.data.objects.new("TreePresentationTarget", None)
-    target.location = (0, 0, 9.25)
+    target.location = (0, 0, 10.5)
     collection.objects.link(target)
 
     cameras = []
     views = (
-        ("front", (0, -36, 9.25)),
-        ("three_quarter_left", (-25.46, -25.46, 9.25)),
-        ("side", (-36, 0, 9.25)),
-        ("three_quarter_rear", (-25.46, 25.46, 9.25)),
-        ("rear", (0, 36, 9.25)),
-        ("rear_right", (25.46, 25.46, 9.25)),
-        ("opposite_side", (36, 0, 9.25)),
-        ("three_quarter_right", (25.46, -25.46, 9.25)),
+        ("front", (0, -36, 10.5)),
+        ("three_quarter_left", (-25.46, -25.46, 10.5)),
+        ("side", (-36, 0, 10.5)),
+        ("three_quarter_rear", (-25.46, 25.46, 10.5)),
+        ("rear", (0, 36, 10.5)),
+        ("rear_right", (25.46, 25.46, 10.5)),
+        ("opposite_side", (36, 0, 10.5)),
+        ("three_quarter_right", (25.46, -25.46, 10.5)),
     )
     for label, location in views:
         camera_data = bpy.data.cameras.new(f"Camera_{label}")
         camera_data.type = "ORTHO"
-        camera_data.ortho_scale = 30.0
+        camera_data.ortho_scale = 31.0
         camera = bpy.data.objects.new(f"Camera_{label}", camera_data)
         camera.location = location
         aim_at(camera, target.location)
@@ -715,12 +738,16 @@ def validate_scene(scene, tree_collection, cameras, branch_counts):
     meshes = [obj for obj in tree_collection.objects if obj.type == "MESH"]
     if len(cameras) != 8:
         raise RuntimeError(f"expected eight presentation cameras, found {len(cameras)}")
-    if branch_counts["main"] != 4:
-        raise RuntimeError(f"expected four main branches, found {branch_counts['main']}")
-    if not 16 <= branch_counts["secondary"] <= 20:
+    if branch_counts["main"] != 5:
+        raise RuntimeError(f"expected five main branches, found {branch_counts['main']}")
+    if not 20 <= branch_counts["secondary"] <= 23:
         raise RuntimeError(f"secondary branch count outside target: {branch_counts['secondary']}")
     if branch_counts["tertiary"] < 80 or branch_counts["fine"] < 200:
         raise RuntimeError(f"branch hierarchy is too sparse: {branch_counts}")
+    if branch_counts["fine_attachment_span"] < 0.48:
+        raise RuntimeError(f"fine branches are too clustered along their parents: {branch_counts}")
+    if branch_counts["fine_divergence_span_deg"] < 12:
+        raise RuntimeError(f"fine branch angles are too uniform: {branch_counts}")
     if max(branch_counts["main_lengths_m"]) - min(branch_counts["main_lengths_m"]) < 1.5:
         raise RuntimeError(f"main branch lengths are too uniform: {branch_counts['main_lengths_m']}")
     if max(branch_counts["main_angles_deg"]) - min(branch_counts["main_angles_deg"]) < 12:
@@ -742,7 +769,7 @@ def validate_scene(scene, tree_collection, cameras, branch_counts):
     face_count = sum(len(obj.data.polygons) for obj in meshes)
     if face_count < 16000:
         raise RuntimeError(f"tree detail budget is unexpectedly low: {face_count} faces")
-    if face_count > 60000:
+    if face_count > 70000:
         raise RuntimeError(f"tree detail budget is too high for the runtime asset: {face_count} faces")
     scene["mesh_count"] = len(meshes)
     scene["face_count"] = face_count
