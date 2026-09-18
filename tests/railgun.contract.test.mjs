@@ -173,3 +173,7 @@ test('review fix: a shot without a beam is not spent', () => {
     system.fire(shooter, 0.016, false);
     assert.equal(shooter.railShots, 5);
 });
+
+test('the railgun has its own icon, not the lightning bolt', () => {
+    assert.notEqual(getPickupDefinition('RAILGUN').icon, getPickupDefinition('LIGHTNING').icon);
+});

@@ -13,7 +13,7 @@ export const RAILGUN_PICKUP_DEFINITIONS = Object.freeze({
     RAILGUN: {
         name: 'Railgun',
         description: 'MG-Taste halten lädt, Loslassen feuert: 20 bis 70 Schaden, durch Spuren und bis zu 3 Gegner. 5 Schuss oder 30 Sekunden.',
-        color: 0x7fe7ff, icon: '⚡', duration: 30,
+        color: 0x7fe7ff, icon: '🎯', duration: 30,
         selfUsable: true, shootable: false, offensive: false, projectileOnly: false,
         allowedModes: COMBAT_MODES,
         // ponytail: the twenty observation slots are full, so it shares the catch-all slot like
