@@ -25,7 +25,9 @@ import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 500;
 const DEFAULT_POLL_TIMEOUT_MS = 2500;
-const POLL_FAILURE_THRESHOLD = 3;
+// One lost poll starts the reconnect loop; its three attempts are the tolerance, so the
+// guest sees "Verbindung wird wiederhergestellt" at once instead of a stale "connected".
+const POLL_FAILURE_THRESHOLD = 1;
 
 /**
  * Lobby for LAN play. Communicates with the embedded LAN signaling server
@@ -346,7 +348,7 @@ export class LANMatchLobby extends MatchLobby {
                     data = await this._pollStatusOnce();
                 } else {
                     const response = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_REJOIN}`, {
-                        method: 'POST',
+                        signal: AbortSignal.timeout(this._pollTimeoutMs), method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             playerId: this._localPeerId,

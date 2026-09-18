@@ -34,10 +34,27 @@ export function resolveLobbyMatchFacts(metadata) {
     ];
 }
 
+// A lost connection usually means the host is gone, so the found lobbies are stale.
+// Clear them once on the way into "disconnected"; a new search afterwards stays.
+function clearStaleLobbyListOnConnectionLoss(ui, panel, state) {
+    const phase = String(state?.connectionPhase || '');
+    const previousPhase = panel?.dataset?.lobbyConnectionPhase || '';
+    if (panel?.dataset) panel.dataset.lobbyConnectionPhase = phase;
+    const select = ui.multiplayerOpenLobbiesSelect;
+    if (phase !== 'disconnected' || previousPhase === 'disconnected' || !select?.ownerDocument?.createElement) return;
+    const placeholder = select.ownerDocument.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Verbindung verloren – bitte neu suchen';
+    select.replaceChildren(placeholder);
+    select.value = '';
+    select.disabled = true;
+}
+
 export function syncLobbyScreen(ui, state, isMultiplayerSession) {
     const joined = isMultiplayerSession && state?.joined === true;
     const host = joined && state.isHost === true;
     const panel = ui.multiplayerPanel;
+    clearStaleLobbyListOnConnectionLoss(ui, panel, state);
     if (panel?.dataset) {
         panel.dataset.lobbyJoined = String(joined);
         panel.dataset.lobbyHost = String(host);
