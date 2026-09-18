@@ -11,6 +11,7 @@ import {
 } from './arcade/postrun/ArcadePostRunBlocks.js';
 import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/ArcadePostRunCards.js';
 import { createArenaWavesMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
+import { formatArenaWavesChoiceLabel, resolveArenaWavesBoardTexts } from './arcade/ArenaWavesOverlayTexts.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
 import {
     getArcadeMenuSurfaceState,
@@ -336,8 +337,7 @@ export class MatchFlowArcadeOverlayController {
         const grid = document.createElement('div'); grid.className = 'arcade-overlay-choice-grid';
         for (const choiceId of runtimeState.choices || []) {
             const button = document.createElement('button'); button.type = 'button'; button.className = 'arcade-overlay-choice-btn';
-            const supplyLabels = { 'supply:shield': 'Kampfvorrat: Schild', 'supply:rocket': 'Kampfvorrat: Rakete', 'supply:health': 'Kampfvorrat: Reparatur', 'supply:thick': 'Kampfvorrat: Dicke Spur' };
-            button.textContent = supplyLabels[choiceId] || choiceId.replace('machine_gun:', 'MG: ').replace('_', ' ');
+            button.textContent = formatArenaWavesChoiceLabel(choiceId);
             button.addEventListener('click', () => selectArcadeIntermissionChoice(this.runtimePort, this.game, choiceId));
             grid.appendChild(button);
         }
@@ -486,8 +486,8 @@ export class MatchFlowArcadeOverlayController {
         while (panel.firstChild) panel.removeChild(panel.firstChild);
         const title = document.createElement('h2'); title.textContent = `Fünf Fronten abgeschlossen – ${Math.round(toSafeNumber(summary.total, 0))} Punkte`;
         const list = createArcadeCardScroller(createArenaWavesMapBlocks(summary), 'Karten', 'Keine Kartendaten.');
-        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Schließen';
-        close.addEventListener('click', () => { panel.classList.add('hidden'); this.game?.ui?.messageOverlay?.classList?.add?.('hidden'); });
+        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Zum Menü';
+        close.addEventListener('click', () => this.runtimePort?.returnToMenu?.({ reason: 'arena_waves_finished' }));
         panel.append(title, list, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
     }
 
@@ -522,6 +522,9 @@ export class MatchFlowArcadeOverlayController {
         const countdown = this._arcadeOverlayPanel?.querySelector('#arcade-intermission-countdown');
         if (countdown) countdown.textContent = runtimeState?.intermissionPaused
             ? 'Countdown angehalten.' : `Automatischer Start in ${Math.max(0, Math.ceil(game.roundPause))}s.`;
+        const arenaBoard = resolveArenaWavesBoardTexts(runtimeState);
+        if (arenaBoard && game.ui.messageText) game.ui.messageText.textContent = arenaBoard.title;
+        if (arenaBoard && game.ui.messageSub) game.ui.messageSub.textContent = arenaBoard.sub;
         if (runtimeState?.intermission && game.ui.messageSub) game.ui.messageSub.textContent = runtimeState.intermissionPaused
             ? 'Countdown angehalten – wähle Route und Belohnung.' : 'Wähle Route und Belohnung oder halte den Countdown an.';
         if (key === this._renderKey) return;
