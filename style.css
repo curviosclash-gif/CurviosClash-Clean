@@ -5452,7 +5452,41 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     font-size: 0.85rem;
     font-weight: 800;
     line-height: 1;
-    cursor: help;
+    cursor: pointer;
+}
+
+.menu-info-hint[aria-expanded="true"] {
+    border-color: #72dcf4;
+    color: #ffffff;
+}
+
+/* The note opens in place next to its "i"; the parent anchors it. */
+:has(> .menu-info-note:not([hidden])) {
+    position: relative;
+}
+
+.menu-info-note {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 40;
+    max-width: min(340px, 80vw);
+    padding: 8px 10px;
+    border: 1px solid rgba(145, 205, 255, 0.5);
+    border-radius: 8px;
+    background: rgba(8, 20, 38, 0.97);
+    color: #dde8ff;
+    font-family: var(--menu-theme-ui-font);
+    font-size: 0.82rem;
+    font-weight: 400;
+    letter-spacing: normal;
+    line-height: 1.45;
+    text-transform: none;
+    white-space: normal;
+}
+
+.menu-info-note[hidden] {
+    display: none;
 }
 
 .section-title-with-info {

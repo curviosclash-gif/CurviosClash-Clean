@@ -3,6 +3,7 @@ import { PLATFORM_SURFACE_FEATURE_IDS } from '../../shared/contracts/PlatformSur
 import { clamp } from '../../shared/utils/MathOps.js';
 import { setupArcadeMenuSurface } from '../arcade/ArcadeMenuSurface.js';
 import { bindMenuMultiplayerActionButtons } from './MenuMultiplayerActionBindings.js';
+import { bindStaticInfoHints } from './InfoHintToggle.js';
 import { resolveSurfaceFeatureLaunchGuard } from './MenuSurfaceFeatureAccess.js';
 import { createRuntimeSettingsLimitsForRuntime } from '../../shared/contracts/SettingsRuntimeLimitsContract.js';
 
@@ -132,6 +133,8 @@ export function bindMenuExtrasButtons(ctx) {
             queueInputSettingsChanged([keys.GAMEPLAY_PLANAR_LEVEL_COUNT]);
         });
     }
+
+    bindStaticInfoHints(ui.mainMenu?.ownerDocument || globalThis.document);
 
     bindMenuMultiplayerActionButtons({
         ui,
