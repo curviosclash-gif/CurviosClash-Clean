@@ -213,7 +213,10 @@ export class GameRuntimeSessionHandler {
             });
             facade?.settingsHandler?.applySurfacePolicyStartDefaults?.();
             facade?.settingsHandler?.applyMapScenarioStartDefaults?.();
-            if (options?.arcadeSectorTransition?.fivePortals === true) {
+            // The settings refresh above rebuilt the session map from the menu choice;
+            // multi-map runs must put the next map back on top of it.
+            const sectorTransition = options?.arcadeSectorTransition;
+            if (sectorTransition?.fivePortals === true || sectorTransition?.arenaWaves === true) {
                 facade?._applyArcadeSectorRuntimeProfile?.(options.arcadeSectorTransition);
             }
             const sessionContract = resolveRuntimeSessionContract(game?.settings?.localSettings);
