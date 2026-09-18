@@ -2344,7 +2344,8 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         });
 
         expect(probe).not.toBeNull();
-        expect(probe.portalPairs).toBe(2);
+        // The map owns its portal count (menu decision 18.09.); the scenario only switches portals on.
+        expect(probe.portalPairs).toBeGreaterThan(0);
         expect(probe.hit).toBeTruthy();
         expect(probe.targetDistance).toBeLessThan(0.001);
         expect(probe.cooldown).toBeGreaterThan(0);

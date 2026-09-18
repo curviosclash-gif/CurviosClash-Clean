@@ -129,7 +129,8 @@ test('T65g:saved maps reach the split setup and deleted maps leave the menus wit
     await expect(page.locator(`[data-four-player-planar-map] option[value="${SPLIT_MAP_KEY}"]`)).toHaveCount(1);
 
     // Die normale Kartenauswahl kennt die Karte jetzt ebenfalls.
-    await page.locator('[data-four-player-planar-back]').click();
+    // The panel's own back button closes an open local module first (no second back button).
+    await page.locator('#submenu-custom .submenu-header [data-back]').click();
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
     const mainOption = page.locator(`#map-select option[value="${SPLIT_MAP_KEY}"]`);
