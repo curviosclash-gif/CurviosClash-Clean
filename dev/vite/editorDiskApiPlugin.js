@@ -7,7 +7,6 @@ import {
     createPreviewLocalMutationDisabledResponse,
     shouldBlockPreviewLocalMutation,
 } from './previewLocalApiGuard.js';
-import { parseMapJSON, toArenaMapDefinition } from '../../src/entities/MapSchema.js';
 import {
     EDITOR_API_ROUTES,
     EDITOR_DATA_PATHS,
@@ -20,23 +19,18 @@ import {
     VEHICLE_LAB_GAME_VEHICLE_IDS,
 } from '../../src/shared/contracts/VehicleLabConfigContract.js';
 import {
-    createEditorAuthoringDocument,
-    parseEditorAuthoringDocument,
-} from '../../editor/js/EditorAuthoringDocument.js';
+    buildEditorMapDiskFiles,
+    EDITOR_MAP_EDITOR_SUFFIX,
+    EDITOR_MAP_RUNTIME_SUFFIX,
+    GENERATED_EDITOR_MAP_KEY_PREFIX,
+    sanitizeEditorMapName,
+    slugifyEditorMapKeyBase,
+} from '../../editor/js/EditorMapDiskFiles.js';
 
 const __dirname = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-const GENERATED_EDITOR_MAP_KEY_PREFIX = 'editor_';
-const DEFAULT_EDITOR_DISK_MAP_NAME = 'Editor Map';
-const EDITOR_MAP_NAME_MAX_LENGTH = 80;
 const EDITOR_MAP_DIR = path.resolve(__dirname, EDITOR_DATA_PATHS.MAPS_DIR);
 const GENERATED_LOCAL_MAPS_MODULE_PATH = path.resolve(__dirname, EDITOR_DATA_PATHS.GENERATED_LOCAL_MAPS_MODULE);
-const EDITOR_JSON_SUFFIX = '.editor.json';
-const RUNTIME_JSON_SUFFIX = '.runtime.json';
-
-const LEGACY_EDITOR_PLAYTEST_SCALE = 35;
-const LEGACY_EDITOR_LARGE_DIM_THRESHOLD = 500;
-const RUNTIME_MAP_SCALE = 3;
 
 const GENERATED_EDITOR_VEHICLE_KEY_PREFIX = 'editor_vehicle_';
 const GAME_VEHICLE_ID_SET = new Set(VEHICLE_LAB_GAME_VEHICLE_IDS);
@@ -129,30 +123,6 @@ function readVideoBody(req, maxBytes = 500 * 1024 * 1024) {
     });
 }
 
-function getEditorDiskConversionScale(mapDocument) {
-    const width = Number(mapDocument?.arenaSize?.width);
-    const height = Number(mapDocument?.arenaSize?.height);
-    const depth = Number(mapDocument?.arenaSize?.depth);
-    const maxDim = Math.max(
-        Number.isFinite(width) ? width : 0,
-        Number.isFinite(height) ? height : 0,
-        Number.isFinite(depth) ? depth : 0
-    );
-
-    if (maxDim >= LEGACY_EDITOR_LARGE_DIM_THRESHOLD && RUNTIME_MAP_SCALE < LEGACY_EDITOR_PLAYTEST_SCALE) {
-        return LEGACY_EDITOR_PLAYTEST_SCALE;
-    }
-
-    return RUNTIME_MAP_SCALE;
-}
-
-function sanitizeMapName(value) {
-    if (typeof value !== 'string') return DEFAULT_EDITOR_DISK_MAP_NAME;
-    const normalized = value.trim().replace(/\s+/g, ' ');
-    if (!normalized) return DEFAULT_EDITOR_DISK_MAP_NAME;
-    return normalized.slice(0, EDITOR_MAP_NAME_MAX_LENGTH);
-}
-
 function slugifyForKey(value, fallback = 'item', maxLength = 48) {
     const ascii = String(value || '')
         .normalize('NFD')
@@ -165,11 +135,6 @@ function slugifyForKey(value, fallback = 'item', maxLength = 48) {
         .slice(0, maxLength);
 
     return slug || fallback;
-}
-
-function slugifyMapNameToKeyBase(mapName) {
-    const safeSlug = slugifyForKey(mapName, 'map', 48);
-    return `${GENERATED_EDITOR_MAP_KEY_PREFIX}${safeSlug}`;
 }
 
 function sanitizeVehicleName(value) {
@@ -185,11 +150,11 @@ function slugifyVehicleNameToKeyBase(vehicleName) {
 }
 
 function getEditorSchemaPathForKey(mapKey) {
-    return path.resolve(EDITOR_MAP_DIR, `${mapKey}${EDITOR_JSON_SUFFIX}`);
+    return path.resolve(EDITOR_MAP_DIR, `${mapKey}${EDITOR_MAP_EDITOR_SUFFIX}`);
 }
 
 function getRuntimeMapPathForKey(mapKey) {
-    return path.resolve(EDITOR_MAP_DIR, `${mapKey}${RUNTIME_JSON_SUFFIX}`);
+    return path.resolve(EDITOR_MAP_DIR, `${mapKey}${EDITOR_MAP_RUNTIME_SUFFIX}`);
 }
 
 function safeReadJson(filePath) {
@@ -207,8 +172,8 @@ function getExistingRuntimeMapByKey(mapKey) {
 }
 
 function resolveGeneratedMapKey(mapName, { saveAsCopy = false } = {}) {
-    const sanitizedName = sanitizeMapName(mapName);
-    const baseKey = slugifyMapNameToKeyBase(sanitizedName);
+    const sanitizedName = sanitizeEditorMapName(mapName);
+    const baseKey = slugifyEditorMapKeyBase(sanitizedName);
 
     let candidateKey = baseKey;
     let index = 2;
@@ -219,7 +184,7 @@ function resolveGeneratedMapKey(mapName, { saveAsCopy = false } = {}) {
             return { mapKey: candidateKey, overwritten: false, mapName: sanitizedName };
         }
 
-        const existingName = sanitizeMapName(existing?.name || '');
+        const existingName = sanitizeEditorMapName(existing?.name || '');
         if (existingName === sanitizedName && !saveAsCopy) {
             return { mapKey: candidateKey, overwritten: true, mapName: sanitizedName };
         }
@@ -234,12 +199,12 @@ function loadGeneratedRuntimeMapsFromDisk() {
     }
 
     const files = readdirSync(EDITOR_MAP_DIR)
-        .filter((fileName) => fileName.endsWith(RUNTIME_JSON_SUFFIX))
+        .filter((fileName) => fileName.endsWith(EDITOR_MAP_RUNTIME_SUFFIX))
         .sort((a, b) => a.localeCompare(b));
 
     const maps = {};
     for (const fileName of files) {
-        const mapKey = fileName.slice(0, -RUNTIME_JSON_SUFFIX.length);
+        const mapKey = fileName.slice(0, -EDITOR_MAP_RUNTIME_SUFFIX.length);
         if (!mapKey.startsWith(GENERATED_EDITOR_MAP_KEY_PREFIX)) continue;
 
         const runtimeMap = safeReadJson(path.resolve(EDITOR_MAP_DIR, fileName));
@@ -313,7 +278,7 @@ export function writeFilesAtomically(files) {
 function listSavedMaps() {
     return Object.entries(loadGeneratedRuntimeMapsFromDisk()).map(([mapKey, map]) => ({
         mapKey,
-        mapName: sanitizeMapName(map?.name || mapKey),
+        mapName: sanitizeEditorMapName(map?.name || mapKey),
     }));
 }
 
@@ -335,44 +300,31 @@ function openMapsFolder() {
 }
 
 function saveEditorMapToDisk({ jsonText, mapName, editorDocument = null, saveAsCopy = false }) {
-    const parsed = parseMapJSON(jsonText);
     const resolved = resolveGeneratedMapKey(mapName, { saveAsCopy });
-    const conversionScale = getEditorDiskConversionScale(parsed.map);
-    const converted = toArenaMapDefinition(parsed.map, {
-        mapScale: conversionScale,
-        name: resolved.mapName,
-    });
+    // Dieselbe Umrechnung wie im Desktop-Weg, damit beide Wege dieselbe
+    // Laufzeitkarte erzeugen.
+    const built = buildEditorMapDiskFiles({ jsonText, mapName: resolved.mapName, editorDocument });
 
     const editorSchemaPath = getEditorSchemaPathForKey(resolved.mapKey);
     const runtimeMapPath = getRuntimeMapPathForKey(resolved.mapKey);
 
     mkdirSync(EDITOR_MAP_DIR, { recursive: true });
-    let authoringDocument = createEditorAuthoringDocument({ map: parsed.map });
-    if (editorDocument && typeof editorDocument === 'object') {
-        const authoring = parseEditorAuthoringDocument(editorDocument);
-        authoringDocument = createEditorAuthoringDocument({
-            map: parsed.map,
-            workspaceMetadata: authoring.workspaceMetadata,
-            layerState: authoring.layerState,
-            viewState: authoring.viewState,
-        });
-    }
     const runtimeMaps = loadGeneratedRuntimeMapsFromDisk();
-    runtimeMaps[resolved.mapKey] = converted.map;
+    runtimeMaps[resolved.mapKey] = built.runtimeMap;
     writeFilesAtomically([
-        { filePath: editorSchemaPath, content: JSON.stringify(authoringDocument, null, 2) },
-        { filePath: runtimeMapPath, content: JSON.stringify(converted.map, null, 2) },
+        { filePath: editorSchemaPath, content: JSON.stringify(built.authoringDocument, null, 2) },
+        { filePath: runtimeMapPath, content: JSON.stringify(built.runtimeMap, null, 2) },
         { filePath: GENERATED_LOCAL_MAPS_MODULE_PATH, content: createGeneratedLocalMapsModuleContent(runtimeMaps) },
     ]);
 
     return {
         mapKey: resolved.mapKey,
-        mapName: converted.map?.name || resolved.mapName,
+        mapName: built.mapName,
         overwritten: resolved.overwritten,
         editorSchemaPath: path.relative(__dirname, editorSchemaPath).replace(/\\/g, '/'),
         runtimeMapPath: path.relative(__dirname, runtimeMapPath).replace(/\\/g, '/'),
         generatedModulePath: path.relative(__dirname, GENERATED_LOCAL_MAPS_MODULE_PATH).replace(/\\/g, '/'),
-        warnings: [...(parsed.warnings || []), ...(converted.warnings || [])],
+        warnings: built.warnings,
     };
 }
 

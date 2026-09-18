@@ -23,8 +23,10 @@ export class PlayerInputSource {
      *             slowMo: boolean, slowMoPressed: boolean,
      *             cameraSwitch: boolean, dropItem: boolean, useItem: boolean, shootItem: boolean, shootRocket: boolean, shootMG: boolean,
      *             nextItem: boolean }}
+     * @param {{ dt?: number, includeSecondaryBindings?: boolean }|null} [_context] per step options of the
+     *        input system; only sources that advance their own state over time (the guest steering ramp) read dt
      */
-    poll() {
+    poll(_context = null) {
         throw new Error('PlayerInputSource.poll() not implemented');
     }
 

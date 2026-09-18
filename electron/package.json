@@ -30,6 +30,7 @@
       "main-window-lifecycle.cjs",
       "focus-scoped-shortcut.cjs",
       "editor-preload.cjs",
+      "editor-map-store.cjs",
       "editor-vehicle-store.cjs",
       "tuning-console/**/*",
       "settings-studio/**/*",

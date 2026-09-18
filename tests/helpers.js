@@ -383,27 +383,57 @@ export async function openCustomSubmenu(page) {
     await openSubmenu(page, 'submenu-custom');
 }
 
+// Multiplayer is its own level-1 screen since 879e9ac4: the nav button carries both the session
+// type and the panel target, so a single user click switches the session AND opens the lobby.
+// There is no `details[data-start-section="multiplayer"]` inside #submenu-game any more.
+// `allowRuntimeFallback: false` is for the test that proves the user path itself: the runtime
+// fallback opens the lobby without the nav button, so it would hide a button that lost its
+// panel binding while the second listener still switches the session type.
 export async function openMultiplayerSubmenu(page, options = {}) {
     const requireActive = options.requireActive === true;
-    await selectSessionType(page, 'multiplayer');
-    const nextButton = page
-        .locator('#submenu-custom:not(.hidden) [data-menu-step-target="submenu-game"]:visible:not([disabled])')
+    const allowRuntimeFallback = options.allowRuntimeFallback !== false;
+    const navButton = page
+        .locator('#menu-nav [data-session-type="multiplayer"][data-submenu="submenu-multiplayer"]')
         .first();
-    if (await nextButton.count()) {
-        await nextButton.click({ force: true });
-    } else {
-        await openViaNavigationRuntime(page, 'submenu-game');
-    }
-    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-    const activeSessionType = await page.evaluate(() => (
+    const readSessionType = () => page.evaluate(() => (
         String(window.GAME_INSTANCE?.settings?.localSettings?.sessionType || '').trim().toLowerCase()
     ));
-    if (activeSessionType === 'multiplayer') {
-        await openStartSetupSection(page, 'multiplayer');
+    const lobbyOpened = () => page
+        .waitForSelector('#submenu-multiplayer:not(.hidden)', { timeout: 4000 })
+        .then(() => true)
+        .catch(() => false);
+
+    // The lobby hides the level-1 nav, so a second call would only burn the click timeout.
+    const alreadyOpen = await page.locator('#submenu-multiplayer:not(.hidden)').count() > 0
+        && await readSessionType() === 'multiplayer';
+    if (alreadyOpen) return true;
+
+    let lobbyVisible = false;
+    let lastClickError = '';
+    if (await navButton.count()) {
+        // No `force` here: the level-1 grid is still settling right after the load, and a forced
+        // click skips the stability check and lands next to the button.
+        for (let attempt = 0; attempt < 2 && !lobbyVisible; attempt += 1) {
+            await navButton.click({ timeout: 10_000 }).catch((error) => {
+                lastClickError = String(error?.message || error).split('\n')[0];
+            });
+            lobbyVisible = await lobbyOpened();
+        }
+    }
+    if (!lobbyVisible && allowRuntimeFallback) {
+        await openViaNavigationRuntime(page, 'submenu-multiplayer').catch(() => {});
+        lobbyVisible = await lobbyOpened();
+    }
+    const activeSessionType = await readSessionType();
+    if (lobbyVisible && activeSessionType === 'multiplayer') {
         return true;
     }
     if (requireActive) {
-        throw new Error(`Multiplayer-Session nicht aktiv (sessionType="${activeSessionType || 'unknown'}").`);
+        throw new Error(
+            `Multiplayer-Lobby nicht aktiv (sessionType="${activeSessionType || 'unknown'}", `
+            + `Lobby ${lobbyVisible ? 'sichtbar' : 'verborgen'}`
+            + `${lastClickError ? `, letzter Klickfehler: ${lastClickError}` : ''}).`
+        );
     }
     return false;
 }

@@ -4,6 +4,7 @@
 
 import { createLogger } from '../shared/logging/Logger.js';
 import {
+    GHOST_CLIP_TIME_STEP_SECONDS,
     normalizeGhostClip,
     normalizeGhostPlayerMeta,
 } from '../shared/contracts/GhostClipContract.js';
@@ -301,7 +302,13 @@ export class RoundRecorder {
         const selectedCount = orderedSnapshots.length - startIndex;
         const firstSelectedTime = Number(orderedSnapshots[startIndex]?.time) || 0;
         const startTime = Math.max(firstSelectedTime, minTime);
-        const hasUsableSourceTimeline = finalTime - startTime > 0.000001;
+        // Ghost clips carry millisecond frame times. Snapshots that sit closer together than
+        // that - the two back to back captures of a round that ended before its second
+        // snapshot, or a scripted capture loop - would collapse onto the same instant and
+        // freeze the replay on its last pose, so such a timeline counts as unusable and the
+        // deterministic snapshot step takes over.
+        const minUsableSourceTimeline = Math.max(1, selectedCount - 1) * GHOST_CLIP_TIME_STEP_SECONDS;
+        const hasUsableSourceTimeline = finalTime - startTime >= minUsableSourceTimeline;
         const normalizedFrames = new Array(selectedCount);
         for (let index = 0; index < selectedCount; index++) {
             const snapshot = orderedSnapshots[startIndex + index];

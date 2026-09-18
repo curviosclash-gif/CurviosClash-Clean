@@ -44,6 +44,36 @@ test('tracked files exclude dependencies, generated output and process ballast',
     assert.deepEqual(forbiddenFiles, [], `Forbidden tracked files:\n${forbiddenFiles.join('\n')}`);
 });
 
+// Der alte 2D-Karten-Editor wurde stillgelegt (Plan F8). Er war kein
+// Vite-Eingang, hatte keinen Menuepunkt und wurde nur noch von zwei dauerhaft
+// roten Tests geladen. Dieser Waechter haelt die Seite draussen.
+const RETIRED_LEGACY_EDITOR_PAGE = 'map-editor.html';
+// Diese Datei nennt den Namen selbst und ist deshalb von der Suche ausgenommen.
+const LEGACY_EDITOR_GUARD_FILE = decodeURIComponent(import.meta.url)
+    .slice(decodeURIComponent(repositoryRoot.href).length);
+
+function isLegacyEditorScanPath(path) {
+    if (path === LEGACY_EDITOR_GUARD_FILE) return false;
+    const [firstSegment] = path.split('/');
+    if (['editor', 'tests', 'src', 'scripts', 'dev', 'electron', 'docs'].includes(firstSegment)) return true;
+    if (path === 'README.md' || path === 'index.html') return true;
+    return /\.(?:bat|cmd)$/i.test(path);
+}
+
+test('the retired legacy 2d map editor page stays gone', () => {
+    const trackedFiles = listTrackedFiles();
+    assert.ok(
+        !trackedFiles.includes(`editor/${RETIRED_LEGACY_EDITOR_PAGE}`),
+        'the legacy 2d map editor page was retired and must not come back',
+    );
+
+    const referencingFiles = trackedFiles.filter((path) => (
+        isLegacyEditorScanPath(path)
+        && readFileSync(new URL(`../${path}`, import.meta.url), 'utf8').includes(RETIRED_LEGACY_EDITOR_PAGE)
+    ));
+    assert.deepEqual(referencingFiles, [], `Legacy 2D map editor references:\n${referencingFiles.join('\n')}`);
+});
+
 test('README bootstrap uses only local package manifests and no repository remote', () => {
     const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
     assert.match(readme, /npm ci/);

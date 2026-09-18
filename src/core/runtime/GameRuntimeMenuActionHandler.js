@@ -38,6 +38,9 @@ import {
 export class GameRuntimeMenuActionHandler {
     constructor({ facade = null } = {}) {
         this._facade = facade || null;
+        // A playlist start runs across an awaited startMatch; a second click in that window
+        // would work on settings the first preset already replaced.
+        this._quickStartEventPlaylistBusy = false;
     }
 
     handleMenuPanelChanged(previousPanelId, nextPanelId, transitionMetadata = null) {
@@ -77,8 +80,18 @@ export class GameRuntimeMenuActionHandler {
         return handleQuickStartLastStartAction(this._createSessionContext());
     }
 
-    handleQuickStartEventPlaylistStart() {
-        handleQuickStartEventPlaylistStartAction(this._createSessionContext());
+    // The menu binding emits every click, and the action only returns once startMatch has
+    // settled. A second click meanwhile applied the next preset over the running one, moved
+    // the playlist cursor twice (skipping an entry) and took its "player baseline" from the
+    // settings the first preset had already overwritten - which is what then got saved.
+    async handleQuickStartEventPlaylistStart() {
+        if (this._quickStartEventPlaylistBusy) return;
+        this._quickStartEventPlaylistBusy = true;
+        try {
+            await handleQuickStartEventPlaylistStartAction(this._createSessionContext());
+        } finally {
+            this._quickStartEventPlaylistBusy = false;
+        }
     }
 
     handleQuickStartRandomStart() {
@@ -251,6 +264,9 @@ export class GameRuntimeMenuActionHandler {
             recordMenuTelemetry: (type, payload) => this._facade?._recordMenuTelemetry?.(type, payload),
             startMatch: () => this._facade?.startMatch?.(),
             markSettingsDirty: (dirty) => this._facade?.markSettingsDirty?.(dirty),
+            cancelPendingSettingsAutoSave: () => this._facade?.cancelPendingSettingsAutoSave?.(),
+            holdSessionSettingsRestore: (plan) => this._facade?.settingsHandler?.holdSessionSettingsRestore?.(plan),
+            restoreSessionSettings: () => this._facade?.settingsHandler?.restoreSessionSettings?.(),
         };
     }
 

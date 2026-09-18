@@ -1,3 +1,15 @@
+import {
+    advanceSteeringAxis,
+    applySteeringReleaseDeadzone,
+    createSteeringRampState,
+    DEFAULT_AXIS_ATTACK_RATE,
+    DEFAULT_AXIS_RELEASE_RATE,
+    readAnalogAxis,
+    resolveSteeringAxisTarget,
+    resolveSteeringStepSeconds,
+    toPositiveSteeringRate,
+} from '../shared/input/SteeringRampOps.js';
+
 const INPUT_DEFAULTS = Object.freeze({
     pitchUp: false,
     pitchDown: false,
@@ -84,12 +96,51 @@ export function createPassiveNetworkInputSource() {
     };
 }
 
+const RAMPED_AXES = Object.freeze([
+    { stateKey: 'pitch', axisKey: 'pitchAxis', positiveKey: 'pitchUp', negativeKey: 'pitchDown' },
+    { stateKey: 'yaw', axisKey: 'yawAxis', positiveKey: 'yawLeft', negativeKey: 'yawRight' },
+    { stateKey: 'roll', axisKey: 'rollAxis', positiveKey: 'rollLeft', negativeKey: 'rollRight' },
+]);
+
+/**
+ * Turns the held keys of a guest into smoothed analog axes.
+ *
+ * A guest predicts its own plane locally, the host resimulates the same slot, and
+ * the host never learns the guest's per machine smooth steering setting. Ramping
+ * here and shipping the result means both sides read one number, so the reconciler
+ * has nothing left to pull back. The host takes a finite axis as a stick and never
+ * ramps it a second time (PlayerController.resolveControlState).
+ *
+ * @param {{ attackRate?: number, releaseRate?: number }} [rates]
+ */
+function createGuestSteeringRamp({ attackRate, releaseRate } = {}) {
+    const state = createSteeringRampState();
+    const rates = {
+        attackRate: toPositiveSteeringRate(attackRate, DEFAULT_AXIS_ATTACK_RATE),
+        releaseRate: toPositiveSteeringRate(releaseRate, DEFAULT_AXIS_RELEASE_RATE),
+    };
+    return function rampInput(input, dt) {
+        const source = input && typeof input === 'object' ? input : {};
+        const ramped = { ...source };
+        for (let i = 0; i < RAMPED_AXES.length; i += 1) {
+            const axis = RAMPED_AXES[i];
+            const analogValue = readAnalogAxis(source, axis.axisKey);
+            const target = resolveSteeringAxisTarget(analogValue, source, axis.positiveKey, axis.negativeKey);
+            const next = advanceSteeringAxis(state, axis.stateKey, target, analogValue, rates, dt);
+            ramped[axis.axisKey] = applySteeringReleaseDeadzone(next);
+        }
+        return ramped;
+    };
+}
+
 export function createNetworkLocalInputSource({
     source = null,
     session = null,
     playerId = '',
     sendToSession = false,
+    steeringRamp = null,
 } = {}) {
+    const rampInput = steeringRamp?.enabled === true ? createGuestSteeringRamp(steeringRamp) : null;
     return {
         type: 'network-local',
         playerIndex: -1,
@@ -104,8 +155,13 @@ export function createNetworkLocalInputSource({
             this.playerIndex = -1;
             this.active = false;
         },
-        poll() {
-            const input = normalizeNetworkInputState(source?.poll?.() || null);
+        poll(context = null) {
+            const polled = source?.poll?.(context) || null;
+            // Normalising once means the prediction below and the payload sent to the
+            // host share the very same rounded numbers; rounding twice would leave a
+            // permanent offset between the two simulations.
+            const ramped = rampInput ? rampInput(polled, resolveSteeringStepSeconds(context?.dt)) : polled;
+            const input = normalizeNetworkInputState(ramped);
             if (sendToSession && typeof session?.sendInput === 'function') {
                 session.sendInput({
                     ...input,

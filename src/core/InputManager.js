@@ -336,7 +336,9 @@ export class InputManager {
         // Delegate to assigned PlayerInputSource if available
         const source = this._playerSources.get(playerIndex);
         if (source) {
-            const polled = source.poll();
+            // Options carry the fixed step of the caller: a source that integrates over
+            // time (the network guest ramp) must never read a clock of its own.
+            const polled = source.poll(options);
             if (polled) return polled;
         }
 

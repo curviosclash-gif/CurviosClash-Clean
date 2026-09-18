@@ -1,6 +1,6 @@
 {
   "$comment": "Playwright tests that are red without anyone's current change. The list is a ratchet: `count` may sink, never rise. Raise it only on an explicit instruction. Every entry must point at an existing spec and an existing test title - tests/playwright-known-failures.contract.test.mjs enforces that, so a fixed or renamed test forces the entry out.",
-  "count": 39,
+  "count": 38,
   "entries": [
     {
       "spec": "tests/physics-hunt.spec.js",
@@ -126,14 +126,6 @@
       "spec": "tests/core-targeted-surface.spec.js",
       "title": "T20x0: Ebene-4 Fight-HP/MG-Regler sind nur im Fight-Modus aktiv",
       "since": "2026-08-09",
-      "commit": "",
-      "reason": "failure folders of the same name since August; confirmed from a second worktree",
-      "kind": "regression"
-    },
-    {
-      "spec": "tests/core-targeted-surface.spec.js",
-      "title": "T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und persistiert pro Map/Route",
-      "since": "2026-08-17",
       "commit": "",
       "reason": "failure folders of the same name since August; confirmed from a second worktree",
       "kind": "regression"

@@ -108,6 +108,12 @@ export function transformElectronMain(source) {
         '',
         'editor vehicle store import'
     );
+    result = replaceRequired(
+        result,
+        "const { createEditorMapStore } = require('./editor-map-store.cjs');\n",
+        '',
+        'editor map store import'
+    );
     result = replaceRequired(result, '    UNTRUSTED_IPC_SENDER_CODE,\n', '', 'editor sender error import');
     result = replacePatternRequired(
         result,
