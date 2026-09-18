@@ -1,6 +1,7 @@
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import { createHangarWindowLauncher } from '../hangar/HangarWindowMenuBridge.js';
 import { createArcadeDailyMenuCard } from './ArcadeDailyMenuView.js';
+import { createArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
 
 function t(textId, fallback) {
     return resolveMenuCatalogText(textId, fallback);
@@ -143,6 +144,8 @@ export function buildArcadeSurface(level3Body, ui) {
     ctaRow.appendChild(startEndlessButton);
     ctaRow.appendChild(startFiveFrontsButton);
     ctaRow.appendChild(startFivePortalsButton);
+    const nightmareToggle = createArcadeNightmareToggle();
+    body.appendChild(nightmareToggle.label);
     body.appendChild(ctaRow);
 
     details.appendChild(body);
@@ -191,5 +194,6 @@ export function buildArcadeSurface(level3Body, ui) {
         dailyButton,
         hangarLaunchCard,
         openHangarButton,
+        nightmareInput: nightmareToggle.input,
     };
 }

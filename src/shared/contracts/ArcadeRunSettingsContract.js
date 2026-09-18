@@ -39,6 +39,8 @@ const DEFAULTS = Object.freeze({
     maxMultiplier: 8,
     replayHooksEnabled: true,
     dailyChallenge: false,
+    // Arcade-only run tier "Albtraum": the sector plan uses the nightmare scale.
+    nightmare: false,
 });
 
 function clampNumber(value, range, fallback) {
@@ -105,6 +107,7 @@ export function normalizeArcadeRunSettings(source) {
         maxMultiplier: clampInteger(input.maxMultiplier, ARCADE_RUN_SETTINGS_RANGES.maxMultiplier, DEFAULTS.maxMultiplier),
         replayHooksEnabled: input.replayHooksEnabled !== false,
         dailyChallenge: input.dailyChallenge === true,
+        nightmare: input.nightmare === true,
     };
 }
 
