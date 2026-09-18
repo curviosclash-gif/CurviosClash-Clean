@@ -368,7 +368,8 @@ export class MatchFlowArcadeOverlayController {
         header.className = 'arcade-overlay-header';
         
         const h3 = document.createElement('h3');
-        h3.textContent = dailyResult ? (dailyResult.succeeded ? 'Daily geschafft' : 'Daily-Versuch beendet') : 'Arcade Run abgeschlossen';
+        h3.textContent = dailyResult ? (dailyResult.succeeded ? 'Daily geschafft' : 'Daily-Versuch beendet')
+            : (summary.succeeded === false ? 'Arcade Run gescheitert' : 'Arcade Run abgeschlossen');
         header.appendChild(h3);
         appendArcadeCards(header, createArcadeRunBlocks({
             ...summary,

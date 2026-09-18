@@ -189,6 +189,26 @@ test('the arcade post-run panel shows cards instead of pipe separated lines', ()
     });
 });
 
+test('a failed run is not called finished', () => {
+    withDocument(() => {
+        const { controller, panel } = makeController();
+        controller._renderArcadePostRunPanel(postRunState({ succeeded: false }));
+        assert.match(textOf(panel()), /Arcade Run gescheitert/);
+        controller._renderArcadePostRunPanel(postRunState({ succeeded: true }));
+        assert.match(textOf(panel()), /Arcade Run abgeschlossen/);
+    });
+});
+
+test('the run summary tells the result board whether the run succeeded', async () => {
+    const { finalizeArcadeRun } = await import('../src/core/arcade/ArcadeRunCompletionOps.js');
+    const { ArcadeRunRuntime } = await import('../src/core/arcade/ArcadeRunRuntime.js');
+    const runtime = new ArcadeRunRuntime({ now: () => 1000 });
+    runtime.configure({ arcade: { enabled: true, seed: 3, sectorCount: 3 } });
+    runtime.startRun({});
+    finalizeArcadeRun(runtime, 2000);
+    assert.equal(runtime.getPostRunSummary()?.succeeded, false);
+});
+
 test('every sector is listed with its map name in one scrollable container', () => {
     withDocument(() => {
         const { controller, panel } = makeController();
