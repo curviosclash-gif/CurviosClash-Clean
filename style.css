@@ -2037,6 +2037,12 @@ input[type="range"]::-webkit-slider-thumb {
     box-shadow: 0 0 16px rgba(60, 170, 255, 0.16);
 }
 
+/* A secret room countdown and the "BEIN NW ZERSTÖRT" word can show at once on a destructible
+   map; the room line keeps the slot and the structure line moves one row down. */
+.map-expansion-status:not(.hidden) ~ .map-destructible-status {
+    top: calc(16% + 2.2rem);
+}
+
 .map-expansion-status.opening {
     border-color: #ff9a3c;
     color: #fff4e6;

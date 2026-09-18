@@ -70,8 +70,9 @@ export class HUD {
         this._setAttribute(this.mapExpansionStatus, 'aria-live', 'polite');
         this._setAttribute(this.mapExpansionStatus, 'aria-atomic', 'true');
         playerHud?.appendChild(this.mapExpansionStatus);
-        // Same layout again for the condition of a destructible map: a map either grows or can
-        // be shot apart, so the two lines never announce something at the same time.
+        // Same layout again for the condition of a destructible map. A map either grows or can
+        // be shot apart, but the expansion line also carries the secret room countdown, which
+        // a destructible map does have - the stylesheet moves this line down while both show.
         this.mapDestructibleStatus = document.createElement('div');
         this.mapDestructibleStatus.className = 'exclusion-zone-status map-expansion-status map-destructible-status hidden';
         this._setAttribute(this.mapDestructibleStatus, 'role', 'status');
