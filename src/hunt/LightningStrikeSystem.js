@@ -1,6 +1,7 @@
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { HUNT_CONFIG } from './HuntConfig.js';
 import { isHuntHealthActive } from './HealthSystem.js';
+import { LightningStrikeEffect } from '../entities/effects/LightningStrikeEffect.js';
 
 export const LIGHTNING_CAUSE = 'LIGHTNING';
 
@@ -52,7 +53,22 @@ export class LightningStrikeSystem {
         this.lastStrike = null;
         this.networkReplica = false;
         this._targets = [];
+        this._strikePositions = [];
         this._nextStrikeId = 1;
+        this._effect = null;
+    }
+
+    _resolveEffect() {
+        const renderer = this.entityManager?.renderer;
+        if (!this._effect && renderer?.addToScene) this._effect = new LightningStrikeEffect(renderer);
+        return this._effect;
+    }
+
+    _announce() {
+        // Everyone hears about it (E32): nobody knows yet who is meant, so every human is warned.
+        for (const player of this.entityManager?.players || []) {
+            if (player && player.isBot !== true) this.entityManager?._notifyPlayerFeedback?.(player, 'Blitz! Tief fliegen!');
+        }
     }
 
     _config() {
@@ -67,6 +83,8 @@ export class LightningStrikeSystem {
         if (!caster || !this.canActivate()) return false;
         const warning = positive(this._config()?.WARNING_SECONDS, 2);
         this.pending.push({ id: this._nextStrikeId++, caster, remaining: warning, duration: warning });
+        this._resolveEffect();
+        this._announce();
         this.entityManager?.recorder?.logEvent?.('LIGHTNING_CAST', Number.isInteger(caster.index) ? caster.index : -1, `warning=${warning}`);
         return true;
     }
@@ -79,8 +97,9 @@ export class LightningStrikeSystem {
     }
 
     update(dt) {
-        if (this.pending.length === 0) return;
         const safeDt = Math.max(0, Number(dt) || 0);
+        this._effect?.update(safeDt, this.getWarningState(), this.entityManager?.arena?.bounds, this.pending[0]?.id);
+        if (this.pending.length === 0) return;
         for (let index = 0; index < this.pending.length;) {
             const strike = this.pending[index];
             strike.remaining -= safeDt;
@@ -121,7 +140,17 @@ export class LightningStrikeSystem {
             }
         }
         this.lastStrike = { id: strike.id, casterIndex: strike.caster?.index ?? -1, targetIndices: hit };
+        this._showStrike(targets);
         owner?.recorder?.logEvent?.('LIGHTNING_STRIKE', Number.isInteger(strike.caster?.index) ? strike.caster.index : -1, `targets=${hit.join(',')}`);
+    }
+
+    /** The bolt and the thunder. Also called on a replica when the host reports a strike. */
+    _showStrike(targets) {
+        const positions = this._strikePositions;
+        positions.length = 0;
+        for (const target of targets) if (target?.position) positions.push(target.position);
+        this._resolveEffect()?.strike(positions, this.entityManager?.arena?.bounds);
+        this.entityManager?.audio?.play?.('EXPLOSION', { intensity: 1 });
     }
 
     setNetworkReplica(enabled) {
@@ -131,5 +160,11 @@ export class LightningStrikeSystem {
     reset() {
         this.pending.length = 0;
         this.lastStrike = null;
+        this._effect?.update(0, null, null);
+    }
+
+    dispose() {
+        this._effect?.dispose();
+        this._effect = null;
     }
 }
