@@ -19,6 +19,7 @@ import {
 import { applyBotFlamethrowerInput } from '../../hunt/HuntBotFlamethrowerOps.js';
 import { applyBotMapUnitFire } from '../../hunt/HuntBotMapUnitOps.js';
 import { applyBotLightningInput } from '../../hunt/HuntBotLightningOps.js';
+import { applyBotRailgunInput } from '../../hunt/HuntBotRailgunOps.js';
 import { getPreferredFightEnemy } from '../../hunt/FightTargetSelector.js';
 import { HUNT_CONFIG } from '../../hunt/HuntConfig.js';
 import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
@@ -374,6 +375,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
     );
     applyBotMapUnitFire(policy, input, player, runtimeContext);
     applyBotLightningInput(input, player, runtimeContext);
+    applyBotRailgunInput(policy, input, player, runtimeContext);
 
     const retreatRequested = enemy && !finisherOpportunity
         && (vitalityRatio <= policy.profile.retreatVitality
