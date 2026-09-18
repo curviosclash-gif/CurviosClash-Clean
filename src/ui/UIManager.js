@@ -411,6 +411,10 @@ export class UIManager {
             ui.huntKillLimitSelect.value = String(settings?.hunt?.deathmatchKillLimit || 10);
             ui.huntKillLimitSelect.disabled = !huntRespawnEnabled;
         }
+        if (ui.huntWinConditionSelect) {
+            ui.huntWinConditionSelect.value = settings?.hunt?.winCondition || 'kills_time';
+            ui.huntWinConditionSelect.disabled = !huntRespawnEnabled;
+        }
         if (ui.huntTimeLimitToggle) {
             ui.huntTimeLimitToggle.checked = settings?.hunt?.timeLimitEnabled !== false;
             ui.huntTimeLimitToggle.disabled = !huntRespawnEnabled;

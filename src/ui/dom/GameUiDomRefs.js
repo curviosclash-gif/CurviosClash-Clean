@@ -96,6 +96,7 @@ export function createGameUiRefs(doc = document) {
         huntRespawnRow: doc.getElementById('hunt-respawn-row'),
         huntDeathmatchRules: doc.getElementById('hunt-deathmatch-rules'),
         huntKillLimitSelect: doc.getElementById('hunt-kill-limit-select'),
+        huntWinConditionSelect: doc.getElementById('hunt-win-condition-select'),
         huntTimeLimitToggle: doc.getElementById('hunt-time-limit-toggle'),
         huntModeHint: doc.getElementById('hunt-mode-hint'),
         startButton: doc.getElementById('btn-start'),
