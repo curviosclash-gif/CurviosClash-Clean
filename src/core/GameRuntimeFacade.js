@@ -79,6 +79,7 @@ export class GameRuntimeFacade {
         this._onRoundStartGateHandler = null;
         this._onFullStateSyncNeededHandler = null;
         this._lifecycleKernelHandlers = null;
+        this._playerDepartureHandlers = null;
         this._pendingStateUpdates = [];
         this._pendingMatchFinalize = null;
         this._pendingMatchFinalizePlan = null;

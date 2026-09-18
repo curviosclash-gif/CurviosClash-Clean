@@ -117,7 +117,8 @@ export class RespawnSystem {
         const safeDt = Math.max(0, Number(dt) || 0);
         for (const [playerIndex, pending] of this.pendingByPlayer.entries()) {
             const player = pending?.player;
-            if (!player || player.alive) {
+            // An inactive slot (a guest who left the match) must not come back.
+            if (!player || player.alive || player.entitySlotActive === false) {
                 this.pendingByPlayer.delete(playerIndex);
                 continue;
             }
