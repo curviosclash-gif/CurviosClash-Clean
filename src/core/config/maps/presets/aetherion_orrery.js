@@ -120,7 +120,8 @@ const AETHERION_CHECKPOINTS = [
     { id: 'CP03_SAFE', params: { label: 'Außenring unten', color: 0x4da6ff }, type: 'outer_safe', pos: [-122, 30, -60], radius: 6.0, forward: [-0.7, 0.02, 0.7], nextIds: ['CP04'] },
     { id: 'CP03_FAST', params: { label: 'Astrolabium direkt', color: 0xffbf45 }, type: 'astrolabe_fast', pos: [0, 34, 15], radius: 4.8, forward: [-0.45, 0, 0.9], nextIds: ['CP04'] },
     { id: 'CP04', type: 'foundry_exit', pos: [-70, 30, 70], radius: 6.4, forward: [-0.55, 0.35, 0.75] },
-    { id: 'CP05', type: 'gallery_branch', pos: [88, 88, 46], radius: 6.0, forward: [0.73, 0.26, -0.64], nextIds: ['CP06_SAFE', 'CP06_FAST'] },
+    // Moved out of the gallery block (z 36..48): the whole ring disc is free and the safe lane stays ~24 % longer.
+            { id: 'CP05', type: 'gallery_branch', pos: [87, 88, 53], radius: 6.0, forward: [0.73, 0.26, -0.64], nextIds: ['CP06_SAFE', 'CP06_FAST'] },
     { id: 'CP06_SAFE', params: { label: 'Außenring Mitte', color: 0x4da6ff }, type: 'outer_safe', pos: [128, 100, 88], radius: 6.0, forward: [0.68, 0.2, 0.71], nextIds: ['CP07'] },
     { id: 'CP06_FAST', params: { label: 'Meridian direkt', color: 0xffbf45 }, type: 'meridian_fast', pos: [52, 94, 26], radius: 4.8, forward: [-0.8, 0.15, 0.55], nextIds: ['CP07'] },
     { id: 'CP07', type: 'gallery_exit', pos: [14, 90, 112], radius: 6.4, forward: [-0.77, -0.07, 0.63] },

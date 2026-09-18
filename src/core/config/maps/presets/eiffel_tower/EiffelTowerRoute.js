@@ -22,7 +22,8 @@ import {
 } from './EiffelTowerStructure.js';
 
 const EIFFEL_TOWER_CHECKPOINTS = [
-    { id: 'CP01', type: 'entry', pos: [-72, up(20.0), 0], radius: 7.0, forward: [1, 0, 0] },
+    // Above the approach pad (top at up(20.5)): the ring centre must stay out of the pad.
+    { id: 'CP01', type: 'entry', pos: [-72, up(28.0), 0], radius: 7.0, forward: [1, 0, 0] },
     // Between the two western piers. The gap is 60 units wide, so this ring is about aiming, not
     // about threading -- it is the last easy one.
     { id: 'CP02', type: 'piers', pos: [-37, up(18.0), 0], radius: 6.4, forward: [1, 0.08, 0] },
@@ -109,6 +110,8 @@ const EIFFEL_TOWER_FINISH = {
     pos: [0, up(316.0), 0],
     radius: 7.0,
     forward: [0, 1, 0],
+    // The ring is threaded around the antenna on purpose: its centre sits on the mast beam.
+    centerObstructionAllowed: true,
 };
 
 const EIFFEL_TOWER_PARCOURS_RULES = {

@@ -146,7 +146,8 @@ const CHRONO_FORGE_CHECKPOINTS = [
     { id: 'CP04_SAFE', type: 'safe_blue', pos: [-50, 28, -26], radius: 5.4, forward: [0.8, 0.3, 0.5], nextIds: ['CP05'] },
     { id: 'CP04_FAST', type: 'fast_orange', pos: [-49, 42, 18], radius: 4.5, forward: [1, 0.2, -0.3], nextIds: ['CP05'] },
     { id: 'CP05', type: 'reactor', pos: [-25, 45, 0], radius: 6.0, forward: [1, 0.1, 0] },
-    { id: 'CP06', type: 'rift', pos: [8, 49, -8], radius: 5.7, forward: [0.8, 0.1, -0.4] },
+    // Moved off the central pillar (x/z -9..9): the whole ring disc is free.
+                { id: 'CP06', type: 'rift', pos: [4, 53, -18], radius: 5.7, forward: [0.8, 0.1, -0.4] },
     { id: 'CP07', type: 'crystal_tunnel', pos: [72, 60, 45], radius: 5.2, forward: [0.9, 0.1, 0.2] },
     { id: 'CP08', type: 'branch_entry', pos: [94, 62, 54], radius: 5.8, forward: [0.1, 0.1, 1], nextIds: ['CP09_SAFE', 'CP09_FAST'] },
     { id: 'CP09_SAFE', type: 'safe_blue', pos: [98, 69, 99], radius: 5.4, forward: [0.1, 0.2, 1], nextIds: ['CP10'] },

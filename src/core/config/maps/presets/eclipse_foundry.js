@@ -93,7 +93,7 @@ const ECLIPSE_FOUNDRY_OBSTACLES = [
     { pos: [8, 28, 0], size: [106, 4, 82], kind: 'foam' },
 
     // Sector 4: two complete orbital lanes around the chronometer.
-    { pos: [58, 71, 0], size: [19, 4, 22] },
+    { pos: [58, 62.2, 0], size: [19, 4, 22] },
     { pos: [68, 72, -30], size: [18, 3, 20] },
     { pos: [82, 74, -48], size: [18, 3, 16] },
     { pos: [99, 78, -35], size: [15, 3, 13] },
@@ -108,7 +108,7 @@ const ECLIPSE_FOUNDRY_OBSTACLES = [
     // Sector 5: temple turn, portal balcony and technical high road.
     { shape: 'tube', kind: 'hard', start: [110, 84, 0], end: [143, 90, 28], radius: 5.2 },
     { pos: [148, 89, 32], size: [28, 4, 25] },
-    { pos: [146, 92, 62], size: [24, 4, 24] },
+    { pos: [146, 85.2, 62], size: [24, 4, 24] },
     { pos: [126, 95, 84], size: [24, 4, 20] },
     { pos: [105, 98, 94], size: [20, 4, 18] },
     { pos: [85, 103, 78], size: [12, 3, 11] },
