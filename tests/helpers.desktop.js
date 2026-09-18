@@ -5,8 +5,12 @@ import { _electron as electron, expect, test as base } from '@playwright/test';
 import {
     DEFAULT_TEARDOWN_DEADLINE_MS,
     closeElectronAppWithDeadline,
+    destroyAllElectronWindows,
     resolveShowWindow,
+    resolveTestRenderMode,
+    shouldForceDesktopWindowTeardown,
 } from './desktop-process-teardown.mjs';
+import { installFreshBootGuards, markFreshBoot } from './fresh-boot-mark.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -23,6 +27,9 @@ const DESKTOP_READY_SCREENSHOT_FILE = 'desktop-renderer-ready.png';
 const DESKTOP_FAILURE_SCREENSHOT_FILE = 'desktop-renderer-failure.png';
 const DESKTOP_READY_TIMEOUT_MS = 60000;
 const DESKTOP_SCREENSHOT_TIMEOUT_MS = 15000;
+// Kurz gehalten: Beide Schritte sind reine Abfragen im Abbau. Antwortet die Seite
+// oder der Hauptprozess nicht sofort, bleibt der bisherige Weg mit seiner Frist.
+const DESKTOP_WINDOW_TEARDOWN_TIMEOUT_MS = 5000;
 
 // Ohne eigenen Profilpfad schreiben alle Desktop-Tests in %APPDATA%\curviosclash-app,
 // also in dasselbe Verzeichnis wie die echte App des Nutzers. Ein Lauf bekommt hier
@@ -84,7 +91,7 @@ async function withTimeout(promise, timeoutMs, label) {
     let timer = null;
     const timeoutPromise = new Promise((_, reject) => {
         timer = setTimeout(() => {
-            reject(new Error(`Desktop-Readiness-Timeout bei ${label} nach ${timeoutMs}ms`));
+            reject(new Error(`Desktop-Timeout bei ${label} nach ${timeoutMs}ms`));
         }, timeoutMs);
     });
     try {
@@ -255,6 +262,54 @@ async function captureRendererState(page) {
     };
 }
 
+// Liest im Abbau, ob im Hauptfenster noch ein laufendes Spiel sitzt. Nur dieses
+// beantwortet den Schliess-Handschlag der Shell; jede andere Seite (Vehicle Lab,
+// 3D-Karteneditor, Hangar-Seite) laesst ihn unbeantwortet.
+async function probeMainWindowGameRuntime(page) {
+    if (!page || page.isClosed()) {
+        return { pageClosed: true, gameInstancePresent: null, probeError: null };
+    }
+    try {
+        const gameInstancePresent = await withTimeout(
+            page.evaluate(() => Boolean(globalThis.GAME_INSTANCE)),
+            DESKTOP_WINDOW_TEARDOWN_TIMEOUT_MS,
+            'graceful-close probe'
+        );
+        return { pageClosed: false, gameInstancePresent: gameInstancePresent === true, probeError: null };
+    } catch (error) {
+        return {
+            pageClosed: page.isClosed(),
+            gameInstancePresent: null,
+            probeError: serializeCompactError(error),
+        };
+    }
+}
+
+// Ohne Spiel im Hauptfenster wartet die Shell 30 s auf eine Antwort, die nie
+// kommt; die Abbaufrist des Geschirrs schlaegt dann nach 20 s mit einem harten
+// Kill zu. Stattdessen nimmt das Geschirr sofort den Notweg der Shell selbst:
+// Fenster zerstoeren, danach beendet sich die App ueber 'window-all-closed'.
+async function releaseWindowsWithoutGracefulClose(app, page) {
+    if (!app) return { applied: false, reason: 'no_app' };
+    const probe = await probeMainWindowGameRuntime(page);
+    if (!shouldForceDesktopWindowTeardown(probe)) {
+        let reason = 'game_page';
+        if (probe.probeError) reason = 'probe_failed';
+        else if (probe.pageClosed) reason = 'page_closed';
+        return { applied: false, reason, probeError: probe.probeError };
+    }
+    try {
+        const windows = await withTimeout(
+            app.evaluate(destroyAllElectronWindows),
+            DESKTOP_WINDOW_TEARDOWN_TIMEOUT_MS,
+            'window teardown'
+        );
+        return { applied: true, reason: 'no_game_in_main_window', windows };
+    } catch (error) {
+        return { applied: false, reason: 'destroy_failed', probeError: serializeCompactError(error) };
+    }
+}
+
 function summarizeConsoleMessages(entries) {
     return entries.slice(-20).map((entry) => ({
         type: entry.type,
@@ -307,6 +362,7 @@ async function createDesktopDiagnostics({
     testInfo,
     events,
     rendererState,
+    mainFrameNavigations = [],
     consoleMessages,
     rendererErrors,
     mainProcessEvents,
@@ -341,6 +397,8 @@ async function createDesktopDiagnostics({
             url: rendererState.url,
             title: rendererState.title,
             closed: rendererState.closed,
+            mainFrameLoads: 1 + mainFrameNavigations.filter((entry) => !entry.duringHarnessBoot).length,
+            mainFrameNavigations: mainFrameNavigations.slice(-10),
         },
         mainProcess: processInfo,
         teardown,
@@ -387,6 +445,12 @@ const desktopTest = base.extend({
         let page = null;
         let capturedError = null;
         let harnessChildProcess = null;
+        // Counting main document loads is the cheap, load independent proof that the
+        // app boots once per test instead of twice. The harness boot itself commits
+        // before firstWindow() resolves, so it is counted as the fixed first load and
+        // every navigation observed after it is an extra boot.
+        const mainFrameNavigations = [];
+        let harnessBootSettled = false;
 
         const recordStage = (stage, extra = {}) => {
             events.push({
@@ -403,6 +467,8 @@ const desktopTest = base.extend({
         const userDataRoot = resolveDesktopUserDataRoot(testInfo);
         // Ein verstecktes Fenster rendert mit rund einem Bild pro Sekunde; Tests, die auf
         // gezeichnete Bilder warten (@render), sind damit strukturell unerfuellbar.
+        // Der Render-Modus (siehe resolveTestRenderMode) ersetzt das versteckte Fenster
+        // durch ein gezeigtes weit ausserhalb des Bildschirms: volle Bildrate, kein Fokus.
         const showWindow = resolveShowWindow(process.env, testInfo?.titlePath || []);
 
         try {
@@ -414,6 +480,7 @@ const desktopTest = base.extend({
                 env: {
                     ...process.env,
                     CURVIOS_ELECTRON_SHOW_WINDOW: showWindow ? '1' : '0',
+                    CURVIOS_ELECTRON_TEST_RENDER: resolveTestRenderMode(process.env),
                     CURVIOS_DESKTOP_STATIC_PORT: String(process.env.TEST_PORT || ''),
                     CURVIOS_USER_DATA_ROOT: userDataRoot,
                 },
@@ -465,6 +532,14 @@ const desktopTest = base.extend({
             processPid = childProcess?.pid ?? null;
 
             page = await withTimeout(app.firstWindow(), DESKTOP_READY_TIMEOUT_MS, 'window_created');
+            page.on('framenavigated', (frame) => {
+                if (frame !== page.mainFrame()) return;
+                mainFrameNavigations.push({
+                    recordedAt: toIsoNow(),
+                    url: String(frame.url() || ''),
+                    duringHarnessBoot: !harnessBootSettled,
+                });
+            });
             page.on('console', (message) => {
                 const type = String(message?.type?.() || '').trim().toLowerCase() || 'log';
                 const location = formatLocation(message?.location?.());
@@ -524,6 +599,7 @@ const desktopTest = base.extend({
             });
 
             await page.waitForLoadState('load', { timeout: DESKTOP_READY_TIMEOUT_MS });
+            harnessBootSettled = true;
             recordStage('renderer_loaded', {
                 url: page.url(),
             });
@@ -549,6 +625,13 @@ const desktopTest = base.extend({
                 });
             }
             setupComplete = true;
+
+            // The app is booted and untouched at this point: loadGame may skip its own
+            // navigation. The guards drop that mark again as soon as a test registers
+            // something that needs a following navigation, and the listener baseline
+            // taken here covers tests that want to watch a load (collectErrors).
+            installFreshBootGuards({ page, context: page.context() });
+            markFreshBoot(page);
 
             await use({
                 app,
@@ -584,11 +667,22 @@ const desktopTest = base.extend({
         } finally {
             appClosing = true;
             const rendererState = await captureRendererState(page);
-            const teardown = await closeElectronAppWithDeadline({
-                app,
-                childProcess: harnessChildProcess,
-                deadlineMs: DEFAULT_TEARDOWN_DEADLINE_MS,
-            });
+            const windowRelease = await releaseWindowsWithoutGracefulClose(app, page);
+            const teardown = {
+                ...await closeElectronAppWithDeadline({
+                    app,
+                    childProcess: harnessChildProcess,
+                    deadlineMs: DEFAULT_TEARDOWN_DEADLINE_MS,
+                }),
+                windowRelease,
+            };
+            if (windowRelease.applied) {
+                recordMainProcess(
+                    'harness',
+                    `teardown destroyed ${windowRelease.windows} window(s): no game in the main window, `
+                    + 'so nobody could answer the graceful-close handshake'
+                );
+            }
             if (teardown.forcedKill) {
                 recordMainProcess(
                     'harness',
@@ -627,6 +721,7 @@ const desktopTest = base.extend({
                     testInfo,
                     events,
                     rendererState,
+                    mainFrameNavigations,
                     consoleMessages: summarizeConsoleMessages(rendererConsoleEntries),
                     rendererErrors: summarizeRendererErrors(rendererErrorEntries),
                     mainProcessEvents: summarizeMainProcess(mainProcessEntries),

@@ -45,8 +45,6 @@ import {
 import { resolveMapPreview } from '../src/ui/menu/MenuPreviewCatalog.js';
 
 test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
-    test.describe.configure({ mode: 'serial' });
-
     test('T1: Seite lädt ohne JS-Fehler', async ({ page }) => {
         const errors = collectErrors(page);
         await loadGame(page);

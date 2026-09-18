@@ -15,8 +15,6 @@ import {
 // V56 Regression Tests — Defensive Improvements & Edge-Case Fixes
 // ---------------------------------------------------------------------------
 test.describe('V56: Code-Audit Remediation Regressions', () => {
-    test.describe.configure({ mode: 'serial' });
-
     test('V56.1 Session-ID guard rejects stale async createMatchSession result', async ({ page }) => {
         await loadGame(page);
         const result = await page.evaluate(async () => {
