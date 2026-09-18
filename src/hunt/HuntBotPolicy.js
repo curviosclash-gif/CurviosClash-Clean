@@ -18,6 +18,7 @@ import {
 } from './HuntScenarioBotRoles.js';
 import { applyBotFlamethrowerInput } from './HuntBotFlamethrowerOps.js';
 import { applyBotMapUnitFire } from './HuntBotMapUnitOps.js';
+import { applyBotLightningInput } from './HuntBotLightningOps.js';
 import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 export { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 
@@ -456,6 +457,7 @@ export class HuntBotPolicy {
 
         applyBotFlamethrowerInput(this, input, player, enemy, distSq);
         applyBotMapUnitFire(this, input, player, runtimeContext);
+        applyBotLightningInput(input, player, runtimeContext);
 
         const shouldRetreat = !!enemy && (
             vitalityRatio <= scenarioTuning.retreatVitality
