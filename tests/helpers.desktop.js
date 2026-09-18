@@ -5,8 +5,10 @@ import { _electron as electron, expect, test as base } from '@playwright/test';
 import {
     DEFAULT_TEARDOWN_DEADLINE_MS,
     closeElectronAppWithDeadline,
+    destroyAllElectronWindows,
     resolveShowWindow,
     resolveTestRenderMode,
+    shouldForceDesktopWindowTeardown,
 } from './desktop-process-teardown.mjs';
 import { installFreshBootGuards, markFreshBoot } from './fresh-boot-mark.mjs';
 
@@ -25,6 +27,9 @@ const DESKTOP_READY_SCREENSHOT_FILE = 'desktop-renderer-ready.png';
 const DESKTOP_FAILURE_SCREENSHOT_FILE = 'desktop-renderer-failure.png';
 const DESKTOP_READY_TIMEOUT_MS = 60000;
 const DESKTOP_SCREENSHOT_TIMEOUT_MS = 15000;
+// Kurz gehalten: Beide Schritte sind reine Abfragen im Abbau. Antwortet die Seite
+// oder der Hauptprozess nicht sofort, bleibt der bisherige Weg mit seiner Frist.
+const DESKTOP_WINDOW_TEARDOWN_TIMEOUT_MS = 5000;
 
 // Ohne eigenen Profilpfad schreiben alle Desktop-Tests in %APPDATA%\curviosclash-app,
 // also in dasselbe Verzeichnis wie die echte App des Nutzers. Ein Lauf bekommt hier
@@ -86,7 +91,7 @@ async function withTimeout(promise, timeoutMs, label) {
     let timer = null;
     const timeoutPromise = new Promise((_, reject) => {
         timer = setTimeout(() => {
-            reject(new Error(`Desktop-Readiness-Timeout bei ${label} nach ${timeoutMs}ms`));
+            reject(new Error(`Desktop-Timeout bei ${label} nach ${timeoutMs}ms`));
         }, timeoutMs);
     });
     try {
@@ -255,6 +260,54 @@ async function captureRendererState(page) {
         title: page.isClosed() ? '' : await page.title().catch(() => ''),
         closed: page.isClosed(),
     };
+}
+
+// Liest im Abbau, ob im Hauptfenster noch ein laufendes Spiel sitzt. Nur dieses
+// beantwortet den Schliess-Handschlag der Shell; jede andere Seite (Vehicle Lab,
+// 3D-Karteneditor, Hangar-Seite) laesst ihn unbeantwortet.
+async function probeMainWindowGameRuntime(page) {
+    if (!page || page.isClosed()) {
+        return { pageClosed: true, gameInstancePresent: null, probeError: null };
+    }
+    try {
+        const gameInstancePresent = await withTimeout(
+            page.evaluate(() => Boolean(globalThis.GAME_INSTANCE)),
+            DESKTOP_WINDOW_TEARDOWN_TIMEOUT_MS,
+            'graceful-close probe'
+        );
+        return { pageClosed: false, gameInstancePresent: gameInstancePresent === true, probeError: null };
+    } catch (error) {
+        return {
+            pageClosed: page.isClosed(),
+            gameInstancePresent: null,
+            probeError: serializeCompactError(error),
+        };
+    }
+}
+
+// Ohne Spiel im Hauptfenster wartet die Shell 30 s auf eine Antwort, die nie
+// kommt; die Abbaufrist des Geschirrs schlaegt dann nach 20 s mit einem harten
+// Kill zu. Stattdessen nimmt das Geschirr sofort den Notweg der Shell selbst:
+// Fenster zerstoeren, danach beendet sich die App ueber 'window-all-closed'.
+async function releaseWindowsWithoutGracefulClose(app, page) {
+    if (!app) return { applied: false, reason: 'no_app' };
+    const probe = await probeMainWindowGameRuntime(page);
+    if (!shouldForceDesktopWindowTeardown(probe)) {
+        let reason = 'game_page';
+        if (probe.probeError) reason = 'probe_failed';
+        else if (probe.pageClosed) reason = 'page_closed';
+        return { applied: false, reason, probeError: probe.probeError };
+    }
+    try {
+        const windows = await withTimeout(
+            app.evaluate(destroyAllElectronWindows),
+            DESKTOP_WINDOW_TEARDOWN_TIMEOUT_MS,
+            'window teardown'
+        );
+        return { applied: true, reason: 'no_game_in_main_window', windows };
+    } catch (error) {
+        return { applied: false, reason: 'destroy_failed', probeError: serializeCompactError(error) };
+    }
 }
 
 function summarizeConsoleMessages(entries) {
@@ -614,11 +667,22 @@ const desktopTest = base.extend({
         } finally {
             appClosing = true;
             const rendererState = await captureRendererState(page);
-            const teardown = await closeElectronAppWithDeadline({
-                app,
-                childProcess: harnessChildProcess,
-                deadlineMs: DEFAULT_TEARDOWN_DEADLINE_MS,
-            });
+            const windowRelease = await releaseWindowsWithoutGracefulClose(app, page);
+            const teardown = {
+                ...await closeElectronAppWithDeadline({
+                    app,
+                    childProcess: harnessChildProcess,
+                    deadlineMs: DEFAULT_TEARDOWN_DEADLINE_MS,
+                }),
+                windowRelease,
+            };
+            if (windowRelease.applied) {
+                recordMainProcess(
+                    'harness',
+                    `teardown destroyed ${windowRelease.windows} window(s): no game in the main window, `
+                    + 'so nobody could answer the graceful-close handshake'
+                );
+            }
             if (teardown.forcedKill) {
                 recordMainProcess(
                     'harness',

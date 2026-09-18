@@ -29,6 +29,43 @@ export function resolveTestRenderMode(env = {}) {
     return 'inactive';
 }
 
+// `electron/main.cjs` beantwortet jedes Schliessen des Hauptfensters mit einem
+// Handschlag: Es schickt 'request-graceful-close' und wartet bis zu 30 s auf
+// 'graceful-close-ready'. Diese Antwort kommt nur vom laufenden Spiel
+// (`src/core/AppInitializerLifecycle.js` veroeffentlicht `GAME_INSTANCE` und
+// haengt im selben Schritt die Shell-Bruecke an). Tests, die das Hauptfenster per
+// `page.goto` auf das Vehicle Lab, den 3D-Karteneditor oder die Hangar-Seite
+// schicken, lassen niemanden zurueck, der antworten kann -- `app.close()` laeuft
+// dann in die Abbaufrist und der Prozess wird hart beendet.
+export function shouldForceDesktopWindowTeardown({
+    pageClosed = false,
+    gameInstancePresent = null,
+    probeError = null,
+} = {}) {
+    // Nur eine gelesene Seite ohne Spiel rechtfertigt das Ueberspringen; bei
+    // Unwissen (nicht gelesen, Lesefehler, geschlossene Seite) bleibt der
+    // bisherige Weg samt Frist bestehen.
+    if (pageClosed) return false;
+    if (probeError) return false;
+    return gameInstancePresent === false;
+}
+
+// Laeuft per `electronApp.evaluate` im Electron-Hauptprozess und macht genau das,
+// was die Shell nach ihrer eigenen Frist ohnehin tut (`finish({ force: true })`):
+// `destroy()` statt `close()`, also ohne Handschlag und ohne `beforeunload`-Sperre
+// des Editors. Danach greift der normale Ausstieg (`window-all-closed` -> `app.quit`).
+// Playwright serialisiert die Funktion per toString(): keine Closures, keine Importe.
+export function destroyAllElectronWindows({ BrowserWindow }) {
+    const windows = BrowserWindow.getAllWindows();
+    let destroyed = 0;
+    for (const browserWindow of windows) {
+        if (browserWindow?.isDestroyed?.() === true) continue;
+        browserWindow.destroy();
+        destroyed += 1;
+    }
+    return destroyed;
+}
+
 export function isProcessRunning(childProcess) {
     if (!childProcess) return false;
     return childProcess.exitCode === null && !childProcess.signalCode;
