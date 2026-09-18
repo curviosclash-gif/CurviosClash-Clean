@@ -1,4 +1,5 @@
 import { createGamepadControlsSnapshot } from '../../shared/contracts/GamepadControlsContract.js';
+import { normalizeHuntWinCondition } from '../../shared/contracts/HuntWinConditionContract.js';
 import { CONFIG } from '../Config.js';
 import { CUSTOM_MAP_KEY } from '../../entities/MapSchema.js';
 import {
@@ -95,6 +96,7 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
         defaults.hunt.deathmatchKillLimit
     );
     merged.hunt.timeLimitEnabled = src?.hunt?.timeLimitEnabled !== false;
+    merged.hunt.winCondition = normalizeHuntWinCondition(src?.hunt?.winCondition);
     if (merged.gameMode !== GAME_MODE_TYPES.HUNT) {
         merged.hunt.respawnEnabled = false;
     }

@@ -10,6 +10,7 @@ import { DEFAULT_VIEW_DISTANCE } from '../../shared/contracts/ViewDistanceContra
 import { createDefaultHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import { createDefaultAudioSettings, normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 import { createDefaultArcadeRunSettings } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+import { HUNT_WIN_CONDITIONS } from '../../shared/contracts/HuntWinConditionContract.js';
 import { createBotHeuristicTuningSnapshot } from '../../shared/contracts/BotHeuristicTuningContract.js';
 import {
     SPLIT_SCREEN_VARIANTS,
@@ -67,6 +68,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
             respawnEnabled: !!HUNT_CONFIG.DEFAULT_RESPAWN_ENABLED,
             deathmatchKillLimit: Number(HUNT_CONFIG.DEATHMATCH_KILL_LIMIT) || 10,
             timeLimitEnabled: true,
+            winCondition: HUNT_WIN_CONDITIONS.KILLS_TIME,
         },
         arcade: createDefaultArcadeRunSettings(),
         gameplay: {

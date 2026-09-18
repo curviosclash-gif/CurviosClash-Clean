@@ -1,3 +1,5 @@
+import { normalizeHuntWinCondition } from './HuntWinConditionContract.js';
+
 function cloneObject(value, fallback = {}) {
     if (!value || typeof value !== 'object') return { ...fallback };
     return JSON.parse(JSON.stringify(value));
@@ -82,6 +84,7 @@ export const DEFAULT_ENTITY_RUNTIME_CONFIG = Object.freeze({
         RESPAWN_ENABLED: false,
         DEATHMATCH_KILL_LIMIT: 10,
         DEATHMATCH_TIME_LIMIT_SECONDS: 300,
+        WIN_CONDITION: 'kills_time',
         PLAYER_MAX_HP: 100,
         SHIELD_MAX_HP: 40,
         PLAYER_REGEN_DELAY: 3,
@@ -214,6 +217,7 @@ export function createEntityRuntimeConfig(runtimeConfig = null, baseConfig = nul
             runtimeConfig.hunt.timeLimitSeconds,
             contract.HUNT.DEATHMATCH_TIME_LIMIT_SECONDS
         )));
+        contract.HUNT.WIN_CONDITION = normalizeHuntWinCondition(runtimeConfig.hunt.winCondition);
     }
 
     if (runtimeConfig?.huntCombat) {

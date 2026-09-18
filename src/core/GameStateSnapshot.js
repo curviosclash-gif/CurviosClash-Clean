@@ -37,6 +37,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
             ttl: toFiniteNumber(proj.ttl, 0),
             radius: toFiniteNumber(proj.radius, 0),
         };
+        if (proj.guidedActive === true) serializedProjectile.guided = true;
         if (proj.environmentProjectile === true || proj.zoneProjectile === true) {
             serializedProjectile.environmentProjectile = proj.environmentProjectile === true;
             serializedProjectile.targetPlayerIndex = Number.isInteger(proj.targetPlayerIndex) ? proj.targetPlayerIndex : -1;
@@ -187,4 +188,3 @@ function serializeEffects(effects) {
         })
         .filter(Boolean);
 }
-

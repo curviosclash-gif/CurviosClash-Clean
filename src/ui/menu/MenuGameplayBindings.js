@@ -11,6 +11,7 @@ import { bindMenuExtrasButtons } from './MenuExtrasBindings.js';
 import { bindArcadeGhostDuelModeSelect } from './MenuArcadeGhostDuelBindings.js';
 import { bindArcadeRunSettings } from './MenuArcadeRunSettingsBindings.js';
 import { bindMenuMobileTiltControls } from './MenuMobileTiltBindings.js';
+import { bindHuntWinConditionSelect } from './MenuHuntWinConditionBindings.js';
 import { bindMenuRecordingCameraControls } from './MenuRecordingCameraBindings.js';
 import {
     HANGAR_SELECTION_PLAYER_SLOTS,
@@ -181,6 +182,7 @@ export function setupMenuGameplayBindings(ctx) {
         });
     }
 
+    bindHuntWinConditionSelect({ ui, settings, bind, emitSettingsChangedImmediate, keys });
     if (ui.huntRespawnToggle) {
         bind(ui.huntRespawnToggle, 'change', () => {
             if (!settings.hunt) settings.hunt = {};

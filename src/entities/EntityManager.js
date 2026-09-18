@@ -329,7 +329,9 @@ export class EntityManager {
     }
 
     getHuntScoreboard() {
-        return this._huntScoring.getScoreboard(this.players);
+        return this._huntScoring.getScoreboard(this.players, {
+            winCondition: this.entityRuntimeConfig?.HUNT?.WIN_CONDITION,
+        });
     }
 
     getHuntScoreboardSummary(maxEntries = 3, rows = null) {
@@ -337,6 +339,7 @@ export class EntityManager {
     }
 
     getHuntRespawnRemainingByPlayer() { return this._respawnSystem.getRemainingByPlayer(); }
+    getHuntLivesRemainingByPlayer() { return this._respawnSystem.getLivesRemainingByPlayer(this.players); }
 
     getParcoursHudState(playerIndex, now = undefined) {
         if (!this._parcoursProgressSystem) return null;

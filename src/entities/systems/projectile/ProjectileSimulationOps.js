@@ -16,6 +16,7 @@ import {
     resolveItemProjectileTarget,
 } from './ItemProjectileTargetingOps.js';
 import { resolveLockedPlayerIndex } from './RocketThreatTracker.js';
+import { stepGuidedRocket } from './GuidedRocketControlOps.js';
 import {
     clearInterceptState,
     findProjectileByTraversalId,
@@ -291,7 +292,8 @@ export class ProjectileSimulationOps {
     stepProjectile(projectile, index, dt, arena, players, trailSpatialIndex, time) {
         const config = resolveEntityRuntimeConfig(this.system);
         const rocketRuntime = resolveRocketRuntime(config);
-        const homingEnabled = projectile.homingEnabled || projectile.huntRocket;
+        if (projectile.guidedActive) stepGuidedRocket(projectile, dt, config?.HUNT?.ROCKET, this._tmpDir);
+        const homingEnabled = !projectile.guidedActive && (projectile.homingEnabled || projectile.huntRocket);
         projectile.foamBounceCooldown = Math.max(0, (projectile.foamBounceCooldown || 0) - dt);
         projectile.previousPosition?.copy?.(projectile.position);
 

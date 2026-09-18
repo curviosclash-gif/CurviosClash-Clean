@@ -10,6 +10,7 @@ const TIER_BY_ITEM = Object.freeze({
     ROCKET_MEDIUM: 'MEDIUM',
     ROCKET_HEAVY: 'HEAVY',
     ROCKET_MEGA: 'MEGA',
+    ROCKET_GUIDED: 'MEGA',
 });
 
 const ROCKET_WEIGHT_ORDER = Object.freeze([
@@ -17,6 +18,7 @@ const ROCKET_WEIGHT_ORDER = Object.freeze([
     Object.freeze({ type: 'ROCKET_MEDIUM', tier: 'MEDIUM', fallbackWeight: 0.30 }),
     Object.freeze({ type: 'ROCKET_HEAVY', tier: 'HEAVY', fallbackWeight: 0.18 }),
     Object.freeze({ type: 'ROCKET_MEGA', tier: 'MEGA', fallbackWeight: 0.07 }),
+    Object.freeze({ type: 'ROCKET_GUIDED', tier: 'GUIDED', fallbackWeight: 0.02 }),
 ]);
 
 export const ROCKET_RANGE_MULTIPLIER = 3;

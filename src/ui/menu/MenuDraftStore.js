@@ -1,4 +1,5 @@
 import { MENU_SESSION_TYPES } from './MenuStateContracts.js';
+import { normalizeHuntWinCondition } from '../../shared/contracts/HuntWinConditionContract.js';
 import {
     createMenuConfigSharePayloadDefaults,
     createMenuLocalSettingsDefaults,
@@ -68,6 +69,7 @@ function createSessionDraftSnapshot(settings, sessionType) {
             respawnEnabled: !!(source?.hunt?.respawnEnabled ?? defaults?.hunt?.respawnEnabled),
             deathmatchKillLimit: Math.max(1, Number(source?.hunt?.deathmatchKillLimit ?? defaults?.hunt?.deathmatchKillLimit) || 10),
             timeLimitEnabled: source?.hunt?.timeLimitEnabled !== false,
+            winCondition: normalizeHuntWinCondition(source?.hunt?.winCondition),
         },
         gameplay: cloneObject(source.gameplay, defaults.gameplay),
         recording: cloneObject(source.recording, defaults.recording),
@@ -128,6 +130,7 @@ function applySnapshotToSettings(settings, snapshot) {
     settings.hunt.respawnEnabled = !!(snapshot?.hunt?.respawnEnabled ?? defaults?.hunt?.respawnEnabled);
     settings.hunt.deathmatchKillLimit = Math.max(1, Number(snapshot?.hunt?.deathmatchKillLimit ?? defaults?.hunt?.deathmatchKillLimit) || 10);
     settings.hunt.timeLimitEnabled = snapshot?.hunt?.timeLimitEnabled !== false;
+    settings.hunt.winCondition = normalizeHuntWinCondition(snapshot?.hunt?.winCondition);
 
     settings.gameplay = {
         ...(settings.gameplay && typeof settings.gameplay === 'object' ? settings.gameplay : cloneObject(defaults.gameplay, {})),
