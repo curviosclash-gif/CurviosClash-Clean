@@ -62,6 +62,9 @@ function readManagerMapMetadata(manager) {
     if (Array.isArray(source.secretRooms)) {
         metadata.secretRooms = cloneSerializable(source.secretRooms) || [];
     }
+    if (Array.isArray(source.mapUnits)) {
+        metadata.mapUnits = cloneSerializable(source.mapUnits) || [];
+    }
 
     return metadata;
 }
@@ -116,6 +119,10 @@ function extractMapMetadata(data) {
     // the secret room contract already did that on the way in.
     if (Array.isArray(data.secretRooms) && data.secretRooms.length > 0) {
         metadata.secretRooms = cloneSerializable(data.secretRooms) || [];
+    }
+    // Tanks are carried through the same way: no authoring surface yet, written back unchanged.
+    if (Array.isArray(data.mapUnits) && data.mapUnits.length > 0) {
+        metadata.mapUnits = cloneSerializable(data.mapUnits) || [];
     }
     if (data.parcours && typeof data.parcours === 'object') {
         const parcoursMetadata = cloneSerializable(data.parcours) || {};

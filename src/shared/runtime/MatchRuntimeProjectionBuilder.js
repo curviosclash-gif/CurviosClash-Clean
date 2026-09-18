@@ -113,6 +113,7 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         inventory: player?.inventory,
         rocketInventory: player?.rocketInventory,
         activeEffects: player?.activeEffects,
+        railCharge: player?.railCharge,
         selectedItemIndex: Number(player?.selectedItemIndex) || 0,
         itemUseCooldownRemaining: Math.max(0, Number(player?.itemUseCooldownRemaining) || 0),
         shootCooldown: Math.max(0, Number(player?.shootCooldown) || 0),

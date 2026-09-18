@@ -54,6 +54,7 @@ export class FlamethrowerSystem {
         this._sight = new THREE.Vector3();
         this._trailPoint = new THREE.Vector3();
         this._trailCandidates = [];
+        this._targets = [];
     }
 
     /**
@@ -191,7 +192,10 @@ export class FlamethrowerSystem {
     }
 
     _burnTurrets(player, origin, aim, range, tanHalfAngle, damage) {
-        const turrets = this.entityManager?._staticTurretSystem?.getDestructibleTargets?.() || [];
+        // A copy: a target that dies here can blow up and refill the shared registry list.
+        const turrets = this._targets;
+        turrets.length = 0;
+        for (const target of this.entityManager?._targetableRegistry?.collect?.() || []) turrets.push(target);
         for (const turret of turrets) {
             if (!isDestructibleTurret(turret) || turret.hp <= 0 || !turret.position) continue;
             if (turret.ownerPlayer === player || turret.ownerIndex === player?.index) continue;

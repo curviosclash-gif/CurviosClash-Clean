@@ -32,6 +32,7 @@ import {
     EIFFEL_SIEGE_SECRET_ROOM_OBSTACLES,
     EIFFEL_SIEGE_SECRET_ROOM_TURRETS,
 } from './EiffelTowerSiegeSecretRoom.js';
+import { EIFFEL_SIEGE_TANKS } from './EiffelTowerSiegeTanks.js';
 
 /** Half the field, in authored units. The wreck of a toppled tower reaches 130.9 of them. */
 export const EIFFEL_SIEGE_HALF_SIZE = 155;
@@ -88,6 +89,8 @@ export const EIFFEL_TOWER_SIEGE_MAPS = {
         // leads to, and the three emplacements guarding it, live in EiffelTowerSiegeSecretRoom.js.
         secretRooms: [EIFFEL_SIEGE_SECRET_ROOM],
         staticTurrets: EIFFEL_SIEGE_SECRET_ROOM_TURRETS,
+        // A siege needs armour on the ground: two tanks circle the tower (EiffelTowerSiegeTanks.js).
+        mapUnits: EIFFEL_SIEGE_TANKS,
         // The arena light: high and calm, so it never hides the lattice a fight is flown through -
         // and so the falling tower stays readable against the sky.
         lighting: {

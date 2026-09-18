@@ -72,7 +72,7 @@ function createWorld({
         isFightOutcomeAuthority,
         entityRuntimeConfig: config,
         gameModeStrategy: { hasMachineGun: () => mode === 'HUNT' },
-        _staticTurretSystem: { getDestructibleTargets: () => turrets },
+        _targetableRegistry: { collect: () => turrets },
         _emitHuntDamageEvent(event) { damageEvents.push(event); },
         _killPlayer(player, cause, options = {}) {
             player.alive = false;

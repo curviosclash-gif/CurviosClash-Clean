@@ -195,9 +195,14 @@ export class HuntCombatSystem {
         const deploy = itemPreview.type === 'MG_TURRET' ? this.runtime?.combat?.deployMgTurret
             : itemPreview.type === 'ROCKET_TURRET' ? this.runtime?.combat?.deployRocketTurret : null;
         const isTurret = itemPreview.type === 'MG_TURRET' || itemPreview.type === 'ROCKET_TURRET';
-        const isGlobalFog = itemPreview.type === 'FOG';
-        const canActivateGlobalFog = this.runtime?.callbacks?.globalEffects?.canActivateFog;
-        const activateGlobalFog = this.runtime?.callbacks?.globalEffects?.activateFog;
+        // Items that start an effect for the whole map instead of changing the user: fog and the
+        // lightning strike. Both can be refused (no host, no hit points), and then the item stays.
+        const globalEffects = this.runtime?.callbacks?.globalEffects;
+        const isGlobalFog = itemPreview.type === 'FOG' || itemPreview.type === 'LIGHTNING';
+        const isLightning = itemPreview.type === 'LIGHTNING';
+        const canActivateGlobalFog = isLightning ? globalEffects?.canActivateLightning : globalEffects?.canActivateFog;
+        const activateGlobalFog = isLightning ? () => globalEffects?.activateLightning?.(player) : globalEffects?.activateFog;
+        const globalFailureMessage = isLightning ? 'Blitz konnte nicht ausgelöst werden' : 'Nebel konnte nicht aktiviert werden';
         if (isTurret && !deploy?.(player)) {
             return buildGameplayActionResult({
                 ok: false,
@@ -213,7 +218,7 @@ export class HuntCombatSystem {
             return buildGameplayActionResult({
                 ok: false,
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_FORBIDDEN,
-                message: 'Nebel konnte nicht aktiviert werden',
+                message: globalFailureMessage,
                 type: itemPreview.type,
             });
         }
@@ -230,7 +235,7 @@ export class HuntCombatSystem {
                 return buildGameplayActionResult({
                     ok: false,
                     code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_FORBIDDEN,
-                    message: 'Nebel konnte nicht aktiviert werden',
+                    message: globalFailureMessage,
                     type: itemResult.type,
                 });
             }

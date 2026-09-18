@@ -1,5 +1,7 @@
 import { WEAPON_FAN_PICKUP_DEFINITIONS } from '../shared/contracts/WeaponFanPickupDefinitionsContract.js';
 import { FLAMETHROWER_TARGET_SPAWN_WEIGHTS } from '../shared/contracts/FlamethrowerPickupDefinitionsContract.js';
+import { LIGHTNING_SPAWN_WEIGHTS } from '../shared/contracts/LightningPickupDefinitionsContract.js';
+import { RAILGUN_SPAWN_WEIGHTS } from '../shared/contracts/RailgunPickupDefinitionsContract.js';
 
 export const HUNT_CONFIG = Object.freeze({
     DEFAULT_MODE: 'HUNT',
@@ -264,6 +266,28 @@ export const HUNT_CONFIG = Object.freeze({
         // Hunt picks from this table, not from the registry spawn weights, so the rarity of
         // the flamethrower has to be kept in step with its definition by hand.
         FLAMETHROWER: FLAMETHROWER_TARGET_SPAWN_WEIGHTS.HUNT,
+        LIGHTNING: LIGHTNING_SPAWN_WEIGHTS.HUNT,
+        RAILGUN: RAILGUN_SPAWN_WEIGHTS.HUNT,
+    }),
+    // Lightning (E23-E32): warning over the whole map, then a strike on the highest flyers.
+    LIGHTNING: Object.freeze({
+        WARNING_SECONDS: 2,
+        DAMAGE: 35,
+        // Below this many hit points the strike kills; at or above it the target keeps 1 HP.
+        LETHAL_BELOW_HP: 30,
+        // Share of the other living players that is hit, rounded up, at least one.
+        TARGET_SHARE: 0.2,
+    }),
+    // Railgun (E48, E81): hold to charge, release to fire.
+    RAILGUN: Object.freeze({
+        SHOTS: 5,
+        CHARGE_SECONDS: 1.5,
+        MIN_DAMAGE: 20,
+        MAX_DAMAGE: 70,
+        RANGE: 250,
+        MAX_TARGETS: 3,
+        // Added to a target's hitbox: the beam is thin, but it should not need pixel precision.
+        BEAM_RADIUS: 0.5,
     }),
     FLAMETHROWER: Object.freeze({
         FUEL_SECONDS: 6,
