@@ -22,6 +22,7 @@ import { SecretRoomSystem } from '../systems/SecretRoomSystem.js';
 import { TargetableRegistry } from '../systems/TargetableRegistry.js';
 import { MapUnitSystem } from '../systems/MapUnitSystem.js';
 import { LightningStrikeSystem } from '../../hunt/LightningStrikeSystem.js';
+import { RailgunSystem } from '../../hunt/RailgunSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -75,6 +76,8 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     if (owner) owner._mapUnitSystem = systems.mapUnitSystem;
     systems.lightningStrikeSystem = new LightningStrikeSystem(owner);
     if (owner) owner._lightningStrikeSystem = systems.lightningStrikeSystem;
+    systems.railgunSystem = new RailgunSystem(owner);
+    if (owner) owner._railgunSystem = systems.railgunSystem;
     systems.flamethrowerSystem = new FlamethrowerSystem(owner);
     if (owner) owner._flamethrowerSystem = systems.flamethrowerSystem;
     return systems;

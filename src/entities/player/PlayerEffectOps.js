@@ -8,6 +8,8 @@ const SPEED_EFFECT_TYPES = Object.freeze(['SPEED_UP', 'SLOW_DOWN']);
 const TRAIL_EFFECT_TYPES = Object.freeze(['THICK', 'THIN']);
 const GLOBAL_TIME_EFFECT_TYPES = Object.freeze(['SLOW_TIME']);
 const FLAMETHROWER_EFFECT_TYPES = Object.freeze(['FLAMETHROWER']);
+// Not frozen: the effect lookup takes a plain array, and a frozen one costs a type diagnostic.
+const RAILGUN_EFFECT_TYPES = ['RAILGUN'];
 const FUEL_EMPTY_SECONDS = 0.000001;
 
 // Afterburn. Unlike every other entry in activeEffects this one is no pickup, so it has no
@@ -146,6 +148,10 @@ export function recomputePlayerEffectState(player) {
     const flameEffect = findLatestAllowedEffect(player, FLAMETHROWER_EFFECT_TYPES, modeType);
     player.flameFuelSeconds = flameEffect ? Math.max(0, Number(flameEffect.fuelSeconds) || 0) : 0;
     player.hasFlamethrower = !!flameEffect && player.flameFuelSeconds > 0;
+    // Railgun: the shots live on the effect entry like the flame fuel, for the same reason.
+    const railEffect = findLatestAllowedEffect(player, RAILGUN_EFFECT_TYPES, modeType);
+    player.railShots = railEffect ? Math.max(0, Math.trunc(Number(railEffect.shots) || 0)) : 0;
+    player.hasRailgun = !!railEffect && player.railShots > 0;
 
     // Shield: mode-specific - in HUNT expires by HP, in CLASSIC/ARCADE by timer
     const shieldEffectActive = hasAllowedEffect(player, 'SHIELD', modeType);
@@ -179,6 +185,16 @@ export function consumeFlamethrowerFuel(player, seconds) {
     player.flameFuelSeconds = effect.fuelSeconds;
     if (effect.fuelSeconds <= 0) removePlayerEffect(player, effect);
     return consumed;
+}
+
+/** One railgun shot fired; the last one ends the effect through the normal removal path. */
+export function consumeRailgunShot(player) {
+    const effect = findLatestAllowedEffect(player, RAILGUN_EFFECT_TYPES, resolveModeType(player));
+    if (!effect) return false;
+    effect.shots = Math.max(0, Math.trunc(Number(effect.shots) || 0) - 1);
+    player.railShots = effect.shots;
+    if (effect.shots <= 0) removePlayerEffect(player, effect);
+    return true;
 }
 
 /**
@@ -422,6 +438,10 @@ export function applyPlayerPowerup(player, type, options = {}) {
 
     if (type === 'FLAMETHROWER') {
         player.activeEffects[player.activeEffects.length - 1].fuelSeconds = resolveFlamethrowerFuelSeconds(player);
+    }
+    if (type === 'RAILGUN') {
+        const shots = Math.trunc(Number(resolveEntityRuntimeConfig(player)?.HUNT?.RAILGUN?.SHOTS) || 5);
+        player.activeEffects[player.activeEffects.length - 1].shots = Math.max(1, shots);
     }
 
     // E16: the burst of speed blows the afterburn out, exactly like the boost key and the gate.
