@@ -367,7 +367,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const statusMessage = el('span', 'hangar-status-message', 'Hangar wird geladen …');
     statusMessage.setAttribute('role', 'status');
     statusMessage.setAttribute('aria-live', 'polite');
-    const activeBuildLabel = el('span', 'hangar-active-build-label', 'Aktiver Run-Build: Standard');
+    const activeBuildLabel = el('span', 'hangar-active-build-label', mode === 'fight' ? 'Aktiver Kampf-Build: Standard' : 'Aktiver Run-Build: Standard');
     statusBar.append(statusMessage, activeBuildLabel);
     container.appendChild(statusBar);
 
