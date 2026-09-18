@@ -4647,15 +4647,34 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     font-size: 0.92rem;
 }
 
-.arcade-surface-cta {
-    display: flex;
-    justify-content: flex-end;
+/* "Lauf starten": one row per way to start, button on the left, its sentence beside it. */
+.arcade-start-group,
+.arcade-stats-block {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 190, 90, 0.3);
+    background: rgba(24, 18, 10, 0.55);
 }
 
-.arcade-surface-cta .start-btn {
-    width: auto;
-    min-width: 220px;
+.arcade-start-option {
+    display: grid;
+    grid-template-columns: minmax(200px, 240px) 1fr;
+    gap: 12px;
+    align-items: center;
+}
+
+.arcade-start-option .start-btn {
+    width: 100%;
     margin-top: 0;
+}
+
+.arcade-start-option-copy {
+    margin: 0;
+    color: #f5e1c5;
+    font-size: 0.82rem;
+    line-height: 1.35;
 }
 
 .arcade-vehicle-manager {
@@ -6014,9 +6033,9 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
         grid-template-columns: 1fr;
     }
 
-    .arcade-surface-cta .start-btn {
-        width: 100%;
-        min-width: 0;
+    .arcade-start-option {
+        grid-template-columns: 1fr;
+        gap: 4px;
     }
 }
 
