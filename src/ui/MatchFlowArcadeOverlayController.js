@@ -8,7 +8,9 @@ import {
     createArcadeRunBlocks,
     createArcadeSectorBlock,
     createArcadeVictoryBlocks,
+    resolveArcadeMapLabel,
 } from './arcade/postrun/ArcadePostRunBlocks.js';
+import { formatCount } from './postmatch/PostMatchFormat.js';
 import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/ArcadePostRunCards.js';
 import { createArenaWavesMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
 import { formatArenaWavesChoiceLabel, resolveArenaWavesBoardTexts } from './arcade/ArenaWavesOverlayTexts.js';
@@ -100,7 +102,7 @@ export class MatchFlowArcadeOverlayController {
             if (token !== this._arcadeXpAnimToken) return;
             const progress = Math.min(1, (now - start) / duration);
             const eased = 1 - ((1 - progress) * (1 - progress));
-            node.textContent = `${Math.round(target * eased)} XP`;
+            node.textContent = `${formatCount(target * eased)} XP`;
             if (progress < 1) {
                 this._arcadeXpAnimFrame = requestAnimationFrame(step);
             } else {
@@ -131,7 +133,8 @@ export class MatchFlowArcadeOverlayController {
                 this.runtimePort.applyRoundEndTransition?.(transition);
                 this.matchFlowUiController?.applyMatchUiState({
                     messageText: choice === 'finish' ? 'Run abgeschlossen' : 'Sudden Death',
-                    messageSub: choice === 'finish' ? 'ENTER für neuen Run oder ESC fürs Menü' : 'Wähle deinen nächsten Sektor',
+                    // The continue prompt below the board already names the keys.
+                    messageSub: choice === 'finish' ? '' : 'Wähle deinen nächsten Sektor',
                 });
                 this.syncArcadeOverlayPanel();
             });
@@ -222,7 +225,7 @@ export class MatchFlowArcadeOverlayController {
                 btn.setAttribute('aria-pressed', String(active));
 
                 const strong = document.createElement('strong');
-                strong.textContent = String(entry?.mapLabel || entry?.mapKey || 'Unbekannte Map');
+                strong.textContent = resolveArcadeMapLabel(entry?.mapKey, entry?.mapLabel);
                 btn.appendChild(strong);
 
                 const span = document.createElement('span');
@@ -485,7 +488,7 @@ export class MatchFlowArcadeOverlayController {
         if (runtimeState?.runType !== 'arena_waves' || !summary || !Array.isArray(summary.maps)) return false;
         const panel = this._ensureArcadeOverlayPanel(); if (!panel) return false;
         while (panel.firstChild) panel.removeChild(panel.firstChild);
-        const title = document.createElement('h2'); title.textContent = `Fünf Fronten abgeschlossen – ${Math.round(toSafeNumber(summary.total, 0))} Punkte`;
+        const title = document.createElement('h2'); title.textContent = `Fünf Fronten abgeschlossen – ${formatCount(toSafeNumber(summary.total, 0))} Punkte`;
         const list = createArcadeCardScroller(createArenaWavesMapBlocks(summary), 'Karten', 'Keine Kartendaten.');
         const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Zum Menü';
         close.addEventListener('click', () => this.runtimePort?.returnToMenu?.({ reason: 'arena_waves_finished' }));
