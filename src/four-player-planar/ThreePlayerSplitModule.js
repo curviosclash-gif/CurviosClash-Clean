@@ -22,7 +22,8 @@ function resolveMapLabel(mapKey, definition) {
 }
 
 function resolveVehicleLabel(vehicleId) {
-    return String(VEHICLE_DEFINITIONS?.[vehicleId]?.label || vehicleId);
+    // VEHICLE_DEFINITIONS is a list, not a lookup by id.
+    return String(VEHICLE_DEFINITIONS.find((entry) => entry.id === vehicleId)?.label || vehicleId);
 }
 
 /**
@@ -185,7 +186,10 @@ export class ThreePlayerSplitModule {
     }
 
     _updateDeviceStatus(selection = this._resolveSelection()) {
-        this.setupView.setDeviceStatus?.(this._getDeviceIssue(selection));
+        const issue = this._getDeviceIssue(selection);
+        this.setupView.setDeviceStatus?.(issue);
+        // The start button stays locked while a device is missing, so a click never does nothing.
+        this.setupView.setStartAvailability?.({ blocked: !!issue, reason: issue });
     }
 
     startMatch() {

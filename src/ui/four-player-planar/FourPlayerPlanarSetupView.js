@@ -1,3 +1,5 @@
+import { bindLocalModuleHeaderBack } from './LocalModuleHeaderBack.js';
+
 const ROLL_KEY_LABELS = { left: 'Rolle links', right: 'Rolle rechts' };
 
 function createOption(documentRef, value, label) {
@@ -77,7 +79,6 @@ export class FourPlayerPlanarSetupView {
             <section id="four-player-planar-setup" class="menu-section four-player-planar-setup hidden"
                 aria-labelledby="four-player-planar-setup-title">
               <div class="four-player-planar-setup-header">
-                <button type="button" class="back-btn" data-four-player-planar-back aria-label="Zurück zur Spielstilwahl">← Zurück</button>
                 <div>
                     <h2 id="four-player-planar-setup-title" class="section-title">4 Spieler – Planar</h2>
                     <p class="menu-hint">Vier lokale Tastaturspieler · Third Person · Pitch gesperrt</p>
@@ -136,7 +137,6 @@ export class FourPlayerPlanarSetupView {
             botLabel: surface.querySelector('[data-four-player-planar-bot-label]'),
             rollButtons: Array.from(surface.querySelectorAll('[data-four-player-roll-key]')),
             keyHint: surface.querySelector('[data-four-player-planar-key-hint]'),
-            back: surface.querySelector('[data-four-player-planar-back]'),
             start: surface.querySelector('[data-four-player-planar-start]'),
         };
 
@@ -147,7 +147,12 @@ export class FourPlayerPlanarSetupView {
     _wireHandlers(handlers) {
         const nodes = this._nodes;
         this._listen(nodes.card, 'click', () => handlers.onOpenRequested?.());
-        this._listen(nodes.back, 'click', () => handlers.onCloseRequested?.());
+        this._headerBack = bindLocalModuleHeaderBack({
+            documentRef: this.document,
+            surface: nodes.surface,
+            onClose: () => handlers.onCloseRequested?.(),
+            listen: (target, type, handler, options) => this._listen(target, type, handler, options),
+        });
         this._listen(nodes.start, 'click', () => handlers.onStartRequested?.());
         for (const button of nodes.rollButtons) {
             this._listen(button, 'click', () => handlers.onRollKeyRequested?.({
@@ -178,10 +183,10 @@ export class FourPlayerPlanarSetupView {
         }
     }
 
-    _listen(target, type, handler) {
+    _listen(target, type, handler, options = undefined) {
         if (!target?.addEventListener) return;
-        target.addEventListener(type, handler);
-        this._listeners.push(() => target.removeEventListener(type, handler));
+        target.addEventListener(type, handler, options);
+        this._listeners.push(() => target.removeEventListener(type, handler, options));
     }
 
     setEntryVisible(visible) {
@@ -247,6 +252,7 @@ export class FourPlayerPlanarSetupView {
         for (const node of this._nodes.standardSections) node.classList.add('four-player-planar-standard-hidden');
         this._nodes.surface.classList.remove('hidden');
         this._setupVisible = true;
+        this._headerBack?.syncOpen(true);
         this._nodes.mode.focus?.();
     }
 
@@ -255,6 +261,7 @@ export class FourPlayerPlanarSetupView {
         if (!this._nodes) return;
         for (const node of this._nodes.standardSections) node.classList.remove('four-player-planar-standard-hidden');
         this._nodes.surface.classList.add('hidden');
+        this._headerBack?.syncOpen(false);
     }
 
     /**

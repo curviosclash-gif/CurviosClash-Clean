@@ -1,3 +1,5 @@
+import { bindLocalModuleHeaderBack } from './LocalModuleHeaderBack.js';
+
 const DEVICE_LABELS = {
     keyboard: 'Tastatur',
     'gamepad-1': 'Gamepad 1',
@@ -72,7 +74,6 @@ export class ThreePlayerSplitSetupView {
             <section id="three-player-split-setup" class="menu-section three-player-split-setup hidden"
                 aria-labelledby="three-player-split-setup-title">
               <div class="three-player-split-setup-header">
-                <button type="button" class="back-btn" data-three-player-split-back aria-label="Zurück zur Spielstilwahl">← Zurück</button>
                 <div>
                     <h2 id="three-player-split-setup-title" class="section-title">3 Spieler – Splitscreen</h2>
                     <p class="menu-hint">Drei lokale Spieler · Third Person · volle 3D-Flugphysik</p>
@@ -93,9 +94,11 @@ export class ThreePlayerSplitSetupView {
                 <summary>Geräte-Zuordnung</summary>
                 <div class="three-player-split-devices" aria-label="Geräte-Zuordnung für drei Spieler"></div>
                 <p class="menu-hint">Standard: Spieler 1+2 Gamepad, Spieler 3 Tastatur · lässt sich pro Platz umstellen.</p>
-                <p class="menu-hint" data-three-player-split-device-status role="status" aria-live="polite" hidden></p>
             </details>
-            <button type="button" class="start-btn" data-three-player-split-start>3-Spieler-Match starten</button>
+            <p class="menu-hint three-player-split-device-status" id="three-player-split-device-status"
+                data-three-player-split-device-status role="status" aria-live="polite" hidden></p>
+            <button type="button" class="start-btn" data-three-player-split-start
+                aria-describedby="three-player-split-device-status">3-Spieler-Match starten</button>
             </section>`);
         submenuBody.appendChild(surface);
 
@@ -116,7 +119,7 @@ export class ThreePlayerSplitSetupView {
                     <select data-three-player-split-device data-player-index="${index}">
                         ${Object.entries(DEVICE_LABELS).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
                     </select>
-                    <p class="menu-hint">Tastatur: Belegung Spieler ${index === 0 ? 1 : 2}</p>
+                    <p class="menu-hint" data-three-player-split-keyboard-hint hidden>Tastatur mit der Belegung von Spieler ${index === 0 ? 1 : 2}</p>
                 </div>`);
             row.style.setProperty('--player-color', colorToCss(playerColors[index]));
             devices.appendChild(row);
@@ -133,8 +136,8 @@ export class ThreePlayerSplitSetupView {
             bots: surface.querySelector('[data-three-player-split-bots]'),
             botLabel: surface.querySelector('[data-three-player-split-bot-label]'),
             deviceSelects,
+            keyboardHints: Array.from(surface.querySelectorAll('[data-three-player-split-keyboard-hint]')),
             deviceStatus: surface.querySelector('[data-three-player-split-device-status]'),
-            back: surface.querySelector('[data-three-player-split-back]'),
             start: surface.querySelector('[data-three-player-split-start]'),
         };
 
@@ -145,7 +148,12 @@ export class ThreePlayerSplitSetupView {
     _wireHandlers(handlers) {
         const nodes = this._nodes;
         this._listen(nodes.card, 'click', () => handlers.onOpenRequested?.());
-        this._listen(nodes.back, 'click', () => handlers.onCloseRequested?.());
+        this._headerBack = bindLocalModuleHeaderBack({
+            documentRef: this.document,
+            surface: nodes.surface,
+            onClose: () => handlers.onCloseRequested?.(),
+            listen: (target, type, handler, options) => this._listen(target, type, handler, options),
+        });
         this._listen(nodes.start, 'click', () => handlers.onStartRequested?.());
         for (const control of [nodes.mode, nodes.map, nodes.vehicle, nodes.bots]) {
             this._listen(control, 'input', () => handlers.onControlChanged?.());
@@ -174,10 +182,18 @@ export class ThreePlayerSplitSetupView {
         }
     }
 
-    _listen(target, type, handler) {
+    _listen(target, type, handler, options = undefined) {
         if (!target?.addEventListener) return;
-        target.addEventListener(type, handler);
-        this._listeners.push(() => target.removeEventListener(type, handler));
+        target.addEventListener(type, handler, options);
+        this._listeners.push(() => target.removeEventListener(type, handler, options));
+    }
+
+    // The keyboard note belongs only to the slot that currently has the keyboard.
+    _syncKeyboardHints() {
+        this._nodes.deviceSelects.forEach((select, index) => {
+            const hint = this._nodes.keyboardHints[index];
+            if (hint) hint.hidden = select.value !== 'keyboard';
+        });
     }
 
     setEntryVisible(visible) {
@@ -208,6 +224,7 @@ export class ThreePlayerSplitSetupView {
         this._nodes.deviceSelects.forEach((select, index) => {
             select.value = selection.deviceAssignment?.[index] || select.value;
         });
+        this._syncKeyboardHints();
     }
 
     applyNormalizedSelection(selection) {
@@ -217,6 +234,7 @@ export class ThreePlayerSplitSetupView {
         this._nodes.deviceSelects.forEach((select, index) => {
             select.value = selection.deviceAssignment?.[index] || select.value;
         });
+        this._syncKeyboardHints();
     }
 
     setDeviceStatus(message) {
@@ -225,10 +243,18 @@ export class ThreePlayerSplitSetupView {
         this._nodes.deviceStatus.hidden = !message;
     }
 
+    /** @param {{blocked: boolean, reason: string}} availability */
+    setStartAvailability({ blocked = false, reason = '' } = {}) {
+        if (!this._nodes) return;
+        this._nodes.start.disabled = blocked === true;
+        this._nodes.start.title = blocked ? String(reason || '') : '';
+    }
+
     openSetup() {
         if (!this._nodes) return;
         for (const node of this._nodes.standardSections) node.classList.add('three-player-split-standard-hidden');
         this._nodes.surface.classList.remove('hidden');
+        this._headerBack?.syncOpen(true);
         this._nodes.mode.focus?.();
     }
 
@@ -236,6 +262,7 @@ export class ThreePlayerSplitSetupView {
         if (!this._nodes) return;
         for (const node of this._nodes.standardSections) node.classList.remove('three-player-split-standard-hidden');
         this._nodes.surface.classList.add('hidden');
+        this._headerBack?.syncOpen(false);
     }
 
     dispose() {

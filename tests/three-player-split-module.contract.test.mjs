@@ -36,6 +36,7 @@ function createSetupView(controls) {
         applySelection: (selection) => calls.applySelection.push(selection),
         applyNormalizedSelection: (selection) => calls.applyNormalizedSelection.push(selection),
         setDeviceStatus: (message) => calls.deviceStatus.push(message),
+        setStartAvailability: (availability) => { calls.startAvailability = availability; },
         openSetup: () => { calls.opened += 1; },
         closeSetup: () => { calls.closed += 1; },
         dispose() {},
@@ -199,6 +200,34 @@ test('three-player match start requires enabled gamepads', () => {
     assert.equal(module.startMatch(), false);
     assert.equal(runtime.started, 0);
     assert.match(setupView.calls.deviceStatus.at(-1), /Gamepads sind deaktiviert/);
+});
+
+test('the start button stays locked with the reason while an assigned gamepad is missing', () => {
+    let pads = [null, null];
+    const runtime = createRuntime({ localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {} });
+    const setupView = createSetupView({
+        mode: 'classic', mapKey: 'standard', vehicleId: getVehicleIds()[0], botCount: '0',
+        deviceAssignment: ['gamepad-1', 'gamepad-2', 'keyboard'],
+    });
+    const module = createModule({ runtimePort: runtime, setupView, hudView: createHudView(), getGamepad: (index) => pads[index] });
+
+    module.syncSetupUi();
+    assert.equal(setupView.calls.startAvailability.blocked, true);
+    assert.match(setupView.calls.startAvailability.reason, /Gamepad 1 fehlt/);
+
+    pads = [{ connected: true }, { connected: true }];
+    module._updateDeviceStatus();
+    assert.deepEqual(setupView.calls.startAvailability, { blocked: false, reason: '' });
+});
+
+test('the vehicle picker shows catalog names instead of raw ids', () => {
+    const runtime = createRuntime({ localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {} });
+    const setupView = createSetupView({ mode: 'classic', mapKey: 'standard', vehicleId: 'ship5', botCount: '0', deviceAssignment: [] });
+    let mountOptions = null;
+    setupView.mount = (options) => { mountOptions = options; return true; };
+    createModule({ runtimePort: runtime, setupView, hudView: createHudView() }).mountSetupUi();
+    const ship5 = mountOptions.vehicleOptions.find((option) => option.value === 'ship5');
+    assert.equal(ship5.label, 'Star-Cruiser (Ship 5)');
 });
 
 test('update drives a three-row HUD only while the three-player runtime is active', () => {
