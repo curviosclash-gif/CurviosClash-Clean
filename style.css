@@ -839,6 +839,7 @@
 
 select,
 input[type="text"],
+.menu-input,
 textarea,
 input[type="range"],
 .secondary-btn {
@@ -847,6 +848,7 @@ input[type="range"],
 
 select,
 input[type="text"],
+.menu-input,
 textarea {
     padding: 10px 12px;
     font-size: 0.95em;
@@ -859,7 +861,8 @@ textarea {
     appearance: none;
 }
 
-input[type="text"] {
+input[type="text"],
+.menu-input {
     cursor: text;
     user-select: text;
     -webkit-user-select: text;
@@ -870,11 +873,13 @@ textarea {
     min-height: 72px;
 }
 
-input[type="text"]::placeholder {
+input[type="text"]::placeholder,
+.menu-input::placeholder {
     color: #8190aa;
 }
 
 input[type="text"]:focus,
+.menu-input:focus,
 textarea:focus,
 select:focus {
     outline: none;
@@ -885,6 +890,7 @@ select:focus {
 button:focus-visible,
 select:focus-visible,
 input[type="text"]:focus-visible,
+.menu-input:focus-visible,
 input[type="range"]:focus-visible,
 input[type="checkbox"]:focus-visible {
     outline: 2px solid rgba(80, 216, 255, 0.95);
