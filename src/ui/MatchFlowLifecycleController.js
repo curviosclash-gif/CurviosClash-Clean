@@ -119,6 +119,9 @@ export class MatchFlowLifecycleController {
         const game = this.game;
         const roundStartTransition = this.deriveRoundStartTransition?.() || {};
         controller.applyLifecycleTransition(roundStartTransition);
+        // A key pressed in the menu or on the round-end board (Escape closing the options)
+        // must not reach the new round, or the first paused-state check eats it and pauses.
+        this.runtimePort?.clearJustPressed?.();
         game.entityManager?.clearLastRoundGhost?.();
         controller._clearArcadeOverlayPanel();
 

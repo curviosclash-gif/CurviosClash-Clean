@@ -117,8 +117,12 @@ export function createMatchFlowUiControllerPort(ports = null) {
     const runtimeProjectionPort = ports?.runtimeProjectionPort || null;
     const uiFeedbackPort = ports?.uiFeedbackPort || null;
     const matchStatePort = ports?.matchStatePort || null;
+    const inputPort = ports?.inputPort || null;
     const controllerPort = {};
 
+    if (typeof inputPort?.clearJustPressed === 'function') {
+        controllerPort.clearJustPressed = () => inputPort.clearJustPressed();
+    }
     if (typeof matchStatePort?.applyLifecycleTransition === 'function') {
         controllerPort.applyLifecycleTransition = (transition) => matchStatePort.applyLifecycleTransition(transition);
     }
