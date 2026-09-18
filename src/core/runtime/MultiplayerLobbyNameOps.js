@@ -1,5 +1,5 @@
 import { normalizeOptionalMultiplayerPlayerName } from '../../shared/contracts/MultiplayerSessionContract.js';
-import { LOBBY_NAME_STORAGE_KEY } from '../../shared/contracts/PlayerProfileStorageContract.js';
+import { LOBBY_NAME_STORAGE_KEY } from '../../shared/contracts/LobbyNameStorageContract.js';
 
 // The lobby name lives in the active player profile, so every profile keeps its own.
 function resolveProfileStore(game) {

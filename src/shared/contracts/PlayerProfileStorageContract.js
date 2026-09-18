@@ -5,6 +5,7 @@ import {
     ARCADE_SEED_STORAGE_KEY,
 } from './ArcadeMenuPersistenceContract.js';
 import { HANGAR_BUILD_STORAGE_KEYS } from './HangarModeContract.js';
+import { LOBBY_NAME_STORAGE_KEY } from './LobbyNameStorageContract.js';
 
 export const PLAYER_PROFILE_REGISTRY_STORAGE_KEY = 'cuviosclash.player-profiles.v1';
 export const PLAYER_PROFILE_MIGRATION_STORAGE_KEY = 'cuviosclash.player-profile-migration.v1';
@@ -27,7 +28,7 @@ export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
 });
 
 // The name a player last used in a multiplayer lobby; each player profile keeps its own.
-export const LOBBY_NAME_STORAGE_KEY = 'cuviosclash.lobby-name.v1';
+export { LOBBY_NAME_STORAGE_KEY };
 
 const RECORD_DEFINITIONS = Object.freeze([
     { kind: PLAYER_PROFILE_RECORD_KINDS.LEGACY_ARCADE_RUN_PROFILE, legacyKey: LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY, suffix: 'arcade-run-profile.v1' },
