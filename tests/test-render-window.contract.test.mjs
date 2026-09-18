@@ -13,11 +13,41 @@ const {
     TEST_RENDER_MODE_INACTIVE,
     TEST_RENDER_MODE_OFF,
     createMainWindowOptions,
+    createSecondaryWindowOptions,
     createTestRenderWindowOptions,
     listTestRenderCommandLineSwitches,
     resolveTestRenderMode,
     shouldShowInactive,
+    showWindowForMode,
+    withTestRenderWindowOpenHandler,
 } = require(path.join(repoRoot, 'electron', 'test-render-window.cjs'));
+const { createHangarWindowController } = require(path.join(repoRoot, 'electron', 'hangar-window.cjs'));
+const { createTuningWindowController } = require(path.join(repoRoot, 'electron', 'tuning-window.cjs'));
+
+class FakeWindow {
+    constructor(options = {}) {
+        this.options = options;
+        this.calls = [];
+        this.events = new Map();
+        this.destroyed = false;
+    }
+    isDestroyed() { return this.destroyed; }
+    isMinimized() { return false; }
+    isVisible() { return this.calls.includes('show') || this.calls.includes('showInactive'); }
+    on(name, handler) { this.events.set(name, handler); }
+    once(name, handler) { this.events.set(name, handler); }
+    get webContents() {
+        return { on() {}, setWindowOpenHandler() {} };
+    }
+    async loadURL(url) { this.url = url; this.events.get('ready-to-show')?.(); }
+    async loadFile(file) { this.url = file; this.events.get('ready-to-show')?.(); }
+    maximize() { this.calls.push('maximize'); }
+    show() { this.calls.push('show'); }
+    showInactive() { this.calls.push('showInactive'); }
+    focus() { this.calls.push('focus'); }
+    setAlwaysOnTop() { this.calls.push('setAlwaysOnTop'); }
+    close() { this.destroyed = true; this.events.get('closed')?.(); }
+}
 
 test('electron keeps its product behaviour without the test render switch', () => {
     assert.equal(resolveTestRenderMode({}), TEST_RENDER_MODE_OFF);
@@ -91,6 +121,139 @@ test('the main window options stay untouched without the mode and beat a visible
     assert.equal(inactive.width, 1280);
 });
 
+test('secondary window options stay untouched without the mode', () => {
+    const baseOptions = {
+        width: 1600,
+        height: 1000,
+        title: 'CurviosClash Hangar',
+        show: true,
+        alwaysOnTop: true,
+        webPreferences: { sandbox: true },
+    };
+    assert.deepEqual(createSecondaryWindowOptions({ baseOptions, mode: TEST_RENDER_MODE_OFF }), baseOptions);
+    assert.deepEqual(createSecondaryWindowOptions({ baseOptions }), baseOptions, 'no mode means product behaviour');
+});
+
+test('secondary windows hide themselves the same way the main window does', () => {
+    const baseOptions = {
+        width: 1600,
+        height: 1000,
+        title: 'CurviosClash Hangar',
+        show: true,
+        alwaysOnTop: true,
+        parent: { fake: 'parent' },
+        webPreferences: { sandbox: true },
+    };
+    const options = createSecondaryWindowOptions({ baseOptions, mode: TEST_RENDER_MODE_INACTIVE });
+    assert.equal(options.show, false);
+    assert.equal(options.skipTaskbar, true);
+    assert.equal(options.focusable, false);
+    assert.equal(options.x, OFFSCREEN_WINDOW_POSITION.x);
+    assert.equal(options.y, OFFSCREEN_WINDOW_POSITION.y);
+    // Ein immer-obenauf-Fenster waehrend eines Laufs waere genau das, was der Nutzer
+    // nicht will, falls Windows die Position doch einmal zurueckholt.
+    assert.equal(options.alwaysOnTop, false, 'no test window may sit on top of the user');
+    assert.deepEqual(options.webPreferences, baseOptions.webPreferences, 'web preferences are never touched');
+    assert.equal(options.parent, baseOptions.parent, 'the parent relation survives');
+    assert.equal(options.width, 1600);
+});
+
+test('showWindowForMode only paints the window in the test mode, and never activates it', () => {
+    const product = new FakeWindow();
+    assert.equal(showWindowForMode(product, TEST_RENDER_MODE_OFF), false);
+    assert.deepEqual(product.calls, [], 'without the mode the caller keeps its own show path');
+
+    const test1 = new FakeWindow();
+    assert.equal(showWindowForMode(test1, TEST_RENDER_MODE_INACTIVE), true);
+    assert.deepEqual(test1.calls, ['showInactive'], 'painting must never use show() or focus()');
+    assert.equal(showWindowForMode(null, TEST_RENDER_MODE_INACTIVE), true, 'a closed window is not an error');
+});
+
+test('a wrapped window-open handler is the untouched handler without the mode', () => {
+    const handler = () => ({ action: 'allow', overrideBrowserWindowOptions: { width: 1440 } });
+    assert.equal(withTestRenderWindowOpenHandler(handler, TEST_RENDER_MODE_OFF), handler);
+    assert.equal(withTestRenderWindowOpenHandler(handler), handler);
+});
+
+test('a wrapped window-open handler hides the popup it allows', () => {
+    const webPreferences = { sandbox: true, preload: 'editor-preload.cjs' };
+    const denied = { action: 'deny' };
+    const handler = ({ url } = {}) => (url === 'allowed'
+        ? { action: 'allow', overrideBrowserWindowOptions: { width: 1440, height: 900, webPreferences } }
+        : denied);
+    const wrapped = withTestRenderWindowOpenHandler(handler, TEST_RENDER_MODE_INACTIVE);
+
+    // Same object, not a copy: the wrapper does not even touch a refusal.
+    assert.equal(wrapped({ url: 'blocked' }), denied, 'the security answer is never widened');
+
+    const allowed = wrapped({ url: 'allowed' });
+    assert.equal(allowed.action, 'allow');
+    assert.equal(allowed.overrideBrowserWindowOptions.show, false);
+    assert.equal(allowed.overrideBrowserWindowOptions.alwaysOnTop, false);
+    assert.equal(allowed.overrideBrowserWindowOptions.skipTaskbar, true);
+    assert.equal(allowed.overrideBrowserWindowOptions.focusable, false);
+    assert.equal(allowed.overrideBrowserWindowOptions.x, OFFSCREEN_WINDOW_POSITION.x);
+    assert.equal(allowed.overrideBrowserWindowOptions.width, 1440, 'the editor size survives');
+    assert.deepEqual(
+        allowed.overrideBrowserWindowOptions.webPreferences,
+        webPreferences,
+        'the secure web preferences survive untouched'
+    );
+});
+
+test('the hangar window keeps maximizing and focusing without the mode', async () => {
+    const controller = createHangarWindowController({
+        BrowserWindow: FakeWindow,
+        resolveWindowUrl: () => 'http://127.0.0.1/hangar.html?mode=arcade',
+        shouldShowWindow: () => true,
+    });
+    const opened = await controller.openHangarWindow({ focus: true });
+    assert.deepEqual(opened.window.calls, ['maximize', 'show', 'focus']);
+    assert.equal(opened.window.options.show, false, 'the product still waits for ready-to-show');
+    assert.equal(opened.window.options.skipTaskbar, undefined);
+});
+
+test('the hangar window stays off screen and unfocused in the test mode', async () => {
+    const controller = createHangarWindowController({
+        BrowserWindow: FakeWindow,
+        resolveWindowUrl: () => 'http://127.0.0.1/hangar.html?mode=arcade',
+        shouldShowWindow: () => true,
+        testRenderMode: TEST_RENDER_MODE_INACTIVE,
+    });
+    const opened = await controller.openHangarWindow({ focus: true });
+    // maximize() alone pulls a hidden window onto the screen - that is how the hangar
+    // window became visible and took the focus during test runs.
+    assert.deepEqual(opened.window.calls, ['showInactive']);
+    assert.equal(opened.window.options.focusable, false);
+    assert.equal(opened.window.options.skipTaskbar, true);
+    assert.equal(opened.window.options.x, OFFSCREEN_WINDOW_POSITION.x);
+    assert.equal(opened.window.options.minWidth, 1100, 'the product options survive');
+});
+
+test('the tuning window keeps focusing without the mode and hides with it', async () => {
+    const product = createTuningWindowController({
+        BrowserWindow: FakeWindow,
+        htmlPath: path.join(repoRoot, 'electron', 'tuning-console', 'tuning.html'),
+        shouldShowWindow: () => true,
+    });
+    const openedProduct = await product.createTuningWindow({ focus: true });
+    assert.deepEqual(openedProduct.window.calls, ['focus']);
+    assert.equal(openedProduct.window.options.show, true);
+
+    const underTest = createTuningWindowController({
+        BrowserWindow: FakeWindow,
+        htmlPath: path.join(repoRoot, 'electron', 'tuning-console', 'tuning.html'),
+        shouldShowWindow: () => true,
+        testRenderMode: TEST_RENDER_MODE_INACTIVE,
+    });
+    const openedTest = await underTest.createTuningWindow({ focus: true, alwaysOnTop: true });
+    assert.deepEqual(openedTest.window.calls, ['showInactive']);
+    assert.equal(openedTest.window.options.show, false);
+    assert.equal(openedTest.window.options.alwaysOnTop, false);
+    assert.equal(openedTest.window.options.focusable, false);
+    assert.equal(openedTest.window.options.x, OFFSCREEN_WINDOW_POSITION.x);
+});
+
 test('main process and harness are wired to the pure helpers', () => {
     const mainSource = readFileSync(path.join(repoRoot, 'electron', 'main.cjs'), 'utf8');
     assert.ok(mainSource.includes("require('./test-render-window.cjs')"), 'main.cjs loads the pure module');
@@ -124,6 +287,38 @@ test('main process and harness are wired to the pure helpers', () => {
     assert.ok(
         harnessSource.includes('CURVIOS_ELECTRON_TEST_RENDER: resolveTestRenderMode(process.env)'),
         'the desktop harness passes the render mode to electron'
+    );
+});
+
+// Jedes Fenster, das im Testmodus entstehen kann, muss denselben Weg nehmen. Ein
+// vergessener Aufrufer faellt sonst nur auf, weil ein Fenster auf dem Schirm auftaucht.
+test('every window main.cjs can open goes through the test render helpers', () => {
+    const mainSource = readFileSync(path.join(repoRoot, 'electron', 'main.cjs'), 'utf8');
+
+    const openHandlerCalls = mainSource.match(/setWindowOpenHandler\(/g)?.length ?? 0;
+    const wrappedCalls = mainSource.match(/withTestRenderWindowOpenHandler\(/g)?.length ?? 0;
+    assert.equal(wrappedCalls, openHandlerCalls, 'every window-open handler is wrapped');
+    assert.ok(openHandlerCalls >= 3, 'editor, playtest and the denying handler are all covered');
+
+    assert.match(
+        mainSource,
+        /did-create-window', \(editorWindow[\s\S]{0,900}showWindowForMode\(editorWindow, testRenderMode\)/,
+        'the editor window is painted off screen instead of staying at one frame per second'
+    );
+    assert.match(
+        mainSource,
+        /did-create-window', \(playtestWindow[\s\S]{0,300}showWindowForMode\(playtestWindow, testRenderMode\)/,
+        'the playtest window is painted off screen as well'
+    );
+    assert.match(
+        mainSource,
+        /createHangarWindowController\(\{[\s\S]{0,600}testRenderMode,/,
+        'the hangar controller learns the mode'
+    );
+    assert.match(
+        mainSource,
+        /createTuningWindowController\(\{[\s\S]{0,400}testRenderMode,/,
+        'the tuning controller learns the mode'
     );
 });
 

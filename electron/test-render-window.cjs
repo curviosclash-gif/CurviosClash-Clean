@@ -52,6 +52,57 @@ function createMainWindowOptions({ baseOptions = {}, mode = TEST_RENDER_MODE_OFF
 }
 
 /**
+ * Zweitfenster (Hangar, Tuning, Editor, Playtest) bekommen dieselbe Tarnung wie das
+ * Hauptfenster. Zusaetzlich faellt `alwaysOnTop` weg: ein immer-obenauf-Fenster waere
+ * genau das, was den Nutzer stoert, falls Windows die Position doch zurueckholt.
+ * @param {{baseOptions?: object, mode?: string}} [input]
+ * @returns {object}
+ */
+function createSecondaryWindowOptions({ baseOptions = {}, mode = TEST_RENDER_MODE_OFF } = {}) {
+    if (mode !== TEST_RENDER_MODE_INACTIVE) return { ...baseOptions };
+    return { ...baseOptions, ...createTestRenderWindowOptions(mode), alwaysOnTop: false };
+}
+
+/**
+ * Ein `show: false`-Fenster zeichnet rund ein Bild pro Sekunde. `showInactive()` gibt ihm
+ * die volle Bildrate, ohne den Fokus zu nehmen. Rueckgabe `true` heisst: der Aufrufer ist
+ * fertig und darf seinen eigenen Weg (`show()`, `maximize()`, `focus()`) nicht mehr gehen -
+ * `maximize()` allein holt ein verstecktes Fenster auf den Bildschirm zurueck.
+ * @param {{showInactive?: () => void}|null} window
+ * @param {string} mode
+ * @returns {boolean}
+ */
+function showWindowForMode(window, mode) {
+    if (!shouldShowInactive(mode)) return false;
+    window?.showInactive?.();
+    return true;
+}
+
+/**
+ * Umhuellt einen `setWindowOpenHandler`-Handler, damit auch ein per `window.open`
+ * entstandenes Fenster getarnt startet. Ohne Modus kommt derselbe Handler zurueck, das
+ * Produkt kennt die Huelle also gar nicht. Eine Ablehnung bleibt eine Ablehnung.
+ * @template {(details?: any) => any} THandler
+ * @param {THandler} handler
+ * @param {string} [mode]
+ * @returns {THandler|((details?: any) => any)}
+ */
+function withTestRenderWindowOpenHandler(handler, mode = TEST_RENDER_MODE_OFF) {
+    if (!shouldShowInactive(mode)) return handler;
+    return (details) => {
+        const result = handler(details);
+        if (result?.action !== 'allow') return result;
+        return {
+            ...result,
+            overrideBrowserWindowOptions: createSecondaryWindowOptions({
+                baseOptions: result.overrideBrowserWindowOptions || {},
+                mode,
+            }),
+        };
+    };
+}
+
+/**
  * Chromium-Schalter, die vor `app.whenReady` gesetzt werden muessen. `appendSwitch`
  * ersetzt einen vorhandenen Wert, statt anzuhaengen: ein weiteres abzuschaltendes
  * Feature gehoert mit Komma in denselben `disable-features`-Wert.
@@ -80,8 +131,11 @@ module.exports = {
     TEST_RENDER_MODE_INACTIVE,
     TEST_RENDER_MODE_OFF,
     createMainWindowOptions,
+    createSecondaryWindowOptions,
     createTestRenderWindowOptions,
     listTestRenderCommandLineSwitches,
     resolveTestRenderMode,
     shouldShowInactive,
+    showWindowForMode,
+    withTestRenderWindowOpenHandler,
 };
