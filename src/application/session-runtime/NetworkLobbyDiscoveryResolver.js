@@ -109,7 +109,7 @@ export async function selectJoinSignalingUrlFromDiscoveredHosts(options = {}) {
             signalingUrl: '',
             issue: {
                 code: 'lobby_multiple_hosts_found',
-                message: `Mehrere LAN-Hosts fuer Lobby-Code ${lobbyCode} gefunden. Bitte Host-IP:Port direkt eingeben oder Discovery kurz neu starten.`,
+                message: `Mehrere Hosts im LAN nutzen den Lobby-Code ${lobbyCode}. Bitte die Host-Adresse (IP:Port) direkt eingeben oder die Suche neu starten.`,
                 details: {
                     lobbyCode,
                     candidates: validatedHosts.map((entry) => ({
@@ -126,7 +126,7 @@ export async function selectJoinSignalingUrlFromDiscoveredHosts(options = {}) {
         signalingUrl: '',
         issue: {
             code: 'lobby_discovery_stale',
-            message: `Gefundene LAN-Hosts fuer ${lobbyCode} antworten nicht mehr. Vermutlich stale Broadcast oder Portwechsel; Host bitte neu announcen oder IP:Port direkt eingeben.`,
+            message: `Die Lobby ${lobbyCode} antwortet nicht mehr. Wahrscheinlich wurde sie geschlossen oder der Host hat den Port gewechselt. Bitte neu suchen oder die Host-Adresse (IP:Port) direkt eingeben.`,
             details: {
                 lobbyCode,
                 candidates: hosts.map((host) => ({

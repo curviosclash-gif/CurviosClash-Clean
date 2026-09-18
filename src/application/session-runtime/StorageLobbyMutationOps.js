@@ -147,10 +147,10 @@ export function joinStorageLobby(bridge, options, helpers) {
         return bridge._fail(`Lobby hat aktuell keinen aktiven Host: ${requestedLobbyCode}`, 'host_unavailable');
     }
     if (!persistedSnapshot) {
-        return bridge._fail(`Lobby nicht verfuegbar: ${requestedLobbyCode}`, 'lobby_not_found');
+        return bridge._fail(`Lobby nicht verfügbar: ${requestedLobbyCode}`, 'lobby_not_found');
     }
     if (!snapshotHasPeer(persistedSnapshot, bridge._peerId, helpers.normalizeString)) {
-        return bridge._fail(`Lobby konnte nicht persistent beigetreten werden: ${requestedLobbyCode}`, 'join_persist_failed');
+        return bridge._fail(`Beitritt zur Lobby ${requestedLobbyCode} konnte nicht gespeichert werden.`, 'join_persist_failed');
     }
 
     bridge._setStatus(`Lobby beigetreten: ${requestedLobbyCode}`);
@@ -181,7 +181,7 @@ export function toggleReadyStorageLobby(bridge, options, helpers) {
     const persistedSnapshot = bridge._updateActiveSnapshot((existingSnapshot) => {
         if (!existingSnapshot) {
             failureCode = 'lobby_not_found';
-            failureMessage = 'Lobby nicht mehr verfuegbar.';
+            failureMessage = 'Lobby nicht mehr verfügbar.';
             return SNAPSHOT_NOOP;
         }
 
@@ -215,7 +215,7 @@ export function toggleReadyStorageLobby(bridge, options, helpers) {
     if (failureCode) {
         return bridge._fail(failureMessage, failureCode);
     }
-    bridge._setStatus(ready ? 'Ready gesetzt' : 'Ready entfernt');
+    bridge._setStatus(ready ? 'Du bist bereit.' : 'Du bist nicht mehr bereit.');
     const event = bridge._emit(helpers.eventTypes.READY_TOGGLE, {
         actorId: currentActorId,
         ready,
@@ -251,7 +251,7 @@ export function invalidateStorageLobbyReadyForAll(bridge, reason, helpers) {
         };
     }, 'ready_invalidated');
     if (!shouldEmit || !persistedSnapshot) return null;
-    bridge._setStatus('Ready-Status zurueckgesetzt (Host-Aenderung)');
+    bridge._setStatus('Bereitschaft zurückgesetzt, weil der Host etwas geändert hat');
     const event = bridge._emit(helpers.eventTypes.READY_INVALIDATED, {
         reason: helpers.normalizeString(reason, 'host_settings_changed'),
         lobbyCode: bridge._activeLobbyCode,
@@ -288,7 +288,7 @@ export function requestStorageLobbyMatchStart(bridge, options, helpers) {
     const persistedSnapshot = bridge._updateActiveSnapshot((existingSnapshot) => {
         if (!existingSnapshot) {
             failureCode = 'lobby_not_found';
-            failureMessage = 'Lobby nicht mehr verfuegbar.';
+            failureMessage = 'Lobby nicht mehr verfügbar.';
             return SNAPSHOT_NOOP;
         }
         const sessionState = helpers.deriveSessionState(existingSnapshot, bridge._peerId);
@@ -299,12 +299,12 @@ export function requestStorageLobbyMatchStart(bridge, options, helpers) {
         }
         if (sessionState.memberCount < 2) {
             failureCode = 'not_enough_members';
-            failureMessage = 'Mindestens zwei Teilnehmer werden benoetigt.';
+            failureMessage = 'Mindestens zwei Teilnehmer werden benötigt.';
             return SNAPSHOT_NOOP;
         }
         if (!sessionState.allReady) {
             failureCode = 'members_not_ready';
-            failureMessage = 'Alle Teilnehmer muessen Ready sein.';
+            failureMessage = 'Alle Teilnehmer müssen bereit sein.';
             return SNAPSHOT_NOOP;
         }
 

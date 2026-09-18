@@ -26,18 +26,18 @@ export function resolveMatchStartValidationIssue({
     const mapExists = mapKey === 'custom' || !!maps?.[mapKey];
     if (!mapExists) {
         return {
-            message: 'Start nicht moeglich: Bitte eine gueltige Map waehlen.',
+            message: 'Start nicht möglich: Bitte eine gültige Karte wählen.',
             fieldKey: 'map',
-            fieldMessage: 'Map-Auswahl fehlt oder ist ungueltig.',
+            fieldMessage: 'Die Kartenwahl fehlt oder ist ungültig.',
         };
     }
 
     const vehicleP1 = String(settings?.vehicles?.PLAYER_1 || '').trim();
     if (!vehicleP1) {
         return {
-            message: 'Start nicht moeglich: Flugzeug P1 fehlt.',
+            message: 'Start nicht möglich: Flugzeug für Spieler 1 fehlt.',
             fieldKey: 'vehicleP1',
-            fieldMessage: 'Flugzeug P1 auswaehlen.',
+            fieldMessage: 'Flugzeug für Spieler 1 wählen.',
         };
     }
 
@@ -45,9 +45,9 @@ export function resolveMatchStartValidationIssue({
         const vehicleP2 = String(settings?.vehicles?.PLAYER_2 || '').trim();
         if (!vehicleP2) {
             return {
-                message: 'Start nicht moeglich: Splitscreen benoetigt Flugzeug P2.',
+                message: 'Start nicht möglich: Der geteilte Bildschirm braucht ein Flugzeug für Spieler 2.',
                 fieldKey: 'vehicleP2',
-                fieldMessage: 'Flugzeug P2 auswaehlen.',
+                fieldMessage: 'Flugzeug für Spieler 2 wählen.',
             };
         }
     }
@@ -70,7 +70,7 @@ export function resolveMatchStartValidationIssue({
         const lobbyCode = String(sessionState?.lobbyCode || ui?.multiplayerLobbyCodeInput?.value || '').trim();
         if (sessionState?.joined === true && sessionState?.connected !== true) {
             return {
-                message: `Start nicht moeglich: ${transportOfflineHint}`,
+                message: `Start nicht möglich: ${transportOfflineHint}`,
                 fieldKey: 'multiplayer',
                 fieldMessage: transportOfflineHint,
             };
@@ -85,44 +85,44 @@ export function resolveMatchStartValidationIssue({
             }
             if (legacyTransportActive) {
                 return {
-                    message: `Start nicht moeglich: "${sessionContract.transportAudienceLabel}" ist kein produktiver Multiplayer-Transport.`,
+                    message: `Start nicht möglich: "${sessionContract.transportAudienceLabel}" ist kein nutzbarer Mehrspieler-Weg.`,
                     fieldKey: 'multiplayer',
-                    fieldMessage: 'Produktiven Transport (LAN oder Online) waehlen und danach Lobby verbinden.',
+                    fieldMessage: 'LAN oder Online wählen und danach eine Lobby verbinden.',
                 };
             }
             const transportLabel = sessionContract.transportAudienceLabel;
             return {
-                message: `Start nicht moeglich: ${transportLabel}-Lobby verbinden (Host oder Join).`,
+                message: `Start nicht möglich: ${transportLabel}-Lobby erstellen oder ihr beitreten.`,
                 fieldKey: 'multiplayer',
-                fieldMessage: `${transportLabel}: Host oder Join ausfuehren. ${transportOfflineHint}`,
+                fieldMessage: `${transportLabel}: Lobby erstellen oder ihr beitreten. ${transportOfflineHint}`,
             };
         }
         if (sessionState?.isHost !== true) {
             if (!hostGate.allowed) {
                 return {
-                    message: 'Start nicht moeglich: Diese Demo joint nur; Matchstart erfolgt ueber den Desktop-Host.',
+                    message: 'Start nicht möglich: Diese Demo kann nur beitreten; das Match startet der Host am Desktop.',
                     fieldKey: 'multiplayer',
                     fieldMessage: 'Auf den Desktop-Host warten; die Demo besitzt keinen Matchstart.',
                 };
             }
             return {
-                message: 'Start nicht moeglich: Nur der Host darf das Match starten.',
+                message: 'Start nicht möglich: Nur der Host darf das Match starten.',
                 fieldKey: 'multiplayer',
                 fieldMessage: 'Auf den Host warten oder selbst hosten.',
             };
         }
         if ((sessionState?.memberCount || 0) < 2) {
             return {
-                message: 'Start nicht moeglich: Multiplayer benoetigt mindestens zwei Teilnehmer.',
+                message: 'Start nicht möglich: Mehrspieler braucht mindestens zwei Teilnehmer.',
                 fieldKey: 'multiplayer',
-                fieldMessage: 'Einen zweiten Spieler joinen lassen.',
+                fieldMessage: 'Einen zweiten Spieler beitreten lassen.',
             };
         }
         if (sessionState?.allReady !== true) {
             return {
-                message: 'Start nicht moeglich: Alle Lobby-Teilnehmer muessen Ready sein.',
+                message: 'Start nicht möglich: Alle Teilnehmer der Lobby müssen bereit sein.',
                 fieldKey: 'multiplayer',
-                fieldMessage: 'Ready auf allen verbundenen Clients setzen.',
+                fieldMessage: 'Alle verbundenen Mitspieler müssen sich bereit melden.',
             };
         }
     }
@@ -130,30 +130,30 @@ export function resolveMatchStartValidationIssue({
     const modePath = String(settings?.localSettings?.modePath || 'normal').toLowerCase();
     if (mapExists && mapKey !== 'custom' && !isMapEligibleForModePath(maps?.[mapKey], modePath)) {
         return {
-            message: 'Start nicht moeglich: Die gewaehlte Map ist in diesem Build nicht startbar.',
+            message: 'Start nicht möglich: Die gewählte Karte ist in dieser Version nicht startbar.',
             fieldKey: 'map',
-            fieldMessage: 'Andere Map waehlen oder Map-Daten pruefen.',
+            fieldMessage: 'Andere Karte wählen oder die Kartendaten prüfen.',
         };
     }
 
     const gameMode = String(settings?.gameMode || 'CLASSIC').toUpperCase();
     if (modePath === 'fight' && gameMode !== huntModeType) {
         return {
-            message: 'Start nicht moeglich: Fight muss intern auf HUNT laufen.',
+            message: 'Start nicht möglich: interner Fehler, Kampf braucht den Spielmodus HUNT.',
             fieldKey: 'match',
             fieldMessage: 'Fight-Konflikt: Modus auf HUNT synchronisieren.',
         };
     }
     if (modePath === 'arcade' && gameMode !== arcadeModeType) {
         return {
-            message: 'Start nicht moeglich: Arcade muss intern auf ARCADE laufen.',
+            message: 'Start nicht möglich: interner Fehler, Arcade braucht den Spielmodus ARCADE.',
             fieldKey: 'match',
             fieldMessage: 'Arcade-Konflikt: Modus auf ARCADE synchronisieren.',
         };
     }
     if (modePath === 'normal' && gameMode !== classicModeType) {
         return {
-            message: 'Start nicht moeglich: Normal muss intern auf CLASSIC laufen.',
+            message: 'Start nicht möglich: interner Fehler, Klassisch braucht den Spielmodus CLASSIC.',
             fieldKey: 'match',
             fieldMessage: 'Modus-Konflikt: Normal auf CLASSIC synchronisieren.',
         };
@@ -162,7 +162,7 @@ export function resolveMatchStartValidationIssue({
     const themeMode = String(settings?.localSettings?.themeMode || 'dunkel').toLowerCase();
     if (themeMode !== 'hell' && themeMode !== 'dunkel') {
         return {
-            message: 'Start nicht moeglich: Theme-Modus ungueltig.',
+            message: 'Start nicht möglich: Farbschema ungültig.',
             fieldKey: 'theme',
             fieldMessage: 'Theme auf Hell oder Dunkel setzen.',
         };

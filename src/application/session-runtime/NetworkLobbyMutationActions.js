@@ -19,7 +19,7 @@ export async function toggleNetworkLobbyReady(service, options = {}) {
     try {
         await service._transportSession.setReady(requestedReady);
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Ready-Status konnte nicht gesetzt werden.';
+        const message = error instanceof Error ? error.message : 'Bereitschaft konnte nicht gesetzt werden.';
         return service._fail(message, normalizeString(error?.code, 'ready_failed'));
     } finally {
         service._readyMutationPending = false;
@@ -33,7 +33,7 @@ export async function toggleNetworkLobbyReady(service, options = {}) {
         ready: requestedReady,
         peerId: updatedSessionState.peerId,
     });
-    service._setStatus(requestedReady ? 'Ready gesetzt' : 'Ready entfernt');
+    service._setStatus(requestedReady ? 'Du bist bereit.' : 'Du bist nicht mehr bereit.');
     return { ok: true, event, sessionState: service.getSessionState(), snapshot: service.getSnapshot() };
 }
 
@@ -66,13 +66,13 @@ export function requestNetworkLobbyMatchStart(service, options = {}) {
     if (sessionState.settingsRevision != null && options.settingsSnapshot
         && JSON.stringify(options.settingsSnapshot) !== JSON.stringify(service._hostSettingsSnapshot)) {
         void service.publishHostSettings(options.settingsSnapshot);
-        return service._fail('Match-Einstellungen werden übertragen. Danach müssen alle erneut Ready sein.', 'settings_sync_pending');
+        return service._fail('Match-Einstellungen werden übertragen. Danach müssen alle erneut bereit sein.', 'settings_sync_pending');
     }
     if (sessionState.memberCount < 2) {
-        return service._fail('Mindestens zwei Teilnehmer werden benoetigt.', 'not_enough_members');
+        return service._fail('Mindestens zwei Teilnehmer werden benötigt.', 'not_enough_members');
     }
     if (!sessionState.allReady) {
-        return service._fail('Alle Teilnehmer muessen Ready sein.', 'members_not_ready');
+        return service._fail('Alle Teilnehmer müssen bereit sein.', 'members_not_ready');
     }
     const settingsSnapshot = deepClone(options.settingsSnapshot ?? service._hostSettingsSnapshot);
     service._matchStartPending = true;

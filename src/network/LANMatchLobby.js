@@ -163,7 +163,7 @@ export class LANMatchLobby extends MatchLobby {
                 throw err;
             }
             throw buildLanRequestError({
-                fallbackMessage: `LAN-Signaling nicht erreichbar: ${this._signalingUrl}`,
+                fallbackMessage: `Host im LAN nicht erreichbar: ${this._signalingUrl}`,
                 fallbackCode: 'signaling_network_unavailable',
             });
         }
@@ -445,7 +445,7 @@ export class LANMatchLobby extends MatchLobby {
             throw buildLanRequestError({
                 response: res,
                 payload,
-                fallbackMessage: 'Ready-Status setzen fehlgeschlagen.',
+                fallbackMessage: 'Bereitschaft konnte nicht gesetzt werden.',
                 fallbackCode: 'ready_failed',
             });
         }
@@ -492,7 +492,7 @@ export class LANMatchLobby extends MatchLobby {
             throw buildLanRequestError({
                 response: res,
                 payload,
-                fallbackMessage: 'Ready-Invalidierung fehlgeschlagen.',
+                fallbackMessage: 'Bereitschaft konnte nicht zurückgesetzt werden.',
                 fallbackCode: 'ready_invalidation_failed',
             });
         }

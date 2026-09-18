@@ -32,8 +32,8 @@ const SERVER_ERROR_MESSAGES = Object.freeze({
     lobby_not_found: 'Lobby nicht gefunden.',
     lobby_full: 'Lobby ist voll.',
     host_required: 'Nur der Host darf diese Aktion ausfuehren.',
-    not_enough_members: 'Mindestens zwei Teilnehmer werden benoetigt.',
-    members_not_ready: 'Alle Teilnehmer muessen bereit sein.',
+    not_enough_members: 'Mindestens zwei Teilnehmer werden benötigt.',
+    members_not_ready: 'Alle Teilnehmer müssen bereit sein.',
     rate_limit_exceeded: 'Zu viele Anfragen. Bitte kurz warten.',
     reconnect_window_expired: 'Die Wiederverbindungszeit ist abgelaufen.',
     connection_resume_failed: 'Wiederverbindung fehlgeschlagen.',
@@ -134,7 +134,7 @@ export function resolveOnlineSignalingUrl(primaryValue, fallbackValue = '') {
     } catch (error) {
         throw createOnlineSignalingError(
             'signaling_endpoint_invalid_url',
-            'Die Online-Konfiguration ist ungueltig.',
+            'Die Online-Einrichtung ist ungültig.',
             { rawValue },
             error
         );
@@ -150,7 +150,7 @@ export function resolveOnlineSignalingUrl(primaryValue, fallbackValue = '') {
     if (parsedUrl.protocol !== 'ws:' && parsedUrl.protocol !== 'wss:') {
         throw createOnlineSignalingError(
             'signaling_endpoint_invalid_scheme',
-            'Die Online-Konfiguration verwendet ein nicht unterstuetztes Protokoll.',
+            'Die Online-Konfiguration verwendet ein nicht unterstütztes Protokoll.',
             { rawValue, protocol: originalProtocol || parsedUrl.protocol }
         );
     }
@@ -220,7 +220,7 @@ export function createServerSignalingError(code, message = '', details = null, c
 export function createInvalidSignalingPayloadError(details = null, cause = null) {
     return createOnlineSignalingError(
         'signaling_payload_invalid',
-        'Online-Signaling hat eine ungueltige Nachricht geliefert.',
+        'Der Online-Server hat eine ungültige Nachricht geschickt.',
         details,
         cause
     );

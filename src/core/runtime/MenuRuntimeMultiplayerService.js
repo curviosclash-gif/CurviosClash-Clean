@@ -320,7 +320,7 @@ export async function handleMultiplayerLobbyListRefreshAction({
         MULTIPLAYER_TRANSPORTS.LAN
     );
     if (typeof menuMultiplayerBridge?.listOpenLobbies !== 'function') {
-        return { ok: false, message: 'Die Lobby-Suche ist nicht verfuegbar.' };
+        return { ok: false, message: 'Die Lobby-Suche ist nicht verfügbar.' };
     }
 
     const refreshButton = game.ui?.multiplayerOpenLobbiesRefreshButton;
@@ -376,8 +376,8 @@ export async function handleMultiplayerHostAction({
     const hostGate = resolveSurfaceMultiplayerGateAccess('host', resolveSurfaceResolverOptions());
     if (!hostGate.allowed) {
         finishPendingAction();
-        setMultiplayerStatus(game, hostGate.message || 'Hosting ist nicht verfuegbar.');
-        game._showStatusToast(hostGate.message || 'Hosting ist nicht verfuegbar.', hostGate.durationMs || 1800, 'error');
+        setMultiplayerStatus(game, hostGate.message || 'Eine Lobby zu erstellen ist hier nicht möglich.');
+        game._showStatusToast(hostGate.message || 'Eine Lobby zu erstellen ist hier nicht möglich.', hostGate.durationMs || 1800, 'error');
         return { ok: false, message: hostGate.message, reason: hostGate.reason };
     }
     const accessContext = resolveMenuAccessContext?.(); const profile = game?.playerProfileManager?.getActiveProfile?.(); const settingsSnapshot = captureSettingsSnapshot?.();
@@ -521,11 +521,11 @@ export async function handleMultiplayerReadyToggleAction({
     } catch (error) {
         result = {
             ok: false,
-            message: error instanceof Error ? error.message : 'Ready-Status konnte nicht gesetzt werden.',
+            message: error instanceof Error ? error.message : 'Bereitschaft konnte nicht gesetzt werden.',
         };
     }
     if (!result?.ok) {
-        game?._showStatusToast?.(result?.message || 'Ready-Status konnte nicht gesetzt werden.', 1700, 'error');
+        game?._showStatusToast?.(result?.message || 'Bereitschaft konnte nicht gesetzt werden.', 1700, 'error');
         if (game?.ui?.multiplayerReadyToggle) {
             game.ui.multiplayerReadyToggle.checked = false;
         }

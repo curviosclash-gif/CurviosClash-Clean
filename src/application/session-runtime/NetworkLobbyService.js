@@ -412,7 +412,7 @@ export class NetworkLobbyService {
                 lobbyCode: updatedSessionState.lobbyCode,
                 peerId: updatedSessionState.peerId,
             });
-            this._setStatus('Ready-Status zurueckgesetzt (Host-Aenderung)');
+            this._setStatus('Bereitschaft zurückgesetzt, weil der Host etwas geändert hat');
             return {
                 ok: true,
                 event,
@@ -420,7 +420,7 @@ export class NetworkLobbyService {
                 snapshot: this.getSnapshot(),
             };
         }).catch((error) => this._fail(
-            error instanceof Error ? error.message : 'Ready-Invalidierung fehlgeschlagen.',
+            error instanceof Error ? error.message : 'Bereitschaft konnte nicht zurückgesetzt werden.',
             normalizeString(error?.code, 'ready_invalidation_failed')
         ));
     }
