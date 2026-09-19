@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
+import { normalizeMapUnit, resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
 import { isTurretCombatActive } from '../../shared/contracts/TurretCombatContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import {
@@ -65,6 +65,7 @@ export class MapUnitSystem {
         this._dueRespawns = [];
         this._trailScratch = [];
         this.networkReplica = false;
+        this._summonCounter = 0;
     }
 
     startRound() {
@@ -117,6 +118,10 @@ export class MapUnitSystem {
             bombsFired: 0,
             crashing: false,
             crashSourcePlayer: null,
+            summoned: false,
+            calledByIndex: -1,
+            attackSourcePlayer: null,
+            summonRemaining: Infinity,
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
@@ -213,18 +218,54 @@ export class MapUnitSystem {
                 continue;
             }
             if (!unit.alive) continue;
-            advanceUnitOnPath(unit, unit.path, unit.speed * safeDt, unit.definition.loop);
+            const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
+            advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
             const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
             unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
             this._placeCentre(unit);
             this._updateVisual(unit);
             const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;
-            updateUnitWeapons(this, unit, safeDt, authority);
-            if (unit.kind === 'bomber') updateBomberBombs(this, unit, safeDt, authority);
+            updateUnitWeapons(this, unit, unitDt, authority);
+            if (unit.kind === 'bomber') updateBomberBombs(this, unit, unitDt, authority);
             if (authority && unit.alive && unit.kind === 'tank') {
-                crushTrailsUnderUnit(this.entityManager, unit, safeDt, this._trailScratch);
+                crushTrailsUnderUnit(this.entityManager, unit, unitDt, this._trailScratch);
+            }
+            if (unit.summoned && !this.networkReplica) {
+                unit.summonRemaining = Math.max(0, unit.summonRemaining - safeDt);
+                if (unit.summonRemaining <= 0) {
+                    unit.alive = false;
+                    unit.respawnRemaining = Infinity;
+                    if (unit.root) unit.root.visible = false;
+                }
             }
         }
+    }
+
+    callBomberStrike(player) {
+        if (this.networkReplica || !player || this.entityManager?.isFightOutcomeAuthority === false) return false;
+        const bounds = this.entityManager?.arena?.bounds;
+        const minX = Number(bounds?.min?.x);
+        const maxX = Number(bounds?.max?.x);
+        const groundY = Number(bounds?.min?.y) || 0;
+        if (!Number.isFinite(minX) || !Number.isFinite(maxX) || maxX <= minX) return false;
+        const minZ = Number(bounds?.min?.z);
+        const maxZ = Number(bounds?.max?.z);
+        const z = Math.max(Number.isFinite(minZ) ? minZ : -100, Math.min(Number.isFinite(maxZ) ? maxZ : 100, Number(player.position?.z) || 0));
+        const ceilingY = Number(bounds?.max?.y);
+        const height = Number.isFinite(ceilingY) ? Math.min(groundY + 30, ceilingY - 1) : groundY + 30;
+        const definition = normalizeMapUnit({
+            id: `called_bomber_${++this._summonCounter}`,
+            kind: 'bomber', path: [[minX, height, z], [maxX, height, z]], loop: false,
+            speed: 30, respawnSeconds: 0,
+        }, 0, undefined, { preserveSpatial: true });
+        if (!definition) return false;
+        const unit = this._createUnit(definition, 1);
+        unit.summoned = true;
+        unit.calledByIndex = Number.isInteger(player.index) ? player.index : -1;
+        unit.attackSourcePlayer = player;
+        unit.summonRemaining = (maxX - minX) / unit.speed;
+        this.units.push(unit);
+        return true;
     }
 
     /** What weapons may hit: the tanks that are still standing. The list is reused per call. */

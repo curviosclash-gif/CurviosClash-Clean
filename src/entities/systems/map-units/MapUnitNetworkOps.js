@@ -1,4 +1,5 @@
 import { resolveUnitPathPose } from './MapUnitMovementOps.js';
+import { normalizeMapUnit } from '../../../shared/contracts/MapUnitContract.js';
 
 /**
  * Map units across the network. The host decides where a tank is, whether it lives and when it
@@ -27,6 +28,13 @@ export function serializeMapUnits(units) {
             crashing: unit.crashing === true,
             pos: [round(unit.position.x), round(unit.position.y), round(unit.position.z)],
             bombs: unit.bombsFired,
+            ...(unit.summoned ? {
+                summoned: true,
+                calledBy: unit.calledByIndex,
+                remaining: round(unit.summonRemaining),
+                path: unit.path.map((point) => point.map((value) => round(value))),
+                speed: unit.speed,
+            } : {}),
         } : {}),
         ...(unit.kind === 'swarm' ? {
             members: unit.members.map((member) => ({ alive: member.alive === true, hp: round(member.hp, 10) })),
@@ -64,6 +72,22 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
     if (!Array.isArray(entries)) return;
     system.networkReplica = true;
     const byId = new Map(entries.map((entry) => [String(entry?.id || ''), entry]));
+    const knownIds = new Set(system.units.map((unit) => unit.id));
+    for (const entry of entries) {
+        if (!entry?.summoned || knownIds.has(String(entry.id || '')) || !Array.isArray(entry.path)) continue;
+        const definition = normalizeMapUnit({
+            id: entry.id, kind: 'bomber', path: entry.path, loop: false,
+            speed: entry.speed, respawnSeconds: 0,
+        }, 0, undefined, { preserveSpatial: true });
+        if (!definition) continue;
+        const unit = system._createUnit(definition, 1);
+        unit.summoned = true;
+        unit.calledByIndex = Math.trunc(Number(entry.calledBy));
+        unit.attackSourcePlayer = system.entityManager?.players?.find?.((player) => player?.index === unit.calledByIndex) || null;
+        unit.summonRemaining = Math.max(0, Number(entry.remaining) || 0);
+        system.units.push(unit);
+        knownIds.add(unit.id);
+    }
     for (const unit of system.units) {
         const entry = byId.get(unit.id);
         if (!entry) continue;
@@ -83,6 +107,7 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         if (unit.kind === 'bomber') {
             unit.crashing = entry.crashing === true;
             unit.bombsFired = Math.max(0, Math.trunc(Number(entry.bombs) || 0));
+            if (unit.summoned) unit.summonRemaining = Math.max(0, Number(entry.remaining) || 0);
             if (unit.crashing && Array.isArray(entry.pos)) {
                 unit.groundPosition.set(Number(entry.pos[0]) || 0, Number(entry.pos[1]) || 0, Number(entry.pos[2]) || 0);
             }

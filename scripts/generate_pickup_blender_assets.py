@@ -21,7 +21,7 @@ SEMANTIC_BASELINES = {
     "SWAP": 1.590, "MINE": 1.739, "ROCKET_WEAK": 1.915, "ROCKET_MEDIUM": 2.176,
     "ROCKET_HEAVY": 2.480, "ROCKET_MEGA": 3.206, "ROCKET_GUIDED": 3.206,
     "FLAMETHROWER": 1.915, "LIGHTNING": 1.860, "RAILGUN": 2.230,
-    "REPAIR_DRONE": 1.860,
+    "REPAIR_DRONE": 1.860, "BOMBER_STRIKE": 2.240,
 }
 
 LEGACY_EXTENTS = {
@@ -48,7 +48,7 @@ COLORS = {
     "ROCKET_HEAVY": (1.0, .2, .267, 1), "ROCKET_MEGA": (.55, .0, 1.0, 1), "ROCKET_GUIDED": (.63, .2, 1.0, 1),
     "FLAMETHROWER": (1.0, .48, .10, 1),
     "LIGHTNING": (.72, .84, 1.0, 1), "RAILGUN": (.5, .9, 1.0, 1),
-    "REPAIR_DRONE": (.33, .94, .64, 1),
+    "REPAIR_DRONE": (.33, .94, .64, 1), "BOMBER_STRIKE": (1.0, .61, .26, 1),
 }
 
 ROOTS = {}
@@ -840,6 +840,19 @@ def build_repair_drone(root):
     box(root, "repair_mark_vertical", (0, -.43, 0), (.14, .05, .52), "glow", .02)
     box(root, "repair_mark_horizontal", (0, -.43, 0), (.52, .05, .14), "glow", .02)
 
+
+def build_bomber_strike(root):
+    # Readable top-view bomber silhouette: long hull, swept wings, twin engines and hot bomb bay.
+    sphere(root, "bomber_hull", (0, 0, 0), .48, "frame", scale=(.55, .5, 1.8))
+    polygon_prism(root, "bomber_wings", [
+        (-1.15, .25), (-.25, .62), (0, .85), (.25, .62), (1.15, .25),
+        (.92, -.18), (.24, .08), (0, -.72), (-.24, .08), (-.92, -.18),
+    ], .18, "metal", .04)
+    for index, x in enumerate((-.48, .48)):
+        cylinder(root, f"bomber_engine_{index}", (x, 0, .02), .18, .72, "accent", 12, "Z")
+        sphere(root, f"bomber_exhaust_{index}", (x, 0, -.42), .13, "glow", scale=(1, .7, .75))
+    sphere(root, "bomber_payload", (0, -.34, -.05), .22, "glow", scale=(.75, .7, 1.25))
+
 def build_all():
     builders = {
         "SPEED_UP": build_speed, "SLOW_DOWN": build_slow,
@@ -856,7 +869,7 @@ def build_all():
         "ROCKET_HEAVY": lambda r: build_pilot_rocket(r,"HEAVY"), "ROCKET_MEGA": lambda r: build_rocket(r,"MEGA"), "ROCKET_GUIDED": lambda r: build_rocket(r,"MEGA"),
         "FLAMETHROWER": build_flamethrower,
         "LIGHTNING": build_lightning, "RAILGUN": build_railgun,
-        "REPAIR_DRONE": build_repair_drone,
+        "REPAIR_DRONE": build_repair_drone, "BOMBER_STRIKE": build_bomber_strike,
     }
     for identifier, builder in builders.items():
         root = root_for(identifier, COLORS[identifier])

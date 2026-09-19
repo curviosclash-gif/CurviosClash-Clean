@@ -328,6 +328,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { id: 'item_showcase_lightning', pickupType: 'LIGHTNING', x: 64, y: 12, z: 36 },
             { id: 'item_showcase_railgun', pickupType: 'RAILGUN', x: 80, y: 12, z: 36 },
             { id: 'item_showcase_repair_drone', pickupType: 'REPAIR_DRONE', x: -48, y: 12, z: 36 },
+            { id: 'item_showcase_bomber_strike', pickupType: 'BOMBER_STRIKE', x: -64, y: 12, z: 36 },
         ],
     },
     showcase_nexus: {

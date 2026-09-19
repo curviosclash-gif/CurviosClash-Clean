@@ -285,8 +285,9 @@ test('hunt fan pickups keep their 5/4/3 percent base chances after purge left th
     assert.equal(pool.includes('LIGHTNING'), true);
     assert.equal(pool.includes('RAILGUN'), true);
     assert.equal(pool.includes('REPAIR_DRONE'), true);
+    assert.equal(pool.includes('BOMBER_STRIKE'), true);
     const dilution = (total - weightOf('FLAMETHROWER') - weightOf('LIGHTNING')
-        - weightOf('RAILGUN') - weightOf('REPAIR_DRONE')) / total;
+        - weightOf('RAILGUN') - weightOf('REPAIR_DRONE') - weightOf('BOMBER_STRIKE')) / total;
     for (const [type, percent] of [['FAN_3', 5], ['FAN_4', 4], ['FAN_5', 3]]) {
         assert.ok(
             Math.abs((weightOf(type) / total) * nonRocketShare * 100 - percent * dilution) < 1e-9,
