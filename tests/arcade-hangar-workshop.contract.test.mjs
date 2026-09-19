@@ -207,6 +207,33 @@ test('loaded vehicle models are normalized and mounted parts change the visible 
     assembly.dispose();
 });
 
+test('hangar disposal releases generic vehicle resources with the Three Object3D disposer', () => {
+    const assembly = new HangarVehicleAssembly(new THREE.Group());
+    assembly.setVehicle('aircraft');
+    let geometryObserved = false;
+    let materialObserved = false;
+    let geometryDisposed = false;
+    let materialDisposed = false;
+    assembly.vehicleNode.traverse((node) => {
+        if (!geometryObserved && node.geometry) {
+            geometryObserved = true;
+            node.geometry.addEventListener('dispose', () => { geometryDisposed = true; });
+        }
+        if (!materialObserved && node.material) {
+            const material = Array.isArray(node.material) ? node.material[0] : node.material;
+            if (material) {
+                materialObserved = true;
+                material.addEventListener('dispose', () => { materialDisposed = true; });
+            }
+        }
+    });
+
+    assembly.dispose();
+
+    assert.equal(geometryDisposed, true);
+    assert.equal(materialDisposed, true);
+});
+
 test('starter builds provide four valid one-click loadouts', () => {
     const base = createDefaultHangarBuild('ship5', { nowMs: 4 });
     const builds = HANGAR_STARTER_BUILDS.map((preset) => createHangarStarterBuild(base, preset.id, 1));
