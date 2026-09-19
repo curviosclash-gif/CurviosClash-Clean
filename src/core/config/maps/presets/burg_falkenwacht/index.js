@@ -1,4 +1,5 @@
 import { FALKENWACHT_MODELS, FALKENWACHT_OBSTACLES } from './FalkenwachtModels.js';
+import { FALKENWACHT_PROP_MODELS } from './FalkenwachtProps.js';
 import { FALKENWACHT_CHECKPOINTS, FALKENWACHT_FINISH, FALKENWACHT_PARCOURS_RULES } from './FalkenwachtRoute.js';
 
 const lighting = {
@@ -46,6 +47,7 @@ const common = {
     portalLevels: [26, 58, 95],
     glbModels: [
         ...FALKENWACHT_MODELS,
+        ...FALKENWACHT_PROP_MODELS,
         { id: 'falkenwacht-cart', url: 'assets/models/downloaded_cc0/pm-medieval-fair/Cart.glb',
             position: [56, 12, 88], rotation: [0, 0.4, 0], targetSize: 10 },
         { id: 'falkenwacht-barrels', url: 'assets/models/downloaded_cc0/pm-medieval-fair/Barrel.glb',

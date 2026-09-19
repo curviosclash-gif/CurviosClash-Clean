@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -32,8 +32,12 @@ test('renderer build copies every editor OBJ asset group', (context) => {
         'assets/maps/burg_falkenwacht/glb/01_terrain.glb',
         'assets/maps/burg_falkenwacht/glb/10_drawbridge.glb',
         'assets/maps/burg_falkenwacht/glb/11_portcullis.glb',
+        'assets/maps/burg_falkenwacht/props/falkenwacht-woodpile/falkenwacht-woodpile-v01/runtime.glb',
         'assets/maps/aetherion_orrery/glb/10_celestial_core.glb',
     ]) {
         assert.ok(statSync(path.join(outDir, relativePath)).size > 0, `${relativePath} was not copied`);
     }
+    assert.equal(existsSync(path.join(outDir,
+        'assets/maps/burg_falkenwacht/props/falkenwacht-woodpile/falkenwacht-woodpile-v01/source.blend')), false,
+    'editable prop sources stay out of the renderer build');
 });
