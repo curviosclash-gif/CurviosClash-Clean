@@ -69,7 +69,9 @@ export class MapUnitSystem {
         const definitions = resolveMapUnitDefinitions(mapDefinition, { preserveSpatial: mapDefinition?.scaleAuthoredAnchors === true });
         for (const definition of definitions) {
             if (!isTurretCombatActive(owner.gameModeStrategy, [...definition.allowedModes])) continue;
-            this.units.push(this._createUnit(definition, scale));
+            const unit = this._createUnit(definition, scale);
+            this.units.push(unit);
+            this.setBossRoomClock(unit, true);
         }
         return this.units.length;
     }
@@ -109,7 +111,11 @@ export class MapUnitSystem {
             unit.members = createSwarmMembers(definition, scale, unit.position);
             unit.root = createSwarmVisual(this.entityManager?.renderer, this._resolveSwarmAssets(), unit.members);
         } else {
-            unit.root = createMapUnitVisual(this.entityManager?.renderer, this._resolveAssets(), scale);
+            unit.root = createMapUnitVisual(
+                this.entityManager?.renderer,
+                this._resolveAssets(),
+                scale * (definition.kind === 'boss' ? definition.modelScale : 1),
+            );
         }
         this._updateVisual(unit);
         unit.source = createUnitSource(unit);
@@ -138,7 +144,10 @@ export class MapUnitSystem {
 
     _placeCentre(unit) {
         unit.position.copy(unit.groundPosition);
-        if (unit.kind === 'tank') unit.position.y += TANK_TURRET_HEIGHT * unit.scale;
+        if (unit.kind === 'tank' || unit.kind === 'boss') {
+            const modelScale = unit.kind === 'boss' ? unit.definition.modelScale : 1;
+            unit.position.y += TANK_TURRET_HEIGHT * unit.scale * modelScale;
+        }
         if (unit.kind === 'swarm') updateSwarmMembers(unit);
     }
 
@@ -203,6 +212,14 @@ export class MapUnitSystem {
         this.networkReplica = enabled === true;
     }
 
+    setBossRoomClock(unit, paused) {
+        const roomId = unit?.kind === 'boss' ? unit.definition?.secretRoomId : '';
+        if (!roomId) return;
+        for (const entry of this.entityManager?._secretRoomSystem?.getRooms?.() || []) {
+            if (entry?.room?.id === roomId) entry.clockPaused = paused === true;
+        }
+    }
+
     serializeNetworkState() {
         return serializeMapUnits(this.units);
     }
@@ -216,7 +233,10 @@ export class MapUnitSystem {
 
     clear() {
         const renderer = this.entityManager?.renderer;
-        for (const unit of this.units) removeMapUnitVisual(renderer, unit);
+        for (const unit of this.units) {
+            this.setBossRoomClock(unit, false);
+            removeMapUnitVisual(renderer, unit);
+        }
         this.units.length = 0;
     }
 

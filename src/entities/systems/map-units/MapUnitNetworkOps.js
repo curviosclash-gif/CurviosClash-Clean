@@ -74,6 +74,7 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         unit.yaw = Number.isFinite(Number(entry.yaw)) ? Number(entry.yaw) : unit.yaw;
         unit.hp = Math.max(0, Number(entry.hp) || 0);
         unit.alive = entry.alive === true;
+        system.setBossRoomClock?.(unit, unit.alive);
         if (unit.kind === 'swarm' && Array.isArray(entry.members)) {
             let totalHp = 0;
             for (let index = 0; index < unit.members.length; index += 1) {

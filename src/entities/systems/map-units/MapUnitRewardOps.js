@@ -34,18 +34,24 @@ function nextSeededRoll(strategy) {
 
 export function rewardMapUnitDestruction(system, unit, sourcePlayer) {
     const owner = system.entityManager;
-    const type = pickMapUnitLoot(unit.definition.loot, nextSeededRoll(owner?.gameModeStrategy));
-    if (type) {
+    const guaranteed = Array.isArray(unit.definition.guaranteedLoot) ? unit.definition.guaranteedLoot : [];
+    const lootCount = Math.max(1, Math.trunc(Number(unit.definition.lootCount) || 1));
+    for (let index = 0; index < lootCount; index += 1) {
+        const type = guaranteed[index]
+            || pickMapUnitLoot(unit.definition.loot, nextSeededRoll(owner?.gameModeStrategy));
+        if (!type) continue;
         owner?.powerupManager?.spawnAtAnchor?.({
             type,
             x: unit.groundPosition.x,
             y: unit.position.y,
             z: unit.groundPosition.z,
-            ownerId: `map-unit:${unit.id}:${unit.deaths}`,
+            ownerId: `map-unit:${unit.id}:${unit.deaths}${lootCount > 1 ? `:${index + 1}` : ''}`,
         });
     }
     const index = sourcePlayer?.index;
     if (!Number.isInteger(index) || index < 0) return;
     owner?._huntScoring?.registerUnitDestroyed?.(index, unit.definition.kind);
-    if (sourcePlayer.isBot !== true) owner?._notifyPlayerFeedback?.(sourcePlayer, 'Panzer zerstört');
+    if (sourcePlayer.isBot !== true) {
+        owner?._notifyPlayerFeedback?.(sourcePlayer, unit.definition.kind === 'boss' ? 'Boss besiegt' : 'Panzer zerstört');
+    }
 }

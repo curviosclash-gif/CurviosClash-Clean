@@ -15,6 +15,7 @@ test('a bare boss gets the agreed secret-room balance and one-round lifecycle', 
     assert.equal(boss.maxHp, 800);
     assert.equal(boss.respawnSeconds, 0);
     assert.equal(boss.modelScale, 1.6);
+    assert.equal(boss.secretRoomId, '');
     assert.equal(boss.lootCount, 3);
     assert.deepEqual(boss.guaranteedLoot, ['ROCKET_MEGA']);
     assert.deepEqual(boss.weapons.rocket, { rocketType: 'ROCKET_MEDIUM', cooldown: 3, range: 90 });
@@ -28,6 +29,7 @@ test('boss-only fields survive the map schema and scale boundary', () => {
             kind: 'boss',
             path: PATH,
             modelScale: 1.8,
+            secretRoomId: 'vault',
             lootCount: 4,
             guaranteedLoot: ['ROCKET_MEGA', 'ROCKET_HEAVY'],
         }],
@@ -36,6 +38,7 @@ test('boss-only fields survive the map schema and scale boundary', () => {
     const [boss] = resolveMapUnitDefinitions(runtime.map, { preserveSpatial: true });
 
     assert.equal(boss.modelScale, 1.8);
+    assert.equal(boss.secretRoomId, 'vault');
     assert.equal(boss.lootCount, 4);
     assert.deepEqual(boss.guaranteedLoot, ['ROCKET_MEGA', 'ROCKET_HEAVY']);
     assert.deepEqual(boss.path, PATH.map((point) => point.map((value) => value / 2)));

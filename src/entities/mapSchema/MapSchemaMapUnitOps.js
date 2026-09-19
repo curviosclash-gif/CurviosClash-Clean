@@ -37,6 +37,7 @@ function toPlainUnit(unit, invScale) {
         plain.formationRadius = unit.formationRadius * invScale;
     }
     if (unit.kind === 'boss') {
+        plain.secretRoomId = unit.secretRoomId;
         plain.modelScale = unit.modelScale;
         plain.lootCount = unit.lootCount;
         plain.guaranteedLoot = [...unit.guaranteedLoot];

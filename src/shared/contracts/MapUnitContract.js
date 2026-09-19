@@ -190,6 +190,7 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
             formationRadius: spatial(source?.formationRadius, 5, 1, 20),
         } : {}),
         ...(kind === 'boss' ? {
+            secretRoomId: String(source?.secretRoomId || '').trim().slice(0, 80),
             modelScale: clampNumber(source?.modelScale, 1.6, 1, 3),
             lootCount: Math.trunc(clampNumber(source?.lootCount, 3, 1, 8)),
             guaranteedLoot: Object.freeze(/** @type {unknown[]} */ (Array.isArray(source?.guaranteedLoot)

@@ -102,6 +102,7 @@ export function destroyMapUnit(system, unit, sourcePlayer) {
         `${unit.id}:${unit.kind}`,
     );
     unit.deaths = (Number(unit.deaths) || 0) + 1;
+    system.setBossRoomClock?.(unit, false);
     applyBlast(system, unit, sourcePlayer);
     rewardMapUnitDestruction(system, unit, sourcePlayer);
 }
