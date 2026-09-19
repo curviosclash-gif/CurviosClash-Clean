@@ -3,12 +3,68 @@
 // CC0-inspiriert von pm-crystal-crossroads Assets
 // ============================================
 
+const CRYSTAL_RUINS_PROP_ROOT = 'assets/maps/crystal_ruins/props';
+
+function ruinProp(id, family, objectId, variant, position, targetSize, rotateY = 0) {
+    const stem = `crystal-ruins-${objectId}-v${String(variant).padStart(2, '0')}`;
+    return {
+        id: `crystal-ruins-${id}`,
+        url: `${CRYSTAL_RUINS_PROP_ROOT}/${family}/${stem}/runtime.glb`,
+        position,
+        rotation: [0, rotateY, 0],
+        targetSize,
+    };
+}
+
+const CRYSTAL_RUINS_PROP_MODELS = [
+    // Four decorative arches sit inside the authored tunnel voids. Their `_nocol` masonry
+    // makes each cardinal crossing readable without narrowing the existing flight corridor.
+    ruinProp('north-gate-arch', 'broken-arches', 'broken-arch', 3, [0, 0, -40], 19),
+    ruinProp('south-gate-arch', 'broken-arches', 'broken-arch', 6, [0, 0, 40], 18, Math.PI),
+    ruinProp('east-gate-arch', 'broken-arches', 'broken-arch', 2, [40, 0, 0], 17, Math.PI / 2),
+    ruinProp('west-gate-arch', 'broken-arches', 'broken-arch', 5, [-40, 0, 0], 18, -Math.PI / 2),
+
+    // These two large arches and two massive columns are the only new static prop obstacles.
+    // They live in corner ensembles, at least twenty units off the cardinal boost lanes.
+    ruinProp('northwest-ensemble-arch', 'broken-arches', 'broken-arch', 1, [-50, 0, -24], 15, Math.PI / 4),
+    ruinProp('southeast-ensemble-arch', 'broken-arches', 'broken-arch', 4, [50, 0, 24], 16, -3 * Math.PI / 4),
+    ruinProp('northwest-marker-column', 'damaged-columns', 'damaged-column', 3, [-57, 0, -34], 12, 0.18),
+    ruinProp('southeast-marker-column', 'damaged-columns', 'damaged-column', 7, [57, 0, 34], 11, -0.22),
+
+    // Broken column rows lead the eye towards the wall crossings. These variants are purely
+    // decorative, so neither a fallen drum nor a crystal spur can create collision.
+    ruinProp('north-column-west', 'damaged-columns', 'damaged-column', 1, [-22, 0, -48], 8, 0.1),
+    ruinProp('north-column-east', 'damaged-columns', 'damaged-column', 2, [22, 0, -48], 7, -0.2),
+    ruinProp('south-column-west', 'damaged-columns', 'damaged-column', 4, [-22, 0, 48], 8, Math.PI - 0.1),
+    ruinProp('south-column-east', 'damaged-columns', 'damaged-column', 6, [22, 0, 48], 9, Math.PI + 0.18),
+
+    // Rubble hugs wall ends and corner ruins rather than being distributed evenly.
+    ruinProp('northwest-rubble-a', 'rubble-clusters', 'rubble-cluster', 5, [-45, 0, -33], 8, 0.3),
+    ruinProp('northwest-rubble-b', 'rubble-clusters', 'rubble-cluster', 2, [-58, 0, -18], 6, -0.4),
+    ruinProp('southeast-rubble-a', 'rubble-clusters', 'rubble-cluster', 7, [44, 0, 34], 8, -0.5),
+    ruinProp('southeast-rubble-b', 'rubble-clusters', 'rubble-cluster', 10, [59, 0, 18], 6, 0.6),
+    ruinProp('west-wall-rubble', 'rubble-clusters', 'rubble-cluster', 3, [-47, 0, 27], 7, Math.PI / 2),
+    ruinProp('east-wall-rubble', 'rubble-clusters', 'rubble-cluster', 4, [47, 0, -27], 7, -Math.PI / 2),
+
+    // Crystal growths mark the central portal, bridge choices, and two outer ensembles.
+    // Every mesh in this family is `_nocol`; emission stays in the material, never in lights.
+    ruinProp('central-growth-west', 'crystal-growths', 'crystal-growth', 2, [-9, 4, 7], 7, 0.3),
+    ruinProp('central-growth-east', 'crystal-growths', 'crystal-growth', 6, [9, 4, -7], 8, -0.5),
+    ruinProp('bridge-growth-north', 'crystal-growths', 'crystal-growth', 3, [-4, 26.5, -32], 7, 0.2),
+    ruinProp('bridge-growth-south', 'crystal-growths', 'crystal-growth', 8, [4, 26.5, 32], 7, Math.PI),
+    ruinProp('northwest-growth', 'crystal-growths', 'crystal-growth', 5, [-44, 0, -20], 10, 0.7),
+    ruinProp('southeast-growth', 'crystal-growths', 'crystal-growth', 10, [44, 0, 20], 10, -2.4),
+];
+
 export const CRYSTAL_RUINS_MAP = {
     crystal_ruins: {
         name: 'Crystal Ruins',
         size: [140, 60, 140],
         preferAuthoredPortals: true,
         portalLevels: [10, 25, 42],
+        glbModels: CRYSTAL_RUINS_PROP_MODELS,
+        glbColliderMode: 'scene',
+        glbLoadConcurrency: 3,
         obstacles: [
             // --- Boden-Ebene: Zentrale Ruinen-Plattform ---
             { pos: [0, 2, 0], size: [22, 4, 22], kind: 'foam' },
@@ -75,7 +131,7 @@ export const CRYSTAL_RUINS_MAP = {
             { pos: [0, 50, -30], size: [6, 3, 6], kind: 'foam' },
             { pos: [30, 50, 0], size: [6, 3, 6], kind: 'foam' },
             { pos: [-30, 50, 0], size: [6, 3, 6], kind: 'foam' },
-        ],
+        ].map((obstacle) => ({ ...obstacle, compileWithGlb: true })),
         portals: [
             // Boden ↔ Obere Ebene (Zentral)
             { a: [0, 5, 0], b: [0, 48, 0], color: 0x88ffcc },
