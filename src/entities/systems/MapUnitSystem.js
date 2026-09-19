@@ -32,6 +32,12 @@ import {
     disposeSwarmAssets,
     updateSwarmVisual,
 } from './map-units/MapUnitSwarmVisualOps.js';
+import {
+    createBomberAssets,
+    createBomberVisual,
+    disposeBomberAssets,
+    updateBomberVisual,
+} from './map-units/MapUnitBomberVisualOps.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
@@ -47,6 +53,7 @@ export class MapUnitSystem {
         this.units = [];
         this._assets = null;
         this._swarmAssets = null;
+        this._bomberAssets = null;
         // Scratch vectors the static turret targeting and aiming code expects on its system.
         this._tmpAim = new THREE.Vector3();
         this._tmpPoint = new THREE.Vector3();
@@ -110,6 +117,8 @@ export class MapUnitSystem {
         if (definition.kind === 'swarm') {
             unit.members = createSwarmMembers(definition, scale, unit.position);
             unit.root = createSwarmVisual(this.entityManager?.renderer, this._resolveSwarmAssets(), unit.members);
+        } else if (definition.kind === 'bomber') {
+            unit.root = createBomberVisual(this.entityManager?.renderer, this._resolveBomberAssets(), scale);
         } else {
             unit.root = createMapUnitVisual(
                 this.entityManager?.renderer,
@@ -142,6 +151,12 @@ export class MapUnitSystem {
         return this._swarmAssets;
     }
 
+    _resolveBomberAssets() {
+        if (!this.entityManager?.renderer) return null;
+        if (!this._bomberAssets) this._bomberAssets = createBomberAssets();
+        return this._bomberAssets;
+    }
+
     _placeCentre(unit) {
         unit.position.copy(unit.groundPosition);
         if (unit.kind === 'tank' || unit.kind === 'boss') {
@@ -153,6 +168,7 @@ export class MapUnitSystem {
 
     _updateVisual(unit) {
         if (unit.kind === 'swarm') updateSwarmVisual(unit);
+        else if (unit.kind === 'bomber') updateBomberVisual(unit);
         else updateMapUnitVisual(unit);
     }
 
@@ -246,5 +262,7 @@ export class MapUnitSystem {
         this._assets = null;
         disposeSwarmAssets(this._swarmAssets);
         this._swarmAssets = null;
+        disposeBomberAssets(this._bomberAssets);
+        this._bomberAssets = null;
     }
 }
