@@ -18,6 +18,49 @@ function mechanism(id, file, clipName, phaseOffsetBeats, position, targetSize, r
     };
 }
 
+function orientationProp(id, family, variant, position, targetSize, rotateY = 0) {
+    const paddedVariant = String(variant).padStart(2, '0');
+    return {
+        id: `aetherion-orrery-orientation-${id}`,
+        url: `assets/maps/aetherion_orrery/props/${family}/aetherion-${family.slice(0, -1)}-v${paddedVariant}/runtime.glb`,
+        position,
+        rotation: [0, rotateY, 0],
+        targetSize,
+    };
+}
+
+const AETHERION_ORIENTATION_MODELS = [
+    // Large level-coded steles frame transitions without entering the safe outer band.
+    orientationProp('stele-foundry-west', 'zodiac-steles', 1, [-108, 24, -104], 14, Math.PI / 4),
+    orientationProp('stele-foundry-east', 'zodiac-steles', 4, [106, 24, 94], 13, -3 * Math.PI / 4),
+    orientationProp('stele-gallery-east', 'zodiac-steles', 2, [108, 84, -98], 12, 3 * Math.PI / 4),
+    orientationProp('stele-gallery-west', 'zodiac-steles', 5, [-96, 84, 96], 14, -Math.PI / 4),
+    orientationProp('stele-crown-west', 'zodiac-steles', 3, [-102, 144, -96], 16, Math.PI / 4),
+    orientationProp('stele-crown-east', 'zodiac-steles', 6, [104, 144, 96], 14, -3 * Math.PI / 4),
+
+    // Alternating silhouettes and arrow directions trace both halves of the fail-safe ascent.
+    orientationProp('beacon-east-foundry-entry', 'orbit-beacons', 1, [145, 26, -106], 12, -Math.PI / 2),
+    orientationProp('beacon-east-foundry-low', 'orbit-beacons', 4, [145, 46, -44], 13, Math.PI / 2),
+    orientationProp('beacon-east-foundry-high', 'orbit-beacons', 7, [145, 66, 24], 14, -Math.PI / 2),
+    orientationProp('beacon-east-gallery-arrival', 'orbit-beacons', 2, [145, 82, 96], 11, Math.PI / 2),
+    orientationProp('beacon-west-gallery-entry', 'orbit-beacons', 5, [-145, 86, 106], 12, Math.PI / 2),
+    orientationProp('beacon-west-gallery-low', 'orbit-beacons', 8, [-145, 106, 48], 13, -Math.PI / 2),
+    orientationProp('beacon-west-crown-approach', 'orbit-beacons', 3, [-145, 126, -22], 14, Math.PI / 2),
+    orientationProp('beacon-west-crown-arrival', 'orbit-beacons', 6, [-145, 146, -92], 13, -Math.PI / 2),
+
+    // Floor bearings distinguish portal endpoints, boost gates, and route decisions.
+    orientationProp('medallion-portal-lower-entry', 'astronomical-medallions', 1, [-138, 24.2, -104], 11, Math.PI / 4),
+    orientationProp('medallion-portal-lower-exit', 'astronomical-medallions', 2, [-138, 84.2, 104], 10, -Math.PI / 4),
+    orientationProp('medallion-portal-upper-entry', 'astronomical-medallions', 5, [138, 84.2, -104], 11, Math.PI / 4),
+    orientationProp('medallion-portal-upper-exit', 'astronomical-medallions', 3, [138, 144.2, 104], 11, -Math.PI / 4),
+    orientationProp('medallion-boost-foundry', 'astronomical-medallions', 7, [0, 24.2, -128], 12),
+    orientationProp('medallion-boost-gallery', 'astronomical-medallions', 8, [0, 84.2, 128], 11, Math.PI),
+    orientationProp('medallion-boost-crown', 'astronomical-medallions', 6, [0, 144.2, -128], 12),
+    orientationProp('medallion-branch-foundry', 'astronomical-medallions', 10, [0, 28.2, -105], 10),
+    orientationProp('medallion-branch-gallery', 'astronomical-medallions', 2, [87, 88.2, 53], 10, Math.PI / 3),
+    orientationProp('medallion-branch-crown', 'astronomical-medallions', 9, [-52, 148.2, 88], 10, -Math.PI / 3),
+];
+
 const AETHERION_MODELS = [
     architecture('stellar-foundry', '01_stellar_foundry', [0, 18, 0], 112),
     architecture('meridian-gallery', '02_meridian_gallery', [0, 78, 0], 112),
@@ -43,6 +86,8 @@ const AETHERION_MODELS = [
 
     // The core is animated but every mesh is _nocol, so it can never seal a route.
     mechanism('celestial-core', '10_celestial_core', 'CelestialCoreLoop', 0, [0, 70, 0], 120),
+
+    ...AETHERION_ORIENTATION_MODELS,
 ];
 
 function levelDeck(y) {
