@@ -76,7 +76,7 @@ export class PlayerCollisionPhase {
         // Airborne pappus is physical enough to be felt, but it never enters a damage path.
         // The controller consumes one contact per seed/player pair, so a fluffy seed cannot
         // repeatedly overwrite steering while the two collision spheres still overlap.
-        this._resolveDandelionSeedCollision(player, hRadius);
+        this._resolveDandelionSeedCollision(player, hRadius, prevPos);
 
         if (!bouncedOnFoam) {
             const selfTrailSkipRecent = entityManager.constructor.deriveSelfTrailSkipRecentSegments(player);
@@ -98,9 +98,9 @@ export class PlayerCollisionPhase {
         return false;
     }
 
-    _resolveDandelionSeedCollision(player, hRadius) {
+    _resolveDandelionSeedCollision(player, hRadius, previousPosition = null) {
         const collision = this.entityManager.arena?.consumeDandelionSeedCollision?.(
-            player.position, hRadius, player.index,
+            player.position, hRadius, player.index, previousPosition,
         );
         if (!collision?.normal || typeof player.activateSlingshot !== 'function') return false;
         player.activateSlingshot(DANDELION_SEED_BUMP, collision.normal, WORLD_UP);

@@ -161,13 +161,13 @@ test('shootable GLB keeps every visible attached seed as an individually address
         'runtime flight must be triggered by hits, not autoplayed');
 });
 
-test('dandelion map is compact, long-range, and scales the reusable flower to 495 m', () => {
+test('dandelion map is compact, long-range, and scales the reusable flower to 594 m', () => {
     const map = DANDELION_SKY_MAP.dandelion_sky;
     assert.equal(MAP_PRESET_CATALOG.dandelion_sky, map);
     assert.equal(MAP_PRESETS_BASE.dandelion_sky, map);
     assert.equal(resolveMapPickerCollection('dandelion_sky').id, 'adventure');
-    assert.deepEqual(map.size, [520, 560, 520]);
-    assert.equal(map.glbModels[0].targetSize, 495);
+    assert.deepEqual(map.size, [420, 660, 420]);
+    assert.equal(map.glbModels[0].targetSize, 594);
     assert.equal(map.glbModels[0].url, 'assets/models/giant_dandelion/giant_dandelion_shootable.glb');
     assert.ok(map.size[1] > map.glbModels[0].targetSize);
     assert.equal(map.lighting.fog.near, 55 * 5);
@@ -175,15 +175,28 @@ test('dandelion map is compact, long-range, and scales the reusable flower to 49
     assert.equal(map.singlePlayerScenario.gameMode, 'HUNT');
 });
 
-test('the actual shootable GLB loads at 495 m without 220 permanent seed colliders', async () => {
+test('the actual shootable GLB grows uniformly to 594 m without permanent seed colliders', async () => {
     const map = DANDELION_SKY_MAP.dandelion_sky;
     const result = await loadGLBMapCollection(map.glbModels, {
         loader: geometryOnlyGlbLoader,
         placementScale: 1,
         colliderMode: map.glbColliderMode,
     });
-    const height = new THREE.Box3().setFromObject(result.scene).getSize(new THREE.Vector3()).y;
-    assert.ok(Math.abs(height - 495) < 1, `unexpected map flower height: ${height}`);
+    const reference = await loadGLBMapCollection([{
+        ...map.glbModels[0],
+        targetSize: 495,
+    }], {
+        loader: geometryOnlyGlbLoader,
+        placementScale: 1,
+        colliderMode: map.glbColliderMode,
+    });
+    const size = new THREE.Box3().setFromObject(result.scene).getSize(new THREE.Vector3());
+    const referenceSize = new THREE.Box3().setFromObject(reference.scene).getSize(new THREE.Vector3());
+    assert.ok(Math.abs(size.y - 594) < 1, `unexpected map flower height: ${size.y}`);
+    for (const axis of ['x', 'y', 'z']) {
+        assert.ok(Math.abs(size[axis] / referenceSize[axis] - 1.2) < 0.001,
+            `flower ${axis}-axis must preserve its proportions`);
+    }
     assert.ok(result.colliders.length <= 6, 'seeds should not create permanent physics colliders');
     assert.ok(result.colliders.every((collider) => !collider.sourceName.startsWith('AttachedSeed_')));
     const controller = new DandelionSeedController(result.scene);

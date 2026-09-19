@@ -80,3 +80,19 @@ test('a released seed collides softly with each player once and attached seeds d
     controller.reset();
     assert.equal(controller.consumeCollision(seed.tip, 0.4, 2), null);
 });
+
+test('seed hitboxes sweep between frames instead of missing fast crossings', () => {
+    const controller = new DandelionSeedController(makeScene());
+    const seed = controller.seeds[0];
+    controller.releaseByName(seed.node.name, 0);
+    seed.previousCollisionCenter.copy(seed.tip);
+    seed.collisionCenter.copy(seed.tip);
+
+    const previousPosition = seed.tip.clone().add(new THREE.Vector3(-5, 0, 0));
+    const position = seed.tip.clone().add(new THREE.Vector3(5, 0, 0));
+    assert.ok(position.distanceTo(seed.collisionCenter) > seed.collisionRadius);
+    assert.equal(
+        controller.consumeCollision(position, 0.4, 4, previousPosition)?.seedIndex,
+        seed.index,
+    );
+});
