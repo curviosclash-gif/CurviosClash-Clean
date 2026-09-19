@@ -36,6 +36,11 @@ function toPlainUnit(unit, invScale) {
         plain.memberHp = unit.memberHp;
         plain.formationRadius = unit.formationRadius * invScale;
     }
+    if (unit.kind === 'boss') {
+        plain.modelScale = unit.modelScale;
+        plain.lootCount = unit.lootCount;
+        plain.guaranteedLoot = [...unit.guaranteedLoot];
+    }
     return plain;
 }
 

@@ -16,7 +16,7 @@ export const MAP_UNIT_LIMITS = Object.freeze({
     maxPathPoints: 64,
 });
 
-const VALID_KINDS = new Set(['tank', 'swarm']);
+const VALID_KINDS = new Set(['tank', 'swarm', 'boss']);
 const VALID_MODES = new Set(['HUNT', 'ARCADE']);
 const VALID_ROCKETS = new Set(['ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA']);
 
@@ -40,6 +40,17 @@ const SWARM_DEFAULTS = Object.freeze({
     mg: Object.freeze({ damage: 2, cooldown: 0.6, range: 40 }),
     rocket: null,
     loot: Object.freeze({}),
+});
+
+/** Balance start values from ideen.md (secret-room boss row). */
+const BOSS_DEFAULTS = Object.freeze({
+    speed: 8,
+    maxHp: 800,
+    hitboxRadius: 5.5,
+    respawnSeconds: 0,
+    mg: TANK_DEFAULTS.mg,
+    rocket: Object.freeze({ rocketType: 'ROCKET_MEDIUM', cooldown: 3, range: 90 }),
+    loot: TANK_DEFAULTS.loot,
 });
 
 /**
@@ -147,7 +158,7 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
         warnings?.push(`Map unit "${id}" has the unknown kind "${kind}" and was dropped.`);
         return null;
     }
-    const defaults = kind === 'swarm' ? SWARM_DEFAULTS : TANK_DEFAULTS;
+    const defaults = kind === 'swarm' ? SWARM_DEFAULTS : (kind === 'boss' ? BOSS_DEFAULTS : TANK_DEFAULTS);
     const rawPath = Array.isArray(source?.path) ? source.path.slice(0, MAP_UNIT_LIMITS.maxPathPoints) : [];
     const path = rawPath.map(normalizePoint);
     if (path.length < MAP_UNIT_LIMITS.minPathPoints || path.some((/** @type {readonly number[] | null} */ point) => point === null)) {
@@ -177,6 +188,17 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
             memberCount: Math.trunc(clampNumber(source?.memberCount, 8, 1, 8)),
             memberHp: clampNumber(source?.memberHp, 8, 1, 100),
             formationRadius: spatial(source?.formationRadius, 5, 1, 20),
+        } : {}),
+        ...(kind === 'boss' ? {
+            modelScale: clampNumber(source?.modelScale, 1.6, 1, 3),
+            lootCount: Math.trunc(clampNumber(source?.lootCount, 3, 1, 8)),
+            guaranteedLoot: Object.freeze(/** @type {unknown[]} */ (Array.isArray(source?.guaranteedLoot)
+                ? source.guaranteedLoot : ['ROCKET_MEGA'])
+                .map((/** @type {unknown} */ type) => String(type || '').toUpperCase())
+                .filter((/** @type {string} */ type, /** @type {number} */ index, /** @type {string[]} */ entries) => (
+                    VALID_ROCKETS.has(type) && entries.indexOf(type) === index
+                ))
+                .slice(0, 8)),
         } : {}),
         allowedModes: Object.freeze(modes.length > 0 ? modes : ['HUNT', 'ARCADE']),
         // A tank is a neutral hazard: it fires at bots too, unless the map says otherwise.
