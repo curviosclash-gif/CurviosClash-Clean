@@ -6,9 +6,9 @@ const CRASH_BROADPHASE_SCALE = 3;
 const CRASH_SWEEP_MAX_STEPS = 16;
 const DANDELION_SEED_DAMAGE = 1;
 const DANDELION_SEED_BUMP = Object.freeze({
-    duration: 0.12,
-    forwardImpulse: 1.3,
-    liftImpulse: 0.25,
+    duration: 0.35,
+    forwardImpulse: 8,
+    liftImpulse: 1.5,
 });
 const WORLD_UP = Object.freeze({ x: 0, y: 1, z: 0 });
 
