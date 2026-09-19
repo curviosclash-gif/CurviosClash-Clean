@@ -17,6 +17,7 @@ import {
 } from './ItemProjectileTargetingOps.js';
 import { resolveLockedPlayerIndex } from './RocketThreatTracker.js';
 import { stepGuidedRocket } from './GuidedRocketControlOps.js';
+import { canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamCombatContract.js';
 import {
     clearInterceptState,
     findProjectileByTraversalId,
@@ -203,6 +204,7 @@ export class ProjectileSimulationOps {
                 runtimeProfiler: this.system?.runtimeProfiler || null,
                 targetingTelemetry: this._targetingTelemetry,
                 scratch: this._targetingScratch,
+                canTargetPlayer: (target) => canDamage(owner, target, TEAM_WEAPON_KINDS.ROCKET),
             });
             if (resolveHuntTargetOwnerPlayer(lineTarget, players)?.decoyActive
                 || !this._isAllowedTurretTarget(projectile, lineTarget, players)) {
@@ -216,6 +218,7 @@ export class ProjectileSimulationOps {
         let bestFallbackDistSq = Infinity;
         for (const target of players) {
             if (!target || !target.alive || target === owner || target.decoyActive
+                || !canDamage(owner, target, TEAM_WEAPON_KINDS.ROCKET)
                 || !this._isAllowedTurretTarget(projectile, target, players)) continue;
 
             this._tmpVec.subVectors(target.position, projectile.position);

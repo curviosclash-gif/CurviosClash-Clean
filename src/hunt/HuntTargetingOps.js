@@ -361,6 +361,7 @@ export function resolveHuntLineTarget({
     runtimeProfiler = null,
     targetingTelemetry = null,
     scratch = null,
+    canTargetPlayer = null,
 } = {}) {
     if (!origin || !direction) return null;
 
@@ -401,6 +402,7 @@ export function resolveHuntLineTarget({
         if (!target || !target.alive) continue;
         const targetIndex = Number(target.index);
         if (target === sourcePlayer || (targetIndex >= 0 && targetIndex === ownerIndex)) continue;
+        if (typeof canTargetPlayer === 'function' && !canTargetPlayer(target)) continue;
 
         const hitboxRadius = Math.max(
             0.2,
@@ -538,4 +540,3 @@ export function resolveHuntLineTarget({
         metrics,
     });
 }
-
