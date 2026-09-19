@@ -33,6 +33,8 @@ export class ProjectileStatePool {
             poolKey: '',
             owner: null,
             type: null,
+            cosmeticStyleId: 'standard',
+            cosmeticColor: null,
             position: new THREE.Vector3(),
             previousPosition: new THREE.Vector3(),
             velocity: new THREE.Vector3(),
@@ -94,6 +96,8 @@ export class ProjectileStatePool {
         projectile.poolKey = '';
         projectile.owner = null;
         projectile.type = null;
+        projectile.cosmeticStyleId = 'standard';
+        projectile.cosmeticColor = null;
         projectile.position.set(0, 0, 0);
         projectile.previousPosition.set(0, 0, 0);
         projectile.velocity.set(0, 0, 0);

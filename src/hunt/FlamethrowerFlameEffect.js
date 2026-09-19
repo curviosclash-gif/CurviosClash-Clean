@@ -7,6 +7,7 @@ import * as THREE from 'three';
 
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { isPlayerBurning } from '../entities/player/PlayerEffectOps.js';
+import { nextPlayerArcadeWeaponColor } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
 const DEFAULT_RANGE = 18;
 // How long a particle needs to travel the whole range. Short enough that the jet ends where
@@ -54,11 +55,12 @@ export function spawnFlameJet(particles, player) {
     const speed = range / FLIGHT_SECONDS;
 
     for (const stage of FLAME_STAGES) {
+        const color = nextPlayerArcadeWeaponColor(player, 'flamethrower', stage.color);
         particles.spawnDirectional(
             player.position,
             AIM,
             PARTICLES_PER_STAGE,
-            stage.color,
+            color,
             speed,
             stage.size,
             FLIGHT_SECONDS * stage.lifeRatio,

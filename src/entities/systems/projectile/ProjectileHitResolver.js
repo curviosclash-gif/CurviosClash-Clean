@@ -44,7 +44,12 @@ export class ProjectileHitResolver {
     detonateProjectile(projectile, position = projectile?.position, color = 0xffff00) {
         if (!isRocketTierType(projectile?.type) || projectile.detonated) return false;
         projectile.detonated = true;
-        this.system?.onProjectileHit?.(position, color, projectile.owner, projectile);
+        this.system?.onProjectileHit?.(
+            position,
+            Number.isFinite(Number(projectile.cosmeticColor)) ? Number(projectile.cosmeticColor) : color,
+            projectile.owner,
+            projectile
+        );
         return true;
     }
 

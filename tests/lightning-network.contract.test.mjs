@@ -72,6 +72,17 @@ test('clients mirror the warning, hear the message once and replay the strike wi
     assert.equal(client.players[2].taken.length, 0);
 });
 
+test('Arcade lightning colors never enter the network snapshot', () => {
+    const host = createSide();
+    host.players[0].arcadeCosmeticLoadout = { weaponStyleIds: { lightning: 'nova' } };
+    host.system.activate(host.players[0]);
+    const warning = createHuntNetworkState(host.manager).lightning.pending[0];
+    assert.deepEqual(Object.keys(warning).sort(), ['duration', 'id', 'remaining']);
+    host.system.update(2);
+    const strike = createHuntNetworkState(host.manager).lightning.strikes[0];
+    assert.deepEqual(Object.keys(strike).sort(), ['id', 'targetIndices']);
+});
+
 test('a client joining after a strike does not replay the old one', () => {
     const host = createSide();
     host.system.activate(host.players[0]);

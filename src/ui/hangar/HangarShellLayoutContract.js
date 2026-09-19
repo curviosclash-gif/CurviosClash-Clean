@@ -102,7 +102,7 @@ export const HANGAR_SHELL_MODE_REGION_EXTENSIONS = Object.freeze({
             anchorRegionId: HANGAR_SHELL_REGION_IDS.RULES_PANEL,
             insertPosition: 'after',
             componentSlot: 'arcade-progression-panel',
-            purpose: 'XP, mastery and slot-unlock overview tied to Arcade contracts.',
+            purpose: 'XP, level and slot-unlock overview tied to Arcade contracts.',
         }),
         Object.freeze({
             id: 'arcade-run-loop-panel',

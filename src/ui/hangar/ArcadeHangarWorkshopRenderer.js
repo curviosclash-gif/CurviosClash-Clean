@@ -12,6 +12,7 @@ import { validateHangarBuild } from './HangarBuildValidation.js';
 import { compareHangarStats, projectHangarStats } from './HangarStatProjection.js';
 import { prependFightEffectRows } from './FightHangarEffectView.js';
 import { projectHangarProgression } from './HangarProgressionProjection.js';
+import { renderHangarCosmetics } from './HangarCosmeticRenderer.js';
 import {
     STAT_VALUE_HINTS,
     VEHICLE_CATEGORY_LABELS,
@@ -382,6 +383,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
             : progressionSummaryText(progression);
         levelDetail.textContent = mode === 'fight' ? FIGHT_BALANCE_HINT : progressionDetailText(progression);
         xpFill.style.width = mode === 'fight' ? '100%' : `${(xp.progress * 100).toFixed(1)}%`;
+        renderHangarCosmetics({ shell, profile, mode });
         if (mode === 'fight') {
             const machineGun = resolveFightMachineGunModel(state.draft.machineGunId);
             machineGunSelect.value = machineGun.id;

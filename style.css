@@ -5727,6 +5727,35 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     gap: 5px;
 }
 
+.hangar-cosmetics-panel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid rgba(72, 215, 255, 0.28);
+    border-radius: 0.65rem;
+    background: rgba(7, 18, 28, 0.72);
+}
+
+.hangar-cosmetics-panel .arcade-vehicle-subtitle,
+.hangar-cosmetic-unlock-detail {
+    grid-column: 1 / -1;
+}
+
+.hangar-cosmetic-select {
+    width: 100%;
+}
+
+.hangar-cosmetic-field {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.hangar-cosmetic-field-label {
+    color: #a9c6dc;
+    font-size: 0.72rem;
+}
+
 .hangar-stat-row {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 5px 8px;

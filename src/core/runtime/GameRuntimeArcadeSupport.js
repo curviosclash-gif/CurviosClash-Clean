@@ -1,8 +1,5 @@
 import { createArcadeRoundStateController } from '../../state/arcade/ArcadeRoundStateController.js';
-import {
-    buildArcadeSectorPlan,
-    resolveArcadeSectorRuntimeProfile,
-} from '../../entities/directors/ArcadeEncounterCatalog.js';
+import { buildArcadeSectorPlan, resolveArcadeSectorRuntimeProfile } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { resolveMapSequence } from '../../state/arcade/ArcadeMapProgression.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../../shared/contracts/PlayerDisplayLabelContract.js';
@@ -15,6 +12,7 @@ import { getArcadeObjectiveRuntimeState } from '../arcade/ArcadeObjectiveRuntime
 import { resolveObjectiveTargetIndex } from '../../entities/systems/ObjectiveTargetMarkerOps.js';
 import { FIVE_PORTALS_MAPS, isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
 import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
+import { applyArcadeRuntimeCosmetics } from '../arcade/ArcadeRuntimeCosmeticOps.js';
 
 function lockSelectedMapToFirstSector(plan, runtimeConfig, mapCatalog) {
     if (!plan || !Array.isArray(plan.sequence) || plan.sequence.length === 0) return plan;
@@ -358,6 +356,7 @@ export class GameRuntimeArcadeSupport {
         const runtimeState = this.getRuntimeState();
         const runtimeConfig = runtimeState?.runtimeConfig || null;
         this._bindParcoursCallbacks(runtimeState);
+        applyArcadeRuntimeCosmetics(this, runtimeState, runtimeConfig);
         if (!runtimeConfig?.arcade?.enabled) {
             return null;
         }

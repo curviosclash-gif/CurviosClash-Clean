@@ -145,7 +145,7 @@ export function buildArcadeSurface(level3Body, ui) {
     cardGrid.appendChild(dailyCard);
 
     const masteryCard = createElement('section', 'arcade-surface-card');
-    masteryCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.mastery.title', 'Vehicle Mastery')));
+    masteryCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.mastery.title', 'Fahrzeugfortschritt')));
     const masteryLine = createElement('p', 'arcade-surface-card-value');
     masteryLine.id = 'arcade-mastery-line';
     masteryCard.appendChild(masteryLine);

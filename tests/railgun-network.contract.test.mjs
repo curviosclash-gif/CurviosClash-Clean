@@ -70,6 +70,16 @@ test('the client draws each new host beam once and never shoots itself', () => {
     assert.ok(host.target.hp < 100);
 });
 
+test('Arcade railgun colors never enter the network snapshot', () => {
+    const host = createSide(true);
+    host.shooter.arcadeCosmeticLoadout = { weaponStyleIds: { railgun: 'nova' } };
+    applyPlayerPowerup(host.shooter, 'RAILGUN');
+    host.system.fire(host.shooter, 0.5, true);
+    host.system.fire(host.shooter, 0.016, false);
+    const beam = createHuntNetworkState(host.manager).railgunBeams[0];
+    assert.deepEqual(Object.keys(beam).sort(), ['damage', 'from', 'id', 'ownerIndex', 'targetCount', 'to']);
+});
+
 test('a client joining after a shot does not redraw it', () => {
     const host = createSide(true);
     applyPlayerPowerup(host.shooter, 'RAILGUN');

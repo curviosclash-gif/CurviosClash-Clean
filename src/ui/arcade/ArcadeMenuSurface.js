@@ -312,9 +312,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const MAX_LEVEL = resolveVehicleMasteryMaxLevel();
         const lvl = Math.max(1, Math.min(MAX_LEVEL, Number(profile.level) || 1));
         const masteryLabel = lvl >= MAX_LEVEL
-            ? `${t('menu.arcade.mastery.progress.label', 'Mastery')} ${t('menu.arcade.mastery.max', 'MAX')}`
-            : `${t('menu.arcade.mastery.progress.label', 'Mastery')} Lv.${lvl}/${MAX_LEVEL}`;
-        refs.masteryLine.textContent = `${t('menu.arcade.mastery.current.label', 'Aktives Airframe')}: ${vehicleId} | ${masteryLabel}`;
+            ? `${t('menu.arcade.mastery.progress.label', 'Level')} ${t('menu.arcade.mastery.max', 'MAX')}`
+            : `${t('menu.arcade.mastery.progress.label', 'Level')} ${lvl}/${MAX_LEVEL}`;
+        refs.masteryLine.textContent = `${t('menu.arcade.mastery.current.label', 'Fahrzeug')}: ${vehicleId} | ${masteryLabel}`;
     };
 
     const prepareHangarRunStart = () => {

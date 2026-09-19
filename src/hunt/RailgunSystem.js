@@ -4,6 +4,10 @@ import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeCon
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { HUNT_CONFIG } from './HuntConfig.js';
 import { RailgunBeamEffect } from '../entities/effects/RailgunBeamEffect.js';
+import {
+    nextPlayerArcadeWeaponColor,
+    resolveArcadeWeaponColor,
+} from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
 export const RAILGUN_CAUSE = 'RAILGUN';
 // Beams kept for the network: more than can land between two snapshots.
@@ -67,8 +71,8 @@ export class RailgunSystem {
     }
 
     /** The rod and the sound. Also called on a replica when the host reports a shot. */
-    _showBeam(beam) {
-        this._resolveEffect()?.show(beam.from, beam.to);
+    _showBeam(beam, color = 0x7fe7ff) {
+        this._resolveEffect()?.show(beam.from, beam.to, color);
         this.entityManager?.audio?.play?.('SLINGSHOT', { intensity: 0.4 + 0.6 * Math.min(1, (Number(beam.damage) || 0) / 70) });
     }
 
@@ -128,10 +132,17 @@ export class RailgunSystem {
         if (held === true) {
             const full = positive(config?.CHARGE_SECONDS, 1.5);
             player.railCharge = Math.min(full, (Number(player.railCharge) || 0) + Math.max(0, Number(dt) || 0));
+            const styleId = player?.arcadeCosmeticLoadout?.weaponStyleIds?.railgun || 'standard';
+            this._resolveEffect()?.showCharge(
+                player.position,
+                player.railCharge / full,
+                resolveArcadeWeaponColor(styleId, this._nextBeamId, 0x7fe7ff)
+            );
             return true;
         }
         const charge = Number(player.railCharge) || 0;
         player.railCharge = 0;
+        this._effect?.hideCharge?.();
         if (charge <= 0) return false;
         // A shot is only spent when a beam actually left the barrel.
         if (this._shoot(player, resolveRailgunDamage(charge, config), config)) consumeRailgunShot(player);
@@ -197,6 +208,7 @@ export class RailgunSystem {
             });
         }
         const end = origin.clone().addScaledVector(aim, range);
+        const cosmeticColor = nextPlayerArcadeWeaponColor(player, 'railgun', 0x7fe7ff);
         this.lastBeam = {
             id: this._nextBeamId++,
             ownerIndex: player.index,
@@ -206,7 +218,7 @@ export class RailgunSystem {
             targetCount: struck.length,
         };
         this._rememberBeam(this.lastBeam);
-        this._showBeam(this.lastBeam);
+        this._showBeam(this.lastBeam, cosmeticColor);
         owner?.recorder?.logEvent?.('RAILGUN_SHOT', Number.isInteger(player.index) ? player.index : -1, `damage=${Math.round(damage)}:targets=${struck.length}`);
         return true;
     }

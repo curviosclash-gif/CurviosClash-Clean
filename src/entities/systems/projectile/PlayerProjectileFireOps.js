@@ -20,6 +20,7 @@ import {
     ITEM_PROJECTILE_TARGETING_PROFILE,
     isItemProjectileType,
 } from './ItemProjectileTargetingOps.js';
+import { nextPlayerArcadeWeaponColor } from '../../../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
 function failed(code, message, type = null) {
     return buildGameplayActionResult({ ok: false, code, message, type });
@@ -131,7 +132,9 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     for (let i = 0; i < projectileCount; i += 1) {
         applyWeaponFanDirection(system._tmpDir, system._tmpFanAxis, i, projectileCount, system._tmpFanDirection);
         system._tmpVec.copy(player.position).addScaledVector(system._tmpFanDirection, projectileSpawnOffset);
-        const mesh = system._acquireProjectileMesh(type, power.color);
+        const cosmeticStyleId = player?.arcadeCosmeticLoadout?.weaponStyleIds?.rockets || 'standard';
+        const cosmeticColor = nextPlayerArcadeWeaponColor(player, 'rockets', power.color);
+        const mesh = system._acquireProjectileMesh(type, power.color, cosmeticColor);
         mesh.scale.setScalar(visualScale);
         mesh.position.copy(system._tmpVec);
         system._tmpVec2.copy(system._tmpVec).add(system._tmpFanDirection);
@@ -143,6 +146,8 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         projectile.poolKey = type;
         projectile.owner = player;
         projectile.type = type;
+        projectile.cosmeticStyleId = cosmeticStyleId;
+        projectile.cosmeticColor = cosmeticStyleId === 'standard' ? null : cosmeticColor;
         projectile.huntRocket = huntRocket;
         projectile.homingEnabled = homingEnabled && !guidedActive;
         projectile.guidedActive = guidedActive;

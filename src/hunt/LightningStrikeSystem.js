@@ -2,6 +2,7 @@ import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeCon
 import { HUNT_CONFIG } from './HuntConfig.js';
 import { isHuntHealthActive } from './HealthSystem.js';
 import { LightningStrikeEffect } from '../entities/effects/LightningStrikeEffect.js';
+import { nextPlayerArcadeWeaponColor } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
 export const LIGHTNING_CAUSE = 'LIGHTNING';
 // Strikes kept for the network: bots may cast together, so several can land between two snapshots.
@@ -60,6 +61,7 @@ export class LightningStrikeSystem {
         this._effect = null;
         this._recentStrikes = [];
         this._appliedStrikeId = 0;
+        this._cosmeticColorsByStrikeId = new Map();
     }
 
     _resolveEffect() {
@@ -86,7 +88,12 @@ export class LightningStrikeSystem {
     activate(caster) {
         if (!caster || !this.canActivate()) return false;
         const warning = positive(this._config()?.WARNING_SECONDS, 2);
-        this.pending.push({ id: this._nextStrikeId++, caster, remaining: warning, duration: warning });
+        const id = this._nextStrikeId++;
+        this.pending.push({ id, caster, remaining: warning, duration: warning });
+        this._cosmeticColorsByStrikeId.set(id, {
+            warningColor: nextPlayerArcadeWeaponColor(caster, 'lightning', 0x9cc8ff),
+            strikeColor: nextPlayerArcadeWeaponColor(caster, 'lightning', 0xeaf4ff),
+        });
         this._resolveEffect();
         this._announce();
         this.entityManager?.recorder?.logEvent?.('LIGHTNING_CAST', Number.isInteger(caster.index) ? caster.index : -1, `warning=${warning}`);
@@ -102,7 +109,10 @@ export class LightningStrikeSystem {
 
     update(dt) {
         const safeDt = Math.max(0, Number(dt) || 0);
-        this._effect?.update(safeDt, this.getWarningState(), this.entityManager?.arena?.bounds, this.pending[0]?.id);
+        const warningStrike = this.pending[0] || null;
+        const warningStyle = this._cosmeticColorsByStrikeId.get(warningStrike?.id);
+        this._effect?.setColors(warningStyle?.warningColor, warningStyle?.strikeColor);
+        this._effect?.update(safeDt, this.getWarningState(), this.entityManager?.arena?.bounds, warningStrike?.id);
         if (this.pending.length === 0) return;
         for (let index = 0; index < this.pending.length;) {
             const strike = this.pending[index];
@@ -146,16 +156,19 @@ export class LightningStrikeSystem {
         this.lastStrike = { id: strike.id, casterIndex: strike.caster?.index ?? -1, targetIndices: hit };
         this._recentStrikes.push(this.lastStrike);
         if (this._recentStrikes.length > RECENT_STRIKES) this._recentStrikes.shift();
-        this._showStrike(targets);
+        this._showStrike(targets, this._cosmeticColorsByStrikeId.get(strike.id));
+        this._cosmeticColorsByStrikeId.delete(strike.id);
         owner?.recorder?.logEvent?.('LIGHTNING_STRIKE', Number.isInteger(strike.caster?.index) ? strike.caster.index : -1, `targets=${hit.join(',')}`);
     }
 
     /** The bolt and the thunder. Also called on a replica when the host reports a strike. */
-    _showStrike(targets) {
+    _showStrike(targets, style = null) {
         const positions = this._strikePositions;
         positions.length = 0;
         for (const target of targets) if (target?.position) positions.push(target.position);
-        this._resolveEffect()?.strike(positions, this.entityManager?.arena?.bounds);
+        const effect = this._resolveEffect();
+        effect?.setColors(style?.warningColor, style?.strikeColor);
+        effect?.strike(positions, this.entityManager?.arena?.bounds);
         this.entityManager?.audio?.play?.('EXPLOSION', { intensity: 1 });
     }
 
@@ -206,13 +219,17 @@ export class LightningStrikeSystem {
             this.lastStrike = { id: strikeId, casterIndex: -1, targetIndices: [...(strike.targetIndices || [])] };
             if (!firstState) {
                 const indices = new Set(this.lastStrike.targetIndices);
-                this._showStrike((this.entityManager?.players || []).filter((player) => indices.has(player?.index)));
+                this._showStrike(
+                    (this.entityManager?.players || []).filter((player) => indices.has(player?.index)),
+                    null
+                );
             }
         }
     }
 
     reset() {
         this.pending.length = 0;
+        this._cosmeticColorsByStrikeId.clear();
         this.lastStrike = null;
         this._effect?.update(0, null, null);
     }

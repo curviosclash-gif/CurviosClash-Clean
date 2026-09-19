@@ -10,6 +10,7 @@ const POOL_SIZE = 4;
 const FADE_SECONDS = 0.35;
 const BEAM_COLOR = 0x7fe7ff;
 const BEAM_RADIUS = 0.18;
+const CHARGE_COLOR = 0x7fe7ff;
 
 export class RailgunBeamEffect {
     constructor(renderer) {
@@ -29,9 +30,16 @@ export class RailgunBeamEffect {
         });
         this._next = 0;
         this._end = new THREE.Vector3();
+        this._chargeMaterial = new THREE.MeshBasicMaterial({
+            color: CHARGE_COLOR, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
+        });
+        this._charge = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), this._chargeMaterial);
+        this._charge.visible = false;
+        this._chargeRemaining = 0;
+        this._chargeAttached = false;
     }
 
-    show(from, to) {
+    show(from, to, color = BEAM_COLOR) {
         if (!Array.isArray(from) || !Array.isArray(to)) return;
         const beam = this._beams[this._next];
         this._next = (this._next + 1) % this._beams.length;
@@ -43,12 +51,35 @@ export class RailgunBeamEffect {
         beam.mesh.lookAt(this._end);
         beam.mesh.scale.set(1, 1, length);
         beam.mesh.material.opacity = 1;
+        beam.mesh.material.color.setHex(Number(color) || BEAM_COLOR);
         beam.mesh.visible = true;
         beam.remaining = FADE_SECONDS;
     }
 
+    showCharge(position, ratio, color = CHARGE_COLOR) {
+        if (!position) return;
+        if (!this._chargeAttached) {
+            this.renderer?.addToScene?.(this._charge);
+            this._chargeAttached = true;
+        }
+        const chargeRatio = Math.max(0, Math.min(1, Number(ratio) || 0));
+        this._charge.position.copy(position);
+        this._charge.scale.setScalar(0.3 + chargeRatio * 0.9);
+        this._chargeMaterial.color.setHex(Number(color) || CHARGE_COLOR);
+        this._chargeMaterial.opacity = 0.25 + chargeRatio * 0.65;
+        this._charge.visible = true;
+        this._chargeRemaining = 0.1;
+    }
+
+    hideCharge() {
+        this._chargeRemaining = 0;
+        this._charge.visible = false;
+    }
+
     update(dt) {
         const safeDt = Math.max(0, Number(dt) || 0);
+        this._chargeRemaining = Math.max(0, this._chargeRemaining - safeDt);
+        if (this._chargeRemaining <= 0) this._charge.visible = false;
         for (const beam of this._beams) {
             if (beam.remaining <= 0) continue;
             beam.remaining = Math.max(0, beam.remaining - safeDt);
@@ -58,6 +89,9 @@ export class RailgunBeamEffect {
     }
 
     dispose() {
+        if (this._chargeAttached) this.renderer?.removeFromScene?.(this._charge);
+        this._charge.geometry.dispose();
+        this._chargeMaterial.dispose();
         for (const beam of this._beams) {
             this.renderer?.removeFromScene?.(beam.mesh);
             beam.mesh.material.dispose();

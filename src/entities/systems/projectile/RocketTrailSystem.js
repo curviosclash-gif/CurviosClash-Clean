@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { resolveArcadeWeaponColor } from '../../../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 const DEFAULT_MAX_SEGMENTS = 10_000;
@@ -109,6 +110,7 @@ export class RocketTrailSystem {
             latestSequence: -1,
             nextSequence: 0,
             maxSegments: 0,
+            cosmeticStyleId: 'standard',
             destroySegmentByEntry: (entry) => this.destroySegmentByEntry(entry),
         };
         if (!this.handlesByOwner.has(handle.ownerPlayerIndex)) {
@@ -128,6 +130,7 @@ export class RocketTrailSystem {
     initializeProjectile(projectile) {
         if (!projectile?.huntRocket) return;
         projectile.rocketTrailHandle = this.createTrailHandle(projectile.owner);
+        projectile.rocketTrailHandle.cosmeticStyleId = projectile.cosmeticStyleId || 'standard';
         this.resetProjectileSample(projectile);
     }
 
@@ -193,7 +196,11 @@ export class RocketTrailSystem {
         const segmentId = this.nextSegmentId++;
         const trailSequence = trailHandle.nextSequence++;
         trailHandle.latestSequence = trailSequence;
-        this._color.setHSL((segmentId * 0.083) % 1, 1, 0.58);
+        if (trailHandle.cosmeticStyleId === 'standard') {
+            this._color.setHSL((segmentId * 0.083) % 1, 1, 0.58);
+        } else {
+            this._color.setHex(resolveArcadeWeaponColor(trailHandle.cosmeticStyleId, trailSequence, 0xffffff));
+        }
         this.mesh.setColorAt(slot, this._color);
         this.glowMesh.setColorAt(slot, this._color);
 
