@@ -26,6 +26,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/global-fog-pickup.desktop.spec.js',
             'tests/chrono-forge-nexus.desktop.spec.js',
             'tests/crystal-ruins.desktop.spec.js',
+            'tests/dandelion-collision.desktop.spec.js',
             'tests/eclipse-foundry.desktop.spec.js',
             'tests/hangar-window.desktop.spec.js',
             'tests/four-player-planar.desktop.spec.js',
