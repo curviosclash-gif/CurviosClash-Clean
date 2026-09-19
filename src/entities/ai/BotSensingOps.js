@@ -12,6 +12,14 @@ import {
 import { estimateEnemyPressure, isTargetVisibleToPlayer, selectTarget } from './BotTargetingOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 
+export function shouldUseReducedProbeScan(sense, isFullScanFrame) {
+    return !isFullScanFrame || (
+        !sense.immediateDanger
+        && (sense.forwardRisk || 0) < AI_SENSOR_SCAN_POLICY.reducedProbeRiskThreshold
+        && (sense.localOpenness || 0) > sense.lookAhead * AI_SENSOR_SCAN_POLICY.reducedProbeOpennessRatio
+    );
+}
+
 export function senseEnvironment(bot, player, arena, allPlayers, _projectiles) {
     const planarMode = !!resolveGameplayConfig(bot).GAMEPLAY.PLANAR_MODE;
     const mapBehavior = bot.mapBehavior(arena);
@@ -24,17 +32,10 @@ export function senseEnvironment(bot, player, arena, allPlayers, _projectiles) {
     player.getDirection(bot._tmpForward).normalize();
     bot._buildBasis(bot._tmpForward);
 
-    // Time-Slicing der Probes: Vollstaendiger Scan nur im zugewiesenen Frame
+    // Time-slice complete scans to the assigned frame.
     const maxProbes = bot._probes.length;
-    const isFullScanFrame = (bot.sensePhaseCounter === bot.sensePhase);
-
-    // Adaptive Sensing: Reduce probes in open space or non-assigned frames
-    const useFewProbes = !isFullScanFrame || (
-        !bot.sense.immediateDanger
-        && (bot.sense.forwardRisk || 0) < AI_SENSOR_SCAN_POLICY.reducedProbeRiskThreshold
-        && (bot.sense.localOpenness || 0) > bot.sense.lookAhead * AI_SENSOR_SCAN_POLICY.reducedProbeOpennessRatio
-    );
-    // In non-scan frames, only evaluate the most critical probes (forward, up, down, backwards)
+    const isFullScanFrame = bot.sensePhaseCounter === bot.sensePhase;
+    const useFewProbes = shouldUseReducedProbeScan(bot.sense, isFullScanFrame);
     const probesToProcess = useFewProbes
         ? Math.min(AI_SENSOR_SCAN_POLICY.reducedProbeCount, maxProbes)
         : maxProbes;

@@ -3,6 +3,7 @@
 // ============================================
 
 import * as THREE from 'three';
+import { configurePlayerHealthAuraCamera } from '../shared/rendering/PlayerHealthAuraLayers.js';
 import {
     installAtmosphericFog,
     setAtmosphericFogClipDistance,
@@ -297,8 +298,10 @@ export class Renderer {
             fogFar: this.scene.fog.far,
         };
     }
-    createCamera(_index) {
+    createCamera(index) {
         const camera = this.cameraRigSystem.createCamera(this._getAspect());
+        const playerIndex = Number.isInteger(index) ? index : this.cameras.length - 1;
+        configurePlayerHealthAuraCamera(camera, playerIndex);
         camera.far = this._cameraFar;
         camera.updateProjectionMatrix();
         return camera;

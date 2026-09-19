@@ -1,3 +1,5 @@
+import { EIFFEL_TOWER_HISTORIC_MODELS } from './EiffelTowerHistoricProps.js';
+
 // The Eiffel Tower is modelled in Blender at true metres, in one shared coordinate system: X and
 // Y are the two ground axes of the esplanade, Z is height above it. The map places those parts
 // back on top of each other, so the two things this file has to get right are the scale factor
@@ -100,7 +102,14 @@ const EIFFEL_MACHINES = [
     machine('beacon', '11_beacon', 'BeaconLoop', 0, [0, 285.9, 0]),
 ];
 
-export const EIFFEL_TOWER_MODELS = [...EIFFEL_STRUCTURE, ...EIFFEL_MACHINES];
+export const EIFFEL_TOWER_BASE_MODELS = [
+    ...EIFFEL_STRUCTURE,
+    ...EIFFEL_MACHINES,
+];
+export const EIFFEL_TOWER_MODELS = [
+    ...EIFFEL_TOWER_BASE_MODELS,
+    ...EIFFEL_TOWER_HISTORIC_MODELS,
+];
 export const EIFFEL_TOWER_BEAT_SECONDS = BEAT_SECONDS;
 export const EIFFEL_TOWER_METRE = METRE;
 export const EIFFEL_TOWER_GROUND = GROUND;

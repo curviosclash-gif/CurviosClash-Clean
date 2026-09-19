@@ -33,14 +33,18 @@ frame, keep the pose or hide the airborne seed nodes. Each seed is an independen
 named `FlyingSeed_XX_HERO` and can be moved or hidden separately at runtime. The middle LOD
 uses corresponding odd-numbered seeds and the same timing. The far LOD omits airborne seeds.
 
-The `dandelion_sky` map places `giant_dandelion_shootable.glb` at `targetSize: 330`, matching
-the Eiffel Tower's [current 330 m height](https://www.toureiffel.paris/en/news/history-and-culture/300-330-meters-story-towers-height).
+The `dandelion_sky` map places `giant_dandelion_shootable.glb` at `targetSize: 594`.
 Other maps can reuse the same GLB with any positive `targetSize`; the seed hit areas and flight
-speed follow the resulting world scale. MG and player rockets can detach each seed once. The
-wind direction turns gradually with match time, so seeds shot at different moments depart in
-different directions and keep drifting while airborne. Game-state snapshots synchronize the
-release times for other players. The interactive file intentionally excludes per-seed collision
-meshes; its seed hits use a bounded ray/sweep query instead of 220 permanent physics colliders.
+speed follow the resulting world scale. MG and player rockets can detach each seed once by
+hitting its achene, shaft, or pappus crown. Vehicles use the same full-seed proxy while seeds are
+attached and airborne; contact deals one point of damage in health modes and applies a small
+deflection. Continuous contact with the dense attached crown is debounced so overlapping seeds
+cannot stack damage. The wind direction turns gradually with match time, so seeds shot at
+different moments depart in different directions and keep drifting while airborne. A
+drag-limited gravity term gradually pulls the heavier achene downward without turning the pappus
+into a free-falling projectile. Game-state snapshots synchronize the release times for other
+players. The interactive file intentionally excludes per-seed collision meshes; seed and vehicle
+contacts use bounded ray/capsule sweeps instead of 220 permanent physics colliders.
 
 Regenerate deterministically with Blender 4.2 LTS:
 

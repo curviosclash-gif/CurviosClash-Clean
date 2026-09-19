@@ -25,6 +25,11 @@ test('renderer build copies every editor OBJ asset group', (context) => {
         'assets/models/jets/cc0/pinnace_lo.obj',
         'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship5.obj',
         'assets/models/giant_dandelion/giant_dandelion_shootable.glb',
+        'assets/models/giant_dandelion/giant_dandelion_lod2.glb',
+        ...Array.from({ length: 10 }, (_, index) => {
+            const variant = String(index + 1).padStart(2, '0');
+            return `assets/models/ancient_tree/variants/variant_${variant}/ancient_tree_${variant}_lod2.glb`;
+        }),
         'assets/maps/chrono_forge/glb/08_time_core.glb',
         'assets/maps/kinetic_tide/glb/08_reactor_heart.glb',
         'assets/maps/verdant_aperture/glb/08_heart_seed.glb',

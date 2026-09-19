@@ -74,11 +74,8 @@ POST_THICKNESS = (
 ARCH_SPRING = 26.0
 ARCH_CROWN = 44.0
 
-# The Champ-de-Mars around the tower: how far the lawn reaches from the axis, how far inside its
-# edge the tree rows are planted, and how far apart the trees stand.
+# The Champ-de-Mars around the tower: how far the lawn reaches from the axis.
 ESPLANADE_HALF = 150.0
-TREE_INSET = 42.0
-TREE_SPACING = 22.0
 
 FIRST_DECK_OUTER = 36.5
 FIRST_DECK_INNER = 24.0
@@ -677,16 +674,8 @@ def build_esplanade(canvas, half_span=ESPLANADE_HALF):
                        (0.6, 0.6, 6.0))
             canvas.frustum(LAMP, (sign_x * base + dx * 19, sign_y * base + dy * 19, 6.4),
                            0.9, 0.4, 1.4, sides=8, decorative=True)
-    # Tree blocks along the two garden edges. Cheap, but they give the ground a scale reference.
-    # They follow the lawn rather than sitting at fixed coordinates, so a wider Champ-de-Mars is
-    # still planted to its own edge. The half-step back off the exact multiple keeps the two rows
-    # from meeting in the same block at the corners.
-    edge = half_span - TREE_INSET
-    count = int((edge - 0.1) / TREE_SPACING)
-    for index in range(-count, count + 1):
-        for sign in (-1, 1):
-            canvas.frustum(GRASS, (index * TREE_SPACING, sign * edge, 6.0), 5.5, 3.0, 12.0, sides=6)
-            canvas.frustum(GRASS, (sign * edge, index * TREE_SPACING, 6.0), 5.5, 3.0, 12.0, sides=6)
+    # Reusable ancient-tree LODs now provide the garden rows in both Eiffel maps. They are placed
+    # separately with `_nocol` runtime names so foliage cannot become scene collision.
 
 
 def build_legs_lower(canvas):
