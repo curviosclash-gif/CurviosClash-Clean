@@ -380,7 +380,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     });
 
     test('T20h: Keyboard Navigation (Arrow/Escape) funktioniert im Menue', async ({ page }) => {
-        await loadGame(page);
+        await loadGame(page, { forceReload: true });
         const startupFocus = await page.evaluate(() => ({
             id: document.activeElement?.id || '',
             sessionType: document.activeElement?.getAttribute?.('data-session-type') || '',
@@ -2986,7 +2986,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await expect(page.locator('#start-vehicle-section > summary')).toBeInViewport();
     });
 
-    test('T20z2: Start-Setup fuehrt exklusiv durch Karte, Flugzeug und kompakte Regeln', async ({ page }) => {
+    test('T20z2a: Start-Setup fuehrt exklusiv durch Karte, Flugzeug und kompakte Regeln', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
 
@@ -3266,7 +3266,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(state.summaryValue).toBe(state.previewTitle);
     });
 
-    test('T20z2: Erweiterte Optionen starten oben, sperren den Hintergrund und fokussieren Schliessen', async ({ page }) => {
+    test('T20z2b: Erweiterte Optionen starten oben, sperren den Hintergrund und fokussieren Schliessen', async ({ page }) => {
         await loadGame(page);
         await openLevel4Drawer(page);
 
@@ -3294,22 +3294,19 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(state.backgroundAriaHidden).toBe('true');
         expect(state.fireRateText).toMatch(/^\d+(?:\.\d+)?s$/);
         expect(state.lockOnText).toMatch(/^\d+°$/);
-        const focusBoundary = await page.evaluate(() => {
+        await page.locator('#btn-level4-reset').focus();
+        await page.keyboard.press('Shift+Tab');
+        const wrappedFocus = await page.evaluate(() => {
             const drawer = document.getElementById('submenu-level4');
-            const focusables = Array.from(drawer?.querySelectorAll(
-                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-            ) || []).filter((element) => (
-                !element.closest('[inert], [aria-hidden="true"], .hidden, details:not([open])')
-            ));
-            const first = focusables[0];
-            const last = focusables[focusables.length - 1];
-            last?.focus();
-            return { firstId: first?.id || '', lastId: last?.id || '' };
+            return {
+                insideDrawer: !!drawer?.contains(document.activeElement),
+                activeId: document.activeElement?.id || '',
+            };
         });
-        expect(focusBoundary.firstId).toBeTruthy();
-        expect(focusBoundary.lastId).toBeTruthy();
+        expect(wrappedFocus.insideDrawer).toBeTruthy();
+        expect(wrappedFocus.activeId).not.toBe('btn-level4-reset');
         await page.keyboard.press('Tab');
-        expect(await page.evaluate(() => document.activeElement?.id || '')).toBe(focusBoundary.firstId);
+        expect(await page.evaluate(() => document.activeElement?.id || '')).toBe('btn-level4-reset');
     });
 
     test('T20z3: Einstellungen aus dem Hauptmenue kehren beim Schliessen dorthin zurueck', async ({ page }) => {

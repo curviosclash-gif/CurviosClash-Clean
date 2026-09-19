@@ -1,8 +1,8 @@
 // The vault under the Champ-de-Mars: the reward for bringing a piece of the tower down.
 //
-// Four seconds after the first part of the tower breaks, a portal opens on the esplanade. It leads
-// into a sealed box below the ground, stocked with pickups and watched by three emplacements. After
-// twenty seconds the room throws the visitor back out, facing the tower.
+// Four seconds after the first part of the tower breaks, a portal opens where the antenna tip stood.
+// It leads into a sealed box below the ground, stocked with pickups and watched by three
+// emplacements. After twenty seconds the room throws the visitor back out, facing the tower.
 //
 // Everything here is authored in map units, exactly like `size`, `obstacles` and `portals` of this
 // preset. The arena multiplies by the map scale (3) while it builds, so one map unit is three world
@@ -12,14 +12,16 @@
 // Three numbers decide the whole layout and none of them is taste:
 //   - The arena box runs from y = 0 to y = 220, so the room has to hang below zero with at least
 //     two map units of rock between the two. Touching would leave the normal on the seam undecided.
+//   - Every possible first break takes the summit away, so the former tip is free by the time the
+//     delayed portal appears there.
 //   - A collapse settles at most 130.9 map units from the tower axis (218.2 m at 0.6 units per
-//     metre, measured on the baked clips). Both the portal and the eject point stand outside that
-//     circle, so no fall can ever bury either of them.
-//   - Half the field is 155 map units, and a portal keeps eight units clear of the side walls.
+//     metre, measured on the baked clips). The eject point stands outside that circle.
 //
 // The guards are ordinary `staticTurrets`. They stand in the room and nowhere else, which is what
 // makes the eject point safe: it is a full field away from them, far beyond the 270 world metres
 // the rocket emplacement reaches.
+
+import { TIP } from '../eiffel_tower/EiffelTowerStructure.js';
 
 /** Interior of the room. The ceiling is four map units below the arena floor. */
 const ROOM_HALF = 20;
@@ -105,10 +107,9 @@ export const EIFFEL_SIEGE_SECRET_ROOM = Object.freeze({
     unlock: Object.freeze({ destructible: 'eiffel_tower', when: 'anyBreak', delaySeconds: 4 }),
     stayLimitSeconds: 20,
     refillSeconds: 30,
-    // Due west, 140 map units out: past the 130.9 the wreck reaches, 15 units clear of the wall, and
-    // a quarter turn away from all four diagonals a leg topples along. Twelve units above the
-    // esplanade, the height the rest of the map is flown at.
-    entryPortal: Object.freeze({ pos: Object.freeze([-140, 20, 0]), color: 0xffc94d }),
+    // The exact place the antenna tip occupied before any break. Every break scene carries the
+    // summit away, and the four-second delay lets that collapse clear the portal before it appears.
+    entryPortal: Object.freeze({ pos: Object.freeze([0, TIP, 0]), color: 0xffc94d }),
     roomPortal: Object.freeze({ pos: Object.freeze([0, -10, 0]) }),
     bounds: ROOM_BOUNDS,
     // Due south, the same 140 units out and a whole field away from the guards below the centre.

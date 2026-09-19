@@ -9,6 +9,7 @@ import { EIFFEL_TOWER_SIEGE_DESTRUCTIBLES } from '../src/core/config/maps/preset
 import { EIFFEL_SIEGE_SECRET_ROOM_OBSTACLES } from '../src/core/config/maps/presets/eiffel_tower_siege/EiffelTowerSiegeSecretRoom.js';
 import { normalizeSecretRooms } from '../src/shared/contracts/SecretRoomContract.js';
 import { normalizeStaticTurretDefinition } from '../src/shared/contracts/MapSinglePlayerScenarioContract.js';
+import { TIP } from '../src/core/config/maps/presets/eiffel_tower/EiffelTowerStructure.js';
 
 // The hidden vault under the Champ-de-Mars. Everything here is authored in map units, exactly like
 // `size`, `obstacles` and `portals` of the same preset; the arena multiplies by the map scale while
@@ -24,53 +25,9 @@ const MAP_SCALE = CONFIG_SECTIONS.ARENA.MAP_SCALE;
 // baked clips.
 const WRECK_REACH = 218.2 * 0.6;
 
-// Half the field. A portal has to keep this much clear of the four side walls.
+// Half the field. The eject point has to keep this much clear of the four side walls.
 const HALF_SIZE = MAP.size[0] / 2;
 const EDGE_MARGIN = 8;
-
-/** Heading of a point around the tower axis, the `atan2(x, z)` convention the collapses use. */
-function heading(x, z) {
-    return Math.atan2(x, z);
-}
-
-/** Smallest angle between two headings, in degrees. */
-function headingGapDeg(a, b) {
-    const raw = Math.abs(a - b) % (Math.PI * 2);
-    const gap = raw > Math.PI ? Math.PI * 2 - raw : raw;
-    return (gap * 180) / Math.PI;
-}
-
-/** Distance of a point from a line segment, used for the tapered beam obstacles. */
-function distanceToSegment(point, start, end) {
-    const ax = end[0] - start[0];
-    const ay = end[1] - start[1];
-    const az = end[2] - start[2];
-    const lengthSq = ax * ax + ay * ay + az * az;
-    let t = 0;
-    if (lengthSq > 0) {
-        t = ((point[0] - start[0]) * ax + (point[1] - start[1]) * ay + (point[2] - start[2]) * az) / lengthSq;
-        t = Math.max(0, Math.min(1, t));
-    }
-    const dx = point[0] - (start[0] + ax * t);
-    const dy = point[1] - (start[1] + ay * t);
-    const dz = point[2] - (start[2] + az * t);
-    return Math.sqrt(dx * dx + dy * dy + dz * dz);
-}
-
-/** Whether an authored obstacle reaches within `clearance` map units of a point. */
-function obstacleReaches(obstacle, point, clearance) {
-    const shape = String(obstacle?.shape || '').toLowerCase();
-    if (shape === 'beam' || shape === 'tube') {
-        const radius = Number(obstacle.radius) || 0;
-        return distanceToSegment(point, obstacle.start, obstacle.end) <= radius + clearance;
-    }
-    if (!Array.isArray(obstacle?.pos) || !Array.isArray(obstacle?.size)) return false;
-    for (let axis = 0; axis < 3; axis += 1) {
-        const half = obstacle.size[axis] / 2 + clearance;
-        if (Math.abs(point[axis] - obstacle.pos[axis]) > half) return false;
-    }
-    return true;
-}
 
 /** Overlap of two boxes on one axis; zero or less means they only touch or stand apart. */
 function axisOverlap(aMin, aMax, bMin, bMax) {
@@ -147,24 +104,14 @@ test('T-S37c: the room boxes enclose the bounds without reaching into them', () 
     }
 });
 
-test('T-S37d: the entry portal stands clear of the tower, its wreck and every fall sector', () => {
+test('T-S37d: the entry portal replaces the former antenna tip after every possible first break', () => {
     const pos = ROOM.entryPortal.pos;
-    const radius = Math.hypot(pos[0], pos[2]);
-    // Nothing of a collapse settles further out than this, so no fall can ever bury the portal.
-    assert.ok(radius > WRECK_REACH, `portal radius ${radius} vs wreck reach ${WRECK_REACH}`);
-    assert.ok(Math.abs(pos[0]) <= HALF_SIZE - EDGE_MARGIN, 'portal too close to the x wall');
-    assert.ok(Math.abs(pos[2]) <= HALF_SIZE - EDGE_MARGIN, 'portal too close to the z wall');
-    // A leg brings the tower down towards its own corner. Standing a quarter turn off those four
-    // headings keeps the portal out of the sector a fall sweeps, not merely beyond its reach.
-    const portalHeading = heading(pos[0], pos[2]);
-    for (const segment of EIFFEL_TOWER_SIEGE_DESTRUCTIBLES.segments) {
-        if (!segment.kind.startsWith('leg')) continue;
-        const fall = heading(segment.anchor[0], segment.anchor[2]);
-        assert.ok(headingGapDeg(portalHeading, fall) >= 30, `segment ${segment.id} falls towards the portal`);
-    }
-    // And the spot is empty before anything breaks, too: no authored box or beam reaches it.
-    for (const obstacle of MAP.obstacles) {
-        assert.ok(!obstacleReaches(obstacle, pos, 6), `obstacle at ${obstacle.pos || obstacle.start} blocks the portal`);
+    assert.deepEqual([...pos], [0, TIP, 0]);
+    assert.ok(pos[1] < MAP.size[1], 'the former tip must remain inside the arena ceiling');
+    for (const scene of EIFFEL_TOWER_SIEGE_DESTRUCTIBLES.breakScenes) {
+        assert.ok(scene.pieces.includes('summit'), `${scene.id} leaves the summit at the portal`);
+        assert.ok(scene.hideModelIds.includes('eiffel-summit'), `${scene.id} leaves summit iron at the portal`);
+        assert.ok(scene.hideModelIds.includes('eiffel-beacon'), `${scene.id} leaves the beacon at the portal`);
     }
 });
 

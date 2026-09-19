@@ -47,6 +47,25 @@ test('known failures: every entry points at a test title that still exists', () 
     }
 });
 
+test('known failures: a test id identifies exactly one test in its spec', () => {
+    const sources = new Map();
+    for (const entry of catalog.entries) {
+        const testId = /^(T[^:]+):/.exec(entry.title)?.[1];
+        if (!testId) continue;
+        if (!sources.has(entry.spec)) sources.set(entry.spec, readSpec(entry.spec));
+        const escapedId = testId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const matches = sources.get(entry.spec).match(
+            new RegExp(`\\btest\\(\\s*['"]${escapedId}:`, 'g')
+        ) || [];
+        assert.equal(
+            matches.length,
+            1,
+            `${entry.spec} contains ${matches.length} tests with id ${testId}; `
+            + '--skip-known must identify one test without hiding another'
+        );
+    }
+});
+
 test('known failures: every entry carries a date, a reason and a known kind', () => {
     for (const entry of catalog.entries) {
         assert.match(String(entry.since), /^\d{4}-\d{2}-\d{2}$/, `${entry.title} needs a since date`);

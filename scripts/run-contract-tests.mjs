@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { cpus, tmpdir } from 'node:os';
+import { cpus } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -62,14 +62,12 @@ export function selectNodeTestFiles(fileNames, mode = 'fast') {
 // Zahl ueber alle Bereiche wuerde entweder src/shared/contracts absenken oder die
 // schwaecheren Bereiche gar nicht erst zulassen, deshalb pruefen die Grenzen je
 // Bereich nach dem Lauf gegen scripts/architecture/coverage-ratchet.json.
-export function buildCoverageArgs(areaNames, summaryPath) {
+export function buildCoverageArgs(areaNames) {
     return [
         '--experimental-test-coverage',
         ...areaNames.map((areaName) => `--test-coverage-include=${areaName}/**/*.js`),
         '--test-reporter=spec',
         '--test-reporter-destination=stdout',
-        '--test-reporter=./scripts/coverage-summary-reporter.mjs',
-        `--test-reporter-destination=${summaryPath}`,
     ];
 }
 
@@ -85,13 +83,9 @@ export function resolveContractTestArgs(env = process.env, cpuCount = cpus().len
     const concurrency = Number.isInteger(override) && override > 0
         ? override
         : Math.max(2, detectedCores - CONTRACT_CONCURRENCY_HEADROOM);
-    // --test-force-exit: a test file whose server socket or timer stays open after its last
-    // test would otherwise keep the child alive forever (seen: signaling-connection-limit,
-    // four hours at zero CPU). The per-test timeout alone does not end that process.
     return [
         `--test-timeout=${CONTRACT_TEST_TIMEOUT_MS}`,
         `--test-concurrency=${concurrency}`,
-        '--test-force-exit',
     ];
 }
 
@@ -160,25 +154,16 @@ function readContractSummary(summaryPath) {
 
 export function runContractTests(argv = process.argv.slice(2), {
     spawn = spawnSync,
-    tmpRoot = tmpdir(),
     contractSummaryPath = resolveContractSummaryPath(),
     log = console.log,
 } = {}) {
     const mode = argv.find((value) => !String(value).startsWith('-')) || 'fast';
     const coverageEnabled = argv.includes('--coverage');
     const selectedTests = selectNodeTestFiles(collectNodeTestFileNames('tests'), mode);
-    // Only a coverage run needs the temp folder; it is removed again once the ratchet has read it.
-    const coverageDirectory = coverageEnabled ? mkdtempSync(path.join(tmpRoot, 'curvios-coverage-')) : null;
-    try {
-        return runSelectedContractTests({ coverageDirectory, contractSummaryPath, selectedTests, spawn, log });
-    } finally {
-        if (coverageDirectory) rmSync(coverageDirectory, { recursive: true, force: true });
-    }
+    return runSelectedContractTests({ coverageEnabled, contractSummaryPath, selectedTests, spawn, log });
 }
 
-function runSelectedContractTests({ coverageDirectory, contractSummaryPath, selectedTests, spawn, log }) {
-    const coverageEnabled = coverageDirectory !== null;
-    const summaryPath = coverageEnabled ? path.join(coverageDirectory, 'summary.json') : null;
+function runSelectedContractTests({ coverageEnabled, contractSummaryPath, selectedTests, spawn, log }) {
     mkdirSync(path.dirname(contractSummaryPath), { recursive: true });
     const autoScale = resolveAutoTimeScaleEnv(process.env, existsSync(resolvePlaywrightRunLockPath(process.env)));
     const childEnv = { ...process.env, ...autoScale };
@@ -186,7 +171,7 @@ function runSelectedContractTests({ coverageDirectory, contractSummaryPath, sele
         log(`[contract] playwright lock is held by another run; CURVIOS_TEST_TIME_SCALE=${autoScale.CURVIOS_TEST_TIME_SCALE}`);
     }
     const reporterArgs = coverageEnabled
-        ? buildCoverageArgs(Object.keys(readCoverageRatchet().areas), summaryPath)
+        ? buildCoverageArgs(Object.keys(readCoverageRatchet().areas))
         : ['--test-reporter=spec', '--test-reporter-destination=stdout'];
 
     const result = spawn(process.execPath, [
@@ -218,7 +203,7 @@ function runSelectedContractTests({ coverageDirectory, contractSummaryPath, sele
 
     // Der Ratchet laeuft auch bei roten Tests, damit ein Coverage-Einbruch nicht erst
     // beim naechsten gruenen Lauf auffaellt. Der Testfehler bleibt der Rueckgabewert.
-    const ratchetStatus = runCoverageRatchet(summaryPath);
+    const ratchetStatus = runCoverageRatchet(contractSummaryPath);
     logSummary();
     return testStatus || ratchetStatus;
 }

@@ -31,6 +31,12 @@ function resolveState(overrides = {}) {
 }
 
 test('health aura clamps hit points and resolves the approved color anchors', () => {
+    assert.deepEqual(PLAYER_HEALTH_AURA_COLORS, {
+        critical: 0xff3b30,
+        medium: 0xffd60a,
+        full: 0x34c759,
+    });
+
     const critical = resolveState({ hp: -20 });
     const medium = resolveState({ hp: 50 });
     const full = resolveState({ hp: 140 });

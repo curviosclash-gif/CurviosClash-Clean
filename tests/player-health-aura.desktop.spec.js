@@ -89,7 +89,7 @@ test('Fight health aura covers teammates, enemies, split cameras and match resta
     expect(firstRun.second.visibleToCamera1).toBeFalsy();
     expect(firstRun.bot.visibleToCamera0).toBeTruthy();
     expect(firstRun.bot.visibleToCamera1).toBeTruthy();
-    expect(firstRun.second.color).toBe(0xffb347);
+    expect(firstRun.second.color).toBe(0xffd60a);
     expect(firstRun.first.innerOpacity).toBeGreaterThan(firstRun.second.innerOpacity);
     expect(firstRun.second.innerOpacity).toBeGreaterThan(firstRun.bot.innerOpacity);
     expect(firstRun.first.innerOpacity).toBeGreaterThan(firstRun.first.outerOpacity);

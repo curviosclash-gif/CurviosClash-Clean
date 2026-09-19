@@ -8,7 +8,7 @@ import {
     readCoverageRatchet,
     resolveArea,
 } from '../scripts/check-coverage-ratchet.mjs';
-import { buildCoverageArgs } from '../scripts/run-contract-tests.mjs';
+import { buildContractSummaryReporterArgs, buildCoverageArgs } from '../scripts/run-contract-tests.mjs';
 
 function fileEntry(relativePath, { lines = [10, 10], branches = [4, 4], functions = [2, 2] } = {}) {
     return {
@@ -98,7 +98,7 @@ test('the shipped ratchet still guards the contracts at least as hard as the old
 
 test('every gated area is handed to node as a coverage include', () => {
     const areaNames = Object.keys(readCoverageRatchet().areas);
-    const args = buildCoverageArgs(areaNames, '/tmp/summary.json');
+    const args = buildCoverageArgs(areaNames);
 
     for (const areaName of areaNames) {
         assert.ok(
@@ -106,5 +106,18 @@ test('every gated area is handed to node as a coverage include', () => {
             `${areaName} is measured, otherwise its floor would pass on an empty set`
         );
     }
-    assert.ok(args.includes('--test-reporter-destination=/tmp/summary.json'));
+    assert.ok(args.includes('--test-reporter-destination=stdout'));
+});
+
+test('coverage keeps one human reporter and one machine reporter', () => {
+    const args = [
+        ...buildCoverageArgs(AREAS),
+        ...buildContractSummaryReporterArgs('/tmp/contract-summary.json'),
+    ];
+    const reporters = args.filter((arg) => arg.startsWith('--test-reporter='));
+
+    assert.deepEqual(reporters, [
+        '--test-reporter=spec',
+        '--test-reporter=./scripts/contract-summary-reporter.mjs',
+    ]);
 });

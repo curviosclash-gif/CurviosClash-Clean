@@ -104,7 +104,11 @@ export function formatAreaLine(result) {
 export function runCoverageRatchet(summaryPath, rootDir = process.cwd()) {
     const raw = readFileSync(summaryPath, 'utf8').trim();
     if (!raw) throw new Error(`Empty coverage summary at ${summaryPath}.`);
-    const summary = JSON.parse(raw.split('\n').pop());
+    const payload = JSON.parse(raw);
+    const summary = payload?.coverage || payload;
+    if (!summary?.workingDirectory || !Array.isArray(summary?.files)) {
+        throw new Error(`Missing coverage data in ${summaryPath}.`);
+    }
     const ratchet = readCoverageRatchet(rootDir);
     const results = evaluateCoverageRatchet(summary, ratchet);
 
