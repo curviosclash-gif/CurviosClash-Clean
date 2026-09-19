@@ -64,6 +64,7 @@ const BASE_MAP_KEYS = [
     'burg_falkenwacht',
     'burg_falkenwacht_arena',
     'clockwork_canyon',
+    'storm_bridge_siege',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(

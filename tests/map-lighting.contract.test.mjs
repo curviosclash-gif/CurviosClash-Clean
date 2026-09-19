@@ -152,6 +152,7 @@ test('only the selected presets define lighting and all others resolve to defaul
         'pyramid',
         'reactor_site',
         'standard',
+        'storm_bridge_siege',
         'trench',
         'vertical_maze',
         'wind_cathedral',
