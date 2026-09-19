@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
+import { normalizeMapUnit, resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
 import { isTurretCombatActive } from '../../shared/contracts/TurretCombatContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import {
@@ -20,29 +20,60 @@ import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-uni
 import { applyMapUnitDamage, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
 import { crushTrailsUnderUnit } from './map-units/MapUnitTrailOps.js';
 import { applyMapUnitsNetworkState, serializeMapUnits } from './map-units/MapUnitNetworkOps.js';
+import {
+    bindSwarmMemberCombat,
+    createSwarmMembers,
+    resetSwarmMembers,
+    updateSwarmMembers,
+} from './map-units/MapUnitSwarmOps.js';
+import {
+    createSwarmAssets,
+    createSwarmVisual,
+    disposeSwarmAssets,
+    updateSwarmVisual,
+} from './map-units/MapUnitSwarmVisualOps.js';
+import {
+    createBomberAssets,
+    createBomberVisual,
+    disposeBomberAssets,
+    updateBomberVisual,
+} from './map-units/MapUnitBomberVisualOps.js';
+import { updateBomberBombs } from './map-units/MapUnitBombOps.js';
+import { updateBomberCrash } from './map-units/MapUnitBomberCrashOps.js';
+import {
+    createCreatureAssets,
+    createCreatureVisual,
+    disposeCreatureAssets,
+    updateCreatureVisual,
+} from './map-units/MapUnitCreatureVisualOps.js';
+import { updateCreatureAttack } from './map-units/MapUnitCreatureOps.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
 
 /**
- * Map units (E46): tanks that drive an authored path. This system owns their lifecycle - built at
- * round start from the map definition, moved every tick, removed at round end. The unit's
- * `position` is the centre of its turret, which is what weapons aim at; `groundPosition` is the
- * path point under its tracks.
+ * Map units (E46/E53): map-owned targets that follow an authored path. This system owns their
+ * lifecycle from round start through cleanup. `position` is the point weapons aim at;
+ * `groundPosition` is the authored path pose before a kind-specific visual offset.
  */
 export class MapUnitSystem {
     constructor(entityManager) {
         this.entityManager = entityManager || null;
         this.units = [];
         this._assets = null;
+        this._swarmAssets = null;
+        this._bomberAssets = null;
+        this._creatureAssets = null;
         // Scratch vectors the static turret targeting and aiming code expects on its system.
         this._tmpAim = new THREE.Vector3();
         this._tmpPoint = new THREE.Vector3();
+        this._tmpBombPoint = new THREE.Vector3();
         this._trailQueryStamp = 0;
         this._targets = [];
         this._dueRespawns = [];
         this._trailScratch = [];
         this.networkReplica = false;
+        this._summonCounter = 0;
     }
 
     startRound() {
@@ -57,7 +88,9 @@ export class MapUnitSystem {
         const definitions = resolveMapUnitDefinitions(mapDefinition, { preserveSpatial: mapDefinition?.scaleAuthoredAnchors === true });
         for (const definition of definitions) {
             if (!isTurretCombatActive(owner.gameModeStrategy, [...definition.allowedModes])) continue;
-            this.units.push(this._createUnit(definition, scale));
+            const unit = this._createUnit(definition, scale);
+            this.units.push(unit);
+            this.setBossRoomClock(unit, true);
         }
         return this.units.length;
     }
@@ -88,17 +121,46 @@ export class MapUnitSystem {
             mounts: [],
             respawnRemaining: Infinity,
             deaths: 0,
+            members: null,
+            bombCooldownRemaining: definition.weapons?.bomb?.cooldown || 0,
+            bombsFired: 0,
+            crashing: false,
+            crashSourcePlayer: null,
+            summoned: false,
+            calledByIndex: -1,
+            attackSourcePlayer: null,
+            summonRemaining: Infinity,
+            attackCooldownRemaining: definition.attack?.cooldown || 0,
+            attacksFired: 0,
+            networkAttacksInitialized: false,
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
         this._placeCentre(unit);
-        unit.root = createMapUnitVisual(this.entityManager?.renderer, this._resolveAssets(), scale);
-        updateMapUnitVisual(unit);
+        if (definition.kind === 'swarm') {
+            unit.members = createSwarmMembers(definition, scale, unit.position);
+            unit.root = createSwarmVisual(this.entityManager?.renderer, this._resolveSwarmAssets(), unit.members);
+        } else if (definition.kind === 'bomber') {
+            unit.root = createBomberVisual(this.entityManager?.renderer, this._resolveBomberAssets(), scale);
+        } else if (definition.kind === 'creature') {
+            unit.root = createCreatureVisual(this.entityManager?.renderer, this._resolveCreatureAssets(), scale);
+        } else {
+            unit.root = createMapUnitVisual(
+                this.entityManager?.renderer,
+                this._resolveAssets(),
+                scale * (definition.kind === 'boss' ? definition.modelScale : 1),
+            );
+        }
+        this._updateVisual(unit);
         unit.source = createUnitSource(unit);
         // Its own shots must not hit it: the weapons skip targets owned by the shooter.
         unit.ownerPlayer = unit.source;
         unit.mounts = createUnitMounts(unit);
         unit.takeDamage = (amount, options = {}) => applyMapUnitDamage(this, unit, amount, options);
+        if (unit.kind === 'swarm') {
+            bindSwarmMemberCombat(this, unit);
+            resetSwarmMembers(unit);
+        }
         return unit;
     }
 
@@ -108,9 +170,39 @@ export class MapUnitSystem {
         return this._assets;
     }
 
+    _resolveSwarmAssets() {
+        if (!this.entityManager?.renderer) return null;
+        if (!this._swarmAssets) this._swarmAssets = createSwarmAssets();
+        return this._swarmAssets;
+    }
+
+    _resolveBomberAssets() {
+        if (!this.entityManager?.renderer) return null;
+        if (!this._bomberAssets) this._bomberAssets = createBomberAssets();
+        return this._bomberAssets;
+    }
+
+    _resolveCreatureAssets() {
+        if (!this.entityManager?.renderer) return null;
+        if (!this._creatureAssets) this._creatureAssets = createCreatureAssets();
+        return this._creatureAssets;
+    }
+
     _placeCentre(unit) {
         unit.position.copy(unit.groundPosition);
-        unit.position.y += TANK_TURRET_HEIGHT * unit.scale;
+        if (unit.kind === 'tank' || unit.kind === 'boss') {
+            const modelScale = unit.kind === 'boss' ? unit.definition.modelScale : 1;
+            unit.position.y += TANK_TURRET_HEIGHT * unit.scale * modelScale;
+        }
+        if (unit.kind === 'creature') unit.position.y += 1.35 * unit.scale;
+        if (unit.kind === 'swarm') updateSwarmMembers(unit);
+    }
+
+    _updateVisual(unit) {
+        if (unit.kind === 'swarm') updateSwarmVisual(unit);
+        else if (unit.kind === 'bomber') updateBomberVisual(unit);
+        else if (unit.kind === 'creature') updateCreatureVisual(unit);
+        else updateMapUnitVisual(unit);
     }
 
     /** Back at the start of its path with full hit points and cold weapons. */
@@ -119,6 +211,14 @@ export class MapUnitSystem {
         unit.hp = unit.maxHp;
         unit.respawnRemaining = Infinity;
         resetUnitOnPath(unit);
+        if (unit.kind === 'swarm') resetSwarmMembers(unit);
+        unit.bombCooldownRemaining = unit.definition.weapons?.bomb?.cooldown || 0;
+        unit.bombsFired = 0;
+        unit.crashing = false;
+        unit.crashSourcePlayer = null;
+        unit.attackCooldownRemaining = unit.definition.attack?.cooldown || 0;
+        unit.attacksFired = 0;
+        unit.networkAttacksInitialized = false;
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? unit.yaw;
         this._placeCentre(unit);
         for (const mount of unit.mounts) {
@@ -127,7 +227,8 @@ export class MapUnitSystem {
             mount.aimDirection.set(Math.sin(unit.yaw), 0, Math.cos(unit.yaw));
         }
         if (unit.root) unit.root.visible = true;
-        updateMapUnitVisual(unit);
+        this.setBossRoomClock(unit, true);
+        this._updateVisual(unit);
     }
 
     update(dt) {
@@ -136,27 +237,86 @@ export class MapUnitSystem {
             for (const unit of tickMapUnitRespawns(this.units, safeDt, this._dueRespawns)) this._respawn(unit);
         }
         for (const unit of this.units) {
+            if (unit.crashing) {
+                if (!this.networkReplica) updateBomberCrash(this, unit, safeDt);
+                continue;
+            }
             if (!unit.alive) continue;
-            advanceUnitOnPath(unit, unit.path, unit.speed * safeDt, unit.definition.loop);
+            const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
+            advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
             const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
             unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
             this._placeCentre(unit);
-            updateMapUnitVisual(unit);
+            this._updateVisual(unit);
             const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;
-            updateUnitWeapons(this, unit, safeDt, authority);
-            if (authority && unit.alive) crushTrailsUnderUnit(this.entityManager, unit, safeDt, this._trailScratch);
+            updateUnitWeapons(this, unit, unitDt, authority);
+            if (unit.kind === 'bomber') updateBomberBombs(this, unit, unitDt, authority);
+            if (unit.kind === 'creature') updateCreatureAttack(this, unit, unitDt, authority);
+            if (authority && unit.alive && unit.kind === 'tank') {
+                crushTrailsUnderUnit(this.entityManager, unit, unitDt, this._trailScratch);
+            }
+            if (unit.summoned && !this.networkReplica) {
+                unit.summonRemaining = Math.max(0, unit.summonRemaining - safeDt);
+                if (unit.summonRemaining <= 0) {
+                    unit.alive = false;
+                    unit.respawnRemaining = Infinity;
+                    if (unit.root) unit.root.visible = false;
+                }
+            }
         }
+    }
+
+    callBomberStrike(player) {
+        if (this.networkReplica || !player || this.entityManager?.isFightOutcomeAuthority === false) return false;
+        const bounds = this.entityManager?.arena?.bounds;
+        const minX = Number(bounds?.minX ?? bounds?.min?.x);
+        const maxX = Number(bounds?.maxX ?? bounds?.max?.x);
+        const groundY = Number(bounds?.minY ?? bounds?.min?.y) || 0;
+        if (!Number.isFinite(minX) || !Number.isFinite(maxX) || maxX <= minX) return false;
+        const minZ = Number(bounds?.minZ ?? bounds?.min?.z);
+        const maxZ = Number(bounds?.maxZ ?? bounds?.max?.z);
+        const z = Math.max(Number.isFinite(minZ) ? minZ : -100, Math.min(Number.isFinite(maxZ) ? maxZ : 100, Number(player.position?.z) || 0));
+        const ceilingY = Number(bounds?.maxY ?? bounds?.max?.y);
+        const height = Number.isFinite(ceilingY) ? Math.min(groundY + 30, ceilingY - 1) : groundY + 30;
+        const definition = normalizeMapUnit({
+            id: `called_bomber_${++this._summonCounter}`,
+            kind: 'bomber', path: [[minX, height, z], [maxX, height, z]], loop: false,
+            speed: 30, respawnSeconds: 0,
+        }, 0, undefined, { preserveSpatial: true });
+        if (!definition) return false;
+        const unit = this._createUnit(definition, 1);
+        unit.summoned = true;
+        unit.calledByIndex = Number.isInteger(player.index) ? player.index : -1;
+        unit.attackSourcePlayer = player;
+        unit.summonRemaining = (maxX - minX) / unit.speed;
+        this.units.push(unit);
+        return true;
     }
 
     /** What weapons may hit: the tanks that are still standing. The list is reused per call. */
     getTargets() {
         this._targets.length = 0;
-        for (const unit of this.units) if (unit.alive) this._targets.push(unit);
+        for (const unit of this.units) {
+            if (!unit.alive) continue;
+            if (unit.kind === 'swarm') {
+                for (const member of unit.members) if (member.alive) this._targets.push(member);
+            } else {
+                this._targets.push(unit);
+            }
+        }
         return this._targets;
     }
 
     setNetworkReplica(enabled) {
         this.networkReplica = enabled === true;
+    }
+
+    setBossRoomClock(unit, paused) {
+        const roomId = unit?.kind === 'boss' ? unit.definition?.secretRoomId : '';
+        if (!roomId) return;
+        for (const entry of this.entityManager?._secretRoomSystem?.getRooms?.() || []) {
+            if (entry?.room?.id === roomId) entry.clockPaused = paused === true;
+        }
     }
 
     serializeNetworkState() {
@@ -166,13 +326,16 @@ export class MapUnitSystem {
     applyNetworkState(entries) {
         applyMapUnitsNetworkState(this, entries, (unit) => {
             this._placeCentre(unit);
-            updateMapUnitVisual(unit);
+            this._updateVisual(unit);
         });
     }
 
     clear() {
         const renderer = this.entityManager?.renderer;
-        for (const unit of this.units) removeMapUnitVisual(renderer, unit);
+        for (const unit of this.units) {
+            this.setBossRoomClock(unit, false);
+            removeMapUnitVisual(renderer, unit);
+        }
         this.units.length = 0;
     }
 
@@ -180,5 +343,11 @@ export class MapUnitSystem {
         this.clear();
         disposeMapUnitAssets(this._assets);
         this._assets = null;
+        disposeSwarmAssets(this._swarmAssets);
+        this._swarmAssets = null;
+        disposeBomberAssets(this._bomberAssets);
+        this._bomberAssets = null;
+        disposeCreatureAssets(this._creatureAssets);
+        this._creatureAssets = null;
     }
 }

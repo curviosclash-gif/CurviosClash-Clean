@@ -17,7 +17,7 @@ import { updateStaticTurretVisual } from '../static-turret/StaticTurretVisualOps
 
 const MOUNT_TURN_RATE = 3;
 
-function createMount(unit, weapon, settings, source, proxyRoot) {
+function createMount(unit, weapon, settings, source, proxyRoot, position = unit.position) {
     const aimDirection = new THREE.Vector3(Math.sin(unit.yaw), 0, Math.cos(unit.yaw));
     return {
         id: `${unit.id}:${weapon}`,
@@ -27,7 +27,7 @@ function createMount(unit, weapon, settings, source, proxyRoot) {
         cooldown: settings.cooldown,
         range: settings.range * unit.scale,
         authoredScale: unit.scale,
-        position: unit.position,
+        position,
         aimDirection,
         root: proxyRoot,
         source,
@@ -67,7 +67,7 @@ export function createUnitSource(unit) {
         turretId: unit.id,
         targetPlayers: unit.definition.targetPlayers,
         alive: true,
-        combatLabel: 'Panzer',
+        combatLabel: unit.kind === 'swarm' ? 'Drohne' : 'Panzer',
         position: unit.position,
         getAimDirection: (out) => out.copy(unit.mounts?.[0]?.aimDirection || out.set(0, 0, 1)),
     };
@@ -77,6 +77,15 @@ export function createUnitMounts(unit) {
     const weapons = unit.definition.weapons;
     const userData = unit.root?.userData || {};
     const mounts = [];
+    if (unit.kind === 'swarm' && weapons.mg) {
+        for (const member of unit.members || []) {
+            const mount = createMount(unit, 'mg', weapons.mg, unit.source, { userData: {} }, member.position);
+            mount.id = `${unit.id}:drone_${member.index + 1}:mg`;
+            mount.memberIndex = member.index;
+            mounts.push(mount);
+        }
+        return mounts;
+    }
     const entries = [['mg', weapons.mg], ['rocket', weapons.rocket]].filter(([, settings]) => settings);
     for (const [weapon, settings] of entries) {
         // Only the first mount gets the head pivot, so two weapons never fight over the turret.
@@ -98,6 +107,7 @@ export function updateUnitWeapons(system, unit, dt, canFire) {
     const turrets = system.entityManager?._staticTurretSystem;
     let flashing = false;
     for (const mount of unit.mounts) {
+        if (Number.isInteger(mount.memberIndex) && unit.members?.[mount.memberIndex]?.alive !== true) continue;
         mount.cooldownRemaining = Math.max(0, mount.cooldownRemaining - dt);
         mount.flashRemaining = Math.max(0, mount.flashRemaining - dt);
         flashing = flashing || mount.flashRemaining > 0;

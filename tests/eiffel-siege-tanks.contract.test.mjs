@@ -11,8 +11,9 @@ const GROUND = 8;
 const TURRET_HEIGHT = 2.1;
 const LEG_SQUARE_HALF = 37.5;
 
-function units() {
-    return resolveMapUnitDefinitions(MAP, { preserveSpatial: MAP.scaleAuthoredAnchors === true });
+function tanks() {
+    return resolveMapUnitDefinitions(MAP, { preserveSpatial: MAP.scaleAuthoredAnchors === true })
+        .filter((unit) => unit.kind === 'tank');
 }
 
 function* samplePath(path, step = 1) {
@@ -29,10 +30,10 @@ function* samplePath(path, step = 1) {
 }
 
 test('the siege map sends two looping tanks that drive at the tank start speed', () => {
-    const tanks = units();
-    assert.deepEqual(tanks.map((tank) => tank.id), ['eiffel_siege_tank_north', 'eiffel_siege_tank_south']);
+    const entries = tanks();
+    assert.deepEqual(entries.map((tank) => tank.id), ['eiffel_siege_tank_north', 'eiffel_siege_tank_south']);
     const scale = CONFIG_BASE.ARENA.MAP_SCALE;
-    for (const tank of tanks) {
+    for (const tank of entries) {
         assert.equal(tank.loop, true);
         assert.equal(tank.speed * scale, 12, 'authored 4 on a scale 3 map is 12 world units per second');
         assert.equal(tank.weapons.mg.range * scale, 60);
@@ -43,7 +44,7 @@ test('the siege map sends two looping tanks that drive at the tank start speed',
 
 test('the patrol stays on the ground, inside the field and clear of legs and portals', () => {
     const portals = [EIFFEL_SIEGE_SECRET_ROOM.entryPortal.pos, EIFFEL_SIEGE_SECRET_ROOM.ejectPoint.pos];
-    for (const tank of units()) {
+    for (const tank of tanks()) {
         for (const point of samplePath(tank.path)) {
             assert.equal(point[1], GROUND, 'every waypoint sits on the ground slab');
             assert.ok(Math.abs(point[0]) <= EIFFEL_SIEGE_HALF_SIZE - 40 && Math.abs(point[2]) <= EIFFEL_SIEGE_HALF_SIZE - 40, 'inside the field');
@@ -61,7 +62,7 @@ test('no authored obstacle stands in the patrol route', () => {
     const boxes = MAP.obstacles.filter((obstacle) => obstacle.pos && obstacle.size && !isGround(obstacle));
     const beams = MAP.obstacles.filter((obstacle) => obstacle.shape === 'beam');
     assert.equal(boxes.length + beams.length + 1, MAP.obstacles.length, 'every obstacle is either the ground, a box or a beam');
-    for (const tank of units()) {
+    for (const tank of tanks()) {
         for (const point of samplePath(tank.path, 2)) {
             const centre = [point[0], GROUND + TURRET_HEIGHT, point[2]];
             for (const box of boxes) {

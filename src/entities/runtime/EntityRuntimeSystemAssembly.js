@@ -23,6 +23,7 @@ import { TargetableRegistry } from '../systems/TargetableRegistry.js';
 import { MapUnitSystem } from '../systems/MapUnitSystem.js';
 import { LightningStrikeSystem } from '../../hunt/LightningStrikeSystem.js';
 import { RailgunSystem } from '../../hunt/RailgunSystem.js';
+import { RepairDroneSystem } from '../systems/RepairDroneSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -75,6 +76,9 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     systems.mapUnitSystem = new MapUnitSystem(owner);
     systems.targetableRegistry.addProvider(() => systems.mapUnitSystem.getTargets());
     if (owner) owner._mapUnitSystem = systems.mapUnitSystem;
+    systems.repairDroneSystem = new RepairDroneSystem(owner);
+    systems.targetableRegistry.addProvider(() => systems.repairDroneSystem.getTargets());
+    if (owner) owner._repairDroneSystem = systems.repairDroneSystem;
     systems.lightningStrikeSystem = new LightningStrikeSystem(owner);
     if (owner) owner._lightningStrikeSystem = systems.lightningStrikeSystem;
     systems.railgunSystem = new RailgunSystem(owner);

@@ -1,4 +1,5 @@
 import { rewardMapUnitDestruction } from './MapUnitRewardOps.js';
+import { beginBomberCrash } from './MapUnitBomberCrashOps.js';
 
 /**
  * Hit points, destruction and return of map units (E19, E34).
@@ -40,7 +41,8 @@ export function applyMapUnitDamage(system, unit, amount, options = {}) {
         );
     }
     const isDead = unit.hp <= 0;
-    if (isDead) destroyMapUnit(system, unit, options.sourcePlayer || null);
+    if (isDead && unit.kind === 'bomber') beginBomberCrash(unit, options.sourcePlayer || null);
+    else if (isDead) destroyMapUnit(system, unit, options.sourcePlayer || null);
     return { applied: requested, hpApplied, absorbedByShield: 0, remainingHp: unit.hp, isDead };
 }
 
@@ -102,6 +104,7 @@ export function destroyMapUnit(system, unit, sourcePlayer) {
         `${unit.id}:${unit.kind}`,
     );
     unit.deaths = (Number(unit.deaths) || 0) + 1;
+    system.setBossRoomClock?.(unit, false);
     applyBlast(system, unit, sourcePlayer);
     rewardMapUnitDestruction(system, unit, sourcePlayer);
 }

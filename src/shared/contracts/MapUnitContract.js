@@ -16,7 +16,7 @@ export const MAP_UNIT_LIMITS = Object.freeze({
     maxPathPoints: 64,
 });
 
-const VALID_KINDS = new Set(['tank']);
+const VALID_KINDS = new Set(['tank', 'swarm', 'boss', 'bomber', 'creature']);
 const VALID_MODES = new Set(['HUNT', 'ARCADE']);
 const VALID_ROCKETS = new Set(['ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA']);
 
@@ -29,6 +29,52 @@ const TANK_DEFAULTS = Object.freeze({
     mg: Object.freeze({ damage: 3, cooldown: 0.3, range: 60 }),
     rocket: Object.freeze({ rocketType: 'ROCKET_MEDIUM', cooldown: 5, range: 90 }),
     loot: Object.freeze({ ROCKET_MEDIUM: 0.6, ROCKET_HEAVY: 0.3, ROCKET_MEGA: 0.1 }),
+});
+
+/** Balance start values from ideen.md (drone swarm row). */
+const SWARM_DEFAULTS = Object.freeze({
+    speed: 18,
+    maxHp: 8,
+    hitboxRadius: 1.25,
+    respawnSeconds: 0,
+    mg: Object.freeze({ damage: 2, cooldown: 0.6, range: 40 }),
+    rocket: null,
+    loot: Object.freeze({}),
+});
+
+/** Balance start values from ideen.md (secret-room boss row). */
+const BOSS_DEFAULTS = Object.freeze({
+    speed: 8,
+    maxHp: 800,
+    hitboxRadius: 5.5,
+    respawnSeconds: 0,
+    mg: TANK_DEFAULTS.mg,
+    rocket: Object.freeze({ rocketType: 'ROCKET_MEDIUM', cooldown: 3, range: 90 }),
+    loot: TANK_DEFAULTS.loot,
+});
+
+/** Balance start values from ideen.md (bomber row). */
+const BOMBER_DEFAULTS = Object.freeze({
+    speed: 30,
+    maxHp: 120,
+    hitboxRadius: 4,
+    respawnSeconds: 90,
+    mg: null,
+    rocket: null,
+    bomb: Object.freeze({ damage: 50, cooldown: 1.5, radius: 15 }),
+    crash: Object.freeze({ damage: 50, radius: 20 }),
+    loot: TANK_DEFAULTS.loot,
+});
+
+const CREATURE_DEFAULTS = Object.freeze({
+    speed: 8,
+    maxHp: 600,
+    hitboxRadius: 6,
+    respawnSeconds: 90,
+    mg: null,
+    rocket: null,
+    loot: TANK_DEFAULTS.loot,
+    attack: Object.freeze({ damage: 30, cooldown: 4, radius: 20 }),
 });
 
 /**
@@ -59,31 +105,48 @@ function normalizePoint(point) {
 /**
  * @param {unknown} raw
  * @param {typeof clampNumber} spatial
+ * @param {{ damage: number, cooldown: number, range: number }} defaults
  * @returns {Readonly<{ damage: number, cooldown: number, range: number }> | null}
  */
-function normalizeMg(raw, spatial) {
+function normalizeMg(raw, spatial, defaults) {
     if (raw === false || raw === null) return null;
     const source = raw && typeof raw === 'object' ? /** @type {any} */ (raw) : {};
     return Object.freeze({
-        damage: clampNumber(source.damage, TANK_DEFAULTS.mg.damage, 1, 40),
-        cooldown: clampNumber(source.cooldown, TANK_DEFAULTS.mg.cooldown, 0.1, 10),
-        range: spatial(source.range, TANK_DEFAULTS.mg.range, 8, 180),
+        damage: clampNumber(source.damage, defaults.damage, 1, 40),
+        cooldown: clampNumber(source.cooldown, defaults.cooldown, 0.1, 10),
+        range: spatial(source.range, defaults.range, 8, 180),
     });
 }
 
 /**
  * @param {unknown} raw
  * @param {typeof clampNumber} spatial
+ * @param {{ rocketType: string, cooldown: number, range: number } | null} defaults
  * @returns {Readonly<{ rocketType: string, cooldown: number, range: number }> | null}
  */
-function normalizeRocket(raw, spatial) {
-    if (raw === false || raw === null) return null;
+function normalizeRocket(raw, spatial, defaults) {
+    if (raw === false || raw === null || !defaults) return null;
     const source = raw && typeof raw === 'object' ? /** @type {any} */ (raw) : {};
     const rocketType = String(source.rocketType || '').toUpperCase();
     return Object.freeze({
-        rocketType: VALID_ROCKETS.has(rocketType) ? rocketType : TANK_DEFAULTS.rocket.rocketType,
-        cooldown: clampNumber(source.cooldown, TANK_DEFAULTS.rocket.cooldown, 0.5, 30),
-        range: spatial(source.range, TANK_DEFAULTS.rocket.range, 8, 180),
+        rocketType: VALID_ROCKETS.has(rocketType) ? rocketType : defaults.rocketType,
+        cooldown: clampNumber(source.cooldown, defaults.cooldown, 0.5, 30),
+        range: spatial(source.range, defaults.range, 8, 180),
+    });
+}
+
+/**
+ * @param {unknown} raw
+ * @param {typeof clampNumber} spatial
+ * @param {{ damage: number, cooldown: number, radius: number } | null} defaults
+ */
+function normalizeBomb(raw, spatial, defaults) {
+    if (raw === false || raw === null || !defaults) return null;
+    const source = raw && typeof raw === 'object' ? /** @type {any} */ (raw) : {};
+    return Object.freeze({
+        damage: clampNumber(source.damage, defaults.damage, 1, 210),
+        cooldown: clampNumber(source.cooldown, defaults.cooldown, 0.2, 30),
+        radius: spatial(source.radius, defaults.radius, 1, 60),
     });
 }
 
@@ -91,9 +154,10 @@ function normalizeRocket(raw, spatial) {
  * Loot chances per rocket type. Unknown types and non-positive chances fall away; an empty or
  * missing table falls back to the default so a tank always drops something (E19).
  * @param {unknown} raw
+ * @param {Readonly<Record<string, number>>} defaults
  * @returns {Readonly<Record<string, number>>}
  */
-function normalizeLoot(raw) {
+function normalizeLoot(raw, defaults) {
     /** @type {Record<string, number>} */
     const loot = {};
     if (raw && typeof raw === 'object') {
@@ -102,7 +166,7 @@ function normalizeLoot(raw) {
             if (VALID_ROCKETS.has(type) && Number.isFinite(value) && value > 0) loot[type] = Math.min(1, value);
         }
     }
-    return Object.freeze(Object.keys(loot).length > 0 ? loot : { ...TANK_DEFAULTS.loot });
+    return Object.freeze(Object.keys(loot).length > 0 ? loot : { ...defaults });
 }
 
 /**
@@ -133,6 +197,9 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
         warnings?.push(`Map unit "${id}" has the unknown kind "${kind}" and was dropped.`);
         return null;
     }
+    const defaults = kind === 'swarm' ? SWARM_DEFAULTS
+        : (kind === 'boss' ? BOSS_DEFAULTS
+            : (kind === 'bomber' ? BOMBER_DEFAULTS : (kind === 'creature' ? CREATURE_DEFAULTS : TANK_DEFAULTS)));
     const rawPath = Array.isArray(source?.path) ? source.path.slice(0, MAP_UNIT_LIMITS.maxPathPoints) : [];
     const path = rawPath.map(normalizePoint);
     if (path.length < MAP_UNIT_LIMITS.minPathPoints || path.some((/** @type {readonly number[] | null} */ point) => point === null)) {
@@ -148,13 +215,47 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
         kind,
         path: Object.freeze(/** @type {readonly number[][]} */ (path)),
         // true drives the path as a closed circuit, false turns around at both ends.
-        loop: source?.loop !== false,
-        speed: spatial(source?.speed, TANK_DEFAULTS.speed, 1, 60),
-        maxHp: clampNumber(source?.maxHp, TANK_DEFAULTS.maxHp, 1, 2000),
-        hitboxRadius: spatial(source?.hitboxRadius, TANK_DEFAULTS.hitboxRadius, 0.5, 12),
-        respawnSeconds: clampNumber(source?.respawnSeconds, TANK_DEFAULTS.respawnSeconds, 0, 3600),
-        weapons: Object.freeze({ mg: normalizeMg(weapons.mg, spatial), rocket: normalizeRocket(weapons.rocket, spatial) }),
-        loot: normalizeLoot(source?.loot),
+        loop: source?.loop == null ? kind !== 'bomber' : source.loop !== false,
+        speed: spatial(source?.speed, defaults.speed, 1, 60),
+        maxHp: clampNumber(source?.maxHp, defaults.maxHp, 1, 2000),
+        hitboxRadius: spatial(source?.hitboxRadius, defaults.hitboxRadius, 0.5, 12),
+        respawnSeconds: clampNumber(source?.respawnSeconds, defaults.respawnSeconds, 0, 3600),
+        weapons: Object.freeze({
+            mg: defaults.mg ? normalizeMg(weapons.mg, spatial, defaults.mg) : null,
+            rocket: normalizeRocket(weapons.rocket, spatial, defaults.rocket),
+            ...(kind === 'bomber' ? { bomb: normalizeBomb(weapons.bomb, spatial, BOMBER_DEFAULTS.bomb) } : {}),
+        }),
+        loot: normalizeLoot(source?.loot, defaults.loot),
+        ...(kind === 'swarm' ? {
+            memberCount: Math.trunc(clampNumber(source?.memberCount, 8, 1, 8)),
+            memberHp: clampNumber(source?.memberHp, 8, 1, 100),
+            formationRadius: spatial(source?.formationRadius, 5, 1, 20),
+        } : {}),
+        ...(kind === 'boss' ? {
+            secretRoomId: String(source?.secretRoomId || '').trim().slice(0, 80),
+            modelScale: clampNumber(source?.modelScale, 1.6, 1, 3),
+            lootCount: Math.trunc(clampNumber(source?.lootCount, 3, 1, 8)),
+            guaranteedLoot: Object.freeze(/** @type {unknown[]} */ (Array.isArray(source?.guaranteedLoot)
+                ? source.guaranteedLoot : ['ROCKET_MEGA'])
+                .map((/** @type {unknown} */ type) => String(type || '').toUpperCase())
+                .filter((/** @type {string} */ type, /** @type {number} */ index, /** @type {string[]} */ entries) => (
+                    VALID_ROCKETS.has(type) && entries.indexOf(type) === index
+                ))
+                .slice(0, 8)),
+        } : {}),
+        ...(kind === 'bomber' ? {
+            crash: Object.freeze({
+                damage: clampNumber(source?.crash?.damage, BOMBER_DEFAULTS.crash.damage, 1, 210),
+                radius: spatial(source?.crash?.radius, BOMBER_DEFAULTS.crash.radius, 1, 60),
+            }),
+        } : {}),
+        ...(kind === 'creature' ? {
+            attack: Object.freeze({
+                damage: clampNumber(source?.attack?.damage, CREATURE_DEFAULTS.attack.damage, 1, 210),
+                cooldown: clampNumber(source?.attack?.cooldown, CREATURE_DEFAULTS.attack.cooldown, 0.2, 30),
+                radius: spatial(source?.attack?.radius, CREATURE_DEFAULTS.attack.radius, 1, 60),
+            }),
+        } : {}),
         allowedModes: Object.freeze(modes.length > 0 ? modes : ['HUNT', 'ARCADE']),
         // A tank is a neutral hazard: it fires at bots too, unless the map says otherwise.
         targetPlayers: source?.targetPlayers === 'humans' ? 'humans' : 'all',

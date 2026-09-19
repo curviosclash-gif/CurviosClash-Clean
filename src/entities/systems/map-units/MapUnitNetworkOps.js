@@ -1,4 +1,5 @@
 import { resolveUnitPathPose } from './MapUnitMovementOps.js';
+import { normalizeMapUnit } from '../../../shared/contracts/MapUnitContract.js';
 
 /**
  * Map units across the network. The host decides where a tank is, whether it lives and when it
@@ -23,6 +24,22 @@ export function serializeMapUnits(units) {
         to: unit.toIndex,
         progress: round(unit.progress),
         yaw: round(unit.yaw),
+        ...(unit.kind === 'bomber' ? {
+            crashing: unit.crashing === true,
+            pos: [round(unit.position.x), round(unit.position.y), round(unit.position.z)],
+            bombs: unit.bombsFired,
+            ...(unit.summoned ? {
+                summoned: true,
+                calledBy: unit.calledByIndex,
+                remaining: round(unit.summonRemaining),
+                path: unit.path.map((point) => point.map((value) => round(value))),
+                speed: unit.speed,
+            } : {}),
+        } : {}),
+        ...(unit.kind === 'swarm' ? {
+            members: unit.members.map((member) => ({ alive: member.alive === true, hp: round(member.hp, 10) })),
+        } : {}),
+        ...(unit.kind === 'creature' ? { attacks: unit.attacksFired } : {}),
         mounts: unit.mounts.map((mount) => ({
             aim: [round(mount.aimDirection.x), round(mount.aimDirection.y), round(mount.aimDirection.z)],
             shots: mount.shotsFired,
@@ -56,10 +73,28 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
     if (!Array.isArray(entries)) return;
     system.networkReplica = true;
     const byId = new Map(entries.map((entry) => [String(entry?.id || ''), entry]));
+    const knownIds = new Set(system.units.map((unit) => unit.id));
+    for (const entry of entries) {
+        if (!entry?.summoned || knownIds.has(String(entry.id || '')) || !Array.isArray(entry.path)) continue;
+        const definition = normalizeMapUnit({
+            id: entry.id, kind: 'bomber', path: entry.path, loop: false,
+            speed: entry.speed, respawnSeconds: 0,
+        }, 0, undefined, { preserveSpatial: true });
+        if (!definition) continue;
+        const unit = system._createUnit(definition, 1);
+        unit.summoned = true;
+        unit.calledByIndex = Math.trunc(Number(entry.calledBy));
+        unit.attackSourcePlayer = system.entityManager?.players?.find?.((player) => player?.index === unit.calledByIndex) || null;
+        unit.summonRemaining = Math.max(0, Number(entry.remaining) || 0);
+        system.units.push(unit);
+        knownIds.add(unit.id);
+    }
     for (const unit of system.units) {
         const entry = byId.get(unit.id);
         if (!entry) continue;
         const wasAlive = unit.alive;
+        const wasCrashing = unit.crashing === true;
+        let playCreatureAttack = false;
         const pathLength = unit.path.length;
         const from = Math.trunc(Number(entry.from));
         const to = Math.trunc(Number(entry.to));
@@ -71,10 +106,44 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         unit.yaw = Number.isFinite(Number(entry.yaw)) ? Number(entry.yaw) : unit.yaw;
         unit.hp = Math.max(0, Number(entry.hp) || 0);
         unit.alive = entry.alive === true;
-        resolveUnitPathPose(unit, unit.path, unit.groundPosition);
+        if (unit.kind === 'bomber') {
+            unit.crashing = entry.crashing === true;
+            unit.bombsFired = Math.max(0, Math.trunc(Number(entry.bombs) || 0));
+            if (unit.summoned) unit.summonRemaining = Math.max(0, Number(entry.remaining) || 0);
+            if (unit.crashing && Array.isArray(entry.pos)) {
+                unit.groundPosition.set(Number(entry.pos[0]) || 0, Number(entry.pos[1]) || 0, Number(entry.pos[2]) || 0);
+            }
+        }
+        system.setBossRoomClock?.(unit, unit.alive);
+        if (unit.kind === 'swarm' && Array.isArray(entry.members)) {
+            let totalHp = 0;
+            for (let index = 0; index < unit.members.length; index += 1) {
+                const member = unit.members[index];
+                const state = entry.members[index];
+                if (!state) continue;
+                member.alive = state.alive === true;
+                member.hp = Math.max(0, Number(state.hp) || 0);
+                totalHp += member.hp;
+            }
+            unit.hp = totalHp;
+            if (unit.source) unit.source.alive = unit.alive;
+        }
+        if (unit.kind === 'creature') {
+            const attacks = Math.max(0, Math.trunc(Number(entry.attacks) || 0));
+            playCreatureAttack = unit.networkAttacksInitialized && attacks > unit.attacksFired && unit.alive;
+            unit.attacksFired = attacks;
+            unit.networkAttacksInitialized = true;
+        }
+        if (!unit.crashing) resolveUnitPathPose(unit, unit.path, unit.groundPosition);
         onPoseChanged(unit);
-        if (unit.root) unit.root.visible = unit.alive;
-        if (wasAlive && !unit.alive) {
+        if (playCreatureAttack) {
+            system.entityManager?.particles?.spawnExplosion?.(unit.position, 0xd4773f, {
+                cause: 'PROJECTILE', projectileType: 'CREATURE_ATTACK',
+            });
+        }
+        if (unit.root) unit.root.visible = unit.alive || unit.crashing;
+        if ((wasAlive && !unit.alive && unit.kind !== 'swarm' && unit.kind !== 'bomber')
+            || (wasCrashing && !unit.crashing && !unit.alive && unit.kind === 'bomber')) {
             // Only the picture: damage, loot and credit already happened on the host.
             system.entityManager?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
         }

@@ -9,7 +9,7 @@ const CLOSEUPS = [
     'SWAP', 'TRAIL_GAP', 'EMP', 'MAGNET', 'DECOY',
     'MINE', 'MG_TURRET', 'ROCKET_TURRET',
     'ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA', 'ROCKET_GUIDED',
-    'FAN_3', 'FAN_4', 'FAN_5', 'FLAMETHROWER', 'LIGHTNING', 'RAILGUN',
+    'FAN_3', 'FAN_4', 'FAN_5', 'FLAMETHROWER', 'LIGHTNING', 'RAILGUN', 'REPAIR_DRONE', 'BOMBER_STRIKE',
 ];
 
 async function waitForBlenderPickups(page, previousMeshId = null) {
