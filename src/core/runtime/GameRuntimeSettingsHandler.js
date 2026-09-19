@@ -23,6 +23,7 @@ import {
 import { filterKnownSettingsChangeKeys } from './RuntimeSettingsChangeKeys.js';
 import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 import { RUNTIME_SESSION_TYPES, resolveRuntimeSessionContract } from '../../shared/contracts/RuntimeSessionContract.js';
+import { isWeaponRaceRunType } from '../../shared/contracts/WeaponRaceContract.js';
 
 export class GameRuntimeSettingsHandler {
     constructor({ facade = null } = {}) {
@@ -158,6 +159,13 @@ export class GameRuntimeSettingsHandler {
 
         const session = resolveRuntimeSessionContract(settings.localSettings);
         if (session.sessionType !== RUNTIME_SESSION_TYPES.SINGLE) {
+            return { changed: false, changedKeys: [] };
+        }
+        // parcours_assault also has a normal single-player Fight scenario. The dedicated
+        // Arcade button deliberately borrows that map for Weapon Race, so its scenario
+        // defaults must not replace the selected Arcade runtime with Hunt.
+        if (settings.localSettings?.modePath === 'arcade'
+            && isWeaponRaceRunType(settings.arcade?.runType)) {
             return { changed: false, changedKeys: [] };
         }
 
