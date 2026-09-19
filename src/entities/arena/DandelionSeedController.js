@@ -37,6 +37,7 @@ export class DandelionSeedController {
             const seed = {
                 index, node, root, tip, normal, height,
                 radius: size * 0.43,
+                collisionRadius: size * 0.55,
                 speed: size * 0.55,
                 restPosition: node.position.clone(),
                 restQuaternion: node.quaternion.clone(),
@@ -44,6 +45,7 @@ export class DandelionSeedController {
                 launch: new THREE.Vector3(),
                 releaseWind: new THREE.Vector3(),
                 collisionCenter: tip.clone(),
+                previousCollisionCenter: tip.clone(),
                 hitPlayers: null,
             };
             this.seeds.push(seed);
@@ -98,6 +100,7 @@ export class DandelionSeedController {
             .addScaledVector(seed.releaseWind, 0.78)
             .addScaledVector(UP, 0.22).normalize();
         seed.hitPlayers = null;
+        seed.previousCollisionCenter.copy(seed.collisionCenter);
         this.events.push([seed.index, at]);
         return true;
     }
@@ -113,6 +116,7 @@ export class DandelionSeedController {
                 continue;
             }
             seed.node.visible = true;
+            seed.previousCollisionCenter.copy(seed.collisionCenter);
             const travel = seed.speed * age;
             this._target.copy(seed.root)
                 .addScaledVector(seed.launch, travel * 0.72)
@@ -130,21 +134,39 @@ export class DandelionSeedController {
     }
 
     /** A released pappus gives each vehicle one soft, damage-free bump. */
-    consumeCollision(position, playerRadius = 0, playerIndex = -1) {
+    consumeCollision(position, playerRadius = 0, playerIndex = -1, previousPosition = null) {
         if (!position) return null;
         const entityKey = Number.isInteger(Number(playerIndex)) ? Number(playerIndex) : String(playerIndex);
         const safePlayerRadius = Math.max(0, Number(playerRadius) || 0);
         for (const seed of this.seeds) {
             if (seed.releasedAt === null || seed.node.visible === false) continue;
             if (seed.hitPlayers?.has(entityKey)) continue;
-            const contactRadius = seed.radius + safePlayerRadius;
-            if (seed.collisionCenter.distanceToSquared(position) > contactRadius * contactRadius) continue;
+            const playerStart = previousPosition || position;
+            const startX = playerStart.x - seed.previousCollisionCenter.x;
+            const startY = playerStart.y - seed.previousCollisionCenter.y;
+            const startZ = playerStart.z - seed.previousCollisionCenter.z;
+            const deltaX = (position.x - playerStart.x)
+                - (seed.collisionCenter.x - seed.previousCollisionCenter.x);
+            const deltaY = (position.y - playerStart.y)
+                - (seed.collisionCenter.y - seed.previousCollisionCenter.y);
+            const deltaZ = (position.z - playerStart.z)
+                - (seed.collisionCenter.z - seed.previousCollisionCenter.z);
+            const travelSquared = deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ;
+            const closestTime = travelSquared > 0.000001
+                ? Math.max(0, Math.min(1, -(startX * deltaX + startY * deltaY + startZ * deltaZ) / travelSquared))
+                : 0;
+            const closestX = startX + deltaX * closestTime;
+            const closestY = startY + deltaY * closestTime;
+            const closestZ = startZ + deltaZ * closestTime;
+            const contactRadius = seed.collisionRadius + safePlayerRadius;
+            if (closestX * closestX + closestY * closestY + closestZ * closestZ
+                > contactRadius * contactRadius) continue;
 
             if (!seed.hitPlayers) seed.hitPlayers = new Set();
             seed.hitPlayers.add(entityKey);
             const collision = this._collision;
             collision.seedIndex = seed.index;
-            collision.normal.subVectors(position, seed.collisionCenter);
+            collision.normal.set(closestX, closestY, closestZ);
             if (collision.normal.lengthSq() <= 0.000001) collision.normal.copy(seed.launch);
             if (collision.normal.lengthSq() <= 0.000001) collision.normal.copy(UP);
             collision.normal.normalize();
@@ -160,6 +182,7 @@ export class DandelionSeedController {
             seed.node.quaternion.copy(seed.restQuaternion);
             seed.node.visible = true;
             seed.collisionCenter.copy(seed.tip);
+            seed.previousCollisionCenter.copy(seed.tip);
             seed.hitPlayers = null;
         }
         this.events.length = 0;

@@ -87,17 +87,20 @@ test('a seed contact applies only a weak impulse and never calls the damage path
             slingshot = { params, forward: { ...forward }, up: { ...up } };
         },
     };
+    const previousPosition = new THREE.Vector3(-2, 2, 3);
+    let receivedPreviousPosition = null;
     const phase = new PlayerCollisionPhase({
         arena: {
-            consumeDandelionSeedCollision: () => ({
-                seedIndex: 11,
-                normal: new THREE.Vector3(1, 0, 0),
-            }),
+            consumeDandelionSeedCollision: (_position, _radius, _index, previous) => {
+                receivedPreviousPosition = previous;
+                return { seedIndex: 11, normal: new THREE.Vector3(1, 0, 0) };
+            },
         },
     });
 
-    assert.equal(phase._resolveDandelionSeedCollision(player, 0.4), true);
+    assert.equal(phase._resolveDandelionSeedCollision(player, 0.4, previousPosition), true);
     assert.equal(damageCalls, 0);
+    assert.equal(receivedPreviousPosition, previousPosition);
     assert.deepEqual(slingshot.params, { duration: 0.18, forwardImpulse: 2.4, liftImpulse: 0.6 });
     assert.deepEqual(slingshot.forward, { x: 1, y: 0, z: 0 });
     assert.deepEqual(slingshot.up, { x: 0, y: 1, z: 0 });
