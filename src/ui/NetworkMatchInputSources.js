@@ -31,6 +31,16 @@ const INPUT_DEFAULTS = Object.freeze({
 });
 
 const ANALOG_AXIS_KEYS = Object.freeze(['pitchAxis', 'yawAxis', 'rollAxis']);
+const ONE_SHOT_INPUT_KEYS = Object.freeze([
+    'boostPressed',
+    'slowMoPressed',
+    'cameraSwitch',
+    'dropItem',
+    'useItem',
+    'shootItem',
+    'shootRocket',
+    'nextItem',
+]);
 
 function normalizePeerId(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -190,13 +200,26 @@ export function createNetworkRemoteInputSource({
     let latestInput = INPUT_DEFAULTS;
     let bound = false;
 
-    const handler = (event = {}) => {
+    const matchesExpectedPeer = (event = {}) => {
+        if (!expectedPeerId) return true;
         const eventPeerId = normalizePeerId(event.peerId);
         const eventPlayerId = normalizePeerId(event.playerId);
-        if (expectedPeerId && eventPeerId !== expectedPeerId && eventPlayerId !== expectedPeerId) {
-            return;
+        return eventPeerId === expectedPeerId || eventPlayerId === expectedPeerId;
+    };
+    const clearInputState = () => {
+        latestInput = INPUT_DEFAULTS;
+    };
+    const handler = (event = {}) => {
+        if (!matchesExpectedPeer(event)) return;
+        const nextInput = normalizeNetworkInputState(event.input);
+        for (let i = 0; i < ONE_SHOT_INPUT_KEYS.length; i += 1) {
+            const key = ONE_SHOT_INPUT_KEYS[i];
+            nextInput[key] = nextInput[key] || latestInput[key] === true;
         }
-        latestInput = normalizeNetworkInputState(event.input);
+        latestInput = nextInput;
+    };
+    const disconnectHandler = (event = {}) => {
+        if (matchesExpectedPeer(event)) clearInputState();
     };
 
     return {
@@ -208,19 +231,40 @@ export function createNetworkRemoteInputSource({
             this.active = true;
             if (!bound && typeof session?.on === 'function') {
                 session.on('remoteInput', handler);
+                session.on('playerDisconnected', disconnectHandler);
+                session.on('playerRemoved', disconnectHandler);
                 bound = true;
             }
         },
         unbind() {
             if (bound && typeof session?.off === 'function') {
                 session.off('remoteInput', handler);
+                session.off('playerDisconnected', disconnectHandler);
+                session.off('playerRemoved', disconnectHandler);
             }
             bound = false;
+            clearInputState();
             this.playerIndex = -1;
             this.active = false;
         },
         poll() {
-            return latestInput;
+            let hasOneShotInput = false;
+            for (let i = 0; i < ONE_SHOT_INPUT_KEYS.length; i += 1) {
+                if (latestInput[ONE_SHOT_INPUT_KEYS[i]] === true) {
+                    hasOneShotInput = true;
+                    break;
+                }
+            }
+            if (!hasOneShotInput) return latestInput;
+
+            const consumedInput = { ...latestInput };
+            for (let i = 0; i < ONE_SHOT_INPUT_KEYS.length; i += 1) {
+                latestInput[ONE_SHOT_INPUT_KEYS[i]] = false;
+            }
+            return consumedInput;
+        },
+        clearInputState() {
+            clearInputState();
         },
         dispose() {
             this.unbind();
