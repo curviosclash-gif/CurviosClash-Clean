@@ -17,6 +17,7 @@ import bpy
 ROOT = Path(__file__).resolve().parents[1]
 FPS = 30
 BRIDGE_PARTS = ('01_bridge', '20_bridge_collapse')
+LIGHTHOUSE_PARTS = ('01_lighthouse', '20_lighthouse_collapse')
 
 
 def reset_scene(name, seconds=0):
@@ -57,6 +58,18 @@ def box(name, location, dimensions, mat, parent=None):
 
 def cylinder(name, location, radius, depth, mat, parent=None, rotation=(0, 0, 0)):
     bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=radius, depth=depth, location=location, rotation=rotation)
+    obj = bpy.context.object
+    obj.name = name
+    obj.data.materials.append(mat)
+    if parent is not None:
+        obj.parent = parent
+    return obj
+
+
+def cone(name, location, radius1, radius2, depth, mat, parent=None):
+    bpy.ops.mesh.primitive_cone_add(
+        vertices=24, radius1=radius1, radius2=radius2, depth=depth, location=location,
+    )
     obj = bpy.context.object
     obj.name = name
     obj.data.materials.append(mat)
@@ -132,13 +145,59 @@ def generate_bridge(parts=None):
         export_scene('storm_bridge_siege', '20_bridge_collapse', 'BridgeCollapseOnce')
 
 
+def build_lighthouse(parent=None):
+    white = material('LighthouseWhite', (0.76, 0.80, 0.79), 0.05, 0.68)
+    red = material('LighthouseRed', (0.55, 0.035, 0.025), 0.18, 0.5)
+    iron = material('LighthouseIron', (0.075, 0.095, 0.11), 0.72, 0.3)
+    lamp = material('LighthouseLamp', (1.0, 0.72, 0.14), 0.2, 0.18)
+    objects = []
+    objects.append(cylinder('lighthouse_tower_foot', (0, 0, 5), 17, 10, iron, parent))
+    for index, (z, radius, height, mat) in enumerate((
+        (17, 14.5, 20, white), (36, 12.5, 18, red), (53, 10.5, 16, white), (68, 9, 14, red),
+    )):
+        objects.append(cone(f'lighthouse_tower_shaft_{index}', (0, 0, z), radius, radius - 2, height, mat, parent))
+    objects.append(cylinder('lighthouse_tower_gallery', (0, 0, 78), 13, 3, iron, parent))
+    objects.append(cylinder('lighthouse_tower_lantern', (0, 0, 84), 8, 10, lamp, parent))
+    objects.append(cone('lighthouse_tower_roof', (0, 0, 92), 11, 0.5, 7, red, parent))
+    objects.append(cylinder('lighthouse_tower_beacon', (0, 0, 84), 2.2, 15, lamp, parent, (0, 1.5708, 0)))
+    return objects
+
+
+def generate_lighthouse(parts=None):
+    selected = set(parts or LIGHTHOUSE_PARTS)
+    unknown = selected - set(LIGHTHOUSE_PARTS)
+    if unknown:
+        raise ValueError(f'Unknown lighthouse parts: {sorted(unknown)}')
+    if '01_lighthouse' in selected:
+        reset_scene('StormLighthouseIntact')
+        build_lighthouse()
+        export_scene('storm_lighthouse_siege', '01_lighthouse')
+    if '20_lighthouse_collapse' in selected:
+        scene = reset_scene('LighthouseCollapseOnce', 5)
+        rig = bpy.data.objects.new('LighthouseCollapseRig', None)
+        scene.collection.objects.link(rig)
+        build_lighthouse(rig)
+        rig.rotation_mode = 'XYZ'
+        rig.keyframe_insert('location', frame=1)
+        rig.keyframe_insert('rotation_euler', frame=1)
+        rig.location = (4, 0, -3)
+        rig.rotation_euler = (0.0, 1.28, -0.08)
+        rig.keyframe_insert('location', frame=scene.frame_end)
+        rig.keyframe_insert('rotation_euler', frame=scene.frame_end)
+        if rig.animation_data and rig.animation_data.action:
+            rig.animation_data.action.name = 'LighthouseCollapseOnce'
+        export_scene('storm_lighthouse_siege', '20_lighthouse_collapse', 'LighthouseCollapseOnce')
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--landmark', choices=('bridge',), default='bridge')
+    parser.add_argument('--landmark', choices=('bridge', 'lighthouse'), default='bridge')
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     args = parser.parse_args(argv)
     if args.landmark == 'bridge':
         generate_bridge()
+    elif args.landmark == 'lighthouse':
+        generate_lighthouse()
 
 
 if __name__ == '__main__':

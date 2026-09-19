@@ -18,6 +18,7 @@ GENERATORS = {
     'reactor_site': 'generate_reactor_site_assets',
     'burg_falkenwacht': 'generate_falkenwacht_assets',
     'storm_bridge_siege': 'generate_wave6_landmark_assets',
+    'storm_lighthouse_siege': 'generate_wave6_landmark_assets',
     'standard': 'generate_map_world',
     'wind_cathedral': 'generate_map_world',
     'chrono_forge_nexus': 'generate_map_world',
@@ -36,10 +37,13 @@ def main():
     parser.add_argument('--output-dir', type=Path)
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
     module = importlib.import_module(GENERATORS[args.pack])
-    if args.pack == 'storm_bridge_siege':
+    if args.pack in ('storm_bridge_siege', 'storm_lighthouse_siege'):
         if args.output_dir:
             module.ROOT = args.output_dir.resolve()
-        module.generate_bridge(set(args.part or module.BRIDGE_PARTS))
+        if args.pack == 'storm_bridge_siege':
+            module.generate_bridge(set(args.part or module.BRIDGE_PARTS))
+        else:
+            module.generate_lighthouse(set(args.part or module.LIGHTHOUSE_PARTS))
         return
     if GENERATORS[args.pack] == 'generate_map_world':
         if args.part and set(args.part) != {'01_world'}:

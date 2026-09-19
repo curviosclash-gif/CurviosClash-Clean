@@ -49,6 +49,7 @@ const COLLECTION_DEFINITIONS = [
             'burg_falkenwacht',
             'clockwork_canyon',
             'storm_bridge_siege',
+            'storm_lighthouse_siege',
         ],
     },
     {
