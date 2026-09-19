@@ -48,7 +48,9 @@ jobs:
       - run: npm ci
       - run: npm --prefix electron ci
       - name: Build Windows package
-        run: npm run app:package
+        run: |
+          npm run build:app
+          npm --prefix electron run build -- -- --win nsis --x64
       - name: Verify package contents and launch
         shell: pwsh
         run: |
