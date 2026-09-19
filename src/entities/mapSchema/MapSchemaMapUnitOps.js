@@ -26,6 +26,9 @@ function toPlainUnit(unit, invScale) {
         weapons: {
             mg: unit.weapons.mg ? { ...unit.weapons.mg, range: unit.weapons.mg.range * invScale } : false,
             rocket: unit.weapons.rocket ? { ...unit.weapons.rocket, range: unit.weapons.rocket.range * invScale } : false,
+            ...(unit.kind === 'bomber' ? {
+                bomb: unit.weapons.bomb ? { ...unit.weapons.bomb, radius: unit.weapons.bomb.radius * invScale } : false,
+            } : {}),
         },
         loot: { ...unit.loot },
         allowedModes: [...unit.allowedModes],
@@ -41,6 +44,9 @@ function toPlainUnit(unit, invScale) {
         plain.modelScale = unit.modelScale;
         plain.lootCount = unit.lootCount;
         plain.guaranteedLoot = [...unit.guaranteedLoot];
+    }
+    if (unit.kind === 'bomber') {
+        plain.crash = { ...unit.crash, radius: unit.crash.radius * invScale };
     }
     return plain;
 }
