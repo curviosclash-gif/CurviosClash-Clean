@@ -328,6 +328,7 @@ export class AudioManager {
     _createVoiceGraph(options = {}, bus = 'sfx') {
         if (this._activeVoices >= MAX_ACTIVE_VOICES) return null;
         const gain = this.ctx.createGain();
+        /** @type {AudioNode} */
         let tail = gain;
         const spatialPosition = options.spatialPosition;
         const hasSpatialPosition = spatialPosition
@@ -466,7 +467,7 @@ export class AudioManager {
         const atten = this._distanceAttenuation(options);
         source.buffer = buffer;
         if (source.playbackRate) source.playbackRate.value = 0.94 + Math.random() * 0.12;
-        filter.type = filterType;
+        filter.type = /** @type {BiquadFilterType} */ (filterType);
         filter.Q.value = filterType === 'bandpass' ? 0.9 : 0.5;
         filter.frequency.setValueAtTime(Math.max(40, startFrequency), t);
         filter.frequency.exponentialRampToValueAtTime?.(Math.max(40, endFrequency), t + duration);
