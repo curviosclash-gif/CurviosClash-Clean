@@ -176,7 +176,13 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                     arcOverlap: overlaps(boost, overheat),
                     p2Overlap: overlaps(overheat, p2Panel),
                     arcLabelCount: document.querySelectorAll('.hunt-arc-meter .hunt-label').length,
+                    arcValueDisplays: [...document.querySelectorAll('#hunt-p1-panel .hunt-arc-meter .hunt-value')]
+                        .map((element) => getComputedStyle(element).display),
                     arcOpacity: getComputedStyle(document.querySelector('.hunt-arc-boost')).opacity,
+                    arcColors: ['boost', 'overheat', 'slowmo'].map((kind) => (
+                        getComputedStyle(document.querySelector(`.hunt-arc-${kind}`))
+                            .getPropertyValue('--hunt-arc-color').trim()
+                    )),
                     arcSegmentCounts: [...document.querySelectorAll('#hunt-p1-panel .hunt-arc-meter .hunt-segment-track')]
                         .map((path) => (path.getAttribute('d').match(/M/g) || []).length),
                     tapes: [...p1.querySelectorAll('.hud-tape'), ...p2.querySelectorAll('.hud-tape')]
@@ -245,7 +251,9 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
             expectNear(layout.boost.centerY, layout.crosshair.centerY);
             expect(layout.p2Overlap).toBe(false);
             expect(layout.arcLabelCount).toBe(0);
-            expect(layout.arcOpacity).toBe('0.5');
+            expect(layout.arcValueDisplays).toEqual(['none', 'none', 'none']);
+            expect(layout.arcOpacity).toBe('0.38');
+            expect(layout.arcColors).toEqual(['#39ff14', '#ff174f', '#00eaff']);
             expect(layout.arcSegmentCounts).toEqual([10, 10, 10]);
             expect(layout.itemSlots).toHaveLength(5);
             for (const [index, slot] of layout.itemSlots.entries()) {
