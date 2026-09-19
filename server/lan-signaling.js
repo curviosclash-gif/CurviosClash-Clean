@@ -363,7 +363,14 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             return;
         }
 
-        const url = new URL(req.url, `http://localhost:${port}`);
+        let url;
+        try {
+            url = new URL(req.url, `http://localhost:${port}`);
+        } catch {
+            req.resume();
+            jsonResponse(res, { ok: false, message: 'invalid_request_url' }, 400);
+            return;
+        }
         const path = url.pathname;
 
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_CREATE) {

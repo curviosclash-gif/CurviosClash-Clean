@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import net from 'node:net';
 import test from 'node:test';
 
 import { createLANSignalingServer } from '../server/lan-signaling.js';
@@ -56,6 +58,63 @@ async function postRaw(baseUrl, path, rawBody) {
 function statusUrl(baseUrl, playerId, token) {
     return `${baseUrl}/lobby/status?${new URLSearchParams({ playerId, token })}`;
 }
+
+function sendRawHttpRequest(port, request) {
+    return new Promise((resolve, reject) => {
+        let response = '';
+        const socket = net.createConnection({ host: '127.0.0.1', port });
+        socket.setEncoding('utf8');
+        socket.setTimeout(2_000, () => socket.destroy(new Error('raw HTTP request timed out')));
+        socket.on('connect', () => socket.end(request));
+        socket.on('data', (chunk) => { response += chunk; });
+        socket.on('end', () => resolve(response));
+        socket.on('error', reject);
+    });
+}
+
+test('LAN signaling rejects malformed request URLs without terminating the server', async () => {
+    const source = [
+        "import { createLANSignalingServer } from './server/lan-signaling.js';",
+        'const bundle = createLANSignalingServer(0, { ghostCleanupIntervalMs: 0 });',
+        "bundle.server.once('listening', () => console.log(`ACTUAL_PORT=${bundle.server.address().port}`));",
+    ].join('\n');
+    const child = spawn(process.execPath, ['--input-type=module', '-e', source], {
+        cwd: process.cwd(),
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+
+    try {
+        const port = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error(`LAN child did not listen: ${stderr}`)), 2_000);
+            child.stdout.on('data', () => {
+                const match = stdout.match(/ACTUAL_PORT=(\d+)/);
+                if (!match) return;
+                clearTimeout(timeout);
+                resolve(Number(match[1]));
+            });
+        });
+        const malformed = await sendRawHttpRequest(
+            port,
+            'GET // HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n'
+        );
+        assert.match(malformed, /^HTTP\/1\.1 400 /, stderr);
+
+        const probe = await sendRawHttpRequest(
+            port,
+            'GET /discovery/info HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n'
+        );
+        assert.match(probe, /^HTTP\/1\.1 200 /, stderr);
+        assert.equal(child.exitCode, null, stderr);
+    } finally {
+        if (child.exitCode === null) child.kill();
+    }
+});
 
 test('LAN discovery hides join data, status requires a token, and CORS rejects public origins', async () => {
     const lanServer = await startLanServer();
