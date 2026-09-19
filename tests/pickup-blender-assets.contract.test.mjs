@@ -23,6 +23,7 @@ const BASELINES = Object.freeze({
     EMP: 1.860, MAGNET: 1.350, DECOY: 1.942, PURGE: 1.590, SWAP: 1.590,
     MINE: 1.739, ROCKET_WEAK: 1.915, ROCKET_MEDIUM: 2.176,
     ROCKET_HEAVY: 2.480, ROCKET_MEGA: 3.206,
+    REPAIR_DRONE: 1.860,
 });
 
 async function parseLibrary() {
