@@ -107,7 +107,7 @@ test('a seed contact applies one point of mode damage and only a weak deflection
     assert.equal(damage.cause, 'DANDELION_SEED');
     assert.equal(damage.options.impactPoint, player.position);
     assert.equal(receivedPreviousPosition, previousPosition);
-    assert.deepEqual(slingshot.params, { duration: 0.12, forwardImpulse: 1.3, liftImpulse: 0.25 });
+    assert.deepEqual(slingshot.params, { duration: 0.35, forwardImpulse: 8, liftImpulse: 1.5 });
     assert.deepEqual(slingshot.forward, { x: 1, y: 0, z: 0 });
     assert.deepEqual(slingshot.up, { x: 0, y: 1, z: 0 });
 });
