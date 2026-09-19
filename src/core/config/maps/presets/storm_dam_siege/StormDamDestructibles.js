@@ -4,9 +4,9 @@ export const STORM_DAM_DESTRUCTIBLES = Object.freeze({
         id: 'dam_wall',
         label: 'Staudamm',
         kind: 'landmark',
-        hp: 800,
+        hp: 1400,
         meshPrefixes: Object.freeze(['dam_wall']),
-        anchor: Object.freeze([0, 23, 24]),
+        anchor: Object.freeze([0, 92, 82]),
     })]),
     pieces: Object.freeze(['landmark']),
     breakScenes: Object.freeze([Object.freeze({
@@ -16,6 +16,6 @@ export const STORM_DAM_DESTRUCTIBLES = Object.freeze({
         pieces: Object.freeze(['landmark']),
         hideModelIds: Object.freeze(['storm-dam-intact', 'storm-dam-gate']),
         yawFromEvent: false,
-        blast: Object.freeze({ radius: 32, damage: 50, delaySeconds: 1.4 }),
+        blast: Object.freeze({ radius: 48, damage: 50, delaySeconds: 1.4 }),
     })]),
 });

@@ -3,16 +3,17 @@ import { STORM_DAM_DESTRUCTIBLES } from './StormDamDestructibles.js';
 import { STORM_DAM_MODELS } from './StormDamModels.js';
 import { STORM_DAM_SECRET_ROOM, STORM_DAM_SECRET_ROOM_OBSTACLES } from './StormDamSecretRoom.js';
 
-const MAP_SIZE = Object.freeze([180, 90, 180]);
+const MAP_SIZE = Object.freeze([180, 150, 180]);
 
 export const STORM_DAM_SIEGE_MAPS = Object.freeze({
     storm_dam_siege: Object.freeze({
         name: 'Sturmdamm',
         size: MAP_SIZE,
         scaleAuthoredAnchors: true,
-        exclusionZone: Object.freeze({ openFaces: Object.freeze(['minX', 'maxX', 'minZ', 'maxZ', 'maxY']) }),
+        exclusionZone: Object.freeze({ openFaces: Object.freeze(['minX', 'maxX', 'minZ', 'maxY']) }),
         obstacles: Object.freeze([
             Object.freeze({ pos: [0, 2, 0], size: [180, 4, 180], kind: 'foam', compileWithGlb: true }),
+            Object.freeze({ pos: [0, 70, 84], size: [180, 140, 12], kind: 'hard' }),
             ...STORM_DAM_SECRET_ROOM_OBSTACLES,
         ]),
         portals: Object.freeze([]),
@@ -27,8 +28,9 @@ export const STORM_DAM_SIEGE_MAPS = Object.freeze({
             bounds: Object.freeze({ min: Object.freeze([-90, 0, -90]), max: Object.freeze([90, 90, 90]) }),
             startLevel: 0,
             targetLevel: MAP_SIZE[1] / 2,
-            waveSeconds: 2,
-            riseSeconds: 20,
+            waveSeconds: 4,
+            riseSeconds: 24,
+            waveOrigin: 'maxZ',
         }),
         lighting: normalizeMapLighting({
             key: { direction: [40, 58, -25], color: 0xd9efff, intensity: 1.2 },
@@ -43,7 +45,7 @@ export const STORM_DAM_SIEGE_MAPS = Object.freeze({
         botSpawns: Object.freeze([
             Object.freeze({ x: -46, y: 18, z: -48 }),
             Object.freeze({ x: 46, y: 18, z: 46 }),
-            Object.freeze({ x: 0, y: 34, z: 64 }),
+            Object.freeze({ x: 0, y: 94, z: 58 }),
         ]),
         items: Object.freeze([
             Object.freeze({ pos: [-38, 12, -8] }),

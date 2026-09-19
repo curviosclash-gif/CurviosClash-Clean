@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
     WATER_PHASES,
+    WATER_WAVE_ORIGINS,
     applyWaterZoneNetworkState,
     createWaterZoneState,
     isPointUnderwater,
@@ -25,6 +26,49 @@ function scaledZone(zone, scale) {
     });
 }
 
+function createWaveCrestGeometry(width, height, segments = 48) {
+    const positions = [];
+    const indices = [];
+    for (let index = 0; index < segments; index += 1) {
+        const x0 = -width / 2 + ((width * index) / segments);
+        const x1 = -width / 2 + ((width * (index + 1)) / segments);
+        const y0 = height * (0.78 + (Math.sin(index * 1.71) * 0.09) + (Math.sin(index * 0.37) * 0.08));
+        const y1 = height * (0.78 + (Math.sin((index + 1) * 1.71) * 0.09) + (Math.sin((index + 1) * 0.37) * 0.08));
+        const vertex = positions.length / 3;
+        positions.push(x0, 0, 0, x1, 0, 0, x1, y1, 0, x0, y0, 0);
+        indices.push(vertex, vertex + 1, vertex + 2, vertex, vertex + 2, vertex + 3);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    return geometry;
+}
+
+function deterministicUnit(index, salt) {
+    const value = Math.sin((index + 1) * (12.9898 + salt)) * 43758.5453;
+    return value - Math.floor(value);
+}
+
+function createWaveSprayGeometry(width, height, count = 96) {
+    const positions = new Float32Array(count * 3);
+    const baseY = new Float32Array(count);
+    const phases = new Float32Array(count);
+    for (let index = 0; index < count; index += 1) {
+        const x = (deterministicUnit(index, 0.13) - 0.5) * width;
+        const y = (0.15 + deterministicUnit(index, 0.47) * 0.85) * height;
+        const z = (deterministicUnit(index, 0.91) - 0.5) * height * 0.5;
+        positions[index * 3] = x;
+        positions[index * 3 + 1] = y;
+        positions[index * 3 + 2] = z;
+        baseY[index] = y;
+        phases[index] = deterministicUnit(index, 1.37) * Math.PI * 2;
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    return { geometry, baseY, phases };
+}
+
 export class WaterZoneSystem {
     constructor(entityManager) {
         this.entityManager = entityManager || null;
@@ -34,6 +78,7 @@ export class WaterZoneSystem {
         this.scale = 1;
         this._seenBreakCount = 0;
         this._visual = null;
+        this._visualTime = 0;
     }
 
     startRound() {
@@ -59,6 +104,7 @@ export class WaterZoneSystem {
         if (!this.zone) return;
         if (!this.networkReplica) this._triggerFromBreakEvents();
         stepWaterZoneState(this.state, this.zone, dt);
+        this._visualTime += Math.max(0, Number(dt) || 0);
         this._syncVisual();
     }
 
@@ -124,26 +170,96 @@ export class WaterZoneSystem {
             depthWrite: false,
             side: THREE.DoubleSide,
         });
-        const surface = new THREE.Mesh(new THREE.PlaneGeometry(width, depth, 1, 1), surfaceMaterial);
+        const surfaceGeometry = new THREE.PlaneGeometry(width, depth, 20, 20);
+        const surface = new THREE.Mesh(surfaceGeometry, surfaceMaterial);
         surface.name = `${group.name}-surface`;
         surface.rotation.x = -Math.PI / 2;
         surface.position.set((min[0] + max[0]) * 0.5, this.zone.startLevel, (min[2] + max[2]) * 0.5);
         surface.renderOrder = 4;
-        const waveMaterial = new THREE.MeshBasicMaterial({
-            color: 0x7de3ff,
+        const surfaceBasePositions = new Float32Array(surfaceGeometry.attributes.position.array);
+
+        const waveGroup = new THREE.Group();
+        waveGroup.name = `${group.name}-wave`;
+        const crestHeight = 9 * this.scale;
+        const wakeSign = this.zone.waveOrigin === WATER_WAVE_ORIGINS.MAX_Z ? 1 : -1;
+        const waveMaterials = [];
+        const crestSettings = [
+            { height: crestHeight, offset: 0, color: 0x9beeff, opacity: 0.82 },
+            { height: crestHeight * 0.62, offset: 3.5 * this.scale, color: 0x4fc6e8, opacity: 0.58 },
+            { height: crestHeight * 0.38, offset: 7.5 * this.scale, color: 0x218aad, opacity: 0.42 },
+        ];
+        for (let index = 0; index < crestSettings.length; index += 1) {
+            const settings = crestSettings[index];
+            const waveMaterial = new THREE.MeshBasicMaterial({
+                color: settings.color,
+                transparent: true,
+                opacity: settings.opacity,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                blending: index === 0 ? THREE.AdditiveBlending : THREE.NormalBlending,
+                toneMapped: false,
+            });
+            const crest = new THREE.Mesh(createWaveCrestGeometry(width, settings.height), waveMaterial);
+            crest.name = `${waveGroup.name}-crest-${index + 1}`;
+            crest.position.z = settings.offset * wakeSign;
+            crest.renderOrder = 6 + index;
+            waveGroup.add(crest);
+            waveMaterials.push({ material: waveMaterial, opacity: settings.opacity });
+        }
+
+        const foamMaterial = new THREE.MeshBasicMaterial({
+            color: 0xd9fbff,
             transparent: true,
-            opacity: 0.8,
+            opacity: 0.68,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            toneMapped: false,
+        });
+        const foam = new THREE.Mesh(new THREE.PlaneGeometry(width, 10 * this.scale, 24, 1), foamMaterial);
+        foam.name = `${waveGroup.name}-foam`;
+        foam.rotation.x = -Math.PI / 2;
+        foam.position.set(0, 0.35 * this.scale, 4 * this.scale * wakeSign);
+        foam.renderOrder = 9;
+        waveGroup.add(foam);
+
+        const sprayData = createWaveSprayGeometry(width, crestHeight);
+        const sprayMaterial = new THREE.PointsMaterial({
+            color: 0xcff8ff,
+            size: 1.15 * this.scale,
+            transparent: true,
+            opacity: 0.76,
             depthWrite: false,
             blending: THREE.AdditiveBlending,
             toneMapped: false,
         });
-        const wave = new THREE.Mesh(new THREE.BoxGeometry(width, 1.1 * this.scale, 2.5 * this.scale), waveMaterial);
-        wave.name = `${group.name}-wave`;
-        wave.position.set((min[0] + max[0]) * 0.5, this.zone.startLevel + 0.8 * this.scale, min[2]);
-        wave.renderOrder = 5;
-        group.add(surface, wave);
+        const spray = new THREE.Points(sprayData.geometry, sprayMaterial);
+        spray.name = `${waveGroup.name}-spray`;
+        spray.position.z = 1.5 * this.scale * wakeSign;
+        spray.renderOrder = 10;
+        waveGroup.add(spray);
+
+        waveGroup.position.set(
+            (min[0] + max[0]) * 0.5,
+            this.zone.startLevel,
+            this.zone.waveOrigin === WATER_WAVE_ORIGINS.MAX_Z ? max[2] : min[2],
+        );
+        group.add(surface, waveGroup);
         renderer.addToScene(group);
-        this._visual = { group, surface, surfaceMaterial, wave, waveMaterial };
+        this._visual = {
+            group,
+            surface,
+            surfaceMaterial,
+            surfaceBasePositions,
+            wave: waveGroup,
+            waveGroup,
+            waveMaterials,
+            foamMaterial,
+            spray,
+            sprayMaterial,
+            sprayBaseY: sprayData.baseY,
+            sprayPhases: sprayData.phases,
+        };
     }
 
     _syncVisual() {
@@ -151,16 +267,45 @@ export class WaterZoneSystem {
         const { min, max } = this.zone.bounds;
         const state = this.state;
         const waveActive = state.phase === WATER_PHASES.WAVE;
-        this._visual.wave.visible = waveActive;
+        this._visual.waveGroup.visible = waveActive;
         if (waveActive) {
             const progress = Math.min(1, state.phaseElapsedSeconds / this.zone.waveSeconds);
-            this._visual.wave.position.z = min[2] + ((max[2] - min[2]) * progress);
-            this._visual.waveMaterial.opacity = 0.8 - progress * 0.25;
+            const startsAtMax = this.zone.waveOrigin === WATER_WAVE_ORIGINS.MAX_Z;
+            this._visual.waveGroup.position.z = startsAtMax
+                ? max[2] - ((max[2] - min[2]) * progress)
+                : min[2] + ((max[2] - min[2]) * progress);
+            this._visual.waveGroup.scale.y = 1 - (progress * 0.34);
+            for (const entry of this._visual.waveMaterials) {
+                entry.material.opacity = entry.opacity * (1 - progress * 0.38);
+            }
+            this._visual.foamMaterial.opacity = 0.68 * (1 - progress * 0.32);
+            this._visual.sprayMaterial.opacity = 0.76 * (1 - progress * 0.5);
+            const sprayPositions = this._visual.spray.geometry.attributes.position;
+            for (let index = 0; index < this._visual.sprayBaseY.length; index += 1) {
+                sprayPositions.array[index * 3 + 1] = this._visual.sprayBaseY[index]
+                    + Math.sin(this._visualTime * 4.2 + this._visual.sprayPhases[index]) * this.scale * 1.6;
+            }
+            sprayPositions.needsUpdate = true;
         }
         const surfaceActive = state.phase === WATER_PHASES.RISING || state.phase === WATER_PHASES.FLOODED;
         this._visual.surface.visible = surfaceActive;
         this._visual.surface.position.y = state.level;
         this._visual.surfaceMaterial.opacity = state.phase === WATER_PHASES.FLOODED ? 0.68 : 0.56;
+        if (surfaceActive) {
+            const positions = this._visual.surface.geometry.attributes.position;
+            const base = this._visual.surfaceBasePositions;
+            const amplitude = this.scale * (state.phase === WATER_PHASES.FLOODED ? 0.42 : 0.7);
+            for (let index = 0; index < positions.count; index += 1) {
+                const offset = index * 3;
+                const x = base[offset];
+                const y = base[offset + 1];
+                positions.array[offset + 2] = (
+                    Math.sin((x * 0.035) + this._visualTime * 1.35)
+                    + Math.sin((y * 0.027) - this._visualTime * 1.05)
+                ) * amplitude * 0.5;
+            }
+            positions.needsUpdate = true;
+        }
     }
 
     clear() {
@@ -173,6 +318,7 @@ export class WaterZoneSystem {
         this.state = createWaterZoneState(null);
         this.scale = 1;
         this._seenBreakCount = 0;
+        this._visualTime = 0;
     }
 
     dispose() {
