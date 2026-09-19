@@ -8,6 +8,7 @@ import { ProjectileSimulationOps } from '../src/entities/systems/projectile/Proj
 import { ProjectileHitResolver } from '../src/entities/systems/projectile/ProjectileHitResolver.js';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
+import { PlayerCollisionPhase } from '../src/entities/systems/lifecycle/PlayerCollisionPhase.js';
 
 function seedArena() {
     const root = new THREE.Group();
@@ -72,4 +73,32 @@ test('game-state snapshots replicate released seeds in every mode without replay
     assert.deepEqual(snapshot.dandelionSeeds, [[1, 5]]);
     EntityManager.prototype.applyNetworkSnapshot.call(replica, snapshot);
     assert.deepEqual(replicaArena.controller.serialize(), [[1, 5]]);
+});
+
+test('a seed contact applies only a weak impulse and never calls the damage path', () => {
+    let damageCalls = 0;
+    let slingshot = null;
+    const player = {
+        alive: true,
+        index: 3,
+        position: new THREE.Vector3(1, 2, 3),
+        takeDamage: () => { damageCalls += 1; },
+        activateSlingshot: (params, forward, up) => {
+            slingshot = { params, forward: { ...forward }, up: { ...up } };
+        },
+    };
+    const phase = new PlayerCollisionPhase({
+        arena: {
+            consumeDandelionSeedCollision: () => ({
+                seedIndex: 11,
+                normal: new THREE.Vector3(1, 0, 0),
+            }),
+        },
+    });
+
+    assert.equal(phase._resolveDandelionSeedCollision(player, 0.4), true);
+    assert.equal(damageCalls, 0);
+    assert.deepEqual(slingshot.params, { duration: 0.18, forwardImpulse: 2.4, liftImpulse: 0.6 });
+    assert.deepEqual(slingshot.forward, { x: 1, y: 0, z: 0 });
+    assert.deepEqual(slingshot.up, { x: 0, y: 1, z: 0 });
 });

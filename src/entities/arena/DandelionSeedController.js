@@ -35,7 +35,7 @@ export class DandelionSeedController {
             const scale = node.getWorldScale(new THREE.Vector3());
             const size = Math.max(scale.x, scale.y, scale.z);
             const seed = {
-                index, node, root, tip, normal,
+                index, node, root, tip, normal, height,
                 radius: size * 0.43,
                 speed: size * 0.55,
                 restPosition: node.position.clone(),
@@ -43,11 +43,14 @@ export class DandelionSeedController {
                 releasedAt: null,
                 launch: new THREE.Vector3(),
                 releaseWind: new THREE.Vector3(),
+                collisionCenter: tip.clone(),
+                hitPlayers: null,
             };
             this.seeds.push(seed);
             this.byName.set(node.name, seed);
         });
         this.seeds.sort((a, b) => a.index - b.index);
+        this._collision = { seedIndex: 0, normal: new THREE.Vector3() };
     }
 
     get count() { return this.seeds.length; }
@@ -94,6 +97,7 @@ export class DandelionSeedController {
         seed.launch.copy(seed.normal).multiplyScalar(0.48)
             .addScaledVector(seed.releaseWind, 0.78)
             .addScaledVector(UP, 0.22).normalize();
+        seed.hitPlayers = null;
         this.events.push([seed.index, at]);
         return true;
     }
@@ -119,7 +123,34 @@ export class DandelionSeedController {
             seed.node.position.copy(this._target);
             this._tumble.setFromAxisAngle(TUMBLE_AXIS, age * (0.32 + (seed.index % 7) * 0.06));
             seed.node.quaternion.copy(seed.restQuaternion).multiply(this._tumble);
+            seed.node.updateWorldMatrix(true, false);
+            seed.collisionCenter.set(0, seed.height, 0);
+            seed.node.localToWorld(seed.collisionCenter);
         }
+    }
+
+    /** A released pappus gives each vehicle one soft, damage-free bump. */
+    consumeCollision(position, playerRadius = 0, playerIndex = -1) {
+        if (!position) return null;
+        const entityKey = Number.isInteger(Number(playerIndex)) ? Number(playerIndex) : String(playerIndex);
+        const safePlayerRadius = Math.max(0, Number(playerRadius) || 0);
+        for (const seed of this.seeds) {
+            if (seed.releasedAt === null || seed.node.visible === false) continue;
+            if (seed.hitPlayers?.has(entityKey)) continue;
+            const contactRadius = seed.radius + safePlayerRadius;
+            if (seed.collisionCenter.distanceToSquared(position) > contactRadius * contactRadius) continue;
+
+            if (!seed.hitPlayers) seed.hitPlayers = new Set();
+            seed.hitPlayers.add(entityKey);
+            const collision = this._collision;
+            collision.seedIndex = seed.index;
+            collision.normal.subVectors(position, seed.collisionCenter);
+            if (collision.normal.lengthSq() <= 0.000001) collision.normal.copy(seed.launch);
+            if (collision.normal.lengthSq() <= 0.000001) collision.normal.copy(UP);
+            collision.normal.normalize();
+            return collision;
+        }
+        return null;
     }
 
     reset() {
@@ -128,6 +159,8 @@ export class DandelionSeedController {
             seed.node.position.copy(seed.restPosition);
             seed.node.quaternion.copy(seed.restQuaternion);
             seed.node.visible = true;
+            seed.collisionCenter.copy(seed.tip);
+            seed.hitPlayers = null;
         }
         this.events.length = 0;
     }

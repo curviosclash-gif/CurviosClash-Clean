@@ -63,3 +63,20 @@ test('a replica receives the same release events and can reset for a new round',
     assert.deepEqual(replica.serialize(), []);
     assert.equal(replica.seeds[1].node.visible, true);
 });
+
+test('a released seed collides softly with each player once and attached seeds do not', () => {
+    const controller = new DandelionSeedController(makeScene());
+    const seed = controller.seeds[0];
+    assert.equal(controller.consumeCollision(seed.tip, 0.4, 2), null);
+
+    controller.releaseByName(seed.node.name, 3);
+    controller.update(3.1);
+    const hit = controller.consumeCollision(seed.collisionCenter.clone(), 0.4, 2);
+    assert.equal(hit.seedIndex, 1);
+    assert.ok(Math.abs(hit.normal.length() - 1) < 1e-9);
+    assert.equal(controller.consumeCollision(seed.collisionCenter, 0.4, 2), null);
+    assert.equal(controller.consumeCollision(seed.collisionCenter, 0.4, 7)?.seedIndex, 1);
+
+    controller.reset();
+    assert.equal(controller.consumeCollision(seed.tip, 0.4, 2), null);
+});

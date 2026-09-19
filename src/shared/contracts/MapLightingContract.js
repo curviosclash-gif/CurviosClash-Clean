@@ -2,7 +2,7 @@ const COLOR_MIN = 0x000000;
 const COLOR_MAX = 0xffffff;
 const DIRECTION_COMPONENT_LIMIT = 100;
 const LIGHT_INTENSITY_MAX = 4;
-const FOG_DISTANCE_MAX = 600;
+const FOG_DISTANCE_MAX = 1000;
 const FOG_HEIGHT_MAX = 200;
 const EXPOSURE_OFFSET_LIMIT = 0.5;
 // Above 0.5 the fog would be gone within two metres of the base height, which no map can want.

@@ -4,6 +4,12 @@ import * as THREE from 'three';
 // the vehicle body, so the sphere test only preselects and the oriented box decides.
 const CRASH_BROADPHASE_SCALE = 3;
 const CRASH_SWEEP_MAX_STEPS = 16;
+const DANDELION_SEED_BUMP = Object.freeze({
+    duration: 0.18,
+    forwardImpulse: 2.4,
+    liftImpulse: 0.6,
+});
+const WORLD_UP = Object.freeze({ x: 0, y: 1, z: 0 });
 
 export class PlayerCollisionPhase {
     constructor(entityManager) {
@@ -67,6 +73,11 @@ export class PlayerCollisionPhase {
             return false;
         }
 
+        // Airborne pappus is physical enough to be felt, but it never enters a damage path.
+        // The controller consumes one contact per seed/player pair, so a fluffy seed cannot
+        // repeatedly overwrite steering while the two collision spheres still overlap.
+        this._resolveDandelionSeedCollision(player, hRadius);
+
         if (!bouncedOnFoam) {
             const selfTrailSkipRecent = entityManager.constructor.deriveSelfTrailSkipRecentSegments(player);
             const collision = this._resolveTrailCollision(player, prevPos, hRadius * 2.0, selfTrailSkipRecent);
@@ -85,6 +96,15 @@ export class PlayerCollisionPhase {
         }
 
         return false;
+    }
+
+    _resolveDandelionSeedCollision(player, hRadius) {
+        const collision = this.entityManager.arena?.consumeDandelionSeedCollision?.(
+            player.position, hRadius, player.index,
+        );
+        if (!collision?.normal || typeof player.activateSlingshot !== 'function') return false;
+        player.activateSlingshot(DANDELION_SEED_BUMP, collision.normal, WORLD_UP);
+        return true;
     }
 
     _resolveArenaCollision(player, prevPos, hRadius) {
