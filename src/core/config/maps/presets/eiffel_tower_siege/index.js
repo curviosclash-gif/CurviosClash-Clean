@@ -85,8 +85,8 @@ export const EIFFEL_TOWER_SIEGE_MAPS = {
         portals: [],
         glbModels: EIFFEL_TOWER_SIEGE_MODELS,
         destructibles: EIFFEL_TOWER_SIEGE_DESTRUCTIBLES,
-        // Breaking a part of the tower opens a portal on the esplanade four seconds later. What it
-        // leads to, and the three emplacements guarding it, live in EiffelTowerSiegeSecretRoom.js.
+        // Breaking a part of the tower opens a portal at the former antenna tip four seconds later.
+        // What it leads to, and its three guards, live in EiffelTowerSiegeSecretRoom.js.
         secretRooms: [EIFFEL_SIEGE_SECRET_ROOM],
         staticTurrets: EIFFEL_SIEGE_SECRET_ROOM_TURRETS,
         // A siege needs armour on the ground: two tanks circle the tower (EiffelTowerSiegeTanks.js).
@@ -99,7 +99,8 @@ export const EIFFEL_TOWER_SIEGE_MAPS = {
             rim: { direction: [15, 24, 50], color: 0x7fdcff, intensity: 0.6 },
             hemisphere: { skyColor: 0xa4c2de, groundColor: 0x4c4e54 },
             fog: {
-                color: 0x16243a, near: 80, far: 200,
+                // Twice the arena profile's range, with the same near/far ratio and fog shape.
+                color: 0x16243a, near: 160, far: 400,
                 height: 11.3, heightFalloff: 0.033, turbulence: 0.09, skyBlend: 1,
                 colorHigh: 0x16243a, colorLow: 0x16243a, clipClosureStart: 0.5,
             },

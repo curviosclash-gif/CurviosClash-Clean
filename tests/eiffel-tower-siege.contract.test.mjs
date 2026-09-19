@@ -197,6 +197,11 @@ test('the siege map is registered and reuses the tower it is built on', () => {
     assert.equal(scenario?.id, SIEGE_MAP_KEY);
     assert.equal(scenario?.botCount, 5);
     assert.ok(scenario.minBots >= 1 && scenario.minBots <= scenario.botCount);
+    assert.deepEqual(
+        [MAP.lighting.fog.near, MAP.lighting.fog.far],
+        [160, 400],
+        'the siege view range is twice the 80-200 arena profile',
+    );
 });
 
 test('every model the siege map places exists on disk', () => {
