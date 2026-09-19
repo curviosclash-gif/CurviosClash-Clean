@@ -307,6 +307,64 @@ test('LAN match start is idempotent while a start command is pending', async () 
     }
 });
 
+test('LAN signaling rejects new joins while a match start is pending', async () => {
+    const lanServer = await startLanServer();
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 3 });
+        const joined = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+        });
+        await postJson(lanServer.baseUrl, '/lobby/ready', {
+            playerId: joined.payload.playerId,
+            playerToken: joined.payload.playerToken,
+            ready: true,
+        });
+        await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+        });
+
+        const lateJoin = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+        });
+        assert.equal(lateJoin.status, 409);
+        assert.equal(lateJoin.payload?.message, 'match_start_pending');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
+test('LAN rejoin cannot exceed the lobby player limit', async () => {
+    let currentTime = 1_000_000;
+    const lanServer = await startLanServer({
+        now: () => currentTime,
+        ghostPlayerTimeoutMs: 1_000,
+        ghostCleanupIntervalMs: 0,
+        reconnectLeaseMs: 60_000,
+    });
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 2 });
+        const firstJoin = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+        });
+        currentTime += 2_000;
+        lanServer.cleanupGhostPlayers();
+        const replacement = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+        });
+        assert.equal(replacement.ok, true);
+
+        const overLimitRejoin = await postJson(lanServer.baseUrl, '/lobby/rejoin', {
+            playerId: firstJoin.payload.playerId,
+            playerToken: firstJoin.payload.playerToken,
+        });
+        assert.equal(overLimitRejoin.status, 409);
+        assert.equal(overLimitRejoin.payload?.message, 'lobby_full');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
 test('LAN signaling gates mobile Ready and Start on the crossplay compatibility contract', async () => {
     const lanServer = await startLanServer();
     try {

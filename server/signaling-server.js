@@ -617,6 +617,10 @@ export function createSignalingServer(port = 9090, options = {}) {
                     sendSignalingError(ws, 'lobby_not_found', 'Lobby not found');
                     return;
                 }
+                if (lobby.pendingMatchStart) {
+                    sendSignalingError(ws, 'match_start_pending', 'Match start pending');
+                    return;
+                }
                 if (lobby.players.length >= lobby.maxPlayers) {
                     sendSignalingError(ws, 'lobby_full', 'Lobby full');
                     return;
@@ -668,6 +672,10 @@ export function createSignalingServer(port = 9090, options = {}) {
                 if (lobby.players.some((entry) => entry.peerId === resumePeerId)) {
                     reconnectLeases.delete(leaseKey);
                     sendSignalingError(ws, 'player_already_connected', 'Player already connected');
+                    break;
+                }
+                if (lobby.players.length >= lobby.maxPlayers) {
+                    sendSignalingError(ws, 'lobby_full', 'Lobby full');
                     break;
                 }
 

@@ -436,6 +436,10 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 jsonResponse(res, { ok: false, message: 'lobby_not_found' }, 404);
                 return;
             }
+            if (lobby.pendingMatchStart) {
+                jsonResponse(res, { ok: false, message: 'match_start_pending' }, 409);
+                return;
+            }
             if (countLobbyMembers(lobby) >= Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS)) {
                 jsonResponse(res, { ok: false, message: 'lobby_full' }, 409);
                 return;
@@ -740,6 +744,10 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 }
                 if (playerToken === '' || playerToken !== String(lease.token || '')) {
                     jsonResponse(res, { ok: false, message: 'player_auth_failed' }, 403);
+                    return;
+                }
+                if (countLobbyMembers(lobby) >= Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS)) {
+                    jsonResponse(res, { ok: false, message: 'lobby_full' }, 409);
                     return;
                 }
                 lobby.reconnectLeases.delete(playerId);
