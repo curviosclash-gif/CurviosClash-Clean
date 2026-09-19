@@ -96,6 +96,7 @@ export function createGameUiRefs(doc = document) {
         huntTimeLimitRow: doc.getElementById('hunt-time-limit-row'),
         huntTeamModeToggle: doc.getElementById('hunt-team-mode-toggle'),
         huntTeamRules: doc.getElementById('hunt-team-rules'),
+        huntTeamObjectiveSelect: doc.getElementById('hunt-team-objective-select'),
         huntTeamSizeSelect: doc.getElementById('hunt-team-size-select'),
         huntTeamAlphaDifficulty: doc.getElementById('hunt-team-alpha-difficulty'),
         huntTeamBravoDifficulty: doc.getElementById('hunt-team-bravo-difficulty'),

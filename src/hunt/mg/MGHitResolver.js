@@ -12,6 +12,7 @@ import {
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { clamp } from '../../shared/utils/MathOps.js';
 import { applyFightHumanAimAssist } from '../FightAimAssist.js';
+import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
 
 export class MGHitResolver {
     constructor(runtimeContext) {
@@ -139,6 +140,7 @@ export class MGHitResolver {
                 || turret.hp <= 0
                 || turret.ownerPlayer === attacker
                 || turret.ownerIndex === attacker?.index
+                || (turret.teamObjective === true && areTeammates(attacker, turret))
                 || !turret.position
             ) continue;
             this._tmpTurretOffset.subVectors(turret.position, origin);
@@ -191,7 +193,8 @@ export class MGHitResolver {
             }
         }
         for (const turret of this.runtime?.combat?.getMgTurretTargets?.() || []) {
-            if (!isDestructibleTurret(turret) || turret.hp <= 0 || turret.ownerIndex === player.index || !turret.position) continue;
+            if (!isDestructibleTurret(turret) || turret.hp <= 0 || turret.ownerIndex === player.index
+                || (turret.teamObjective === true && areTeammates(player, turret)) || !turret.position) continue;
             this._tmpHit.subVectors(turret.position, player.position);
             const distanceSq = this._tmpHit.lengthSq();
             if (distanceSq <= 0.000001 || distanceSq > maxRangeSq) continue;

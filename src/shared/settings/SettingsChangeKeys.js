@@ -57,6 +57,7 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     HUNT_TIME_LIMIT_ENABLED: 'hunt.timeLimitEnabled',
     HUNT_WIN_CONDITION: 'hunt.winCondition',
     HUNT_TEAM_MODE: 'hunt.teamMode',
+    HUNT_TEAM_OBJECTIVE: 'hunt.teamObjective',
     HUNT_TEAM_SIZE: 'hunt.teamSize',
     HUNT_TEAM_BOT_DIFFICULTY: 'hunt.teamBotDifficulty',
     GAMEPLAY_SPEED: 'gameplay.speed',

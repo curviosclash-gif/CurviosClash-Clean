@@ -10,6 +10,7 @@ export const TEAM_WEAPON_KINDS = Object.freeze({
     ITEM_PROJECTILE: 'ITEM_PROJECTILE',
 });
 
+/** @type {Set<string>} */
 const FRIENDLY_FIRE_WEAPONS = new Set([
     TEAM_WEAPON_KINDS.MACHINE_GUN,
     TEAM_WEAPON_KINDS.TRAIL,

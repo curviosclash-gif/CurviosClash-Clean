@@ -5,7 +5,7 @@ import { isRocketTierType, resolveRocketTierDamage } from '../../../hunt/RocketP
 import { applyTrailDamageFromProjectile } from '../../../hunt/DestructibleTrail.js';
 import { applyExplosionKnockback } from '../ExplosionKnockbackOps.js';
 import { resolveInterceptHit } from './RocketInterceptOps.js';
-import { canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamCombatContract.js';
+import { areTeammates, canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamCombatContract.js';
 
 // Der Spawnschutz aus dem RespawnSystem (INVULNERABILITY_SECONDS) macht einen frisch
 // eingesetzten Spieler unangreifbar - Spur, Wand, Crash, Hazard und Turret halten sich
@@ -141,6 +141,7 @@ export class ProjectileHitResolver {
                 !isDestructibleTurret(turret)
                 || turret.hp <= 0
                 || turret.ownerPlayer === projectile.owner
+                || (turret.teamObjective === true && areTeammates(projectile.owner, turret))
                 || (turret.deployed && turret.ownerIndex === projectile.owner?.index)
                 || (projectile.sourceTurretId && turret.id === projectile.sourceTurretId)
                 || !turret.position

@@ -23,11 +23,13 @@ export function syncHuntRespawnToggle(toggle, settings, { huntModeActive, respaw
     const teamModeToggle = document?.getElementById('hunt-team-mode-toggle');
     const teamRules = document?.getElementById('hunt-team-rules');
     const teamSize = document?.getElementById('hunt-team-size');
+    const teamObjective = document?.getElementById('hunt-team-objective-select');
     const alphaDifficulty = document?.getElementById('hunt-team-alpha-difficulty');
     const bravoDifficulty = document?.getElementById('hunt-team-bravo-difficulty');
     if (teamModeToggle) teamModeToggle.checked = teamMode;
     if (teamRules) teamRules.classList.toggle('hidden', !teamMode);
     if (teamSize) teamSize.value = String(settings?.hunt?.teamSize || 4);
+    if (teamObjective) teamObjective.value = settings?.hunt?.teamObjective === 'FLAGS' ? 'FLAGS' : 'HUNT';
     if (alphaDifficulty) alphaDifficulty.value = settings?.hunt?.teamBotDifficulty?.ALPHA || 'NORMAL';
     if (bravoDifficulty) bravoDifficulty.value = settings?.hunt?.teamBotDifficulty?.BRAVO || 'NORMAL';
 }

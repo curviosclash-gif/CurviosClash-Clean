@@ -70,6 +70,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
             timeLimitEnabled: true,
             winCondition: HUNT_WIN_CONDITIONS.KILLS_TIME,
             teamMode: false,
+            teamObjective: 'HUNT',
             teamSize: 4,
             teamBotDifficulty: { ALPHA: 'NORMAL', BRAVO: 'NORMAL' },
         },

@@ -1,4 +1,5 @@
 import { normalizeHuntWinCondition } from './HuntWinConditionContract.js';
+import { normalizeTeamObjectiveType } from './FlagObjectiveContract.js';
 
 function cloneObject(value, fallback = {}) {
     if (!value || typeof value !== 'object') return { ...fallback };
@@ -85,6 +86,7 @@ export const DEFAULT_ENTITY_RUNTIME_CONFIG = Object.freeze({
         DEATHMATCH_KILL_LIMIT: 10,
         DEATHMATCH_TIME_LIMIT_SECONDS: 300,
         WIN_CONDITION: 'kills_time',
+        TEAM_OBJECTIVE: 'HUNT',
         PLAYER_MAX_HP: 100,
         SHIELD_MAX_HP: 40,
         PLAYER_REGEN_DELAY: 3,
@@ -219,6 +221,7 @@ export function createEntityRuntimeConfig(runtimeConfig = null, baseConfig = nul
         )));
         contract.HUNT.WIN_CONDITION = normalizeHuntWinCondition(runtimeConfig.hunt.winCondition);
         contract.HUNT.TEAM_MODE = runtimeConfig.hunt.teamMode === true;
+        contract.HUNT.TEAM_OBJECTIVE = normalizeTeamObjectiveType(runtimeConfig.hunt.teamObjective);
         contract.HUNT.TEAM_SIZE = Math.max(1, Math.min(5, Math.trunc(toFiniteNumber(runtimeConfig.hunt.teamSize, 4))));
         contract.HUNT.TEAM_BOT_DIFFICULTY = cloneObject(runtimeConfig.hunt.teamBotDifficulty, { ALPHA: 'NORMAL', BRAVO: 'NORMAL' });
     }

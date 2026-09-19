@@ -38,6 +38,7 @@ import { normalizeFightMachineGunId } from '../shared/contracts/FightMachineGunC
 import { VIEWPORT_LAYOUTS } from '../shared/contracts/ViewportLayoutContract.js';
 import { resolveMapPortalEntryCount } from '../shared/contracts/PortalAuthoringContract.js';
 import { normalizeTeamHuntSettings } from '../shared/contracts/TeamHuntContract.js';
+import { normalizeTeamObjectiveType } from '../shared/contracts/FlagObjectiveContract.js';
 import {
     FOUR_PLAYER_PLANAR_MODES,
     SPLIT_SCREEN_VARIANTS,
@@ -435,6 +436,7 @@ export function createRuntimeConfigSnapshot(settings, {
                 const teamHunt = normalizeTeamHuntSettings(huntSource);
                 return {
                     teamMode: teamHunt.enabled,
+                    teamObjective: normalizeTeamObjectiveType(huntSource.teamObjective),
                     teamSize: teamHunt.teamSize,
                     teamBotDifficulty: teamHunt.botDifficulty,
                 };
@@ -516,6 +518,7 @@ export function applyRuntimeConfigCompatibility(runtimeConfig, targetConfig = CO
         nextConfig.HUNT.DEATHMATCH_TIME_LIMIT_SECONDS = Math.max(0, Number(runtimeConfig?.hunt?.timeLimitSeconds) || 0);
         nextConfig.HUNT.WIN_CONDITION = normalizeHuntWinCondition(runtimeConfig?.hunt?.winCondition);
         nextConfig.HUNT.TEAM_MODE = runtimeConfig?.hunt?.teamMode === true;
+        nextConfig.HUNT.TEAM_OBJECTIVE = normalizeTeamObjectiveType(runtimeConfig?.hunt?.teamObjective);
         nextConfig.HUNT.TEAM_SIZE = Math.max(1, Math.min(5, Number(runtimeConfig?.hunt?.teamSize) || 4));
         nextConfig.HUNT.TEAM_BOT_DIFFICULTY = { ...runtimeConfig?.hunt?.teamBotDifficulty };
         const fightTuningEnabled = runtimeConfig?.huntCombat?.fightTuningEnabled === true;

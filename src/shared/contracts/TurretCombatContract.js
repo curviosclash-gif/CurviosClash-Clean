@@ -11,6 +11,8 @@ export function isTurretCombatActive(strategy, allowedModes = ['HUNT']) {
 export function isTurretTargetPlayerEligible(player, owner, targetPlayers = 'all') {
     return !!player?.position && player !== owner
         && !(Number.isInteger(owner?.index) && owner.index >= 0 && player.index === owner.index)
+        && !areTeammates(player, owner)
         && (player.spawnProtectionTimer || 0) <= 0
         && (targetPlayers !== 'humans' || !player.isBot);
 }
+import { areTeammates } from './TeamCombatContract.js';

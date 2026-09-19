@@ -83,11 +83,12 @@ export class RoundOutcomeSystem {
         }
         if (this._requestedOutcome) return this._requestedOutcome;
         const objectiveOutcome = this.getObjectiveOutcome?.();
-        if (objectiveOutcome?.shouldEnd === true && objectiveOutcome?.winner) {
+        if (objectiveOutcome && typeof objectiveOutcome === 'object') {
             return {
-                shouldEnd: true,
-                winner: objectiveOutcome.winner,
-                reason: objectiveOutcome.reason || 'OBJECTIVE',
+                shouldEnd: objectiveOutcome.shouldEnd === true,
+                winner: objectiveOutcome.winner || null,
+                ...(objectiveOutcome.winnerTeamId ? { winnerTeamId: objectiveOutcome.winnerTeamId } : {}),
+                reason: objectiveOutcome.shouldEnd === true ? (objectiveOutcome.reason || 'OBJECTIVE') : '',
                 parcours: objectiveOutcome.parcours || null,
             };
         }

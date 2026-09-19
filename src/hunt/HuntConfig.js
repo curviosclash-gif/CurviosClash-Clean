@@ -12,6 +12,7 @@ export const HUNT_CONFIG = Object.freeze({
     DEATHMATCH_TIME_LIMIT_SECONDS: 300,
     WIN_CONDITION: 'kills_time',
     TEAM_MODE: false,
+    TEAM_OBJECTIVE: 'HUNT',
     TEAM_SIZE: 4,
     TEAM_BOT_DIFFICULTY: Object.freeze({ ALPHA: 'NORMAL', BRAVO: 'NORMAL' }),
     PLAYER_MAX_HP: 100,

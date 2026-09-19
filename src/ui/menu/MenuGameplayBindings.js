@@ -25,6 +25,7 @@ import { FIGHT_TUNING_PRESETS } from './FightMenuTuningSync.js';
 import { bindGraphicsStyleSelect } from './MenuGraphicsStyleBindings.js';
 import { applyMenuPlanarMode } from './MenuPlanarModeOps.js';
 import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
+import { bindMenuTeamHuntControls } from './MenuTeamHuntBindings.js';
 export function setupMenuGameplayBindings(ctx) {
     const ui = ctx.ui;
     const settings = ctx.settings;
@@ -202,33 +203,7 @@ export function setupMenuGameplayBindings(ctx) {
             emitSettingsChangedImmediate([keys.HUNT_TIME_LIMIT_ENABLED]);
         });
     }
-    if (ui.huntTeamModeToggle) {
-        bind(ui.huntTeamModeToggle, 'change', () => {
-            if (!settings.hunt) settings.hunt = {};
-            settings.hunt.teamMode = !!ui.huntTeamModeToggle.checked;
-            if (settings.hunt.teamMode) settings.hunt.respawnEnabled = true;
-            emitSettingsChangedImmediate([keys.HUNT_TEAM_MODE, keys.HUNT_RESPAWN_ENABLED]);
-        });
-    }
-    if (ui.huntTeamSizeSelect) {
-        bind(ui.huntTeamSizeSelect, 'change', () => {
-            if (!settings.hunt) settings.hunt = {};
-            settings.hunt.teamSize = Math.max(2, Math.min(5, Number(ui.huntTeamSizeSelect.value) || 4));
-            emitSettingsChangedImmediate([keys.HUNT_TEAM_SIZE]);
-        });
-    }
-    const bindTeamDifficulty = (control, teamId) => {
-        if (!control) return;
-        bind(control, 'change', () => {
-            if (!settings.hunt) settings.hunt = {};
-            if (!settings.hunt.teamBotDifficulty) settings.hunt.teamBotDifficulty = {};
-            const value = String(control.value || '').toUpperCase();
-            settings.hunt.teamBotDifficulty[teamId] = ['EASY', 'NORMAL', 'HARD'].includes(value) ? value : 'NORMAL';
-            emitSettingsChangedImmediate([keys.HUNT_TEAM_BOT_DIFFICULTY]);
-        });
-    };
-    bindTeamDifficulty(ui.huntTeamAlphaDifficulty, 'ALPHA');
-    bindTeamDifficulty(ui.huntTeamBravoDifficulty, 'BRAVO');
+    bindMenuTeamHuntControls({ ui, settings, bind, emitSettingsChangedImmediate, keys });
 
     if (ui.vehicleSelectP1) {
         bind(ui.vehicleSelectP1, 'change', (e) => {

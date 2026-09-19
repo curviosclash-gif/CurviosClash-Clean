@@ -24,6 +24,7 @@ import { MapUnitSystem } from '../systems/MapUnitSystem.js';
 import { LightningStrikeSystem } from '../../hunt/LightningStrikeSystem.js';
 import { RailgunSystem } from '../../hunt/RailgunSystem.js';
 import { RepairDroneSystem } from '../systems/RepairDroneSystem.js';
+import { FlagObjectiveSystem } from '../systems/FlagObjectiveSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -41,6 +42,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         mapDestructibleBlastSystem: new MapDestructibleBlastSystem(owner),
         objectiveTargetMarkerSystem: new ObjectiveTargetMarkerSystem(owner),
         secretRoomSystem: new SecretRoomSystem(owner),
+        flagObjectiveSystem: null,
         exclusionZoneSystem: null,
         roundOutcomeSystem: new RoundOutcomeSystem({
             getPlayers: () => owner.players,
@@ -56,8 +58,9 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
             getWinCondition: () => owner.entityRuntimeConfig?.HUNT?.WIN_CONDITION,
             getDeathmatchTimeLimitSeconds: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_TIME_LIMIT_SECONDS || 0,
             getElapsedSeconds: () => Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
-            getObjectiveOutcome: () => isFivePortalsConfig(owner.runtimeConfig)
-                ? null : (owner._parcoursProgressSystem?.getRoundOutcome?.() || null),
+            getObjectiveOutcome: () => owner._flagObjectiveSystem?.getRoundOutcome?.()
+                || (isFivePortalsConfig(owner.runtimeConfig)
+                    ? null : (owner._parcoursProgressSystem?.getRoundOutcome?.() || null)),
             isTeamMode: () => owner.runtimeConfig?.hunt?.teamMode === true,
         }),
         setupOps: new EntitySetupOps(owner),
@@ -74,6 +77,9 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     systems.targetableRegistry = new TargetableRegistry();
     systems.targetableRegistry.addProvider(() => systems.staticTurretSystem.getDestructibleTargets());
     if (owner) owner._targetableRegistry = systems.targetableRegistry;
+    systems.flagObjectiveSystem = new FlagObjectiveSystem(owner);
+    systems.targetableRegistry.addProvider(() => systems.flagObjectiveSystem.getTargets());
+    if (owner) owner._flagObjectiveSystem = systems.flagObjectiveSystem;
     systems.mapUnitSystem = new MapUnitSystem(owner);
     systems.targetableRegistry.addProvider(() => systems.mapUnitSystem.getTargets());
     if (owner) owner._mapUnitSystem = systems.mapUnitSystem;

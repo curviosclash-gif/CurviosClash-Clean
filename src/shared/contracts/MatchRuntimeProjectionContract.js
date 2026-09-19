@@ -424,6 +424,10 @@ function createHuntProjection(value = null, nowMs = 0) {
         overtime: source.overtime === true,
         authoritativeClient: source.authoritativeClient === true,
         teamMode: source.teamMode === true,
+        teamObjective: String(source.teamObjective || 'HUNT').toUpperCase() === 'FLAGS' ? 'FLAGS' : 'HUNT',
+        flagCounts: source.flagCounts && typeof source.flagCounts === 'object'
+            ? { ALPHA: normalizeNonNegativeInt(source.flagCounts.ALPHA, 0), BRAVO: normalizeNonNegativeInt(source.flagCounts.BRAVO, 0) }
+            : null,
     };
 }
 

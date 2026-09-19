@@ -46,6 +46,7 @@ import {
 import { getVehicleIds } from '../../entities/vehicle-registry.js';
 import { createBotHeuristicTuningSnapshot } from '../../shared/contracts/BotHeuristicTuningContract.js';
 import { normalizeTeamHuntSettings } from '../../shared/contracts/TeamHuntContract.js';
+import { normalizeTeamObjectiveType } from '../../shared/contracts/FlagObjectiveContract.js';
 
 function applySessionSanitization({ merged, src, defaults, migratedSessionType, runtimeLimits }) {
     const huntFeatureEnabled = CONFIG.HUNT?.ENABLED !== false;
@@ -100,6 +101,7 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
     merged.hunt.winCondition = normalizeHuntWinCondition(src?.hunt?.winCondition);
     const teamHunt = normalizeTeamHuntSettings(src?.hunt || defaults.hunt);
     merged.hunt.teamMode = teamHunt.enabled;
+    merged.hunt.teamObjective = normalizeTeamObjectiveType(src?.hunt?.teamObjective);
     merged.hunt.teamSize = teamHunt.teamSize;
     merged.hunt.teamBotDifficulty = teamHunt.botDifficulty;
     if (merged.gameMode !== GAME_MODE_TYPES.HUNT) {
