@@ -24,9 +24,14 @@ export default async function* contractSummaryReporter(source, { rootDirectory =
     // Files are keyed by their reported path, so a file that reports twice is listed once
     // with its latest numbers.
     const fileSummaries = new Map();
+    let coverageSummary = null;
     let rootSummary = null;
 
     for await (const event of source) {
+        if (event?.type === 'test:coverage') {
+            coverageSummary = event.data?.summary || null;
+            continue;
+        }
         if (event?.type !== 'test:summary') continue;
         const file = event.data?.file;
         if (!file) {
@@ -40,10 +45,9 @@ export default async function* contractSummaryReporter(source, { rootDirectory =
         const durationMs = Number(event.data?.duration_ms);
         fileSummaries.set(file, {
             file: toRepoRelativeFile(file, rootDirectory),
-            // A file that kills its own process (or gets cut off by --test-force-exit) sends
-            // no summary at all and is therefore simply absent here; its tests still show up
-            // in the run totals. A summary without a usable duration keeps null instead of a
-            // made up zero, so it never pretends to be the fastest file of the run.
+            // A worker that ends before sending a summary is absent here. A summary without
+            // a usable duration keeps null instead of a made up zero, so it never pretends
+            // to be the fastest file of the run.
             duration_ms: Number.isFinite(durationMs) ? durationMs : null,
             pass: toCount(counts.passed),
             fail: toCount(counts.failed),
@@ -64,6 +68,7 @@ export default async function* contractSummaryReporter(source, { rootDirectory =
         success: rootSummary?.success === true,
         failingFiles,
         files,
+        ...(coverageSummary ? { coverage: coverageSummary } : {}),
         recordedAt: new Date().toISOString(),
     }, null, 2)}\n`;
 }

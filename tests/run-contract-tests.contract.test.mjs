@@ -115,8 +115,10 @@ test('the runner ends with one parseable summary line', () => {
 });
 
 test('the reporter turns node test events into the summary payload', async () => {
+    const coverage = { workingDirectory: 'F:/repo', files: [{ path: 'F:/repo/src/state/Foo.js' }] };
     const output = await collectReporterOutput([
         { type: 'test:start', data: {} },
+        { type: 'test:coverage', data: { summary: coverage } },
         {
             type: 'test:summary',
             data: {
@@ -153,6 +155,7 @@ test('the reporter turns node test events into the summary payload', async () =>
     assert.equal(summary.skipped, 1);
     assert.equal(summary.duration_ms, 131.5);
     assert.deepEqual(summary.failingFiles, ['F:/repo/tests/red.contract.test.mjs']);
+    assert.deepEqual(summary.coverage, coverage);
 });
 
 // Node emits one test:summary per file next to the run summary; those per-file events already
@@ -307,7 +310,6 @@ test('the runner prints the slowest files just above the summary line', () => {
         }), 'utf8');
 
         const status = runContractTests(['fast'], {
-            tmpRoot: summaryRoot,
             contractSummaryPath,
             log: (line) => lines.push(String(line)),
             spawn: () => ({ status: 0 }),
