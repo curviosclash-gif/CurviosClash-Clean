@@ -65,7 +65,24 @@ export const EIFFEL_SIEGE_VAULT_BOSS = Object.freeze({
     allowedModes: Object.freeze(['HUNT', 'ARCADE']),
 });
 
+// Eight light drones circle above the boss. The whole formation, including each member's hitbox,
+// stays inside the 40 x 12 x 40 authored-unit vault and returns 20 seconds after its last loss.
+export const EIFFEL_SIEGE_VAULT_SWARM = Object.freeze({
+    id: 'eiffel_siege_vault_swarm',
+    kind: 'swarm',
+    path: Object.freeze([
+        Object.freeze([-10, -10, -10]),
+        Object.freeze([10, -10, -10]),
+        Object.freeze([10, -10, 10]),
+        Object.freeze([-10, -10, 10]),
+    ]),
+    loop: true,
+    respawnSeconds: 20,
+    allowedModes: Object.freeze(['HUNT', 'ARCADE']),
+});
+
 export const EIFFEL_SIEGE_MAP_UNITS = Object.freeze([
     ...EIFFEL_SIEGE_TANKS,
     EIFFEL_SIEGE_VAULT_BOSS,
+    EIFFEL_SIEGE_VAULT_SWARM,
 ]);
