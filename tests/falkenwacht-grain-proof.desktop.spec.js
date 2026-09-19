@@ -48,7 +48,7 @@ async function startMap(page, mapKey) {
         (key) => {
             const arena = window.GAME_INSTANCE?.arena;
             return arena?.currentMapKey === key
-                && arena?._glbScene?.children?.length === 14 && !arena._glbLoadError;
+                && arena?._glbScene?.children?.length === 30 && !arena._glbLoadError;
         },
         mapKey,
         { timeout: 120_000 }

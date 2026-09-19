@@ -21,7 +21,7 @@ async function startMap(page, key, bots = 0) {
     await page.click('#btn-start');
     await page.waitForFunction((value) => {
         const arena = window.GAME_INSTANCE?.arena;
-        return arena?.currentMapKey === value && arena?._glbScene?.children?.length === 14 && !arena._glbLoadError;
+        return arena?.currentMapKey === value && arena?._glbScene?.children?.length === 30 && !arena._glbLoadError;
     }, key, { timeout: 150_000 });
 }
 
@@ -131,7 +131,7 @@ for (const key of ['burg_falkenwacht', 'burg_falkenwacht_arena']) {
         expect(benchmark.afterRestart).toBeLessThanOrEqual(benchmark.castle.geometries);
         expect(benchmark.castle.calls).toBeLessThanOrEqual(260);
         expect(benchmark.castle.p95).toBeLessThan(100);
-        await page.waitForFunction(() => window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 14,
+        await page.waitForFunction(() => window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 30,
             null, { timeout: 150_000 });
         expect(await page.evaluate(() => window.GAME_INSTANCE.arena._glbAnimation.trackCount)).toBe(3);
 

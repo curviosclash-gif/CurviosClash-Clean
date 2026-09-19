@@ -22,6 +22,20 @@ const GLB_GALLERY_ASSET_SOURCE_DIR = path.resolve(__dirname, 'assets', 'models',
 const GLB_GALLERY_ASSET_OUTPUT_SEGMENTS = ['assets', 'models', 'downloaded_cc0'];
 const WILDWUCHS_ASSET_SEGMENTS = ['assets', 'models', 'verdant_wildwuchs'];
 
+function copyGlbTree(sourceDir, targetDir) {
+    if (!existsSync(sourceDir)) return;
+    for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
+        const sourcePath = path.join(sourceDir, entry.name);
+        const targetPath = path.join(targetDir, entry.name);
+        if (entry.isDirectory()) {
+            copyGlbTree(sourcePath, targetPath);
+        } else if (entry.isFile() && entry.name.endsWith('.glb')) {
+            mkdirSync(path.dirname(targetPath), { recursive: true });
+            cpSync(sourcePath, targetPath, { force: true });
+        }
+    }
+}
+
 export function copyObjVehicleAssetsPlugin() {
     let resolvedOutDir = path.resolve(__dirname, 'dist');
 
@@ -44,6 +58,14 @@ export function copyObjVehicleAssetsPlugin() {
                 const targetPath = path.join(resolvedOutDir, ...pathSegments);
                 mkdirSync(path.dirname(targetPath), { recursive: true });
                 cpSync(sourcePath, targetPath, { recursive: true, force: true });
+            }
+            for (const entry of readdirSync(mapsRoot, { withFileTypes: true })) {
+                if (!entry.isDirectory()) continue;
+                const pathSegments = ['assets', 'maps', entry.name, 'props'];
+                copyGlbTree(
+                    path.resolve(__dirname, ...pathSegments),
+                    path.join(resolvedOutDir, ...pathSegments)
+                );
             }
             const wildwuchsSource = path.resolve(__dirname, ...WILDWUCHS_ASSET_SEGMENTS);
             if (existsSync(wildwuchsSource)) {
