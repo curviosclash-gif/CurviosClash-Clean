@@ -205,4 +205,14 @@ test('the actual shootable GLB grows uniformly to 594 m without permanent seed c
     const origin = seed.tip.clone().addScaledVector(seed.normal, 30);
     const hit = controller.raycast(origin, seed.normal.clone().negate(), 50);
     assert.ok(hit, 'the scaled seed crown must remain hittable');
+    const shaftPoint = seed.root.clone().lerp(seed.tip, 0.35);
+    const side = seed.normal.clone().cross(new THREE.Vector3(0, 1, 0));
+    if (side.lengthSq() < 0.000001) side.crossVectors(seed.normal, new THREE.Vector3(1, 0, 0));
+    side.normalize();
+    const shaftHit = controller.raycast(
+        shaftPoint.clone().addScaledVector(side, 8), side.clone().negate(), 16,
+    );
+    assert.ok(shaftHit, 'the scaled achene shaft below the crown must remain hittable');
+    const vehicleHit = controller.consumeCollision(shaftPoint, 0.4, 3);
+    assert.equal(vehicleHit?.attached, true, 'attached full-seed vehicle collision is missing');
 });

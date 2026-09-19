@@ -43,8 +43,8 @@ test('MG chooses a shootable seed before a farther target and detaches it on imp
 test('a rocket sweep reaches a seed and releases it before the projectile is removed', () => {
     const arena = seedArena();
     const projectile = {
-        previousPosition: new THREE.Vector3(0, 1.8, 5),
-        position: new THREE.Vector3(0, 1.8, -1),
+        previousPosition: new THREE.Vector3(0, 0.45, 5),
+        position: new THREE.Vector3(0, 0.45, -1),
         radius: 0.2,
         type: 'ROCKET_WEAK',
     };
@@ -75,14 +75,14 @@ test('game-state snapshots replicate released seeds in every mode without replay
     assert.deepEqual(replicaArena.controller.serialize(), [[1, 5]]);
 });
 
-test('a seed contact applies only a weak impulse and never calls the damage path', () => {
-    let damageCalls = 0;
+test('a seed contact applies one point of mode damage and only a weak deflection', () => {
+    let damage = null;
     let slingshot = null;
     const player = {
         alive: true,
         index: 3,
         position: new THREE.Vector3(1, 2, 3),
-        takeDamage: () => { damageCalls += 1; },
+        takeDamage: () => { throw new Error('mode-aware damage path should be used'); },
         activateSlingshot: (params, forward, up) => {
             slingshot = { params, forward: { ...forward }, up: { ...up } };
         },
@@ -96,12 +96,40 @@ test('a seed contact applies only a weak impulse and never calls the damage path
                 return { seedIndex: 11, normal: new THREE.Vector3(1, 0, 0) };
             },
         },
+        _applyModeDamage: (_player, amount, cause, options) => {
+            damage = { amount, cause, options };
+            return { applied: amount, isDead: false };
+        },
     });
 
     assert.equal(phase._resolveDandelionSeedCollision(player, 0.4, previousPosition), true);
-    assert.equal(damageCalls, 0);
+    assert.equal(damage.amount, 1);
+    assert.equal(damage.cause, 'DANDELION_SEED');
+    assert.equal(damage.options.impactPoint, player.position);
     assert.equal(receivedPreviousPosition, previousPosition);
-    assert.deepEqual(slingshot.params, { duration: 0.18, forwardImpulse: 2.4, liftImpulse: 0.6 });
+    assert.deepEqual(slingshot.params, { duration: 0.12, forwardImpulse: 1.3, liftImpulse: 0.25 });
     assert.deepEqual(slingshot.forward, { x: 1, y: 0, z: 0 });
     assert.deepEqual(slingshot.up, { x: 0, y: 1, z: 0 });
+});
+
+test('classic mode keeps the soft deflection without inventing a fractional health path', () => {
+    let slingshotCalls = 0;
+    const player = {
+        alive: true,
+        index: 1,
+        position: new THREE.Vector3(),
+        activateSlingshot: () => { slingshotCalls += 1; },
+    };
+    const phase = new PlayerCollisionPhase({
+        arena: {
+            consumeDandelionSeedCollision: () => ({
+                seedIndex: 1,
+                normal: new THREE.Vector3(0, 1, 0),
+            }),
+        },
+        gameModeStrategy: { hasDamageEvents: () => false },
+        _applyModeDamage: () => { throw new Error('classic must not receive gradual damage'); },
+    });
+    assert.equal(phase._resolveDandelionSeedCollision(player, 0.4), true);
+    assert.equal(slingshotCalls, 1);
 });
