@@ -27,6 +27,19 @@ function setpiece(id, file, clipName, phaseOffsetBeats, position, targetSize, ro
     };
 }
 
+function cladding(id, family, variant, position, targetSize, rotateY = 0) {
+    const paddedVariant = String(variant).padStart(2, '0');
+    const familyId = `kinetic-tide-${family}`;
+    const assetId = `${familyId}-v${paddedVariant}`;
+    return {
+        id: `kinetic-tide-cladding-${id}`,
+        url: `assets/maps/kinetic_tide/props/${familyId}/${assetId}/runtime.glb`,
+        position,
+        rotation: [0, rotateY, 0],
+        targetSize,
+    };
+}
+
 const KINETIC_TIDE_LANDMARKS = [
     // Sector 1: the lock approach teaches the beat with three gates a third apart.
     landmark('dock-station', 'pm-aero-system', 'Aero_Station_01_Art', [-208, 0, -44], 44, 0.4),
@@ -72,6 +85,33 @@ const KINETIC_TIDE_LANDMARKS = [
     landmark('descent-column', 'pm-crystal-crossroads', 'Column_Regular', [-2, 62, 34], 26),
     setpiece('reactor-heart', '08_reactor_heart', 'ReactorHeartLoop', 0, [0, 40, 0], 46),
     landmark('finish-ring', 'pm-aero-system', 'Aero_Station_Ring_Art', [0, 62, 0], 26, Math.PI / 2),
+
+    // Static decorative mechanism cladding. Every runtime mesh is authored with _nocol and
+    // lives in its own non-animated slot, so these explain motion without inheriting it or
+    // narrowing a gameplay opening.
+    cladding('breath-gate-frame', 'machine-frame', 1, [-176, 8.5, 0], 30, Math.PI / 2),
+    cladding('breath-gate-beacon', 'warning-beacon', 1, [-176, 9, -16], 5.5, Math.PI / 2),
+
+    cladding('piston-tunnel-frame', 'machine-frame', 4, [-104, 26, 26], 36, Math.PI / 2),
+    cladding('piston-tunnel-flange', 'bearing-flange', 2, [-104, 28, 26], 34, Math.PI / 2),
+    cladding('piston-tunnel-panel', 'maintenance-panel', 3, [-104, 28, 41], 7, Math.PI / 2),
+
+    cladding('iris-shutter-flange', 'bearing-flange', 4, [-14, 56, -10], 38, Math.PI / 2),
+    cladding('iris-shutter-beacon', 'warning-beacon', 3, [-14, 55, -23], 5.5, Math.PI / 2),
+
+    cladding('carousel-ring-flange', 'bearing-flange', 6, [50, 72, 0], 42, Math.PI / 2),
+
+    cladding('pendulum-field-frame', 'machine-frame', 5, [128, 82, 22], 40),
+    cladding('pendulum-field-beacon', 'warning-beacon', 7, [116, 83, 11], 5.5),
+
+    cladding('lift-rings-flange', 'bearing-flange', 8, [172, 87, 44], 44),
+    cladding('lift-rings-panel', 'maintenance-panel', 6, [161, 88, 56], 7, -Math.PI / 4),
+
+    cladding('tide-wall-frame', 'machine-frame', 9, [92, 94, 98], 52, Math.PI / 2),
+    cladding('tide-wall-beacon', 'warning-beacon', 10, [92, 95, 81], 6, Math.PI / 2),
+
+    cladding('reactor-heart-flange', 'bearing-flange', 10, [0, 39, 0], 54),
+    cladding('reactor-heart-panel', 'maintenance-panel', 10, [12, 40, -8], 7, -Math.PI / 3),
 ];
 
 const KINETIC_TIDE_OBSTACLES = [
