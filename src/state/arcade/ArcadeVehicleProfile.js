@@ -6,7 +6,8 @@ import {
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
     createArcadeVehicleProfileRecord,
     getArcadeVehicleProfileRecord,
-    readArcadeVehicleProfileRecord,
+    loadArcadeVehicleProfileRecord,
+    normalizeArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import {
     ARCADE_HANGAR_SLOT_UNLOCK_GATES,
@@ -62,7 +63,8 @@ export const UPGRADE_PURCHASE_CODES = Object.freeze({
 });
 
 function normalizeVehicleProfileSafe(profile) {
-    return normalizeVehicleProfile(profile, {
+    const contractProfile = normalizeArcadeVehicleProfileRecord(profile?.vehicleId, profile);
+    return normalizeVehicleProfile(contractProfile, {
         xpConfig: XP_CONFIG,
         maxUpgradeXpBank: MAX_UPGRADE_XP_BANK,
     });
@@ -399,8 +401,7 @@ export function applyLoadoutPreset(profile, upgrades, nowMs = Date.now()) {
 
 export function loadVehicleProfiles(store) {
     if (!store || typeof store.loadJsonRecord !== 'function') return {};
-    const raw = store.loadJsonRecord(STORAGE_KEY, {});
-    const { profiles: contractProfiles, shouldPersist } = readArcadeVehicleProfileRecord(raw);
+    const { profiles: contractProfiles, shouldPersist, usedLegacyFallback } = loadArcadeVehicleProfileRecord(store);
     const normalizedProfiles = {};
     let shouldRewrite = shouldPersist;
 
@@ -410,7 +411,7 @@ export function loadVehicleProfiles(store) {
         if (!profileEquals(profile, normalized)) shouldRewrite = true;
     });
 
-    if (shouldRewrite && typeof store.saveJsonRecord === 'function') {
+    if (shouldRewrite && !usedLegacyFallback && typeof store.saveJsonRecord === 'function') {
         const saveResult = store.saveJsonRecord(STORAGE_KEY, normalizedProfiles);
         warnPersistenceFailure('canonical write-back', saveResult);
     }

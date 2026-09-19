@@ -3,9 +3,8 @@ import { computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import {
     ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
-    ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
     getArcadeVehicleProfileRecord,
-    readArcadeVehicleProfileRecord,
+    loadArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import { applyHangarWindowStorageEvent, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 import { readActiveHangarBuildFromStore } from '../hangar/HangarBuildPersistence.js';
@@ -156,8 +155,7 @@ function resolveVehicleMasteryProfile(runtimeAccess, vehicleId) {
         return fallbackProfile;
     }
     try {
-        const rawProfiles = store.loadJsonRecord(ARCADE_VEHICLE_PROFILE_STORAGE_KEY, {});
-        const { profiles } = readArcadeVehicleProfileRecord(rawProfiles);
+        const { profiles } = loadArcadeVehicleProfileRecord(store);
         return getArcadeVehicleProfileRecord(profiles, vehicleId);
     } catch {
         return fallbackProfile;
