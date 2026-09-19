@@ -3,8 +3,8 @@ import { configurePlayerHealthAuraObject } from '../../shared/rendering/PlayerHe
 
 export const PLAYER_HEALTH_AURA_COLORS = Object.freeze({
     critical: 0xff3b30,
-    medium: 0xffb347,
-    full: 0x42ffb3,
+    medium: 0xffd60a,
+    full: 0x34c759,
 });
 
 export const PLAYER_HEALTH_AURA_PULSE_PERIOD_SECONDS = 2.5;
