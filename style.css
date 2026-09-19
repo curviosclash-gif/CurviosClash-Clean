@@ -7771,11 +7771,11 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter {
-    top: 50%;
+    top: 53.6%;
     left: 50%;
     width: 270px;
     height: 270px;
-    opacity: 0.5;
+    opacity: 0.38;
     transform: translate(-50%, -50%) scale(var(--hunt-widget-scale, var(--hud-scale, 1)));
     transform-origin: center;
 }
@@ -7790,24 +7790,32 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-boost {
+    --hunt-arc-color: #39ff14;
+    --hunt-arc-track: rgba(57, 255, 20, 0.14);
     right: auto;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat {
-    --hunt-arc-color: #ff5b5b;
-    --hunt-arc-track: rgba(255, 91, 91, 0.16);
+    --hunt-arc-color: #ff174f;
+    --hunt-arc-track: rgba(255, 23, 79, 0.14);
     right: auto;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat:has(.warning),
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat:has(.danger) {
-    --hunt-arc-color: #ff5b5b;
-    --hunt-arc-track: rgba(255, 91, 91, 0.16);
+    --hunt-arc-color: #ff174f;
+    --hunt-arc-track: rgba(255, 23, 79, 0.14);
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-slowmo {
+    --hunt-arc-color: #00eaff;
+    --hunt-arc-track: rgba(0, 234, 255, 0.14);
     width: 270px;
     height: 270px;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-segment-active {
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--hunt-arc-color) 70%, transparent));
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat .hunt-bar,
@@ -7818,29 +7826,7 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter .hunt-value {
-    top: 48%;
-    font-size: 1rem;
-}
-
-#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-boost .hunt-value {
-    right: auto;
-    left: 30px;
-    width: 72px;
-    text-align: center;
-}
-
-#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat .hunt-value {
-    right: 30px;
-    left: auto;
-    width: 72px;
-    text-align: center;
-}
-
-#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-slowmo .hunt-value {
-    top: 82%;
-    right: 50%;
-    transform: translateX(50%);
-    text-align: center;
+    display: none;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .player-hud > .item-bar.rocket-bar {

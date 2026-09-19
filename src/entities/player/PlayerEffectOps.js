@@ -411,6 +411,11 @@ export function applyPlayerPowerup(player, type, options = {}) {
         return;
     }
 
+    if (type === 'BOMBER_STRIKE') {
+        player.entityManager?._mapUnitSystem?.callBomberStrike?.(player);
+        return;
+    }
+
     if (type === 'EMP') {
         removeEffectsByRole(player, 'buff');
         resetShieldState(player);

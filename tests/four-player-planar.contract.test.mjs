@@ -4,6 +4,10 @@ import { register } from 'node:module';
 import * as THREE from 'three';
 
 import { SettingsManager } from '../src/core/SettingsManager.js';
+import {
+    PlanarAimAssistSystem,
+    createPlanarAimAssistRuntimeAccess,
+} from '../src/core/PlanarAimAssistSystem.js';
 import { ensureMenuContractState } from '../src/ui/menu/MenuStateContracts.js';
 import { RenderViewportSystem } from '../src/core/renderer/RenderViewportSystem.js';
 import { buildStandardCaptureSegments } from '../src/core/renderer/RecordingCaptureLayoutOps.js';
@@ -208,6 +212,35 @@ test('all four keyboard groups support steering, context action and configurable
     assert.deepEqual(resolvePreferredFourPlayerPlanarAction(dual, 'hunt'), { useItem: false, shootItem: false, shootRocket: true });
     const itemOnly = { hasItem: true, hasRocket: false, canUseNow: true, canShootRocketNow: false };
     assert.deepEqual(resolvePreferredFourPlayerPlanarAction(itemOnly, 'hunt'), { useItem: true, shootItem: false, shootRocket: false });
+});
+
+test('four-player action keys never leak into another player planar aim axis', () => {
+    const settings = createManager().createDefaultSettings();
+    const down = new Set(FOUR_PLAYER_PLANAR_KEY_BINDINGS.map((binding) => binding.action));
+    const runtime = {
+        settings,
+        numHumans: 4,
+        input: { isDown: (code) => down.has(code) },
+        runtimeConfig: {
+            session: {
+                splitScreenVariant: SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR,
+                viewportLayout: VIEWPORT_LAYOUTS.FOUR_GRID,
+            },
+        },
+    };
+    const system = new PlanarAimAssistSystem(createPlanarAimAssistRuntimeAccess(runtime));
+
+    for (let playerIndex = 0; playerIndex < 4; playerIndex += 1) {
+        assert.equal(system.getPlanarAimAxis(playerIndex), 0, `player ${playerIndex + 1} keeps neutral aim`);
+    }
+
+    runtime.numHumans = 2;
+    runtime.runtimeConfig.session = {
+        splitScreenVariant: SPLIT_SCREEN_VARIANTS.STANDARD,
+        viewportLayout: VIEWPORT_LAYOUTS.TWO_COLUMNS,
+    };
+    assert.equal(system.getPlanarAimAxis(0), -1, 'standard player one keeps the configured aim key');
+    assert.equal(system.getPlanarAimAxis(1), -1, 'standard player two keeps the configured aim key');
 });
 
 test('four-player planar physics restores height and pitch while preserving manual roll after curve, collision and respawn changes', () => {

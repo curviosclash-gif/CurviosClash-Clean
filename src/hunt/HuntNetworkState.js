@@ -1,10 +1,13 @@
 import { normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
+import { createTeamScoreboard } from '../shared/contracts/TeamHuntContract.js';
+import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
 
 function normalizeOutcome(outcome) {
     if (!outcome?.shouldEnd) return null;
     return {
         reason: String(outcome.reason || ''),
         winnerIndex: Number.isInteger(outcome?.winner?.index) ? outcome.winner.index : -1,
+        winnerTeamId: normalizeTeamId(outcome?.winnerTeamId || outcome?.winner?.teamId),
     };
 }
 
@@ -12,17 +15,26 @@ export function createHuntNetworkState(entityManager) {
     if (!entityManager?.huntEnabled) return null;
     const matchState = entityManager._roundOutcomeSystem?.getDeathmatchState?.() || {};
     const winCondition = normalizeHuntWinCondition(entityManager.entityRuntimeConfig?.HUNT?.WIN_CONDITION);
+    const scoreboardRows = entityManager.getHuntScoreboard?.()
+        || entityManager._huntScoring?.getScoreboard?.(entityManager.players, { winCondition }) || [];
+    const teamMode = entityManager.runtimeConfig?.hunt?.teamMode === true;
     return {
-        scoreboardRows: entityManager.getHuntScoreboard?.()
-            || entityManager._huntScoring?.getScoreboard?.(entityManager.players, { winCondition }) || [],
+        scoreboardRows,
+        teamMode,
+        teamScoreboardRows: teamMode
+            ? createTeamScoreboard(scoreboardRows, entityManager.players, {
+                scoreKey: winCondition === 'score_target' ? 'points' : 'kills',
+            }) : [],
         killLimit: Math.max(1, Number(entityManager.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT) || 10),
         winCondition,
         livesRemainingByPlayer: entityManager._respawnSystem?.getLivesRemainingByPlayer?.(entityManager.players) || {},
         ...matchState,
         // Null on every map without destructible geometry, so the block costs nothing there.
         mapDestructibles: entityManager._mapDestructibleSystem?.serializeNetworkState?.() || null,
+        waterZone: entityManager._waterZoneSystem?.serializeNetworkState?.() || null,
         // Tanks: host truth for position, hit points and shots; null on maps without them.
         mapUnits: entityManager._mapUnitSystem?.serializeNetworkState?.() || null,
+        flags: entityManager._flagObjectiveSystem?.serializeNetworkState?.() || null,
         lightning: entityManager._lightningStrikeSystem?.serializeNetworkState?.() || null,
         railgunBeams: entityManager._railgunSystem?.serializeNetworkState?.() || null,
         outcome: normalizeOutcome(entityManager._lastRoundOutcome),
@@ -37,14 +49,16 @@ export function applyHuntNetworkState(entityManager, state) {
     if (state.mapDestructibles) {
         entityManager._mapDestructibleSystem?.applyNetworkState?.(state.mapDestructibles);
     }
+    if (state.waterZone) entityManager._waterZoneSystem?.applyNetworkState?.(state.waterZone);
     if (state.mapUnits) entityManager._mapUnitSystem?.applyNetworkState?.(state.mapUnits);
+    if (state.flags) entityManager._flagObjectiveSystem?.applyNetworkState?.(state.flags);
     // Always applied, also when null: a finished warning has to leave the client sky.
     entityManager._lightningStrikeSystem?.applyNetworkState?.(state.lightning || { pending: [], strikes: [] });
     entityManager._railgunSystem?.applyNetworkState?.(state.railgunBeams || []);
 
     const outcome = state.outcome;
     if (!outcome) return;
-    const key = `${outcome.reason}:${outcome.winnerIndex}`;
+    const key = `${outcome.reason}:${outcome.winnerTeamId || outcome.winnerIndex}`;
     if (entityManager._lastAppliedAuthoritativeOutcomeKey === key) return;
     entityManager._lastAppliedAuthoritativeOutcomeKey = key;
     entityManager._roundEnded = true;
@@ -52,6 +66,7 @@ export function applyHuntNetworkState(entityManager, state) {
     entityManager._eventBus?.emitRoundEnd?.(winner, {
         shouldEnd: true,
         winner,
+        winnerTeamId: normalizeTeamId(outcome.winnerTeamId),
         reason: String(outcome.reason || 'KILL_LIMIT'),
         parcours: null,
     });

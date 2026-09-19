@@ -1,3 +1,5 @@
+import { canTargetEnemy } from '../../../shared/contracts/TeamCombatContract.js';
+
 export const ITEM_PROJECTILE_TARGETING_PROFILE = Object.freeze({
     lockOnAngleDegrees: 45,
     range: 100,
@@ -23,7 +25,7 @@ export function isItemProjectileType(type) {
 
 function isUsableTarget(target, owner, origin, maxRangeSq) {
     return !!target?.alive
-        && target !== owner
+        && canTargetEnemy(owner, target)
         && target.decoyActive !== true
         && !!target.position
         && origin.distanceToSquared(target.position) <= maxRangeSq;

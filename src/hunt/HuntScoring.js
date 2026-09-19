@@ -1,4 +1,5 @@
 import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
+import { areTeammates } from '../shared/contracts/TeamCombatContract.js';
 
 const ASSIST_WINDOW_SECONDS = 8;
 const ASSIST_MIN_DAMAGE = 10;
@@ -40,6 +41,7 @@ export class HuntScoring {
                 spawnDeaths: 0,
                 intercepts: 0,
                 unitsDestroyed: 0,
+                unitDestroyedXp: 0,
                 points: 0,
             });
         }
@@ -105,7 +107,8 @@ export class HuntScoring {
         if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
         const stats = this._ensureStats(playerIndex);
         stats.unitsDestroyed += 1;
-        stats.points += kind === 'boss' ? 3 : 1;
+        stats.points += kind === 'boss' ? 3 : (kind === 'swarm' || kind === 'creature' ? 0 : 1);
+        stats.unitDestroyedXp += kind === 'swarm' ? 5 : (kind === 'bomber' ? 40 : (kind === 'creature' ? 100 : 30));
     }
 
     registerElimination(targetPlayer, options = {}) {
@@ -119,7 +122,7 @@ export class HuntScoring {
         targetStats.deaths += 1;
         if (Number(options.spawnAgeSeconds) <= SPAWN_DEATH_WINDOW_SECONDS) targetStats.spawnDeaths += 1;
 
-        if (killerIndex >= 0 && killerIndex !== targetIndex) {
+        if (killerIndex >= 0 && killerIndex !== targetIndex && !areTeammates(options?.killer, targetPlayer)) {
             const killerStats = this._ensureStats(killerIndex);
             killerStats.kills += 1;
             killerStats.points += 2;
@@ -165,6 +168,7 @@ export class HuntScoring {
                 spawnDeaths: stats.spawnDeaths,
                 intercepts: stats.intercepts,
                 unitsDestroyed: stats.unitsDestroyed,
+                unitDestroyedXp: stats.unitDestroyedXp,
                 points: stats.points,
             });
         }
@@ -194,6 +198,7 @@ export class HuntScoring {
                 // A snapshot from a host that predates S2.3 has no field here and reads as 0.
                 intercepts: Math.max(0, Number(row?.intercepts) || 0),
                 unitsDestroyed: Math.max(0, Number(row?.unitsDestroyed) || 0),
+                unitDestroyedXp: Math.max(0, Number(row?.unitDestroyedXp) || 0),
                 points: Math.max(0, Number(row?.points) || 0),
             });
         }

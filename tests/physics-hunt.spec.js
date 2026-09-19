@@ -1574,40 +1574,48 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const powerupManager = game?.powerupManager;
-            if (!game || !powerupManager) {
-                return { error: 'missing-powerup-manager' };
+            const strategy = game?.entityManager?.gameModeStrategy;
+            if (!game || !powerupManager || !strategy?.runtimeRng) {
+                return { error: 'missing-powerup-runtime' };
             }
             if (String(game?.activeGameMode || '').toUpperCase() !== 'HUNT') {
                 return { error: 'hunt-not-active' };
             }
 
             const counts = {};
-            const originalRandom = Math.random;
+            const originalStrategyRandom = strategy._random;
+            const originalRuntimeRandom = strategy.runtimeRng.next;
             let seed = 123456789;
-            Math.random = () => {
+            const seededRandom = () => {
                 seed = (seed * 1664525 + 1013904223) >>> 0;
                 return seed / 0x100000000;
             };
+            strategy._random = seededRandom;
+            strategy.runtimeRng.next = seededRandom;
 
-            powerupManager.clear();
-            powerupManager.spawnTimer = 0;
-            for (let i = 0; i < 200; i++) {
-                powerupManager._spawnRandom();
-                const item = powerupManager.items.pop();
-                if (!item) continue;
-                counts[item.type] = (counts[item.type] || 0) + 1;
-                game.renderer.removeFromScene(item.mesh);
-                item.mesh.traverse((node) => {
-                    if (node.material) {
-                        if (Array.isArray(node.material)) {
-                            node.material.forEach((material) => material.dispose());
-                        } else {
-                            node.material.dispose();
+            try {
+                powerupManager.clear();
+                powerupManager.spawnTimer = 0;
+                for (let i = 0; i < 200; i++) {
+                    powerupManager._spawnRandom();
+                    const item = powerupManager.items.pop();
+                    if (!item) continue;
+                    counts[item.type] = (counts[item.type] || 0) + 1;
+                    game.renderer.removeFromScene(item.mesh);
+                    item.mesh.traverse((node) => {
+                        if (node.material) {
+                            if (Array.isArray(node.material)) {
+                                node.material.forEach((material) => material.dispose());
+                            } else {
+                                node.material.dispose();
+                            }
                         }
-                    }
-                });
+                    });
+                }
+            } finally {
+                strategy._random = originalStrategyRandom;
+                strategy.runtimeRng.next = originalRuntimeRandom;
             }
-            Math.random = originalRandom;
 
             const rocketTotal = ['ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA']
                 .reduce((sum, key) => sum + Number(counts[key] || 0), 0);

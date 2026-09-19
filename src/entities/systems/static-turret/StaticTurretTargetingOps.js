@@ -8,7 +8,7 @@ function clampFinite(value, fallback, min, max) {
 }
 
 function isPlayerTargetEligible(turret, candidate) {
-    return candidate?.alive && isTurretTargetPlayerEligible(candidate, turret.ownerPlayer, turret.targetPlayers);
+    return candidate?.alive && isTurretTargetPlayerEligible(candidate, turret.ownerPlayer || turret.source, turret.targetPlayers);
 }
 
 function isTargetStillValid(system, turret, target) {
@@ -16,7 +16,7 @@ function isTargetStillValid(system, turret, target) {
     if (target.isTrail) {
         if (!target.entry || target.entry.destroyed) return false;
         const owner = system.entityManager?.players?.[target.entry.playerIndex];
-        if (!isTurretTargetPlayerEligible(owner, turret.ownerPlayer, turret.targetPlayers)) return false;
+        if (!isTurretTargetPlayerEligible(owner, turret.ownerPlayer || turret.source, turret.targetPlayers)) return false;
     } else if (!isPlayerTargetEligible(turret, target)) {
         return false;
     }
@@ -63,7 +63,7 @@ function findTrailTarget(system, turret, nearestDistanceSq) {
             for (const entry of cell) {
                 if (!entry || entry.destroyed) continue;
                 const owner = system.entityManager?.players?.[entry.playerIndex];
-                if (!isTurretTargetPlayerEligible(owner, turret.ownerPlayer, turret.targetPlayers)) continue;
+                if (!isTurretTargetPlayerEligible(owner, turret.ownerPlayer || turret.source, turret.targetPlayers)) continue;
                 if (entry._turretTrailQueryStamp === queryStamp) continue;
                 entry._turretTrailQueryStamp = queryStamp;
                 const fromX = Number(entry.fromX) || 0;

@@ -5,12 +5,14 @@ export function isDestructibleTurret(turret) {
 export function isTurretCombatActive(strategy, allowedModes = ['HUNT']) {
     const mode = String(strategy?.modeType || '').toUpperCase();
     if (!allowedModes.includes(mode) || strategy?.isSectorParcours?.()) return false;
-    return mode === 'HUNT' || (mode === 'ARCADE' && strategy?.getPickupModeType?.() === 'HUNT');
+    return mode === 'HUNT' || mode === 'ESCORT' || (mode === 'ARCADE' && strategy?.getPickupModeType?.() === 'HUNT');
 }
 
 export function isTurretTargetPlayerEligible(player, owner, targetPlayers = 'all') {
     return !!player?.position && player !== owner
         && !(Number.isInteger(owner?.index) && owner.index >= 0 && player.index === owner.index)
+        && !areTeammates(player, owner)
         && (player.spawnProtectionTimer || 0) <= 0
         && (targetPlayers !== 'humans' || !player.isBot);
 }
+import { areTeammates } from './TeamCombatContract.js';

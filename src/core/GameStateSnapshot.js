@@ -3,6 +3,7 @@
 import { createHuntNetworkState } from '../hunt/HuntNetworkState.js';
 import { isRocketTierType } from '../hunt/RocketPickupSystem.js';
 import { ROCKET_THREAT_SOURCES, resolveRocketThreatSource } from '../entities/systems/projectile/RocketThreatTracker.js';
+import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
 // GameStateSnapshot.js - serializable game state for network transport
 // ============================================
 
@@ -72,6 +73,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
         projectiles,
         powerups,
         turrets,
+        repairDrones: entityManager?._repairDroneSystem?.serializeNetworkState?.() || null,
         globalFog: entityManager?.getGlobalFogState?.() || { active: false, remainingSeconds: 0, visibilityRange: 0 },
         mapElapsedSeconds: toFiniteNumber(entityManager?.arena?.glbAnimationElapsedSeconds, 0),
         dandelionSeeds: entityManager?.arena?.serializeDandelionSeeds?.() || null,
@@ -108,6 +110,7 @@ export function serializePlayer(player) {
         id: player.id || `p-${player.index}`,
         index: player.index ?? 0,
         isBot: !!player.isBot,
+        teamId: normalizeTeamId(player.teamId),
         alive: !!player.alive,
         // Lets a network replica replay the death explosion for a cause it could not
         // resolve itself (e.g. a rocket hit only the host simulates) - see StateReconciler.

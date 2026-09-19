@@ -22,6 +22,23 @@ const MAP_UNITS = [
         allowedModes: ['HUNT', 'ARCADE'],
         targetPlayers: 'all',
     },
+    {
+        id: 'vault_swarm',
+        kind: 'swarm',
+        path: [[-12, 6, 0], [12, 6, 0]],
+        loop: false,
+        speed: 18,
+        maxHp: 8,
+        hitboxRadius: 1.25,
+        respawnSeconds: 20,
+        weapons: { mg: { damage: 2, cooldown: 0.6, range: 40 }, rocket: false },
+        loot: {},
+        allowedModes: ['HUNT', 'ARCADE'],
+        targetPlayers: 'all',
+        memberCount: 8,
+        memberHp: 8,
+        formationRadius: 5,
+    },
 ];
 function createSceneObject(userData, position = [0, 0, 0]) {
     const object = new THREE.Group();

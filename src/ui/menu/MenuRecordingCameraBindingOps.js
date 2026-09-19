@@ -20,7 +20,7 @@ export function resolveRecordingProfileLabel(profile) {
 export function resolveRecordingHudLabel(hudMode) {
     return hudMode === RECORDING_HUD_MODE.WITH_HUD
         ? 'mit HUD'
-        : 'clean';
+        : 'ohne HUD';
 }
 
 export function resolveRecordingOrientationLabel(orientation) {

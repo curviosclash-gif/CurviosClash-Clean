@@ -2,6 +2,7 @@
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { HUNT_TARGET_KIND } from '../shared/contracts/HuntTargetingContract.js';
 import { toFiniteNumber } from '../shared/utils/MathOps.js';
+import { areTeammates } from '../shared/contracts/TeamCombatContract.js';
 import {
     createHuntTargetingTelemetryState,
     finalizeHuntTargetingResult,
@@ -70,13 +71,9 @@ export function isHuntTargetDescriptor(target) {
     return kind === HUNT_TARGET_KIND.PLAYER || kind === HUNT_TARGET_KIND.TRAIL;
 }
 
-export function isPlayerTargetDescriptor(target) {
-    return String(target?.kind || '').toLowerCase() === HUNT_TARGET_KIND.PLAYER;
-}
+export const isPlayerTargetDescriptor = (target) => String(target?.kind || '').toLowerCase() === HUNT_TARGET_KIND.PLAYER;
 
-export function isTrailTargetDescriptor(target) {
-    return String(target?.kind || '').toLowerCase() === HUNT_TARGET_KIND.TRAIL;
-}
+export const isTrailTargetDescriptor = (target) => String(target?.kind || '').toLowerCase() === HUNT_TARGET_KIND.TRAIL;
 
 export function createPlayerTargetDescriptor(player, distance = Infinity, point = null) {
     if (!player || !Number.isInteger(player.index)) return null;
@@ -191,6 +188,7 @@ export function resolveHuntTargetPosition(target, players = [], trailSpatialInde
 function scanTrailLine({
     trailSpatialIndex,
     sourcePlayer,
+    players, excludeTeammates,
     origin,
     direction,
     probeRadius,
@@ -246,6 +244,8 @@ function scanTrailLine({
             }
             continue;
         }
+        const trailOwner = players?.[hit.entry.playerIndex];
+        if (excludeTeammates && areTeammates(sourcePlayer, trailOwner)) continue;
         return descriptor;
     }
 
@@ -255,6 +255,7 @@ function scanTrailLine({
 function scanTrailLineAdaptive({
     trailSpatialIndex,
     sourcePlayer,
+    players, excludeTeammates,
     origin,
     direction,
     probeRadius,
@@ -284,6 +285,7 @@ function scanTrailLineAdaptive({
         return scanTrailLine({
             trailSpatialIndex,
             sourcePlayer,
+            players, excludeTeammates,
             origin,
             direction,
             probeRadius,
@@ -323,6 +325,7 @@ function scanTrailLineAdaptive({
         const refinedHit = scanTrailLine({
             trailSpatialIndex,
             sourcePlayer,
+            players, excludeTeammates,
             origin,
             direction,
             probeRadius,
@@ -361,6 +364,7 @@ export function resolveHuntLineTarget({
     runtimeProfiler = null,
     targetingTelemetry = null,
     scratch = null,
+    canTargetPlayer = null, excludeTeammates = false,
 } = {}) {
     if (!origin || !direction) return null;
 
@@ -401,6 +405,8 @@ export function resolveHuntLineTarget({
         if (!target || !target.alive) continue;
         const targetIndex = Number(target.index);
         if (target === sourcePlayer || (targetIndex >= 0 && targetIndex === ownerIndex)) continue;
+        if (excludeTeammates && areTeammates(sourcePlayer, target)) continue;
+        if (typeof canTargetPlayer === 'function' && !canTargetPlayer(target)) continue;
 
         const hitboxRadius = Math.max(
             0.2,
@@ -438,6 +444,7 @@ export function resolveHuntLineTarget({
             ? scanTrailLineAdaptive({
                 trailSpatialIndex,
                 sourcePlayer,
+                players, excludeTeammates,
                 origin,
                 direction: reusable.direction,
                 probeRadius,
@@ -452,6 +459,7 @@ export function resolveHuntLineTarget({
             : scanTrailLine({
                 trailSpatialIndex,
                 sourcePlayer,
+                players, excludeTeammates,
                 origin,
                 direction: reusable.direction,
                 probeRadius,
@@ -538,4 +546,3 @@ export function resolveHuntLineTarget({
         metrics,
     });
 }
-

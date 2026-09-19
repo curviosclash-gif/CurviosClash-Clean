@@ -13,6 +13,7 @@ const assetEntries = [
     ['assets', 'models', 'downloaded_cc0'],
     ['assets', 'maps', 'chrono_forge', 'glb'],
     ['assets', 'maps', 'kinetic_tide', 'glb'],
+    ['assets', 'maps', 'kinetic_tide', 'props'],
 ];
 
 function productAssetsPlugin() {

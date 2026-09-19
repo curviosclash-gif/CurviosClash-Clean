@@ -181,6 +181,7 @@ function createTouchElement({ id = '', hidden = false } = {}) {
 
 test('Unified Mobile Android uses its product-local Capacitor wrapper', async () => {
   const config = await readJson('tools/mobile-classic-app/capacitor.config.json');
+  const rootPackage = await readJson('package.json');
   const subprojectPackage = await readJson('tools/mobile-classic-app/package.json');
 
   assert.equal(config.appId, 'de.curviosclash.classic');
@@ -188,8 +189,12 @@ test('Unified Mobile Android uses its product-local Capacitor wrapper', async ()
   assert.equal(config.webDir, '../../dist/mobile-classic');
   assert.equal(config.android.path, '../../android-classic');
   assert.equal(subprojectPackage.private, true);
-  assert.equal(subprojectPackage.dependencies['@capacitor/android'], '8.3.4');
-  assert.equal(subprojectPackage.dependencies['@capacitor/core'], '8.3.4');
+  for (const dependencyName of ['@capacitor/android', '@capacitor/core']) {
+    assert.equal(rootPackage.dependencies[dependencyName], '8.5.2');
+    assert.equal(subprojectPackage.dependencies[dependencyName], '8.5.2');
+  }
+  assert.equal(rootPackage.devDependencies['@capacitor/cli'], '8.4.3');
+  assert.equal(subprojectPackage.devDependencies['@capacitor/cli'], '8.4.3');
 
   await assert.rejects(
     readJson('capacitor.config.json'),

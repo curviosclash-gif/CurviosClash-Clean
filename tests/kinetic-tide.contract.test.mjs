@@ -53,7 +53,7 @@ test('Kinetic Tide runs three branches over a longer route than Eclipse Foundry'
 test('Kinetic Tide brings its own animated setpieces instead of reusing Chrono-Forge', () => {
     const animated = setpieces();
 
-    assert.equal(map.glbModels.length, 27);
+    assert.equal(map.glbModels.length, 43);
     assert.equal(animated.length, 10);
     assert.equal(new Set(map.glbModels.map((model) => model.id)).size, map.glbModels.length);
     assert.equal(map.glbColliderMode, 'dynamic');
@@ -62,6 +62,30 @@ test('Kinetic Tide brings its own animated setpieces instead of reusing Chrono-F
     for (const model of map.glbModels) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local GLB`);
     }
+});
+
+test('Kinetic Tide curates static cladding around every moving mechanism', () => {
+    const cladding = map.glbModels.filter((model) => model.url.includes('/kinetic_tide/props/'));
+    assert.equal(cladding.length, 16);
+    assert.equal(new Set(cladding.map((model) => model.url)).size, cladding.length,
+        'the integrated selection uses sixteen distinct variants');
+    for (const mechanism of [
+        'breath-gate',
+        'piston-tunnel',
+        'iris-shutter',
+        'carousel-ring',
+        'pendulum-field',
+        'lift-rings',
+        'tide-wall',
+        'reactor-heart',
+    ]) {
+        assert.ok(cladding.some((model) => model.id.includes(mechanism)), `${mechanism} receives cladding`);
+    }
+    assert.ok(cladding.some((model) => model.url.includes('machine-frame')));
+    assert.ok(cladding.some((model) => model.url.includes('bearing-flange')));
+    assert.ok(cladding.some((model) => model.url.includes('warning-beacon')));
+    assert.ok(cladding.some((model) => model.url.includes('maintenance-panel')));
+    assert.ok(cladding.every((model) => !model.animationClock), 'cladding slots remain static');
 });
 
 test('every setpiece states a clip name and a phase on the shared map beat', () => {

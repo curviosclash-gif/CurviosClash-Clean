@@ -1,5 +1,6 @@
 import { isTurretTargetPlayerEligible } from '../../../shared/contracts/TurretCombatContract.js';
 import * as THREE from 'three';
+import { resolveWaterAdjustedDelta } from '../WaterGameplayOps.js';
 import {
     createHuntTargetingScratch,
     createHuntTargetingTelemetry,
@@ -17,6 +18,7 @@ import {
 } from './ItemProjectileTargetingOps.js';
 import { resolveLockedPlayerIndex } from './RocketThreatTracker.js';
 import { stepGuidedRocket } from './GuidedRocketControlOps.js';
+import { canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamCombatContract.js';
 import {
     clearInterceptState,
     findProjectileByTraversalId,
@@ -203,6 +205,8 @@ export class ProjectileSimulationOps {
                 runtimeProfiler: this.system?.runtimeProfiler || null,
                 targetingTelemetry: this._targetingTelemetry,
                 scratch: this._targetingScratch,
+                canTargetPlayer: (target) => canDamage(owner, target, TEAM_WEAPON_KINDS.ROCKET),
+                excludeTeammates: true,
             });
             if (resolveHuntTargetOwnerPlayer(lineTarget, players)?.decoyActive
                 || !this._isAllowedTurretTarget(projectile, lineTarget, players)) {
@@ -216,6 +220,7 @@ export class ProjectileSimulationOps {
         let bestFallbackDistSq = Infinity;
         for (const target of players) {
             if (!target || !target.alive || target === owner || target.decoyActive
+                || !canDamage(owner, target, TEAM_WEAPON_KINDS.ROCKET)
                 || !this._isAllowedTurretTarget(projectile, target, players)) continue;
 
             this._tmpVec.subVectors(target.position, projectile.position);
@@ -314,9 +319,14 @@ export class ProjectileSimulationOps {
         projectile.foamBounceCooldown = Math.max(0, (projectile.foamBounceCooldown || 0) - dt);
         projectile.previousPosition?.copy?.(projectile.position);
 
-        const vx = projectile.velocity.x * dt;
-        const vy = projectile.velocity.y * dt;
-        const vz = projectile.velocity.z * dt;
+        const movementDt = resolveWaterAdjustedDelta(
+            this.system?.getWaterZoneSystem?.(),
+            projectile.position,
+            dt
+        );
+        const vx = projectile.velocity.x * movementDt;
+        const vy = projectile.velocity.y * movementDt;
+        const vz = projectile.velocity.z * movementDt;
         projectile.position.x += vx;
         projectile.position.y += vy;
         projectile.position.z += vz;

@@ -5,6 +5,7 @@ import { isRocketTierType, resolveRocketTierDamage } from '../../../hunt/RocketP
 import { applyTrailDamageFromProjectile } from '../../../hunt/DestructibleTrail.js';
 import { applyExplosionKnockback } from '../ExplosionKnockbackOps.js';
 import { resolveInterceptHit } from './RocketInterceptOps.js';
+import { canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamCombatContract.js';
 
 // Der Spawnschutz aus dem RespawnSystem (INVULNERABILITY_SECONDS) macht einen frisch
 // eingesetzten Spieler unangreifbar - Spur, Wand, Crash, Hazard und Turret halten sich
@@ -15,6 +16,12 @@ function isSpawnProtected(player) {
 
 function damagesOnContact(projectile) {
     return isRocketTierType(projectile?.type) || projectile?.type === 'MINE';
+}
+
+function resolveProjectileWeaponKind(projectile) {
+    return isRocketTierType(projectile?.type) || projectile?.type === 'MINE'
+        ? TEAM_WEAPON_KINDS.ROCKET
+        : TEAM_WEAPON_KINDS.ITEM_PROJECTILE;
 }
 
 function resolveEndlessProjectileDamage(owner, damage) {
@@ -107,6 +114,7 @@ export class ProjectileHitResolver {
 
         for (const target of players || []) {
             if (!target.alive || target === projectile.owner || target === directHitTarget) continue;
+            if (!canDamage(projectile.owner, target, TEAM_WEAPON_KINDS.ROCKET)) continue;
             if (isSpawnProtected(target)) continue;
             if (projectile.owner?.staticTurret === true && projectile.owner.targetPlayers !== 'all' && target.isBot === true) continue;
             if (projectile.turretTargeting && !isTurretTargetPlayerEligible(target, projectile.owner, projectile.turretTargeting.targetPlayers)) continue;
@@ -133,6 +141,7 @@ export class ProjectileHitResolver {
                 !isDestructibleTurret(turret)
                 || turret.hp <= 0
                 || turret.ownerPlayer === projectile.owner
+                || !canDamage(projectile.owner, turret, resolveProjectileWeaponKind(projectile))
                 || (turret.deployed && turret.ownerIndex === projectile.owner?.index)
                 || (projectile.sourceTurretId && turret.id === projectile.sourceTurretId)
                 || !turret.position
@@ -255,6 +264,7 @@ export class ProjectileHitResolver {
         let hit = false;
         for (const target of players || []) {
             if (!target.alive || target === projectile.owner) continue;
+            if (!canDamage(projectile.owner, target, resolveProjectileWeaponKind(projectile))) continue;
             if (damagesOnContact(projectile) && isSpawnProtected(target)) continue;
             if (projectile.environmentProjectile && Number(target.index) !== projectile.targetPlayerIndex) continue;
             if (projectile.owner?.staticTurret === true && projectile.owner.targetPlayers !== 'all' && target.isBot === true) continue;

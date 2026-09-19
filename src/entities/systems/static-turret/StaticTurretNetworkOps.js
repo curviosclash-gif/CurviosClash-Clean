@@ -26,6 +26,8 @@ export function createStaticTurretNetworkSnapshot(turrets = []) {
             pos: turret.position.toArray(),
             aim: turret.aimDirection.toArray(),
             owner: resolveOwnerIndex(turret),
+            teamId: turret.teamId || null,
+            objectiveGuard: turret.objectiveGuard === true,
             deployed: turret.deployed === true,
             destructible: turret.destructible === true,
             targetPlayers: turret.targetPlayers,
@@ -65,6 +67,7 @@ function createNetworkTurret(system, entry, players) {
         targetTrails: entry?.targetTrails === true,
         allowedModes: entry?.allowedModes,
         ownerIndex,
+        teamId: entry?.teamId,
         ownerColor: ownerPlayer?.color,
         maxHp: Number(entry?.maxHp),
         hp: Number(entry?.hp),
@@ -72,6 +75,7 @@ function createNetworkTurret(system, entry, players) {
     });
     turret.ownerPlayer = ownerPlayer;
     turret.source = ownerPlayer || turret.source;
+    turret.objectiveGuard = entry?.objectiveGuard === true;
     turret.expiresRemaining = Number(entry?.ttl) >= 0 ? Number(entry.ttl) : Number.POSITIVE_INFINITY;
     return turret;
 }
@@ -91,6 +95,8 @@ function applyTurretEntry(system, turret, entry, players) {
     turret.ownerIndex = Number.isInteger(entry.owner) ? entry.owner : Math.trunc(Number(entry.owner) || -1);
     turret.ownerPlayer = findOwnerPlayer(players, turret.ownerIndex);
     turret.source = turret.ownerPlayer || turret.source;
+    system.setTurretTeam?.(turret, entry.teamId);
+    turret.objectiveGuard = entry.objectiveGuard === true;
     turret.deployed = entry.deployed === true;
     turret.destructible = entry.destructible ?? turret.deployed;
     turret.authoredScale = clampFinite(entry.authoredScale, 1, 0.001, 1000);

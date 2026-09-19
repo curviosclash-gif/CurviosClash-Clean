@@ -2,7 +2,7 @@
 // BotRuntimeContextFactory.js - centralized runtime context for bot policies
 // ============================================
 
-import { GAME_MODE_TYPES, normalizeGameMode } from '../../hunt/HuntMode.js';
+import { GAME_MODE_TYPES, isHuntMode, normalizeGameMode } from '../../hunt/HuntMode.js';
 import { createObservationContext } from './observation/ObservationSystem.js';
 import { OBSERVATION_LENGTH_V1 } from './observation/ObservationSchemaV1.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
@@ -13,7 +13,7 @@ const LEGACY_CONTROL_PROFILE_VERSION = 'legacy-v1';
 const ANY_PROFILE_TOKENS = new Set(['*', 'any', 'multi', 'multi-profile', 'multi-profile-training']);
 
 function resolveRuntimeMode(entityManager) {
-    if (entityManager?.combatModeType === GAME_MODE_TYPES.HUNT) {
+    if (isHuntMode(entityManager?.combatModeType)) {
         return GAME_MODE_TYPES.HUNT;
     }
     if (entityManager?.runtimeConfig?.arcade?.enabled === true) {
@@ -25,7 +25,7 @@ function resolveRuntimeMode(entityManager) {
         || entityRuntimeConfig?.HUNT?.ACTIVE_MODE
         || GAME_MODE_TYPES.CLASSIC;
     const normalized = normalizeGameMode(requestedMode, GAME_MODE_TYPES.CLASSIC);
-    if (normalized === GAME_MODE_TYPES.HUNT) {
+    if (isHuntMode(normalized)) {
         return GAME_MODE_TYPES.HUNT;
     }
     return entityManager?.huntEnabled ? GAME_MODE_TYPES.HUNT : GAME_MODE_TYPES.CLASSIC;
@@ -310,7 +310,7 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
     runtimeContext.mode = mode;
 
     rules.planarMode = planarMode;
-    rules.huntEnabled = entityManager?.huntEnabled === true || mode === GAME_MODE_TYPES.HUNT;
+    rules.huntEnabled = entityManager?.huntEnabled === true || isHuntMode(mode);
     rules.portalsEnabled = !!entityManager?.arena?.portalsEnabled;
     rules.controlProfileId = activeControlProfileId;
     rules.controlProfileMatch = controlProfileMatch;

@@ -13,6 +13,7 @@ import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntime
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
+import { normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
 
 function normalizeActiveMode(mode) {
     return String(mode || '').trim().toLowerCase();
@@ -163,6 +164,9 @@ export class EntitySetupOps {
         const botVehicleIds = botVehicleSource.map((id) => normalizeVehicleId(id));
         return {
             humanConfigs: Array.isArray(options.humanConfigs) ? options.humanConfigs : [],
+            botTeamIds: Array.isArray(options.botTeamIds) ? options.botTeamIds : [],
+            teamBotDifficulty: options.teamBotDifficulty && typeof options.teamBotDifficulty === 'object'
+                ? options.teamBotDifficulty : null,
             modelScale: typeof options.modelScale === 'number'
                 ? options.modelScale
                 : (entityRuntimeConfig.PLAYER?.MODEL_SCALE || 1),
@@ -196,6 +200,7 @@ export class EntitySetupOps {
                 entityManager: owner,
                 entityRuntimeConfig: owner.entityRuntimeConfig,
             });
+            player.teamId = normalizeTeamId(setupContext.humanConfigs[i]?.teamId);
             player.fightLoadout = setupContext.humanConfigs[i]?.fightLoadout || null;
             player.name = typeof setupContext.humanConfigs[i]?.name === 'string' ? setupContext.humanConfigs[i].name : '';
             player.setControlOptions({
@@ -230,13 +235,15 @@ export class EntitySetupOps {
                 entityManager: owner,
                 entityRuntimeConfig: owner.entityRuntimeConfig,
             });
+            player.teamId = normalizeTeamId(setupContext.botTeamIds?.[i]);
             player.setControlOptions({ modelScale: setupContext.modelScale, invertPitch: false });
             player.scenarioRole = scenarioRoles.length > 0
                 ? scenarioRoles[i % scenarioRoles.length]
                 : '';
             player.scenarioAnchor = null;
+            const botDifficulty = setupContext.teamBotDifficulty?.[player.teamId] || owner.botDifficulty;
             const ai = owner.botPolicyRegistry.create(owner.botPolicyType, {
-                difficulty: owner.botDifficulty,
+                difficulty: botDifficulty,
                 recorder: owner.recorder,
                 runtimeConfig: owner.runtimeConfig,
                 runtimeProfiler: owner.runtimeProfiler,

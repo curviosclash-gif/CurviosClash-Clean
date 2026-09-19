@@ -68,6 +68,11 @@ function updateProjectedPlayerCameras(manager, projectedPlayers, dt) {
             firstPersonAnchor,
             updateEntityCameraContext(manager._cameraContext, projectedPlayer, otherPlayerPosition)
         );
+        const underwater = manager._waterZoneSystem?.isPositionUnderwater?.(projectedPlayer?.position) === true;
+        manager.renderer.setCameraWaterVisibility?.(
+            playerIndex,
+            underwater ? manager._waterZoneSystem?.getEffects?.()?.visibilityMultiplier : 1
+        );
     }
 }
 
@@ -107,6 +112,10 @@ function updateLivePlayerCameras(manager, dt, renderAlpha, useRenderedTransforms
             firstPersonAnchor,
             updateEntityCameraContext(manager._cameraContext, player, otherPlayerPosition)
         );
+        manager.renderer.setCameraWaterVisibility?.(
+            player.index,
+            player.waterSubmerged === true ? player.waterVisibilityMultiplier : 1
+        );
     }
 }
 
@@ -125,6 +134,9 @@ export function updateEntityCameras(
     useRenderedTransforms = false,
     renderProjection = null
 ) {
+    for (let index = 0; index < manager.renderer.cameras.length; index += 1) {
+        manager.renderer.setCameraWaterVisibility?.(index, 1);
+    }
     const projectedPlayers = Array.isArray(renderProjection?.players) ? renderProjection.players : null;
     if (projectedPlayers && countProjectedHumans(projectedPlayers) > 0) {
         updateProjectedPlayerCameras(manager, projectedPlayers, dt);

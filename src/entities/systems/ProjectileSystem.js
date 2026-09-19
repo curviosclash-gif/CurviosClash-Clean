@@ -3,6 +3,7 @@
 // ============================================
 
 import * as THREE from 'three';
+import { resolveWaterAdjustedDelta } from './WaterGameplayOps.js';
 import { configureExternalProjectileTarget, configureProjectileRange, ProjectileStatePool } from './projectile/ProjectileStatePool.js';
 import { ProjectileSimulationOps } from './projectile/ProjectileSimulationOps.js';
 import { ProjectileHitResolver } from './projectile/ProjectileHitResolver.js';
@@ -23,7 +24,7 @@ import { endGuidedRocketAutopilot } from '../ai/GuidedRocketAutopilotOps.js';
 
 export class ProjectileSystem {
     constructor(options = {}) {
-        this.renderer = options.renderer || null;
+        this.renderer = options.renderer || null; this.getWaterZoneSystem = typeof options.getWaterZoneSystem === 'function' ? options.getWaterZoneSystem : (() => options.waterZoneSystem || null);
         this.getArena = typeof options.getArena === 'function' ? options.getArena : (() => options.arena || null);
         this.getPlayers = typeof options.getPlayers === 'function'
             ? options.getPlayers
@@ -90,7 +91,6 @@ export class ProjectileSystem {
         this._rocketTrailSystem = RocketTrailSystem.forProjectileSystem(this);
         this._rocketThreatTracker = new RocketThreatTracker(this);
     }
-
     getRocketThreat(playerIndex) { return this._rocketThreatTracker.getThreat(playerIndex); }
 
     shootItemProjectile(player, preferredIndex = -1, rocketOnly = false) {
@@ -434,7 +434,8 @@ export class ProjectileSystem {
         if (this.networkReplica) {
             for (const projectile of this.projectiles) {
                 projectile.previousPosition.copy(projectile.position);
-                projectile.position.addScaledVector(projectile.velocity, dt);
+                const movementDt = resolveWaterAdjustedDelta(this.getWaterZoneSystem(), projectile.position, dt);
+                projectile.position.addScaledVector(projectile.velocity, movementDt);
                 projectile.mesh?.position.copy(projectile.position);
                 if (projectile.mesh && projectile.velocity.lengthSq() > 0.000001) {
                     this._tmpVec.copy(projectile.position).add(projectile.velocity);

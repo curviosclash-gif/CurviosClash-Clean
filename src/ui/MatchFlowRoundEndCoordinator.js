@@ -70,9 +70,20 @@ function finalizeRoundRecording({
     }
 }
 
-function applyRoundEndWinnerScore(winner) {
+function applyRoundEndWinnerScore(winner, players = [], winnerTeamId = null) {
     if (!winner) {
         return { scored: false, score: null };
+    }
+    if (winnerTeamId) {
+        const teammates = players.filter((player) => player?.teamId === winnerTeamId);
+        for (const teammate of teammates) {
+            teammate.score = (Number(teammate.score) || 0) + 1;
+        }
+        return {
+            scored: teammates.length > 0,
+            score: teammates.length > 0 ? teammates[0].score : null,
+            playerIndexes: teammates.map((player) => player.index),
+        };
     }
     winner.score = (Number(winner.score) || 0) + 1;
     return { scored: true, score: winner.score };
@@ -117,6 +128,7 @@ export function coordinateRoundEnd({
     totalBots,
     winsNeeded,
     outcomeReason = '',
+    winnerTeamId = null,
     parcours = null,
     huntScoreboard = null,
     localPlayerIndexes = null,
@@ -130,7 +142,7 @@ export function coordinateRoundEnd({
         parcours,
         logger,
     });
-    const score = applyRoundEndWinnerScore(winner);
+    const score = applyRoundEndWinnerScore(winner, players, winnerTeamId);
     const plan = deriveOnRoundEndCoordinatorPlan({
         roundStateController,
         players,

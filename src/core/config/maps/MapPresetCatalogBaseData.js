@@ -29,6 +29,13 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { type: 'KILL_COUNT', params: { target: 3 }, weight: 2 },
             { type: 'SURVIVE_DURATION', params: { target: 30 }, weight: 1 },
         ],
+        mapUnits: [{
+            id: 'standard_giant_worm', kind: 'creature',
+            path: [[-32, 0, -32], [32, 0, -32]], loop: false,
+            speed: 8, maxHp: 600, hitboxRadius: 6, respawnSeconds: 90,
+            attack: { damage: 30, cooldown: 4, radius: 20 },
+            allowedModes: ['HUNT', 'ARCADE'],
+        }],
     },
     custom: {
         name: 'Custom (Editor gespeichert)',
@@ -327,6 +334,8 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { id: 'item_showcase_flamethrower', pickupType: 'FLAMETHROWER', x: 48, y: 12, z: 36 },
             { id: 'item_showcase_lightning', pickupType: 'LIGHTNING', x: 64, y: 12, z: 36 },
             { id: 'item_showcase_railgun', pickupType: 'RAILGUN', x: 80, y: 12, z: 36 },
+            { id: 'item_showcase_repair_drone', pickupType: 'REPAIR_DRONE', x: -48, y: 12, z: 36 },
+            { id: 'item_showcase_bomber_strike', pickupType: 'BOMBER_STRIKE', x: -64, y: 12, z: 36 },
         ],
     },
     showcase_nexus: {

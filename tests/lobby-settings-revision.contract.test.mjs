@@ -31,6 +31,20 @@ test('public lobby facts describe actual objectives and keep legacy unknowns exp
     assert.deepEqual(createLobbyMatchSummary(settings()), { numBots: 3, botDifficulty: 'HARD', targetKind: 'wins', targetValue: 7 });
     assert.equal(createLobbyMatchSummary({ ...settings(), gameMode: 'HUNT', hunt: { respawnEnabled: true, deathmatchKillLimit: 20 } }).targetValue, 20);
     assert.equal(createLobbyMatchSummary({ localSettings: { modePath: 'arcade' }, arcade: { sectorCount: 4 } }).targetKind, 'sectors');
+    const escort = createLobbyMatchSummary({
+        gameMode: 'HUNT',
+        hunt: { respawnEnabled: true, teamMode: true, teamSize: 4, teamObjective: 'ESCORT' },
+    });
+    assert.deepEqual(escort, {
+        numBots: 7,
+        botDifficulty: 'NORMAL',
+        targetKind: 'escort',
+        targetValue: 300,
+        winCondition: 'kills_time',
+        teamMode: true,
+        teamObjective: 'ESCORT',
+        teamSize: 4,
+    });
     assert.deepEqual(normalizeLobbyMatchSummary({ numBots: -4, botDifficulty: 'script', targetValue: Infinity }),
         { numBots: 0, botDifficulty: null, targetKind: null, targetValue: null });
     assert.equal(resolveLobbyMatchFacts({ mapKey: 'maze', modePath: 'normal' })[2][1], 'Nicht verfügbar');

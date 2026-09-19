@@ -24,9 +24,11 @@ export class EntitySpawnOps {
         owner._mapHazardSystem?.startRound?.();
         owner._mapDestructibleSystem?.startRound?.();
         owner._mapDestructibleBlastSystem?.startRound?.();
+        owner._waterZoneSystem?.startRound?.();
         owner._secretRoomSystem?.startRound?.();
         owner._exclusionZoneSystem?.startRound?.();
         owner._spawnPlacementSystem?.resetAssignments?.();
+        owner._repairDroneSystem?.clear?.();
         const spawnContext = this.createSpawnContext();
         for (const player of owner.players) {
             if (player?.entitySlotActive === false) continue;
@@ -40,6 +42,7 @@ export class EntitySpawnOps {
             this.spawnPlayer(player, spawnContext);
         }
         owner._staticTurretSystem?.startRound?.();
+        owner._flagObjectiveSystem?.startRound?.();
         owner._mapUnitSystem?.startRound?.();
         owner._lightningStrikeSystem?.reset?.();
     }

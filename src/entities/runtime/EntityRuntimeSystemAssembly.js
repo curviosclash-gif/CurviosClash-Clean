@@ -23,6 +23,9 @@ import { TargetableRegistry } from '../systems/TargetableRegistry.js';
 import { MapUnitSystem } from '../systems/MapUnitSystem.js';
 import { LightningStrikeSystem } from '../../hunt/LightningStrikeSystem.js';
 import { RailgunSystem } from '../../hunt/RailgunSystem.js';
+import { RepairDroneSystem } from '../systems/RepairDroneSystem.js';
+import { FlagObjectiveSystem } from '../systems/FlagObjectiveSystem.js';
+import { WaterZoneSystem } from '../systems/WaterZoneSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -38,8 +41,10 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         mapHazardSystem: new MapHazardSystem(owner),
         mapDestructibleSystem: new MapDestructibleSystem(owner),
         mapDestructibleBlastSystem: new MapDestructibleBlastSystem(owner),
+        waterZoneSystem: new WaterZoneSystem(owner),
         objectiveTargetMarkerSystem: new ObjectiveTargetMarkerSystem(owner),
         secretRoomSystem: new SecretRoomSystem(owner),
+        flagObjectiveSystem: null,
         exclusionZoneSystem: null,
         roundOutcomeSystem: new RoundOutcomeSystem({
             getPlayers: () => owner.players,
@@ -55,8 +60,11 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
             getWinCondition: () => owner.entityRuntimeConfig?.HUNT?.WIN_CONDITION,
             getDeathmatchTimeLimitSeconds: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_TIME_LIMIT_SECONDS || 0,
             getElapsedSeconds: () => Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
-            getObjectiveOutcome: () => isFivePortalsConfig(owner.runtimeConfig)
-                ? null : (owner._parcoursProgressSystem?.getRoundOutcome?.() || null),
+            getObjectiveOutcome: () => owner._flagObjectiveSystem?.getRoundOutcome?.()
+                || owner._mapUnitSystem?.getEscortOutcome?.()
+                || (isFivePortalsConfig(owner.runtimeConfig)
+                    ? null : (owner._parcoursProgressSystem?.getRoundOutcome?.() || null)),
+            isTeamMode: () => owner.runtimeConfig?.hunt?.teamMode === true,
         }),
         setupOps: new EntitySetupOps(owner),
         spawnOps: new EntitySpawnOps(owner),
@@ -72,9 +80,15 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     systems.targetableRegistry = new TargetableRegistry();
     systems.targetableRegistry.addProvider(() => systems.staticTurretSystem.getDestructibleTargets());
     if (owner) owner._targetableRegistry = systems.targetableRegistry;
+    systems.flagObjectiveSystem = new FlagObjectiveSystem(owner);
+    systems.targetableRegistry.addProvider(() => systems.flagObjectiveSystem.getTargets());
+    if (owner) owner._flagObjectiveSystem = systems.flagObjectiveSystem;
     systems.mapUnitSystem = new MapUnitSystem(owner);
     systems.targetableRegistry.addProvider(() => systems.mapUnitSystem.getTargets());
     if (owner) owner._mapUnitSystem = systems.mapUnitSystem;
+    systems.repairDroneSystem = new RepairDroneSystem(owner);
+    systems.targetableRegistry.addProvider(() => systems.repairDroneSystem.getTargets());
+    if (owner) owner._repairDroneSystem = systems.repairDroneSystem;
     systems.lightningStrikeSystem = new LightningStrikeSystem(owner);
     if (owner) owner._lightningStrikeSystem = systems.lightningStrikeSystem;
     systems.railgunSystem = new RailgunSystem(owner);

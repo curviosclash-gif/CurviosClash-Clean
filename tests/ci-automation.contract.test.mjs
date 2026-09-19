@@ -199,7 +199,9 @@ test('package changes build and exercise both packaged Electron entries', () => 
     const workflow = readRepoFile('.github/workflows/package-check.yml');
     assert.match(workflow, /assets\/branding\/\*\*/);
     assert.match(workflow, /START_CURVIOSCLASH\.cmd/);
-    assert.match(workflow, /npm run app:package/);
+    assert.match(workflow, /npm run build:app/);
+    assert.match(workflow, /npm --prefix electron run build -- -- --win nsis --x64/);
+    assert.doesNotMatch(workflow, /npm run app:package(?:\s|$)/m);
     assert.match(workflow, /\\entry\.cjs/);
     assert.match(workflow, /\\settings-studio\\main\.cjs/);
     assert.match(workflow, /npm run app:package:verify/);

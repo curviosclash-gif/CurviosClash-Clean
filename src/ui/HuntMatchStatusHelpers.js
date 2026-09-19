@@ -61,9 +61,15 @@ export function updateHuntTargetProgress(progress, state, target, score) {
 export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLimit, timeText, matchPointText }) {
     if (isArenaWavesConfig(runtimeConfig)) return 'Fünf Fronten · halte jede Welle auf';
     if (isEndlessParcoursConfig(runtimeConfig)) return 'Endlosjagd · überlebe so lange wie möglich';
+    if (huntProjection?.escortMode === true) return `Eskorte · Alpha schützt den Panzer${timeText}`;
+    if (huntProjection?.teamObjective === 'FLAGS') {
+        const counts = huntProjection?.flagCounts || {};
+        return `Flaggen · Alpha ${Number(counts.ALPHA) || 0}:${Number(counts.BRAVO) || 0} Bravo${timeText}`;
+    }
     if (huntProjection?.respawnEnabled !== true) return 'Elimination · letzter Überlebender gewinnt';
     const mode = normalizeHuntWinCondition(huntProjection?.winCondition);
-    if (mode === HUNT_WIN_CONDITIONS.LAST_ALIVE) return `Letzter Überlebender · ${HUNT_LAST_ALIVE_LIVES} Leben pro Spieler`;
-    if (mode === HUNT_WIN_CONDITIONS.SCORE_TARGET) return `Punktziel · zuerst ${killLimit} Punkte${matchPointText}`;
-    return `Deathmatch · zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`;
+    const prefix = huntProjection?.teamMode === true ? 'Team-HUNT · ' : '';
+    if (mode === HUNT_WIN_CONDITIONS.LAST_ALIVE) return `${prefix}Letztes Team · ${HUNT_LAST_ALIVE_LIVES} Leben pro Spieler`;
+    if (mode === HUNT_WIN_CONDITIONS.SCORE_TARGET) return `${prefix}Punktziel · zuerst ${killLimit} Punkte${matchPointText}`;
+    return `${prefix}zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`;
 }

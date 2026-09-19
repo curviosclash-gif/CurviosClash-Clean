@@ -56,19 +56,22 @@ test('kind rules seal only for a lower leg and pick the yaw source per kind', ()
     assert.equal(MAP_DESTRUCTIBLE_KINDS.leg_mid.sealsTower, false);
     assert.equal(MAP_DESTRUCTIBLE_KINDS.shaft.sealsTower, false);
     assert.equal(MAP_DESTRUCTIBLE_KINDS.summit.sealsTower, false);
+    assert.equal(MAP_DESTRUCTIBLE_KINDS.landmark.sealsTower, true);
     assert.equal(MAP_DESTRUCTIBLE_KINDS.leg_lower.yawFrom, 'segment');
     assert.equal(MAP_DESTRUCTIBLE_KINDS.leg_mid.yawFrom, 'segment');
     assert.equal(MAP_DESTRUCTIBLE_KINDS.shaft.yawFrom, 'hit');
     assert.equal(MAP_DESTRUCTIBLE_KINDS.summit.yawFrom, 'hit');
+    assert.equal(MAP_DESTRUCTIBLE_KINDS.landmark.yawFrom, 'hit');
     // Each kind names the piece of the tower it stands in, so a collapse knows what it takes along.
     assert.deepEqual(
         Object.values(MAP_DESTRUCTIBLE_KINDS).map((rule) => rule.piece),
-        ['lower', 'mid', 'shaft', 'summit'],
+        ['lower', 'mid', 'shaft', 'summit', 'landmark'],
     );
     assert.equal(MAP_DESTRUCTIBLE_DAMAGE.MG, 5);
     assert.equal(resolveMapDestructibleKindRule('nope'), null);
     assert.equal(resolveMapDestructibleKindRule(7), null);
     assert.equal(resolveMapDestructibleKindRule('shaft'), MAP_DESTRUCTIBLE_KINDS.shaft);
+    assert.equal(resolveMapDestructibleKindRule('landmark'), MAP_DESTRUCTIBLE_KINDS.landmark);
 });
 
 test('normalization clamps, trims and drops what can never be hit', () => {

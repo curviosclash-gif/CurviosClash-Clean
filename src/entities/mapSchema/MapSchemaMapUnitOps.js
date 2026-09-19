@@ -11,7 +11,7 @@ import { normalizeMapUnits } from '../../shared/contracts/MapUnitContract.js';
  * @param {number} invScale
  */
 function toPlainUnit(unit, invScale) {
-    return {
+    const plain = {
         id: unit.id,
         kind: unit.kind,
         path: unit.path.map((/** @type {number[]} */ point) => point.map((value) => value * invScale)),
@@ -26,11 +26,32 @@ function toPlainUnit(unit, invScale) {
         weapons: {
             mg: unit.weapons.mg ? { ...unit.weapons.mg, range: unit.weapons.mg.range * invScale } : false,
             rocket: unit.weapons.rocket ? { ...unit.weapons.rocket, range: unit.weapons.rocket.range * invScale } : false,
+            ...(unit.kind === 'bomber' ? {
+                bomb: unit.weapons.bomb ? { ...unit.weapons.bomb, radius: unit.weapons.bomb.radius * invScale } : false,
+            } : {}),
         },
         loot: { ...unit.loot },
         allowedModes: [...unit.allowedModes],
         targetPlayers: unit.targetPlayers,
     };
+    if (unit.kind === 'swarm') {
+        plain.memberCount = unit.memberCount;
+        plain.memberHp = unit.memberHp;
+        plain.formationRadius = unit.formationRadius * invScale;
+    }
+    if (unit.kind === 'boss') {
+        plain.secretRoomId = unit.secretRoomId;
+        plain.modelScale = unit.modelScale;
+        plain.lootCount = unit.lootCount;
+        plain.guaranteedLoot = [...unit.guaranteedLoot];
+    }
+    if (unit.kind === 'bomber') {
+        plain.crash = { ...unit.crash, radius: unit.crash.radius * invScale };
+    }
+    if (unit.kind === 'creature') {
+        plain.attack = { ...unit.attack, radius: unit.attack.radius * invScale };
+    }
+    return plain;
 }
 
 /**

@@ -1,6 +1,8 @@
 import { FLAMETHROWER_PICKUP_DEFINITIONS } from './FlamethrowerPickupDefinitionsContract.js';
 import { LIGHTNING_PICKUP_DEFINITIONS } from './LightningPickupDefinitionsContract.js';
 import { RAILGUN_PICKUP_DEFINITIONS } from './RailgunPickupDefinitionsContract.js';
+import { REPAIR_DRONE_PICKUP_DEFINITIONS } from './RepairDronePickupDefinitionsContract.js';
+import { BOMBER_STRIKE_PICKUP_DEFINITIONS } from './BomberStrikePickupDefinitionsContract.js';
 import { PICKUP_EXPANSION_DEFINITIONS } from './PickupExpansionDefinitionsContract.js';
 import { ROCKET_PICKUP_DEFINITIONS } from './RocketPickupDefinitionsContract.js';
 import { WEAPON_FAN_PICKUP_DEFINITIONS } from './WeaponFanPickupDefinitionsContract.js';
@@ -354,6 +356,12 @@ export const PICKUP_REGISTRY = Object.freeze({
     ),
     ...Object.fromEntries(
         Object.entries(RAILGUN_PICKUP_DEFINITIONS).map(([type, definition]) => [type, createPickupDefinition(definition)])
+    ),
+    ...Object.fromEntries(
+        Object.entries(REPAIR_DRONE_PICKUP_DEFINITIONS).map(([type, definition]) => [type, createPickupDefinition(definition)])
+    ),
+    ...Object.fromEntries(
+        Object.entries(BOMBER_STRIKE_PICKUP_DEFINITIONS).map(([type, definition]) => [type, createPickupDefinition(definition)])
     ),
 });
 

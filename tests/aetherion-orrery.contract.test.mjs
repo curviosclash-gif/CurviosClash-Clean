@@ -27,8 +27,8 @@ test('Aetherion Orrery is registered as a hybrid adventure map', () => {
     });
 });
 
-test('Aetherion places four architecture parts and thirteen beat-synchronised mechanisms', () => {
-    assert.equal(map.glbModels.length, 17);
+test('Aetherion places architecture, beat-synchronised mechanisms, and static orientation props', () => {
+    assert.equal(map.glbModels.length, 41);
     const local = map.glbModels.filter((model) => model.url.startsWith(PREFIX));
     assert.equal(local.length, 17);
     assert.equal(new Set(local.map((model) => model.url)).size, 10);
@@ -45,6 +45,16 @@ test('Aetherion places four architecture parts and thirteen beat-synchronised me
     assert.equal(animated.filter((model) => model.url.endsWith('/08_comet_pendulum.glb')).length, 3);
     assert.equal(animated.filter((model) => model.url.endsWith('/09_zodiac_louvre.glb')).length, 3);
     assert.equal(animated.filter((model) => model.url.endsWith('/10_celestial_core.glb')).length, 1);
+
+    const orientation = map.glbModels.filter((model) => model.id.startsWith('aetherion-orrery-orientation-'));
+    assert.equal(orientation.length, 24);
+    assert.ok(orientation.every((model) => !model.animationClock));
+    assert.equal(orientation.filter((model) => model.url.includes('/zodiac-steles/')).length, 6);
+    assert.equal(orientation.filter((model) => model.url.includes('/orbit-beacons/')).length, 8);
+    assert.equal(orientation.filter((model) => model.url.includes('/astronomical-medallions/')).length, 10);
+    for (let index = 1; index < orientation.length; index += 1) {
+        assert.notEqual(orientation[index].url, orientation[index - 1].url, 'adjacent props use different models');
+    }
 });
 
 test('Aetherion keeps its Hunt inventory and spawns away from turrets', () => {

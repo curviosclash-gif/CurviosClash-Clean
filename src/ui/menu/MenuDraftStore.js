@@ -70,6 +70,12 @@ function createSessionDraftSnapshot(settings, sessionType) {
             deathmatchKillLimit: Math.max(1, Number(source?.hunt?.deathmatchKillLimit ?? defaults?.hunt?.deathmatchKillLimit) || 10),
             timeLimitEnabled: source?.hunt?.timeLimitEnabled !== false,
             winCondition: normalizeHuntWinCondition(source?.hunt?.winCondition),
+            teamMode: source?.hunt?.teamMode === true,
+            teamObjective: ['FLAGS', 'ESCORT'].includes(source?.hunt?.teamObjective)
+                ? source.hunt.teamObjective
+                : 'HUNT',
+            teamSize: Math.max(1, Math.min(5, Number(source?.hunt?.teamSize) || 4)),
+            teamBotDifficulty: cloneObject(source?.hunt?.teamBotDifficulty, { ALPHA: 'NORMAL', BRAVO: 'NORMAL' }),
         },
         gameplay: cloneObject(source.gameplay, defaults.gameplay),
         recording: cloneObject(source.recording, defaults.recording),
@@ -131,6 +137,12 @@ function applySnapshotToSettings(settings, snapshot) {
     settings.hunt.deathmatchKillLimit = Math.max(1, Number(snapshot?.hunt?.deathmatchKillLimit ?? defaults?.hunt?.deathmatchKillLimit) || 10);
     settings.hunt.timeLimitEnabled = snapshot?.hunt?.timeLimitEnabled !== false;
     settings.hunt.winCondition = normalizeHuntWinCondition(snapshot?.hunt?.winCondition);
+    settings.hunt.teamMode = snapshot?.hunt?.teamMode === true;
+    settings.hunt.teamObjective = ['FLAGS', 'ESCORT'].includes(snapshot?.hunt?.teamObjective)
+        ? snapshot.hunt.teamObjective
+        : 'HUNT';
+    settings.hunt.teamSize = Math.max(1, Math.min(5, Number(snapshot?.hunt?.teamSize) || 4));
+    settings.hunt.teamBotDifficulty = cloneObject(snapshot?.hunt?.teamBotDifficulty, { ALPHA: 'NORMAL', BRAVO: 'NORMAL' });
 
     settings.gameplay = {
         ...(settings.gameplay && typeof settings.gameplay === 'object' ? settings.gameplay : cloneObject(defaults.gameplay, {})),

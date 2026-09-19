@@ -3,6 +3,7 @@ import {
     resolveShieldRatio,
 } from '../../hunt/HuntBotPolicy.js';
 import { clamp } from '../../shared/utils/MathOps.js';
+import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
 
 const NEUTRAL_TACTIC_BIAS = 0.5;
 
@@ -13,7 +14,7 @@ export function resolveOpportunisticEnemy(policy, player, players, fallbackEnemy
     let selected = fallbackEnemy;
     let selectedScore = Infinity;
     for (const other of players) {
-        if (!other || other === player || other.alive === false || !other.position) continue;
+        if (!other || other === player || other.alive === false || !other.position || areTeammates(player, other)) continue;
         const health = resolveHealthRatio(other);
         const shield = resolveShieldRatio(other);
         const vitality = clamp(health * 0.72 + shield * 0.28, 0, 1);

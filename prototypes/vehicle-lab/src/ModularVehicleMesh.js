@@ -403,5 +403,6 @@ export class ModularVehicleMesh extends THREE.Group {
         this.geometries.clear();
         this.materials.forEach(m => m.dispose());
         this.materials.clear();
+        super.dispose();
     }
 }

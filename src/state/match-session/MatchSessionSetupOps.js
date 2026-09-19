@@ -5,6 +5,8 @@ import {
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
 import { isArenaWavesRunType } from '../../shared/contracts/ArenaWavesContract.js';
 import { invalidatePrewarmedArenaSession } from './MatchSessionPrewarmStore.js';
+import { normalizeTeamHuntSettings, resolveTeamRoster } from '../../shared/contracts/TeamHuntContract.js';
+import { normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
 
 function resolveLocalSplitScreenPlayerColor(splitScreenVariant, index) {
     if (splitScreenVariant === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR) return FOUR_PLAYER_PLANAR_PLAYER_COLORS[index];
@@ -55,8 +57,15 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
     const slotNames = new Map((Array.isArray(session?.networkPlayerSlots) ? session.networkPlayerSlots : [])
         .filter((slot) => typeof slot?.displayName === 'string' && slot.displayName.trim())
         .map((slot) => [Number(slot.playerIndex), slot.displayName.trim()]));
+    const slotTeams = new Map((Array.isArray(session?.networkPlayerSlots) ? session.networkPlayerSlots : [])
+        .map((slot) => [Number(slot.playerIndex), normalizeTeamId(slot?.teamId)])
+        .filter(([, teamId]) => teamId));
     const withName = (index, config) => (slotNames.has(index) ? { ...config, name: slotNames.get(index) } : config);
     const configs = [];
+    const teamSettings = normalizeTeamHuntSettings(runtimeConfig?.hunt || settings?.hunt);
+    const teamRoster = teamSettings.enabled
+        ? resolveTeamRoster({ humanCount: totalHumanCount, teamSize: teamSettings.teamSize })
+        : null;
     for (let index = 0; index < configuredHumanCount; index += 1) {
         const slot = `PLAYER_${index + 1}`;
         configs.push(withName(index, {
@@ -66,12 +75,16 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
             vehicleId: runtimeVehicles?.[slot] || settings?.vehicles?.[slot] || fallbackVehicleId,
             fightLoadout: fightLoadouts?.[slot] || fightLoadouts?.PLAYER_1 || null,
             color: resolveLocalSplitScreenPlayerColor(runtimeConfig?.session?.splitScreenVariant, index),
+            teamId: teamRoster ? (slotTeams.get(index) || teamRoster.teamIds[index] || null) : null,
         }));
     }
     // Slots beyond the local count keep the sparse shape they had before (the
     // entity setup falls back per field); only the steering preference is filled in.
     for (let index = configuredHumanCount; index < totalHumanCount; index += 1) {
-        configs.push(withName(index, { smoothSteering: isLocalSlot(index) && smoothSteering }));
+        configs.push(withName(index, {
+            smoothSteering: isLocalSlot(index) && smoothSteering,
+            teamId: teamRoster ? (slotTeams.get(index) || teamRoster.teamIds[index] || null) : null,
+        }));
     }
     return configs;
 }
@@ -79,6 +92,11 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
 export function buildEntityManagerSetupOptions(settings, runtimeConfig = null, entityRuntimeConfig = null, setupOptions = null) {
     const runtimeBotConfig = runtimeConfig?.bot || null;
     const setupPlanarMode = runtimeConfig?.gameplay?.planarMode ?? settings?.gameplay?.planarMode;
+    const humanConfigs = buildHumanConfigs(settings, runtimeConfig);
+    const teamSettings = normalizeTeamHuntSettings(runtimeConfig?.hunt || settings?.hunt);
+    const teamRoster = teamSettings.enabled
+        ? resolveTeamRoster({ humanCount: humanConfigs.length, teamSize: teamSettings.teamSize })
+        : null;
     return {
         modelScale: runtimeConfig?.player?.modelScale ?? settings?.gameplay?.planeScale,
         botDifficulty: runtimeConfig?.bot?.activeDifficulty || settings?.botDifficulty || 'NORMAL',
@@ -88,6 +106,8 @@ export function buildEntityManagerSetupOptions(settings, runtimeConfig = null, e
         runtimeConfig,
         entityRuntimeConfig,
         isDesktopRuntime: setupOptions?.isDesktopRuntime,
-        humanConfigs: buildHumanConfigs(settings, runtimeConfig),
+        humanConfigs,
+        botTeamIds: teamRoster?.teamIds.slice(humanConfigs.length) || [],
+        teamBotDifficulty: teamSettings.botDifficulty,
     };
 }

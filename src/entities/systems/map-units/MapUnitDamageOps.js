@@ -1,4 +1,6 @@
 import { rewardMapUnitDestruction } from './MapUnitRewardOps.js';
+import { beginBomberCrash } from './MapUnitBomberCrashOps.js';
+import { areTeammates } from '../../../shared/contracts/TeamCombatContract.js';
 
 /**
  * Hit points, destruction and return of map units (E19, E34).
@@ -26,6 +28,7 @@ function emptyResult(unit) {
 
 export function applyMapUnitDamage(system, unit, amount, options = {}) {
     if (!unit?.alive || system.networkReplica) return emptyResult(unit);
+    if (unit.escortTank === true && areTeammates(unit, options.sourcePlayer)) return emptyResult(unit);
     const requested = Math.max(0, Number(amount) || 0);
     const hpBefore = unit.hp;
     unit.hp = Math.max(0, hpBefore - requested);
@@ -40,7 +43,8 @@ export function applyMapUnitDamage(system, unit, amount, options = {}) {
         );
     }
     const isDead = unit.hp <= 0;
-    if (isDead) destroyMapUnit(system, unit, options.sourcePlayer || null);
+    if (isDead && unit.kind === 'bomber') beginBomberCrash(unit, options.sourcePlayer || null);
+    else if (isDead) destroyMapUnit(system, unit, options.sourcePlayer || null);
     return { applied: requested, hpApplied, absorbedByShield: 0, remainingHp: unit.hp, isDead };
 }
 
@@ -102,8 +106,9 @@ export function destroyMapUnit(system, unit, sourcePlayer) {
         `${unit.id}:${unit.kind}`,
     );
     unit.deaths = (Number(unit.deaths) || 0) + 1;
+    system.setBossRoomClock?.(unit, false);
     applyBlast(system, unit, sourcePlayer);
-    rewardMapUnitDestruction(system, unit, sourcePlayer);
+    if (unit.escortTank !== true) rewardMapUnitDestruction(system, unit, sourcePlayer);
 }
 
 /** Counts down destroyed units and answers the ones due to come back this tick. */

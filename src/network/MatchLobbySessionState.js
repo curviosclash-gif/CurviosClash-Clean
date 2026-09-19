@@ -2,6 +2,7 @@ import { MULTIPLAYER_SESSION_ROLES } from '../shared/contracts/RuntimeSessionCon
 import { normalizeString } from '../shared/contracts/ContractNormalizeUtils.js';
 import { normalizePublicLobbyMetadata } from '../shared/contracts/SignalingSessionContract.js';
 import { normalizeOptionalMultiplayerPlayerName } from '../shared/contracts/MultiplayerSessionContract.js';
+import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
 
 function normalizeBoolean(value) {
     return value === true;
@@ -25,6 +26,7 @@ export function normalizeLobbyMember(member, fallbackRole = MULTIPLAYER_SESSION_
         actorId: normalizeString(member?.actorId || member?.name, role === MULTIPLAYER_SESSION_ROLES.HOST ? 'Host' : peerId),
         name: normalizeString(member?.name || member?.actorId, role === MULTIPLAYER_SESSION_ROLES.HOST ? 'Host' : peerId),
         lobbyName: normalizeOptionalMultiplayerPlayerName(member?.lobbyName),
+        teamId: normalizeTeamId(member?.teamId),
         role,
         isHost: role === MULTIPLAYER_SESSION_ROLES.HOST,
         ready: normalizeBoolean(member?.ready),
@@ -75,6 +77,7 @@ export function normalizeLobbySessionState(state = {}) {
             name: member.name,
             isHost: member.isHost,
             ready: member.ready,
+            teamId: member.teamId,
         })),
         pendingMatchStart: state?.pendingMatchStart && typeof state.pendingMatchStart === 'object'
             ? { ...state.pendingMatchStart }

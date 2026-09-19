@@ -29,11 +29,13 @@ export class EntityTickPipeline {
         owner._lockOnCache.clear();
         owner._globalFogEffectSystem?.update?.(safeDt);
         owner._staticTurretSystem?.update?.(safeDt);
+        owner._flagObjectiveSystem?.update?.(safeDt);
         owner._mapUnitSystem?.update?.(safeDt);
         owner._lightningStrikeSystem?.update?.(safeDt);
         owner._railgunSystem?.update?.(safeDt);
         owner._exclusionZoneSystem?.update?.(safeDt);
         owner._mapDestructibleBlastSystem?.update?.();
+        owner._waterZoneSystem?.update?.(safeDt);
         // Before the projectiles: a portal that opens this tick has to take their shots too.
         owner._secretRoomSystem?.update?.(safeDt);
         owner._objectiveTargetMarkerSystem?.update?.(safeDt);
@@ -48,6 +50,7 @@ export class EntityTickPipeline {
                 const input = owner._playerInputSystem.resolvePlayerInput(player, dt, inputManager);
                 owner._playerLifecycleSystem.updatePlayer(player, dt, input, renderFrameId, simulationNowMs);
             }
+            owner._repairDroneSystem?.update?.(safeDt);
 
             if (owner._roundEnded) {
                 owner.audio?.stopEngine?.();

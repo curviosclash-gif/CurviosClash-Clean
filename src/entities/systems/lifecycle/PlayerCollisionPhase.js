@@ -4,6 +4,13 @@ import * as THREE from 'three';
 // the vehicle body, so the sphere test only preselects and the oriented box decides.
 const CRASH_BROADPHASE_SCALE = 3;
 const CRASH_SWEEP_MAX_STEPS = 16;
+const DANDELION_SEED_DAMAGE = 1;
+const DANDELION_SEED_BUMP = Object.freeze({
+    duration: 0.12,
+    forwardImpulse: 1.3,
+    liftImpulse: 0.25,
+});
+const WORLD_UP = Object.freeze({ x: 0, y: 1, z: 0 });
 
 export class PlayerCollisionPhase {
     constructor(entityManager) {
@@ -67,6 +74,11 @@ export class PlayerCollisionPhase {
             return false;
         }
 
+        // Attached and airborne seeds are soft hazards: one contact applies a small mode-aware
+        // damage tick and a light deflection, never the lethal wall-collision response.
+        this._resolveDandelionSeedCollision(player, hRadius, prevPos);
+        if (!player.alive) return true;
+
         if (!bouncedOnFoam) {
             const selfTrailSkipRecent = entityManager.constructor.deriveSelfTrailSkipRecentSegments(player);
             const collision = this._resolveTrailCollision(player, prevPos, hRadius * 2.0, selfTrailSkipRecent);
@@ -85,6 +97,23 @@ export class PlayerCollisionPhase {
         }
 
         return false;
+    }
+
+    _resolveDandelionSeedCollision(player, hRadius, previousPosition = null) {
+        const collision = this.entityManager.arena?.consumeDandelionSeedCollision?.(
+            player.position, hRadius, player.index, previousPosition,
+        );
+        if (!collision?.normal) return false;
+        const options = { impactPoint: player.position };
+        const damageEnabled = this.entityManager.gameModeStrategy?.hasDamageEvents?.() !== false;
+        const damageResult = damageEnabled && typeof this.entityManager._applyModeDamage === 'function'
+            ? this.entityManager._applyModeDamage(player, DANDELION_SEED_DAMAGE, 'DANDELION_SEED', options)
+            : (damageEnabled ? player.takeDamage?.(DANDELION_SEED_DAMAGE, options) : null);
+        if (damageResult?.isDead || player.alive === false) return true;
+        if (typeof player.activateSlingshot === 'function') {
+            player.activateSlingshot(DANDELION_SEED_BUMP, collision.normal, WORLD_UP);
+        }
+        return true;
     }
 
     _resolveArenaCollision(player, prevPos, hRadius) {

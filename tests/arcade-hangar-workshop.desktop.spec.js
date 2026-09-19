@@ -50,7 +50,9 @@ async function seedUnlockedProfiles(page) {
     const vehicleIds = await page.evaluate(() => Array.from(document.querySelectorAll('#vehicle-select-p1 option'))
         .map((option) => String(option.value || '').trim())
         .filter(Boolean));
-    await page.evaluate(({ profileKey, legacyLoadoutKey, buildKey, lastRunKey, ids }) => {
+    const seeded = await page.evaluate(({ profileKey, loadoutKey, buildKey, lastRunKey, ids }) => {
+        const store = window.GAME_INSTANCE?.settingsManager?.getPlayerRecordStorePort?.();
+        if (!store?.saveJsonRecord || !store?.removeJsonRecord) return false;
         const nowIso = new Date().toISOString();
         const unlockedSlots = [
             'core', 'nose', 'wing_left', 'wing_right', 'engine_left', 'engine_right', 'utility',
@@ -68,17 +70,19 @@ async function seedUnlockedProfiles(page) {
             createdAt: nowIso,
             updatedAt: nowIso,
         }]));
-        localStorage.setItem(profileKey, JSON.stringify(profiles));
-        localStorage.removeItem(legacyLoadoutKey);
-        localStorage.removeItem(buildKey);
-        localStorage.removeItem(lastRunKey);
+        const saveResult = store.saveJsonRecord(profileKey, profiles);
+        store.removeJsonRecord(loadoutKey);
+        store.removeJsonRecord(buildKey);
+        store.removeJsonRecord(lastRunKey);
+        return saveResult?.success === true;
     }, {
         profileKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
-        legacyLoadoutKey: ARCADE_VEHICLE_LOADOUT_STORAGE_KEY,
+        loadoutKey: ARCADE_VEHICLE_LOADOUT_STORAGE_KEY,
         buildKey: HANGAR_BUILD_STORAGE_KEY,
         lastRunKey: ARCADE_LAST_RUN_STORAGE_KEY,
         ids: vehicleIds,
     });
+    expect(seeded).toBe(true);
 }
 
 function readMetric(page, metric) {
@@ -347,6 +351,13 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await loadGameWithRetry(page);
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
+    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+    await page.waitForFunction(() => (
+        window.GAME_INSTANCE?.settings?.gameMode === 'ARCADE'
+        && window.GAME_INSTANCE?.settings?.localSettings?.modePath === 'arcade'
+    ));
+    await page.selectOption('#map-select', 'standard');
+    await page.waitForFunction(() => window.GAME_INSTANCE?.settings?.mapKey === 'standard');
     await expect(page.locator('#arcade-vehicle-manager')).toHaveCount(0);
     await openStartSetupSection(page, 'arcade');
     await page.locator('#btn-arcade-start-inline').click();
@@ -368,14 +379,11 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
         const game = window.GAME_INSTANCE;
         const profileStore = read(profileKey, legacyProfileKey);
         const snapshot = read(lastRunKey, legacyLastRunKey);
-        const arcadeRuntime = game?.runtimeFacade?.arcadeRunRuntime;
-        const activeProfile = arcadeRuntime?.getVehicleProfile?.();
         return {
             humanVehicleId: String(game?.entityManager?.humanPlayers?.[0]?.vehicleId || ''),
             snapshotVehicleId: String(snapshot.vehicleId || ''),
             snapshotBuildId: String(snapshot.buildId || ''),
             profileUpgrades: profileStore[snapshot.vehicleId]?.upgrades || {},
-            activeProfileUpgrades: activeProfile?.upgrades || {},
         };
     }, {
         profileKey: scopedProfileKey,
@@ -388,7 +396,9 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     expect(runState.snapshotBuildId).not.toBe('');
     expect(runState.profileUpgrades.wing_left_t2).toBe('T2');
     expect(runState.profileUpgrades.wing_right_t2).toBe('T2');
-    expect(runState.activeProfileUpgrades).toEqual(runState.profileUpgrades);
+    await expect.poll(() => page.evaluate(() => ({
+        ...(window.GAME_INSTANCE?.runtimeFacade?.arcadeRunRuntime?.getVehicleProfile?.()?.upgrades || {}),
+    }))).toEqual(runState.profileUpgrades);
 
     await returnToMenu(page);
     await openArcadeHangar(page);

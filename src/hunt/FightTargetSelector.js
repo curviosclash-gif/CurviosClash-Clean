@@ -1,3 +1,5 @@
+import { canTargetEnemy } from '../shared/contracts/TeamCombatContract.js';
+
 function resolveHealthRatio(player) {
     const hp = Math.max(0, Number(player?.hp) || 0);
     const maxHp = Math.max(1, Number(player?.maxHp) || 1);
@@ -19,7 +21,7 @@ export function getPreferredFightEnemy(player, allPlayers, outVec, dt = 0) {
     let wrappedIndex = Infinity;
     let candidateCount = 0;
     for (const other of allPlayers || []) {
-        if (!other || other === player || !other.alive || !hasValidFightPosition(other)) continue;
+        if (!other || !other.alive || !canTargetEnemy(player, other) || !hasValidFightPosition(other)) continue;
         candidateCount += 1;
         const index = Number.isInteger(other.index) ? other.index : Infinity;
         if (index > player.index && index < preferredIndex) preferredIndex = index;
@@ -34,7 +36,7 @@ export function getPreferredFightEnemy(player, allPlayers, outVec, dt = 0) {
     let lockedDistSq = Infinity;
     let lockedScore = Infinity;
     for (const other of allPlayers || []) {
-        if (!other || other === player || !other.alive || !hasValidFightPosition(other)) continue;
+        if (!other || !other.alive || !canTargetEnemy(player, other) || !hasValidFightPosition(other)) continue;
         outVec.subVectors(other.position, player.position);
         const candidateDistSq = outVec.lengthSq();
         const vitalityWeight = 0.8 + resolveHealthRatio(other) * 0.2;

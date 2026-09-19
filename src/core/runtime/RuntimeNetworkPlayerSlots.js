@@ -1,3 +1,5 @@
+import { normalizeTeamId, resolveBalancedTeamId } from '../../shared/contracts/TeamCombatContract.js';
+
 function normalizePeerId(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
@@ -31,6 +33,7 @@ function normalizeSlotEntry(entry, {
         isLocal: entry?.isLocal === true || (!!localPeerId && peerId === localPeerId),
         connected: entry?.connected !== false,
         ready: entry?.ready === true,
+        teamId: normalizeTeamId(entry?.teamId),
         joinedAt: normalizeJoinedAt(entry?.joinedAt),
     };
 }
@@ -116,6 +119,7 @@ export function resolveRuntimeNetworkPlayerSlots({
         .map((entry, playerIndex) => ({
             ...entry,
             playerIndex,
+            teamId: entry.teamId || resolveBalancedTeamId(playerIndex),
         }));
 }
 

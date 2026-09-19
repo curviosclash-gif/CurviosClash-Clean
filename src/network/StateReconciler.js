@@ -5,6 +5,7 @@ import { normalizeMultiplayerStateUpdateEvent } from '../shared/contracts/Multip
 import { applyHuntNetworkState } from '../hunt/HuntNetworkState.js';
 import { replayPlayerDeathPresentation } from '../entities/EntityPlayerDeathOps.js';
 import { spawnFlameJet } from '../hunt/FlamethrowerFlameEffect.js';
+import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
 
 const MIN_POSITION_DISTANCE = 0.01;
 const MIN_VECTOR_DISTANCE = 0.001;
@@ -203,6 +204,9 @@ export class StateReconciler {
     }
 
     _reconcileAuthoritativeFields(localPlayer, serverPlayer, entityManager = null) {
+        if (Object.prototype.hasOwnProperty.call(serverPlayer, 'teamId')) {
+            localPlayer.teamId = normalizeTeamId(serverPlayer.teamId);
+        }
         if (typeof serverPlayer.alive === 'boolean') {
             const aliveChanged = localPlayer.alive !== serverPlayer.alive;
             if (aliveChanged && serverPlayer.alive === false) {

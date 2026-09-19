@@ -2,6 +2,8 @@ import { WEAPON_FAN_PICKUP_DEFINITIONS } from '../shared/contracts/WeaponFanPick
 import { FLAMETHROWER_TARGET_SPAWN_WEIGHTS } from '../shared/contracts/FlamethrowerPickupDefinitionsContract.js';
 import { LIGHTNING_SPAWN_WEIGHTS } from '../shared/contracts/LightningPickupDefinitionsContract.js';
 import { RAILGUN_SPAWN_WEIGHTS } from '../shared/contracts/RailgunPickupDefinitionsContract.js';
+import { REPAIR_DRONE_SPAWN_WEIGHTS } from '../shared/contracts/RepairDronePickupDefinitionsContract.js';
+import { BOMBER_STRIKE_SPAWN_WEIGHTS } from '../shared/contracts/BomberStrikePickupDefinitionsContract.js';
 
 export const HUNT_CONFIG = Object.freeze({
     DEFAULT_MODE: 'HUNT',
@@ -9,6 +11,10 @@ export const HUNT_CONFIG = Object.freeze({
     DEATHMATCH_KILL_LIMIT: 10,
     DEATHMATCH_TIME_LIMIT_SECONDS: 300,
     WIN_CONDITION: 'kills_time',
+    TEAM_MODE: false,
+    TEAM_OBJECTIVE: 'HUNT',
+    TEAM_SIZE: 4,
+    TEAM_BOT_DIFFICULTY: Object.freeze({ ALPHA: 'NORMAL', BRAVO: 'NORMAL' }),
     PLAYER_MAX_HP: 100,
     PLAYER_REGEN_PER_SECOND: 2.0,
     PLAYER_REGEN_DELAY: 3.0,
@@ -274,6 +280,8 @@ export const HUNT_CONFIG = Object.freeze({
         FLAMETHROWER: FLAMETHROWER_TARGET_SPAWN_WEIGHTS.HUNT,
         LIGHTNING: LIGHTNING_SPAWN_WEIGHTS.HUNT,
         RAILGUN: RAILGUN_SPAWN_WEIGHTS.HUNT,
+        REPAIR_DRONE: REPAIR_DRONE_SPAWN_WEIGHTS.HUNT,
+        BOMBER_STRIKE: BOMBER_STRIKE_SPAWN_WEIGHTS.HUNT,
     }),
     // Lightning (E23-E32): warning over the whole map, then a strike on the highest flyers.
     LIGHTNING: Object.freeze({

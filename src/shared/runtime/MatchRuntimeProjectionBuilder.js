@@ -10,6 +10,14 @@ import {
     createMatchRuntimePlayerProjection,
     createMatchRuntimeSessionPlayerProjection,
 } from '../contracts/MatchRuntimeProjectionContract.js';
+import {
+    countFlagsByTeam,
+    FLAG_OBJECTIVE_DEFAULTS,
+    normalizeTeamObjectiveType,
+    TEAM_OBJECTIVE_TYPES,
+} from '../contracts/FlagObjectiveContract.js';
+import { ESCORT_DEFAULTS } from '../contracts/EscortObjectiveContract.js';
+import { createTeamScoreboard } from '../contracts/TeamHuntContract.js';
 
 const TMP_AIM_DIRECTION = new THREE.Vector3();
 const TMP_CONFIG_SOURCE = { config: null, entityRuntimeConfig: null };
@@ -169,12 +177,25 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
         ? game.huntState
         : {};
     const modeId = String(runtimeState?.activeGameMode || entityManager?.activeGameMode || game?.activeGameMode || '');
+    const escortMode = modeId.toUpperCase() === 'ESCORT';
     const combatModeId = String(entityManager?.gameModeStrategy?.getPickupModeType?.() || modeId);
     const gameStateId = String(sessionRuntime?.lifecycle?.gameStateId || game?.state || '');
     const parcoursHudState = entityManager?.getParcoursHudState?.(localPlayerIndex) || null;
-    const scoreboardRows = authoritativeFightState?.scoreboardRows
+    const playerScoreboardRows = authoritativeFightState?.scoreboardRows
         || entityManager?.getHuntScoreboard?.()
         || [];
+    const teamMode = authoritativeFightState?.teamMode === true || entityManager?.runtimeConfig?.hunt?.teamMode === true;
+    const teamObjective = normalizeTeamObjectiveType(entityManager?.runtimeConfig?.hunt?.teamObjective);
+    const flags = authoritativeFightState?.flags || entityManager?._flagObjectiveSystem?.flags || [];
+    const flagCounts = teamObjective === TEAM_OBJECTIVE_TYPES.FLAGS ? countFlagsByTeam(flags) : null;
+    const objectiveElapsedSeconds = Math.max(0, Number(deathmatchState.elapsedSeconds) || 0);
+    const scoreboardRows = teamMode
+        ? (authoritativeFightState?.teamScoreboardRows || createTeamScoreboard(
+            playerScoreboardRows,
+            entityManager?.players || [],
+            { scoreKey: entityManager?.entityRuntimeConfig?.HUNT?.WIN_CONDITION === 'score_target' ? 'points' : 'kills' },
+        ))
+        : playerScoreboardRows;
 
     return assembleMatchRuntimeProjection({
         updatedAt: Date.now(),
@@ -204,11 +225,21 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
                 || entityManager?.getHuntLivesRemainingByPlayer?.() || {},
             scoreboardRows,
             scoreboardSummary: entityManager?.getHuntScoreboardSummary?.(4, scoreboardRows) || '',
-            elapsedSeconds: deathmatchState.elapsedSeconds || 0,
-            timeLimitSeconds: deathmatchState.timeLimitSeconds || 0,
-            timeRemainingSeconds: deathmatchState.timeRemainingSeconds || 0,
+            elapsedSeconds: objectiveElapsedSeconds,
+            timeLimitSeconds: teamObjective === TEAM_OBJECTIVE_TYPES.FLAGS
+                ? FLAG_OBJECTIVE_DEFAULTS.roundSeconds
+                : (escortMode ? ESCORT_DEFAULTS.roundSeconds : (deathmatchState.timeLimitSeconds || 0)),
+            timeRemainingSeconds: teamObjective === TEAM_OBJECTIVE_TYPES.FLAGS
+                ? Math.max(0, FLAG_OBJECTIVE_DEFAULTS.roundSeconds - objectiveElapsedSeconds)
+                : (escortMode
+                    ? Math.max(0, ESCORT_DEFAULTS.roundSeconds - objectiveElapsedSeconds)
+                    : (deathmatchState.timeRemainingSeconds || 0)),
             overtime: deathmatchState.overtime === true,
             authoritativeClient: entityManager?.isFightOutcomeAuthority === false,
+            teamMode,
+            escortMode,
+            teamObjective,
+            flagCounts,
         },
         arcade: entityManager?.endlessParcoursRuntime?.getHudState?.()
             || facade?.arcadeRunRuntime?.getHudState?.()

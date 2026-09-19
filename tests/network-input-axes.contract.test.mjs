@@ -104,6 +104,69 @@ test('remote network input source carries the analog axes from the event', () =>
     source.unbind();
 });
 
+test('remote network input consumes one-shot actions exactly once without losing them', () => {
+    const session = createSessionStub();
+    const source = createNetworkRemoteInputSource({ session, peerId: 'peer-2' });
+    source.bind(1);
+    const oneShotKeys = [
+        'boostPressed',
+        'slowMoPressed',
+        'cameraSwitch',
+        'dropItem',
+        'useItem',
+        'shootItem',
+        'shootRocket',
+        'nextItem',
+    ];
+
+    session.emit('remoteInput', {
+        peerId: 'peer-2',
+        input: Object.fromEntries(oneShotKeys.map((key) => [key, true])),
+    });
+    session.emit('remoteInput', {
+        peerId: 'peer-2',
+        input: { yawLeft: true },
+    });
+
+    const firstPoll = source.poll();
+    const secondPoll = source.poll();
+    for (const key of oneShotKeys) {
+        assert.equal(firstPoll[key], true, `${key} survives until the host consumes it`);
+        assert.equal(secondPoll[key], false, `${key} is not repeated on the next host tick`);
+    }
+    assert.equal(firstPoll.yawLeft, true, 'held input still follows the newest packet');
+    assert.equal(secondPoll.yawLeft, true, 'held input remains active until a packet releases it');
+});
+
+test('remote network input clears when its peer disconnects or the lifecycle resets it', () => {
+    const session = createSessionStub();
+    const source = createNetworkRemoteInputSource({ session, peerId: 'peer-2' });
+    source.bind(1);
+
+    session.emit('remoteInput', {
+        peerId: 'peer-2',
+        input: { boost: true, shootMG: true, shootRocket: true, yawAxis: 0.8 },
+    });
+    session.emit('playerDisconnected', { peerId: 'other-peer' });
+    assert.equal(source.poll().shootMG, true, 'another peer does not clear this slot');
+
+    session.emit('playerDisconnected', { peerId: 'peer-2', canReconnect: true });
+    const disconnected = source.poll();
+    assert.equal(disconnected.boost, false);
+    assert.equal(disconnected.shootMG, false);
+    assert.equal(disconnected.shootRocket, false);
+    assert.equal(Object.hasOwn(disconnected, 'yawAxis'), false);
+
+    session.emit('remoteInput', {
+        peerId: 'peer-2',
+        input: { pitchDown: true, useItem: true },
+    });
+    source.clearInputState();
+    const reset = source.poll();
+    assert.equal(reset.pitchDown, false);
+    assert.equal(reset.useItem, false);
+});
+
 test('passive network input source stays free of analog axes', () => {
     const polled = createPassiveNetworkInputSource().poll();
 

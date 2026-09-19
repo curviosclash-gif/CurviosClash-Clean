@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
@@ -72,6 +72,22 @@ function triangles(document) {
         }
     }
     return count;
+}
+
+function geometrySignature(document) {
+    const bounds = [];
+    for (const mesh of document.meshes || []) {
+        for (const primitive of mesh.primitives || []) {
+            const position = document.accessors?.[primitive.attributes?.POSITION];
+            bounds.push([position?.min, position?.max]);
+        }
+    }
+    return JSON.stringify({
+        meshes: document.meshes?.length || 0,
+        nodes: (document.nodes || []).filter((node) => node.mesh !== undefined).length,
+        triangles: triangles(document),
+        bounds,
+    });
 }
 
 function animatedMeshNames(document) {
@@ -176,4 +192,56 @@ test('long Aetherion clips use their full macro cycle instead of repeating one p
     const beaconScales = animationValues(astrolabe, 'astrolabe_countdown_2_nocol', 'scale');
     const sizes = beaconScales.map((value) => Math.max(...value));
     assert.ok(Math.min(...sizes) <= 0.2 && Math.max(...sizes) >= 0.99, 'gold countdown visibly pulses before opening');
+});
+
+test('Aetherion ships exactly thirty static, collision-free orientation variants', () => {
+    const families = {
+        'zodiac-steles': 'aetherion-zodiac-stele',
+        'orbit-beacons': 'aetherion-orbit-beacon',
+        'astronomical-medallions': 'aetherion-astronomical-medallion',
+    };
+    let variantCount = 0;
+    let totalGlbBytes = 0;
+
+    for (const [family, objectId] of Object.entries(families)) {
+        const familyRoot = path.join(ROOT, 'props', family);
+        const variants = readdirSync(familyRoot, { withFileTypes: true })
+            .filter((entry) => entry.isDirectory())
+            .map((entry) => entry.name)
+            .sort();
+        assert.deepEqual(
+            variants,
+            Array.from({ length: 10 }, (_, index) => `${objectId}-v${String(index + 1).padStart(2, '0')}`),
+            `${family} keeps stable v01-v10 IDs`,
+        );
+        variantCount += variants.length;
+        const geometry = new Set();
+
+        for (const variant of variants) {
+            const variantRoot = path.join(familyRoot, variant);
+            const blend = readFileSync(path.join(variantRoot, 'source.blend'));
+            assert.equal(blend.toString('ascii', 0, 7), 'BLENDER', `${variant} has an editable source`);
+            assert.ok(blend.length > 100_000, `${variant} source is non-empty`);
+
+            const glbPath = path.join(variantRoot, 'runtime.glb');
+            totalGlbBytes += statSync(glbPath).size;
+            const document = readGlb(glbPath);
+            geometry.add(geometrySignature(document));
+            assert.equal(document.animations?.length || 0, 0, `${variant} is static`);
+            assert.equal(document.cameras?.length || 0, 0, `${variant} has no camera`);
+            assert.equal(document.extensionsUsed?.includes('KHR_lights_punctual') || false, false, `${variant} has no lights`);
+            assert.equal(document.images?.length || 0, 0, `${variant} embeds no images`);
+            assert.equal(document.textures?.length || 0, 0, `${variant} embeds no textures`);
+            assert.ok((document.materials?.length || 0) >= 3 && document.materials.length <= 4, `${variant} uses a small flat-PBR palette`);
+            assert.ok(triangles(document) > 500 && triangles(document) <= 12_000, `${variant} stays inside its geometry budget`);
+
+            const meshNodes = (document.nodes || []).filter((node) => node.mesh !== undefined);
+            assert.ok(meshNodes.length > 0, `${variant} contains runtime meshes`);
+            assert.ok(meshNodes.every((node) => /_nocol$/i.test(node.name || '')), `${variant} keeps the no-collision naming contract`);
+        }
+        assert.equal(geometry.size, 10, `${family} has ten geometric variants rather than material swaps`);
+    }
+
+    assert.equal(variantCount, 30);
+    assert.ok(totalGlbBytes <= 3 * 1024 * 1024, `orientation GLBs stay below 3 MiB (got ${totalGlbBytes})`);
 });

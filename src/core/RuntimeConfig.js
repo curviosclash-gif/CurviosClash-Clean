@@ -37,6 +37,8 @@ import { createRuntimeSettingsLimitsForRuntime } from './settings/SettingsRuntim
 import { normalizeFightMachineGunId } from '../shared/contracts/FightMachineGunContract.js';
 import { VIEWPORT_LAYOUTS } from '../shared/contracts/ViewportLayoutContract.js';
 import { resolveMapPortalEntryCount } from '../shared/contracts/PortalAuthoringContract.js';
+import { normalizeTeamHuntSettings } from '../shared/contracts/TeamHuntContract.js';
+import { normalizeTeamObjectiveType } from '../shared/contracts/FlagObjectiveContract.js';
 import {
     FOUR_PLAYER_PLANAR_MODES,
     SPLIT_SCREEN_VARIANTS,
@@ -260,7 +262,12 @@ export function createRuntimeConfigSnapshot(settings, {
         : (threePlayerSplitActive
             ? (threePlayerSplitSelection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? GAME_MODE_TYPES.HUNT : GAME_MODE_TYPES.CLASSIC)
             : source.gameMode);
-    const activeGameMode = resolveActiveGameMode(requestedGameMode, huntFeatureEnabled);
+    const requestedTeamObjective = normalizeTeamObjectiveType(huntSource.teamObjective);
+    const objectiveGameMode = requestedGameMode === GAME_MODE_TYPES.HUNT && huntSource.teamMode === true
+        && requestedTeamObjective === GAME_MODE_TYPES.ESCORT
+        ? GAME_MODE_TYPES.ESCORT
+        : requestedGameMode;
+    const activeGameMode = resolveActiveGameMode(objectiveGameMode, huntFeatureEnabled);
     const fivePortalsActive = arcadeEnabled && isFivePortalsRunType(arcadeSource.runType);
     const huntModeActive = isHuntMode(activeGameMode, huntFeatureEnabled);
 
@@ -430,6 +437,15 @@ export function createRuntimeConfigSnapshot(settings, {
             ),
         },
         hunt: {
+            ...(() => {
+                const teamHunt = normalizeTeamHuntSettings(huntSource);
+                return {
+                    teamMode: activeGameMode === GAME_MODE_TYPES.ESCORT || teamHunt.enabled,
+                    teamObjective: requestedTeamObjective,
+                    teamSize: teamHunt.teamSize,
+                    teamBotDifficulty: teamHunt.botDifficulty,
+                };
+            })(),
             enabled: huntModeActive,
             respawnEnabled: huntModeActive ? !!huntSource.respawnEnabled : false,
             deathmatchKillLimit: clampSettingValue(
@@ -506,6 +522,10 @@ export function applyRuntimeConfigCompatibility(runtimeConfig, targetConfig = CO
         nextConfig.HUNT.DEATHMATCH_KILL_LIMIT = Math.max(1, Number(runtimeConfig?.hunt?.deathmatchKillLimit) || 10);
         nextConfig.HUNT.DEATHMATCH_TIME_LIMIT_SECONDS = Math.max(0, Number(runtimeConfig?.hunt?.timeLimitSeconds) || 0);
         nextConfig.HUNT.WIN_CONDITION = normalizeHuntWinCondition(runtimeConfig?.hunt?.winCondition);
+        nextConfig.HUNT.TEAM_MODE = runtimeConfig?.hunt?.teamMode === true;
+        nextConfig.HUNT.TEAM_OBJECTIVE = normalizeTeamObjectiveType(runtimeConfig?.hunt?.teamObjective);
+        nextConfig.HUNT.TEAM_SIZE = Math.max(1, Math.min(5, Number(runtimeConfig?.hunt?.teamSize) || 4));
+        nextConfig.HUNT.TEAM_BOT_DIFFICULTY = { ...runtimeConfig?.hunt?.teamBotDifficulty };
         const fightTuningEnabled = runtimeConfig?.huntCombat?.fightTuningEnabled === true;
         if (fightTuningEnabled) {
             nextConfig.HUNT.PLAYER_MAX_HP = Math.max(

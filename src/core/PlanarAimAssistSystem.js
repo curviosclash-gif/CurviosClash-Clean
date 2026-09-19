@@ -12,6 +12,7 @@ import { CONFIG } from './Config.js';
 import { clamp } from '../shared/utils/MathOps.js';
 import { resolveTimeScaleForPlayers } from '../entities/player/PlayerChargeOps.js';
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
+import { isFourPlayerPlanarRuntime } from '../four-player-planar/FourPlayerPlanarContract.js';
 
 export function createPlanarAimAssistRuntimeAccess(runtime) {
     return createRuntimeAccess(runtime, (game) => {
@@ -19,6 +20,7 @@ export function createPlanarAimAssistRuntimeAccess(runtime) {
         return {
         getControls: () => game?.settings?.controls || null,
         getNumHumans: () => Number(game?.numHumans) || 0,
+        isFourPlayerPlanar: () => isFourPlayerPlanarRuntime(game?.runtimeConfig),
         getInputDown,
         // Backward-compatible alias for transitional call sites.
         isInputDown: getInputDown,
@@ -38,6 +40,7 @@ export class PlanarAimAssistSystem {
     }
 
     getPlanarAimAxis(playerIndex) {
+        if (this.runtimeAccess.isFourPlayerPlanar?.() === true) return 0;
         const controls = this.runtimeAccess.getControls?.() || null;
         if (!controls) return 0;
 

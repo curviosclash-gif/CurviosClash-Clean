@@ -27,6 +27,11 @@ import {
     resolveArcadeBridgeAggressionThresholds,
 } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 
+const TRAIL_AWARE_FALLBACK_MAPS = new Set([
+    'core_fusion',
+    'eiffel_tower_arena',
+]);
+
 function resolveObservationValue(observation, index, fallback = 0) {
     if (!observation || typeof observation.length !== 'number') return fallback;
     const value = Number(observation[index]);
@@ -56,25 +61,29 @@ export function resolveClassicBridgeAction(runtimeContext, options = {}) {
     const thresholds = resolveArcadeBridgeAggressionThresholds(options.aggressiveness);
 
     const action = {};
-    const obstaclePressure = wallFront < 0.24 || pressureLevel > 0.78;
+    const mapKey = String(runtimeContext?.arena?.currentMapKey || '').trim();
+    const delegateMovement = TRAIL_AWARE_FALLBACK_MAPS.has(mapKey);
 
-    if (obstaclePressure) {
-        const turnRight = wallRight >= wallLeft;
-        action.yawRight = turnRight;
-        action.yawLeft = !turnRight;
-    } else {
-        const sideDelta = wallRight - wallLeft;
-        if (Math.abs(sideDelta) > 0.12) {
-            action.yawRight = sideDelta > 0;
-            action.yawLeft = sideDelta < 0;
+    if (!delegateMovement) {
+        const obstaclePressure = wallFront < 0.24 || pressureLevel > 0.78;
+        if (obstaclePressure) {
+            const turnRight = wallRight >= wallLeft;
+            action.yawRight = turnRight;
+            action.yawLeft = !turnRight;
+        } else {
+            const sideDelta = wallRight - wallLeft;
+            if (Math.abs(sideDelta) > 0.12) {
+                action.yawRight = sideDelta > 0;
+                action.yawLeft = sideDelta < 0;
+            }
         }
-    }
 
-    if (!planarMode) {
-        const verticalDelta = wallUp - wallDown;
-        if (Math.abs(verticalDelta) > 0.12) {
-            action.pitchUp = verticalDelta > 0;
-            action.pitchDown = verticalDelta < 0;
+        if (!planarMode) {
+            const verticalDelta = wallUp - wallDown;
+            if (Math.abs(verticalDelta) > 0.12) {
+                action.pitchUp = verticalDelta > 0;
+                action.pitchDown = verticalDelta < 0;
+            }
         }
     }
 
@@ -87,18 +96,20 @@ export function resolveClassicBridgeAction(runtimeContext, options = {}) {
         action.shootMG = true;
     }
 
-    if (
-        projectileThreat
-        || (
-            targetDistanceRatio > thresholds.boostDistance
-            && openness > thresholds.boostOpenness
-            && pressureLevel < thresholds.boostPressureCeiling
-        )
-    ) {
-        action.boost = true;
-    }
-    if (wallFront < 0.16 && !projectileThreat) {
-        action.boost = false;
+    if (!delegateMovement) {
+        if (
+            projectileThreat
+            || (
+                targetDistanceRatio > thresholds.boostDistance
+                && openness > thresholds.boostOpenness
+                && pressureLevel < thresholds.boostPressureCeiling
+            )
+        ) {
+            action.boost = true;
+        }
+        if (wallFront < 0.16 && !projectileThreat) {
+            action.boost = false;
+        }
     }
 
     if (

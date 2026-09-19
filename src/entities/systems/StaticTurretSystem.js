@@ -2,6 +2,8 @@ import { isDestructibleTurret, isTurretCombatActive } from '../../shared/contrac
 import { createTrailTargetDescriptor } from '../../hunt/HuntTargetingOps.js';
 import * as THREE from 'three';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
+import { addObjectiveGuard, setTurretTeam } from './static-turret/StaticTurretObjectiveOps.js';
 import { resolveMapStaticTurretDefinitions } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 import { MGTracerFx } from '../../hunt/mg/MGTracerFx.js';
 import {
@@ -106,6 +108,7 @@ export class StaticTurretSystem {
             alive: true,
             combatLabel: `Geschuetz ${definition.id}`,
             position,
+            teamId: normalizeTeamId(definition.teamId),
             getAimDirection: (out) => out.copy(aimDirection),
         };
         const turret = {
@@ -120,6 +123,7 @@ export class StaticTurretSystem {
             deployed,
             destructible,
             ownerIndex: Number.isInteger(definition.ownerIndex) ? definition.ownerIndex : -1,
+            teamId: normalizeTeamId(definition.teamId),
             maxHp,
             hp: destructible ? clampFinite(definition.hp, maxHp, 0, maxHp) : maxHp,
             hitboxRadius: clampFinite(definition.hitboxRadius, 2.2, 0.5, 8) * authoredScale,
@@ -143,6 +147,14 @@ export class StaticTurretSystem {
         };
         if (destructible) turret.takeDamage = (amount, options = {}) => this.damageTurret(turret, amount, options);
         return turret;
+    }
+
+    addObjectiveGuard({ id, teamId, position }) {
+        return addObjectiveGuard(this, { id, teamId, position });
+    }
+
+    setTurretTeam(turret, teamId) {
+        return setTurretTeam(turret, teamId);
     }
 
     _resolveDeploymentPosition(player, config) {
@@ -197,7 +209,7 @@ export class StaticTurretSystem {
 
     deployForPlayer(player, weapon = 'mg') {
         if (weapon !== 'mg' && weapon !== 'rocket') return null;
-        const allowedModes = weapon === 'rocket' ? ['HUNT', 'ARCADE'] : ['HUNT'];
+        const allowedModes = weapon === 'rocket' ? ['HUNT', 'ARCADE', 'ESCORT'] : ['HUNT', 'ESCORT'];
         const owner = this.entityManager;
         if (
             !owner
@@ -228,7 +240,7 @@ export class StaticTurretSystem {
             phase: 0,
             rocketType: 'ROCKET_WEAK',
             deployed: true,
-            ownerIndex: player.index,
+            ownerIndex: player.index, teamId: player.teamId || null,
             ownerColor: player.color,
             maxHp: config.maxHp,
             hitboxRadius: config.hitboxRadius,

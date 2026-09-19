@@ -25,6 +25,7 @@ import { FIGHT_TUNING_PRESETS } from './FightMenuTuningSync.js';
 import { bindGraphicsStyleSelect } from './MenuGraphicsStyleBindings.js';
 import { applyMenuPlanarMode } from './MenuPlanarModeOps.js';
 import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
+import { bindMenuTeamHuntControls } from './MenuTeamHuntBindings.js';
 export function setupMenuGameplayBindings(ctx) {
     const ui = ctx.ui;
     const settings = ctx.settings;
@@ -202,6 +203,7 @@ export function setupMenuGameplayBindings(ctx) {
             emitSettingsChangedImmediate([keys.HUNT_TIME_LIMIT_ENABLED]);
         });
     }
+    bindMenuTeamHuntControls({ ui, settings, bind, emitSettingsChangedImmediate, keys });
 
     if (ui.vehicleSelectP1) {
         bind(ui.vehicleSelectP1, 'change', (e) => {

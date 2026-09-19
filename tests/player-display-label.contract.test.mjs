@@ -31,6 +31,22 @@ test('lobby names reach the network slots even when the session player list repe
         session: { isHost: true, localPlayerId: 'host', getPlayers: () => [{ id: 'peer-b', name: 'peer-b' }] },
     });
     assert.deepEqual(slots.map((slot) => [slot.playerIndex, slot.displayName]), [[0, 'Kapitän'], [1, 'Blitz']]);
+    assert.deepEqual(slots.map((slot) => slot.teamId), ['ALPHA', 'BRAVO']);
+});
+
+test('network team assignments reach team match player configs', () => {
+    const configs = buildHumanConfigs({}, {
+        session: {
+            numHumans: 1,
+            humanEntityCount: 2,
+            networkPlayerSlots: [
+                { playerIndex: 0, teamId: 'BRAVO' },
+                { playerIndex: 1, teamId: 'ALPHA' },
+            ],
+        },
+        hunt: { teamMode: true, teamSize: 2 },
+    });
+    assert.deepEqual(configs.map((config) => config.teamId), ['BRAVO', 'ALPHA']);
 });
 
 test('match setup hands each networked human its lobby name', () => {

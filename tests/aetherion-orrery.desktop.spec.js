@@ -1,5 +1,6 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, returnToMenu, waitForLoadedGame } from './helpers.js';
+import { writeFile } from 'node:fs/promises';
 
 const MAP_KEY = 'aetherion_orrery';
 const MAP_SCALE = 3;
@@ -57,14 +58,14 @@ async function runtimeFootprint(page) {
     });
 }
 
-test('Aetherion loads four architecture parts and thirteen mechanisms on desktop', async ({ page }, testInfo) => {
+test('Aetherion loads architecture, mechanisms, and orientation props on desktop', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await startAetherion(page);
     const state = await runtimeFootprint(page);
     expect(state).toEqual({
         mapKey: MAP_KEY,
         tracks: TRACK_COUNT,
-        sceneChildren: 17,
+        sceneChildren: 41,
         dynamicColliders: 43,
         warningCount: 0,
         loadError: null,
@@ -76,6 +77,29 @@ test('Aetherion loads four architecture parts and thirteen mechanisms on desktop
         body: await page.screenshot(),
         contentType: 'image/png',
     });
+
+    const views = [
+        { id: 'foundry-east-ascent', from: [122, 40, -76], to: [145, 46, -44] },
+        { id: 'foundry-stele-branch', from: [-78, 34, -132], to: [-108, 24, -104] },
+        { id: 'gallery-east-arrival', from: [120, 94, 72], to: [145, 82, 96] },
+        { id: 'gallery-portal-bearing', from: [108, 94, -132], to: [138, 84, -104] },
+        { id: 'crown-west-arrival', from: [-120, 156, -62], to: [-145, 146, -92] },
+        { id: 'crown-stele-bearing', from: [-74, 160, -126], to: [-102, 144, -96] },
+    ];
+    for (const view of views) {
+        const picture = await page.evaluate((entry) => {
+            const runtime = window.GAME_INSTANCE.renderer;
+            const camera = runtime.cameras[0];
+            camera.position.set(...entry.from.map((value) => value * entry.scale));
+            camera.lookAt(...entry.to.map((value) => value * entry.scale));
+            camera.updateMatrixWorld(true);
+            runtime.render();
+            return runtime.renderer.domElement.toDataURL('image/png');
+        }, { ...view, scale: MAP_SCALE });
+        const file = testInfo.outputPath(`${view.id}.png`);
+        await writeFile(file, Buffer.from(picture.split(',')[1], 'base64'));
+        await testInfo.attach(view.id, { path: file, contentType: 'image/png' });
+    }
 });
 
 test('Aetherion shortcuts close and open while its outer ascent stays clear', async ({ page }) => {

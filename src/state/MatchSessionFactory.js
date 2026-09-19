@@ -27,6 +27,7 @@ import {
 import { isFourPlayerPlanarRuntime } from '../four-player-planar/FourPlayerPlanarContract.js';
 import { isEndlessParcoursConfig } from '../shared/contracts/EndlessParcoursContract.js';
 import { EndlessParcoursRuntime } from '../entities/endless/EndlessParcoursRuntime.js';
+import { normalizeTeamHuntSettings, resolveTeamRoster } from '../shared/contracts/TeamHuntContract.js';
 
 export { disposeMatchSessionSystems } from './match-session/MatchSessionSetupOps.js';
 
@@ -186,7 +187,10 @@ export function createMatchSession({
         localHumanCount
     ));
     const localPlayerIndex = Math.max(0, toSafeInt(runtimeConfig?.session?.localPlayerIndex, 0));
-    const numBots = Math.max(0, toSafeInt(runtimeConfig?.session?.numBots, fallbackBots));
+    const teamSettings = normalizeTeamHuntSettings(runtimeConfig?.hunt || settings?.hunt);
+    const numBots = teamSettings.enabled
+        ? resolveTeamRoster({ humanCount: numHumans, teamSize: teamSettings.teamSize }).botCount
+        : Math.max(0, toSafeInt(runtimeConfig?.session?.numBots, fallbackBots));
     const winsNeeded = Math.max(1, toSafeInt(runtimeConfig?.session?.winsNeeded, fallbackWinsNeeded));
     const entityRuntimeConfig = createEntityRuntimeConfig(runtimeConfig, baseConfig);
 
