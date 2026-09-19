@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs';
+
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
@@ -6,7 +8,7 @@ import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 // land on top of each other or leave a gap in the middle of the tower, and 330 m of it has to
 // still be inside the map. The second is the open middle: the route climbs through the hole in
 // each gallery, so a deck that collides across its centre closes the map without failing a
-// single unit test. Both are checked in one run -- thirteen GLBs take long enough to load that
+// single unit test. Both are checked in one run -- the tower and curated grounds load together,
 // doing it twice would be wasteful.
 
 // World units are authored units times the map scale of 3.
@@ -41,13 +43,14 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
         && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === 5
     )), {
         timeout: 150_000,
-        message: 'the tower should load all thirteen parts and animate the five machines',
+        message: 'the tower and curated grounds should load and animate the five machines',
     }).toBeTruthy();
     const loadDurationMs = await page.evaluate((startedAt) => performance.now() - startedAt, loadStartedAt);
     expect(loadDurationMs).toBeLessThan(120_000);
 
     const state = await page.evaluate(([scale, firstDeck, topDeck]) => {
         const arena = window.GAME_INSTANCE.arena;
+        const decorativeId = (id) => /^eiffel-(historic|tree|dandelion)-/.test(String(id || ''));
         const at = (x, y, z) => arena.checkCollisionFast(
             { x: x * scale, y: y * scale, z: z * scale },
             0.1,
@@ -57,9 +60,23 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
             trackCount: arena._glbAnimation.trackCount,
             warningCount: arena._glbLoadWarnings.length,
             colliderMode: arena.currentMapDefinition?.glbColliderMode,
-            // Eight static parts plus the five machines: two leg lifts, the summit lift, the
-            // beacon and the iris.
+            // Eight static parts plus five machines and thirty collision-free ground models.
             glbSceneChildren: arena._glbScene?.children?.length || 0,
+            decorativeSlotCount: arena._glbScene?.children?.filter((child) =>
+                decorativeId(child.userData?.glbModelId)).length || 0,
+            decorativeColliderCount: arena.obstacles.filter((entry) =>
+                decorativeId(entry.modelId)).length,
+            decorativeMeshesMarkedNoCol: arena._glbScene?.children
+                ?.filter((child) => decorativeId(child.userData?.glbModelId))
+                .every((slot) => {
+                    let valid = true;
+                    slot.traverse((object) => {
+                        if (object.isMesh && !String(object.name || '').toLowerCase().includes('_nocol')) {
+                            valid = false;
+                        }
+                    });
+                    return valid;
+                }) ?? false,
             authoredObstacleCount: arena.obstacles.filter((entry) => !entry.isWall && !entry.dynamic).length,
             // The middle of the first gallery is the way up. If this reads solid the climb is
             // sealed and the route cannot be flown at all.
@@ -80,13 +97,51 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
         trackCount: 5,
         warningCount: 0,
         colliderMode: 'scene',
-        glbSceneChildren: 13,
+        glbSceneChildren: 43,
+        decorativeSlotCount: 30,
+        decorativeColliderCount: 0,
+        decorativeMeshesMarkedNoCol: true,
         authoredObstacleCount: state.authoredObstacleCount,
         firstGalleryCentreOpen: true,
         firstGalleryDeckSolid: true,
         summitSolid: true,
         aboveAntennaOpen: true,
     });
+
+    const approachViews = await page.evaluate((scale) => {
+        const runtime = window.GAME_INSTANCE.renderer;
+        const three = runtime.renderer;
+        const camera = runtime.cameras[0];
+        const originalPosition = camera.position.clone();
+        const originalQuaternion = camera.quaternion.clone();
+        const views = {
+            west: [[-82, 18, 0], [0, 35, 0]],
+            east: [[82, 18, 0], [0, 35, 0]],
+            north: [[0, 18, 82], [0, 35, 0]],
+            south: [[0, 18, -82], [0, 35, 0]],
+        };
+        const captures = {};
+        try {
+            for (const [name, [position, target]] of Object.entries(views)) {
+                camera.position.set(...position.map((value) => value * scale));
+                camera.lookAt(...target.map((value) => value * scale));
+                camera.updateMatrixWorld(true);
+                three.setRenderTarget(null);
+                three.render(runtime.scene, camera);
+                captures[name] = three.domElement.toDataURL('image/png');
+            }
+        } finally {
+            camera.position.copy(originalPosition);
+            camera.quaternion.copy(originalQuaternion);
+            camera.updateMatrixWorld(true);
+        }
+        return captures;
+    }, SCALE);
+    for (const [name, image] of Object.entries(approachViews)) {
+        const outputPath = testInfo.outputPath(`eiffel-historic-${name}-approach.png`);
+        writeFileSync(outputPath, Buffer.from(image.split(',')[1], 'base64'));
+        await testInfo.attach(`eiffel-historic-${name}-approach.png`, { path: outputPath });
+    }
 
     const wallFade = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;

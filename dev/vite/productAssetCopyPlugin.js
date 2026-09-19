@@ -7,7 +7,12 @@ const __dirname = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const OBJ_ASSET_COPY_ENTRIES = [
     ['assets', 'models', 'optimized_cc0'],
     ['assets', 'models', 'giant_dandelion', 'giant_dandelion_shootable.glb'],
+    ['assets', 'models', 'giant_dandelion', 'giant_dandelion_lod2.glb'],
     ['assets', 'models', 'ancient_tree', 'variants', 'variant_06', 'ancient_tree_06_lod1.glb'],
+    ...Array.from({ length: 10 }, (_, index) => {
+        const variant = String(index + 1).padStart(2, '0');
+        return ['assets', 'models', 'ancient_tree', 'variants', `variant_${variant}`, `ancient_tree_${variant}_lod2.glb`];
+    }),
     ['assets', 'items'],
     ['assets', 'portals'],
     ['assets', 'trails'],
