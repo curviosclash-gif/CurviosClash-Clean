@@ -18,7 +18,13 @@ export const WATER_PHASES = Object.freeze({
     FLOODED: 'flooded',
 });
 
+export const WATER_WAVE_ORIGINS = Object.freeze({
+    MIN_Z: 'minZ',
+    MAX_Z: 'maxZ',
+});
+
 const PHASE_SET = new Set(Object.values(WATER_PHASES));
+const WAVE_ORIGIN_SET = new Set(Object.values(WATER_WAVE_ORIGINS));
 
 function finite(value, fallback) {
     const numeric = Number(value);
@@ -68,6 +74,7 @@ export function normalizeWaterZone(value) {
         targetLevel,
         waveSeconds: clamp(value.waveSeconds, 0.1, 15),
         riseSeconds: clamp(value.riseSeconds, 1, 120),
+        waveOrigin: WAVE_ORIGIN_SET.has(value.waveOrigin) ? value.waveOrigin : WATER_WAVE_ORIGINS.MIN_Z,
         effects: readEffects({ ...DEFAULT_EFFECTS, ...(value.effects || {}) }),
     });
 }

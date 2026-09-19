@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
     WATER_PHASES,
+    WATER_WAVE_ORIGINS,
     applyWaterZoneNetworkState,
     createWaterZoneState,
     isPointUnderwater,
@@ -34,6 +35,12 @@ test('dam water runs through wave and twenty-second rise before persisting', () 
     assert.equal(state.phase, WATER_PHASES.FLOODED);
     assert.equal(state.level, 45);
     assert.deepEqual(stepWaterZoneState(state, zone, 60), state);
+});
+
+test('wave origins are bounded and default to the legacy minZ direction', () => {
+    assert.equal(zone.waveOrigin, WATER_WAVE_ORIGINS.MIN_Z);
+    assert.equal(normalizeWaterZone({ ...zone, waveOrigin: 'maxZ' }).waveOrigin, WATER_WAVE_ORIGINS.MAX_Z);
+    assert.equal(normalizeWaterZone({ ...zone, waveOrigin: 'sideways' }).waveOrigin, WATER_WAVE_ORIGINS.MIN_Z);
 });
 
 test('underwater lookup stays bounded and network roundtrips the authoritative state', () => {

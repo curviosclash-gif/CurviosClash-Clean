@@ -8,6 +8,7 @@ their moving obstacles.
 """
 
 import argparse
+import math
 import sys
 from pathlib import Path
 
@@ -45,13 +46,17 @@ def material(name, color, metallic=0.0, roughness=0.55):
     return mat
 
 
-def box(name, location, dimensions, mat, parent=None):
-    bpy.ops.mesh.primitive_cube_add(location=location)
+def box(name, location, dimensions, mat, parent=None, rotation=(0, 0, 0), bevel=0):
+    bpy.ops.mesh.primitive_cube_add(location=location, rotation=rotation)
     obj = bpy.context.object
     obj.name = name
     obj.dimensions = dimensions
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     obj.data.materials.append(mat)
+    if bevel > 0:
+        modifier = obj.modifiers.new(name='EdgeBevel', type='BEVEL')
+        modifier.width = bevel
+        modifier.segments = 2
     if parent is not None:
         obj.parent = parent
     return obj
@@ -77,6 +82,59 @@ def cone(name, location, radius1, radius2, depth, mat, parent=None):
     if parent is not None:
         obj.parent = parent
     return obj
+
+
+def rock(name, location, dimensions, mat, parent=None, rotation=(0, 0, 0)):
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1, location=location, rotation=rotation)
+    obj = bpy.context.object
+    obj.name = name
+    obj.dimensions = dimensions
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    obj.data.materials.append(mat)
+    if parent is not None:
+        obj.parent = parent
+    return obj
+
+
+def dam_curve_y(x):
+    normalized = abs(x) / 450
+    return 58 * (normalized ** 1.8)
+
+
+def dam_wall_segment(name, x0, x1, height, bottom_thickness, top_thickness, mat, parent=None):
+    y0 = dam_curve_y(x0)
+    y1 = dam_curve_y(x1)
+    vertices = [
+        (x0, y0 + bottom_thickness / 2, 0),
+        (x1, y1 + bottom_thickness / 2, 0),
+        (x1, y1 - bottom_thickness / 2, 0),
+        (x0, y0 - bottom_thickness / 2, 0),
+        (x0, y0 + top_thickness / 2, height),
+        (x1, y1 + top_thickness / 2, height),
+        (x1, y1 - top_thickness / 2, height),
+        (x0, y0 - top_thickness / 2, height),
+    ]
+    faces = [
+        (0, 3, 2, 1), (4, 5, 6, 7),
+        (0, 1, 5, 4), (1, 2, 6, 5),
+        (2, 3, 7, 6), (3, 0, 4, 7),
+    ]
+    mesh = bpy.data.meshes.new(f'{name}_mesh')
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.data.materials.append(mat)
+    if parent is not None:
+        obj.parent = parent
+    return obj
+
+
+def dam_tangent_transform(x):
+    delta = 1
+    y0 = dam_curve_y(x - delta)
+    y1 = dam_curve_y(x + delta)
+    return dam_curve_y(x), math.atan2(y1 - y0, delta * 2)
 
 
 def finish_action(obj, name, interpolation='BEZIER'):
@@ -113,15 +171,28 @@ def export_scene(asset, file_stem, clip_name=''):
     glb_path = glb_dir / f'{file_stem}.glb'
     bpy.context.scene.frame_set(1)
     bpy.ops.wm.save_as_mainfile(filepath=str(blend_path), check_existing=False)
+    bpy.ops.object.select_all(action='DESELECT')
+    export_objects = [obj for obj in bpy.context.scene.objects if obj.type in {'MESH', 'EMPTY', 'ARMATURE'}]
+    for obj in export_objects:
+        obj.select_set(True)
+    if export_objects:
+        bpy.context.view_layer.objects.active = export_objects[0]
     bpy.ops.export_scene.gltf(
         filepath=str(glb_path), export_format='GLB', export_animations=bool(clip_name),
         export_animation_mode='SCENE' if clip_name else 'ACTIONS',
         export_anim_scene_split_object=False, export_anim_slide_to_zero=True,
         export_yup=True, export_cameras=False, export_lights=False, export_extras=True,
-        export_apply=True,
+        export_apply=True, use_selection=True,
     )
     meshes = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
-    triangles = sum(len(obj.data.loop_triangles) for obj in meshes)
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    triangles = 0
+    for obj in meshes:
+        evaluated = obj.evaluated_get(depsgraph)
+        mesh = evaluated.to_mesh()
+        mesh.calc_loop_triangles()
+        triangles += len(mesh.loop_triangles)
+        evaluated.to_mesh_clear()
     print(f'generated {glb_path.relative_to(ROOT)} meshes={len(meshes)} triangles={triangles} clip={clip_name or "none"}')
 
 
@@ -238,20 +309,114 @@ def generate_lighthouse(parts=None):
         export_scene('storm_lighthouse_siege', '30_lighthouse_lift', 'LighthouseLiftLoop')
 
 
-def build_dam(parent=None):
-    concrete = material('DamConcrete', (0.34, 0.39, 0.41), 0.05, 0.82)
-    wet = material('DamWetConcrete', (0.15, 0.22, 0.25), 0.02, 0.65)
-    steel = material('DamSteel', (0.08, 0.13, 0.16), 0.78, 0.26)
-    warning = material('DamWarning', (0.95, 0.46, 0.06), 0.2, 0.35)
+def build_dam(parent=None, breach_parent=None):
+    concrete = material('DamConcrete', (0.37, 0.40, 0.39), 0.02, 0.82)
+    concrete_light = material('DamConcreteSun', (0.50, 0.51, 0.47), 0.01, 0.76)
+    wet = material('DamWetConcrete', (0.13, 0.20, 0.21), 0.01, 0.68)
+    rock_mat = material('DamGranite', (0.20, 0.18, 0.16), 0.02, 0.94)
+    steel = material('DamSteel', (0.055, 0.09, 0.105), 0.82, 0.28)
+    warning = material('DamWarning', (0.95, 0.34, 0.025), 0.16, 0.38)
+    glass = material('DamControlGlass', (0.06, 0.25, 0.31), 0.35, 0.16)
     objects = []
-    objects.append(box('dam_wall_body', (0, 0, 38), (132, 18, 68), concrete, parent))
-    objects.append(box('dam_wall_crown', (0, 0, 74), (138, 24, 5), wet, parent))
-    objects.append(box('dam_wall_foot', (0, 4, 8), (142, 34, 12), wet, parent))
-    for x in (-48, -24, 0, 24, 48):
-        objects.append(box(f'dam_wall_spillway_{x:+}', (x, -11, 37), (10, 5, 44), steel, parent))
-        objects.append(box(f'dam_wall_warning_{x:+}', (x, -14, 61), (8, 2, 3), warning, parent))
-    for x in (-63, 63):
-        objects.append(box(f'dam_wall_buttress_{x:+}', (x, 5, 30), (12, 30, 58), concrete, parent))
+    segment_count = 17
+    span = 900
+    step = span / segment_count
+    breach_indices = set(range(6, 11)) if breach_parent is not None else set()
+
+    for index in range(segment_count):
+        x0 = -span / 2 + (index * step)
+        x1 = x0 + step
+        x = (x0 + x1) / 2
+        segment_parent = breach_parent if index in breach_indices else parent
+        wall = dam_wall_segment(
+            f'dam_wall_arch_{index:02d}', x0, x1, 700, 138, 38,
+            concrete_light if index % 3 == 1 else concrete,
+            segment_parent,
+        )
+        objects.append(wall)
+        curve_y, yaw = dam_tangent_transform(x)
+        chord = math.hypot(step, dam_curve_y(x1) - dam_curve_y(x0))
+        objects.append(box(
+            f'dam_wall_crown_{index:02d}', (x, curve_y, 704), (chord + 2, 48, 8), wet,
+            segment_parent, rotation=(0, 0, yaw), bevel=1.2,
+        ))
+        if index not in (0, segment_count - 1):
+            objects.append(box(
+                f'dam_joint_{index:02d}_nocol', (x0, dam_curve_y(x0) + 20, 370),
+                (2.2, 2.0, 580), wet, segment_parent, rotation=(0, 0, yaw),
+            ))
+
+    for x in (-360, -240, -120, 0, 120, 240, 360):
+        curve_y, yaw = dam_tangent_transform(x)
+        detail_parent = breach_parent if abs(x) <= 130 and breach_parent is not None else parent
+        objects.append(box(
+            f'dam_wall_buttress_{x:+}', (x, curve_y + 68, 270), (22, 104, 540), concrete,
+            detail_parent, rotation=(0, 0, yaw), bevel=2.5,
+        ))
+
+    for x in (-288, -144, 0, 144, 288):
+        curve_y, yaw = dam_tangent_transform(x)
+        detail_parent = breach_parent if abs(x) <= 110 and breach_parent is not None else parent
+        objects.append(box(
+            f'dam_wall_spillway_frame_{x:+}', (x, curve_y + 28, 525), (64, 22, 210), steel,
+            detail_parent, rotation=(0, 0, yaw), bevel=2,
+        ))
+        objects.append(box(
+            f'dam_spillway_inset_{x:+}_nocol', (x, curve_y + 40, 525), (46, 2, 176), wet,
+            detail_parent, rotation=(0, 0, yaw),
+        ))
+        objects.append(box(
+            f'dam_warning_panel_{x:+}_nocol', (x, curve_y + 42, 648), (38, 2, 9), warning,
+            detail_parent, rotation=(0, 0, yaw), bevel=1,
+        ))
+
+    for x in (-385, -275, -165, -55, 55, 165, 275, 385):
+        curve_y, yaw = dam_tangent_transform(x)
+        objects.append(box(
+            f'dam_crest_rail_{x:+}_nocol', (x, curve_y + 27, 716), (78, 2, 12), steel,
+            parent, rotation=(0, 0, yaw), bevel=0.5,
+        ))
+        objects.append(cylinder(
+            f'dam_warning_light_{x:+}_nocol', (x, curve_y + 28, 725), 2.4, 7,
+            warning, parent,
+        ))
+
+    for x in (-150, 150):
+        objects.append(box(
+            f'dam_powerhouse_{x:+}', (x, 105, 42), (230, 105, 84), concrete_light,
+            parent, bevel=5,
+        ))
+        objects.append(box(
+            f'dam_control_glass_{x:+}_nocol', (x, 160, 59), (155, 3, 25), glass,
+            parent, bevel=1,
+        ))
+    for x in (-270, -90, 90, 270):
+        objects.append(cylinder(
+            f'dam_turbine_outlet_{x:+}', (x, 164, 38), 22, 34, steel, parent,
+            rotation=(math.pi / 2, 0, 0),
+        ))
+        objects.append(cylinder(
+            f'dam_turbine_ring_{x:+}_nocol', (x, 182, 38), 27, 4, warning, parent,
+            rotation=(math.pi / 2, 0, 0),
+        ))
+
+    for side in (-1, 1):
+        for index, (x_offset, y, z, dims) in enumerate((
+            (480, 10, 150, (150, 170, 300)),
+            (520, 25, 390, (180, 190, 430)),
+            (560, 40, 540, (210, 210, 360)),
+        )):
+            objects.append(rock(
+                f'dam_granite_{side:+}_{index}', (side * x_offset, y, z), dims, rock_mat, parent,
+                rotation=(0, 0, 0.23 * side * (index + 1)),
+            ))
+
+    for x in (-390, -320, -250, 250, 320, 390):
+        curve_y, yaw = dam_tangent_transform(x)
+        objects.append(box(
+            f'dam_wet_stain_{x:+}_nocol', (x, curve_y + 22, 320), (30, 1.5, 500), wet,
+            parent, rotation=(0, 0, yaw),
+        ))
     return objects
 
 
@@ -266,14 +431,14 @@ def generate_dam(parts=None):
         export_scene('storm_dam_siege', '01_dam')
     if '20_dam_collapse' in selected:
         scene = reset_scene('DamCollapseOnce', 5)
-        rig = bpy.data.objects.new('DamCollapseRig', None)
+        rig = bpy.data.objects.new('DamBreachRig', None)
         scene.collection.objects.link(rig)
-        build_dam(rig)
+        build_dam(breach_parent=rig)
         rig.rotation_mode = 'XYZ'
         rig.keyframe_insert('location', frame=1)
         rig.keyframe_insert('rotation_euler', frame=1)
-        rig.location = (0, -8, -34)
-        rig.rotation_euler = (0.18, 0.0, -0.04)
+        rig.location = (0, 150, -520)
+        rig.rotation_euler = (0.48, 0.07, -0.05)
         rig.keyframe_insert('location', frame=scene.frame_end)
         rig.keyframe_insert('rotation_euler', frame=scene.frame_end)
         if rig.animation_data and rig.animation_data.action:
@@ -286,10 +451,10 @@ def generate_dam(parts=None):
         scene.collection.objects.link(rig)
         steel = material('GateSteel', (0.055, 0.12, 0.15), 0.88, 0.22)
         warning = material('GateWarning', (0.98, 0.42, 0.025), 0.22, 0.34)
-        box('dam_gate_slab', (0, -17, 35), (14, 5, 32), steel, rig)
-        for z in (23, 31, 39, 47):
-            box(f'dam_gate_warning_{z}', (0, -20, z), (14.5, 1.2, 2), warning, rig)
-        for frame, z in ((1, 0), (scene.frame_end // 2, 30), (scene.frame_end, 0)):
+        box('dam_gate_slab', (0, 42, 525), (58, 10, 188), steel, rig, bevel=2)
+        for z in (465, 495, 525, 555, 585):
+            box(f'dam_gate_warning_{z}', (0, 43, z), (49, 1.2, 5), warning, rig)
+        for frame, z in ((1, 0), (scene.frame_end // 2, 145), (scene.frame_end, 0)):
             rig.location = (0, 0, z)
             rig.keyframe_insert('location', frame=frame)
         finish_action(rig, 'DamGateLoop')
