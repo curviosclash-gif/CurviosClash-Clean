@@ -13,6 +13,7 @@
 // same place as intact concrete.
 
 import { REACTOR_SITE_MODELS } from './ReactorSiteModels.js';
+import { REACTOR_SITE_PROP_MODELS } from './ReactorSiteProps.js';
 import { REACTOR_SITE_DESTRUCTIBLES } from './ReactorSiteDestructibles.js';
 import {
     REACTOR_SITE_SECRET_ROOM,
@@ -61,7 +62,7 @@ export const REACTOR_SITE_MAPS = {
         // the placements below and scatter pickups across the field instead.
         itemSpawnMode: 'hybrid',
         items: REACTOR_SITE_ITEMS,
-        glbModels: REACTOR_SITE_MODELS,
+        glbModels: [...REACTOR_SITE_MODELS, ...REACTOR_SITE_PROP_MODELS],
         // Triangle/BVH collision off the exported concrete: the gap under the towers, the doors
         // of the hall and the open tops are the level, and no authored box can describe them.
         glbColliderMode: 'scene',

@@ -1,12 +1,14 @@
 import { writeFile } from 'node:fs/promises';
 import { expect, test } from './helpers.desktop.js';
 import { selectSessionType, waitForLoadedGame } from './helpers.js';
+import { REACTOR_SITE_MODELS } from '../src/core/config/maps/presets/reactor_site/ReactorSiteModels.js';
+import { REACTOR_SITE_PROP_MODELS } from '../src/core/config/maps/presets/reactor_site/ReactorSiteProps.js';
 
 // The reactor site is the second map a match can take apart, and the first with an event that
 // rises instead of falling. Five questions only the running app answers:
 //
-//   1. The five baked scenes load with the plant and stay out of the world until triggered -
-//      eleven models in one slot group each, five of them invisible, five one-shot clips.
+//   1. The five baked scenes and curated infrastructure load with the plant and stay out of the
+//      world until triggered - one slot group per contracted model, five invisible one-shot clips.
 //   2. A hit on a cooling tower's shell is traceable back to *that* tower. Both towers are the
 //      same file, so `cooling_tower_*` is all a weapon learns; the tower itself is decided by
 //      where the shot landed. Both the point query and the ray have to report that name.
@@ -30,9 +32,9 @@ const TOWER_SEGMENT_ID = 'cooling_tower_w';
 const TOWER_AXIS_X = -63;   // ReactorSiteStructure.TOWER_X, authored
 // Every topple is baked falling towards +X, heading pi/2; a tower keels towards its own anchor.
 const BAKED_FALL_HEADING = Math.PI / 2;
-// Six parts (the site, the hall, the block, two towers, the stack) plus five scenes. No machines
-// animate on this map, so the only tracks are the five one-shot clips.
-const GLB_MODEL_COUNT = 11;
+// The product contract owns the count: six parts and five scenes plus the curated static props.
+// No infrastructure animates, so the only tracks remain the five one-shot clips.
+const GLB_MODEL_COUNT = REACTOR_SITE_MODELS.length + REACTOR_SITE_PROP_MODELS.length;
 const GLB_TRACK_COUNT = 5;
 const SEGMENT_COUNT = 5;
 const BREAK_SCENE_MODELS = [
@@ -77,7 +79,7 @@ test.describe('Reactor site', () => {
         }, GLB_MODEL_COUNT), { timeout: 360_000, message: 'the plant and its five scenes have to load' }).toBe(true);
 
         // --- 1. What loaded ---------------------------------------------------------------
-        const loaded = await page.evaluate(({ sceneModels, intactModels }) => {
+        const loaded = await page.evaluate(({ sceneModels, intactModels, propModels }) => {
             const game = window.GAME_INSTANCE;
             const arena = game.arena;
             const slotState = (modelId) => {
@@ -93,6 +95,7 @@ test.describe('Reactor site', () => {
                 colliderMode: String(arena.currentMapDefinition?.glbColliderMode || ''),
                 breakScenes: sceneModels.map(slotState),
                 intact: intactModels.map(slotState),
+                infrastructure: propModels.map(slotState),
                 segmentIds: game.entityManager._mapDestructibleSystem.getState().segments.map((entry) => entry.id),
                 itemSpawnMode: String(arena.currentMapDefinition?.itemSpawnMode || ''),
                 authoredItemCount: arena.getAuthoredItemAnchors?.().length || 0,
@@ -107,7 +110,11 @@ test.describe('Reactor site', () => {
                     (entry) => String(entry?.sourceName || '') === 'site_blastwall',
                 ).length,
             };
-        }, { sceneModels: BREAK_SCENE_MODELS, intactModels: INTACT_MODELS });
+        }, {
+            sceneModels: BREAK_SCENE_MODELS,
+            intactModels: INTACT_MODELS,
+            propModels: REACTOR_SITE_PROP_MODELS.map(({ id }) => id),
+        });
 
         expect(loaded.mapKey).toBe(MAP_KEY);
         expect(loaded.gameMode).toBe('HUNT');
@@ -117,12 +124,42 @@ test.describe('Reactor site', () => {
         expect(loaded.trackCount, 'one one-shot clip per scene, no machines').toBe(GLB_TRACK_COUNT);
         expect(loaded.breakScenes).toEqual(BREAK_SCENE_MODELS.map((modelId) => ({ modelId, found: true, visible: false })));
         expect(loaded.intact).toEqual(INTACT_MODELS.map((modelId) => ({ modelId, found: true, visible: true })));
+        expect(loaded.infrastructure).toEqual(
+            REACTOR_SITE_PROP_MODELS.map(({ id: modelId }) => ({ modelId, found: true, visible: true })),
+        );
         expect(loaded.segmentIds).toHaveLength(SEGMENT_COUNT);
         expect(loaded.segmentIds).toContain(TOWER_SEGMENT_ID);
         expect(loaded.itemSpawnMode).toBe('hybrid');
         expect(loaded.authoredItemCount).toBe(12);
         expect(loaded.blastWallMeshes, 'the complex static compound is visible').toBeGreaterThan(0);
         expect(loaded.blastWallColliders, 'the irregular walls provide real cover').toBeGreaterThan(0);
+
+        // The south service yard concentrates trays and numbered distribution boxes. Capture it
+        // through the real gameplay renderer before the destructive sequence changes the scene.
+        const infrastructurePicture = await page.evaluate((controlBoxId) => {
+            const game = window.GAME_INSTANCE;
+            game.state = 'PAUSED';
+            const camera = game.renderer.cameras?.[0];
+            const slot = game.arena._glbScene.getObjectByName(`glb-slot-${controlBoxId}`);
+            const target = slot.position.clone();
+            slot.getWorldPosition(target);
+            const cameraPosition = target.clone();
+            cameraPosition.y += 4.5;
+            cameraPosition.z += 10;
+            camera?.parent?.worldToLocal?.(cameraPosition);
+            camera?.position?.copy?.(cameraPosition);
+            camera?.lookAt?.(target.x, target.y + 1.2, target.z);
+            camera?.updateMatrixWorld?.(true);
+            game.renderer.render();
+            return game.renderer.renderer.domElement.toDataURL('image/png');
+        }, 'reactor-control-box-v06');
+        const infrastructureScreenshot = testInfo.outputPath('reactor-site-infrastructure.png');
+        await writeFile(infrastructureScreenshot, Buffer.from(infrastructurePicture.split(',')[1], 'base64'));
+        await testInfo.attach('reactor-site-infrastructure.png', {
+            path: infrastructureScreenshot,
+            contentType: 'image/png',
+        });
+        await page.evaluate(() => { window.GAME_INSTANCE.state = 'PLAYING'; });
 
         // --- 2 to 4, in one evaluate ------------------------------------------------------
         const siege = await page.evaluate(({ mapScale, towerId, axisX }) => {
