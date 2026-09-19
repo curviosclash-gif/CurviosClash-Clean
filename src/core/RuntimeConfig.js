@@ -262,7 +262,12 @@ export function createRuntimeConfigSnapshot(settings, {
         : (threePlayerSplitActive
             ? (threePlayerSplitSelection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? GAME_MODE_TYPES.HUNT : GAME_MODE_TYPES.CLASSIC)
             : source.gameMode);
-    const activeGameMode = resolveActiveGameMode(requestedGameMode, huntFeatureEnabled);
+    const requestedTeamObjective = normalizeTeamObjectiveType(huntSource.teamObjective);
+    const objectiveGameMode = requestedGameMode === GAME_MODE_TYPES.HUNT && huntSource.teamMode === true
+        && requestedTeamObjective === GAME_MODE_TYPES.ESCORT
+        ? GAME_MODE_TYPES.ESCORT
+        : requestedGameMode;
+    const activeGameMode = resolveActiveGameMode(objectiveGameMode, huntFeatureEnabled);
     const fivePortalsActive = arcadeEnabled && isFivePortalsRunType(arcadeSource.runType);
     const huntModeActive = isHuntMode(activeGameMode, huntFeatureEnabled);
 
@@ -435,8 +440,8 @@ export function createRuntimeConfigSnapshot(settings, {
             ...(() => {
                 const teamHunt = normalizeTeamHuntSettings(huntSource);
                 return {
-                    teamMode: teamHunt.enabled,
-                    teamObjective: normalizeTeamObjectiveType(huntSource.teamObjective),
+                    teamMode: activeGameMode === GAME_MODE_TYPES.ESCORT || teamHunt.enabled,
+                    teamObjective: requestedTeamObjective,
                     teamSize: teamHunt.teamSize,
                     teamBotDifficulty: teamHunt.botDifficulty,
                 };

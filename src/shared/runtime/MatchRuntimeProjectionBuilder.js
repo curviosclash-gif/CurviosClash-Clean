@@ -16,6 +16,8 @@ import {
     normalizeTeamObjectiveType,
     TEAM_OBJECTIVE_TYPES,
 } from '../contracts/FlagObjectiveContract.js';
+import { ESCORT_DEFAULTS } from '../contracts/EscortObjectiveContract.js';
+import { createTeamScoreboard } from '../contracts/TeamHuntContract.js';
 
 const TMP_AIM_DIRECTION = new THREE.Vector3();
 const TMP_CONFIG_SOURCE = { config: null, entityRuntimeConfig: null };
@@ -175,6 +177,7 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
         ? game.huntState
         : {};
     const modeId = String(runtimeState?.activeGameMode || entityManager?.activeGameMode || game?.activeGameMode || '');
+    const escortMode = modeId.toUpperCase() === 'ESCORT';
     const combatModeId = String(entityManager?.gameModeStrategy?.getPickupModeType?.() || modeId);
     const gameStateId = String(sessionRuntime?.lifecycle?.gameStateId || game?.state || '');
     const parcoursHudState = entityManager?.getParcoursHudState?.(localPlayerIndex) || null;
@@ -187,7 +190,11 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
     const flagCounts = teamObjective === TEAM_OBJECTIVE_TYPES.FLAGS ? countFlagsByTeam(flags) : null;
     const objectiveElapsedSeconds = Math.max(0, Number(deathmatchState.elapsedSeconds) || 0);
     const scoreboardRows = teamMode
-        ? (authoritativeFightState?.teamScoreboardRows || [])
+        ? (authoritativeFightState?.teamScoreboardRows || createTeamScoreboard(
+            playerScoreboardRows,
+            entityManager?.players || [],
+            { scoreKey: entityManager?.entityRuntimeConfig?.HUNT?.WIN_CONDITION === 'score_target' ? 'points' : 'kills' },
+        ))
         : playerScoreboardRows;
 
     return assembleMatchRuntimeProjection({
@@ -220,13 +227,17 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
             scoreboardSummary: entityManager?.getHuntScoreboardSummary?.(4, scoreboardRows) || '',
             elapsedSeconds: objectiveElapsedSeconds,
             timeLimitSeconds: teamObjective === TEAM_OBJECTIVE_TYPES.FLAGS
-                ? FLAG_OBJECTIVE_DEFAULTS.roundSeconds : (deathmatchState.timeLimitSeconds || 0),
+                ? FLAG_OBJECTIVE_DEFAULTS.roundSeconds
+                : (escortMode ? ESCORT_DEFAULTS.roundSeconds : (deathmatchState.timeLimitSeconds || 0)),
             timeRemainingSeconds: teamObjective === TEAM_OBJECTIVE_TYPES.FLAGS
                 ? Math.max(0, FLAG_OBJECTIVE_DEFAULTS.roundSeconds - objectiveElapsedSeconds)
-                : (deathmatchState.timeRemainingSeconds || 0),
+                : (escortMode
+                    ? Math.max(0, ESCORT_DEFAULTS.roundSeconds - objectiveElapsedSeconds)
+                    : (deathmatchState.timeRemainingSeconds || 0)),
             overtime: deathmatchState.overtime === true,
             authoritativeClient: entityManager?.isFightOutcomeAuthority === false,
             teamMode,
+            escortMode,
             teamObjective,
             flagCounts,
         },

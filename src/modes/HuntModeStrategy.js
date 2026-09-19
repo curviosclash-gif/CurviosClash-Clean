@@ -428,7 +428,7 @@ export class HuntModeStrategy extends GameModeContract {
             const entry = powerupTypes[normalizedType];
             if (!entry) return false;
             if (entry.classicOnly) return false;
-            return isPickupTypeAllowedForMode(normalizedType, this.modeType);
+            return isPickupTypeAllowedForMode(normalizedType, this.getPickupModeType());
         });
     }
 

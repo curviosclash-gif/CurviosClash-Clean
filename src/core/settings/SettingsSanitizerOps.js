@@ -104,6 +104,11 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
     merged.hunt.teamObjective = normalizeTeamObjectiveType(src?.hunt?.teamObjective);
     merged.hunt.teamSize = teamHunt.teamSize;
     merged.hunt.teamBotDifficulty = teamHunt.botDifficulty;
+    if (merged.gameMode === GAME_MODE_TYPES.ESCORT) {
+        merged.gameMode = GAME_MODE_TYPES.HUNT;
+        merged.hunt.teamObjective = 'ESCORT';
+    }
+    if (merged.hunt.teamObjective === 'ESCORT') merged.hunt.teamMode = true;
     if (merged.gameMode !== GAME_MODE_TYPES.HUNT) {
         merged.hunt.respawnEnabled = false;
     }

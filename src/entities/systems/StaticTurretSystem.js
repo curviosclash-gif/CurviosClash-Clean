@@ -209,7 +209,7 @@ export class StaticTurretSystem {
 
     deployForPlayer(player, weapon = 'mg') {
         if (weapon !== 'mg' && weapon !== 'rocket') return null;
-        const allowedModes = weapon === 'rocket' ? ['HUNT', 'ARCADE'] : ['HUNT'];
+        const allowedModes = weapon === 'rocket' ? ['HUNT', 'ARCADE', 'ESCORT'] : ['HUNT', 'ESCORT'];
         const owner = this.entityManager;
         if (
             !owner
@@ -240,7 +240,7 @@ export class StaticTurretSystem {
             phase: 0,
             rocketType: 'ROCKET_WEAK',
             deployed: true,
-            ownerIndex: player.index,
+            ownerIndex: player.index, teamId: player.teamId || null,
             ownerColor: player.color,
             maxHp: config.maxHp,
             hitboxRadius: config.hitboxRadius,

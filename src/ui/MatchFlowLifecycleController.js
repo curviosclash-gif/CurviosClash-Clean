@@ -189,6 +189,9 @@ export class MatchFlowLifecycleController {
             totalBots: game.numBots,
             winsNeeded: game.winsNeeded,
             outcomeReason: typeof normalizedOutcome.reason === 'string' ? normalizedOutcome.reason : '',
+            winnerTeamId: typeof normalizedOutcome.winnerTeamId === 'string'
+                ? normalizedOutcome.winnerTeamId
+                : null,
             parcours: normalizedOutcome.parcours || null,
             huntScoreboard: this._resolveHuntScoreboard(),
             localPlayerIndexes: resolveLocalPlayerIndexes(game?.runtimeConfig?.session || null),

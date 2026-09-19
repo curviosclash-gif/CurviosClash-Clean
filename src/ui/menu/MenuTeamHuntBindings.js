@@ -3,8 +3,14 @@ export function bindMenuTeamHuntControls({ ui, settings, bind, emitSettingsChang
         bind(ui.huntTeamModeToggle, 'change', () => {
             if (!settings.hunt) settings.hunt = {};
             settings.hunt.teamMode = !!ui.huntTeamModeToggle.checked;
-            if (settings.hunt.teamMode) settings.hunt.respawnEnabled = true;
-            emitSettingsChangedImmediate([keys.HUNT_TEAM_MODE, keys.HUNT_RESPAWN_ENABLED]);
+            if (settings.hunt.teamMode) {
+                settings.hunt.respawnEnabled = true;
+            } else if (settings.hunt.teamObjective === 'ESCORT' || settings.hunt.teamObjective === 'FLAGS') {
+                settings.hunt.teamObjective = 'HUNT';
+            }
+            emitSettingsChangedImmediate([
+                keys.HUNT_TEAM_MODE, keys.HUNT_RESPAWN_ENABLED, keys.HUNT_TEAM_OBJECTIVE,
+            ]);
         });
     }
     if (ui.huntTeamSizeSelect) {
@@ -17,8 +23,13 @@ export function bindMenuTeamHuntControls({ ui, settings, bind, emitSettingsChang
     if (ui.huntTeamObjectiveSelect) {
         bind(ui.huntTeamObjectiveSelect, 'change', () => {
             if (!settings.hunt) settings.hunt = {};
-            settings.hunt.teamObjective = ui.huntTeamObjectiveSelect.value === 'FLAGS' ? 'FLAGS' : 'HUNT';
-            emitSettingsChangedImmediate([keys.HUNT_TEAM_OBJECTIVE]);
+            const value = String(ui.huntTeamObjectiveSelect.value || 'HUNT').toUpperCase();
+            settings.hunt.teamMode = true;
+            settings.hunt.respawnEnabled = true;
+            settings.hunt.teamObjective = ['FLAGS', 'ESCORT'].includes(value) ? value : 'HUNT';
+            emitSettingsChangedImmediate([
+                keys.HUNT_TEAM_MODE, keys.HUNT_RESPAWN_ENABLED, keys.HUNT_TEAM_OBJECTIVE,
+            ]);
         });
     }
     const bindDifficulty = (control, teamId) => {

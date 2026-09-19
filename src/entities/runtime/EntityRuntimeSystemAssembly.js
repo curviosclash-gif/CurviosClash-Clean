@@ -59,6 +59,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
             getDeathmatchTimeLimitSeconds: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_TIME_LIMIT_SECONDS || 0,
             getElapsedSeconds: () => Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
             getObjectiveOutcome: () => owner._flagObjectiveSystem?.getRoundOutcome?.()
+                || owner._mapUnitSystem?.getEscortOutcome?.()
                 || (isFivePortalsConfig(owner.runtimeConfig)
                     ? null : (owner._parcoursProgressSystem?.getRoundOutcome?.() || null)),
             isTeamMode: () => owner.runtimeConfig?.hunt?.teamMode === true,

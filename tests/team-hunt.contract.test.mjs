@@ -12,6 +12,11 @@ import { buildEntityManagerSetupOptions } from '../src/state/match-session/Match
 import { createRuntimeConfigSnapshot } from '../src/core/RuntimeConfig.js';
 import { createMenuSettingsDefaults } from '../src/ui/menu/MenuDefaultsEditorConfig.js';
 import { HuntScoring } from '../src/hunt/HuntScoring.js';
+import { getNearestEnemy } from '../src/hunt/HuntBotPolicy.js';
+import { resolveOpportunisticEnemy } from '../src/entities/ai/HeuristicHuntTargetingOps.js';
+import { coordinateRoundEnd } from '../src/ui/MatchFlowRoundEndCoordinator.js';
+import { buildMatchRuntimeProjection } from '../src/shared/runtime/MatchRuntimeProjectionBuilder.js';
+import * as THREE from 'three';
 
 function combatant(index, teamId, alive = true) {
     return { index, teamId, alive, entitySlotActive: true, isBot: index > 1 };
@@ -28,6 +33,51 @@ test('team settings default to a 4v4 roster and normalize per-team bot difficult
         botCount: 5,
         teamIds: [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO],
     });
+    assert.deepEqual(resolveTeamRoster({ humanCount: 5, teamSize: 2 }), {
+        totalSlots: 6,
+        botCount: 1,
+        teamIds: [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO],
+    });
+    assert.equal(normalizeTeamHuntSettings({ enabled: true, teamMode: false }).enabled, false);
+});
+
+test('team round wins increment every teammate and reach the match limit together', () => {
+    const players = [
+        { index: 0, teamId: TEAM_IDS.ALPHA, score: 1 },
+        { index: 1, teamId: TEAM_IDS.BRAVO, score: 0 },
+        { index: 2, teamId: TEAM_IDS.ALPHA, score: 1 },
+    ];
+    const result = coordinateRoundEnd({
+        winner: players[2],
+        winnerTeamId: TEAM_IDS.ALPHA,
+        players,
+        roundStateController: {
+            deriveOnRoundEndPlan: (roundPlayers) => ({
+                outcome: { matchWinner: roundPlayers.find((player) => player.score >= 2) || null },
+                transition: {},
+            }),
+        },
+        winsNeeded: 2,
+        logger: { log() {} },
+    });
+    assert.deepEqual(players.map((player) => player.score), [2, 0, 2]);
+    assert.equal(result.outcome.matchWinner.teamId, TEAM_IDS.ALPHA);
+});
+
+test('all standard bot target selectors skip teammates', () => {
+    const bot = combatant(0, TEAM_IDS.ALPHA);
+    bot.position = new THREE.Vector3();
+    const teammate = combatant(2, TEAM_IDS.ALPHA);
+    teammate.position = new THREE.Vector3(1, 0, 0);
+    teammate.hp = 1;
+    teammate.maxHp = 100;
+    const enemy = combatant(1, TEAM_IDS.BRAVO);
+    enemy.position = new THREE.Vector3(4, 0, 0);
+    enemy.hp = 100;
+    enemy.maxHp = 100;
+    assert.equal(getNearestEnemy(bot, [bot, teammate, enemy], new THREE.Vector3()).enemy, enemy);
+    const policy = { profile: { opportunistBias: 1, openingFanoutBias: 0 } };
+    assert.equal(resolveOpportunisticEnemy(policy, bot, [bot, teammate, enemy], enemy), enemy);
 });
 
 test('team scoreboard aggregates the selected Hunt metric and keeps player statistics', () => {
@@ -41,6 +91,26 @@ test('team scoreboard aggregates the selected Hunt metric and keeps player stati
     assert.deepEqual(teams.map((row) => [row.teamId, row.kills, row.points, row.playerIndices]), [
         [TEAM_IDS.ALPHA, 5, 12, [0, 2]],
         [TEAM_IDS.BRAVO, 4, 8, [1]],
+    ]);
+});
+
+test('local team HUD derives team rows without an authoritative network snapshot', () => {
+    const players = [combatant(0, TEAM_IDS.ALPHA), combatant(1, TEAM_IDS.BRAVO)];
+    const rows = [{ playerIndex: 0, kills: 2 }, { playerIndex: 1, kills: 1 }];
+    const entityManager = {
+        players,
+        runtimeConfig: { hunt: { teamMode: true, teamObjective: 'HUNT' } },
+        entityRuntimeConfig: { HUNT: { WIN_CONDITION: 'kills_time' } },
+        gameModeStrategy: { hasCombatHud: () => true, isRespawnEnabled: () => true, getPickupModeType: () => 'HUNT' },
+        getHuntScoreboard: () => rows,
+        getHuntScoreboardSummary: () => 'summary',
+    };
+    const projection = buildMatchRuntimeProjection({
+        game: { entityManager, state: 'PLAYING' },
+        runtimeState: { activeGameMode: 'HUNT' },
+    });
+    assert.deepEqual(projection.hunt.scoreboardRows.map((row) => [row.teamId, row.kills]), [
+        [TEAM_IDS.ALPHA, 2], [TEAM_IDS.BRAVO, 1],
     ]);
 });
 

@@ -21,6 +21,7 @@ import { applyBotMapUnitFire } from './HuntBotMapUnitOps.js';
 import { applyBotLightningInput } from './HuntBotLightningOps.js';
 import { applyBotRailgunInput, holdsRailgunCharge } from './HuntBotRailgunOps.js';
 import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
+import { areTeammates } from '../shared/contracts/TeamCombatContract.js';
 export { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 
 import { clamp } from '../shared/utils/MathOps.js';
@@ -44,7 +45,7 @@ export function getNearestEnemy(player, allPlayers, outVec) {
     let nearest = null;
     let nearestDistSq = Infinity;
     for (const other of allPlayers || []) {
-        if (!other || other === player || !other.alive) continue;
+        if (!other || other === player || !other.alive || areTeammates(player, other)) continue;
         outVec.subVectors(other.position, player.position);
         const distSq = outVec.lengthSq();
         if (distSq < nearestDistSq) {

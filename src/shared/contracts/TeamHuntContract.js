@@ -12,7 +12,7 @@ function normalizeDifficulty(value, fallback = 'NORMAL') {
 export function normalizeTeamHuntSettings(source = {}) {
     const teamSize = Math.max(1, Math.min(5, Math.trunc(Number(source?.teamSize) || TEAM_HUNT_DEFAULT_TEAM_SIZE)));
     return {
-        enabled: source?.teamMode === true || source?.enabled === true,
+        enabled: source?.teamMode === true,
         teamSize,
         botDifficulty: {
             [TEAM_IDS.ALPHA]: normalizeDifficulty(source?.teamBotDifficulty?.[TEAM_IDS.ALPHA]),
@@ -23,8 +23,9 @@ export function normalizeTeamHuntSettings(source = {}) {
 
 export function resolveTeamRoster({ humanCount = 0, teamSize = TEAM_HUNT_DEFAULT_TEAM_SIZE } = {}) {
     const normalizedTeamSize = Math.max(1, Math.min(5, Math.trunc(Number(teamSize) || TEAM_HUNT_DEFAULT_TEAM_SIZE)));
-    const totalSlots = normalizedTeamSize * 2;
-    const normalizedHumanCount = Math.max(0, Math.min(totalSlots, Math.trunc(Number(humanCount) || 0)));
+    const normalizedHumanCount = Math.max(0, Math.trunc(Number(humanCount) || 0));
+    const effectiveTeamSize = Math.max(normalizedTeamSize, Math.ceil(normalizedHumanCount / 2));
+    const totalSlots = effectiveTeamSize * 2;
     return {
         totalSlots,
         botCount: totalSlots - normalizedHumanCount,

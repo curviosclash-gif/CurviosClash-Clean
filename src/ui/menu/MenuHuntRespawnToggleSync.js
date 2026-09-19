@@ -29,7 +29,10 @@ export function syncHuntRespawnToggle(toggle, settings, { huntModeActive, respaw
     if (teamModeToggle) teamModeToggle.checked = teamMode;
     if (teamRules) teamRules.classList.toggle('hidden', !teamMode);
     if (teamSize) teamSize.value = String(settings?.hunt?.teamSize || 4);
-    if (teamObjective) teamObjective.value = settings?.hunt?.teamObjective === 'FLAGS' ? 'FLAGS' : 'HUNT';
+    if (teamObjective) {
+        const objective = String(settings?.hunt?.teamObjective || 'HUNT').toUpperCase();
+        teamObjective.value = ['FLAGS', 'ESCORT'].includes(objective) ? objective : 'HUNT';
+    }
     if (alphaDifficulty) alphaDifficulty.value = settings?.hunt?.teamBotDifficulty?.ALPHA || 'NORMAL';
     if (bravoDifficulty) bravoDifficulty.value = settings?.hunt?.teamBotDifficulty?.BRAVO || 'NORMAL';
 }

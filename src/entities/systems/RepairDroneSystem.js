@@ -63,6 +63,7 @@ export class RepairDroneSystem {
         const drone = {
             ownerIndex: owner.index,
             ownerPlayer: owner,
+            teamId: owner.teamId || null,
             position: new THREE.Vector3(),
             maxHp: REPAIR_DRONE_RULES.maxHp,
             hp: REPAIR_DRONE_RULES.maxHp,
@@ -148,6 +149,7 @@ export class RepairDroneSystem {
     _healNearbyTanks(drone, amount) {
         for (const unit of this.entityManager?._mapUnitSystem?.units || []) {
             if (unit?.kind !== 'tank' || !unit.alive || !unit.position) continue;
+            if (unit.escortTank === true && drone.ownerPlayer?.teamId !== unit.teamId) continue;
             if (unit.position.distanceTo(drone.position) > REPAIR_DRONE_RULES.tankRepairRadius) continue;
             unit.hp = Math.min(Math.max(1, Number(unit.maxHp) || 1), Math.max(0, Number(unit.hp) || 0) + amount);
         }

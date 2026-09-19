@@ -5,7 +5,7 @@ export function isDestructibleTurret(turret) {
 export function isTurretCombatActive(strategy, allowedModes = ['HUNT']) {
     const mode = String(strategy?.modeType || '').toUpperCase();
     if (!allowedModes.includes(mode) || strategy?.isSectorParcours?.()) return false;
-    return mode === 'HUNT' || (mode === 'ARCADE' && strategy?.getPickupModeType?.() === 'HUNT');
+    return mode === 'HUNT' || mode === 'ESCORT' || (mode === 'ARCADE' && strategy?.getPickupModeType?.() === 'HUNT');
 }
 
 export function isTurretTargetPlayerEligible(player, owner, targetPlayers = 'all') {

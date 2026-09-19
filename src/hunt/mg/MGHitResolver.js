@@ -178,7 +178,7 @@ export class MGHitResolver {
         let bestDistanceSq = Infinity;
         let found = false;
         for (const target of this.runtime?.players || []) {
-            if (!target?.alive || target === player || !target.position) continue;
+            if (!target?.alive || target === player || !target.position || areTeammates(player, target)) continue;
             this._tmpHit.subVectors(target.position, player.position);
             const distanceSq = this._tmpHit.lengthSq();
             if (distanceSq <= 0.000001 || distanceSq > maxRangeSq) continue;

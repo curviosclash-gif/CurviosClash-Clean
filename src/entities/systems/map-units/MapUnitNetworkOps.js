@@ -24,6 +24,10 @@ export function serializeMapUnits(units) {
         to: unit.toIndex,
         progress: round(unit.progress),
         yaw: round(unit.yaw),
+        ...(unit.escortTank ? {
+            escortReachedGoal: unit.escortReachedGoal === true,
+            escortSpeed: round(unit.speed),
+        } : {}),
         ...(unit.kind === 'bomber' ? {
             crashing: unit.crashing === true,
             pos: [round(unit.position.x), round(unit.position.y), round(unit.position.z)],
@@ -106,6 +110,10 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         unit.yaw = Number.isFinite(Number(entry.yaw)) ? Number(entry.yaw) : unit.yaw;
         unit.hp = Math.max(0, Number(entry.hp) || 0);
         unit.alive = entry.alive === true;
+        if (unit.escortTank) {
+            unit.escortReachedGoal = entry.escortReachedGoal === true;
+            unit.speed = Math.max(0, Number(entry.escortSpeed) || unit.speed);
+        }
         if (unit.kind === 'bomber') {
             unit.crashing = entry.crashing === true;
             unit.bombsFired = Math.max(0, Math.trunc(Number(entry.bombs) || 0));

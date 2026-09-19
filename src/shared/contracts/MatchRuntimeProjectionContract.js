@@ -4,6 +4,7 @@ import { resolveArtifactVersionState } from './ArtifactVersionMigrationContract.
 import { createGlobalFogEffectState } from './GlobalFogEffectContract.js';
 import { normalizeHuntWinCondition } from './HuntWinConditionContract.js';
 import { normalizeHuntLivesByPlayer } from './HuntLivesContract.js';
+import { normalizeTeamId } from './TeamCombatContract.js';
 
 export const MATCH_RUNTIME_PROJECTION_CONTRACT_VERSION = 'match-runtime-projection.v1';
 export const MATCH_RUNTIME_PROJECTION_VERSION_FIELDS = Object.freeze(['contractVersion']);
@@ -383,6 +384,10 @@ function createHuntProjection(value = null, nowMs = 0) {
     const scoreboardRows = Array.isArray(source.scoreboardRows)
         ? source.scoreboardRows.map((row) => ({
             playerIndex: normalizeNonNegativeInt(row?.playerIndex, 0),
+            teamId: normalizeTeamId(row?.teamId),
+            playerIndices: Array.isArray(row?.playerIndices)
+                ? row.playerIndices.map((index) => normalizeNonNegativeInt(index, 0))
+                : [],
             label: normalizeString(row?.label, ''),
             kills: normalizeNonNegativeInt(row?.kills, 0),
             deaths: normalizeNonNegativeInt(row?.deaths, 0),
@@ -424,7 +429,10 @@ function createHuntProjection(value = null, nowMs = 0) {
         overtime: source.overtime === true,
         authoritativeClient: source.authoritativeClient === true,
         teamMode: source.teamMode === true,
-        teamObjective: String(source.teamObjective || 'HUNT').toUpperCase() === 'FLAGS' ? 'FLAGS' : 'HUNT',
+        escortMode: source.escortMode === true,
+        teamObjective: ['FLAGS', 'ESCORT'].includes(String(source.teamObjective || '').toUpperCase())
+            ? String(source.teamObjective).toUpperCase()
+            : 'HUNT',
         flagCounts: source.flagCounts && typeof source.flagCounts === 'object'
             ? { ALPHA: normalizeNonNegativeInt(source.flagCounts.ALPHA, 0), BRAVO: normalizeNonNegativeInt(source.flagCounts.BRAVO, 0) }
             : null,

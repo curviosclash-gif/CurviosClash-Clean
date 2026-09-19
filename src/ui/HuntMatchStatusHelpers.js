@@ -61,6 +61,7 @@ export function updateHuntTargetProgress(progress, state, target, score) {
 export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLimit, timeText, matchPointText }) {
     if (isArenaWavesConfig(runtimeConfig)) return 'Fünf Fronten · halte jede Welle auf';
     if (isEndlessParcoursConfig(runtimeConfig)) return 'Endlosjagd · überlebe so lange wie möglich';
+    if (huntProjection?.escortMode === true) return `Eskorte · Alpha schützt den Panzer${timeText}`;
     if (huntProjection?.teamObjective === 'FLAGS') {
         const counts = huntProjection?.flagCounts || {};
         return `Flaggen · Alpha ${Number(counts.ALPHA) || 0}:${Number(counts.BRAVO) || 0} Bravo${timeText}`;

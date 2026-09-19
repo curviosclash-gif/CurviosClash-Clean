@@ -6,6 +6,7 @@ import {
 import { isArenaWavesRunType } from '../../shared/contracts/ArenaWavesContract.js';
 import { invalidatePrewarmedArenaSession } from './MatchSessionPrewarmStore.js';
 import { normalizeTeamHuntSettings, resolveTeamRoster } from '../../shared/contracts/TeamHuntContract.js';
+import { normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
 
 function resolveLocalSplitScreenPlayerColor(splitScreenVariant, index) {
     if (splitScreenVariant === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR) return FOUR_PLAYER_PLANAR_PLAYER_COLORS[index];
@@ -56,6 +57,9 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
     const slotNames = new Map((Array.isArray(session?.networkPlayerSlots) ? session.networkPlayerSlots : [])
         .filter((slot) => typeof slot?.displayName === 'string' && slot.displayName.trim())
         .map((slot) => [Number(slot.playerIndex), slot.displayName.trim()]));
+    const slotTeams = new Map((Array.isArray(session?.networkPlayerSlots) ? session.networkPlayerSlots : [])
+        .map((slot) => [Number(slot.playerIndex), normalizeTeamId(slot?.teamId)])
+        .filter(([, teamId]) => teamId));
     const withName = (index, config) => (slotNames.has(index) ? { ...config, name: slotNames.get(index) } : config);
     const configs = [];
     const teamSettings = normalizeTeamHuntSettings(runtimeConfig?.hunt || settings?.hunt);
@@ -71,7 +75,7 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
             vehicleId: runtimeVehicles?.[slot] || settings?.vehicles?.[slot] || fallbackVehicleId,
             fightLoadout: fightLoadouts?.[slot] || fightLoadouts?.PLAYER_1 || null,
             color: resolveLocalSplitScreenPlayerColor(runtimeConfig?.session?.splitScreenVariant, index),
-            teamId: teamRoster?.teamIds[index] || null,
+            teamId: teamRoster ? (slotTeams.get(index) || teamRoster.teamIds[index] || null) : null,
         }));
     }
     // Slots beyond the local count keep the sparse shape they had before (the
@@ -79,7 +83,7 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
     for (let index = configuredHumanCount; index < totalHumanCount; index += 1) {
         configs.push(withName(index, {
             smoothSteering: isLocalSlot(index) && smoothSteering,
-            teamId: teamRoster?.teamIds[index] || null,
+            teamId: teamRoster ? (slotTeams.get(index) || teamRoster.teamIds[index] || null) : null,
         }));
     }
     return configs;

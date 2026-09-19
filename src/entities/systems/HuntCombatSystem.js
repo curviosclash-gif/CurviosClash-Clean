@@ -365,6 +365,7 @@ export class HuntCombatSystem {
             runtimeProfiler: runtime?.services?.runtimeProfiler || runtime?.runtimeProfiler || null,
             targetingTelemetry: this._targetingTelemetry,
             scratch: this._targetingScratch,
+            excludeTeammates: player?.isBot === true,
         });
 
         lockOnCache.set(player.index, descriptor || null);

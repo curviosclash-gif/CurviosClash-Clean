@@ -205,6 +205,7 @@ export class ProjectileSimulationOps {
                 targetingTelemetry: this._targetingTelemetry,
                 scratch: this._targetingScratch,
                 canTargetPlayer: (target) => canDamage(owner, target, TEAM_WEAPON_KINDS.ROCKET),
+                excludeTeammates: true,
             });
             if (resolveHuntTargetOwnerPlayer(lineTarget, players)?.decoyActive
                 || !this._isAllowedTurretTarget(projectile, lineTarget, players)) {

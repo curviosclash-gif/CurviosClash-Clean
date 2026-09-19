@@ -17,7 +17,7 @@ export const MAP_UNIT_LIMITS = Object.freeze({
 });
 
 const VALID_KINDS = new Set(['tank', 'swarm', 'boss', 'bomber', 'creature']);
-const VALID_MODES = new Set(['HUNT', 'ARCADE']);
+const VALID_MODES = new Set(['HUNT', 'ARCADE', 'ESCORT']);
 const VALID_ROCKETS = new Set(['ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA']);
 
 /** Balance start values from ideen.md (tank row). */

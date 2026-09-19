@@ -3,6 +3,7 @@ import { normalizeTeamId, TEAM_IDS } from './TeamCombatContract.js';
 export const TEAM_OBJECTIVE_TYPES = Object.freeze({
     HUNT: 'HUNT',
     FLAGS: 'FLAGS',
+    ESCORT: 'ESCORT',
 });
 
 export const FLAG_OBJECTIVE_DEFAULTS = Object.freeze({
@@ -14,9 +15,10 @@ export const FLAG_OBJECTIVE_DEFAULTS = Object.freeze({
 });
 
 export function normalizeTeamObjectiveType(value) {
-    return String(value || '').trim().toUpperCase() === TEAM_OBJECTIVE_TYPES.FLAGS
-        ? TEAM_OBJECTIVE_TYPES.FLAGS
-        : TEAM_OBJECTIVE_TYPES.HUNT;
+    const normalized = String(value || '').trim().toUpperCase();
+    if (normalized === TEAM_OBJECTIVE_TYPES.FLAGS) return TEAM_OBJECTIVE_TYPES.FLAGS;
+    if (normalized === TEAM_OBJECTIVE_TYPES.ESCORT) return TEAM_OBJECTIVE_TYPES.ESCORT;
+    return TEAM_OBJECTIVE_TYPES.HUNT;
 }
 
 /** @param {{ id?: unknown, teamId?: unknown, maxHp?: number }} [options] */

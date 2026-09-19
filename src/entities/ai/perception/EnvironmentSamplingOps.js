@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { areTeammates } from '../../../shared/contracts/TeamCombatContract.js';
 
 const DEFAULT_WORLD_UP = new THREE.Vector3(0, 1, 0);
 const DEFAULT_PROBE = new THREE.Vector3();
@@ -62,7 +63,7 @@ export function findNearestEnemySample(
 
     for (let i = 0; i < players.length; i++) {
         const other = players[i];
-        if (!other || other === player || !other.alive) continue;
+        if (!other || other === player || !other.alive || areTeammates(player, other)) continue;
         toTarget.subVectors(other.position, player.position);
         const distSq = toTarget.lengthSq();
         if (distSq < nearestDistSq) {

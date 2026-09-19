@@ -37,6 +37,17 @@ import { SETTINGS_CHANGE_KEYS } from '../src/shared/settings/SettingsChangeKeys.
 const LOBBY_CODE = 'qa-lobby';
 const BOT_COUNT_CHANGE_KEYS = [SETTINGS_CHANGE_KEYS.BOTS_COUNT];
 
+test('every team rule invalidates multiplayer readiness', () => {
+    for (const key of [
+        SETTINGS_CHANGE_KEYS.HUNT_TEAM_MODE,
+        SETTINGS_CHANGE_KEYS.HUNT_TEAM_OBJECTIVE,
+        SETTINGS_CHANGE_KEYS.HUNT_TEAM_SIZE,
+        SETTINGS_CHANGE_KEYS.HUNT_TEAM_BOT_DIFFICULTY,
+    ]) {
+        assert.equal(MATCH_SETTING_CHANGE_KEY_SET.has(key), true, key);
+    }
+});
+
 function createClock(initialNow = 1_700_000_000_000) {
     let current = initialNow;
     return {

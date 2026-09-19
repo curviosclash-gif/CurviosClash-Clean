@@ -47,6 +47,13 @@ import {
     updateCreatureVisual,
 } from './map-units/MapUnitCreatureVisualOps.js';
 import { updateCreatureAttack } from './map-units/MapUnitCreatureOps.js';
+import { GAME_MODE_TYPES } from '../../hunt/HuntMode.js';
+import {
+    bindEscortTank,
+    createEscortTankDefinition,
+    resolveEscortMapUnitOutcome,
+    updateEscortTankSpeed,
+} from './map-units/EscortMapUnitOps.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
@@ -91,6 +98,10 @@ export class MapUnitSystem {
             const unit = this._createUnit(definition, scale);
             this.units.push(unit);
             this.setBossRoomClock(unit, true);
+        }
+        if (owner.gameModeStrategy?.modeType === GAME_MODE_TYPES.ESCORT) {
+            const definition = createEscortTankDefinition(owner.arena?.bounds);
+            if (definition) this.units.push(bindEscortTank(this._createUnit(definition, 1)));
         }
         return this.units.length;
     }
@@ -242,8 +253,13 @@ export class MapUnitSystem {
                 continue;
             }
             if (!unit.alive) continue;
+            if (unit.escortTank) {
+                if (unit.escortReachedGoal) continue;
+                if (!this.networkReplica) updateEscortTankSpeed(unit, this.entityManager?.players || []);
+            }
             const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
             advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
+            if (unit.escortTank && unit.fromIndex === unit.path.length - 1) unit.escortReachedGoal = true;
             const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
             unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
             this._placeCentre(unit);
@@ -305,6 +321,13 @@ export class MapUnitSystem {
             }
         }
         return this._targets;
+    }
+
+    getEscortOutcome() {
+        if (this.entityManager?.gameModeStrategy?.modeType !== GAME_MODE_TYPES.ESCORT) return null;
+        const tank = this.units.find((unit) => unit.escortTank === true) || null;
+        const elapsed = Math.max(0, Number(this.entityManager?._simulationClockMs) || 0) * 0.001;
+        return resolveEscortMapUnitOutcome(tank, elapsed, this.entityManager?.players || []);
     }
 
     setNetworkReplica(enabled) {

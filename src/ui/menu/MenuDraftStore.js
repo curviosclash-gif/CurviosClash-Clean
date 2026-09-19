@@ -71,7 +71,9 @@ function createSessionDraftSnapshot(settings, sessionType) {
             timeLimitEnabled: source?.hunt?.timeLimitEnabled !== false,
             winCondition: normalizeHuntWinCondition(source?.hunt?.winCondition),
             teamMode: source?.hunt?.teamMode === true,
-            teamObjective: source?.hunt?.teamObjective === 'FLAGS' ? 'FLAGS' : 'HUNT',
+            teamObjective: ['FLAGS', 'ESCORT'].includes(source?.hunt?.teamObjective)
+                ? source.hunt.teamObjective
+                : 'HUNT',
             teamSize: Math.max(1, Math.min(5, Number(source?.hunt?.teamSize) || 4)),
             teamBotDifficulty: cloneObject(source?.hunt?.teamBotDifficulty, { ALPHA: 'NORMAL', BRAVO: 'NORMAL' }),
         },
@@ -136,7 +138,9 @@ function applySnapshotToSettings(settings, snapshot) {
     settings.hunt.timeLimitEnabled = snapshot?.hunt?.timeLimitEnabled !== false;
     settings.hunt.winCondition = normalizeHuntWinCondition(snapshot?.hunt?.winCondition);
     settings.hunt.teamMode = snapshot?.hunt?.teamMode === true;
-    settings.hunt.teamObjective = snapshot?.hunt?.teamObjective === 'FLAGS' ? 'FLAGS' : 'HUNT';
+    settings.hunt.teamObjective = ['FLAGS', 'ESCORT'].includes(snapshot?.hunt?.teamObjective)
+        ? snapshot.hunt.teamObjective
+        : 'HUNT';
     settings.hunt.teamSize = Math.max(1, Math.min(5, Number(snapshot?.hunt?.teamSize) || 4));
     settings.hunt.teamBotDifficulty = cloneObject(snapshot?.hunt?.teamBotDifficulty, { ALPHA: 'NORMAL', BRAVO: 'NORMAL' });
 

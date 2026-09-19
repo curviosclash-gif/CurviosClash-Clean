@@ -14,6 +14,7 @@ import { resolveItemProjectileTarget } from '../src/entities/systems/projectile/
 import { serializePlayer } from '../src/core/GameStateSnapshot.js';
 import { ProjectileHitResolver } from '../src/entities/systems/projectile/ProjectileHitResolver.js';
 import { StateReconciler } from '../src/network/StateReconciler.js';
+import { resolveHuntLineTarget } from '../src/hunt/HuntTargetingOps.js';
 
 function player(index, teamId, x = index * 5) {
     return {
@@ -41,6 +42,35 @@ test('team combat keeps legacy free-for-all actors hostile and applies the frien
     assert.equal(canDamage(alpha, ally, TEAM_WEAPON_KINDS.TRAIL), true);
     assert.equal(canDamage(alpha, bravo, TEAM_WEAPON_KINDS.ROCKET), true);
     assert.equal(canDamage(alpha, legacy, TEAM_WEAPON_KINDS.ROCKET), true);
+});
+
+test('bot lock-on skips allied players and trails without disabling MG friendly fire', () => {
+    const source = { ...player(0, TEAM_IDS.ALPHA), position: new THREE.Vector3(0, 0, 0) };
+    const ally = { ...player(1, TEAM_IDS.ALPHA), position: new THREE.Vector3(5, 0, 0) };
+    const trailEntry = {
+        playerIndex: ally.index,
+        segmentIdx: 0,
+        fromX: 3,
+        fromY: 0,
+        fromZ: 0,
+        toX: 4,
+        toY: 0,
+        toZ: 0,
+    };
+    const options = {
+        sourcePlayer: source,
+        players: [source, ally],
+        trailSpatialIndex: {
+            checkProjectileTrailCollision: () => ({ entry: trailEntry }),
+        },
+        origin: source.position,
+        direction: new THREE.Vector3(1, 0, 0),
+        playerRange: 10,
+        trailRange: 10,
+        trailSampleStep: 1,
+    };
+    assert.equal(resolveHuntLineTarget({ ...options, excludeTeammates: true }), null);
+    assert.equal(resolveHuntLineTarget(options)?.kind, 'trail');
 });
 
 test('balanced team assignment alternates stable player slots', () => {
@@ -109,6 +139,40 @@ test('rockets pass through teammates and still damage enemies', () => {
     assert.equal(resolver.resolveProjectileOutcome(projectile, [ally], null, {}), false);
     assert.equal(resolver.resolveProjectileOutcome(projectile, [ally, enemy], null, {}), true);
     assert.ok(enemyDamage > 0);
+});
+
+test('rockets pass through allied team-owned tanks before projectile consumption', () => {
+    const attacker = { index: 0, teamId: TEAM_IDS.ALPHA };
+    const alliedTank = {
+        destructible: true,
+        hp: 600,
+        teamId: TEAM_IDS.ALPHA,
+        position: new THREE.Vector3(),
+        hitboxRadius: 2,
+        takeDamage() { throw new Error('allied tank must not consume the rocket'); },
+    };
+    const enemyTank = {
+        ...alliedTank,
+        teamId: TEAM_IDS.BRAVO,
+        takeDamage() { return { isDead: false }; },
+    };
+    const system = {
+        _tmpVec: new THREE.Vector3(),
+        getTurrets: () => [alliedTank],
+        onProjectileHit() {},
+    };
+    const resolver = new ProjectileHitResolver(system);
+    const projectile = {
+        owner: attacker,
+        type: 'ROCKET_GUIDED',
+        radius: 0.5,
+        position: new THREE.Vector3(),
+        previousPosition: new THREE.Vector3(),
+    };
+    assert.equal(resolver._resolveTurretHit(projectile, []), false);
+    assert.equal(projectile.detonated, undefined);
+    system.getTurrets = () => [enemyTank];
+    assert.equal(resolver._resolveTurretHit(projectile, []), true);
 });
 
 test('client reconciliation adopts the authoritative team id', () => {
