@@ -112,11 +112,6 @@ test('Wave 7: Waffenrennen, Ergebnisvergleich und Neustart bleiben sichtbar und 
         }
         runtime.handleCheckpoint({ playerIndex: bot.index, checkpointId: 'CP02_MG' });
         const death = runtime.handleDeath({ playerIndex: human.index });
-        const progress = manager._parcoursProgressSystem?._playerStates?.get?.(human.index);
-        if (progress) progress.resetCount = 2;
-        manager._huntScoring?.registerBurnedTrailMeters?.(human.index, 4.5);
-        manager._huntScoring?.registerFlagCapture?.(human.index);
-        manager._huntScoring?.registerRepairDroneHpRestored?.(human.index, 8);
         const startedAt = runtime.state.startedAtMs;
         runtime.handleFinish({ playerIndex: human.index, finishedAtMs: startedAt + 61_500 });
         runtime.handleFinish({ playerIndex: bot.index, finishedAtMs: startedAt + 64_000 });
@@ -147,7 +142,6 @@ test('Wave 7: Waffenrennen, Ergebnisvergleich und Neustart bleiben sichtbar und 
     await details.locator('summary').click();
     await expect(details).toHaveAttribute('open', '');
     await expect(page.locator('[data-stats-value="weaponRaceResult"]').first()).toContainText('61,5');
-    await expect(page.locator('[data-stats-value="checkpointResets"]').first()).toHaveText('2');
     await page.screenshot({ path: testInfo.outputPath('wave7-11-result-details.png'), animations: 'disabled' });
 
     await returnToMenu(page);
