@@ -111,6 +111,89 @@ test('slow time lasts ten real seconds in Hunt and trail gap blocks the victim t
     assert.equal(victim.trailGapActive, false);
 });
 
+// SPEED_UP and SLOW_DOWN share effectCategory 'speed' with stackPolicy 'replace-category'
+// (PickupRegistryContract.js:56-57, 83-84), so applyPlayerPowerup drops the older one
+// ("latest-wins", PlayerEffectOps.js:72, 244-255). When the winner expires the player
+// falls back to the plain base speed, not to the replaced effect.
+test('T14ed: Speed-Effekte ersetzen sich und geben nach Ablauf die Grundgeschwindigkeit zurueck', () => {
+    const player = {
+        entityRuntimeConfig: {
+            ...CONFIG,
+            HUNT: { ...CONFIG.HUNT, ACTIVE_MODE: 'CLASSIC', DEFAULT_MODE: 'CLASSIC', ENABLED: true },
+        },
+        activeEffects: [],
+        baseSpeed: CONFIG.PLAYER.SPEED,
+        speed: CONFIG.PLAYER.SPEED,
+        hasShield: false,
+        shieldHP: 0,
+        shieldHitFeedback: 0,
+        trail: {
+            width: CONFIG.TRAIL.WIDTH,
+            setWidth(value) { this.width = value; },
+            resetWidth() { this.width = CONFIG.TRAIL.WIDTH; },
+        },
+    };
+
+    applyPlayerPowerup(player, 'SPEED_UP');
+    assert.ok(player.baseSpeed > CONFIG.PLAYER.SPEED);
+
+    applyPlayerPowerup(player, 'SLOW_DOWN');
+    assert.equal(player.activeEffects.some((entry) => entry.type === 'SPEED_UP'), false);
+    assert.equal(player.activeEffects.some((entry) => entry.type === 'SLOW_DOWN'), true);
+    assert.ok(player.baseSpeed < CONFIG.PLAYER.SPEED);
+
+    const slowDown = player.activeEffects.find((entry) => entry.type === 'SLOW_DOWN');
+    slowDown.remaining = 0.01;
+
+    updatePlayerEffects(player, 0.02);
+
+    assert.equal(player.activeEffects.some((entry) => entry.type === 'SLOW_DOWN'), false);
+    assert.equal(player.activeEffects.some((entry) => entry.type === 'SPEED_UP'), false);
+    assert.equal(player.baseSpeed, CONFIG.PLAYER.SPEED);
+    assert.equal(player.speed, CONFIG.PLAYER.SPEED);
+});
+
+// SLOW_TIME is allowed in every mode and even carries a HUNT spawn weight
+// (PickupRegistryContract.js:254,258), so HUNT keeps it. PURGE is the retired type
+// (playable: false, PickupExpansionDefinitionsContract.js:41-48) that the mode filter
+// in PlayerEffectOps.js:157-159 must still strip out of a legacy effect list.
+test('T14ee: Hunt-Shields und Zeitlupe bleiben, waehrend nicht spielbare Legacy-Effekte entfernt werden', () => {
+    const player = {
+        entityRuntimeConfig: {
+            ...CONFIG,
+            HUNT: { ...CONFIG.HUNT, ACTIVE_MODE: 'HUNT', DEFAULT_MODE: 'HUNT', ENABLED: true },
+        },
+        activeEffects: [
+            { type: 'SLOW_TIME', remaining: 10 },
+            { type: 'PURGE', remaining: 10 },
+        ],
+        baseSpeed: CONFIG.PLAYER.SPEED,
+        speed: CONFIG.PLAYER.SPEED,
+        hasShield: false,
+        shieldHP: 0,
+        maxShieldHp: 1,
+        shieldHitFeedback: 0,
+        trail: {
+            width: CONFIG.TRAIL.WIDTH,
+            setWidth(value) { this.width = value; },
+            resetWidth() { this.width = CONFIG.TRAIL.WIDTH; },
+        },
+    };
+
+    applyPlayerPowerup(player, 'SHIELD');
+    const shieldEffect = player.activeEffects.find((entry) => entry.type === 'SHIELD');
+    shieldEffect.remaining = 0.01;
+
+    updatePlayerEffects(player, 0.5);
+
+    assert.equal(player.activeEffects.some((entry) => entry.type === 'PURGE'), false);
+    assert.equal(player.activeEffects.some((entry) => entry.type === 'SLOW_TIME'), true);
+    assert.equal(player.hasSlowTime, true);
+    assert.equal(player.activeEffects.some((entry) => entry.type === 'SHIELD'), true);
+    assert.equal(player.hasShield, true);
+    assert.ok(player.shieldHP > 0);
+});
+
 test('EMP pulse hits every other living player inside the inclusive radius once', () => {
     const hits = [];
     const target = (index, position, alive = true) => ({
