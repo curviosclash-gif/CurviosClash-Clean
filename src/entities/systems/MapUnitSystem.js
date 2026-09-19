@@ -38,6 +38,7 @@ import {
     disposeBomberAssets,
     updateBomberVisual,
 } from './map-units/MapUnitBomberVisualOps.js';
+import { updateBomberBombs } from './map-units/MapUnitBombOps.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
@@ -57,6 +58,7 @@ export class MapUnitSystem {
         // Scratch vectors the static turret targeting and aiming code expects on its system.
         this._tmpAim = new THREE.Vector3();
         this._tmpPoint = new THREE.Vector3();
+        this._tmpBombPoint = new THREE.Vector3();
         this._trailQueryStamp = 0;
         this._targets = [];
         this._dueRespawns = [];
@@ -110,6 +112,8 @@ export class MapUnitSystem {
             respawnRemaining: Infinity,
             deaths: 0,
             members: null,
+            bombCooldownRemaining: definition.weapons?.bomb?.cooldown || 0,
+            bombsFired: 0,
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
@@ -179,6 +183,8 @@ export class MapUnitSystem {
         unit.respawnRemaining = Infinity;
         resetUnitOnPath(unit);
         if (unit.kind === 'swarm') resetSwarmMembers(unit);
+        unit.bombCooldownRemaining = unit.definition.weapons?.bomb?.cooldown || 0;
+        unit.bombsFired = 0;
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? unit.yaw;
         this._placeCentre(unit);
         for (const mount of unit.mounts) {
@@ -205,6 +211,7 @@ export class MapUnitSystem {
             this._updateVisual(unit);
             const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;
             updateUnitWeapons(this, unit, safeDt, authority);
+            if (unit.kind === 'bomber') updateBomberBombs(this, unit, safeDt, authority);
             if (authority && unit.alive && unit.kind === 'tank') {
                 crushTrailsUnderUnit(this.entityManager, unit, safeDt, this._trailScratch);
             }
