@@ -263,7 +263,8 @@ function buildOpenLobbyList(serverLobbyCodes = null) {
         }));
 }
 
-function setReconnectLease(lobbyCode, player) {
+function setReconnectLease(lobby, player) {
+    const lobbyCode = lobby?.code;
     const leaseKey = buildReconnectLeaseKey(lobbyCode, player?.peerId);
     if (!leaseKey || !player) return;
     reconnectLeases.set(leaseKey, {
@@ -271,6 +272,7 @@ function setReconnectLease(lobbyCode, player) {
         peerId: normalizeString(player.peerId, ''),
         isHost: player.isHost === true,
         ready: player.ready === true,
+        settingsRevision: lobby.settingsRevision,
         actorId: normalizeString(player.actorId, ''),
         name: normalizeString(player.name, ''),
         sessionToken: normalizeString(player.sessionToken, ''),
@@ -326,7 +328,7 @@ function removePeerFromLobby(ws, options = {}) {
     if (options.allowResume === true) {
         // Hosts get a resume lease too — otherwise a host signaling drop leaves
         // the lobby permanently headless.
-        setReconnectLease(lobbyCode, player);
+        setReconnectLease(lobby, player);
     } else {
         clearReconnectLease(lobbyCode, player.peerId);
     }
@@ -675,7 +677,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                     peerId: resumePeerId,
                     ws,
                     isHost: lease.isHost === true,
-                    ready: lease.ready === true,
+                    ready: lease.ready === true && lease.settingsRevision === lobby.settingsRevision,
                     actorId: lease.actorId,
                     name: lease.name,
                     sessionToken: lease.sessionToken,

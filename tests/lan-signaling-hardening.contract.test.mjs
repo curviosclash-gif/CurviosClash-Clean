@@ -761,6 +761,70 @@ test('LAN signaling counts the status poll as liveness and offers rejoin leases 
     }
 });
 
+test('LAN rejoin clears a leased ready state after settings change', async () => {
+    let currentTime = 1_000_000;
+    const lanServer = await startLanServer({
+        now: () => currentTime,
+        ghostPlayerTimeoutMs: 1_000,
+        ghostCleanupIntervalMs: 0,
+        reconnectLeaseMs: 60_000,
+    });
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 3 });
+        const lobbyCode = String(created.payload?.lobbyCode || '');
+        const hostToken = String(created.payload?.hostToken || '');
+        const joined = await postJson(lanServer.baseUrl, '/lobby/join', { lobbyCode });
+        const playerId = String(joined.payload?.playerId || '');
+        const playerToken = String(joined.payload?.playerToken || '');
+
+        const ready = await postJson(lanServer.baseUrl, '/lobby/ready', {
+            playerId,
+            playerToken,
+            ready: true,
+            settingsRevision: 1,
+        });
+        assert.equal(ready.ok, true);
+
+        currentTime += 2_000;
+        lanServer.cleanupGhostPlayers();
+        const updated = await postJson(lanServer.baseUrl, '/lobby/metadata', {
+            hostPeerId: 'host',
+            hostToken,
+            metadata: { mapKey: 'maze' },
+        });
+        assert.equal(updated.payload?.sessionState?.settingsRevision, 2);
+
+        const rejoined = await postJson(lanServer.baseUrl, '/lobby/rejoin', {
+            playerId,
+            playerToken,
+        });
+        const rejoinedPlayer = rejoined.payload?.sessionState?.players?.find(
+            (player) => player.playerId === playerId
+        );
+        assert.equal(rejoined.ok, true);
+        assert.equal(rejoinedPlayer?.ready, false);
+
+        await postJson(lanServer.baseUrl, '/lobby/ready', {
+            playerId,
+            playerToken,
+            ready: true,
+            settingsRevision: 2,
+        });
+        currentTime += 2_000;
+        lanServer.cleanupGhostPlayers();
+        const sameRevisionRejoin = await postJson(lanServer.baseUrl, '/lobby/rejoin', {
+            playerId,
+            playerToken,
+        });
+        const sameRevisionPlayer = sameRevisionRejoin.payload?.sessionState?.players?.find(
+            (player) => player.playerId === playerId
+        );
+        assert.equal(sameRevisionPlayer?.ready, true);
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
 test('LAN signaling requires player token for player mutating routes', async () => {
     const lanServer = await startLanServer();
     try {

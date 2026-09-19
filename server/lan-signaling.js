@@ -313,6 +313,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 lobby.reconnectLeases.set(stalePlayer.playerId, {
                     token: stalePlayer.token,
                     ready: stalePlayer.ready === true,
+                    settingsRevision: lobby.settingsRevision,
                     actorId: stalePlayer.actorId,
                     name: stalePlayer.name,
                     participantMetadata: stalePlayer.participantMetadata,
@@ -745,7 +746,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 player = {
                     playerId,
                     token: lease.token,
-                    ready: lease.ready === true,
+                    ready: lease.ready === true && lease.settingsRevision === lobby.settingsRevision,
                     actorId: lease.actorId || playerId,
                     name: lease.name || lease.actorId || playerId,
                     participantMetadata: lease.participantMetadata,

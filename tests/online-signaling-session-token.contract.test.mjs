@@ -181,6 +181,54 @@ test('online signaling rejects missing or wrong resume tokens and accepts the co
     }
 });
 
+test('online resume clears a leased ready state after settings change', async () => {
+    const { wss, url } = await createTestServer();
+    try {
+        const { host, client, created, joined } = await createLobbyPair(url);
+        client.send(SIGNALING_COMMAND_TYPES.READY, { ready: true, settingsRevision: 1 });
+        await host.next(SIGNALING_EVENT_TYPES.PLAYER_READY);
+
+        client.socket.terminate();
+        await host.next(SIGNALING_EVENT_TYPES.PLAYER_LEFT);
+        host.send(SIGNALING_COMMAND_TYPES.UPDATE_LOBBY_METADATA, {
+            metadata: { mapKey: 'maze' },
+        });
+        const updated = await host.next(SIGNALING_EVENT_TYPES.LOBBY_METADATA_UPDATED);
+        assert.equal(updated.sessionState.settingsRevision, 2);
+
+        const resumedClient = await createClient(url);
+        resumedClient.send(SIGNALING_COMMAND_TYPES.RESUME_CONNECTION, {
+            lobbyCode: created.lobbyCode,
+            playerId: joined.playerId,
+            sessionToken: joined.sessionToken,
+        });
+        const resumed = await resumedClient.next(SIGNALING_EVENT_TYPES.CONNECTION_RESUMED);
+        const resumedPlayer = resumed.sessionState.players.find(
+            (player) => player.playerId === joined.playerId
+        );
+        assert.equal(resumedPlayer?.ready, false);
+
+        resumedClient.send(SIGNALING_COMMAND_TYPES.READY, { ready: true, settingsRevision: 2 });
+        await host.next(SIGNALING_EVENT_TYPES.PLAYER_READY);
+        resumedClient.socket.terminate();
+        await host.next(SIGNALING_EVENT_TYPES.PLAYER_LEFT);
+
+        const sameRevisionClient = await createClient(url);
+        sameRevisionClient.send(SIGNALING_COMMAND_TYPES.RESUME_CONNECTION, {
+            lobbyCode: created.lobbyCode,
+            playerId: joined.playerId,
+            sessionToken: joined.sessionToken,
+        });
+        const sameRevisionResume = await sameRevisionClient.next(SIGNALING_EVENT_TYPES.CONNECTION_RESUMED);
+        const sameRevisionPlayer = sameRevisionResume.sessionState.players.find(
+            (player) => player.playerId === joined.playerId
+        );
+        assert.equal(sameRevisionPlayer?.ready, true);
+    } finally {
+        await closeTestServer(wss);
+    }
+});
+
 test('leave and lobby cleanup invalidate issued session tokens', async () => {
     const { wss, url } = await createTestServer();
     try {
