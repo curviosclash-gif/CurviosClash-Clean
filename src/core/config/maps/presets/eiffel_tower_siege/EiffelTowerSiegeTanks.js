@@ -37,3 +37,35 @@ export const EIFFEL_SIEGE_TANKS = Object.freeze([
     Object.freeze({ ...TANK, id: 'eiffel_siege_tank_north', path: Object.freeze([NE, SE, SW, NW]) }),
     Object.freeze({ ...TANK, id: 'eiffel_siege_tank_south', path: Object.freeze([SW, NW, NE, SE]) }),
 ]);
+
+// One large guard patrols the vault. Its path keeps the 5.5-unit hit radius clear of every wall;
+// speed and weapon ranges are authored units and become the balance values after map scale 3.
+export const EIFFEL_SIEGE_VAULT_BOSS = Object.freeze({
+    id: 'eiffel_siege_vault_boss',
+    kind: 'boss',
+    secretRoomId: 'vault',
+    path: Object.freeze([
+        Object.freeze([-12, -15, -12]),
+        Object.freeze([12, -15, -12]),
+        Object.freeze([12, -15, 12]),
+        Object.freeze([-12, -15, 12]),
+    ]),
+    loop: true,
+    speed: 8 / 3,
+    maxHp: 800,
+    hitboxRadius: 5.5,
+    respawnSeconds: 0,
+    modelScale: 1.6,
+    weapons: Object.freeze({
+        mg: Object.freeze({ damage: 3, cooldown: 0.3, range: 20 }),
+        rocket: Object.freeze({ rocketType: 'ROCKET_MEDIUM', cooldown: 3, range: 30 }),
+    }),
+    lootCount: 3,
+    guaranteedLoot: Object.freeze(['ROCKET_MEGA']),
+    allowedModes: Object.freeze(['HUNT', 'ARCADE']),
+});
+
+export const EIFFEL_SIEGE_MAP_UNITS = Object.freeze([
+    ...EIFFEL_SIEGE_TANKS,
+    EIFFEL_SIEGE_VAULT_BOSS,
+]);
