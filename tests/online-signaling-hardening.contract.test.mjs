@@ -153,6 +153,33 @@ test('online signaling rejects a second lobby assignment on the same socket', as
     }
 });
 
+test('online signaling bounds joined player identity before storing and broadcasting it', async () => {
+    const { wss, url } = await startServer();
+    try {
+        const host = await openClient(url);
+        const created = await sendAndReceive(host, SIGNALING_COMMAND_TYPES.CREATE_LOBBY);
+        const joinedEventPromise = once(host, 'message');
+        const client = await openClient(url);
+        const joined = await sendAndReceive(client, SIGNALING_COMMAND_TYPES.JOIN_LOBBY, {
+            lobbyCode: created.lobbyCode,
+            actorId: 'a'.repeat(500),
+            name: { unsafe: true },
+        });
+        const [rawJoinedEvent] = await joinedEventPromise;
+        const joinedEvent = JSON.parse(rawJoinedEvent.toString());
+        const member = joined.sessionState.members.find((entry) => entry.peerId === joined.playerId);
+
+        assert.equal(typeof member.actorId, 'string');
+        assert.ok(member.actorId.length <= 128);
+        assert.equal(typeof member.name, 'string');
+        assert.ok(member.name.length <= 16);
+        assert.equal(joinedEvent.type, SIGNALING_EVENT_TYPES.PLAYER_JOINED);
+        assert.equal(joinedEvent.name, member.name);
+    } finally {
+        await stopServer(wss);
+    }
+});
+
 test('online signaling normalizes invalid maxPlayers and enforces the ten-player cap', async () => {
     const { wss, url } = await startServer();
     try {
