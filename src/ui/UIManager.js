@@ -576,8 +576,8 @@ export class UIManager {
                 : (recordingSettings.profile === RECORDING_CAPTURE_PROFILE.YOUTUBE_SHORT
                     ? 'YouTube Shorts'
                     : 'Standard-Live-Aufnahme');
-            const hudLabel = recordingSettings.hudMode === RECORDING_HUD_MODE.WITH_HUD ? 'mit HUD' : 'clean';
-            ui.recordingProfileHint.textContent = `Aufnahmeprofil: ${profileLabel} - HUD: ${hudLabel}`;
+            const hudLabel = recordingSettings.hudMode === RECORDING_HUD_MODE.WITH_HUD ? 'mit HUD' : 'ohne HUD';
+            ui.recordingProfileHint.textContent = `Aufnahmeprofil: ${profileLabel} - ${hudLabel}`;
         }
         syncNormalCameraPerspectiveUi(ui, settings?.cameraPerspective);
 
