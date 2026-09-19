@@ -25,6 +25,7 @@ const CURRENT_RUN_TYPES = Object.freeze([
     'endless_parcours',
     'five_portals',
     'arena_waves',
+    'weapon_race',
 ]);
 
 function createProfiles() {

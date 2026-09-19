@@ -6,6 +6,7 @@ import {
 } from './EndlessParcoursContract.js';
 import { ARENA_WAVES_COMBAT_PROFILE, ARENA_WAVES_RUN_TYPE, isArenaWavesRunType, normalizeArenaWavesCombatProfile } from './ArenaWavesContract.js';
 import { FIVE_PORTALS_COMBAT_PROFILE, FIVE_PORTALS_RUN_TYPE, isFivePortalsRunType } from './FivePortalsContract.js';
+import { WEAPON_RACE_RUN_TYPE, isWeaponRaceRunType } from './WeaponRaceContract.js';
 
 // Persisted arcade run settings: the single source for the shape and the ranges.
 // Both the settings sanitizer (what survives a save) and the runtime config
@@ -78,7 +79,9 @@ export function normalizeArcadeRunSettings(source) {
         ? FIVE_PORTALS_RUN_TYPE
         : (isArenaWavesRunType(input.runType)
             ? ARENA_WAVES_RUN_TYPE
-            : (normalizeArcadeRunType(input.runType) === ENDLESS_PARCOURS_RUN_TYPE ? ENDLESS_PARCOURS_RUN_TYPE : DEFAULTS.runType));
+            : (isWeaponRaceRunType(input.runType)
+                ? WEAPON_RACE_RUN_TYPE
+                : (normalizeArcadeRunType(input.runType) === ENDLESS_PARCOURS_RUN_TYPE ? ENDLESS_PARCOURS_RUN_TYPE : DEFAULTS.runType)));
     return {
         profileId: normalizeText(input.profileId, DEFAULTS.profileId),
         runType,
