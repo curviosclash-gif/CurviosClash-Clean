@@ -18,11 +18,16 @@ const SWARM = {
 
 function createSide({ replica = false } = {}) {
     const scoring = new HuntScoring(() => 0);
+    const scene = new Set();
     const owner = {
         gameModeStrategy: { modeType: 'HUNT', getPickupModeType: () => 'HUNT' },
         arena: { currentMapDefinition: { mapUnits: [SWARM] } },
         _huntScoring: scoring,
         _notifyPlayerFeedback() {},
+        renderer: {
+            addToScene(object) { scene.add(object); },
+            removeFromScene(object) { scene.delete(object); },
+        },
     };
     const system = new MapUnitSystem(owner);
     system.setNetworkReplica(replica);
@@ -45,6 +50,7 @@ test('each drone is a separate registry target and one hit removes only that dro
 
     for (const drone of [...system.getTargets()]) drone.takeDamage(8, { sourcePlayer: attacker, cause: 'MG' });
     assert.equal(swarm.alive, false, 'the map unit ends after its last member');
+    assert.equal(swarm.root.visible, false, 'the defeated formation disappears immediately');
     assert.equal(system.getTargets().length, 0);
     const [row] = scoring.getScoreboard([attacker]);
     assert.equal(row.unitsDestroyed, 8);

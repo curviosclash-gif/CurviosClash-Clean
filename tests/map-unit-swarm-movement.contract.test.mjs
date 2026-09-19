@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as THREE from 'three';
 
 import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 
@@ -62,4 +63,16 @@ test('swarm movement reuses member state and removes its visual on restart', () 
     assert.notEqual(system.units[0], firstUnit);
     system.dispose();
     assert.equal(scene.size, 0);
+});
+
+test('swarm target positions follow the rotated visible formation', () => {
+    const { system } = createHarness();
+    system.startRound();
+    const swarm = system.units[0];
+
+    system.update(0.5);
+    swarm.root.updateMatrixWorld(true);
+    const visiblePosition = swarm.root.children[1].getWorldPosition(new THREE.Vector3());
+
+    assert.equal(visiblePosition.distanceTo(swarm.members[1].position) < 1e-6, true);
 });

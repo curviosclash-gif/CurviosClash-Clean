@@ -13,7 +13,7 @@ const BOSS = Object.freeze({
     weapons: { mg: false, rocket: false },
 });
 
-function createManager() {
+function createManager(unit = BOSS) {
     const scene = new THREE.Scene();
     const room = { room: { id: 'vault' }, clockPaused: false };
     const spawned = [];
@@ -23,7 +23,7 @@ function createManager() {
             addToScene: (object) => scene.add(object),
             removeFromScene: (object) => scene.remove(object),
         },
-        arena: { currentMapDefinition: { mapUnits: [BOSS] } },
+        arena: { currentMapDefinition: { mapUnits: [unit] } },
         gameModeStrategy: {
             modeType: 'HUNT',
             getPickupModeType: () => 'HUNT',
@@ -57,6 +57,19 @@ test('the boss uses a visibly larger tank model', () => {
     assert.equal(system.units[0].root.scale.y, 1.6);
     assert.equal(system.units[0].root.scale.z, 1.6);
     system.dispose();
+});
+
+test('a respawning boss pauses its secret-room clock again', () => {
+    const { manager, room } = createManager({ ...BOSS, respawnSeconds: 1 });
+    const system = new MapUnitSystem(manager);
+    system.startRound();
+
+    system.units[0].takeDamage(9999);
+    assert.equal(room.clockPaused, false);
+    system.update(1);
+
+    assert.equal(system.units[0].alive, true);
+    assert.equal(room.clockPaused, true);
 });
 
 test('boss destruction drops three items including one guaranteed XL rocket', () => {

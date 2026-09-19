@@ -31,8 +31,14 @@ export function createSwarmMembers(definition, scale, centre) {
 
 /** Keeps target positions current without allocating in the update loop. */
 export function updateSwarmMembers(unit) {
+    const cosine = Math.cos(unit.yaw);
+    const sine = Math.sin(unit.yaw);
     for (const member of unit?.members || []) {
-        member.position.copy(unit.position).add(member.offset);
+        member.position.set(
+            unit.position.x + member.offset.x * cosine + member.offset.z * sine,
+            unit.position.y + member.offset.y,
+            unit.position.z - member.offset.x * sine + member.offset.z * cosine,
+        );
     }
 }
 
@@ -70,6 +76,7 @@ export function applySwarmMemberDamage(system, unit, member, amount, options = {
     const isDead = member.hp <= 0;
     if (isDead) {
         member.alive = false;
+        if (unit.root?.children[member.index]) unit.root.children[member.index].visible = false;
         owner?._huntScoring?.registerUnitDestroyed?.(options.sourcePlayer?.index, 'swarm');
         if (options.sourcePlayer?.isBot === false) owner?._notifyPlayerFeedback?.(options.sourcePlayer, 'Drohne zerstört');
         owner?.recorder?.logEvent?.(
@@ -80,6 +87,7 @@ export function applySwarmMemberDamage(system, unit, member, amount, options = {
         if (!unit.members.some((entry) => entry.alive)) {
             unit.alive = false;
             unit.hp = 0;
+            if (unit.root) unit.root.visible = false;
             unit.respawnRemaining = unit.definition.respawnSeconds > 0 ? unit.definition.respawnSeconds : Infinity;
             if (unit.source) unit.source.alive = false;
         }

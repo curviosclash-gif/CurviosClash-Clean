@@ -187,6 +187,7 @@ export class MapUnitSystem {
             mount.aimDirection.set(Math.sin(unit.yaw), 0, Math.cos(unit.yaw));
         }
         if (unit.root) unit.root.visible = true;
+        this.setBossRoomClock(unit, true);
         this._updateVisual(unit);
     }
 
