@@ -235,7 +235,8 @@ export class GameRuntimeArcadeSupport {
         const fivePortals = isFivePortalsConfig(runtimeState?.runtimeConfig);
         if (parcoursSystem && typeof parcoursSystem.setXpEventCallback === 'function') {
             parcoursSystem.setXpEventCallback(
-                fivePortals ? null : (eventType, playerIndex) => this.arcadeRunRuntime.applyParcoursXpEvent(eventType, playerIndex)
+                fivePortals ? (eventType, playerIndex) => this.fivePortalsRuntime.handleXpEvent(eventType, playerIndex)
+                    : (eventType, playerIndex) => this.arcadeRunRuntime.applyParcoursXpEvent(eventType, playerIndex)
             );
         }
         if (parcoursSystem && typeof parcoursSystem.setLeaderboardCallback === 'function') {
@@ -362,7 +363,8 @@ export class GameRuntimeArcadeSupport {
         }
         if (isFivePortalsConfig(runtimeConfig)) {
             this._bindGameplayCallback(runtimeState);
-            const started = this.fivePortalsRuntime.start(runtimeState?.entityManager || null);
+            const started = this.fivePortalsRuntime.start(runtimeState?.entityManager || null,
+                { vehicleId: this._resolveActiveVehicleId(runtimeConfig) });
             this._sectorRebuildInFlight = false;
             return started;
         }
@@ -381,6 +383,7 @@ export class GameRuntimeArcadeSupport {
                 entityManager: runtimeState?.entityManager || null,
                 strategy: runtimeState?.entityManager?.gameModeStrategy || null,
                 seed: runtimeConfig?.arcade?.seed,
+                vehicleId: this._resolveActiveVehicleId(runtimeConfig),
                 selectedMachineGunId: runtimeState?.entityManager?.humanPlayers?.[0]?.fightLoadout?.machineGunId,
             });
             this._sectorRebuildInFlight = false;

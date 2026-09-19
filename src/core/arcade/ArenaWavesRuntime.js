@@ -13,6 +13,11 @@ import {
     resolveArenaWavesProfile,
 } from '../../shared/contracts/ArenaWavesContract.js';
 import { applyArcadeBotAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
+import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
+import {
+    awardBoundArcadeVehicleXpInStore,
+    bindArcadeVehicleRewards,
+} from '../../state/arcade/ArcadeVehicleRewardBinding.js';
 
 const RECORD_KEY = 'curviosclash.arena-waves-records.v1';
 const RECORD_VERSION = 'arena-waves-records.v1';
@@ -42,10 +47,11 @@ export class ArenaWavesRuntime {
         this._pendingWave = 1; this._nextWaveIn = null;
         this._plannedSlots = []; this._choices = []; this._choiceReason = ''; this._intermission = 0;
         this._pendingSupplyPickup = null; this._transitionRequested = false; this.seed = 1;
+        this.rewardBinding = null; this.xpEarned = 0;
         this.mapStats = []; this._records = loadRecords(this._getRecordStore?.());
     }
 
-    start({ entityManager, strategy = null, selectedMachineGunId = null, seed = 1 } = {}) {
+    start({ entityManager, strategy = null, selectedMachineGunId = null, seed = 1, vehicleId = 'ship1' } = {}) {
         if (this.phase !== 'idle' && this.phase !== 'finished') {
             this.entityManager = entityManager || this.entityManager;
             this.strategy = strategy || this.strategy;
@@ -56,6 +62,7 @@ export class ArenaWavesRuntime {
             return this.getHudState();
         }
         this.reset(); this.entityManager = entityManager || null; this.strategy = strategy || null; this.seed = Number(seed) >>> 0;
+        this.rewardBinding = bindArcadeVehicleRewards({ runType: 'arena_waves', vehicleId });
         this.upgrades = createArenaWavesUpgrades({ machineGunId: selectedMachineGunId });
         this.mapStartedAt = this._now(); this.phase = 'countdown'; this.countdown = 5;
         this._applyHumanUpgrades(true); return this.getHudState();
@@ -174,6 +181,13 @@ export class ArenaWavesRuntime {
         const creditedHuman = this.entityManager?.humanPlayers?.some((player) => player?.index === event.playerIndex);
         if (creditedHuman) {
             if (this._eliteSlots.has(slot)) this.eliteKills += 1; else this.regularKills += 1;
+            const result = awardBoundArcadeVehicleXpInStore(
+                this._getRecordStore?.(),
+                this.rewardBinding,
+                XP_REWARD_TABLE.killBase,
+                this._now()
+            );
+            if (result) this.xpEarned += result.earned;
         }
         this._deactivateSlot(slot, 'killed');
         return this.getHudState();
@@ -252,5 +266,5 @@ export class ArenaWavesRuntime {
         }
         this.strategy?.applyRunRewardEffects?.(null); this.reset();
     }
-    getHudState() { return { runType: 'arena_waves', phase: this.phase, mapIndex: this.mapIndex, mapCount: ARENA_WAVES_MAPS.length, currentMapKey: resolveArenaWavesMap(this.mapIndex), wave: this.wave, countdown: this.countdown, nextWaveInSeconds: this.phase === 'upgrade' || this.phase === 'finished' ? null : (this.phase === 'combat' ? this._nextWaveIn : (this.phase === 'countdown' ? this.countdown + 1 : this.countdown)), alive: this._activeSlots.size, plannedSpawnCount: this.phase === 'telegraph' ? resolveArenaWavesProfile(this._pendingWave).count : 0, spawnWarning: this.phase === 'telegraph' ? { remaining: this.countdown, count: resolveArenaWavesProfile(this._pendingWave).count } : null, aggression: resolveArenaWavesAggression(this.mapIndex, this.wave), kills: { regular: this.regularKills, elite: this.eliteKills }, survivalSeconds: this.survivalSeconds, upgrades: { ...this.upgrades }, choices: [...this._choices], choiceReason: this._choiceReason, score: { total: this.totalScore, currentMap: this.score }, mapStats: this.mapStats.map((stat) => ({ ...stat })), postRunSummary: this.phase === 'finished' ? { total: this.totalScore, maps: this.mapStats.map((stat) => ({ ...stat })) } : null, records: { ...this._records } }; }
+    getHudState() { return { runType: 'arena_waves', vehicleId: this.rewardBinding?.vehicleId || '', xpEarned: this.xpEarned, phase: this.phase, mapIndex: this.mapIndex, mapCount: ARENA_WAVES_MAPS.length, currentMapKey: resolveArenaWavesMap(this.mapIndex), wave: this.wave, countdown: this.countdown, nextWaveInSeconds: this.phase === 'upgrade' || this.phase === 'finished' ? null : (this.phase === 'combat' ? this._nextWaveIn : (this.phase === 'countdown' ? this.countdown + 1 : this.countdown)), alive: this._activeSlots.size, plannedSpawnCount: this.phase === 'telegraph' ? resolveArenaWavesProfile(this._pendingWave).count : 0, spawnWarning: this.phase === 'telegraph' ? { remaining: this.countdown, count: resolveArenaWavesProfile(this._pendingWave).count } : null, aggression: resolveArenaWavesAggression(this.mapIndex, this.wave), kills: { regular: this.regularKills, elite: this.eliteKills }, survivalSeconds: this.survivalSeconds, upgrades: { ...this.upgrades }, choices: [...this._choices], choiceReason: this._choiceReason, score: { total: this.totalScore, currentMap: this.score }, mapStats: this.mapStats.map((stat) => ({ ...stat })), postRunSummary: this.phase === 'finished' ? { total: this.totalScore, maps: this.mapStats.map((stat) => ({ ...stat })) } : null, records: { ...this._records } }; }
 }
