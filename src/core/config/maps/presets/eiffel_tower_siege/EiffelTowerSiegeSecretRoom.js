@@ -17,9 +17,9 @@
 //   - A collapse settles at most 130.9 map units from the tower axis (218.2 m at 0.6 units per
 //     metre, measured on the baked clips). The eject point stands outside that circle.
 //
-// The guards are ordinary `staticTurrets`. They stand in the room and nowhere else, which is what
-// makes the eject point safe: it is a full field away from them, far beyond the 270 world metres
-// the rocket emplacement reaches.
+// The guards are ordinary `staticTurrets`. They ring the former antenna tip instead of waiting in
+// the vault, so entering the reward room is safe while reaching its portal still has to be earned.
+// The eject point remains a full field away from them, beyond even the rocket emplacement's reach.
 
 import { TIP } from '../eiffel_tower/EiffelTowerStructure.js';
 
@@ -58,20 +58,20 @@ export const EIFFEL_SIEGE_SECRET_ROOM_OBSTACLES = Object.freeze([
 ].map((box) => Object.freeze({ ...box, kind: 'hard', renderWithGlb: true, compileWithGlb: true })));
 
 /**
- * Three emplacements around the way back, so arriving in the middle of the room costs something.
- * Ranges stay at the contract's own fallbacks: the room is 40 map units across, so everything is
- * in reach of everything anyway. What the map does say is what was decided: 45 hit points, 45
- * seconds until a destroyed guard stands there again - and a fire rate tamed so that a vehicle
- * just sitting there lasts about twelve seconds instead of four (guns 2 hp every 1.3 s instead
- * of 4 every 0.8 s, a rocket every 6 s instead of 3.4 s). tests/secret-room-guard-balance pins it.
+ * Three emplacements around the portal at the former antenna tip. Twelve authored units keep their
+ * scaled visuals clear of the portal while leaving it well inside every weapon's range. What the
+ * map does say is what was decided: 45 hit points, 45 seconds until a destroyed guard stands there
+ * again - and a fire rate tamed so that a vehicle caught by all three lasts about twelve seconds
+ * instead of four. tests/secret-room-guard-balance pins the damage rate.
  */
 const MG_GUARD = Object.freeze({ weapon: 'mg', damage: 2, cooldown: 1.3 });
 const ROCKET_GUARD = Object.freeze({ weapon: 'rocket', rocketType: 'ROCKET_WEAK', cooldown: 6 });
+const PORTAL_GUARD_RADIUS = 12;
 
 export const EIFFEL_SIEGE_SECRET_ROOM_TURRETS = Object.freeze([
-    { ...MG_GUARD, id: 'eiffel_siege_vault_mg_west', pos: [-13, -13, -13] },
-    { ...MG_GUARD, id: 'eiffel_siege_vault_mg_east', pos: [13, -13, -13] },
-    { ...ROCKET_GUARD, id: 'eiffel_siege_vault_rocket', pos: [0, -13, 14] },
+    { ...MG_GUARD, id: 'eiffel_siege_vault_mg_west', pos: [-PORTAL_GUARD_RADIUS, TIP, 0] },
+    { ...MG_GUARD, id: 'eiffel_siege_vault_mg_east', pos: [PORTAL_GUARD_RADIUS, TIP, 0] },
+    { ...ROCKET_GUARD, id: 'eiffel_siege_vault_rocket', pos: [0, TIP, PORTAL_GUARD_RADIUS] },
 ].map((turret) => Object.freeze({
     ...turret,
     destructible: true,

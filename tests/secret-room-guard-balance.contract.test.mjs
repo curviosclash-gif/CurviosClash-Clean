@@ -6,8 +6,8 @@ import { normalizeStaticTurretDefinition } from '../src/shared/contracts/MapSing
 import { EIFFEL_SIEGE_SECRET_ROOM_TURRETS } from '../src/core/config/maps/presets/eiffel_tower_siege/EiffelTowerSiegeSecretRoom.js';
 import { REACTOR_SITE_SECRET_ROOM_TURRETS } from '../src/core/config/maps/presets/reactor_site/ReactorSiteSecretRoom.js';
 
-// User decision 18.09.2026: a vehicle that just sits in the vault must last about twelve seconds
-// against its three guards - long enough to grab items and fight back, short enough to stay a risk.
+// User decision 18.09.2026: a vehicle caught by all three guards must last about twelve seconds -
+// long enough to fight back, short enough for the guarded objective to stay a risk.
 // Measured in the running game before the change: 4.3 s (two machine guns at 10 hp/s together and
 // a 30 hp rocket every 3.4 s).
 const TARGET_SECONDS = 12;
@@ -39,7 +39,7 @@ for (const [name, turrets] of [
     ['eiffel tower siege', EIFFEL_SIEGE_SECRET_ROOM_TURRETS],
     ['reactor site', REACTOR_SITE_SECRET_ROOM_TURRETS],
 ]) {
-    test(`${name}: the vault guards need about twelve seconds for a standing vehicle`, () => {
+    test(`${name}: all three guards need about twelve seconds for a standing vehicle`, () => {
         const seconds = secondsToKill(turrets);
         assert.ok(
             Math.abs(seconds - TARGET_SECONDS) <= TOLERANCE_SECONDS,

@@ -139,12 +139,29 @@ test('T-S37e: the eject point is out of reach of the room guards and of the wrec
     assert.ok(alignment > 0.99, `eject heading looks away from the tower (${alignment})`);
 });
 
-test('T-S37f: every item point, the way back and every guard stand inside the room', () => {
+test('T-S37f: the vault is safe while every guard covers the entry portal from outside', () => {
     const inside = (point) => [0, 1, 2].every((axis) => point[axis] >= ROOM.bounds.min[axis]
         && point[axis] <= ROOM.bounds.max[axis]);
     assert.ok(inside(ROOM.roomPortal.pos), 'the way back is not in the room');
     for (const item of ROOM.items) assert.ok(inside(item.pos), `item at ${item.pos} is outside`);
-    for (const entry of MAP.staticTurrets) assert.ok(inside(entry.pos), `turret ${entry.id} is outside`);
+    for (const [index, entry] of MAP.staticTurrets.entries()) {
+        assert.equal(inside(entry.pos), false, `turret ${entry.id} remains inside the vault`);
+        const turret = normalizeStaticTurretDefinition(entry, index, { preserveSpatialRange: true });
+        const portalDistanceWorld = Math.hypot(
+            (ROOM.entryPortal.pos[0] - turret.pos[0]) * MAP_SCALE,
+            (ROOM.entryPortal.pos[1] - turret.pos[1]) * MAP_SCALE,
+            (ROOM.entryPortal.pos[2] - turret.pos[2]) * MAP_SCALE,
+        );
+        assert.equal(portalDistanceWorld, 12 * MAP_SCALE, `${turret.id} is not in the portal ring`);
+        assert.ok(portalDistanceWorld < turret.range * MAP_SCALE, `${turret.id} cannot cover the portal`);
+
+        const nearestRoomDistanceWorld = Math.hypot(
+            Math.max(ROOM.bounds.min[0] - turret.pos[0], 0, turret.pos[0] - ROOM.bounds.max[0]) * MAP_SCALE,
+            Math.max(ROOM.bounds.min[1] - turret.pos[1], 0, turret.pos[1] - ROOM.bounds.max[1]) * MAP_SCALE,
+            Math.max(ROOM.bounds.min[2] - turret.pos[2], 0, turret.pos[2] - ROOM.bounds.max[2]) * MAP_SCALE,
+        );
+        assert.ok(nearestRoomDistanceWorld > turret.range * MAP_SCALE, `${turret.id} can still fire into the vault`);
+    }
 });
 
 test('T-S37g: the guards normalize as destructible emplacements that come back after 45 s', () => {
