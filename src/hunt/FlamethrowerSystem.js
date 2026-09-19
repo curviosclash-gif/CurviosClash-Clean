@@ -65,6 +65,10 @@ export class FlamethrowerSystem {
     fire(player, dt, held = true) {
         if (player?.alive !== true) return false;
         const armed = player.hasFlamethrower === true;
+        if (player.waterSubmerged === true) {
+            player.flameActive = false;
+            return armed && held === true;
+        }
         // Only the host burns. A replica still swallows the key so it fires no machine gun
         // bullets the host never saw, but the tank, the damage and the visible jet follow the
         // host snapshot (player.flameActive, applied by StateReconciler).

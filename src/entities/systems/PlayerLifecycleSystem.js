@@ -7,6 +7,7 @@ import { PlayerCollisionPhase } from './lifecycle/PlayerCollisionPhase.js';
 import { PlayerInteractionPhase } from './lifecycle/PlayerInteractionPhase.js';
 import { applyFourPlayerPlanarPhysicsConstraint } from '../../four-player-planar/FourPlayerPlanarPhysics.js';
 import { resolveOwnerTimeCompensation } from '../player/PlayerTimeScaleOps.js';
+import { applyWaterGameplayState } from './WaterGameplayOps.js';
 
 export class PlayerLifecycleSystem {
     constructor(entityManager) {
@@ -25,6 +26,7 @@ export class PlayerLifecycleSystem {
     updatePlayer(player, dt, input, renderFrameId = 0, simulationNowMs = undefined) {
         const strategy = this.entityManager?.gameModeStrategy || null;
         const runtimeProfiler = this.entityManager?.runtimeProfiler || null;
+        applyWaterGameplayState(player, this.entityManager?._waterZoneSystem, dt);
         // dt reaches the action phase because held fire - the flamethrower - is paid per second.
         this._actionPhase.run(player, input, strategy, dt);
 

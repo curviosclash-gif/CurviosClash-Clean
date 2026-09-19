@@ -374,12 +374,15 @@ export class PlayerView {
 
         const time = this._visualTime;
         if (this.flames.length > 0) {
+            const submerged = this.player.waterSubmerged === true;
             const boostFactor = this.player.isBoosting ? 4.5 : 1.0;
             const flicker = Math.sin(time * 25) * 0.15 + Math.sin(time * 37) * 0.1;
 
             for (let i = 0; i < this.flames.length; i++) {
                 const flame = this.flames[i];
                 if (!flame) continue;
+                flame.visible = !submerged;
+                if (submerged) continue;
 
                 const depthOffset = i * 0.05;
                 const scaleZ = (0.4 - depthOffset + flicker * (0.3 - depthOffset)) * boostFactor;
@@ -397,7 +400,7 @@ export class PlayerView {
         }
 
         if (emitParticles && safeDt > 0 && this.player.alive) {
-            this._emitThrusterExhaust(safeDt);
+            if (this.player.waterSubmerged !== true) this._emitThrusterExhaust(safeDt);
             // Runs for every drawn vehicle, so the host, the bots and the network replicas all
             // show their fire: BURNING rides along in the snapshot as a plain effect entry.
             if (this.group.visible === true) spawnBurningFlames(this.player.particleSystem, this.player);

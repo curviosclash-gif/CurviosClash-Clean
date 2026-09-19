@@ -84,6 +84,10 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
     // 61.4.1: tight_turns modifier reduces turn rate
     const turnRateMul = Number.isFinite(turnRateMultiplier)
         ? Math.max(0.1, turnRateMultiplier) : 1.0;
+    const waterTurnMultiplier = Number.isFinite(Number(player?.waterTurnMultiplier))
+        ? Math.max(0.1, Number(player.waterTurnMultiplier)) : 1;
+    const waterSpeedMultiplier = Number.isFinite(Number(player?.waterSpeedMultiplier))
+        ? Math.max(0.1, Number(player.waterSpeedMultiplier)) : 1;
     // Bullet time: `dt` stays the world clock (reserves, powerup timers, trail), while
     // `motionDt` is the clock this vehicle steers and travels on. They differ only for
     // the player holding the slow-motion key; otherwise motionDt === dt.
@@ -95,8 +99,8 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
     //               1.08 u stays inside the 2 * 1.6 u search diameter.
     // Both sweeps therefore stay gap-free; no substepping and no raised cap needed.
     const resolvedMotionDt = Number.isFinite(motionDt) && motionDt > 0 ? motionDt : dt;
-    const turnSpeed = resolvedTurnSpeed * turnRateMul * resolvedMotionDt;
-    const rollSpeed = resolvedRollSpeed * resolvedMotionDt;
+    const turnSpeed = resolvedTurnSpeed * turnRateMul * waterTurnMultiplier * resolvedMotionDt;
+    const rollSpeed = resolvedRollSpeed * waterTurnMultiplier * resolvedMotionDt;
 
     const pitchInput = clampAxisInput(controlState?.pitchInput);
     const yawInput = clampAxisInput(controlState?.yawInput);
@@ -132,6 +136,7 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
     player.speed = boostEffectActive
         ? player.baseSpeed * config.PLAYER.BOOST_MULTIPLIER
         : player.baseSpeed;
+    player.speed *= waterSpeedMultiplier;
 
     player._tmpVec.set(0, 0, -1).applyQuaternion(player.quaternion);
     player.velocity.copy(player._tmpVec).multiplyScalar(player.speed);
@@ -149,6 +154,10 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
         const uStrength = (player.slingshotParams?.liftImpulse || 5) * factor;
         player.velocity.addScaledVector(player.slingshotForward, fStrength);
         player.velocity.addScaledVector(player.slingshotUp, uStrength);
+    }
+
+    if (player.waterSubmerged === true) {
+        player.velocity.y += Math.max(0, Number(player.waterBuoyancy) || 0);
     }
 
     if (config.GAMEPLAY.PLANAR_MODE) {

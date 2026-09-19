@@ -110,6 +110,8 @@ export class Renderer {
             height: window.innerHeight,
             splitScreen: false,
             postProcessingPipeline: this.postProcessingPipeline,
+            beforeCameraRender: (_scene, camera) => this._applyCameraWaterVisibility(camera),
+            afterCameraRender: () => this._restoreCameraWaterVisibility(),
         });
         this._width = this.viewportSystem.width;
         this._height = this.viewportSystem.height;
@@ -208,6 +210,33 @@ export class Renderer {
 
     getGlobalFogVisibilityRange() {
         return this._globalFogVisibilityRange;
+    }
+
+    setCameraWaterVisibility(playerIndex, multiplier = 1) {
+        const camera = this.cameras?.[playerIndex];
+        if (!camera) return false;
+        const numeric = Number(multiplier);
+        camera.userData.waterVisibilityMultiplier = Number.isFinite(numeric)
+            ? Math.min(1, Math.max(0.05, numeric))
+            : 1;
+        return true;
+    }
+
+    _applyCameraWaterVisibility(camera) {
+        if (!this.scene?.fog) return;
+        this._renderFogNear = this.scene.fog.near;
+        this._renderFogFar = this.scene.fog.far;
+        const multiplier = Number(camera?.userData?.waterVisibilityMultiplier);
+        if (!Number.isFinite(multiplier) || multiplier >= 1) return;
+        const far = Math.max(6, this._renderFogFar * Math.max(0.05, multiplier));
+        this.scene.fog.far = far;
+        this.scene.fog.near = Math.min(this._renderFogNear, far * 0.18);
+    }
+
+    _restoreCameraWaterVisibility() {
+        if (!this.scene?.fog || !Number.isFinite(this._renderFogFar)) return;
+        this.scene.fog.near = this._renderFogNear;
+        this.scene.fog.far = this._renderFogFar;
     }
 
     // Der Grafikstil liefert die Basiswerte, die Helligkeitsstufe einen Faktor darauf, und

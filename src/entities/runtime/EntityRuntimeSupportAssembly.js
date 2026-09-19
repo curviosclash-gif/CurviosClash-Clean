@@ -60,6 +60,7 @@ export function createEntityRuntimeSupport(owner) {
         entityRuntimeConfig: owner.entityRuntimeConfig,
         getArena: () => owner.arena,
         getPlayers: () => owner.players,
+        getWaterZoneSystem: () => owner._waterZoneSystem,
         getTurrets: () => owner._targetableRegistry?.collect?.() || [],
         getStrategy: () => owner.gameModeStrategy || null,
         peekInventoryItem: (player, preferredIndex, action) => owner._peekInventoryItem(player, preferredIndex, action),

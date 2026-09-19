@@ -1,5 +1,6 @@
 import { isTurretTargetPlayerEligible } from '../../../shared/contracts/TurretCombatContract.js';
 import * as THREE from 'three';
+import { resolveWaterAdjustedDelta } from '../WaterGameplayOps.js';
 import {
     createHuntTargetingScratch,
     createHuntTargetingTelemetry,
@@ -318,9 +319,14 @@ export class ProjectileSimulationOps {
         projectile.foamBounceCooldown = Math.max(0, (projectile.foamBounceCooldown || 0) - dt);
         projectile.previousPosition?.copy?.(projectile.position);
 
-        const vx = projectile.velocity.x * dt;
-        const vy = projectile.velocity.y * dt;
-        const vz = projectile.velocity.z * dt;
+        const movementDt = resolveWaterAdjustedDelta(
+            this.system?.getWaterZoneSystem?.(),
+            projectile.position,
+            dt
+        );
+        const vx = projectile.velocity.x * movementDt;
+        const vy = projectile.velocity.y * movementDt;
+        const vz = projectile.velocity.z * movementDt;
         projectile.position.x += vx;
         projectile.position.y += vy;
         projectile.position.z += vz;
