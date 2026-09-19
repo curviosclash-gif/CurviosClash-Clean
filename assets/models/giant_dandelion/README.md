@@ -2,7 +2,8 @@
 
 Giant, game-ready common dandelion (`Taraxacum`) seed head with a basal lobed rosette, one
 leafless curved scape, a full spherical pappus crown, a naturally missing leeward patch and nine
-airborne seeds arranged as a coherent turbulent wind plume. At roughly 18 metres tall it reads as environmental landmark vegetation rather
+airborne seeds arranged as a coherent turbulent wind plume. With its shortened scape it is roughly
+11 metres tall and still reads as environmental landmark vegetation rather
 than a normal-scale prop.
 
 The morphology follows the genus description from
@@ -33,7 +34,9 @@ frame, keep the pose or hide the airborne seed nodes. Each seed is an independen
 named `FlyingSeed_XX_HERO` and can be moved or hidden separately at runtime. The middle LOD
 uses corresponding odd-numbered seeds and the same timing. The far LOD omits airborne seeds.
 
-The `dandelion_sky` map places `giant_dandelion_shootable.glb` at `targetSize: 594`.
+The `dandelion_sky` map places `giant_dandelion_shootable.glb` at `targetSize: 368`.
+The scape is half its original length while the seed crown keeps its authored size, and the map's
+vertical play space and authored height anchors are reduced by half.
 Other maps can reuse the same GLB with any positive `targetSize`; the seed hit areas and flight
 speed follow the resulting world scale. MG and player rockets can detach each seed once by
 hitting its achene, shaft, or pappus crown. Vehicles use the same full-seed proxy while seeds are

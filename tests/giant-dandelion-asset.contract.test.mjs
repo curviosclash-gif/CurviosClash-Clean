@@ -161,21 +161,24 @@ test('shootable GLB keeps every visible attached seed as an individually address
         'runtime flight must be triggered by hits, not autoplayed');
 });
 
-test('dandelion map is compact, long-range, and scales the reusable flower to 594 m', () => {
+test('dandelion map halves its vertical layout around the shortened flower stem', () => {
     const map = DANDELION_SKY_MAP.dandelion_sky;
     assert.equal(MAP_PRESET_CATALOG.dandelion_sky, map);
     assert.equal(MAP_PRESETS_BASE.dandelion_sky, map);
     assert.equal(resolveMapPickerCollection('dandelion_sky').id, 'adventure');
-    assert.deepEqual(map.size, [420, 660, 420]);
-    assert.equal(map.glbModels[0].targetSize, 594);
+    assert.deepEqual(map.size, [420, 330, 420]);
+    assert.equal(map.glbModels[0].targetSize, 368);
     assert.equal(map.glbModels[0].url, 'assets/models/giant_dandelion/giant_dandelion_shootable.glb');
-    assert.ok(map.size[1] > map.glbModels[0].targetSize);
+    assert.deepEqual(map.portalLevels, [29, 135, 230]);
+    assert.equal(map.playerSpawn.y, 227);
+    assert.ok(map.botSpawns.every((spawn) => spawn.y <= 254));
+    assert.equal(map.gates[0].params.liftImpulse, 34);
     assert.equal(map.lighting.fog.near, 55 * 5);
     assert.equal(map.lighting.fog.far, 190 * 5);
     assert.equal(map.singlePlayerScenario.gameMode, 'HUNT');
 });
 
-test('the actual shootable GLB grows uniformly to 594 m without permanent seed colliders', async () => {
+test('the actual shootable GLB keeps its large crown on a half-length stem without permanent seed colliders', async () => {
     const map = DANDELION_SKY_MAP.dandelion_sky;
     const result = await loadGLBMapCollection(map.glbModels, {
         loader: geometryOnlyGlbLoader,
@@ -184,7 +187,7 @@ test('the actual shootable GLB grows uniformly to 594 m without permanent seed c
     });
     const reference = await loadGLBMapCollection([{
         ...map.glbModels[0],
-        targetSize: 495,
+        targetSize: 184,
     }], {
         loader: geometryOnlyGlbLoader,
         placementScale: 1,
@@ -192,11 +195,16 @@ test('the actual shootable GLB grows uniformly to 594 m without permanent seed c
     });
     const size = new THREE.Box3().setFromObject(result.scene).getSize(new THREE.Vector3());
     const referenceSize = new THREE.Box3().setFromObject(reference.scene).getSize(new THREE.Vector3());
-    assert.ok(Math.abs(size.y - 594) < 1, `unexpected map flower height: ${size.y}`);
+    assert.ok(Math.abs(size.y - 368) < 1, `unexpected map flower height: ${size.y}`);
     for (const axis of ['x', 'y', 'z']) {
-        assert.ok(Math.abs(size[axis] / referenceSize[axis] - 1.2) < 0.001,
+        assert.ok(Math.abs(size[axis] / referenceSize[axis] - 2) < 0.001,
             `flower ${axis}-axis must preserve its proportions`);
     }
+    const raw = await geometryOnlyGlbLoader.loadAsync(map.glbModels[0].url);
+    const scape = raw.scene.getObjectByName('Scape_SHOOTABLE');
+    const scapeSize = new THREE.Box3().setFromObject(scape).getSize(new THREE.Vector3());
+    assert.ok(scapeSize.y >= 6.8 && scapeSize.y <= 7.1,
+        `the authored stem should be half-length, got ${scapeSize.y}`);
     assert.ok(result.colliders.length <= 6, 'seeds should not create permanent physics colliders');
     assert.ok(result.colliders.every((collider) => !collider.sourceName.startsWith('AttachedSeed_')));
     const controller = new DandelionSeedController(result.scene);
