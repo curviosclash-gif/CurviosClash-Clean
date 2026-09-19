@@ -99,7 +99,7 @@
     "quality": "node scripts/run-quality.mjs"
   },
   "dependencies": {
-    "@capacitor/android": "8.3.4",
+    "@capacitor/android": "8.5.2",
     "@capacitor/core": "8.3.4",
     "mp4-muxer": "^5.2.2",
     "three": "^0.160.0"
