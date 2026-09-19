@@ -52,6 +52,8 @@ export function rewardMapUnitDestruction(system, unit, sourcePlayer) {
     if (!Number.isInteger(index) || index < 0) return;
     owner?._huntScoring?.registerUnitDestroyed?.(index, unit.definition.kind);
     if (sourcePlayer.isBot !== true) {
-        owner?._notifyPlayerFeedback?.(sourcePlayer, unit.definition.kind === 'boss' ? 'Boss besiegt' : 'Panzer zerstört');
+        const message = unit.definition.kind === 'boss' ? 'Boss besiegt'
+            : (unit.definition.kind === 'creature' ? 'Kreatur besiegt' : 'Panzer zerstört');
+        owner?._notifyPlayerFeedback?.(sourcePlayer, message);
     }
 }

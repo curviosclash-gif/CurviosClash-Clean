@@ -48,6 +48,9 @@ function toPlainUnit(unit, invScale) {
     if (unit.kind === 'bomber') {
         plain.crash = { ...unit.crash, radius: unit.crash.radius * invScale };
     }
+    if (unit.kind === 'creature') {
+        plain.attack = { ...unit.attack, radius: unit.attack.radius * invScale };
+    }
     return plain;
 }
 

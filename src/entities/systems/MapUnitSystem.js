@@ -40,6 +40,13 @@ import {
 } from './map-units/MapUnitBomberVisualOps.js';
 import { updateBomberBombs } from './map-units/MapUnitBombOps.js';
 import { updateBomberCrash } from './map-units/MapUnitBomberCrashOps.js';
+import {
+    createCreatureAssets,
+    createCreatureVisual,
+    disposeCreatureAssets,
+    updateCreatureVisual,
+} from './map-units/MapUnitCreatureVisualOps.js';
+import { updateCreatureAttack } from './map-units/MapUnitCreatureOps.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
@@ -56,6 +63,7 @@ export class MapUnitSystem {
         this._assets = null;
         this._swarmAssets = null;
         this._bomberAssets = null;
+        this._creatureAssets = null;
         // Scratch vectors the static turret targeting and aiming code expects on its system.
         this._tmpAim = new THREE.Vector3();
         this._tmpPoint = new THREE.Vector3();
@@ -122,6 +130,9 @@ export class MapUnitSystem {
             calledByIndex: -1,
             attackSourcePlayer: null,
             summonRemaining: Infinity,
+            attackCooldownRemaining: definition.attack?.cooldown || 0,
+            attacksFired: 0,
+            networkAttacksInitialized: false,
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
@@ -131,6 +142,8 @@ export class MapUnitSystem {
             unit.root = createSwarmVisual(this.entityManager?.renderer, this._resolveSwarmAssets(), unit.members);
         } else if (definition.kind === 'bomber') {
             unit.root = createBomberVisual(this.entityManager?.renderer, this._resolveBomberAssets(), scale);
+        } else if (definition.kind === 'creature') {
+            unit.root = createCreatureVisual(this.entityManager?.renderer, this._resolveCreatureAssets(), scale);
         } else {
             unit.root = createMapUnitVisual(
                 this.entityManager?.renderer,
@@ -169,18 +182,26 @@ export class MapUnitSystem {
         return this._bomberAssets;
     }
 
+    _resolveCreatureAssets() {
+        if (!this.entityManager?.renderer) return null;
+        if (!this._creatureAssets) this._creatureAssets = createCreatureAssets();
+        return this._creatureAssets;
+    }
+
     _placeCentre(unit) {
         unit.position.copy(unit.groundPosition);
         if (unit.kind === 'tank' || unit.kind === 'boss') {
             const modelScale = unit.kind === 'boss' ? unit.definition.modelScale : 1;
             unit.position.y += TANK_TURRET_HEIGHT * unit.scale * modelScale;
         }
+        if (unit.kind === 'creature') unit.position.y += 1.35 * unit.scale;
         if (unit.kind === 'swarm') updateSwarmMembers(unit);
     }
 
     _updateVisual(unit) {
         if (unit.kind === 'swarm') updateSwarmVisual(unit);
         else if (unit.kind === 'bomber') updateBomberVisual(unit);
+        else if (unit.kind === 'creature') updateCreatureVisual(unit);
         else updateMapUnitVisual(unit);
     }
 
@@ -195,6 +216,9 @@ export class MapUnitSystem {
         unit.bombsFired = 0;
         unit.crashing = false;
         unit.crashSourcePlayer = null;
+        unit.attackCooldownRemaining = unit.definition.attack?.cooldown || 0;
+        unit.attacksFired = 0;
+        unit.networkAttacksInitialized = false;
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? unit.yaw;
         this._placeCentre(unit);
         for (const mount of unit.mounts) {
@@ -227,6 +251,7 @@ export class MapUnitSystem {
             const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;
             updateUnitWeapons(this, unit, unitDt, authority);
             if (unit.kind === 'bomber') updateBomberBombs(this, unit, unitDt, authority);
+            if (unit.kind === 'creature') updateCreatureAttack(this, unit, unitDt, authority);
             if (authority && unit.alive && unit.kind === 'tank') {
                 crushTrailsUnderUnit(this.entityManager, unit, unitDt, this._trailScratch);
             }
@@ -322,5 +347,7 @@ export class MapUnitSystem {
         this._swarmAssets = null;
         disposeBomberAssets(this._bomberAssets);
         this._bomberAssets = null;
+        disposeCreatureAssets(this._creatureAssets);
+        this._creatureAssets = null;
     }
 }

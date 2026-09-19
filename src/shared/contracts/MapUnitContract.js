@@ -16,7 +16,7 @@ export const MAP_UNIT_LIMITS = Object.freeze({
     maxPathPoints: 64,
 });
 
-const VALID_KINDS = new Set(['tank', 'swarm', 'boss', 'bomber']);
+const VALID_KINDS = new Set(['tank', 'swarm', 'boss', 'bomber', 'creature']);
 const VALID_MODES = new Set(['HUNT', 'ARCADE']);
 const VALID_ROCKETS = new Set(['ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA']);
 
@@ -64,6 +64,17 @@ const BOMBER_DEFAULTS = Object.freeze({
     bomb: Object.freeze({ damage: 50, cooldown: 1.5, radius: 15 }),
     crash: Object.freeze({ damage: 50, radius: 20 }),
     loot: TANK_DEFAULTS.loot,
+});
+
+const CREATURE_DEFAULTS = Object.freeze({
+    speed: 8,
+    maxHp: 600,
+    hitboxRadius: 6,
+    respawnSeconds: 90,
+    mg: null,
+    rocket: null,
+    loot: TANK_DEFAULTS.loot,
+    attack: Object.freeze({ damage: 30, cooldown: 4, radius: 20 }),
 });
 
 /**
@@ -187,7 +198,8 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
         return null;
     }
     const defaults = kind === 'swarm' ? SWARM_DEFAULTS
-        : (kind === 'boss' ? BOSS_DEFAULTS : (kind === 'bomber' ? BOMBER_DEFAULTS : TANK_DEFAULTS));
+        : (kind === 'boss' ? BOSS_DEFAULTS
+            : (kind === 'bomber' ? BOMBER_DEFAULTS : (kind === 'creature' ? CREATURE_DEFAULTS : TANK_DEFAULTS)));
     const rawPath = Array.isArray(source?.path) ? source.path.slice(0, MAP_UNIT_LIMITS.maxPathPoints) : [];
     const path = rawPath.map(normalizePoint);
     if (path.length < MAP_UNIT_LIMITS.minPathPoints || path.some((/** @type {readonly number[] | null} */ point) => point === null)) {
@@ -235,6 +247,13 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
             crash: Object.freeze({
                 damage: clampNumber(source?.crash?.damage, BOMBER_DEFAULTS.crash.damage, 1, 210),
                 radius: spatial(source?.crash?.radius, BOMBER_DEFAULTS.crash.radius, 1, 60),
+            }),
+        } : {}),
+        ...(kind === 'creature' ? {
+            attack: Object.freeze({
+                damage: clampNumber(source?.attack?.damage, CREATURE_DEFAULTS.attack.damage, 1, 210),
+                cooldown: clampNumber(source?.attack?.cooldown, CREATURE_DEFAULTS.attack.cooldown, 0.2, 30),
+                radius: spatial(source?.attack?.radius, CREATURE_DEFAULTS.attack.radius, 1, 60),
             }),
         } : {}),
         allowedModes: Object.freeze(modes.length > 0 ? modes : ['HUNT', 'ARCADE']),

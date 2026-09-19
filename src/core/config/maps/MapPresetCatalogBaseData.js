@@ -29,6 +29,13 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { type: 'KILL_COUNT', params: { target: 3 }, weight: 2 },
             { type: 'SURVIVE_DURATION', params: { target: 30 }, weight: 1 },
         ],
+        mapUnits: [{
+            id: 'standard_giant_worm', kind: 'creature',
+            path: [[-32, 0, -32], [32, 0, -32]], loop: false,
+            speed: 8, maxHp: 600, hitboxRadius: 6, respawnSeconds: 90,
+            attack: { damage: 30, cooldown: 4, radius: 20 },
+            allowedModes: ['HUNT', 'ARCADE'],
+        }],
     },
     custom: {
         name: 'Custom (Editor gespeichert)',

@@ -39,6 +39,7 @@ export function serializeMapUnits(units) {
         ...(unit.kind === 'swarm' ? {
             members: unit.members.map((member) => ({ alive: member.alive === true, hp: round(member.hp, 10) })),
         } : {}),
+        ...(unit.kind === 'creature' ? { attacks: unit.attacksFired } : {}),
         mounts: unit.mounts.map((mount) => ({
             aim: [round(mount.aimDirection.x), round(mount.aimDirection.y), round(mount.aimDirection.z)],
             shots: mount.shotsFired,
@@ -93,6 +94,7 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         if (!entry) continue;
         const wasAlive = unit.alive;
         const wasCrashing = unit.crashing === true;
+        let playCreatureAttack = false;
         const pathLength = unit.path.length;
         const from = Math.trunc(Number(entry.from));
         const to = Math.trunc(Number(entry.to));
@@ -126,8 +128,19 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
             unit.hp = totalHp;
             if (unit.source) unit.source.alive = unit.alive;
         }
+        if (unit.kind === 'creature') {
+            const attacks = Math.max(0, Math.trunc(Number(entry.attacks) || 0));
+            playCreatureAttack = unit.networkAttacksInitialized && attacks > unit.attacksFired && unit.alive;
+            unit.attacksFired = attacks;
+            unit.networkAttacksInitialized = true;
+        }
         if (!unit.crashing) resolveUnitPathPose(unit, unit.path, unit.groundPosition);
         onPoseChanged(unit);
+        if (playCreatureAttack) {
+            system.entityManager?.particles?.spawnExplosion?.(unit.position, 0xd4773f, {
+                cause: 'PROJECTILE', projectileType: 'CREATURE_ATTACK',
+            });
+        }
         if (unit.root) unit.root.visible = unit.alive || unit.crashing;
         if ((wasAlive && !unit.alive && unit.kind !== 'swarm' && unit.kind !== 'bomber')
             || (wasCrashing && !unit.crashing && !unit.alive && unit.kind === 'bomber')) {
