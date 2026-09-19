@@ -18,7 +18,14 @@ test('MG aim dot follows the acquired target and hides outside combat', () => {
     const previousWindow = globalThis.window;
     globalThis.window = { innerWidth: 1000, innerHeight: 600 };
     try {
-        const document = { createElement: () => createElement(document) };
+        const huntPanelStyle = new Map();
+        const huntPanel = {
+            style: { setProperty: (key, value) => huntPanelStyle.set(key, value) },
+        };
+        const document = {
+            createElement: () => createElement(document),
+            getElementById: (id) => (id === 'hunt-p1-panel' ? huntPanel : null),
+        };
         const container = {
             children: [],
             querySelector() { return null; },
@@ -67,6 +74,8 @@ test('MG aim dot follows the acquired target and hides outside combat', () => {
         assert.equal(dot.style.display, 'block');
         assert.ok(Number.parseFloat(dot.style.left) > 500, 'target right of center moves the dot right');
         assert.equal(dot.style.top, '300px');
+        assert.equal(huntPanelStyle.get('--hunt-target-x'), `${Number.parseFloat(dot.style.left).toFixed(2)}px`);
+        assert.equal(huntPanelStyle.get('--hunt-target-y'), '300.00px');
         assert.equal(crosshair.style.display, 'none', 'normal crosshair visibility remains unchanged');
 
         projection.hunt.active = false;

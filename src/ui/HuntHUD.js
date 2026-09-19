@@ -135,12 +135,12 @@ export class HuntHUD {
             ? options.getSlowMoCapacity
             : () => DEFAULT_BOOST_CAPACITY;
 
-        initializeHudSegmentedArc(this.p1BoostFill, 'circle-boost', HUNT_ARC_SEGMENT_COUNT);
-        initializeHudSegmentedArc(this.p1SlowMoFill, 'circle-reserve', HUNT_ARC_SEGMENT_COUNT);
-        initializeHudSegmentedArc(this.p1OverheatFill, 'circle-overheat', HUNT_ARC_SEGMENT_COUNT);
-        initializeHudSegmentedArc(this.p2BoostFill, 'circle-boost', HUNT_ARC_SEGMENT_COUNT);
-        initializeHudSegmentedArc(this.p2SlowMoFill, 'circle-reserve', HUNT_ARC_SEGMENT_COUNT);
-        initializeHudSegmentedArc(this.p2OverheatFill, 'circle-overheat', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p1BoostFill, 'triangle-boost', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p1SlowMoFill, 'triangle-reserve', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p1OverheatFill, 'triangle-overheat', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p2BoostFill, 'triangle-boost', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p2SlowMoFill, 'triangle-reserve', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p2OverheatFill, 'triangle-overheat', HUNT_ARC_SEGMENT_COUNT);
     }
 
     _getMatchRuntimeProjection() {

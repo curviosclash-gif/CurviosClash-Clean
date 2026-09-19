@@ -1,10 +1,10 @@
 export const HUD_ARC_SEGMENT_COUNT = 100;
 
 const HUD_ARC_SVG_NS = 'http://www.w3.org/2000/svg';
-const CIRCULAR_ARC_RANGES = Object.freeze({
-    'circle-boost': Object.freeze([155, 265]),
-    'circle-overheat': Object.freeze([275, 385]),
-    'circle-reserve': Object.freeze([35, 145]),
+const TARGETING_ARC_CURVES = Object.freeze({
+    'triangle-boost': Object.freeze({ start: [135, 15], control: [70, 97], end: [34, 195] }),
+    'triangle-overheat': Object.freeze({ start: [135, 15], control: [200, 97], end: [236, 195] }),
+    'triangle-reserve': Object.freeze({ start: [34, 195], control: [135, 222], end: [236, 195] }),
 });
 
 function buildSegmentPath(orientation, segmentCount) {
@@ -22,20 +22,35 @@ function buildSegmentPath(orientation, segmentCount) {
     return commands.join(' ');
 }
 
-function buildCircularSegmentPath(orientation, segmentCount) {
+function buildTargetingSegmentPath(orientation, segmentCount) {
     const commands = [];
-    const [startDegrees, endDegrees] = CIRCULAR_ARC_RANGES[orientation];
+    const { start, control, end } = TARGETING_ARC_CURVES[orientation];
     const center = 135;
-    const innerRadius = 108;
-    const outerRadius = 126;
+    const halfSegmentLength = 9;
     for (let index = 0; index < segmentCount; index += 1) {
         const progress = index / (segmentCount - 1);
-        const angle = (startDegrees + ((endDegrees - startDegrees) * progress)) * (Math.PI / 180);
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
+        const curveProgress = 0.06 + (progress * 0.88);
+        const inverseProgress = 1 - curveProgress;
+        const x = (inverseProgress * inverseProgress * start[0])
+            + (2 * inverseProgress * curveProgress * control[0])
+            + (curveProgress * curveProgress * end[0]);
+        const y = (inverseProgress * inverseProgress * start[1])
+            + (2 * inverseProgress * curveProgress * control[1])
+            + (curveProgress * curveProgress * end[1]);
+        const tangentX = (2 * inverseProgress * (control[0] - start[0]))
+            + (2 * curveProgress * (end[0] - control[0]));
+        const tangentY = (2 * inverseProgress * (control[1] - start[1]))
+            + (2 * curveProgress * (end[1] - control[1]));
+        const tangentLength = Math.hypot(tangentX, tangentY) || 1;
+        let normalX = -tangentY / tangentLength;
+        let normalY = tangentX / tangentLength;
+        if (((x - center) * normalX) + ((y - center) * normalY) < 0) {
+            normalX *= -1;
+            normalY *= -1;
+        }
         commands.push(
-            `M${(center + (cos * innerRadius)).toFixed(2)} ${(center + (sin * innerRadius)).toFixed(2)}`
-            + `L${(center + (cos * outerRadius)).toFixed(2)} ${(center + (sin * outerRadius)).toFixed(2)}`
+            `M${(x - (normalX * halfSegmentLength)).toFixed(2)} ${(y - (normalY * halfSegmentLength)).toFixed(2)}`
+            + `L${(x + (normalX * halfSegmentLength)).toFixed(2)} ${(y + (normalY * halfSegmentLength)).toFixed(2)}`
         );
     }
     return commands.join(' ');
@@ -53,8 +68,8 @@ function resolveSegmentPath(orientation, segmentCount) {
     const cacheKey = `${orientation}:${segmentCount}`;
     let path = COMPACT_SEGMENT_PATHS.get(cacheKey);
     if (!path) {
-        path = CIRCULAR_ARC_RANGES[orientation]
-            ? buildCircularSegmentPath(orientation, segmentCount)
+        path = TARGETING_ARC_CURVES[orientation]
+            ? buildTargetingSegmentPath(orientation, segmentCount)
             : buildSegmentPath(orientation, segmentCount);
         COMPACT_SEGMENT_PATHS.set(cacheKey, path);
     }
@@ -64,7 +79,7 @@ function resolveSegmentPath(orientation, segmentCount) {
 export function initializeHudSegmentedArc(fill, orientation = 'vertical', segmentCount = HUD_ARC_SEGMENT_COUNT) {
     const doc = fill?.ownerDocument;
     if (!doc?.createElementNS || fill.querySelector?.('.hunt-segmented-arc')) return;
-    const resolvedOrientation = orientation === 'horizontal' || CIRCULAR_ARC_RANGES[orientation]
+    const resolvedOrientation = orientation === 'horizontal' || TARGETING_ARC_CURVES[orientation]
         ? orientation
         : 'vertical';
     const resolvedSegmentCount = Math.max(2, Math.min(
@@ -75,8 +90,8 @@ export function initializeHudSegmentedArc(fill, orientation = 'vertical', segmen
 
     const svg = doc.createElementNS(HUD_ARC_SVG_NS, 'svg');
     svg.classList.add('hunt-segmented-arc');
-    const isCircular = !!CIRCULAR_ARC_RANGES[resolvedOrientation];
-    svg.setAttribute('viewBox', isCircular
+    const isTargetingArc = !!TARGETING_ARC_CURVES[resolvedOrientation];
+    svg.setAttribute('viewBox', isTargetingArc
         ? '0 0 270 270'
         : (resolvedOrientation === 'horizontal' ? '0 0 270 170' : '0 0 170 270'));
     svg.setAttribute('data-segment-count', String(resolvedSegmentCount));

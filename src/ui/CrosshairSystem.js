@@ -39,6 +39,9 @@ export class CrosshairSystem {
                 transform: null,
                 locked: null,
                 overheat: null,
+                huntCenterX: null,
+                huntCenterY: null,
+                huntPanel: null,
             };
             this._domStateByElement.set(crosshairElement, state);
         }
@@ -114,6 +117,28 @@ export class CrosshairSystem {
         return this.game?.entityManager?.gameModeStrategy?.hasMachineGun?.() === true;
     }
 
+    _syncHuntTargetCenter(crosshairElement, playerIndex, x, y, viewportX) {
+        const panel = crosshairElement?.ownerDocument?.getElementById?.(`hunt-p${playerIndex + 1}-panel`);
+        if (!panel?.style?.setProperty) return;
+
+        const state = this._getDomState(crosshairElement);
+        if (state.huntPanel !== panel) {
+            state.huntPanel = panel;
+            state.huntCenterX = null;
+            state.huntCenterY = null;
+        }
+        const nextX = `${(x - viewportX).toFixed(2)}px`;
+        const nextY = `${y.toFixed(2)}px`;
+        if (state.huntCenterX !== nextX) {
+            panel.style.setProperty('--hunt-target-x', nextX);
+            state.huntCenterX = nextX;
+        }
+        if (state.huntCenterY !== nextY) {
+            panel.style.setProperty('--hunt-target-y', nextY);
+            state.huntCenterY = nextY;
+        }
+    }
+
     _updateMgAimDot(player, crosshairElement, projection = null) {
         const playerIndex = player?.playerIndex ?? player?.index ?? 0;
         const dot = this._ensureMgAimDot(crosshairElement, playerIndex);
@@ -170,6 +195,7 @@ export class CrosshairSystem {
         dot.style.left = `${x}px`;
         dot.style.top = `${y}px`;
         dot.style.display = 'block';
+        this._syncHuntTargetCenter(crosshairElement, playerIndex, x, y, viewportX);
     }
 
     _shouldShowScreenCrosshair(player, fallbackGameplayConfig = null) {

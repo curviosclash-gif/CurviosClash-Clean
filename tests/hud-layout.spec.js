@@ -108,6 +108,9 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
 
                 const hunt = document.querySelector('#hunt-hud');
                 hunt.classList.remove('hidden');
+                const crosshair = document.querySelector('#crosshair-p1');
+                crosshair.classList.add('p1-split');
+                crosshair.style.display = 'block';
                 const itemBar = document.querySelector('#p1-items');
                 if (itemBar.children.length === 0) {
                     for (let index = 0; index < 5; index += 1) {
@@ -149,6 +152,7 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                 const boost = rect(document.querySelector('.hunt-arc-boost'));
                 const slowmo = rect(document.querySelector('.hunt-arc-slowmo'));
                 const overheat = rect(document.querySelector('.hunt-arc-overheat'));
+                const crosshairRect = rect(crosshair);
                 const p2Panel = rect(document.querySelector('#hunt-p2-panel'));
                 const itemSlots = [...itemBar.children].map(rect);
 
@@ -166,6 +170,7 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                     boost,
                     slowmo,
                     overheat,
+                    crosshair: crosshairRect,
                     p2Panel,
                     itemSlots,
                     arcOverlap: overlaps(boost, overheat),
@@ -236,6 +241,8 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
             expectNear(layout.boost.centerY, layout.overheat.centerY);
             expectNear(layout.boost.width, layout.slowmo.width);
             expectNear(layout.boost.width, layout.overheat.width);
+            expectNear(layout.boost.centerX, layout.crosshair.centerX);
+            expectNear(layout.boost.centerY, layout.crosshair.centerY);
             expect(layout.p2Overlap).toBe(false);
             expect(layout.arcLabelCount).toBe(0);
             expect(layout.arcOpacity).toBe('0.5');
