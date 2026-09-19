@@ -4,6 +4,11 @@ import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigCont
 import { createVehicleMesh } from '../vehicle-registry.js';
 import { syncPlayerHitboxFromVehicleMesh } from './PlayerMotionOps.js';
 import { spawnBurningFlames } from '../../hunt/FlamethrowerFlameEffect.js';
+import {
+    createPlayerHealthAura,
+    syncPlayerHealthAuraBounds,
+    updatePlayerHealthAura,
+} from './PlayerHealthAura.js';
 
 const SHARED_GEO = {};
 
@@ -66,6 +71,7 @@ export class PlayerView {
         this.vehicleMesh = null;
         this.shieldMesh = null;
         this.innerShield = null;
+        this.healthAura = null;
         this.firstPersonAnchor = null;
         this.flames = [];
 
@@ -129,6 +135,9 @@ export class PlayerView {
         this.shieldMesh.add(this.innerShield);
         this.group.add(this.shieldMesh);
 
+        this.healthAura = createPlayerHealthAura(this.player.index);
+        this.group.add(this.healthAura.root);
+
         this._collectFlames();
 
         if (this.renderer?.addToScene) {
@@ -140,6 +149,7 @@ export class PlayerView {
 
         this.applyModelScale();
         this._syncShieldBaseScaleToHitbox();
+        this._syncHealthAuraBoundsToHitbox();
         this.syncFromState();
         this._syncPlayerRefs();
     }
@@ -158,6 +168,7 @@ export class PlayerView {
             if (!currentMesh || currentMesh !== mesh || !this.group) return;
             syncPlayerHitboxFromVehicleMesh(this.player, currentMesh);
             this._syncShieldBaseScaleToHitbox();
+            this._syncHealthAuraBoundsToHitbox();
             this._collectFlames();
             this._syncPlayerRefs();
         };
@@ -218,6 +229,10 @@ export class PlayerView {
             this.shieldMesh.scale.copy(this.player._shieldBaseScale);
             this.shieldMesh.position.copy(center);
         }
+    }
+
+    _syncHealthAuraBoundsToHitbox() {
+        syncPlayerHealthAuraBounds(this.healthAura, this.player?.hitboxSize, this.player?.hitboxCenter);
     }
 
     applyModelScale() {
@@ -373,6 +388,17 @@ export class PlayerView {
         }
 
         const time = this._visualTime;
+        const perspectiveSettings = this.renderer?.getCameraPerspectiveSettings?.() || null;
+        updatePlayerHealthAura(this.healthAura, {
+            hp: this.player.hp,
+            maxHp: this.player.maxHp,
+            timeSeconds: time,
+            playerIndex: this.player.index,
+            reduceMotion: perspectiveSettings?.reduceMotion === true,
+            activeGameMode: this.player?.entityManager?.activeGameMode,
+            alive: this.player.alive,
+            groupVisible: this.group.visible === true,
+        });
         if (this.flames.length > 0) {
             const submerged = this.player.waterSubmerged === true;
             const boostFactor = this.player.isBoosting ? 4.5 : 1.0;
@@ -462,6 +488,7 @@ export class PlayerView {
         this.vehicleMesh = null;
         this.shieldMesh = null;
         this.innerShield = null;
+        this.healthAura = null;
         this.firstPersonAnchor = null;
         this.flames = [];
         this.group = null;

@@ -14,6 +14,7 @@ import { createCaptureCameraContext, resetCapturePerspectiveState, setCaptureCam
 import { VIEWPORT_LAYOUTS, normalizeViewportLayout } from '../../shared/contracts/ViewportLayoutContract.js';
 import { buildStandardCaptureSegments } from './RecordingCaptureLayoutOps.js';
 import { ScenePostProcessingPipeline } from './ScenePostProcessingPipeline.js';
+import { configurePlayerHealthAuraCaptureCamera } from '../../shared/rendering/PlayerHealthAuraLayers.js';
 
 const SHORTS_OUTPUT_ASPECT = Object.freeze({ width: 9, height: 16 });
 
@@ -229,7 +230,7 @@ export class RecordingCapturePipeline {
         const safeCount = Math.max(1, Math.trunc(count));
         const safeAspect = toRatio(aspect, 1);
         while (this._shortsCameraRig.cameras.length < safeCount) {
-            this._shortsCameraRig.createCamera(safeAspect);
+            configurePlayerHealthAuraCaptureCamera(this._shortsCameraRig.createCamera(safeAspect));
         }
         for (let i = 0; i < safeCount; i += 1) {
             const camera = this._shortsCameraRig.cameras[i];
@@ -263,6 +264,8 @@ export class RecordingCapturePipeline {
     }
 
     _updateShortsCamera({ slotIndex, player, otherPlayer, renderDelta, arena }) {
+        const camera = this._shortsCameraRig.cameras[slotIndex];
+        configurePlayerHealthAuraCaptureCamera(camera, player?.playerIndex);
         return updateShortsCaptureCamera(this, {
             slotIndex,
             player,
@@ -361,6 +364,7 @@ export class RecordingCapturePipeline {
             this._ensureShortsCameraCount(1, viewAspect);
             const fallbackCamera = this._shortsCameraRig.cameras[0];
             if (fallbackCamera) {
+                configurePlayerHealthAuraCaptureCamera(fallbackCamera);
                 const rendered = this._renderShortsToCapture({
                     sizes,
                     topCamera: fallbackCamera,
@@ -599,10 +603,11 @@ export class RecordingCapturePipeline {
 
         const aspect = toRatio(width / Math.max(1, height), 16 / 9);
         while (this._cinematicCameraRig.cameras.length < 1) {
-            this._cinematicCameraRig.createCamera(aspect);
+            configurePlayerHealthAuraCaptureCamera(this._cinematicCameraRig.createCamera(aspect));
         }
         const camera = this._cinematicCameraRig.cameras[0];
         if (!camera) return;
+        configurePlayerHealthAuraCaptureCamera(camera, usesRecordedCamera ? Number(recordedCamera.index) : null);
         camera.aspect = aspect;
         camera.updateProjectionMatrix();
         this._cinematicCameraRig.cameraModes[0] = 0;
