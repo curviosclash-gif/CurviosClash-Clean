@@ -1,6 +1,6 @@
 {
   "$comment": "Playwright tests that are red without anyone's current change. The list is a ratchet: `count` may sink, never rise. Raise it only on an explicit instruction. Every entry must point at an existing spec and an existing test title - tests/playwright-known-failures.contract.test.mjs enforces that, so a fixed or renamed test forces the entry out.",
-  "count": 37,
+  "count": 36,
   "entries": [
     {
       "spec": "tests/physics-hunt.spec.js",
@@ -160,14 +160,6 @@
       "since": "2026-09-13",
       "commit": "",
       "reason": "identical message with and without the HUD work",
-      "kind": "regression"
-    },
-    {
-      "spec": "tests/core-targeted-surface.spec.js",
-      "title": "T20z2: Start-Setup fuehrt exklusiv durch Karte, Flugzeug und kompakte Regeln",
-      "since": "2026-07-15",
-      "commit": "",
-      "reason": "the id T20z2 exists twice in this spec and only one of them is red; skipping by id removes both",
       "kind": "regression"
     },
     {
