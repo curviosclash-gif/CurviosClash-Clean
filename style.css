@@ -7687,17 +7687,17 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-hp {
-    left: -66px;
+    right: -66px;
     scale: var(--hud-scale, 1);
-    transform-origin: left bottom;
+    transform-origin: right bottom;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-shield {
     --hunt-vital-color: #31e6ff;
     --hunt-vital-track: rgba(49, 230, 255, 0.14);
-    right: -66px;
+    left: -66px;
     scale: var(--hud-scale, 1);
-    transform-origin: right bottom;
+    transform-origin: left bottom;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-meter::before,
@@ -7780,6 +7780,10 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter .hunt-bar {
     width: 150px;
     height: 240px;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter .hunt-segmented-arc[data-segment-count="10"] path {
+    stroke-width: 4;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-boost {
@@ -7916,8 +7920,8 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
         height: 235px;
     }
 
-    #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-hp { left: -72px; }
-    #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-shield { right: -72px; }
+    #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-hp { right: -72px; }
+    #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-shield { left: -72px; }
 
     #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-heading {
         top: 91px;

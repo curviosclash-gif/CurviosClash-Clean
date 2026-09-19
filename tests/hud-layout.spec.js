@@ -172,6 +172,8 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                     p2Overlap: overlaps(overheat, p2Panel),
                     arcLabelCount: document.querySelectorAll('.hunt-arc-meter .hunt-label').length,
                     arcOpacity: getComputedStyle(document.querySelector('.hunt-arc-boost')).opacity,
+                    arcSegmentCounts: [...document.querySelectorAll('#hunt-p1-panel .hunt-arc-meter .hunt-segment-track')]
+                        .map((path) => (path.getAttribute('d').match(/M/g) || []).length),
                     tapes: [...p1.querySelectorAll('.hud-tape'), ...p2.querySelectorAll('.hud-tape')]
                         .map((element) => ({
                             owner: element.closest('#p1-fighter-hud') ? 'p1' : 'p2',
@@ -217,8 +219,8 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
 
             expectNear(layout.p1Root.left, 0);
             expectNear(layout.p1Root.right, halfWidth);
-            expect(layout.hp.left).toBeLessThan(layout.p1Root.left);
-            expect(layout.shield.right).toBeGreaterThan(layout.p1Root.right);
+            expect(layout.shield.left).toBeLessThan(layout.p1Root.left);
+            expect(layout.hp.right).toBeGreaterThan(layout.p1Root.right);
             expect(layout.hp.top).toBeLessThan(viewport.height);
             expect(layout.shield.top).toBeLessThan(viewport.height);
             expect(layout.hp.bottom).toBeGreaterThan(viewport.height);
@@ -231,6 +233,7 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
             expect(layout.p2Overlap).toBe(false);
             expect(layout.arcLabelCount).toBe(0);
             expect(layout.arcOpacity).toBe('0.5');
+            expect(layout.arcSegmentCounts).toEqual([10, 10, 10]);
             expect(layout.itemSlots).toHaveLength(5);
             for (const [index, slot] of layout.itemSlots.entries()) {
                 expect(

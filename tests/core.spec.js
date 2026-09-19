@@ -337,7 +337,8 @@ test.describe('Desktop Smoke', () => {
                 return {
                     panel: rect(prefix),
                     summary: rect(`#p${playerNumber}-hud .player-hud-summary`),
-                    vitals: rect(`${prefix} .hunt-vitals`),
+                    hp: rect(`${prefix} .hunt-meter-hp`),
+                    shield: rect(`${prefix} .hunt-meter-shield`),
                     boost: rect(`${prefix} .hunt-arc-boost`),
                     overheat: rect(`${prefix} .hunt-arc-overheat`),
                     items: rect(`#p${playerNumber}-items`),
@@ -372,7 +373,6 @@ test.describe('Desktop Smoke', () => {
             const maxX = playerIndex === 0 ? half : layout.viewport.width;
             for (const [name, elementRect] of Object.entries({
                 summary: playerHud.summary,
-                vitals: playerHud.vitals,
                 boost: playerHud.boost,
                 overheat: playerHud.overheat,
                 items: playerHud.items,
@@ -382,10 +382,15 @@ test.describe('Desktop Smoke', () => {
                 expect(elementRect.right, `P${playerIndex + 1} ${name} stays in its viewport`).toBeLessThanOrEqual(maxX + 1);
             }
             expect(playerHud.itemDisplay).toBe('grid');
-            expect(playerHud.arcSegmentCounts).toEqual([[100, 100], [100, 100]]);
-            expect(overlaps(playerHud.vitals, playerHud.items)).toBe(false);
-            expect(overlaps(playerHud.vitals, playerHud.boost)).toBe(false);
-            expect(overlaps(playerHud.vitals, playerHud.overheat)).toBe(false);
+            expect(playerHud.arcSegmentCounts).toEqual([[10, 10], [10, 10]]);
+            expect(playerHud.shield, `P${playerIndex + 1} shield exists`).not.toBeNull();
+            expect(playerHud.hp, `P${playerIndex + 1} life exists`).not.toBeNull();
+            expect(playerHud.shield.left).toBeLessThan(minX);
+            expect(playerHud.hp.right).toBeGreaterThan(maxX);
+            for (const vital of [playerHud.hp, playerHud.shield]) {
+                expect(overlaps(vital, playerHud.boost)).toBe(false);
+                expect(overlaps(vital, playerHud.overheat)).toBe(false);
+            }
         }
         expect(layout.p1.hpText).toMatch(/^73 \/ /);
         expect(layout.p2.hpText).toMatch(/^41 \/ /);

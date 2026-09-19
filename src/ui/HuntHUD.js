@@ -28,6 +28,7 @@ const OVERHEAT_CAP = 100;
 const OVERHEAT_WARNING_RESERVE = 0.6;
 const OVERHEAT_DANGER_RESERVE = 0.3;
 const DEFAULT_BOOST_CAPACITY = 1;
+const HUNT_ARC_SEGMENT_COUNT = 10;
 function toPercent(value) {
     return `${(clamp01(value) * 100).toFixed(1)}%`;
 }
@@ -134,12 +135,12 @@ export class HuntHUD {
             ? options.getSlowMoCapacity
             : () => DEFAULT_BOOST_CAPACITY;
 
-        initializeHudSegmentedArc(this.p1BoostFill);
-        initializeHudSegmentedArc(this.p1SlowMoFill, 'horizontal');
-        initializeHudSegmentedArc(this.p1OverheatFill);
-        initializeHudSegmentedArc(this.p2BoostFill);
-        initializeHudSegmentedArc(this.p2SlowMoFill, 'horizontal');
-        initializeHudSegmentedArc(this.p2OverheatFill);
+        initializeHudSegmentedArc(this.p1BoostFill, 'vertical', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p1SlowMoFill, 'horizontal', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p1OverheatFill, 'vertical', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p2BoostFill, 'vertical', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p2SlowMoFill, 'horizontal', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p2OverheatFill, 'vertical', HUNT_ARC_SEGMENT_COUNT);
     }
 
     _getMatchRuntimeProjection() {
