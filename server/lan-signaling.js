@@ -27,6 +27,7 @@ const DEFAULT_MAX_PLAYERS = 10;
 const DEFAULT_GHOST_PLAYER_TIMEOUT_MS = 60_000;
 const DEFAULT_GHOST_CLEANUP_INTERVAL_MS = 5_000;
 const DEFAULT_RECONNECT_LEASE_MS = 60_000;
+const MATCH_START_RETENTION_MS = 2_500;
 const MAX_REQUEST_BODY_BYTES = 16 * 1024;
 const MAX_ICE_CANDIDATES_PER_ROUTE = 200;
 const REQUEST_RATE_WINDOW_MS = 10_000;
@@ -334,6 +335,12 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         }
     };
 
+    const clearExpiredMatchStart = (timestamp = now()) => {
+        const issuedAt = Number(lobby.pendingMatchStart?.issuedAt);
+        if (!Number.isFinite(issuedAt) || timestamp - issuedAt < MATCH_START_RETENTION_MS) return;
+        lobby.pendingMatchStart = null;
+    };
+
     const cleanupIntervalId = ghostCleanupIntervalMs > 0
         ? setInterval(() => cleanupGhostPlayers(), ghostCleanupIntervalMs)
         : null;
@@ -374,6 +381,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             return;
         }
         const path = url.pathname;
+        clearExpiredMatchStart();
 
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_CREATE) {
             // The embedded server runs inside the host's app; only the host itself

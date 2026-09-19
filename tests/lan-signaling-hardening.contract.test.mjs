@@ -307,6 +307,44 @@ test('LAN match start is idempotent while a start command is pending', async () 
     }
 });
 
+test('LAN signaling accepts a second match after the start command retention window', async () => {
+    let currentTime = 1_000_000;
+    const lanServer = await startLanServer({
+        now: () => currentTime,
+        ghostCleanupIntervalMs: 0,
+    });
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 2 });
+        const joined = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+            actorId: 'Client',
+        });
+        await postJson(lanServer.baseUrl, '/lobby/ready', {
+            playerId: joined.payload.playerId,
+            playerToken: joined.payload.playerToken,
+            ready: true,
+        });
+        const first = await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+            commandId: 'match-first',
+        });
+
+        currentTime += 2_500;
+        const second = await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+            commandId: 'match-second',
+        });
+
+        assert.equal(first.ok, true);
+        assert.equal(second.ok, true);
+        assert.equal(second.payload.pendingMatchStart.commandId, 'match-second');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
 test('LAN signaling rejects new joins while a match start is pending', async () => {
     const lanServer = await startLanServer();
     try {
