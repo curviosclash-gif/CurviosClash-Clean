@@ -1,6 +1,6 @@
 {
   "$comment": "Playwright tests that are red without anyone's current change. The list is a ratchet: `count` may sink, never rise. Raise it only on an explicit instruction. Every entry must point at an existing spec and an existing test title - tests/playwright-known-failures.contract.test.mjs enforces that, so a fixed or renamed test forces the entry out.",
-  "count": 36,
+  "count": 35,
   "entries": [
     {
       "spec": "tests/physics-hunt.spec.js",
@@ -41,14 +41,6 @@
       "commit": "b81170e",
       "reason": "the last arcade run lives under the profile key since local player profiles; the test reads the legacy localStorage key",
       "kind": "stale-test"
-    },
-    {
-      "spec": "tests/core-targeted-surface.spec.js",
-      "title": "T20h: Keyboard Navigation (Arrow/Escape) funktioniert im Menue",
-      "since": "2026-08-23",
-      "commit": "21c47c6",
-      "reason": "the start focus right after loadGame is empty since the startup and match loading screens",
-      "kind": "regression"
     },
     {
       "spec": "tests/core-targeted-surface.spec.js",

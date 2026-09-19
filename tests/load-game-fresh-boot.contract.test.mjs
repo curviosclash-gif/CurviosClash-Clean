@@ -193,6 +193,18 @@ test('loadGame reloads with forceReload and with the emergency switch', async ()
     }
 });
 
+test('startup focus coverage reloads after desktop harness readiness probes', () => {
+    const source = readFileSync(path.join(TESTS_DIR, 'core-targeted-surface.spec.js'), 'utf8');
+    const testStart = source.indexOf("test('T20h:");
+    const nextTest = source.indexOf("test('T20ha:", testStart);
+    assert.ok(testStart >= 0 && nextTest > testStart, 'T20h source block must exist');
+    assert.match(
+        source.slice(testStart, nextTest),
+        /loadGame\(page,\s*\{\s*forceReload:\s*true\s*\}\)/,
+        'a startup-focus assertion must observe its own document boot, not the harness-probed page'
+    );
+});
+
 test('loadGame reloads a page that was never marked', async () => {
     const page = createFakePage();
     clearFreshBootMark(page);

@@ -380,7 +380,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     });
 
     test('T20h: Keyboard Navigation (Arrow/Escape) funktioniert im Menue', async ({ page }) => {
-        await loadGame(page);
+        await loadGame(page, { forceReload: true });
         const startupFocus = await page.evaluate(() => ({
             id: document.activeElement?.id || '',
             sessionType: document.activeElement?.getAttribute?.('data-session-type') || '',
