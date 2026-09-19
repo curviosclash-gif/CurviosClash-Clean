@@ -368,14 +368,11 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
         const game = window.GAME_INSTANCE;
         const profileStore = read(profileKey, legacyProfileKey);
         const snapshot = read(lastRunKey, legacyLastRunKey);
-        const arcadeRuntime = game?.runtimeFacade?.arcadeRunRuntime;
-        const activeProfile = arcadeRuntime?.getVehicleProfile?.();
         return {
             humanVehicleId: String(game?.entityManager?.humanPlayers?.[0]?.vehicleId || ''),
             snapshotVehicleId: String(snapshot.vehicleId || ''),
             snapshotBuildId: String(snapshot.buildId || ''),
             profileUpgrades: profileStore[snapshot.vehicleId]?.upgrades || {},
-            activeProfileUpgrades: activeProfile?.upgrades || {},
         };
     }, {
         profileKey: scopedProfileKey,
@@ -388,7 +385,9 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     expect(runState.snapshotBuildId).not.toBe('');
     expect(runState.profileUpgrades.wing_left_t2).toBe('T2');
     expect(runState.profileUpgrades.wing_right_t2).toBe('T2');
-    expect(runState.activeProfileUpgrades).toEqual(runState.profileUpgrades);
+    await expect.poll(() => page.evaluate(() => ({
+        ...(window.GAME_INSTANCE?.runtimeFacade?.arcadeRunRuntime?.getVehicleProfile?.()?.upgrades || {}),
+    }))).toEqual(runState.profileUpgrades);
 
     await returnToMenu(page);
     await openArcadeHangar(page);
