@@ -155,6 +155,7 @@ export class RepairDroneSystem {
 
     update(dt) {
         const safeDt = Math.max(0, Number(dt) || 0);
+        if (this.networkReplica) return;
         for (let i = this.drones.length - 1; i >= 0; i -= 1) {
             const drone = this.drones[i];
             const owner = drone.ownerPlayer;
@@ -167,7 +168,7 @@ export class RepairDroneSystem {
             let drone = this._findDrone(owner.index);
             if (!drone) drone = this._createDrone(owner);
             this._updatePose(drone, owner, safeDt);
-            if (this.networkReplica || this.entityManager?.isFightOutcomeAuthority === false) continue;
+            if (this.entityManager?.isFightOutcomeAuthority === false) continue;
             this._healOwner(owner, REPAIR_DRONE_RULES.ownerHealingPerSecond * safeDt);
             this._healNearbyTanks(drone, REPAIR_DRONE_RULES.tankHealingPerSecond * safeDt);
         }
@@ -181,6 +182,54 @@ export class RepairDroneSystem {
 
     setNetworkReplica(enabled) {
         this.networkReplica = enabled === true;
+    }
+
+    serializeNetworkState() {
+        if (this.drones.length === 0) return null;
+        const entries = [];
+        for (const drone of this.drones) {
+            if (!drone?.alive) continue;
+            entries.push({
+                ownerIndex: drone.ownerIndex,
+                pos: [drone.position.x, drone.position.y, drone.position.z],
+                hp: drone.hp,
+                remaining: Math.max(0, Number(findRepairEffect(drone.ownerPlayer)?.remaining) || 0),
+            });
+        }
+        return entries;
+    }
+
+    applyNetworkState(entries) {
+        if (entries === undefined) return;
+        this.networkReplica = true;
+        const states = Array.isArray(entries) ? entries : [];
+        for (let index = this.drones.length - 1; index >= 0; index -= 1) {
+            let present = false;
+            for (const state of states) {
+                if (Number(state?.ownerIndex) === this.drones[index].ownerIndex) present = true;
+            }
+            if (!present) this._removeAt(index);
+        }
+        for (const state of states) {
+            const ownerIndex = Math.trunc(Number(state?.ownerIndex));
+            if (!Number.isInteger(ownerIndex) || !Array.isArray(state?.pos) || state.pos.length < 3) continue;
+            let owner = null;
+            for (const player of this.entityManager?.players || []) {
+                if (player?.index === ownerIndex) owner = player;
+            }
+            if (!owner) continue;
+            let drone = this._findDrone(ownerIndex);
+            if (!drone) drone = this._createDrone(owner);
+            drone.hp = Math.max(0, Math.min(drone.maxHp, Number(state.hp) || 0));
+            drone.remaining = Math.max(0, Number(state.remaining) || 0);
+            drone.position.set(Number(state.pos[0]) || 0, Number(state.pos[1]) || 0, Number(state.pos[2]) || 0);
+            drone.alive = drone.hp > 0 && drone.remaining > 0;
+            updateRepairDroneVisual(drone);
+            if (!drone.alive) {
+                const index = this.drones.indexOf(drone);
+                if (index >= 0) this._removeAt(index);
+            }
+        }
     }
 
     clear() {

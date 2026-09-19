@@ -72,6 +72,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
         projectiles,
         powerups,
         turrets,
+        repairDrones: entityManager?._repairDroneSystem?.serializeNetworkState?.() || null,
         globalFog: entityManager?.getGlobalFogState?.() || { active: false, remainingSeconds: 0, visibilityRange: 0 },
         mapElapsedSeconds: toFiniteNumber(entityManager?.arena?.glbAnimationElapsedSeconds, 0),
         dandelionSeeds: entityManager?.arena?.serializeDandelionSeeds?.() || null,
