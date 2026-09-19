@@ -229,7 +229,13 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                 expect(arc.left).toBeGreaterThanOrEqual(layout.p1Root.left - 1);
                 expect(arc.right).toBeLessThanOrEqual(layout.p1Root.right + 1);
             }
-            expect(layout.arcOverlap).toBe(false);
+            expect(layout.arcOverlap).toBe(true);
+            expectNear(layout.boost.centerX, layout.slowmo.centerX);
+            expectNear(layout.boost.centerX, layout.overheat.centerX);
+            expectNear(layout.boost.centerY, layout.slowmo.centerY);
+            expectNear(layout.boost.centerY, layout.overheat.centerY);
+            expectNear(layout.boost.width, layout.slowmo.width);
+            expectNear(layout.boost.width, layout.overheat.width);
             expect(layout.p2Overlap).toBe(false);
             expect(layout.arcLabelCount).toBe(0);
             expect(layout.arcOpacity).toBe('0.5');

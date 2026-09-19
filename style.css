@@ -7772,14 +7772,17 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter {
     top: 50%;
-    width: 150px;
-    height: 240px;
+    left: 50%;
+    width: 270px;
+    height: 270px;
     opacity: 0.5;
+    transform: translate(-50%, -50%) scale(var(--hunt-widget-scale, var(--hud-scale, 1)));
+    transform-origin: center;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter .hunt-bar {
-    width: 150px;
-    height: 240px;
+    width: 270px;
+    height: 270px;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter .hunt-segmented-arc[data-segment-count="10"] path {
@@ -7787,13 +7790,13 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-boost {
-    left: calc(50% - 190px);
+    right: auto;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat {
     --hunt-arc-color: #ff5b5b;
     --hunt-arc-track: rgba(255, 91, 91, 0.16);
-    right: calc(50% - 190px);
+    right: auto;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat:has(.warning),
@@ -7803,26 +7806,38 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-slowmo {
-    top: calc(50% + 155px);
-    left: 50%;
-    width: 240px;
-    height: 150px;
-    transform: translate(-50%, -50%) scale(var(--hunt-widget-scale, var(--hud-scale, 1)));
+    width: 270px;
+    height: 270px;
 }
 
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat .hunt-bar,
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-slowmo .hunt-bar {
-    width: 240px;
-    height: 150px;
-    transform: scaleY(-1);
+    width: 270px;
+    height: 270px;
+    transform: none;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter .hunt-value {
-    top: 49%;
+    top: 48%;
     font-size: 1rem;
 }
 
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-boost .hunt-value {
+    right: auto;
+    left: 30px;
+    width: 72px;
+    text-align: center;
+}
+
+#hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat .hunt-value {
+    right: 30px;
+    left: auto;
+    width: 72px;
+    text-align: center;
+}
+
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-slowmo .hunt-value {
-    top: 75%;
+    top: 82%;
     right: 50%;
     transform: translateX(50%);
     text-align: center;
@@ -7901,12 +7916,14 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 
 #hud.split-screen:has(#hunt-hud:not(.hidden)) .hunt-arc-boost {
     right: auto;
-    left: calc(50% - 178px);
+    left: 50%;
+    transform-origin: center;
 }
 
 #hud.split-screen:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat {
-    right: calc(50% - 178px);
-    left: auto;
+    right: auto;
+    left: 50%;
+    transform-origin: center;
 }
 
 #hud.split-screen:has(#hunt-hud:not(.hidden)) .hunt-arc-slowmo {

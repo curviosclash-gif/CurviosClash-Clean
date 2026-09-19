@@ -135,12 +135,12 @@ export class HuntHUD {
             ? options.getSlowMoCapacity
             : () => DEFAULT_BOOST_CAPACITY;
 
-        initializeHudSegmentedArc(this.p1BoostFill, 'vertical', HUNT_ARC_SEGMENT_COUNT);
-        initializeHudSegmentedArc(this.p1SlowMoFill, 'horizontal', HUNT_ARC_SEGMENT_COUNT);
-        initializeHudSegmentedArc(this.p1OverheatFill, 'vertical', HUNT_ARC_SEGMENT_COUNT);
-        initializeHudSegmentedArc(this.p2BoostFill, 'vertical', HUNT_ARC_SEGMENT_COUNT);
-        initializeHudSegmentedArc(this.p2SlowMoFill, 'horizontal', HUNT_ARC_SEGMENT_COUNT);
-        initializeHudSegmentedArc(this.p2OverheatFill, 'vertical', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p1BoostFill, 'circle-boost', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p1SlowMoFill, 'circle-reserve', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p1OverheatFill, 'circle-overheat', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p2BoostFill, 'circle-boost', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p2SlowMoFill, 'circle-reserve', HUNT_ARC_SEGMENT_COUNT);
+        initializeHudSegmentedArc(this.p2OverheatFill, 'circle-overheat', HUNT_ARC_SEGMENT_COUNT);
     }
 
     _getMatchRuntimeProjection() {
