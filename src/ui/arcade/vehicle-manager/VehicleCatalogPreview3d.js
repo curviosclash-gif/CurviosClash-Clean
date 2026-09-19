@@ -40,7 +40,10 @@ export function fitVehicleCatalogPreviewObject(vehicleNode, root, targetRadius =
 export function disposeVehicleCatalogPreviewObject(vehicleNode) {
     if (!vehicleNode) return;
     vehicleNode.cancelPendingLoad?.();
-    if (typeof vehicleNode.dispose === 'function') {
+    if (
+        typeof vehicleNode.dispose === 'function'
+        && vehicleNode.dispose !== THREE.Object3D.prototype.dispose
+    ) {
         try {
             vehicleNode.dispose();
             return;

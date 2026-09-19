@@ -9,7 +9,10 @@ const HANGAR_VEHICLE_TARGET_SIZE = 4.1;
 
 function disposeExternalVehicle(node) {
     if (!node) return;
-    if (typeof node.dispose === 'function') {
+    if (
+        typeof node.dispose === 'function'
+        && node.dispose !== THREE.Object3D.prototype.dispose
+    ) {
         try { node.dispose(); } catch { /* external vehicle cleanup is best effort */ }
         return;
     }
