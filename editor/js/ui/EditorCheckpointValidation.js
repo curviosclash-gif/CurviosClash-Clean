@@ -4,6 +4,13 @@
 
 export const EDITOR_BLOCKING_CHECKPOINT_CODE = 'checkpoint-blocked';
 
+/**
+ * @param {{
+ *   checkpoints?: Array<{position: {distanceTo: (other: unknown) => number}, userData: {id: string}}>,
+ *   isBlocked?: (position: unknown) => boolean,
+ *   maxSegmentDistance?: number,
+ * }} [options]
+ */
 export function resolveCheckpointValidationItems({ checkpoints = [], isBlocked = () => false, maxSegmentDistance = Infinity } = {}) {
     const blocked = checkpoints.filter((checkpoint) => isBlocked(checkpoint.position));
     const tooFar = [];

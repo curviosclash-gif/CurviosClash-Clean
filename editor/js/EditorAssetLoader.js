@@ -59,6 +59,7 @@ export class EditorAssetLoader {
             url: model.url,
             loadUrl: `../${model.url}`,
         }));
+        /** @type {Map<string, {id: string, url: string, loadUrl: string}>} */
         this.glbModelById = new Map(this.glbModels.map((model) => [model.id, model]));
         this.glbModels.forEach((model) => this.loadStatus.set(model.id, {
             state: 'idle',

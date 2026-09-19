@@ -4,6 +4,8 @@ import { GENERATED_LOCAL_MAPS } from '../../entities/GeneratedLocalMaps.js';
 import { refreshElectronLocalMaps } from '../../platform/electron/ElectronPlatformBridge.js';
 import { GAME_STATE_IDS } from '../../shared/contracts/GameStateIds.js';
 
+const DEFAULT_LOCAL_MAPS = /** @type {Record<string, unknown>} */ (GENERATED_LOCAL_MAPS);
+
 /**
  * Holt im Desktop die gespeicherten Editor-Karten neu, traegt neue oder
  * geaenderte in den Kartenkatalog ein und nimmt geloeschte wieder heraus.
@@ -31,7 +33,7 @@ export function refreshLocalMapCatalog({
     catalog = CONFIG_BASE.MAPS,
     refreshRuntimeConfig = refreshConfigRuntimeCache,
     knownKeys = DESKTOP_LOCAL_MAP_KEYS,
-    fallbackMaps = GENERATED_LOCAL_MAPS,
+    fallbackMaps = DEFAULT_LOCAL_MAPS,
 } = {}) {
     if (gameState !== GAME_STATE_IDS.MENU) return false;
     const localMaps = readLocalMaps();
