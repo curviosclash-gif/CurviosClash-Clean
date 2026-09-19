@@ -646,6 +646,68 @@ test('LAN signaling requires tokens on signaling and ack-pending routes', async 
     }
 });
 
+test('LAN signaling bounds ICE queues to valid host-client routes', async () => {
+    const lanServer = await startLanServer();
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 3 });
+        const lobbyCode = String(created.payload?.lobbyCode || '');
+        const firstJoin = await postJson(lanServer.baseUrl, '/lobby/join', { lobbyCode });
+        const secondJoin = await postJson(lanServer.baseUrl, '/lobby/join', { lobbyCode });
+        const firstPlayerId = String(firstJoin.payload?.playerId || '');
+        const firstPlayerToken = String(firstJoin.payload?.playerToken || '');
+        const secondPlayerId = String(secondJoin.payload?.playerId || '');
+        const secondPlayerToken = String(secondJoin.payload?.playerToken || '');
+
+        const unknownTarget = await postJson(lanServer.baseUrl, '/signaling/ice', {
+            playerId: firstPlayerId,
+            token: firstPlayerToken,
+            targetPlayerId: 'not-a-lobby-member',
+            candidate: { candidate: 'unknown-target' },
+        });
+        assert.equal(unknownTarget.status, 403);
+        assert.equal(unknownTarget.payload?.message, 'signaling_route_invalid');
+        assert.equal(lanServer.lobby.ice.has('not-a-lobby-member'), false);
+
+        const clientToClient = await postJson(lanServer.baseUrl, '/signaling/ice', {
+            playerId: firstPlayerId,
+            token: firstPlayerToken,
+            targetPlayerId: secondPlayerId,
+            candidate: { candidate: 'client-to-client' },
+        });
+        assert.equal(clientToClient.status, 403);
+        assert.equal(clientToClient.payload?.message, 'signaling_route_invalid');
+
+        for (let index = 0; index < 200; index += 1) {
+            const queued = await postJson(lanServer.baseUrl, '/signaling/ice', {
+                playerId: firstPlayerId,
+                token: firstPlayerToken,
+                targetPlayerId: 'host',
+                candidate: { candidate: `first-${index}` },
+            });
+            assert.equal(queued.ok, true, `candidate ${index} should fit the first route`);
+        }
+
+        const firstOverflow = await postJson(lanServer.baseUrl, '/signaling/ice', {
+            playerId: firstPlayerId,
+            token: firstPlayerToken,
+            targetPlayerId: 'host',
+            candidate: { candidate: 'first-overflow' },
+        });
+        assert.equal(firstOverflow.status, 429);
+        assert.equal(firstOverflow.payload?.message, 'ice_queue_full');
+
+        const secondRoute = await postJson(lanServer.baseUrl, '/signaling/ice', {
+            playerId: secondPlayerId,
+            token: secondPlayerToken,
+            targetPlayerId: 'host',
+            candidate: { candidate: 'second-route' },
+        });
+        assert.equal(secondRoute.ok, true, 'one full route must not block another player');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
 test('LAN signaling counts the status poll as liveness and offers rejoin leases after ghost cleanup', async () => {
     let currentTime = 1_000_000;
     const lanServer = await startLanServer({

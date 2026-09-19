@@ -28,6 +28,7 @@ const DEFAULT_GHOST_PLAYER_TIMEOUT_MS = 60_000;
 const DEFAULT_GHOST_CLEANUP_INTERVAL_MS = 5_000;
 const DEFAULT_RECONNECT_LEASE_MS = 60_000;
 const MAX_REQUEST_BODY_BYTES = 16 * 1024;
+const MAX_ICE_CANDIDATES_PER_ROUTE = 200;
 const REQUEST_RATE_WINDOW_MS = 10_000;
 const MAX_REQUESTS_PER_IP = 300;
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -938,16 +939,27 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 jsonResponse(res, { ok: false, message: 'player_auth_failed' }, 403);
                 return;
             }
-            const targetPlayerId = toPlayerId(body.targetPlayerId) || fromPlayerId;
+            const targetPlayerId = toPlayerId(body.targetPlayerId);
             if (!targetPlayerId) {
                 jsonResponse(res, { ok: false, message: 'target_player_missing' }, 400);
+                return;
+            }
+            const isValidRoute = fromPlayerId === 'host'
+                ? !!findActivePlayer(targetPlayerId)
+                : targetPlayerId === 'host';
+            if (!isValidRoute) {
+                jsonResponse(res, { ok: false, message: 'signaling_route_invalid' }, 403);
                 return;
             }
             if (!lobby.ice.has(targetPlayerId)) {
                 lobby.ice.set(targetPlayerId, []);
             }
             const iceQueue = lobby.ice.get(targetPlayerId);
-            if (iceQueue.length >= 200) {
+            let routeQueueSize = 0;
+            for (const entry of iceQueue) {
+                if (entry.fromPlayerId === fromPlayerId) routeQueueSize += 1;
+            }
+            if (routeQueueSize >= MAX_ICE_CANDIDATES_PER_ROUTE) {
                 jsonResponse(res, { ok: false, message: 'ice_queue_full' }, 429);
                 return;
             }
