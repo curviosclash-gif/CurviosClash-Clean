@@ -934,7 +934,8 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
             const renderer = editor.core.renderer;
             const camera = editor.core.camera;
             renderer.render(editor.core.scene, camera);
-            control.updateMatrixWorld(true);
+            const helper = control.getHelper();
+            helper.updateMatrixWorld(true);
 
             const center = control.worldPosition.clone().project(camera);
             const xHandles = control._gizmo.gizmo.scale.children.filter((child) => child.name === 'X');
