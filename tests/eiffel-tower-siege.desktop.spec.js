@@ -2,12 +2,13 @@ import { writeFileSync } from 'node:fs';
 
 import { expect, test } from './helpers.desktop.js';
 import { selectSessionType, waitForLoadedGame } from './helpers.js';
+import { EIFFEL_TOWER_SIEGE_MODELS } from '../src/core/config/maps/presets/eiffel_tower_siege/EiffelTowerSiegeModels.js';
 
 // The siege map is the first one a match can take apart, and none of what makes that work can be
 // argued from the preset alone. Four questions only the running app answers:
 //
 //   1. The four baked collapses load with the tower and stay out of the world until they are
-//      triggered -- seventeen models in one slot group each, four of them invisible.
+//      triggered -- every configured model in one slot group each, four of them invisible.
 //   2. A hit on the lower lattice is traceable back to a leg. The tower exports one mesh per
 //      material per part, so `legs_lower_*` is all a weapon learns; the leg itself is decided by
 //      where the shot landed. Both the point query and the ray have to report that name.
@@ -37,9 +38,10 @@ const LEG_SIGN_Z = 1;
 // difference between the two. Nothing below hard-codes an angle: the anchor comes out of the
 // running definition and the slot's own rotation says where the wreck went.
 const BAKED_FALL_HEADING = (Math.PI * 3) / 4;
-// Thirteen parts of the route tower, one of them swapped for the wide esplanade, plus four
-// collapses. Five machines animate, and each collapse carries one one-shot clip.
-const GLB_MODEL_COUNT = 17;
+// Thirteen parts of the route tower, one of them swapped for the wide esplanade, four
+// collapses and the curated historic grounds. Five machines animate, and each collapse
+// carries one one-shot clip.
+const GLB_MODEL_COUNT = EIFFEL_TOWER_SIEGE_MODELS.length;
 const GLB_TRACK_COUNT = 9;
 const SEGMENT_COUNT = 10;
 const BREAK_SCENE_MODELS = [
@@ -89,7 +91,7 @@ async function startSiegeMatch(page, { modePath, sessionType }) {
 
 test.describe('Eiffel tower siege', () => {
     test('the tower loads shootable, takes machine-gun fire and topples onto the esplanade', async ({ page }, testInfo) => {
-        // Seventeen GLBs, one of them the 1.8 MB collapse of the whole tower.
+        // The complete configured collection, including the 1.8 MB whole-tower collapse.
         test.setTimeout(480_000);
         await startSiegeMatch(page, { modePath: 'fight', sessionType: 'single' });
 
@@ -130,7 +132,7 @@ test.describe('Eiffel tower siege', () => {
         expect(loaded.gameMode).toBe('HUNT');
         expect(loaded.colliderMode).toBe('scene');
         expect(loaded.loadWarnings, `GLB load warnings: ${loaded.loadWarnings.join(' | ')}`).toEqual([]);
-        expect(loaded.modelCount, 'thirteen tower parts with the wide field, plus four collapses').toBe(GLB_MODEL_COUNT);
+        expect(loaded.modelCount, 'tower, wide field, collapses and curated grounds').toBe(GLB_MODEL_COUNT);
         expect(loaded.trackCount, 'five machines plus one one-shot clip per collapse').toBe(GLB_TRACK_COUNT);
         // The collapses exist in the world from the first frame and are switched off, which is
         // what keeps their colliders out of the airspace the standing tower occupies.
@@ -146,6 +148,49 @@ test.describe('Eiffel tower siege', () => {
         })));
         expect(loaded.segmentIds).toHaveLength(SEGMENT_COUNT);
         expect(loaded.segmentIds).toContain(LEG_SEGMENT_ID);
+
+        const approachViews = await page.evaluate((scale) => {
+            const runtime = window.GAME_INSTANCE.renderer;
+            const three = runtime.renderer;
+            const camera = runtime.cameras[0];
+            const originalPosition = camera.position.clone();
+            const originalQuaternion = camera.quaternion.clone();
+            const originalFar = camera.far;
+            const originalFog = runtime.scene.fog;
+            const views = {
+                west: [[-145, 28, 0], [0, 42, 0]],
+                east: [[145, 28, 0], [0, 42, 0]],
+                north: [[0, 28, 145], [0, 42, 0]],
+                south: [[0, 28, -145], [0, 42, 0]],
+            };
+            const captures = {};
+            try {
+                runtime.scene.fog = null;
+                camera.far = 1_000;
+                camera.updateProjectionMatrix();
+                for (const [name, [position, target]] of Object.entries(views)) {
+                    camera.position.set(...position.map((value) => value * scale));
+                    camera.lookAt(...target.map((value) => value * scale));
+                    camera.updateMatrixWorld(true);
+                    three.setRenderTarget(null);
+                    three.render(runtime.scene, camera);
+                    captures[name] = three.domElement.toDataURL('image/png');
+                }
+            } finally {
+                camera.position.copy(originalPosition);
+                camera.quaternion.copy(originalQuaternion);
+                camera.updateMatrixWorld(true);
+                camera.far = originalFar;
+                camera.updateProjectionMatrix();
+                runtime.scene.fog = originalFog;
+            }
+            return captures;
+        }, MAP_SCALE);
+        for (const [name, image] of Object.entries(approachViews)) {
+            const outputPath = testInfo.outputPath(`eiffel-siege-historic-${name}-approach.png`);
+            writeFileSync(outputPath, Buffer.from(image.split(',')[1], 'base64'));
+            await testInfo.attach(`eiffel-siege-historic-${name}-approach.png`, { path: outputPath });
+        }
 
         // --- 2 to 4, in one evaluate ------------------------------------------------------
         // The match keeps running between two evaluates, and five bots are shooting at the same

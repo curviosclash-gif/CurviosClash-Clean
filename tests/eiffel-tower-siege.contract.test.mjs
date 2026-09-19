@@ -209,8 +209,13 @@ test('every model the siege map places exists on disk', () => {
             continue;
         }
         assert.ok(existsSync(filePath), `${model.id} references a local GLB`);
-        assert.equal(model.scale, EIFFEL_TOWER_METRE, `${model.id} shares the one scale factor`);
-        assert.equal(model.targetSize, undefined, `${model.id} must not be size-normalised`);
+        if (model.collision === false) {
+            assert.ok(model.targetSize > 0, `${model.id} has an explicit decorative size`);
+            assert.equal(model.scale, undefined, `${model.id} uses target sizing rather than tower scale`);
+        } else {
+            assert.equal(model.scale, EIFFEL_TOWER_METRE, `${model.id} shares the one tower scale factor`);
+            assert.equal(model.targetSize, undefined, `${model.id} must not be size-normalised`);
+        }
     }
     assert.equal(modelById(EIFFEL_SIEGE_ESPLANADE_ID)?.url, EIFFEL_SIEGE_ESPLANADE_URL);
     // The narrow esplanade of the route map is replaced, not placed alongside.

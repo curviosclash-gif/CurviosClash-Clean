@@ -15,10 +15,11 @@
 // restart, and until it is triggered the standing tower is what the player sees.
 
 import {
-    EIFFEL_TOWER_MODELS,
+    EIFFEL_TOWER_BASE_MODELS,
     EIFFEL_TOWER_METRE,
     EIFFEL_TOWER_GROUND,
 } from '../eiffel_tower/EiffelTowerModels.js';
+import { EIFFEL_TOWER_SIEGE_HISTORIC_MODELS } from '../eiffel_tower/EiffelTowerHistoricProps.js';
 
 const METRE = EIFFEL_TOWER_METRE;
 const GROUND = EIFFEL_TOWER_GROUND;
@@ -92,8 +93,9 @@ const EIFFEL_SIEGE_SCENES = [
 
 // The intact tower, with the one swapped part, followed by the collapses it can be shot into.
 export const EIFFEL_TOWER_SIEGE_MODELS = [
-    ...EIFFEL_TOWER_MODELS.map((model) => (
+    ...EIFFEL_TOWER_BASE_MODELS.map((model) => (
         model.id === EIFFEL_SIEGE_NARROW_ESPLANADE_ID ? WIDE_ESPLANADE : model
     )),
     ...EIFFEL_SIEGE_SCENES,
+    ...EIFFEL_TOWER_SIEGE_HISTORIC_MODELS,
 ];

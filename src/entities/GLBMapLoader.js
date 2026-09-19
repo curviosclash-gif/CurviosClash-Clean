@@ -54,6 +54,8 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
             rotation: normalizeVector3(source?.rotation),
             scale: normalizePositiveNumber(source?.scale, 1),
             targetSize: normalizePositiveNumber(source?.targetSize, 0),
+            maxRenderDistance: normalizePositiveNumber(source?.maxRenderDistance, 0),
+            collision: source?.collision !== false,
             animationClock: normalizeMapAnimationClock(source?.animationClock, mapClock),
             // A break scene: loaded and placed with the map, but neither drawn nor solid until
             // the event that starts it arrives.
@@ -286,6 +288,17 @@ function placeCollectionScene(scene, bounds, descriptor, placementScale) {
     slot.userData.glbHiddenUntilTriggered = descriptor.hiddenUntilTriggered === true;
     if (descriptor.hiddenUntilTriggered === true) slot.visible = false;
 
+    // Reused library assets may be decorative in one map and physical in another. Preserve the
+    // scene-collision contract by applying the established `_nocol` marker to the placed runtime
+    // instance instead of duplicating or rewriting the shared GLB.
+    if (descriptor.collision === false) {
+        scene.traverse((child) => {
+            if (child?.isMesh && !String(child.name || '').toLowerCase().includes('_nocol')) {
+                child.name = `${child.name || 'decorative-mesh'}_nocol`;
+            }
+        });
+    }
+
     const [px, py, pz] = descriptor.position;
     const [rx, ry, rz] = descriptor.rotation;
     slot.position.set(px * placementScale, py * placementScale, pz * placementScale);
@@ -307,7 +320,17 @@ function placeCollectionScene(scene, bounds, descriptor, placementScale) {
     offset.position.set(-center.x, -modelBounds.min.y, -center.z);
     offset.add(scene);
     normalizer.add(offset);
-    slot.add(normalizer);
+    if (descriptor.maxRenderDistance > 0) {
+        const lod = new THREE.LOD();
+        lod.name = `glb-distance-lod-${descriptor.id}`;
+        lod.addLevel(normalizer, 0);
+        const hidden = new THREE.Group();
+        hidden.name = `glb-distance-hidden-${descriptor.id}`;
+        lod.addLevel(hidden, descriptor.maxRenderDistance * placementScale);
+        slot.add(lod);
+    } else {
+        slot.add(normalizer);
+    }
     return slot;
 }
 
