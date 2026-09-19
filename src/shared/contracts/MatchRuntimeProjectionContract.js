@@ -423,6 +423,7 @@ function createHuntProjection(value = null, nowMs = 0) {
         timeRemainingSeconds: Math.max(0, normalizeNumber(source.timeRemainingSeconds, 0)),
         overtime: source.overtime === true,
         authoritativeClient: source.authoritativeClient === true,
+        teamMode: source.teamMode === true,
     };
 }
 

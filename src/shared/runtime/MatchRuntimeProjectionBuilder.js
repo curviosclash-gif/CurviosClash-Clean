@@ -172,9 +172,13 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
     const combatModeId = String(entityManager?.gameModeStrategy?.getPickupModeType?.() || modeId);
     const gameStateId = String(sessionRuntime?.lifecycle?.gameStateId || game?.state || '');
     const parcoursHudState = entityManager?.getParcoursHudState?.(localPlayerIndex) || null;
-    const scoreboardRows = authoritativeFightState?.scoreboardRows
+    const playerScoreboardRows = authoritativeFightState?.scoreboardRows
         || entityManager?.getHuntScoreboard?.()
         || [];
+    const teamMode = authoritativeFightState?.teamMode === true || entityManager?.runtimeConfig?.hunt?.teamMode === true;
+    const scoreboardRows = teamMode
+        ? (authoritativeFightState?.teamScoreboardRows || [])
+        : playerScoreboardRows;
 
     return assembleMatchRuntimeProjection({
         updatedAt: Date.now(),
@@ -209,6 +213,7 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
             timeRemainingSeconds: deathmatchState.timeRemainingSeconds || 0,
             overtime: deathmatchState.overtime === true,
             authoritativeClient: entityManager?.isFightOutcomeAuthority === false,
+            teamMode,
         },
         arcade: entityManager?.endlessParcoursRuntime?.getHudState?.()
             || facade?.arcadeRunRuntime?.getHudState?.()

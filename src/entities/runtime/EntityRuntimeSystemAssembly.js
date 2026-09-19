@@ -58,6 +58,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
             getElapsedSeconds: () => Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
             getObjectiveOutcome: () => isFivePortalsConfig(owner.runtimeConfig)
                 ? null : (owner._parcoursProgressSystem?.getRoundOutcome?.() || null),
+            isTeamMode: () => owner.runtimeConfig?.hunt?.teamMode === true,
         }),
         setupOps: new EntitySetupOps(owner),
         spawnOps: new EntitySpawnOps(owner),

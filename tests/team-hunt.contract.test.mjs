@@ -1,0 +1,104 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+    createTeamScoreboard,
+    normalizeTeamHuntSettings,
+    resolveTeamRoster,
+} from '../src/shared/contracts/TeamHuntContract.js';
+import { TEAM_IDS } from '../src/shared/contracts/TeamCombatContract.js';
+import { RoundOutcomeSystem } from '../src/entities/systems/RoundOutcomeSystem.js';
+import { buildEntityManagerSetupOptions } from '../src/state/match-session/MatchSessionSetupOps.js';
+import { createRuntimeConfigSnapshot } from '../src/core/RuntimeConfig.js';
+import { createMenuSettingsDefaults } from '../src/ui/menu/MenuDefaultsEditorConfig.js';
+import { HuntScoring } from '../src/hunt/HuntScoring.js';
+
+function combatant(index, teamId, alive = true) {
+    return { index, teamId, alive, entitySlotActive: true, isBot: index > 1 };
+}
+
+test('team settings default to a 4v4 roster and normalize per-team bot difficulty', () => {
+    assert.deepEqual(normalizeTeamHuntSettings({ teamMode: true, teamSize: 99, teamBotDifficulty: { ALPHA: 'easy', BRAVO: 'hard' } }), {
+        enabled: true,
+        teamSize: 5,
+        botDifficulty: { ALPHA: 'EASY', BRAVO: 'HARD' },
+    });
+    assert.deepEqual(resolveTeamRoster({ humanCount: 3, teamSize: 4 }), {
+        totalSlots: 8,
+        botCount: 5,
+        teamIds: [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO],
+    });
+});
+
+test('team scoreboard aggregates the selected Hunt metric and keeps player statistics', () => {
+    const players = [combatant(0, TEAM_IDS.ALPHA), combatant(1, TEAM_IDS.BRAVO), combatant(2, TEAM_IDS.ALPHA)];
+    const rows = [
+        { playerIndex: 0, kills: 2, points: 5, deaths: 1, assists: 1, damage: 20 },
+        { playerIndex: 1, kills: 4, points: 8, deaths: 2, assists: 0, damage: 30 },
+        { playerIndex: 2, kills: 3, points: 7, deaths: 1, assists: 2, damage: 40 },
+    ];
+    const teams = createTeamScoreboard(rows, players, { scoreKey: 'kills' });
+    assert.deepEqual(teams.map((row) => [row.teamId, row.kills, row.points, row.playerIndices]), [
+        [TEAM_IDS.ALPHA, 5, 12, [0, 2]],
+        [TEAM_IDS.BRAVO, 4, 8, [1]],
+    ]);
+});
+
+test('team deathmatch ends on the aggregate kill target and returns a winning team representative', () => {
+    const players = [combatant(0, TEAM_IDS.ALPHA), combatant(1, TEAM_IDS.BRAVO), combatant(2, TEAM_IDS.ALPHA)];
+    const system = new RoundOutcomeSystem({
+        getPlayers: () => players,
+        getScoreboard: () => [
+            { playerIndex: 0, kills: 3 },
+            { playerIndex: 1, kills: 4 },
+            { playerIndex: 2, kills: 2 },
+        ],
+        isRespawnEnabled: () => true,
+        isTeamMode: () => true,
+        getDeathmatchKillLimit: () => 5,
+    });
+    const outcome = system.resolve();
+    assert.equal(outcome.shouldEnd, true);
+    assert.equal(outcome.winner.teamId, TEAM_IDS.ALPHA);
+    assert.equal(outcome.winnerTeamId, TEAM_IDS.ALPHA);
+});
+
+test('match setup assigns every human and bot slot to the balanced roster', () => {
+    const runtimeConfig = {
+        session: { activeGameMode: 'HUNT', numHumans: 2 },
+        hunt: { teamMode: true, teamSize: 4, teamBotDifficulty: { ALPHA: 'EASY', BRAVO: 'HARD' } },
+    };
+    const options = buildEntityManagerSetupOptions({ gameplay: {}, vehicles: {}, hunt: {} }, runtimeConfig);
+    assert.deepEqual(options.humanConfigs.map((entry) => entry.teamId), [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO]);
+    assert.deepEqual(options.botTeamIds, [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO]);
+});
+
+test('team Hunt settings enter the immutable match snapshot', () => {
+    const defaults = createMenuSettingsDefaults();
+    const settings = {
+        ...defaults,
+        gameMode: 'HUNT',
+        hunt: {
+            ...defaults.hunt,
+            respawnEnabled: true,
+            teamMode: true,
+            teamSize: 3,
+            teamBotDifficulty: { ALPHA: 'HARD', BRAVO: 'EASY' },
+        },
+    };
+    const runtime = createRuntimeConfigSnapshot(settings);
+    assert.equal(settings.hunt.teamMode, true);
+    assert.equal(runtime.hunt.teamMode, true);
+    assert.equal(runtime.hunt.teamSize, 3);
+    assert.deepEqual(runtime.hunt.teamBotDifficulty, { ALPHA: 'HARD', BRAVO: 'EASY' });
+});
+
+test('lethal friendly fire records the death without awarding a team kill', () => {
+    const scoring = new HuntScoring(() => 1);
+    const attacker = combatant(0, TEAM_IDS.ALPHA);
+    const teammate = combatant(2, TEAM_IDS.ALPHA);
+    scoring.registerElimination(teammate, { killer: attacker, nowSeconds: 1 });
+    const rows = scoring.getScoreboard([attacker, teammate]);
+    assert.equal(rows.find((row) => row.playerIndex === 0).kills, 0);
+    assert.equal(rows.find((row) => row.playerIndex === 2).deaths, 1);
+});

@@ -441,6 +441,27 @@
                                                 <input type="checkbox" id="hunt-respawn-toggle">
                                                 Respawn aktivieren (Deathmatch)
                                             </label>
+                                            <label class="toggle-row" for="hunt-team-mode-toggle">
+                                                <input type="checkbox" id="hunt-team-mode-toggle">
+                                                Team-HUNT aktivieren
+                                            </label>
+                                            <div id="hunt-team-rules" class="menu-section hidden">
+                                                <label for="hunt-team-size-select">Spieler pro Team</label>
+                                                <select id="hunt-team-size-select">
+                                                    <option value="2">2 gegen 2</option>
+                                                    <option value="3">3 gegen 3</option>
+                                                    <option value="4" selected>4 gegen 4</option>
+                                                    <option value="5">5 gegen 5</option>
+                                                </select>
+                                                <label for="hunt-team-alpha-difficulty">Bots Team Alpha</label>
+                                                <select id="hunt-team-alpha-difficulty">
+                                                    <option value="EASY">Leicht</option><option value="NORMAL" selected>Normal</option><option value="HARD">Schwer</option>
+                                                </select>
+                                                <label for="hunt-team-bravo-difficulty">Bots Team Bravo</label>
+                                                <select id="hunt-team-bravo-difficulty">
+                                                    <option value="EASY">Leicht</option><option value="NORMAL" selected>Normal</option><option value="HARD">Schwer</option>
+                                                </select>
+                                            </div>
                                             <div id="hunt-deathmatch-rules" class="menu-section hidden" aria-hidden="true">
                                                 <label for="hunt-win-condition-select">Siegbedingung</label>
                                                 <select id="hunt-win-condition-select">

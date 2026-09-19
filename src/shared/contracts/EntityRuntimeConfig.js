@@ -218,6 +218,9 @@ export function createEntityRuntimeConfig(runtimeConfig = null, baseConfig = nul
             contract.HUNT.DEATHMATCH_TIME_LIMIT_SECONDS
         )));
         contract.HUNT.WIN_CONDITION = normalizeHuntWinCondition(runtimeConfig.hunt.winCondition);
+        contract.HUNT.TEAM_MODE = runtimeConfig.hunt.teamMode === true;
+        contract.HUNT.TEAM_SIZE = Math.max(1, Math.min(5, Math.trunc(toFiniteNumber(runtimeConfig.hunt.teamSize, 4))));
+        contract.HUNT.TEAM_BOT_DIFFICULTY = cloneObject(runtimeConfig.hunt.teamBotDifficulty, { ALPHA: 'NORMAL', BRAVO: 'NORMAL' });
     }
 
     if (runtimeConfig?.huntCombat) {

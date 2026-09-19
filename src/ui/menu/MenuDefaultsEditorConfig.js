@@ -69,6 +69,9 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
             deathmatchKillLimit: Number(HUNT_CONFIG.DEATHMATCH_KILL_LIMIT) || 10,
             timeLimitEnabled: true,
             winCondition: HUNT_WIN_CONDITIONS.KILLS_TIME,
+            teamMode: false,
+            teamSize: 4,
+            teamBotDifficulty: { ALPHA: 'NORMAL', BRAVO: 'NORMAL' },
         },
         arcade: createDefaultArcadeRunSettings(),
         gameplay: {

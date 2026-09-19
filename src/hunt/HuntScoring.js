@@ -1,4 +1,5 @@
 import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
+import { areTeammates } from '../shared/contracts/TeamCombatContract.js';
 
 const ASSIST_WINDOW_SECONDS = 8;
 const ASSIST_MIN_DAMAGE = 10;
@@ -121,7 +122,7 @@ export class HuntScoring {
         targetStats.deaths += 1;
         if (Number(options.spawnAgeSeconds) <= SPAWN_DEATH_WINDOW_SECONDS) targetStats.spawnDeaths += 1;
 
-        if (killerIndex >= 0 && killerIndex !== targetIndex) {
+        if (killerIndex >= 0 && killerIndex !== targetIndex && !areTeammates(options?.killer, targetPlayer)) {
             const killerStats = this._ensureStats(killerIndex);
             killerStats.kills += 1;
             killerStats.points += 2;

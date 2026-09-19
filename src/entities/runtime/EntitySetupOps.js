@@ -165,6 +165,8 @@ export class EntitySetupOps {
         return {
             humanConfigs: Array.isArray(options.humanConfigs) ? options.humanConfigs : [],
             botTeamIds: Array.isArray(options.botTeamIds) ? options.botTeamIds : [],
+            teamBotDifficulty: options.teamBotDifficulty && typeof options.teamBotDifficulty === 'object'
+                ? options.teamBotDifficulty : null,
             modelScale: typeof options.modelScale === 'number'
                 ? options.modelScale
                 : (entityRuntimeConfig.PLAYER?.MODEL_SCALE || 1),
@@ -239,8 +241,9 @@ export class EntitySetupOps {
                 ? scenarioRoles[i % scenarioRoles.length]
                 : '';
             player.scenarioAnchor = null;
+            const botDifficulty = setupContext.teamBotDifficulty?.[player.teamId] || owner.botDifficulty;
             const ai = owner.botPolicyRegistry.create(owner.botPolicyType, {
-                difficulty: owner.botDifficulty,
+                difficulty: botDifficulty,
                 recorder: owner.recorder,
                 runtimeConfig: owner.runtimeConfig,
                 runtimeProfiler: owner.runtimeProfiler,

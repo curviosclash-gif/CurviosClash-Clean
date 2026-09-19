@@ -63,7 +63,8 @@ export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLi
     if (isEndlessParcoursConfig(runtimeConfig)) return 'Endlosjagd · überlebe so lange wie möglich';
     if (huntProjection?.respawnEnabled !== true) return 'Elimination · letzter Überlebender gewinnt';
     const mode = normalizeHuntWinCondition(huntProjection?.winCondition);
-    if (mode === HUNT_WIN_CONDITIONS.LAST_ALIVE) return `Letzter Überlebender · ${HUNT_LAST_ALIVE_LIVES} Leben pro Spieler`;
-    if (mode === HUNT_WIN_CONDITIONS.SCORE_TARGET) return `Punktziel · zuerst ${killLimit} Punkte${matchPointText}`;
-    return `Deathmatch · zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`;
+    const prefix = huntProjection?.teamMode === true ? 'Team-HUNT · ' : '';
+    if (mode === HUNT_WIN_CONDITIONS.LAST_ALIVE) return `${prefix}Letztes Team · ${HUNT_LAST_ALIVE_LIVES} Leben pro Spieler`;
+    if (mode === HUNT_WIN_CONDITIONS.SCORE_TARGET) return `${prefix}Punktziel · zuerst ${killLimit} Punkte${matchPointText}`;
+    return `${prefix}zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`;
 }

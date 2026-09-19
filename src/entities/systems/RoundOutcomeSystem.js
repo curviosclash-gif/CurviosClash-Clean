@@ -1,4 +1,6 @@
 import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../../shared/contracts/HuntWinConditionContract.js';
+import { createTeamScoreboard } from '../../shared/contracts/TeamHuntContract.js';
+import { normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
 
 export class RoundOutcomeSystem {
     constructor({
@@ -15,6 +17,7 @@ export class RoundOutcomeSystem {
         getDeathmatchTimeLimitSeconds = () => 300,
         getElapsedSeconds = () => 0,
         getObjectiveOutcome = () => null,
+        isTeamMode = () => false,
     } = {}) {
         this.getPlayers = getPlayers;
         this.getHumanPlayers = getHumanPlayers;
@@ -29,6 +32,7 @@ export class RoundOutcomeSystem {
         this.getDeathmatchTimeLimitSeconds = getDeathmatchTimeLimitSeconds;
         this.getElapsedSeconds = getElapsedSeconds;
         this.getObjectiveOutcome = getObjectiveOutcome;
+        this.isTeamMode = isTeamMode;
         this._overtime = false;
         this._requestedOutcome = null;
     }
@@ -89,8 +93,18 @@ export class RoundOutcomeSystem {
         }
 
         const combatants = this._getCombatants();
+        const teamMode = this.isTeamMode() === true;
         if (this.isRespawnEnabled() && normalizeHuntWinCondition(this.getWinCondition()) === HUNT_WIN_CONDITIONS.LAST_ALIVE) {
             const contenders = combatants.filter((player) => player.alive || this.isRespawnPending(player));
+            if (teamMode) {
+                const contenderTeams = [...new Set(contenders.map((player) => normalizeTeamId(player?.teamId)).filter(Boolean))];
+                const shouldEnd = contenderTeams.length <= 1 && combatants.length > 1;
+                const winnerTeamId = shouldEnd ? contenderTeams[0] || null : null;
+                const winner = winnerTeamId
+                    ? contenders.find((player) => normalizeTeamId(player?.teamId) === winnerTeamId) || null
+                    : null;
+                return { shouldEnd, winner, winnerTeamId, reason: shouldEnd ? 'LAST_ALIVE' : '', parcours: null };
+            }
             const shouldEnd = (combatants.length > 1 && contenders.length <= 1)
                 || (combatants.length === 1 && contenders.length === 0);
             return {
@@ -103,7 +117,10 @@ export class RoundOutcomeSystem {
         if (this.isRespawnEnabled()) {
             const scoreTarget = normalizeHuntWinCondition(this.getWinCondition()) === HUNT_WIN_CONDITIONS.SCORE_TARGET;
             const killLimit = Math.max(1, Math.trunc(Number(this.getDeathmatchKillLimit()) || 10));
-            const scoreboard = this.getScoreboard() || [];
+            const playerScoreboard = this.getScoreboard() || [];
+            const scoreboard = teamMode
+                ? createTeamScoreboard(playerScoreboard, combatants, { scoreKey: scoreTarget ? 'points' : 'kills' })
+                : playerScoreboard;
             const leader = scoreboard[0] || null;
             const runnerUp = scoreboard[1] || null;
             const leaderScore = Math.max(0, Number(scoreTarget ? leader?.points : leader?.kills) || 0);
@@ -112,18 +129,29 @@ export class RoundOutcomeSystem {
             const timeExpired = state.timeLimitSeconds > 0 && state.timeRemainingSeconds <= 0;
 
             if (this._overtime && leader && !topTied) {
-                const winner = combatants.find((player) => player?.index === leader.playerIndex) || null;
-                return { shouldEnd: !!winner, winner, reason: 'OVERTIME', parcours: null };
+                const winner = teamMode
+                    ? combatants.find((player) => normalizeTeamId(player?.teamId) === leader.teamId) || null
+                    : combatants.find((player) => player?.index === leader.playerIndex) || null;
+                return {
+                    shouldEnd: !!winner,
+                    winner,
+                    ...(teamMode ? { winnerTeamId: leader.teamId || null } : {}),
+                    reason: 'OVERTIME',
+                    parcours: null,
+                };
             }
             if ((leaderScore >= killLimit || timeExpired) && topTied) {
                 this._overtime = true;
                 return { shouldEnd: false, winner: null, reason: 'OVERTIME', parcours: null };
             }
             if (leader && (leaderScore >= killLimit || timeExpired)) {
-                const winner = combatants.find((player) => player?.index === leader.playerIndex) || null;
+                const winner = teamMode
+                    ? combatants.find((player) => normalizeTeamId(player?.teamId) === leader.teamId) || null
+                    : combatants.find((player) => player?.index === leader.playerIndex) || null;
                 return {
                     shouldEnd: !!winner,
                     winner,
+                    ...(teamMode ? { winnerTeamId: leader.teamId || null } : {}),
                     reason: leaderScore >= killLimit ? (scoreTarget ? 'SCORE_TARGET' : 'KILL_LIMIT') : 'TIME_LIMIT',
                     parcours: null,
                 };
