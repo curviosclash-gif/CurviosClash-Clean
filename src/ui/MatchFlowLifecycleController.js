@@ -1,5 +1,6 @@
 import { createRoundEndRecorderAdapter, getLastRoundGhostClip } from './MatchFlowTransitionHotspots.js';
 import { resolveLocalPlayerIndexes } from './postmatch/PostMatchStandingsBlock.js';
+import { WEAPON_RACE_GHOST_ROUTE_ID, isWeaponRaceConfig } from '../shared/contracts/WeaponRaceContract.js';
 
 export class MatchFlowLifecycleController {
     constructor(deps = {}) {
@@ -29,6 +30,9 @@ export class MatchFlowLifecycleController {
 
     _resolveGhostRouteContext() {
         const game = this.game;
+        if (isWeaponRaceConfig(game?.runtimeConfig)) {
+            return { routeId: WEAPON_RACE_GHOST_ROUTE_ID, routeAliases: [WEAPON_RACE_GHOST_ROUTE_ID] };
+        }
         const explicitRouteId = String(game?.arena?.currentMapDefinition?.parcours?.routeId || '').trim();
         const runtimeRouteId = String(game?.arena?.runtimeMapDefinition?.parcours?.routeId || '').trim();
         const fallbackMapKeys = [
@@ -89,6 +93,7 @@ export class MatchFlowLifecycleController {
 
     _persistRoundGhostForActiveRoute() {
         const game = this.game;
+        if (isWeaponRaceConfig(game?.runtimeConfig)) return null;
         const routeContext = this._resolveGhostRouteContext();
         const routeId = routeContext.routeId;
         if (!routeId || typeof this.runtimePort?.applyArcadeParcoursEvent !== 'function') {
@@ -157,9 +162,14 @@ export class MatchFlowLifecycleController {
         const roundEndPlan = this.coordinateRoundEnd
             ? this.coordinateRoundEnd(this.buildRoundEndCoordinatorRequest(winner, outcome))
             : {};
-        const ghostClip = getLastRoundGhostClip(this.runtimePort, game, {
-            displayDuration: game.roundPause,
-        });
+        const weaponRace = isWeaponRaceConfig(game?.runtimeConfig);
+        const humanPlayerId = String(game?.entityManager?.humanPlayers?.[0]?.index ?? '');
+        const humanFinishedWeaponRace = outcome?.parcours?.standings?.some?.(
+            (row) => row?.playerId === humanPlayerId && row?.result === 'finished'
+        ) === true;
+        const ghostClip = !weaponRace || humanFinishedWeaponRace
+            ? getLastRoundGhostClip(this.runtimePort, game, { displayDuration: game.roundPause })
+            : null;
         this._persistRoundGhostForActiveRoute();
         // The hunt kills/deaths/assists used to hang below the headline as one long line; since
         // the result board's standings table carries those columns itself, the headline stays

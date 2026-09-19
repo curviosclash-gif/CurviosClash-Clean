@@ -188,7 +188,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     get modeType() { return 'ARCADE'; }
     getPickupModeType() { return this._huntCombat ? 'HUNT' : this.modeType; }
     getCombatProfile() { return this._combatProfile; }
-    isEndlessParcours() { return this._runType === ENDLESS_PARCOURS_RUN_TYPE; }
+    isEndlessParcours() { return this._runType === ENDLESS_PARCOURS_RUN_TYPE; } isWeaponRace() { return this._runType === 'weapon_race'; }
     hasCombatHud() { return !!this._huntCombat; }
 
     // --- Sudden Death (61.6.2) ---
@@ -611,7 +611,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     isRespawnEnabled() { return false; }
 
     filterSpawnableTypes(typeKeys, powerupTypes) {
-        if (this._huntCombat) return this._huntCombat.filterSpawnableTypes(
+        if (this.isWeaponRace()) return typeKeys.filter((type) => type === 'SHIELD' || type === 'SPEED_UP'); if (this._huntCombat) return this._huntCombat.filterSpawnableTypes(
             this.isSectorParcours() ? typeKeys.filter((type) => type !== 'ROCKET_TURRET') : typeKeys, powerupTypes);
         return typeKeys.filter((typeKey) => {
             const entry = powerupTypes[typeKey];

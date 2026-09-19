@@ -2,6 +2,7 @@ import {
     resetParcoursProgressState,
     rewindParcoursProgressState,
 } from './ParcoursProgressStateOps.js';
+import { createWeaponRaceRoute } from '../arcade/WeaponRaceRouteOps.js';
 
 const modeRulesByRoute = new WeakMap();
 
@@ -10,12 +11,14 @@ const modeRulesByRoute = new WeakMap();
 // time rather than when the route is built, because Arcade sets the sector type apart from the
 // round start. The merged route is cached so per-frame reads allocate nothing.
 export function resolveModeParcoursRoute(entityManager, route) {
+    const weaponRace = entityManager?.gameModeStrategy?.isWeaponRace?.() === true;
     const overrides = entityManager?.gameModeStrategy?.getParcoursRespawnFallback?.() || null;
     if (!route || !overrides || typeof overrides !== 'object') return route;
-    if (route.rules?.respawnOnDeath === true) return route;
+    if (!weaponRace && route.rules?.respawnOnDeath === true) return route;
     const cached = modeRulesByRoute.get(route);
     if (cached?.overrides === overrides) return cached.route;
-    const merged = { ...route, rules: { ...route.rules, ...overrides } };
+    const base = weaponRace ? createWeaponRaceRoute(route) : route;
+    const merged = { ...base, rules: { ...base.rules, ...overrides } };
     modeRulesByRoute.set(route, { overrides, route: merged });
     return merged;
 }
@@ -95,12 +98,14 @@ export function applyParcoursDeathRespawn(route, state, player, options = {}) {
             setErrorState: options.setErrorState,
         });
         state.checkpointRespawnsUsed = 0;
-    } else {
+    } else if (route?.rules?.preserveProgressOnDeath !== true) {
         rewindParcoursProgressState(state, route, {
             now: options.now,
             errorMessage: 'Rückfall auf letzten Checkpoint',
             setErrorState: options.setErrorState,
         });
+        state.checkpointRespawnsUsed = used;
+    } else {
         state.checkpointRespawnsUsed = used;
     }
 

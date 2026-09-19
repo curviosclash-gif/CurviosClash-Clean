@@ -88,11 +88,13 @@ export function normalizeArcadeRunSettings(source) {
         combatProfile: runType === ENDLESS_PARCOURS_RUN_TYPE
             && normalizeArcadeCombatProfile(input.combatProfile, runType) === ENDLESS_PARCOURS_COMBAT_PROFILE
             ? ENDLESS_PARCOURS_COMBAT_PROFILE
-            : (runType === FIVE_PORTALS_RUN_TYPE
+            : (runType === WEAPON_RACE_RUN_TYPE
+                ? 'hunt'
+                : (runType === FIVE_PORTALS_RUN_TYPE
                 ? FIVE_PORTALS_COMBAT_PROFILE
                 : (runType === ARENA_WAVES_RUN_TYPE
                 && normalizeArenaWavesCombatProfile(input.combatProfile, runType) === ARENA_WAVES_COMBAT_PROFILE
-                    ? ARENA_WAVES_COMBAT_PROFILE : DEFAULTS.combatProfile)),
+                    ? ARENA_WAVES_COMBAT_PROFILE : DEFAULTS.combatProfile))),
         scoreModel: normalizeArcadeScoreModel(input.scoreModel),
         seed: clampInteger(input.seed, ARCADE_RUN_SETTINGS_RANGES.seed, DEFAULTS.seed),
         sectorCount: clampInteger(input.sectorCount, ARCADE_RUN_SETTINGS_RANGES.sectorCount, DEFAULTS.sectorCount),

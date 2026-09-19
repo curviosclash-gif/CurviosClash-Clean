@@ -35,7 +35,7 @@ function build() {
 
 const byClass = (parent, name) => parent.children.find((child) => String(child.className).split(' ').includes(name));
 
-test('the four run starts sit together in a "Lauf starten" group at the top', () => {
+test('the five run starts sit together in a "Lauf starten" group at the top', () => {
     const { body } = build();
     const group = body.children[0];
     assert.match(group.className, /\barcade-start-group\b/);
@@ -46,6 +46,7 @@ test('the four run starts sit together in a "Lauf starten" group at the top', ()
         'btn-arcade-endless-start-inline',
         'btn-arcade-five-fronts-start-inline',
         'btn-arcade-five-portals-start-inline',
+        'btn-arcade-weapon-race-start-inline',
     ]);
     for (const option of options) {
         const copy = option.children[1];

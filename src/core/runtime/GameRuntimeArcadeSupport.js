@@ -2,7 +2,6 @@ import { createArcadeRoundStateController } from '../../state/arcade/ArcadeRound
 import { buildArcadeSectorPlan, resolveArcadeSectorRuntimeProfile } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { resolveMapSequence } from '../../state/arcade/ArcadeMapProgression.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
-import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../../shared/contracts/PlayerDisplayLabelContract.js';
 import { ArcadeRunRuntime } from '../arcade/ArcadeRunRuntime.js';
 import { ReplayRecorder } from '../replay/ReplayRecorder.js';
 import { isEndlessParcoursConfig } from '../../shared/contracts/EndlessParcoursContract.js';
@@ -13,60 +12,9 @@ import { resolveObjectiveTargetIndex } from '../../entities/systems/ObjectiveTar
 import { FIVE_PORTALS_MAPS, isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
 import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
 import { applyArcadeRuntimeCosmetics } from '../arcade/ArcadeRuntimeCosmeticOps.js';
-
-function lockSelectedMapToFirstSector(plan, runtimeConfig, mapCatalog) {
-    if (!plan || !Array.isArray(plan.sequence) || plan.sequence.length === 0) return plan;
-    if (runtimeConfig?.arcade?.dailyChallenge === true) return plan;
-
-    const selectedMapKey = String(runtimeConfig?.session?.mapKey || '').trim();
-    const selectedMap = selectedMapKey ? mapCatalog?.[selectedMapKey] : null;
-    if (!selectedMap) return plan;
-
-    const firstSector = plan.sequence[0] && typeof plan.sequence[0] === 'object'
-        ? plan.sequence[0]
-        : {};
-    const isParcours = selectedMap?.parcours?.enabled === true;
-    const selectedFirstSector = isParcours
-        ? {
-            ...firstSector,
-            templateId: 'sector_parcours',
-            squadId: null,
-            objectiveId: 'parcours_run',
-            modifierId: null,
-            scoreBonus: 0,
-            pressure: 0,
-            mapKey: selectedMapKey,
-            mapKeyLocked: true,
-            isBoss: false,
-            bossMultiplier: 1,
-            parcoursEnabled: true,
-        }
-        : {
-            ...firstSector,
-            mapKey: selectedMapKey,
-            mapKeyLocked: true,
-        };
-
-    return {
-        ...plan,
-        sequence: [selectedFirstSector, ...plan.sequence.slice(1)],
-    };
-}
-
-function buildObjectiveParticipants(entityManager) {
-    return (Array.isArray(entityManager?.players) ? entityManager.players : []).map((player) => ({
-        playerIndex: Math.max(0, Number(player?.index) || 0),
-        label: formatPlayerDisplayLabel(player, { style: PLAYER_LABEL_STYLES.LONG }),
-        isBot: player?.isBot === true,
-        alive: player?.alive !== false,
-    }));
-}
-
-function requestObjectiveRoundEnd(entityManager, request) {
-    const winner = (Array.isArray(entityManager?.humanPlayers) ? entityManager.humanPlayers : [])
-        .find((player) => player && player.alive !== false) || null;
-    return winner ? entityManager.requestRoundEnd?.({ ...request, winner }) === true : false;
-}
+import { WEAPON_RACE_BOT_COUNT, WEAPON_RACE_MAP_KEY, isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
+import { WeaponRaceRuntime } from '../arcade/WeaponRaceRuntime.js';
+import { buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, lockSelectedMapToFirstSector, requestObjectiveRoundEnd } from './GameRuntimeArcadeSupportOps.js';
 
 export class GameRuntimeArcadeSupport {
     constructor({
@@ -123,7 +71,12 @@ export class GameRuntimeArcadeSupport {
             requestMapTransition: (transition) => { this._pendingSectorTransition = transition; },
             requestAdvance: () => this._requestRunAdvance(),
         });
+        this.weaponRaceRuntime = new WeaponRaceRuntime({
+            now: this._nowMs,
+            getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
+        });
         this._arcadeGameplayEventHandler = (event) => {
+            if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) return this.weaponRaceRuntime.handleGameplayEvent(event);
             if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.handleGameplayEvent(event);
             if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.handleGameplayEvent(event);
             const endless = this._getEndlessRuntime();
@@ -198,7 +151,7 @@ export class GameRuntimeArcadeSupport {
             this._deactivateRoundController();
             return;
         }
-        this.arcadeRunRuntime.configure(runtimeConfig);
+        configureArcadeRunRuntime(this.arcadeRunRuntime, runtimeConfig);
         if (runtimeConfig?.arcade?.enabled && !isEndlessParcoursConfig(runtimeConfig)) {
             this._activateRoundController();
             return;
@@ -231,19 +184,26 @@ export class GameRuntimeArcadeSupport {
     _bindParcoursCallbacks(runtimeState = this.getRuntimeState()) {
         const parcoursSystem = runtimeState?.entityManager?._parcoursProgressSystem;
         const fivePortals = isFivePortalsConfig(runtimeState?.runtimeConfig);
+        const weaponRace = isWeaponRaceConfig(runtimeState?.runtimeConfig);
         if (parcoursSystem && typeof parcoursSystem.setXpEventCallback === 'function') {
             parcoursSystem.setXpEventCallback(
-                fivePortals ? (eventType, playerIndex) => this.fivePortalsRuntime.handleXpEvent(eventType, playerIndex)
+                weaponRace ? (eventType, playerIndex, context) => (eventType === 'checkpoint'
+                    ? this.weaponRaceRuntime.handleCheckpoint({ playerIndex, checkpointId: context?.checkpointId })
+                    : this.weaponRaceRuntime.handleFinish({ playerIndex, finishedAtMs: context?.finishedAtMs }))
+                    : fivePortals ? (eventType, playerIndex) => this.fivePortalsRuntime.handleXpEvent(eventType, playerIndex)
                     : (eventType, playerIndex) => this.arcadeRunRuntime.applyParcoursXpEvent(eventType, playerIndex)
             );
         }
         if (parcoursSystem && typeof parcoursSystem.setLeaderboardCallback === 'function') {
             parcoursSystem.setLeaderboardCallback(
-                fivePortals ? (data) => this.fivePortalsRuntime.handleParcoursEvent(data)
+                weaponRace ? (data) => handleWeaponRaceLeaderboard(this, runtimeState, data)
+                    : fivePortals ? (data) => this.fivePortalsRuntime.handleParcoursEvent(data)
                     : (data) => this.arcadeRunRuntime.applyParcoursLeaderboardEvent(data)
             );
         }
         parcoursSystem?.setAttemptResetCallback?.(fivePortals ? () => this.fivePortalsRuntime.handleAttemptReset() : null);
+        parcoursSystem?.setDeathCallback?.(weaponRace ? (data) => this.weaponRaceRuntime.handleDeath(data) : null);
+        parcoursSystem?.setSpawnCallback?.(weaponRace ? (data) => this.weaponRaceRuntime.handleDeath(data) : null);
         if (parcoursSystem && typeof parcoursSystem.setGhostRecorder === 'function') {
             parcoursSystem.setGhostRecorder(this.arcadeRunRuntime.getGhostRecorder?.() || null);
         }
@@ -292,6 +252,12 @@ export class GameRuntimeArcadeSupport {
             this._preparedEncounterPlan = null;
             this._pendingSectorTransition = null;
             return { mapKey: 'notre_dame_arena', botCount: ARENA_WAVES_BOT_CAPACITY, arenaWaves: true };
+        }
+        if (isWeaponRaceConfig(runtimeConfig)) {
+            this._preparedEncounterPlan = null;
+            this._pendingSectorTransition = null;
+            this.arcadeRunRuntime.setActiveVehicle(this._resolveActiveVehicleId(runtimeConfig));
+            return { mapKey: WEAPON_RACE_MAP_KEY, botCount: WEAPON_RACE_BOT_COUNT, weaponRace: true };
         }
         if (isEndlessParcoursConfig(runtimeConfig)) {
             this._preparedEncounterPlan = null;
@@ -388,6 +354,15 @@ export class GameRuntimeArcadeSupport {
             this._sectorRebuildInFlight = false;
             return started;
         }
+        if (isWeaponRaceConfig(runtimeConfig)) {
+            this._bindGameplayCallback(runtimeState);
+            const started = this.weaponRaceRuntime.start({
+                entityManager: runtimeState?.entityManager || null,
+                vehicleId: this._resolveActiveVehicleId(runtimeConfig),
+            });
+            this._sectorRebuildInFlight = false;
+            return started;
+        }
         if (isEndlessParcoursConfig(runtimeConfig)) {
             this._bindGameplayCallback(runtimeState);
             const runtime = this._getEndlessRuntime(runtimeState);
@@ -452,6 +427,13 @@ export class GameRuntimeArcadeSupport {
             this.arenaWavesRuntime.dispose();
             return this.arenaWavesRuntime.getHudState();
         }
+        const weaponRaceState = this.weaponRaceRuntime.getHudState?.() || null;
+        if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)
+            || (weaponRaceState?.runType === 'weapon_race' && weaponRaceState.phase !== 'idle')) {
+            this.weaponRaceRuntime.dispose();
+            this.arcadeRunRuntime.resetRunState({ preserveRecords: true });
+            return this.weaponRaceRuntime.getHudState();
+        }
         return this.arcadeRunRuntime.resetRunState({
             preserveRecords: true,
             ...(options && typeof options === 'object' ? options : {}),
@@ -459,6 +441,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     getRunState() {
+        if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) return this.weaponRaceRuntime.getHudState();
         if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.getHudState();
         if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.getHudState();
         const endless = this._getEndlessRuntime();
@@ -467,6 +450,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     getMenuSurfaceState() {
+        if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) return this.weaponRaceRuntime.getHudState();
         if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.getHudState();
         if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.getHudState();
         const endless = this._getEndlessRuntime();
@@ -489,6 +473,10 @@ export class GameRuntimeArcadeSupport {
     }
 
     tickSuddenDeath(dt = 0) {
+        if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) {
+            this.weaponRaceRuntime.update(this._nowMs());
+            return null;
+        }
         if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return null;
         if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) {
             this.arenaWavesRuntime.update(dt);

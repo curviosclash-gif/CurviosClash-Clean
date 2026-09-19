@@ -235,7 +235,26 @@ export class ArcadeScoreHUD {
         const isEndless = String(hudState.runType || '') === 'endless_parcours';
         const isArenaWaves = String(hudState.runType || '') === 'arena_waves';
         const isFivePortals = String(hudState.runType || '') === 'five_portals';
-        setNodeText(this._scoreLabel, isFivePortals ? 'Map-Zeit' : 'Score');
+        const isWeaponRace = String(hudState.runType || '') === 'weapon_race';
+        setNodeText(this._scoreLabel, isFivePortals ? 'Map-Zeit' : (isWeaponRace ? 'Waffenrennen' : 'Score'));
+        if (isWeaponRace) {
+            if (this._metricLine) this._metricLine.style.display = 'none';
+            this._endlessSection?.hide();
+            if (this._breakdownWrap) this._breakdownWrap.style.display = 'none';
+            if (this._modifierWrap) this._modifierWrap.style.display = 'none';
+            this._suddenDeathBanner?.classList?.add('hidden');
+            this._transitionBanner?.classList?.add('hidden');
+            this._arenaWavesSection.style.display = 'block';
+            setNodeText(this._scoreValue, `${hudState.place || '-'}/${hudState.racerCount || 5}`);
+            const grace = hudState.phase === 'grace'
+                ? `\nZielphase ${Math.ceil(Math.max(0, Number(hudState.graceRemainingMs) || 0) / 1000)} s`
+                : '';
+            const leaders = (hudState.standings || []).slice(0, 5)
+                .map((row) => `${row.place}. Fahrer ${row.playerId}${row.result === 'DNF' ? ` · CP ${row.checkpointIndex}` : ` · ${formatTimerMs(row.finishTimeMs)}`}`)
+                .join('\n');
+            this._arenaWavesSection.textContent = `Checkpoint ${hudState.checkpoint || 0}/${hudState.checkpointCount || 9}\nWaffe ${hudState.weaponId || 'MG'}${grace}${leaders ? `\n${leaders}` : ''}`;
+            return;
+        }
         if (isFivePortals) {
             if (this._metricLine) this._metricLine.style.display = 'none';
             this._endlessSection?.hide();

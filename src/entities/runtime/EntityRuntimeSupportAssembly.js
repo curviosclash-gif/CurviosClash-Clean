@@ -45,6 +45,10 @@ export function handleRocketIntercept(owner, event) {
     owner?._huntScoring?.registerIntercept?.(defenderIndex);
     // The endless parcours pays its run xp per event (like a kill), and only to a human.
     if (defender.isBot !== true) owner?.endlessParcoursRuntime?.collectRunXp?.('intercept', 1);
+    if (defender.isBot !== true && owner?.runtimeConfig?.arcade?.runType === 'weapon_race'
+        && typeof owner?.onArcadeGameplayEvent === 'function') {
+        owner.onArcadeGameplayEvent({ type: 'intercept', playerIndex: defenderIndex, count: 1 });
+    }
     owner?.recorder?.logEvent?.(
         'ROCKET_INTERCEPT',
         defenderIndex,

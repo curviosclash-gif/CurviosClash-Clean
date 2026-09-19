@@ -34,6 +34,7 @@ function createRacer(playerId, humanPlayerId) {
         distanceToNext: Number.POSITIVE_INFINITY,
         awardedCheckpointIds: [],
         checkpointXp: 0,
+        weaponCheckpointId: '',
         finishXp: 0,
         finishedAtMs: null,
         finishTimeMs: null,
@@ -75,11 +76,13 @@ export function recordWeaponRaceCheckpoint(state, playerId, checkpointId) {
     const awardedXp = firstVisit && racer.isHuman ? WEAPON_RACE_CHECKPOINT_XP : 0;
     if (firstVisit) racer.awardedCheckpointIds.push(normalizedCheckpointId);
     racer.checkpointXp += awardedXp;
+    const stage = resolveWeaponRaceStage(normalizedCheckpointId);
+    if (stage) racer.weaponCheckpointId = normalizedCheckpointId;
     return {
         accepted: true,
         firstVisit,
         awardedXp,
-        stage: resolveWeaponRaceStage(normalizedCheckpointId),
+        stage,
     };
 }
 

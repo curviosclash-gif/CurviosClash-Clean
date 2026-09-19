@@ -179,7 +179,7 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
     runtime._ghostLibrary = upsert.ghostLibrary;
     runtime._lastGhostPlaybackRouteId = '';
     if (upsert.changed) runtime._scheduleGhostLibrarySave(store, ghostLibraryBudget);
-    if (!persistLibraryOnly && isBestTime) {
+    if (!persistLibraryOnly && isBestTime && data.awardBestXp !== false) {
         runtime.applyParcoursXpEvent('new_best_time', data.playerIndex || 0);
     }
     return {

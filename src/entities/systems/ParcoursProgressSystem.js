@@ -38,14 +38,13 @@ export class ParcoursProgressSystem {
         this._completionOrder = [];
         this._xpEventCallback = null;
         this._leaderboardCallback = null;
-        this._attemptResetCallback = null;
+        this._attemptResetCallback = null; this._deathCallback = null; this._spawnCallback = null;
         this._ghostRecorder = null;
         this._progressPlayerIndexResolver = null;
         this._respawnPlanByPlayer = new Map();
     }
-    setXpEventCallback(callback) { this._xpEventCallback = typeof callback === 'function' ? callback : null; }
-    setLeaderboardCallback(callback) { this._leaderboardCallback = typeof callback === 'function' ? callback : null; }
-    setAttemptResetCallback(callback) { this._attemptResetCallback = typeof callback === 'function' ? callback : null; }
+    setXpEventCallback(callback) { this._xpEventCallback = typeof callback === 'function' ? callback : null; } setLeaderboardCallback(callback) { this._leaderboardCallback = typeof callback === 'function' ? callback : null; }
+    setAttemptResetCallback(callback) { this._attemptResetCallback = typeof callback === 'function' ? callback : null; } setDeathCallback(callback) { this._deathCallback = typeof callback === 'function' ? callback : null; } setSpawnCallback(callback) { this._spawnCallback = typeof callback === 'function' ? callback : null; }
     setGhostRecorder(recorder) {
         this._ghostRecorder = recorder && typeof recorder.sample === 'function' ? recorder : null;
     }
@@ -93,7 +92,7 @@ export class ParcoursProgressSystem {
     }
     startRound(players = []) {
         this._clearGhostRecording('round-start');
-        this._route = resolveActiveParcoursRoute(this.entityManager);
+        this._route = resolveModeParcoursRoute(this.entityManager, resolveActiveParcoursRoute(this.entityManager));
         this._playerStates.clear();
         this._completionOrder.length = 0;
         this._respawnPlanByPlayer.clear();
@@ -199,8 +198,7 @@ export class ParcoursProgressSystem {
         if (!this._route || !player || !Number.isInteger(player.index)) return;
         const state = this._ensurePlayerState(player.index);
         if (!state) return;
-        const reason = normalizeString(options.reason, 'spawn');
-        if (reason === 'round_start' || reason === 'match_start' || reason === 'spawn_all') {
+        const reason = normalizeString(options.reason, 'spawn'); if (reason === 'round_start' || reason === 'match_start' || reason === 'spawn_all') {
             resetParcoursProgressState(state, {
                 countReset: false,
                 preserveCounters: false,
@@ -209,6 +207,7 @@ export class ParcoursProgressSystem {
                 setErrorState: this._setErrorState.bind(this),
             });
         }
+        if (reason === 'parcours_respawn') this._spawnCallback?.({ playerIndex: player.index, reason });
     }
 
     onPlayerDeath(player, options = {}) {
@@ -217,7 +216,7 @@ export class ParcoursProgressSystem {
         if (!state || state.completed) return;
 
         const reason = normalizeString(options.cause, 'death');
-        this._cancelGhostRecordingForPlayer(player, `death:${reason}`);
+        if (!this.entityManager?.gameModeStrategy?.isWeaponRace?.()) this._cancelGhostRecordingForPlayer(player, `death:${reason}`);
         if (this.isRespawnEnabled()) {
             const result = applyParcoursDeathRespawn(resolveModeParcoursRoute(this.entityManager, this._route), state, player, {
                 now: this.nowProvider(),
@@ -225,6 +224,7 @@ export class ParcoursProgressSystem {
                 setErrorState: this._setErrorState.bind(this),
             });
             if (result.plan) this._respawnPlanByPlayer.set(player.index, result.plan);
+            this._deathCallback?.({ playerIndex: player.index, checkpointId: result.plan?.checkpointId || '', cause: reason });
             if (result.plan?.restartAtFirstCheckpoint) this._attemptResetCallback?.(player.index);
             this._notifyPlayer(player, result.feedback);
             this._logRecorderEvent('PARCOURS_RESET', player, result.logDetails);
@@ -317,7 +317,7 @@ export class ParcoursProgressSystem {
         state.segmentSplitsMs.push(splitMs);
         const checkpointIndex = state.segmentSplitsMs.length - 1;
 
-        const cpXpResult = this._xpEventCallback?.('checkpoint', player.index);
+        const cpXpResult = this._xpEventCallback?.('checkpoint', player.index, { checkpointId: entry.id, atMs: now });
         if (cpXpResult?.earned > 0) {
             this._notifyPlayer(player, `+${cpXpResult.earned} XP`);
         }
@@ -420,7 +420,7 @@ export class ParcoursProgressSystem {
             `route=${this._route.routeId} timeMs=${Math.round(state.completionTimeMs)} penaltyMs=${penaltyTimeMs}`
         );
         this._playProgressAudio('PARCOURS_FINISH', player, { intensity: 1.15 });
-        const finishXpResult = this._xpEventCallback?.('finish', player.index);
+        const finishXpResult = this._xpEventCallback?.('finish', player.index, { finishedAtMs: now });
         if (finishXpResult?.earned > 0) {
             this._notifyPlayer(player, `+${finishXpResult.earned} XP (Parcours)`);
         }
@@ -499,9 +499,10 @@ export class ParcoursProgressSystem {
     }
 
     getRoundOutcome() {
-        if (!this._route || this._route.rules.winnerByParcoursComplete !== true) return null;
+        const modeOutcome = this._leaderboardCallback?.({ type: 'round_outcome', now: this.nowProvider() }); if (modeOutcome?.shouldEnd === true) return modeOutcome; if (!this._route || this._route.rules.winnerByParcoursComplete !== true) return null;
         const completion = this._completionOrder[0];
         if (!completion) return null;
+        const graceMs = Math.max(0, Number(this._route.rules.finishGraceMs) || 0); if (graceMs > 0 && this.nowProvider() < completion.completedAtMs + graceMs) return null;
         const winner = this.entityManager?.players?.[completion.playerIndex] || null;
         if (!winner) return null;
         return {

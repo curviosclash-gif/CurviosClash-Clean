@@ -37,7 +37,7 @@ export function buildArcadeSurface(level3Body, ui) {
 
     const body = createElement('div', 'menu-accordion-body arcade-surface-body');
 
-    // The four ways to start a run come first, each with one sentence; seed and
+    // The run starts come first, each with one sentence; seed and
     // statistics follow below as their own block.
     const startGroup = createElement('section', 'arcade-start-group');
     startGroup.appendChild(createElement('h3', 'arcade-surface-card-title', 'Lauf starten'));
@@ -65,6 +65,8 @@ export function buildArcadeSurface(level3Body, ui) {
         'Fünf Arenen mit anrollenden Bot-Wellen; zwischen den Wellen wählst du Verbesserungen.');
     const startFivePortalsButton = createStartOption('btn-arcade-five-portals-start-inline', 'Fünf Portale',
         'Fünf Parcours-Karten auf Zeit; das Ausgangsportal bringt dich jeweils zur nächsten.');
+    const startWeaponRaceButton = createStartOption('btn-arcade-weapon-race-start-inline', 'Waffenrennen',
+        'Fünf Fahrer jagen durch den Angriffsparcours und wechseln ihre Waffe an festen Checkpoints.');
     body.appendChild(startGroup);
 
     const statsBlock = createElement('section', 'arcade-stats-block');
@@ -171,6 +173,7 @@ export function buildArcadeSurface(level3Body, ui) {
     ui.arcadeEndlessStartInlineButton = startEndlessButton;
     ui.arcadeFiveFrontsStartInlineButton = startFiveFrontsButton;
     ui.arcadeFivePortalsStartInlineButton = startFivePortalsButton;
+    ui.arcadeWeaponRaceStartInlineButton = startWeaponRaceButton;
     ui.arcadeSeedRerollButton = rerollSeedButton;
     ui.arcadeSeedCopyButton = copySeedButton;
     ui.arcadeSeedInput = seedInput;
@@ -195,6 +198,7 @@ export function buildArcadeSurface(level3Body, ui) {
         startEndlessButton,
         startFiveFrontsButton,
         startFivePortalsButton,
+        startWeaponRaceButton,
         rerollSeedButton,
         copySeedButton,
         seedInput,

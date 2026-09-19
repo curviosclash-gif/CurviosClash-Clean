@@ -55,7 +55,7 @@ test('W7.4 old Arcade settings stay backward compatible while weapon_race is acc
     assert.equal(legacy.sectorCount, 8);
     assert.equal(legacy.replayHooksEnabled, false);
     assert.equal(normalizeArcadeRunSettings({ runType: 'WEAPON_RACE', combatProfile: 'hunt' }).runType, 'weapon_race');
-    assert.equal(normalizeArcadeRunSettings({ runType: 'WEAPON_RACE', combatProfile: 'hunt' }).combatProfile, '');
+    assert.equal(normalizeArcadeRunSettings({ runType: 'WEAPON_RACE', combatProfile: 'hunt' }).combatProfile, 'hunt');
 });
 
 test('W7.4 checkpoint weapon order and payloads are fixed and lookup has no random fallback', () => {

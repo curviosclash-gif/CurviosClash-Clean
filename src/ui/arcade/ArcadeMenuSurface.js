@@ -355,6 +355,11 @@ export function setupArcadeMenuSurface(ctx = {}) {
         settings.gameMode = 'ARCADE';
         if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
         settings.localSettings.modePath = 'arcade';
+        if (runType === 'weapon_race') {
+            settings.mode = '1p';
+            settings.localSettings.sessionType = 'single';
+            settings.localSettings.multiplayerTransport = '';
+        }
         const prepared = prepareHangarRunStart();
         if (prepared?.ok === false) return;
         const snapshot = createArcadeRunSnapshot({ ...settings, ...borrowedSettings }, activeSeed, prepared?.build);
@@ -369,6 +374,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     bind(refs.startEndlessButton, 'click', () => startRunWithOwnMap('endless_parcours', { mapKey: 'standard', numBots: 0 }));
     bind(refs.startFiveFrontsButton, 'click', () => startRunWithOwnMap('arena_waves', { mapKey: 'notre_dame_arena', numBots: 12 }));
     bind(refs.startFivePortalsButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: 'micro_maw', numBots: 0 }));
+    bind(refs.startWeaponRaceButton, 'click', () => startRunWithOwnMap('weapon_race', { mapKey: 'parcours_assault', numBots: 4 }));
 
     bind(refs.openHangarButton, 'click', async () => {
         const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });

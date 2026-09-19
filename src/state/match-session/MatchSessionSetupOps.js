@@ -4,6 +4,7 @@ import {
     THREE_PLAYER_SPLIT_PLAYER_COLORS,
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
 import { isArenaWavesRunType } from '../../shared/contracts/ArenaWavesContract.js';
+import { isWeaponRaceRunType } from '../../shared/contracts/WeaponRaceContract.js';
 import { invalidatePrewarmedArenaSession } from './MatchSessionPrewarmStore.js';
 import { normalizeTeamHuntSettings, resolveTeamRoster } from '../../shared/contracts/TeamHuntContract.js';
 import { normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
@@ -36,7 +37,9 @@ export function disposeMatchSessionSystems(renderer, currentSession, options = {
 
 export function buildHumanConfigs(settings, runtimeConfig = null) {
     const runtimeVehicles = runtimeConfig?.player?.vehicles || null;
-    const fightLoadouts = runtimeConfig?.session?.modePath === 'fight' || isArenaWavesRunType(runtimeConfig?.arcade?.runType)
+    const fightLoadouts = runtimeConfig?.session?.modePath === 'fight'
+        || isArenaWavesRunType(runtimeConfig?.arcade?.runType)
+        || isWeaponRaceRunType(runtimeConfig?.arcade?.runType)
         ? runtimeConfig?.player?.fightLoadouts || null
         : null;
     const session = runtimeConfig?.session || null;
