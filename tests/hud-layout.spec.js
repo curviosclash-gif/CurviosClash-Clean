@@ -111,6 +111,8 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                 const crosshair = document.querySelector('#crosshair-p1');
                 crosshair.classList.add('p1-split');
                 crosshair.style.display = 'block';
+                crosshair.style.left = '25%';
+                crosshair.style.top = '53.6%';
                 const itemBar = document.querySelector('#p1-items');
                 if (itemBar.children.length === 0) {
                     for (let index = 0; index < 5; index += 1) {
@@ -153,6 +155,10 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                 const slowmo = rect(document.querySelector('.hunt-arc-slowmo'));
                 const overheat = rect(document.querySelector('.hunt-arc-overheat'));
                 const crosshairRect = rect(crosshair);
+                crosshair.style.left = '35%';
+                crosshair.style.top = '44%';
+                const movedCrosshairRect = rect(crosshair);
+                const boostAfterAimMove = rect(document.querySelector('.hunt-arc-boost'));
                 const p2Panel = rect(document.querySelector('#hunt-p2-panel'));
                 const itemSlots = [...itemBar.children].map(rect);
 
@@ -171,6 +177,8 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                     slowmo,
                     overheat,
                     crosshair: crosshairRect,
+                    movedCrosshair: movedCrosshairRect,
+                    boostAfterAimMove,
                     p2Panel,
                     itemSlots,
                     arcOverlap: overlaps(boost, overheat),
@@ -249,6 +257,10 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
             expectNear(layout.boost.width, layout.overheat.width);
             expectNear(layout.boost.centerX, layout.crosshair.centerX);
             expectNear(layout.boost.centerY, layout.crosshair.centerY);
+            expectNear(layout.boostAfterAimMove.centerX, layout.boost.centerX);
+            expectNear(layout.boostAfterAimMove.centerY, layout.boost.centerY);
+            expect(Math.abs(layout.movedCrosshair.centerX - layout.boost.centerX)).toBeGreaterThan(1);
+            expect(Math.abs(layout.movedCrosshair.centerY - layout.boost.centerY)).toBeGreaterThan(1);
             expect(layout.p2Overlap).toBe(false);
             expect(layout.arcLabelCount).toBe(0);
             expect(layout.arcValueDisplays).toEqual(['none', 'none', 'none']);

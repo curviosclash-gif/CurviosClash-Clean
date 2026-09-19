@@ -7771,8 +7771,8 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter {
-    top: var(--hunt-target-y, 50%);
-    left: var(--hunt-target-x, 50%);
+    top: 53.6%;
+    left: 50%;
     width: 270px;
     height: 270px;
     opacity: 0.38;
@@ -7815,9 +7815,7 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-segment-active {
-    filter:
-        drop-shadow(0 0 4px color-mix(in srgb, var(--hunt-arc-color) 95%, transparent))
-        drop-shadow(0 0 10px color-mix(in srgb, var(--hunt-arc-color) 55%, transparent));
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--hunt-arc-color) 70%, transparent));
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-overheat .hunt-bar,
