@@ -39,6 +39,19 @@ function createWorld({ authority = true } = {}) {
     return { system, hit, safe, far, events };
 }
 
+test('a called bomber accepts the flat bounds shape used by the desktop arena', () => {
+    const { system, hit } = createWorld();
+    system.entityManager.arena.bounds = {
+        minX: -120, maxX: 120, minY: 0, maxY: 80, minZ: -90, maxZ: 90,
+    };
+    hit.position.z = 30;
+
+    assert.equal(system.callBomberStrike(hit), true);
+    const bomber = system.units.find((unit) => unit.summoned);
+    assert.ok(bomber);
+    assert.deepEqual(bomber.definition.path, [[-120, 30, 30], [120, 30, 30]]);
+});
+
 test('a bomber strikes below its fixed route every one and a half seconds', () => {
     const { system, hit, safe, far, events } = createWorld();
 

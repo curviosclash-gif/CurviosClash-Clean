@@ -269,14 +269,14 @@ export class MapUnitSystem {
     callBomberStrike(player) {
         if (this.networkReplica || !player || this.entityManager?.isFightOutcomeAuthority === false) return false;
         const bounds = this.entityManager?.arena?.bounds;
-        const minX = Number(bounds?.min?.x);
-        const maxX = Number(bounds?.max?.x);
-        const groundY = Number(bounds?.min?.y) || 0;
+        const minX = Number(bounds?.minX ?? bounds?.min?.x);
+        const maxX = Number(bounds?.maxX ?? bounds?.max?.x);
+        const groundY = Number(bounds?.minY ?? bounds?.min?.y) || 0;
         if (!Number.isFinite(minX) || !Number.isFinite(maxX) || maxX <= minX) return false;
-        const minZ = Number(bounds?.min?.z);
-        const maxZ = Number(bounds?.max?.z);
+        const minZ = Number(bounds?.minZ ?? bounds?.min?.z);
+        const maxZ = Number(bounds?.maxZ ?? bounds?.max?.z);
         const z = Math.max(Number.isFinite(minZ) ? minZ : -100, Math.min(Number.isFinite(maxZ) ? maxZ : 100, Number(player.position?.z) || 0));
-        const ceilingY = Number(bounds?.max?.y);
+        const ceilingY = Number(bounds?.maxY ?? bounds?.max?.y);
         const height = Number.isFinite(ceilingY) ? Math.min(groundY + 30, ceilingY - 1) : groundY + 30;
         const definition = normalizeMapUnit({
             id: `called_bomber_${++this._summonCounter}`,
