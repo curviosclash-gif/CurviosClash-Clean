@@ -18,4 +18,12 @@ export const STORM_LIGHTHOUSE_MODELS = Object.freeze([
         hiddenUntilTriggered: true,
         animationClock: Object.freeze({ mode: 'once', clipName: 'LighthouseCollapseOnce' }),
     }),
+    Object.freeze({
+        id: 'storm-lighthouse-lift',
+        url: `${ROOT}/30_lighthouse_lift.glb`,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: METRE,
+        animationClock: Object.freeze({ mode: 'loop', clipName: 'LighthouseLiftLoop' }),
+    }),
 ]);

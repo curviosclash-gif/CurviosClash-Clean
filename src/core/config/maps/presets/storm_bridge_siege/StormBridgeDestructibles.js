@@ -14,7 +14,7 @@ export const STORM_BRIDGE_DESTRUCTIBLES = Object.freeze({
         trigger: Object.freeze({ segmentId: 'bridge_span' }),
         modelId: 'storm-bridge-collapse',
         pieces: Object.freeze(['landmark']),
-        hideModelIds: Object.freeze(['storm-bridge-intact']),
+        hideModelIds: Object.freeze(['storm-bridge-intact', 'storm-bridge-train']),
         yawFromEvent: false,
         blast: Object.freeze({ radius: 28, damage: 45, delaySeconds: 1.2 }),
     })]),

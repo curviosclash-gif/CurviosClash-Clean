@@ -14,7 +14,7 @@ export const STORM_DAM_DESTRUCTIBLES = Object.freeze({
         trigger: Object.freeze({ segmentId: 'dam_wall' }),
         modelId: 'storm-dam-collapse',
         pieces: Object.freeze(['landmark']),
-        hideModelIds: Object.freeze(['storm-dam-intact']),
+        hideModelIds: Object.freeze(['storm-dam-intact', 'storm-dam-gate']),
         yawFromEvent: false,
         blast: Object.freeze({ radius: 32, damage: 50, delaySeconds: 1.4 }),
     })]),

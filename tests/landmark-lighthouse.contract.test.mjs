@@ -18,7 +18,7 @@ test('wave 6 lighthouse is a playable destructible landmark with a secret portal
     assert.deepEqual(destructibles.gameModes, ['HUNT']);
     assert.deepEqual(destructibles.segments.map((segment) => segment.id), ['lighthouse_tower']);
     assert.equal(destructibles.segments[0].kind, 'landmark');
-    assert.deepEqual(destructibles.breakScenes[0].hideModelIds, ['storm-lighthouse-intact']);
+    assert.deepEqual(destructibles.breakScenes[0].hideModelIds, ['storm-lighthouse-intact', 'storm-lighthouse-lift']);
 
     const rooms = normalizeSecretRooms(map.secretRooms);
     assert.equal(rooms.length, 1);

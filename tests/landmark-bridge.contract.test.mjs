@@ -19,7 +19,7 @@ test('wave 6 bridge is a playable destructible landmark with a secret portal', (
     assert.deepEqual(destructibles.segments.map((segment) => segment.id), ['bridge_span']);
     assert.equal(destructibles.segments[0].kind, 'landmark');
     assert.equal(destructibles.breakScenes.length, 1);
-    assert.deepEqual(destructibles.breakScenes[0].hideModelIds, ['storm-bridge-intact']);
+    assert.deepEqual(destructibles.breakScenes[0].hideModelIds, ['storm-bridge-intact', 'storm-bridge-train']);
 
     const rooms = normalizeSecretRooms(map.secretRooms);
     assert.equal(rooms.length, 1);

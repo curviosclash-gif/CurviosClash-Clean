@@ -14,7 +14,7 @@ export const STORM_LIGHTHOUSE_DESTRUCTIBLES = Object.freeze({
         trigger: Object.freeze({ segmentId: 'lighthouse_tower' }),
         modelId: 'storm-lighthouse-collapse',
         pieces: Object.freeze(['landmark']),
-        hideModelIds: Object.freeze(['storm-lighthouse-intact']),
+        hideModelIds: Object.freeze(['storm-lighthouse-intact', 'storm-lighthouse-lift']),
         yawFromEvent: true,
         blast: Object.freeze({ radius: 24, damage: 40, delaySeconds: 1 }),
     })]),

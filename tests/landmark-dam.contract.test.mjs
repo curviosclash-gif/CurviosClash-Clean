@@ -22,7 +22,7 @@ test('wave 6 dam is a destructible landmark whose breach unlocks a room and floo
     assert.ok(destructibles);
     assert.deepEqual(destructibles.segments.map((segment) => segment.id), ['dam_wall']);
     assert.equal(destructibles.segments[0].kind, 'landmark');
-    assert.deepEqual(destructibles.breakScenes[0].hideModelIds, ['storm-dam-intact']);
+    assert.deepEqual(destructibles.breakScenes[0].hideModelIds, ['storm-dam-intact', 'storm-dam-gate']);
 
     const rooms = normalizeSecretRooms(map.secretRooms);
     assert.equal(rooms.length, 1);

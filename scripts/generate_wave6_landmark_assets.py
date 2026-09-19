@@ -3,8 +3,8 @@
 
 Blender space is metres with Z up and -Y becoming map north. The runtime places every file at
 0.2 authored units per metre and the arena scales authored units by three, so one Blender metre
-becomes 0.6 world units. The script is deterministic and currently builds the bridge pack; later
-Wave 6 packages extend the same dispatcher with lighthouse and dam builders.
+becomes 0.6 world units. The script is deterministic and builds the three landmark packs plus
+their moving obstacles.
 """
 
 import argparse
@@ -16,9 +16,9 @@ import bpy
 
 ROOT = Path(__file__).resolve().parents[1]
 FPS = 30
-BRIDGE_PARTS = ('01_bridge', '20_bridge_collapse')
-LIGHTHOUSE_PARTS = ('01_lighthouse', '20_lighthouse_collapse')
-DAM_PARTS = ('01_dam', '20_dam_collapse')
+BRIDGE_PARTS = ('01_bridge', '20_bridge_collapse', '30_bridge_train')
+LIGHTHOUSE_PARTS = ('01_lighthouse', '20_lighthouse_collapse', '30_lighthouse_lift')
+DAM_PARTS = ('01_dam', '20_dam_collapse', '30_dam_gate')
 
 
 def reset_scene(name, seconds=0):
@@ -77,6 +77,14 @@ def cone(name, location, radius1, radius2, depth, mat, parent=None):
     if parent is not None:
         obj.parent = parent
     return obj
+
+
+def finish_action(obj, name, interpolation='BEZIER'):
+    action = obj.animation_data.action
+    action.name = name
+    for curve in action.fcurves:
+        for point in curve.keyframe_points:
+            point.interpolation = interpolation
 
 
 def build_bridge(parent=None):
@@ -145,6 +153,27 @@ def generate_bridge(parts=None):
             rig.animation_data.action.name = 'BridgeCollapseOnce'
         export_scene('storm_bridge_siege', '20_bridge_collapse', 'BridgeCollapseOnce')
 
+    if '30_bridge_train' in selected:
+        scene = reset_scene('BridgeTrainLoop', 12)
+        rig = bpy.data.objects.new('BridgeTrainRig', None)
+        scene.collection.objects.link(rig)
+        steel = material('TrainSteel', (0.08, 0.16, 0.21), 0.82, 0.24)
+        cabin = material('TrainCabin', (0.80, 0.18, 0.035), 0.28, 0.38)
+        glass = material('TrainGlass', (0.10, 0.55, 0.70), 0.35, 0.16)
+        wheel = material('TrainWheel', (0.025, 0.035, 0.04), 0.7, 0.34)
+        box('bridge_train_chassis', (0, 0, 42), (24, 10, 4), steel, rig)
+        box('bridge_train_body', (0, 0, 48), (18, 9, 9), cabin, rig)
+        box('bridge_train_window', (5, 0, 50), (5, 9.4, 3), glass, rig)
+        box('bridge_train_nose', (-10, 0, 46), (5, 9, 6), steel, rig)
+        for x in (-7, 7):
+            for y in (-5, 5):
+                cylinder(f'bridge_train_wheel_{x:+}_{y:+}', (x, y, 40), 2.4, 1.6, wheel, rig, (1.5708, 0, 0))
+        for frame, x in ((1, -72), (scene.frame_end // 2, 0), (scene.frame_end, 72)):
+            rig.location = (x, 0, 0)
+            rig.keyframe_insert('location', frame=frame)
+        finish_action(rig, 'BridgeTrainLoop', 'LINEAR')
+        export_scene('storm_bridge_siege', '30_bridge_train', 'BridgeTrainLoop')
+
 
 def build_lighthouse(parent=None):
     white = material('LighthouseWhite', (0.76, 0.80, 0.79), 0.05, 0.68)
@@ -189,6 +218,25 @@ def generate_lighthouse(parts=None):
             rig.animation_data.action.name = 'LighthouseCollapseOnce'
         export_scene('storm_lighthouse_siege', '20_lighthouse_collapse', 'LighthouseCollapseOnce')
 
+    if '30_lighthouse_lift' in selected:
+        scene = reset_scene('LighthouseLiftLoop', 10)
+        rig = bpy.data.objects.new('LighthouseLiftRig', None)
+        scene.collection.objects.link(rig)
+        steel = material('LiftSteel', (0.09, 0.13, 0.15), 0.78, 0.28)
+        platform = material('LiftPlatform', (0.84, 0.42, 0.055), 0.35, 0.42)
+        lamp = material('LiftLamp', (1.0, 0.76, 0.18), 0.15, 0.2)
+        box('lighthouse_lift_platform', (22, 0, 12), (12, 12, 3), platform, rig)
+        for x in (17, 27):
+            for y in (-5, 5):
+                box(f'lighthouse_lift_post_{x}_{y:+}', (x, y, 19), (1.2, 1.2, 13), steel, rig)
+        box('lighthouse_lift_roof', (22, 0, 26), (12, 12, 2), steel, rig)
+        box('lighthouse_lift_warning', (22, -6.2, 19), (7, 1, 2), lamp, rig)
+        for frame, z in ((1, 0), (scene.frame_end // 2, 56), (scene.frame_end, 0)):
+            rig.location = (0, 0, z)
+            rig.keyframe_insert('location', frame=frame)
+        finish_action(rig, 'LighthouseLiftLoop')
+        export_scene('storm_lighthouse_siege', '30_lighthouse_lift', 'LighthouseLiftLoop')
+
 
 def build_dam(parent=None):
     concrete = material('DamConcrete', (0.34, 0.39, 0.41), 0.05, 0.82)
@@ -232,18 +280,34 @@ def generate_dam(parts=None):
             rig.animation_data.action.name = 'DamCollapseOnce'
         export_scene('storm_dam_siege', '20_dam_collapse', 'DamCollapseOnce')
 
+    if '30_dam_gate' in selected:
+        scene = reset_scene('DamGateLoop', 8)
+        rig = bpy.data.objects.new('DamGateRig', None)
+        scene.collection.objects.link(rig)
+        steel = material('GateSteel', (0.055, 0.12, 0.15), 0.88, 0.22)
+        warning = material('GateWarning', (0.98, 0.42, 0.025), 0.22, 0.34)
+        box('dam_gate_slab', (0, -17, 35), (14, 5, 32), steel, rig)
+        for z in (23, 31, 39, 47):
+            box(f'dam_gate_warning_{z}', (0, -20, z), (14.5, 1.2, 2), warning, rig)
+        for frame, z in ((1, 0), (scene.frame_end // 2, 30), (scene.frame_end, 0)):
+            rig.location = (0, 0, z)
+            rig.keyframe_insert('location', frame=frame)
+        finish_action(rig, 'DamGateLoop')
+        export_scene('storm_dam_siege', '30_dam_gate', 'DamGateLoop')
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--landmark', choices=('bridge', 'lighthouse', 'dam'), default='bridge')
+    parser.add_argument('--part')
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     args = parser.parse_args(argv)
     if args.landmark == 'bridge':
-        generate_bridge()
+        generate_bridge([args.part] if args.part else None)
     elif args.landmark == 'lighthouse':
-        generate_lighthouse()
+        generate_lighthouse([args.part] if args.part else None)
     elif args.landmark == 'dam':
-        generate_dam()
+        generate_dam([args.part] if args.part else None)
 
 
 if __name__ == '__main__':

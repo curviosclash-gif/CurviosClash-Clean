@@ -18,4 +18,12 @@ export const STORM_BRIDGE_MODELS = Object.freeze([
         hiddenUntilTriggered: true,
         animationClock: Object.freeze({ mode: 'once', clipName: 'BridgeCollapseOnce' }),
     }),
+    Object.freeze({
+        id: 'storm-bridge-train',
+        url: `${ROOT}/30_bridge_train.glb`,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: METRE,
+        animationClock: Object.freeze({ mode: 'loop', clipName: 'BridgeTrainLoop' }),
+    }),
 ]);

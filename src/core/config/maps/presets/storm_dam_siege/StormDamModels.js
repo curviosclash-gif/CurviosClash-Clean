@@ -18,4 +18,12 @@ export const STORM_DAM_MODELS = Object.freeze([
         hiddenUntilTriggered: true,
         animationClock: Object.freeze({ mode: 'once', clipName: 'DamCollapseOnce' }),
     }),
+    Object.freeze({
+        id: 'storm-dam-gate',
+        url: `${ROOT}/30_dam_gate.glb`,
+        position: [0, 0, 24],
+        rotation: [0, 0, 0],
+        scale: METRE,
+        animationClock: Object.freeze({ mode: 'loop', clipName: 'DamGateLoop' }),
+    }),
 ]);
