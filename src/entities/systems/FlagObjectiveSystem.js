@@ -97,6 +97,7 @@ export class FlagObjectiveSystem {
         const result = damageFlagObjective(flag, amount, sourcePlayer?.teamId);
         if (result.captured) {
             this._applyTeam(flag, flag.teamId);
+            this.entityManager?._huntScoring?.registerFlagCapture?.(sourcePlayer?.index);
             this.entityManager?.recorder?.logEvent?.('FLAG_CAPTURED', sourcePlayer?.index ?? -1, flag.id);
             this.entityManager?.particles?.spawnExplosion?.(flag.position, TEAM_COLORS[flag.teamId], { blast: 'ITEM_BURST' });
         } else if (result.applied > 0) {

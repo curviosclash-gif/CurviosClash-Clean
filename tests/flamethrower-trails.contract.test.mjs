@@ -63,6 +63,7 @@ function createWorld({ mode = 'HUNT', arena = null, isFightOutcomeAuthority = tr
     const config = mode === 'HUNT' ? HUNT_MODE_CONFIG : CLASSIC_MODE_CONFIG;
     const shooter = createPlayer(0, [0, 0, 0], config);
     const trailSpatialIndex = new TrailSpatialIndex({ getPlayers: () => entityManager.players });
+    let burnedTrailMeters = 0;
     const entityManager = {
         players: [shooter],
         arena,
@@ -71,13 +72,14 @@ function createWorld({ mode = 'HUNT', arena = null, isFightOutcomeAuthority = tr
         getTrailSpatialIndex: () => trailSpatialIndex,
         _emitHuntDamageEvent() {},
         _killPlayer(player) { player.alive = false; },
+        _huntScoring: { registerBurnedTrailMeters(_playerIndex, meters) { burnedTrailMeters += meters; } },
     };
     shooter.entityManager = entityManager;
     const system = new FlamethrowerSystem(entityManager);
     entityManager._flamethrowerSystem = system;
     applyPlayerPowerup(shooter, 'FLAMETHROWER');
     assert.equal(shooter.hasFlamethrower, true, 'the item arms the flamethrower');
-    return { config, entityManager, shooter, system, trailSpatialIndex };
+    return { config, entityManager, shooter, system, trailSpatialIndex, get burnedTrailMeters() { return burnedTrailMeters; } };
 }
 
 function makeTrail(maxSegments = 100, writeIndex = 0) {
@@ -137,6 +139,7 @@ test('a trail segment in the cone needs 0.3 seconds of fire, 0.2 leaves it stand
 
     for (let tick = 0; tick < 2; tick += 1) world.system.fire(world.shooter, 0.05);
     assert.equal(ref.entry.destroyed, true, '0.3 seconds of contact burns the gap');
+    assert.equal(world.burnedTrailMeters, 1, 'the counter uses the actual removed segment length');
 });
 
 test('the burn time is the same at 30, 60 and 144 frames per second', () => {

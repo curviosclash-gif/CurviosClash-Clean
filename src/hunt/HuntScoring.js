@@ -42,6 +42,9 @@ export class HuntScoring {
                 intercepts: 0,
                 unitsDestroyed: 0,
                 unitDestroyedXp: 0,
+                burnedTrailMeters: 0,
+                flagCaptures: 0,
+                repairDroneHpRestored: 0,
                 points: 0,
             });
         }
@@ -111,6 +114,21 @@ export class HuntScoring {
         stats.unitDestroyedXp += kind === 'swarm' ? 5 : (kind === 'bomber' ? 40 : (kind === 'creature' ? 100 : 30));
     }
 
+    registerBurnedTrailMeters(playerIndex, meters) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        this._ensureStats(playerIndex).burnedTrailMeters += Math.max(0, Number(meters) || 0);
+    }
+
+    registerFlagCapture(playerIndex) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        this._ensureStats(playerIndex).flagCaptures += 1;
+    }
+
+    registerRepairDroneHpRestored(playerIndex, hp) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        this._ensureStats(playerIndex).repairDroneHpRestored += Math.max(0, Number(hp) || 0);
+    }
+
     registerElimination(targetPlayer, options = {}) {
         const targetIndex = targetPlayer?.index;
         if (!Number.isInteger(targetIndex)) return { killerIndex: -1, assistIndices: [] };
@@ -169,6 +187,9 @@ export class HuntScoring {
                 intercepts: stats.intercepts,
                 unitsDestroyed: stats.unitsDestroyed,
                 unitDestroyedXp: stats.unitDestroyedXp,
+                burnedTrailMeters: Math.round(stats.burnedTrailMeters * 100) / 100,
+                flagCaptures: stats.flagCaptures,
+                repairDroneHpRestored: Math.round(stats.repairDroneHpRestored * 100) / 100,
                 points: stats.points,
             });
         }
@@ -199,6 +220,9 @@ export class HuntScoring {
                 intercepts: Math.max(0, Number(row?.intercepts) || 0),
                 unitsDestroyed: Math.max(0, Number(row?.unitsDestroyed) || 0),
                 unitDestroyedXp: Math.max(0, Number(row?.unitDestroyedXp) || 0),
+                burnedTrailMeters: Math.max(0, Number(row?.burnedTrailMeters) || 0),
+                flagCaptures: Math.max(0, Number(row?.flagCaptures) || 0),
+                repairDroneHpRestored: Math.max(0, Number(row?.repairDroneHpRestored) || 0),
                 points: Math.max(0, Number(row?.points) || 0),
             });
         }

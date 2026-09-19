@@ -160,7 +160,14 @@ export class FlamethrowerSystem {
                 segment.burnSeconds = burned;
                 continue;
             }
-            trails.destroySegment(segment);
+            const length = Math.hypot(
+                (Number(segment.toX) || 0) - (Number(segment.fromX) || 0),
+                (Number(segment.toY) || 0) - (Number(segment.fromY) || 0),
+                (Number(segment.toZ) || 0) - (Number(segment.fromZ) || 0),
+            );
+            if (trails.destroySegment(segment)) {
+                this.entityManager?._huntScoring?.registerBurnedTrailMeters?.(ownerIndex, length);
+            }
         }
     }
 

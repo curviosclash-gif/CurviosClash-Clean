@@ -12,6 +12,7 @@
 import { normalizePostMatchStats } from '../../shared/contracts/PostMatchStatsContract.js';
 import { createPostMatchCard, createStatsElement } from '../postmatch/PostMatchCards.js';
 import { createPostMatchStandingsTable } from '../postmatch/PostMatchStandingsTable.js';
+import { createPostMatchComparisonTable } from '../postmatch/PostMatchComparisonTable.js';
 
 const DETAILS_SUMMARY_LABEL = 'Details';
 
@@ -26,6 +27,7 @@ export function clearMessageStats(container) {
  * @returns {HTMLElement|null}
  */
 function createBlockElement(block) {
+    if (block.id === 'participant-comparison') return createPostMatchComparisonTable(block);
     return block.kind === 'standings'
         ? createPostMatchStandingsTable(block)
         : createPostMatchCard(block);

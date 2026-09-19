@@ -157,6 +157,9 @@ export function createMatchFlowUiControllerPort(ports = null) {
     if (typeof arcadePort?.getMenuSurfaceState === 'function') {
         controllerPort.getArcadeMenuSurfaceState = () => arcadePort.getMenuSurfaceState();
     }
+    if (typeof arcadePort?.getPostMatchProgression === 'function') {
+        controllerPort.getArcadePostMatchProgression = () => arcadePort.getPostMatchProgression();
+    }
     if (typeof arcadePort?.selectIntermissionChoice === 'function') {
         controllerPort.selectArcadeIntermissionChoice = (choiceId) => arcadePort.selectIntermissionChoice(choiceId);
     }

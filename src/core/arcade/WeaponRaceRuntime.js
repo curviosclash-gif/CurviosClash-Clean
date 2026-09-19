@@ -177,6 +177,7 @@ export class WeaponRaceRuntime {
         const human = this.state?.racers?.[this.state.humanPlayerId] || null;
         return {
             runType: WEAPON_RACE_RUN_TYPE,
+            vehicleId: this.rewardBinding?.vehicleId || '',
             phase: this.phase,
             checkpoint: human?.checkpointIndex || 0,
             checkpointCount: WEAPON_RACE_CHECKPOINT_ORDER.length,

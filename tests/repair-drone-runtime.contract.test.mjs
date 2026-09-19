@@ -6,6 +6,7 @@ import { RepairDroneSystem } from '../src/entities/systems/RepairDroneSystem.js'
 
 function createWorld() {
     const removed = [];
+    let restoredHp = 0;
     const player = {
         index: 0,
         alive: true,
@@ -37,12 +38,14 @@ function createWorld() {
             },
         },
         _mapUnitSystem: { units: [nearTank, farTank] },
+        _huntScoring: { registerRepairDroneHpRestored(_playerIndex, hp) { restoredHp += hp; } },
     };
-    return { manager, player, nearTank, farTank, removed };
+    return { manager, player, nearTank, farTank, removed, get restoredHp() { return restoredHp; } };
 }
 
 test('the repair drone follows its owner and heals only to normal maximum', () => {
-    const { manager, player, nearTank, farTank } = createWorld();
+    const world = createWorld();
+    const { manager, player, nearTank, farTank } = world;
     const system = new RepairDroneSystem(manager);
 
     system.update(1);
@@ -61,6 +64,7 @@ test('the repair drone follows its owner and heals only to normal maximum', () =
     system.update(1);
     assert.equal(player.hp, 100, 'healing never exceeds the normal player maximum');
     assert.equal(nearTank.hp, 150, 'tank healing never exceeds its maximum');
+    assert.equal(world.restoredHp, 10, 'only actually restored owner and tank HP is counted');
 });
 
 test('the repair drone is targetable and destruction consumes its effect', () => {

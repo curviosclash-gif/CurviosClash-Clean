@@ -343,6 +343,25 @@ test('without detail blocks the board shows no disclosure at all', () => {
     });
 });
 
+test('participant comparison starts folded and renders only its non-empty columns', () => {
+    withDocument(() => {
+        const comparison = standingsBlock([
+            standingsEntry({ playerIndex: 0, kills: 2, deaths: 0, assists: 0, extra: { healthDamage: 75, shieldDamage: 0 } }),
+            standingsEntry({ playerIndex: 1, label: 'Bot 2', kills: 0, deaths: 1, assists: 0, extra: { healthDamage: 0, shieldDamage: 0 } }),
+        ], { id: 'participant-comparison', title: 'Teilnehmervergleich', tier: 'detail' });
+        const container = render(summaryWith([standingsBlock([standingsEntry()]), comparison]));
+        const details = byTag(container, 'details')[0];
+        assert.ok(details);
+        assert.equal(details.hasAttribute('open'), false);
+        const block = blockElement(details, 'participant-comparison');
+        assert.deepEqual(byTag(block, 'th').slice(0, 5).map((cell) => cell.textContent), [
+            'Spieler', 'A', 'T', 'SP', 'Spieler 1',
+        ]);
+        assert.equal(findFirst(block, (node) => node.getAttribute('data-stats-value') === 'shieldDamage'), null);
+        assert.equal(findFirst(block, (node) => node.getAttribute('data-stats-value') === 'healthDamage').textContent, '75');
+    });
+});
+
 test('a legacy v1 summary still reaches the board as plain cards', () => {
     withDocument(() => {
         const container = render({

@@ -239,6 +239,7 @@ export class GameRuntimeFacade {
 
     _resetArcadeRunState(options = undefined) { this._arcadeSupport.resetRunState({ preserveRecords: true, ...(options || {}) }); }
     getArcadeRunState() { return this._arcadeSupport.getRunState(); }
+    getArcadePostMatchProgression() { return this._arcadeSupport.getPostMatchProgression(); }
     getArcadeMenuSurfaceState() {
         const state = this._arcadeSupport.getMenuSurfaceState();
         if (state?.runType !== 'arena_waves') return state;

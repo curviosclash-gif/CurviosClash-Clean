@@ -4,6 +4,9 @@ export function createArcadePort({ getRuntimeCoordinator, getRuntimeFacade }) {
             return getRuntimeCoordinator()?.getArcadeMenuSurfaceState?.()
                 ?? getRuntimeFacade()?.getArcadeMenuSurfaceState?.();
         },
+        getPostMatchProgression() {
+            return getRuntimeFacade()?.getArcadePostMatchProgression?.() || null;
+        },
         tickSuddenDeath(dt) {
             return getRuntimeCoordinator()?.tickArcadeSuddenDeath?.(dt)
                 ?? getRuntimeFacade()?.tickArcadeSuddenDeath?.(dt);

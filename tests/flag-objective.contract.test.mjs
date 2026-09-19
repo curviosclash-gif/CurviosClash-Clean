@@ -54,6 +54,7 @@ test('own team cannot damage its flag and the team with more flags wins at time'
 
 test('runtime creates three fixed flags and two mutable guards per team flag', () => {
     const guards = [];
+    const captures = [];
     const owner = {
         runtimeConfig: { hunt: { teamMode: true, teamObjective: 'FLAGS' } },
         arena: { bounds: { minX: -100, maxX: 100, minY: 0, maxY: 80, minZ: -90, maxZ: 90 } },
@@ -68,6 +69,7 @@ test('runtime creates three fixed flags and two mutable guards per team flag', (
             },
             setTurretTeam(guard, teamId) { guard.teamId = teamId; guard.source.teamId = teamId; },
         },
+        _huntScoring: { registerFlagCapture(playerIndex) { captures.push(playerIndex); } },
     };
     const system = new FlagObjectiveSystem(owner);
     assert.equal(system.startRound(), 6);
@@ -76,5 +78,6 @@ test('runtime creates three fixed flags and two mutable guards per team flag', (
     flag.takeDamage(300, { sourcePlayer: owner.players[1] });
     assert.equal(flag.teamId, TEAM_IDS.BRAVO);
     assert.ok(flag.guards.every((guard) => guard.teamId === TEAM_IDS.BRAVO));
+    assert.deepEqual(captures, [1], 'the authoritative captor receives the comparison counter');
     assert.equal(system.getRoundOutcome().winnerTeamId, TEAM_IDS.BRAVO);
 });

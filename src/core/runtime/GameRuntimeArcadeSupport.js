@@ -15,6 +15,7 @@ import { applyArcadeRuntimeCosmetics } from '../arcade/ArcadeRuntimeCosmeticOps.
 import { WEAPON_RACE_BOT_COUNT, WEAPON_RACE_MAP_KEY, isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { WeaponRaceRuntime } from '../arcade/WeaponRaceRuntime.js';
 import { buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, lockSelectedMapToFirstSector, requestObjectiveRoundEnd } from './GameRuntimeArcadeSupportOps.js';
+import { resolveArcadePostMatchProgression } from '../arcade/ArcadePostMatchProgression.js';
 
 export class GameRuntimeArcadeSupport {
     constructor({
@@ -447,6 +448,13 @@ export class GameRuntimeArcadeSupport {
         const endless = this._getEndlessRuntime();
         if (endless) return endless.getHudState?.() || null;
         return this.arcadeRunRuntime.getStateSnapshot?.() || null;
+    }
+
+    getPostMatchProgression() {
+        return resolveArcadePostMatchProgression(
+            this.game?.settingsManager?.getPlayerRecordStorePort?.(),
+            this.getRunState(),
+        );
     }
 
     getMenuSurfaceState() {

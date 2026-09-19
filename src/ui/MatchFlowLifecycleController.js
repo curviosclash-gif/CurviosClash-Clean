@@ -188,6 +188,10 @@ export class MatchFlowLifecycleController {
     buildRoundEndCoordinatorRequest(winner, outcome = null) {
         const game = this.game;
         const normalizedOutcome = outcome && typeof outcome === 'object' ? outcome : {};
+        const checkpointResetsByPlayer = Object.fromEntries((game.entityManager?.players || []).map((player) => [
+            player.index,
+            Math.max(0, Number(game.entityManager?.getParcoursHudState?.(player.index)?.resetCount) || 0),
+        ]));
         return {
             recorder: createRoundEndRecorderAdapter(this.runtimePort, game),
             winner,
@@ -205,6 +209,8 @@ export class MatchFlowLifecycleController {
             parcours: normalizedOutcome.parcours || null,
             huntScoreboard: this._resolveHuntScoreboard(),
             localPlayerIndexes: resolveLocalPlayerIndexes(game?.runtimeConfig?.session || null),
+            checkpointResetsByPlayer,
+            arcadeProgression: this.runtimePort?.getArcadePostMatchProgression?.() || null,
             logger: console,
         };
     }
