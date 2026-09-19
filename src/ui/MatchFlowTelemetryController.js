@@ -239,6 +239,7 @@ export class MatchFlowTelemetryController {
         // the per-sector reset and never count a bot's defence rocket for the player.
         const intercepts = sumHumanScoreboardStat(scoreboardRows, humanPlayers, 'intercepts');
         const unitsDestroyed = sumHumanScoreboardStat(scoreboardRows, humanPlayers, 'unitsDestroyed');
+        const unitDestroyedXp = sumHumanScoreboardStat(scoreboardRows, humanPlayers, 'unitDestroyedXp');
 
         return {
             telemetrySchemaVersion: 'round-telemetry.v2',
@@ -270,6 +271,7 @@ export class MatchFlowTelemetryController {
             kills,
             intercepts,
             unitsDestroyed,
+            unitDestroyedXp,
             parcoursCompleted: roundMetrics.parcoursCompleted === true,
             parcoursRouteId: normalizeTelemetryString(roundMetrics.parcoursRouteId, ''),
             parcoursCompletionTimeMs: Math.max(0, Number(roundMetrics.parcoursCompletionTimeMs) || 0),

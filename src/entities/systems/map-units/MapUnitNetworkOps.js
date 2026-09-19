@@ -23,6 +23,9 @@ export function serializeMapUnits(units) {
         to: unit.toIndex,
         progress: round(unit.progress),
         yaw: round(unit.yaw),
+        ...(unit.kind === 'swarm' ? {
+            members: unit.members.map((member) => ({ alive: member.alive === true, hp: round(member.hp, 10) })),
+        } : {}),
         mounts: unit.mounts.map((mount) => ({
             aim: [round(mount.aimDirection.x), round(mount.aimDirection.y), round(mount.aimDirection.z)],
             shots: mount.shotsFired,
@@ -71,10 +74,23 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         unit.yaw = Number.isFinite(Number(entry.yaw)) ? Number(entry.yaw) : unit.yaw;
         unit.hp = Math.max(0, Number(entry.hp) || 0);
         unit.alive = entry.alive === true;
+        if (unit.kind === 'swarm' && Array.isArray(entry.members)) {
+            let totalHp = 0;
+            for (let index = 0; index < unit.members.length; index += 1) {
+                const member = unit.members[index];
+                const state = entry.members[index];
+                if (!state) continue;
+                member.alive = state.alive === true;
+                member.hp = Math.max(0, Number(state.hp) || 0);
+                totalHp += member.hp;
+            }
+            unit.hp = totalHp;
+            if (unit.source) unit.source.alive = unit.alive;
+        }
         resolveUnitPathPose(unit, unit.path, unit.groundPosition);
         onPoseChanged(unit);
         if (unit.root) unit.root.visible = unit.alive;
-        if (wasAlive && !unit.alive) {
+        if (wasAlive && !unit.alive && unit.kind !== 'swarm') {
             // Only the picture: damage, loot and credit already happened on the host.
             system.entityManager?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
         }

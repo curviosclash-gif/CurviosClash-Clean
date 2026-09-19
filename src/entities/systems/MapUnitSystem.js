@@ -20,7 +20,12 @@ import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-uni
 import { applyMapUnitDamage, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
 import { crushTrailsUnderUnit } from './map-units/MapUnitTrailOps.js';
 import { applyMapUnitsNetworkState, serializeMapUnits } from './map-units/MapUnitNetworkOps.js';
-import { createSwarmMembers, updateSwarmMembers } from './map-units/MapUnitSwarmOps.js';
+import {
+    bindSwarmMemberCombat,
+    createSwarmMembers,
+    resetSwarmMembers,
+    updateSwarmMembers,
+} from './map-units/MapUnitSwarmOps.js';
 import {
     createSwarmAssets,
     createSwarmVisual,
@@ -112,6 +117,10 @@ export class MapUnitSystem {
         unit.ownerPlayer = unit.source;
         unit.mounts = createUnitMounts(unit);
         unit.takeDamage = (amount, options = {}) => applyMapUnitDamage(this, unit, amount, options);
+        if (unit.kind === 'swarm') {
+            bindSwarmMemberCombat(this, unit);
+            resetSwarmMembers(unit);
+        }
         return unit;
     }
 
@@ -144,6 +153,7 @@ export class MapUnitSystem {
         unit.hp = unit.maxHp;
         unit.respawnRemaining = Infinity;
         resetUnitOnPath(unit);
+        if (unit.kind === 'swarm') resetSwarmMembers(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? unit.yaw;
         this._placeCentre(unit);
         for (const mount of unit.mounts) {
@@ -178,7 +188,14 @@ export class MapUnitSystem {
     /** What weapons may hit: the tanks that are still standing. The list is reused per call. */
     getTargets() {
         this._targets.length = 0;
-        for (const unit of this.units) if (unit.alive) this._targets.push(unit);
+        for (const unit of this.units) {
+            if (!unit.alive) continue;
+            if (unit.kind === 'swarm') {
+                for (const member of unit.members) if (member.alive) this._targets.push(member);
+            } else {
+                this._targets.push(unit);
+            }
+        }
         return this._targets;
     }
 

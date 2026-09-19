@@ -38,4 +38,7 @@ export function updateSwarmVisual(unit) {
     if (!unit?.root) return;
     unit.root.position.copy(unit.position);
     unit.root.rotation.y = unit.yaw;
+    for (let index = 0; index < unit.members.length; index += 1) {
+        if (unit.root.children[index]) unit.root.children[index].visible = unit.members[index].alive;
+    }
 }
