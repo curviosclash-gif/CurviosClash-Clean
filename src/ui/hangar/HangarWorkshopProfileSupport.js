@@ -2,7 +2,7 @@ import {
     ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
     getArcadeVehicleProfileRecord,
-    readArcadeVehicleProfileRecord,
+    loadArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import { createDefaultHangarBuild, normalizeHangarBuild } from './HangarBuildDraftState.js';
 
@@ -12,8 +12,7 @@ export function createFallbackProfilePort(store) {
     const xpForLevel = (level) => level <= 1 ? 0 : Math.floor(100 * Math.pow(level, 1.5));
     return Object.freeze({
         load() {
-            const raw = store?.loadJsonRecord?.(ARCADE_VEHICLE_PROFILE_STORAGE_KEY, {}) || {};
-            return readArcadeVehicleProfileRecord(raw).profiles;
+            return loadArcadeVehicleProfileRecord(store).profiles;
         },
         save(profiles) { return store?.saveJsonRecord?.(ARCADE_VEHICLE_PROFILE_STORAGE_KEY, profiles); },
         getOrCreate: (profiles, vehicleId) => getArcadeVehicleProfileRecord(profiles, vehicleId),

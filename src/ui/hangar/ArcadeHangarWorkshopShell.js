@@ -2,6 +2,10 @@ import { createUiNode as el } from '../arcade/vehicle-manager/VehicleManagerUiPr
 import { FIGHT_MACHINE_GUN_MODELS } from '../../shared/contracts/FightMachineGunContract.js';
 import { HANGAR_STARTER_BUILDS } from './HangarStarterBuildCatalog.js';
 import { createInfoHintButton } from '../menu/InfoHintToggle.js';
+import {
+    ARCADE_WEAPON_FAMILY_LABELS,
+    ARCADE_WEAPON_STYLE_FAMILIES,
+} from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
 const STONE_COLORS = Object.freeze([
     ['all', 'Alle Farben'], ['blue', 'Blau · Geschwindigkeit'], ['green', 'Grün · Wendigkeit'],
@@ -27,6 +31,12 @@ function infoHint(text, className = '') {
 function labeledSelect(labelText, select) {
     const label = el('label', 'hangar-filter-field');
     label.append(el('span', 'hangar-filter-field-label', labelText), select);
+    return label;
+}
+
+function labeledCosmeticSelect(labelText, select) {
+    const label = el('label', 'hangar-cosmetic-field');
+    label.append(el('span', 'hangar-cosmetic-field-label', labelText), select);
     return label;
 }
 
@@ -205,6 +215,24 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const levelDetail = el('p', 'arcade-vehicle-level-detail');
     levelDetail.setAttribute('aria-live', 'polite');
     profileBox.append(levelLine, xpBar, levelDetail);
+    const cosmeticsBox = el('section', `hangar-cosmetics-panel${mode === 'arcade' ? '' : ' hidden'}`);
+    cosmeticsBox.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Arcade-Kosmetik'));
+    const trailStyleSelect = document.createElement('select');
+    trailStyleSelect.className = 'hangar-cosmetic-select';
+    trailStyleSelect.setAttribute('aria-label', 'Spurstil');
+    cosmeticsBox.appendChild(labeledCosmeticSelect('Spur', trailStyleSelect));
+    const weaponStyleSelects = {};
+    ARCADE_WEAPON_STYLE_FAMILIES.forEach((familyId) => {
+        const select = document.createElement('select');
+        select.className = 'hangar-cosmetic-select';
+        select.dataset.weaponCosmeticFamily = familyId;
+        select.setAttribute('aria-label', `${ARCADE_WEAPON_FAMILY_LABELS[familyId]}-Stil`);
+        weaponStyleSelects[familyId] = select;
+        cosmeticsBox.appendChild(labeledCosmeticSelect(ARCADE_WEAPON_FAMILY_LABELS[familyId], select));
+    });
+    const cosmeticUnlockDetail = el('p', 'field-hint hangar-cosmetic-unlock-detail');
+    cosmeticUnlockDetail.setAttribute('aria-live', 'polite');
+    cosmeticsBox.appendChild(cosmeticUnlockDetail);
     const buildViewSwitch = el('div', 'hangar-build-view-switch');
     buildViewSwitch.setAttribute('role', 'tablist');
     buildViewSwitch.setAttribute('aria-label', 'Werkstattbereich');
@@ -354,7 +382,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
         infoHint('Entf: Stein entfernen · Strg+Z/Y: Undo/Redo · Vorschau: Pfeile wechseln das Fahrzeug', 'arcade-vehicle-shortcuts')
     );
     buildScroll.append(
-        detailHead, profileBox, buildViewSwitch, workshopViewPanel, statsViewPanel, presetsViewPanel
+        detailHead, profileBox, cosmeticsBox, buildViewSwitch, workshopViewPanel, statsViewPanel, presetsViewPanel
     );
     const activationDock = el('div', 'hangar-activation-dock');
     activationDock.appendChild(activateButton);
@@ -374,7 +402,8 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
         favRow, recentRow, resultLine, catalogList, cameraToolbar, cameraReset, previewStage,
         vehiclePreviousButton, vehicleNextButton,
         previewOverlay, pairToggle, removeZone, detailTitle, detailMeta, detailDescription, favoriteBtn, levelLine,
-        levelDetail, xpFill, machineGunPanel, machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton,
+        levelDetail, xpFill, cosmeticsBox, trailStyleSelect, weaponStyleSelects, cosmeticUnlockDetail,
+        machineGunPanel, machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton,
         redoButton, revertButton, defaultButton, starterBuilds, presetName, presetSelect, presetSave,
         presetSaveAs, presetLoad, presetRename, presetDuplicate, presetDelete, presetSort, presetTags,
         presetFavorite, presetExport, presetImport, buildScroll, buildViewSwitch,

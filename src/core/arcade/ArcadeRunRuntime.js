@@ -14,12 +14,11 @@ import { resolveMapSequence, getMapKeyForSector } from '../../state/arcade/Arcad
 import {
     calculateSectorXp,
     loadVehicleProfiles,
-    getOrCreateProfile,
-    addXp,
-    getMasteryPerks,
     getSlotStatBonuses,
     XP_REWARD_TABLE,
 } from '../../state/arcade/ArcadeVehicleProfile.js';
+import { awardBoundArcadeVehicleXp } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
+import { bindArcadeRunVehicleRewards, ensureArcadeRunVehicleRewards, getArcadeRunVehicleId, getArcadeRunVehicleProfile } from './ArcadeRunVehicleRewardOps.js';
 import {
     loadLeaderboard,
 } from '../../state/arcade/ArcadeLeaderboard.js';
@@ -103,6 +102,7 @@ export class ArcadeRunRuntime {
         this._enabled = false;
         this._vehicleProfiles = null;
         this._activeVehicleId = null;
+        this._rewardBinding = null;
         this._missionState = null;
         this._hudEventSequence = 0;
         this._hudEvents = [];
@@ -413,9 +413,12 @@ export class ArcadeRunRuntime {
         syncArcadeMasteryPerks(this._state, this.getVehicleProfile());
     }
 
+    _getRunVehicleId() {
+        return getArcadeRunVehicleId(this);
+    }
+
     getVehicleProfile() {
-        if (!this._vehicleProfiles || !this._activeVehicleId) return null;
-        return getOrCreateProfile(this._vehicleProfiles, this._activeVehicleId);
+        return getArcadeRunVehicleProfile(this);
     }
 
     // 82.1.1: Whether the current sector is a parcours time-trial sector
@@ -520,7 +523,7 @@ export class ArcadeRunRuntime {
         return JSON.parse(JSON.stringify(summary));
     }
 
-    getTelemetrySnapshot(terminalReason = '') { return createArcadeTelemetrySnapshot({ enabled: this._enabled, state: this._state, activeVehicleId: this._activeVehicleId, terminalReason }); }
+    getTelemetrySnapshot(terminalReason = '') { return createArcadeTelemetrySnapshot({ enabled: this._enabled, state: this._state, activeVehicleId: this._getRunVehicleId(), terminalReason }); }
 
     getReplayState() {
         const replay = this._state?.replay && typeof this._state.replay === 'object'
@@ -680,7 +683,7 @@ export class ArcadeRunRuntime {
         // 82.8.3: Vehicle stats for sector-start HUD flash
         // Profiles are canonicalized when loaded or changed. Re-normalizing the full
         // Hangar progression here would allocate several collections every HUD frame.
-        const profile = this._vehicleProfiles?.[this._activeVehicleId] || null;
+        const profile = this._vehicleProfiles?.[this._getRunVehicleId()] || null;
         const profileBonuses = this._config.dailyChallenge ? null : (profile ? getSlotStatBonuses(profile.upgrades, profile.hangarBonuses) : null);
         const vehicleStats = {
             level: profile?.level ?? 1,
@@ -829,6 +832,7 @@ export class ArcadeRunRuntime {
             nowMs,
             runId,
         });
+        bindArcadeRunVehicleRewards(this, runConfig.runType);
         if (options.dailyChallenge || runConfig.dailyChallenge === true) {
             this._state.isDailyChallenge = true;
         }
@@ -1227,7 +1231,8 @@ export class ArcadeRunRuntime {
     }
 
     applyParcoursXpEvent(eventType, playerIndex = 0) {
-        if (!this._enabled || !this._activeVehicleId || !this._vehicleProfiles) return null;
+        const rewardBinding = ensureArcadeRunVehicleRewards(this);
+        if (!this._enabled || !rewardBinding || !this._vehicleProfiles) return null;
         const xpByEvent = {
             checkpoint: XP_REWARD_TABLE.parcoursCheckpoint,
             finish: XP_REWARD_TABLE.parcoursFinish,
@@ -1236,13 +1241,10 @@ export class ArcadeRunRuntime {
         const baseXp = xpByEvent[String(eventType)] || 0;
         if (baseXp <= 0) return null;
 
-        let profile = getOrCreateProfile(this._vehicleProfiles, this._activeVehicleId);
-        const perks = getMasteryPerks(this._config.dailyChallenge ? 1 : profile.level);
-        const xpEarned = Math.max(1, Math.round(baseXp * (1 + perks.xpBonusPct / 100)));
-
-        const result = addXp(profile, xpEarned);
+        const result = awardBoundArcadeVehicleXp(this._vehicleProfiles, rewardBinding, baseXp);
+        if (!result) return null;
+        const xpEarned = result.earned;
         if (this._state) this._state.xpEarned += xpEarned;
-        this._vehicleProfiles[this._activeVehicleId] = result.profile;
         syncArcadeMasteryPerks(this._state, result.profile);
         this._scheduleVehicleProfilesSave();
 
@@ -1262,7 +1264,8 @@ export class ArcadeRunRuntime {
     }
 
     _applySectorXpReward(telemetryPayload) {
-        if (!this._activeVehicleId || !this._vehicleProfiles) return;
+        const rewardBinding = ensureArcadeRunVehicleRewards(this);
+        if (!rewardBinding || !this._vehicleProfiles) return;
 
         const missionsCompleted = this._missionState?.completedCount || 0;
         const totalMissions = this._missionState?.missions?.length || 0;
@@ -1277,18 +1280,12 @@ export class ArcadeRunRuntime {
             cleanSector: Math.max(0, toSafeNumber(telemetryPayload?.selfCollisions, 0)) === 0,
         };
 
-        let profile = getOrCreateProfile(this._vehicleProfiles, this._activeVehicleId);
-        // 61.8.2: Apply mastery XP perk before awarding XP
-        const perks = getMasteryPerks(this._config.dailyChallenge ? 1 : profile.level);
         const baseXp = calculateSectorXp(telemetry);
-        const xpEarned = baseXp <= 0 ? 0 : Math.round(baseXp * (1 + perks.xpBonusPct / 100));
-        if (xpEarned <= 0) return;
-
-        const result = addXp(profile, xpEarned);
+        const result = awardBoundArcadeVehicleXp(this._vehicleProfiles, rewardBinding, baseXp);
+        if (!result) return;
+        const xpEarned = result.earned;
         if (this._state) this._state.xpEarned += xpEarned;
-        profile = result.profile;
-        this._vehicleProfiles[this._activeVehicleId] = profile;
-        syncArcadeMasteryPerks(this._state, profile);
+        syncArcadeMasteryPerks(this._state, result.profile);
         this._scheduleVehicleProfilesSave();
 
         // Attach XP info to state for UI consumption
@@ -1354,6 +1351,7 @@ export class ArcadeRunRuntime {
         this._hudEvents = [];
         this._resetStrategyRuntimeState();
         this._state = null;
+        this._rewardBinding = null;
         if (!preserveRecords) {
             this._records = this._readRecordsFromStorage();
         }

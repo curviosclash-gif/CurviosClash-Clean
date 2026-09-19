@@ -31,7 +31,7 @@ function createCompletedSectorState() {
     return state;
 }
 
-test('level five mastery raises every awarded sector score by five percent', () => {
+test('vehicle levels do not raise awarded sector score', () => {
     const payload = { duration: 20, kills: 2, selfCollisions: 0, itemUses: 0, stuckEvents: 0 };
     const plain = applyArcadeSectorScore(createCompletedSectorState(), payload, {
         nowMs: 2000,
@@ -42,19 +42,19 @@ test('level five mastery raises every awarded sector score by five percent', () 
         masteryPerks: getMasteryPerks(5),
     });
 
-    assert.equal(mastered.score.lastSectorPoints, Math.round(plain.score.lastSectorPoints * 1.05));
+    assert.equal(mastered.score.lastSectorPoints, plain.score.lastSectorPoints);
 });
 
-test('level ten mastery slows combo decay by twenty percent', () => {
+test('vehicle levels do not slow combo decay', () => {
     const score = { combo: 20, multiplier: 8, lastComboAtMs: 1000 };
     const config = { comboWindowMs: 1000, comboDecayPerSecond: 2, maxMultiplier: 8 };
     const plain = applyArcadeComboDecay(score, config, 7000, getMasteryPerks(1));
     const mastered = applyArcadeComboDecay(score, config, 7000, getMasteryPerks(10));
 
-    assert.ok(mastered.combo > plain.combo);
+    assert.equal(mastered.combo, plain.combo);
 });
 
-test('mission score uses the active mastery score perk', () => {
+test('mission score ignores vehicle level', () => {
     const runtime = new ArcadeRunRuntime({ now: () => 1000 });
     runtime._enabled = true;
     runtime._state = beginArcadeSector(createArcadeRunState({
@@ -69,10 +69,10 @@ test('mission score uses the active mastery score perk', () => {
 
     runtime.applyGameplayEvent({ type: 'kill', count: 1 });
 
-    assert.equal(runtime._state.score.lastMissionBonus, 525);
+    assert.equal(runtime._state.score.lastMissionBonus, 500);
 });
 
-test('parcours XP refreshes mastery immediately when it crosses a perk level', () => {
+test('parcours level-up keeps passive bonuses disabled', () => {
     const runtime = new ArcadeRunRuntime({ now: () => 1000 });
     const profile = createArcadeVehicleProfile('ship1', 0);
     profile.level = 4;
@@ -86,5 +86,5 @@ test('parcours XP refreshes mastery immediately when it crosses a perk level', (
     runtime.applyParcoursXpEvent('checkpoint');
 
     assert.equal(runtime._vehicleProfiles.ship1.level, 5);
-    assert.equal(runtime._state.masteryPerks.scoreBonusPct, 5);
+    assert.equal(runtime._state.masteryPerks.scoreBonusPct, 0);
 });

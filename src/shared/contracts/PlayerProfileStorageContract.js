@@ -1,4 +1,7 @@
-import { ARCADE_VEHICLE_PROFILE_STORAGE_KEY } from './ArcadeVehicleProfileContract.js';
+import {
+    ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY,
+    ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
+} from './ArcadeVehicleProfileContract.js';
 import { ARCADE_RUN_PROFILE_STORAGE_KEY, LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY } from './ArcadeRunSettingsContract.js';
 import {
     ARCADE_LAST_RUN_STORAGE_KEY,
@@ -13,6 +16,7 @@ export const PLAYER_PROFILE_STORAGE_NAMESPACE = 'cuviosclash.player';
 
 export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
     ARCADE_VEHICLE_PROFILE: 'arcadeVehicleProfile',
+    LEGACY_ARCADE_VEHICLE_PROFILE: 'legacyArcadeVehicleProfile',
     ARCADE_RUN_PROFILE: 'arcadeRunProfile',
     LEGACY_ARCADE_RUN_PROFILE: 'legacyArcadeRunProfile',
     ARCADE_SEED: 'arcadeSeed',
@@ -32,7 +36,8 @@ export { LOBBY_NAME_STORAGE_KEY };
 
 const RECORD_DEFINITIONS = Object.freeze([
     { kind: PLAYER_PROFILE_RECORD_KINDS.LEGACY_ARCADE_RUN_PROFILE, legacyKey: LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY, suffix: 'arcade-run-profile.v1' },
-    { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_VEHICLE_PROFILE, legacyKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY, suffix: 'arcade-vehicle-profile.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.LEGACY_ARCADE_VEHICLE_PROFILE, legacyKey: ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY, suffix: 'arcade-vehicle-profile.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_VEHICLE_PROFILE, legacyKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY, suffix: 'arcade-vehicle-profile.v2' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_RUN_PROFILE, legacyKey: ARCADE_RUN_PROFILE_STORAGE_KEY, suffix: 'arcade-run-profile.v3' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_SEED, legacyKey: ARCADE_SEED_STORAGE_KEY, suffix: 'arcade.seed.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_LAST_RUN, legacyKey: ARCADE_LAST_RUN_STORAGE_KEY, suffix: 'arcade.last_run.v1' },

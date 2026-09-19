@@ -400,6 +400,9 @@ function createHuntProjection(value = null, nowMs = 0) {
             // Tanks destroyed by this player (E19). Statistics and arcade XP only, never a kill.
             unitsDestroyed: normalizeNonNegativeInt(row?.unitsDestroyed, 0),
             unitDestroyedXp: normalizeNonNegativeInt(row?.unitDestroyedXp, 0),
+            burnedTrailMeters: Math.max(0, normalizeNumber(row?.burnedTrailMeters, 0)),
+            flagCaptures: normalizeNonNegativeInt(row?.flagCaptures, 0),
+            repairDroneHpRestored: Math.max(0, normalizeNumber(row?.repairDroneHpRestored, 0)),
             points: normalizeNonNegativeInt(row?.points, 0),
         }))
         : [];

@@ -5,6 +5,8 @@ import { buildStandingsBlock } from './postmatch/PostMatchStandingsBlock.js';
 import { buildRoundBlock } from './postmatch/PostMatchRoundBlock.js';
 import { buildEndlessParcoursBlocks, buildParcoursBlock } from './postmatch/PostMatchParcoursBlocks.js';
 import { buildMatchDetailBlock, buildRoundDetailBlock } from './postmatch/PostMatchDetailBlocks.js';
+import { buildParticipantComparisonBlock } from './postmatch/PostMatchComparisonBlock.js';
+import { buildArcadeProgressionBlock } from './postmatch/PostMatchArcadeProgressionBlock.js';
 
 function getSafeLogger(logger) {
     return logger && typeof logger.log === 'function' ? logger : console;
@@ -19,6 +21,8 @@ function buildPostMatchStatsSummary({
     outcome = null,
     huntScoreboard = null,
     localPlayerIndexes = null,
+    checkpointResetsByPlayer = null,
+    arcadeProgression = null,
 } = {}) {
     const lastRoundMetrics = recorder?.getLastRoundMetrics?.() || null;
     const aggregateMetrics = recorder?.getAggregateMetrics?.() || null;
@@ -34,6 +38,13 @@ function buildPostMatchStatsSummary({
         buildRoundBlock(lastRoundMetrics, players, outcome),
         ...endlessBlocks.filter((block) => block.tier !== 'detail'),
         buildParcoursBlock(lastRoundMetrics),
+        buildParticipantComparisonBlock({
+            players,
+            huntScoreboard,
+            weaponRaceStandings: outcome?.parcours?.standings,
+            checkpointResetsByPlayer,
+        }),
+        buildArcadeProgressionBlock(arcadeProgression),
         ...endlessBlocks.filter((block) => block.tier === 'detail'),
         buildRoundDetailBlock(lastRoundMetrics),
         buildMatchDetailBlock(aggregateMetrics, outcome),
@@ -132,6 +143,8 @@ export function coordinateRoundEnd({
     parcours = null,
     huntScoreboard = null,
     localPlayerIndexes = null,
+    checkpointResetsByPlayer = null,
+    arcadeProgression = null,
     logger = console,
 }) {
     const recording = finalizeRoundRecording({
@@ -154,6 +167,8 @@ export function coordinateRoundEnd({
         outcome: plan?.outcome,
         huntScoreboard,
         localPlayerIndexes,
+        checkpointResetsByPlayer,
+        arcadeProgression,
     });
     const uiState = deriveRoundEndCoordinatorUiState(plan, statsSummary);
     const effectsPlan = deriveRoundEndCoordinatorEffectsPlan();

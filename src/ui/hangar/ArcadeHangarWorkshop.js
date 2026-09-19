@@ -37,6 +37,10 @@ import { purchaseHangarStone } from './HangarStoneInventory.js';
 import { createFallbackProfilePort, createHangarBuildFromProfile as buildFromProfile, mapHangarHitboxClass } from './HangarWorkshopProfileSupport.js';
 import { validateFightHangarBuild, validateFightHangarDrop } from './FightHangarValidation.js';
 import { normalizeFightMachineGunId, resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
+import {
+    selectArcadeTrailStyle,
+    selectArcadeWeaponStyle,
+} from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
 function createButton(className, text) {
     const button = el('button', className, text);
@@ -93,7 +97,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         revertButton, defaultButton, presetName, presetSelect, presetSave, presetSaveAs, presetLoad,
         presetRename, presetDuplicate, presetDelete, presetSort, presetTags, presetFavorite,
         presetExport, presetImport, buildCompareSelect, starterBuilds, machineGunSelect, activateButton, statusMessage,
-        buildViewSwitch,
+        buildViewSwitch, trailStyleSelect, weaponStyleSelects,
     } = shell;
     search.value = selection.getSearchTerm();
     const viewport = createHangarViewport3d({ mount: previewStage, overlay: previewOverlay, color: resolvePlayerColor(settings) });
@@ -333,6 +337,38 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         profilePort.save(profiles);
         audio.play('pickup');
         toast(`${result.stone.label} gekauft · ${result.remainingXrp} XRP übrig`, 'success');
+        syncDisplay();
+        return true;
+    }
+
+    function selectTrailStyle(styleId) {
+        if (hangarMode !== 'arcade') return false;
+        const vehicleId = draft.vehicleId;
+        const result = selectArcadeTrailStyle(profileFor(vehicleId), styleId);
+        if (!result.ok) {
+            toast(`Spurstil erst ab Level ${result.requiredLevel}`, 'warning');
+            syncDisplay();
+            return false;
+        }
+        profiles[vehicleId] = result.profile;
+        profilePort.save(profiles);
+        toast('Spurstil gespeichert', 'success');
+        syncDisplay();
+        return true;
+    }
+
+    function selectWeaponStyle(familyId, styleId) {
+        if (hangarMode !== 'arcade') return false;
+        const vehicleId = draft.vehicleId;
+        const result = selectArcadeWeaponStyle(profileFor(vehicleId), familyId, styleId);
+        if (!result.ok) {
+            toast(`Waffenstil erst ab Level ${result.requiredLevel}`, 'warning');
+            syncDisplay();
+            return false;
+        }
+        profiles[vehicleId] = result.profile;
+        profilePort.save(profiles);
+        toast('Waffenstil gespeichert', 'success');
         syncDisplay();
         return true;
     }
@@ -600,6 +636,10 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     bind(compareSelect, 'change', () => { selection.setCompareVehicleId(compareSelect.value); syncDisplay(); });
     bind(buildCompareSelect, 'change', () => syncDisplay());
     bind(machineGunSelect, 'change', () => selectMachineGun(machineGunSelect.value));
+    bind(trailStyleSelect, 'change', () => selectTrailStyle(trailStyleSelect.value));
+    Object.entries(weaponStyleSelects || {}).forEach(([familyId, select]) => {
+        bind(select, 'change', () => selectWeaponStyle(familyId, select.value));
+    });
     bind(vehiclePreviousButton, 'click', () => selectVehicle(selection.getNextVisibleVehicleId(-1, profiles))); bind(vehicleNextButton, 'click', () => selectVehicle(selection.getNextVisibleVehicleId(1, profiles)));
     bind(cameraToolbar, 'click', (event) => { const preset = event.target?.closest?.('[data-camera-preset]')?.dataset.cameraPreset; if (preset) viewport.setCameraPreset(preset); });
     bind(cameraReset, 'click', () => viewport.resetCamera());

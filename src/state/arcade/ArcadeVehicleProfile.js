@@ -1,4 +1,4 @@
-// Arcade Vehicle Profile: XP, mastery, unlocks and upgrade progression.
+// Arcade Vehicle Profile: XP, levels, unlocks and upgrade progression.
 
 import {
     ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
@@ -6,7 +6,8 @@ import {
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
     createArcadeVehicleProfileRecord,
     getArcadeVehicleProfileRecord,
-    readArcadeVehicleProfileRecord,
+    loadArcadeVehicleProfileRecord,
+    normalizeArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import {
     ARCADE_HANGAR_SLOT_UNLOCK_GATES,
@@ -62,7 +63,8 @@ export const UPGRADE_PURCHASE_CODES = Object.freeze({
 });
 
 function normalizeVehicleProfileSafe(profile) {
-    return normalizeVehicleProfile(profile, {
+    const contractProfile = normalizeArcadeVehicleProfileRecord(profile?.vehicleId, profile);
+    return normalizeVehicleProfile(contractProfile, {
         xpConfig: XP_CONFIG,
         maxUpgradeXpBank: MAX_UPGRADE_XP_BANK,
     });
@@ -133,19 +135,15 @@ export function getSlotStatBonuses(upgrades, hangarBonuses = null) {
     };
 }
 
-// Mastery perks
+// Kept as a compatibility shape; vehicle levels grant no passive perks.
 
 export function getMasteryPerks(level) {
-    const lvl = Math.max(1, Math.floor(clampInt(level, 1, XP_CONFIG.MAX_LEVEL, 1)));
-    const perks = {
+    void level;
+    return {
         scoreBonusPct: 0,
         comboDecaySlowPct: 0,
         xpBonusPct: 0,
     };
-    if (lvl >= 5) perks.scoreBonusPct = 5;
-    if (lvl >= 10) perks.comboDecaySlowPct = 20;
-    if (lvl >= 15) perks.xpBonusPct = 10;
-    return perks;
 }
 
 // Slot unlocks
@@ -399,8 +397,7 @@ export function applyLoadoutPreset(profile, upgrades, nowMs = Date.now()) {
 
 export function loadVehicleProfiles(store) {
     if (!store || typeof store.loadJsonRecord !== 'function') return {};
-    const raw = store.loadJsonRecord(STORAGE_KEY, {});
-    const { profiles: contractProfiles, shouldPersist } = readArcadeVehicleProfileRecord(raw);
+    const { profiles: contractProfiles, shouldPersist, usedLegacyFallback } = loadArcadeVehicleProfileRecord(store);
     const normalizedProfiles = {};
     let shouldRewrite = shouldPersist;
 
@@ -410,7 +407,7 @@ export function loadVehicleProfiles(store) {
         if (!profileEquals(profile, normalized)) shouldRewrite = true;
     });
 
-    if (shouldRewrite && typeof store.saveJsonRecord === 'function') {
+    if (shouldRewrite && !usedLegacyFallback && typeof store.saveJsonRecord === 'function') {
         const saveResult = store.saveJsonRecord(STORAGE_KEY, normalizedProfiles);
         warnPersistenceFailure('canonical write-back', saveResult);
     }

@@ -193,7 +193,7 @@ export class MGTracerFx {
         }
     }
 
-    spawnTracer(start, end, hit = false, mg = null) {
+    spawnTracer(start, end, hit = false, mg = null, colorOverride = null) {
         const renderer = this.entityManager?.renderer;
         if (!renderer?.addToScene) return;
 
@@ -204,7 +204,9 @@ export class MGTracerFx {
 
         const beamRadius = Math.max(0.02, Number(mg?.TRACER_BEAM_RADIUS) || MG_TRACER_DEFAULT_BEAM_RADIUS);
         const bulletRadius = Math.max(0.04, Number(mg?.TRACER_BULLET_RADIUS) || MG_TRACER_DEFAULT_BULLET_RADIUS);
-        const tracerColor = Number(mg?.TRACER_COLOR) || 0x8ad5ff;
+        const tracerColor = colorOverride !== null && colorOverride !== undefined && Number.isFinite(Number(colorOverride))
+            ? Number(colorOverride)
+            : (Number(mg?.TRACER_COLOR) || 0x8ad5ff);
         const tracerEntry = this._acquireTracerEntry();
         const tracerRoot = tracerEntry.mesh;
         tracerRoot.quaternion.setFromUnitVectors(MG_TRACER_UP_AXIS, this._tmpTracerDir);

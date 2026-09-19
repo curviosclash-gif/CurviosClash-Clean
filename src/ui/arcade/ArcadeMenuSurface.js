@@ -3,9 +3,8 @@ import { computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import {
     ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
-    ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
     getArcadeVehicleProfileRecord,
-    readArcadeVehicleProfileRecord,
+    loadArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import { applyHangarWindowStorageEvent, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 import { readActiveHangarBuildFromStore } from '../hangar/HangarBuildPersistence.js';
@@ -156,8 +155,7 @@ function resolveVehicleMasteryProfile(runtimeAccess, vehicleId) {
         return fallbackProfile;
     }
     try {
-        const rawProfiles = store.loadJsonRecord(ARCADE_VEHICLE_PROFILE_STORAGE_KEY, {});
-        const { profiles } = readArcadeVehicleProfileRecord(rawProfiles);
+        const { profiles } = loadArcadeVehicleProfileRecord(store);
         return getArcadeVehicleProfileRecord(profiles, vehicleId);
     } catch {
         return fallbackProfile;
@@ -314,9 +312,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const MAX_LEVEL = resolveVehicleMasteryMaxLevel();
         const lvl = Math.max(1, Math.min(MAX_LEVEL, Number(profile.level) || 1));
         const masteryLabel = lvl >= MAX_LEVEL
-            ? `${t('menu.arcade.mastery.progress.label', 'Mastery')} ${t('menu.arcade.mastery.max', 'MAX')}`
-            : `${t('menu.arcade.mastery.progress.label', 'Mastery')} Lv.${lvl}/${MAX_LEVEL}`;
-        refs.masteryLine.textContent = `${t('menu.arcade.mastery.current.label', 'Aktives Airframe')}: ${vehicleId} | ${masteryLabel}`;
+            ? `${t('menu.arcade.mastery.progress.label', 'Level')} ${t('menu.arcade.mastery.max', 'MAX')}`
+            : `${t('menu.arcade.mastery.progress.label', 'Level')} ${lvl}/${MAX_LEVEL}`;
+        refs.masteryLine.textContent = `${t('menu.arcade.mastery.current.label', 'Fahrzeug')}: ${vehicleId} | ${masteryLabel}`;
     };
 
     const prepareHangarRunStart = () => {
@@ -357,6 +355,11 @@ export function setupArcadeMenuSurface(ctx = {}) {
         settings.gameMode = 'ARCADE';
         if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
         settings.localSettings.modePath = 'arcade';
+        if (runType === 'weapon_race') {
+            settings.mode = '1p';
+            settings.localSettings.sessionType = 'single';
+            settings.localSettings.multiplayerTransport = '';
+        }
         const prepared = prepareHangarRunStart();
         if (prepared?.ok === false) return;
         const snapshot = createArcadeRunSnapshot({ ...settings, ...borrowedSettings }, activeSeed, prepared?.build);
@@ -371,6 +374,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     bind(refs.startEndlessButton, 'click', () => startRunWithOwnMap('endless_parcours', { mapKey: 'standard', numBots: 0 }));
     bind(refs.startFiveFrontsButton, 'click', () => startRunWithOwnMap('arena_waves', { mapKey: 'notre_dame_arena', numBots: 12 }));
     bind(refs.startFivePortalsButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: 'micro_maw', numBots: 0 }));
+    bind(refs.startWeaponRaceButton, 'click', () => startRunWithOwnMap('weapon_race', { mapKey: 'parcours_assault', numBots: 4 }));
 
     bind(refs.openHangarButton, 'click', async () => {
         const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });

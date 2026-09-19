@@ -1,4 +1,9 @@
 import { FIVE_PORTALS_MAPS, FIVE_PORTALS_RECORD_KEY, FIVE_PORTALS_RECORD_VERSION } from '../../shared/contracts/FivePortalsContract.js';
+import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
+import {
+    awardBoundArcadeVehicleXpInStore,
+    bindArcadeVehicleRewards,
+} from '../../state/arcade/ArcadeVehicleRewardBinding.js';
 
 function safeMs(value) {
     return Math.max(0, Math.round(Number(value) || 0));
@@ -34,12 +39,15 @@ export class FivePortalsRuntime {
         this.mapTimesMs = [];
         this.currentTimeMs = 0;
         this._transitionRequested = false;
+        this.rewardBinding = null;
+        this.xpEarned = 0;
         this.records = loadRecords(this._getRecordStore());
     }
 
-    start(entityManager) {
+    start(entityManager, { vehicleId = 'ship1' } = {}) {
         if (this.phase === 'idle' || this.phase === 'finished') {
             this.reset();
+            this.rewardBinding = bindArcadeVehicleRewards({ runType: 'five_portals', vehicleId });
             this.phase = 'racing';
         } else if (this.phase === 'transition') {
             this.phase = 'racing';
@@ -49,6 +57,22 @@ export class FivePortalsRuntime {
         this.entityManager = entityManager || null;
         this.entityManager?.arena?._portalGateSystem?.portalRuntime?.deactivateExitPortals?.();
         return this.getHudState();
+    }
+
+    handleXpEvent(eventType, playerIndex = 0) {
+        if (this.phase !== 'racing' || !this.rewardBinding || Number(playerIndex) !== 0) return null;
+        const amount = {
+            checkpoint: XP_REWARD_TABLE.parcoursCheckpoint,
+            finish: XP_REWARD_TABLE.parcoursFinish,
+            new_best_time: XP_REWARD_TABLE.parcoursNewBestTime,
+        }[String(eventType)] || 0;
+        const result = awardBoundArcadeVehicleXpInStore(
+            this._getRecordStore(),
+            this.rewardBinding,
+            amount
+        );
+        if (result) this.xpEarned += result.earned;
+        return result;
     }
 
     handleParcoursEvent(event) {
@@ -108,6 +132,8 @@ export class FivePortalsRuntime {
         const completedTotalMs = this.mapTimesMs.reduce((sum, time) => sum + safeMs(time), 0);
         return {
             runType: 'five_portals',
+            vehicleId: this.rewardBinding?.vehicleId || '',
+            xpEarned: this.xpEarned,
             phase: this.phase,
             mapIndex: this.mapIndex,
             mapCount: FIVE_PORTALS_MAPS.length,

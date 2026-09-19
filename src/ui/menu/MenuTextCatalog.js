@@ -258,9 +258,9 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.arcade.postrun.replay.toast.disabled': 'Replay ist deaktiviert.',
     'menu.arcade.postrun.replay.toast.empty': 'Kein Replay verfügbar.',
     'menu.arcade.postrun.daily.toast': 'Daily-Challenge startet mit Seed',
-    'menu.arcade.mastery.title': 'Vehicle Mastery',
-    'menu.arcade.mastery.current.label': 'Aktives Airframe',
-    'menu.arcade.mastery.progress.label': 'Mastery',
+    'menu.arcade.mastery.title': 'Fahrzeugfortschritt',
+    'menu.arcade.mastery.current.label': 'Fahrzeug',
+    'menu.arcade.mastery.progress.label': 'Level',
     'game.killcam.label': 'KILLCAM',
 });
 

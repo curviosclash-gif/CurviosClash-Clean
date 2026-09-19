@@ -78,3 +78,22 @@ test('maps without a scenario leave the bot count alone on the way back', () => 
     assert.equal(facade.synced.length, 0);
     handler.dispose();
 });
+
+test('the assault scenario does not replace a dedicated weapon race start', () => {
+    const facade = createFacade('parcours_assault');
+    facade.game.settings.gameMode = 'ARCADE';
+    facade.game.settings.localSettings.modePath = 'arcade';
+    facade.game.settings.arcade = { enabled: true, runType: 'weapon_race', combatProfile: 'hunt' };
+    facade.game.settings.numBots = 4;
+    const handler = new GameRuntimeSettingsHandler({ facade });
+
+    const result = handler.applyMapScenarioStartDefaults();
+
+    assert.deepEqual(result, { changed: false, changedKeys: [] });
+    assert.equal(facade.game.settings.localSettings.modePath, 'arcade');
+    assert.equal(facade.game.settings.gameMode, 'ARCADE');
+    assert.equal(facade.game.settings.arcade.runType, 'weapon_race');
+    assert.equal(facade.game.settings.numBots, 4);
+    assert.equal(facade.synced.length, 0);
+    handler.dispose();
+});

@@ -21,6 +21,11 @@ import {
 import { shootPlayerItemProjectile } from './projectile/PlayerProjectileFireOps.js';
 import { applyGuidedRocketInput } from './projectile/GuidedRocketControlOps.js';
 import { endGuidedRocketAutopilot } from '../ai/GuidedRocketAutopilotOps.js';
+import {
+    applyProjectileCosmeticColor,
+    createProjectileCosmeticGroup,
+    disposeProjectileCosmeticMaterials,
+} from './projectile/ProjectileCosmeticMeshOps.js';
 
 export class ProjectileSystem {
     constructor(options = {}) {
@@ -246,41 +251,17 @@ export class ProjectileSystem {
 
     clearInBounds(minX, maxX, minZ, maxZ) { return clearProjectilesInBounds(this, minX, maxX, minZ, maxZ); }
 
-    _acquireProjectileMesh(type, color) {
+    _acquireProjectileMesh(type, color, visualColor = color) {
         const pool = this._getProjectilePool(type);
         let rocketGroup = pool.pop();
 
         if (!rocketGroup) {
             const assets = this._getProjectileAssets(type, color);
-            rocketGroup = new THREE.Group();
-
-            const body = new THREE.Mesh(assets.bodyGeo, assets.bodyMat);
-            rocketGroup.add(body);
-
-            const tip = new THREE.Mesh(assets.tipGeo, assets.tipMat);
-            tip.position.z = -0.8;
-            rocketGroup.add(tip);
-
-            for (let i = 0; i < 4; i++) {
-                const fin = new THREE.Mesh(assets.finGeo, assets.finMat);
-                fin.position.z = 0.5;
-                const angle = (Math.PI / 2) * i;
-                if (i % 2 === 0) {
-                    fin.position.x = Math.cos(angle) * 0.2;
-                } else {
-                    fin.position.y = Math.sin(angle) * 0.2;
-                    fin.rotation.z = Math.PI / 2;
-                }
-                rocketGroup.add(fin);
-            }
-
-            const flame = new THREE.Mesh(assets.flameGeo, assets.flameMat);
-            flame.position.z = 0.85;
-            rocketGroup.add(flame);
-            rocketGroup.userData.flame = flame;
+            rocketGroup = createProjectileCosmeticGroup(assets);
         }
 
         rocketGroup.visible = true;
+        applyProjectileCosmeticColor(rocketGroup, visualColor);
         if (rocketGroup.userData.flame) {
             rocketGroup.userData.flame.scale.set(1, 1, 1);
         }
@@ -551,6 +532,10 @@ export class ProjectileSystem {
 
     dispose() {
         this.clear();
+
+        for (const pool of this._projectilePools.values()) {
+            for (const mesh of pool) disposeProjectileCosmeticMaterials(mesh);
+        }
 
         for (const assets of this._projectileAssets.values()) {
             if (assets.bodyGeo) assets.bodyGeo.dispose();

@@ -22,6 +22,7 @@ export function createEndlessRuntimeState() {
         score: 0,
         bonusScore: 0,
         runXp: 0,
+        rewardBinding: null,
         startVehicleId: '',
         startProfile: null,
         startBonuses: null,

@@ -279,7 +279,7 @@ test('V85.2 arcade persistence drops rejected future schemas and rewrites legacy
     };
     const profiles = loadVehicleProfiles(profileStore);
     assert.ok(profiles.ship1);
-    assert.equal(profiles.ship1.schemaVersion, 'arcade-vehicle-profile.v1');
+    assert.equal(profiles.ship1.schemaVersion, 'arcade-vehicle-profile.v2');
     assert.equal(profiles.ship2, undefined);
     assert.ok(profileStore.saved);
     assert.equal(profileStore.saved.ship2, undefined);

@@ -74,16 +74,15 @@ export function partCostsText(part, paired) {
     return `${paired ? 'Paarpreis' : 'Kosten'}: B ${costs.budget * multiplier} · M ${costs.mass * multiplier} · E ${costs.energy * multiplier} · H ${costs.heat * multiplier}`;
 }
 
-/** Progress line for the arcade profile box: level, mastery, xp inside the level, spendable points. */
+/** Progress line for the arcade profile box: level, xp inside the level, spendable points. */
 export function progressionSummaryText(progression) {
-    return `Level ${progression.level} · Mastery ${progression.masteryCount}`
-        + ` · XP ${progression.xpIntoLevel}/${progression.xpForNextLevel}`
-        + ` · XRP ${progression.spendableXrp}`;
+    return `Level ${progression.level} · XP ${progression.xpIntoLevel}/${progression.xpForNextLevel}`
+        + ` · XP-Bank ${progression.spendableXrp}`;
 }
 
 /** Second line: how far the next level still is, in plain words. */
 export function progressionDetailText(progression) {
-    const base = 'XRP sind deine Kaufpunkte für Steine im Hangar';
+    const base = 'Käufe nutzen nur die XP-Bank und senken dein Fahrzeuglevel nicht';
     if (progression.xpForNextLevel <= 0) return `Höchstes Level erreicht · ${base}`;
     return `Noch ${progression.xpRemaining} XP bis Level ${progression.level + 1} · ${base}`;
 }

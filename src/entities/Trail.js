@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { isModernGraphicsStyle } from '../shared/contracts/GraphicsStyleContract.js';
+import { resolveArcadeTrailColor } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
 const TRAIL_SEGMENT_GEOMETRY = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
@@ -57,6 +58,9 @@ export class Trail {
         this.gapTimer = 0;
         this.width = config.TRAIL.WIDTH;
         this._tmpDir = new THREE.Vector3();
+        this._cosmeticStyleId = null;
+        this._cosmeticSequence = 0;
+        this._cosmeticColor = new THREE.Color(color);
 
         // Material
         this.material = new THREE.MeshStandardMaterial({
@@ -101,13 +105,15 @@ export class Trail {
 
         // Render-only head segment. The collision trail keeps its existing
         // sampling interval while this one mesh follows the interpolated pose.
-        this.headMesh = new THREE.Mesh(TRAIL_SEGMENT_GEOMETRY, this.material);
+        this.headMaterial = this.material.clone();
+        this.headMesh = new THREE.Mesh(TRAIL_SEGMENT_GEOMETRY, this.headMaterial);
         this.headMesh.castShadow = false;
         this.headMesh.receiveShadow = false;
         this.headMesh.frustumCulled = false;
         this.headMesh.visible = false;
-        this.glowHeadMesh = this.glowMaterial
-            ? new THREE.Mesh(TRAIL_SEGMENT_GEOMETRY, this.glowMaterial)
+        this.glowHeadMaterial = this.glowMaterial?.clone?.() || null;
+        this.glowHeadMesh = this.glowHeadMaterial
+            ? new THREE.Mesh(TRAIL_SEGMENT_GEOMETRY, this.glowHeadMaterial)
             : null;
         if (this.glowHeadMesh) {
             this.glowHeadMesh.castShadow = false;
@@ -133,6 +139,26 @@ export class Trail {
 
     setWidth(width) {
         this.width = width;
+    }
+
+    setCosmeticStyle(styleId = 'standard') {
+        this._cosmeticStyleId = String(styleId || 'standard').toLowerCase();
+        this._cosmeticSequence = 0;
+        this.material.color.setHex(0xffffff);
+        this.material.emissive.setHex(0xffffff);
+        if (this.glowMaterial) this.glowMaterial.color.setHex(0xffffff);
+        this._applyCosmeticColorAt(0, 0);
+    }
+
+    _applyCosmeticColorAt(instanceIndex, sequenceIndex) {
+        if (!this._cosmeticStyleId) return;
+        const color = resolveArcadeTrailColor(this._cosmeticStyleId, this.color, sequenceIndex);
+        this._cosmeticColor.setHex(color);
+        this.mesh.setColorAt(instanceIndex, this._cosmeticColor);
+        if (this.glowMesh) this.glowMesh.setColorAt(instanceIndex, this._cosmeticColor);
+        this.headMaterial?.color?.setHex(color);
+        this.headMaterial?.emissive?.setHex(color);
+        this.glowHeadMaterial?.color?.setHex(color);
     }
 
     setVisualRearOffset(offset) {
@@ -303,9 +329,11 @@ export class Trail {
         if (!this._dirty) return;
         this.mesh.count = Math.min(this.segmentCount, this.maxSegments);
         this.mesh.instanceMatrix.needsUpdate = true;
+        if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
         if (this.glowMesh) {
             this.glowMesh.count = this.mesh.count;
             this.glowMesh.instanceMatrix.needsUpdate = true;
+            if (this.glowMesh.instanceColor) this.glowMesh.instanceColor.needsUpdate = true;
         }
         this._dirty = false;
     }
@@ -427,6 +455,7 @@ export class Trail {
         DUMMY.scale.set(radius, resolvedVisualLength, radius);
         DUMMY.updateMatrix();
         this.mesh.setMatrixAt(this.writeIndex, DUMMY.matrix);
+        this._applyCosmeticColorAt(this.writeIndex, this._cosmeticSequence++);
         this.mesh.instanceMatrix.addUpdateRange(this.writeIndex * 16, 16);
         DUMMY.scale.set(radius * 1.7, resolvedVisualLength * 1.01, radius * 1.7);
         DUMMY.updateMatrix();
@@ -508,6 +537,7 @@ export class Trail {
         this.writeIndex = 0;
         this.segmentCount = 0;
         this._dirty = false;
+        this._cosmeticSequence = 0;
         this.hasLastPosition = false;
         this._hasPreviousStepVisual = false;
         this.timeSinceUpdate = 0;
@@ -524,9 +554,13 @@ export class Trail {
         this.glowMesh?.dispose();
         this.material.dispose();
         this.glowMaterial?.dispose();
+        this.headMaterial?.dispose();
+        this.glowHeadMaterial?.dispose();
         this.headMesh = null;
         this.glowMesh = null;
         this.glowHeadMesh = null;
         this.glowMaterial = null;
+        this.headMaterial = null;
+        this.glowHeadMaterial = null;
     }
 }

@@ -1,5 +1,6 @@
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { resolveParcoursSpawnDirection } from '../systems/ParcoursRespawnOps.js';
+import { resolveWeaponRaceGridSpawn } from '../arcade/WeaponRaceSpawnOps.js';
 
 export class EntitySpawnOps {
     constructor(entityManager) {
@@ -58,6 +59,11 @@ export class EntitySpawnOps {
     spawnPlayer(player, spawnContext = null) {
         const owner = this.entityManager;
         if (!owner || !player) return;
+        if (owner.gameModeStrategy?.isWeaponRace?.()) {
+            const route = owner._parcoursProgressSystem?.getRouteSnapshot?.() || null;
+            const grid = resolveWeaponRaceGridSpawn(route, player, owner.players?.indexOf?.(player));
+            if (grid) { this.spawnPlayerAt(player, grid.position, grid.direction); return; }
+        }
         const context = spawnContext || this.createSpawnContext();
         const pos = owner._findSpawnPosition(12, 12, {
             planarLevel: context.planarSpawnLevel,

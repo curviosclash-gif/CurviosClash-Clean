@@ -46,6 +46,11 @@ export class LightningStrikeEffect {
         return this._seed / 2147483647;
     }
 
+    setColors(warningColor = WARNING_COLOR, strikeColor = STRIKE_COLOR) {
+        this._warningMaterial.color.setHex(Number(warningColor) || WARNING_COLOR);
+        this._strikeMaterial.color.setHex(Number(strikeColor) || STRIKE_COLOR);
+    }
+
     _shapeBolt(bolt, fromX, fromY, fromZ, toX, toY, toZ, jitter) {
         const positions = bolt.geometry.attributes.position;
         for (let i = 0; i < POINTS_PER_BOLT; i += 1) {

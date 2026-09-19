@@ -49,6 +49,12 @@ export function createTeamScoreboard(rows = [], players = [], { scoreKey = 'kill
             deaths: 0,
             assists: 0,
             damage: 0,
+            shieldDamage: 0,
+            intercepts: 0,
+            unitsDestroyed: 0,
+            burnedTrailMeters: 0,
+            flagCaptures: 0,
+            repairDroneHpRestored: 0,
         });
     }
     for (const row of rows || []) {
@@ -58,7 +64,10 @@ export function createTeamScoreboard(rows = [], players = [], { scoreKey = 'kill
         if (!team || !Number.isInteger(playerIndex)) continue;
         if (team.playerIndex < 0) team.playerIndex = playerIndex;
         team.playerIndices.push(playerIndex);
-        for (const key of ['kills', 'points', 'deaths', 'assists', 'damage']) {
+        for (const key of [
+            'kills', 'points', 'deaths', 'assists', 'damage', 'shieldDamage', 'intercepts',
+            'unitsDestroyed', 'burnedTrailMeters', 'flagCaptures', 'repairDroneHpRestored',
+        ]) {
             team[key] += Math.max(0, Number(row?.[key]) || 0);
         }
     }

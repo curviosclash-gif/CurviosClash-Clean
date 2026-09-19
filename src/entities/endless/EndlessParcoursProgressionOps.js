@@ -3,12 +3,12 @@ import { resolveEndlessCosmeticUnlocks } from '../../shared/contracts/EndlessPar
 import { ENDLESS_PARCOURS_RULE_VERSION } from '../../shared/contracts/EndlessParcoursWaveContract.js';
 import {
     addXp,
-    getMasteryPerks,
     getOrCreateProfile,
     getSlotStatBonuses,
     loadVehicleProfiles,
     XP_REWARD_TABLE,
 } from '../../state/arcade/ArcadeVehicleProfile.js';
+import { bindArcadeVehicleRewards } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
 import {
     loadEndlessParcoursRecords,
     normalizeEndlessParcoursRecords,
@@ -51,11 +51,11 @@ export function setEndlessRunProfile(runtime, {
     if (runtime.startProfile) return { vehicleId: runtime.startVehicleId, bonuses: { ...runtime.startBonuses } };
     runtime._recordStore = recordStore || runtime._recordStore;
     const profiles = loadVehicleProfiles(runtime._recordStore);
-    const profile = getOrCreateProfile(profiles, vehicleId);
-    runtime.startVehicleId = String(vehicleId || 'ship1');
+    runtime.rewardBinding = bindArcadeVehicleRewards({ runType: 'endless_parcours', vehicleId });
+    runtime.startVehicleId = runtime.rewardBinding.vehicleId;
+    const profile = getOrCreateProfile(profiles, runtime.startVehicleId);
     runtime.startProfile = Object.freeze(JSON.parse(JSON.stringify(profile)));
     runtime.startBonuses = Object.freeze({ ...getSlotStatBonuses(profile.upgrades, profile.hangarBonuses) });
-    runtime._xpBonusPct = getMasteryPerks(profile.level).xpBonusPct;
     try { strategy?.applyVehicleUpgrades?.(runtime.startBonuses); } catch { /* no-op */ }
     const human = runtime.entityManager?.humanPlayers?.[0] || null;
     try { strategy?.resetPlayerHealth?.(human); } catch { /* no-op */ }
@@ -74,7 +74,7 @@ export function collectEndlessRunXp(runtime, kind, count = 1) {
     const base = Math.max(0, Number(baseByKind[String(kind || '')]) || 0)
         * Math.max(0, Math.floor(Number(count) || 0));
     if (base <= 0) return 0;
-    const earned = Math.max(1, Math.round(base * (1 + (Number(runtime._xpBonusPct) || 0) / 100)));
+    const earned = base;
     runtime.runXp += earned;
     return earned;
 }
@@ -115,7 +115,7 @@ export function finalizeEndlessRun(runtime, reason, options = {}) {
         runtime._summary.unlocks = runtime.runUnlocks.slice();
         runtime._settlement = Object.freeze({
             runId: runtime.runId,
-            vehicleId: runtime.startVehicleId || 'ship1',
+            vehicleId: runtime.rewardBinding?.vehicleId || runtime.startVehicleId || 'ship1',
             xp: runtime.runXp,
             ruleVersion: ENDLESS_PARCOURS_RULE_VERSION,
             endedAtIso: runtime.wallClockIso(),

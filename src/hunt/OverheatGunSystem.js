@@ -15,6 +15,7 @@ import {
     applyWeaponFanDirection,
     resolveWeaponFanProjectileCount,
 } from './WeaponFanOps.js';
+import { nextPlayerArcadeWeaponColor } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
 function getMgConfig(source = null) {
     return resolveEntityRuntimeConfig(source)?.HUNT?.MG || {};
@@ -220,7 +221,8 @@ export class OverheatGunSystem {
                 this._tmpMuzzle,
                 this._tmpTracerEnd,
                 !!(hitResult.target || hitResult.trail || hitResult.turret),
-                mg
+                mg,
+                nextPlayerArcadeWeaponColor(player, 'mg', Number(mg?.TRACER_COLOR) || 0x8ad5ff)
             );
             if (hitResult.turret) {
                 this._hitResolver.applyTurretHit(player, hitResult.turret, hitResult.distance, mg);
