@@ -27,6 +27,7 @@ export class EntitySpawnOps {
         owner._secretRoomSystem?.startRound?.();
         owner._exclusionZoneSystem?.startRound?.();
         owner._spawnPlacementSystem?.resetAssignments?.();
+        owner._repairDroneSystem?.clear?.();
         const spawnContext = this.createSpawnContext();
         for (const player of owner.players) {
             if (player?.entitySlotActive === false) continue;

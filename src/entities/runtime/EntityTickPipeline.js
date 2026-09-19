@@ -48,6 +48,7 @@ export class EntityTickPipeline {
                 const input = owner._playerInputSystem.resolvePlayerInput(player, dt, inputManager);
                 owner._playerLifecycleSystem.updatePlayer(player, dt, input, renderFrameId, simulationNowMs);
             }
+            owner._repairDroneSystem?.update?.(safeDt);
 
             if (owner._roundEnded) {
                 owner.audio?.stopEngine?.();
