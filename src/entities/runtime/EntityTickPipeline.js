@@ -35,6 +35,7 @@ export class EntityTickPipeline {
         owner._railgunSystem?.update?.(safeDt);
         owner._exclusionZoneSystem?.update?.(safeDt);
         owner._mapDestructibleBlastSystem?.update?.();
+        owner._waterZoneSystem?.update?.(safeDt);
         // Before the projectiles: a portal that opens this tick has to take their shots too.
         owner._secretRoomSystem?.update?.(safeDt);
         owner._objectiveTargetMarkerSystem?.update?.(safeDt);

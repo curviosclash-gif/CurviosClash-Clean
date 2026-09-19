@@ -17,6 +17,9 @@ GENERATORS = {
     'eiffel_tower_siege': 'generate_eiffel_tower_siege_assets',
     'reactor_site': 'generate_reactor_site_assets',
     'burg_falkenwacht': 'generate_falkenwacht_assets',
+    'storm_bridge_siege': 'generate_wave6_landmark_assets',
+    'storm_lighthouse_siege': 'generate_wave6_landmark_assets',
+    'storm_dam_siege': 'generate_wave6_landmark_assets',
     'standard': 'generate_map_world',
     'wind_cathedral': 'generate_map_world',
     'chrono_forge_nexus': 'generate_map_world',
@@ -35,6 +38,16 @@ def main():
     parser.add_argument('--output-dir', type=Path)
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
     module = importlib.import_module(GENERATORS[args.pack])
+    if args.pack in ('storm_bridge_siege', 'storm_lighthouse_siege', 'storm_dam_siege'):
+        if args.output_dir:
+            module.ROOT = args.output_dir.resolve()
+        if args.pack == 'storm_bridge_siege':
+            module.generate_bridge(set(args.part or module.BRIDGE_PARTS))
+        elif args.pack == 'storm_lighthouse_siege':
+            module.generate_lighthouse(set(args.part or module.LIGHTHOUSE_PARTS))
+        else:
+            module.generate_dam(set(args.part or module.DAM_PARTS))
+        return
     if GENERATORS[args.pack] == 'generate_map_world':
         if args.part and set(args.part) != {'01_world'}:
             parser.error('Map worlds currently expose one part: 01_world.')

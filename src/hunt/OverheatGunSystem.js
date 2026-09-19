@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { resolveWaterWeaponCooldown } from '../entities/systems/WaterGameplayOps.js';
 import { MGOverheatState } from './mg/MGOverheatState.js';
 import { MGHitResolver } from './mg/MGHitResolver.js';
 import { MGTracerFx } from './mg/MGTracerFx.js';
@@ -184,7 +185,7 @@ export class OverheatGunSystem {
             });
         }
 
-        player.shootCooldown = shotCooldown;
+        player.shootCooldown = resolveWaterWeaponCooldown(player, shotCooldown);
         this._state.increaseOverheat(idx, mg);
 
         const resolvesAimDirection = typeof this._hitResolver.resolveAimDirection === 'function';

@@ -31,6 +31,7 @@ export function createHuntNetworkState(entityManager) {
         ...matchState,
         // Null on every map without destructible geometry, so the block costs nothing there.
         mapDestructibles: entityManager._mapDestructibleSystem?.serializeNetworkState?.() || null,
+        waterZone: entityManager._waterZoneSystem?.serializeNetworkState?.() || null,
         // Tanks: host truth for position, hit points and shots; null on maps without them.
         mapUnits: entityManager._mapUnitSystem?.serializeNetworkState?.() || null,
         flags: entityManager._flagObjectiveSystem?.serializeNetworkState?.() || null,
@@ -48,6 +49,7 @@ export function applyHuntNetworkState(entityManager, state) {
     if (state.mapDestructibles) {
         entityManager._mapDestructibleSystem?.applyNetworkState?.(state.mapDestructibles);
     }
+    if (state.waterZone) entityManager._waterZoneSystem?.applyNetworkState?.(state.waterZone);
     if (state.mapUnits) entityManager._mapUnitSystem?.applyNetworkState?.(state.mapUnits);
     if (state.flags) entityManager._flagObjectiveSystem?.applyNetworkState?.(state.flags);
     // Always applied, also when null: a finished warning has to leave the client sky.

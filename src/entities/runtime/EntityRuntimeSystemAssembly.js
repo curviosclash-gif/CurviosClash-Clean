@@ -25,6 +25,7 @@ import { LightningStrikeSystem } from '../../hunt/LightningStrikeSystem.js';
 import { RailgunSystem } from '../../hunt/RailgunSystem.js';
 import { RepairDroneSystem } from '../systems/RepairDroneSystem.js';
 import { FlagObjectiveSystem } from '../systems/FlagObjectiveSystem.js';
+import { WaterZoneSystem } from '../systems/WaterZoneSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -40,6 +41,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         mapHazardSystem: new MapHazardSystem(owner),
         mapDestructibleSystem: new MapDestructibleSystem(owner),
         mapDestructibleBlastSystem: new MapDestructibleBlastSystem(owner),
+        waterZoneSystem: new WaterZoneSystem(owner),
         objectiveTargetMarkerSystem: new ObjectiveTargetMarkerSystem(owner),
         secretRoomSystem: new SecretRoomSystem(owner),
         flagObjectiveSystem: null,

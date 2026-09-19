@@ -18,6 +18,10 @@ export class RenderViewportSystem {
         /** Index of the local player whose camera to follow in network mode. */
         this.localPlayerIndex = options.localPlayerIndex || 0;
         this.postProcessingPipeline = options.postProcessingPipeline || null;
+        this.beforeCameraRender = typeof options.beforeCameraRender === 'function'
+            ? options.beforeCameraRender : null;
+        this.afterCameraRender = typeof options.afterCameraRender === 'function'
+            ? options.afterCameraRender : null;
         this.renderer.setSize(this.width, this.height);
         this.postProcessingPipeline?.setSize?.(this.width, this.height);
     }
@@ -88,8 +92,22 @@ export class RenderViewportSystem {
         this.renderer.setScissorTest(false);
         this.renderer.setViewport(0, 0, width, height);
         this.renderer.setScissor(0, 0, width, height);
-        if (!this.postProcessingPipeline?.render?.(scene, camera)) {
+        this.beforeCameraRender?.(scene, camera);
+        try {
+            if (!this.postProcessingPipeline?.render?.(scene, camera)) {
+                this.renderer.render(scene, camera);
+            }
+        } finally {
+            this.afterCameraRender?.(scene, camera);
+        }
+    }
+
+    _renderCamera(scene, camera) {
+        this.beforeCameraRender?.(scene, camera);
+        try {
             this.renderer.render(scene, camera);
+        } finally {
+            this.afterCameraRender?.(scene, camera);
         }
     }
 
@@ -120,7 +138,7 @@ export class RenderViewportSystem {
             for (const [x, y, width, height, camera] of quadrants) {
                 this.renderer.setViewport(x, y, width, height);
                 this.renderer.setScissor(x, y, width, height);
-                this.renderer.render(scene, camera);
+                this._renderCamera(scene, camera);
             }
             this.renderer.setScissorTest(false);
             this.renderer.setViewport(0, 0, w, h);
@@ -140,7 +158,7 @@ export class RenderViewportSystem {
             for (const [x, y, width, height, camera] of columns) {
                 this.renderer.setViewport(x, y, width, height);
                 this.renderer.setScissor(x, y, width, height);
-                this.renderer.render(scene, camera);
+                this._renderCamera(scene, camera);
             }
             this.renderer.setScissorTest(false);
             this.renderer.setViewport(0, 0, w, h);
@@ -155,11 +173,11 @@ export class RenderViewportSystem {
             this.renderer.setViewport(0, 0, leftWidth, h);
             this.renderer.setScissor(0, 0, leftWidth, h);
             this.renderer.setScissorTest(true);
-            this.renderer.render(scene, cameras[0]);
+            this._renderCamera(scene, cameras[0]);
 
             this.renderer.setViewport(leftWidth, 0, rightWidth, h);
             this.renderer.setScissor(leftWidth, 0, rightWidth, h);
-            this.renderer.render(scene, cameras[1]);
+            this._renderCamera(scene, cameras[1]);
 
             this.renderer.setScissorTest(false);
             this.renderer.setViewport(0, 0, w, h);
