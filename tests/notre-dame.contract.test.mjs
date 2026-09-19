@@ -140,6 +140,7 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         'reactor_site',
         'standard',
         'storm_bridge_siege',
+        'storm_dam_siege',
         'storm_lighthouse_siege',
         'trench',
         'vertical_maze',

@@ -50,6 +50,7 @@ const COLLECTION_DEFINITIONS = [
             'clockwork_canyon',
             'storm_bridge_siege',
             'storm_lighthouse_siege',
+            'storm_dam_siege',
         ],
     },
     {

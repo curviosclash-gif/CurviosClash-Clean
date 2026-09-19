@@ -3,6 +3,7 @@ import { asPositiveNumber } from './MapSchemaSanitizeOps.js';
 import { createMapDocument } from './MapSchemaMigrationOps.js';
 import { toRuntimeSecretRooms } from './MapSchemaSecretRoomOps.js';
 import { toRuntimeMapUnits } from './MapSchemaMapUnitOps.js';
+import { toRuntimeWaterZone } from './MapSchemaWaterZoneOps.js';
 
 function cloneObject(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
@@ -326,6 +327,7 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
     const parcours = mapParcoursToRuntime(normalized.parcours, invScale);
     const secretRooms = toRuntimeSecretRooms(normalized.secretRooms, invScale);
     const mapUnits = toRuntimeMapUnits(normalized.mapUnits, invScale);
+    const waterZone = toRuntimeWaterZone(normalized.waterZone, invScale);
 
     return {
         map: {
@@ -360,6 +362,7 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
             parcours,
             ...(secretRooms ? { secretRooms } : null),
             ...(mapUnits ? { mapUnits } : null),
+            ...(waterZone ? { waterZone } : null),
         },
         warnings,
         mapDocument: normalized,

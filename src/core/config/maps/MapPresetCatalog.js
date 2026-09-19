@@ -30,6 +30,7 @@ import { FALKENWACHT_MAPS } from './presets/burg_falkenwacht/index.js';
 import { CLOCKWORK_CANYON_MAPS } from './presets/clockwork_canyon/index.js';
 import { STORM_BRIDGE_SIEGE_MAPS } from './presets/storm_bridge_siege/index.js';
 import { STORM_LIGHTHOUSE_SIEGE_MAPS } from './presets/storm_lighthouse_siege/index.js';
+import { STORM_DAM_SIEGE_MAPS } from './presets/storm_dam_siege/index.js';
 
 export const MAP_PRESET_CATALOG = {
     ...(STANDARD_MAPS || {}),
@@ -64,4 +65,5 @@ export const MAP_PRESET_CATALOG = {
     ...CLOCKWORK_CANYON_MAPS,
     ...STORM_BRIDGE_SIEGE_MAPS,
     ...STORM_LIGHTHOUSE_SIEGE_MAPS,
+    ...STORM_DAM_SIEGE_MAPS,
 };

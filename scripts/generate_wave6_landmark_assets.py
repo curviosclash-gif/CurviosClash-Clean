@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FPS = 30
 BRIDGE_PARTS = ('01_bridge', '20_bridge_collapse')
 LIGHTHOUSE_PARTS = ('01_lighthouse', '20_lighthouse_collapse')
+DAM_PARTS = ('01_dam', '20_dam_collapse')
 
 
 def reset_scene(name, seconds=0):
@@ -189,15 +190,60 @@ def generate_lighthouse(parts=None):
         export_scene('storm_lighthouse_siege', '20_lighthouse_collapse', 'LighthouseCollapseOnce')
 
 
+def build_dam(parent=None):
+    concrete = material('DamConcrete', (0.34, 0.39, 0.41), 0.05, 0.82)
+    wet = material('DamWetConcrete', (0.15, 0.22, 0.25), 0.02, 0.65)
+    steel = material('DamSteel', (0.08, 0.13, 0.16), 0.78, 0.26)
+    warning = material('DamWarning', (0.95, 0.46, 0.06), 0.2, 0.35)
+    objects = []
+    objects.append(box('dam_wall_body', (0, 0, 38), (132, 18, 68), concrete, parent))
+    objects.append(box('dam_wall_crown', (0, 0, 74), (138, 24, 5), wet, parent))
+    objects.append(box('dam_wall_foot', (0, 4, 8), (142, 34, 12), wet, parent))
+    for x in (-48, -24, 0, 24, 48):
+        objects.append(box(f'dam_wall_spillway_{x:+}', (x, -11, 37), (10, 5, 44), steel, parent))
+        objects.append(box(f'dam_wall_warning_{x:+}', (x, -14, 61), (8, 2, 3), warning, parent))
+    for x in (-63, 63):
+        objects.append(box(f'dam_wall_buttress_{x:+}', (x, 5, 30), (12, 30, 58), concrete, parent))
+    return objects
+
+
+def generate_dam(parts=None):
+    selected = set(parts or DAM_PARTS)
+    unknown = selected - set(DAM_PARTS)
+    if unknown:
+        raise ValueError(f'Unknown dam parts: {sorted(unknown)}')
+    if '01_dam' in selected:
+        reset_scene('StormDamIntact')
+        build_dam()
+        export_scene('storm_dam_siege', '01_dam')
+    if '20_dam_collapse' in selected:
+        scene = reset_scene('DamCollapseOnce', 5)
+        rig = bpy.data.objects.new('DamCollapseRig', None)
+        scene.collection.objects.link(rig)
+        build_dam(rig)
+        rig.rotation_mode = 'XYZ'
+        rig.keyframe_insert('location', frame=1)
+        rig.keyframe_insert('rotation_euler', frame=1)
+        rig.location = (0, -8, -34)
+        rig.rotation_euler = (0.18, 0.0, -0.04)
+        rig.keyframe_insert('location', frame=scene.frame_end)
+        rig.keyframe_insert('rotation_euler', frame=scene.frame_end)
+        if rig.animation_data and rig.animation_data.action:
+            rig.animation_data.action.name = 'DamCollapseOnce'
+        export_scene('storm_dam_siege', '20_dam_collapse', 'DamCollapseOnce')
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--landmark', choices=('bridge', 'lighthouse'), default='bridge')
+    parser.add_argument('--landmark', choices=('bridge', 'lighthouse', 'dam'), default='bridge')
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     args = parser.parse_args(argv)
     if args.landmark == 'bridge':
         generate_bridge()
     elif args.landmark == 'lighthouse':
         generate_lighthouse()
+    elif args.landmark == 'dam':
+        generate_dam()
 
 
 if __name__ == '__main__':

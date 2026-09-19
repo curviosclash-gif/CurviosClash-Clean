@@ -62,6 +62,7 @@ export function normalizeWaterZone(value) {
     const targetLevel = clamp(value.targetLevel, startLevel, max[1]);
     return Object.freeze({
         id: String(value.id || 'water_zone').trim().slice(0, 64) || 'water_zone',
+        triggerSegmentId: String(value.triggerSegmentId || '').trim().slice(0, 64),
         bounds: Object.freeze({ min, max }),
         startLevel,
         targetLevel,
@@ -118,9 +119,9 @@ export function stepWaterZoneState(state, zone, deltaSeconds) {
 
 export function isPointUnderwater(zone, state, point) {
     if (!zone || !state || (state.phase !== WATER_PHASES.RISING && state.phase !== WATER_PHASES.FLOODED)) return false;
-    const x = finite(point?.[0], Infinity);
-    const y = finite(point?.[1], Infinity);
-    const z = finite(point?.[2], Infinity);
+    const x = finite(point?.[0] ?? point?.x, Infinity);
+    const y = finite(point?.[1] ?? point?.y, Infinity);
+    const z = finite(point?.[2] ?? point?.z, Infinity);
     const { min, max } = zone.bounds;
     return x >= min[0] && x <= max[0] && z >= min[2] && z <= max[2]
         && y >= min[1] && y <= Math.min(max[1], state.level);

@@ -66,6 +66,7 @@ const BASE_MAP_KEYS = [
     'clockwork_canyon',
     'storm_bridge_siege',
     'storm_lighthouse_siege',
+    'storm_dam_siege',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(
