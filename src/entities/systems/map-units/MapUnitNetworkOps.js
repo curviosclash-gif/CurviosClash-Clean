@@ -23,6 +23,11 @@ export function serializeMapUnits(units) {
         to: unit.toIndex,
         progress: round(unit.progress),
         yaw: round(unit.yaw),
+        ...(unit.kind === 'bomber' ? {
+            crashing: unit.crashing === true,
+            pos: [round(unit.position.x), round(unit.position.y), round(unit.position.z)],
+            bombs: unit.bombsFired,
+        } : {}),
         ...(unit.kind === 'swarm' ? {
             members: unit.members.map((member) => ({ alive: member.alive === true, hp: round(member.hp, 10) })),
         } : {}),
@@ -63,6 +68,7 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         const entry = byId.get(unit.id);
         if (!entry) continue;
         const wasAlive = unit.alive;
+        const wasCrashing = unit.crashing === true;
         const pathLength = unit.path.length;
         const from = Math.trunc(Number(entry.from));
         const to = Math.trunc(Number(entry.to));
@@ -74,6 +80,13 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         unit.yaw = Number.isFinite(Number(entry.yaw)) ? Number(entry.yaw) : unit.yaw;
         unit.hp = Math.max(0, Number(entry.hp) || 0);
         unit.alive = entry.alive === true;
+        if (unit.kind === 'bomber') {
+            unit.crashing = entry.crashing === true;
+            unit.bombsFired = Math.max(0, Math.trunc(Number(entry.bombs) || 0));
+            if (unit.crashing && Array.isArray(entry.pos)) {
+                unit.groundPosition.set(Number(entry.pos[0]) || 0, Number(entry.pos[1]) || 0, Number(entry.pos[2]) || 0);
+            }
+        }
         system.setBossRoomClock?.(unit, unit.alive);
         if (unit.kind === 'swarm' && Array.isArray(entry.members)) {
             let totalHp = 0;
@@ -88,10 +101,11 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
             unit.hp = totalHp;
             if (unit.source) unit.source.alive = unit.alive;
         }
-        resolveUnitPathPose(unit, unit.path, unit.groundPosition);
+        if (!unit.crashing) resolveUnitPathPose(unit, unit.path, unit.groundPosition);
         onPoseChanged(unit);
-        if (unit.root) unit.root.visible = unit.alive;
-        if (wasAlive && !unit.alive && unit.kind !== 'swarm') {
+        if (unit.root) unit.root.visible = unit.alive || unit.crashing;
+        if ((wasAlive && !unit.alive && unit.kind !== 'swarm' && unit.kind !== 'bomber')
+            || (wasCrashing && !unit.crashing && !unit.alive && unit.kind === 'bomber')) {
             // Only the picture: damage, loot and credit already happened on the host.
             system.entityManager?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
         }

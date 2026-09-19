@@ -39,6 +39,7 @@ import {
     updateBomberVisual,
 } from './map-units/MapUnitBomberVisualOps.js';
 import { updateBomberBombs } from './map-units/MapUnitBombOps.js';
+import { updateBomberCrash } from './map-units/MapUnitBomberCrashOps.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
@@ -114,6 +115,8 @@ export class MapUnitSystem {
             members: null,
             bombCooldownRemaining: definition.weapons?.bomb?.cooldown || 0,
             bombsFired: 0,
+            crashing: false,
+            crashSourcePlayer: null,
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
@@ -185,6 +188,8 @@ export class MapUnitSystem {
         if (unit.kind === 'swarm') resetSwarmMembers(unit);
         unit.bombCooldownRemaining = unit.definition.weapons?.bomb?.cooldown || 0;
         unit.bombsFired = 0;
+        unit.crashing = false;
+        unit.crashSourcePlayer = null;
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? unit.yaw;
         this._placeCentre(unit);
         for (const mount of unit.mounts) {
@@ -203,6 +208,10 @@ export class MapUnitSystem {
             for (const unit of tickMapUnitRespawns(this.units, safeDt, this._dueRespawns)) this._respawn(unit);
         }
         for (const unit of this.units) {
+            if (unit.crashing) {
+                if (!this.networkReplica) updateBomberCrash(this, unit, safeDt);
+                continue;
+            }
             if (!unit.alive) continue;
             advanceUnitOnPath(unit, unit.path, unit.speed * safeDt, unit.definition.loop);
             const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
