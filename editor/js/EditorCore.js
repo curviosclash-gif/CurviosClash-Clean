@@ -81,7 +81,7 @@ export class EditorCore {
             if (!flyMode) this.orbit.enabled = !event.value;
         });
 
-        this.scene.add(this.transformControl);
+        this.scene.add(this.transformControl.getHelper());
         this.transformControl.setTranslationSnap(null); // default off
 
         // Lighting
