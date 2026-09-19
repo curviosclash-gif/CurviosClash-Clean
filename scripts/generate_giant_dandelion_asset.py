@@ -34,8 +34,11 @@ COLLISION_PATH = ASSET_DIR / "giant_dandelion_collision.glb"
 
 SEED = 27041984
 GOLDEN_ANGLE = pi * (3.0 - sqrt(5.0))
-HEAD_CENTER = Vector((1.12, 0.08, 14.45))
-STEM_TOP = Vector((1.08, 0.06, 13.78))
+STEM_BASE_Z = 0.30
+STEM_LENGTH_SCALE = 0.5
+STEM_RISE = 13.48 * STEM_LENGTH_SCALE
+STEM_TOP = Vector((1.08, 0.06, STEM_BASE_Z + STEM_RISE))
+HEAD_CENTER = Vector((1.12, 0.08, STEM_TOP.z + 0.67))
 
 
 @dataclass(frozen=True)
@@ -192,7 +195,7 @@ def reset_scene():
     scene.frame_end = 120
     scene["asset"] = "giant_dandelion"
     scene["species_grammar"] = "Taraxacum rosette, leafless scape, spherical pappus head"
-    scene["height_m"] = 17.8
+    scene["height_m"] = 11.0
     scene["seed"] = SEED
     scene["generator"] = "scripts/generate_giant_dandelion_asset.py"
     scene["wind_mechanism"] = "WindGust morph and one-shot SeedFlight animation"
@@ -304,7 +307,7 @@ def build_stem(collection, profile, materials):
         points.append(Vector((
             0.04 + 1.03 * (t ** 1.72) + 0.055 * sin(t * pi * 3.0),
             0.025 * sin(t * pi * 2.0) + 0.045 * sin(t * pi * 5.0),
-            0.30 + 13.48 * t,
+            STEM_BASE_Z + STEM_RISE * t,
         )))
         radii.append(0.255 * (1.0 - 0.43 * t) + 0.018 * sin(pi * t))
     builder.add_tube(points, radii, sides=profile.stem_sides, material_index=0)
@@ -705,12 +708,12 @@ def build_presentation(scene, materials):
         obj.location = location
         look_at(obj, HEAD_CENTER)
 
-    target = Vector((1.35, 0, 8.15))
+    target = Vector((1.35, 0, 4.75))
     cameras = {
-        "front": add_camera(collection, "Camera_front", (0, -37, 11.0), target, 53),
-        "quarter": add_camera(collection, "Camera_quarter", (29, -29, 12.4), target, 55),
-        "side": add_camera(collection, "Camera_side", (35, 0, 11.2), target, 55),
-        "top": add_camera(collection, "Camera_top", (17, -20, 31), HEAD_CENTER, 49),
+        "front": add_camera(collection, "Camera_front", (0, -31, 7.4), target, 53),
+        "quarter": add_camera(collection, "Camera_quarter", (25, -25, 8.2), target, 55),
+        "side": add_camera(collection, "Camera_side", (30, 0, 7.5), target, 55),
+        "top": add_camera(collection, "Camera_top", (15, -18, 24), HEAD_CENTER, 49),
     }
     return cameras
 
@@ -750,7 +753,7 @@ def validate_scene(scene, collections):
         raise RuntimeError(f"LOD triangle counts do not decrease: {triangle_counts}")
     minimum, maximum = object_bounds(collections["HERO"].objects)
     dimensions = maximum - minimum
-    if not 17.0 <= dimensions.z <= 20.0:
+    if not 10.0 <= dimensions.z <= 12.5:
         raise RuntimeError(f"unexpected giant dandelion height: {dimensions.z:.2f} m")
     if dimensions.x < 10.0 or dimensions.y < 5.0:
         raise RuntimeError(f"seed head or airborne silhouette collapsed: {tuple(dimensions)}")
