@@ -25,12 +25,25 @@ function syncAudioLifecycle(game, state) {
     }
 }
 
+function applyGameState(game, state, fallbackState, reason) {
+    const nextState = normalizeGameStateId(state, fallbackState);
+    if (nextState !== game.state) {
+        game.input?.clearInputState?.(reason);
+    }
+    game.state = nextState;
+}
+
 export function createMatchStatePort(game) {
     return {
         applyLifecycleTransition(transition = null) {
             if (!game || !transition || typeof transition !== 'object') return false;
             if (typeof transition.state === 'string' && transition.state.length > 0) {
-                game.state = normalizeGameStateId(transition.state, game.state || GAME_STATE_IDS.MENU);
+                applyGameState(
+                    game,
+                    transition.state,
+                    game.state || GAME_STATE_IDS.MENU,
+                    'lifecycle-transition'
+                );
             }
             if (typeof transition.roundPause === 'number') game.roundPause = transition.roundPause;
             if (typeof transition.hudTimer === 'number') game._hudTimer = transition.hudTimer;
@@ -42,7 +55,7 @@ export function createMatchStatePort(game) {
         },
         enterRoundEnd(roundPause = 3) {
             if (!game) return false;
-            game.state = GAME_STATE_IDS.ROUND_END;
+            applyGameState(game, GAME_STATE_IDS.ROUND_END, GAME_STATE_IDS.ROUND_END, 'round-end');
             game.roundPause = Number.isFinite(Number(roundPause)) ? Number(roundPause) : 3;
             syncAudioLifecycle(game, game.state);
             return true;
@@ -52,7 +65,7 @@ export function createMatchStatePort(game) {
             game.roundPause = Number.isFinite(Number(transition.roundPause))
                 ? Number(transition.roundPause)
                 : game.roundPause;
-            game.state = normalizeGameStateId(transition.nextState, GAME_STATE_IDS.ROUND_END);
+            applyGameState(game, transition.nextState, GAME_STATE_IDS.ROUND_END, 'round-transition');
             syncAudioLifecycle(game, game.state);
             return true;
         },
