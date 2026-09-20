@@ -66,6 +66,20 @@ test('team round wins increment every teammate and reach the match limit togethe
     assert.equal(result.outcome.matchWinner.teamId, TEAM_IDS.ALPHA);
 });
 
+test('team round scoring excludes departed network slots', () => {
+    const players = [
+        { index: 0, teamId: TEAM_IDS.ALPHA, score: 0, entitySlotActive: true },
+        { index: 2, teamId: TEAM_IDS.ALPHA, score: 0, entitySlotActive: false },
+        { index: 1, teamId: TEAM_IDS.BRAVO, score: 0, entitySlotActive: true },
+    ];
+    coordinateRoundEnd({
+        winner: players[0], winnerTeamId: TEAM_IDS.ALPHA, players,
+        roundStateController: { deriveOnRoundEndPlan: () => ({ outcome: {}, transition: {} }) },
+        logger: { log() {} },
+    });
+    assert.deepEqual(players.map((player) => player.score), [1, 0, 0]);
+});
+
 test('all standard bot target selectors skip teammates', () => {
     const bot = combatant(0, TEAM_IDS.ALPHA);
     bot.position = new THREE.Vector3();

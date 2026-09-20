@@ -4,6 +4,7 @@
 
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
+import { normalizeTeamId, resolveTeamLabel } from '../shared/contracts/TeamCombatContract.js';
 
 function ensureArray(players) {
     return Array.isArray(players) ? players : [];
@@ -62,6 +63,7 @@ function getRunnerUpWins(players, matchWinner) {
 export function deriveRoundEndOutcome(players, inputs = {}) {
     const safePlayers = ensureArray(players);
     const winner = inputs.winner || null;
+    const winnerTeamId = normalizeTeamId(inputs.winnerTeamId);
     const reason = normalizeOutcomeReason(inputs.reason);
     const parcours = inputs.parcours && typeof inputs.parcours === 'object'
         ? { ...inputs.parcours }
@@ -70,7 +72,10 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
     const totalBots = normalizeCount(inputs.totalBots);
     const requiredWins = normalizeRequiredWins(inputs.winsNeeded);
     const canWinMatch = humanPlayerCount > 1 || totalBots > 0;
-    const matchWinner = canWinMatch ? (safePlayers.find((player) => player && player.score >= requiredWins) || null) : null;
+    const matchWinner = canWinMatch ? (safePlayers.find((player) => player
+        && player.entitySlotActive !== false
+        && (!winnerTeamId || player.teamId === winnerTeamId)
+        && player.score >= requiredWins) || null) : null;
 
     if (reason.startsWith('ENDLESS_')) {
         const summary = parcours?.endlessSummary || {};
@@ -91,7 +96,7 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
     }
 
     if (matchWinner) {
-        const name = getResultPlayerName(matchWinner);
+        const name = winnerTeamId ? resolveTeamLabel(winnerTeamId) : getResultPlayerName(matchWinner);
         if (reason === 'PARCOURS_COMPLETE') {
             const completionSuffix = Number.isFinite(Number(parcours?.completionTimeMs))
                 ? ` (${formatDurationMs(parcours.completionTimeMs)})`
@@ -115,12 +120,15 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
             reason,
             parcours,
             messageText: `${name} gewinnt das Match`,
-            messageSub: `${normalizeCount(matchWinner.score)} : ${getRunnerUpWins(safePlayers, matchWinner)} Runden`,
+            messageSub: `${normalizeCount(matchWinner.score)} : ${winnerTeamId
+                ? Math.max(0, ...safePlayers.filter((player) => player?.teamId !== winnerTeamId)
+                    .map((player) => normalizeCount(player?.score)))
+                : getRunnerUpWins(safePlayers, matchWinner)} Runden`,
         };
     }
 
     if (winner) {
-        const name = getResultPlayerName(winner);
+        const name = winnerTeamId ? resolveTeamLabel(winnerTeamId) : getResultPlayerName(winner);
         if (reason === 'PARCOURS_COMPLETE') {
             const completionSuffix = Number.isFinite(Number(parcours?.completionTimeMs))
                 ? ` (${formatDurationMs(parcours.completionTimeMs)})`

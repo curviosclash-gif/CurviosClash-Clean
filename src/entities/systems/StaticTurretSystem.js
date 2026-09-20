@@ -2,7 +2,7 @@ import { isDestructibleTurret, isTurretCombatActive } from '../../shared/contrac
 import { createTrailTargetDescriptor } from '../../hunt/HuntTargetingOps.js';
 import * as THREE from 'three';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
-import { normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
+import { areTeammates, normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
 import { addObjectiveGuard, setTurretTeam } from './static-turret/StaticTurretObjectiveOps.js';
 import { resolveMapStaticTurretDefinitions } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 import { MGTracerFx } from '../../hunt/mg/MGTracerFx.js';
@@ -314,6 +314,9 @@ export class StaticTurretSystem {
         if (!isStaticTurretSecretRoomActive(this, turret)
             || !isDestructibleTurret(turret) || turret.hp <= 0 || this.networkReplica) {
             return { applied: 0, hpApplied: 0, remainingHp: Math.max(0, Number(turret?.hp) || 0), isDead: turret?.hp <= 0 };
+        }
+        if (turret.objectiveGuard === true && areTeammates(options.sourcePlayer, turret)) {
+            return { applied: 0, hpApplied: 0, absorbedByShield: 0, remainingHp: turret.hp, isDead: false };
         }
         const requested = Math.max(0, Number(amount) || 0);
         const hpBefore = turret.hp;

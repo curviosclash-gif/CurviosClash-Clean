@@ -8,6 +8,7 @@ export function addObjectiveGuard(system, { id, teamId, position }) {
         damage: 3, phase: 0, destructible: true, maxHp: 45, hitboxRadius: 2.2,
     });
     turret.objectiveGuard = true;
+    turret.teamObjective = true;
     system.turrets.push(turret);
     return turret;
 }

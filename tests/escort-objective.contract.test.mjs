@@ -67,6 +67,18 @@ test('the Escort team objective selects the explicit runtime mode', () => {
     assert.equal(invalid.hunt.teamMode, false);
 });
 
+test('the flag objective normalizes team mode and respawns at the runtime boundary', () => {
+    const runtime = createRuntimeConfigSnapshot({
+        gameMode: GAME_MODE_TYPES.HUNT,
+        localSettings: { modePath: 'fight' },
+        hunt: { teamMode: false, teamObjective: 'FLAGS', respawnEnabled: false },
+    });
+    assert.equal(runtime.session.activeGameMode, GAME_MODE_TYPES.HUNT);
+    assert.equal(runtime.hunt.teamObjective, 'FLAGS');
+    assert.equal(runtime.hunt.teamMode, true);
+    assert.equal(runtime.hunt.respawnEnabled, true);
+});
+
 test('escort HUD always projects the fixed five minute round clock', () => {
     const entityManager = {
         players: [],

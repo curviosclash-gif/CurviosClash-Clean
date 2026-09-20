@@ -38,7 +38,7 @@ import { normalizeFightMachineGunId } from '../shared/contracts/FightMachineGunC
 import { VIEWPORT_LAYOUTS } from '../shared/contracts/ViewportLayoutContract.js';
 import { resolveMapPortalEntryCount } from '../shared/contracts/PortalAuthoringContract.js';
 import { normalizeTeamHuntSettings } from '../shared/contracts/TeamHuntContract.js';
-import { normalizeTeamObjectiveType } from '../shared/contracts/FlagObjectiveContract.js';
+import { normalizeTeamObjectiveType, TEAM_OBJECTIVE_TYPES } from '../shared/contracts/FlagObjectiveContract.js';
 import {
     FOUR_PLAYER_PLANAR_MODES,
     SPLIT_SCREEN_VARIANTS,
@@ -47,7 +47,6 @@ import {
 } from '../four-player-planar/FourPlayerPlanarContract.js';
 import { getVehicleIds } from '../entities/vehicle-registry.js';
 import { createBotHeuristicTuningSnapshot } from '../shared/contracts/BotHeuristicTuningContract.js';
-
 function toNumber(value, fallback) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -440,14 +439,14 @@ export function createRuntimeConfigSnapshot(settings, {
             ...(() => {
                 const teamHunt = normalizeTeamHuntSettings(huntSource);
                 return {
-                    teamMode: activeGameMode === GAME_MODE_TYPES.ESCORT || teamHunt.enabled,
+                    teamMode: activeGameMode === GAME_MODE_TYPES.ESCORT || (requestedGameMode === GAME_MODE_TYPES.HUNT && requestedTeamObjective === TEAM_OBJECTIVE_TYPES.FLAGS) || teamHunt.enabled,
                     teamObjective: requestedTeamObjective,
                     teamSize: teamHunt.teamSize,
                     teamBotDifficulty: teamHunt.botDifficulty,
                 };
             })(),
             enabled: huntModeActive,
-            respawnEnabled: huntModeActive ? !!huntSource.respawnEnabled : false,
+            respawnEnabled: huntModeActive ? ((requestedGameMode === GAME_MODE_TYPES.HUNT && requestedTeamObjective === TEAM_OBJECTIVE_TYPES.FLAGS) || !!huntSource.respawnEnabled) : false,
             deathmatchKillLimit: clampSettingValue(
                 huntSource.deathmatchKillLimit,
                 runtimeLimits.hunt.deathmatchKillLimit,

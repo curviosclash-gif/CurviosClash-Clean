@@ -74,6 +74,9 @@ const OBJECTIVE_LABELS = Object.freeze({
     OVERTIME: 'Golden Kill',
     SCORE_TARGET: 'Punktziel erreicht',
     LAST_ALIVE: 'Letzter Überlebender',
+    FLAG_DOMINATION: 'Alle Flaggen kontrolliert',
+    FLAG_TIME_LIMIT: 'Flaggenmehrheit nach Zeitlimit',
+    FLAG_OVERTIME: 'Golden Flag',
 });
 
 /**

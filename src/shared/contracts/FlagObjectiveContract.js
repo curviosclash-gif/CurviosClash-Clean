@@ -14,6 +14,12 @@ export const FLAG_OBJECTIVE_DEFAULTS = Object.freeze({
     roundSeconds: 480,
 });
 
+export const FLAG_OBJECTIVE_REASONS = Object.freeze({
+    DOMINATION: 'FLAG_DOMINATION',
+    TIME_LIMIT: 'FLAG_TIME_LIMIT',
+    OVERTIME: 'FLAG_OVERTIME',
+});
+
 export function normalizeTeamObjectiveType(value) {
     const normalized = String(value || '').trim().toUpperCase();
     if (normalized === TEAM_OBJECTIVE_TYPES.FLAGS) return TEAM_OBJECTIVE_TYPES.FLAGS;
@@ -66,10 +72,35 @@ export function countFlagsByTeam(flags = []) {
 }
 
 export function resolveFlagObjectiveOutcome(flags = [], elapsedSeconds = 0) {
-    if (Math.max(0, Number(elapsedSeconds) || 0) < FLAG_OBJECTIVE_DEFAULTS.roundSeconds) return null;
     const flagCounts = countFlagsByTeam(flags);
+    const totalFlags = flagCounts.ALPHA + flagCounts.BRAVO;
+    if (totalFlags > 0 && (flagCounts.ALPHA === totalFlags || flagCounts.BRAVO === totalFlags)) {
+        return {
+            shouldEnd: true,
+            winnerTeamId: flagCounts.ALPHA === totalFlags ? TEAM_IDS.ALPHA : TEAM_IDS.BRAVO,
+            flagCounts,
+            overtime: false,
+            reason: FLAG_OBJECTIVE_REASONS.DOMINATION,
+        };
+    }
+    if (Math.max(0, Number(elapsedSeconds) || 0) < FLAG_OBJECTIVE_DEFAULTS.roundSeconds) return null;
     const winnerTeamId = flagCounts.ALPHA === flagCounts.BRAVO
         ? null
         : (flagCounts.ALPHA > flagCounts.BRAVO ? TEAM_IDS.ALPHA : TEAM_IDS.BRAVO);
-    return { shouldEnd: true, winnerTeamId, flagCounts };
+    if (!winnerTeamId) {
+        return {
+            shouldEnd: false,
+            winnerTeamId: null,
+            flagCounts,
+            overtime: true,
+            reason: FLAG_OBJECTIVE_REASONS.OVERTIME,
+        };
+    }
+    return {
+        shouldEnd: true,
+        winnerTeamId,
+        flagCounts,
+        overtime: false,
+        reason: FLAG_OBJECTIVE_REASONS.TIME_LIMIT,
+    };
 }

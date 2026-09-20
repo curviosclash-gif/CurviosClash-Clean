@@ -4,6 +4,7 @@ import { createMapDocument } from './MapSchemaMigrationOps.js';
 import { toRuntimeSecretRooms } from './MapSchemaSecretRoomOps.js';
 import { toRuntimeMapUnits } from './MapSchemaMapUnitOps.js';
 import { toRuntimeWaterZone } from './MapSchemaWaterZoneOps.js';
+import { toRuntimeFlagObjectives } from './MapSchemaFlagObjectiveOps.js';
 
 function cloneObject(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
@@ -328,6 +329,7 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
     const secretRooms = toRuntimeSecretRooms(normalized.secretRooms, invScale);
     const mapUnits = toRuntimeMapUnits(normalized.mapUnits, invScale);
     const waterZone = toRuntimeWaterZone(normalized.waterZone, invScale);
+    const flagObjectives = toRuntimeFlagObjectives(normalized.flagObjectives, invScale);
 
     return {
         map: {
@@ -363,6 +365,7 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
             ...(secretRooms ? { secretRooms } : null),
             ...(mapUnits ? { mapUnits } : null),
             ...(waterZone ? { waterZone } : null),
+            ...(flagObjectives.length > 0 ? { flagObjectives } : null),
         },
         warnings,
         mapDocument: normalized,
