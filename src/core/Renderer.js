@@ -5,9 +5,11 @@
 import * as THREE from 'three';
 import { configurePlayerHealthAuraCamera } from '../shared/rendering/PlayerHealthAuraLayers.js';
 import {
+    applyAtmosphericFogLayer,
     installAtmosphericFog,
     setAtmosphericFogClipDistance,
 } from './renderer/AtmosphericFogShaderPatch.js';
+import { MapFogLayerDriver } from './renderer/MapFogLayerDriver.js';
 import { SceneLightingRig } from './renderer/SceneLightingRig.js';
 import { SceneEnvironmentController } from './renderer/SceneEnvironmentFactory.js';
 import { CONFIG } from './Config.js';
@@ -75,6 +77,9 @@ export class Renderer {
         // The map may carry its own lighting profile; undefined means the style base stands.
         this._mapLighting = undefined;
         this._mapScale = 1;
+        // A map whose fog travels during the round owns the two height edges; the lighting rig
+        // owns everything else about the fog. Maps without one never reach the driver at all.
+        this._mapFogLayerDriver = new MapFogLayerDriver({ apply: applyAtmosphericFogLayer });
         this._globalFogEffect = createGlobalFogEffectState();
         this._globalFogVisibilityRange = 0;
         this._lightingRig = new SceneLightingRig({
@@ -181,8 +186,22 @@ export class Renderer {
         this._mapLighting = profile;
         const numericScale = Number(mapScale);
         this._mapScale = Number.isFinite(numericScale) && numericScale > 0 ? numericScale : 1;
+        this._mapFogLayerDriver.setScale(this._mapScale);
         this._applySceneAppearance();
         return this._mapLighting;
+    }
+
+    /**
+     * The travelling fog layer of the map being built, or null for every other map.
+     * @param {unknown} layer as authored in the preset, normalized by MapFogLayerContract
+     */
+    setMapFogLayer(layer) {
+        return this._mapFogLayerDriver.setLayer(layer);
+    }
+
+    /** Called from the map clock, so the fog cannot disagree with the rest of the round. */
+    updateMapFogLayer(elapsedSeconds) {
+        return this._mapFogLayerDriver.update(elapsedSeconds);
     }
 
     getMapLighting() {
@@ -272,6 +291,10 @@ export class Renderer {
         // The reflection has to follow the same lighting the rig just applied, otherwise the metal
         // in the scene keeps mirroring whatever sky the previous map had.
         this._environmentController.apply(this._graphicsStyle, lighting);
+        // The rig just rewrote the static height terms. A brightness or view distance change mid
+        // round would otherwise drop a travelling layer back onto its map's authored height until
+        // the band next moves, which on a held stage is never.
+        this._mapFogLayerDriver.refresh();
     }
 
     getEnvironmentKey() {

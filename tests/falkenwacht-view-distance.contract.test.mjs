@@ -5,7 +5,11 @@ import { Renderer } from '../src/core/Renderer.js';
 import { CONFIG } from '../src/core/Config.js';
 import { CameraRigSystem } from '../src/core/renderer/CameraRigSystem.js';
 import { SceneLightingRig } from '../src/core/renderer/SceneLightingRig.js';
-import { getAtmosphericFogUniforms } from '../src/core/renderer/AtmosphericFogShaderPatch.js';
+import {
+    applyAtmosphericFogLayer,
+    getAtmosphericFogUniforms,
+} from '../src/core/renderer/AtmosphericFogShaderPatch.js';
+import { MapFogLayerDriver } from '../src/core/renderer/MapFogLayerDriver.js';
 import { FALKENWACHT_MAPS } from '../src/core/config/maps/presets/burg_falkenwacht/index.js';
 
 test('Falkenwacht triples fog and camera range and restores it on settings and map changes', () => {
@@ -22,6 +26,9 @@ test('Falkenwacht triples fog and camera range and restores it on settings and m
     runtime._graphicsStyle = 'modern';
     runtime._viewDistance = 0;
     runtime._mapScale = 1;
+    // None of these maps moves its fog, so the driver stays silent - but the appearance pass asks
+    // it to hold its edges, and a partial renderer has to bring the same parts the real one has.
+    runtime._mapFogLayerDriver = new MapFogLayerDriver({ apply: applyAtmosphericFogLayer });
 
     try {
         runtime.setMapLighting(undefined);

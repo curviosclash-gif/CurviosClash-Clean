@@ -46,6 +46,9 @@ export class ArenaBuilder {
             mapResolution.map?.lighting,
             mapResolution.map?.scaleAuthoredAnchors === true ? scale : 1
         );
+        // Passed on every build for the same reason, and after the lighting: the rig writes the
+        // static height terms, and a map that moves its fog takes those two over from here on.
+        this.arena.renderer?.setMapFogLayer?.(mapResolution.map?.fogLayer);
         // Rebuilt on every build for the same reason: the rig clears what the previous map placed,
         // so a map without its own lamps does not inherit them.
         this.mapLightRig.build(mapResolution.map, scale);
@@ -122,6 +125,7 @@ export class ArenaBuilder {
         this.fireFxController.update(elapsedSeconds);
         this.mapHazardVisualController.update(elapsedSeconds);
         this.expansionController.update(elapsedSeconds);
+        this.arena.renderer?.updateMapFogLayer?.(elapsedSeconds);
     }
 
     compileParticleStage(sx, sy, sz) {

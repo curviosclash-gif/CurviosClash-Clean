@@ -362,6 +362,25 @@ export function applyAtmosphericFogSettings(settings) {
     return getAtmosphericFogSettings();
 }
 
+/**
+ * The four height terms on their own, for a map whose fog layer travels during the round. The
+ * colours, distances and turbulence a map authored stay exactly as applyAtmosphericFogSettings
+ * left them, so a per-frame update costs four uniform writes and no colour conversion.
+ *
+ * @param {{height?: unknown, heightFalloff?: unknown, floor?: unknown, floorFalloff?: unknown}} edges
+ */
+export function applyAtmosphericFogLayer(edges) {
+    const height = Number(edges?.height);
+    const heightFalloff = Number(edges?.heightFalloff);
+    const floor = Number(edges?.floor);
+    const floorFalloff = Number(edges?.floorFalloff);
+    sharedFogUniforms.fogHeightBase.value = Number.isFinite(height) ? height : 0;
+    sharedFogUniforms.fogHeightFalloff.value = Number.isFinite(heightFalloff) ? Math.max(0, heightFalloff) : 0;
+    sharedFogUniforms.fogFloorBase.value = Number.isFinite(floor) ? floor : 0;
+    sharedFogUniforms.fogFloorFalloff.value = Number.isFinite(floorFalloff) ? Math.max(0, floorFalloff) : 0;
+    return getAtmosphericFogSettings();
+}
+
 export function getAtmosphericFogSettings() {
     return {
         height: sharedFogUniforms.fogHeightBase.value,
