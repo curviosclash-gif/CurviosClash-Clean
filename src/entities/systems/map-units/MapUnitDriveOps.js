@@ -2,19 +2,20 @@ import * as THREE from 'three';
 import { nextToIndex, turnYawTowards } from './MapUnitMovementOps.js';
 
 /**
- * Driving a ground unit through the world (A2). The path says where a tank wants to go; this file
- * says whether it may. Before a step counts, a probe sphere is placed where the hull would stand:
- * if it touches world geometry or the arena bounds, the step is rolled back and the tank waits.
+ * Driving a ground unit through the world (A2-A4). The path says where a tank wants to go; this
+ * file says whether it may, how it gets there, and when it is allowed to leave the path for a
+ * player.
  *
- * The probe sits above the floor on purpose. A sphere around the turret centre would always touch
- * the ground the tank stands on, so it would report "blocked" everywhere. It is therefore a smaller
- * sphere, lifted just clear of the ground - which also means a curb is driven over instead of
- * treated as a wall.
+ * Before a step counts, a probe sphere is placed where the hull would stand: if it touches world
+ * geometry or the arena bounds, the step is rolled back and the tank waits. The probe sits above
+ * the floor on purpose - a sphere around the turret centre would always touch the ground the tank
+ * stands on and report "blocked" everywhere. The lift also means a curb is driven over instead of
+ * being treated as a wall.
  *
- * Nothing here may freeze a round. A tank that is blocked for longer than `blockedSeconds` is let
- * through until its next waypoint, and after `DRIVE_RELEASE_LIMIT` releases it stops probing
- * altogether: a badly authored path then drives like it did before this file existed, instead of
- * parking a map unit forever.
+ * Nothing here may freeze a round. A tank blocked for longer than `blockedSeconds` is let through
+ * until its next waypoint, and after `DRIVE_RELEASE_LIMIT` releases it stops probing altogether: a
+ * badly authored path then drives like it did before this file existed, instead of parking a map
+ * unit forever.
  */
 
 /** Waypoints a unit may tick past in one step, so a path of identical points cannot spin. */
@@ -27,7 +28,16 @@ export const DRIVE_RELEASE_LIMIT = 3;
 const PROBE_RADIUS_FACTOR = 0.6;
 const PROBE_GROUND_CLEARANCE = 0.3;
 
+/** A target stays interesting a little past the range it was picked at, so it cannot flicker. */
+const CHASE_HOLD_FACTOR = 1.2;
+
+/** How close the sight ray stops in front of the target, so the target is not its own wall. */
+const SIGHT_MARGIN = 0.5;
+
+export const DRIVE_MODES = Object.freeze({ PATROL: 'patrol', CHASE: 'chase', RETURN: 'return' });
+
 const probePoint = new THREE.Vector3();
+const sightDirection = new THREE.Vector3();
 
 /** Resets the drive bookkeeping of a unit; called on build and on every respawn. */
 export function resetDriveState(unit) {
@@ -35,6 +45,12 @@ export function resetDriveState(unit) {
     unit.driveBlockedSeconds = 0;
     unit.driveReleases = 0;
     unit.driveIgnoreUntilIndex = -1;
+    unit.driveMode = DRIVE_MODES.PATROL;
+    unit.chaseTarget = null;
+    unit.chaseAnchorIndex = -1;
+    unit.chaseFromIndex = -1;
+    unit.chaseBlockedUntilIndex = -1;
+    unit.chaseAnchor?.copy(unit.groundPosition);
 }
 
 /** Remembers where a unit stood, so a blocked step can be taken back. */
@@ -100,6 +116,30 @@ export function shouldRollBackDriveStep(arena, unit, dt) {
 }
 
 /**
+ * Turns the hull towards a point and moves it that way. Answers the horizontal distance that was
+ * left before the step, which is what tells the caller whether the point counts as reached.
+ */
+function driveTowards(unit, x, y, z, dt, speed) {
+    const position = unit.groundPosition;
+    const safeDt = Math.max(0, Number(dt) || 0);
+    const dx = x - position.x;
+    const dz = z - position.z;
+    const horizontal = Math.hypot(dx, dz);
+    const step = Math.max(0, speed * safeDt);
+    if (horizontal > 0.000001) {
+        unit.yaw = turnYawTowards(unit.yaw, Math.atan2(dx, dz), unit.definition.drive.turnRate * safeDt);
+        position.y += (y - position.y) * Math.min(1, step / horizontal);
+    }
+    position.x += Math.sin(unit.yaw) * step;
+    position.z += Math.cos(unit.yaw) * step;
+    return horizontal;
+}
+
+function waypointReach(unit) {
+    return Math.max(0.05, unit.definition.drive.waypointRadius * Math.max(0.001, Number(unit.scale) || 1));
+}
+
+/**
  * Drives a ground unit towards its next waypoint (A3). The course is the leading value: the hull
  * turns at `turnRate` and the position follows where the hull points, so a corner becomes an arc
  * instead of a knee. A waypoint counts as reached inside `waypointRadius`, which is what lets the
@@ -109,32 +149,101 @@ export function shouldRollBackDriveStep(arena, unit, dt) {
  * whatever the floor really does underneath.
  */
 export function steerUnitAlongPath(unit, dt) {
-    const drive = unit?.definition?.drive;
     const path = unit?.path;
-    if (!drive || !Array.isArray(path) || path.length < 2) return;
-    const position = unit.groundPosition;
-    const scale = Math.max(0.001, Number(unit.scale) || 1);
-    const reach = Math.max(0.05, drive.waypointRadius * scale);
+    if (!unit?.definition?.drive || !Array.isArray(path) || path.length < 2) return;
+    const reach = waypointReach(unit);
     for (let hop = 0; hop < MAX_WAYPOINT_HOPS; hop += 1) {
         const point = path[unit.toIndex];
-        const dx = point[0] - position.x;
-        const dz = point[2] - position.z;
+        const dx = point[0] - unit.groundPosition.x;
+        const dz = point[2] - unit.groundPosition.z;
         if (dx * dx + dz * dz > reach * reach) break;
         const reached = unit.toIndex;
         unit.toIndex = nextToIndex(path.length, unit.fromIndex, unit.toIndex, unit.definition.loop);
         unit.fromIndex = reached;
+        if (unit.chaseBlockedUntilIndex === unit.fromIndex) unit.chaseBlockedUntilIndex = -1;
     }
     const target = path[unit.toIndex];
-    const dx = target[0] - position.x;
-    const dz = target[2] - position.z;
-    const horizontal = Math.hypot(dx, dz);
-    const step = Math.max(0, unit.speed * Math.max(0, Number(dt) || 0));
-    if (horizontal > 0.000001) {
-        unit.yaw = turnYawTowards(unit.yaw, Math.atan2(dx, dz), drive.turnRate * Math.max(0, Number(dt) || 0));
-        position.y += (target[1] - position.y) * Math.min(1, step / horizontal);
-    }
-    position.x += Math.sin(unit.yaw) * step;
-    position.z += Math.cos(unit.yaw) * step;
+    driveTowards(unit, target[0], target[1], target[2], dt, unit.speed);
     const from = path[unit.fromIndex];
-    unit.progress = Math.hypot(position.x - from[0], position.z - from[2]);
+    unit.progress = Math.hypot(unit.groundPosition.x - from[0], unit.groundPosition.z - from[2]);
+}
+
+/** Free sight from the turret to a target, tested against the same geometry a shot would hit. */
+function hasDriveSight(arena, unit, target) {
+    if (typeof arena?.raycast !== 'function') return true;
+    sightDirection.copy(target.position).sub(unit.position);
+    const distance = sightDirection.length();
+    if (distance <= SIGHT_MARGIN) return true;
+    sightDirection.divideScalar(distance);
+    return arena.raycast(unit.position, sightDirection, distance - SIGHT_MARGIN)?.hit !== true;
+}
+
+/** The nearest player a unit is allowed to hunt, in sight and inside `range`. */
+export function pickChaseTarget(arena, unit, players, range) {
+    let best = null;
+    let bestDistanceSq = range * range;
+    for (const player of players || []) {
+        if (player?.alive !== true || !player.position) continue;
+        if (unit.definition.targetPlayers === 'humans' && player.isBot === true) continue;
+        const distanceSq = player.position.distanceToSquared(unit.position);
+        if (distanceSq > bestDistanceSq || !hasDriveSight(arena, unit, player)) continue;
+        best = player;
+        bestDistanceSq = distanceSq;
+    }
+    return best;
+}
+
+/**
+ * Patrol, chase, return (A4). The path stays the home of the unit: it only leaves for a player in
+ * sight, and never gets further than the leash from the spot where it left. A broken leash sends
+ * it back to that spot and bars the next chase until the circuit carried it on, so a far away
+ * player cannot hold a tank in a tug of war at the end of its rope.
+ */
+export function driveChasingUnit(arena, unit, players, dt) {
+    const drive = unit.definition.drive;
+    const scale = Math.max(0.001, Number(unit.scale) || 1);
+
+    if (unit.driveMode === DRIVE_MODES.PATROL && unit.chaseBlockedUntilIndex < 0) {
+        const target = pickChaseTarget(arena, unit, players, drive.chaseRange * scale);
+        if (target) {
+            unit.driveMode = DRIVE_MODES.CHASE;
+            unit.chaseTarget = target;
+            unit.chaseAnchorIndex = unit.toIndex;
+            unit.chaseFromIndex = unit.fromIndex;
+            unit.chaseAnchor.copy(unit.groundPosition);
+        }
+    }
+
+    if (unit.driveMode === DRIVE_MODES.CHASE) {
+        const target = unit.chaseTarget;
+        const anchor = unit.chaseAnchor;
+        const holdRange = drive.chaseRange * scale * CHASE_HOLD_FACTOR;
+        const leashed = Math.hypot(unit.groundPosition.x - anchor.x, unit.groundPosition.z - anchor.z)
+            <= drive.chaseLeash * scale;
+        const keeps = target?.alive === true && target.position
+            && target.position.distanceToSquared(unit.position) <= holdRange * holdRange
+            && hasDriveSight(arena, unit, target);
+        if (keeps && leashed) {
+            driveTowards(unit, target.position.x, unit.groundPosition.y, target.position.z, dt, unit.speed);
+            return;
+        }
+        unit.driveMode = DRIVE_MODES.RETURN;
+        unit.chaseTarget = null;
+        // A broken leash also bars the next chase until the circuit carried the unit on.
+        if (!leashed) unit.chaseBlockedUntilIndex = unit.chaseAnchorIndex;
+    }
+
+    if (unit.driveMode === DRIVE_MODES.RETURN) {
+        const anchor = unit.chaseAnchor;
+        const left = driveTowards(unit, anchor.x, anchor.y, anchor.z, dt, unit.speed * drive.returnSpeedFactor);
+        if (left > waypointReach(unit)) return;
+        unit.driveMode = DRIVE_MODES.PATROL;
+        unit.fromIndex = unit.chaseFromIndex;
+        unit.toIndex = unit.chaseAnchorIndex;
+        unit.chaseAnchorIndex = -1;
+        unit.chaseFromIndex = -1;
+        return;
+    }
+
+    steerUnitAlongPath(unit, dt);
 }

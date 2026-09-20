@@ -79,3 +79,28 @@ test('no authored obstacle stands in the patrol route', () => {
         }
     }
 });
+
+test('the chase leash keeps a tank clear of legs, portals and the field edge', () => {
+    const portals = [EIFFEL_SIEGE_SECRET_ROOM.entryPortal.pos, EIFFEL_SIEGE_SECRET_ROOM.ejectPoint.pos];
+    for (const tank of tanks()) {
+        assert.equal(tank.drive.chase, true, 'the siege tanks hunt what they can see');
+        const leash = tank.drive.chaseLeash;
+        for (const point of samplePath(tank.path)) {
+            const reach = leash + tank.hitboxRadius;
+            assert.ok(
+                Math.abs(point[0]) + reach <= EIFFEL_SIEGE_HALF_SIZE && Math.abs(point[2]) + reach <= EIFFEL_SIEGE_HALF_SIZE,
+                'even at the end of its leash the tank stays in the field',
+            );
+            assert.ok(
+                Math.max(Math.abs(point[0]), Math.abs(point[2])) - LEG_SQUARE_HALF > reach,
+                'the leash never reaches the tower legs',
+            );
+            for (const portal of portals) {
+                assert.ok(
+                    Math.hypot(point[0] - portal[0], point[2] - portal[2]) > reach,
+                    'the leash never reaches the secret room portal or eject point',
+                );
+            }
+        }
+    }
+});

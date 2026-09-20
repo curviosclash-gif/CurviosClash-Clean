@@ -19,11 +19,16 @@ const SE = Object.freeze([RING, GROUND, -RING]);
 const SW = Object.freeze([-RING, GROUND, -RING]);
 const NW = Object.freeze([-RING, GROUND, RING]);
 
+// The tanks leave the square for a player they can see, but never further than 15 authored units
+// (45 world) from the spot where they left it. That band is checked in the tank contract test:
+// 95 + 15 stays inside the 155 field edge, 57.5 units clear of the leg square and 30 units clear of
+// the secret room eject point at z = -140.
 const TANK = Object.freeze({
     kind: 'tank',
     loop: true,
     speed: 4,
     hitboxRadius: 3.5,
+    drive: Object.freeze({ chase: true, chaseRange: 20, chaseLeash: 15 }),
     weapons: Object.freeze({
         mg: Object.freeze({ damage: 3, cooldown: 0.3, range: 20 }),
         rocket: Object.freeze({ rocketType: 'ROCKET_MEDIUM', cooldown: 5, range: 30 }),

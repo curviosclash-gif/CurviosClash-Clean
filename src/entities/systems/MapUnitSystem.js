@@ -20,6 +20,8 @@ import { applyGroundClamp, resetGroundClamp } from './map-units/MapUnitGroundOps
 import {
     captureUnitPose,
     createUnitPose,
+    DRIVE_MODES,
+    driveChasingUnit,
     resetDriveState,
     restoreUnitPose,
     steerUnitAlongPath,
@@ -158,6 +160,12 @@ export class MapUnitSystem {
             driveBlockedSeconds: 0,
             driveReleases: 0,
             driveIgnoreUntilIndex: -1,
+            driveMode: DRIVE_MODES.PATROL,
+            chaseTarget: null,
+            chaseAnchor: new THREE.Vector3(),
+            chaseAnchorIndex: -1,
+            chaseFromIndex: -1,
+            chaseBlockedUntilIndex: -1,
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
@@ -276,7 +284,12 @@ export class MapUnitSystem {
             const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
             const previousPose = captureUnitPose(unit, this._poseScratch);
             if (unit.definition.drive?.steering === true) {
-                steerUnitAlongPath(unit, unitDt);
+                // Only the host decides where a unit leaves its path; a client follows the snapshot.
+                if (unit.definition.drive.chase === true && !this.networkReplica) {
+                    driveChasingUnit(this.entityManager?.arena, unit, this.entityManager?.players || [], unitDt);
+                } else {
+                    steerUnitAlongPath(unit, unitDt);
+                }
             } else {
                 advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
                 const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
