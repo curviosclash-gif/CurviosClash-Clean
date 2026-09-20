@@ -157,6 +157,10 @@ function isMeshColliderDisabled(mesh) {
     return name.includes('_nocol');
 }
 
+function isMeshCollisionOnly(mesh) {
+    return String(mesh?.name || '').toLowerCase().includes('_colonly');
+}
+
 function isMeshColliderForcedDynamic(mesh) {
     const name = String(mesh?.name || '').toLowerCase();
     return name.includes('_dyn');
@@ -221,6 +225,15 @@ function collectSceneColliders(root, options = {}) {
 
     root.traverse((child) => {
         if (!child?.isMesh) return;
+        if (String(child.name || '').toLowerCase().startsWith('sandstorm_beacon_')) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            const fogless = materials.map((material) => {
+                const clone = material?.clone?.() || material;
+                if (clone) clone.fog = false;
+                return clone;
+            });
+            child.material = Array.isArray(child.material) ? fogless : fogless[0];
+        }
         child.castShadow = false;
         child.receiveShadow = true;
         const box = new THREE.Box3().setFromObject(child);
@@ -228,9 +241,10 @@ function collectSceneColliders(root, options = {}) {
         bounds.union(box);
 
         const materials = Array.isArray(child.material) ? child.material : [child.material];
+        const collisionOnly = isMeshCollisionOnly(child);
         const transparent = materials.some((material) => material?.transparent === true);
         const noShadow = String(child.name || '').toLowerCase().includes('_noshadow');
-        if (!transparent && !noShadow) {
+        if (!transparent && !noShadow && !collisionOnly) {
             const width = box.max.x - box.min.x;
             const height = box.max.y - box.min.y;
             const depth = box.max.z - box.min.z;
@@ -239,6 +253,7 @@ function collectSceneColliders(root, options = {}) {
                 score: Math.max(width * height, width * depth, height * depth),
             });
         }
+        if (collisionOnly) child.visible = false;
 
         if (!collectColliders) return;
         if (isMeshColliderDisabled(child)) return;

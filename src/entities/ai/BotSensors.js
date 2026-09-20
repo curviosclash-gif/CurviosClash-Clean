@@ -7,6 +7,7 @@ import { runPerception } from './BotSensingOps.js';
 import { composeProbeDirection, scanProbeRay, scoreProbe } from './BotProbeOps.js';
 import { estimateExitSafety, evaluatePortalIntent } from './BotPortalOps.js';
 import { senseProjectiles, senseHeight, senseBotSpacing, evaluatePursuit } from './BotThreatOps.js';
+import { isTargetVisibleToPlayer } from './BotTargetingOps.js';
 import { BotSensorsFacade } from './BotSensorsFacade.js';
 import {
     AI_SENSE_PHASE_WINDOW,
@@ -308,7 +309,7 @@ export class BotSensors {
             !player
             || !target
             || !target.alive
-            || player?.entityManager?.isPositionVisibleDuringGlobalFog?.(player.position, target.position) === false
+            || !isTargetVisibleToPlayer(player, target)
         ) return;
 
         player.getDirection(this._tmpForward).normalize();

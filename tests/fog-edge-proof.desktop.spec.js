@@ -36,7 +36,7 @@ async function startMap(page, mapKey) {
     await page.waitForFunction(
         (key) => {
             const arena = window.GAME_INSTANCE?.arena;
-            return arena?.currentMapKey === key && arena?._glbScene?.children?.length === 13
+            return arena?.currentMapKey === key && arena?._glbScene?.children?.length === 43
                 && arena?._glbAnimation?.trackCount === 5 && !arena._glbLoadError;
         },
         mapKey,

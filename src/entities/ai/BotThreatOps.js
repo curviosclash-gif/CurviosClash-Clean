@@ -13,6 +13,7 @@ import { computeProjectileThreatFlag } from './perception/EnvironmentSamplingOps
 import { AI_SENSOR_THREAT_POLICY } from './perception/AiPerceptionConfig.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { rememberDodgedProjectileThreat } from '../../hunt/EnvironmentKillCreditOps.js';
+import { isTargetVisibleToPlayer } from './BotTargetingOps.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -158,7 +159,7 @@ export function evaluatePursuit(bot, player) {
     if (
         !target
         || !target.alive
-        || player?.entityManager?.isPositionVisibleDuringGlobalFog?.(player.position, target.position) === false
+        || !isTargetVisibleToPlayer(player, target)
     ) return;
 
     const pursuitRadius = bot.profile.pursuitRadius || 35;

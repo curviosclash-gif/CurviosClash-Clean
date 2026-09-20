@@ -777,7 +777,7 @@ export class AudioManager {
         syncOptions.profile = options.mapDefinition?.audioProfile || null;
         syncOptions.playerPosition = source?.alive === false ? null : source?.position;
         syncOptions.mapScale = options.mapScale;
-        syncOptions.elapsedSeconds = options.elapsedSeconds;
+        syncOptions.elapsedSeconds = options.elapsedSeconds; syncOptions.sandstormState = options.sandstormState || null;
         return syncMapAmbienceVoice(this, syncOptions);
     }
 

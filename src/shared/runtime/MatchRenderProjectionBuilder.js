@@ -147,6 +147,7 @@ export function buildMatchRenderProjection({
         localPlayerIndex: resolveLocalPlayerIndex(facade, sessionPlayers, game),
         localHumanCount: resolveLocalHumanCount(game, runtimeState),
         globalFog: entityManager?.getGlobalFogState?.(),
+        sandstorm: entityManager?.getMapSandstormState?.(),
         players,
     });
 }

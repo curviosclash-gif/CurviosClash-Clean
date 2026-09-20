@@ -22,6 +22,11 @@ const zone = normalizeWaterZone({
     riseSeconds: 20,
 });
 
+const reservoirZone = normalizeWaterZone({
+    ...zone,
+    reservoirBounds: { min: [-90, 0, 90], max: [90, 75, 95] },
+});
+
 test('dam water runs through wave and twenty-second rise before persisting', () => {
     let state = createWaterZoneState(zone);
     assert.equal(state.phase, WATER_PHASES.DRY);
@@ -50,6 +55,38 @@ test('underwater lookup stays bounded and network roundtrips the authoritative s
     assert.equal(isPointUnderwater(zone, flooded, [100, 20, 0]), false);
     const payload = serializeWaterZoneState(flooded);
     assert.deepEqual(applyWaterZoneNetworkState(createWaterZoneState(zone), zone, payload), flooded);
+});
+
+test('reservoir bounds are normalized, frozen and optional for legacy water zones', () => {
+    assert.deepEqual(reservoirZone.reservoirBounds, {
+        min: [-90, 0, 90],
+        max: [90, 75, 95],
+    });
+    assert.equal(Object.isFrozen(reservoirZone.reservoirBounds), true);
+    assert.equal(Object.isFrozen(reservoirZone.reservoirBounds.min), true);
+    assert.equal(Object.isFrozen(reservoirZone.reservoirBounds.max), true);
+    assert.equal(Object.hasOwn(zone, 'reservoirBounds'), false);
+});
+
+test('reservoir stays underwater through every phase while the dry basin stays dry', () => {
+    const reservoirPoint = [0, 70, 92];
+    const basinPoint = [0, 1, 89];
+    const state = createWaterZoneState(reservoirZone);
+
+    assert.equal(isPointUnderwater(reservoirZone, state, reservoirPoint), true);
+    assert.equal(isPointUnderwater(reservoirZone, state, basinPoint), false);
+    triggerWaterZone(state);
+    assert.equal(isPointUnderwater(reservoirZone, state, reservoirPoint), true);
+    stepWaterZoneState(state, reservoirZone, reservoirZone.waveSeconds);
+    assert.equal(isPointUnderwater(reservoirZone, state, reservoirPoint), true);
+    stepWaterZoneState(state, reservoirZone, reservoirZone.riseSeconds);
+    assert.equal(isPointUnderwater(reservoirZone, state, reservoirPoint), true);
+});
+
+test('reservoir definition remains static and does not change the network payload', () => {
+    const payload = serializeWaterZoneState(createWaterZoneState(reservoirZone));
+    assert.deepEqual(Object.keys(payload), ['phase', 'phaseElapsedSeconds', 'level', 'triggered']);
+    assert.equal(Object.hasOwn(payload, 'reservoirBounds'), false);
 });
 
 test('water effects encode slower flight, buoyancy, reduced sight and no passive damage', () => {

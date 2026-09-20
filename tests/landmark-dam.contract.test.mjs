@@ -25,7 +25,7 @@ test('wave 6 dam is a destructible landmark whose breach unlocks a room and floo
     const map = MAP_PRESET_CATALOG[MAP_KEY];
     assert.ok(map, `${MAP_KEY} must be registered`);
     assert.equal(map.singlePlayerScenario?.gameMode, 'HUNT');
-    assert.deepEqual(map.size, [180, 150, 180]);
+    assert.deepEqual(map.size, [180, 150, 190]);
     assert.equal(map.exclusionZone.openFaces.includes('maxZ'), false);
 
     const destructibles = normalizeMapDestructibles(map.destructibles);
@@ -45,6 +45,11 @@ test('wave 6 dam is a destructible landmark whose breach unlocks a room and floo
     assert.equal(water.riseSeconds, 24);
     assert.equal(water.waveOrigin, WATER_WAVE_ORIGINS.MAX_Z);
     assert.equal(water.targetLevel, map.size[1] / 2);
+    assert.deepEqual(water.reservoirBounds, {
+        min: [-90, 0, 90],
+        max: [90, 75, 95],
+    });
+    assert.equal((water.reservoirBounds.max[2] - water.reservoirBounds.min[2]) * 3, 15);
 
     const intact = map.glbModels.find((model) => model.id === 'storm-dam-intact');
     assert.ok(intact.position[2] >= 80, 'the dam sits against the maxZ map edge');
@@ -55,7 +60,7 @@ test('wave 6 dam is a destructible landmark whose breach unlocks a room and floo
     assert.ok(existsSync('assets/maps/storm_dam_siege/blender/20_dam_collapse.blend'));
 });
 
-test('the engine-loaded dam spans the rear map edge and nearly reaches the ceiling', async () => {
+test('the engine-loaded dam spans the reservoir edge and nearly reaches the ceiling', async () => {
     const map = MAP_PRESET_CATALOG[MAP_KEY];
     const scale = 3;
     const result = await loadGLBMapCollection(map.glbModels, {
@@ -76,7 +81,10 @@ test('the engine-loaded dam spans the rear map edge and nearly reaches the ceili
         const center = new THREE.Box3().setFromObject(centerSegment).getCenter(new THREE.Vector3());
         assert.ok(size.x >= map.size[0] * scale * 0.98, 'the concrete wall fills the map width');
         assert.ok(size.y >= map.size[1] * scale * 0.9, 'the concrete wall is almost map-height');
-        assert.ok(Math.abs(center.z - (map.size[2] * scale / 2)) <= 2, 'the dam crest is centered on maxZ');
+        assert.ok(
+            Math.abs(center.z - (map.waterZone.reservoirBounds.min[2] * scale)) <= 2,
+            'the dam crest is centered on the reservoir edge',
+        );
     } finally {
         disposeObject3DResources(result.scene);
     }
@@ -104,11 +112,21 @@ test('dam break drives the authoritative wave, rise and persistent flooded state
     assert.equal(added.length, 1);
     assert.equal(system._visual.waveGroup.children.length, 5);
     assert.ok(system._visual.surface.geometry.attributes.position.count > 4);
+    assert.equal(system._visual.surface.visible, false);
+    assert.equal(system._visual.reservoirSurface.visible, true);
+    assert.equal(system._visual.reservoirSurface.name, 'water-zone-dam_basin-reservoir-surface');
+    assert.equal(system._visual.waveGroup.getObjectByName('water-zone-dam_basin-wave-front') !== undefined, true);
+    assert.equal(system.getZone().reservoirBounds.max[2] - system.getZone().reservoirBounds.min[2], 15);
+    assert.equal(system.isPositionUnderwater({ x: 0, y: 210, z: 276 }), true);
+    assert.equal(system.isPositionUnderwater({ x: 0, y: 3, z: 267 }), false);
 
     breakState.events.push({ segmentId: 'dam_wall', atSeconds: 1 });
-    system.update(2);
+    system.update(0);
     assert.equal(system.getState().phase, WATER_PHASES.WAVE);
-    assert.ok(system._visual.waveGroup.position.z < system.getZone().bounds.max[2]);
+    assert.equal(system._visual.waveGroup.position.z, system.getZone().reservoirBounds.min[2]);
+    system.update(2);
+    assert.ok(system._visual.waveGroup.position.z < system.getZone().reservoirBounds.min[2]);
+    assert.ok(system._visual.waveGroup.scale.x > 1);
     system.update(2);
     assert.equal(system.getState().phase, WATER_PHASES.RISING);
     system.update(24);
@@ -147,6 +165,7 @@ test('custom map schema preserves and scales water zones into runtime space', ()
             id: 'custom_basin',
             triggerSegmentId: 'custom_dam',
             bounds: { min: [-270, 0, -270], max: [270, 270, 270] },
+            reservoirBounds: { min: [-270, 0, 270], max: [270, 225, 285] },
             startLevel: 0,
             targetLevel: 135,
             waveSeconds: 2,
@@ -159,4 +178,8 @@ test('custom map schema preserves and scales water zones into runtime space', ()
     assert.equal(runtime.waveOrigin, WATER_WAVE_ORIGINS.MAX_Z);
     assert.equal(runtime.targetLevel, 45);
     assert.deepEqual(runtime.bounds.max, [90, 90, 90]);
+    assert.deepEqual(runtime.reservoirBounds, {
+        min: [-90, 0, 90],
+        max: [90, 75, 95],
+    });
 });

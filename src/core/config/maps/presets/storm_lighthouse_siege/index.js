@@ -5,6 +5,13 @@ import {
     STORM_LIGHTHOUSE_SECRET_ROOM,
     STORM_LIGHTHOUSE_SECRET_ROOM_OBSTACLES,
 } from './StormLighthouseSecretRoom.js';
+import {
+    STORM_LIGHTHOUSE_BOT_SPAWNS,
+    STORM_LIGHTHOUSE_GATES,
+    STORM_LIGHTHOUSE_ITEMS,
+    STORM_LIGHTHOUSE_LIGHTS,
+    STORM_LIGHTHOUSE_PLAYER_SPAWN,
+} from './StormLighthouseStructure.js';
 
 export const STORM_LIGHTHOUSE_SIEGE_MAPS = Object.freeze({
     storm_lighthouse_siege: Object.freeze({
@@ -22,25 +29,25 @@ export const STORM_LIGHTHOUSE_SIEGE_MAPS = Object.freeze({
         glbColliderMode: 'scene',
         glbAuthoredObstaclesCollisionOnly: true,
         destructibles: STORM_LIGHTHOUSE_DESTRUCTIBLES,
+        gates: STORM_LIGHTHOUSE_GATES,
+        lights: STORM_LIGHTHOUSE_LIGHTS,
         lighting: normalizeMapLighting({
-            key: { direction: [45, 60, -15], color: 0xfff1cd, intensity: 1.15 },
-            fill: { direction: [-35, 28, 25], color: 0x5684ac, intensity: 0.34 },
-            rim: { direction: [0, 24, 45], color: 0x9ee7ff, intensity: 0.5 },
-            hemisphere: { skyColor: 0x7898b3, groundColor: 0x202b32 },
-            fog: { color: 0x385062, near: 145, far: 430 },
-            skyDome: { zenithColor: 0x182f47, horizonColor: 0x8ca3b2, nadirColor: 0x0b141a },
+            key: { direction: [42, 58, -18], color: 0xe8f3ff, intensity: 1.12 },
+            fill: { direction: [-38, 24, 28], color: 0x426f98, intensity: 0.3 },
+            rim: { direction: [4, 22, 48], color: 0x76ddff, intensity: 0.62 },
+            hemisphere: { skyColor: 0x668aa8, groundColor: 0x17252d },
+            fog: {
+                color: 0x29475a, near: 125, far: 390,
+                height: 16, heightFalloff: 0.018, turbulence: 0.2,
+                colorHigh: 0x29475a, colorLow: 0x172d38, clipClosureStart: 0.68,
+            },
+            skyDome: { zenithColor: 0x102a42, horizonColor: 0x718fa3, nadirColor: 0x071218 },
             starsVisible: false,
+            exposureOffset: -0.02,
         }),
-        playerSpawn: Object.freeze({ x: 0, y: 18, z: -55 }),
-        botSpawns: Object.freeze([
-            Object.freeze({ x: -42, y: 18, z: -35 }),
-            Object.freeze({ x: 42, y: 18, z: 35 }),
-            Object.freeze({ x: 0, y: 34, z: 55 }),
-        ]),
-        items: Object.freeze([
-            Object.freeze({ pos: [-32, 10, 0] }),
-            Object.freeze({ pos: [32, 10, 0] }),
-        ]),
+        playerSpawn: STORM_LIGHTHOUSE_PLAYER_SPAWN,
+        botSpawns: STORM_LIGHTHOUSE_BOT_SPAWNS,
+        items: STORM_LIGHTHOUSE_ITEMS,
         singlePlayerScenario: Object.freeze({
             enabled: true,
             id: 'storm_lighthouse_siege',

@@ -25,6 +25,9 @@ export function createEntityRuntimePorts(runtime) {
         trail: {
             trailSpatialIndex: support.trailSpatialIndex || null,
         },
+        weather: {
+            sandstormSystem: systems.mapSandstormSystem || null,
+        },
         runtimeContext: runtime?.context || null,
         tickPipeline: systems.tickPipeline || null,
     };

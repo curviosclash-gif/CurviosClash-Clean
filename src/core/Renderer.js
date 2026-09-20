@@ -12,6 +12,7 @@ import {
 import { MapFogLayerDriver } from './renderer/MapFogLayerDriver.js';
 import { SceneLightingRig } from './renderer/SceneLightingRig.js';
 import { SceneEnvironmentController } from './renderer/SceneEnvironmentFactory.js';
+import { resolveSandstormLighting } from './renderer/SandstormLightingOps.js';
 import { CONFIG } from './Config.js';
 import { CameraRigSystem } from './renderer/CameraRigSystem.js';
 import { RenderViewportSystem } from './renderer/RenderViewportSystem.js';
@@ -37,6 +38,7 @@ import {
     createGlobalFogEffectState,
     resolveGlobalFogMapRange,
 } from '../shared/contracts/GlobalFogEffectContract.js';
+import { MAP_SANDSTORM_PHASES, createMapSandstormState } from '../shared/contracts/MapSandstormContract.js';
 
 export class Renderer {
     constructor(canvas) {
@@ -82,6 +84,9 @@ export class Renderer {
         this._mapFogLayerDriver = new MapFogLayerDriver({ apply: applyAtmosphericFogLayer });
         this._globalFogEffect = createGlobalFogEffectState();
         this._globalFogVisibilityRange = 0;
+        this._mapSandstormEffect = createMapSandstormState();
+        this._mapSandstormRanges = { outdoorNear: 0, outdoorFar: 0, shelterNear: 0, shelterFar: 0 };
+        this._mapSandstormLightingStep = 0;
         this._lightingRig = new SceneLightingRig({
             scene: this.scene,
             renderer: this.renderer,
@@ -232,6 +237,48 @@ export class Renderer {
         return this._globalFogVisibilityRange;
     }
 
+    getBaseFogVisibilityRange() {
+        return Math.max(0, Number(this.scene?.fog?.far) || 0);
+    }
+
+    setMapSandstormEffect(value = null) {
+        const source = value && typeof value === 'object' ? value : {};
+        const previousActive = this._mapSandstormEffect.phase === MAP_SANDSTORM_PHASES.ACTIVE;
+        this._mapSandstormEffect = createMapSandstormState(source);
+        this._mapSandstormRanges.outdoorNear = Math.max(0, Number(source.outdoorNear) || 0);
+        this._mapSandstormRanges.outdoorFar = Math.max(0, Number(source.outdoorFar) || 0);
+        this._mapSandstormRanges.shelterNear = Math.max(0, Number(source.shelterNear) || 0);
+        this._mapSandstormRanges.shelterFar = Math.max(0, Number(source.shelterFar) || 0);
+        const nextActive = this._mapSandstormEffect.phase === MAP_SANDSTORM_PHASES.ACTIVE;
+        this._mapSandstormLightingStep = Math.round(this._mapSandstormEffect.intensity * 20);
+        if (previousActive !== nextActive) this._applySceneAppearance();
+        return { ...this._mapSandstormEffect };
+    }
+
+    getMapSandstormEffect() {
+        return { ...this._mapSandstormEffect };
+    }
+
+    setMapSandstormIntensity(value = 0) {
+        const intensity = Math.max(0, Math.min(1, Number(value) || 0));
+        this._mapSandstormEffect.intensity = intensity;
+        const lightingStep = Math.round(intensity * 20);
+        if (
+            lightingStep !== this._mapSandstormLightingStep
+            && this._mapSandstormEffect.phase === MAP_SANDSTORM_PHASES.ACTIVE
+        ) {
+            this._mapSandstormLightingStep = lightingStep;
+            this._applySceneAppearance();
+        }
+    }
+
+    getEffectiveCameraFogRange(camera) {
+        this._applyCameraWaterVisibility(camera);
+        const result = { near: this.scene.fog.near, far: this.scene.fog.far };
+        this._restoreCameraWaterVisibility();
+        return result;
+    }
+
     setCameraWaterVisibility(playerIndex, multiplier = 1) {
         const camera = this.cameras?.[playerIndex];
         if (!camera) return false;
@@ -246,11 +293,26 @@ export class Renderer {
         if (!this.scene?.fog) return;
         this._renderFogNear = this.scene.fog.near;
         this._renderFogFar = this.scene.fog.far;
+        let near = this._renderFogNear;
+        let far = this._renderFogFar;
+        const stormActive = this._mapSandstormEffect?.phase === MAP_SANDSTORM_PHASES.ACTIVE;
+        const stormRange = Number(camera?.userData?.sandstormVisibilityRange);
+        if (stormActive && Number.isFinite(stormRange) && stormRange > 0) {
+            const sheltered = stormRange > this._mapSandstormRanges.outdoorFar;
+            const stormNear = sheltered
+                ? this._mapSandstormRanges.shelterNear
+                : this._mapSandstormRanges.outdoorNear;
+            const intensity = Math.max(0, Math.min(1, Number(this._mapSandstormEffect.intensity) || 0));
+            far = Math.min(far, THREE.MathUtils.lerp(far, stormRange, intensity));
+            near = Math.min(near, THREE.MathUtils.lerp(near, stormNear, intensity));
+        }
         const multiplier = Number(camera?.userData?.waterVisibilityMultiplier);
-        if (!Number.isFinite(multiplier) || multiplier >= 1) return;
-        const far = Math.max(6, this._renderFogFar * Math.max(0.05, multiplier));
+        if (Number.isFinite(multiplier) && multiplier < 1) {
+            far = Math.max(6, far * Math.max(0.05, multiplier));
+            near = Math.min(near, far * 0.18);
+        }
         this.scene.fog.far = far;
-        this.scene.fog.near = Math.min(this._renderFogNear, far * 0.18);
+        this.scene.fog.near = Math.min(near, far);
     }
 
     _restoreCameraWaterVisibility() {
@@ -270,9 +332,16 @@ export class Renderer {
         const normalMapLighting = resolveMapLighting(this._mapLighting);
         const globalFogRange = resolveGlobalFogMapRange(normalMapLighting, CONFIG.CAMERA.FAR);
         this._globalFogVisibilityRange = globalFogRange.far;
+        const sandstormActive = this._mapSandstormEffect?.phase === MAP_SANDSTORM_PHASES.ACTIVE;
+        const stormBlend = sandstormActive
+            ? Math.max(0, Math.min(1, Number(this._mapSandstormEffect.intensity) || 0))
+            : 0;
+        const stormLighting = sandstormActive
+            ? resolveSandstormLighting(normalMapLighting, stormBlend)
+            : normalMapLighting;
         const lighting = this._lightingRig.apply({
             graphicsStyle: this._graphicsStyle,
-            mapLighting: this._mapLighting,
+            mapLighting: stormLighting,
             mapScale: this._mapScale,
             brightnessFactors: resolveMapBrightnessFactors(this._mapBrightness),
             viewDistance: this._viewDistance,
