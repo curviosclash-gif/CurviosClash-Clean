@@ -213,6 +213,14 @@ test('the actual shootable GLB keeps its large crown on a half-length stem witho
     assert.ok(result.colliders.every((collider) => !collider.sourceName.startsWith('AttachedSeed_')));
     const controller = new DandelionSeedController(result.scene);
     assert.ok(controller.count >= 180);
+    const renderBatch = controller.getRenderBatchMetrics();
+    assert.equal(renderBatch.enabled, true, 'the shootable crown should use instanced rendering');
+    assert.equal(renderBatch.instances, controller.count);
+    assert.ok(renderBatch.batches <= 12, `too many seed render batches: ${renderBatch.batches}`);
+    assert.ok(renderBatch.estimatedDrawCalls <= 12,
+        `seed rendering exceeds its draw-call budget: ${renderBatch.estimatedDrawCalls}`);
+    assert.ok(controller.seeds.every((entry) => entry.node.visible === false),
+        'individual source nodes must stay hidden behind their render batches');
     const seed = controller.seeds[0];
     const origin = seed.tip.clone().addScaledVector(seed.normal, 30);
     const hit = controller.raycast(origin, seed.normal.clone().negate(), 50);

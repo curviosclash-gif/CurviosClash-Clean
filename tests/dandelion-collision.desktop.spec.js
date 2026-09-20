@@ -46,6 +46,7 @@ test('attached dandelion seeds damage and visibly deflect a vehicle in the deskt
         return {
             aborted,
             seedCount: game.arena._dandelionSeeds.count,
+            renderBatch: game.arena._dandelionSeeds.getRenderBatchMetrics(),
             hpBefore,
             hpAfter: player.hp,
             timer,
@@ -55,6 +56,10 @@ test('attached dandelion seeds damage and visibly deflect a vehicle in the deskt
     });
 
     expect(contact.seedCount).toBeGreaterThanOrEqual(180);
+    expect(contact.renderBatch.enabled).toBe(true);
+    expect(contact.renderBatch.instances).toBe(contact.seedCount);
+    expect(contact.renderBatch.batches).toBeLessThanOrEqual(12);
+    expect(contact.renderBatch.estimatedDrawCalls).toBeLessThanOrEqual(12);
     expect(contact.aborted).toBe(false);
     expect(contact.hpAfter).toBe(contact.hpBefore - 1);
     expect(contact.timer).toBeGreaterThan(0);
