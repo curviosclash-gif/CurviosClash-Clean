@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { MAP_PRESETS_BASE } from '../src/core/config/maps/MapPresetsBase.js';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
+import { NOTRE_DAME_TREE_MODELS } from '../src/core/config/maps/presets/notre_dame/NotreDameModels.js';
 import { resolveMapPickerCollection } from '../src/ui/menu/MenuMapCollectionCatalog.js';
 import { buildRouteFromParcours } from '../src/entities/systems/ParcoursProgressUtils.js';
 import {
@@ -32,7 +33,14 @@ function siteModels() {
 }
 
 function fabricModels() {
-    return map.glbModels.filter((model) => !siteModels().includes(model));
+    return map.glbModels.filter((model) => (
+        model.url.includes('assets/maps/notre_dame/glb/')
+        && !siteModels().includes(model)
+    ));
+}
+
+function treeModels() {
+    return map.glbModels.filter((model) => model.id.startsWith('notre-dame-tree-'));
 }
 
 /** Bounding box of a GLB, from the POSITION accessors' mandatory min/max, in Blender metres. */
@@ -104,17 +112,54 @@ test('Notre-Dame is registered everywhere a map has to appear', () => {
     assert.equal(resolveMapPickerCollection('notre_dame').id, 'adventure');
 });
 
-test('the map places the cathedral, not a pile of separate models', () => {
-    assert.equal(map.glbModels.length, 15);
-    assert.equal(new Set(map.glbModels.map((model) => model.id)).size, 15);
+test('the map places one cathedral assembly plus the curated Blender tree row', () => {
+    assert.equal(map.glbModels.length, 47);
+    assert.equal(new Set(map.glbModels.map((model) => model.id)).size, 47);
     assert.equal(map.glbColliderMode, 'scene');
     assert.equal(map.glbAuthoredObstaclesCollisionOnly, true);
-    for (const model of map.glbModels) {
+    for (const model of [...fabricModels(), ...siteModels()]) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local GLB`);
         // targetSize would normalise each file to a size of its own and tear the building into
         // fifteen different scales; one shared scale factor is what keeps it a single object.
         assert.equal(model.scale, METRE, `${model.id} shares the one scale factor`);
         assert.equal(model.targetSize, undefined, `${model.id} must not be size-normalised`);
+    }
+});
+
+test('both Notre-Dame states reuse all ten ancient-tree LODs at the former tree sites', () => {
+    const trees = treeModels();
+    assert.deepEqual(trees, NOTRE_DAME_TREE_MODELS);
+    trees.forEach((model, index) => assert.equal(model, NOTRE_DAME_TREE_MODELS[index]));
+    assert.equal(trees.length, 32);
+    assert.equal(new Set(trees.map((model) => model.id)).size, 32);
+    assert.deepEqual(
+        [...new Set(trees.map((model) => model.url.match(/variant_(\d{2})/)?.[1]))].sort(),
+        ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10'],
+    );
+    for (const model of trees) {
+        assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local tree LOD`);
+        assert.match(model.url, /ancient_tree_\d{2}_lod2\.glb$/);
+        assert.equal(model.position[1], GROUND, `${model.id} stays grounded`);
+        assert.equal(model.targetSize, 14.28, `${model.id} preserves the former tree envelope`);
+        assert.equal(model.maxRenderDistance, 210, `${model.id} disappears behind the map fog`);
+        assert.equal(model.collision, false, `${model.id} remains decorative`);
+        assert.equal(model.scale, undefined, `${model.id} is normalized as a reusable library asset`);
+    }
+
+    const banks = trees.filter((model) => model.id.includes('-bank-'));
+    assert.equal(banks.length, 24);
+    assert.deepEqual([...new Set(banks.map((model) => model.position[2]))].sort((a, b) => a - b), [-58.8, 58.8]);
+    assert.equal(new Set(banks.map((model) => model.position[0])).size, 12);
+
+    const garden = trees.filter((model) => model.id.includes('-east-garden-'));
+    assert.equal(garden.length, 8);
+    const centreX = 85.75 * METRE;
+    for (const model of garden) {
+        const ellipseRadius = Math.hypot(
+            (model.position[0] - centreX) / (15 * METRE),
+            model.position[2] / (20 * METRE),
+        );
+        assert.ok(Math.abs(ellipseRadius - 1) < 1e-9, `${model.id} stays on the apse garden ring`);
     }
 });
 
@@ -397,7 +442,7 @@ test('no collision stands where the map draws nothing at all', () => {
     // bounding box of some model the map actually loads. It is only a bounding box, so it will
     // not catch a block that is merely in the wrong place -- but it does catch the case that bit
     // this map twice: collision floating in open air with no geometry anywhere near it.
-    const placed = map.glbModels.map((model) => {
+    const placed = [...fabricModels(), ...siteModels()].map((model) => {
         const box = sceneBoundingBox(model.url);
         const centreX = (box.low[0] + box.high[0]) / 2;
         const centreZ = (box.low[2] + box.high[2]) / 2;
@@ -422,6 +467,9 @@ test('no collision stands where the map draws nothing at all', () => {
     for (const obstacle of map.obstacles) {
         // The island and its quays are the ground plane, deliberately below everything drawn.
         if (String(obstacle.kind || 'hard') === 'foam') continue;
+        // Supplemental landing platforms deliberately draw their own obstacle geometry instead
+        // of relying on a matching GLB surface.
+        if (obstacle.renderWithGlb === true) continue;
         const centre = ['tube', 'beam'].includes(String(obstacle.shape || ''))
             ? obstacle.start.map((value, axis) => (value + obstacle.end[axis]) / 2)
             : obstacle.pos;

@@ -3,7 +3,8 @@ import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
 // The arena variant shares its fabric, its site and its collision with the parcours map, so the
 // only thing worth proving in the running app is that sharing actually holds: the same fifteen
-// parts load and the same eight clips run, but no ordered route is active. It gets its own file
+// cathedral parts and 32 tree instances load and the same eight clips run, but no ordered route
+// is active. It gets its own file
 // because a desktop run keeps one window, and a second map cannot be selected from inside a
 // match that is already going.
 
@@ -28,11 +29,11 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
     await page.click('#btn-start');
     await expect.poll(() => page.evaluate(() => (
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame_arena'
-        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 15
+        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 47
         && !window.GAME_INSTANCE?.arena?._glbLoadError
     )), {
         timeout: 150_000,
-        message: 'the arena variant should load the same fifteen parts',
+        message: 'the arena variant should load the same fifteen parts and 32 trees',
     }).toBeTruthy();
 
     const state = await page.evaluate(() => ({
