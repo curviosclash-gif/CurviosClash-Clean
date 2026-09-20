@@ -20,7 +20,7 @@ function segmentLength(path, fromIndex, toIndex) {
     return Math.hypot(to[0] - from[0], to[1] - from[1], to[2] - from[2]);
 }
 
-function nextToIndex(pathLength, fromIndex, toIndex, loop) {
+export function nextToIndex(pathLength, fromIndex, toIndex, loop) {
     if (loop) return (toIndex + 1) % pathLength;
     const step = toIndex - fromIndex;
     const next = toIndex + step;

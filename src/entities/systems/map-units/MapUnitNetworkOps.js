@@ -1,5 +1,6 @@
 import { resolveUnitPathPose } from './MapUnitMovementOps.js';
 import { normalizeMapUnit } from '../../../shared/contracts/MapUnitContract.js';
+import { clearMapUnitWreck, spawnMapUnitWreck } from './MapUnitWreckOps.js';
 
 /**
  * Map units across the network. The host decides where a tank is, whether it lives and when it
@@ -24,6 +25,10 @@ export function serializeMapUnits(units) {
         to: unit.toIndex,
         progress: round(unit.progress),
         yaw: round(unit.yaw),
+        // A steering unit leaves its segment, so a path index alone cannot rebuild it.
+        ...(unit.definition?.drive?.steering === true
+            ? { gpos: [round(unit.groundPosition.x), round(unit.groundPosition.y), round(unit.groundPosition.z)] }
+            : {}),
         ...(unit.escortTank ? {
             escortReachedGoal: unit.escortReachedGoal === true,
             escortSpeed: round(unit.speed),
@@ -142,7 +147,12 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
             unit.attacksFired = attacks;
             unit.networkAttacksInitialized = true;
         }
-        if (!unit.crashing) resolveUnitPathPose(unit, unit.path, unit.groundPosition);
+        if (Array.isArray(entry.gpos)) {
+            unit.groundPosition.set(Number(entry.gpos[0]) || 0, Number(entry.gpos[1]) || 0, Number(entry.gpos[2]) || 0);
+            unit.drivenY = unit.groundPosition.y;
+        } else if (!unit.crashing) {
+            resolveUnitPathPose(unit, unit.path, unit.groundPosition);
+        }
         onPoseChanged(unit);
         if (playCreatureAttack) {
             system.entityManager?.particles?.spawnExplosion?.(unit.position, 0xd4773f, {
@@ -154,7 +164,10 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
             || (wasCrashing && !unit.crashing && !unit.alive && unit.kind === 'bomber')) {
             // Only the picture: damage, loot and credit already happened on the host.
             system.entityManager?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
+            spawnMapUnitWreck(system, unit);
         }
+        // A client never runs the respawn itself, so it clears the wreck when the unit comes back.
+        if (!wasAlive && unit.alive) clearMapUnitWreck(system, unit.id);
         applyMounts(system, unit, entry.mounts);
     }
 }

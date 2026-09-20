@@ -4,6 +4,7 @@ import {
     resolveStaticTurretTarget,
 } from '../static-turret/StaticTurretTargetingOps.js';
 import { updateStaticTurretVisual } from '../static-turret/StaticTurretVisualOps.js';
+import { triggerMapUnitRecoil } from './MapUnitMotionFxOps.js';
 
 /**
  * The tank turret is "a static turret on wheels" (idea 4). Each weapon of a tank is therefore a
@@ -122,6 +123,7 @@ export function updateUnitWeapons(system, unit, dt, canFire) {
             && hasStaticTurretLineOfSight(system, mount, target)
         ) {
             turrets.fire(mount, target);
+            triggerMapUnitRecoil(unit);
             flashing = true;
         }
     }

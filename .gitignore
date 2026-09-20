@@ -29,3 +29,6 @@ android-classic/app/build/
 /generated-process-reports/
 /generierte-prozessberichte/
 /dev/training/reports/
+
+# Blender writes a .blend1 backup next to every save
+*.blend1

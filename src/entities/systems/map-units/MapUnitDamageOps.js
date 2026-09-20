@@ -1,12 +1,14 @@
 import { rewardMapUnitDestruction } from './MapUnitRewardOps.js';
 import { beginBomberCrash } from './MapUnitBomberCrashOps.js';
+import { spawnMapUnitWreck } from './MapUnitWreckOps.js';
 import { areTeammates } from '../../../shared/contracts/TeamCombatContract.js';
 
 /**
  * Hit points, destruction and return of map units (E19, E34).
  *
  * A destroyed tank explodes: 40 damage at the centre falling to half at the edge of a 20 unit
- * radius. The blast hurts everyone in reach - players including the shooter, other tanks and
+ * radius. It also leaves a wreck standing where it died, which is picture only - see
+ * MapUnitWreckOps. The blast hurts everyone in reach - players including the shooter, other tanks and
  * turrets - except players under spawn protection. Kills by the blast are credited to whoever
  * destroyed the tank. After `respawnSeconds` a fresh tank starts again at the beginning of its path;
  * 0 keeps it destroyed for the rest of the round.
@@ -98,6 +100,8 @@ export function destroyMapUnit(system, unit, sourcePlayer) {
     unit.hp = 0;
     unit.respawnRemaining = unit.definition.respawnSeconds > 0 ? unit.definition.respawnSeconds : Infinity;
     if (unit.root) unit.root.visible = false;
+    // The hull is gone from the scene, but the wreck of it stays for a while (B4).
+    spawnMapUnitWreck(system, unit);
     owner?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
     owner?.audio?.play?.('HIT', { intensity: 1 });
     owner?.recorder?.logEvent?.(

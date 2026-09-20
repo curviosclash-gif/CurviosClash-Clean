@@ -16,6 +16,24 @@ import {
     removeMapUnitVisual,
     updateMapUnitVisual,
 } from './map-units/MapUnitVisualOps.js';
+import { applyGroundClamp, resetGroundClamp } from './map-units/MapUnitGroundOps.js';
+import { applyAuthoredMapUnitBody, loadMapUnitLibrary } from './map-units/MapUnitModelCache.js';
+import { tickMapUnitRecoil, updateMapUnitDust } from './map-units/MapUnitMotionFxOps.js';
+import {
+    clearAllMapUnitWrecks,
+    clearMapUnitWreck,
+    tickMapUnitWrecks,
+} from './map-units/MapUnitWreckOps.js';
+import {
+    captureUnitPose,
+    createUnitPose,
+    DRIVE_MODES,
+    driveChasingUnit,
+    resetDriveState,
+    restoreUnitPose,
+    steerUnitAlongPath,
+    shouldRollBackDriveStep,
+} from './map-units/MapUnitDriveOps.js';
 import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-units/MapUnitWeaponOps.js';
 import { applyMapUnitDamage, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
 import { crushTrailsUnderUnit } from './map-units/MapUnitTrailOps.js';
@@ -80,8 +98,12 @@ export class MapUnitSystem {
         this._targets = [];
         this._dueRespawns = [];
         this._trailScratch = [];
+        this._poseScratch = createUnitPose();
         this.networkReplica = false;
         this._summonCounter = 0;
+        this._modelLibrary = null;
+        this._modelLibraryRequested = false;
+        this._wrecks = [];
     }
 
     startRound() {
@@ -145,6 +167,18 @@ export class MapUnitSystem {
             attackCooldownRemaining: definition.attack?.cooldown || 0,
             attacksFired: 0,
             networkAttacksInitialized: false,
+            drivenY: null,
+            driveBlockedSeconds: 0,
+            driveReleases: 0,
+            driveIgnoreUntilIndex: -1,
+            dustDistance: 0,
+            recoilRemaining: 0,
+            driveMode: DRIVE_MODES.PATROL,
+            chaseTarget: null,
+            chaseAnchor: new THREE.Vector3(),
+            chaseAnchorIndex: -1,
+            chaseFromIndex: -1,
+            chaseBlockedUntilIndex: -1,
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
@@ -164,6 +198,7 @@ export class MapUnitSystem {
                 definition.id === 'escort_tank' ? resolveTeamColor(TEAM_IDS.ALPHA) : null,
             );
         }
+        if (definition.kind === 'tank' || definition.kind === 'boss') this._requestAuthoredBody(unit);
         this._updateVisual(unit);
         unit.source = createUnitSource(unit);
         // Its own shots must not hit it: the weapons skip targets owned by the shooter.
@@ -175,6 +210,27 @@ export class MapUnitSystem {
             resetSwarmMembers(unit);
         }
         return unit;
+    }
+
+    /**
+     * Hangs the authored tank model on a unit as soon as the shared library is there. Until then
+     * the box model stands in, so a slow or failed load never leaves a map without its tanks.
+     */
+    _requestAuthoredBody(unit) {
+        if (!unit?.root) return;
+        if (this._modelLibrary) {
+            applyAuthoredMapUnitBody(unit.root, this._modelLibrary);
+            return;
+        }
+        if (this._modelLibraryRequested) return;
+        this._modelLibraryRequested = true;
+        loadMapUnitLibrary().then((library) => {
+            if (!library) return;
+            this._modelLibrary = library;
+            for (const built of this.units) {
+                if (built.kind === 'tank' || built.kind === 'boss') applyAuthoredMapUnitBody(built.root, library);
+            }
+        });
     }
 
     _resolveAssets() {
@@ -220,6 +276,7 @@ export class MapUnitSystem {
 
     /** Back at the start of its path with full hit points and cold weapons. */
     _respawn(unit) {
+        clearMapUnitWreck(this, unit.id);
         unit.alive = true;
         unit.hp = unit.maxHp;
         unit.respawnRemaining = Infinity;
@@ -232,6 +289,10 @@ export class MapUnitSystem {
         unit.attackCooldownRemaining = unit.definition.attack?.cooldown || 0;
         unit.attacksFired = 0;
         unit.networkAttacksInitialized = false;
+        unit.dustDistance = 0;
+        unit.recoilRemaining = 0;
+        resetGroundClamp(unit);
+        resetDriveState(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? unit.yaw;
         this._placeCentre(unit);
         for (const mount of unit.mounts) {
@@ -246,6 +307,7 @@ export class MapUnitSystem {
 
     update(dt) {
         const safeDt = Math.max(0, Number(dt) || 0);
+        tickMapUnitWrecks(this, safeDt);
         if (!this.networkReplica) {
             for (const unit of tickMapUnitRespawns(this.units, safeDt, this._dueRespawns)) this._respawn(unit);
         }
@@ -260,10 +322,26 @@ export class MapUnitSystem {
                 if (!this.networkReplica) updateEscortTankSpeed(unit, this.entityManager?.players || []);
             }
             const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
-            advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
+            const previousPose = captureUnitPose(unit, this._poseScratch);
+            if (unit.definition.drive?.steering === true) {
+                // Only the host decides where a unit leaves its path; a client follows the snapshot.
+                if (unit.definition.drive.chase === true && !this.networkReplica) {
+                    driveChasingUnit(this.entityManager?.arena, unit, this.entityManager?.players || [], unitDt);
+                } else {
+                    steerUnitAlongPath(unit, unitDt);
+                }
+            } else {
+                advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
+                const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
+                unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
+            }
             if (unit.escortTank && unit.fromIndex === unit.path.length - 1) unit.escortReachedGoal = true;
-            const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
-            unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
+            applyGroundClamp(this.entityManager?.arena, unit, safeDt);
+            if (shouldRollBackDriveStep(this.entityManager?.arena, unit, safeDt)) restoreUnitPose(unit, previousPose);
+            if (unit.kind === 'tank' || unit.kind === 'boss') {
+                updateMapUnitDust(this.entityManager, unit, unit.groundPosition.distanceTo(previousPose.position));
+                tickMapUnitRecoil(unit, safeDt);
+            }
             this._placeCentre(unit);
             this._updateVisual(unit);
             const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;
@@ -356,6 +434,7 @@ export class MapUnitSystem {
     }
 
     clear() {
+        clearAllMapUnitWrecks(this);
         const renderer = this.entityManager?.renderer;
         for (const unit of this.units) {
             this.setBossRoomClock(unit, false);
