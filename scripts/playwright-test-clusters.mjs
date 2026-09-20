@@ -52,6 +52,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/falkenwacht.desktop.spec.js',
             'tests/falkenwacht-grain-proof.desktop.spec.js',
             'tests/glb-map-quality.desktop.spec.js',
+            'tests/storm-lighthouse.desktop.spec.js',
             'tests/map-reference-worlds.desktop.spec.js',
             'tests/notre-dame-wall-approach.desktop.spec.js',
             'tests/sky-dome-gradient.desktop.spec.js',

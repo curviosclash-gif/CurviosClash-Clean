@@ -23,15 +23,15 @@ const ITEMS = Object.freeze([
 export const STORM_LIGHTHOUSE_SECRET_ROOM = Object.freeze({
     id: 'lighthouse_vault',
     modes: Object.freeze(['HUNT', 'ARCADE']),
-    unlock: Object.freeze({ destructible: 'storm_lighthouse', when: 'anyBreak', delaySeconds: 4 }),
+    unlock: Object.freeze({ destructible: 'storm_lighthouse', when: 'anyBreak', delaySeconds: 5.5 }),
     stayLimitSeconds: 20,
     refillSeconds: 30,
-    entryPortal: Object.freeze({ pos: Object.freeze([0, 11, -52]), color: 0xffd35a }),
+    entryPortal: Object.freeze({ pos: Object.freeze([21, 11, 0]), color: 0xffd35a }),
     roomPortal: Object.freeze({ pos: Object.freeze([0, -11, 0]) }),
     bounds: Object.freeze({
         min: Object.freeze([-ROOM_HALF, FLOOR, -ROOM_HALF]),
         max: Object.freeze([ROOM_HALF, CEILING, ROOM_HALF]),
     }),
-    ejectPoint: Object.freeze({ pos: Object.freeze([0, 16, -60]), yawDeg: 180 }),
+    ejectPoint: Object.freeze({ pos: Object.freeze([28, 17, -12]), yawDeg: 135 }),
     items: ITEMS,
 });
