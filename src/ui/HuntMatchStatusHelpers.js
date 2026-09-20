@@ -2,6 +2,7 @@ import { isArenaWavesConfig } from '../shared/contracts/ArenaWavesContract.js';
 import { isEndlessParcoursConfig } from '../shared/contracts/EndlessParcoursContract.js';
 import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
 import { HUNT_LAST_ALIVE_LIVES } from '../shared/contracts/HuntLivesContract.js';
+import { resolveTeamLabel, TEAM_IDS } from '../shared/contracts/TeamCombatContract.js';
 
 export function formatHuntClock(seconds) {
     const whole = Math.max(0, Math.ceil(Number(seconds) || 0));
@@ -61,10 +62,10 @@ export function updateHuntTargetProgress(progress, state, target, score) {
 export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLimit, timeText, matchPointText }) {
     if (isArenaWavesConfig(runtimeConfig)) return 'Fünf Fronten · halte jede Welle auf';
     if (isEndlessParcoursConfig(runtimeConfig)) return 'Endlosjagd · überlebe so lange wie möglich';
-    if (huntProjection?.escortMode === true) return `Eskorte · Alpha schützt den Panzer${timeText}`;
+    if (huntProjection?.escortMode === true) return `Eskorte · ${resolveTeamLabel(TEAM_IDS.ALPHA)} schützt den Panzer${timeText}`;
     if (huntProjection?.teamObjective === 'FLAGS') {
         const counts = huntProjection?.flagCounts || {};
-        return `Flaggen · Alpha ${Number(counts.ALPHA) || 0}:${Number(counts.BRAVO) || 0} Bravo${timeText}`;
+        return `Flaggen · Blau ${Number(counts.ALPHA) || 0}:${Number(counts.BRAVO) || 0} Orange${timeText}`;
     }
     if (huntProjection?.respawnEnabled !== true) return 'Elimination · letzter Überlebender gewinnt';
     const mode = normalizeHuntWinCondition(huntProjection?.winCondition);

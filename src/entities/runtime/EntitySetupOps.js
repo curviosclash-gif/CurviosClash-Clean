@@ -13,7 +13,7 @@ import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntime
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
-import { normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
+import { normalizeTeamId, resolveTeamColor } from '../../shared/contracts/TeamCombatContract.js';
 
 function normalizeActiveMode(mode) {
     return String(mode || '').trim().toLowerCase();
@@ -192,15 +192,17 @@ export class EntitySetupOps {
         ];
         for (let i = 0; i < numHumans; i++) {
             const playerVehicleId = setupContext.normalizeVehicleId(setupContext.humanConfigs[i]?.vehicleId);
-            const playerColor = Number.isFinite(Number(setupContext.humanConfigs[i]?.color))
+            const teamId = normalizeTeamId(setupContext.humanConfigs[i]?.teamId);
+            const configuredColor = Number.isFinite(Number(setupContext.humanConfigs[i]?.color))
                 ? Number(setupContext.humanConfigs[i].color)
                 : (humanColors[i] ?? humanColors[i % humanColors.length]);
+            const playerColor = resolveTeamColor(teamId, configuredColor);
             const player = new Player(owner.renderer, i, playerColor, false, {
                 vehicleId: playerVehicleId,
                 entityManager: owner,
                 entityRuntimeConfig: owner.entityRuntimeConfig,
             });
-            player.teamId = normalizeTeamId(setupContext.humanConfigs[i]?.teamId);
+            player.teamId = teamId;
             player.fightLoadout = setupContext.humanConfigs[i]?.fightLoadout || null;
             player.name = typeof setupContext.humanConfigs[i]?.name === 'string' ? setupContext.humanConfigs[i].name : '';
             player.setControlOptions({
@@ -226,7 +228,8 @@ export class EntitySetupOps {
         const scenario = resolveMapSinglePlayerScenario(owner.arena?.currentMapDefinition);
         const scenarioRoles = Array.isArray(scenario?.botRoles) ? scenario.botRoles : [];
         for (let i = 0; i < numBots; i++) {
-            const color = botColors[i % botColors.length];
+            const teamId = normalizeTeamId(setupContext.botTeamIds?.[i]);
+            const color = resolveTeamColor(teamId, botColors[i % botColors.length]);
             const botVehicleId = setupContext.botVehicleIds.length > 0
                 ? setupContext.botVehicleIds[i % setupContext.botVehicleIds.length]
                 : setupContext.defaultVehicleId;
@@ -235,7 +238,7 @@ export class EntitySetupOps {
                 entityManager: owner,
                 entityRuntimeConfig: owner.entityRuntimeConfig,
             });
-            player.teamId = normalizeTeamId(setupContext.botTeamIds?.[i]);
+            player.teamId = teamId;
             player.setControlOptions({ modelScale: setupContext.modelScale, invertPitch: false });
             player.scenarioRole = scenarioRoles.length > 0
                 ? scenarioRoles[i % scenarioRoles.length]

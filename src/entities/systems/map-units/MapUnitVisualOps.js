@@ -26,6 +26,7 @@ export function createMapUnitAssets() {
         flashGeometry: new THREE.SphereGeometry(0.42, 8, 6),
         healthBackGeometry: new THREE.BoxGeometry(4.2, 0.34, 0.12),
         healthFillGeometry: new THREE.BoxGeometry(4, 0.22, 0.14),
+        teamAccentGeometry: new THREE.BoxGeometry(4, 0.18, 2.2),
         hullMaterial: new THREE.MeshStandardMaterial({ color: HULL_COLOR, roughness: 0.8, metalness: 0.35 }),
         trackMaterial: new THREE.MeshStandardMaterial({ color: TRACK_COLOR, roughness: 0.95, metalness: 0.2 }),
         turretMaterial: new THREE.MeshStandardMaterial({ color: TURRET_COLOR, roughness: 0.7, metalness: 0.4 }),
@@ -38,7 +39,7 @@ export function disposeMapUnitAssets(assets) {
     for (const value of Object.values(assets || {})) value?.dispose?.();
 }
 
-export function createMapUnitVisual(renderer, assets, scale = 1) {
+export function createMapUnitVisual(renderer, assets, scale = 1, teamColor = null) {
     if (!renderer?.addToScene || !assets) return null;
     const root = new THREE.Group();
     root.scale.setScalar(Math.max(0.001, Number(scale) || 1));
@@ -46,6 +47,15 @@ export function createMapUnitVisual(renderer, assets, scale = 1) {
     const hull = new THREE.Mesh(assets.hullGeometry, assets.hullMaterial);
     hull.position.y = 0.95;
     root.add(hull);
+    const normalizedTeamColor = Number.isFinite(Number(teamColor)) ? Number(teamColor) : null;
+    if (normalizedTeamColor !== null) {
+        const teamAccentMaterial = new THREE.MeshBasicMaterial({ color: normalizedTeamColor });
+        const teamAccent = new THREE.Mesh(assets.teamAccentGeometry, teamAccentMaterial);
+        teamAccent.position.set(0, 1.76, -0.45);
+        root.add(teamAccent);
+        root.userData.teamAccent = teamAccent;
+        root.userData.disposableMaterials = [teamAccentMaterial];
+    }
     for (const side of [-1, 1]) {
         const track = new THREE.Mesh(assets.trackGeometry, assets.trackMaterial);
         track.position.set(side * 2.75, 0.65, 0);
@@ -62,7 +72,7 @@ export function createMapUnitVisual(renderer, assets, scale = 1) {
     flash.visible = false;
     headPivot.add(flash);
 
-    const healthMaterial = new THREE.MeshBasicMaterial({ color: HEALTH_COLOR });
+    const healthMaterial = new THREE.MeshBasicMaterial({ color: normalizedTeamColor ?? HEALTH_COLOR });
     const healthBack = new THREE.Mesh(assets.healthBackGeometry, assets.healthBackMaterial);
     healthBack.position.y = 3.7;
     root.add(healthBack);
@@ -73,7 +83,8 @@ export function createMapUnitVisual(renderer, assets, scale = 1) {
     root.userData.headPivot = headPivot;
     root.userData.muzzleFlash = flash;
     root.userData.healthFill = healthFill;
-    root.userData.disposableMaterials = [healthMaterial];
+    root.userData.teamColor = normalizedTeamColor;
+    root.userData.disposableMaterials = [...(root.userData.disposableMaterials || []), healthMaterial];
     renderer.addToScene(root);
     return root;
 }
@@ -89,7 +100,7 @@ export function updateMapUnitVisual(unit) {
     const ratio = Math.max(0, Math.min(1, unit.hp / Math.max(1, unit.maxHp)));
     healthFill.scale.x = Math.max(0.001, ratio);
     healthFill.position.x = -2 * (1 - ratio);
-    healthFill.material.color.setHex(ratio <= 0.3 ? LOW_HEALTH_COLOR : HEALTH_COLOR);
+    healthFill.material.color.setHex(ratio <= 0.3 ? LOW_HEALTH_COLOR : (root.userData.teamColor ?? HEALTH_COLOR));
 }
 
 export function removeMapUnitVisual(renderer, unit) {

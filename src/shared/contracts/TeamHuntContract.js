@@ -1,4 +1,10 @@
-import { normalizeTeamId, resolveBalancedTeamId, TEAM_IDS } from './TeamCombatContract.js';
+import {
+    normalizeTeamId,
+    resolveBalancedTeamId,
+    resolveTeamColor,
+    resolveTeamLabel,
+    TEAM_IDS,
+} from './TeamCombatContract.js';
 
 export const TEAM_HUNT_DEFAULT_TEAM_SIZE = 4;
 
@@ -41,7 +47,8 @@ export function createTeamScoreboard(rows = [], players = [], { scoreKey = 'kill
     for (const teamId of Object.values(TEAM_IDS)) {
         teams.set(teamId, {
             teamId,
-            label: teamId === TEAM_IDS.ALPHA ? 'Team Alpha' : 'Team Bravo',
+            label: resolveTeamLabel(teamId),
+            color: resolveTeamColor(teamId),
             playerIndex: -1,
             playerIndices: [],
             kills: 0,

@@ -13,6 +13,12 @@ import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 import { createRuntimeConfigSnapshot } from '../src/core/RuntimeConfig.js';
 import { serializeMapUnits } from '../src/entities/systems/map-units/MapUnitNetworkOps.js';
 import { buildMatchRuntimeProjection } from '../src/shared/runtime/MatchRuntimeProjectionBuilder.js';
+import {
+    createMapUnitAssets,
+    createMapUnitVisual,
+    disposeMapUnitAssets,
+    removeMapUnitVisual,
+} from '../src/entities/systems/map-units/MapUnitVisualOps.js';
 import * as THREE from 'three';
 
 test('escort keeps the approved tank, movement and round balance', () => {
@@ -111,4 +117,24 @@ test('escort runtime creates the 600 HP tank, accelerates near Alpha and ends fo
     assert.equal(tank.takeDamage(100, { sourcePlayer: alpha }).hpApplied, 0);
     assert.equal(tank.takeDamage(600, { sourcePlayer: bravo }).isDead, true);
     assert.equal(system.getEscortOutcome().winnerTeamId, TEAM_IDS.BRAVO);
+});
+
+test('escort tank visual carries the blue team accent and health color', () => {
+    const sceneRoots = [];
+    const renderer = {
+        addToScene(root) { sceneRoots.push(root); },
+        removeFromScene(root) { sceneRoots.splice(sceneRoots.indexOf(root), 1); },
+    };
+    const assets = createMapUnitAssets();
+    const unit = {
+        root: createMapUnitVisual(renderer, assets, 1, 0x00aaff),
+    };
+    try {
+        assert.equal(unit.root.userData.teamAccent.material.color.getHex(THREE.SRGBColorSpace), 0x00aaff);
+        assert.equal(unit.root.userData.healthFill.material.color.getHex(THREE.SRGBColorSpace), 0x00aaff);
+    } finally {
+        removeMapUnitVisual(renderer, unit);
+        disposeMapUnitAssets(assets);
+    }
+    assert.equal(sceneRoots.length, 0);
 });

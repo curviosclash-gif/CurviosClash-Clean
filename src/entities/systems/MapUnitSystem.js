@@ -48,6 +48,7 @@ import {
 } from './map-units/MapUnitCreatureVisualOps.js';
 import { updateCreatureAttack } from './map-units/MapUnitCreatureOps.js';
 import { GAME_MODE_TYPES } from '../../hunt/HuntMode.js';
+import { resolveTeamColor, TEAM_IDS } from '../../shared/contracts/TeamCombatContract.js';
 import {
     bindEscortTank,
     createEscortTankDefinition,
@@ -160,6 +161,7 @@ export class MapUnitSystem {
                 this.entityManager?.renderer,
                 this._resolveAssets(),
                 scale * (definition.kind === 'boss' ? definition.modelScale : 1),
+                definition.id === 'escort_tank' ? resolveTeamColor(TEAM_IDS.ALPHA) : null,
             );
         }
         this._updateVisual(unit);

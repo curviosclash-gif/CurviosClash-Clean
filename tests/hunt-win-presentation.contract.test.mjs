@@ -34,6 +34,10 @@ test('HUNT status names the selected objective and uses its ranking value', () =
     assert.equal(formatHuntScoreboard(rows, [0], '', 'score_target'), '▶ P1 3');
     assert.equal(formatHuntScoreboard(rows, [0], '', 'kills_time'), '▶ P1 1');
     assert.equal(formatHuntScoreboard(rows, [0], '', 'last_alive'), '▶ P1 3');
+    assert.equal(resolveHuntObjectiveText({ escortMode: true }, {},
+        { killLimit: 10, timeText: ' · 5:00', matchPointText: '' }), 'Eskorte · Team Blau schützt den Panzer · 5:00');
+    assert.equal(resolveHuntObjectiveText({ teamObjective: 'FLAGS', flagCounts: { ALPHA: 4, BRAVO: 2 } }, {},
+        { killLimit: 10, timeText: '', matchPointText: '' }), 'Flaggen · Blau 4:2 Orange');
 });
 
 test('menu and postmatch use the objective selected for the round', () => {

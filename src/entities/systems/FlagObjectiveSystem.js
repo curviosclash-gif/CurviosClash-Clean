@@ -7,9 +7,7 @@ import {
     TEAM_OBJECTIVE_TYPES,
     tickFlagObjectiveProtection,
 } from '../../shared/contracts/FlagObjectiveContract.js';
-import { normalizeTeamId, TEAM_IDS } from '../../shared/contracts/TeamCombatContract.js';
-
-const TEAM_COLORS = Object.freeze({ ALPHA: 0x2f8cff, BRAVO: 0xff4d62 });
+import { normalizeTeamId, resolveTeamColor, TEAM_IDS } from '../../shared/contracts/TeamCombatContract.js';
 
 function readBound(bounds, direct, nested, fallback) {
     const value = Number(bounds?.[direct] ?? bounds?.[nested?.[0]]?.[nested?.[1]]);
@@ -81,7 +79,7 @@ export class FlagObjectiveSystem {
         );
         const banner = new THREE.Mesh(
             new THREE.BoxGeometry(4.2, 2.2, 0.18),
-            new THREE.MeshStandardMaterial({ color: TEAM_COLORS[teamId], emissive: TEAM_COLORS[teamId], emissiveIntensity: 0.25 }),
+            new THREE.MeshStandardMaterial({ color: resolveTeamColor(teamId), emissive: resolveTeamColor(teamId), emissiveIntensity: 0.25 }),
         );
         banner.position.set(2, 2, 0);
         root.add(pole, banner);
@@ -99,9 +97,9 @@ export class FlagObjectiveSystem {
             this._applyTeam(flag, flag.teamId);
             this.entityManager?._huntScoring?.registerFlagCapture?.(sourcePlayer?.index);
             this.entityManager?.recorder?.logEvent?.('FLAG_CAPTURED', sourcePlayer?.index ?? -1, flag.id);
-            this.entityManager?.particles?.spawnExplosion?.(flag.position, TEAM_COLORS[flag.teamId], { blast: 'ITEM_BURST' });
+            this.entityManager?.particles?.spawnExplosion?.(flag.position, resolveTeamColor(flag.teamId), { blast: 'ITEM_BURST' });
         } else if (result.applied > 0) {
-            this.entityManager?.particles?.spawnHit?.(flag.position, TEAM_COLORS[flag.teamId]);
+            this.entityManager?.particles?.spawnHit?.(flag.position, resolveTeamColor(flag.teamId));
         }
         return { ...result, isDead: false };
     }
@@ -109,8 +107,8 @@ export class FlagObjectiveSystem {
     _applyTeam(flag, teamId) {
         flag.teamId = normalizeTeamId(teamId) || flag.teamId;
         const material = flag.root?.userData?.banner?.material;
-        material?.color?.setHex?.(TEAM_COLORS[flag.teamId]);
-        material?.emissive?.setHex?.(TEAM_COLORS[flag.teamId]);
+        material?.color?.setHex?.(resolveTeamColor(flag.teamId));
+        material?.emissive?.setHex?.(resolveTeamColor(flag.teamId));
         for (const guard of flag.guards) this.entityManager?._staticTurretSystem?.setTurretTeam?.(guard, flag.teamId);
     }
 

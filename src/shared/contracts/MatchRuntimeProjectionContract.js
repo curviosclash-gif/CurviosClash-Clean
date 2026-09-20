@@ -271,6 +271,7 @@ function createPlayerProjection(value = null) {
     if (!value || typeof value !== 'object') return null;
     return {
         playerIndex: normalizeNonNegativeInt(value.playerIndex, 0),
+        teamId: normalizeTeamId(value.teamId),
         name: normalizeString(value.name, '').trim(),
         isBot: value.isBot === true,
         alive: value.alive !== false,
@@ -408,6 +409,7 @@ function createHuntProjection(value = null, nowMs = 0) {
                 ? row.playerIndices.map((index) => normalizeNonNegativeInt(index, 0))
                 : [],
             label: normalizeString(row?.label, ''),
+            color: Math.max(0, Math.min(0xffffff, normalizeInt(row?.color, 0))),
             kills: normalizeNonNegativeInt(row?.kills, 0),
             deaths: normalizeNonNegativeInt(row?.deaths, 0),
             assists: normalizeNonNegativeInt(row?.assists, 0),

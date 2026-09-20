@@ -3,12 +3,17 @@ import test from 'node:test';
 import * as THREE from 'three';
 
 import {
+    TEAM_COLORS,
     TEAM_IDS,
+    TEAM_LABELS,
     TEAM_WEAPON_KINDS,
     canDamage,
     normalizeTeamId,
     resolveBalancedTeamId,
+    resolveTeamColor,
+    resolveTeamLabel,
 } from '../src/shared/contracts/TeamCombatContract.js';
+import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { getPreferredFightEnemy } from '../src/hunt/FightTargetSelector.js';
 import { resolveItemProjectileTarget } from '../src/entities/systems/projectile/ItemProjectileTargetingOps.js';
 import { serializePlayer } from '../src/core/GameStateSnapshot.js';
@@ -78,6 +83,16 @@ test('balanced team assignment alternates stable player slots', () => {
         Array.from({ length: 6 }, (_, index) => resolveBalancedTeamId(index)),
         [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO],
     );
+});
+
+test('team presentation reuses the two-player split-screen blue and orange identity', () => {
+    assert.deepEqual(TEAM_COLORS, { ALPHA: 0x00aaff, BRAVO: 0xff8800 });
+    assert.deepEqual(TEAM_LABELS, { ALPHA: 'Team Blau', BRAVO: 'Team Orange' });
+    assert.equal(CONFIG_SECTIONS.COLORS.PLAYER_1, resolveTeamColor(TEAM_IDS.ALPHA));
+    assert.equal(CONFIG_SECTIONS.COLORS.PLAYER_2, resolveTeamColor(TEAM_IDS.BRAVO));
+    assert.equal(resolveTeamLabel(TEAM_IDS.ALPHA), 'Team Blau');
+    assert.equal(resolveTeamLabel(TEAM_IDS.BRAVO), 'Team Orange');
+    assert.equal(resolveTeamColor(null, 0x123456), 0x123456);
 });
 
 test('fight and item targeting skip teammates while preserving enemy selection', () => {
