@@ -19,6 +19,11 @@ import {
 import { applyGroundClamp, resetGroundClamp } from './map-units/MapUnitGroundOps.js';
 import { applyAuthoredMapUnitBody, loadMapUnitLibrary } from './map-units/MapUnitModelCache.js';
 import {
+    clearAllMapUnitWrecks,
+    clearMapUnitWreck,
+    tickMapUnitWrecks,
+} from './map-units/MapUnitWreckOps.js';
+import {
     captureUnitPose,
     createUnitPose,
     DRIVE_MODES,
@@ -96,6 +101,7 @@ export class MapUnitSystem {
         this._summonCounter = 0;
         this._modelLibrary = null;
         this._modelLibraryRequested = false;
+        this._wrecks = [];
     }
 
     startRound() {
@@ -265,6 +271,7 @@ export class MapUnitSystem {
 
     /** Back at the start of its path with full hit points and cold weapons. */
     _respawn(unit) {
+        clearMapUnitWreck(this, unit.id);
         unit.alive = true;
         unit.hp = unit.maxHp;
         unit.respawnRemaining = Infinity;
@@ -293,6 +300,7 @@ export class MapUnitSystem {
 
     update(dt) {
         const safeDt = Math.max(0, Number(dt) || 0);
+        tickMapUnitWrecks(this, safeDt);
         if (!this.networkReplica) {
             for (const unit of tickMapUnitRespawns(this.units, safeDt, this._dueRespawns)) this._respawn(unit);
         }
@@ -415,6 +423,7 @@ export class MapUnitSystem {
     }
 
     clear() {
+        clearAllMapUnitWrecks(this);
         const renderer = this.entityManager?.renderer;
         for (const unit of this.units) {
             this.setBossRoomClock(unit, false);

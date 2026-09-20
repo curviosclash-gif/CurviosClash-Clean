@@ -1,5 +1,6 @@
 import { resolveUnitPathPose } from './MapUnitMovementOps.js';
 import { normalizeMapUnit } from '../../../shared/contracts/MapUnitContract.js';
+import { clearMapUnitWreck, spawnMapUnitWreck } from './MapUnitWreckOps.js';
 
 /**
  * Map units across the network. The host decides where a tank is, whether it lives and when it
@@ -163,7 +164,10 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
             || (wasCrashing && !unit.crashing && !unit.alive && unit.kind === 'bomber')) {
             // Only the picture: damage, loot and credit already happened on the host.
             system.entityManager?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
+            spawnMapUnitWreck(system, unit);
         }
+        // A client never runs the respawn itself, so it clears the wreck when the unit comes back.
+        if (!wasAlive && unit.alive) clearMapUnitWreck(system, unit.id);
         applyMounts(system, unit, entry.mounts);
     }
 }
