@@ -25,7 +25,13 @@ const OBJ_ASSET_COPY_ENTRIES = [
 ];
 const GLB_GALLERY_ASSET_SOURCE_DIR = path.resolve(__dirname, 'assets', 'models', 'downloaded_cc0');
 const GLB_GALLERY_ASSET_OUTPUT_SEGMENTS = ['assets', 'models', 'downloaded_cc0'];
-const WILDWUCHS_ASSET_SEGMENTS = ['assets', 'models', 'verdant_wildwuchs'];
+// Model packs that keep their editable Blender sources, previews and manifests next to their
+// runtime files. Only the .glb files belong in the renderer build; copying the directory whole
+// would ship the .blend sources with the game.
+const GLB_ONLY_MODEL_DIRS = [
+    ['assets', 'models', 'verdant_wildwuchs'],
+    ['assets', 'models', 'glowing_mushroom'],
+];
 
 function copyGlbTree(sourceDir, targetDir) {
     if (!existsSync(sourceDir)) return;
@@ -72,15 +78,11 @@ export function copyObjVehicleAssetsPlugin() {
                     path.join(resolvedOutDir, ...pathSegments)
                 );
             }
-            const wildwuchsSource = path.resolve(__dirname, ...WILDWUCHS_ASSET_SEGMENTS);
-            if (existsSync(wildwuchsSource)) {
-                const targetDir = path.join(resolvedOutDir, ...WILDWUCHS_ASSET_SEGMENTS);
-                mkdirSync(targetDir, { recursive: true });
-                for (const entry of readdirSync(wildwuchsSource, { withFileTypes: true })) {
-                    if (entry.isFile() && entry.name.endsWith('.glb')) {
-                        cpSync(path.join(wildwuchsSource, entry.name), path.join(targetDir, entry.name), { force: true });
-                    }
-                }
+            for (const pathSegments of GLB_ONLY_MODEL_DIRS) {
+                copyGlbTree(
+                    path.resolve(__dirname, ...pathSegments),
+                    path.join(resolvedOutDir, ...pathSegments)
+                );
             }
         },
     };

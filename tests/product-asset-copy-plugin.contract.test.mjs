@@ -39,10 +39,20 @@ test('renderer build copies every editor OBJ asset group', (context) => {
         'assets/maps/burg_falkenwacht/glb/11_portcullis.glb',
         'assets/maps/burg_falkenwacht/props/falkenwacht-woodpile/falkenwacht-woodpile-v01/runtime.glb',
         'assets/maps/aetherion_orrery/glb/10_celestial_core.glb',
+        'assets/models/verdant_wildwuchs/fern_v01.glb',
+        'assets/models/glowing_mushroom/cap_v01.glb',
+        'assets/models/glowing_mushroom/shelf_v03.glb',
     ]) {
         assert.ok(statSync(path.join(outDir, relativePath)).size > 0, `${relativePath} was not copied`);
     }
-    assert.equal(existsSync(path.join(outDir,
-        'assets/maps/burg_falkenwacht/props/falkenwacht-woodpile/falkenwacht-woodpile-v01/source.blend')), false,
-    'editable prop sources stay out of the renderer build');
+    for (const relativePath of [
+        'assets/maps/burg_falkenwacht/props/falkenwacht-woodpile/falkenwacht-woodpile-v01/source.blend',
+        // The mushroom pack keeps its Blender sources and contact sheet beside the runtime files,
+        // so the copy has to filter by extension rather than take the directory whole.
+        'assets/models/glowing_mushroom/blender/cap_v01.blend',
+        'assets/models/glowing_mushroom/manifest.json',
+    ]) {
+        assert.equal(existsSync(path.join(outDir, relativePath)), false,
+            `${relativePath} stays out of the renderer build`);
+    }
 });
