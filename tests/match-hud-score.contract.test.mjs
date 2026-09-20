@@ -109,9 +109,9 @@ test('network board sorts scores, highlights local player, and retains every pin
     const presenter = new MatchScoreHudPresenter(hud);
     const projection = {
         players: [
-            { playerIndex: 2, score: 3 },
-            { playerIndex: 0, score: 8 },
-            { playerIndex: 1, score: 8 },
+            { playerIndex: 2, score: 3, teamId: 'ALPHA' },
+            { playerIndex: 0, score: 8, teamId: 'ALPHA' },
+            { playerIndex: 1, score: 8, teamId: 'BRAVO' },
         ],
         sessionPlayers: [
             { playerIndex: 2, pingMs: 52 },
@@ -125,6 +125,9 @@ test('network board sorts scores, highlights local player, and retains every pin
     assert.deepEqual(rows.map((row) => row.children[0].textContent), ['P1', 'P2', 'P3']);
     assert.deepEqual(rows.map((row) => row.children[2].textContent), ['18ms', '27ms', '52ms']);
     assert.equal(rows[2].classList.contains('is-local'), true);
+    assert.equal(rows[0].classList.contains('is-team-blue'), true);
+    assert.equal(rows[1].classList.contains('is-team-orange'), true);
+    assert.equal(rows[2].classList.contains('is-team-blue'), true);
     assert.equal(rows.some((row) => row.classList.contains('is-leading')), false);
     projection.players[0].score = 9;
     presenter.updateNetwork(projection, [], 2);

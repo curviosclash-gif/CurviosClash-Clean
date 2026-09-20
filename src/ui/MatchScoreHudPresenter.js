@@ -2,6 +2,7 @@ import { MatchHudAnnouncement, rankScoreRows } from './MatchHudAnnouncement.js';
 import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
 import { getHuntScoreValue } from './HuntMatchStatusHelpers.js';
 import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
+import { normalizeTeamId, TEAM_IDS } from '../shared/contracts/TeamCombatContract.js';
 
 export class MatchScoreHudPresenter {
     constructor(hud) {
@@ -91,11 +92,14 @@ export class MatchScoreHudPresenter {
                 (entry?.playerIndex ?? entry?.index) === playerIndex);
             const pingMs = peer?.pingMs ?? peer?.ping ?? (player.isBot ? 0 : -1);
             const ping = pingMs >= 0 ? `${pingMs}ms` : '';
+            const teamId = normalizeTeamId(player?.teamId);
             if (row.children[0].textContent !== name) row.children[0].textContent = name;
             if (row.children[1].textContent !== score) row.children[1].textContent = score;
             if (row.children[2].textContent !== ping) row.children[2].textContent = ping;
             row.classList.toggle('is-local', playerIndex === localIndex);
             row.classList.toggle('is-leading', uniqueLeader && index === 0);
+            row.classList.toggle('is-team-blue', teamId === TEAM_IDS.ALPHA);
+            row.classList.toggle('is-team-orange', teamId === TEAM_IDS.BRAVO);
         }
     }
 

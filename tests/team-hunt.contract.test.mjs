@@ -16,6 +16,8 @@ import { getNearestEnemy } from '../src/hunt/HuntBotPolicy.js';
 import { resolveOpportunisticEnemy } from '../src/entities/ai/HeuristicHuntTargetingOps.js';
 import { coordinateRoundEnd } from '../src/ui/MatchFlowRoundEndCoordinator.js';
 import { buildMatchRuntimeProjection } from '../src/shared/runtime/MatchRuntimeProjectionBuilder.js';
+import { EntitySetupOps } from '../src/entities/runtime/EntitySetupOps.js';
+import { resolveEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import * as THREE from 'three';
 
 function combatant(index, teamId, alive = true) {
@@ -92,6 +94,10 @@ test('team scoreboard aggregates the selected Hunt metric and keeps player stati
         [TEAM_IDS.ALPHA, 5, 12, [0, 2]],
         [TEAM_IDS.BRAVO, 4, 8, [1]],
     ]);
+    assert.deepEqual(teams.map((row) => [row.label, row.color]), [
+        ['Team Blau', 0x00aaff],
+        ['Team Orange', 0xff8800],
+    ]);
 });
 
 test('local team HUD derives team rows without an authoritative network snapshot', () => {
@@ -112,6 +118,7 @@ test('local team HUD derives team rows without an authoritative network snapshot
     assert.deepEqual(projection.hunt.scoreboardRows.map((row) => [row.teamId, row.kills]), [
         [TEAM_IDS.ALPHA, 2], [TEAM_IDS.BRAVO, 1],
     ]);
+    assert.deepEqual(projection.players.map((player) => player.teamId), [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO]);
 });
 
 test('team deathmatch ends on the aggregate kill target and returns a winning team representative', () => {
@@ -141,6 +148,50 @@ test('match setup assigns every human and bot slot to the balanced roster', () =
     const options = buildEntityManagerSetupOptions({ gameplay: {}, vehicles: {}, hunt: {} }, runtimeConfig);
     assert.deepEqual(options.humanConfigs.map((entry) => entry.teamId), [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO]);
     assert.deepEqual(options.botTeamIds, [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO]);
+});
+
+test('team setup colors every human, bot and trail blue or orange', () => {
+    const renderer = {
+        addToScene() {},
+        removeFromScene() {},
+        getGraphicsStyle: () => 'modern',
+    };
+    const owner = {
+        renderer,
+        entityRuntimeConfig: resolveEntityRuntimeConfig({}),
+        runtimeConfig: {},
+        arena: { currentMapDefinition: null },
+        players: [],
+        humanPlayers: [],
+        bots: [],
+        botByPlayer: new Map(),
+        botDifficulty: 'NORMAL',
+        botPolicyType: 'heuristic',
+        botPolicyRegistry: { create: () => ({}) },
+        gameModeStrategy: { isEndlessParcours: () => false },
+        combatModeType: 'HUNT',
+    };
+    const setup = new EntitySetupOps(owner);
+    const context = {
+        normalizeVehicleId: () => 'ship5',
+        humanConfigs: [
+            { teamId: TEAM_IDS.ALPHA, color: 0x111111 },
+            { teamId: TEAM_IDS.BRAVO, color: 0x222222 },
+        ],
+        botTeamIds: [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO],
+        botVehicleIds: ['ship5'],
+        defaultVehicleId: 'ship5',
+        teamBotDifficulty: { ALPHA: 'NORMAL', BRAVO: 'NORMAL' },
+        modelScale: 1,
+    };
+    try {
+        setup.setupHumanPlayers(2, context);
+        setup.setupBotPlayers(2, 2, context);
+        assert.deepEqual(owner.players.map((player) => player.color), [0x00aaff, 0xff8800, 0x00aaff, 0xff8800]);
+        assert.deepEqual(owner.players.map((player) => player.trail.color), [0x00aaff, 0xff8800, 0x00aaff, 0xff8800]);
+    } finally {
+        for (const player of owner.players) player.dispose();
+    }
 });
 
 test('team Hunt settings enter the immutable match snapshot', () => {

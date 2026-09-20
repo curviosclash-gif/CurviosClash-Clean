@@ -8623,9 +8623,15 @@ body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
     padding: 4px 6px;
     border-left: 2px solid transparent;
 }
+.mp-scoreboard-row.is-team-blue { border-left-color: #00aaff; }
+.mp-scoreboard-row.is-team-blue .mp-sb-name { color: #66ccff; }
+.mp-scoreboard-row.is-team-orange { border-left-color: #ff8800; }
+.mp-scoreboard-row.is-team-orange .mp-sb-name { color: #ffb866; }
 .mp-scoreboard-row.is-local { background: rgba(0, 229, 255, 0.12); }
 .mp-scoreboard-row.is-leading { border-left-color: var(--hud-color, #70ff45); }
 .mp-scoreboard-row.is-leading .mp-sb-score { color: var(--hud-color, #70ff45); }
+.mp-scoreboard-row.is-leading.is-team-blue { border-left-color: #00aaff; }
+.mp-scoreboard-row.is-leading.is-team-orange { border-left-color: #ff8800; }
 .mp-scoreboard[data-metric="kills"]::before {
     display: block;
     padding: 5px 8px 3px;

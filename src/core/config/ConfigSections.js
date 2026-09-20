@@ -4,6 +4,7 @@
 
 import { HUNT_CONFIG } from '../../hunt/HuntConfig.js';
 import { createPickupTypeConfigMap } from '../../shared/contracts/PickupTypeConfigContract.js';
+import { TEAM_COLORS, TEAM_IDS } from '../../shared/contracts/TeamCombatContract.js';
 
 export const CONFIG_SECTIONS = {
     // ---- Allgemein ----
@@ -318,8 +319,8 @@ export const CONFIG_SECTIONS = {
 
     // ---- Farben ----
     COLORS: {
-        PLAYER_1: 0x00aaff,
-        PLAYER_2: 0xff8800,
+        PLAYER_1: TEAM_COLORS[TEAM_IDS.ALPHA],
+        PLAYER_2: TEAM_COLORS[TEAM_IDS.BRAVO],
         BOT_COLORS: [0xff4444, 0x44ff44, 0xffff44, 0xff44ff, 0x44ffff],
         BACKGROUND: 0x080812,
         AMBIENT_LIGHT: 0x334466,
