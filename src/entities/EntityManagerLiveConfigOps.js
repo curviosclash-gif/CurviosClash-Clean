@@ -73,16 +73,24 @@ export function applyLiveRuntimeConfig(em, entityRuntimeConfig, runtimeConfig) {
     }
     const playerSection = nextErc.PLAYER || {};
     const nextMaxHp = Number(nextErc?.HUNT?.PLAYER_MAX_HP);
+    const humanPlayers = Array.isArray(em.humanPlayers) ? em.humanPlayers : [];
+    const invertPitchBySlot = runtimeConfig?.player?.invertPitch;
     for (const player of em.players) {
         if (!player) continue;
         player.entityRuntimeConfig = nextErc;
         if (typeof player.setControlOptions === 'function') {
-            player.setControlOptions({
+            const controlOptions = {
                 speed: Number(playerSection.SPEED),
                 turnSpeed: Number(playerSection.TURN_SPEED),
                 rollSpeed: Number(playerSection.ROLL_SPEED),
                 modelScale: Number(playerSection.MODEL_SCALE),
-            });
+            };
+            const humanIndex = humanPlayers.indexOf(player);
+            const pitchSlot = humanIndex >= 0 ? `PLAYER_${humanIndex + 1}` : '';
+            if (pitchSlot && Object.hasOwn(invertPitchBySlot || {}, pitchSlot)) {
+                controlOptions.invertPitch = invertPitchBySlot[pitchSlot] === true;
+            }
+            player.setControlOptions(controlOptions);
         }
         player.gameplayConfig = resolveGameplayConfig(player);
         if (Number.isFinite(nextMaxHp) && nextMaxHp > 0 && Number.isFinite(Number(player.maxHp))) {
