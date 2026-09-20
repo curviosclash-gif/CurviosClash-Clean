@@ -1,6 +1,7 @@
 import { expect, test } from './helpers.desktop.js';
 import { waitForLoadedGame } from './helpers.js';
 import { applyArenaWavesChoice } from '../src/shared/contracts/ArenaWavesContract.js';
+import { EIFFEL_TOWER_SIEGE_MODELS } from '../src/core/config/maps/presets/eiffel_tower_siege/EiffelTowerSiegeModels.js';
 
 // This intentionally uses the runtime's test-visible arcade seam to avoid waiting
 // for combat AI. It still exercises the production menu button and overlay clicks.
@@ -70,6 +71,26 @@ test('Five Fronts starts, offers one upgrade, retains it across a forced map tra
     expect(transitioned.mapKey).toBe('notre_dame_fire_arena');
     expect(transitioned.managerRebuilt).toBeTruthy();
     expect(transitioned.upgrades).toEqual(applyArenaWavesChoice(retained, deathChoice));
+
+    await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const runtime = game.runtimeFacade._arcadeSupport.arenaWavesRuntime;
+        runtime._onHumanDeath();
+        game.matchFlowUiController?._syncArcadeOverlayPanel?.();
+    });
+    await expect(page.locator('#arcade-overlay-panel .arcade-overlay-choice-btn')).toHaveCount(4);
+    await page.locator('#arcade-overlay-panel .arcade-overlay-choice-btn').first().click();
+    await page.evaluate(async () => window.GAME_INSTANCE.runtimeFacade.restartRound());
+    await page.waitForFunction((modelCount) => {
+        const game = window.GAME_INSTANCE;
+        const runtime = game?.runtimeFacade?._arcadeSupport?.arenaWavesRuntime;
+        return runtime?.mapIndex === 2
+            && runtime?.phase === 'countdown'
+            && runtime?.getHudState?.().currentMapKey === 'eiffel_tower_siege'
+            && game?.arena?.currentMapKey === 'eiffel_tower_siege'
+            && game?.arena?._glbLoadError == null
+            && game?.arena?._glbScene?.children?.length === modelCount;
+    }, EIFFEL_TOWER_SIEGE_MODELS.length, { timeout: 360_000 });
 
     await page.evaluate(() => {
         const runtime = window.GAME_INSTANCE.runtimeFacade._arcadeSupport.arenaWavesRuntime;
