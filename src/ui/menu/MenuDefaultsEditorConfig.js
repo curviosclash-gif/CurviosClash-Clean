@@ -54,6 +54,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         invertPitch: {
             PLAYER_1: true,
             PLAYER_2: true,
+            PLAYER_3: true,
         },
         cockpitCamera: {
             PLAYER_1: true,

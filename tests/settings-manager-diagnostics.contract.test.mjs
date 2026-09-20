@@ -281,12 +281,12 @@ test('V103 SettingsManager productive consumers avoid direct settings store reac
 
 test('Settings diff maps uppercase player slot paths to UI change keys', () => {
     const before = {
-        invertPitch: { PLAYER_1: true, PLAYER_2: true },
+        invertPitch: { PLAYER_1: true, PLAYER_2: true, PLAYER_3: true },
         cockpitCamera: { PLAYER_1: true, PLAYER_2: true },
         vehicles: { PLAYER_1: 'ship5', PLAYER_2: 'ship8' },
     };
     const after = {
-        invertPitch: { PLAYER_1: false, PLAYER_2: true },
+        invertPitch: { PLAYER_1: false, PLAYER_2: true, PLAYER_3: false },
         cockpitCamera: { PLAYER_1: true, PLAYER_2: false },
         vehicles: { PLAYER_1: 'ship7', PLAYER_2: 'ship9' },
     };
@@ -296,6 +296,7 @@ test('Settings diff maps uppercase player slot paths to UI change keys', () => {
     assert.deepEqual(diff.changedKeys.sort(), [
         SETTINGS_CHANGE_KEYS.RULES_COCKPIT_P2,
         SETTINGS_CHANGE_KEYS.RULES_INVERT_P1,
+        SETTINGS_CHANGE_KEYS.RULES_INVERT_P3,
         SETTINGS_CHANGE_KEYS.VEHICLES_PLAYER_1,
         SETTINGS_CHANGE_KEYS.VEHICLES_PLAYER_2,
     ].sort());

@@ -133,6 +133,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level4.gameplay.auto_roll.label': 'Auto-Roll aktiv',
     'menu.level4.gameplay.invert_pitch_p1.label': 'Pitch umkehren P1 (Stick hoch / W = Nase runter)',
     'menu.level4.gameplay.invert_pitch_p2.label': 'Pitch umkehren P2 (Stick hoch / Num 8 = Nase runter)',
+    'menu.level4.gameplay.invert_pitch_p3.label': 'Pitch umkehren P3 (Stick hoch / I = Nase runter)',
     'menu.level4.gameplay.fire_rate.label': 'Schussintervall:',
     'menu.level4.gameplay.lockon.label': 'Zielerfassungswinkel:',
     'menu.level4.gameplay.checkpoint_glow.label': 'Leuchten des nächsten Checkpoints:',

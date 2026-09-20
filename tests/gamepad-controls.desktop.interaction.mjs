@@ -39,6 +39,10 @@ test('desktop controller editor swaps bindings and persists them across reload',
         await expect(page.locator('label.toggle-row', { has: invertPitch })).toContainText('Pitch umkehren P1');
         await expect(page.locator('label.toggle-row', { has: invertPitch })).toContainText('Stick hoch');
         await invertPitch.uncheck();
+        const invertPitchP3 = page.locator('#invert-p3');
+        await expect(invertPitchP3).toBeChecked();
+        await expect(page.locator('label.toggle-row', { has: invertPitchP3 })).toContainText('Pitch umkehren P3');
+        await invertPitchP3.uncheck();
         await editor.locator('[data-gamepad-action="pitchAxis"]').selectOption('3');
         await expect(editor.locator('[data-gamepad-action="pitchAxis"]')).toHaveValue('3');
         const assignment = editor.getByLabel('Splitscreen: Eingabegeräte');
@@ -60,6 +64,7 @@ test('desktop controller editor swaps bindings and persists them across reload',
         await page.locator('.menu-utility-shell [data-level4-section=controls]').click();
         await expect(assignment).toHaveValue('controller-controller');
         await expect(invertPitch).not.toBeChecked();
+        await expect(invertPitchP3).not.toBeChecked();
         await expect(editor.locator('[data-gamepad-action="pitchAxis"]')).toHaveValue('3');
         await expect(editor.locator('[data-gamepad-action="BOOST"]')).toHaveValue('4');
         await expect(editor.locator('[data-gamepad-action="SLOWMO"]')).toHaveValue('0');

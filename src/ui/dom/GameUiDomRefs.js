@@ -129,6 +129,7 @@ export function createGameUiRefs(doc = document) {
         autoRollToggle: doc.getElementById('auto-roll-toggle'),
         invertP1: doc.getElementById('invert-p1'),
         invertP2: doc.getElementById('invert-p2'),
+        invertP3: doc.getElementById('invert-p3'),
         portalsToggle: doc.getElementById('portals-toggle'),
         mouseSteeringToggle: doc.getElementById('mouse-steering-toggle'),
         gamepadVibrationToggle: doc.getElementById('gamepad-vibration-toggle'),

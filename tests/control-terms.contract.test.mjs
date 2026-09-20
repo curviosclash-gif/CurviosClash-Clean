@@ -43,4 +43,7 @@ test('the key editor asks each player for the invert setting before labelling pi
 test('pitch inversion settings explicitly describe controller sticks', () => {
     assert.match(resolveMenuCatalogText('menu.level4.gameplay.invert_pitch_p1.label'), /Pitch umkehren P1.*Stick hoch/u);
     assert.match(resolveMenuCatalogText('menu.level4.gameplay.invert_pitch_p2.label'), /Pitch umkehren P2.*Stick hoch/u);
+    assert.match(resolveMenuCatalogText('menu.level4.gameplay.invert_pitch_p3.label'), /Pitch umkehren P3.*Stick hoch/u);
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    assert.match(html, /id="invert-p3"/u);
 });

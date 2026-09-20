@@ -67,7 +67,14 @@ test('SettingsManager partial snapshots preserve current invert-pitch and vehicl
     });
 
     assert.deepEqual(sanitized.invertPitch, defaults.invertPitch);
+    assert.equal(defaults.invertPitch.PLAYER_3, true);
     assert.deepEqual(sanitized.vehicles, defaults.vehicles);
+
+    const playerThreeRegularPitch = manager.sanitizeSettings({
+        settingsVersion: defaults.settingsVersion,
+        invertPitch: { PLAYER_3: false },
+    });
+    assert.equal(playerThreeRegularPitch.invertPitch.PLAYER_3, false);
 });
 
 test('SettingsManager rejects inherited object property names as map keys', () => {

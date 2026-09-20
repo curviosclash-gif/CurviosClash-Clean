@@ -215,7 +215,7 @@ test('EntityManager live runtime apply propagates updated config to runtime cach
 
 test('pitch inversion changes live for active human players', () => {
     const entityRuntimeConfig = createEntityRuntimeConfigFixture();
-    const optionCalls = [[], [], []];
+    const optionCalls = [[], [], [], []];
     const players = optionCalls.map((calls) => ({
         entityRuntimeConfig,
         setControlOptions(options) {
@@ -225,20 +225,22 @@ test('pitch inversion changes live for active human players', () => {
     const managerLike = {
         entityRuntimeConfig,
         players,
-        humanPlayers: players.slice(0, 2),
-        bots: [{ player: players[2] }],
+        humanPlayers: players.slice(0, 3),
+        bots: [{ player: players[3] }],
     };
     const runtimeConfig = createRuntimeConfigSnapshot({
-        invertPitch: { PLAYER_1: false, PLAYER_2: true },
+        invertPitch: { PLAYER_1: false, PLAYER_2: true, PLAYER_3: false },
     });
 
     EntityManager.prototype.applyLiveRuntimeConfig.call(managerLike, entityRuntimeConfig, runtimeConfig);
 
     assert.equal(runtimeConfig.player.invertPitch.PLAYER_1, false);
     assert.equal(runtimeConfig.player.invertPitch.PLAYER_2, true);
+    assert.equal(runtimeConfig.player.invertPitch.PLAYER_3, false);
     assert.equal(optionCalls[0].at(-1).invertPitch, false);
     assert.equal(optionCalls[1].at(-1).invertPitch, true);
-    assert.equal(Object.hasOwn(optionCalls[2].at(-1), 'invertPitch'), false);
+    assert.equal(optionCalls[2].at(-1).invertPitch, false);
+    assert.equal(Object.hasOwn(optionCalls[3].at(-1), 'invertPitch'), false);
 });
 
 test('Pause auto-roll setting reaches the entity runtime config used by player motion', () => {
