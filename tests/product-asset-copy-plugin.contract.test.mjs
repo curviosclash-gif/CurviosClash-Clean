@@ -30,6 +30,13 @@ test('renderer build copies every editor OBJ asset group', (context) => {
             const variant = String(index + 1).padStart(2, '0');
             return `assets/models/ancient_tree/variants/variant_${variant}/ancient_tree_${variant}_lod2.glb`;
         }),
+        // The giant forest collides against these, so a build without them has flyable trees.
+        ...Array.from({ length: 10 }, (_, index) => {
+            const variant = String(index + 1).padStart(2, '0');
+            return `assets/models/ancient_tree/variants/variant_${variant}/ancient_tree_${variant}_collision.glb`;
+        }),
+        'assets/maps/giant_forest/glb/01_forest_floor.glb',
+        'assets/maps/giant_forest/glb/02_canopy_walks.glb',
         'assets/maps/chrono_forge/glb/08_time_core.glb',
         'assets/maps/kinetic_tide/glb/08_reactor_heart.glb',
         'assets/maps/verdant_aperture/glb/08_heart_seed.glb',

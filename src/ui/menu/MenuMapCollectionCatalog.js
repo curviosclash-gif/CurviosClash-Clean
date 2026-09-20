@@ -43,6 +43,7 @@ const COLLECTION_DEFINITIONS = [
             'verdant_aperture',
             'dandelion_sky',
             'aetherion_orrery',
+            'giant_forest',
             'notre_dame',
             'notre_dame_fire',
             'eiffel_tower',
