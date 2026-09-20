@@ -168,6 +168,7 @@ export class ThreePlayerSplitModule {
             mode: controls.mode,
             mapKey: controls.mapKey,
             vehicleId: controls.vehicleId,
+            viewportLayout: controls.viewportLayout,
             botCount: controls.botCount,
             deviceAssignment: controls.deviceAssignment,
         }, {
@@ -241,6 +242,7 @@ export class ThreePlayerSplitModule {
         if (this._matchActive) return;
         this._matchActive = true;
         this.hudView.setRuntimeSurfaceActive(true);
+        this.hudView.setViewportLayout?.(this.runtime?.getRuntimeConfig?.()?.session?.viewportLayout);
         this.hudView.ensureRows({
             playerCount: THREE_PLAYER_SPLIT_HUMAN_COUNT,
             playerColors: THREE_PLAYER_SPLIT_PLAYER_COLORS,

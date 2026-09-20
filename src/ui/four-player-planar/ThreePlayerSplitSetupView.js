@@ -86,6 +86,10 @@ export class ThreePlayerSplitSetupView {
                 </select></label>
                 <label>Karte<select data-three-player-split-map></select></label>
                 <label>Gemeinsames Fahrzeug<select data-three-player-split-vehicle></select></label>
+                <label>Bildformat<select data-three-player-split-viewport-layout>
+                    <option value="three_columns">Hochformat · 3 Spalten</option>
+                    <option value="three_rows">Querformat · 3 Reihen</option>
+                </select></label>
                 <label>Bots <span data-three-player-split-bot-label>0</span>
                     <input data-three-player-split-bots type="range" min="0" max="6" step="1" value="0">
                 </label>
@@ -133,6 +137,7 @@ export class ThreePlayerSplitSetupView {
             mode: surface.querySelector('[data-three-player-split-mode]'),
             map: mapSelect,
             vehicle: vehicleSelect,
+            viewportLayout: surface.querySelector('[data-three-player-split-viewport-layout]'),
             bots: surface.querySelector('[data-three-player-split-bots]'),
             botLabel: surface.querySelector('[data-three-player-split-bot-label]'),
             deviceSelects,
@@ -155,7 +160,7 @@ export class ThreePlayerSplitSetupView {
             listen: (target, type, handler, options) => this._listen(target, type, handler, options),
         });
         this._listen(nodes.start, 'click', () => handlers.onStartRequested?.());
-        for (const control of [nodes.mode, nodes.map, nodes.vehicle, nodes.bots]) {
+        for (const control of [nodes.mode, nodes.map, nodes.vehicle, nodes.viewportLayout, nodes.bots]) {
             this._listen(control, 'input', () => handlers.onControlChanged?.());
             this._listen(control, 'change', () => handlers.onControlChanged?.());
         }
@@ -215,13 +220,14 @@ export class ThreePlayerSplitSetupView {
         this._nodes.card.setAttribute('aria-hidden', String(!visible));
     }
 
-    /** @returns {{mode: string, mapKey: string, vehicleId: string, botCount: string, deviceAssignment: string[]}|null} */
+    /** @returns {{mode: string, mapKey: string, vehicleId: string, viewportLayout: string, botCount: string, deviceAssignment: string[]}|null} */
     readControls() {
         if (!this._nodes) return null;
         return {
             mode: this._nodes.mode.value,
             mapKey: this._nodes.map.value,
             vehicleId: this._nodes.vehicle.value,
+            viewportLayout: this._nodes.viewportLayout.value,
             botCount: this._nodes.bots.value,
             deviceAssignment: this._nodes.deviceSelects.map((select) => select.value),
         };
@@ -232,6 +238,7 @@ export class ThreePlayerSplitSetupView {
         this._nodes.mode.value = selection.mode;
         this._nodes.map.value = selection.mapKey;
         this._nodes.vehicle.value = selection.vehicleId;
+        this._nodes.viewportLayout.value = selection.viewportLayout;
         this._nodes.bots.value = String(selection.botCount);
         this._nodes.botLabel.textContent = String(selection.botCount);
         this._nodes.deviceSelects.forEach((select, index) => {
@@ -243,6 +250,7 @@ export class ThreePlayerSplitSetupView {
     applyNormalizedSelection(selection) {
         if (!this._nodes) return;
         this._nodes.map.value = selection.mapKey;
+        this._nodes.viewportLayout.value = selection.viewportLayout;
         this._nodes.botLabel.textContent = String(selection.botCount);
         this._nodes.deviceSelects.forEach((select, index) => {
             select.value = selection.deviceAssignment?.[index] || select.value;

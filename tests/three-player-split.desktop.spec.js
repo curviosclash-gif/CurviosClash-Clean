@@ -9,10 +9,15 @@ test('three-player split setup guards missing pads and starts with swapped devic
     await expect(page.locator('#btn-three-player-split')).toBeVisible();
     await page.locator('#btn-three-player-split').click();
     await expect(page.locator('#three-player-split-setup')).toBeVisible();
+    await page.evaluate(() => {
+        Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [] });
+        window.dispatchEvent(new Event('gamepaddisconnected'));
+    });
 
     await expect(page.locator('[data-three-player-split-start]')).toBeDisabled();
     await expect(page.locator('[data-three-player-split-device-status]')).toContainText('Gamepad 1 fehlt');
     expect(await page.evaluate(() => window.GAME_INSTANCE?.state)).toBe('MENU');
+    await page.locator('[data-three-player-split-viewport-layout]').selectOption('three_rows');
 
     await page.locator('[data-three-player-split-device][data-player-index="2"]').selectOption('gamepad-1');
     await expect(page.locator('[data-three-player-split-device][data-player-index="0"]')).toHaveValue('keyboard');
@@ -35,9 +40,15 @@ test('three-player split setup guards missing pads and starts with swapped devic
             layout: game.renderer?.viewportLayout,
             sources: [0, 1, 2].map((index) => game.input?.getPlayerSource?.(index)?.type),
             hudColumns: document.querySelectorAll('#three-player-split-hud .three-player-split-hud-column').length,
+            hudLayout: document.querySelector('#three-player-split-hud')?.dataset.viewportLayout,
         };
     });
-    expect(state).toEqual({ layout: 'three_columns', sources: ['keyboard', 'gamepad', 'gamepad'], hudColumns: 3 });
+    expect(state).toEqual({
+        layout: 'three_rows',
+        sources: ['keyboard', 'gamepad', 'gamepad'],
+        hudColumns: 3,
+        hudLayout: 'three_rows',
+    });
     expect(errors).toHaveLength(0);
     await returnToMenu(page);
 });

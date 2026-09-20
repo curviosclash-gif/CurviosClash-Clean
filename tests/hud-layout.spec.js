@@ -9,7 +9,7 @@ const VIEWPORTS = [
 
 const SCALES = [0.6, 1.4];
 
-test('three-player score cards stay in their columns across desktop sizes and HUD scales', async ({ page }) => {
+test('three-player score cards stay in their panes across desktop sizes, layouts and HUD scales', async ({ page }) => {
     await page.goto(resolveAppUrl(page, '/'), { waitUntil: 'domcontentloaded' });
     await page.addStyleTag({ path: 'src/four-player-planar/three-player-split.css' });
     await page.evaluate(() => {
@@ -29,19 +29,28 @@ test('three-player score cards stay in their columns across desktop sizes and HU
     });
     for (const viewport of VIEWPORTS) {
         await page.setViewportSize(viewport);
-        for (const scale of SCALES) {
-            const columns = await page.evaluate((hudScale) => {
-                document.documentElement.style.setProperty('--hud-scale', String(hudScale));
-                return [...document.querySelectorAll('.three-player-split-hud-column')].map((column) => {
-                    const pane = column.getBoundingClientRect();
-                    const card = column.querySelector('.three-player-split-hud-card').getBoundingClientRect();
-                    return { pane: { left: pane.left, right: pane.right }, card: { left: card.left, right: card.right } };
-                });
-            }, scale);
-            expect(columns).toHaveLength(3);
-            for (const [index, { pane, card }] of columns.entries()) {
-                expect(card.left, `P${index + 1} left at ${viewport.width} scale ${scale}`).toBeGreaterThanOrEqual(pane.left - 1);
-                expect(card.right, `P${index + 1} right at ${viewport.width} scale ${scale}`).toBeLessThanOrEqual(pane.right + 1);
+        for (const viewportLayout of ['three_columns', 'three_rows']) {
+            for (const scale of SCALES) {
+                const panes = await page.evaluate(({ hudScale, viewportLayout }) => {
+                    document.documentElement.style.setProperty('--hud-scale', String(hudScale));
+                    document.querySelector('.three-player-split-hud').dataset.viewportLayout = viewportLayout;
+                    return [...document.querySelectorAll('.three-player-split-hud-column')].map((column) => {
+                        const pane = column.getBoundingClientRect();
+                        const card = column.querySelector('.three-player-split-hud-card').getBoundingClientRect();
+                        return {
+                            pane: { left: pane.left, top: pane.top, right: pane.right, bottom: pane.bottom },
+                            card: { left: card.left, top: card.top, right: card.right, bottom: card.bottom },
+                        };
+                    });
+                }, { hudScale: scale, viewportLayout });
+                expect(panes).toHaveLength(3);
+                for (const [index, { pane, card }] of panes.entries()) {
+                    const context = `P${index + 1} ${viewportLayout} ${viewport.width} scale ${scale}`;
+                    expect(card.left, `${context} left`).toBeGreaterThanOrEqual(pane.left - 1);
+                    expect(card.top, `${context} top`).toBeGreaterThanOrEqual(pane.top - 1);
+                    expect(card.right, `${context} right`).toBeLessThanOrEqual(pane.right + 1);
+                    expect(card.bottom, `${context} bottom`).toBeLessThanOrEqual(pane.bottom + 1);
+                }
             }
         }
     }

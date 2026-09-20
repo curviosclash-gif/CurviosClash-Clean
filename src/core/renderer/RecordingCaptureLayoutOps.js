@@ -25,6 +25,22 @@ export function buildStandardCaptureSegments({
             { x: leftWidth, y: topHeight, width: rightWidth, height: bottomHeight, player: findProjectedPlayerByIndex(players, 3, players[3]), label: 'P4' },
         ];
     }
+    if (layout === VIEWPORT_LAYOUTS.THREE_COLUMNS && players.length >= 3) {
+        const columnWidth = Math.floor(width / 3);
+        return [
+            { x: 0, y: 0, width: columnWidth, height, player: findProjectedPlayerByIndex(players, 0, players[0]), label: 'P1' },
+            { x: columnWidth, y: 0, width: columnWidth, height, player: findProjectedPlayerByIndex(players, 1, players[1]), label: 'P2' },
+            { x: columnWidth * 2, y: 0, width: width - columnWidth * 2, height, player: findProjectedPlayerByIndex(players, 2, players[2]), label: 'P3' },
+        ];
+    }
+    if (layout === VIEWPORT_LAYOUTS.THREE_ROWS && players.length >= 3) {
+        const rowHeight = Math.floor(height / 3);
+        return [
+            { x: 0, y: 0, width, height: rowHeight, player: findProjectedPlayerByIndex(players, 0, players[0]), label: 'P1' },
+            { x: 0, y: rowHeight, width, height: rowHeight, player: findProjectedPlayerByIndex(players, 1, players[1]), label: 'P2' },
+            { x: 0, y: rowHeight * 2, width, height: height - rowHeight * 2, player: findProjectedPlayerByIndex(players, 2, players[2]), label: 'P3' },
+        ];
+    }
     if (layout === VIEWPORT_LAYOUTS.TWO_COLUMNS && players.length >= 2) {
         const leftWidth = Math.floor(width / 2);
         return [

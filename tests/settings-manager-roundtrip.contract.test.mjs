@@ -138,6 +138,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['localSettings.threePlayerSplit.mode', 'hunt'],
     ['localSettings.threePlayerSplit.mapKey', 'maze'],
     ['localSettings.threePlayerSplit.vehicleId', 'aircraft'],
+    ['localSettings.threePlayerSplit.viewportLayout', 'three_rows'],
     ['localSettings.modePath', 'normal'],
     ['localSettings.seededModePaths', ['fight', 'arcade']],
     ['localSettings.graphicsStyle', 'classic'],

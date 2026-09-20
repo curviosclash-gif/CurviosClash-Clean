@@ -1,6 +1,7 @@
 import { HuntInterceptAnnouncer } from '../HuntInterceptAnnouncer.js';
 import { MatchHudAnnouncement } from '../MatchHudAnnouncement.js';
 import { MultiPlayerHudRocketWarnings } from './MultiPlayerHudRocketWarning.js';
+import { VIEWPORT_LAYOUTS, normalizeViewportLayout } from '../../shared/contracts/ViewportLayoutContract.js';
 
 function createStaticElement(documentRef, markup) {
     const range = documentRef.createRange();
@@ -28,6 +29,7 @@ export class ThreePlayerSplitHudView {
         this._intercepts = new HuntInterceptAnnouncer();
         this._warnings = new MultiPlayerHudRocketWarnings('three-player-split');
         this._localPlayerIndices = [];
+        this._viewportLayout = VIEWPORT_LAYOUTS.THREE_COLUMNS;
     }
 
     hasRoot() {
@@ -39,6 +41,11 @@ export class ThreePlayerSplitHudView {
         if (!classList) return;
         if (active) classList.add('three-player-split-active');
         else classList.remove('three-player-split-active');
+    }
+
+    setViewportLayout(layout) {
+        this._viewportLayout = normalizeViewportLayout(layout, VIEWPORT_LAYOUTS.THREE_COLUMNS);
+        this._root?.setAttribute?.('data-viewport-layout', this._viewportLayout);
     }
 
     /**
@@ -55,6 +62,7 @@ export class ThreePlayerSplitHudView {
         const root = this.document.createElement('div');
         root.id = 'three-player-split-hud';
         root.className = 'three-player-split-hud hidden';
+        root.setAttribute?.('data-viewport-layout', this._viewportLayout);
         for (let index = 0; index < playerCount; index += 1) {
             const row = createStaticElement(this.document, `
                 <section class="three-player-split-hud-column c${index + 1}" aria-label="HUD Spieler ${index + 1}">
