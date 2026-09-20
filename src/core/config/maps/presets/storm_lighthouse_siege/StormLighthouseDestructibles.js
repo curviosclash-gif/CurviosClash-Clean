@@ -14,8 +14,13 @@ export const STORM_LIGHTHOUSE_DESTRUCTIBLES = Object.freeze({
         trigger: Object.freeze({ segmentId: 'lighthouse_tower' }),
         modelId: 'storm-lighthouse-collapse',
         pieces: Object.freeze(['landmark']),
-        hideModelIds: Object.freeze(['storm-lighthouse-intact', 'storm-lighthouse-lift']),
-        yawFromEvent: true,
-        blast: Object.freeze({ radius: 24, damage: 40, delaySeconds: 1 }),
+        hideModelIds: Object.freeze([
+            'storm-lighthouse-intact',
+            'storm-lighthouse-lift',
+            'storm-lighthouse-beacon',
+        ]),
+        // The wreck is a new traversal ramp, so it must always land in its authored clear corridor.
+        yawFromEvent: false,
+        blast: Object.freeze({ radius: 24, damage: 40, delaySeconds: 4.6 }),
     })]),
 });
