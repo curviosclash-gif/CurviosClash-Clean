@@ -37,6 +37,7 @@ function createKeyboardInputSource(inputManager, includeSecondaryBindings = fals
         : null;
     return {
         type: 'keyboard',
+        keyboardPlayerIndex,
         playerIndex: -1,
         active: false,
         bind(playerIndex) {
@@ -260,7 +261,7 @@ export function createPreferredMatchInputSource({
         ? resolveSplitscreenInputDevice(game?.settings?.controls?.SPLITSCREEN?.layout, resolvedInputDeviceIndex)
         : null);
     if (assignedDevice?.type === 'keyboard') {
-        return createKeyboardInputSource(inputManager, false, { keyboardPlayerIndex: Math.min(resolvedInputDeviceIndex, 1) });
+        return createKeyboardInputSource(inputManager, false, { keyboardPlayerIndex: resolvedInputDeviceIndex });
     }
     const gamepadEnabled = () => isGamepadInputEnabled(game?.settings?.controls);
     if (assignedDevice?.type === 'gamepad') {
@@ -268,7 +269,7 @@ export function createPreferredMatchInputSource({
         const source = createGamepadInputSource(assignedDevice.gamepadIndex, () => game?.settings?.controls?.[controlKey], gamepadEnabled);
         const poll = source.poll.bind(source);
         const threePlayerAssignment = localHumanCount === 3 && assignedInputDevice?.type === 'gamepad';
-        // Three-player slots must never share the two available keyboard bindings.
+        // Explicit three-player gamepad slots must never fall through to a keyboard binding.
         source.poll = () => poll() || (threePlayerAssignment || gamepadEnabled() ? DISCONNECTED_CONTROLLER_INPUT : null);
         return source;
     }

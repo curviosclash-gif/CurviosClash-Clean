@@ -42,11 +42,13 @@ export const THREE_PLAYER_SPLIT_MAX_BOTS = 6;
 export const THREE_PLAYER_SPLIT_MAX_PARTICIPANTS = 9;
 export const THREE_PLAYER_SPLIT_VIEWPORT_LAYOUT = VIEWPORT_LAYOUTS.THREE_COLUMNS;
 
-// The full 3D flight model applies here, unlike the flattened four-player-planar mode:
-// these are only slices of the existing key zones, never their own binding set.
-export const THREE_PLAYER_SPLIT_KEY_BINDINGS = Object.freeze(
-    FOUR_PLAYER_PLANAR_KEY_BINDINGS.slice(0, THREE_PLAYER_SPLIT_HUMAN_COUNT)
-);
+// The full 3D flight model applies here, unlike the flattened four-player-planar mode.
+// These labels mirror the three full keyboard binding scopes from CONFIG.KEYS.
+export const THREE_PLAYER_SPLIT_KEY_BINDINGS = Object.freeze([
+    Object.freeze({ label: 'W / S / A / D' }),
+    Object.freeze({ label: 'Num 8 / 5 / 4 / 6' }),
+    Object.freeze({ label: 'I / K / J / L' }),
+]);
 export const THREE_PLAYER_SPLIT_PLAYER_COLORS = Object.freeze(
     FOUR_PLAYER_PLANAR_PLAYER_COLORS.slice(0, THREE_PLAYER_SPLIT_HUMAN_COUNT)
 );
@@ -55,6 +57,7 @@ export const THREE_PLAYER_SPLIT_INPUT_DEVICES = Object.freeze({
     KEYBOARD: 'keyboard',
     GAMEPAD_1: 'gamepad-1',
     GAMEPAD_2: 'gamepad-2',
+    GAMEPAD_3: 'gamepad-3',
 });
 /** @type {Set<string>} */
 const THREE_PLAYER_SPLIT_INPUT_DEVICE_SET = new Set(Object.values(THREE_PLAYER_SPLIT_INPUT_DEVICES));
@@ -68,14 +71,16 @@ export const THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT = Object.freeze([
 
 export function normalizeThreePlayerSplitDeviceAssignment(value = null) {
     const source = Array.isArray(value) ? value : [];
-    const usedDevices = new Set();
+    const usedGamepads = new Set();
     return THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT.map((fallback, index) => {
         const candidate = String(source[index] || '').trim().toLowerCase();
         const preferred = THREE_PLAYER_SPLIT_INPUT_DEVICE_SET.has(candidate) ? candidate : fallback;
-        const device = !usedDevices.has(preferred)
+        if (preferred === THREE_PLAYER_SPLIT_INPUT_DEVICES.KEYBOARD) return preferred;
+        const device = !usedGamepads.has(preferred)
             ? preferred
-            : [fallback, ...THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT].find((entry) => !usedDevices.has(entry));
-        usedDevices.add(device);
+            : [fallback, ...Object.values(THREE_PLAYER_SPLIT_INPUT_DEVICES)]
+                .find((entry) => entry !== THREE_PLAYER_SPLIT_INPUT_DEVICES.KEYBOARD && !usedGamepads.has(entry));
+        usedGamepads.add(device);
         return device;
     });
 }
@@ -90,7 +95,7 @@ export function resolveThreePlayerSplitInputDevice(deviceAssignment, playerIndex
     const assignment = normalizeThreePlayerSplitDeviceAssignment(deviceAssignment);
     const device = assignment[playerIndex];
     if (device === THREE_PLAYER_SPLIT_INPUT_DEVICES.KEYBOARD) return { type: 'keyboard', gamepadIndex: -1 };
-    const gamepadIndex = device === THREE_PLAYER_SPLIT_INPUT_DEVICES.GAMEPAD_2 ? 1 : 0;
+    const gamepadIndex = Number(device.slice('gamepad-'.length)) - 1;
     return { type: 'gamepad', gamepadIndex };
 }
 

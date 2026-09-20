@@ -323,10 +323,14 @@ test('three-player split settings normalize device assignment, clamp bots and re
     const settings = normalizeThreePlayerSplitSettings({ mode: 'hunt', botCount: 99, deviceAssignment: ['keyboard', 'keyboard', 'keyboard'] });
     assert.equal(settings.mode, 'hunt');
     assert.equal(settings.botCount, 6);
-    assert.deepEqual(settings.deviceAssignment, ['keyboard', 'gamepad-2', 'gamepad-1']);
+    assert.deepEqual(settings.deviceAssignment, ['keyboard', 'keyboard', 'keyboard']);
     assert.deepEqual(
         normalizeThreePlayerSplitDeviceAssignment(['gamepad-1', 'gamepad-1', 'keyboard']),
         ['gamepad-1', 'gamepad-2', 'keyboard']
+    );
+    assert.deepEqual(
+        normalizeThreePlayerSplitDeviceAssignment(['gamepad-1', 'gamepad-2', 'gamepad-3']),
+        ['gamepad-1', 'gamepad-2', 'gamepad-3']
     );
 });
 
@@ -334,6 +338,10 @@ test('resolveThreePlayerSplitInputDevice reads the default two-gamepad-one-keybo
     assert.deepEqual(resolveThreePlayerSplitInputDevice(null, 0), { type: 'gamepad', gamepadIndex: 0 });
     assert.deepEqual(resolveThreePlayerSplitInputDevice(null, 1), { type: 'gamepad', gamepadIndex: 1 });
     assert.deepEqual(resolveThreePlayerSplitInputDevice(null, 2), { type: 'keyboard', gamepadIndex: -1 });
+    assert.deepEqual(
+        resolveThreePlayerSplitInputDevice(['keyboard', 'keyboard', 'gamepad-3'], 2),
+        { type: 'gamepad', gamepadIndex: 2 }
+    );
     assert.equal(resolveThreePlayerSplitInputDevice(null, 3), null);
     assert.equal(resolveThreePlayerSplitInputDevice(null, -1), null);
 });

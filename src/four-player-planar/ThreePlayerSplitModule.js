@@ -28,7 +28,7 @@ function resolveVehicleLabel(vehicleId) {
 
 /**
  * Orchestrates the local 3-player split-screen (two gamepads, one keyboard
- * by default, freely reassignable). Deliberately a separate class from
+ * by default, with every slot freely reassignable). Deliberately a separate class from
  * FourPlayerPlanarModule rather than a parametrized variant of it: this
  * mode has no roll-key rebinding (the four-player-planar module's biggest
  * chunk of logic) but does have a device-assignment picker the other mode
@@ -158,7 +158,9 @@ export class ThreePlayerSplitModule {
         if (changedDeviceIndex >= 0) {
             const previous = this._resolveSelection().deviceAssignment;
             const requestedDevice = controls.deviceAssignment[changedDeviceIndex];
-            const previousOwner = previous.indexOf(requestedDevice);
+            const previousOwner = requestedDevice.startsWith('gamepad-')
+                ? previous.indexOf(requestedDevice)
+                : -1;
             if (previousOwner >= 0 && previousOwner !== changedDeviceIndex) {
                 controls.deviceAssignment[previousOwner] = previous[changedDeviceIndex];
             }
@@ -183,11 +185,11 @@ export class ThreePlayerSplitModule {
     }
 
     _getDeviceIssue(selection) {
-        if (!isGamepadInputEnabled(this.runtime?.getSettings?.()?.controls)) {
+        const assignedGamepads = selection.deviceAssignment.filter((device) => device.startsWith('gamepad-'));
+        if (assignedGamepads.length > 0 && !isGamepadInputEnabled(this.runtime?.getSettings?.()?.controls)) {
             return 'Gamepads sind deaktiviert. Aktiviere sie in den Steuerungs-Einstellungen.';
         }
-        for (const device of selection.deviceAssignment) {
-            if (!device.startsWith('gamepad-')) continue;
+        for (const device of assignedGamepads) {
             const index = Number(device.slice('gamepad-'.length)) - 1;
             const pad = this.getGamepad(index);
             if (!pad || pad.connected === false) {

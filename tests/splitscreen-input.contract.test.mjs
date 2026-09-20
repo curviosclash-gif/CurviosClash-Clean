@@ -63,6 +63,29 @@ test('two keyboard players use independent bindings and ignore attached controll
     input.dispose();
 });
 
+test('the third keyboard player uses a dedicated full binding set', (t) => {
+    const { input, controls } = setup(t, 'keyboard-keyboard');
+    input.setPlayerSource(2, createPreferredMatchInputSource({
+        inputManager: input,
+        playerIndex: 2,
+        localHumanCount: 3,
+        assignedInputDevice: { type: 'keyboard', gamepadIndex: -1 },
+        game: { settings: { controls, localSettings: {} } },
+    }));
+    input.keys[controls.PLAYER_3.LEFT] = true;
+    input.keys[controls.PLAYER_3.BOOST] = true;
+
+    const p1 = { ...input.getPlayerInput(0) };
+    const p2 = { ...input.getPlayerInput(1) };
+    const p3 = { ...input.getPlayerInput(2) };
+
+    assert.equal(p1.yawLeft, false);
+    assert.equal(p2.yawLeft, false);
+    assert.equal(p3.yawLeft, true);
+    assert.equal(p3.boost, true);
+    input.dispose();
+});
+
 test('two controllers use separate hardware indices and do not fall back to keyboard', (t) => {
     const { input, controls, state, pads } = setup(t, 'controller-controller');
     pads[0].axes[0] = -1; pads[1].axes[0] = 0.5;

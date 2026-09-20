@@ -203,6 +203,20 @@ test('changing a device picker swaps its previous owner instead of reverting the
     assert.deepEqual(setupView.calls.applyNormalizedSelection.at(-1).deviceAssignment, expected);
 });
 
+test('keyboard can be selected for every player without swapping another slot away from it', () => {
+    const runtime = createRuntime({ localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {} });
+    const setupView = createSetupView({
+        mode: 'classic', mapKey: 'standard', vehicleId: getVehicleIds()[0], botCount: '0',
+        deviceAssignment: ['keyboard', 'keyboard', 'keyboard'],
+    });
+    const module = createModule({ runtimePort: runtime, setupView, hudView: createHudView() });
+
+    module._persistSetupSelection(2);
+
+    assert.deepEqual(runtime.settings.localSettings.threePlayerSplit.deviceAssignment, ['keyboard', 'keyboard', 'keyboard']);
+    assert.deepEqual(setupView.calls.applyNormalizedSelection.at(-1).deviceAssignment, ['keyboard', 'keyboard', 'keyboard']);
+});
+
 test('three-player match start explains a missing assigned gamepad and keeps the menu open', () => {
     const runtime = createRuntime({ localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {} });
     const setupView = createSetupView({
@@ -231,6 +245,41 @@ test('three-player match start requires enabled gamepads', () => {
     assert.equal(module.startMatch(), false);
     assert.equal(runtime.started, 0);
     assert.match(setupView.calls.deviceStatus.at(-1), /Gamepads sind deaktiviert/);
+});
+
+test('three-player match start needs no enabled gamepad when every player uses the keyboard', () => {
+    const runtime = createRuntime({
+        controls: { GAMEPAD: { enabled: false } },
+        localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {},
+    });
+    const setupView = createSetupView({
+        mode: 'classic', mapKey: 'standard', vehicleId: getVehicleIds()[0], botCount: '0',
+        deviceAssignment: ['keyboard', 'keyboard', 'keyboard'],
+    });
+    const module = createModule({ runtimePort: runtime, setupView, hudView: createHudView() });
+
+    assert.equal(module.startMatch(), true);
+    assert.equal(runtime.started, 1);
+});
+
+test('the third gamepad is validated and can start the match', () => {
+    const runtime = createRuntime({ localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {} });
+    const setupView = createSetupView({
+        mode: 'classic', mapKey: 'standard', vehicleId: getVehicleIds()[0], botCount: '0',
+        deviceAssignment: ['gamepad-1', 'gamepad-2', 'gamepad-3'],
+    });
+    const module = createModule({
+        runtimePort: runtime,
+        setupView,
+        hudView: createHudView(),
+        getGamepad: (index) => index < 3 ? { connected: true } : null,
+    });
+
+    assert.equal(module.startMatch(), true);
+    assert.deepEqual(
+        runtime.settings.localSettings.threePlayerSplit.deviceAssignment,
+        ['gamepad-1', 'gamepad-2', 'gamepad-3']
+    );
 });
 
 test('the start button stays locked with the reason while an assigned gamepad is missing', () => {

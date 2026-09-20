@@ -41,3 +41,36 @@ test('three-player split setup guards missing pads and starts with swapped devic
     expect(errors).toHaveLength(0);
     await returnToMenu(page);
 });
+
+test('three-player split starts with all three players on separate keyboard bindings', async ({ page }) => {
+    const errors = collectErrors(page);
+    await waitForLoadedGame(page);
+    await page.evaluate(() => window.GAME_INSTANCE?.runtimeCoordinator?.getUiManager?.()?.showMainNav?.());
+    await page.locator('[data-session-type="splitscreen"]').click();
+    await page.locator('#btn-three-player-split').click();
+
+    const deviceSelects = page.locator('[data-three-player-split-device]');
+    await expect(deviceSelects).toHaveCount(3);
+    await expect(deviceSelects.first().locator('option[value="gamepad-3"]')).toHaveCount(1);
+    for (let playerIndex = 0; playerIndex < 3; playerIndex += 1) {
+        await deviceSelects.nth(playerIndex).selectOption('keyboard');
+    }
+
+    await expect(page.locator('[data-three-player-split-device-status]')).toBeHidden();
+    await expect(page.locator('[data-three-player-split-start]')).toBeEnabled();
+    await page.locator('[data-three-player-split-start]').click();
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
+        && window.GAME_INSTANCE?.entityManager?.humanPlayers?.length === 3);
+
+    const sources = await page.evaluate(() => [0, 1, 2].map((index) => ({
+        type: window.GAME_INSTANCE?.input?.getPlayerSource?.(index)?.type,
+        keyboardIndex: window.GAME_INSTANCE?.input?.getPlayerSource?.(index)?.keyboardPlayerIndex,
+    })));
+    expect(sources).toEqual([
+        { type: 'keyboard', keyboardIndex: 0 },
+        { type: 'keyboard', keyboardIndex: 1 },
+        { type: 'keyboard', keyboardIndex: 2 },
+    ]);
+    expect(errors).toHaveLength(0);
+    await returnToMenu(page);
+});

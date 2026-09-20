@@ -166,6 +166,7 @@ export class InputManager {
         this.bindings = {
             PLAYER_1: this._normalizePlayerBindings(bindingsByPlayer?.PLAYER_1, CONFIG.KEYS.PLAYER_1),
             PLAYER_2: this._normalizePlayerBindings(bindingsByPlayer?.PLAYER_2, CONFIG.KEYS.PLAYER_2),
+            PLAYER_3: this._normalizePlayerBindings(bindingsByPlayer?.PLAYER_3, CONFIG.KEYS.PLAYER_3),
             GLOBAL: this._normalizeGlobalBindings(bindingsByPlayer?.GLOBAL, CONFIG.KEYS.GLOBAL),
         };
         this._rebuildPreventDefaultCodes();
@@ -213,6 +214,7 @@ export class InputManager {
 
         addBindingCodes(this.bindings?.PLAYER_1, ACTION_KEYS);
         addBindingCodes(this.bindings?.PLAYER_2, ACTION_KEYS);
+        addBindingCodes(this.bindings?.PLAYER_3, ACTION_KEYS);
         addBindingCodes(this.bindings?.GLOBAL, GLOBAL_ACTION_KEYS);
         this._preventDefaultCodes = codes;
     }
@@ -375,7 +377,7 @@ export class InputManager {
 
     getKeyboardInput(playerIndex, options = {}) {
         const includeSecondaryBindings = !!options.includeSecondaryBindings && playerIndex === 0;
-        const keyMap = playerIndex === 0 ? this.bindings.PLAYER_1 : this.bindings.PLAYER_2;
+        const keyMap = this.bindings[`PLAYER_${playerIndex + 1}`] || this.bindings.PLAYER_2;
         const altKeyMap = includeSecondaryBindings ? this.bindings.PLAYER_2 : null;
 
         // Reset reused object

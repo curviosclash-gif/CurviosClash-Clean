@@ -4,6 +4,7 @@ const DEVICE_LABELS = {
     keyboard: 'Tastatur',
     'gamepad-1': 'Gamepad 1',
     'gamepad-2': 'Gamepad 2',
+    'gamepad-3': 'Gamepad 3',
 };
 
 function createOption(documentRef, value, label) {
@@ -33,7 +34,7 @@ function isMobileProductSurface(documentRef) {
  * the four-player-planar setup, there is no roll-key rebinding here - each
  * slot's keyboard zone is fixed and only shown for reference, because the
  * one thing a player actually picks per slot is which physical device
- * drives it (keyboard, gamepad 1 or gamepad 2).
+ * drives it (keyboard or one of three gamepads).
  */
 export class ThreePlayerSplitSetupView {
     constructor({ documentRef = globalThis.document } = {}) {
@@ -66,7 +67,7 @@ export class ThreePlayerSplitSetupView {
                 class="mode-btn menu-choice-card three-player-split-entry hidden">
                 <span class="menu-choice-eyebrow">Lokales Modul</span>
                 <span class="menu-choice-title">3 Spieler – Splitscreen</span>
-                <span class="menu-choice-copy">Zwei Gamepads und eine Tastatur, volle 3D-Flugphysik</span>
+                <span class="menu-choice-copy">Tastatur und Gamepads frei pro Spieler, volle 3D-Flugphysik</span>
             </button>`);
         grid.appendChild(card);
 
@@ -93,7 +94,7 @@ export class ThreePlayerSplitSetupView {
             <details class="three-player-split-controls" open>
                 <summary>Geräte-Zuordnung</summary>
                 <div class="three-player-split-devices" aria-label="Geräte-Zuordnung für drei Spieler"></div>
-                <p class="menu-hint">Standard: Spieler 1+2 Gamepad, Spieler 3 Tastatur · lässt sich pro Platz umstellen.</p>
+                <p class="menu-hint">Jeder Spieler kann unabhängig Tastatur oder ein eigenes Gamepad nutzen.</p>
             </details>
             <p class="menu-hint three-player-split-device-status" id="three-player-split-device-status"
                 data-three-player-split-device-status role="status" aria-live="polite" hidden></p>
@@ -119,7 +120,7 @@ export class ThreePlayerSplitSetupView {
                     <select data-three-player-split-device data-player-index="${index}">
                         ${Object.entries(DEVICE_LABELS).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
                     </select>
-                    <p class="menu-hint" data-three-player-split-keyboard-hint hidden>Tastatur mit der Belegung von Spieler ${index === 0 ? 1 : 2}</p>
+                    <p class="menu-hint" data-three-player-split-keyboard-hint hidden>Tastaturbelegung Spieler ${index + 1}: ${keyBindings[index]?.label || ''}</p>
                 </div>`);
             row.style.setProperty('--player-color', colorToCss(playerColors[index]));
             devices.appendChild(row);
