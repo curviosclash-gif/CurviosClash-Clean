@@ -6,7 +6,7 @@ export const STORM_LIGHTHOUSE_BOT_SPAWNS = Object.freeze([
     Object.freeze({ x: -54, y: 22, z: 30 }),
     Object.freeze({ x: 54, y: 22, z: 32 }),
     Object.freeze({ x: -28, y: 29, z: 48 }),
-    Object.freeze({ x: 25, y: 31, z: 14 }),
+    Object.freeze({ x: 42, y: 31, z: 32 }),
 ]);
 
 // The two low gates keep the outer storm ring flowing in opposite directions. The slingshots
@@ -30,7 +30,7 @@ export const STORM_LIGHTHOUSE_GATES = Object.freeze([
     Object.freeze({
         id: 'lighthouse_lift_ascent',
         type: 'slingshot',
-        pos: Object.freeze([25, 14, -13]),
+        pos: Object.freeze([43, 14, -16]),
         forward: Object.freeze([-0.25, 0.88, 0.4]),
         up: Object.freeze([0, 1, 0]),
         params: Object.freeze({ duration: 1.45, forwardImpulse: 22, liftImpulse: 22, cooldown: 1.1 }),
@@ -38,7 +38,7 @@ export const STORM_LIGHTHOUSE_GATES = Object.freeze([
     Object.freeze({
         id: 'lighthouse_gallery_cross',
         type: 'slingshot',
-        pos: Object.freeze([-24, 20, 19]),
+        pos: Object.freeze([-42, 20, 20]),
         forward: Object.freeze([0.66, 0.48, -0.58]),
         up: Object.freeze([0, 1, 0]),
         params: Object.freeze({ duration: 1.25, forwardImpulse: 30, liftImpulse: 12, cooldown: 1 }),
@@ -60,22 +60,22 @@ export const STORM_LIGHTHOUSE_ITEMS = Object.freeze([
     }),
     Object.freeze({
         id: 'lighthouse_ghost_inner_ring', type: 'item_coin', pickupType: 'GHOST',
-        x: 20, y: 18, z: -20, weight: 0.8,
+        x: 39, y: 18, z: -20, weight: 0.8,
     }),
     Object.freeze({
         id: 'lighthouse_speed_lift', type: 'item_battery', pickupType: 'SPEED_UP',
-        x: 25, y: 23, z: 0, weight: 1.1,
+        x: 47, y: 23, z: 0, weight: 1.1,
     }),
     Object.freeze({
         id: 'lighthouse_rocket_gallery', type: 'item_rocket', pickupType: 'ROCKET_HEAVY',
-        x: -8, y: 24, z: 6, weight: 0.6,
+        x: -40, y: 24, z: 14, weight: 0.6,
     }),
 ]);
 
 export const STORM_LIGHTHOUSE_LIGHTS = Object.freeze([
     Object.freeze({
-        id: 'lighthouse_lantern', x: 0, y: 21, z: 0,
-        color: 0xffcf66, intensity: 3200, distance: 34,
+        id: 'lighthouse_lantern', x: 0, y: 174, z: 0,
+        color: 0xffcf66, intensity: 3200, distance: 340,
     }),
     Object.freeze({
         id: 'lighthouse_keeper_house', x: -31, y: 8, z: 24,

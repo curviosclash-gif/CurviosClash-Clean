@@ -35,7 +35,7 @@ test('wave 6 lighthouse is a playable destructible landmark with a secret portal
     assert.equal(rooms.length, 1);
     assert.equal(rooms[0].unlock.when, 'anyBreak');
     assert.equal(rooms[0].unlock.delaySeconds, 5.5);
-    assert.deepEqual(rooms[0].entryPortal.pos, [21, 11, 0]);
+    assert.deepEqual(rooms[0].entryPortal.pos, [42, 11, 0]);
     assert.ok(rooms[0].items.length >= 8);
 
     assert.deepEqual(map.glbModels.map((model) => model.id), [
@@ -45,6 +45,13 @@ test('wave 6 lighthouse is a playable destructible landmark with a secret portal
         'storm-lighthouse-lift',
         'storm-lighthouse-beacon',
     ]);
+    const [island, intact, collapse, lift, beacon] = map.glbModels;
+    for (const model of [intact, collapse, lift, beacon]) {
+        assert.equal(model.scale, island.scale * 10, `${model.id} must be ten times island scale`);
+    }
+    assert.deepEqual(lift.position, [44, 4, 0]);
+    assert.deepEqual(beacon.position, [0, 144, 0]);
+    assert.deepEqual(destructibles.segments[0].anchor, [0, 84, 0]);
     for (const model of map.glbModels) {
         assert.ok(existsSync(model.url), `missing runtime asset ${model.url}`);
     }
@@ -87,6 +94,17 @@ test('storm eye layout creates three populated traversal layers inside the arena
     const dx = room.entryPortal.pos[0] - map.playerSpawn.x;
     const dz = room.entryPortal.pos[2] - map.playerSpawn.z;
     assert.ok(Math.hypot(dx, dz) > 60, 'the vault entrance moved away from the player spawn');
+
+    const towerClearanceAnchors = [
+        map.playerSpawn,
+        ...map.botSpawns,
+        ...map.items,
+        ...map.gates.map((gate) => ({ x: gate.pos[0], z: gate.pos[2] })),
+        { x: room.entryPortal.pos[0], z: room.entryPortal.pos[2] },
+    ];
+    for (const anchor of towerClearanceAnchors) {
+        assert.ok(Math.hypot(anchor.x, anchor.z) > 36, 'gameplay anchor clears the ten-times tower foot');
+    }
 });
 
 function readGlbJson(filePath) {
