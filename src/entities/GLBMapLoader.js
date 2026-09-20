@@ -68,6 +68,14 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
             // footprint centre of that rest pose, and the event yaw turns the scene around it.
             // A model authored already lying down would swing around the wrong point.
             hiddenUntilTriggered: source?.hiddenUntilTriggered === true,
+            // A body that is solid but never drawn, for maps that place a coarse collision
+            // model behind a detailed one - a forest draws a 23k triangle crown and collides
+            // against the 196 triangle trunk exported beside it.
+            //
+            // This is the opposite of `collision: false`, and neither of them is
+            // `hiddenUntilTriggered`: a break scene is hidden *and* intangible until its event
+            // arrives, while this one collides from the first frame of the round.
+            collisionOnly: source?.collisionOnly === true,
         });
     }
     return normalized;
@@ -286,7 +294,10 @@ function placeCollectionScene(scene, bounds, descriptor, placementScale) {
     slot.userData.glbModelId = descriptor.id;
     slot.userData.glbModelUrl = descriptor.url;
     slot.userData.glbHiddenUntilTriggered = descriptor.hiddenUntilTriggered === true;
-    if (descriptor.hiddenUntilTriggered === true) slot.visible = false;
+    slot.userData.glbCollisionOnly = descriptor.collisionOnly === true;
+    if (descriptor.hiddenUntilTriggered === true || descriptor.collisionOnly === true) {
+        slot.visible = false;
+    }
 
     // Reused library assets may be decorative in one map and physical in another. Preserve the
     // scene-collision contract by applying the established `_nocol` marker to the placed runtime
@@ -295,6 +306,17 @@ function placeCollectionScene(scene, bounds, descriptor, placementScale) {
         scene.traverse((child) => {
             if (child?.isMesh && !String(child.name || '').toLowerCase().includes('_nocol')) {
                 child.name = `${child.name || 'decorative-mesh'}_nocol`;
+            }
+        });
+    }
+
+    // The shadow budget is handed to the largest meshes in the map. A collision body is as large
+    // as the tree it stands in, so without this marker a hundred invisible trunks would take
+    // every shadow slot from the crowns that are actually on screen.
+    if (descriptor.collisionOnly === true) {
+        scene.traverse((child) => {
+            if (child?.isMesh && !String(child.name || '').toLowerCase().includes('_noshadow')) {
+                child.name = `${child.name || 'collision-mesh'}_noshadow`;
             }
         });
     }
@@ -408,6 +430,12 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
     // collection and clone its scene graph for later slots; geometry and materials remain shared,
     // while transforms and visibility stay instance-local. Animated or physical entries keep the
     // existing one-load-per-slot path because they own mixers or gameplay collision state.
+    //
+    // Collision bodies share the path: cloning is what makes a forest of a hundred trees affordable,
+    // and a clone's colliders are read off its own world matrix after placement, so each copy
+    // collides where it stands. The cache is keyed by URL *and* placement mode, because placement
+    // renames meshes in the decoded scene - a `_nocol` decoration and a solid body would otherwise
+    // hand each other a scene marked for the wrong one.
     const reusableStaticLoads = new Map();
     let nextIndex = 0;
 
@@ -419,15 +447,17 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
             animationClock: descriptor.animationClock,
             modelId: descriptor.id,
         });
-        const canReuse = descriptor.collision === false
+        const canReuse = (descriptor.collision === false || descriptor.collisionOnly === true)
             && descriptor.hiddenUntilTriggered !== true
             && !descriptor.animationClock?.clipName;
         if (!canReuse) return load();
 
-        let cached = reusableStaticLoads.get(descriptor.url);
+        const cacheKey = `${descriptor.url}|${descriptor.collision === false ? 'nocol' : 'solid'}`
+            + `|${descriptor.collisionOnly === true ? 'hidden' : 'drawn'}`;
+        let cached = reusableStaticLoads.get(cacheKey);
         if (!cached) {
             cached = { promise: load(), claimed: false };
-            reusableStaticLoads.set(descriptor.url, cached);
+            reusableStaticLoads.set(cacheKey, cached);
         }
         const result = await cached.promise;
         // A file may contain an unnamed/default clip even when the descriptor names none. Such a
