@@ -1850,7 +1850,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         expect(result.shieldTextAfterChange).toBe('25 / 100');
     });
 
-    test('T89l: HuntHUD-Boegen bestehen aus exakt 100 horizontalen Segmenten', async ({ page }) => {
+    test('T89l: HuntHUD-Boegen bestehen aus exakt zehn dreieckigen Segmenten', async ({ page }) => {
         await startHuntGame(page);
         const result = await page.evaluate(() => {
             const boostFill = document.querySelector('#hunt-p1-boost-fill');
@@ -1860,7 +1860,8 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
                 return {
                     pathCount: paths.length,
                     segmentCounts: paths.map((path) => (path.getAttribute('d').match(/M/g) || []).length),
-                    diagonalCommands: paths.some((path) => /[vVlL]/.test(path.getAttribute('d'))),
+                    lineCounts: paths.map((path) => (path.getAttribute('d').match(/L/g) || []).length),
+                    orthogonalCommands: paths.some((path) => /[vVhH]/.test(path.getAttribute('d'))),
                 };
             };
             const overheatBackgrounds = ['warning', 'danger'].map((state) => {
@@ -1879,8 +1880,9 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
 
         for (const gauge of [result.boost, result.overheat]) {
             expect(gauge.pathCount).toBe(2);
-            expect(gauge.segmentCounts).toEqual([100, 100]);
-            expect(gauge.diagonalCommands).toBe(false);
+            expect(gauge.segmentCounts).toEqual([10, 10]);
+            expect(gauge.lineCounts).toEqual([10, 10]);
+            expect(gauge.orthogonalCommands).toBe(false);
         }
         for (const background of result.overheatBackgrounds) {
             expect(background.image, background.state).toBe('none');

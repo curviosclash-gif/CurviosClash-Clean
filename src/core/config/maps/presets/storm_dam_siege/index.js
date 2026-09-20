@@ -3,7 +3,7 @@ import { STORM_DAM_DESTRUCTIBLES } from './StormDamDestructibles.js';
 import { STORM_DAM_MODELS } from './StormDamModels.js';
 import { STORM_DAM_SECRET_ROOM, STORM_DAM_SECRET_ROOM_OBSTACLES } from './StormDamSecretRoom.js';
 
-const MAP_SIZE = Object.freeze([180, 150, 180]);
+const MAP_SIZE = Object.freeze([180, 150, 190]);
 
 export const STORM_DAM_SIEGE_MAPS = Object.freeze({
     storm_dam_siege: Object.freeze({
@@ -12,7 +12,7 @@ export const STORM_DAM_SIEGE_MAPS = Object.freeze({
         scaleAuthoredAnchors: true,
         exclusionZone: Object.freeze({ openFaces: Object.freeze(['minX', 'maxX', 'minZ', 'maxY']) }),
         obstacles: Object.freeze([
-            Object.freeze({ pos: [0, 2, 0], size: [180, 4, 180], kind: 'foam', compileWithGlb: true }),
+            Object.freeze({ pos: [0, 2, 0], size: [180, 4, 190], kind: 'foam', compileWithGlb: true }),
             Object.freeze({ pos: [0, 70, 84], size: [180, 140, 12], kind: 'hard' }),
             ...STORM_DAM_SECRET_ROOM_OBSTACLES,
         ]),
@@ -26,6 +26,10 @@ export const STORM_DAM_SIEGE_MAPS = Object.freeze({
             id: 'dam_basin',
             triggerSegmentId: 'dam_wall',
             bounds: Object.freeze({ min: Object.freeze([-90, 0, -90]), max: Object.freeze([90, 90, 90]) }),
+            reservoirBounds: Object.freeze({
+                min: Object.freeze([-90, 0, 90]),
+                max: Object.freeze([90, 75, 95]),
+            }),
             startLevel: 0,
             targetLevel: MAP_SIZE[1] / 2,
             waveSeconds: 4,

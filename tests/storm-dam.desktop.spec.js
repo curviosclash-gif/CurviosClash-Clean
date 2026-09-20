@@ -37,6 +37,19 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
         const water = entityManager._waterZoneSystem;
         const intact = arena._glbScene.getObjectByName('glb-slot-storm-dam-intact');
         const collapse = arena._glbScene.getObjectByName('glb-slot-storm-dam-collapse');
+        const playerRadius = Math.max(0.8, Number(entityManager.players[0]?.hitboxRadius) || 0.8);
+        let reservoirPoint = null;
+        findReservoirPoint: for (let y = 220; y >= 20; y -= 10) {
+            for (let z = 283; z >= 272; z -= 1) {
+                for (let x = -250; x <= 250; x += 25) {
+                    const candidate = { x, y, z };
+                    if (water.isPositionUnderwater(candidate) && !arena.checkCollision(candidate, playerRadius)) {
+                        reservoirPoint = candidate;
+                        break findReservoirPoint;
+                    }
+                }
+            }
+        }
 
         const bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
         intact.updateWorldMatrix(true, true);
@@ -59,6 +72,34 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
             }
         });
 
+        const runtime = game.renderer;
+        const camera = runtime.cameras[0];
+        const captureWater = (position, target) => {
+            const waterAncestors = new Set();
+            for (let parent = water._visual.group.parent; parent; parent = parent.parent) {
+                waterAncestors.add(parent);
+            }
+            const visibility = [];
+            runtime.scene.traverse((child) => {
+                visibility.push([child, child.visible]);
+                const isWaterPart = child === water._visual.group
+                    || water._visual.group.getObjectById(child.id) !== undefined;
+                if (!isWaterPart && !waterAncestors.has(child) && !child.isLight) child.visible = false;
+            });
+            for (const [child] of visibility) {
+                if (child.isLight) child.visible = true;
+            }
+            camera.position.set(...position);
+            camera.lookAt(...target);
+            camera.updateMatrixWorld(true);
+            runtime.render();
+            const picture = runtime.renderer.domElement.toDataURL('image/png');
+            for (const [child, visible] of visibility) child.visible = visible;
+            return picture;
+        };
+        const basinVisibleBeforeBreach = water._visual.surface.visible;
+        const reservoirPicture = captureWater([0, 260, 245], [0, 225, 278]);
+
         const segment = destructibles.getDefinition().segments.find((entry) => entry.id === 'dam_wall');
         const hit = destructibles.applyMeshHit('dam_wall_arch_08', segment.hp, {
             hitPoint: {
@@ -71,14 +112,10 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
         });
         water.update(0);
         const waveStartZ = water._visual.waveGroup.position.z;
-        water.update(water.getZone().waveSeconds / 2);
+        water.update(water.getZone().waveSeconds / 8);
 
-        const runtime = game.renderer;
-        const camera = runtime.cameras[0];
-        camera.position.set(0, 72, -210);
-        camera.lookAt(0, 175, 255);
-        camera.updateMatrixWorld(true);
-        runtime.render();
+        const wavePicture = captureWater([0, 45, 140], [0, 10, 202]);
+        water.update((water.getZone().waveSeconds * 3) / 8);
 
         return {
             maxY: arena.bounds.maxY,
@@ -94,7 +131,14 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
             waveStartZ,
             waveHalfZ: water._visual.waveGroup.position.z,
             waveParts: water._visual.waveGroup.children.length,
-            picture: runtime.renderer.domElement.toDataURL('image/png'),
+            reservoirDepth: water.getZone().reservoirBounds.max[2] - water.getZone().reservoirBounds.min[2],
+            reservoirVisible: water._visual.reservoirSurface.visible,
+            basinVisibleBeforeBreach,
+            reservoirPoint,
+            reservoirUnderwater: water.isPositionUnderwater(reservoirPoint),
+            reservoirCollision: reservoirPoint ? arena.checkCollision(reservoirPoint, playerRadius) : true,
+            reservoirPicture,
+            picture: wavePicture,
         };
     }, { mapScale: MAP_SCALE });
 
@@ -111,6 +155,19 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
     expect(result.waveStartZ).toBeCloseTo(270, 4);
     expect(result.waveHalfZ).toBeCloseTo(0, 4);
     expect(result.waveParts).toBe(5);
+    expect(result.reservoirDepth).toBeCloseTo(15, 6);
+    expect(result.reservoirVisible).toBe(true);
+    expect(result.basinVisibleBeforeBreach).toBe(false);
+    expect(result.reservoirPoint).not.toBeNull();
+    expect(result.reservoirUnderwater).toBe(true);
+    expect(result.reservoirCollision).toBe(false);
+
+    const reservoirScreenshot = testInfo.outputPath('storm-dam-reservoir-before-breach.png');
+    await writeFile(reservoirScreenshot, Buffer.from(result.reservoirPicture.split(',')[1], 'base64'));
+    await testInfo.attach('storm-dam-reservoir-before-breach', {
+        path: reservoirScreenshot,
+        contentType: 'image/png',
+    });
 
     const screenshot = testInfo.outputPath('storm-dam-breach-wave.png');
     await writeFile(screenshot, Buffer.from(result.picture.split(',')[1], 'base64'));
