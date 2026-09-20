@@ -17,6 +17,13 @@ import {
     updateMapUnitVisual,
 } from './map-units/MapUnitVisualOps.js';
 import { applyGroundClamp, resetGroundClamp } from './map-units/MapUnitGroundOps.js';
+import {
+    captureUnitPose,
+    createUnitPose,
+    resetDriveState,
+    restoreUnitPose,
+    shouldRollBackDriveStep,
+} from './map-units/MapUnitDriveOps.js';
 import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-units/MapUnitWeaponOps.js';
 import { applyMapUnitDamage, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
 import { crushTrailsUnderUnit } from './map-units/MapUnitTrailOps.js';
@@ -80,6 +87,7 @@ export class MapUnitSystem {
         this._targets = [];
         this._dueRespawns = [];
         this._trailScratch = [];
+        this._poseScratch = createUnitPose();
         this.networkReplica = false;
         this._summonCounter = 0;
     }
@@ -146,6 +154,9 @@ export class MapUnitSystem {
             attacksFired: 0,
             networkAttacksInitialized: false,
             drivenY: null,
+            driveBlockedSeconds: 0,
+            driveReleases: 0,
+            driveIgnoreUntilIndex: -1,
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
@@ -233,6 +244,7 @@ export class MapUnitSystem {
         unit.attacksFired = 0;
         unit.networkAttacksInitialized = false;
         resetGroundClamp(unit);
+        resetDriveState(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? unit.yaw;
         this._placeCentre(unit);
         for (const mount of unit.mounts) {
@@ -261,11 +273,13 @@ export class MapUnitSystem {
                 if (!this.networkReplica) updateEscortTankSpeed(unit, this.entityManager?.players || []);
             }
             const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
+            const previousPose = captureUnitPose(unit, this._poseScratch);
             advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
             if (unit.escortTank && unit.fromIndex === unit.path.length - 1) unit.escortReachedGoal = true;
             const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
             applyGroundClamp(this.entityManager?.arena, unit, safeDt);
             unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
+            if (shouldRollBackDriveStep(this.entityManager?.arena, unit, safeDt)) restoreUnitPose(unit, previousPose);
             this._placeCentre(unit);
             this._updateVisual(unit);
             const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;
