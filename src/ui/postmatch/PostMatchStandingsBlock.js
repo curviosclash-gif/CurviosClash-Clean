@@ -10,14 +10,16 @@ import { formatPlayerName, normalizeArray, normalizeNumber } from './PostMatchLa
 
 /**
  * Which player slots belong to this machine. Without a network session every local human counts,
- * so a split screen marks both halves as "mine"; in a network match only the own slot does.
- * @param {{ networkEnabled?: unknown, localPlayerIndex?: unknown, numHumans?: unknown }|null|undefined} session
+ * so a split screen marks both halves as "mine"; a hybrid network host can also own two slots.
+ * @param {{ networkEnabled?: unknown, localPlayerIndex?: unknown, localHumanCount?: unknown, numHumans?: unknown }|null|undefined} session
  * @returns {number[]}
  */
 export function resolveLocalPlayerIndexes(session) {
     if (session?.networkEnabled === true) {
         const index = Number(session.localPlayerIndex);
-        return [Number.isInteger(index) && index >= 0 ? index : 0];
+        const start = Number.isInteger(index) && index >= 0 ? index : 0;
+        const count = Math.max(1, Math.trunc(normalizeNumber(session?.localHumanCount, 1)));
+        return Array.from({ length: count }, (_, offset) => start + offset);
     }
     const localHumanCount = Math.max(1, normalizeNumber(session?.numHumans, 1));
     return Array.from({ length: Math.trunc(localHumanCount) }, (_, index) => index);

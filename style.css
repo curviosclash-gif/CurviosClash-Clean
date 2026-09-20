@@ -8410,6 +8410,7 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 #multiplayer-connection-controls[data-connection-intent="host"] .mp-join-help,
 #multiplayer-connection-controls[data-connection-intent="host"] #btn-multiplayer-join,
 #multiplayer-connection-controls[data-connection-intent="join"] .mp-host-help,
+#multiplayer-connection-controls[data-connection-intent="join"] .mp-host-fields,
 #multiplayer-connection-controls[data-connection-intent="join"] #btn-multiplayer-host {
     display: none;
 }
@@ -8501,6 +8502,7 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     }
     #multiplayer-connection-controls > .mp-transport-fields { grid-column: 1; grid-row: 3; }
     #multiplayer-connection-controls > .mp-code-fields { grid-column: 2; grid-row: 3; }
+    #multiplayer-connection-controls > .mp-host-fields { grid-column: 1 / -1; }
     #multiplayer-transport-hint { margin: 0 0 8px; }
     #multiplayer-connection-controls .btn-group { margin-top: 8px; }
 }

@@ -127,6 +127,31 @@ test('runtime teardown cancels host load waits and stale round-start retries', a
     assert.equal(pendingSession.broadcasts, 0);
 });
 
+test('hybrid LAN host does not wait for its second local seat as a remote peer', async () => {
+    const session = createRuntimeLoadSession();
+    session.getPlayers = () => [{ peerId: 'host' }];
+    const facade = {
+        game: { runtimeConfig: { session: { networkEnabled: true } } },
+        session,
+        menuMultiplayerBridge: {
+            getSessionState: () => ({
+                peerId: 'host',
+                hostPeerId: 'host',
+                localPlayerCount: 2,
+                members: [{ peerId: 'host', isHost: true, isLocal: true }],
+            }),
+        },
+        _arenaLoadedPeers: new Set(),
+        _pendingStateUpdates: [],
+    };
+
+    await Promise.race([
+        waitForRuntimePlayersLoaded(facade),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('local split seat blocked match start')), 50)),
+    ]);
+    assert.equal(session.broadcasts, 0);
+});
+
 test('runtime session initialization stays cancelled after teardown wins the race', async () => {
     let resolveDispose;
     const facade = {

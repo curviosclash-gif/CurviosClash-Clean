@@ -422,6 +422,7 @@ export class UIStartSyncController {
         });
         syncStartSetupMultiplayerUi({
             ui: this.ui,
+            settings,
             sessionType,
             surfaceEntryCopy,
             sessionContract,

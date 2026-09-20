@@ -152,6 +152,46 @@ test('LAN signaling enforces maxPlayers on join requests', async () => {
     }
 });
 
+test('LAN signaling counts host split-screen seats for capacity, state, discovery, and match start', async () => {
+    const lanServer = await startLanServer();
+    const lobby = new LANMatchLobby({
+        signalingUrl: lanServer.baseUrl,
+        pollIntervalMs: 60_000,
+    });
+    try {
+        await lobby.create({
+            maxPlayers: 2,
+            localPlayerCount: 8,
+        });
+        assert.equal(lobby.sessionState.localPlayerCount, 2);
+        assert.equal(lobby.sessionState.memberCount, 1);
+        assert.equal(lobby.sessionState.playerCount, 2);
+
+        const status = await (await fetch(statusUrl(lanServer.baseUrl, 'host', lobby.getLocalPeerToken()))).json();
+        assert.equal(status.sessionState.memberCount, 1);
+        assert.equal(status.sessionState.playerCount, 2);
+
+        const discovery = await (await fetch(`${lanServer.baseUrl}/discovery/info`)).json();
+        assert.equal(discovery.playerCount, 2);
+
+        const rejectedJoin = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: lobby.lobbyCode,
+        });
+        assert.equal(rejectedJoin.status, 409);
+        assert.equal(rejectedJoin.payload.message, 'lobby_full');
+
+        const started = await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: lobby.getLocalPeerToken(),
+            commandId: 'host-split-screen',
+        });
+        assert.equal(started.ok, true);
+    } finally {
+        lobby.leave();
+        await stopLanServer(lanServer.server);
+    }
+});
+
 test('LAN discovery publishes host-inclusive counts and current lobby metadata', async () => {
     const lanServer = await startLanServer();
     const lobby = new LANMatchLobby({

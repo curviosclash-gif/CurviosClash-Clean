@@ -256,7 +256,7 @@ export function createPreferredMatchInputSource({
     const resolvedInputDeviceIndex = Number.isInteger(inputDeviceIndex)
         ? Math.max(0, inputDeviceIndex)
         : Math.max(0, Number(inputDeviceIndex) || 0);
-    const assignedDevice = assignedInputDevice || (localHumanCount === 2 && game?.runtimeConfig?.session?.networkEnabled !== true
+    const assignedDevice = assignedInputDevice || (localHumanCount === 2
         ? resolveSplitscreenInputDevice(game?.settings?.controls?.SPLITSCREEN?.layout, resolvedInputDeviceIndex)
         : null);
     if (assignedDevice?.type === 'keyboard') {

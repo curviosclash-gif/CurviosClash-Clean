@@ -115,10 +115,12 @@ export class HudRuntimeSystem {
 
         // Network mode: update N-player scoreboard
         if (this._isNetworkSession(runtimeProjection)) {
+            const localHumanCount = Math.max(1, Number(runtimeProjection?.localHumanCount) || 1);
             this._getScorePresenter()?.updateNetwork(
                 runtimeProjection,
                 game.entityManager?.players,
-                this._getLocalPlayerIndex(runtimeProjection)
+                this._getLocalPlayerIndex(runtimeProjection),
+                localHumanCount
             );
             this._scorePresenter?.hideClassic();
             // Still update local player's item bar
@@ -133,6 +135,17 @@ export class HudRuntimeSystem {
             const tile = resolveLocalHudTile(runtimeProjection);
             if (tile && game.ui.p1Name && game.ui.p1Name.textContent !== tile.name) game.ui.p1Name.textContent = tile.name;
             if (tile && game.ui.p1Score && game.ui.p1Score.textContent !== tile.score) game.ui.p1Score.textContent = tile.score;
+            if (localHumanCount >= 2) {
+                const secondIndex = localIdx + 1;
+                const secondPlayer = this._findProjectedPlayer(runtimeProjection, secondIndex)
+                    || game.entityManager?.players?.[secondIndex];
+                if (secondPlayer && game.ui.p2Score) {
+                    const score = String(Number(secondPlayer.score) || 0);
+                    if (game.ui.p2Score.textContent !== score) game.ui.p2Score.textContent = score;
+                    this._updateItemBar(game.ui.p2Items, secondPlayer, runtimeProjection, 1);
+                    updateTraversalStatus(game.ui.p2TraversalStatus, secondPlayer);
+                }
+            }
             return;
         }
 
@@ -339,16 +352,19 @@ export class HudRuntimeSystem {
     }
 
     /**
-     * Second local player's parcours panel. Only ever shown in local
-     * split-screen; network sessions render a single local view.
+     * Second local player's parcours panel, including a hybrid LAN host.
      */
     _updateSecondaryParcoursHud(projection = null) {
         const refs = this._getParcoursPanelRefs(1);
         if (!refs) return;
 
         const isSplitScreen = this.game?.ui?.hud?.classList?.contains('split-screen') === true;
-        const hudState = isSplitScreen && !this._isNetworkSession(projection)
-            ? this.game?.entityManager?.getParcoursHudState?.(1) || null
+        const localPlayerIndex = this._isNetworkSession(projection)
+            ? Math.max(0, this._getLocalPlayerIndex(projection))
+            : 0;
+        const localHumanCount = Math.max(1, Number(projection?.localHumanCount || this.game?.numHumans) || 1);
+        const hudState = isSplitScreen && localHumanCount >= 2
+            ? this.game?.entityManager?.getParcoursHudState?.(localPlayerIndex + 1) || null
             : null;
 
         if (!hudState?.enabled) {
@@ -489,38 +505,26 @@ export class HudRuntimeSystem {
         // FIGHTER HUD UPDATE
         const localHumans = Math.max(1, Number(projection?.localHumanCount || game.numHumans) || 1);
         const networkSession = this._isNetworkSession(projection);
-        // In network mode only 1 local player — no P2 HUD
-        this._setHudP2Visibility(!networkSession && localHumans >= 2);
+        this._setHudP2Visibility(localHumans >= 2);
         if (fighterElapsed <= 0) return;
 
-        if (networkSession) {
-            // Show only the local player's fighter HUD
-            const localIdx = Math.max(0, this._getLocalPlayerIndex(projection));
-            const localPlayer = this._findProjectedPlayer(projection, localIdx)
-                || game.entityManager.players[localIdx];
-            if (localPlayer) {
-                game.hudP1.update(localPlayer, fighterElapsed, {
-                    lockTarget: this._findProjectedLockTarget(projection, localIdx),
-                    objectiveTarget: projection?.hunt?.escort || null,
-                });
-            }
-        } else {
-            const p1 = this._findProjectedPlayer(projection, 0) || game.entityManager.players[0];
-            if (p1) {
-                game.hudP1.update(p1, fighterElapsed, {
-                    lockTarget: this._findProjectedLockTarget(projection, 0),
-                    objectiveTarget: projection?.hunt?.escort || null,
-                });
-            }
+        const localStart = networkSession ? Math.max(0, this._getLocalPlayerIndex(projection)) : 0;
+        const p1 = this._findProjectedPlayer(projection, localStart) || game.entityManager.players[localStart];
+        if (p1) {
+            game.hudP1.update(p1, fighterElapsed, {
+                lockTarget: this._findProjectedLockTarget(projection, localStart),
+                objectiveTarget: projection?.hunt?.escort || null,
+            });
+        }
 
-            if (localHumans >= 2) {
-                const p2 = this._findProjectedPlayer(projection, 1) || game.entityManager.players[1];
-                if (p2) {
-                    game.hudP2.update(p2, fighterElapsed, {
-                        lockTarget: this._findProjectedLockTarget(projection, 1),
-                        objectiveTarget: projection?.hunt?.escort || null,
-                    });
-                }
+        if (localHumans >= 2) {
+            const secondIndex = localStart + 1;
+            const p2 = this._findProjectedPlayer(projection, secondIndex) || game.entityManager.players[secondIndex];
+            if (p2) {
+                game.hudP2.update(p2, fighterElapsed, {
+                    lockTarget: this._findProjectedLockTarget(projection, secondIndex),
+                    objectiveTarget: projection?.hunt?.escort || null,
+                });
             }
         }
     }

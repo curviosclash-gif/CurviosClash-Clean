@@ -167,6 +167,7 @@ export class GameRuntimeMenuActionHandler {
     handleMultiplayerHost(event) {
         return this._facade?.hostLobby?.({
             lobbyCode: String(event?.lobbyCode || '').trim(),
+            localPlayerCount: Number(event?.localPlayerCount) === 2 ? 2 : 1,
         });
     }
 

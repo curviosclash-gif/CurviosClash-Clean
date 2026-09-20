@@ -42,7 +42,7 @@ import {
     stopRuntimeStateBroadcast,
     teardownRuntimeSession as teardownRuntimeSessionState,
 } from './runtime/RuntimeSessionLifecycleService.js';
-import { resolveRuntimeNetworkPlayerSlots } from './runtime/RuntimeNetworkPlayerSlots.js';
+import { resolveRuntimeNetworkPlayerSlotContext } from './runtime/RuntimeNetworkPlayerSlots.js';
 
 const logger = createLogger('GameRuntimeFacade');
 
@@ -512,10 +512,7 @@ export class GameRuntimeFacade {
         const session = this.session || null;
         return {
             session,
-            slots: resolveRuntimeNetworkPlayerSlots({
-                session,
-                lobbyState: this.menuMultiplayerBridge?.getSessionState?.() || null,
-            }),
+            ...resolveRuntimeNetworkPlayerSlotContext(this),
         };
     }
     startMatch(options = undefined) { return this.executeSessionRuntimeCommand(createStartMatchCommand(options)); }

@@ -8,6 +8,7 @@ import {
     LEGACY_STORAGE_KEYS,
     STORAGE_KEYS,
 } from '../../shared/storage/StorageKeys.js';
+import { normalizeLanHostLocalPlayerCount } from '../../shared/contracts/RuntimeSessionContract.js';
 import { PersistentStore } from '../../shared/storage/PersistentStore.js';
 import { resolveStorePlatformOptions, loadVersionedRecord } from '../../shared/storage/PersistentStoreLoadUtils.js';
 
@@ -51,6 +52,7 @@ function createSessionDraftSnapshot(settings, sessionType) {
     return {
         sessionType: normalizeSessionType(sessionType, localSettings.sessionType || defaults.sessionType || MENU_SESSION_TYPES.SINGLE),
         multiplayerTransport: normalizeString(localSettings.multiplayerTransport, ''),
+        lanHostLocalPlayerCount: normalizeLanHostLocalPlayerCount(localSettings.lanHostLocalPlayerCount),
         mode: resolveModeFromSessionType(sessionType),
         modePath: normalizeString(localSettings.modePath, defaults.modePath),
         shadowQuality: localSettings.shadowQuality ?? localDefaults.shadowQuality,
@@ -90,6 +92,7 @@ function normalizeStoredSessionDraftSnapshot(snapshot, sessionType) {
         localSettings: {
             sessionType: source.sessionType,
             multiplayerTransport: source.multiplayerTransport,
+            lanHostLocalPlayerCount: source.lanHostLocalPlayerCount,
             modePath: source.modePath,
             shadowQuality: source.shadowQuality,
             bloomQuality: source.bloomQuality,
@@ -161,6 +164,10 @@ function applySnapshotToSettings(settings, snapshot) {
         settings.localSettings = {};
     }
     settings.localSettings.sessionType = normalizeSessionType(snapshot.sessionType, settings.localSettings.sessionType);
+    settings.localSettings.lanHostLocalPlayerCount = normalizeLanHostLocalPlayerCount(
+        snapshot.lanHostLocalPlayerCount,
+        settings.localSettings.lanHostLocalPlayerCount
+    );
     if (settings.localSettings.sessionType === MENU_SESSION_TYPES.MULTIPLAYER) {
         settings.localSettings.multiplayerTransport = normalizeString(
             snapshot.multiplayerTransport,

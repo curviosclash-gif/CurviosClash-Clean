@@ -7,6 +7,16 @@ export function bindMenuMultiplayerTransportButtons({
     eventTypes,
     keys,
 }) {
+    if (ui?.multiplayerHostLocalPlayerCount) {
+        bind(ui.multiplayerHostLocalPlayerCount, 'change', () => {
+            if (!settings.localSettings || typeof settings.localSettings !== 'object') {
+                settings.localSettings = {};
+            }
+            settings.localSettings.lanHostLocalPlayerCount = ui.multiplayerHostLocalPlayerCount.value === '2' ? 2 : 1;
+            emitSettingsChangedImmediate([keys.LAN_HOST_LOCAL_PLAYER_COUNT]);
+        });
+    }
+
     if (!Array.isArray(ui?.multiplayerTransportButtons)) {
         return;
     }

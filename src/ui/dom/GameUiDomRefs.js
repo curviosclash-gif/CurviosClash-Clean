@@ -267,6 +267,7 @@ export function createGameUiRefs(doc = document) {
         presetStatus: doc.getElementById('preset-status'),
         quickstartPresetButtons: null,
         multiplayerHostButton: doc.getElementById('btn-multiplayer-host'),
+        multiplayerHostLocalPlayerCount: doc.getElementById('multiplayer-host-local-player-count'),
         multiplayerPanel: doc.getElementById('submenu-multiplayer'),
         setupPanel: doc.getElementById('submenu-game'),
         modePanel: doc.getElementById('submenu-custom'),

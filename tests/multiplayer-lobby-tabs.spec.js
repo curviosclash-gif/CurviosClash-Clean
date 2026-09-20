@@ -60,7 +60,7 @@ test.describe('T20d1-T20d2: Multiplayer-Lobby ueber zwei Tabs', () => {
             expect(syncedState.sessionState?.isHost).toBeTruthy();
             expect(syncedState.sessionState?.memberCount).toBe(2);
             expect(syncedState.sessionState?.readyCount).toBe(2);
-            expect(syncedState.lobbyStateText).toContain('2 Teilnehmer');
+            expect(syncedState.lobbyStateText).toContain('2 Spieler auf 2 Gerät(en)');
             await expect(page.locator('#multiplayer-member-list .mp-player-card')).toHaveCount(2);
 
             await page.evaluate(() => {

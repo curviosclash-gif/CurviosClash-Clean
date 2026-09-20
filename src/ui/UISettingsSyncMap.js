@@ -7,6 +7,7 @@ export const UI_SETTINGS_SYNC_MAP = Object.freeze({
     [SETTINGS_CHANGE_KEYS.SESSION_TYPE]: ['syncSessionState', 'syncModes', 'syncMultiplayerState'],
     [SETTINGS_CHANGE_KEYS.MODE_PATH]: ['syncSessionState', 'syncGameplay', 'syncPresetState'],
     [SETTINGS_CHANGE_KEYS.MULTIPLAYER_TRANSPORT]: ['syncSessionState', 'syncMultiplayerState'],
+    [SETTINGS_CHANGE_KEYS.LAN_HOST_LOCAL_PLAYER_COUNT]: ['syncSessionState', 'syncMultiplayerState'],
     [SETTINGS_CHANGE_KEYS.ARCADE_GHOST_DUEL_MODE]: ['syncSessionState'],
     [SETTINGS_CHANGE_KEYS.ARCADE_GHOST_TRAIL_COLLISION_ENABLED]: ['syncSessionState'],
     [SETTINGS_CHANGE_KEYS.LOCAL_GRAPHICS_STYLE]: ['syncGameplay'],

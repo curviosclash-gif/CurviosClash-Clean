@@ -14,6 +14,10 @@ function toNonNegativeInt(value, fallback = 0) {
     return Math.max(0, Math.floor(parsed));
 }
 
+function normalizeLocalPlayerCount(value) {
+    return Math.max(1, Math.min(2, toNonNegativeInt(value, 1) || 1));
+}
+
 export function normalizeLobbyMember(member, fallbackRole = MULTIPLAYER_SESSION_ROLES.CLIENT) {
     const peerId = normalizeString(member?.peerId || member?.id);
     if (!peerId) return null;
@@ -61,10 +65,14 @@ export function normalizeLobbySessionState(state = {}) {
 
     const readyCount = normalizedMembers.filter((member) => member.ready).length;
     const memberCount = normalizedMembers.length;
+    const localPlayerCount = normalizeLocalPlayerCount(state?.localPlayerCount);
+    const playerCount = Math.max(memberCount, toNonNegativeInt(state?.playerCount, memberCount));
     return {
         lobbyCode,
         hostPeerId: hostPeerId || normalizeString(normalizedMembers[0]?.peerId, ''),
         memberCount,
+        localPlayerCount,
+        playerCount,
         readyCount,
         allReady: memberCount > 0 && readyCount === memberCount,
         maxPlayers: toNonNegativeInt(state?.maxPlayers, 10) || 10,

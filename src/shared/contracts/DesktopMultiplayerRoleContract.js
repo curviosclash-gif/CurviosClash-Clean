@@ -86,7 +86,7 @@ export const DESKTOP_MULTIPLAYER_COMPATIBILITY_MATRIX = Object.freeze({
         networkRequirement: DESKTOP_TRANSPORT_NETWORK_REQUIREMENT[MULTIPLAYER_TRANSPORTS.LAN],
         offlineCompatible: false,
         multiplayerTransportRequired: MULTIPLAYER_TRANSPORTS.LAN,
-        splitscreenCompatible: false,
+        splitscreenCompatible: true,
     }),
     [RUNTIME_SESSION_TYPES.ONLINE]: Object.freeze({
         sessionType: RUNTIME_SESSION_TYPES.ONLINE,

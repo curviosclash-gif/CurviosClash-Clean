@@ -76,7 +76,7 @@ export class LANMatchLobby extends MatchLobby {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                maxPlayers: Number(options.maxPlayers || 10),
+                maxPlayers: Number(options.maxPlayers || 10), localPlayerCount: options.localPlayerCount,
                 actorId: options.actorId,
                 name: options.name || options.actorId,
                 lobbyName: options.lobbyName,
@@ -214,6 +214,7 @@ export class LANMatchLobby extends MatchLobby {
         this._applySessionState({
             lobbyCode: status.lobbyCode || this.sessionState.lobbyCode,
             hostPeerId,
+            localPlayerCount: status.localPlayerCount, playerCount: status.playerCount,
             maxPlayers: Number(status.maxPlayers || this.sessionState.maxPlayers || 10),
             members: merged,
             metadata: status.metadata,

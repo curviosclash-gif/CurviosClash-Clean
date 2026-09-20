@@ -1,4 +1,6 @@
 import { normalizeTeamId, resolveBalancedTeamId } from '../../shared/contracts/TeamCombatContract.js';
+import { normalizeLanHostLocalPlayerCount } from '../../shared/contracts/RuntimeSessionContract.js';
+import { VIEWPORT_LAYOUTS } from '../../shared/contracts/ViewportLayoutContract.js';
 
 function normalizePeerId(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -24,13 +26,17 @@ function normalizeSlotEntry(entry, {
     const peerId = normalizePeerId(entry?.peerId || entry?.id || entry?.playerId);
     if (!peerId) return null;
     const isHost = isHostEntry(entry, hostPeerId);
+    const ownerPeerId = normalizePeerId(entry?.ownerPeerId) || peerId;
     return {
         peerId,
         id: peerId,
         playerId: peerId,
+        ownerPeerId,
+        ownerLocalIndex: Math.max(0, Math.floor(Number(entry?.ownerLocalIndex) || 0)),
+        ownerIsHost: entry?.ownerIsHost === true || isHost || ownerPeerId === hostPeerId,
         name: normalizePeerId(entry?.name || entry?.actorId) || (isHost ? 'Host' : peerId),
         isHost,
-        isLocal: entry?.isLocal === true || (!!localPeerId && peerId === localPeerId),
+        isLocal: entry?.isLocal === true || (!!localPeerId && ownerPeerId === localPeerId),
         connected: entry?.connected !== false,
         ready: entry?.ready === true,
         teamId: normalizeTeamId(entry?.teamId),
@@ -39,7 +45,10 @@ function normalizeSlotEntry(entry, {
 }
 
 function sortSlotEntries(left, right) {
-    if (left.isHost !== right.isHost) return left.isHost ? -1 : 1;
+    if (left.ownerIsHost !== right.ownerIsHost) return left.ownerIsHost ? -1 : 1;
+    if (left.ownerPeerId === right.ownerPeerId && left.ownerLocalIndex !== right.ownerLocalIndex) {
+        return left.ownerLocalIndex - right.ownerLocalIndex;
+    }
     if (left.joinedAt !== right.joinedAt) return left.joinedAt - right.joinedAt;
     return left.peerId.localeCompare(right.peerId);
 }
@@ -98,8 +107,32 @@ export function resolveRuntimeNetworkPlayerSlots({
         });
     };
 
+    const hostLocalPlayerCount = normalizeLanHostLocalPlayerCount(lobbyState?.localPlayerCount, 1);
     for (const member of collectLobbyEntries(lobbyState)) {
-        addEntry(member, true);
+        const memberPeerId = normalizePeerId(member?.peerId || member?.id || member?.playerId);
+        const memberIsHost = isHostEntry(member, hostPeerId);
+        addEntry({
+            ...member,
+            ownerPeerId: memberPeerId,
+            ownerLocalIndex: 0,
+            ownerIsHost: memberIsHost,
+        }, true);
+        if (memberIsHost && hostLocalPlayerCount >= 2) {
+            const displayName = normalizePeerId(member?.name || member?.actorId) || 'Host';
+            addEntry({
+                ...member,
+                peerId: `${memberPeerId}::local-2`,
+                id: `${memberPeerId}::local-2`,
+                playerId: `${memberPeerId}::local-2`,
+                ownerPeerId: memberPeerId,
+                ownerLocalIndex: 1,
+                ownerIsHost: true,
+                isHost: false,
+                role: 'client',
+                isLocal: !!resolvedLocalPeerId && memberPeerId === resolvedLocalPeerId,
+                name: `${displayName} 2`,
+            }, true);
+        }
     }
     for (const player of collectSessionEntries(session)) {
         addEntry(player);
@@ -128,7 +161,8 @@ export function resolveRuntimeNetworkPlayerSlotContext(facade = null) {
     const lobbyState = facade?.menuMultiplayerBridge?.getSessionState?.() || null;
     const slots = resolveRuntimeNetworkPlayerSlots({ session, lobbyState });
     const localPeerId = resolveLocalPeerId({ session, lobbyState });
-    const localSlot = slots.find((slot) => slot.isLocal)
+    const localSlots = slots.filter((slot) => slot.isLocal);
+    const localSlot = localSlots[0]
         || slots.find((slot) => localPeerId && slot.peerId === localPeerId)
         || (session?.isHost === true ? slots.find((slot) => slot.isHost) : null)
         || slots[0]
@@ -137,7 +171,7 @@ export function resolveRuntimeNetworkPlayerSlotContext(facade = null) {
     return {
         slots,
         humanEntityCount: Math.max(1, slots.length || 1),
-        localHumanCount: 1,
+        localHumanCount: Math.max(1, localSlots.length || 1),
         localPlayerIndex: Number.isInteger(localSlot?.playerIndex) ? localSlot.playerIndex : 0,
     };
 }
@@ -152,5 +186,9 @@ export function applyRuntimeNetworkPlayerSlotContext(facade = null) {
     sessionConfig.humanEntityCount = context.humanEntityCount;
     sessionConfig.localHumanCount = context.localHumanCount;
     sessionConfig.localPlayerIndex = context.localPlayerIndex;
+    sessionConfig.numHumans = context.localHumanCount;
+    sessionConfig.viewportLayout = context.localHumanCount >= 2
+        ? VIEWPORT_LAYOUTS.TWO_COLUMNS
+        : VIEWPORT_LAYOUTS.SINGLE;
     return context;
 }

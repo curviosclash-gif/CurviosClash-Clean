@@ -54,6 +54,29 @@ test('LAN multiplayer join button forwards lobbyCode plus optional manual signal
     }]);
 });
 
+test('LAN host button forwards the selected local split-screen seat count', () => {
+    const emitted = [];
+    const hostButton = createButton();
+    bindMenuMultiplayerActionButtons({
+        ui: {
+            multiplayerHostButton: hostButton,
+            multiplayerLobbyCodeInput: { ...createButton(), value: 'DUO-HOST' },
+            multiplayerHostLocalPlayerCount: { ...createButton(), value: '2' },
+        },
+        bind: (el, event, handler) => el.addEventListener(event, handler),
+        emit: (eventType, payload) => emitted.push({ eventType, payload }),
+        eventTypes: { MULTIPLAYER_HOST: 'multiplayer_host' },
+        featureFlags: { canHost: true },
+    });
+
+    hostButton.click();
+
+    assert.deepEqual(emitted, [{
+        eventType: 'multiplayer_host',
+        payload: { lobbyCode: 'DUO-HOST', localPlayerCount: 2 },
+    }]);
+});
+
 function createFakeElement(doc, tag = 'div') {
     const listeners = new Map();
     const element = {
@@ -229,4 +252,24 @@ test('transport selection refreshes the matching lobby directory automatically',
     onlineButton.click();
     assert.equal(settings.localSettings.multiplayerTransport, 'online');
     assert.equal(emitted[0].eventType, 'multiplayer_lobby_list_refresh');
+});
+
+test('LAN host seat selection persists and emits its dedicated settings key', () => {
+    const changed = [];
+    const select = { ...createButton(), value: '2' };
+    const settings = { localSettings: {} };
+    bindMenuMultiplayerTransportButtons({
+        ui: { multiplayerHostLocalPlayerCount: select, multiplayerTransportButtons: [] },
+        settings,
+        bind: (el, event, handler) => el.addEventListener(event, handler),
+        emit: () => {},
+        emitSettingsChangedImmediate: (keys) => changed.push(keys),
+        eventTypes: {},
+        keys: { LAN_HOST_LOCAL_PLAYER_COUNT: 'host-local-count' },
+    });
+
+    select.change();
+
+    assert.equal(settings.localSettings.lanHostLocalPlayerCount, 2);
+    assert.deepEqual(changed, [['host-local-count']]);
 });

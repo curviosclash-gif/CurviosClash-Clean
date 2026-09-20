@@ -116,6 +116,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         fixedPresetId: '',
         fixedPresetLockEnabled: false,
         sessionType: 'splitscreen',
+        lanHostLocalPlayerCount: 1,
         splitScreenVariant: SPLIT_SCREEN_VARIANTS.STANDARD,
         fourPlayerPlanar: normalizeFourPlayerPlanarSettings(),
         threePlayerSplit: normalizeThreePlayerSplitSettings(),
@@ -416,6 +417,9 @@ export function createMenuDefaultsEditorSnapshotFromSettings(settings = {}) {
         },
         localSettings: {
             sessionType: String(localSettings.sessionType || MENU_DEFAULT_EDITOR_CONFIG.localSettings.sessionType),
+            lanHostLocalPlayerCount: Math.max(1, Math.min(2, Math.floor(Number(
+                localSettings.lanHostLocalPlayerCount ?? MENU_DEFAULT_EDITOR_CONFIG.localSettings.lanHostLocalPlayerCount
+            ) || 1))),
             modePath: String(localSettings.modePath || MENU_DEFAULT_EDITOR_CONFIG.localSettings.modePath),
             graphicsStyle: String(localSettings.graphicsStyle || MENU_DEFAULT_EDITOR_CONFIG.localSettings.graphicsStyle),
             mapBrightness: String(localSettings.mapBrightness || MENU_DEFAULT_EDITOR_CONFIG.localSettings.mapBrightness),

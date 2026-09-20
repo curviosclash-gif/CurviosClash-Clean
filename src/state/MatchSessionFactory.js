@@ -233,6 +233,7 @@ export function createMatchSession({
             numHumans,
             localHumanCount,
             localPlayerIndex,
+            viewportLayout: runtimeConfig?.session?.viewportLayout,
             networkEnabled: runtimeConfig?.session?.networkEnabled === true,
             numBots,
             winsNeeded,
@@ -492,7 +493,9 @@ export function wireInitializedMatchRuntime({
         renderer?.viewportSystem?.setNetworkMode?.(
             session.networkEnabled === true,
             Number.isInteger(session.localPlayerIndex) ? session.localPlayerIndex : 0,
-            renderer.cameras
+            renderer.cameras,
+            Math.max(1, Number(session.localHumanCount) || 1),
+            session.viewportLayout
         );
         // Compile the match materials while the match is still being wired. Without this the first
         // use of every program is the first rendered frame, which stalls the start of a match.
