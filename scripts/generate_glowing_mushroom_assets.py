@@ -51,11 +51,18 @@ GENERATOR_ID = "glowing-mushroom"
 GENERATOR_VERSION = "1.0.0"
 SEED = 6042023
 
-# Emission strength stays inside the band the tone map can still show as colour. The lower bound
-# is not cosmetic either: below roughly one the emission loses against the ambient light of a lit
-# map and the mushroom reads as painted plastic.
-EMISSION_MIN = 1.1
-EMISSION_MAX = 1.8
+# Emission strength stays inside the band the tone map can still show as colour.
+#
+# The upper bound was 1.8 and is measured, not guessed: at that strength a screenshot of the
+# running game had 94 percent of the trumpets' lit pixels at a saturation below 0.25 - bright
+# white funnels in a teal-lit cellar, the same failure that turned the Notre-Dame flames into
+# pale cones. The measurement lives in tests/mushroom-proof.desktop.spec.js, which renders each
+# clump twice and compares.
+#
+# The lower bound matters too: below it the emission loses against the ambient light of a lit
+# map and the mushroom reads as painted plastic rather than as a light source.
+EMISSION_MIN = 0.55
+EMISSION_MAX = 1.0
 
 # Near-black flesh under the emission. Shared by every glowing material; see the module docstring.
 GLOW_BASE_COLOUR = (0.05, 0.05, 0.06, 1.0)
@@ -67,10 +74,15 @@ GLOW_BASE_COLOUR = (0.05, 0.05, 0.06, 1.0)
 # to a maximum of one plus a separate strength factor, so a hue that peaks at 0.95 comes back out
 # of the file with its strength multiplied by 0.95. Peaking at one keeps the number written here,
 # the number in the manifest and the number the game applies the same number.
+#
+# Each hue keeps one channel clearly dominant and the other two well below it. A cyan with green
+# and blue both near one is a colour the tone map turns into white the moment it clips, because
+# there is nothing left to tell the channels apart; pulling the secondary channel down is what
+# leaves a hue behind after clipping.
 HUES = {
-    "teal": (0.168, 1.0, 0.905, 1.0),
-    "violet": (0.64, 0.34, 1.0, 1.0),
-    "amber": (1.0, 0.63, 0.19, 1.0),
+    "teal": (0.02, 1.0, 0.52, 1.0),
+    "violet": (0.55, 0.1, 1.0, 1.0),
+    "amber": (1.0, 0.42, 0.02, 1.0),
 }
 HUE_ORDER = ("teal", "violet", "amber")
 
@@ -96,8 +108,18 @@ def glowing(name, hue, strength):
     shader.inputs["Base Color"].default_value = GLOW_BASE_COLOUR
     shader.inputs["Roughness"].default_value = 0.62
     shader.inputs["Metallic"].default_value = 0.0
-    shader.inputs["Emission Color"].default_value = HUES[hue]
-    shader.inputs["Emission Strength"].default_value = strength
+    # The strength is folded into the colour and the strength input stays at one.
+    #
+    # glTF can only carry an emission brighter than its colour, through the
+    # KHR_materials_emissive_strength extension; anything at or below one has to live in the
+    # colour itself. Authoring 0.76 in the strength input therefore arrived in the runtime as a
+    # strength of 1 with a quietly rescaled colour, which made the manifest a work of fiction.
+    # Folding it in here keeps what is written, what is exported and what the game applies the
+    # same three numbers.
+    red, green, blue, _ = HUES[hue]
+    shader.inputs["Emission Color"].default_value = (
+        red * strength, green * strength, blue * strength, 1.0)
+    shader.inputs["Emission Strength"].default_value = 1.0
     material.diffuse_color = HUES[hue]
     material.use_backface_culling = False
     return material
@@ -313,14 +335,18 @@ def trumpet_mushroom(geo, p, rng):
         bell = neck * (3.0 + 2.2 * p.detail)
         origin = (foot.x, foot.y, 0)
         stem = [(neck * 1.25, 0.0), (neck * 0.82, height * 0.3), (neck * 0.86, height * 0.62),
-                (bell * 0.52, height * 0.84), (bell, height)]
+                (bell * 0.52, height * 0.84)]
         geo.revolve(stem, "flesh", sides=12, origin=origin)
-        # The inner wall of the bell, running back down. Seen from above and from the side
-        # through the mouth, this is the whole light of the shape.
+        # The outside of the bell glows, not just its inside. The first pass lit only the inner
+        # wall, which reads perfectly in a top-down preview and renders as a black silhouette in
+        # the game, where players approach a cellar clump from the side and below - a screenshot
+        # of Verdant Aperture showed nine unlit funnels standing in a lit room.
+        geo.revolve([(bell * 0.52, height * 0.84), (bell * 0.82, height * 0.93), (bell, height)],
+                    "glow", sides=12, origin=origin)
+        # The inner wall, running back down, and a lip so the mouth is not a zero-thickness edge.
+        geo.revolve([(bell, height), (bell * 0.94, height)], "glow", sides=12, origin=origin)
         inner = [(bell * 0.94, height), (bell * 0.44, height * 0.86), (neck * 0.6, height * 0.66)]
         geo.revolve(inner, "glow", sides=12, origin=origin, flip=True)
-        # A short lip so the mouth is not a zero-thickness edge when seen edge-on.
-        geo.revolve([(bell, height), (bell * 0.94, height)], "glow", sides=12, origin=origin)
 
 
 def coral_mushroom(geo, p, rng):

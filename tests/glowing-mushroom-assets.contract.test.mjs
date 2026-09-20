@@ -33,10 +33,12 @@ const MAX_FILE_BYTES = 200 * 1024;
 const MAX_TOTAL_BYTES = 1.2 * 1024 * 1024;
 const MAX_MESHES = 2;
 
-// The band from the Notre-Dame fire lesson: below this the emission loses against a lit map,
-// above it the tone map saturates the colour to white.
-const EMISSION_MIN = 1.1;
-const EMISSION_MAX = 1.8;
+// The band, measured in the running game rather than guessed: above the upper bound a
+// screenshot had 94 percent of the lit pixels at a saturation below 0.25, which is the
+// Notre-Dame flame failure - bright, and colourless. See
+// tests/mushroom-proof.desktop.spec.js, which measures it against a map's own lighting.
+const EMISSION_MIN = 0.55;
+const EMISSION_MAX = 1.0;
 
 const manifest = JSON.parse(await readFile(MANIFEST_PATH, 'utf8'));
 
@@ -124,13 +126,16 @@ test('the glow survives the tone map', async () => {
         }
         assert.equal(emitting.length, 1, `${entry.name} has exactly one glowing material`);
         const [{ material, strength }] = emitting;
-        assert.ok(strength >= EMISSION_MIN && strength <= EMISSION_MAX,
-            `${entry.name} emits at ${strength}, inside [${EMISSION_MIN}, ${EMISSION_MAX}]`);
-        // Compared with a tolerance, not exactly: glTF stores the strength as a 32-bit float.
-        // The value has to survive the export unscaled, which it only does while every hue peaks
-        // at 1.0 - the exporter folds any lower peak into the strength instead.
-        assert.ok(Math.abs(strength - entry.glow_strength) < 1e-4,
-            `${entry.name} keeps its authored strength, manifest ${entry.glow_strength}, file ${strength}`);
+        // Brightness is colour times strength, because glTF can split it either way: an emission
+        // brighter than its colour travels in KHR_materials_emissive_strength, and anything at
+        // or below one has to live in the colour. Measuring the product is the only reading that
+        // does not depend on which side of one the value happens to fall.
+        const emissive = material.emissive;
+        const brightness = Math.max(emissive.r, emissive.g, emissive.b) * strength;
+        assert.ok(brightness >= EMISSION_MIN - 1e-3 && brightness <= EMISSION_MAX + 1e-3,
+            `${entry.name} emits at ${brightness.toFixed(3)}, inside [${EMISSION_MIN}, ${EMISSION_MAX}]`);
+        assert.ok(Math.abs(brightness - entry.glow_strength) < 2e-3,
+            `${entry.name} keeps its authored brightness, manifest ${entry.glow_strength}, file ${brightness.toFixed(4)}`);
         // Near-black base colour. A bright base also receives the map's own light, and the tone
         // map then washes out the emission on top of it.
         const base = material.color;
@@ -143,12 +148,20 @@ test('the glow survives the tone map', async () => {
     }
 });
 
-test('the glow faces sideways, not only down', async () => {
-    // Measured on the face normals, not on the bounding box. The box of an underside-only glow
-    // is exactly as wide as the box of a rim band, so a box check passes the very mistake this
-    // guards against: a cap that lights the ground under itself and reads as a dark lump from
-    // every angle a player flies at. A surface counts as sideways when its normal is more than
-    // about 25 degrees off vertical.
+test('the glow is not confined to horizontal surfaces', async () => {
+    // What this test can prove, and what it cannot.
+    //
+    // It can prove that the glowing surface is not flat-on-its-back, which catches a glow placed
+    // only on the underside of a cap or the top of a bracket - a light aimed at the floor.
+    //
+    // It cannot prove the glow is *visible*. The trumpet mushrooms once carried their entire
+    // glow on the inner wall of their funnel and rendered as black silhouettes in the game;
+    // measured on the files, that version scored 15 to 21 percent outward-facing area against
+    // 9 to 12 percent for a cap that visibly glowed. Every geometric measure of the file ranks
+    // the broken shape above the working one, because the file does not know about occlusion.
+    // Visibility is therefore measured where occlusion exists, in
+    // tests/mushroom-proof.desktop.spec.js, which renders each clump with and without its
+    // emission and compares the two frames.
     for (const entry of manifest.mushrooms) {
         const gltf = await loadMushroom(entry.name);
         const glowing = meshes(gltf.scene).filter((mesh) => {
@@ -163,7 +176,7 @@ test('the glow faces sideways, not only down', async () => {
         const b = new THREE.Vector3();
         const c = new THREE.Vector3();
         const normal = new THREE.Vector3();
-        let sideways = 0;
+        let angled = 0;
         let area = 0;
         for (let index = 0; index < position.count; index += 3) {
             a.fromBufferAttribute(position, index);
@@ -173,13 +186,13 @@ test('the glow faces sideways, not only down', async () => {
             const size = normal.length() / 2;
             if (size <= 1e-9) continue;
             area += size;
-            // glTF is Y-up: a face whose normal has a large horizontal share points outward.
-            if (Math.abs(normal.normalize().y) < 0.9) sideways += size;
+            // glTF is Y-up: a face is off-horizontal when its normal is not mostly vertical.
+            if (Math.abs(normal.normalize().y) < 0.9) angled += size;
         }
         assert.ok(area > 0, `${entry.name} has a glowing surface with area`);
-        const share = sideways / area;
+        const share = angled / area;
         assert.ok(share > 0.15,
-            `${entry.name}: ${(share * 100).toFixed(0)}% of the glow faces sideways`);
+            `${entry.name}: ${(share * 100).toFixed(0)}% of the glow is off-horizontal`);
     }
 });
 
