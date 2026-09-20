@@ -77,6 +77,11 @@ test('T14e: Editor-Import/Export behaelt Showcase-Metadaten und Pickup-Anker-Fel
         aircraft: [
             { id: 'air_show', jetId: 'jet_ship6', x: 0, y: 138, z: 144, scale: 3.3, rotateY: 1.4 },
         ],
+        flagObjectives: Array.from({ length: 6 }, (_, index) => ({
+            id: `flag-${index + 1}`,
+            teamId: index < 3 ? 'ALPHA' : 'BRAVO',
+            position: [index * 20, 36, 0],
+        })),
     };
 
     importFromJSON(manager, JSON.stringify(sourceDocument));
@@ -112,6 +117,7 @@ test('T14e: Editor-Import/Export behaelt Showcase-Metadaten und Pickup-Anker-Fel
         }
     );
     assert.strictEqual(roundtrip.aircraft.length, 1);
+    assert.deepStrictEqual(roundtrip.flagObjectives, sourceDocument.flagObjectives);
     assert.deepStrictEqual(
         pickSubset(roundtrip.playerSpawn, { id: 'spawn_player', x: -162, y: 36, z: 54 }),
         { id: 'spawn_player', x: -162, y: 36, z: 54 }

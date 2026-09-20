@@ -86,7 +86,8 @@ function applyRoundEndWinnerScore(winner, players = [], winnerTeamId = null) {
         return { scored: false, score: null };
     }
     if (winnerTeamId) {
-        const teammates = players.filter((player) => player?.teamId === winnerTeamId);
+        const teammates = players.filter((player) => player?.teamId === winnerTeamId
+            && player?.entitySlotActive !== false);
         for (const teammate of teammates) {
             teammate.score = (Number(teammate.score) || 0) + 1;
         }
@@ -107,6 +108,7 @@ function buildRoundEndControllerInputs(inputs = {}) {
         totalBots: Math.max(0, Number(inputs.totalBots) || 0),
         winsNeeded: Math.max(1, Number(inputs.winsNeeded) || 1),
         reason: typeof inputs.outcomeReason === 'string' ? inputs.outcomeReason : '',
+        winnerTeamId: inputs.winnerTeamId || null,
         parcours: inputs.parcours && typeof inputs.parcours === 'object' ? inputs.parcours : null,
     };
 }
@@ -159,7 +161,7 @@ export function coordinateRoundEnd({
     const plan = deriveOnRoundEndCoordinatorPlan({
         roundStateController,
         players,
-        inputs: { winner, humanPlayerCount, totalBots, winsNeeded, outcomeReason, parcours },
+        inputs: { winner, winnerTeamId, humanPlayerCount, totalBots, winsNeeded, outcomeReason, parcours },
     });
     const statsSummary = buildPostMatchStatsSummary({
         recorder,

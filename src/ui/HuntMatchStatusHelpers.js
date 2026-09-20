@@ -58,6 +58,19 @@ export function updateHuntTargetProgress(progress, state, target, score) {
     state.filled = filled;
 }
 
+export function formatFlagObjectiveSummary(flags = []) {
+    if (!Array.isArray(flags) || flags.length === 0) return 'Keine Flaggendaten';
+    return flags.map((flag, index) => {
+        const team = flag?.teamId === TEAM_IDS.BRAVO ? 'Orange' : 'Blau';
+        const maxHp = Math.max(1, Number(flag?.maxHp) || 1);
+        const hpPercent = Math.max(0, Math.min(100, Math.round((Number(flag?.hp) || 0) / maxHp * 100)));
+        const protectedText = Number(flag?.protectionRemaining) > 0 ? ' geschützt' : '';
+        const fallbackId = `${index < 3 ? 'A' : 'B'}${(index % 3) + 1}`;
+        const label = String(flag?.id || fallbackId).replace(/^alpha_/i, 'A').replace(/^bravo_/i, 'B');
+        return `${label} ${team} ${hpPercent}%${protectedText}`;
+    }).join(' · ');
+}
+
 /** Header line: arcade hunt runs are no elimination match, even though they use the fight HUD. */
 export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLimit, timeText, matchPointText }) {
     if (isArenaWavesConfig(runtimeConfig)) return 'Fünf Fronten · halte jede Welle auf';
@@ -65,7 +78,7 @@ export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLi
     if (huntProjection?.escortMode === true) return `Eskorte · ${resolveTeamLabel(TEAM_IDS.ALPHA)} schützt den Panzer${timeText}`;
     if (huntProjection?.teamObjective === 'FLAGS') {
         const counts = huntProjection?.flagCounts || {};
-        return `Flaggen · Blau ${Number(counts.ALPHA) || 0}:${Number(counts.BRAVO) || 0} Orange${timeText}`;
+        return `Flaggenherrschaft · Blau ${Number(counts.ALPHA) || 0}:${Number(counts.BRAVO) || 0} Orange${timeText}`;
     }
     if (huntProjection?.respawnEnabled !== true) return 'Elimination · letzter Überlebender gewinnt';
     const mode = normalizeHuntWinCondition(huntProjection?.winCondition);

@@ -22,6 +22,7 @@ import { applyBotLightningInput } from './HuntBotLightningOps.js';
 import { applyBotRailgunInput, holdsRailgunCharge } from './HuntBotRailgunOps.js';
 import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 import { areTeammates } from '../shared/contracts/TeamCombatContract.js';
+import { applyFlagObjectiveMovement } from './HuntBotFlagObjectiveOps.js';
 export { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 
 import { clamp } from '../shared/utils/MathOps.js';
@@ -507,6 +508,8 @@ export class HuntBotPolicy {
             clearSteering: clearSteeringInput,
             steerToward: applySteeringTowardPosition,
         });
+
+        applyFlagObjectiveMovement(this, input, player, runtimeContext, shouldRetreat, survivalPressure, mgRange);
 
         return input;
     }

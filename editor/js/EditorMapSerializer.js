@@ -65,6 +65,9 @@ function readManagerMapMetadata(manager) {
     if (Array.isArray(source.mapUnits)) {
         metadata.mapUnits = cloneSerializable(source.mapUnits) || [];
     }
+    if (Array.isArray(source.flagObjectives)) {
+        metadata.flagObjectives = cloneSerializable(source.flagObjectives) || [];
+    }
 
     return metadata;
 }
@@ -123,6 +126,10 @@ function extractMapMetadata(data) {
     // Tanks are carried through the same way: no authoring surface yet, written back unchanged.
     if (Array.isArray(data.mapUnits) && data.mapUnits.length > 0) {
         metadata.mapUnits = cloneSerializable(data.mapUnits) || [];
+    }
+    // Flag anchors are carried through until the editor gets a dedicated placement surface.
+    if (Array.isArray(data.flagObjectives) && data.flagObjectives.length > 0) {
+        metadata.flagObjectives = cloneSerializable(data.flagObjectives) || [];
     }
     if (data.parcours && typeof data.parcours === 'object') {
         const parcoursMetadata = cloneSerializable(data.parcours) || {};

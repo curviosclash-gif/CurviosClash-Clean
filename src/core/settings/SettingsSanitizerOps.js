@@ -108,7 +108,12 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
         merged.gameMode = GAME_MODE_TYPES.HUNT;
         merged.hunt.teamObjective = 'ESCORT';
     }
-    if (merged.hunt.teamObjective === 'ESCORT') merged.hunt.teamMode = true;
+    if (merged.hunt.teamObjective === 'ESCORT' || merged.hunt.teamObjective === 'FLAGS') {
+        merged.hunt.teamMode = true;
+    }
+    if (merged.gameMode === GAME_MODE_TYPES.HUNT && merged.hunt.teamObjective === 'FLAGS') {
+        merged.hunt.respawnEnabled = true;
+    }
     if (merged.gameMode !== GAME_MODE_TYPES.HUNT) {
         merged.hunt.respawnEnabled = false;
     }

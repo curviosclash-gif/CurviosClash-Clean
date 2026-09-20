@@ -277,6 +277,14 @@ function playFightLead(audio, options) {
     audio._releaseVoice(0.44);
 }
 
+function playFlagCapture(audio, options) {
+    const intensity = audio._intensity(options, 0.95, 0.35, 1.4);
+    audio._playLayered([
+        { type: 'triangle', startFreq: 330, endFreq: 660, duration: 0.24, peak: 0.24 * intensity, attack: 0.01, ramp: 'linear' },
+        { type: 'sine', startFreq: 495, endFreq: 990, duration: 0.32, peak: 0.14 * intensity, attack: 0.015, ramp: 'linear' },
+    ], options);
+}
+
 function playUiTone(audio, options, tone) {
     audio._playTone({ ...tone, options: { ...options, bus: 'ui' } });
 }
@@ -302,6 +310,7 @@ const PLAYERS = Object.freeze({
     FIGHT_KILL: playFightKill,
     FIGHT_ASSIST: playFightAssist,
     FIGHT_LEAD: playFightLead,
+    FLAG_CAPTURE: playFlagCapture,
     UI_DROP: (audio, options) => playUiTone(audio, options, {
         type: 'sine', startFreq: 520, endFreq: 700, duration: 0.09,
         peak: 0.12, attack: 0.006, ramp: 'linear',

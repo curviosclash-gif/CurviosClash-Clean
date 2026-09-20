@@ -75,6 +75,24 @@ test('round end and draw keep short german sentences', () => {
     assert.equal(draw.messageSub, 'Nächste Runde in 3...');
 });
 
+test('team objective results name the team and ignore departed match winners', () => {
+    const players = [
+        { ...makePlayer(0, 3), teamId: 'ALPHA', entitySlotActive: false },
+        { ...makePlayer(1, 3), teamId: 'ALPHA', entitySlotActive: true },
+        { ...makePlayer(2, 1), teamId: 'BRAVO', entitySlotActive: true },
+    ];
+    const outcome = deriveRoundEndOutcome(players, {
+        winner: players[1],
+        winnerTeamId: 'ALPHA',
+        reason: 'FLAG_DOMINATION',
+        humanPlayerCount: 2,
+        winsNeeded: 3,
+    });
+    assert.equal(outcome.matchWinner, players[1]);
+    assert.equal(outcome.messageText, 'Team Blau gewinnt das Match');
+    assert.equal(outcome.messageSub, '3 : 1 Runden');
+});
+
 test('endless chase result says Punkte instead of Score', () => {
     const finished = deriveRoundEndOutcome([], {
         reason: 'ENDLESS_TIMEOUT',

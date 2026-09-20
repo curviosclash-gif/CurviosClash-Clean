@@ -54,6 +54,7 @@ function sanitizeLegacyRuntimeMapDocument(rawMap, warnings) {
         aircraft: [],
         glbModels: asArray(rawMap?.glbModels),
         botSpawns: [],
+        flagObjectives: asArray(rawMap.flagObjectives),
         playerSpawn: {
             x: -800,
             y: height * 0.55,

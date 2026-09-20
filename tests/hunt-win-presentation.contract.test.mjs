@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatHuntScoreboard, resolveHuntObjectiveText } from '../src/ui/HuntMatchStatusHelpers.js';
+import { formatFlagObjectiveSummary, formatHuntScoreboard, resolveHuntObjectiveText } from '../src/ui/HuntMatchStatusHelpers.js';
 import { formatMenuRulesSummary } from '../src/ui/start-setup/StartSetupMultiplayerUiSync.js';
 import { resolveObjectiveLabel } from '../src/ui/postmatch/PostMatchLabels.js';
 import { MatchScoreHudPresenter } from '../src/ui/MatchScoreHudPresenter.js';
+import { HuntHUD } from '../src/ui/HuntHUD.js';
 
 function element(documentRef) {
     const classes = new Set();
@@ -37,7 +38,11 @@ test('HUNT status names the selected objective and uses its ranking value', () =
     assert.equal(resolveHuntObjectiveText({ escortMode: true }, {},
         { killLimit: 10, timeText: ' · 5:00', matchPointText: '' }), 'Eskorte · Team Blau schützt den Panzer · 5:00');
     assert.equal(resolveHuntObjectiveText({ teamObjective: 'FLAGS', flagCounts: { ALPHA: 4, BRAVO: 2 } }, {},
-        { killLimit: 10, timeText: '', matchPointText: '' }), 'Flaggen · Blau 4:2 Orange');
+        { killLimit: 10, timeText: '', matchPointText: '' }), 'Flaggenherrschaft · Blau 4:2 Orange');
+    assert.equal(formatFlagObjectiveSummary([
+        { id: 'alpha_1', teamId: 'ALPHA', hp: 150, maxHp: 300, protectionRemaining: 0 },
+        { id: 'bravo_1', teamId: 'BRAVO', hp: 300, maxHp: 300, protectionRemaining: 4 },
+    ]), 'A1 Blau 50% · B1 Orange 100% geschützt');
 });
 
 test('menu and postmatch use the objective selected for the round', () => {
@@ -48,6 +53,8 @@ test('menu and postmatch use the objective selected for the round', () => {
         winCondition: 'last_alive' } }, 'fight'), /3 Leben/);
     assert.equal(resolveObjectiveLabel('SCORE_TARGET'), 'Punktziel erreicht');
     assert.equal(resolveObjectiveLabel('LAST_ALIVE'), 'Letzter Überlebender');
+    assert.equal(resolveObjectiveLabel('FLAG_DOMINATION'), 'Alle Flaggen kontrolliert');
+    assert.equal(resolveObjectiveLabel('FLAG_TIME_LIMIT'), 'Flaggenmehrheit nach Zeitlimit');
 });
 
 test('network board ranks score target by points and last alive by remaining lives', () => {
@@ -68,4 +75,37 @@ test('network board ranks score target by points and last alive by remaining liv
     presenter.updateNetwork(projection, [], 0);
     assert.deepEqual(presenter.networkBoard.children.map((row) => row.children[1].textContent), ['3', '1']);
     assert.match(presenter.networkBoard.getAttribute('aria-label'), /Leben/);
+});
+
+test('Flaggenherrschaft HUD replaces kill progress with six objective states and Golden Flag', () => {
+    const root = element(null);
+    const objective = element(null);
+    const scoreboard = element(null);
+    const targetProgress = element(null);
+    const hud = new HuntHUD({
+        runtime: { activeGameMode: 'HUNT', state: 'PLAYING' },
+        refs: { root, objective, scoreboard, targetProgress },
+    });
+    hud.update(0.2, {
+        players: [],
+        hunt: {
+            active: true,
+            teamObjective: 'FLAGS',
+            respawnEnabled: true,
+            overtime: true,
+            timeLimitSeconds: 480,
+            timeRemainingSeconds: 0,
+            flagCounts: { ALPHA: 3, BRAVO: 3 },
+            flags: [
+                { id: 'alpha_1', teamId: 'ALPHA', hp: 150, maxHp: 300 },
+                { id: 'bravo_1', teamId: 'BRAVO', hp: 300, maxHp: 300, protectionRemaining: 5 },
+            ],
+            scoreboardRows: [{ playerIndex: 0, label: 'P1', kills: 9 }],
+            killFeed: [],
+        },
+    });
+    assert.equal(objective.textContent, 'Flaggenherrschaft · Blau 3:3 Orange · Golden Flag');
+    assert.equal(scoreboard.textContent, 'A1 Blau 50% · B1 Orange 100% geschützt');
+    assert.equal(targetProgress.classList.contains('hidden'), true);
+    assert.doesNotMatch(scoreboard.textContent, /Abschüsse|P1/);
 });

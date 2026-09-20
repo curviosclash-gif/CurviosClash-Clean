@@ -45,6 +45,14 @@ test('public lobby facts describe actual objectives and keep legacy unknowns exp
         teamObjective: 'ESCORT',
         teamSize: 4,
     });
+    const flags = createLobbyMatchSummary({
+        gameMode: 'HUNT',
+        hunt: { respawnEnabled: true, teamMode: true, teamSize: 4, teamObjective: 'FLAGS' },
+    });
+    assert.equal(flags.targetValue, 6);
+    assert.equal(resolveLobbyMatchFacts({
+        mapKey: 'maze', modePath: 'fight', matchSummary: flags,
+    })[3][1], '6 Flaggen');
     assert.deepEqual(normalizeLobbyMatchSummary({ numBots: -4, botDifficulty: 'script', targetValue: Infinity }),
         { numBots: 0, botDifficulty: null, targetKind: null, targetValue: null });
     assert.equal(resolveLobbyMatchFacts({ mapKey: 'maze', modePath: 'normal' })[2][1], 'Nicht verfügbar');

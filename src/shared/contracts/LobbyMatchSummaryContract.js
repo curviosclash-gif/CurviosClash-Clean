@@ -1,7 +1,7 @@
 // Public, bounded lobby facts. Personal settings and complete match snapshots
 // stay out of discovery/status messages.
 import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from './HuntWinConditionContract.js';
-import { normalizeTeamObjectiveType, TEAM_OBJECTIVE_TYPES } from './FlagObjectiveContract.js';
+import { FLAG_OBJECTIVE_DEFAULTS, normalizeTeamObjectiveType, TEAM_OBJECTIVE_TYPES } from './FlagObjectiveContract.js';
 import { ESCORT_DEFAULTS } from './EscortObjectiveContract.js';
 import { normalizeTeamHuntSettings, resolveTeamRoster } from './TeamHuntContract.js';
 
@@ -38,9 +38,10 @@ export function createLobbyMatchSummary(settings = {}) {
     const teamRoster = teamSettings.enabled
         ? resolveTeamRoster({ humanCount, teamSize: teamSettings.teamSize })
         : null;
-    const objectiveTargetKind = teamObjective === TEAM_OBJECTIVE_TYPES.FLAGS
+    const objectiveActive = settings?.gameMode === 'HUNT' && teamSettings.enabled;
+    const objectiveTargetKind = objectiveActive && teamObjective === TEAM_OBJECTIVE_TYPES.FLAGS
         ? 'flags'
-        : (teamObjective === TEAM_OBJECTIVE_TYPES.ESCORT ? 'escort' : null);
+        : (objectiveActive && teamObjective === TEAM_OBJECTIVE_TYPES.ESCORT ? 'escort' : null);
     return normalizeLobbyMatchSummary({
         numBots: teamRoster?.botCount ?? settings?.numBots ?? 0,
         botDifficulty: settings?.botDifficulty || 'NORMAL',
@@ -49,8 +50,8 @@ export function createLobbyMatchSummary(settings = {}) {
                 : winCondition === HUNT_WIN_CONDITIONS.SCORE_TARGET ? 'points' : 'kills')
             : 'wins')),
         targetValue: arcade ? settings?.arcade?.sectorCount
-            : (teamObjective === TEAM_OBJECTIVE_TYPES.FLAGS ? 3
-                : (teamObjective === TEAM_OBJECTIVE_TYPES.ESCORT ? ESCORT_DEFAULTS.roundSeconds
+            : (objectiveActive && teamObjective === TEAM_OBJECTIVE_TYPES.FLAGS ? FLAG_OBJECTIVE_DEFAULTS.flagsPerTeam * 2
+                : (objectiveActive && teamObjective === TEAM_OBJECTIVE_TYPES.ESCORT ? ESCORT_DEFAULTS.roundSeconds
                     : (deathmatch ? (winCondition === HUNT_WIN_CONDITIONS.LAST_ALIVE ? 3
                         : settings?.hunt?.deathmatchKillLimit || 10) : settings?.winsNeeded || 5))),
         ...(deathmatch ? { winCondition } : {}),

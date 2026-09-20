@@ -39,6 +39,7 @@ import {
 } from './HeuristicBotPolicyOps.js';
 import { findPreferredPickupTarget } from './BotPickupTargetingOps.js';
 import { resolveOpportunisticEnemy } from './HeuristicHuntTargetingOps.js';
+import { applyFlagObjectiveMovement } from '../../hunt/HuntBotFlagObjectiveOps.js';
 import {
     applyTrafficAvoidanceSteering,
     findImminentTrafficThreat,
@@ -490,8 +491,10 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         }
         if (wallFront <= policy.profile.safetyDistance) input.boost = false;
     }
+    const flagAssignment = applyFlagObjectiveMovement(policy, input, player, runtimeContext,
+        retreatRequested, survivalPressure, Number(resolveGameplayConfig(player).HUNT?.MG?.RANGE || HUNT_CONFIG.MG.RANGE));
     return {
-        intent,
+        intent: flagAssignment ? `flag-${flagAssignment.role}` : intent,
         retreatReason,
         targetDistanceRatio,
         targetPlayerIndex: Number.isInteger(enemy?.index) ? enemy.index : -1,

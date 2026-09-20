@@ -6,7 +6,6 @@ import { createMapSandstormState } from './MapSandstormContract.js';
 import { normalizeHuntWinCondition } from './HuntWinConditionContract.js';
 import { normalizeHuntLivesByPlayer } from './HuntLivesContract.js';
 import { normalizeTeamId } from './TeamCombatContract.js';
-
 export const MATCH_RUNTIME_PROJECTION_CONTRACT_VERSION = 'match-runtime-projection.v1';
 export const MATCH_RUNTIME_PROJECTION_VERSION_FIELDS = Object.freeze(['contractVersion']);
 export const MATCH_RUNTIME_PROJECTION_SUPPORTED_VERSIONS = Object.freeze([
@@ -38,13 +37,9 @@ function normalizeNumber(value, fallback = 0) {
     return Number.isFinite(numeric) ? numeric : fallback;
 }
 
-function normalizeInt(value, fallback = 0) {
-    return Math.trunc(normalizeNumber(value, fallback));
-}
+function normalizeInt(value, fallback = 0) { return Math.trunc(normalizeNumber(value, fallback)); }
 
-function normalizeNonNegativeInt(value, fallback = 0) {
-    return Math.max(0, normalizeInt(value, fallback));
-}
+function normalizeNonNegativeInt(value, fallback = 0) { return Math.max(0, normalizeInt(value, fallback)); }
 
 function cloneStringArray(value) {
     if (!Array.isArray(value)) return [];
@@ -435,6 +430,24 @@ function createHuntProjection(value = null, nowMs = 0) {
     for (const [key, entry] of Object.entries(respawnSource)) {
         respawnRemainingByPlayer[key] = Math.max(0, normalizeNumber(entry, 0));
     }
+    const flags = Array.isArray(source.flags)
+        ? source.flags.slice(0, 6).map((flag) => ({
+            id: normalizeString(flag?.id, ''),
+            teamId: normalizeTeamId(flag?.teamId),
+            hp: Math.max(0, normalizeNumber(flag?.hp, 0)),
+            maxHp: Math.max(1, normalizeNumber(flag?.maxHp, 1)),
+            protectionRemaining: Math.max(0, normalizeNumber(flag?.protectionRemaining, 0)),
+        })).filter((flag) => flag.id && flag.teamId)
+        : [];
+    const captureSource = source.flagCaptureEvent && typeof source.flagCaptureEvent === 'object'
+        ? source.flagCaptureEvent
+        : null;
+    const flagCaptureEvent = captureSource ? {
+        id: normalizeNonNegativeInt(captureSource.id, 0),
+        flagId: normalizeString(captureSource.flagId, ''),
+        teamId: normalizeTeamId(captureSource.teamId),
+        playerIndex: normalizeInt(captureSource.playerIndex, -1),
+    } : null;
     return {
         active: source.active === true,
         killFeed: cloneStringArray(source.killFeed),
@@ -461,6 +474,8 @@ function createHuntProjection(value = null, nowMs = 0) {
         flagCounts: source.flagCounts && typeof source.flagCounts === 'object'
             ? { ALPHA: normalizeNonNegativeInt(source.flagCounts.ALPHA, 0), BRAVO: normalizeNonNegativeInt(source.flagCounts.BRAVO, 0) }
             : null,
+        flags,
+        flagCaptureEvent,
     };
 }
 

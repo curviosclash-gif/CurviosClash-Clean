@@ -23,7 +23,7 @@ export function resolveLobbyMatchFacts(metadata) {
     const unavailable = 'Nicht verfügbar';
     const mode = { normal: 'Klassisch', fight: 'Kampf', arcade: 'Arcade', quick_action: 'Schnellstart' }[metadata?.modePath];
     const difficulty = { EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' }[summary?.botDifficulty];
-    const targets = { wins: 'Siege', kills: 'Abschüsse', sectors: 'Sektoren', points: 'Punkte', lives: 'Leben pro Spieler' };
+    const targets = { wins: 'Siege', kills: 'Abschüsse', sectors: 'Sektoren', points: 'Punkte', lives: 'Leben pro Spieler', flags: 'Flaggen', escort: 'Sekunden Eskorte' };
     return [
         ['Spielstil', mode || unavailable],
         ['Karte', metadata?.mapKey ? resolveMapPreview(metadata.mapKey).name : unavailable],
