@@ -9,6 +9,10 @@ test('three-player split setup guards missing pads and starts with swapped devic
     await expect(page.locator('#btn-three-player-split')).toBeVisible();
     await page.locator('#btn-three-player-split').click();
     await expect(page.locator('#three-player-split-setup')).toBeVisible();
+    await page.evaluate(() => {
+        Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [] });
+        window.dispatchEvent(new Event('gamepaddisconnected'));
+    });
 
     await expect(page.locator('[data-three-player-split-start]')).toBeDisabled();
     await expect(page.locator('[data-three-player-split-device-status]')).toContainText('Gamepad 1 fehlt');
@@ -71,6 +75,66 @@ test('three-player split starts with all three players on separate keyboard bind
         { type: 'keyboard', keyboardIndex: 1 },
         { type: 'keyboard', keyboardIndex: 2 },
     ]);
+    const compactHud = page.locator('#three-player-split-hud');
+    await expect(compactHud).toBeVisible();
+    await expect(compactHud).toHaveAttribute('data-mode', 'classic');
+    await expect(compactHud.locator('.three-player-split-hud-card')).toHaveCount(3);
+    await expect(compactHud.locator('[data-tps-meter="boost"]:not(.hidden)')).toHaveCount(3);
+    await expect(compactHud.locator('[data-tps-meter="slowmo"]:not(.hidden)')).toHaveCount(3);
+    await expect(compactHud.locator('[data-tps-items]')).toHaveCount(3);
+    await expect(compactHud.locator('[data-tps-rockets]')).toHaveCount(3);
+    const cardVisuals = await compactHud.locator('.three-player-split-hud-card').evaluateAll((cards) => cards.map((card) => ({
+        scale: Number.parseFloat(getComputedStyle(card).scale),
+        fontSize: Number.parseFloat(getComputedStyle(card).fontSize),
+    })));
+    expect(cardVisuals).toHaveLength(3);
+    for (const visual of cardVisuals) {
+        expect(visual.scale).toBeLessThan(1);
+        expect(visual.fontSize).toBeLessThanOrEqual(13);
+    }
+    for (let playerIndex = 1; playerIndex <= 3; playerIndex += 1) {
+        await expect(page.locator(`#crosshair-p${playerIndex}`)).toBeVisible();
+    }
+    const reticleProbe = await page.locator('#crosshair-container .crosshair').evaluateAll((elements) => ({
+        width: window.innerWidth,
+        centers: elements.filter((element) => getComputedStyle(element).display !== 'none').map((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.left + rect.width / 2;
+        }),
+    }));
+    expect(reticleProbe.centers).toHaveLength(3);
+    for (const [index, centerX] of reticleProbe.centers.entries()) {
+        expect(centerX).toBeGreaterThanOrEqual((index * reticleProbe.width) / 3 - 24);
+        expect(centerX).toBeLessThanOrEqual(((index + 1) * reticleProbe.width) / 3 + 24);
+    }
+    expect(errors).toHaveLength(0);
+    await returnToMenu(page);
+});
+
+test('three-player Hunt exposes compact combat vitals and match status for all players', async ({ page }) => {
+    const errors = collectErrors(page);
+    await waitForLoadedGame(page);
+    await page.evaluate(() => window.GAME_INSTANCE?.runtimeCoordinator?.getUiManager?.()?.showMainNav?.());
+    await page.locator('[data-session-type="splitscreen"]').click();
+    await page.locator('#btn-three-player-split').click();
+    await page.locator('[data-three-player-split-mode]').selectOption('hunt');
+    const deviceSelects = page.locator('[data-three-player-split-device]');
+    for (let playerIndex = 0; playerIndex < 3; playerIndex += 1) {
+        await deviceSelects.nth(playerIndex).selectOption('keyboard');
+    }
+
+    await page.locator('[data-three-player-split-start]').click();
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
+        && window.GAME_INSTANCE?.entityManager?.humanPlayers?.length === 3);
+
+    const compactHud = page.locator('#three-player-split-hud');
+    await expect(compactHud).toBeVisible();
+    await expect(compactHud).toHaveAttribute('data-mode', 'hunt');
+    await expect(compactHud.locator('[data-tps-meter="hp"]:not(.hidden)')).toHaveCount(3);
+    await expect(compactHud.locator('[data-tps-meter="shield"]:not(.hidden)')).toHaveCount(3);
+    await expect(compactHud.locator('[data-tps-meter="overheat"]:not(.hidden)')).toHaveCount(3);
+    await expect(compactHud.locator('.three-player-split-match-status')).toBeVisible();
+    await expect(compactHud.locator('[data-tps-objective]')).not.toBeEmpty();
     expect(errors).toHaveLength(0);
     await returnToMenu(page);
 });
