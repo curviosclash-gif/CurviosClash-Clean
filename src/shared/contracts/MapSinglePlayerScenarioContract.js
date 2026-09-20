@@ -49,7 +49,7 @@ export function normalizeStaticTurretDefinition(entry, index = 0, { spatialScale
     const modes = Array.isArray(entry?.allowedModes)
         ? [...new Set(entry.allowedModes.filter((mode) => mode === 'HUNT' || mode === 'ARCADE'))]
         : ['HUNT'];
-    return Object.freeze({
+    const definition = {
         id: normalizeString(entry?.id, `turret_${index + 1}`),
         weapon,
         pos: Object.freeze([0, 1, 2].map((axis) => finiteNumber(pos[axis], 0))),
@@ -66,7 +66,10 @@ export function normalizeStaticTurretDefinition(entry, index = 0, { spatialScale
         targetPlayers: entry?.targetPlayers === 'all' ? 'all' : 'humans',
         targetTrails: entry?.targetTrails === true,
         allowedModes: Object.freeze(modes),
-    });
+    };
+    const secretRoomId = normalizeString(entry?.secretRoomId, '').trim().slice(0, 80);
+    if (secretRoomId) definition.secretRoomId = secretRoomId;
+    return Object.freeze(definition);
 }
 
 export function resolveMapStaticTurretDefinitions(mapDefinition = null, options = {}) {

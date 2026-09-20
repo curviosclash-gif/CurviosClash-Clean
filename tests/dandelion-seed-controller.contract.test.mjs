@@ -80,10 +80,40 @@ test('a replica receives the same release events and can reset for a new round',
     host.update(15);
     replica.update(15);
     assert.deepEqual(replica.serialize(), host.serialize());
+    assert.deepEqual(replica.getProgress(), host.getProgress());
     assert.ok(replica.seeds[1].node.position.distanceTo(host.seeds[1].node.position) < 1e-6);
     replica.applyNetworkState([]);
     assert.deepEqual(replica.serialize(), []);
+    assert.deepEqual(replica.getProgress(), {
+        total: 3, released: 0, remaining: 3, allReleased: false, completedAtSeconds: 0,
+    });
     assert.equal(replica.seeds[1].node.visible, true);
+});
+
+test('release progress completes on the last seed and resets without replacing its object', () => {
+    const controller = new DandelionSeedController(makeScene());
+    const progress = controller.getProgress();
+    assert.deepEqual(progress, {
+        total: 3, released: 0, remaining: 3, allReleased: false, completedAtSeconds: 0,
+    });
+
+    controller.releaseByName(controller.seeds[0].node.name, 2);
+    controller.releaseByName(controller.seeds[1].node.name, 4);
+    assert.equal(controller.getProgress(), progress);
+    assert.deepEqual(progress, {
+        total: 3, released: 2, remaining: 1, allReleased: false, completedAtSeconds: 0,
+    });
+
+    controller.releaseByName(controller.seeds[2].node.name, 3);
+    assert.deepEqual(progress, {
+        total: 3, released: 3, remaining: 0, allReleased: true, completedAtSeconds: 4,
+    });
+
+    controller.reset();
+    assert.equal(controller.getProgress(), progress);
+    assert.deepEqual(progress, {
+        total: 3, released: 0, remaining: 3, allReleased: false, completedAtSeconds: 0,
+    });
 });
 
 test('attached seeds collide across their full length once per continuous vehicle contact', () => {

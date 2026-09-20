@@ -5,7 +5,7 @@
  * player can only reach through one portal. The map preset says where that entry portal stands,
  * where the room lies, how long a visitor may stay, where the room throws him back out, and which
  * item points grow back inside it. A room may stay hidden until a destructible structure of the
- * same map loses a part, which is what turns a landmark collapse into a reward.
+ * same map loses a part or every dandelion seed has been released.
  *
  * Two sides have to read this the same way: the map pipeline, which carries the authored block
  * through the schema into the runtime map definition, and the runtime, which decides every frame
@@ -23,9 +23,9 @@
  * directly. Scaling therefore belongs to the pipeline and to the arena, and must not happen twice -
  * this contract never touches the numbers.
  *
- * Unlocking needs no network message. The destructible state is already reconciled between host
- * and clients (`MapDestructibleContract`), so every machine adds the same delay to the same
- * recorded break time and opens the portal in the same second.
+ * Unlocking needs no network message. Destructible state and seed release events are already
+ * reconciled between host and clients, so every machine adds the same delay to the same recorded
+ * completion time and opens the portal in the same second.
  *
  * Plausibility is enforced, not merely documented, because a room that contradicts itself is worse
  * than no room at all: a way back outside the room would strand the visitor, an entry portal inside
@@ -89,15 +89,16 @@ const DEGREES_PER_TURN = 360;
  */
 
 /**
- * How a room reads the destructible state of its map.
+ * How a room reads the destructible state or the dandelion-seed progress of its map.
  * - `anyBreak`: the first broken part of the named structure opens the portal.
  * - `sealed`: only a structure that has come down whole opens it.
  * - `segment`: one named part has to break; authored as `when: { segmentId }`.
  *
  * @typedef {object} SecretRoomUnlock
- * @property {string} destructible Id of the destructible structure whose state is watched.
- * @property {'anyBreak'|'sealed'|'segment'} when
- * @property {string} segmentId Segment that has to break; empty unless `when` is `segment`.
+ * @property {'dandelionSeeds'} [source] Optional non-destructible source.
+ * @property {string} [destructible] Id of the destructible structure whose state is watched.
+ * @property {'anyBreak'|'sealed'|'segment'|'allReleased'} when
+ * @property {string} [segmentId] Segment that has to break; empty unless `when` is `segment`.
  * @property {number} delaySeconds Seconds between the break and the portal appearing.
  */
 
@@ -255,13 +256,27 @@ function boundsContain(bounds, point) {
 }
 
 /**
- * An unlock block that names no structure cannot be resolved later. Treating it as "no unlock"
+ * An unlock block without a usable source and condition cannot be resolved later. Treating it as "no unlock"
  * would hand the secret to every player from the first second, so the room is refused instead.
  * @param {unknown} value
  * @returns {{ ok: boolean, unlock: Readonly<SecretRoomUnlock> | null }}
  */
 function readUnlock(value) {
     if (!isRecord(value)) return { ok: true, unlock: null };
+    const source = readText(value.source, SECRET_ROOM_LIMITS.idMaxLength);
+    if (source === 'dandelionSeeds') {
+        if (readText(value.when, SECRET_ROOM_LIMITS.idMaxLength) !== 'allReleased') {
+            return { ok: false, unlock: null };
+        }
+        return {
+            ok: true,
+            unlock: Object.freeze({
+                source: 'dandelionSeeds',
+                when: 'allReleased',
+                delaySeconds: clampNumber(value.delaySeconds, SECRET_ROOM_LIMITS.unlockDelaySeconds),
+            }),
+        };
+    }
     const destructible = readText(value.destructible, SECRET_ROOM_LIMITS.idMaxLength);
     if (!destructible) return { ok: false, unlock: null };
 
@@ -378,7 +393,7 @@ function readRoom(entry, warnings) {
 
     const unlockResult = readUnlock(entry.unlock);
     if (!unlockResult.ok) {
-        pushWarning(warnings, `Secret room "${id}" was ignored because its unlock names no structure.`);
+        pushWarning(warnings, `Secret room "${id}" was ignored because its unlock has no usable source and condition.`);
         return null;
     }
 
@@ -463,17 +478,15 @@ function readEventSeconds(event) {
 /**
  * Match second from which the entry portal of a room is open.
  *
- * A room without an unlock is open from the start. Otherwise the answer comes purely from the
- * reconciled destructible state, which carries the recorded break events and whether the structure
- * has come down whole - both the live host state and the serialized wire form have that same shape,
- * so host and replica compute the same second without exchanging a single extra message. The id in
- * `unlock.destructible` says which structure a caller has to hand in; this function trusts the
- * state it is given. `Infinity` means the portal is still shut.
+ * A room without an unlock is open from the start. Otherwise the answer comes purely from its
+ * reconciled unlock state: either destructible break events or dandelion release progress. Both
+ * the live host state and the serialized wire form have the same shape, so host and replica compute
+ * the same second without exchanging a single extra message. `Infinity` means the portal is shut.
  * @param {unknown} room
- * @param {unknown} destructibleState
+ * @param {unknown} unlockState
  * @returns {number}
  */
-export function resolveSecretRoomUnlockSeconds(room, destructibleState) {
+export function resolveSecretRoomUnlockSeconds(room, unlockState) {
     if (!isRecord(room)) return Infinity;
     const unlock = isRecord(room.unlock) ? room.unlock : null;
     if (!unlock) return 0;
@@ -482,7 +495,17 @@ export function resolveSecretRoomUnlockSeconds(room, destructibleState) {
     const segmentId = readText(unlock.segmentId, SECRET_ROOM_LIMITS.idMaxLength);
     const delaySeconds = clampNumber(unlock.delaySeconds, SECRET_ROOM_LIMITS.unlockDelaySeconds);
 
-    const state = isRecord(destructibleState) ? destructibleState : null;
+    const state = isRecord(unlockState) ? unlockState : null;
+    if (unlock.source === 'dandelionSeeds') {
+        const total = Math.max(0, Math.trunc(Number(state?.total) || 0));
+        const released = Math.max(0, Math.trunc(Number(state?.released) || 0));
+        const completedAtSeconds = Number(state?.completedAtSeconds);
+        if (total <= 0 || released < total || state?.allReleased !== true
+            || !Number.isFinite(completedAtSeconds) || completedAtSeconds < 0) {
+            return Infinity;
+        }
+        return completedAtSeconds + delaySeconds;
+    }
     const events = state && Array.isArray(state.events) ? state.events : null;
     if (!events || events.length === 0) return Infinity;
 

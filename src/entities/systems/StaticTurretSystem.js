@@ -11,6 +11,8 @@ import {
     createStaticTurretNetworkSnapshot,
 } from './static-turret/StaticTurretNetworkOps.js';
 import { resolveStaticTurretDeployConfig } from './static-turret/StaticTurretDeployConfigOps.js';
+import { getStaticTurretHudState, getStaticTurretHudStates } from './static-turret/StaticTurretHudOps.js';
+import { collectActiveStaticTurrets, isStaticTurretSecretRoomActive, syncStaticTurretSecretRoomState } from './static-turret/StaticTurretSecretRoomOps.js';
 import { resolveLocalHumanCount } from './projectile/RocketWarningAudioOps.js';
 import {
     clearStaticTurretRespawns,
@@ -49,6 +51,7 @@ export class StaticTurretSystem {
         this.entityManager = entityManager || null;
         this.turrets = [];
         this._pendingRespawns = [];
+        this._targetableTurrets = [];
         this._tmpAim = new THREE.Vector3();
         this._tmpPoint = new THREE.Vector3();
         this._tmpMuzzle = new THREE.Vector3();
@@ -145,6 +148,7 @@ export class StaticTurretSystem {
             networkShotsInitialized: false,
             createdSequence: this._nextCreatedSequence++,
         };
+        syncStaticTurretSecretRoomState(this, turret);
         if (destructible) turret.takeDamage = (amount, options = {}) => this.damageTurret(turret, amount, options);
         return turret;
     }
@@ -307,7 +311,8 @@ export class StaticTurretSystem {
     }
 
     damageTurret(turret, amount, options = {}) {
-        if (!isDestructibleTurret(turret) || turret.hp <= 0 || this.networkReplica) {
+        if (!isStaticTurretSecretRoomActive(this, turret)
+            || !isDestructibleTurret(turret) || turret.hp <= 0 || this.networkReplica) {
             return { applied: 0, hpApplied: 0, remainingHp: Math.max(0, Number(turret?.hp) || 0), isDead: turret?.hp <= 0 };
         }
         const requested = Math.max(0, Number(amount) || 0);
@@ -391,6 +396,13 @@ export class StaticTurretSystem {
         this._tracerFx.update(safeDt);
         for (let i = 0; i < this.turrets.length;) {
             const turret = this.turrets[i];
+            if (!syncStaticTurretSecretRoomState(this, turret)) {
+                turret.target = null;
+                turret.flashRemaining = 0;
+                if (turret.root?.userData?.muzzleFlash) turret.root.userData.muzzleFlash.visible = false;
+                i += 1;
+                continue;
+            }
             if (Number.isFinite(turret.expiresRemaining)) {
                 turret.expiresRemaining -= safeDt;
                 if (!this.networkReplica && (turret.expiresRemaining <= 0 || !turret.ownerPlayer?.alive)) {
@@ -461,39 +473,21 @@ export class StaticTurretSystem {
             this._disposeTurretVisual(turret);
         }
         this.turrets.length = 0;
+        this._targetableTurrets.length = 0;
         clearStaticTurretRespawns(this);
         this._tracerFx.clear();
     }
 
     getDestructibleTargets() {
-        return this.turrets;
+        return collectActiveStaticTurrets(this);
     }
 
     getHudStatesForPlayer(playerIndex) {
-        const states = [];
-        for (const weapon of ['mg', 'rocket']) {
-            const state = this.getHudStateForPlayer(playerIndex, weapon);
-            if (state) states.push({ ...state, weapon });
-        }
-        return states;
+        return getStaticTurretHudStates(this.turrets, playerIndex);
     }
 
     getHudStateForPlayer(playerIndex, weapon = null) {
-        let active = null;
-        let count = 0;
-        for (const turret of this.turrets) {
-            if (!turret?.deployed || resolveOwnerIndex(turret) !== playerIndex || (weapon && turret.weapon !== weapon)) continue;
-            count += 1;
-            if (!active || turret.createdSequence > active.createdSequence) active = turret;
-        }
-        if (!active) return null;
-        return {
-            count,
-            remainingSeconds: Math.max(0, Number(active.expiresRemaining) || 0),
-            hp: Math.max(0, Number(active.hp) || 0),
-            maxHp: Math.max(1, Number(active.maxHp) || 1),
-            range: Math.max(0, Number(active.range) || 0),
-        };
+        return getStaticTurretHudState(this.turrets, playerIndex, weapon);
     }
 
     setNetworkReplica(enabled) {

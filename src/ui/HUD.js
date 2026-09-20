@@ -11,6 +11,7 @@ import {
 import { formatMapDestructibleStatus } from './MapDestructibleStatusText.js';
 import { formatMapExpansionStatus } from './MapExpansionStatusText.js';
 import { formatSecretRoomStatus } from './SecretRoomStatusText.js';
+import { formatDandelionSeedStatus } from './DandelionSeedStatusText.js';
 
 function toFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -269,14 +270,14 @@ export class HUD {
             this._setClassFlag(this.playerHud, 'slowmo-actor', false);
             this._updateExclusionZoneStatus(null);
             this._updateMapExpansionStatus(null);
-            this._updateMapDestructibleStatus(null);
+            this._updateMapDestructibleStatus(null, null);
             this.setVisibility(false);
             return;
         }
 
         this._updateExclusionZoneStatus(player.exclusionZoneState);
         this._updateMapExpansionStatus(player.mapExpansion, player.secretRoom);
-        this._updateMapDestructibleStatus(player.mapDestructible);
+        this._updateMapDestructibleStatus(player.mapDestructible, player.dandelionSeeds);
 
         const fallbackGameplayConfig = resolveGameplayConfig({
             config: this.configSource,
@@ -516,14 +517,15 @@ export class HUD {
         this._setClassFlag(this.mapExpansionStatus, 'opening', !secretText && state?.phase === 'OPENING');
     }
 
-    _updateMapDestructibleStatus(state) {
-        const text = formatMapDestructibleStatus(state);
+    _updateMapDestructibleStatus(state, dandelionSeeds = null) {
+        const destructibleText = formatMapDestructibleStatus(state);
+        const text = destructibleText || formatDandelionSeedStatus(dandelionSeeds);
         this._setClassFlag(this.mapDestructibleStatus, 'hidden', !text);
         this._setText(this.mapDestructibleStatus, text);
         this._setClassFlag(
             this.mapDestructibleStatus,
             'breaking',
-            !!text && Number(state?.breakingSecondsRemaining) > 0,
+            !!destructibleText && Number(state?.breakingSecondsRemaining) > 0,
         );
     }
 }

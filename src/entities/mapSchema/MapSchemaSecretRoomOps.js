@@ -51,11 +51,17 @@ function toPlainRoom(room, invScale) {
     };
     if (room.unlock) {
         /** @type {Record<string, any>} */
-        const unlock = {
-            destructible: room.unlock.destructible,
-            when: room.unlock.when,
-            delaySeconds: room.unlock.delaySeconds,
-        };
+        const unlock = room.unlock.source === 'dandelionSeeds'
+            ? {
+                source: 'dandelionSeeds',
+                when: 'allReleased',
+                delaySeconds: room.unlock.delaySeconds,
+            }
+            : {
+                destructible: room.unlock.destructible,
+                when: room.unlock.when,
+                delaySeconds: room.unlock.delaySeconds,
+            };
         if (room.unlock.segmentId) unlock.segmentId = room.unlock.segmentId;
         plain.unlock = unlock;
     }

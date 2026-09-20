@@ -166,7 +166,7 @@ test('dandelion map halves its vertical layout around the shortened flower stem'
     assert.equal(MAP_PRESET_CATALOG.dandelion_sky, map);
     assert.equal(MAP_PRESETS_BASE.dandelion_sky, map);
     assert.equal(resolveMapPickerCollection('dandelion_sky').id, 'adventure');
-    assert.deepEqual(map.size, [420, 330, 420]);
+    assert.deepEqual(map.size, [420, 400, 420]);
     assert.equal(map.glbModels[0].targetSize, 368);
     assert.equal(map.glbModels[0].url, 'assets/models/giant_dandelion/giant_dandelion_shootable.glb');
     assert.deepEqual(map.portalLevels, [29, 135, 230]);

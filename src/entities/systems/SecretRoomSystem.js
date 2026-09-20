@@ -19,11 +19,11 @@ const DEGREES_TO_RADIANS = Math.PI / 180;
  * The arena builds one shut portal pair per authored room. This system decides which of those
  * pairs belong to the round at all, and from which match second each of them is open.
  *
- * The second is derived, never announced: it comes from the destructible state, which host and
- * replica already reconcile, plus the delay the map author wrote down. Both machines therefore
- * open the same portal in the same second without a message of their own. The clock compared
- * against is the one the break events are stamped with - the map clock of the arena - and not
- * the simulation clock, because a replica takes that map clock straight from the host snapshot.
+ * The second is derived, never announced: it comes from reconciled destructible state or seed
+ * release progress, plus the delay the map author wrote down. Both machines therefore open the
+ * same portal in the same second without a message of their own. The clock compared against is the
+ * map clock stamped onto the event, not the simulation clock, because a replica takes that map
+ * clock straight from the host snapshot.
  *
  * Once open, a pair stays open until the round ends. A round restart shuts every pair again.
  *
@@ -40,7 +40,6 @@ export class SecretRoomSystem {
         this._rooms = [];
         this._closedCount = 0;
         this._openedCount = 0;
-        this._stateSignature = '';
         this.networkReplica = false;
         // Fixed per player index, so a whole match of ticks allocates nothing: the room a player
         // stands in, and the HUD object the projection copies from.
@@ -64,7 +63,6 @@ export class SecretRoomSystem {
         const arena = this.entityManager?.arena;
         this._rooms.length = 0;
         this._closedCount = 0;
-        this._stateSignature = '';
         const portals = Array.isArray(arena?.portals) ? arena.portals : null;
         if (!portals) return 0;
 
@@ -107,6 +105,16 @@ export class SecretRoomSystem {
         return this._openedCount;
     }
 
+    /** Whether one named room has opened in the current round. */
+    isRoomOpen(roomId) {
+        const id = String(roomId || '');
+        if (!id) return false;
+        for (const entry of this._rooms) {
+            if (entry.room.id === id) return entry.open === true;
+        }
+        return false;
+    }
+
     /**
      * Stay state of one player for the HUD. The object is reused, so a caller copies what it needs.
      * @param {number} playerIndex
@@ -131,17 +139,13 @@ export class SecretRoomSystem {
 
     _updateUnlocks() {
         if (this._closedCount === 0) return;
-        const state = this._resolveDestructibleState();
-        // Recomputing the unlock second costs a pass over the break events, so it happens when
-        // that list actually changed - on the host after a break, on a replica after a snapshot.
-        const eventCount = Array.isArray(state?.events) ? state.events.length : 0;
-        const signature = state ? `${eventCount}|${state.sealed === true}` : 'none';
-        if (signature !== this._stateSignature) {
-            this._stateSignature = signature;
-            for (const entry of this._rooms) {
-                if (entry.open) continue;
-                entry.unlockSeconds = resolveRoomUnlockSeconds(entry.room, state);
-            }
+        for (const entry of this._rooms) {
+            if (entry.open) continue;
+            const state = this._resolveUnlockState(entry.room);
+            const signature = createUnlockStateSignature(entry.room, state);
+            if (signature === entry.stateSignature) continue;
+            entry.stateSignature = signature;
+            entry.unlockSeconds = resolveRoomUnlockSeconds(entry.room, state);
         }
 
         const elapsedSeconds = Number(this.entityManager?.arena?.glbAnimationElapsedSeconds) || 0;
@@ -258,6 +262,13 @@ export class SecretRoomSystem {
         if (!system || system.isActive?.() !== true) return null;
         return system.getState?.() || null;
     }
+
+    _resolveUnlockState(room) {
+        if (room?.unlock?.source === 'dandelionSeeds') {
+            return this.entityManager?.arena?.getDandelionSeedProgress?.() || null;
+        }
+        return this._resolveDestructibleState();
+    }
 }
 
 /**
@@ -267,6 +278,7 @@ export class SecretRoomSystem {
  * @property {object} room The authored room, in map units.
  * @property {object} portal The portal pair built for it.
  * @property {number} unlockSeconds
+ * @property {string} stateSignature
  * @property {boolean} open
  * @property {boolean} clockPaused While true the stay clocks of this room stand still (E62).
  * @property {{ bounds: { min: number[], max: number[] } }} scaledRoom Box in world units.
@@ -290,6 +302,7 @@ function createRoomEntry(room, portal, mapScale) {
         room,
         portal,
         unlockSeconds: Infinity,
+        stateSignature: '',
         open: false,
         clockPaused: false,
         scaledRoom: { bounds: { min: scalePoint(room.bounds.min), max: scalePoint(room.bounds.max) } },
@@ -323,12 +336,24 @@ function clearHudState(hud) {
  * @returns {number}
  */
 function resolveRoomUnlockSeconds(room, state) {
-    const unlock = /** @type {{ when?: string, segmentId?: string } | null} */ (room?.unlock || null);
+    const unlock = /** @type {{ source?: string, when?: string, segmentId?: string } | null} */ (room?.unlock || null);
     if (!unlock) return 0;
+    if (unlock.source === 'dandelionSeeds') {
+        return resolveSecretRoomUnlockSeconds(room, state);
+    }
     if (!state) return 0;
     if (unlock.when === 'segment'
         && !state.segments?.some((segment) => segment?.id === unlock.segmentId)) {
         return 0;
     }
     return resolveSecretRoomUnlockSeconds(room, state);
+}
+
+function createUnlockStateSignature(room, state) {
+    if (room?.unlock?.source === 'dandelionSeeds') {
+        if (!state) return 'dandelion:none';
+        return `dandelion:${Number(state.total) || 0}|${Number(state.released) || 0}|${Number(state.completedAtSeconds) || 0}`;
+    }
+    const eventCount = Array.isArray(state?.events) ? state.events.length : 0;
+    return state ? `destructible:${eventCount}|${state.sealed === true}` : 'destructible:none';
 }

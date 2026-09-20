@@ -60,3 +60,75 @@ test('attached dandelion seeds damage and visibly deflect a vehicle in the deskt
     expect(contact.timer).toBeGreaterThan(0);
     expect(contact.initialDeflection).toBeGreaterThanOrEqual(2);
 });
+
+test('the last dandelion seed opens the guarded root chamber and keeps its interior safe', async ({ page }) => {
+    test.setTimeout(180_000);
+    await startDandelionFight(page);
+
+    const result = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const arena = game.arena;
+        const manager = game.entityManager;
+        const seeds = arena._dandelionSeeds.seeds;
+        const roomSystem = manager._secretRoomSystem;
+        const turretSystem = manager._staticTurretSystem;
+        const roomPortal = arena.portals.find((portal) => portal.roomId === 'root_chamber');
+
+        for (let index = 0; index < seeds.length - 1; index += 1) {
+            arena.releaseDandelionSeed(seeds[index].node.name);
+        }
+        roomSystem.update(0);
+        turretSystem.update(0);
+        const before = {
+            progress: { ...arena.getDandelionSeedProgress() },
+            portalOpen: roomPortal?.active === true,
+            visibleGuards: turretSystem.turrets.filter((turret) => turret.root?.visible).length,
+        };
+
+        arena.releaseDandelionSeed(seeds.at(-1).node.name);
+        roomSystem.update(0);
+        turretSystem.update(0);
+        const entry = roomSystem.getRooms().find((candidate) => candidate.room.id === 'root_chamber');
+        const insideTurrets = turretSystem.turrets.filter((turret) => {
+            const bounds = entry.scaledRoom.bounds;
+            return turret.position.x >= bounds.min[0] && turret.position.x <= bounds.max[0]
+                && turret.position.y >= bounds.min[1] && turret.position.y <= bounds.max[1]
+                && turret.position.z >= bounds.min[2] && turret.position.z <= bounds.max[2];
+        }).length;
+
+        const player = manager.humanPlayers[0];
+        player.position.set(0, -33, 0);
+        roomSystem.update(0);
+        const entered = { ...roomSystem.getHudStateForPlayer(player.index) };
+        roomSystem.update(20);
+
+        return {
+            seedTotal: seeds.length,
+            before,
+            after: {
+                progress: { ...arena.getDandelionSeedProgress() },
+                portalOpen: roomPortal?.active === true,
+                visibleGuards: turretSystem.turrets.filter((turret) => turret.root?.visible).length,
+                insideTurrets,
+            },
+            entered,
+            ejectPosition: player.position.toArray(),
+        };
+    });
+
+    expect(result.before.progress.released).toBe(result.seedTotal - 1);
+    expect(result.before.portalOpen).toBe(false);
+    expect(result.before.visibleGuards).toBe(0);
+    expect(result.after.progress.released).toBe(result.seedTotal);
+    expect(result.after.progress.allReleased).toBe(true);
+    expect(result.after.portalOpen).toBe(true);
+    expect(result.after.visibleGuards).toBe(3);
+    expect(result.after.insideTurrets).toBe(0);
+    expect(result.entered.inside).toBe(true);
+    expect(result.entered.roomId).toBe('root_chamber');
+    expect(result.ejectPosition).toEqual([0, 360, 510]);
+
+    await expect(page.locator('.map-destructible-status').first()).toContainText(
+        'ALLE SAMEN GELÖST · PORTAL OFFEN',
+    );
+});

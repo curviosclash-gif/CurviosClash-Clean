@@ -5,6 +5,7 @@ import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
 import { normalizeStaticTurretDefinition } from '../src/shared/contracts/MapSinglePlayerScenarioContract.js';
 import { EIFFEL_SIEGE_SECRET_ROOM_TURRETS } from '../src/core/config/maps/presets/eiffel_tower_siege/EiffelTowerSiegeSecretRoom.js';
 import { REACTOR_SITE_SECRET_ROOM_TURRETS } from '../src/core/config/maps/presets/reactor_site/ReactorSiteSecretRoom.js';
+import { DANDELION_SKY_ROOT_CHAMBER_TURRETS } from '../src/core/config/maps/presets/dandelion_sky/DandelionSkySecretRoom.js';
 
 // User decision 18.09.2026: a vehicle caught by all three guards must last about twelve seconds -
 // long enough to fight back, short enough for the guarded objective to stay a risk.
@@ -38,6 +39,7 @@ function secondsToKill(turrets) {
 for (const [name, turrets] of [
     ['eiffel tower siege', EIFFEL_SIEGE_SECRET_ROOM_TURRETS],
     ['reactor site', REACTOR_SITE_SECRET_ROOM_TURRETS],
+    ['dandelion sky', DANDELION_SKY_ROOT_CHAMBER_TURRETS],
 ]) {
     test(`${name}: all three guards need about twelve seconds for a standing vehicle`, () => {
         const seconds = secondsToKill(turrets);

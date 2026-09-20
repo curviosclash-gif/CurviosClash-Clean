@@ -239,10 +239,23 @@ export class DandelionSeedController {
             bounds.maxZ = Math.max(bounds.maxZ, root.z + seed.shaftRadius, tip.z + crownRadius);
         });
         this.seeds.sort((a, b) => a.index - b.index);
+        // Reused by the secret-room unlock and the HUD. Keeping one object avoids turning a
+        // per-frame status query into 60 short-lived allocations per second.
+        this._progress = {
+            total: this.seeds.length,
+            released: 0,
+            remaining: this.seeds.length,
+            allReleased: false,
+            completedAtSeconds: 0,
+        };
+        this._latestReleaseSeconds = 0;
         this._collision = { seedIndex: 0, normal: new THREE.Vector3(), attached: false };
     }
 
     get count() { return this.seeds.length; }
+
+    /** Match-wide release progress. The returned object is owned and reused by this controller. */
+    getProgress() { return this._progress; }
 
     /** Nearest still-attached seed body, shaft, or pappus along a normalized shot ray. */
     raycast(origin, direction, maxDistance, padding = 0) {
@@ -289,6 +302,12 @@ export class DandelionSeedController {
         seed.previousRoot.copy(seed.currentRoot);
         seed.previousTip.copy(seed.currentTip);
         this.events.push([seed.index, at]);
+        this._latestReleaseSeconds = Math.max(this._latestReleaseSeconds, at);
+        const progress = this._progress;
+        progress.released += 1;
+        progress.remaining = Math.max(0, progress.total - progress.released);
+        progress.allReleased = progress.total > 0 && progress.remaining === 0;
+        progress.completedAtSeconds = progress.allReleased ? this._latestReleaseSeconds : 0;
         return true;
     }
 
@@ -476,6 +495,11 @@ export class DandelionSeedController {
         }
         this._attachedContactPlayers.clear();
         this.events.length = 0;
+        this._latestReleaseSeconds = 0;
+        this._progress.released = 0;
+        this._progress.remaining = this._progress.total;
+        this._progress.allReleased = false;
+        this._progress.completedAtSeconds = 0;
     }
 
     serialize() { return this.events.map(([index, at]) => [index, at]); }

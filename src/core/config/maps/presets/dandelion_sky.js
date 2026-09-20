@@ -1,3 +1,9 @@
+import {
+    DANDELION_SKY_ROOT_CHAMBER,
+    DANDELION_SKY_ROOT_CHAMBER_OBSTACLES,
+    DANDELION_SKY_ROOT_CHAMBER_TURRETS,
+} from './dandelion_sky/DandelionSkySecretRoom.js';
+
 // The GLB is authored at ~11 m and targetSize preserves its oversized seed crown here;
 // other maps can reuse the same file at any size.
 export const DANDELION_SKY_MAP = {
@@ -5,7 +11,7 @@ export const DANDELION_SKY_MAP = {
         name: 'Pusteblumen-Himmel',
         // The horizontal play space is intentionally tighter than the previous 520 m square.
         // The open upper face leaves room for the oversized crown above the compact flight box.
-        size: [420, 330, 420],
+        size: [420, 400, 420],
         exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
@@ -40,6 +46,9 @@ export const DANDELION_SKY_MAP = {
             position: [0, 0, 0],
             targetSize: 368,
         }],
+        obstacles: DANDELION_SKY_ROOT_CHAMBER_OBSTACLES,
+        secretRooms: [DANDELION_SKY_ROOT_CHAMBER],
+        staticTurrets: DANDELION_SKY_ROOT_CHAMBER_TURRETS,
         // Lower and upper flight lanes keep both the whole silhouette and individual pappus
         // seeds accessible without making the flower itself a traffic-blocking level wall.
         portals: [
@@ -49,6 +58,8 @@ export const DANDELION_SKY_MAP = {
         gates: [
             { id: 'dandelion_sky_updraft_west', type: 'slingshot', pos: [-120, 131, -120], forward: [0.2, 1, 0.2], up: [0, 1, 0], params: { duration: 1.8, forwardImpulse: 40, liftImpulse: 34, cooldown: 1.5 } },
             { id: 'dandelion_sky_updraft_east', type: 'slingshot', pos: [126, 131, 114], forward: [-0.2, 1, -0.2], up: [0, 1, 0], params: { duration: 1.8, forwardImpulse: 40, liftImpulse: 34, cooldown: 1.5 } },
+            { id: 'dandelion_sky_orbit_north', type: 'boost', pos: [0, 135, -155], forward: [1, 0, 0], params: { duration: 0.9, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
+            { id: 'dandelion_sky_orbit_south', type: 'boost', pos: [0, 135, 155], forward: [-1, 0, 0], params: { duration: 0.9, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
         ],
         playerSpawn: { x: 0, y: 227, z: -150 },
         botSpawns: [
@@ -59,9 +70,10 @@ export const DANDELION_SKY_MAP = {
         ],
         items: [
             { id: 'dandelion_sky_rocket_west', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -110, y: 230.5, z: -38, weight: 1.2 },
-            { id: 'dandelion_sky_rocket_east', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 108, y: 230.5, z: 36, weight: 1.2 },
-            { id: 'dandelion_sky_shield', type: 'item_shield', pickupType: 'SHIELD', x: 0, y: 248.5, z: 132, weight: 1 },
-            { id: 'dandelion_sky_speed', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: 221, z: -134, weight: 1 },
+            { id: 'dandelion_sky_rocket_east', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 128, y: 218, z: 58, weight: 1.2 },
+            { id: 'dandelion_sky_shield', type: 'item_shield', pickupType: 'SHIELD', x: -150, y: 137, z: 0, weight: 1 },
+            { id: 'dandelion_sky_speed', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: 36, z: -150, weight: 1 },
+            { id: 'dandelion_sky_health', type: 'item_health', pickupType: 'HEALTH', x: 0, y: 40, z: 150, weight: 1 },
         ],
         singlePlayerScenario: {
             enabled: true,

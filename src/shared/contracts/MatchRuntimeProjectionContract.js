@@ -249,6 +249,24 @@ function createSecretRoomProjection(value = null) {
     };
 }
 
+function createDandelionSeedProjection(value = null) {
+    const source = value && typeof value === 'object' ? value : {};
+    const total = normalizeNonNegativeInt(source.total, 0);
+    const released = Math.min(total, normalizeNonNegativeInt(source.released, 0));
+    const active = total > 0;
+    const allReleased = active && released === total && source.allReleased === true;
+    return {
+        active,
+        total,
+        released,
+        remaining: active ? total - released : 0,
+        allReleased,
+        completedAtSeconds: allReleased
+            ? Math.max(0, normalizeNumber(source.completedAtSeconds, 0))
+            : 0,
+    };
+}
+
 function createPlayerProjection(value = null) {
     if (!value || typeof value !== 'object') return null;
     return {
@@ -306,6 +324,7 @@ function createPlayerProjection(value = null) {
         rocketThreat: createRocketThreatProjection(value.rocketThreat),
         mapExpansion: createMapExpansionProjection(value.mapExpansion),
         mapDestructible: createMapDestructibleProjection(value.mapDestructible),
+        dandelionSeeds: createDandelionSeedProjection(value.dandelionSeeds),
         secretRoom: createSecretRoomProjection(value.secretRoom),
         // Match wide, like the expansion above: opened rooms that had to be unlocked first.
         secretRoomsOpen: normalizeNonNegativeInt(value.secretRoomsOpen, 0),

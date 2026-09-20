@@ -1,3 +1,5 @@
+import { syncStaticTurretSecretRoomState } from './StaticTurretSecretRoomOps.js';
+
 function clampFinite(value, fallback, min, max) {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return fallback;
@@ -28,6 +30,7 @@ export function createStaticTurretNetworkSnapshot(turrets = []) {
             owner: resolveOwnerIndex(turret),
             teamId: turret.teamId || null,
             objectiveGuard: turret.objectiveGuard === true,
+            secretRoomId: String(turret.secretRoomId || ''),
             deployed: turret.deployed === true,
             destructible: turret.destructible === true,
             targetPlayers: turret.targetPlayers,
@@ -69,6 +72,7 @@ function createNetworkTurret(system, entry, players) {
         ownerIndex,
         teamId: entry?.teamId,
         ownerColor: ownerPlayer?.color,
+        secretRoomId: String(entry?.secretRoomId || ''),
         maxHp: Number(entry?.maxHp),
         hp: Number(entry?.hp),
         hitboxRadius: Number(entry?.radius),
@@ -97,6 +101,8 @@ function applyTurretEntry(system, turret, entry, players) {
     turret.source = turret.ownerPlayer || turret.source;
     system.setTurretTeam?.(turret, entry.teamId);
     turret.objectiveGuard = entry.objectiveGuard === true;
+    turret.secretRoomId = String(entry.secretRoomId || '');
+    syncStaticTurretSecretRoomState(system, turret);
     turret.deployed = entry.deployed === true;
     turret.destructible = entry.destructible ?? turret.deployed;
     turret.authoredScale = clampFinite(entry.authoredScale, 1, 0.001, 1000);
