@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 import { DANDELION_SKY_MAP } from '../src/core/config/maps/presets/dandelion_sky.js';
 import {
+    DANDELION_SKY_ROOT_CHAMBER_MODELS,
     DANDELION_SKY_ROOT_CHAMBER_OBSTACLES,
 } from '../src/core/config/maps/presets/dandelion_sky/DandelionSkySecretRoom.js';
 import { loadGLBMapCollection } from '../src/entities/GLBMapLoader.js';
@@ -35,6 +36,40 @@ function boxOf(obstacle) {
 function axisOverlap(aMin, aMax, bMin, bMax) {
     return Math.min(aMax, bMax) - Math.max(aMin, bMin);
 }
+
+test('the chamber mushrooms stay inside the chamber and clear of its pickups', () => {
+    // Decoration has no collider, so nothing stops a mushroom from standing half inside a wall
+    // or from covering the exit portal - it simply looks wrong, in a room the player had to
+    // earn. The bound below is deliberately pessimistic: targetSize is the model's *largest*
+    // dimension, so treating it as a radius over-reserves for every mushroom whose height wins,
+    // which is most of them. A placement that passes this cannot clip.
+    const bounds = ROOM.bounds;
+    assert.ok(DANDELION_SKY_ROOT_CHAMBER_MODELS.length >= 8, 'the room is actually decorated');
+    for (const model of DANDELION_SKY_ROOT_CHAMBER_MODELS) {
+        const [x, y, z] = model.position;
+        const reach = model.targetSize / 2;
+        assert.ok(x - reach >= bounds.min[0] && x + reach <= bounds.max[0],
+            `${model.id} stays between the side walls`);
+        assert.ok(z - reach >= bounds.min[2] && z + reach <= bounds.max[2],
+            `${model.id} stays between the end walls`);
+        // GLBMapLoader puts a model's underside on its position, so height runs upward from y.
+        assert.ok(y >= bounds.min[1] && y + model.targetSize <= bounds.max[1],
+            `${model.id} fits between floor and ceiling`);
+        assert.equal(model.collision, false, `${model.id} stays decoration`);
+    }
+    // The exit portal and the pickups have to stay readable. A mushroom is allowed to stand near
+    // one, not on top of it.
+    const claimed = [ROOM.roomPortal.pos, ...ROOM.items.map((item) => item.pos)];
+    for (const model of DANDELION_SKY_ROOT_CHAMBER_MODELS) {
+        for (const point of claimed) {
+            const distance = Math.hypot(model.position[0] - point[0], model.position[2] - point[2]);
+            const verticallyApart = point[1] > model.position[1] + model.targetSize
+                || point[1] < model.position[1];
+            assert.ok(distance > 3 || verticallyApart,
+                `${model.id} leaves ${point.join('/')} visible`);
+        }
+    }
+});
 
 test('the root chamber unlock is normalized, persisted and resolved only at all seeds', () => {
     assert.equal(ROOM.id, 'root_chamber');

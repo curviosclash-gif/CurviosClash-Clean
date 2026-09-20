@@ -1,5 +1,6 @@
 import {
     DANDELION_SKY_ROOT_CHAMBER,
+    DANDELION_SKY_ROOT_CHAMBER_MODELS,
     DANDELION_SKY_ROOT_CHAMBER_OBSTACLES,
     DANDELION_SKY_ROOT_CHAMBER_TURRETS,
 } from './dandelion_sky/DandelionSkySecretRoom.js';
@@ -40,12 +41,17 @@ export const DANDELION_SKY_MAP = {
             exposureOffset: 0,
         },
         glbColliderMode: 'scene',
-        glbModels: [{
-            id: 'dandelion-sky-flower',
-            url: 'assets/models/giant_dandelion/giant_dandelion_shootable.glb',
-            position: [0, 0, 0],
-            targetSize: 368,
-        }],
+        glbModels: [
+            {
+                id: 'dandelion-sky-flower',
+                url: 'assets/models/giant_dandelion/giant_dandelion_shootable.glb',
+                position: [0, 0, 0],
+                targetSize: 368,
+            },
+            // The root chamber lights itself. Its models live with the rest of the chamber, not
+            // here, so the room stays one thing to read and to move.
+            ...DANDELION_SKY_ROOT_CHAMBER_MODELS,
+        ],
         obstacles: DANDELION_SKY_ROOT_CHAMBER_OBSTACLES,
         secretRooms: [DANDELION_SKY_ROOT_CHAMBER],
         staticTurrets: DANDELION_SKY_ROOT_CHAMBER_TURRETS,
