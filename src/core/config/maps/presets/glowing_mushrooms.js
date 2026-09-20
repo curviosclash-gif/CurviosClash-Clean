@@ -27,6 +27,20 @@ export const MUSHROOM_VARIANTS = Object.freeze({
 export const MUSHROOM_FORMS = Object.freeze(Object.keys(MUSHROOM_VARIANTS));
 export const MUSHROOM_HUES = Object.freeze(['teal', 'violet', 'amber']);
 
+/**
+ * The yaw that turns a bracket mushroom away from each of a room's four walls.
+ *
+ * Named rather than written out at each call site: `Math.PI` at a wall reads as a number, and a
+ * number is exactly as easy to get backwards as it looks. Verified by
+ * tests/glowing-mushroom-assets.contract.test.mjs, which measures the growth direction.
+ */
+export const MUSHROOM_FACING = Object.freeze({
+    fromMinZ: Math.PI,
+    fromMaxZ: 0,
+    fromMinX: -Math.PI / 2,
+    fromMaxX: Math.PI / 2,
+});
+
 // Decoration this small stops being readable long before it stops being drawn. The default keeps
 // a patch from costing draw calls across a whole map; a caller that places a landmark-sized
 // cluster raises it.
@@ -142,9 +156,13 @@ export function mushroomPatch(spec) {
 /**
  * A row of bracket mushrooms climbing a wall.
  *
- * Shelf mushrooms grow into their own +Z half space, so `facing` is the yaw that turns that half
- * space away from the wall and into the room. A row placed with the wrong facing disappears
- * into the wall it decorates, which no test catches and every screenshot shows.
+ * Bracket mushrooms grow into their own **-Z** half space: the half disc is authored in
+ * Blender's +Y, and the glTF export turns Blender's +Y into -Z. `facing` is the yaw that turns
+ * that half space into the room, so MUSHROOM_FACING has the four values a rectangular room
+ * needs. A row placed with the wrong facing vanishes into the wall it decorates.
+ *
+ * GLBMapLoader also centres a model horizontally, so a bracket placed exactly on a wall reaches
+ * half its depth into it. Offset the row into the room by roughly a fifth of its target size.
  *
  * @param {{
  *   id: string,

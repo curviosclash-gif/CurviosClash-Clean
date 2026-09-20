@@ -183,6 +183,22 @@ test('the glow faces sideways, not only down', async () => {
     }
 });
 
+test('bracket mushrooms grow into negative Z', async () => {
+    // Which way a wall bracket faces cannot be derived from the generator by reading it: the
+    // half disc is authored in Blender's +Y half space, and the glTF export turns Blender's +Y
+    // into the game's -Z. A map that gets this backwards places brackets inside the wall they
+    // decorate, which no other assertion notices and every screenshot shows.
+    //
+    // Maps turn a bracket to face a wall by yaw: 0 points it at -Z, Math.PI at +Z,
+    // -Math.PI/2 at +X and Math.PI/2 at -X.
+    for (const entry of manifest.mushrooms.filter((row) => row.form === 'shelf')) {
+        const gltf = await loadMushroom(entry.name);
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        assert.ok(box.max.z <= 0.01, `${entry.name} does not reach past its flat back`);
+        assert.ok(box.min.z < -0.2, `${entry.name} grows away from its back, got ${box.min.z}`);
+    }
+});
+
 test('each model stands on its own origin plane', async () => {
     for (const entry of manifest.mushrooms) {
         const gltf = await loadMushroom(entry.name);

@@ -4,7 +4,11 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
 import {
+    MUSHROOM_FACING,
     MUSHROOM_FORMS,
     MUSHROOM_HUES,
     MUSHROOM_VARIANTS,
@@ -88,6 +92,33 @@ test('a patch honours a requested colour scheme', () => {
         .map((entry) => `assets/models/glowing_mushroom/${entry.name}.glb`);
     for (const placed of patch) {
         assert.ok(tealFiles.includes(placed.url), `${placed.id} is teal`);
+    }
+});
+
+test('each facing turns a bracket away from its own wall', async () => {
+    // The four yaw values are checked against the file, not against the arithmetic that produced
+    // them. A bracket rotated by its facing has to end up growing towards the middle of the
+    // room; if a value is wrong, the model reaches into the wall and nothing else notices.
+    const bytes = await readFile(path.join(ASSET_ROOT, 'shelf_v01.glb'));
+    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    const gltf = await new GLTFLoader().parseAsync(buffer, '');
+    // Which way the room lies from each wall.
+    const expected = {
+        fromMinZ: new THREE.Vector3(0, 0, 1),
+        fromMaxZ: new THREE.Vector3(0, 0, -1),
+        fromMinX: new THREE.Vector3(1, 0, 0),
+        fromMaxX: new THREE.Vector3(-1, 0, 0),
+    };
+    for (const [wall, yaw] of Object.entries(MUSHROOM_FACING)) {
+        const model = gltf.scene.clone(true);
+        model.rotation.set(0, yaw, 0);
+        model.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(model);
+        const reach = box.getCenter(new THREE.Vector3());
+        reach.y = 0;
+        assert.ok(reach.length() > 0.05, `${wall} leaves the bracket off centre`);
+        assert.ok(reach.normalize().dot(expected[wall]) > 0.9,
+            `${wall} points the bracket into the room, got ${reach.toArray().map((v) => v.toFixed(2))}`);
     }
 });
 
