@@ -17,6 +17,7 @@ import {
     updateMapUnitVisual,
 } from './map-units/MapUnitVisualOps.js';
 import { applyGroundClamp, resetGroundClamp } from './map-units/MapUnitGroundOps.js';
+import { applyAuthoredMapUnitBody, loadMapUnitLibrary } from './map-units/MapUnitModelCache.js';
 import {
     captureUnitPose,
     createUnitPose,
@@ -93,6 +94,8 @@ export class MapUnitSystem {
         this._poseScratch = createUnitPose();
         this.networkReplica = false;
         this._summonCounter = 0;
+        this._modelLibrary = null;
+        this._modelLibraryRequested = false;
     }
 
     startRound() {
@@ -184,6 +187,7 @@ export class MapUnitSystem {
                 scale * (definition.kind === 'boss' ? definition.modelScale : 1),
             );
         }
+        if (definition.kind === 'tank' || definition.kind === 'boss') this._requestAuthoredBody(unit);
         this._updateVisual(unit);
         unit.source = createUnitSource(unit);
         // Its own shots must not hit it: the weapons skip targets owned by the shooter.
@@ -195,6 +199,27 @@ export class MapUnitSystem {
             resetSwarmMembers(unit);
         }
         return unit;
+    }
+
+    /**
+     * Hangs the authored tank model on a unit as soon as the shared library is there. Until then
+     * the box model stands in, so a slow or failed load never leaves a map without its tanks.
+     */
+    _requestAuthoredBody(unit) {
+        if (!unit?.root) return;
+        if (this._modelLibrary) {
+            applyAuthoredMapUnitBody(unit.root, this._modelLibrary);
+            return;
+        }
+        if (this._modelLibraryRequested) return;
+        this._modelLibraryRequested = true;
+        loadMapUnitLibrary().then((library) => {
+            if (!library) return;
+            this._modelLibrary = library;
+            for (const built of this.units) {
+                if (built.kind === 'tank' || built.kind === 'boss') applyAuthoredMapUnitBody(built.root, library);
+            }
+        });
     }
 
     _resolveAssets() {

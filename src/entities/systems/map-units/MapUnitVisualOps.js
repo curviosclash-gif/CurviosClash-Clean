@@ -1,9 +1,14 @@
 import * as THREE from 'three';
 
 /**
- * Box-built tank (E78 spirit: simple shapes first, a Blender model is its own later package).
- * The model faces +Z. `headPivot` carries the turret and barrel and is what the aiming code turns,
- * exactly like the head of a static turret; the root carries hull, tracks and the health bar.
+ * Box-built tank. The model faces +Z. `headPivot` carries the turret and barrel and is what the
+ * aiming code turns, exactly like the head of a static turret; the root carries hull, tracks and
+ * the health bar.
+ *
+ * Since the authored Blender model exists, these boxes are the fallback rather than the tank: every
+ * piece of the body is tagged `mapUnitBody`, so MapUnitModelCache can lift them out and hang the
+ * authored parts in their place once the library has loaded. Everything else on the root - the head
+ * pivot, the muzzle flash and the health bar - is not tagged and survives the swap untouched.
  */
 
 const HULL_COLOR = 0x4b5a3a;
@@ -38,16 +43,26 @@ export function disposeMapUnitAssets(assets) {
     for (const value of Object.values(assets || {})) value?.dispose?.();
 }
 
+/** Tags a fallback mesh, so the authored body knows which pieces it replaces. */
+function markFallbackPart(mesh, part) {
+    mesh.userData.mapUnitBody = true;
+    mesh.userData.mapUnitPart = part;
+    return mesh;
+}
+
 export function createMapUnitVisual(renderer, assets, scale = 1) {
     if (!renderer?.addToScene || !assets) return null;
     const root = new THREE.Group();
     root.scale.setScalar(Math.max(0.001, Number(scale) || 1));
 
-    const hull = new THREE.Mesh(assets.hullGeometry, assets.hullMaterial);
+    const hull = markFallbackPart(new THREE.Mesh(assets.hullGeometry, assets.hullMaterial), 'tank_hull');
     hull.position.y = 0.95;
     root.add(hull);
     for (const side of [-1, 1]) {
-        const track = new THREE.Mesh(assets.trackGeometry, assets.trackMaterial);
+        const track = markFallbackPart(
+            new THREE.Mesh(assets.trackGeometry, assets.trackMaterial),
+            side < 0 ? 'tank_track_left' : 'tank_track_right',
+        );
         track.position.set(side * 2.75, 0.65, 0);
         root.add(track);
     }
@@ -55,8 +70,8 @@ export function createMapUnitVisual(renderer, assets, scale = 1) {
     const headPivot = new THREE.Group();
     headPivot.position.y = TANK_TURRET_HEIGHT;
     root.add(headPivot);
-    headPivot.add(new THREE.Mesh(assets.turretGeometry, assets.turretMaterial));
-    headPivot.add(new THREE.Mesh(assets.barrelGeometry, assets.turretMaterial));
+    headPivot.add(markFallbackPart(new THREE.Mesh(assets.turretGeometry, assets.turretMaterial), 'tank_turret'));
+    headPivot.add(markFallbackPart(new THREE.Mesh(assets.barrelGeometry, assets.turretMaterial), 'tank_barrel'));
     const flash = new THREE.Mesh(assets.flashGeometry, assets.flashMaterial);
     flash.position.z = 4.6;
     flash.visible = false;
@@ -74,6 +89,7 @@ export function createMapUnitVisual(renderer, assets, scale = 1) {
     root.userData.muzzleFlash = flash;
     root.userData.healthFill = healthFill;
     root.userData.disposableMaterials = [healthMaterial];
+    root.userData.authoredBody = false;
     renderer.addToScene(root);
     return root;
 }
