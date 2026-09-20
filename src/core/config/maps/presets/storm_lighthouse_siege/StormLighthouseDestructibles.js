@@ -6,7 +6,7 @@ export const STORM_LIGHTHOUSE_DESTRUCTIBLES = Object.freeze({
         kind: 'landmark',
         hp: 520,
         meshPrefixes: Object.freeze(['lighthouse_tower']),
-        anchor: Object.freeze([0, 12, 0]),
+        anchor: Object.freeze([0, 84, 0]),
     })]),
     pieces: Object.freeze(['landmark']),
     breakScenes: Object.freeze([Object.freeze({

@@ -21,12 +21,13 @@ async function startLighthouseMatch(page) {
 }
 
 async function captureArena(page, camera) {
-    return page.evaluate(({ from, to }) => {
+    return page.evaluate(({ from, to, fov }) => {
         const runtime = window.GAME_INSTANCE.renderer;
         const activeCamera = runtime.cameras[0];
         activeCamera.position.set(...from);
         activeCamera.lookAt(...to);
         activeCamera.far = 2000;
+        if (Number.isFinite(fov)) activeCamera.fov = fov;
         activeCamera.updateProjectionMatrix();
         activeCamera.updateMatrixWorld(true);
         runtime.renderer.setRenderTarget(null);
@@ -45,8 +46,9 @@ test('the storm eye loads three routes and settles its lighthouse into a new ram
     }), { timeout: 150_000 }).toBe(true);
 
     const intactPicture = await captureArena(page, {
-        from: [0, 120, -235],
-        to: [0, 38, 0],
+        from: [0, 315, -330],
+        to: [0, 285, 0],
+        fov: 90,
     });
 
     const result = await page.evaluate(({ mapScale }) => {
@@ -78,6 +80,7 @@ test('the storm eye loads three routes and settles its lighthouse into a new ram
             liftVisible: lift.visible,
             beaconVisible: beacon.visible,
         };
+        const normalizerScale = (slot, id) => slot.getObjectByName(`glb-normalizer-${id}`).scale.x;
         const hit = destructibles.applyMeshHit('lighthouse_tower_shaft_1', segment.hp, {
             hitPoint: { x: 0, y: segment.anchor[1] * mapScale, z: 0 },
             hitDirection: { x: 0, y: 0, z: 1 },
@@ -102,6 +105,11 @@ test('the storm eye loads three routes and settles its lighthouse into a new ram
             trackCount: arena._glbAnimation.trackCount,
             gateCount: arena.specialGates.length,
             blockedSpawns,
+            towerScaleRatio: normalizerScale(intact, 'storm-lighthouse-intact')
+                / normalizerScale(island, 'storm-lighthouse-island'),
+            liftX: lift.position.x,
+            beaconY: beacon.position.y,
+            anchorY: segment.anchor[1] * mapScale,
             before,
             destroyed: hit?.destroyed === true,
             islandVisibleAfter: island.visible,
@@ -120,6 +128,10 @@ test('the storm eye loads three routes and settles its lighthouse into a new ram
     expect(result.trackCount).toBe(3);
     expect(result.gateCount).toBe(4);
     expect(result.blockedSpawns).toBe(0);
+    expect(result.towerScaleRatio).toBeCloseTo(10, 5);
+    expect(result.liftX).toBeCloseTo(44 * MAP_SCALE, 5);
+    expect(result.beaconY).toBeCloseTo(144 * MAP_SCALE, 5);
+    expect(result.anchorY).toBeCloseTo(84 * MAP_SCALE, 5);
     expect(result.before).toEqual({
         islandVisible: true,
         intactVisible: true,
@@ -138,8 +150,9 @@ test('the storm eye loads three routes and settles its lighthouse into a new ram
     expect(result.wreckWidth).toBeGreaterThan(result.wreckHeight * 1.5);
 
     const collapsedPicture = await captureArena(page, {
-        from: [190, 105, -175],
-        to: [18, 28, 0],
+        from: [276, 210, -260],
+        to: [276, 90, 0],
+        fov: 100,
     });
     for (const [name, picture] of [
         ['storm-lighthouse-intact', intactPicture],

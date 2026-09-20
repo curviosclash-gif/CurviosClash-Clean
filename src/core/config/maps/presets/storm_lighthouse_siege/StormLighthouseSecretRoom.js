@@ -26,12 +26,12 @@ export const STORM_LIGHTHOUSE_SECRET_ROOM = Object.freeze({
     unlock: Object.freeze({ destructible: 'storm_lighthouse', when: 'anyBreak', delaySeconds: 5.5 }),
     stayLimitSeconds: 20,
     refillSeconds: 30,
-    entryPortal: Object.freeze({ pos: Object.freeze([21, 11, 0]), color: 0xffd35a }),
+    entryPortal: Object.freeze({ pos: Object.freeze([42, 11, 0]), color: 0xffd35a }),
     roomPortal: Object.freeze({ pos: Object.freeze([0, -11, 0]) }),
     bounds: Object.freeze({
         min: Object.freeze([-ROOM_HALF, FLOOR, -ROOM_HALF]),
         max: Object.freeze([ROOM_HALF, CEILING, ROOM_HALF]),
     }),
-    ejectPoint: Object.freeze({ pos: Object.freeze([28, 17, -12]), yawDeg: 135 }),
+    ejectPoint: Object.freeze({ pos: Object.freeze([46, 17, -18]), yawDeg: 135 }),
     items: ITEMS,
 });
