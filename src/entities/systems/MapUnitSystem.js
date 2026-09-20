@@ -16,6 +16,7 @@ import {
     removeMapUnitVisual,
     updateMapUnitVisual,
 } from './map-units/MapUnitVisualOps.js';
+import { applyGroundClamp, resetGroundClamp } from './map-units/MapUnitGroundOps.js';
 import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-units/MapUnitWeaponOps.js';
 import { applyMapUnitDamage, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
 import { crushTrailsUnderUnit } from './map-units/MapUnitTrailOps.js';
@@ -144,6 +145,7 @@ export class MapUnitSystem {
             attackCooldownRemaining: definition.attack?.cooldown || 0,
             attacksFired: 0,
             networkAttacksInitialized: false,
+            drivenY: null,
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
@@ -230,6 +232,7 @@ export class MapUnitSystem {
         unit.attackCooldownRemaining = unit.definition.attack?.cooldown || 0;
         unit.attacksFired = 0;
         unit.networkAttacksInitialized = false;
+        resetGroundClamp(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? unit.yaw;
         this._placeCentre(unit);
         for (const mount of unit.mounts) {
@@ -261,6 +264,7 @@ export class MapUnitSystem {
             advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
             if (unit.escortTank && unit.fromIndex === unit.path.length - 1) unit.escortReachedGoal = true;
             const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
+            applyGroundClamp(this.entityManager?.arena, unit, safeDt);
             unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
             this._placeCentre(unit);
             this._updateVisual(unit);

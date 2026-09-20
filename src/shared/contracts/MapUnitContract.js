@@ -8,6 +8,8 @@
  * a warning, so a map from a newer build still loads in an older one.
  */
 
+import { normalizeMapUnitDrive } from './MapUnitDriveContract.js';
+
 export const MAP_UNIT_CONTRACT_VERSION = 'map-unit.v1';
 
 export const MAP_UNIT_LIMITS = Object.freeze({
@@ -226,6 +228,7 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
             ...(kind === 'bomber' ? { bomb: normalizeBomb(weapons.bomb, spatial, BOMBER_DEFAULTS.bomb) } : {}),
         }),
         loot: normalizeLoot(source?.loot, defaults.loot),
+        drive: normalizeMapUnitDrive(source?.drive, clampNumber, spatial, kind),
         ...(kind === 'swarm' ? {
             memberCount: Math.trunc(clampNumber(source?.memberCount, 8, 1, 8)),
             memberHp: clampNumber(source?.memberHp, 8, 1, 100),
