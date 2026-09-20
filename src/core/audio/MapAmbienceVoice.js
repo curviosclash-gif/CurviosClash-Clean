@@ -1,5 +1,6 @@
 const NOTRE_DAME_PROFILE_ID = 'notre_dame';
 const NOTRE_DAME_FIRE_PROFILE_ID = 'notre_dame_fire';
+const PYRAMID_SANDSTORM_PROFILE_ID = 'pyramid_sandstorm';
 const SILENT_GAIN = 0.0001;
 
 function clamp(value, min, max) {
@@ -88,6 +89,14 @@ function scaledBoundsContains(bounds, position, scale) {
         && position.z <= Number(bounds.max[2]) * scale;
 }
 
+function scaledVolumeListContains(volumes, position, scale) {
+    if (!Array.isArray(volumes)) return false;
+    for (let index = 0; index < volumes.length; index += 1) {
+        if (scaledBoundsContains(volumes[index], position, scale)) return true;
+    }
+    return false;
+}
+
 function resolveNearestConstructionDistance(profile, position, scale) {
     const centers = Array.isArray(profile?.constructionCenters) ? profile.constructionCenters : [];
     let nearest = Number.POSITIVE_INFINITY;
@@ -157,7 +166,9 @@ function playNotreDameBell(audio, profile, position, scale) {
 export function syncMapAmbienceVoice(audio, options = {}) {
     const profile = options.profile;
     const profileId = String(profile?.id || '').trim();
-    if ((profileId !== NOTRE_DAME_PROFILE_ID && profileId !== NOTRE_DAME_FIRE_PROFILE_ID) || !options.playerPosition) {
+    if ((profileId !== NOTRE_DAME_PROFILE_ID
+        && profileId !== NOTRE_DAME_FIRE_PROFILE_ID
+        && profileId !== PYRAMID_SANDSTORM_PROFILE_ID) || !options.playerPosition) {
         silenceMapAmbience(audio, audio?._mapAmbience);
         return 'none';
     }
@@ -167,6 +178,34 @@ export function syncMapAmbienceVoice(audio, options = {}) {
 
     const position = options.playerPosition;
     const scale = Math.max(0.0001, Number(options.mapScale) || 1);
+    if (profileId === PYRAMID_SANDSTORM_PROFILE_ID) {
+        const storm = options.sandstormState || null;
+        const phase = String(storm?.phase || 'CALM');
+        const active = storm?.enabled === true && phase === 'ACTIVE';
+        const warning = storm?.enabled === true && phase === 'WARNING';
+        const sheltered = scaledVolumeListContains(profile.shelterVolumes, position, scale);
+        const intensity = active ? clamp(Number(storm?.intensity) || 0, 0, 1) : 0;
+        const warningMix = warning ? clamp(1 - (Number(storm?.remainingSeconds) || 0) / 20, 0, 1) : 0;
+        const activeSeconds = Math.max(1, Number(profile.activeSeconds) || 60);
+        const ingressSeconds = clamp(Number(profile.ingressSeconds) || 4, 0, activeSeconds);
+        const remaining = Math.max(0, Number(storm?.remainingSeconds) || 0);
+        const ingressMix = active && remaining > activeSeconds - ingressSeconds
+            ? 0.45 + intensity * 0.55
+            : intensity;
+        const stormMix = Math.max(ingressMix, warningMix * 0.45);
+        const time = audio.ctx.currentTime;
+        setTarget(state.wind.gain.gain, SILENT_GAIN + stormMix * (sheltered ? 0.008 : 0.032), time, 0.28);
+        setTarget(state.outdoor.gain.gain, SILENT_GAIN + stormMix * (sheltered ? 0.003 : 0.018), time, 0.3);
+        setTarget(state.interior.gain.gain, sheltered ? 0.009 + stormMix * 0.006 : SILENT_GAIN, time, 0.4);
+        setTarget(state.construction.gain.gain, SILENT_GAIN, time);
+        setTarget(state.fire.gain.gain, SILENT_GAIN, time);
+        setTarget(state.machinery.gain.gain, SILENT_GAIN, time);
+        setTarget(state.wind.filter.frequency, sheltered ? 180 : 460 + stormMix * 720, time, 0.4);
+        state.profileId = profileId;
+        state.zone = sheltered ? 'interior' : 'outdoor';
+        state.lastElapsedSeconds = Math.max(0, Number(options.elapsedSeconds) || 0);
+        return state.zone;
+    }
     const inside = scaledBoundsContains(profile.interiorBounds, position, scale);
     const constructionRadius = Math.max(1, Number(profile.constructionRadius) * scale || 48 * scale);
     const constructionDistance = resolveNearestConstructionDistance(profile, position, scale);

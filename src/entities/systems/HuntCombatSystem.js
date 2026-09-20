@@ -286,9 +286,8 @@ export class HuntCombatSystem {
         } else {
             player.getDirection(direction).normalize();
         }
-        const players = player?.isBot
-            ? player?.entityManager?._globalFogEffectSystem?.filterVisiblePlayers?.(player, runtime.players) || runtime.players
-            : runtime.players;
+        const players = player?.entityManager?.filterVisiblePlayers?.(player, runtime.players)
+            || runtime.players;
         return resolveItemProjectileTarget({
             owner: player,
             players,
@@ -333,18 +332,15 @@ export class HuntCombatSystem {
             config?.HUNT?.MG || {},
             player?.fightLoadout?.machineGunId
         ), player?.isBot === true ? 0 : player?.fightLoadout?.arenaWavesMgTuning);
-        const visiblePlayers = player?.isBot
-            ? player?.entityManager?._globalFogEffectSystem?.filterVisiblePlayers?.(player, runtime.players) || runtime.players
-            : runtime.players;
+        const visiblePlayers = player?.entityManager?.filterVisiblePlayers?.(player, runtime.players)
+            || runtime.players;
         applyFightHumanAimAssist(player, visiblePlayers, tmpDir, mg, tmpVec);
         const muzzle = this._fallbackMuzzle;
         const muzzleOffset = Math.max(0, Number(config?.HUNT?.TARGETING?.MUZZLE_OFFSET || 2.1));
         muzzle.copy(player.position).addScaledVector(tmpDir, muzzleOffset);
 
         const configuredMgRange = Math.max(10, Number(mg.RANGE || 95));
-        const fogRange = player?.isBot
-            ? player?.entityManager?.getGlobalFogVisibilityRange?.()
-            : Infinity;
+        const fogRange = player?.entityManager?.getVisibilityRange?.(player.position) ?? Infinity;
         const mgRange = Math.min(
             configuredMgRange,
             Number.isFinite(fogRange) ? fogRange : configuredMgRange

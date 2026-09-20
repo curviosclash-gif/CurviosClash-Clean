@@ -237,8 +237,12 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
         ? entityManager.powerupManager.items
         : [];
     const globalFog = entityManager?._globalFogEffectSystem || null;
-    const visiblePlayers = globalFog?.filterVisiblePlayers?.(player, allPlayers) || allPlayers;
-    const visiblePowerups = globalFog?.filterVisiblePowerups?.(player, allPowerups) || allPowerups;
+    const visiblePlayers = entityManager?.filterVisiblePlayers?.(player, allPlayers)
+        || globalFog?.filterVisiblePlayers?.(player, allPlayers)
+        || allPlayers;
+    const visiblePowerups = entityManager?.filterVisiblePowerups?.(player, allPowerups)
+        || globalFog?.filterVisiblePowerups?.(player, allPowerups)
+        || allPowerups;
     const planarMode = !!(entityManager?.runtimeConfig?.gameplay?.planarMode ?? entityRuntimeConfig?.GAMEPLAY?.PLANAR_MODE);
     const includeObservationContext = options?.includeObservationContext !== false;
     const runtimeContext = resolveCachedRuntimeContext(player);

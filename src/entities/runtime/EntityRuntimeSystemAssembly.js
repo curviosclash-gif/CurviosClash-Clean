@@ -15,6 +15,7 @@ import { MapHazardSystem } from '../systems/MapHazardSystem.js';
 import { MapDestructibleSystem } from '../systems/MapDestructibleSystem.js';
 import { MapDestructibleBlastSystem } from '../systems/MapDestructibleBlastSystem.js';
 import { GlobalFogEffectSystem } from '../systems/GlobalFogEffectSystem.js';
+import { MapSandstormSystem } from '../systems/MapSandstormSystem.js';
 import { ExclusionZoneSystem } from '../systems/ExclusionZoneSystem.js';
 import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { ObjectiveTargetMarkerSystem } from '../systems/ObjectiveTargetMarkerSystem.js';
@@ -37,6 +38,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         respawnSystem: new RespawnSystem(runtimeContext),
         huntCombatSystem: new HuntCombatSystem(runtimeContext),
         globalFogEffectSystem: new GlobalFogEffectSystem(owner),
+        mapSandstormSystem: new MapSandstormSystem(owner),
         staticTurretSystem: new StaticTurretSystem(owner),
         mapHazardSystem: new MapHazardSystem(owner),
         mapDestructibleSystem: new MapDestructibleSystem(owner),
