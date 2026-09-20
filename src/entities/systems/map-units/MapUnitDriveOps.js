@@ -135,8 +135,17 @@ function driveTowards(unit, x, y, z, dt, speed) {
     return horizontal;
 }
 
+/**
+ * How close a waypoint has to be to count as reached. At least a turning radius: a unit that only
+ * begins to turn once it sits on the corner swings out past the path, and in a tight room that puts
+ * its hull through the wall. Starting the turn a turning radius early makes the arc tangent to both
+ * legs, so the driven track stays inside the authored corner.
+ */
 function waypointReach(unit) {
-    return Math.max(0.05, unit.definition.drive.waypointRadius * Math.max(0.001, Number(unit.scale) || 1));
+    const drive = unit.definition.drive;
+    const scale = Math.max(0.001, Number(unit.scale) || 1);
+    const turningRadius = unit.speed / Math.max(0.001, drive.turnRate);
+    return Math.max(0.05, drive.waypointRadius * scale, turningRadius);
 }
 
 /**
