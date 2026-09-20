@@ -18,7 +18,11 @@ function resolveTargetVulnerability(target) {
 }
 
 export function isTargetVisibleToPlayer(player, target) {
-    return player?.entityManager?.isPositionVisibleDuringGlobalFog?.(
+    const manager = player?.entityManager;
+    const visibilityCheck = manager?.isPositionVisible
+        || manager?.isPositionVisibleDuringGlobalFog;
+    return visibilityCheck?.call(
+        manager,
         player?.position,
         target?.position
     ) !== false;

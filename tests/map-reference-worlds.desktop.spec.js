@@ -88,7 +88,8 @@ for (const mapKey of [
     });
 
     test(`${mapKey}: failed world load retains playable fallback and recovers on a new match`, async ({ page }) => {
-        const url = `**/assets/maps/${mapKey}/glb/01_world.glb`;
+        const sourceFile = mapKey === 'pyramid' ? '01_terrain.glb' : '01_world.glb';
+        const url = `**/assets/maps/${mapKey}/glb/${sourceFile}`;
         await page.route(url, (route) => route.abort());
         await selectMap(page, mapKey);
         await page.click('#btn-start');
@@ -119,6 +120,7 @@ for (const mapKey of [
         });
         expect(restored.error).toBeNull();
         expect(restored.native).toBe(false);
-        expect(restored.staticCount).toBe(degraded.staticCount);
+        if (mapKey === 'pyramid') expect(restored.staticCount).toBeGreaterThan(degraded.staticCount);
+        else expect(restored.staticCount).toBe(degraded.staticCount);
     });
 }

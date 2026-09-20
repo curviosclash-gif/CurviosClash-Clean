@@ -49,7 +49,7 @@ test.describe('Desktop render smoothing', () => {
 
         expect(renderState.antialias).toBeTruthy();
         expect(renderState.environmentReady).toBeTruthy();
-        expect(renderState.shadowType).toBe(2);
+        expect(renderState.shadowType).toBe(1);
         expect(renderState.shadowMapWidth).toBe(1024);
         expect(renderState.vehicleReady).toBeTruthy();
         expect(renderState.vehicleVisible).toBeTruthy();

@@ -18,6 +18,7 @@ export class EntitySpawnOps {
         owner._huntScoring.reset();
         owner._roundOutcomeSystem.reset();
         owner._globalFogEffectSystem?.reset?.();
+        owner._mapSandstormSystem?.startRound?.();
         owner._lastRoundOutcome = null;
         owner._authoritativeHuntState = null;
         owner._lastAppliedAuthoritativeOutcomeKey = '';

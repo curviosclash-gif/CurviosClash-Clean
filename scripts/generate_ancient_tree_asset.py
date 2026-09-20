@@ -37,6 +37,7 @@ GOLDEN_ANGLE = 2.399963229728653
 
 TREE_COLLECTION = "AncientTree"
 PRESENTATION_COLLECTION = "Presentation"
+RUNTIME_COLOR_ATTRIBUTE = "AncientTreeColor"
 
 
 @dataclass(frozen=True)
@@ -167,6 +168,15 @@ def adjust_color(color, *, hue_shift=0.0, value_scale=1.0):
     return (red, green, blue, color[3])
 
 
+def vertex_color_source(nodes, links, shader):
+    """Connect the material to a glTF-compatible COLOR_0 source."""
+    color = nodes.new("ShaderNodeVertexColor")
+    color.layer_name = RUNTIME_COLOR_ATTRIBUTE
+    color.label = "glTF COLOR_0"
+    links.new(color.outputs["Color"], shader.inputs["Base Color"])
+    return color
+
+
 def bark_material():
     params = ACTIVE_PARAMETERS
     bark_base = adjust_color((0.18, 0.12, 0.068, 1), value_scale=params.bark_lightness)
@@ -228,47 +238,23 @@ def bark_material():
     links.new(macro_and_meso.outputs[0], fractal_height.inputs[0])
     links.new(weighted[2].outputs[0], fractal_height.inputs[1])
 
-    ramp = nodes.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].position = 0.2
-    ramp.color_ramp.elements[0].color = adjust_color(
-        (0.022, 0.012, 0.006, 1), value_scale=params.bark_lightness)
-    ramp.color_ramp.elements[1].position = 0.8
-    ramp.color_ramp.elements[1].color = adjust_color(
-        (0.30, 0.205, 0.115, 1), value_scale=params.bark_lightness)
-    mid = ramp.color_ramp.elements.new(0.5)
-    mid.color = adjust_color((0.105, 0.063, 0.03, 1), value_scale=params.bark_lightness)
-
-    moss_noise = nodes.new("ShaderNodeTexNoise")
-    moss_noise.inputs["Scale"].default_value = 1.65
-    moss_noise.inputs["Detail"].default_value = 5.0
-    moss_noise.inputs["Roughness"].default_value = 0.74
-    moss_mask = nodes.new("ShaderNodeValToRGB")
-    moss_mask.color_ramp.interpolation = "CONSTANT"
-    moss_mask.color_ramp.elements[0].position = 0.66
-    moss_mask.color_ramp.elements[0].color = (0, 0, 0, 1)
-    moss_mask.color_ramp.elements[1].position = 0.73
-    moss_mask.color_ramp.elements[1].color = (0.34, 0.34, 0.34, 1)
-    moss_mix = nodes.new("ShaderNodeMixRGB")
-    moss_mix.blend_type = "MIX"
-    moss_mix.inputs[2].default_value = (0.045, 0.14, 0.018, 1)
-
     bump = nodes.new("ShaderNodeBump")
     bump.inputs["Strength"].default_value = 0.82
     bump.inputs["Distance"].default_value = 0.3
 
     links.new(texcoord.outputs["Generated"], mapping.inputs["Vector"])
-    links.new(mapping.outputs["Vector"], moss_noise.inputs["Vector"])
-    links.new(fractal_height.outputs[0], ramp.inputs["Fac"])
-    links.new(moss_noise.outputs["Fac"], moss_mask.inputs["Fac"])
-    links.new(moss_mask.outputs["Color"], moss_mix.inputs["Fac"])
-    links.new(ramp.outputs["Color"], moss_mix.inputs[1])
-    links.new(moss_mix.outputs["Color"], shader.inputs["Base Color"])
+    vertex_color_source(nodes, links, shader)
     links.new(fractal_height.outputs[0], bump.inputs["Height"])
     links.new(bump.outputs["Normal"], shader.inputs["Normal"])
     links.new(shader.outputs["BSDF"], output.inputs["Surface"])
     mat["fractal_bark_octaves"] = 3
     mat["fractal_bark_scales"] = (3.2, 12.8, 51.2)
     mat["finish"] = "matte"
+    mat["runtime_color_dark"] = adjust_color(
+        (0.022, 0.012, 0.006, 1), value_scale=params.bark_lightness)
+    mat["runtime_color_light"] = adjust_color(
+        (0.30, 0.205, 0.115, 1), value_scale=params.bark_lightness)
+    mat["runtime_color_moss"] = (0.045, 0.14, 0.018, 1)
     return mat
 
 
@@ -282,14 +268,9 @@ def leaf_material(name, dark, light):
     shader = nodes.get("Principled BSDF")
     shader.inputs["Roughness"].default_value = 0.72
     shader.inputs["Specular IOR Level"].default_value = 0.18
-    noise = nodes.new("ShaderNodeTexNoise")
-    noise.inputs["Scale"].default_value = 3.3
-    noise.inputs["Detail"].default_value = 3.0
-    ramp = nodes.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].color = dark
-    ramp.color_ramp.elements[1].color = light
-    links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
-    links.new(ramp.outputs["Color"], shader.inputs["Base Color"])
+    vertex_color_source(nodes, links, shader)
+    mat["runtime_color_dark"] = dark
+    mat["runtime_color_light"] = light
     return mat
 
 
@@ -899,6 +880,71 @@ def build_foliage(tree_collection, mats, rng, leaf_sites):
     return obj
 
 
+def mix_color(dark, light, amount):
+    amount = max(0.0, min(1.0, amount))
+    return tuple(dark[index] * (1.0 - amount) + light[index] * amount
+                 for index in range(4))
+
+
+def color_signal(coordinate, phase):
+    """Cheap deterministic variation used to bake procedural colour into vertices."""
+    value = (0.5
+             + 0.24 * sin(coordinate.x * 2.17 + coordinate.z * 0.73 + phase)
+             + 0.16 * sin(coordinate.y * 4.31 - coordinate.z * 1.19 + phase * 1.7)
+             + 0.10 * sin((coordinate.x + coordinate.y) * 8.13 + phase * 0.43))
+    return max(0.0, min(1.0, value))
+
+
+def assign_runtime_vertex_colors(objects):
+    """Bake the five procedural palettes into the meshes for glTF COLOR_0 export."""
+    target_materials = {"AncientBark", "LeafForest", "LeafSage", "LeafSunlit", "LeafDry"}
+    colored_loops = 0
+    for obj in objects:
+        if obj.type != "MESH":
+            continue
+        materials = [slot.material for slot in obj.material_slots]
+        if not any(material and material.name in target_materials for material in materials):
+            continue
+        mesh = obj.data
+        existing = mesh.color_attributes.get(RUNTIME_COLOR_ATTRIBUTE)
+        if existing:
+            mesh.color_attributes.remove(existing)
+        attribute = mesh.color_attributes.new(
+            name=RUNTIME_COLOR_ATTRIBUTE, type="BYTE_COLOR", domain="CORNER")
+        attribute_index = len(mesh.color_attributes) - 1
+        mesh.color_attributes.active_color_index = attribute_index
+        mesh.color_attributes.render_color_index = attribute_index
+
+        for polygon in mesh.polygons:
+            material = (materials[polygon.material_index]
+                        if polygon.material_index < len(materials) else None)
+            material_name = material.name if material else ""
+            dark = tuple(material.get("runtime_color_dark", (1.0, 1.0, 1.0, 1.0))) if material else None
+            light = tuple(material.get("runtime_color_light", (1.0, 1.0, 1.0, 1.0))) if material else None
+            for loop_index in polygon.loop_indices:
+                coordinate = mesh.vertices[mesh.loops[loop_index].vertex_index].co
+                if material_name == "AncientBark":
+                    bark = mix_color(dark, light, 0.18 + color_signal(coordinate, 0.4) * 0.72)
+                    moss = tuple(material["runtime_color_moss"])
+                    moss_patch = max(0.0, color_signal(coordinate, 2.8) - 0.62) / 0.38
+                    lower_trunk_bias = max(0.22, 1.0 - max(0.0, coordinate.z) / 15.0)
+                    color = mix_color(bark, moss, moss_patch * lower_trunk_bias * 0.38)
+                elif material_name in target_materials:
+                    phase = {"LeafForest": 0.8, "LeafSage": 2.1,
+                             "LeafSunlit": 3.7, "LeafDry": 5.2}[material_name]
+                    color = mix_color(dark, light, 0.20 + color_signal(coordinate, phase) * 0.76)
+                else:
+                    # Other material factors remain unchanged when the shared mesh carries COLOR_0.
+                    color = (1.0, 1.0, 1.0, 1.0)
+                attribute.data[loop_index].color = color
+                colored_loops += 1
+        obj["runtime_color_attribute"] = RUNTIME_COLOR_ATTRIBUTE
+
+    if colored_loops == 0:
+        raise RuntimeError("runtime vertex colour bake produced no COLOR_0 data")
+    print(f"baked glTF vertex colours: loops={colored_loops}")
+
+
 def join_objects(objects, name, collection):
     if not objects:
         return None
@@ -1238,6 +1284,8 @@ def export_glb(path, objects, *, animations):
         export_lights=False,
         export_extras=True,
         export_apply=True,
+        export_vertex_color="MATERIAL",
+        export_all_vertex_colors=False,
     )
 
 
@@ -1308,6 +1356,8 @@ def generate_tree(parameters=DEFAULT_PARAMETERS, outputs=CANONICAL_OUTPUTS, *, r
     _collision_collection, collision_objects = build_collision_proxy(scene, main_specs)
     apply_variant_deformation(
         [obj for obj in tree_collection.objects if obj.type == "MESH"] + collision_objects)
+    assign_runtime_vertex_colors(
+        [obj for obj in tree_collection.objects if obj.type == "MESH"])
     add_wind_animation(fine_branches, 0.34 * parameters.wind_scale)
     add_wind_animation(leaves, 0.58 * parameters.wind_scale)
     cameras = build_presentation(scene, presentation)

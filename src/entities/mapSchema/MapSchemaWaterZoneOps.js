@@ -13,6 +13,12 @@ export function toRuntimeWaterZone(value, invScale) {
             min: normalized.bounds.min.map((entry) => entry * invScale),
             max: normalized.bounds.max.map((entry) => entry * invScale),
         },
+        ...(normalized.reservoirBounds ? {
+            reservoirBounds: {
+                min: normalized.reservoirBounds.min.map((entry) => entry * invScale),
+                max: normalized.reservoirBounds.max.map((entry) => entry * invScale),
+            },
+        } : {}),
         startLevel: normalized.startLevel * invScale,
         targetLevel: normalized.targetLevel * invScale,
     });

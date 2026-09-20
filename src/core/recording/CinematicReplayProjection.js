@@ -9,6 +9,27 @@ function lerp(left, right, alpha) {
     return left + ((right - left) * alpha);
 }
 
+export function updateReplaySandstormState(target, leftSandstorm, rightValue, alpha) {
+    const rightSandstorm = rightValue || leftSandstorm;
+    const selected = alpha < 0.5 ? leftSandstorm : rightSandstorm;
+    if (!selected) return null;
+    const sameEvent = leftSandstorm?.phase === rightSandstorm?.phase
+        && Number(leftSandstorm?.eventIndex) === Number(rightSandstorm?.eventIndex)
+        && Number(leftSandstorm?.directionIndex) === Number(rightSandstorm?.directionIndex);
+    const out = target || {};
+    out.enabled = selected.enabled === true;
+    out.phase = ['CALM', 'WARNING', 'ACTIVE'].includes(selected.phase) ? selected.phase : 'CALM';
+    out.eventIndex = Math.max(0, Math.trunc(toFiniteNumber(selected.eventIndex, 0)));
+    out.directionIndex = Math.max(0, Math.min(3, Math.trunc(toFiniteNumber(selected.directionIndex, 0))));
+    out.remainingSeconds = Math.max(0, sameEvent
+        ? lerp(toFiniteNumber(leftSandstorm?.remainingSeconds, 0), toFiniteNumber(rightSandstorm?.remainingSeconds, 0), alpha)
+        : toFiniteNumber(selected.remainingSeconds, 0));
+    out.intensity = Math.max(0, Math.min(1, sameEvent
+        ? lerp(toFiniteNumber(leftSandstorm?.intensity, 0), toFiniteNumber(rightSandstorm?.intensity, 0), alpha)
+        : toFiniteNumber(selected.intensity, 0)));
+    return out;
+}
+
 function interpolateQuaternion(out, left, right, alpha) {
     const leftValues = Array.isArray(left) ? left : [0, 0, 0, 1];
     const rightValues = Array.isArray(right) ? right : leftValues;
@@ -254,6 +275,12 @@ export function updateReplayProjection(projection, leftSnapshot, rightSnapshot, 
         remainingSeconds: fogRemaining,
         visibilityRange: Math.max(0, toFiniteNumber(fogSnapshot?.visibilityRange, 0)),
     };
+    projection.sandstorm = updateReplaySandstormState(
+        projection.sandstorm,
+        leftSnapshot?.sandstorm,
+        rightSnapshot?.sandstorm,
+        alpha
+    );
     for (let index = 0; index < leftPlayers.length; index++) {
         const left = leftPlayers[index];
         const playerIndex = Number.isInteger(left?.index) ? left.index : index;

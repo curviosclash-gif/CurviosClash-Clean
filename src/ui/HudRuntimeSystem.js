@@ -10,6 +10,7 @@ import { updateActiveEffectBar, updateItemBar, updateRocketBar } from './ItemBar
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { syncHudSlowMoClass } from './HudSlowMoIndicator.js';
 import { MatchScoreHudPresenter } from './MatchScoreHudPresenter.js';
+import { MapSandstormHud } from './MapSandstormHud.js';
 import { updateTraversalStatus } from './TraversalHudPresenter.js';
 import {
     clearParcoursPanel,
@@ -39,6 +40,7 @@ export class HudRuntimeSystem {
         this._tutorialCompletionPersisted = false;
         this._hudMode = null;
         this._slowMoActive = null;
+        this._sandstormHud = null;
     }
 
     _getMatchRuntimeProjection() {
@@ -179,6 +181,7 @@ export class HudRuntimeSystem {
         // The minimap canvas hangs on document.body, outside the HUD, so hiding the HUD misses it.
         this._parcoursOverlay?.hideMinimap?.();
         this._parcoursOverlay?.hideFlashes?.();
+        this._sandstormHud?.reset?.();
     }
 
     _ensureArcadeHud() {
@@ -464,6 +467,12 @@ export class HudRuntimeSystem {
         const game = this.game;
         if (!game.entityManager) return;
         const projection = runtimeProjection || this._getMatchRuntimeProjection();
+        if (!this._sandstormHud) this._sandstormHud = new MapSandstormHud(document.body);
+        this._sandstormHud.update(projection?.sandstorm, game.entityManager, {
+            localHumanCount: projection?.localHumanCount || game.numHumans || 1,
+            localPlayerIndex: this._getLocalPlayerIndex(projection),
+            network: this._isNetworkSession(projection),
+        });
         this._syncHudMode(projection);
         const updateMinimap = this._consumeInterval(
             '_parcoursMinimapTimer',
@@ -523,6 +532,8 @@ export class HudRuntimeSystem {
     }
 
     dispose() {
+        this._sandstormHud?.dispose?.();
+        this._sandstormHud = null;
         if (this._rocketBars) {
             for (const rocketBar of this._rocketBars.values()) rocketBar?.remove?.();
             this._rocketBars.clear();

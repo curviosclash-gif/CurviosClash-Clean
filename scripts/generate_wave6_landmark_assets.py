@@ -18,12 +18,21 @@ import bpy
 ROOT = Path(__file__).resolve().parents[1]
 FPS = 30
 BRIDGE_PARTS = ('01_bridge', '20_bridge_collapse', '30_bridge_train')
-LIGHTHOUSE_PARTS = ('01_lighthouse', '20_lighthouse_collapse', '30_lighthouse_lift')
+LIGHTHOUSE_PARTS = (
+    '00_lighthouse_island',
+    '01_lighthouse',
+    '20_lighthouse_collapse',
+    '30_lighthouse_lift',
+    '31_lighthouse_beacon',
+)
 DAM_PARTS = ('01_dam', '20_dam_collapse', '30_dam_gate')
 
 
 def reset_scene(name, seconds=0):
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    # Asset generation is deterministic output, not an interactive editing session. Blender's
+    # numbered backup files would otherwise pollute the map pack every time an asset is rebuilt.
+    bpy.context.preferences.filepaths.save_version = 0
     scene = bpy.context.scene
     scene.name = name
     scene.render.engine = 'BLENDER_EEVEE_NEXT'
@@ -43,6 +52,30 @@ def material(name, color, metallic=0.0, roughness=0.55):
     node.inputs['Base Color'].default_value = (*color, 1.0)
     node.inputs['Metallic'].default_value = metallic
     node.inputs['Roughness'].default_value = roughness
+    return mat
+
+
+def emissive_material(name, color, strength=2.0, alpha=1.0):
+    mat = material(name, color, 0.0, 0.28)
+    mat.diffuse_color = (*color, alpha)
+    node = mat.node_tree.nodes.get('Principled BSDF')
+    if node:
+        emission = node.inputs.get('Emission Color') or node.inputs.get('Emission')
+        emission_strength = node.inputs.get('Emission Strength')
+        if emission:
+            emission.default_value = (*color, 1.0)
+        if emission_strength:
+            emission_strength.default_value = strength
+        alpha_input = node.inputs.get('Alpha')
+        if alpha_input:
+            alpha_input.default_value = alpha
+    if alpha < 1:
+        if hasattr(mat, 'surface_render_method'):
+            mat.surface_render_method = 'DITHERED'
+        else:
+            mat.blend_method = 'BLEND'
+        if hasattr(mat, 'use_transparency_overlap'):
+            mat.use_transparency_overlap = False
     return mat
 
 
@@ -72,9 +105,10 @@ def cylinder(name, location, radius, depth, mat, parent=None, rotation=(0, 0, 0)
     return obj
 
 
-def cone(name, location, radius1, radius2, depth, mat, parent=None):
+def cone(name, location, radius1, radius2, depth, mat, parent=None, rotation=(0, 0, 0)):
     bpy.ops.mesh.primitive_cone_add(
         vertices=24, radius1=radius1, radius2=radius2, depth=depth, location=location,
+        rotation=rotation,
     )
     obj = bpy.context.object
     obj.name = name
@@ -246,6 +280,114 @@ def generate_bridge(parts=None):
         export_scene('storm_bridge_siege', '30_bridge_train', 'BridgeTrainLoop')
 
 
+def build_lighthouse_island(parent=None):
+    basalt = material('IslandBasalt', (0.075, 0.105, 0.12), 0.05, 0.92)
+    wet_rock = material('IslandWetRock', (0.115, 0.16, 0.175), 0.04, 0.78)
+    concrete = material('KeeperConcrete', (0.46, 0.50, 0.49), 0.02, 0.82)
+    roof = material('KeeperRoof', (0.36, 0.045, 0.035), 0.16, 0.58)
+    steel = material('IslandSteel', (0.07, 0.12, 0.14), 0.78, 0.3)
+    deck = material('MaintenanceDeck', (0.17, 0.20, 0.20), 0.32, 0.62)
+    warning = emissive_material('IslandWarning', (1.0, 0.46, 0.05), 1.8)
+    window = emissive_material('KeeperWindow', (1.0, 0.55, 0.16), 2.4)
+    generator = emissive_material('GeneratorGlow', (0.12, 0.68, 0.9), 2.2)
+    objects = []
+
+    # A low, broad core leaves a fast ring between the cliff edge and the arena bounds. The upper
+    # terrace gives the tower a readable plinth without turning the whole map into one solid wall.
+    objects.append(cone('lighthouse_island_core', (0, 0, 10), 300, 258, 20, basalt, parent))
+    objects.append(cylinder('lighthouse_island_terrace', (0, 0, 15), 150, 10, wet_rock, parent))
+
+    # Broken sea walls define the outer route while keeping broad escape gaps between every block.
+    for index in range(12):
+        angle = (math.tau * index / 12) + 0.13
+        radius = 252
+        x = math.cos(angle) * radius
+        y = math.sin(angle) * radius
+        z = 28 + (index % 3) * 3
+        objects.append(rock(
+            f'lighthouse_breakwater_{index:02d}', (x, y, z), (65, 31, 34 + (index % 2) * 8),
+            wet_rock if index % 2 else basalt, parent, rotation=(0.08 * (index % 2), 0.12, angle),
+        ))
+
+    # Three unmistakable fly-through gates make the silhouette legible from the spawn ring.
+    for label, angle in (('west', math.pi), ('north', math.pi / 2), ('south', -math.pi / 2)):
+        radius = 205
+        x = math.cos(angle) * radius
+        y = math.sin(angle) * radius
+        tangent_x = -math.sin(angle)
+        tangent_y = math.cos(angle)
+        for side in (-1, 1):
+            px = x + tangent_x * side * 31
+            py = y + tangent_y * side * 31
+            objects.append(box(
+                f'lighthouse_rock_gate_{label}_{side:+}', (px, py, 45), (24, 26, 70), basalt,
+                parent, rotation=(0, 0, angle), bevel=3,
+            ))
+        objects.append(box(
+            f'lighthouse_rock_gate_{label}_lintel', (x, y, 78), (82, 25, 18), wet_rock,
+            parent, rotation=(0, 0, angle), bevel=3,
+        ))
+
+    # The keeper house and generator make the middle ring tactically asymmetric. Their windows
+    # are decorative only; the simple main volumes are the collision the player reads.
+    objects.append(box('lighthouse_keeper_house', (-155, -120, 44), (92, 64, 48), concrete, parent, bevel=3))
+    objects.append(box('lighthouse_keeper_roof', (-155, -120, 72), (102, 72, 14), roof, parent,
+                       rotation=(0, 0.18, 0), bevel=2))
+    for offset in (-22, 22):
+        objects.append(box(
+            f'lighthouse_keeper_window_{offset:+}_nocol', (-108, -120 + offset, 49), (2, 14, 13),
+            window, parent, bevel=1,
+        ))
+    objects.append(box('lighthouse_generator_house', (155, 105, 35), (78, 58, 30), steel, parent, bevel=3))
+    for offset in (-23, 0, 23):
+        objects.append(box(
+            f'lighthouse_generator_strip_{offset:+}_nocol', (155 + offset, 75, 38), (12, 2, 8),
+            generator, parent, bevel=1,
+        ))
+
+    # A rising broken spiral creates the inner route but deliberately leaves the positive-X fall
+    # corridor empty. After the collapse the tower occupies that gap and becomes the missing span.
+    spiral = (
+        (math.radians(65), 78, 36),
+        (math.radians(125), 88, 45),
+        (math.radians(180), 98, 55),
+        (math.radians(235), 108, 66),
+        (math.radians(295), 118, 78),
+    )
+    for index, (angle, radius, z) in enumerate(spiral):
+        x = math.cos(angle) * radius
+        y = math.sin(angle) * radius
+        objects.append(box(
+            f'lighthouse_spiral_deck_{index:02d}', (x, y, z), (82, 22, 7), deck, parent,
+            rotation=(0, 0, angle + math.pi / 2), bevel=2,
+        ))
+        objects.append(box(
+            f'lighthouse_spiral_support_{index:02d}', (x, y, (z + 20) / 2), (9, 9, z - 20),
+            steel, parent, rotation=(0, 0, angle), bevel=1,
+        ))
+        for side in (-1, 1):
+            rail_x = x + math.cos(angle) * side * 13
+            rail_y = y + math.sin(angle) * side * 13
+            objects.append(box(
+                f'lighthouse_spiral_rail_{index:02d}_{side:+}_nocol', (rail_x, rail_y, z + 8),
+                (76, 2, 7), steel, parent, rotation=(0, 0, angle + math.pi / 2), bevel=0.8,
+            ))
+
+    # Warning pylons trace the intended middle orbit without closing it into a tunnel.
+    for index, angle in enumerate((0.45, 2.0, 3.55, 5.1)):
+        x = math.cos(angle) * 168
+        y = math.sin(angle) * 168
+        objects.append(box(
+            f'lighthouse_warning_pylon_{index:02d}', (x, y, 38), (12, 12, 48), steel,
+            parent, rotation=(0, 0, angle), bevel=1,
+        ))
+        objects.append(box(
+            f'lighthouse_warning_lamp_{index:02d}_nocol', (x, y, 64), (8, 8, 6), warning,
+            parent, rotation=(0, 0, angle), bevel=1,
+        ))
+    return objects
+
+
 def build_lighthouse(parent=None):
     white = material('LighthouseWhite', (0.76, 0.80, 0.79), 0.05, 0.68)
     red = material('LighthouseRed', (0.55, 0.035, 0.025), 0.18, 0.5)
@@ -260,7 +402,17 @@ def build_lighthouse(parent=None):
     objects.append(cylinder('lighthouse_tower_gallery', (0, 0, 78), 13, 3, iron, parent))
     objects.append(cylinder('lighthouse_tower_lantern', (0, 0, 84), 8, 10, lamp, parent))
     objects.append(cone('lighthouse_tower_roof', (0, 0, 92), 11, 0.5, 7, red, parent))
-    objects.append(cylinder('lighthouse_tower_beacon', (0, 0, 84), 2.2, 15, lamp, parent, (0, 1.5708, 0)))
+    for index in range(8):
+        angle = math.tau * index / 8
+        objects.append(cylinder(
+            f'lighthouse_tower_gallery_post_{index:02d}',
+            (math.cos(angle) * 11.5, math.sin(angle) * 11.5, 83), 0.45, 8, iron, parent,
+        ))
+        objects.append(box(
+            f'lighthouse_tower_gallery_rail_{index:02d}_nocol',
+            (math.cos(angle) * 11.5, math.sin(angle) * 11.5, 85.5),
+            (9, 0.8, 0.8), iron, parent, rotation=(0, 0, angle + math.pi / 2), bevel=0.25,
+        ))
     return objects
 
 
@@ -269,6 +421,10 @@ def generate_lighthouse(parts=None):
     unknown = selected - set(LIGHTHOUSE_PARTS)
     if unknown:
         raise ValueError(f'Unknown lighthouse parts: {sorted(unknown)}')
+    if '00_lighthouse_island' in selected:
+        reset_scene('StormLighthouseIsland')
+        build_lighthouse_island()
+        export_scene('storm_lighthouse_siege', '00_lighthouse_island')
     if '01_lighthouse' in selected:
         reset_scene('StormLighthouseIntact')
         build_lighthouse()
@@ -281,8 +437,8 @@ def generate_lighthouse(parts=None):
         rig.rotation_mode = 'XYZ'
         rig.keyframe_insert('location', frame=1)
         rig.keyframe_insert('rotation_euler', frame=1)
-        rig.location = (4, 0, -3)
-        rig.rotation_euler = (0.0, 1.28, -0.08)
+        rig.location = (0, 0, 0)
+        rig.rotation_euler = (0.0, 1.32, 0.0)
         rig.keyframe_insert('location', frame=scene.frame_end)
         rig.keyframe_insert('rotation_euler', frame=scene.frame_end)
         if rig.animation_data and rig.animation_data.action:
@@ -307,6 +463,25 @@ def generate_lighthouse(parts=None):
             rig.keyframe_insert('location', frame=frame)
         finish_action(rig, 'LighthouseLiftLoop')
         export_scene('storm_lighthouse_siege', '30_lighthouse_lift', 'LighthouseLiftLoop')
+
+    if '31_lighthouse_beacon' in selected:
+        scene = reset_scene('LighthouseBeaconLoop', 8)
+        rig = bpy.data.objects.new('LighthouseBeaconRig', None)
+        scene.collection.objects.link(rig)
+        beam = emissive_material('BeaconBeam', (1.0, 0.68, 0.16), 4.0, 0.18)
+        flare = emissive_material('BeaconFlare', (1.0, 0.82, 0.35), 5.0)
+        cone('lighthouse_beacon_east_nocol_noshadow', (60, 0, 0), 2, 14, 120, beam, rig,
+             rotation=(0, math.pi / 2, 0))
+        cone('lighthouse_beacon_west_nocol_noshadow', (-60, 0, 0), 2, 14, 120, beam, rig,
+             rotation=(0, -math.pi / 2, 0))
+        cylinder('lighthouse_beacon_flare_nocol_noshadow', (0, 0, 0), 4, 6, flare, rig)
+        rig.rotation_mode = 'XYZ'
+        rig.rotation_euler = (0, 0, 0)
+        rig.keyframe_insert('rotation_euler', frame=1)
+        rig.rotation_euler = (0, 0, math.tau)
+        rig.keyframe_insert('rotation_euler', frame=scene.frame_end)
+        finish_action(rig, 'LighthouseBeaconLoop', 'LINEAR')
+        export_scene('storm_lighthouse_siege', '31_lighthouse_beacon', 'LighthouseBeaconLoop')
 
 
 def build_dam(parent=None, breach_parent=None):

@@ -17,6 +17,7 @@ import {
     waitForRuntimePlayersLoaded,
 } from './RuntimeSessionLifecycleService.js';
 
+/** @type {Set<string>} */
 const TERMINAL_START_BLOCKING_FINALIZE_REASONS = new Set([
     SESSION_FINALIZE_TRIGGERS.GAME_DISPOSE,
     SESSION_FINALIZE_TRIGGERS.WINDOW_SHUTDOWN,

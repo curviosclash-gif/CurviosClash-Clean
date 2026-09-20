@@ -39,6 +39,17 @@ function readVec3(value, fallback) {
     return Object.freeze([0, 1, 2].map((index) => finite(value?.[index], fallback[index])));
 }
 
+function readBounds(value, fallbackMin, fallbackMax) {
+    const min = readVec3(value?.min, fallbackMin);
+    const maxSource = readVec3(value?.max, fallbackMax);
+    const max = Object.freeze([
+        Math.max(min[0], maxSource[0]),
+        Math.max(min[1], maxSource[1]),
+        Math.max(min[2], maxSource[2]),
+    ]);
+    return Object.freeze({ min, max });
+}
+
 function readEffects(value) {
     const source = value && typeof value === 'object' ? value : {};
     return Object.freeze({
@@ -57,19 +68,18 @@ function readEffects(value) {
 
 export function normalizeWaterZone(value) {
     if (!value || typeof value !== 'object') return null;
-    const min = readVec3(value.bounds?.min, [-100, 0, -100]);
-    const maxSource = readVec3(value.bounds?.max, [100, 100, 100]);
-    const max = Object.freeze([
-        Math.max(min[0], maxSource[0]),
-        Math.max(min[1], maxSource[1]),
-        Math.max(min[2], maxSource[2]),
-    ]);
+    const bounds = readBounds(value.bounds, [-100, 0, -100], [100, 100, 100]);
+    const { min, max } = bounds;
+    const reservoirBounds = value.reservoirBounds && typeof value.reservoirBounds === 'object'
+        ? readBounds(value.reservoirBounds, min, max)
+        : null;
     const startLevel = clamp(value.startLevel, min[1], max[1]);
     const targetLevel = clamp(value.targetLevel, startLevel, max[1]);
     return Object.freeze({
         id: String(value.id || 'water_zone').trim().slice(0, 64) || 'water_zone',
         triggerSegmentId: String(value.triggerSegmentId || '').trim().slice(0, 64),
-        bounds: Object.freeze({ min, max }),
+        bounds,
+        ...(reservoirBounds ? { reservoirBounds } : {}),
         startLevel,
         targetLevel,
         waveSeconds: clamp(value.waveSeconds, 0.1, 15),
@@ -125,10 +135,21 @@ export function stepWaterZoneState(state, zone, deltaSeconds) {
 }
 
 export function isPointUnderwater(zone, state, point) {
-    if (!zone || !state || (state.phase !== WATER_PHASES.RISING && state.phase !== WATER_PHASES.FLOODED)) return false;
+    if (!zone || !state) return false;
     const x = finite(point?.[0] ?? point?.x, Infinity);
     const y = finite(point?.[1] ?? point?.y, Infinity);
     const z = finite(point?.[2] ?? point?.z, Infinity);
+    const reservoir = zone.reservoirBounds;
+    if (reservoir) {
+        const reservoirMin = reservoir.min;
+        const reservoirMax = reservoir.max;
+        if (
+            x >= reservoirMin[0] && x <= reservoirMax[0]
+            && y >= reservoirMin[1] && y <= reservoirMax[1]
+            && z >= reservoirMin[2] && z <= reservoirMax[2]
+        ) return true;
+    }
+    if (state.phase !== WATER_PHASES.RISING && state.phase !== WATER_PHASES.FLOODED) return false;
     const { min, max } = zone.bounds;
     return x >= min[0] && x <= max[0] && z >= min[2] && z <= max[2]
         && y >= min[1] && y <= Math.min(max[1], state.level);
