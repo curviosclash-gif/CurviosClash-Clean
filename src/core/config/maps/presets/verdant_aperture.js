@@ -1,4 +1,4 @@
-// Verdant Aperture is the hunt counterpart to Kinetic Tide. There the obstacles move and the way
+﻿// Verdant Aperture is the hunt counterpart to Kinetic Tide. There the obstacles move and the way
 // through stays put; here the barrier stays put and the opening travels along it. The map is a
 // greenhouse ruin on three stacked levels, and the setpieces that join those levels are the whole
 // point: whoever reads where the hole currently is changes level, whoever does not waits or takes
@@ -16,7 +16,15 @@
 // frames of each setpiece are invisible to the physics, so the deck cut-outs below are kept
 // slightly tighter than the setpiece that fills them. Deck and setpiece together form the barrier.
 
+import { mushroomPatch } from './glowing_mushrooms.js';
+
 const BEAT_SECONDS = 6;
+
+// The cellar floor. The foam pad below it sits at y=6 and is four units thick, so anything
+// standing in the cellar stands on 8, as the ferns and the ancient tree already do.
+const CELLAR_FLOOR = 8;
+// One cellar width. Past it a viewer is on another storey with two ceilings in between.
+const CELLAR_RENDER_DISTANCE = 190;
 
 function landmark(id, pack, model, position, targetSize, rotateY = 0) {
     return {
@@ -144,6 +152,42 @@ const VERDANT_APERTURE_LANDMARKS = [
         rotation: [0, 0.35, 0],
         targetSize: 42,
     },
+    // Fungus between the overgrowth. The cellar is the darkest of the three storeys and the
+    // only one lit from above through two ceilings, so it is the one level where a glow reads
+    // at all. The clumps sit in the gaps the ferns, the bushes and the two join cut-outs leave,
+    // and the render distance is the cellar's own width - past that the ceiling hides them.
+    ...mushroomPatch({
+        id: 'verdant-aperture-fungus-west',
+        centre: [-70, CELLAR_FLOOR, 20],
+        radius: 16,
+        count: 5,
+        size: [9, 15],
+        hues: ['teal'],
+        seed: 5531,
+        maxRenderDistance: CELLAR_RENDER_DISTANCE,
+    }),
+    ...mushroomPatch({
+        id: 'verdant-aperture-fungus-east',
+        centre: [62, CELLAR_FLOOR, -34],
+        radius: 14,
+        count: 4,
+        size: [9, 16],
+        forms: ['cap', 'trumpet'],
+        hues: ['teal', 'amber'],
+        seed: 7724,
+        maxRenderDistance: CELLAR_RENDER_DISTANCE,
+    }),
+    ...mushroomPatch({
+        id: 'verdant-aperture-fungus-tree',
+        centre: [-24, CELLAR_FLOOR, 84],
+        radius: 14,
+        count: 4,
+        size: [8, 13],
+        forms: ['coral', 'cap'],
+        hues: ['amber'],
+        seed: 3118,
+        maxRenderDistance: CELLAR_RENDER_DISTANCE,
+    }),
 
     // The two ways up into the crown hall, half a beat apart so they never show the same opening.
     joinSetpiece(ROOT_TO_CROWN[0], LEVEL_ROOT_DECK, 'leaf-shutter-west', '01_leaf_shutter', 'LeafShutterLoop', 0, JOIN_TARGET_SIZE.leafShutter),

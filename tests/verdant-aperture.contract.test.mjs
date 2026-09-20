@@ -16,6 +16,7 @@ import { normalizeMapAnimationClock } from '../src/shared/contracts/MapAnimation
 const map = VERDANT_APERTURE_MAP.verdant_aperture;
 const SETPIECE_PREFIX = 'assets/maps/verdant_aperture/glb/';
 const WILDWUCHS_PREFIX = 'assets/models/verdant_wildwuchs/';
+const MUSHROOM_PREFIX = 'assets/models/glowing_mushroom/';
 const BEAT_SECONDS = 6;
 const DECK_CELL = 30;
 const DECK_CELLS_PER_AXIS = 10;
@@ -25,6 +26,35 @@ const CROWN_DECK_Y = 112;
 function setpieces() {
     return map.glbModels.filter((model) => model.url.startsWith(SETPIECE_PREFIX));
 }
+
+test('the cellar fungus keeps clear of the planting already down there', () => {
+    // Decoration has no collider, so two models placed on top of each other produce no error,
+    // no warning and no test failure - just a fern growing through a mushroom. The cellar was
+    // already the most crowded storey before the fungus arrived, which is what makes this worth
+    // asserting rather than eyeballing.
+    const mushrooms = map.glbModels.filter((model) => model.url.startsWith(MUSHROOM_PREFIX));
+    assert.ok(mushrooms.length >= 10, 'the cellar actually has fungus in it');
+
+    // Everything else standing on the cellar floor. The decks start at y=54, so anything below
+    // the first of them shares the cellar with the mushrooms.
+    const neighbours = map.glbModels.filter((model) => !model.url.startsWith(MUSHROOM_PREFIX)
+        && model.position[1] < ROOT_DECK_Y);
+    assert.ok(neighbours.length >= 8, 'the cellar planting is still there to avoid');
+
+    for (const mushroom of mushrooms) {
+        assert.equal(mushroom.collision, false, `${mushroom.id} stays decoration`);
+        assert.equal(mushroom.position[1], 8, `${mushroom.id} stands on the cellar floor`);
+        for (const neighbour of neighbours) {
+            const distance = Math.hypot(mushroom.position[0] - neighbour.position[0],
+                mushroom.position[2] - neighbour.position[2]);
+            // Both radii, from the target sizes the map authored. A mushroom may stand beside a
+            // fern; it may not stand in one.
+            const clearance = (mushroom.targetSize + (neighbour.targetSize || 0)) / 2;
+            assert.ok(distance > clearance,
+                `${mushroom.id} clears ${neighbour.id}: ${distance.toFixed(1)} > ${clearance.toFixed(1)}`);
+        }
+    }
+});
 
 function deckCells(y) {
     return map.obstacles.filter((obstacle) => (
