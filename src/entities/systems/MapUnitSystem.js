@@ -22,6 +22,7 @@ import {
     createUnitPose,
     resetDriveState,
     restoreUnitPose,
+    steerUnitAlongPath,
     shouldRollBackDriveStep,
 } from './map-units/MapUnitDriveOps.js';
 import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-units/MapUnitWeaponOps.js';
@@ -274,11 +275,15 @@ export class MapUnitSystem {
             }
             const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
             const previousPose = captureUnitPose(unit, this._poseScratch);
-            advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
+            if (unit.definition.drive?.steering === true) {
+                steerUnitAlongPath(unit, unitDt);
+            } else {
+                advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
+                const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
+                unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
+            }
             if (unit.escortTank && unit.fromIndex === unit.path.length - 1) unit.escortReachedGoal = true;
-            const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
             applyGroundClamp(this.entityManager?.arena, unit, safeDt);
-            unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
             if (shouldRollBackDriveStep(this.entityManager?.arena, unit, safeDt)) restoreUnitPose(unit, previousPose);
             this._placeCentre(unit);
             this._updateVisual(unit);
