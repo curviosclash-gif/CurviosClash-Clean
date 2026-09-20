@@ -102,8 +102,13 @@ test('the curated selection represents every family without changing the map sca
     assert.deepEqual([...selectedByFamily.values()], [5, 5, 5, 5]);
     assert.ok(selectedBytes <= 6 * 1024 * 1024, `placed props stay under 6 MiB (got ${selectedBytes})`);
     assert.ok(selectedTriangles <= 180_000, `placed props stay under 180k triangles (got ${selectedTriangles})`);
-    assert.deepEqual(MAP.glbModels.slice(-20).map((entry) => entry.id),
-        REACTOR_SITE_PROP_MODELS.map((entry) => entry.id));
+    // Every curated prop reaches the map. Checked by membership rather than by position: the
+    // props used to be the last twenty entries, and the perimeter fungus that now follows them
+    // made that incidental fact look like a broken curation.
+    const placed = new Set(MAP.glbModels.map((entry) => entry.id));
+    for (const model of REACTOR_SITE_PROP_MODELS) {
+        assert.ok(placed.has(model.id), `${model.id} is placed on the map`);
+    }
     assert.equal(MAP.glbColliderMode, 'scene');
 });
 

@@ -180,7 +180,11 @@ test('dandelion map halves its vertical layout around the shortened flower stem'
 
 test('the actual shootable GLB keeps its large crown on a half-length stem without permanent seed colliders', async () => {
     const map = DANDELION_SKY_MAP.dandelion_sky;
-    const result = await loadGLBMapCollection(map.glbModels, {
+    // The flower alone, not the whole map. This test measures the flower's height and
+    // proportions, and loading every model would measure the map instead: the root chamber
+    // decoration sits at y=-18, which stretched the scene to 386 and failed an assertion about
+    // a model it says nothing about.
+    const result = await loadGLBMapCollection([map.glbModels[0]], {
         loader: geometryOnlyGlbLoader,
         placementScale: 1,
         colliderMode: map.glbColliderMode,
