@@ -37,6 +37,7 @@ import { resolveMapSinglePlayerScenario } from '../src/shared/contracts/MapSingl
 
 const MAP_KEY = 'reactor_site';
 const MAP = MAP_PRESET_CATALOG[MAP_KEY];
+const FUNGUS_PREFIX = 'assets/models/glowing_mushroom/';
 const WRECK_MARGIN = 20;
 const RUNTIME_WORLD_SCALE = 3;
 
@@ -136,6 +137,11 @@ test('the opening view reaches the plant and traversal stays on persistent site 
 test('every model the map places exists on disk at the one shared scale', () => {
     for (const model of MAP.glbModels) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local GLB`);
+        // The shared metre applies to everything authored for this map. Models taken from a
+        // shared library are authored at their own size and normalised by targetSize instead;
+        // forcing them to the reactor's metre would place them at whatever size their own
+        // generator happened to pick.
+        if (model.url.startsWith(FUNGUS_PREFIX)) continue;
         assert.equal(model.scale, REACTOR_SITE_METRE, `${model.id} shares the one scale factor`);
         assert.equal(model.targetSize, undefined, `${model.id} must not be size-normalised`);
     }
@@ -148,6 +154,28 @@ test('every model the map places exists on disk at the one shared scale', () => 
     // The two towers are the same file at two places.
     assert.equal(modelById('reactor-cooling-tower-west').url, modelById('reactor-cooling-tower-east').url);
     assert.equal(modelById('reactor-cooling-tower-west').position[0], -modelById('reactor-cooling-tower-east').position[0]);
+});
+
+test('the contaminated growth stands where no collapse can reach it', () => {
+    // Every collapse on this map throws its wreck to REACTOR_WRECK_REACH from the centre. A
+    // mushroom inside that circle would end up standing inside a fallen cooling tower - not a
+    // crash, and not something any other assertion notices, just a tower with a mushroom
+    // through it for the rest of the round. The corners are the only ground outside the circle
+    // and inside the field, and the margin is what makes that true for the whole clump rather
+    // than for its centre.
+    const fungus = MAP.glbModels.filter((model) => model.url.startsWith(FUNGUS_PREFIX));
+    assert.ok(fungus.length >= 15, 'the perimeter is actually planted');
+    for (const model of fungus) {
+        const [x, y, z] = model.position;
+        const reach = model.targetSize / 2;
+        const distance = Math.hypot(x, z);
+        assert.ok(distance - reach > REACTOR_WRECK_REACH,
+            `${model.id} stands clear of every wreck: ${(distance - reach).toFixed(1)} > ${REACTOR_WRECK_REACH.toFixed(1)}`);
+        assert.ok(Math.abs(x) + reach < REACTOR_HALF_SIZE && Math.abs(z) + reach < REACTOR_HALF_SIZE,
+            `${model.id} stays inside the field`);
+        assert.equal(y, REACTOR_SITE_GROUND, `${model.id} stands on the site's ground`);
+        assert.equal(model.collision, false, `${model.id} stays decoration`);
+    }
 });
 
 test('every break scene stays hidden until it is triggered and then plays once', () => {

@@ -1,3 +1,4 @@
+import { mushroomPatch } from '../glowing_mushrooms.js';
 import { GROUND, METRE } from './ReactorSiteStructure.js';
 
 const ROOT = 'assets/maps/reactor_site/props';
@@ -47,4 +48,66 @@ export const REACTOR_SITE_PROP_MODELS = Object.freeze([
     prop('control-box', 6, 0, -153, 0, 0),
     prop('control-box', 8, 50, -162, 0, 0.03),
     prop('control-box', 10, 100, -153, 0, -0.02),
+]);
+
+// The corners of the field, in map units. Everything the collapses throw stays inside 132 units
+// of the centre (REACTOR_WRECK_REACH plus the tower offset), and the field runs to 155, so a
+// corner at 118 is the one place on this map where something can stand without a cooling tower
+// eventually landing on it. The diagonal is what buys the distance: 118 across both axes is 167
+// from the middle.
+const FUNGUS_CORNER = 118;
+const FUNGUS_RENDER_DISTANCE = 210;
+
+/**
+ * Contaminated growth along the perimeter.
+ *
+ * Teal only, and no amber: the glow here is meant to read as the ground being wrong rather than
+ * as ornament, and one colour repeated at four corners says that better than a mixed planting.
+ * These are the only living things on the map.
+ */
+export const REACTOR_SITE_FUNGUS_MODELS = Object.freeze([
+    ...mushroomPatch({
+        id: 'reactor-fungus-nw',
+        centre: [-FUNGUS_CORNER, GROUND, -FUNGUS_CORNER],
+        radius: 20,
+        count: 5,
+        size: [11, 19],
+        forms: ['cap', 'coral'],
+        hues: ['teal'],
+        seed: 1451,
+        maxRenderDistance: FUNGUS_RENDER_DISTANCE,
+    }),
+    ...mushroomPatch({
+        id: 'reactor-fungus-ne',
+        centre: [FUNGUS_CORNER, GROUND, -FUNGUS_CORNER],
+        radius: 18,
+        count: 4,
+        size: [11, 17],
+        forms: ['coral', 'trumpet'],
+        hues: ['teal'],
+        seed: 6802,
+        maxRenderDistance: FUNGUS_RENDER_DISTANCE,
+    }),
+    ...mushroomPatch({
+        id: 'reactor-fungus-sw',
+        centre: [-FUNGUS_CORNER, GROUND, FUNGUS_CORNER],
+        radius: 18,
+        count: 4,
+        size: [11, 17],
+        forms: ['cap', 'trumpet'],
+        hues: ['teal'],
+        seed: 3370,
+        maxRenderDistance: FUNGUS_RENDER_DISTANCE,
+    }),
+    ...mushroomPatch({
+        id: 'reactor-fungus-se',
+        centre: [FUNGUS_CORNER, GROUND, FUNGUS_CORNER],
+        radius: 20,
+        count: 5,
+        size: [11, 19],
+        forms: ['coral', 'cap'],
+        hues: ['teal'],
+        seed: 9264,
+        maxRenderDistance: FUNGUS_RENDER_DISTANCE,
+    }),
 ]);
