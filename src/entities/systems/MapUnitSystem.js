@@ -18,6 +18,7 @@ import {
 } from './map-units/MapUnitVisualOps.js';
 import { applyGroundClamp, resetGroundClamp } from './map-units/MapUnitGroundOps.js';
 import { applyAuthoredMapUnitBody, loadMapUnitLibrary } from './map-units/MapUnitModelCache.js';
+import { tickMapUnitRecoil, updateMapUnitDust } from './map-units/MapUnitMotionFxOps.js';
 import {
     clearAllMapUnitWrecks,
     clearMapUnitWreck,
@@ -169,6 +170,8 @@ export class MapUnitSystem {
             driveBlockedSeconds: 0,
             driveReleases: 0,
             driveIgnoreUntilIndex: -1,
+            dustDistance: 0,
+            recoilRemaining: 0,
             driveMode: DRIVE_MODES.PATROL,
             chaseTarget: null,
             chaseAnchor: new THREE.Vector3(),
@@ -284,6 +287,8 @@ export class MapUnitSystem {
         unit.attackCooldownRemaining = unit.definition.attack?.cooldown || 0;
         unit.attacksFired = 0;
         unit.networkAttacksInitialized = false;
+        unit.dustDistance = 0;
+        unit.recoilRemaining = 0;
         resetGroundClamp(unit);
         resetDriveState(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? unit.yaw;
@@ -331,6 +336,10 @@ export class MapUnitSystem {
             if (unit.escortTank && unit.fromIndex === unit.path.length - 1) unit.escortReachedGoal = true;
             applyGroundClamp(this.entityManager?.arena, unit, safeDt);
             if (shouldRollBackDriveStep(this.entityManager?.arena, unit, safeDt)) restoreUnitPose(unit, previousPose);
+            if (unit.kind === 'tank' || unit.kind === 'boss') {
+                updateMapUnitDust(this.entityManager, unit, unit.groundPosition.distanceTo(previousPose.position));
+                tickMapUnitRecoil(unit, safeDt);
+            }
             this._placeCentre(unit);
             this._updateVisual(unit);
             const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;

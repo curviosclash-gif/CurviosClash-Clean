@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { resolveMapUnitRecoil } from './MapUnitMotionFxOps.js';
 
 /**
  * Box-built tank. The model faces +Z. `headPivot` carries the turret and barrel and is what the
@@ -94,12 +95,15 @@ export function createMapUnitVisual(renderer, assets, scale = 1) {
     return root;
 }
 
-/** Places the model on the ground point and shows the remaining hit points. */
+/** Places the model on the ground point, kicks the gun back and shows the remaining hit points. */
 export function updateMapUnitVisual(unit) {
     const root = unit?.root;
     if (!root) return;
     root.position.copy(unit.groundPosition);
     root.rotation.y = unit.yaw;
+    // The box barrel has no recoil of its own: it is one mesh with the turret's material.
+    const barrel = root.userData.authoredBarrel;
+    if (barrel) barrel.position.z = -resolveMapUnitRecoil(unit);
     const healthFill = root.userData.healthFill;
     if (!healthFill) return;
     const ratio = Math.max(0, Math.min(1, unit.hp / Math.max(1, unit.maxHp)));

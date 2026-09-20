@@ -95,6 +95,7 @@ export function applyAuthoredMapUnitBody(root, library) {
     }
 
     const barrel = headPivot.children.find((child) => child.userData?.mapUnitPart === 'tank_barrel');
+    root.userData.authoredBarrel = barrel || null;
     const flash = root.userData.muzzleFlash;
     if (barrel && flash) {
         const muzzle = new THREE.Box3().setFromObject(barrel);
