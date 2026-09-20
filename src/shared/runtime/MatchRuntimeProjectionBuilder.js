@@ -210,6 +210,7 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
         sessionPlayers: buildSessionPlayersProjection(facade, sessionPlayers),
         lockTargets,
         globalFog: entityManager?.getGlobalFogState?.(),
+        sandstorm: entityManager?.getMapSandstormState?.(),
         parcours: parcoursHudState,
         hunt: {
             active: entityManager?.gameModeStrategy?.hasCombatHud?.() === true

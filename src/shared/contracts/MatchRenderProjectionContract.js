@@ -1,6 +1,7 @@
 import { normalizeString } from './ContractNormalizeUtils.js';
 import { GAMEPLAY_CAMERA_MODE_ID } from './CameraModeContract.js';
 import { createGlobalFogEffectState } from './GlobalFogEffectContract.js';
+import { createMapSandstormState } from './MapSandstormContract.js';
 
 export const MATCH_RENDER_PROJECTION_CONTRACT_VERSION = 'match-render-projection.v1';
 
@@ -75,6 +76,7 @@ function createProjectionFromSource(source, players) {
         localPlayerIndex: Math.max(0, normalizeInt(source.localPlayerIndex, 0)),
         localHumanCount: Math.max(1, normalizeNonNegativeInt(source.localHumanCount, 1)),
         globalFog: createGlobalFogEffectState(source.globalFog),
+        sandstorm: createMapSandstormState(source.sandstorm),
         players,
     };
 }

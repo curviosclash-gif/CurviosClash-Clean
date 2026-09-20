@@ -2,6 +2,7 @@ import { normalizeString } from './ContractNormalizeUtils.js';
 import { GAMEPLAY_CAMERA_MODE_ID } from './CameraModeContract.js';
 import { resolveArtifactVersionState } from './ArtifactVersionMigrationContract.js';
 import { createGlobalFogEffectState } from './GlobalFogEffectContract.js';
+import { createMapSandstormState } from './MapSandstormContract.js';
 import { normalizeHuntWinCondition } from './HuntWinConditionContract.js';
 import { normalizeHuntLivesByPlayer } from './HuntLivesContract.js';
 import { normalizeTeamId } from './TeamCombatContract.js';
@@ -511,6 +512,7 @@ function createProjectionFromSource(source, players, sessionPlayers, lockTargets
         sessionPlayers,
         lockTargets,
         globalFog: createGlobalFogEffectState(source.globalFog),
+        sandstorm: createMapSandstormState(source.sandstorm),
         parcours: createParcoursProjection(source.parcours),
         hunt: createHuntProjection(source.hunt, updatedAt),
         arcade: createArcadeProjection(source.arcade),

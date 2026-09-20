@@ -12,6 +12,7 @@ export class EntityTickPipeline {
             mapDefinition: null,
             mapScale: 1,
             elapsedSeconds: 0,
+            sandstormState: null,
         };
         this._rocketWarningState = createRocketWarningAudioState();
         this._rocketWarningOptions = { localPlayerIndex: 0, localHumanCount: 1, roundEnded: false };
@@ -28,6 +29,7 @@ export class EntityTickPipeline {
 
         owner._lockOnCache.clear();
         owner._globalFogEffectSystem?.update?.(safeDt);
+        owner._mapSandstormSystem?.update?.(safeDt);
         owner._staticTurretSystem?.update?.(safeDt);
         owner._flagObjectiveSystem?.update?.(safeDt);
         owner._mapUnitSystem?.update?.(safeDt);
@@ -54,6 +56,7 @@ export class EntityTickPipeline {
 
             if (owner._roundEnded) {
                 owner.audio?.stopEngine?.();
+                owner.audio?.clearMapAmbience?.();
                 return;
             }
 
@@ -65,6 +68,7 @@ export class EntityTickPipeline {
             ambienceOptions.mapDefinition = owner.arena?.currentMapDefinition;
             ambienceOptions.mapScale = owner.entityRuntimeConfig?.ARENA?.MAP_SCALE;
             ambienceOptions.elapsedSeconds = owner.arena?.glbAnimationElapsedSeconds;
+            ambienceOptions.sandstormState = owner._mapSandstormSystem?.state || null;
             owner.audio?.syncMapAmbienceFromPlayers?.(owner.players, ambienceOptions);
 
             const warningOptions = this._rocketWarningOptions;
@@ -80,9 +84,11 @@ export class EntityTickPipeline {
             const outcome = owner._roundOutcomeSystem.resolve();
             if (outcome.shouldEnd) {
                 owner._globalFogEffectSystem?.reset?.();
+                owner._mapSandstormSystem?.reset?.();
                 owner._roundEnded = true;
                 owner._lastRoundOutcome = outcome;
                 owner.audio?.stopEngine?.();
+                owner.audio?.clearMapAmbience?.();
                 owner.onAuthoritativeFightStateChanged?.();
                 owner._eventBus.emitRoundEnd(outcome.winner, outcome);
             }

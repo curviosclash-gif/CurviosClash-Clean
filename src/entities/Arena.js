@@ -25,7 +25,6 @@ const AIRCRAFT_DECORATION_PALETTE = Object.freeze([
     0x86efac,
     0xc4b5fd,
 ]);
-
 function resolveAircraftDecorationVehicleId(jetId) {
     const normalized = String(jetId || '').trim().toLowerCase();
     if (normalized.startsWith('jet_ship')) {
@@ -92,9 +91,7 @@ export class Arena {
     }
 
     /** Elapsed match time the animated setpieces are posed for. */
-    get glbAnimationElapsedSeconds() {
-        return this._glbAnimation.elapsedSeconds;
-    }
+    get glbAnimationElapsedSeconds() { return this._glbAnimation.elapsedSeconds; }
 
     getTelemetryMapRevision() {
         const explicitRevision = this.currentMapDefinition?.revision
@@ -104,6 +101,7 @@ export class Arena {
         return String(explicitRevision || this._lastBuildSignature || 'unknown').slice(0, 192);
     }
 
+    getMapAssetLoadState() { let beaconSurfaces = 0; let foglessBeaconSurfaces = 0; this._glbScene?.traverse((object) => { if (!object?.isMesh || !String(object.name).startsWith('sandstorm_beacon_')) return; beaconSurfaces += 1; const materials = Array.isArray(object.material) ? object.material : [object.material]; if (materials.every((material) => material?.fog === false)) foglessBeaconSurfaces += 1; }); return { modelCount: this._glbScene?.children?.length || 0, warnings: [...this._glbLoadWarnings], error: this._glbLoadError, beaconSurfaces, foglessBeaconSurfaces }; }
     setGlbAnimationTracks(tracks) {
         this._glbAnimation.setTracks(tracks);
     }
