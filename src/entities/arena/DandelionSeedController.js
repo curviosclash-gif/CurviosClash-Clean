@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DandelionSeedRenderBatch } from './DandelionSeedRenderBatch.js';
 
 const FLIGHT_SECONDS = 18;
 const BASE_FLIGHT_SPEED_SCALE = 0.55;
@@ -233,6 +234,7 @@ export class DandelionSeedController {
                 collisionCenter: currentTip,
                 previousCollisionCenter: previousTip,
                 hitPlayers: null,
+                visible: true,
             };
             this.seeds.push(seed);
             this.byName.set(node.name, seed);
@@ -246,6 +248,7 @@ export class DandelionSeedController {
             bounds.maxZ = Math.max(bounds.maxZ, root.z + seed.shaftRadius, tip.z + crownRadius);
         });
         this.seeds.sort((a, b) => a.index - b.index);
+        this._renderBatch = DandelionSeedRenderBatch.create(scene, this.seeds);
         // Reused by the secret-room unlock and the HUD. Keeping one object avoids turning a
         // per-frame status query into 60 short-lived allocations per second.
         this._progress = {
@@ -260,6 +263,11 @@ export class DandelionSeedController {
     }
 
     get count() { return this.seeds.length; }
+
+    getRenderBatchMetrics() {
+        return this._renderBatch?.getMetrics()
+            || { enabled: false, batches: 0, instances: 0, estimatedDrawCalls: 0 };
+    }
 
     /** Match-wide release progress. The returned object is owned and reused by this controller. */
     getProgress() { return this._progress; }
@@ -321,14 +329,16 @@ export class DandelionSeedController {
     update(seconds) {
         const now = Math.max(0, Number(seconds) || 0);
         dandelionWindAt(now, this._wind);
+        this._renderBatch?.beginUpdate();
         for (const seed of this.seeds) {
             if (seed.releasedAt === null) continue;
             const age = Math.max(0, now - seed.releasedAt);
             if (age >= FLIGHT_SECONDS) {
-                seed.node.visible = false;
+                this._setSeedVisible(seed, false);
+                this._renderBatch?.updateSeed(seed, false);
                 continue;
             }
-            seed.node.visible = true;
+            this._setSeedVisible(seed, true);
             seed.previousRoot.copy(seed.currentRoot);
             seed.previousTip.copy(seed.currentTip);
             const travel = seed.speed * age;
@@ -351,7 +361,14 @@ export class DandelionSeedController {
             seed.node.localToWorld(seed.currentRoot);
             seed.currentTip.set(0, seed.height, 0);
             seed.node.localToWorld(seed.currentTip);
+            this._renderBatch?.updateSeed(seed, true, true);
         }
+        this._renderBatch?.commit();
+    }
+
+    _setSeedVisible(seed, visible) {
+        seed.visible = visible === true;
+        seed.node.visible = this._renderBatch ? false : seed.visible;
     }
 
     _mayTouchAttached(playerStart, position, radius) {
@@ -451,7 +468,7 @@ export class DandelionSeedController {
         const releasedNormal = this._releasedCandidateNormal;
 
         for (const seed of this.seeds) {
-            if (seed.node.visible === false) continue;
+            if (seed.visible === false) continue;
             const attached = seed.releasedAt === null;
             if (attached && !mayTouchAttached) continue;
             if (!attached && seed.hitPlayers?.has(entityKey)) continue;
@@ -489,17 +506,20 @@ export class DandelionSeedController {
     }
 
     reset() {
+        this._renderBatch?.beginUpdate();
         for (const seed of this.seeds) {
             seed.releasedAt = null;
             seed.node.position.copy(seed.restPosition);
             seed.node.quaternion.copy(seed.restQuaternion);
-            seed.node.visible = true;
+            this._setSeedVisible(seed, true);
             seed.currentRoot.copy(seed.root);
             seed.previousRoot.copy(seed.root);
             seed.currentTip.copy(seed.tip);
             seed.previousTip.copy(seed.tip);
             seed.hitPlayers = null;
+            this._renderBatch?.updateSeed(seed, true);
         }
+        this._renderBatch?.commit();
         this._attachedContactPlayers.clear();
         this.events.length = 0;
         this._latestReleaseSeconds = 0;
