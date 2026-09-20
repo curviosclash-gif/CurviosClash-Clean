@@ -6,8 +6,9 @@
 // The clearings are therefore not decoration: they are the places where a player can change
 // storey, and they are the only places from which the canopy is reachable in a straight climb.
 //
-// Everything is authored in map units at true size; the map is not scaled (no
-// scaleAuthoredAnchors), so a number here is a world coordinate.
+// Everything is authored in map units. Arena geometry and GLB placements are multiplied by the
+// global map scale, and the preset opts its spawns, pickups and fog heights into that same space.
+// The lighting fog's near/far distances remain world-space render distances.
 
 /** Top of the forest floor. Everything stands on it, nothing is buried in it. */
 export const FOREST_GROUND = 8;

@@ -26,6 +26,7 @@ import { TREE_SCALE } from '../src/core/config/maps/presets/giant_forest/GiantFo
 // regenerating the tree variants cannot leave the collision standing beside its tree.
 
 const MAP = MAP_PRESET_CATALOG.giant_forest;
+const MAP_SCALE = 3;
 
 function readGlb(relativePath) {
     const bytes = readFileSync(path.resolve(relativePath));
@@ -100,6 +101,18 @@ test('the forest is in the catalog, in the base set and in a menu collection', a
     assert.equal(collections.length, 1, 'listed in exactly one menu collection');
 });
 
+test('gameplay anchors share the world scale used by the forest geometry', async () => {
+    const { CONFIG_SECTIONS } = await import('../src/core/config/ConfigSections.js');
+    assert.equal(CONFIG_SECTIONS.ARENA.MAP_SCALE, MAP_SCALE, 'the scale assumed by this preset');
+    assert.equal(MAP.scaleAuthoredAnchors, true, 'spawns, pickups and fog heights scale with models');
+
+    // Fog range is deliberately world-space: enough depth to read more than the nearest trees,
+    // but never enough to expose the opposite edge of the scaled arena.
+    const worldHalfSize = FOREST_HALF_SIZE * MAP_SCALE;
+    assert.ok(MAP.lighting.fog.far > worldHalfSize / 4, 'the forest still has visible depth');
+    assert.ok(MAP.lighting.fog.far < worldHalfSize, 'the far edge stays hidden');
+});
+
 test('every model file the map names exists', () => {
     for (const model of MODELS) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} -> ${model.url} is missing`);
@@ -138,7 +151,10 @@ test('a crown is drawn at a distance the fog has already closed', () => {
     const far = MAP.lighting.fog.far;
     for (const crown of CROWNS) {
         assert.ok(crown.maxRenderDistance > 0, `${crown.id} is never culled`);
-        assert.ok(crown.maxRenderDistance >= far, 'crowns must not vanish inside the visible range');
+        assert.ok(
+            crown.maxRenderDistance * MAP_SCALE >= far,
+            'crowns must not vanish inside the world-space visible range',
+        );
     }
 });
 

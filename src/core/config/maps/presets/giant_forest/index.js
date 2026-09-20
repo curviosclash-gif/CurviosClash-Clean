@@ -51,6 +51,8 @@ export const GIANT_FOREST_MAPS = {
     giant_forest: {
         name: 'Riesenwald',
         size: FOREST_MAP_SIZE,
+        // Keep gameplay anchors in the same scaled coordinate space as the trees and walkways.
+        scaleAuthoredAnchors: true,
         obstacles: FOREST_OBSTACLES,
         // No portals: a portal mouth between the trunks would be unreadable in the fog, and the
         // four updraughts already answer the one question the map asks, which storey to be on.
