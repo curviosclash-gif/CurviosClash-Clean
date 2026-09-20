@@ -6,6 +6,11 @@ import test from 'node:test';
 import { CRYSTAL_RUINS_MAP } from '../src/core/config/maps/presets/crystal_ruins.js';
 
 const map = CRYSTAL_RUINS_MAP.crystal_ruins;
+const RUIN_PREFIX = 'assets/maps/crystal_ruins/props/';
+const FUNGUS_PREFIX = 'assets/models/glowing_mushroom/';
+// The curated ruin set. Everything below that talks about ensembles, families and footprints
+// means these; models from a shared library are a separate category with its own assertion.
+const ruinProps = map.glbModels.filter((model) => model.url.startsWith(RUIN_PREFIX));
 const COLLIDING_VARIANTS = Object.freeze([
     '/broken-arches/crystal-ruins-broken-arch-v01/',
     '/broken-arches/crystal-ruins-broken-arch-v04/',
@@ -18,18 +23,45 @@ function horizontalDistance(left, right) {
 }
 
 test('Crystal Ruins curates four coherent six-piece ruin ensembles from the forty-asset library', () => {
-    assert.equal(map.glbModels.length, 24);
+    assert.equal(ruinProps.length, 24);
     assert.equal(map.glbColliderMode, 'scene');
     assert.equal(map.glbLoadConcurrency, 3);
     const families = ['broken-arches', 'damaged-columns', 'rubble-clusters', 'crystal-growths'];
     for (const family of families) {
-        assert.equal(map.glbModels.filter((model) => model.url.includes(`/${family}/`)).length, 6, `${family} contributes six curated assets`);
+        assert.equal(ruinProps.filter((model) => model.url.includes(`/${family}/`)).length, 6, `${family} contributes six curated assets`);
     }
     assert.equal(new Set(map.glbModels.map((model) => model.id)).size, map.glbModels.length, 'all placement IDs are stable and unique');
-    for (const model of map.glbModels) {
-        assert.ok(model.url.startsWith('assets/maps/crystal_ruins/props/'));
+    for (const model of ruinProps) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a shipped GLB`);
         assert.ok(model.targetSize >= 6 && model.targetSize <= 19, `${model.id} stays legible without dominating the arena`);
+    }
+    // Nothing else may join the map without saying which category it belongs to.
+    for (const model of map.glbModels) {
+        assert.ok(model.url.startsWith(RUIN_PREFIX) || model.url.startsWith(FUNGUS_PREFIX),
+            `${model.id} belongs to a known category`);
+    }
+});
+
+test('the corner fungus stays out of the ensembles and off the boost lanes', () => {
+    // The smallest planting of the four maps that carry this family, and deliberately so: the
+    // arena is 140 across under a desert sky, where a glow has the least to win. These earn
+    // their place by silhouette in the shade of the wall ends, which is also why they have to
+    // stay in the corners the ensembles leave empty rather than joining one.
+    const fungus = map.glbModels.filter((model) => model.url.startsWith(FUNGUS_PREFIX));
+    assert.equal(fungus.length, 6, 'two small corner clumps, no more');
+    for (const model of fungus) {
+        assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a shipped GLB`);
+        assert.equal(model.collision, false, `${model.id} stays decoration`);
+        assert.ok(model.targetSize <= 8, `${model.id} stays smaller than every ruin prop`);
+        // The cardinal lanes are where the map's boosts run; the ensembles already keep 20 units
+        // off them and so does the fungus.
+        assert.ok(Math.min(Math.abs(model.position[0]), Math.abs(model.position[2])) >= 20,
+            `${model.id} stays off both cardinal boost lanes`);
+        for (const prop of ruinProps) {
+            const clearance = (model.targetSize + prop.targetSize) / 2;
+            assert.ok(horizontalDistance(model.position, prop.position) > clearance,
+                `${model.id} clears ${prop.id}`);
+        }
     }
 });
 

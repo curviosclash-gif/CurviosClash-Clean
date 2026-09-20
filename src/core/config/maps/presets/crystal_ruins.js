@@ -3,7 +3,12 @@
 // CC0-inspiriert von pm-crystal-crossroads Assets
 // ============================================
 
+import { mushroomPatch } from './glowing_mushrooms.js';
+
 const CRYSTAL_RUINS_PROP_ROOT = 'assets/maps/crystal_ruins/props';
+// The arena is 140 across, so nothing here is ever far enough away to be worth culling by
+// distance; the value exists to keep the models out of a long view down a corridor.
+const FUNGUS_RENDER_DISTANCE = 120;
 
 function ruinProp(id, family, objectId, variant, position, targetSize, rotateY = 0) {
     const stem = `crystal-ruins-${objectId}-v${String(variant).padStart(2, '0')}`;
@@ -54,6 +59,39 @@ const CRYSTAL_RUINS_PROP_MODELS = [
     ruinProp('bridge-growth-south', 'crystal-growths', 'crystal-growth', 8, [4, 26.5, 32], 7, Math.PI),
     ruinProp('northwest-growth', 'crystal-growths', 'crystal-growth', 5, [-44, 0, -20], 10, 0.7),
     ruinProp('southeast-growth', 'crystal-growths', 'crystal-growth', 10, [44, 0, 20], 10, -2.4),
+
+    // Fungus in the two corners the ensembles leave empty, in the shade of the wall ends.
+    //
+    // Amber, and never teal: the crystal growths already emit across the whole cool half of the
+    // spectrum, and a teal mushroom beside a teal crystal is not a second thing, it is the same
+    // thing at the wrong size. Amber is also the desert's own colour, which is what keeps this
+    // reading as something that grew here rather than as more crystal.
+    //
+    // Deliberately the smallest planting of the four maps that carry this family: the arena is
+    // 140 across under a desert sky, so a glow has the least to win here and these earn their
+    // place by silhouette in the shade rather than by light.
+    ...mushroomPatch({
+        id: 'crystal-ruins-fungus-southwest',
+        centre: [-55, 0, 45],
+        radius: 7,
+        count: 3,
+        size: [4, 7],
+        forms: ['cap', 'coral'],
+        hues: ['amber'],
+        seed: 2204,
+        maxRenderDistance: FUNGUS_RENDER_DISTANCE,
+    }),
+    ...mushroomPatch({
+        id: 'crystal-ruins-fungus-northeast',
+        centre: [55, 0, -45],
+        radius: 7,
+        count: 3,
+        size: [4, 7],
+        forms: ['coral', 'cap'],
+        hues: ['amber'],
+        seed: 8815,
+        maxRenderDistance: FUNGUS_RENDER_DISTANCE,
+    }),
 ];
 
 export const CRYSTAL_RUINS_MAP = {
