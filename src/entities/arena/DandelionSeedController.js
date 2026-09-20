@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 
 const FLIGHT_SECONDS = 18;
+const BASE_FLIGHT_SPEED_SCALE = 0.55;
+const FLIGHT_SPEED_VARIATION = 0.3;
 const SHAFT_RADIUS_SCALE = 0.07;
 // The generated bristles reach up to 0.69 local units from the pappus centre.
 const PAPPUS_RADIUS_SCALE = 0.7;
@@ -12,6 +14,11 @@ const TUMBLE_AXIS = new THREE.Vector3(1, 0.3, 0).normalize();
 
 function dot(ax, ay, az, bx, by, bz) {
     return ax * bx + ay * by + az * bz;
+}
+
+function seedSpeedScale(index) {
+    const sample = (Math.imul(index, 0x9e3779b1) >>> 0) / 0xffffffff;
+    return BASE_FLIGHT_SPEED_SCALE * (1 + (sample * 2 - 1) * FLIGHT_SPEED_VARIATION);
 }
 
 function raySphereEntry(origin, direction, center, radius, maxDistance) {
@@ -212,7 +219,7 @@ export class DandelionSeedController {
                 shaftRadius: size * SHAFT_RADIUS_SCALE,
                 radius: size * PAPPUS_RADIUS_SCALE,
                 collisionRadius: size * PAPPUS_RADIUS_SCALE,
-                speed: size * 0.55,
+                speed: size * seedSpeedScale(index),
                 restPosition: node.position.clone(),
                 restQuaternion: node.quaternion.clone(),
                 releasedAt: null,

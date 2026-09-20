@@ -59,6 +59,17 @@ test('wind changes slowly and release time changes the subsequent flight heading
     assert.ok(early.seeds[0].node.position.distanceTo(late.seeds[0].node.position) > 0.5);
 });
 
+test('seed flight speeds vary deterministically by up to 30 percent', () => {
+    const controller = new DandelionSeedController(makeScene());
+    const replica = new DandelionSeedController(makeScene());
+    const speeds = controller.seeds.map((seed) => seed.speed);
+    const baseSpeed = 0.55;
+
+    assert.ok(speeds.every((speed) => speed >= baseSpeed * 0.7 && speed <= baseSpeed * 1.3));
+    assert.equal(new Set(speeds).size, speeds.length);
+    assert.deepEqual(replica.seeds.map((seed) => seed.speed), speeds);
+});
+
 test('drag-limited gravity bends an airborne seed downward after its initial lift', () => {
     const controller = new DandelionSeedController(makeScene());
     const seed = controller.seeds[0];
