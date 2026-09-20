@@ -29,6 +29,10 @@ function cloneSerializable(value) {
     return result;
 }
 
+function isEscortMapUnit(value) {
+    return value?.escortObjective && typeof value.escortObjective === 'object';
+}
+
 function readManagerMapMetadata(manager) {
     const source = manager?.mapDocumentMeta && typeof manager.mapDocumentMeta === 'object'
         ? manager.mapDocumentMeta
@@ -63,7 +67,7 @@ function readManagerMapMetadata(manager) {
         metadata.secretRooms = cloneSerializable(source.secretRooms) || [];
     }
     if (Array.isArray(source.mapUnits)) {
-        metadata.mapUnits = cloneSerializable(source.mapUnits) || [];
+        metadata.mapUnits = cloneSerializable(source.mapUnits.filter((unit) => !isEscortMapUnit(unit))) || [];
     }
 
     return metadata;
@@ -120,9 +124,9 @@ function extractMapMetadata(data) {
     if (Array.isArray(data.secretRooms) && data.secretRooms.length > 0) {
         metadata.secretRooms = cloneSerializable(data.secretRooms) || [];
     }
-    // Tanks are carried through the same way: no authoring surface yet, written back unchanged.
+    // Non-escort units still round-trip unchanged. Escort routes have their own visual authoring surface.
     if (Array.isArray(data.mapUnits) && data.mapUnits.length > 0) {
-        metadata.mapUnits = cloneSerializable(data.mapUnits) || [];
+        metadata.mapUnits = cloneSerializable(data.mapUnits.filter((unit) => !isEscortMapUnit(unit))) || [];
     }
     if (data.parcours && typeof data.parcours === 'object') {
         const parcoursMetadata = cloneSerializable(data.parcours) || {};
@@ -168,6 +172,7 @@ export function generateJSONExport(manager, arenaSize) {
     };
 
     const editorCheckpoints = [];
+    const escortPoints = [];
     let foundPlayerSpawn = false;
 
     manager.core.objectsContainer.children.forEach((obj) => {
@@ -304,10 +309,41 @@ export function generateJSONExport(manager, arenaSize) {
                 ...(u.params && typeof u.params === 'object' ? { params: cloneSerializable(u.params) } : {})
             });
         }
+        else if (u.type === 'escort_waypoint') {
+            escortPoints.push({
+                order: Number.isFinite(Number(u.escortOrder)) ? Number(u.escortOrder) : escortPoints.length,
+                routeType: String(u.subType || 'waypoint'),
+                pos: [p.x, p.y, p.z],
+            });
+        }
     });
 
     if (payload.glbModels.length > 0 && !payload.glbColliderMode) {
         payload.glbColliderMode = 'fallbackOnly';
+    }
+
+    if (escortPoints.length >= 2) {
+        escortPoints.sort((left, right) => left.order - right.order);
+        const path = escortPoints.map((point) => point.pos);
+        const checkpointPathIndices = [];
+        escortPoints.forEach((point, index) => {
+            if (point.routeType === 'checkpoint' && index > 0 && index < escortPoints.length - 1) {
+                checkpointPathIndices.push(index);
+            }
+        });
+        payload.mapUnits = (payload.mapUnits || []).filter((unit) => !isEscortMapUnit(unit));
+        payload.mapUnits.push({
+            id: 'escort_tank',
+            kind: 'tank',
+            path,
+            loop: false,
+            speed: 6,
+            maxHp: 600,
+            respawnSeconds: 0,
+            weapons: { mg: false, rocket: false },
+            allowedModes: ['ESCORT'],
+            escortObjective: { checkpointPathIndices },
+        });
     }
 
     // Runtime portals are paired sequentially. Authoring links decide that order,
@@ -376,6 +412,12 @@ export function generateJSONExport(manager, arenaSize) {
     }
     if (payload.parcours?.enabled && !payload.parcours?.finish) {
         warnings.push('Parcours aktiviert, aber kein Finish-Checkpoint platziert.');
+    }
+    if (escortPoints.length === 1) {
+        warnings.push('Escort-Route benötigt mindestens Start und Ziel.');
+    }
+    if (escortPoints.length >= 2 && !escortPoints.some((point) => point.routeType === 'checkpoint')) {
+        warnings.push('Escort-Route hat keinen Reparatur-Checkpoint.');
     }
     const normalizedPayload = createMapDocument(payload, { warnings });
     storeSchemaWarnings(manager, warnings);
@@ -480,6 +522,21 @@ export function importFromJSON(manager, jsonString, options = {}) {
 
             for (const turret of data.staticTurrets || []) {
                 manager.createMesh('turret', turret.weapon, ...turret.pos, 0, turret, { updateUi: false });
+            }
+
+            const escortUnit = (data.mapUnits || []).find((unit) => isEscortMapUnit(unit));
+            if (escortUnit?.path?.length >= 2) {
+                const checkpointIndices = new Set(escortUnit.escortObjective?.checkpointPathIndices || []);
+                escortUnit.path.forEach((point, index) => {
+                    const [x, y, z] = point || [0, 0, 0];
+                    const routeType = index === 0
+                        ? 'start'
+                        : (index === escortUnit.path.length - 1 ? 'goal' : (checkpointIndices.has(index) ? 'checkpoint' : 'waypoint'));
+                    manager.createMesh('escort_waypoint', routeType, x, y, z, 4.5, {
+                        id: `escort_route_${index + 1}`,
+                        escortOrder: index,
+                    }, { updateUi: false });
+                });
             }
 
             if (data.aircraft) {

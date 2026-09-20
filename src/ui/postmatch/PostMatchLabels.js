@@ -74,6 +74,9 @@ const OBJECTIVE_LABELS = Object.freeze({
     OVERTIME: 'Golden Kill',
     SCORE_TARGET: 'Punktziel erreicht',
     LAST_ALIVE: 'Letzter Überlebender',
+    ESCORT_GOAL: 'Panzer hat das Ziel erreicht',
+    ESCORT_TANK_DESTROYED: 'Panzer endgültig zerstört',
+    ESCORT_TIME_LIMIT: 'Escort-Zeit abgelaufen',
 });
 
 /**

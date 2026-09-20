@@ -1526,6 +1526,24 @@
                     <div id="hunt-objective" class="hunt-label">Elimination</div>
                     <div id="hunt-scoreboard" class="hunt-value"></div>
                     <div id="hunt-target-progress" class="hunt-target-progress hidden" aria-hidden="true"></div>
+                    <div id="escort-status" class="escort-status hidden" aria-hidden="true">
+                        <div class="escort-heading">
+                            <span id="escort-role">Eskorte</span>
+                            <span id="escort-phase">Unterwegs</span>
+                        </div>
+                        <div id="escort-progress" class="escort-progress" role="meter" aria-label="Streckenfortschritt" aria-valuemin="0" aria-valuemax="100">
+                            <div id="escort-progress-fill" class="escort-progress-fill"></div>
+                            <div id="escort-checkpoints" class="escort-checkpoints" aria-hidden="true"></div>
+                        </div>
+                        <div class="escort-health-heading">
+                            <span>Panzer</span>
+                            <span id="escort-hp-text">0 / 0</span>
+                        </div>
+                        <div id="escort-health" class="escort-health" role="meter" aria-label="Panzerzustand" aria-valuemin="0" aria-valuemax="100">
+                            <div id="escort-hp-fill" class="escort-health-fill"></div>
+                        </div>
+                        <div id="escort-recovery" class="escort-recovery hidden"></div>
+                    </div>
                 </div>
                 <div id="hunt-p1-panel" class="hunt-player-panel">
                     <div class="hunt-vitals">

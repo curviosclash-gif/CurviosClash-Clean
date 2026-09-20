@@ -501,6 +501,7 @@ export class HudRuntimeSystem {
             if (localPlayer) {
                 game.hudP1.update(localPlayer, fighterElapsed, {
                     lockTarget: this._findProjectedLockTarget(projection, localIdx),
+                    objectiveTarget: projection?.hunt?.escort || null,
                 });
             }
         } else {
@@ -508,6 +509,7 @@ export class HudRuntimeSystem {
             if (p1) {
                 game.hudP1.update(p1, fighterElapsed, {
                     lockTarget: this._findProjectedLockTarget(projection, 0),
+                    objectiveTarget: projection?.hunt?.escort || null,
                 });
             }
 
@@ -516,6 +518,7 @@ export class HudRuntimeSystem {
                 if (p2) {
                     game.hudP2.update(p2, fighterElapsed, {
                         lockTarget: this._findProjectedLockTarget(projection, 1),
+                        objectiveTarget: projection?.hunt?.escort || null,
                     });
                 }
             }

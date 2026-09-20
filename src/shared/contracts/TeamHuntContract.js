@@ -62,6 +62,15 @@ export function createTeamScoreboard(rows = [], players = [], { scoreKey = 'kill
             burnedTrailMeters: 0,
             flagCaptures: 0,
             repairDroneHpRestored: 0,
+            escortSeconds: 0,
+            escortTankDamage: 0,
+            escortGuardKills: 0,
+            escortAttackKills: 0,
+            escortCheckpointContributions: 0,
+            escortRepairHp: 0,
+            escortRecoveries: 0,
+            escortTankDowns: 0,
+            escortFinalDestructions: 0,
         });
     }
     for (const row of rows || []) {
@@ -74,6 +83,9 @@ export function createTeamScoreboard(rows = [], players = [], { scoreKey = 'kill
         for (const key of [
             'kills', 'points', 'deaths', 'assists', 'damage', 'shieldDamage', 'intercepts',
             'unitsDestroyed', 'burnedTrailMeters', 'flagCaptures', 'repairDroneHpRestored',
+            'escortSeconds', 'escortTankDamage', 'escortGuardKills', 'escortAttackKills',
+            'escortCheckpointContributions', 'escortRepairHp', 'escortRecoveries',
+            'escortTankDowns', 'escortFinalDestructions',
         ]) {
             team[key] += Math.max(0, Number(row?.[key]) || 0);
         }

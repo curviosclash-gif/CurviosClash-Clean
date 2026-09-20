@@ -17,7 +17,7 @@ import {
     updateMapUnitVisual,
 } from './map-units/MapUnitVisualOps.js';
 import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-units/MapUnitWeaponOps.js';
-import { applyMapUnitDamage, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
+import { applyMapUnitDamage, destroyMapUnit, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
 import { crushTrailsUnderUnit } from './map-units/MapUnitTrailOps.js';
 import { applyMapUnitsNetworkState, serializeMapUnits } from './map-units/MapUnitNetworkOps.js';
 import {
@@ -51,10 +51,14 @@ import { GAME_MODE_TYPES } from '../../hunt/HuntMode.js';
 import { resolveTeamColor, TEAM_IDS } from '../../shared/contracts/TeamCombatContract.js';
 import {
     bindEscortTank,
+    createEscortObjectiveState,
     createEscortTankDefinition,
     resolveEscortMapUnitOutcome,
+    updateEscortCheckpoints,
+    updateEscortRecovery,
     updateEscortTankSpeed,
 } from './map-units/EscortMapUnitOps.js';
+import { ESCORT_PHASES } from '../../shared/contracts/EscortObjectiveContract.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
@@ -95,14 +99,17 @@ export class MapUnitSystem {
             : 1;
         const definitions = resolveMapUnitDefinitions(mapDefinition, { preserveSpatial: mapDefinition?.scaleAuthoredAnchors === true });
         for (const definition of definitions) {
+            if (definition.escortObjective) continue;
             if (!isTurretCombatActive(owner.gameModeStrategy, [...definition.allowedModes])) continue;
             const unit = this._createUnit(definition, scale);
             this.units.push(unit);
             this.setBossRoomClock(unit, true);
         }
         if (owner.gameModeStrategy?.modeType === GAME_MODE_TYPES.ESCORT) {
-            const definition = createEscortTankDefinition(owner.arena?.bounds);
-            if (definition) this.units.push(bindEscortTank(this._createUnit(definition, 1)));
+            const authored = definitions.filter((definition) => definition.escortObjective);
+            const definition = createEscortTankDefinition(owner.arena?.bounds, authored.length === 1 ? authored[0] : null);
+            const escortScale = authored.length === 1 ? scale : 1;
+            if (definition) this.units.push(bindEscortTank(this._createUnit(definition, escortScale)));
         }
         return this.units.length;
     }
@@ -255,13 +262,64 @@ export class MapUnitSystem {
                 continue;
             }
             if (!unit.alive) continue;
+            const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
             if (unit.escortTank) {
                 if (unit.escortReachedGoal) continue;
-                if (!this.networkReplica) updateEscortTankSpeed(unit, this.entityManager?.players || []);
+                if (!this.networkReplica) {
+                    const recovery = updateEscortRecovery(unit, this.entityManager?.players || [], unitDt);
+                    if (recovery.repairingPlayer && recovery.repairHp > 0) {
+                        this.entityManager?._huntScoring?.registerEscortRepair?.(
+                            recovery.repairingPlayer.index,
+                            recovery.repairHp,
+                            recovery.recovered,
+                        );
+                    }
+                    if (recovery.recovered) {
+                        this.entityManager?.recorder?.logEvent?.('ESCORT_TANK_RECOVERED', recovery.repairingPlayer?.index ?? -1, unit.id);
+                    } else if (recovery.destroyed) {
+                        unit.escortPhase = ESCORT_PHASES.DESTROYED;
+                        destroyMapUnit(this, unit, unit.escortLastDamageSource || null);
+                        continue;
+                    }
+                    if (unit.escortPhase !== ESCORT_PHASES.MOVING) {
+                        this._updateVisual(unit);
+                        continue;
+                    }
+                    updateEscortTankSpeed(unit, this.entityManager?.players || []);
+                    for (const player of this.entityManager?.players || []) {
+                        if (
+                            player?.alive === true
+                            && player.teamId === TEAM_IDS.ALPHA
+                            && player.position
+                            && this.isPositionNearEscortTank(player.position)
+                        ) {
+                            this.entityManager?._huntScoring?.registerEscortSeconds?.(player.index, unitDt);
+                        }
+                    }
+                }
             }
-            const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
             advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
-            if (unit.escortTank && unit.fromIndex === unit.path.length - 1) unit.escortReachedGoal = true;
+            if (unit.escortTank && !this.networkReplica) {
+                const checkpoint = updateEscortCheckpoints(unit);
+                if (checkpoint !== null) {
+                    this.entityManager?.recorder?.logEvent?.('ESCORT_CHECKPOINT', -1, `${unit.id}:${checkpoint + 1}`);
+                    this.entityManager?.audio?.play?.('FIGHT_LEAD');
+                    for (const player of this.entityManager?.players || []) {
+                        if (
+                            player?.alive === true
+                            && player.teamId === TEAM_IDS.ALPHA
+                            && player.position
+                            && this.isPositionNearEscortTank(player.position)
+                        ) {
+                            this.entityManager?._huntScoring?.registerEscortCheckpointContribution?.(player.index);
+                        }
+                    }
+                }
+                if (unit.fromIndex === unit.path.length - 1) {
+                    unit.escortReachedGoal = true;
+                    unit.escortPhase = ESCORT_PHASES.GOAL;
+                }
+            }
             const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
             unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
             this._placeCentre(unit);
@@ -330,6 +388,19 @@ export class MapUnitSystem {
         const tank = this.units.find((unit) => unit.escortTank === true) || null;
         const elapsed = Math.max(0, Number(this.entityManager?._simulationClockMs) || 0) * 0.001;
         return resolveEscortMapUnitOutcome(tank, elapsed, this.entityManager?.players || []);
+    }
+
+    getEscortObjectiveState() {
+        if (this.entityManager?.gameModeStrategy?.modeType !== GAME_MODE_TYPES.ESCORT) return null;
+        const tank = this.units.find((unit) => unit.escortTank === true) || null;
+        return tank ? createEscortObjectiveState(tank, tank.escortObjectiveState) : null;
+    }
+
+    isPositionNearEscortTank(position, radius = null) {
+        const tank = this.units.find((unit) => unit.escortTank === true) || null;
+        if (!tank?.position || !position) return false;
+        const distance = Math.max(0, Number(radius) || 30);
+        return tank.position.distanceToSquared(position) <= distance * distance;
     }
 
     setNetworkReplica(enabled) {

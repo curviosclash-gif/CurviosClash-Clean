@@ -308,6 +308,10 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
     runtimeContext.visiblePowerups = visiblePowerups;
     runtimeContext.trailSpatialIndex = entityManager?.getTrailSpatialIndex?.() || entityManager?._trailSpatialIndex || null;
     runtimeContext.mode = mode;
+    runtimeContext.escortObjective = entityManager?._mapUnitSystem?.getEscortObjectiveState?.() || null;
+    runtimeContext.escortTank = runtimeContext.escortObjective
+        ? entityManager?._mapUnitSystem?.units?.find?.((unit) => unit?.escortTank === true) || null
+        : null;
 
     rules.planarMode = planarMode;
     rules.huntEnabled = entityManager?.huntEnabled === true || isHuntMode(mode);

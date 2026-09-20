@@ -45,6 +45,15 @@ export class HuntScoring {
                 burnedTrailMeters: 0,
                 flagCaptures: 0,
                 repairDroneHpRestored: 0,
+                escortSeconds: 0,
+                escortTankDamage: 0,
+                escortGuardKills: 0,
+                escortAttackKills: 0,
+                escortCheckpointContributions: 0,
+                escortRepairHp: 0,
+                escortRecoveries: 0,
+                escortTankDowns: 0,
+                escortFinalDestructions: 0,
                 points: 0,
             });
         }
@@ -129,6 +138,42 @@ export class HuntScoring {
         this._ensureStats(playerIndex).repairDroneHpRestored += Math.max(0, Number(hp) || 0);
     }
 
+    registerEscortSeconds(playerIndex, seconds) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        this._ensureStats(playerIndex).escortSeconds += Math.max(0, Number(seconds) || 0);
+    }
+
+    registerEscortTankDamage(playerIndex, damage) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        this._ensureStats(playerIndex).escortTankDamage += Math.max(0, Number(damage) || 0);
+    }
+
+    registerEscortCheckpointContribution(playerIndex) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        this._ensureStats(playerIndex).escortCheckpointContributions += 1;
+    }
+
+    registerEscortRepair(playerIndex, hp, recovered = false) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        const stats = this._ensureStats(playerIndex);
+        stats.escortRepairHp += Math.max(0, Number(hp) || 0);
+        if (recovered) stats.escortRecoveries += 1;
+    }
+
+    registerEscortTankDown(playerIndex, finalDestruction = false, countDown = true) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        const stats = this._ensureStats(playerIndex);
+        if (countDown) stats.escortTankDowns += 1;
+        if (finalDestruction) stats.escortFinalDestructions += 1;
+    }
+
+    registerEscortObjectiveKill(playerIndex, attacking = false) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        const stats = this._ensureStats(playerIndex);
+        if (attacking) stats.escortAttackKills += 1;
+        else stats.escortGuardKills += 1;
+    }
+
     registerElimination(targetPlayer, options = {}) {
         const targetIndex = targetPlayer?.index;
         if (!Number.isInteger(targetIndex)) return { killerIndex: -1, assistIndices: [] };
@@ -190,6 +235,15 @@ export class HuntScoring {
                 burnedTrailMeters: Math.round(stats.burnedTrailMeters * 100) / 100,
                 flagCaptures: stats.flagCaptures,
                 repairDroneHpRestored: Math.round(stats.repairDroneHpRestored * 100) / 100,
+                escortSeconds: Math.round(stats.escortSeconds * 100) / 100,
+                escortTankDamage: Math.round(stats.escortTankDamage * 100) / 100,
+                escortGuardKills: stats.escortGuardKills,
+                escortAttackKills: stats.escortAttackKills,
+                escortCheckpointContributions: stats.escortCheckpointContributions,
+                escortRepairHp: Math.round(stats.escortRepairHp * 100) / 100,
+                escortRecoveries: stats.escortRecoveries,
+                escortTankDowns: stats.escortTankDowns,
+                escortFinalDestructions: stats.escortFinalDestructions,
                 points: stats.points,
             });
         }
@@ -223,6 +277,15 @@ export class HuntScoring {
                 burnedTrailMeters: Math.max(0, Number(row?.burnedTrailMeters) || 0),
                 flagCaptures: Math.max(0, Number(row?.flagCaptures) || 0),
                 repairDroneHpRestored: Math.max(0, Number(row?.repairDroneHpRestored) || 0),
+                escortSeconds: Math.max(0, Number(row?.escortSeconds) || 0),
+                escortTankDamage: Math.max(0, Number(row?.escortTankDamage) || 0),
+                escortGuardKills: Math.max(0, Number(row?.escortGuardKills) || 0),
+                escortAttackKills: Math.max(0, Number(row?.escortAttackKills) || 0),
+                escortCheckpointContributions: Math.max(0, Number(row?.escortCheckpointContributions) || 0),
+                escortRepairHp: Math.max(0, Number(row?.escortRepairHp) || 0),
+                escortRecoveries: Math.max(0, Number(row?.escortRecoveries) || 0),
+                escortTankDowns: Math.max(0, Number(row?.escortTankDowns) || 0),
+                escortFinalDestructions: Math.max(0, Number(row?.escortFinalDestructions) || 0),
                 points: Math.max(0, Number(row?.points) || 0),
             });
         }

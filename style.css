@@ -1986,6 +1986,40 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     color: #ff9b9b;
 }
 
+.hud-objective-reticle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: #ffe06b;
+    font: 700 10px var(--menu-theme-display-font, sans-serif);
+    letter-spacing: 0.08em;
+    text-align: center;
+    text-shadow: 0 0 7px rgba(255, 196, 43, 0.75);
+}
+
+.hud-objective-box {
+    width: 42px;
+    height: 42px;
+    border: 2px solid rgba(255, 224, 107, 0.95);
+    transform: rotate(45deg);
+    box-shadow: 0 0 12px rgba(255, 196, 43, 0.45);
+}
+
+.hud-objective-arrow {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0;
+    height: 0;
+    border-left: 9px solid transparent;
+    border-right: 9px solid transparent;
+    border-bottom: 15px solid rgba(255, 224, 107, 0.95);
+    filter: drop-shadow(0 0 6px rgba(255, 196, 43, 0.65));
+}
+
+.hud-objective-label { margin-top: 8px; white-space: nowrap; }
+.hud-objective-distance { color: #fff2ae; }
+
 .player-hud {
     position: absolute;
     top: 15px;
@@ -8602,6 +8636,60 @@ body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
     border-color: var(--hud-color, #70ff45);
     background: var(--hud-color, #70ff45);
 }
+
+.escort-status {
+    margin: 7px auto 0;
+    max-width: 330px;
+    color: var(--hud-text, #f6fbff);
+    font-size: 0.68rem;
+}
+
+.escort-status.hidden { display: none; }
+.escort-heading,
+.escort-health-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 3px;
+    letter-spacing: 0.08em;
+}
+.escort-progress,
+.escort-health {
+    position: relative;
+    height: 7px;
+    overflow: visible;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    background: rgba(0, 0, 0, 0.55);
+}
+.escort-progress-fill,
+.escort-health-fill {
+    width: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #00aaff, #78deff);
+    box-shadow: 0 0 7px rgba(0, 170, 255, 0.65);
+}
+.escort-health-heading { margin-top: 6px; }
+.escort-health-fill {
+    background: linear-gradient(90deg, #ff7a35, #ffe06b);
+    box-shadow: 0 0 7px rgba(255, 164, 48, 0.65);
+}
+.escort-checkpoints {
+    position: absolute;
+    inset: -4px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-evenly;
+}
+.escort-checkpoint {
+    width: 5px;
+    height: 13px;
+    border: 1px solid #d7e9f5;
+    background: #071827;
+    transform: skewX(-12deg);
+}
+.escort-checkpoint.reached { background: #70ff45; border-color: #70ff45; }
+.escort-recovery { margin-top: 5px; color: #ffe06b; letter-spacing: 0.06em; }
+.escort-recovery.hidden { display: none; }
 
 .mp-scoreboard {
     top: 16px;

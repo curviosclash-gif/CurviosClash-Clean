@@ -51,6 +51,11 @@ function toPlainUnit(unit, invScale) {
     if (unit.kind === 'creature') {
         plain.attack = { ...unit.attack, radius: unit.attack.radius * invScale };
     }
+    if (unit.escortObjective) {
+        plain.escortObjective = {
+            checkpointPathIndices: [...unit.escortObjective.checkpointPathIndices],
+        };
+    }
     return plain;
 }
 

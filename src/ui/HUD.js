@@ -12,6 +12,7 @@ import { formatMapDestructibleStatus } from './MapDestructibleStatusText.js';
 import { formatMapExpansionStatus } from './MapExpansionStatusText.js';
 import { formatSecretRoomStatus } from './SecretRoomStatusText.js';
 import { formatDandelionSeedStatus } from './DandelionSeedStatusText.js';
+import { createHudObjectiveMarker, updateHudObjectiveMarker } from './HudObjectiveMarker.js';
 
 function toFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -43,6 +44,7 @@ export class HUD {
         this.lockArrow = document.createElement('div');
         this.lockArrow.className = 'lock-arrow hidden';
         this.lockReticle.appendChild(this.lockArrow);
+        Object.assign(this, createHudObjectiveMarker(this.container));
         this.boostFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-boost-fill');
         this.classicBoostWidget = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-boost');
         this.classicBoostFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-boost-fill');
@@ -271,6 +273,7 @@ export class HUD {
             this._updateExclusionZoneStatus(null);
             this._updateMapExpansionStatus(null);
             this._updateMapDestructibleStatus(null, null);
+            this._setClassFlag(this.objectiveReticle, 'hidden', true);
             this.setVisibility(false);
             return;
         }
@@ -400,6 +403,8 @@ export class HUD {
 
         this._setText(this.headingValue, headingInt.toString().padStart(3, '0'));
         this._setStyle(this.headingScale, 'transform', `translateX(${-heading * 4}px)`);
+
+        updateHudObjectiveMarker(this, player, context);
 
         const lockTarget = context?.lockTarget || null;
         if (lockTarget && lockTarget.alive) {

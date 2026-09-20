@@ -27,6 +27,13 @@ export function serializeMapUnits(units) {
         ...(unit.escortTank ? {
             escortReachedGoal: unit.escortReachedGoal === true,
             escortSpeed: round(unit.speed),
+            escortPhase: String(unit.escortPhase || 'MOVING'),
+            escortCheckpointIndex: Number.isFinite(Number(unit.escortCheckpointIndex))
+                ? Math.max(-1, Math.trunc(Number(unit.escortCheckpointIndex))) : -1,
+            escortRecoveryCharges: Math.max(0, Math.trunc(Number(unit.escortRecoveryCharges) || 0)),
+            escortDownedRemaining: round(unit.escortDownedRemaining),
+            escortRepairProgress: round(unit.escortRepairProgress),
+            escortProtectionRemaining: round(unit.escortProtectionRemaining),
         } : {}),
         ...(unit.kind === 'bomber' ? {
             crashing: unit.crashing === true,
@@ -112,7 +119,16 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         unit.alive = entry.alive === true;
         if (unit.escortTank) {
             unit.escortReachedGoal = entry.escortReachedGoal === true;
-            unit.speed = Math.max(0, Number(entry.escortSpeed) || unit.speed);
+            unit.speed = Number.isFinite(Number(entry.escortSpeed))
+                ? Math.max(0, Number(entry.escortSpeed)) : unit.speed;
+            unit.escortPhase = ['MOVING', 'DOWNED', 'RECOVERING', 'GOAL', 'DESTROYED'].includes(entry.escortPhase)
+                ? entry.escortPhase : unit.escortPhase;
+            unit.escortCheckpointIndex = Number.isFinite(Number(entry.escortCheckpointIndex))
+                ? Math.max(-1, Math.trunc(Number(entry.escortCheckpointIndex))) : -1;
+            unit.escortRecoveryCharges = Math.max(0, Math.trunc(Number(entry.escortRecoveryCharges) || 0));
+            unit.escortDownedRemaining = Math.max(0, Number(entry.escortDownedRemaining) || 0);
+            unit.escortRepairProgress = Math.max(0, Math.min(1, Number(entry.escortRepairProgress) || 0));
+            unit.escortProtectionRemaining = Math.max(0, Number(entry.escortProtectionRemaining) || 0);
         }
         if (unit.kind === 'bomber') {
             unit.crashing = entry.crashing === true;

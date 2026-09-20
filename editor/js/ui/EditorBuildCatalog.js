@@ -45,6 +45,12 @@ const CATEGORY_META = Object.freeze({
         label: 'Parcours',
         accentColor: '#a78bfa',
         description: 'Checkpoints, Gates und Finish für Parcours-Routen.'
+    }),
+    escort: Object.freeze({
+        id: 'escort',
+        label: 'Eskorte',
+        accentColor: '#facc15',
+        description: 'Route und Reparatur-Checkpoints für den Escort-Panzer.'
     })
 });
 
@@ -97,7 +103,8 @@ export const EDITOR_BUILD_CATEGORIES = Object.freeze([
     CATEGORY_META.pickups,
     CATEGORY_META.aircraft,
     CATEGORY_META.glb,
-    CATEGORY_META.parcours
+    CATEGORY_META.parcours,
+    CATEGORY_META.escort,
 ]);
 
 const GLB_BUILD_ITEMS = GLB_GALLERY_MAPS.glb_gallery.glbModels.map((model, index) => {
@@ -811,6 +818,26 @@ export const EDITOR_BUILD_ITEMS = Object.freeze([
         keywords: ['checkpoint', 'finish', 'ziel', 'parcours'],
         badge: 'Ziel',
         isFeatured: true
+    }),
+    createBuildEntry({
+        id: 'escort-route-start', tool: 'escort_waypoint', subType: 'start', categoryId: 'escort',
+        label: 'Escort-Start', description: 'Erster Punkt der Panzerroute.', previewGlyph: 'ES',
+        previewToken: 'escort-start', sortOrder: 10, keywords: ['escort', 'route', 'start'], badge: 'Start', isFeatured: true, isDefault: true
+    }),
+    createBuildEntry({
+        id: 'escort-route-waypoint', tool: 'escort_waypoint', subType: 'waypoint', categoryId: 'escort',
+        label: 'Routenpunkt', description: 'Zwischenpunkt, dem der Panzer folgt.', previewGlyph: 'EP',
+        previewToken: 'escort-waypoint', sortOrder: 20, keywords: ['escort', 'route', 'waypoint'], isFeatured: true
+    }),
+    createBuildEntry({
+        id: 'escort-route-checkpoint', tool: 'escort_waypoint', subType: 'checkpoint', categoryId: 'escort',
+        label: 'Reparatur-Checkpoint', description: 'Routenpunkt, der Panzer-HP und Wiederherstellung auflädt.', previewGlyph: 'EC',
+        previewToken: 'escort-checkpoint', sortOrder: 30, keywords: ['escort', 'checkpoint', 'repair'], badge: 'Recovery', isFeatured: true
+    }),
+    createBuildEntry({
+        id: 'escort-route-goal', tool: 'escort_waypoint', subType: 'goal', categoryId: 'escort',
+        label: 'Escort-Ziel', description: 'Letzter Punkt der Panzerroute.', previewGlyph: 'EZ',
+        previewToken: 'escort-goal', sortOrder: 40, keywords: ['escort', 'route', 'goal', 'ziel'], badge: 'Ziel', isFeatured: true
     }),
     ...GLB_BUILD_ITEMS
 ].sort((left, right) => left.sortOrder - right.sortOrder || left.label.localeCompare(right.label)));

@@ -39,6 +39,7 @@ import {
 } from './HeuristicBotPolicyOps.js';
 import { findPreferredPickupTarget } from './BotPickupTargetingOps.js';
 import { resolveOpportunisticEnemy } from './HeuristicHuntTargetingOps.js';
+import { applyEscortBotMovement } from '../../hunt/HuntBotEscortOps.js';
 import {
     applyTrafficAvoidanceSteering,
     findImminentTrafficThreat,
@@ -490,6 +491,8 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         }
         if (wallFront <= policy.profile.safetyDistance) input.boost = false;
     }
+    const escortRole = applyEscortBotMovement({ policy, input, player, runtimeContext, shouldRetreat: retreatRequested, clearSteering: clearSteeringInput, steerToward: applySteeringTowardPosition });
+    if (escortRole) intent = `escort-${escortRole.toLowerCase()}`;
     return {
         intent,
         retreatReason,

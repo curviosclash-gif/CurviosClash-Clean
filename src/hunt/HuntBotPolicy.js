@@ -22,6 +22,7 @@ import { applyBotLightningInput } from './HuntBotLightningOps.js';
 import { applyBotRailgunInput, holdsRailgunCharge } from './HuntBotRailgunOps.js';
 import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 import { areTeammates } from '../shared/contracts/TeamCombatContract.js';
+import { applyEscortBotMovement } from './HuntBotEscortOps.js';
 export { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 
 import { clamp } from '../shared/utils/MathOps.js';
@@ -496,17 +497,10 @@ export class HuntBotPolicy {
         }
 
 
-        applyScenarioRoleMovement({
-            policy: this,
-            input,
-            player,
-            enemy,
-            distSq,
-            tuning: scenarioTuning,
-            shouldRetreat,
-            clearSteering: clearSteeringInput,
-            steerToward: applySteeringTowardPosition,
-        });
+        const escortRole = applyEscortBotMovement({ policy: this, input, player, runtimeContext, shouldRetreat, clearSteering: clearSteeringInput, steerToward: applySteeringTowardPosition });
+        if (!escortRole) {
+            applyScenarioRoleMovement({ policy: this, input, player, enemy, distSq, tuning: scenarioTuning, shouldRetreat, clearSteering: clearSteeringInput, steerToward: applySteeringTowardPosition });
+        }
 
         return input;
     }

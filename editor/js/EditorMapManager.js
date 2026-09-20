@@ -3,7 +3,7 @@ import { createEditorMesh, alignTunnelSegment as alignTunnelSegmentMesh } from '
 import { EditorObjectRegistry } from './EditorObjectRegistry.js';
 import { generateJSONExport, importFromJSON } from './EditorMapSerializer.js';
 
-const SCALABLE_OBJECT_TYPES = new Set(['hard', 'foam', 'tunnel', 'portal', 'aircraft', 'glb', 'checkpoint']);
+const SCALABLE_OBJECT_TYPES = new Set(['hard', 'foam', 'tunnel', 'portal', 'aircraft', 'glb', 'checkpoint', 'escort_waypoint']);
 const CHECKPOINT_SCALE_FACTOR = 14;
 
 /**
@@ -91,7 +91,10 @@ export class EditorMapManager {
             item_fallback: new THREE.MeshLambertMaterial({ color: 0x64748b }),
             aircraft_fallback: new THREE.MeshLambertMaterial({ color: 0xc084fc }),
             checkpoint: new THREE.MeshLambertMaterial({ color: 0xaaff00, transparent: true, opacity: 0.7 }),
-            checkpoint_finish: new THREE.MeshLambertMaterial({ color: 0xffd700, transparent: true, opacity: 0.7 })
+            checkpoint_finish: new THREE.MeshLambertMaterial({ color: 0xffd700, transparent: true, opacity: 0.7 }),
+            escort_waypoint: new THREE.MeshLambertMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.78 }),
+            escort_checkpoint: new THREE.MeshLambertMaterial({ color: 0xfacc15, transparent: true, opacity: 0.9 }),
+            escort_goal: new THREE.MeshLambertMaterial({ color: 0x70ff45, transparent: true, opacity: 0.9 }),
         };
     }
 
@@ -409,6 +412,8 @@ export class EditorMapManager {
                 else userData.glbScale = scalar;
             } else if (userData.type === 'checkpoint') {
                 userData.cpRadius = scalar / CHECKPOINT_SCALE_FACTOR;
+            } else if (userData.type === 'escort_waypoint') {
+                userData.routeRadius = scalar / 10;
             }
         }
     }
@@ -431,14 +436,20 @@ export class EditorMapManager {
         const singletonObject = this.core.objectsContainer.children.find((object) => (
             (type === 'spawn' && subType === 'player' && object.userData?.type === 'spawn' && object.userData?.subType === 'player')
             || (type === 'checkpoint' && subType === 'finish' && object.userData?.type === 'checkpoint' && object.userData?.subType === 'finish')
+            || (type === 'escort_waypoint' && ['start', 'goal'].includes(subType)
+                && object.userData?.type === 'escort_waypoint' && object.userData?.subType === subType)
         ));
         if (singletonObject) {
             this.callbacks.onObjectCreationRejected?.({ type, subType, existingObject: singletonObject });
             return null;
         }
         const authoringMetadata = this.authoringMetadataProvider?.(type, subType) || {};
+        const routeMetadata = type === 'escort_waypoint' && !Number.isFinite(Number(extraProps?.escortOrder))
+            ? { escortOrder: this.core.objectsContainer.children.filter((object) => object.userData?.type === 'escort_waypoint').length }
+            : {};
         return createEditorMesh(this, type, subType, x, y, z, sizeInfo, {
             ...authoringMetadata,
+            ...routeMetadata,
             ...extraProps,
         }, options);
     }
