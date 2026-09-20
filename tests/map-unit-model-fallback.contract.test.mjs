@@ -8,7 +8,10 @@ import {
     createMapUnitVisual,
     removeMapUnitVisual,
 } from '../src/entities/systems/map-units/MapUnitVisualOps.js';
-import { applyAuthoredMapUnitBody } from '../src/entities/systems/map-units/MapUnitModelCache.js';
+import {
+    applyAuthoredMapUnitBody,
+    collectMapUnitParts,
+} from '../src/entities/systems/map-units/MapUnitModelCache.js';
 
 function fakeRenderer() {
     const scene = new Set();
@@ -41,6 +44,20 @@ function bodyMeshes(root) {
     });
     return found;
 }
+
+test('the loaded library resolves Blender object groups instead of primitive mesh names', () => {
+    const scene = new THREE.Group();
+    const hull = new THREE.Group();
+    hull.name = 'tank_hull';
+    const primitive = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+    primitive.name = 'tank_hull_mesh';
+    hull.add(primitive);
+    scene.add(hull);
+
+    const parts = collectMapUnitParts(scene);
+    assert.equal(parts.get('tank_hull'), hull);
+    assert.equal(parts.has('tank_hull_mesh'), false);
+});
 
 test('without a model the tank is still built from boxes, with every hook in place', () => {
     const renderer = fakeRenderer();

@@ -24,6 +24,7 @@ import { EIFFEL_TOWER_SIEGE_MODELS } from '../src/core/config/maps/presets/eiffe
 
 const MAP_KEY = 'eiffel_tower_siege';
 const MAP_SCALE = 3;
+const SIEGE_GROUND_Y = 8;
 // MAP_DESTRUCTIBLE_DAMAGE.MG: what one pellet takes off a segment, independent of distance.
 const MG_SEGMENT_DAMAGE = 5;
 // The north-west lower leg. NE and SW carry the two inclined lifts, so a ray down this diagonal
@@ -692,6 +693,66 @@ test.describe('Eiffel tower siege', () => {
             `${siege.groundAfter.probed} probes on the fall line reported `
             + `${JSON.stringify(siege.groundAfter.hits)}`,
         ).toBeGreaterThan(0);
+    });
+
+    test('the patrol tanks use the authored body and stay on the esplanade', async ({ page }) => {
+        test.setTimeout(480_000);
+        await startSiegeMatch(page, { modePath: 'fight', sessionType: 'single' });
+
+        await expect.poll(() => page.evaluate(() => {
+            const system = window.GAME_INSTANCE?.entityManager?._mapUnitSystem;
+            const tanks = (system?.units || []).filter((unit) => unit.kind === 'tank');
+            return {
+                count: tanks.length,
+                requested: system?._modelLibraryRequested === true,
+                loaded: system?._modelLibrary?.parts?.size || 0,
+                authored: tanks.map((unit) => unit.root?.userData?.authoredBody === true),
+            };
+        }), { timeout: 30_000 }).toEqual({
+            count: 2,
+            requested: true,
+            loaded: 6,
+            authored: [true, true],
+        });
+
+        await expect.poll(() => page.evaluate(() => {
+            const units = window.GAME_INSTANCE?.entityManager?._mapUnitSystem?.units || [];
+            return units.filter((unit) => unit.kind === 'tank').map((unit) => unit.groundPosition.y);
+        }), { timeout: 10_000 }).toEqual([
+            SIEGE_GROUND_Y * MAP_SCALE,
+            SIEGE_GROUND_Y * MAP_SCALE,
+        ]);
+
+        const tanks = await page.evaluate(() => (
+            window.GAME_INSTANCE.entityManager._mapUnitSystem.units
+                .filter((unit) => unit.kind === 'tank')
+                .map((unit) => ({
+                    id: unit.id,
+                    bodyParts: unit.root.children
+                        .filter((child) => child.userData?.mapUnitPart)
+                        .map((child) => child.userData.mapUnitPart)
+                        .sort(),
+                    headParts: unit.root.userData.headPivot.children
+                        .filter((child) => child.userData?.mapUnitPart)
+                        .map((child) => child.userData.mapUnitPart)
+                        .sort(),
+                    chaseEnabled: unit.definition.drive?.chase === true,
+                    driveMode: unit.driveMode,
+                    authoredBody: unit.root.userData.authoredBody === true,
+                }))
+        ));
+
+        expect(tanks.map(({ id }) => id).sort()).toEqual([
+            'eiffel_siege_tank_north',
+            'eiffel_siege_tank_south',
+        ]);
+        for (const tank of tanks) {
+            expect(tank.authoredBody, `${tank.id} replaced the box fallback`).toBe(true);
+            expect(tank.bodyParts).toEqual(['tank_hull', 'tank_track_left', 'tank_track_right']);
+            expect(tank.headParts).toEqual(['tank_barrel', 'tank_turret']);
+            expect(tank.chaseEnabled, `${tank.id} received the map's chase setting`).toBe(true);
+            expect(['patrol', 'chase', 'return']).toContain(tank.driveMode);
+        }
     });
 
     test('outside the hunt the same tower is intact iron', async ({ page }) => {

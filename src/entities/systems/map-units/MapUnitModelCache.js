@@ -25,8 +25,27 @@ export const MAP_UNIT_HEAD_PARTS = Object.freeze(['tank_turret', 'tank_barrel'])
 
 /** How far in front of the muzzle the flash sits, in model units. */
 const FLASH_LEAD = 0.25;
+const LIBRARY_PART_NAMES = Object.freeze([
+    ...MAP_UNIT_BODY_PARTS,
+    ...MAP_UNIT_HEAD_PARTS,
+    'tank_wreck',
+]);
 
 let libraryPromise = null;
+
+/**
+ * Resolves the authored object nodes, not their renderer-generated primitive meshes. GLTFLoader
+ * represents a Blender object with multiple material primitives as a named Group whose child
+ * meshes receive `_mesh` suffixes.
+ */
+export function collectMapUnitParts(scene) {
+    const parts = new Map();
+    for (const name of LIBRARY_PART_NAMES) {
+        const part = scene?.getObjectByName?.(name) || null;
+        if (part) parts.set(name, part);
+    }
+    return parts;
+}
 
 /**
  * Loads the library once. Answers null on any failure, which leaves every tank on the box model.
@@ -38,10 +57,7 @@ export function loadMapUnitLibrary() {
         new GLTFLoader().load(
             LIBRARY_URL,
             (gltf) => {
-                const parts = new Map();
-                gltf.scene?.traverse((node) => {
-                    if (node.isMesh && typeof node.name === 'string') parts.set(node.name, node);
-                });
+                const parts = collectMapUnitParts(gltf.scene);
                 resolve(parts.size > 0 ? { parts } : null);
             },
             undefined,
