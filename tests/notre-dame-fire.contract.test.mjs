@@ -99,11 +99,14 @@ test('no invisible box braces a site machine the fire maps do not draw', () => {
 test('the fire keeps surviving fabric but removes the later restoration site', () => {
     const burnt = fire.glbModels.filter((model) => model.url.includes('notre_dame_fire'));
     const carried = fire.glbModels.filter((model) => !model.url.includes('notre_dame_fire'));
+    const carriedTrees = carried.filter((model) => model.id.startsWith('notre-dame-tree-'));
 
-    // Four surviving fabric parts plus four rebuilt, damaged parts. Fire is particle-only.
-    assert.equal(fire.glbModels.length, 8);
+    // Four surviving fabric parts, four damaged parts and the shared 32-tree island. Fire is
+    // particle-only, and the living ground remains identical in both cathedral states.
+    assert.equal(fire.glbModels.length, 40);
     assert.equal(burnt.length, 4);
-    assert.equal(carried.length, 4);
+    assert.equal(carried.length, 36);
+    assert.equal(carriedTrees.length, 32);
     assert.equal(fire.glbModels, NOTRE_DAME_FIRE_MODELS);
     assert.ok(
         fire.glbModels.every((model) => (
@@ -138,13 +141,19 @@ test('the fire keeps surviving fabric but removes the later restoration site', (
     }
 });
 
-test('every burnt part points at a file that exists and shares the one scale factor', () => {
+test('every fire-map model points at a file and keeps the right placement contract', () => {
     const METRE = 1.4;
     for (const model of fire.glbModels) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local GLB`);
-        // targetSize would normalise each file to a size of its own and tear the building apart.
-        assert.equal(model.scale, METRE, `${model.id} shares the one scale factor`);
-        assert.equal(model.targetSize, undefined, `${model.id} must not be size-normalised`);
+        if (model.id.startsWith('notre-dame-tree-')) {
+            assert.equal(model.targetSize, 14.28, `${model.id} keeps the tree envelope`);
+            assert.equal(model.collision, false, `${model.id} stays decorative in the fire map`);
+        } else {
+            // targetSize would normalise each cathedral file to a size of its own and tear the
+            // building apart; the architectural pieces retain their one shared scale factor.
+            assert.equal(model.scale, METRE, `${model.id} shares the one scale factor`);
+            assert.equal(model.targetSize, undefined, `${model.id} must not be size-normalised`);
+        }
     }
     assert.equal(new Set(fire.glbModels.map((model) => model.id)).size, fire.glbModels.length);
 });

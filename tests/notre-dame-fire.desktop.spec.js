@@ -40,11 +40,11 @@ async function startFireArena(page) {
     await page.click('#btn-start');
     await expect.poll(() => page.evaluate(() => (
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame_fire_arena'
-        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 8
+        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 40
         && !window.GAME_INSTANCE?.arena?._glbLoadError
     )), {
         timeout: 150_000,
-        message: 'four surviving fabric parts and four burnt ones; fire is particle-only',
+        message: 'four surviving fabric parts, four burnt ones and 32 shared trees; fire is particle-only',
     }).toBeTruthy();
 }
 

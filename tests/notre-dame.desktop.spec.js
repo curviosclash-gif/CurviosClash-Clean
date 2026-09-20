@@ -1,9 +1,9 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
-// Fifteen GLBs is more than any earlier map loads, and seven of them are one building split into
-// parts. Two things therefore have to be shown in the running app rather than argued from the
-// preset: that the parts land back together as one cathedral, and that the eight site machines
+// Fifteen cathedral GLBs plus 32 Blender-tree instances is more than any earlier map loads, and
+// seven of them are one building split into parts. The running app must prove that the parts land
+// back together as one cathedral, and that the eight site machines
 // run on their own phases of the shared beat instead of moving in lockstep. Both are checked in
 // a single run, because loading this map takes long enough that doing it twice is wasteful.
 
@@ -65,7 +65,7 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         trackCount: 8,
         warningCount: 0,
         colliderMode: 'scene',
-        glbSceneChildren: 15,
+        glbSceneChildren: 47,
         authoredObstacleCount: state.authoredObstacleCount,
         authoredObstacleVisuals: 2,
         authoredCollisionSolid: true,

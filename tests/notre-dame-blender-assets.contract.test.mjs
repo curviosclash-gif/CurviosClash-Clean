@@ -53,9 +53,9 @@ const PARTS = Object.freeze({
         floorY: 14.06,
     },
     '07_parvis_island': {
-        nodes: 6,
+        nodes: 4,
         centerX: -22.0,
-        span: { x: 259.5, y: 12.0, z: 172.0 },
+        span: { x: 259.5, y: 5.8, z: 172.0 },
         floorY: -1.8,
     },
 });
@@ -164,6 +164,12 @@ function animatedMeshNames(document) {
 }
 
 test('scene collision keeps foam and moving structural members correctly typed', () => {
+    const parvisDocument = readGlbJson(path.join(ASSET_ROOT, 'glb', '07_parvis_island.glb'));
+    const parvisMaterials = (parvisDocument.materials || [])
+        .map((material) => String(material.name || '').toLowerCase());
+    assert.ok(!parvisMaterials.some((name) => name.includes('oak') || name.includes('foliage')),
+        'the island no longer bakes the former primitive tree materials');
+
     const parvisColliders = nodeNames('07_parvis_island')
         .filter((name) => !name.toLowerCase().includes('_nocol'));
     assert.ok(parvisColliders.length > 0, 'the island exports collidable ground meshes');
@@ -301,7 +307,8 @@ test('Notre-Dame keeps editable Blender sources and merged, texture-free exports
         const glbPath = path.join(ASSET_ROOT, 'glb', `${name}.glb`);
         assert.ok(statSync(blendPath).size > 100_000, `${name} keeps its editable Blender source`);
         const glbSize = statSync(glbPath).size;
-        assert.ok(glbSize > 10_000, `${name} exports a non-empty GLB`);
+        const minimumGlbBytes = name === '07_parvis_island' ? 8_000 : 10_000;
+        assert.ok(glbSize > minimumGlbBytes, `${name} exports a non-empty GLB`);
         totalGlbBytes += glbSize;
 
         const document = readGlbJson(glbPath);

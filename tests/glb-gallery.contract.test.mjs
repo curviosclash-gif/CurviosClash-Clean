@@ -115,6 +115,38 @@ test('GLB collection loader limits concurrency, normalizes slots and tolerates p
     disposeObject3DResources(result.scene);
 });
 
+test('GLB collection loader decodes repeated static decoration once and keeps independent slots', async () => {
+    let loads = 0;
+    const loader = {
+        async loadAsync() {
+            loads += 1;
+            const scene = new THREE.Group();
+            scene.add(new THREE.Mesh(
+                new THREE.BoxGeometry(2, 4, 2),
+                new THREE.MeshBasicMaterial(),
+            ));
+            return { scene, animations: [] };
+        },
+    };
+    const result = await loadGLBMapCollection([
+        { id: 'tree-a', url: '/tree.glb', position: [0, 0, 0], collision: false },
+        { id: 'tree-b', url: '/tree.glb', position: [8, 0, 0], collision: false },
+        { id: 'tree-c', url: '/tree.glb', position: [16, 0, 0], collision: false },
+    ], { loader, colliderMode: 'scene', concurrency: 3 });
+
+    assert.equal(loads, 1);
+    assert.equal(result.loadedCount, 3);
+    assert.equal(result.scene.children.length, 3);
+    assert.equal(new Set(result.scene.children).size, 3);
+    assert.deepEqual(result.scene.children.map((slot) => slot.position.x), [0, 8, 16]);
+    assert.equal(result.colliders.length, 0);
+    const scenes = result.scene.children.map((slot) => slot.children[0].children[0]);
+    assert.equal(new Set(scenes).size, 3, 'each placement owns an independently transformable scene');
+    assert.equal(scenes[0].children[0].geometry, scenes[1].children[0].geometry,
+        'instances share immutable geometry instead of decoding it again');
+    disposeObject3DResources(result.scene);
+});
+
 test('required collections dispose successful siblings before falling back and can retry cleanly', async () => {
     let fail = true;
     let disposed = 0;

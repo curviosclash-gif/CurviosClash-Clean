@@ -16,6 +16,10 @@ const METRE = 1.4;
 const GROUND = 8;
 
 const BEAT_SECONDS = 6;
+const TREE_TARGET_SIZE = 14.28;
+const TREE_RENDER_DISTANCE = 210;
+const TREE_ROW_START_METRES = -131.75;
+const EAST_GARDEN_CENTRE_METRES = 85.75;
 
 /**
  * A static piece of the building.
@@ -47,6 +51,57 @@ function site(id, file, clipName, phaseOffsetBeats, position) {
         scale: METRE,
         animationClock: { clipName, phaseOffsetBeats },
     };
+}
+
+/**
+ * A decorative ancient-tree LOD at a position authored in the cathedral's Blender metres.
+ * Blender's positive Y becomes the map's negative Z during glTF export, matching the shared
+ * coordinate conversion used by the cathedral parts.
+ */
+function tree(variant, id, xMetres, yMetres, rotationIndex) {
+    const padded = String(variant).padStart(2, '0');
+    return Object.freeze({
+        id: `notre-dame-tree-${id}`,
+        url: `assets/models/ancient_tree/variants/variant_${padded}/ancient_tree_${padded}_lod2.glb`,
+        position: Object.freeze([xMetres * METRE, GROUND, -yMetres * METRE]),
+        rotation: Object.freeze([0, (rotationIndex * Math.PI * 0.37) % (Math.PI * 2), 0]),
+        targetSize: TREE_TARGET_SIZE,
+        maxRenderDistance: TREE_RENDER_DISTANCE,
+        collision: false,
+    });
+}
+
+function buildTreeModels() {
+    const models = [];
+    let placementIndex = 0;
+    for (const side of [-1, 1]) {
+        const sideName = side < 0 ? 'south-bank' : 'north-bank';
+        for (let index = 0; index < 12; index += 1) {
+            const variant = (placementIndex % 10) + 1;
+            models.push(tree(
+                variant,
+                `${sideName}-${String(index + 1).padStart(2, '0')}`,
+                TREE_ROW_START_METRES + index * 11,
+                side * 42,
+                placementIndex + 1,
+            ));
+            placementIndex += 1;
+        }
+    }
+
+    for (let index = 0; index < 8; index += 1) {
+        const angle = index * (Math.PI * 2 / 8);
+        const variant = (placementIndex % 10) + 1;
+        models.push(tree(
+            variant,
+            `east-garden-${String(index + 1).padStart(2, '0')}`,
+            EAST_GARDEN_CENTRE_METRES + 15 * Math.cos(angle),
+            20 * Math.sin(angle),
+            placementIndex + 1,
+        ));
+        placementIndex += 1;
+    }
+    return Object.freeze(models);
 }
 
 // The building itself. Every entry is a measurement, not a placement choice: the numbers come
@@ -89,7 +144,12 @@ const NOTRE_DAME_SITE = [
     site('fleche-hoist', '13_fleche_hoist', 'FlecheHoistLoop', 0, [130, GROUND, 0]),
 ];
 
-export const NOTRE_DAME_MODELS = [...NOTRE_DAME_FABRIC, ...NOTRE_DAME_SITE];
+export const NOTRE_DAME_TREE_MODELS = buildTreeModels();
+export const NOTRE_DAME_MODELS = [
+    ...NOTRE_DAME_FABRIC,
+    ...NOTRE_DAME_SITE,
+    ...NOTRE_DAME_TREE_MODELS,
+];
 export const NOTRE_DAME_BEAT_SECONDS = BEAT_SECONDS;
 export const NOTRE_DAME_METRE = METRE;
 export const NOTRE_DAME_GROUND = GROUND;

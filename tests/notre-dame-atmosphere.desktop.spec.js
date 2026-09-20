@@ -36,7 +36,7 @@ async function startNotreDame(page, mapKey) {
     await page.waitForFunction(
         (key) => (
             window.GAME_INSTANCE?.arena?.currentMapKey === key
-            && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 15
+            && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 47
             && !window.GAME_INSTANCE?.arena?._glbLoadError
         ),
         mapKey,

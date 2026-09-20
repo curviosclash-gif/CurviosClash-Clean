@@ -1103,24 +1103,15 @@ def build_parvis_island(mats):
              (66.0, 6.0, 0.6), stone)
         cube(f"parvis_water_{side}_nocol", (WEST_FRONT_X - 10.0, side * 66.0, -1.4),
              (78.0, 20.0, 0.4), mats["water"])
-        for index in range(12):
-            tree_x = WEST_FRONT_X - 68.0 + index * 11.0
-            cylinder(f"parvis_tree_trunk_{side}_{index}_nocol", (tree_x, side * 42.0, 2.4),
-                     0.4, 4.8, mats["oak"], vertices=6)
-            sphere(f"parvis_tree_crown_{side}_{index}_nocol", (tree_x, side * 42.0, 7.2),
-                   (2.6, 2.6, 3.0), mats["foliage"], 8, 5)
+        # The tree rows are placed as reusable ancient-tree LODs by NotreDameModels.js. Keeping
+        # them outside this architectural export preserves the shared island while replacing the
+        # former six-sided trunks and sphere crowns in both cathedral states.
 
     # East garden behind the apse, closing the island.
     cube("parvis_east_garden", (CHOIR_END_X + APSE_RADIUS + 22.0, 0, -0.5), (22.0, 30.0, 0.5),
          stone)
-    for index in range(8):
-        angle = index * (2 * pi / 8)
-        cylinder(f"parvis_garden_tree_{index}_nocol",
-                 (CHOIR_END_X + APSE_RADIUS + 22.0 + 15.0 * cos(angle), 20.0 * sin(angle), 2.4),
-                 0.4, 4.8, mats["oak"], vertices=6)
-        sphere(f"parvis_garden_crown_{index}_nocol",
-               (CHOIR_END_X + APSE_RADIUS + 22.0 + 15.0 * cos(angle), 20.0 * sin(angle), 7.0),
-               (2.8, 2.8, 3.2), mats["foliage"], 8, 5)
+    # The eight garden trees are likewise runtime placements, so the fire map inherits the exact
+    # same living island instead of carrying a second baked copy.
 
 
 # --- The reconstruction site ------------------------------------------------------------------

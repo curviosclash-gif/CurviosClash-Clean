@@ -404,7 +404,57 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
     const placementScale = normalizePositiveNumber(options.placementScale, 1);
     const loadedModels = new Array(models.length);
     const warnings = new Array(models.length);
+    // Decorative libraries often place the same static GLB many times. Decode each URL once per
+    // collection and clone its scene graph for later slots; geometry and materials remain shared,
+    // while transforms and visibility stay instance-local. Animated or physical entries keep the
+    // existing one-load-per-slot path because they own mixers or gameplay collision state.
+    const reusableStaticLoads = new Map();
     let nextIndex = 0;
+
+    const loadDescriptor = async (descriptor) => {
+        const load = () => loadGLBMap(descriptor.url, {
+            loader: options.loader,
+            sceneName: `glbModel-${descriptor.id}`,
+            collectColliders: false,
+            animationClock: descriptor.animationClock,
+            modelId: descriptor.id,
+        });
+        const canReuse = descriptor.collision === false
+            && descriptor.hiddenUntilTriggered !== true
+            && !descriptor.animationClock?.clipName;
+        if (!canReuse) return load();
+
+        let cached = reusableStaticLoads.get(descriptor.url);
+        if (!cached) {
+            cached = { promise: load(), claimed: false };
+            reusableStaticLoads.set(descriptor.url, cached);
+        }
+        const result = await cached.promise;
+        // A file may contain an unnamed/default clip even when the descriptor names none. Such a
+        // model still needs a private scene and mixer, so only its first slot uses the probe load.
+        if (result.animationMixers.length > 0) {
+            if (!cached.claimed) {
+                cached.claimed = true;
+                return result;
+            }
+            return load();
+        }
+        if (!cached.claimed) {
+            cached.claimed = true;
+            return result;
+        }
+        const scene = result.scene.clone(true);
+        scene.name = `glbModel-${descriptor.id}`;
+        return {
+            ...result,
+            scene,
+            animationMixers: [],
+            animationTracks: [],
+            animatedNodes: new Set(),
+            colliders: [],
+            bounds: result.bounds.clone(),
+        };
+    };
 
     const loadNext = async () => {
         while (nextIndex < models.length) {
@@ -412,13 +462,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
             nextIndex += 1;
             const descriptor = models[modelIndex];
             try {
-                const result = await loadGLBMap(descriptor.url, {
-                    loader: options.loader,
-                    sceneName: `glbModel-${descriptor.id}`,
-                    collectColliders: false,
-                    animationClock: descriptor.animationClock,
-                    modelId: descriptor.id,
-                });
+                const result = await loadDescriptor(descriptor);
                 loadedModels[modelIndex] = { descriptor, result };
             } catch (error) {
                 warnings[modelIndex] = `GLB model "${descriptor.id}" failed: ${error?.message || 'Unknown loading error'}`;
