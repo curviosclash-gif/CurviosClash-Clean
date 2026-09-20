@@ -78,6 +78,8 @@ const FOG_PARS_FRAGMENT = /* glsl */`
 
 	uniform float fogHeightBase;
 	uniform float fogHeightFalloff;
+	uniform float fogFloorBase;
+	uniform float fogFloorFalloff;
 	uniform float fogTurbulence;
 	uniform float fogClipDistance;
 	uniform float fogClipClosureStart;
@@ -139,6 +141,19 @@ const FOG_FRAGMENT = /* glsl */`
 			${FOG_HEIGHT_SOFTNESS.toFixed(1)}
 		);
 		fogFactor *= exp( - fogHeightAbove * fogHeightFalloff );
+
+	}
+
+	// The layer's lower edge, measured the other way round. On its own it puts the fog above a
+	// height and clear air below; together with the ceiling term it makes a band. Two exponentials
+	// multiplied, so neither edge has to know about the other.
+	if ( fogFloorFalloff > 0.0 ) {
+
+		float fogHeightBelow = fogSoftKnee(
+			fogFloorBase - vFogWorldPosition.y,
+			${FOG_HEIGHT_SOFTNESS.toFixed(1)}
+		);
+		fogFactor *= exp( - fogHeightBelow * fogFloorFalloff );
 
 	}
 
@@ -219,6 +234,10 @@ const sharedFogUniforms = {
     fogSkyEnabled: { value: 0 },
     fogHeightBase: { value: 0 },
     fogHeightFalloff: { value: 0 },
+    // The layer's lower edge. Inactive by default, so every map that states only a ceiling keeps
+    // the half space it had before the edge existed.
+    fogFloorBase: { value: 0 },
+    fogFloorFalloff: { value: 0 },
     fogTurbulence: { value: 0 },
     // Set from the camera's far plane, not from the map - a very large default keeps the term
     // inactive until someone states the real one.
@@ -247,6 +266,8 @@ function injectAtmosphericFogUniforms(shader) {
     }
     shader.uniforms.fogHeightBase = sharedFogUniforms.fogHeightBase;
     shader.uniforms.fogHeightFalloff = sharedFogUniforms.fogHeightFalloff;
+    shader.uniforms.fogFloorBase = sharedFogUniforms.fogFloorBase;
+    shader.uniforms.fogFloorFalloff = sharedFogUniforms.fogFloorFalloff;
     shader.uniforms.fogTurbulence = sharedFogUniforms.fogTurbulence;
     shader.uniforms.fogClipDistance = sharedFogUniforms.fogClipDistance;
     shader.uniforms.fogHighColor = sharedFogUniforms.fogHighColor;
@@ -313,6 +334,13 @@ export function applyAtmosphericFogSettings(settings) {
         ? Math.min(1, Math.max(0, turbulence))
         : 0;
 
+    const floor = Number(settings?.floor);
+    const floorFalloff = Number(settings?.floorFalloff);
+    sharedFogUniforms.fogFloorBase.value = Number.isFinite(floor) ? floor : 0;
+    sharedFogUniforms.fogFloorFalloff.value = Number.isFinite(floorFalloff)
+        ? Math.max(0, floorFalloff)
+        : 0;
+
     const clipClosureStart = Number(settings?.clipClosureStart);
     sharedFogUniforms.fogClipClosureStart.value = Number.isFinite(clipClosureStart)
         ? Math.min(0.95, Math.max(0.1, clipClosureStart))
@@ -338,6 +366,8 @@ export function getAtmosphericFogSettings() {
     return {
         height: sharedFogUniforms.fogHeightBase.value,
         heightFalloff: sharedFogUniforms.fogHeightFalloff.value,
+        floor: sharedFogUniforms.fogFloorBase.value,
+        floorFalloff: sharedFogUniforms.fogFloorFalloff.value,
         turbulence: sharedFogUniforms.fogTurbulence.value,
         clipClosureStart: sharedFogUniforms.fogClipClosureStart.value,
         colorHigh: sharedFogUniforms.fogHighColor.value.toArray(),

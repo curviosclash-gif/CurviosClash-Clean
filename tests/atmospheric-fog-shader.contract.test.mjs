@@ -404,3 +404,66 @@ test('the fog colour runs on view elevation with independent upper and lower end
         'the ground can stay readable under a black sky'
     );
 });
+
+// A layer bounded from below as well as from above. Without it the fog can only ever be dense at
+// the ground and thin above, so a map that wants its canopy hidden and its floor clear - the
+// second half of the giant forest's round - has no shape to ask for.
+test('the fog layer has a floor edge as well as a ceiling edge', () => {
+    withInstalledFog(() => {
+        assert.ok(THREE.ShaderChunk.fog_pars_fragment.includes('uniform float fogFloorBase;'));
+        assert.ok(THREE.ShaderChunk.fog_pars_fragment.includes('uniform float fogFloorFalloff;'));
+        const fragment = THREE.ShaderChunk.fog_fragment;
+        assert.ok(fragment.includes('fogFloorBase - vFogWorldPosition.y'), 'the floor measures downwards');
+        assert.ok(
+            fragment.includes('fogSoftKnee(\n\t\t\tfogFloorBase - vFogWorldPosition.y')
+            || /fogSoftKnee\(\s*fogFloorBase - vFogWorldPosition\.y/.test(fragment),
+            'the floor uses the same rounded knee, so it draws no crease either'
+        );
+    });
+});
+
+test('the two fog edges are independent and both reach the shader', () => {
+    const shared = getAtmosphericFogUniforms();
+
+    // Phase one of a rising layer: a lid, no floor.
+    applyAtmosphericFogSettings({ height: 52, heightFalloff: 0.05 });
+    assert.equal(shared.fogHeightBase.value, 52);
+    assert.equal(shared.fogHeightFalloff.value, 0.05);
+    assert.equal(shared.fogFloorFalloff.value, 0, 'an unstated floor stays switched off');
+
+    // Phase three: a floor, no lid. The ceiling term must go quiet without being moved.
+    applyAtmosphericFogSettings({ height: 240, heightFalloff: 0, floor: 52, floorFalloff: 0.05 });
+    assert.equal(shared.fogHeightFalloff.value, 0);
+    assert.equal(shared.fogFloorBase.value, 52);
+    assert.equal(shared.fogFloorFalloff.value, 0.05);
+    const applied = getAtmosphericFogSettings();
+    assert.equal(applied.floor, 52);
+    assert.equal(applied.floorFalloff, 0.05);
+
+    // A bad profile cannot invert the floor term any more than it can invert the ceiling one.
+    applyAtmosphericFogSettings({ floor: 'nonsense', floorFalloff: -4 });
+    assert.equal(getAtmosphericFogSettings().floor, 0);
+    assert.equal(getAtmosphericFogSettings().floorFalloff, 0);
+});
+
+// Both edges active at once is the transition the forest passes through: fog between two heights
+// and clear air on either side of it.
+test('with both edges active the fog is a band and not a half space', () => {
+    const softness = 6;
+    const softKnee = (x) => 0.5 * (x + Math.sqrt(x * x + softness * softness));
+    const weight = (y, { ceiling, ceilingFalloff, floor, floorFalloff }) => (
+        Math.exp(-softKnee(y - ceiling) * ceilingFalloff)
+        * Math.exp(-softKnee(floor - y) * floorFalloff)
+    );
+    const band = { ceiling: 146, ceilingFalloff: 0.025, floor: 26, floorFalloff: 0.025 };
+
+    assert.ok(weight(86, band) > 0.6, 'inside the band the fog keeps most of its density');
+    assert.ok(weight(-60, band) < 0.2, 'below it the air clears');
+    assert.ok(weight(260, band) < 0.2, 'above it the air clears too');
+    assert.ok(weight(86, band) > weight(-60, band) && weight(86, band) > weight(260, band));
+
+    // With the floor switched off the band degrades exactly into today's half space.
+    const lidOnly = { ceiling: 52, ceilingFalloff: 0.05, floor: 52, floorFalloff: 0 };
+    assert.ok(weight(-200, lidOnly) > 0.99, 'everything below the lid stays dense');
+    assert.ok(weight(-400, lidOnly) > 0.99, 'however far below it the fragment sits');
+});
