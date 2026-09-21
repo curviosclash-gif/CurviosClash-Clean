@@ -123,6 +123,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         threePlayerSplit: normalizeThreePlayerSplitSettings(),
         modePath: 'fight',
         seededModePaths: [],
+        lastTeamObjective: 'HUNT',
         graphicsStyle: GRAPHICS_STYLES.MODERN,
         mapBrightness: DEFAULT_MAP_BRIGHTNESS,
         viewDistance: DEFAULT_VIEW_DISTANCE,

@@ -16,6 +16,7 @@ import { normalizeMapBrightness } from '../../shared/contracts/MapBrightnessCont
 import { normalizeViewDistance } from '../../shared/contracts/ViewDistanceContract.js';
 import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
+import { normalizeTeamObjectiveType } from '../../shared/contracts/FlagObjectiveContract.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 import { normalizeFightHangarState } from '../../shared/contracts/FightHangarStateContract.js';
 import { normalizeClassicTutorialState } from '../../shared/contracts/ClassicTutorialContract.js';
@@ -236,6 +237,7 @@ function normalizeLocalSettingsState(localSettings = null) {
         multiplayerTransport,
         modePath,
         seededModePaths: normalizeSeededModePaths(source.seededModePaths),
+        lastTeamObjective: normalizeTeamObjectiveType(source.lastTeamObjective),
         graphicsStyle: normalizeGraphicsStyle(source.graphicsStyle, defaults.graphicsStyle),
         mapBrightness: normalizeMapBrightness(source.mapBrightness, defaults.mapBrightness),
         viewDistance: normalizeViewDistance(source.viewDistance, defaults.viewDistance),

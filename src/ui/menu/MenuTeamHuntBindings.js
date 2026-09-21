@@ -1,3 +1,5 @@
+import { normalizeTeamObjectiveType } from '../../shared/contracts/FlagObjectiveContract.js';
+
 export function bindMenuTeamHuntControls({ ui, settings, bind, emitSettingsChangedImmediate, keys }) {
     if (ui.huntTeamModeToggle) {
         bind(ui.huntTeamModeToggle, 'change', () => {
@@ -5,7 +7,10 @@ export function bindMenuTeamHuntControls({ ui, settings, bind, emitSettingsChang
             settings.hunt.teamMode = !!ui.huntTeamModeToggle.checked;
             if (settings.hunt.teamMode) {
                 settings.hunt.respawnEnabled = true;
-            } else if (settings.hunt.teamObjective === 'ESCORT' || settings.hunt.teamObjective === 'FLAGS') {
+                settings.hunt.teamObjective = normalizeTeamObjectiveType(settings.localSettings?.lastTeamObjective);
+            } else {
+                if (!settings.localSettings) settings.localSettings = {};
+                settings.localSettings.lastTeamObjective = normalizeTeamObjectiveType(settings.hunt.teamObjective);
                 settings.hunt.teamObjective = 'HUNT';
             }
             emitSettingsChangedImmediate([
@@ -27,6 +32,8 @@ export function bindMenuTeamHuntControls({ ui, settings, bind, emitSettingsChang
             settings.hunt.teamMode = true;
             settings.hunt.respawnEnabled = true;
             settings.hunt.teamObjective = ['FLAGS', 'ESCORT'].includes(value) ? value : 'HUNT';
+            if (!settings.localSettings) settings.localSettings = {};
+            settings.localSettings.lastTeamObjective = settings.hunt.teamObjective;
             emitSettingsChangedImmediate([
                 keys.HUNT_TEAM_MODE, keys.HUNT_RESPAWN_ENABLED, keys.HUNT_TEAM_OBJECTIVE,
             ]);
