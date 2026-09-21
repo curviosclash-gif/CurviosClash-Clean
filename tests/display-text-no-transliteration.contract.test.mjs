@@ -7,9 +7,12 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Player-facing text lives in these trees; developer logs and errors are exempt.
-const SCANNED_ROOTS = ['src/ui', 'src/core/runtime', 'src/shared', 'src/core/settings', 'src/core/recording'];
+const SCANNED_ROOTS = [
+    'src/ui', 'src/core/runtime', 'src/shared', 'src/core/settings', 'src/core/recording',
+    'src/entities', 'src/core/config/maps', 'src/hunt', 'src/modes', 'editor/js',
+];
 
-const TRANSLITERATION = /\b\w*(druecken|Untermenue|UEBERSICHT|gewaehl|Geraet|Zurueck|zurueck|verfuegbar|benoetig|muess|ungueltig|moeglich|geaender|ausgewaehl|unterstuetz|waehl|loesch|oeffn|pruef|Groesse|groess|schliess|Schliess|fuehr|Fuehr|hoeh|laeuft|aender|Aender|koenn|Koenn|uebernomm|Uebersicht|gueltig|naechst|Naechst|spaet|waer|oeffentlich|zaehl|Zaehl|laeng|Laeng)\w*\b|\b(fuer|ueber|Ueber|Fuer)\b/u;
+const TRANSLITERATION = /\b\w*(druecken|Untermenue|UEBERSICHT|gewaehl|Geraet|Zurueck|zurueck|verfuegbar|benoetig|muess|ungueltig|moeglich|geaender|ausgewaehl|unterstuetz|waehl|loesch|oeffn|pruef|Groesse|groess|schliess|Schliess|fuehr|Fuehr|hoeh|laeuft|aender|Aender|koenn|Koenn|uebernomm|Uebersicht|gueltig|naechst|Naechst|spaet|waer|oeffentlich|zaehl|Zaehl|laeng|Laeng|Geschuetz|geschuetz|Brueck|brueck|Zerstoer|zerstoer)\w*\b|\b(fuer|ueber|Ueber|Fuer)\b/u;
 const DEVELOPER_TEXT = /console\.|logger\.|warn\(|Error\(/u;
 
 function collectJsFiles(dir, out = []) {
@@ -29,7 +32,9 @@ test('display strings use real umlauts instead of ae/oe/ue transliterations', ()
     const hits = [];
     for (const root of SCANNED_ROOTS) {
         for (const file of collectJsFiles(path.join(repoRoot, root))) {
-            const source = stripComments(readFileSync(file, 'utf8'));
+            const source = stripComments(readFileSync(file, 'utf8'))
+                // Search aliases are input tokens, not displayed text.
+                .replace(/keywords:\s*\[[^\]]*\]/gu, '');
             for (const match of source.matchAll(/'([^'\n]{3,})'|`([^`\n]{3,})`/gu)) {
                 const text = match[1] ?? match[2];
                 if (TRANSLITERATION.test(text) && !DEVELOPER_TEXT.test(text)) {
@@ -41,12 +46,14 @@ test('display strings use real umlauts instead of ae/oe/ue transliterations', ()
     assert.deepEqual(hits, []);
 });
 
-test('index.html labels use real umlauts', () => {
-    const html = readFileSync(path.join(repoRoot, 'index.html'), 'utf8').replace(/<!--[\s\S]*?-->/gu, '');
+test('menu and editor HTML labels use real umlauts', () => {
     const hits = [];
-    for (const match of html.matchAll(/(?:aria-label|title|placeholder)="([^"]*)"|>([^<>]+)</gu)) {
-        const text = match[1] ?? match[2];
-        if (TRANSLITERATION.test(text)) hits.push(text.trim().slice(0, 100));
+    for (const file of ['index.html', 'editor/map-editor-3d.html']) {
+        const html = readFileSync(path.join(repoRoot, file), 'utf8').replace(/<!--[\s\S]*?-->/gu, '');
+        for (const match of html.matchAll(/(?:aria-label|title|placeholder)="([^"]*)"|>([^<>]+)</gu)) {
+            const text = match[1] ?? match[2];
+            if (TRANSLITERATION.test(text)) hits.push(`${file}: ${text.trim().slice(0, 100)}`);
+        }
     }
     assert.deepEqual(hits, []);
 });

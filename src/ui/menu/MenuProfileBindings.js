@@ -1,3 +1,5 @@
+import { armConfirmButton } from '../ConfirmButtonArming.js';
+
 export function setupMenuProfileBindings(ctx) {
     const ui = ctx.ui;
     const emit = ctx.emit;
@@ -36,11 +38,16 @@ export function setupMenuProfileBindings(ctx) {
         });
     }
     if (ui.profileDeleteButton) {
-        bind(ui.profileDeleteButton, 'click', () => {
-            emit(eventTypes.DELETE_PROFILE, {
-                name: ui.profileSelect?.value || '',
-            });
+        const confirmation = armConfirmButton(ui.profileDeleteButton, {
+            label: ui.profileDeleteButton.textContent,
+            onConfirm: () => {
+                emit(eventTypes.DELETE_PROFILE, {
+                    name: ui.profileSelect?.value || '',
+                });
+            },
         });
+        bind(ui.profileSelect, 'change', confirmation.disarm);
+        ctx.registerDisposer?.(() => confirmation.dispose());
     }
     if (ui.profileDuplicateButton) {
         bind(ui.profileDuplicateButton, 'click', () => {

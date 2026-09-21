@@ -28,6 +28,33 @@ function increment(target, entryKey) {
     target[normalizedKey] = (target[normalizedKey] || 0) + 1;
 }
 
+export function normalizeItemUseModeCounts(source = null) {
+    const modes = source && typeof source === 'object' ? source : {};
+    return {
+        use: nonNegativeInt(modes.use),
+        shoot: nonNegativeInt(modes.shoot),
+        mg: nonNegativeInt(modes.mg),
+        other: nonNegativeInt(modes.other),
+    };
+}
+
+export function normalizeItemUseTypeCounts(source = null) {
+    const normalized = {};
+    Object.entries(source && typeof source === 'object' ? source : {}).forEach(([rawType, value]) => {
+        const type = key(String(rawType || '').toUpperCase(), '');
+        if (type) normalized[type] = nonNegativeInt(value);
+    });
+    return normalized;
+}
+
+export function mergeItemUseTypeCounts(target, source) {
+    if (!target || typeof target !== 'object' || !source || typeof source !== 'object') return;
+    Object.entries(source).forEach(([rawType, value]) => {
+        const type = key(String(rawType || '').toUpperCase(), '');
+        if (type) target[type] = (target[type] || 0) + nonNegativeInt(value);
+    });
+}
+
 export function createDefaultFunnelSummary() {
     return { eventCounts: {}, abortReasonCounts: {}, quickStartVariantCounts: {}, sessionTypeCounts: {} };
 }

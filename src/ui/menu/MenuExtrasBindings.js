@@ -7,6 +7,7 @@ import { bindStaticInfoHints } from './InfoHintToggle.js';
 import { bindBuildInfoCopy } from './MenuClipboardCopy.js';
 import { resolveSurfaceFeatureLaunchGuard } from './MenuSurfaceFeatureAccess.js';
 import { createRuntimeSettingsLimitsForRuntime } from '../../shared/contracts/SettingsRuntimeLimitsContract.js';
+import { armConfirmButton } from '../ConfirmButtonArming.js';
 
 export function bindMenuExtrasButtons(ctx) {
     const ui = ctx.ui;
@@ -19,9 +20,11 @@ export function bindMenuExtrasButtons(ctx) {
     const gameplayLimits = createRuntimeSettingsLimitsForRuntime().gameplay;
 
     if (ui.level3ResetButton) {
-        bind(ui.level3ResetButton, 'click', () => {
-            emit(eventTypes.LEVEL3_RESET);
+        const confirmation = armConfirmButton(ui.level3ResetButton, {
+            label: ui.level3ResetButton.textContent,
+            onConfirm: () => emit(eventTypes.LEVEL3_RESET),
         });
+        ctx.registerDisposer?.(() => confirmation.dispose());
     }
 
     if (ui.openLevel4Button) {
@@ -49,26 +52,15 @@ export function bindMenuExtrasButtons(ctx) {
     }
 
     if (ui.level4ResetButton) {
-        let resetArmedUntil = 0;
         const resetLabel = String(ui.level4ResetButton.dataset?.resetLabel || 'Spieloptionen zurücksetzen');
         const resetConfirmLabel = String(ui.level4ResetButton.dataset?.resetConfirmLabel || 'Zum Bestätigen erneut klicken');
-        const disarmReset = () => {
-            resetArmedUntil = 0;
-            ui.level4ResetButton.textContent = resetLabel;
-            ui.level4ResetButton.removeAttribute('data-reset-armed');
-        };
-        bind(ui.level4ResetButton, 'click', () => {
-            const now = Date.now();
-            if (now > resetArmedUntil) {
-                resetArmedUntil = now + 4000;
-                ui.level4ResetButton.textContent = resetConfirmLabel;
-                ui.level4ResetButton.setAttribute('data-reset-armed', 'true');
-                return;
-            }
-            disarmReset();
-            emit(eventTypes.LEVEL4_RESET);
+        const confirmation = armConfirmButton(ui.level4ResetButton, {
+            label: resetLabel,
+            confirmLabel: resetConfirmLabel,
+            armedAttribute: 'data-reset-armed',
+            onConfirm: () => emit(eventTypes.LEVEL4_RESET),
         });
-        bind(ui.level4ResetButton, 'blur', disarmReset);
+        ctx.registerDisposer?.(() => confirmation.dispose());
     }
 
     if (ui.exportConfigCodeButton) {

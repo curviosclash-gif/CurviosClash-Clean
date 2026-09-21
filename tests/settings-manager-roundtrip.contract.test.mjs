@@ -100,6 +100,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['hunt.teamBotDifficulty.ALPHA', 'HARD'],
     ['hunt.teamBotDifficulty.BRAVO', 'EASY'],
     ['hunt.teamObjective', 'FLAGS'],
+    ['localSettings.lastTeamObjective', 'FLAGS'],
     ['botHeuristicProfile', 'aggressive'],
     ['vehicles.PLAYER_1', 'aircraft'],
     ['vehicles.PLAYER_2', 'drone'],

@@ -37,6 +37,7 @@ import { purchaseHangarStone } from './HangarStoneInventory.js';
 import { createFallbackProfilePort, createHangarBuildFromProfile as buildFromProfile, mapHangarHitboxClass } from './HangarWorkshopProfileSupport.js';
 import { validateFightHangarBuild, validateFightHangarDrop } from './FightHangarValidation.js';
 import { normalizeFightMachineGunId, resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
+import { armConfirmButton } from '../ConfirmButtonArming.js';
 import {
     selectArcadeTrailStyle,
     selectArcadeWeaponStyle,
@@ -482,17 +483,17 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     });
 
     rules.categories.forEach((category) => {
-        const node = createButton('arcade-vehicle-tab', category.label);
+        const node = createButton('secondary-btn arcade-vehicle-tab', category.label);
         node.dataset.category = category.id;
         categoryTabs.appendChild(node);
     });
     ['all', ...rules.filterChips.hitboxKlasse].forEach((value) => {
-        const node = createButton('arcade-vehicle-chip', HITBOX_LABELS[value] || value);
+        const node = createButton('secondary-btn arcade-vehicle-chip', HITBOX_LABELS[value] || value);
         node.dataset.filterValue = value;
         hitboxChips.appendChild(node);
     });
     ['all', ...rules.filterChips.levelBand].forEach((value) => {
-        const node = createButton('arcade-vehicle-chip', LEVEL_LABELS[value] || value);
+        const node = createButton('secondary-btn arcade-vehicle-chip', LEVEL_LABELS[value] || value);
         node.dataset.filterValue = value;
         levelChips.appendChild(node);
     });
@@ -720,16 +721,20 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         };
         input.click();
     });
-    bind(presetDelete, 'click', async () => {
-        if (!presetSelect.value || (window.confirm && !window.confirm('Diesen Build wirklich löschen?'))) return;
-        const id = presetSelect.value;
-        const result = await persistence.deleteBuild(id);
-        if (result.ok && savedBuild?.buildId === id) {
-            savedBuild = null;
-            baselineBuild = buildFromProfile(draft.vehicleId, entryFor(draft.vehicleId), profileFor(draft.vehicleId));
-        }
-        syncDisplay();
+    const presetDeleteConfirmation = armConfirmButton(presetDelete, {
+        label: presetDelete.textContent,
+        onConfirm: async () => {
+            if (!presetSelect.value) return;
+            const id = presetSelect.value;
+            const result = await persistence.deleteBuild(id);
+            if (result.ok && savedBuild?.buildId === id) {
+                savedBuild = null;
+                baselineBuild = buildFromProfile(draft.vehicleId, entryFor(draft.vehicleId), profileFor(draft.vehicleId));
+            }
+            syncDisplay();
+        },
     });
+    bind(presetSelect, 'change', presetDeleteConfirmation.disarm);
     bind(activateButton, 'click', () => { void saveCurrent({ activate: true }); });
     bind(container, 'keydown', (event) => {
         const editing = ['input', 'select', 'textarea'].includes(String(event.target?.tagName || '').toLowerCase());
@@ -786,6 +791,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         prepareRunStart,
         dispose() {
             if (disposed) return;
+            presetDeleteConfirmation.dispose();
             flushDraft();
             disposed = true;
             dragController.dispose();

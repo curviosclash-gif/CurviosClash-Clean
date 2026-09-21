@@ -9,7 +9,7 @@ import {
 import { GLB_GALLERY_MAPS } from '../../../src/core/config/maps/presets/glb_gallery.js';
 
 const CATEGORY_META = Object.freeze({
-    gameplay: Object.freeze({ id: 'gameplay', label: 'Gameplay', accentColor: '#ff4d6d', description: 'Automatische Geschuetze für Kampfmodi.' }),
+    gameplay: Object.freeze({ id: 'gameplay', label: 'Gameplay', accentColor: '#ff4d6d', description: 'Automatische Geschütze für Kampfmodi.' }),
     build: Object.freeze({
         id: 'build',
         label: 'Bauen',
@@ -26,7 +26,7 @@ const CATEGORY_META = Object.freeze({
         id: 'pickups',
         label: 'Pickups',
         accentColor: '#fbbf24',
-        description: 'Items, Ressourcen und Belohnungen.'
+        description: 'Gegenstände, Ressourcen und Belohnungen.'
     }),
     aircraft: Object.freeze({
         id: 'aircraft',
@@ -508,7 +508,7 @@ export const EDITOR_BUILD_ITEMS = Object.freeze([
     }),
     createBuildEntry({
         id: 'gameplay-rocket-turret', tool: 'turret', subType: 'rocket', categoryId: 'gameplay',
-        label: 'Automatischer Raketenwerfer', description: 'Zerstoerbares festes Geschuetz. Fight/Hunt und Arcade-Endlos mit Hunt-Kampf.',
+        label: 'Automatischer Raketenwerfer', description: 'Zerstörbares festes Geschütz. Fight/Hunt und Arcade-Endlos mit Hunt-Kampf.',
         previewGlyph: 'RW', previewToken: 'rocket-turret', sortOrder: 1, keywords: ['geschuetz', 'rakete', 'turret'],
     }),
     createBuildEntry({

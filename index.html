@@ -174,7 +174,7 @@
                                 <button type="button" id="btn-setup-lobby" class="secondary-btn hidden" data-back data-back-target="submenu-multiplayer">Zur Lobby</button>
                                 <button type="button" id="btn-setup-mode" class="secondary-btn hidden" data-menu-step-target="submenu-custom">Spielstil ändern</button>
                                 <button type="button" id="btn-level3-reset" class="secondary-btn"
-                                    data-menu-text-id="menu.level3.reset.label">Zurücksetzen</button>
+                                    data-menu-text-id="menu.level3.reset.label">Karte &amp; Flugzeug zurücksetzen</button>
                                 <button type="button" id="btn-open-fight-hangar" class="secondary-btn hidden"
                                     aria-hidden="true">Kampf-Hangar öffnen</button>
                                 <button type="button" id="btn-open-level4" class="secondary-btn" data-level4-section="gameplay"
@@ -225,6 +225,7 @@
                                         </optgroup>
                                     </select>
                                 </div>
+                                <p id="map-search-empty" class="start-search-empty hidden" role="status" aria-live="polite">Keine Karte gefunden — Suche oder Filter ändern</p>
                                 <div class="start-map-picker">
                                     <div id="start-map-preview-stage" class="arcade-vehicle-preview-stage start-map-preview-stage">
                                         <div id="start-map-preview-mount" class="start-map-preview-mount"></div>
@@ -279,6 +280,7 @@
                                         <option value="heavy" data-menu-text-id="menu.level3.vehicle.filter.heavy">Schwer</option>
                                     </select>
                                 </div>
+                                <p id="vehicle-search-empty" class="start-search-empty hidden" role="status" aria-live="polite">Kein Flugzeug gefunden — Suche oder Filter ändern</p>
                                 <div class="start-vehicle-picker">
                                     <div id="start-vehicle-preview-stage" class="arcade-vehicle-preview-stage start-vehicle-preview-stage">
                                         <div id="start-vehicle-preview-mount" class="start-vehicle-preview-mount"></div>
@@ -548,7 +550,7 @@
                                 <button type="button" id="level4-tab-hud" class="level4-section-tab" data-level4-section-target="hud" role="tab" aria-controls="level4-section-hud" aria-selected="false" data-menu-text-id="menu.level4.tabs.hud.label">HUD</button>
                                 <button type="button" id="level4-tab-advanced-map" class="level4-section-tab"
                                     data-level4-section-target="advanced_map" role="tab" aria-controls="level4-section-advanced-map"
-                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.advanced_map.label">Map-Details</button>
+                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.advanced_map.label">Karten-Details</button>
                                 <button type="button" id="level4-tab-tools" class="level4-section-tab"
                                     data-level4-section-target="tools" role="tab" aria-controls="level4-section-tools"
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.tools.label">Spieler</button>
@@ -665,7 +667,7 @@
                                     <input type="range" id="gap-size-slider" min="0.05" max="1.5" step="0.05" value="0.3">
                                     <label for="gap-frequency-slider"><span data-menu-text-id="menu.level4.gameplay.gap_frequency.label">Lückenhäufigkeit:</span> <span id="gap-frequency-label">0.020</span></label>
                                     <input type="range" id="gap-frequency-slider" min="0" max="0.25" step="0.005" value="0.02">
-                                    <label for="item-amount-slider"><span data-menu-text-id="menu.level4.gameplay.item_amount.label">Item-Menge:</span> <span id="item-amount-label">10</span></label>
+                                    <label for="item-amount-slider"><span data-menu-text-id="menu.level4.gameplay.item_amount.label">Gegenstände:</span> <span id="item-amount-label">10</span></label>
                                     <input type="range" id="item-amount-slider" min="1" max="60" step="1" value="10">
                                 </div>
                             </details>
@@ -837,17 +839,13 @@
                         <section id="level4-section-advanced-map" class="level4-section-panel" data-level4-section="advanced_map"
                             role="tabpanel" aria-labelledby="level4-tab-advanced-map" aria-hidden="true">
                         <div class="menu-section">
-                            <h2 class="section-title" data-menu-text-id="menu.level4.advanced_map.title">Map-Details</h2>
+                            <h2 class="section-title" data-menu-text-id="menu.level4.advanced_map.title">Karten-Details</h2>
                             <label class="toggle-row">
                                 <input type="checkbox" id="portals-toggle" checked>
                                 <span data-menu-text-id="menu.level4.map.portals.label">Portale aktiviert</span>
                             </label>
                             <label for="planar-level-count-slider"><span data-menu-text-id="menu.level4.map.planar_levels.label">Anzahl Ebenen:</span> <span id="planar-level-count-label">5</span></label>
                             <input type="range" id="planar-level-count-slider" min="2" max="10" step="1" value="5">
-                            <label class="toggle-row">
-                                <input type="checkbox" id="planar-mode-toggle">
-                                <span data-menu-text-id="menu.level4.map.planar_mode.label">Planar Modus (kein Pitch)</span>
-                            </label>
                         </div>
                         </section>
 
@@ -869,6 +867,7 @@
                                 <button type="button" id="btn-player-profile-default" class="secondary-btn">Als Standard</button>
                                 <button type="button" id="btn-player-profile-archive" class="secondary-btn">Archivieren</button>
                             </div>
+                            <small id="player-profile-action-hint" class="menu-hint" role="status"></small>
                             <label for="player-profile-transfer" class="secondary-btn-spaced">Spieler übertragen</label>
                             <textarea id="player-profile-transfer" rows="4" placeholder="Exportierten Spieler hier einfügen"></textarea>
                             <input type="file" id="player-profile-file" accept="application/json,.json" hidden>
@@ -985,7 +984,7 @@
                                 </button>
                                 <button type="button" id="btn-open-vehicle-editor" class="secondary-btn"
                                     data-menu-action="open-vehicle-editor" data-menu-text-id="menu.level4.tools.vehicle_editor.label">
-                                    Vehicle-Editor öffnen
+                                    Fahrzeug-Werkstatt öffnen
                                 </button>
                             </div>
                             <textarea id="config-share-input" rows="6" placeholder="Config-Code oder JSON"></textarea>
@@ -1130,7 +1129,7 @@
                     aria-labelledby="submenu-multiplayer-title" aria-hidden="true" data-menu-panel="multiplayer" data-lobby-joined="false">
                     <div class="submenu-header lobby-heading">
                         <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">← Zurück</button>
-                        <h2 id="submenu-multiplayer-title" class="submenu-title">Multiplayer-Lobby</h2>
+                        <h2 id="submenu-multiplayer-title" class="submenu-title">Mehrspieler</h2>
                         <span id="multiplayer-connection-badge" class="lobby-connection-badge">LAN · Nicht verbunden</span>
                         <button type="button" class="secondary-btn lobby-settings" data-menu-action="level4-open"
                             data-level4-section="audio" data-level4-return-target="lobby">Einstellungen</button>
@@ -1147,7 +1146,7 @@
                                         <label for="multiplayer-host-local-player-count">Lokale Spieler am Host</label>
                                         <select id="multiplayer-host-local-player-count">
                                             <option value="1">1 Spieler · Vollbild</option>
-                                            <option value="2">2 Spieler · Splitscreen</option>
+                                            <option value="2">2 Spieler · Geteilter Bildschirm</option>
                                         </select>
                                         <p class="menu-hint">Nur der Host teilt den Bildschirm; LAN-Gäste spielen im Vollbild.</p>
                                     </div>
@@ -1321,7 +1320,7 @@
                                 Erweiterte Map-Optionen liegen jetzt in Ebene 4 im Bereich `Erweiterte Map-Einstellungen`.
                             </p>
                             <button type="button" class="secondary-btn" data-menu-action="level4-open"
-                                data-level4-section="advanced_map" data-menu-text-id="menu.panels.portals.open.label">Map-Details öffnen</button>
+                                data-level4-section="advanced_map" data-menu-text-id="menu.panels.portals.open.label">Karten-Details öffnen</button>
                         </div>
                     </div>
                 </div>

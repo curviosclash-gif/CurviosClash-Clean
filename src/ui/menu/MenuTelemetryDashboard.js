@@ -1,4 +1,15 @@
 import { renderTelemetryHeatmapSection } from './MenuTelemetryHeatmapView.js';
+import { resolveMapPreview } from './MenuPreviewCatalog.js';
+
+const MODE_LABELS = Object.freeze({ classic: 'Klassisch', hunt: 'Kampf', escort: 'Geleitschutz', arcade: 'Arcade' });
+
+function mapLabel(key) {
+    return resolveMapPreview(key).name;
+}
+
+function modeLabel(key) {
+    return MODE_LABELS[String(key || '').toLowerCase()] || String(key || 'unknown');
+}
 
 function formatPercent(value) {
     const parsed = Number(value);
@@ -10,6 +21,11 @@ function formatDuration(value) {
     const parsed = Number(value);
     const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
     return `${normalized.toFixed(normalized >= 10 ? 1 : 2)}s`;
+}
+
+function formatMeasuredMgTime(secondsPerRound, measuredRounds) {
+    if (secondsPerRound == null || measuredRounds <= 0) return 'Nicht gemessen';
+    return `${formatDuration(secondsPerRound)} (${measuredRounds} R)`;
 }
 
 function formatDurationMs(value) {
@@ -80,7 +96,7 @@ function createCard(container, id, titleText) {
     return list;
 }
 
-function renderBucketRows(list, entries = [], emptyLabel = 'Keine Daten') {
+function renderBucketRows(list, entries = [], emptyLabel = 'Keine Daten', labelForKey = String) {
     if (!Array.isArray(entries) || entries.length === 0) {
         appendRow(list, 'empty', emptyLabel, '0');
         return;
@@ -93,7 +109,7 @@ function renderBucketRows(list, entries = [], emptyLabel = 'Keine Daten') {
         const parcoursRate = formatPercent(entry?.parcoursCompletionRate);
         const parcoursTime = formatDurationMs(entry?.averageParcoursCompletionTimeMs);
         const valueText = `${rounds} R | H ${formatPercent(entry?.humanWinRate)} | B ${formatPercent(entry?.botWinRate)} | ${duration} | P ${parcoursRate}/${parcoursTime}`;
-        appendRow(list, `bucket-${index}`, key, valueText);
+        appendRow(list, `bucket-${index}`, labelForKey(key), valueText);
     });
 }
 
@@ -122,9 +138,9 @@ function renderRecentRoundsCard(container, recentRounds = []) {
             item.setAttribute('data-telemetry-recent-index', String(index));
             item.textContent = [
                 String(entry?.winnerLabel || 'Unbekannt'),
-                `${String(entry?.mapKey || 'unknown')} / ${String(entry?.mode || 'classic')}`,
+                `${mapLabel(entry?.mapKey || 'unknown')} / ${modeLabel(entry?.mode || 'classic')}`,
                 formatDuration(entry?.duration),
-                `Items ${itemUsesWithoutMg(entry)}`,
+                `Gegenstände ${itemUsesWithoutMg(entry)}`,
                 `Self ${Math.max(0, Number(entry?.selfCollisions) || 0)}`,
                 entry?.parcoursCompleted ? `Parcours ${formatDurationMs(entry?.parcoursCompletionTimeMs)}` : 'Parcours -',
             ].join(' | ');
@@ -196,34 +212,37 @@ export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null
     appendRow(balanceCard, 'bot-win-rate', 'Bot-Winrate', formatPercent(balance?.botWinRate));
     appendRow(balanceCard, 'average-round-duration', 'Avg. Rundendauer', formatDuration(balance?.averageRoundDuration));
     appendRow(balanceCard, 'self-collisions-per-round', 'Selfcrash/R', formatDecimal(balance?.selfCollisionsPerRound));
-    appendRow(balanceCard, 'item-uses-without-mg-per-round', 'Items/R (ohne MG)', formatDecimal(balance?.itemUsesWithoutMgPerRound));
-    appendRow(balanceCard, 'mg-shots-per-round', 'MG-Versuche/R', formatDecimal(balance?.itemUseModePerRound?.mg));
+    appendRow(balanceCard, 'stuck-events-per-minute', 'Hänger/min', formatDecimal(balance?.stuckEventsPerMinute));
+    appendRow(balanceCard, 'bounce-wall-per-round', 'Wandabpraller/R', formatDecimal(balance?.bounceWallPerRound));
+    appendRow(balanceCard, 'average-bot-survival', 'Bot-Überleben', formatDuration(balance?.averageBotSurvival));
+    appendRow(balanceCard, 'item-uses-without-mg-per-round', 'Gegenstände/R (ohne MG)', formatDecimal(balance?.itemUsesWithoutMgPerRound));
+    appendRow(balanceCard, 'mg-fire-time-per-round', 'MG-Feuerzeit/R', formatMeasuredMgTime(balance?.mgFireSecondsPerRound, balance?.mgFireMeasuredRounds));
     appendRow(balanceCard, 'kills-per-round', 'Kills/R', formatDecimal(balance?.killsPerRound));
     appendRow(balanceCard, 'spawn-deaths-per-round', 'Spawn-Tode/R', formatDecimal(balance?.spawnDeathsPerRound));
     appendRow(balanceCard, 'parcours-rate', 'Parcours-Rate', formatPercent(balance?.parcoursCompletionRate));
     appendRow(balanceCard, 'parcours-time', 'Parcours-Zeit', formatDurationMs(balance?.averageParcoursCompletionTimeMs));
 
     const mapsCard = createCard(grid, 'maps', 'Top Maps');
-    renderBucketRows(mapsCard, snapshot.topMaps, 'Noch keine Maps');
+    renderBucketRows(mapsCard, snapshot.topMaps, 'Noch keine Maps', mapLabel);
 
     const modesCard = createCard(grid, 'modes', 'Top Modi');
-    renderBucketRows(modesCard, snapshot.topModes, 'Noch keine Modi');
+    renderBucketRows(modesCard, snapshot.topModes, 'Noch keine Modi', modeLabel);
 
     const funnel = snapshot.funnel || {};
     const funnelCard = createCard(grid, 'funnel', 'Start-Funnel');
     appendRow(funnelCard, 'funnel-attempts', 'Startversuche', String(Math.max(0, Number(funnel.eventCounts?.start_attempt) || 0)));
-    appendRow(funnelCard, 'funnel-round-rate', 'Start → Runde', formatPercent(funnel.startToRoundRate));
-    appendRow(funnelCard, 'funnel-match-rate', 'Start → Match', formatPercent(funnel.startToMatchRate));
-    appendRow(funnelCard, 'funnel-abort-rate', 'Abbruchrate', formatPercent(funnel.abortRate));
+    appendRow(funnelCard, 'funnel-round-rate', 'Rundenenden / Startversuche', formatPercent(funnel.startToRoundRate));
+    appendRow(funnelCard, 'funnel-match-rate', 'Matchenden / Startversuche', formatPercent(funnel.startToMatchRate));
+    appendRow(funnelCard, 'funnel-abort-rate', 'Abbrüche / Startversuche', formatPercent(funnel.abortRate));
     appendRow(funnelCard, 'funnel-abort-reason', 'Top-Abbruchgrund', topCountLabel(funnel.abortReasonCounts));
 
     const arcade = snapshot.arcade || {};
     const arcadeCard = createCard(grid, 'arcade', 'Arcade');
-    appendRow(arcadeCard, 'arcade-runs', 'Runs / Sektoren', `${Math.max(0, Number(arcade.runs) || 0)} / ${Math.max(0, Number(arcade.sectors) || 0)}`);
-    appendRow(arcadeCard, 'arcade-score', 'Ø Score', formatDecimal(arcade.averageScore));
+    appendRow(arcadeCard, 'arcade-runs', 'Beendete Läufe / Sektoren', `${Math.max(0, Number(arcade.runs) || 0)} / ${Math.max(0, Number(arcade.sectors) || 0)}`);
+    appendRow(arcadeCard, 'arcade-score', 'Ø Punkte je beendetem Lauf', formatDecimal(arcade.averageScore));
     appendRow(arcadeCard, 'arcade-combo', 'Ø Peak-Combo', formatDecimal(arcade.averagePeakCombo));
     appendRow(arcadeCard, 'arcade-missions', 'Missionen', formatPercent(arcade.missionCompletionRate));
-    appendRow(arcadeCard, 'arcade-xp', 'XP gesamt', String(Math.round(Math.max(0, Number(arcade.totalXpEarned) || 0))));
+    appendRow(arcadeCard, 'arcade-xp', 'Sektor-XP gesamt', String(Math.round(Math.max(0, Number(arcade.totalXpEarned) || 0))));
     appendRow(arcadeCard, 'arcade-reward', 'Top-Belohnung', topCountLabel(arcade.rewardChoiceCounts));
 
     container.appendChild(grid);
@@ -253,8 +272,8 @@ export function renderTelemetryHistorySection(container, historySummary) {
     appendRow(list, 'history-bot-wr', 'Bot-Winrate', formatPercent(historySummary.botWinRate));
     appendRow(list, 'history-avg-dur', 'Avg. Dauer', formatDuration(historySummary.averageDuration));
     appendRow(list, 'history-self-cr', 'Selfcrash/R', formatDecimal(historySummary.selfCollisionsPerRound));
-    appendRow(list, 'history-items-r', 'Items/R (ohne MG)', formatDecimal(historySummary.itemUsesWithoutMgPerRound));
-    appendRow(list, 'history-mg-shots-r', 'MG-Versuche/R', formatDecimal(historySummary.itemUseModePerRound?.mg));
+    appendRow(list, 'history-items-r', 'Gegenstände/R (ohne MG)', formatDecimal(historySummary.itemUsesWithoutMgPerRound));
+    appendRow(list, 'history-mg-fire-time-r', 'MG-Feuerzeit/R', formatMeasuredMgTime(historySummary.mgFireSecondsPerRound, historySummary.mgFireMeasuredRounds));
     appendRow(list, 'history-kills-r', 'Kills/R', formatDecimal(historySummary.killsPerRound));
     appendRow(list, 'history-spawn-deaths-r', 'Spawn-Tode/R', formatDecimal(historySummary.spawnDeathsPerRound));
     appendRow(list, 'history-parcours-rate', 'Parcours-Rate', formatPercent(historySummary.parcoursCompletionRate));
@@ -265,11 +284,11 @@ export function renderTelemetryHistorySection(container, historySummary) {
     appendRow(list, 'history-arcade-missions', 'Arcade-Missionen', formatPercent(historySummary.arcadeMissionCompletionRate));
 
     if (Array.isArray(historySummary.topMaps) && historySummary.topMaps.length > 0) {
-        const mapsStr = historySummary.topMaps.map((m) => `${m.key}(${m.count})`).join(', ');
+        const mapsStr = historySummary.topMaps.map((m) => `${mapLabel(m.key)}(${m.count})`).join(', ');
         appendRow(list, 'history-top-maps', 'Top Maps', mapsStr);
     }
     if (Array.isArray(historySummary.topModes) && historySummary.topModes.length > 0) {
-        const modesStr = historySummary.topModes.map((m) => `${m.key}(${m.count})`).join(', ');
+        const modesStr = historySummary.topModes.map((m) => `${modeLabel(m.key)}(${m.count})`).join(', ');
         appendRow(list, 'history-top-modes', 'Top Modi', modesStr);
     }
     if (Array.isArray(historySummary.topBuilds) && historySummary.topBuilds.length > 0) {

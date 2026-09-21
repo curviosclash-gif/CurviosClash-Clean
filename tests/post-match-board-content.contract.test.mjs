@@ -140,21 +140,21 @@ test('the round block carries raw numbers with a type instead of finished text',
     assert.equal(items.value, 1);
 });
 
-test('the developer figures move into detail blocks', () => {
+test('the detail blocks show player-readable counts and totals', () => {
     const players = createPlayers(2);
     const summary = endRound({ players }).statsSummary;
 
     assert.equal(findBlock(summary, 'round-detail').tier, 'detail');
-    assert.equal(findRow(summary, 'round-detail', 'stuck-rate').type, 'ratio');
+    assert.equal(findRow(summary, 'round-detail', 'duration').type, 'duration');
+    assert.equal(findRow(summary, 'round-detail', 'item-pickups').type, 'count');
     assert.equal(findRow(summary, 'round-detail', 'self-collisions').type, 'count');
-    assert.equal(findRow(summary, 'round-detail', 'bot-survival').type, 'duration');
+    assert.equal(findRow(summary, 'round-detail', 'stuck-rate'), null);
 
     const match = findBlock(summary, 'match');
     assert.equal(match.tier, 'detail');
-    const botWinRate = match.rows.find((row) => row.key === 'bot-win-rate');
-    assert.equal(botWinRate.type, 'percent');
-    // A fraction, not a percentage number: 0 bot wins out of one round.
-    assert.equal(botWinRate.value, 0);
+    assert.equal(findRow(summary, 'match', 'duration').type, 'duration');
+    assert.equal(findRow(summary, 'match', 'item-pickups').type, 'count');
+    assert.equal(findRow(summary, 'match', 'bot-win-rate'), null);
     assert.equal(match.rows.find((row) => row.key === 'rounds').value, 1);
 });
 
@@ -330,8 +330,8 @@ test('the overlay renders the v2 board with german values and keeps its test hoo
         );
 
         const matchRows = collectRows(findBlockElement(container, 'match'));
-        // 0 as a fraction has to reach the board as "0 %", never as "0".
-        assert.match(matchRows.find((row) => row.key === 'bot-win-rate').value, /^0 %$/);
+        assert.match(matchRows.find((row) => row.key === 'duration').value, /s$/);
+        assert.equal(matchRows.find((row) => row.key === 'item-pickups').value, '0');
     } finally {
         restore();
     }

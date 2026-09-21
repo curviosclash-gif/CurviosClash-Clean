@@ -27,6 +27,49 @@ export function createItemUseModeCounts() {
     };
 }
 
+export function createRoundSummary() {
+    return {
+        roundId: 0,
+        duration: 0,
+        winnerIndex: -1,
+        winnerIsBot: false,
+        reason: '',
+        botCount: 0,
+        humanCount: 0,
+        botSurvivalAverage: 0,
+        botSurvivalSeconds: [],
+        botDeathSurvivalSeconds: [],
+        botDeathCauseCounts: {},
+        selfCollisions: 0,
+        stuckEvents: 0,
+        bounceWallEvents: 0,
+        bounceTrailEvents: 0,
+        itemUseEvents: 0,
+        mgFireSeconds: 0,
+        itemUseModeCounts: createItemUseModeCounts(),
+        itemUseTypeCounts: {},
+        itemSpawnTypeCounts: {},
+        itemPickupTypeCounts: {},
+        itemPickupRejectedTypeCounts: {},
+        itemHitTypeCounts: {},
+        itemDamageByType: {},
+        actionResultCodeCounts: {},
+        failedItemActions: 0,
+        failedItemActionModeCounts: createItemUseModeCounts(),
+        failedItemActionCodeCounts: {},
+        mgHits: 0,
+        rocketHits: 0,
+        shieldAbsorb: 0,
+        hpDamage: 0,
+        turretEventCounts: {},
+        stuckPerMinute: 0,
+        parcoursCompleted: false,
+        parcoursRouteId: '',
+        parcoursCompletionTimeMs: 0,
+        parcoursCheckpointCount: 0,
+    };
+}
+
 export function createAggregateSummary() {
     return {
         rounds: 0,
@@ -39,6 +82,7 @@ export function createAggregateSummary() {
         totalBounceWallEvents: 0,
         totalBounceTrailEvents: 0,
         totalItemUseEvents: 0,
+        totalMgFireSeconds: 0,
         totalItemUseModeCounts: createItemUseModeCounts(),
         totalItemUseTypeCounts: {},
         totalItemSpawnTypeCounts: {},

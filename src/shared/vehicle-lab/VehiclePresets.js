@@ -5,14 +5,14 @@ export const VEHICLE_PRESETS = [
         label: 'Lab-Vorlage: Jet-Fighter',
         primaryColor: 0x60a5fa,
         parts: [
-            { name: 'Fuselage', geo: 'cylinder', size: [0.5, 0.7, 5], pos: [0, 0, -0.4], rot: [90, 0, 0], material: 'primary', role: 'core' },
-            { name: 'Nose Cone', geo: 'cone', size: [0.5, 1.6], pos: [0, 0, -3.7], rot: [-90, 0, 0], material: 'primary', role: 'nose' },
-            { name: 'Cockpit', geo: 'capsule', size: [0.28, 0.8], pos: [0, 0.36, -0.8], rot: [90, 0, 0], material: 'glass' },
-            { name: 'L-Wing', geo: 'box', size: [2.4, 0.08, 1.2], pos: [-1.4, 0, 0.8], rot: [0, 0, 0], material: 'primary', role: 'wing_left' },
-            { name: 'R-Wing', geo: 'box', size: [2.4, 0.08, 1.2], pos: [1.4, 0, 0.8], rot: [0, 0, 0], material: 'primary', role: 'wing_right' },
-            { name: 'Tail Fin', geo: 'box', size: [0.08, 1.2, 0.8], pos: [0, 0.6, 1.6], rot: [0, 0, 0], material: 'primary' },
-            { name: 'L-Engine', geo: 'engine', size: [0.2, 0.17, 0.7], pos: [-2.4, 0.1, 0.8], role: 'engine_left' },
-            { name: 'R-Engine', geo: 'engine', size: [0.2, 0.17, 0.7], pos: [2.4, 0.1, 0.8], role: 'engine_right' }
+            { name: 'Rumpf', geo: 'cylinder', size: [0.5, 0.7, 5], pos: [0, 0, -0.4], rot: [90, 0, 0], material: 'primary', role: 'core' },
+            { name: 'Nasenkegel', geo: 'cone', size: [0.5, 1.6], pos: [0, 0, -3.7], rot: [-90, 0, 0], material: 'primary', role: 'nose' },
+            { name: 'Cockpitkanzel', geo: 'capsule', size: [0.28, 0.8], pos: [0, 0.36, -0.8], rot: [90, 0, 0], material: 'glass' },
+            { name: 'Linker Flügel', geo: 'box', size: [2.4, 0.08, 1.2], pos: [-1.4, 0, 0.8], rot: [0, 0, 0], material: 'primary', role: 'wing_left' },
+            { name: 'Rechter Flügel', geo: 'box', size: [2.4, 0.08, 1.2], pos: [1.4, 0, 0.8], rot: [0, 0, 0], material: 'primary', role: 'wing_right' },
+            { name: 'Heckflosse', geo: 'box', size: [0.08, 1.2, 0.8], pos: [0, 0.6, 1.6], rot: [0, 0, 0], material: 'primary' },
+            { name: 'Linker Antrieb', geo: 'engine', size: [0.2, 0.17, 0.7], pos: [-2.4, 0.1, 0.8], role: 'engine_left' },
+            { name: 'Rechter Antrieb', geo: 'engine', size: [0.2, 0.17, 0.7], pos: [2.4, 0.1, 0.8], role: 'engine_right' }
         ]
     },
     {

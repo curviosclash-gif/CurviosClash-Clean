@@ -6,6 +6,7 @@ import { resolveArtifactVersionState } from '../../shared/contracts/ArtifactVers
 import { createBotHeuristicTuningSnapshot } from '../../shared/contracts/BotHeuristicTuningContract.js';
 
 export const MENU_CONFIG_SHARE_CONTRACT_VERSION = 'menu-config-share.v1';
+const INVALID_CONFIG_IMPORT_MESSAGE = 'Import fehlgeschlagen: Daten passen nicht zu Curvios Clash';
 const MENU_CONFIG_SHARE_VERSION_FIELDS = Object.freeze(['contractVersion']);
 const MENU_CONFIG_SHARE_SUPPORTED_VERSIONS = Object.freeze([MENU_CONFIG_SHARE_CONTRACT_VERSION]);
 
@@ -29,6 +30,7 @@ function createImportFeedback({
     contractVersion = null,
     usedLegacyFallback = false,
     migration = null,
+    appliedValueCount = 0,
 }) {
     return {
         success: success === true,
@@ -37,7 +39,7 @@ function createImportFeedback({
         warnings: Array.isArray(warnings)
             ? warnings.filter((entry) => typeof entry === 'string' && entry.trim()).map((entry) => entry.trim())
             : [],
-        message: sanitizeString(message),
+        message: success ? sanitizeString(message) : INVALID_CONFIG_IMPORT_MESSAGE,
         tone: sanitizeString(tone, success ? 'success' : 'error'),
         payload,
         contractVersion,
@@ -45,6 +47,7 @@ function createImportFeedback({
         migration: migration && typeof migration === 'object'
             ? { ...migration }
             : null,
+        appliedValueCount: Math.max(0, Number(appliedValueCount) || 0),
     };
 }
 
@@ -96,49 +99,50 @@ export function applyMenuConfigPayload(settings, payload) {
         return false;
     }
     const defaults = createMenuConfigSharePayloadDefaults();
+    const has = (key) => Object.prototype.hasOwnProperty.call(payload, key);
 
-    settings.mode = payload.mode === '2p' ? '2p' : defaults.mode;
-    settings.gameMode = sanitizeString(payload.gameMode, settings.gameMode || defaults.gameMode);
-    settings.mapKey = sanitizeString(payload.mapKey, settings.mapKey || defaults.mapKey);
-    settings.numBots = Number.isFinite(Number(payload.numBots)) ? Number(payload.numBots) : settings.numBots;
-    settings.botDifficulty = sanitizeString(payload.botDifficulty, settings.botDifficulty || defaults.botDifficulty).toUpperCase();
-    settings.botPolicyStrategy = sanitizeString(payload.botPolicyStrategy, settings.botPolicyStrategy || defaults.botPolicyStrategy).toLowerCase();
-    settings.botHeuristicProfile = ['defensive', 'balanced', 'aggressive'].includes(payload.botHeuristicProfile)
+    if (has('mode')) settings.mode = payload.mode === '2p' ? '2p' : defaults.mode;
+    if (has('gameMode')) settings.gameMode = sanitizeString(payload.gameMode, settings.gameMode || defaults.gameMode);
+    if (has('mapKey')) settings.mapKey = sanitizeString(payload.mapKey, settings.mapKey || defaults.mapKey);
+    if (has('numBots')) settings.numBots = Number.isFinite(Number(payload.numBots)) ? Number(payload.numBots) : settings.numBots;
+    if (has('botDifficulty')) settings.botDifficulty = sanitizeString(payload.botDifficulty, settings.botDifficulty || defaults.botDifficulty).toUpperCase();
+    if (has('botPolicyStrategy')) settings.botPolicyStrategy = sanitizeString(payload.botPolicyStrategy, settings.botPolicyStrategy || defaults.botPolicyStrategy).toLowerCase();
+    if (has('botHeuristicProfile')) settings.botHeuristicProfile = ['defensive', 'balanced', 'aggressive'].includes(payload.botHeuristicProfile)
         ? payload.botHeuristicProfile
         : defaults.botHeuristicProfile;
-    settings.botHeuristicTuning = createBotHeuristicTuningSnapshot(payload.botHeuristicTuning);
-    settings.winsNeeded = Number.isFinite(Number(payload.winsNeeded)) ? Number(payload.winsNeeded) : settings.winsNeeded;
-    settings.autoRoll = typeof payload.autoRoll === 'boolean' ? payload.autoRoll : defaults.autoRoll;
-    settings.portalsEnabled = typeof payload.portalsEnabled === 'boolean' ? payload.portalsEnabled : defaults.portalsEnabled;
-    settings.vehicles = {
+    if (has('botHeuristicTuning')) settings.botHeuristicTuning = createBotHeuristicTuningSnapshot(payload.botHeuristicTuning);
+    if (has('winsNeeded')) settings.winsNeeded = Number.isFinite(Number(payload.winsNeeded)) ? Number(payload.winsNeeded) : settings.winsNeeded;
+    if (has('autoRoll')) settings.autoRoll = typeof payload.autoRoll === 'boolean' ? payload.autoRoll : defaults.autoRoll;
+    if (has('portalsEnabled')) settings.portalsEnabled = typeof payload.portalsEnabled === 'boolean' ? payload.portalsEnabled : defaults.portalsEnabled;
+    if (has('vehicles')) settings.vehicles = {
         ...(settings.vehicles && typeof settings.vehicles === 'object' ? settings.vehicles : deepClone(defaults.vehicles)),
         ...(payload.vehicles && typeof payload.vehicles === 'object' ? payload.vehicles : {}),
     };
-    settings.hunt = {
+    if (has('hunt')) settings.hunt = {
         ...(settings.hunt && typeof settings.hunt === 'object' ? settings.hunt : deepClone(defaults.hunt)),
         ...(payload.hunt && typeof payload.hunt === 'object' ? payload.hunt : {}),
     };
-    settings.gameplay = {
+    if (has('gameplay')) settings.gameplay = {
         ...(settings.gameplay && typeof settings.gameplay === 'object' ? settings.gameplay : deepClone(defaults.gameplay)),
         ...(payload.gameplay && typeof payload.gameplay === 'object' ? payload.gameplay : {}),
     };
-    settings.recording = {
+    if (has('recording')) settings.recording = {
         ...(settings.recording && typeof settings.recording === 'object' ? settings.recording : deepClone(defaults.recording || {})),
         ...(payload.recording && typeof payload.recording === 'object' ? payload.recording : {}),
     };
-    settings.cameraPerspective = {
+    if (has('cameraPerspective')) settings.cameraPerspective = {
         ...(settings.cameraPerspective && typeof settings.cameraPerspective === 'object' ? settings.cameraPerspective : deepClone(defaults.cameraPerspective || {})),
         ...(payload.cameraPerspective && typeof payload.cameraPerspective === 'object' ? payload.cameraPerspective : {}),
     };
-    if (!settings.localSettings || typeof settings.localSettings !== 'object') {
-        settings.localSettings = {};
+    if (['sessionType', 'modePath', 'shadowQuality', 'bloomQuality', 'startSetup'].some(has)) {
+        if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
     }
-    settings.localSettings.sessionType = sanitizeString(payload.sessionType, settings.localSettings.sessionType || defaults.sessionType);
-    settings.localSettings.modePath = sanitizeString(payload.modePath, settings.localSettings.modePath || defaults.modePath);
+    if (has('sessionType')) settings.localSettings.sessionType = sanitizeString(payload.sessionType, settings.localSettings.sessionType || defaults.sessionType);
+    if (has('modePath')) settings.localSettings.modePath = sanitizeString(payload.modePath, settings.localSettings.modePath || defaults.modePath);
     const localDefaults = createMenuLocalSettingsDefaults();
-    settings.localSettings.shadowQuality = payload.shadowQuality ?? settings.localSettings.shadowQuality ?? localDefaults.shadowQuality;
-    settings.localSettings.bloomQuality = payload.bloomQuality ?? settings.localSettings.bloomQuality ?? localDefaults.bloomQuality;
-    settings.localSettings.startSetup = {
+    if (has('shadowQuality')) settings.localSettings.shadowQuality = payload.shadowQuality ?? settings.localSettings.shadowQuality ?? localDefaults.shadowQuality;
+    if (has('bloomQuality')) settings.localSettings.bloomQuality = payload.bloomQuality ?? settings.localSettings.bloomQuality ?? localDefaults.bloomQuality;
+    if (has('startSetup')) settings.localSettings.startSetup = {
         ...(settings.localSettings.startSetup && typeof settings.localSettings.startSetup === 'object'
             ? settings.localSettings.startSetup
             : deepClone(localDefaults.startSetup)),
@@ -248,17 +252,42 @@ export function parseMenuConfigImportInput(inputValue) {
         });
     }
 
-    // Any JSON object used to pass as an old export; applying one without a single known
-    // field reset several values to defaults and still reported success.
+    // The current envelope needs enough fields to identify a Curvios Clash export.
+    // Older unversioned shares only promised map and bot count, so keep that fallback.
     const knownKeys = Object.keys(createSharePayload({}));
+    const knownKeySet = new Set(knownKeys);
     if (!knownKeys.some((key) => Object.prototype.hasOwnProperty.call(sourcePayload, key))) {
         return createImportFeedback({
             success: false,
             reason: 'no_known_settings',
             error: 'Config-Import enthält keine bekannten Einstellungsfelder.',
-            message: 'Im eingefügten Text wurden keine bekannten Einstellungen gefunden. Nichts wurde übernommen.',
         });
     }
+    const requiredFields = versionState.hasVersionField
+        ? ['mode', 'gameMode', 'mapKey', 'sessionType']
+        : ['mapKey', 'numBots'];
+    const hasRequiredFields = requiredFields.every((key) => Object.prototype.hasOwnProperty.call(sourcePayload, key));
+    const legacyContainsOnlyKnownFields = versionState.hasVersionField
+        || Object.keys(sourcePayload).every((key) => knownKeySet.has(key));
+    const validCoreValues = typeof sourcePayload.mapKey === 'string' && sourcePayload.mapKey.trim() !== ''
+        && (!Object.prototype.hasOwnProperty.call(sourcePayload, 'numBots')
+            || (Number.isInteger(sourcePayload.numBots) && sourcePayload.numBots >= 0));
+    const validVersionedValues = !versionState.hasVersionField || (
+        ['1p', '2p'].includes(sourcePayload.mode)
+        && typeof sourcePayload.gameMode === 'string' && sourcePayload.gameMode.trim() !== ''
+        && typeof sourcePayload.sessionType === 'string' && sourcePayload.sessionType.trim() !== ''
+        && (!Object.prototype.hasOwnProperty.call(sourcePayload, 'modePath')
+            || (typeof sourcePayload.modePath === 'string' && sourcePayload.modePath.trim() !== ''))
+    );
+    if (!hasRequiredFields || !legacyContainsOnlyKnownFields || !validCoreValues || !validVersionedValues) {
+        return createImportFeedback({
+            success: false,
+            reason: 'invalid_settings_shape',
+            error: 'Config-Import enthält keine vollständigen Curvios-Clash-Einstellungsfelder.',
+        });
+    }
+
+    const appliedValueCount = knownKeys.filter((key) => Object.prototype.hasOwnProperty.call(sourcePayload, key)).length;
 
     const usedLegacyFallback = !versionState.hasVersionField;
     const warnings = usedLegacyFallback ? [createLegacyImportWarning()] : [];
@@ -276,11 +305,11 @@ export function parseMenuConfigImportInput(inputValue) {
         contractVersion: versionState.hasVersionField ? MENU_CONFIG_SHARE_CONTRACT_VERSION : null,
         usedLegacyFallback,
         warnings,
+        appliedValueCount,
         message: usedLegacyFallback
-            ? 'Legacy-Config importiert und auf den aktuellen Vertragsstand normalisiert.'
-            : 'Config importiert.',
+            ? `Legacy-Config importiert: ${appliedValueCount} Werte übernommen und auf den aktuellen Vertragsstand normalisiert.`
+            : `Config importiert: ${appliedValueCount} Werte übernommen.`,
         tone: usedLegacyFallback ? 'warning' : 'success',
         migration,
     });
 }
-

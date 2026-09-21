@@ -68,7 +68,6 @@ export function returnToMenuFromPauseIntent(controller) {
         return false;
     }
     const menuOptions = {
-        panelId: 'submenu-game',
         reason: 'pause_menu_return',
         trigger: 'pause_menu_return',
         pauseLease,

@@ -28,9 +28,9 @@ export function renderGamepadBindingEditor(container, runtimeAccess) {
     enabledLabel.append(enabled, enabledTitle); section.append(enabledLabel);
     const assignmentLabel = doc.createElement('label');
     assignmentLabel.className = 'key-row';
-    const assignmentTitle = doc.createElement('span'); assignmentTitle.textContent = 'Splitscreen: Eingabegeräte';
+    const assignmentTitle = doc.createElement('span'); assignmentTitle.textContent = 'Geteilter Bildschirm: Eingabegeräte';
     const assignment = doc.createElement('select');
-    assignment.setAttribute('aria-label', 'Splitscreen: Eingabegeräte');
+    assignment.setAttribute('aria-label', 'Geteilter Bildschirm: Eingabegeräte');
     for (const layout of SPLITSCREEN_INPUT_LAYOUTS) {
         const option = doc.createElement('option'); option.value = layout.value; option.textContent = layout.label; assignment.append(option);
     }
@@ -43,13 +43,13 @@ export function renderGamepadBindingEditor(container, runtimeAccess) {
     });
     assignmentLabel.append(assignmentTitle, assignment); section.append(assignmentLabel);
     const assignmentHelp = doc.createElement('p');
-    assignmentHelp.textContent = 'Gilt ab der nächsten Runde im Zwei-Spieler-Splitscreen. Tastaturspieler verwenden die Tasten von Spieler 1 bzw. Spieler 2. Gemischt wird Controller 1 verwendet; mit zwei Controllern steuert Controller 1 Spieler 1 und Controller 2 Spieler 2.';
+    assignmentHelp.textContent = 'Gilt ab der nächsten Runde mit zwei Spielern am geteilten Bildschirm. Tastaturspieler verwenden die Tasten von Spieler 1 bzw. Spieler 2. Gemischt wird Controller 1 verwendet; mit zwei Controllern steuert Controller 1 Spieler 1 und Controller 2 Spieler 2.';
     section.append(assignmentHelp);
     const title = doc.createElement('h4');
     title.textContent = 'Controller-Belegung';
     section.append(title);
     const info = doc.createElement('p');
-    info.textContent = 'Änderungen gelten sofort und werden automatisch gespeichert. Bereits belegte Tasten tauschen ihre Funktionen. Im Menü bleiben Steuerkreuz, A und B fest belegt. Im Vier-Spieler-2D-Modus gelten Lenken, Rollen und die Item-/Raketentaste als Kontextaktion. Bei automatischer Zuordnung hat aktivierte Maussteuerung Vorrang.';
+    info.textContent = 'Änderungen gelten sofort und werden automatisch gespeichert. Bei einer bereits belegten Tastaturtaste wird vor dem Tauschen gefragt; Controller-Belegungen tauschen direkt. Im Menü bleiben Steuerkreuz, A und B fest belegt. Im Vier-Spieler-2D-Modus gelten Lenken, Rollen und die Item-/Raketentaste als Kontextaktion. Bei automatischer Zuordnung hat aktivierte Maussteuerung Vorrang.';
     section.append(info);
     const player = doc.createElement('select');
     player.setAttribute('aria-label', 'Controller auswählen');

@@ -57,6 +57,28 @@ test('Rundenkennzahl trennt Item-Einsaetze von MG-Schuessen', () => {
     assert.equal(aggregate.itemUseModePerRound.mg, 401, 'MG attempts stay in the separate MG counter');
 });
 
+test('MG-Dauerfeuer misst gehaltene Sekunden statt Update-Takte', () => {
+    const metrics = new RoundMetricsStore({ timeProvider: () => 2 });
+    metrics.startRound([]);
+    const entityManager = {
+        recorder: { logEvent(type, _playerIndex, data) { metrics.registerEventType(type, data); } },
+        _shootHuntGun: () => ({ ok: false, code: 'mg.shoot.cooldown', type: 'MG_BULLET' }),
+        _notifyPlayerFeedback() {},
+    };
+    const player = { index: 0, isBot: true, cycleItem() {}, dropItem() {} };
+    const phase = new PlayerActionPhase(entityManager);
+    const strategy = { hasMachineGun: () => true };
+    for (let tick = 0; tick < 5; tick++) {
+        phase.run(player, { shootMG: true }, strategy, 0.1);
+    }
+    // Alte Ereignisse ohne Tickdauer bleiben zaehlbar, duerfen aber keine Zeit erfinden.
+    metrics.registerEventType('ITEM_USE', 'mode=mg type=MG_BULLET code=mg.shoot.success ok=1');
+    const round = metrics.finalizeRound(null, []);
+    assert.equal(round.itemUseModeCounts.mg, 6);
+    assert.ok(Math.abs(round.mgFireSeconds - 0.5) < 1e-9);
+    assert.ok(Math.abs(metrics.getAggregateMetrics().mgFireSecondsPerRound - 0.5) < 1e-9);
+});
+
 test('Historien-Zusammenfassung liefert Items pro Runde ohne MG aus bereits gespeicherten Runden', () => {
     const summary = computeTelemetryHistorySummary([
         {

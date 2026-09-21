@@ -123,6 +123,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         threePlayerSplit: normalizeThreePlayerSplitSettings(),
         modePath: 'fight',
         seededModePaths: [],
+        lastTeamObjective: 'HUNT',
         graphicsStyle: GRAPHICS_STYLES.MODERN,
         mapBrightness: DEFAULT_MAP_BRIGHTNESS,
         viewDistance: DEFAULT_VIEW_DISTANCE,
@@ -252,7 +253,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         {
             id: 'chaos',
             name: 'Chaos',
-            description: 'Mehr Bots, mehr Items, aggressiveres Tempo.',
+            description: 'Mehr Bots, mehr Gegenstände, aggressiveres Tempo.',
             lockedFields: ['numBots', 'gameplay.itemAmount'],
             values: {
                 mode: '1p',

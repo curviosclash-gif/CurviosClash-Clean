@@ -293,14 +293,14 @@ test('VehicleLabUI renders the desktop workshop status bar', () => {
             message: 'Undo angewendet.',
             tone: 'info',
             historyState: { index: 1, length: 3 },
-            blueprintStatus: 'Blueprint ok',
+            blueprintStatus: 'Bauplan gültig',
             selectedLabel: 'Auswahl: Wing',
         });
 
         assert.equal(document.getElementById('workshopStatusBar').dataset.tone, 'info');
         assert.equal(document.getElementById('workshopStatusMessage').textContent, 'Undo angewendet. | Auswahl: Wing');
         assert.equal(document.getElementById('workshopHistoryState').textContent, 'Verlauf 2/3');
-        assert.equal(document.getElementById('workshopBlueprintState').textContent, 'Blueprint ok');
+        assert.equal(document.getElementById('workshopBlueprintState').textContent, 'Bauplan gültig');
     } finally {
         restore();
     }

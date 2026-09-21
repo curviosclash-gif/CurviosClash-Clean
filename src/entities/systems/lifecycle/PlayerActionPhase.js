@@ -148,6 +148,7 @@ export class PlayerActionPhase {
                 entityManager.recorder.logEvent('ITEM_USE', player.index, encodeGameplayActionResultForLog(result, {
                     mode: 'mg',
                     type: result?.type || 'MG_BULLET',
+                    durationSeconds: Math.max(0, Number(dt) || 0),
                 }));
             }
             if (!result.ok && !player.isBot) {

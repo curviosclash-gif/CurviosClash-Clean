@@ -8,7 +8,10 @@ import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeS
 import { TelemetryHistoryStore, normalizeTelemetryHistoryEntry } from '../src/state/TelemetryHistoryStore.js';
 import { TelemetryPreferencesStore } from '../src/shared/telemetry/TelemetryPreferencesStore.js';
 import { MatchFlowTelemetryController } from '../src/ui/MatchFlowTelemetryController.js';
+import { createSettingsTelemetryFacade } from '../src/core/settings/SettingsTelemetryFacade.js';
 import { MenuTelemetryStore } from '../src/ui/menu/MenuTelemetryStore.js';
+import { renderMenuTelemetryDashboard } from '../src/ui/menu/MenuTelemetryDashboard.js';
+import { resolveMapPreview } from '../src/ui/menu/MenuPreviewCatalog.js';
 
 function createMemoryStoragePlatform() {
     const records = new Map();
@@ -97,6 +100,64 @@ test('menu telemetry aggregates arcade sector and run KPIs', () => {
     assert.equal(summary.modifierCounts.kinetic, 1);
 });
 
+test('expert dashboard names completed arcade runs, funnel denominators and map labels', () => {
+    const previousDocument = globalThis.document;
+    const createElement = () => ({
+        children: [],
+        attributes: {},
+        textContent: '',
+        setAttribute(key, value) { this.attributes[key] = value; },
+        appendChild(child) { this.children.push(child); },
+        append(...children) { this.children.push(...children); },
+        replaceChildren(...children) { this.children = children; },
+    });
+    const find = (element, key, value) => {
+        if (element.attributes?.[key] === value) return element;
+        for (const child of element.children || []) {
+            const match = find(child, key, value);
+            if (match) return match;
+        }
+        return null;
+    };
+    globalThis.document = { createElement };
+    try {
+        const root = createElement();
+        renderMenuTelemetryDashboard(root, {
+            balance: { rounds: 5 },
+            topMaps: [{ key: 'standard', rounds: 5 }],
+            topModes: [{ key: 'hunt', rounds: 5 }],
+            recentRounds: [{ winnerLabel: 'Spieler 1', mapKey: 'standard', mode: 'hunt' }],
+            funnel: { eventCounts: { start_attempt: 5 }, startToRoundRate: 1, startToMatchRate: 0.2, abortRate: 0 },
+            arcade: { runs: 0, sectors: 5, averageScore: 0, totalXpEarned: 0 },
+        }, null, { rounds: 5, topMaps: [{ key: 'standard', count: 5 }], topModes: [{ key: 'hunt', count: 5 }] });
+
+        const row = (key) => find(root, 'data-telemetry-row-key', key);
+        const mapName = resolveMapPreview('standard').name;
+        assert.equal(row('arcade-runs').children[0].textContent, 'Beendete Läufe / Sektoren');
+        assert.equal(row('arcade-runs').children[1].textContent, '0 / 5');
+        assert.equal(row('arcade-score').children[0].textContent, 'Ø Punkte je beendetem Lauf');
+        assert.equal(row('arcade-xp').children[0].textContent, 'Sektor-XP gesamt');
+        assert.equal(row('mg-fire-time-per-round').children[1].textContent, 'Nicht gemessen');
+        assert.equal(row('history-mg-fire-time-r').children[1].textContent, 'Nicht gemessen');
+        assert.equal(row('funnel-round-rate').children[0].textContent, 'Rundenenden / Startversuche');
+        assert.equal(row('funnel-match-rate').children[0].textContent, 'Matchenden / Startversuche');
+        assert.equal(row('funnel-abort-rate').children[0].textContent, 'Abbrüche / Startversuche');
+        assert.equal(find(root, 'data-telemetry-card', 'maps').children[1].children[0].children[0].textContent, mapName);
+        assert.equal(find(root, 'data-telemetry-card', 'modes').children[1].children[0].children[0].textContent, 'Kampf');
+        assert.match(row('history-top-maps').children[1].textContent, new RegExp(mapName, 'u'));
+        assert.equal(row('history-top-modes').children[1].textContent, 'Kampf(5)');
+        assert.match(find(root, 'data-telemetry-recent-index', '0').textContent, new RegExp(`${mapName} / Kampf`, 'u'));
+
+        renderMenuTelemetryDashboard(root, {
+            balance: { rounds: 2, mgFireMeasuredRounds: 1, mgFireSecondsPerRound: 3.5 },
+        }, null, { rounds: 2, mgFireMeasuredRounds: 1, mgFireSecondsPerRound: 3.5 });
+        assert.equal(row('mg-fire-time-per-round').children[1].textContent, '3.50s (1 R)');
+        assert.equal(row('history-mg-fire-time-r').children[1].textContent, '3.50s (1 R)');
+    } finally {
+        globalThis.document = previousDocument;
+    }
+});
+
 test('round performance interval reports p95, p99, spikes and subsystem averages', () => {
     const profiler = new RuntimePerfProfiler({ spikeThresholdMs: 30 });
     profiler.beginTelemetryInterval();
@@ -143,7 +204,11 @@ test('round payload includes versioned context and compact performance telemetry
     const controller = new MatchFlowTelemetryController({ game });
     const payload = controller.buildRoundEndTelemetryPayload({
         outcome: { state: 'ROUND_END', reason: 'ELIMINATION' },
-        recording: { roundMetrics: { winnerIndex: 0, winnerIsBot: false, duration: 12 } },
+        recording: { roundMetrics: {
+            winnerIndex: 0, winnerIsBot: false, duration: 12,
+            mgFireSeconds: 0.5,
+            bounceWallEvents: 4, botCount: 1, botSurvivalAverage: 9,
+        } },
     });
 
     assert.equal(payload.telemetrySchemaVersion, 'round-telemetry.v2');
@@ -152,6 +217,10 @@ test('round payload includes versioned context and compact performance telemetry
     assert.equal(payload.context.botCount, 1);
     assert.deepEqual(payload.context.vehicles, ['ship5', 'ship7']);
     assert.equal(payload.performance.frameP99Ms, 24);
+    assert.equal(payload.bounceWallEvents, 4);
+    assert.equal(payload.mgFireSeconds, 0.5);
+    assert.equal(payload.botCount, 1);
+    assert.equal(payload.botSurvivalAverage, 9);
 });
 
 test('history summary compares builds and performance across rounds', () => {
@@ -211,6 +280,42 @@ test('menu telemetry totals kills per map and mode bucket', () => {
     assert.equal(balance.maps.standard.totalKills, 8);
     assert.equal(balance.modes.classic.totalKills, 8);
     assert.equal(balance.maps.standard.totalSpawnDeaths, 3);
+});
+
+test('expert telemetry retains removed result-board tuning metrics across reloads', () => {
+    const storagePlatform = createMemoryStoragePlatform();
+    const options = { storagePlatform, preferencesStore: { isCollectionEnabled: () => true } };
+    const telemetry = new MenuTelemetryStore(options);
+    telemetry.recordEvent('round_end', {
+        duration: 30, stuckEvents: 3, bounceWallEvents: 4,
+        botCount: 2, botSurvivalAverage: 12,
+    });
+    const facade = createSettingsTelemetryFacade({ menuTelemetryStore: new MenuTelemetryStore(options) });
+    const balance = facade.getMenuTelemetrySnapshot().balance;
+    assert.equal(balance.stuckEventsPerMinute, 6);
+    assert.equal(balance.bounceWallPerRound, 4);
+    assert.equal(balance.averageBotSurvival, 12);
+});
+
+test('MG-Feuerzeit mittelt nur Runden mit echter Messung und laesst alte Daten unbekannt', () => {
+    const storagePlatform = createMemoryStoragePlatform();
+    const options = { storagePlatform, preferencesStore: { isCollectionEnabled: () => true } };
+    const telemetry = new MenuTelemetryStore(options);
+    telemetry.recordEvent('round_end', { itemUses: 4000, itemUseByMode: { mg: 4000 } });
+    assert.equal(createSettingsTelemetryFacade({ menuTelemetryStore: telemetry }).getMenuTelemetrySnapshot().balance.mgFireSecondsPerRound, null);
+    telemetry.recordEvent('round_end', { itemUses: 200, itemUseByMode: { mg: 200 }, mgFireSeconds: 3.5 });
+    const restored = new MenuTelemetryStore(options);
+    const balance = createSettingsTelemetryFacade({ menuTelemetryStore: restored }).getMenuTelemetrySnapshot().balance;
+    assert.equal(balance.mgFireMeasuredRounds, 1);
+    assert.equal(balance.mgFireSecondsPerRound, 3.5);
+    assert.equal(restored.getSnapshot().recentRounds[0].mgFireSeconds, null);
+    assert.equal(restored.getSnapshot().recentRounds[1].mgFireSeconds, 3.5);
+    const history = new TelemetryHistoryStore().summarizeEntries([
+        { itemUseByMode: { mg: 4000 } },
+        { itemUseByMode: { mg: 200 }, mgFireSeconds: 3.5 },
+    ]);
+    assert.equal(history.mgFireMeasuredRounds, 1);
+    assert.equal(history.mgFireSecondsPerRound, 3.5);
 });
 
 test('history entries keep kills, spawn deaths and checkpoint counts', () => {

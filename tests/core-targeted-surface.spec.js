@@ -260,7 +260,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
             game.winsNeeded = 3;
             players[0].score = 2;
-            players[1].score = 1;
+            players[1].score = 2;
             game.recorder.startRound(players);
             game.recorder.logEvent('ITEM_USE', players[0].index, 'shield');
             game.recorder.roundStartTime = now - simulatedDurationMs;
@@ -280,7 +280,8 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 messageText: document.getElementById('message-text')?.textContent || '',
                 scoreboardTitle: readTitle('scoreboard'),
                 scoreLeader: readValue('scoreboard', 'player-0'),
-                botWinRate: readValue('match', 'bot-win-rate'),
+                matchDuration: readValue('match', 'duration'),
+                botMatchPoint: statsRoot?.querySelector('[data-stats-row-key="player-1"]')?.textContent?.includes('Matchball') || false,
                 roundTitle: readTitle('round'),
             };
         });
@@ -291,8 +292,8 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(overlayState.roundTitle).toBe('Finalrunde');
         expect(overlayState.scoreboardTitle).toBe('Endstand');
         expect(overlayState.scoreLeader).toBe('3/3');
-        // German percent: a non-breaking space before the sign.
-        expect(overlayState.botWinRate).toBe('0 %');
+        expect(overlayState.matchDuration).toMatch(/s$/);
+        expect(overlayState.botMatchPoint).toBe(false);
     });
 
     test('T20ke: SettingsManager liefert Balancing-Telemetrie aus dem Round-End-Pfad', async ({ page }) => {
@@ -706,6 +707,29 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             window.GAME_INSTANCE?.settings?.controls?.GLOBAL?.RECORDING_TOGGLE || ''
         ));
         expect(globalBinding).toBe('KeyN');
+    });
+
+    test('T20k2: Belegungskonflikt tauscht erst nach Bestaetigung und Escape bricht ab', async ({ page }) => {
+        await loadGame(page);
+        await openLevel4Drawer(page, { section: 'controls' });
+        const before = await page.evaluate(() => ({
+            up: window.GAME_INSTANCE.settings.controls.PLAYER_1.UP,
+            down: window.GAME_INSTANCE.settings.controls.PLAYER_2.DOWN,
+        }));
+        await page.click('#keybind-p2 .keybind-btn[data-action="DOWN"]');
+        await page.keyboard.press(before.up);
+        await expect(page.locator('#keybind-warning')).toContainText('Tauschen?');
+        expect(await page.evaluate(() => window.GAME_INSTANCE.settings.controls.PLAYER_2.DOWN)).toBe(before.down);
+        await page.click('#keybind-warning .keybind-swap-confirm');
+        await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE.settings.controls.PLAYER_1.UP)).toBe(before.down);
+        await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE.settings.controls.PLAYER_2.DOWN)).toBe(before.up);
+
+        await page.click('#keybind-p1 .keybind-btn[data-action="UP"]');
+        await page.keyboard.press(before.up);
+        await expect(page.locator('#keybind-warning')).toContainText('Tauschen?');
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#keybind-warning')).toBeHidden();
+        expect(await page.evaluate(() => window.GAME_INSTANCE.settings.controls.PLAYER_1.UP)).toBe(before.down);
     });
 
     test('T20l: F8 startet Cinematic-Aufnahme und F9 legt sie in die Renderliste', async ({ page }) => {
@@ -1437,6 +1461,9 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             game.runtimeFacade.onSettingsChanged({ changedKeys: ['vehicles.player1'] });
         });
         await page.click('#btn-level3-reset');
+        await expect(page.locator('#btn-level3-reset')).toHaveAttribute('data-confirm-armed', 'true');
+        expect(await page.inputValue('#map-select')).toBe('complex');
+        await page.click('#btn-level3-reset');
         expect(await page.inputValue('#map-select')).toBe(expectedDefaults.level3MapKey);
         expect(await page.inputValue('#vehicle-select-p1')).toBe(expectedDefaults.level3VehicleP1);
 
@@ -1625,6 +1652,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.click('#submenu-custom:not(.hidden) [data-mode-path=\"fight\"]');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openStartSetupSection(page, 'match');
+        await expect(page.locator('#planar-mode-toggle')).toHaveCount(0);
         await page.evaluate(() => {
             const toggle = document.getElementById('portals-toggle');
             if (!toggle) return;
@@ -3020,6 +3048,58 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await expect(page.locator('#start-map-choice-strip [aria-selected="true"]')).toBeFocused();
     });
 
+    test('T20z2c: Zuletzt benutzte Karten bleiben kompakt über der Kartenliste', async ({ page }) => {
+        await page.setViewportSize({ width: 1920, height: 1080 });
+        await loadGame(page);
+        await openGameSubmenu(page);
+
+        const layout = await page.evaluate(() => {
+            const recent = document.getElementById('map-recent-list');
+            recent.closest('.setup-chip-group')?.classList.remove('hidden');
+            recent.closest('.setup-chip-grid')?.classList.remove('hidden');
+            recent.replaceChildren(...['Standard', 'Komplex', 'Labyrinth', 'Leer', 'Eiffelturm', 'Magma-Labyrinth'].map((name) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'secondary-btn quick-pill';
+                button.textContent = name;
+                return button;
+            }));
+            const firstGroup = document.querySelector('#start-map-choice-strip .start-map-choice-group');
+            return {
+                recentHeight: recent.getBoundingClientRect().height,
+                firstGroupY: firstGroup?.getBoundingClientRect().top ?? Infinity,
+            };
+        });
+
+        expect(layout.recentHeight).toBeLessThanOrEqual(80);
+        expect(layout.firstGroupY).toBeLessThan(1080);
+    });
+
+    test('T20z2d: Match-Vorbereitung nutzt große Fenster ohne horizontalen Überlauf', async ({ page }) => {
+        await loadGame(page);
+        await openGameSubmenu(page);
+        for (const width of [1280, 1600, 1920, 2560]) {
+            await page.setViewportSize({ width, height: 1080 });
+            const layout = await page.evaluate(() => {
+                const menu = document.querySelector('#main-menu .menu-content');
+                const rows = [...document.querySelectorAll('#start-map-choice-strip .start-map-choice-group-row')];
+                return {
+                    panelWidth: menu.getBoundingClientRect().width,
+                    panelOverflow: menu.scrollWidth - menu.clientWidth,
+                    pageOverflow: document.documentElement.scrollWidth - innerWidth,
+                    rowOverflows: rows.map((row) => row.scrollWidth - row.clientWidth),
+                };
+            });
+            if (width < 1440) expect(layout.panelWidth).toBeLessThanOrEqual(1300);
+            if (width === 1600) expect(layout.panelWidth).toBeGreaterThan(1400);
+            if (width === 1920) expect(layout.panelWidth).toBeGreaterThan(1700);
+            if (width === 2560) expect(layout.panelWidth).toBeLessThanOrEqual(1820);
+            expect(layout.panelOverflow).toBeLessThanOrEqual(1);
+            expect(layout.pageOverflow).toBeLessThanOrEqual(1);
+            if (width >= 1440) expect(layout.rowOverflows.every((overflow) => overflow <= 1)).toBe(true);
+        }
+    });
+
     test('T20z: Map-Vorschau und Fahrzeug-Mini-Hangar rendern ihre Auswahl strukturiert', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
@@ -3038,6 +3118,8 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
             previewStatus: document.getElementById('start-vehicle-preview-mount')?.dataset?.previewStatus || '',
             previewGrid: document.getElementById('start-vehicle-preview-mount')?.dataset?.previewGrid || '',
             previewMotion: document.getElementById('start-vehicle-preview-mount')?.dataset?.previewMotion || '',
+            hitboxText: document.getElementById('start-vehicle-hitbox')?.textContent || '',
+            previewStatusText: document.querySelector('#start-vehicle-preview-mount .arcade-vehicle-preview-status')?.textContent || '',
         }));
 
         expect(previewState.mapBadges).toBeGreaterThanOrEqual(2);
@@ -3052,6 +3134,8 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(['ready', 'fallback']).toContain(previewState.previewStatus);
         expect(previewState.previewGrid).toBe('hangar');
         expect(previewState.previewMotion).toBe(previewState.previewStatus === 'ready' ? 'idle-spin' : '');
+        expect(previewState.hitboxText).toMatch(/^Trefferzone: (Kompakt|Standard|Schwer)$/);
+        if (previewState.previewStatus === 'ready') expect(previewState.previewStatusText).toBe('Vorschau geladen');
 
         if (previewState.previewStatus === 'ready') {
             const previewMount = page.locator('#start-vehicle-preview-mount');

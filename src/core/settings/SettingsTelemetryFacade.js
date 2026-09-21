@@ -133,6 +133,7 @@ function normalizeTelemetryRecentRounds(source) {
             duration: toNonNegativeNumber(entry?.duration, 0),
             selfCollisions: toNonNegativeInt(entry?.selfCollisions, 0),
             itemUses: toNonNegativeInt(entry?.itemUses, 0),
+            mgFireSeconds: entry?.mgFireSeconds == null ? null : toNonNegativeNumber(entry.mgFireSeconds, 0),
             itemUseByMode: normalizeItemUseModeCounts(entry?.itemUseByMode),
             itemUseByType: normalizeItemUseTypeCounts(entry?.itemUseByType),
             mgHits: toNonNegativeInt(entry?.mgHits, 0),
@@ -221,6 +222,7 @@ export function normalizeTelemetrySnapshot(snapshot) {
     const totalDuration = toNonNegativeNumber(balanceSource.totalDuration, 0);
     const totalSelfCollisions = toNonNegativeInt(balanceSource.totalSelfCollisions, 0);
     const totalItemUses = toNonNegativeInt(balanceSource.totalItemUses, 0);
+    const mgFireMeasuredRounds = Math.min(rounds, toNonNegativeInt(balanceSource.mgFireMeasuredRounds, 0));
     const totalItemUseModeCounts = normalizeItemUseModeCounts(balanceSource.totalItemUseModeCounts);
     const totalItemUseTypeCounts = normalizeItemUseTypeCounts(balanceSource.totalItemUseTypeCounts);
     const totalMgHits = toNonNegativeInt(balanceSource.totalMgHits, 0);
@@ -228,6 +230,9 @@ export function normalizeTelemetrySnapshot(snapshot) {
     const totalShieldAbsorb = toNonNegativeNumber(balanceSource.totalShieldAbsorb, 0);
     const totalHpDamage = toNonNegativeNumber(balanceSource.totalHpDamage, 0);
     const totalStuckEvents = toNonNegativeInt(balanceSource.totalStuckEvents, 0);
+    const totalBounceWallEvents = toNonNegativeInt(balanceSource.totalBounceWallEvents, 0);
+    const totalBotSurvivalSeconds = toNonNegativeNumber(balanceSource.totalBotSurvivalSeconds, 0);
+    const totalBotLives = toNonNegativeInt(balanceSource.totalBotLives, 0);
     const totalSpawnDeaths = toNonNegativeInt(balanceSource.totalSpawnDeaths, 0);
     const totalKills = toNonNegativeInt(balanceSource.totalKills, 0);
     const parcoursCompletions = toNonNegativeInt(balanceSource.parcoursCompletions, 0);
@@ -250,6 +255,10 @@ export function normalizeTelemetrySnapshot(snapshot) {
             averageRoundDuration: rounds > 0 ? totalDuration / rounds : 0,
             selfCollisionsPerRound: rounds > 0 ? totalSelfCollisions / rounds : 0,
             itemUsesPerRound: rounds > 0 ? totalItemUses / rounds : 0,
+            mgFireMeasuredRounds,
+            mgFireSecondsPerRound: mgFireMeasuredRounds > 0
+                ? toNonNegativeNumber(balanceSource.totalMgFireSeconds, 0) / mgFireMeasuredRounds
+                : null,
             // MG-Dauerfeuer dominiert totalItemUses um Groessenordnungen. Der
             // MG-freie Wert ist der, der zur Item-Balance etwas aussagt.
             itemUsesWithoutMgPerRound: rounds > 0
@@ -267,6 +276,9 @@ export function normalizeTelemetrySnapshot(snapshot) {
             shieldAbsorbPerRound: rounds > 0 ? totalShieldAbsorb / rounds : 0,
             hpDamagePerRound: rounds > 0 ? totalHpDamage / rounds : 0,
             stuckEventsPerRound: rounds > 0 ? totalStuckEvents / rounds : 0,
+            stuckEventsPerMinute: totalDuration > 0 ? totalStuckEvents / (totalDuration / 60) : 0,
+            bounceWallPerRound: rounds > 0 ? totalBounceWallEvents / rounds : 0,
+            averageBotSurvival: totalBotLives > 0 ? totalBotSurvivalSeconds / totalBotLives : 0,
             spawnDeathsPerRound: rounds > 0 ? totalSpawnDeaths / rounds : 0,
             killsPerRound: rounds > 0 ? totalKills / rounds : 0,
             parcoursCompletions,

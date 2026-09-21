@@ -64,7 +64,10 @@ export function encodeGameplayActionResultForLog(result = {}, fallback = {}) {
     const type = String(result.type || fallback.type || 'UNKNOWN').trim().toUpperCase() || 'UNKNOWN';
     const code = String(result.code || fallback.code || 'unknown').trim() || 'unknown';
     const ok = result.ok === true ? 1 : 0;
-    return `mode=${mode} type=${type} code=${code} ok=${ok}`;
+    const durationSeconds = Number(fallback.durationSeconds);
+    const duration = Number.isFinite(durationSeconds) && durationSeconds >= 0
+        ? ` durationSeconds=${durationSeconds}` : '';
+    return `mode=${mode} type=${type} code=${code} ok=${ok}${duration}`;
 }
 
 export function parseGameplayActionResultLog(value) {
@@ -74,6 +77,7 @@ export function parseGameplayActionResultLog(value) {
         type: 'UNKNOWN',
         code: 'unknown',
         ok: false,
+        durationSeconds: null,
     };
     if (!raw) return result;
 
@@ -92,6 +96,9 @@ export function parseGameplayActionResultLog(value) {
             result.code = valuePart;
         } else if (key === 'ok') {
             result.ok = valuePart === '1' || valuePart.toLowerCase() === 'true';
+        } else if (key === 'durationseconds') {
+            const seconds = Number(valuePart);
+            if (Number.isFinite(seconds) && seconds >= 0) result.durationSeconds = seconds;
         }
         match = keyValuePattern.exec(raw);
     }

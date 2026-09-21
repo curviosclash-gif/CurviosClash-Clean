@@ -102,7 +102,7 @@ export function deriveMapResolutionFeedbackPlan({ mapResolution, portalsEnabled,
             mapResolution.mapDefinition.items.length === 0;
         if (isAnchorOnly && hasNoItemAnchors) {
             toasts.push({
-                message: 'Spawn-Modus "anchor-only", aber keine Item-Anker in der Map — Items spawnen nicht.',
+                message: 'Spawn-Modus "anchor-only", aber keine Item-Anker in der Map — Gegenstände erscheinen nicht.',
                 durationMs: 3800,
                 tone: 'warning',
             });

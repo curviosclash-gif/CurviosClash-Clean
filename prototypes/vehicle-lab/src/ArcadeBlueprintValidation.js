@@ -18,7 +18,7 @@ function translateValidationIssue(issue) {
     if (missing) return `Pflichtrolle fehlt: ${SLOT_LABELS[missing[1]] || missing[1]}`;
     return text
         .replace(/^schemaVersion mismatch/, 'Schema-Version stimmt nicht überein')
-        .replace(/^missing blueprintId$/, 'Blueprint-ID fehlt')
+        .replace(/^missing blueprintId$/, 'Bauplan-ID fehlt')
         .replace(/^editorBudget exceeded/, 'Budget überschritten')
         .replace(/^massBudget exceeded/, 'Masse überschritten')
         .replace(/^powerBudget exceeded/, 'Energie überschritten')
@@ -56,7 +56,7 @@ export function describeArcadeBlueprintStatus(result) {
     const blueprint = result?.blueprint || null;
     const validation = result?.validation || null;
     if (!blueprint || !validation) {
-        return 'Blueprint: n/a';
+        return 'Bauplan: nicht verfügbar';
     }
     const stats = blueprint.stats || {};
     const limits = blueprint.limits || {};
@@ -66,7 +66,7 @@ export function describeArcadeBlueprintStatus(result) {
         .filter(Boolean)
         .map((role) => SLOT_LABELS[role] || role);
     return [
-        `Blueprint ${status}`,
+        `Bauplan ${status}`,
         missingRoles.length > 0 ? `Fehlt: ${missingRoles.join(', ')}` : '',
         `Budget ${formatBudgetNumber(stats.budgetUsed)}/${formatBudgetNumber(limits.editorBudget)}`,
         `Masse ${formatBudgetNumber(stats.massUsed)}/${formatBudgetNumber(limits.massBudget)}`,
@@ -77,8 +77,8 @@ export function describeArcadeBlueprintStatus(result) {
 
 export function formatArcadeBlueprintValidationMessage(result) {
     const validation = result?.validation;
-    if (!validation) return 'Blueprint-Prüfung nicht verfügbar.';
-    if (validation.ok) return 'Blueprint ist gültig.';
+    if (!validation) return 'Bauplanprüfung nicht verfügbar.';
+    if (validation.ok) return 'Bauplan ist gültig.';
     return [...(validation.errors || []), ...(validation.warnings || [])]
         .map(translateValidationIssue)
         .join(' · ');

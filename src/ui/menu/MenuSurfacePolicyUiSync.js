@@ -45,6 +45,14 @@ export function syncMenuSurfacePolicyUi({
         releasePreviewEnabled: !!releaseState?.releaseCutEnabled,
     }) || defaultText;
 
+    if (ui.mainTutorialButton) {
+        const completed = settings?.localSettings?.classicTutorial?.completed === true;
+        ui.mainTutorialButton.textContent = completed
+            ? resolveMenuText('menu.utility.tutorial.completed.label', 'Tutorial abgeschlossen — nochmal spielen')
+            : resolveMenuText('menu.utility.tutorial.label', 'Neu hier? Steuerung lernen');
+        ui.mainTutorialButton.classList.toggle('tutorial-completed', completed);
+    }
+
     if (Array.isArray(ui.sessionButtons)) {
         ui.sessionButtons.forEach((button) => {
             const buttonSessionType = String(button?.dataset?.sessionType || '').trim().toLowerCase();
@@ -195,7 +203,7 @@ export function syncMenuSurfacePolicyUi({
         {
             label: resolveMenuText(
                 'menu.level4.tools.vehicle_editor.label',
-                ui.openVehicleEditorButton?.dataset?.surfaceDefaultLabel || 'Vehicle-Editor öffnen'
+                ui.openVehicleEditorButton?.dataset?.surfaceDefaultLabel || 'Fahrzeug-Werkstatt öffnen'
             ),
         }
     );

@@ -784,7 +784,13 @@
     flex-wrap: wrap;
 }
 
-.quick-pill {
+.start-search-empty {
+    margin: 8px 0;
+    color: #b8d8ff;
+    font-size: 0.85rem;
+}
+
+.secondary-btn.quick-pill {
     width: auto;
     padding: 6px 9px;
     border-radius: 8px;
@@ -1024,6 +1030,18 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 
 .key-row.conflict .key-action {
     color: #ffc2c2;
+}
+
+.keybind-swap-actions {
+    display: inline-flex;
+    gap: 8px;
+    margin-left: 12px;
+}
+
+.keybind-swap-actions .secondary-btn {
+    width: auto;
+    padding: 5px 9px;
+    font-size: 0.82rem;
 }
 
 .start-btn,
@@ -4764,6 +4782,12 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     min-height: 30px;
 }
 
+.secondary-btn:is(.arcade-vehicle-chip, .arcade-vehicle-tab) {
+    width: auto;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+}
+
 .arcade-vehicle-favorites-only.is-active,
 .arcade-vehicle-chip.is-active,
 .arcade-vehicle-tab.is-active {
@@ -5876,7 +5900,7 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
 }
 
 .hangar-slot-grid .hangar-slot-row {
-    grid-template-columns: 62px minmax(104px, 1fr) 32px auto 28px;
+    grid-template-columns: max-content minmax(104px, 1fr) 32px auto 28px;
     padding: 4px;
     border: 1px solid transparent;
     border-radius: 7px;
@@ -6093,7 +6117,7 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     }
 
     .hangar-slot-grid .hangar-slot-row {
-        grid-template-columns: 58px minmax(90px, 1fr) 30px;
+        grid-template-columns: max-content minmax(90px, 1fr) 30px;
     }
 
     .hangar-slot-grid .arcade-vehicle-upgrade-btn,
@@ -7437,6 +7461,20 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     }
 }
 
+@media (min-width: 1440px) {
+    #main-menu[data-menu-depth="3"] .menu-content {
+        width: min(1800px, 94vw);
+        max-width: 1800px;
+    }
+
+    #submenu-game .start-map-choice-group-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        overflow-x: visible;
+        scroll-snap-type: none;
+    }
+}
+
 @media (min-width: 1180px) and (max-height: 760px) {
     #main-menu[data-menu-depth="3"] .menu-content {
         max-height: 96vh;
@@ -8331,6 +8369,9 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 .menu-tutorial-entry {
     margin-top: 14px;
     justify-self: start;
+}
+.menu-tutorial-entry.tutorial-completed {
+    opacity: 0.7;
 }
 #main-menu:not([data-menu-depth="1"]) .menu-tutorial-entry {
     display: none;

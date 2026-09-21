@@ -239,7 +239,12 @@ export class Game {
     }
 
     _saveSettings() {
-        const persisted = this.settingsManager.saveSettings(this.settings);
+        const settingsHandler = this.runtimeCoordinator?.getRuntimeFacade?.()?.settingsHandler;
+        const persistableSettings = typeof settingsHandler?.createPersistableSettingsSnapshot === 'function'
+            ? settingsHandler.createPersistableSettingsSnapshot(this.settings)
+            : this.settings;
+        if (!persistableSettings) return;
+        const persisted = this.settingsManager.saveSettings(persistableSettings);
         if (isPersistenceSuccess(persisted)) {
             this._markSettingsDirty(false);
         }

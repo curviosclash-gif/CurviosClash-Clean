@@ -11,7 +11,7 @@ export const PICKUP_EXPANSION_DEFINITIONS = Object.freeze({
         botRule: { self: -0.8, offense: 0.85, defensiveScale: 0, emergencyScale: 0, combatSelf: -0.3 },
     },
     EMP: {
-        name: 'EMP', description: 'Entfernt im Radius 20 positive Effekte und Schilde und sperrt Items 15 Sekunden.',
+        name: 'EMP', description: 'Entfernt im Radius 20 positive Effekte und Schilde und sperrt Gegenstände 15 Sekunden.',
         color: 0x33bbff, icon: 'EMP', duration: 15, pulseRadius: 20,
         selfUsable: true, shootable: false, offensive: true, projectileOnly: false,
         allowedModes: ALL_GAME_MODES, observationSlot: 15, visualKind: 'emp',

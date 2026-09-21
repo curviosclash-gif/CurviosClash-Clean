@@ -1,5 +1,6 @@
 import { setupMenuTelemetryControls } from './MenuDeveloperStateSync.js';
 import { syncPresetDeleteButton } from './MenuPresetStateSync.js';
+import { armConfirmButton } from '../ConfirmButtonArming.js';
 
 export function setupMenuDevPanelBindings(ctx) {
     const ui = ctx.ui;
@@ -65,18 +66,23 @@ export function setupMenuDevPanelBindings(ctx) {
     }
 
     if (ui.presetDeleteButton) {
-        bind(ui.presetDeleteButton, 'click', () => {
-            const presetId = String(ui.presetSelect?.value || '').trim();
-            if (!presetId) {
-                emit(eventTypes.SHOW_STATUS_TOAST, {
-                    message: 'Keine Vorlage zum Löschen ausgewählt.',
-                    tone: 'error',
-                    duration: 1700,
-                });
-                return;
-            }
-            emitPresetAction(eventTypes.PRESET_DELETE, { presetId });
+        const confirmation = armConfirmButton(ui.presetDeleteButton, {
+            label: ui.presetDeleteButton.textContent,
+            onConfirm: () => {
+                const presetId = String(ui.presetSelect?.value || '').trim();
+                if (!presetId) {
+                    emit(eventTypes.SHOW_STATUS_TOAST, {
+                        message: 'Keine Vorlage zum Löschen ausgewählt.',
+                        tone: 'error',
+                        duration: 1700,
+                    });
+                    return;
+                }
+                emitPresetAction(eventTypes.PRESET_DELETE, { presetId });
+            },
         });
+        bind(ui.presetSelect, 'change', confirmation.disarm);
+        ctx.registerDisposer?.(() => confirmation.dispose());
     }
 
     if (ui.multiplayerReadyToggle) {

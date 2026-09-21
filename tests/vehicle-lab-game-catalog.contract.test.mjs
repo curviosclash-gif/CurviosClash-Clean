@@ -5,7 +5,7 @@ import { AircraftMesh } from '../src/entities/aircraft-mesh.js';
 import { GameVehicleReferenceMesh } from '../prototypes/vehicle-lab/src/GameVehicleReferenceMesh.js';
 import { listVehicleLabGameReferences } from '../prototypes/vehicle-lab/src/VehicleLabGameVehicleCatalog.js';
 import { VEHICLE_PRESETS } from '../prototypes/vehicle-lab/src/VehiclePresets.js';
-import { buildValidatedArcadeBlueprint } from '../prototypes/vehicle-lab/src/ArcadeBlueprintValidation.js';
+import { buildValidatedArcadeBlueprint, describeArcadeBlueprintStatus } from '../prototypes/vehicle-lab/src/ArcadeBlueprintValidation.js';
 
 test('Vehicle Lab exposes every built-in game vehicle as a reference', () => {
     const references = listVehicleLabGameReferences();
@@ -56,4 +56,13 @@ test('lab presets state their gameplay roles instead of relying on part names', 
             assert.ok(roles.has(role), `${preset.id} nennt keine Rolle ${role}`);
         }
     }
+});
+
+test('jet workshop part names and blueprint status use German display text', () => {
+    const jet = VEHICLE_PRESETS.find((preset) => preset.id === 'lab_jet_fighter');
+    assert.deepEqual(jet.parts.map((part) => part.name), [
+        'Rumpf', 'Nasenkegel', 'Cockpitkanzel', 'Linker Flügel', 'Rechter Flügel',
+        'Heckflosse', 'Linker Antrieb', 'Rechter Antrieb',
+    ]);
+    assert.match(describeArcadeBlueprintStatus(buildValidatedArcadeBlueprint(jet)), /^Bauplan gültig \|/);
 });

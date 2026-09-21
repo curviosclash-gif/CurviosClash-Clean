@@ -60,6 +60,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/map-reference-worlds.desktop.spec.js',
             'tests/notre-dame-wall-approach.desktop.spec.js',
             'tests/sky-dome-gradient.desktop.spec.js',
+            'tests/storm-dam.desktop.spec.js',
             'tests/hud-layout.spec.js',
             'tests/killcam-pixel.desktop.spec.js',
             'tests/killcam.desktop.spec.js',

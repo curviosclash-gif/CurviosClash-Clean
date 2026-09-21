@@ -1,4 +1,5 @@
 import { PLAYER_PROFILE_MAX_NAME_LENGTH } from '../shared/contracts/PlayerProfileContract.js';
+import { armConfirmButton } from './ConfirmButtonArming.js';
 
 function sanitizeFilePart(value) {
     return String(value || 'spieler')
@@ -53,6 +54,7 @@ export class PlayerProfileUiController {
             activate: byId('btn-player-profile-activate'),
             default: byId('btn-player-profile-default'),
             archive: byId('btn-player-profile-archive'),
+            actionHint: byId('player-profile-action-hint'),
             export: byId('btn-player-profile-export'),
             import: byId('btn-player-profile-import'),
             file: byId('player-profile-file'),
@@ -79,12 +81,17 @@ export class PlayerProfileUiController {
         bind(this.refs.create, 'click', () => this._handle(this.manager?.createProfile?.(this.refs.name?.value), 'Spielerprofil erstellt.'));
         bind(this.refs.rename, 'click', () => this._handle(this.manager?.renameProfile?.(this._selected()?.id, this.refs.name?.value), 'Spielerprofil umbenannt.'));
         bind(this.refs.default, 'click', () => this._handle(this.manager?.setDefaultProfile?.(this._selected()?.id), 'Standardprofil aktualisiert.'));
-        bind(this.refs.archive, 'click', () => {
-            const selected = this._selected();
-            if (!selected) return;
-            if (typeof globalThis.confirm === 'function' && !globalThis.confirm(`Spielerprofil „${selected.displayName}“ archivieren?`)) return;
-            this._handle(this.manager?.archiveProfile?.(selected.id), 'Spielerprofil archiviert.');
-        });
+        if (this.refs.archive) {
+            const confirmation = armConfirmButton(this.refs.archive, {
+                label: this.refs.archive.textContent,
+                onConfirm: () => {
+                    const selected = this._selected();
+                    if (selected) this._handle(this.manager?.archiveProfile?.(selected.id), 'Spielerprofil archiviert.');
+                },
+            });
+            bind(this.refs.select, 'change', confirmation.disarm);
+            this.cleanups.push(() => confirmation.dispose());
+        }
         bind(this.refs.activate, 'click', () => this._activateSelected());
         bind(this.refs.export, 'click', () => this._exportSelected());
         bind(this.refs.import, 'click', () => {
@@ -161,8 +168,20 @@ export class PlayerProfileUiController {
         const selected = this._selected();
         if (this.refs.name && !this.refs.name.matches?.(':focus')) this.refs.name.value = selected?.displayName || '';
         if (this.refs.activate) this.refs.activate.disabled = !selected || selected.id === active?.id;
-        if (this.refs.default) this.refs.default.disabled = !selected || selected.id === defaultProfile?.id;
-        if (this.refs.archive) this.refs.archive.disabled = !selected || selected.id === active?.id || selected.id === defaultProfile?.id || profiles.length <= 1;
+        const alreadyDefault = !!selected && selected.id === defaultProfile?.id;
+        const archiveReason = !selected ? 'Spielerprofil auswählen.'
+            : alreadyDefault ? 'Das Standard-Profil kann nicht archiviert werden.'
+                : selected.id === active?.id ? 'Das aktive Profil kann nicht archiviert werden.'
+                    : profiles.length <= 1 ? 'Das letzte Profil kann nicht archiviert werden.' : '';
+        if (this.refs.default) {
+            this.refs.default.disabled = !selected || alreadyDefault;
+            this.refs.default.title = !selected ? 'Spielerprofil auswählen.' : alreadyDefault ? 'Dieses Profil ist bereits Standard.' : '';
+        }
+        if (this.refs.archive) {
+            this.refs.archive.disabled = !!archiveReason;
+            this.refs.archive.title = archiveReason;
+        }
+        if (this.refs.actionHint) this.refs.actionHint.textContent = `${alreadyDefault ? 'Dieses Profil ist bereits Standard. ' : ''}${archiveReason}`;
         if (this.refs.rename) this.refs.rename.disabled = !selected;
         if (this.refs.export) this.refs.export.disabled = !selected;
     }

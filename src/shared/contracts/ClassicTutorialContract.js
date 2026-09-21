@@ -29,3 +29,14 @@ export function createCompletedClassicTutorialState(previous = null, nowMs = Dat
         completedAtMs: Math.max(0, Number(nowMs) || Date.now()),
     });
 }
+
+export function normalizeClassicTutorialState(value) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const completed = source.completed === true;
+    const timestamp = Number(source.completedAtMs);
+    return {
+        schemaVersion: CLASSIC_TUTORIAL_CONTRACT_VERSION,
+        completed,
+        completedAtMs: completed && Number.isFinite(timestamp) ? Math.max(0, Math.trunc(timestamp)) : 0,
+    };
+}

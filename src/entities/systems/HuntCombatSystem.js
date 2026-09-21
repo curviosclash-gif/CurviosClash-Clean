@@ -247,7 +247,7 @@ export class HuntCombatSystem {
             return buildGameplayActionResult({
                 ok: false,
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_FORBIDDEN,
-                message: 'Geschuetz konnte nicht aufgestellt werden',
+                message: 'Geschütz konnte nicht aufgestellt werden',
                 type: itemPreview.type,
             });
         }

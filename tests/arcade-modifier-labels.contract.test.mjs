@@ -13,7 +13,7 @@ test('arcade modifier portal_storm is presented as an item spawn modifier', () =
     assert.ok(meta, 'portal_storm must stay a known modifier id');
     assert.equal(meta.id, 'portal_storm');
     assert.equal(meta.label, 'Item-Regen');
-    assert.match(meta.effectText, /Items/);
+    assert.match(meta.effectText, /Gegenstände/);
     assert.doesNotMatch(meta.label, /portal/i);
     assert.doesNotMatch(meta.effectText, /portal/i);
 });

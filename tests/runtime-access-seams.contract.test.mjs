@@ -308,7 +308,7 @@ test('InputManager keeps short key taps visible until the next input poll', asyn
     });
 });
 
-test('Keybind capture rejects duplicate bindings before changing controls', () => {
+test('Keybind capture asks before swapping duplicate bindings', () => {
     const controls = { PLAYER_1: { UP: 'KeyW' }, PLAYER_2: { DOWN: 'ArrowDown' }, GLOBAL: {} };
     const warning = { classList: createClassList(['hidden']), textContent: '' };
     let settingsChangedCalls = 0;
@@ -324,7 +324,6 @@ test('Keybind capture rejects duplicate bindings before changing controls', () =
         },
     };
     const controller = new KeybindEditorController(createKeybindEditorRuntimeAccess(runtime));
-    controller.renderEditor = () => {};
 
     const handled = controller.handleKeyCapture({
         code: 'KeyW',
@@ -336,20 +335,15 @@ test('Keybind capture rejects duplicate bindings before changing controls', () =
     assert.equal(runtime.keyCapture, null);
     assert.equal(controls.PLAYER_2.DOWN, 'ArrowDown');
     assert.equal(settingsChangedCalls, 0);
-    // The rejected key is not bound twice, so the hint names the existing binding instead of
-    // claiming a double assignment.
-    const expectedMessage = `Taste W ist bereits mit ${KEY_BIND_ACTIONS.find((action) => action.key === 'UP').label} (Spieler 1) belegt`;
+    const expectedMessage = `Taste W ist mit „${KEY_BIND_ACTIONS.find((action) => action.key === 'UP').label}“ (Spieler 1) belegt. Tauschen?`;
     assert.equal(warning.classList.contains('hidden'), false);
     assert.equal(warning.textContent, expectedMessage);
     assert.doesNotMatch(warning.textContent, /Mehrfachbelegte/);
-    assert.deepEqual(toast, {
-        message: expectedMessage,
-        durationMs: 1800,
-        tone: 'error',
-    });
+    assert.equal(toast, null);
+    assert.ok(controller.pendingSwap);
 });
 
-test('Keybind capture clears the rejected-key hint after a successful binding', () => {
+test('starting another key capture cancels the swap prompt and saves the new key', () => {
     const controls = { PLAYER_1: { UP: 'KeyW' }, PLAYER_2: { DOWN: 'ArrowDown' }, GLOBAL: {} };
     const warning = { classList: createClassList(['hidden']), textContent: '' };
     const runtime = {
@@ -363,7 +357,8 @@ test('Keybind capture clears the rejected-key hint after a successful binding', 
     const controller = new KeybindEditorController(createKeybindEditorRuntimeAccess(runtime));
     controller.renderEditor = () => {};
     controller.handleKeyCapture({ code: 'KeyW', preventDefault() {}, stopPropagation() {} });
-    runtime.keyCapture = { playerKey: 'PLAYER_2', actionKey: 'DOWN' };
+    controller.startKeyCapture('PLAYER_2', 'DOWN');
+    assert.equal(controller.pendingSwap, null);
     controller.handleKeyCapture({ code: 'KeyK', preventDefault() {}, stopPropagation() {} });
     assert.equal(controls.PLAYER_2.DOWN, 'KeyK');
     assert.equal(warning.classList.contains('hidden'), true);

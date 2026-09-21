@@ -31,6 +31,13 @@ test('the options drawer presets heading comes from the text catalog', () => {
     assert.ok(Object.hasOwn(MENU_TEXT_CATALOG, textId), textId);
 });
 
+test('the start-page reset button and feedback name only the fields they reset', () => {
+    assert.equal(MENU_TEXT_CATALOG['menu.level3.reset.label'], 'Karte & Flugzeug zurücksetzen');
+    assert.match(html, /id="btn-level3-reset"[^>]*[\s\S]*?>Karte &amp; Flugzeug zurücksetzen<\/button>/u);
+    const runtime = readFileSync(new URL('../src/core/runtime/MenuRuntimeSessionService.js', import.meta.url), 'utf8');
+    assert.match(runtime, /_showStatusToast\('Karte und Flugzeug zurückgesetzt'/u);
+});
+
 test('the menu context and breadcrumb labels come from the text catalog', () => {
     const source = readFileSync(new URL('../src/ui/UINavigationLifecycleController.js', import.meta.url), 'utf8');
     for (const literal of ["'Geteilter Bildschirm'", "'Erweiterte Optionen'", "'Grafik & Kamera'", "'Match vorbereiten'"]) {

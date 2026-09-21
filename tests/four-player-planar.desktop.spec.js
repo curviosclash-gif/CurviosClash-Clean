@@ -127,6 +127,8 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
         await expect(page.locator('#btn-pause-menu')).toBeVisible();
         await page.locator('#btn-pause-menu').click();
         await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'MENU');
+        await expect(page.locator('#submenu-custom')).toBeVisible();
+        await expect(page.locator('#four-player-planar-setup')).toBeVisible();
 
         await startVariant(page, scenario.mode, scenario.bots);
 
@@ -138,6 +140,8 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
         await page.keyboard.up('KeyZ');
 
         await returnToMenu(page);
+        await expect(page.locator('#submenu-custom')).toBeVisible();
+        await expect(page.locator('#four-player-planar-setup')).toBeVisible();
         await page.waitForFunction(() => window.GAME_INSTANCE?.renderer?.viewportLayout === 'single');
         const cleanup = await page.evaluate(() => ({
             sourceCount: Array.from(

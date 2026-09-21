@@ -61,6 +61,7 @@ export class KeybindEditorController {
         this.runtimeAccess = runtimeAccess && typeof runtimeAccess === 'object'
             ? runtimeAccess
             : {};
+        this.pendingSwap = null;
     }
 
     renderEditor() {
@@ -69,7 +70,8 @@ export class KeybindEditorController {
         this.renderKeybindRows('PLAYER_1', ui?.keybindP1, KEY_BIND_ACTIONS, conflicts);
         this.renderKeybindRows('PLAYER_2', ui?.keybindP2, KEY_BIND_ACTIONS, conflicts);
         this.renderKeybindRows('GLOBAL', ui?.keybindGlobal, GLOBAL_KEY_BIND_ACTIONS, conflicts);
-        this.updateKeyConflictWarning(conflicts);
+        if (this.pendingSwap) this._showPendingSwapPrompt();
+        else this.updateKeyConflictWarning(conflicts);
         renderGamepadBindingEditor(ui?.keybindGlobal, this.runtimeAccess);
     }
 
@@ -111,6 +113,7 @@ export class KeybindEditorController {
     }
 
     startKeyCapture(playerKey, actionKey) {
+        this.pendingSwap = null;
         this.runtimeAccess.setKeyCapture?.({ playerKey, actionKey });
         this.renderEditor();
     }
@@ -124,9 +127,17 @@ export class KeybindEditorController {
     handleKeyCapture(event) {
         const keyCapture = this.runtimeAccess.getKeyCapture?.() || null;
         const state = this.runtimeAccess.getState?.() || '';
-        if (!keyCapture || !this._isKeybindEditorVisible()) {
+        if (!this._isKeybindEditorVisible()) {
             return false;
         }
+
+        if (this.pendingSwap && event.code === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            this.cancelPendingSwap();
+            return true;
+        }
+        if (!keyCapture) return false;
 
         event.preventDefault();
         event.stopPropagation();
@@ -139,9 +150,15 @@ export class KeybindEditorController {
 
         const conflict = this._findControlValueConflict(keyCapture.playerKey, keyCapture.actionKey, event.code);
         if (conflict) {
+            this.pendingSwap = {
+                playerKey: keyCapture.playerKey,
+                actionKey: keyCapture.actionKey,
+                previousCode: this.getControlValue(keyCapture.playerKey, keyCapture.actionKey),
+                code: event.code,
+                conflict,
+            };
             this.runtimeAccess.setKeyCapture?.(null);
             this.renderEditor();
-            this._showKeyConflictFeedback(event.code, conflict);
             return true;
         }
 
@@ -182,14 +199,59 @@ export class KeybindEditorController {
         return this._findControlValueConflict(playerKey, actionKey, value) !== null;
     }
 
-    _showKeyConflictFeedback(code, conflict) {
-        const message = `Taste ${this.formatKeyCode(code)} ist bereits mit ${conflict.action.label} (${conflict.scope.label}) belegt`;
+    _showPendingSwapPrompt() {
+        const pending = this.pendingSwap;
+        if (!pending) return;
+        const conflictLabel = resolveKeybindActionLabel(pending.conflict.action, {
+            invertPitch: this.runtimeAccess.getInvertPitch?.(pending.conflict.scope.key),
+        });
+        const message = `Taste ${this.formatKeyCode(pending.code)} ist mit „${conflictLabel}“ (${pending.conflict.scope.label}) belegt. Tauschen?`;
         const warningElement = this.runtimeAccess.getUi?.()?.keybindWarning;
-        if (warningElement) {
-            warningElement.classList.remove('hidden');
-            warningElement.textContent = message;
+        if (!warningElement) return;
+        warningElement.classList.remove('hidden');
+        warningElement.textContent = message;
+        const doc = warningElement.ownerDocument;
+        if (!doc?.createElement || !warningElement.appendChild) return;
+        const actions = doc.createElement('span');
+        actions.className = 'keybind-swap-actions';
+        const confirm = doc.createElement('button');
+        confirm.type = 'button';
+        confirm.className = 'secondary-btn keybind-swap-confirm';
+        confirm.textContent = 'Tauschen';
+        confirm.addEventListener('click', () => this.confirmPendingSwap());
+        const cancel = doc.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'secondary-btn keybind-swap-cancel';
+        cancel.textContent = 'Abbrechen';
+        cancel.addEventListener('click', () => this.cancelPendingSwap());
+        actions.append(confirm, cancel);
+        warningElement.appendChild(actions);
+        confirm.focus?.();
+    }
+
+    confirmPendingSwap() {
+        const pending = this.pendingSwap;
+        if (!pending) return false;
+        this.pendingSwap = null;
+        if (this.getControlValue(pending.playerKey, pending.actionKey) !== pending.previousCode
+            || this.getControlValue(pending.conflict.scope.key, pending.conflict.action.key) !== pending.code) {
+            this.renderEditor();
+            return false;
         }
-        this.runtimeAccess.actionShowStatusToast?.(message, 1800, 'error');
+        this.setControlValue(pending.conflict.scope.key, pending.conflict.action.key, pending.previousCode);
+        this.setControlValue(pending.playerKey, pending.actionKey, pending.code);
+        this.runtimeAccess.actionOnSettingsChanged?.();
+        if (this.runtimeAccess.getState?.() === 'PAUSED') this.runtimeAccess.actionApplyPauseBindings?.();
+        this.renderEditor();
+        this.runtimeAccess.actionShowStatusToast?.('Tasten getauscht!');
+        return true;
+    }
+
+    cancelPendingSwap() {
+        if (!this.pendingSwap) return false;
+        this.pendingSwap = null;
+        this.renderEditor();
+        return true;
     }
 
     setControlValue(playerKey, actionKey, value) {

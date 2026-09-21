@@ -1,10 +1,12 @@
-// The folded-away part of the post-match board.
-//
-// Bot survival, self crashes, hangers per minute, wall bounces and the bot win rate are tuning
-// figures, not results. They keep their rows and their keys, but carry tier 'detail' so the board
-// can put them behind a closed section instead of in front of the score.
+// The folded-away part of the post-match board shows player-readable results.
+// Tuning metrics remain in the recorder and expert telemetry, not in these cards.
 
-import { countUsedItems, normalizeNumber } from './PostMatchLabels.js';
+import { normalizeNumber } from './PostMatchLabels.js';
+
+function countPickups(counts) {
+    return Object.values(counts && typeof counts === 'object' ? counts : {})
+        .reduce((sum, value) => sum + Math.max(0, normalizeNumber(value, 0)), 0);
+}
 
 /**
  * @param {object|null} lastRoundMetrics
@@ -20,34 +22,30 @@ export function buildRoundDetailBlock(lastRoundMetrics) {
         tier: 'detail',
         rows: [
             {
-                key: 'bot-survival',
-                label: 'Bot-Überleben',
-                value: normalizeNumber(metrics.botSurvivalAverage, 0),
+                key: 'duration',
+                label: 'Dauer',
+                value: normalizeNumber(metrics.duration, 0),
                 type: 'duration',
             },
+            { key: 'item-pickups', label: 'Gegenstände gesammelt', value: countPickups(metrics.itemPickupTypeCounts), type: 'count' },
             {
                 key: 'self-collisions',
                 label: 'Selbstcrashs',
                 value: normalizeNumber(metrics.selfCollisions, 0),
                 type: 'count',
             },
-            {
-                key: 'stuck-rate',
-                label: 'Hänger/min',
-                value: normalizeNumber(metrics.stuckPerMinute, 0),
-                type: 'ratio',
-            },
         ],
     };
 }
 
 /**
- * The whole match so far. Every figure in here is a tuning metric, so the card is a detail card.
+ * The whole match so far, using totals rather than tuning rates.
  * @param {object|null} aggregateMetrics
  * @param {{state?: unknown}|null} outcome
+ * @param {unknown} huntScoreboard
  * @returns {object|null}
  */
-export function buildMatchDetailBlock(aggregateMetrics, outcome) {
+export function buildMatchDetailBlock(aggregateMetrics, outcome, huntScoreboard = null) {
     if (!aggregateMetrics) return null;
     const metrics = /** @type {Record<string, unknown>} */ (aggregateMetrics);
     return {
@@ -57,40 +55,14 @@ export function buildMatchDetailBlock(aggregateMetrics, outcome) {
         tier: 'detail',
         rows: [
             { key: 'rounds', label: 'Runden', value: normalizeNumber(metrics.rounds, 0), type: 'count' },
-            // A fraction, not a percentage number: the renderer multiplies by 100.
-            {
-                key: 'bot-win-rate',
-                label: 'Bot-Siegrate',
-                value: normalizeNumber(metrics.botWinRate, 0),
-                type: 'percent',
-            },
-            {
-                key: 'bot-survival-average',
-                label: 'Bot-Überleben',
-                value: normalizeNumber(metrics.averageBotSurvival, 0),
-                type: 'duration',
-            },
-            {
-                key: 'self-collisions-per-round',
-                label: 'Selbstcrashs/R',
-                value: normalizeNumber(metrics.selfCollisionsPerRound, 0),
-                type: 'ratio',
-            },
-            {
-                key: 'item-use-per-round',
-                label: 'Gegenstände/R',
-                value: countUsedItems(
-                    /** @type {Record<string, unknown>} */ (metrics.itemUseModePerRound),
-                    /** @type {Record<string, unknown>} */ (metrics.failedItemActionModePerRound)
-                ),
-                type: 'ratio',
-            },
-            {
-                key: 'bounce-wall-per-round',
-                label: 'Wandabpraller/R',
-                value: normalizeNumber(metrics.bounceWallPerRound, 0),
-                type: 'ratio',
-            },
+            { key: 'duration', label: 'Dauer', value: normalizeNumber(metrics.totalDuration, 0), type: 'duration' },
+            { key: 'item-pickups', label: 'Gegenstände gesammelt', value: countPickups(metrics.itemPickupTypeTotals), type: 'count' },
+            { key: 'self-collisions', label: 'Selbstcrashs', value: normalizeNumber(metrics.totalSelfCollisions, 0), type: 'count' },
+            ...(Array.isArray(huntScoreboard) ? [{
+                key: 'kills', label: 'Abschüsse',
+                value: huntScoreboard.reduce((sum, row) => sum + Math.max(0, normalizeNumber(row?.kills, 0)), 0),
+                type: 'count',
+            }] : []),
         ],
     };
 }

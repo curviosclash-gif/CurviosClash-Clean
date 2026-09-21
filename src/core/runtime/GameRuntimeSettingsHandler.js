@@ -21,6 +21,7 @@ import {
     mergeSessionSettingsRestorePlans,
 } from './SessionSettingsRestorePlan.js';
 import { filterKnownSettingsChangeKeys } from './RuntimeSettingsChangeKeys.js';
+import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
 import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 import { RUNTIME_SESSION_TYPES, resolveRuntimeSessionContract } from '../../shared/contracts/RuntimeSessionContract.js';
 import { isWeaponRaceRunType } from '../../shared/contracts/WeaponRaceContract.js';
@@ -251,6 +252,14 @@ export class GameRuntimeSettingsHandler {
         const merged = mergeSessionSettingsRestorePlans(this._sessionSettingsRestore, plan);
         this._sessionSettingsRestore = merged.entries.length > 0 ? merged : null;
         return this._sessionSettingsRestore !== null;
+    }
+
+    createPersistableSettingsSnapshot(settings = this._facade?.game?.settings) {
+        if (!this._sessionSettingsRestore || !settings) return settings;
+        const snapshot = tryCloneJsonValue(settings, null);
+        if (!snapshot) return null;
+        applySessionSettingsRestorePlan(this._sessionSettingsRestore, snapshot);
+        return snapshot;
     }
 
     // Runs after restoreMapScenarioBotCount, which hands the bot count back to the preset value

@@ -61,6 +61,12 @@ bind(closeButton, 'click', async () => {
     globalThis.location.assign('/');
 });
 
+bind(document, 'keydown', (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    event.preventDefault();
+    closeButton?.click();
+});
+
 bind(globalThis, 'beforeunload', (event) => {
     if (!hangarWindow.isAvailable() && workshop?.hasUnsavedChanges?.()) {
         event.preventDefault();

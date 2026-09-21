@@ -70,7 +70,7 @@ export function resolveLockedStartFieldHints(settings, settingsManager) {
         const labels = {
             gameMode: 'Spielmodus', winsNeeded: 'Siegbedingung', numBots: 'Bot-Anzahl',
             'hunt.respawnEnabled': 'Wiedereinstieg', 'hunt.deathmatchKillLimit': 'Abschussziel',
-            'gameplay.itemAmount': 'Item-Menge', botDifficulty: 'Bot-Schwierigkeit',
+            'gameplay.itemAmount': 'Gegenstände', botDifficulty: 'Bot-Schwierigkeit',
         };
         lockMessagesByField.match.push(labels[normalizedPath] || 'Weitere Spielregeln');
     });

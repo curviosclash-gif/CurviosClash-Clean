@@ -20,7 +20,7 @@ const ARCADE_MODIFIER_META = Object.freeze({
         id: 'portal_storm',
         icon: 'IR',
         label: 'Item-Regen',
-        effectText: 'Doppelt so viele Items',
+        effectText: 'Doppelt so viele Gegenstände',
     }),
     boost_tax: Object.freeze({
         id: 'boost_tax',

@@ -1,6 +1,16 @@
 import { expect, test } from './helpers.desktop.js';
 import { waitForLoadedGame } from './helpers.js';
 
+test('Desktop-Spielerprofil erklärt gesperrtes Archivieren und Standardsetzen', async ({ page }) => {
+    await waitForLoadedGame(page);
+    await expect(page.locator('#btn-player-profile-default')).toBeDisabled();
+    await expect(page.locator('#btn-player-profile-default')).toHaveAttribute('title', 'Dieses Profil ist bereits Standard.');
+    await expect(page.locator('#btn-player-profile-archive')).toBeDisabled();
+    await expect(page.locator('#btn-player-profile-archive')).toHaveAttribute('title', 'Das Standard-Profil kann nicht archiviert werden.');
+    await expect(page.locator('#player-profile-action-hint')).toContainText('Dieses Profil ist bereits Standard.');
+    await expect(page.locator('#player-profile-action-hint')).toContainText('Das Standard-Profil kann nicht archiviert werden.');
+});
+
 async function activatePlayerProfile(page, profileId) {
     await page.evaluate((id) => {
         // Survives only until the page reloads; the app has to reload on its own.
@@ -63,4 +73,27 @@ test('Desktop-Spielerprofile isolate progression across activation and renderer 
         )
     ));
     expect(restored).toEqual({ bestScore: 1234 });
+});
+
+test('Desktop-Spielerprofil archivieren braucht zwei Klicks statt eines Systemdialogs', async ({ page }) => {
+    await waitForLoadedGame(page);
+    const profileId = await page.evaluate(() => {
+        document.getElementById('player-profile-name').value = 'Archive QA';
+        document.getElementById('btn-player-profile-create').click();
+        return window.GAME_INSTANCE.playerProfileManager.getProfiles()
+            .find((profile) => profile.displayName === 'Archive QA')?.id || '';
+    });
+    expect(profileId).not.toBe('');
+    await page.evaluate((id) => {
+        const select = document.getElementById('player-profile-select');
+        select.value = id;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        document.getElementById('btn-player-profile-archive').click();
+    }, profileId);
+    await expect(page.locator('#btn-player-profile-archive')).toHaveAttribute('data-confirm-armed', 'true');
+    expect(await page.evaluate((id) => window.GAME_INSTANCE.playerProfileManager.getProfiles()
+        .some((profile) => profile.id === id), profileId)).toBe(true);
+    await page.evaluate(() => document.getElementById('btn-player-profile-archive').click());
+    expect(await page.evaluate((id) => window.GAME_INSTANCE.playerProfileManager.getProfiles()
+        .some((profile) => profile.id === id), profileId)).toBe(false);
 });

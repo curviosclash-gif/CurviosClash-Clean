@@ -256,6 +256,7 @@ export class MatchFlowTelemetryController {
             duration: Math.max(0, Number(roundMetrics.duration) || 0),
             selfCollisions: Math.max(0, Number(roundMetrics.selfCollisions) || 0),
             itemUses: Math.max(0, Number(roundMetrics.itemUseEvents) || 0),
+            mgFireSeconds: Math.max(0, Number(roundMetrics.mgFireSeconds) || 0),
             itemUse: {
                 total: Math.max(0, Number(roundMetrics.itemUseEvents) || 0),
                 byMode: itemUseByMode,
@@ -266,6 +267,9 @@ export class MatchFlowTelemetryController {
             shieldAbsorb: Math.max(0, Number(roundMetrics.shieldAbsorb) || 0),
             hpDamage: Math.max(0, Number(roundMetrics.hpDamage) || 0),
             stuckEvents: Math.max(0, Number(roundMetrics.stuckEvents) || 0),
+            bounceWallEvents: Math.max(0, Number(roundMetrics.bounceWallEvents) || 0),
+            botCount: Math.max(0, Number(roundMetrics.botCount) || 0),
+            botSurvivalAverage: Math.max(0, Number(roundMetrics.botSurvivalAverage) || 0),
             heatmap: normalizeHeatmapCells(roundMetrics.heatmap),
             spawnDeaths,
             kills,

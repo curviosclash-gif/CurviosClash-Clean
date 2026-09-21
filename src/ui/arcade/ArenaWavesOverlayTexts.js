@@ -7,7 +7,7 @@ import { resolveFightMachineGunModel } from '../../shared/contracts/FightMachine
 const CHOICE_LABELS = Object.freeze({
     speed: 'Antrieb: +4 % Tempo',
     max_hp: 'Panzerung: +12 max. HP',
-    pickup: 'Nachschub: mehr Items auf dem Feld',
+    pickup: 'Nachschub: mehr Gegenstände auf dem Feld',
     mg_tuning: 'MG-Tuning: eine Stufe stärker',
     'supply:shield': 'Kampfvorrat: Schild',
     'supply:rocket': 'Kampfvorrat: Rakete',
