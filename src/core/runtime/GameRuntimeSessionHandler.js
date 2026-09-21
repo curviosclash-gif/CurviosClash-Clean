@@ -17,6 +17,7 @@ import {
     waitForRuntimePlayersLoaded,
 } from './RuntimeSessionLifecycleService.js';
 
+/** @type {Set<string>} */
 const TERMINAL_START_BLOCKING_FINALIZE_REASONS = new Set([
     SESSION_FINALIZE_TRIGGERS.GAME_DISPOSE,
     SESSION_FINALIZE_TRIGGERS.WINDOW_SHUTDOWN,
@@ -252,10 +253,7 @@ export class GameRuntimeSessionHandler {
                 facade?.game?._showStatusToast?.('Start nicht möglich: Match-Controller nicht verfügbar.', 2000, 'error');
                 return false;
             }
-            if (typeof startResult.then === 'function') {
-                return Promise.resolve(startResult).then((resolvedResult) => resolvedResult !== false);
-            }
-            return startResult !== false;
+            return Promise.resolve(startResult).then((resolvedResult) => resolvedResult !== false);
         };
         return this._awaitPendingFinalizeForStart(buildTelemetryPayload(), runStartAttempt);
     }

@@ -153,8 +153,13 @@ function resolveDefaultRunShape(surface) {
     };
 }
 
+/**
+ * @param {unknown} payload
+ * @returns {Record<string, unknown>}
+ */
 function resolveRunProfileInput(payload = {}) {
-    return payload && typeof payload === 'object' ? payload : {};
+    return payload && typeof payload === 'object'
+        ? /** @type {Record<string, unknown>} */ (payload) : {};
 }
 
 function normalizePlayerInputActions(value = {}) {

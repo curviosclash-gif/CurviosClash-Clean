@@ -1,6 +1,8 @@
 import { SETTINGS_CHANGE_PATH_ENTRIES } from '../../shared/settings/SettingsChangeKeys.js';
 
-const PATH_CHANGE_KEY_MAP = new Map(SETTINGS_CHANGE_PATH_ENTRIES);
+const PATH_CHANGE_KEY_MAP = new Map(SETTINGS_CHANGE_PATH_ENTRIES.map(
+    ([path, changeKey]) => /** @type {[string, string]} */ ([path, changeKey])
+));
 
 function isPlainObject(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value);
