@@ -695,6 +695,9 @@ test.describe('Eiffel tower siege', () => {
         ).toBeGreaterThan(0);
     });
 
+    // This running-app proof covers the authored GLB replacement, the esplanade ground clamp and
+    // the chase setting after map-unit normalization. The movement check also makes sure both
+    // patrols keep driving after their asynchronous model swap completes.
     test('the patrol tanks use the authored body and stay on the esplanade', async ({ page }) => {
         test.setTimeout(480_000);
         await startSiegeMatch(page, { modePath: 'fight', sessionType: 'single' });
@@ -723,6 +726,20 @@ test.describe('Eiffel tower siege', () => {
             SIEGE_GROUND_Y * MAP_SCALE,
         ]);
 
+        const initialPositions = await page.evaluate(() => Object.fromEntries(
+            window.GAME_INSTANCE.entityManager._mapUnitSystem.units
+                .filter((unit) => unit.kind === 'tank')
+                .map((unit) => [unit.id, { x: unit.groundPosition.x, z: unit.groundPosition.z }]),
+        ));
+        await expect.poll(() => page.evaluate((starts) => (
+            window.GAME_INSTANCE.entityManager._mapUnitSystem.units
+                .filter((unit) => unit.kind === 'tank')
+                .map((unit) => Math.hypot(
+                    unit.groundPosition.x - starts[unit.id].x,
+                    unit.groundPosition.z - starts[unit.id].z,
+                ) > 0.5)
+        ), initialPositions), { timeout: 10_000 }).toEqual([true, true]);
+
         const tanks = await page.evaluate(() => (
             window.GAME_INSTANCE.entityManager._mapUnitSystem.units
                 .filter((unit) => unit.kind === 'tank')
@@ -739,6 +756,7 @@ test.describe('Eiffel tower siege', () => {
                     chaseEnabled: unit.definition.drive?.chase === true,
                     driveMode: unit.driveMode,
                     authoredBody: unit.root.userData.authoredBody === true,
+                    groundY: unit.groundPosition.y,
                 }))
         ));
 
@@ -752,6 +770,8 @@ test.describe('Eiffel tower siege', () => {
             expect(tank.headParts).toEqual(['tank_barrel', 'tank_turret']);
             expect(tank.chaseEnabled, `${tank.id} received the map's chase setting`).toBe(true);
             expect(['patrol', 'chase', 'return']).toContain(tank.driveMode);
+            expect(tank.groundY, `${tank.id} stays on the esplanade while driving`)
+                .toBeCloseTo(SIEGE_GROUND_Y * MAP_SCALE, 3);
         }
     });
 
