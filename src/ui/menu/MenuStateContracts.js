@@ -18,6 +18,7 @@ import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceCont
 import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 import { normalizeFightHangarState } from '../../shared/contracts/FightHangarStateContract.js';
+import { normalizeClassicTutorialState } from '../../shared/contracts/ClassicTutorialContract.js';
 import {
     normalizeFourPlayerPlanarSettings,
     normalizeSplitScreenVariant,
@@ -253,6 +254,8 @@ function normalizeLocalSettingsState(localSettings = null) {
         eventPlaylistState,
         ...(source.fightHangar && typeof source.fightHangar === 'object'
             ? { fightHangar: normalizeFightHangarState(source.fightHangar) } : {}),
+        ...(source.classicTutorial && typeof source.classicTutorial === 'object'
+            ? { classicTutorial: normalizeClassicTutorialState(source.classicTutorial) } : {}),
     };
 }
 

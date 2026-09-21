@@ -33,6 +33,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.context.saved': 'alles gespeichert',
     'menu.navigation.open.label': 'Öffnen',
     'menu.utility.tutorial.label': 'Neu hier? Steuerung lernen',
+    'menu.utility.tutorial.completed.label': 'Tutorial abgeschlossen — nochmal spielen',
     'menu.level2.arcade.description': 'Fliege durch Sektoren, sammle Punkte und verbessere deinen Arcade-Lauf.',
     'menu.level2.fight.description': 'Kämpfe mit Waffen gegen andere Piloten und erreiche das Abschussziel.',
     'menu.level2.normal.description': 'Weiche Hindernissen und Spuren aus und bleibe als Letzter im Rennen.',

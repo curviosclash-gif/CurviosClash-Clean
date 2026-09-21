@@ -8332,6 +8332,9 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     margin-top: 14px;
     justify-self: start;
 }
+.menu-tutorial-entry.tutorial-completed {
+    opacity: 0.7;
+}
 #main-menu:not([data-menu-depth="1"]) .menu-tutorial-entry {
     display: none;
 }
