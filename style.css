@@ -4782,6 +4782,12 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     min-height: 30px;
 }
 
+.secondary-btn:is(.arcade-vehicle-chip, .arcade-vehicle-tab) {
+    width: auto;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+}
+
 .arcade-vehicle-favorites-only.is-active,
 .arcade-vehicle-chip.is-active,
 .arcade-vehicle-tab.is-active {
@@ -5894,7 +5900,7 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
 }
 
 .hangar-slot-grid .hangar-slot-row {
-    grid-template-columns: 62px minmax(104px, 1fr) 32px auto 28px;
+    grid-template-columns: max-content minmax(104px, 1fr) 32px auto 28px;
     padding: 4px;
     border: 1px solid transparent;
     border-radius: 7px;
@@ -6111,7 +6117,7 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     }
 
     .hangar-slot-grid .hangar-slot-row {
-        grid-template-columns: 58px minmax(90px, 1fr) 30px;
+        grid-template-columns: max-content minmax(90px, 1fr) 30px;
     }
 
     .hangar-slot-grid .arcade-vehicle-upgrade-btn,

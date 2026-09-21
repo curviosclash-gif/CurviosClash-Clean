@@ -46,6 +46,52 @@ async function openArcadeHangar(page) {
     await expect(page.locator('#arcade-vehicle-preview-stage')).toHaveAttribute('data-preview-status', 'ready');
 }
 
+test('Desktop-Hangar: Filter haben lesbaren Kontrast und Fassungen vollständige Namen', async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await loadGame(page);
+    await openArcadeHangar(page);
+
+    const appearance = await page.evaluate(() => {
+        const parse = (value) => {
+            const parts = value.match(/[\d.]+/gu)?.map(Number) || [];
+            return [parts[0] || 0, parts[1] || 0, parts[2] || 0, parts[3] ?? 1];
+        };
+        const luminance = (rgb) => {
+            const channels = rgb.slice(0, 3).map((value) => {
+                const normalized = value / 255;
+                return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+            });
+            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+        };
+        const contrast = (node) => {
+            const layers = [];
+            for (let current = node; current; current = current.parentElement) {
+                layers.unshift(parse(getComputedStyle(current).backgroundColor));
+            }
+            let background = [0, 0, 0];
+            for (const [red, green, blue, alpha] of layers) {
+                background = [red, green, blue].map((value, index) => value * alpha + background[index] * (1 - alpha));
+            }
+            const foreground = parse(getComputedStyle(node).color);
+            const brighter = Math.max(luminance(foreground), luminance(background));
+            const darker = Math.min(luminance(foreground), luminance(background));
+            return (brighter + 0.05) / (darker + 0.05);
+        };
+        const buttons = [...document.querySelectorAll('.arcade-vehicle-tab, .arcade-vehicle-chip')];
+        const slots = [...document.querySelectorAll('.hangar-slot-grid .hangar-slot-select')];
+        return {
+            buttons: buttons.map((button) => ({
+                styled: button.classList.contains('secondary-btn'),
+                ratio: contrast(button),
+            })),
+            clippedSlots: slots.filter((slot) => slot.scrollWidth > slot.clientWidth + 1).map((slot) => slot.textContent),
+        };
+    });
+    expect(appearance.buttons.length).toBeGreaterThan(0);
+    expect(appearance.buttons.every((button) => button.styled && button.ratio >= 4.5)).toBe(true);
+    expect(appearance.clippedSlots).toEqual([]);
+});
+
 async function seedUnlockedProfiles(page) {
     const vehicleIds = await page.evaluate(() => Array.from(document.querySelectorAll('#vehicle-select-p1 option'))
         .map((option) => String(option.value || '').trim())

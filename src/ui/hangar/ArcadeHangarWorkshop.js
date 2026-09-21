@@ -482,17 +482,17 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     });
 
     rules.categories.forEach((category) => {
-        const node = createButton('arcade-vehicle-tab', category.label);
+        const node = createButton('secondary-btn arcade-vehicle-tab', category.label);
         node.dataset.category = category.id;
         categoryTabs.appendChild(node);
     });
     ['all', ...rules.filterChips.hitboxKlasse].forEach((value) => {
-        const node = createButton('arcade-vehicle-chip', HITBOX_LABELS[value] || value);
+        const node = createButton('secondary-btn arcade-vehicle-chip', HITBOX_LABELS[value] || value);
         node.dataset.filterValue = value;
         hitboxChips.appendChild(node);
     });
     ['all', ...rules.filterChips.levelBand].forEach((value) => {
-        const node = createButton('arcade-vehicle-chip', LEVEL_LABELS[value] || value);
+        const node = createButton('secondary-btn arcade-vehicle-chip', LEVEL_LABELS[value] || value);
         node.dataset.filterValue = value;
         levelChips.appendChild(node);
     });
