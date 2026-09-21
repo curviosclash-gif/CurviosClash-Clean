@@ -90,7 +90,7 @@ function summarizeVehicleConfig(config = {}) {
         const geo = String(part.geo || '').toLowerCase();
         const role = String(part.role || '').toLowerCase();
         if (role.startsWith('engine') || geo === 'engine' || name.includes('engine')) summary.engines += 1;
-        if (role.startsWith('wing') || name.includes('wing') || name.includes('fin')) summary.wings += 1;
+        if (role.startsWith('wing') || name.includes('wing') || name.includes('fin') || name.includes('flosse')) summary.wings += 1;
         if (part.anim && part.anim.type && part.anim.type !== 'none') summary.animated += 1;
     });
 
@@ -216,7 +216,7 @@ class VehicleLabApp {
         this.compareVehicleId = VEHICLE_PRESETS[1]?.id || VEHICLE_PRESETS[0]?.id || '';
         this.statusMessage = 'Bereit';
         this.statusTone = 'info';
-        this.arcadeBlueprintStatus = 'Blueprint: n/a';
+        this.arcadeBlueprintStatus = 'Bauplan: nicht verfügbar';
         this.lastArcadeBlueprintResult = null;
         this._hudDirty = true;
         this._lastHudText = '';
@@ -1089,7 +1089,7 @@ class VehicleLabApp {
         this.authoringTelemetry.recordOutcome('validation_passed', guardResult.validation.ok === true);
         if (publish && !guardResult.validation.ok) {
             this.authoringTelemetry.recordError('validation_failed');
-            this.ui.showToast(`Blueprint ungültig: ${formatArcadeBlueprintValidationMessage(guardResult)}`, 'error');
+            this.ui.showToast(`Bauplan ungültig: ${formatArcadeBlueprintValidationMessage(guardResult)}`, 'error');
             return;
         }
 

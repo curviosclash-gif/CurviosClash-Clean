@@ -804,6 +804,6 @@ export class VehicleLabUI {
         const currentIndex = Number.isFinite(historyState.index) ? historyState.index + 1 : 1;
         const historyLength = Number.isFinite(historyState.length) ? historyState.length : 1;
         historyNode.textContent = `Verlauf ${currentIndex}/${historyLength}`;
-        blueprintNode.textContent = blueprintStatus || 'Blueprint nicht verfügbar';
+        blueprintNode.textContent = blueprintStatus || 'Bauplan nicht verfügbar';
     }
 }

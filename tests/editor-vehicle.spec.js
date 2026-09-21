@@ -124,7 +124,7 @@ test.describe('Vehicle Lab', () => {
         await expect(page.locator('[data-metric="parts"] .compare-current')).toHaveText('8');
         await expect(page.locator('[data-metric="parts"] .compare-baseline')).toHaveText('8');
         await expect(page.locator('[data-metric="parts"] .compare-delta')).toHaveText('0');
-        await expect(page.locator('#workshopBlueprintState')).toContainText('Blueprint');
+        await expect(page.locator('#workshopBlueprintState')).toContainText('Bauplan gültig');
 
         await page.locator('#btnAddPart').click();
         await expect(page.locator('[data-metric="parts"] .compare-current')).toHaveText('9');
@@ -320,7 +320,7 @@ test.describe('Vehicle Lab', () => {
         await expect(page.locator('[data-metric="budgetUsed"] .compare-delta')).toHaveClass(/is-worse/);
         await page.locator('#partsList .part-item').first().focus();
         await page.keyboard.press('ArrowDown');
-        await expect(page.locator('#partsList .part-item.is-selected')).toHaveText('Nose Cone');
+        await expect(page.locator('#partsList .part-item.is-selected')).toHaveText('Nasenkegel');
     });
 
     test('transform tools separate dimensions from scale and keyboard snap avoids the S conflict', async ({ page }) => {
