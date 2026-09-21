@@ -1,6 +1,7 @@
 import { createRoundEndRecorderAdapter, getLastRoundGhostClip } from './MatchFlowTransitionHotspots.js';
 import { resolveLocalPlayerIndexes } from './postmatch/PostMatchStandingsBlock.js';
 import { WEAPON_RACE_GHOST_ROUTE_ID, isWeaponRaceConfig } from '../shared/contracts/WeaponRaceContract.js';
+import { SPLIT_SCREEN_VARIANTS } from '../four-player-planar/FourPlayerPlanarContract.js';
 
 export class MatchFlowLifecycleController {
     constructor(deps = {}) {
@@ -260,7 +261,12 @@ export class MatchFlowLifecycleController {
         if (options?.showMenuPanel === false) {
             return returnTransition;
         }
-        const defaultPanelId = game.settings?.localSettings?.sessionType === 'multiplayer' ? 'submenu-multiplayer' : 'submenu-game';
+        const localSettings = game.settings?.localSettings;
+        const returnToFourPlayerSetup = localSettings?.sessionType === 'splitscreen'
+            && localSettings?.splitScreenVariant === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
+        const defaultPanelId = localSettings?.sessionType === 'multiplayer'
+            ? 'submenu-multiplayer'
+            : (returnToFourPlayerSetup ? 'submenu-custom' : 'submenu-game');
         const panelId = String(options?.panelId || defaultPanelId).trim() || defaultPanelId;
         const trigger = String(options?.trigger || options?.reason || 'return_to_menu').trim() || 'return_to_menu';
         if (this.runtimePort?.showMenuPanel) {
@@ -272,6 +278,9 @@ export class MatchFlowLifecycleController {
             this.runtimePort.syncUi();
         } else {
             game.uiManager?.syncAll?.();
+        }
+        if (returnToFourPlayerSetup && panelId === 'submenu-custom') {
+            game.fourPlayerPlanar?.openSetup?.();
         }
         return returnTransition;
     }
