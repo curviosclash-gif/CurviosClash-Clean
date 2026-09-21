@@ -39,8 +39,16 @@ test('dam water runs through wave and twenty-second rise before persisting', () 
 
 test('wave origins are bounded and default to the legacy minZ direction', () => {
     assert.equal(zone.waveOrigin, WATER_WAVE_ORIGINS.MIN_Z);
+    assert.equal(zone.waveOpeningWidth, 180);
+    assert.equal(zone.waveSourceInset, 0);
+    assert.equal(zone.waveFloorOffset, 0);
     assert.equal(normalizeWaterZone({ ...zone, waveOrigin: 'maxZ' }).waveOrigin, WATER_WAVE_ORIGINS.MAX_Z);
     assert.equal(normalizeWaterZone({ ...zone, waveOrigin: 'sideways' }).waveOrigin, WATER_WAVE_ORIGINS.MIN_Z);
+    const bounded = normalizeWaterZone({ ...zone, waveOpeningWidth: 1000,
+        waveSourceInset: 1000, waveFloorOffset: 1000 });
+    assert.equal(bounded.waveOpeningWidth, 180);
+    assert.equal(bounded.waveSourceInset, 90);
+    assert.equal(bounded.waveFloorOffset, 90);
 });
 
 test('underwater lookup stays bounded and network roundtrips the authoritative state', () => {

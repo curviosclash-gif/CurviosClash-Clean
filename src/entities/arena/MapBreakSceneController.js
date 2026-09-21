@@ -41,10 +41,32 @@ export class MapBreakSceneController {
         this._applied = [];
         /** Authored yaw of every scene slot, so the event yaw is added to it rather than replacing it. */
         this._authoredYaw = new Map();
+        // Capture attachment offsets at the authored rest pose, before a late-join one-shot clip
+        // is advanced. The attached model keeps its independent looping animation and collider.
+        this._attachments = new Map();
         for (const scene of this.definition?.breakScenes || []) {
-            if (this._authoredYaw.has(scene.modelId)) continue;
             const root = resolveGlbModelRoot(this.arena, scene.modelId);
-            this._authoredYaw.set(scene.modelId, Number(root?.rotation?.y) || 0);
+            if (!this._authoredYaw.has(scene.modelId)) {
+                this._authoredYaw.set(scene.modelId, Number(root?.rotation?.y) || 0);
+            }
+            for (const attachment of scene.attachedModels) {
+                const key = `${scene.id}/${attachment.modelId}`;
+                if (this._attachments.has(key)) continue;
+                const model = resolveGlbModelRoot(this.arena, attachment.modelId);
+                const parentNode = root?.getObjectByName?.(attachment.parentNodeName);
+                if (!model?.parent || !parentNode || model === root
+                    || model === parentNode || model.getObjectById?.(parentNode.id)) continue;
+                model.updateWorldMatrix(true, false);
+                parentNode.updateWorldMatrix(true, false);
+                this._attachments.set(key, {
+                    model,
+                    originalParent: model.parent,
+                    position: model.position.clone(),
+                    quaternion: model.quaternion.clone(),
+                    scale: model.scale.clone(),
+                    restOffset: parentNode.matrixWorld.clone().invert().multiply(model.matrixWorld),
+                });
+            }
         }
         deactivateHiddenGlbModels(this.arena, this._colliderIndex);
     }
@@ -97,6 +119,12 @@ export class MapBreakSceneController {
     /** Puts the map back together. Used at round start, where the arena may be reused as it is. */
     reset() {
         this._applied.length = 0;
+        for (const attachment of this._attachments.values()) {
+            attachment.originalParent.add(attachment.model);
+            attachment.model.position.copy(attachment.position);
+            attachment.model.quaternion.copy(attachment.quaternion);
+            attachment.model.scale.copy(attachment.scale);
+        }
         // Pieces come back before the scene models go away, otherwise showing a piece would put
         // the colliders of a switched-off scene back into the arena.
         for (const modelId of this._everyModelId()) {
@@ -129,6 +157,19 @@ export class MapBreakSceneController {
             setGlbPieceActive(this.arena, this._colliderIndex, entry.modelId, piece, false);
         }
         this.driver?.setTrackStart?.(entry.modelId, entry.atSeconds);
+        const sceneRoot = resolveGlbModelRoot(this.arena, entry.modelId);
+        for (const attached of entry.attachedModels) {
+            const attachment = this._attachments.get(`${entry.sceneId}/${attached.modelId}`);
+            const node = sceneRoot?.getObjectByName?.(attached.parentNodeName);
+            if (!attachment || !node || attachment.model === node
+                || attachment.model.getObjectById?.(node.id)) continue;
+            node.add(attachment.model);
+            attachment.restOffset.decompose(
+                attachment.model.position,
+                attachment.model.quaternion,
+                attachment.model.scale,
+            );
+        }
     }
 
     /**
