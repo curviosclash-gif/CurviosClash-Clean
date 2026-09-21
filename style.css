@@ -790,7 +790,7 @@
     font-size: 0.85rem;
 }
 
-.quick-pill {
+.secondary-btn.quick-pill {
     width: auto;
     padding: 6px 9px;
     border-radius: 8px;

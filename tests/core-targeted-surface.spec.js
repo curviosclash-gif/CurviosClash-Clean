@@ -3044,6 +3044,33 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await expect(page.locator('#start-map-choice-strip [aria-selected="true"]')).toBeFocused();
     });
 
+    test('T20z2c: Zuletzt benutzte Karten bleiben kompakt über der Kartenliste', async ({ page }) => {
+        await page.setViewportSize({ width: 1920, height: 1080 });
+        await loadGame(page);
+        await openGameSubmenu(page);
+
+        const layout = await page.evaluate(() => {
+            const recent = document.getElementById('map-recent-list');
+            recent.closest('.setup-chip-group')?.classList.remove('hidden');
+            recent.closest('.setup-chip-grid')?.classList.remove('hidden');
+            recent.replaceChildren(...['Standard', 'Komplex', 'Labyrinth', 'Leer', 'Eiffelturm', 'Magma-Labyrinth'].map((name) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'secondary-btn quick-pill';
+                button.textContent = name;
+                return button;
+            }));
+            const firstGroup = document.querySelector('#start-map-choice-strip .start-map-choice-group');
+            return {
+                recentHeight: recent.getBoundingClientRect().height,
+                firstGroupY: firstGroup?.getBoundingClientRect().top ?? Infinity,
+            };
+        });
+
+        expect(layout.recentHeight).toBeLessThanOrEqual(80);
+        expect(layout.firstGroupY).toBeLessThan(1080);
+    });
+
     test('T20z: Map-Vorschau und Fahrzeug-Mini-Hangar rendern ihre Auswahl strukturiert', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
