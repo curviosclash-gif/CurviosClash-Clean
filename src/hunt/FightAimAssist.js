@@ -2,6 +2,9 @@ const DEFAULT_ACQUIRE_ANGLE_DEG = 12;
 const DEFAULT_RELEASE_ANGLE_DEG = 18;
 const DEFAULT_LOCK_SECONDS = 0.4;
 const GEOMETRY_EPSILON = 0.000001;
+const EMPTY_TARGETS = Object.freeze([]);
+const allowPlayerTarget = () => true;
+const allowExtraTarget = () => true;
 
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -13,11 +16,18 @@ function angleToDot(angleDeg) {
 
 function clearHumanAimAssist(player) {
     player.fightAimAssistTargetIndex = -1;
+    player.fightAimAssistTarget = null;
     player.fightAimAssistLockRemaining = 0;
 }
 
+function isActiveAimAssistTarget(target) {
+    if (!target?.position || target.alive === false) return false;
+    const hp = Number(target.hp);
+    return target.alive === true || (Number.isFinite(hp) && hp > 0);
+}
+
 function measureTargetDot(player, target, aimDirection, maxRangeSq, scratch) {
-    if (!target?.alive || target === player || !target.position || !Number.isInteger(target.index)) return -Infinity;
+    if (!isActiveAimAssistTarget(target) || target === player) return -Infinity;
     scratch.subVectors(target.position, player.position);
     const distanceSq = scratch.lengthSq();
     if (distanceSq <= GEOMETRY_EPSILON || distanceSq > maxRangeSq) return -Infinity;
@@ -28,7 +38,7 @@ function measureTargetDot(player, target, aimDirection, maxRangeSq, scratch) {
  * Redirects a human Fight MG shot without changing vehicle steering or camera state.
  * The caller owns and reuses both vectors; this function allocates no Three.js objects.
  */
-export function applyFightHumanAimAssist(player, players, aimDirection, mg, scratch) {
+export function applyFightHumanAimAssist(player, players, aimDirection, mg, scratch, options = null) {
     if (!player || player.isBot || !player.position || !aimDirection || !scratch) return null;
     if (mg?.HUMAN_AIM_ASSIST_ENABLED === false || aimDirection.lengthSq() <= GEOMETRY_EPSILON) {
         clearHumanAimAssist(player);
@@ -53,11 +63,31 @@ export function applyFightHumanAimAssist(player, players, aimDirection, mg, scra
     const currentTargetIndex = Number.isInteger(player.fightAimAssistTargetIndex)
         ? player.fightAimAssistTargetIndex
         : -1;
-    let currentTarget = null;
-    for (const candidate of players || []) {
-        if (candidate?.index === currentTargetIndex) {
-            currentTarget = candidate;
-            break;
+    const playerTargets = Array.isArray(players) ? players : [];
+    const extraTargets = Array.isArray(options?.extraTargets) ? options.extraTargets : EMPTY_TARGETS;
+    const canUsePlayerTarget = typeof options?.canUsePlayerTarget === 'function'
+        ? options.canUsePlayerTarget
+        : allowPlayerTarget;
+    const canUseExtraTarget = typeof options?.canUseExtraTarget === 'function'
+        ? options.canUseExtraTarget
+        : allowExtraTarget;
+    const storedTarget = player.fightAimAssistTarget || null;
+    let currentTarget = storedTarget;
+    if (currentTarget) {
+        const isPlayerTarget = playerTargets.includes(currentTarget);
+        if ((isPlayerTarget && !canUsePlayerTarget(currentTarget, player))
+            || (!isPlayerTarget && (!extraTargets.includes(currentTarget)
+                || !canUseExtraTarget(currentTarget, player)))) {
+            currentTarget = null;
+        }
+    }
+    if (!isActiveAimAssistTarget(currentTarget)) currentTarget = null;
+    if (!currentTarget) {
+        for (const candidate of playerTargets) {
+            if (candidate?.index === currentTargetIndex && canUsePlayerTarget(candidate, player)) {
+                currentTarget = candidate;
+                break;
+            }
         }
     }
     const currentDot = currentTarget
@@ -72,16 +102,21 @@ export function applyFightHumanAimAssist(player, players, aimDirection, mg, scra
     let bestDistanceSq = target ? currentDistanceSq : Infinity;
 
     if (!target) {
-        for (const candidate of players || []) {
-            const candidateDot = measureTargetDot(player, candidate, aimDirection, maxRangeSq, scratch);
-            if (candidateDot < acquireDot) continue;
-            const candidateDistanceSq = scratch.lengthSq();
-            if (candidateDot > bestDot || (
-                candidateDot === bestDot && candidateDistanceSq < bestDistanceSq
-            )) {
-                target = candidate;
-                bestDot = candidateDot;
-                bestDistanceSq = candidateDistanceSq;
+        for (let pass = 0; pass < 2; pass += 1) {
+            const candidates = pass === 0 ? playerTargets : extraTargets;
+            for (const candidate of candidates) {
+                if ((pass === 0 && !canUsePlayerTarget(candidate, player))
+                    || (pass === 1 && !canUseExtraTarget(candidate, player))) continue;
+                const candidateDot = measureTargetDot(player, candidate, aimDirection, maxRangeSq, scratch);
+                if (candidateDot < acquireDot) continue;
+                const candidateDistanceSq = scratch.lengthSq();
+                if (candidateDot > bestDot || (
+                    candidateDot === bestDot && candidateDistanceSq < bestDistanceSq
+                )) {
+                    target = candidate;
+                    bestDot = candidateDot;
+                    bestDistanceSq = candidateDistanceSq;
+                }
             }
         }
         if (!target && currentInsideReleaseCone) target = currentTarget;
@@ -92,12 +127,18 @@ export function applyFightHumanAimAssist(player, players, aimDirection, mg, scra
         return null;
     }
 
-    if (target.index !== currentTargetIndex) {
-        player.fightAimAssistTargetIndex = target.index;
+    const nextTargetIndex = playerTargets.includes(target) && Number.isInteger(target.index)
+        ? target.index
+        : -1;
+    if (target !== storedTarget || nextTargetIndex !== currentTargetIndex) {
+        player.fightAimAssistTarget = target;
+        player.fightAimAssistTargetIndex = nextTargetIndex;
         player.fightAimAssistLockRemaining = Math.max(
             0,
             Number(mg?.HUMAN_AIM_ASSIST_LOCK_SECONDS) || DEFAULT_LOCK_SECONDS
         );
+    } else if (player.fightAimAssistTarget !== target) {
+        player.fightAimAssistTarget = target;
     }
     scratch.subVectors(target.position, player.position);
     if (scratch.lengthSq() > GEOMETRY_EPSILON) aimDirection.copy(scratch).normalize();

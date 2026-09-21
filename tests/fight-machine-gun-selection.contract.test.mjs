@@ -358,3 +358,85 @@ test('Fight HUD lock-on uses the same assisted MG direction and weapon range as 
     assert.equal(lockTarget?.playerIndex, target.index);
     assert.equal(player.fightAimAssistTargetIndex, target.index);
 });
+
+test('human MG aim assist and the HUD lock onto destructible zone turrets and tanks', () => {
+    const player = {
+        alive: true,
+        isBot: false,
+        index: 0,
+        teamId: 'ALPHA',
+        position: new THREE.Vector3(),
+        fightAimAssistTargetIndex: -1,
+        fightAimAssistTarget: null,
+        fightAimAssistLockRemaining: 0,
+        getAimDirection: (out) => out.set(0, 0, -1),
+    };
+    const ally = {
+        alive: true,
+        index: 1,
+        teamId: 'ALPHA',
+        position: new THREE.Vector3(0, 0, -18),
+        hitboxRadius: 0.8,
+    };
+    const alliedZoneTurret = {
+        id: 'allied_zone_turret',
+        destructible: true,
+        hp: 90,
+        hitboxRadius: 2.2,
+        ownerIndex: ally.index,
+        teamId: 'ALPHA',
+        position: new THREE.Vector3(0, 0, -22),
+    };
+    const zoneTurret = {
+        id: 'zone_turret',
+        destructible: true,
+        hp: 90,
+        hitboxRadius: 2.2,
+        ownerIndex: -1,
+        teamId: 'BRAVO',
+        position: new THREE.Vector3(5, 0, -30),
+    };
+    const alliedTank = {
+        id: 'allied_tank',
+        destructible: true,
+        alive: true,
+        hp: 150,
+        hitboxRadius: 3.5,
+        ownerIndex: ally.index,
+        teamId: 'ALPHA',
+        position: new THREE.Vector3(0, 0, -35),
+    };
+    const tank = {
+        id: 'tank',
+        destructible: true,
+        alive: true,
+        hp: 150,
+        hitboxRadius: 3.5,
+        ownerIndex: -1,
+        teamId: 'BRAVO',
+        position: new THREE.Vector3(-8, 0, -42),
+    };
+    const targetables = [alliedZoneTurret, alliedTank, zoneTurret, tank];
+    const runtime = {
+        players: [player, ally],
+        entityRuntimeConfig: { ...DEFAULT_ENTITY_RUNTIME_CONFIG, HUNT: HUNT_CONFIG },
+        cache: { lockOn: new Map() },
+        callbacks: { getStrategy: () => ({ hasMachineGun: () => true }) },
+        combat: { getMgTurretTargets: () => targetables },
+    };
+    const mg = HUNT_CONFIG.MG;
+    const resolver = new MGHitResolver(runtime);
+    const combat = new HuntCombatSystem(runtime);
+
+    assert.equal(resolver.resolveHit(player, mg).turret, zoneTurret, 'the MG bends onto the zone turret');
+    runtime.cache.lockOn.clear();
+    assert.equal(combat.checkLockOn(player), zoneTurret, 'the HUD and rocket lock expose the same turret');
+    assert.equal(player.fightAimAssistTarget, zoneTurret);
+    assert.equal(player.fightAimAssistTargetIndex, -1, 'non-player locks do not impersonate a player slot');
+
+    zoneTurret.hp = 0;
+    player.fightAimAssistLockRemaining = 0;
+    runtime.cache.lockOn.clear();
+    assert.equal(combat.checkLockOn(player), tank, 'the lock reacquires the live tank after the turret falls');
+    assert.equal(player.fightAimAssistTarget, tank, 'allied players, turrets and tanks are never auto-targeted');
+});

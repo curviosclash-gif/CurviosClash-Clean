@@ -1,4 +1,4 @@
-import { isTurretTargetPlayerEligible } from '../../../shared/contracts/TurretCombatContract.js';
+import { isDestructibleTurret, isTurretTargetPlayerEligible } from '../../../shared/contracts/TurretCombatContract.js';
 import * as THREE from 'three';
 import { resolveWaterAdjustedDelta } from '../WaterGameplayOps.js';
 import {
@@ -12,10 +12,7 @@ import {
     resolveHuntTargetPosition,
 } from '../../../hunt/HuntTargetingOps.js';
 import { resolveEntityRuntimeConfig } from '../../../shared/contracts/EntityRuntimeConfig.js';
-import {
-    ITEM_PROJECTILE_TARGETING_PROFILE,
-    resolveItemProjectileTarget,
-} from './ItemProjectileTargetingOps.js';
+import { ITEM_PROJECTILE_TARGETING_PROFILE, resolveItemProjectileTarget } from './ItemProjectileTargetingOps.js';
 import { resolveLockedPlayerIndex } from './RocketThreatTracker.js';
 import { stepGuidedRocket } from './GuidedRocketControlOps.js';
 import { canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamCombatContract.js';
@@ -32,6 +29,22 @@ function clamp01(value) {
     if (numeric >= 1) return 1;
     return numeric;
 }
+
+function canAcquireTargetable(projectile, target) {
+    const owner = projectile?.owner;
+    return projectile?.turretTargeting == null
+        && projectile?.environmentProjectile !== true
+        && isDestructibleTurret(target)
+        && target.hp > 0
+        && target.alive !== false
+        && target.ownerPlayer !== owner
+        && target.ownerIndex !== owner?.index
+        && (!projectile?.sourceTurretId || target.id !== projectile.sourceTurretId)
+        && canDamage(owner, target, TEAM_WEAPON_KINDS.ROCKET)
+        && !!target.position;
+}
+
+const canAcquirePlayer = (target, owner) => canDamage(owner, target, TEAM_WEAPON_KINDS.ROCKET);
 
 function resolveRocketRuntime(config) {
     const rocket = config?.HUNT?.ROCKET || {};
@@ -144,21 +157,25 @@ export class ProjectileSimulationOps {
     acquireHomingTarget(projectile, players, trailSpatialIndex = null) {
         const config = resolveEntityRuntimeConfig(this.system);
         const rocketRuntime = resolveRocketRuntime(config);
-        if (!projectile || !Array.isArray(players) || players.length === 0) return null;
+        if (!projectile) return null;
+        const playerTargets = Array.isArray(players) ? players : [];
 
         if (projectile.itemHomingProfile) {
+            if (playerTargets.length === 0) return null;
             this._tmpVec2.copy(projectile.velocity);
             if (this._tmpVec2.lengthSq() <= rocketRuntime.homingSpeedEpsilon ** 2) return null;
             this._tmpVec2.normalize();
             return resolveItemProjectileTarget({
                 owner: projectile.owner,
-                players,
+                players: playerTargets,
                 origin: projectile.position,
                 direction: this._tmpVec2,
                 scratch: this._tmpVec,
                 currentTarget: projectile.target,
             });
         }
+        const targetables = this.system?.getTurrets?.() || [];
+        if (playerTargets.length === 0 && targetables.length === 0) return null;
 
         const owner = projectile.owner;
         const homingEnabled = projectile.homingEnabled || projectile.huntRocket;
@@ -192,7 +209,7 @@ export class ProjectileSimulationOps {
             const mgTrailRange = Math.max(rocketRuntime.homingMinRange, Number(config?.HUNT?.MG?.RANGE || 95));
             lineTarget = resolveHuntLineTarget({
                 sourcePlayer: owner,
-                players,
+                players: playerTargets,
                 trailSpatialIndex,
                 origin: projectile.position,
                 direction: this._tmpVec2,
@@ -205,23 +222,25 @@ export class ProjectileSimulationOps {
                 runtimeProfiler: this.system?.runtimeProfiler || null,
                 targetingTelemetry: this._targetingTelemetry,
                 scratch: this._targetingScratch,
-                canTargetPlayer: (target) => canDamage(owner, target, TEAM_WEAPON_KINDS.ROCKET),
-                excludeTeammates: true,
+                canTargetPlayer: canAcquirePlayer,
+                excludeTeammates: false,
             });
-            if (resolveHuntTargetOwnerPlayer(lineTarget, players)?.decoyActive
-                || !this._isAllowedTurretTarget(projectile, lineTarget, players)) {
+            if (resolveHuntTargetOwnerPlayer(lineTarget, playerTargets)?.decoyActive
+                || !this._isAllowedTurretTarget(projectile, lineTarget, playerTargets)) {
                 lineTarget = null;
             }
         }
 
         let bestConeTarget = null;
+        let bestConeTargetIsPlayer = false;
         let bestConeDistSq = Infinity;
         let bestFallbackTarget = null;
+        let bestFallbackTargetIsPlayer = false;
         let bestFallbackDistSq = Infinity;
-        for (const target of players) {
+        for (const target of playerTargets) {
             if (!target || !target.alive || target === owner || target.decoyActive
                 || !canDamage(owner, target, TEAM_WEAPON_KINDS.ROCKET)
-                || !this._isAllowedTurretTarget(projectile, target, players)) continue;
+                || !this._isAllowedTurretTarget(projectile, target, playerTargets)) continue;
 
             this._tmpVec.subVectors(target.position, projectile.position);
             const distSq = this._tmpVec.lengthSq();
@@ -234,6 +253,7 @@ export class ProjectileSimulationOps {
             if (facingDot >= minDot && distSq < bestConeDistSq) {
                 bestConeDistSq = distSq;
                 bestConeTarget = target;
+                bestConeTargetIsPlayer = true;
             } else if (
                 homingEnabled
                 && facingDot >= fallbackMinDot
@@ -241,11 +261,43 @@ export class ProjectileSimulationOps {
             ) {
                 bestFallbackDistSq = distSq;
                 bestFallbackTarget = target;
+                bestFallbackTargetIsPlayer = true;
+            }
+        }
+        for (const target of targetables) {
+            if (!canAcquireTargetable(projectile, target)) continue;
+
+            this._tmpVec.subVectors(target.position, projectile.position);
+            const distSq = this._tmpVec.lengthSq();
+            if (distSq <= 1 || distSq > maxRangeSq) continue;
+
+            const distance = Math.sqrt(distSq);
+            this._tmpDir.copy(this._tmpVec).multiplyScalar(1 / distance);
+            const facingDot = this._tmpVec2.dot(this._tmpDir);
+
+            if (facingDot >= minDot && distSq < bestConeDistSq) {
+                bestConeDistSq = distSq;
+                bestConeTarget = target;
+                bestConeTargetIsPlayer = false;
+            } else if (
+                homingEnabled
+                && facingDot >= fallbackMinDot
+                && distSq < bestFallbackDistSq
+            ) {
+                bestFallbackDistSq = distSq;
+                bestFallbackTarget = target;
+                bestFallbackTargetIsPlayer = false;
             }
         }
 
         if (lineTarget) {
             if (isPlayerTargetDescriptor(lineTarget)) {
+                if (!bestConeTargetIsPlayer && bestConeTarget) {
+                    const lineDistance = Number(lineTarget.distance);
+                    if (!Number.isFinite(lineDistance) || bestConeDistSq < lineDistance * lineDistance) {
+                        return bestConeTarget;
+                    }
+                }
                 return lineTarget;
             }
             if (isTrailTargetDescriptor(lineTarget)) {
@@ -255,7 +307,9 @@ export class ProjectileSimulationOps {
                         ? lineTarget.distance
                         : Infinity;
                     if (!(trailDist < playerDist * rocketRuntime.homingTrailPriorityRatio)) {
-                        return createPlayerTargetDescriptor(bestConeTarget, playerDist);
+                        return bestConeTargetIsPlayer
+                            ? createPlayerTargetDescriptor(bestConeTarget, playerDist)
+                            : bestConeTarget;
                     }
                 }
                 return lineTarget;
@@ -264,12 +318,14 @@ export class ProjectileSimulationOps {
         }
 
         if (bestConeTarget) {
-            return homingEnabled
+            return homingEnabled && bestConeTargetIsPlayer
                 ? createPlayerTargetDescriptor(bestConeTarget, Math.sqrt(bestConeDistSq))
                 : bestConeTarget;
         }
         if (homingEnabled && bestFallbackTarget) {
-            return createPlayerTargetDescriptor(bestFallbackTarget, Math.sqrt(bestFallbackDistSq));
+            return bestFallbackTargetIsPlayer
+                ? createPlayerTargetDescriptor(bestFallbackTarget, Math.sqrt(bestFallbackDistSq))
+                : bestFallbackTarget;
         }
         return null;
     }

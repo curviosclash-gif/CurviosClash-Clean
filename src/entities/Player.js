@@ -104,7 +104,7 @@ export class Player {
         this.wallDamageCooldown = 0;
         this.crashDamageCooldown = 0;
         this.planarAimOffset = 0;
-        this.fightAimAssistTargetIndex = -1;
+        this.fightAimAssistTargetIndex = -1; this.fightAimAssistTarget = null;
         this.fightAimAssistLockRemaining = 0;
         this.steeringLockTimer = 0;
         this.currentPlanarY = 0;
@@ -205,7 +205,7 @@ export class Player {
         this.wallDamageCooldown = 0;
         this.crashDamageCooldown = 0;
         this.planarAimOffset = 0;
-        this.fightAimAssistTargetIndex = -1;
+        this.fightAimAssistTargetIndex = -1; this.fightAimAssistTarget = null;
         this.fightAimAssistLockRemaining = 0;
         this.steeringLockTimer = 0;
         this.itemUseCooldownRemaining = 0;

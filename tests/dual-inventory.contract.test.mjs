@@ -31,7 +31,7 @@ function createProjectilePlayer() {
     };
 }
 
-function createProjectileSystem() {
+function createProjectileSystem(rocketTarget = null) {
     const itemTarget = { index: 1, alive: true, position: new THREE.Vector3(0, 0, -40) };
     const system = new ProjectileSystem({
         entityRuntimeConfig: CONFIG,
@@ -48,7 +48,7 @@ function createProjectileSystem() {
         }),
         peekInventoryItem: (player, index) => ({ ok: true, type: player.inventory[index], meta: { index } }),
         takeInventoryItem: (player, index) => ({ ok: true, type: player.inventory.splice(index, 1)[0] }),
-        resolveLockOn: (_player, profile) => (profile === 'item' ? itemTarget : null),
+        resolveLockOn: (_player, profile) => (profile === 'item' ? itemTarget : rocketTarget),
     });
     system._acquireProjectileMesh = () => new THREE.Group();
     system._rocketTrailSystem.initializeProjectile = () => {};
@@ -109,6 +109,23 @@ test('failed rocket projectile creation leaves the FIFO queue untouched', () => 
     assert.throws(() => system.shootItemProjectile(player, -1, true), /mesh pool unavailable/);
     assert.deepEqual(player.rocketInventory, ['ROCKET_WEAK', 'ROCKET_HEAVY']);
     assert.equal(system.projectiles.length, 0);
+});
+
+test('a fired rocket keeps the acquired map target for homing', () => {
+    const tank = {
+        id: 'tank',
+        destructible: true,
+        alive: true,
+        hp: 150,
+        position: new THREE.Vector3(0, 0, -40),
+    };
+    const player = createProjectilePlayer();
+    const system = createProjectileSystem(tank);
+
+    const result = system.shootItemProjectile(player, -1, true);
+
+    assert.equal(result.ok, true);
+    assert.equal(system.projectiles[0].target, tank);
 });
 
 test('action availability keeps selected item use while exposing the next queued rocket shot', () => {
