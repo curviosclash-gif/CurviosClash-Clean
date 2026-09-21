@@ -299,7 +299,7 @@ export function handleLevel3ResetAction(ctx) {
             SETTINGS_CHANGE_KEYS.VEHICLES_PLAYER_2,
         ],
     });
-    game._showStatusToast('Auswahl zurückgesetzt', 1200, 'info');
+    game._showStatusToast('Karte und Flugzeug zurückgesetzt', 1200, 'info');
 }
 
 export function handleLevel4OpenAction(ctx) {

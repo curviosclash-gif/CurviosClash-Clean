@@ -179,7 +179,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level3.matchfields.hint': 'Wähle die wichtigsten Regeln. Weitere Details findest du unter Erweitert.',
     'menu.level3.start.label': 'Spiel starten',
     'menu.level3.open_level4.label': 'Einstellungen',
-    'menu.level3.reset.label': 'Zurücksetzen',
+    'menu.level3.reset.label': 'Karte & Flugzeug zurücksetzen',
     'menu.level4.title': 'Einstellungen',
     'menu.level4.reset.label': 'Spiel-, Grafik- & Aufnahmeoptionen zurücksetzen',
     'menu.level4.close.label': 'Schließen',
