@@ -77,6 +77,7 @@
     "bot:improve:team:auto": "node dev/training/scripts/team-objective-improvement-runner.mjs",
     "bot:improve:team:status": "node dev/training/scripts/team-objective-improvement-loop.mjs --status",
     "bot:improve:team:verify": "node dev/training/scripts/team-objective-improvement-loop.mjs --verify",
+    "bot:improve:team:audit": "node dev/training/scripts/team-objective-improvement-loop.mjs --audit",
     "benchmark:baseline": "node dev/training/scripts/bot-benchmark-baseline.mjs",
     "benchmark:lifecycle": "node scripts/perf-lifecycle-measure.mjs",
     "benchmark:jitter": "node scripts/perf-jitter-matrix.mjs",

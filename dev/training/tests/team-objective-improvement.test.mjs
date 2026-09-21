@@ -10,6 +10,7 @@ import {
     advanceTeamObjectiveSearchState,
     clampTeamObjectiveProfile,
     createInitialTeamObjectiveState,
+    TEAM_OBJECTIVE_AUDIT_SEEDS,
     TEAM_OBJECTIVE_HOLDOUT_SEEDS,
     TEAM_OBJECTIVE_STATE_PATH,
     TEAM_OBJECTIVE_TRAINING_SEEDS,
@@ -89,6 +90,10 @@ test('team objective search uses bounded fields, disjoint seeds, and temp state'
         TEAM_OBJECTIVE_TRAINING_SEEDS.some((seed) => TEAM_OBJECTIVE_HOLDOUT_SEEDS.includes(seed)),
         false
     );
+    assert.equal(TEAM_OBJECTIVE_AUDIT_SEEDS.length, 3);
+    assert.equal(TEAM_OBJECTIVE_AUDIT_SEEDS.some((seed) => (
+        TEAM_OBJECTIVE_TRAINING_SEEDS.includes(seed) || TEAM_OBJECTIVE_HOLDOUT_SEEDS.includes(seed)
+    )), false);
     const clamped = clampTeamObjectiveProfile(Object.fromEntries(
         TEAM_OBJECTIVE_TUNABLE_FIELDS.map((field) => [field, HEURISTIC_PROFILE_FIELD_BOUNDS[field][1] + 10])
     ));

@@ -22,6 +22,7 @@ npm run bot:improve:team
 npm run bot:improve:team:auto
 npm run bot:improve:team:status
 npm run bot:improve:team:verify
+npm run bot:improve:team:audit
 npm run benchmark:baseline
 ```
 
@@ -43,8 +44,11 @@ Der Zustand liegt standardmaessig als
 Betriebssystems; `TEAM_OBJECTIVE_LOOP_STATE_PATH` kann einen anderen externen Pfad
 setzen. `bot:improve:team:auto` wiederholt die begrenzten Schritte seriell bis zum
 Plateau oder bis zum Iterations-/Zeitlimit. `bot:improve:team:status` zeigt den
-Kandidaten, `bot:improve:team:verify` vergleicht ihn erneut mit dem aktuellen
-Produktprofil. Keiner der Befehle veraendert Produktionswerte oder schreibt
+Kandidaten, `bot:improve:team:verify` vergleicht ihn erneut auf den bereits fuer
+die Auswahl verwendeten Holdout-Seeds mit dem Produktprofil. Nach Abschluss der
+Suche prueft `bot:improve:team:audit` ihn auf drei bis dahin unberuehrten Seeds;
+dieser Audit darf nicht zur weiteren Kandidatenauswahl verwendet werden. Keiner
+der Befehle veraendert Produktionswerte oder schreibt
 Trainingsartefakte ins Repository; eine Promotion bleibt eine bewusste Codeaenderung
 mit anschliessendem `bot:validate:team`-Gate.
 
