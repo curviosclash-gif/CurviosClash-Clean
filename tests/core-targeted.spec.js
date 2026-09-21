@@ -429,7 +429,7 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
             return { badges, facts };
         });
 
-        expect(previewState.badges).toEqual(expect.arrayContaining(['GLB+FALLBACK', '3 Ebenen']));
+        expect(previewState.badges).toEqual(expect.arrayContaining(['3D-Modell (mit Ersatzdarstellung)', '3 Ebenen']));
         expect(resolveMapPreview('showcase_nexus')).toMatchObject({
             glbSourceKind: 'embedded',
             glbColliderMode: 'fallbackOnly',

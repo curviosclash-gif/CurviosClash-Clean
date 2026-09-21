@@ -1,5 +1,6 @@
 import { createVehicleManagerPreview3d } from '../arcade/vehicle-manager/VehicleManagerPreview3d.js';
 import { resolveVehicleManagerCatalogEntry } from '../arcade/VehicleManagerCatalog.js';
+import { HITBOX_LABELS } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { HANGAR_SELECTION_PLAYER_SLOTS } from '../hangar/HangarSelectionWritebackContract.js';
 import { MENU_SESSION_TYPES } from '../menu/MenuStateContracts.js';
 import { bindChoiceStripKeys } from './ChoiceStripKeys.js';
@@ -166,7 +167,9 @@ export function createStartSetupVehiclePicker3d({ ui, listen } = {}) {
         if (ui.vehiclePickerCategory) {
             ui.vehiclePickerCategory.textContent = CATEGORY_LABELS[entry.kategorie] || entry.kategorie;
         }
-        if (ui.vehiclePickerHitbox) ui.vehiclePickerHitbox.textContent = `Hitbox ${entry.hitboxKlasse}`;
+        if (ui.vehiclePickerHitbox) {
+            ui.vehiclePickerHitbox.textContent = `Trefferzone: ${HITBOX_LABELS[entry.hitboxKlasse] || entry.hitboxKlasse}`;
+        }
         updateStat(ui.vehiclePickerArmorStat, ui.vehiclePickerArmorValue, stats.armor);
         updateStat(ui.vehiclePickerAgilityStat, ui.vehiclePickerAgilityValue, stats.agility);
         updateStat(ui.vehiclePickerControlStat, ui.vehiclePickerControlValue, stats.control);

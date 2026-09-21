@@ -348,7 +348,7 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
                 controls.target.set(0, controlsTargetY, 0);
                 controls.update(0);
             }
-            setStatus('ready', '3D-Ansicht bereit');
+            setStatus('ready', 'Vorschau geladen');
         } catch {
             vehicleNode = null;
             setStatus('fallback', '3D-Ansicht nicht verfügbar. Auswahl bleibt bedienbar.');

@@ -3117,6 +3117,8 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
             previewStatus: document.getElementById('start-vehicle-preview-mount')?.dataset?.previewStatus || '',
             previewGrid: document.getElementById('start-vehicle-preview-mount')?.dataset?.previewGrid || '',
             previewMotion: document.getElementById('start-vehicle-preview-mount')?.dataset?.previewMotion || '',
+            hitboxText: document.getElementById('start-vehicle-hitbox')?.textContent || '',
+            previewStatusText: document.querySelector('#start-vehicle-preview-mount .arcade-vehicle-preview-status')?.textContent || '',
         }));
 
         expect(previewState.mapBadges).toBeGreaterThanOrEqual(2);
@@ -3131,6 +3133,8 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(['ready', 'fallback']).toContain(previewState.previewStatus);
         expect(previewState.previewGrid).toBe('hangar');
         expect(previewState.previewMotion).toBe(previewState.previewStatus === 'ready' ? 'idle-spin' : '');
+        expect(previewState.hitboxText).toMatch(/^Trefferzone: (Kompakt|Standard|Schwer)$/);
+        if (previewState.previewStatus === 'ready') expect(previewState.previewStatusText).toBe('Vorschau geladen');
 
         if (previewState.previewStatus === 'ready') {
             const previewMount = page.locator('#start-vehicle-preview-mount');

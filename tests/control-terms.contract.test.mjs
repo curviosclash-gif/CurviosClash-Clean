@@ -33,6 +33,7 @@ test('key names are German', () => {
     assert.equal(formatKeyCode('NumpadDivide'), 'Num /');
     assert.equal(formatKeyCode('KeyW'), 'W');
     assert.equal(formatKeyCode('Numpad8'), 'Num 8');
+    assert.equal(formatKeyCode('Quote'), 'Apostroph');
 });
 
 test('the key editor asks each player for the invert setting before labelling pitch', () => {

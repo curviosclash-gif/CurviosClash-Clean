@@ -30,6 +30,12 @@ function resolveModeLabel(modePath) {
     return 'Klassisch';
 }
 
+export function formatMapRenderMode(renderMode) {
+    if (renderMode === 'GLB+FALLBACK') return '3D-Modell (mit Ersatzdarstellung)';
+    if (renderMode === 'GLB') return '3D-Modell';
+    return 'Standardgeometrie';
+}
+
 export function formatMenuRulesSummary(settings, modePath) {
     if (modePath === 'arcade') {
         const sectors = settings?.arcade?.sectorCount;
@@ -199,7 +205,7 @@ function renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePrevie
         renderPreviewCard(ui.mapPreview, {
             title: mapPreview.name,
             badges: [
-                mapPreview.renderMode,
+                formatMapRenderMode(mapPreview.renderMode),
                 mapPreview.hasParcours ? 'Parcours' : null,
                 humanizePreviewCategory(mapPreview.category),
                 mapPreview.portalLevelCount > 1 ? `${mapPreview.portalLevelCount} Ebenen` : mapPreview.sizeText,

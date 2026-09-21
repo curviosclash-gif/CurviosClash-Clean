@@ -2,9 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+    formatMapRenderMode,
     formatMenuRulesSummary,
     renderStartSetupSummaryAndPreview,
 } from '../src/ui/start-setup/StartSetupMultiplayerUiSync.js';
+
+test('map preview badges describe renderer modes without internal codes', () => {
+    assert.equal(formatMapRenderMode('GLB+FALLBACK'), '3D-Modell (mit Ersatzdarstellung)');
+    assert.equal(formatMapRenderMode('GLB'), '3D-Modell');
+    assert.equal(formatMapRenderMode('BOX'), 'Standardgeometrie');
+});
 
 function element() {
     const node = {

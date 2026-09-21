@@ -47,6 +47,7 @@ test('StaticTurretSystem fires authored MG and rocket emplacements only in Hunt'
     const system = new StaticTurretSystem(manager);
 
     assert.equal(system.startRound(), 2);
+    assert.deepEqual(system.turrets.map((entry) => entry.source.combatLabel), ['MG-Geschütz', 'Raketenwerfer']);
     system.update(0.25);
 
     assert.equal(target.hp, 95);

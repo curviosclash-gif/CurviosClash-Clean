@@ -28,6 +28,7 @@ const NAMED_KEY_CODES = Object.freeze({
     NumpadAdd: 'Num +',
     NumpadEnter: 'Num Eingabe',
     NumpadDecimal: 'Num ,',
+    Quote: 'Apostroph',
 });
 
 const SHORT_KEY_CODES = Object.freeze({
