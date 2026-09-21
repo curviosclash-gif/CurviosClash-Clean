@@ -3074,6 +3074,31 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(layout.firstGroupY).toBeLessThan(1080);
     });
 
+    test('T20z2d: Match-Vorbereitung nutzt große Fenster ohne horizontalen Überlauf', async ({ page }) => {
+        await loadGame(page);
+        await openGameSubmenu(page);
+        for (const width of [1280, 1600, 1920, 2560]) {
+            await page.setViewportSize({ width, height: 1080 });
+            const layout = await page.evaluate(() => {
+                const menu = document.querySelector('#main-menu .menu-content');
+                const rows = [...document.querySelectorAll('#start-map-choice-strip .start-map-choice-group-row')];
+                return {
+                    panelWidth: menu.getBoundingClientRect().width,
+                    panelOverflow: menu.scrollWidth - menu.clientWidth,
+                    pageOverflow: document.documentElement.scrollWidth - innerWidth,
+                    rowOverflows: rows.map((row) => row.scrollWidth - row.clientWidth),
+                };
+            });
+            if (width < 1440) expect(layout.panelWidth).toBeLessThanOrEqual(1300);
+            if (width === 1600) expect(layout.panelWidth).toBeGreaterThan(1400);
+            if (width === 1920) expect(layout.panelWidth).toBeGreaterThan(1700);
+            if (width === 2560) expect(layout.panelWidth).toBeLessThanOrEqual(1820);
+            expect(layout.panelOverflow).toBeLessThanOrEqual(1);
+            expect(layout.pageOverflow).toBeLessThanOrEqual(1);
+            if (width >= 1440) expect(layout.rowOverflows.every((overflow) => overflow <= 1)).toBe(true);
+        }
+    });
+
     test('T20z: Map-Vorschau und Fahrzeug-Mini-Hangar rendern ihre Auswahl strukturiert', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
