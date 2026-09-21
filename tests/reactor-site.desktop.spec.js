@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { expect, test } from './helpers.desktop.js';
 import { selectSessionType, waitForLoadedGame } from './helpers.js';
 import { REACTOR_SITE_MODELS } from '../src/core/config/maps/presets/reactor_site/ReactorSiteModels.js';
-import { REACTOR_SITE_PROP_MODELS } from '../src/core/config/maps/presets/reactor_site/ReactorSiteProps.js';
+import { REACTOR_SITE_FUNGUS_MODELS, REACTOR_SITE_PROP_MODELS } from '../src/core/config/maps/presets/reactor_site/ReactorSiteProps.js';
 
 // The reactor site is the second map a match can take apart, and the first with an event that
 // rises instead of falling. Five questions only the running app answers:
@@ -34,7 +34,7 @@ const TOWER_AXIS_X = -63;   // ReactorSiteStructure.TOWER_X, authored
 const BAKED_FALL_HEADING = Math.PI / 2;
 // The product contract owns the count: six parts and five scenes plus the curated static props.
 // No infrastructure animates, so the only tracks remain the five one-shot clips.
-const GLB_MODEL_COUNT = REACTOR_SITE_MODELS.length + REACTOR_SITE_PROP_MODELS.length;
+const GLB_MODEL_COUNT = REACTOR_SITE_MODELS.length + REACTOR_SITE_PROP_MODELS.length + REACTOR_SITE_FUNGUS_MODELS.length;
 const GLB_TRACK_COUNT = 5;
 const SEGMENT_COUNT = 5;
 const BREAK_SCENE_MODELS = [

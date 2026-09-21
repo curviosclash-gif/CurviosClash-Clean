@@ -52,9 +52,12 @@ What comes down
                     outwards on what is left; the roof they carried comes down between them onto
                     the turbine sets. Five pieces: the roof, the two long walls, the two gables.
                     The slot is never turned - every wall falls to its own side.
-  30_mushroom_cloud the reactor breach. Not a fall: a fireball, a stem, a cap and a base surge
-                    keyed from curves, above the containment's broken lower half. Nothing in the
-                    cloud collides (every cloud mesh is `_nocol`); the ruin does.
+  30_mushroom_cloud the reactor breach. Not a fall: a fireball, a stem with offset streams beside
+                    it, a cap with a rolled rim and lopsided masses on it, a base surge and a dust
+                    front running out ahead of it, all keyed from curves above the containment's
+                    broken lower half. Nothing in the cloud collides (every cloud mesh is `_nocol`);
+                    the ruin does. The fireball is the one part of it that is dangerous, and only
+                    while it is drawn - see FIREBALL_CURVE.
 
 Sixteen pieces in all - four per tower, two for the stack, five for the hall, one for the
 reactor - which is exactly what MapDestructibleContract allows a map.
@@ -69,8 +72,20 @@ eye: the cap climbs with the square root of time, the way a buoyant thermal slow
 the radii approach their final size exponentially, and the fireball that starts it all is gone
 inside the cap after four seconds. glTF cannot fade a material, so the cloud ends held in its
 final pose rather than dissolving.
+
+What the cloud has to look like from a cockpit is rising, rolling smoke, and glTF can only move,
+scale and turn whole nodes - it cannot simulate anything. So the rolling is built rather than
+simulated: every body is a handful of unequal masses instead of one smooth surface, the parts set
+out at eight different seconds and approach their sizes on different time constants, and the ones
+that turn do so at different rates with the cap's rolled rim turning against the cap itself. What
+a player sees is two lumpy silhouettes sliding past each other while both grow - which is as close
+to the toroidal circulation of the real thing (Glasstone & Dolan 1977, ch. II) as keyframes get.
+The proportions come from the same place: the stem is about a fifth of the cap's width, the cap
+grows sideways after it stops climbing, and the ground dust is drawn up by the afterwinds rather
+than thrown out as a ring.
 """
 
+import json
 import sys
 from math import atan2, cos, degrees, exp, hypot, pi, radians, sin, sqrt
 from pathlib import Path
@@ -145,9 +160,9 @@ et.MATERIAL_COLORS.update({
     # The cloud materials are deliberately dark with no emission except the fireball, and that
     # one stays under 2: brighter than that and the tone mapping of the sky dome tears at the
     # horizon (see the illumination notes on the Notre-Dame fire).
-    CLOUD: ((0.17, 0.15, 0.14, 1.0), 0.0, 0.0),
-    CLOUD_DARK: ((0.09, 0.08, 0.08, 1.0), 0.0, 0.0),
-    DUST: ((0.28, 0.25, 0.20, 1.0), 0.0, 0.0),
+    CLOUD: ((0.46, 0.43, 0.39, 1.0), 0.0, 0.0),
+    CLOUD_DARK: ((0.25, 0.23, 0.21, 1.0), 0.0, 0.0),
+    DUST: ((0.40, 0.34, 0.26, 1.0), 0.0, 0.0),
     FIREBALL: ((0.55, 0.18, 0.04, 1.0), 1.7, 0.0),
 })
 et.MATERIAL_GRAIN.update({
@@ -225,19 +240,59 @@ HALL_CROWN_BAND = 2.0
 CLOUD_SECONDS = 48.0            # the keyed part of the clip
 CLOUD_HOLD_SECONDS = 1.0        # held at the end, so a clip never ends on a moving frame
 CLOUD_CAP_TOP = 300.0           # where the cap has climbed to by the end, in metres
+CLOUD_CAP_BIRTH_RADIUS = 52.0   # just inside the fireball at CAP_START_SECONDS, so the cap grows
+                                # out of it rather than appearing beside it
 CLOUD_CAP_RADIUS = 115.0
-CLOUD_STEM_RADIUS = 24.0
-CLOUD_RING_RADIUS = 190.0
-FIREBALL_RADIUS = 62.0
+CLOUD_RIM_RATIO = 0.94          # the rolled rim sits just inside the cap's own radius
+CLOUD_BLOOM_RATIO = 0.72        # the late, lopsided masses reach this much of the cap
+CLOUD_STEM_RADIUS = 24.0        # a fifth of the cap: the proportion Glasstone reports
+CLOUD_PLUME_RADIUS = 34.0       # the offset streams stand wider than the stem they flank
+CLOUD_RING_RADIUS = 168.0
+CLOUD_FRONT_RADIUS = 204.0      # the dust front runs out just past the surge and breaks its edge
+# Where the offset streams end: short of the cap's underside, which only the stem reaches.
+PLUME_TOP = 0.86 * (CLOUD_CAP_TOP - 0.80 * CLOUD_CAP_RADIUS)
 FIREBALL_PEAK_SECONDS = 1.4     # the fireball is fully grown here...
 FIREBALL_GONE_SECONDS = 4.4     # ...and has shrunk to nothing inside the cap here
 CAP_START_SECONDS = 0.9         # the cap takes over from the fireball
 CAP_RISE_SECONDS = 40.0         # the cap has reached CLOUD_CAP_TOP by here
+RIM_START_SECONDS = 1.2         # the toroid rolls out of the cap shortly after it forms
+BLOOM_START_SECONDS = 2.6       # the lopsided masses boil up last, so the cap keeps changing
+PLUME_START_SECONDS = 0.5       # the afterwinds set out before the stem is drawn
 RING_START_SECONDS = 0.3        # the base surge sets out
+FRONT_START_SECONDS = 0.6       # the dust front follows it
 RUIN_SLUMP_START = 0.2
 RUIN_SLUMP_END = 2.6
 RUIN_SLUMP_SCALE = 0.62         # the containment's broken half settles to this height
 TINY_SCALE = 0.001              # a part that is not there yet; zero would make its matrix singular
+
+# How fast each turning part of the cloud comes round, in full turns over CLOUD_SECONDS. The cap
+# and its rim turn against each other, which is what makes the rolled edge read as rolling rather
+# than as a ring that merely grows; the dust keeps its own, slower pace.
+CLOUD_TURNS = {"cap": 0.22, "rim": -0.55, "bloom": 0.34, "plume": -0.40, "front": 0.16}
+
+# Shared authored samples (seconds, height, radius), consumed by Blender and the map preset.
+FIREBALL_CURVE_PATH = Path(__file__).resolve().parents[1] / (
+    "src/core/config/maps/presets/reactor_site/ReactorFireballCurve.json")
+FIREBALL_CURVE = tuple(tuple(row) for row in json.loads(FIREBALL_CURVE_PATH.read_text(encoding="utf-8")))
+FIREBALL_RADIUS = max(radius for _t, _height, radius in FIREBALL_CURVE)
+
+
+def fireball_at(t):
+    """(centre height, radius) in metres at `t` seconds, linearly between the authored rows.
+
+    Before the first row and after the last there is no fireball: the breach has not happened, or
+    the cap has closed over it. The runtime samples the same authored data.
+    """
+    if t <= FIREBALL_CURVE[0][0]:
+        return FIREBALL_CURVE[0][1], FIREBALL_CURVE[0][2]
+    if t >= FIREBALL_CURVE[-1][0]:
+        return FIREBALL_CURVE[-1][1], 0.0
+    for (low_t, low_h, low_r), (high_t, high_h, high_r) in zip(FIREBALL_CURVE, FIREBALL_CURVE[1:]):
+        if t <= high_t:
+            span = high_t - low_t
+            ratio = 0.0 if span <= 0.0 else (t - low_t) / span
+            return low_h + (high_h - low_h) * ratio, low_r + (high_r - low_r) * ratio
+    return FIREBALL_CURVE[-1][1], 0.0
 
 # --- Collapse physics -------------------------------------------------------------------------------
 SIM_MAX_SECONDS = 40.0
@@ -1390,18 +1445,28 @@ def ease_out(t, tau):
     return 1.0 - exp(-max(0.0, t) / tau)
 
 
+def turn(name, t):
+    """Yaw of one turning part of the cloud at `t`, in radians.
+
+    Every part turns at its own steady rate and the rim turns against the cap. From a cockpit the
+    absolute angle means nothing; what reads is that two lumpy silhouettes slide past each other,
+    which is the only way a keyed mesh can show the rolling circulation the real thing has.
+    """
+    return 2.0 * pi * CLOUD_TURNS[name] * t / CLOUD_SECONDS
+
+
 def cloud_pose(t):
     """Every keyed value of the cloud at one second of the clip.
 
-    Returns a dict of rig name -> (location, scale). The unit meshes are built at radius one, so a
-    scale is a radius in metres. Before a part appears it is keyed at TINY_SCALE on the axis, so
-    frame 1 - the rest pose the loader measures the scene by - is the ruin and nothing else.
+    Returns a dict of rig name -> (location, scale, yaw). The unit meshes are built at radius one,
+    so a scale is a radius in metres. Before a part appears it is keyed at TINY_SCALE on the axis,
+    so frame 1 - the rest pose the loader measures the scene by - is the ruin and nothing else.
+
+    The parts start at different seconds and approach their sizes on different time constants, so
+    the silhouette keeps changing long after everything is on screen: fireball, base surge, dust
+    front, stem, cap, rolled rim, and last the lopsided masses that boil on the cap.
     """
-    fireball = FIREBALL_RADIUS * ease_out(t, FIREBALL_PEAK_SECONDS / 3.0)
-    if t > FIREBALL_PEAK_SECONDS:
-        fireball = FIREBALL_RADIUS * max(0.0, 1.0 - (t - FIREBALL_PEAK_SECONDS)
-                                         / (FIREBALL_GONE_SECONDS - FIREBALL_PEAK_SECONDS))
-    fireball_height = 18.0 + 22.0 * min(t, FIREBALL_GONE_SECONDS)
+    fireball_height, fireball = fireball_at(t)
 
     cap_t = t - CAP_START_SECONDS
     if cap_t < 0.0:
@@ -1410,15 +1475,50 @@ def cloud_pose(t):
         # The cap emerges at the fireball's size and swells towards its final radius; its centre
         # climbs with the square root of time, the way a buoyant thermal slows as it rises, and
         # stops at its ceiling. The stem is drawn from the ground up to a quarter radius into it.
-        cap_radius = 40.0 + (CLOUD_CAP_RADIUS - 40.0) * ease_out(cap_t, 11.0)
+        cap_radius = (CLOUD_CAP_BIRTH_RADIUS
+                      + (CLOUD_CAP_RADIUS - CLOUD_CAP_BIRTH_RADIUS) * ease_out(cap_t, 11.0))
         climb = min(1.0, cap_t / CAP_RISE_SECONDS)
         cap_centre = 40.0 + (CLOUD_CAP_TOP - 0.55 * CLOUD_CAP_RADIUS - 40.0) * sqrt(climb)
         stem_radius = 4.0 + (CLOUD_STEM_RADIUS - 4.0) * ease_out(cap_t, 7.0)
         stem_top = max(1.0, cap_centre - 0.25 * cap_radius)
 
+    # The rolled rim: it rolls out of the cap on a much shorter time constant than the cap itself
+    # swells, so the edge runs ahead of the body early and the body catches it up later. It hangs
+    # a tenth of the cap's radius below the cap's centre, where the toroid draws its air in.
+    rim_t = t - RIM_START_SECONDS
+    rim_radius = 0.0 if rim_t < 0.0 else (
+        CLOUD_RIM_RATIO * (34.0 + (CLOUD_CAP_RADIUS - 34.0) * ease_out(rim_t, 6.5)))
+    rim_centre = cap_centre - 0.10 * max(cap_radius, rim_radius)
+
+    # The masses that boil up on the cap, late and slowly: they are what stops the cap from being
+    # a smooth dome for the rest of the clip.
+    bloom_t = t - BLOOM_START_SECONDS
+    bloom_radius = 0.0 if bloom_t < 0.0 else (
+        CLOUD_BLOOM_RATIO * (26.0 + (CLOUD_CAP_RADIUS - 26.0) * ease_out(bloom_t, 16.0)))
+    bloom_centre = cap_centre + 0.16 * cap_radius
+
+    # The afterwinds: offset streams that set out before the stem is drawn and stand wider than it.
+    # The columns under this rig are of different lengths, so one scale lifts them to different
+    # heights and they never rise as one body.
+    plume_t = t - PLUME_START_SECONDS
+    plume_radius = 0.0 if plume_t < 0.0 else 6.0 + (CLOUD_PLUME_RADIUS - 6.0) * ease_out(plume_t, 9.0)
+    # The streams climb on the cap's own square root of time but stop short of it, so the stem
+    # stays the one thing that reaches the underside.
+    plume_climb = sqrt(min(1.0, max(0.0, plume_t) / CAP_RISE_SECONDS))
+    plume_top = 0.0 if plume_t < 0.0 else 6.0 + (PLUME_TOP - 6.0) * plume_climb
+
+    # The base surge: wide and low, but not a pancake. Its height is a sixth of its reach, which is
+    # about what surface-burst footage shows and enough that it takes light like a body rather than
+    # painting a shadow on the apron.
     ring_t = t - RING_START_SECONDS
     ring_radius = 0.0 if ring_t < 0.0 else 20.0 + (CLOUD_RING_RADIUS - 20.0) * ease_out(ring_t, 13.0)
-    ring_height = 4.0 + 9.0 * ease_out(ring_t, 9.0)
+    ring_height = 8.0 + 26.0 * ease_out(max(0.0, ring_t), 9.0)
+
+    # The dust front runs out ahead of the surge on a shorter time constant and stays lower, so from
+    # the air the ground reads as a ragged edge advancing rather than a disc appearing.
+    front_t = t - FRONT_START_SECONDS
+    front_radius = 0.0 if front_t < 0.0 else 26.0 + (CLOUD_FRONT_RADIUS - 26.0) * ease_out(front_t, 9.0)
+    front_height = 6.0 + 20.0 * ease_out(max(0.0, front_t), 7.0)
 
     slump = 1.0
     if t > RUIN_SLUMP_START:
@@ -1428,14 +1528,21 @@ def cloud_pose(t):
     def radius_scale(value):
         return max(TINY_SCALE, value)
 
+    def disc(radius, height):
+        """A part that is as flat as it is wide: nothing at all until its radius is there."""
+        return (radius_scale(radius), radius_scale(radius),
+                radius_scale(height if radius > 0.0 else 0.0))
+
     return {
-        "fire": ((0.0, 0.0, fireball_height), (radius_scale(fireball),) * 3),
-        "cap": ((0.0, 0.0, cap_centre), (radius_scale(cap_radius),) * 3),
-        "stem": ((0.0, 0.0, 0.0), (radius_scale(stem_radius), radius_scale(stem_radius),
-                                   radius_scale(stem_top if stem_radius > 0.0 else 0.0))),
-        "ring": ((0.0, 0.0, ring_height), (radius_scale(ring_radius), radius_scale(ring_radius),
-                                            radius_scale(ring_height if ring_radius > 0.0 else 0.0))),
-        "ruin": ((0.0, 0.0, 0.0), (1.0, 1.0, slump)),
+        "fire": ((0.0, 0.0, fireball_height), (radius_scale(fireball),) * 3, 0.0),
+        "cap": ((0.0, 0.0, cap_centre), (radius_scale(cap_radius),) * 3, turn("cap", t)),
+        "roll": ((0.0, 0.0, rim_centre), (radius_scale(rim_radius),) * 3, turn("rim", t)),
+        "bloom": ((0.0, 0.0, bloom_centre), (radius_scale(bloom_radius),) * 3, turn("bloom", t)),
+        "stem": ((0.0, 0.0, 0.0), disc(stem_radius, stem_top), 0.0),
+        "plume": ((0.0, 0.0, 0.0), disc(plume_radius, plume_top), turn("plume", t)),
+        "ring": ((0.0, 0.0, 0.0), disc(ring_radius, ring_height), 0.0),
+        "front": ((0.0, 0.0, 0.0), disc(front_radius, front_height), turn("front", t)),
+        "ruin": ((0.0, 0.0, 0.0), (1.0, 1.0, slump), 0.0),
     }
 
 
@@ -1485,8 +1592,141 @@ def build_ruin(canvas):
         canvas.box(SCORCHED, (0, wing_y + sign * (wy / 2 - 0.7), 5.5), (wx - 2, 1.4, 9.0))
 
 
+def blob(canvas, material, center, size, squash=0.85, steps=6, segments=12):
+    """One smoke mass: a squashed sphere of `size` at `center`, in the rig's own unit frame.
+
+    Smoke reads by how ragged the outline of the whole body is, not by how round each mass is, so
+    these are deliberately coarse and there are many of them - the 8000 triangles a scene may spend
+    buy far more silhouette as thirty rough masses than as three smooth ones. Always decorative:
+    nothing in the cloud collides.
+    """
+    verts, faces = revolve_geometry(spheroid_profile(size, size * squash, size * squash * 0.9,
+                                                    steps=steps), segments)
+    phase = 2 * pi * et.hash01(*center)
+    for index, (x, y, z) in enumerate(verts):
+        angle = atan2(y, x)
+        ripple = 1 + 0.14 * sin(3 * angle + phase + z / size) + 0.07 * sin(7 * angle - phase)
+        verts[index] = (x * ripple, y * ripple, z)
+    canvas._add(material, True, verts, faces, Matrix.Translation(Vector(center)), smooth=True)
+
+
+def dust_mound(canvas, center, radius, height, segments=12):
+    """A closed uneven heap with a flat foot: dust cannot float above its ground source."""
+    profile = [(0, 0), (radius * 0.94, 0), (radius, height * 0.22),
+               (radius * 0.72, height * 0.68), (radius * 0.32, height), (0, height * 0.9)]
+    verts, faces = revolve_geometry(profile, segments)
+    phase = 2 * pi * et.hash01(*center)
+    for index, (x, y, z) in enumerate(verts):
+        ripple = 1 + 0.12 * sin(3 * atan2(y, x) + phase)
+        verts[index] = (x * ripple, y * ripple, z)
+    canvas._add(DUST, True, verts, faces, Matrix.Translation(Vector(center)), smooth=True)
+
+
+def build_cap_body(canvas):
+    """The cap: a squashed dome under a ring of unequal masses, over a wide dark underside.
+
+    The dome is drawn slightly inside the rig's unit radius so the masses stand proud of it: a dome
+    at full radius with bumps on it still reads as a circle, and a circle is what a cloud must never
+    be. The masses differ in reach, size and height and every second one is the dark material, so
+    neither the outline nor the light across it is even. The underside is one wide dark spheroid -
+    that is where the toroid draws its air in, and it is what a player flying under the cloud sees.
+    """
+    revolve(canvas, CLOUD, spheroid_profile(0.90, 0.55, 0.34, steps=10), segments=30, decorative=True)
+    for index in range(9):
+        angle = 2.0 * pi * index / 9 + 0.4
+        reach = 0.52 + 0.30 * et.hash01(index, 1.0, 2.0)
+        size = 0.26 + 0.22 * et.hash01(index, 4.0, 1.0)
+        height = 0.02 + 0.30 * et.hash01(index, 9.0, 3.0)
+        blob(canvas, CLOUD if index % 2 else CLOUD_DARK,
+             (reach * cos(angle), reach * sin(angle), height), size, segments=14)
+    blob(canvas, CLOUD_DARK, (0.0, 0.0, -0.22), 0.66, squash=0.32, steps=8, segments=22)
+
+
+def build_cap_rim(canvas):
+    """The rolled rim, as a ring of masses lying on the cap's own radius.
+
+    A torus would read as a smooth tube. Nine unequal masses at slightly different heights read as
+    smoke that has rolled outwards and downwards, and because the rig turns against the cap the
+    whole ring slides past the masses above it while both keep growing. They are large enough to
+    overlap each other, so the rim is a lumpy band rather than a string of beads.
+    """
+    for index in range(9):
+        angle = 2.0 * pi * index / 9
+        size = 0.30 + 0.16 * et.hash01(index, 5.0, 8.0)
+        height = -0.04 - 0.14 * et.hash01(index, 2.0, 6.0)
+        blob(canvas, CLOUD_DARK, (cos(angle), sin(angle), height), size, squash=0.74)
+
+
+def build_cap_bloom(canvas):
+    """The masses that boil up late, all on one flank, so the cap never settles into a dome."""
+    for index in range(5):
+        angle = 1.1 + 2.4 * et.hash01(index, 3.0, 7.0)
+        reach = 0.42 + 0.50 * et.hash01(index, 6.0, 2.0)
+        size = 0.30 + 0.24 * et.hash01(index, 8.0, 4.0)
+        height = -0.08 + 0.42 * et.hash01(index, 1.0, 9.0)
+        blob(canvas, CLOUD, (reach * cos(angle), reach * sin(angle), height), size)
+
+
+def build_stem_plumes(canvas):
+    """Three offset streams beside the stem, of three different lengths.
+
+    The rig scales them all at once, but because the columns are authored at 0.38 to 0.78 of the
+    rig's unit height they arrive at different altitudes and keep arriving at different rates. Each
+    one is short and thick rather than long and thin - a thin column over a hundred and fifty metres
+    reads as a pipe - and carries three knots of smoke that drift off its axis as they rise. The rig
+    turns as well, so the streams wind around the stem instead of standing beside it.
+    """
+    for index in range(3):
+        angle = 2.0 * pi * index / 3 + 0.7
+        offset = 0.44 + 0.34 * et.hash01(index, 2.0, 3.0)
+        width = 0.26 + 0.18 * et.hash01(index, 7.0, 5.0)
+        top = 0.38 + 0.40 * et.hash01(index, 4.0, 9.0)
+        lean = 0.30 * et.hash01(index, 6.0, 1.0)
+        centre = (offset * cos(angle), offset * sin(angle), 0.0)
+        revolve(canvas, CLOUD_DARK,
+                [(0.0, 0.0), (width, 0.0), (width * 0.72, top * 0.34), (width * 0.94, top * 0.66),
+                 (width * 0.50, top), (0.0, top)],
+                segments=12, closed=False, decorative=True, center=centre)
+        # The knots are authored flat and come out round: this rig is scaled by its radius on X and
+        # Y but by its whole height on Z, five times as much, so a unit sphere under it would be an
+        # egg five times taller than it is wide - and its lower half would sink through the apron
+        # into the bunker below the site.
+        for height, drift, girth in ((top * 0.34, 0.2, 1.05), (top * 0.66, 0.6, 1.25),
+                                     (top, 1.0, 1.45)):
+            reach = offset + lean * drift
+            blob(canvas, CLOUD_DARK, (reach * cos(angle), reach * sin(angle), height),
+                 width * girth, squash=0.20, steps=5, segments=10)
+
+
+def build_dust_front(canvas):
+    """The advancing edge of the ground dust: nine unequal heaps on one ring.
+
+    Uneven on purpose - an even ring reads as a disc that grows, and what a surface burst actually
+    leaves is a ragged front that runs out further in some directions than others. Flat, because
+    anything with height out here would read as a second cloud rather than as ground dust.
+    """
+    # Authored tall for the same reason the stream knots are authored flat: this rig is eight times
+    # wider than it is high, so a heap has to be an egg here to arrive as a mound out there.
+    for index in range(9):
+        angle = 2.0 * pi * index / 9
+        reach = 0.62 + 0.38 * et.hash01(index, 4.0, 2.0)
+        size = 0.16 + 0.20 * et.hash01(index, 1.0, 7.0)
+        dust_mound(canvas, (reach * cos(angle), reach * sin(angle), 0.0), size,
+                   0.45 + 1.8 * size, segments=12)
+
+
 def build_mushroom_cloud(scene, _mats):
-    """The breach: ruin, fireball, stem, cap and base surge, keyed frame by frame from curves."""
+    """The breach: ruin, fireball, stem and plumes, cap with its rolled rim, dust and its front.
+
+    Every part is a unit body under a rig of its own and everything it does over the 49 seconds is
+    keyed on that rig from `cloud_pose`: where it stands, how big it is, and how far it has turned.
+    The fireball alone is keyed off FIREBALL_CURVE, because the runtime reads the same table to
+    decide who the fireball burns - see MapDestructibleHazardContract.js.
+    """
+    for material in (CLOUD, CLOUD_DARK, DUST):
+        shader = et.build_material(material).node_tree.nodes.get("Principled BSDF")
+        shader.inputs["Roughness"].default_value = 1.0
+        shader.inputs["Specular IOR Level"].default_value = 0.0
     root = et.rig("piece_reactor")
     ruin_rig = et.rig("ruin")
     ruin_rig.parent = root
@@ -1495,27 +1735,38 @@ def build_mushroom_cloud(scene, _mats):
     ruin.emit("piece_reactor_ruin", parent=ruin_rig)
 
     rigs = {"ruin": ruin_rig}
+    # The fireball is the one body that fills the screen on its own, for four seconds, so it gets
+    # the roundest outline in the scene: at 62 m a coarse sphere reads as a faceted ball.
     fire = SmoothCanvas()
-    revolve(fire, FIREBALL, spheroid_profile(1.0, 1.0, 0.9, steps=12), segments=32, decorative=True)
-    cap = SmoothCanvas()
-    revolve(cap, CLOUD, spheroid_profile(1.0, 0.55, 0.35, steps=14), segments=48, decorative=True)
-    # Lobes boiling on the cap, and a darker underside where the stem enters it.
-    for index in range(7):
-        angle = 2.0 * pi * index / 7 + 0.4
-        reach = 0.62 + 0.14 * et.hash01(index, 1.0, 2.0)
-        size = 0.30 + 0.12 * et.hash01(index, 4.0, 1.0)
-        revolve(cap, CLOUD if index % 2 else CLOUD_DARK,
-                spheroid_profile(size, size * 0.9, size * 0.8, steps=8), segments=20,
-                center=(reach * cos(angle), reach * sin(angle), 0.18), decorative=True)
-    revolve(cap, CLOUD_DARK, spheroid_profile(0.55, 0.1, 0.3, steps=8), segments=32,
-            center=(0.0, 0.0, -0.22), decorative=True)
+    revolve(fire, FIREBALL, spheroid_profile(1.0, 1.0, 1.0, steps=12), segments=32, decorative=True)
+    cap, roll, bloom = SmoothCanvas(), SmoothCanvas(), SmoothCanvas()
+    build_cap_body(cap)
+    build_cap_rim(roll)
+    build_cap_bloom(bloom)
+    # The stem: not a cylinder. It is drawn in from the ruin, waists at a third of its height where
+    # the draught is fastest, swells again where the cap takes it, and closes on the axis.
     stem = SmoothCanvas()
-    revolve(stem, CLOUD_DARK, [(0.0, 0.0), (1.0, 0.0), (0.92, 0.5), (0.85, 1.0), (0.0, 1.0)],
-            segments=32, closed=False, decorative=True)
+    revolve(stem, CLOUD_DARK,
+            [(0.0, 0.0), (1.0, 0.0), (0.74, 0.22), (0.62, 0.48), (0.78, 0.76), (0.54, 1.0),
+             (0.0, 1.0)],
+            segments=24, closed=False, decorative=True)
+    for verts, _faces, _colors, _smooth in stem.buckets.values():
+        for index, (x, y, z) in enumerate(verts):
+            swell = 1 + 0.22 * sin(z * 15)
+            verts[index] = (x * swell + 0.32 * sin(z * 8),
+                            y * swell + 0.24 * sin(z * 11), z)
+    plume = SmoothCanvas()
+    build_stem_plumes(plume)
+    # The base surge: a broad low mound rather than the ring it used to be. A flat torus lying on
+    # the apron draws two hard concentric circles on the ground, and no amount of dust heaped on its
+    # edge hides them; filling the middle in leaves one edge, and the front breaks that one.
     ring = SmoothCanvas()
-    torus(ring, DUST, (0.0, 0.0, 0.0), 0.82, 0.3, decorative=True)
+    dust_mound(ring, (0.0, 0.0, 0.0), 1.0, 0.75, segments=28)
+    front = SmoothCanvas()
+    build_dust_front(front)
 
-    for name, canvas in (("fire", fire), ("cap", cap), ("stem", stem), ("ring", ring)):
+    for name, canvas in (("fire", fire), ("cap", cap), ("roll", roll), ("bloom", bloom),
+                         ("stem", stem), ("plume", plume), ("ring", ring), ("front", front)):
         rig = et.rig(name)
         rig.parent = root
         canvas.emit(f"piece_reactor_{name}", parent=rig)
@@ -1524,10 +1775,14 @@ def build_mushroom_cloud(scene, _mats):
     frames = int(round((CLOUD_SECONDS + CLOUD_HOLD_SECONDS) * FPS))
     scene.frame_end = scene.frame_start + frames
     scene["loop_duration_seconds"] = frames / FPS
+    # One key per frame, deliberately: the glTF exporter samples every frame anyway, and a sparser
+    # set of keys would be interpolated by Blender's own curves rather than linearly - which would
+    # put the exported fireball a little off the table the runtime reads.
     for index in range(frames + 1):
         t = min(CLOUD_SECONDS, index / FPS)
-        for name, (location, scale) in cloud_pose(t).items():
-            et.keyframe(rigs[name], scene.frame_start + index, location=location, scale=scale)
+        for name, (location, scale, yaw) in cloud_pose(t).items():
+            et.keyframe(rigs[name], scene.frame_start + index,
+                        location=location, scale=scale, rotation=(0.0, 0.0, yaw))
 
 
 SCENES = (
