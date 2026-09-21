@@ -102,6 +102,13 @@ function assignMapOptionCollection(option, entry = {}) {
     option.dataset.mapCollectionLabel = String(entry.collectionLabel || 'Weitere Karten');
 }
 
+function syncSearchEmptyMessage(node, isEmpty, message) {
+    if (!node) return;
+    node.textContent = message;
+    node.classList.toggle('hidden', !isEmpty);
+    node.setAttribute('aria-hidden', String(!isEmpty));
+}
+
 function resolveVehicleSelectValue(select, currentValue, vehiclePreviewEntries) {
     const normalizedCurrentValue = String(currentValue || '').trim();
     const knownVehicleIds = new Set(vehiclePreviewEntries.map((entry) => entry.id));
@@ -137,8 +144,7 @@ function syncMapSelect({
     const previousValue = String(mapSelection.value || surfaceMenuState.mapKey || settings.mapKey || ui.mapSelect.value || 'standard');
     const fallbackMapKey = resolveSurfaceFallbackMapKey(runtimeMaps, modePath, previousValue);
     ui.mapSelect.replaceChildren();
-    mapPreviewEntries
-        .filter((entry) => {
+    const matchingMapEntries = mapPreviewEntries.filter((entry) => {
             if (entry.hiddenFromMapPicker === true) return false;
             const matchesSearch = !startSetupFilters.mapSearch
                 || entry.name.toLowerCase().includes(startSetupFilters.mapSearch)
@@ -153,15 +159,19 @@ function syncMapSelect({
                 && isMapOfferedForModePath(entry, mapDefinition, modePath, startSetupFilters.mapFilter);
             const matchesSurfacePolicy = surfacePolicyPort.isMapAllowed(entry.key, modePath);
             return matchesSearch && matchesFilter && matchesModePath && matchesSurfacePolicy;
-        })
-        .forEach((entry) => {
+        });
+    matchingMapEntries.forEach((entry) => {
             const option = document.createElement('option');
             option.value = entry.key;
             option.textContent = formatMapLabel(entry);
             assignMapOptionCollection(option, entry);
             ui.mapSelect.appendChild(option);
         });
-    if (hasStoredCustomMap()) {
+    const customMapAvailable = hasStoredCustomMap();
+    const customMapMatchesFilters = customMapAvailable
+        && (startSetupFilters.mapFilter === 'all' || startSetupFilters.mapFilter === 'custom')
+        && (!startSetupFilters.mapSearch || 'custom (lokal)'.includes(startSetupFilters.mapSearch));
+    if (customMapMatchesFilters) {
         const option = Array.from(ui.mapSelect.options).find((entry) => entry.value === 'custom')
             || document.createElement('option');
         option.value = 'custom';
@@ -173,6 +183,12 @@ function syncMapSelect({
         assignMapOptionCollection(option, { collection: 'custom', collectionLabel: 'Eigene Karten' });
         if (!Array.from(ui.mapSelect.options).includes(option)) ui.mapSelect.appendChild(option);
     }
+    syncSearchEmptyMessage(
+        ui.mapSearchEmpty,
+        (startSetupFilters.mapSearch !== '' || startSetupFilters.mapFilter !== 'all')
+            && matchingMapEntries.length === 0 && !customMapMatchesFilters,
+        'Keine Karte gefunden — Suche oder Filter ändern'
+    );
     let hasPreviousOption = Array.from(ui.mapSelect.options).some((option) => option.value === previousValue);
     const previousMapDefinition = runtimeMaps?.[previousValue];
     // Explicit tutorial/scenario starts must survive UI synchronization even when
@@ -297,6 +313,12 @@ export function syncStartSetupSelectionState({
         const matchesFilter = startSetupFilters.vehicleFilter === 'all' || entry.category === startSetupFilters.vehicleFilter;
         return matchesSearch && matchesFilter;
     });
+    syncSearchEmptyMessage(
+        ui.vehicleSearchEmpty,
+        (startSetupFilters.vehicleSearch !== '' || startSetupFilters.vehicleFilter !== 'all')
+            && vehicleCandidates.length === 0,
+        'Kein Flugzeug gefunden — Suche oder Filter ändern'
+    );
     syncVehicleSelect({
         select: ui.vehicleSelectP1,
         settings,
@@ -317,7 +339,9 @@ export function syncStartSetupSelectionState({
     const resolveMapQuickLabel = (mapKey) => mapPreviewEntries.find((entry) => entry.key === mapKey)?.name
         || resolveMapPreview(mapKey).name;
     const isQuickMapOffered = (mapKey) => surfacePolicyPort.isMapAllowed(mapKey, modePath)
-        && isMapOfferedForModePath(resolveMapPreview(mapKey), runtimeMaps?.[mapKey], modePath, startSetup.mapFilter);
+        && isMapOfferedForModePath(resolveMapPreview(mapKey), runtimeMaps?.[mapKey], modePath, startSetup.mapFilter)
+        && (!startSetupFilters.mapSearch || mapKey.toLowerCase().includes(startSetupFilters.mapSearch)
+            || resolveMapQuickLabel(mapKey).toLowerCase().includes(startSetupFilters.mapSearch));
     renderQuickList(
         ui.mapFavoritesList,
         startSetup.favoriteMaps.filter(isQuickMapOffered),
@@ -330,8 +354,14 @@ export function syncStartSetupSelectionState({
         'mapKey',
         resolveMapQuickLabel
     );
-    renderQuickList(ui.vehicleFavoritesList, startSetup.favoriteVehicles, 'vehicleId');
-    renderQuickList(ui.vehicleRecentList, startSetup.recentVehicles, 'vehicleId');
+    const matchesVehicleFilters = (vehicleId) => {
+        const preview = resolveVehiclePreview(vehicleId);
+        return (!startSetupFilters.vehicleSearch || vehicleId.toLowerCase().includes(startSetupFilters.vehicleSearch)
+            || preview.label.toLowerCase().includes(startSetupFilters.vehicleSearch))
+            && (startSetupFilters.vehicleFilter === 'all' || preview.category === startSetupFilters.vehicleFilter);
+    };
+    renderQuickList(ui.vehicleFavoritesList, startSetup.favoriteVehicles.filter(matchesVehicleFilters), 'vehicleId');
+    renderQuickList(ui.vehicleRecentList, startSetup.recentVehicles.filter(matchesVehicleFilters), 'vehicleId');
 
     if (ui.mapFavoriteToggleButton) {
         const isFavorite = startSetup.favoriteMaps.includes(effectiveMapKey);

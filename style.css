@@ -784,6 +784,12 @@
     flex-wrap: wrap;
 }
 
+.start-search-empty {
+    margin: 8px 0;
+    color: #b8d8ff;
+    font-size: 0.85rem;
+}
+
 .quick-pill {
     width: auto;
     padding: 6px 9px;
