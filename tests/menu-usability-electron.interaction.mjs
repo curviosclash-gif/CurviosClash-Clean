@@ -182,10 +182,17 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         await page.reload();
         await page.waitForSelector('#main-menu[data-shell-ready="true"]');
         await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE.settings.localSettings.audio.masterVolume)).toBe(Number(audioValue) / 100);
+        const quickStartBeforeTutorial = await page.locator('#quick-last-summary').textContent();
+        const savedMapBeforeTutorial = await page.evaluate(() => window.GAME_INSTANCE.settingsManager.loadSettings().mapKey);
         await page.locator('#btn-main-tutorial').click();
         await expect(page.locator('#main-menu')).toBeHidden({ timeout: 30_000 });
         const tutorial = await page.evaluate(() => ({ map: window.GAME_INSTANCE.settings.mapKey, bots: window.GAME_INSTANCE.settings.numBots, session: window.GAME_INSTANCE.settings.localSettings.sessionType }));
         assert.deepEqual(tutorial, { map: 'tutorial_classic', bots: 0, session: 'single' });
+        await page.evaluate(() => window.GAME_INSTANCE._saveSettings());
+        assert.equal(await page.evaluate(() => window.GAME_INSTANCE.settingsManager.loadSettings().mapKey), savedMapBeforeTutorial);
+        await page.evaluate(() => window.GAME_INSTANCE._returnToMenu());
+        await expect(page.locator('#main-menu')).toBeVisible();
+        await expect(page.locator('#quick-last-summary')).toHaveText(quickStartBeforeTutorial);
     } finally {
         await app.close();
     }

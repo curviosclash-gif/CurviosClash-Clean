@@ -101,27 +101,7 @@ export function setupMenuGameplayBindings(ctx) {
         });
     }
 
-    [ui.classicTutorialButton, ui.mainTutorialButton].filter(Boolean).forEach((button) => {
-        bind(button, 'click', () => {
-            settings.mode = '1p';
-            settings.gameMode = GAME_MODE_TYPES.CLASSIC;
-            settings.numBots = 0;
-            settings.mapKey = 'tutorial_classic';
-            if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
-            settings.localSettings.sessionType = 'single';
-            settings.localSettings.modePath = 'normal';
-            writeHangarMapSelection(settings, 'tutorial_classic', 'tutorial_classic', { modePath: 'normal' });
-            emitSettingsChangedImmediate([
-                keys.MODE,
-                keys.SESSION_TYPE,
-                keys.MODE_PATH,
-                keys.GAME_MODE,
-                keys.MAP_KEY,
-                keys.BOTS_COUNT,
-            ]);
-            emit(eventTypes.START_MATCH);
-        });
-    });
+    bindClassicTutorialButtons({ ui, bind, emit, eventTypes });
 
     if (ui.openFightHangarButton) {
         const hangarWindowAvailable = hangarWindow.isAvailable();
@@ -512,4 +492,10 @@ export function setupMenuGameplayBindings(ctx) {
     });
 
     bindMenuExtrasButtons(ctx);
+}
+
+export function bindClassicTutorialButtons({ ui, bind, emit, eventTypes }) {
+    [ui.classicTutorialButton, ui.mainTutorialButton].filter(Boolean).forEach((button) => {
+        bind(button, 'click', () => emit(eventTypes.START_MATCH, { borrowedSettings: { tutorial: true } }));
+    });
 }

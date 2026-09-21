@@ -2,11 +2,11 @@
 // BorrowedMatchSettingsOps.js - start values that belong to one match only
 // ============================================
 //
-// Arcade run types (Endlosjagd, Fünf Fronten, Fünf Portale) play on their own map and
-// bot count. Written straight into the settings, those values stayed for every later
-// menu start. They now ride along with the start and go back through the session restore.
+// Arcade run types borrow their map and bot count; the tutorial borrows its whole start
+// selection. These values ride with one match and return through the session restore.
 
 import { createSessionSettingsRestorePlan } from './SessionSettingsRestorePlan.js';
+import { writeHangarMapSelection } from '../../composition/core-ui/CoreUiMenuPorts.js';
 
 function cloneJsonSnapshot(value) {
     try {
@@ -18,6 +18,7 @@ function cloneJsonSnapshot(value) {
 
 export function normalizeBorrowedMatchSettings(raw) {
     const source = raw && typeof raw === 'object' ? raw : {};
+    if (source.tutorial === true) return { tutorial: true };
     const borrowed = {};
     const mapKey = typeof source.mapKey === 'string' ? source.mapKey.trim() : '';
     if (mapKey) borrowed.mapKey = mapKey;
@@ -37,7 +38,19 @@ export async function startMatchWithBorrowedSettings(facade, rawBorrowed = null)
     const baseline = settings && Object.keys(borrowed).length > 0 ? cloneJsonSnapshot(settings) : null;
     if (!baseline) return facade?.startMatch?.();
 
-    Object.assign(settings, borrowed);
+    if (borrowed.tutorial === true) {
+        settings.mode = '1p';
+        settings.gameMode = 'CLASSIC';
+        settings.numBots = 0;
+        settings.localSettings = {
+            ...settings.localSettings,
+            sessionType: 'single',
+            modePath: 'normal',
+        };
+        writeHangarMapSelection(settings, 'tutorial_classic', 'tutorial_classic', { modePath: 'normal' });
+    } else {
+        Object.assign(settings, borrowed);
+    }
     facade.settingsHandler?.holdSessionSettingsRestore?.(createSessionSettingsRestorePlan(baseline, settings));
     let started = false;
     try {

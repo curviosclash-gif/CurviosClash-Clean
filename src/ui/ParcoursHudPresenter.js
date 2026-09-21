@@ -105,7 +105,8 @@ export function renderParcoursPanel(refs, hudState, game, persistTutorial) {
                 settings.localSettings.classicTutorial = createCompletedClassicTutorialState(
                     settings.localSettings.classicTutorial
                 );
-                game.settingsManager?.saveSettings?.(settings);
+                if (typeof game._saveSettings === 'function') game._saveSettings();
+                else game.settingsManager?.saveSettings?.(settings);
             }
             persistedTutorial = true;
         }
