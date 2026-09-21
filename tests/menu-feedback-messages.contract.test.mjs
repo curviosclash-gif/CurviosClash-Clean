@@ -16,7 +16,7 @@ test('importing text without any known setting changes nothing and says so', () 
     const result = importMenuConfigFromInput(settings, code);
     assert.equal(result.success, false);
     assert.equal(result.reason, 'no_known_settings');
-    assert.match(result.message, /Nichts wurde übernommen/);
+    assert.equal(result.message, 'Import fehlgeschlagen: Daten passen nicht zu Curvios Clash');
     assert.equal(JSON.stringify(settings), before, 'no value was reset to a default');
 });
 
