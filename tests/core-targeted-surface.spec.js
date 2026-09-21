@@ -708,6 +708,29 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(globalBinding).toBe('KeyN');
     });
 
+    test('T20k2: Belegungskonflikt tauscht erst nach Bestaetigung und Escape bricht ab', async ({ page }) => {
+        await loadGame(page);
+        await openLevel4Drawer(page, { section: 'controls' });
+        const before = await page.evaluate(() => ({
+            up: window.GAME_INSTANCE.settings.controls.PLAYER_1.UP,
+            down: window.GAME_INSTANCE.settings.controls.PLAYER_2.DOWN,
+        }));
+        await page.click('#keybind-p2 .keybind-btn[data-action="DOWN"]');
+        await page.keyboard.press(before.up);
+        await expect(page.locator('#keybind-warning')).toContainText('Tauschen?');
+        expect(await page.evaluate(() => window.GAME_INSTANCE.settings.controls.PLAYER_2.DOWN)).toBe(before.down);
+        await page.click('#keybind-warning .keybind-swap-confirm');
+        await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE.settings.controls.PLAYER_1.UP)).toBe(before.down);
+        await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE.settings.controls.PLAYER_2.DOWN)).toBe(before.up);
+
+        await page.click('#keybind-p1 .keybind-btn[data-action="UP"]');
+        await page.keyboard.press(before.up);
+        await expect(page.locator('#keybind-warning')).toContainText('Tauschen?');
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#keybind-warning')).toBeHidden();
+        expect(await page.evaluate(() => window.GAME_INSTANCE.settings.controls.PLAYER_1.UP)).toBe(before.down);
+    });
+
     test('T20l: F8 startet Cinematic-Aufnahme und F9 legt sie in die Renderliste', async ({ page }) => {
         await startGame(page);
         await page.evaluate(() => {

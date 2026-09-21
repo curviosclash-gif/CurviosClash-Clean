@@ -49,7 +49,7 @@ export function renderGamepadBindingEditor(container, runtimeAccess) {
     title.textContent = 'Controller-Belegung';
     section.append(title);
     const info = doc.createElement('p');
-    info.textContent = 'Änderungen gelten sofort und werden automatisch gespeichert. Bereits belegte Tasten tauschen ihre Funktionen. Im Menü bleiben Steuerkreuz, A und B fest belegt. Im Vier-Spieler-2D-Modus gelten Lenken, Rollen und die Item-/Raketentaste als Kontextaktion. Bei automatischer Zuordnung hat aktivierte Maussteuerung Vorrang.';
+    info.textContent = 'Änderungen gelten sofort und werden automatisch gespeichert. Bei einer bereits belegten Tastaturtaste wird vor dem Tauschen gefragt; Controller-Belegungen tauschen direkt. Im Menü bleiben Steuerkreuz, A und B fest belegt. Im Vier-Spieler-2D-Modus gelten Lenken, Rollen und die Item-/Raketentaste als Kontextaktion. Bei automatischer Zuordnung hat aktivierte Maussteuerung Vorrang.';
     section.append(info);
     const player = doc.createElement('select');
     player.setAttribute('aria-label', 'Controller auswählen');

@@ -1032,6 +1032,18 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     color: #ffc2c2;
 }
 
+.keybind-swap-actions {
+    display: inline-flex;
+    gap: 8px;
+    margin-left: 12px;
+}
+
+.keybind-swap-actions .secondary-btn {
+    width: auto;
+    padding: 5px 9px;
+    font-size: 0.82rem;
+}
+
 .start-btn,
 .secondary-btn {
     padding: 14px;
