@@ -193,8 +193,8 @@ test('Unified Mobile Android uses its product-local Capacitor wrapper', async ()
     assert.equal(rootPackage.dependencies[dependencyName], '8.5.2');
     assert.equal(subprojectPackage.dependencies[dependencyName], '8.5.2');
   }
-  assert.equal(rootPackage.devDependencies['@capacitor/cli'], '8.4.3');
-  assert.equal(subprojectPackage.devDependencies['@capacitor/cli'], '8.4.3');
+  assert.equal(rootPackage.devDependencies['@capacitor/cli'], '8.5.2');
+  assert.equal(subprojectPackage.devDependencies['@capacitor/cli'], '8.5.2');
 
   await assert.rejects(
     readJson('capacitor.config.json'),

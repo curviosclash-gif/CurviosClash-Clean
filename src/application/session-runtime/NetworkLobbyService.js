@@ -147,10 +147,10 @@ export class NetworkLobbyService {
             onMatchStart: (pendingMatchStart) => {
                 this._notifyMatchStart(pendingMatchStart);
             },
-            onConnectionPhaseChanged: ({ phase, attempt = 0, maxAttempts = 0 } = {}) => {
+            onConnectionPhaseChanged: (/** @type {{ phase?: string, attempt?: number, maxAttempts?: number }} */
+                { phase, attempt = 0, maxAttempts = 0 } = {}) => {
                 this._connectionPhase = normalizeString(phase, 'connected');
-                this._reconnectAttempt = Math.max(0, Math.floor(Number(attempt) || 0));
-                this._reconnectMaxAttempts = Math.max(0, Math.floor(Number(maxAttempts) || 0));
+                this._reconnectAttempt = Math.max(0, Math.floor(Number(attempt) || 0)); this._reconnectMaxAttempts = Math.max(0, Math.floor(Number(maxAttempts) || 0));
                 this.onStateChanged?.(this.getSessionState());
             },
         });

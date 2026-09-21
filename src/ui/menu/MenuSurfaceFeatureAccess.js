@@ -35,7 +35,9 @@ export function syncDesktopOnlyFeatureButton(button, surfacePolicy, featureId, f
         || button.textContent
         || ''
     ).trim();
-    const featureAccess = resolveSurfaceFeatureLaunchGuard(surfacePolicy, featureId, featureLabel);
+    const featureAccess = /** @type {any} */ (
+        resolveSurfaceFeatureLaunchGuard(surfacePolicy, featureId, featureLabel)
+    );
     if (!surfacePolicy?.productSurfaceId) {
         button.textContent = defaultLabel;
         button.title = '';

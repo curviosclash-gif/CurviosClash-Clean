@@ -5,6 +5,7 @@ import {
     normalizeString,
 } from './NetworkLobbyServiceSupport.js';
 
+/** @param {{ transport?: string }} options */
 export function createNetworkLobbySessionStateProjection({ transport } = {}) {
     let sessionState = createIdleSessionState('', transport);
 

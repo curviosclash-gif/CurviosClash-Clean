@@ -26,6 +26,7 @@ export const HANGAR_SELECTION_MODES = Object.freeze({
     FIGHT: HANGAR_MODES.FIGHT,
 });
 
+/** @type {Set<string>} */
 const VALID_PLAYER_SLOT_SET = new Set(Object.values(HANGAR_SELECTION_PLAYER_SLOTS));
 
 export const HANGAR_SELECTION_WRITEBACK_PATHS = Object.freeze({
@@ -57,6 +58,7 @@ export const HANGAR_START_SETUP_PERSISTED_FIELDS = Object.freeze({
     ARCADE_GHOST_TRAIL_COLLISION_ENABLED: 'arcadeGhostTrailCollisionEnabled',
 });
 
+/** @type {Set<string>} */
 const VALID_HANGAR_SELECTION_MODE_SET = new Set(Object.values(HANGAR_SELECTION_MODES));
 
 function normalizeString(value, fallback = '') {

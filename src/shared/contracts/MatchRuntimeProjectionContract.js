@@ -76,31 +76,20 @@ function cloneSerializableValue(value) {
 
 function createVector3Projection(value = null) {
     const source = value && typeof value === 'object' ? value : {};
-    return {
-        x: normalizeNumber(source.x, 0),
-        y: normalizeNumber(source.y, 0),
-        z: normalizeNumber(source.z, 0),
-    };
+    return { x: normalizeNumber(source.x, 0), y: normalizeNumber(source.y, 0),
+        z: normalizeNumber(source.z, 0) };
 }
 
 function createQuaternionProjection(value = null) {
     const source = value && typeof value === 'object' ? value : {};
-    return {
-        x: normalizeNumber(source.x, 0),
-        y: normalizeNumber(source.y, 0),
-        z: normalizeNumber(source.z, 0),
-        w: normalizeNumber(source.w, 1),
-    };
+    return { x: normalizeNumber(source.x, 0), y: normalizeNumber(source.y, 0),
+        z: normalizeNumber(source.z, 0), w: normalizeNumber(source.w, 1) };
 }
 
 function createSessionPlayerProjection(value = null) {
     const source = value && typeof value === 'object' ? value : {};
-    return {
-        playerIndex: normalizeInt(source.playerIndex, -1),
-        playerId: normalizeString(source.playerId, ''),
-        pingMs: normalizeInt(source.pingMs, -1),
-        isLocal: source.isLocal === true,
-    };
+    return { playerIndex: normalizeInt(source.playerIndex, -1), playerId: normalizeString(source.playerId, ''),
+        pingMs: normalizeInt(source.pingMs, -1), isLocal: source.isLocal === true };
 }
 
 function createLockTargetProjection(value = null) {

@@ -44,6 +44,11 @@ const DEFAULTS = Object.freeze({
     nightmare: false,
 });
 
+/** @typedef {{ profileId: string, runType: string, combatProfile: string, scoreModel: string,
+ * seed: number, sectorCount: number, intermissionSeconds: number, comboWindowMs: number,
+ * comboDecayPerSecond: number, maxMultiplier: number, replayHooksEnabled: boolean,
+ * dailyChallenge: boolean, nightmare: boolean }} ArcadeRunSettings */
+
 function clampNumber(value, range, fallback) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return fallback;
@@ -65,6 +70,7 @@ export function normalizeArcadeScoreModel(_value) {
     return CURRENT_ARCADE_SCORE_MODEL;
 }
 
+/** @returns {ArcadeRunSettings} */
 export function createDefaultArcadeRunSettings() {
     return { ...DEFAULTS };
 }

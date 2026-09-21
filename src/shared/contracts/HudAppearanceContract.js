@@ -24,6 +24,7 @@ export const DEFAULT_HUD_APPEARANCE = Object.freeze({
     colorPreset: HUD_COLOR_PRESET.GREEN,
 });
 
+/** @type {Set<string>} */
 const HUD_COLOR_PRESET_SET = new Set(Object.values(HUD_COLOR_PRESET));
 
 // HUD blocks are laid out in fixed pixels and scale around their own centre, so a larger
@@ -57,6 +58,7 @@ function clampHudNumber(value, min, max, fallback) {
     return Math.min(max, Math.max(min, parsed));
 }
 
+/** @param {unknown} value @param {string} fallback */
 export function normalizeHudColorPreset(value, fallback = DEFAULT_HUD_APPEARANCE.colorPreset) {
     const normalized = String(value || '').trim().toLowerCase();
     if (HUD_COLOR_PRESET_SET.has(normalized)) return normalized;

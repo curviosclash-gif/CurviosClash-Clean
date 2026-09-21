@@ -96,6 +96,8 @@ function createCard(container, id, titleText) {
     return list;
 }
 
+/** @param {any} list @param {any[]} entries @param {string} emptyLabel
+ * @param {(key: any) => string} labelForKey */
 function renderBucketRows(list, entries = [], emptyLabel = 'Keine Daten', labelForKey = String) {
     if (!Array.isArray(entries) || entries.length === 0) {
         appendRow(list, 'empty', emptyLabel, '0');

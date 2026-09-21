@@ -52,6 +52,7 @@ export const AUTHORING_TELEMETRY_ERRORS = Object.freeze([
     'playtest_return_failed',
 ]);
 
+/** @type {Set<string>} */
 const TOOL_SET = new Set(Object.values(AUTHORING_TELEMETRY_TOOLS));
 const COUNTER_SET = new Set(AUTHORING_TELEMETRY_COUNTERS);
 const OUTCOME_SET = new Set(AUTHORING_TELEMETRY_OUTCOMES);

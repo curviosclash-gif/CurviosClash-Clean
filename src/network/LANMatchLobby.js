@@ -159,7 +159,7 @@ export class LANMatchLobby extends MatchLobby {
             this._startPolling();
         } catch (err) {
             logger.warn('Lobby join request failed:', err);
-            if (err instanceof Error && typeof err.code === 'string') {
+            if (err instanceof Error && typeof /** @type {Error & { code?: unknown }} */ (err).code === 'string') {
                 throw err;
             }
             throw buildLanRequestError({

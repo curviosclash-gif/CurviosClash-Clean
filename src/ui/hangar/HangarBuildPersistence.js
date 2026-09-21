@@ -60,6 +60,7 @@ function saveRecord(store, key, record) {
         : { ok: false, code: String(result?.reason || 'persistence_failed') };
 }
 
+/** @param {{ store?: any, mode?: string, vehicleId?: string }} options */
 export function readActiveHangarBuildFromStore({ store, mode = 'arcade', vehicleId = 'ship5' } = {}) {
     const normalizedMode = normalizeMode(mode);
     const normalizedVehicleId = String(vehicleId || 'ship5').trim().toLowerCase() || 'ship5';
@@ -69,6 +70,7 @@ export function readActiveHangarBuildFromStore({ store, mode = 'arcade', vehicle
     return cloneHangarBuild(record.builds.find((build) => build.buildId === buildId && build.vehicleId === normalizedVehicleId));
 }
 
+/** @param {{ store?: any, mode?: string }} options */
 export function createSettingsRecordHangarCapability({ store, mode = 'arcade' } = {}) {
     const normalizedMode = normalizeMode(mode);
     const storageKey = HANGAR_BUILD_STORAGE_KEYS[normalizedMode];
@@ -152,6 +154,7 @@ function createBuildId(vehicleId, name) {
     return `${prefix}-${String(vehicleId || 'ship5').toLowerCase()}-${Date.now()}-${globalThis.crypto.randomUUID()}`;
 }
 
+/** @param {{ mode?: string, store?: any, invokeCapability?: Function }} options */
 export function createHangarBuildPersistenceAdapter(options = {}) {
     const mode = normalizeMode(options.mode);
     const invokeCapability = typeof options.invokeCapability === 'function'

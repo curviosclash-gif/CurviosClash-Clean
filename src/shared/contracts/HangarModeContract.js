@@ -213,7 +213,7 @@ export const HANGAR_DESKTOP_INTEGRATION_POLICY = Object.freeze({
 
 export function resolveHangarMode(rawMode) {
     const normalized = String(rawMode || '').trim().toLowerCase();
-    if (Object.values(HANGAR_MODES).includes(normalized)) return normalized;
+    if (/** @type {string[]} */ (Object.values(HANGAR_MODES)).includes(normalized)) return normalized;
     return HANGAR_MODES.FIGHT;
 }
 
@@ -224,17 +224,17 @@ export function resolveHangarUserFlow(mode) {
 
 export function assertHangarCapabilityId(rawId) {
     const id = String(rawId || '').trim();
-    return new Set(Object.values(HANGAR_CAPABILITY_IDS)).has(id) ? id : null;
+    return new Set(/** @type {string[]} */ (Object.values(HANGAR_CAPABILITY_IDS))).has(id) ? id : null;
 }
 
 export function assertHangarNavEvent(rawEvent) {
     const ev = String(rawEvent || '').trim();
-    return new Set(Object.values(HANGAR_NAV_EVENTS)).has(ev) ? ev : null;
+    return new Set(/** @type {string[]} */ (Object.values(HANGAR_NAV_EVENTS))).has(ev) ? ev : null;
 }
 
 export function assertHangarDesktopLoopStepId(rawStepId) {
     const stepId = String(rawStepId || '').trim().toLowerCase();
-    return VALID_HANGAR_DESKTOP_LOOP_STEP_SET.has(stepId) ? stepId : null;
+    return /** @type {Set<string>} */ (VALID_HANGAR_DESKTOP_LOOP_STEP_SET).has(stepId) ? stepId : null;
 }
 
 export function resolveArcadeHangarDesktopLoop() {

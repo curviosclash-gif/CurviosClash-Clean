@@ -35,6 +35,7 @@ const BASE_VEHICLE_DEFINITIONS = [
     { id: 'ship8', label: 'Striker (Ship 8)', MeshClass: OBJVehicleMesh, isObj: true, hitbox: { radius: 1.1 } },
     { id: 'ship9', label: 'Recon (Ship 9)', MeshClass: OBJVehicleMesh, isObj: true, hitbox: { radius: 1.0 } },
 ];
+/** @type {Map<string, any>} */
 const BASE_VEHICLE_BY_ID = new Map(BASE_VEHICLE_DEFINITIONS.map((entry) => [entry.id, entry]));
 const BUILT_IN_COMPLEX_VEHICLE_ID_SET = new Set(BUILT_IN_COMPLEX_VEHICLE_IDS);
 
@@ -72,6 +73,7 @@ export const VEHICLE_DEFINITIONS = [
     ...GENERATED_CUSTOM_VEHICLE_DEFINITIONS.filter((entry) => !BASE_VEHICLE_BY_ID.has(entry.id)),
 ];
 
+/** @type {Map<string, any>} */
 const VEHICLE_BY_ID = new Map(VEHICLE_DEFINITIONS.map((entry) => [entry.id, entry]));
 
 export function getVehicleIds() {
@@ -109,7 +111,7 @@ export function listBaseVehicleDescriptors() {
         id: entry.id,
         label: entry.label,
         hitboxRadius: Number(entry?.hitbox?.radius) || 1.1,
-        usesObjMesh: entry.isObj === true,
+        usesObjMesh: /** @type {any} */ (entry).isObj === true,
     }));
 }
 
@@ -120,7 +122,7 @@ export function listVehicleDescriptors() {
         hitboxRadius: Number(entry?.hitbox?.radius) || 1.1,
         isGeneratedModular: entry.isGeneratedModular === true,
         isBuiltIn: entry.isBuiltIn === true,
-        usesObjMesh: entry.isObj === true,
+        usesObjMesh: /** @type {any} */ (entry).isObj === true,
     }));
 }
 

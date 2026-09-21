@@ -86,20 +86,17 @@ export function formatHudAppearanceHint(appearance, view = null) {
         : base;
 }
 
-/**
- * Writes the HUD appearance as CSS custom properties onto the given root
- * element (usually #hud). Falls back to the canonical defaults for invalid
- * input so the HUD never becomes invisible.
- *
- * @param {HTMLElement|null} rootElement - Element receiving the CSS variables.
- * @param {object|null} appearance - Raw appearance settings value.
- */
 function setHudStyleVar(style, name, value) {
     // Guard against redundant style recalcs on the settings sync path.
     if (typeof style.getPropertyValue === 'function' && style.getPropertyValue(name) === value) return;
     style.setProperty(name, value);
 }
 
+/**
+ * Writes normalized HUD settings as CSS custom properties.
+ * @param {HTMLElement|null} rootElement
+ * @param {object|null} appearance
+ */
 export function applyHudAppearance(rootElement, appearance) {
     if (!rootElement || !rootElement.style) return;
     const normalized = normalizeHudAppearance(appearance);

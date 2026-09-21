@@ -114,6 +114,7 @@
     "@capacitor/cli": "8.5.2",
     "@playwright/test": "^1.63.0",
     "@types/node": "^25.9.7",
+    "@types/three": "^0.186.0",
     "eslint": "^10.10.0",
     "eslint-plugin-boundaries": "^6.0.2",
     "typescript": "^5.9.3",

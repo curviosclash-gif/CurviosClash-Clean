@@ -132,7 +132,8 @@ export function normalizeEndlessParcoursRecords(value = null) {
     return {
         schemaVersion: ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION,
         best,
-        bestDistance: normalizeMetrics(source.bestDistance?.distanceMeters != null ? source.bestDistance : farthest),
+        bestDistance: normalizeMetrics(/** @type {any} */ (source.bestDistance)?.distanceMeters != null
+            ? source.bestDistance : farthest),
         last,
         top,
         bestByRuleVersion,

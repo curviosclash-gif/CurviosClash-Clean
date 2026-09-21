@@ -71,6 +71,7 @@ export const FIGHT_MACHINE_GUN_MODELS = Object.freeze([
     }),
 ]);
 
+/** @type {Map<string, any>} */
 const MODEL_BY_ID = new Map(FIGHT_MACHINE_GUN_MODELS.map((model) => [model.id, model]));
 
 export function normalizeFightMachineGunId(value) {

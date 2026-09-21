@@ -21,7 +21,7 @@ export const PLANAR_MIN_PORTAL_ENTRY_COUNT = 4;
  * @returns {number}
  */
 export function resolveMapPortalEntryCount(map, { planarMode = false } = {}) {
-    const count = map?.portalCount;
+    const count = Number(map?.portalCount);
     const mapCount = Number.isInteger(count) && count >= 0 ? count : DEFAULT_DYNAMIC_PORTAL_ENTRY_COUNT;
     return planarMode === true && mapCount === 0 ? PLANAR_MIN_PORTAL_ENTRY_COUNT : mapCount;
 }

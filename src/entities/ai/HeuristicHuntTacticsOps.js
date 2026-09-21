@@ -252,12 +252,9 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         input.shootItemIndex = -1;
         input.useItem = -1;
         return {
-            intent: 'retreat',
-            retreatReason: String(player.endlessRetreatReason || 'endless_wave'),
-            targetDistanceRatio: 1,
-            targetPlayerIndex: Number.isInteger(enemy?.index) ? enemy.index : -1,
-            targetReachable: true,
-            selectedItemReason: '',
+            intent: 'retreat', retreatReason: String(player.endlessRetreatReason || 'endless_wave'),
+            targetDistanceRatio: 1, targetPlayerIndex: Number.isInteger(enemy?.index) ? enemy.index : -1,
+            targetReachable: true, selectedItemReason: '',
         };
     }
     const healthRatio = resolveHealthRatio(player);
@@ -465,13 +462,8 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         if (movementIntent === 'approach' && wallFront > policy.profile.safetyDistance) {
             policy._tmpTarget.copy(policy._tmpAimTarget);
             applyArenaCenterBias(policy._tmpTarget, player, runtimeContext?.arena);
-            applySteeringTowardPosition(
-                policy,
-                input,
-                player,
-                policy._tmpTarget,
-                targetDistanceRatio < attackWindow ? PRECISION_AIM_STEERING : null
-            );
+            applySteeringTowardPosition(policy, input, player, policy._tmpTarget,
+                targetDistanceRatio < attackWindow ? PRECISION_AIM_STEERING : null);
             input.boost = targetAlignment >= 0.82
                 && wallFront > Math.max(policy.profile.safetyDistance, 0.34)
                 && survivalPressure < 0.72;

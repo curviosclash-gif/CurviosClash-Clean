@@ -43,6 +43,7 @@ const TELEMETRY_CSV_FIELDS = [
     'parcoursCompleted', 'parcoursCompletionTimeMs', 'parcoursCheckpointCount',
 ];
 
+/** @type {Array<[string, (row: any) => any]>} */
 const TELEMETRY_CSV_DERIVED_FIELDS = [
     ['frameAvgMs', (row) => row?.performance?.frameAvgMs],
     ['frameP95Ms', (row) => row?.performance?.frameP95Ms],

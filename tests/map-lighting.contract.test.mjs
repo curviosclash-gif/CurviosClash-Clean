@@ -143,6 +143,7 @@ test('only the selected presets define lighting and all others resolve to defaul
         'eiffel_tower_siege',
         'frozen_helix',
         'giant_forest',
+        'hydra_temple',
         'magma_maze',
         'maze',
         'neon_abyss',

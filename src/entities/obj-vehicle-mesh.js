@@ -149,7 +149,7 @@ export class OBJVehicleMesh extends THREE.Group {
             .finally(() => {
                 this._loaded = true;
                 if (!this._disposed) {
-                    this.dispatchEvent({ type: 'loaded' });
+                    this.dispatchEvent(/** @type {any} */ ({ type: 'loaded' }));
                 }
             });
 

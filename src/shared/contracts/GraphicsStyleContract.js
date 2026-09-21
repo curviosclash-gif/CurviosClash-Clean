@@ -3,6 +3,7 @@ export const GRAPHICS_STYLES = Object.freeze({
     MODERN: 'modern',
 });
 
+/** @param {unknown} value @param {string} fallback */
 export function normalizeGraphicsStyle(value, fallback = GRAPHICS_STYLES.MODERN) {
     const normalized = String(value || '').trim().toLowerCase();
     if (normalized === GRAPHICS_STYLES.CLASSIC || normalized === GRAPHICS_STYLES.MODERN) {

@@ -22,6 +22,8 @@ export class MenuController {
      * @param {Object} options.ui Elements from the DOM
      * @param {Object} options.settings Current runtime settings
      * @param {Function} options.onEvent Event sink for emitted menu events
+     * @param {Object} [options.game]
+     * @param {Object} [options.runtimeAccess]
      */
     constructor(options) {
         this.ui = options.ui;
@@ -116,7 +118,7 @@ export class MenuController {
     _cancelQueuedInputSettingsChangedFlush() {
         if (this._queuedInputFlushHandle === null) return;
         if (this._queuedInputFlushUsesAnimationFrame && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
-            window.cancelAnimationFrame(this._queuedInputFlushHandle);
+            window.cancelAnimationFrame(Number(this._queuedInputFlushHandle));
             return;
         }
         clearTimeout(this._queuedInputFlushHandle);

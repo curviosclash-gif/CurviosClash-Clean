@@ -4,6 +4,7 @@
     "types": ["node"]
   },
   "files": [
+    "dev/vite/vite-build-globals.d.ts",
     "src/core/AppInitializer.js",
     "src/core/PlaytestLaunchParams.js",
     "src/core/RuntimeErrorOverlay.js",

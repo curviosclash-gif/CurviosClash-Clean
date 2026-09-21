@@ -53,9 +53,10 @@ export function buildLanRequestError({
 /**
  * @param {{
  *   signalingUrl?: string,
- *   hostPeerId?: string,
- *   hostToken?: string,
- *   metadata?: object | null,
+ *   playerId?: string,
+ *   isHost?: boolean,
+ *   token?: string,
+ *   lobbyName?: string,
  * }} options
  */
 // Renames one seat; the token must belong to that seat (a player renames only itself).
@@ -88,6 +89,10 @@ export async function publishLanLobbyName({
     return res.json();
 }
 
+/**
+ * @param {{ signalingUrl?: string, hostPeerId?: string, hostToken?: string,
+ *   metadata?: object | null }} options
+ */
 export async function publishLanLobbyMetadata({
     signalingUrl,
     hostPeerId,

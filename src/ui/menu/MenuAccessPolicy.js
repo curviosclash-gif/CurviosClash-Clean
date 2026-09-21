@@ -9,6 +9,7 @@ export const MENU_ACCESS_POLICIES = Object.freeze({
     LOCKED: 'locked',
 });
 
+/** @type {Set<string>} */
 const VALID_ACCESS_POLICY_SET = new Set(Object.values(MENU_ACCESS_POLICIES));
 
 export const MENU_ACCESS_GUARD_REASONS = Object.freeze({
@@ -48,7 +49,7 @@ export function resolveMenuAccessContext(settings) {
     const ownerId = normalizeString(localSettings.ownerId, 'owner');
     const actorId = normalizeString(localSettings.actorId, ownerId);
     const requestedMode = normalizeString(localSettings.developerModeVisibility, MENU_DEVELOPER_ACCESS_MODES.OWNER_ONLY);
-    const developerModeVisibility = Object.values(MENU_DEVELOPER_ACCESS_MODES).includes(requestedMode)
+    const developerModeVisibility = /** @type {string[]} */ (Object.values(MENU_DEVELOPER_ACCESS_MODES)).includes(requestedMode)
         ? requestedMode
         : MENU_DEVELOPER_ACCESS_MODES.OWNER_ONLY;
 

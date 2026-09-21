@@ -11,7 +11,7 @@
     "build": "electron-builder --config game-builder.yml"
   },
   "devDependencies": {
-    "electron": "43.4.0",
+    "electron": "43.7.2",
     "electron-builder": "26.15.3"
   },
   "dependencies": {

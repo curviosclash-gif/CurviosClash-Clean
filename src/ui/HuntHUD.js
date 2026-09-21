@@ -105,8 +105,9 @@ export class HuntHUD {
         this._damageIndicatorElements = { p1: this.damageIndicatorP1, p2: this.damageIndicatorP2 };
         this._damageIndicatorCache = createDamageIndicatorCache();
         this._rocketWarningRefs = [
-            { root: refs.rocketWarningP1 ?? null, arrow: refs.rocketWarningArrowP1 ?? null, text: refs.rocketWarningTextP1 ?? null },
-            { root: refs.rocketWarningP2 ?? null, arrow: refs.rocketWarningArrowP2 ?? null, text: refs.rocketWarningTextP2 ?? null },
+            { root: refs.rocketWarningP1 ?? null, arrow: refs.rocketWarningArrowP1 ?? null,
+                text: refs.rocketWarningTextP1 ?? null }, { root: refs.rocketWarningP2 ?? null,
+                arrow: refs.rocketWarningArrowP2 ?? null, text: refs.rocketWarningTextP2 ?? null },
         ];
         this._rocketWarningCaches = [createRocketWarningCache(), createRocketWarningCache()];
         // Reused per tick so the indicator hot path allocates nothing.
@@ -501,14 +502,8 @@ export class HuntHUD {
     }
 
     _updateThreatOverlays(dt, humans = [], huntProjection = null) {
-        const p2Visible = updateHuntDamageIndicators(
-            this._damageIndicatorElements,
-            this._damageIndicatorCache,
-            humans,
-            huntProjection,
-            this.runtime?.huntState?.damageIndicator || null,
-            dt
-        );
+        const p2Visible = updateHuntDamageIndicators(this._damageIndicatorElements, this._damageIndicatorCache,
+            humans, huntProjection, this.runtime?.huntState?.damageIndicator || null, dt);
         const options = this._rocketWarningOptions;
         options.reduceMotion = this.runtime?.runtimeConfig?.cameraPerspective?.reduceMotion !== false;
         for (let i = 0; i < this._rocketWarningRefs.length; i += 1) {

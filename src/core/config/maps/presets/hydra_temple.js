@@ -32,9 +32,14 @@ export const HYDRA_TEMPLE_MAP = Object.freeze({
             fill: { direction: [-28, 24, -20], color: 0x6d9eaa, intensity: 0.5 },
             rim: { direction: [0, 24, -30], color: 0xff773f, intensity: 0.62 },
             hemisphere: { skyColor: 0x8f8f93, groundColor: 0x17191c },
-            fog: { color: 0x2a292c, near: 70, far: 190 },
+            fog: {
+                color: 0x2a292c, near: 70, far: 190,
+                height: 18, heightFalloff: 0.014, turbulence: 0.12, skyBlend: 1,
+                colorHigh: 0x0b1020, colorLow: 0x0b1020, clipClosureStart: 0.8,
+            },
             skyDome: { zenithColor: 0x19242e, horizonColor: 0x695a50, nadirColor: 0x15171b },
             starsVisible: false,
+            exposureOffset: 0,
         }),
         singlePlayerScenario: Object.freeze({
             enabled: true, id: 'hydra_temple', modePath: 'fight',

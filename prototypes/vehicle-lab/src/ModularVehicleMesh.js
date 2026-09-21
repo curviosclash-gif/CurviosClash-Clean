@@ -35,7 +35,7 @@ export class ModularVehicleMesh extends THREE.Group {
     setWireframe(enabled) {
         this.isWireframe = enabled;
         this.traverse(child => {
-            if (child.isMesh && child.material) {
+            if (child instanceof THREE.Mesh && child.material) {
                 const materials = Array.isArray(child.material) ? child.material : [child.material];
                 materials.forEach((material) => { material.wireframe = enabled; });
             }
@@ -49,7 +49,7 @@ export class ModularVehicleMesh extends THREE.Group {
 
         // Resource Disposal (Geometries & Cloned Materials)
         this.traverse(child => {
-            if (child.isMesh) {
+            if (child instanceof THREE.Mesh) {
                 // Geometry disposal moved to a global check if needed, 
                 // but since we cache them now, we don't dispose them here!
                 if (child.material) {
@@ -110,7 +110,7 @@ export class ModularVehicleMesh extends THREE.Group {
         part.userData.config = partConfig;
         part.userData.isMirror = isMirror;
         part.traverse((child) => {
-            if (!child.isMesh || !child.material) return;
+            if (!(child instanceof THREE.Mesh) || !child.material) return;
             const materials = Array.isArray(child.material) ? child.material : [child.material];
             materials.forEach((material) => {
                 material.wireframe = this.isWireframe;
@@ -296,7 +296,7 @@ export class ModularVehicleMesh extends THREE.Group {
             if (!config) return;
 
             // Specialized standard animations
-            if (child.userData.isForceField) {
+            if (child.userData.isForceField && child instanceof THREE.Mesh) {
                 const pulse = 0.2 + 0.1 * Math.sin(time * 10);
                 child.material.opacity = pulse;
             }
@@ -344,6 +344,7 @@ export class ModularVehicleMesh extends THREE.Group {
     }
 
     applySelectionHighlight() {
+        /** @type {THREE.Object3D | null} */
         let selectedObject = null;
         this.traverse((child) => {
             if (child.userData.partIndex === undefined || child.userData.isMirror) return;
@@ -355,7 +356,7 @@ export class ModularVehicleMesh extends THREE.Group {
         });
 
         this.traverse((child) => {
-            if (!child.isMesh || !child.material) return;
+            if (!(child instanceof THREE.Mesh) || !child.material) return;
             const materials = Array.isArray(child.material) ? child.material : [child.material];
             materials.forEach((material) => {
                 if (!material.emissive) return;
@@ -364,8 +365,8 @@ export class ModularVehicleMesh extends THREE.Group {
                 material.emissive.setHex(Number(child.userData.baseEmissiveColor) || 0x000000);
             });
         });
-        selectedObject?.traverse((child) => {
-            if (!child.isMesh || !child.material) return;
+        if (selectedObject) selectedObject.traverse((child) => {
+            if (!(child instanceof THREE.Mesh) || !child.material) return;
             const materials = Array.isArray(child.material) ? child.material : [child.material];
             materials.forEach((material) => {
                 if (!material.emissive) return;
@@ -392,7 +393,7 @@ export class ModularVehicleMesh extends THREE.Group {
         this.baseMesh?.cancelPendingLoad?.();
         this.disposeDynamicGeometries();
         this.traverse(child => {
-            if (child.isMesh) {
+            if (child instanceof THREE.Mesh) {
                 if (child.material) {
                     const materials = Array.isArray(child.material) ? child.material : [child.material];
                     materials.forEach(m => m.dispose());

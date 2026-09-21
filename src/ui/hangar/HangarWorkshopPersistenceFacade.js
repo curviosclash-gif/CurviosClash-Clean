@@ -80,7 +80,7 @@ async function invokeWorkshopCapability(invokeCapability, operation, payload = {
 
 export function resolveHangarWorkshopPersistenceCapabilities(rawMode) {
     const moduleBinding = resolveHangarWorkshopModule(rawMode);
-    const capabilities = moduleBinding?.capabilities || {};
+    const capabilities = /** @type {any} */ (moduleBinding?.capabilities || {});
     return Object.freeze({
         loadCustom: assertHangarCapabilityId(capabilities.loadCustom),
         saveCustom: assertHangarCapabilityId(capabilities.saveCustom),

@@ -12,6 +12,7 @@ export const HANGAR_SLOT_DEFINITIONS = Object.freeze([
     Object.freeze({ id: 'utility', label: 'Utility-Fassung', family: 'utility', required: false, pair: null }),
 ]);
 
+/** @type {Map<string, any>} */
 const SLOT_BY_ID = new Map(HANGAR_SLOT_DEFINITIONS.map((slot) => [slot.id, slot]));
 const UNIVERSAL_SLOTS = Object.freeze(HANGAR_SLOT_DEFINITIONS.map((slot) => slot.id));
 
@@ -103,6 +104,7 @@ export const HANGAR_PART_CATALOG = Object.freeze(
     HANGAR_STONE_COLORS.flatMap((color) => ['T1', 'T2', 'T3'].map((tier) => createStone(color, tier)))
 );
 
+/** @type {Map<string, any>} */
 const PART_BY_ID = new Map(HANGAR_PART_CATALOG.map((part) => [part.id, part]));
 let publishedParts = [];
 

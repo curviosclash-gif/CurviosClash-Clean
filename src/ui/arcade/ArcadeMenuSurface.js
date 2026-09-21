@@ -234,7 +234,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
         }
         const hasOpenSetupSection = Array.from(
             level3Body.querySelectorAll('details[data-start-section][open]')
-        ).some((section) => section !== refs.details && section.dataset.startSection !== 'multiplayer');
+        ).some((section) => section !== refs.details
+            && /** @type {HTMLElement} */ (section).dataset.startSection !== 'multiplayer');
         if (!hasOpenSetupSection) refs.details.open = true;
 
         const mapKey = normalizeString(settings?.mapKey, 'standard');

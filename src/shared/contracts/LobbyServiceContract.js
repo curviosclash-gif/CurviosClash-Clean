@@ -18,6 +18,7 @@ export const LOBBY_SERVICE_EVENT_TYPES = Object.freeze({
     MATCH_START: 'multiplayer_match_start',
 });
 
+/** @type {Set<string>} */
 const VALID_LOBBY_SERVICE_TRANSPORTS = new Set(Object.values(LOBBY_SERVICE_TRANSPORTS));
 
 function resolveTransportCandidate(value) {

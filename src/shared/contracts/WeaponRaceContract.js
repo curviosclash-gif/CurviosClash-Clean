@@ -38,6 +38,7 @@ export const WEAPON_RACE_WEAPON_STAGES = Object.freeze([
     Object.freeze({ checkpointId: 'CP08_FINAL', weaponId: 'lightning', ammo: 1, durationSeconds: null }),
 ]);
 
+/** @type {Map<string, any>} */
 const WEAPON_RACE_STAGE_BY_CHECKPOINT = new Map(
     WEAPON_RACE_WEAPON_STAGES.map((stage) => [stage.checkpointId, stage])
 );

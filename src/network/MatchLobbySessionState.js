@@ -18,6 +18,7 @@ function normalizeLocalPlayerCount(value) {
     return Math.max(1, Math.min(2, toNonNegativeInt(value, 1) || 1));
 }
 
+/** @param {any} member @param {string} fallbackRole */
 export function normalizeLobbyMember(member, fallbackRole = MULTIPLAYER_SESSION_ROLES.CLIENT) {
     const peerId = normalizeString(member?.peerId || member?.id);
     if (!peerId) return null;

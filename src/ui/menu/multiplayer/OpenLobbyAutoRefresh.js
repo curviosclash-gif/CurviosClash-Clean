@@ -13,6 +13,7 @@ export function isOpenLobbyListBrowsable(ui) {
     return typeof controls.getClientRects !== 'function' || controls.getClientRects().length > 0;
 }
 
+/** @param {{ ui?: any, refresh?: Function, setIntervalFn?: Function, clearIntervalFn?: Function }} options */
 export function startOpenLobbyAutoRefresh({
     ui,
     refresh,

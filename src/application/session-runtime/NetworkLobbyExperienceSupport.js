@@ -32,6 +32,7 @@ export async function tryResolveNetworkLobbyUrl(resolver) {
     }
 }
 
+/** @param {{ transport?: string, hostIntentBridge?: any, signalingUrl?: string }} options */
 export async function resolveNetworkLobbyShareAddress({
     transport,
     hostIntentBridge,
@@ -78,6 +79,7 @@ async function waitForDiscoveredHosts(discoveryPort, timeoutMs) {
     }
 }
 
+/** @param {{ discoveryPort?: any, transport?: string, scanTimeoutMs?: number }} options */
 export async function listDiscoveredNetworkLobbies({
     discoveryPort,
     transport,

@@ -1,3 +1,5 @@
+/** @param {any} button @param {{ label?: string, confirmLabel?: string, onConfirm?: Function,
+ * timeoutMs?: number, armedAttribute?: string }} options */
 export function armConfirmButton(button, {
     label,
     confirmLabel = 'Zum Bestätigen erneut klicken',
