@@ -9,6 +9,7 @@ import {
     resolveHuntObjectiveText,
 } from '../HuntMatchStatusHelpers.js';
 import { HuntInterceptAnnouncer } from '../HuntInterceptAnnouncer.js';
+import { HUD_ARC_SEGMENT_COUNT, initializeHudSegmentedArc } from '../HudSegmentedArc.js';
 import { updateActiveEffectBar, updateItemBar, updateRocketBar } from '../ItemBarPresenter.js';
 import { formatMapDestructibleStatus } from '../MapDestructibleStatusText.js';
 import { formatMapExpansionStatus } from '../MapExpansionStatusText.js';
@@ -41,7 +42,13 @@ function setHidden(element, hidden) {
     element?.setAttribute?.('aria-hidden', String(hidden));
 }
 
-function updateMeter(refs, value, maximum, { visible = true, inverse = false, warning = false } = {}) {
+function updateMeter(refs, value, maximum, {
+    visible = true,
+    inverse = false,
+    warning = false,
+    danger = false,
+    valueText = null,
+} = {}) {
     if (!refs?.root) return;
     setHidden(refs.root, !visible);
     if (!visible) return;
@@ -51,8 +58,10 @@ function updateMeter(refs, value, maximum, { visible = true, inverse = false, wa
     const percent = Math.round(ratio * 100);
     if (refs.fill?.style && refs.fill.style.width !== `${percent}%`) refs.fill.style.width = `${percent}%`;
     refs.root.style?.setProperty?.('--tps-meter-fill', `${percent}%`);
+    refs.fill?.style?.setProperty?.('--hunt-segments-filled', `${Math.round(ratio * HUD_ARC_SEGMENT_COUNT)}%`);
     refs.root.classList?.toggle('warning', warning);
-    setText(refs.value, `${percent}%`);
+    refs.root.classList?.toggle('danger', danger);
+    setText(refs.value, valueText ?? `${percent}%`);
     refs.root.setAttribute?.('aria-valuenow', String(percent));
 }
 
@@ -84,8 +93,8 @@ function resolveTurretText(player) {
     return turret ? `GESCHÜTZ ${Math.ceil(Number(turret.remainingSeconds) || 0)}s` : '';
 }
 
-function createMeterRefs(row, name) {
-    const root = row.querySelector(`[data-tps-meter="${name}"]`);
+function createMeterRefs(row, name, attribute = 'data-tps-meter') {
+    const root = row.querySelector(`[${attribute}="${name}"]`);
     return {
         root,
         fill: root?.querySelector?.('[data-tps-meter-fill]') || null,
@@ -187,24 +196,34 @@ export class ThreePlayerSplitHudView {
                             <span data-tps-stat>–</span>
                             <span data-tps-rank>Rang –</span>
                         </header>
-                        <div class="three-player-split-meters">
-                            <div class="three-player-split-meter hidden" data-tps-meter="hp" role="meter" aria-label="Leben">
-                                <span>HP</span><i><b data-tps-meter-fill></b></i><em data-tps-meter-value>0%</em>
+                        <div class="three-player-split-classic-reserves" aria-label="Fahrzeugreserven">
+                            <div class="three-player-split-classic-reserve boost" data-tps-classic-meter="boost" role="meter" aria-label="Boost">
+                                <i><b data-tps-meter-fill></b></i><span>Boost</span><em data-tps-meter-value>100%</em>
                             </div>
-                            <div class="three-player-split-meter hidden" data-tps-meter="shield" role="meter" aria-label="Schild">
-                                <span>SHD</span><i><b data-tps-meter-fill></b></i><em data-tps-meter-value>0%</em>
-                            </div>
-                            <div class="three-player-split-meter" data-tps-meter="boost" role="meter" aria-label="Boost">
-                                <span>BST</span><i><b data-tps-meter-fill></b></i><em data-tps-meter-value>0%</em>
-                            </div>
-                            <div class="three-player-split-meter" data-tps-meter="slowmo" role="meter" aria-label="Zeitlupe">
-                                <span>ZEIT</span><i><b data-tps-meter-fill></b></i><em data-tps-meter-value>0%</em>
-                            </div>
-                            <div class="three-player-split-meter hidden" data-tps-meter="overheat" role="meter" aria-label="MG Hitze">
-                                <span>MG</span><i><b data-tps-meter-fill></b></i><em data-tps-meter-value>0%</em>
+                            <div class="three-player-split-classic-reserve slowmo" data-tps-classic-meter="slowmo" role="meter" aria-label="Zeitlupe">
+                                <i><b data-tps-meter-fill></b></i><span>Zeitlupe</span><em data-tps-meter-value>100%</em>
                             </div>
                         </div>
-                        <span data-tps-item>Kein Item</span>
+                        <div class="three-player-split-hunt-vitals">
+                            <div class="three-player-split-vital hp" data-tps-meter="hp" role="meter" aria-label="Leben">
+                                <span>Leben</span><em data-tps-meter-value>0 / 0</em><i><b data-tps-meter-fill></b></i>
+                            </div>
+                            <div class="three-player-split-vital shield" data-tps-meter="shield" role="meter" aria-label="Schild">
+                                <span>Schild</span><em data-tps-meter-value>0 / 0</em><i><b data-tps-meter-fill></b></i>
+                            </div>
+                        </div>
+                        <div class="three-player-split-hunt-reserves" aria-label="Kampfreserven">
+                            <div class="three-player-split-hunt-reserve boost" data-tps-meter="boost" role="meter" aria-label="Boost">
+                                <i><b data-tps-meter-fill></b></i><em data-tps-meter-value>100%</em>
+                            </div>
+                            <div class="three-player-split-hunt-reserve slowmo" data-tps-meter="slowmo" role="meter" aria-label="Zeitlupe">
+                                <i><b data-tps-meter-fill></b></i><em data-tps-meter-value>100%</em>
+                            </div>
+                            <div class="three-player-split-hunt-reserve overheat" data-tps-meter="overheat" role="meter" aria-label="MG Hitze">
+                                <i><b data-tps-meter-fill></b></i><em data-tps-meter-value>0%</em>
+                            </div>
+                        </div>
+                        <span class="three-player-split-item-name" data-tps-item>Kein Item</span>
                         <div class="three-player-split-inventory" data-tps-inventory>
                             <div class="item-bar rocket-bar" data-tps-rockets></div>
                             <div class="item-bar" data-tps-items></div>
@@ -226,6 +245,10 @@ export class ThreePlayerSplitHudView {
                 stat: row.querySelector('[data-tps-stat]'),
                 rank: row.querySelector('[data-tps-rank]'),
                 item: row.querySelector('[data-tps-item]'),
+                classicMeters: {
+                    boost: createMeterRefs(row, 'boost', 'data-tps-classic-meter'),
+                    slowmo: createMeterRefs(row, 'slowmo', 'data-tps-classic-meter'),
+                },
                 meters: {
                     hp: createMeterRefs(row, 'hp'),
                     shield: createMeterRefs(row, 'shield'),
@@ -242,6 +265,11 @@ export class ThreePlayerSplitHudView {
                 turret: row.querySelector('[data-tps-turret]'),
                 damage: row.querySelector('[data-tps-damage]'),
             });
+            initializeHudSegmentedArc(this._rows[index].classicMeters.boost.fill, 'horizontal');
+            initializeHudSegmentedArc(this._rows[index].classicMeters.slowmo.fill, 'horizontal');
+            initializeHudSegmentedArc(this._rows[index].meters.boost.fill, 'triangle-boost');
+            initializeHudSegmentedArc(this._rows[index].meters.slowmo.fill, 'triangle-reserve');
+            initializeHudSegmentedArc(this._rows[index].meters.overheat.fill, 'triangle-overheat');
         }
         hud.appendChild(root);
         this._root = root;
@@ -303,8 +331,18 @@ export class ThreePlayerSplitHudView {
         const maxHp = Math.max(1, Number(player.maxHp) || 1);
         const shield = Math.max(0, Number(player.shieldHP) || 0);
         const maxShield = Math.max(1, Number(player.maxShieldHp) || 1);
-        updateMeter(refs.meters.hp, hp, maxHp, { visible: huntActive || maxHp > 1 });
-        updateMeter(refs.meters.shield, shield, maxShield, { visible: huntActive });
+        updateMeter(refs.meters.hp, hp, maxHp, {
+            valueText: `${Math.round(hp)} / ${Math.round(maxHp)}`,
+        });
+        updateMeter(refs.meters.shield, shield, maxShield, {
+            valueText: `${Math.round(shield)} / ${Math.round(maxShield)}`,
+        });
+        updateMeter(refs.classicMeters.boost, player.boostCharge, player.boostCapacity, {
+            warning: player.boostRecharging === true,
+        });
+        updateMeter(refs.classicMeters.slowmo, player.slowMoCharge, player.slowMoCapacity, {
+            warning: player.slowMoRecharging === true,
+        });
         updateMeter(refs.meters.boost, player.boostCharge, player.boostCapacity, {
             warning: player.boostRecharging === true,
         });
@@ -313,9 +351,10 @@ export class ThreePlayerSplitHudView {
         });
         const overheat = Math.max(0, Number(huntProjection?.overheatByPlayer?.[playerIndex]) || 0);
         updateMeter(refs.meters.overheat, overheat, 100, {
-            visible: huntActive,
             inverse: true,
             warning: overheat >= 60,
+            danger: overheat >= 85,
+            valueText: `${Math.round(overheat)}%`,
         });
 
         updateRocketBar(refs.rockets, player, projection, gameplayConfig, keyBindings);

@@ -333,7 +333,7 @@ export class ThreePlayerSplitModule {
             const values = {
                 stat: hunt
                     ? `Abschüsse ${fightRow?.kills || 0} · HP ${Math.max(0, Math.ceil(Number(player.hp) || 0))}`
-                    : `Punkte ${Number(player.score) || 0}`,
+                    : String(Number(player.score) || 0),
                 rank: rank ? `Rang ${rank}/${scoreRows.length}` : 'Rang –',
                 item: fogLabel ? `${itemLabel} · ${fogLabel}` : itemLabel,
             };

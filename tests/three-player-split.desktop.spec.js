@@ -79,18 +79,26 @@ test('three-player split starts with all three players on separate keyboard bind
     await expect(compactHud).toBeVisible();
     await expect(compactHud).toHaveAttribute('data-mode', 'classic');
     await expect(compactHud.locator('.three-player-split-hud-card')).toHaveCount(3);
-    await expect(compactHud.locator('[data-tps-meter="boost"]:not(.hidden)')).toHaveCount(3);
-    await expect(compactHud.locator('[data-tps-meter="slowmo"]:not(.hidden)')).toHaveCount(3);
+    await expect(compactHud.locator('[data-tps-classic-meter="boost"]:not(.hidden)')).toHaveCount(3);
+    await expect(compactHud.locator('[data-tps-classic-meter="slowmo"]:not(.hidden)')).toHaveCount(3);
+    await expect(compactHud.locator('.three-player-split-classic-reserve .hunt-segmented-arc')).toHaveCount(6);
     await expect(compactHud.locator('[data-tps-items]')).toHaveCount(3);
     await expect(compactHud.locator('[data-tps-rockets]')).toHaveCount(3);
-    const cardVisuals = await compactHud.locator('.three-player-split-hud-card').evaluateAll((cards) => cards.map((card) => ({
-        scale: Number.parseFloat(getComputedStyle(card).scale),
-        fontSize: Number.parseFloat(getComputedStyle(card).fontSize),
-    })));
-    expect(cardVisuals).toHaveLength(3);
-    for (const visual of cardVisuals) {
-        expect(visual.scale).toBeLessThan(1);
-        expect(visual.fontSize).toBeLessThanOrEqual(13);
+    const hudVisuals = await compactHud.locator('.three-player-split-hud-column').evaluateAll((columns) => columns.map((column) => {
+        const header = column.querySelector('.three-player-split-hud-card-header');
+        const reserve = column.querySelector('.three-player-split-classic-reserve');
+        return {
+            headerClip: getComputedStyle(header).clipPath,
+            headerWidth: header.getBoundingClientRect().width,
+            paneWidth: column.getBoundingClientRect().width,
+            reserveTransform: getComputedStyle(reserve).transform,
+        };
+    }));
+    expect(hudVisuals).toHaveLength(3);
+    for (const visual of hudVisuals) {
+        expect(visual.headerClip).toContain('polygon');
+        expect(visual.headerWidth).toBeLessThan(visual.paneWidth);
+        expect(visual.reserveTransform).not.toBe('none');
     }
     for (let playerIndex = 1; playerIndex <= 3; playerIndex += 1) {
         await expect(page.locator(`#crosshair-p${playerIndex}`)).toBeVisible();
@@ -133,8 +141,19 @@ test('three-player Hunt exposes compact combat vitals and match status for all p
     await expect(compactHud.locator('[data-tps-meter="hp"]:not(.hidden)')).toHaveCount(3);
     await expect(compactHud.locator('[data-tps-meter="shield"]:not(.hidden)')).toHaveCount(3);
     await expect(compactHud.locator('[data-tps-meter="overheat"]:not(.hidden)')).toHaveCount(3);
+    await expect(compactHud.locator('.three-player-split-hunt-reserve .hunt-segmented-arc')).toHaveCount(9);
     await expect(compactHud.locator('.three-player-split-match-status')).toBeVisible();
     await expect(compactHud.locator('[data-tps-objective]')).not.toBeEmpty();
+    const combatVisuals = await compactHud.locator('.three-player-split-hud-column').evaluateAll((columns) => columns.map((column) => ({
+        headerDisplay: getComputedStyle(column.querySelector('.three-player-split-hud-card-header')).display,
+        vitalRadius: getComputedStyle(column.querySelector('.three-player-split-vital')).borderRadius,
+        targetingOpacity: Number.parseFloat(getComputedStyle(column.querySelector('.three-player-split-hunt-reserve')).opacity),
+    })));
+    for (const visual of combatVisuals) {
+        expect(visual.headerDisplay).toBe('none');
+        expect(visual.vitalRadius).toBe('50%');
+        expect(visual.targetingOpacity).toBeLessThan(1);
+    }
     expect(errors).toHaveLength(0);
     await returnToMenu(page);
 });

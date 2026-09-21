@@ -9,7 +9,7 @@ const VIEWPORTS = [
 
 const SCALES = [0.6, 1.4];
 
-test('three-player score cards stay in their columns across desktop sizes and HUD scales', async ({ page }) => {
+test('three-player normal-style HUD stays in its columns across desktop sizes and HUD scales', async ({ page }) => {
     await page.goto(resolveAppUrl(page, '/'), { waitUntil: 'domcontentloaded' });
     await page.addStyleTag({ path: 'src/four-player-planar/three-player-split.css' });
     await page.evaluate(() => {
@@ -18,11 +18,15 @@ test('three-player score cards stay in their columns across desktop sizes and HU
         hud.classList.remove('hidden');
         const root = document.createElement('div');
         root.className = 'three-player-split-hud';
+        root.dataset.mode = 'classic';
         root.innerHTML = [0, 1, 2].map((index) => `
-            <section class="three-player-split-hud-column c${index + 1}" style="--player-color:#70ff45">
+            <section class="three-player-split-hud-column c${index + 1}" data-mode="classic" style="--player-color:#70ff45">
                 <div class="three-player-split-hud-card">
-                    <strong>P${index + 1}</strong><span data-tps-stat>Abschüsse 0 · HP 100</span>
-                    <span data-tps-rank>Rang 1/9</span><span data-tps-item>Kein Item</span>
+                    <header class="three-player-split-hud-card-header">
+                        <strong>P${index + 1}</strong><span data-tps-stat>0</span><span data-tps-rank>Rang 1/9</span>
+                    </header>
+                    <div class="three-player-split-classic-reserve boost"><span>Boost</span><em>100%</em></div>
+                    <div class="item-bar"><div class="item-slot"></div><div class="item-slot"></div></div>
                 </div>
             </section>`).join('');
         hud.appendChild(root);
@@ -34,14 +38,23 @@ test('three-player score cards stay in their columns across desktop sizes and HU
                 document.documentElement.style.setProperty('--hud-scale', String(hudScale));
                 return [...document.querySelectorAll('.three-player-split-hud-column')].map((column) => {
                     const pane = column.getBoundingClientRect();
-                    const card = column.querySelector('.three-player-split-hud-card').getBoundingClientRect();
-                    return { pane: { left: pane.left, right: pane.right }, card: { left: card.left, right: card.right } };
+                    const elements = [
+                        column.querySelector('.three-player-split-hud-card-header'),
+                        column.querySelector('.three-player-split-classic-reserve'),
+                        column.querySelector('.item-bar'),
+                    ].map((element) => {
+                        const rect = element.getBoundingClientRect();
+                        return { left: rect.left, right: rect.right };
+                    });
+                    return { pane: { left: pane.left, right: pane.right }, elements };
                 });
             }, scale);
             expect(columns).toHaveLength(3);
-            for (const [index, { pane, card }] of columns.entries()) {
-                expect(card.left, `P${index + 1} left at ${viewport.width} scale ${scale}`).toBeGreaterThanOrEqual(pane.left - 1);
-                expect(card.right, `P${index + 1} right at ${viewport.width} scale ${scale}`).toBeLessThanOrEqual(pane.right + 1);
+            for (const [index, { pane, elements }] of columns.entries()) {
+                for (const element of elements) {
+                    expect(element.left, `P${index + 1} left at ${viewport.width} scale ${scale}`).toBeGreaterThanOrEqual(pane.left - 1);
+                    expect(element.right, `P${index + 1} right at ${viewport.width} scale ${scale}`).toBeLessThanOrEqual(pane.right + 1);
+                }
             }
         }
     }

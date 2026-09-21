@@ -347,7 +347,7 @@ test('update drives a three-row HUD only while the three-player runtime is activ
     assert.deepEqual(runtime.thirdPersonCounts, [3]);
     assert.deepEqual(
         hudView.state.texts.filter(([, field]) => field === 'stat'),
-        [[0, 'stat', 'Punkte 2'], [1, 'stat', 'Punkte 0'], [2, 'stat', 'Punkte 5']]
+        [[0, 'stat', '2'], [1, 'stat', '0'], [2, 'stat', '5']]
     );
     assert.equal(hudView.state.matchUpdates.at(-1).huntActive, false);
     assert.deepEqual(hudView.state.playerUpdates.map(([index]) => index), [0, 1, 2]);
