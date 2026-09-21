@@ -4,6 +4,40 @@ import path from 'node:path';
 import test from 'node:test';
 import * as THREE from 'three';
 
+import { REACTOR_SITE_DESTRUCTIBLES } from '../src/core/config/maps/presets/reactor_site/ReactorSiteDestructibles.js';
+import { REACTOR_SITE_MODELS } from '../src/core/config/maps/presets/reactor_site/ReactorSiteModels.js';
+import { normalizeMapDestructibles } from '../src/shared/contracts/MapDestructibleContract.js';
+import { resolveMapDestructibleFireballSphere } from '../src/shared/contracts/MapDestructibleHazardContract.js';
+import { resolveGameplayConfig } from '../src/shared/contracts/GameplayConfigContract.js';
+
+test('the exported fireball surface matches its spherical damage volume', () => {
+    const glb = readGlb(CLOUD.stem);
+    const fire = glb.document.nodes.find((node) => node.name === 'fire');
+    const points = subtreeVertices(glb, fire);
+    const bounds = new THREE.Box3().setFromPoints(points);
+    for (const axis of ['x', 'y', 'z']) {
+        assert.ok(Math.abs(bounds.min[axis] + 1) < 1e-5, `fireball ${axis} minimum must be -1`);
+        assert.ok(Math.abs(bounds.max[axis] - 1) < 1e-5, `fireball ${axis} maximum must be 1`);
+    }
+    for (const point of points) assert.ok(Math.abs(point.length() - 1) < 1e-5);
+});
+
+test('the dust front stays on the apron throughout its visible animation', () => {
+    const glb = readGlb(CLOUD.stem);
+    const tracks = nodeTracks(glb);
+    const fps = (frameCount(glb) - 1) / CLOUD.seconds;
+    for (const rig of ['ring', 'front']) {
+        const track = tracks.get(rig);
+        const points = subtreeVertices(glb, track.node);
+        for (const seconds of [1, 4, 12, 40, 49]) {
+            const matrix = poseMatrix(poseAt(glb, track, Math.round(seconds * fps)));
+            const bounds = new THREE.Box3().setFromPoints(points.map((point) => point.clone().applyMatrix4(matrix)));
+            assert.ok(Math.abs(bounds.min.y) < 0.02,
+                `${rig} floats or sinks at ${seconds}s: lowest vertex ${bounds.min.y}`);
+        }
+    }
+});
+
 // The Blender pack of the reactor site: five standing parts, four baked collapses and one keyed
 // mushroom cloud. This file reads the GLBs directly rather than through the map catalog; it is
 // the half of the contract between scripts/generate_reactor_site_assets.py and the preset that
@@ -58,13 +92,28 @@ const CLOUD = Object.freeze({
     piece: 'reactor',
     intact: '03_reactor_block',
     baseMetres: 0.0,
-    // The rigs under piece_reactor, and whether their meshes may collide.
-    rigs: Object.freeze({ ruin: true, fire: false, cap: false, stem: false, ring: false }),
+    // The rigs under piece_reactor, and whether their meshes may collide. Only the ruin does; the
+    // fireball, the cap with its rolled rim and late masses, the stem with its offset streams and
+    // the ground dust with its front are all decoration a ship flies straight through.
+    rigs: Object.freeze({
+        ruin: true,
+        fire: false, cap: false, roll: false, bloom: false,
+        stem: false, plume: false, ring: false, front: false,
+    }),
+    // The parts that turn, and which way. Out of the generator's CLOUD_TURNS: the rim turns against
+    // the cap, which is what makes the rolled edge read as rolling rather than as a growing ring.
+    turning: Object.freeze({ cap: 1, roll: -1, bloom: 1, plume: -1, front: 1 }),
     // Out of the generator: CLOUD_SECONDS + CLOUD_HOLD_SECONDS, CLOUD_CAP_RADIUS, CLOUD_CAP_TOP.
     seconds: 49,
     capRadius: 115,
     capTop: 300,
     fireballGoneSeconds: 4.4,
+    // The scene's own model id and the segment whose break plays it, for the fireball parity test.
+    modelId: 'reactor-mushroom-cloud',
+    sceneId: 'mushroom_cloud',
+    // The generator floors a part that is not there yet at this scale rather than at zero, because
+    // a zero scale makes a node's matrix singular.
+    tinyScale: 0.001,
 });
 const STATIC_PARTS = Object.freeze(['01_site', '02_turbine_hall', '03_reactor_block', '04_cooling_tower', '05_vent_stack']);
 
@@ -583,9 +632,9 @@ test('the cloud is keyed from curves: it grows, climbs, holds, and the fireball 
     const scaleAt = (rig, frame) => readAccessorElement(glb, tracks.get(rig).scale.output, frame);
     const heightAt = (rig, frame) => readAccessorElement(glb, tracks.get(rig).translation.output, frame)[1];
 
-    // The cap and the stem grow monotonically and the cap climbs monotonically, then everything
+    // Every body of smoke grows monotonically and the cap climbs monotonically, then everything
     // holds for the last second.
-    for (const rig of ['cap', 'stem', 'ring']) {
+    for (const rig of ['cap', 'roll', 'bloom', 'stem', 'plume', 'ring', 'front']) {
         let previous = 0;
         for (let frame = 0; frame < frames; frame += 1) {
             const radius = scaleAt(rig, frame)[0];
@@ -620,4 +669,136 @@ test('the cloud is keyed from curves: it grows, climbs, holds, and the fireball 
     const [, ruinEnd] = scaleAt('ruin', frames - 1);
     assert.ok(Math.abs(ruinStart - 1) < 1e-4 && ruinEnd < ruinStart && ruinEnd > 0.5, `the ruin settles to ${ruinEnd.toFixed(2)}`);
     assert.equal(tracks.get('ruin').translation, undefined, 'the ruin stays where the block stood');
+});
+
+test('the parts of the cloud arrive one after another rather than all at once', () => {
+    const glb = readGlb(CLOUD.stem);
+    const tracks = nodeTracks(glb);
+    const frames = frameCount(glb);
+    const fps = (frames - 1) / CLOUD.seconds;
+    const radiusAt = (rig, seconds) => readAccessorElement(
+        glb, tracks.get(rig).scale.output, Math.round(seconds * fps),
+    )[0];
+
+    // Frame 1 is the ruin and nothing else - it is the pose the loader measures the scene by.
+    for (const rig of Object.keys(CLOUD.rigs)) {
+        if (rig === 'ruin') continue;
+        assert.ok(radiusAt(rig, 0) <= CLOUD.tinyScale * 1.001, `${rig} is already there at frame 1`);
+    }
+
+    // Each part sets out at its own second, in the order the generator states: the base surge, then
+    // the afterwinds that draw the offset streams up, then the dust front running out ahead of the
+    // surge, the cap, the rim rolling out of it, and last the masses that keep the cap changing
+    // shape for the rest of the clip. Comparing the seconds each part becomes visible at is what
+    // pins the stagger - the point is that no two arrive together, not what the constants are.
+    const arrivals = ['ring', 'plume', 'front', 'cap', 'roll', 'bloom'].map((rig) => {
+        for (let seconds = 0; seconds <= 8; seconds += 1 / fps) {
+            if (radiusAt(rig, seconds) > CLOUD.tinyScale * 1.001) return { rig, seconds };
+        }
+        return { rig, seconds: Infinity };
+    });
+    for (const [index, arrival] of arrivals.entries()) {
+        assert.ok(arrival.seconds < 4, `${arrival.rig} never arrives`);
+        if (index === 0) continue;
+        assert.ok(arrival.seconds > arrivals[index - 1].seconds,
+            `${arrival.rig} arrives at ${arrival.seconds.toFixed(2)} s, not after ${arrivals[index - 1].rig}`);
+    }
+
+    // The parts that turn, and the ones that have no business turning. Blender's Z is glTF's Y, so
+    // the yaw lives in the quaternion's y component. It is read a quarter of the way through the
+    // clip: a quaternion covers every rotation twice, and past half a turn the exporter may flip
+    // the whole sign - but no part of this cloud has turned that far by 12 seconds, so w is still
+    // positive there and the sign of y really is the direction of the yaw.
+    const quarter = Math.round((frames - 1) / 4);
+    for (const [rig, collides] of Object.entries(CLOUD.rigs)) {
+        const turn = CLOUD.turning[rig];
+        const rotation = tracks.get(rig)?.rotation;
+        if (turn === undefined) {
+            assert.equal(rotation, undefined, `${rig} is keyed turning and should not be`);
+            continue;
+        }
+        assert.ok(rotation, `${rig} never turns`);
+        assert.equal(collides, false, 'only smoke turns; the ruin lies still');
+        const [, y, , w] = readAccessorElement(glb, rotation.output, quarter);
+        assert.ok(w > 0, `${rig} is already past half a turn after 12 s`);
+        assert.ok(Math.abs(y) > 0.02, `${rig} barely turns at all (${y.toFixed(4)})`);
+        assert.equal(Math.sign(y), Math.sign(turn), `${rig} turns the wrong way`);
+        const [, yEnd, , wEnd] = readAccessorElement(glb, rotation.output, frames - 1);
+        assert.ok(Math.abs(yEnd - y) > 1e-4 || Math.abs(wEnd - w) > 1e-4,
+            `${rig} stops turning after the first quarter`);
+    }
+    assert.notEqual(Math.sign(CLOUD.turning.cap), Math.sign(CLOUD.turning.roll),
+        'the rim has to turn against the cap or the edge does not read as rolling');
+});
+
+test('the fireball the clip draws is the fireball the runtime burns with', () => {
+    // The one place the drawn asset and the damage volume are held against each other. Not
+    // constants on both sides: the exported clip is read back pose by pose, put through the very
+    // placement the map gives the scene - slot position, per-file scale, the loader's recentring
+    // and the runtime map scale - and compared against what MapDestructibleHazardContract would
+    // hand the blast system at that second.
+    const glb = readGlb(CLOUD.stem);
+    const { document } = glb;
+    const definition = normalizeMapDestructibles(REACTOR_SITE_DESTRUCTIBLES);
+    const scene = definition?.breakScenes.find((entry) => entry.id === CLOUD.sceneId);
+    const fireball = scene?.fireball;
+    assert.ok(fireball, 'the reactor scene authors a fireball');
+    assert.equal(scene.blast, null, 'and no separate one-shot blast beside it');
+    assert.ok(Math.abs(fireball.durationSeconds - CLOUD.fireballGoneSeconds) < 1e-9,
+        `the table ends at ${fireball.durationSeconds} s`);
+
+    // How the map puts this file into the world, read off the preset rather than restated.
+    const mapScale = Number(resolveGameplayConfig(null)?.ARENA?.MAP_SCALE);
+    assert.ok(mapScale > 0, 'the runtime states a map scale');
+    const descriptor = REACTOR_SITE_MODELS.find((entry) => entry.id === CLOUD.modelId);
+    assert.ok(descriptor, `${CLOUD.modelId} is placed by the preset`);
+    const slotY = descriptor.position[1] * mapScale;
+    const fitScale = descriptor.scale * mapScale;
+    // placeCollectionScene lifts the file by its own lowest vertex before placing it.
+    const restMinY = restBounds(document).min.y;
+
+    const tracks = nodeTracks(glb);
+    const fire = tracks.get('fire');
+    const frames = frameCount(glb);
+    let checked = 0;
+    let peak = 0;
+    for (let frame = 0; frame < frames; frame += 1) {
+        const [seconds] = readAccessorElement(glb, fire.translation.input, frame);
+        if (seconds > fireball.durationSeconds) break;
+        const drawnY = slotY + fitScale * (readAccessorElement(glb, fire.translation.output, frame)[1] - restMinY);
+        const drawnRadius = fitScale * readAccessorElement(glb, fire.scale.output, frame)[0];
+        const expected = resolveMapDestructibleFireballSphere(fireball, seconds, mapScale);
+        // The asset never keys a scale of zero, so at the two rows that carry no radius the drawn
+        // body is the floor scale rather than a point. The runtime reads zero there and hits nobody.
+        const expectedRadius = Math.max(expected.radius, CLOUD.tinyScale * fitScale);
+        assert.ok(Math.abs(drawnY - expected.y) < 0.02,
+            `at ${seconds.toFixed(3)} s the fireball is drawn at ${drawnY.toFixed(3)} and measured at ${expected.y.toFixed(3)}`);
+        assert.ok(Math.abs(drawnRadius - expectedRadius) < 0.02,
+            `at ${seconds.toFixed(3)} s the fireball is drawn ${drawnRadius.toFixed(3)} across and measured ${expectedRadius.toFixed(3)}`);
+        peak = Math.max(peak, drawnRadius);
+        checked += 1;
+    }
+    assert.ok(checked > 120, `only ${checked} poses of the fireball window were read back`);
+    assert.ok(peak > 100, `the fireball never gets larger than ${peak.toFixed(1)} world units`);
+
+    // Between the keys as well, not only on them: every row of the table sits on a whole frame, so
+    // the clip's linear samplers and the table's linear rows describe one and the same curve.
+    for (let seconds = 1 / 60; seconds < fireball.durationSeconds; seconds += 1 / 60) {
+        const expected = resolveMapDestructibleFireballSphere(fireball, seconds, mapScale);
+        const frame = seconds * (frames - 1) / CLOUD.seconds;
+        const low = Math.floor(frame);
+        const ratio = frame - low;
+        const blend = (output) => {
+            const a = readAccessorElement(glb, output, low)[0];
+            const b = readAccessorElement(glb, output, low + 1)[0];
+            return a + (b - a) * ratio;
+        };
+        const drawnRadius = fitScale * blend(fire.scale.output);
+        assert.ok(Math.abs(drawnRadius - Math.max(expected.radius, CLOUD.tinyScale * fitScale)) < 0.02,
+            `between two keys at ${seconds.toFixed(3)} s the clip is ${drawnRadius.toFixed(3)} and the table ${expected.radius.toFixed(3)}`);
+    }
+
+    // And nothing but the fireball is ever a hazard: the smoke rigs carry no curve of their own.
+    assert.equal(definition?.breakScenes.filter((entry) => entry.fireball).length, 1,
+        'only the breach lights a fireball; the four topples are falls, not fires');
 });

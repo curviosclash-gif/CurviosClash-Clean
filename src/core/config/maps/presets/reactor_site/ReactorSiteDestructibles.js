@@ -19,7 +19,8 @@
 //                                                  structure. Does not seal.
 //   reactor_dome                       `leg_lower` the containment. Its breach is the finale: the
 //                                                  mushroom cloud, and the seal - after it nothing
-//                                                  else on the site can be shot apart.
+//                                                  else on the site can be shot apart. It is also
+//                                                  the one break that burns: see REACTOR_FIREBALL.
 // Pieces, twelve: shell and debris per tower, lower and upper of the stack, the hall's roof, two
 // long walls and two gables, and the reactor's ruin. Every piece exists exactly once, so every
 // scene lists only its own.
@@ -28,7 +29,11 @@
 // Field: half of 310 authored units, from the tower's measured reach (ReactorSiteStructure.js).
 // Modes: HUNT only, the decision the Eiffel siege took - an arcade run is scored on progress,
 // and a plant that can be removed from the route would change what that run is worth.
-// Decided by the user: the plant, the mushroom cloud on the reactor, the buildings breaking too.
+// Danger: only the breach has any, and only for the four and a bit seconds its fireball is on
+// screen. The four topples deal none at all - a tower coming down is a thing to watch, and the
+// plant is flown at altitude, so a delayed shockwave on the apron would hit nobody who was there.
+// Decided by the user: the plant, the mushroom cloud on the reactor, the buildings breaking too,
+// and that only the visible fireball burns.
 // Assumed: which structure seals (the reactor), the hit points, the fall directions.
 //
 // Compass convention: north is +Z (the switchyard), east +X. The towers stand on the X axis, so
@@ -42,8 +47,11 @@
 // `gameModes: ['HUNT']` is read against the strategy's `modeType`; in Classic and Arcade the very
 // same map is flown as intact concrete.
 
+import authoredFireballCurve from './ReactorFireballCurve.json' with { type: 'json' };
+
 import {
     GROUND,
+    METRE,
     up,
     TOWER_X,
     HALL_Z,
@@ -57,6 +65,38 @@ const HP = Object.freeze({ tower: 500, stack: 250, hall: 400, reactor: 900 });
 
 /** World heading the four topple clips were baked falling towards: +X, read as atan2(x, z). */
 const BAKED_HEADING = Math.atan2(1, 0);
+
+// The fireball of the breach, as the clip draws it: (seconds since the break, centre height above
+// the apron in metres, radius in metres). This is the table scripts/generate_reactor_site_assets.py
+// keys the drawn fireball off - FIREBALL_CURVE there, row for row - so what burns a ship is the
+// body on the screen and nothing else. Both sides read between the rows linearly, exactly as glTF
+// plays its own samplers, and tests/reactor-site-blender-assets.contract.test.mjs samples the
+// exported clip against this table through the map's placement to keep them equal.
+//
+// It is full size in 1.4 s, lingers, and is gone at 4.4 s, its centre climbing at a steady 22 m/s.
+// From 4.4 s the scene is smoke for another forty-five seconds, and smoke is harmless: the table
+// ends, so the hazard ends.
+//
+// Every row sits on a whole frame of the 30 fps clip, so the clip is the table everywhere and not
+// only on the rows themselves - see the note beside FIREBALL_CURVE in the generator.
+const FIREBALL_CURVE = Object.freeze(authoredFireballCurve.map((row) => Object.freeze(row)));
+
+/**
+ * The fireball as the map states it. `origin` is where the scene's own model is placed - the
+ * containment's floor on the plant's axis - and `unitScale` the plant's 0.6 authored units per
+ * metre, so the runtime reaches world units with the map's anchor scale and nothing else.
+ *
+ * 50 damage at the centre is what the storm dam's collapse deals (StormDamDestructibles.js), and
+ * this one is the same kind of thing: an environmental hazard that does not care who caused it.
+ * It falls off to nothing at the fireball's edge and may take each ship at most once per breach,
+ * so flying through the whole four seconds costs one hit, not four seconds of hits.
+ */
+const REACTOR_FIREBALL = Object.freeze({
+    damage: 50,
+    origin: Object.freeze([0, GROUND, 0]),
+    unitScale: METRE,
+    samples: FIREBALL_CURVE,
+});
 
 /** Every piece of the map, in the order the scenes drop them. */
 export const REACTOR_SITE_PIECES = Object.freeze([
@@ -162,6 +202,8 @@ export const REACTOR_SITE_DESTRUCTIBLES = Object.freeze({
             yawFromEvent: false,
             pieces: ['reactor'],
             hideModelIds: ['reactor-block'],
+            // No `blast`: this scene's danger is not a moment but the fireball itself.
+            fireball: REACTOR_FIREBALL,
         },
     ]),
 });
