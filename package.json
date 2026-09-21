@@ -69,6 +69,7 @@
     "bot:validate": "node dev/training/scripts/bot-validation-runner.mjs",
     "bot:validate:fight": "node dev/training/scripts/bot-play-analysis.mjs --scenario-ids H-FIGHT-DUEL --policy heuristic --rounds 8 --headless true --fail-on-forced-round true",
     "bot:validate:flight": "node dev/training/scripts/bot-play-analysis.mjs --scenario-ids H-FIGHT-DUEL,H-CLASSIC-3D-HARD,H-ARCADE-VERTICAL --policy heuristic --rounds 2 --headless true",
+    "bot:validate:team": "node dev/training/scripts/bot-validation-runner.mjs --scenario-ids H-TEAM-FLAGS,H-TEAM-ESCORT --policy heuristic --rounds 1 --headless true --force-timeout 12000 --match-timeout 25000 --total-timeout 180000",
     "bot:analyze": "node dev/training/scripts/bot-play-analysis.mjs",
     "bot:improve": "node dev/training/scripts/heuristic-improvement-loop.mjs",
     "bot:improve:auto": "node dev/training/scripts/heuristic-improvement-runner.mjs",

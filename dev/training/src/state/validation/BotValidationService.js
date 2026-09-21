@@ -43,12 +43,13 @@ function normalizeModePath(value) {
 }
 
 function expectedModePath(gameMode) {
-    if (gameMode === 'HUNT') return 'fight';
+    if (gameMode === 'HUNT' || gameMode === 'ESCORT') return 'fight';
     if (gameMode === 'ARCADE') return 'arcade';
     return 'normal';
 }
 
-function expectedRuntimeGameMode(gameMode) {
+function expectedRuntimeGameMode(gameMode, teamMode = false, teamObjective = 'HUNT') {
+    if (gameMode === 'HUNT' && teamMode === true && teamObjective === 'ESCORT') return 'ESCORT';
     return gameMode;
 }
 
@@ -71,8 +72,16 @@ export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamp
     const expectedPolicyType = normalizePolicyType(scenario.expectedPolicyType);
     const expectedRuntimeBotCount = Math.max(0, Math.trunc(Number(scenario.expectedRuntimeBotCount) || 0));
     const expectedGameMode = normalizeGameMode(scenario.gameMode) || 'CLASSIC';
-    const requiredModePath = expectedModePath(expectedGameMode);
-    const requiredRuntimeGameMode = expectedRuntimeGameMode(expectedGameMode);
+    const expectedTeamMode = scenario.teamMode === true;
+    const expectedTeamObjective = expectedTeamMode
+        ? String(scenario.teamObjective || 'HUNT').trim().toUpperCase()
+        : 'HUNT';
+    const requiredRuntimeGameMode = expectedRuntimeGameMode(
+        expectedGameMode,
+        expectedTeamMode,
+        expectedTeamObjective
+    );
+    const requiredModePath = expectedModePath(requiredRuntimeGameMode);
     const runtimePolicyTypes = uniqueNormalized(samples.map((sample) => sample.runtimePolicyType), normalizePolicyType);
     const entityPolicyTypes = uniqueNormalized(samples.map((sample) => sample.entityPolicyType), normalizePolicyType);
     const botPolicyTypes = uniqueNormalized(
@@ -153,11 +162,52 @@ export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamp
         && entityGameModes.length === 1
         && entityGameModes[0] === requiredRuntimeGameMode
         && semanticGameModes.length === 1
-        && semanticGameModes[0] === expectedGameMode
+        && semanticGameModes[0] === requiredRuntimeGameMode
         && modePaths.length === 1
         && modePaths[0] === requiredModePath
         && arcadeEnabledValues.length === 1
         && arcadeEnabledValues[0] === expectsArcade;
+    const runtimeTeamModeValues = [...new Set(samples.map((sample) => sample.runtimeTeamMode === true))];
+    const runtimeTeamObjectives = uniqueNormalized(
+        samples.map((sample) => sample.runtimeTeamObjective),
+        normalizeGameMode
+    );
+    const botTeamIds = uniqueNormalized(
+        samples.flatMap((sample) => Array.isArray(sample.botTeamIds) ? sample.botTeamIds : []),
+        normalizeGameMode
+    );
+    const objectiveBotSamples = samples.flatMap((sample) => (
+        Array.isArray(sample.botObjectiveAssignments) ? sample.botObjectiveAssignments : []
+    ));
+    const objectiveTypes = uniqueNormalized(
+        objectiveBotSamples.map((entry) => entry?.objectiveType),
+        normalizeGameMode
+    );
+    const objectiveRoles = uniqueNormalized(
+        objectiveBotSamples.map((entry) => entry?.objectiveRole),
+        normalizeGameMode
+    );
+    const expectedObjectiveBotSamples = samples.reduce(
+        (sum, sample) => sum + Math.max(0, Math.trunc(Number(sample?.botCount) || 0)),
+        0
+    );
+    const expectsObjectiveAssignments = expectedTeamMode && ['FLAGS', 'ESCORT'].includes(expectedTeamObjective);
+    const missingObjectiveBotSamples = expectsObjectiveAssignments
+        ? Math.max(0, expectedObjectiveBotSamples - objectiveBotSamples.length)
+        : 0;
+    const teamMatches = !expectedTeamMode || (
+        samples.length > 0
+        && runtimeTeamModeValues.length === 1
+        && runtimeTeamModeValues[0] === true
+        && runtimeTeamObjectives.length === 1
+        && runtimeTeamObjectives[0] === expectedTeamObjective
+        && botTeamIds.length === 2
+        && (!expectsObjectiveAssignments || (
+            objectiveTypes.length === 1
+            && objectiveTypes[0] === expectedTeamObjective
+            && missingObjectiveBotSamples === 0
+        ))
+    );
 
     return {
         sampleCount: samples.length,
@@ -195,6 +245,19 @@ export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamp
             modePaths,
             arcadeEnabledValues,
             arcadeSeeds,
+        },
+        team: {
+            ok: teamMatches,
+            expectedTeamMode,
+            expectedTeamObjective,
+            runtimeTeamModeValues,
+            runtimeTeamObjectives,
+            botTeamIds,
+            objectiveTypes,
+            objectiveRoles,
+            objectiveBotSampleCount: objectiveBotSamples.length,
+            expectedObjectiveBotSamples,
+            missingObjectiveBotSamples,
         },
     };
 }
@@ -288,7 +351,7 @@ export class BotValidationService {
         game.settings.mode = scenario.mode === '2p' ? '2p' : '1p';
         game.settings.numBots = scenario.bots;
         game.settings.mapKey = scenario.mapKey;
-        game.settings.gameMode = expectedRuntimeGameMode(scenario.gameMode);
+        game.settings.gameMode = scenario.gameMode;
         if (nextModePath === 'arcade' || nextModePath === 'fight') {
             writeHangarMapSelection(
                 game.settings,
@@ -306,6 +369,13 @@ export class BotValidationService {
         game.settings.portalsEnabled = scenario.portalCount > 0;
         game.settings.hunt.respawnEnabled = scenario.respawnEnabled === true;
         game.settings.hunt.deathmatchKillLimit = scenario.deathmatchKillLimit;
+        game.settings.hunt.teamMode = scenario.teamMode === true;
+        game.settings.hunt.teamObjective = scenario.teamMode === true ? scenario.teamObjective : 'HUNT';
+        game.settings.hunt.teamSize = scenario.teamSize;
+        game.settings.hunt.teamBotDifficulty = {
+            ALPHA: scenario.botDifficulty || 'NORMAL',
+            BRAVO: scenario.botDifficulty || 'NORMAL',
+        };
         if (scenario.gameMode === 'HUNT') {
             game.settings.gameplay.fightPlayerHp = scenario.fightPlayerHp;
             game.settings.gameplay.fightMgDamage = scenario.fightMgDamage;
