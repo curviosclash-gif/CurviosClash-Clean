@@ -1,4 +1,5 @@
 import { PLAYER_PROFILE_MAX_NAME_LENGTH } from '../shared/contracts/PlayerProfileContract.js';
+import { armConfirmButton } from './ConfirmButtonArming.js';
 
 function sanitizeFilePart(value) {
     return String(value || 'spieler')
@@ -79,12 +80,17 @@ export class PlayerProfileUiController {
         bind(this.refs.create, 'click', () => this._handle(this.manager?.createProfile?.(this.refs.name?.value), 'Spielerprofil erstellt.'));
         bind(this.refs.rename, 'click', () => this._handle(this.manager?.renameProfile?.(this._selected()?.id, this.refs.name?.value), 'Spielerprofil umbenannt.'));
         bind(this.refs.default, 'click', () => this._handle(this.manager?.setDefaultProfile?.(this._selected()?.id), 'Standardprofil aktualisiert.'));
-        bind(this.refs.archive, 'click', () => {
-            const selected = this._selected();
-            if (!selected) return;
-            if (typeof globalThis.confirm === 'function' && !globalThis.confirm(`Spielerprofil „${selected.displayName}“ archivieren?`)) return;
-            this._handle(this.manager?.archiveProfile?.(selected.id), 'Spielerprofil archiviert.');
-        });
+        if (this.refs.archive) {
+            const confirmation = armConfirmButton(this.refs.archive, {
+                label: this.refs.archive.textContent,
+                onConfirm: () => {
+                    const selected = this._selected();
+                    if (selected) this._handle(this.manager?.archiveProfile?.(selected.id), 'Spielerprofil archiviert.');
+                },
+            });
+            bind(this.refs.select, 'change', confirmation.disarm);
+            this.cleanups.push(() => confirmation.dispose());
+        }
         bind(this.refs.activate, 'click', () => this._activateSelected());
         bind(this.refs.export, 'click', () => this._exportSelected());
         bind(this.refs.import, 'click', () => {

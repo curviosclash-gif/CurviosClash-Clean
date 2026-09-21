@@ -92,6 +92,27 @@ test('Desktop-Hangar: Filter haben lesbaren Kontrast und Fassungen vollständige
     expect(appearance.clippedSlots).toEqual([]);
 });
 
+test('Desktop-Hangar: Build-Löschen braucht zwei Klicks', async ({ page }) => {
+    await loadGame(page);
+    await seedUnlockedProfiles(page);
+    await page.reload();
+    await loadGameWithRetry(page);
+    await openArcadeHangar(page);
+    await page.locator('[data-build-view="presets"]').click();
+    await page.locator('.arcade-vehicle-preset-input').fill('Delete Build QA');
+    await page.locator('.arcade-vehicle-preset-save').click();
+    const saved = page.locator('.arcade-vehicle-preset-select option', { hasText: 'Delete Build QA' });
+    await expect(saved).toHaveCount(1);
+    const buildId = await saved.getAttribute('value');
+    await page.locator('.arcade-vehicle-preset-select').selectOption(buildId);
+    await page.locator('.hangar-preset-more').evaluate((details) => { details.open = true; });
+    await page.locator('.arcade-vehicle-preset-delete').click();
+    await expect(page.locator('.arcade-vehicle-preset-delete')).toHaveAttribute('data-confirm-armed', 'true');
+    await expect(page.locator(`.arcade-vehicle-preset-select option[value="${buildId}"]`)).toHaveCount(1);
+    await page.locator('.arcade-vehicle-preset-delete').click();
+    await expect(page.locator(`.arcade-vehicle-preset-select option[value="${buildId}"]`)).toHaveCount(0);
+});
+
 async function seedUnlockedProfiles(page) {
     const vehicleIds = await page.evaluate(() => Array.from(document.querySelectorAll('#vehicle-select-p1 option'))
         .map((option) => String(option.value || '').trim())

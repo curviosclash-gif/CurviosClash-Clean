@@ -64,3 +64,26 @@ test('Desktop-Spielerprofile isolate progression across activation and renderer 
     ));
     expect(restored).toEqual({ bestScore: 1234 });
 });
+
+test('Desktop-Spielerprofil archivieren braucht zwei Klicks statt eines Systemdialogs', async ({ page }) => {
+    await waitForLoadedGame(page);
+    const profileId = await page.evaluate(() => {
+        document.getElementById('player-profile-name').value = 'Archive QA';
+        document.getElementById('btn-player-profile-create').click();
+        return window.GAME_INSTANCE.playerProfileManager.getProfiles()
+            .find((profile) => profile.displayName === 'Archive QA')?.id || '';
+    });
+    expect(profileId).not.toBe('');
+    await page.evaluate((id) => {
+        const select = document.getElementById('player-profile-select');
+        select.value = id;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        document.getElementById('btn-player-profile-archive').click();
+    }, profileId);
+    await expect(page.locator('#btn-player-profile-archive')).toHaveAttribute('data-confirm-armed', 'true');
+    expect(await page.evaluate((id) => window.GAME_INSTANCE.playerProfileManager.getProfiles()
+        .some((profile) => profile.id === id), profileId)).toBe(true);
+    await page.evaluate(() => document.getElementById('btn-player-profile-archive').click());
+    expect(await page.evaluate((id) => window.GAME_INSTANCE.playerProfileManager.getProfiles()
+        .some((profile) => profile.id === id), profileId)).toBe(false);
+});

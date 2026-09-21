@@ -547,6 +547,33 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         expect(contractState.id.length).toBeGreaterThan(0);
     });
 
+    test('T20confirm: Gespeicherte Einstellungen und Vorlagen brauchen zwei Löschklicks', async ({ page }) => {
+        await loadGame(page);
+        await openLevel4Drawer(page, { section: 'tools' });
+        await page.fill('#profile-name', 'Delete QA');
+        await page.click('#btn-profile-save');
+        await expect(page.locator('#profile-select')).toHaveValue('Delete QA');
+        await page.click('#btn-profile-delete');
+        await expect(page.locator('#btn-profile-delete')).toHaveAttribute('data-confirm-armed', 'true');
+        await expect(page.locator('#profile-select')).toHaveValue('Delete QA');
+        await page.click('#btn-profile-delete');
+        await expect(page.locator('#profile-select option[value="Delete QA"]')).toHaveCount(0);
+
+        await page.click('#level4-tab-presets');
+        await page.fill('#preset-name', 'Delete Preset QA');
+        await page.click('#btn-preset-save-open');
+        const savedPreset = page.locator('#preset-select option', { hasText: 'Delete Preset QA' });
+        await expect(savedPreset).toHaveCount(1);
+        const presetId = await savedPreset.getAttribute('value');
+        expect(presetId).not.toBe('');
+        await page.selectOption('#preset-select', presetId);
+        await page.click('#btn-preset-delete');
+        await expect(page.locator('#btn-preset-delete')).toHaveAttribute('data-confirm-armed', 'true');
+        await expect(page.locator('#preset-select')).toHaveValue(presetId);
+        await page.click('#btn-preset-delete');
+        await expect(page.locator(`#preset-select option[value="${presetId}"]`)).toHaveCount(0);
+    });
+
     test('T20f: Fixed-Preset setzt Match-Contract auf fixed', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);

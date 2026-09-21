@@ -1461,6 +1461,9 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             game.runtimeFacade.onSettingsChanged({ changedKeys: ['vehicles.player1'] });
         });
         await page.click('#btn-level3-reset');
+        await expect(page.locator('#btn-level3-reset')).toHaveAttribute('data-confirm-armed', 'true');
+        expect(await page.inputValue('#map-select')).toBe('complex');
+        await page.click('#btn-level3-reset');
         expect(await page.inputValue('#map-select')).toBe(expectedDefaults.level3MapKey);
         expect(await page.inputValue('#vehicle-select-p1')).toBe(expectedDefaults.level3VehicleP1);
 
