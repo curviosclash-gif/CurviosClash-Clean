@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import net from 'node:net';
 import test from 'node:test';
 
 import { createLANSignalingServer } from '../server/lan-signaling.js';
@@ -56,6 +58,63 @@ async function postRaw(baseUrl, path, rawBody) {
 function statusUrl(baseUrl, playerId, token) {
     return `${baseUrl}/lobby/status?${new URLSearchParams({ playerId, token })}`;
 }
+
+function sendRawHttpRequest(port, request) {
+    return new Promise((resolve, reject) => {
+        let response = '';
+        const socket = net.createConnection({ host: '127.0.0.1', port });
+        socket.setEncoding('utf8');
+        socket.setTimeout(2_000, () => socket.destroy(new Error('raw HTTP request timed out')));
+        socket.on('connect', () => socket.end(request));
+        socket.on('data', (chunk) => { response += chunk; });
+        socket.on('end', () => resolve(response));
+        socket.on('error', reject);
+    });
+}
+
+test('LAN signaling rejects malformed request URLs without terminating the server', async () => {
+    const source = [
+        "import { createLANSignalingServer } from './server/lan-signaling.js';",
+        'const bundle = createLANSignalingServer(0, { ghostCleanupIntervalMs: 0 });',
+        "bundle.server.once('listening', () => console.log(`ACTUAL_PORT=${bundle.server.address().port}`));",
+    ].join('\n');
+    const child = spawn(process.execPath, ['--input-type=module', '-e', source], {
+        cwd: process.cwd(),
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+
+    try {
+        const port = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error(`LAN child did not listen: ${stderr}`)), 2_000);
+            child.stdout.on('data', () => {
+                const match = stdout.match(/ACTUAL_PORT=(\d+)/);
+                if (!match) return;
+                clearTimeout(timeout);
+                resolve(Number(match[1]));
+            });
+        });
+        const malformed = await sendRawHttpRequest(
+            port,
+            'GET // HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n'
+        );
+        assert.match(malformed, /^HTTP\/1\.1 400 /, stderr);
+
+        const probe = await sendRawHttpRequest(
+            port,
+            'GET /discovery/info HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n'
+        );
+        assert.match(probe, /^HTTP\/1\.1 200 /, stderr);
+        assert.equal(child.exitCode, null, stderr);
+    } finally {
+        if (child.exitCode === null) child.kill();
+    }
+});
 
 test('LAN discovery hides join data, status requires a token, and CORS rejects public origins', async () => {
     const lanServer = await startLanServer();
@@ -283,6 +342,102 @@ test('LAN match start is idempotent while a start command is pending', async () 
         assert.equal(first.ok, true);
         assert.equal(duplicate.ok, true);
         assert.equal(duplicate.payload.pendingMatchStart.commandId, 'match-first');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
+test('LAN signaling accepts a second match after the start command retention window', async () => {
+    let currentTime = 1_000_000;
+    const lanServer = await startLanServer({
+        now: () => currentTime,
+        ghostCleanupIntervalMs: 0,
+    });
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 2 });
+        const joined = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+            actorId: 'Client',
+        });
+        await postJson(lanServer.baseUrl, '/lobby/ready', {
+            playerId: joined.payload.playerId,
+            playerToken: joined.payload.playerToken,
+            ready: true,
+        });
+        const first = await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+            commandId: 'match-first',
+        });
+
+        currentTime += 2_500;
+        const second = await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+            commandId: 'match-second',
+        });
+
+        assert.equal(first.ok, true);
+        assert.equal(second.ok, true);
+        assert.equal(second.payload.pendingMatchStart.commandId, 'match-second');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
+test('LAN signaling rejects new joins while a match start is pending', async () => {
+    const lanServer = await startLanServer();
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 3 });
+        const joined = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+        });
+        await postJson(lanServer.baseUrl, '/lobby/ready', {
+            playerId: joined.payload.playerId,
+            playerToken: joined.payload.playerToken,
+            ready: true,
+        });
+        await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+        });
+
+        const lateJoin = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+        });
+        assert.equal(lateJoin.status, 409);
+        assert.equal(lateJoin.payload?.message, 'match_start_pending');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
+test('LAN rejoin cannot exceed the lobby player limit', async () => {
+    let currentTime = 1_000_000;
+    const lanServer = await startLanServer({
+        now: () => currentTime,
+        ghostPlayerTimeoutMs: 1_000,
+        ghostCleanupIntervalMs: 0,
+        reconnectLeaseMs: 60_000,
+    });
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 2 });
+        const firstJoin = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+        });
+        currentTime += 2_000;
+        lanServer.cleanupGhostPlayers();
+        const replacement = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+        });
+        assert.equal(replacement.ok, true);
+
+        const overLimitRejoin = await postJson(lanServer.baseUrl, '/lobby/rejoin', {
+            playerId: firstJoin.payload.playerId,
+            playerToken: firstJoin.payload.playerToken,
+        });
+        assert.equal(overLimitRejoin.status, 409);
+        assert.equal(overLimitRejoin.payload?.message, 'lobby_full');
     } finally {
         await stopLanServer(lanServer.server);
     }
@@ -627,6 +782,68 @@ test('LAN signaling requires tokens on signaling and ack-pending routes', async 
     }
 });
 
+test('LAN signaling bounds ICE queues to valid host-client routes', async () => {
+    const lanServer = await startLanServer();
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 3 });
+        const lobbyCode = String(created.payload?.lobbyCode || '');
+        const firstJoin = await postJson(lanServer.baseUrl, '/lobby/join', { lobbyCode });
+        const secondJoin = await postJson(lanServer.baseUrl, '/lobby/join', { lobbyCode });
+        const firstPlayerId = String(firstJoin.payload?.playerId || '');
+        const firstPlayerToken = String(firstJoin.payload?.playerToken || '');
+        const secondPlayerId = String(secondJoin.payload?.playerId || '');
+        const secondPlayerToken = String(secondJoin.payload?.playerToken || '');
+
+        const unknownTarget = await postJson(lanServer.baseUrl, '/signaling/ice', {
+            playerId: firstPlayerId,
+            token: firstPlayerToken,
+            targetPlayerId: 'not-a-lobby-member',
+            candidate: { candidate: 'unknown-target' },
+        });
+        assert.equal(unknownTarget.status, 403);
+        assert.equal(unknownTarget.payload?.message, 'signaling_route_invalid');
+        assert.equal(lanServer.lobby.ice.has('not-a-lobby-member'), false);
+
+        const clientToClient = await postJson(lanServer.baseUrl, '/signaling/ice', {
+            playerId: firstPlayerId,
+            token: firstPlayerToken,
+            targetPlayerId: secondPlayerId,
+            candidate: { candidate: 'client-to-client' },
+        });
+        assert.equal(clientToClient.status, 403);
+        assert.equal(clientToClient.payload?.message, 'signaling_route_invalid');
+
+        for (let index = 0; index < 200; index += 1) {
+            const queued = await postJson(lanServer.baseUrl, '/signaling/ice', {
+                playerId: firstPlayerId,
+                token: firstPlayerToken,
+                targetPlayerId: 'host',
+                candidate: { candidate: `first-${index}` },
+            });
+            assert.equal(queued.ok, true, `candidate ${index} should fit the first route`);
+        }
+
+        const firstOverflow = await postJson(lanServer.baseUrl, '/signaling/ice', {
+            playerId: firstPlayerId,
+            token: firstPlayerToken,
+            targetPlayerId: 'host',
+            candidate: { candidate: 'first-overflow' },
+        });
+        assert.equal(firstOverflow.status, 429);
+        assert.equal(firstOverflow.payload?.message, 'ice_queue_full');
+
+        const secondRoute = await postJson(lanServer.baseUrl, '/signaling/ice', {
+            playerId: secondPlayerId,
+            token: secondPlayerToken,
+            targetPlayerId: 'host',
+            candidate: { candidate: 'second-route' },
+        });
+        assert.equal(secondRoute.ok, true, 'one full route must not block another player');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
 test('LAN signaling counts the status poll as liveness and offers rejoin leases after ghost cleanup', async () => {
     let currentTime = 1_000_000;
     const lanServer = await startLanServer({
@@ -675,6 +892,70 @@ test('LAN signaling counts the status poll as liveness and offers rejoin leases 
         const statusAfterRejoin = await (await fetch(statusUrl(lanServer.baseUrl, playerId, playerToken))).json();
         assert.equal(statusAfterRejoin.players.length, 1);
         assert.deepEqual(statusAfterRejoin.pendingPlayers, [{ playerId }]);
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
+test('LAN rejoin clears a leased ready state after settings change', async () => {
+    let currentTime = 1_000_000;
+    const lanServer = await startLanServer({
+        now: () => currentTime,
+        ghostPlayerTimeoutMs: 1_000,
+        ghostCleanupIntervalMs: 0,
+        reconnectLeaseMs: 60_000,
+    });
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 3 });
+        const lobbyCode = String(created.payload?.lobbyCode || '');
+        const hostToken = String(created.payload?.hostToken || '');
+        const joined = await postJson(lanServer.baseUrl, '/lobby/join', { lobbyCode });
+        const playerId = String(joined.payload?.playerId || '');
+        const playerToken = String(joined.payload?.playerToken || '');
+
+        const ready = await postJson(lanServer.baseUrl, '/lobby/ready', {
+            playerId,
+            playerToken,
+            ready: true,
+            settingsRevision: 1,
+        });
+        assert.equal(ready.ok, true);
+
+        currentTime += 2_000;
+        lanServer.cleanupGhostPlayers();
+        const updated = await postJson(lanServer.baseUrl, '/lobby/metadata', {
+            hostPeerId: 'host',
+            hostToken,
+            metadata: { mapKey: 'maze' },
+        });
+        assert.equal(updated.payload?.sessionState?.settingsRevision, 2);
+
+        const rejoined = await postJson(lanServer.baseUrl, '/lobby/rejoin', {
+            playerId,
+            playerToken,
+        });
+        const rejoinedPlayer = rejoined.payload?.sessionState?.players?.find(
+            (player) => player.playerId === playerId
+        );
+        assert.equal(rejoined.ok, true);
+        assert.equal(rejoinedPlayer?.ready, false);
+
+        await postJson(lanServer.baseUrl, '/lobby/ready', {
+            playerId,
+            playerToken,
+            ready: true,
+            settingsRevision: 2,
+        });
+        currentTime += 2_000;
+        lanServer.cleanupGhostPlayers();
+        const sameRevisionRejoin = await postJson(lanServer.baseUrl, '/lobby/rejoin', {
+            playerId,
+            playerToken,
+        });
+        const sameRevisionPlayer = sameRevisionRejoin.payload?.sessionState?.players?.find(
+            (player) => player.playerId === playerId
+        );
+        assert.equal(sameRevisionPlayer?.ready, true);
     } finally {
         await stopLanServer(lanServer.server);
     }

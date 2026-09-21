@@ -27,7 +27,9 @@ const DEFAULT_MAX_PLAYERS = 10;
 const DEFAULT_GHOST_PLAYER_TIMEOUT_MS = 60_000;
 const DEFAULT_GHOST_CLEANUP_INTERVAL_MS = 5_000;
 const DEFAULT_RECONNECT_LEASE_MS = 60_000;
+const MATCH_START_RETENTION_MS = 2_500;
 const MAX_REQUEST_BODY_BYTES = 16 * 1024;
+const MAX_ICE_CANDIDATES_PER_ROUTE = 200;
 const REQUEST_RATE_WINDOW_MS = 10_000;
 const MAX_REQUESTS_PER_IP = 300;
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -325,6 +327,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 lobby.reconnectLeases.set(stalePlayer.playerId, {
                     token: stalePlayer.token,
                     ready: stalePlayer.ready === true,
+                    settingsRevision: lobby.settingsRevision,
                     actorId: stalePlayer.actorId,
                     name: stalePlayer.name,
                     participantMetadata: stalePlayer.participantMetadata,
@@ -343,6 +346,12 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 lobby.reconnectLeases.delete(leasePlayerId);
             }
         }
+    };
+
+    const clearExpiredMatchStart = (timestamp = now()) => {
+        const issuedAt = Number(lobby.pendingMatchStart?.issuedAt);
+        if (!Number.isFinite(issuedAt) || timestamp - issuedAt < MATCH_START_RETENTION_MS) return;
+        lobby.pendingMatchStart = null;
     };
 
     const cleanupIntervalId = ghostCleanupIntervalMs > 0
@@ -376,8 +385,16 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             return;
         }
 
-        const url = new URL(req.url, `http://localhost:${port}`);
+        let url;
+        try {
+            url = new URL(req.url, `http://localhost:${port}`);
+        } catch {
+            req.resume();
+            jsonResponse(res, { ok: false, message: 'invalid_request_url' }, 400);
+            return;
+        }
         const path = url.pathname;
+        clearExpiredMatchStart();
 
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_CREATE) {
             // The embedded server runs inside the host's app; only the host itself
@@ -439,6 +456,10 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             const requestedLobbyCode = normalizeLobbyCode(body.lobbyCode);
             if (!requestedLobbyCode || requestedLobbyCode !== normalizeLobbyCode(lobby.code)) {
                 jsonResponse(res, { ok: false, message: 'lobby_not_found' }, 404);
+                return;
+            }
+            if (lobby.pendingMatchStart) {
+                jsonResponse(res, { ok: false, message: 'match_start_pending' }, 409);
                 return;
             }
             if (countLobbyPlayers(lobby) >= Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS)) {
@@ -747,11 +768,15 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                     jsonResponse(res, { ok: false, message: 'player_auth_failed' }, 403);
                     return;
                 }
+                if (countLobbyPlayers(lobby) >= Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS)) {
+                    jsonResponse(res, { ok: false, message: 'lobby_full' }, 409);
+                    return;
+                }
                 lobby.reconnectLeases.delete(playerId);
                 player = {
                     playerId,
                     token: lease.token,
-                    ready: lease.ready === true,
+                    ready: lease.ready === true && lease.settingsRevision === lobby.settingsRevision,
                     actorId: lease.actorId || playerId,
                     name: lease.name || lease.actorId || playerId,
                     participantMetadata: lease.participantMetadata,
@@ -945,16 +970,27 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 jsonResponse(res, { ok: false, message: 'player_auth_failed' }, 403);
                 return;
             }
-            const targetPlayerId = toPlayerId(body.targetPlayerId) || fromPlayerId;
+            const targetPlayerId = toPlayerId(body.targetPlayerId);
             if (!targetPlayerId) {
                 jsonResponse(res, { ok: false, message: 'target_player_missing' }, 400);
+                return;
+            }
+            const isValidRoute = fromPlayerId === 'host'
+                ? !!findActivePlayer(targetPlayerId)
+                : targetPlayerId === 'host';
+            if (!isValidRoute) {
+                jsonResponse(res, { ok: false, message: 'signaling_route_invalid' }, 403);
                 return;
             }
             if (!lobby.ice.has(targetPlayerId)) {
                 lobby.ice.set(targetPlayerId, []);
             }
             const iceQueue = lobby.ice.get(targetPlayerId);
-            if (iceQueue.length >= 200) {
+            let routeQueueSize = 0;
+            for (const entry of iceQueue) {
+                if (entry.fromPlayerId === fromPlayerId) routeQueueSize += 1;
+            }
+            if (routeQueueSize >= MAX_ICE_CANDIDATES_PER_ROUTE) {
                 jsonResponse(res, { ok: false, message: 'ice_queue_full' }, 429);
                 return;
             }

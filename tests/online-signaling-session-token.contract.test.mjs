@@ -81,9 +81,9 @@ async function closeTestServer(wss) {
     await new Promise((resolve) => wss.close(resolve));
 }
 
-async function createLobbyPair(url) {
+async function createLobbyPair(url, { maxPlayers = 4 } = {}) {
     const host = await createClient(url);
-    host.send(SIGNALING_COMMAND_TYPES.CREATE_LOBBY, { maxPlayers: 4 });
+    host.send(SIGNALING_COMMAND_TYPES.CREATE_LOBBY, { maxPlayers });
     const created = await host.next(SIGNALING_EVENT_TYPES.LOBBY_CREATED);
     const client = await createClient(url);
     client.send(SIGNALING_COMMAND_TYPES.JOIN_LOBBY, { lobbyCode: created.lobbyCode });
@@ -176,6 +176,97 @@ test('online signaling rejects missing or wrong resume tokens and accepts the co
         assert.equal(resumed.playerId, joined.playerId);
         assert.equal(resumed.sessionToken, joined.sessionToken);
         assert.equal(JSON.stringify(resumed.sessionState).includes(joined.sessionToken), false);
+    } finally {
+        await closeTestServer(wss);
+    }
+});
+
+test('online resume clears a leased ready state after settings change', async () => {
+    const { wss, url } = await createTestServer();
+    try {
+        const { host, client, created, joined } = await createLobbyPair(url);
+        client.send(SIGNALING_COMMAND_TYPES.READY, { ready: true, settingsRevision: 1 });
+        await host.next(SIGNALING_EVENT_TYPES.PLAYER_READY);
+
+        client.socket.terminate();
+        await host.next(SIGNALING_EVENT_TYPES.PLAYER_LEFT);
+        host.send(SIGNALING_COMMAND_TYPES.UPDATE_LOBBY_METADATA, {
+            metadata: { mapKey: 'maze' },
+        });
+        const updated = await host.next(SIGNALING_EVENT_TYPES.LOBBY_METADATA_UPDATED);
+        assert.equal(updated.sessionState.settingsRevision, 2);
+
+        const resumedClient = await createClient(url);
+        resumedClient.send(SIGNALING_COMMAND_TYPES.RESUME_CONNECTION, {
+            lobbyCode: created.lobbyCode,
+            playerId: joined.playerId,
+            sessionToken: joined.sessionToken,
+        });
+        const resumed = await resumedClient.next(SIGNALING_EVENT_TYPES.CONNECTION_RESUMED);
+        const resumedPlayer = resumed.sessionState.players.find(
+            (player) => player.playerId === joined.playerId
+        );
+        assert.equal(resumedPlayer?.ready, false);
+
+        resumedClient.send(SIGNALING_COMMAND_TYPES.READY, { ready: true, settingsRevision: 2 });
+        await host.next(SIGNALING_EVENT_TYPES.PLAYER_READY);
+        resumedClient.socket.terminate();
+        await host.next(SIGNALING_EVENT_TYPES.PLAYER_LEFT);
+
+        const sameRevisionClient = await createClient(url);
+        sameRevisionClient.send(SIGNALING_COMMAND_TYPES.RESUME_CONNECTION, {
+            lobbyCode: created.lobbyCode,
+            playerId: joined.playerId,
+            sessionToken: joined.sessionToken,
+        });
+        const sameRevisionResume = await sameRevisionClient.next(SIGNALING_EVENT_TYPES.CONNECTION_RESUMED);
+        const sameRevisionPlayer = sameRevisionResume.sessionState.players.find(
+            (player) => player.playerId === joined.playerId
+        );
+        assert.equal(sameRevisionPlayer?.ready, true);
+    } finally {
+        await closeTestServer(wss);
+    }
+});
+
+test('online signaling rejects new joins while a match start is pending', async () => {
+    const { wss, url } = await createTestServer();
+    try {
+        const { host, client, created } = await createLobbyPair(url, { maxPlayers: 3 });
+        client.send(SIGNALING_COMMAND_TYPES.READY, { ready: true, settingsRevision: 1 });
+        await host.next(SIGNALING_EVENT_TYPES.PLAYER_READY);
+        host.send(SIGNALING_COMMAND_TYPES.START_MATCH, { settingsRevision: 1 });
+        await host.next(SIGNALING_EVENT_TYPES.MATCH_START);
+
+        const lateClient = await createClient(url);
+        lateClient.send(SIGNALING_COMMAND_TYPES.JOIN_LOBBY, { lobbyCode: created.lobbyCode });
+        const error = await lateClient.next(SIGNALING_EVENT_TYPES.ERROR);
+        assert.equal(error.code, 'match_start_pending');
+    } finally {
+        await closeTestServer(wss);
+    }
+});
+
+test('online resume cannot exceed the lobby player limit', async () => {
+    const { wss, url } = await createTestServer();
+    try {
+        const { host, client, created, joined } = await createLobbyPair(url, { maxPlayers: 2 });
+        client.socket.terminate();
+        await host.next(SIGNALING_EVENT_TYPES.PLAYER_LEFT);
+
+        const replacement = await createClient(url);
+        replacement.send(SIGNALING_COMMAND_TYPES.JOIN_LOBBY, { lobbyCode: created.lobbyCode });
+        await replacement.next(SIGNALING_EVENT_TYPES.LOBBY_JOINED);
+        await host.next(SIGNALING_EVENT_TYPES.PLAYER_JOINED);
+
+        const resumedClient = await createClient(url);
+        resumedClient.send(SIGNALING_COMMAND_TYPES.RESUME_CONNECTION, {
+            lobbyCode: created.lobbyCode,
+            playerId: joined.playerId,
+            sessionToken: joined.sessionToken,
+        });
+        const error = await resumedClient.next(SIGNALING_EVENT_TYPES.ERROR);
+        assert.equal(error.code, 'lobby_full');
     } finally {
         await closeTestServer(wss);
     }

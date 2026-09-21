@@ -4,6 +4,7 @@
 
 import crypto from 'node:crypto';
 import { isLobbySettingsRevisionCurrent } from '../src/shared/contracts/LobbyMatchSummaryContract.js';
+import { normalizeMultiplayerPlayerName } from '../src/shared/contracts/MultiplayerSessionContract.js';
 import { WebSocketServer } from 'ws';
 import {
     SIGNALING_COMMAND_TYPES,
@@ -43,6 +44,7 @@ const LOBBY_TIMEOUT = 30 * 60 * 1000;
 const RECONNECT_WINDOW_MS = 30_000;
 const MAX_SIGNALING_PAYLOAD_BYTES = 16 * 1024;
 const MAX_LOBBY_PLAYERS = 10;
+const MAX_ACTOR_ID_LENGTH = 128;
 const MESSAGE_RATE_WINDOW_MS = 10_000;
 const MAX_MESSAGES_PER_SOCKET = 120;
 const MAX_MESSAGES_PER_IP = 600;
@@ -57,6 +59,10 @@ let nextPeerId = 1;
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized || fallback;
+}
+
+function normalizeActorId(value, fallback = '') {
+    return normalizeString(value, normalizeString(fallback, '')).slice(0, MAX_ACTOR_ID_LENGTH);
 }
 
 function normalizeLobbyCode(value, fallback = '') {
@@ -186,13 +192,14 @@ function createLobbyPlayer({
 } = {}) {
     const normalizedPeerId = normalizeString(peerId, '');
     const fallbackName = isHost === true ? 'Host' : normalizedPeerId;
+    const normalizedActorId = normalizeActorId(actorId, fallbackName);
     return {
         peerId: normalizedPeerId,
         ws,
         isHost: isHost === true,
         ready: ready === true,
-        actorId: normalizeString(actorId, fallbackName),
-        name: normalizeString(name || actorId, fallbackName),
+        actorId: normalizedActorId,
+        name: normalizeMultiplayerPlayerName(name, normalizedActorId || fallbackName),
         sessionToken: normalizeString(sessionToken, ''),
         joinedAt: Number.isFinite(Number(joinedAt)) ? Math.max(0, Math.floor(Number(joinedAt))) : Date.now(),
         lastSeenAt: Number.isFinite(Number(lastSeenAt)) ? Math.max(0, Math.floor(Number(lastSeenAt))) : Date.now(),
@@ -263,7 +270,8 @@ function buildOpenLobbyList(serverLobbyCodes = null) {
         }));
 }
 
-function setReconnectLease(lobbyCode, player) {
+function setReconnectLease(lobby, player) {
+    const lobbyCode = lobby?.code;
     const leaseKey = buildReconnectLeaseKey(lobbyCode, player?.peerId);
     if (!leaseKey || !player) return;
     reconnectLeases.set(leaseKey, {
@@ -271,6 +279,7 @@ function setReconnectLease(lobbyCode, player) {
         peerId: normalizeString(player.peerId, ''),
         isHost: player.isHost === true,
         ready: player.ready === true,
+        settingsRevision: lobby.settingsRevision,
         actorId: normalizeString(player.actorId, ''),
         name: normalizeString(player.name, ''),
         sessionToken: normalizeString(player.sessionToken, ''),
@@ -326,7 +335,7 @@ function removePeerFromLobby(ws, options = {}) {
     if (options.allowResume === true) {
         // Hosts get a resume lease too — otherwise a host signaling drop leaves
         // the lobby permanently headless.
-        setReconnectLease(lobbyCode, player);
+        setReconnectLease(lobby, player);
     } else {
         clearReconnectLease(lobbyCode, player.peerId);
     }
@@ -615,6 +624,10 @@ export function createSignalingServer(port = 9090, options = {}) {
                     sendSignalingError(ws, 'lobby_not_found', 'Lobby not found');
                     return;
                 }
+                if (lobby.pendingMatchStart) {
+                    sendSignalingError(ws, 'match_start_pending', 'Match start pending');
+                    return;
+                }
                 if (lobby.players.length >= lobby.maxPlayers) {
                     sendSignalingError(ws, 'lobby_full', 'Lobby full');
                     return;
@@ -638,7 +651,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                 });
                 broadcastToLobby(lobby, SIGNALING_EVENT_TYPES.PLAYER_JOINED, {
                     peerId,
-                    name: msg.name || peerId,
+                    name: player.name,
                     sessionState: buildLobbyState(lobby),
                 }, ws);
                 break;
@@ -668,20 +681,25 @@ export function createSignalingServer(port = 9090, options = {}) {
                     sendSignalingError(ws, 'player_already_connected', 'Player already connected');
                     break;
                 }
+                if (lobby.players.length >= lobby.maxPlayers) {
+                    sendSignalingError(ws, 'lobby_full', 'Lobby full');
+                    break;
+                }
 
                 ws._peerId = resumePeerId;
                 const resumedAt = Date.now();
-                lobby.players.push(createLobbyPlayer({
+                const resumedPlayer = createLobbyPlayer({
                     peerId: resumePeerId,
                     ws,
                     isHost: lease.isHost === true,
-                    ready: lease.ready === true,
+                    ready: lease.ready === true && lease.settingsRevision === lobby.settingsRevision,
                     actorId: lease.actorId,
                     name: lease.name,
                     sessionToken: lease.sessionToken,
                     joinedAt: lease.joinedAt,
                     lastSeenAt: resumedAt,
-                }));
+                });
+                lobby.players.push(resumedPlayer);
                 peerToLobby.set(ws, lobbyCode);
                 reconnectLeases.delete(leaseKey);
                 bumpLobbyState(lobby);
@@ -693,7 +711,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                 });
                 broadcastToLobby(lobby, SIGNALING_EVENT_TYPES.PLAYER_RECONNECTED, {
                     peerId: resumePeerId,
-                    name: normalizeString(lease.name || lease.actorId, resumePeerId),
+                    name: resumedPlayer.name,
                     sessionState: buildLobbyState(lobby),
                 }, ws);
                 break;
