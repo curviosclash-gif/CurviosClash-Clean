@@ -23,6 +23,11 @@ function formatDuration(value) {
     return `${normalized.toFixed(normalized >= 10 ? 1 : 2)}s`;
 }
 
+function formatMeasuredMgTime(secondsPerRound, measuredRounds) {
+    if (secondsPerRound == null || measuredRounds <= 0) return 'Nicht gemessen';
+    return `${formatDuration(secondsPerRound)} (${measuredRounds} R)`;
+}
+
 function formatDurationMs(value) {
     const parsed = Number(value);
     const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
@@ -211,7 +216,7 @@ export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null
     appendRow(balanceCard, 'bounce-wall-per-round', 'Wandabpraller/R', formatDecimal(balance?.bounceWallPerRound));
     appendRow(balanceCard, 'average-bot-survival', 'Bot-Überleben', formatDuration(balance?.averageBotSurvival));
     appendRow(balanceCard, 'item-uses-without-mg-per-round', 'Gegenstände/R (ohne MG)', formatDecimal(balance?.itemUsesWithoutMgPerRound));
-    appendRow(balanceCard, 'mg-shots-per-round', 'MG-Versuche/R', formatDecimal(balance?.itemUseModePerRound?.mg));
+    appendRow(balanceCard, 'mg-fire-time-per-round', 'MG-Feuerzeit/R', formatMeasuredMgTime(balance?.mgFireSecondsPerRound, balance?.mgFireMeasuredRounds));
     appendRow(balanceCard, 'kills-per-round', 'Kills/R', formatDecimal(balance?.killsPerRound));
     appendRow(balanceCard, 'spawn-deaths-per-round', 'Spawn-Tode/R', formatDecimal(balance?.spawnDeathsPerRound));
     appendRow(balanceCard, 'parcours-rate', 'Parcours-Rate', formatPercent(balance?.parcoursCompletionRate));
@@ -268,7 +273,7 @@ export function renderTelemetryHistorySection(container, historySummary) {
     appendRow(list, 'history-avg-dur', 'Avg. Dauer', formatDuration(historySummary.averageDuration));
     appendRow(list, 'history-self-cr', 'Selfcrash/R', formatDecimal(historySummary.selfCollisionsPerRound));
     appendRow(list, 'history-items-r', 'Gegenstände/R (ohne MG)', formatDecimal(historySummary.itemUsesWithoutMgPerRound));
-    appendRow(list, 'history-mg-shots-r', 'MG-Versuche/R', formatDecimal(historySummary.itemUseModePerRound?.mg));
+    appendRow(list, 'history-mg-fire-time-r', 'MG-Feuerzeit/R', formatMeasuredMgTime(historySummary.mgFireSecondsPerRound, historySummary.mgFireMeasuredRounds));
     appendRow(list, 'history-kills-r', 'Kills/R', formatDecimal(historySummary.killsPerRound));
     appendRow(list, 'history-spawn-deaths-r', 'Spawn-Tode/R', formatDecimal(historySummary.spawnDeathsPerRound));
     appendRow(list, 'history-parcours-rate', 'Parcours-Rate', formatPercent(historySummary.parcoursCompletionRate));

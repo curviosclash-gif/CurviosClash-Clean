@@ -3,6 +3,7 @@ import {
     cloneRoundMetricsSummary,
     createAggregateSummary,
     createItemUseModeCounts,
+    createRoundSummary,
 } from './RoundMetricsSummaryOps.js';
 
 const ITEM_USE_MODES = Object.freeze(['use', 'shoot', 'mg', 'other']);
@@ -26,6 +27,7 @@ function parseItemUseEventData(value) {
         type: normalizeItemUseType(parsed.type),
         code: typeof parsed.code === 'string' && parsed.code ? parsed.code : 'unknown',
         ok: parsed.ok === true,
+        durationSeconds: parsed.durationSeconds,
     };
 }
 
@@ -58,48 +60,6 @@ function resolveDamageSplit(damageResult = {}) {
 function isRocketType(value) {
     const normalized = typeof value === 'string' ? value.trim().toUpperCase() : '';
     return normalized.startsWith('ROCKET_');
-}
-
-function createRoundSummary() {
-    return {
-        roundId: 0,
-        duration: 0,
-        winnerIndex: -1,
-        winnerIsBot: false,
-        reason: '',
-        botCount: 0,
-        humanCount: 0,
-        botSurvivalAverage: 0,
-        botSurvivalSeconds: [],
-        botDeathSurvivalSeconds: [],
-        botDeathCauseCounts: {},
-        selfCollisions: 0,
-        stuckEvents: 0,
-        bounceWallEvents: 0,
-        bounceTrailEvents: 0,
-        itemUseEvents: 0,
-        itemUseModeCounts: createItemUseModeCounts(),
-        itemUseTypeCounts: {},
-        itemSpawnTypeCounts: {},
-        itemPickupTypeCounts: {},
-        itemPickupRejectedTypeCounts: {},
-        itemHitTypeCounts: {},
-        itemDamageByType: {},
-        actionResultCodeCounts: {},
-        failedItemActions: 0,
-        failedItemActionModeCounts: createItemUseModeCounts(),
-        failedItemActionCodeCounts: {},
-        mgHits: 0,
-        rocketHits: 0,
-        shieldAbsorb: 0,
-        hpDamage: 0,
-        turretEventCounts: {},
-        stuckPerMinute: 0,
-        parcoursCompleted: false,
-        parcoursRouteId: '',
-        parcoursCompletionTimeMs: 0,
-        parcoursCheckpointCount: 0,
-    };
 }
 
 export class RoundMetricsStore {
@@ -137,6 +97,7 @@ export class RoundMetricsStore {
         this._roundBounceWallEvents = 0;
         this._roundBounceTrailEvents = 0;
         this._roundItemUseEvents = 0;
+        this._roundMgFireSeconds = 0;
         this._roundItemUseModeCounts = createItemUseModeCounts();
         this._roundItemUseTypeCounts = {};
         this._roundItemSpawnTypeCounts = {};
@@ -213,6 +174,9 @@ export class RoundMetricsStore {
             const itemUse = parsedItemUse || parseItemUseEventData(data);
             const modeKey = normalizeItemUseMode(itemUse.mode);
             this._roundItemUseModeCounts[modeKey] += 1;
+            if (modeKey === 'mg' && itemUse.durationSeconds !== null) {
+                this._roundMgFireSeconds += itemUse.durationSeconds;
+            }
             const typeKey = normalizeItemUseType(itemUse.type);
             this._roundItemUseTypeCounts[typeKey] = (this._roundItemUseTypeCounts[typeKey] || 0) + 1;
             const codeKey = normalizeActionCode(itemUse.code);
@@ -344,6 +308,7 @@ export class RoundMetricsStore {
         round.bounceWallEvents = this._roundBounceWallEvents;
         round.bounceTrailEvents = this._roundBounceTrailEvents;
         round.itemUseEvents = this._roundItemUseEvents;
+        round.mgFireSeconds = this._roundMgFireSeconds;
         round.itemUseModeCounts = { ...this._roundItemUseModeCounts };
         round.itemUseTypeCounts = { ...this._roundItemUseTypeCounts };
         round.itemSpawnTypeCounts = { ...this._roundItemSpawnTypeCounts };
@@ -382,6 +347,7 @@ export class RoundMetricsStore {
         this._aggregate.totalBounceWallEvents += this._roundBounceWallEvents;
         this._aggregate.totalBounceTrailEvents += this._roundBounceTrailEvents;
         this._aggregate.totalItemUseEvents += this._roundItemUseEvents;
+        this._aggregate.totalMgFireSeconds += this._roundMgFireSeconds;
         for (const mode of ITEM_USE_MODES) {
             this._aggregate.totalItemUseModeCounts[mode] += Math.max(0, Number(this._roundItemUseModeCounts[mode]) || 0);
         }
@@ -447,6 +413,7 @@ export class RoundMetricsStore {
             bounceWallPerRound: rounds > 0 ? this._aggregate.totalBounceWallEvents / rounds : 0,
             bounceTrailPerRound: rounds > 0 ? this._aggregate.totalBounceTrailEvents / rounds : 0,
             itemUsePerRound: rounds > 0 ? this._aggregate.totalItemUseEvents / rounds : 0,
+            mgFireSecondsPerRound: rounds > 0 ? this._aggregate.totalMgFireSeconds / rounds : 0,
             // MG-Schuesse sind Dauerfeuer und liegen drei Groessenordnungen ueber
             // allen anderen Item-Einsaetzen. In der Summe ueberdecken sie jede
             // Aussage zur Item-Nutzung, deshalb steht daneben der MG-freie Wert.

@@ -13,8 +13,11 @@ import { TelemetryPreferencesStore } from '../../shared/telemetry/TelemetryPrefe
 import {
     createDefaultArcadeSummary,
     createDefaultFunnelSummary,
+    mergeItemUseTypeCounts,
     normalizeArcadeSummary,
     normalizeFunnelSummary,
+    normalizeItemUseModeCounts,
+    normalizeItemUseTypeCounts,
     recordArcadeTelemetry,
     recordFunnelTelemetry,
 } from './MenuTelemetryAggregateOps.js';
@@ -47,35 +50,10 @@ function toNonNegativeNumber(value, fallback = 0) {
     return Math.max(0, parsed);
 }
 
-function normalizeItemUseModeCounts(source = null) {
-    const modeSource = source && typeof source === 'object' ? source : {};
-    return {
-        use: toNonNegativeInt(modeSource.use, 0),
-        shoot: toNonNegativeInt(modeSource.shoot, 0),
-        mg: toNonNegativeInt(modeSource.mg, 0),
-        other: toNonNegativeInt(modeSource.other, 0),
-    };
-}
-
-function normalizeItemUseTypeCounts(source = null) {
-    const typeSource = source && typeof source === 'object' ? source : {};
-    const normalized = {};
-    Object.entries(typeSource).forEach(([key, value]) => {
-        const itemType = sanitizeBucketKey(String(key || '').toUpperCase(), '');
-        if (!itemType) return;
-        normalized[itemType] = toNonNegativeInt(value, 0);
-    });
-    return normalized;
-}
-
-function mergeItemUseTypeCounts(target, source) {
-    if (!target || typeof target !== 'object') return;
-    if (!source || typeof source !== 'object') return;
-    Object.entries(source).forEach(([itemType, count]) => {
-        const key = sanitizeBucketKey(String(itemType || '').toUpperCase(), '');
-        if (!key) return;
-        target[key] = (target[key] || 0) + toNonNegativeInt(count, 0);
-    });
+function toMeasuredSeconds(value) {
+    if (value == null) return null;
+    const seconds = Number(value);
+    return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
 }
 
 function createDefaultBucket() {
@@ -149,6 +127,8 @@ function createDefaultBalanceSummary() {
         totalItemUses: 0,
         totalStuckEvents: 0,
         totalBounceWallEvents: 0,
+        totalMgFireSeconds: 0,
+        mgFireMeasuredRounds: 0,
         totalBotSurvivalSeconds: 0,
         totalBotLives: 0,
         totalSpawnDeaths: 0,
@@ -178,6 +158,8 @@ function normalizeBalanceSummary(source) {
         totalItemUses: toNonNegativeInt(summary.totalItemUses, 0),
         totalStuckEvents: toNonNegativeInt(summary.totalStuckEvents, 0),
         totalBounceWallEvents: toNonNegativeInt(summary.totalBounceWallEvents, 0),
+        totalMgFireSeconds: toNonNegativeNumber(summary.totalMgFireSeconds, 0),
+        mgFireMeasuredRounds: toNonNegativeInt(summary.mgFireMeasuredRounds, 0),
         totalBotSurvivalSeconds: toNonNegativeNumber(summary.totalBotSurvivalSeconds, 0),
         totalBotLives: toNonNegativeInt(summary.totalBotLives, 0),
         totalSpawnDeaths: toNonNegativeInt(summary.totalSpawnDeaths, 0),
@@ -209,6 +191,7 @@ function normalizeRecentRoundEntry(entry) {
         duration: toNonNegativeNumber(source.duration, 0),
         selfCollisions: toNonNegativeInt(source.selfCollisions, 0),
         itemUses: toNonNegativeInt(source.itemUses, 0),
+        mgFireSeconds: toMeasuredSeconds(source.mgFireSeconds),
         itemUseByMode: normalizeItemUseModeCounts(source.itemUseByMode || source.itemUse?.byMode),
         itemUseByType: normalizeItemUseTypeCounts(source.itemUseByType || source.itemUse?.byType),
         mgHits: toNonNegativeInt(source.mgHits, 0),
@@ -352,6 +335,7 @@ export class MenuTelemetryStore extends PersistentStore {
         const duration = toNonNegativeNumber(source.duration, 0);
         const selfCollisions = toNonNegativeInt(source.selfCollisions, 0);
         const itemUses = toNonNegativeInt(source.itemUses, 0);
+        const mgFireSeconds = toMeasuredSeconds(source.mgFireSeconds);
         const itemUseByMode = normalizeItemUseModeCounts(source.itemUse?.byMode || source.itemUseByMode);
         const itemUseByType = normalizeItemUseTypeCounts(source.itemUse?.byType || source.itemUseByType);
         const mgHits = toNonNegativeInt(source.mgHits, 0);
@@ -373,6 +357,10 @@ export class MenuTelemetryStore extends PersistentStore {
         summary.totalDuration += duration;
         summary.totalSelfCollisions += selfCollisions;
         summary.totalItemUses += itemUses;
+        if (mgFireSeconds !== null) {
+            summary.totalMgFireSeconds += mgFireSeconds;
+            summary.mgFireMeasuredRounds += 1;
+        }
         summary.totalItemUseModeCounts.use += itemUseByMode.use;
         summary.totalItemUseModeCounts.shoot += itemUseByMode.shoot;
         summary.totalItemUseModeCounts.mg += itemUseByMode.mg;
@@ -462,6 +450,7 @@ export class MenuTelemetryStore extends PersistentStore {
             duration,
             selfCollisions,
             itemUses,
+            mgFireSeconds,
             itemUseByMode,
             itemUseByType,
             mgHits,

@@ -14,6 +14,12 @@ export function toNonNegativeNumber(value, fallback = 0) {
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+export function toMeasuredSeconds(value) {
+    if (value == null) return null;
+    const seconds = Number(value);
+    return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
+}
+
 export function toNonNegativeInt(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : fallback;
@@ -136,6 +142,7 @@ export function normalizeTelemetryHistoryEntry(source) {
         duration: toNonNegativeNumber(s.duration),
         selfCollisions: toNonNegativeInt(s.selfCollisions),
         itemUses: toNonNegativeInt(s.itemUses),
+        mgFireSeconds: toMeasuredSeconds(s.mgFireSeconds),
         itemUseByMode: normalizeItemUseModeCounts(s.itemUseByMode || s.itemUse?.byMode),
         itemUseByType: normalizeItemUseTypeCounts(s.itemUseByType || s.itemUse?.byType),
         mgHits: toNonNegativeInt(s.mgHits, 0),

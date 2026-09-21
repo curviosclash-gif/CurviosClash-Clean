@@ -15,6 +15,7 @@ import {
     normalizeItemUseModeCounts,
     normalizeItemUseTypeCounts,
     sanitizeString,
+    toMeasuredSeconds,
     toNonNegativeInt,
     toNonNegativeNumber,
 } from './TelemetryHistoryEntry.js';
@@ -56,6 +57,8 @@ export function createEmptyTelemetryHistorySummary() {
         selfCollisionsPerRound: 0,
         itemUsesPerRound: 0,
         itemUsesWithoutMgPerRound: 0,
+        mgFireMeasuredRounds: 0,
+        mgFireSecondsPerRound: null,
         itemUseModePerRound: normalizeItemUseModeCounts(),
         itemUseTypeTotals: {},
         mgHitsPerRound: 0,
@@ -93,6 +96,8 @@ export function computeTelemetryHistorySummary(rows) {
     let botWins = 0;
     let totalSelfCollisions = 0;
     let totalItemUses = 0;
+    let totalMgFireSeconds = 0;
+    let mgFireMeasuredRounds = 0;
     const totalItemUseByMode = normalizeItemUseModeCounts();
     const totalItemUseByType = {};
     let totalMgHits = 0;
@@ -120,6 +125,11 @@ export function computeTelemetryHistorySummary(rows) {
         totalDuration += toNonNegativeNumber(r.duration);
         totalSelfCollisions += toNonNegativeInt(r.selfCollisions);
         totalItemUses += toNonNegativeInt(r.itemUses);
+        const mgFireSeconds = toMeasuredSeconds(r.mgFireSeconds);
+        if (mgFireSeconds !== null) {
+            totalMgFireSeconds += mgFireSeconds;
+            mgFireMeasuredRounds += 1;
+        }
         const itemUseByMode = normalizeItemUseModeCounts(r.itemUseByMode);
         totalItemUseByMode.use += itemUseByMode.use;
         totalItemUseByMode.shoot += itemUseByMode.shoot;
@@ -171,6 +181,8 @@ export function computeTelemetryHistorySummary(rows) {
         averageDuration: rounds > 0 ? totalDuration / rounds : 0,
         selfCollisionsPerRound: rounds > 0 ? totalSelfCollisions / rounds : 0,
         itemUsesPerRound: rounds > 0 ? totalItemUses / rounds : 0,
+        mgFireMeasuredRounds,
+        mgFireSecondsPerRound: mgFireMeasuredRounds > 0 ? totalMgFireSeconds / mgFireMeasuredRounds : null,
         // Der MG-freie Wert entsteht aus bereits gespeicherten Feldern und gilt
         // deshalb rueckwirkend auch fuer Runden, die vor dieser Kennzahl liegen.
         itemUsesWithoutMgPerRound: rounds > 0

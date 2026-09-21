@@ -137,6 +137,8 @@ test('expert dashboard names completed arcade runs, funnel denominators and map 
         assert.equal(row('arcade-runs').children[1].textContent, '0 / 5');
         assert.equal(row('arcade-score').children[0].textContent, 'Ø Punkte je beendetem Lauf');
         assert.equal(row('arcade-xp').children[0].textContent, 'Sektor-XP gesamt');
+        assert.equal(row('mg-fire-time-per-round').children[1].textContent, 'Nicht gemessen');
+        assert.equal(row('history-mg-fire-time-r').children[1].textContent, 'Nicht gemessen');
         assert.equal(row('funnel-round-rate').children[0].textContent, 'Rundenenden / Startversuche');
         assert.equal(row('funnel-match-rate').children[0].textContent, 'Matchenden / Startversuche');
         assert.equal(row('funnel-abort-rate').children[0].textContent, 'Abbrüche / Startversuche');
@@ -145,6 +147,12 @@ test('expert dashboard names completed arcade runs, funnel denominators and map 
         assert.match(row('history-top-maps').children[1].textContent, new RegExp(mapName, 'u'));
         assert.equal(row('history-top-modes').children[1].textContent, 'Kampf(5)');
         assert.match(find(root, 'data-telemetry-recent-index', '0').textContent, new RegExp(`${mapName} / Kampf`, 'u'));
+
+        renderMenuTelemetryDashboard(root, {
+            balance: { rounds: 2, mgFireMeasuredRounds: 1, mgFireSecondsPerRound: 3.5 },
+        }, null, { rounds: 2, mgFireMeasuredRounds: 1, mgFireSecondsPerRound: 3.5 });
+        assert.equal(row('mg-fire-time-per-round').children[1].textContent, '3.50s (1 R)');
+        assert.equal(row('history-mg-fire-time-r').children[1].textContent, '3.50s (1 R)');
     } finally {
         globalThis.document = previousDocument;
     }
@@ -198,6 +206,7 @@ test('round payload includes versioned context and compact performance telemetry
         outcome: { state: 'ROUND_END', reason: 'ELIMINATION' },
         recording: { roundMetrics: {
             winnerIndex: 0, winnerIsBot: false, duration: 12,
+            mgFireSeconds: 0.5,
             bounceWallEvents: 4, botCount: 1, botSurvivalAverage: 9,
         } },
     });
@@ -209,6 +218,7 @@ test('round payload includes versioned context and compact performance telemetry
     assert.deepEqual(payload.context.vehicles, ['ship5', 'ship7']);
     assert.equal(payload.performance.frameP99Ms, 24);
     assert.equal(payload.bounceWallEvents, 4);
+    assert.equal(payload.mgFireSeconds, 0.5);
     assert.equal(payload.botCount, 1);
     assert.equal(payload.botSurvivalAverage, 9);
 });
@@ -285,6 +295,27 @@ test('expert telemetry retains removed result-board tuning metrics across reload
     assert.equal(balance.stuckEventsPerMinute, 6);
     assert.equal(balance.bounceWallPerRound, 4);
     assert.equal(balance.averageBotSurvival, 12);
+});
+
+test('MG-Feuerzeit mittelt nur Runden mit echter Messung und laesst alte Daten unbekannt', () => {
+    const storagePlatform = createMemoryStoragePlatform();
+    const options = { storagePlatform, preferencesStore: { isCollectionEnabled: () => true } };
+    const telemetry = new MenuTelemetryStore(options);
+    telemetry.recordEvent('round_end', { itemUses: 4000, itemUseByMode: { mg: 4000 } });
+    assert.equal(createSettingsTelemetryFacade({ menuTelemetryStore: telemetry }).getMenuTelemetrySnapshot().balance.mgFireSecondsPerRound, null);
+    telemetry.recordEvent('round_end', { itemUses: 200, itemUseByMode: { mg: 200 }, mgFireSeconds: 3.5 });
+    const restored = new MenuTelemetryStore(options);
+    const balance = createSettingsTelemetryFacade({ menuTelemetryStore: restored }).getMenuTelemetrySnapshot().balance;
+    assert.equal(balance.mgFireMeasuredRounds, 1);
+    assert.equal(balance.mgFireSecondsPerRound, 3.5);
+    assert.equal(restored.getSnapshot().recentRounds[0].mgFireSeconds, null);
+    assert.equal(restored.getSnapshot().recentRounds[1].mgFireSeconds, 3.5);
+    const history = new TelemetryHistoryStore().summarizeEntries([
+        { itemUseByMode: { mg: 4000 } },
+        { itemUseByMode: { mg: 200 }, mgFireSeconds: 3.5 },
+    ]);
+    assert.equal(history.mgFireMeasuredRounds, 1);
+    assert.equal(history.mgFireSecondsPerRound, 3.5);
 });
 
 test('history entries keep kills, spawn deaths and checkpoint counts', () => {
