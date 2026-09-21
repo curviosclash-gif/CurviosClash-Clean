@@ -292,12 +292,6 @@ export function setupMenuGameplayBindings(ctx) {
         emitSettingsChangedImmediate([keys.RULES_INVERT_P3]);
     });
 
-    if (ui.planarModeToggle) {
-        bind(ui.planarModeToggle, 'change', (e) => {
-            applyPlanarMode(!!e.target.checked);
-        });
-    }
-
     bind(ui.portalsToggle, 'change', () => {
         settings.portalsEnabled = !!ui.portalsToggle.checked;
         emitSettingsChangedImmediate([keys.RULES_PORTALS_ENABLED]);

@@ -1652,6 +1652,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.click('#submenu-custom:not(.hidden) [data-mode-path=\"fight\"]');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openStartSetupSection(page, 'match');
+        await expect(page.locator('#planar-mode-toggle')).toHaveCount(0);
         await page.evaluate(() => {
             const toggle = document.getElementById('portals-toggle');
             if (!toggle) return;

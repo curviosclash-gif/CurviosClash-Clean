@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
 import { SETTINGS_CHANGE_KEYS } from '../src/shared/settings/SettingsChangeKeys.js';
 import { applyMenuPlanarMode } from '../src/ui/menu/MenuPlanarModeOps.js';
@@ -61,4 +62,12 @@ test('planar flight on a map without portals still gets portals to change level'
     assert.equal(resolveMapPortalEntryCount({ portalCount: 0 }, { planarMode: true }), PLANAR_MIN_PORTAL_ENTRY_COUNT);
     assert.equal(resolveMapPortalEntryCount({ portalCount: 0 }, { planarMode: false }), 0);
     assert.equal(resolveMapPortalEntryCount({ portalCount: 6 }, { planarMode: true }), 6);
+});
+
+test('flight style has one control group in the rules, not another switch in map details', () => {
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    const gameplayBindings = readFileSync(new URL('../src/ui/menu/MenuGameplayBindings.js', import.meta.url), 'utf8');
+    assert.equal((html.match(/data-planar-mode="(?:true|false)"/gu) || []).length, 2);
+    assert.doesNotMatch(html, /id="planar-mode-toggle"/u);
+    assert.doesNotMatch(gameplayBindings, /ui\.planarModeToggle/u);
 });

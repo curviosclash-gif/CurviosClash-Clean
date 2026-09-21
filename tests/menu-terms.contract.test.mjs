@@ -48,7 +48,6 @@ test('saved-settings messages no longer speak of a "Profil"', () => {
 test('menu surfaces use one German name for each shared concept', () => {
     const expected = {
         'menu.multiplayer.title': 'Mehrspieler',
-        'menu.level4.map.planar_mode.label': 'Ebenenflug',
         'menu.level4.tabs.advanced_map.label': 'Karten-Details',
         'menu.level4.tools.vehicle_editor.label': 'Fahrzeug-Werkstatt öffnen',
         'menu.level4.gameplay.item_amount.label': 'Gegenstände:',

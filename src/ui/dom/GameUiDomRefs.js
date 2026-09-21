@@ -184,7 +184,6 @@ export function createGameUiRefs(doc = document) {
         fightTuningPresets: doc.getElementById('fight-tuning-presets'),
         fightTuningPresetButtons: Array.from(doc.querySelectorAll('[data-fight-tuning-preset]')),
         fightTuningHint: doc.getElementById('fight-tuning-hint'),
-        planarModeToggle: doc.getElementById('planar-mode-toggle'),
         planarLevelCountSlider: doc.getElementById('planar-level-count-slider'),
         planarLevelCountLabel: doc.getElementById('planar-level-count-label'),
         graphicsStyleSelect: doc.getElementById('graphics-style-select'),

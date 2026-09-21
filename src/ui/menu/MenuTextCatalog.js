@@ -156,7 +156,6 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level4.map.portals.label': 'Portale aktiviert',
     'menu.level4.map.portal_count.label': 'Anzahl Portal-Eingänge:',
     'menu.level4.map.planar_levels.label': 'Anzahl Ebenen:',
-    'menu.level4.map.planar_mode.label': 'Ebenenflug',
     'menu.level1.single.label': 'Einzelspieler',
     'menu.level1.multiplayer.label': 'Mehrspieler',
     'menu.level1.splitscreen.label': 'Geteilter Bildschirm',

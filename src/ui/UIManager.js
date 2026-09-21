@@ -595,7 +595,6 @@ export class UIManager {
         }
         applyRuntimeHudAppearance(ui.hud, hudAppearance);
 
-        if (ui.planarModeToggle) ui.planarModeToggle.checked = !!gp.planarMode;
         if (Array.isArray(ui.dimensionModeButtons)) {
             ui.dimensionModeButtons.forEach((button) => {
                 const planarRaw = String(button?.dataset?.planarMode || '').trim().toLowerCase();
