@@ -17,6 +17,7 @@ import { MatchHudAnnouncement, rankScoreRows } from '../MatchHudAnnouncement.js'
 import { formatSecretRoomStatus } from '../SecretRoomStatusText.js';
 import { updateTraversalStatus } from '../TraversalHudPresenter.js';
 import { MultiPlayerHudRocketWarnings } from './MultiPlayerHudRocketWarning.js';
+import { VIEWPORT_LAYOUTS, normalizeViewportLayout } from '../../shared/contracts/ViewportLayoutContract.js';
 
 function createStaticElement(documentRef, markup) {
     const range = documentRef.createRange();
@@ -152,6 +153,7 @@ export class ThreePlayerSplitHudView {
         this._intercepts = new HuntInterceptAnnouncer();
         this._warnings = new MultiPlayerHudRocketWarnings('three-player-split');
         this._localPlayerIndices = [];
+        this._viewportLayout = VIEWPORT_LAYOUTS.THREE_COLUMNS;
     }
 
     hasRoot() {
@@ -165,6 +167,17 @@ export class ThreePlayerSplitHudView {
         else classList.remove('three-player-split-active');
     }
 
+    setViewportLayout(layout) {
+        this._viewportLayout = normalizeViewportLayout(layout, VIEWPORT_LAYOUTS.THREE_COLUMNS);
+        this._root?.setAttribute?.('data-viewport-layout', this._viewportLayout);
+    }
+
+    /**
+     * @param {object} options
+     * @param {number} options.playerCount
+     * @param {ReadonlyArray<number>} options.playerColors
+     * @returns {boolean}
+     */
     ensureRows({ playerCount, playerColors = [] }) {
         if (this._root) return true;
         if (!this.document) return false;
@@ -186,7 +199,7 @@ export class ThreePlayerSplitHudView {
             scoreboard: matchStatus.querySelector('[data-tps-scoreboard]'),
             killFeed: matchStatus.querySelector('[data-tps-kill-feed]'),
         };
-
+        root.setAttribute?.('data-viewport-layout', this._viewportLayout);
         for (let index = 0; index < playerCount; index += 1) {
             const row = createStaticElement(this.document, `
                 <section class="three-player-split-hud-column c${index + 1}" aria-label="HUD Spieler ${index + 1}">

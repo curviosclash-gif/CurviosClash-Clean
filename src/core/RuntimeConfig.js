@@ -315,7 +315,7 @@ export function createRuntimeConfigSnapshot(settings, {
                 ? VIEWPORT_LAYOUTS.SINGLE
                 : (fourPlayerPlanarActive
                     ? VIEWPORT_LAYOUTS.FOUR_GRID
-                    : (threePlayerSplitActive ? VIEWPORT_LAYOUTS.THREE_COLUMNS : VIEWPORT_LAYOUTS.TWO_COLUMNS)),
+                    : (threePlayerSplitActive ? threePlayerSplitSelection.viewportLayout : VIEWPORT_LAYOUTS.TWO_COLUMNS)),
             fourPlayerPlanar: fourPlayerPlanarActive ? {
                 mode: fourPlayerPlanarSelection.mode,
                 mapKey: fourPlayerPlanarSelection.mapKey,
@@ -328,6 +328,7 @@ export function createRuntimeConfigSnapshot(settings, {
                 mapKey: threePlayerSplitSelection.mapKey,
                 vehicleId: sharedThreePlayerVehicleId,
                 botCount: threePlayerSplitSelection.botCount,
+                viewportLayout: threePlayerSplitSelection.viewportLayout,
                 deviceAssignment: threePlayerSplitSelection.deviceAssignment,
             } : null,
             maxPlayers: clampSettingValue(source.maxPlayers, { min: 2, max: 10, step: 1 }, 10),

@@ -40,7 +40,10 @@ export const FOUR_PLAYER_PLANAR_ROLL_BINDINGS = Object.freeze([
 export const THREE_PLAYER_SPLIT_HUMAN_COUNT = 3;
 export const THREE_PLAYER_SPLIT_MAX_BOTS = 6;
 export const THREE_PLAYER_SPLIT_MAX_PARTICIPANTS = 9;
-export const THREE_PLAYER_SPLIT_VIEWPORT_LAYOUT = VIEWPORT_LAYOUTS.THREE_COLUMNS;
+export const THREE_PLAYER_SPLIT_VIEWPORT_LAYOUTS = Object.freeze({
+    PORTRAIT: VIEWPORT_LAYOUTS.THREE_COLUMNS,
+    LANDSCAPE: VIEWPORT_LAYOUTS.THREE_ROWS,
+});
 
 // The full 3D flight model applies here, unlike the flattened four-player-planar mode.
 // These labels mirror the three full keyboard binding scopes from CONFIG.KEYS.
@@ -83,6 +86,17 @@ export function normalizeThreePlayerSplitDeviceAssignment(value = null) {
         usedGamepads.add(device);
         return device;
     });
+}
+
+export function normalizeThreePlayerSplitViewportLayout(value) {
+    return value === THREE_PLAYER_SPLIT_VIEWPORT_LAYOUTS.LANDSCAPE
+        ? THREE_PLAYER_SPLIT_VIEWPORT_LAYOUTS.LANDSCAPE
+        : THREE_PLAYER_SPLIT_VIEWPORT_LAYOUTS.PORTRAIT;
+}
+
+export function isThreePlayerSplitViewportLayout(value) {
+    return value === THREE_PLAYER_SPLIT_VIEWPORT_LAYOUTS.PORTRAIT
+        || value === THREE_PLAYER_SPLIT_VIEWPORT_LAYOUTS.LANDSCAPE;
 }
 
 /**
@@ -178,6 +192,7 @@ export function normalizeThreePlayerSplitSettings(value = null, options = {}) {
         mapKey: normalizeSelection(source.mapKey, options.allowedMapKeys, fallbackMapKey),
         vehicleId: normalizeSelection(source.vehicleId, options.allowedVehicleIds, fallbackVehicleId),
         botCount,
+        viewportLayout: normalizeThreePlayerSplitViewportLayout(source.viewportLayout),
         deviceAssignment: normalizeThreePlayerSplitDeviceAssignment(source.deviceAssignment),
     };
 }
@@ -197,15 +212,15 @@ export function createThreePlayerSplitRuntimeSelection(settings = null, options 
     return {
         active,
         variant: active ? SPLIT_SCREEN_VARIANTS.THREE_PLAYER : SPLIT_SCREEN_VARIANTS.STANDARD,
-        viewportLayout: active ? THREE_PLAYER_SPLIT_VIEWPORT_LAYOUT : VIEWPORT_LAYOUTS.TWO_COLUMNS,
         numHumans: active ? THREE_PLAYER_SPLIT_HUMAN_COUNT : 2,
         ...selection,
+        viewportLayout: active ? selection.viewportLayout : VIEWPORT_LAYOUTS.TWO_COLUMNS,
     };
 }
 
 export function isThreePlayerSplitRuntime(runtimeConfig = null) {
     return runtimeConfig?.session?.splitScreenVariant === SPLIT_SCREEN_VARIANTS.THREE_PLAYER
-        && runtimeConfig?.session?.viewportLayout === THREE_PLAYER_SPLIT_VIEWPORT_LAYOUT;
+        && isThreePlayerSplitViewportLayout(runtimeConfig?.session?.viewportLayout);
 }
 
 export function isFourPlayerPlanarVariant(settings = null) {

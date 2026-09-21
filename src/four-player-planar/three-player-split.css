@@ -154,6 +154,21 @@
     transform-origin: right top;
 }
 
+.three-player-split-hud[data-viewport-layout="three_rows"] .three-player-split-hud-column {
+    left: 0;
+    width: 100%;
+    height: calc(100% / 3);
+}
+
+.three-player-split-hud[data-viewport-layout="three_rows"] .three-player-split-hud-column.c1 { top: 0; }
+.three-player-split-hud[data-viewport-layout="three_rows"] .three-player-split-hud-column.c2 { top: calc(100% / 3); }
+.three-player-split-hud[data-viewport-layout="three_rows"] .three-player-split-hud-column.c3 { top: calc(200% / 3); }
+
+.three-player-split-hud[data-viewport-layout="three_rows"] > .match-hud-announcement {
+    top: 96px;
+    max-width: min(30vw, 300px);
+}
+
 .three-player-split-classic-reserves {
     position: absolute;
     inset: 0;

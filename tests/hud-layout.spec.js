@@ -9,7 +9,7 @@ const VIEWPORTS = [
 
 const SCALES = [0.6, 1.4];
 
-test('three-player normal-style HUD stays in its columns across desktop sizes and HUD scales', async ({ page }) => {
+test('three-player score cards stay in their panes across desktop sizes, layouts and HUD scales', async ({ page }) => {
     await page.goto(resolveAppUrl(page, '/'), { waitUntil: 'domcontentloaded' });
     await page.addStyleTag({ path: 'src/four-player-planar/three-player-split.css' });
     await page.evaluate(() => {
@@ -33,27 +33,40 @@ test('three-player normal-style HUD stays in its columns across desktop sizes an
     });
     for (const viewport of VIEWPORTS) {
         await page.setViewportSize(viewport);
-        for (const scale of SCALES) {
-            const columns = await page.evaluate((hudScale) => {
-                document.documentElement.style.setProperty('--hud-scale', String(hudScale));
-                return [...document.querySelectorAll('.three-player-split-hud-column')].map((column) => {
-                    const pane = column.getBoundingClientRect();
-                    const elements = [
-                        column.querySelector('.three-player-split-hud-card-header'),
-                        column.querySelector('.three-player-split-classic-reserve'),
-                        column.querySelector('.item-bar'),
-                    ].map((element) => {
-                        const rect = element.getBoundingClientRect();
-                        return { left: rect.left, right: rect.right };
+        for (const viewportLayout of ['three_columns', 'three_rows']) {
+            for (const scale of SCALES) {
+                const panes = await page.evaluate(({ hudScale, viewportLayout }) => {
+                    document.documentElement.style.setProperty('--hud-scale', String(hudScale));
+                    document.querySelector('.three-player-split-hud').dataset.viewportLayout = viewportLayout;
+                    return [...document.querySelectorAll('.three-player-split-hud-column')].map((column) => {
+                        const pane = column.getBoundingClientRect();
+                        const card = column.querySelector('.three-player-split-hud-card').getBoundingClientRect();
+                        const elements = [
+                            column.querySelector('.three-player-split-hud-card-header'),
+                            column.querySelector('.three-player-split-classic-reserve'),
+                            column.querySelector('.item-bar'),
+                        ].map((element) => {
+                            const rect = element.getBoundingClientRect();
+                            return { left: rect.left, right: rect.right };
+                        });
+                        return {
+                            pane: { left: pane.left, top: pane.top, right: pane.right, bottom: pane.bottom },
+                            card: { left: card.left, top: card.top, right: card.right, bottom: card.bottom },
+                            elements,
+                        };
                     });
-                    return { pane: { left: pane.left, right: pane.right }, elements };
-                });
-            }, scale);
-            expect(columns).toHaveLength(3);
-            for (const [index, { pane, elements }] of columns.entries()) {
-                for (const element of elements) {
-                    expect(element.left, `P${index + 1} left at ${viewport.width} scale ${scale}`).toBeGreaterThanOrEqual(pane.left - 1);
-                    expect(element.right, `P${index + 1} right at ${viewport.width} scale ${scale}`).toBeLessThanOrEqual(pane.right + 1);
+                }, { hudScale: scale, viewportLayout });
+                expect(panes).toHaveLength(3);
+                for (const [index, { pane, card, elements }] of panes.entries()) {
+                    const context = `P${index + 1} ${viewportLayout} ${viewport.width} scale ${scale}`;
+                    expect(card.left, `${context} left`).toBeGreaterThanOrEqual(pane.left - 1);
+                    expect(card.top, `${context} top`).toBeGreaterThanOrEqual(pane.top - 1);
+                    expect(card.right, `${context} right`).toBeLessThanOrEqual(pane.right + 1);
+                    expect(card.bottom, `${context} bottom`).toBeLessThanOrEqual(pane.bottom + 1);
+                    for (const element of elements) {
+                        expect(element.left, `${context} element left`).toBeGreaterThanOrEqual(pane.left - 1);
+                        expect(element.right, `${context} element right`).toBeLessThanOrEqual(pane.right + 1);
+                    }
                 }
             }
         }

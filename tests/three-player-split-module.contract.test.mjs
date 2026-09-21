@@ -49,6 +49,7 @@ function createHudView() {
         colors: null,
         visible: false,
         surfaceActive: false,
+        viewportLayout: null,
         texts: [],
         matchUpdates: [],
         playerUpdates: [],
@@ -58,6 +59,7 @@ function createHudView() {
         hasRoot: () => state.rows > 0,
         hasRow: (index) => index < state.rows,
         setRuntimeSurfaceActive: (active) => { state.surfaceActive = active; },
+        setViewportLayout: (layout) => { state.viewportLayout = layout; },
         ensureRows({ playerCount, playerColors }) {
             state.rows = playerCount;
             state.colors = playerColors;
@@ -142,6 +144,7 @@ test('startMatch stores the three-player selection, gives all three slots the sh
         mode: 'hunt',
         mapKey: '__not-a-map__',
         vehicleId,
+        viewportLayout: VIEWPORT_LAYOUTS.THREE_ROWS,
         botCount: '4',
         deviceAssignment: ['keyboard', 'gamepad-1', 'gamepad-2'],
     });
@@ -154,6 +157,7 @@ test('startMatch stores the three-player selection, gives all three slots the sh
     assert.equal(local.splitScreenVariant, SPLIT_SCREEN_VARIANTS.THREE_PLAYER);
     assert.equal(local.threePlayerSplit.mode, 'hunt');
     assert.equal(local.threePlayerSplit.botCount, 4);
+    assert.equal(local.threePlayerSplit.viewportLayout, VIEWPORT_LAYOUTS.THREE_ROWS);
     assert.notEqual(local.threePlayerSplit.mapKey, '__not-a-map__');
     assert.ok(Object.hasOwn(CONFIG.MAPS, local.threePlayerSplit.mapKey), 'falls back to an injected, hunt-eligible map');
     assert.deepEqual(local.threePlayerSplit.deviceAssignment, ['keyboard', 'gamepad-1', 'gamepad-2']);
@@ -335,7 +339,7 @@ test('update drives a three-row HUD only while the three-player runtime is activ
     runtime.runtimeConfig = {
         session: {
             splitScreenVariant: SPLIT_SCREEN_VARIANTS.THREE_PLAYER,
-            viewportLayout: VIEWPORT_LAYOUTS.THREE_COLUMNS,
+            viewportLayout: VIEWPORT_LAYOUTS.THREE_ROWS,
             threePlayerSplit: { mode: 'classic' },
         },
     };
@@ -343,6 +347,7 @@ test('update drives a three-row HUD only while the three-player runtime is activ
     module.update();
     assert.equal(hudView.state.rows, 3);
     assert.deepEqual(hudView.state.colors, THREE_PLAYER_SPLIT_PLAYER_COLORS);
+    assert.equal(hudView.state.viewportLayout, VIEWPORT_LAYOUTS.THREE_ROWS);
     assert.equal(hudView.state.visible, true);
     assert.deepEqual(runtime.thirdPersonCounts, [3]);
     assert.deepEqual(

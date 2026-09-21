@@ -44,6 +44,9 @@ export class RenderViewportSystem {
         if (this.layout === VIEWPORT_LAYOUTS.THREE_COLUMNS) {
             return (this.width / 3) / this.height;
         }
+        if (this.layout === VIEWPORT_LAYOUTS.THREE_ROWS) {
+            return this.width / (this.height / 3);
+        }
         return this.width / this.height;
     }
 
@@ -184,6 +187,26 @@ export class RenderViewportSystem {
             ];
             this.renderer.setScissorTest(true);
             for (const [x, y, width, height, camera] of columns) {
+                this.renderer.setViewport(x, y, width, height);
+                this.renderer.setScissor(x, y, width, height);
+                this._renderCamera(scene, camera);
+            }
+            this.renderer.setScissorTest(false);
+            this.renderer.setViewport(0, 0, w, h);
+            this.renderer.setScissor(0, 0, w, h);
+            return;
+        }
+
+        if (this.layout === VIEWPORT_LAYOUTS.THREE_ROWS && cameras.length >= 3) {
+            const rowHeight = Math.floor(h / 3);
+            const topRowHeight = h - rowHeight * 2;
+            const rows = [
+                [0, rowHeight * 2, w, topRowHeight, cameras[0]],
+                [0, rowHeight, w, rowHeight, cameras[1]],
+                [0, 0, w, rowHeight, cameras[2]],
+            ];
+            this.renderer.setScissorTest(true);
+            for (const [x, y, width, height, camera] of rows) {
                 this.renderer.setViewport(x, y, width, height);
                 this.renderer.setScissor(x, y, width, height);
                 this._renderCamera(scene, camera);

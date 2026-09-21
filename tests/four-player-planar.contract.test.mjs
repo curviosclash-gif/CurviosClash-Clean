@@ -22,11 +22,13 @@ import {
     THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT,
     THREE_PLAYER_SPLIT_INPUT_DEVICES,
     THREE_PLAYER_SPLIT_PLAYER_COLORS,
+    THREE_PLAYER_SPLIT_VIEWPORT_LAYOUTS,
     normalizeFourPlayerPlanarRollBindings,
     normalizeFourPlayerPlanarSettings,
     normalizeSplitScreenVariant,
     normalizeThreePlayerSplitDeviceAssignment,
     normalizeThreePlayerSplitSettings,
+    normalizeThreePlayerSplitViewportLayout,
     resolveThreePlayerSplitInputDevice,
 } from '../src/four-player-planar/FourPlayerPlanarContract.js';
 import {
@@ -147,6 +149,19 @@ test('runtime snapshot creates three local humans on equal-width columns with fu
     assert.equal(humans.length, 3);
     assert.deepEqual(humans.map((entry) => entry.vehicleId), Array(3).fill(settings.vehicles.PLAYER_1));
     assert.deepEqual(humans.map((entry) => entry.color), THREE_PLAYER_SPLIT_PLAYER_COLORS);
+});
+
+test('three-player runtime snapshot keeps the selected landscape rows', () => {
+    const manager = createManager();
+    const settings = manager.createDefaultSettings();
+    settings.localSettings.sessionType = 'splitscreen';
+    settings.localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.THREE_PLAYER;
+    settings.localSettings.threePlayerSplit.viewportLayout = VIEWPORT_LAYOUTS.THREE_ROWS;
+
+    const runtime = manager.createRuntimeConfig(settings);
+
+    assert.equal(runtime.session.viewportLayout, VIEWPORT_LAYOUTS.THREE_ROWS);
+    assert.equal(runtime.session.threePlayerSplit.viewportLayout, VIEWPORT_LAYOUTS.THREE_ROWS);
 });
 
 test('standard two-player splitscreen remains the compatible two-column adapter', () => {
@@ -324,6 +339,7 @@ test('three-player split settings normalize device assignment, clamp bots and re
     assert.equal(settings.mode, 'hunt');
     assert.equal(settings.botCount, 6);
     assert.deepEqual(settings.deviceAssignment, ['keyboard', 'keyboard', 'keyboard']);
+    assert.equal(settings.viewportLayout, THREE_PLAYER_SPLIT_VIEWPORT_LAYOUTS.PORTRAIT);
     assert.deepEqual(
         normalizeThreePlayerSplitDeviceAssignment(['gamepad-1', 'gamepad-1', 'keyboard']),
         ['gamepad-1', 'gamepad-2', 'keyboard']
@@ -331,6 +347,14 @@ test('three-player split settings normalize device assignment, clamp bots and re
     assert.deepEqual(
         normalizeThreePlayerSplitDeviceAssignment(['gamepad-1', 'gamepad-2', 'gamepad-3']),
         ['gamepad-1', 'gamepad-2', 'gamepad-3']
+    );
+    assert.equal(
+        normalizeThreePlayerSplitViewportLayout(VIEWPORT_LAYOUTS.THREE_ROWS),
+        THREE_PLAYER_SPLIT_VIEWPORT_LAYOUTS.LANDSCAPE
+    );
+    assert.equal(
+        normalizeThreePlayerSplitViewportLayout('unknown-layout'),
+        THREE_PLAYER_SPLIT_VIEWPORT_LAYOUTS.PORTRAIT
     );
 });
 
@@ -379,6 +403,56 @@ test('three-column renderer splits P1/P2/P3 into equal-width panes and resets sc
     } finally {
         globalThis.window = previousWindow;
     }
+});
+
+test('three-row renderer splits P1/P2/P3 into landscape panes from top to bottom', () => {
+    const previousWindow = globalThis.window;
+    globalThis.window = { innerWidth: 1920, innerHeight: 1080 };
+    const calls = [];
+    const renderer = {
+        setSize: (...args) => calls.push(['size', ...args]),
+        setViewport: (...args) => calls.push(['viewport', ...args]),
+        setScissor: (...args) => calls.push(['scissor', ...args]),
+        setScissorTest: (...args) => calls.push(['scissorTest', ...args]),
+        render: (_scene, camera) => calls.push(['render', camera.id]),
+    };
+    const cameras = Array.from({ length: 3 }, (_, index) => ({
+        id: `P${index + 1}`,
+        aspect: 0,
+        updateProjectionMatrix() {},
+    }));
+    try {
+        const viewport = new RenderViewportSystem(renderer, { width: 1920, height: 1080 });
+        viewport.setViewportLayout(VIEWPORT_LAYOUTS.THREE_ROWS, cameras);
+        assert.deepEqual(cameras.map((camera) => camera.aspect), Array(3).fill(1920 / 360));
+        calls.length = 0;
+        viewport.render({}, cameras);
+        assert.deepEqual(calls.filter(([type]) => type === 'render').map(([, id]) => id), ['P1', 'P2', 'P3']);
+        assert.deepEqual(calls.filter(([type]) => type === 'viewport').slice(0, 3), [
+            ['viewport', 0, 720, 1920, 360],
+            ['viewport', 0, 360, 1920, 360],
+            ['viewport', 0, 0, 1920, 360],
+        ]);
+        assert.deepEqual(calls.at(-2), ['viewport', 0, 0, 1920, 1080]);
+        assert.deepEqual(calls.at(-3), ['scissorTest', false]);
+    } finally {
+        globalThis.window = previousWindow;
+    }
+});
+
+test('recording capture metadata follows three-player landscape rows', () => {
+    const players = Array.from({ length: 3 }, (_, playerIndex) => ({ playerIndex }));
+    const segments = buildStandardCaptureSegments({
+        players,
+        viewportLayout: VIEWPORT_LAYOUTS.THREE_ROWS,
+        width: 1920,
+        height: 1080,
+    });
+    assert.deepEqual(segments.map(({ x, y, width, height, label }) => ({ x, y, width, height, label })), [
+        { x: 0, y: 0, width: 1920, height: 360, label: 'P1' },
+        { x: 0, y: 360, width: 1920, height: 360, label: 'P2' },
+        { x: 0, y: 720, width: 1920, height: 360, label: 'P3' },
+    ]);
 });
 
 test('recording capture metadata segments preserve the visible 2x2 quadrant order', () => {

@@ -171,7 +171,8 @@ export class MatchFlowUiController {
             } else {
                 game.fourPlayerPlanar?.deactivateMatch?.();
             }
-            if (uiState.viewportLayout === VIEWPORT_LAYOUTS.THREE_COLUMNS) {
+            if (uiState.viewportLayout === VIEWPORT_LAYOUTS.THREE_COLUMNS
+                || uiState.viewportLayout === VIEWPORT_LAYOUTS.THREE_ROWS) {
                 game.threePlayerSplit?.activateMatch?.();
             } else {
                 game.threePlayerSplit?.deactivateMatch?.();
