@@ -184,6 +184,32 @@ function keepSpatial(value, fallback) {
 }
 
 /**
+ * @param {unknown} raw
+ * @param {string} kind
+ * @param {number} pathLength
+ * @param {string[] | undefined} warnings
+ * @param {string} id
+ */
+function normalizeEscortObjective(raw, kind, pathLength, warnings, id) {
+    if (!raw || (typeof raw !== 'object' && raw !== true)) return null;
+    if (kind !== 'tank') {
+        warnings?.push(`Map unit "${id}" can only use escortObjective when its kind is "tank".`);
+        return null;
+    }
+    const source = raw === true ? {} : /** @type {Record<string, unknown>} */ (raw);
+    const checkpointPathIndices = Array.isArray(source.checkpointPathIndices)
+        ? [...new Set(source.checkpointPathIndices
+            .map((/** @type {unknown} */ value) => Math.trunc(Number(value)))
+            .filter((/** @type {number} */ value) => value > 0 && value < pathLength - 1))]
+            .sort((left, right) => left - right)
+            .slice(0, 8)
+        : [];
+    return Object.freeze({
+        checkpointPathIndices: Object.freeze(checkpointPathIndices),
+    });
+}
+
+/**
  * @param {unknown} entry
  * @param {number} index
  * @param {string[] | undefined} warnings
@@ -212,9 +238,11 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
     const modes = Array.isArray(source?.allowedModes)
         ? [...new Set(source.allowedModes.map((/** @type {unknown} */ mode) => String(mode).toUpperCase()).filter((/** @type {string} */ mode) => VALID_MODES.has(mode)))]
         : ['HUNT', 'ARCADE'];
+    const escortObjective = normalizeEscortObjective(source?.escortObjective, kind, path.length, warnings, id);
     return Object.freeze({
         id,
         kind,
+        ...(kind === 'creature' && source?.species === 'hydra_v3' ? { species: 'hydra_v3' } : {}),
         path: Object.freeze(/** @type {readonly number[][]} */ (path)),
         // true drives the path as a closed circuit, false turns around at both ends.
         loop: source?.loop == null ? kind !== 'bomber' : source.loop !== false,
@@ -259,6 +287,7 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
                 radius: spatial(source?.attack?.radius, CREATURE_DEFAULTS.attack.radius, 1, 60),
             }),
         } : {}),
+        ...(escortObjective ? { escortObjective } : {}),
         allowedModes: Object.freeze(modes.length > 0 ? modes : ['HUNT', 'ARCADE']),
         // A tank is a neutral hazard: it fires at bots too, unless the map says otherwise.
         targetPlayers: source?.targetPlayers === 'humans' ? 'humans' : 'all',

@@ -293,6 +293,7 @@ export class NetworkLobbyService {
         try {
             await this._transportSession.create({
                 maxPlayers: Number(options.maxPlayers || 10),
+                localPlayerCount: options.localPlayerCount,
                 actorId,
                 name,
                 lobbyName: options.lobbyName,

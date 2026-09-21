@@ -102,6 +102,9 @@ export function showPropertyPanelView(editor, obj) {
         const checkpoints = Array.from(editor.core.objectsContainer.children).filter((entry) => entry.userData?.type === 'checkpoint');
         propContextRow.style.display = 'grid';
         propContext.value = u.subType === 'finish' ? 'Parcours-Finish' : `Checkpoint ${(Number(u.checkpointOrder) || checkpoints.indexOf(obj)) + 1}`;
+    } else if (u.type === 'escort_waypoint' && propContextRow && propContext) {
+        propContextRow.style.display = 'grid';
+        propContext.value = `Escort ${String(u.subType || 'waypoint')} · Punkt ${(Number(u.escortOrder) || 0) + 1}`;
     }
     const locked = u.editorLocked === true || u.editorLayerLocked === true;
     [editor.dom.propX, editor.dom.propY, editor.dom.propZ, editor.dom.propRotationY,
@@ -126,14 +129,16 @@ export function showPropertyPanelView(editor, obj) {
         writePropertyFieldValue(editor, 'width', u.sizeX || u.sizeInfo * 2);
         writePropertyFieldValue(editor, 'depth', u.sizeZ || u.sizeInfo * 2);
         writePropertyFieldValue(editor, 'height', u.sizeY || u.sizeInfo * 2);
-    } else if (u.type === 'tunnel' || u.type === 'portal' || u.type === 'checkpoint') {
+    } else if (u.type === 'tunnel' || u.type === 'portal' || u.type === 'checkpoint' || u.type === 'escort_waypoint') {
         if (propSizeRow) propSizeRow.style.display = "grid";
         if (propSizeLabel) {
             propSizeLabel.textContent = u.type === 'tunnel'
                 ? 'Radius (X/Z; Länge über Y-Gizmo)'
                 : 'Größe / Radius (gleichmäßig)';
         }
-        writePropertyFieldValue(editor, 'size', u.type === 'checkpoint' ? (u.cpRadius || 5.5) : (u.radius || u.sizeInfo));
+        writePropertyFieldValue(editor, 'size', u.type === 'checkpoint'
+            ? (u.cpRadius || 5.5)
+            : (u.type === 'escort_waypoint' ? (u.routeRadius || 4.5) : (u.radius || u.sizeInfo)));
     } else if (u.type === 'aircraft' || u.type === 'glb') {
         if (propScaleRow) propScaleRow.style.display = "grid";
         writePropertyFieldValue(editor, 'scale', u.type === 'glb'

@@ -564,6 +564,40 @@ test('HUD lock reticle uses transforms and clamps an arrow for off-screen target
     }
 });
 
+test('HUD shows the Escort tank as a role-aware world marker', () => {
+    const documentStub = installDocumentStub();
+    try {
+        const { hud } = createHudInstance(documentStub);
+        const camera = new THREE.PerspectiveCamera(60, 800 / 450, 0.1, 1000);
+        camera.position.set(0, 12, 0);
+        camera.lookAt(0, 12, -1);
+        camera.updateMatrixWorld(true);
+        camera.updateProjectionMatrix();
+        const objectiveTarget = {
+            active: true,
+            phase: 'MOVING',
+            position: { x: 0, y: 9, z: -30 },
+        };
+
+        hud.update(createAlivePlayer({ teamId: 'ALPHA' }), 0.05, { objectiveTarget, getCamera: () => camera });
+        assert.equal(hud.objectiveReticle.classList.contains('hidden'), false);
+        assert.equal(hud.objectiveBox.classList.contains('hidden'), false);
+        assert.equal(hud.objectiveLabel.textContent, 'SCHÜTZEN');
+        assert.match(hud.objectiveDistance.textContent, /^\d+m$/);
+
+        hud.update(createAlivePlayer({ teamId: 'BRAVO' }), 0.05, { objectiveTarget, getCamera: () => camera });
+        assert.equal(hud.objectiveLabel.textContent, 'ZERSTÖREN');
+
+        hud.update(createAlivePlayer({ teamId: 'BRAVO' }), 0.05, {
+            objectiveTarget: { ...objectiveTarget, phase: 'DESTROYED' },
+            getCamera: () => camera,
+        });
+        assert.equal(hud.objectiveReticle.classList.contains('hidden'), true);
+    } finally {
+        documentStub.restore();
+    }
+});
+
 // ---------------------------------------------------------------------------
 // Item bar cooldown overlay (suggestion 4)
 // ---------------------------------------------------------------------------

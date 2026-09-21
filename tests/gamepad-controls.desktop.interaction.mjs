@@ -34,6 +34,17 @@ test('desktop controller editor swaps bindings and persists them across reload',
         const editor = page.locator('#keybind-global [data-gamepad-editor]');
         await expect(editor).toBeVisible();
         await expect(editor.locator('[data-gamepad-action]')).toHaveCount(11);
+        const invertPitch = page.locator('#invert-p1');
+        await expect(invertPitch).toBeChecked();
+        await expect(page.locator('label.toggle-row', { has: invertPitch })).toContainText('Pitch umkehren P1');
+        await expect(page.locator('label.toggle-row', { has: invertPitch })).toContainText('Stick hoch');
+        await invertPitch.uncheck();
+        const invertPitchP3 = page.locator('#invert-p3');
+        await expect(invertPitchP3).toBeChecked();
+        await expect(page.locator('label.toggle-row', { has: invertPitchP3 })).toContainText('Pitch umkehren P3');
+        await invertPitchP3.uncheck();
+        await editor.locator('[data-gamepad-action="pitchAxis"]').selectOption('3');
+        await expect(editor.locator('[data-gamepad-action="pitchAxis"]')).toHaveValue('3');
         const assignment = editor.getByLabel('Splitscreen: Eingabegeräte');
         await expect(assignment.locator('option')).toHaveCount(5);
         for (const layout of ['controller-keyboard', 'keyboard-controller', 'keyboard-keyboard', 'controller-controller']) {
@@ -52,6 +63,9 @@ test('desktop controller editor swaps bindings and persists them across reload',
         await page.waitForSelector('#main-menu[data-shell-ready="true"]');
         await page.locator('.menu-utility-shell [data-level4-section=controls]').click();
         await expect(assignment).toHaveValue('controller-controller');
+        await expect(invertPitch).not.toBeChecked();
+        await expect(invertPitchP3).not.toBeChecked();
+        await expect(editor.locator('[data-gamepad-action="pitchAxis"]')).toHaveValue('3');
         await expect(editor.locator('[data-gamepad-action="BOOST"]')).toHaveValue('4');
         await expect(editor.locator('[data-gamepad-action="SLOWMO"]')).toHaveValue('0');
         await editor.getByLabel('Controller auswählen').selectOption('GAMEPAD_2');

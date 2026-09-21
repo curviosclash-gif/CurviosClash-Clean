@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
     ESCORT_DEFAULTS,
+    ESCORT_PHASES,
     resolveEscortOutcome,
     resolveEscortTankSpeed,
 } from '../src/shared/contracts/EscortObjectiveContract.js';
@@ -87,6 +88,18 @@ test('escort HUD always projects the fixed five minute round clock', () => {
         entityRuntimeConfig: { HUNT: { WIN_CONDITION: 'last_alive' } },
         gameModeStrategy: { hasCombatHud: () => true, isRespawnEnabled: () => true, getPickupModeType: () => 'HUNT' },
         _roundOutcomeSystem: { getDeathmatchState: () => ({ elapsedSeconds: 42 }) },
+        _mapUnitSystem: { getEscortObjectiveState: () => ({
+            active: true,
+            tankId: 'escort_tank',
+            phase: 'MOVING',
+            hp: 450,
+            maxHp: 600,
+            hpRatio: 0.75,
+            progress: 0.25,
+            checkpointIndex: -1,
+            checkpointCount: 2,
+            position: { x: 10, y: 2, z: 20 },
+        }) },
     };
     const projection = buildMatchRuntimeProjection({
         game: { entityManager, state: 'PLAYING' },
@@ -94,6 +107,9 @@ test('escort HUD always projects the fixed five minute round clock', () => {
     });
     assert.equal(projection.hunt.timeLimitSeconds, 300);
     assert.equal(projection.hunt.timeRemainingSeconds, 258);
+    assert.equal(projection.hunt.escort.hpRatio, 0.75);
+    assert.equal(projection.hunt.escort.progress, 0.25);
+    assert.deepEqual(projection.hunt.escort.position, { x: 10, y: 2, z: 20 });
 });
 
 test('escort runtime creates the 600 HP tank, accelerates near Alpha and ends for Bravo on destruction', () => {
@@ -107,6 +123,14 @@ test('escort runtime creates the 600 HP tank, accelerates near Alpha and ends fo
         },
         players: [alpha, bravo],
         _targetableRegistry: { collect: () => [] },
+        _huntScoring: {
+            downs: 0,
+            finals: 0,
+            registerEscortTankDown(_index, final, countDown = true) {
+                if (countDown) this.downs += 1;
+                if (final) this.finals += 1;
+            },
+        },
         _simulationClockMs: 1000,
     };
     const system = new MapUnitSystem(manager);
@@ -127,8 +151,16 @@ test('escort runtime creates the 600 HP tank, accelerates near Alpha and ends fo
     assert.equal(tank.speed, 10);
     assert.equal(serializeMapUnits(system.units)[0].escortSpeed, 10);
     assert.equal(tank.takeDamage(100, { sourcePlayer: alpha }).hpApplied, 0);
-    assert.equal(tank.takeDamage(600, { sourcePlayer: bravo }).isDead, true);
+    const downed = tank.takeDamage(600, { sourcePlayer: bravo });
+    assert.equal(downed.isDead, false);
+    assert.equal(downed.isDowned, true);
+    assert.equal(tank.escortPhase, ESCORT_PHASES.DOWNED);
+    assert.equal(system.getEscortOutcome().shouldEnd, false);
+    alpha.position.set(100, 2, 100);
+    system.update(12.1);
     assert.equal(system.getEscortOutcome().winnerTeamId, TEAM_IDS.BRAVO);
+    assert.equal(manager._huntScoring.downs, 1);
+    assert.equal(manager._huntScoring.finals, 1);
 });
 
 test('escort tank visual carries the blue team accent and health color', () => {

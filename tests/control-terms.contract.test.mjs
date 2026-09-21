@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 import { KEY_BIND_ACTIONS, resolveKeybindActionLabel } from '../src/ui/KeybindActionCatalog.js';
 import { formatKeyCode } from '../src/ui/KeybindLabels.js';
+import { resolveMenuCatalogText } from '../src/ui/menu/MenuTextCatalog.js';
 
 const byKey = (key) => KEY_BIND_ACTIONS.find((action) => action.key === key);
 
@@ -37,4 +38,12 @@ test('key names are German', () => {
 test('the key editor asks each player for the invert setting before labelling pitch', () => {
     const source = readFileSync(new URL('../src/ui/KeybindEditorController.js', import.meta.url), 'utf8');
     assert.match(source, /resolveKeybindActionLabel\(action, \{ invertPitch: this\.runtimeAccess\.getInvertPitch\?\.\(playerKey\)/u);
+});
+
+test('pitch inversion settings explicitly describe controller sticks', () => {
+    assert.match(resolveMenuCatalogText('menu.level4.gameplay.invert_pitch_p1.label'), /Pitch umkehren P1.*Stick hoch/u);
+    assert.match(resolveMenuCatalogText('menu.level4.gameplay.invert_pitch_p2.label'), /Pitch umkehren P2.*Stick hoch/u);
+    assert.match(resolveMenuCatalogText('menu.level4.gameplay.invert_pitch_p3.label'), /Pitch umkehren P3.*Stick hoch/u);
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    assert.match(html, /id="invert-p3"/u);
 });

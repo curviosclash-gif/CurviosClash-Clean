@@ -59,14 +59,15 @@ function createRuntimeConfig(overrides = {}) {
     };
 }
 
-function createOps(config = createRuntimeConfig()) {
-    return new ProjectileSimulationOps({ entityRuntimeConfig: config });
+function createOps(config = createRuntimeConfig(), targetables = []) {
+    return new ProjectileSimulationOps({ entityRuntimeConfig: config, getTurrets: () => targetables });
 }
 
-function createPlayer({ index, position, velocity = [0, 0, 0], alive = true } = {}) {
+function createPlayer({ index, position, velocity = [0, 0, 0], alive = true, teamId = null } = {}) {
     return {
         index,
         alive,
+        teamId,
         position: new THREE.Vector3(...position),
         velocity: new THREE.Vector3(...velocity),
         hitboxRadius: 0.8,
@@ -137,6 +138,58 @@ test('hunt homing locks a player inside the primary cone', () => {
     assert.equal(target.playerIndex, 1);
 });
 
+test('hunt rockets acquire fixed zone turrets and then live tanks from the target registry', () => {
+    const alliedZoneTurret = {
+        id: 'allied_zone_turret',
+        destructible: true,
+        hp: 90,
+        hitboxRadius: 2.2,
+        ownerIndex: 1,
+        teamId: 'ALPHA',
+        position: new THREE.Vector3(12, 0, 0),
+    };
+    const zoneTurret = {
+        id: 'zone_turret',
+        destructible: true,
+        hp: 90,
+        hitboxRadius: 2.2,
+        ownerIndex: -1,
+        teamId: 'BRAVO',
+        position: new THREE.Vector3(20, 2, 0),
+    };
+    const alliedTank = {
+        id: 'allied_tank',
+        destructible: true,
+        alive: true,
+        hp: 150,
+        hitboxRadius: 3.5,
+        ownerIndex: 1,
+        teamId: 'ALPHA',
+        position: new THREE.Vector3(25, 0, 0),
+    };
+    const tank = {
+        id: 'tank',
+        destructible: true,
+        alive: true,
+        hp: 150,
+        hitboxRadius: 3.5,
+        ownerIndex: -1,
+        teamId: 'BRAVO',
+        position: new THREE.Vector3(35, 0, 0),
+    };
+    const ops = createOps(createRuntimeConfig(), [alliedZoneTurret, zoneTurret, alliedTank, tank]);
+    const owner = createPlayer({ index: 0, position: [0, 0, 0], teamId: 'ALPHA' });
+    const projectile = createProjectile({ owner, position: [0, 0, 0], velocity: [60, 0, 0] });
+
+    assert.equal(ops.acquireHomingTarget(projectile, [owner], null), zoneTurret);
+    assert.deepEqual(resolveHuntTargetPosition(zoneTurret)?.toArray(), zoneTurret.position.toArray());
+
+    zoneTurret.hp = 0;
+    assert.equal(ops.acquireHomingTarget(projectile, [owner], null), tank);
+    tank.alive = false;
+    assert.equal(ops.acquireHomingTarget(projectile, [owner], null), null);
+});
+
 test('active decoys suppress homing acquisition', () => {
     const ops = createOps();
     const owner = createPlayer({ index: 0, position: [0, 0, 0] });
@@ -180,6 +233,18 @@ function createTrailIndexAt(distanceX) {
         },
     };
 }
+
+test('hunt rockets ignore allied players but can still lock every non-self trail', () => {
+    const ops = createOps();
+    const owner = createPlayer({ index: 0, position: [0, 0, 0], teamId: 'ALPHA' });
+    const ally = createPlayer({ index: 1, position: [30, 0, 0], teamId: 'ALPHA' });
+    const projectile = createProjectile({ owner, position: [0, 0, 0], velocity: [60, 0, 0] });
+
+    const target = ops.acquireHomingTarget(projectile, [owner, ally], createTrailIndexAt(12));
+
+    assert.equal(isTrailTargetDescriptor(target), true);
+    assert.equal(target.playerIndex, ally.index);
+});
 
 test('hunt homing prefers cone player over a barely-closer trail line hit', () => {
     const ops = createOps();

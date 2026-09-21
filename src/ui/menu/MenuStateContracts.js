@@ -1,7 +1,10 @@
 import { DEFAULT_SHADOW_QUALITY, normalizeShadowQuality } from '../../shared/contracts/ShadowQualityContract.js';
 import { DEFAULT_BLOOM_QUALITY, normalizeBloomQuality } from '../../shared/contracts/BloomQualityContract.js';
 import { MATCH_LIFECYCLE_CONTRACT_VERSION } from '../../shared/contracts/MatchLifecycleContract.js';
-import { MULTIPLAYER_TRANSPORTS } from '../../shared/contracts/RuntimeSessionContract.js';
+import {
+    MULTIPLAYER_TRANSPORTS,
+    normalizeLanHostLocalPlayerCount,
+} from '../../shared/contracts/RuntimeSessionContract.js';
 import {
     ARCADE_GHOST_DUEL_MODES,
     normalizeArcadeGhostDuelMode,
@@ -221,6 +224,10 @@ function normalizeLocalSettingsState(localSettings = null) {
         fixedPresetId: normalizeString(source.fixedPresetId, defaults.fixedPresetId),
         fixedPresetLockEnabled: normalizeBoolean(source.fixedPresetLockEnabled, defaults.fixedPresetLockEnabled),
         sessionType,
+        lanHostLocalPlayerCount: normalizeLanHostLocalPlayerCount(
+            source.lanHostLocalPlayerCount,
+            defaults.lanHostLocalPlayerCount
+        ),
         splitScreenVariant: normalizeSplitScreenVariant(source.splitScreenVariant),
         fourPlayerPlanar: normalizeFourPlayerPlanarSettings(source.fourPlayerPlanar),
         threePlayerSplit: normalizeThreePlayerSplitSettings(source.threePlayerSplit),

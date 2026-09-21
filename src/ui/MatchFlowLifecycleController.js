@@ -188,6 +188,7 @@ export class MatchFlowLifecycleController {
     buildRoundEndCoordinatorRequest(winner, outcome = null) {
         const game = this.game;
         const normalizedOutcome = outcome && typeof outcome === 'object' ? outcome : {};
+        const huntProjection = this.controller?._getMatchRuntimeProjection?.()?.hunt || null;
         const checkpointResetsByPlayer = Object.fromEntries((game.entityManager?.players || []).map((player) => [
             player.index,
             Math.max(0, Number(game.entityManager?.getParcoursHudState?.(player.index)?.resetCount) || 0),
@@ -211,6 +212,7 @@ export class MatchFlowLifecycleController {
             localPlayerIndexes: resolveLocalPlayerIndexes(game?.runtimeConfig?.session || null),
             checkpointResetsByPlayer,
             arcadeProgression: this.runtimePort?.getArcadePostMatchProgression?.() || null,
+            escortSummary: huntProjection?.escortMode === true ? huntProjection.escort : null,
             logger: console,
         };
     }

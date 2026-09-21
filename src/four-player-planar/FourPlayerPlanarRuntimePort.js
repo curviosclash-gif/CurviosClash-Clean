@@ -1,3 +1,5 @@
+import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+
 /**
  * Publishes exactly the runtime capabilities the four player planar module
  * needs, so the module no longer keeps a back reference to the whole runtime.
@@ -37,6 +39,20 @@ export function createFourPlayerPlanarRuntimePort({ getRuntime }) {
         },
         getRuntimeConfig() {
             return runtime()?.runtimeConfig || null;
+        },
+        getGameplayConfig() {
+            return resolveGameplayConfig(runtime());
+        },
+        getMatchRuntimeProjection() {
+            return runtime()?.playingStateSystem?.getMatchRuntimeProjection?.()
+                || runtime()?.runtimePorts?.runtimeProjectionPort?.getMatchRuntimeProjection?.()
+                || null;
+        },
+        getPlayerKeyBindings(playerIndex) {
+            const scope = `PLAYER_${Math.max(0, Number(playerIndex) || 0) + 1}`;
+            return runtime()?.input?.bindings?.[scope]
+                || runtime()?.settings?.controls?.[scope]
+                || null;
         },
         getGameStateId() {
             return runtime()?.state ?? null;

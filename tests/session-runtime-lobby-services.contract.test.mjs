@@ -100,6 +100,8 @@ class FakeNetworkLobby {
             lobbyCode: 'LAN-QA',
             hostPeerId: 'peer-host',
             maxPlayers: Number(options.maxPlayers || 10),
+            localPlayerCount: Number(options.localPlayerCount || 1),
+            playerCount: Number(options.localPlayerCount || 1),
             members: [
                 {
                     peerId: 'peer-host',
@@ -526,6 +528,7 @@ test('V96.2 NetworkLobbyService emits lifecycle events without UI runtime helper
     const result = await service.host({
         actorId: 'Captain',
         maxPlayers: 2,
+        localPlayerCount: 2,
         settingsSnapshot: { mapKey: 'maze', gameMode: 'HUNT', localSettings: { modePath: 'fight' } },
     });
     const hostReadyResult = await service.toggleReady({ actorId: 'Host', ready: false });
@@ -540,6 +543,10 @@ test('V96.2 NetworkLobbyService emits lifecycle events without UI runtime helper
     assert.equal(result.sessionState.isHost, true);
     assert.equal(result.sessionState.localReady, true);
     assert.equal(result.sessionState.maxPlayers, 2);
+    assert.equal(result.sessionState.memberCount, 1);
+    assert.equal(result.sessionState.playerCount, 2);
+    assert.equal(result.sessionState.canStart, true);
+    assert.equal(lobby.lastCreateOptions.localPlayerCount, 2);
     assert.equal(service.getSessionState().shareAddress, 'localhost:4567');
     assert.equal(lobby.lastCreateOptions.actorId, 'Captain');
     assert.equal(lobby.lastCreateOptions.name, 'Captain');

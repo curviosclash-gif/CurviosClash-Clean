@@ -291,13 +291,19 @@ export async function waitForRuntimePlayersLoaded(facade) {
     clearRuntimeHostArenaLoadedWait(facade);
 
     const slotContext = resolveRuntimeNetworkPlayerSlotContext(facade);
-    const configuredPlayers = Array.isArray(slotContext?.slots)
-        ? slotContext.slots.map((slot) => ({
-            id: slot.peerId,
-            peerId: slot.peerId,
-            isHost: slot.isHost === true,
-        }))
-        : [];
+    const configuredPlayersByPeerId = new Map();
+    if (Array.isArray(slotContext?.slots)) {
+        for (const slot of slotContext.slots) {
+            const peerId = String(slot?.ownerPeerId || slot?.peerId || '').trim();
+            if (!peerId || configuredPlayersByPeerId.has(peerId)) continue;
+            configuredPlayersByPeerId.set(peerId, {
+                id: peerId,
+                peerId,
+                isHost: slot?.ownerIsHost === true || slot?.isHost === true,
+            });
+        }
+    }
+    const configuredPlayers = Array.from(configuredPlayersByPeerId.values());
     const players = configuredPlayers.length > 0
         ? configuredPlayers
         : (Array.isArray(facade.session.getPlayers?.()) ? facade.session.getPlayers() : []);

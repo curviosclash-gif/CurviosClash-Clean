@@ -6,6 +6,8 @@ import { createMapSandstormState } from './MapSandstormContract.js';
 import { normalizeHuntWinCondition } from './HuntWinConditionContract.js';
 import { normalizeHuntLivesByPlayer } from './HuntLivesContract.js';
 import { normalizeTeamId } from './TeamCombatContract.js';
+import { createEscortObjectiveProjection } from './EscortObjectiveProjectionContract.js';
+
 export const MATCH_RUNTIME_PROJECTION_CONTRACT_VERSION = 'match-runtime-projection.v1';
 export const MATCH_RUNTIME_PROJECTION_VERSION_FIELDS = Object.freeze(['contractVersion']);
 export const MATCH_RUNTIME_PROJECTION_SUPPORTED_VERSIONS = Object.freeze([
@@ -420,6 +422,15 @@ function createHuntProjection(value = null, nowMs = 0) {
             burnedTrailMeters: Math.max(0, normalizeNumber(row?.burnedTrailMeters, 0)),
             flagCaptures: normalizeNonNegativeInt(row?.flagCaptures, 0),
             repairDroneHpRestored: Math.max(0, normalizeNumber(row?.repairDroneHpRestored, 0)),
+            escortSeconds: Math.max(0, normalizeNumber(row?.escortSeconds, 0)),
+            escortTankDamage: Math.max(0, normalizeNumber(row?.escortTankDamage, 0)),
+            escortGuardKills: normalizeNonNegativeInt(row?.escortGuardKills, 0),
+            escortAttackKills: normalizeNonNegativeInt(row?.escortAttackKills, 0),
+            escortCheckpointContributions: normalizeNonNegativeInt(row?.escortCheckpointContributions, 0),
+            escortRepairHp: Math.max(0, normalizeNumber(row?.escortRepairHp, 0)),
+            escortRecoveries: normalizeNonNegativeInt(row?.escortRecoveries, 0),
+            escortTankDowns: normalizeNonNegativeInt(row?.escortTankDowns, 0),
+            escortFinalDestructions: normalizeNonNegativeInt(row?.escortFinalDestructions, 0),
             points: normalizeNonNegativeInt(row?.points, 0),
         }))
         : [];
@@ -468,6 +479,7 @@ function createHuntProjection(value = null, nowMs = 0) {
         authoritativeClient: source.authoritativeClient === true,
         teamMode: source.teamMode === true,
         escortMode: source.escortMode === true,
+        escort: createEscortObjectiveProjection(source.escort),
         teamObjective: ['FLAGS', 'ESCORT'].includes(String(source.teamObjective || '').toUpperCase())
             ? String(source.teamObjective).toUpperCase()
             : 'HUNT',

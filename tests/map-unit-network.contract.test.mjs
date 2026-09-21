@@ -7,8 +7,13 @@ import { StaticTurretSystem } from '../src/entities/systems/StaticTurretSystem.j
 import { applyHuntNetworkState, createHuntNetworkState } from '../src/hunt/HuntNetworkState.js';
 
 const TANK = { id: 'tank_a', path: [[0, 0, 0], [0, 0, 100], [100, 0, 100]], speed: 10, weapons: { rocket: false } };
+const ESCORT_TANK = {
+    id: 'escort_tank', kind: 'tank', path: [[0, 0, 0], [0, 0, 50], [0, 0, 100]],
+    loop: false, speed: 6, maxHp: 600, weapons: { mg: false, rocket: false },
+    allowedModes: ['ESCORT'], escortObjective: { checkpointPathIndices: [1] },
+};
 
-function createSide({ authority = true } = {}) {
+function createSide({ authority = true, escort = false } = {}) {
     const human = {
         index: 0,
         alive: true,
@@ -21,8 +26,8 @@ function createSide({ authority = true } = {}) {
     const manager = {
         huntEnabled: true,
         isFightOutcomeAuthority: authority,
-        gameModeStrategy: { modeType: 'HUNT', getPickupModeType: () => 'HUNT' },
-        arena: { checkCollisionFast: () => false, currentMapDefinition: { mapUnits: [TANK] } },
+        gameModeStrategy: { modeType: escort ? 'ESCORT' : 'HUNT', getPickupModeType: () => 'HUNT' },
+        arena: { checkCollisionFast: () => false, currentMapDefinition: { mapUnits: [escort ? ESCORT_TANK : TANK] } },
         players: [human],
         humanPlayers: [human],
         _emitHuntDamageEvent() {},
@@ -37,6 +42,28 @@ function createSide({ authority = true } = {}) {
 test('a map without tanks sends no tank block', () => {
     const manager = { huntEnabled: true, _mapUnitSystem: new MapUnitSystem({}) };
     assert.equal(createHuntNetworkState(manager).mapUnits, null);
+});
+
+test('escort downed and checkpoint state is authoritative over the network', () => {
+    const host = createSide({ escort: true });
+    const client = createSide({ authority: false, escort: true });
+    client.system.setNetworkReplica(true);
+    host.tank.hp = 0;
+    host.tank.speed = 0;
+    host.tank.escortPhase = 'RECOVERING';
+    host.tank.escortCheckpointIndex = 0;
+    host.tank.escortRecoveryCharges = 0;
+    host.tank.escortDownedRemaining = 7.5;
+    host.tank.escortRepairProgress = 0.4;
+    host.tank.escortProtectionRemaining = 0;
+
+    applyHuntNetworkState(client.manager, createHuntNetworkState(host.manager));
+    assert.equal(client.tank.escortPhase, 'RECOVERING');
+    assert.equal(client.tank.escortCheckpointIndex, 0);
+    assert.equal(client.tank.escortRecoveryCharges, 0);
+    assert.equal(client.tank.escortDownedRemaining, 7.5);
+    assert.equal(client.tank.escortRepairProgress, 0.4);
+    assert.equal(client.tank.speed, 0);
 });
 
 test('the client takes position, hit points and aim of every tank from the host', () => {

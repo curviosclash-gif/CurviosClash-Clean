@@ -23,6 +23,7 @@ import { applyBotRailgunInput, holdsRailgunCharge } from './HuntBotRailgunOps.js
 import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 import { areTeammates } from '../shared/contracts/TeamCombatContract.js';
 import { applyFlagObjectiveMovement } from './HuntBotFlagObjectiveOps.js';
+import { applyHuntBotObjectiveMovement } from './HuntBotObjectiveOps.js';
 export { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 
 import { clamp } from '../shared/utils/MathOps.js';
@@ -497,19 +498,16 @@ export class HuntBotPolicy {
         }
 
 
-        applyScenarioRoleMovement({
-            policy: this,
-            input,
-            player,
-            enemy,
-            distSq,
-            tuning: scenarioTuning,
-            shouldRetreat,
-            clearSteering: clearSteeringInput,
-            steerToward: applySteeringTowardPosition,
+        const flagAssignment = applyFlagObjectiveMovement(
+            this, input, player, runtimeContext, shouldRetreat, survivalPressure, mgRange,
+        );
+        const objectiveRole = flagAssignment ? null : applyHuntBotObjectiveMovement({
+            policy: this, input, player, runtimeContext, shouldRetreat,
+            clearSteering: clearSteeringInput, steerToward: applySteeringTowardPosition,
         });
-
-        applyFlagObjectiveMovement(this, input, player, runtimeContext, shouldRetreat, survivalPressure, mgRange);
+        if (!flagAssignment && !objectiveRole) {
+            applyScenarioRoleMovement({ policy: this, input, player, enemy, distSq, tuning: scenarioTuning, shouldRetreat, clearSteering: clearSteeringInput, steerToward: applySteeringTowardPosition });
+        }
 
         return input;
     }

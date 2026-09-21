@@ -62,6 +62,25 @@ function segmentHp(system, id) {
     return system.getState().segments.find((segment) => segment.id === id)?.hp;
 }
 
+test('map destructible segments expose stable weapon targets at their authored anchors', () => {
+    const { system } = createDestructibleSystem();
+    const targets = system.getTargets();
+
+    assert.equal(targets.length, 2);
+    assert.equal(targets[0].id, 'map_structure:leg_a');
+    assert.deepEqual(targets[0].position.toArray(), [10, 0, 10]);
+    assert.equal(targets[0].hp, 500);
+    assert.equal(targets[0].destructible, true);
+
+    const result = targets[0].takeDamage(30, { cause: 'STATIC_TURRET_MG' });
+    assert.equal(result.applied, true);
+    assert.equal(system.getTargets(), targets, 'the hot-path target list stays reusable');
+    assert.equal(targets[0].hp, 470);
+
+    targets[1].takeDamage(40, { cause: 'STATIC_TURRET_MG' });
+    assert.equal(targets[1].alive, false);
+});
+
 function createRocketOutcome(sourceName, {
     bouncedOnFoam = false,
     type = 'ROCKET_MEDIUM',

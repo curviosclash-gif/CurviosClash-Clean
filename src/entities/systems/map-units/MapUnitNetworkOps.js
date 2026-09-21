@@ -32,6 +32,13 @@ export function serializeMapUnits(units) {
         ...(unit.escortTank ? {
             escortReachedGoal: unit.escortReachedGoal === true,
             escortSpeed: round(unit.speed),
+            escortPhase: String(unit.escortPhase || 'MOVING'),
+            escortCheckpointIndex: Number.isFinite(Number(unit.escortCheckpointIndex))
+                ? Math.max(-1, Math.trunc(Number(unit.escortCheckpointIndex))) : -1,
+            escortRecoveryCharges: Math.max(0, Math.trunc(Number(unit.escortRecoveryCharges) || 0)),
+            escortDownedRemaining: round(unit.escortDownedRemaining),
+            escortRepairProgress: round(unit.escortRepairProgress),
+            escortProtectionRemaining: round(unit.escortProtectionRemaining),
         } : {}),
         ...(unit.kind === 'bomber' ? {
             crashing: unit.crashing === true,
@@ -48,7 +55,13 @@ export function serializeMapUnits(units) {
         ...(unit.kind === 'swarm' ? {
             members: unit.members.map((member) => ({ alive: member.alive === true, hp: round(member.hp, 10) })),
         } : {}),
-        ...(unit.kind === 'creature' ? { attacks: unit.attacksFired } : {}),
+        ...(unit.hydra ? { hydra: {
+            action: unit.hydra.action,
+            head: unit.hydra.head,
+            direction: [round(unit.hydra.direction.x), round(unit.hydra.direction.y), round(unit.hydra.direction.z)],
+            phase: unit.hydra.phase,
+            event: unit.hydra.event,
+        } } : (unit.kind === 'creature' ? { attacks: unit.attacksFired } : {})),
         mounts: unit.mounts.map((mount) => ({
             aim: [round(mount.aimDirection.x), round(mount.aimDirection.y), round(mount.aimDirection.z)],
             shots: mount.shotsFired,
@@ -117,7 +130,16 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         unit.alive = entry.alive === true;
         if (unit.escortTank) {
             unit.escortReachedGoal = entry.escortReachedGoal === true;
-            unit.speed = Math.max(0, Number(entry.escortSpeed) || unit.speed);
+            unit.speed = Number.isFinite(Number(entry.escortSpeed))
+                ? Math.max(0, Number(entry.escortSpeed)) : unit.speed;
+            unit.escortPhase = ['MOVING', 'DOWNED', 'RECOVERING', 'GOAL', 'DESTROYED'].includes(entry.escortPhase)
+                ? entry.escortPhase : unit.escortPhase;
+            unit.escortCheckpointIndex = Number.isFinite(Number(entry.escortCheckpointIndex))
+                ? Math.max(-1, Math.trunc(Number(entry.escortCheckpointIndex))) : -1;
+            unit.escortRecoveryCharges = Math.max(0, Math.trunc(Number(entry.escortRecoveryCharges) || 0));
+            unit.escortDownedRemaining = Math.max(0, Number(entry.escortDownedRemaining) || 0);
+            unit.escortRepairProgress = Math.max(0, Math.min(1, Number(entry.escortRepairProgress) || 0));
+            unit.escortProtectionRemaining = Math.max(0, Number(entry.escortProtectionRemaining) || 0);
         }
         if (unit.kind === 'bomber') {
             unit.crashing = entry.crashing === true;
@@ -141,7 +163,19 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
             unit.hp = totalHp;
             if (unit.source) unit.source.alive = unit.alive;
         }
-        if (unit.kind === 'creature') {
+        if (unit.hydra) {
+            const hydra = entry.hydra || {};
+            unit.hydra.action = ['idle', 'snap', 'spit'].includes(hydra.action) ? hydra.action : 'idle';
+            unit.hydra.phase = ['idle', 'warning', 'active'].includes(hydra.phase) ? hydra.phase : 'idle';
+            unit.hydra.head = Math.max(0, Math.min(5, Math.trunc(Number(hydra.head) || 0)));
+            unit.hydra.event = Math.max(0, Math.trunc(Number(hydra.event) || 0));
+            unit.hydra.moving = unit.hydra.phase === 'idle';
+            if (Array.isArray(hydra.direction)) unit.hydra.direction.set(
+                Number(hydra.direction[0]) || 0,
+                Number(hydra.direction[1]) || 0,
+                Number(hydra.direction[2]) || 0,
+            );
+        } else if (unit.kind === 'creature') {
             const attacks = Math.max(0, Math.trunc(Number(entry.attacks) || 0));
             playCreatureAttack = unit.networkAttacksInitialized && attacks > unit.attacksFired && unit.alive;
             unit.attacksFired = attacks;
@@ -163,7 +197,9 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         if ((wasAlive && !unit.alive && unit.kind !== 'swarm' && unit.kind !== 'bomber')
             || (wasCrashing && !unit.crashing && !unit.alive && unit.kind === 'bomber')) {
             // Only the picture: damage, loot and credit already happened on the host.
-            system.entityManager?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
+            system.entityManager?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, {
+                cause: 'PROJECTILE', projectileType: unit.hydra ? 'HYDRA_DEATH' : 'ROCKET_HEAVY',
+            });
             spawnMapUnitWreck(system, unit);
         }
         // A client never runs the respawn itself, so it clears the wreck when the unit comes back.

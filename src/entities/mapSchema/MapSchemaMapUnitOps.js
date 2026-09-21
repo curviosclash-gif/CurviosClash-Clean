@@ -49,7 +49,13 @@ function toPlainUnit(unit, invScale) {
         plain.crash = { ...unit.crash, radius: unit.crash.radius * invScale };
     }
     if (unit.kind === 'creature') {
+        if (unit.species === 'hydra_v3') plain.species = unit.species;
         plain.attack = { ...unit.attack, radius: unit.attack.radius * invScale };
+    }
+    if (unit.escortObjective) {
+        plain.escortObjective = {
+            checkpointPathIndices: [...unit.escortObjective.checkpointPathIndices],
+        };
     }
     return plain;
 }

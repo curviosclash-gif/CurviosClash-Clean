@@ -6,6 +6,7 @@ const COLLECTION_DEFINITIONS = [
             'standard', 'empty', 'maze', 'complex', 'pyramid', 'vertical_maze',
             'trench', 'notre_dame_arena', 'notre_dame_fire_arena', 'eiffel_tower_arena',
             'eiffel_tower_siege', 'reactor_site', 'burg_falkenwacht_arena',
+            'hydra_temple',
         ],
     },
     {

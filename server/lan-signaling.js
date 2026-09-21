@@ -156,6 +156,9 @@ function buildLobbyState(lobby) {
         hostActorId: String(lobby.hostActorId || 'Host').trim() || 'Host',
         hostName: String(lobby.hostName || lobby.hostActorId || 'Host').trim() || 'Host',
         hostLobbyName: normalizeOptionalMultiplayerPlayerName(lobby.hostLobbyName),
+        memberCount: countLobbyMembers(lobby),
+        localPlayerCount: normalizeLocalPlayerCount(lobby.localPlayerCount),
+        playerCount: countLobbyPlayers(lobby),
         maxPlayers: Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS),
         metadata: { ...lobby.metadata },
         settingsRevision: lobby.settingsRevision,
@@ -192,6 +195,15 @@ function countLobbyMembers(lobby) {
     return 1 + lobby.players.length;
 }
 
+function normalizeLocalPlayerCount(value) {
+    const requested = Number(value);
+    return Number.isFinite(requested) ? Math.max(1, Math.min(2, Math.floor(requested))) : 1;
+}
+
+function countLobbyPlayers(lobby) {
+    return normalizeLocalPlayerCount(lobby.localPlayerCount) + lobby.players.length;
+}
+
 export function createLANSignalingServer(port = 9090, options = {}) {
     const now = typeof options.now === 'function' ? options.now : () => Date.now();
     const resolveDiagnostics = typeof options.resolveDiagnostics === 'function'
@@ -222,6 +234,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         settingsRevision: 1,
         hostActorId: 'Host',
         hostName: 'Host',
+        localPlayerCount: 1,
         maxPlayers: DEFAULT_MAX_PLAYERS,
         metadata: normalizePublicLobbyMetadata(),
         players: [],
@@ -390,6 +403,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             lobby.hostActorId = String(body.actorId || body.name || 'Host').trim() || 'Host';
             lobby.hostName = String(body.name || body.actorId || 'Host').trim() || 'Host';
             lobby.hostLobbyName = normalizeOptionalMultiplayerPlayerName(body.lobbyName);
+            lobby.localPlayerCount = normalizeLocalPlayerCount(body.localPlayerCount);
             lobby.maxPlayers = Number.isFinite(requestedMaxPlayers)
                 ? Math.max(2, Math.min(DEFAULT_MAX_PLAYERS, Math.floor(requestedMaxPlayers)))
                 : DEFAULT_MAX_PLAYERS;
@@ -427,7 +441,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 jsonResponse(res, { ok: false, message: 'lobby_not_found' }, 404);
                 return;
             }
-            if (countLobbyMembers(lobby) >= Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS)) {
+            if (countLobbyPlayers(lobby) >= Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS)) {
                 jsonResponse(res, { ok: false, message: 'lobby_full' }, 409);
                 return;
             }
@@ -815,7 +829,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 });
                 return;
             }
-            if (countLobbyMembers(lobby) < 2) {
+            if (countLobbyPlayers(lobby) < 2) {
                 jsonResponse(res, { ok: false, message: 'not_enough_members' }, 409);
                 return;
             }
@@ -996,7 +1010,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             const requestedLobbyCode = normalizeLobbyCode(url.searchParams.get('lobbyCode'));
             jsonResponse(res, {
                 matchesLobby: requestedLobbyCode !== '' && requestedLobbyCode === normalizeLobbyCode(lobby.code),
-                playerCount: countLobbyMembers(lobby),
+                playerCount: countLobbyPlayers(lobby),
                 maxPlayers: Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS),
                 hostName: resolveLanLobbyPublicHostName(lobby),
                 mapKey: lobby.metadata.mapKey,

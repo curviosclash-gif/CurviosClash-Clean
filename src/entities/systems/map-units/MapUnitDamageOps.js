@@ -2,6 +2,8 @@ import { rewardMapUnitDestruction } from './MapUnitRewardOps.js';
 import { beginBomberCrash } from './MapUnitBomberCrashOps.js';
 import { spawnMapUnitWreck } from './MapUnitWreckOps.js';
 import { areTeammates } from '../../../shared/contracts/TeamCombatContract.js';
+import { ESCORT_PHASES, ESCORT_RECOVERY_DEFAULTS } from '../../../shared/contracts/EscortObjectiveContract.js';
+import { stopHydra } from './MapUnitHydraOps.js';
 
 /**
  * Hit points, destruction and return of map units (E19, E34).
@@ -31,12 +33,20 @@ function emptyResult(unit) {
 export function applyMapUnitDamage(system, unit, amount, options = {}) {
     if (!unit?.alive || system.networkReplica) return emptyResult(unit);
     if (unit.escortTank === true && areTeammates(unit, options.sourcePlayer)) return emptyResult(unit);
+    if (unit.escortTank === true && (
+        unit.escortPhase === ESCORT_PHASES.DOWNED
+        || unit.escortPhase === ESCORT_PHASES.RECOVERING
+        || (Number(unit.escortProtectionRemaining) || 0) > 0
+    )) return emptyResult(unit);
     const requested = Math.max(0, Number(amount) || 0);
     const hpBefore = unit.hp;
     unit.hp = Math.max(0, hpBefore - requested);
     const hpApplied = hpBefore - unit.hp;
     const owner = system.entityManager;
     if (hpApplied > 0) {
+        if (unit.escortTank === true && Number.isInteger(options.sourcePlayer?.index)) {
+            owner?._huntScoring?.registerEscortTankDamage?.(options.sourcePlayer.index, hpApplied);
+        }
         owner?.particles?.spawnHit?.(unit.position, HIT_COLOR);
         owner?.recorder?.logEvent?.(
             'MAP_UNIT_DAMAGED',
@@ -45,6 +55,22 @@ export function applyMapUnitDamage(system, unit, amount, options = {}) {
         );
     }
     const isDead = unit.hp <= 0;
+    if (isDead && unit.escortTank === true && (Number(unit.escortRecoveryCharges) || 0) > 0) {
+        unit.escortRecoveryCharges = Math.max(0, unit.escortRecoveryCharges - 1);
+        unit.escortPhase = ESCORT_PHASES.DOWNED;
+        unit.speed = 0;
+        unit.escortDownedRemaining = ESCORT_RECOVERY_DEFAULTS.downedSeconds;
+        unit.escortRepairProgress = 0;
+        unit.escortLastDamageSource = options.sourcePlayer || null;
+        unit.escortDownCredited = true;
+        owner?.recorder?.logEvent?.(
+            'ESCORT_TANK_DOWNED',
+            Number.isInteger(options.sourcePlayer?.index) ? options.sourcePlayer.index : -1,
+            unit.id,
+        );
+        owner?._huntScoring?.registerEscortTankDown?.(options.sourcePlayer?.index, false);
+        return { applied: requested, hpApplied, absorbedByShield: 0, remainingHp: 0, isDead: false, isDowned: true };
+    }
     if (isDead && unit.kind === 'bomber') beginBomberCrash(unit, options.sourcePlayer || null);
     else if (isDead) destroyMapUnit(system, unit, options.sourcePlayer || null);
     return { applied: requested, hpApplied, absorbedByShield: 0, remainingHp: unit.hp, isDead };
@@ -96,13 +122,24 @@ function applyBlast(system, unit, sourcePlayer) {
 
 export function destroyMapUnit(system, unit, sourcePlayer) {
     const owner = system.entityManager;
+    if (unit.hydra) stopHydra(system, unit);
     unit.alive = false;
     unit.hp = 0;
+    if (unit.escortTank === true) unit.escortPhase = ESCORT_PHASES.DESTROYED;
+    if (unit.escortTank === true) {
+        owner?._huntScoring?.registerEscortTankDown?.(
+            sourcePlayer?.index,
+            true,
+            unit.escortDownCredited !== true,
+        );
+    }
     unit.respawnRemaining = unit.definition.respawnSeconds > 0 ? unit.definition.respawnSeconds : Infinity;
     if (unit.root) unit.root.visible = false;
     // The hull is gone from the scene, but the wreck of it stays for a while (B4).
     spawnMapUnitWreck(system, unit);
-    owner?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
+    owner?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, {
+        cause: 'PROJECTILE', projectileType: unit.hydra ? 'HYDRA_DEATH' : 'ROCKET_HEAVY',
+    });
     owner?.audio?.play?.('HIT', { intensity: 1 });
     owner?.recorder?.logEvent?.(
         'MAP_UNIT_DESTROYED',
@@ -111,7 +148,7 @@ export function destroyMapUnit(system, unit, sourcePlayer) {
     );
     unit.deaths = (Number(unit.deaths) || 0) + 1;
     system.setBossRoomClock?.(unit, false);
-    applyBlast(system, unit, sourcePlayer);
+    if (!unit.hydra) applyBlast(system, unit, sourcePlayer);
     if (unit.escortTank !== true) rewardMapUnitDestruction(system, unit, sourcePlayer);
 }
 

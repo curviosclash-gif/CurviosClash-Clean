@@ -387,6 +387,7 @@ export async function handleMultiplayerHostAction({
         result = await Promise.resolve(menuMultiplayerBridge?.host({
             actorId: profile?.id || accessContext?.actorId, name: String(profile?.displayName || accessContext?.actorId || 'Host'),
             lobbyCode: String(event?.lobbyCode || '').trim(), lobbyName: loadRememberedLobbyName(game),
+            localPlayerCount: Number(event?.localPlayerCount) === 2 ? 2 : 1,
             settingsSnapshot,
         }));
     } catch (error) {

@@ -21,11 +21,15 @@ import {
 import { shootPlayerItemProjectile } from './projectile/PlayerProjectileFireOps.js';
 import { applyGuidedRocketInput } from './projectile/GuidedRocketControlOps.js';
 import { endGuidedRocketAutopilot } from '../ai/GuidedRocketAutopilotOps.js';
+import { interceptRocket } from './projectile/RocketInterceptOps.js';
 import {
     applyProjectileCosmeticColor,
     createProjectileCosmeticGroup,
     disposeProjectileCosmeticMaterials,
 } from './projectile/ProjectileCosmeticMeshOps.js';
+import { HYDRA_FIREBALL, spawnHydraFireball, getHydraFireballAssets, createHydraFireballGroup } from './projectile/HydraFireballOps.js';
+
+export { HYDRA_FIREBALL };
 
 export class ProjectileSystem {
     constructor(options = {}) {
@@ -98,6 +102,8 @@ export class ProjectileSystem {
     }
     getRocketThreat(playerIndex) { return this._rocketThreatTracker.getThreat(playerIndex); }
 
+    interceptRocket(target, defender, interceptor = null) { return interceptRocket(this, target, defender, interceptor); }
+
     shootItemProjectile(player, preferredIndex = -1, rocketOnly = false) {
         return shootPlayerItemProjectile(this, player, preferredIndex, rocketOnly);
     }
@@ -114,6 +120,8 @@ export class ProjectileSystem {
     }
 
     deployMine(player) { return deployMine(this, player); }
+
+    spawnHydraFireball(owner, position, direction, scale = 1) { return spawnHydraFireball(this, owner, position, direction, scale); }
 
     spawnExternalProjectile(options = {}) {
         if (this.networkReplica) return null;
@@ -198,12 +206,15 @@ export class ProjectileSystem {
         );
         projectile.homingReacquireTimer = 0;
         configureExternalProjectileTarget(projectile, options);
+        projectile.interceptTargetId = String(options.interceptTargetId || '');
+        projectile.isInterceptor = projectile.interceptTargetId !== '';
+        if (projectile.isInterceptor) projectile.target = null;
         projectile.environmentProjectile = environmentProjectile;
         projectile.targetPlayerIndex = Number.isInteger(options.targetPlayerIndex)
             ? options.targetPlayerIndex
             : -1;
         projectile.targetReacquireDisabled = environmentProjectile || options.targetReacquireDisabled === true;
-        projectile.ignoresTrails = environmentProjectile || options.ignoresTrails === true;
+        projectile.ignoresTrails = environmentProjectile || projectile.isInterceptor || options.ignoresTrails === true;
         projectile.ignoresTurrets = environmentProjectile || options.ignoresTurrets === true;
         projectile.zoneProjectile = options.zoneProjectile === true;
         projectile.zoneSequence = Math.max(0, Number(options.zoneSequence) || 0);
@@ -257,11 +268,12 @@ export class ProjectileSystem {
 
         if (!rocketGroup) {
             const assets = this._getProjectileAssets(type, color);
-            rocketGroup = createProjectileCosmeticGroup(assets);
+            rocketGroup = type === HYDRA_FIREBALL
+                ? createHydraFireballGroup(assets) : createProjectileCosmeticGroup(assets);
         }
 
         rocketGroup.visible = true;
-        applyProjectileCosmeticColor(rocketGroup, visualColor);
+        if (type !== HYDRA_FIREBALL) applyProjectileCosmeticColor(rocketGroup, visualColor);
         if (rocketGroup.userData.flame) {
             rocketGroup.userData.flame.scale.set(1, 1, 1);
         }
@@ -284,6 +296,8 @@ export class ProjectileSystem {
         if (this._projectileAssets.has(type)) {
             return this._projectileAssets.get(type);
         }
+
+        if (type === HYDRA_FIREBALL) return getHydraFireballAssets(this._projectileAssets);
 
         const bodyGeo = new THREE.CylinderGeometry(0.15, 0.15, 1.2, 8);
         bodyGeo.rotateX(Math.PI / 2);

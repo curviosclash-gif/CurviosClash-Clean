@@ -307,6 +307,11 @@ export function setupMenuGameplayBindings(ctx) {
         emitSettingsChangedImmediate([keys.RULES_INVERT_P2]);
     });
 
+    bind(ui.invertP3, 'change', () => {
+        settings.invertPitch.PLAYER_3 = !!ui.invertP3.checked;
+        emitSettingsChangedImmediate([keys.RULES_INVERT_P3]);
+    });
+
     if (ui.planarModeToggle) {
         bind(ui.planarModeToggle, 'change', (e) => {
             applyPlanarMode(!!e.target.checked);

@@ -36,6 +36,21 @@ test('controller axes reach PlayerController with keyboard-equivalent signs and 
     }
 });
 
+test('controller pitch follows the active player inversion setting', (t) => {
+    const { pad } = hardware(t);
+    const source = createGamepadInputSource();
+    const controller = new PlayerController();
+    const player = { controlRampEnabled: false, invertPitchBase: false };
+    pad.axes[1] = -0.7;
+
+    const regularPitch = controller.resolveControlState(player, source.poll()).pitchInput;
+    player.invertPitchBase = true;
+    const invertedPitch = controller.resolveControlState(player, source.poll()).pitchInput;
+
+    assert.equal(invertedPitch, -regularPitch);
+    assert.notEqual(regularPitch, 0);
+});
+
 test('all gameplay buttons distinguish held actions from press edges, including slow motion', (t) => {
     const { pad } = hardware(t);
     const source = createGamepadInputSource();

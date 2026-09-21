@@ -8,6 +8,7 @@ import {
 } from '../hunt/EnvironmentKillCreditOps.js';
 import { resolveWorldAudioOptions } from './audio/WorldAudioOptions.js';
 import { emitArcadeEliminationEvents } from './runtime/EntityArcadeGameplayEvents.js';
+import { TEAM_IDS } from '../shared/contracts/TeamCombatContract.js';
 
 function resolveEnvironmentCredit(entityManager, player, cause, deathOptions, nowSeconds) {
     if (deathOptions?.killer || !isEnvironmentKillCause(cause)) return null;
@@ -69,6 +70,19 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
             // scoring clock, so registerElimination must keep reading that same clock.
             spawnAgeSeconds: nowSeconds - (Number(player.fightSpawnedAtSeconds) || 0),
         });
+        const killer = deathOptions?.killer || null;
+        if (
+            Number.isInteger(killer?.index)
+            && (
+                entityManager._mapUnitSystem?.isPositionNearEscortTank?.(player.position)
+                || entityManager._mapUnitSystem?.isPositionNearEscortTank?.(killer.position)
+            )
+        ) {
+            entityManager._huntScoring.registerEscortObjectiveKill?.(
+                killer.index,
+                killer.teamId === TEAM_IDS.BRAVO,
+            );
+        }
         emitHuntEliminationFeed(
             entityManager._eventBus,
             entityManager.players,

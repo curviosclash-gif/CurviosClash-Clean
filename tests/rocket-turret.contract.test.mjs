@@ -92,6 +92,82 @@ test('MG and rocket limits are separate; TTL, owner death and restart release bo
     } finally { system.dispose(); }
 });
 
+test('owned MG and rocket turrets defend their owner from the nearest locked rocket', () => {
+    const intercepts = [];
+    const shots = [];
+    const owner = player(0);
+    const enemy = player(1, 45, true);
+    enemy.takeDamage = () => assert.fail('the farther player must not be targeted');
+    const incoming = {
+        type: 'ROCKET_WEAK', traversalId: 'projectile:incoming', lockedPlayerIndex: owner.index,
+        isInterceptor: false, zoneProjectile: false, position: new THREE.Vector3(8, 20, 0),
+    };
+    const projectileSystem = {
+        projectiles: [incoming],
+        interceptRocket(target, defender, interceptor) {
+            intercepts.push({ target, defender, interceptor });
+            return true;
+        },
+        spawnExternalProjectile(options) {
+            shots.push(options);
+            return {};
+        },
+    };
+    const system = new StaticTurretSystem({
+        gameModeStrategy: { modeType: 'HUNT' }, entityRuntimeConfig: runtimeConfig(),
+        arena: { checkCollisionFast: () => false },
+        players: [owner, enemy], humanPlayers: [owner], _projectileSystem: projectileSystem,
+    });
+    try {
+        system.deployForPlayer(owner, 'mg');
+        system.deployForPlayer(owner, 'rocket');
+        system.update(0.23);
+
+        assert.equal(intercepts.length, 1);
+        assert.equal(intercepts[0].target, incoming);
+        assert.equal(intercepts[0].defender, owner);
+        assert.equal(shots.length, 1);
+        assert.equal(shots[0].target, null);
+        assert.equal(shots[0].interceptTargetId, incoming.traversalId);
+    } finally { system.dispose(); }
+});
+
+test('owned MG and rocket turrets attack the nearest hostile destructible target', () => {
+    const owner = player(0);
+    owner.teamId = 'ALPHA';
+    const enemy = player(1, 45, true);
+    enemy.takeDamage = () => assert.fail('the farther player must not be targeted');
+    const structure = {
+        id: 'enemy_structure', destructible: true, alive: true, hp: 20, teamId: 'BRAVO',
+        position: new THREE.Vector3(8, 20, 0),
+        takeDamage(amount) {
+            this.hp -= amount;
+            return { hpApplied: amount, remainingHp: this.hp, isDead: this.hp <= 0 };
+        },
+    };
+    const shots = [];
+    const system = new StaticTurretSystem({
+        gameModeStrategy: { modeType: 'HUNT' }, entityRuntimeConfig: runtimeConfig(),
+        arena: { checkCollisionFast: () => false },
+        players: [owner, enemy], humanPlayers: [owner],
+        _projectileSystem: {
+            projectiles: [],
+            spawnExternalProjectile(options) { shots.push(options); return {}; },
+        },
+        _targetableRegistry: { collect: () => [structure] },
+    });
+    try {
+        system.deployForPlayer(owner, 'mg');
+        system.deployForPlayer(owner, 'rocket');
+        system.update(0.23);
+
+        assert.equal(structure.hp, 17);
+        assert.equal(shots.length, 1);
+        assert.equal(shots[0].target, structure);
+        assert.equal(shots[0].interceptTargetId, '');
+    } finally { system.dispose(); }
+});
+
 test('fixed launchers target bots and trails, honor protection and keep legacy emplacements unchanged', () => {
     const { system, owner, enemy, manager, shots } = fixture();
     owner.position.x = -100;

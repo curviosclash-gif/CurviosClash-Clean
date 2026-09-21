@@ -7,6 +7,7 @@ import { buildEndlessParcoursBlocks, buildParcoursBlock } from './postmatch/Post
 import { buildMatchDetailBlock, buildRoundDetailBlock } from './postmatch/PostMatchDetailBlocks.js';
 import { buildParticipantComparisonBlock } from './postmatch/PostMatchComparisonBlock.js';
 import { buildArcadeProgressionBlock } from './postmatch/PostMatchArcadeProgressionBlock.js';
+import { buildEscortBlock } from './postmatch/PostMatchEscortBlock.js';
 
 function getSafeLogger(logger) {
     return logger && typeof logger.log === 'function' ? logger : console;
@@ -23,6 +24,7 @@ function buildPostMatchStatsSummary({
     localPlayerIndexes = null,
     checkpointResetsByPlayer = null,
     arcadeProgression = null,
+    escortSummary = null,
 } = {}) {
     const lastRoundMetrics = recorder?.getLastRoundMetrics?.() || null;
     const aggregateMetrics = recorder?.getAggregateMetrics?.() || null;
@@ -36,6 +38,7 @@ function buildPostMatchStatsSummary({
             roundWinnerIndex: resolveWinnerIndex(lastRoundMetrics),
         }),
         buildRoundBlock(lastRoundMetrics, players, outcome),
+        buildEscortBlock({ escort: escortSummary, huntScoreboard, players }),
         ...endlessBlocks.filter((block) => block.tier !== 'detail'),
         buildParcoursBlock(lastRoundMetrics),
         buildParticipantComparisonBlock({
@@ -147,6 +150,7 @@ export function coordinateRoundEnd({
     localPlayerIndexes = null,
     checkpointResetsByPlayer = null,
     arcadeProgression = null,
+    escortSummary = null,
     logger = console,
 }) {
     const recording = finalizeRoundRecording({
@@ -171,6 +175,7 @@ export function coordinateRoundEnd({
         localPlayerIndexes,
         checkpointResetsByPlayer,
         arcadeProgression,
+        escortSummary,
     });
     const uiState = deriveRoundEndCoordinatorUiState(plan, statsSummary);
     const effectsPlan = deriveRoundEndCoordinatorEffectsPlan();

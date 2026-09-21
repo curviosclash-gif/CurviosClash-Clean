@@ -14,6 +14,7 @@ export const EDITOR_OBJECT_TYPES = Object.freeze({
     TUNNEL: 'tunnel',
     CHECKPOINT: 'checkpoint',
     TURRET: 'turret',
+    ESCORT_WAYPOINT: 'escort_waypoint',
 });
 
 // Default gameplay behavior for authored item models. `item_box` intentionally

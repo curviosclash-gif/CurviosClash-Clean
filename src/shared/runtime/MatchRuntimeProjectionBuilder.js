@@ -181,6 +181,9 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
         : {};
     const modeId = String(runtimeState?.activeGameMode || entityManager?.activeGameMode || game?.activeGameMode || '');
     const escortMode = modeId.toUpperCase() === 'ESCORT';
+    const escortObjective = escortMode
+        ? entityManager?._mapUnitSystem?.getEscortObjectiveState?.() || null
+        : null;
     const combatModeId = String(entityManager?.gameModeStrategy?.getPickupModeType?.() || modeId);
     const gameStateId = String(sessionRuntime?.lifecycle?.gameStateId || game?.state || '');
     const parcoursHudState = entityManager?.getParcoursHudState?.(localPlayerIndex) || null;
@@ -254,6 +257,7 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
             authoritativeClient: entityManager?.isFightOutcomeAuthority === false,
             teamMode,
             escortMode,
+            escort: escortObjective,
             teamObjective,
             flagCounts,
             flags,

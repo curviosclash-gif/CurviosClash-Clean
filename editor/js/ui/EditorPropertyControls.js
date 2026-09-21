@@ -61,6 +61,9 @@ export function bindEditorPropertyControls(editor) {
                 } else if (userData.type === 'checkpoint') {
                     editor.selectedObject.scale.setScalar(val * 14);
                     userData.cpRadius = val;
+                } else if (userData.type === 'escort_waypoint') {
+                    editor.selectedObject.scale.setScalar(val * 10);
+                    userData.routeRadius = val;
                 }
                 editor.mapManager?.notifyObjectMutated?.(editor.selectedObject);
                 editor.showPropPanel(editor.selectedObject);

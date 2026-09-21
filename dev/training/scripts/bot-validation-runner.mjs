@@ -13,6 +13,10 @@ import {
 } from '../src/state/validation/BotValidationOutcomeSemantics.js';
 import { buildBotValidationSurvivalMetrics } from '../src/state/validation/BotValidationSurvivalMetrics.js';
 import { buildBotValidationRuntimeMetrics } from '../src/state/validation/BotValidationRuntimeMetrics.js';
+import {
+    acquirePlaywrightRunLock,
+    releasePlaywrightRunLockOnExit,
+} from '../../../scripts/playwright-run-lock.mjs';
 
 const CLI_ARGS = parseArgMap(process.argv.slice(2));
 const HOST = '127.0.0.1';
@@ -738,6 +742,14 @@ async function captureBotRuntimeSample(page, phasePrefix, deadlines) {
                     snapshot: snapshot && typeof snapshot === 'object' ? { ...snapshot } : null,
                 };
             });
+            const botTeamIds = botPlayers.map((player) => String(player?.teamId || '').trim().toUpperCase());
+            const botObjectiveAssignments = botPlayers.map((player) => ({
+                playerIndex: Number(player?.index ?? -1),
+                teamId: String(player?.teamId || '').trim().toUpperCase(),
+                objectiveType: String(player?.botObjectiveType || '').trim().toUpperCase(),
+                objectiveRole: String(player?.flagBotRole || player?.escortBotRole || '').trim().toUpperCase(),
+                objectiveTargetId: String(player?.flagBotTargetId || '').trim(),
+            })).filter((entry) => !!entry.objectiveType);
             const arcadeSeed = Number(game.runtimeConfig?.arcade?.seed);
             const arcadeEnabled = game.runtimeConfig?.arcade?.enabled === true;
             const runtimeGameMode = String(game.runtimeConfig?.session?.activeGameMode || '').trim().toUpperCase();
@@ -746,6 +758,8 @@ async function captureBotRuntimeSample(page, phasePrefix, deadlines) {
                 entityPolicyType: String(entityManager?.botPolicyType || '').trim().toLowerCase(),
                 botPolicyTypes,
                 botDecisions,
+                botTeamIds,
+                botObjectiveAssignments,
                 botCount: botPlayers.length,
                 runtimeGameMode,
                 entityGameMode: String(entityManager?.activeGameMode || '').trim().toUpperCase(),
@@ -753,6 +767,8 @@ async function captureBotRuntimeSample(page, phasePrefix, deadlines) {
                 modePath: String(game.settings?.localSettings?.modePath || '').trim().toLowerCase(),
                 arcadeEnabled,
                 arcadeSeed: Number.isFinite(arcadeSeed) ? arcadeSeed : null,
+                runtimeTeamMode: game.runtimeConfig?.hunt?.teamMode === true,
+                runtimeTeamObjective: String(game.runtimeConfig?.hunt?.teamObjective || 'HUNT').trim().toUpperCase(),
             };
         }
     );
@@ -1096,6 +1112,12 @@ function formatNumber(value) {
     return Number(value || 0).toFixed(2);
 }
 
+function formatCountMap(value) {
+    return Object.entries(value || {})
+        .map(([key, count]) => `${key}:${count}`)
+        .join(', ') || '-';
+}
+
 function formatMs(value) {
     if (value == null) return 'n/a';
     return `${Math.max(0, Math.round(Number(value) || 0))}ms`;
@@ -1137,7 +1159,7 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
     lines.push(`- Failure-Codes: player-dead=${failureTaxonomy?.['player-dead'] ?? 0}, match-loss=${failureTaxonomy?.['match-loss'] ?? 0}, forced-round=${failureTaxonomy?.['forced-round'] ?? 0}, timeout-round=${failureTaxonomy?.['timeout-round'] ?? 0}, runtime-error=${failureTaxonomy?.['runtime-error'] ?? 0}`);
     if (runner) {
         lines.push(`- Runner-Modus: ${runner.serverMode || 'unbekannt'}; Publish-Evidence: ${runner.publishEvidence === true ? 'ja' : 'nein'}`);
-        lines.push(`- Runtime-Vertrag: Policy-Mismatches=${runner.policyMismatches || 0}; Mode-Mismatches=${runner.modeMismatches || 0}; Botanzahl-Mismatches=${runner.botCountMismatches || 0}`);
+        lines.push(`- Runtime-Vertrag: Policy-Mismatches=${runner.policyMismatches || 0}; Mode-Mismatches=${runner.modeMismatches || 0}; Teamziel-Mismatches=${runner.teamObjectiveMismatches || 0}; Botanzahl-Mismatches=${runner.botCountMismatches || 0}`);
     }
     const diagnostics = runner?.diagnostics && typeof runner.diagnostics === 'object'
         ? runner.diagnostics
@@ -1155,20 +1177,26 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
         }
     }
     lines.push('');
-    lines.push('| Szenario | Runden | Vertrag | Bot-Winrate | Stuck | Wand/Trail | Survival Avg/Median/P10 | Items/Fehler | MG/Rakete | Safety/Lenken | Parcours |');
-    lines.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
+    lines.push('| Szenario | Runden | Vertrag | Teamziel/Rollen | Bot-Winrate | Stuck | Wand/Trail | Survival Avg/Median/P10 | Items/Fehler | MG/Rakete | Safety/Lenken | Parcours |');
+    lines.push('|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|');
     for (const result of scenarioResults) {
         const m = result.metrics;
         const contractOk = result.runtimeVerification?.policy?.ok === true
             && result.runtimeVerification?.mode?.ok === true
+            && result.runtimeVerification?.team?.ok === true
             && result.runtimeVerification?.botCount?.ok === true;
-        lines.push(`| ${result.scenario.id} (${result.scenario.mapKey}) | ${m.rounds} | ${contractOk ? 'ok' : 'FEHLER'} | ${formatPercent(m.botWinRate)} | ${m.stuckEvents} | ${m.wallHits}/${m.trailHits} | ${formatSeconds(m.averageBotSurvival)} / ${formatSeconds(m.botSurvivalMedian)} / ${formatSeconds(m.botSurvivalP10)} | ${formatNumber(m.itemUsePerRound)} / ${formatPercent(m.itemUseFailureRate)} | ${formatPercent(m.mgHitRate)} / ${formatPercent(m.projectileHitRate)} | ${formatPercent(m.averageSafetyActiveRatio)} / ${formatNumber(m.steeringChangesPerSecond)} | ${formatPercent(m.parcoursCompletionRate)} |`);
+        const objectiveSummary = result.scenario.teamMode === true
+            ? `${formatPercent(m.objectiveParticipationRate)} · ${formatCountMap(m.objectiveRoleCounts)}`
+            : '-';
+        lines.push(`| ${result.scenario.id} (${result.scenario.mapKey}) | ${m.rounds} | ${contractOk ? 'ok' : 'FEHLER'} | ${objectiveSummary} | ${formatPercent(m.botWinRate)} | ${m.stuckEvents} | ${m.wallHits}/${m.trailHits} | ${formatSeconds(m.averageBotSurvival)} / ${formatSeconds(m.botSurvivalMedian)} / ${formatSeconds(m.botSurvivalP10)} | ${formatNumber(m.itemUsePerRound)} / ${formatPercent(m.itemUseFailureRate)} | ${formatPercent(m.mgHitRate)} / ${formatPercent(m.projectileHitRate)} | ${formatPercent(m.averageSafetyActiveRatio)} / ${formatNumber(m.steeringChangesPerSecond)} | ${formatPercent(m.parcoursCompletionRate)} |`);
     }
     lines.push('');
     return lines.join('\n');
 }
 
 async function run() {
+    const playwrightRunLock = await acquirePlaywrightRunLock({ label: 'bot validation' });
+    releasePlaywrightRunLockOnExit(playwrightRunLock.release);
     const runnerStartedAt = Date.now();
     const runDeadline = createDeadline('total-run', TOTAL_TIMEOUT_MS);
     const hardStopTimer = setTimeout(() => {
@@ -1220,7 +1248,7 @@ async function run() {
         if (!serverAlreadyRunning) {
             if (SERVER_MODE === 'preview' && PREVIEW_BUILD_BEFORE_START) {
                 log('Building app before preview server start');
-                const previewBuild = measureSyncOperation(() => execSync('npm run build', {
+                const previewBuild = measureSyncOperation(() => execSync('npm run build:app', {
                     stdio: 'inherit',
                     env: RUNNER_VITE_ENV,
                 }));
@@ -1371,6 +1399,7 @@ async function run() {
             timeoutRounds: 0,
             policyMismatches: 0,
             modeMismatches: 0,
+            teamObjectiveMismatches: 0,
             botCountMismatches: 0,
             runtimeErrors: 0,
             missingNaturalDuelOutcomes: 0,
@@ -1487,6 +1516,7 @@ async function run() {
             const runtimeVerification = buildBotValidationRuntimeVerification(scenario, runtimeSamples);
             if (!runtimeVerification.policy.ok) runnerStats.policyMismatches += 1;
             if (!runtimeVerification.mode.ok) runnerStats.modeMismatches += 1;
+            if (!runtimeVerification.team.ok) runnerStats.teamObjectiveMismatches += 1;
             runnerStats.botCountMismatches += runtimeVerification.botCount.mismatchSamples;
             scenarioResults.push({
                 scenario,
@@ -1548,6 +1578,7 @@ async function run() {
                 timeoutRounds: runnerStats.timeoutRounds,
                 policyMismatches: runnerStats.policyMismatches,
                 modeMismatches: runnerStats.modeMismatches,
+                teamObjectiveMismatches: runnerStats.teamObjectiveMismatches,
                 botCountMismatches: runnerStats.botCountMismatches,
                 runtimeErrors: runnerStats.runtimeErrors,
                 missingNaturalDuelOutcomes: runnerStats.missingNaturalDuelOutcomes,
@@ -1663,6 +1694,9 @@ async function run() {
         if (runnerStats.modeMismatches > 0) {
             policyErrors.push(`mode contract mismatched in ${runnerStats.modeMismatches} scenario(s)`);
         }
+        if (runnerStats.teamObjectiveMismatches > 0) {
+            policyErrors.push(`team objective contract mismatched in ${runnerStats.teamObjectiveMismatches} scenario(s)`);
+        }
         if (runnerStats.botCountMismatches > 0) {
             policyErrors.push(`bot count contract mismatched in ${runnerStats.botCountMismatches} sample(s)`);
         }
@@ -1704,6 +1738,7 @@ async function run() {
         if (FORCE_KILL_PORT) {
             forceKillPort(PORT);
         }
+        playwrightRunLock.release();
     }
 }
 
@@ -1715,4 +1750,3 @@ run()
         console.error('[bot-validation-runner] failed:', error?.stack || toShortError(error));
         process.exit(1);
     });
-

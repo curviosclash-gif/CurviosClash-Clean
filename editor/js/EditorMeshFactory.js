@@ -161,6 +161,20 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
             userData.aliasOf = props.aliasOf;
         }
     }
+    else if (type === 'escort_waypoint') {
+        const routeType = ['start', 'waypoint', 'checkpoint', 'goal'].includes(subType) ? subType : 'waypoint';
+        const material = routeType === 'checkpoint'
+            ? manager.mats.escort_checkpoint
+            : (routeType === 'goal' ? manager.mats.escort_goal : manager.mats.escort_waypoint);
+        mesh = new THREE.Mesh(manager.torusGeo, material);
+        const radius = Number(props.routeRadius) || 4.5;
+        mesh.scale.setScalar(radius * 10);
+        mesh.rotation.x = Math.PI / 2;
+        userData.subType = routeType;
+        userData.routeRadius = radius;
+        userData.sizeInfo = radius;
+        userData.escortOrder = Number.isFinite(Number(props.escortOrder)) ? Number(props.escortOrder) : 0;
+    }
 
     if (!mesh) {
         console.warn(`[EditorMapManager] Unsupported mesh type "${type}"`);

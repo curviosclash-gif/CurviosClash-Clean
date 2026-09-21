@@ -63,11 +63,11 @@ function renderMultiplayerMembers(ui, sessionState, hasActiveLobbySession) {
         ? sessionState.members
         : [];
     if (memberCount) {
-        const resolvedMemberCount = hasActiveLobbySession
-            ? Math.max(members.length, Math.floor(Number(sessionState?.memberCount) || 0))
+        const resolvedPlayerCount = hasActiveLobbySession
+            ? Math.max(members.length, Math.floor(Number(sessionState?.playerCount) || 0))
             : 0;
-        const maxPlayers = Math.max(resolvedMemberCount, Math.floor(Number(sessionState?.maxPlayers) || 10));
-        memberCount.textContent = `${resolvedMemberCount} / ${maxPlayers}`;
+        const maxPlayers = Math.max(resolvedPlayerCount, Math.floor(Number(sessionState?.maxPlayers) || 10));
+        memberCount.textContent = `${resolvedPlayerCount} / ${maxPlayers}`;
     }
     if (!memberList) return;
 
@@ -88,7 +88,10 @@ function renderMultiplayerMembers(ui, sessionState, hasActiveLobbySession) {
         const name = doc.createElement('span');
         name.className = 'mp-player-name';
         const displayName = String(member?.name || member?.actorId || member?.peerId || 'Spieler').trim() || 'Spieler';
-        name.textContent = `${displayName}${member?.isHost === true ? ' · Host' : ''}${member?.isLocal === true ? ' · Du' : ''}`;
+        const localSeatLabel = member?.isHost === true && Number(sessionState?.localPlayerCount) >= 2
+            ? ' · 2 lokale Spieler'
+            : '';
+        name.textContent = `${displayName}${member?.isHost === true ? ' · Host' : ''}${localSeatLabel}${member?.isLocal === true ? ' · Du' : ''}`;
 
         const ready = doc.createElement('span');
         ready.className = `mp-ready-indicator${member?.ready === true ? ' is-ready' : ''}`;
@@ -266,6 +269,7 @@ export function renderStartSetupSummaryAndPreview({
 
 export function syncStartSetupMultiplayerUi({
     ui,
+    settings = null,
     sessionType,
     surfaceEntryCopy,
     sessionContract,
@@ -288,6 +292,13 @@ export function syncStartSetupMultiplayerUi({
     }
     if (ui.multiplayerConnectionControls) {
         ui.multiplayerConnectionControls.classList.toggle('hidden', hasActiveLobbySession);
+    }
+    if (ui.multiplayerHostLocalPlayerCount) {
+        ui.multiplayerHostLocalPlayerCount.value = String(
+            Number(settings?.localSettings?.lanHostLocalPlayerCount) === 2 ? 2 : 1
+        );
+        ui.multiplayerHostLocalPlayerCount.disabled = hasActiveLobbySession
+            || multiplayerTransportUiState.selectedTransport !== MULTIPLAYER_TRANSPORTS.LAN;
     }
     if (ui.multiplayerSessionControls) {
         ui.multiplayerSessionControls.classList.toggle('hidden', !hasActiveLobbySession);
@@ -418,8 +429,8 @@ export function syncStartSetupMultiplayerUi({
         ui.multiplayerStartMatchButton.title = pendingMatchStart
             ? 'Das Startsignal wurde an die Lobby gesendet.'
             : (isHost
-                ? (resolvedMultiplayerSessionState?.memberCount < 2
-                    ? 'Mindestens ein weiterer Teilnehmer wird benötigt.'
+                ? (resolvedMultiplayerSessionState?.playerCount < 2
+                    ? 'Mindestens zwei Spieler werden benötigt.'
                     : 'Alle Mitspieler müssen bereit sein.')
                 : 'Der Host startet das Match.');
     }
@@ -442,7 +453,11 @@ export function syncStartSetupMultiplayerUi({
             const transportSuffix = sessionContract.isLegacyTransport === true
                 ? ` | ${sessionContract.transportAudienceLabel}`
                 : '';
-            ui.multiplayerLobbyState.textContent = `${lobbyCode} | ${roleLabel} | ${connectionLabel} | ${resolvedMultiplayerSessionState.memberCount} Teilnehmer | ${resolvedMultiplayerSessionState.readyCount}/${resolvedMultiplayerSessionState.memberCount} bereit${transportSuffix}`;
+            const playerCount = Math.max(
+                Number(resolvedMultiplayerSessionState?.memberCount) || 0,
+                Number(resolvedMultiplayerSessionState?.playerCount) || 0
+            );
+            ui.multiplayerLobbyState.textContent = `${lobbyCode} | ${roleLabel} | ${connectionLabel} | ${playerCount} Spieler auf ${resolvedMultiplayerSessionState.memberCount} Gerät(en) | ${resolvedMultiplayerSessionState.readyCount}/${resolvedMultiplayerSessionState.memberCount} Geräte bereit${transportSuffix}`;
         } else if (sessionContract.isLegacyTransport === true) {
             ui.multiplayerLobbyState.textContent = lobbyCode
                 ? `Lobbystatus: ${lobbyCode} | ${sessionContract.transportAudienceLabel}`

@@ -35,7 +35,7 @@ import {
     shouldRollBackDriveStep,
 } from './map-units/MapUnitDriveOps.js';
 import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-units/MapUnitWeaponOps.js';
-import { applyMapUnitDamage, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
+import { applyMapUnitDamage, destroyMapUnit, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
 import { crushTrailsUnderUnit } from './map-units/MapUnitTrailOps.js';
 import { applyMapUnitsNetworkState, serializeMapUnits } from './map-units/MapUnitNetworkOps.js';
 import {
@@ -65,14 +65,20 @@ import {
     updateCreatureVisual,
 } from './map-units/MapUnitCreatureVisualOps.js';
 import { updateCreatureAttack } from './map-units/MapUnitCreatureOps.js';
+import { createHydraState, updateHydra } from './map-units/MapUnitHydraOps.js';
+import { createHydraVisual, removeHydraVisual, updateHydraVisual } from './map-units/MapUnitHydraVisualOps.js';
 import { GAME_MODE_TYPES } from '../../hunt/HuntMode.js';
 import { resolveTeamColor, TEAM_IDS } from '../../shared/contracts/TeamCombatContract.js';
 import {
     bindEscortTank,
+    createEscortObjectiveState,
     createEscortTankDefinition,
     resolveEscortMapUnitOutcome,
+    updateEscortCheckpoints,
+    updateEscortRecovery,
     updateEscortTankSpeed,
 } from './map-units/EscortMapUnitOps.js';
+import { ESCORT_PHASES } from '../../shared/contracts/EscortObjectiveContract.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
@@ -117,14 +123,17 @@ export class MapUnitSystem {
             : 1;
         const definitions = resolveMapUnitDefinitions(mapDefinition, { preserveSpatial: mapDefinition?.scaleAuthoredAnchors === true });
         for (const definition of definitions) {
+            if (definition.escortObjective) continue;
             if (!isTurretCombatActive(owner.gameModeStrategy, [...definition.allowedModes])) continue;
             const unit = this._createUnit(definition, scale);
             this.units.push(unit);
             this.setBossRoomClock(unit, true);
         }
         if (owner.gameModeStrategy?.modeType === GAME_MODE_TYPES.ESCORT) {
-            const definition = createEscortTankDefinition(owner.arena?.bounds);
-            if (definition) this.units.push(bindEscortTank(this._createUnit(definition, 1)));
+            const authored = definitions.filter((definition) => definition.escortObjective);
+            const definition = createEscortTankDefinition(owner.arena?.bounds, authored.length === 1 ? authored[0] : null);
+            const escortScale = authored.length === 1 ? scale : 1;
+            if (definition) this.units.push(bindEscortTank(this._createUnit(definition, escortScale)));
         }
         return this.units.length;
     }
@@ -180,6 +189,7 @@ export class MapUnitSystem {
             chaseFromIndex: -1,
             chaseBlockedUntilIndex: -1,
         };
+        if (definition.species === 'hydra_v3') unit.hydra = createHydraState();
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
         this._placeCentre(unit);
@@ -189,7 +199,9 @@ export class MapUnitSystem {
         } else if (definition.kind === 'bomber') {
             unit.root = createBomberVisual(this.entityManager?.renderer, this._resolveBomberAssets(), scale);
         } else if (definition.kind === 'creature') {
-            unit.root = createCreatureVisual(this.entityManager?.renderer, this._resolveCreatureAssets(), scale);
+            unit.root = unit.hydra
+                ? createHydraVisual(this.entityManager?.renderer, scale)
+                : createCreatureVisual(this.entityManager?.renderer, this._resolveCreatureAssets(), scale);
         } else {
             unit.root = createMapUnitVisual(
                 this.entityManager?.renderer,
@@ -201,6 +213,7 @@ export class MapUnitSystem {
         if (definition.kind === 'tank' || definition.kind === 'boss') this._requestAuthoredBody(unit);
         this._updateVisual(unit);
         unit.source = createUnitSource(unit);
+        if (unit.hydra) unit.source.combatLabel = 'Hydra';
         // Its own shots must not hit it: the weapons skip targets owned by the shooter.
         unit.ownerPlayer = unit.source;
         unit.mounts = createUnitMounts(unit);
@@ -263,13 +276,14 @@ export class MapUnitSystem {
             const modelScale = unit.kind === 'boss' ? unit.definition.modelScale : 1;
             unit.position.y += TANK_TURRET_HEIGHT * unit.scale * modelScale;
         }
-        if (unit.kind === 'creature') unit.position.y += 1.35 * unit.scale;
+        if (unit.kind === 'creature') unit.position.y += (unit.hydra ? 2.6 : 1.35) * unit.scale;
         if (unit.kind === 'swarm') updateSwarmMembers(unit);
     }
 
-    _updateVisual(unit) {
+    _updateVisual(unit, dt = 0) {
         if (unit.kind === 'swarm') updateSwarmVisual(unit);
         else if (unit.kind === 'bomber') updateBomberVisual(unit);
+        else if (unit.hydra) updateHydraVisual(unit, dt);
         else if (unit.kind === 'creature') updateCreatureVisual(unit);
         else updateMapUnitVisual(unit);
     }
@@ -317,37 +331,91 @@ export class MapUnitSystem {
                 continue;
             }
             if (!unit.alive) continue;
+            const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
             if (unit.escortTank) {
                 if (unit.escortReachedGoal) continue;
-                if (!this.networkReplica) updateEscortTankSpeed(unit, this.entityManager?.players || []);
-            }
-            const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
-            const previousPose = captureUnitPose(unit, this._poseScratch);
-            if (unit.definition.drive?.steering === true) {
-                // Only the host decides where a unit leaves its path; a client follows the snapshot.
-                if (unit.definition.drive.chase === true && !this.networkReplica) {
-                    driveChasingUnit(this.entityManager?.arena, unit, this.entityManager?.players || [], unitDt);
-                } else {
-                    steerUnitAlongPath(unit, unitDt);
+                if (!this.networkReplica) {
+                    const recovery = updateEscortRecovery(unit, this.entityManager?.players || [], unitDt);
+                    if (recovery.repairingPlayer && recovery.repairHp > 0) {
+                        this.entityManager?._huntScoring?.registerEscortRepair?.(
+                            recovery.repairingPlayer.index,
+                            recovery.repairHp,
+                            recovery.recovered,
+                        );
+                    }
+                    if (recovery.recovered) {
+                        this.entityManager?.recorder?.logEvent?.('ESCORT_TANK_RECOVERED', recovery.repairingPlayer?.index ?? -1, unit.id);
+                    } else if (recovery.destroyed) {
+                        unit.escortPhase = ESCORT_PHASES.DESTROYED;
+                        destroyMapUnit(this, unit, unit.escortLastDamageSource || null);
+                        continue;
+                    }
+                    if (unit.escortPhase !== ESCORT_PHASES.MOVING) {
+                        this._updateVisual(unit);
+                        continue;
+                    }
+                    updateEscortTankSpeed(unit, this.entityManager?.players || []);
+                    for (const player of this.entityManager?.players || []) {
+                        if (
+                            player?.alive === true
+                            && player.teamId === TEAM_IDS.ALPHA
+                            && player.position
+                            && this.isPositionNearEscortTank(player.position)
+                        ) {
+                            this.entityManager?._huntScoring?.registerEscortSeconds?.(player.index, unitDt);
+                        }
+                    }
                 }
-            } else {
-                advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
-                const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
-                unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
             }
-            if (unit.escortTank && unit.fromIndex === unit.path.length - 1) unit.escortReachedGoal = true;
+            const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;
+            if (unit.hydra) updateHydra(this, unit, unitDt, authority);
+            const previousPose = captureUnitPose(unit, this._poseScratch);
+            if (!unit.hydra || unit.hydra.moving) {
+                if (unit.definition.drive?.steering === true) {
+                    // Only the host decides where a unit leaves its path; a client follows the snapshot.
+                    if (unit.definition.drive.chase === true && !this.networkReplica) {
+                        driveChasingUnit(this.entityManager?.arena, unit, this.entityManager?.players || [], unitDt);
+                    } else {
+                        steerUnitAlongPath(unit, unitDt);
+                    }
+                } else {
+                    advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
+                    const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
+                    unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
+                }
+            }
             applyGroundClamp(this.entityManager?.arena, unit, safeDt);
             if (shouldRollBackDriveStep(this.entityManager?.arena, unit, safeDt)) restoreUnitPose(unit, previousPose);
+            if (unit.escortTank && !this.networkReplica) {
+                const checkpoint = updateEscortCheckpoints(unit);
+                if (checkpoint !== null) {
+                    this.entityManager?.recorder?.logEvent?.('ESCORT_CHECKPOINT', -1, `${unit.id}:${checkpoint + 1}`);
+                    this.entityManager?.audio?.play?.('FIGHT_LEAD');
+                    for (const player of this.entityManager?.players || []) {
+                        if (
+                            player?.alive === true
+                            && player.teamId === TEAM_IDS.ALPHA
+                            && player.position
+                            && this.isPositionNearEscortTank(player.position)
+                        ) {
+                            this.entityManager?._huntScoring?.registerEscortCheckpointContribution?.(player.index);
+                        }
+                    }
+                }
+                if (unit.fromIndex === unit.path.length - 1) {
+                    unit.escortReachedGoal = true;
+                    unit.escortPhase = ESCORT_PHASES.GOAL;
+                }
+            }
             if (unit.kind === 'tank' || unit.kind === 'boss') {
                 updateMapUnitDust(this.entityManager, unit, unit.groundPosition.distanceTo(previousPose.position));
                 tickMapUnitRecoil(unit, safeDt);
             }
             this._placeCentre(unit);
-            this._updateVisual(unit);
-            const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;
+            this._updateVisual(unit, unitDt);
             updateUnitWeapons(this, unit, unitDt, authority);
             if (unit.kind === 'bomber') updateBomberBombs(this, unit, unitDt, authority);
-            if (unit.kind === 'creature') updateCreatureAttack(this, unit, unitDt, authority);
+            if (unit.kind === 'creature' && !unit.hydra) updateCreatureAttack(this, unit, unitDt, authority);
             if (authority && unit.alive && unit.kind === 'tank') {
                 crushTrailsUnderUnit(this.entityManager, unit, unitDt, this._trailScratch);
             }
@@ -410,6 +478,19 @@ export class MapUnitSystem {
         return resolveEscortMapUnitOutcome(tank, elapsed, this.entityManager?.players || []);
     }
 
+    getEscortObjectiveState() {
+        if (this.entityManager?.gameModeStrategy?.modeType !== GAME_MODE_TYPES.ESCORT) return null;
+        const tank = this.units.find((unit) => unit.escortTank === true) || null;
+        return tank ? createEscortObjectiveState(tank, tank.escortObjectiveState) : null;
+    }
+
+    isPositionNearEscortTank(position, radius = null) {
+        const tank = this.units.find((unit) => unit.escortTank === true) || null;
+        if (!tank?.position || !position) return false;
+        const distance = Math.max(0, Number(radius) || 30);
+        return tank.position.distanceToSquared(position) <= distance * distance;
+    }
+
     setNetworkReplica(enabled) {
         this.networkReplica = enabled === true;
     }
@@ -438,7 +519,9 @@ export class MapUnitSystem {
         const renderer = this.entityManager?.renderer;
         for (const unit of this.units) {
             this.setBossRoomClock(unit, false);
-            removeMapUnitVisual(renderer, unit);
+            if (unit.hydra) this.entityManager?._projectileSystem?.clearForOwner?.(unit.source);
+            if (unit.hydra) removeHydraVisual(renderer, unit);
+            else removeMapUnitVisual(renderer, unit);
         }
         this.units.length = 0;
     }

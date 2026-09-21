@@ -312,18 +312,23 @@ export class MatchFlowUiController {
         const slots = this._resolveNetworkPlayerSlots(sessionConfig, networkContext);
         if (!Array.isArray(slots) || slots.length <= 0) return false;
 
-        const localPlayerIndex = Number.isInteger(sessionConfig.localPlayerIndex)
-            ? sessionConfig.localPlayerIndex
-            : 0;
-        const localHumanCount = Math.max(1, Number(sessionConfig.localHumanCount) || 1);
+        const localPlayerIndex = Number.isInteger(networkContext?.localPlayerIndex)
+            ? networkContext.localPlayerIndex
+            : (Number.isInteger(sessionConfig.localPlayerIndex)
+                ? sessionConfig.localPlayerIndex
+                : 0);
+        const localHumanCount = Math.max(1, Number(
+            networkContext?.localHumanCount || sessionConfig.localHumanCount
+        ) || 1);
 
         for (const slot of slots) {
             const playerIndex = Number.isInteger(slot?.playerIndex) ? slot.playerIndex : -1;
             if (playerIndex < 0) continue;
 
-            if (playerIndex === localPlayerIndex) {
+            const localInputIndex = playerIndex - localPlayerIndex;
+            if (slot?.isLocal === true || (localInputIndex >= 0 && localInputIndex < localHumanCount)) {
                 const preferredSource = this._createPreferredInputSource(playerIndex, localHumanCount, {
-                    inputDeviceIndex: 0,
+                    inputDeviceIndex: Math.max(0, localInputIndex),
                 });
                 const isGuest = session?.isHost !== true;
                 input.setPlayerSource(playerIndex, createNetworkLocalInputSource({
@@ -345,7 +350,7 @@ export class MatchFlowUiController {
             const remoteSource = session?.isHost === true
                 ? createNetworkRemoteInputSource({
                     session,
-                    peerId: slot.peerId || slot.playerId || slot.id || '',
+                    peerId: slot.ownerPeerId || slot.peerId || slot.playerId || slot.id || '',
                     playerId: slot.peerId || slot.playerId || slot.id || '',
                 })
                 : createPassiveNetworkInputSource();
@@ -386,9 +391,20 @@ export class MatchFlowUiController {
         const game = this.game;
         game.keyCapture = null;
 
+        const sessionConfig = game?.runtimeConfig?.session || null;
+        const networkContext = sessionConfig?.networkEnabled === true
+            ? this.runtimePort?.getNetworkMatchInputContext?.() || null
+            : null;
+        const localHumanCount = Math.max(1, Number(
+            networkContext?.localHumanCount || sessionConfig?.localHumanCount || game.numHumans
+        ) || 1);
+        const viewportLayout = sessionConfig?.networkEnabled === true
+            ? (localHumanCount >= 2 ? VIEWPORT_LAYOUTS.TWO_COLUMNS : VIEWPORT_LAYOUTS.SINGLE)
+            : sessionConfig?.viewportLayout;
+
         const matchStartTransition = deriveMatchStartTransition({
-            numHumans: game.numHumans,
-            viewportLayout: game?.runtimeConfig?.session?.viewportLayout,
+            numHumans: localHumanCount,
+            viewportLayout,
         });
         this.applyLifecycleTransition(matchStartTransition);
         this.applyMatchStartUiState(matchStartTransition.uiState);

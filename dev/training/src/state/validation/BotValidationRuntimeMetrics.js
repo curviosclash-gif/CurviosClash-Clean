@@ -7,11 +7,29 @@ export function buildBotValidationRuntimeMetrics(runtimeSamples = [], totalDurat
     ));
     const intentCounts = {};
     const safetyStateCounts = {};
+    const objectiveTypeCounts = {};
+    const objectiveRoleCounts = {};
     for (const snapshot of decisionSnapshots) {
         const intent = String(snapshot?.intent || 'unknown');
         const safetyState = String(snapshot?.safetyState || 'unknown');
         intentCounts[intent] = (intentCounts[intent] || 0) + 1;
         safetyStateCounts[safetyState] = (safetyStateCounts[safetyState] || 0) + 1;
+    }
+    let objectiveBotSampleCount = 0;
+    let objectiveBotExpectedSampleCount = 0;
+    for (const sample of samples) {
+        objectiveBotExpectedSampleCount += Math.max(0, Math.trunc(Number(sample?.botCount) || 0));
+        const assignments = Array.isArray(sample?.botObjectiveAssignments)
+            ? sample.botObjectiveAssignments
+            : [];
+        for (const assignment of assignments) {
+            const objectiveType = String(assignment?.objectiveType || '').trim().toUpperCase();
+            const objectiveRole = String(assignment?.objectiveRole || '').trim().toUpperCase();
+            if (!objectiveType) continue;
+            objectiveBotSampleCount += 1;
+            objectiveTypeCounts[objectiveType] = (objectiveTypeCounts[objectiveType] || 0) + 1;
+            if (objectiveRole) objectiveRoleCounts[objectiveRole] = (objectiveRoleCounts[objectiveRole] || 0) + 1;
+        }
     }
 
     const startCounters = new Map();
@@ -47,5 +65,12 @@ export function buildBotValidationRuntimeMetrics(runtimeSamples = [], totalDurat
         steeringChangesPerSecond: duration > 0 ? steeringChanges / duration : 0,
         intentChangesPerSecond: duration > 0 ? intentChanges / duration : 0,
         averageSafetyActiveRatio: safetyRatioSamples > 0 ? safetyRatioSum / safetyRatioSamples : 0,
+        objectiveBotSampleCount,
+        objectiveBotExpectedSampleCount,
+        objectiveParticipationRate: objectiveBotExpectedSampleCount > 0
+            ? objectiveBotSampleCount / objectiveBotExpectedSampleCount
+            : 0,
+        objectiveTypeCounts,
+        objectiveRoleCounts,
     };
 }

@@ -179,7 +179,7 @@ export function resolveHuntTargetPosition(target, players = [], trailSpatialInde
         return destination.set(liveMidpoint.x, liveMidpoint.y, liveMidpoint.z);
     }
 
-    if (target?.alive && target.position) {
+    if (target?.position && target.alive !== false && (target.alive === true || Number(target.hp) > 0)) {
         return destination.copy(target.position);
     }
     return null;
@@ -406,7 +406,7 @@ export function resolveHuntLineTarget({
         const targetIndex = Number(target.index);
         if (target === sourcePlayer || (targetIndex >= 0 && targetIndex === ownerIndex)) continue;
         if (excludeTeammates && areTeammates(sourcePlayer, target)) continue;
-        if (typeof canTargetPlayer === 'function' && !canTargetPlayer(target)) continue;
+        if (typeof canTargetPlayer === 'function' && !canTargetPlayer(target, sourcePlayer)) continue;
 
         const hitboxRadius = Math.max(
             0.2,

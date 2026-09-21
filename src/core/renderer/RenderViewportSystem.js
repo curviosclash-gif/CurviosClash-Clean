@@ -13,21 +13,26 @@ export class RenderViewportSystem {
             options.splitScreen ? VIEWPORT_LAYOUTS.TWO_COLUMNS : VIEWPORT_LAYOUTS.SINGLE
         );
         this.splitScreen = this.layout !== VIEWPORT_LAYOUTS.SINGLE;
-        /** When true, forces fullscreen single-camera rendering (network mode). */
+        /** When true, renders only the local machine's camera set. */
         this.networkEnabled = !!options.networkEnabled;
         /** Index of the local player whose camera to follow in network mode. */
         this.localPlayerIndex = options.localPlayerIndex || 0;
+        this.localHumanCount = Math.max(1, Math.floor(Number(options.localHumanCount) || 1));
         this.postProcessingPipeline = options.postProcessingPipeline || null;
         this.beforeCameraRender = typeof options.beforeCameraRender === 'function'
             ? options.beforeCameraRender : null;
         this.afterCameraRender = typeof options.afterCameraRender === 'function'
             ? options.afterCameraRender : null;
+        // A logical frame may render several cameras and post-processing passes. three.js resets
+        // renderer.info before every render() by default, which made split-screen diagnostics show
+        // only the last camera instead of the complete frame.
+        if (this.renderer.info) this.renderer.info.autoReset = false;
         this.renderer.setSize(this.width, this.height);
         this.postProcessingPipeline?.setSize?.(this.width, this.height);
     }
 
     getAspect() {
-        if (this.networkEnabled) {
+        if (this.networkEnabled && this.localHumanCount <= 1) {
             return this.width / this.height;
         }
         if (this.layout === VIEWPORT_LAYOUTS.TWO_COLUMNS) {
@@ -68,13 +73,18 @@ export class RenderViewportSystem {
      * @param {boolean} enabled
      * @param {number} localPlayerIndex
      * @param {Array} cameras
+     * @param {number} localHumanCount
+     * @param {string} layout
      */
-    setNetworkMode(enabled, localPlayerIndex, cameras) {
+    setNetworkMode(enabled, localPlayerIndex, cameras, localHumanCount = 1, layout = VIEWPORT_LAYOUTS.SINGLE) {
         this.networkEnabled = !!enabled;
         this.localPlayerIndex = localPlayerIndex || 0;
+        this.localHumanCount = Math.max(1, Math.floor(Number(localHumanCount) || 1));
         if (enabled) {
-            this.layout = VIEWPORT_LAYOUTS.SINGLE;
-            this.splitScreen = false;
+            this.layout = this.localHumanCount >= 2
+                ? normalizeViewportLayout(layout, VIEWPORT_LAYOUTS.TWO_COLUMNS)
+                : VIEWPORT_LAYOUTS.SINGLE;
+            this.splitScreen = this.localHumanCount >= 2;
         }
         this.updateCameraAspects(cameras);
     }
@@ -112,11 +122,29 @@ export class RenderViewportSystem {
     }
 
     render(scene, cameras) {
+        this.renderer.info?.reset?.();
         const w = this.width;
         const h = this.height;
 
-        // Network mode: fullscreen, follow local player's camera only
+        // Network mode: render only this machine's local camera set.
         if (this.networkEnabled) {
+            if (this.localHumanCount >= 2) {
+                const leftWidth = Math.floor(w / 2);
+                const rightWidth = w - leftWidth;
+                const firstCamera = cameras[Math.max(0, this.localPlayerIndex)] || cameras[0];
+                const secondCamera = cameras[Math.max(0, this.localPlayerIndex + 1)] || firstCamera;
+                this.renderer.setScissorTest(true);
+                this.renderer.setViewport(0, 0, leftWidth, h);
+                this.renderer.setScissor(0, 0, leftWidth, h);
+                this._renderCamera(scene, firstCamera);
+                this.renderer.setViewport(leftWidth, 0, rightWidth, h);
+                this.renderer.setScissor(leftWidth, 0, rightWidth, h);
+                this._renderCamera(scene, secondCamera);
+                this.renderer.setScissorTest(false);
+                this.renderer.setViewport(0, 0, w, h);
+                this.renderer.setScissor(0, 0, w, h);
+                return;
+            }
             const camIdx = Math.min(this.localPlayerIndex, cameras.length - 1);
             const cam = cameras[Math.max(0, camIdx)] || cameras[0];
             this._renderSingle(scene, cam, w, h);

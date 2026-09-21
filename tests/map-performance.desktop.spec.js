@@ -27,6 +27,7 @@ test(`${mapKey}: 1080p desktop frame pacing with one player and four bots`, asyn
     if (fallback) await page.route(`**/assets/maps/${mapKey}/glb/01_world.glb`, (route) => route.abort());
     await electronApp.evaluate(({ BrowserWindow }) => {
         const window = BrowserWindow.getAllWindows()[0];
+        if (window.isMaximized()) window.unmaximize();
         window.setContentSize(1920, 1080);
         window.showInactive();
         window.webContents.setBackgroundThrottling(false);
@@ -59,7 +60,15 @@ test(`${mapKey}: 1080p desktop frame pacing with one player and four bots`, asyn
             r.setBloomQuality(bloomQuality);
             r.renderer.setPixelRatio(1);
             r.postProcessingPipeline.setPixelRatio(1);
-            r._onResize();
+            // Off-screen Windows test windows do not reliably honor a requested native content
+            // size. Pin the render target itself so this remains a real 1080p GPU measurement.
+            r.viewportSystem.width = 1920;
+            r.viewportSystem.height = 1080;
+            r.renderer.setSize(1920, 1080);
+            r.postProcessingPipeline.setSize(1920, 1080);
+            r.viewportSystem.updateCameraAspects(r.cameras);
+            r._width = 1920;
+            r._height = 1080;
         }, { shadowQuality, bloomQuality });
         // This is a normal keyboard turn, with collision, bots and camera still active.
         await page.keyboard.down('a');
@@ -70,6 +79,7 @@ test(`${mapKey}: 1080p desktop frame pacing with one player and four bots`, asyn
             const timer = gl.getExtension('EXT_disjoint_timer_query_webgl2');
             // three.js clears info on every render() call, so a frame with post processing or a
             // split screen would only report its last pass. Reset once per presented frame instead.
+            const previousAutoReset = r.info.autoReset;
             r.info.autoReset = false;
             const createWindow = (label) => ({ label, samples: [], gpuMs: [], draws: 0, triangles: 0,
                 playing: 0, fullActors: 0, minPlayers: Infinity, maxPickups: 0, states: {}, subsystems: null });
@@ -130,7 +140,7 @@ test(`${mapKey}: 1080p desktop frame pacing with one player and four bots`, asyn
                 }
                 if (elapsed < endMs) return requestAnimationFrame(sample);
                 if (current) current.subsystems = game.runtimePerfProfiler.getTelemetryIntervalSnapshot().subsystems;
-                r.info.autoReset = true;
+                r.info.autoReset = previousAutoReset;
                 const summarize = (entry) => {
                     const sorted = entry.samples.slice().sort((a, b) => a - b);
                     const mean = sorted.reduce((a, b) => a + b, 0) / Math.max(1, sorted.length);

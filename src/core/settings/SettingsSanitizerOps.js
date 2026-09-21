@@ -81,6 +81,7 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
 
     merged.invertPitch.PLAYER_1 = !!(src?.invertPitch?.PLAYER_1 ?? defaults.invertPitch.PLAYER_1);
     merged.invertPitch.PLAYER_2 = !!(src?.invertPitch?.PLAYER_2 ?? defaults.invertPitch.PLAYER_2);
+    merged.invertPitch.PLAYER_3 = !!(src?.invertPitch?.PLAYER_3 ?? defaults.invertPitch.PLAYER_3);
     merged.cockpitCamera.PLAYER_1 = GAMEPLAY_COCKPIT_CAMERA_ENABLED;
     merged.cockpitCamera.PLAYER_2 = GAMEPLAY_COCKPIT_CAMERA_ENABLED;
 

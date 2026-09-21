@@ -12,6 +12,12 @@ export const MULTIPLAYER_TRANSPORTS = Object.freeze({
     ONLINE: 'online',
 });
 
+export function normalizeLanHostLocalPlayerCount(value, fallback = 1) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return Math.max(1, Math.min(2, Math.floor(Number(fallback) || 1)));
+    return Math.max(1, Math.min(2, Math.floor(parsed)));
+}
+
 export const RUNTIME_MULTIPLAYER_TRANSPORT_PRODUCT_STATUSES = Object.freeze({
     PRODUCTIVE: 'productive',
     LEGACY_FALLBACK: 'legacy-fallback',

@@ -30,6 +30,41 @@ import { applyFightHumanAimAssist } from '../../hunt/FightAimAssist.js';
 import { resolveFightMachineGunConfig } from '../../shared/contracts/FightMachineGunContract.js';
 import { applyArenaWavesMachineGunTuning } from '../../shared/contracts/ArenaWavesContract.js';
 import { ensurePlayerInventoryCollections } from '../player/PlayerInventoryOps.js';
+import { isDestructibleTurret } from '../../shared/contracts/TurretCombatContract.js';
+import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
+
+function canAimAtTargetable(target, attacker) {
+    return isDestructibleTurret(target)
+        && target.hp > 0
+        && target.alive !== false
+        && target.ownerPlayer !== attacker
+        && target.ownerIndex !== attacker?.index
+        && !areTeammates(attacker, target)
+        && !!target.position;
+}
+
+function canAimAtPlayer(target, attacker) {
+    return !areTeammates(attacker, target);
+}
+
+function resolveTargetableLineHit(targets, attacker, origin, direction, maxDistance, scratch) {
+    let nearest = null;
+    let nearestDistance = maxDistance;
+    for (const target of targets) {
+        if (!canAimAtTargetable(target, attacker)) continue;
+        scratch.subVectors(target.position, origin);
+        const forward = scratch.dot(direction);
+        if (forward < 0 || forward > nearestDistance) continue;
+        const radius = Math.max(0.5, Number(target.hitboxRadius) || 2.2);
+        const perpendicularSq = scratch.lengthSq() - forward * forward;
+        if (perpendicularSq > radius * radius) continue;
+        const entryDistance = Math.max(0, forward - Math.sqrt(Math.max(0, radius * radius - perpendicularSq)));
+        if (entryDistance >= nearestDistance) continue;
+        nearest = target;
+        nearestDistance = entryDistance;
+    }
+    return nearest;
+}
 
 function resolveActionResultCodes(action = 'use') {
     return action === 'shoot'
@@ -58,6 +93,11 @@ export class HuntCombatSystem {
         this._fallbackLockOnCache = new Map();
         this._targetingScratch = createHuntTargetingScratch();
         this._targetingTelemetry = createHuntTargetingTelemetry();
+        this._humanAimAssistOptions = {
+            extraTargets: null,
+            canUsePlayerTarget: canAimAtPlayer,
+            canUseExtraTarget: canAimAtTargetable,
+        };
     }
 
     _resolveInventoryIndex(player, preferredIndex = -1) {
@@ -334,7 +374,9 @@ export class HuntCombatSystem {
         ), player?.isBot === true ? 0 : player?.fightLoadout?.arenaWavesMgTuning);
         const visiblePlayers = player?.entityManager?.filterVisiblePlayers?.(player, runtime.players)
             || runtime.players;
-        applyFightHumanAimAssist(player, visiblePlayers, tmpDir, mg, tmpVec);
+        const targetables = runtime?.combat?.getMgTurretTargets?.() || [];
+        this._humanAimAssistOptions.extraTargets = targetables;
+        applyFightHumanAimAssist(player, visiblePlayers, tmpDir, mg, tmpVec, this._humanAimAssistOptions);
         const muzzle = this._fallbackMuzzle;
         const muzzleOffset = Math.max(0, Number(config?.HUNT?.TARGETING?.MUZZLE_OFFSET || 2.1));
         muzzle.copy(player.position).addScaledVector(tmpDir, muzzleOffset);
@@ -361,10 +403,21 @@ export class HuntCombatSystem {
             runtimeProfiler: runtime?.services?.runtimeProfiler || runtime?.runtimeProfiler || null,
             targetingTelemetry: this._targetingTelemetry,
             scratch: this._targetingScratch,
-            excludeTeammates: player?.isBot === true,
+            canTargetPlayer: canAimAtPlayer,
+            excludeTeammates: false,
         });
 
-        lockOnCache.set(player.index, descriptor || null);
-        return descriptor || null;
+        const descriptorDistance = Number(descriptor?.distance);
+        const targetable = resolveTargetableLineHit(
+            targetables,
+            player,
+            muzzle,
+            tmpDir,
+            Number.isFinite(descriptorDistance) ? Math.min(mgRange, descriptorDistance) : mgRange,
+            tmpVec
+        );
+        const lockTarget = targetable || descriptor || null;
+        lockOnCache.set(player.index, lockTarget);
+        return lockTarget;
     }
 }

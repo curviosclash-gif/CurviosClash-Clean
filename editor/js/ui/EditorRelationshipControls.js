@@ -14,6 +14,7 @@ export function bindEditorRelationshipControls(editor) {
     editor.core.scene.add(visualGroup);
     const portalMaterial = new THREE.LineBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.8 });
     const parcoursMaterial = new THREE.LineBasicMaterial({ color: 0xaaff00, transparent: true, opacity: 0.65 });
+    const escortMaterial = new THREE.LineBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.82 });
 
     const clearVisuals = () => {
         for (const child of [...visualGroup.children]) {
@@ -46,6 +47,26 @@ export function bindEditorRelationshipControls(editor) {
         for (let index = 1; index < checkpoints.length; index += 1) {
             addLine(checkpoints[index - 1], checkpoints[index], parcoursMaterial);
         }
+        const escortPoints = listByType(editor, 'escort_waypoint')
+            .sort((left, right) => (Number(left.userData?.escortOrder) || 0) - (Number(right.userData?.escortOrder) || 0));
+        for (let index = 1; index < escortPoints.length; index += 1) {
+            addLine(escortPoints[index - 1], escortPoints[index], escortMaterial);
+        }
+    };
+
+    const normalizeEscortOrder = (ordered = null) => {
+        const unsorted = ordered || listByType(editor, 'escort_waypoint')
+            .sort((left, right) => {
+                const orderDelta = (Number(left.userData?.escortOrder) || 0) - (Number(right.userData?.escortOrder) || 0);
+                return orderDelta || String(left.userData?.id || '').localeCompare(String(right.userData?.id || ''));
+            });
+        const source = [
+            ...unsorted.filter((point) => point.userData?.subType === 'start'),
+            ...unsorted.filter((point) => !['start', 'goal'].includes(point.userData?.subType)),
+            ...unsorted.filter((point) => point.userData?.subType === 'goal'),
+        ];
+        source.forEach((point, index) => { point.userData.escortOrder = index; });
+        updateVisuals();
     };
 
     const normalizeCheckpointOrder = (ordered = null) => {
@@ -81,7 +102,7 @@ export function bindEditorRelationshipControls(editor) {
 
     editor.populateRelationshipFields = (object) => {
         if (dom.propPortalPartnerRow) dom.propPortalPartnerRow.style.display = object?.userData?.type === 'portal' ? 'grid' : 'none';
-        if (dom.propCheckpointOrderRow) dom.propCheckpointOrderRow.style.display = object?.userData?.type === 'checkpoint' ? 'grid' : 'none';
+        if (dom.propCheckpointOrderRow) dom.propCheckpointOrderRow.style.display = ['checkpoint', 'escort_waypoint'].includes(object?.userData?.type) ? 'grid' : 'none';
         if (object?.userData?.type === 'portal' && dom.propPortalPartner) {
             const fragment = document.createDocumentFragment();
             const empty = document.createElement('option');
@@ -100,6 +121,8 @@ export function bindEditorRelationshipControls(editor) {
         }
         if (object?.userData?.type === 'checkpoint' && dom.propCheckpointOrder) {
             dom.propCheckpointOrder.value = String(Number(object.userData.checkpointOrder) || 0);
+        } else if (object?.userData?.type === 'escort_waypoint' && dom.propCheckpointOrder) {
+            dom.propCheckpointOrder.value = String(Number(object.userData.escortOrder) || 0);
         }
     };
 
@@ -110,8 +133,16 @@ export function bindEditorRelationshipControls(editor) {
     });
     dom.propCheckpointOrder?.addEventListener('change', () => {
         const selected = editor.selectedObject;
-        if (selected?.userData?.type !== 'checkpoint') return;
+        if (!['checkpoint', 'escort_waypoint'].includes(selected?.userData?.type)) return;
         editor.executeHistoryMutation('Reorder checkpoint', () => {
+            if (selected.userData.type === 'escort_waypoint') {
+                const route = listByType(editor, 'escort_waypoint').filter((entry) => entry !== selected)
+                    .sort((left, right) => (Number(left.userData.escortOrder) || 0) - (Number(right.userData.escortOrder) || 0));
+                const nextIndex = Math.max(0, Math.min(route.length, Number(dom.propCheckpointOrder.value) || 0));
+                route.splice(nextIndex, 0, selected);
+                normalizeEscortOrder(route);
+                return;
+            }
             const checkpoints = listByType(editor, 'checkpoint').filter((entry) => entry !== selected)
                 .sort((left, right) => (Number(left.userData.checkpointOrder) || 0) - (Number(right.userData.checkpointOrder) || 0));
             const nextIndex = Math.max(0, Math.min(checkpoints.length, Number(dom.propCheckpointOrder.value) || 0));
@@ -134,6 +165,7 @@ export function bindEditorRelationshipControls(editor) {
         return true;
     };
     editor.normalizeCheckpointOrder = normalizeCheckpointOrder;
+    editor.normalizeEscortOrder = normalizeEscortOrder;
     editor.updateRelationshipVisuals = updateVisuals;
     editor.setPortalPartner = setPortalPartner;
     const initializeRelationships = () => {
@@ -149,6 +181,11 @@ export function bindEditorRelationshipControls(editor) {
             if (!Number.isFinite(Number(checkpoint.userData?.checkpointOrder))) checkpoint.userData.checkpointOrder = index;
         });
         normalizeCheckpointOrder();
+        const escortPoints = listByType(editor, 'escort_waypoint');
+        escortPoints.forEach((point, index) => {
+            if (!Number.isFinite(Number(point.userData?.escortOrder))) point.userData.escortOrder = index;
+        });
+        normalizeEscortOrder();
     };
     editor.initializeRelationships = initializeRelationships;
     initializeRelationships();

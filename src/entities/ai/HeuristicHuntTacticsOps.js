@@ -40,6 +40,7 @@ import {
 import { findPreferredPickupTarget } from './BotPickupTargetingOps.js';
 import { resolveOpportunisticEnemy } from './HeuristicHuntTargetingOps.js';
 import { applyFlagObjectiveMovement } from '../../hunt/HuntBotFlagObjectiveOps.js';
+import { applyHuntBotObjectiveMovement } from '../../hunt/HuntBotObjectiveOps.js';
 import {
     applyTrafficAvoidanceSteering,
     findImminentTrafficThreat,
@@ -493,6 +494,11 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
     }
     const flagAssignment = applyFlagObjectiveMovement(policy, input, player, runtimeContext,
         retreatRequested, survivalPressure, Number(resolveGameplayConfig(player).HUNT?.MG?.RANGE || HUNT_CONFIG.MG.RANGE));
+    const objectiveRole = flagAssignment ? null : applyHuntBotObjectiveMovement({
+        policy, input, player, runtimeContext, shouldRetreat: retreatRequested,
+        clearSteering: clearSteeringInput, steerToward: applySteeringTowardPosition,
+    });
+    if (objectiveRole) intent = `${String(player.botObjectiveType || 'objective').toLowerCase()}-${objectiveRole.toLowerCase()}`;
     return {
         intent: flagAssignment ? `flag-${flagAssignment.role}` : intent,
         retreatReason,

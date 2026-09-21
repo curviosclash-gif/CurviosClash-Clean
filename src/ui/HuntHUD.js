@@ -13,6 +13,7 @@ import { SecretRoomAnnouncer } from './SecretRoomAnnouncer.js';
 import { resolveLocalHudHumans } from './LocalHudPlayers.js';
 import { formatFlagObjectiveSummary, formatHuntClock, formatHuntScoreboard, getHuntScoreValue, rankHuntScoreboardRows, resolveHuntObjectiveText, updateHuntTargetProgress } from './HuntMatchStatusHelpers.js';
 import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
+import { createHuntEscortStatus, resetHuntEscortStatus, syncHuntEscortStatus } from './HuntEscortStatus.js';
 import {
     HUD_ARC_SEGMENT_COUNT,
     initializeHudSegmentedArc,
@@ -64,6 +65,7 @@ export class HuntHUD {
         this.objective = refs.objective ?? null;
         this.scoreboard = refs.scoreboard ?? null;
         this.targetProgress = refs.targetProgress ?? null;
+        this._escortStatus = createHuntEscortStatus(refs);
         this._progressState = { target: 0, filled: -1 };
         this._matchAnnouncement = this.root?.ownerDocument
             ? new MatchHudAnnouncement(this.root) : null;
@@ -198,6 +200,7 @@ export class HuntHUD {
         this._scoreboardDetails = null;
         this._leaderIndex = null;
         this._leaderKills = -1;
+        resetHuntEscortStatus(this._escortStatus);
         this._matchAnnouncement?.reset();
         this._interceptAnnouncer.reset();
         this._secretRoomAnnouncer.reset();
@@ -405,6 +408,7 @@ export class HuntHUD {
     }
 
     _updateMatchStatus(huntProjection = null, localPlayerIndices = []) {
+        if (syncHuntEscortStatus(this, huntProjection, localPlayerIndices)) return;
         const flagMode = huntProjection?.teamObjective === 'FLAGS';
         const respawnEnabled = huntProjection?.respawnEnabled === true;
         const killLimit = Math.max(1, Number(huntProjection?.deathmatchKillLimit) || 10);

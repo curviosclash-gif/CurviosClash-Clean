@@ -11,6 +11,7 @@ function createMultiplayerCommandContext(facade, options = undefined) {
         event: {
             lobbyCode: options?.lobbyCode,
             signalingUrl: options?.signalingUrl,
+            localPlayerCount: options?.localPlayerCount,
         },
         resolveMenuAccessContext: () => facade?._resolveMenuAccessContext?.(),
         menuMultiplayerBridge: facade?.menuMultiplayerBridge,

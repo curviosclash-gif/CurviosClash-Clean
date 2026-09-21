@@ -77,6 +77,9 @@ const OBJECTIVE_LABELS = Object.freeze({
     FLAG_DOMINATION: 'Alle Flaggen kontrolliert',
     FLAG_TIME_LIMIT: 'Flaggenmehrheit nach Zeitlimit',
     FLAG_OVERTIME: 'Golden Flag',
+    ESCORT_GOAL: 'Panzer hat das Ziel erreicht',
+    ESCORT_TANK_DESTROYED: 'Panzer endgültig zerstört',
+    ESCORT_TIME_LIMIT: 'Escort-Zeit abgelaufen',
 });
 
 /**

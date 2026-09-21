@@ -24,6 +24,7 @@ import {
 } from '../src/core/runtime/ActiveRuntimeConfigStore.js';
 import {
     applyRuntimeNetworkPlayerSlotContext,
+    resolveRuntimeNetworkPlayerSlotContext,
     resolveRuntimeNetworkPlayerSlots,
 } from '../src/core/runtime/RuntimeNetworkPlayerSlots.js';
 import { MatchFlowUiController } from '../src/ui/MatchFlowUiController.js';
@@ -2428,6 +2429,8 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
             pendingMatchCommandId: 'cmd-1',
             connected: true,
             memberCount: 2,
+            localPlayerCount: 2,
+            playerCount: 3,
             maxPlayers: 6,
             shareAddress: '192.168.1.8:9090',
             readyCount: 2,
@@ -2483,7 +2486,7 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
         assert.equal(summaryByLabel.get('Session'), 'Multiplayer');
         assert.equal(summaryByLabel.get('Lobby'), 'ABCD | Client | Startsignal gesendet | 2/2 bereit');
         assert.equal(summaryByLabel.get('Transport'), 'LAN');
-        assert.equal(multiplayerLobbyState.textContent, 'ABCD | Client | Startsignal gesendet | 2 Teilnehmer | 2/2 bereit');
+        assert.equal(multiplayerLobbyState.textContent, 'ABCD | Client | Startsignal gesendet | 3 Spieler auf 2 Gerät(en) | 2/2 Geräte bereit');
         assert.equal(multiplayerLobbyCodeInput.value, 'ABCD');
         assert.equal(multiplayerLobbyCodeInput.readOnly, true);
         assert.equal(multiplayerHostAddressInput.readOnly, true);
@@ -2493,7 +2496,9 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
         assert.equal(multiplayerReadyToggle.checked, true);
         assert.equal(multiplayerTransportHint.textContent, 'Verbindung: LAN');
         assert.equal(multiplayerMemberList.children.length, 2);
-        assert.equal(multiplayerMemberCount.textContent, '2 / 6');
+        assert.equal(multiplayerMemberCount.textContent, '3 / 6');
+        assert.match(multiplayerMemberList.children[0].children[0].textContent, /2 lokale Spieler/);
+        assert.equal(multiplayerMemberCount.textContent, '3 / 6');
         assert.equal(multiplayerShareCode.textContent, 'ABCD');
         assert.equal(multiplayerShareAddress.textContent, '192.168.1.8:9090');
         assert.equal(multiplayerShareAddressRow.classList.values.has('hidden'), false);
@@ -2762,6 +2767,55 @@ test('LAN client runtime slots keep host at index zero even when adapter lists l
     );
 });
 
+test('LAN hybrid host owns two adjacent slots while a guest owns only its remote seat', () => {
+    const lobbyState = {
+        peerId: 'host',
+        hostPeerId: 'host',
+        localPlayerCount: 2,
+        members: [
+            { peerId: 'host', name: 'Falke', isHost: true, isLocal: true, joinedAt: 1 },
+            { peerId: 'guest', name: 'Blitz', joinedAt: 2 },
+        ],
+    };
+    const hostGame = { runtimeConfig: { session: { networkEnabled: true } } };
+    const hostFacade = {
+        game: hostGame,
+        session: { isHost: true, localPlayerId: 'host', getPlayers: () => [] },
+        menuMultiplayerBridge: { getSessionState: () => lobbyState },
+    };
+
+    const hostContext = applyRuntimeNetworkPlayerSlotContext(hostFacade);
+    assert.deepEqual(
+        hostContext.slots.map((slot) => [slot.peerId, slot.ownerPeerId, slot.playerIndex, slot.isLocal]),
+        [
+            ['host', 'host', 0, true],
+            ['host::local-2', 'host', 1, true],
+            ['guest', 'guest', 2, false],
+        ]
+    );
+    assert.equal(hostContext.localHumanCount, 2);
+    assert.equal(hostContext.humanEntityCount, 3);
+    assert.equal(hostGame.runtimeConfig.session.numHumans, 2);
+    assert.equal(hostGame.runtimeConfig.session.viewportLayout, 'two_columns');
+
+    const guestContext = resolveRuntimeNetworkPlayerSlotContext({
+        session: { isHost: false, localPlayerId: 'guest', getPlayers: () => [] },
+        menuMultiplayerBridge: {
+            getSessionState: () => ({
+                ...lobbyState,
+                peerId: 'guest',
+                members: [
+                    { peerId: 'host', name: 'Falke', isHost: true, joinedAt: 1 },
+                    { peerId: 'guest', name: 'Blitz', isLocal: true, joinedAt: 2 },
+                ],
+            }),
+        },
+    });
+    assert.equal(guestContext.localPlayerIndex, 2);
+    assert.equal(guestContext.localHumanCount, 1);
+    assert.equal(guestContext.humanEntityCount, 3);
+});
+
 test('LAN client input binds local controls to its network slot only', () => {
     const sources = new Map();
     const sentInputs = [];
@@ -2839,6 +2893,50 @@ test('LAN client input binds local controls to its network slot only', () => {
     assert.equal(sentInputs.length, 1);
     assert.equal(sentInputs[0].playerIndex, 1);
     assert.equal(sentInputs[0].playerId, 'player-1');
+});
+
+test('LAN hybrid host binds two local input devices and keeps the guest remote', () => {
+    const sources = new Map();
+    const preferredInputs = [];
+    const input = {
+        clearPlayerSources() { sources.clear(); },
+        setPlayerSource(playerIndex, source) {
+            source.bind(playerIndex);
+            sources.set(playerIndex, source);
+        },
+    };
+    const session = { isHost: true, on() {}, off() {} };
+    const game = {
+        input,
+        runtimeConfig: {
+            session: {
+                networkEnabled: true,
+                localHumanCount: 2,
+                localPlayerIndex: 0,
+                networkPlayerSlots: [
+                    { peerId: 'host', ownerPeerId: 'host', playerIndex: 0, isLocal: true },
+                    { peerId: 'host::local-2', ownerPeerId: 'host', playerIndex: 1, isLocal: true },
+                    { peerId: 'guest', ownerPeerId: 'guest', playerIndex: 2, isLocal: false },
+                ],
+            },
+        },
+    };
+    const controller = Object.create(MatchFlowUiController.prototype);
+    controller.runtime = game;
+    controller.runtimePort = {
+        getNetworkMatchInputContext: () => ({ session, localPlayerIndex: 0, localHumanCount: 2, slots: [] }),
+    };
+    controller._createPreferredInputSource = (playerIndex, localHumanCount, options = {}) => {
+        preferredInputs.push([playerIndex, localHumanCount, options.inputDeviceIndex]);
+        return { bind() {}, unbind() {}, dispose() {}, poll: () => ({}) };
+    };
+
+    MatchFlowUiController.prototype._configureInputSourcesForMatch.call(controller);
+
+    assert.deepEqual(preferredInputs, [[0, 2, 0], [1, 2, 1]]);
+    assert.equal(sources.get(0).type, 'network-local');
+    assert.equal(sources.get(1).type, 'network-local');
+    assert.equal(sources.get(2).type, 'network-remote');
 });
 
 test('GameRuntimeSessionHandler applies received LAN match-start commands locally', async () => {

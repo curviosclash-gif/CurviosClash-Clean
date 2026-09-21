@@ -93,6 +93,8 @@ export class HeuristicBotPolicy {
         this._tmpUp = new THREE.Vector3();
         this._tmpGate = new THREE.Vector3();
         this._tmpTarget = new THREE.Vector3();
+        this._tmpRoleTarget = new THREE.Vector3();
+        this._tmpRoleForward = new THREE.Vector3();
         this._tmpAimTarget = new THREE.Vector3();
         this._tmpProjectileRelative = new THREE.Vector3();
         this._tmpProjectileVelocity = new THREE.Vector3();

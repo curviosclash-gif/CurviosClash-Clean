@@ -40,6 +40,8 @@ export function createIdleSessionState(lobbyCode = '', transport = LOBBY_SERVICE
         isHost: false,
         localReady: false,
         memberCount: 0,
+        localPlayerCount: 1,
+        playerCount: 0,
         maxPlayers: 10,
         readyCount: 0,
         allReady: false,
@@ -93,6 +95,14 @@ export function buildSessionState(lobbyState, options = {}) {
     const joined = !!localMember;
     const isHost = joined && localMember.isHost === true;
     const memberCount = normalizedMembers.length;
+    const requestedLocalPlayerCount = Number(lobbyState.localPlayerCount);
+    const localPlayerCount = Number.isFinite(requestedLocalPlayerCount)
+        ? Math.max(1, Math.min(2, Math.floor(requestedLocalPlayerCount)))
+        : 1;
+    const requestedPlayerCount = Number(lobbyState.playerCount);
+    const playerCount = Number.isFinite(requestedPlayerCount)
+        ? Math.max(memberCount, Math.floor(requestedPlayerCount))
+        : memberCount;
     const readyCount = normalizedMembers.filter((member) => member.ready === true).length;
     const allReady = memberCount > 0 && readyCount === memberCount;
 
@@ -106,10 +116,12 @@ export function buildSessionState(lobbyState, options = {}) {
         isHost,
         localReady: localMember?.ready === true,
         memberCount,
+        localPlayerCount,
+        playerCount,
         maxPlayers: Math.max(2, Math.floor(Number(lobbyState.maxPlayers) || 10)),
         readyCount,
         allReady,
-        canStart: joined && isHost && hostConnected && memberCount >= 2 && allReady,
+        canStart: joined && isHost && hostConnected && playerCount >= 2 && allReady,
         hostPeerId,
         hostConnected,
         pendingMatchCommandId: normalizeString(lobbyState?.pendingMatchStart?.commandId, ''),

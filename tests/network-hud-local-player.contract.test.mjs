@@ -24,6 +24,11 @@ test('in a network match each screen shows only its own player', () => {
     assert.deepEqual(resolveLocalHudHumans(bySessionPlayers).map((player) => player.name), ['Blitz']);
 });
 
+test('a hybrid LAN host exposes both local humans to its split HUD', () => {
+    const hostView = { isNetworkSession: true, localPlayerIndex: 0, localHumanCount: 2, players };
+    assert.deepEqual(resolveLocalHudHumans(hostView).map((player) => player.name), ['Kapitän', 'Blitz']);
+});
+
 test('a local match keeps every human, bots stay out', () => {
     assert.deepEqual(resolveLocalHudHumans({ isNetworkSession: false, players }).map((player) => player.name), ['Kapitän', 'Blitz']);
 });

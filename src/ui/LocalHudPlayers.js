@@ -1,5 +1,5 @@
-// Which human players this screen's HUD shows. A network match renders one view per
-// machine, so it shows only the own player; a local match shows every local human.
+// Which human players this screen's HUD shows. Network guests own one slot, while a
+// hybrid LAN host may own two adjacent split-screen slots.
 
 import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
 
@@ -17,7 +17,11 @@ export function resolveLocalHudHumans(projection = null, fallbackHumans = []) {
         : (Array.isArray(fallbackHumans) ? fallbackHumans : []);
     if (projection?.isNetworkSession !== true) return humans;
     const localIndex = resolveLocalHudPlayerIndex(projection);
-    return humans.filter((player) => (player?.playerIndex ?? player?.index) === localIndex);
+    const localHumanCount = Math.max(1, Math.floor(Number(projection?.localHumanCount) || 1));
+    return humans.filter((player) => {
+        const playerIndex = player?.playerIndex ?? player?.index;
+        return playerIndex >= localIndex && playerIndex < localIndex + localHumanCount;
+    });
 }
 
 /** Name and score for the top-left tile, counted the same way as the scoreboard. */

@@ -455,6 +455,7 @@ export class UIManager {
         ui.autoRollToggle.checked = !!settings.autoRoll;
         ui.invertP1.checked = !!settings.invertPitch.PLAYER_1;
         ui.invertP2.checked = !!settings.invertPitch.PLAYER_2;
+        ui.invertP3.checked = !!settings.invertPitch.PLAYER_3;
         ui.portalsToggle.checked = !!settings.portalsEnabled;
     }
 

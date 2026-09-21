@@ -37,7 +37,7 @@ export class MatchScoreHudPresenter {
         this.classicLabel?.classList.add('hidden');
     }
 
-    updateNetwork(projection, fallbackPlayers, localIndex) {
+    updateNetwork(projection, fallbackPlayers, localIndex, localHumanCount = 1) {
         const sourcePlayers = Array.isArray(projection?.players)
             ? projection.players : fallbackPlayers;
         const fightRows = projection?.hunt?.active === true && Array.isArray(projection.hunt.scoreboardRows)
@@ -96,7 +96,10 @@ export class MatchScoreHudPresenter {
             if (row.children[0].textContent !== name) row.children[0].textContent = name;
             if (row.children[1].textContent !== score) row.children[1].textContent = score;
             if (row.children[2].textContent !== ping) row.children[2].textContent = ping;
-            row.classList.toggle('is-local', playerIndex === localIndex);
+            row.classList.toggle(
+                'is-local',
+                playerIndex >= localIndex && playerIndex < localIndex + Math.max(1, localHumanCount)
+            );
             row.classList.toggle('is-leading', uniqueLeader && index === 0);
             row.classList.toggle('is-team-blue', teamId === TEAM_IDS.ALPHA);
             row.classList.toggle('is-team-orange', teamId === TEAM_IDS.BRAVO);

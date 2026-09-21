@@ -346,6 +346,10 @@ export function createRuntimeConfigSnapshot(settings, {
             turnSpeed: clampSettingValue(gameplaySource.turnSensitivity, runtimeLimits.gameplay.turnSensitivity, playerDefaults.TURN_SPEED),
             modelScale: clampSettingValue(gameplaySource.planeScale, runtimeLimits.gameplay.planeScale, playerDefaults.MODEL_SCALE),
             autoRoll: typeof source.autoRoll === 'boolean' ? source.autoRoll : !!playerDefaults.AUTO_ROLL,
+            invertPitch: {
+                PLAYER_1: source?.invertPitch?.PLAYER_1 === true,
+                PLAYER_2: source?.invertPitch?.PLAYER_2 === true, PLAYER_3: source?.invertPitch?.PLAYER_3 === true,
+            },
             vehicles: {
                 PLAYER_1: fourPlayerPlanarActive
                     ? sharedFourPlayerVehicleId

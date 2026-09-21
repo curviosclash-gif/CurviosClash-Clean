@@ -52,6 +52,7 @@ export function bindMenuMultiplayerActionButtons({
             if (!canHost) return;
             emit(eventTypes.MULTIPLAYER_HOST, {
                 lobbyCode: String(ui.multiplayerLobbyCodeInput?.value || '').trim(),
+                localPlayerCount: ui.multiplayerHostLocalPlayerCount?.value === '2' ? 2 : 1,
             });
         });
     }

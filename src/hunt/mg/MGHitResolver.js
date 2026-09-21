@@ -14,6 +14,24 @@ import { clamp } from '../../shared/utils/MathOps.js';
 import { applyFightHumanAimAssist } from '../FightAimAssist.js';
 import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
 
+function canHitTargetable(target, attacker) {
+    return isDestructibleTurret(target)
+        && target.hp > 0
+        && target.alive !== false
+        && target.ownerPlayer !== attacker
+        && target.ownerIndex !== attacker?.index
+        && !(target.teamObjective === true && areTeammates(attacker, target))
+        && !!target.position;
+}
+
+function canAimAtPlayer(target, attacker) {
+    return !areTeammates(attacker, target);
+}
+
+function canAimAtTargetable(target, attacker) {
+    return canHitTargetable(target, attacker) && !areTeammates(attacker, target);
+}
+
 export class MGHitResolver {
     constructor(runtimeContext) {
         this.runtime = runtimeContext || null;
@@ -24,6 +42,11 @@ export class MGHitResolver {
         this._tmpTurretOffset = new THREE.Vector3();
         this._targetingScratch = createHuntTargetingScratch();
         this._targetingTelemetry = createHuntTargetingTelemetry();
+        this._humanAimAssistOptions = {
+            extraTargets: null,
+            canUsePlayerTarget: canAimAtPlayer,
+            canUseExtraTarget: canAimAtTargetable,
+        };
     }
 
     resolveHit(player, mg, outMuzzle = null, outAim = null, aimDirection = null) {
@@ -135,14 +158,7 @@ export class MGHitResolver {
         let nearest = null;
         let distance = Math.min(maxRange, nearestDistance);
         for (const turret of turrets) {
-            if (
-                !isDestructibleTurret(turret)
-                || turret.hp <= 0
-                || turret.ownerPlayer === attacker
-                || turret.ownerIndex === attacker?.index
-                || (turret.teamObjective === true && areTeammates(attacker, turret))
-                || !turret.position
-            ) continue;
+            if (!canHitTargetable(turret, attacker)) continue;
             this._tmpTurretOffset.subVectors(turret.position, origin);
             const forward = this._tmpTurretOffset.dot(direction);
             if (forward < 0 || forward > distance) continue;
@@ -168,8 +184,17 @@ export class MGHitResolver {
     resolveAimDirection(player, out, mg = null) {
         player.getAimDirection(out).normalize();
         if (!player?.position) return out;
+        const targetables = this.runtime?.combat?.getMgTurretTargets?.() || [];
         if (!player.isBot) {
-            applyFightHumanAimAssist(player, this.runtime?.players || [], out, mg, this._tmpHit);
+            this._humanAimAssistOptions.extraTargets = targetables;
+            applyFightHumanAimAssist(
+                player,
+                this.runtime?.players || [],
+                out,
+                mg,
+                this._tmpHit,
+                this._humanAimAssistOptions
+            );
             return out;
         }
         const maxRangeSq = Math.max(10, Number(mg?.RANGE || 95)) ** 2;
@@ -192,9 +217,8 @@ export class MGHitResolver {
                 found = true;
             }
         }
-        for (const turret of this.runtime?.combat?.getMgTurretTargets?.() || []) {
-            if (!isDestructibleTurret(turret) || turret.hp <= 0 || turret.ownerIndex === player.index
-                || (turret.teamObjective === true && areTeammates(player, turret)) || !turret.position) continue;
+        for (const turret of targetables) {
+            if (!canAimAtTargetable(turret, player)) continue;
             this._tmpHit.subVectors(turret.position, player.position);
             const distanceSq = this._tmpHit.lengthSq();
             if (distanceSq <= 0.000001 || distanceSq > maxRangeSq) continue;

@@ -74,14 +74,14 @@ test('64.8.1 matrix: splitscreen — offline-compatible, no network, splitscreen
     assert.equal(row.splitscreenCompatible, true);
 });
 
-test('64.8.1 matrix: lan-host — local-network required, not offline-compatible', () => {
+test('64.8.1 matrix: lan-host — local-network required and host split-screen allowed', () => {
     const row = DESKTOP_MULTIPLAYER_COMPATIBILITY_MATRIX[RUNTIME_SESSION_TYPES.LAN];
 
     assert.equal(row.sessionType, RUNTIME_SESSION_TYPES.LAN);
     assert.equal(row.networkRequirement, 'local-network');
     assert.equal(row.offlineCompatible, false);
     assert.equal(row.multiplayerTransportRequired, MULTIPLAYER_TRANSPORTS.LAN);
-    assert.equal(row.splitscreenCompatible, false);
+    assert.equal(row.splitscreenCompatible, true);
 });
 
 test('64.8.1 matrix: lan-client — same row as lan-host (transport-level, not role-level)', () => {

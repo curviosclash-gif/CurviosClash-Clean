@@ -28,7 +28,7 @@ function resolveVehicleLabel(vehicleId) {
 
 /**
  * Orchestrates the local 3-player split-screen (two gamepads, one keyboard
- * by default, freely reassignable). Deliberately a separate class from
+ * by default, with every slot freely reassignable). Deliberately a separate class from
  * FourPlayerPlanarModule rather than a parametrized variant of it: this
  * mode has no roll-key rebinding (the four-player-planar module's biggest
  * chunk of logic) but does have a device-assignment picker the other mode
@@ -158,7 +158,9 @@ export class ThreePlayerSplitModule {
         if (changedDeviceIndex >= 0) {
             const previous = this._resolveSelection().deviceAssignment;
             const requestedDevice = controls.deviceAssignment[changedDeviceIndex];
-            const previousOwner = previous.indexOf(requestedDevice);
+            const previousOwner = requestedDevice.startsWith('gamepad-')
+                ? previous.indexOf(requestedDevice)
+                : -1;
             if (previousOwner >= 0 && previousOwner !== changedDeviceIndex) {
                 controls.deviceAssignment[previousOwner] = previous[changedDeviceIndex];
             }
@@ -183,11 +185,11 @@ export class ThreePlayerSplitModule {
     }
 
     _getDeviceIssue(selection) {
-        if (!isGamepadInputEnabled(this.runtime?.getSettings?.()?.controls)) {
+        const assignedGamepads = selection.deviceAssignment.filter((device) => device.startsWith('gamepad-'));
+        if (assignedGamepads.length > 0 && !isGamepadInputEnabled(this.runtime?.getSettings?.()?.controls)) {
             return 'Gamepads sind deaktiviert. Aktiviere sie in den Steuerungs-Einstellungen.';
         }
-        for (const device of selection.deviceAssignment) {
-            if (!device.startsWith('gamepad-')) continue;
+        for (const device of assignedGamepads) {
             const index = Number(device.slice('gamepad-'.length)) - 1;
             const pad = this.getGamepad(index);
             if (!pad || pad.connected === false) {
@@ -277,27 +279,50 @@ export class ThreePlayerSplitModule {
         this._hudTickTimer += Math.max(0, Number(dt) || 0);
         if (!firstFrame && this._hudTickTimer < 0.1) return;
         this._hudTickTimer %= 0.1;
-        const hunt = this.runtime.getRuntimeConfig()?.session?.threePlayerSplit?.mode === FOUR_PLAYER_PLANAR_MODES.HUNT;
-        const players = this.runtime.getPlayers();
-        const fightRows = hunt ? this.runtime.getHuntScoreboard?.() || [] : [];
+        const runtimeConfig = this.runtime.getRuntimeConfig();
+        const projection = this.runtime.getMatchRuntimeProjection?.() || null;
+        const hunt = runtimeConfig?.session?.threePlayerSplit?.mode === FOUR_PLAYER_PLANAR_MODES.HUNT;
+        const projectedPlayers = Array.isArray(projection?.players) ? projection.players : [];
+        const players = projectedPlayers.length > 0 ? projectedPlayers : this.runtime.getPlayers();
+        const huntProjection = hunt ? projection?.hunt || null : null;
+        const fightRows = hunt
+            ? (Array.isArray(huntProjection?.scoreboardRows)
+                ? huntProjection.scoreboardRows
+                : this.runtime.getHuntScoreboard?.() || [])
+            : [];
         const scoreRows = hunt ? fightRows : players;
         const scoreKey = hunt ? 'kills' : 'score';
         this.hudView.observeScores?.(scoreRows, { scoreKey });
-        const globalFog = this.runtime.getGlobalFogState?.();
+        this.hudView.updateMatch?.({
+            huntActive: hunt,
+            scoreRows,
+            huntProjection,
+            runtimeConfig,
+        });
+        const globalFog = projection?.globalFog || this.runtime.getGlobalFogState?.();
         const fogLabel = globalFog?.active === true && Number(globalFog.remainingSeconds) > 0
             ? `☁ Nebel ${Math.ceil(Number(globalFog.remainingSeconds))}s`
             : '';
-        const reduceMotion = this.runtime.getRuntimeConfig()?.cameraPerspective?.reduceMotion !== false;
+        const reduceMotion = runtimeConfig?.cameraPerspective?.reduceMotion !== false;
+        const gameplayConfig = this.runtime.getGameplayConfig?.() || null;
         for (let index = 0; index < THREE_PLAYER_SPLIT_HUMAN_COUNT; index += 1) {
             const player = players[index];
             this.hudView.updateRocketWarning?.(
                 index,
                 player,
-                hunt ? this.runtime.getRocketThreat?.(index) : null,
+                hunt ? (player?.rocketThreat || this.runtime.getRocketThreat?.(index)) : null,
                 hunt,
                 reduceMotion,
             );
             if (!player || !this.hudView.hasRow(index)) continue;
+            this.hudView.updatePlayer?.(index, player, {
+                huntActive: hunt,
+                projection,
+                huntProjection,
+                globalFog,
+                gameplayConfig,
+                keyBindings: this.runtime.getPlayerKeyBindings?.(index) || null,
+            });
             const availability = resolveInventoryActionAvailability({
                 player,
                 modeType: hunt ? 'HUNT' : 'CLASSIC',
@@ -308,7 +333,7 @@ export class ThreePlayerSplitModule {
             const values = {
                 stat: hunt
                     ? `Abschüsse ${fightRow?.kills || 0} · HP ${Math.max(0, Math.ceil(Number(player.hp) || 0))}`
-                    : `Punkte ${Number(player.score) || 0}`,
+                    : String(Number(player.score) || 0),
                 rank: rank ? `Rang ${rank}/${scoreRows.length}` : 'Rang –',
                 item: fogLabel ? `${itemLabel} · ${fogLabel}` : itemLabel,
             };
