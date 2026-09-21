@@ -43,3 +43,14 @@ export function readBreakSceneAttachments(value, ownerModelId, maxEntries, maxLe
     }
     return Object.freeze(attachments);
 }
+
+/** @param {unknown} value */
+export function readVariantIndex(value) {
+    const index = Number(value);
+    return Number.isFinite(index) ? Math.max(0, Math.min(7, Math.floor(index))) : 0;
+}
+
+/** @param {string} modelId @param {unknown[]} variants */
+export function readModelVariants(modelId, variants) {
+    return Object.freeze(readIdList([modelId, ...variants], 8, 80));
+}

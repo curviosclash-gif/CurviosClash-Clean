@@ -86,13 +86,12 @@ const FIREBALL_CURVE = Object.freeze(authoredFireballCurve.map((row) => Object.f
  * containment's floor on the plant's axis - and `unitScale` the plant's 0.6 authored units per
  * metre, so the runtime reaches world units with the map's anchor scale and nothing else.
  *
- * 50 damage at the centre is what the storm dam's collapse deals (StormDamDestructibles.js), and
- * this one is the same kind of thing: an environmental hazard that does not care who caused it.
+ * A modest 20 damage at the centre: an environmental hazard independent of who caused it.
  * It falls off to nothing at the fireball's edge and may take each ship at most once per breach,
  * so flying through the whole four seconds costs one hit, not four seconds of hits.
  */
 const REACTOR_FIREBALL = Object.freeze({
-    damage: 50,
+    damage: 20,
     origin: Object.freeze([0, GROUND, 0]),
     unitScale: METRE,
     samples: FIREBALL_CURVE,
@@ -198,6 +197,8 @@ export const REACTOR_SITE_DESTRUCTIBLES = Object.freeze({
             id: 'mushroom_cloud',
             trigger: { segmentId: 'reactor_dome' },
             modelId: 'reactor-mushroom-cloud',
+            modelVariants: ['reactor-mushroom-cloud', 'reactor-mushroom-cloud-2',
+                'reactor-mushroom-cloud-3', 'reactor-mushroom-cloud-4'],
             // A cloud has no direction. The heading the event records is not applied.
             yawFromEvent: false,
             pieces: ['reactor'],

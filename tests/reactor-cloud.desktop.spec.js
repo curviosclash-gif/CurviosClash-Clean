@@ -87,10 +87,12 @@ test('the reactor breach rises as a cloud from the cockpit, and its fireball end
             let slot = null;
             let fireball = null;
             runtime.matchRoot.traverse((node) => {
-                if (node.userData?.glbModelId === 'reactor-mushroom-cloud') slot = node;
-                if (node.isMesh && String(node.name || '').includes('_fire_fireball')) fireball = node;
+                if (node.visible && String(node.userData?.glbModelId || '').startsWith('reactor-mushroom-cloud')) slot = node;
             });
             if (!slot) return null;
+            slot.traverse((node) => {
+                if (node.isMesh && String(node.name || '').includes('_fire_fireball')) fireball = node;
+            });
             slot.updateWorldMatrix(true, true);
 
             // Extents of everything the slot draws, in world units, without importing THREE here.

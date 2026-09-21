@@ -46,8 +46,9 @@ export class MapBreakSceneController {
         this._attachments = new Map();
         for (const scene of this.definition?.breakScenes || []) {
             const root = resolveGlbModelRoot(this.arena, scene.modelId);
-            if (!this._authoredYaw.has(scene.modelId)) {
-                this._authoredYaw.set(scene.modelId, Number(root?.rotation?.y) || 0);
+            for (const modelId of scene.modelVariants || [scene.modelId]) {
+                const variantRoot = resolveGlbModelRoot(this.arena, modelId);
+                this._authoredYaw.set(modelId, Number(variantRoot?.rotation?.y) || 0);
             }
             for (const attachment of scene.attachedModels) {
                 const key = `${scene.id}/${attachment.modelId}`;
@@ -138,9 +139,11 @@ export class MapBreakSceneController {
             }
         }
         for (const scene of this.definition?.breakScenes || []) {
-            setGlbModelActive(this.arena, this._colliderIndex, scene.modelId, false);
-            this._setSceneYaw(scene.modelId, 0, false);
-            this.driver?.setTrackStart?.(scene.modelId, 0);
+            for (const modelId of scene.modelVariants || [scene.modelId]) {
+                setGlbModelActive(this.arena, this._colliderIndex, modelId, false);
+                this._setSceneYaw(modelId, 0, false);
+                this.driver?.setTrackStart?.(modelId, 0);
+            }
         }
     }
 
@@ -189,7 +192,7 @@ export class MapBreakSceneController {
         /** @type {string[]} */
         const ids = [];
         for (const scene of this.definition?.breakScenes || []) {
-            for (const modelId of [scene.modelId, ...scene.hideModelIds]) {
+            for (const modelId of [...(scene.modelVariants || [scene.modelId]), ...scene.hideModelIds]) {
                 if (!ids.includes(modelId)) ids.push(modelId);
             }
         }

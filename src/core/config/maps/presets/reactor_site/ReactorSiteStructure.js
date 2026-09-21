@@ -1,3 +1,5 @@
+import cloudConfig from './ReactorTorusCloudConfig.json' with { type: 'json' };
+
 // Layout, collision fallback, boosts and pickups of the reactor site.
 //
 // The plant is modelled in Blender at true metres: X and Y the ground axes, Z height above the
@@ -37,7 +39,7 @@ function south(metres) {
 // a 20 unit margin, rounded to 155 - the same field the Eiffel siege plays on.
 export const REACTOR_WRECK_REACH = (105 + 115.2) * METRE;
 export const REACTOR_HALF_SIZE = 155;
-export const REACTOR_MAP_SIZE = [REACTOR_HALF_SIZE * 2, 220, REACTOR_HALF_SIZE * 2];
+export const REACTOR_MAP_SIZE = [REACTOR_HALF_SIZE * 2, cloudConfig.baseMapHeight * cloudConfig.mapHeightMultiplier, REACTOR_HALF_SIZE * 2];
 
 // Where the structures stand, in Blender metres, as the generator places them.
 const TOWER_OFFSET_METRES = 105;

@@ -1,4 +1,4 @@
-import { readBreakSceneAttachments, readIdList } from './MapDestructibleInputOps.js';
+import { readBreakSceneAttachments, readIdList, readVariantIndex, readModelVariants } from './MapDestructibleInputOps.js';
 import {
     MAP_DESTRUCTIBLE_BLAST_LIMITS,
     normalizeMapDestructibleBlast,
@@ -120,6 +120,7 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * @property {string} id
  * @property {Readonly<MapDestructibleBreakSceneTrigger>} trigger
  * @property {string} modelId GLB model holding the baked fall; hidden until the scene starts.
+ * @property {readonly string[]} [modelVariants] Equivalent scene models selected once by the host.
  * @property {readonly string[]} pieces Tower pieces this scene animates.
  * @property {readonly string[]} hideModelIds Intact models that disappear when it starts.
  * @property {readonly Readonly<{modelId: string, parentNodeName: string}>[]} attachedModels Models that follow a moving node while retaining their own animation.
@@ -164,6 +165,7 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
 
 /**
  * @typedef {object} MapDestructibleEvent
+ * @property {number} [variantIndex] Host-selected visual variant; absent for legacy scenes.
  * @property {string} segmentId
  * @property {string} kind
  * @property {number} atSeconds
@@ -410,6 +412,9 @@ function readBreakScene(source, index, pieceIds) {
         id: readText(source.id, `break_scene_${index}`, MAP_DESTRUCTIBLE_LIMITS.idMaxLength),
         trigger,
         modelId,
+        ...(Array.isArray(source.modelVariants) ? {
+            modelVariants: readModelVariants(modelId, source.modelVariants),
+        } : {}),
         pieces: Object.freeze(pieces),
         hideModelIds: Object.freeze(readIdList(
             source.hideModelIds,
@@ -523,7 +528,7 @@ export function resolveMapDestructibleSceneTimeline(definition, events) {
         const source = /** @type {Record<string, unknown>} */ (event);
         timeline.push({
             sceneId: scene.id,
-            modelId: scene.modelId,
+            modelId: scene.modelVariants?.[readVariantIndex(source.variantIndex)] || scene.modelId,
             atSeconds: readAtSeconds(source.atSeconds),
             // The event says where the piece falls; the scene says where its clip already falls.
             // What the runtime needs is the difference between the two.
@@ -757,7 +762,7 @@ function collapseScenePieces(state, definition, scene, atSeconds) {
  * @param {{ segments?: readonly Readonly<MapDestructibleSegment>[], breakScenes?: readonly Readonly<MapDestructibleBreakScene>[] } | null | undefined} definition
  * @param {unknown} segmentId
  * @param {unknown} damage
- * @param {{ atSeconds?: unknown, hitDirection?: unknown }} [options]
+ * @param {{ atSeconds?: unknown, hitDirection?: unknown, chooseVariant?: (count: number) => number }} [options]
  * @returns {MapDestructibleDamageResult}
  */
 export function applyMapDestructibleDamage(state, definition, segmentId, damage, options = {}) {
@@ -791,7 +796,13 @@ export function applyMapDestructibleDamage(state, definition, segmentId, damage,
     segment.destroyed = true;
     segment.destroyedAtSeconds = atSeconds;
     segment.yaw = yaw;
-    const event = Object.freeze({ segmentId: id, kind: rule.kind, atSeconds, yaw });
+    const identity = { segmentId: id, kind: rule.kind, atSeconds, yaw };
+    const variantScene = resolveMapDestructibleBreakScene(definition, identity);
+    const count = variantScene?.modelVariants?.length || 1;
+    const event = Object.freeze({ ...identity,
+        ...(count > 1 ? { variantIndex: Math.min(count - 1,
+            readVariantIndex(options.chooseVariant?.(count))) } : {}),
+    });
     state.events.push(event);
     if (rule.sealsTower) state.sealed = true;
     result.destroyed = true;
@@ -829,6 +840,7 @@ export function serializeMapDestructibleState(state) {
             kind: event.kind,
             atSeconds: event.atSeconds,
             yaw: event.yaw,
+            ...(event.variantIndex !== undefined ? { variantIndex: readVariantIndex(event.variantIndex) } : {}),
         });
     }
     return { sealed: state?.sealed === true, segments, events };
@@ -882,6 +894,7 @@ export function applyMapDestructibleNetworkState(state, serialized) {
             segmentId,
             kind: rule.kind,
             atSeconds: readAtSeconds(entry.atSeconds),
+            ...(entry.variantIndex !== undefined ? { variantIndex: readVariantIndex(entry.variantIndex) } : {}),
             yaw: clampNumber(entry.yaw, -Math.PI * 2, Math.PI * 2, 0),
         });
     }

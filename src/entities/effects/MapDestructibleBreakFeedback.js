@@ -2,8 +2,8 @@ import { resolveWorldAudioOptions } from '../audio/WorldAudioOptions.js';
 
 const REACTOR_SITE_KEY = 'reactor_site';
 const REACTOR_SEGMENT_ID = 'reactor_dome';
-const BREACH_COLOR = 0xffa24a;
-const SHOCKWAVE_SCALE = 10;
+const BREACH_COLOR = 0xffe6bb;
+const SHOCKWAVE_SCALE = 3;
 const SHAKE_RANGE_AUTHORED = 260;
 
 function resolveSegmentPosition(owner, segmentId) {
@@ -36,7 +36,7 @@ function shakeLocalCameras(owner, position) {
         );
         if (distance >= range) continue;
         const closeness = 1 - distance / range;
-        const intensity = 0.12 + 0.3 * closeness * closeness;
+        const intensity = 0.18 + 0.5 * closeness * closeness;
         const duration = 0.55 + 0.35 * closeness;
         if (reduceMotion) renderer.reportImpact?.(index, intensity, duration);
         else renderer.triggerCameraShake?.(index, intensity, duration);
@@ -45,8 +45,8 @@ function shakeLocalCameras(owner, position) {
 
 /**
  * Adds presentation to the reactor breach without changing damage, score or round outcome.
- * Existing particle, audio and camera systems own all resources, so a round restart has no
- * map-specific objects or timers to clean up.
+ * The map clock schedules pressure and sound together after the initial flash.
+ * Resetting the destructible system cancels pending feedback without wall-clock timers.
  */
 export function emitMapDestructibleBreakFeedback(owner, event) {
     if (owner?.arena?.currentMapKey !== REACTOR_SITE_KEY || event?.segmentId !== REACTOR_SEGMENT_ID) {
@@ -61,12 +61,18 @@ export function emitMapDestructibleBreakFeedback(owner, event) {
     });
     owner.particles?.rocketBlastEffect?.spawn?.(
         position,
-        'DEATH',
+        'REACTOR_BREACH',
         BREACH_COLOR,
-        SHOCKWAVE_SCALE,
+        SHOCKWAVE_SCALE * (owner.renderer?.getCameraPerspectiveSettings?.()?.reduceMotion ? 0.65 : 1),
     );
-    owner.audio?.play?.('EXPLOSION', resolveWorldAudioOptions(owner, position, { intensity: 1.5 }));
-    shakeLocalCameras(owner, position);
+    owner._mapDestructibleSystem?.schedulePressureFeedback?.(position, event.atSeconds);
     return true;
 }
 
+
+export function emitMapDestructiblePressureFeedback(owner, position) {
+    const reduced = owner.renderer?.getCameraPerspectiveSettings?.()?.reduceMotion === true;
+    owner.particles?.rocketBlastEffect?.spawn?.(position, 'REACTOR_PRESSURE', BREACH_COLOR, reduced ? 0.65 : 1);
+    owner.audio?.play?.('REACTOR_BREACH', resolveWorldAudioOptions(owner, position, { intensity: 1.5 }));
+    shakeLocalCameras(owner, position);
+}

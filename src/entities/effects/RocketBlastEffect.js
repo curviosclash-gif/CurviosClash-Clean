@@ -27,6 +27,8 @@ const BLAST_PROFILES = Object.freeze({
     // so a rocket kill reads as impact first and wreck second rather than as one
     // doubled sphere.
     DEATH: Object.freeze({ radius: 5.2, lifetime: 0.8 }),
+    REACTOR_BREACH: Object.freeze({ radius: 18, lifetime: 0.65, mode: 1 }),
+    REACTOR_PRESSURE: Object.freeze({ radius: 150, lifetime: 1.1, mode: 2 }),
     // Knocking an item loose is a pickup-scale event, not a kill.
     ITEM_BURST: Object.freeze({ radius: 1.6, lifetime: 0.34 }),
 });
@@ -39,6 +41,7 @@ export class RocketBlastEffect {
         this.lifetimes = new Float32Array(MAX_ROCKET_BLASTS);
         this.maxLifetimes = new Float32Array(MAX_ROCKET_BLASTS);
         this.radii = new Float32Array(MAX_ROCKET_BLASTS);
+        this.modes = new Uint8Array(MAX_ROCKET_BLASTS); // 0: ordinary, 1: flash, 2: pressure only
         this.colors = new Float32Array(MAX_ROCKET_BLASTS * 3);
         this._tmpColor = new THREE.Color();
         this._coreTint = new THREE.Color(0xffffcc);
@@ -121,6 +124,7 @@ export class RocketBlastEffect {
         this.lifetimes[index] = lifetime;
         this.maxLifetimes[index] = lifetime;
         this.radii[index] = radius;
+        this.modes[index] = profile.mode || 0;
 
         this._tmpColor.setHex(color);
         this.colors[index3] = this._tmpColor.r;
@@ -130,7 +134,7 @@ export class RocketBlastEffect {
         this._tmpColor.lerp(this._coreTint, 0.72);
         this.coreMesh.setColorAt(index, this._tmpColor);
 
-        this._shakeNearbyCameras(position, radius);
+        if (!this.modes[index]) this._shakeNearbyCameras(position, radius);
         this._writeMatrices(index, 0);
         this.coreMesh.count = this.count;
         this.waveMesh.count = this.count;
@@ -174,11 +178,11 @@ export class RocketBlastEffect {
 
         DUMMY.position.set(this.positions[index3], this.positions[index3 + 1], this.positions[index3 + 2]);
         DUMMY.rotation.set(0, 0, 0);
-        DUMMY.scale.setScalar(coreScale);
+        DUMMY.scale.setScalar(this.modes[index] === 2 ? 0 : coreScale);
         DUMMY.updateMatrix();
         this.coreMesh.setMatrixAt(index, DUMMY.matrix);
 
-        DUMMY.scale.setScalar(waveScale);
+        DUMMY.scale.setScalar(this.modes[index] === 1 ? 0 : waveScale);
         DUMMY.updateMatrix();
         this.waveMesh.setMatrixAt(index, DUMMY.matrix);
     }
@@ -227,7 +231,7 @@ export class RocketBlastEffect {
         let bestIndex = -1;
         for (let i = 0; i < this.count; i += 1) {
             const age = this.maxLifetimes[i] - this.lifetimes[i];
-            if (age >= LIGHT_FLASH_SECONDS) continue;
+            if (age >= LIGHT_FLASH_SECONDS || this.modes[i] === 2) continue;
             const score = this.radii[i] * (1 - (age / LIGHT_FLASH_SECONDS));
             if (score > bestScore) {
                 bestScore = score;
@@ -258,6 +262,7 @@ export class RocketBlastEffect {
         this.lifetimes[target] = remaining;
         this.maxLifetimes[target] = this.maxLifetimes[source];
         this.radii[target] = this.radii[source];
+        this.modes[target] = this.modes[source];
         this.colors[target3] = this.colors[source3];
         this.colors[target3 + 1] = this.colors[source3 + 1];
         this.colors[target3 + 2] = this.colors[source3 + 2];

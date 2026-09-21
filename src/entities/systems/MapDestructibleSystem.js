@@ -1,3 +1,4 @@
+import { emitMapDestructiblePressureFeedback } from '../effects/MapDestructibleBreakFeedback.js';
 import {
     applyMapDestructibleDamage,
     applyMapDestructibleNetworkState,
@@ -31,6 +32,7 @@ export class MapDestructibleSystem {
         this._targets = [];
         this._forwardedEventSignature = '';
         this._feedbackEventSignature = '';
+        this._pendingPressureFeedback = null;
     }
 
     /**
@@ -71,9 +73,24 @@ export class MapDestructibleSystem {
         }
         this._forwardedEventSignature = '';
         this._feedbackEventSignature = '';
+        this._pendingPressureFeedback = null;
         // An arena that was reused rather than rebuilt still shows last round's collapse.
         arena?.resetMapDestructibleScenes?.();
         return this.state.segments.length;
+    }
+
+    schedulePressureFeedback(position, atSeconds) {
+        const start = Number.isFinite(Number(atSeconds)) ? Number(atSeconds) : this.getElapsedSeconds();
+        // A late join receives the cloud state without replaying an old detonation.
+        if (this.getElapsedSeconds() > start + 1) return;
+        this._pendingPressureFeedback = { position, atSeconds: start + 0.28 };
+    }
+
+    updateFeedback() {
+        const pending = this._pendingPressureFeedback;
+        if (!pending || this.getElapsedSeconds() < pending.atSeconds) return;
+        this._pendingPressureFeedback = null;
+        emitMapDestructiblePressureFeedback(this.entityManager, pending.position);
     }
 
     setNetworkReplica(enabled) {
@@ -87,6 +104,7 @@ export class MapDestructibleSystem {
         this._targets.length = 0;
         this._forwardedEventSignature = '';
         this._feedbackEventSignature = '';
+        this._pendingPressureFeedback = null;
     }
 
     /** Whether this map has anything to shoot apart at all. */
@@ -128,6 +146,7 @@ export class MapDestructibleSystem {
         const result = applyMapDestructibleDamage(this.state, this.definition, segmentId, damage, {
             atSeconds: this.getElapsedSeconds(),
             hitDirection: options?.hitDirection,
+            chooseVariant: (count) => this.entityManager?.runtimeRng?.int?.(count) ?? 0,
         });
         if (!result.applied) return null;
         this._syncTargets();
@@ -190,7 +209,7 @@ export class MapDestructibleSystem {
         const events = this.state.events;
         const last = events[events.length - 1];
         const signature = last
-            ? `${events.length}|${last.segmentId}|${last.kind}|${last.atSeconds}|${last.yaw}`
+            ? `${events.length}|${last.segmentId}|${last.kind}|${last.atSeconds}|${last.yaw}|${last.variantIndex ?? 0}`
             : '';
         if (signature === this._forwardedEventSignature) return false;
         this._forwardedEventSignature = signature;

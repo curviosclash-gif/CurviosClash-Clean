@@ -32,10 +32,10 @@ const TOWER_SEGMENT_ID = 'cooling_tower_w';
 const TOWER_AXIS_X = -63;   // ReactorSiteStructure.TOWER_X, authored
 // Every topple is baked falling towards +X, heading pi/2; a tower keels towards its own anchor.
 const BAKED_FALL_HEADING = Math.PI / 2;
-// The product contract owns the count: six parts and five scenes plus the curated static props.
-// No infrastructure animates, so the only tracks remain the five one-shot clips.
+// The product contract owns the count: six parts and eight scene models plus the curated static props.
+// No infrastructure animates, so the only tracks are the four collapses and four selectable cloud clips.
 const GLB_MODEL_COUNT = REACTOR_SITE_MODELS.length + REACTOR_SITE_PROP_MODELS.length + REACTOR_SITE_FUNGUS_MODELS.length;
-const GLB_TRACK_COUNT = 5;
+const GLB_TRACK_COUNT = 8;
 const SEGMENT_COUNT = 5;
 const BREAK_SCENE_MODELS = [
     'reactor-topple-tower-west',
@@ -43,6 +43,9 @@ const BREAK_SCENE_MODELS = [
     'reactor-topple-stack',
     'reactor-collapse-hall',
     'reactor-mushroom-cloud',
+    'reactor-mushroom-cloud-2',
+    'reactor-mushroom-cloud-3',
+    'reactor-mushroom-cloud-4',
 ];
 const INTACT_MODELS = [
     'reactor-turbine-hall',
@@ -311,7 +314,8 @@ test.describe('Reactor site', () => {
                 hitPoint: domePoint, hitDirection: { x: 0, y: -1, z: 0 }, sourcePlayer: shooter, cause: 'MG_BULLET',
             });
             const stateAfterBreach = destructibles.getState();
-            const cloudSlot = arena._glbScene.getObjectByName('glb-slot-reactor-mushroom-cloud');
+            const cloudSlot = arena._glbScene.children.find((node) => node.visible
+                && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
             const blockSlot = arena._glbScene.getObjectByName('glb-slot-reactor-block');
             game.hudRuntimeSystem.updatePlayingHudTick(0.2);
             const hudAfterBreach = String(hudElement?.textContent || '').trim();

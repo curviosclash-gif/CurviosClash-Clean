@@ -2,6 +2,7 @@
 // Audio.js - Mixed recorded and synthesized game audio
 // ============================================
 
+import { HIGH_IMPACT_EVENTS, SOUND_COOLDOWNS_MS } from './audio/AudioEventProfiles.js';
 import { createLogger } from '../shared/logging/Logger.js';
 import { normalizeAudioSettings } from '../shared/contracts/AudioSettingsContract.js';
 import { createExplosionChainState, playExplosionVoice, playRocketImpactVoice, resetExplosionChain, resolveExplosionEcho } from './audio/ExplosionVoice.js';
@@ -21,35 +22,6 @@ import { disposeEngineVoice, ensureEngineVoice, stopEngineVoice, updateEngineVoi
 const logger = createLogger('AudioManager');
 const DEFAULT_COOLDOWN_MS = 50;
 const MAX_ACTIVE_VOICES = 18;
-const HIGH_IMPACT_EVENTS = new Set(['EXPLOSION', 'ROCKET_IMPACT', 'FIGHT_KILL', 'PARCOURS_FINISH']);
-
-const SOUND_COOLDOWNS_MS = Object.freeze({
-    SHOOT: 100,
-    MG_SHOOT: 45,
-    ROCKET_SHOOT: 180,
-    EXPLOSION: 200,
-    HIT: 90,
-    MG_HIT: 65,
-    ROCKET_IMPACT: 160,
-    SHIELD_HIT: 70,
-    POWERUP: 420,
-    PICKUP: 280,
-    PORTAL: 320,
-    SLINGSHOT: 260,
-    BOOST: 180,
-    PARCOURS_CP: 80,
-    PARCOURS_BRANCH: 140,
-    PARCOURS_FINISH: 650,
-    PARCOURS_WRONG: 420,
-    PARCOURS_TIMEOUT: 500,
-    FIGHT_KILL: 120,
-    FIGHT_ASSIST: 180,
-    FIGHT_LEAD: 800, FLAG_CAPTURE: 320,
-    UI_DROP: 40,
-    UI_PICKUP: 40,
-    UI_REJECT: 80, EXCLUSION_WARNING: 900,
-});
-
 const AUDIO_INIT_EVENT_TYPES = ['pointerdown', 'click', 'keydown', 'touchstart'];
 
 function isDevEnvironment() {
@@ -647,6 +619,7 @@ export class AudioManager {
             case 'MG_SHOOT': this._playMgShoot(options); break;
             case 'ROCKET_SHOOT': this._playRocketShoot(options); break;
             case 'EXPLOSION': playExplosionVoice(this, options); break;
+            case 'REACTOR_BREACH': playRocketImpactVoice(this, options); break;
             case 'HIT': this._playHit(options); break;
             case 'MG_HIT': this._playMgHit(options); break;
             case 'ROCKET_IMPACT': playRocketImpactVoice(this, options); break;

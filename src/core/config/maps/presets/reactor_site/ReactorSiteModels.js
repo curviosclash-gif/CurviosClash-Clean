@@ -110,7 +110,10 @@ const REACTOR_SITE_SCENES = [
     breakScene('topple-tower-east', '21_topple_tower_east', 'ToppleTowerEastOnce', -0.36, TOWER_X, 0),
     breakScene('topple-stack', '22_topple_stack', 'ToppleStackOnce', 0.0, STACK_X, STACK_Z),
     breakScene('collapse-hall', '23_collapse_hall', 'CollapseHallOnce', 0.0, 0, HALL_Z),
-    breakScene('mushroom-cloud', '30_mushroom_cloud', 'MushroomCloudOnce', 0.0),
+    ...Array.from({ length: 4 }, (_, index) => breakScene(
+        index === 0 ? 'mushroom-cloud' : `mushroom-cloud-${index + 1}`,
+        `torus_cloud_${index + 1}`, 'MushroomCloudOnce', 0.0,
+    )),
 ];
 
 export const REACTOR_SITE_MODELS = [...REACTOR_SITE_PARTS, ...REACTOR_SITE_SCENES];
