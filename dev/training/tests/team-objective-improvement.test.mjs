@@ -5,16 +5,21 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { HEURISTIC_PROFILE_FIELD_BOUNDS } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
+import {
+    HEURISTIC_PROFILE_FIELD_BOUNDS,
+    HEURISTIC_PROFILES,
+} from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
 import {
     advanceTeamObjectiveSearchState,
     clampTeamObjectiveProfile,
     createInitialTeamObjectiveState,
+    runTeamObjectiveMatch,
     TEAM_OBJECTIVE_AUDIT_SEEDS,
     TEAM_OBJECTIVE_HOLDOUT_SEEDS,
     TEAM_OBJECTIVE_STATE_PATH,
     TEAM_OBJECTIVE_TRAINING_SEEDS,
     TEAM_OBJECTIVE_TUNABLE_FIELDS,
+    verifyTeamObjectiveArenaBounds,
 } from '../scripts/team-objective-improvement-loop.mjs';
 import {
     combineTeamObjectiveResults,
@@ -113,6 +118,29 @@ test('bounded state advances fields and only plateaus after the fine search step
         advanceTeamObjectiveSearchState(state, false);
     }
     assert.equal(state.plateauRounds, 1);
+});
+
+test('headless benchmark rejects an arena without product map scaling', () => {
+    const productBounds = { minX: -120, maxX: 120, minY: 0, maxY: 90, minZ: -120, maxZ: 120 };
+    const undersizedBounds = { minX: -40, maxX: 40, minY: 0, maxY: 30, minZ: -40, maxZ: 40 };
+    assert.doesNotThrow(() => verifyTeamObjectiveArenaBounds(productBounds, [80, 30, 80], 3));
+    assert.throws(
+        () => verifyTeamObjectiveArenaBounds(undersizedBounds, [80, 30, 80], 3),
+        /arena bounds mismatch/
+    );
+});
+
+test('scaled headless flag match produces real objective damage', async () => {
+    const result = await runTeamObjectiveMatch({
+        objective: 'FLAGS',
+        seed: 7331,
+        candidateTeamId: 'ALPHA',
+        candidateProfile: HEURISTIC_PROFILES.balanced,
+        deadlineMs: Date.now() + 60_000,
+    });
+    assert.equal(result.objective, 'FLAGS');
+    assert.ok(result.attackProgress > 0.05, `expected damaged flags, got ${result.attackProgress}`);
+    assert.ok(result.assignmentRate > 0.5);
 });
 
 test('runner stops on plateau and propagates iteration errors', () => {

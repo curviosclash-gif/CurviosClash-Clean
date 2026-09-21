@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { CONFIG_BASE } from '../../../src/core/Config.js';
 import { createRuntimeConfigSnapshot } from '../../../src/core/RuntimeConfig.js';
 import {
     HEURISTIC_PROFILE_FIELD_BOUNDS,
@@ -39,11 +40,19 @@ export const TEAM_OBJECTIVE_TUNABLE_FIELDS = Object.freeze([
 const OBJECTIVES = Object.freeze(['FLAGS', 'ESCORT']);
 const CANDIDATE_TEAMS = Object.freeze([TEAM_IDS.ALPHA, TEAM_IDS.BRAVO]);
 const SEARCH_STEPS = Object.freeze([0.10, 0.05]);
-const STATE_VERSION = 1;
+const STATE_VERSION = 2;
 const DEFAULT_MAX_TICKS = 1800;
 const DEFAULT_TIMEOUT_MS = 45 * 60 * 1000;
 const SAMPLE_INTERVAL_TICKS = 15;
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+// Keep product arena dimensions and preset obstacles. Omit the standard-world GLB
+// from this repeatable headless lane because its loader cannot be reused after disposal.
+const BENCHMARK_BASE_CONFIG = {
+    ...CONFIG_BASE,
+    MAPS: {
+        standard: { ...CONFIG_BASE.MAPS.standard, glbModels: [] },
+    },
+};
 
 function parsePositiveInteger(value, fallback) {
     const parsed = Number.parseInt(value, 10);
@@ -59,6 +68,9 @@ export const TEAM_OBJECTIVE_STATE_PATH = path.resolve(
 
 const BENCHMARK_FINGERPRINT = (() => {
     const hash = createHash('sha256');
+    hash.update(fs.readFileSync(fileURLToPath(import.meta.url)));
+    hash.update(JSON.stringify(BENCHMARK_BASE_CONFIG.MAPS.standard));
+    hash.update(String(BENCHMARK_BASE_CONFIG.ARENA.MAP_SCALE));
     for (const relativePath of [
         'src/hunt/HuntBotFlagOps.js',
         'src/hunt/HuntBotEscortOps.js',
@@ -163,17 +175,31 @@ function seedForMatch(seed, objective) {
     return seed + (objective === 'ESCORT' ? 10_000 : 0);
 }
 
-async function runTeamObjectiveMatch({ objective, seed, candidateTeamId, candidateProfile, deadlineMs }) {
+export function verifyTeamObjectiveArenaBounds(bounds, mapSize, mapScale) {
+    const dimensions = [
+        Number(bounds?.maxX) - Number(bounds?.minX),
+        Number(bounds?.maxY) - Number(bounds?.minY),
+        Number(bounds?.maxZ) - Number(bounds?.minZ),
+    ];
+    const scale = Number(mapScale);
+    if (!Array.isArray(mapSize) || mapSize.length < 3 || !(scale > 0)
+        || dimensions.some((value, index) => Math.abs(value - Number(mapSize[index]) * scale) > 0.001)) {
+        throw new Error(`team objective benchmark arena bounds mismatch: ${JSON.stringify(bounds)}`);
+    }
+}
+
+export async function runTeamObjectiveMatch({ objective, seed, candidateTeamId, candidateProfile, deadlineMs }) {
     const matchSeed = seedForMatch(seed, objective);
     const originalRandom = Math.random;
     Math.random = createRuntimeRng({ seed: matchSeed }).next;
     let runtime = null;
     try {
         const settings = createTeamSettings(objective, matchSeed);
-        const runtimeConfig = createRuntimeConfigSnapshot(settings);
+        const runtimeConfig = createRuntimeConfigSnapshot(settings, { baseConfig: BENCHMARK_BASE_CONFIG });
         runtime = await Promise.resolve(createHeadlessMatchKernelRuntime({
             settings,
             runtimeConfig,
+            baseConfig: BENCHMARK_BASE_CONFIG,
             requestedMapKey: runtimeConfig.session.mapKey,
             profile: {
                 sessionId: `team-objective-${objective.toLowerCase()}-${matchSeed}-${candidateTeamId.toLowerCase()}`,
@@ -183,6 +209,11 @@ async function runTeamObjectiveMatch({ objective, seed, candidateTeamId, candida
         }));
 
         const entityManager = runtime.session.entityManager;
+        verifyTeamObjectiveArenaBounds(
+            entityManager.arena?.bounds,
+            BENCHMARK_BASE_CONFIG.MAPS.standard.size,
+            BENCHMARK_BASE_CONFIG.ARENA.MAP_SCALE
+        );
         entityManager._huntScoring._nowSeconds = () => (
             Math.max(0, Number(entityManager._simulationClockMs) || 0) * 0.001
         );
@@ -191,6 +222,12 @@ async function runTeamObjectiveMatch({ objective, seed, candidateTeamId, candida
             human.kill();
         }
         entityManager.spawnAll();
+        if (objective === 'FLAGS' && entityManager._flagObjectiveSystem?.active !== true) {
+            throw new Error('team objective benchmark did not start flag objectives');
+        }
+        if (objective === 'ESCORT' && entityManager._mapUnitSystem?.getEscortObjectiveState?.()?.active !== true) {
+            throw new Error('team objective benchmark did not start escort objective');
+        }
 
         const baselineProfile = Object.freeze(clampTeamObjectiveProfile(HEURISTIC_PROFILES.balanced));
         const activeCandidate = Object.freeze(clampTeamObjectiveProfile(candidateProfile));

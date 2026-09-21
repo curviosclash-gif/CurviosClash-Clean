@@ -52,6 +52,11 @@ der Befehle veraendert Produktionswerte oder schreibt
 Trainingsartefakte ins Repository; eine Promotion bleibt eine bewusste Codeaenderung
 mit anschliessendem `bot:validate:team`-Gate.
 
+Der Headless-Suchlauf verwendet die Produktgroesse der Standardarena und deren
+Preset-Hindernisse, aber laedt keine GLB-Geometrie. Der Test verlangt deshalb echte
+Flaggenschaden-Messungen und die separate Desktop-Validierung bleibt vor jeder
+Promotion erforderlich.
+
 Die Headless-Trainer-Werkzeuge erwarten zusaetzlich einen Python-Sidecar unter `python/` beziehungsweise einen ueber `BT91_PYTHON_EXE` angegebenen Interpreter. Dieser Sidecar ist im Clean-Repository nicht enthalten; die Werkzeuge sind daher nur ein abgegrenztes Entwicklungsgeruest und keine zugesicherte Produktfunktion.
 
 Die Produktions-Builds pruefen mit `scripts/check-production-training-boundary.mjs`, dass weder Trainingsoberflaeche noch Trainings-/Trainer-Bundles erzeugt werden. Die Paketpruefung kontrolliert zusaetzlich, dass keine Trainingsquellen in den Electron-Ressourcen landen.
