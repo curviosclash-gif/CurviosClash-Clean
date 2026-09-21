@@ -217,7 +217,7 @@ function renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePrevie
                 mapPreview.gateCount > 0 ? { label: 'Tore', value: String(mapPreview.gateCount) } : null,
                 mapPreview.tunnelCount > 0 ? { label: 'Tunnel', value: String(mapPreview.tunnelCount) } : null,
                 mapPreview.spawnCount > 0 ? { label: 'Startpunkte', value: String(mapPreview.spawnCount) } : null,
-                mapPreview.itemAnchorCount > 0 ? { label: 'Items', value: String(mapPreview.itemAnchorCount) } : null,
+                mapPreview.itemAnchorCount > 0 ? { label: 'Gegenstände', value: String(mapPreview.itemAnchorCount) } : null,
                 mapPreview.aircraftCount > 0 ? { label: 'Deko-Flieger', value: String(mapPreview.aircraftCount) } : null,
             ].filter(Boolean),
         });

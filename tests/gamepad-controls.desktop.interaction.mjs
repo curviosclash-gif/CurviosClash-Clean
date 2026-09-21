@@ -45,7 +45,7 @@ test('desktop controller editor swaps bindings and persists them across reload',
         await invertPitchP3.uncheck();
         await editor.locator('[data-gamepad-action="pitchAxis"]').selectOption('3');
         await expect(editor.locator('[data-gamepad-action="pitchAxis"]')).toHaveValue('3');
-        const assignment = editor.getByLabel('Splitscreen: Eingabegeräte');
+        const assignment = editor.getByLabel('Geteilter Bildschirm: Eingabegeräte');
         await expect(assignment.locator('option')).toHaveCount(5);
         for (const layout of ['controller-keyboard', 'keyboard-controller', 'keyboard-keyboard', 'controller-controller']) {
             await assignment.selectOption(layout);

@@ -124,7 +124,7 @@ function renderRecentRoundsCard(container, recentRounds = []) {
                 String(entry?.winnerLabel || 'Unbekannt'),
                 `${String(entry?.mapKey || 'unknown')} / ${String(entry?.mode || 'classic')}`,
                 formatDuration(entry?.duration),
-                `Items ${itemUsesWithoutMg(entry)}`,
+                `Gegenstände ${itemUsesWithoutMg(entry)}`,
                 `Self ${Math.max(0, Number(entry?.selfCollisions) || 0)}`,
                 entry?.parcoursCompleted ? `Parcours ${formatDurationMs(entry?.parcoursCompletionTimeMs)}` : 'Parcours -',
             ].join(' | ');
@@ -199,7 +199,7 @@ export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null
     appendRow(balanceCard, 'stuck-events-per-minute', 'Hänger/min', formatDecimal(balance?.stuckEventsPerMinute));
     appendRow(balanceCard, 'bounce-wall-per-round', 'Wandabpraller/R', formatDecimal(balance?.bounceWallPerRound));
     appendRow(balanceCard, 'average-bot-survival', 'Bot-Überleben', formatDuration(balance?.averageBotSurvival));
-    appendRow(balanceCard, 'item-uses-without-mg-per-round', 'Items/R (ohne MG)', formatDecimal(balance?.itemUsesWithoutMgPerRound));
+    appendRow(balanceCard, 'item-uses-without-mg-per-round', 'Gegenstände/R (ohne MG)', formatDecimal(balance?.itemUsesWithoutMgPerRound));
     appendRow(balanceCard, 'mg-shots-per-round', 'MG-Versuche/R', formatDecimal(balance?.itemUseModePerRound?.mg));
     appendRow(balanceCard, 'kills-per-round', 'Kills/R', formatDecimal(balance?.killsPerRound));
     appendRow(balanceCard, 'spawn-deaths-per-round', 'Spawn-Tode/R', formatDecimal(balance?.spawnDeathsPerRound));
@@ -256,7 +256,7 @@ export function renderTelemetryHistorySection(container, historySummary) {
     appendRow(list, 'history-bot-wr', 'Bot-Winrate', formatPercent(historySummary.botWinRate));
     appendRow(list, 'history-avg-dur', 'Avg. Dauer', formatDuration(historySummary.averageDuration));
     appendRow(list, 'history-self-cr', 'Selfcrash/R', formatDecimal(historySummary.selfCollisionsPerRound));
-    appendRow(list, 'history-items-r', 'Items/R (ohne MG)', formatDecimal(historySummary.itemUsesWithoutMgPerRound));
+    appendRow(list, 'history-items-r', 'Gegenstände/R (ohne MG)', formatDecimal(historySummary.itemUsesWithoutMgPerRound));
     appendRow(list, 'history-mg-shots-r', 'MG-Versuche/R', formatDecimal(historySummary.itemUseModePerRound?.mg));
     appendRow(list, 'history-kills-r', 'Kills/R', formatDecimal(historySummary.killsPerRound));
     appendRow(list, 'history-spawn-deaths-r', 'Spawn-Tode/R', formatDecimal(historySummary.spawnDeathsPerRound));

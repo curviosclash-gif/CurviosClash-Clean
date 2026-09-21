@@ -44,3 +44,17 @@ test('saved-settings messages no longer speak of a "Profil"', () => {
         messages.forEach((message) => assert.doesNotMatch(message, /\bProfil(?!e?-?Import)/u, `${file}: ${message}`));
     }
 });
+
+test('menu surfaces use one German name for each shared concept', () => {
+    const expected = {
+        'menu.multiplayer.title': 'Mehrspieler',
+        'menu.level4.map.planar_mode.label': 'Ebenenflug',
+        'menu.level4.tabs.advanced_map.label': 'Karten-Details',
+        'menu.level4.tools.vehicle_editor.label': 'Fahrzeug-Werkstatt öffnen',
+        'menu.level4.gameplay.item_amount.label': 'Gegenstände:',
+        'menu.level1.splitscreen.label': 'Geteilter Bildschirm',
+    };
+    for (const [id, label] of Object.entries(expected)) assert.equal(MENU_TEXT_CATALOG[id], label, id);
+    const menuText = `${visibleHtmlText} ${Object.values(MENU_TEXT_CATALOG).join(' ')}`;
+    assert.doesNotMatch(menuText, /Map-Details|Planar Modus|Multiplayer-Lobby|Vehicle-Editor öffnen|Item-Menge|\bSplitscreen\b/u);
+});

@@ -203,7 +203,7 @@ export function syncMenuSurfacePolicyUi({
         {
             label: resolveMenuText(
                 'menu.level4.tools.vehicle_editor.label',
-                ui.openVehicleEditorButton?.dataset?.surfaceDefaultLabel || 'Vehicle-Editor öffnen'
+                ui.openVehicleEditorButton?.dataset?.surfaceDefaultLabel || 'Fahrzeug-Werkstatt öffnen'
             ),
         }
     );

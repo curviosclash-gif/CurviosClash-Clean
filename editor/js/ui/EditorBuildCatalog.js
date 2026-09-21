@@ -26,7 +26,7 @@ const CATEGORY_META = Object.freeze({
         id: 'pickups',
         label: 'Pickups',
         accentColor: '#fbbf24',
-        description: 'Items, Ressourcen und Belohnungen.'
+        description: 'Gegenstände, Ressourcen und Belohnungen.'
     }),
     aircraft: Object.freeze({
         id: 'aircraft',

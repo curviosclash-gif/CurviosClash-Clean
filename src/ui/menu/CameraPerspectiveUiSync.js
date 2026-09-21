@@ -55,6 +55,6 @@ export function syncNormalCameraPerspectiveUi(ui, cameraPerspectiveSettingsSourc
         const reduceMotionLabel = cameraPerspectiveSettings.reduceMotion ? 'an' : 'aus';
         const speedFovLabel = cameraPerspectiveSettings.speedFovEnabled !== false ? `${speedFovIntensityPercent}%` : 'aus';
         const thrusterExhaustLabel = cameraPerspectiveSettings.thrusterExhaustEnabled !== false ? `${thrusterExhaustIntensityPercent}%` : 'aus';
-        ui.normalCameraPerspectiveHint.textContent = `Video-Perspektive: ${perspectiveLabel} - beruhigt: ${reduceMotionLabel} - Speed-FOV: ${speedFovLabel} - Exhaust: ${thrusterExhaustLabel}`;
+        ui.normalCameraPerspectiveHint.textContent = `Video-Perspektive: ${perspectiveLabel} - beruhigt: ${reduceMotionLabel} - Speed-FOV: ${speedFovLabel} - Triebwerkspartikel: ${thrusterExhaustLabel}`;
     }
 }

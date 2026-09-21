@@ -66,7 +66,7 @@ export class ThreePlayerSplitSetupView {
             <button type="button" id="btn-three-player-split"
                 class="mode-btn menu-choice-card three-player-split-entry hidden">
                 <span class="menu-choice-eyebrow">Lokales Modul</span>
-                <span class="menu-choice-title">3 Spieler – Splitscreen</span>
+                <span class="menu-choice-title">3 Spieler – Geteilter Bildschirm</span>
                 <span class="menu-choice-copy">Tastatur und Gamepads frei pro Spieler, volle 3D-Flugphysik</span>
             </button>`);
         grid.appendChild(card);
@@ -76,7 +76,7 @@ export class ThreePlayerSplitSetupView {
                 aria-labelledby="three-player-split-setup-title">
               <div class="three-player-split-setup-header">
                 <div>
-                    <h2 id="three-player-split-setup-title" class="section-title">3 Spieler – Splitscreen</h2>
+                    <h2 id="three-player-split-setup-title" class="section-title">3 Spieler – Geteilter Bildschirm</h2>
                     <p class="menu-hint">Drei lokale Spieler · Third Person · volle 3D-Flugphysik</p>
                 </div>
             </div>

@@ -70,8 +70,8 @@ export class FourPlayerPlanarSetupView {
             <button type="button" id="btn-four-player-planar"
                 class="mode-btn menu-choice-card four-player-planar-entry hidden">
                 <span class="menu-choice-eyebrow">Lokales Modul</span>
-                <span class="menu-choice-title">4 Spieler – Planar</span>
-                <span class="menu-choice-copy">Klassisch oder Kampf im 2×2-Splitscreen</span>
+                <span class="menu-choice-title">4 Spieler – Ebenenflug</span>
+                <span class="menu-choice-copy">Klassisch oder Kampf mit vier Ansichten</span>
             </button>`);
         grid.appendChild(card);
 
@@ -80,7 +80,7 @@ export class FourPlayerPlanarSetupView {
                 aria-labelledby="four-player-planar-setup-title">
               <div class="four-player-planar-setup-header">
                 <div>
-                    <h2 id="four-player-planar-setup-title" class="section-title">4 Spieler – Planar</h2>
+                    <h2 id="four-player-planar-setup-title" class="section-title">4 Spieler – Ebenenflug</h2>
                     <p class="menu-hint">Vier lokale Tastaturspieler · Third Person · Pitch gesperrt</p>
                 </div>
             </div>

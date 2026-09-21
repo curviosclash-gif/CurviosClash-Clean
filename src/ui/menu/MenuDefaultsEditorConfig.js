@@ -253,7 +253,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         {
             id: 'chaos',
             name: 'Chaos',
-            description: 'Mehr Bots, mehr Items, aggressiveres Tempo.',
+            description: 'Mehr Bots, mehr Gegenstände, aggressiveres Tempo.',
             lockedFields: ['numBots', 'gameplay.itemAmount'],
             values: {
                 mode: '1p',
