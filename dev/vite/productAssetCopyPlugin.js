@@ -37,6 +37,7 @@ const GLB_GALLERY_ASSET_OUTPUT_SEGMENTS = ['assets', 'models', 'downloaded_cc0']
 const GLB_ONLY_MODEL_DIRS = [
     ['assets', 'models', 'verdant_wildwuchs'],
     ['assets', 'models', 'glowing_mushroom'],
+    ['assets', 'models', 'hydra_v3'],
 ];
 
 function copyGlbTree(sourceDir, targetDir) {

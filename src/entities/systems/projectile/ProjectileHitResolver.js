@@ -201,6 +201,22 @@ export class ProjectileHitResolver {
     resolveProjectileOutcome(projectile, players, trailSpatialIndex, simulationResult) {
         if (!projectile || !simulationResult) return false;
 
+        if (projectile.type === 'HYDRA_FIREBALL') {
+            if (simulationResult.projectileExpired || simulationResult.projectileHitArena) {
+                this.system?.onProjectileHit?.(projectile.position, 0xff6b21, projectile.owner, projectile);
+                return true;
+            }
+            for (const player of players || []) {
+                if (!player?.alive || isSpawnProtected(player)) continue;
+                if (!this._isProjectileSweepTouchingTarget(projectile, player)) continue;
+                const result = player.takeDamage?.(24);
+                this.system?.onProjectileDamage?.(player, projectile.owner, projectile.type, result, projectile);
+                this.system?.onProjectileHit?.(projectile.position, 0xff6b21, projectile.owner, projectile);
+                return true;
+            }
+            return false;
+        }
+
         const projectileExpired = !!simulationResult.projectileExpired;
         const projectileHitArena = !!simulationResult.projectileHitArena;
         const bouncedOnFoam = !!simulationResult.bouncedOnFoam;

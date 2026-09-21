@@ -47,6 +47,8 @@ import {
     updateCreatureVisual,
 } from './map-units/MapUnitCreatureVisualOps.js';
 import { updateCreatureAttack } from './map-units/MapUnitCreatureOps.js';
+import { createHydraState, updateHydra } from './map-units/MapUnitHydraOps.js';
+import { createHydraVisual, removeHydraVisual, updateHydraVisual } from './map-units/MapUnitHydraVisualOps.js';
 import { GAME_MODE_TYPES } from '../../hunt/HuntMode.js';
 import { resolveTeamColor, TEAM_IDS } from '../../shared/contracts/TeamCombatContract.js';
 import {
@@ -153,6 +155,7 @@ export class MapUnitSystem {
             attacksFired: 0,
             networkAttacksInitialized: false,
         };
+        if (definition.species === 'hydra_v3') unit.hydra = createHydraState();
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
         this._placeCentre(unit);
@@ -162,7 +165,9 @@ export class MapUnitSystem {
         } else if (definition.kind === 'bomber') {
             unit.root = createBomberVisual(this.entityManager?.renderer, this._resolveBomberAssets(), scale);
         } else if (definition.kind === 'creature') {
-            unit.root = createCreatureVisual(this.entityManager?.renderer, this._resolveCreatureAssets(), scale);
+            unit.root = unit.hydra
+                ? createHydraVisual(this.entityManager?.renderer, scale)
+                : createCreatureVisual(this.entityManager?.renderer, this._resolveCreatureAssets(), scale);
         } else {
             unit.root = createMapUnitVisual(
                 this.entityManager?.renderer,
@@ -173,6 +178,7 @@ export class MapUnitSystem {
         }
         this._updateVisual(unit);
         unit.source = createUnitSource(unit);
+        if (unit.hydra) unit.source.combatLabel = 'Hydra';
         // Its own shots must not hit it: the weapons skip targets owned by the shooter.
         unit.ownerPlayer = unit.source;
         unit.mounts = createUnitMounts(unit);
@@ -214,13 +220,14 @@ export class MapUnitSystem {
             const modelScale = unit.kind === 'boss' ? unit.definition.modelScale : 1;
             unit.position.y += TANK_TURRET_HEIGHT * unit.scale * modelScale;
         }
-        if (unit.kind === 'creature') unit.position.y += 1.35 * unit.scale;
+        if (unit.kind === 'creature') unit.position.y += (unit.hydra ? 2.6 : 1.35) * unit.scale;
         if (unit.kind === 'swarm') updateSwarmMembers(unit);
     }
 
-    _updateVisual(unit) {
+    _updateVisual(unit, dt = 0) {
         if (unit.kind === 'swarm') updateSwarmVisual(unit);
         else if (unit.kind === 'bomber') updateBomberVisual(unit);
+        else if (unit.hydra) updateHydraVisual(unit, dt);
         else if (unit.kind === 'creature') updateCreatureVisual(unit);
         else updateMapUnitVisual(unit);
     }
@@ -298,7 +305,11 @@ export class MapUnitSystem {
                     }
                 }
             }
-            advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
+            const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;
+            if (unit.hydra) updateHydra(this, unit, unitDt, authority);
+            if (!unit.hydra || unit.hydra.moving) {
+                advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
+            }
             if (unit.escortTank && !this.networkReplica) {
                 const checkpoint = updateEscortCheckpoints(unit);
                 if (checkpoint !== null) {
@@ -323,11 +334,10 @@ export class MapUnitSystem {
             const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
             unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
             this._placeCentre(unit);
-            this._updateVisual(unit);
-            const authority = !this.networkReplica && this.entityManager?.isFightOutcomeAuthority !== false;
+            this._updateVisual(unit, unitDt);
             updateUnitWeapons(this, unit, unitDt, authority);
             if (unit.kind === 'bomber') updateBomberBombs(this, unit, unitDt, authority);
-            if (unit.kind === 'creature') updateCreatureAttack(this, unit, unitDt, authority);
+            if (unit.kind === 'creature' && !unit.hydra) updateCreatureAttack(this, unit, unitDt, authority);
             if (authority && unit.alive && unit.kind === 'tank') {
                 crushTrailsUnderUnit(this.entityManager, unit, unitDt, this._trailScratch);
             }
@@ -430,7 +440,9 @@ export class MapUnitSystem {
         const renderer = this.entityManager?.renderer;
         for (const unit of this.units) {
             this.setBossRoomClock(unit, false);
-            removeMapUnitVisual(renderer, unit);
+            if (unit.hydra) this.entityManager?._projectileSystem?.clearForOwner?.(unit.source);
+            if (unit.hydra) removeHydraVisual(renderer, unit);
+            else removeMapUnitVisual(renderer, unit);
         }
         this.units.length = 0;
     }

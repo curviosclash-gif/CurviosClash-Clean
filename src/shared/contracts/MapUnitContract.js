@@ -240,6 +240,7 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
     return Object.freeze({
         id,
         kind,
+        ...(kind === 'creature' && source?.species === 'hydra_v3' ? { species: 'hydra_v3' } : {}),
         path: Object.freeze(/** @type {readonly number[][]} */ (path)),
         // true drives the path as a closed circuit, false turns around at both ends.
         loop: source?.loop == null ? kind !== 'bomber' : source.loop !== false,

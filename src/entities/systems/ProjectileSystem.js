@@ -27,6 +27,9 @@ import {
     createProjectileCosmeticGroup,
     disposeProjectileCosmeticMaterials,
 } from './projectile/ProjectileCosmeticMeshOps.js';
+import { HYDRA_FIREBALL, spawnHydraFireball, getHydraFireballAssets, createHydraFireballGroup } from './projectile/HydraFireballOps.js';
+
+export { HYDRA_FIREBALL };
 
 export class ProjectileSystem {
     constructor(options = {}) {
@@ -117,6 +120,8 @@ export class ProjectileSystem {
     }
 
     deployMine(player) { return deployMine(this, player); }
+
+    spawnHydraFireball(owner, position, direction, scale = 1) { return spawnHydraFireball(this, owner, position, direction, scale); }
 
     spawnExternalProjectile(options = {}) {
         if (this.networkReplica) return null;
@@ -263,11 +268,12 @@ export class ProjectileSystem {
 
         if (!rocketGroup) {
             const assets = this._getProjectileAssets(type, color);
-            rocketGroup = createProjectileCosmeticGroup(assets);
+            rocketGroup = type === HYDRA_FIREBALL
+                ? createHydraFireballGroup(assets) : createProjectileCosmeticGroup(assets);
         }
 
         rocketGroup.visible = true;
-        applyProjectileCosmeticColor(rocketGroup, visualColor);
+        if (type !== HYDRA_FIREBALL) applyProjectileCosmeticColor(rocketGroup, visualColor);
         if (rocketGroup.userData.flame) {
             rocketGroup.userData.flame.scale.set(1, 1, 1);
         }
@@ -290,6 +296,8 @@ export class ProjectileSystem {
         if (this._projectileAssets.has(type)) {
             return this._projectileAssets.get(type);
         }
+
+        if (type === HYDRA_FIREBALL) return getHydraFireballAssets(this._projectileAssets);
 
         const bodyGeo = new THREE.CylinderGeometry(0.15, 0.15, 1.2, 8);
         bodyGeo.rotateX(Math.PI / 2);

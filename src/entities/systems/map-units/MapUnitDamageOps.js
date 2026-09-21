@@ -2,6 +2,7 @@ import { rewardMapUnitDestruction } from './MapUnitRewardOps.js';
 import { beginBomberCrash } from './MapUnitBomberCrashOps.js';
 import { areTeammates } from '../../../shared/contracts/TeamCombatContract.js';
 import { ESCORT_PHASES, ESCORT_RECOVERY_DEFAULTS } from '../../../shared/contracts/EscortObjectiveContract.js';
+import { stopHydra } from './MapUnitHydraOps.js';
 
 /**
  * Hit points, destruction and return of map units (E19, E34).
@@ -119,6 +120,7 @@ function applyBlast(system, unit, sourcePlayer) {
 
 export function destroyMapUnit(system, unit, sourcePlayer) {
     const owner = system.entityManager;
+    if (unit.hydra) stopHydra(system, unit);
     unit.alive = false;
     unit.hp = 0;
     if (unit.escortTank === true) unit.escortPhase = ESCORT_PHASES.DESTROYED;
@@ -131,7 +133,9 @@ export function destroyMapUnit(system, unit, sourcePlayer) {
     }
     unit.respawnRemaining = unit.definition.respawnSeconds > 0 ? unit.definition.respawnSeconds : Infinity;
     if (unit.root) unit.root.visible = false;
-    owner?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
+    owner?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, {
+        cause: 'PROJECTILE', projectileType: unit.hydra ? 'HYDRA_DEATH' : 'ROCKET_HEAVY',
+    });
     owner?.audio?.play?.('HIT', { intensity: 1 });
     owner?.recorder?.logEvent?.(
         'MAP_UNIT_DESTROYED',
@@ -140,7 +144,7 @@ export function destroyMapUnit(system, unit, sourcePlayer) {
     );
     unit.deaths = (Number(unit.deaths) || 0) + 1;
     system.setBossRoomClock?.(unit, false);
-    applyBlast(system, unit, sourcePlayer);
+    if (!unit.hydra) applyBlast(system, unit, sourcePlayer);
     if (unit.escortTank !== true) rewardMapUnitDestruction(system, unit, sourcePlayer);
 }
 
