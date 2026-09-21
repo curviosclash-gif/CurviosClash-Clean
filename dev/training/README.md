@@ -18,6 +18,10 @@ npm run test:dev:training
 npm run bot:validate
 npm run bot:validate:team
 npm run bot:analyze
+npm run bot:improve:team
+npm run bot:improve:team:auto
+npm run bot:improve:team:status
+npm run bot:improve:team:verify
 npm run benchmark:baseline
 ```
 
@@ -26,6 +30,23 @@ Flaggen- und Escort-Teamspiele. Der Report prueft neben Policy, Modus und Botanz
 auch Teamzuordnung, aktives Teamziel sowie beobachtete Botrollen. Die Lane ist das
 Abnahme-Gate fuer spaetere Heuristik- oder Modellkandidaten; sie trainiert und
 promotet keinen Kandidaten automatisch.
+
+`bot:improve:team` fuehrt genau einen begrenzten, deterministischen Suchschritt fuer
+das `balanced`-Heuristikprofil aus. Jeder Kandidat spielt auf festen Trainings-Seeds
+Flaggen und Escort jeweils als Alpha und Bravo gegen das unveraenderte Produktprofil.
+Eine Aenderung wird nur in den Kandidatenzustand uebernommen, wenn sie anschliessend
+auf getrennten Holdout-Seeds den Gesamtscore verbessert, keinen der beiden Modi
+wesentlich verschlechtert und die beobachtete Zielzuordnung erhaelt.
+
+Der Zustand liegt standardmaessig als
+`curviosclash-team-objective-improvement-state.json` im Temp-Verzeichnis des
+Betriebssystems; `TEAM_OBJECTIVE_LOOP_STATE_PATH` kann einen anderen externen Pfad
+setzen. `bot:improve:team:auto` wiederholt die begrenzten Schritte seriell bis zum
+Plateau oder bis zum Iterations-/Zeitlimit. `bot:improve:team:status` zeigt den
+Kandidaten, `bot:improve:team:verify` vergleicht ihn erneut mit dem aktuellen
+Produktprofil. Keiner der Befehle veraendert Produktionswerte oder schreibt
+Trainingsartefakte ins Repository; eine Promotion bleibt eine bewusste Codeaenderung
+mit anschliessendem `bot:validate:team`-Gate.
 
 Die Headless-Trainer-Werkzeuge erwarten zusaetzlich einen Python-Sidecar unter `python/` beziehungsweise einen ueber `BT91_PYTHON_EXE` angegebenen Interpreter. Dieser Sidecar ist im Clean-Repository nicht enthalten; die Werkzeuge sind daher nur ein abgegrenztes Entwicklungsgeruest und keine zugesicherte Produktfunktion.
 
