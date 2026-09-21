@@ -8,6 +8,7 @@ import { OBSERVATION_LENGTH_V1 } from './observation/ObservationSchemaV1.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 
 const RUNTIME_CONTEXT_BY_PLAYER = new WeakMap();
+const EMPTY_FLAG_OBJECTIVES = Object.freeze([]);
 const CONTROL_PROFILE_VERSION = 'cp-v35';
 const LEGACY_CONTROL_PROFILE_VERSION = 'legacy-v1';
 const ANY_PROFILE_TOKENS = new Set(['*', 'any', 'multi', 'multi-profile', 'multi-profile-training']);
@@ -213,6 +214,7 @@ function createCachedRuntimeContext() {
         observationBuffer: new Array(OBSERVATION_LENGTH_V1).fill(0),
         observation: null,
         huntTarget: null,
+        flagObjectives: EMPTY_FLAG_OBJECTIVES,
     };
 }
 
@@ -312,6 +314,10 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
     runtimeContext.escortTank = runtimeContext.escortObjective
         ? entityManager?._mapUnitSystem?.units?.find?.((unit) => unit?.escortTank === true) || null
         : null;
+    const flagObjectiveSystem = entityManager?._flagObjectiveSystem || null;
+    runtimeContext.flagObjectives = flagObjectiveSystem?.active === true && Array.isArray(flagObjectiveSystem.flags)
+        ? flagObjectiveSystem.flags
+        : EMPTY_FLAG_OBJECTIVES;
 
     rules.planarMode = planarMode;
     rules.huntEnabled = entityManager?.huntEnabled === true || isHuntMode(mode);
