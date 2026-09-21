@@ -10,7 +10,7 @@ const MAP_SIZE = Object.freeze([180, 90, 180]);
 
 export const STORM_BRIDGE_SIEGE_MAPS = Object.freeze({
     storm_bridge_siege: Object.freeze({
-        name: 'Sturmbruecke',
+        name: 'Sturmbrücke',
         size: MAP_SIZE,
         scaleAuthoredAnchors: true,
         exclusionZone: Object.freeze({ openFaces: Object.freeze(['minX', 'maxX', 'minZ', 'maxZ', 'maxY']) }),

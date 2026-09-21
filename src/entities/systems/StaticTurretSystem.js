@@ -109,7 +109,7 @@ export class StaticTurretSystem {
             turretId: definition.id,
             targetPlayers: definition.targetPlayers || 'humans',
             alive: true,
-            combatLabel: `Geschuetz ${definition.id}`,
+            combatLabel: `Geschütz ${definition.id}`,
             position,
             teamId: normalizeTeamId(definition.teamId),
             getAimDirection: (out) => out.copy(aimDirection),

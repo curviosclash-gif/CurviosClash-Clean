@@ -11,7 +11,7 @@ const OBJECT_TYPE_LABELS = Object.freeze({
     aircraft: 'Flugobjekt',
     glb: 'GLB-Modell',
     checkpoint: 'Parcours',
-    turret: 'Geschuetz',
+    turret: 'Geschütz',
 });
 
 export function updateUndoRedoButtonsView(editor, state = null) {

@@ -197,7 +197,7 @@ export const PICKUP_REGISTRY = Object.freeze({
         },
     }),
     MG_TURRET: createPickupDefinition({
-        name: 'MG-Geschuetz',
+        name: 'MG-Geschütz',
         color: 0xffb347,
         icon: 'MG',
         duration: 0,
