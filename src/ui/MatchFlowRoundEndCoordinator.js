@@ -50,7 +50,7 @@ function buildPostMatchStatsSummary({
         buildArcadeProgressionBlock(arcadeProgression),
         ...endlessBlocks.filter((block) => block.tier === 'detail'),
         buildRoundDetailBlock(lastRoundMetrics),
-        buildMatchDetailBlock(aggregateMetrics, outcome),
+        buildMatchDetailBlock(aggregateMetrics, outcome, huntScoreboard),
     ].filter(Boolean);
     const summary = normalizePostMatchStats({ blocks, visible: true });
     return summary.blocks.length > 0 ? summary : null;

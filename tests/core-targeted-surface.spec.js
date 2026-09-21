@@ -260,7 +260,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
             game.winsNeeded = 3;
             players[0].score = 2;
-            players[1].score = 1;
+            players[1].score = 2;
             game.recorder.startRound(players);
             game.recorder.logEvent('ITEM_USE', players[0].index, 'shield');
             game.recorder.roundStartTime = now - simulatedDurationMs;
@@ -280,7 +280,8 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 messageText: document.getElementById('message-text')?.textContent || '',
                 scoreboardTitle: readTitle('scoreboard'),
                 scoreLeader: readValue('scoreboard', 'player-0'),
-                botWinRate: readValue('match', 'bot-win-rate'),
+                matchDuration: readValue('match', 'duration'),
+                botMatchPoint: statsRoot?.querySelector('[data-stats-row-key="player-1"]')?.textContent?.includes('Matchball') || false,
                 roundTitle: readTitle('round'),
             };
         });
@@ -291,8 +292,8 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(overlayState.roundTitle).toBe('Finalrunde');
         expect(overlayState.scoreboardTitle).toBe('Endstand');
         expect(overlayState.scoreLeader).toBe('3/3');
-        // German percent: a non-breaking space before the sign.
-        expect(overlayState.botWinRate).toBe('0 %');
+        expect(overlayState.matchDuration).toMatch(/s$/);
+        expect(overlayState.botMatchPoint).toBe(false);
     });
 
     test('T20ke: SettingsManager liefert Balancing-Telemetrie aus dem Round-End-Pfad', async ({ page }) => {

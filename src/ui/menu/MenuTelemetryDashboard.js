@@ -196,6 +196,9 @@ export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null
     appendRow(balanceCard, 'bot-win-rate', 'Bot-Winrate', formatPercent(balance?.botWinRate));
     appendRow(balanceCard, 'average-round-duration', 'Avg. Rundendauer', formatDuration(balance?.averageRoundDuration));
     appendRow(balanceCard, 'self-collisions-per-round', 'Selfcrash/R', formatDecimal(balance?.selfCollisionsPerRound));
+    appendRow(balanceCard, 'stuck-events-per-minute', 'Hänger/min', formatDecimal(balance?.stuckEventsPerMinute));
+    appendRow(balanceCard, 'bounce-wall-per-round', 'Wandabpraller/R', formatDecimal(balance?.bounceWallPerRound));
+    appendRow(balanceCard, 'average-bot-survival', 'Bot-Überleben', formatDuration(balance?.averageBotSurvival));
     appendRow(balanceCard, 'item-uses-without-mg-per-round', 'Items/R (ohne MG)', formatDecimal(balance?.itemUsesWithoutMgPerRound));
     appendRow(balanceCard, 'mg-shots-per-round', 'MG-Versuche/R', formatDecimal(balance?.itemUseModePerRound?.mg));
     appendRow(balanceCard, 'kills-per-round', 'Kills/R', formatDecimal(balance?.killsPerRound));

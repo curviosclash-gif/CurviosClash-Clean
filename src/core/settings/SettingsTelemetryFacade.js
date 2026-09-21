@@ -228,6 +228,9 @@ export function normalizeTelemetrySnapshot(snapshot) {
     const totalShieldAbsorb = toNonNegativeNumber(balanceSource.totalShieldAbsorb, 0);
     const totalHpDamage = toNonNegativeNumber(balanceSource.totalHpDamage, 0);
     const totalStuckEvents = toNonNegativeInt(balanceSource.totalStuckEvents, 0);
+    const totalBounceWallEvents = toNonNegativeInt(balanceSource.totalBounceWallEvents, 0);
+    const totalBotSurvivalSeconds = toNonNegativeNumber(balanceSource.totalBotSurvivalSeconds, 0);
+    const totalBotLives = toNonNegativeInt(balanceSource.totalBotLives, 0);
     const totalSpawnDeaths = toNonNegativeInt(balanceSource.totalSpawnDeaths, 0);
     const totalKills = toNonNegativeInt(balanceSource.totalKills, 0);
     const parcoursCompletions = toNonNegativeInt(balanceSource.parcoursCompletions, 0);
@@ -267,6 +270,9 @@ export function normalizeTelemetrySnapshot(snapshot) {
             shieldAbsorbPerRound: rounds > 0 ? totalShieldAbsorb / rounds : 0,
             hpDamagePerRound: rounds > 0 ? totalHpDamage / rounds : 0,
             stuckEventsPerRound: rounds > 0 ? totalStuckEvents / rounds : 0,
+            stuckEventsPerMinute: totalDuration > 0 ? totalStuckEvents / (totalDuration / 60) : 0,
+            bounceWallPerRound: rounds > 0 ? totalBounceWallEvents / rounds : 0,
+            averageBotSurvival: totalBotLives > 0 ? totalBotSurvivalSeconds / totalBotLives : 0,
             spawnDeathsPerRound: rounds > 0 ? totalSpawnDeaths / rounds : 0,
             killsPerRound: rounds > 0 ? totalKills / rounds : 0,
             parcoursCompletions,

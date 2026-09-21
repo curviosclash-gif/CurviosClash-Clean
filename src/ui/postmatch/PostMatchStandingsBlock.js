@@ -102,7 +102,7 @@ export function buildStandingsBlock({
                 roundWins,
                 requiredWins,
                 isRoundWinner: playerIndex === roundWinnerIndex,
-                isMatchPoint: requiredWins - roundWins === 1,
+                isMatchPoint: outcome?.state === 'ROUND_END' && requiredWins - roundWins === 1,
                 kills: hunt ? hunt.kills : null,
                 deaths: hunt ? hunt.deaths : null,
                 assists: hunt ? hunt.assists : null,

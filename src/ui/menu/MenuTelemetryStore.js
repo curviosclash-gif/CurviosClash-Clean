@@ -148,6 +148,9 @@ function createDefaultBalanceSummary() {
         totalSelfCollisions: 0,
         totalItemUses: 0,
         totalStuckEvents: 0,
+        totalBounceWallEvents: 0,
+        totalBotSurvivalSeconds: 0,
+        totalBotLives: 0,
         totalSpawnDeaths: 0,
         totalKills: 0,
         totalMgHits: 0,
@@ -174,6 +177,9 @@ function normalizeBalanceSummary(source) {
         totalSelfCollisions: toNonNegativeInt(summary.totalSelfCollisions, 0),
         totalItemUses: toNonNegativeInt(summary.totalItemUses, 0),
         totalStuckEvents: toNonNegativeInt(summary.totalStuckEvents, 0),
+        totalBounceWallEvents: toNonNegativeInt(summary.totalBounceWallEvents, 0),
+        totalBotSurvivalSeconds: toNonNegativeNumber(summary.totalBotSurvivalSeconds, 0),
+        totalBotLives: toNonNegativeInt(summary.totalBotLives, 0),
         totalSpawnDeaths: toNonNegativeInt(summary.totalSpawnDeaths, 0),
         totalKills: toNonNegativeInt(summary.totalKills, 0),
         totalMgHits: toNonNegativeInt(summary.totalMgHits, 0),
@@ -353,6 +359,9 @@ export class MenuTelemetryStore extends PersistentStore {
         const shieldAbsorb = toNonNegativeNumber(source.shieldAbsorb, 0);
         const hpDamage = toNonNegativeNumber(source.hpDamage, 0);
         const stuckEvents = toNonNegativeInt(source.stuckEvents, 0);
+        const bounceWallEvents = toNonNegativeInt(source.bounceWallEvents, 0);
+        const botCount = toNonNegativeInt(source.botCount, 0);
+        const botSurvivalAverage = toNonNegativeNumber(source.botSurvivalAverage, 0);
         const spawnDeaths = toNonNegativeInt(source.spawnDeaths, 0);
         const reason = sanitizeBucketKey(source.reason, 'ELIMINATION');
         const kills = toNonNegativeInt(source.kills, 0);
@@ -374,6 +383,9 @@ export class MenuTelemetryStore extends PersistentStore {
         summary.totalShieldAbsorb += shieldAbsorb;
         summary.totalHpDamage += hpDamage;
         summary.totalStuckEvents += stuckEvents;
+        summary.totalBounceWallEvents += bounceWallEvents;
+        summary.totalBotLives += botCount;
+        summary.totalBotSurvivalSeconds += botSurvivalAverage * botCount;
         summary.totalSpawnDeaths += spawnDeaths;
         summary.totalKills += kills;
         if (parcoursCompleted) {

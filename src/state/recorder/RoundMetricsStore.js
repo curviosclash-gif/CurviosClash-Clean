@@ -435,6 +435,8 @@ export class RoundMetricsStore {
         const totalDuration = this._aggregate.totalDuration;
         return {
             rounds,
+            totalDuration,
+            totalSelfCollisions: this._aggregate.totalSelfCollisions,
             botWinRate: rounds > 0 ? this._aggregate.botWins / rounds : 0,
             averageBotSurvival: this._aggregate.totalBotLives > 0
                 ? this._aggregate.totalBotSurvival / this._aggregate.totalBotLives

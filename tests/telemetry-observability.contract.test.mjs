@@ -8,6 +8,7 @@ import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeS
 import { TelemetryHistoryStore, normalizeTelemetryHistoryEntry } from '../src/state/TelemetryHistoryStore.js';
 import { TelemetryPreferencesStore } from '../src/shared/telemetry/TelemetryPreferencesStore.js';
 import { MatchFlowTelemetryController } from '../src/ui/MatchFlowTelemetryController.js';
+import { createSettingsTelemetryFacade } from '../src/core/settings/SettingsTelemetryFacade.js';
 import { MenuTelemetryStore } from '../src/ui/menu/MenuTelemetryStore.js';
 
 function createMemoryStoragePlatform() {
@@ -143,7 +144,10 @@ test('round payload includes versioned context and compact performance telemetry
     const controller = new MatchFlowTelemetryController({ game });
     const payload = controller.buildRoundEndTelemetryPayload({
         outcome: { state: 'ROUND_END', reason: 'ELIMINATION' },
-        recording: { roundMetrics: { winnerIndex: 0, winnerIsBot: false, duration: 12 } },
+        recording: { roundMetrics: {
+            winnerIndex: 0, winnerIsBot: false, duration: 12,
+            bounceWallEvents: 4, botCount: 1, botSurvivalAverage: 9,
+        } },
     });
 
     assert.equal(payload.telemetrySchemaVersion, 'round-telemetry.v2');
@@ -152,6 +156,9 @@ test('round payload includes versioned context and compact performance telemetry
     assert.equal(payload.context.botCount, 1);
     assert.deepEqual(payload.context.vehicles, ['ship5', 'ship7']);
     assert.equal(payload.performance.frameP99Ms, 24);
+    assert.equal(payload.bounceWallEvents, 4);
+    assert.equal(payload.botCount, 1);
+    assert.equal(payload.botSurvivalAverage, 9);
 });
 
 test('history summary compares builds and performance across rounds', () => {
@@ -211,6 +218,21 @@ test('menu telemetry totals kills per map and mode bucket', () => {
     assert.equal(balance.maps.standard.totalKills, 8);
     assert.equal(balance.modes.classic.totalKills, 8);
     assert.equal(balance.maps.standard.totalSpawnDeaths, 3);
+});
+
+test('expert telemetry retains removed result-board tuning metrics across reloads', () => {
+    const storagePlatform = createMemoryStoragePlatform();
+    const options = { storagePlatform, preferencesStore: { isCollectionEnabled: () => true } };
+    const telemetry = new MenuTelemetryStore(options);
+    telemetry.recordEvent('round_end', {
+        duration: 30, stuckEvents: 3, bounceWallEvents: 4,
+        botCount: 2, botSurvivalAverage: 12,
+    });
+    const facade = createSettingsTelemetryFacade({ menuTelemetryStore: new MenuTelemetryStore(options) });
+    const balance = facade.getMenuTelemetrySnapshot().balance;
+    assert.equal(balance.stuckEventsPerMinute, 6);
+    assert.equal(balance.bounceWallPerRound, 4);
+    assert.equal(balance.averageBotSurvival, 12);
 });
 
 test('history entries keep kills, spawn deaths and checkpoint counts', () => {
