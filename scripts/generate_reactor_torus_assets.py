@@ -19,6 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG = json.loads((ROOT / 'src/core/config/maps/presets/reactor_site/ReactorTorusCloudConfig.json').read_text())
 TARGET_TOP = (CONFIG['baseMapHeight'] * CONFIG['mapHeightMultiplier'] * CONFIG['cloudTopMultiplier'] - 8) / .6
 ORIGINAL_POSE = reactor.cloud_pose
+VORTEX = json.loads((ROOT / 'src/shared/vfx/ReactorVortexProfiles.json').read_text())
+GENERATOR_ID = 'reactor-torus-runtime'
+GENERATOR_VERSION = '2.0.0'
 
 
 def billow(canvas, material, center, radius, squash=1, steps=8, segments=16):
@@ -50,6 +53,7 @@ def read_design(index):
     material = bpy.data.materials['Torus smoke | animated physical coordinates']
     nodes = material.node_tree.nodes
     return {
+        'profile': VORTEX['profiles'][index - 1],
         'radius': nodes['01 Major radius'].outputs[0].default_value,
         'tube': nodes['03 Tube radius'].outputs[0].default_value,
         'height': nodes['02 Altitude'].outputs[0].default_value,
@@ -61,10 +65,13 @@ def build_cloud(scene, design):
     reactor.cloud_pose = ORIGINAL_POSE
     reactor.build_mushroom_cloud(scene, None)
     roll = bpy.data.objects['roll']
+    profile = design['profile']
+    roll['vortexProfile'] = profile['id']
     for obj in list(roll.children):
         bpy.data.objects.remove(obj, do_unlink=True)
     pivots = []
     tube = .26 * (design['tube'] / design['radius']) / (1.188 / 3.6)
+    roll['vortexTubeRatio'] = tube
     # Twenty overlapping sectors. Each turns through its own radial/vertical
     # plane: at the outside gas moves down, at the inside it rises.
     for sector in range(20):
@@ -94,7 +101,7 @@ def build_cloud(scene, design):
     def stem(canvas):
         for level in range(14):
             z = (level + .95) / 15
-            width = .66 + .5 * abs(z - .45)
+            width = (.66 + .5 * abs(z - .45)) * (1 + .65 * max(0, (z - .65) / .35) ** 2)
             for side in range(3):
                 angle = math.tau * side / 3 + level * .63
                 billow(canvas, reactor.CLOUD_DARK,
@@ -133,17 +140,27 @@ def build_cloud(scene, design):
     # climbs to the new ceiling; stretching the whole GLB would stretch fire.
     def pose(t, extra_height):
         values = ORIGINAL_POSE(t)
-        progress = min(1, max(0, (t - reactor.CAP_START_SECONDS) / reactor.CAP_RISE_SECONDS)) ** .5
+        smoke_time = 48 * (min(1, max(0, t / 48)) ** profile['riseExponent'])
+        smoke_pose = ORIGINAL_POSE(smoke_time)
+        for name in ('cap', 'roll', 'bloom', 'stem', 'plume'):
+            values[name] = smoke_pose[name]
+        progress = min(1, max(0, (smoke_time - reactor.CAP_START_SECONDS) / reactor.CAP_RISE_SECONDS)) ** .5
+        head_growth = 1 + (VORTEX['headWidth'] - 1) * min(1, max(0, t / 40)) ** .7
+        stem_growth = 1 + (VORTEX['stemWidth'] - 1) * min(1, max(0, t / 40)) ** .7
         lift = extra_height * progress
         for name in ('cap', 'roll', 'bloom'):
             loc, scale, yaw = values[name]
             values[name] = ((loc[0], loc[1], loc[2] + lift),
-                            (scale[0] * width, scale[1] * width, scale[2] * thickness),
+                            (scale[0] * width * head_growth, scale[1] * width * head_growth, scale[2] * thickness * (.90 if name == 'cap' else 1)),
                             0 if name == 'roll' else yaw)
         for name in ('stem', 'plume'):
             loc, scale, yaw = values[name]
-            values[name] = (loc, (scale[0], scale[1], scale[2] + lift * (1 if name == 'stem' else .8)), yaw)
+            values[name] = (loc, (scale[0] * stem_growth, scale[1] * stem_growth, scale[2] + lift * (1 if name == 'stem' else .8)), yaw)
         return values
+
+    def circulation(t, azimuth):
+        return (7.5 * profile['circulation'] * (1 - math.exp(-t / 20))
+                + profile['turbulence'] * math.sin(azimuth * 3 + t * .3) * (1 - math.exp(-t / 5)))
 
     # Measure the actual visible final cap, not a rig origin, before choosing lift.
     final = pose(48, 0)
@@ -151,7 +168,7 @@ def build_cloud(scene, design):
         obj = bpy.data.objects[name]
         obj.location, obj.scale, obj.rotation_euler = loc, scale, (0, 0, yaw)
     for pivot, azimuth in pivots:
-        pivot.rotation_euler = (0, 7.5 * (1 - math.exp(-48 / 20)), azimuth)
+        pivot.rotation_euler = (0, circulation(48, azimuth), azimuth)
     bpy.context.view_layer.update()
     top = max((obj.matrix_world @ vertex.co).z
               for name in ('cap', 'roll', 'bloom')
@@ -164,21 +181,59 @@ def build_cloud(scene, design):
             reactor.et.keyframe(bpy.data.objects[name], frame,
                                 location=location, scale=scale, rotation=(0, 0, yaw))
         for pivot, azimuth in pivots:
-            reactor.et.keyframe(pivot, frame, rotation=(0, 7.5 * (1 - math.exp(-t / 20)), azimuth))
+            reactor.et.keyframe(pivot, frame, rotation=(0, circulation(t, azimuth), azimuth))
+    scene['generator_version'] = GENERATOR_VERSION
     scene['source_design'] = json.dumps(design)
     scene['cloud_top_metres'] = TARGET_TOP
     scene['physics'] = 'Buoyant toroidal circulation: inner upflow, outer downflow; slowing with entrainment.'
 
 
-def main():
-    source_dir = ROOT / 'assets/maps/reactor_site/blender/torus'
-    glb_dir = ROOT / 'assets/maps/reactor_site/glb'
+def build_variant(context):
+    index = int(context['parameters']['style'])
+    destination = Path(context['output_dir']) if context.get('output_dir') else None
+    source_dir = destination / 'blender' if destination else ROOT / 'assets/maps/reactor_site/blender/torus'
+    glb_dir = destination / 'glb' if destination else ROOT / 'assets/maps/reactor_site/glb'
     source_dir.mkdir(parents=True, exist_ok=True)
+    glb_dir.mkdir(parents=True, exist_ok=True)
+    reactor.et.ROOT = destination or ROOT
     reactor.et.SOURCE_DIR, reactor.et.GLB_DIR = source_dir, glb_dir
-    for index in range(1, 5):
-        design = read_design(index)
-        reactor.et.export_setpiece(f'torus_cloud_{index}', 'MushroomCloudOnce', 49,
-                                  lambda scene, _mats: build_cloud(scene, design))
+    design = read_design(index)
+    reactor.et.export_setpiece(f'torus_cloud_{index}', 'MushroomCloudOnce', 49,
+                              lambda scene, _mats: build_cloud(scene, design))
+    blend, glb = source_dir / f'torus_cloud_{index}.blend', glb_dir / f'torus_cloud_{index}.glb'
+    meshes = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
+    def triangles(objects):
+        total = 0
+        for obj in objects:
+            obj.data.calc_loop_triangles()
+            total += len(obj.data.loop_triangles)
+        return total
+    expected = triangles(meshes)
+    count = len(meshes)
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.context.scene.render.fps = 30
+    bpy.ops.import_scene.gltf(filepath=str(glb))
+    bpy.context.scene.frame_set(1441)
+    imported = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
+    assert len(imported) == count and triangles(imported) == expected
+    top = max((obj.matrix_world @ v.co).z for obj in imported for v in obj.data.vertices)
+    assert abs(top - TARGET_TOP) < .02, top
+    assert bpy.data.actions and bpy.data.objects['roll']['vortexProfile'] == index
+    import hashlib
+    return {'outputs': [{'role': 'editable', 'path': str(blend)}, {'role': 'runtime', 'path': str(glb)}],
+            'metrics': {'triangles': expected, 'materials': len(bpy.data.materials),
+                        'file_size_bytes': blend.stat().st_size + glb.stat().st_size,
+                        'roundtrip_import': True, 'fingerprint': hashlib.sha256(glb.read_bytes()).hexdigest()},
+            'metadata': {'profile': design['profile'], 'top_metres': top}}
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--variant', type=int, choices=range(1, 5))
+    args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
+    for index in ([args.variant] if args.variant else range(1, 5)):
+        build_variant({'parameters': {'style': index}})
 
 
 if __name__ == '__main__':

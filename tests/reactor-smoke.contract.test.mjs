@@ -41,7 +41,7 @@ test('all four smoke layers follow the exported rig and stay bounded through see
             assert.ok(data.every(Number.isFinite));
             let lastDepth = -Infinity;
             const view = f.camera.matrixWorldInverse.elements;
-            for (let i = 0; i < data.length; i += 16) {
+            for (let i = 0; i < f.layer.geometry.instanceCount * 16; i += 16) {
                 const depth = view[2]*data[i]+view[6]*data[i+1]+view[10]*data[i+2]+view[14];
                 assert.ok(depth >= lastDepth - .001, 'back-to-front sorting'); lastDepth = depth;
                 assert.ok(data[i+4] >= 0 && data[i+5] >= 0);
@@ -69,6 +69,20 @@ test('each split-screen camera gets freshly sorted data and disposal releases bo
     }
     disposeObject3DResources(f.scene);
     assert.equal(disposed, 4);
+});
+
+test('distance LOD removes detail instances and restores them when approaching again', async () => {
+    const f = await fixture();
+    f.pose(20);
+    const nearCount = f.layer.geometry.instanceCount;
+    f.camera.position.set(20000,20000,20000); f.camera.lookAt(0,280,0); f.camera.updateMatrixWorld();
+    const farData = f.pose(20);
+    assert.ok(f.layer.geometry.instanceCount < nearCount*.6);
+    assert.ok(farData.subarray(f.layer.geometry.instanceCount*16).every((value) => value === 0), 'inactive rows contain no stale cards');
+    assert.ok(f.layer.geometry.instanceCount > 100, 'coarse silhouette remains');
+    f.camera.position.set(450,400,500); f.camera.lookAt(0,280,0); f.camera.updateMatrixWorld();
+    f.pose(20); assert.equal(f.layer.geometry.instanceCount,nearCount);
+    disposeObject3DResources(f.scene);
 });
 
 test('unrelated assets never request smoke and a failed atlas leaves original surfaces intact', async () => {

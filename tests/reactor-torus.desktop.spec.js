@@ -1,4 +1,5 @@
 import { writeFile } from 'node:fs/promises';
+import { captureReactorVideo } from './reactor-video-capture.mjs';
 import { expect, test } from './helpers.desktop.js';
 import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
 
@@ -61,6 +62,9 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
         expect(result.sounds.filter((sound) => sound === 'REACTOR_BREACH')).toHaveLength(1);
         expect(result.flash).toBeGreaterThan(0);
         expect(result.height).toBe(286);
+        if (process.env.REACTOR_VIDEO_DIR && (!process.env.REACTOR_VIDEO_VARIANT || Number(process.env.REACTOR_VIDEO_VARIANT) === variant + 1)) {
+            await captureReactorVideo(page, variant, process.env.REACTOR_VIDEO_DIR);
+        }
         for (const seconds of [2, 12, 48]) {
             const shot = await page.evaluate((time) => {
                 const game = window.GAME_INSTANCE;

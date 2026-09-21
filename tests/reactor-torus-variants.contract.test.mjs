@@ -91,8 +91,9 @@ test('all game exports reach 15 percent above the enlarged map and preserve fire
     oldMixer.clipAction(original.animations[0]).play();
     oldMixer.setTime(48);
     original.scene.updateMatrixWorld(true);
-    const oldBounds = new THREE.Box3().setFromObject(original.scene, true);
+    const oldBounds = new THREE.Box3().setFromObject(original.scene.getObjectByName('front'), true);
     const palettes = new Set();
+    const previousHeadWidths = [214.84335157, 242.00480807, 222.89467786, 224.82520095];
     for (const modelId of scene.modelVariants) {
         const model = map.glbModels.find((entry) => entry.id === modelId);
         assert.equal(model.hiddenUntilTriggered, true);
@@ -123,11 +124,17 @@ test('all game exports reach 15 percent above the enlarged map and preserve fire
             assert.ok(Math.abs(radius - sphere.radius) < .002, `${modelId} fire at ${t}`);
         }
         const bounds = new THREE.Box3().setFromObject(gltf.scene, true);
+        const variant = scene.modelVariants.indexOf(modelId);
+        const capSize = new THREE.Box3().setFromObject(gltf.scene.getObjectByName('cap'), true).getSize(new THREE.Vector3());
+        assert.ok(Math.abs(Math.max(capSize.x, capSize.z) / previousHeadWidths[variant] - 1.35) < .001, 'head ends 35 percent wider');
+        assert.ok(Math.abs(gltf.scene.getObjectByName('stem').scale.x / 23.976076126 - 1.5) < .001, 'stem ends 50 percent wider');
+        assert.equal(gltf.scene.getObjectByName('roll').userData.vortexProfile, variant + 1);
         assert.ok(Math.abs(bounds.max.y * model.scale + model.position[1] - map.size[1] * 1.15) < .02);
         assert.ok(Math.abs(bounds.min.y) < .002);
+        const dustBounds = new THREE.Box3().setFromObject(gltf.scene.getObjectByName('front'), true);
         for (const axis of ['x', 'z']) {
-            assert.ok(Math.abs(bounds.max[axis] - oldBounds.max[axis]) < 1);
-            assert.ok(Math.abs(bounds.min[axis] - oldBounds.min[axis]) < 1);
+            assert.ok(Math.abs(dustBounds.max[axis] - oldBounds.max[axis]) < 1, 'ground dust footprint stays unchanged');
+            assert.ok(Math.abs(dustBounds.min[axis] - oldBounds.min[axis]) < 1);
         }
         const flow = gltf.scene.getObjectByName('torus_flow_00');
         assert.ok(flow, 'real cross-section roll is exported');

@@ -1,0 +1,10 @@
+{
+  "headWidth": 1.35,
+  "stemWidth": 1.5,
+  "profiles": [
+    { "id": 1, "name": "compact", "circulation": 1.5, "riseExponent": 1.0, "turbulence": 0.10, "cooling": 1.0, "shedding": 0.65 },
+    { "id": 2, "name": "broad", "circulation": 1.12, "riseExponent": 1.08, "turbulence": 0.08, "cooling": 0.85, "shedding": 0.45 },
+    { "id": 3, "name": "updraft", "circulation": 1.32, "riseExponent": 0.88, "turbulence": 0.12, "cooling": 1.2, "shedding": 0.6 },
+    { "id": 4, "name": "turbulent", "circulation": 1.65, "riseExponent": 1.0, "turbulence": 0.28, "cooling": 0.9, "shedding": 1.0 }
+  ]
+}
