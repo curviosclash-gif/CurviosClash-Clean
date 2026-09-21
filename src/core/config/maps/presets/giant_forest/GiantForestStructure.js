@@ -6,8 +6,11 @@
 // The clearings are therefore not decoration: they are the places where a player can change
 // storey, and they are the only places from which the canopy is reachable in a straight climb.
 //
-// Everything is authored in map units at true size; the map is not scaled (no
-// scaleAuthoredAnchors), so a number here is a world coordinate.
+// Everything here is authored units. The arena builds every map at CONFIG.ARENA.MAP_SCALE, and
+// obstacles, gates and GLB placements are multiplied by it whether a map asks or not - while
+// spawns, pickups and the fog's height terms only follow when the map sets scaleAuthoredAnchors.
+// The forest sets it, so one authored unit is one unit here and three in the world, for all of
+// them alike. The only numbers that stay world units are the fog's near and far distances.
 
 /** Top of the forest floor. Everything stands on it, nothing is buried in it. */
 export const FOREST_GROUND = 8;

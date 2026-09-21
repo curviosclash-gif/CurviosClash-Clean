@@ -51,6 +51,10 @@ export const GIANT_FOREST_MAPS = {
     giant_forest: {
         name: 'Riesenwald',
         size: FOREST_MAP_SIZE,
+        // Spawns, pickups and the fog's heights are authored in the same units as the trees and
+        // the decks. Without this they would stay put while the world around them grew threefold,
+        // and a round would start in the middle of a forest that reaches three times as far.
+        scaleAuthoredAnchors: true,
         obstacles: FOREST_OBSTACLES,
         // No portals: a portal mouth between the trunks would be unreadable in the fog, and the
         // four updraughts already answer the one question the map asks, which storey to be on.
@@ -74,25 +78,33 @@ export const GIANT_FOREST_MAPS = {
         // range is deliberately short - it is the fog that makes a forest of eighty-unit trees
         // affordable, and it is also what makes it a forest rather than a field of columns.
         lighting: {
-            key: { direction: [25, 70, 15], color: 0xdfeccd, intensity: 1.05 },
-            fill: { direction: [-30, 25, -30], color: 0x6f8f5a, intensity: 0.42 },
-            rim: { direction: [-15, 35, 45], color: 0x9fc27a, intensity: 0.38 },
-            hemisphere: { skyColor: 0x8ba173, groundColor: 0x2b301f },
+            // Under a closed canopy almost nothing arrives straight. The key is weak and comes
+            // from high up, the ambience is a dark green bounce off leaves and loam - bright
+            // ambience is what turns bark into bone and moss into a lawn.
+            key: { direction: [25, 70, 15], color: 0xcfdcbb, intensity: 0.78 },
+            fill: { direction: [-30, 25, -30], color: 0x47603a, intensity: 0.34 },
+            rim: { direction: [-15, 35, 45], color: 0x6f8f55, intensity: 0.3 },
+            hemisphere: { skyColor: 0x4e5f3e, groundColor: 0x161a11 },
             fog: {
                 color: 0x5c6b4e,
-                near: 70,
-                far: 290,
+                // World units, unlike every other distance in this file: the fog is not scaled
+                // with the map. 380 is about 125 authored units, under two tree pitches - close
+                // enough that the ground storey is genuinely blind while the fog lies on it.
+                near: 40,
+                far: 380,
                 height: CANOPY_DECK,
-                heightFalloff: 0.05,
+                // Steep, because the whole map turns on the difference between the two storeys.
+                // At 0.12 authored the fog has thinned to a third one tree-crown above its edge.
+                heightFalloff: 0.12,
                 turbulence: 0.22,
                 skyBlend: 1,
                 colorHigh: 0x6a7a58,
                 colorLow: 0x3a412c,
                 clipClosureStart: 0.7,
             },
-            skyDome: { zenithColor: 0x49563a, horizonColor: 0x8c9b72, nadirColor: 0x1b1f14 },
+            skyDome: { zenithColor: 0x3c492f, horizonColor: 0x76855e, nadirColor: 0x14180f },
             starsVisible: false,
-            exposureOffset: 0.05,
+            exposureOffset: -0.05,
         },
     },
 };

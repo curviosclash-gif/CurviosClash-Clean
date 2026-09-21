@@ -26,6 +26,8 @@ import { TREE_SCALE } from '../src/core/config/maps/presets/giant_forest/GiantFo
 // regenerating the tree variants cannot leave the collision standing beside its tree.
 
 const MAP = MAP_PRESET_CATALOG.giant_forest;
+/** CONFIG.ARENA.MAP_SCALE: what the arena multiplies every authored coordinate by. */
+const MAP_SCALE = 3;
 
 function readGlb(relativePath) {
     const bytes = readFileSync(path.resolve(relativePath));
@@ -100,6 +102,19 @@ test('the forest is in the catalog, in the base set and in a menu collection', a
     assert.equal(collections.length, 1, 'listed in exactly one menu collection');
 });
 
+test('the map is authored in one space', async () => {
+    const { CONFIG_SECTIONS } = await import('../src/core/config/ConfigSections.js');
+    assert.equal(CONFIG_SECTIONS.ARENA.MAP_SCALE, MAP_SCALE, 'the scale this file assumes');
+    // Obstacles, gates and model placements are scaled whether a map asks or not. Spawns,
+    // pickups and the fog heights only follow with this flag - without it a round would start in
+    // the middle of a forest three times its size.
+    assert.equal(MAP.scaleAuthoredAnchors, true);
+    // The fog range is the exception: world units, so it is stated against the scaled field.
+    const worldHalfSize = FOREST_HALF_SIZE * MAP_SCALE;
+    assert.ok(MAP.lighting.fog.far < worldHalfSize, 'the far side of the map is never visible');
+    assert.ok(MAP.lighting.fog.far > worldHalfSize / 3, 'but the forest still reads as deep');
+});
+
 test('every model file the map names exists', () => {
     for (const model of MODELS) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} -> ${model.url} is missing`);
@@ -135,10 +150,15 @@ test('every tree is a flyable crown with an invisible solid body in the same pla
 });
 
 test('a crown is drawn at a distance the fog has already closed', () => {
+    // The fog's range is world units and the cull distance is authored units multiplied by the
+    // map scale, so the two only compare after that conversion.
     const far = MAP.lighting.fog.far;
     for (const crown of CROWNS) {
         assert.ok(crown.maxRenderDistance > 0, `${crown.id} is never culled`);
-        assert.ok(crown.maxRenderDistance >= far, 'crowns must not vanish inside the visible range');
+        assert.ok(
+            crown.maxRenderDistance * MAP_SCALE >= far,
+            'crowns must not vanish inside the visible range',
+        );
     }
 });
 
