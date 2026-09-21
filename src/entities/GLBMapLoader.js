@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { attachReactorSmoke } from './effects/ReactorSmokeEffect.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { normalizeMapAnimationClock } from '../shared/contracts/MapAnimationClockContract.js';
 import { createGlbAnimationTrack } from './arena/GlbAnimationDriver.js';
@@ -410,6 +411,10 @@ export async function loadGLBMap(glbModel, options = {}) {
         colliderMode: options.colliderMode,
         animatedNodes,
     });
+    if (/\/torus_cloud_[1-4]\.glb$/.test(modelUrl)) {
+        try { await attachReactorSmoke(scene, animationTracks[0]?.action); }
+        catch (error) { console.warn('Reactor smoke texture unavailable; retaining mesh cloud.', error); }
+    }
     return {
         sourceUrl: modelUrl,
         footprint: resolveGLBFootprint(modelUrl, {

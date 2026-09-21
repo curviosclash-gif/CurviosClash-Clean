@@ -45,3 +45,21 @@ blender -b --python-exit-code 1 --python tests/blender_torus_explosions.py -- DE
 Use `--variant 1` through `--variant 4` to regenerate one variant. Fixed seeds
 preserve the four designs. Render previews and operational QA reports belong
 outside the repository.
+
+## Soft runtime smoke
+
+The GLBs now guide a batch of camera-facing smoke lobes instead of drawing their
+opaque cloud surfaces. `scripts/bake_reactor_smoke.py` bakes the source volume's
+billow noise into `smoke/smoke-atlas.png` (four 256px RGBA tiles); `smoke-bake.blend`
+keeps the editable bake scene. Run it with Blender 4.2 and `--python-exit-code 1`.
+The runtime recovers connected lobes from the GLB, follows their animated rigs,
+sorts them separately for each camera, and animates cooling and small wisps from
+the same clip clock. The fireball, damage curve, ruin and ground dust are unchanged.
+A missing atlas leaves the existing mesh cloud visible. Smoke resources belong to
+the loaded scene and are released by the existing map disposal path.
+
+The effect is bounded to 512 cards and one draw call per visible cloud. A data
+texture updates before each draw so time seeks and split-screen camera changes
+cannot display the preceding frame's positions. The soft lobes fit below the
+measured final GLB ceiling. This approximates volume smoke; it is not volumetric
+ray marching or a fluid simulation.

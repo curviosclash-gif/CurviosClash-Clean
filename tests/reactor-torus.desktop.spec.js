@@ -89,6 +89,10 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 runtime.renderer.setRenderTarget(null);
                 runtime.renderer.render(runtime.scene, camera);
                 const png = runtime.renderer.domElement.toDataURL('image/png');
+                runtime.renderer.render(runtime.scene, camera);
+                if (png !== runtime.renderer.domElement.toDataURL('image/png')) {
+                    throw new Error('The first smoke draw after a seek differs from the settled draw');
+                }
                 camera.position.copy(position); camera.quaternion.copy(quaternion);
                 camera.updateMatrixWorld(true);
                 return { png, top };
@@ -97,5 +101,63 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             if (seconds === 48) expect(shot.top).toBeCloseTo(286 * 1.15 * 3, 1);
         }
     }
+    const smokeReport = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const arena = game.arena;
+        arena.setGlbAnimationElapsedSeconds(48); arena._glbAnimation.advance(0);
+        const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+        const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
+        if (!smoke) throw new Error('Missing runtime smoke layer');
+        const renderer = game.renderer.renderer;
+        const camera = game.renderer.cameras[0];
+        const oldPosition = camera.position.clone(), oldRotation = camera.quaternion.clone();
+        const oldFar = camera.far; camera.far = 5000; camera.updateProjectionMatrix();
+        const materials = new Set();
+        slot.traverse((node) => { if (/^Cloud(?:Dark)?$/.test(node.material?.name || '')) materials.add(node.material); });
+        const images = [];
+        for (const angle of [0, 90, 180, 225]) {
+            const radians = angle * Math.PI / 180;
+            camera.position.set(Math.cos(radians)*1400,600,Math.sin(radians)*1400);
+            camera.lookAt(0,520,0); camera.updateMatrixWorld(true);
+            renderer.render(game.renderer.scene,camera);
+            images.push({ angle, png: renderer.domElement.toDataURL('image/png') });
+        }
+        // Same scene, resolution, pose and camera. Synchronous samples stop gameplay
+        // updates; gl.finish includes GPU completion rather than only submission cost.
+        const gl = renderer.getContext();
+        const samples = { mesh: [], smoke: [] };
+        const draws = {};
+        for (let cycle = 0; cycle < 3; cycle++) {
+            for (const mode of cycle % 2 ? ['smoke','mesh'] : ['mesh','smoke']) {
+                smoke.visible = mode === 'smoke';
+                for (const material of materials) material.visible = mode === 'mesh';
+                for (let frame = 0; frame < 15; frame++) {
+                    renderer.info.reset();
+                    const start = performance.now();
+                    renderer.render(game.renderer.scene,camera); gl.finish();
+                    if (frame >= 3) samples[mode].push(performance.now()-start);
+                }
+                draws[mode] = renderer.info.render.calls;
+            }
+        }
+        smoke.visible = true; for (const material of materials) material.visible = false;
+        camera.position.copy(oldPosition); camera.quaternion.copy(oldRotation); camera.far = oldFar;
+        camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
+        const times = {};
+        for (const mode of ['mesh','smoke']) {
+            samples[mode].sort((a,b)=>a-b);
+            times[mode] = { p50: samples[mode][18], p95: samples[mode][34] };
+        }
+        return { images, times, draws, cards: smoke.geometry.instanceCount,
+            dimensions: [renderer.domElement.width,renderer.domElement.height] };
+    });
+    for (const { angle, png } of smokeReport.images) {
+        await writeFile(testInfo.outputPath(`smoke-view-${angle}.png`),Buffer.from(png.split(',')[1],'base64'));
+    }
+    delete smokeReport.images;
+    await writeFile(testInfo.outputPath('smoke-performance.json'),JSON.stringify(smokeReport,null,2));
+    expect(smokeReport.cards).toBeGreaterThan(100);
+    expect(smokeReport.cards).toBeLessThanOrEqual(512);
+    expect(smokeReport.draws.smoke).toBeLessThan(smokeReport.draws.mesh);
     expect(errors).toEqual([]);
 });
