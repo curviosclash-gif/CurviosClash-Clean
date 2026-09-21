@@ -54,6 +54,7 @@ export class PlayerProfileUiController {
             activate: byId('btn-player-profile-activate'),
             default: byId('btn-player-profile-default'),
             archive: byId('btn-player-profile-archive'),
+            actionHint: byId('player-profile-action-hint'),
             export: byId('btn-player-profile-export'),
             import: byId('btn-player-profile-import'),
             file: byId('player-profile-file'),
@@ -167,8 +168,20 @@ export class PlayerProfileUiController {
         const selected = this._selected();
         if (this.refs.name && !this.refs.name.matches?.(':focus')) this.refs.name.value = selected?.displayName || '';
         if (this.refs.activate) this.refs.activate.disabled = !selected || selected.id === active?.id;
-        if (this.refs.default) this.refs.default.disabled = !selected || selected.id === defaultProfile?.id;
-        if (this.refs.archive) this.refs.archive.disabled = !selected || selected.id === active?.id || selected.id === defaultProfile?.id || profiles.length <= 1;
+        const alreadyDefault = !!selected && selected.id === defaultProfile?.id;
+        const archiveReason = !selected ? 'Spielerprofil auswählen.'
+            : alreadyDefault ? 'Das Standard-Profil kann nicht archiviert werden.'
+                : selected.id === active?.id ? 'Das aktive Profil kann nicht archiviert werden.'
+                    : profiles.length <= 1 ? 'Das letzte Profil kann nicht archiviert werden.' : '';
+        if (this.refs.default) {
+            this.refs.default.disabled = !selected || alreadyDefault;
+            this.refs.default.title = !selected ? 'Spielerprofil auswählen.' : alreadyDefault ? 'Dieses Profil ist bereits Standard.' : '';
+        }
+        if (this.refs.archive) {
+            this.refs.archive.disabled = !!archiveReason;
+            this.refs.archive.title = archiveReason;
+        }
+        if (this.refs.actionHint) this.refs.actionHint.textContent = `${alreadyDefault ? 'Dieses Profil ist bereits Standard. ' : ''}${archiveReason}`;
         if (this.refs.rename) this.refs.rename.disabled = !selected;
         if (this.refs.export) this.refs.export.disabled = !selected;
     }

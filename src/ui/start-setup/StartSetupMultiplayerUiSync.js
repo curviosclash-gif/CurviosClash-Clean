@@ -334,8 +334,8 @@ export function syncStartSetupMultiplayerUi({
                 && !multiplayerTransportUiState.onlineConfigured
             );
             if (transport === MULTIPLAYER_TRANSPORTS.ONLINE && allowed) {
-                button.title = multiplayerTransportUiState.isOnlineUnconfigured
-                    ? 'Online ist derzeit nicht eingerichtet. Bitte LAN verwenden.'
+                button.title = !multiplayerTransportUiState.onlineConfigured
+                    ? 'Online-Lobbys sind noch nicht freigeschaltet.'
                     : 'Online-Lobby als Internet-Pfad nutzen.';
             } else if (allowed) {
                 button.title = 'Mit anderen Spielern im lokalen Netzwerk spielen.';
@@ -346,8 +346,12 @@ export function syncStartSetupMultiplayerUi({
     }
     if (ui.multiplayerTransportHint) {
         ui.multiplayerTransportHint.textContent = multiplayerTransportUiState.isOnlineUnconfigured
-            ? 'Auswahl: Online | nicht konfiguriert, bitte LAN verwenden'
-            : `Verbindung: ${multiplayerTransportUiState.selectedTransportLabel}`;
+            ? 'Auswahl: Online · Online-Lobbys sind noch nicht freigeschaltet.'
+            : `Verbindung: ${multiplayerTransportUiState.selectedTransportLabel}${
+                multiplayerTransportUiState.allowedTransports.includes(MULTIPLAYER_TRANSPORTS.ONLINE)
+                && !multiplayerTransportUiState.onlineConfigured
+                    ? ' · Online-Lobbys sind noch nicht freigeschaltet.'
+                    : ''}`;
     }
     const showOpenLobbies = isMultiplayerSession && sessionContract.isLegacyTransport !== true;
     const canBrowseOpenLobbies = showOpenLobbies

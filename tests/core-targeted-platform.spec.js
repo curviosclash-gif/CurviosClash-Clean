@@ -583,6 +583,15 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         await expect(page.locator('#menu-nav')).toBeVisible();
     });
 
+    test('T20disabled: Online-Sperre ist am Knopf und im sichtbaren Hinweis erklärt', async ({ page }) => {
+        await loadGame(page);
+        await openMultiplayerSubmenu(page);
+        const online = page.locator('#btn-multiplayer-transport-online');
+        await expect(online).toBeDisabled();
+        await expect(online).toHaveAttribute('title', 'Online-Lobbys sind noch nicht freigeschaltet.');
+        await expect(page.locator('#multiplayer-transport-hint')).toContainText('Online-Lobbys sind noch nicht freigeschaltet.');
+    });
+
     test('T20f: Fixed-Preset setzt Match-Contract auf fixed', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);

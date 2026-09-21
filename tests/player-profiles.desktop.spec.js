@@ -1,6 +1,16 @@
 import { expect, test } from './helpers.desktop.js';
 import { waitForLoadedGame } from './helpers.js';
 
+test('Desktop-Spielerprofil erklärt gesperrtes Archivieren und Standardsetzen', async ({ page }) => {
+    await waitForLoadedGame(page);
+    await expect(page.locator('#btn-player-profile-default')).toBeDisabled();
+    await expect(page.locator('#btn-player-profile-default')).toHaveAttribute('title', 'Dieses Profil ist bereits Standard.');
+    await expect(page.locator('#btn-player-profile-archive')).toBeDisabled();
+    await expect(page.locator('#btn-player-profile-archive')).toHaveAttribute('title', 'Das Standard-Profil kann nicht archiviert werden.');
+    await expect(page.locator('#player-profile-action-hint')).toContainText('Dieses Profil ist bereits Standard.');
+    await expect(page.locator('#player-profile-action-hint')).toContainText('Das Standard-Profil kann nicht archiviert werden.');
+});
+
 async function activatePlayerProfile(page, profileId) {
     await page.evaluate((id) => {
         // Survives only until the page reloads; the app has to reload on its own.
