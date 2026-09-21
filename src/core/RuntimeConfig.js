@@ -52,10 +52,6 @@ function toNumber(value, fallback) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function deepClone(value) {
-    return cloneJsonValue(value);
-}
-
 function normalizeFightBonuses(source = null) {
     const value = source && typeof source === 'object' ? source : {};
     const clamp = (input, min, max) => Math.max(min, Math.min(max, Number(input) || 0));
@@ -303,6 +299,7 @@ export function createRuntimeConfigSnapshot(settings, {
         ? fourPlayerPlanarSelection.mapKey
         : (threePlayerSplitActive ? threePlayerSplitSelection.mapKey : String(source.mapKey || 'standard'));
 
+    const teamHunt = normalizeTeamHuntSettings(huntSource);
     const runtimeConfig = {
         session: {
             sessionType,
@@ -436,15 +433,10 @@ export function createRuntimeConfigSnapshot(settings, {
             ),
         },
         hunt: {
-            ...(() => {
-                const teamHunt = normalizeTeamHuntSettings(huntSource);
-                return {
-                    teamMode: activeGameMode === GAME_MODE_TYPES.ESCORT || (requestedGameMode === GAME_MODE_TYPES.HUNT && requestedTeamObjective === TEAM_OBJECTIVE_TYPES.FLAGS) || teamHunt.enabled,
-                    teamObjective: requestedTeamObjective,
-                    teamSize: teamHunt.teamSize,
-                    teamBotDifficulty: teamHunt.botDifficulty,
-                };
-            })(),
+            teamMode: activeGameMode === GAME_MODE_TYPES.ESCORT || (requestedGameMode === GAME_MODE_TYPES.HUNT && requestedTeamObjective === TEAM_OBJECTIVE_TYPES.FLAGS) || teamHunt.enabled,
+            teamObjective: requestedTeamObjective,
+            teamSize: teamHunt.teamSize,
+            teamBotDifficulty: teamHunt.botDifficulty,
             enabled: huntModeActive,
             respawnEnabled: huntModeActive ? ((requestedGameMode === GAME_MODE_TYPES.HUNT && requestedTeamObjective === TEAM_OBJECTIVE_TYPES.FLAGS) || !!huntSource.respawnEnabled) : false,
             deathmatchKillLimit: clampSettingValue(
@@ -470,14 +462,14 @@ export function createRuntimeConfigSnapshot(settings, {
             cameraPerspectiveSource,
             createDefaultCameraPerspectiveSettings()
         ),
-        settingsSnapshot: deepClone(source),
+        settingsSnapshot: cloneJsonValue(source),
     };
 
     return runtimeConfig;
 }
 
 export function applyRuntimeConfigCompatibility(runtimeConfig, targetConfig = CONFIG_BASE) {
-    const nextConfig = deepClone(targetConfig || CONFIG_BASE);
+    const nextConfig = cloneJsonValue(targetConfig || CONFIG_BASE);
     if (!runtimeConfig || typeof runtimeConfig !== 'object') {
         return nextConfig;
     }

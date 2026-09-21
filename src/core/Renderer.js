@@ -12,7 +12,7 @@ import {
 import { MapFogLayerDriver } from './renderer/MapFogLayerDriver.js';
 import { SceneLightingRig } from './renderer/SceneLightingRig.js';
 import { SceneEnvironmentController } from './renderer/SceneEnvironmentFactory.js';
-import { resolveSandstormLighting } from './renderer/SandstormLightingOps.js';
+import { resolveMapSandstormLighting } from './renderer/SandstormLightingOps.js';
 import { CONFIG } from './Config.js';
 import { CameraRigSystem } from './renderer/CameraRigSystem.js';
 import { RenderViewportSystem } from './renderer/RenderViewportSystem.js';
@@ -332,13 +332,7 @@ export class Renderer {
         const normalMapLighting = resolveMapLighting(this._mapLighting);
         const globalFogRange = resolveGlobalFogMapRange(normalMapLighting, CONFIG.CAMERA.FAR);
         this._globalFogVisibilityRange = globalFogRange.far;
-        const sandstormActive = this._mapSandstormEffect?.phase === MAP_SANDSTORM_PHASES.ACTIVE;
-        const stormBlend = sandstormActive
-            ? Math.max(0, Math.min(1, Number(this._mapSandstormEffect.intensity) || 0))
-            : 0;
-        const stormLighting = sandstormActive
-            ? resolveSandstormLighting(normalMapLighting, stormBlend)
-            : normalMapLighting;
+        const stormLighting = resolveMapSandstormLighting(normalMapLighting, this._mapSandstormEffect);
         const lighting = this._lightingRig.apply({
             graphicsStyle: this._graphicsStyle,
             mapLighting: stormLighting,

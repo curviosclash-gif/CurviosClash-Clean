@@ -72,7 +72,15 @@ test('Wave 6 maps place three looping moving obstacles on dynamic scene collisio
         assert.ok(model, `${entry.id} is placed`);
         assert.equal(model.animationClock?.mode, 'loop');
         assert.equal(model.animationClock?.clipName, entry.clip);
-        assert.ok(entry.map.destructibles.breakScenes[0].hideModelIds.includes(entry.id));
+        const scene = entry.map.destructibles.breakScenes[0];
+        if (entry.id === 'storm-dam-gate') {
+            assert.equal(scene.hideModelIds.includes(entry.id), false);
+            assert.deepEqual(scene.attachedModels, [{
+                modelId: entry.id, parentNodeName: 'dam_wall_arch_08_tier_2',
+            }]);
+        } else {
+            assert.ok(scene.hideModelIds.includes(entry.id));
+        }
     }
 });
 

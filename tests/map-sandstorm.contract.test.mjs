@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { updateReplayProjection } from '../src/core/recording/CinematicReplayProjection.js';
-import { resolveSandstormLighting } from '../src/core/renderer/SandstormLightingOps.js';
+import { resolveMapSandstormLighting, resolveSandstormLighting } from '../src/core/renderer/SandstormLightingOps.js';
 import { isTargetVisibleToPlayer } from '../src/entities/ai/BotTargetingOps.js';
 import { EntityTickPipeline } from '../src/entities/runtime/EntityTickPipeline.js';
 import { MapSandstormSystem } from '../src/entities/systems/MapSandstormSystem.js';
@@ -244,6 +244,11 @@ test('storm ingress keeps gameplay visibility aligned with rendered intensity', 
     }, 0);
     assert.equal(clear.key.color, 0xffffff);
     assert.equal(clear.key.intensity, 2);
+    assert.equal(resolveMapSandstormLighting(clear, { phase: 'CALM', intensity: 1 }), clear);
+    assert.equal(resolveMapSandstormLighting(clear, { phase: 'WARNING', intensity: 1 }), clear);
+    assert.equal(resolveMapSandstormLighting(clear, null), clear);
+    assert.deepEqual(resolveMapSandstormLighting(clear, { phase: 'ACTIVE', intensity: 0.5 }),
+        resolveSandstormLighting(clear, 0.5));
 });
 
 test('shelter volumes follow the narrowing king pyramid and bots use composite sight', () => {

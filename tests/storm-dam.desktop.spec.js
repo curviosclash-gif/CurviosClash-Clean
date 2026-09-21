@@ -1,4 +1,6 @@
 import { writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 import { expect, test } from './helpers.desktop.js';
 import { collectErrors, selectSessionType, waitForLoadedGame } from './helpers.js';
@@ -20,7 +22,7 @@ async function startDamMatch(page) {
     ), MAP_KEY, { timeout: 120_000 });
 }
 
-test('the giant rear-wall dam breaches and launches its flood wave into the arena', async ({ page }, testInfo) => {
+test('the giant rear-wall dam breaches and launches its flood wave into the arena', async ({ page }) => {
     test.setTimeout(240_000);
     const errors = collectErrors(page);
     await startDamMatch(page);
@@ -54,7 +56,7 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
         const bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
         intact.updateWorldMatrix(true, true);
         intact.traverse((child) => {
-            if (!/^dam_wall_arch_\d+$/.test(String(child.name)) || !child.geometry) return;
+            if (!/^dam_wall_arch_\d{2}(?:_tier_[0-2])?$/.test(String(child.name)) || !child.geometry) return;
             if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
             const local = child.geometry.boundingBox;
             const matrix = child.matrixWorld.elements;
@@ -99,9 +101,16 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
         };
         const basinVisibleBeforeBreach = water._visual.surface.visible;
         const reservoirPicture = captureWater([0, 260, 245], [0, 225, 278]);
+        const assetReservoirY = intact.getObjectByName('dam_reservoir_surface_nocol')
+            .getWorldPosition(camera.position.clone()).y;
 
         const segment = destructibles.getDefinition().segments.find((entry) => entry.id === 'dam_wall');
-        const hit = destructibles.applyMeshHit('dam_wall_arch_08', segment.hp, {
+        camera.position.set(0, 72, -210);
+        camera.lookAt(0, 175, 255);
+        camera.updateMatrixWorld(true);
+        runtime.render();
+        const intactPicture = runtime.renderer.domElement.toDataURL('image/png');
+        const hit = destructibles.applyMeshHit('dam_wall_arch_08_tier_1', segment.hp, {
             hitPoint: {
                 x: segment.anchor[0] * mapScale,
                 y: segment.anchor[1] * mapScale,
@@ -112,10 +121,49 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
         });
         water.update(0);
         const waveStartZ = water._visual.waveGroup.position.z;
-        water.update(water.getZone().waveSeconds / 8);
-
-        const wavePicture = captureWater([0, 45, 140], [0, 10, 202]);
-        water.update((water.getZone().waveSeconds * 3) / 8);
+        const eventTime = destructibles.getState().events.at(-1).atSeconds;
+        water.update(0.15);
+        arena.setGlbAnimationElapsedSeconds(eventTime + 0.15);
+        arena.update(0);
+        runtime.render();
+        const leakPicture = runtime.renderer.domElement.toDataURL('image/png');
+        const earlyLeakVisible = water._visual.fall.visible;
+        water.update(1.85);
+        const wavePhase = water.getState().phase;
+        const waveHalfZ = water._visual.waveGroup.position.z;
+        const midJetVisible = water._visual.jet.visible;
+        arena.setGlbAnimationElapsedSeconds(eventTime + 2);
+        arena.update(0);
+        runtime.render();
+        const wavePicture = runtime.renderer.domElement.toDataURL('image/png');
+        camera.position.set(380, 130, -140);
+        camera.lookAt(0, 190, 245);
+        camera.updateMatrixWorld(true);
+        runtime.render();
+        const sidePicture = runtime.renderer.domElement.toDataURL('image/png');
+        camera.position.set(0, 72, -210);
+        camera.lookAt(0, 175, 255);
+        camera.updateMatrixWorld(true);
+        water.update(2);
+        const transitionPhase = water.getState().phase;
+        const transitionFoamOpacity = water._visual.foamMaterial.opacity;
+        const transitionSurfaceVisible = water._visual.surface.visible;
+        arena.setGlbAnimationElapsedSeconds(eventTime + 4);
+        arena.update(0);
+        runtime.render();
+        const transitionPicture = runtime.renderer.domElement.toDataURL('image/png');
+        water.update(2);
+        const risePhase = water.getState().phase;
+        const riseSurfaceVisible = water._visual.surface.visible;
+        arena.setGlbAnimationElapsedSeconds(eventTime + 6);
+        arena.update(0);
+        runtime.render();
+        const ruinPicture = runtime.renderer.domElement.toDataURL('image/png');
+        water.update(22);
+        arena.setGlbAnimationElapsedSeconds(eventTime + 28);
+        arena.update(0);
+        runtime.render();
+        const floodedPicture = runtime.renderer.domElement.toDataURL('image/png');
 
         return {
             maxY: arena.bounds.maxY,
@@ -126,10 +174,20 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
             destroyed: hit?.destroyed === true,
             intactVisible: intact.visible,
             collapseVisible: collapse.visible,
-            phase: water.getState().phase,
+            phase: wavePhase,
+            earlyLeakVisible,
+            midJetVisible,
+            transitionPhase,
+            transitionFoamOpacity,
+            transitionSurfaceVisible,
+            risePhase,
+            riseSurfaceVisible,
+            finalPhase: water.getState().phase,
+            gateAttached: arena._glbScene.getObjectByName('glb-slot-storm-dam-gate')?.parent?.name
+                === 'dam_wall_arch_08_tier_2',
             waveOrigin: water.getZone().waveOrigin,
             waveStartZ,
-            waveHalfZ: water._visual.waveGroup.position.z,
+            waveHalfZ,
             waveParts: water._visual.waveGroup.children.length,
             reservoirDepth: water.getZone().reservoirBounds.max[2] - water.getZone().reservoirBounds.min[2],
             reservoirVisible: water._visual.reservoirSurface.visible,
@@ -137,8 +195,14 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
             reservoirPoint,
             reservoirUnderwater: water.isPositionUnderwater(reservoirPoint),
             reservoirCollision: reservoirPoint ? arena.checkCollision(reservoirPoint, playerRadius) : true,
-            reservoirPicture,
-            picture: wavePicture,
+            assetReservoirY,
+            reservoirSurfaceY: water._visual.reservoirSurface.position.y,
+            pictures: {
+                reservoir: reservoirPicture, intact: intactPicture,
+                leak: leakPicture, wave: wavePicture,
+                side: sidePicture, transition: transitionPicture,
+                ruin: ruinPicture, flooded: floodedPicture,
+            },
         };
     }, { mapScale: MAP_SCALE });
 
@@ -151,9 +215,19 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
     expect(result.intactVisible).toBe(false);
     expect(result.collapseVisible).toBe(true);
     expect(result.phase).toBe('wave');
+    expect(result.earlyLeakVisible).toBe(true);
+    expect(result.midJetVisible).toBe(true);
+    expect(result.transitionPhase).toBe('rising');
+    expect(result.transitionFoamOpacity).toBeGreaterThan(0);
+    expect(result.transitionSurfaceVisible).toBe(false);
+    expect(result.risePhase).toBe('rising');
+    expect(result.riseSurfaceVisible).toBe(true);
+    expect(result.finalPhase).toBe('flooded');
+    expect(result.gateAttached).toBe(true);
     expect(result.waveOrigin).toBe('maxZ');
-    expect(result.waveStartZ).toBeCloseTo(270, 4);
-    expect(result.waveHalfZ).toBeCloseTo(0, 4);
+    expect(result.waveStartZ).toBeCloseTo(171, 4);
+    const waveProgress = (2 - 0.3) / (4 - 0.3);
+    expect(result.waveHalfZ).toBeCloseTo(171 + (-270 - 171) * waveProgress, 4);
     expect(result.waveParts).toBe(5);
     expect(result.reservoirDepth).toBeCloseTo(15, 6);
     expect(result.reservoirVisible).toBe(true);
@@ -161,16 +235,12 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
     expect(result.reservoirPoint).not.toBeNull();
     expect(result.reservoirUnderwater).toBe(true);
     expect(result.reservoirCollision).toBe(false);
+    expect(result.assetReservoirY).toBeCloseTo(result.reservoirSurfaceY, 2);
 
-    const reservoirScreenshot = testInfo.outputPath('storm-dam-reservoir-before-breach.png');
-    await writeFile(reservoirScreenshot, Buffer.from(result.reservoirPicture.split(',')[1], 'base64'));
-    await testInfo.attach('storm-dam-reservoir-before-breach', {
-        path: reservoirScreenshot,
-        contentType: 'image/png',
-    });
-
-    const screenshot = testInfo.outputPath('storm-dam-breach-wave.png');
-    await writeFile(screenshot, Buffer.from(result.picture.split(',')[1], 'base64'));
-    await testInfo.attach('storm-dam-breach-wave', { path: screenshot, contentType: 'image/png' });
+    for (const [phase, picture] of Object.entries(result.pictures)) {
+        const screenshot = path.join(tmpdir(), `storm-dam-breach-${phase}-${Date.now()}.png`);
+        await writeFile(screenshot, Buffer.from(picture.split(',')[1], 'base64'));
+        console.log(`dam screenshot ${phase}: ${screenshot}`);
+    }
     expect(errors).toEqual([]);
 });

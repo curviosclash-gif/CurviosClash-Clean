@@ -253,10 +253,7 @@ export class GameRuntimeSessionHandler {
                 facade?.game?._showStatusToast?.('Start nicht möglich: Match-Controller nicht verfügbar.', 2000, 'error');
                 return false;
             }
-            if (typeof startResult.then === 'function') {
-                return Promise.resolve(startResult).then((resolvedResult) => resolvedResult !== false);
-            }
-            return startResult !== false;
+            return Promise.resolve(startResult).then((resolvedResult) => resolvedResult !== false);
         };
         return this._awaitPendingFinalizeForStart(buildTelemetryPayload(), runStartAttempt);
     }

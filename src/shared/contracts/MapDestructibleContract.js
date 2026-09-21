@@ -1,3 +1,5 @@
+import { readBreakSceneAttachments, readIdList } from './MapDestructibleInputOps.js';
+
 /**
  * Contract for map geometry a match can shoot apart.
  *
@@ -122,6 +124,7 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * @property {string} modelId GLB model holding the baked fall; hidden until the scene starts.
  * @property {readonly string[]} pieces Tower pieces this scene animates.
  * @property {readonly string[]} hideModelIds Intact models that disappear when it starts.
+ * @property {readonly Readonly<{modelId: string, parentNodeName: string}>[]} attachedModels Models that follow a moving node while retaining their own animation.
  * @property {boolean} yawFromEvent Whether the event's heading turns the scene around Y.
  * @property {number} bakedHeading World heading the clip was authored falling towards, in [0, 2pi).
  * @property {Readonly<MapDestructibleBlast> | null} blast Radial damage the break deals; null for none.
@@ -143,6 +146,7 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * @property {number} yaw Angle to turn the slot by: the event heading minus the baked heading.
  * @property {boolean} yawFromEvent
  * @property {string[]} hideModelIds
+ * @property {readonly Readonly<{modelId: string, parentNodeName: string}>[]} attachedModels
  * @property {string[]} hiddenPieceIds Pieces an earlier entry already took away.
  */
 
@@ -337,27 +341,6 @@ function readSegment(source, index) {
 }
 
 /**
- * Trimmed, unique, capped list of ids. Anything that is not a usable string is dropped rather
- * than kept as an id no model or piece will ever answer to.
- * @param {unknown} value
- * @param {number} maxEntries
- * @returns {string[]}
- */
-function readIdList(value, maxEntries) {
-    const entries = Array.isArray(value) ? value : [];
-    /** @type {string[]} */
-    const ids = [];
-    for (const entry of entries) {
-        if (ids.length >= maxEntries) break;
-        if (typeof entry !== 'string') continue;
-        const id = entry.trim().slice(0, MAP_DESTRUCTIBLE_LIMITS.idMaxLength);
-        if (!id || ids.includes(id)) continue;
-        ids.push(id);
-    }
-    return ids;
-}
-
-/**
  * Game modes a map states its geometry may be shot apart in. Upper-cased, trimmed and unique, so
  * a preset can write them the way they read and the runtime still compares them exactly.
  * @param {unknown} value
@@ -366,7 +349,8 @@ function readIdList(value, maxEntries) {
 function readGameModes(value) {
     /** @type {string[]} */
     const modes = [];
-    for (const mode of readIdList(value, MAP_DESTRUCTIBLE_LIMITS.maxGameModes)) {
+    for (const mode of readIdList(value, MAP_DESTRUCTIBLE_LIMITS.maxGameModes,
+        MAP_DESTRUCTIBLE_LIMITS.idMaxLength)) {
         const upper = mode.toUpperCase();
         if (!modes.includes(upper)) modes.push(upper);
     }
@@ -436,7 +420,8 @@ function readBreakScene(source, index, pieceIds) {
     const modelId = readText(source.modelId, '', MAP_DESTRUCTIBLE_LIMITS.idMaxLength);
     if (!trigger || !modelId) return null;
 
-    const pieces = readIdList(source.pieces, MAP_DESTRUCTIBLE_LIMITS.maxPieces)
+    const pieces = readIdList(source.pieces, MAP_DESTRUCTIBLE_LIMITS.maxPieces,
+        MAP_DESTRUCTIBLE_LIMITS.idMaxLength)
         .filter((piece) => pieceIds.includes(piece));
     return Object.freeze({
         id: readText(source.id, `break_scene_${index}`, MAP_DESTRUCTIBLE_LIMITS.idMaxLength),
@@ -446,7 +431,10 @@ function readBreakScene(source, index, pieceIds) {
         hideModelIds: Object.freeze(readIdList(
             source.hideModelIds,
             MAP_DESTRUCTIBLE_LIMITS.maxHideModelIds,
+            MAP_DESTRUCTIBLE_LIMITS.idMaxLength,
         )),
+        attachedModels: readBreakSceneAttachments(source.attachedModels, modelId,
+            MAP_DESTRUCTIBLE_LIMITS.maxHideModelIds, MAP_DESTRUCTIBLE_LIMITS.idMaxLength),
         yawFromEvent: source.yawFromEvent !== false,
         // Where this clip was baked falling. A scene that states nothing is read as falling towards
         // +Z, which is heading zero and therefore turns by the event heading itself.
@@ -479,6 +467,7 @@ export function normalizeMapDestructibles(source) {
     const pieces = readIdList(
         isRecord(source) ? source.pieces : null,
         MAP_DESTRUCTIBLE_LIMITS.maxPieces,
+        MAP_DESTRUCTIBLE_LIMITS.idMaxLength,
     );
     const sceneEntries = isRecord(source) && Array.isArray(source.breakScenes) ? source.breakScenes : [];
     /** @type {Readonly<MapDestructibleBreakScene>[]} */
@@ -555,6 +544,7 @@ export function resolveMapDestructibleSceneTimeline(definition, events) {
             yaw: normalizeHeading(normalizeHeading(source.yaw) - scene.bakedHeading),
             yawFromEvent: scene.yawFromEvent,
             hideModelIds: [...scene.hideModelIds],
+            attachedModels: scene.attachedModels,
             hiddenPieceIds: scene.pieces.filter((piece) => consumed.has(piece)),
         });
         for (const piece of scene.pieces) consumed.add(piece);

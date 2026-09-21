@@ -1,3 +1,11 @@
+import { MAP_SANDSTORM_PHASES } from '../../shared/contracts/MapSandstormContract.js';
+
+export function resolveMapSandstormLighting(normal, state) {
+    return state?.phase === MAP_SANDSTORM_PHASES.ACTIVE
+        ? resolveSandstormLighting(normal, state.intensity)
+        : normal;
+}
+
 function lerpNumber(from, to, amount) {
     return from + (to - from) * amount;
 }

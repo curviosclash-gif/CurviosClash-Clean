@@ -21,5 +21,8 @@ export function toRuntimeWaterZone(value, invScale) {
         } : {}),
         startLevel: normalized.startLevel * invScale,
         targetLevel: normalized.targetLevel * invScale,
+        waveOpeningWidth: normalized.waveOpeningWidth * invScale,
+        waveSourceInset: normalized.waveSourceInset * invScale,
+        waveFloorOffset: normalized.waveFloorOffset * invScale,
     });
 }

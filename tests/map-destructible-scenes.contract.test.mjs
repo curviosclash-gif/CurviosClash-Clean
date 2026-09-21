@@ -182,6 +182,7 @@ test('a piece that already fell is hidden in every later scene', () => {
         yaw: Math.PI,
         yawFromEvent: true,
         hideModelIds: ['eiffel-summit'],
+        attachedModels: [],
         hiddenPieceIds: [],
     });
     // The summit is already lying on the esplanade, so the toppling tower must not carry it.

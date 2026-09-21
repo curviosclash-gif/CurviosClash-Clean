@@ -75,6 +75,8 @@ export function normalizeWaterZone(value) {
         : null;
     const startLevel = clamp(value.startLevel, min[1], max[1]);
     const targetLevel = clamp(value.targetLevel, startLevel, max[1]);
+    const width = Math.max(0.1, max[0] - min[0]);
+    const depth = Math.max(0.1, max[2] - min[2]);
     return Object.freeze({
         id: String(value.id || 'water_zone').trim().slice(0, 64) || 'water_zone',
         triggerSegmentId: String(value.triggerSegmentId || '').trim().slice(0, 64),
@@ -85,6 +87,9 @@ export function normalizeWaterZone(value) {
         waveSeconds: clamp(value.waveSeconds, 0.1, 15),
         riseSeconds: clamp(value.riseSeconds, 1, 120),
         waveOrigin: WAVE_ORIGIN_SET.has(value.waveOrigin) ? value.waveOrigin : WATER_WAVE_ORIGINS.MIN_Z,
+        waveOpeningWidth: clamp(value.waveOpeningWidth ?? width, 0.1, width),
+        waveSourceInset: clamp(value.waveSourceInset ?? 0, 0, depth * 0.5),
+        waveFloorOffset: clamp(value.waveFloorOffset ?? 0, 0, max[1] - startLevel),
         effects: readEffects({ ...DEFAULT_EFFECTS, ...(value.effects || {}) }),
     });
 }
