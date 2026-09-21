@@ -21,6 +21,7 @@ import {
 import { shootPlayerItemProjectile } from './projectile/PlayerProjectileFireOps.js';
 import { applyGuidedRocketInput } from './projectile/GuidedRocketControlOps.js';
 import { endGuidedRocketAutopilot } from '../ai/GuidedRocketAutopilotOps.js';
+import { interceptRocket } from './projectile/RocketInterceptOps.js';
 import {
     applyProjectileCosmeticColor,
     createProjectileCosmeticGroup,
@@ -97,6 +98,8 @@ export class ProjectileSystem {
         this._rocketThreatTracker = new RocketThreatTracker(this);
     }
     getRocketThreat(playerIndex) { return this._rocketThreatTracker.getThreat(playerIndex); }
+
+    interceptRocket(target, defender, interceptor = null) { return interceptRocket(this, target, defender, interceptor); }
 
     shootItemProjectile(player, preferredIndex = -1, rocketOnly = false) {
         return shootPlayerItemProjectile(this, player, preferredIndex, rocketOnly);
@@ -198,12 +201,15 @@ export class ProjectileSystem {
         );
         projectile.homingReacquireTimer = 0;
         configureExternalProjectileTarget(projectile, options);
+        projectile.interceptTargetId = String(options.interceptTargetId || '');
+        projectile.isInterceptor = projectile.interceptTargetId !== '';
+        if (projectile.isInterceptor) projectile.target = null;
         projectile.environmentProjectile = environmentProjectile;
         projectile.targetPlayerIndex = Number.isInteger(options.targetPlayerIndex)
             ? options.targetPlayerIndex
             : -1;
         projectile.targetReacquireDisabled = environmentProjectile || options.targetReacquireDisabled === true;
-        projectile.ignoresTrails = environmentProjectile || options.ignoresTrails === true;
+        projectile.ignoresTrails = environmentProjectile || projectile.isInterceptor || options.ignoresTrails === true;
         projectile.ignoresTurrets = environmentProjectile || options.ignoresTurrets === true;
         projectile.zoneProjectile = options.zoneProjectile === true;
         projectile.zoneSequence = Math.max(0, Number(options.zoneSequence) || 0);

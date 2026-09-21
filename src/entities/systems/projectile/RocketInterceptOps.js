@@ -216,3 +216,16 @@ export function resolveInterceptHit(system, projectile, hitResolver) {
     });
     return true;
 }
+
+/** Removes one hostile rocket hit by a non-projectile defence such as an MG turret. */
+export function interceptRocket(system, target, defender, interceptor = null) {
+    if (system?.networkReplica || !target || target.zoneProjectile === true
+        || target.isInterceptor === true || !isRocketTierType(target.type)) return false;
+    const index = system.projectiles?.indexOf(target) ?? -1;
+    if (index < 0) return false;
+    system._hitResolver?.detonateProjectile?.(target, target.position);
+    system.onRocketIntercepted?.({ defender, interceptor, target, position: target.position });
+    const liveIndex = system.projectiles.indexOf(target);
+    if (liveIndex >= 0) system._removeProjectileAt?.(liveIndex);
+    return true;
+}
