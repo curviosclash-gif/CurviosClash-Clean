@@ -1,6 +1,21 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, openStartSetupSection, waitForLoadedGame } from './helpers.js';
 
+test('Desktop-Hangar schließt mit Escape über denselben Pfad wie Zurück zum Menü', async ({ page, electronApp }) => {
+    await waitForLoadedGame(page);
+    await openCustomSubmenu(page);
+    await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
+    await openStartSetupSection(page, 'arcade');
+    const windowPromise = electronApp.waitForEvent('window');
+    await page.locator('.hangar-window-open').click();
+    const hangarPage = await windowPromise;
+    await hangarPage.waitForLoadState('domcontentloaded');
+    await expect(hangarPage.locator('#arcade-vehicle-manager')).toBeVisible({ timeout: 10_000 });
+    const escapePress = hangarPage.keyboard.press('Escape').catch(() => {});
+    await expect.poll(() => electronApp.windows().length).toBe(1);
+    await escapePress;
+});
+
 test('Desktop-Hangar wechselt Fahrzeuge über die neuen Richtungsschalter', async ({ page, electronApp }) => {
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);

@@ -574,6 +574,15 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         await expect(page.locator(`#preset-select option[value="${presetId}"]`)).toHaveCount(0);
     });
 
+    test('T20escape: Escape verlässt den Mehrspieler-Bereich ohne Lobby-Austritt', async ({ page }) => {
+        await loadGame(page);
+        await openMultiplayerSubmenu(page);
+        await expect(page.locator('#submenu-multiplayer')).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#submenu-multiplayer')).toBeHidden();
+        await expect(page.locator('#menu-nav')).toBeVisible();
+    });
+
     test('T20f: Fixed-Preset setzt Match-Contract auf fixed', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
