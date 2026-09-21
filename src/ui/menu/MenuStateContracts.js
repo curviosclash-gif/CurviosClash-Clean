@@ -17,6 +17,7 @@ import { normalizeViewDistance } from '../../shared/contracts/ViewDistanceContra
 import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
+import { normalizeFightHangarState } from '../../shared/contracts/FightHangarStateContract.js';
 import {
     normalizeFourPlayerPlanarSettings,
     normalizeSplitScreenVariant,
@@ -250,6 +251,8 @@ function normalizeLocalSettingsState(localSettings = null) {
         draftStateBySessionType,
         telemetryState,
         eventPlaylistState,
+        ...(source.fightHangar && typeof source.fightHangar === 'object'
+            ? { fightHangar: normalizeFightHangarState(source.fightHangar) } : {}),
     };
 }
 
