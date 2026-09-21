@@ -92,6 +92,41 @@ test('an interceptor reaching its target destroys both rockets and reports the i
     system.dispose();
 });
 
+test('an MG turret can remove a locked rocket through the shared intercept contract', () => {
+    const intercepts = [];
+    const { system, defender, attacker, detonations } = createInterceptWorld({
+        onRocketIntercepted(event) { intercepts.push({ ...event, targetType: event.target?.type }); },
+    });
+    const incoming = spawnRocketAt(system, attacker, new THREE.Vector3(8, 0, 0), new THREE.Vector3(-45, 0, 0));
+
+    assert.equal(system.interceptRocket(incoming, defender, { weapon: 'mg' }), true);
+
+    assert.equal(system.projectiles.length, 0);
+    assert.equal(detonations.length, 1);
+    assert.equal(intercepts.length, 1);
+    assert.equal(intercepts[0].defender, defender);
+    assert.equal(intercepts[0].targetType, 'ROCKET_WEAK');
+    system.dispose();
+});
+
+test('an external turret rocket can enter the existing interceptor flight path', () => {
+    const { system, defender, attacker } = createInterceptWorld();
+    const incoming = spawnRocketAt(system, attacker, new THREE.Vector3(20, 0, 0), new THREE.Vector3(-45, 0, 0));
+    const interceptor = system.spawnExternalProjectile({
+        owner: defender,
+        type: 'ROCKET_WEAK',
+        position: new THREE.Vector3(0, 0, 0),
+        direction: new THREE.Vector3(1, 0, 0),
+        interceptTargetId: incoming.traversalId,
+    });
+
+    assert.equal(interceptor.isInterceptor, true);
+    assert.equal(interceptor.interceptTargetId, incoming.traversalId);
+    assert.equal(interceptor.target, null);
+    assert.equal(interceptor.ignoresTrails, true);
+    system.dispose();
+});
+
 test('an intercept hurts nobody standing next to it', () => {
     const { system, defender, attacker, players } = createInterceptWorld();
     const bystander = createPlayer(2, new THREE.Vector3(2, 0, 6));

@@ -9,6 +9,7 @@ import {
     serializeMapDestructibleState,
 } from '../../shared/contracts/MapDestructibleContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import * as THREE from 'three';
 
 /**
  * Runtime owner of the map geometry a match can shoot apart.
@@ -27,6 +28,7 @@ export class MapDestructibleSystem {
         this.state = createMapDestructibleState(null);
         this.networkReplica = false;
         this.anchorScale = 1;
+        this._targets = [];
         this._forwardedEventSignature = '';
         this._feedbackEventSignature = '';
     }
@@ -50,6 +52,23 @@ export class MapDestructibleSystem {
             ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
             : 1;
         this.state = createMapDestructibleState(this.definition);
+        this._targets.length = 0;
+        for (let index = 0; index < (this.definition?.segments?.length || 0); index += 1) {
+            const segment = this.definition.segments[index];
+            const target = {
+                id: `map_structure:${segment.id}`,
+                segmentId: segment.id,
+                mapStructure: true,
+                destructible: true,
+                alive: true,
+                hp: this.state.segments[index]?.hp || 0,
+                maxHp: this.state.segments[index]?.maxHp || segment.hp,
+                hitboxRadius: 2,
+                position: new THREE.Vector3(...segment.anchor).multiplyScalar(this.anchorScale),
+            };
+            target.takeDamage = (amount, options = {}) => this.applySegmentHit(target.segmentId, amount, options);
+            this._targets.push(target);
+        }
         this._forwardedEventSignature = '';
         this._feedbackEventSignature = '';
         // An arena that was reused rather than rebuilt still shows last round's collapse.
@@ -65,6 +84,7 @@ export class MapDestructibleSystem {
         this.definition = null;
         this.state = createMapDestructibleState(null);
         this.anchorScale = 1;
+        this._targets.length = 0;
         this._forwardedEventSignature = '';
         this._feedbackEventSignature = '';
     }
@@ -100,13 +120,34 @@ export class MapDestructibleSystem {
         );
         if (!segment) return null;
 
-        const result = applyMapDestructibleDamage(this.state, this.definition, segment.id, damage, {
+        return this.applySegmentHit(segment.id, damage, options);
+    }
+
+    applySegmentHit(segmentId, damage, options = {}) {
+        if (this.networkReplica || !this.definition || this.state.sealed) return null;
+        const result = applyMapDestructibleDamage(this.state, this.definition, segmentId, damage, {
             atSeconds: this.getElapsedSeconds(),
             hitDirection: options?.hitDirection,
         });
         if (!result.applied) return null;
+        this._syncTargets();
         if (result.event) this._onSegmentDestroyed(result.event, options);
         return result;
+    }
+
+    _syncTargets() {
+        for (let index = 0; index < this._targets.length; index += 1) {
+            const target = this._targets[index];
+            const state = this.state.segments.find((entry) => entry.id === target.segmentId);
+            target.hp = Math.max(0, Number(state?.hp) || 0);
+            target.maxHp = Math.max(1, Number(state?.maxHp) || 1);
+            target.alive = state?.destroyed !== true && state?.collapsed !== true && target.hp > 0;
+        }
+    }
+
+    getTargets() {
+        this._syncTargets();
+        return this.state.sealed ? [] : this._targets;
     }
 
     getState() {
@@ -128,6 +169,7 @@ export class MapDestructibleSystem {
     applyNetworkState(serialized) {
         if (!serialized) return this.state;
         applyMapDestructibleNetworkState(this.state, serialized);
+        this._syncTargets();
         // The host sends state, not animation commands. The replica derives the same collapse
         // from the same events, so both towers stand or lie exactly alike.
         this._forwardEventsToArena();

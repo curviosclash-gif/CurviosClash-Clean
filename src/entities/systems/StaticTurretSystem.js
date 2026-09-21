@@ -11,6 +11,7 @@ import {
     createStaticTurretNetworkSnapshot,
 } from './static-turret/StaticTurretNetworkOps.js';
 import { resolveStaticTurretDeployConfig } from './static-turret/StaticTurretDeployConfigOps.js';
+import { applyStaticTurretMgHit } from './static-turret/StaticTurretCombatOps.js';
 import { getStaticTurretHudState, getStaticTurretHudStates } from './static-turret/StaticTurretHudOps.js';
 import { collectActiveStaticTurrets, isStaticTurretSecretRoomActive, syncStaticTurretSecretRoomState } from './static-turret/StaticTurretSecretRoomOps.js';
 import { resolveLocalHumanCount } from './projectile/RocketWarningAudioOps.js';
@@ -21,6 +22,7 @@ import {
 } from './static-turret/StaticTurretRespawnOps.js';
 import {
     hasStaticTurretLineOfSight,
+    isStaticTurretRocketThreatTarget,
     resolveStaticTurretTarget,
 } from './static-turret/StaticTurretTargetingOps.js';
 import {
@@ -268,46 +270,7 @@ export class StaticTurretSystem {
     }
 
     _applyMgHit(turret, target) {
-        const owner = this.entityManager;
-        if (target?.isTrail) {
-            const trailSpatialIndex = owner?._trailSpatialIndex;
-            if (!trailSpatialIndex?.damageTrailSegment || !target.entry) return;
-            const damageResult = trailSpatialIndex.damageTrailSegment(target.entry, turret.damage);
-            owner.particles?.spawnTrailImpact?.(target.position, TURRET_MG_COLOR, {
-                destroyed: damageResult?.destroyed === true,
-            });
-            if (damageResult?.hit) {
-                owner.recorder?.logEvent?.('TURRET_TRAIL_HIT', resolveOwnerIndex(turret), turret.id);
-                if (!turret.ownerPlayer?.isBot) owner.audio?.play?.('MG_HIT', { intensity: 0.5 });
-            }
-            return;
-        }
-        if (!owner || typeof target?.takeDamage !== 'function') return;
-        const damageResult = target.takeDamage(turret.damage);
-        owner._emitHuntDamageEvent?.({
-            target,
-            sourcePlayer: turret.source,
-            cause: 'STATIC_TURRET_MG',
-            damageResult,
-            projectileType: null,
-            impactPoint: target.position,
-        });
-        const appliedDamage = Math.max(
-            0,
-            Number(damageResult?.hpApplied) || 0,
-            Number(damageResult?.absorbedByShield) || 0
-        );
-        if (appliedDamage > 0) {
-            owner.recorder?.logEvent?.('TURRET_PLAYER_HIT', resolveOwnerIndex(turret), turret.id);
-        }
-        if (damageResult?.isDead) {
-            owner.recorder?.logEvent?.('TURRET_KILL', resolveOwnerIndex(turret), turret.id);
-            owner._killPlayer?.(target, 'STATIC_TURRET_MG', {
-                killer: turret.source,
-                impactPoint: target.position,
-                projectileType: 'STATIC_TURRET_MG',
-            });
-        }
+        applyStaticTurretMgHit(this, turret, target);
     }
 
     damageTurret(turret, amount, options = {}) {
@@ -342,12 +305,16 @@ export class StaticTurretSystem {
         if (turret.aimDirection.lengthSq() <= 0.000001) return;
         this._tmpMuzzle.copy(turret.position).addScaledVector(turret.aimDirection, 4.2 * turret.authoredScale);
         if (turret.weapon === 'rocket') {
+            const rocketThreat = isStaticTurretRocketThreatTarget(this, turret, target);
             const projectile = this.entityManager?._projectileSystem?.spawnExternalProjectile?.({
                 owner: turret.source,
                 type: turret.rocketType,
                 position: this._tmpMuzzle,
                 direction: turret.aimDirection,
-                target: target.isTrail ? createTrailTargetDescriptor(target.entry, target.position) : target,
+                target: rocketThreat
+                    ? null
+                    : (target.isTrail ? createTrailTargetDescriptor(target.entry, target.position) : target),
+                interceptTargetId: rocketThreat ? target.traversalId : '',
                 turretTargeting: { targetPlayers: turret.targetPlayers || (turret.deployed ? 'all' : 'humans'), targetTrails: turret.targetTrails === true },
                 sourceTurretId: turret.id,
                 speedMultiplier: 0.82,
@@ -357,8 +324,9 @@ export class StaticTurretSystem {
                 this.entityManager?.audio?.play?.('ROCKET_SHOOT', { intensity: 0.35 });
             }
         } else {
+            this._tmpPoint.copy(target.position);
             this._applyMgHit(turret, target);
-            this._tracerFx.spawnTracer(this._tmpMuzzle, target.position, true, {
+            this._tracerFx.spawnTracer(this._tmpMuzzle, this._tmpPoint, true, {
                 TRACER_COLOR: Number(turret.ownerPlayer?.color) || TURRET_MG_COLOR,
                 TRACER_BEAM_RADIUS: 0.11,
                 TRACER_BULLET_RADIUS: 0.28,

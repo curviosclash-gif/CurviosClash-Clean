@@ -1,4 +1,9 @@
-import { isTurretTargetPlayerEligible } from '../../../shared/contracts/TurretCombatContract.js';
+import {
+    isDestructibleTurret,
+    isTurretTargetPlayerEligible,
+} from '../../../shared/contracts/TurretCombatContract.js';
+import { canTargetEnemy } from '../../../shared/contracts/TeamCombatContract.js';
+import { isRocketTierType } from '../../../hunt/RocketPickupSystem.js';
 import * as THREE from 'three';
 
 function clampFinite(value, fallback, min, max) {
@@ -11,12 +16,60 @@ function isPlayerTargetEligible(turret, candidate) {
     return candidate?.alive && isTurretTargetPlayerEligible(candidate, turret.ownerPlayer || turret.source, turret.targetPlayers);
 }
 
+function isTargetableEligible(turret, candidate) {
+    const owner = turret.ownerPlayer;
+    return !!owner
+        && candidate !== turret
+        && isDestructibleTurret(candidate)
+        && candidate.hp > 0
+        && candidate.alive !== false
+        && candidate.ownerPlayer !== owner
+        && candidate.ownerIndex !== owner.index
+        && canTargetEnemy(owner, candidate)
+        && !!candidate.position;
+}
+
+export function isStaticTurretRocketThreatTarget(system, turret, candidate) {
+    const ownerIndex = Number(turret?.ownerPlayer?.index);
+    if (!Number.isInteger(ownerIndex) || ownerIndex < 0
+        || !candidate?.position
+        || !candidate.traversalId
+        || !isRocketTierType(candidate.type)
+        || candidate.isInterceptor === true
+        || candidate.zoneProjectile === true
+        || Number(candidate.lockedPlayerIndex) !== ownerIndex) {
+        return false;
+    }
+    const projectiles = system.entityManager?._projectileSystem?.projectiles;
+    return Array.isArray(projectiles) && projectiles.includes(candidate);
+}
+
+function findRocketThreat(system, turret) {
+    if (!turret.ownerPlayer) return null;
+    const projectiles = system.entityManager?._projectileSystem?.projectiles || [];
+    let nearest = null;
+    let nearestDistanceSq = turret.range * turret.range;
+    for (const candidate of projectiles) {
+        if (!isStaticTurretRocketThreatTarget(system, turret, candidate)) continue;
+        const distanceSq = turret.position.distanceToSquared(candidate.position);
+        if (distanceSq >= nearestDistanceSq
+            || !hasStaticTurretLineOfSight(system, turret, candidate)) continue;
+        nearest = candidate;
+        nearestDistanceSq = distanceSq;
+    }
+    return nearest;
+}
+
 function isTargetStillValid(system, turret, target) {
     if (!target?.position) return false;
-    if (target.isTrail) {
+    if (isStaticTurretRocketThreatTarget(system, turret, target)) {
+        // The projectile list membership checked above is the lifetime contract for pooled rockets.
+    } else if (target.isTrail) {
         if (!target.entry || target.entry.destroyed) return false;
         const owner = system.entityManager?.players?.[target.entry.playerIndex];
         if (!isTurretTargetPlayerEligible(owner, turret.ownerPlayer || turret.source, turret.targetPlayers)) return false;
+    } else if (isTargetableEligible(turret, target)) {
+        // Registered targets own their live position and HP state.
     } else if (!isPlayerTargetEligible(turret, target)) {
         return false;
     }
@@ -31,7 +84,9 @@ export function hasStaticTurretLineOfSight(system, turret, target) {
     if (distance <= 0.000001) return true;
     const stepSize = clampFinite(turret.losSampleStep, 0.5, 0.2, 2);
     const steps = Math.max(2, Math.ceil(distance / stepSize));
+    const targetClearance = Math.max(0, Number(target.hitboxRadius) || 0);
     for (let i = 1; i < steps; i += 1) {
+        if (distance * (1 - i / steps) <= targetClearance) break;
         system._tmpPoint.lerpVectors(turret.position, target.position, i / steps);
         if (arena.checkCollisionFast(system._tmpPoint, 0.18)) return false;
     }
@@ -110,6 +165,17 @@ function findTarget(system, turret) {
         nearest = candidate;
         nearestDistanceSq = distanceSq;
     }
+    if (turret.ownerPlayer) {
+        const targetables = system.entityManager?._targetableRegistry?.collect?.() || [];
+        for (const candidate of targetables) {
+            if (!isTargetableEligible(turret, candidate)) continue;
+            const distanceSq = turret.position.distanceToSquared(candidate.position);
+            if (distanceSq >= nearestDistanceSq
+                || !hasStaticTurretLineOfSight(system, turret, candidate)) continue;
+            nearest = candidate;
+            nearestDistanceSq = distanceSq;
+        }
+    }
     if (turret.targetTrails === true || (turret.ownerPlayer && turret.targetTrails !== false)) {
         const trailTarget = findTrailTarget(system, turret, nearestDistanceSq);
         if (trailTarget) return trailTarget;
@@ -120,6 +186,14 @@ function findTarget(system, turret) {
 export function resolveStaticTurretTarget(system, turret, dt) {
     turret.targetHoldRemaining = Math.max(0, turret.targetHoldRemaining - dt);
     turret.targetReacquireRemaining = Math.max(0, turret.targetReacquireRemaining - dt);
+    const rocketThreat = findRocketThreat(system, turret);
+    if (rocketThreat) {
+        if (turret.target !== rocketThreat) turret.acquireRemaining = turret.acquireDelaySeconds;
+        turret.target = rocketThreat;
+        turret.targetHoldRemaining = turret.targetHoldSeconds;
+        turret.targetReacquireRemaining = turret.targetReacquireSeconds;
+        return rocketThreat;
+    }
     if (isTargetStillValid(system, turret, turret.target)) {
         if (turret.targetHoldRemaining > 0 || turret.targetReacquireRemaining > 0) return turret.target;
     } else {

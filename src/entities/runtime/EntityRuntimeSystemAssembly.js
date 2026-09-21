@@ -79,6 +79,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     // Every weapon reads its non-player targets from here; map units add their provider later.
     systems.targetableRegistry = new TargetableRegistry();
     systems.targetableRegistry.addProvider(() => systems.staticTurretSystem.getDestructibleTargets());
+    systems.targetableRegistry.addProvider(() => systems.mapDestructibleSystem.getTargets());
     if (owner) owner._targetableRegistry = systems.targetableRegistry;
     systems.flagObjectiveSystem = new FlagObjectiveSystem(owner);
     systems.targetableRegistry.addProvider(() => systems.flagObjectiveSystem.getTargets());
