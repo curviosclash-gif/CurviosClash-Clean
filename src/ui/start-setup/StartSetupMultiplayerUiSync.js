@@ -13,6 +13,8 @@ import {
 import { resolveArcadeGhostDuelModeLabel } from './StartSetupSelectionSync.js';
 import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../../shared/contracts/HuntWinConditionContract.js';
 import { HUNT_LAST_ALIVE_LIVES } from '../../shared/contracts/HuntLivesContract.js';
+import { normalizeTeamHuntSettings } from '../../shared/contracts/TeamHuntContract.js';
+import { normalizeTeamObjectiveType, TEAM_OBJECTIVE_TYPES } from '../../shared/contracts/FlagObjectiveContract.js';
 
 function resolveSessionLabel(surfaceEntryCopy, sessionType) {
     return surfaceEntryCopy.sessionSummaryLabels[sessionType]
@@ -32,6 +34,21 @@ export function formatMenuRulesSummary(settings, modePath) {
     if (modePath === 'arcade') {
         const sectors = settings?.arcade?.sectorCount;
         return sectors ? `${sectors} Sektoren bis zum Sieg · Punkte sammeln` : 'Sektoren meistern · Punkte sammeln';
+    }
+    const teamMode = modePath === 'fight'
+        && (settings?.gameMode === 'HUNT' || settings?.gameMode === 'ESCORT')
+        && (settings?.hunt?.teamMode === true || settings?.gameMode === 'ESCORT');
+    if (teamMode) {
+        const teamSize = normalizeTeamHuntSettings(settings?.hunt).teamSize;
+        const objective = settings?.gameMode === 'ESCORT'
+            ? TEAM_OBJECTIVE_TYPES.ESCORT
+            : normalizeTeamObjectiveType(settings?.hunt?.teamObjective);
+        const objectiveLabel = {
+            [TEAM_OBJECTIVE_TYPES.FLAGS]: 'Flaggen erobern',
+            [TEAM_OBJECTIVE_TYPES.ESCORT]: 'Panzer eskortieren',
+            [TEAM_OBJECTIVE_TYPES.HUNT]: 'Teamkampf',
+        }[objective];
+        return `Teams ${teamSize} gegen ${teamSize} · ${objectiveLabel}`;
     }
     const count = Math.max(0, Number(settings?.numBots) || 0);
     const difficulty = { EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' }[settings?.botDifficulty] || 'Normal';
