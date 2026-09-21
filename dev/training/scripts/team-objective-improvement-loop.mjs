@@ -25,6 +25,8 @@ import {
 const FIXED_STEP = MATCH_KERNEL_FIXED_STEP_SECONDS;
 export const TEAM_OBJECTIVE_TRAINING_SEEDS = Object.freeze([7331]);
 export const TEAM_OBJECTIVE_HOLDOUT_SEEDS = Object.freeze([9341]);
+// Never use these seeds for candidate selection. Run once after the search is frozen.
+export const TEAM_OBJECTIVE_AUDIT_SEEDS = Object.freeze([12101, 12113, 12119]);
 export const TEAM_OBJECTIVE_TUNABLE_FIELDS = Object.freeze([
     'trafficAvoidanceBias',
     'predictiveSafetyBias',
@@ -377,18 +379,18 @@ async function runIteration() {
     );
 }
 
-async function verifyCurrent() {
+async function verifyCurrent(seeds = TEAM_OBJECTIVE_HOLDOUT_SEEDS, split = 'holdout') {
     const state = loadTeamObjectiveState();
     const product = await evaluateTeamObjectiveProfile({
         profile: HEURISTIC_PROFILES.balanced,
-        seeds: TEAM_OBJECTIVE_HOLDOUT_SEEDS,
+        seeds,
     });
     const candidate = await evaluateTeamObjectiveProfile({
         profile: state.profile,
-        seeds: TEAM_OBJECTIVE_HOLDOUT_SEEDS,
+        seeds,
     });
     const passed = isTeamObjectiveCandidateBetter(candidate, product);
-    console.log(JSON.stringify({ passed, product: compactResult(product), candidate: compactResult(candidate) }));
+    console.log(JSON.stringify({ split, seeds, passed, product: compactResult(product), candidate: compactResult(candidate) }));
     if (!passed) process.exitCode = 3;
 }
 
@@ -401,6 +403,7 @@ function printStatus() {
 
 async function runCli() {
     if (process.argv.includes('--status')) return printStatus();
+    if (process.argv.includes('--audit')) return verifyCurrent(TEAM_OBJECTIVE_AUDIT_SEEDS, 'audit');
     if (process.argv.includes('--verify')) return verifyCurrent();
     return runIteration();
 }
