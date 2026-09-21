@@ -9,6 +9,7 @@ import {
     normalizeHeatmapCells,
     summarizeHeatmapCells,
 } from '../../shared/contracts/RoundHeatmapContract.js';
+import { resolveMapPreview } from './MenuPreviewCatalog.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const VIEW_SIZE = 240;
@@ -93,7 +94,7 @@ function createHeatmapSvg(mapKey, cells) {
         width: VIEW_SIZE,
         height: VIEW_SIZE,
         role: 'img',
-        'aria-label': `Ereignisverteilung auf ${mapKey}`,
+        'aria-label': `Ereignisverteilung auf ${resolveMapPreview(mapKey).name}`,
     });
     svg.appendChild(createSvgElement('rect', {
         x: 0,
@@ -149,7 +150,7 @@ function createMapCard(mapKey, cells) {
 
     const title = document.createElement('h4');
     title.className = 'developer-telemetry-title';
-    title.textContent = mapKey;
+    title.textContent = resolveMapPreview(mapKey).name;
     card.appendChild(title);
 
     const svg = createHeatmapSvg(mapKey, cells);
