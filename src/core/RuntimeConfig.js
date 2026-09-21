@@ -3,10 +3,7 @@ import { normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionC
 import { CONFIG, CONFIG_BASE } from './Config.js';
 import { GAME_MODE_TYPES, isHuntMode, resolveActiveGameMode } from '../hunt/HuntMode.js';
 import { BOT_POLICY_TYPES, resolveMatchBotPolicyType } from '../entities/ai/BotPolicyTypes.js';
-import {
-    clampSettingValue,
-    createControlBindingsSnapshot,
-} from '../shared/contracts/SettingsRuntimeContract.js';
+import { clampSettingValue, createControlBindingsSnapshot } from '../shared/contracts/SettingsRuntimeContract.js';
 import { normalizeSessionType } from '../composition/core-ui/CoreSettingsPorts.js';
 import {
     ARCADE_GHOST_DUEL_MODES,
@@ -23,10 +20,7 @@ import {
     createDefaultRecordingCaptureSettings,
     normalizeRecordingCaptureSettings,
 } from '../shared/contracts/RecordingCaptureContract.js';
-import {
-    createDefaultCameraPerspectiveSettings,
-    normalizeCameraPerspectiveSettings,
-} from '../shared/contracts/CameraPerspectiveContract.js';
+import { createDefaultCameraPerspectiveSettings, normalizeCameraPerspectiveSettings } from '../shared/contracts/CameraPerspectiveContract.js';
 import {
     MULTIPLAYER_TRANSPORTS,
     RUNTIME_SESSION_TYPES,
@@ -444,7 +438,7 @@ export function createRuntimeConfigSnapshot(settings, {
             ...(() => {
                 const teamHunt = normalizeTeamHuntSettings(huntSource);
                 return {
-                    teamMode: activeGameMode === GAME_MODE_TYPES.ESCORT || teamHunt.enabled,
+                    teamMode: activeGameMode === GAME_MODE_TYPES.ESCORT || (activeGameMode === GAME_MODE_TYPES.HUNT && teamHunt.enabled),
                     teamObjective: requestedTeamObjective,
                     teamSize: teamHunt.teamSize,
                     teamBotDifficulty: teamHunt.botDifficulty,
