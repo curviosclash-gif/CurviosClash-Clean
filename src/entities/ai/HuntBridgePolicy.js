@@ -26,17 +26,22 @@ import {
 } from '../../hunt/HuntBotPolicy.js';
 import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { applyHuntBotObjectiveMovement } from '../../hunt/HuntBotObjectiveOps.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const TMP_TO_ENEMY = new THREE.Vector3();
 const TMP_FORWARD = new THREE.Vector3();
 const TMP_RIGHT = new THREE.Vector3();
 const TMP_UP = new THREE.Vector3();
+const TMP_ROLE_TARGET = new THREE.Vector3();
+const TMP_ROLE_FORWARD = new THREE.Vector3();
 const HUNT_BRIDGE_STEERING_SCRATCH = {
     _tmpGate: TMP_TO_ENEMY,
     _tmpForward: TMP_FORWARD,
     _tmpRight: TMP_RIGHT,
     _tmpUp: TMP_UP,
+    _tmpRoleTarget: TMP_ROLE_TARGET,
+    _tmpRoleForward: TMP_ROLE_FORWARD,
 };
 
 function resolveObservationValue(observation, index, fallback = 0) {
@@ -47,6 +52,19 @@ function resolveObservationValue(observation, index, fallback = 0) {
 
 function hasYawCommand(action) {
     return action?.yawLeft === true || action?.yawRight === true;
+}
+
+function resolveSurvivalPressure(priorities) {
+    return Math.max(
+        priorities.pressureLevel,
+        priorities.projectileThreat ? 0.82 : 0,
+        (1 - priorities.vitalityRatio) * 0.95
+    );
+}
+
+function shouldRetreatFromPriorities(priorities, survivalPressure = resolveSurvivalPressure(priorities)) {
+    return priorities.vitalityRatio <= 0.34
+        || (priorities.vitalityRatio < 0.52 && survivalPressure > 0.76);
 }
 
 function resolveHuntBridgePriorities(player, runtimeContext) {
@@ -129,11 +147,7 @@ function resolveHuntBridgeAction(runtimeContext, player) {
     const action = {};
     const huntConfig = resolveGameplayConfig(player).HUNT;
     const specialGates = Array.isArray(runtimeContext?.arena?.specialGates) ? runtimeContext.arena.specialGates : [];
-    const survivalPressure = Math.max(
-        priorities.pressureLevel,
-        priorities.projectileThreat ? 0.82 : 0,
-        (1 - priorities.vitalityRatio) * 0.95
-    );
+    const survivalPressure = resolveSurvivalPressure(priorities);
     const fallbackItemAction = resolveHuntFallbackItemAction(player, {
         pressureLevel: priorities.pressureLevel,
         aggression: priorities.aggression,
@@ -193,7 +207,8 @@ function resolveHuntBridgeAction(runtimeContext, player) {
         action.boost = true;
     }
 
-    if (priorities.vitalityRatio <= 0.34 || (priorities.vitalityRatio < 0.52 && survivalPressure > 0.76)) {
+    const shouldRetreat = shouldRetreatFromPriorities(priorities, survivalPressure);
+    if (shouldRetreat) {
         const gateAssistRange = Math.max(24, Number(huntConfig?.RETREAT_GATE_RANGE || 54));
         const readyGate = (survivalPressure > 0.8 || priorities.vitalityRatio < 0.3)
             ? findNearestReadySpecialGate(HUNT_BRIDGE_STEERING_SCRATCH, player, specialGates, gateAssistRange * gateAssistRange)
@@ -245,5 +260,21 @@ export class HuntBridgePolicy extends ObservationBridgePolicy {
         });
 
         this.type = policyType;
+    }
+
+    update(dt, player, runtimeContextOrArena, allPlayers = null, projectiles = null) {
+        const runtimeContext = this._asRuntimeContext(dt, player, runtimeContextOrArena, allPlayers, projectiles);
+        const action = super.update(dt, player, runtimeContext);
+        const priorities = resolveHuntBridgePriorities(player, runtimeContext);
+        applyHuntBotObjectiveMovement({
+            policy: HUNT_BRIDGE_STEERING_SCRATCH,
+            input: action,
+            player,
+            runtimeContext,
+            shouldRetreat: shouldRetreatFromPriorities(priorities),
+            clearSteering: clearSteeringInput,
+            steerToward: applySteeringTowardPosition,
+        });
+        return action;
     }
 }
