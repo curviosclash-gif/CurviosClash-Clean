@@ -7,6 +7,11 @@ function cloneScenario(entry) {
     const rawStrategy = String(entry.botPolicyStrategy || '').trim().toLowerCase();
     const strategy = rawStrategy || 'auto';
     const bots = Math.max(0, Math.trunc(Number(entry.bots) || 0));
+    const teamMode = entry.teamMode === true;
+    const requestedTeamObjective = String(entry.teamObjective || 'HUNT').trim().toUpperCase();
+    const teamObjective = ['HUNT', 'FLAGS', 'ESCORT'].includes(requestedTeamObjective)
+        ? requestedTeamObjective
+        : 'HUNT';
     return {
         id: String(entry.id || ''),
         mode: entry.mode === '2p' ? '2p' : '1p',
@@ -22,6 +27,9 @@ function cloneScenario(entry) {
         portalCount: Math.max(0, Math.trunc(Number(entry.portalCount) || 0)),
         respawnEnabled: normalizedMode === 'HUNT' && entry.respawnEnabled !== false,
         deathmatchKillLimit: Math.max(1, Math.trunc(Number(entry.deathmatchKillLimit) || 1)),
+        teamMode,
+        teamObjective: teamMode ? teamObjective : 'HUNT',
+        teamSize: Math.max(1, Math.min(5, Math.trunc(Number(entry.teamSize) || 4))),
         validationTarget: Object.values(BOT_VALIDATION_TARGETS).includes(entry.validationTarget)
             ? entry.validationTarget
             : BOT_VALIDATION_TARGETS.ROUND,
@@ -215,6 +223,48 @@ export function getBotValidationMatrix() {
             expectedPolicyType: 'heuristic',
             botDifficulty: 'HARD',
             heuristicProfile: 'balanced',
+        },
+        {
+            id: 'H-TEAM-FLAGS',
+            mode: '1p',
+            bots: 5,
+            expectedRuntimeBotCount: 5,
+            mapKey: 'standard',
+            gameMode: 'HUNT',
+            botPolicyStrategy: 'heuristic',
+            planarMode: false,
+            portalCount: 0,
+            respawnEnabled: true,
+            deathmatchKillLimit: 100,
+            teamMode: true,
+            teamObjective: 'FLAGS',
+            teamSize: 3,
+            rounds: 1,
+            expectedPolicyType: 'heuristic',
+            botDifficulty: 'NORMAL',
+            heuristicProfile: 'balanced',
+            seedBase: 7331,
+        },
+        {
+            id: 'H-TEAM-ESCORT',
+            mode: '1p',
+            bots: 5,
+            expectedRuntimeBotCount: 5,
+            mapKey: 'standard',
+            gameMode: 'HUNT',
+            botPolicyStrategy: 'heuristic',
+            planarMode: false,
+            portalCount: 0,
+            respawnEnabled: true,
+            deathmatchKillLimit: 100,
+            teamMode: true,
+            teamObjective: 'ESCORT',
+            teamSize: 3,
+            rounds: 1,
+            expectedPolicyType: 'heuristic',
+            botDifficulty: 'NORMAL',
+            heuristicProfile: 'balanced',
+            seedBase: 7339,
         },
     ];
     return [

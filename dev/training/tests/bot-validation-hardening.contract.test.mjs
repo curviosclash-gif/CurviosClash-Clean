@@ -214,6 +214,8 @@ test('runner applies selected ids, records real bot deaths, and analysis default
         readFile(new URL('../../../package.json', import.meta.url), 'utf8'),
     ]);
     assert.match(runnerSource, /applyBotValidationScenario\(scenarioId\)/);
+    assert.match(runnerSource, /acquirePlaywrightRunLock\(\{ label: 'bot validation' \}\)/);
+    assert.match(runnerSource, /execSync\('npm run build:app'/);
     assert.match(runnerSource, /await g\.runtimeCoordinator\.startMatch\(\{ source: 'bot_validation' \}\)/);
     assert.match(
         runnerSource,
