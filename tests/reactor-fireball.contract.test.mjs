@@ -49,6 +49,10 @@ test('attaching replaces the flat fireball, adds a ground glow and keeps the loa
         assert.ok(disposedOriginal, 'the replaced fireball material is released');
         assert.equal(fireMesh.material.isShaderMaterial, true);
         assert.equal(fireMesh.material.fog, true, 'the fireball fades into the map fog');
+        // The brightest body of the scene takes only part of the fog: full fog erased it
+        // beyond the fog distance while the smoke above it stayed visible.
+        assert.match(fireMesh.material.fragmentShader, /reactorFogFactor\(\)\s*\*\s*0?\.25/);
+        assert.doesNotMatch(fireMesh.material.fragmentShader, /#include <fog_fragment>/);
         assert.equal(fireMesh.material.visible, true);
         const glow = f.scene.getObjectByName('reactor-fire-glow_nocol_noshadow');
         assert.ok(glow, 'ground glow exists');

@@ -104,6 +104,7 @@ varying vec3 vViewNormal;
 varying vec3 vViewDirection;
 ${NOISE_GLSL}
 #include <fog_pars_fragment>
+${FOG_FACTOR_GLSL}
 void main() {
     float n = boil(vObject);
     float facing = clamp(dot(normalize(vViewNormal), normalize(vViewDirection)), 0.0, 1.0);
@@ -115,7 +116,8 @@ void main() {
     gl_FragColor = vec4(color, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
-    #include <fog_fragment>
+    // The brightest body of the scene shines through haze that hides the smoke around it.
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, reactorFogFactor() * .25);
 }
 `;
 
