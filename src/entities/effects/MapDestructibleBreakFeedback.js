@@ -1,4 +1,5 @@
 import { resolveWorldAudioOptions } from '../audio/WorldAudioOptions.js';
+import { REACTOR_FLASH_NAME } from './ReactorFlashOverlay.js';
 
 const REACTOR_SITE_KEY = 'reactor_site';
 const REACTOR_SEGMENT_ID = 'reactor_dome';
@@ -72,6 +73,11 @@ export function emitMapDestructibleBreakFeedback(owner, event) {
     const position = resolveSegmentPosition(owner, event.segmentId);
     if (!position) return false;
 
+    // The flash overlays live in the cloud models and cannot see the player's settings.
+    const reduceMotion = owner.renderer?.getCameraPerspectiveSettings?.()?.reduceMotion === true;
+    for (const overlay of owner.renderer?.scene?.getObjectsByProperty?.('name', REACTOR_FLASH_NAME) || []) {
+        overlay.userData.reduceMotion = reduceMotion;
+    }
     owner.particles?.spawn?.(position, 96, BREACH_COLOR, 24, 1.35, 1.2, {
         gravity: -3.2,
         type: 'reactor-breach',

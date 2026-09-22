@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createVortexCards, resolveVortexProfile, smokeHeat, smoothRange, updateVortexCard } from './ReactorVortexFlow.js';
 import { collectSmokeLobes, SMOKE_VERTEX, SMOKE_FRAGMENT } from './ReactorSmokeGeometry.js';
 import { attachReactorFireball, fireballGlow, sampleFireLight } from './ReactorFireballEffect.js';
+import { attachReactorFlash } from './ReactorFlashOverlay.js';
 
 const ATLAS_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-atlas.png', import.meta.url).href;
 export const MAX_SMOKE_CARDS = 512;
@@ -10,6 +11,7 @@ export async function attachReactorSmoke(root, action, { loadTexture = () => new
     if (!action || !root.getObjectByName('torus_flow_00')) return null;
     // The fireball needs no texture, so it is upgraded even when the atlas fails to load.
     attachReactorFireball(root, action);
+    attachReactorFlash(root, action);
     const texture = await loadTexture();
     texture.colorSpace = THREE.SRGBColorSpace;
     return createReactorSmoke(root, action, texture);
