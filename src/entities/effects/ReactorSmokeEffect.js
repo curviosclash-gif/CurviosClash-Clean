@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createVortexCards, resolveVortexProfile, smoothRange, updateVortexCard } from './ReactorVortexFlow.js';
+import { createVortexCards, resolveVortexProfile, smokeHeat, smoothRange, updateVortexCard } from './ReactorVortexFlow.js';
 import { collectSmokeLobes, SMOKE_VERTEX, SMOKE_FRAGMENT } from './ReactorSmokeGeometry.js';
 
 const ATLAS_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-atlas.png', import.meta.url).href;
@@ -56,7 +56,7 @@ export function createReactorSmoke(root, action, texture) {
     // neither a physical surface nor an addition to the authored map bounds.
     geometry.boundingBox = new THREE.Box3(new THREE.Vector3(), new THREE.Vector3());
     const material = new THREE.ShaderMaterial({
-        uniforms: { smokeData: { value: smokeData }, smokeAtlas: { value: texture }, heat: { value: 0 }, cloudTop: { value: 0 }, cloudBase: { value: 0 } },
+        uniforms: { smokeData: { value: smokeData }, smokeAtlas: { value: texture }, heat: { value: 0 }, smokeTime: { value: 0 }, cloudTop: { value: 0 }, cloudBase: { value: 0 } },
         vertexShader: SMOKE_VERTEX, fragmentShader: SMOKE_FRAGMENT,
         transparent: true, depthWrite: false, depthTest: true,
     });
@@ -71,13 +71,14 @@ export function createReactorSmoke(root, action, texture) {
     const base = new THREE.Vector3();
     const size = new THREE.Vector3();
     const rollPosition = new THREE.Vector3(), rollScale = new THREE.Vector3(), stemScale = new THREE.Vector3();
-    const shape = { x: 0, z: 0, base: 0, height: 0, radius: 0, tubeRadius: 0, tubeHeight: 0, stemRadius: 0 };
+    const shape = { x: 0, z: 0, base: 0, height: 0, radius: 0, tubeRadius: 0, tubeHeight: 0, stemRadius: 0, stemHeight: 0 };
     const scratch = { x: 0, y: 0, z: 0, tx: 0, ty: 0, tz: 0 };
     const compareDepth = (a, b) => a.depth - b.depth;
     mesh.onBeforeRender = (_renderer, _scene, camera) => {
         const time = Math.max(0, action.time);
         const settle = Math.min(1, Math.max(0, (time - .18) / 1.4));
-        material.uniforms.heat.value = 1.5 * Math.exp(-time * .65 * profile.cooling);
+        material.uniforms.heat.value = 1.5 * (1-smoothRange(28,44,time));
+        material.uniforms.smokeTime.value = time;
         top.set(0, topMetres, 0).applyMatrix4(root.matrixWorld);
         base.set(0, 0, 0).applyMatrix4(root.matrixWorld);
         material.uniforms.cloudTop.value = top.y;
@@ -89,6 +90,7 @@ export function createReactorSmoke(root, action, texture) {
         shape.height = rollPosition.y; shape.radius = .9 * rollScale.x;
         shape.tubeRadius = tube * rollScale.x; shape.tubeHeight = tube * rollScale.y;
         shape.stemRadius = stemScale.x;
+        shape.stemHeight = stemScale.y;
         const distance = camera.position.distanceTo(rollPosition);
         const detailVisibility = 1 - smoothRange(8,18,distance / Math.max(20,shape.radius));
         for (const card of cards) {
@@ -102,12 +104,13 @@ export function createReactorSmoke(root, action, texture) {
             const scale = detail ? .85 : 1.65;
             card.width = Math.max(size.x,size.z) * scale;
             card.height = Math.max(size.y, Math.min(size.x,size.z)*.7) * scale;
+            if (lobe.column) card.height *= 1.35 + .12*Math.sin(index*2.3);
             const cycle = time*.25 + index*1.7;
             const stretch = 1 + (detail ? .22 : .12) * Math.sin(cycle) * (1 + profile.turbulence);
             card.width /= Math.sqrt(stretch); card.height *= stretch;
             card.angle = lobe.column ? 0 : Math.sin(index*1.7)*.5 + time*.04*(detail ? 1 : -1);
             card.opacity = detail ? .36 : (/cap|bloom/.test(lobe.node.name) ? .72 : .84);
-            card.glow = .35 + .65 * (Math.sin(index*2.1)*.5+.5);
+            card.glow = smokeHeat(time,index,profile);
             card.tint = 1;
             if (detail) {
                 // Fine surface wisps drift upwards on the column; the independent
@@ -144,10 +147,13 @@ export function createReactorSmoke(root, action, texture) {
             data[offset+6] = card.angle;
             data[offset+7] = index%4+Math.min(.98,card.opacity);
             data[offset+11] = card.glow;
+            data[offset+12] = card.lobe.column
+                ? .85 + .3*smoothRange(base.y,top.y,center.y)
+                : .70 + .65*smoothRange(shape.height-shape.tubeHeight,shape.height+shape.tubeHeight,center.y);
             const tint = (.80 + .20 * Math.exp(-time*.09)) * card.tint;
-            data[offset+8] = (lobe.color.r*.65+.24)*tint;
-            data[offset+9] = (lobe.color.g*.65+.24)*tint;
-            data[offset+10] = (lobe.color.b*.65+.24)*tint;
+            data[offset+8] = (lobe.color.r*.85+.16)*tint;
+            data[offset+9] = (lobe.color.g*.85+.16)*tint;
+            data[offset+10] = (lobe.color.b*.85+.16)*tint;
         }
         // Uniform textures upload after onBeforeRender; ordinary attributes already
         // uploaded during scene projection would lag a seek or the second camera.

@@ -1,6 +1,7 @@
 {
-  "headWidth": 1.35,
+  "headWidth": 1.755,
   "stemWidth": 1.5,
+  "stemProfile": { "baseline": "681aa7f8", "lower": 3, "upper": 2, "lowerHeight": 0.15, "upperHeight": 0.85 },
   "profiles": [
     { "id": 1, "name": "compact", "circulation": 1.5, "riseExponent": 1.0, "turbulence": 0.10, "cooling": 1.0, "shedding": 0.65 },
     { "id": 2, "name": "broad", "circulation": 1.12, "riseExponent": 1.08, "turbulence": 0.08, "cooling": 0.85, "shedding": 0.45 },

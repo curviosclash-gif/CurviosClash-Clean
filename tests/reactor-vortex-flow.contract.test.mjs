@@ -1,9 +1,38 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { resolveVortexProfile, sampleVortexStream, vortexTravel } from '../src/entities/effects/ReactorVortexFlow.js';
+import { resolveVortexProfile, sampleVortexStream, smokeHeat, stemWidthAt, vortexTravel } from '../src/entities/effects/ReactorVortexFlow.js';
 
 const shape = { radius: 100, tubeRadius: 25, tubeHeight: 20, stemRadius: 30, base: 0, height: 200 };
 const sample = (phase) => sampleVortexStream({}, phase, 0, shape);
+
+test('stem profile keeps lower and upper width ratios with no pinched middle', () => {
+    assert.equal(stemWidthAt(.1),3);
+    assert.equal(stemWidthAt(.9),2);
+    let previous=3;
+    for(let h=0;h<=1;h+=.01){const width=stemWidthAt(h);assert.ok(width<=previous+1e-10 && width>=2);previous=width;}
+    assert.equal(sample(0).x,shape.stemRadius*.5*3);
+});
+
+test('individual embers survive ascent and cool at distinct bounded rates', () => {
+    for(let variant=1;variant<=4;variant++){
+        const profile=resolveVortexProfile(variant);
+        assert.ok(smokeHeat(12,2,profile)>.05);
+        assert.ok(smokeHeat(30,2,profile)<smokeHeat(12,2,profile));
+        assert.notEqual(smokeHeat(12,1,profile),smokeHeat(12,2,profile));
+    }
+});
+
+test('stream widening uses the exported stem height rather than the roll height', () => {
+    const unequal={...shape,stemHeight:160};
+    for(const h of [.1,.5,.9]) {
+        const s=h*unequal.stemHeight/(unequal.height-unequal.base);
+        const point=sampleVortexStream({},s*.45,0,unequal);
+        const bend=s**4*(5-4*s);
+        const expected=unequal.stemRadius*.5*stemWidthAt(h)*(1-bend)+(unequal.radius-unequal.tubeRadius)*bend;
+        assert.ok(Math.abs(point.x-expected)<1e-8);
+        assert.ok(Math.abs(point.y-h*unequal.stemHeight)<1e-8);
+    }
+});
 
 test('smoke feeds continuously from the stem and rolls up, out, down and inward', () => {
     assert.ok(sample(.2).ty > 0);

@@ -27,13 +27,16 @@ export async function captureReactorVideo(page, variant, directory) {
                 arena.setGlbAnimationElapsedSeconds(time);arena._glbAnimation.advance(0);
                 const r=g.renderer.renderer,camera=g.renderer.cameras[0];
                 const oldPosition=camera.position.clone(),oldRotation=camera.quaternion.clone(),oldFar=camera.far;
+                const oldFov=camera.fov, oldAspect=camera.aspect;
                 camera.position.set(1050,520,1150);camera.lookAt(0,490,0);camera.far=5000;
+                camera.fov=50;camera.aspect=16/9;
                 camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
                 r.setRenderTarget(null);r.render(g.renderer.scene,camera);
                 const canvas=document.createElement('canvas');canvas.width=960;canvas.height=540;
                 canvas.getContext('2d').drawImage(r.domElement,0,0,960,540);
                 const result=canvas.toDataURL('image/png');
                 camera.position.copy(oldPosition);camera.quaternion.copy(oldRotation);camera.far=oldFar;
+                camera.fov=oldFov;camera.aspect=oldAspect;
                 camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
                 return result;
             },{time:49*frame/(frames-1)});

@@ -54,17 +54,29 @@ billow noise into `smoke/smoke-atlas.png` (four 256px RGBA tiles); `smoke-bake.b
 keeps the editable bake scene. Run it with Blender 4.2 and `--python-exit-code 1`.
 The runtime recovers connected lobes from the GLB, follows their animated rigs,
 sorts them separately for each camera, and animates cooling and small wisps from
-the same clip clock. The fireball, damage curve, ruin and ground dust are unchanged.
+the same clip clock. The fireball, damage curve and ruin are unchanged. The flat
+ground-dust front starts with pressure at 0.28 seconds and feeds rising wisps.
 
-The final head is 35% wider and the stem 50% wider than the initial runtime
-adaptation, with an additional upper stem flare. Width develops during ascent;
-the final top remains at 115% of map height. Shared profiles in
+The final head is 30% wider than version `681aa7f8` (1.755 times the initial
+runtime adaptation's width), while preserving its final height.
+The stem has a smooth height-dependent width profile relative to version
+`681aa7f8`: triple diameter below normalized stem height 0.15 and double above
+0.85, measured on the exported mesh at sections 0.10 and 0.90. These ratios are
+applied to the frozen generator geometry, never cumulatively to the last export.
+The existing upper flare remains. Width develops during ascent; the final top
+remains at 115% of map height. Shared profiles in
 `src/shared/vfx/ReactorVortexProfiles.json` define compact fast circulation,
 broad slow circulation, strong updraft, and turbulent circulation. The Blender
 generator and runtime consume the same profile IDs exported on the roll rig.
 Continuous stream wisps rise through the stem, join the inner rim with matching
 tangents, and turn outward, downward and inward. Additional edge vortices fade
-before the final pose. Hot parcels cool individually. Distance LOD removes fine
+before the final pose. The widened streamline follows the same stem profile.
+Overlapping elongated column lobes and gently warped atlas samples break up
+repeated bead silhouettes. Upper/lower torus shading reveals circulation;
+warm brown, ochre, cool pale grey and charcoal distinguish the four variants.
+Hot parcels cool individually throughout ascent, with the overall emission
+ending between seconds 28 and 44. Atlas brightness thresholds use linear colour
+values after sRGB decoding. Distance LOD removes fine
 instances while keeping the coarse silhouette; smoke fades near the camera.
 
 Regenerate runtime adaptations with Blender:

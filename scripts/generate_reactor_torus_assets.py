@@ -21,7 +21,13 @@ TARGET_TOP = (CONFIG['baseMapHeight'] * CONFIG['mapHeightMultiplier'] * CONFIG['
 ORIGINAL_POSE = reactor.cloud_pose
 VORTEX = json.loads((ROOT / 'src/shared/vfx/ReactorVortexProfiles.json').read_text())
 GENERATOR_ID = 'reactor-torus-runtime'
-GENERATOR_VERSION = '2.0.0'
+GENERATOR_VERSION = '3.0.0'
+
+
+def stem_profile(height):
+    profile = VORTEX['stemProfile']
+    u = min(1, max(0, (height - profile['lowerHeight']) / (profile['upperHeight'] - profile['lowerHeight'])))
+    return profile['lower'] + (profile['upper'] - profile['lower']) * u * u * (3 - 2 * u)
 
 
 def billow(canvas, material, center, radius, squash=1, steps=8, segments=16):
@@ -110,8 +116,20 @@ def build_cloud(scene, design):
 
     replace_billows('cap', cap)
     replace_billows('stem', stem)
+    # Deform the existing sections, not their height: the endpoints are exact
+    # diameter ratios against the frozen v2 geometry, including its upper flare.
+    # Secondary plumes retain their own small wisps; widening their offset
+    # centres as well would create disconnected, oversized side arms.
+    for name in ('stem',):
+        for obj in bpy.data.objects[name].children_recursive:
+            if obj.type != 'MESH':
+                continue
+            for vertex in obj.data.vertices:
+                factor = stem_profile(vertex.co.z)
+                vertex.co.x *= factor
+                vertex.co.y *= factor
 
-    rgb = design['color']
+    rgb = ((.31, .22, .14, 1), (.40, .29, .12, 1), (.43, .48, .52, 1), (.16, .17, .18, 1))[profile['id'] - 1]
     for name, factor in [(reactor.CLOUD, 1), (reactor.CLOUD_DARK, .65), (reactor.DUST, .77)]:
         mat = bpy.data.materials[name]
         color = tuple(v * factor for v in rgb[:3]) + (1,)
@@ -147,6 +165,12 @@ def build_cloud(scene, design):
         progress = min(1, max(0, (smoke_time - reactor.CAP_START_SECONDS) / reactor.CAP_RISE_SECONDS)) ** .5
         head_growth = 1 + (VORTEX['headWidth'] - 1) * min(1, max(0, t / 40)) ** .7
         stem_growth = 1 + (VORTEX['stemWidth'] - 1) * min(1, max(0, t / 40)) ** .7
+        widening = min(1, max(0, t / 24))
+        stem_growth *= .4 + .6 * widening * widening * (3 - 2 * widening)
+        for name, onset in (('front', reactor.FRONT_START_SECONDS), ('ring', reactor.RING_START_SECONDS)):
+            dust_pose = ORIGINAL_POSE(t + onset - .28)[name]
+            loc, scale, yaw = dust_pose
+            values[name] = (loc, (scale[0], scale[1], scale[2] * .55), values[name][2])
         lift = extra_height * progress
         for name in ('cap', 'roll', 'bloom'):
             loc, scale, yaw = values[name]

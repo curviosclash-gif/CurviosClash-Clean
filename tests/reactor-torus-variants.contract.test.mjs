@@ -23,6 +23,39 @@ async function load(url) {
     return new GLTFLoader().parseAsync(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength), '');
 }
 
+// Intersect the actual mesh edges with a horizontal section. Frozen dimensions
+// are from 681aa7f8, before the requested lower x3 / upper x2 deformation.
+function sectionWidth(geometry, height, axis) {
+    const p=geometry.attributes.position, index=geometry.index;
+    let low=Infinity, high=-Infinity;
+    for(let i=0;i<index.count;i+=3) for(let edge=0;edge<3;edge++) {
+        const a=index.getX(i+edge), b=index.getX(i+(edge+1)%3);
+        const ay=p.getY(a), by=p.getY(b);
+        if((ay-height)*(by-height)>0 || ay===by) continue;
+        const t=(height-ay)/(by-ay);
+        const value=p.getComponent(a,axis)+(p.getComponent(b,axis)-p.getComponent(a,axis))*t;
+        low=Math.min(low,value); high=Math.max(high,value);
+    }
+    return high-low;
+}
+
+test('all exported stems have triple lower and double upper sections and pressure-timed flat dust', async () => {
+    for(const id of scene.modelVariants) {
+        const gltf=await load(map.glbModels.find((entry)=>entry.id===id).url);
+        const stem=gltf.scene.getObjectByName('stem');
+        const geometry=stem.children.find((node)=>node.isMesh).geometry;
+        for(const [height, baseline, multiplier] of [[.1,[1.4617303749,1.3850613434],3],[.9,[2.3761902236,2.4174444408],2]]) {
+            for(const [i,axis] of [0,2].entries()) assert.ok(Math.abs(sectionWidth(geometry,height,axis)/baseline[i]-multiplier)<.02,`${id} section ${height}`);
+        }
+        const mixer=new THREE.AnimationMixer(gltf.scene);mixer.clipAction(gltf.animations[0]).play();
+        const front=gltf.scene.getObjectByName('front');
+        mixer.setTime(.2);assert.ok(front.scale.x<.01,'no dust before pressure');
+        mixer.setTime(.35);assert.ok(front.scale.x>20,'front starts with pressure');
+        mixer.setTime(48);assert.ok(front.scale.y<15,'dust stays close to ground');
+        mixer.stopAllAction();mixer.uncacheRoot(gltf.scene);
+    }
+});
+
 test('host selects all four variants only on destruction and replicas keep the choice', () => {
     for (let index = 0; index < 4; index += 1) {
         let draws = 0;
@@ -126,7 +159,7 @@ test('all game exports reach 15 percent above the enlarged map and preserve fire
         const bounds = new THREE.Box3().setFromObject(gltf.scene, true);
         const variant = scene.modelVariants.indexOf(modelId);
         const capSize = new THREE.Box3().setFromObject(gltf.scene.getObjectByName('cap'), true).getSize(new THREE.Vector3());
-        assert.ok(Math.abs(Math.max(capSize.x, capSize.z) / previousHeadWidths[variant] - 1.35) < .001, 'head ends 35 percent wider');
+        assert.ok(Math.abs(Math.max(capSize.x, capSize.z) / (previousHeadWidths[variant]*1.35) - 1.30) < .001, 'head ends 30 percent wider than 681aa7f8');
         assert.ok(Math.abs(gltf.scene.getObjectByName('stem').scale.x / 23.976076126 - 1.5) < .001, 'stem ends 50 percent wider');
         assert.equal(gltf.scene.getObjectByName('roll').userData.vortexProfile, variant + 1);
         assert.ok(Math.abs(bounds.max.y * model.scale + model.position[1] - map.size[1] * 1.15) < .02);

@@ -46,6 +46,7 @@ varying float vSmokeAlpha;
 varying float vWorldHeight;
 varying float vSmokeHeat;
 varying float vSmokeDepth;
+varying float vSmokeLight;
 uniform float cloudTop;
 uniform float cloudBase;
 void main() {
@@ -56,6 +57,7 @@ void main() {
     vSmokeUv = uv;
     vSmokeColor = smokeColor;
     vSmokeHeat = texture2D(smokeData,vec2(.625,smokeRow)).a;
+    vSmokeLight = texture2D(smokeData,vec2(.875,smokeRow)).r;
     vSmokeAlpha = smokeShape.w;
     vec2 p = position.xy * smokeShape.xy;
     vec2 rotated = vec2(p.x*c-p.y*s,p.x*s+p.y*c);
@@ -72,25 +74,31 @@ uniform sampler2D smokeAtlas;
 uniform float cloudTop;
 uniform float cloudBase;
 uniform float heat;
+uniform float smokeTime;
 varying vec2 vSmokeUv;
 varying vec3 vSmokeColor;
 varying float vSmokeAlpha;
 varying float vWorldHeight;
 varying float vSmokeHeat;
 varying float vSmokeDepth;
+varying float vSmokeLight;
 void main() {
     // Tile selection is encoded in the integer part of alpha; fractional alpha
     // remains independent, and padded tiles cannot bleed into neighbouring lobes.
     if (fract(vSmokeAlpha) < .003) discard;
     float tile = floor(vSmokeAlpha);
     vec2 tileOffset = vec2(mod(tile,2.0),floor(tile/2.0));
-    vec4 smoke = texture2D(smokeAtlas,(tileOffset + clamp(vSmokeUv,.004,.996))*.5);
+    vec2 fold = vec2(sin(vSmokeUv.y*19.0+smokeTime*.35+tile),sin(vSmokeUv.x*16.0-smokeTime*.23));
+    vec2 smokeUv = vSmokeUv + fold*.035*sin(vSmokeUv.x*3.14159)*sin(vSmokeUv.y*3.14159);
+    vec4 smoke = texture2D(smokeAtlas,(tileOffset + clamp(smokeUv,.004,.996))*.5);
     float alpha = smoke.a * fract(vSmokeAlpha) * smoothstep(2.0,14.0,vSmokeDepth);
-    alpha *= smoothstep(cloudBase,cloudBase+5.0,vWorldHeight);
+    alpha *= smoothstep(cloudBase,cloudBase+18.0,vWorldHeight);
     alpha *= 1.0-smoothstep(cloudTop-7.0,cloudTop,vWorldHeight);
     if (alpha < .003) discard;
-    vec3 color = smoke.rgb * vSmokeColor * 1.65;
-    color += vec3(1.0,.20,.018) * heat * vSmokeHeat * smoke.a * .65;
+    vec3 color = smoke.rgb * vSmokeColor * 1.7 * vSmokeLight;
+    // The sRGB atlas decodes to roughly .05-.29 linear brightness.
+    float ember = smoothstep(.07,.22,smoke.r) * smoke.a;
+    color += vec3(1.0,.23,.025) * heat * vSmokeHeat * ember * .8;
     gl_FragColor = vec4(color, alpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>

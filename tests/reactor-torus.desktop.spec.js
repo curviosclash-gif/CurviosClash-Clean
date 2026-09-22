@@ -97,6 +97,15 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 if (png !== runtime.renderer.domElement.toDataURL('image/png')) {
                     throw new Error('The first smoke draw after a seek differs from the settled draw');
                 }
+                if (time === 12) {
+                    const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
+                    const prepare = smoke.onBeforeRender;
+                    try {
+                        smoke.onBeforeRender = function (...args) { prepare.apply(this,args); this.material.uniforms.heat.value=0; };
+                        runtime.renderer.render(runtime.scene,camera);
+                        if (png === runtime.renderer.domElement.toDataURL('image/png')) throw new Error('Local embers are invisible during ascent');
+                    } finally { smoke.onBeforeRender=prepare; }
+                }
                 camera.position.copy(position); camera.quaternion.copy(quaternion);
                 camera.updateMatrixWorld(true);
                 return { png, top };

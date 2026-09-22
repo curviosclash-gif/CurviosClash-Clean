@@ -12,6 +12,16 @@ export function vortexTravel(time, profile) {
     return 1.6 * profile.circulation * (1 - Math.exp(-Math.max(0, time) / 18));
 }
 
+export function stemWidthAt(height) {
+    const p = profiles.stemProfile;
+    return p.lower + (p.upper-p.lower) * smoothRange(p.lowerHeight,p.upperHeight,height);
+}
+
+export function smokeHeat(time, index, profile) {
+    const strength = .35 + .65 * (Math.sin(index*2.1)*.5+.5);
+    return strength * Math.exp(-Math.max(0,time) * (.065 + .05*(index%5)/4) * profile.cooling);
+}
+
 // An open streamline feeds the inner rim from below and then completes a full
 // poloidal turn. Its endpoints fade; no visible particle teleports down the stem.
 export function sampleVortexStream(out, phase, azimuth, shape) {
@@ -19,9 +29,15 @@ export function sampleVortexStream(out, phase, azimuth, shape) {
     if (phase < .45) {
         const s = phase / .45;
         const bend = s ** 4 * (5 - 4 * s);
-        radius = shape.stemRadius * .5 + (shape.radius - shape.tubeRadius - shape.stemRadius * .5) * bend;
+        const heightRatio = (shape.height-shape.base) / Math.max(.001,shape.stemHeight || shape.height-shape.base);
+        const stemHeight = s * heightRatio;
+        const startRadius = shape.stemRadius * .5 * stemWidthAt(stemHeight);
+        radius = startRadius + (shape.radius - shape.tubeRadius - startRadius) * bend;
         height = shape.base + (shape.height - shape.base) * s;
-        dr = 20 * s ** 3 * (1 - s) * (shape.radius - shape.tubeRadius - shape.stemRadius * .5);
+        const p = profiles.stemProfile;
+        const u = Math.max(0,Math.min(1,(stemHeight-p.lowerHeight)/(p.upperHeight-p.lowerHeight)));
+        const widthDerivative = (p.upper-p.lower)*6*u*(1-u)*heightRatio/(p.upperHeight-p.lowerHeight);
+        dr = shape.stemRadius*.5*widthDerivative*(1-bend) + 20*s**3*(1-s)*(shape.radius-shape.tubeRadius-startRadius);
         dy = shape.height - shape.base;
     } else {
         const angle = Math.PI + (phase - .45) / .55 * TAU;
@@ -66,11 +82,12 @@ export function updateVortexCard(card, time, profile, shape, scratch) {
         card.angle = phase * TAU * .65;
         card.tint = 1.05;
     } else {
-        const radius = shape.radius * (.85 - .65*phase);
+        const height = (.08+.34*phase)*(shape.height-shape.base);
+        const radius = shape.radius*(1-phase)*.85 + shape.stemRadius*stemWidthAt(height/Math.max(.001,shape.stemHeight || shape.height-shape.base))*.6*phase;
         scratch.x = radius*ca; scratch.z = radius*sa;
         scratch.y = shape.base + (shape.height-shape.base) * (.08 + .34*phase);
         size *= .48;
-        alpha *= .48;
+        alpha *= .62 * smoothRange(.28,1.3,time);
         card.angle = -azimuth * .12;
         card.tint = 1.22;
     }
@@ -80,6 +97,6 @@ export function updateVortexCard(card, time, profile, shape, scratch) {
     card.opacity = alpha * .66;
     // Hot streaks stay attached to particular advected parcels and cool at
     // different rates, rather than tinting the entire cloud in one pulse.
-    card.glow = (.35 + .65 * (Math.sin(i*2.1)*.5+.5)) * Math.exp(-time*.13*profile.cooling);
+    card.glow = smokeHeat(time,i,profile);
     return phase;
 }
