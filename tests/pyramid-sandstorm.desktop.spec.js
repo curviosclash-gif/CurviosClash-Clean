@@ -95,8 +95,8 @@ test('Krone des Sonnengottes loads and runs warning, storm, shelter and reset @r
     expect(active.state.remainingSeconds).toBeGreaterThan(55);
     expect(active.state.remainingSeconds).toBeLessThanOrEqual(56);
     expect(active.state.intensity).toBe(1);
-    expect(active.ranges).toEqual([40, 85]);
-    expect(active.perCameraFog).toEqual([{ near: 8, far: 40 }, { near: 18, far: 85 }]);
+    expect(active.ranges).toEqual([12, 85]);
+    expect(active.perCameraFog).toEqual([{ near: 1.6, far: 12 }, { near: 18, far: 85 }]);
     expect(active.cue?.active).toBe(true);
     expect(Math.abs(active.cue?.angleDegrees || 0)).toBeLessThanOrEqual(180);
     expect(active.fogColor).toBe(0xb56d32);
