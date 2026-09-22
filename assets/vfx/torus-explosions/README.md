@@ -50,7 +50,9 @@ outside the repository.
 
 The GLBs now guide a batch of camera-facing smoke lobes instead of drawing their
 opaque cloud surfaces. `scripts/bake_reactor_smoke.py` bakes the source volume's
-billow noise into `smoke/smoke-atlas.png` (four 256px RGBA tiles); `smoke-bake.blend`
+billow noise into `smoke/smoke-atlas.png` (sixteen 256px RGBA tiles in four families,
+rows from the bottom: rounded billows, upright column parts, torn wisps, holed billows;
+cards pick a family by role, see `resolveSmokeTile`); `smoke-bake.blend`
 keeps the editable bake scene. Run it with Blender 4.2 and `--python-exit-code 1`.
 The runtime recovers connected lobes from the GLB, follows their animated rigs,
 sorts them separately for each camera, and animates cooling and small wisps from

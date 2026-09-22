@@ -1,11 +1,17 @@
 import * as THREE from 'three';
 import { createVortexCards, resolveVortexProfile, smokeHeat, smoothRange, updateVortexCard } from './ReactorVortexFlow.js';
-import { collectSmokeLobes, SMOKE_VERTEX, SMOKE_FRAGMENT } from './ReactorSmokeGeometry.js';
+import { collectSmokeLobes, resolveSmokeTile, SMOKE_TILE_FAMILY, SMOKE_VERTEX, SMOKE_FRAGMENT } from './ReactorSmokeGeometry.js';
 import { attachReactorFireball, fireballGlow, sampleFireLight } from './ReactorFireballEffect.js';
 import { attachReactorFlash } from './ReactorFlashOverlay.js';
 
 const ATLAS_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-atlas.png', import.meta.url).href;
 export const MAX_SMOKE_CARDS = 512;
+
+/** Deterministic 0..1 per card and channel: every client scatters the stem alike. */
+function scatter(index, channel) {
+    const value = Math.sin(index * 12.9898 + channel * 78.233) * 43758.5453;
+    return value - Math.floor(value);
+}
 
 export async function attachReactorSmoke(root, action, { loadTexture = () => new THREE.TextureLoader().loadAsync(ATLAS_URL) } = {}) {
     if (!action || !root.getObjectByName('torus_flow_00')) return null;
@@ -116,7 +122,15 @@ export function createReactorSmoke(root, action, texture) {
             const scale = detail ? .85 : 1.65;
             card.width = Math.max(size.x,size.z) * scale;
             card.height = Math.max(size.y, Math.min(size.x,size.z)*.7) * scale;
-            if (lobe.column) card.height *= 1.35 + .12*Math.sin(index*2.3);
+            if (lobe.column) {
+                card.height *= 1.35 + .12*Math.sin(index*2.3);
+                // Fixed per-card scatter in size and position, so the stem is no string of
+                // equal beads stacked on its axis.
+                card.width *= .8 + .45*scatter(index, 1);
+                card.center.x += (scatter(index, 2)-.5) * card.width * .35;
+                card.center.z += (scatter(index, 3)-.5) * card.width * .35;
+                card.center.y += (scatter(index, 4)-.5) * card.height * .2;
+            }
             const cycle = time*.25 + index*1.7;
             const stretch = 1 + (detail ? .22 : .12) * Math.sin(cycle) * (1 + profile.turbulence);
             card.width /= Math.sqrt(stretch); card.height *= stretch;
@@ -138,6 +152,13 @@ export function createReactorSmoke(root, action, texture) {
                     card.angle = Math.atan2(vy,vx)-Math.PI/2;
                 }
             }
+            card.tile = resolveSmokeTile(card);
+            // Wisp tiles are drawn out sideways: lay a tall card on its side so the shape
+            // follows the card's long axis instead of crossing it.
+            if (Math.floor(card.tile / 4) === SMOKE_TILE_FAMILY.wisp && card.height > card.width) {
+                const width = card.width; card.width = card.height; card.height = width;
+                card.angle += Math.PI / 2;
+            }
             card.opacity *= settle * (detail ? detailVisibility : 1);
             // Fit the soft lobe below the authored ceiling before shading, avoiding
             // a flat clipping plane at the top of the final mushroom cloud.
@@ -150,14 +171,14 @@ export function createReactorSmoke(root, action, texture) {
         data.fill(0);
         let written = 0;
         for (const card of cards) {
-            const { lobe, index, center, width, height } = card;
+            const { lobe, center, width, height } = card;
             if (card.opacity < .003 || width < .005 || height < .005) continue;
             const offset = written++ * 16;
             data[offset] = center.x; data[offset+1] = center.y; data[offset+2] = center.z;
 
             data[offset+4] = width; data[offset+5] = height;
             data[offset+6] = card.angle;
-            data[offset+7] = index%4+Math.min(.98,card.opacity);
+            data[offset+7] = card.tile+Math.min(.98,card.opacity);
             data[offset+11] = card.glow;
             data[offset+12] = card.lobe.column
                 ? .85 + .3*smoothRange(base.y,top.y,center.y)

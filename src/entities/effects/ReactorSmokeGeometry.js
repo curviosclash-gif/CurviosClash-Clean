@@ -1,6 +1,18 @@
 import * as THREE from 'three';
 import { FOG_FACTOR_GLSL } from './ReactorFireballEffect.js';
 
+// Atlas rows, counted from the bottom (see scripts/bake_reactor_smoke.py).
+export const SMOKE_TILE_FAMILY = Object.freeze({ billow: 0, column: 1, wisp: 2, holed: 3 });
+
+/** Atlas tile 0-15 for a card: the family follows its role, the variant its index. */
+export function resolveSmokeTile(card) {
+    const family = card.flow ? SMOKE_TILE_FAMILY.wisp
+        : card.lobe?.column ? SMOKE_TILE_FAMILY.column
+            : card.detail ? SMOKE_TILE_FAMILY.holed
+                : SMOKE_TILE_FAMILY.billow;
+    return family * 4 + (card.index % 4);
+}
+
 // Connected lobes are recovered once from the exported mesh, so smoke follows the
 // authored torus pivots rather than duplicating their animation in another clock.
 export function collectSmokeLobes(root) {
@@ -104,10 +116,10 @@ void main() {
     // remains independent, and padded tiles cannot bleed into neighbouring lobes.
     if (fract(vSmokeAlpha) < .003) discard;
     float tile = floor(vSmokeAlpha);
-    vec2 tileOffset = vec2(mod(tile,2.0),floor(tile/2.0));
+    vec2 tileOffset = vec2(mod(tile, 4.0), floor(tile / 4.0));
     vec2 fold = vec2(sin(vSmokeUv.y*19.0+smokeTime*.35+tile),sin(vSmokeUv.x*16.0-smokeTime*.23));
     vec2 smokeUv = vSmokeUv + fold*.035*sin(vSmokeUv.x*3.14159)*sin(vSmokeUv.y*3.14159);
-    vec4 smoke = texture2D(smokeAtlas,(tileOffset + clamp(smokeUv,.004,.996))*.5);
+    vec4 smoke = texture2D(smokeAtlas,(tileOffset + clamp(smokeUv,.004,.996))*.25);
     float alpha = smoke.a * fract(vSmokeAlpha) * smoothstep(2.0,14.0,vSmokeDepth);
     alpha *= smoothstep(cloudBase,cloudBase+18.0,vWorldHeight);
     alpha *= 1.0-smoothstep(cloudTop-7.0,cloudTop,vWorldHeight);
