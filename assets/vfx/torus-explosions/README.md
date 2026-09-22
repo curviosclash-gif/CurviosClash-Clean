@@ -76,27 +76,26 @@ remains at 115% of map height. Shared profiles in
 `src/shared/vfx/ReactorVortexProfiles.json` define compact fast circulation,
 broad slow circulation, strong updraft, and turbulent circulation. The Blender
 generator and runtime consume the same profile IDs exported on the roll rig.
-## Ray-marched head and stem
+## Ray-marched head, stem and ground collar
 
-Head and stem are drawn as smoke with depth rather than as cards (`REACTOR_VOLUME_SMOKE` in
-`ReactorSmokeEffect.js`). Both clouds are built: the graphics quality decides per frame which one
+Head, stem and the ground collar are drawn as smoke with depth rather than as cards
+(`REACTOR_VOLUME_SMOKE` in `ReactorSmokeEffect.js`). Both render paths are built: the graphics quality decides per frame which one
 draws, read from `scene.userData.graphicsQuality`, which `RenderQualityController` publishes. On
 its lowest step the card cloud below draws and the volume's proxies collapse; every other step
-draws the volume and no cards. A change in the menu therefore takes effect at once. Two proxy cylinders, one
-round the head and one round the stem, are placed in world space by their vertex shader, so the
+draws the volume and no cards. A change in the menu therefore takes effect at once. Three proxy
+cylinders round the head, stem and ground collar are placed in world space by their vertex shader, so the
 objects stay unit-sized and add nothing to the cloud's measured bounds. Their front faces are
 drawn (back faces once a camera is inside, chosen per camera, both sides compiled once), and
 every covered pixel marches a ray through the cylinder: the head is a vortex ring with a dome
 over it and a bowl-shaped underside that the stem is drawn into, the stem a swaying column that
-fans out under the head. Density comes from that shape carved by `ReactorVolumeNoise.js`, a
+fans out under the head. Density comes from a shape whose skin is displaced by `ReactorVolumeNoise.js`, a
 tileable 64³ Perlin-Worley volume built once per session, two layers per frame so a map load
 does not stall. In the head the noise is read in ring coordinates - round the axis, round the
 tube, and into it - and the tube angle carries the circulation, so the whole ring rolls as one
 body. Light is one sun ray of two samples with Beer-Lambert extinction plus sky light from
 above, and while it is hot the lower, inner smoke glows. Steps follow the chord, at most 64 in
 the head, 48 in the stem and 32 in the ground collar, with a jittered start; rays stop once the
-smoke is opaque, which is why the whole cloud costs about 0.2 ms a frame on an UHD 630 at
-1264x655, close up. The cloud has no depth texture, so a camera inside the smoke is not
+smoke is opaque. The cloud has no depth texture, so a camera inside the smoke is not
 enveloped correctly.
 
 The noise does not carve the density, it displaces the skin: the body under it is opaque, the way
@@ -112,7 +111,7 @@ A third proxy, a flat wide cylinder on the ground, carries the dust the blast wa
 site (`surgeShape` and `surgeDensityAfter` in `ReactorSmokeEffect.js`). Its front leaves the foot
 fast and slows as it runs out of push, reaching half the cloud's own height within about ten
 seconds; the dust behind the front then disperses, which is drawn as the front coming back in to
-a collar round the stem. The collar is a fifth as dense as the cloud and settles away over the
+a collar round the stem. The collar is 15 percent as dense as the cloud and settles away over the
 three minutes after the clip, while the cloud above still stands: a denser one swallowed the
 debris trails over the site and took the map's sight lines away from the players. It is the one
 part a camera regularly stands inside, so its shader alone reports the depth of the first smoke
@@ -166,8 +165,9 @@ recompile every lit shader of the map at the moment of the breach. Smoke takes
 towers above the fog distance. Smoke resources belong to
 the loaded scene and are released by the existing map disposal path.
 
-The effect is bounded to 512 cards and one draw call per visible cloud. A data
+The fallback effect is bounded to 512 cards and one draw call per visible cloud; the volume path
+uses one draw call for each of its three proxies. A data
 texture updates before each draw so time seeks and split-screen camera changes
 cannot display the preceding frame's positions. The soft lobes fit below the
-measured final GLB ceiling. This approximates volume smoke; it is not volumetric
-ray marching or a fluid simulation.
+measured final GLB ceiling. The LOW-quality card fallback approximates volume smoke, while the
+other quality steps ray-march it; neither path is a fluid simulation.
