@@ -116,6 +116,16 @@ function closeServer(server) {
     });
 }
 
+/**
+ * Whether a preferred port cannot be used and the app should fall back to a free one. Besides an
+ * occupied port (EADDRINUSE) Windows refuses ports it has reserved for itself with EACCES: port
+ * 5357 belongs to its device discovery, and Hyper-V reserves whole ranges that change per boot.
+ * A refused port must not end the start, or the app opens with an error box instead of a window.
+ */
+function isPortUnavailable(error) {
+    return error?.code === 'EADDRINUSE' || error?.code === 'EACCES' || error?.code === 'EADDRNOTAVAIL';
+}
+
 async function startStaticServer({ rootDir, host = '127.0.0.1', port = 0 }) {
     const resolvedRoot = path.resolve(rootDir);
     const indexPath = path.join(resolvedRoot, 'index.html');
@@ -147,5 +157,6 @@ async function startStaticServer({ rootDir, host = '127.0.0.1', port = 0 }) {
 }
 
 module.exports = {
+    isPortUnavailable,
     startStaticServer,
 };

@@ -76,6 +76,25 @@ remains at 115% of map height. Shared profiles in
 `src/shared/vfx/ReactorVortexProfiles.json` define compact fast circulation,
 broad slow circulation, strong updraft, and turbulent circulation. The Blender
 generator and runtime consume the same profile IDs exported on the roll rig.
+## Ray-marched head and stem
+
+Head and stem are drawn as smoke with depth rather than as cards (`REACTOR_VOLUME_SMOKE` in
+`ReactorSmokeEffect.js`; the card cloud below stays as the fallback). Two proxy cylinders, one
+round the head and one round the stem, are placed in world space by their vertex shader, so the
+objects stay unit-sized and add nothing to the cloud's measured bounds. Their front faces are
+drawn (back faces once a camera is inside, chosen per camera, both sides compiled once), and
+every covered pixel marches a ray through the cylinder: the head is a vortex ring with a dome
+over it and a bowl-shaped underside that the stem is drawn into, the stem a swaying column that
+fans out under the head. Density comes from that shape carved by `ReactorVolumeNoise.js`, a
+tileable 64³ Perlin-Worley volume built once per session, two layers per frame so a map load
+does not stall. In the head the noise is read in ring coordinates - round the axis, round the
+tube, and into it - and the tube angle carries the circulation, so the whole ring rolls as one
+body. Light is one sun ray of two samples with Beer-Lambert extinction plus sky light from
+above, and while it is hot the lower, inner smoke glows. Steps follow the chord, at most 64 in
+the head and 48 in the stem, with a jittered start; rays stop once the smoke is opaque, which is
+why the whole cloud costs about 0.2 ms a frame on an UHD 630 at 1264x655, close up. The cloud
+has no depth texture, so a camera inside the smoke is not enveloped correctly.
+
 The head is not drawn from the cap and torus lobes of the GLB: those only give it its
 size and height. `src/entities/effects/ReactorVortexHead.js` spreads 208 cards by area
 over the skin of one rolling vortex ring (dome, rolled rim, underside up to the stem's
@@ -85,7 +104,8 @@ a domed lid so its tops do not line up. The ring rolls fast while the fireball d
 and slowly on for the next seven minutes. After the 49 s clip the cloud stands on the
 match clock: it widens by 45%, flattens by 30%, loses a fifth of its density over five
 minutes and thins to a 15% rest by seven; a new round removes it with the intact reactor.
-Continuous stream wisps rise through the stem, join the inner rim with matching
+With the volume, the plume, bloom and wisp cards are left out entirely. In the card cloud,
+continuous stream wisps rise through the stem, join the inner rim with matching
 tangents, and turn outward, downward and inward. Additional edge vortices fade
 before the final pose. The widened streamline follows the same stem profile.
 Overlapping elongated column lobes and gently warped atlas samples break up

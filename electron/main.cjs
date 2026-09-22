@@ -14,7 +14,7 @@ const {
 const dgram = require('node:dgram');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
-const { startStaticServer } = require('./static-server.cjs');
+const { isPortUnavailable, startStaticServer } = require('./static-server.cjs');
 const {
     configureStoragePaths,
     initSessionDataSelfHeal,
@@ -540,10 +540,10 @@ async function startAppServer() {
     try {
         staticAppServer = await startStaticServer({ rootDir: distDir, port: preferredPort });
     } catch (error) {
-        if (error?.code !== 'EADDRINUSE') {
+        if (!isPortUnavailable(error)) {
             throw error;
         }
-        // Fallback keeps app start resilient if the preferred port is occupied.
+        // Fallback keeps app start resilient if the preferred port is occupied or blocked.
         staticAppServer = await startStaticServer({ rootDir: distDir, port: 0 });
     }
     return staticAppServer;
