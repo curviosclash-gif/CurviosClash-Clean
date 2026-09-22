@@ -71,6 +71,9 @@ export function updateVortexCard(card, time, profile, shape, scratch) {
     if (card.flow === 'stream') {
         sampleVortexStream(scratch, phase, azimuth, shape);
         size *= phase < .45 ? .75 : 1;
+        // Up the stem the wisps line up into a visible chain beside the column; they show fully
+        // only where they bend into the head.
+        alpha *= .25 + .75 * smoothRange(.3,.45,phase);
         card.angle = 0;
         card.tint = 1.12 + .13 * Math.sin(i);
     } else if (card.flow === 'shed') {
@@ -78,7 +81,8 @@ export function updateVortexCard(card, time, profile, shape, scratch) {
         scratch.x = radius * ca; scratch.z = radius * sa;
         scratch.y = shape.height + shape.tubeHeight * (.35 * Math.sin(phase*TAU*1.4) + phase*.65);
         size *= .58 + phase * .7;
-        alpha *= profile.shedding * (1-smoothRange(34,48,time));
+        // Faint: above the closed head, strong sheds read as loose strands of hair.
+        alpha *= .4 * profile.shedding * (1-smoothRange(34,48,time));
         card.angle = phase * TAU * .65;
         card.tint = 1.05;
     } else {

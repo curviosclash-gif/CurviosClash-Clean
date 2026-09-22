@@ -145,7 +145,7 @@ test('the top of the cloud is an uneven skyline, not a crown of equal lumps', as
             tops.push({ top: data[offset + 1] + data[offset + 5] / 2, width: data[offset + 4] });
         }
         // The twenty highest billows. Under one flat fitted ceiling their tops spread only
-        // 0.049-0.054 card widths (a crown of teeth); per-card ceilings give 0.098-0.145.
+        // 0.049-0.054 card widths (a crown of teeth); the head's domed lid gives 0.086-0.109.
         const crown = tops.sort((a, b) => b.top - a.top).slice(0, 20);
         const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
         const heights = crown.map((entry) => entry.top);
