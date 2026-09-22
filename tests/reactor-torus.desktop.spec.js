@@ -170,6 +170,97 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             await writeFile(testInfo.outputPath('smoke-sun-shading.json'), JSON.stringify(shading, null, 2));
             expect(shading.above.pixels).toBeGreaterThan(300);
             expect(shading.above.upper / shading.above.lower).toBeGreaterThan(shading.below.upper / shading.below.lower * 1.08);
+            // Split screen: two viewports of one frame, drawn the way RenderViewportSystem draws
+            // them. The camera close to and facing the breach whites out, the far one looking away
+            // is only dazzled.
+            const split = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena;
+                const runtime = game.renderer;
+                const renderer = runtime.renderer;
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const overlay = slot.getObjectByProperty('name', 'reactor-flash-overlay_nocol_noshadow');
+                overlay.userData.reduceMotion = false;
+                arena.setGlbAnimationElapsedSeconds(0.03); arena._glbAnimation.advance(0);
+                const width = renderer.domElement.width / renderer.getPixelRatio();
+                const height = renderer.domElement.height / renderer.getPixelRatio();
+                const near = runtime.cameras[0].clone(); near.aspect = (width / 2) / height; near.far = 5000;
+                near.position.set(260, 70, 260); near.lookAt(0, 60, 0); near.updateProjectionMatrix(); near.updateMatrixWorld(true);
+                const far = near.clone(); far.position.set(-1300, 400, -1300); far.lookAt(-2600, 400, -2600); far.updateMatrixWorld(true);
+                renderer.setRenderTarget(null);
+                renderer.setScissorTest(true);
+                renderer.setViewport(0, 0, width / 2, height); renderer.setScissor(0, 0, width / 2, height);
+                renderer.render(runtime.scene, near);
+                renderer.setViewport(width / 2, 0, width / 2, height); renderer.setScissor(width / 2, 0, width / 2, height);
+                renderer.render(runtime.scene, far);
+                renderer.setScissorTest(false);
+                renderer.setViewport(0, 0, width, height); renderer.setScissor(0, 0, width, height);
+                const probe = document.createElement('canvas'); probe.width = 128; probe.height = 36;
+                const context = probe.getContext('2d', { willReadFrequently: true });
+                context.drawImage(renderer.domElement, 0, 0, 128, 36);
+                const pixels = context.getImageData(0, 0, 128, 36).data;
+                const half = (from) => {
+                    let sum = 0, n = 0;
+                    for (let y = 0; y < 36; y += 1) for (let x = from; x < from + 64; x += 1) {
+                        const i = (y * 128 + x) * 4; sum += pixels[i] + pixels[i + 1] + pixels[i + 2]; n += 1;
+                    }
+                    return sum / n / 765;
+                };
+                const png = renderer.domElement.toDataURL('image/png');
+                overlay.userData.reduceMotion = true;
+                return { near: half(0), far: half(64), png };
+            });
+            await writeFile(testInfo.outputPath('split-screen-flash.png'), Buffer.from(split.png.split(',')[1], 'base64'));
+            delete split.png;
+            await writeFile(testInfo.outputPath('split-screen-flash.json'), JSON.stringify(split, null, 2));
+            expect(split.near).toBeGreaterThan(0.9);
+            expect(split.far).toBeLessThan(split.near - 0.15);
+            // Hearing: noise on the world bus, a close breach muffles it, highs drop and come back.
+            const hearing = await page.evaluate(async () => {
+                const audio = window.GAME_INSTANCE.entityManager.audio;
+                const ctx = audio?.ctx;
+                if (!ctx || !audio._hearing) return { skipped: 'no running audio' };
+                if (ctx.state !== 'running') await ctx.resume().catch(() => {});
+                if (ctx.state !== 'running') return { skipped: `audio ${ctx.state}` };
+                const heldMaster = audio._masterGain.gain.value;
+                const heldSfx = audio._sfxGain.gain.value;
+                audio._masterGain.gain.value = 1; audio._sfxGain.gain.value = 1;
+                const analyser = ctx.createAnalyser(); analyser.fftSize = 2048; analyser.smoothingTimeConstant = 0;
+                audio._masterGain.connect(analyser);
+                const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+                const channel = buffer.getChannelData(0);
+                for (let i = 0; i < channel.length; i += 1) channel[i] = (Math.sin(i * 12.9898) * 43758.5453 % 1) * 0.4;
+                const noise = ctx.createBufferSource(); noise.buffer = buffer; noise.loop = true;
+                noise.connect(audio._sfxGain); noise.start();
+                const bins = new Float32Array(analyser.frequencyBinCount);
+                const hz = ctx.sampleRate / analyser.fftSize;
+                const highs = async () => {
+                    let total = 0;
+                    for (let sample = 0; sample < 5; sample += 1) {
+                        await new Promise((resolve) => setTimeout(resolve, 40));
+                        analyser.getFloatFrequencyData(bins);
+                        let sum = 0, n = 0;
+                        for (let b = Math.floor(6000 / hz); b < Math.floor(12000 / hz); b += 1) { sum += 10 ** (bins[b] / 10); n += 1; }
+                        total += sum / n;
+                    }
+                    return 10 * Math.log10(total / 5);
+                };
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                const before = await highs();
+                audio._hearing.trigger(1, 2.5);
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                const muffled = await highs();
+                await new Promise((resolve) => setTimeout(resolve, 2600));
+                const recovered = await highs();
+                noise.stop(); noise.disconnect(); audio._masterGain.disconnect(analyser);
+                audio._masterGain.gain.value = heldMaster; audio._sfxGain.gain.value = heldSfx;
+                return { before, muffled, recovered, state: ctx.state };
+            });
+            await writeFile(testInfo.outputPath('hearing.json'), JSON.stringify(hearing, null, 2));
+            if (!hearing.skipped) {
+                expect(hearing.muffled).toBeLessThan(hearing.before - 20);
+                expect(Math.abs(hearing.recovered - hearing.before)).toBeLessThan(3);
+            } else testInfo.annotations.push({ type: 'hearing-skipped', description: hearing.skipped });
             // The Blender-keyed flash shell glows over the ruin in the first tenth of a second.
             const shell = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;
