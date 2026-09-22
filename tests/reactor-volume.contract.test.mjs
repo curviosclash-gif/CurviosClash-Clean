@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { attachReactorSmoke, isLowQualityScene } from '../src/entities/effects/ReactorSmokeEffect.js';
-import { createReactorVolume, VOLUME_HEAD_NAME, VOLUME_STEM_NAME } from '../src/entities/effects/ReactorVolumeCloud.js';
+import { attachReactorSmoke, isLowQualityScene, surgeDensityAfter, surgeShape } from '../src/entities/effects/ReactorSmokeEffect.js';
+import { createReactorVolume, VOLUME_HEAD_NAME, VOLUME_STEM_NAME, VOLUME_SURGE_NAME } from '../src/entities/effects/ReactorVolumeCloud.js';
 import { buildVolumeNoiseData, getVolumeNoiseTexture, VOLUME_NOISE_SIZE } from '../src/entities/effects/ReactorVolumeNoise.js';
 import { disposeObject3DResources } from '../src/shared/rendering/ThreeDisposal.js';
 
@@ -49,6 +49,7 @@ function poseState(overrides = {}) {
         x: 10, z: -20, ringY: 400, radius: 170, rimWidth: 70, rimHeight: 50, dome: 80,
         top: 520, base: 0, stemTop: 420, stemRadiusLow: 60, stemRadiusHigh: 45,
         windX: 0, windZ: 0, flowTurns: 0.5, riseTravel: 1.5, density: 1, heat: 0,
+        surgeFront: 300, surgeHole: 55, surgeHeight: 90, surgeDensity: 0.28,
         albedo: new THREE.Color(0.5, 0.4, 0.3), sunDirection: new THREE.Vector3(0, 1, 0),
         sunColor: new THREE.Color(1, 1, 1), ...overrides,
     };
@@ -63,9 +64,16 @@ test('the proxies enclose the cloud, stay unit-sized and follow the wind', () =>
     assert.ok(head.bounds.value.x >= 170 + 70, `head radius ${head.bounds.value.x}`);
     assert.ok(head.bounds.value.y <= 400 - 50 && head.bounds.value.z >= 520);
     assert.ok(stem.bounds.value.x >= 60 && stem.bounds.value.y <= 0 && stem.bounds.value.z > 400);
+    // The collar lies on the ground, wide enough for its front and low enough to stay under the head.
+    const surge = volume.surge.material.uniforms;
+    assert.ok(surge.bounds.value.x >= 300 && surge.bounds.value.x < 300 * 1.3, `collar radius ${surge.bounds.value.x}`);
+    assert.ok(surge.bounds.value.y < 0 && surge.bounds.value.z > 0 && surge.bounds.value.z < 400 - 50);
+    assert.deepEqual([...surge.surgeShape.value.toArray()], [300, 55, 90, 0]);
+    assert.equal(surge.smokeDensity.value, 0.28, 'the collar carries its own share of the density');
     assert.equal(head.bounds.value.w, 0);
     assert.equal(stem.bounds.value.w, 1);
-    for (const mesh of [volume.head, volume.stem]) {
+    assert.equal(surge.bounds.value.w, 2);
+    for (const mesh of [volume.head, volume.stem, volume.surge]) {
         // The proxy is placed in the vertex shader; its object may not grow the measured cloud.
         mesh.geometry.computeBoundingBox();
         assert.ok(mesh.geometry.boundingBox.getSize(new THREE.Vector3()).length() < 3.1, 'unit proxy');
@@ -89,6 +97,23 @@ test('a camera inside the proxy switches it to its back faces', () => {
     assert.equal(volume.head.material.uniforms.insideProxy.value, 1);
 });
 
+test('the ground collar races out, then pulls in and settles while the cloud stands', () => {
+    assert.equal(surgeShape(0, 0).front, 0, 'nothing before the blast');
+    assert.equal(surgeShape(0, 0).height, 0);
+    const early = surgeShape(3, 0), peak = surgeShape(12, 0), late = surgeShape(48, 0);
+    assert.ok(early.front > 0.2 * peak.front, 'the front is out fast');
+    assert.ok(peak.front > early.front && peak.front > late.front, 'it runs out, then its dust disperses');
+    assert.ok(late.front > 0.55 * peak.front, 'and a collar stays round the foot');
+    assert.ok(peak.height > 0.99 * late.height, 'it is at full height within seconds');
+    // Standing on, it creeps a little further out; the dust itself settles within a few minutes.
+    assert.ok(surgeShape(48, 1).front > late.front * 1.2);
+    // Dust, not smoke: a fraction of what the cloud itself carries, set where the debris trails
+    // over the site still read through it.
+    assert.ok(surgeDensityAfter(0) > 0.05 && surgeDensityAfter(0) < 0.4, `dust share ${surgeDensityAfter(0)}`);
+    assert.ok(surgeDensityAfter(120) < surgeDensityAfter(0) * 0.8, 'settling');
+    assert.equal(surgeDensityAfter(240), 0, 'gone long before the cloud is');
+});
+
 test('the lowest graphics step draws the cards, every other one the volume', async () => {
     const buffer = readFileSync(new URL('../assets/maps/reactor_site/glb/torus_cloud_1.glb', import.meta.url));
     const gltf = await new GLTFLoader().parseAsync(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), '');
@@ -96,6 +121,7 @@ test('the lowest graphics step draws the cards, every other one the volume', asy
     const action = mixer.clipAction(gltf.animations[0]); action.play();
     const cards = await attachReactorSmoke(gltf.scene, action, { loadTexture: async () => new THREE.Texture(), volume: true });
     const head = gltf.scene.getObjectByName(VOLUME_HEAD_NAME);
+    const collar = gltf.scene.getObjectByName(VOLUME_SURGE_NAME);
     const camera = new THREE.PerspectiveCamera(); camera.position.set(900, 500, 1000); camera.lookAt(0, 400, 0); camera.updateMatrixWorld();
     action.time = 40; mixer.update(0); gltf.scene.updateMatrixWorld(true);
     const draw = (quality) => {
@@ -103,8 +129,9 @@ test('the lowest graphics step draws the cards, every other one the volume', asy
         scene.userData.graphicsQuality = quality;
         cards.onBeforeRender(null, scene, camera);
         head.onBeforeRender(null, scene, camera);
+        collar.onBeforeRender(null, scene, camera);
         return { cards: cards.geometry.instanceCount, radius: head.material.uniforms.bounds.value.x,
-            density: head.material.uniforms.smokeDensity.value };
+            density: head.material.uniforms.smokeDensity.value, collar: collar.material.uniforms.bounds.value.x };
     };
     // The renderer publishes its effective step on the scene; the switch takes effect at once.
     assert.equal(isLowQualityScene({ userData: { graphicsQuality: 'LOW' } }), true);
@@ -112,11 +139,13 @@ test('the lowest graphics step draws the cards, every other one the volume', asy
         const high = draw(quality);
         assert.equal(high.cards, 0, `no cards at ${quality}`);
         assert.ok(high.radius > 100 && high.density > 0, `the volume draws at ${quality}`);
+        assert.ok(high.collar > 100, `and its ground collar with it at ${quality}`);
     }
     const low = draw('LOW');
     assert.ok(low.cards > 100, `the card cloud draws on LOW: ${low.cards}`);
     assert.equal(low.radius, 0, 'and the volume collapses');
     assert.equal(low.density, 0);
+    assert.equal(low.collar, 0, 'collar included');
     assert.ok(draw('HIGH').radius > 100, 'and comes back on the next step up');
     disposeObject3DResources(gltf.scene);
 });

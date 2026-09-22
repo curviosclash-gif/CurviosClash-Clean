@@ -35,6 +35,41 @@ const HEAD_SPREAD = 0.45;
 const HEAD_FLATTEN = 0.3;
 // How far the ceiling the crest cards are kept under falls from the axis to the rim, in domes.
 const HEAD_LID_DROP = 1.5;
+// The base surge: the dust the blast wave tears off the ground. Its front leaves the foot fast
+// and slows down as it runs out of push, reaching SURGE_REACH of the cloud's own height; while
+// the cloud stands it creeps on a little further. Height and reach are shares of that height,
+// so a bigger cloud drives a bigger collar.
+const SURGE_REACH = 0.5;
+const SURGE_CREEP = 0.25;
+const SURGE_SECONDS = 5;
+const SURGE_HEIGHT = 0.12;
+const SURGE_RISE = 2.5;
+// The wave's own dust disperses behind its front, so what stays is a collar round the foot. It
+// is drawn as the front coming back in, which is also what keeps the players out of the inside
+// of the collar: a camera inside a proxy sees its smoke only where no wall stands behind it.
+const SURGE_PULLBACK = 0.3;
+const SURGE_PASS = [8, 40];
+// Dust settles: the collar is gone a few minutes after the clip, while the cloud still stands.
+// It has to be, or a wall of dust across the whole field would take the map's sight lines away
+// from the players for the seven minutes the cloud hangs there.
+const SURGE_SETTLE = [30, 210];
+const SURGE_SHARE = 0.15;
+
+/** Share of the cloud's density the ground collar carries `after` seconds past the clip. */
+export function surgeDensityAfter(after) {
+    return SURGE_SHARE * (1 - smoothRange(SURGE_SETTLE[0], SURGE_SETTLE[1], Math.max(0, after)));
+}
+
+/** Front radius and height of the ground collar, in shares of the cloud's height. */
+export function surgeShape(seconds, dissolve) {
+    const time = Math.max(0, seconds);
+    const run = 1 - Math.exp(-time / SURGE_SECONDS);
+    return {
+        front: SURGE_REACH * run * (1 - SURGE_PULLBACK * smoothRange(SURGE_PASS[0], SURGE_PASS[1], time))
+            * (1 + SURGE_CREEP * dissolve),
+        height: SURGE_HEIGHT * smoothRange(0.2, SURGE_RISE, time),
+    };
+}
 
 /** Share of its density the cloud still has `after` seconds past the clip. */
 export function smokeDensityAfter(after) {
@@ -360,11 +395,20 @@ function attachVolume(root, cap, capLobe, frame, refreshShape, { head, shape, to
             flowTurns: frame.travel, riseTravel: frame.travel * 3,
             density: frame.density * frame.settle, heat: material.uniforms.heat.value,
         });
+        // The collar is measured against the cloud's own height, so every variant drives one to
+        // scale. It hangs on the same dissolve as the rest, a touch thinner: dust settles.
+        const reach = surgeShape(frame.time, frame.dissolve);
+        const cloudHeight = Math.max(1, top.y - base.y);
+        state.surgeFront = Math.max(1, reach.front * cloudHeight);
+        state.surgeHeight = Math.max(1, reach.height * cloudHeight);
+        state.surgeHole = 1.1 * stemScale.x;
+        state.surgeDensity = frame.density * frame.settle * surgeDensityAfter(frame.after);
         const c = capLobe.color;
         state.albedo.setRGB((c.r * .85 + .16) * 1.1, (c.g * .85 + .16) * 1.1, (c.b * .85 + .16) * 1.1);
         volume.update(state);
     };
-    volume.head.onBeforeRender = (renderer, scene, camera) => { pose(renderer, scene); volume.faceCamera(volume.head, camera); };
-    volume.stem.onBeforeRender = (renderer, scene, camera) => { pose(renderer, scene); volume.faceCamera(volume.stem, camera); };
+    for (const mesh of [volume.head, volume.stem, volume.surge]) {
+        mesh.onBeforeRender = (renderer, scene, camera) => { pose(renderer, scene); volume.faceCamera(mesh, camera); };
+    }
     return volume;
 }
