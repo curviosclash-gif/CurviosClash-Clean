@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { createVortexCards, resolveVortexProfile, smokeHeat, smoothRange, updateVortexCard } from './ReactorVortexFlow.js';
-import { collectSmokeLobes, resolveSmokeTile, SMOKE_TILE_FAMILY, SMOKE_VERTEX, SMOKE_FRAGMENT } from './ReactorSmokeGeometry.js';
+import { collectSmokeLobes, resolveSmokeSun, resolveSmokeTile, SMOKE_TILE_FAMILY, SMOKE_VERTEX, SMOKE_FRAGMENT } from './ReactorSmokeGeometry.js';
 import { attachReactorFireball, fireballGlow, sampleFireLight } from './ReactorFireballEffect.js';
 import { attachReactorFlash } from './ReactorFlashOverlay.js';
 
-const ATLAS_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-atlas.png', import.meta.url).href;
+// Six-way light atlases: A is lit from right, top and back, B from left, bottom and front.
+const LIGHT_A_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-light-a.png', import.meta.url).href;
+const LIGHT_B_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-light-b.png', import.meta.url).href;
+const SKY_COLOR = new THREE.Color(0.62, 0.68, 0.75);
 export const MAX_SMOKE_CARDS = 512;
 
 /** Deterministic 0..1 per card and channel: every client scatters the stem alike. */
@@ -13,19 +16,19 @@ function scatter(index, channel) {
     return value - Math.floor(value);
 }
 
-export async function attachReactorSmoke(root, action, { loadTexture = () => new THREE.TextureLoader().loadAsync(ATLAS_URL) } = {}) {
+export async function attachReactorSmoke(root, action, { loadTexture = (url) => new THREE.TextureLoader().loadAsync(url) } = {}) {
     if (!action || !root.getObjectByName('torus_flow_00')) return null;
     // The fireball needs no texture, so it is upgraded even when the atlas fails to load.
     attachReactorFireball(root, action);
     attachReactorFlash(root, action);
-    const texture = await loadTexture();
-    texture.colorSpace = THREE.SRGBColorSpace;
-    return createReactorSmoke(root, action, texture);
+    const [lightA, lightB] = await Promise.all([loadTexture(LIGHT_A_URL), loadTexture(LIGHT_B_URL)]);
+    for (const texture of new Set([lightA, lightB])) texture.colorSpace = THREE.SRGBColorSpace;
+    return createReactorSmoke(root, action, lightA, lightB);
 }
 
-export function createReactorSmoke(root, action, texture) {
+export function createReactorSmoke(root, action, lightA, lightB = lightA) {
     const lobes = collectSmokeLobes(root);
-    if (!lobes.length) { texture.dispose(); return null; }
+    if (!lobes.length) { lightA.dispose(); lightB.dispose(); return null; }
     const previousTime = action.time;
     action.time = Math.max(0, action.getClip().duration - .001);
     action.getMixer().update(0); root.updateWorldMatrix(true, true);
@@ -69,8 +72,11 @@ export function createReactorSmoke(root, action, texture) {
     const material = new THREE.ShaderMaterial({
         uniforms: {
             ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
-            smokeData: { value: smokeData }, smokeAtlas: { value: texture }, heat: { value: 0 }, smokeTime: { value: 0 }, cloudTop: { value: 0 }, cloudBase: { value: 0 },
+            smokeData: { value: smokeData }, smokeLightA: { value: lightA }, smokeLightB: { value: lightB },
+            heat: { value: 0 }, smokeTime: { value: 0 }, cloudTop: { value: 0 }, cloudBase: { value: 0 },
             fireLight: { value: new THREE.Vector4() }, fireGlow: { value: 0 },
+            sunDirection: { value: new THREE.Vector3(0, 1, 0) }, sunColor: { value: new THREE.Color(1, 1, 1) },
+            skyColor: { value: SKY_COLOR.clone() },
         },
         vertexShader: SMOKE_VERTEX, fragmentShader: SMOKE_FRAGMENT,
         transparent: true, depthWrite: false, depthTest: true, fog: true,
@@ -90,8 +96,10 @@ export function createReactorSmoke(root, action, texture) {
     const shape = { x: 0, z: 0, base: 0, height: 0, radius: 0, tubeRadius: 0, tubeHeight: 0, stemRadius: 0, stemHeight: 0 };
     const scratch = { x: 0, y: 0, z: 0, tx: 0, ty: 0, tz: 0 };
     const compareDepth = (a, b) => a.depth - b.depth;
-    mesh.onBeforeRender = (_renderer, _scene, camera) => {
+    const sunCache = { scene: null, light: null, age: 0 };
+    mesh.onBeforeRender = (_renderer, scene, camera) => {
         const time = Math.max(0, action.time);
+        resolveSmokeSun(scene, material.uniforms.sunDirection.value, material.uniforms.sunColor.value, sunCache);
         const settle = Math.min(1, Math.max(0, (time - .18) / 1.4));
         material.uniforms.heat.value = 1.5 * (1-smoothRange(28,44,time));
         material.uniforms.smokeTime.value = time;

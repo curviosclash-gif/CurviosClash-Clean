@@ -1,6 +1,9 @@
-"""Bake sixteen softly lit smoke shapes from the authored Blender volume noise.
-Run with Blender 4.2 in background mode. Outputs a 1024px RGBA atlas (4x4 tiles of
-256px) and the editable bake scene.
+"""Bake sixteen smoke shapes, each lit from six directions, from the authored volume noise.
+Run with Blender 4.2 in background mode. Outputs two 1024px RGBA atlases (4x4 tiles of
+256px): smoke-light-a.png holds the light from right, top and back, smoke-light-b.png from
+left, bottom and front, both with the same alpha; plus the editable bake scene. The runtime
+mixes the six by the sun direction, so a card lights correctly however it is turned.
+`-- --tiles N` bakes only the first N tiles, for a quick look at the light balance.
 
 Tile families, one row each counted from the bottom of the image, so the runtime can
 pick a shape by the role of a card:
@@ -11,6 +14,7 @@ pick a shape by the role of a card:
 Every tile is centred with a fully transparent border, so mipmaps never bleed.
 """
 from pathlib import Path
+import sys
 import tempfile
 import bpy
 from mathutils import Vector
@@ -30,6 +34,17 @@ FAMILIES = (
     ((1.02, 0.60, 0.46), 3.4, 1.10, 1.00, 0.52, 0.70, 26),
     ((0.90, 0.90, 0.86), 3.0, 0.95, 0.45, 0.57, 0.65, 30),
 )
+# Six-way lighting: each tile is rendered once per sun direction. The name says where the light
+# comes from as seen by the camera (image right, image top, behind the smoke, ...); the vector is
+# the direction the sun shines in, in object space (camera looks along +Y, image up is +Z).
+SIX_WAY_PASSES = (
+    ('right', (-1, 0, 0)), ('left', (1, 0, 0)),
+    ('top', (0, 0, -1)), ('bottom', (0, 0, 1)),
+    ('back', (0, -1, 0)), ('front', (0, 1, 0)),
+)
+ATLAS_CHANNELS = {'a': ('right', 'top', 'back'), 'b': ('left', 'bottom', 'front')}
+SUN_STRENGTH = 4.0
+
 # Small per-tile variation inside a family, so neighbouring cards never repeat.
 VARIANTS = ((1.00, 1.00, 0.00), (0.92, 1.06, 1.70), (1.05, 0.94, 3.10), (0.97, 1.02, 4.60))
 
@@ -129,20 +144,26 @@ def main():
     detail = source.node_tree.nodes['Rolling billows'].inputs['Detail'].default_value
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
-    scene.render.engine = 'BLENDER_EEVEE_NEXT'
-    scene.eevee.taa_render_samples = 32
-    scene.eevee.volumetric_samples = 64
-    scene.eevee.volumetric_tile_size = '2'
-    scene.eevee.volumetric_start, scene.eevee.volumetric_end = .1, 12
-    scene.eevee.use_volumetric_shadows = True
+    # Cycles, not EEVEE: EEVEE's camera-aligned volume shadow grid lets no side light reach
+    # the smoke (right/left/top/bottom baked black), and six-way light needs all six.
+    scene.render.engine = 'CYCLES'
+    scene.cycles.device = 'CPU'
+    scene.cycles.samples = 64
+    scene.cycles.use_denoising = True
+    scene.cycles.volume_step_rate = 1.0
+    scene.cycles.max_bounces = 4
+    scene.cycles.volume_bounces = 1
+    scene.cycles.seed = 7
     scene.render.resolution_x = scene.render.resolution_y = TILE
     scene.render.resolution_percentage = 100
     scene.render.film_transparent = True
     scene.render.image_settings.file_format = 'PNG'
     scene.render.image_settings.color_mode = 'RGBA'
     scene.view_settings.view_transform = 'Standard'
-    scene.world = bpy.data.worlds.new('Neutral bake world'); scene.world.use_nodes = True
-    scene.world.node_tree.nodes['Background'].inputs[0].default_value = (.3, .3, .3, 1)
+    # No ambient light: every pass sees exactly one sun, so each channel is how much of
+    # that one direction reaches the camera through the smoke's own shadow.
+    scene.world = bpy.data.worlds.new('Dark bake world'); scene.world.use_nodes = True
+    scene.world.node_tree.nodes['Background'].inputs[0].default_value = (0, 0, 0, 1)
     mat = build_material(roughness, detail)
     bpy.ops.mesh.primitive_cube_add(size=3)
     bpy.context.object.name = 'Smoke bake domain'
@@ -150,39 +171,58 @@ def main():
     bpy.ops.object.camera_add(location=(0, -5, 0)); cam = bpy.context.object
     cam.rotation_euler = (Vector((0, 0, 0)) - cam.location).to_track_quat('-Z', 'Y').to_euler()
     cam.data.type = 'ORTHO'; cam.data.ortho_scale = 3; scene.camera = cam
-    for pos, power in [((-3, -4, 5), 650), ((3, -2, 1), 180)]:
-        data = bpy.data.lights.new('Soft smoke key', 'AREA'); data.energy = power; data.size = 4
-        obj = bpy.data.objects.new(data.name, data); scene.collection.objects.link(obj); obj.location = pos
-        obj.rotation_euler = (-obj.location).to_track_quat('-Z', 'Y').to_euler()
+    sun_data = bpy.data.lights.new('Six-way sun', 'SUN'); sun_data.energy = SUN_STRENGTH
+    sun_data.angle = 0.2
+    sun = bpy.data.objects.new(sun_data.name, sun_data); scene.collection.objects.link(sun)
 
     side = TILE * GRID
-    atlas = bpy.data.images.new('Smoke atlas', width=side, height=side, alpha=True)
-    pixels = [0.0] * (side * side * 4)
-    for tile in range(GRID * GRID):
+    atlases = {name: [0.0] * (side * side * 4) for name in ('a', 'b')}
+    tiles = int(sys.argv[sys.argv.index('--') + 2]) if '--tiles' in sys.argv else GRID * GRID
+    for tile in range(tiles):
         family, variant = divmod(tile, GRID)
         configure(mat, family, variant, tile)
-        # Render result is saved outside the repository; load the written PNG because
-        # background EEVEE does not expose Render Result pixels reliably.
-        tile_path = Path(tempfile.gettempdir()) / f'curvios-smoke-bake-{tile}.png'
-        scene.render.filepath = str(tile_path); bpy.ops.render.render(write_still=True)
-        image = bpy.data.images.load(str(tile_path), check_existing=False); rgba = list(image.pixels[:])
-        alpha = rgba[3::4]
+        lit, alphas = {}, []
+        for name, shine in SIX_WAY_PASSES:
+            sun.rotation_euler = Vector(shine).to_track_quat('-Z', 'Y').to_euler()
+            # Render result is saved outside the repository; load the written PNG because
+            # background EEVEE does not expose Render Result pixels reliably.
+            tile_path = Path(tempfile.gettempdir()) / f'curvios-smoke-bake-{tile}-{name}.png'
+            scene.render.filepath = str(tile_path); bpy.ops.render.render(write_still=True)
+            image = bpy.data.images.load(str(tile_path), check_existing=False); rgba = list(image.pixels[:])
+            bpy.data.images.remove(image)
+            lit[name] = rgba[0::4]
+            alphas.append(rgba[3::4])
+        # Density does not depend on the light; Cycles only adds sampling noise per pass.
+        alpha = [sum(values) / len(values) for values in zip(*alphas)]
+        for pass_alpha in alphas:
+            drift = sum(abs(p - q) for p, q in zip(alpha, pass_alpha)) / len(alpha)
+            assert drift < .01, f'density differs between passes on tile {tile}: {drift:.4f}'
         edge = alpha[:TILE] + alpha[-TILE:] + alpha[::TILE] + alpha[TILE - 1::TILE]
         assert max(edge) < .001, f'Atlas tile {tile} touches its border'
         assert sum(.02 < a < .94 for a in alpha) > 1000, f'Tile {tile} needs graded transparency'
+        print(f'tile {tile}: ' + ' '.join(
+            f'{name}={sum(v * a for v, a in zip(lit[name], alpha)) / max(1e-6, sum(alpha)):.3f}'
+            for name, _ in SIX_WAY_PASSES))
         # Blender pixels and three.js UVs both start at the bottom row: tile t sits in
         # column t % 4 and row t // 4 counted upwards, which is how the shader finds it.
         row = tile // GRID
-        for y in range(TILE):
-            src = y * TILE * 4
-            dst = ((y + row * TILE) * side + (tile % GRID) * TILE) * 4
-            pixels[dst:dst + TILE * 4] = rgba[src:src + TILE * 4]
-        bpy.data.images.remove(image)
-    atlas.pixels[:] = pixels
-    atlas.filepath_raw = str(OUT / 'smoke-atlas.png'); atlas.file_format = 'PNG'; atlas.save()
-    atlas.pack()
+        for atlas_name, channels in ATLAS_CHANNELS.items():
+            pixels = atlases[atlas_name]
+            for y in range(TILE):
+                for x in range(TILE):
+                    src = y * TILE + x
+                    dst = ((y + row * TILE) * side + (tile % GRID) * TILE + x) * 4
+                    for channel, name in enumerate(channels):
+                        pixels[dst + channel] = lit[name][src]
+                    pixels[dst + 3] = alpha[src]
+    for atlas_name in ATLAS_CHANNELS:
+        image = bpy.data.images.new(f'Smoke light {atlas_name}', width=side, height=side, alpha=True)
+        image.pixels[:] = atlases[atlas_name]
+        image.filepath_raw = str(OUT / f'smoke-light-{atlas_name}.png'); image.file_format = 'PNG'; image.save()
+        image.pack()
     scene['atlas_layout'] = ('4x4, 256px tiles; rows bottom to top: billows, upright column parts, '
-                             'torn wisps, holed billows; straight alpha; neutral lit smoke')
+                             'torn wisps, holed billows; straight alpha. smoke-light-a RGB = lit from '
+                             'right, top, back; smoke-light-b RGB = lit from left, bottom, front')
     scene.render.filepath = '//smoke-preview.png'
     bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.wm.save_as_mainfile(filepath=str(OUT / 'smoke-bake.blend'), compress=True)

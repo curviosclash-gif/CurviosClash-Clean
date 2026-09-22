@@ -50,10 +50,16 @@ outside the repository.
 
 The GLBs now guide a batch of camera-facing smoke lobes instead of drawing their
 opaque cloud surfaces. `scripts/bake_reactor_smoke.py` bakes the source volume's
-billow noise into `smoke/smoke-atlas.png` (sixteen 256px RGBA tiles in four families,
+billow noise into two six-way light atlases (sixteen 256px tiles in four families,
 rows from the bottom: rounded billows, upright column parts, torn wisps, holed billows;
-cards pick a family by role, see `resolveSmokeTile`); `smoke-bake.blend`
-keeps the editable bake scene. Run it with Blender 4.2 and `--python-exit-code 1`.
+cards pick a family by role, see `resolveSmokeTile`). Each tile is rendered in Cycles
+once per sun direction with the smoke's own shadow: `smoke/smoke-light-a.png` holds the
+light from right, top and back, `smoke/smoke-light-b.png` from left, bottom and front,
+both with the same alpha. The shader turns the map's brightest directional light into
+each card's frame and mixes the six, so lit tops and shaded undersides follow the sun
+however a card is turned. EEVEE is not used for this bake: its camera-aligned volume
+shadows let no side light through. `smoke-bake.blend` keeps the editable bake scene.
+Run it with Blender 4.2 and `--python-exit-code 1` (about 50 minutes on the CPU).
 The runtime recovers connected lobes from the GLB, follows their animated rigs,
 sorts them separately for each camera, and animates cooling and small wisps from
 the same clip clock. The fireball, damage curve and ruin are unchanged. The flat
