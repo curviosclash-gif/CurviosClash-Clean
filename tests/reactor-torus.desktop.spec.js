@@ -6,6 +6,8 @@ import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrame
 test('reactor plays one of four torus clouds with sound, flash and the enlarged ceiling', async ({ page }, testInfo) => {
     test.setTimeout(300_000);
     const errors = collectErrors(page);
+    const glMessages = [];
+    page.on('console', (message) => { if (/WebGL/i.test(message.text())) glMessages.push(message.text()); });
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
@@ -46,6 +48,9 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 if (sounds.includes('REACTOR_BREACH')) throw new Error('sound preceded pressure');
                 arena.setGlbAnimationElapsedSeconds(.28);
                 system.updateFeedback();
+                // Sound travels at 343 m/s; give it time to reach a camera across the map.
+                arena.setGlbAnimationElapsedSeconds(4);
+                system.updateFeedback();
             } finally {
                 manager.runtimeRng.int = oldInt;
                 manager.audio.play = oldPlay;
@@ -54,14 +59,66 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             const flash = manager.particles.rocketBlastEffect.light?.intensity || 0;
             const slots = arena._glbScene.children.filter((slot) => String(slot.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
             const active = slots.filter((slot) => slot.visible);
+            const audio = manager.audio;
+            // World sound reaches the master through the hearing low-pass once audio is running.
+            const hearing = !audio?.ctx ? 'no-audio' : (audio._sfxGain && audio._hearing ? 'wired' : 'missing');
             return { selected: event.variantIndex, active: active.map((slot) => slot.userData.glbModelId),
-                sounds, flash, height: arena.currentMapDefinition.size[1] };
+                sounds, flash, hearing, height: arena.currentMapDefinition.size[1] };
         }, variant);
         expect(result.selected).toBe(variant);
         expect(result.active).toEqual([variant === 0 ? 'reactor-mushroom-cloud' : `reactor-mushroom-cloud-${variant + 1}`]);
         expect(result.sounds.filter((sound) => sound === 'REACTOR_BREACH')).toHaveLength(1);
         expect(result.flash).toBeGreaterThan(0);
+        expect(result.hearing).not.toBe('missing');
+        if (variant === 0) testInfo.annotations.push({ type: 'hearing', description: result.hearing });
         expect(result.height).toBe(286);
+        if (variant === 0) {
+            // The whiteout is drawn in the scene, so the real renderer must show it fading.
+            const flash = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena;
+                const runtime = game.renderer;
+                const camera = runtime.cameras[0];
+                const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone() };
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const overlay = slot.getObjectByProperty('name', 'reactor-flash-overlay_nocol_noshadow');
+                const probe = document.createElement('canvas'); probe.width = 64; probe.height = 36;
+                const context = probe.getContext('2d', { willReadFrequently: true });
+                const shots = {};
+                const brightness = {};
+                for (const reduced of [false, true]) {
+                    overlay.userData.reduceMotion = reduced;
+                    for (const time of [0.03, 0.4, 2]) {
+                        arena.setGlbAnimationElapsedSeconds(time); arena._glbAnimation.advance(0);
+                        camera.position.set(260, 70, 260); camera.lookAt(0, 60, 0); camera.updateMatrixWorld(true);
+                        runtime.renderer.setRenderTarget(null);
+                        runtime.renderer.render(runtime.scene, camera);
+                        context.drawImage(runtime.renderer.domElement, 0, 0, 64, 36);
+                        const pixels = context.getImageData(0, 0, 64, 36).data;
+                        let sum = 0;
+                        for (let i = 0; i < pixels.length; i += 4) sum += pixels[i] + pixels[i + 1] + pixels[i + 2];
+                        const key = `${reduced ? 'reduced' : 'full'}-${time}`;
+                        brightness[key] = sum / (pixels.length / 4) / 765;
+                        shots[key] = runtime.renderer.domElement.toDataURL('image/png');
+                    }
+                }
+                overlay.userData.reduceMotion = true;
+                camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                return { brightness, shots };
+            });
+            for (const [key, png] of Object.entries(flash.shots)) {
+                await writeFile(testInfo.outputPath(`flash-${key}s.png`), Buffer.from(png.split(',')[1], 'base64'));
+            }
+            await writeFile(testInfo.outputPath('flash-brightness.json'), JSON.stringify(flash.brightness, null, 2));
+            // A shader the GPU refuses to link fails silently in three.js; Chromium still says so.
+            expect(glMessages.filter((text) => /INVALID_OPERATION|not valid/i.test(text))).toEqual([]);
+            const b = flash.brightness;
+            expect(b['full-0.03']).toBeGreaterThan(0.9);
+            expect(b['full-0.03']).toBeGreaterThan(b['full-0.4']);
+            expect(b['full-0.4']).toBeGreaterThan(b['full-2']);
+            expect(b['reduced-0.03']).toBeLessThan(b['full-0.03']);
+            expect(b['reduced-0.03']).toBeGreaterThan(b['reduced-2']);
+        }
         if (process.env.REACTOR_VIDEO_DIR && (!process.env.REACTOR_VIDEO_VARIANT || Number(process.env.REACTOR_VIDEO_VARIANT) === variant + 1)) {
             await captureReactorVideo(page, variant, process.env.REACTOR_VIDEO_DIR);
         }

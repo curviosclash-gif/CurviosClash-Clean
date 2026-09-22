@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FOG_FACTOR_GLSL } from './ReactorFireballEffect.js';
 
 // Connected lobes are recovered once from the exported mesh, so smoke follows the
 // authored torus pivots rather than duplicating their animation in another clock.
@@ -47,8 +48,12 @@ varying float vWorldHeight;
 varying float vSmokeHeat;
 varying float vSmokeDepth;
 varying float vSmokeLight;
+varying float vFireLit;
 uniform float cloudTop;
 uniform float cloudBase;
+uniform vec4 fireLight;
+uniform float fireGlow;
+#include <fog_pars_vertex>
 void main() {
     vec4 smokeCenter = texture2D(smokeData,vec2(.125,smokeRow));
     vec4 smokeShape = texture2D(smokeData,vec2(.375,smokeRow));
@@ -65,7 +70,16 @@ void main() {
     vec4 viewPosition = center + vec4(rotated, 0.0, 0.0);
     vWorldHeight = smokeCenter.y + rotated.x * viewMatrix[1][0] + rotated.y * viewMatrix[1][1];
     vSmokeDepth = -viewPosition.z;
+    // The camera's right and up axes turn the billboard offset back into world space.
+    vec3 worldPosition = smokeCenter.xyz
+        + rotated.x * vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0])
+        + rotated.y * vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+    vec3 toFire = worldPosition - fireLight.xyz;
+    float reach = 2.5 * fireLight.w * fireLight.w;
+    vFireLit = fireGlow * reach / (reach + dot(toFire, toFire));
+    vec4 mvPosition = viewPosition;
     gl_Position = projectionMatrix * viewPosition;
+    #include <fog_vertex>
 }
 `;
 
@@ -82,6 +96,9 @@ varying float vWorldHeight;
 varying float vSmokeHeat;
 varying float vSmokeDepth;
 varying float vSmokeLight;
+varying float vFireLit;
+#include <fog_pars_fragment>
+${FOG_FACTOR_GLSL}
 void main() {
     // Tile selection is encoded in the integer part of alpha; fractional alpha
     // remains independent, and padded tiles cannot bleed into neighbouring lobes.
@@ -95,12 +112,18 @@ void main() {
     alpha *= smoothstep(cloudBase,cloudBase+18.0,vWorldHeight);
     alpha *= 1.0-smoothstep(cloudTop-7.0,cloudTop,vWorldHeight);
     if (alpha < .003) discard;
-    vec3 color = smoke.rgb * vSmokeColor * 1.7 * vSmokeLight;
+    vec3 albedo = smoke.rgb * vSmokeColor * 1.7;
+    vec3 color = albedo * vSmokeLight;
+    // The fireball lights the smoke nearest to it, above all the underside of the cap.
+    color += albedo * vec3(1.0,.45,.12) * vFireLit * 1.6;
     // The sRGB atlas decodes to roughly .05-.29 linear brightness.
     float ember = smoothstep(.07,.22,smoke.r) * smoke.a;
     color += vec3(1.0,.23,.025) * heat * vSmokeHeat * ember * .8;
     gl_FragColor = vec4(color, alpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
+    // Aerial perspective, but only partly: map fog is set for gameplay distances and would
+    // swallow a cloud that real haze leaves standing on the horizon.
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, reactorFogFactor() * .4);
 }
 `;
