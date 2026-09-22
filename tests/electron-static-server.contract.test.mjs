@@ -6,7 +6,7 @@ import test from 'node:test';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { startStaticServer } = require('../electron/static-server.cjs');
+const { isPortUnavailable, startStaticServer } = require('../electron/static-server.cjs');
 
 test('desktop static server CSP allows LAN HTTP lobby requests', async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), 'curvios-static-csp-'));
@@ -66,4 +66,17 @@ test('desktop static server CSP allows GLB texture and embedded map fetches', as
         await server?.close?.();
         await rm(rootDir, { recursive: true, force: true });
     }
+});
+
+test('a port the system refuses falls back like an occupied one', () => {
+    // Windows reserves ports for itself (5357 for device discovery, whole Hyper-V ranges that
+    // change per boot). Listening there fails with EACCES, and the app used to end its start
+    // with an error box instead of taking a free port.
+    for (const code of ['EADDRINUSE', 'EACCES', 'EADDRNOTAVAIL']) {
+        assert.equal(isPortUnavailable(Object.assign(new Error(code), { code })), true, code);
+    }
+    for (const code of ['EPERM', 'ENOENT', undefined]) {
+        assert.equal(isPortUnavailable(Object.assign(new Error('other'), { code })), false, String(code));
+    }
+    assert.equal(isPortUnavailable(null), false);
 });
