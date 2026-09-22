@@ -504,6 +504,64 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             expect(wind.drift).toBeGreaterThan(40);
             const headingError = Math.abs(Math.atan2(Math.sin(wind.heading - wind.windYaw), Math.cos(wind.heading - wind.windYaw)));
             expect(headingError).toBeLessThan(0.15);
+            // Seen from the ground the head has to be a body, not a lattice: sky enclosed by
+            // smoke is what made the old cloud look like a heap of separate lumps.
+            const solidity = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena, runtime = game.renderer, camera = runtime.cameras[0];
+                const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const layers = ['reactor-soft-smoke_nocol_noshadow', 'reactor-volume-head_nocol_noshadow', 'reactor-volume-stem_nocol_noshadow']
+                    .map((name) => slot.getObjectByName(name)).filter(Boolean);
+                arena.setGlbAnimationElapsedSeconds(48); arena._glbAnimation.advance(0);
+                camera.far = 5000; camera.updateProjectionMatrix();
+                camera.position.set(0, 60, 300); camera.lookAt(0, 700, 0); camera.updateMatrixWorld(true);
+                const width = 200, height = 120;
+                const probe = document.createElement('canvas'); probe.width = width; probe.height = height;
+                const context = probe.getContext('2d', { willReadFrequently: true });
+                const grab = () => {
+                    runtime.renderer.setRenderTarget(null);
+                    runtime.renderer.render(runtime.scene, camera);
+                    context.drawImage(runtime.renderer.domElement, 0, 0, width, height);
+                    return context.getImageData(0, 0, width, height).data;
+                };
+                for (const layer of layers) layer.visible = false;
+                const without = grab();
+                for (const layer of layers) layer.visible = true;
+                const withSmoke = grab();
+                const png = runtime.renderer.domElement.toDataURL('image/png');
+                camera.far = held.far; camera.updateProjectionMatrix();
+                camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                // How much each pixel changed when the smoke was drawn: its cover.
+                const cover = new Float32Array(width * height);
+                for (let i = 0, p = 0; i < cover.length; i += 1, p += 4) {
+                    cover[i] = (Math.abs(withSmoke[p] - without[p]) + Math.abs(withSmoke[p + 1] - without[p + 1])
+                        + Math.abs(withSmoke[p + 2] - without[p + 2])) / 3;
+                }
+                // Grey smoke against a bright sky moves a pixel only a little; the threshold is
+                // what the thinnest place inside the body still reaches.
+                const solid = (x, y) => cover[y * width + x] > 12;
+                const reaches = (x, y, dx, dy) => {
+                    for (let cx = x + dx, cy = y + dy; cx >= 0 && cx < width && cy >= 0 && cy < height; cx += dx, cy += dy) {
+                        if (solid(cx, cy)) return true;
+                    }
+                    return false;
+                };
+                let smoke = 0, gaps = 0;
+                for (let y = 0; y < height; y += 1) {
+                    for (let x = 0; x < width; x += 1) {
+                        if (solid(x, y)) smoke += 1;
+                        else if (reaches(x, y, 1, 0) && reaches(x, y, -1, 0) && reaches(x, y, 0, 1) && reaches(x, y, 0, -1)) gaps += 1;
+                    }
+                }
+                return { smoke, gaps, share: gaps / (smoke + gaps), png };
+            });
+            await writeFile(testInfo.outputPath('solidity-from-below.png'), Buffer.from(solidity.png.split(',')[1], 'base64'));
+            delete solidity.png;
+            await writeFile(testInfo.outputPath('solidity.json'), JSON.stringify(solidity, null, 2));
+            expect(solidity.smoke).toBeGreaterThan(2500);
+            // Before the solid body the crown let a ring of sky through: 7.6 percent from here.
+            expect(solidity.share).toBeLessThan(0.05);
             // After the clip the cloud thins out on the match clock and a faint rest stays.
             const dissolve = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;

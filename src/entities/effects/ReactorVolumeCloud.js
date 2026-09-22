@@ -57,13 +57,14 @@ float smin(float a, float b, float k) {
     return mix(b, a, h) - k * h * (1.0 - h);
 }
 
-// Shape coverage (1 deep inside, 0 outside) carved by billow noise: where coverage is thin only
-// the noise's highest cells survive, so edges break into round billows instead of fading out.
+// The noise displaces the cloud's skin instead of thinning its body: an opaque cloud takes its
+// cauliflower from where its surface lies, not from thin spots inside. Carving the density itself
+// left four fifths of the ring half-transparent, and the sky showed through the head.
 float carve(float shape, float billow, float erosion) {
-    float coverage = smoothstep(0.45, -0.55, shape);
-    float cells = billow * 0.8 + 0.2;
-    float density = clamp((cells - (1.0 - coverage)) / max(coverage, 0.05), 0.0, 1.0);
-    return clamp(density - (1.0 - erosion) * 0.4 * (1.0 - coverage), 0.0, 1.0);
+    float surface = shape - (billow - 0.6) * 0.9;
+    float density = smoothstep(0.25, -0.25, surface);
+    // Erosion nibbles the outermost skin into wisps and leaves the body alone.
+    return clamp(density - (1.0 - erosion) * 0.55 * smoothstep(-0.25, 0.2, surface), 0.0, 1.0);
 }
 
 // Smoke density at a world point from the head's shape distance, in shape units.
@@ -74,15 +75,21 @@ float headDensity(vec3 p) {
     vec2 tube = vec2((r - R) / a, q.y / b);
     float ring = length(tube) - 1.0;
     // The dome closes the ring's hole from above; its underside stops at the ring's middle.
-    // Narrower than the ring, so the rolled rim bulges out below it as the widest part.
+    // It reaches almost to the ring's own radius: left narrower, the crown thinned out between
+    // dome and rim, and from below the sky shone through that gap as a bright ring.
     float domeBase = 0.1 * b;
-    float lid = length(vec2(r / (R * 0.82), (q.y - domeBase) / max(1.0, dome - domeBase))) - 1.0;
-    // Its underside is a soft bowl that rises towards the axis, where the stem is drawn in; a
-    // flat cut showed from below as a bright disc.
-    float floorY = domeBase - 0.3 * b + 0.7 * b * (1.0 - clamp(r / (R * 0.8), 0.0, 1.0));
-    lid = max(lid, (floorY - q.y) / (1.5 * b));
+    // Steepened: the flat ellipsoid barely reached -0.35 through the ring's inner half, so one
+    // noise sample could push a whole column outside and punch a hole clean through the crown.
+    float lid = (length(vec2(r / (R * 0.98), (q.y - domeBase) / max(1.0, dome - domeBase))) - 1.0) * 1.7;
+    // Its underside is a shallow bowl that rises a little towards the axis, where the stem is
+    // drawn in. A deep bowl thinned the crown until the sky showed through it from below as a
+    // star; the billow displacement, not the bowl, is what keeps the underside from reading flat.
+    float floorY = domeBase - 0.75 * b + 0.3 * b * (1.0 - clamp(r / (R * 0.8), 0.0, 1.0));
+    // A soft floor cut left a thick layer whose shape value barely changed with height, so one
+    // noise sample decided a whole column and the sky came through in a regular ring of holes.
+    lid = max(lid, (floorY - q.y) / (1.0 * b));
     float shape = smin(ring, lid, 0.3);
-    if (shape > 0.6) return 0.0;
+    if (shape > 0.65) return 0.0;
     // Ring coordinates: round the axis, round the tube (rolling), and depth in the tube.
     float around = atan(q.z, q.x) / TAU;
     float roll = atan(q.y, r - R) / TAU + flowTurns;
@@ -90,7 +97,7 @@ float headDensity(vec3 p) {
     vec4 n = texture(volumeNoise, uvw);
     vec4 fine = texture(volumeNoise, p * 0.006 + vec3(0.0, flowTurns * 0.3, 0.0));
     vec4 micro = texture(volumeNoise, p * 0.021 + vec3(flowTurns * 0.5, 0.0, 0.0));
-    float billow = n.r * 0.65 + fine.r * 0.35;
+    float billow = n.r * 0.42 + fine.r * 0.34 + micro.r * 0.24;
     float erosion = n.g * 0.3 + micro.g * 0.4 + micro.b * 0.3;
     return carve(shape, billow, erosion);
 }
@@ -109,13 +116,13 @@ float stemDensity(vec3 p) {
     radius *= 1.0 + STEM_FAN * smoothstep(0.7, 0.95, h);
     // Soft top: a flat end at the proxy's lid showed as a bright disc under the head.
     float shape = r / radius - 1.0 + smoothstep(0.82, 1.0, h) * 1.6;
-    if (shape > 0.6) return 0.0;
+    if (shape > 0.65) return 0.0;
     float around = atan(axis.y, axis.x) / TAU;
     vec3 uvw = vec3(around * 4.0, (p.y - stemShape.x) / (radius * 3.0) - riseTravel * 0.3, r / radius * 0.4);
     vec4 n = texture(volumeNoise, uvw);
     vec4 fine = texture(volumeNoise, p * 0.01 - vec3(0.0, riseTravel * 0.1, 0.0));
     vec4 micro = texture(volumeNoise, p * 0.024 - vec3(0.0, riseTravel * 0.2, 0.0));
-    float billow = n.r * 0.65 + fine.r * 0.35;
+    float billow = n.r * 0.55 + fine.r * 0.3 + micro.r * 0.15;
     return carve(shape, billow, fine.g * 0.3 + micro.g * 0.4 + micro.b * 0.3);
 }
 
@@ -165,7 +172,9 @@ void main() {
     vec3 light = vec3(0.0);
     float firstHit = -1.0;
     // Thick smoke stays opaque at a fraction of its density; the power lets a thin rest look thin.
-    float extinction = 0.07 * pow(smokeDensity, 1.35);
+    // A solid body needs a steeper power than a carved one did, or the seven-minute rest is still
+    // as opaque as the fresh cloud and only wider.
+    float extinction = 0.07 * pow(smokeDensity, 2.2);
     float heightSpan = max(1.0, bounds.z - bounds.y);
     for (int i = 0; i < 64; i++) {
         if (float(i) >= steps || transmittance < 0.02) break;
@@ -174,9 +183,14 @@ void main() {
         float rho = densityAt(p);
         if (rho <= 0.001) continue;
         if (firstHit < 0.0) firstHit = t;
-        // Light from the sun through two samples of the smoke towards it.
+        // Light from the sun through two samples of the smoke towards it. Smoke scatters light
+        // on rather than swallowing it, so deep samples are never black: three terms with ever
+        // weaker extinction and weight stand for direct, once and many times scattered light,
+        // normalised so a fully lit sample keeps its brightness. Without them a solid core turns
+        // the whole cloud flat dark.
         float toSun = densityAt(p + sunDirection * 25.0) * 25.0 + densityAt(p + sunDirection * 70.0) * 45.0;
-        float sunLight = exp(-toSun * extinction * 2.4);
+        float shade = toSun * extinction * 2.4;
+        float sunLight = (exp(-shade) + 0.45 * exp(-shade * 0.35) + 0.2 * exp(-shade * 0.1)) / 1.65;
         // Thin edges scatter forward light, thick cores do not: the "powder" darkening.
         float powder = 1.0 - exp(-rho * 4.0);
         float up = clamp((p.y - bounds.y) / heightSpan, 0.0, 1.0);
