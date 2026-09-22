@@ -1,12 +1,17 @@
 import * as THREE from 'three';
 import { createVortexCards, resolveVortexProfile, smokeHeat, smoothRange, updateVortexCard } from './ReactorVortexFlow.js';
 import { collectSmokeLobes, SMOKE_VERTEX, SMOKE_FRAGMENT } from './ReactorSmokeGeometry.js';
+import { attachReactorFireball, fireballGlow, sampleFireLight } from './ReactorFireballEffect.js';
+import { attachReactorFlash } from './ReactorFlashOverlay.js';
 
 const ATLAS_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-atlas.png', import.meta.url).href;
 export const MAX_SMOKE_CARDS = 512;
 
 export async function attachReactorSmoke(root, action, { loadTexture = () => new THREE.TextureLoader().loadAsync(ATLAS_URL) } = {}) {
     if (!action || !root.getObjectByName('torus_flow_00')) return null;
+    // The fireball needs no texture, so it is upgraded even when the atlas fails to load.
+    attachReactorFireball(root, action);
+    attachReactorFlash(root, action);
     const texture = await loadTexture();
     texture.colorSpace = THREE.SRGBColorSpace;
     return createReactorSmoke(root, action, texture);
@@ -56,10 +61,15 @@ export function createReactorSmoke(root, action, texture) {
     // neither a physical surface nor an addition to the authored map bounds.
     geometry.boundingBox = new THREE.Box3(new THREE.Vector3(), new THREE.Vector3());
     const material = new THREE.ShaderMaterial({
-        uniforms: { smokeData: { value: smokeData }, smokeAtlas: { value: texture }, heat: { value: 0 }, smokeTime: { value: 0 }, cloudTop: { value: 0 }, cloudBase: { value: 0 } },
+        uniforms: {
+            ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+            smokeData: { value: smokeData }, smokeAtlas: { value: texture }, heat: { value: 0 }, smokeTime: { value: 0 }, cloudTop: { value: 0 }, cloudBase: { value: 0 },
+            fireLight: { value: new THREE.Vector4() }, fireGlow: { value: 0 },
+        },
         vertexShader: SMOKE_VERTEX, fragmentShader: SMOKE_FRAGMENT,
-        transparent: true, depthWrite: false, depthTest: true,
+        transparent: true, depthWrite: false, depthTest: true, fog: true,
     });
+    const fire = root.getObjectByName('fire');
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = 'reactor-soft-smoke_nocol_noshadow'; mesh.frustumCulled = false;
     mesh.userData.smokeCardCount = cards.length;
@@ -79,6 +89,8 @@ export function createReactorSmoke(root, action, texture) {
         const settle = Math.min(1, Math.max(0, (time - .18) / 1.4));
         material.uniforms.heat.value = 1.5 * (1-smoothRange(28,44,time));
         material.uniforms.smokeTime.value = time;
+        material.uniforms.fireGlow.value = fireballGlow(time);
+        sampleFireLight(fire, material.uniforms.fireLight.value);
         top.set(0, topMetres, 0).applyMatrix4(root.matrixWorld);
         base.set(0, 0, 0).applyMatrix4(root.matrixWorld);
         material.uniforms.cloudTop.value = top.y;

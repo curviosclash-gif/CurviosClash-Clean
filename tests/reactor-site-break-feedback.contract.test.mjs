@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { MapDestructibleSystem } from '../src/entities/systems/MapDestructibleSystem.js';
 import { emitMapDestructibleBreakFeedback } from '../src/entities/effects/MapDestructibleBreakFeedback.js';
+import { REACTOR_SITE_METRE } from '../src/core/config/maps/presets/reactor_site/ReactorSiteModels.js';
 
 function createFixture({ mapKey = 'reactor_site', reduceMotion = false } = {}) {
     const calls = { particles: [], waves: [], audio: [], shakes: [], impacts: [] };
@@ -62,6 +63,68 @@ test('the reactor breach emits one large presentation without changing gameplay 
     assert.equal(calls.shakes[0][0], 0);
     assert.equal(calls.impacts.length, 0);
     assert.equal(owner.score, scoreBefore, 'feedback does not award score or end the match');
+});
+
+test('sound and pressure travel at the speed of sound to each camera', () => {
+    assert.equal(REACTOR_SITE_METRE, 0.6, 'the feedback converts metres with the preset scale');
+    const { calls, owner, system } = createFixture();
+    // One metre is 0.6 authored units times the map scale of 3: 343 m/s are 617.4 world units/s.
+    owner.renderer.cameras[0].position = { x: 600, y: 84, z: 0 };
+    owner.renderer.cameras[1].position = { x: 100, y: 84, z: 0 };
+    emitMapDestructibleBreakFeedback(owner, { segmentId: 'reactor_dome', atSeconds: 0 });
+
+    owner.arena.glbAnimationElapsedSeconds = .28;
+    system.updateFeedback();
+    assert.equal(calls.waves[1][1], 'REACTOR_PRESSURE', 'the visible shock still leaves with the flash');
+    assert.deepEqual(calls.shakes.map(([index]) => index), [1], 'the near camera is shaken at once');
+    assert.equal(calls.audio.length, 0, 'the far listener has not heard it yet');
+
+    owner.arena.glbAnimationElapsedSeconds = .96;
+    system.updateFeedback();
+    assert.equal(calls.audio.length, 0, '600 units take 0.972 s');
+    owner.arena.glbAnimationElapsedSeconds = .98;
+    system.updateFeedback();
+    system.updateFeedback();
+    assert.equal(calls.audio.length, 1, 'heard once, on arrival');
+    assert.deepEqual(calls.shakes.map(([index]) => index), [1, 0], 'the far camera shakes on arrival');
+    assert.ok(calls.shakes[1][1] < calls.shakes[0][1], 'the far camera shakes less');
+    assert.equal(calls.waves.filter((wave) => wave[1] === 'REACTOR_PRESSURE').length, 1);
+});
+
+test('a close listener goes briefly deaf on arrival; a distant one does not', () => {
+    const near = createFixture();
+    const muffles = [];
+    near.owner.audio.muffle = (...args) => muffles.push(args);
+    near.owner.renderer.cameras[0].position = { x: 200, y: 84, z: 0 };
+    emitMapDestructibleBreakFeedback(near.owner, { segmentId: 'reactor_dome', atSeconds: 0 });
+    near.owner.arena.glbAnimationElapsedSeconds = .28;
+    near.system.updateFeedback();
+    assert.equal(muffles.length, 0, 'not before the sound arrives');
+    near.owner.arena.glbAnimationElapsedSeconds = .4;
+    near.system.updateFeedback();
+    assert.equal(muffles.length, 1);
+    assert.ok(muffles[0][0] > .6 && muffles[0][0] <= 1, 'close means strong');
+    assert.ok(muffles[0][1] >= 1.5 && muffles[0][1] <= 3);
+
+    const far = createFixture();
+    const farMuffles = [];
+    far.owner.audio.muffle = (...args) => farMuffles.push(args);
+    far.owner.renderer.cameras[0].position = { x: 900, y: 84, z: 0 };
+    emitMapDestructibleBreakFeedback(far.owner, { segmentId: 'reactor_dome', atSeconds: 0 });
+    far.owner.arena.glbAnimationElapsedSeconds = 3;
+    far.system.updateFeedback();
+    assert.equal(far.calls.audio.length, 1);
+    assert.equal(farMuffles.length, 0, 'beyond the pressure range the ears stay clear');
+});
+
+test('a listener beyond the travel limit never waits forever', () => {
+    const { calls, owner, system } = createFixture();
+    owner.renderer.cameras[0].position = { x: 90000, y: 84, z: 0 };
+    emitMapDestructibleBreakFeedback(owner, { segmentId: 'reactor_dome', atSeconds: 0 });
+    owner.arena.glbAnimationElapsedSeconds = 9;
+    system.updateFeedback();
+    assert.equal(system._pendingPressureFeedback, null);
+    assert.equal(calls.audio.length, 0, 'too far away to hear the breach');
 });
 
 test('reduced motion keeps impact feedback but leaves the picture still', () => {

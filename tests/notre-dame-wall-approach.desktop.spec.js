@@ -2,8 +2,21 @@ import { expect, test } from './helpers.desktop.js';
 import * as THREE from 'three';
 import { collectErrors, openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
 
+let previousGraphicsStyle = null;
+test.afterEach(async ({ page }) => {
+    if (!previousGraphicsStyle) return;
+    await page.evaluate((graphicsStyle) => {
+        const game = window.GAME_INSTANCE;
+        game.settings.localSettings.graphicsStyle = graphicsStyle;
+        game.renderer.setGraphicsStyle(graphicsStyle);
+        return game.runtimeFacade.onSettingsChanged({ changedKeys: ['local.graphicsStyle'] });
+    }, previousGraphicsStyle);
+    previousGraphicsStyle = null;
+});
+
 async function startNotreDame(page) {
     await waitForLoadedGame(page);
+    previousGraphicsStyle = await page.evaluate(() => window.GAME_INSTANCE.renderer.getGraphicsStyle());
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 10_000 });
@@ -54,6 +67,16 @@ test('near-wall flight keeps the Electron arena walls visually continuous @rende
         const camera = runtime.cameras[0];
         const wallMaterial = game.arena._wallMat;
         const bounds = game.arena.bounds;
+        const authoredWalls = game.arena.obstacles.filter((obstacle) => obstacle.isWall).length;
+        const openFaces = [...game.arena.openFaces];
+        // Notre-Dame now has open exclusion boundaries. Exercise the shared wall material on
+        // actual closed-box geometry, otherwise both samples only render the same empty sky.
+        const obstacleCount = game.arena.obstacles.length;
+        const pipeline = game.arena._builder.geometryPipeline;
+        pipeline.compileWallStage({ sx: bounds.maxX - bounds.minX, sy: bounds.maxY,
+            sz: bounds.maxZ - bounds.minZ, scale: runtime.getMapScale(), openFaces: [] });
+        pipeline.flushMergeStage({ wallMat: wallMaterial });
+        const fixtureWall = game.arena._mergedWallMesh;
         const original = {
             side: wallMaterial.side,
             transparent: wallMaterial.transparent,
@@ -146,11 +169,17 @@ test('near-wall flight keeps the Electron arena walls visually continuous @rende
         } finally {
             Object.assign(wallMaterial, original);
             wallMaterial.needsUpdate = true;
+            runtime.scene.remove(fixtureWall);
+            fixtureWall.geometry.dispose();
+            game.arena._mergedWallMesh = null;
+            game.arena.obstacles.length = obstacleCount;
         }
 
         return {
             isElectron: globalThis.__CURVIOS_APP__ === true && globalThis.curviosApp?.isApp === true,
             bounds,
+            authoredWalls,
+            openFaces,
             original,
             results,
         };
@@ -245,6 +274,8 @@ test('near-wall flight keeps the Electron arena walls visually continuous @rende
 
     console.log('NOTRE_DAME_WALL_APPROACH_PROOF', JSON.stringify(proof));
     expect(proof.isElectron).toBe(true);
+    expect(proof.authoredWalls).toBe(0);
+    expect(proof.openFaces.slice().sort()).toEqual(['maxX', 'maxY', 'maxZ', 'minX', 'minZ']);
     expect(proof.original).toEqual({
         side: THREE.FrontSide,
         transparent: true,

@@ -9,6 +9,7 @@ import { normalizeAudioSettings } from '../shared/contracts/AudioSettingsContrac
 import { createExplosionChainState, playExplosionVoice, playRocketImpactVoice, resetExplosionChain, resolveExplosionEcho } from './audio/ExplosionVoice.js';
 import { MUSIC_STATES, ProceduralMusicDirector } from './audio/ProceduralMusicDirector.js';
 import { playGameplayVoice } from './audio/GameplayVoices.js';
+import { createHearingMuffle } from './audio/HearingMuffle.js';
 import {
     disposeMapAmbienceVoice,
     syncMapAmbienceVoice,
@@ -19,6 +20,7 @@ import {
     playRecordedAudioSample,
 } from './audio/RecordedAudioSamples.js';
 import { disposeEngineVoice, ensureEngineVoice, stopEngineVoice, updateEngineVoice } from './audio/EngineVoice.js';
+import { createAudioOutputGuard } from './audio/AudioOutputGuard.js';
 
 const logger = createLogger('AudioManager');
 const DEFAULT_COOLDOWN_MS = 50;
@@ -70,6 +72,7 @@ export class AudioManager {
         this._recordingDestinations = new Map();
         this._voiceReleaseTimers = new Set();
         this._sampleLoadPromise = null;
+        this._audioOutputGuard = createAudioOutputGuard();
         this._recordedMgIndex = 0;
         this.thirdPartyAudioNoticeUrl = AUDIO_THIRD_PARTY_NOTICE_URL;
 
@@ -131,17 +134,17 @@ export class AudioManager {
         if (!AudioContext) return;
         try {
             this.ctx = new AudioContext();
+            void this._audioOutputGuard.pin(this.ctx);
             this._masterGain = this.ctx.createGain();
             this._sfxGain = this.ctx.createGain();
             this._engineGain = this.ctx.createGain();
             this._musicGain = this.ctx.createGain();
             this._uiGain = this.ctx.createGain();
             this._ambienceGain = this.ctx.createGain();
-            this._sfxGain.connect(this._masterGain);
-            this._engineGain.connect(this._masterGain);
+            // World sound passes the hearing low-pass; music and ui never go deaf.
+            this._hearing = createHearingMuffle(this.ctx, [this._sfxGain, this._engineGain, this._ambienceGain], this._masterGain);
             this._musicGain.connect(this._masterGain);
             this._uiGain.connect(this._masterGain);
-            this._ambienceGain.connect(this._masterGain);
             if (typeof this.ctx.createDynamicsCompressor === 'function') {
                 this._compressor = this.ctx.createDynamicsCompressor();
                 this._compressor.threshold.value = -12;
@@ -226,6 +229,11 @@ export class AudioManager {
 
     _sfxOut() {
         return this._sfxGain || this._masterGain || this.ctx.destination;
+    }
+
+    /** Close-blast deafness: world sound goes dull under a faint ring, then recovers. */
+    muffle(intensity, seconds) {
+        if (this.enabled) this._hearing?.trigger(intensity, seconds);
     }
 
     _musicOut() {
@@ -791,6 +799,7 @@ export class AudioManager {
         }
         this._removeInitListeners();
         this._removeAllWindowListeners();
+        this._audioOutputGuard?.dispose();
         this._onInitInteraction = null;
         if (this.ctx && typeof this.ctx.close === 'function') {
             this.ctx.close().catch(() => {});
@@ -803,8 +812,10 @@ export class AudioManager {
         this._uiGain = null;
         this._ambienceGain = null;
         this._compressor = null;
+        this._hearing = null;
         this._outputNode = null;
         this._sampleLoadPromise = null;
+        this._audioOutputGuard = null;
         this._recordedMgIndex = 0;
         this.buffers = {};
         this._debugEvents = [];

@@ -1,5 +1,8 @@
 import { createMapFireProgression, advanceMapFireProgression, damageMapFireSegment, resolveMapFireProgress } from '../../shared/contracts/MapFireProgressionContract.js';
-import { emitMapDestructiblePressureFeedback } from '../effects/MapDestructibleBreakFeedback.js';
+import {
+    advanceMapDestructiblePressureFeedback,
+    createMapDestructiblePressureFeedback,
+} from '../effects/MapDestructibleBreakFeedback.js';
 import {
     applyMapDestructibleDamage,
     applyMapDestructibleNetworkState,
@@ -90,7 +93,7 @@ export class MapDestructibleSystem {
         const start = Number.isFinite(Number(atSeconds)) ? Number(atSeconds) : this.getElapsedSeconds();
         // A late join receives the cloud state without replaying an old detonation.
         if (this.getElapsedSeconds() > start + 1) return;
-        this._pendingPressureFeedback = { position, atSeconds: start + 0.28 };
+        this._pendingPressureFeedback = createMapDestructiblePressureFeedback(position, start, 0.28);
     }
 
     updateFeedback() {
@@ -113,9 +116,11 @@ export class MapDestructibleSystem {
             this.entityManager?.arena?.setMapFireState?.(this.fireState);
         }
         const pending = this._pendingPressureFeedback;
-        if (!pending || this.getElapsedSeconds() < pending.atSeconds) return;
-        this._pendingPressureFeedback = null;
-        emitMapDestructiblePressureFeedback(this.entityManager, pending.position);
+        const elapsed = this.getElapsedSeconds();
+        if (!pending || elapsed < pending.atSeconds) return;
+        if (advanceMapDestructiblePressureFeedback(this.entityManager, pending, elapsed)) {
+            this._pendingPressureFeedback = null;
+        }
     }
 
     setNetworkReplica(enabled) {
