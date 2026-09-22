@@ -105,6 +105,7 @@ export class ArenaGeometryCompilePipeline {
             const isFoamObstacle = obstacleKind === 'foam';
             const obstacleOptions = {
                 kind: isFoamObstacle ? 'foam' : 'hard',
+                sourceId: obs.id,
                 rotateY: Number(obs.rotateY) || 0,
                 renderWithGlb: obs.renderWithGlb === true,
             };
@@ -259,7 +260,7 @@ export class ArenaGeometryCompilePipeline {
         worldGeo.applyMatrix4(transform);
         worldGeo.userData.renderWithGlb = options.renderWithGlb === true;
         const box = createGeometryBounds(worldGeo);
-        const obstacle = { box, isWall: false, kind };
+        const obstacle = { box, isWall: false, kind, ...(options.sourceId ? { sourceId: options.sourceId } : {}) };
         if (rotateY !== 0) obstacle.meshCollider = createGeometryCollider(worldGeo);
         arena.obstacles.push(obstacle);
         if (isFoam) {

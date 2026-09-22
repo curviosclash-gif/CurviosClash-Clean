@@ -1,3 +1,4 @@
+import { NOTRE_DAME_EVOLUTION_MAPS } from './presets/notre_dame/NotreDameEvolution.js';
 import { STANDARD_MAPS } from './presets/standard.js';
 import { ARENA_MAPS } from './presets/arena_maps.js';
 import { THEMED_MAPS } from './presets/themed_maps.js';
@@ -60,6 +61,7 @@ export const MAP_PRESET_CATALOG = {
     ...(AETHERION_ORRERY_MAP || {}),
     ...(NOTRE_DAME_MAPS || {}),
     ...(NOTRE_DAME_FIRE_MAPS || {}),
+    ...NOTRE_DAME_EVOLUTION_MAPS,
     ...(EIFFEL_TOWER_MAPS || {}),
     ...(EIFFEL_TOWER_SIEGE_MAPS || {}),
     ...(REACTOR_SITE_MAPS || {}),

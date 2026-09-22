@@ -26,9 +26,9 @@ async function startFireArena(page) {
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-    await page.selectOption('#map-select', 'notre_dame_fire_arena');
+    await page.selectOption('#map-select', 'notre_dame_arena');
     await page.waitForFunction(() => (
-        window.GAME_INSTANCE?.settings?.mapKey === 'notre_dame_fire_arena'
+        window.GAME_INSTANCE?.settings?.mapKey === 'notre_dame_arena'
     ), null, { timeout: 5000 });
     await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
@@ -39,8 +39,8 @@ async function startFireArena(page) {
     });
     await page.click('#btn-start');
     await expect.poll(() => page.evaluate(() => (
-        window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame_fire_arena'
-        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 40
+        window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame_arena'
+        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 53
         && !window.GAME_INSTANCE?.arena?._glbLoadError
     )), {
         timeout: 150_000,
@@ -54,6 +54,12 @@ async function startFireArena(page) {
 test('the fire opens the roof and puts the spire on the floor', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await startFireArena(page);
+    await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        game.arena.setGlbAnimationElapsedSeconds(310);
+        game.entityManager._mapDestructibleSystem.updateFeedback();
+        game.arena.setGlbAnimationElapsedSeconds(310);
+    });
 
     const roof = await page.evaluate(({ scale, naveX }) => {
         const arena = window.GAME_INSTANCE.arena;
@@ -118,11 +124,11 @@ test('the fire opens the roof and puts the spire on the floor', async ({ page },
         const crossingLight = fx.lightTracks.find((entry) => (
             entry.light?.userData?.authoredLightId === 'ndf_crossing_breach'
         ));
-        arena.setGlbAnimationElapsedSeconds(0);
+        arena.setGlbAnimationElapsedSeconds(300);
         const smokeAtStart = Array.from(fx.layers.smoke.positions.slice(0, 12));
         const lightAtStart = crossingLight?.light?.intensity || 0;
         const telegraphAtStart = hazards.visuals[0]?.mesh?.visible === true;
-        arena.setGlbAnimationElapsedSeconds(3.5);
+        arena.setGlbAnimationElapsedSeconds(303.5);
         return {
             fireLayerNames: fx.group.children.map((child) => child.name),
             emberCount: fx.layers.embers.positions.length / 3,

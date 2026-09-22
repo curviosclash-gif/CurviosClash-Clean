@@ -36,7 +36,7 @@ async function startNotreDame(page, mapKey) {
     await page.waitForFunction(
         (key) => (
             window.GAME_INSTANCE?.arena?.currentMapKey === key
-            && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 47
+            && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 53
             && !window.GAME_INSTANCE?.arena?._glbLoadError
         ),
         mapKey,
@@ -54,6 +54,12 @@ for (const mapKey of MAP_KEYS) {
         test.setTimeout(300_000);
         const errors = collectErrors(page);
         await startNotreDame(page, mapKey);
+        await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            game.arena.setGlbAnimationElapsedSeconds(350);
+            game.entityManager._mapDestructibleSystem.updateFeedback();
+            game.arena.setGlbAnimationElapsedSeconds(350);
+        });
 
         const proof = await page.evaluate((views) => {
             const game = window.GAME_INSTANCE;
@@ -202,7 +208,7 @@ for (const mapKey of MAP_KEYS) {
 
         console.log('NOTRE_DAME_ATMOSPHERE_PROOF', JSON.stringify({ mapKey, proof }));
         expect(proof.isElectron).toBe(true);
-        expect(proof.authoredFog.colorLow).toBe(0x260e0f);
+        expect(proof.authoredFog.colorLow).toBe(0x62352b);
         expect(proof.authoredFog.heightFalloff).toBeGreaterThan(0);
         expect(proof.authoredFog.skyBlend).toBeGreaterThan(0);
         expect(afterNearBlack).toBeLessThan(beforeNearBlack * 0.8);

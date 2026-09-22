@@ -1,3 +1,4 @@
+import { NOTRE_DAME_EVOLUTION_MAPS } from '../src/core/config/maps/presets/notre_dame/NotreDameEvolution.js';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -101,8 +102,8 @@ function sceneBoundingBox(url) {
 }
 
 test('Notre-Dame is registered everywhere a map has to appear', () => {
-    assert.equal(MAP_PRESET_CATALOG.notre_dame, map);
-    assert.equal(MAP_PRESETS_BASE.notre_dame, map);
+    assert.equal(MAP_PRESET_CATALOG.notre_dame, NOTRE_DAME_EVOLUTION_MAPS.notre_dame);
+    assert.equal(MAP_PRESETS_BASE.notre_dame, NOTRE_DAME_EVOLUTION_MAPS.notre_dame);
     assert.equal(map.name, 'Notre-Dame');
     // The same size as the largest existing map.
     assert.deepEqual(map.size, [460, 150, 320]);
@@ -514,8 +515,8 @@ test('the outdoor collision sits on the bays and the curve it is drawn on', () =
 test('the arena variant reuses the building instead of duplicating it', () => {
     const arena = NOTRE_DAME_MAPS.notre_dame_arena;
 
-    assert.equal(MAP_PRESET_CATALOG.notre_dame_arena, arena);
-    assert.equal(MAP_PRESETS_BASE.notre_dame_arena, arena);
+    assert.equal(MAP_PRESET_CATALOG.notre_dame_arena, NOTRE_DAME_EVOLUTION_MAPS.notre_dame_arena);
+    assert.equal(MAP_PRESETS_BASE.notre_dame_arena, NOTRE_DAME_EVOLUTION_MAPS.notre_dame_arena);
     assert.equal(arena.name, 'Notre-Dame Arena');
     assert.equal(resolveMapPickerCollection('notre_dame_arena').id, 'arena');
 

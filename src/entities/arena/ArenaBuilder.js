@@ -1,3 +1,4 @@
+import { MapFireEvolutionController } from './MapFireEvolutionController.js';
 import * as THREE from 'three';
 import { ArenaGeometryCompilePipeline } from './ArenaGeometryCompilePipeline.js';
 import { createArenaBuildSignature, createArenaMapFingerprint, getArenaMaterialBundle } from './ArenaBuildResourceCache.js';
@@ -24,6 +25,7 @@ export class ArenaBuilder {
         this.geometryPipeline = new ArenaGeometryCompilePipeline(arena);
         this.mapLightRig = new AuthoredMapLightRig(arena.renderer);
         this.fireFxController = new MapFireFxController(arena.renderer);
+        this.fireEvolution = new MapFireEvolutionController(arena);
         this.mapHazardVisualController = new MapHazardVisualController(arena.renderer);
         this.expansionController = new ArenaExpansionController(arena);
     }
@@ -54,6 +56,7 @@ export class ArenaBuilder {
         this.mapLightRig.build(mapResolution.map, scale);
         this.fireFxController.build(mapResolution.map, scale, this.mapLightRig.lights);
         this.mapHazardVisualController.build(mapResolution.map, scale);
+        this.fireEvolution.build(mapResolution.map);
         this._applyArenaBounds(size);
         // Beside the bounds, and scaled with them: the rooms of the previous map end here whether
         // the new one brings its own or not.
@@ -122,8 +125,9 @@ export class ArenaBuilder {
     // update and a host, replay or restart override both come through here, so the fire, the
     // hazards and the arena size can never disagree about where in the round it is.
     updateMapClock(elapsedSeconds) {
+        this.fireEvolution.update(elapsedSeconds);
         this.fireFxController.update(elapsedSeconds);
-        this.mapHazardVisualController.update(elapsedSeconds);
+        if (!this.fireEvolution.definition) this.mapHazardVisualController.update(elapsedSeconds);
         this.expansionController.update(elapsedSeconds);
         this.arena.renderer?.updateMapFogLayer?.(elapsedSeconds);
     }

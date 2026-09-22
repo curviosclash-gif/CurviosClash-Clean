@@ -188,8 +188,7 @@ export class Renderer {
     // they have to travel with it - otherwise a map scaled by three has its fog layer sitting at a
     // third of the height it states, and everything above stays unfogged.
     setMapLighting(profile, mapScale = 1) {
-        this._mapLighting = profile;
-        const numericScale = Number(mapScale);
+        this._mapLighting = profile; const numericScale = Number(mapScale);
         this._mapScale = Number.isFinite(numericScale) && numericScale > 0 ? numericScale : 1;
         this._mapFogLayerDriver.setScale(this._mapScale);
         this._applySceneAppearance();
@@ -328,7 +327,9 @@ export class Renderer {
     // Kartenprofil ueberschreibt davon was es nennt, die Helligkeitsstufe ist ein Faktor darauf,
     // und eine gesetzte Sichtweite ersetzt die Fog-Reichweite ganz. Schriebe eine der Quellen
     // woanders, wuerde sie von der naechsten ueberschrieben.
-    _applySceneAppearance() {
+    updateMapFireLighting(profile) { this._mapLighting = profile; this._applySceneAppearance(false); }
+
+    _applySceneAppearance(refreshEnvironment = true) {
         const normalMapLighting = resolveMapLighting(this._mapLighting);
         const globalFogRange = resolveGlobalFogMapRange(normalMapLighting, CONFIG.CAMERA.FAR);
         this._globalFogVisibilityRange = globalFogRange.far;
@@ -353,7 +354,7 @@ export class Renderer {
         }
         // The reflection has to follow the same lighting the rig just applied, otherwise the metal
         // in the scene keeps mirroring whatever sky the previous map had.
-        this._environmentController.apply(this._graphicsStyle, lighting);
+        if (refreshEnvironment) this._environmentController.apply(this._graphicsStyle, lighting);
         // The rig just rewrote the static height terms. A brightness or view distance change mid
         // round would otherwise drop a travelling layer back onto its map's authored height until
         // the band next moves, which on a held stage is never.

@@ -81,6 +81,7 @@ export class MapFireFxController {
         this.layers = null;
         this.lightTracks = [];
         this.elapsedSeconds = 0;
+        this.intensity = 1;
     }
 
     build(map, mapScale = 1, lights = []) {
@@ -114,6 +115,12 @@ export class MapFireFxController {
 
         this.update(0);
         return this.group;
+    }
+
+    setIntensity(value) {
+        this.intensity = Math.max(0, Math.min(1, Number(value) || 0));
+        if (this.group) this.group.visible = this.intensity > 0;
+        if (this.layers) for (const key in this.layers) { const layer = this.layers[key]; layer.points.material.opacity = layer.definition.opacity * this.intensity; }
     }
 
     update(elapsedSeconds) {
@@ -199,7 +206,7 @@ export class MapFireFxController {
             const primary = Math.sin(time * track.frequency * TAU + track.phase);
             const secondary = Math.sin(time * track.frequency * 2.37 + track.phase * 0.61);
             const wave = primary * 0.68 + secondary * 0.32;
-            track.light.intensity = track.baseIntensity * (1 + wave * track.amplitude);
+            track.light.intensity = track.baseIntensity * this.intensity * (1 + wave * track.amplitude);
         }
     }
 
@@ -217,6 +224,7 @@ export class MapFireFxController {
         this.layers = null;
         this.scale = 1;
         this.elapsedSeconds = 0;
+        this.intensity = 1;
     }
 
     dispose() {

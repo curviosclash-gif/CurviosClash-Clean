@@ -1,3 +1,4 @@
+import { NOTRE_DAME_EVOLUTION_MAPS } from '../src/core/config/maps/presets/notre_dame/NotreDameEvolution.js';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -36,15 +37,15 @@ test('the fire maps use their own deterministic emergency ambience profile', () 
 });
 
 test('both fire maps are registered everywhere a map has to appear', () => {
-    assert.equal(MAP_PRESET_CATALOG.notre_dame_fire, fire);
-    assert.equal(MAP_PRESETS_BASE.notre_dame_fire, fire);
+    assert.equal(MAP_PRESET_CATALOG.notre_dame_fire, NOTRE_DAME_EVOLUTION_MAPS.notre_dame_fire);
+    assert.equal(MAP_PRESETS_BASE.notre_dame_fire, NOTRE_DAME_EVOLUTION_MAPS.notre_dame_fire);
     assert.equal(fire.name, 'Notre-Dame Brand');
     assert.equal(fire.parcours.enabled, true);
     // Without a collection the picker drops the map into the unsorted fallback bucket.
     assert.equal(resolveMapPickerCollection('notre_dame_fire').id, 'adventure');
 
-    assert.equal(MAP_PRESET_CATALOG.notre_dame_fire_arena, fireArena);
-    assert.equal(MAP_PRESETS_BASE.notre_dame_fire_arena, fireArena);
+    assert.equal(MAP_PRESET_CATALOG.notre_dame_fire_arena, NOTRE_DAME_EVOLUTION_MAPS.notre_dame_fire_arena);
+    assert.equal(MAP_PRESETS_BASE.notre_dame_fire_arena, NOTRE_DAME_EVOLUTION_MAPS.notre_dame_fire_arena);
     assert.equal(fireArena.name, 'Notre-Dame Brand Arena');
     assert.equal(fireArena.parcours, undefined);
     assert.equal(resolveMapPickerCollection('notre_dame_fire_arena').id, 'arena');

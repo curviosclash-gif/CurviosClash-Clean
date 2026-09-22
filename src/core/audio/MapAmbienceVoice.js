@@ -123,7 +123,7 @@ function silenceMapAmbience(audio, state) {
     state.lastCollapseIndex = null;
 }
 
-function playNotreDameCollapse(audio, profile, position, scale) {
+export function playNotreDameCollapse(audio, profile, position, scale) {
     const collapse = profile?.collapse;
     if (!Array.isArray(collapse?.position) || !position) return;
     const dx = Number(collapse.position[0]) * scale - position.x;
@@ -214,14 +214,15 @@ export function syncMapAmbienceVoice(audio, options = {}) {
     const time = audio.ctx.currentTime;
 
     const isFire = profileId === NOTRE_DAME_FIRE_PROFILE_ID;
+    const fireAmount = typeof options.fireProgress === 'number' ? clamp(options.fireProgress, 0, 1) : 1;
     const fireMix = isFire ? clamp(0.55 + 0.3 * Math.sin((Number(options.elapsedSeconds) || 0) * 1.37), 0.2, 1) : 0;
     const windMix = isFire ? clamp(0.5 + 0.35 * Math.sin((Number(options.elapsedSeconds) || 0) * 0.41 + 1.2), 0.15, 1) : 0;
     setTarget(state.outdoor.gain.gain, inside ? 0.0025 : (isFire ? 0.011 : 0.015), time);
     setTarget(state.interior.gain.gain, inside ? (isFire ? 0.018 : 0.022) : SILENT_GAIN, time);
     setTarget(state.construction.gain.gain, SILENT_GAIN + constructionMix * (isFire ? 0.002 : 0.012), time);
     setTarget(state.machinery.gain.gain, SILENT_GAIN + constructionMix * (isFire ? 0.001 : 0.007), time);
-    setTarget(state.fire.gain.gain, isFire ? (inside ? 0.018 : 0.009) * fireMix : SILENT_GAIN, time);
-    setTarget(state.wind.gain.gain, isFire ? (inside ? 0.004 : 0.012) * windMix : SILENT_GAIN, time);
+    setTarget(state.fire.gain.gain, isFire ? (inside ? 0.018 : 0.009) * fireMix * fireAmount : SILENT_GAIN, time);
+    setTarget(state.wind.gain.gain, isFire ? (inside ? 0.004 : 0.012) * windMix * fireAmount : SILENT_GAIN, time);
     setTarget(state.interior.filter.frequency, inside ? 165 : 260, time, 0.6);
 
     const elapsedSeconds = Math.max(0, Number(options.elapsedSeconds) || 0);

@@ -31,7 +31,7 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame'
         && window.GAME_INSTANCE?.arena?._glbScene
         && !window.GAME_INSTANCE?.arena?._glbLoadError
-        && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === 8
+        && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === 14
     )), {
         timeout: 150_000,
         message: 'Notre-Dame should load all fifteen parts and animate the eight site pieces',
@@ -62,10 +62,10 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
     expect(state.authoredObstacleCount).toBeGreaterThan(0);
     expect(state).toEqual({
         mapKey: 'notre_dame',
-        trackCount: 8,
+        trackCount: 14,
         warningCount: 0,
         colliderMode: 'scene',
-        glbSceneChildren: 47,
+        glbSceneChildren: 53,
         authoredObstacleCount: state.authoredObstacleCount,
         authoredObstacleVisuals: 2,
         authoredCollisionSolid: true,
@@ -86,7 +86,7 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
     // rather than only holding in the preset.
     const phases = await page.evaluate(() => (
         window.GAME_INSTANCE.arena._glbAnimation._tracks
-            .map((track) => ({ clip: track.clipName, time: Number(track.action.time.toFixed(3)) }))
+            .filter((track) => track.clipName !== 'NotreDameCollapse').map((track) => ({ clip: track.clipName, time: Number(track.action.time.toFixed(3)) }))
     ));
     expect(phases).toHaveLength(8);
     expect(new Set(phases.map((entry) => entry.clip)).size).toBe(8);
@@ -215,7 +215,7 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         const game = window.GAME_INSTANCE;
         const arena = game.arena;
         const movingIds = arena.currentMapDefinition.glbModels
-            .filter((model) => model.animationClock)
+            .filter((model) => model.animationClock && !model.hiddenUntilTriggered)
             .map((model) => model.id);
         const groupFor = (obstacle) => {
             let node = obstacle?.meshCollider?.mesh || null;

@@ -13,6 +13,7 @@ GENERATORS = {
     'aetherion_orrery': 'generate_aetherion_orrery_assets',
     'notre_dame': 'generate_notre_dame_assets',
     'notre_dame_fire': 'generate_notre_dame_fire_assets',
+    'notre_dame_evolution': 'generate_notre_dame_evolution_assets',
     'eiffel_tower': 'generate_eiffel_tower_assets',
     'eiffel_tower_siege': 'generate_eiffel_tower_siege_assets',
     'reactor_site': 'generate_reactor_site_assets',
@@ -40,6 +41,9 @@ def main():
     parser.add_argument('--output-dir', type=Path)
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
     module = importlib.import_module(GENERATORS[args.pack])
+    if args.pack == 'notre_dame_evolution':
+        module.main(args.part, args.output_dir)
+        return
     if args.pack in ('storm_bridge_siege', 'storm_lighthouse_siege', 'storm_dam_siege'):
         if args.output_dir:
             module.ROOT = args.output_dir.resolve()

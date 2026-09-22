@@ -29,7 +29,7 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
     await page.click('#btn-start');
     await expect.poll(() => page.evaluate(() => (
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame_arena'
-        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 47
+        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 53
         && !window.GAME_INSTANCE?.arena?._glbLoadError
     )), {
         timeout: 150_000,
@@ -55,7 +55,7 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
     expect(state.authoredObstacleCount).toBeGreaterThan(0);
     expect(state).toEqual({
         parcours: false,
-        tracks: 8,
+        tracks: 14,
         warnings: 0,
         colliderMode: 'scene',
         authoredObstacleCount: state.authoredObstacleCount,

@@ -448,6 +448,8 @@ export class Arena {
     }
 
     /** Puts a shot-apart map back together, for a round that reuses this arena as it is. */
+    setMapFireState(state) { this._builder.fireEvolution.setState(state); this._builder.fireEvolution.update(this.glbAnimationElapsedSeconds); }
+
     resetMapDestructibleScenes() {
         resetArenaMapDestructibleScenes(this);
     }
@@ -547,7 +549,7 @@ export class Arena {
         this._mergedFoamEdges = null;
         this.particles = null;
 
-        this._clearLoadedGlbScene(); this._builder.fireFxController.dispose(); this._builder.mapHazardVisualController.dispose(); this._builder.expansionController.clear(); this._exclusionBoundaryVisual.dispose();
+        this._clearLoadedGlbScene(); this._builder.fireEvolution.clear(); this._builder.fireFxController.dispose(); this._builder.mapHazardVisualController.dispose(); this._builder.expansionController.clear(); this._exclusionBoundaryVisual.dispose();
         this._clearAuthoredAircraftDecorations();
 
         for (const portal of this.portals || []) {

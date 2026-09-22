@@ -67,6 +67,7 @@ export class EntityTickPipeline {
             const ambienceOptions = this._mapAmbienceOptions;
             ambienceOptions.localPlayerIndex = owner.renderer?.viewportSystem?.localPlayerIndex;
             ambienceOptions.mapDefinition = owner.arena?.currentMapDefinition;
+            ambienceOptions.fireProgress = owner.arena?.mapFireProgress;
             ambienceOptions.mapScale = owner.entityRuntimeConfig?.ARENA?.MAP_SCALE;
             ambienceOptions.elapsedSeconds = owner.arena?.glbAnimationElapsedSeconds;
             ambienceOptions.sandstormState = owner._mapSandstormSystem?.state || null;

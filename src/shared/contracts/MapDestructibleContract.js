@@ -65,7 +65,7 @@ export const MAP_DESTRUCTIBLE_KINDS = Object.freeze({
     leg_mid: Object.freeze({ kind: 'leg_mid', sealsTower: false, yawFrom: 'segment', piece: 'mid' }),
     shaft: Object.freeze({ kind: 'shaft', sealsTower: false, yawFrom: 'hit', piece: 'shaft' }),
     summit: Object.freeze({ kind: 'summit', sealsTower: false, yawFrom: 'hit', piece: 'summit' }),
-    landmark: Object.freeze({ kind: 'landmark', sealsTower: true, yawFrom: 'hit', piece: 'landmark' }),
+    masonry: Object.freeze({ kind: 'masonry', sealsTower: false, yawFrom: 'hit', piece: 'masonry' }), landmark: Object.freeze({ kind: 'landmark', sealsTower: true, yawFrom: 'hit', piece: 'landmark' }),
 });
 
 /**
@@ -261,7 +261,7 @@ function readText(value, fallback, maxLength) {
  */
 export function resolveMapDestructibleKindRule(value) {
     switch (value) {
-        case 'leg_lower': return MAP_DESTRUCTIBLE_KINDS.leg_lower;
+        case 'masonry': return MAP_DESTRUCTIBLE_KINDS.masonry; case 'leg_lower': return MAP_DESTRUCTIBLE_KINDS.leg_lower;
         case 'leg_mid': return MAP_DESTRUCTIBLE_KINDS.leg_mid;
         case 'shaft': return MAP_DESTRUCTIBLE_KINDS.shaft;
         case 'summit': return MAP_DESTRUCTIBLE_KINDS.summit; case 'landmark': return MAP_DESTRUCTIBLE_KINDS.landmark;

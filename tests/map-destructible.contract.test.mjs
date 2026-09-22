@@ -65,8 +65,10 @@ test('kind rules seal only for a lower leg and pick the yaw source per kind', ()
     // Each kind names the piece of the tower it stands in, so a collapse knows what it takes along.
     assert.deepEqual(
         Object.values(MAP_DESTRUCTIBLE_KINDS).map((rule) => rule.piece),
-        ['lower', 'mid', 'shaft', 'summit', 'landmark'],
+        ['lower', 'mid', 'shaft', 'summit', 'masonry', 'landmark'],
     );
+    assert.equal(MAP_DESTRUCTIBLE_KINDS.masonry.sealsTower, false);
+    assert.equal(resolveMapDestructibleKindRule('masonry'), MAP_DESTRUCTIBLE_KINDS.masonry);
     assert.equal(MAP_DESTRUCTIBLE_DAMAGE.MG, 5);
     assert.equal(resolveMapDestructibleKindRule('nope'), null);
     assert.equal(resolveMapDestructibleKindRule(7), null);

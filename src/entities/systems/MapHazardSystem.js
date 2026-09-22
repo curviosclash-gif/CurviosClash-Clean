@@ -57,6 +57,11 @@ export class MapHazardSystem {
     }
 
     updatePlayer(player, previousPosition, elapsedSeconds) {
+        const fireTime = this.entityManager?.arena?.mapFireHazardTime;
+        if (typeof fireTime === 'number') {
+            if (fireTime < 0) return false;
+            elapsedSeconds = fireTime;
+        }
         if (
             this.networkReplica
             || !player?.alive

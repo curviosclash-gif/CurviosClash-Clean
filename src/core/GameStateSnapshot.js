@@ -78,6 +78,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
         globalFog: entityManager?.getGlobalFogState?.() || { active: false, remainingSeconds: 0, visibilityRange: 0 },
         sandstorm: entityManager?.getMapSandstormState?.() || null,
         mapElapsedSeconds: toFiniteNumber(entityManager?.arena?.glbAnimationElapsedSeconds, 0),
+        mapFireDestructibles: entityManager?._mapDestructibleSystem?.fireState ? entityManager._mapDestructibleSystem.serializeNetworkState() : null,
         dandelionSeeds: entityManager?.arena?.serializeDandelionSeeds?.() || null,
         fight: createHuntNetworkState(entityManager),
         roundState: roundState ? {

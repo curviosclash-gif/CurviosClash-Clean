@@ -1,3 +1,4 @@
+import { playNotreDameCollapse } from './audio/MapAmbienceVoice.js';
 // ============================================
 // Audio.js - Mixed recorded and synthesized game audio
 // ============================================
@@ -747,11 +748,18 @@ export class AudioManager {
             : null;
         if (!source) source = list.find((player) => player && player.isBot !== true && player.alive !== false) || null;
         const syncOptions = this._mapAmbienceSyncOptions;
-        syncOptions.profile = options.mapDefinition?.audioProfile || null;
+        syncOptions.profile = options.fireProgress > 0 ? options.mapDefinition?.fireAudioProfile || options.mapDefinition?.audioProfile : options.mapDefinition?.audioProfile || null;
+        syncOptions.fireProgress = options.fireProgress;
         syncOptions.playerPosition = source?.alive === false ? null : source?.position;
         syncOptions.mapScale = options.mapScale;
         syncOptions.elapsedSeconds = options.elapsedSeconds; syncOptions.sandstormState = options.sandstormState || null;
         return syncMapAmbienceVoice(this, syncOptions);
+    }
+
+    playMapCollapse(position, scale = 1) {
+        const listener = this._mapAmbienceSyncOptions?.playerPosition;
+        if (!this.ctx || !listener) return;
+        playNotreDameCollapse(this, { collapse: { position, audibleRadius: 170 } }, listener, scale);
     }
 
     clearMapAmbience() {

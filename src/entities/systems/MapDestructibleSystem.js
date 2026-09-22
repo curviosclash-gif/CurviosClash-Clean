@@ -1,3 +1,4 @@
+import { createMapFireProgression, advanceMapFireProgression, damageMapFireSegment, resolveMapFireProgress } from '../../shared/contracts/MapFireProgressionContract.js';
 import { emitMapDestructiblePressureFeedback } from '../effects/MapDestructibleBreakFeedback.js';
 import {
     applyMapDestructibleDamage,
@@ -33,6 +34,8 @@ export class MapDestructibleSystem {
         this._forwardedEventSignature = '';
         this._feedbackEventSignature = '';
         this._pendingPressureFeedback = null;
+        this.fireDefinition = null;
+        this.fireState = null;
     }
 
     /**
@@ -54,6 +57,10 @@ export class MapDestructibleSystem {
             ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
             : 1;
         this.state = createMapDestructibleState(this.definition);
+        this.fireDefinition = map?.fireProgression || null;
+        this.fireState = createMapFireProgression(this.fireDefinition);
+        this._fireWarnings = new Set();
+        arena?.setMapFireState?.(this.fireState);
         this._targets.length = 0;
         for (let index = 0; index < (this.definition?.segments?.length || 0); index += 1) {
             const segment = this.definition.segments[index];
@@ -87,6 +94,24 @@ export class MapDestructibleSystem {
     }
 
     updateFeedback() {
+        if (this.fireState) {
+            if (!this.networkReplica) advanceMapFireProgression(this.fireDefinition, this.fireState, this.getElapsedSeconds(), (id, atSeconds) => {
+                const result = applyMapDestructibleDamage(this.state, this.definition, id, 100000, { atSeconds });
+                if (result.event) this._onSegmentDestroyed(result.event, {});
+            });
+            for (let index = 0; index < this.fireState.segments.length; index += 1) {
+                const fire = this.fireState.segments[index];
+                const segment = this.state.segments.find((entry) => entry.id === fire.id);
+                if (segment && !segment.destroyed) segment.hp = Math.max(0.001, segment.maxHp * (1 - fire.heat));
+                if (fire.warningAt < 0 || fire.brokenAt >= 0 || this._fireWarnings.has(fire.id)) continue;
+                this._fireWarnings.add(fire.id);
+                const anchor = this.fireDefinition.segments[index].anchor;
+                this.entityManager?.audio?.playMapCollapse?.(anchor, this.anchorScale);
+                const target = this._targets[index];
+                this.entityManager?.particles?.spawn?.(target.position, 24, 0x8b7361, 5, 3, 1);
+            }
+            this.entityManager?.arena?.setMapFireState?.(this.fireState);
+        }
         const pending = this._pendingPressureFeedback;
         if (!pending || this.getElapsedSeconds() < pending.atSeconds) return;
         this._pendingPressureFeedback = null;
@@ -98,6 +123,9 @@ export class MapDestructibleSystem {
     }
 
     clear() {
+        this.fireDefinition = null;
+        this.fireState = null;
+        this.entityManager?.arena?.setMapFireState?.(null);
         this.definition = null;
         this.state = createMapDestructibleState(null);
         this.anchorScale = 1;
@@ -143,6 +171,16 @@ export class MapDestructibleSystem {
 
     applySegmentHit(segmentId, damage, options = {}) {
         if (this.networkReplica || !this.definition || this.state.sealed) return null;
+        if (this.fireState) {
+            this.updateFeedback();
+            if (!damageMapFireSegment(this.fireDefinition, this.fireState, segmentId, damage)) return null;
+            const segment = this.state.segments.find((entry) => entry.id === segmentId);
+            const fireSegment = this.fireState.segments.find((entry) => entry.id === segmentId);
+            segment.hp = Math.max(0.001, segment.maxHp * (1 - fireSegment.heat));
+            segment.lastHitAtSeconds = this.getElapsedSeconds();
+            this._syncTargets();
+            return { applied: true, segment, destroyed: false, event: null };
+        }
         const result = applyMapDestructibleDamage(this.state, this.definition, segmentId, damage, {
             atSeconds: this.getElapsedSeconds(),
             hitDirection: options?.hitDirection,
@@ -177,17 +215,27 @@ export class MapDestructibleSystem {
         return this.definition;
     }
 
+    getFireProgress() {
+        return this.fireDefinition ? resolveMapFireProgress(this.fireDefinition, this.fireState) : null;
+    }
+
     getHudState() {
         return resolveMapDestructibleHudState(this.state, this.definition, this.getElapsedSeconds());
     }
 
     serializeNetworkState() {
-        return this.isActive() ? serializeMapDestructibleState(this.state) : null;
+        if (!this.isActive()) return null;
+        const state = serializeMapDestructibleState(this.state);
+        return this.fireState ? { ...state, fireProgression: structuredClone(this.fireState) } : state;
     }
 
     applyNetworkState(serialized) {
         if (!serialized) return this.state;
         applyMapDestructibleNetworkState(this.state, serialized);
+        if (this.fireDefinition) {
+            this.fireState = createMapFireProgression(this.fireDefinition, serialized.fireProgression);
+            this.entityManager?.arena?.setMapFireState?.(this.fireState);
+        }
         this._syncTargets();
         // The host sends state, not animation commands. The replica derives the same collapse
         // from the same events, so both towers stand or lie exactly alike.

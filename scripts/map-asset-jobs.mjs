@@ -8,6 +8,7 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     aetherion_orrery: 'generate_aetherion_orrery_assets.py',
     notre_dame: 'generate_notre_dame_assets.py',
     notre_dame_fire: 'generate_notre_dame_fire_assets.py',
+    notre_dame_evolution: 'generate_notre_dame_evolution_assets.py',
     eiffel_tower: 'generate_eiffel_tower_assets.py',
     eiffel_tower_siege: 'generate_eiffel_tower_siege_assets.py',
     reactor_site: 'generate_reactor_site_assets.py',
