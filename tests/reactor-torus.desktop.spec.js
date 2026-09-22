@@ -170,6 +170,50 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             await writeFile(testInfo.outputPath('smoke-sun-shading.json'), JSON.stringify(shading, null, 2));
             expect(shading.above.pixels).toBeGreaterThan(300);
             expect(shading.above.upper / shading.above.lower).toBeGreaterThan(shading.below.upper / shading.below.lower * 1.08);
+            // The host-rolled wind reaches the visible cloud and carries its top downwind.
+            const wind = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena;
+                const runtime = game.renderer;
+                const camera = runtime.cameras[0];
+                const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
+                const windYaw = slot.userData.windYaw;
+                arena.setGlbAnimationElapsedSeconds(40); arena._glbAnimation.advance(0);
+                camera.far = 5000; camera.updateProjectionMatrix();
+                camera.position.set(0, 2600, 1); camera.lookAt(0, 300, 0); camera.updateMatrixWorld(true);
+                const topCentre = () => {
+                    runtime.renderer.setRenderTarget(null);
+                    runtime.renderer.render(runtime.scene, camera);
+                    const data = smoke.material.uniforms.smokeData.value.image.data;
+                    const count = smoke.geometry.instanceCount;
+                    let top = -Infinity;
+                    for (let row = 0; row < count; row += 1) top = Math.max(top, data[row * 16 + 1]);
+                    let x = 0, z = 0, n = 0;
+                    for (let row = 0; row < count; row += 1) {
+                        if (data[row * 16 + 1] < top - 120) continue;
+                        x += data[row * 16]; z += data[row * 16 + 2]; n += 1;
+                    }
+                    return { x: x / n, z: z / n };
+                };
+                const windy = topCentre();
+                const png = runtime.renderer.domElement.toDataURL('image/png');
+                delete slot.userData.windYaw;
+                const calm = topCentre();
+                slot.userData.windYaw = windYaw;
+                camera.far = held.far; camera.updateProjectionMatrix();
+                camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                const dx = windy.x - calm.x, dz = windy.z - calm.z;
+                return { windYaw, drift: Math.hypot(dx, dz), heading: Math.atan2(dz, dx), png };
+            });
+            await writeFile(testInfo.outputPath('wind-from-above-40s.png'), Buffer.from(wind.png.split(',')[1], 'base64'));
+            delete wind.png;
+            await writeFile(testInfo.outputPath('wind.json'), JSON.stringify(wind, null, 2));
+            expect(typeof wind.windYaw).toBe('number');
+            expect(wind.drift).toBeGreaterThan(40);
+            const headingError = Math.abs(Math.atan2(Math.sin(wind.heading - wind.windYaw), Math.cos(wind.heading - wind.windYaw)));
+            expect(headingError).toBeLessThan(0.15);
             // After the clip the cloud thins out on the match clock and a faint rest stays.
             const dissolve = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;

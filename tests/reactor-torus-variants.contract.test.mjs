@@ -58,19 +58,20 @@ test('all exported stems have triple lower and double upper sections and pressur
 
 test('host selects all four variants only on destruction and replicas keep the choice', () => {
     for (let index = 0; index < 4; index += 1) {
-        let draws = 0;
+        // The breach rolls twice: the variant out of four and the wind heading out of 3600 steps.
+        const draws = [];
         const owner = { arena: { currentMapDefinition: map, glbAnimationElapsedSeconds: 7 },
             gameModeStrategy: { modeType: 'HUNT' },
-            runtimeRng: { int(count) { draws += 1; assert.equal(count, 4); return index; } } };
+            runtimeRng: { int(count) { draws.push(count); return count === 4 ? index : 0; } } };
         const host = new MapDestructibleSystem(owner);
         host.startRound();
         host.applySegmentHit('reactor_dome', 1);
-        assert.equal(draws, 0);
+        assert.equal(draws.length, 0);
         const result = host.applySegmentHit('reactor_dome', 899);
         assert.equal(result.event.variantIndex, index);
-        assert.equal(draws, 1);
+        assert.deepEqual(draws, [4, 3600]);
         host.applySegmentHit('reactor_dome', 900);
-        assert.equal(draws, 1);
+        assert.equal(draws.length, 2);
         const replica = createMapDestructibleState(definition);
         applyMapDestructibleNetworkState(replica, host.serializeNetworkState());
         const timeline = resolveMapDestructibleSceneTimeline(definition, replica.events);
@@ -79,7 +80,7 @@ test('host selects all four variants only on destruction and replicas keep the c
         host.startRound();
         host.setNetworkReplica(true);
         assert.equal(host.applySegmentHit('reactor_dome', 900), null);
-        assert.equal(draws, 1, 'replicas never roll');
+        assert.equal(draws.length, 2, 'replicas never roll');
     }
 });
 

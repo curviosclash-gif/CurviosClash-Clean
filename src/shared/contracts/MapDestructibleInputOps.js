@@ -44,6 +44,35 @@ export function readBreakSceneAttachments(value, ownerModelId, maxEntries, maxLe
     return Object.freeze(attachments);
 }
 
+const TWO_PI = Math.PI * 2;
+
+/**
+ * An angle folded into [0, 2pi). Headings are compared and subtracted, so they have to live in one
+ * range - otherwise the same direction reads as two different numbers on the wire.
+ * @param {unknown} value
+ * @returns {number}
+ */
+export function normalizeHeading(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 0;
+    const wrapped = parsed % TWO_PI;
+    if (wrapped < 0) return wrapped + TWO_PI;
+    return wrapped || 0;
+}
+
+/**
+ * The host's rolls a break event carries, present only when the event had them: the visual
+ * variant and the wind heading. Serializing and applying a snapshot both read them here.
+ * @param {Record<string, unknown>} source
+ * @returns {{ variantIndex?: number, windYaw?: number }}
+ */
+export function readEventChoices(source) {
+    return {
+        ...(source.variantIndex !== undefined ? { variantIndex: readVariantIndex(source.variantIndex) } : {}),
+        ...(source.windYaw !== undefined ? { windYaw: normalizeHeading(source.windYaw) } : {}),
+    };
+}
+
 /** @param {unknown} value */
 export function readVariantIndex(value) {
     const index = Number(value);

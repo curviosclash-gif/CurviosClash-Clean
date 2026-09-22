@@ -15,6 +15,20 @@ export const SMOKE_DISSOLVE_SECONDS = 240;
 export const SMOKE_RESIDUE = 0.15;
 const STREAM_FADE_SECONDS = 60;
 const DISSOLVE_SPREAD = 0.55;
+// Upper winds shear the cloud: the drift grows with height and time, in cap radii, while the
+// clip plays and on while it thins out. The foot, fed from the ground, barely moves.
+const WIND_DRIFT_CLIP = 0.9;
+const WIND_DRIFT_AFTER = 1.2;
+const WIND_SHEAR_POWER = 1.5;
+
+/** The host-rolled wind heading, stored on the cloud's slot by the break scene; null if calm. */
+function readWindYaw(node) {
+    for (let current = node; current; current = current.parent) {
+        const value = current.userData?.windYaw;
+        if (value !== undefined) return Number.isFinite(value) ? value : null;
+    }
+    return null;
+}
 
 /** Deterministic 0..1 per card and channel: every client scatters the stem alike. */
 function scatter(index, channel) {
@@ -110,6 +124,9 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
         const after = Math.max(0, Number(root.userData.clipOverrunSeconds) || 0);
         const dissolve = smoothRange(0, SMOKE_DISSOLVE_SECONDS, after);
         const streamsLeft = 1 - smoothRange(0, STREAM_FADE_SECONDS, after);
+        const windYaw = readWindYaw(root);
+        const windReach = windYaw === null ? 0
+            : WIND_DRIFT_CLIP * Math.min(1, time / action.getClip().duration) + WIND_DRIFT_AFTER * dissolve;
         material.uniforms.heat.value = 1.5 * (1-smoothRange(28,44,time));
         material.uniforms.smokeTime.value = time;
         material.uniforms.fireGlow.value = fireballGlow(time);
@@ -168,6 +185,12 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
                     const vy = view[1]*scratch.tx+view[5]*scratch.ty+view[9]*scratch.tz;
                     card.angle = Math.atan2(vy,vx)-Math.PI/2;
                 }
+            }
+            if (windReach > 0) {
+                const height = Math.min(1, Math.max(0, (card.center.y - base.y) / Math.max(.001, top.y - base.y)));
+                const drift = shape.radius * windReach * height ** WIND_SHEAR_POWER;
+                card.center.x += Math.cos(windYaw) * drift;
+                card.center.z += Math.sin(windYaw) * drift;
             }
             card.tile = resolveSmokeTile(card);
             // Wisp tiles are drawn out sideways: lay a tall card on its side so the shape

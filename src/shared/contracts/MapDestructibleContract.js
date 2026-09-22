@@ -1,4 +1,6 @@
-import { readBreakSceneAttachments, readIdList, readVariantIndex, readModelVariants } from './MapDestructibleInputOps.js';
+import {
+    normalizeHeading, readBreakSceneAttachments, readEventChoices, readIdList, readVariantIndex, readModelVariants,
+} from './MapDestructibleInputOps.js';
 import {
     MAP_DESTRUCTIBLE_BLAST_LIMITS,
     normalizeMapDestructibleBlast,
@@ -125,6 +127,7 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * @property {readonly string[]} hideModelIds Intact models that disappear when it starts.
  * @property {readonly Readonly<{modelId: string, parentNodeName: string}>[]} attachedModels Models that follow a moving node while retaining their own animation.
  * @property {boolean} yawFromEvent Whether the event's heading turns the scene around Y.
+ * @property {boolean} wind Whether the host rolls a wind heading for the scene's smoke to drift along.
  * @property {number} bakedHeading World heading the clip was authored falling towards, in [0, 2pi).
  * @property {Readonly<MapDestructibleBlast> | null} blast Radial damage the break deals; null for none.
  * @property {Readonly<import('./MapDestructibleHazardContract.js').MapDestructibleFireball> | null} fireball
@@ -146,6 +149,7 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * @property {number} atSeconds
  * @property {number} yaw Angle to turn the slot by: the event heading minus the baked heading.
  * @property {boolean} yawFromEvent
+ * @property {number} [windYaw] Heading the smoke drifts towards; absent for a windless scene.
  * @property {string[]} hideModelIds
  * @property {readonly Readonly<{modelId: string, parentNodeName: string}>[]} attachedModels
  * @property {string[]} hiddenPieceIds Pieces an earlier entry already took away.
@@ -166,6 +170,7 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
 /**
  * @typedef {object} MapDestructibleEvent
  * @property {number} [variantIndex] Host-selected visual variant; absent for legacy scenes.
+ * @property {number} [windYaw] Host-rolled heading the smoke drifts towards, in [0, 2pi); absent without wind.
  * @property {string} segmentId
  * @property {string} kind
  * @property {number} atSeconds
@@ -204,22 +209,7 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * @property {MapDestructibleHudSegment[]} segments
  */
 
-const TWO_PI = Math.PI * 2;
 const DIRECTION_EPSILON = 1e-9;
-
-/**
- * An angle folded into [0, 2pi). Headings are compared and subtracted, so they have to live in one
- * range - otherwise the same direction reads as two different numbers on the wire.
- * @param {unknown} value
- * @returns {number}
- */
-function normalizeHeading(value) {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return 0;
-    const wrapped = parsed % TWO_PI;
-    if (wrapped < 0) return wrapped + TWO_PI;
-    return wrapped || 0;
-}
 
 /**
  * @param {unknown} value
@@ -424,6 +414,8 @@ function readBreakScene(source, index, pieceIds) {
         attachedModels: readBreakSceneAttachments(source.attachedModels, modelId,
             MAP_DESTRUCTIBLE_LIMITS.maxHideModelIds, MAP_DESTRUCTIBLE_LIMITS.idMaxLength),
         yawFromEvent: source.yawFromEvent !== false,
+        // Only an explicit true: wind is a look, and a typo must not start rolling a heading.
+        wind: source.wind === true,
         // Where this clip was baked falling. A scene that states nothing is read as falling towards
         // +Z, which is heading zero and therefore turns by the event heading itself.
         bakedHeading: normalizeHeading(source.bakedHeading),
@@ -534,6 +526,7 @@ export function resolveMapDestructibleSceneTimeline(definition, events) {
             // What the runtime needs is the difference between the two.
             yaw: normalizeHeading(normalizeHeading(source.yaw) - scene.bakedHeading),
             yawFromEvent: scene.yawFromEvent,
+            ...(source.windYaw !== undefined ? { windYaw: normalizeHeading(source.windYaw) } : {}),
             hideModelIds: [...scene.hideModelIds],
             attachedModels: scene.attachedModels,
             hiddenPieceIds: scene.pieces.filter((piece) => consumed.has(piece)),
@@ -762,7 +755,7 @@ function collapseScenePieces(state, definition, scene, atSeconds) {
  * @param {{ segments?: readonly Readonly<MapDestructibleSegment>[], breakScenes?: readonly Readonly<MapDestructibleBreakScene>[] } | null | undefined} definition
  * @param {unknown} segmentId
  * @param {unknown} damage
- * @param {{ atSeconds?: unknown, hitDirection?: unknown, chooseVariant?: (count: number) => number }} [options]
+ * @param {{ atSeconds?: unknown, hitDirection?: unknown, chooseVariant?: (count: number) => number, chooseWind?: () => number }} [options]
  * @returns {MapDestructibleDamageResult}
  */
 export function applyMapDestructibleDamage(state, definition, segmentId, damage, options = {}) {
@@ -802,6 +795,8 @@ export function applyMapDestructibleDamage(state, definition, segmentId, damage,
     const event = Object.freeze({ ...identity,
         ...(count > 1 ? { variantIndex: Math.min(count - 1,
             readVariantIndex(options.chooseVariant?.(count))) } : {}),
+        // Rolled once by the host like the variant, and replicated with the event.
+        ...(variantScene?.wind ? { windYaw: normalizeHeading(options.chooseWind?.()) } : {}),
     });
     state.events.push(event);
     if (rule.sealsTower) state.sealed = true;
@@ -840,7 +835,7 @@ export function serializeMapDestructibleState(state) {
             kind: event.kind,
             atSeconds: event.atSeconds,
             yaw: event.yaw,
-            ...(event.variantIndex !== undefined ? { variantIndex: readVariantIndex(event.variantIndex) } : {}),
+            ...readEventChoices(event),
         });
     }
     return { sealed: state?.sealed === true, segments, events };
@@ -894,7 +889,7 @@ export function applyMapDestructibleNetworkState(state, serialized) {
             segmentId,
             kind: rule.kind,
             atSeconds: readAtSeconds(entry.atSeconds),
-            ...(entry.variantIndex !== undefined ? { variantIndex: readVariantIndex(entry.variantIndex) } : {}),
+            ...readEventChoices(entry),
             yaw: clampNumber(entry.yaw, -Math.PI * 2, Math.PI * 2, 0),
         });
     }

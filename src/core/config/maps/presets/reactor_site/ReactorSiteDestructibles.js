@@ -201,6 +201,8 @@ export const REACTOR_SITE_DESTRUCTIBLES = Object.freeze({
                 'reactor-mushroom-cloud-3', 'reactor-mushroom-cloud-4'],
             // A cloud has no direction. The heading the event records is not applied.
             yawFromEvent: false,
+            // Upper winds carry the cap away: the host rolls their heading once per breach.
+            wind: true,
             pieces: ['reactor'],
             hideModelIds: ['reactor-block'],
             // No `blast`: this scene's danger is not a moment but the fireball itself.
