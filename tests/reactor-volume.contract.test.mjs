@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { attachReactorSmoke } from '../src/entities/effects/ReactorSmokeEffect.js';
+import { attachReactorSmoke, isLowQualityScene } from '../src/entities/effects/ReactorSmokeEffect.js';
 import { createReactorVolume, VOLUME_HEAD_NAME, VOLUME_STEM_NAME } from '../src/entities/effects/ReactorVolumeCloud.js';
 import { buildVolumeNoiseData, getVolumeNoiseTexture, VOLUME_NOISE_SIZE } from '../src/entities/effects/ReactorVolumeNoise.js';
 import { disposeObject3DResources } from '../src/shared/rendering/ThreeDisposal.js';
@@ -87,6 +87,38 @@ test('a camera inside the proxy switches it to its back faces', () => {
     assert.equal(volume.head.material.uniforms.insideProxy.value, 0);
     volume.faceCamera(volume.head, inside);
     assert.equal(volume.head.material.uniforms.insideProxy.value, 1);
+});
+
+test('the lowest graphics step draws the cards, every other one the volume', async () => {
+    const buffer = readFileSync(new URL('../assets/maps/reactor_site/glb/torus_cloud_1.glb', import.meta.url));
+    const gltf = await new GLTFLoader().parseAsync(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), '');
+    const mixer = new THREE.AnimationMixer(gltf.scene);
+    const action = mixer.clipAction(gltf.animations[0]); action.play();
+    const cards = await attachReactorSmoke(gltf.scene, action, { loadTexture: async () => new THREE.Texture(), volume: true });
+    const head = gltf.scene.getObjectByName(VOLUME_HEAD_NAME);
+    const camera = new THREE.PerspectiveCamera(); camera.position.set(900, 500, 1000); camera.lookAt(0, 400, 0); camera.updateMatrixWorld();
+    action.time = 40; mixer.update(0); gltf.scene.updateMatrixWorld(true);
+    const draw = (quality) => {
+        const scene = new THREE.Scene();
+        scene.userData.graphicsQuality = quality;
+        cards.onBeforeRender(null, scene, camera);
+        head.onBeforeRender(null, scene, camera);
+        return { cards: cards.geometry.instanceCount, radius: head.material.uniforms.bounds.value.x,
+            density: head.material.uniforms.smokeDensity.value };
+    };
+    // The renderer publishes its effective step on the scene; the switch takes effect at once.
+    assert.equal(isLowQualityScene({ userData: { graphicsQuality: 'LOW' } }), true);
+    for (const quality of ['HIGH', 'MEDIUM', undefined]) {
+        const high = draw(quality);
+        assert.equal(high.cards, 0, `no cards at ${quality}`);
+        assert.ok(high.radius > 100 && high.density > 0, `the volume draws at ${quality}`);
+    }
+    const low = draw('LOW');
+    assert.ok(low.cards > 100, `the card cloud draws on LOW: ${low.cards}`);
+    assert.equal(low.radius, 0, 'and the volume collapses');
+    assert.equal(low.density, 0);
+    assert.ok(draw('HIGH').radius > 100, 'and comes back on the next step up');
+    disposeObject3DResources(gltf.scene);
 });
 
 test('the shader marches the ring, rolls its noise and fades out with the dissolve', async () => {

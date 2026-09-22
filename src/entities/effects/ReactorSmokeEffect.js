@@ -12,8 +12,15 @@ const LIGHT_A_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-li
 const LIGHT_B_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-light-b.png', import.meta.url).href;
 const SKY_COLOR = new THREE.Color(0.62, 0.68, 0.75);
 export const MAX_SMOKE_CARDS = 512;
-// Head and stem as ray-marched volume (ReactorVolumeCloud.js) instead of cards.
+// Head and stem as ray-marched volume (ReactorVolumeCloud.js) beside the cards. Both layers are
+// built; which one draws is decided per frame from the graphics quality, so a change in the menu
+// takes effect at once. The lowest step draws the cards, which cost fill rate only where a card is.
 export const REACTOR_VOLUME_SMOKE = true;
+
+/** True while the renderer runs its lowest quality step, where cards replace the volume. */
+export function isLowQualityScene(scene) {
+    return String(scene?.userData?.graphicsQuality || '').toUpperCase() === 'LOW';
+}
 // After the 49 s clip the cloud stands on the match clock for seven minutes, the way a real
 // one stays in the sky: the head keeps rolling ever slower and spreads out flat, it loses only
 // a little density for five minutes and thins to a faint, wide rest over the last two.
@@ -108,16 +115,14 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA, { volu
         // the GLB as the animated source of its size. The stem, the side plumes and the late
         // masses that boil up on the cap keep a card each.
         if (!lobe.column && !/bloom/.test(lobe.node.name)) continue;
-        // The volume draws head and stem; the plumes' and bloom's cards would stand beside it.
-        if (volume) continue;
         for (let detail = 0; detail < 2 && cards.length < MAX_SMOKE_CARDS; detail++) {
             cards.push({ lobe, detail, index: cards.length, center: new THREE.Vector3(),
                 width: 0, height: 0, depth: 0, opacity: 0, angle: 0, glow: 0, tint: 1 });
         }
     }
     const capLobe = lobes.find(({ node }) => /cap/.test(node.name)) || lobes[0];
-    if (!volume) cards.push(...createHeadCards(capLobe, cards.length));
-    if (!volume) cards.push(...createVortexCards(lobes.find(({ column }) => !column) || lobes[0], cards.length).slice(0, MAX_SMOKE_CARDS - cards.length));
+    cards.push(...createHeadCards(capLobe, cards.length));
+    cards.push(...createVortexCards(lobes.find(({ column }) => !column) || lobes[0], cards.length).slice(0, MAX_SMOKE_CARDS - cards.length));
     const quad = new THREE.PlaneGeometry(1, 1);
     const geometry = new THREE.InstancedBufferGeometry();
     geometry.index = quad.index; geometry.attributes.position = quad.attributes.position;
@@ -213,6 +218,8 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA, { volu
     };
     if (volume) attachVolume(root, cap, capLobe, frame, refreshShape, { head, shape, top, base, stemScale, material });
     mesh.onBeforeRender = (_renderer, scene, camera) => {
+        // Beside the volume the cards draw on the lowest quality step only.
+        if (volume && !isLowQualityScene(scene)) { geometry.instanceCount = 0; return; }
         refreshShape(scene);
         const { time, settle, dissolve, density, streamsLeft, windYaw, windReach, travel } = frame;
         const view = camera.matrixWorldInverse.elements;
@@ -341,6 +348,7 @@ function attachVolume(root, cap, capLobe, frame, refreshShape, { head, shape, to
     const state = { albedo: new THREE.Color(), sunDirection: material.uniforms.sunDirection.value,
         sunColor: material.uniforms.sunColor.value };
     const pose = (_renderer, scene) => {
+        if (isLowQualityScene(scene)) { volume.silence(); return; }
         refreshShape(scene);
         const drift = frame.windYaw === null ? 0 : shape.radius * frame.windReach;
         Object.assign(state, {
