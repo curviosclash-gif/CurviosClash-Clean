@@ -170,6 +170,80 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             await writeFile(testInfo.outputPath('smoke-sun-shading.json'), JSON.stringify(shading, null, 2));
             expect(shading.above.pixels).toBeGreaterThan(300);
             expect(shading.above.upper / shading.above.lower).toBeGreaterThan(shading.below.upper / shading.below.lower * 1.08);
+            if (process.env.REACTOR_GPU_BENCH === '1') {
+                // Opt-in GPU cost of the reactor effects: timer queries measure GPU time per frame,
+                // independent of CPU scheduling. Configurations are interleaved frame by frame.
+                const bench = await page.evaluate(async () => {
+                    const game = window.GAME_INSTANCE;
+                    const arena = game.arena;
+                    const runtime = game.renderer;
+                    const renderer = runtime.renderer;
+                    const gl = renderer.getContext();
+                    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+                    if (!ext) return { skipped: 'no EXT_disjoint_timer_query_webgl2' };
+                    const camera = runtime.cameras[0];
+                    const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
+                    const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                    const smoke = [slot.getObjectByName('reactor-soft-smoke_nocol_noshadow')];
+                    const extras = ['reactor-debris_nocol_noshadow', 'reactor-debris-puffs_nocol_noshadow', 'reactor-fire-glow_nocol_noshadow',
+                        'reactor-flash-overlay_nocol_noshadow'].map((name) => slot.getObjectByName(name));
+                    extras.push(slot.getObjectByName('flash').children.find((node) => node.isMesh));
+                    const configs = {
+                        none: () => { for (const m of [...smoke, ...extras]) m.visible = false; },
+                        smoke: () => { for (const m of smoke) m.visible = true; for (const m of extras) m.visible = false; },
+                        all: () => { for (const m of [...smoke, ...extras]) m.visible = true; },
+                    };
+                    // Smoke plus one extra at a time, so a costly layer shows up on its own.
+                    for (const extra of extras) {
+                        configs[`+${extra.name}`] = () => {
+                            for (const m of smoke) m.visible = true;
+                            for (const m of extras) m.visible = m === extra;
+                        };
+                    }
+                    camera.far = 5000; camera.updateProjectionMatrix();
+                    camera.position.set(330, 90, 330); camera.lookAt(0, 250, 0); camera.updateMatrixWorld(true);
+                    const result = { size: [renderer.domElement.width, renderer.domElement.height] };
+                    for (const seconds of [3, 20, 169]) {
+                        arena.setGlbAnimationElapsedSeconds(seconds); arena._glbAnimation.advance(0);
+                        const samples = Object.fromEntries(Object.keys(configs).map((name) => [name, []]));
+                        const pending = [];
+                        const names = Object.keys(configs);
+                        for (let frame = 0; frame < 45; frame += 1) {
+                            // GPU time depends on the position within a burst of renders; rotating the
+                            // order every frame spreads that bias evenly over all configurations.
+                            const order = names.map((_, index) => names[(index + frame) % names.length]);
+                            for (const name of order) {
+                                configs[name]();
+                                const query = gl.createQuery();
+                                gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
+                                renderer.setRenderTarget(null);
+                                renderer.render(runtime.scene, camera);
+                                gl.endQuery(ext.TIME_ELAPSED_EXT);
+                                if (frame >= 5) pending.push({ name, query });
+                            }
+                            await new Promise((resolve) => requestAnimationFrame(resolve));
+                        }
+                        for (let wait = 0; wait < 200 && pending.some(({ query }) => !gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)); wait += 1) {
+                            await new Promise((resolve) => setTimeout(resolve, 10));
+                        }
+                        const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT);
+                        for (const { name, query } of pending) {
+                            if (gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) samples[name].push(gl.getQueryParameter(query, gl.QUERY_RESULT) / 1e6);
+                            gl.deleteQuery(query);
+                        }
+                        const stat = (values) => {
+                            const sorted = [...values].sort((a, b) => a - b);
+                            return { p50: sorted[Math.floor(sorted.length * 0.5)], p95: sorted[Math.floor(sorted.length * 0.95)], n: sorted.length };
+                        };
+                        result[seconds] = { disjoint, ...Object.fromEntries(Object.entries(samples).map(([name, values]) => [name, stat(values)])) };
+                    }
+                    configs.all();
+                    camera.far = held.far; camera.updateProjectionMatrix();
+                    camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                    return result;
+                });
+                await writeFile(testInfo.outputPath('reactor-gpu-bench.json'), JSON.stringify(bench, null, 2));
+            }
             // Split screen: two viewports of one frame, drawn the way RenderViewportSystem draws
             // them. The camera close to and facing the breach whites out, the far one looking away
             // is only dazzled.
