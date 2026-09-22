@@ -242,11 +242,21 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                     const without = grab();
                     for (const layer of layers) layer.visible = true;
                     const withDebris = grab();
-                    let changed = 0;
-                    for (let i = 0; i < without.length; i += 4) {
-                        if (Math.abs(withDebris[i] - without[i]) + Math.abs(withDebris[i + 1] - without[i + 1]) + Math.abs(withDebris[i + 2] - without[i + 2]) > 30) changed += 1;
-                    }
-                    result[seconds] = { changed, png: runtime.renderer.domElement.toDataURL('image/png') };
+                    const png = runtime.renderer.domElement.toDataURL('image/png');
+                    // The trails alone: chunks hidden, puffs on and off.
+                    layers[0].visible = false;
+                    const puffsOnly = grab();
+                    layers[1].visible = false;
+                    const neither = grab();
+                    layers[0].visible = true; layers[1].visible = true;
+                    const count = (a, b) => {
+                        let changed = 0;
+                        for (let i = 0; i < a.length; i += 4) {
+                            if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) > 30) changed += 1;
+                        }
+                        return changed;
+                    };
+                    result[seconds] = { changed: count(withDebris, without), trails: count(puffsOnly, neither), png };
                 }
                 flash.visible = true;
                 camera.far = held.far; camera.updateProjectionMatrix();
@@ -260,6 +270,9 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             await writeFile(testInfo.outputPath('debris.json'), JSON.stringify(debris, null, 2));
             expect(debris[3].changed).toBeGreaterThan(40);
             expect(debris[12].changed).toBeGreaterThan(5);
+            // Dark trails read against the haze and still hang in the air after the chunks landed.
+            expect(debris[3].trails).toBeGreaterThan(100);
+            expect(debris[12].trails).toBeGreaterThan(50);
             // The host-rolled wind reaches the visible cloud and carries its top downwind.
             const wind = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;

@@ -7,9 +7,9 @@ import { FOG_FACTOR_GLSL } from './ReactorFireballEffect.js';
 // nothing here collides or deals damage. Units are the cloud model's own metres.
 
 export const DEBRIS_CHUNKS = 48;
-export const DEBRIS_TRAIL_PUFFS = 7;
+export const DEBRIS_TRAIL_PUFFS = 12;
 export const DEBRIS_GRAVITY = 9.81;
-const TRAIL_SPACING_SECONDS = 0.35;
+const TRAIL_LIFE_SECONDS = 7;
 const IMPACT_SECONDS = 4;
 export const DEBRIS_NAME = 'reactor-debris_nocol_noshadow';
 export const DEBRIS_PUFFS_NAME = 'reactor-debris-puffs_nocol_noshadow';
@@ -133,9 +133,10 @@ void main() {
 `;
 
 const PUFF_VERTEX = /* glsl */`
-attribute float puffIndex;   // 1..N trail samples behind the chunk, 0 is the impact dust
+attribute float puffIndex;   // 1..N trail puffs along the flight, 0 is the impact dust
 varying vec2 vPuffUv;
 varying float vPuffAlpha;
+varying float vPuffWarmth;
 ${TRAJECTORY_GLSL}
 #include <fog_pars_vertex>
 void main() {
@@ -149,15 +150,18 @@ void main() {
         float age = local - landAt;
         centre = now + vec3(0.0, launchOrigin.w * 1.5, 0.0);
         size = launchOrigin.w * (3.0 + 7.0 * clamp(age / ${IMPACT_SECONDS.toFixed(1)}, 0.0, 1.0));
-        alpha = age < 0.0 ? 0.0 : 0.55 * (1.0 - clamp(age / ${IMPACT_SECONDS.toFixed(1)}, 0.0, 1.0));
+        alpha = age < 0.0 ? 0.0 : 0.7 * (1.0 - clamp(age / ${IMPACT_SECONDS.toFixed(1)}, 0.0, 1.0));
+        vPuffWarmth = 0.0;
     } else {
-        // A trail sample: where the chunk was a little earlier, older samples wider and fainter.
-        float back = puffIndex * ${TRAIL_SPACING_SECONDS.toFixed(2)};
-        float earlierFlight, ignored;
-        centre = debrisPosition(debrisTime - back, earlierFlight, ignored);
-        size = launchOrigin.w * (2.0 + puffIndex * 0.9);
-        float afterLanding = clamp((local - landAt) / 1.5, 0.0, 1.0);
-        alpha = (local - back > 0.0 ? 0.42 : 0.0) * (1.0 - puffIndex / ${(DEBRIS_TRAIL_PUFFS + 1).toFixed(1)}) * (1.0 - afterLanding);
+        // A trail puff is shed at a fixed point of the flight and stays there: it rises a
+        // little, widens and thins out, so the arc hangs in the sky after the chunk has landed.
+        float shedAt = puffIndex / ${(DEBRIS_TRAIL_PUFFS + 1).toFixed(1)} * landAt;
+        float age = local - shedAt;
+        float shedFlight, ignored;
+        centre = debrisPosition(launchArc.w + shedAt, shedFlight, ignored) + vec3(0.0, 0.8 * max(age, 0.0), 0.0);
+        size = launchOrigin.w * (1.6 + 1.2 * clamp(age, 0.0, ${TRAIL_LIFE_SECONDS.toFixed(1)}));
+        alpha = age > 0.0 ? 0.62 * (1.0 - smoothstep(1.5, ${TRAIL_LIFE_SECONDS.toFixed(1)}, age)) : 0.0;
+        vPuffWarmth = 1.0 - smoothstep(0.0, 0.8, age);
     }
     vPuffUv = uv;
     vPuffAlpha = alpha;
@@ -171,6 +175,7 @@ void main() {
 const PUFF_FRAGMENT = /* glsl */`
 varying vec2 vPuffUv;
 varying float vPuffAlpha;
+varying float vPuffWarmth;
 #include <fog_pars_fragment>
 ${FOG_FACTOR_GLSL}
 void main() {
@@ -179,10 +184,12 @@ void main() {
     float edge = 1.0 - smoothstep(0.35, 1.0, r + 0.12 * sin(atan(offset.y, offset.x) * 5.0 + r * 6.0));
     float alpha = vPuffAlpha * edge;
     if (alpha < 0.004) discard;
-    gl_FragColor = vec4(vec3(0.34, 0.32, 0.3), alpha);
+    // Dark smoke, still warm where the hot chunk has just passed; dark reads against the haze.
+    vec3 smoke = mix(vec3(0.17, 0.16, 0.15), vec3(1.0, 0.42, 0.12), vPuffWarmth * 0.7);
+    gl_FragColor = vec4(smoke, alpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
-    gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, reactorFogFactor() * .5);
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, reactorFogFactor() * .35);
 }
 `;
 
