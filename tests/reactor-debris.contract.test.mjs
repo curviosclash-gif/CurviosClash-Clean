@@ -4,7 +4,7 @@ import test from 'node:test';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import {
-    createDebrisLaunches, DEBRIS_CHUNKS, DEBRIS_NAME, DEBRIS_PUFFS_NAME, DEBRIS_TRAIL_PUFFS, debrisPosition,
+    createDebrisLaunches, DEBRIS_CHUNKS, DEBRIS_NAME, DEBRIS_PUFFS_NAME, DEBRIS_TRAIL_PUFFS, debrisPosition, debrisTrailPuff,
 } from '../src/entities/effects/ReactorDebrisEffect.js';
 import { attachReactorSmoke } from '../src/entities/effects/ReactorSmokeEffect.js';
 import { disposeObject3DResources } from '../src/shared/rendering/ThreeDisposal.js';
@@ -35,6 +35,26 @@ test('chunks fly real arcs: launched within a third of a second, landed within t
             assert.ok(Math.hypot(justBefore.x - landed.x, justBefore.y - landed.y, justBefore.z - landed.z) < 0.1);
         }
     }
+});
+
+test('the trails stay inside a blending budget in the heaviest seconds', () => {
+    // Overdraw: every visible transparent puff is blended pixel by pixel, so its area is the cost.
+    // With 12 puffs growing to ten chunk sizes the four variants peaked at 426 708 m^2
+    // (alpha-weighted, 6 s after the breach) and GPU frame spikes nearly doubled; now about 132 000.
+    let peak = 0;
+    for (const seconds of [2, 3, 4, 5, 6, 7, 8]) {
+        let area = 0;
+        for (let seed = 1; seed <= 4; seed += 1) {
+            for (const launch of createDebrisLaunches(seed)) {
+                for (let index = 1; index <= DEBRIS_TRAIL_PUFFS; index += 1) {
+                    const puff = debrisTrailPuff(launch, index, seconds);
+                    area += puff.alpha * puff.size ** 2;
+                }
+            }
+        }
+        peak = Math.max(peak, area);
+    }
+    assert.ok(peak < 150000, `alpha-weighted trail area peaks at ${Math.round(peak)} m^2`);
 });
 
 test('the reactor cloud gets its debris on load, visual only and outside the measured model', async () => {

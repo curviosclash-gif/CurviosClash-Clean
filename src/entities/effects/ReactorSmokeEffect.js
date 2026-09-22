@@ -168,6 +168,14 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
                 card.center.x += (scatter(index, 2)-.5) * card.width * .35;
                 card.center.z += (scatter(index, 3)-.5) * card.width * .35;
                 card.center.y += (scatter(index, 4)-.5) * card.height * .2;
+            } else if (!detail && !card.flow) {
+                // The cap, rim and bloom are rings of near-equal lobes; unscattered their tops
+                // line up into a crown of teeth. Fixed per-card size and height break the ring.
+                const grow = .75 + .55*scatter(index, 5);
+                card.width *= grow; card.height *= grow;
+                card.center.y += (scatter(index, 6)-.5) * card.height * .6;
+                card.center.x += (scatter(index, 7)-.5) * card.width * .2;
+                card.center.z += (scatter(index, 8)-.5) * card.width * .2;
             }
             const cycle = time*.25 + index*1.7;
             const stretch = 1 + (detail ? .22 : .12) * Math.sin(cycle) * (1 + profile.turbulence);
@@ -213,9 +221,12 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
                 }
             }
             // Fit the soft lobe below the authored ceiling before shading, avoiding
-            // a flat clipping plane at the top of the final mushroom cloud.
+            // a flat clipping plane at the top of the final mushroom cloud. Each card gets its
+            // own ceiling up to a third of the cap radius lower, or the fitted tops would line up
+            // into a crown of equal lumps under one flat lid.
+            const ceiling = top.y - scatter(index, 9) * shape.radius * .35;
             const reach = .48 * Math.hypot(card.width, card.height);
-            const fit = Math.min(1, Math.max(0, top.y - card.center.y) / Math.max(.001, reach));
+            const fit = Math.min(1, Math.max(0, ceiling - card.center.y) / Math.max(.001, reach));
             card.width *= fit; card.height *= fit;
             card.depth = view[2]*card.center.x+view[6]*card.center.y+view[10]*card.center.z+view[14];
         }

@@ -170,6 +170,172 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             await writeFile(testInfo.outputPath('smoke-sun-shading.json'), JSON.stringify(shading, null, 2));
             expect(shading.above.pixels).toBeGreaterThan(300);
             expect(shading.above.upper / shading.above.lower).toBeGreaterThan(shading.below.upper / shading.below.lower * 1.08);
+            if (process.env.REACTOR_GPU_BENCH === '1') {
+                // Opt-in GPU cost of the reactor effects: timer queries measure GPU time per frame,
+                // independent of CPU scheduling. Configurations are interleaved frame by frame.
+                const bench = await page.evaluate(async () => {
+                    const game = window.GAME_INSTANCE;
+                    const arena = game.arena;
+                    const runtime = game.renderer;
+                    const renderer = runtime.renderer;
+                    const gl = renderer.getContext();
+                    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+                    if (!ext) return { skipped: 'no EXT_disjoint_timer_query_webgl2' };
+                    const camera = runtime.cameras[0];
+                    const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
+                    const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                    const smoke = [slot.getObjectByName('reactor-soft-smoke_nocol_noshadow')];
+                    const extras = ['reactor-debris_nocol_noshadow', 'reactor-debris-puffs_nocol_noshadow', 'reactor-fire-glow_nocol_noshadow',
+                        'reactor-flash-overlay_nocol_noshadow'].map((name) => slot.getObjectByName(name));
+                    extras.push(slot.getObjectByName('flash').children.find((node) => node.isMesh));
+                    const configs = {
+                        none: () => { for (const m of [...smoke, ...extras]) m.visible = false; },
+                        smoke: () => { for (const m of smoke) m.visible = true; for (const m of extras) m.visible = false; },
+                        all: () => { for (const m of [...smoke, ...extras]) m.visible = true; },
+                    };
+                    // Smoke plus one extra at a time, so a costly layer shows up on its own.
+                    for (const extra of extras) {
+                        configs[`+${extra.name}`] = () => {
+                            for (const m of smoke) m.visible = true;
+                            for (const m of extras) m.visible = m === extra;
+                        };
+                    }
+                    camera.far = 5000; camera.updateProjectionMatrix();
+                    camera.position.set(330, 90, 330); camera.lookAt(0, 250, 0); camera.updateMatrixWorld(true);
+                    const result = { size: [renderer.domElement.width, renderer.domElement.height] };
+                    // 5 s is when thrown debris and its trails cover the most sky.
+                    for (const seconds of [3, 5, 20, 169]) {
+                        arena.setGlbAnimationElapsedSeconds(seconds); arena._glbAnimation.advance(0);
+                        const samples = Object.fromEntries(Object.keys(configs).map((name) => [name, []]));
+                        const pending = [];
+                        const names = Object.keys(configs);
+                        for (let frame = 0; frame < 45; frame += 1) {
+                            // GPU time depends on the position within a burst of renders; rotating the
+                            // order every frame spreads that bias evenly over all configurations.
+                            const order = names.map((_, index) => names[(index + frame) % names.length]);
+                            for (const name of order) {
+                                configs[name]();
+                                const query = gl.createQuery();
+                                gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
+                                renderer.setRenderTarget(null);
+                                renderer.render(runtime.scene, camera);
+                                gl.endQuery(ext.TIME_ELAPSED_EXT);
+                                if (frame >= 5) pending.push({ name, query });
+                            }
+                            await new Promise((resolve) => requestAnimationFrame(resolve));
+                        }
+                        for (let wait = 0; wait < 200 && pending.some(({ query }) => !gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)); wait += 1) {
+                            await new Promise((resolve) => setTimeout(resolve, 10));
+                        }
+                        const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT);
+                        for (const { name, query } of pending) {
+                            if (gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) samples[name].push(gl.getQueryParameter(query, gl.QUERY_RESULT) / 1e6);
+                            gl.deleteQuery(query);
+                        }
+                        const stat = (values) => {
+                            const sorted = [...values].sort((a, b) => a - b);
+                            return { p50: sorted[Math.floor(sorted.length * 0.5)], p95: sorted[Math.floor(sorted.length * 0.95)], n: sorted.length };
+                        };
+                        result[seconds] = { disjoint, ...Object.fromEntries(Object.entries(samples).map(([name, values]) => [name, stat(values)])) };
+                    }
+                    configs.all();
+                    camera.far = held.far; camera.updateProjectionMatrix();
+                    camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                    return result;
+                });
+                await writeFile(testInfo.outputPath('reactor-gpu-bench.json'), JSON.stringify(bench, null, 2));
+            }
+            // Split screen: two viewports of one frame, drawn the way RenderViewportSystem draws
+            // them. The camera close to and facing the breach whites out, the far one looking away
+            // is only dazzled.
+            const split = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena;
+                const runtime = game.renderer;
+                const renderer = runtime.renderer;
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const overlay = slot.getObjectByProperty('name', 'reactor-flash-overlay_nocol_noshadow');
+                overlay.userData.reduceMotion = false;
+                arena.setGlbAnimationElapsedSeconds(0.03); arena._glbAnimation.advance(0);
+                const width = renderer.domElement.width / renderer.getPixelRatio();
+                const height = renderer.domElement.height / renderer.getPixelRatio();
+                const near = runtime.cameras[0].clone(); near.aspect = (width / 2) / height; near.far = 5000;
+                near.position.set(260, 70, 260); near.lookAt(0, 60, 0); near.updateProjectionMatrix(); near.updateMatrixWorld(true);
+                const far = near.clone(); far.position.set(-1300, 400, -1300); far.lookAt(-2600, 400, -2600); far.updateMatrixWorld(true);
+                renderer.setRenderTarget(null);
+                renderer.setScissorTest(true);
+                renderer.setViewport(0, 0, width / 2, height); renderer.setScissor(0, 0, width / 2, height);
+                renderer.render(runtime.scene, near);
+                renderer.setViewport(width / 2, 0, width / 2, height); renderer.setScissor(width / 2, 0, width / 2, height);
+                renderer.render(runtime.scene, far);
+                renderer.setScissorTest(false);
+                renderer.setViewport(0, 0, width, height); renderer.setScissor(0, 0, width, height);
+                const probe = document.createElement('canvas'); probe.width = 128; probe.height = 36;
+                const context = probe.getContext('2d', { willReadFrequently: true });
+                context.drawImage(renderer.domElement, 0, 0, 128, 36);
+                const pixels = context.getImageData(0, 0, 128, 36).data;
+                const half = (from) => {
+                    let sum = 0, n = 0;
+                    for (let y = 0; y < 36; y += 1) for (let x = from; x < from + 64; x += 1) {
+                        const i = (y * 128 + x) * 4; sum += pixels[i] + pixels[i + 1] + pixels[i + 2]; n += 1;
+                    }
+                    return sum / n / 765;
+                };
+                const png = renderer.domElement.toDataURL('image/png');
+                overlay.userData.reduceMotion = true;
+                return { near: half(0), far: half(64), png };
+            });
+            await writeFile(testInfo.outputPath('split-screen-flash.png'), Buffer.from(split.png.split(',')[1], 'base64'));
+            delete split.png;
+            await writeFile(testInfo.outputPath('split-screen-flash.json'), JSON.stringify(split, null, 2));
+            expect(split.near).toBeGreaterThan(0.9);
+            expect(split.far).toBeLessThan(split.near - 0.15);
+            // Hearing: noise on the world bus, a close breach muffles it, highs drop and come back.
+            const hearing = await page.evaluate(async () => {
+                const audio = window.GAME_INSTANCE.entityManager.audio;
+                const ctx = audio?.ctx;
+                if (!ctx || !audio._hearing) return { skipped: 'no running audio' };
+                if (ctx.state !== 'running') await ctx.resume().catch(() => {});
+                if (ctx.state !== 'running') return { skipped: `audio ${ctx.state}` };
+                const heldMaster = audio._masterGain.gain.value;
+                const heldSfx = audio._sfxGain.gain.value;
+                audio._masterGain.gain.value = 1; audio._sfxGain.gain.value = 1;
+                const analyser = ctx.createAnalyser(); analyser.fftSize = 2048; analyser.smoothingTimeConstant = 0;
+                audio._masterGain.connect(analyser);
+                const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+                const channel = buffer.getChannelData(0);
+                for (let i = 0; i < channel.length; i += 1) channel[i] = (Math.sin(i * 12.9898) * 43758.5453 % 1) * 0.4;
+                const noise = ctx.createBufferSource(); noise.buffer = buffer; noise.loop = true;
+                noise.connect(audio._sfxGain); noise.start();
+                const bins = new Float32Array(analyser.frequencyBinCount);
+                const hz = ctx.sampleRate / analyser.fftSize;
+                const highs = async () => {
+                    let total = 0;
+                    for (let sample = 0; sample < 5; sample += 1) {
+                        await new Promise((resolve) => setTimeout(resolve, 40));
+                        analyser.getFloatFrequencyData(bins);
+                        let sum = 0, n = 0;
+                        for (let b = Math.floor(6000 / hz); b < Math.floor(12000 / hz); b += 1) { sum += 10 ** (bins[b] / 10); n += 1; }
+                        total += sum / n;
+                    }
+                    return 10 * Math.log10(total / 5);
+                };
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                const before = await highs();
+                audio._hearing.trigger(1, 2.5);
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                const muffled = await highs();
+                await new Promise((resolve) => setTimeout(resolve, 2600));
+                const recovered = await highs();
+                noise.stop(); noise.disconnect(); audio._masterGain.disconnect(analyser);
+                audio._masterGain.gain.value = heldMaster; audio._sfxGain.gain.value = heldSfx;
+                return { before, muffled, recovered, state: ctx.state };
+            });
+            await writeFile(testInfo.outputPath('hearing.json'), JSON.stringify(hearing, null, 2));
+            if (!hearing.skipped) {
+                expect(hearing.muffled).toBeLessThan(hearing.before - 20);
+                expect(Math.abs(hearing.recovered - hearing.before)).toBeLessThan(3);
+            } else testInfo.annotations.push({ type: 'hearing-skipped', description: hearing.skipped });
             // The Blender-keyed flash shell glows over the ruin in the first tenth of a second.
             const shell = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;
@@ -242,11 +408,21 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                     const without = grab();
                     for (const layer of layers) layer.visible = true;
                     const withDebris = grab();
-                    let changed = 0;
-                    for (let i = 0; i < without.length; i += 4) {
-                        if (Math.abs(withDebris[i] - without[i]) + Math.abs(withDebris[i + 1] - without[i + 1]) + Math.abs(withDebris[i + 2] - without[i + 2]) > 30) changed += 1;
-                    }
-                    result[seconds] = { changed, png: runtime.renderer.domElement.toDataURL('image/png') };
+                    const png = runtime.renderer.domElement.toDataURL('image/png');
+                    // The trails alone: chunks hidden, puffs on and off.
+                    layers[0].visible = false;
+                    const puffsOnly = grab();
+                    layers[1].visible = false;
+                    const neither = grab();
+                    layers[0].visible = true; layers[1].visible = true;
+                    const count = (a, b) => {
+                        let changed = 0;
+                        for (let i = 0; i < a.length; i += 4) {
+                            if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) > 30) changed += 1;
+                        }
+                        return changed;
+                    };
+                    result[seconds] = { changed: count(withDebris, without), trails: count(puffsOnly, neither), png };
                 }
                 flash.visible = true;
                 camera.far = held.far; camera.updateProjectionMatrix();
@@ -260,6 +436,9 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             await writeFile(testInfo.outputPath('debris.json'), JSON.stringify(debris, null, 2));
             expect(debris[3].changed).toBeGreaterThan(40);
             expect(debris[12].changed).toBeGreaterThan(5);
+            // Dark trails read against the haze and still hang in the air after the chunks landed.
+            expect(debris[3].trails).toBeGreaterThan(100);
+            expect(debris[12].trails).toBeGreaterThan(50);
             // The host-rolled wind reaches the visible cloud and carries its top downwind.
             const wind = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;
