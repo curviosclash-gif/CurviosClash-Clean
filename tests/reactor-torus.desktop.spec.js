@@ -442,6 +442,8 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             expect(debris[3].changed).toBeGreaterThan(40);
             expect(debris[12].changed).toBeGreaterThan(5);
             // Dark trails read against the haze and still hang in the air after the chunks landed.
+            // The blast wave's dust hangs over the site from this camera, so its density is set
+            // where the trails still carry these numbers.
             expect(debris[3].trails).toBeGreaterThan(100);
             expect(debris[12].trails).toBeGreaterThan(50);
             // The host-rolled wind reaches the visible cloud and carries its top downwind.
@@ -562,6 +564,50 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             expect(solidity.smoke).toBeGreaterThan(2500);
             // Before the solid body the crown let a ring of sky through: 7.6 percent from here.
             expect(solidity.share).toBeLessThan(0.05);
+            // The blast wave's dust: a haze over the site from the ground, gone a few minutes on.
+            const collar = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena, runtime = game.renderer, camera = runtime.cameras[0];
+                const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const surge = slot.getObjectByName('reactor-volume-surge_nocol_noshadow');
+                camera.far = 5000; camera.updateProjectionMatrix();
+                camera.position.set(0, 30, 420); camera.lookAt(0, 70, 0); camera.updateMatrixWorld(true);
+                const width = 160, height = 90;
+                const probe = document.createElement('canvas'); probe.width = width; probe.height = height;
+                const context = probe.getContext('2d', { willReadFrequently: true });
+                const grab = () => {
+                    runtime.renderer.setRenderTarget(null);
+                    runtime.renderer.render(runtime.scene, camera);
+                    context.drawImage(runtime.renderer.domElement, 0, 0, width, height);
+                    return context.getImageData(0, 0, width, height).data;
+                };
+                const result = {};
+                for (const seconds of [12, 49 + 240]) {
+                    arena.setGlbAnimationElapsedSeconds(seconds); arena._glbAnimation.advance(0);
+                    surge.visible = false;
+                    const without = grab();
+                    surge.visible = true;
+                    const withDust = grab();
+                    // Only the collar is switched, so the difference is its dust alone.
+                    let change = 0;
+                    for (let i = 0; i < withDust.length; i += 4) {
+                        change += Math.abs(withDust[i] - without[i]) + Math.abs(withDust[i + 1] - without[i + 1])
+                            + Math.abs(withDust[i + 2] - without[i + 2]);
+                    }
+                    result[seconds] = { change, png: runtime.renderer.domElement.toDataURL('image/png') };
+                }
+                camera.far = held.far; camera.updateProjectionMatrix();
+                camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                return result;
+            });
+            for (const [seconds, entry] of Object.entries(collar)) {
+                await writeFile(testInfo.outputPath(`collar-${seconds}s.png`), Buffer.from(entry.png.split(',')[1], 'base64'));
+                delete entry.png;
+            }
+            await writeFile(testInfo.outputPath('collar.json'), JSON.stringify(collar, null, 2));
+            expect(collar[12].change).toBeGreaterThan(80_000);
+            expect(collar[289].change).toBeLessThan(collar[12].change * 0.1);
             // After the clip the cloud thins out on the match clock and a faint rest stays.
             const dissolve = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;

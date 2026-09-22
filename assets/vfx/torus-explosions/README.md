@@ -94,9 +94,31 @@ does not stall. In the head the noise is read in ring coordinates - round the ax
 tube, and into it - and the tube angle carries the circulation, so the whole ring rolls as one
 body. Light is one sun ray of two samples with Beer-Lambert extinction plus sky light from
 above, and while it is hot the lower, inner smoke glows. Steps follow the chord, at most 64 in
-the head and 48 in the stem, with a jittered start; rays stop once the smoke is opaque, which is
-why the whole cloud costs about 0.2 ms a frame on an UHD 630 at 1264x655, close up. The cloud
-has no depth texture, so a camera inside the smoke is not enveloped correctly.
+the head, 48 in the stem and 32 in the ground collar, with a jittered start; rays stop once the
+smoke is opaque, which is why the whole cloud costs about 0.2 ms a frame on an UHD 630 at
+1264x655, close up. The cloud has no depth texture, so a camera inside the smoke is not
+enveloped correctly.
+
+The noise does not carve the density, it displaces the skin: the body under it is opaque, the way
+a real cloud is a few metres in. Carving it left four fifths of the ring half transparent and let
+the sky through the crown in a ring of holes, the eight-fold period of the ring-space noise. The
+sun term sums three scattering octaves - direct, once and many times scattered - so a solid body
+does not turn flat dark. `tests/reactor-torus.desktop.spec.js` measures the sky enclosed by smoke
+from a ground camera and holds it under five percent; the carved cloud showed 7.6.
+
+## The blast wave at the foot
+
+A third proxy, a flat wide cylinder on the ground, carries the dust the blast wave tears off the
+site (`surgeShape` and `surgeDensityAfter` in `ReactorSmokeEffect.js`). Its front leaves the foot
+fast and slows as it runs out of push, reaching half the cloud's own height within about ten
+seconds; the dust behind the front then disperses, which is drawn as the front coming back in to
+a collar round the stem. The collar is a fifth as dense as the cloud and settles away over the
+three minutes after the clip, while the cloud above still stands: a denser one swallowed the
+debris trails over the site and took the map's sight lines away from the players. It is the one
+part a camera regularly stands inside, so its shader alone reports the depth of the first smoke
+its ray meets, which puts the dust in front of the walls behind it instead of letting them hide
+it. On the lowest graphics step it collapses with the rest of the volume and the card cloud has
+no collar of its own.
 
 The head is not drawn from the cap and torus lobes of the GLB: those only give it its
 size and height. `src/entities/effects/ReactorVortexHead.js` spreads 208 cards by area
