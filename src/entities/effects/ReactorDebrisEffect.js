@@ -7,9 +7,12 @@ import { FOG_FACTOR_GLSL } from './ReactorFireballEffect.js';
 // nothing here collides or deals damage. Units are the cloud model's own metres.
 
 export const DEBRIS_CHUNKS = 48;
-export const DEBRIS_TRAIL_PUFFS = 12;
+export const DEBRIS_TRAIL_PUFFS = 8;
 export const DEBRIS_GRAVITY = 9.81;
-const TRAIL_LIFE_SECONDS = 7;
+const TRAIL_LIFE_SECONDS = 9;
+const TRAIL_BASE_SIZE = 1.8;
+const TRAIL_GROWTH = 0.4;
+const TRAIL_ALPHA = 0.72;
 const IMPACT_SECONDS = 4;
 export const DEBRIS_NAME = 'reactor-debris_nocol_noshadow';
 export const DEBRIS_PUFFS_NAME = 'reactor-debris-puffs_nocol_noshadow';
@@ -69,6 +72,22 @@ export function debrisPosition(launch, seconds) {
         landed: t >= landAt,
         landAt: launch.start + landAt,
         flying: t >= 0 && t < landAt,
+    };
+}
+
+/**
+ * Size and opacity of trail puff `index` (1..DEBRIS_TRAIL_PUFFS) `seconds` after the breach;
+ * the same formula as the puff vertex shader. Its summed area is the trails' overdraw.
+ * @returns {{ size: number, alpha: number }}
+ */
+export function debrisTrailPuff(launch, index, seconds) {
+    const { landAt } = debrisPosition(launch, Infinity);
+    const shedAt = index / (DEBRIS_TRAIL_PUFFS + 1) * (landAt - launch.start);
+    const age = seconds - launch.start - shedAt;
+    const smooth = (a, b, x) => { const u = Math.max(0, Math.min(1, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+    return {
+        size: launch.size * (TRAIL_BASE_SIZE + TRAIL_GROWTH * Math.max(0, Math.min(TRAIL_LIFE_SECONDS, age))),
+        alpha: age > 0 ? TRAIL_ALPHA * (1 - smooth(1.5, TRAIL_LIFE_SECONDS, age)) : 0,
     };
 }
 
@@ -149,7 +168,7 @@ void main() {
         // Dust thrown up where the chunk lands, growing and settling for a few seconds.
         float age = local - landAt;
         centre = now + vec3(0.0, launchOrigin.w * 1.5, 0.0);
-        size = launchOrigin.w * (3.0 + 7.0 * clamp(age / ${IMPACT_SECONDS.toFixed(1)}, 0.0, 1.0));
+        size = launchOrigin.w * (3.0 + 4.0 * clamp(age / ${IMPACT_SECONDS.toFixed(1)}, 0.0, 1.0));
         alpha = age < 0.0 ? 0.0 : 0.7 * (1.0 - clamp(age / ${IMPACT_SECONDS.toFixed(1)}, 0.0, 1.0));
         vPuffWarmth = 0.0;
     } else {
@@ -159,8 +178,8 @@ void main() {
         float age = local - shedAt;
         float shedFlight, ignored;
         centre = debrisPosition(launchArc.w + shedAt, shedFlight, ignored) + vec3(0.0, 0.8 * max(age, 0.0), 0.0);
-        size = launchOrigin.w * (1.6 + 1.2 * clamp(age, 0.0, ${TRAIL_LIFE_SECONDS.toFixed(1)}));
-        alpha = age > 0.0 ? 0.62 * (1.0 - smoothstep(1.5, ${TRAIL_LIFE_SECONDS.toFixed(1)}, age)) : 0.0;
+        size = launchOrigin.w * (${TRAIL_BASE_SIZE.toFixed(2)} + ${TRAIL_GROWTH.toFixed(2)} * clamp(age, 0.0, ${TRAIL_LIFE_SECONDS.toFixed(1)}));
+        alpha = age > 0.0 ? ${TRAIL_ALPHA.toFixed(2)} * (1.0 - smoothstep(1.5, ${TRAIL_LIFE_SECONDS.toFixed(1)}, age)) : 0.0;
         vPuffWarmth = 1.0 - smoothstep(0.0, 0.8, age);
     }
     vPuffUv = uv;

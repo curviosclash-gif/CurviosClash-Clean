@@ -203,7 +203,8 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                     camera.far = 5000; camera.updateProjectionMatrix();
                     camera.position.set(330, 90, 330); camera.lookAt(0, 250, 0); camera.updateMatrixWorld(true);
                     const result = { size: [renderer.domElement.width, renderer.domElement.height] };
-                    for (const seconds of [3, 20, 169]) {
+                    // 5 s is when thrown debris and its trails cover the most sky.
+                    for (const seconds of [3, 5, 20, 169]) {
                         arena.setGlbAnimationElapsedSeconds(seconds); arena._glbAnimation.advance(0);
                         const samples = Object.fromEntries(Object.keys(configs).map((name) => [name, []]));
                         const pending = [];
