@@ -110,6 +110,66 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 await writeFile(testInfo.outputPath(`flash-${key}s.png`), Buffer.from(png.split(',')[1], 'base64'));
             }
             await writeFile(testInfo.outputPath('flash-brightness.json'), JSON.stringify(flash.brightness, null, 2));
+            // Six-way light: moving the map's sun from above to below the cloud must swap which
+            // half of the smoke is brighter. Smoke pixels come from a render with and without it.
+            const shading = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena;
+                const runtime = game.renderer;
+                const camera = runtime.cameras[0];
+                const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone() };
+                arena.setGlbAnimationElapsedSeconds(20); arena._glbAnimation.advance(0);
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
+                const centre = slot.getObjectByName('roll').getWorldPosition(camera.position.clone());
+                let sun = null;
+                runtime.scene.traverseVisible((node) => { if (node.isDirectionalLight && node.intensity > (sun?.intensity ?? 0)) sun = node; });
+                const heldSun = sun.position.clone();
+                const target = sun.target.getWorldPosition(centre.clone());
+                const probe = document.createElement('canvas'); probe.width = 128; probe.height = 72;
+                const context = probe.getContext('2d', { willReadFrequently: true });
+                const grab = () => {
+                    runtime.renderer.setRenderTarget(null);
+                    runtime.renderer.render(runtime.scene, camera);
+                    context.drawImage(runtime.renderer.domElement, 0, 0, 128, 72);
+                    return context.getImageData(0, 0, 128, 72).data;
+                };
+                // The game camera's far plane is shorter than this vantage point.
+                const heldFar = camera.far; camera.far = 5000; camera.updateProjectionMatrix();
+                camera.position.set(centre.x + 650, centre.y - 120, centre.z + 650);
+                camera.lookAt(centre); camera.updateMatrixWorld(true);
+                const result = {};
+                const shots = {};
+                for (const [name, offset] of [['above', 1], ['below', -1]]) {
+                    sun.position.copy(target).add({ x: 0, y: 1000 * offset, z: 0 }); sun.updateMatrixWorld(true);
+                    smoke.visible = false; const without = grab();
+                    smoke.visible = true; const withSmoke = grab();
+                    shots[name] = runtime.renderer.domElement.toDataURL('image/png');
+                    const rows = [];
+                    for (let y = 0; y < 72; y += 1) {
+                        for (let x = 0; x < 128; x += 1) {
+                            const i = (y * 128 + x) * 4;
+                            const change = Math.abs(withSmoke[i] - without[i]) + Math.abs(withSmoke[i + 1] - without[i + 1]) + Math.abs(withSmoke[i + 2] - without[i + 2]);
+                            if (change > 24) rows.push([y, withSmoke[i] + withSmoke[i + 1] + withSmoke[i + 2]]);
+                        }
+                    }
+                    const ys = rows.map(([y]) => y).sort((a, b) => a - b);
+                    const middle = ys[ys.length >> 1];
+                    const mean = (list) => list.reduce((sum, [, v]) => sum + v, 0) / Math.max(1, list.length) / 765;
+                    result[name] = { upper: mean(rows.filter(([y]) => y < middle)), lower: mean(rows.filter(([y]) => y >= middle)), pixels: rows.length };
+                }
+                sun.position.copy(heldSun); sun.updateMatrixWorld(true);
+                camera.far = heldFar; camera.updateProjectionMatrix();
+                camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                return { ...result, shots };
+            });
+            for (const [name, png] of Object.entries(shading.shots)) {
+                await writeFile(testInfo.outputPath(`smoke-sun-${name}.png`), Buffer.from(png.split(',')[1], 'base64'));
+            }
+            delete shading.shots;
+            await writeFile(testInfo.outputPath('smoke-sun-shading.json'), JSON.stringify(shading, null, 2));
+            expect(shading.above.pixels).toBeGreaterThan(300);
+            expect(shading.above.upper / shading.above.lower).toBeGreaterThan(shading.below.upper / shading.below.lower * 1.08);
             // A shader the GPU refuses to link fails silently in three.js; Chromium still says so.
             expect(glMessages.filter((text) => /INVALID_OPERATION|not valid/i.test(text))).toEqual([]);
             const b = flash.brightness;

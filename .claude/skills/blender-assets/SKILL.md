@@ -150,6 +150,8 @@ Drei Stufen, jede fängt andere Fehler:
 
 3. **Spiel** — Contract-Test und Desktop-Beleg, siehe Schritt 6.
 
+**Volumen-Licht backen (Rauch, Nebel) nur in Cycles.** EEVEE (4.2) rechnet Volumenschatten in einem an der Kamera ausgerichteten Gitter; Licht quer zur Blickrichtung kommt dort nicht an (Seitenlicht im Rauch-Bake lag bei 0,002 statt ~0,38). Vorbild: `scripts/bake_reactor_smoke.py`, sechs Sonnenrichtungen je Kachel, Dichte-Rauschen zwischen Durchgängen mitteln.
+
 Ob etwas **leuchtet**, lässt sich an der Datei nicht messen (die Datei kennt keine Verdeckung). Beleg: dieselbe Ansicht im Spiel zweimal rendern, mit und ohne Emission, und vergleichen (Vorbild `tests/mushroom-proof.desktop.spec.js`).
 
 ## Schritt 6 — Contract-Test und Pflichtprüfung

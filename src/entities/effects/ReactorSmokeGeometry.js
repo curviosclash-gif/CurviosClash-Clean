@@ -1,6 +1,50 @@
 import * as THREE from 'three';
 import { FOG_FACTOR_GLSL } from './ReactorFireballEffect.js';
 
+// Atlas rows, counted from the bottom (see scripts/bake_reactor_smoke.py).
+export const SMOKE_TILE_FAMILY = Object.freeze({ billow: 0, column: 1, wisp: 2, holed: 3 });
+
+/** Atlas tile 0-15 for a card: the family follows its role, the variant its index. */
+export function resolveSmokeTile(card) {
+    const family = card.flow ? SMOKE_TILE_FAMILY.wisp
+        : card.lobe?.column ? SMOKE_TILE_FAMILY.column
+            : card.detail ? SMOKE_TILE_FAMILY.holed
+                : SMOKE_TILE_FAMILY.billow;
+    return family * 4 + (card.index % 4);
+}
+
+const DEFAULT_SUN = new THREE.Vector3(0.35, 0.85, 0.4).normalize();
+const DEFAULT_SUN_COLOR = new THREE.Color(1, 0.97, 0.92);
+const SUN_REFERENCE_INTENSITY = 1.35;
+const sunPosition = new THREE.Vector3();
+const sunTarget = new THREE.Vector3();
+
+/**
+ * Direction towards the brightest directional light of the scene and its colour, so smoke
+ * takes the map's own sun without the effect reaching into the renderer. Returns false and
+ * a fixed high sun when the scene has none. A `cache` object keeps the found light, so the
+ * scene is searched again only when that light leaves it, or every 300 calls.
+ */
+export function resolveSmokeSun(scene, direction, color, cache = null) {
+    let sun = cache && cache.scene === scene && cache.light?.parent && cache.age++ < 300 ? cache.light : null;
+    if (!sun) {
+        scene?.traverseVisible?.((node) => {
+            if (node.isDirectionalLight && node.intensity > (sun?.intensity ?? 0)) sun = node;
+        });
+        if (cache) { cache.scene = scene; cache.light = sun; cache.age = 0; }
+    }
+    if (!sun) {
+        direction.copy(DEFAULT_SUN); color.copy(DEFAULT_SUN_COLOR);
+        return false;
+    }
+    sun.getWorldPosition(sunPosition);
+    sun.target.getWorldPosition(sunTarget);
+    direction.subVectors(sunPosition, sunTarget);
+    if (direction.lengthSq() < 1e-12) direction.copy(DEFAULT_SUN); else direction.normalize();
+    color.copy(sun.color).multiplyScalar(Math.min(1.5, Math.max(0.3, sun.intensity / SUN_REFERENCE_INTENSITY)));
+    return true;
+}
+
 // Connected lobes are recovered once from the exported mesh, so smoke follows the
 // authored torus pivots rather than duplicating their animation in another clock.
 export function collectSmokeLobes(root) {
@@ -49,10 +93,12 @@ varying float vSmokeHeat;
 varying float vSmokeDepth;
 varying float vSmokeLight;
 varying float vFireLit;
+varying vec3 vSunLocal;
 uniform float cloudTop;
 uniform float cloudBase;
 uniform vec4 fireLight;
 uniform float fireGlow;
+uniform vec3 sunDirection;
 #include <fog_pars_vertex>
 void main() {
     vec4 smokeCenter = texture2D(smokeData,vec2(.125,smokeRow));
@@ -77,6 +123,10 @@ void main() {
     vec3 toFire = worldPosition - fireLight.xyz;
     float reach = 2.5 * fireLight.w * fireLight.w;
     vFireLit = fireGlow * reach / (reach + dot(toFire, toFire));
+    // The sun in the card's own turned frame: x along its right edge, y along its up edge,
+    // z towards the camera. The six baked lights are mixed by these three components.
+    vec3 sunView = (viewMatrix * vec4(sunDirection, 0.0)).xyz;
+    vSunLocal = vec3(dot(sunView.xy, vec2(c, s)), dot(sunView.xy, vec2(-s, c)), sunView.z);
     vec4 mvPosition = viewPosition;
     gl_Position = projectionMatrix * viewPosition;
     #include <fog_vertex>
@@ -84,7 +134,10 @@ void main() {
 `;
 
 export const SMOKE_FRAGMENT = /* glsl */`
-uniform sampler2D smokeAtlas;
+uniform sampler2D smokeLightA;
+uniform sampler2D smokeLightB;
+uniform vec3 sunColor;
+uniform vec3 skyColor;
 uniform float cloudTop;
 uniform float cloudBase;
 uniform float heat;
@@ -97,6 +150,7 @@ varying float vSmokeHeat;
 varying float vSmokeDepth;
 varying float vSmokeLight;
 varying float vFireLit;
+varying vec3 vSunLocal;
 #include <fog_pars_fragment>
 ${FOG_FACTOR_GLSL}
 void main() {
@@ -104,20 +158,32 @@ void main() {
     // remains independent, and padded tiles cannot bleed into neighbouring lobes.
     if (fract(vSmokeAlpha) < .003) discard;
     float tile = floor(vSmokeAlpha);
-    vec2 tileOffset = vec2(mod(tile,2.0),floor(tile/2.0));
+    vec2 tileOffset = vec2(mod(tile, 4.0), floor(tile / 4.0));
     vec2 fold = vec2(sin(vSmokeUv.y*19.0+smokeTime*.35+tile),sin(vSmokeUv.x*16.0-smokeTime*.23));
     vec2 smokeUv = vSmokeUv + fold*.035*sin(vSmokeUv.x*3.14159)*sin(vSmokeUv.y*3.14159);
-    vec4 smoke = texture2D(smokeAtlas,(tileOffset + clamp(smokeUv,.004,.996))*.5);
-    float alpha = smoke.a * fract(vSmokeAlpha) * smoothstep(2.0,14.0,vSmokeDepth);
+    vec2 atlasUv = (tileOffset + clamp(smokeUv,.004,.996))*.25;
+    // A: lit from right, top, back. B: lit from left, bottom, front. Alpha is the same in both.
+    vec4 lightA = texture2D(smokeLightA, atlasUv);
+    vec4 lightB = texture2D(smokeLightB, atlasUv);
+    float alpha = lightA.a * fract(vSmokeAlpha) * smoothstep(2.0,14.0,vSmokeDepth);
     alpha *= smoothstep(cloudBase,cloudBase+18.0,vWorldHeight);
     alpha *= 1.0-smoothstep(cloudTop-7.0,cloudTop,vWorldHeight);
     if (alpha < .003) discard;
-    vec3 albedo = smoke.rgb * vSmokeColor * 1.7;
-    vec3 color = albedo * vSmokeLight;
+    // Six-way light: squared components weigh the baked light of each side, so a unit sun
+    // direction always sums to one and the lit face follows the sun however the card turns.
+    vec3 sun = normalize(vSunLocal);
+    vec3 weight = sun * sun;
+    float direct = weight.x * (sun.x > 0.0 ? lightA.r : lightB.r)
+        + weight.y * (sun.y > 0.0 ? lightA.g : lightB.g)
+        + weight.z * (sun.z > 0.0 ? lightB.b : lightA.b);
+    // The mean of all six stands in for the open sky: thick cores stay darker than thin edges.
+    float ambient = (lightA.r + lightA.g + lightA.b + lightB.r + lightB.g + lightB.b) / 6.0;
+    vec3 albedo = vSmokeColor * 1.7;
+    vec3 color = albedo * (sunColor * direct * 2.1 + skyColor * ambient * .4) * mix(1.0, vSmokeLight, .35);
     // The fireball lights the smoke nearest to it, above all the underside of the cap.
-    color += albedo * vec3(1.0,.45,.12) * vFireLit * 1.6;
-    // The sRGB atlas decodes to roughly .05-.29 linear brightness.
-    float ember = smoothstep(.07,.22,smoke.r) * smoke.a;
+    color += albedo * ambient * vec3(1.0,.45,.12) * vFireLit * 1.6;
+    // Glow sits in the dense core of a parcel, where the smoke is thickest.
+    float ember = smoothstep(.5,.95,lightA.a) * lightA.a;
     color += vec3(1.0,.23,.025) * heat * vSmokeHeat * ember * .8;
     gl_FragColor = vec4(color, alpha);
     #include <tonemapping_fragment>
