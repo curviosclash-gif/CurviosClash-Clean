@@ -126,3 +126,32 @@ test('the live cloud uses every family, lays wisps along their long side and bre
     assert.ok(rounded.size > columnWidths.length * 0.6, 'stem cards are not a row of equal beads');
     disposeObject3DResources(gltf.scene);
 });
+
+test('the top of the cloud is an uneven skyline, not a crown of equal lumps', async () => {
+    for (let variant = 1; variant <= 4; variant += 1) {
+        const buffer = readFileSync(new URL(`../assets/maps/reactor_site/glb/torus_cloud_${variant}.glb`, import.meta.url));
+        const gltf = await new GLTFLoader().parseAsync(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), '');
+        const mixer = new THREE.AnimationMixer(gltf.scene);
+        const action = mixer.clipAction(gltf.animations[0]); action.play();
+        const layer = createReactorSmoke(gltf.scene, action, new THREE.Texture());
+        const camera = new THREE.PerspectiveCamera(); camera.position.set(900, 500, 1000); camera.lookAt(0, 400, 0); camera.updateMatrixWorld();
+        action.time = 48; mixer.update(0); gltf.scene.updateMatrixWorld(true);
+        layer.onBeforeRender(null, null, camera);
+        const data = layer.material.uniforms.smokeData.value.image.data;
+        const tops = [];
+        for (let row = 0; row < layer.geometry.instanceCount; row += 1) {
+            const offset = row * 16;
+            if (Math.floor(data[offset + 7] / GRID) !== SMOKE_TILE_FAMILY.billow) continue;
+            tops.push({ top: data[offset + 1] + data[offset + 5] / 2, width: data[offset + 4] });
+        }
+        // The twenty highest billows. Under one flat fitted ceiling their tops spread only
+        // 0.049-0.054 card widths (a crown of teeth); per-card ceilings give 0.098-0.145.
+        const crown = tops.sort((a, b) => b.top - a.top).slice(0, 20);
+        const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+        const heights = crown.map((entry) => entry.top);
+        const spread = Math.sqrt(mean(heights.map((value) => (value - mean(heights)) ** 2)));
+        assert.ok(spread / mean(crown.map((entry) => entry.width)) > 0.08,
+            `variant ${variant}: crown tops spread ${(spread / mean(crown.map((entry) => entry.width))).toFixed(3)} card widths`);
+        disposeObject3DResources(gltf.scene);
+    }
+});
