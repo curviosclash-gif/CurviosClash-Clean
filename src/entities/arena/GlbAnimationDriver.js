@@ -108,6 +108,15 @@ export class GlbAnimationDriver {
             );
             // A zero step writes the pose for the time just assigned without advancing it.
             track.mixer.update(0);
+            // A one-shot clip holds its last pose; effects that outlive it (smoke thinning
+            // out) read on the model root how long ago it ended, on the same match clock.
+            if (track.clock.mode === 'once') {
+                const root = track.mixer.getRoot?.();
+                if (root?.userData) {
+                    const played = (this._elapsedSeconds - track.startSeconds) * track.clock.playbackRate;
+                    root.userData.clipOverrunSeconds = Math.max(0, played - track.durationSeconds);
+                }
+            }
         }
     }
 }

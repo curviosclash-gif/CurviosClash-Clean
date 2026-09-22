@@ -142,6 +142,8 @@ export class MapBreakSceneController {
             for (const modelId of scene.modelVariants || [scene.modelId]) {
                 setGlbModelActive(this.arena, this._colliderIndex, modelId, false);
                 this._setSceneYaw(modelId, 0, false);
+                const root = resolveGlbModelRoot(this.arena, modelId);
+                if (root?.userData) delete root.userData.windYaw;
                 this.driver?.setTrackStart?.(modelId, 0);
             }
         }
@@ -161,6 +163,11 @@ export class MapBreakSceneController {
         }
         this.driver?.setTrackStart?.(entry.modelId, entry.atSeconds);
         const sceneRoot = resolveGlbModelRoot(this.arena, entry.modelId);
+        // Effects inside the scene (the reactor smoke) read the host-rolled wind from its slot.
+        if (sceneRoot?.userData) {
+            if (entry.windYaw === null || entry.windYaw === undefined) delete sceneRoot.userData.windYaw;
+            else sceneRoot.userData.windYaw = entry.windYaw;
+        }
         for (const attached of entry.attachedModels) {
             const attachment = this._attachments.get(`${entry.sceneId}/${attached.modelId}`);
             const node = sceneRoot?.getObjectByName?.(attached.parentNodeName);

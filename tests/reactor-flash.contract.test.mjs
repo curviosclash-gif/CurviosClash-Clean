@@ -70,7 +70,7 @@ test('no reactor shader names anything with a reserved GLSL word', async () => {
         'fixed', 'goto', 'half', 'inline', 'input', 'interface', 'long', 'namespace', 'noinline', 'output',
         'partition', 'public', 'resource', 'sample', 'short', 'sizeof', 'static', 'superp', 'template',
         'this', 'typedef', 'union', 'unsigned', 'using', 'volatile'];
-    const sources = ['ReactorFlashOverlay.js', 'ReactorFireballEffect.js', 'ReactorSmokeGeometry.js']
+    const sources = ['ReactorFlashOverlay.js', 'ReactorFireballEffect.js', 'ReactorSmokeGeometry.js', 'ReactorDebrisEffect.js']
         .map((file) => readFileSync(new URL(`../src/entities/effects/${file}`, import.meta.url), 'utf8'));
     for (const source of sources) {
         for (const shader of source.match(/\/\* glsl \*\/`[\s\S]*?`/g) || []) {

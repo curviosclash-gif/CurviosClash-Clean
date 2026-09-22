@@ -170,6 +170,171 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             await writeFile(testInfo.outputPath('smoke-sun-shading.json'), JSON.stringify(shading, null, 2));
             expect(shading.above.pixels).toBeGreaterThan(300);
             expect(shading.above.upper / shading.above.lower).toBeGreaterThan(shading.below.upper / shading.below.lower * 1.08);
+            // The Blender-keyed flash shell glows over the ruin in the first tenth of a second.
+            const shell = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena;
+                const runtime = game.renderer;
+                const camera = runtime.cameras[0];
+                const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const mesh = slot.getObjectByName('flash').children.find((node) => node.isMesh);
+                const overlay = slot.getObjectByName('reactor-flash-overlay_nocol_noshadow');
+                const probe = document.createElement('canvas'); probe.width = 160; probe.height = 90;
+                const context = probe.getContext('2d', { willReadFrequently: true });
+                const grab = () => {
+                    runtime.renderer.setRenderTarget(null);
+                    runtime.renderer.render(runtime.scene, camera);
+                    context.drawImage(runtime.renderer.domElement, 0, 0, 160, 90);
+                    return context.getImageData(0, 0, 160, 90).data;
+                };
+                camera.far = 5000; camera.updateProjectionMatrix();
+                camera.position.set(420, 90, 420); camera.lookAt(0, 70, 0); camera.updateMatrixWorld(true);
+                overlay.visible = false;
+                const result = {};
+                for (const seconds of [0.08, 1]) {
+                    arena.setGlbAnimationElapsedSeconds(seconds); arena._glbAnimation.advance(0);
+                    mesh.visible = false; const without = grab();
+                    mesh.visible = true; const withShell = grab();
+                    let brighter = 0;
+                    for (let i = 0; i < without.length; i += 4) {
+                        if (withShell[i] + withShell[i + 1] + withShell[i + 2] - without[i] - without[i + 1] - without[i + 2] > 30) brighter += 1;
+                    }
+                    result[seconds] = { brighter, material: mesh.material.name, png: runtime.renderer.domElement.toDataURL('image/png') };
+                }
+                overlay.visible = true;
+                camera.far = held.far; camera.updateProjectionMatrix();
+                camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                return result;
+            });
+            for (const [seconds, entry] of Object.entries(shell)) {
+                await writeFile(testInfo.outputPath(`flash-shell-${seconds}s.png`), Buffer.from(entry.png.split(',')[1], 'base64'));
+                delete entry.png;
+            }
+            await writeFile(testInfo.outputPath('flash-shell.json'), JSON.stringify(shell, null, 2));
+            expect(shell[0.08].brighter).toBeGreaterThan(100);
+            expect(shell[1].brighter).toBe(0);
+            // Thrown chunks and their smoke trails show up in the real renderer, and lie cooling later.
+            const debris = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena;
+                const runtime = game.renderer;
+                const camera = runtime.cameras[0];
+                const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const layers = ['reactor-debris_nocol_noshadow', 'reactor-debris-puffs_nocol_noshadow'].map((name) => slot.getObjectByName(name));
+                const flash = slot.getObjectByName('reactor-flash-overlay_nocol_noshadow');
+                const probe = document.createElement('canvas'); probe.width = 160; probe.height = 90;
+                const context = probe.getContext('2d', { willReadFrequently: true });
+                const grab = () => {
+                    runtime.renderer.setRenderTarget(null);
+                    runtime.renderer.render(runtime.scene, camera);
+                    context.drawImage(runtime.renderer.domElement, 0, 0, 160, 90);
+                    return context.getImageData(0, 0, 160, 90).data;
+                };
+                camera.far = 5000; camera.updateProjectionMatrix();
+                camera.position.set(420, 90, 420); camera.lookAt(0, 70, 0); camera.updateMatrixWorld(true);
+                flash.visible = false; // the whiteout would hide what is being measured
+                const result = {};
+                for (const seconds of [0.4, 3, 12]) {
+                    arena.setGlbAnimationElapsedSeconds(seconds); arena._glbAnimation.advance(0);
+                    for (const layer of layers) layer.visible = false;
+                    const without = grab();
+                    for (const layer of layers) layer.visible = true;
+                    const withDebris = grab();
+                    let changed = 0;
+                    for (let i = 0; i < without.length; i += 4) {
+                        if (Math.abs(withDebris[i] - without[i]) + Math.abs(withDebris[i + 1] - without[i + 1]) + Math.abs(withDebris[i + 2] - without[i + 2]) > 30) changed += 1;
+                    }
+                    result[seconds] = { changed, png: runtime.renderer.domElement.toDataURL('image/png') };
+                }
+                flash.visible = true;
+                camera.far = held.far; camera.updateProjectionMatrix();
+                camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                return result;
+            });
+            for (const [seconds, entry] of Object.entries(debris)) {
+                await writeFile(testInfo.outputPath(`debris-${seconds}s.png`), Buffer.from(entry.png.split(',')[1], 'base64'));
+                delete entry.png;
+            }
+            await writeFile(testInfo.outputPath('debris.json'), JSON.stringify(debris, null, 2));
+            expect(debris[3].changed).toBeGreaterThan(40);
+            expect(debris[12].changed).toBeGreaterThan(5);
+            // The host-rolled wind reaches the visible cloud and carries its top downwind.
+            const wind = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena;
+                const runtime = game.renderer;
+                const camera = runtime.cameras[0];
+                const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
+                const windYaw = slot.userData.windYaw;
+                arena.setGlbAnimationElapsedSeconds(40); arena._glbAnimation.advance(0);
+                camera.far = 5000; camera.updateProjectionMatrix();
+                camera.position.set(0, 2600, 1); camera.lookAt(0, 300, 0); camera.updateMatrixWorld(true);
+                const topCentre = () => {
+                    runtime.renderer.setRenderTarget(null);
+                    runtime.renderer.render(runtime.scene, camera);
+                    const data = smoke.material.uniforms.smokeData.value.image.data;
+                    const count = smoke.geometry.instanceCount;
+                    let top = -Infinity;
+                    for (let row = 0; row < count; row += 1) top = Math.max(top, data[row * 16 + 1]);
+                    let x = 0, z = 0, n = 0;
+                    for (let row = 0; row < count; row += 1) {
+                        if (data[row * 16 + 1] < top - 120) continue;
+                        x += data[row * 16]; z += data[row * 16 + 2]; n += 1;
+                    }
+                    return { x: x / n, z: z / n };
+                };
+                const windy = topCentre();
+                const png = runtime.renderer.domElement.toDataURL('image/png');
+                delete slot.userData.windYaw;
+                const calm = topCentre();
+                slot.userData.windYaw = windYaw;
+                camera.far = held.far; camera.updateProjectionMatrix();
+                camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                const dx = windy.x - calm.x, dz = windy.z - calm.z;
+                return { windYaw, drift: Math.hypot(dx, dz), heading: Math.atan2(dz, dx), png };
+            });
+            await writeFile(testInfo.outputPath('wind-from-above-40s.png'), Buffer.from(wind.png.split(',')[1], 'base64'));
+            delete wind.png;
+            await writeFile(testInfo.outputPath('wind.json'), JSON.stringify(wind, null, 2));
+            expect(typeof wind.windYaw).toBe('number');
+            expect(wind.drift).toBeGreaterThan(40);
+            const headingError = Math.abs(Math.atan2(Math.sin(wind.heading - wind.windYaw), Math.cos(wind.heading - wind.windYaw)));
+            expect(headingError).toBeLessThan(0.15);
+            // After the clip the cloud thins out on the match clock and a faint rest stays.
+            const dissolve = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena;
+                const runtime = game.renderer;
+                const camera = runtime.cameras[0];
+                const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
+                camera.far = 5000; camera.updateProjectionMatrix();
+                camera.position.set(1050, 520, 1150); camera.lookAt(0, 490, 0); camera.updateMatrixWorld(true);
+                const result = {};
+                for (const seconds of [40, 49 + 120, 49 + 420]) {
+                    arena.setGlbAnimationElapsedSeconds(seconds); arena._glbAnimation.advance(0);
+                    runtime.renderer.setRenderTarget(null);
+                    runtime.renderer.render(runtime.scene, camera);
+                    result[seconds] = { cards: smoke.geometry.instanceCount, overrun: slot.userData.clipOverrunSeconds ?? slot.children[0]?.userData?.clipOverrunSeconds ?? null,
+                        png: runtime.renderer.domElement.toDataURL('image/png') };
+                }
+                camera.far = held.far; camera.updateProjectionMatrix();
+                camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                return result;
+            });
+            for (const [seconds, entry] of Object.entries(dissolve)) {
+                await writeFile(testInfo.outputPath(`dissolve-${seconds}s.png`), Buffer.from(entry.png.split(',')[1], 'base64'));
+                delete entry.png;
+            }
+            await writeFile(testInfo.outputPath('dissolve.json'), JSON.stringify(dissolve, null, 2));
+            expect(dissolve[169].cards).toBeLessThan(dissolve[40].cards);
+            expect(dissolve[469].cards).toBeLessThan(dissolve[169].cards);
+            expect(dissolve[469].cards).toBeGreaterThan(20);
             // A shader the GPU refuses to link fails silently in three.js; Chromium still says so.
             expect(glMessages.filter((text) => /INVALID_OPERATION|not valid/i.test(text))).toEqual([]);
             const b = flash.brightness;

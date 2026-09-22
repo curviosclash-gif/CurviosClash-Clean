@@ -97,6 +97,11 @@ output directory when running `tests/reactor-torus.desktop.spec.js` through
 These silent review clips compress 49 seconds into 16 seconds and require ffmpeg.
 A missing atlas leaves the existing mesh cloud visible.
 
+Generator version 3.1.0 adds a `flash` rig: a hemispherical shell of heated air, keyed by
+scale only (grows to 1.3 fireball radii by 0.1 s, holds to 0.3 s, gone by 0.36 s). The
+runtime (`attachReactorFlashShell`) gives it an additive, rim-bright glow that fades on
+the breach clock, because glTF cannot animate a material.
+
 `src/entities/effects/ReactorFireballEffect.js` restyles the fireball at runtime
 without touching its hazard curve: it cools from white through yellow and orange
 to dull red, boils with drifting cells and a lumpy outline, and grows a soot

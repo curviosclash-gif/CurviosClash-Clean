@@ -2,13 +2,34 @@ import * as THREE from 'three';
 import { createVortexCards, resolveVortexProfile, smokeHeat, smoothRange, updateVortexCard } from './ReactorVortexFlow.js';
 import { collectSmokeLobes, resolveSmokeSun, resolveSmokeTile, SMOKE_TILE_FAMILY, SMOKE_VERTEX, SMOKE_FRAGMENT } from './ReactorSmokeGeometry.js';
 import { attachReactorFireball, fireballGlow, sampleFireLight } from './ReactorFireballEffect.js';
-import { attachReactorFlash } from './ReactorFlashOverlay.js';
+import { attachReactorFlash, attachReactorFlashShell } from './ReactorFlashOverlay.js';
+import { attachReactorDebris } from './ReactorDebrisEffect.js';
 
 // Six-way light atlases: A is lit from right, top and back, B from left, bottom and front.
 const LIGHT_A_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-light-a.png', import.meta.url).href;
 const LIGHT_B_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-light-b.png', import.meta.url).href;
 const SKY_COLOR = new THREE.Color(0.62, 0.68, 0.75);
 export const MAX_SMOKE_CARDS = 512;
+// After the 49 s clip the cloud thins out on the match clock: circulation stops within a
+// minute, fine detail and most density go over four minutes, and a faint, wider rest stays.
+export const SMOKE_DISSOLVE_SECONDS = 240;
+export const SMOKE_RESIDUE = 0.15;
+const STREAM_FADE_SECONDS = 60;
+const DISSOLVE_SPREAD = 0.55;
+// Upper winds shear the cloud: the drift grows with height and time, in cap radii, while the
+// clip plays and on while it thins out. The foot, fed from the ground, barely moves.
+const WIND_DRIFT_CLIP = 0.9;
+const WIND_DRIFT_AFTER = 1.2;
+const WIND_SHEAR_POWER = 1.5;
+
+/** The host-rolled wind heading, stored on the cloud's slot by the break scene; null if calm. */
+function readWindYaw(node) {
+    for (let current = node; current; current = current.parent) {
+        const value = current.userData?.windYaw;
+        if (value !== undefined) return Number.isFinite(value) ? value : null;
+    }
+    return null;
+}
 
 /** Deterministic 0..1 per card and channel: every client scatters the stem alike. */
 function scatter(index, channel) {
@@ -21,6 +42,9 @@ export async function attachReactorSmoke(root, action, { loadTexture = (url) => 
     // The fireball needs no texture, so it is upgraded even when the atlas fails to load.
     attachReactorFireball(root, action);
     attachReactorFlash(root, action);
+    attachReactorFlashShell(root, action);
+    // Each cloud variant throws its own chunks; all clients throw a given variant alike.
+    attachReactorDebris(root, action, Number(root.getObjectByName('roll')?.userData?.vortexProfile) || 1);
     const [lightA, lightB] = await Promise.all([loadTexture(LIGHT_A_URL), loadTexture(LIGHT_B_URL)]);
     for (const texture of new Set([lightA, lightB])) texture.colorSpace = THREE.SRGBColorSpace;
     return createReactorSmoke(root, action, lightA, lightB);
@@ -101,6 +125,12 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
         const time = Math.max(0, action.time);
         resolveSmokeSun(scene, material.uniforms.sunDirection.value, material.uniforms.sunColor.value, sunCache);
         const settle = Math.min(1, Math.max(0, (time - .18) / 1.4));
+        const after = Math.max(0, Number(root.userData.clipOverrunSeconds) || 0);
+        const dissolve = smoothRange(0, SMOKE_DISSOLVE_SECONDS, after);
+        const streamsLeft = 1 - smoothRange(0, STREAM_FADE_SECONDS, after);
+        const windYaw = readWindYaw(root);
+        const windReach = windYaw === null ? 0
+            : WIND_DRIFT_CLIP * Math.min(1, time / action.getClip().duration) + WIND_DRIFT_AFTER * dissolve;
         material.uniforms.heat.value = 1.5 * (1-smoothRange(28,44,time));
         material.uniforms.smokeTime.value = time;
         material.uniforms.fireGlow.value = fireballGlow(time);
@@ -160,6 +190,12 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
                     card.angle = Math.atan2(vy,vx)-Math.PI/2;
                 }
             }
+            if (windReach > 0) {
+                const height = Math.min(1, Math.max(0, (card.center.y - base.y) / Math.max(.001, top.y - base.y)));
+                const drift = shape.radius * windReach * height ** WIND_SHEAR_POWER;
+                card.center.x += Math.cos(windYaw) * drift;
+                card.center.z += Math.sin(windYaw) * drift;
+            }
             card.tile = resolveSmokeTile(card);
             // Wisp tiles are drawn out sideways: lay a tall card on its side so the shape
             // follows the card's long axis instead of crossing it.
@@ -168,6 +204,14 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
                 card.angle += Math.PI / 2;
             }
             card.opacity *= settle * (detail ? detailVisibility : 1);
+            if (dissolve > 0) {
+                if (card.flow) card.opacity *= streamsLeft;
+                else if (detail) card.opacity *= 1 - dissolve;
+                else {
+                    card.opacity *= 1 - (1 - SMOKE_RESIDUE) * dissolve;
+                    card.width *= 1 + DISSOLVE_SPREAD * dissolve; card.height *= 1 + DISSOLVE_SPREAD * dissolve;
+                }
+            }
             // Fit the soft lobe below the authored ceiling before shading, avoiding
             // a flat clipping plane at the top of the final mushroom cloud.
             const reach = .48 * Math.hypot(card.width, card.height);

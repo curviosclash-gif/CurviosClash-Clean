@@ -21,7 +21,40 @@ TARGET_TOP = (CONFIG['baseMapHeight'] * CONFIG['mapHeightMultiplier'] * CONFIG['
 ORIGINAL_POSE = reactor.cloud_pose
 VORTEX = json.loads((ROOT / 'src/shared/vfx/ReactorVortexProfiles.json').read_text())
 GENERATOR_ID = 'reactor-torus-runtime'
-GENERATOR_VERSION = '3.0.0'
+GENERATOR_VERSION = '3.1.0'
+
+# The first glow of a surface burst: a hemispherical shell of heated air that stands for a few
+# frames before the fireball has grown. Keyed by scale only; the runtime fades and colours it,
+# because glTF cannot animate a material. Radius one, so a scale is a radius in metres.
+FLASH = 'Flash'
+FLASH_PEAK_RADIUS = 1.3 * reactor.FIREBALL_RADIUS
+FLASH_GROW_SECONDS = 0.1
+FLASH_HOLD_SECONDS = 0.3
+FLASH_GONE_SECONDS = 0.36
+reactor.et.MATERIAL_COLORS[FLASH] = ((0.9, 0.9, 0.86, 1.0), 1.0, 0.0)
+reactor.et.MATERIAL_GRAIN[FLASH] = 0.0
+
+
+def flash_scale(t):
+    if t <= 0 or t >= FLASH_GONE_SECONDS:
+        return reactor.TINY_SCALE
+    if t <= FLASH_GROW_SECONDS:
+        return max(reactor.TINY_SCALE, FLASH_PEAK_RADIUS * math.sqrt(t / FLASH_GROW_SECONDS))
+    if t <= FLASH_HOLD_SECONDS:
+        return FLASH_PEAK_RADIUS
+    fall = (t - FLASH_HOLD_SECONDS) / (FLASH_GONE_SECONDS - FLASH_HOLD_SECONDS)
+    return max(reactor.TINY_SCALE, FLASH_PEAK_RADIUS * (1 - fall))
+
+
+def build_flash(root):
+    canvas = reactor.SmoothCanvas()
+    # From the axis out along the ground, then up and over to the apex, as `revolve` expects.
+    dome = [(0.0, 0.0)] + [(math.cos(math.radians(a)), math.sin(math.radians(a))) for a in range(0, 91, 10)]
+    reactor.revolve(canvas, FLASH, dome, segments=32, closed=False, decorative=True)
+    rig = reactor.et.rig('flash')
+    rig.parent = root
+    canvas.emit('piece_reactor_flash', parent=rig)
+    return rig
 
 
 def stem_profile(height):
@@ -129,6 +162,8 @@ def build_cloud(scene, design):
                 vertex.co.x *= factor
                 vertex.co.y *= factor
 
+    build_flash(bpy.data.objects['piece_reactor'])
+
     rgb = ((.31, .22, .14, 1), (.40, .29, .12, 1), (.43, .48, .52, 1), (.16, .17, .18, 1))[profile['id'] - 1]
     for name, factor in [(reactor.CLOUD, 1), (reactor.CLOUD_DARK, .65), (reactor.DUST, .77)]:
         mat = bpy.data.materials[name]
@@ -180,6 +215,7 @@ def build_cloud(scene, design):
         for name in ('stem', 'plume'):
             loc, scale, yaw = values[name]
             values[name] = (loc, (scale[0] * stem_growth, scale[1] * stem_growth, scale[2] + lift * (1 if name == 'stem' else .8)), yaw)
+        values['flash'] = ((0, 0, 0), (flash_scale(t),) * 3, 0)
         return values
 
     def circulation(t, azimuth):

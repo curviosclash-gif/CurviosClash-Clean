@@ -16,6 +16,8 @@ import {
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import * as THREE from 'three';
 
+const WIND_STEPS = 3600;
+
 /**
  * Runtime owner of the map geometry a match can shoot apart.
  *
@@ -190,6 +192,8 @@ export class MapDestructibleSystem {
             atSeconds: this.getElapsedSeconds(),
             hitDirection: options?.hitDirection,
             chooseVariant: (count) => this.entityManager?.runtimeRng?.int?.(count) ?? 0,
+            // Tenths of a degree from the same match rng, so a replay rolls the same wind.
+            chooseWind: () => ((this.entityManager?.runtimeRng?.int?.(WIND_STEPS) ?? 0) / WIND_STEPS) * Math.PI * 2,
         });
         if (!result.applied) return null;
         this._syncTargets();

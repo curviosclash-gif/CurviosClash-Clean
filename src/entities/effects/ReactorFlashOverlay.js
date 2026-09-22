@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FOG_FACTOR_GLSL } from './ReactorFireballEffect.js';
 
 export const REACTOR_FLASH_NAME = 'reactor-flash-overlay_nocol_noshadow';
 const FULL_WHITE_SECONDS = 0.06;
@@ -63,6 +64,58 @@ void main() {
     #include <colorspace_fragment>
 }
 `;
+
+/** Brightness of the Blender-keyed flash shell, 0..1: it flares at once and is gone by 0.36 s. */
+export function flashShellFade(seconds) {
+    const t = Number(seconds) || 0;
+    if (t <= 0 || t >= 0.36) return 0;
+    return smoothRange(0, 0.015, t) * (1 - smoothRange(0.04, 0.33, t));
+}
+
+const SHELL_VERTEX = /* glsl */`
+varying float vRim;
+#include <fog_pars_vertex>
+void main() {
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vec3 viewNormal = normalize(normalMatrix * normal);
+    // Seen edge-on a shell of hot air is thickest, so its rim glows brightest.
+    vRim = 1.0 - abs(dot(viewNormal, normalize(-mvPosition.xyz)));
+    gl_Position = projectionMatrix * mvPosition;
+    #include <fog_vertex>
+}
+`;
+
+const SHELL_FRAGMENT = /* glsl */`
+uniform float shellFade;
+varying float vRim;
+#include <fog_pars_fragment>
+${FOG_FACTOR_GLSL}
+void main() {
+    vec3 glow = vec3(1.0, 0.96, 0.88) * (0.35 + 1.4 * vRim * vRim) * shellFade;
+    // Additive light fades to black in fog, never to the fog colour.
+    gl_FragColor = vec4(glow * (1.0 - reactorFogFactor() * .5), 1.0);
+    #include <colorspace_fragment>
+}
+`;
+
+/**
+ * Restyles the flash shell keyed in Blender (rig `flash`): additive, rim-bright, fading on the
+ * breach clock. The GLB only animates its size, because glTF cannot fade a material.
+ */
+export function attachReactorFlashShell(root, action) {
+    const shell = root.getObjectByName('flash')?.children.find((node) => node.isMesh);
+    if (!action || !shell) return null;
+    shell.material.dispose();
+    shell.material = new THREE.ShaderMaterial({
+        name: 'Flash',
+        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { shellFade: { value: 0 } }]),
+        vertexShader: SHELL_VERTEX, fragmentShader: SHELL_FRAGMENT, fog: true,
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+        side: THREE.DoubleSide,
+    });
+    shell.onBeforeRender = () => { shell.material.uniforms.shellFade.value = flashShellFade(action.time); };
+    return shell;
+}
 
 /**
  * A screen whiteout and after-image for every camera that renders the breach. It lives in the
