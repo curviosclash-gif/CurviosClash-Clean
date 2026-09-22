@@ -24,6 +24,7 @@ export class RenderQualityController {
         this.postProcessingPipeline = postProcessingPipeline;
         this.qualityLockReason = null;
         this.highQualityEnvironment = scene?.environment || null;
+        this._publishQuality();
         this._applyShadowQuality();
         this._applyBloomQuality();
     }
@@ -73,6 +74,7 @@ export class RenderQualityController {
             return;
         }
         this.quality = nextQuality;
+        this._publishQuality();
         // Qualitaetsstufen regeln nur Aufloesung und Schatten. Tone-Mapping, Environment-IBL
         // und Fog bleiben konstant, sonst kippt die Szenenhelligkeit bei jedem Stufenwechsel
         // sichtbar zwischen hell und dunkel. Fog gehoert dem Grafikstil (Renderer.setGraphicsStyle).
@@ -90,6 +92,15 @@ export class RenderQualityController {
         this._applyBloomQuality();
         this.postProcessingPipeline?.setPixelRatio?.(this.renderer.getPixelRatio());
         this._refreshMaterials();
+    }
+
+    /**
+     * Effektive Stufe an der Szene hinterlegen. Effekte, die ihre eigene Sparfassung mitbringen
+     * (der Reaktor-Atompilz zeichnet auf LOW Karten statt Volumenrauch), lesen sie dort beim
+     * Zeichnen, ohne dass entities den Renderer importieren muss.
+     */
+    _publishQuality() {
+        if (this.scene?.userData) this.scene.userData.graphicsQuality = this.quality;
     }
 
     setShadowQuality(level) {

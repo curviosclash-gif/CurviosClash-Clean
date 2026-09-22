@@ -92,3 +92,24 @@ test('viewport post-processing is limited to single and network layouts', () => 
     assert.equal(pipelineCalls.length, 2);
     assert.equal(pipelineCalls.at(-1)[1], cameras[1]);
 });
+
+test('the effective quality step is published on the scene for effects to read', () => {
+    // The reactor cloud draws cards instead of ray-marched smoke on LOW. It reads the step from
+    // the scene, because entities must not import the renderer.
+    const renderer = createRendererDouble();
+    const scene = { environment: {}, userData: {}, traverse() {} };
+    const previousWindow = globalThis.window;
+    globalThis.window = { devicePixelRatio: 1 };
+    try {
+        const controller = new RenderQualityController(renderer, scene, { setQualityPreset() {}, setPixelRatio() {} });
+        assert.equal(scene.userData.graphicsQuality, 'HIGH');
+        controller.setQuality('LOW');
+        assert.equal(scene.userData.graphicsQuality, 'LOW');
+        controller.setQualityLock(true, 'recording');
+        assert.equal(scene.userData.graphicsQuality, 'HIGH', 'a quality lock lifts the step');
+        controller.setQualityLock(false);
+        assert.equal(scene.userData.graphicsQuality, 'LOW');
+    } finally {
+        globalThis.window = previousWindow;
+    }
+});

@@ -675,6 +675,37 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
     }
     delete smokeReport.images;
     await writeFile(testInfo.outputPath('smoke-performance.json'),JSON.stringify(smokeReport,null,2));
+    // The lowest graphics step swaps the ray-marched cloud for the card cloud, in the live game.
+    const quality = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const runtime = game.renderer;
+        const camera = runtime.cameras[0];
+        const slot = game.arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+        const cards = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
+        const head = slot.getObjectByName('reactor-volume-head_nocol_noshadow');
+        game.arena.setGlbAnimationElapsedSeconds(40); game.arena._glbAnimation.advance(0);
+        const held = runtime.getQualityState?.()?.requestedQuality || 'HIGH';
+        const sample = (step) => {
+            runtime.setQuality(step);
+            runtime.renderer.setRenderTarget(null);
+            runtime.renderer.render(runtime.scene, camera);
+            return { step, cards: cards.geometry.instanceCount, volume: head ? head.material.uniforms.bounds.value.x : null,
+                quality: runtime.scene.userData.graphicsQuality };
+        };
+        const result = [sample('HIGH'), sample('LOW'), sample('HIGH')];
+        runtime.setQuality(held);
+        return result;
+    });
+    await writeFile(testInfo.outputPath('quality-switch.json'), JSON.stringify(quality, null, 2));
+    if (smokeReport.volume) {
+        expect(quality[0]).toMatchObject({ quality: 'HIGH', cards: 0 });
+        expect(quality[0].volume).toBeGreaterThan(100);
+        expect(quality[1].quality).toBe('LOW');
+        expect(quality[1].cards).toBeGreaterThan(100);
+        expect(quality[1].volume).toBe(0);
+        expect(quality[2].cards).toBe(0);
+        expect(quality[2].volume).toBeGreaterThan(100);
+    }
     // Either the ray-marched head and stem, or the card cloud with its full set of cards.
     if (smokeReport.volume) expect(smokeReport.volume).toBe(2);
     else expect(smokeReport.cards).toBeGreaterThan(100);

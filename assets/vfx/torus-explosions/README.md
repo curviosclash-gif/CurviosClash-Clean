@@ -79,7 +79,10 @@ generator and runtime consume the same profile IDs exported on the roll rig.
 ## Ray-marched head and stem
 
 Head and stem are drawn as smoke with depth rather than as cards (`REACTOR_VOLUME_SMOKE` in
-`ReactorSmokeEffect.js`; the card cloud below stays as the fallback). Two proxy cylinders, one
+`ReactorSmokeEffect.js`). Both clouds are built: the graphics quality decides per frame which one
+draws, read from `scene.userData.graphicsQuality`, which `RenderQualityController` publishes. On
+its lowest step the card cloud below draws and the volume's proxies collapse; every other step
+draws the volume and no cards. A change in the menu therefore takes effect at once. Two proxy cylinders, one
 round the head and one round the stem, are placed in world space by their vertex shader, so the
 objects stay unit-sized and add nothing to the cloud's measured bounds. Their front faces are
 drawn (back faces once a camera is inside, chosen per camera, both sides compiled once), and

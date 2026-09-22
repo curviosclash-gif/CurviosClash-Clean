@@ -277,6 +277,14 @@ export function createReactorVolume(root) {
             u.sunColor.value.copy(state.sunColor);
         }
     };
+    /** Collapses both proxies, for the quality step that draws the card cloud instead. */
+    const silence = () => {
+        for (const mesh of [head, stem]) {
+            mesh.material.uniforms.bounds.value.set(0, 0, 0, mesh === head ? 0 : 1);
+            mesh.material.uniforms.smokeDensity.value = 0;
+        }
+    };
+
     /** Per camera: front faces from outside, back faces from inside the proxy. */
     const faceCamera = (mesh, camera) => {
         const b = mesh.material.uniforms.bounds.value;
@@ -287,6 +295,6 @@ export function createReactorVolume(root) {
         const inside = Math.hypot(p.x - axis.x, p.z - axis.y) < b.x + margin && p.y > b.y - margin && p.y < b.z + margin;
         mesh.material.uniforms.insideProxy.value = inside ? 1 : 0;
     };
-    return { head, stem, update, faceCamera };
+    return { head, stem, update, faceCamera, silence };
 }
 
