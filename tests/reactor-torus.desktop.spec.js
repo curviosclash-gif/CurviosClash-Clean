@@ -170,6 +170,50 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             await writeFile(testInfo.outputPath('smoke-sun-shading.json'), JSON.stringify(shading, null, 2));
             expect(shading.above.pixels).toBeGreaterThan(300);
             expect(shading.above.upper / shading.above.lower).toBeGreaterThan(shading.below.upper / shading.below.lower * 1.08);
+            // The Blender-keyed flash shell glows over the ruin in the first tenth of a second.
+            const shell = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena;
+                const runtime = game.renderer;
+                const camera = runtime.cameras[0];
+                const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const mesh = slot.getObjectByName('flash').children.find((node) => node.isMesh);
+                const overlay = slot.getObjectByName('reactor-flash-overlay_nocol_noshadow');
+                const probe = document.createElement('canvas'); probe.width = 160; probe.height = 90;
+                const context = probe.getContext('2d', { willReadFrequently: true });
+                const grab = () => {
+                    runtime.renderer.setRenderTarget(null);
+                    runtime.renderer.render(runtime.scene, camera);
+                    context.drawImage(runtime.renderer.domElement, 0, 0, 160, 90);
+                    return context.getImageData(0, 0, 160, 90).data;
+                };
+                camera.far = 5000; camera.updateProjectionMatrix();
+                camera.position.set(420, 90, 420); camera.lookAt(0, 70, 0); camera.updateMatrixWorld(true);
+                overlay.visible = false;
+                const result = {};
+                for (const seconds of [0.08, 1]) {
+                    arena.setGlbAnimationElapsedSeconds(seconds); arena._glbAnimation.advance(0);
+                    mesh.visible = false; const without = grab();
+                    mesh.visible = true; const withShell = grab();
+                    let brighter = 0;
+                    for (let i = 0; i < without.length; i += 4) {
+                        if (withShell[i] + withShell[i + 1] + withShell[i + 2] - without[i] - without[i + 1] - without[i + 2] > 30) brighter += 1;
+                    }
+                    result[seconds] = { brighter, material: mesh.material.name, png: runtime.renderer.domElement.toDataURL('image/png') };
+                }
+                overlay.visible = true;
+                camera.far = held.far; camera.updateProjectionMatrix();
+                camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                return result;
+            });
+            for (const [seconds, entry] of Object.entries(shell)) {
+                await writeFile(testInfo.outputPath(`flash-shell-${seconds}s.png`), Buffer.from(entry.png.split(',')[1], 'base64'));
+                delete entry.png;
+            }
+            await writeFile(testInfo.outputPath('flash-shell.json'), JSON.stringify(shell, null, 2));
+            expect(shell[0.08].brighter).toBeGreaterThan(100);
+            expect(shell[1].brighter).toBe(0);
             // Thrown chunks and their smoke trails show up in the real renderer, and lie cooling later.
             const debris = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;
