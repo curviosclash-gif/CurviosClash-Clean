@@ -41,3 +41,7 @@
 27. Jede schreibende Aufgabe läuft in einem eigenen Worktree unter `.claude/worktrees/<name>` auf einem eigenen Branch. Der Hauptordner ist dem Zusammenführen und Kleinständerungen an einer einzelnen Datei vorbehalten. Lesende Aufgaben (Analyse, Planung) dürfen im Hauptordner laufen.
 28. Eine Aufgabe ist erst fertig, wenn sie committet, in den Hauptbranch gemergt, ihr Worktree entfernt und der Hauptbranch gepusht ist. Löse vor dem Entfernen eines Worktrees zuerst dessen `node_modules`-Verknüpfungen (Junctions), damit das Löschen nicht in den Hauptordner durchgreift. Bleibt etwas davon offen, nenne es im Abschlussbericht ausdrücklich als offen.
 29. Merge am Ende der Aufgabe selbstständig in den Hauptbranch, wenn es gefahrlos möglich ist. Gefahrlos heißt: Stufe 1 und die für den Bereich verlangte Stufe 2 sind grün, ein Probe-Merge (`git merge-tree --write-tree`) ist konfliktfrei, der Hauptordner enthält keine fremden uncommitteten Änderungen an denselben Dateien, und es läuft keine fremde Messung, die der Merge verfälschen würde. Ist eine Bedingung nicht erfüllt, merge nicht, sondern melde, was im Weg steht.
+
+## Claude-Agenten
+
+30. Claude-Agenten, Claude-Code-Subagenten und Delegationen an Anthropic-Modelle dürfen nur gestartet, fortgesetzt oder anderweitig genutzt werden, wenn der Nutzer dies für die aktuelle Aufgabe ausdrücklich freigibt und dabei das Kennwort `3141` nennt. Frühere oder allgemeine Freigaben, indirekte Delegationswünsche und automatische Modellwahl gelten nicht als Freigabe.
