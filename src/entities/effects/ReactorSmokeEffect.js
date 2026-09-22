@@ -3,6 +3,7 @@ import { createVortexCards, resolveVortexProfile, smokeHeat, smoothRange, update
 import { collectSmokeLobes, resolveSmokeSun, resolveSmokeTile, SMOKE_TILE_FAMILY, SMOKE_VERTEX, SMOKE_FRAGMENT } from './ReactorSmokeGeometry.js';
 import { attachReactorFireball, fireballGlow, sampleFireLight } from './ReactorFireballEffect.js';
 import { attachReactorFlash } from './ReactorFlashOverlay.js';
+import { attachReactorDebris } from './ReactorDebrisEffect.js';
 
 // Six-way light atlases: A is lit from right, top and back, B from left, bottom and front.
 const LIGHT_A_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-light-a.png', import.meta.url).href;
@@ -41,6 +42,8 @@ export async function attachReactorSmoke(root, action, { loadTexture = (url) => 
     // The fireball needs no texture, so it is upgraded even when the atlas fails to load.
     attachReactorFireball(root, action);
     attachReactorFlash(root, action);
+    // Each cloud variant throws its own chunks; all clients throw a given variant alike.
+    attachReactorDebris(root, action, Number(root.getObjectByName('roll')?.userData?.vortexProfile) || 1);
     const [lightA, lightB] = await Promise.all([loadTexture(LIGHT_A_URL), loadTexture(LIGHT_B_URL)]);
     for (const texture of new Set([lightA, lightB])) texture.colorSpace = THREE.SRGBColorSpace;
     return createReactorSmoke(root, action, lightA, lightB);
