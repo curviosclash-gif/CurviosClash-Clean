@@ -4,6 +4,7 @@ import { collectSmokeLobes, resolveSmokeSun, resolveSmokeTile, SMOKE_TILE_FAMILY
 import { attachReactorFireball, fireballGlow, sampleFireLight } from './ReactorFireballEffect.js';
 import { attachReactorFlash, attachReactorFlashShell } from './ReactorFlashOverlay.js';
 import { attachReactorDebris } from './ReactorDebrisEffect.js';
+import { createReactorVolume } from './ReactorVolumeCloud.js';
 import { createHeadCards, createHeadOutline, headCardSize, headTravel, updateHeadCard, updateHeadOutline } from './ReactorVortexHead.js';
 
 // Six-way light atlases: A is lit from right, top and back, B from left, bottom and front.
@@ -11,6 +12,8 @@ const LIGHT_A_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-li
 const LIGHT_B_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-light-b.png', import.meta.url).href;
 const SKY_COLOR = new THREE.Color(0.62, 0.68, 0.75);
 export const MAX_SMOKE_CARDS = 512;
+// Head and stem as ray-marched volume (ReactorVolumeCloud.js) instead of cards.
+export const REACTOR_VOLUME_SMOKE = true;
 // After the 49 s clip the cloud stands on the match clock for seven minutes, the way a real
 // one stays in the sky: the head keeps rolling ever slower and spreads out flat, it loses only
 // a little density for five minutes and thins to a faint, wide rest over the last two.
@@ -60,7 +63,7 @@ function scatter(index, channel) {
     return value - Math.floor(value);
 }
 
-export async function attachReactorSmoke(root, action, { loadTexture = (url) => new THREE.TextureLoader().loadAsync(url) } = {}) {
+export async function attachReactorSmoke(root, action, { loadTexture = (url) => new THREE.TextureLoader().loadAsync(url), volume = REACTOR_VOLUME_SMOKE } = {}) {
     if (!action || !root.getObjectByName('torus_flow_00')) return null;
     // The fireball needs no texture, so it is upgraded even when the atlas fails to load.
     attachReactorFireball(root, action);
@@ -70,10 +73,14 @@ export async function attachReactorSmoke(root, action, { loadTexture = (url) => 
     attachReactorDebris(root, action, Number(root.getObjectByName('roll')?.userData?.vortexProfile) || 1);
     const [lightA, lightB] = await Promise.all([loadTexture(LIGHT_A_URL), loadTexture(LIGHT_B_URL)]);
     for (const texture of new Set([lightA, lightB])) texture.colorSpace = THREE.SRGBColorSpace;
-    return createReactorSmoke(root, action, lightA, lightB);
+    return createReactorSmoke(root, action, lightA, lightB, { volume });
 }
 
-export function createReactorSmoke(root, action, lightA, lightB = lightA) {
+/**
+ * The card smoke layer. With `volume`, head and stem are ray-marched smoke instead of cards
+ * (ReactorVolumeCloud.js); plumes, bloom and the wisps stay cards.
+ */
+export function createReactorSmoke(root, action, lightA, lightB = lightA, { volume = false } = {}) {
     const lobes = collectSmokeLobes(root);
     if (!lobes.length) { lightA.dispose(); lightB.dispose(); return null; }
     const previousTime = action.time;
@@ -101,23 +108,27 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
         // the GLB as the animated source of its size. The stem, the side plumes and the late
         // masses that boil up on the cap keep a card each.
         if (!lobe.column && !/bloom/.test(lobe.node.name)) continue;
+        // The volume draws head and stem; the plumes' and bloom's cards would stand beside it.
+        if (volume) continue;
         for (let detail = 0; detail < 2 && cards.length < MAX_SMOKE_CARDS; detail++) {
             cards.push({ lobe, detail, index: cards.length, center: new THREE.Vector3(),
                 width: 0, height: 0, depth: 0, opacity: 0, angle: 0, glow: 0, tint: 1 });
         }
     }
     const capLobe = lobes.find(({ node }) => /cap/.test(node.name)) || lobes[0];
-    cards.push(...createHeadCards(capLobe, cards.length));
-    cards.push(...createVortexCards(lobes.find(({ column }) => !column) || lobes[0], cards.length).slice(0, MAX_SMOKE_CARDS - cards.length));
+    if (!volume) cards.push(...createHeadCards(capLobe, cards.length));
+    if (!volume) cards.push(...createVortexCards(lobes.find(({ column }) => !column) || lobes[0], cards.length).slice(0, MAX_SMOKE_CARDS - cards.length));
     const quad = new THREE.PlaneGeometry(1, 1);
     const geometry = new THREE.InstancedBufferGeometry();
     geometry.index = quad.index; geometry.attributes.position = quad.attributes.position;
     geometry.attributes.uv = quad.attributes.uv;
-    const data = new Float32Array(cards.length * 16);
-    const rows = new Float32Array(cards.length);
-    for (let i = 0; i < cards.length; i++) rows[i] = (i + .5) / cards.length;
+    // At least one row: with the volume there may be no cards, and a texture needs a height.
+    const rowCount = Math.max(1, cards.length);
+    const data = new Float32Array(rowCount * 16);
+    const rows = new Float32Array(rowCount);
+    for (let i = 0; i < rowCount; i++) rows[i] = (i + .5) / rowCount;
     geometry.setAttribute('smokeRow', new THREE.InstancedBufferAttribute(rows, 1));
-    const smokeData = new THREE.DataTexture(data, 4, cards.length, THREE.RGBAFormat, THREE.FloatType);
+    const smokeData = new THREE.DataTexture(data, 4, rowCount, THREE.RGBAFormat, THREE.FloatType);
     smokeData.needsUpdate = true;
     geometry.instanceCount = cards.length;
     // Vertices are expanded in world space by the shader; the carrier quad is
@@ -154,7 +165,9 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
     const scratch = { x: 0, y: 0, z: 0, tx: 0, ty: 0, tz: 0 };
     const compareDepth = (a, b) => a.depth - b.depth;
     const sunCache = { scene: null, light: null, age: 0 };
-    mesh.onBeforeRender = (_renderer, scene, camera) => {
+    const frame = { time: 0, settle: 0, after: 0, dissolve: 0, density: 1, streamsLeft: 1, windYaw: null, windReach: 0, travel: 0 };
+    // Everything of a frame that does not depend on the camera: shared by the cards and the volume.
+    const refreshShape = (scene) => {
         const time = Math.max(0, action.time);
         resolveSmokeSun(scene, material.uniforms.sunDirection.value, material.uniforms.sunColor.value, sunCache);
         const settle = Math.min(1, Math.max(0, (time - .18) / 1.4));
@@ -173,7 +186,6 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
         base.set(0, 0, 0).applyMatrix4(root.matrixWorld);
         material.uniforms.cloudTop.value = top.y;
         material.uniforms.cloudBase.value = base.y;
-        const view = camera.matrixWorldInverse.elements;
         roll.getWorldPosition(rollPosition); roll.getWorldScale(rollScale); stem.getWorldScale(stemScale);
         const tube = Number(roll.userData.vortexTubeRatio) || .26;
         shape.x = rollPosition.x; shape.z = rollPosition.z; shape.base = base.y;
@@ -197,6 +209,13 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
         updateHeadOutline(outline, head);
         // The head rolls on while the cloud stands; the faint rest after seven minutes is still.
         const travel = headTravel(time + Math.min(after, SMOKE_DISSOLVE_SECONDS), profile);
+        Object.assign(frame, { time, settle, after, dissolve, density, streamsLeft, windYaw, windReach, travel, capTop });
+    };
+    if (volume) attachVolume(root, cap, capLobe, frame, refreshShape, { head, shape, top, base, stemScale, material });
+    mesh.onBeforeRender = (_renderer, scene, camera) => {
+        refreshShape(scene);
+        const { time, settle, dissolve, density, streamsLeft, windYaw, windReach, travel } = frame;
+        const view = camera.matrixWorldInverse.elements;
         const distance = camera.position.distanceTo(rollPosition);
         const detailVisibility = 1 - smoothRange(8,18,distance / Math.max(20,shape.radius));
         for (const card of cards) {
@@ -314,4 +333,30 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
         smokeData.needsUpdate = true;
     };
     return mesh;
+}
+
+/** Ray-marched head and stem, posed from the same frame state as the cards. */
+function attachVolume(root, cap, capLobe, frame, refreshShape, { head, shape, top, base, stemScale, material }) {
+    const volume = createReactorVolume(root);
+    const state = { albedo: new THREE.Color(), sunDirection: material.uniforms.sunDirection.value,
+        sunColor: material.uniforms.sunColor.value };
+    const pose = (_renderer, scene) => {
+        refreshShape(scene);
+        const drift = frame.windYaw === null ? 0 : shape.radius * frame.windReach;
+        Object.assign(state, {
+            x: shape.x, z: shape.z, ringY: head.y, radius: head.radius, rimWidth: head.rimWidth,
+            rimHeight: head.rimHeight, dome: Math.max(head.rimHeight, frame.capTop * .88 * (1 - HEAD_FLATTEN * frame.dissolve)),
+            top: top.y, base: base.y, stemTop: head.y + head.rimHeight * .4,
+            stemRadiusLow: 1.6 * stemScale.x, stemRadiusHigh: 1.25 * stemScale.x,
+            windX: Math.cos(frame.windYaw ?? 0) * drift, windZ: Math.sin(frame.windYaw ?? 0) * drift,
+            flowTurns: frame.travel, riseTravel: frame.travel * 3,
+            density: frame.density * frame.settle, heat: material.uniforms.heat.value,
+        });
+        const c = capLobe.color;
+        state.albedo.setRGB((c.r * .85 + .16) * 1.1, (c.g * .85 + .16) * 1.1, (c.b * .85 + .16) * 1.1);
+        volume.update(state);
+    };
+    volume.head.onBeforeRender = (renderer, scene, camera) => { pose(renderer, scene); volume.faceCamera(volume.head, camera); };
+    volume.stem.onBeforeRender = (renderer, scene, camera) => { pose(renderer, scene); volume.faceCamera(volume.stem, camera); };
+    return volume;
 }

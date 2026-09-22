@@ -120,7 +120,9 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone() };
                 arena.setGlbAnimationElapsedSeconds(20); arena._glbAnimation.advance(0);
                 const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
-                const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
+                // Cards and, where the cloud is ray-marched, its head and stem volumes.
+                const smoke = ['reactor-soft-smoke_nocol_noshadow', 'reactor-volume-head_nocol_noshadow', 'reactor-volume-stem_nocol_noshadow']
+                    .map((name) => slot.getObjectByName(name)).filter(Boolean);
                 const centre = slot.getObjectByName('roll').getWorldPosition(camera.position.clone());
                 let sun = null;
                 runtime.scene.traverseVisible((node) => { if (node.isDirectionalLight && node.intensity > (sun?.intensity ?? 0)) sun = node; });
@@ -142,8 +144,10 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 const shots = {};
                 for (const [name, offset] of [['above', 1], ['below', -1]]) {
                     sun.position.copy(target).add({ x: 0, y: 1000 * offset, z: 0 }); sun.updateMatrixWorld(true);
-                    smoke.visible = false; const without = grab();
-                    smoke.visible = true; const withSmoke = grab();
+                    for (const layer of smoke) layer.visible = false;
+                    const without = grab();
+                    for (const layer of smoke) layer.visible = true;
+                    const withSmoke = grab();
                     shots[name] = runtime.renderer.domElement.toDataURL('image/png');
                     const rows = [];
                     for (let y = 0; y < 72; y += 1) {
@@ -184,7 +188,8 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                     const camera = runtime.cameras[0];
                     const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
                     const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
-                    const smoke = [slot.getObjectByName('reactor-soft-smoke_nocol_noshadow')];
+                    const smoke = ['reactor-soft-smoke_nocol_noshadow', 'reactor-volume-head_nocol_noshadow', 'reactor-volume-stem_nocol_noshadow']
+                        .map((name) => slot.getObjectByName(name)).filter(Boolean);
                     const extras = ['reactor-debris_nocol_noshadow', 'reactor-debris-puffs_nocol_noshadow', 'reactor-fire-glow_nocol_noshadow',
                         'reactor-flash-overlay_nocol_noshadow'].map((name) => slot.getObjectByName(name));
                     extras.push(slot.getObjectByName('flash').children.find((node) => node.isMesh));
@@ -447,24 +452,40 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 const camera = runtime.cameras[0];
                 const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
                 const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
-                const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
+                const layers = ['reactor-soft-smoke_nocol_noshadow', 'reactor-volume-head_nocol_noshadow', 'reactor-volume-stem_nocol_noshadow']
+                    .map((name) => slot.getObjectByName(name)).filter(Boolean);
                 const windYaw = slot.userData.windYaw;
                 arena.setGlbAnimationElapsedSeconds(40); arena._glbAnimation.advance(0);
                 camera.far = 5000; camera.updateProjectionMatrix();
                 camera.position.set(0, 2600, 1); camera.lookAt(0, 300, 0); camera.updateMatrixWorld(true);
-                const topCentre = () => {
+                const probe = document.createElement('canvas'); probe.width = 160; probe.height = 90;
+                const context = probe.getContext('2d', { willReadFrequently: true });
+                const grab = () => {
                     runtime.renderer.setRenderTarget(null);
                     runtime.renderer.render(runtime.scene, camera);
-                    const data = smoke.material.uniforms.smokeData.value.image.data;
-                    const count = smoke.geometry.instanceCount;
-                    let top = -Infinity;
-                    for (let row = 0; row < count; row += 1) top = Math.max(top, data[row * 16 + 1]);
-                    let x = 0, z = 0, n = 0;
-                    for (let row = 0; row < count; row += 1) {
-                        if (data[row * 16 + 1] < top - 120) continue;
-                        x += data[row * 16]; z += data[row * 16 + 2]; n += 1;
+                    context.drawImage(runtime.renderer.domElement, 0, 0, 160, 90);
+                    return context.getImageData(0, 0, 160, 90).data;
+                };
+                const headHeight = slot.getObjectByName('roll').getWorldPosition(camera.position.clone()).y;
+                // Centre of the smoke seen from above, as a point on the head's height: pixels that
+                // change with the smoke are averaged and cast back into the world.
+                const topCentre = () => {
+                    for (const layer of layers) layer.visible = false;
+                    const without = grab();
+                    for (const layer of layers) layer.visible = true;
+                    const withSmoke = grab();
+                    let px = 0, py = 0, n = 0;
+                    for (let y = 0; y < 90; y += 1) {
+                        for (let x = 0; x < 160; x += 1) {
+                            const i = (y * 160 + x) * 4;
+                            const change = Math.abs(withSmoke[i] - without[i]) + Math.abs(withSmoke[i + 1] - without[i + 1]) + Math.abs(withSmoke[i + 2] - without[i + 2]);
+                            if (change > 24) { px += x; py += y; n += 1; }
+                        }
                     }
-                    return { x: x / n, z: z / n };
+                    const ndc = camera.position.clone().set((px / n + 0.5) / 160 * 2 - 1, 1 - (py / n + 0.5) / 90 * 2, 0.5).unproject(camera);
+                    const ray = ndc.sub(camera.position).normalize();
+                    const t = (headHeight - camera.position.y) / ray.y;
+                    return { x: camera.position.x + ray.x * t, z: camera.position.z + ray.z * t };
                 };
                 const windy = topCentre();
                 const png = runtime.renderer.domElement.toDataURL('image/png');
@@ -491,15 +512,32 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 const camera = runtime.cameras[0];
                 const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
                 const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
-                const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
+                const layers = ['reactor-soft-smoke_nocol_noshadow', 'reactor-volume-head_nocol_noshadow', 'reactor-volume-stem_nocol_noshadow']
+                    .map((name) => slot.getObjectByName(name)).filter(Boolean);
                 camera.far = 5000; camera.updateProjectionMatrix();
                 camera.position.set(1050, 520, 1150); camera.lookAt(0, 490, 0); camera.updateMatrixWorld(true);
+                const probe = document.createElement('canvas'); probe.width = 160; probe.height = 90;
+                const context = probe.getContext('2d', { willReadFrequently: true });
+                const grab = () => {
+                    runtime.renderer.setRenderTarget(null);
+                    runtime.renderer.render(runtime.scene, camera);
+                    context.drawImage(runtime.renderer.domElement, 0, 0, 160, 90);
+                    return context.getImageData(0, 0, 160, 90).data;
+                };
                 const result = {};
                 for (const seconds of [40, 49 + 120, 49 + 420]) {
                     arena.setGlbAnimationElapsedSeconds(seconds); arena._glbAnimation.advance(0);
-                    runtime.renderer.setRenderTarget(null);
-                    runtime.renderer.render(runtime.scene, camera);
-                    result[seconds] = { cards: smoke.geometry.instanceCount, overrun: slot.userData.clipOverrunSeconds ?? slot.children[0]?.userData?.clipOverrunSeconds ?? null,
+                    for (const layer of layers) layer.visible = false;
+                    const without = grab();
+                    for (const layer of layers) layer.visible = true;
+                    const withSmoke = grab();
+                    // How strongly the smoke changes the picture: its visible amount of smoke.
+                    let change = 0, pixels = 0;
+                    for (let i = 0; i < withSmoke.length; i += 4) {
+                        const d = Math.abs(withSmoke[i] - without[i]) + Math.abs(withSmoke[i + 1] - without[i + 1]) + Math.abs(withSmoke[i + 2] - without[i + 2]);
+                        change += d; if (d > 24) pixels += 1;
+                    }
+                    result[seconds] = { change, pixels, overrun: slot.userData.clipOverrunSeconds ?? slot.children[0]?.userData?.clipOverrunSeconds ?? null,
                         png: runtime.renderer.domElement.toDataURL('image/png') };
                 }
                 camera.far = held.far; camera.updateProjectionMatrix();
@@ -511,9 +549,10 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 delete entry.png;
             }
             await writeFile(testInfo.outputPath('dissolve.json'), JSON.stringify(dissolve, null, 2));
-            expect(dissolve[169].cards).toBeLessThan(dissolve[40].cards);
-            expect(dissolve[469].cards).toBeLessThan(dissolve[169].cards);
-            expect(dissolve[469].cards).toBeGreaterThan(20);
+            // Two minutes after the clip the cloud still stands; after seven only a faint rest.
+            expect(dissolve[169].change).toBeGreaterThan(dissolve[40].change * 0.5);
+            expect(dissolve[469].change).toBeLessThan(dissolve[169].change * 0.6);
+            expect(dissolve[469].pixels).toBeGreaterThan(20);
             // A shader the GPU refuses to link fails silently in three.js; Chromium still says so.
             expect(glMessages.filter((text) => /INVALID_OPERATION|not valid/i.test(text))).toEqual([]);
             const b = flash.brightness;
@@ -559,13 +598,17 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                     throw new Error('The first smoke draw after a seek differs from the settled draw');
                 }
                 if (time === 12) {
-                    const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
-                    const prepare = smoke.onBeforeRender;
+                    // Cards and volume alike: with their heat forced to zero the picture must change.
+                    const layers = ['reactor-soft-smoke_nocol_noshadow', 'reactor-volume-head_nocol_noshadow', 'reactor-volume-stem_nocol_noshadow']
+                        .map((name) => slot.getObjectByName(name)).filter(Boolean);
+                    const prepared = layers.map((layer) => layer.onBeforeRender);
                     try {
-                        smoke.onBeforeRender = function (...args) { prepare.apply(this,args); this.material.uniforms.heat.value=0; };
+                        layers.forEach((layer, index) => {
+                            layer.onBeforeRender = function (...args) { prepared[index].apply(this, args); this.material.uniforms.heat.value = 0; };
+                        });
                         runtime.renderer.render(runtime.scene,camera);
                         if (png === runtime.renderer.domElement.toDataURL('image/png')) throw new Error('Local embers are invisible during ascent');
-                    } finally { smoke.onBeforeRender=prepare; }
+                    } finally { layers.forEach((layer, index) => { layer.onBeforeRender = prepared[index]; }); }
                 }
                 camera.position.copy(position); camera.quaternion.copy(quaternion);
                 camera.updateMatrixWorld(true);
@@ -582,6 +625,7 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
         const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
         const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
         if (!smoke) throw new Error('Missing runtime smoke layer');
+        const volume = ['reactor-volume-head_nocol_noshadow', 'reactor-volume-stem_nocol_noshadow'].map((name) => slot.getObjectByName(name)).filter(Boolean);
         const renderer = game.renderer.renderer;
         const camera = game.renderer.cameras[0];
         const oldPosition = camera.position.clone(), oldRotation = camera.quaternion.clone();
@@ -603,7 +647,7 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
         const draws = {};
         for (let cycle = 0; cycle < 3; cycle++) {
             for (const mode of cycle % 2 ? ['smoke','mesh'] : ['mesh','smoke']) {
-                smoke.visible = mode === 'smoke';
+                for (const layer of [smoke, ...volume]) layer.visible = mode === 'smoke';
                 for (const material of materials) material.visible = mode === 'mesh';
                 for (let frame = 0; frame < 15; frame++) {
                     renderer.info.reset();
@@ -614,7 +658,8 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 draws[mode] = renderer.info.render.calls;
             }
         }
-        smoke.visible = true; for (const material of materials) material.visible = false;
+        for (const layer of [smoke, ...volume]) layer.visible = true;
+        for (const material of materials) material.visible = false;
         camera.position.copy(oldPosition); camera.quaternion.copy(oldRotation); camera.far = oldFar;
         camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
         const times = {};
@@ -622,7 +667,7 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             samples[mode].sort((a,b)=>a-b);
             times[mode] = { p50: samples[mode][18], p95: samples[mode][34] };
         }
-        return { images, times, draws, cards: smoke.geometry.instanceCount,
+        return { images, times, draws, cards: smoke.geometry.instanceCount, volume: volume.length,
             dimensions: [renderer.domElement.width,renderer.domElement.height] };
     });
     for (const { angle, png } of smokeReport.images) {
@@ -630,7 +675,9 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
     }
     delete smokeReport.images;
     await writeFile(testInfo.outputPath('smoke-performance.json'),JSON.stringify(smokeReport,null,2));
-    expect(smokeReport.cards).toBeGreaterThan(100);
+    // Either the ray-marched head and stem, or the card cloud with its full set of cards.
+    if (smokeReport.volume) expect(smokeReport.volume).toBe(2);
+    else expect(smokeReport.cards).toBeGreaterThan(100);
     expect(smokeReport.cards).toBeLessThanOrEqual(512);
     expect(smokeReport.draws.smoke).toBeLessThan(smokeReport.draws.mesh);
     expect(errors).toEqual([]);
