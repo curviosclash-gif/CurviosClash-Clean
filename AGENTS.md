@@ -44,4 +44,4 @@
 
 ## Claude-Agenten
 
-30. Claude-Agenten, Claude-Code-Subagenten und Delegationen an Anthropic-Modelle dürfen nur gestartet, fortgesetzt oder anderweitig genutzt werden, wenn der Nutzer dies für die aktuelle Aufgabe ausdrücklich freigibt und dabei das Kennwort `3141` nennt. Frühere oder allgemeine Freigaben, indirekte Delegationswünsche und automatische Modellwahl gelten nicht als Freigabe.
+30. Claude-Agenten, Claude-Code-Subagenten und Delegationen an Anthropic-Modelle dürfen nur gestartet, fortgesetzt oder anderweitig genutzt werden, wenn die aktuelle Nutzeranweisung in der ersten Zeile exakt `CLAUDE-AGENT-FREIGABE: 3141` enthält. Der technische Guard in `.claude/hooks/claude-agent-lock.mjs` erteilt damit eine sitzungs- und projektgebundene Einmal-Freigabe für höchstens zwei Minuten. Jeder weitere oder fortgesetzte Agent-Aufruf benötigt eine neue Freigabe; frühere oder allgemeine Freigaben, indirekte Delegationswünsche und automatische Modellwahl gelten nicht.

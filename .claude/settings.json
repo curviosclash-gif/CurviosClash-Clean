@@ -20,6 +20,31 @@
     ]
   },
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/claude-agent-lock.mjs\" arm",
+            "timeout": 5,
+            "statusMessage": "Claude-Agent-Freigabe pruefen"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/claude-agent-lock.mjs\" check",
+            "timeout": 5,
+            "statusMessage": "Claude-Agent-Sperre pruefen"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
