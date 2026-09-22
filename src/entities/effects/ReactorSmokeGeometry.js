@@ -6,7 +6,9 @@ export const SMOKE_TILE_FAMILY = Object.freeze({ billow: 0, column: 1, wisp: 2, 
 
 /** Atlas tile 0-15 for a card: the family follows its role, the variant its index. */
 export function resolveSmokeTile(card) {
-    const family = card.flow ? SMOKE_TILE_FAMILY.wisp
+    // The head skin is closed billowing smoke; the other flows are thin wisps.
+    const family = card.flow === 'head' ? SMOKE_TILE_FAMILY.billow
+        : card.flow ? SMOKE_TILE_FAMILY.wisp
         : card.lobe?.column ? SMOKE_TILE_FAMILY.column
             : card.detail ? SMOKE_TILE_FAMILY.holed
                 : SMOKE_TILE_FAMILY.billow;
@@ -182,8 +184,9 @@ void main() {
     vec3 color = albedo * (sunColor * direct * 2.1 + skyColor * ambient * .4) * mix(1.0, vSmokeLight, .35);
     // The fireball lights the smoke nearest to it, above all the underside of the cap.
     color += albedo * ambient * vec3(1.0,.45,.12) * vFireLit * 1.6;
-    // Glow sits in the dense core of a parcel, where the smoke is thickest.
-    float ember = smoothstep(.5,.95,lightA.a) * lightA.a;
+    // Glow sits in the dense core of a parcel, where the smoke is thickest. A wide ramp: a
+    // narrow one cut each core out as a sharp-edged orange patch.
+    float ember = smoothstep(.25,1.0,lightA.a) * lightA.a;
     color += vec3(1.0,.23,.025) * heat * vSmokeHeat * ember * .8;
     gl_FragColor = vec4(color, alpha);
     #include <tonemapping_fragment>

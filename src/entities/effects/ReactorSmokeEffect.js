@@ -4,18 +4,34 @@ import { collectSmokeLobes, resolveSmokeSun, resolveSmokeTile, SMOKE_TILE_FAMILY
 import { attachReactorFireball, fireballGlow, sampleFireLight } from './ReactorFireballEffect.js';
 import { attachReactorFlash, attachReactorFlashShell } from './ReactorFlashOverlay.js';
 import { attachReactorDebris } from './ReactorDebrisEffect.js';
+import { createHeadCards, createHeadOutline, headCardSize, headTravel, updateHeadCard, updateHeadOutline } from './ReactorVortexHead.js';
 
 // Six-way light atlases: A is lit from right, top and back, B from left, bottom and front.
 const LIGHT_A_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-light-a.png', import.meta.url).href;
 const LIGHT_B_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-light-b.png', import.meta.url).href;
 const SKY_COLOR = new THREE.Color(0.62, 0.68, 0.75);
 export const MAX_SMOKE_CARDS = 512;
-// After the 49 s clip the cloud thins out on the match clock: circulation stops within a
-// minute, fine detail and most density go over four minutes, and a faint, wider rest stays.
-export const SMOKE_DISSOLVE_SECONDS = 240;
+// After the 49 s clip the cloud stands on the match clock for seven minutes, the way a real
+// one stays in the sky: the head keeps rolling ever slower and spreads out flat, it loses only
+// a little density for five minutes and thins to a faint, wide rest over the last two.
+export const SMOKE_DISSOLVE_SECONDS = 420;
 export const SMOKE_RESIDUE = 0.15;
-const STREAM_FADE_SECONDS = 60;
+const SMOKE_HOLD_SECONDS = 300;
+const SMOKE_HOLD_LOSS = 0.2;
+const STREAM_FADE = [60, 360];
 const DISSOLVE_SPREAD = 0.55;
+// The head widens by this share and flattens while it stands.
+const HEAD_SPREAD = 0.45;
+const HEAD_FLATTEN = 0.3;
+// How far the ceiling the crest cards are kept under falls from the axis to the rim, in domes.
+const HEAD_LID_DROP = 1.5;
+
+/** Share of its density the cloud still has `after` seconds past the clip. */
+export function smokeDensityAfter(after) {
+    const hold = 1 - SMOKE_HOLD_LOSS * smoothRange(0, SMOKE_HOLD_SECONDS, after);
+    const fade = smoothRange(SMOKE_HOLD_SECONDS, SMOKE_DISSOLVE_SECONDS, after);
+    return hold * (1 - (1 - SMOKE_RESIDUE / (1 - SMOKE_HOLD_LOSS)) * fade);
+}
 // Upper winds shear the cloud: the drift grows with height and time, in cap radii, while the
 // clip plays and on while it thins out. The foot, fed from the ground, barely moves.
 const WIND_DRIFT_CLIP = 0.9;
@@ -29,6 +45,13 @@ function readWindYaw(node) {
         if (value !== undefined) return Number.isFinite(value) ? value : null;
     }
     return null;
+}
+
+/** Screen angle of a card whose long axis follows the world tangent in scratch.tx/ty/tz. */
+function viewAngle(view, scratch) {
+    const vx = view[0]*scratch.tx+view[4]*scratch.ty+view[8]*scratch.tz;
+    const vy = view[1]*scratch.tx+view[5]*scratch.ty+view[9]*scratch.tz;
+    return Math.atan2(vy,vx)-Math.PI/2;
 }
 
 /** Deterministic 0..1 per card and channel: every client scatters the stem alike. */
@@ -70,14 +93,21 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
     action.time = previousTime; action.getMixer().update(0); root.updateWorldMatrix(true, true);
     const roll = root.getObjectByName('roll');
     const stem = root.getObjectByName('stem');
+    const cap = root.getObjectByName('cap');
     const profile = resolveVortexProfile(Number(roll?.userData?.vortexProfile));
     const cards = [];
     for (const lobe of lobes) {
+        // The cap and the rolled ring are drawn as one vortex head below; their lobes stay in
+        // the GLB as the animated source of its size. The stem, the side plumes and the late
+        // masses that boil up on the cap keep a card each.
+        if (!lobe.column && !/bloom/.test(lobe.node.name)) continue;
         for (let detail = 0; detail < 2 && cards.length < MAX_SMOKE_CARDS; detail++) {
             cards.push({ lobe, detail, index: cards.length, center: new THREE.Vector3(),
                 width: 0, height: 0, depth: 0, opacity: 0, angle: 0, glow: 0, tint: 1 });
         }
     }
+    const capLobe = lobes.find(({ node }) => /cap/.test(node.name)) || lobes[0];
+    cards.push(...createHeadCards(capLobe, cards.length));
     cards.push(...createVortexCards(lobes.find(({ column }) => !column) || lobes[0], cards.length).slice(0, MAX_SMOKE_CARDS - cards.length));
     const quad = new THREE.PlaneGeometry(1, 1);
     const geometry = new THREE.InstancedBufferGeometry();
@@ -117,6 +147,9 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
     const base = new THREE.Vector3();
     const size = new THREE.Vector3();
     const rollPosition = new THREE.Vector3(), rollScale = new THREE.Vector3(), stemScale = new THREE.Vector3();
+    const capPosition = new THREE.Vector3(), capScale = new THREE.Vector3();
+    const head = { x: 0, y: 0, z: 0, radius: 0, rimWidth: 0, rimHeight: 0, dome: 0, stemRadius: 0, turbulence: profile.turbulence };
+    const outline = createHeadOutline();
     const shape = { x: 0, z: 0, base: 0, height: 0, radius: 0, tubeRadius: 0, tubeHeight: 0, stemRadius: 0, stemHeight: 0 };
     const scratch = { x: 0, y: 0, z: 0, tx: 0, ty: 0, tz: 0 };
     const compareDepth = (a, b) => a.depth - b.depth;
@@ -127,7 +160,8 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
         const settle = Math.min(1, Math.max(0, (time - .18) / 1.4));
         const after = Math.max(0, Number(root.userData.clipOverrunSeconds) || 0);
         const dissolve = smoothRange(0, SMOKE_DISSOLVE_SECONDS, after);
-        const streamsLeft = 1 - smoothRange(0, STREAM_FADE_SECONDS, after);
+        const density = smokeDensityAfter(after);
+        const streamsLeft = 1 - smoothRange(STREAM_FADE[0], STREAM_FADE[1], after);
         const windYaw = readWindYaw(root);
         const windReach = windYaw === null ? 0
             : WIND_DRIFT_CLIP * Math.min(1, time / action.getClip().duration) + WIND_DRIFT_AFTER * dissolve;
@@ -147,55 +181,73 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
         shape.tubeRadius = tube * rollScale.x; shape.tubeHeight = tube * rollScale.y;
         shape.stemRadius = stemScale.x;
         shape.stemHeight = stemScale.y;
+        cap.getWorldPosition(capPosition); cap.getWorldScale(capScale);
+        head.x = shape.x; head.z = shape.z; head.y = rollPosition.y;
+        head.radius = shape.radius * (1 + HEAD_SPREAD * dissolve);
+        head.rimWidth = 1.4 * shape.tubeRadius * (1 + HEAD_SPREAD * dissolve);
+        head.rimHeight = 1.9 * shape.tubeHeight;
+        head.stemRadius = 1.1 * shape.stemRadius;
+        // The dome reaches the cap's authored top with the crest cards' upper halves. Their
+        // centres stay far enough below it that few meet the ceiling, whose flat lid would
+        // otherwise line their tops up.
+        const capTop = Math.min(top.y, capPosition.y + .78 * capScale.y) - head.y;
+        head.dome = capTop;
+        updateHeadOutline(outline, head);
+        head.dome = Math.max(head.rimHeight, (capTop - .75 * headCardSize(outline)) * (1 - HEAD_FLATTEN * dissolve));
+        updateHeadOutline(outline, head);
+        // The head rolls on while the cloud stands; the faint rest after seven minutes is still.
+        const travel = headTravel(time + Math.min(after, SMOKE_DISSOLVE_SECONDS), profile);
         const distance = camera.position.distanceTo(rollPosition);
         const detailVisibility = 1 - smoothRange(8,18,distance / Math.max(20,shape.radius));
         for (const card of cards) {
             const { lobe, index, detail } = card;
-            const m = lobe.node.matrixWorld.elements;
-            card.center.copy(lobe.center).applyMatrix4(lobe.node.matrixWorld);
-            // World extents follow rotation as well as non-uniform rig scale.
-            size.set(Math.abs(m[0])*lobe.size.x+Math.abs(m[4])*lobe.size.y+Math.abs(m[8])*lobe.size.z,
-                Math.abs(m[1])*lobe.size.x+Math.abs(m[5])*lobe.size.y+Math.abs(m[9])*lobe.size.z,
-                Math.abs(m[2])*lobe.size.x+Math.abs(m[6])*lobe.size.y+Math.abs(m[10])*lobe.size.z);
-            const scale = detail ? .85 : 1.65;
-            card.width = Math.max(size.x,size.z) * scale;
-            card.height = Math.max(size.y, Math.min(size.x,size.z)*.7) * scale;
-            if (lobe.column) {
-                card.height *= 1.35 + .12*Math.sin(index*2.3);
-                // Fixed per-card scatter in size and position, so the stem is no string of
-                // equal beads stacked on its axis.
-                card.width *= .8 + .45*scatter(index, 1);
-                card.center.x += (scatter(index, 2)-.5) * card.width * .35;
-                card.center.z += (scatter(index, 3)-.5) * card.width * .35;
-                card.center.y += (scatter(index, 4)-.5) * card.height * .2;
-            } else if (!detail && !card.flow) {
-                // The cap, rim and bloom are rings of near-equal lobes; unscattered their tops
-                // line up into a crown of teeth. Fixed per-card size and height break the ring.
-                const grow = .75 + .55*scatter(index, 5);
-                card.width *= grow; card.height *= grow;
-                card.center.y += (scatter(index, 6)-.5) * card.height * .6;
-                card.center.x += (scatter(index, 7)-.5) * card.width * .2;
-                card.center.z += (scatter(index, 8)-.5) * card.width * .2;
-            }
-            const cycle = time*.25 + index*1.7;
-            const stretch = 1 + (detail ? .22 : .12) * Math.sin(cycle) * (1 + profile.turbulence);
-            card.width /= Math.sqrt(stretch); card.height *= stretch;
-            card.angle = lobe.column ? 0 : Math.sin(index*1.7)*.5 + time*.04*(detail ? 1 : -1);
-            card.opacity = detail ? .36 : (/cap|bloom/.test(lobe.node.name) ? .72 : .84);
-            card.glow = smokeHeat(time,index,profile);
-            card.tint = 1;
-            if (detail) {
-                // Fine surface wisps drift upwards on the column; the independent
-                // stream cards provide the continuous column-to-ring path.
-                card.center.y += Math.sin(cycle) * card.height * .16;
-                card.center.x += profile.turbulence * Math.sin(cycle*.7) * card.width * .15;
-            }
-            if (card.flow) {
-                updateVortexCard(card, time, profile, shape, scratch);
-                if (card.flow === 'stream') {
-                    const vx = view[0]*scratch.tx+view[4]*scratch.ty+view[8]*scratch.tz;
-                    const vy = view[1]*scratch.tx+view[5]*scratch.ty+view[9]*scratch.tz;
-                    card.angle = Math.atan2(vy,vx)-Math.PI/2;
+            if (card.flow === 'head') {
+                updateHeadCard(card, travel, head, outline, scratch);
+                card.angle = viewAngle(view, scratch) + card.spin;
+                card.glow = smokeHeat(time, index, profile) * card.heatShare;
+            } else {
+                const m = lobe.node.matrixWorld.elements;
+                card.center.copy(lobe.center).applyMatrix4(lobe.node.matrixWorld);
+                // World extents follow rotation as well as non-uniform rig scale.
+                size.set(Math.abs(m[0])*lobe.size.x+Math.abs(m[4])*lobe.size.y+Math.abs(m[8])*lobe.size.z,
+                    Math.abs(m[1])*lobe.size.x+Math.abs(m[5])*lobe.size.y+Math.abs(m[9])*lobe.size.z,
+                    Math.abs(m[2])*lobe.size.x+Math.abs(m[6])*lobe.size.y+Math.abs(m[10])*lobe.size.z);
+                const scale = detail ? .85 : 1.65;
+                card.width = Math.max(size.x,size.z) * scale;
+                card.height = Math.max(size.y, Math.min(size.x,size.z)*.7) * scale;
+                if (lobe.column) {
+                    card.height *= 1.35 + .12*Math.sin(index*2.3);
+                    // Fixed per-card scatter in size and position, so the stem is no string of
+                    // equal beads stacked on its axis.
+                    card.width *= .8 + .45*scatter(index, 1);
+                    card.center.x += (scatter(index, 2)-.5) * card.width * .35;
+                    card.center.z += (scatter(index, 3)-.5) * card.width * .35;
+                    card.center.y += (scatter(index, 4)-.5) * card.height * .2;
+                } else if (!detail && !card.flow) {
+                    // The bloom masses are near-equal lobes; fixed per-card size and height keep
+                    // their tops from lining up.
+                    const grow = .75 + .55*scatter(index, 5);
+                    card.width *= grow; card.height *= grow;
+                    card.center.y += (scatter(index, 6)-.5) * card.height * .6;
+                    card.center.x += (scatter(index, 7)-.5) * card.width * .2;
+                    card.center.z += (scatter(index, 8)-.5) * card.width * .2;
+                }
+                const cycle = time*.25 + index*1.7;
+                const stretch = 1 + (detail ? .22 : .12) * Math.sin(cycle) * (1 + profile.turbulence);
+                card.width /= Math.sqrt(stretch); card.height *= stretch;
+                card.angle = lobe.column ? 0 : Math.sin(index*1.7)*.5 + time*.04*(detail ? 1 : -1);
+                card.opacity = detail ? .36 : (/bloom/.test(lobe.node.name) ? .8 : .92);
+                card.glow = smokeHeat(time,index,profile);
+                card.tint = 1;
+                if (detail) {
+                    // Fine surface wisps drift upwards on the column; the independent
+                    // stream cards provide the continuous column-to-ring path.
+                    card.center.y += Math.sin(cycle) * card.height * .16;
+                    card.center.x += profile.turbulence * Math.sin(cycle*.7) * card.width * .15;
+                }
+                if (card.flow) {
+                    updateVortexCard(card, time, profile, shape, scratch);
+                    if (card.flow === 'stream') card.angle = viewAngle(view, scratch);
                 }
             }
             if (windReach > 0) {
@@ -213,20 +265,25 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
             }
             card.opacity *= settle * (detail ? detailVisibility : 1);
             if (dissolve > 0) {
-                if (card.flow) card.opacity *= streamsLeft;
+                // The head spreads by itself; it only loses density.
+                if (card.flow === 'head') card.opacity *= density;
+                else if (card.flow) card.opacity *= streamsLeft;
                 else if (detail) card.opacity *= 1 - dissolve;
                 else {
-                    card.opacity *= 1 - (1 - SMOKE_RESIDUE) * dissolve;
+                    card.opacity *= density;
                     card.width *= 1 + DISSOLVE_SPREAD * dissolve; card.height *= 1 + DISSOLVE_SPREAD * dissolve;
                 }
             }
             // Fit the soft lobe below the authored ceiling before shading, avoiding
-            // a flat clipping plane at the top of the final mushroom cloud. Each card gets its
-            // own ceiling up to a third of the cap radius lower, or the fitted tops would line up
-            // into a crown of equal lumps under one flat lid.
-            const ceiling = top.y - scatter(index, 9) * shape.radius * .35;
+            // a flat clipping plane at the top of the final mushroom cloud. Head and bloom cards
+            // are moved down instead: shrunk, the crest would break into small detached puffs.
+            // The lid they meet is domed like the head, not flat, or their tops would line up.
             const reach = .48 * Math.hypot(card.width, card.height);
-            const fit = Math.min(1, Math.max(0, ceiling - card.center.y) / Math.max(.001, reach));
+            if (card.flow === 'head' || (!card.flow && !lobe.column)) {
+                const out = Math.hypot(card.center.x - shape.x, card.center.z - shape.z) / (head.radius + head.rimWidth);
+                card.center.y = Math.min(card.center.y, top.y - reach - HEAD_LID_DROP * head.dome * Math.min(1, out));
+            }
+            const fit = Math.min(1, Math.max(0, top.y - card.center.y) / Math.max(.001, reach));
             card.width *= fit; card.height *= fit;
             card.depth = view[2]*card.center.x+view[6]*card.center.y+view[10]*card.center.z+view[14];
         }
@@ -243,7 +300,7 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
             data[offset+6] = card.angle;
             data[offset+7] = card.tile+Math.min(.98,card.opacity);
             data[offset+11] = card.glow;
-            data[offset+12] = card.lobe.column
+            data[offset+12] = card.flow === 'head' ? card.shade : card.lobe.column
                 ? .85 + .3*smoothRange(base.y,top.y,center.y)
                 : .70 + .65*smoothRange(shape.height-shape.tubeHeight,shape.height+shape.tubeHeight,center.y);
             const tint = (.80 + .20 * Math.exp(-time*.09)) * card.tint;

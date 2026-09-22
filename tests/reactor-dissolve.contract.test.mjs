@@ -4,7 +4,7 @@ import test from 'node:test';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGlbAnimationTrack, GlbAnimationDriver } from '../src/entities/arena/GlbAnimationDriver.js';
-import { createReactorSmoke, SMOKE_DISSOLVE_SECONDS, SMOKE_RESIDUE } from '../src/entities/effects/ReactorSmokeEffect.js';
+import { createReactorSmoke, SMOKE_DISSOLVE_SECONDS, SMOKE_RESIDUE, smokeDensityAfter } from '../src/entities/effects/ReactorSmokeEffect.js';
 import { disposeObject3DResources } from '../src/shared/rendering/ThreeDisposal.js';
 
 function fakeTrack(mode, root = new THREE.Object3D()) {
@@ -52,19 +52,23 @@ async function cloud() {
     return { gltf, sample };
 }
 
-test('after the clip the cloud thins out over four minutes and leaves a faint rest', async () => {
-    assert.equal(SMOKE_DISSOLVE_SECONDS, 240);
+test('after the clip the cloud stands for seven minutes, spreads, then leaves a faint rest', async () => {
+    assert.equal(SMOKE_DISSOLVE_SECONDS, 420);
     assert.ok(SMOKE_RESIDUE > 0 && SMOKE_RESIDUE < 0.3);
+    assert.equal(smokeDensityAfter(0), 1);
+    assert.ok(Math.abs(smokeDensityAfter(SMOKE_DISSOLVE_SECONDS) - SMOKE_RESIDUE) < 1e-9);
     const { gltf, sample } = await cloud();
-    const steps = [0, 30, 90, 160, 240, 600].map(sample);
+    const steps = [0, 60, 180, 300, 360, 420, 900].map(sample);
     for (let i = 1; i < steps.length - 1; i += 1) {
         assert.ok(steps[i].opacity < steps[i - 1].opacity, `thinner at step ${i}`);
     }
+    // Four minutes gave only 15 percent left; now five minutes still hold most of the head.
+    assert.ok(steps[3].opacity > steps[0].opacity * 0.6, 'still a dense cloud after five minutes');
     assert.ok(steps[3].area / steps[3].opacity > steps[0].area / steps[0].opacity, 'what remains spreads out');
-    const rest = steps[4], later = steps[5];
+    const rest = steps[5], later = steps[6];
     assert.ok(rest.opacity > 0, 'a thin rest remains');
     assert.ok(rest.opacity < steps[0].opacity * 0.35, 'the rest is faint');
-    assert.ok(Math.abs(later.opacity - rest.opacity) < 1e-6, 'after four minutes nothing changes');
+    assert.ok(Math.abs(later.opacity - rest.opacity) < 1e-6, 'after seven minutes nothing changes');
     assert.ok(rest.cards < steps[0].cards * 0.75, 'fine detail and the rolling streams are gone, which saves draws');
     disposeObject3DResources(gltf.scene);
 });

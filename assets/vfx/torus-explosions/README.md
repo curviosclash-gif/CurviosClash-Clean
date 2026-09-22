@@ -76,6 +76,15 @@ remains at 115% of map height. Shared profiles in
 `src/shared/vfx/ReactorVortexProfiles.json` define compact fast circulation,
 broad slow circulation, strong updraft, and turbulent circulation. The Blender
 generator and runtime consume the same profile IDs exported on the roll rig.
+The head is not drawn from the cap and torus lobes of the GLB: those only give it its
+size and height. `src/entities/effects/ReactorVortexHead.js` spreads 208 cards by area
+over the skin of one rolling vortex ring (dome, rolled rim, underside up to the stem's
+mouth) and moves them along it: out over the top, down the outside, in underneath.
+Small cells boil on the dome, the rim and underside are big bulges; the crest stays under
+a domed lid so its tops do not line up. The ring rolls fast while the fireball drives it
+and slowly on for the next seven minutes. After the 49 s clip the cloud stands on the
+match clock: it widens by 45%, flattens by 30%, loses a fifth of its density over five
+minutes and thins to a 15% rest by seven; a new round removes it with the intact reactor.
 Continuous stream wisps rise through the stem, join the inner rim with matching
 tangents, and turn outward, downward and inward. Additional edge vortices fade
 before the final pose. The widened streamline follows the same stem profile.
