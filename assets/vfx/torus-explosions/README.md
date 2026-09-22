@@ -79,10 +79,11 @@ generator and runtime consume the same profile IDs exported on the roll rig.
 ## Ray-marched head, stem and ground collar
 
 Head, stem and the ground collar are drawn as smoke with depth rather than as cards
-(`REACTOR_VOLUME_SMOKE` in `ReactorSmokeEffect.js`). Both render paths are built: the graphics quality decides per frame which one
-draws, read from `scene.userData.graphicsQuality`, which `RenderQualityController` publishes. On
-its lowest step the card cloud below draws and the volume's proxies collapse; every other step
-draws the volume and no cards. A change in the menu therefore takes effect at once. Three proxy
+(`REACTOR_VOLUME_SMOKE` in `ReactorSmokeEffect.js`). All graphics quality steps draw the same
+volumetric shape; LOW reduces ray-march steps and estimates sunlight from local density, while
+MEDIUM and HIGH keep the full two-sample lighting. The quality step is read from
+`scene.userData.graphicsQuality`, published by `RenderQualityController`, so adaptive changes
+take effect immediately without switching to the sparser card fallback. Three proxy
 cylinders round the head, stem and ground collar are placed in world space by their vertex shader, so the
 objects stay unit-sized and add nothing to the cloud's measured bounds. Their front faces are
 drawn (back faces once a camera is inside, chosen per camera, both sides compiled once), and
@@ -92,9 +93,9 @@ fans out under the head. Density comes from a shape whose skin is displaced by `
 tileable 64³ Perlin-Worley volume built once per session, two layers per frame so a map load
 does not stall. In the head the noise is read in ring coordinates - round the axis, round the
 tube, and into it - and the tube angle carries the circulation, so the whole ring rolls as one
-body. Light is one sun ray of two samples with Beer-Lambert extinction plus sky light from
+body. Light is one sun ray of two samples on MEDIUM/HIGH with Beer-Lambert extinction plus sky light from
 above, and while it is hot the lower, inner smoke glows. Steps follow the chord, at most 64 in
-the head, 48 in the stem and 32 in the ground collar, with a jittered start; rays stop once the
+the head, 48 in the stem and 32 in the ground collar (40/30/20 on LOW), with a jittered start; rays stop once the
 smoke is opaque. The cloud has no depth texture, so a camera inside the smoke is not
 enveloped correctly.
 
@@ -116,8 +117,7 @@ three minutes after the clip, while the cloud above still stands: a denser one s
 debris trails over the site and took the map's sight lines away from the players. It is the one
 part a camera regularly stands inside, so its shader alone reports the depth of the first smoke
 its ray meets, which puts the dust in front of the walls behind it instead of letting them hide
-it. On the lowest graphics step it collapses with the rest of the volume and the card cloud has
-no collar of its own.
+it. The collar remains volumetric on LOW so the ground dust does not vanish at the quality transition.
 
 The head is not drawn from the cap and torus lobes of the GLB: those only give it its
 size and height. `src/entities/effects/ReactorVortexHead.js` spreads 208 cards by area
@@ -169,5 +169,5 @@ The fallback effect is bounded to 512 cards and one draw call per visible cloud;
 uses one draw call for each of its three proxies. A data
 texture updates before each draw so time seeks and split-screen camera changes
 cannot display the preceding frame's positions. The soft lobes fit below the
-measured final GLB ceiling. The LOW-quality card fallback approximates volume smoke, while the
-other quality steps ray-march it; neither path is a fluid simulation.
+measured final GLB ceiling. The card fallback remains available to non-volume renderers;
+the product's graphics quality steps all ray-march the cloud. Neither path is a fluid simulation.

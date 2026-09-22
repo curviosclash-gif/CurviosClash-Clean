@@ -253,8 +253,8 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA, { volu
     };
     if (volume) attachVolume(root, cap, capLobe, frame, refreshShape, { head, shape, top, base, stemScale, material });
     mesh.onBeforeRender = (_renderer, scene, camera) => {
-        // Beside the volume the cards draw on the lowest quality step only.
-        if (volume && !isLowQualityScene(scene)) { geometry.instanceCount = 0; return; }
+        // Keep the card fallback for non-volume renderers, but never overlay it on the volume.
+        if (volume) { geometry.instanceCount = 0; return; }
         refreshShape(scene);
         const { time, settle, dissolve, density, streamsLeft, windYaw, windReach, travel } = frame;
         const view = camera.matrixWorldInverse.elements;
@@ -383,7 +383,7 @@ function attachVolume(root, cap, capLobe, frame, refreshShape, { head, shape, to
     const state = { albedo: new THREE.Color(), sunDirection: material.uniforms.sunDirection.value,
         sunColor: material.uniforms.sunColor.value };
     const pose = (_renderer, scene) => {
-        if (isLowQualityScene(scene)) { volume.silence(); return; }
+        const lowQuality = isLowQualityScene(scene);
         refreshShape(scene);
         const drift = frame.windYaw === null ? 0 : shape.radius * frame.windReach;
         Object.assign(state, {
@@ -405,7 +405,7 @@ function attachVolume(root, cap, capLobe, frame, refreshShape, { head, shape, to
         state.surgeDensity = frame.density * frame.settle * surgeDensityAfter(frame.after);
         const c = capLobe.color;
         state.albedo.setRGB((c.r * .85 + .16) * 1.1, (c.g * .85 + .16) * 1.1, (c.b * .85 + .16) * 1.1);
-        volume.update(state);
+        volume.update(state, lowQuality);
     };
     for (const mesh of [volume.head, volume.stem, volume.surge]) {
         mesh.onBeforeRender = (renderer, scene, camera) => { pose(renderer, scene); volume.faceCamera(mesh, camera); };

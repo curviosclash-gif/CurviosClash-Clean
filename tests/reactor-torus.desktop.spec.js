@@ -511,6 +511,7 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             const solidity = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;
                 const arena = game.arena, runtime = game.renderer, camera = runtime.cameras[0];
+                const quality = runtime.getQualityState().requestedQuality;
                 const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
                 const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
                 const layers = ['reactor-soft-smoke_nocol_noshadow', 'reactor-volume-head_nocol_noshadow', 'reactor-volume-stem_nocol_noshadow']
@@ -527,43 +528,53 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                     context.drawImage(runtime.renderer.domElement, 0, 0, width, height);
                     return context.getImageData(0, 0, width, height).data;
                 };
-                for (const layer of layers) layer.visible = false;
-                const without = grab();
-                for (const layer of layers) layer.visible = true;
-                const withSmoke = grab();
-                const png = runtime.renderer.domElement.toDataURL('image/png');
+                const result = {};
+                for (const step of ['HIGH', 'LOW']) {
+                    runtime.setQuality(step);
+                    for (const layer of layers) layer.visible = false;
+                    const without = grab();
+                    for (const layer of layers) layer.visible = true;
+                    const withSmoke = grab();
+                    const png = runtime.renderer.domElement.toDataURL('image/png');
+                    // How much each pixel changed when the smoke was drawn: its cover.
+                    const cover = new Float32Array(width * height);
+                    for (let i = 0, p = 0; i < cover.length; i += 1, p += 4) {
+                        cover[i] = (Math.abs(withSmoke[p] - without[p]) + Math.abs(withSmoke[p + 1] - without[p + 1])
+                            + Math.abs(withSmoke[p + 2] - without[p + 2])) / 3;
+                    }
+                    // Grey smoke against a bright sky moves a pixel only a little; the threshold is
+                    // what the thinnest place inside the body still reaches.
+                    const solid = (x, y) => cover[y * width + x] > 12;
+                    const reaches = (x, y, dx, dy) => {
+                        for (let cx = x + dx, cy = y + dy; cx >= 0 && cx < width && cy >= 0 && cy < height; cx += dx, cy += dy) {
+                            if (solid(cx, cy)) return true;
+                        }
+                        return false;
+                    };
+                    let smoke = 0, gaps = 0;
+                    for (let y = 0; y < height; y += 1) {
+                        for (let x = 0; x < width; x += 1) {
+                            if (solid(x, y)) smoke += 1;
+                            else if (reaches(x, y, 1, 0) && reaches(x, y, -1, 0) && reaches(x, y, 0, 1) && reaches(x, y, 0, -1)) gaps += 1;
+                        }
+                    }
+                    result[step] = { smoke, gaps, share: gaps / (smoke + gaps), png };
+                }
                 camera.far = held.far; camera.updateProjectionMatrix();
                 camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
-                // How much each pixel changed when the smoke was drawn: its cover.
-                const cover = new Float32Array(width * height);
-                for (let i = 0, p = 0; i < cover.length; i += 1, p += 4) {
-                    cover[i] = (Math.abs(withSmoke[p] - without[p]) + Math.abs(withSmoke[p + 1] - without[p + 1])
-                        + Math.abs(withSmoke[p + 2] - without[p + 2])) / 3;
-                }
-                // Grey smoke against a bright sky moves a pixel only a little; the threshold is
-                // what the thinnest place inside the body still reaches.
-                const solid = (x, y) => cover[y * width + x] > 12;
-                const reaches = (x, y, dx, dy) => {
-                    for (let cx = x + dx, cy = y + dy; cx >= 0 && cx < width && cy >= 0 && cy < height; cx += dx, cy += dy) {
-                        if (solid(cx, cy)) return true;
-                    }
-                    return false;
-                };
-                let smoke = 0, gaps = 0;
-                for (let y = 0; y < height; y += 1) {
-                    for (let x = 0; x < width; x += 1) {
-                        if (solid(x, y)) smoke += 1;
-                        else if (reaches(x, y, 1, 0) && reaches(x, y, -1, 0) && reaches(x, y, 0, 1) && reaches(x, y, 0, -1)) gaps += 1;
-                    }
-                }
-                return { smoke, gaps, share: gaps / (smoke + gaps), png };
+                runtime.setQuality(quality);
+                return result;
             });
-            await writeFile(testInfo.outputPath('solidity-from-below.png'), Buffer.from(solidity.png.split(',')[1], 'base64'));
-            delete solidity.png;
+            for (const step of ['HIGH', 'LOW']) {
+                await writeFile(testInfo.outputPath(`solidity-from-below-${step}.png`), Buffer.from(solidity[step].png.split(',')[1], 'base64'));
+                delete solidity[step].png;
+            }
             await writeFile(testInfo.outputPath('solidity.json'), JSON.stringify(solidity, null, 2));
-            expect(solidity.smoke).toBeGreaterThan(2500);
+            expect(solidity.HIGH.smoke).toBeGreaterThan(2500);
             // Before the solid body the crown let a ring of sky through: 7.6 percent from here.
-            expect(solidity.share).toBeLessThan(0.05);
+            expect(solidity.HIGH.share).toBeLessThan(0.05);
+            expect(solidity.LOW.smoke).toBeGreaterThan(2500);
+            expect(solidity.LOW.share).toBeLessThan(0.1);
             // The blast wave's dust: a haze over the site from the ground, gone a few minutes on.
             const collar = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;
@@ -783,7 +794,7 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
     }
     delete smokeReport.images;
     await writeFile(testInfo.outputPath('smoke-performance.json'),JSON.stringify(smokeReport,null,2));
-    // The lowest graphics step swaps the ray-marched cloud for the card cloud, in the live game.
+    // The lowest graphics step reduces the march cost without changing the cloud's body.
     const quality = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
         const runtime = game.renderer;
@@ -800,6 +811,7 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             runtime.renderer.render(runtime.scene, camera);
             return { step, cards: cards.geometry.instanceCount, volume: head ? head.material.uniforms.bounds.value.x : null,
                 surge: surge ? surge.material.uniforms.bounds.value.x : null,
+                steps: head?.material.uniforms.marchSteps.value, lowDetail: head?.material.uniforms.lowDetail.value,
                 quality: runtime.scene.userData.graphicsQuality };
         };
         const result = [sample('HIGH'), sample('LOW'), sample('HIGH')];
@@ -812,14 +824,105 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
         expect(quality[0].volume).toBeGreaterThan(100);
         expect(quality[0].surge).toBeGreaterThan(100);
         expect(quality[1].quality).toBe('LOW');
-        expect(quality[1].cards).toBeGreaterThan(100);
-        expect(quality[1].volume).toBe(0);
-        expect(quality[1].surge).toBe(0);
+        expect(quality[1].cards).toBe(0);
+        expect(quality[1].volume).toBeGreaterThan(100);
+        expect(quality[1].surge).toBeGreaterThan(100);
+        expect(quality[1].steps).toBeLessThan(quality[0].steps);
+        expect(quality[1].lowDetail).toBe(1);
         expect(quality[2].cards).toBe(0);
         expect(quality[2].volume).toBeGreaterThan(100);
         expect(quality[2].surge).toBeGreaterThan(100);
+        expect(quality[2].lowDetail).toBe(0);
     }
-    // Either the three ray-marched proxies, or the card cloud with its full set of cards.
+    if (process.env.REACTOR_SPLIT_BENCH === '1') {
+        // Fixed 2560x1080 split render, independent of an off-screen Electron window's size.
+        // Compare the whole scene with and without smoke on the actual quality pixel ratios.
+        const bench = await page.evaluate(async () => {
+            const runtime = window.GAME_INSTANCE.renderer;
+            const renderer = runtime.renderer;
+            const gl = renderer.getContext();
+            const timer = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+            if (!timer) return { skipped: 'GPU timer queries unavailable' };
+            const viewport = runtime.viewportSystem;
+            const cameras = [runtime.cameras[0], runtime.cameras[0].clone()];
+            const slot = window.GAME_INSTANCE.arena._glbScene.children.find((node) => node.visible
+                && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+            const smoke = ['reactor-soft-smoke_nocol_noshadow', 'reactor-volume-head_nocol_noshadow',
+                'reactor-volume-stem_nocol_noshadow', 'reactor-volume-surge_nocol_noshadow']
+                .map((name) => slot.getObjectByName(name)).filter(Boolean);
+            const saved = { width: viewport.width, height: viewport.height, layout: viewport.layout,
+                quality: runtime.getQualityState().requestedQuality,
+                windYaw: slot.userData.windYaw,
+                camera: { position: cameras[0].position.clone(), quaternion: cameras[0].quaternion.clone(),
+                    far: cameras[0].far } };
+            viewport.width = 2560; viewport.height = 1080;
+            viewport.setSplitScreen(true, cameras);
+            cameras[0].position.set(-300, 60, 700); cameras[0].lookAt(0, 500, 0);
+            cameras[1].position.set(-330, 60, 730); cameras[1].lookAt(0, 500, 0);
+            for (const camera of cameras.slice(0, 2)) {
+                camera.far = 5000; camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
+            }
+            const arena = window.GAME_INSTANCE.arena;
+            slot.userData.windYaw = 0;
+            arena.setGlbAnimationElapsedSeconds(48); arena._glbAnimation.advance(0);
+            const samples = {};
+            const sizes = {};
+            for (const quality of ['HIGH', 'LOW']) {
+                runtime.setQuality(quality);
+                renderer.setSize(2560, 1080);
+                runtime.postProcessingPipeline.setSize(2560, 1080);
+                sizes[quality] = [renderer.domElement.width, renderer.domElement.height];
+                for (const mode of quality === 'LOW' ? ['bare', 'head', 'stem', 'surge', 'smoke'] : ['bare', 'smoke']) {
+                    for (const mesh of smoke) mesh.visible = mode === 'smoke' || mesh.name.includes(`volume-${mode}_`);
+                    const key = `${quality}-${mode}`;
+                    const queries = [];
+                    for (let frame = 0; frame < 18; frame += 1) {
+                        const query = gl.createQuery();
+                        gl.beginQuery(timer.TIME_ELAPSED_EXT, query);
+                        viewport.render(runtime.scene, cameras);
+                        gl.endQuery(timer.TIME_ELAPSED_EXT);
+                        queries.push(query);
+                    }
+                    for (let wait = 0; wait < 1000 && queries.some((query) => !gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)); wait += 1) {
+                        await new Promise((resolve) => setTimeout(resolve, 10));
+                    }
+                    const values = [];
+                    const disjoint = gl.getParameter(timer.GPU_DISJOINT_EXT);
+                    queries.forEach((query, frame) => {
+                        if (frame >= 3 && !disjoint && gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) {
+                            values.push(gl.getQueryParameter(query, gl.QUERY_RESULT) / 1e6);
+                        }
+                        gl.deleteQuery(query);
+                    });
+                    values.sort((a, b) => a - b);
+                    samples[key] = { p50: values[Math.floor(values.length * .5)] ?? null,
+                        p95: values[Math.floor(values.length * .95)] ?? null, n: values.length, disjoint };
+                }
+            }
+            for (const mesh of smoke) mesh.visible = true;
+            runtime.setQuality('LOW');
+            renderer.setSize(2560, 1080);
+            runtime.postProcessingPipeline.setSize(2560, 1080);
+            viewport.render(runtime.scene, cameras);
+            const png = renderer.domElement.toDataURL('image/png');
+            slot.userData.windYaw = saved.windYaw;
+            runtime.setQuality(saved.quality);
+            viewport.width = saved.width; viewport.height = saved.height;
+            viewport.setViewportLayout(saved.layout, runtime.cameras);
+            renderer.setSize(saved.width, saved.height);
+            runtime.postProcessingPipeline.setSize(saved.width, saved.height);
+            cameras[0].position.copy(saved.camera.position); cameras[0].quaternion.copy(saved.camera.quaternion);
+            cameras[0].far = saved.camera.far;
+            cameras[0].updateProjectionMatrix(); cameras[0].updateMatrixWorld(true);
+            return { sizes, samples, png };
+        });
+        if (bench.png) {
+            await writeFile(testInfo.outputPath('reactor-low-split.png'), Buffer.from(bench.png.split(',')[1], 'base64'));
+            delete bench.png;
+        }
+        await writeFile(testInfo.outputPath('reactor-split-bench.json'), JSON.stringify(bench, null, 2));
+    }
+    // Three ray-marched proxies remain active; non-volume renderers retain the card fallback.
     if (smokeReport.volume) expect(smokeReport.volume).toBe(3);
     else expect(smokeReport.cards).toBeGreaterThan(100);
     expect(smokeReport.cards).toBeLessThanOrEqual(512);

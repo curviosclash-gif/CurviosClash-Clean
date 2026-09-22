@@ -15,6 +15,9 @@ const HEAD_STEPS = 64;
 const STEM_STEPS = 48;
 // The collar is flat, so a ray crosses it on a short chord and needs few steps.
 const SURGE_STEPS = 32;
+const LOW_HEAD_STEPS = 40;
+const LOW_STEM_STEPS = 30;
+const LOW_SURGE_STEPS = 20;
 
 // The proxy is a unit cylinder placed in world space here, from the same uniforms the rays use.
 // Its object stays unit-sized, so it adds nothing to the cloud's measured bounds.
@@ -44,6 +47,7 @@ uniform float riseTravel;     // how far the stem's gas has risen, in stem radii
 uniform float smokeDensity;   // overall density share (dissolve)
 uniform float marchSteps;     // most steps a ray may take
 uniform float stepTarget;     // step length that resolves the smoke's billows
+uniform float lowDetail;      // local-density sunlight on LOW, two sun samples on MEDIUM/HIGH
 uniform vec3 sunDirection;
 uniform vec3 sunColor;
 uniform vec3 skyColor;
@@ -220,12 +224,16 @@ void main() {
         float rho = densityAt(p);
         if (rho <= 0.001) continue;
         if (firstHit < 0.0) firstHit = t;
-        // Light from the sun through two samples of the smoke towards it. Smoke scatters light
-        // on rather than swallowing it, so deep samples are never black: three terms with ever
+        // Full detail traces two samples towards the sun; LOW estimates from local density.
+        // Smoke scatters light on rather than swallowing it, so deep samples are never black: three terms with ever
         // weaker extinction and weight stand for direct, once and many times scattered light,
         // normalised so a fully lit sample keeps its brightness. Without them a solid core turns
         // the whole cloud flat dark.
-        float toSun = densityAt(p + sunDirection * 25.0) * 25.0 + densityAt(p + sunDirection * 70.0) * 45.0;
+        float toSun = rho * 45.0;
+        if (lowDetail < 0.5) {
+            toSun = densityAt(p + sunDirection * 25.0) * 25.0
+                + densityAt(p + sunDirection * 70.0) * 45.0;
+        }
         float shade = toSun * extinction * 2.4;
         float sunLight = (exp(-shade) + 0.45 * exp(-shade * 0.35) + 0.2 * exp(-shade * 0.1)) / 1.65;
         // Thin edges scatter forward light, thick cores do not: the "powder" darkening.
@@ -273,7 +281,7 @@ function createPart(part, steps, noise) {
             bounds: { value: new THREE.Vector4(1, 0, 1, part) },
             wind: { value: new THREE.Vector4() }, proxyAxis: { value: new THREE.Vector2() }, insideProxy: { value: 0 },
             flowTurns: { value: 0 }, riseTravel: { value: 0 }, smokeDensity: { value: 1 },
-            marchSteps: { value: steps }, stepTarget: { value: 10 },
+            marchSteps: { value: steps }, stepTarget: { value: 10 }, lowDetail: { value: 0 },
             sunDirection: { value: new THREE.Vector3(0, 1, 0) }, sunColor: { value: new THREE.Color(1, 1, 1) },
             skyColor: { value: new THREE.Color(0.62, 0.68, 0.75) }, smokeAlbedo: { value: new THREE.Color(0.4, 0.33, 0.26) },
             heat: { value: 0 },
@@ -314,7 +322,7 @@ export function createReactorVolume(root) {
         mesh.material.uniforms.proxyAxis.value.set(x, z);
         mesh.material.uniforms.bounds.value.set(radius, bottom, Math.max(bottom + 0.01, top), partOf(mesh));
     };
-    const update = (state) => {
+    const update = (state, lowQuality = false) => {
         // Never hidden: a hidden mesh gets no onBeforeRender, so it could not come back. An empty
         // cloud draws nothing, the shader discards every pixel of its tiny proxies.
         // Proxies follow the wind: the head's to its drift at the ring, the stem's widens over it.
@@ -342,7 +350,11 @@ export function createReactorVolume(root) {
             // A fifth of the rim's height in the head, a quarter of the stem's radius in the stem,
             // a fifth of the collar's height in the collar.
             u.stepTarget.value = Math.max(2, mesh === head ? state.rimHeight * 0.2
-                : mesh === stem ? state.stemRadiusHigh * 0.25 : state.surgeHeight * 0.2);
+                : mesh === stem ? state.stemRadiusHigh * 0.25 : state.surgeHeight * 0.2) * (lowQuality ? 1.25 : 1);
+            u.marchSteps.value = lowQuality
+                ? (mesh === head ? LOW_HEAD_STEPS : mesh === stem ? LOW_STEM_STEPS : LOW_SURGE_STEPS)
+                : (mesh === head ? HEAD_STEPS : mesh === stem ? STEM_STEPS : SURGE_STEPS);
+            u.lowDetail.value = lowQuality ? 1 : 0;
             u.flowTurns.value = state.flowTurns;
             u.riseTravel.value = state.riseTravel;
             u.smokeDensity.value = mesh === surge ? state.surgeDensity : state.density;
@@ -352,14 +364,6 @@ export function createReactorVolume(root) {
             u.sunColor.value.copy(state.sunColor);
         }
     };
-    /** Collapses every proxy, for the quality step that draws the card cloud instead. */
-    const silence = () => {
-        for (const mesh of parts) {
-            mesh.material.uniforms.bounds.value.set(0, 0, 0, partOf(mesh));
-            mesh.material.uniforms.smokeDensity.value = 0;
-        }
-    };
-
     /** Per camera: front faces from outside, back faces from inside the proxy. */
     const faceCamera = (mesh, camera) => {
         const b = mesh.material.uniforms.bounds.value;
@@ -370,6 +374,5 @@ export function createReactorVolume(root) {
         const inside = Math.hypot(p.x - axis.x, p.z - axis.y) < b.x + margin && p.y > b.y - margin && p.y < b.z + margin;
         mesh.material.uniforms.insideProxy.value = inside ? 1 : 0;
     };
-    return { head, stem, surge, update, faceCamera, silence };
+    return { head, stem, surge, update, faceCamera };
 }
-

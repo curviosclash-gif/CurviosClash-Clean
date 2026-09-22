@@ -114,7 +114,7 @@ test('the ground collar races out, then pulls in and settles while the cloud sta
     assert.equal(surgeDensityAfter(240), 0, 'gone long before the cloud is');
 });
 
-test('the lowest graphics step draws the cards, every other one the volume', async () => {
+test('all graphics steps draw the same solid volume with a cheaper LOW ray march', async () => {
     const buffer = readFileSync(new URL('../assets/maps/reactor_site/glb/torus_cloud_1.glb', import.meta.url));
     const gltf = await new GLTFLoader().parseAsync(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), '');
     const mixer = new THREE.AnimationMixer(gltf.scene);
@@ -131,7 +131,9 @@ test('the lowest graphics step draws the cards, every other one the volume', asy
         head.onBeforeRender(null, scene, camera);
         collar.onBeforeRender(null, scene, camera);
         return { cards: cards.geometry.instanceCount, radius: head.material.uniforms.bounds.value.x,
-            density: head.material.uniforms.smokeDensity.value, collar: collar.material.uniforms.bounds.value.x };
+            density: head.material.uniforms.smokeDensity.value, collar: collar.material.uniforms.bounds.value.x,
+            steps: head.material.uniforms.marchSteps.value, stepTarget: head.material.uniforms.stepTarget.value,
+            lowDetail: head.material.uniforms.lowDetail.value };
     };
     // The renderer publishes its effective step on the scene; the switch takes effect at once.
     assert.equal(isLowQualityScene({ userData: { graphicsQuality: 'LOW' } }), true);
@@ -142,11 +144,12 @@ test('the lowest graphics step draws the cards, every other one the volume', asy
         assert.ok(high.collar > 100, `and its ground collar with it at ${quality}`);
     }
     const low = draw('LOW');
-    assert.ok(low.cards > 100, `the card cloud draws on LOW: ${low.cards}`);
-    assert.equal(low.radius, 0, 'and the volume collapses');
-    assert.equal(low.density, 0);
-    assert.equal(low.collar, 0, 'collar included');
-    assert.ok(draw('HIGH').radius > 100, 'and comes back on the next step up');
+    assert.equal(low.cards, 0, 'LOW keeps the volume rather than sparse cards');
+    assert.ok(low.radius > 100 && low.density > 0 && low.collar > 100, 'all three parts remain visible');
+    assert.ok(low.steps < draw('HIGH').steps && low.stepTarget > draw('HIGH').stepTarget,
+        'LOW samples the same volume more coarsely');
+    assert.equal(low.lowDetail, 1, 'LOW uses the local-density sunlight approximation');
+    assert.equal(draw('HIGH').lowDetail, 0, 'HIGH restores full detail');
     disposeObject3DResources(gltf.scene);
 });
 

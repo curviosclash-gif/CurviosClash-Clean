@@ -95,8 +95,8 @@ export class RenderQualityController {
     }
 
     /**
-     * Effektive Stufe an der Szene hinterlegen. Effekte, die ihre eigene Sparfassung mitbringen
-     * (der Reaktor-Atompilz zeichnet auf LOW Karten statt Volumenrauch), lesen sie dort beim
+     * Effektive Stufe an der Szene hinterlegen. Effekte mit eigener Sparfassung
+     * (der Reaktor-Atompilz reduziert auf LOW die Volumen-Abtastung) lesen sie dort beim
      * Zeichnen, ohne dass entities den Renderer importieren muss.
      */
     _publishQuality() {
