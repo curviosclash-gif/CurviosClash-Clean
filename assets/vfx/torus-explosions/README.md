@@ -87,7 +87,16 @@ For optional deterministic game videos, set `REACTOR_VIDEO_DIR` to an external
 output directory when running `tests/reactor-torus.desktop.spec.js` through
 `scripts/run-playwright-targeted.mjs`. `REACTOR_VIDEO_VARIANT=1` selects one clip.
 These silent review clips compress 49 seconds into 16 seconds and require ffmpeg.
-A missing atlas leaves the existing mesh cloud visible. Smoke resources belong to
+A missing atlas leaves the existing mesh cloud visible.
+
+`src/entities/effects/ReactorFireballEffect.js` restyles the fireball at runtime
+without touching its hazard curve: it cools from white through yellow and orange
+to dull red, boils with drifting cells and a lumpy outline, and grows a soot
+crust. Its light is faked on purpose, as an additive ground glow and orange
+lighting of nearby smoke; a real light appearing with the hidden cloud would
+recompile every lit shader of the map at the moment of the breach. Smoke takes
+40% of the map fog as aerial perspective; full fog would swallow a cloud that
+towers above the fog distance. Smoke resources belong to
 the loaded scene and are released by the existing map disposal path.
 
 The effect is bounded to 512 cards and one draw call per visible cloud. A data
