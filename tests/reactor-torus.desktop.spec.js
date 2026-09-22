@@ -46,6 +46,9 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 if (sounds.includes('REACTOR_BREACH')) throw new Error('sound preceded pressure');
                 arena.setGlbAnimationElapsedSeconds(.28);
                 system.updateFeedback();
+                // Sound travels at 343 m/s; give it time to reach a camera across the map.
+                arena.setGlbAnimationElapsedSeconds(4);
+                system.updateFeedback();
             } finally {
                 manager.runtimeRng.int = oldInt;
                 manager.audio.play = oldPlay;
