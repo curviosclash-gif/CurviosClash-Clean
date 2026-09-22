@@ -57,13 +57,18 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             const flash = manager.particles.rocketBlastEffect.light?.intensity || 0;
             const slots = arena._glbScene.children.filter((slot) => String(slot.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
             const active = slots.filter((slot) => slot.visible);
+            const audio = manager.audio;
+            // World sound reaches the master through the hearing low-pass once audio is running.
+            const hearing = !audio?.ctx ? 'no-audio' : (audio._sfxGain && audio._hearing ? 'wired' : 'missing');
             return { selected: event.variantIndex, active: active.map((slot) => slot.userData.glbModelId),
-                sounds, flash, height: arena.currentMapDefinition.size[1] };
+                sounds, flash, hearing, height: arena.currentMapDefinition.size[1] };
         }, variant);
         expect(result.selected).toBe(variant);
         expect(result.active).toEqual([variant === 0 ? 'reactor-mushroom-cloud' : `reactor-mushroom-cloud-${variant + 1}`]);
         expect(result.sounds.filter((sound) => sound === 'REACTOR_BREACH')).toHaveLength(1);
         expect(result.flash).toBeGreaterThan(0);
+        expect(result.hearing).not.toBe('missing');
+        if (variant === 0) testInfo.annotations.push({ type: 'hearing', description: result.hearing });
         expect(result.height).toBe(286);
         if (process.env.REACTOR_VIDEO_DIR && (!process.env.REACTOR_VIDEO_VARIANT || Number(process.env.REACTOR_VIDEO_VARIANT) === variant + 1)) {
             await captureReactorVideo(page, variant, process.env.REACTOR_VIDEO_DIR);

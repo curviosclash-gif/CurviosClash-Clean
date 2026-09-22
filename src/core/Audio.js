@@ -8,6 +8,7 @@ import { normalizeAudioSettings } from '../shared/contracts/AudioSettingsContrac
 import { createExplosionChainState, playExplosionVoice, playRocketImpactVoice, resetExplosionChain, resolveExplosionEcho } from './audio/ExplosionVoice.js';
 import { MUSIC_STATES, ProceduralMusicDirector } from './audio/ProceduralMusicDirector.js';
 import { playGameplayVoice } from './audio/GameplayVoices.js';
+import { createHearingMuffle } from './audio/HearingMuffle.js';
 import {
     disposeMapAmbienceVoice,
     syncMapAmbienceVoice,
@@ -136,11 +137,10 @@ export class AudioManager {
             this._musicGain = this.ctx.createGain();
             this._uiGain = this.ctx.createGain();
             this._ambienceGain = this.ctx.createGain();
-            this._sfxGain.connect(this._masterGain);
-            this._engineGain.connect(this._masterGain);
+            // World sound passes the hearing low-pass; music and ui never go deaf.
+            this._hearing = createHearingMuffle(this.ctx, [this._sfxGain, this._engineGain, this._ambienceGain], this._masterGain);
             this._musicGain.connect(this._masterGain);
             this._uiGain.connect(this._masterGain);
-            this._ambienceGain.connect(this._masterGain);
             if (typeof this.ctx.createDynamicsCompressor === 'function') {
                 this._compressor = this.ctx.createDynamicsCompressor();
                 this._compressor.threshold.value = -12;
@@ -225,6 +225,11 @@ export class AudioManager {
 
     _sfxOut() {
         return this._sfxGain || this._masterGain || this.ctx.destination;
+    }
+
+    /** Close-blast deafness: world sound goes dull under a faint ring, then recovers. */
+    muffle(intensity, seconds) {
+        if (this.enabled) this._hearing?.trigger(intensity, seconds);
     }
 
     _musicOut() {
@@ -795,6 +800,7 @@ export class AudioManager {
         this._uiGain = null;
         this._ambienceGain = null;
         this._compressor = null;
+        this._hearing = null;
         this._outputNode = null;
         this._sampleLoadPromise = null;
         this._recordedMgIndex = 0;

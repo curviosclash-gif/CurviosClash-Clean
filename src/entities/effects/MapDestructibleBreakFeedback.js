@@ -123,6 +123,9 @@ export function advanceMapDestructiblePressureFeedback(owner, pending, elapsed) 
         else if (!Number.isFinite(distance) || distance <= front) {
             pending.heard = true;
             owner.audio?.play?.('REACTOR_BREACH', options);
+            // Within the pressure range the ears shut for a moment; the closer, the longer.
+            const closeness = Number.isFinite(distance) ? 1 - distance / (SHAKE_RANGE_AUTHORED * scale) : 0;
+            if (closeness > 0) owner.audio?.muffle?.(closeness, 1.5 + 1.5 * closeness);
         }
     }
     const waiting = shakeReachedCameras(owner, pending, front, expired);

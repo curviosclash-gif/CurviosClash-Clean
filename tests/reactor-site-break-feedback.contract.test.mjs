@@ -91,6 +91,32 @@ test('sound and pressure travel at the speed of sound to each camera', () => {
     assert.equal(calls.waves.filter((wave) => wave[1] === 'REACTOR_PRESSURE').length, 1);
 });
 
+test('a close listener goes briefly deaf on arrival; a distant one does not', () => {
+    const near = createFixture();
+    const muffles = [];
+    near.owner.audio.muffle = (...args) => muffles.push(args);
+    near.owner.renderer.cameras[0].position = { x: 200, y: 84, z: 0 };
+    emitMapDestructibleBreakFeedback(near.owner, { segmentId: 'reactor_dome', atSeconds: 0 });
+    near.owner.arena.glbAnimationElapsedSeconds = .28;
+    near.system.updateFeedback();
+    assert.equal(muffles.length, 0, 'not before the sound arrives');
+    near.owner.arena.glbAnimationElapsedSeconds = .4;
+    near.system.updateFeedback();
+    assert.equal(muffles.length, 1);
+    assert.ok(muffles[0][0] > .6 && muffles[0][0] <= 1, 'close means strong');
+    assert.ok(muffles[0][1] >= 1.5 && muffles[0][1] <= 3);
+
+    const far = createFixture();
+    const farMuffles = [];
+    far.owner.audio.muffle = (...args) => farMuffles.push(args);
+    far.owner.renderer.cameras[0].position = { x: 900, y: 84, z: 0 };
+    emitMapDestructibleBreakFeedback(far.owner, { segmentId: 'reactor_dome', atSeconds: 0 });
+    far.owner.arena.glbAnimationElapsedSeconds = 3;
+    far.system.updateFeedback();
+    assert.equal(far.calls.audio.length, 1);
+    assert.equal(farMuffles.length, 0, 'beyond the pressure range the ears stay clear');
+});
+
 test('a listener beyond the travel limit never waits forever', () => {
     const { calls, owner, system } = createFixture();
     owner.renderer.cameras[0].position = { x: 90000, y: 84, z: 0 };
