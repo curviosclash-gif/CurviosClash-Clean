@@ -9,6 +9,12 @@ const LIGHT_A_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-li
 const LIGHT_B_URL = new URL('../../../assets/vfx/torus-explosions/smoke/smoke-light-b.png', import.meta.url).href;
 const SKY_COLOR = new THREE.Color(0.62, 0.68, 0.75);
 export const MAX_SMOKE_CARDS = 512;
+// After the 49 s clip the cloud thins out on the match clock: circulation stops within a
+// minute, fine detail and most density go over four minutes, and a faint, wider rest stays.
+export const SMOKE_DISSOLVE_SECONDS = 240;
+export const SMOKE_RESIDUE = 0.15;
+const STREAM_FADE_SECONDS = 60;
+const DISSOLVE_SPREAD = 0.55;
 
 /** Deterministic 0..1 per card and channel: every client scatters the stem alike. */
 function scatter(index, channel) {
@@ -101,6 +107,9 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
         const time = Math.max(0, action.time);
         resolveSmokeSun(scene, material.uniforms.sunDirection.value, material.uniforms.sunColor.value, sunCache);
         const settle = Math.min(1, Math.max(0, (time - .18) / 1.4));
+        const after = Math.max(0, Number(root.userData.clipOverrunSeconds) || 0);
+        const dissolve = smoothRange(0, SMOKE_DISSOLVE_SECONDS, after);
+        const streamsLeft = 1 - smoothRange(0, STREAM_FADE_SECONDS, after);
         material.uniforms.heat.value = 1.5 * (1-smoothRange(28,44,time));
         material.uniforms.smokeTime.value = time;
         material.uniforms.fireGlow.value = fireballGlow(time);
@@ -168,6 +177,14 @@ export function createReactorSmoke(root, action, lightA, lightB = lightA) {
                 card.angle += Math.PI / 2;
             }
             card.opacity *= settle * (detail ? detailVisibility : 1);
+            if (dissolve > 0) {
+                if (card.flow) card.opacity *= streamsLeft;
+                else if (detail) card.opacity *= 1 - dissolve;
+                else {
+                    card.opacity *= 1 - (1 - SMOKE_RESIDUE) * dissolve;
+                    card.width *= 1 + DISSOLVE_SPREAD * dissolve; card.height *= 1 + DISSOLVE_SPREAD * dissolve;
+                }
+            }
             // Fit the soft lobe below the authored ceiling before shading, avoiding
             // a flat clipping plane at the top of the final mushroom cloud.
             const reach = .48 * Math.hypot(card.width, card.height);

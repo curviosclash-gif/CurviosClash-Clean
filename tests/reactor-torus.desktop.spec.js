@@ -170,6 +170,37 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
             await writeFile(testInfo.outputPath('smoke-sun-shading.json'), JSON.stringify(shading, null, 2));
             expect(shading.above.pixels).toBeGreaterThan(300);
             expect(shading.above.upper / shading.above.lower).toBeGreaterThan(shading.below.upper / shading.below.lower * 1.08);
+            // After the clip the cloud thins out on the match clock and a faint rest stays.
+            const dissolve = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const arena = game.arena;
+                const runtime = game.renderer;
+                const camera = runtime.cameras[0];
+                const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), far: camera.far };
+                const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+                const smoke = slot.getObjectByName('reactor-soft-smoke_nocol_noshadow');
+                camera.far = 5000; camera.updateProjectionMatrix();
+                camera.position.set(1050, 520, 1150); camera.lookAt(0, 490, 0); camera.updateMatrixWorld(true);
+                const result = {};
+                for (const seconds of [40, 49 + 120, 49 + 420]) {
+                    arena.setGlbAnimationElapsedSeconds(seconds); arena._glbAnimation.advance(0);
+                    runtime.renderer.setRenderTarget(null);
+                    runtime.renderer.render(runtime.scene, camera);
+                    result[seconds] = { cards: smoke.geometry.instanceCount, overrun: slot.userData.clipOverrunSeconds ?? slot.children[0]?.userData?.clipOverrunSeconds ?? null,
+                        png: runtime.renderer.domElement.toDataURL('image/png') };
+                }
+                camera.far = held.far; camera.updateProjectionMatrix();
+                camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
+                return result;
+            });
+            for (const [seconds, entry] of Object.entries(dissolve)) {
+                await writeFile(testInfo.outputPath(`dissolve-${seconds}s.png`), Buffer.from(entry.png.split(',')[1], 'base64'));
+                delete entry.png;
+            }
+            await writeFile(testInfo.outputPath('dissolve.json'), JSON.stringify(dissolve, null, 2));
+            expect(dissolve[169].cards).toBeLessThan(dissolve[40].cards);
+            expect(dissolve[469].cards).toBeLessThan(dissolve[169].cards);
+            expect(dissolve[469].cards).toBeGreaterThan(20);
             // A shader the GPU refuses to link fails silently in three.js; Chromium still says so.
             expect(glMessages.filter((text) => /INVALID_OPERATION|not valid/i.test(text))).toEqual([]);
             const b = flash.brightness;
