@@ -18,6 +18,7 @@ import {
     playRecordedAudioSample,
 } from './audio/RecordedAudioSamples.js';
 import { disposeEngineVoice, ensureEngineVoice, stopEngineVoice, updateEngineVoice } from './audio/EngineVoice.js';
+import { createAudioOutputGuard } from './audio/AudioOutputGuard.js';
 
 const logger = createLogger('AudioManager');
 const DEFAULT_COOLDOWN_MS = 50;
@@ -69,6 +70,7 @@ export class AudioManager {
         this._recordingDestinations = new Map();
         this._voiceReleaseTimers = new Set();
         this._sampleLoadPromise = null;
+        this._audioOutputGuard = createAudioOutputGuard();
         this._recordedMgIndex = 0;
         this.thirdPartyAudioNoticeUrl = AUDIO_THIRD_PARTY_NOTICE_URL;
 
@@ -130,6 +132,7 @@ export class AudioManager {
         if (!AudioContext) return;
         try {
             this.ctx = new AudioContext();
+            void this._audioOutputGuard.pin(this.ctx);
             this._masterGain = this.ctx.createGain();
             this._sfxGain = this.ctx.createGain();
             this._engineGain = this.ctx.createGain();
@@ -783,6 +786,7 @@ export class AudioManager {
         }
         this._removeInitListeners();
         this._removeAllWindowListeners();
+        this._audioOutputGuard?.dispose();
         this._onInitInteraction = null;
         if (this.ctx && typeof this.ctx.close === 'function') {
             this.ctx.close().catch(() => {});
@@ -797,6 +801,7 @@ export class AudioManager {
         this._compressor = null;
         this._outputNode = null;
         this._sampleLoadPromise = null;
+        this._audioOutputGuard = null;
         this._recordedMgIndex = 0;
         this.buffers = {};
         this._debugEvents = [];
