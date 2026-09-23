@@ -93,5 +93,7 @@ export function writePropertyFieldValue(editor, field, value) {
     const domKey = PROPERTY_FIELD_MAP[field];
     if (!domKey) return;
     const input = editor?.dom?.[domKey];
-    if (input) input.value = String(value ?? '');
+    if (input && globalThis.document?.activeElement !== input) {
+        input.value = String(value ?? '');
+    }
 }

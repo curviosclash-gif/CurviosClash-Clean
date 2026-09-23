@@ -17,10 +17,10 @@ const {
     toVehicleId,
 } = require('../electron/editor-vehicle-store.cjs');
 
-async function withStore(run) {
+async function withStore(run, options = {}) {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'curvios-vehicles-'));
     try {
-        await run(createEditorVehicleStore({ getVehiclesDirectory: () => directory }), directory);
+        await run(createEditorVehicleStore({ getVehiclesDirectory: () => directory, ...options }), directory);
     } finally {
         await rm(directory, { recursive: true, force: true });
     }
@@ -132,6 +132,29 @@ test('saving rejects payloads that are not usable vehicle configs', async () => 
         assert.equal(store.saveVehicle({ jsonText: '' }).error, 'empty_payload');
         assert.equal(store.saveVehicle({ jsonText: '{ kaputt' }).error, 'invalid_json');
         assert.equal(store.saveVehicle({ jsonText: `{"a":"${'x'.repeat(3 * 1024 * 1024)}"}` }).error, 'payload_too_large');
+    });
+});
+
+test('a failed atomic overwrite preserves the last readable vehicle file', async () => {
+    await withStore(async (store, directory) => {
+        assert.equal(store.saveVehicle({ jsonText: jsonFor('Alpha'), vehicleName: 'Alpha' }).ok, true);
+        const failingStore = createEditorVehicleStore({
+            getVehiclesDirectory: () => directory,
+            renameFile(source, target) {
+                if (source.endsWith('.tmp')) throw new Error('simulated publish failure');
+                return require('node:fs').renameSync(source, target);
+            },
+        });
+
+        const failed = failingStore.saveVehicle({
+            vehicleId: 'editor_vehicle_alpha',
+            vehicleName: 'Alpha',
+            jsonText: jsonFor('Replacement'),
+        });
+
+        assert.equal(failed.ok, false);
+        assert.equal(failingStore.getVehicle({ vehicleId: 'editor_vehicle_alpha' }).config.label, 'Alpha');
+        assert.deepEqual(await readdir(directory), ['editor_vehicle_alpha.vehicle.json']);
     });
 });
 

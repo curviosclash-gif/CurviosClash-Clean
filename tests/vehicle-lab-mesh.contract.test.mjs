@@ -43,6 +43,33 @@ test('pulse animation preserves non-uniform scale', () => {
     mesh.dispose();
 });
 
+test('animated transforms expose reversible offsets instead of accumulating authored values', () => {
+    const config = {
+        parts: [
+            { name: 'Rotate', geo: 'box', rot: [0, 10, 0], anim: { type: 'rotate', axis: 'y', speed: 2 } },
+            { name: 'Bob', geo: 'box', pos: [0, 3, 0], anim: { type: 'bob', speed: 1, amount: 1 } },
+            { name: 'Pulse', geo: 'box', scale: [2, 3, 4], anim: { type: 'pulse', speed: 1, amount: 1 } },
+        ],
+    };
+    const mesh = new ModularVehicleMesh(config);
+
+    mesh.tick(0.5, 2);
+    const firstRotation = mesh.children[0].rotation.y;
+    mesh.tick(0.5, 2);
+
+    assert.equal(mesh.children[0].rotation.y, firstRotation, 'same animation time must not accumulate rotation');
+    assert.equal(mesh.children[0].userData.vehicleLabAnimationState.rotationOffset[1], 4);
+    assert.equal(
+        Number((mesh.children[1].position.y - mesh.children[1].userData.vehicleLabAnimationState.positionYOffset).toFixed(8)),
+        3,
+    );
+    assert.deepEqual(
+        mesh.children[2].scale.toArray().map((value) => Number((value / mesh.children[2].userData.vehicleLabAnimationState.scaleFactor).toFixed(8))),
+        [2, 3, 4],
+    );
+    mesh.dispose();
+});
+
 test('zero-valued colors and animation settings remain effective', () => {
     const mesh = new ModularVehicleMesh({
         primaryColor: 0,

@@ -92,6 +92,7 @@ export function buildEditorMapDiskFiles({ jsonText, mapName, editorDocument = nu
             workspaceMetadata: authoring.workspaceMetadata,
             layerState: authoring.layerState,
             viewState: authoring.viewState,
+            playerSpawnPlaced: authoring.playerSpawnPlaced,
         });
     }
 

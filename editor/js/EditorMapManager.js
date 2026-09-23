@@ -39,6 +39,7 @@ export class EditorMapManager {
         this._pendingSceneRefresh = false;
         this.mapDocumentMeta = {};
         this.lastSchemaWarnings = [];
+        this.lastImportWarnings = [];
         this.authoringMetadataProvider = null;
         this._orientationForward = new THREE.Vector3();
 
@@ -312,6 +313,14 @@ export class EditorMapManager {
         const objectId = rootObject.userData?.id;
         const isTunnel = rootObject.userData?.type === 'tunnel';
 
+        if (rootObject.userData?.type === 'portal' && typeof objectId === 'string') {
+            const partnerId = String(rootObject.userData.portalPartnerId || '');
+            const partner = partnerId ? this.registry.getObjectById(partnerId) : null;
+            if (partner?.userData?.portalPartnerId === objectId) {
+                partner.userData.portalPartnerId = '';
+            }
+        }
+
         this.callbacks.onBeforeManagedObjectRemoved?.(rootObject);
 
         if (this.core.transformControl.object === rootObject) {
@@ -340,6 +349,7 @@ export class EditorMapManager {
             this.callbacks.onBeforeManagedObjectsCleared?.();
             this.mapDocumentMeta = {};
             this.lastSchemaWarnings = [];
+            this.lastImportWarnings = [];
 
             const objects = [...this.core.objectsContainer.children];
             for (const object of objects) {

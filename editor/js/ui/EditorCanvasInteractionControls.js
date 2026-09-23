@@ -150,6 +150,8 @@ export function bindEditorCanvasInteractionControls(editor) {
             editor.setSelectionOutline(editor.previewMesh, 0xffff00, 0.65);
         } else {
             editor.cancelHistoryGesture('draw');
+            editor.isDrawing = false;
+            editor.drawStartPos = null;
         }
     });
 

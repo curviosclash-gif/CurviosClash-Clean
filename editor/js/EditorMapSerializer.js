@@ -427,7 +427,7 @@ export function generateJSONExport(manager, arenaSize) {
         warnings.push('Escort-Route hat keinen Reparatur-Checkpoint.');
     }
     const normalizedPayload = createMapDocument(payload, { warnings });
-    storeSchemaWarnings(manager, warnings);
+    storeSchemaWarnings(manager, [...(manager.lastImportWarnings || []), ...warnings]);
     return JSON.stringify(normalizedPayload, null, 2);
 }
 
@@ -481,6 +481,7 @@ export function importFromJSON(manager, jsonString, options = {}) {
         }
 
         manager.clearAllObjects();
+        manager.lastImportWarnings = dedupeWarnings(parsed.warnings);
         storeSchemaWarnings(manager, parsed.warnings);
         manager.mapDocumentMeta = extractMapMetadata(data);
 
@@ -630,6 +631,7 @@ export function importFromJSON(manager, jsonString, options = {}) {
             warnings: dedupeWarnings(parsed.warnings),
         };
     } catch (e) {
+        manager.lastImportWarnings = [];
         storeSchemaWarnings(manager, []);
         console.error('[EditorMapManager] Map import failed:', e);
         throw e;
