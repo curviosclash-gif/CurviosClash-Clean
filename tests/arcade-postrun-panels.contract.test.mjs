@@ -11,7 +11,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { registerMapCatalogConfigSource } from '../src/shared/contracts/RuntimeMapCatalogContract.js';
-import { createArcadeIntermissionBlocks } from '../src/ui/arcade/postrun/ArcadePostRunBlocks.js';
+import {
+    createArcadeIntermissionBlocks,
+    createArcadeRunBlocks,
+} from '../src/ui/arcade/postrun/ArcadePostRunBlocks.js';
 
 // The label lookup reads the runtime map catalog, so the test registers a tiny one: "burg" has a
 // name, "geheimgang" is missing on purpose to prove the key survives as the fallback.
@@ -37,13 +40,30 @@ test('intermission score equation uses authoritative sector factor and mission b
     const scoreBlock = blocks.find((block) => block.id === 'arcade-intermission-breakdown');
     const values = Object.fromEntries(scoreBlock.rows.map((row) => [row.key, row.value]));
 
-    assert.equal(scoreBlock.title, 'So wurden die Punkte berechnet');
+    assert.equal(scoreBlock.title, 'Punkteberechnung');
     assert.equal(values['raw-subtotal'], 120);
     assert.equal(values['score-factor'], 1.333);
     assert.equal(values['factored-points'], 160);
     assert.equal(values['mission-bonus'], 75);
     assert.equal(values['scored-total'], 235);
     assert.equal(values.penalty, -1);
+    assert.equal(values.calculation, '120 × 1,33 + 75 = 235');
+    const overviewKeys = blocks.find((block) => block.id === 'arcade-intermission').rows.map((row) => row.key);
+    assert.deepEqual(overviewKeys, ['sector-score', 'sector-xp', 'missions']);
+});
+
+test('run score explanation reconciles the raw sum with all additional weighting', () => {
+    const blocks = createArcadeRunBlocks({
+        score: 1250,
+        breakdown: { base: 800, kills: 300, penalty: 50 },
+    });
+    const scoreBlock = blocks.find((block) => block.id === 'arcade-breakdown');
+    const values = Object.fromEntries(scoreBlock.rows.map((row) => [row.key, row.value]));
+
+    assert.equal(values['raw-subtotal'], 1050);
+    assert.equal(values['multiplier-bonus'], 200);
+    assert.equal(values.calculation, '1.050 + 200 = 1.250');
+    assert.equal(values['scored-total'], 1250);
 });
 
 // ---------------------------------------------------------------------------

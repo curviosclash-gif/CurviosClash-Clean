@@ -2679,6 +2679,36 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     text-align: right;
 }
 
+[data-stats-block-id$="breakdown"] [data-stats-row-key="penalty"] .message-stats-value {
+    color: #ff9aa8;
+}
+
+[data-stats-block-id$="breakdown"] [data-stats-row-key="raw-subtotal"] {
+    padding-top: 8px;
+    border-top: 1px solid rgba(110, 180, 255, 0.2);
+}
+
+[data-stats-block-id$="breakdown"] [data-stats-row-key="calculation"] {
+    margin-top: 4px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(110, 220, 160, 0.09);
+}
+
+[data-stats-block-id$="breakdown"] [data-stats-row-key="calculation"] .message-stats-value {
+    color: #caffda;
+}
+
+[data-stats-block-id$="breakdown"] [data-stats-row-key="scored-total"] {
+    padding-top: 8px;
+    border-top: 1px solid rgba(156, 247, 168, 0.34);
+}
+
+[data-stats-block-id$="breakdown"] [data-stats-row-key="scored-total"] :is(.message-stats-label, .message-stats-value) {
+    color: #dfffe5;
+    font-weight: 800;
+}
+
 /* P4 base look for the standings table and the folded detail section; P5 does the real styling. */
 .message-stats-standings,
 .message-stats-details { grid-column: 1 / -1; }
@@ -2812,6 +2842,36 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
 
 #arcade-score-hud .arcade-score-hud-score {
     color: var(--hud-color, #9cf7a8) !important;
+}
+
+#arcade-score-hud .arcade-score-hud-breakdown-title,
+#arcade-score-hud .arcade-score-hud-breakdown-equation {
+    grid-column: 1 / -1;
+}
+
+#arcade-score-hud .arcade-score-hud-breakdown-title {
+    padding-top: 5px;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    color: var(--hud-text, #e8f4ff);
+    font-size: 0.69rem;
+}
+
+#arcade-score-hud .arcade-score-hud-breakdown-row.is-derived {
+    grid-column: 1 / -1;
+}
+
+#arcade-score-hud .arcade-score-hud-breakdown-row.is-total {
+    padding-top: 4px;
+    border-top: 1px solid rgba(156, 247, 168, 0.32);
+}
+
+#arcade-score-hud .arcade-score-hud-breakdown-equation {
+    padding: 5px 6px;
+    border-radius: 5px;
+    background: rgba(156, 247, 168, 0.08);
+    color: #dfffe5;
+    font-weight: 700;
+    text-align: center;
 }
 
 #arcade-mission-hud {

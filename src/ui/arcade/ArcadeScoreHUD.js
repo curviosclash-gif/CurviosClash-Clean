@@ -11,15 +11,19 @@ const BREAKDOWN_ENTRIES = Object.freeze(Object.entries(ARCADE_SCORE_LABELS)
     .map(([key, label]) => Object.freeze({ key, label, sign: key === 'penalty' ? '−' : '+', hideWhenZero: true })));
 const DERIVED_BREAKDOWN_ENTRIES = Object.freeze([
     Object.freeze({ key: 'rawSubtotal', label: 'Zwischensumme', sign: '=' }),
-    Object.freeze({ key: 'factor', label: 'Faktor', format: 'factor' }),
-    Object.freeze({ key: 'factoredPoints', label: 'Nach Faktoren', sign: '=' }),
-    Object.freeze({ key: 'missionBonus', label: 'Missionsbonus', sign: '+', hideWhenZero: true }),
+    Object.freeze({ key: 'factor', label: 'Gesamtfaktor', format: 'factor', scope: 'sector' }),
+    Object.freeze({ key: 'factoredPoints', label: 'Nach Gesamtfaktor', sign: '=', scope: 'sector' }),
+    Object.freeze({ key: 'missionBonus', label: 'Missionsbonus', sign: '+', hideWhenZero: true, scope: 'sector' }),
+    Object.freeze({ key: 'multiplierBonus', label: 'Faktoren & Boni', sign: '+', hideWhenZero: true, scope: 'aggregate' }),
     Object.freeze({ key: 'scoredTotal', label: 'Gewertete Punkte', sign: '=' }),
 ]);
 const PRESENTATION_BREAKDOWN_ENTRIES = Object.freeze([
     ...BREAKDOWN_ENTRIES,
     ...DERIVED_BREAKDOWN_ENTRIES,
 ]);
+const INTEGER_FORMATTER = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+const ONE_DECIMAL_FORMATTER = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const FACTOR_FORMATTER = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function createElement(tag, className, textContent = '') {
     const el = document.createElement(tag);
@@ -34,11 +38,11 @@ function toSafeNumber(value, fallback = 0) {
 }
 
 function formatRounded(value) {
-    return `${Math.round(Math.max(0, toSafeNumber(value, 0)))}`;
+    return INTEGER_FORMATTER.format(Math.round(Math.max(0, toSafeNumber(value, 0))));
 }
 
 function formatMultiplier(value) {
-    return `x${Math.max(1, toSafeNumber(value, 1)).toFixed(1)}`;
+    return `×${ONE_DECIMAL_FORMATTER.format(Math.max(1, toSafeNumber(value, 1)))}`;
 }
 
 function formatBreakdownValue(value, sign = '+') {
@@ -46,12 +50,20 @@ function formatBreakdownValue(value, sign = '+') {
     if (numeric <= 0) {
         return `${sign}0`;
     }
-    return `${sign}${numeric}`;
+    return `${sign}${INTEGER_FORMATTER.format(numeric)}`;
 }
 
 function formatPresentationValue(entry, value) {
-    if (entry.format === 'factor') return `×${Math.max(0, toSafeNumber(value, 1)).toFixed(2)}`;
+    if (entry.format === 'factor') return `×${FACTOR_FORMATTER.format(Math.max(0, toSafeNumber(value, 1)))}`;
     return formatBreakdownValue(value, entry.sign);
+}
+
+function formatScoreEquation(presentation, sectorScore) {
+    const start = formatRounded(presentation.rawSubtotal);
+    const total = formatRounded(presentation.scoredTotal);
+    if (!sectorScore) return `${start} + ${formatRounded(presentation.multiplierBonus)} = ${total}`;
+    const factor = FACTOR_FORMATTER.format(Math.max(0, toSafeNumber(presentation.factor, 1)));
+    return `${start} × ${factor} + ${formatRounded(presentation.missionBonus)} = ${total}`;
 }
 
 function setNodeText(node, text) {
@@ -76,6 +88,8 @@ export class ArcadeScoreHUD {
         this._breakdownValueByKey = new Map();
         this._breakdownRowByKey = new Map();
         this._breakdownWrap = null;
+        this._breakdownTitle = null;
+        this._breakdownEquation = null;
         this._scoreValue = null;
         this._scoreLabel = null;
         this._comboValue = null;
@@ -152,9 +166,17 @@ export class ArcadeScoreHUD {
         const breakdown = createElement('div', 'arcade-score-hud-breakdown');
         breakdown.style.cssText = 'display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;font-size:11px;';
         this._breakdownWrap = breakdown;
+        this._breakdownTitle = createElement('strong', 'arcade-score-hud-breakdown-title', 'Punkteberechnung');
+        breakdown.appendChild(this._breakdownTitle);
         for (let i = 0; i < PRESENTATION_BREAKDOWN_ENTRIES.length; i += 1) {
             const entry = PRESENTATION_BREAKDOWN_ENTRIES[i];
-            const row = createElement('div', 'arcade-score-hud-breakdown-row');
+            if (entry.key === 'scoredTotal') {
+                this._breakdownEquation = createElement('div', 'arcade-score-hud-breakdown-equation', '0 + 0 = 0');
+                breakdown.appendChild(this._breakdownEquation);
+            }
+            const derived = DERIVED_BREAKDOWN_ENTRIES.includes(entry) ? ' is-derived' : '';
+            const total = entry.key === 'scoredTotal' ? ' is-total' : '';
+            const row = createElement('div', `arcade-score-hud-breakdown-row${derived}${total}`);
             row.style.cssText = 'display:flex;justify-content:space-between;gap:6px;';
             const label = createElement('span', 'arcade-score-hud-breakdown-label', entry.label);
             label.style.cssText = 'color:#9eb8cf;';
@@ -258,7 +280,7 @@ export class ArcadeScoreHUD {
         const isArenaWaves = String(hudState.runType || '') === 'arena_waves';
         const isFivePortals = String(hudState.runType || '') === 'five_portals';
         const isWeaponRace = String(hudState.runType || '') === 'weapon_race';
-        setNodeText(this._scoreLabel, isFivePortals ? 'Map-Zeit' : (isWeaponRace ? 'Waffenrennen' : 'Score'));
+        setNodeText(this._scoreLabel, isFivePortals ? 'Map-Zeit' : (isWeaponRace ? 'Waffenrennen' : 'Punkte'));
         if (isWeaponRace) {
             if (this._metricLine) this._metricLine.style.display = 'none';
             this._endlessSection?.hide();
@@ -332,6 +354,7 @@ export class ArcadeScoreHUD {
                 missionBonus: 0,
             };
         const presentationBreakdown = { ...breakdown, ...scorePresentation };
+        const presentationScope = lastSectorScore ? 'sector' : 'aggregate';
         const nowMs = Math.max(0, toSafeNumber(hudState.nowMs, Date.now()));
         const comboWindowMs = Math.max(800, toSafeNumber(hudState.comboWindowMs, 5000));
         const combo = Math.max(0, Math.round(toSafeNumber(score.combo, 0)));
@@ -341,7 +364,7 @@ export class ArcadeScoreHUD {
         const phase = String(hudState.phase || '');
         const sectorIndex = Math.max(0, Math.floor(toSafeNumber(hudState.sectorIndex, 0)));
         const totalScore = Math.max(0, Math.round(toSafeNumber(score.total, 0)));
-        setNodeText(this._scoreValue, `${totalScore}`);
+        setNodeText(this._scoreValue, formatRounded(totalScore));
         setNodeText(this._comboValue, formatRounded(combo));
         setNodeText(this._multiplierValue, formatMultiplier(score.multiplier));
         setNodeText(this._sectorValue, `${sectorIndex}`);
@@ -352,8 +375,12 @@ export class ArcadeScoreHUD {
             const value = presentationBreakdown[entry.key];
             setNodeText(valueNode, formatPresentationValue(entry, value));
             const rowNode = this._breakdownRowByKey.get(entry.key);
-            if (rowNode) rowNode.style.display = entry.hideWhenZero && Math.max(0, toSafeNumber(value, 0)) <= 0 ? 'none' : 'flex';
+            const hiddenByScope = entry.scope && entry.scope !== presentationScope;
+            const hiddenByValue = entry.hideWhenZero && Math.max(0, toSafeNumber(value, 0)) <= 0;
+            if (rowNode) rowNode.style.display = hiddenByScope || hiddenByValue ? 'none' : 'flex';
         }
+        setNodeText(this._breakdownTitle, lastSectorScore ? 'Punkteberechnung · letzter Sektor' : 'Punkteberechnung · bisheriger Run');
+        setNodeText(this._breakdownEquation, formatScoreEquation(scorePresentation, !!lastSectorScore));
 
         if (this._comboDecayValue) {
             this._comboDecayValue.style.transform = `scaleX(${decayRatio.toFixed(3)})`;
@@ -414,6 +441,8 @@ export class ArcadeScoreHUD {
         this._breakdownValueByKey.clear();
         this._breakdownRowByKey.clear();
         this._breakdownWrap = null;
+        this._breakdownTitle = null;
+        this._breakdownEquation = null;
         this._container = null;
         this._scoreValue = null;
         this._comboValue = null;
