@@ -49,6 +49,10 @@ function resolvePlaywrightWarmupClientFiles(env = process.env) {
 function resolveRendererManualChunk(id, env = process.env) {
     if (!id) return undefined;
     const normalizedId = id.replace(/\\/g, '/');
+    if (normalizedId.includes('/node_modules/mp4-muxer/') ||
+        normalizedId.endsWith('/core/recording/engines/WebCodecsRecorderEngine.js')) {
+        return 'recording-webcodecs';
+    }
     if (id.includes('node_modules/three/examples/jsm/loaders/OBJLoader.js') ||
         id.includes('node_modules/three/examples/jsm/loaders/MTLLoader.js')) {
         return 'three-loaders';
@@ -57,8 +61,7 @@ function resolveRendererManualChunk(id, env = process.env) {
         return 'three-core';
     }
 
-    if (normalizedId.includes('/node_modules/mp4-muxer/') ||
-        normalizedId.includes('/core/recording/') ||
+    if (normalizedId.includes('/core/recording/') ||
         normalizedId.endsWith('/core/MediaRecorderSystem.js') ||
         normalizedId.endsWith('/core/renderer/RecordingCapturePipeline.js') ||
         normalizedId.endsWith('/core/renderer/camera/RecordingOrbitCameraDirector.js')) {

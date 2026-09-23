@@ -218,8 +218,18 @@ function readMenuDefaultsOverrideSnapshot() {
 
 let cachedLocalMapsSnapshot = null;
 
-// Die Kartenliste des Spiels entsteht beim Laden der Module, also bevor ein
-// asynchroner Aufruf zurueck waere. Deshalb einmal synchron fragen und merken.
+// Beginne den Dateizugriff parallel zum Renderer-Bootstrap. Falls die Kartenmodule
+// schneller laden als der Hauptprozess antwortet, bleibt der synchrone Kanal als
+// kompatibler Fallback erhalten.
+ipcRenderer.invoke('local-maps:read').then((snapshot) => {
+    if (cachedLocalMapsSnapshot === null
+        && snapshot?.ok === true
+        && snapshot.maps
+        && typeof snapshot.maps === 'object') {
+        cachedLocalMapsSnapshot = snapshot.maps;
+    }
+}).catch(() => {});
+
 function readLocalMapsSnapshot() {
     if (cachedLocalMapsSnapshot !== null) return cachedLocalMapsSnapshot;
     let maps = {};

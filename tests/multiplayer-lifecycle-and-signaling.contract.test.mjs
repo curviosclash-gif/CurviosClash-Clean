@@ -7,6 +7,7 @@ import { OnlineSessionAdapter } from '../src/network/OnlineSessionAdapter.js';
 import { LANSessionAdapter } from '../src/network/LANSessionAdapter.js';
 import { routeOnlineSessionSignalingMessage } from '../src/network/OnlineSessionSignalingRouter.js';
 import { DataChannelManager } from '../src/network/DataChannelManager.js';
+import { StateReconciler } from '../src/network/StateReconciler.js';
 import { PeerConnectionManager } from '../src/network/PeerConnectionManager.js';
 import { SessionAdapterBase } from '../src/network/SessionAdapterBase.js';
 import { attachMultiplayerLifecycleKernel, detachMultiplayerLifecycleKernel } from '../src/core/runtime/MultiplayerMatchLifecycleKernel.js';
@@ -454,6 +455,30 @@ test('DataChannelManager preserves lifecycle messages under backpressure', () =>
     assert.equal(manager.send('peer-1', 'state', { type: 'full_state_sync' }), true);
     assert.deepEqual(sent.map((message) => message.type), ['full_state_sync']);
     manager.dispose();
+});
+
+test('StateReconciler reuses an index while preserving first-player matching', () => {
+    const reconciler = new StateReconciler();
+    const first = { index: 7, score: 0 };
+    const duplicate = { index: 7, score: 1 };
+    const scratchIndex = reconciler._localPlayersByIndex;
+
+    reconciler.receiveServerState({ state: { players: [{ index: 7, score: 42 }] } });
+    reconciler.reconcile([first, duplicate], {});
+
+    assert.equal(first.score, 42);
+    assert.equal(duplicate.score, 1);
+    assert.equal(reconciler._localPlayersByIndex, scratchIndex);
+
+    reconciler.receiveServerState({ state: { players: [{ index: 8, score: 9 }] } });
+    reconciler.reconcile([{ index: 8, score: 0 }], {});
+    assert.equal(scratchIndex.has(7), false);
+    assert.equal(scratchIndex.get(8)?.score, 9);
+
+    const invalid = { index: Number.NaN, score: 3 };
+    reconciler.receiveServerState({ state: { players: [{ index: Number.NaN, score: 99 }] } });
+    reconciler.reconcile([invalid], {});
+    assert.equal(invalid.score, 3);
 });
 
 test('network reconnect completes once after the reliable state channel opens', async () => {

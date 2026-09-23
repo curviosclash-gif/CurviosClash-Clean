@@ -43,6 +43,8 @@ const SCENARIO_FILTER = String(process.env.PERF_RUCKLER_SCENARIOS || '')
     .map((entry) => entry.trim().toUpperCase())
     .filter((entry) => entry.length > 0);
 const PERF_RUN_TAG = String(process.env.PW_RUN_TAG || `perf-jitter-${process.pid}`);
+const ENFORCE_ACCEPTANCE = process.argv.includes('--enforce')
+    || String(process.env.PERF_JITTER_ENFORCE || '').trim() === '1';
 
 function parsePositiveInt(rawValue, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
     const numeric = Number.parseInt(String(rawValue || ''), 10);
@@ -716,6 +718,9 @@ async function run() {
         await writeFile(OUTPUT_PATH, JSON.stringify(report, null, 2), 'utf8');
         console.log(`\n[perf-jitter] wrote ${OUTPUT_PATH}`);
         console.log(JSON.stringify(summary, null, 2));
+        if (ENFORCE_ACCEPTANCE && !summary.benchmarkPass) {
+            throw new Error('Performance jitter acceptance targets were not met');
+        }
     } finally {
         try {
             await context?.close();

@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { WebCodecsRecorderEngine } from './recording/engines/WebCodecsRecorderEngine.js';
 import { NativeMediaRecorderEngine } from './recording/engines/NativeMediaRecorderEngine.js';
 import {
     MATCH_LIFECYCLE_CONTRACT_VERSION,
@@ -1012,6 +1011,12 @@ export class MediaRecorderSystem {
         return 5_000_000;
     }
     async _startWithWebCodecs(trigger, support) {
+        let WebCodecsRecorderEngine = null;
+        try {
+            ({ WebCodecsRecorderEngine } = await import('./recording/engines/WebCodecsRecorderEngine.js'));
+        } catch (error) {
+            return this._buildStartResult(false, 'webcodecs_engine_load_failed', { error, support });
+        }
         const targetCaptureFps = this._resolveRecordingTargetFps();
         const { width, height } = this._resolveRecordingDimensions();
         const bitrate = this._resolveRecordingBitrate(width, height);

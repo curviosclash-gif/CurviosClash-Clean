@@ -103,6 +103,28 @@ test('V74.3 current match session refs include arena for replacement disposal', 
     });
 });
 
+test('GameRuntimeFacade cancels a pending match prewarm during disposal', async () => {
+    let prewarmFired = false;
+    const facade = Object.create(GameRuntimeFacade.prototype);
+    Object.assign(facade, {
+        runtime: {},
+        runtimeBundle: null,
+        _disposePromise: null,
+        _disposed: false,
+        _arcadeSupport: null,
+        settingsHandler: null,
+        sessionHandler: { dispose: async () => true },
+        menuMultiplayerBridge: null,
+        _pendingRuntimeSessionTeardown: null,
+        _matchPrewarmTimer: setTimeout(() => { prewarmFired = true; }, 20),
+    });
+
+    await facade.dispose();
+    assert.equal(facade._matchPrewarmTimer, null);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.equal(prewarmFired, false);
+});
+
 test('V74.3 GameRuntimeFacade suppresses menu cleanup when shutdown reuses pending finalize flow', async () => {
     const callLog = [];
     let resolveFinalize = null;

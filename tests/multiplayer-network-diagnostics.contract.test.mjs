@@ -31,17 +31,18 @@ test('data-channel metrics count actual recipients, UTF-8 bytes, drops, errors, 
     manager._channels.set('two:snapshots', second);
     manager._channels.set('three:snapshots', pressured);
     manager._channels.set('four:snapshots', failed);
-    manager.sendToAll('snapshots', { type: 'snapshot', label: 'Grüße' });
+    manager.sendToAll('snapshots', { type: 'snapshot', label: 'Grüße 🚀' });
 
     const metrics = manager.getMetrics();
     const expectedBytes = new TextEncoder().encode(first.sent[0]).byteLength;
+    assert.equal(first.sent[0], JSON.stringify({ type: 'snapshot', label: 'Grüße 🚀' }));
     assert.equal(metrics.channels.snapshots.txMessages, 2);
     assert.equal(metrics.channels.snapshots.txBytes, expectedBytes * 2);
     assert.equal(metrics.channels.snapshots.backpressureDrops, 1);
     assert.equal(metrics.channels.snapshots.sendErrors, 1);
     assert.equal(metrics.channels.snapshots.bufferedBytes, 20);
 
-    first.onmessage({ data: JSON.stringify({ type: 'pong', label: 'Grüße' }) });
+    first.onmessage({ data: JSON.stringify({ type: 'pong', label: 'Grüße 🚀' }) });
     const afterReceive = manager.getMetrics();
     assert.equal(afterReceive.channels.snapshots.rxMessages, 1);
     assert.ok(afterReceive.channels.snapshots.rxBytes > 0);

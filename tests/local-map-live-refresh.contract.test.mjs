@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import Module, { createRequire } from 'node:module';
 import { test } from 'node:test';
 
@@ -16,13 +17,13 @@ function desktopMap(name, extra = {}) {
  * Laedt das echte Preload-Skript mit einer nachgebauten Electron-Bruecke und
  * liefert, was es dem Fenster anbietet, samt Zaehler fuer den Lesekanal.
  */
-function loadPreload(readMaps) {
+function loadPreload(readMaps, { asyncSnapshot = null } = {}) {
     const exposed = {};
     const syncCalls = [];
     const electronStub = {
         contextBridge: { exposeInMainWorld: (name, value) => { exposed[name] = value; } },
         ipcRenderer: {
-            invoke: () => Promise.resolve(null),
+            invoke: (channel) => Promise.resolve(channel === 'local-maps:read' ? asyncSnapshot : null),
             send: () => {},
             on: () => {},
             removeListener: () => {},
@@ -46,6 +47,37 @@ function loadPreload(readMaps) {
     }
     return { localMaps: exposed.curviosApp.contracts.localMaps, syncCalls };
 }
+
+test('the preload uses an asynchronous local-map snapshot before the sync fallback', async () => {
+    const asyncMaps = { editor_async: desktopMap('Async') };
+    const { localMaps, syncCalls } = loadPreload(
+        () => ({ editor_sync: desktopMap('Sync') }),
+        { asyncSnapshot: { ok: true, maps: asyncMaps } },
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(localMaps.getSnapshot(), asyncMaps);
+    assert.deepEqual(syncCalls, []);
+});
+
+test('a late startup snapshot cannot replace the synchronous fallback', async () => {
+    const syncMaps = { editor_current: desktopMap('Current') };
+    const { localMaps, syncCalls } = loadPreload(
+        () => syncMaps,
+        { asyncSnapshot: { ok: true, maps: { editor_stale: desktopMap('Stale') } } },
+    );
+
+    assert.deepEqual(localMaps.getSnapshot(), syncMaps);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(localMaps.getSnapshot(), syncMaps);
+    assert.deepEqual(syncCalls, ['local-maps:read-sync']);
+});
+
+test('the Electron main process exposes the asynchronous local-map read only to the game window', () => {
+    const source = readFileSync('electron/main.cjs', 'utf8');
+    assert.match(source, /ipcMain\.handle\('local-maps:read',\s*withTrustedMainWindowSender/);
+    assert.match(source, /ipcMain\.on\('local-maps:read-sync'/);
+});
 
 test('the preload re-reads the saved maps on refresh over the existing sync channel', () => {
     let stored = { editor_a: desktopMap('A') };

@@ -81,6 +81,7 @@
     "benchmark:baseline": "node dev/training/scripts/bot-benchmark-baseline.mjs",
     "benchmark:lifecycle": "node scripts/perf-lifecycle-measure.mjs",
     "benchmark:jitter": "node scripts/perf-jitter-matrix.mjs",
+    "benchmark:jitter:gate": "node scripts/perf-jitter-matrix.mjs --enforce",
     "council:check": "node scripts/check-council-config.mjs",
     "council:test": "node --test tests/council-runner.contract.test.mjs tests/council-hardening-runner.contract.test.mjs tests/council-benchmark.contract.test.mjs tests/council-test-loop/fixture-behavior.test.mjs",
     "council:agent": "node scripts/council-hardening-runner.mjs agent",

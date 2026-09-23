@@ -176,6 +176,7 @@ export class StateReconciler {
             velocity: Math.max(0, toFiniteNumber(options.velocitySnapThreshold, 8)),
         };
         this._lastStateUpdate = null;
+        this._localPlayersByIndex = new Map();
     }
 
     receiveServerState(serverState) {
@@ -191,8 +192,17 @@ export class StateReconciler {
         const serverPlayers = this._lastStateUpdate?.state?.players;
         if (!Array.isArray(localPlayers) || !serverPlayers) return;
 
+        this._localPlayersByIndex.clear();
+        for (const player of localPlayers) {
+            const playerIndex = player?.index;
+            // Map treats NaN as equal to itself, while the previous strict-equality lookup did not.
+            if (!Number.isNaN(playerIndex) && !this._localPlayersByIndex.has(playerIndex)) {
+                this._localPlayersByIndex.set(playerIndex, player);
+            }
+        }
+
         for (const serverPlayer of serverPlayers) {
-            const localPlayer = localPlayers.find((player) => player.index === serverPlayer.index);
+            const localPlayer = this._localPlayersByIndex.get(serverPlayer.index);
             if (!localPlayer) continue;
 
             this._reconcilePosition(localPlayer, serverPlayer);

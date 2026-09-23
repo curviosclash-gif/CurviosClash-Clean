@@ -39,6 +39,22 @@ test('game Electron preload drops the saved-map reader together with its main ch
     assert.match(gamePreload, /hangar: hangarContract,/);
 });
 
+test('WebCodecs and the MP4 muxer stay in a lazy recording chunk', async () => {
+    if (isExportedRepository) return;
+    const { createRendererShellBuildConfig } = await import('../dev/vite/rendererShellConfig.js');
+    const config = createRendererShellBuildConfig({ rootDir: process.cwd(), chunkSizeWarningLimit: 1 });
+    const manualChunks = config.rollupOptions.output.manualChunks;
+    assert.equal(manualChunks('C:/repo/node_modules/mp4-muxer/build/mp4-muxer.mjs'), 'recording-webcodecs');
+    assert.equal(
+        manualChunks('C:/repo/src/core/recording/engines/WebCodecsRecorderEngine.js'),
+        'recording-webcodecs',
+    );
+    const recorderSource = readFileSync('src/core/MediaRecorderSystem.js', 'utf8');
+    assert.match(recorderSource, /await import\('\.\/recording\/engines\/WebCodecsRecorderEngine\.js'\)/);
+    assert.match(recorderSource, /webcodecs_engine_load_failed/);
+    assert.doesNotMatch(recorderSource, /^import \{ WebCodecsRecorderEngine \}/m);
+});
+
 test('game menu bindings route developer telemetry to the distribution adapter', async () => {
     const source = readFileSync('src/ui/menu/MenuDevPanelBindings.js', 'utf8');
     const gameBindings = isExportedRepository

@@ -24,20 +24,17 @@ const PRIORITY_STATE_MESSAGE_TYPES = new Set([
 ]);
 
 const MAX_DATA_CHANNEL_MESSAGE_CHARS = 128 * 1024;
+const UTF8_ENCODER = new TextEncoder();
+let utf8Scratch = new Uint8Array(1024);
 
 function utf8ByteLength(value) {
-    let bytes = 0;
-    for (let index = 0; index < value.length; index += 1) {
-        const code = value.charCodeAt(index);
-        if (code < 0x80) bytes += 1;
-        else if (code < 0x800) bytes += 2;
-        else if (code >= 0xD800 && code <= 0xDBFF
-            && value.charCodeAt(index + 1) >= 0xDC00 && value.charCodeAt(index + 1) <= 0xDFFF) {
-            bytes += 4;
-            index += 1;
-        } else bytes += 3;
+    const requiredCapacity = Math.max(1, value.length * 3);
+    if (utf8Scratch.byteLength < requiredCapacity) {
+        let nextCapacity = utf8Scratch.byteLength;
+        while (nextCapacity < requiredCapacity) nextCapacity *= 2;
+        utf8Scratch = new Uint8Array(nextCapacity);
     }
-    return bytes;
+    return UTF8_ENCODER.encodeInto(value, utf8Scratch).written;
 }
 
 function createTrafficMetrics() {
