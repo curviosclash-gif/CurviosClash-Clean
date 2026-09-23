@@ -4677,6 +4677,20 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     line-height: 1.35;
 }
 
+.arcade-local-leaderboard-list {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding-left: 1.6rem;
+    color: #f5e1c5;
+    font-size: 0.76rem;
+    line-height: 1.35;
+}
+
+.arcade-local-leaderboard-list:empty {
+    display: none;
+}
+
 .arcade-surface-actions {
     display: grid;
     gap: 6px;

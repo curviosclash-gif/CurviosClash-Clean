@@ -2,6 +2,7 @@
 
 export const LEADERBOARD_STORAGE_KEY = 'cuviosclash.parcours-leaderboard.v1';
 const MAX_ENTRIES_PER_ROUTE = 10;
+const MAX_SEGMENT_SPLITS = 256;
 
 function isPersistenceSuccess(result) {
     return result === undefined || result === true || result?.success === true;
@@ -18,25 +19,51 @@ function warnPersistenceFailure(contextLabel, result) {
     });
 }
 
-function toSafeMs(value) {
-    const n = Math.round(Number(value) || 0);
-    return Number.isFinite(n) && n >= 0 ? n : 0;
+function toNonNegativeMs(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric >= 0 ? Math.round(numeric) : 0;
 }
 
-export function createLeaderboardEntry({
-    totalTimeMs = 0,
-    penaltyTimeMs = 0,
-    segmentSplitsMs = [],
-    vehicleId = '',
-    date = '',
-    ghostClip = null,
-} = {}) {
+function toPositiveMs(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : 0;
+}
+
+function normalizeDate(value, fallbackToNow = true) {
+    if (typeof value === 'string' && value.trim() && Number.isFinite(Date.parse(value))) {
+        return value;
+    }
+    return fallbackToNow ? new Date().toISOString() : '';
+}
+
+function compareLeaderboardEntries(left, right) {
+    const timeDelta = left.totalTimeMs - right.totalTimeMs;
+    if (timeDelta !== 0) return timeDelta;
+    const leftDate = Date.parse(left.date);
+    const rightDate = Date.parse(right.date);
+    return Number.isFinite(leftDate) && Number.isFinite(rightDate) ? leftDate - rightDate : 0;
+}
+
+export function createLeaderboardEntry(source = {}, { fallbackDate = true } = {}) {
+    const input = source && typeof source === 'object' ? source : {};
+    const {
+        totalTimeMs = 0,
+        penaltyTimeMs = 0,
+        segmentSplitsMs = [],
+        vehicleId = '',
+        date = '',
+        ghostClip = null,
+    } = input;
+    const normalizedTotalTimeMs = toPositiveMs(totalTimeMs);
+    if (normalizedTotalTimeMs <= 0) return null;
     return {
-        totalTimeMs: toSafeMs(totalTimeMs),
-        penaltyTimeMs: toSafeMs(penaltyTimeMs),
-        segmentSplitsMs: Array.isArray(segmentSplitsMs) ? segmentSplitsMs.map(toSafeMs) : [],
+        totalTimeMs: normalizedTotalTimeMs,
+        penaltyTimeMs: toNonNegativeMs(penaltyTimeMs),
+        segmentSplitsMs: Array.isArray(segmentSplitsMs)
+            ? segmentSplitsMs.slice(0, MAX_SEGMENT_SPLITS).map(toNonNegativeMs)
+            : [],
         vehicleId: String(vehicleId || ''),
-        date: typeof date === 'string' && date ? date : new Date().toISOString(),
+        date: normalizeDate(date, fallbackDate),
         ghostClip: ghostClip && typeof ghostClip === 'object' ? ghostClip : null,
     };
 }
@@ -47,7 +74,13 @@ function normalizeLeaderboard(raw) {
     for (const routeId of Object.keys(raw)) {
         const entries = raw[routeId];
         if (!Array.isArray(entries)) continue;
-        result[routeId] = entries.slice(0, MAX_ENTRIES_PER_ROUTE).map((e) => createLeaderboardEntry(e));
+        const normalizedRouteId = String(routeId || '').trim();
+        if (!normalizedRouteId) continue;
+        result[normalizedRouteId] = entries
+            .map((entry) => createLeaderboardEntry(entry, { fallbackDate: false }))
+            .filter(Boolean)
+            .sort(compareLeaderboardEntries)
+            .slice(0, MAX_ENTRIES_PER_ROUTE);
     }
     return result;
 }
@@ -60,20 +93,24 @@ export function loadLeaderboard(store) {
 
 export function saveLeaderboard(store, lb) {
     if (!store || typeof store.saveJsonRecord !== 'function') return false;
-    const saveResult = store.saveJsonRecord(LEADERBOARD_STORAGE_KEY, lb || {});
+    const saveResult = store.saveJsonRecord(LEADERBOARD_STORAGE_KEY, normalizeLeaderboard(lb));
     warnPersistenceFailure('saveLeaderboard', saveResult);
     return saveResult;
 }
 
 export function insertLeaderboardEntry(lb, routeId, entry) {
-    if (!routeId || typeof routeId !== 'string') return lb || {};
+    const normalizedRouteId = typeof routeId === 'string' ? routeId.trim() : '';
+    if (!normalizedRouteId) return lb || {};
     const safe = createLeaderboardEntry(entry);
-    const existing = Array.isArray((lb || {})[routeId]) ? [...lb[routeId]] : [];
+    if (!safe) return lb || {};
+    const existing = Array.isArray((lb || {})[normalizedRouteId])
+        ? (lb[normalizedRouteId].map((candidate) => createLeaderboardEntry(candidate, { fallbackDate: false })).filter(Boolean))
+        : [];
     existing.push(safe);
-    existing.sort((a, b) => a.totalTimeMs - b.totalTimeMs);
+    existing.sort(compareLeaderboardEntries);
     return {
         ...(lb || {}),
-        [routeId]: existing.slice(0, MAX_ENTRIES_PER_ROUTE),
+        [normalizedRouteId]: existing.slice(0, MAX_ENTRIES_PER_ROUTE),
     };
 }
 
@@ -81,4 +118,12 @@ export function getBestEntry(lb, routeId) {
     if (!lb || !routeId) return null;
     const entries = lb[routeId];
     return Array.isArray(entries) && entries.length > 0 ? entries[0] : null;
+}
+
+export function createLeaderboardProjection(lb) {
+    const normalized = normalizeLeaderboard(lb);
+    return Object.fromEntries(Object.entries(normalized).map(([routeId, entries]) => [
+        routeId,
+        entries.map(({ ghostClip: _ghostClip, ...entry }) => ({ ...entry })),
+    ]));
 }

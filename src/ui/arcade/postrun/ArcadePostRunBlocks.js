@@ -7,7 +7,10 @@
 // Pure functions, no DOM. Numbers stay raw and carry their type; the German formatting happens once
 // in PostMatchFormat.
 
-import { ARCADE_SCORE_LABELS } from '../../../shared/contracts/ArcadeScorePresentationContract.js';
+import {
+    ARCADE_SCORE_LABELS,
+    createArcadeScorePresentation,
+} from '../../../shared/contracts/ArcadeScorePresentationContract.js';
 import { createPostMatchBlock } from '../../../shared/contracts/PostMatchStatsContract.js';
 import { resolveMapPreview } from '../../menu/MenuPreviewCatalog.js';
 
@@ -61,11 +64,19 @@ export function durationRow(key, label, seconds, precision = 1) {
  * @param {string} id
  * @returns {import('../../../shared/contracts/PostMatchStatsContract.js').PostMatchStatsBlock|null}
  */
-export function createArcadeBreakdownBlock(breakdown, id = 'arcade-breakdown') {
+export function createArcadeBreakdownBlock(breakdown, id = 'arcade-breakdown', awardedTotal = null) {
     if (!breakdown || typeof breakdown !== 'object') return null;
     const rows = Object.entries(ARCADE_SCORE_LABELS)
         .map(([key, label]) => countRow(key, label, Math.round(Number(breakdown[key]) || 0)))
         .filter((row) => row.value !== 0);
+    if (awardedTotal !== null && Number.isFinite(Number(awardedTotal))) {
+        const presentation = createArcadeScorePresentation(breakdown, awardedTotal);
+        rows.push(
+            countRow('raw-subtotal', 'Zwischensumme vor Faktoren', Math.round(presentation.rawSubtotal)),
+            countRow('multiplier-bonus', 'Multiplikatoren & Boni', Math.round(presentation.multiplierBonus)),
+            countRow('scored-total', 'Gewertete Punkte', Math.round(presentation.scoredTotal))
+        );
+    }
     return createArcadeBlock(id, 'Punkte-Aufteilung', rows);
 }
 
@@ -82,7 +93,7 @@ export function createArcadeRunBlocks(summary = {}) {
             { key: 'mission-rate', label: 'Missions-Rate', value: summary.missionCompletionRate, type: 'percent' },
             { key: 'peak-multiplier', label: 'Höchster Multiplikator', value: summary.peakMultiplier, type: 'ratio' },
         ]),
-        createArcadeBreakdownBlock(summary.breakdown),
+        createArcadeBreakdownBlock(summary.breakdown, 'arcade-breakdown', summary.score),
     ];
     const daily = summary.dailyResult && typeof summary.dailyResult === 'object' ? summary.dailyResult : null;
     if (daily) {
@@ -130,7 +141,7 @@ export function createArcadeVictoryBlocks(victory = {}) {
             { key: 'score-factor', label: 'Faktor', value: sector.scoreFactor ?? 1, type: 'ratio', precision: 2 },
             countRow('mission-bonus', 'Missionsbonus', sector.missionBonus),
         ]) : null,
-        sector ? createArcadeBreakdownBlock(sector.breakdown, 'arcade-victory-breakdown') : null,
+        sector ? createArcadeBreakdownBlock(sector.breakdown, 'arcade-victory-breakdown', sector.awardedPoints) : null,
     ].filter(Boolean);
 }
 
@@ -150,7 +161,7 @@ export function createArcadeIntermissionBlocks(intermission = {}) {
             { key: 'score-factor', label: 'Faktor', value: intermission.scoreFactor ?? 1, type: 'ratio', precision: 2 },
             countRow('mission-bonus', 'Missionsbonus', intermission.missionBonus),
         ]),
-        createArcadeBreakdownBlock(intermission.breakdown, 'arcade-intermission-breakdown'),
+        createArcadeBreakdownBlock(intermission.breakdown, 'arcade-intermission-breakdown', intermission.lastSectorPoints),
     ].filter(Boolean);
 }
 

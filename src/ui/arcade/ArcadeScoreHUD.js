@@ -1,10 +1,21 @@
-import { ARCADE_SCORE_LABELS } from '../../shared/contracts/ArcadeScorePresentationContract.js';
+import {
+    ARCADE_SCORE_LABELS,
+    createArcadeScorePresentation,
+} from '../../shared/contracts/ArcadeScorePresentationContract.js';
 import { resolveArcadeModifierMeta } from '../../shared/contracts/ArcadeModifierContract.js';
 import { ArcadeEndlessHudSection } from './ArcadeEndlessHudSection.js';
 import { resolveArcadeMapLabel } from './postrun/ArcadePostRunBlocks.js';
 
 const BREAKDOWN_ENTRIES = Object.freeze(Object.entries(ARCADE_SCORE_LABELS)
     .map(([key, label]) => Object.freeze({ key, label, sign: key === 'penalty' ? '-' : '+' })));
+const DERIVED_BREAKDOWN_ENTRIES = Object.freeze([
+    Object.freeze({ key: 'rawSubtotal', label: 'Zwischensumme', sign: '+' }),
+    Object.freeze({ key: 'multiplierBonus', label: 'Multi & Boni', sign: '+' }),
+]);
+const PRESENTATION_BREAKDOWN_ENTRIES = Object.freeze([
+    ...BREAKDOWN_ENTRIES,
+    ...DERIVED_BREAKDOWN_ENTRIES,
+]);
 
 function createElement(tag, className, textContent = '') {
     const el = document.createElement(tag);
@@ -131,8 +142,8 @@ export class ArcadeScoreHUD {
         const breakdown = createElement('div', 'arcade-score-hud-breakdown');
         breakdown.style.cssText = 'display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;font-size:11px;';
         this._breakdownWrap = breakdown;
-        for (let i = 0; i < BREAKDOWN_ENTRIES.length; i += 1) {
-            const entry = BREAKDOWN_ENTRIES[i];
+        for (let i = 0; i < PRESENTATION_BREAKDOWN_ENTRIES.length; i += 1) {
+            const entry = PRESENTATION_BREAKDOWN_ENTRIES[i];
             const row = createElement('div', 'arcade-score-hud-breakdown-row');
             row.style.cssText = 'display:flex;justify-content:space-between;gap:6px;';
             const label = createElement('span', 'arcade-score-hud-breakdown-label', entry.label);
@@ -297,6 +308,8 @@ export class ArcadeScoreHUD {
         }
         this._endlessSection?.hide();
         const breakdown = score.breakdown && typeof score.breakdown === 'object' ? score.breakdown : {};
+        const scorePresentation = createArcadeScorePresentation(breakdown, score.total);
+        const presentationBreakdown = { ...breakdown, ...scorePresentation };
         const nowMs = Math.max(0, toSafeNumber(hudState.nowMs, Date.now()));
         const comboWindowMs = Math.max(800, toSafeNumber(hudState.comboWindowMs, 5000));
         const combo = Math.max(0, Math.round(toSafeNumber(score.combo, 0)));
@@ -311,10 +324,10 @@ export class ArcadeScoreHUD {
         setNodeText(this._multiplierValue, formatMultiplier(score.multiplier));
         setNodeText(this._sectorValue, `${sectorIndex}`);
 
-        for (let i = 0; i < BREAKDOWN_ENTRIES.length; i += 1) {
-            const entry = BREAKDOWN_ENTRIES[i];
+        for (let i = 0; i < PRESENTATION_BREAKDOWN_ENTRIES.length; i += 1) {
+            const entry = PRESENTATION_BREAKDOWN_ENTRIES[i];
             const valueNode = this._breakdownValueByKey.get(entry.key);
-            setNodeText(valueNode, formatBreakdownValue(breakdown[entry.key], entry.sign));
+            setNodeText(valueNode, formatBreakdownValue(presentationBreakdown[entry.key], entry.sign));
         }
 
         if (this._comboDecayValue) {

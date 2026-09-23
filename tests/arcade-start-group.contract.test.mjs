@@ -55,6 +55,13 @@ test('the five run starts sit together in a "Lauf starten" group at the top', ()
     }
 });
 
+test('the arcade statistics include a local parcours leaderboard card', () => {
+    const { surface } = build();
+    assert.equal(surface.leaderboardLine.id, 'arcade-local-leaderboard-line');
+    assert.equal(surface.leaderboardList.id, 'arcade-local-leaderboard-list');
+    assert.equal(surface.leaderboardList.attributes['aria-label'], 'Lokale Parcours-Bestenliste');
+});
+
 test('the plain arcade run says it is the same run as the main start button', () => {
     const { body } = build();
     const first = body.children[0].children.find((child) => child.className === 'arcade-start-option');

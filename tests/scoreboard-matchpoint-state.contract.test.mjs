@@ -17,6 +17,21 @@ test('match point belongs only to an unfinished series', () => {
     assert.equal(finished.entries[1].isMatchPoint, false);
 });
 
+test('classic post-match standings give tied players the same competition rank', () => {
+    const block = buildStandingsBlock({
+        players: [
+            { index: 2, isBot: true, score: 1, entitySlotActive: true },
+            { index: 0, isBot: false, score: 3, entitySlotActive: true },
+            { index: 1, isBot: false, score: 3, entitySlotActive: true },
+            { index: 3, isBot: true, score: 0, entitySlotActive: true },
+        ],
+        outcome: { state: 'ROUND_END', requiredWins: 5 },
+    });
+
+    assert.deepEqual(block.entries.map((entry) => entry.playerIndex), [0, 1, 2, 3]);
+    assert.deepEqual(block.entries.map((entry) => entry.rank), [1, 1, 3, 4]);
+});
+
 test('post-match details use player-readable totals instead of tuning metrics', () => {
     const round = buildRoundDetailBlock({
         duration: 42,

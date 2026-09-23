@@ -110,6 +110,17 @@ export function buildStandingsBlock({
         });
     if (entries.length === 0) return null;
     entries.sort(createStandingsComparator({ entries, huntRanks }));
+    let classicRank = 0;
+    let previousWins = null;
+    entries.forEach((entry, index) => {
+        if (huntRanks.size > 0) {
+            entry.rank = index + 1;
+            return;
+        }
+        if (previousWins === null || entry.roundWins !== previousWins) classicRank = index + 1;
+        entry.rank = classicRank;
+        previousWins = entry.roundWins;
+    });
     return {
         id: 'scoreboard',
         title: outcome?.state === 'MATCH_END' ? 'Endstand' : 'Zwischenstand',

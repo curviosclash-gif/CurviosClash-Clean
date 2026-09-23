@@ -174,6 +174,7 @@ test('standings entries normalize identity, progress and flags', () => {
                 isBot: false,
                 isLocal: true,
                 color: 0x33aaff,
+                rank: 2,
                 roundWins: 2,
                 requiredWins: 3,
                 isRoundWinner: true,
@@ -194,6 +195,7 @@ test('standings entries normalize identity, progress and flags', () => {
     assert.equal(first?.playerIndex, 2);
     assert.equal(first?.isLocal, true);
     assert.equal(first?.color, '#33aaff', 'numeric three.js colors become css hex');
+    assert.equal(first?.rank, 2);
     assert.equal(first?.roundWins, 2);
     assert.equal(first?.requiredWins, 3);
     assert.equal(first?.isRoundWinner, true);
