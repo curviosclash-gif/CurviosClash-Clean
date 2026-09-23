@@ -87,3 +87,38 @@ test('finish processing rejects invalid total time without persistence or XP', (
     assert.equal(xpAwards, 0);
     assert.equal(runtime._leaderboard.route[0].totalTimeMs, 2000);
 });
+
+test('finish result describes a new best with rank and exact improvement', () => {
+    const runtime = {
+        _enabled: true,
+        _leaderboard: { route: [{
+            totalTimeMs: 2500,
+            penaltyTimeMs: 0,
+            segmentSplitsMs: [],
+            vehicleId: 'ship2',
+            date: '2026-09-01T10:00:00.000Z',
+            ghostClip: null,
+        }] },
+        _ghostLibrary: {},
+        _activeVehicleId: 'ship1',
+        _config: {},
+        _resolveGhostLibraryBudgetOptions: () => ({}),
+        _resolveSettingsRecordStore: () => null,
+        _scheduleLeaderboardSave() {},
+        _mergeGhostLibraryTelemetryDelta() {},
+        _scheduleGhostLibrarySave() {},
+        applyParcoursXpEvent() {},
+    };
+
+    const result = applyParcoursLeaderboardEvent(runtime, {
+        type: 'finish', routeId: 'route', totalTimeMs: 2000, ghostClip: null,
+    });
+
+    assert.equal(result.status, 'new_best');
+    assert.equal(result.rank, 1);
+    assert.equal(result.previousBestTimeMs, 2500);
+    assert.equal(result.bestTimeMs, 2000);
+    assert.equal(result.improvementMs, 500);
+    assert.equal(result.deltaToBestMs, 0);
+    assert.equal(result.qualified, true);
+});

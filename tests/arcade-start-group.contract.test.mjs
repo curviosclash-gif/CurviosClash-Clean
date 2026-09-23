@@ -11,7 +11,16 @@ class FakeElement {
         this.dataset = {};
         this.style = {};
         this.attributes = {};
-        this.classList = { add() {}, remove() {}, toggle() {}, contains: () => false };
+        this.classList = {
+            add: (...names) => { this.className = [...new Set(`${this.className} ${names.join(' ')}`.trim().split(/\s+/))].join(' '); },
+            remove: (...names) => { this.className = this.className.split(/\s+/).filter((name) => !names.includes(name)).join(' '); },
+            toggle: (name, enabled) => {
+                const active = enabled ?? !this.classList.contains(name);
+                if (active) this.classList.add(name); else this.classList.remove(name);
+                return active;
+            },
+            contains: (name) => this.className.split(/\s+/).includes(name),
+        };
         this.parentElement = null;
     }
 
@@ -19,6 +28,7 @@ class FakeElement {
     append(...nodes) { nodes.forEach((node) => this.appendChild(node)); }
     insertBefore(child) { return this.appendChild(child); }
     setAttribute(name, value) { this.attributes[name] = String(value); }
+    replaceChildren(...nodes) { this.children = []; nodes.forEach((node) => this.appendChild(node)); }
     addEventListener() {}
     querySelector() { return null; }
 }
@@ -68,12 +78,25 @@ test('the plain arcade run says it is the same run as the main start button', ()
     assert.match(first.children[1].textContent, /„Spiel starten“/);
 });
 
-test('seed and statistics follow as their own block below the starts', () => {
+test('current status and standalone leaderboard follow the starts before advanced options', () => {
     const { body, surface } = build();
     const stats = byClass(body, 'arcade-stats-block');
     assert.ok(stats, 'stats block exists');
     assert.ok(body.children.indexOf(stats) > 0, 'below the start group');
-    assert.equal(stats.children[0].textContent, 'Seed & Statistik');
+    assert.equal(stats.children[0].textContent, 'Dein aktueller Stand');
     assert.ok(stats.children.includes(surface.recordsLine));
-    assert.ok(stats.children.some((child) => child.className === 'arcade-surface-grid'));
+    assert.ok(body.children.indexOf(surface.leaderboardLine.parentElement.parentElement) > body.children.indexOf(stats));
+    const advanced = byClass(body, 'arcade-advanced-options');
+    assert.ok(advanced, 'advanced options exist');
+    assert.ok(body.children.indexOf(advanced) > body.children.indexOf(surface.leaderboardLine.parentElement.parentElement));
+});
+
+test('leaderboard keeps accessible table and top-ten toggle hooks', () => {
+    const { surface } = build();
+    assert.equal(surface.leaderboardList.tagName, 'TBODY');
+    assert.equal(surface.leaderboardList.attributes['aria-label'], 'Lokale Parcours-Bestenliste');
+    assert.equal(surface.leaderboardToggle.id, 'btn-arcade-local-leaderboard-toggle');
+    assert.equal(surface.leaderboardToggle.attributes['aria-controls'], 'arcade-local-leaderboard-list');
+    assert.equal(surface.leaderboardToggle.attributes['aria-expanded'], 'false');
+    assert.equal(surface.leaderboardResult.attributes['aria-live'], 'polite');
 });

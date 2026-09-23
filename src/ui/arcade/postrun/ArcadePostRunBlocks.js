@@ -10,6 +10,7 @@
 import {
     ARCADE_SCORE_LABELS,
     createArcadeScorePresentation,
+    createArcadeSectorScorePresentation,
 } from '../../../shared/contracts/ArcadeScorePresentationContract.js';
 import { createPostMatchBlock } from '../../../shared/contracts/PostMatchStatsContract.js';
 import { resolveMapPreview } from '../../menu/MenuPreviewCatalog.js';
@@ -64,20 +65,40 @@ export function durationRow(key, label, seconds, precision = 1) {
  * @param {string} id
  * @returns {import('../../../shared/contracts/PostMatchStatsContract.js').PostMatchStatsBlock|null}
  */
-export function createArcadeBreakdownBlock(breakdown, id = 'arcade-breakdown', awardedTotal = null) {
+export function createArcadeBreakdownBlock(breakdown, id = 'arcade-breakdown', awardedTotal = null, settlement = null) {
     if (!breakdown || typeof breakdown !== 'object') return null;
     const rows = Object.entries(ARCADE_SCORE_LABELS)
-        .map(([key, label]) => countRow(key, label, Math.round(Number(breakdown[key]) || 0)))
+        .map(([key, label]) => key === 'penalty'
+            ? { key, label, value: -Math.round(Number(breakdown[key]) || 0), type: 'ratio', precision: 0 }
+            : countRow(key, label, Math.round(Number(breakdown[key]) || 0)))
         .filter((row) => row.value !== 0);
     if (awardedTotal !== null && Number.isFinite(Number(awardedTotal))) {
-        const presentation = createArcadeScorePresentation(breakdown, awardedTotal);
-        rows.push(
-            countRow('raw-subtotal', 'Zwischensumme vor Faktoren', Math.round(presentation.rawSubtotal)),
-            countRow('multiplier-bonus', 'Multiplikatoren & Boni', Math.round(presentation.multiplierBonus)),
-            countRow('scored-total', 'Gewertete Punkte', Math.round(presentation.scoredTotal))
-        );
+        if (settlement && typeof settlement === 'object') {
+            const presentation = createArcadeSectorScorePresentation({
+                breakdown,
+                awardedPoints: awardedTotal,
+                scoreFactor: settlement.scoreFactor,
+                missionBonus: settlement.missionBonus,
+            });
+            rows.push(
+                countRow('raw-subtotal', 'Zwischensumme', Math.round(presentation.rawSubtotal)),
+                { key: 'score-factor', label: 'Gesamtfaktor', value: presentation.factor, type: 'ratio', precision: 2 },
+                countRow('factored-points', 'Punkte nach Faktoren', Math.round(presentation.factoredPoints))
+            );
+            if (presentation.missionBonus > 0) {
+                rows.push(countRow('mission-bonus', 'Missionsbonus', Math.round(presentation.missionBonus)));
+            }
+            rows.push(countRow('scored-total', 'Gewertete Punkte', Math.round(presentation.scoredTotal)));
+        } else {
+            const presentation = createArcadeScorePresentation(breakdown, awardedTotal);
+            rows.push(
+                countRow('raw-subtotal', 'Rohsumme aller Sektoren', Math.round(presentation.rawSubtotal)),
+                countRow('multiplier-bonus', 'Faktoren, Rundung & Boni', Math.round(presentation.multiplierBonus)),
+                countRow('scored-total', 'Gewertete Punkte', Math.round(presentation.scoredTotal))
+            );
+        }
     }
-    return createArcadeBlock(id, 'Punkte-Aufteilung', rows);
+    return createArcadeBlock(id, 'So wurden die Punkte berechnet', rows);
 }
 
 /**
@@ -141,7 +162,7 @@ export function createArcadeVictoryBlocks(victory = {}) {
             { key: 'score-factor', label: 'Faktor', value: sector.scoreFactor ?? 1, type: 'ratio', precision: 2 },
             countRow('mission-bonus', 'Missionsbonus', sector.missionBonus),
         ]) : null,
-        sector ? createArcadeBreakdownBlock(sector.breakdown, 'arcade-victory-breakdown', sector.awardedPoints) : null,
+        sector ? createArcadeBreakdownBlock(sector.breakdown, 'arcade-victory-breakdown', sector.awardedPoints, sector) : null,
     ].filter(Boolean);
 }
 
@@ -161,7 +182,12 @@ export function createArcadeIntermissionBlocks(intermission = {}) {
             { key: 'score-factor', label: 'Faktor', value: intermission.scoreFactor ?? 1, type: 'ratio', precision: 2 },
             countRow('mission-bonus', 'Missionsbonus', intermission.missionBonus),
         ]),
-        createArcadeBreakdownBlock(intermission.breakdown, 'arcade-intermission-breakdown', intermission.lastSectorPoints),
+        createArcadeBreakdownBlock(
+            intermission.breakdown,
+            'arcade-intermission-breakdown',
+            intermission.lastSectorPoints,
+            intermission
+        ),
     ].filter(Boolean);
 }
 

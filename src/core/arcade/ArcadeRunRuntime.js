@@ -19,10 +19,7 @@ import {
 } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { awardBoundArcadeVehicleXp } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
 import { bindArcadeRunVehicleRewards, ensureArcadeRunVehicleRewards, getArcadeRunVehicleId, getArcadeRunVehicleProfile } from './ArcadeRunVehicleRewardOps.js';
-import {
-    createLeaderboardProjection,
-    loadLeaderboard,
-} from '../../state/arcade/ArcadeLeaderboard.js';
+import { createLeaderboardProjection, loadLeaderboard } from '../../state/arcade/ArcadeLeaderboard.js';
 import {
     ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET,
     bootstrapGhostLibraryFromLeaderboard,
@@ -124,6 +121,7 @@ export class ArcadeRunRuntime {
         // 82.1.1: Current sector type ('sector_parcours' | null)
         this._currentSectorType = null;
         this._leaderboard = null;
+        this._lastParcoursResult = null;
         this._ghostLibrary = {};
         this._ghostRecorder = new ArcadeGhostRecorder();
         this._onGhostPlayback = null;
@@ -554,6 +552,7 @@ export class ArcadeRunRuntime {
             isDailyChallenge: this._state?.isDailyChallenge === true,
             records: this.getRecordsSnapshot(),
             leaderboard: createLeaderboardProjection(this._leaderboard),
+            lastParcoursResult: this._lastParcoursResult ? { ...this._lastParcoursResult } : null,
             legacyRecords: this._legacyRecords || null,
             victory: this._state?.victory || null,
             dailyResult: this._state?.dailyResult || null,
@@ -730,6 +729,7 @@ export class ArcadeRunRuntime {
                     total: Math.max(0, toSafeNumber(breakdown.total, 0)),
                 },
             },
+            lastSectorScore: this._state?.lastSectorSummary || null,
         };
     }
 

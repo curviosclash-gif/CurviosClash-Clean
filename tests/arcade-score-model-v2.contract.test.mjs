@@ -11,7 +11,10 @@ import {
     ARCADE_RUN_PROFILE_STORAGE_KEY,
     normalizeArcadeRunSettings,
 } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
-import { createArcadeScorePresentation } from '../src/shared/contracts/ArcadeScorePresentationContract.js';
+import {
+    createArcadeScorePresentation,
+    createArcadeSectorScorePresentation,
+} from '../src/shared/contracts/ArcadeScorePresentationContract.js';
 
 const SCORE_MODEL_V2 = 'arcade-score.v3';
 const RECORD_SCHEMA_V2 = ARCADE_RUN_PROFILE_SCHEMA_VERSION;
@@ -34,6 +37,25 @@ test('score presentation reconciles raw components with multiplied awarded point
         multiplierBonus: 160,
         scoredTotal: 320,
     });
+});
+
+test('sector score presentation separates rounded factors from the mission bonus', () => {
+    const presentation = createArcadeSectorScorePresentation({
+        breakdown: { base: 101, kills: 20, penalty: 1 },
+        scoreFactor: 1.333,
+        missionBonus: 75,
+        awardedPoints: 235,
+    });
+
+    assert.deepEqual(presentation, {
+        rawSubtotal: 120,
+        factor: 1.333,
+        factoredPoints: 160,
+        multiplierBonus: 40,
+        missionBonus: 75,
+        scoredTotal: 235,
+    });
+    assert.equal(presentation.factoredPoints + presentation.missionBonus, presentation.scoredTotal);
 });
 
 test('score v2 rewards late survival non-linearly and caps invalid long durations', () => {

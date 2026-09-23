@@ -108,7 +108,8 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(matchState.humanVehicleId).toBe(String(selectedVehicleId));
     });
 
-    test('T66a: Arcade-Menü enthält nur den Einstieg zum dedizierten Hangar', async ({ page }) => {
+    test('T66a: Arcade-Menü zeigt kompaktes Leaderboard und dedizierten Hangar', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 720 });
         await loadGame(page);
         await openCustomSubmenu(page);
         await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
@@ -120,6 +121,8 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await expect(page.locator('#arcade-local-leaderboard-line'))
             .toContainText('noch keine gespeicherte Zeit');
         await expect(page.locator('#arcade-local-leaderboard-list')).toHaveCount(1);
+        await expect(page.locator('#arcade-local-leaderboard-table')).toHaveCount(1);
+        await expect(page.locator('#btn-arcade-local-leaderboard-toggle')).toHaveAttribute('aria-expanded', 'false');
         await expect(page.locator('.hangar-window-launch-card .menu-info-hint')).toHaveAttribute(
             'title',
             'Öffnet den Fahrzeug-Workshop bildschirmfüllend in einem eigenen Fenster.'
