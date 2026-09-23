@@ -141,6 +141,7 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
     const ghostDurationMs = Math.max(0, Math.trunc(Number(data.ghostDurationMs) || 0));
     let isBestTime = false;
     let inserted = false;
+    let presentationResult = null;
 
     if (!persistLibraryOnly) {
         const entry = createLeaderboardEntry({
@@ -162,6 +163,7 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
             };
         }
         const best = getBestEntry(runtime._leaderboard, primaryRouteId);
+        const previousBestTimeMs = Math.max(0, Number(best?.totalTimeMs) || 0);
         const safeClip = boundedGhost(data.ghostClip, ghostLibraryBudget);
         if (best && entry.totalTimeMs === best.totalTimeMs && !best.ghostClip && safeClip) {
             runtime._leaderboard = { ...runtime._leaderboard, [primaryRouteId]: runtime._leaderboard[primaryRouteId]
@@ -172,8 +174,36 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
             ...entry,
             ghostClip: isBestTime ? safeClip : null,
         });
+        const updatedEntries = Array.isArray(runtime._leaderboard?.[primaryRouteId])
+            ? runtime._leaderboard[primaryRouteId]
+            : [];
+        const storedIndex = updatedEntries.findIndex((candidate) => (
+            candidate?.date === entry.date
+            && candidate?.totalTimeMs === entry.totalTimeMs
+            && candidate?.vehicleId === entry.vehicleId
+        ));
+        const bestTimeMs = Math.max(0, Number(updatedEntries[0]?.totalTimeMs) || entry.totalTimeMs);
+        const rank = storedIndex >= 0 ? storedIndex + 1 : null;
         runtime._scheduleLeaderboardSave();
         inserted = true;
+
+        presentationResult = {
+            routeId: primaryRouteId,
+            totalTimeMs: entry.totalTimeMs,
+            penaltyTimeMs: entry.penaltyTimeMs,
+            vehicleId: entry.vehicleId,
+            recordedAtIso: entry.date,
+            previousBestTimeMs,
+            bestTimeMs,
+            deltaToBestMs: Math.max(0, entry.totalTimeMs - bestTimeMs),
+            improvementMs: previousBestTimeMs > 0 ? Math.max(0, previousBestTimeMs - entry.totalTimeMs) : 0,
+            rank,
+            qualified: rank !== null,
+            status: previousBestTimeMs <= 0
+                ? 'first_time'
+                : (isBestTime ? 'new_best' : (rank === null ? 'not_ranked' : 'ranked')),
+        };
+        runtime._lastParcoursResult = { ...presentationResult };
     }
 
     const upsert = upsertLongestGhostByRoute(
@@ -200,6 +230,7 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
         inserted,
         isBestTime,
         persistLibraryOnly,
+        ...(presentationResult || {}),
         ghostRouteIds: routeCandidates,
         longestGhostUpdated: upsert.changed,
         longestGhostReason: upsert.reason,

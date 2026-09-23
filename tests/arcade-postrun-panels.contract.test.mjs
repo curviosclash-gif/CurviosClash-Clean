@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { registerMapCatalogConfigSource } from '../src/shared/contracts/RuntimeMapCatalogContract.js';
+import { createArcadeIntermissionBlocks } from '../src/ui/arcade/postrun/ArcadePostRunBlocks.js';
 
 // The label lookup reads the runtime map catalog, so the test registers a tiny one: "burg" has a
 // name, "geheimgang" is missing on purpose to prove the key survives as the fallback.
@@ -22,6 +23,28 @@ registerMapCatalogConfigSource({
 });
 
 const { MatchFlowArcadeOverlayController } = await import('../src/ui/MatchFlowArcadeOverlayController.js');
+
+test('intermission score equation uses authoritative sector factor and mission bonus', () => {
+    const blocks = createArcadeIntermissionBlocks({
+        lastSectorPoints: 235,
+        lastSectorXp: 10,
+        missionsCompleted: 1,
+        missionsTotal: 1,
+        scoreFactor: 1.333,
+        missionBonus: 75,
+        breakdown: { base: 101, kills: 20, penalty: 1 },
+    });
+    const scoreBlock = blocks.find((block) => block.id === 'arcade-intermission-breakdown');
+    const values = Object.fromEntries(scoreBlock.rows.map((row) => [row.key, row.value]));
+
+    assert.equal(scoreBlock.title, 'So wurden die Punkte berechnet');
+    assert.equal(values['raw-subtotal'], 120);
+    assert.equal(values['score-factor'], 1.333);
+    assert.equal(values['factored-points'], 160);
+    assert.equal(values['mission-bonus'], 75);
+    assert.equal(values['scored-total'], 235);
+    assert.equal(values.penalty, -1);
+});
 
 // ---------------------------------------------------------------------------
 // Document stub

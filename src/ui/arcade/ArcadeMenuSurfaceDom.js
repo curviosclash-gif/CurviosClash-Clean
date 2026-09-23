@@ -1,6 +1,7 @@
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import { createHangarWindowLauncher } from '../hangar/HangarWindowMenuBridge.js';
 import { createArcadeDailyMenuCard } from './ArcadeDailyMenuView.js';
+import { createArcadeLeaderboardMenuCard } from './ArcadeLeaderboardMenuView.js';
 import { createArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
 
 function t(textId, fallback) {
@@ -67,19 +68,19 @@ export function buildArcadeSurface(level3Body, ui) {
         'Fünf Parcours-Karten auf Zeit; das Ausgangsportal bringt dich jeweils zur nächsten.');
     const startWeaponRaceButton = createStartOption('btn-arcade-weapon-race-start-inline', 'Waffenrennen',
         'Fünf Fahrer jagen durch den Angriffsparcours und wechseln ihre Waffe an festen Checkpoints.');
+    const { card: dailyCard, line: dailyLine, button: dailyButton } = createArcadeDailyMenuCard(
+        createElement,
+        t('menu.arcade.postrun.daily.label', 'Daily starten')
+    );
+    dailyCard.classList.add('arcade-daily-start-card');
+    startGroup.appendChild(dailyCard);
     body.appendChild(startGroup);
 
-    const statsBlock = createElement('section', 'arcade-stats-block');
-    statsBlock.appendChild(createElement('h3', 'arcade-surface-card-title', 'Seed & Statistik'));
+    const statusBlock = createElement('section', 'arcade-stats-block arcade-current-status');
+    statusBlock.appendChild(createElement('h3', 'arcade-surface-card-title', 'Dein aktueller Stand'));
     const recordsLine = createElement('p', 'menu-hint');
     recordsLine.id = 'arcade-records-line';
-    statsBlock.appendChild(recordsLine);
-    // Eigene Zeile fuer die Endlosjagd: Bestwert, Top-Liste und Meilensteine.
-    const endlessRecordsLine = createElement('p', 'menu-hint');
-    endlessRecordsLine.id = 'arcade-endless-records-line';
-    statsBlock.appendChild(endlessRecordsLine);
-
-    const cardGrid = createElement('div', 'arcade-surface-grid');
+    statusBlock.appendChild(recordsLine);
 
     const seedCard = createElement('section', 'arcade-surface-card');
     seedCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.seed.title', 'Seed und Challenge')));
@@ -111,64 +112,58 @@ export function buildArcadeSurface(level3Body, ui) {
     seedEntry.appendChild(seedInput);
     seedEntry.appendChild(applySeedButton);
     seedCard.appendChild(seedEntry);
-    cardGrid.appendChild(seedCard);
-
-    const hudCard = createElement('section', 'arcade-surface-card');
-    hudCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.hud.title', 'Run-Übersicht')));
     const hudGrid = createElement('div', 'arcade-hud-shell-grid');
-    const metricScore = createMetric(t('menu.arcade.hud.score.label', 'Score'), '0');
-    const metricMultiplier = createMetric(t('menu.arcade.hud.multiplier.label', 'x-Multi'), 'x1.0');
+    const metricScore = createMetric(t('menu.arcade.hud.score.label', 'Punkte'), '0');
+    const metricMultiplier = createMetric(t('menu.arcade.hud.multiplier.label', 'Multiplikator'), 'x1.0');
     const metricSector = createMetric(t('menu.arcade.hud.sector.label', 'Sektor'), '1');
     const metricChain = createMetric(t('menu.arcade.hud.chain.label', 'Combo'), '0');
     hudGrid.appendChild(metricScore.metric);
     hudGrid.appendChild(metricMultiplier.metric);
     hudGrid.appendChild(metricSector.metric);
     hudGrid.appendChild(metricChain.metric);
-    hudCard.appendChild(hudGrid);
-    cardGrid.appendChild(hudCard);
-
-    const postRunCard = createElement('section', 'arcade-surface-card');
-    postRunCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.postrun.title', 'Post-Run Feedback')));
+    statusBlock.appendChild(hudGrid);
     const postRunLine = createElement('p', 'arcade-surface-card-value');
     postRunLine.id = 'arcade-post-run-line';
-    postRunCard.appendChild(postRunLine);
+    statusBlock.appendChild(postRunLine);
+    body.appendChild(statusBlock);
+
+    const leaderboardRefs = createArcadeLeaderboardMenuCard(createElement);
+    body.appendChild(leaderboardRefs.card);
+
+    const advanced = createElement('details', 'arcade-advanced-options');
+    const advancedSummary = createElement('summary', 'arcade-advanced-options-summary', 'Weitere Optionen');
+    advanced.appendChild(advancedSummary);
+    const advancedBody = createElement('div', 'arcade-surface-grid arcade-advanced-options-grid');
+    advancedBody.appendChild(seedCard);
+
+    const postRunCard = createElement('section', 'arcade-surface-card');
+    postRunCard.appendChild(createElement('h3', 'arcade-surface-card-title', 'Replay'));
     const postRunActions = createElement('div', 'arcade-surface-actions');
     const replayButton = createElement('button', 'secondary-btn', t('menu.arcade.postrun.replay.label', 'Replay exportieren'));
     replayButton.type = 'button';
     replayButton.id = 'btn-arcade-replay';
     postRunActions.appendChild(replayButton);
     postRunCard.appendChild(postRunActions);
-    cardGrid.appendChild(postRunCard);
-
-    const { card: dailyCard, line: dailyLine, button: dailyButton } = createArcadeDailyMenuCard(
-        createElement,
-        t('menu.arcade.postrun.daily.label', 'Daily starten')
-    );
-    cardGrid.appendChild(dailyCard);
+    advancedBody.appendChild(postRunCard);
 
     const masteryCard = createElement('section', 'arcade-surface-card');
     masteryCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.mastery.title', 'Fahrzeugfortschritt')));
     const masteryLine = createElement('p', 'arcade-surface-card-value');
     masteryLine.id = 'arcade-mastery-line';
     masteryCard.appendChild(masteryLine);
-    cardGrid.appendChild(masteryCard);
+    advancedBody.appendChild(masteryCard);
 
-    const leaderboardCard = createElement('section', 'arcade-surface-card arcade-local-leaderboard');
-    leaderboardCard.appendChild(createElement('h3', 'arcade-surface-card-title', 'Lokale Parcours-Bestenliste'));
-    const leaderboardLine = createElement('p', 'arcade-surface-card-value', 'Für diese Karte wurden noch keine Zeiten gespeichert.');
-    leaderboardLine.id = 'arcade-local-leaderboard-line';
-    leaderboardCard.appendChild(leaderboardLine);
-    const leaderboardList = createElement('ol', 'arcade-local-leaderboard-list');
-    leaderboardList.id = 'arcade-local-leaderboard-list';
-    leaderboardList.setAttribute('aria-label', 'Lokale Parcours-Bestenliste');
-    leaderboardCard.appendChild(leaderboardList);
-    cardGrid.appendChild(leaderboardCard);
-
-    statsBlock.appendChild(cardGrid);
-    body.appendChild(statsBlock);
+    const endlessCard = createElement('section', 'arcade-surface-card');
+    endlessCard.appendChild(createElement('h3', 'arcade-surface-card-title', 'Endlosjagd-Rekorde'));
+    const endlessRecordsLine = createElement('p', 'arcade-surface-card-value');
+    endlessRecordsLine.id = 'arcade-endless-records-line';
+    endlessCard.appendChild(endlessRecordsLine);
+    advancedBody.appendChild(endlessCard);
 
     const { card: hangarLaunchCard, button: openHangarButton } = createHangarWindowLauncher(createElement);
-    body.appendChild(hangarLaunchCard);
+    advancedBody.appendChild(hangarLaunchCard);
+    advanced.appendChild(advancedBody);
+    body.appendChild(advanced);
 
     details.appendChild(body);
 
@@ -201,8 +196,14 @@ export function buildArcadeSurface(level3Body, ui) {
         postRunLine,
         dailyLine,
         masteryLine,
-        leaderboardLine,
-        leaderboardList,
+        leaderboardLine: leaderboardRefs.line,
+        leaderboardList: leaderboardRefs.list,
+        leaderboardResult: leaderboardRefs.result,
+        leaderboardResultTitle: leaderboardRefs.resultTitle,
+        leaderboardResultDetail: leaderboardRefs.resultDetail,
+        leaderboardEmpty: leaderboardRefs.empty,
+        leaderboardTableWrap: leaderboardRefs.tableWrap,
+        leaderboardToggle: leaderboardRefs.toggle,
         metricScore: metricScore.value,
         metricMultiplier: metricMultiplier.value,
         metricSector: metricSector.value,

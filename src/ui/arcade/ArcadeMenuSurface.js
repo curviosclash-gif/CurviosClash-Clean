@@ -26,6 +26,7 @@ import { FIVE_PORTALS_RECORD_KEY } from '../../shared/contracts/FivePortalsContr
 import { getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
+import { renderArcadeLeaderboardMenu } from './ArcadeLeaderboardMenuView.js';
 import { observeMenuReturn } from './MenuReturnObserver.js';
 import { bindArcadeNightmareToggle, syncArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
 
@@ -39,35 +40,6 @@ const ARCADE_PHASE_LABELS = Object.freeze({
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized || fallback;
-}
-
-function formatLeaderboardTime(totalTimeMs) {
-    const totalMs = Math.max(0, Math.round(Number(totalTimeMs) || 0));
-    const minutes = Math.floor(totalMs / 60000);
-    const seconds = ((totalMs % 60000) / 1000).toFixed(3).padStart(6, '0');
-    return minutes > 0 ? `${minutes}:${seconds}` : `${seconds} s`;
-}
-
-function renderLocalLeaderboard(refs, entries, routeLabel) {
-    const rows = Array.isArray(entries) ? entries : [];
-    refs.leaderboardLine.textContent = rows.length > 0
-        ? `${routeLabel} · persönliche Top ${rows.length}`
-        : `${routeLabel} · noch keine gespeicherte Zeit`;
-    if (typeof refs.leaderboardList.replaceChildren === 'function') refs.leaderboardList.replaceChildren();
-    else if (Array.isArray(refs.leaderboardList.children)) refs.leaderboardList.children.length = 0;
-    const bestTimeMs = Math.max(0, Number(rows[0]?.totalTimeMs) || 0);
-    rows.forEach((entry, index) => {
-        const item = document.createElement('li');
-        const deltaMs = Math.max(0, Number(entry?.totalTimeMs) || 0) - bestTimeMs;
-        const deltaLabel = index === 0 ? 'Bestzeit' : `+${(deltaMs / 1000).toFixed(3)} s`;
-        const penaltyMs = Math.max(0, Number(entry?.penaltyTimeMs) || 0);
-        const penaltyLabel = penaltyMs > 0 ? ` · Strafe ${(penaltyMs / 1000).toFixed(2)} s` : '';
-        const vehicleId = normalizeString(entry?.vehicleId, 'unbekannt');
-        const vehicleLabel = resolveVehiclePreview(vehicleId)?.label || vehicleId;
-        const dateLabel = typeof entry?.date === 'string' && entry.date ? ` · ${entry.date.slice(0, 10)}` : '';
-        item.textContent = `${formatLeaderboardTime(entry?.totalTimeMs)} · ${deltaLabel} · ${vehicleLabel}${penaltyLabel}${dateLabel}`;
-        refs.leaderboardList.appendChild(item);
-    });
 }
 
 function t(textId, fallback) {
@@ -241,6 +213,17 @@ export function setupArcadeMenuSurface(ctx = {}) {
     let activeProfileId = runtimeAccess?.getActivePlayerProfile?.()?.id || '';
     let activeSeed = loadSeed(runtimeAccess?.getSettingsStore?.());
     let lastRunSnapshot = loadLastRunSnapshot(runtimeAccess?.getSettingsStore?.());
+    let leaderboardExpanded = false;
+    const leaderboardRefs = {
+        line: refs.leaderboardLine,
+        list: refs.leaderboardList,
+        result: refs.leaderboardResult,
+        resultTitle: refs.leaderboardResultTitle,
+        resultDetail: refs.leaderboardResultDetail,
+        empty: refs.leaderboardEmpty,
+        tableWrap: refs.leaderboardTableWrap,
+        toggle: refs.leaderboardToggle,
+    };
     const applySeedToSettings = (seedValue, { dailyChallenge = false } = {}) => {
         if (!settings.arcade || typeof settings.arcade !== 'object') {
             settings.arcade = {};
@@ -309,7 +292,13 @@ export function setupArcadeMenuSurface(ctx = {}) {
         );
         refs.seedLine.textContent = `${t('menu.arcade.seed.current.label', 'Run-Seed')}: ${activeSeed} | ${t('menu.arcade.seed.daily.label', 'Daily')}: ${dailySeed}`;
         renderArcadeDailyMenuState(refs.dailyLine, daily, dailySeed);
-        renderLocalLeaderboard(refs, leaderboardEntries, resolveMapPreview(mapKey).name || mapKey);
+        renderArcadeLeaderboardMenu(leaderboardRefs, {
+            entries: leaderboardEntries,
+            routeId: leaderboardRouteId,
+            routeLabel: resolveMapPreview(mapKey).name || mapKey,
+            expanded: leaderboardExpanded,
+            lastResult: runtimeState?.lastParcoursResult || null,
+        });
 
         refs.metricScore.textContent = records ? String(Math.max(0, Math.round(Number(records.lastScore) || 0))) : '0';
         refs.metricMultiplier.textContent = records
@@ -325,7 +314,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         if (fivePortalsSelected && postRunSummary?.totalMs >= 0) {
             refs.postRunLine.textContent = `Fünf Portale: ${(postRunSummary.totalMs / 1000).toFixed(2)} s gesamt`;
         } else if (postRunSummary) {
-            refs.postRunLine.textContent = `Score ${Math.max(0, Math.round(Number(postRunSummary.score) || 0))} | Combo ${Math.max(0, Number(postRunSummary.bestCombo) || 0)} | Mission-Rate ${Math.round(Math.max(0, Math.min(1, Number(postRunSummary.missionCompletionRate) || 0)) * 100)}%`;
+            refs.postRunLine.textContent = `Punkte ${Math.max(0, Math.round(Number(postRunSummary.score) || 0))} · Beste Kombo ${Math.max(0, Number(postRunSummary.bestCombo) || 0)} · Missionen ${Math.round(Math.max(0, Math.min(1, Number(postRunSummary.missionCompletionRate) || 0)) * 100)} %`;
         } else if (lastRunSnapshot) {
             const timeLabel = formatRunTime(lastRunSnapshot.at);
             refs.postRunLine.textContent = `${t('menu.arcade.postrun.last.label', 'Letzter Start')}: ${timeLabel} | ${lastRunSnapshot.mapKey} | ${lastRunSnapshot.vehicleId} | Seed ${lastRunSnapshot.seed}`;
@@ -494,6 +483,11 @@ export function setupArcadeMenuSurface(ctx = {}) {
         settings.arcade.dailyChallenge = true;
         recordRunStart(null);
         emit(eventTypes.START_MATCH);
+    });
+
+    bind(refs.leaderboardToggle, 'click', () => {
+        leaderboardExpanded = !leaderboardExpanded;
+        sync();
     });
 
     if (ui.startButton) {
