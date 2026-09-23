@@ -80,6 +80,7 @@ const VALUE_TYPE_RULES = Object.freeze({
  * @property {boolean} isBot
  * @property {boolean} isLocal
  * @property {string} color css color of the player, or '' when unknown
+ * @property {number} rank competition rank, or 0 when the producer did not provide one
  * @property {number} roundWins
  * @property {number} requiredWins
  * @property {boolean} isRoundWinner
@@ -261,6 +262,7 @@ export function createPostMatchStandingsEntry(source) {
         isBot: input.isBot === true,
         isLocal: input.isLocal === true,
         color: normalizePlayerColor(input.color),
+        rank: normalizeNonNegativeInt(input.rank),
         roundWins: normalizeNonNegativeInt(input.roundWins),
         requiredWins: Math.max(1, Math.trunc(toFiniteNumber(input.requiredWins, 1))),
         isRoundWinner: input.isRoundWinner === true,

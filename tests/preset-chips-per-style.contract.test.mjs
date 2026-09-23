@@ -92,3 +92,11 @@ test('the change summary names the settings a preset touches', () => {
         'Karte parcours_rift · 2 Bots · Tempo 18'
     );
 });
+
+test('a point-target preset labels its target as points instead of eliminations', () => {
+    assert.equal(formatMenuPresetChangeSummary({
+        'hunt.respawnEnabled': true,
+        'hunt.winCondition': 'score_target',
+        'hunt.deathmatchKillLimit': 15,
+    }), '15 Punkte');
+});

@@ -153,6 +153,17 @@ export function buildArcadeSurface(level3Body, ui) {
     masteryCard.appendChild(masteryLine);
     cardGrid.appendChild(masteryCard);
 
+    const leaderboardCard = createElement('section', 'arcade-surface-card arcade-local-leaderboard');
+    leaderboardCard.appendChild(createElement('h3', 'arcade-surface-card-title', 'Lokale Parcours-Bestenliste'));
+    const leaderboardLine = createElement('p', 'arcade-surface-card-value', 'Für diese Karte wurden noch keine Zeiten gespeichert.');
+    leaderboardLine.id = 'arcade-local-leaderboard-line';
+    leaderboardCard.appendChild(leaderboardLine);
+    const leaderboardList = createElement('ol', 'arcade-local-leaderboard-list');
+    leaderboardList.id = 'arcade-local-leaderboard-list';
+    leaderboardList.setAttribute('aria-label', 'Lokale Parcours-Bestenliste');
+    leaderboardCard.appendChild(leaderboardList);
+    cardGrid.appendChild(leaderboardCard);
+
     statsBlock.appendChild(cardGrid);
     body.appendChild(statsBlock);
 
@@ -190,6 +201,8 @@ export function buildArcadeSurface(level3Body, ui) {
         postRunLine,
         dailyLine,
         masteryLine,
+        leaderboardLine,
+        leaderboardList,
         metricScore: metricScore.value,
         metricMultiplier: metricMultiplier.value,
         metricSector: metricSector.value,

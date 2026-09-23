@@ -27,7 +27,10 @@ export function formatMenuPresetChangeSummary(values = {}, resolveMapName = (map
     const isArcade = String(values.gameMode || '').toUpperCase() === 'ARCADE';
     if (values['hunt.respawnEnabled'] === true) {
         const killLimit = Number(values['hunt.deathmatchKillLimit']) || 0;
-        parts.push(killLimit > 0 ? `${killLimit} Abschüsse` : 'Deathmatch');
+        const targetLabel = String(values['hunt.winCondition'] || '').toLowerCase() === 'score_target'
+            ? 'Punkte'
+            : 'Abschüsse';
+        parts.push(killLimit > 0 ? `${killLimit} ${targetLabel}` : 'Deathmatch');
     } else if (!isArcade && Number(values.winsNeeded) > 0) {
         parts.push(countLabel(Number(values.winsNeeded), 'Sieg', 'Siege'));
     }

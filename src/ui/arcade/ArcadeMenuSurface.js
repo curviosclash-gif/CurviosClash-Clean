@@ -23,6 +23,7 @@ import {
     summarizeEndlessRecordsLine,
 } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
 import { FIVE_PORTALS_RECORD_KEY } from '../../shared/contracts/FivePortalsContract.js';
+import { getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 import { observeMenuReturn } from './MenuReturnObserver.js';
@@ -38,6 +39,35 @@ const ARCADE_PHASE_LABELS = Object.freeze({
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized || fallback;
+}
+
+function formatLeaderboardTime(totalTimeMs) {
+    const totalMs = Math.max(0, Math.round(Number(totalTimeMs) || 0));
+    const minutes = Math.floor(totalMs / 60000);
+    const seconds = ((totalMs % 60000) / 1000).toFixed(3).padStart(6, '0');
+    return minutes > 0 ? `${minutes}:${seconds}` : `${seconds} s`;
+}
+
+function renderLocalLeaderboard(refs, entries, routeLabel) {
+    const rows = Array.isArray(entries) ? entries : [];
+    refs.leaderboardLine.textContent = rows.length > 0
+        ? `${routeLabel} · persönliche Top ${rows.length}`
+        : `${routeLabel} · noch keine gespeicherte Zeit`;
+    if (typeof refs.leaderboardList.replaceChildren === 'function') refs.leaderboardList.replaceChildren();
+    else if (Array.isArray(refs.leaderboardList.children)) refs.leaderboardList.children.length = 0;
+    const bestTimeMs = Math.max(0, Number(rows[0]?.totalTimeMs) || 0);
+    rows.forEach((entry, index) => {
+        const item = document.createElement('li');
+        const deltaMs = Math.max(0, Number(entry?.totalTimeMs) || 0) - bestTimeMs;
+        const deltaLabel = index === 0 ? 'Bestzeit' : `+${(deltaMs / 1000).toFixed(3)} s`;
+        const penaltyMs = Math.max(0, Number(entry?.penaltyTimeMs) || 0);
+        const penaltyLabel = penaltyMs > 0 ? ` · Strafe ${(penaltyMs / 1000).toFixed(2)} s` : '';
+        const vehicleId = normalizeString(entry?.vehicleId, 'unbekannt');
+        const vehicleLabel = resolveVehiclePreview(vehicleId)?.label || vehicleId;
+        const dateLabel = typeof entry?.date === 'string' && entry.date ? ` · ${entry.date.slice(0, 10)}` : '';
+        item.textContent = `${formatLeaderboardTime(entry?.totalTimeMs)} · ${deltaLabel} · ${vehicleLabel}${penaltyLabel}${dateLabel}`;
+        refs.leaderboardList.appendChild(item);
+    });
 }
 
 function t(textId, fallback) {
@@ -253,6 +283,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const intermission = runtimeState?.intermission && typeof runtimeState.intermission === 'object'
             ? runtimeState.intermission
             : null;
+        const mapDefinition = getRuntimeMapDefinition(mapKey);
+        const leaderboardRouteId = normalizeString(mapDefinition?.parcours?.routeId, mapKey);
+        const leaderboardEntries = runtimeState?.leaderboard?.[leaderboardRouteId];
 
         const phaseText = ARCADE_PHASE_LABELS[String(runtimeState?.phase || '')] || '';
         const phaseLabel = phaseText ? ` · ${phaseText}` : '';
@@ -276,6 +309,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         );
         refs.seedLine.textContent = `${t('menu.arcade.seed.current.label', 'Run-Seed')}: ${activeSeed} | ${t('menu.arcade.seed.daily.label', 'Daily')}: ${dailySeed}`;
         renderArcadeDailyMenuState(refs.dailyLine, daily, dailySeed);
+        renderLocalLeaderboard(refs, leaderboardEntries, resolveMapPreview(mapKey).name || mapKey);
 
         refs.metricScore.textContent = records ? String(Math.max(0, Math.round(Number(records.lastScore) || 0))) : '0';
         refs.metricMultiplier.textContent = records

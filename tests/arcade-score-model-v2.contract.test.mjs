@@ -11,6 +11,7 @@ import {
     ARCADE_RUN_PROFILE_STORAGE_KEY,
     normalizeArcadeRunSettings,
 } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
+import { createArcadeScorePresentation } from '../src/shared/contracts/ArcadeScorePresentationContract.js';
 
 const SCORE_MODEL_V2 = 'arcade-score.v3';
 const RECORD_SCHEMA_V2 = ARCADE_RUN_PROFILE_SCHEMA_VERSION;
@@ -18,6 +19,21 @@ const RECORD_SCHEMA_V2 = ARCADE_RUN_PROFILE_SCHEMA_VERSION;
 test('run profile uses a separate v3 key and current payload schema explicit', () => {
     assert.equal(ARCADE_RUN_PROFILE_STORAGE_KEY, 'cuviosclash.arcade-run-profile.v3');
     assert.equal(ARCADE_RUN_PROFILE_SCHEMA_VERSION, 'arcade-run-profile.v3');
+});
+
+test('score presentation reconciles raw components with multiplied awarded points', () => {
+    const presentation = createArcadeScorePresentation({
+        base: 100,
+        survival: 50,
+        kills: 20,
+        penalty: 10,
+    }, 320);
+
+    assert.deepEqual(presentation, {
+        rawSubtotal: 160,
+        multiplierBonus: 160,
+        scoredTotal: 320,
+    });
 });
 
 test('score v2 rewards late survival non-linearly and caps invalid long durations', () => {

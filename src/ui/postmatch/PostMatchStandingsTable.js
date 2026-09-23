@@ -196,7 +196,8 @@ export function createPostMatchStandingsTable(block) {
 
     const body = createStatsElement('tbody', '');
     block.entries.forEach((entry, index) => {
-        body.appendChild(createStandingsRow(entry, index + 1, showKills));
+        const rank = Number.isInteger(entry.rank) && entry.rank > 0 ? entry.rank : index + 1;
+        body.appendChild(createStandingsRow(entry, rank, showKills));
     });
     table.appendChild(body);
 

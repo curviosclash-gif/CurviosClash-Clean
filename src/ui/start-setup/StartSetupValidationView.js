@@ -67,9 +67,12 @@ export function resolveLockedStartFieldHints(settings, settingsManager) {
         if (normalizedPath === 'mapKey') { lockMessagesByField.map.push('Karte'); return; }
         if (normalizedPath === 'vehicles.PLAYER_1') { lockMessagesByField.vehicleP1.push('Flugzeug P1'); return; }
         if (normalizedPath === 'vehicles.PLAYER_2') { lockMessagesByField.vehicleP2.push('Flugzeug P2'); return; }
+        const targetLabel = String(settings?.hunt?.winCondition || '').toLowerCase() === 'score_target'
+            ? 'Punktziel'
+            : 'Abschussziel';
         const labels = {
             gameMode: 'Spielmodus', winsNeeded: 'Siegbedingung', numBots: 'Bot-Anzahl',
-            'hunt.respawnEnabled': 'Wiedereinstieg', 'hunt.deathmatchKillLimit': 'Abschussziel',
+            'hunt.respawnEnabled': 'Wiedereinstieg', 'hunt.deathmatchKillLimit': targetLabel,
             'gameplay.itemAmount': 'Gegenstände', botDifficulty: 'Bot-Schwierigkeit',
         };
         lockMessagesByField.match.push(labels[normalizedPath] || 'Weitere Spielregeln');

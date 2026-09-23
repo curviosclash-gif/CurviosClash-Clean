@@ -116,6 +116,10 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await expect(page.locator('#arcade-vehicle-manager-mount')).toHaveCount(0);
         await expect(page.locator('.hangar-window-launch-card')).toHaveCount(1);
         await expect(page.locator('.hangar-window-open')).toHaveCount(1);
+        await openStartSetupSection(page, 'arcade');
+        await expect(page.locator('#arcade-local-leaderboard-line'))
+            .toContainText('noch keine gespeicherte Zeit');
+        await expect(page.locator('#arcade-local-leaderboard-list')).toHaveCount(1);
         await expect(page.locator('.hangar-window-launch-card .menu-info-hint')).toHaveAttribute(
             'title',
             'Öffnet den Fahrzeug-Workshop bildschirmfüllend in einem eigenen Fenster.'

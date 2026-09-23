@@ -20,6 +20,7 @@ import {
 import { awardBoundArcadeVehicleXp } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
 import { bindArcadeRunVehicleRewards, ensureArcadeRunVehicleRewards, getArcadeRunVehicleId, getArcadeRunVehicleProfile } from './ArcadeRunVehicleRewardOps.js';
 import {
+    createLeaderboardProjection,
     loadLeaderboard,
 } from '../../state/arcade/ArcadeLeaderboard.js';
 import {
@@ -552,6 +553,7 @@ export class ArcadeRunRuntime {
             phase: String(this._state?.phase || ''),
             isDailyChallenge: this._state?.isDailyChallenge === true,
             records: this.getRecordsSnapshot(),
+            leaderboard: createLeaderboardProjection(this._leaderboard),
             legacyRecords: this._legacyRecords || null,
             victory: this._state?.victory || null,
             dailyResult: this._state?.dailyResult || null,

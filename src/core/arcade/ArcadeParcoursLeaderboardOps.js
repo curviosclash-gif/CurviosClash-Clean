@@ -1,4 +1,4 @@
-import { getBestEntry, insertLeaderboardEntry } from '../../state/arcade/ArcadeLeaderboard.js';
+import { createLeaderboardEntry, getBestEntry, insertLeaderboardEntry } from '../../state/arcade/ArcadeLeaderboard.js';
 import {
     getLongestGhostByRoute,
     upsertLongestGhostByRoute,
@@ -143,19 +143,33 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
     let inserted = false;
 
     if (!persistLibraryOnly) {
-        const best = getBestEntry(runtime._leaderboard, primaryRouteId);
-        const safeClip = boundedGhost(data.ghostClip, ghostLibraryBudget);
-        if (best && data.totalTimeMs === best.totalTimeMs && !best.ghostClip && safeClip) {
-            runtime._leaderboard = { ...runtime._leaderboard, [primaryRouteId]: runtime._leaderboard[primaryRouteId]
-                .map((entry, index) => index === 0 ? { ...entry, ghostClip: safeClip } : entry) };
-        }
-        isBestTime = !best || data.totalTimeMs < best.totalTimeMs;
-        runtime._leaderboard = insertLeaderboardEntry(runtime._leaderboard, primaryRouteId, {
+        const entry = createLeaderboardEntry({
             totalTimeMs: data.totalTimeMs,
             penaltyTimeMs: data.penaltyTimeMs,
             segmentSplitsMs: data.segmentSplitsMs,
             vehicleId,
             date: recordedAtIso,
+        });
+        if (!entry) {
+            return {
+                inserted: false,
+                isBestTime: false,
+                persistLibraryOnly,
+                reason: 'invalid_total_time',
+                ghostRouteIds: routeCandidates,
+                longestGhostUpdated: false,
+                longestGhostReason: 'invalid_total_time',
+            };
+        }
+        const best = getBestEntry(runtime._leaderboard, primaryRouteId);
+        const safeClip = boundedGhost(data.ghostClip, ghostLibraryBudget);
+        if (best && entry.totalTimeMs === best.totalTimeMs && !best.ghostClip && safeClip) {
+            runtime._leaderboard = { ...runtime._leaderboard, [primaryRouteId]: runtime._leaderboard[primaryRouteId]
+                .map((entry, index) => index === 0 ? { ...entry, ghostClip: safeClip } : entry) };
+        }
+        isBestTime = !best || entry.totalTimeMs < best.totalTimeMs;
+        runtime._leaderboard = insertLeaderboardEntry(runtime._leaderboard, primaryRouteId, {
+            ...entry,
             ghostClip: isBestTime ? safeClip : null,
         });
         runtime._scheduleLeaderboardSave();
