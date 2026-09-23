@@ -396,7 +396,7 @@ test.describe('V65: Editor Build Dock', () => {
 
         await page.locator('#playtestMenu > summary').click();
         await page.locator('#selPlaytestSession').selectOption('splitscreen');
-        await expect(page.locator('#playtestSettingsSummary')).toHaveText('3D · Splitscreen');
+        await expect(page.locator('#playtestSettingsSummary')).toHaveText('3D · Geteilter Bildschirm');
         const popupPromise = page.waitForEvent('popup');
         await page.locator('#btnPlaytest').click();
         const popup = await popupPromise;
@@ -1426,7 +1426,7 @@ test.describe('Editor Small Desktop Layout', () => {
         await expect(page.locator('#selPlaytestMode')).toBeVisible();
         await page.locator('#selPlaytestMode').selectOption('planar');
         await page.locator('#selPlaytestSession').selectOption('splitscreen');
-        await expect(page.locator('#playtestSettingsSummary')).toHaveText('Planar · Splitscreen');
+        await expect(page.locator('#playtestSettingsSummary')).toHaveText('Planar · Geteilter Bildschirm');
 
         await page.locator('#btnToggleDockFromScene').click();
         await expect(page.locator('#buildDock')).toBeVisible();
