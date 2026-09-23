@@ -45,14 +45,19 @@ function build() {
 
 const byClass = (parent, name) => parent.children.find((child) => String(child.className).split(' ').includes(name));
 
-test('the five run starts sit together in a "Lauf starten" group at the top', () => {
+test('the main run stays visible while four specialist modes are grouped one level deeper', () => {
     const { body } = build();
     const group = body.children[0];
     assert.match(group.className, /\barcade-start-group\b/);
     assert.equal(group.children[0].textContent, 'Lauf starten');
-    const options = group.children.filter((child) => child.className === 'arcade-start-option');
+    const visibleOptions = group.children.filter((child) => child.classList.contains('arcade-start-option'));
+    assert.deepEqual(visibleOptions.map((option) => option.children[0].id), ['btn-arcade-start-inline']);
+    assert.equal(visibleOptions[0].classList.contains('is-primary'), true);
+    const specialistModes = byClass(group, 'arcade-start-mode-options');
+    assert.equal(specialistModes.tagName, 'DETAILS');
+    assert.equal(specialistModes.children[0].textContent, 'Weitere Arcade-Modi (4)');
+    const options = specialistModes.children[1].children;
     assert.deepEqual(options.map((option) => option.children[0].id), [
-        'btn-arcade-start-inline',
         'btn-arcade-endless-start-inline',
         'btn-arcade-five-fronts-start-inline',
         'btn-arcade-five-portals-start-inline',
@@ -74,7 +79,7 @@ test('the arcade statistics include a local parcours leaderboard card', () => {
 
 test('the plain arcade run says it is the same run as the main start button', () => {
     const { body } = build();
-    const first = body.children[0].children.find((child) => child.className === 'arcade-start-option');
+    const first = body.children[0].children.find((child) => child.classList.contains('arcade-start-option'));
     assert.match(first.children[1].textContent, /„Spiel starten“/);
 });
 
@@ -83,12 +88,16 @@ test('current status and standalone leaderboard follow the starts before advance
     const stats = byClass(body, 'arcade-stats-block');
     assert.ok(stats, 'stats block exists');
     assert.ok(body.children.indexOf(stats) > 0, 'below the start group');
-    assert.equal(stats.children[0].textContent, 'Dein aktueller Stand');
+    assert.equal(stats.children[0].textContent, 'Letzter Arcade-Run');
     assert.ok(stats.children.includes(surface.recordsLine));
     assert.ok(body.children.indexOf(surface.leaderboardLine.parentElement.parentElement) > body.children.indexOf(stats));
     const advanced = byClass(body, 'arcade-advanced-options');
     assert.ok(advanced, 'advanced options exist');
     assert.ok(body.children.indexOf(advanced) > body.children.indexOf(surface.leaderboardLine.parentElement.parentElement));
+    const metricLabels = stats.children
+        .find((child) => child.classList.contains('arcade-hud-shell-grid'))
+        .children.map((metric) => metric.children[0].textContent);
+    assert.deepEqual(metricLabels, ['Punkte', 'Max. Multiplikator', 'Sektoren geschafft', 'Beste Combo']);
 });
 
 test('leaderboard keeps accessible table and top-ten toggle hooks', () => {
@@ -99,4 +108,6 @@ test('leaderboard keeps accessible table and top-ten toggle hooks', () => {
     assert.equal(surface.leaderboardToggle.attributes['aria-controls'], 'arcade-local-leaderboard-list');
     assert.equal(surface.leaderboardToggle.attributes['aria-expanded'], 'false');
     assert.equal(surface.leaderboardResult.attributes['aria-live'], 'polite');
+    const caption = surface.leaderboardList.parentElement.children.find((child) => child.tagName === 'CAPTION');
+    assert.match(caption.textContent, /inklusive Strafen/);
 });

@@ -51,6 +51,16 @@ function toInt(value, fallback = 0) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function formatInteger(value) {
+    return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 })
+        .format(Math.max(0, Math.round(Number(value) || 0)));
+}
+
+function formatCompletedRuns(value) {
+    const count = Math.max(0, Math.trunc(Number(value) || 0));
+    return count === 1 ? '1 abgeschlossener Lauf' : `${formatInteger(count)} abgeschlossene Läufe`;
+}
+
 function safeReadLocalStorage(key) {
     try {
         return window.localStorage.getItem(key);
@@ -285,8 +295,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
             : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${resolveMapPreview(mapKey).name} · ${botCount} Bots · ${difficultyLabel}${tierLabel}${dailyLabel}${phaseLabel}`;
         refs.recordsLine.textContent = fivePortalsSelected
             ? `Persönliche Bestzeit: ${fivePortalsRecord?.bestTotalMs > 0 ? `${(fivePortalsRecord.bestTotalMs / 1000).toFixed(2)} s` : '–'}`
-            : `Neue Wertung: ${Math.round(runtimeState?.records?.bestScore || 0)} Punkte`
-            + (runtimeState?.legacyRecords ? ` | Bisherige Wertung: ${Math.round(runtimeState.legacyRecords.bestScore)} Punkte` : '');
+            : `Persönlicher Rekord: ${formatInteger(runtimeState?.records?.bestScore)} Punkte`
+            + (records ? ` · ${formatCompletedRuns(records.runsPlayed)}` : '')
+            + (runtimeState?.legacyRecords ? ` · Frühere Wertung: ${formatInteger(runtimeState.legacyRecords.bestScore)} Punkte` : '');
         refs.endlessRecordsLine.textContent = summarizeEndlessRecordsLine(
             runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, null) || null
         );
@@ -300,7 +311,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
             lastResult: runtimeState?.lastParcoursResult || null,
         });
 
-        refs.metricScore.textContent = records ? String(Math.max(0, Math.round(Number(records.lastScore) || 0))) : '0';
+        refs.metricScore.textContent = records ? formatInteger(records.lastScore) : '0';
         refs.metricMultiplier.textContent = records
             ? `x${Math.max(1, Number(records.lastMultiplier) || 1).toFixed(1)}`
             : 'x1.0';
