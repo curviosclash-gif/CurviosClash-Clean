@@ -29,6 +29,10 @@ test('Arcade desktop: held countdown, explicit victory and voluntary continuatio
     await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING');
     await completeSector(page);
     await expect(page.locator('#btn-arcade-intermission-pause')).toBeVisible();
+    await expect(page.locator('[data-stats-block-id="arcade-intermission-breakdown"] .message-stats-title'))
+        .toHaveText('Punkteberechnung');
+    await expect(page.locator('[data-stats-block-id="arcade-intermission-breakdown"] [data-stats-row-key="calculation"]'))
+        .toContainText(/×.*=/);
     await page.locator('#btn-arcade-intermission-pause').focus();
     await page.keyboard.press('Space');
     const rest = await page.evaluate(() => window.GAME_INSTANCE.roundPause);
@@ -51,6 +55,8 @@ test('Arcade desktop: held countdown, explicit victory and voluntary continuatio
         && window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime.getStateSnapshot().sectorIndex === 2);
     await completeSector(page);
     await expect(page.locator('#btn-arcade-victory-finish')).toBeVisible();
+    await expect(page.locator('[data-stats-block-id="arcade-victory-breakdown"] [data-stats-row-key="calculation"]'))
+        .toContainText(/×.*=/);
     await page.screenshot({ path: testInfo.outputPath('arcade-victory-1280.png') });
     const victoryAt = Date.now();
     await page.waitForFunction(start => Date.now() - start >= 1200, victoryAt);

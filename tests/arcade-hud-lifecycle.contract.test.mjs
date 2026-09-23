@@ -122,7 +122,7 @@ test('the arcade HUD shows the settled sector score right after the round ends',
 
         assert.equal(
             runtime._arcadeScoreHud?._scoreValue?.textContent,
-            '1050',
+            '1.050',
             'the HUD shows the points the intermission settles, not the score from before',
         );
     } finally {

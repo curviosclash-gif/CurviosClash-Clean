@@ -16,6 +16,20 @@ import { createPostMatchBlock } from '../../../shared/contracts/PostMatchStatsCo
 import { resolveMapPreview } from '../../menu/MenuPreviewCatalog.js';
 
 const UNKNOWN_MAP_LABEL = 'Unbekannte Karte';
+const SCORE_INTEGER_FORMATTER = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+const SCORE_FACTOR_FORMATTER = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function formatScoreEquation(presentation, sectorSettlement) {
+    const raw = SCORE_INTEGER_FORMATTER.format(Math.round(presentation.rawSubtotal));
+    const total = SCORE_INTEGER_FORMATTER.format(Math.round(presentation.scoredTotal));
+    if (!sectorSettlement) {
+        const bonus = SCORE_INTEGER_FORMATTER.format(Math.round(presentation.multiplierBonus));
+        return `${raw} + ${bonus} = ${total}`;
+    }
+    const factor = SCORE_FACTOR_FORMATTER.format(presentation.factor);
+    const mission = SCORE_INTEGER_FORMATTER.format(Math.round(presentation.missionBonus));
+    return `${raw} × ${factor} + ${mission} = ${total}`;
+}
 
 /**
  * Prefers a label the summary already carries, then the runtime map catalog, and keeps the raw key
@@ -83,22 +97,26 @@ export function createArcadeBreakdownBlock(breakdown, id = 'arcade-breakdown', a
             rows.push(
                 countRow('raw-subtotal', 'Zwischensumme', Math.round(presentation.rawSubtotal)),
                 { key: 'score-factor', label: 'Gesamtfaktor', value: presentation.factor, type: 'ratio', precision: 2 },
-                countRow('factored-points', 'Punkte nach Faktoren', Math.round(presentation.factoredPoints))
+                countRow('factored-points', 'Nach Gesamtfaktor', Math.round(presentation.factoredPoints))
             );
             if (presentation.missionBonus > 0) {
                 rows.push(countRow('mission-bonus', 'Missionsbonus', Math.round(presentation.missionBonus)));
             }
-            rows.push(countRow('scored-total', 'Gewertete Punkte', Math.round(presentation.scoredTotal)));
+            rows.push(
+                textRow('calculation', 'Rechenweg', formatScoreEquation(presentation, true)),
+                countRow('scored-total', 'Gewertete Sektorpunkte', Math.round(presentation.scoredTotal))
+            );
         } else {
             const presentation = createArcadeScorePresentation(breakdown, awardedTotal);
             rows.push(
                 countRow('raw-subtotal', 'Rohsumme aller Sektoren', Math.round(presentation.rawSubtotal)),
-                countRow('multiplier-bonus', 'Faktoren, Rundung & Boni', Math.round(presentation.multiplierBonus)),
-                countRow('scored-total', 'Gewertete Punkte', Math.round(presentation.scoredTotal))
+                countRow('multiplier-bonus', 'Zusätzliche Wertung aus Faktoren & Boni', Math.round(presentation.multiplierBonus)),
+                textRow('calculation', 'Rechenweg', formatScoreEquation(presentation, false)),
+                countRow('scored-total', 'Gesamtpunkte', Math.round(presentation.scoredTotal))
             );
         }
     }
-    return createArcadeBlock(id, 'So wurden die Punkte berechnet', rows);
+    return createArcadeBlock(id, 'Punkteberechnung', rows);
 }
 
 /**
@@ -159,8 +177,6 @@ export function createArcadeVictoryBlocks(victory = {}) {
         ]),
         sector ? createArcadeBlock('arcade-victory-sector', 'Letzter Sektor', [
             countRow('sector-score', 'Punkte', sector.awardedPoints),
-            { key: 'score-factor', label: 'Faktor', value: sector.scoreFactor ?? 1, type: 'ratio', precision: 2 },
-            countRow('mission-bonus', 'Missionsbonus', sector.missionBonus),
         ]) : null,
         sector ? createArcadeBreakdownBlock(sector.breakdown, 'arcade-victory-breakdown', sector.awardedPoints, sector) : null,
     ].filter(Boolean);
@@ -179,8 +195,6 @@ export function createArcadeIntermissionBlocks(intermission = {}) {
             countRow('sector-score', 'Punkte', intermission.lastSectorPoints),
             countRow('sector-xp', 'XP', intermission.lastSectorXp),
             textRow('missions', 'Missionen', `${completed}/${total}`),
-            { key: 'score-factor', label: 'Faktor', value: intermission.scoreFactor ?? 1, type: 'ratio', precision: 2 },
-            countRow('mission-bonus', 'Missionsbonus', intermission.missionBonus),
         ]),
         createArcadeBreakdownBlock(
             intermission.breakdown,
