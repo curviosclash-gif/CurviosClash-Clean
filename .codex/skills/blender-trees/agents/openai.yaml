@@ -1,0 +1,4 @@
+interface:
+  display_name: "Blender Trees"
+  short_description: "Create detailed fractal trees for games"
+  default_prompt: "Use $blender-trees to build and validate a believable game-ready tree."

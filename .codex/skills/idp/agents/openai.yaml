@@ -1,0 +1,4 @@
+interface:
+  display_name: "IDP - Idea to Prompt"
+  short_description: "Ideen strukturiert bis zum Umsetzungsprompt planen"
+  default_prompt: "Nutze $idp im STANDARD-Modus, um meine Idee im Plan-Modus bis zu einem geprueften Implementierungsprompt zu entwickeln."

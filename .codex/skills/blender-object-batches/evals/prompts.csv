@@ -1,0 +1,13 @@
+id,should_trigger,prompt,expected
+explicit-01,true,"Use $blender-object-batches to make ten game-ready crate variants from one approved design.","Compile one contract and batch ten variants."
+implicit-01,true,"Discuss this rock once, then produce 20 reproducible Blender variations.","Use one family contract and a deterministic manifest."
+implicit-02,true,"Create a Blender prop family where I can add more variants later without changing the old ones.","Select appendable sampling."
+implicit-03,true,"Generate a fixed set of ten maximally diverse barrels from one procedural Blender setup.","Select coverage sampling."
+domain-01,true,"Use this approved oak design to make ten different trees for my game.","Combine with blender-trees."
+revision-01,true,"Only crate variants 3 and 8 failed export; rebuild those without changing the others.","Preserve manifest IDs and run a targeted batch."
+revision-02,true,"The polygon budget changed, but the generated forms did not.","Revalidate first; do not rebuild geometry automatically."
+negative-01,false,"Create one detailed oak tree in Blender.","Use blender-trees without batching."
+negative-02,false,"Render ten camera angles of the same Blender object.","Use blender-workflows; views are not object variants."
+negative-03,false,"Create ten unrelated household objects.","Split into families or clarify scope."
+negative-04,false,"Generate ten transparent PNG icons.","Use image generation, not Blender batching."
+negative-05,false,"Explain procedural modeling in Blender.","Answer conceptually without starting a batch."

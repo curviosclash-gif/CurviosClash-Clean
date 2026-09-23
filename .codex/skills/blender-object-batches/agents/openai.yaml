@@ -1,0 +1,4 @@
+interface:
+  display_name: "Blender Object Batches"
+  short_description: "Create many Blender variants from one brief"
+  default_prompt: "Use $blender-object-batches to define one object once and generate ten deterministic variations."

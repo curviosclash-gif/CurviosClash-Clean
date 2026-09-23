@@ -1,0 +1,4 @@
+interface:
+  display_name: "Blender Plants"
+  short_description: "Create organic game-ready plants in Blender"
+  default_prompt: "Use $blender-plants to build a natural, game-ready plant asset."

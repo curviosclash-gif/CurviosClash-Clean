@@ -1,0 +1,6 @@
+interface:
+  display_name: "Claude Plan & Umsetzung"
+  short_description: "Plan with Fable and implement with Opus"
+  default_prompt: "Use $claude-plan-umsetzung to plan, implement, and review this task with Claude."
+policy:
+  allow_implicit_invocation: false

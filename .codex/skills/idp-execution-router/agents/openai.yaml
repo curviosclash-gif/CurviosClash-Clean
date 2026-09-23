@@ -1,0 +1,4 @@
+interface:
+  display_name: "IDP Execution Router"
+  short_description: "Token-efficient routing for approved IDP work"
+  default_prompt: "Use $idp-execution-router to run this approved IDP prompt with the lowest total token cost that preserves quality."

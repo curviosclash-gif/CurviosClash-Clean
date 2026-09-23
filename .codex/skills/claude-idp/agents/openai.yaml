@@ -1,0 +1,6 @@
+interface:
+  display_name: "Claude IDP"
+  short_description: "Develop ideas with Claude Fable planning"
+  default_prompt: "Use $claude-idp to turn this idea into an approved implementation prompt."
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "criteria": [
+    {
+      "id": "single_contract",
+      "category": "process",
+      "required": true,
+      "description": "One object-family contract replaces per-variant briefs."
+    },
+    {
+      "id": "deterministic_manifest",
+      "category": "result",
+      "required": true,
+      "description": "The run records a root seed, stable IDs, parameter hashes, and an effective contract hash."
+    },
+    {
+      "id": "one_generator",
+      "category": "efficiency",
+      "required": true,
+      "description": "One reusable generator is called for all selected variants."
+    },
+    {
+      "id": "consolidated_qa",
+      "category": "result",
+      "required": true,
+      "description": "Every selected variant is checked and one machine-readable QA report is produced."
+    },
+    {
+      "id": "minimal_dialogue",
+      "category": "efficiency",
+      "required": true,
+      "description": "At most one compact clarification round occurs unless the user expands the scope."
+    },
+    {
+      "id": "targeted_revision",
+      "category": "efficiency",
+      "required": false,
+      "description": "Unchanged IDs are not rebuilt after a local revision."
+    }
+  ]
+}

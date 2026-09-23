@@ -1,0 +1,131 @@
+{
+  "schema_version": 2,
+  "contract_revision": 1,
+  "object_id": "wooden-crate",
+  "lifecycle": {
+    "state": "PROTOTYPE_APPROVED",
+    "prototype_id": "wooden-crate-v01"
+  },
+  "count": 10,
+  "seed": 4242,
+  "sampling": {
+    "mode": "appendable",
+    "canonical_first": true
+  },
+  "naming_pattern": "{object_id}-v{index:02d}",
+  "invariants": {
+    "units": "meters",
+    "up_axis": "Z",
+    "origin": "bottom-center",
+    "style": "stylized-realistic",
+    "target": "desktop-game",
+    "must_keep": [
+      "rectangular shipping-crate silhouette",
+      "closed collision volume",
+      "shared material slots"
+    ]
+  },
+  "parameters": {
+    "width": {
+      "type": "float",
+      "min": 0.8,
+      "max": 1.2,
+      "precision": 3,
+      "canonical": 1.0,
+      "strata_group": "overall-size"
+    },
+    "height": {
+      "type": "float",
+      "min": 0.7,
+      "max": 1.15,
+      "precision": 3,
+      "canonical": 0.95,
+      "strata_group": "overall-size",
+      "invert": true
+    },
+    "depth": {
+      "type": "float",
+      "min": 0.75,
+      "max": 1.1,
+      "precision": 3,
+      "canonical": 0.9
+    },
+    "plank_count": {
+      "type": "int",
+      "min": 5,
+      "max": 9,
+      "canonical": 7
+    },
+    "wood_species": {
+      "type": "choice",
+      "values": ["oak", "pine", "beech"],
+      "canonical": "oak"
+    },
+    "has_side_handles": {
+      "type": "bool",
+      "canonical": true
+    },
+    "handle_size": {
+      "type": "float",
+      "min": 0.0,
+      "max": 0.14,
+      "precision": 3,
+      "canonical": 0.1
+    },
+    "lod_policy": {
+      "type": "fixed",
+      "value": "lod0-lod2"
+    }
+  },
+  "design_roles": [
+    {
+      "index": 2,
+      "name": "compact",
+      "overrides": {"width": 0.82, "height": 0.78, "depth": 0.78}
+    },
+    {
+      "index": 3,
+      "name": "wide",
+      "overrides": {"width": 1.18, "height": 0.82}
+    },
+    {
+      "index": 4,
+      "name": "high-detail",
+      "overrides": {"plank_count": 9}
+    }
+  ],
+  "constraints": [
+    {
+      "when": {"parameter": "has_side_handles", "equals": false},
+      "then": {"set": {"handle_size": 0.0}}
+    }
+  ],
+  "build_profile": {
+    "renderer": "cycles",
+    "target_engine": "generic-glb",
+    "lod_policy": "lod0-lod2",
+    "texture_resolution": 2048
+  },
+  "outputs": {
+    "required_roles": ["editable", "runtime"],
+    "editable_format": "blend",
+    "runtime_format": "glb",
+    "preview": "contact-sheet"
+  },
+  "budgets": {
+    "triangles_max": 12000,
+    "materials_max": 2,
+    "file_size_bytes_max": 5000000
+  },
+  "qa": {
+    "required_metrics": ["triangles", "materials", "file_size_bytes"],
+    "required_views": ["front", "side", "rear", "three-quarter"],
+    "roundtrip_import": true
+  },
+  "provenance": {
+    "generator_id": "wooden-crate-generator",
+    "generator_version": "1.0.0",
+    "blender_version": "4.5-lts",
+    "domain_skill": "blender-workflows"
+  }
+}

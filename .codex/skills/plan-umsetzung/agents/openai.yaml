@@ -1,0 +1,6 @@
+interface:
+  display_name: "Plan & Umsetzung"
+  short_description: "Plant, implementiert und prüft mit Freigabegates"
+  default_prompt: "Use $plan-umsetzung to plan, implement, and review this task with suitable non-Astra models; ask for my explicit approval before any use of gpt-6-astra."
+policy:
+  allow_implicit_invocation: false

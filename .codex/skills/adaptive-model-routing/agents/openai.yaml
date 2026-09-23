@@ -1,0 +1,4 @@
+interface:
+  display_name: "Adaptive Model Routing"
+  short_description: "Use the lowest-cost effective execution path"
+  default_prompt: "Use $adaptive-model-routing to complete this task with the least costly effective routing."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Blender Workflows"
+  short_description: "Build assets and grow specialized Blender workflows"
+  default_prompt: "Use $blender-workflows to plan, build, and validate a Blender asset, proposing an object-specific skill when reusable domain rules justify one."
