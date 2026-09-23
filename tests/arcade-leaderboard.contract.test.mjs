@@ -122,3 +122,27 @@ test('finish result describes a new best with rank and exact improvement', () =>
     assert.equal(result.deltaToBestMs, 0);
     assert.equal(result.qualified, true);
 });
+
+test('finish result uses competition rank for a tied time', () => {
+    const date = '2026-09-01T10:00:00.000Z';
+    const runtime = {
+        _enabled: true,
+        _activeVehicleId: 'ship5',
+        _leaderboard: { route: [{ totalTimeMs: 2000, penaltyTimeMs: 0, vehicleId: 'ship4', date }] },
+        _config: {},
+        _resolveSettingsRecordStore: () => null,
+        _resolveGhostLibraryBudgetOptions: () => ({}),
+        _scheduleLeaderboardSave() {},
+        _mergeGhostLibraryTelemetryDelta() {},
+        _scheduleGhostLibrarySave() {},
+        applyParcoursXpEvent() {},
+        _ghostLibrary: {},
+    };
+
+    const result = applyParcoursLeaderboardEvent(runtime, {
+        type: 'finish', routeId: 'route', totalTimeMs: 2000, ghostClip: null,
+    });
+
+    assert.equal(result.rank, 1);
+    assert.equal(result.status, 'ranked');
+});

@@ -183,7 +183,9 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
             && candidate?.vehicleId === entry.vehicleId
         ));
         const bestTimeMs = Math.max(0, Number(updatedEntries[0]?.totalTimeMs) || entry.totalTimeMs);
-        const rank = storedIndex >= 0 ? storedIndex + 1 : null;
+        const rank = storedIndex >= 0
+            ? updatedEntries.findIndex((candidate) => candidate?.totalTimeMs === entry.totalTimeMs) + 1
+            : null;
         runtime._scheduleLeaderboardSave();
         inserted = true;
 

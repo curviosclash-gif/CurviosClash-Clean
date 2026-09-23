@@ -38,46 +38,56 @@ export function buildArcadeSurface(level3Body, ui) {
 
     const body = createElement('div', 'menu-accordion-body arcade-surface-body');
 
-    // The run starts come first, each with one sentence; seed and
-    // statistics follow below as their own block.
+    // The main run and Daily stay visible; specialist modes are one level deeper.
     const startGroup = createElement('section', 'arcade-start-group');
     startGroup.appendChild(createElement('h3', 'arcade-surface-card-title', 'Lauf starten'));
+    startGroup.appendChild(createElement(
+        'p', 'menu-hint arcade-start-group-intro',
+        'Starte den empfohlenen Arcade Run oder wähle eine tägliche beziehungsweise spezielle Herausforderung.'
+    ));
     const runLine = createElement('p', 'menu-hint arcade-run-line');
     runLine.id = 'arcade-run-line';
     startGroup.appendChild(runLine);
     // "Albtraum" only hardens the arcade sector plan, so it sits with the starts it affects.
     const nightmareToggle = createArcadeNightmareToggle();
     startGroup.appendChild(nightmareToggle.label);
-    const createStartOption = (id, label, copy) => {
-        const option = createElement('div', 'arcade-start-option');
+    const createStartOption = (parent, id, label, copy, extraClass = '') => {
+        const option = createElement('div', `arcade-start-option${extraClass ? ` ${extraClass}` : ''}`);
         const button = createElement('button', 'start-btn', label);
         button.type = 'button';
         button.id = id;
         option.appendChild(button);
         option.appendChild(createElement('p', 'arcade-start-option-copy', copy));
-        startGroup.appendChild(option);
+        parent.appendChild(option);
         return button;
     };
-    const startRunButton = createStartOption('btn-arcade-start-inline', t('menu.arcade.start.label', 'Arcade Run starten'),
+    const startRunButton = createStartOption(startGroup, 'btn-arcade-start-inline', t('menu.arcade.start.label', 'Arcade Run starten'),
         'Sektoren nacheinander meistern und Punkte sammeln – derselbe Lauf wie „Spiel starten“.');
-    const startEndlessButton = createStartOption('btn-arcade-endless-start-inline', 'Endlosjagd starten',
-        'Endloser Kampf-Parcours: Tore bringen Punkte und verlängern deine Serie.');
-    const startFiveFrontsButton = createStartOption('btn-arcade-five-fronts-start-inline', 'Fünf Fronten',
-        'Fünf Arenen mit anrollenden Bot-Wellen; zwischen den Wellen wählst du Verbesserungen.');
-    const startFivePortalsButton = createStartOption('btn-arcade-five-portals-start-inline', 'Fünf Portale',
-        'Fünf Parcours-Karten auf Zeit; das Ausgangsportal bringt dich jeweils zur nächsten.');
-    const startWeaponRaceButton = createStartOption('btn-arcade-weapon-race-start-inline', 'Waffenrennen',
-        'Fünf Fahrer jagen durch den Angriffsparcours und wechseln ihre Waffe an festen Checkpoints.');
+    startRunButton.parentElement.classList.add('is-primary');
     const { card: dailyCard, line: dailyLine, button: dailyButton } = createArcadeDailyMenuCard(
         createElement,
         t('menu.arcade.postrun.daily.label', 'Daily starten')
     );
     dailyCard.classList.add('arcade-daily-start-card');
     startGroup.appendChild(dailyCard);
+    const alternateModes = createElement('details', 'arcade-start-mode-options');
+    const alternateModesSummary = createElement('summary', 'arcade-start-mode-options-summary', 'Weitere Arcade-Modi (4)');
+    alternateModes.appendChild(alternateModesSummary);
+    const alternateModesBody = createElement('div', 'arcade-start-mode-options-body');
+    const startEndlessButton = createStartOption(alternateModesBody, 'btn-arcade-endless-start-inline', 'Endlosjagd starten',
+        'Endloser Kampf-Parcours: Tore bringen Punkte und verlängern deine Serie.');
+    const startFiveFrontsButton = createStartOption(alternateModesBody, 'btn-arcade-five-fronts-start-inline', 'Fünf Fronten',
+        'Fünf Arenen mit anrollenden Bot-Wellen; zwischen den Wellen wählst du Verbesserungen.');
+    const startFivePortalsButton = createStartOption(alternateModesBody, 'btn-arcade-five-portals-start-inline', 'Fünf Portale',
+        'Fünf Parcours-Karten auf Zeit; das Ausgangsportal bringt dich jeweils zur nächsten.');
+    const startWeaponRaceButton = createStartOption(alternateModesBody, 'btn-arcade-weapon-race-start-inline', 'Waffenrennen',
+        'Fünf Fahrer jagen durch den Angriffsparcours und wechseln ihre Waffe an festen Checkpoints.');
+    alternateModes.appendChild(alternateModesBody);
+    startGroup.appendChild(alternateModes);
     body.appendChild(startGroup);
 
     const statusBlock = createElement('section', 'arcade-stats-block arcade-current-status');
-    statusBlock.appendChild(createElement('h3', 'arcade-surface-card-title', 'Dein aktueller Stand'));
+    statusBlock.appendChild(createElement('h3', 'arcade-surface-card-title', 'Letzter Arcade-Run'));
     const recordsLine = createElement('p', 'menu-hint');
     recordsLine.id = 'arcade-records-line';
     statusBlock.appendChild(recordsLine);
@@ -114,9 +124,9 @@ export function buildArcadeSurface(level3Body, ui) {
     seedCard.appendChild(seedEntry);
     const hudGrid = createElement('div', 'arcade-hud-shell-grid');
     const metricScore = createMetric(t('menu.arcade.hud.score.label', 'Punkte'), '0');
-    const metricMultiplier = createMetric(t('menu.arcade.hud.multiplier.label', 'Multiplikator'), 'x1.0');
-    const metricSector = createMetric(t('menu.arcade.hud.sector.label', 'Sektor'), '1');
-    const metricChain = createMetric(t('menu.arcade.hud.chain.label', 'Combo'), '0');
+    const metricMultiplier = createMetric(t('menu.arcade.hud.multiplier.label', 'Max. Multiplikator'), 'x1.0');
+    const metricSector = createMetric(t('menu.arcade.hud.sector.label', 'Sektoren geschafft'), '0');
+    const metricChain = createMetric(t('menu.arcade.hud.chain.label', 'Beste Combo'), '0');
     hudGrid.appendChild(metricScore.metric);
     hudGrid.appendChild(metricMultiplier.metric);
     hudGrid.appendChild(metricSector.metric);

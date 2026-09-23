@@ -4725,6 +4725,14 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     font-variant-numeric: tabular-nums;
 }
 
+.arcade-local-leaderboard-caption {
+    padding: 0 0 7px;
+    color: #bca98c;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    text-align: left;
+}
+
 .arcade-local-leaderboard-table th,
 .arcade-local-leaderboard-table td {
     padding: 7px 8px;
@@ -4851,6 +4859,39 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     grid-template-columns: minmax(200px, 240px) 1fr;
     gap: 12px;
     align-items: center;
+}
+
+.arcade-start-option.is-primary {
+    padding: 9px;
+    border: 1px solid rgba(255, 211, 108, 0.35);
+    border-radius: 9px;
+    background: rgba(255, 190, 65, 0.08);
+}
+
+.arcade-start-group-intro {
+    margin: 0;
+}
+
+.arcade-start-mode-options {
+    padding: 8px 9px;
+    border: 1px solid rgba(255, 190, 90, 0.18);
+    border-radius: 9px;
+    background: rgba(10, 10, 10, 0.14);
+}
+
+.arcade-start-mode-options-summary {
+    cursor: pointer;
+    color: #f1d2a4;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.arcade-start-mode-options-body {
+    display: grid;
+    gap: 8px;
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px solid rgba(255, 210, 140, 0.12);
 }
 
 .arcade-start-option .start-btn {

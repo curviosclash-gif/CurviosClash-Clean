@@ -87,9 +87,15 @@ export function createArcadeLeaderboardMenuCard(createElement) {
     const tableWrap = createElement('div', 'arcade-local-leaderboard-table-wrap');
     const table = createElement('table', 'arcade-local-leaderboard-table');
     table.id = 'arcade-local-leaderboard-table';
+    const caption = createElement(
+        'caption',
+        'arcade-local-leaderboard-caption',
+        'Gesamtzeit inklusive Strafen · Abstand zur Bestzeit'
+    );
+    table.appendChild(caption);
     const head = createElement('thead', '');
     const headRow = createElement('tr', '');
-    [['Platz', 'rank'], ['Zeit', 'time'], ['Abstand', 'delta'], ['Fahrzeug', 'vehicle'], ['Strafe', 'penalty'], ['Datum', 'date']]
+    [['Platz', 'rank'], ['Gesamtzeit', 'time'], ['Abstand', 'delta'], ['Fahrzeug', 'vehicle'], ['davon Strafe', 'penalty'], ['Datum', 'date']]
         .forEach(([label, key]) => {
             const heading = createCell('th', `is-${key}`, label);
             heading.setAttribute('scope', 'col');
@@ -136,9 +142,14 @@ export function renderArcadeLeaderboardMenu(refs, {
 
     clearChildren(refs.list);
     const bestTimeMs = Math.max(0, Number(rows[0]?.totalTimeMs) || 0);
+    let previousTimeMs = null;
+    let previousRank = 0;
     visibleRows.forEach((entry, index) => {
         const row = document.createElement('tr');
-        const rank = index + 1;
+        const totalTimeMs = Math.max(0, Number(entry?.totalTimeMs) || 0);
+        const rank = previousTimeMs === totalTimeMs ? previousRank : index + 1;
+        previousTimeMs = totalTimeMs;
+        previousRank = rank;
         row.className = `arcade-local-leaderboard-row is-rank-${Math.min(rank, 4)}`;
         const isLatest = !!lastResult
             && lastResult.routeId === routeId
@@ -152,9 +163,13 @@ export function renderArcadeLeaderboardMenu(refs, {
             rankCell.appendChild(badge);
         }
         row.appendChild(rankCell);
-        row.appendChild(createCell('td', 'is-time', formatLeaderboardTime(entry?.totalTimeMs)));
-        const deltaMs = Math.max(0, Number(entry?.totalTimeMs) || 0) - bestTimeMs;
-        row.appendChild(createCell('td', 'is-delta', index === 0 ? 'Bestzeit' : `+${(deltaMs / 1000).toFixed(3)} s`));
+        row.appendChild(createCell('td', 'is-time', formatLeaderboardTime(totalTimeMs)));
+        const deltaMs = totalTimeMs - bestTimeMs;
+        row.appendChild(createCell(
+            'td',
+            'is-delta',
+            index === 0 ? 'Bestzeit' : (deltaMs === 0 ? 'Gleichauf' : `+${(deltaMs / 1000).toFixed(3)} s`)
+        ));
         const vehicleId = normalizeString(entry?.vehicleId, 'unbekannt');
         row.appendChild(createCell('td', 'is-vehicle', resolveVehiclePreview(vehicleId)?.label || vehicleId));
         const penaltyMs = Math.max(0, Number(entry?.penaltyTimeMs) || 0);

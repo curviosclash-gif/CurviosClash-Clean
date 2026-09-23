@@ -85,3 +85,18 @@ test('leaderboard time formatting remains aligned beyond one hour', () => {
     assert.equal(formatLeaderboardTime(62_345), '1:02.345');
     assert.equal(formatLeaderboardTime(3_662_345), '1:01:02.345');
 });
+
+test('equal total times share a rank and explain the tie', () => {
+    const refs = createArcadeLeaderboardMenuCard(createElement);
+    const tiedEntries = [
+        { ...entries[0], totalTimeMs: 60_000 },
+        { ...entries[1], totalTimeMs: 60_000 },
+        { ...entries[2], totalTimeMs: 62_500 },
+    ];
+    renderArcadeLeaderboardMenu(refs, { entries: tiedEntries, routeId: 'route', routeLabel: 'Parcours Rift' });
+
+    assert.equal(refs.list.children[0].children[0].textContent, '1');
+    assert.equal(refs.list.children[1].children[0].textContent, '1');
+    assert.equal(refs.list.children[1].children[2].textContent, 'Gleichauf');
+    assert.equal(refs.list.children[2].children[0].textContent, '3');
+});

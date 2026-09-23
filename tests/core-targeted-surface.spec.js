@@ -122,7 +122,15 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             .toContainText('noch keine gespeicherte Zeit');
         await expect(page.locator('#arcade-local-leaderboard-list')).toHaveCount(1);
         await expect(page.locator('#arcade-local-leaderboard-table')).toHaveCount(1);
+        await expect(page.locator('#arcade-local-leaderboard-table caption'))
+            .toContainText('Gesamtzeit inklusive Strafen');
         await expect(page.locator('#btn-arcade-local-leaderboard-toggle')).toHaveAttribute('aria-expanded', 'false');
+        await expect(page.locator('.arcade-current-status .arcade-hud-metric-label'))
+            .toHaveText(['Punkte', 'Max. Multiplikator', 'Sektoren geschafft', 'Beste Combo']);
+        await expect(page.locator('#btn-arcade-start-inline')).toBeVisible();
+        await expect(page.locator('#btn-arcade-endless-start-inline')).not.toBeVisible();
+        await page.locator('.arcade-start-mode-options-summary').click();
+        await expect(page.locator('#btn-arcade-endless-start-inline')).toBeVisible();
         await expect(page.locator('.hangar-window-launch-card .menu-info-hint')).toHaveAttribute(
             'title',
             'Öffnet den Fahrzeug-Workshop bildschirmfüllend in einem eigenen Fenster.'
