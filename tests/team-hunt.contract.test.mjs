@@ -5,6 +5,7 @@ import {
     createTeamScoreboard,
     normalizeTeamHuntSettings,
     resolveTeamRoster,
+    validateTeamRoster,
 } from '../src/shared/contracts/TeamHuntContract.js';
 import { TEAM_IDS } from '../src/shared/contracts/TeamCombatContract.js';
 import { RoundOutcomeSystem } from '../src/entities/systems/RoundOutcomeSystem.js';
@@ -18,6 +19,7 @@ import { coordinateRoundEnd } from '../src/ui/MatchFlowRoundEndCoordinator.js';
 import { buildMatchRuntimeProjection } from '../src/shared/runtime/MatchRuntimeProjectionBuilder.js';
 import { EntitySetupOps } from '../src/entities/runtime/EntitySetupOps.js';
 import { resolveEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
+import { resolveMatchStartValidationIssue } from '../src/core/runtime/MatchStartValidationService.js';
 import * as THREE from 'three';
 
 function combatant(index, teamId, alive = true) {
@@ -41,6 +43,84 @@ test('team settings default to a 4v4 roster and normalize per-team bot difficult
         teamIds: [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO],
     });
     assert.equal(normalizeTeamHuntSettings({ enabled: true, teamMode: false }).enabled, false);
+});
+
+test('team roster validation rejects capacity overflow and balances bots around assigned humans', () => {
+    assert.deepEqual(validateTeamRoster({ humanCount: 5, teamSize: 2 }), {
+        valid: false,
+        code: 'TEAM_CAPACITY_EXCEEDED',
+        humanCount: 5,
+        teamSize: 2,
+        capacity: 4,
+    });
+    assert.deepEqual(validateTeamRoster({ humanCount: 4, teamSize: 2 }), {
+        valid: true,
+        code: '',
+        humanCount: 4,
+        teamSize: 2,
+        capacity: 4,
+    });
+    assert.equal(validateTeamRoster({
+        humanCount: 4,
+        teamSize: 2,
+        humanTeamIds: [TEAM_IDS.ALPHA, TEAM_IDS.ALPHA, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO],
+    }).valid, false);
+
+    const roster = resolveTeamRoster({
+        humanCount: 4,
+        teamSize: 4,
+        humanTeamIds: [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.BRAVO, TEAM_IDS.BRAVO],
+    });
+    assert.deepEqual(roster.teamIds, [
+        TEAM_IDS.ALPHA,
+        TEAM_IDS.BRAVO,
+        TEAM_IDS.BRAVO,
+        TEAM_IDS.BRAVO,
+        TEAM_IDS.ALPHA,
+        TEAM_IDS.ALPHA,
+        TEAM_IDS.ALPHA,
+        TEAM_IDS.BRAVO,
+    ]);
+});
+
+test('team roster overflow blocks multiplayer start with a useful match error', () => {
+    const defaults = createMenuSettingsDefaults();
+    const issue = resolveMatchStartValidationIssue({
+        settings: {
+            ...defaults,
+            gameMode: 'HUNT',
+            localSettings: { ...defaults.localSettings, sessionType: 'multiplayer', modePath: 'fight' },
+            hunt: { ...defaults.hunt, teamMode: true, teamSize: 2 },
+        },
+        maps: { [defaults.mapKey]: {} },
+        multiplayerSessionState: {
+            joined: true,
+            connected: true,
+            lobbyCode: 'TEAM-5',
+            isHost: true,
+            memberCount: 5,
+            playerCount: 5,
+            allReady: true,
+        },
+    });
+
+    assert.equal(issue?.fieldKey, 'match');
+    assert.match(issue?.message || '', /höchstens 4 Spieler/);
+});
+
+test('stored team preferences stay inert outside Hunt runtime', () => {
+    const defaults = createMenuSettingsDefaults();
+    const settings = {
+        ...defaults,
+        gameMode: 'ARCADE',
+        localSettings: { ...defaults.localSettings, modePath: 'arcade' },
+        hunt: { ...defaults.hunt, teamMode: true, teamSize: 3 },
+    };
+
+    const runtime = createRuntimeConfigSnapshot(settings);
+    assert.equal(settings.hunt.teamMode, true);
+    assert.equal(runtime.hunt.teamMode, false);
+    assert.equal(runtime.hunt.teamSize, 3);
 });
 
 test('team round wins increment every teammate and reach the match limit together', () => {
@@ -164,6 +244,31 @@ test('match setup assigns every human and bot slot to the balanced roster', () =
     assert.deepEqual(options.botTeamIds, [TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO]);
 });
 
+test('match setup fills bots into the smaller explicitly assigned human team', () => {
+    const runtimeConfig = {
+        session: {
+            activeGameMode: 'HUNT',
+            numHumans: 1,
+            humanEntityCount: 4,
+            networkPlayerSlots: [
+                { playerIndex: 0, teamId: TEAM_IDS.ALPHA },
+                { playerIndex: 1, teamId: TEAM_IDS.BRAVO },
+                { playerIndex: 2, teamId: TEAM_IDS.BRAVO },
+                { playerIndex: 3, teamId: TEAM_IDS.BRAVO },
+            ],
+        },
+        hunt: { teamMode: true, teamSize: 4 },
+    };
+
+    const options = buildEntityManagerSetupOptions({ gameplay: {}, vehicles: {}, hunt: {} }, runtimeConfig);
+    assert.deepEqual(options.humanConfigs.map((entry) => entry.teamId), [
+        TEAM_IDS.ALPHA, TEAM_IDS.BRAVO, TEAM_IDS.BRAVO, TEAM_IDS.BRAVO,
+    ]);
+    assert.deepEqual(options.botTeamIds, [
+        TEAM_IDS.ALPHA, TEAM_IDS.ALPHA, TEAM_IDS.ALPHA, TEAM_IDS.BRAVO,
+    ]);
+});
+
 test('team setup colors every human, bot and trail blue or orange', () => {
     const renderer = {
         addToScene() {},
@@ -236,4 +341,18 @@ test('lethal friendly fire records the death without awarding a team kill', () =
     const rows = scoring.getScoreboard([attacker, teammate]);
     assert.equal(rows.find((row) => row.playerIndex === 0).kills, 0);
     assert.equal(rows.find((row) => row.playerIndex === 2).deaths, 1);
+});
+
+test('friendly-fire contributions intentionally remain eligible for assists', () => {
+    const scoring = new HuntScoring(() => 1);
+    const teammate = combatant(0, TEAM_IDS.ALPHA);
+    const victim = { ...combatant(2, TEAM_IDS.ALPHA), maxHp: 100, maxShieldHp: 0 };
+    const enemy = combatant(1, TEAM_IDS.BRAVO);
+
+    scoring.registerDamage(teammate, victim, { applied: 30, hpApplied: 30 }, 0);
+    const result = scoring.registerElimination(victim, { killer: enemy, nowSeconds: 1 });
+    const rows = scoring.getScoreboard([teammate, enemy, victim]);
+
+    assert.deepEqual(result.assistIndices, [teammate.index]);
+    assert.equal(rows.find((row) => row.playerIndex === teammate.index).assists, 1);
 });

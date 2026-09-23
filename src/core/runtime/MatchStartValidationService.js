@@ -6,6 +6,7 @@ import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.
 import { resolveDesktopConnectivityProfile } from '../../shared/contracts/DesktopMultiplayerRoleContract.js';
 import { isMapEligibleForModePath } from '../../shared/contracts/MapModeContract.js';
 import { resolveRuntimeSessionContract } from '../../shared/contracts/RuntimeSessionContract.js';
+import { normalizeTeamHuntSettings, validateTeamRoster } from '../../shared/contracts/TeamHuntContract.js';
 
 /**
  * @param {{ settings?: any, ui?: any, multiplayerSessionState?: any, surfaceState?: any, currentFallbackModePath?: string }}
@@ -124,6 +125,23 @@ export function resolveMatchStartValidationIssue({
                 fieldKey: 'multiplayer',
                 fieldMessage: 'Alle verbundenen Mitspieler müssen sich bereit melden.',
             };
+        }
+        const teamSettings = normalizeTeamHuntSettings(settings?.hunt);
+        if (settings?.gameMode === huntModeType && teamSettings.enabled) {
+            const rosterValidation = validateTeamRoster({
+                humanCount: Math.max(sessionState?.memberCount || 0, sessionState?.playerCount || 0),
+                teamSize: teamSettings.teamSize,
+                humanTeamIds: (Array.isArray(sessionState?.members) ? sessionState.members : [])
+                    .map((member) => member?.teamId),
+            });
+            if (!rosterValidation.valid) {
+                const message = `Die gewählte Teamgröße erlaubt höchstens ${rosterValidation.capacity} Spieler.`;
+                return {
+                    message: `Start nicht möglich: ${message}`,
+                    fieldKey: 'match',
+                    fieldMessage: `${message} Teamgröße erhöhen oder Lobby verkleinern.`,
+                };
+            }
         }
     }
 

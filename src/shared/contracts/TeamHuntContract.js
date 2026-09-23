@@ -27,15 +27,59 @@ export function normalizeTeamHuntSettings(source = {}) {
     };
 }
 
-export function resolveTeamRoster({ humanCount = 0, teamSize = TEAM_HUNT_DEFAULT_TEAM_SIZE } = {}) {
+export function validateTeamRoster({
+    humanCount = 0,
+    teamSize = TEAM_HUNT_DEFAULT_TEAM_SIZE,
+    humanTeamIds = [],
+} = {}) {
+    const normalizedTeamSize = Math.max(1, Math.min(5, Math.trunc(Number(teamSize) || TEAM_HUNT_DEFAULT_TEAM_SIZE)));
+    const normalizedHumanCount = Math.max(0, Math.trunc(Number(humanCount) || 0));
+    const capacity = normalizedTeamSize * 2;
+    const assignedTeamCounts = new Map(Object.values(TEAM_IDS).map((teamId) => [teamId, 0]));
+    for (const candidate of humanTeamIds || []) {
+        const teamId = normalizeTeamId(candidate);
+        if (teamId) assignedTeamCounts.set(teamId, assignedTeamCounts.get(teamId) + 1);
+    }
+    const valid = normalizedHumanCount <= capacity
+        && [...assignedTeamCounts.values()].every((count) => count <= normalizedTeamSize);
+    return {
+        valid,
+        code: valid ? '' : 'TEAM_CAPACITY_EXCEEDED',
+        humanCount: normalizedHumanCount,
+        teamSize: normalizedTeamSize,
+        capacity,
+    };
+}
+
+export function resolveTeamRoster({
+    humanCount = 0,
+    teamSize = TEAM_HUNT_DEFAULT_TEAM_SIZE,
+    humanTeamIds = [],
+} = {}) {
     const normalizedTeamSize = Math.max(1, Math.min(5, Math.trunc(Number(teamSize) || TEAM_HUNT_DEFAULT_TEAM_SIZE)));
     const normalizedHumanCount = Math.max(0, Math.trunc(Number(humanCount) || 0));
     const effectiveTeamSize = Math.max(normalizedTeamSize, Math.ceil(normalizedHumanCount / 2));
     const totalSlots = effectiveTeamSize * 2;
+    const teamIds = Array.from({ length: normalizedHumanCount }, (_, index) => (
+        normalizeTeamId(humanTeamIds?.[index]) || resolveBalancedTeamId(index)
+    ));
+    const teamCounts = new Map(Object.values(TEAM_IDS).map((teamId) => [teamId, 0]));
+    for (const teamId of teamIds) {
+        teamCounts.set(teamId, (teamCounts.get(teamId) || 0) + 1);
+    }
+    while (teamIds.length < totalSlots) {
+        const alphaMissing = effectiveTeamSize - teamCounts.get(TEAM_IDS.ALPHA);
+        const bravoMissing = effectiveTeamSize - teamCounts.get(TEAM_IDS.BRAVO);
+        const teamId = alphaMissing === bravoMissing
+            ? resolveBalancedTeamId(teamIds.length)
+            : (alphaMissing > bravoMissing ? TEAM_IDS.ALPHA : TEAM_IDS.BRAVO);
+        teamIds.push(teamId);
+        teamCounts.set(teamId, teamCounts.get(teamId) + 1);
+    }
     return {
         totalSlots,
         botCount: totalSlots - normalizedHumanCount,
-        teamIds: Array.from({ length: totalSlots }, (_, index) => resolveBalancedTeamId(index)),
+        teamIds,
     };
 }
 

@@ -98,7 +98,11 @@ export function buildEntityManagerSetupOptions(settings, runtimeConfig = null, e
     const humanConfigs = buildHumanConfigs(settings, runtimeConfig);
     const teamSettings = normalizeTeamHuntSettings(runtimeConfig?.hunt || settings?.hunt);
     const teamRoster = teamSettings.enabled
-        ? resolveTeamRoster({ humanCount: humanConfigs.length, teamSize: teamSettings.teamSize })
+        ? resolveTeamRoster({
+            humanCount: humanConfigs.length,
+            teamSize: teamSettings.teamSize,
+            humanTeamIds: humanConfigs.map((config) => config?.teamId),
+        })
         : null;
     return {
         modelScale: runtimeConfig?.player?.modelScale ?? settings?.gameplay?.planeScale,
