@@ -107,6 +107,22 @@ test('object registry spatial index tracks movement and removal', () => {
     assert.deepEqual(registry.queryNear({ x: 0, z: 0 }, 500), [far]);
 });
 
+test('imported numeric object ids advance the generator past reusable ids', () => {
+    const core = { objectsContainer: { add() {} } };
+    const registry = new EditorObjectRegistry(core);
+    const createObject = (type) => ({
+        position: { x: 0, y: 0, z: 0 },
+        userData: { type },
+        traverse(visitor) { visitor(this); },
+    });
+
+    const imported = registry.registerObject(createObject('portal'), { requestedId: 'portal_12' });
+    registry.unregisterObjectById(imported.userData.id);
+    const created = registry.registerObject(createObject('portal'));
+
+    assert.equal(created.userData.id, 'portal_13');
+});
+
 test('editor rejects duplicate player spawns and finish checkpoints before export', () => {
     const rejected = [];
     const manager = createMapManager({ onObjectCreationRejected: (event) => rejected.push(event) });
@@ -124,6 +140,19 @@ test('editor rejects duplicate player spawns and finish checkpoints before expor
     const exported = JSON.parse(manager.generateJSONExport({ width: 2000, height: 1000, depth: 2000 }));
     assert.equal(exported.playerSpawn.id, playerSpawn.userData.id);
     assert.equal(exported.parcours.finish.id, finish.userData.id);
+});
+
+test('removing a portal clears its reciprocal partner reference', () => {
+    const manager = createMapManager();
+    const first = manager.createMesh('portal', null, 0, 100, 0, 50, { id: 'portal_1' });
+    const second = manager.createMesh('portal', null, 200, 100, 0, 50, { id: 'portal_2' });
+    first.userData.portalPartnerId = second.userData.id;
+    second.userData.portalPartnerId = first.userData.id;
+
+    manager.removeObject(first);
+
+    assert.equal(second.userData.portalPartnerId, '');
+    assert.equal(manager.getObjectById(first.userData.id), null);
 });
 
 test('tunnel spatial index follows transformed endpoints immediately', () => {

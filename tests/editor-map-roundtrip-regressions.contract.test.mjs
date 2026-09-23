@@ -47,6 +47,21 @@ function createMockEditorManager() {
     };
 }
 
+test('migration warnings survive the history export performed after import', () => {
+    const manager = createMockEditorManager();
+    const legacyDocument = {
+        arenaSize: { width: 280, height: 110, depth: 280 },
+        hardBlocks: [],
+    };
+
+    importFromJSON(manager, JSON.stringify(legacyDocument));
+    assert.ok(manager.lastSchemaWarnings.includes('Legacy map format detected. Migrated to schema v4.'));
+
+    generateJSONExport(manager, legacyDocument.arenaSize);
+
+    assert.ok(manager.lastSchemaWarnings.includes('Legacy map format detected. Migrated to schema v4.'));
+});
+
 test('T14e: Editor-Import/Export behaelt Showcase-Metadaten und Pickup-Anker-Felder', () => {
     const manager = createMockEditorManager();
     const sourceDocument = {

@@ -1108,8 +1108,9 @@ ipcMain.on('local-maps:read-sync', (event) => {
 // gegen die feste Liste oben geprueft, damit ein unbekannter Befehl nicht
 // durchrutscht.
 ipcMain.handle('editor-disk:request', withTrustedEditorWindowSender(async (request = {}) => {
-    const handler = EDITOR_DISK_HANDLERS[String(request?.action || '')];
-    if (!handler) return { ok: false, error: 'unknown_action' };
+    const action = String(request?.action || '');
+    if (!Object.hasOwn(EDITOR_DISK_HANDLERS, action)) return { ok: false, error: 'unknown_action' };
+    const handler = EDITOR_DISK_HANDLERS[action];
     try {
         return await handler(request?.payload || {});
     } catch (error) {

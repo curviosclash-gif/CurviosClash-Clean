@@ -83,6 +83,13 @@ export class EditorObjectRegistry {
         }
 
         if (!this.objectsById.has(normalizedRequestedId)) {
+            const numericSuffix = /_(\d+)$/.exec(normalizedRequestedId);
+            if (numericSuffix) {
+                this.nextObjectIdCounter = Math.max(
+                    this.nextObjectIdCounter,
+                    Number.parseInt(numericSuffix[1], 10) + 1,
+                );
+            }
             return normalizedRequestedId;
         }
 

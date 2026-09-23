@@ -21,6 +21,7 @@ import {
     EDITOR_MAP_RUNTIME_SUFFIX,
     slugifyEditorMapKeyBase,
 } from '../editor/js/EditorMapDiskFiles.js';
+import { createEditorAuthoringDocument } from '../editor/js/EditorAuthoringDocument.js';
 
 const require = createRequire(import.meta.url);
 const {
@@ -396,4 +397,20 @@ test('the renderer builds the runtime map the disk store then stores', () => {
     assert.equal(built.runtimeMap.name, 'Gebaute Karte');
     assert.ok(built.authoringDocument && typeof built.authoringDocument === 'object');
     assert.ok(isValidEditorMapKey(toEditorMapKey(built.mapName)));
+});
+
+test('the disk authoring document preserves an explicitly missing player spawn', () => {
+    const jsonText = JSON.stringify({
+        arenaSize: { width: 2800, height: 700, depth: 1800 },
+        hardBlocks: [], tunnels: [], foamBlocks: [], botSpawns: [], portals: [], items: [],
+        playerSpawn: { x: -800, y: 0, z: 0 },
+    });
+    const editorDocument = createEditorAuthoringDocument({
+        map: JSON.parse(jsonText),
+        playerSpawnPlaced: false,
+    });
+
+    const built = buildEditorMapDiskFiles({ jsonText, mapName: 'Ohne Spawn', editorDocument });
+
+    assert.equal(built.authoringDocument.authoring.playerSpawnPlaced, false);
 });

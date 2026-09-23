@@ -7,6 +7,7 @@ import { pickEditorObject } from '../editor/js/ui/EditorRaySelection.js';
 import { bindEditorGroupTransform } from '../editor/js/ui/EditorGroupTransform.js';
 import { captureEditorTransforms, createEditorTransformCommand } from '../editor/js/ui/EditorTransformHistory.js';
 import { createEditorAuthoringDocument, parseEditorAuthoringDocument } from '../editor/js/EditorAuthoringDocument.js';
+import { writePropertyFieldValue } from '../editor/js/ui/EditorFormState.js';
 
 test('validation tolerates editor initialization before the map manager exists', () => {
     assert.equal(createEditorCollisionProbe({}, [])(new THREE.Vector3()), false);
@@ -16,6 +17,23 @@ test('unfinished project explicitly preserves the missing player spawn', () => {
     const document = createEditorAuthoringDocument({ map: {}, playerSpawnPlaced: false });
     assert.equal(parseEditorAuthoringDocument(JSON.stringify(document)).playerSpawnPlaced, false);
     assert.equal(parseEditorAuthoringDocument(createEditorAuthoringDocument({ map: {} })).playerSpawnPlaced, null);
+});
+
+test('property refreshes do not overwrite the numeric field currently being edited', () => {
+    const input = { value: '12.' };
+    const editor = { dom: { propX: input } };
+    const previousDocument = globalThis.document;
+    globalThis.document = { activeElement: input };
+    try {
+        writePropertyFieldValue(editor, 'x', 12);
+        assert.equal(input.value, '12.');
+        globalThis.document.activeElement = null;
+        writePropertyFieldValue(editor, 'x', 13);
+        assert.equal(input.value, '13');
+    } finally {
+        if (previousDocument === undefined) delete globalThis.document;
+        else globalThis.document = previousDocument;
+    }
 });
 
 function setup() {

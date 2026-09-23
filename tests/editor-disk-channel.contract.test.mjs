@@ -75,7 +75,8 @@ test('the desktop map store writes below the user data folder, never into the pr
 
 test('an unknown action is refused instead of reaching the file system', () => {
     const main = readSource('../electron/main.cjs');
-    assert.ok(main.includes("if (!handler) return { ok: false, error: 'unknown_action' };"));
+    assert.ok(main.includes("if (!Object.hasOwn(EDITOR_DISK_HANDLERS, action)) return { ok: false, error: 'unknown_action' };"));
+    assert.equal(main.includes('EDITOR_DISK_HANDLERS[String(request?.action'), false);
 });
 
 test('the editor disk channel checks its sender like every other capability', () => {
