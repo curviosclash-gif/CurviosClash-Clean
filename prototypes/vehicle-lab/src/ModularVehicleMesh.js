@@ -306,17 +306,28 @@ export class ModularVehicleMesh extends THREE.Group {
                 const a = config.anim;
                 const speed = a.speed ?? 1;
                 const amount = a.amount ?? 1;
+                const animationState = {
+                    rotationOffset: [0, 0, 0],
+                    positionYOffset: 0,
+                    scaleFactor: 1,
+                };
 
                 switch (a.type) {
-                    case 'rotate':
-                        if (a.axis === 'x') child.rotation.x += speed * dt;
-                        else if (a.axis === 'y') child.rotation.y += speed * dt;
-                        else child.rotation.z += speed * dt;
+                    case 'rotate': {
+                        const axisIndex = a.axis === 'x' ? 0 : (a.axis === 'y' ? 1 : 2);
+                        const axisName = ['x', 'y', 'z'][axisIndex];
+                        const rotationOffset = speed * time;
+                        const baseRotation = THREE.MathUtils.degToRad(Number(config.rot?.[axisIndex]) || 0);
+                        child.rotation[axisName] = baseRotation + rotationOffset;
+                        animationState.rotationOffset[axisIndex] = rotationOffset;
                         break;
-                    case 'bob':
+                    }
+                    case 'bob': {
                         const bob = Math.sin(time * speed) * amount * 0.1;
                         child.position.y = (config.pos ? config.pos[1] : 0) + bob;
+                        animationState.positionYOffset = bob;
                         break;
+                    }
                     case 'pulse': {
                         const pulse = 1 + Math.sin(time * speed) * amount * 0.1;
                         const baseScale = config.scale || [1, 1, 1];
@@ -325,9 +336,11 @@ export class ModularVehicleMesh extends THREE.Group {
                             pulse * baseScale[1],
                             pulse * baseScale[2]
                         );
+                        animationState.scaleFactor = pulse;
                         break;
                     }
                 }
+                child.userData.vehicleLabAnimationState = animationState;
             }
         });
         this.baseMesh?.tick?.(dt);

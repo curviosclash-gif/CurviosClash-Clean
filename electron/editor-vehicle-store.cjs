@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } = require('node:fs');
 
 const VEHICLE_FILE_SUFFIX = '.vehicle.json';
@@ -48,7 +49,7 @@ function toVehicleId(label) {
  *
  * @param {{getVehiclesDirectory: () => string}} options
  */
-function createEditorVehicleStore({ getVehiclesDirectory }) {
+function createEditorVehicleStore({ getVehiclesDirectory, renameFile = renameSync }) {
     function resolveDirectory() {
         const directory = path.resolve(String(getVehiclesDirectory()));
         if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
@@ -72,6 +73,29 @@ function createEditorVehicleStore({ getVehiclesDirectory }) {
             return JSON.parse(readFileSync(filePath, 'utf8'));
         } catch {
             return null;
+        }
+    }
+
+    function writeVehicleFile(filePath, content) {
+        const token = `${process.pid}-${randomUUID()}`;
+        const tempPath = `${filePath}.${token}.tmp`;
+        const backupPath = `${filePath}.${token}.bak`;
+        const hadOriginal = existsSync(filePath);
+        try {
+            writeFileSync(tempPath, content, 'utf8');
+            if (hadOriginal) renameFile(filePath, backupPath);
+            renameFile(tempPath, filePath);
+            if (hadOriginal) rmSync(backupPath, { force: true });
+            return { ok: true };
+        } catch (error) {
+            try { rmSync(tempPath, { force: true }); } catch { /* preserve the original failure */ }
+            try {
+                if (existsSync(backupPath)) {
+                    rmSync(filePath, { force: true });
+                    renameSync(backupPath, filePath);
+                }
+            } catch { /* preserve the original failure */ }
+            return { ok: false, error: String(error?.message || error) };
         }
     }
 
@@ -115,7 +139,8 @@ function createEditorVehicleStore({ getVehiclesDirectory }) {
         const resolvedId = requestedId || toVehicleId(vehicleName || config?.label);
         const filePath = resolveVehicleFile(resolvedId);
         if (!filePath) return { ok: false, error: 'invalid_vehicle_id' };
-        writeFileSync(filePath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+        const written = writeVehicleFile(filePath, `${JSON.stringify(config, null, 2)}\n`);
+        if (!written.ok) return written;
         return { ok: true, vehicleId: resolvedId, filePath };
     }
 
@@ -130,7 +155,8 @@ function createEditorVehicleStore({ getVehiclesDirectory }) {
         if (!targetPath) return { ok: false, error: 'invalid_vehicle_id' };
         if (targetPath !== sourcePath && existsSync(targetPath)) return { ok: false, error: 'name_taken' };
         config.label = String(vehicleName || config.label || nextId);
-        writeFileSync(sourcePath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+        const written = writeVehicleFile(sourcePath, `${JSON.stringify(config, null, 2)}\n`);
+        if (!written.ok) return written;
         if (targetPath !== sourcePath) renameSync(sourcePath, targetPath);
         return { ok: true, vehicleId: nextId };
     }

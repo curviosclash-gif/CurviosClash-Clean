@@ -133,3 +133,34 @@ export function upsertVehicleLabHangarPublication(source, publication) {
     publications.unshift(publication);
     return { schemaVersion: VEHICLE_LAB_HANGAR_PUBLISH_VERSION, publications: publications.slice(0, 24) };
 }
+
+export function removeVehicleLabHangarPublication(source, vehicleId) {
+    const record = normalizeVehicleLabHangarPublicationRecord(source);
+    const key = String(vehicleId || '').trim();
+    return {
+        schemaVersion: VEHICLE_LAB_HANGAR_PUBLISH_VERSION,
+        publications: record.publications.filter((entry) => entry.vehicleId !== key),
+    };
+}
+
+export function renameVehicleLabHangarPublication(source, vehicleId, nextVehicleId, nextLabel) {
+    const record = normalizeVehicleLabHangarPublicationRecord(source);
+    const currentKey = String(vehicleId || '').trim();
+    const nextKey = vehicleKey(nextVehicleId);
+    const publication = record.publications.find((entry) => entry.vehicleId === currentKey);
+    if (!publication) return record;
+
+    const renamed = {
+        ...publication,
+        vehicleId: nextKey,
+        label: String(nextLabel || publication.label || nextKey),
+        parts: publication.parts.map((part) => ({ ...part, sourceVehicleId: nextKey })),
+    };
+    return {
+        schemaVersion: VEHICLE_LAB_HANGAR_PUBLISH_VERSION,
+        publications: record.publications
+            .filter((entry) => entry.vehicleId !== currentKey && entry.vehicleId !== nextKey)
+            .concat(renamed)
+            .slice(0, 24),
+    };
+}

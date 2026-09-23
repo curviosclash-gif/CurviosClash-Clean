@@ -8,6 +8,8 @@ import {
     createVehicleLabHangarPublication,
     describeVehicleLabHangarPublicationLimits,
     findVehicleLabHangarPublication,
+    removeVehicleLabHangarPublication,
+    renameVehicleLabHangarPublication,
     upsertVehicleLabHangarPublication,
 } from '../src/shared/contracts/VehicleLabHangarPublishContract.js';
 
@@ -117,4 +119,25 @@ test('replacing a publication keeps exactly one entry per vehicle', () => {
 
     assert.equal(record.publications.length, 1);
     assert.equal(record.publications[0].parts.length, 2);
+});
+
+test('renaming and deleting a saved vehicle keeps hangar publications in sync', () => {
+    const publication = createVehicleLabHangarPublication(
+        buildConfig('Alt', [{ name: 'Core', geo: 'box' }]),
+        { vehicleId: 'editor_vehicle_alt', publishedAtMs: 1 },
+    );
+    const original = upsertVehicleLabHangarPublication(null, publication);
+
+    const renamed = renameVehicleLabHangarPublication(
+        original,
+        'editor_vehicle_alt',
+        'editor_vehicle_neu',
+        'Neu',
+    );
+    assert.equal(findVehicleLabHangarPublication(renamed, 'editor_vehicle_alt'), null);
+    assert.equal(findVehicleLabHangarPublication(renamed, 'editor_vehicle_neu').label, 'Neu');
+    assert.equal(renamed.publications[0].parts[0].sourceVehicleId, 'editor_vehicle_neu');
+
+    const removed = removeVehicleLabHangarPublication(renamed, 'editor_vehicle_neu');
+    assert.equal(removed.publications.length, 0);
 });

@@ -87,3 +87,22 @@ test('flushing the pending save still only runs while a save is pending', () => 
         'flushPendingSave clears the timer itself, so the flush paths keep their previous behaviour'
     );
 });
+
+test('history replaces the editor mesh when a configuration changes vehicle class', () => {
+    for (const methodName of ['undo', 'redo']) {
+        const body = readMethodBody(VEHICLE_LAB_SOURCE, methodName);
+        assert.match(body, /this\.applyHistoryVehicleConfig\(config\)/);
+        assert.equal(body.includes('this.vehicle.updateConfig(config)'), false);
+    }
+    const applyBody = readMethodBody(VEHICLE_LAB_SOURCE, 'applyHistoryVehicleConfig');
+    assert.match(applyBody, /this\.replaceVehicle\(this\.createEditorVehicleMesh\(cloned\)\)/);
+    assert.match(applyBody, /this\.activeReferenceVehicle = cloned\.baseVehicleId/);
+});
+
+test('gizmo persistence removes transient animation offsets', () => {
+    const body = readMethodBody(VEHICLE_LAB_SOURCE, 'syncGizmoToConfig');
+    assert.match(body, /vehicleLabAnimationState/);
+    assert.match(body, /positionYOffset/);
+    assert.match(body, /rotationOffset/);
+    assert.match(body, /scaleFactor/);
+});

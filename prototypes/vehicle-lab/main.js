@@ -23,6 +23,8 @@ import {
     describeVehicleLabHangarPublicationLimits,
     findVehicleLabHangarPublication,
     normalizeVehicleLabHangarPublicationRecord,
+    removeVehicleLabHangarPublication,
+    renameVehicleLabHangarPublication,
     upsertVehicleLabHangarPublication,
 } from '../../src/shared/contracts/VehicleLabHangarPublishContract.js';
 import {
@@ -724,21 +726,29 @@ class VehicleLabApp {
         const currentRot = Array.isArray(part.rot) ? part.rot : [0, 0, 0];
         const currentScale = Array.isArray(part.scale) ? part.scale : [1, 1, 1];
 
-        part.pos = [
-            Number.isFinite(obj.position.x) ? obj.position.x : currentPos[0],
-            Number.isFinite(obj.position.y) ? obj.position.y : currentPos[1],
-            Number.isFinite(obj.position.z) ? obj.position.z : currentPos[2]
-        ];
-        part.rot = [
-            Number.isFinite(obj.rotation.x) ? THREE.MathUtils.radToDeg(obj.rotation.x) : currentRot[0],
-            Number.isFinite(obj.rotation.y) ? THREE.MathUtils.radToDeg(obj.rotation.y) : currentRot[1],
-            Number.isFinite(obj.rotation.z) ? THREE.MathUtils.radToDeg(obj.rotation.z) : currentRot[2]
-        ];
-        part.scale = [
-            Number.isFinite(obj.scale.x) ? obj.scale.x : currentScale[0],
-            Number.isFinite(obj.scale.y) ? obj.scale.y : currentScale[1],
-            Number.isFinite(obj.scale.z) ? obj.scale.z : currentScale[2]
-        ];
+        const animationState = obj.userData.vehicleLabAnimationState || {};
+        const mode = this.viewport.gizmo.mode;
+        if (mode === 'translate') {
+            part.pos = [
+                Number.isFinite(obj.position.x) ? obj.position.x : currentPos[0],
+                Number.isFinite(obj.position.y) ? obj.position.y - (Number(animationState.positionYOffset) || 0) : currentPos[1],
+                Number.isFinite(obj.position.z) ? obj.position.z : currentPos[2]
+            ];
+        } else if (mode === 'rotate') {
+            const rotationOffset = Array.isArray(animationState.rotationOffset)
+                ? animationState.rotationOffset
+                : [0, 0, 0];
+            part.rot = [obj.rotation.x, obj.rotation.y, obj.rotation.z].map((value, index) => (
+                Number.isFinite(value)
+                    ? THREE.MathUtils.radToDeg(value - (Number(rotationOffset[index]) || 0))
+                    : currentRot[index]
+            ));
+        } else if (mode === 'scale') {
+            const scaleFactor = Number(animationState.scaleFactor) || 1;
+            part.scale = [obj.scale.x, obj.scale.y, obj.scale.z].map((value, index) => (
+                Number.isFinite(value) ? value / scaleFactor : currentScale[index]
+            ));
+        }
 
     }
 
@@ -1249,6 +1259,17 @@ class VehicleLabApp {
             const renamed = renameVehicleLabCatalogVehicle(this.catalogRecord, vehicleId, vehicleName);
             this.catalogRecord = saveVehicleLabCatalog(renamed.record, localStorage);
             this.savedVehicles = this.catalogRecord.vehicles;
+            let publicationRecord = null;
+            try { publicationRecord = JSON.parse(localStorage.getItem(VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY) || 'null'); } catch { publicationRecord = null; }
+            localStorage.setItem(
+                VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY,
+                JSON.stringify(renameVehicleLabHangarPublication(
+                    publicationRecord,
+                    vehicleId,
+                    renamed.vehicle.id,
+                    renamed.vehicle.label,
+                )),
+            );
             if (this.compareVehicleId === vehicleId) this.compareVehicleId = renamed.vehicle.id;
             this.updateSavedVehiclesUi('');
             void this.requestDiskApi(EDITOR_API_ROUTES.RENAME_VEHICLE_DISK, { vehicleId, vehicleName });
@@ -1281,6 +1302,12 @@ class VehicleLabApp {
             if (!deleted.deleted) throw new Error('Fahrzeug wurde nicht gefunden.');
             this.catalogRecord = saveVehicleLabCatalog(deleted.record, localStorage);
             this.savedVehicles = this.catalogRecord.vehicles;
+            let publicationRecord = null;
+            try { publicationRecord = JSON.parse(localStorage.getItem(VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY) || 'null'); } catch { publicationRecord = null; }
+            localStorage.setItem(
+                VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY,
+                JSON.stringify(removeVehicleLabHangarPublication(publicationRecord, vehicleId)),
+            );
             if (this.compareVehicleId === vehicleId) {
                 this.compareVehicleId = VEHICLE_PRESETS[0]?.id || '';
             }
@@ -1298,7 +1325,7 @@ class VehicleLabApp {
         const config = this.history.undo();
         if (config) {
             this.authoringTelemetry.recordCounter('undo');
-            this.vehicle.updateConfig(config);
+            this.applyHistoryVehicleConfig(config);
             this.markSceneMetricsDirty();
             this.updateArcadeBlueprintStatus();
             localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(config));
@@ -1316,7 +1343,7 @@ class VehicleLabApp {
         const config = this.history.redo();
         if (config) {
             this.authoringTelemetry.recordCounter('redo');
-            this.vehicle.updateConfig(config);
+            this.applyHistoryVehicleConfig(config);
             this.markSceneMetricsDirty();
             this.updateArcadeBlueprintStatus();
             localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(config));
@@ -1327,6 +1354,15 @@ class VehicleLabApp {
         } else {
             this.setStatus('Keine Redo-Schritte verfügbar.', 'warning');
         }
+    }
+
+    applyHistoryVehicleConfig(config) {
+        const cloned = cloneVehicleConfig(config);
+        this.replaceVehicle(this.createEditorVehicleMesh(cloned));
+        this.activeReferenceVehicle = cloned.baseVehicleId
+            ? GAME_VEHICLE_REFERENCES.find((entry) => entry.id === cloned.baseVehicleId) || null
+            : null;
+        this.editingBaseVehicle = false;
     }
 
     animate() {
