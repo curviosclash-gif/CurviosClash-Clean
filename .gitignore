@@ -2,6 +2,7 @@
 **/node_modules/
 /dist/
 /dist-app/
+/dist-app-test/
 /dist-game/
 /release/
 /playwright-report/

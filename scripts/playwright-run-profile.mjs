@@ -11,8 +11,7 @@ import { summarizePlaywrightResultsFile } from './summarize-playwright-results.m
 
 /**
  * Prints the machine-readable `[playwright:summary]` line for a finished run and mirrors it
- * into the run folder. The wrapper keeps Playwright's own exit code; the summary is evidence,
- * not a second verdict.
+ * into the run folder. A nonzero summary verdict also fails the wrapper.
  */
 export function reportPlaywrightRunSummary(env = process.env) {
     const outputDir = String(env.PW_OUTPUT_DIR || '').trim();
@@ -181,11 +180,11 @@ export async function runPlaywrightProfile(profileName, rawArgv, options = {}) {
 
     child.on('exit', (code, signal) => {
         lock.release();
-        reportPlaywrightRunSummary(env);
+        const summary = reportPlaywrightRunSummary(env);
         if (signal) {
             process.kill(process.pid, signal);
             return;
         }
-        process.exit(code ?? 1);
+        process.exit(code === 0 && summary?.exitCode === 0 ? 0 : (code || 1));
     });
 }

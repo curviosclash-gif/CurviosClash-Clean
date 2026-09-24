@@ -24,6 +24,7 @@
       "since": "2026-09-14",
       "commit": "",
       "reason": "playerHit is true; proven identical with MGHitResolver and OverheatGunSystem reset to HEAD",
+      "errorIncludes": ["Received: true", "expect(result.playerHit).toBeFalsy()"],
       "kind": "regression"
     },
     {
@@ -72,6 +73,7 @@
       "since": "2026-08-09",
       "commit": "",
       "reason": "expects more than 8, receives 0",
+      "errorIncludes": ["Received:   0", "expect(probe.maxLuma).toBeGreaterThan(8)"],
       "kind": "regression"
     },
     {
@@ -80,6 +82,7 @@
       "since": "2026-08-09",
       "commit": "",
       "reason": "page.click times out; red alone and in the chain",
+      "errorIncludes": ["page.click: Timeout 30000ms exceeded", "#btn-config-export-json"],
       "kind": "regression"
     },
     {
@@ -104,6 +107,7 @@
       "since": "2026-07-15",
       "commit": "",
       "reason": "failure folders of the same name exist since July",
+      "errorIncludes": ["Received: false", "expect(level1State.primaryFocused).toBeTruthy()"],
       "kind": "regression"
     },
     {
@@ -112,6 +116,7 @@
       "since": "2026-09-13",
       "commit": "",
       "reason": "red alone with an identical message on a reset style.css",
+      "errorIncludes": ["Received: 5", "await expect(modeInfos).toHaveCount(3)"],
       "kind": "regression"
     },
     {
@@ -120,6 +125,7 @@
       "since": "2026-08-09",
       "commit": "",
       "reason": "failure folders of the same name since August; confirmed from a second worktree",
+      "errorIncludes": ["Received: false", "expect(fightState.hintHidden).toBeTruthy()"],
       "kind": "regression"
     },
     {
@@ -128,6 +134,7 @@
       "since": "2026-09-13",
       "commit": "",
       "reason": "checks CSS classes ArcadeScoreHUD still sets; cause open",
+      "errorIncludes": ["Received: false", "expect(visualState.edgeGlow).toBeTruthy()"],
       "kind": "regression"
     },
     {
@@ -144,6 +151,7 @@
       "since": "2026-09-13",
       "commit": "",
       "reason": "identical message with and without the HUD work",
+      "errorIncludes": ["expect(railState.visibleSummaryBlocks).toEqual(['Spielstil', 'Karte', 'Flugzeug'])"],
       "kind": "regression"
     },
     {
@@ -152,6 +160,7 @@
       "since": "2026-09-13",
       "commit": "",
       "reason": "identical message with and without the HUD work",
+      "errorIncludes": ["Received: 11", "expect(level4State.tabCount).toBe(7)"],
       "kind": "regression"
     },
     {

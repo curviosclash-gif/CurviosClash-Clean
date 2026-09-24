@@ -73,10 +73,22 @@ export function matchesKnownFailure(entry, test) {
     return String(entry.title || '') === String(test.title || '');
 }
 
-function firstErrorLine(result) {
+export function matchesKnownFailureCause(entry, error) {
+    if (entry?.kind === 'env') return isEnvFailure(error);
+    const expected = Array.isArray(entry?.errorIncludes) ? entry.errorIncludes : [entry?.errorIncludes];
+    return expected.length > 0 && expected.every((part) => (
+        typeof part === 'string' && part.length > 0 && String(error).includes(part)
+    ));
+}
+
+function resultErrorText(result) {
     const messages = Array.isArray(result?.errors) ? result.errors : [];
     const raw = messages[0]?.message || result?.error?.message || '';
-    return stripAnsi(raw).split('\n').map((line) => line.trim()).find((line) => line.length > 0) || '';
+    return stripAnsi(raw);
+}
+
+function firstErrorLine(result) {
+    return resultErrorText(result).split('\n').map((line) => line.trim()).find((line) => line.length > 0) || '';
 }
 
 function isEnvFailure(message) {
@@ -145,11 +157,14 @@ export function summarizePlaywrightResults(report, knownFailures = []) {
 
             counts.failed += 1;
             const results = Array.isArray(entry.test?.results) ? entry.test.results : [];
+            const errorText = resultErrorText(results[results.length - 1]);
             const error = firstErrorLine(results[results.length - 1]);
-            const matched = known.find((candidate) => matchesKnownFailure(candidate, entry));
+            const matched = known.find((candidate) => (
+                matchesKnownFailure(candidate, entry) && matchesKnownFailureCause(candidate, errorText)
+            ));
             let classification = 'new';
-            if (matched) classification = 'known';
-            else if (isEnvFailure(error)) classification = 'env';
+            if (isEnvFailure(error)) classification = 'env';
+            else if (matched) classification = 'known';
             counts[classification] += 1;
             failures.push({
                 file: entry.file,
@@ -165,7 +180,11 @@ export function summarizePlaywrightResults(report, knownFailures = []) {
     }
 
     const line = formatPlaywrightSummaryLine(counts);
-    return { ...counts, failures, missing, line, exitCode: counts.new === 0 && counts.didNotRun === 0 ? 0 : 1 };
+    const reportErrors = Array.isArray(report?.errors) ? report.errors : [];
+    const executed = counts.passed + counts.failed + counts.flaky;
+    const exitCode = counts.new === 0 && counts.env === 0 && counts.didNotRun === 0
+        && reportErrors.length === 0 && executed > 0 ? 0 : 1;
+    return { ...counts, failures, missing, reportErrors, line, exitCode };
 }
 
 /** The one fixed line every agent may parse. */
@@ -190,6 +209,9 @@ export function formatPlaywrightSummary(summary) {
     }
     for (const entry of summary.missing) {
         lines.push(`${PLAYWRIGHT_SUMMARY_PREFIX} DIDNOTRUN ${entry.file}:${entry.line} ${entry.title}`);
+    }
+    for (const error of summary.reportErrors) {
+        lines.push(`${PLAYWRIGHT_SUMMARY_PREFIX} REPORT_ERROR ${firstErrorLine({ errors: [error] })}`);
     }
     lines.push(summary.line);
     return `${lines.join('\n')}\n`;

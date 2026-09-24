@@ -1,6 +1,7 @@
 import { expect, test } from './helpers.desktop.js';
 import {
     collectErrors,
+    ensureTestModuleImportBridge,
     returnToMenu,
     startGameFromMenu,
     waitForLoadedGame,
@@ -404,16 +405,7 @@ test.describe('Desktop Smoke', () => {
     test('graceful-close IPC reaches only the current runtime after an AppInitializer remount', async ({ page, electronApp }) => {
         const errors = collectErrors(page);
         await waitForLoadedGame(page);
-        await page.evaluate(() => {
-            globalThis.__curviosImport = async (moduleSpecifier) => {
-                const normalizedSpecifier = String(moduleSpecifier || '').trim();
-                const api = globalThis?.CURVIOS_TEST_API;
-                if (typeof api?.importCurviosTestModule === 'function') {
-                    return api.importCurviosTestModule(normalizedSpecifier);
-                }
-                return import(normalizedSpecifier);
-            };
-        });
+        await ensureTestModuleImportBridge(page);
 
         const setupResult = await page.evaluate(async () => {
             const first = window.GAME_INSTANCE;

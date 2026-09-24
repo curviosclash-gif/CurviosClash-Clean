@@ -156,6 +156,7 @@ const TUNING_CONSOLE_CAPABILITY_CONTRACT_VERSION = 'tuning-console-capability.v1
 const TUNING_CONSOLE_CAPABILITY_ID = 'developer-tuning-console';
 const TUNING_CONSOLE_HOTKEY = 'F7';
 const DESKTOP_RENDERER_DIST_DIR_NAME = 'dist-app';
+const DESKTOP_TEST_RENDERER_DIST_DIR_NAME = 'dist-app-test';
 const LEGACY_RENDERER_DIST_DIR_NAME = 'dist';
 const DESKTOP_STATIC_SERVER_DEFAULT_PORT = 38765;
 const MENU_DEFAULTS_OVERRIDE_FILE_NAME = 'menu-defaults.override.json';
@@ -519,7 +520,10 @@ async function stopSignalingServer() {
 
 async function startAppServer() {
     if (staticAppServer) return staticAppServer;
-    const distDir = path.join(__dirname, '..', DESKTOP_RENDERER_DIST_DIR_NAME);
+    const useTestRenderer = process.env.CURVIOS_E2E_RENDERER === '1';
+    const distDir = path.join(__dirname, '..', useTestRenderer
+        ? DESKTOP_TEST_RENDERER_DIST_DIR_NAME
+        : DESKTOP_RENDERER_DIST_DIR_NAME);
     const distIndexPath = path.join(distDir, 'index.html');
     if (!existsSync(distIndexPath)) {
         const legacyDistDir = path.join(__dirname, '..', LEGACY_RENDERER_DIST_DIR_NAME);
@@ -528,7 +532,7 @@ async function startAppServer() {
             ? ` Legacy web build detected at "${legacyDistDir}" - rebuild desktop explicitly.`
             : '';
         throw new Error(
-            `Desktop renderer build missing at "${distIndexPath}". Run "npm run build:app" before starting Electron.${legacyHint}`
+            `Desktop renderer build missing at "${distIndexPath}". Run "npm run ${useTestRenderer ? 'build:app:test' : 'build:app'}" before starting Electron.${legacyHint}`
         );
     }
     const preferredPortRaw = Number(process.env.CURVIOS_DESKTOP_STATIC_PORT);
