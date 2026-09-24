@@ -92,6 +92,8 @@ Measure evaluated and exported vertices, triangles, material slots, alpha-card o
 
 Use the shared [`inspect_scene.py`](../blender-workflows/scripts/inspect_scene.py) for evaluated mesh checks. It reports every mesh in the current scene, so isolate studio geometry before treating bounds as asset-only; include evaluated curve geometry separately when stems or veins remain as curves.
 
+For a single hero flower, inspect a dedicated bloom close-up as well as full-specimen views. Check that petal overlap, cupping, and the center remain natural at close range; the full silhouette can hide repeated radial bands and overly smooth surfaces.
+
 For a repository asset, also verify that the actual runtime loader finds the interactive nodes and that the project's smallest relevant build packages the exported file. Use a representative target-scale placement for this check.
 
 For morphology parameters, placement logic, and optimization heuristics, read [references/botanical-construction.md](references/botanical-construction.md).

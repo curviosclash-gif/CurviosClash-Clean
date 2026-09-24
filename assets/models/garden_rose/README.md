@@ -6,7 +6,7 @@ An art-directed, approximately 2.3 m garden rose shoot with a curved prickly ste
 
 - `blender/garden_rose.blend`: editable Blender 4.2 scene, metric units, origin at the stem base.
 - `blender/build_garden_rose.py`: deterministic source generator (seed `314159`).
-- `blender/previews/`: hero, front, side, and back renders.
+- `blender/previews/`: full-specimen hero, front, side, and back renders plus a bloom close-up.
 
 Regenerate from the repository root with Blender 4.2:
 
