@@ -28,6 +28,7 @@ const environment = {
     LOCALAPPDATA: localAppDataPath,
     USERPROFILE: profilePath,
     CURVIOS_ELECTRON_SHOW_WINDOW: '1',
+    PW_RUN_TAG: `installed-game-test-${process.pid}`,
 };
 delete environment.ELECTRON_RUN_AS_NODE;
 
@@ -46,6 +47,8 @@ let gameApp = null;
 let settingsApp = null;
 try {
     gameApp = await electron.launch({ executablePath, env: environment, timeout: 60_000 });
+    assert.equal(await gameApp.evaluate(({ app }) => app.commandLine.hasSwitch('mute-audio')), true,
+        'Installed game test must start with muted audio.');
     const gameWindow = await gameApp.firstWindow({ timeout: 60_000 });
     await gameWindow.waitForLoadState('domcontentloaded');
     await gameWindow.waitForFunction(() => Boolean(window.GAME_INSTANCE?.settings), null, { timeout: 60_000 });

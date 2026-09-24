@@ -9,9 +9,10 @@ import {
 } from './helpers.js';
 
 test.describe('Desktop Smoke', () => {
-    test('boots the desktop app to menu with preload bridge and GAME_INSTANCE', async ({ page, desktopHarness }) => {
+    test('boots the desktop app to menu with preload bridge and GAME_INSTANCE', async ({ page, desktopHarness, electronApp }) => {
         const errors = collectErrors(page);
         await waitForLoadedGame(page);
+        expect(await electronApp.evaluate(({ app }) => app.commandLine.hasSwitch('mute-audio'))).toBe(true);
 
         const runtimeState = await page.evaluate(() => ({
             mainMenuVisible: !!document.getElementById('main-menu')

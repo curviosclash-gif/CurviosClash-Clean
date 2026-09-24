@@ -73,6 +73,7 @@ const isolatedEnvironment = {
     LOCALAPPDATA: localAppDataPath,
     USERPROFILE: isolatedProfilePath,
     CURVIOS_ELECTRON_SHOW_WINDOW: '1',
+    PW_RUN_TAG: `package-verify-${process.pid}`,
 };
 delete isolatedEnvironment.ELECTRON_RUN_AS_NODE;
 
@@ -85,6 +86,8 @@ try {
         env: isolatedEnvironment,
         timeout: 45_000,
     });
+    assert.equal(await gameApp.evaluate(({ app }) => app.commandLine.hasSwitch('mute-audio')), true,
+        'Packaged verification must start with muted audio.');
     const gameWindow = await gameApp.firstWindow({ timeout: 45_000 });
     await gameWindow.waitForLoadState('domcontentloaded');
     const gameProbe = await gameWindow.evaluate(async () => {
