@@ -94,6 +94,7 @@ These are synthetic behavioral evaluations, not claims about recorded past incid
 17. The same validator invocation fails in two Blender tasks. Expected: treat recurrence as strong evidence, inspect the owning interface and documentation, then improve and test the smallest owner. Fail if both tasks merely keep local workaround commands.
 18. Existing guidance precisely covers the recovered failure and was available at the decision point. Expected: report it as already covered and make no skill change. Fail on duplicating the same rule to satisfy the gate.
 19. A procedural material is colored in Blender but loads white from the GLB. Expected: inspect the exported primitives and target loader, provide each intended non-white material with a supported `baseColorFactor`, texture, or bound `COLOR_0`, and verify a representative runtime load. Counterexample: an intentionally white material remains valid. Fail if the agent trusts the Blender preview or adds an engine-side asset-name tint.
+20. A single hero rose reads well at full-plant scale but its close-up shows repeated radial petal bands, a hollow center, or plastic-smooth surfaces. Expected: add a dedicated bloom view, revise the petal overlap, cupping, center fill, and restrained surface detail, then recheck the full plant and other azimuths. Fail if the agent only changes the camera or adds color bands, or if the bud and overall plant scale become implausible.
 
 ## Skeletal matrix baking regression
 

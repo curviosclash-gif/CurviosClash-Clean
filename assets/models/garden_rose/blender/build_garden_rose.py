@@ -12,6 +12,7 @@ from mathutils import Vector
 
 
 SEED = 314159
+BLOOM_SCALE = 0.22
 ROOT = Path(__file__).resolve().parents[1]
 BLENDER_DIR = ROOT / "blender"
 PREVIEW_DIR = BLENDER_DIR / "previews"
@@ -49,6 +50,92 @@ def material(name, hex_value, roughness=0.42, subsurface=0.0, coat=0.0):
         bsdf.inputs["Coat Roughness"].default_value = 0.28
     if "Specular IOR Level" in bsdf.inputs:
         bsdf.inputs["Specular IOR Level"].default_value = 0.38
+    return mat
+
+
+def rose_petal_material():
+    """Give every petal a shared, softly varied natural rose surface."""
+    mat = bpy.data.materials.new("Petal | natural crimson satin")
+    mat.diffuse_color = color("A5233D")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    bsdf = nodes.get("Principled BSDF")
+    bsdf.inputs["Roughness"].default_value = 0.53
+    if "Subsurface Weight" in bsdf.inputs:
+        bsdf.inputs["Subsurface Weight"].default_value = 0.075
+    if "Subsurface Radius" in bsdf.inputs:
+        bsdf.inputs["Subsurface Radius"].default_value = (0.8, 0.28, 0.24)
+    if "Coat Weight" in bsdf.inputs:
+        bsdf.inputs["Coat Weight"].default_value = 0.025
+    if "Coat Roughness" in bsdf.inputs:
+        bsdf.inputs["Coat Roughness"].default_value = 0.42
+    if "Specular IOR Level" in bsdf.inputs:
+        bsdf.inputs["Specular IOR Level"].default_value = 0.28
+
+    object_info = nodes.new("ShaderNodeObjectInfo")
+    object_info.location = (-640, 240)
+    texture_coordinates = nodes.new("ShaderNodeTexCoord")
+    texture_coordinates.location = (-900, -120)
+    noise = nodes.new("ShaderNodeTexNoise")
+    noise.location = (-640, 20)
+    noise.inputs["Scale"].default_value = 8.0
+    noise.inputs["Detail"].default_value = 2.0
+    noise.inputs["Roughness"].default_value = 0.66
+    links.new(texture_coordinates.outputs["UV"], noise.inputs["Vector"])
+    mix = nodes.new("ShaderNodeMixRGB")
+    mix.blend_type = "MIX"
+    mix.location = (-400, 170)
+    mix.inputs["Fac"].default_value = 0.18
+    links.new(object_info.outputs["Random"], mix.inputs["Color1"])
+    links.new(noise.outputs["Fac"], mix.inputs["Color2"])
+
+    ramp = nodes.new("ShaderNodeValToRGB")
+    ramp.location = (-170, 170)
+    ramp.color_ramp.elements[0].position = 0.04
+    ramp.color_ramp.elements[0].color = color("74172D")
+    ramp.color_ramp.elements[1].position = 0.96
+    ramp.color_ramp.elements[1].color = color("B52C49")
+    middle = ramp.color_ramp.elements.new(0.50)
+    middle.color = color("971D39")
+    links.new(mix.outputs["Color"], ramp.inputs["Fac"])
+    links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+
+    roughness = nodes.new("ShaderNodeMapRange")
+    roughness.location = (-170, -80)
+    roughness.inputs["From Min"].default_value = 0.0
+    roughness.inputs["From Max"].default_value = 1.0
+    roughness.inputs["To Min"].default_value = 0.48
+    roughness.inputs["To Max"].default_value = 0.60
+    links.new(noise.outputs["Fac"], roughness.inputs["Value"])
+    links.new(roughness.outputs["Result"], bsdf.inputs["Roughness"])
+
+    fine_noise = nodes.new("ShaderNodeTexNoise")
+    fine_noise.location = (-400, -280)
+    fine_noise.inputs["Scale"].default_value = 58.0
+    fine_noise.inputs["Detail"].default_value = 2.0
+    links.new(texture_coordinates.outputs["UV"], fine_noise.inputs["Vector"])
+    veins = nodes.new("ShaderNodeTexWave")
+    veins.location = (-640, -500)
+    veins.wave_type = "BANDS"
+    veins.bands_direction = "Y"
+    veins.inputs["Scale"].default_value = 8.0
+    veins.inputs["Distortion"].default_value = 5.5
+    veins.inputs["Detail"].default_value = 2.0
+    veins.inputs["Detail Scale"].default_value = 1.6
+    links.new(texture_coordinates.outputs["UV"], veins.inputs["Vector"])
+    surface_detail = nodes.new("ShaderNodeMixRGB")
+    surface_detail.blend_type = "MULTIPLY"
+    surface_detail.location = (-390, -450)
+    surface_detail.inputs["Fac"].default_value = 0.20
+    links.new(veins.outputs["Color"], surface_detail.inputs["Color1"])
+    links.new(fine_noise.outputs["Fac"], surface_detail.inputs["Color2"])
+    bump = nodes.new("ShaderNodeBump")
+    bump.location = (-150, -420)
+    bump.inputs["Strength"].default_value = 0.045
+    bump.inputs["Distance"].default_value = 0.002 * BLOOM_SCALE
+    links.new(surface_detail.outputs["Color"], bump.inputs["Height"])
+    links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
     return mat
 
 
@@ -180,29 +267,41 @@ def add_compound_leaf(origin, reach, axis, size, prefix, deep_leaf, young_leaf, 
 
 
 def make_petal(name, center, right, up, normal, theta, r_start, r_end, half_width,
-               z_start, z_end, edge_curl, twist, mat, seed_offset):
-    rows, columns = 20, 10
+               z_start, z_end, edge_curl, twist, spiral, arch, mat, seed_offset):
+    r_start *= BLOOM_SCALE
+    r_end *= BLOOM_SCALE
+    half_width *= BLOOM_SCALE
+    z_start *= BLOOM_SCALE
+    z_end *= BLOOM_SCALE
+    edge_curl *= BLOOM_SCALE
+    arch *= BLOOM_SCALE
+    rows, columns = 32, 16
     vertices, faces = [], []
-    length_jitter = random.uniform(-0.022, 0.022)
-    width_jitter = random.uniform(0.91, 1.08)
-    phase = seed_offset * 1.73
+    length_jitter = random.uniform(-0.035, 0.035)
+    width_jitter = random.uniform(0.82, 1.17)
+    phase = random.uniform(0.0, math.tau) + seed_offset * 0.37
     for row in range(rows + 1):
         t = row / rows
         radius = r_start + (r_end - r_start) * t + length_jitter * t
-        profile = (0.12 + 0.88 * max(0.0, math.sin(math.pi * t / 2.0)) ** 0.9) * (1.0 - 0.22 * t)
-        if t > 0.90:
-            profile *= math.sqrt(max(0.0, (1.0 - t) / 0.10))
+        if t <= 0.78:
+            profile = 0.10 + 0.90 * math.sin((math.pi * 0.5) * t / 0.78) ** 0.78
+        else:
+            profile = math.sqrt(max(0.0, 1.0 - ((t - 0.78) / 0.22) ** 2))
         for column in range(columns + 1):
             q = -1.0 + 2.0 * column / columns
-            local_theta = theta + twist * t * q
+            local_theta = theta + spiral * t + twist * t * q + 0.018 * math.sin(t * 4.0 + phase) * t
             radial = right * math.cos(local_theta) + up * math.sin(local_theta)
             crosswise = -right * math.sin(local_theta) + up * math.cos(local_theta)
-            ruffle = 1.0 + 0.075 * math.cos(t * 18.0 + phase) * abs(q) ** 5
-            point = Vector(center) + radial * (radius * ruffle)
+            edge_wave = BLOOM_SCALE * (0.019 * math.sin(t * 11.0 + phase) + 0.008 * math.sin(t * 23.0 + phase * 1.7)) * abs(q) ** 6
+            point = Vector(center) + radial * (radius + edge_wave)
             point += crosswise * (q * half_width * profile * width_jitter * (1.0 + 0.10 * q))
-            cup = edge_curl * abs(q) ** 1.7 * max(0.0, math.sin(math.pi * t)) ** 0.45
-            cup += 0.009 * math.sin(t * 7.0 + phase) * q
-            point += normal * (z_start + (z_end - z_start) * t + cup)
+            edge_bias = 0.16 * math.sin(phase)
+            cup = edge_curl * abs(q) ** 1.7 * (1.0 + edge_bias * q) * max(0.0, math.sin(math.pi * t)) ** 0.45
+            cup += BLOOM_SCALE * 0.012 * math.sin(t * 7.0 + phase) * q
+            bowl = BLOOM_SCALE * -0.026 * math.sin(math.pi * t) * (1.0 - q * q)
+            vein = BLOOM_SCALE * 0.006 * (1.0 - q * q) ** 3 * math.sin(math.pi * t)
+            longitudinal_arch = arch * math.sin(math.pi * t)
+            point += normal * (z_start + (z_end - z_start) * t + cup + bowl + vein + longitudinal_arch)
             vertices.append(tuple(point))
     for row in range(rows):
         for column in range(columns):
@@ -210,7 +309,11 @@ def make_petal(name, center, right, up, normal, theta, r_start, r_end, half_widt
             b = a + columns + 1
             faces.append((a, b, b + 1, a + 1))
     obj = mesh_object(name, vertices, faces, mat)
-    add_surface_modifiers(obj, thickness=0.010, levels=1)
+    uv_layer = obj.data.uv_layers.new(name="Petal flow")
+    for loop in obj.data.loops:
+        row, column = divmod(loop.vertex_index, columns + 1)
+        uv_layer.data[loop.index].uv = (row / rows, column / columns)
+    add_surface_modifiers(obj, thickness=0.004 * BLOOM_SCALE, levels=1)
     return obj
 
 
@@ -223,7 +326,7 @@ def add_thorn(name, base, direction, length, mat):
         side = direction.cross(Vector((1, 0, 0)))
     side.normalize()
     normal = direction.cross(side).normalized()
-    rings = ((0.0, 0.014), (0.34, 0.011), (0.72, 0.005), (1.0, 0.0007))
+    rings = ((0.0, 0.006), (0.34, 0.0045), (0.72, 0.002), (1.0, 0.0004))
     vertices, faces = [], []
     segments = 8
     for along, radius in rings:
@@ -240,7 +343,7 @@ def add_thorn(name, base, direction, length, mat):
     faces.append(tuple(range((len(rings) - 1) * segments, len(rings) * segments)))
     obj = mesh_object(name, vertices, faces, mat)
     bevel = obj.modifiers.new("Soft thorn root", "BEVEL")
-    bevel.width = 0.002
+    bevel.width = 0.0008
     bevel.segments = 2
     return obj
 
@@ -253,19 +356,20 @@ def add_bud(base, axis, calyx_mat, sepal_light, petal_mats):
         side = axis.cross(Vector((1, 0, 0)))
     side.normalize()
     other = axis.cross(side).normalized()
-    length = 0.35
+    length = 0.16
     profile = ((0.00, 0.036), (0.10, 0.075), (0.28, 0.105), (0.53, 0.122),
                (0.72, 0.108), (0.88, 0.067), (0.97, 0.027), (1.00, 0.003))
     segments = 30
     vertices, faces = [], []
-    for height, radius in profile:
+    scaled_profile = [(height, radius * BLOOM_SCALE) for height, radius in profile]
+    for height, radius in scaled_profile:
         center = base + axis * (height * length)
         for index in range(segments):
             theta = math.tau * index / segments
             lobed_radius = radius * (1.0 + 0.055 * math.cos(5.0 * theta + 0.2))
             point = center + side * (lobed_radius * math.cos(theta)) + other * (lobed_radius * math.sin(theta))
             vertices.append(tuple(point))
-    for row in range(len(profile) - 1):
+    for row in range(len(scaled_profile) - 1):
         for index in range(segments):
             a = row * segments + index
             b = row * segments + (index + 1) % segments
@@ -278,22 +382,22 @@ def add_bud(base, axis, calyx_mat, sepal_light, petal_mats):
     for index in range(5):
         theta = math.tau * index / 5.0 + 0.20
         radial = side * math.cos(theta) + other * math.sin(theta)
-        sepal_base = base + axis * 0.035 + radial * 0.025
-        sepal_tip = base + axis * 0.27 + radial * 0.115 - Vector((0, 0, 0.015))
+        sepal_base = base + axis * 0.015 + radial * 0.012
+        sepal_tip = base + axis * 0.115 + radial * 0.050 - Vector((0, 0, 0.008))
         sepal_material = calyx_mat if index % 2 == 0 else sepal_light
-        add_blade(f"Bud_sepal_{index + 1}", sepal_base, sepal_tip, 0.075, sepal_material,
-                  thickness=0.003, curvature=0.018, serration=0.015, phase=index)
+        add_blade(f"Bud_sepal_{index + 1}", sepal_base, sepal_tip, 0.035, sepal_material,
+                  thickness=0.0015, curvature=0.007, serration=0.015, phase=index)
 
     # Slightly darker curved seams keep the closed bud readable as folded rose petals.
     for index in range(5):
         theta = math.tau * index / 5.0 + 0.55
         points = []
         for fraction in (0.24, 0.42, 0.62, 0.80, 0.94):
-            z, radius = min(profile, key=lambda pair: abs(pair[0] - fraction))
+            z, radius = min(scaled_profile, key=lambda pair: abs(pair[0] - fraction))
             angle = theta + 0.12 * fraction
             center = base + axis * (z * length)
             points.append(center + side * (radius * 1.014 * math.cos(angle)) + other * (radius * 1.014 * math.sin(angle)))
-        curve_tube(f"Bud_petal_seam_{index + 1}", points, [0.45, 0.7, 0.7, 0.45, 0.04], 0.0025, petal_mats[1])
+        curve_tube(f"Bud_petal_seam_{index + 1}", points, [0.45, 0.7, 0.7, 0.45, 0.04], 0.0006, petal_mats[1])
 
 
 def aim(obj, target):
@@ -358,6 +462,7 @@ def build_scene():
         material("Petal | warm crimson", "BD2041", 0.43, subsurface=0.05, coat=0.05),
         material("Petal | inner ruby", "C52A4A", 0.42, subsurface=0.05, coat=0.05),
     ]
+    bloom_petal_mat = rose_petal_material()
 
     root = bpy.data.objects.new("GardenRose_root_origin", None)
     ASSET_COLLECTION.objects.link(root)
@@ -388,58 +493,68 @@ def build_scene():
                                                           (6, -1, 0.051), (2, -1, 0.060)), start=1):
         point = Vector(stem_points[point_index])
         direction = Vector((side * 0.76, 0.16 * (-1 if index % 2 else 1), -0.64))
-        add_thorn(f"Stem_thorn_{index:02d}", point, direction, length, thorn_mat)
+        add_thorn(f"Stem_thorn_{index:02d}", point, direction, length * 0.52, thorn_mat)
 
     flower_center = Vector((-0.105, -0.042, 2.075))
     flower_axis = Vector((0.32, -0.51, 0.80)).normalized()
     right = Vector((0, 0, 1)).cross(flower_axis).normalized()
     up = flower_axis.cross(right).normalized()
-    calyx_base = flower_center - flower_axis * 0.15
+    calyx_base = flower_center - flower_axis * (0.15 * BLOOM_SCALE)
     curve_tube("Flower_pedicel", [stem_points[-2], (-0.075, -0.032, 1.92), calyx_base],
                [0.52, 0.42, 0.38], 0.025, stem_mat)
     for index in range(5):
         theta = math.tau * index / 5.0 + 0.31
         radial = right * math.cos(theta) + up * math.sin(theta)
-        sepal_start = flower_center - flower_axis * 0.20 + radial * 0.045
-        sepal_tip = flower_center - flower_axis * 0.08 + radial * 0.57 - Vector((0, 0, 0.025))
-        add_blade(f"Flower_sepal_{index + 1}", sepal_start, sepal_tip, 0.15, calyx_mat,
-                  thickness=0.004, curvature=0.024, serration=0.025, phase=index * 0.9)
+        sepal_start = flower_center - flower_axis * (0.20 * BLOOM_SCALE) + radial * (0.045 * BLOOM_SCALE)
+        sepal_tip = flower_center - flower_axis * (0.08 * BLOOM_SCALE) + radial * (0.57 * BLOOM_SCALE) - Vector((0, 0, 0.025 * BLOOM_SCALE))
+        add_blade(f"Flower_sepal_{index + 1}", sepal_start, sepal_tip, 0.15 * BLOOM_SCALE, calyx_mat,
+                  thickness=0.004 * BLOOM_SCALE, curvature=0.024 * BLOOM_SCALE, serration=0.025, phase=index * 0.9)
 
     # The shaded receptacle closes small gaps between the tightly overlapping inner petals.
     bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16,
-                                         location=flower_center - flower_axis * 0.035)
+                                         location=flower_center - flower_axis * (0.035 * BLOOM_SCALE))
     receptacle = register(bpy.context.object)
     receptacle.name = "Flower_receptacle"
     receptacle.rotation_euler = flower_axis.to_track_quat("Z", "Y").to_euler()
-    receptacle.scale = (0.32, 0.32, 0.11)
+    receptacle.scale = (0.32 * BLOOM_SCALE, 0.32 * BLOOM_SCALE, 0.11 * BLOOM_SCALE)
     receptacle.data.materials.append(petal_palette[1])
     for polygon in receptacle.data.polygons:
         polygon.use_smooth = True
 
     layers = [
-        ("Outer", 15, 0.205, 0.680, 0.163, -0.045, -0.195, 0.078, 0.30),
-        ("Middle", 12, 0.100, 0.525, 0.142, 0.018, -0.012, 0.061, 0.48),
-        ("Inner", 9, 0.080, 0.370, 0.108, 0.074, 0.034, 0.043, 0.72),
-        ("Heart", 7, 0.065, 0.240, 0.092, 0.085, 0.105, 0.030, 1.05),
+        ("Outer", 14, 0.145, 0.710, 0.190, -0.035, -0.160, 0.075, 0.18, 0.04, 0.045),
+        ("Middle", 12, 0.075, 0.550, 0.157, 0.006, -0.030, 0.064, 0.23, 0.07, 0.075),
+        ("Inner", 10, 0.045, 0.390, 0.123, 0.052, 0.035, 0.052, 0.30, 0.12, 0.055),
+        ("Heart", 8, 0.035, 0.255, 0.096, 0.048, 0.095, 0.042, 0.34, 0.20, 0.025),
+        ("Core", 7, 0.004, 0.145, 0.055, 0.080, 0.110, 0.025, 0.12, 0.20, 0.018),
     ]
     petal_counter = 0
-    for layer_index, (layer, count, r_start, r_end, half_width, z_start, z_end, curl, twist) in enumerate(layers):
-        phase = (0.14, 0.39, 0.03, 0.27)[layer_index]
+    golden_angle = math.tau * (1.0 - 1.0 / ((1.0 + math.sqrt(5.0)) * 0.5))
+    for layer_index, (layer, count, r_start, r_end, half_width, z_start, z_end, curl, twist, spiral, arch) in enumerate(layers):
+        phase = (0.14, 0.39, 0.03, 0.27, 0.19)[layer_index]
         for index in range(count):
-            theta = math.tau * (index + 0.5 * (layer_index % 2)) / count + phase
-            theta += random.uniform(-0.12, 0.12)
+            theta = index * golden_angle + phase + layer_index * 0.21
+            theta += random.uniform(-0.16, 0.16)
             petal_counter += 1
-            palette = petal_palette[layer_index] if layer_index < 3 else petal_palette[3 if index % 3 else 2]
+            start_jitter = min(0.025, r_start * 0.30 + 0.001)
+            personal_start = max(0.0, r_start + random.uniform(-start_jitter, start_jitter))
+            personal_end = r_end * random.uniform(0.94, 1.06)
+            personal_width = half_width * random.uniform(0.86, 1.14)
+            personal_z_start = z_start + random.uniform(-0.018, 0.018)
+            personal_z_end = z_end + random.uniform(-0.035, 0.035)
+            personal_spiral = spiral + random.uniform(-0.07, 0.07)
+            personal_arch = arch * random.uniform(0.70, 1.30)
             make_petal(f"Petal_{layer}_{index + 1:02d}", flower_center, right, up, flower_axis, theta,
-                       r_start, r_end * random.uniform(0.965, 1.035), half_width, z_start, z_end,
-                       curl, twist + random.uniform(-0.06, 0.06), palette, petal_counter)
+                       personal_start, personal_end, personal_width, personal_z_start, personal_z_end,
+                       curl * random.uniform(0.72, 1.28), twist + random.uniform(-0.18, 0.18), personal_spiral,
+                       personal_arch, bloom_petal_mat, petal_counter)
 
     # A compact offset bud grows from a visible side node on its own curved pedicel.
     bud_origin = Vector((0.005, -0.005, 1.49))
-    bud_axis = Vector((0.72, -0.18, 0.67)).normalized()
-    bud_base = bud_origin + bud_axis * 0.43
-    curve_tube("Bud_pedicel", [bud_origin, (0.19, -0.10, 1.59), (0.36, -0.20, 1.73), bud_base],
-               [0.70, 0.53, 0.40], 0.018, stem_mat)
+    bud_axis = Vector((0.82, -0.36, 0.44)).normalized()
+    bud_base = bud_origin + bud_axis * 0.24
+    curve_tube("Bud_pedicel", [bud_origin, (0.13, -0.07, 1.53), (0.19, -0.11, 1.56), bud_base],
+               [0.70, 0.53, 0.40], 0.008, stem_mat)
     add_bud(bud_base, bud_axis, calyx_mat, sepal_light, [petal_palette[0], petal_palette[1]])
 
     for obj in ASSET_OBJECTS:
@@ -470,6 +585,9 @@ def build_scene():
         "side": create_camera("Camera_side", (8.0, 0.0, 2.70), target, 3.28),
         "back": create_camera("Camera_back", (0.0, 8.0, 2.70), target, 3.28),
     }
+    bloom_view = Vector((0.45, -0.82, 0.38)).normalized()
+    cameras["bloom"] = create_camera("Camera_bloom_detail", flower_center + bloom_view * 0.75,
+                                     flower_center, 0.42)
 
     scene = bpy.context.scene
     scene.unit_settings.system = "METRIC"
