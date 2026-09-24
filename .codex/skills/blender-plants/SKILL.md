@@ -90,6 +90,8 @@ Inspect the plant from multiple azimuths and from its likely gameplay camera hei
 
 Measure evaluated and exported vertices, triangles, material slots, alpha-card overlap, texture memory, instances, morph data, and file size. Triangle count alone is not a sufficient vegetation budget.
 
+Use the shared [`inspect_scene.py`](../blender-workflows/scripts/inspect_scene.py) for evaluated mesh checks. It reports every mesh in the current scene, so isolate studio geometry before treating bounds as asset-only; include evaluated curve geometry separately when stems or veins remain as curves.
+
 For a repository asset, also verify that the actual runtime loader finds the interactive nodes and that the project's smallest relevant build packages the exported file. Use a representative target-scale placement for this check.
 
 For morphology parameters, placement logic, and optimization heuristics, read [references/botanical-construction.md](references/botanical-construction.md).
