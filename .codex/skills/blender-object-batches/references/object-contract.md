@@ -81,6 +81,6 @@ Conditions support exactly one of `equals` or `in`. Actions support `set`, `disa
 - Increment `contract_revision` after an accepted contract edit.
 - Preserve the root seed unless the user requests a new family.
 - Change a design role for a deliberate variant correction; change a parameter range for a family-wide correction.
-- Compile both old and new manifests, then use `scripts/compare_manifests.py` before regeneration.
+- Compile both old and new manifests, then use `Join-Path $skillDir 'scripts/compare_manifests.py'` from the absolute skill directory before regeneration.
 - Treat invariant or generator-version changes as family-wide.
 - Never remove obsolete outputs automatically; list them as removal candidates for review.

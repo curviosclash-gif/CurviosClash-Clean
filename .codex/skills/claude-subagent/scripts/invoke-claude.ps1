@@ -9,6 +9,9 @@ param(
 
     [string]$WorktreeName,
 
+    [ValidatePattern('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')]
+    [string]$ResumeSessionId,
+
     [ValidateSet('low', 'medium', 'high', 'xhigh', 'max')]
     [string]$Effort = 'medium',
 
@@ -67,7 +70,25 @@ if ($Model) {
     $claudeArgs += @('--model', $Model)
 }
 
-if ($Mode -eq 'Review') {
+if ($ResumeSessionId) {
+    if ($Mode -ne 'Implement' -or $WorktreeName) {
+        throw 'Resume requires Implement mode and cannot create a new worktree.'
+    }
+    if (-not $Model -or -not $PSBoundParameters.ContainsKey('Effort')) {
+        throw 'Resume requires explicit -Model and -Effort matching the original session.'
+    }
+    $worktreeRoot = (& git -C $resolvedWorkingDirectory rev-parse --show-toplevel 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $worktreeRoot -or
+        $resolvedWorkingDirectory -ne (Resolve-Path -LiteralPath $worktreeRoot).Path -or
+        -not (Test-Path -LiteralPath (Join-Path $worktreeRoot '.git') -PathType Leaf)) {
+        throw 'Resume requires -WorkingDirectory to be the root of a registered Git worktree.'
+    }
+    $claudeArgs += @(
+        '--resume', $ResumeSessionId,
+        '--permission-mode', 'acceptEdits',
+        '--disallowedTools', 'Bash(git commit *),Bash(git push *),Bash(git stash *),Bash(git reset *)'
+    )
+} elseif ($Mode -eq 'Review') {
     $claudeArgs += @(
         '--permission-mode', 'plan',
         '--allowedTools', 'Read,Glob,Grep',

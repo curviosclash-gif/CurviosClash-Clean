@@ -7,6 +7,8 @@ description: Delegate a bounded task to the locally installed Claude Code CLI wh
 
 Use Claude as an external process, not as a native Codex collaboration agent. Keep task ownership, integration, and final verification in the current Codex task.
 
+Before each Claude launch or resume, verify that the **current** user instruction starts on its first line with exactly `CLAUDE-AGENT-FREIGABE: 3141`. A prior approval, a skill invocation, or an implementation handoff does not replace this check. The helper cannot reliably read the current user instruction; `.claude/hooks/claude-agent-lock.mjs` guards Claude-internal agent calls, not this Codex helper.
+
 ## Token-efficient routing
 
 Apply the [Ponytail-lite baseline](../adaptive-model-routing/SKILL.md#ponytail-lite-baseline) after tracing the affected flow. Use Claude Fable at low or medium effort for ordinary read-only discovery and review unless the user names another Claude model. Reserve stronger Claude models and higher effort for implementation, difficult integration, or unresolved high-risk findings. Do not add a Codex subagent when it would duplicate the same Claude task; a cheap Codex `economy_scout` is useful only for a separate repository inventory or evidence-gathering lane. Explicit model assignments in a calling skill override this default.
@@ -36,6 +38,14 @@ For implementation:
 ```powershell
 & '<skill-dir>\scripts\invoke-claude.ps1' -Mode Implement -WorktreeName 'codex-claude-<short-slug>' -Prompt '<task, ownership, constraints, and expected result>'
 ```
+
+For bounded follow-up, use only the session ID returned by the implementer launched in this task. Run from its recorded worktree and pass the same model and effort:
+
+```powershell
+& '<skill-dir>\scripts\invoke-claude.ps1' -Mode Implement -ResumeSessionId '<recorded-uuid>' -Model opus -Effort high -WorkingDirectory '<recorded-worktree>' -Prompt '<bounded correction within original ownership>'
+```
+
+The helper validates the UUID and worktree, then passes `--resume` with the same implementation permissions. It cannot prove that a session ID belongs to this task; verify that against the recorded first result before calling it.
 
 Use the actual absolute skill directory in place of `<skill-dir>`. Pass an explicit `-WorkingDirectory` when the command is not launched from the intended repository.
 

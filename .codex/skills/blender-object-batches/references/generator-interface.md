@@ -10,7 +10,7 @@ def build_variant(context: dict) -> dict:
     ...
 ```
 
-`scripts/run_batch.py` imports the module once and calls this function for every selected variant. Run it through Blender when the generator imports `bpy`.
+The script at `Join-Path $skillDir 'scripts/run_batch.py'` imports the module once and calls this function for every selected variant. Resolve `$skillDir` to the absolute skill directory and run it through Blender when the generator imports `bpy`.
 
 The runner refuses a module whose ID or version differs from `manifest.provenance`. Increment the generator version whenever a code change can alter outputs.
 

@@ -60,8 +60,10 @@ Keep all variants inside the same object family. Vary proportions, construction 
 
 ## Generate the Batch
 
-1. Run `scripts/generate_variant_manifest.py` on the locked contract. Use one root seed and stable variant IDs.
-2. Drive one reusable `bpy` generator, Geometry Nodes asset, or existing procedural source through `scripts/run_batch.py`. Its module must expose `build_variant(context)` as defined in [references/generator-interface.md](references/generator-interface.md).
+Resolve this skill's installed directory to an absolute path before running its scripts: `$skillDir = (Resolve-Path '<absolute path to blender-object-batches>').Path`. Use that directory for every script and bundled asset, even when the output directory is elsewhere.
+
+1. Run `Join-Path $skillDir 'scripts/generate_variant_manifest.py'` on the locked contract. Use one root seed and stable variant IDs.
+2. Drive one reusable `bpy` generator, Geometry Nodes asset, or existing procedural source through `Join-Path $skillDir 'scripts/run_batch.py'`. Its module must expose `build_variant(context)` as defined in [references/generator-interface.md](references/generator-interface.md).
 3. Share meshes, node groups, materials, and textures where the target runtime benefits from reuse. Make objects unique only where geometry must diverge.
 4. Use `coverage` for a fixed batch with maximum range coverage. Use `appendable` when later variants must not change existing parameter assignments. Correlate dependent numeric parameters with `strata_group`; use `invert` for inverse relationships.
 5. Preserve each variant's ID and seed across revisions. Regenerate only affected or failed variants unless a contract-wide invariant changed.
@@ -69,20 +71,21 @@ Keep all variants inside the same object family. Vary proportions, construction 
 Example:
 
 ```powershell
-python scripts/generate_variant_manifest.py assets/object-contract.example.json --output variants.json
+$skillDir = (Resolve-Path '<absolute path to blender-object-batches>').Path
+python (Join-Path $skillDir 'scripts/generate_variant_manifest.py') (Join-Path $skillDir 'assets/object-contract.example.json') --output variants.json
 ```
 
 Then run a domain generator inside Blender:
 
 ```powershell
-blender --background --python scripts/run_batch.py -- --manifest variants.json --generator object_generator.py --output-dir batch
+blender --background --python (Join-Path $skillDir 'scripts/run_batch.py') -- --manifest variants.json --generator object_generator.py --output-dir batch
 ```
 
 The scripts write compact operational summaries. Keep detailed parameters and logs in artifacts, not in chat.
 
 ## Validate Once, Report Once
 
-Run `scripts/validate_batch.py` against the manifest and generation report. Inspect every variant programmatically, but consolidate results into one short report. Include:
+Run `Join-Path $skillDir 'scripts/validate_batch.py'` against the manifest and generation report. Inspect every variant programmatically, but consolidate results into one short report. Include:
 
 - contract hash, count, seeds, output paths, and failed variant IDs;
 - min/max/median geometry budgets and any outliers;
@@ -93,7 +96,7 @@ Use the scene inspection, multi-view rendering, and GLB validation helpers from 
 
 `validate_batch.py` checks the generator's `roundtrip_import` claim; it does not import a GLB itself. Set that metric to `true` only after an actual re-import into an empty Blender scene and comparison of the required geometry, bounds, materials, and animation data. A reported boolean without that check is not roundtrip evidence.
 
-After a contract revision, compile a new manifest and run `scripts/compare_manifests.py` to determine which IDs need generation, re-export, or validation. Never delete removed candidates automatically.
+After a contract revision, compile a new manifest and run `Join-Path $skillDir 'scripts/compare_manifests.py'` to determine which IDs need generation, re-export, or validation. Never delete removed candidates automatically.
 
 When changing this skill, run `evals/test_pipeline.py` and use [references/eval-cases.md](references/eval-cases.md) plus `evals/prompts.csv` to check routing and observable behavior.
 

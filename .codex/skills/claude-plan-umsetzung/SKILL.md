@@ -19,7 +19,7 @@ Apply the [Ponytail-lite baseline](../adaptive-model-routing/SKILL.md#ponytail-l
 
 ## Authorization and preflight
 
-`$claude-plan-umsetzung <task>` authorizes the full workflow. A request for a plan only remains read-only and stops after planning. A completed IDP prompt still requires a later explicit `UMSETZEN` command.
+`$claude-plan-umsetzung <task>` requests the full workflow, but each Claude launch and resume additionally requires `CLAUDE-AGENT-FREIGABE: 3141` as the exact first line of the current user instruction. The helper cannot verify that line, and the Claude-internal hook does not guard Codex's helper calls. A request for a plan only remains read-only and stops after planning. A completed IDP prompt still requires a later explicit `UMSETZEN` command.
 
 Read [Claude Subagent](../claude-subagent/SKILL.md), run its `scripts/invoke-claude.ps1 -CheckOnly`, read applicable repository instructions, and inspect repository status plus `claude agents --json --all --cwd <repository>`. Leave all pre-existing sessions untouched. Stop on authentication, quota, model, permission, overlapping-change, or shared-resource blockers; do not weaken safeguards.
 
@@ -51,7 +51,13 @@ Run the helper in `Review` mode with `-Model fable -Effort medium` and `-Working
 
 The reviewer must inspect the actual files and must not rely only on the implementer's summary. It may not edit anything.
 
-For bounded remediation, resume only the recorded Opus implementer session from its worktree with the same model, effort, permissions, ownership, and Git prohibitions. Review again with the same Fable reviewer role only when new evidence exists. Stop after two unsuccessful remediation cycles.
+For bounded remediation, resume only the recorded Opus implementer session from its worktree with the same model, effort, permissions, ownership, and Git prohibitions:
+
+```powershell
+& '<claude-subagent-dir>\scripts\invoke-claude.ps1' -Mode Implement -ResumeSessionId '<recorded-uuid>' -Model opus -Effort high -WorkingDirectory '<recorded-worktree>' -Prompt '<bounded correction within original ownership>'
+```
+
+Verify the ID against the first result before calling the helper. Review again with the same Fable reviewer role only when new evidence exists. Stop after two unsuccessful remediation cycles.
 
 ## Integrate and finish
 

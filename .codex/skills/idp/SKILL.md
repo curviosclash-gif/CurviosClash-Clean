@@ -86,7 +86,8 @@ After concept approval, write a standalone prompt that another Codex task can ex
 5. allowed scope, assumptions, and explicit non-goals;
 6. performance and resource-lifecycle expectations;
 7. required tests, build steps, and measurable acceptance criteria;
-8. applicable repository instructions and commit requirements.
+8. applicable repository instructions and commit requirements;
+9. as its final section, `Modellnutzung` with the recommended available model and reasoning effort for implementation and verification, what each model handles, and an objective trigger for switching. A recommendation does not change the active model or authorize delegation.
 
 Before presenting it, verify that:
 

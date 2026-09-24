@@ -19,7 +19,7 @@
 14. Stage ausschließlich Dateien der aktuellen Aufgabe und niemals pauschal mit `git add -A` oder `git add .`.
 15. Übernimm keine bereits vorhandenen oder fremden Änderungen. Bei Überschneidungen erstelle keinen Commit und melde den Konflikt.
 16. Ändere, squash oder rebase keine bestehenden Commits ohne ausdrücklichen Auftrag.
-17. Lösche KEINE untracked-Dateien ohne explizite Nutzerfreigabe. Bei `git status`-Bereinigung: zuerst Nutzer fragen, welche untracked-Dateien entfernt werden sollen. Niemals eigenständig `Remove-Item` auf untracked-Dateien ausführen. Falls Löschung freigegeben: Dateien müssen wiederherstellbar sein (Recycle Bin via `Remove-Item` OHNE `-Force`, oder vorher nach `$env:TEMP\opencode-trash\` verschieben). Niemals `-Force`-Flag bei `Remove-Item` verwenden.
+17. Lösche KEINE untracked-Dateien ohne explizite Nutzerfreigabe. Bei `git status`-Bereinigung: zuerst Nutzer fragen, welche untracked-Dateien entfernt werden sollen. Nach Freigabe verschiebe die betroffenen Dateien zuerst in einen benannten Ordner unter `$env:TEMP\opencode-trash\`, damit sie wiederhergestellt werden können. Beschreibe `Remove-Item` nicht als Papierkorb-Aktion und verwende niemals dessen `-Force`-Flag.
 18. Räume temporäre Test-Artefakte nur nach expliziter Nutzerfreigabe auf; dokumentiere vorher was gelöscht werden soll.
 
 ## Coding
@@ -44,4 +44,4 @@
 
 ## Claude-Agenten
 
-30. Claude-Agenten, Claude-Code-Subagenten und Delegationen an Anthropic-Modelle dürfen nur gestartet, fortgesetzt oder anderweitig genutzt werden, wenn die aktuelle Nutzeranweisung in der ersten Zeile exakt `CLAUDE-AGENT-FREIGABE: 3141` enthält. Der technische Guard in `.claude/hooks/claude-agent-lock.mjs` erteilt damit eine sitzungs- und projektgebundene Einmal-Freigabe für höchstens zwei Minuten. Jeder weitere oder fortgesetzte Agent-Aufruf benötigt eine neue Freigabe; frühere oder allgemeine Freigaben, indirekte Delegationswünsche und automatische Modellwahl gelten nicht.
+30. Claude-Agenten, Claude-Code-Subagenten und Delegationen an Anthropic-Modelle dürfen nur gestartet, fortgesetzt oder anderweitig genutzt werden, wenn die aktuelle Nutzeranweisung in der ersten Zeile exakt `CLAUDE-AGENT-FREIGABE: 3141` enthält. Der Hook `.claude/hooks/claude-agent-lock.mjs` schützt Claude-interne Agentenaufrufe mit einer sitzungs- und projektgebundenen Einmal-Freigabe für höchstens zwei Minuten; er prüft keine Aufrufe des Codex-Helfers. Jeder weitere oder fortgesetzte Agent-Aufruf benötigt eine neue Freigabe; frühere oder allgemeine Freigaben, indirekte Delegationswünsche und automatische Modellwahl gelten nicht.

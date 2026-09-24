@@ -7,6 +7,8 @@ description: Turn an idea into an approved implementation prompt with Claude Fab
 
 Run the gated [IDP workflow](../idp/SKILL.md) with Claude Fable as an external read-only planning partner. Read that skill completely when invoked and preserve all of its Plan-mode, concept-approval, prompt, and implementation gates. This skill changes the planning roles, not the user's authorization.
 
+Before every Claude planning or review call, require `CLAUDE-AGENT-FREIGABE: 3141` as the exact first line of the current user instruction. The Claude Subagent helper cannot verify this itself, and the Claude-internal hook does not guard Codex's helper calls. If the current instruction lacks the line, continue only local IDP work.
+
 ## Token-efficient delegation
 
 Apply the [Ponytail-lite baseline](../adaptive-model-routing/SKILL.md#ponytail-lite-baseline) to scope and technical approaches without weakening IDP approval gates. Fable Medium is already the weaker delegated planning role for this workflow. Use a separate Codex `economy_scout` only when `TIEF` needs an independent repository inventory that can run without duplicating Fable's analysis. Keep scope decisions, concept integration, approval, and the final prompt in the root task. Do not escalate beyond Fable Medium unless the user changes the model assignment.

@@ -17,7 +17,8 @@ Use identical camera, lighting, framing, and background for comparison renders. 
 Run:
 
 ```powershell
-python scripts/validate_batch.py --manifest variants.json --generation-report batch/generation-report.json
+$skillDir = (Resolve-Path '<absolute path to blender-object-batches>').Path
+python (Join-Path $skillDir 'scripts/validate_batch.py') --manifest variants.json --generation-report batch/generation-report.json
 ```
 
 The validator checks required output roles, files, metrics, `_min` and `_max` budgets, roundtrip evidence, duplicate parameter sets, and duplicate fingerprints. It writes `qa-report.json` and exits nonzero when acceptance fails.
@@ -30,7 +31,8 @@ Object-specific skills remain responsible for meaningful domain metrics. For exa
 Compile the revised contract to a second manifest, then run:
 
 ```powershell
-python scripts/compare_manifests.py old-variants.json new-variants.json --output regeneration-plan.json
+$skillDir = (Resolve-Path '<absolute path to blender-object-batches>').Path
+python (Join-Path $skillDir 'scripts/compare_manifests.py') old-variants.json new-variants.json --output regeneration-plan.json
 ```
 
 - Regenerate changed and added IDs.
