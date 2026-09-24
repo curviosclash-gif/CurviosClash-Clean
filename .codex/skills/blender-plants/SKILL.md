@@ -61,6 +61,14 @@ Use a small palette with restrained variation across healthy, shaded, sunlit, yo
 
 Add imperfections where growth explains them: missing leaves, bent stems, dry tips, old nodes, insect damage, or occluded interior growth. Do not distribute damage uniformly.
 
+## Reference-led Realism
+
+For a realistic hero plant, establish a visual reference for the intended species or cultivar and growth stage before detailed modeling. Use a supplied reference when available; otherwise find one when permitted and state the chosen interpretation. Set plausible dimensions for the whole specimen and its defining organs, such as flower diameter and petal thickness. Preserve an explicitly requested stylization instead of treating photographic realism as the default.
+
+Compare the first geometry render with the reference at similar scale and viewing angles, including a side view. If a flower reads as a flat disk, petals form conspicuously even rings or thick ribbons, or leaves collapse into flat strips, change the organ shape, layering, or orientation before tuning materials or adding random variation.
+
+Before calling a realism-oriented asset visually finished, compare final hero and side or rear renders with the reference under lighting that exposes form and material color. A successful render, saved scene, or geometry report does not establish visual likeness. If a targeted correction still leaves the defining form unconvincing, continue visual iteration or seek stronger visual review with the renders and reference.
+
 ## Wind and Runtime Geometry
 
 Separate deformation by structural stiffness:
