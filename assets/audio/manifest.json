@@ -67,36 +67,36 @@
       "file": "music/mozart-nachtmusik-advent-chamber.mp3",
       "author": "Advent Chamber Orchestra",
       "sourceUrl": "https://commons.wikimedia.org/wiki/File:Mozart_-_Eine_kleine_Nachtmusik_-_1._Allegro.ogg",
-      "downloadUrl": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Mozart%20-%20Eine%20kleine%20Nachtmusik%20-%201.%20Allegro.ogg",
+      "downloadUrl": "https://upload.wikimedia.org/wikipedia/commons/transcoded/2/24/Mozart_-_Eine_kleine_Nachtmusik_-_1._Allegro.ogg/Mozart_-_Eine_kleine_Nachtmusik_-_1._Allegro.ogg.mp3",
       "license": "CC-BY-SA-2.0",
       "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
       "attribution": "Mozart: Eine kleine Nachtmusik, 1st movement, performed by Advent Chamber Orchestra; source: Wikimedia Commons; CC BY-SA 2.0.",
-      "modifications": "A 26-second excerpt was created, loudness normalized, given a two-second loop crossfade and transcoded from Ogg Vorbis to MP3 by CurviosClash.",
-      "sha256": "64fe574ab0fca59e8badb07d250fdf2c4c0f64b6e6ac47a1188760760b0bb13e"
+      "modifications": "Full 5-minute-55-second first movement; MP3 playback transcode supplied by Wikimedia Commons. The game streams and loops the full recording.",
+      "sha256": "bb8684edf82bdfb0b31d85a3bee00771e7f19b9c172fa51d2d5de5335856ff80"
     },
     {
       "id": "beethoven-5-skidmore-fight",
       "file": "music/beethoven-5-skidmore-fight.mp3",
       "author": "Skidmore College Orchestra",
       "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor,_op._67_-_i._allegro_con_brio.ogg",
-      "downloadUrl": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Ludwig%20van%20Beethoven%20-%20symphony%20no.%205%20in%20c%20minor%2C%20op.%2067%20-%20i.%20allegro%20con%20brio.ogg",
+      "downloadUrl": "https://upload.wikimedia.org/wikipedia/commons/transcoded/e/e6/Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor%2C_op._67_-_i._allegro_con_brio.ogg/Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor%2C_op._67_-_i._allegro_con_brio.ogg.mp3",
       "license": "PDM-1.0",
       "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/",
       "attribution": "Beethoven: Symphony No. 5, 1st movement, performed by Skidmore College Orchestra; source: Wikimedia Commons / Musopen.",
-      "modifications": "A 28-second excerpt was created, loudness normalized, given a two-second loop crossfade and transcoded from Ogg Vorbis to MP3 by CurviosClash.",
-      "sha256": "5193b50dcb4d34e3ab2baac9a454a087f134c54b3abe6155845a3df5cea9058a"
+      "modifications": "Full 8-minute-20-second first movement; MP3 playback transcode supplied by Wikimedia Commons. The game streams and loops the full recording.",
+      "sha256": "711700d0a3334c4e11a141abc4a30ebb43dff6879a48755ef62a3cfca9733842"
     },
     {
       "id": "chopin-nocturne-frank-levy-arcade",
       "file": "music/chopin-nocturne-frank-levy-arcade.mp3",
       "author": "Frank Levy / Musopen",
       "sourceUrl": "https://commons.wikimedia.org/wiki/File:Chopin_-_Nocturne_No._2_in_E-flat_major,_Op._9_No._2_(Frank_Levy).flac",
-      "downloadUrl": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Chopin%20-%20Nocturne%20No.%202%20in%20E-flat%20major%2C%20Op.%209%20No.%202%20%28Frank%20Levy%29.flac",
+      "downloadUrl": "https://upload.wikimedia.org/wikipedia/commons/transcoded/8/89/Chopin_-_Nocturne_No._2_in_E-flat_major%2C_Op._9_No._2_%28Frank_Levy%29.flac/Chopin_-_Nocturne_No._2_in_E-flat_major%2C_Op._9_No._2_%28Frank_Levy%29.flac.mp3",
       "license": "PDM-1.0",
       "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/",
       "attribution": "Chopin: Nocturne in E-flat major, Op. 9 No. 2, performed by Frank Levy; source: Wikimedia Commons / Musopen.",
-      "modifications": "A 28-second excerpt was created, loudness normalized, given a two-second loop crossfade and transcoded from FLAC to MP3 by CurviosClash.",
-      "sha256": "7454ac15831ea8223ea675b0b554130fe7bd279ca6a4bab20341eebb65e2398d"
+      "modifications": "Full 4-minute-31-second nocturne; MP3 playback transcode supplied by Wikimedia Commons. The game streams and loops the full recording.",
+      "sha256": "fec1bfae26be64b9d0fcd158fc97aaaf947c7e3eccd9b87ae050de52aef349d3"
     },
     {
       "id": "explosion-heavy",

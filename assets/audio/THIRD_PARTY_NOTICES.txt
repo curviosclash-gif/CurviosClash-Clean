@@ -7,9 +7,10 @@ Source: https://commons.wikimedia.org/wiki/File:Mozart_-_Eine_kleine_Nachtmusik_
 License: Creative Commons Attribution-ShareAlike 2.0 Generic
 License text: https://creativecommons.org/licenses/by-sa/2.0/
 
-Changes made by CurviosClash: A 26-second excerpt was created, loudness
-normalized, given a two-second loop crossfade and transcoded from Ogg Vorbis
-to MP3. The adapted audio remains available under CC BY-SA 2.0.
+Full recording: 1st movement, 5 minutes 55 seconds.
+The included MP3 is Wikimedia Commons' playback transcode of the complete Ogg
+recording. The game streams and loops the complete recording. Credit the
+Advent Chamber Orchestra and retain the CC BY-SA 2.0 terms for the audio.
 
 Beethoven: Symphony No. 5 in C minor, Op. 67, 1st movement
 Performance: Skidmore College Orchestra
@@ -17,8 +18,9 @@ Source: https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_symphony_
 Status: Dedicated to the public domain worldwide; attribution requested.
 Public Domain Mark: https://creativecommons.org/publicdomain/mark/1.0/
 
-Changes made by CurviosClash: A 28-second excerpt was created, loudness
-normalized, given a two-second loop crossfade and transcoded to MP3.
+Full recording: 1st movement, 8 minutes 20 seconds.
+The included MP3 is Wikimedia Commons' playback transcode of the complete Ogg
+recording. The game streams and loops the complete recording.
 
 Chopin: Nocturne in E-flat major, Op. 9 No. 2
 Performance: Frank Levy
@@ -26,5 +28,6 @@ Source: https://commons.wikimedia.org/wiki/File:Chopin_-_Nocturne_No._2_in_E-fla
 Status: Released into the public domain worldwide by Musopen.
 Public Domain Mark: https://creativecommons.org/publicdomain/mark/1.0/
 
-Changes made by CurviosClash: A 28-second excerpt was created, loudness
-normalized, given a two-second loop crossfade and transcoded from FLAC to MP3.
+Full recording: 4 minutes 31 seconds.
+The included MP3 is Wikimedia Commons' playback transcode of the complete FLAC
+recording. The game streams and loops the complete recording.

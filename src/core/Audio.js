@@ -161,14 +161,7 @@ export class AudioManager {
             }
             this._applyBusGains();
             this._generateBuffers();
-            const context = this.ctx;
-            this._sampleLoadPromise = loadRecordedAudioSamples(this).then((samples) => {
-                const hasRecordedMusic = samples.classicalMusic || samples.fightMusic || samples.arcadeMusic;
-                if (this.ctx === context && this.enabled && hasRecordedMusic) {
-                    this.music.start({ crossfade: true });
-                }
-                return samples;
-            });
+            this._sampleLoadPromise = loadRecordedAudioSamples(this);
             this._ensureAmbienceNodes();
             if (this.enabled) this.music.start();
         } catch (error) {

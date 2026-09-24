@@ -1,3 +1,5 @@
+import { createRecordedMusicElement } from './RecordedAudioSamples.js';
+
 export const MUSIC_STATES = Object.freeze({
     MENU: 'menu',
     RACE: 'race',
@@ -19,11 +21,6 @@ const RECORDED_MUSIC_BY_STATE = Object.freeze({
     [MUSIC_STATES.FIGHT]: 'fightMusic',
     [MUSIC_STATES.ARCADE]: 'arcadeMusic',
 });
-const RECORDED_LOOP_STARTS = Object.freeze({
-    fightMusic: 2,
-    arcadeMusic: 2,
-});
-
 const SCENES = Object.freeze({
     [MUSIC_STATES.MENU]: Object.freeze({
         bpm: 98,
@@ -83,9 +80,11 @@ export class ProceduralMusicDirector {
         this._nextStepTime = 0;
         this._sceneGain = null;
         this._recordedSource = null;
+        this._recordedSourceNode = null;
         this._recordedGain = null;
         this._recordedKey = null;
         this._recordedActive = false;
+        this._retiredRecordedSources = new Map();
         this._retiredSceneGains = new Map();
         this._generation = 0;
     }
@@ -128,8 +127,8 @@ export class ProceduralMusicDirector {
         if (!ctx || !destination) return false;
 
         const recordedSelection = this._resolveRecordedSelection();
-        if (recordedSelection) {
-            return this._startRecorded(recordedSelection.key, recordedSelection.buffer, destination, options);
+        if (recordedSelection && options.forceProcedural !== true) {
+            if (this._startRecorded(recordedSelection.key, destination, options)) return true;
         }
 
         this._cancelScheduler();
@@ -160,27 +159,38 @@ export class ProceduralMusicDirector {
         const key = this.state === MUSIC_STATES.RESULTS
             ? (this._recordedKey || 'classicalMusic')
             : RECORDED_MUSIC_BY_STATE[this.state];
-        const buffer = key ? this.audio?.buffers?.[key] : null;
-        return buffer ? { key, buffer } : null;
+        return key ? { key } : null;
     }
 
     _retireRecordedSource(ctx) {
         if (!this._recordedSource) return;
         const previousSource = this._recordedSource;
+        const previousSourceNode = this._recordedSourceNode;
         const previousGain = this._recordedGain;
         previousGain?.gain?.cancelScheduledValues?.(ctx.currentTime);
         previousGain?.gain?.setTargetAtTime?.(MIN_GAIN, ctx.currentTime, 0.08);
-        try { previousSource.stop?.(ctx.currentTime + 0.6); } catch { /* best effort */ }
+        previousSource.onerror = null;
         this._retireSceneGain(previousGain);
+        const cleanup = () => {
+            this._retiredRecordedSources.delete(previousSource);
+            try { previousSource.pause?.(); } catch { /* best effort */ }
+            try { previousSource.removeAttribute?.('src'); } catch { /* best effort */ }
+            try { previousSource.load?.(); } catch { /* best effort */ }
+            try { previousSourceNode?.disconnect?.(); } catch { /* best effort */ }
+        };
+        const timer = setTimeout(cleanup, RETIRED_SCENE_LIFETIME_MS);
+        timer?.unref?.();
+        this._retiredRecordedSources.set(previousSource, { timer, cleanup });
         this._recordedSource = null;
+        this._recordedSourceNode = null;
         this._recordedGain = null;
         this._recordedKey = null;
         this._recordedActive = false;
     }
 
-    _startRecorded(key, buffer, destination, options = {}) {
+    _startRecorded(key, destination, options = {}) {
         const ctx = this.audio?.ctx;
-        if (!ctx || !buffer || !destination) return false;
+        if (!ctx || !destination || typeof ctx.createMediaElementSource !== 'function') return false;
         this._cancelScheduler();
 
         if (this._sceneGain?.gain) {
@@ -196,18 +206,46 @@ export class ProceduralMusicDirector {
         }
 
         if (!this._recordedSource) {
-            const gain = ctx.createGain();
-            const source = ctx.createBufferSource();
-            gain.gain.value = options.crossfade === true ? MIN_GAIN : (this.paused ? 0.24 : 1);
-            source.buffer = buffer;
-            source.loop = true;
-            source.loopStart = RECORDED_LOOP_STARTS[key] || 0;
-            source.connect(gain);
-            gain.connect(destination);
-            source.start(ctx.currentTime);
+            const source = createRecordedMusicElement(key);
+            if (!source) return false;
+
+            let sourceNode;
+            let gain;
+            try {
+                sourceNode = ctx.createMediaElementSource(source);
+                gain = ctx.createGain();
+                gain.gain.value = options.crossfade === true ? MIN_GAIN : (this.paused ? 0.24 : 1);
+                sourceNode.connect(gain);
+                gain.connect(destination);
+            } catch {
+                try { source.pause?.(); } catch { /* best effort */ }
+                try { source.removeAttribute?.('src'); } catch { /* best effort */ }
+                try { source.load?.(); } catch { /* best effort */ }
+                try { sourceNode?.disconnect?.(); } catch { /* best effort */ }
+                try { gain?.disconnect?.(); } catch { /* best effort */ }
+                return false;
+            }
+
             this._recordedSource = source;
+            this._recordedSourceNode = sourceNode;
             this._recordedGain = gain;
             this._recordedKey = key;
+            source.onerror = () => {
+                if (this._recordedSource !== source) return;
+                this.audio?._debugLog?.(`Recorded music unavailable: ${key}`);
+                this.start({ crossfade: true, forceProcedural: true });
+            };
+            try {
+                const playback = source.play();
+                playback?.catch?.(() => {
+                    if (this._recordedSource !== source) return;
+                    this.audio?._debugLog?.(`Recorded music playback failed: ${key}`);
+                    this.start({ crossfade: true, forceProcedural: true });
+                });
+            } catch {
+                this.audio?._debugLog?.(`Recorded music playback failed: ${key}`);
+                return false;
+            }
         }
 
         const target = this.paused ? 0.24 : 1;
@@ -381,12 +419,22 @@ export class ProceduralMusicDirector {
 
     dispose() {
         this.stop();
-        try { this._recordedSource?.stop?.(); } catch { /* best effort */ }
+        try { this._recordedSource?.pause?.(); } catch { /* best effort */ }
+        try { this._recordedSource?.removeAttribute?.('src'); } catch { /* best effort */ }
+        try { this._recordedSource?.load?.(); } catch { /* best effort */ }
+        if (this._recordedSource) this._recordedSource.onerror = null;
+        try { this._recordedSourceNode?.disconnect?.(); } catch { /* best effort */ }
         try { this._recordedGain?.disconnect?.(); } catch { /* best effort */ }
         this._recordedSource = null;
+        this._recordedSourceNode = null;
         this._recordedGain = null;
         this._recordedKey = null;
         this._recordedActive = false;
+        for (const retired of this._retiredRecordedSources.values()) {
+            clearTimeout(retired.timer);
+            retired.cleanup();
+        }
+        this._retiredRecordedSources.clear();
         this._disconnectRetiredSceneGains();
         this.audio = null;
     }

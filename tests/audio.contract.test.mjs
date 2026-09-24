@@ -57,6 +57,7 @@ function createMockAudioContext() {
             this.oscillators = [];
             this.panners = [];
             this.stereoPanners = [];
+            this.mediaSources = [];
         }
 
         createGain() {
@@ -166,6 +167,17 @@ function createMockAudioContext() {
             };
             this.bufferSources = this.bufferSources || [];
             this.bufferSources.push(source);
+            return source;
+        }
+
+        createMediaElementSource(element) {
+            const source = {
+                element,
+                connect() { return this; },
+                disconnect() { this.disconnected = true; },
+                disconnected: false,
+            };
+            this.mediaSources.push(source);
             return source;
         }
 
@@ -497,19 +509,18 @@ test('AudioManager maps the selected recordings to weapons, hits and explosions'
             mockWindow.dispatchEvent({ type: 'pointerdown' });
             await audio._sampleLoadPromise;
 
-            assert.equal(requestedUrls.length, 8);
+            assert.equal(requestedUrls.length, 5);
             assert.ok(requestedUrls.some((url) => url.endsWith('/machine-gun-autocannon.wav')));
             assert.ok(requestedUrls.some((url) => url.endsWith('/rocket-launch-heavy.wav')));
             assert.ok(requestedUrls.some((url) => url.endsWith('/armor-hit-break.wav')));
-            assert.ok(requestedUrls.some((url) => url.endsWith('/mozart-nachtmusik-advent-chamber.mp3')));
-            assert.ok(requestedUrls.some((url) => url.endsWith('/beethoven-5-skidmore-fight.mp3')));
-            assert.ok(requestedUrls.some((url) => url.endsWith('/chopin-nocturne-frank-levy-arcade.mp3')));
+            assert.ok(requestedUrls.some((url) => url.endsWith('/explosion-rocket-deep.wav')));
+            assert.ok(requestedUrls.some((url) => url.endsWith('/explosion-vehicle-metal.wav')));
             assert.equal(audio.buffers.machineGun.duration, 8);
             assert.equal(audio.buffers.rocketLaunch.duration, 8);
             assert.equal(audio.buffers.armorHit.duration, 8);
-            assert.equal(audio.buffers.classicalMusic.duration, 8);
-            assert.equal(audio.buffers.fightMusic.duration, 8);
-            assert.equal(audio.buffers.arcadeMusic.duration, 8);
+            assert.equal(audio.buffers.classicalMusic, undefined);
+            assert.equal(audio.buffers.fightMusic, undefined);
+            assert.equal(audio.buffers.arcadeMusic, undefined);
             assert.equal(audio.buffers.rocketExplosion.duration, 8);
             assert.equal(audio.buffers.vehicleExplosion.duration, 8);
 
@@ -627,7 +638,32 @@ test('AudioManager applies persistent settings and music lifecycle states', asyn
 
 test('recorded music follows classic, fight and arcade modes without duplicate sources', async () => {
     await withMockWindow(async (mockWindow) => {
+        const musicElements = [];
         mockWindow.AudioContext = createMockAudioContext();
+        mockWindow.Audio = class MockMusicElement {
+            constructor() {
+                this.src = '';
+                this.loop = false;
+                this.paused = true;
+                this.onerror = null;
+                musicElements.push(this);
+            }
+
+            play() {
+                this.paused = false;
+                return Promise.resolve();
+            }
+
+            pause() {
+                this.paused = true;
+            }
+
+            removeAttribute(name) {
+                if (name === 'src') this.src = '';
+            }
+
+            load() {}
+        };
         mockWindow.fetch = async () => ({
             ok: true,
             arrayBuffer: async () => new ArrayBuffer(16),
@@ -640,18 +676,19 @@ test('recorded music follows classic, fight and arcade modes without duplicate s
             await audio._sampleLoadPromise;
 
             const menuSource = audio.music._recordedSource;
-            assert.ok(menuSource?.started);
-            assert.equal(menuSource.buffer, audio.buffers.classicalMusic);
-            assert.equal(menuSource.loopStart, 0);
+            assert.equal(menuSource?.paused, false);
+            assert.equal(menuSource.loop, true);
+            assert.ok(menuSource.src.endsWith('/mozart-nachtmusik-advent-chamber.mp3'));
 
             audio.setMusicState('classic');
             assert.equal(audio.music._recordedSource, menuSource);
             audio.setMusicState('fight');
             const fightSource = audio.music._recordedSource;
             assert.notEqual(fightSource, menuSource);
-            assert.equal(fightSource.buffer, audio.buffers.fightMusic);
-            assert.equal(fightSource.loopStart, 2);
-            assert.equal(menuSource.stopped, true);
+            assert.equal(fightSource.loop, true);
+            assert.ok(fightSource.src.endsWith('/beethoven-5-skidmore-fight.mp3'));
+            assert.equal(audio.music._recordedGain.gain.value, 1);
+            assert.ok(audio.music._retiredRecordedSources.has(menuSource));
 
             audio.setMusicState('results');
             assert.equal(audio.music._recordedSource, fightSource);
@@ -659,14 +696,16 @@ test('recorded music follows classic, fight and arcade modes without duplicate s
             arcadeSource = audio.music._recordedSource;
             arcadeGain = audio.music._recordedGain;
             assert.notEqual(arcadeSource, fightSource);
-            assert.equal(arcadeSource.buffer, audio.buffers.arcadeMusic);
-            assert.equal(arcadeSource.loopStart, 2);
-            assert.equal(fightSource.stopped, true);
+            assert.equal(arcadeSource.loop, true);
+            assert.ok(arcadeSource.src.endsWith('/chopin-nocturne-frank-levy-arcade.mp3'));
+            assert.ok(audio.music._retiredRecordedSources.has(fightSource));
+            assert.equal(musicElements.length, 3);
+            assert.equal(audio.ctx.mediaSources.length, 3);
 
             audio.setPaused(true);
             assert.equal(arcadeGain.gain.value, 0.24);
             audio.setMuted(true);
-            assert.equal(arcadeSource.stopped, false);
+            assert.equal(arcadeSource.paused, false);
             audio.setMuted(false);
             assert.equal(audio.music._recordedSource, arcadeSource);
             audio.setPaused(false);
@@ -674,7 +713,7 @@ test('recorded music follows classic, fight and arcade modes without duplicate s
         } finally {
             audio.dispose();
         }
-        assert.equal(arcadeSource?.stopped, true);
+        assert.equal(arcadeSource?.paused, true);
         assert.equal(arcadeGain?.disconnected, true);
     });
 });
