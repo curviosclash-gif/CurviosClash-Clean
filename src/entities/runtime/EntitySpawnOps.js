@@ -14,6 +14,7 @@ export class EntitySpawnOps {
         owner._simulationClockMs = 0;
         owner.arena?.setGlbAnimationElapsedSeconds?.(0);
         owner.arena?.resetDandelionSeeds?.();
+        owner.arena?.resetSunflowerKernels?.();
         owner._respawnSystem.reset();
         owner._huntScoring.reset();
         owner._roundOutcomeSystem.reset();

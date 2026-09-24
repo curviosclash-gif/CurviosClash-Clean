@@ -16,6 +16,7 @@ import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { createVehicleMesh, isValidVehicleId } from './vehicle-registry.js';
 import { ExclusionBoundaryVisual } from './arena/ExclusionBoundaryVisual.js';
 import { DandelionSeedController } from './arena/DandelionSeedController.js';
+import { SunflowerKernelController } from './arena/SunflowerKernelController.js';
 
 const AIRCRAFT_DECORATION_PALETTE = Object.freeze([
     0xe5e7eb,
@@ -65,7 +66,7 @@ export class Arena {
         this._mergedFoamMesh = null;
         this._mergedObstacleEdges = null;
         this._mergedFoamEdges = null;
-        this._glbScene = null; this._dandelionSeeds = null; this._dandelionSeedNetworkReplica = false;
+        this._glbScene = null; this._dandelionSeeds = null; this._sunflowerKernels = null; this._dandelionSeedNetworkReplica = false;
         this._glbAnimation = new GlbAnimationDriver();
         this._glbDynamicObstacles = [];
         this._mapBreakScenes = null;
@@ -112,11 +113,11 @@ export class Arena {
      * back onto the pose the other players already see.
      */
     setGlbAnimationElapsedSeconds(seconds) {
-        this._glbAnimation.setElapsedSeconds(seconds); this._builder.updateMapClock(this._glbAnimation.elapsedSeconds); this._dandelionSeeds?.update(this._glbAnimation.elapsedSeconds); this._refreshDynamicObstacles();
+        this._glbAnimation.setElapsedSeconds(seconds); this._builder.updateMapClock(this._glbAnimation.elapsedSeconds); this._dandelionSeeds?.update(this._glbAnimation.elapsedSeconds); this._sunflowerKernels?.update(this._glbAnimation.elapsedSeconds); this._refreshDynamicObstacles();
     }
 
     _clearLoadedGlbScene() {
-        this._glbAnimation.clear(); this._dandelionSeeds = null;
+        this._glbAnimation.clear(); this._dandelionSeeds = null; this._sunflowerKernels = null;
         this._glbDynamicObstacles.length = 0;
         clearArenaBreakScenes(this);
         if (!this._glbScene) return;
@@ -324,7 +325,8 @@ export class Arena {
 
         return glbLoad.then((glbResult) => {
             attachArenaGlbLoadResult(this, glbResult);
-            const seeds = new DandelionSeedController(glbResult.scene); this._dandelionSeeds = seeds.count > 0 ? seeds : null; usedGlbModel = true;
+            const seeds = new DandelionSeedController(glbResult.scene); this._dandelionSeeds = seeds.count > 0 ? seeds : null;
+            const sunflowerKernels = new SunflowerKernelController(glbResult.scene); this._sunflowerKernels = sunflowerKernels.count > 0 ? sunflowerKernels : null; usedGlbModel = true;
             return finalizeBuild();
         }).catch((error) => {
             this._glbLoadError = error?.message || 'Unknown GLB loading error';
@@ -434,7 +436,7 @@ export class Arena {
         return this._portalGateSystem.checkExitPortal(position, radius, entityId);
     }
 
-    getCollisionInfo(position, radius) { return this._collision.getCollisionInfo(position, radius); } raycast(origin, direction, maxDistance) { return this._collision.raycast(origin, direction, maxDistance); } raycastDandelionSeed(origin, direction, maxDistance, padding = 0) { return this._dandelionSeeds?.raycast(origin, direction, maxDistance, padding) || null; } releaseDandelionSeed(name) { return !this._dandelionSeedNetworkReplica && this._dandelionSeeds?.releaseByName(name, this.glbAnimationElapsedSeconds) === true; } consumeDandelionSeedCollision(position, radius, playerIndex, previousPosition = null) { return !this._dandelionSeedNetworkReplica ? this._dandelionSeeds?.consumeCollision(position, radius, playerIndex, previousPosition) || null : null; } resetDandelionSeeds() { this._dandelionSeeds?.reset(); } getDandelionSeedProgress() { return this._dandelionSeeds?.getProgress() || null; } serializeDandelionSeeds() { return this._dandelionSeeds?.serialize() || null; } applyDandelionSeedState(state) { this._dandelionSeeds?.applyNetworkState(state); } setDandelionSeedNetworkReplica(enabled) { this._dandelionSeedNetworkReplica = enabled === true; }
+    getCollisionInfo(position, radius) { return this._collision.getCollisionInfo(position, radius); } raycast(origin, direction, maxDistance) { return this._collision.raycast(origin, direction, maxDistance); } raycastDandelionSeed(origin, direction, maxDistance, padding = 0) { const dandelion = this._dandelionSeeds?.raycast(origin, direction, maxDistance, padding) || null; const sunflower = this._sunflowerKernels?.raycast(origin, direction, maxDistance, padding) || null; return !dandelion ? sunflower : (!sunflower || dandelion.distance <= sunflower.distance ? dandelion : sunflower); } releaseDandelionSeed(name, hitDirection = null) { if (this._dandelionSeedNetworkReplica) return false; const seconds = this.glbAnimationElapsedSeconds; return this._dandelionSeeds?.releaseByName(name, seconds) === true || this._sunflowerKernels?.releaseByName(name, seconds, hitDirection) === true; } consumeDandelionSeedCollision(position, radius, playerIndex, previousPosition = null) { return !this._dandelionSeedNetworkReplica ? this._dandelionSeeds?.consumeCollision(position, radius, playerIndex, previousPosition) || null : null; } resetDandelionSeeds() { this._dandelionSeeds?.reset(); } resetSunflowerKernels() { this._sunflowerKernels?.reset(); } getDandelionSeedProgress() { return this._dandelionSeeds?.getProgress() || null; } serializeDandelionSeeds() { return this._dandelionSeeds?.serialize() || null; } applyDandelionSeedState(state) { this._dandelionSeeds?.applyNetworkState(state); } serializeSunflowerKernels() { return this._sunflowerKernels?.serialize() || null; } applySunflowerKernelState(state) { this._sunflowerKernels?.applyNetworkState(state); } setDandelionSeedNetworkReplica(enabled) { this._dandelionSeedNetworkReplica = enabled === true; }
     checkCollisionFast(position, radius = 0) { return this._collision.checkCollisionFast(position, radius); }
     getBotCollisionInfo(position, radius) { return this._collision.getBotCollisionInfo(position, radius); } checkBotCollisionFast(position, radius = 0) { return this._collision.checkBotCollisionFast(position, radius); } checkWorldGeometryCollision(position, radius = 0) { return this._collision.checkWorldGeometryCollision(position, radius); }
 
@@ -519,7 +521,7 @@ export class Arena {
 
     update(dt) {
         this._portalGateSystem.update(dt);
-        this._glbAnimation.advance(dt); this._builder.updateMapClock(this._glbAnimation.elapsedSeconds); this._exclusionBoundaryVisual.update(dt); this._dandelionSeeds?.update(this._glbAnimation.elapsedSeconds);
+        this._glbAnimation.advance(dt); this._builder.updateMapClock(this._glbAnimation.elapsedSeconds); this._exclusionBoundaryVisual.update(dt); this._dandelionSeeds?.update(this._glbAnimation.elapsedSeconds); this._sunflowerKernels?.update(this._glbAnimation.elapsedSeconds);
         this._refreshDynamicObstacles();
         for (const entry of this._aircraftDecorations) {
             entry?.mesh?.tick?.(dt);

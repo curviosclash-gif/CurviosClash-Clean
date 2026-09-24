@@ -32,7 +32,7 @@ function estimatedDrawCalls(mesh) {
  * but remain hidden while their render instances mirror those transforms.
  */
 export class DandelionSeedRenderBatch {
-    static create(scene, seeds) {
+    static create(scene, seeds, options = {}) {
         if (!scene?.isObject3D || !Array.isArray(seeds) || seeds.length < MIN_BATCHABLE_SEEDS) {
             return null;
         }
@@ -49,14 +49,14 @@ export class DandelionSeedRenderBatch {
             }
         }
 
-        return new DandelionSeedRenderBatch(scene, seeds, components);
+        return new DandelionSeedRenderBatch(scene, seeds, components, options);
     }
 
-    constructor(scene, seeds, components) {
+    constructor(scene, seeds, components, options = {}) {
         this.scene = scene;
         this.root = new THREE.Group();
-        this.root.name = 'DandelionSeedRenderBatches';
-        this.root.userData.role = 'dandelion_seed_render_batches';
+        this.root.name = options.name || 'DandelionSeedRenderBatches';
+        this.root.userData.role = options.role || 'dandelion_seed_render_batches';
         this.root.matrixAutoUpdate = false;
         this.root.updateMatrix();
         this._sceneInverse = new THREE.Matrix4();
@@ -68,7 +68,8 @@ export class DandelionSeedRenderBatch {
         this._meshes = [];
 
         let componentNumber = 0;
-        for (const sources of components.values()) {
+        for (const [componentKey, sources] of components) {
+            const tintComponent = Number(componentKey.slice(0, componentKey.indexOf(':'))) === 0;
             const variantCount = Math.min(MAX_VARIANTS_PER_COMPONENT, sources.length);
             const buckets = Array.from({ length: variantCount }, () => []);
             for (const source of sources) {
@@ -103,6 +104,7 @@ export class DandelionSeedRenderBatch {
                     entries.push({
                         mesh,
                         instanceId,
+                        tint: tintComponent,
                         templateHeight: Math.max(0.0001, Number(template.seed.height) || 1),
                     });
                     this._entriesBySeed.set(source.seed, entries);
@@ -137,6 +139,7 @@ export class DandelionSeedRenderBatch {
                 this._heightScale.set(1, Math.max(0.0001, seed.height / entry.templateHeight), 1);
                 this._instanceMatrix.copy(this._relativeMatrix).scale(this._heightScale);
                 entry.mesh.setMatrixAt(entry.instanceId, this._instanceMatrix);
+                if (entry.tint && seed.color) entry.mesh.setColorAt(entry.instanceId, seed.color);
             } else {
                 entry.mesh.setMatrixAt(entry.instanceId, HIDDEN_INSTANCE_MATRIX);
             }
@@ -145,7 +148,10 @@ export class DandelionSeedRenderBatch {
     }
 
     commit() {
-        for (const mesh of this._dirtyMeshes) mesh.instanceMatrix.needsUpdate = true;
+        for (const mesh of this._dirtyMeshes) {
+            mesh.instanceMatrix.needsUpdate = true;
+            if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        }
         this._dirtyMeshes.clear();
     }
 

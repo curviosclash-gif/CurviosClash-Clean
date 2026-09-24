@@ -48,6 +48,13 @@ export const DANDELION_SKY_MAP = {
                 position: [0, 0, 0],
                 targetSize: 368,
             },
+            {
+                id: 'dandelion-sky-sunflower',
+                url: 'assets/models/sunflower/sunflower_shootable.glb',
+                position: [10, 216, -135],
+                targetSize: 15,
+                collision: false,
+            },
             // The root chamber lights itself. Its models live with the rest of the chamber, not
             // here, so the room stays one thing to read and to move.
             ...DANDELION_SKY_ROOT_CHAMBER_MODELS,

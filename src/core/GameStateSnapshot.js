@@ -80,6 +80,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
         mapElapsedSeconds: toFiniteNumber(entityManager?.arena?.glbAnimationElapsedSeconds, 0),
         mapFireDestructibles: entityManager?._mapDestructibleSystem?.fireState ? entityManager._mapDestructibleSystem.serializeNetworkState() : null,
         dandelionSeeds: entityManager?.arena?.serializeDandelionSeeds?.() || null,
+        sunflowerKernels: entityManager?.arena?.serializeSunflowerKernels?.() || null,
         fight: createHuntNetworkState(entityManager),
         roundState: roundState ? {
             round: roundState.round ?? 0,

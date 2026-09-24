@@ -8,6 +8,7 @@ const OBJ_ASSET_COPY_ENTRIES = [
     ['assets', 'models', 'optimized_cc0'],
     ['assets', 'models', 'giant_dandelion', 'giant_dandelion_shootable.glb'],
     ['assets', 'models', 'giant_dandelion', 'giant_dandelion_lod2.glb'],
+    ['assets', 'models', 'sunflower', 'sunflower_shootable.glb'],
     ['assets', 'models', 'ancient_tree', 'variants', 'variant_06', 'ancient_tree_06_lod1.glb'],
     // Two files per variant: the drawn crown, and the coarse collision body the giant forest
     // places invisibly inside it. Shipping the crown alone would leave that map's trees flyable.
