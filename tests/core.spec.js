@@ -96,6 +96,8 @@ test.describe('Desktop Smoke', () => {
         await page.locator('#submenu-custom:not(.hidden) [data-mode-path="arcade"]').click({ force: true });
         await page.locator('#submenu-game:not(.hidden) [data-start-section-target="arcade"]')
             .evaluate((button) => button.click());
+        await page.locator('.arcade-start-mode-options > summary').click();
+        await page.locator('.arcade-advanced-options > summary').click();
         await expect(page.locator('#btn-arcade-endless-start-inline')).toBeVisible();
         // Ein gesetzter Seed erzeugt dieselbe Strecke erneut, damit sich Laeufe teilen lassen.
         await expect(page.locator('#arcade-endless-records-line')).toContainText('Endlosjagd');

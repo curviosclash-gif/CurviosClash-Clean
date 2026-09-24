@@ -58,6 +58,9 @@ for (const entry of listTestRenderCommandLineSwitches(testRenderMode)) {
     if (typeof entry?.value === 'string') app.commandLine.appendSwitch(entry.name, entry.value);
     else app.commandLine.appendSwitch(entry.name);
 }
+// Playwright launchers set PW_RUN_TAG; keep automated gameplay runs silent without
+// changing the saved in-game audio preferences used by normal desktop sessions.
+if (String(process.env.PW_RUN_TAG || '').trim()) app.commandLine.appendSwitch('mute-audio');
 
 let mainWindow = null;
 let tray = null;
