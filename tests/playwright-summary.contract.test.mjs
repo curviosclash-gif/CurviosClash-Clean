@@ -8,6 +8,7 @@ import {
     PLAYWRIGHT_ENV_FAILURE_PATTERNS,
     formatPlaywrightSummary,
     matchesKnownFailure,
+    matchesKnownFailureCause,
     summarizePlaywrightResults,
 } from '../scripts/summarize-playwright-results.mjs';
 
@@ -97,6 +98,7 @@ const KNOWN = [{
     commit: 'b81170e',
     reason: 'stale expectation',
     kind: 'stale-test',
+    errorIncludes: 'Received: 0',
 }];
 
 test('playwright summary: counts every bucket of a mixed run', () => {
@@ -144,7 +146,7 @@ test('playwright summary: every red test is listed with file, line, title and cl
     assert.match(text, /T52: never reached/, 'tests that never ran are named too');
 });
 
-test('playwright summary: exit code 0 needs zero new failures and zero missing runs', () => {
+test('playwright summary: exit code 0 needs zero new or environment failures and zero missing runs', () => {
     const cleanReport = createReport();
     // Drop the new regression and let the aborted test run.
     cleanReport.suites[0].specs = cleanReport.suites[0].specs.filter((entry) => !entry.title.startsWith('T99'));
@@ -154,12 +156,34 @@ test('playwright summary: exit code 0 needs zero new failures and zero missing r
     assert.equal(stillMissing.exitCode, 1, 'a chain that stopped early is not a green run');
 
     cleanReport.suites[0].suites[0].specs = cleanReport.suites[0].suites[0].specs
-        .filter((entry) => !entry.title.startsWith('T52'));
+        .filter((entry) => !entry.title.startsWith('T52') && !entry.title.startsWith('T50'));
     const green = summarizePlaywrightResults(cleanReport, KNOWN);
     assert.equal(green.new, 0);
     assert.equal(green.didNotRun, 0);
     assert.equal(green.known, 1);
     assert.equal(green.exitCode, 0, 'known old failures alone do not make a run red');
+});
+
+test('playwright summary: a known test needs its recorded failure cause', () => {
+    const report = createReport();
+    report.suites[0].specs[1].tests = [failingTest('TypeError: missing renderer bridge')];
+    const summary = summarizePlaywrightResults(report, KNOWN);
+    assert.equal(summary.failures.find((failure) => failure.title.startsWith('T66b')).classification, 'new');
+    assert.equal(matchesKnownFailureCause(KNOWN[0], 'TypeError: missing renderer bridge'), false);
+    assert.equal(matchesKnownFailureCause(KNOWN[0], 'expect(received).toBe(expected)\nReceived: 2'), false);
+    assert.equal(matchesKnownFailureCause({ errorIncludes: ['Received: true', 'expect(result.playerHit)'] }, 'Received: true'), false);
+});
+
+test('playwright summary: an environment error fails even when its test is on the known list', () => {
+    const report = createReport();
+    const knownEnvironment = [{
+        spec: 'tests/core-targeted-surface.spec.js',
+        title: 'T50: closes under load',
+        kind: 'env',
+    }];
+    const summary = summarizePlaywrightResults(report, knownEnvironment);
+    assert.equal(summary.failures.find((failure) => failure.title.startsWith('T50')).classification, 'env');
+    assert.equal(summary.exitCode, 1);
 });
 
 test('playwright summary: known entries match by spec file and test id', () => {
@@ -207,8 +231,15 @@ test('playwright summary: both runners report the summary after a run', () => {
     assert.match(clusters, /printClusterSummaries\(summaries\)/);
 });
 
-test('playwright summary: an empty report is green', () => {
+test('playwright summary: an empty report fails the gate', () => {
     const summary = summarizePlaywrightResults({ suites: [], stats: {} }, []);
-    assert.equal(summary.exitCode, 0);
+    assert.equal(summary.exitCode, 1);
     assert.equal(summary.line, '[playwright:summary] passed=0 failed=0 skipped=0 didNotRun=0 flaky=0 known=0 new=0');
+});
+
+test('playwright summary: a top-level reporter error fails the gate', () => {
+    const report = { suites: [{ specs: [spec('passes', 1, [passingTest()])] }], errors: [{ message: 'worker crashed' }] };
+    const summary = summarizePlaywrightResults(report, []);
+    assert.equal(summary.exitCode, 1);
+    assert.match(formatPlaywrightSummary(summary), /REPORT_ERROR worker crashed/);
 });

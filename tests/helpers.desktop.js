@@ -481,6 +481,7 @@ const desktopTest = base.extend({
                     ...process.env,
                     CURVIOS_ELECTRON_SHOW_WINDOW: showWindow ? '1' : '0',
                     CURVIOS_ELECTRON_TEST_RENDER: resolveTestRenderMode(process.env),
+                    CURVIOS_E2E_RENDERER: '1',
                     CURVIOS_DESKTOP_STATIC_PORT: String(process.env.TEST_PORT || ''),
                     CURVIOS_USER_DATA_ROOT: userDataRoot,
                 },

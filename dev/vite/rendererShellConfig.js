@@ -124,6 +124,7 @@ export function createRendererShellServerConfig(env = process.env) {
 }
 
 function resolveRendererBuildOutDir(env = process.env) {
+    if (env?.CURVIOS_E2E_BUILD === '1') return 'dist-app-test';
     const appTarget = resolveRendererAppTarget(env);
     if (appTarget === RENDERER_APP_TARGETS.MOBILE_CLASSIC) {
         return 'dist/mobile-classic';

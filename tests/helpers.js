@@ -97,26 +97,19 @@ export async function waitForRenderFrames(page, frameCount = 2) {
     }), frameCount);
 }
 
-async function ensureTestModuleImportBridge(page, timeoutMs = 5000) {
-    try {
-        await page.waitForFunction(() => {
-            const api = globalThis?.CURVIOS_TEST_API;
-            return typeof api?.importCurviosTestModule === 'function'
-                && api?.testModuleExports
-                && typeof api.testModuleExports === 'object';
-        }, null, { timeout: timeoutMs });
-    } catch {
-        // Non-e2e contexts may not provide the full test API bridge.
-    }
+export async function ensureTestModuleImportBridge(page, timeoutMs = 15000) {
+    await page.waitForFunction(() => {
+        const api = globalThis?.CURVIOS_TEST_API;
+        return typeof api?.importCurviosTestModule === 'function'
+            && api?.testModuleExports
+            && typeof api.testModuleExports === 'object';
+    }, null, { timeout: timeoutMs });
 
     await page.evaluate(() => {
         globalThis.__curviosImport = async (moduleSpecifier) => {
             const normalizedSpecifier = String(moduleSpecifier || '').trim();
             const api = globalThis?.CURVIOS_TEST_API;
-            if (typeof api?.importCurviosTestModule === 'function') {
-                return api.importCurviosTestModule(normalizedSpecifier);
-            }
-            return import(normalizedSpecifier);
+            return api.importCurviosTestModule(normalizedSpecifier);
         };
     });
 }
@@ -204,7 +197,8 @@ export async function loadGame(page, options = {}) {
             );
             lastStage = 'shell_ready';
             await waitForLoadedGame(page, readyBudgetMs);
-            await ensureTestModuleImportBridge(page, Math.min(5000, readyBudgetMs));
+            lastStage = 'test_api_bridge';
+            await ensureTestModuleImportBridge(page, Math.min(15000, readyBudgetMs));
 
             return;
         } catch (error) {
