@@ -1,0 +1,4 @@
+interface:
+  display_name: "Curvios Testaudit"
+  short_description: "Volltest, rote Tests und priorisierte Fixpläne"
+  default_prompt: "Nutze $curvios-test-audit für einen vollständigen Testlauf mit roten Tests, Laufzeiten und zwei priorisierten Fixplänen."

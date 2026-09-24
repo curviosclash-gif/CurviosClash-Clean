@@ -1,0 +1,3 @@
+interface:
+  display_name: "Curvios Chat Task Audit"
+  short_description: "Findet offene Aufgaben und Pläne in Chats und priorisiert sie"
