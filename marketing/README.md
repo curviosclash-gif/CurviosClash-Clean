@@ -24,6 +24,16 @@ Diese Texte beschreiben das Spiel. Die Demo-Seite darf nur Modi und Funktionen n
 
 `node scripts/marketing/capture-demo.mjs C:\CurviosClash\output\marketing` zeichnet zusätzlich automatisch kurze Szenen im isolierten Desktop-Spiel auf. Es steuert den Spieler in Kurven, wählt die Draufsicht und nutzt das bestehende Playwright-Schloss. Seine WebM-Dateien dienen der Motivsuche und dem technischen Probeschnitt; für den öffentlichen Trailer sind bewusst gespielte Cinematic-Replays mit Ton die bessere Quelle.
 
+## Gameplay-Short: Your trail is a weapon
+
+Der eigene Short kombiniert zwei seitliche Cinematic-Fahrten ohne HUD mit der regulären Third-Person-Kamera und dem Original-HUD des jeweils gezeigten Spielers. Er verwendet keine Draufsicht und keine First Person. Zwei über normale Steuereingaben geflogene Spieler erzeugen unregelmäßige S-Kurven mit wiederholten Steig- und Sinkflügen auf der Standard-Arena in Classic; die Spielphysik bleibt unverändert.
+
+Nach `npm run build:app:test` nimmt `node scripts/marketing/produce-trail-short.mjs <ausgabeordner>` beide Formate mit Spielton im isolierten Desktop-Spiel auf. `--probe` prüft nur den Flug und speichert Bilder, `--landscape` oder `--portrait` begrenzt einen Testlauf. Jeder Lauf erhält einen neuen Unterordner und beachtet das gemeinsame Playwright-Schloss. Die Aufnahme bricht bei einem Tod oder einer relevanten Abweichung zwischen Spiel- und Aufnahmezeit ab.
+
+`node scripts/marketing/render-trail-short.mjs <aufnahmeordner>/take.json <neuer-exportordner>` erzeugt die beiden 18-Sekunden-MP4s mit 60 fps, englischen Captions, Schlusskarte, Vorschaubild, SRT und Beitragstext. Querformat und Hochformat werden getrennt aufgenommen und komponiert. FFmpeg kommt aus der Electron-Installation oder `FFMPEG_PATH`; FFprobe muss im Suchpfad oder unter `FFPROBE_PATH` verfügbar sein. Alle Rohaufnahmen und Exporte bleiben außerhalb der versionierten Dateien.
+
+Vor einer Veröffentlichung beide Formate vollständig auf Perspektiven, HUD, Bildfluss und Spielton prüfen. Mindestens vier von fünf Betrachtern müssen ohne Ton die Gefahr und das erfolgreiche Ausweichen verstehen. Dieser menschliche Verständlichkeitstest und die Veröffentlichung sind separate Schritte.
+
 ## itch.io-Seite und Veröffentlichung
 
 - Die Projektseite zuerst als **Draft** anlegen. Titel, Kurzbeschreibung, Cover, drei bis fünf Screenshots, Steuerung, Systemanforderungen, korrekte Windows-Plattform und passende Tags eintragen. Die Seite erst mit der vom Entwicklungsteam freigegebenen Demo-Datei öffentlich machen; itch.io vergibt den „Most Recent“-Moment bei der ersten Veröffentlichung einmalig. [Seitenerstellung](https://itch.io/docs/creators/getting-started), [Qualitätsregeln](https://itch.io/docs/creators/quality-guidelines)

@@ -1,0 +1,91 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import test from 'node:test';
+import {
+    assertNewOutputDirectory,
+    buildRenderArgs,
+    buildSrt,
+    buildTimeline,
+    packetEndTime,
+    validateTake,
+} from '../scripts/marketing/render-trail-short.mjs';
+
+const entry = {
+    gameplay: path.resolve('a video; no shell.webm'),
+    cinematic: path.resolve('cinematic.mp4'),
+    gameplayStart: 1.25,
+    cinematicStart: 2.5,
+};
+
+test('take requires both orientations, finite offsets, and resolved input paths', () => {
+    const raw = { orientations: {
+        landscape: { gameplay: 'game.webm', cinematic: 'cinema.webm', gameplayStart: 1, cinematicStart: 2 },
+        portrait: { gameplay: 'tall.webm', cinematic: 'tall-cinema.webm', gameplayStart: 3, cinematicStart: 4 },
+    } };
+    const entries = validateTake(raw, path.resolve('takes'));
+    assert.equal(entries.landscape.gameplay, path.resolve('takes/game.webm'));
+    assert.equal(entries.portrait.cinematicStart, 4);
+    assert.throws(() => validateTake({ orientations: { landscape: raw.orientations.landscape } }, '.'), /portrait/);
+    assert.throws(() => validateTake({ orientations: {
+        ...raw.orientations, portrait: { ...raw.orientations.portrait, gameplayStart: Infinity },
+    } }, '.'), /finite/);
+});
+
+test('timeline covers exactly 18 seconds with capture offsets and a clean gameplay stretch', () => {
+    const shots = buildTimeline(entry);
+    assert.deepEqual(shots.map(({ source, at, duration, caption }) =>
+        [source, at, duration, caption]), [
+        ['cinematic', 0, 3, 'hook'],
+        ['gameplay', 3, 4, 'duel'],
+        ['cinematic', 7, 3, 'classic'],
+        ['gameplay', 10, 6, null],
+        ['endcard', 16, 2, 'endcard'],
+    ]);
+    assert.deepEqual(shots.map(({ start }) => start), [2.5, 4.25, 9.5, 11.25, 0]);
+    assert.equal(shots.at(-1).at + shots.at(-1).duration, 18);
+    assert.ok(shots.every((shot, index) => index === 0 || shot.at === shots[index - 1].at + shots[index - 1].duration));
+});
+
+test('render args preserve source paths as argv and set exact format, fps, codecs, and audio', () => {
+    for (const [name, dimensions] of Object.entries({ landscape: '1920:1080', portrait: '1080:1920' })) {
+        const args = buildRenderArgs(name, entry);
+        const graph = args[args.indexOf('-filter_complex') + 1];
+        assert.equal(args[args.indexOf('-i') + 1], entry.gameplay);
+        assert.equal(args[args.indexOf('-i') + 3], entry.cinematic);
+        assert.match(graph, new RegExp(`scale=${dimensions}:flags=lanczos`));
+        assert.match(graph, /fps=60/);
+        const captionTop = Number(/textfile=captions\/hook\.txt:[^;]*?:y=(\d+)/.exec(graph)?.[1]);
+        assert.equal(captionTop, name === 'landscape' ? 157 : 230);
+        if (name === 'landscape') assert.ok(captionTop > 126 && captionTop + 58 + 18 < 252);
+        assert.match(graph, /trim=start=11\.25:duration=6,.*\[v3\]/);
+        assert.doesNotMatch(graph.split('[v3]')[0].split('[v2]')[1], /captions\/(?:hook|duel|classic)/);
+        assert.match(graph, /atrim=start=1\.25:duration=16.*apad,atrim=duration=18\[audio\]/);
+        assert.match(graph, /loudnorm=I=-20:TP=-2:LRA=11,afade/);
+        assert.match(graph, name === 'portrait' ? /:y=h-text_h-221/ : /:y=h-text_h-59/);
+        assert.deepEqual(args.slice(args.indexOf('-frames:v'), args.indexOf('-frames:v') + 2), ['-frames:v', '1080']);
+        assert.deepEqual(args.slice(args.indexOf('-r'), args.indexOf('-r') + 2), ['-r', '60']);
+        assert.deepEqual(args.slice(args.indexOf('-pix_fmt'), args.indexOf('-pix_fmt') + 2), ['-pix_fmt', 'yuv420p']);
+        assert.deepEqual(args.slice(args.indexOf('-c:a'), args.indexOf('-c:a') + 2), ['-c:a', 'aac']);
+        assert.equal(args.at(-1), `curviosclash-${name}.mp4`);
+        assert.ok(!graph.includes(entry.gameplay), 'paths never enter filter syntax');
+    }
+});
+
+test('packet endpoint uses timestamps and durations rather than packet count for VFR clips', () => {
+    assert.deepEqual(packetEndTime('stream_index=0|pts_time=15.983000|duration_time=0.041000'),
+        { streamIndex: 0, end: 16.024 });
+    assert.deepEqual(packetEndTime('stream_index=1|pts_time=16.010000|duration_time=N/A'),
+        { streamIndex: 1, end: 16.01 });
+    assert.equal(packetEndTime('stream_index=0|pts_time=N/A|duration_time=N/A'), null);
+});
+
+test('subtitles show the end card but leave 10–16 seconds without a main caption', () => {
+    const srt = buildSrt();
+    assert.match(srt, /00:00:07,000 --> 00:00:10,000\nClassic mode\nOne of several game modes\./);
+    assert.match(srt, /00:00:16,000 --> 00:00:18,000\nCURVIOSCLASH\nFollow development\./);
+    assert.doesNotMatch(srt, /00:00:10,000 -->/);
+});
+
+test('existing output path fails preflight', async () => {
+    await assert.rejects(assertNewOutputDirectory(import.meta.filename), /already exists/);
+});
