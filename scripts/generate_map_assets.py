@@ -23,6 +23,7 @@ GENERATORS = {
     'storm_bridge_siege': 'generate_wave6_landmark_assets',
     'storm_lighthouse_siege': 'generate_wave6_landmark_assets',
     'storm_dam_siege': 'generate_wave6_landmark_assets',
+    'skyline_siege': 'generate_skyline_siege_assets',
     'standard': 'generate_map_world',
     'wind_cathedral': 'generate_map_world',
     'chrono_forge_nexus': 'generate_map_world',
@@ -43,6 +44,11 @@ def main():
     module = importlib.import_module(GENERATORS[args.pack])
     if args.pack == 'notre_dame_evolution':
         module.main(args.part, args.output_dir)
+        return
+    if args.pack == 'skyline_siege':
+        if args.output_dir:
+            module.ROOT = args.output_dir.resolve()
+        module.generate(set(args.part or module.PARTS))
         return
     if args.pack in ('storm_bridge_siege', 'storm_lighthouse_siege', 'storm_dam_siege'):
         if args.output_dir:

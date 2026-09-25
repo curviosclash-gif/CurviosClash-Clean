@@ -33,6 +33,7 @@ import { CLOCKWORK_CANYON_MAPS } from './presets/clockwork_canyon/index.js';
 import { STORM_BRIDGE_SIEGE_MAPS } from './presets/storm_bridge_siege/index.js';
 import { STORM_LIGHTHOUSE_SIEGE_MAPS } from './presets/storm_lighthouse_siege/index.js';
 import { STORM_DAM_SIEGE_MAPS } from './presets/storm_dam_siege/index.js';
+import { SKYLINE_SIEGE_MAPS } from './presets/skyline_siege/Map.js';
 import { HYDRA_TEMPLE_MAP } from './presets/hydra_temple.js';
 
 export const MAP_PRESET_CATALOG = {
@@ -71,5 +72,6 @@ export const MAP_PRESET_CATALOG = {
     ...STORM_BRIDGE_SIEGE_MAPS,
     ...STORM_LIGHTHOUSE_SIEGE_MAPS,
     ...STORM_DAM_SIEGE_MAPS,
+    ...SKYLINE_SIEGE_MAPS,
     ...HYDRA_TEMPLE_MAP,
 };

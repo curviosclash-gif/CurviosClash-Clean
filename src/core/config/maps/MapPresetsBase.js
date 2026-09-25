@@ -68,6 +68,7 @@ const BASE_MAP_KEYS = [
     'storm_bridge_siege',
     'storm_lighthouse_siege',
     'storm_dam_siege',
+    'skyline_siege',
     'hydra_temple',
 ];
 

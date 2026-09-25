@@ -18,6 +18,7 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     storm_bridge_siege: 'generate_wave6_landmark_assets.py',
     storm_lighthouse_siege: 'generate_wave6_landmark_assets.py',
     storm_dam_siege: 'generate_wave6_landmark_assets.py',
+    skyline_siege: 'generate_skyline_siege_assets.py',
     standard: 'generate_map_world.py',
     wind_cathedral: 'generate_map_world.py',
     chrono_forge_nexus: 'generate_map_world.py',
