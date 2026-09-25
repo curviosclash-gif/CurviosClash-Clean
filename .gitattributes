@@ -12,3 +12,5 @@
 *.css text eol=lf
 *.html text eol=lf
 .githooks/* text eol=lf
+assets/models/sakura_akebono/*.glb filter=lfs diff=lfs merge=lfs -text
+assets/models/sakura_akebono/*.blend filter=lfs diff=lfs merge=lfs -text
