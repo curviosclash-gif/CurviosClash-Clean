@@ -1,8 +1,10 @@
 # CurviosClash: erste Kampagne für die itch.io-Demo
 
+Der verbindliche Themen-, Schnitt- und Freigabeablauf steht im [Content-Playbook](content-playbook.md). Die Kampagne bearbeitet ausschließlich Vermarktung. Die fertige Demo wird später geliefert; unser Anteil daran ist ihre korrekte Veröffentlichung.
+
 ## Positionierung
 
-**Kernversprechen:** Schnelle 3D-Flugduelle, in denen die eigene Leuchtspur zur Gefahr für alle wird. Das Material soll in den ersten zwei Sekunden eine Spurkreuzung, Spur-Falle oder ein knappes Ausweichen entlang mehrerer Spuren zeigen. Danach folgen die Spielstile Klassisch, Kampf und Arcade. Der Trailer beginnt mit Gameplay und endet mit dem Aufruf zur Windows-Demo.
+**Kernversprechen:** Schnelle 3D-Flugduelle, in denen die eigene Leuchtspur zur Gefahr für alle wird. Das Material soll in den ersten zwei Sekunden eine Spurkreuzung, Spur-Falle oder ein knappes Ausweichen entlang mehrerer Spuren zeigen. Weitere Szenen können Klassisch, Kampf und Arcade zeigen; der Demo-Trailer nutzt nur vom Entwicklungsteam freigegebene Demo-Inhalte. Vor der Veröffentlichung führt der Aufruf zum itch.io-Profil, nach dem Start zur freigegebenen Demo-Seite.
 
 **Verbindliche Bildregel:** In Cover, jedem ausgewählten Screenshot und jeder Hauptszene sind mehrere deutlich sichtbare, geschwungene Leuchtspuren zu sehen. Die erste Einstellung muss die Spurmechanik sofort erkennbar machen. Gerade Einzelspuren, spurarme Perspektiven und Bilder, in denen Logo oder Text die Spuren verdecken, werden aussortiert. Für das Cover bleibt die ganze Spielbreite sichtbar.
 
@@ -10,7 +12,7 @@
 
 **Short description (EN):** “Fly, dodge, and leave deadly light trails. CurviosClash combines fast 3D duels, weapons, and arcade courses.”
 
-Diese Texte beschreiben das Spiel. Die Demo-Seite darf nur Modi und Funktionen nennen, die im veröffentlichten Demo-Build tatsächlich enthalten und getestet sind. Die konkrete Spiel-URL wird erst nach dem Anlegen der Projektseite eingetragen; `https://curviosclash.itch.io/` ist derzeit nur die bekannte Profiladresse.
+Diese Texte beschreiben das Spiel. Die Demo-Seite darf nur Modi und Funktionen nennen, die für die gelieferte Demo von den Entwicklern freigegeben sind. Die konkrete Spiel-URL wird erst nach dem Anlegen der Projektseite eingetragen; `https://curviosclash.itch.io/` ist derzeit nur die bekannte Profiladresse.
 
 ## Medienproduktion
 
@@ -24,13 +26,13 @@ Diese Texte beschreiben das Spiel. Die Demo-Seite darf nur Modi und Funktionen n
 
 ## itch.io-Seite und Veröffentlichung
 
-- Die Projektseite zuerst als **Draft** anlegen. Titel, Kurzbeschreibung, Cover, drei bis fünf Screenshots, Steuerung, Systemanforderungen, korrekte Windows-Plattform und passende Tags eintragen. Die Seite erst mit getesteter Demo-Datei öffentlich machen; itch.io vergibt den „Most Recent“-Moment bei der ersten Veröffentlichung einmalig. [Seitenerstellung](https://itch.io/docs/creators/getting-started), [Qualitätsregeln](https://itch.io/docs/creators/quality-guidelines)
-- Einen öffentlich erreichbaren YouTube- oder Vimeo-Trailer einbinden. Auf itch.io aktiviert er auch den „Watch trailer“-Knopf in der Übersicht. [Seitengestaltung](https://itch.io/docs/creators/design)
-- Den Windows-Build auf einem sauberen Rechner installieren und Start, Eingabe, Audio, Einstellungen und Deinstallation prüfen. Vor dem Upload die tatsächlichen Demo-Inhalte und die Systemanforderungen gegen die Seite abgleichen. Für wiederholte Updates kann `butler push <release-ordner> curviosclash/<spielslug>:windows-demo` genutzt werden; ein Push auf eine öffentliche Seite ist sofort verfügbar. [Butler](https://itch.io/docs/butler/pushing.html)
-- Kommentare oder Community-Forum für Feedback aktivieren. Einen klaren Feedback-Link auf der Seite und in der Demo anbieten. Änderungen mit echten Verbesserungen per Devlog zeigen. Im Dashboard Aufrufe, Downloadquote und Zugriffsquellen prüfen. [Interaktion](https://itch.io/docs/creators/interact), [Devlogs](https://itch.io/updates/introducing-devlogs)
+- Die Projektseite zuerst als **Draft** anlegen. Titel, Kurzbeschreibung, Cover, drei bis fünf Screenshots, Steuerung, Systemanforderungen, korrekte Windows-Plattform und passende Tags eintragen. Die Seite erst mit der vom Entwicklungsteam freigegebenen Demo-Datei öffentlich machen; itch.io vergibt den „Most Recent“-Moment bei der ersten Veröffentlichung einmalig. [Seitenerstellung](https://itch.io/docs/creators/getting-started), [Qualitätsregeln](https://itch.io/docs/creators/quality-guidelines)
+- Den Trailer zuerst auf YouTube oder Vimeo öffentlich bereitstellen und den eingebetteten Player ohne Anmeldung prüfen. Auf itch.io aktiviert er auch den „Watch trailer“-Knopf in der Übersicht. [Seitengestaltung](https://itch.io/docs/creators/design)
+- Bei Lieferung der fertigen Demo die Datei und freigegebenen Angaben übernehmen, Upload und Download-Link kontrollieren und erst dann die Seite öffentlich schalten. Für gezielte Creator-Vorschauen kann vorher eine Restricted-Seite mit einzelnen Download-Keys genutzt werden. Für wiederholte Uploads kann `butler push <release-ordner> curviosclash/<spielslug>:windows-demo` genutzt werden; ein Push auf eine öffentliche Seite ist sofort verfügbar. [Zugriff](https://itch.io/docs/creators/access-control), [Download-Keys](https://itch.io/docs/creators/download-keys), [Butler](https://itch.io/docs/butler/pushing.html)
+- Kommentare oder Community-Forum für Feedback aktivieren. Einen klaren Feedback-Link auf der Seite anbieten. Vom Entwicklungsteam freigegebene Änderungen per Devlog zeigen. Im Dashboard Aufrufe, Downloadquote und Zugriffsquellen prüfen. [Interaktion](https://itch.io/docs/creators/interact), [Devlogs](https://itch.io/updates/introducing-devlogs)
 
 ## Verbreitung und Messung
 
 Aus einem guten Spielmoment drei kurze Varianten mit unterschiedlichem Einstieg schneiden: **Leuchtspur-Falle**, **knappes Ausweichen**, **Arcade-Bestzeit**. Querformat dient der Demo-Seite und YouTube, Hochformat Shorts und TikTok. Jede Variante verweist auf die konkrete itch.io-Spielseite, sobald sie öffentlich ist. Passende kleine Creator und Communities gezielt mit einem kurzen, persönlichen Pitch ansprechen; keine pauschalen Massenposts.
 
-Wöchentlich vergleichen: Welche Clips halten Zuschauer über die ersten Sekunden, welche Quellen bringen Seitenbesuche, wie viele Seitenbesuche führen zum Download, und welches Feedback nennt denselben Reibungspunkt? Zuerst die Demo oder ihre Darstellung verbessern, dann neue Clips aus den stärksten Spielmomenten schneiden.
+Wöchentlich vergleichen: Welche Clips halten Zuschauer über die ersten Sekunden, welche Quellen bringen Seitenbesuche, wie viele Seitenbesuche führen zum Download, und welches Feedback nennt denselben Reibungspunkt? Die Darstellung und Verteilung anhand dieser Signale verbessern; Produktfeedback an das Entwicklungsteam weitergeben.
