@@ -55,6 +55,7 @@ export class ArenaBuilder {
         // so a map without its own lamps does not inherit them.
         this.mapLightRig.build(mapResolution.map, scale);
         this.fireFxController.build(mapResolution.map, scale, this.mapLightRig.lights);
+        if (mapResolution.map?.fireFxActivationSegmentId) this.fireFxController.setIntensity(0);
         this.mapHazardVisualController.build(mapResolution.map, scale);
         this.fireEvolution.build(mapResolution.map);
         this._applyArenaBounds(size);

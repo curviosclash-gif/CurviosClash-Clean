@@ -29,6 +29,25 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
     }, null, { timeout: 180_000 });
     await waitForRenderFrames(page, 5);
 
+    await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const arena = game.arena;
+        const system = game.entityManager.getMapDestructibleSystem();
+        const fire = arena._builder.fireFxController;
+        if (fire.group?.visible) throw new Error('reactor fire visible before first hit');
+        arena.setGlbAnimationElapsedSeconds(0);
+        system.applyMeshHit('reactor_block', 1);
+        if (!fire.group?.visible || fire.lightTracks[0]?.light.intensity <= 0) {
+            throw new Error('reactor did not ignite on first hit');
+        }
+        arena.setGlbAnimationElapsedSeconds(60);
+        system.updateFeedback();
+        const hp = system.getState().segments.find((segment) => segment.id === 'reactor_dome')?.hp;
+        if (Math.abs(hp - 809) > 0.01) throw new Error(`unexpected reactor burn damage: ${hp}`);
+        system.startRound();
+        if (fire.group?.visible) throw new Error('reactor fire remained after round reset');
+    });
+
     for (let variant = 0; variant < 4; variant += 1) {
         const result = await page.evaluate((selected) => {
             const game = window.GAME_INSTANCE;

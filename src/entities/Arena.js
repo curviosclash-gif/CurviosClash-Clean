@@ -452,6 +452,8 @@ export class Arena {
     /** Puts a shot-apart map back together, for a round that reuses this arena as it is. */
     setMapFireState(state) { this._builder.fireEvolution.setState(state); this._builder.fireEvolution.update(this.glbAnimationElapsedSeconds); }
 
+    setMapDestructibleFireState(state) { const id = this.currentMapDefinition?.fireFxActivationSegmentId; if (!id) return; const segment = state?.segments?.find((entry) => entry.id === id); this._builder.fireFxController.setIntensity(segment?.burnStartedAtSeconds >= 0 && !segment.destroyed ? 1 : 0); }
+
     resetMapDestructibleScenes() {
         resetArenaMapDestructibleScenes(this);
     }

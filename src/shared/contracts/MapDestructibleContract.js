@@ -165,6 +165,7 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * @property {number} destroyedAtSeconds Match time of the break; -1 while the segment stands.
  * @property {number} yaw Fall heading in radians; 0 while the segment stands.
  * @property {number} lastHitAtSeconds Match time of the last hit; -1 while the segment is whole.
+ * @property {number} burnStartedAtSeconds First hit that ignited the segment; -1 before ignition.
  */
 
 /**
@@ -673,6 +674,7 @@ export function createMapDestructibleState(definition) {
             destroyedAtSeconds: -1,
             yaw: 0,
             lastHitAtSeconds: -1,
+            burnStartedAtSeconds: -1,
         });
     }
     return { segments, events: [], sealed: false };
@@ -755,7 +757,7 @@ function collapseScenePieces(state, definition, scene, atSeconds) {
  * @param {{ segments?: readonly Readonly<MapDestructibleSegment>[], breakScenes?: readonly Readonly<MapDestructibleBreakScene>[] } | null | undefined} definition
  * @param {unknown} segmentId
  * @param {unknown} damage
- * @param {{ atSeconds?: unknown, hitDirection?: unknown, chooseVariant?: (count: number) => number, chooseWind?: () => number }} [options]
+ * @param {{ atSeconds?: unknown, hitDirection?: unknown, recordHit?: boolean, chooseVariant?: (count: number) => number, chooseWind?: () => number }} [options]
  * @returns {MapDestructibleDamageResult}
  */
 export function applyMapDestructibleDamage(state, definition, segmentId, damage, options = {}) {
@@ -775,7 +777,7 @@ export function applyMapDestructibleDamage(state, definition, segmentId, damage,
     result.applied = true;
     segment.hp = Math.max(0, segment.hp - amount);
     // The HUD picks the segment under fire; when two are equally hurt the newer hit wins.
-    segment.lastHitAtSeconds = atSeconds;
+    if (options?.recordHit !== false) segment.lastHitAtSeconds = atSeconds;
     if (segment.hp > 0) return result;
 
     const authored = findDefinitionSegment(definition, id);
@@ -825,6 +827,7 @@ export function serializeMapDestructibleState(state) {
             destroyedAtSeconds: segment.destroyedAtSeconds,
             yaw: segment.yaw,
             lastHitAtSeconds: readLastHitAtSeconds(segment.lastHitAtSeconds),
+            burnStartedAtSeconds: readLastHitAtSeconds(segment.burnStartedAtSeconds),
         });
     }
     /** @type {MapDestructibleEvent[]} */
@@ -875,6 +878,7 @@ export function applyMapDestructibleNetworkState(state, serialized) {
             destroyedAtSeconds: destroyed ? readAtSeconds(entry.destroyedAtSeconds) : -1,
             yaw: clampNumber(entry.yaw, -Math.PI * 2, Math.PI * 2, 0),
             lastHitAtSeconds: readLastHitAtSeconds(entry.lastHitAtSeconds),
+            burnStartedAtSeconds: readLastHitAtSeconds(entry.burnStartedAtSeconds),
         });
     }
 
