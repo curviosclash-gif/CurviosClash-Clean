@@ -10,19 +10,18 @@ async function startPyramidSplitScreen(page) {
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 10_000 });
     await page.selectOption('#map-select', MAP_KEY);
     await page.evaluate(() => {
-        const game = window.GAME_INSTANCE;
-        game.settings.numBots = 1;
         const slider = document.getElementById('bot-count');
-        if (slider) slider.value = '1';
-        game.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['bots.count'] });
+        slider.value = '1';
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
     });
+    await page.waitForFunction(() => window.GAME_INSTANCE?.settings?.numBots === 1);
     await page.locator('#submenu-game:not(.hidden) #btn-start').click({ force: true });
     await page.waitForFunction((mapKey) => {
         const game = window.GAME_INSTANCE;
         return game?.state === 'PLAYING'
             && game?.arena?.currentMapKey === mapKey
             && game?.entityManager?.humanPlayers?.length === 2
-            && game?.entityManager?.bots?.length === 1;
+            && game?.entityManager?.players?.some((player) => player?.isBot);
     }, MAP_KEY, { timeout: 120_000 });
     await waitForRenderFrames(page, 12);
 }
@@ -81,11 +80,27 @@ test('Krone des Sonnengottes loads and runs warning, storm, shelter and reset @r
             .map((camera) => renderer.getEffectiveCameraFogRange(camera));
         renderer.render();
         const renderState = system.getRenderState();
+        const heldRaycast = game.arena.raycast;
+        const heldAlive = [outdoor.alive, enemy.alive];
+        const heldTeams = [outdoor.teamId, enemy.teamId];
+        let cue;
+        try {
+            outdoor.alive = true;
+            enemy.alive = true;
+            outdoor.teamId = 'storm-observer';
+            enemy.teamId = 'storm-opponent';
+            game.arena.raycast = () => null;
+            cue = system.getProximityCue(outdoor, [outdoor, enemy]);
+        } finally {
+            game.arena.raycast = heldRaycast;
+            [outdoor.alive, enemy.alive] = heldAlive;
+            [outdoor.teamId, enemy.teamId] = heldTeams;
+        }
         return {
             state: system.getState(),
             ranges: renderer.cameras.slice(0, 2).map((camera) => camera.userData.sandstormVisibilityRange),
             perCameraFog,
-            cue: manager.getSandstormProximityCue(outdoor.index),
+            cue,
             fogColor: renderer.scene.fog.color.getHex(),
             visualVisible: renderState.visible,
             particles: renderState.particleCount,

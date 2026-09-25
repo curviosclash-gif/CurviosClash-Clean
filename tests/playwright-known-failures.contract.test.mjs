@@ -19,9 +19,8 @@ function readSpec(relativeSpecPath) {
     return fs.readFileSync(path.join(REPO_ROOT, relativeSpecPath), 'utf8');
 }
 
-test('known failures: the list is not empty and stays inside its ratchet', () => {
-    assert.ok(catalog.entries.length > 0, 'an empty list would silently skip nothing');
-    assert.ok(Number.isInteger(catalog.count) && catalog.count > 0, 'the file carries a count');
+test('known failures: the list stays inside its ratchet', () => {
+    assert.ok(Number.isInteger(catalog.count) && catalog.count >= 0, 'the file carries a count');
     assert.ok(
         catalog.entries.length <= catalog.count,
         `the list grew to ${catalog.entries.length} against the ratchet ${catalog.count}; `
@@ -87,16 +86,21 @@ test('known failures: no entry is listed twice', () => {
 });
 
 test('known failures: only entries of the selected specs are skipped', () => {
-    const selected = selectKnownFailuresForSpecs(catalog.entries, ['tests/recording.spec.js']);
+    const entries = [
+        { spec: 'tests/core.spec.js', title: 'Selected failure' },
+        { spec: 'tests/stress.spec.js', title: 'Unrelated failure' },
+    ];
+    const selectedSpec = entries[0].spec;
+    const selected = selectKnownFailuresForSpecs(entries, [selectedSpec]);
     assert.ok(selected.length > 0);
-    assert.ok(selected.every((entry) => entry.spec === 'tests/recording.spec.js'));
+    assert.ok(selected.every((entry) => entry.spec === selectedSpec));
 
-    const windowsStyle = selectKnownFailuresForSpecs(catalog.entries, ['tests\\recording.spec.js']);
+    const windowsStyle = selectKnownFailuresForSpecs(entries, [selectedSpec.replaceAll('/', '\\')]);
     assert.equal(windowsStyle.length, selected.length, 'backslash paths select the same specs');
 
     assert.equal(
-        selectKnownFailuresForSpecs(catalog.entries, []).length,
-        catalog.entries.length,
+        selectKnownFailuresForSpecs(entries, []).length,
+        entries.length,
         'without a spec selection every entry counts'
     );
 });

@@ -321,6 +321,7 @@ test.describe('Eiffel tower siege', () => {
             shooter.shootCooldown = 0;
             shooter.fightAimAssistTargetIndex = -1;
             shooter.fightAimAssistLockRemaining = 0;
+            entityManager.entityRuntimeConfig.HUNT.MG.HUMAN_AIM_ASSIST_ENABLED = false;
             // Forty world units back along the ray: inside the weapon's range, outside its muzzle.
             const standOff = 40;
             shooter.position.set(

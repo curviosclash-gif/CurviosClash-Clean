@@ -148,7 +148,8 @@ export class SecretRoomSystem {
             entry.unlockSeconds = resolveRoomUnlockSeconds(entry.room, state);
         }
 
-        const elapsedSeconds = Number(this.entityManager?.arena?.glbAnimationElapsedSeconds) || 0;
+        // Seed release timestamps are stored to milliseconds; compare in the same precision.
+        const elapsedSeconds = Math.round((Number(this.entityManager?.arena?.glbAnimationElapsedSeconds) || 0) * 1000) / 1000;
         for (const entry of this._rooms) {
             if (entry.open || elapsedSeconds < entry.unlockSeconds) continue;
             entry.open = true;

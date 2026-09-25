@@ -143,8 +143,12 @@ for (const key of ['burg_falkenwacht', 'burg_falkenwacht_arena']) {
             game.settings.numBots = 0;
             await game.runtimeFacade.startMatch();
         });
-        await page.waitForFunction(() => window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 47,
-            null, { timeout: 150_000 });
+        await page.waitForFunction(() => {
+            const game = window.GAME_INSTANCE;
+            return game?.arena?.currentMapKey === 'notre_dame_arena'
+                && game.arena._glbScene?.children?.length === game.config.MAPS.notre_dame_arena.glbModels.length
+                && !game.arena._glbLoadError;
+        }, null, { timeout: 150_000 });
         const baseline = await page.evaluate((scale) => {
             const runtime = window.GAME_INSTANCE.renderer;
             const camera = runtime.cameras[0];

@@ -121,8 +121,8 @@ test('the runtime opens the root chamber exactly on the last released seed', () 
     progress.released = 220;
     progress.remaining = 0;
     progress.allReleased = true;
-    progress.completedAtSeconds = 41.25;
-    arena.glbAnimationElapsedSeconds = 41.25;
+    progress.completedAtSeconds = 41.017;
+    arena.glbAnimationElapsedSeconds = 41 + 1 / 60;
     system.update(0);
 
     assert.equal(system.isRoomOpen(ROOM.id), true);

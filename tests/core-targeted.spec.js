@@ -181,7 +181,6 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
     });
 
     test('T14: Alle Maps ladbar', async ({ page }) => {
-        test.setTimeout(180000);
         const errors = collectErrors(page);
         await loadGame(page);
         await openGameSubmenu(page);
@@ -194,6 +193,7 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
                 .filter((value) => value && value !== 'custom');
         });
         expect(mapKeys.length).toBeGreaterThan(0);
+        test.setTimeout(60000 + mapKeys.length * 15000);
 
         for (const mapKey of mapKeys) {
             await openGameSubmenu(page);
@@ -439,7 +439,7 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
             expect.objectContaining({ label: 'Tunnel', value: '4' }),
             expect.objectContaining({ label: 'Tore', value: '3' }),
             expect.objectContaining({ label: 'Startpunkte', value: '5' }),
-            expect.objectContaining({ label: 'Items', value: '4' }),
+            expect.objectContaining({ label: 'Gegenstände', value: '4' }),
             expect.objectContaining({ label: 'Deko-Flieger', value: '3' }),
         ]));
 

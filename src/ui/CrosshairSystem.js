@@ -114,6 +114,10 @@ export class CrosshairSystem {
             const width = screenW / 3;
             return { x: localOffset * width, y: 0, width, height: screenH };
         }
+        if (layout === VIEWPORT_LAYOUTS.THREE_ROWS) {
+            const height = screenH / 3;
+            return { x: 0, y: localOffset * height, width: screenW, height };
+        }
         const localHumans = Math.max(1, Number(projection?.localHumanCount || this.game?.numHumans) || 1);
         if (localHumans >= 2) {
             const width = screenW * 0.5;
@@ -324,7 +328,9 @@ export class CrosshairSystem {
         const fallbackGameplayConfig = resolveGameplayConfig(game);
         const localStart = this._getLocalPlayerIndex(projection);
         const requestedLocalHumans = Math.max(1, Number(projection?.localHumanCount || game.numHumans) || 1);
-        const localHumans = game?.runtimeConfig?.session?.viewportLayout === VIEWPORT_LAYOUTS.THREE_COLUMNS
+        const viewportLayout = game?.runtimeConfig?.session?.viewportLayout;
+        const localHumans = viewportLayout === VIEWPORT_LAYOUTS.THREE_COLUMNS
+            || viewportLayout === VIEWPORT_LAYOUTS.THREE_ROWS
             ? Math.min(3, requestedLocalHumans)
             : Math.min(2, requestedLocalHumans);
         for (let localOffset = 0; localOffset < localHumans; localOffset += 1) {

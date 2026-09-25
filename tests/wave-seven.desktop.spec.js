@@ -1,5 +1,5 @@
 import { expect, test } from './helpers.desktop.js';
-import { loadGame, openCustomSubmenu, returnToMenu, waitForRenderFrames } from './helpers.js';
+import { loadGame, openCustomSubmenu, openStartSetupSection, returnToMenu, waitForRenderFrames } from './helpers.js';
 
 const VEHICLE_PROFILE_KEY = 'cuviosclash.arcade-vehicle-profile.v2';
 
@@ -7,7 +7,11 @@ async function openArcadeMenu(page) {
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-    await page.locator('[data-start-section-target="arcade"]').evaluate((button) => button.click());
+    await openStartSetupSection(page, 'arcade');
+    const alternateModes = page.locator('.arcade-start-mode-options');
+    if (!await alternateModes.evaluate((element) => element.open)) {
+        await alternateModes.locator('summary').click();
+    }
     await expect(page.locator('#btn-arcade-weapon-race-start-inline')).toBeVisible();
 }
 

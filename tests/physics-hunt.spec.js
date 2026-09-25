@@ -411,6 +411,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             shooter.position.set(0, 50, 0);
             shooter.setLookAtWorld?.(0, 50, -120);
             enemy.position.set(4.0, 50, -20);
+            entityManager.entityRuntimeConfig.HUNT.MG.HUMAN_AIM_ASSIST_ENABLED = false;
 
             const aim = shooter.position.clone().set(0, 0, 0);
             shooter.getAimDirection(aim).normalize();

@@ -12,6 +12,7 @@ test('Five Fronts starts, offers one upgrade, retains it across a forced map tra
     await page.locator('#submenu-custom:not(.hidden) [data-mode-path="arcade"]').click({ force: true });
     await page.locator('#submenu-game:not(.hidden) [data-start-section-target="arcade"]')
         .evaluate((button) => button.click());
+    await page.locator('.arcade-start-mode-options-summary').click();
     await expect(page.locator('#btn-arcade-five-fronts-start-inline')).toBeVisible();
     await page.locator('#btn-arcade-five-fronts-start-inline').click({ force: true });
     await page.waitForFunction(() => {

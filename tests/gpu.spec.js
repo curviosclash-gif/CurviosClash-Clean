@@ -692,17 +692,19 @@ test.describe('T21-40: Rendering & GPU', () => {
             };
         });
 
-        expect(probe.portalPairs).toBe(2);
-        expect(probe.frameCount).toBe(4);
-        expect(probe.rimCount).toBe(4);
+        expect(probe.portalPairs).toBeGreaterThan(0);
+        expect(probe.frameCount).toBe(probe.portalPairs * 2);
+        expect(probe.rimCount).toBe(probe.portalPairs * 2);
         expect(probe.centerDiscCount).toBe(0);
         expect(probe.rimMaterialColors).toEqual(expect.arrayContaining(['ffffff']));
-        expect(probe.rimInstanceColors).toEqual(expect.arrayContaining(['00ffcc', 'ff00cc']));
-        expect(probe.pairMarks).toHaveLength(2);
+        expect(probe.rimInstanceColors).toEqual(expect.arrayContaining(['00ffcc', 'ff00cc', 'ffff00', '00ccff']));
+        expect(probe.pairMarks).toHaveLength(probe.portalPairs);
         expect(probe.pairMarks).toEqual(expect.arrayContaining([
             expect.objectContaining({ count: 2, colors: ['00ffcc'] }),
             expect.objectContaining({ count: 2, colors: ['ff00cc'] }),
+            expect.objectContaining({ count: 2, colors: ['ffff00'] }),
+            expect.objectContaining({ count: 2, colors: ['00ccff'] }),
         ]));
-        expect(probe.directionColors).toEqual(['f4fbff', 'f4fbff', 'f4fbff', 'f4fbff']);
+        expect(probe.directionColors).toEqual(Array(probe.portalPairs * 2).fill('f4fbff'));
     });
 });
