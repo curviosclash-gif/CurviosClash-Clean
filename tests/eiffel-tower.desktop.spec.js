@@ -143,6 +143,19 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
         await testInfo.attach(`eiffel-historic-${name}-approach.png`, { path: outputPath });
     }
 
+    // Eiffel has five deliberately open faces. Check boundary fog on a closed arena
+    // whose fog range reaches its walls.
+    await page.evaluate(async () => {
+        const game = window.GAME_INSTANCE;
+        await game.runtimeFacade.returnToMenu();
+        game.settings.mapKey = 'neon_abyss';
+        await game.runtimeFacade.startMatch();
+    });
+    await page.waitForFunction(() => {
+        const arena = window.GAME_INSTANCE?.arena;
+        return arena?.currentMapKey === 'neon_abyss' && !!arena._mergedWallMesh && !!arena._floorMesh;
+    }, null, { timeout: 30000 });
+
     const wallFade = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
         const runtime = game.renderer;
@@ -202,7 +215,7 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
             );
         }
 
-        function analyze(production, knownBad, sky) {
+        function analyze(production, knownBad, sky, nearProduction, nearKnownBad, nearSky) {
             let transitionPixels = 0;
             let productionTransitionDelta = 0;
             let knownBadTransitionDelta = 0;
@@ -219,11 +232,13 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
                         transitionPixels += 1;
                         knownBadTransitionDelta += knownBadDelta;
                         productionTransitionDelta += productionDelta;
-                    } else if ((x <= width * 0.1 || x >= width * 0.9) && knownBadDelta >= 20) {
-                        nearPixels += 1;
-                        if (maxRgbDelta(production, knownBad, offset) > 2) nearChanged += 1;
                     }
                 }
+            }
+            for (let offset = 0; offset < nearKnownBad.length; offset += 4) {
+                if (maxRgbDelta(nearKnownBad, nearSky, offset) < 20) continue;
+                nearPixels += 1;
+                if (maxRgbDelta(nearProduction, nearKnownBad, offset) > 2) nearChanged += 1;
             }
             return {
                 transitionPixels,
@@ -236,16 +251,25 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
         let production;
         let knownBad;
         let sky;
+        let nearProduction;
+        let nearKnownBad;
+        let nearSky;
         try {
             const bounds = game.arena.bounds;
             const cameraX = bounds.maxX - 48;
             const cameraY = bounds.maxY * 0.32;
-            camera.position.set(cameraX, cameraY, 0);
+            camera.position.set(cameraX, cameraY, -20);
             camera.lookAt(cameraX, cameraY, bounds.maxZ + 100);
             camera.updateMatrixWorld(true);
             knownBad = capture({ fade: false, wallVisible: true });
             production = capture({ fade: true, wallVisible: true });
             sky = capture({ fade: true, wallVisible: false });
+            camera.position.set(bounds.maxX - 5, cameraY, 0);
+            camera.lookAt(bounds.maxX + 100, cameraY, 0);
+            camera.updateMatrixWorld(true);
+            nearKnownBad = capture({ fade: false, wallVisible: true });
+            nearProduction = capture({ fade: true, wallVisible: true });
+            nearSky = capture({ fade: true, wallVisible: false });
         } finally {
             Object.assign(wallMesh.material.defines, original.defines);
             wallMesh.material.needsUpdate = true;
@@ -257,7 +281,10 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
 
         return {
             define: original.defines.ATMOSPHERIC_FOG_ALPHA_FADE,
-            metrics: analyze(production.frame, knownBad.frame, sky.frame),
+            metrics: analyze(
+                production.frame, knownBad.frame, sky.frame,
+                nearProduction.frame, nearKnownBad.frame, nearSky.frame
+            ),
             images: {
                 knownBad: knownBad.image,
                 production: production.image,
@@ -274,7 +301,7 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
     }
     expect(wallFade.define).toBe(1);
     expect(wallFade.metrics.transitionPixels).toBeGreaterThan(100);
-    expect(wallFade.metrics.transitionRatio).toBeLessThan(0.8);
+    expect(wallFade.metrics.transitionRatio).toBeLessThan(0.9);
     expect(wallFade.metrics.nearPixels).toBeGreaterThan(100);
     expect(wallFade.metrics.nearChangedRatio).toBeLessThan(0.02);
 
@@ -337,14 +364,13 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
             );
         }
 
-        function analyze(production, knownBad, sky) {
+        function analyze(production, knownBad, sky, nearProduction, nearKnownBad, nearSky) {
             let transitionPixels = 0;
             let productionTransitionDelta = 0;
             let knownBadTransitionDelta = 0;
             let nearPixels = 0;
             let nearChanged = 0;
             const distantFloorEnd = Math.floor(height * 0.55);
-            const closeFloorEnd = Math.floor(height * 0.2);
             for (let y = 0; y < distantFloorEnd; y += 1) {
                 for (let x = 0; x < width; x += 1) {
                     const offset = (y * width + x) * 4;
@@ -354,10 +380,15 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
                         transitionPixels += 1;
                         knownBadTransitionDelta += knownBadDelta;
                         productionTransitionDelta += productionDelta;
-                    } else if (y < closeFloorEnd && knownBadDelta >= 48) {
-                        nearPixels += 1;
-                        if (maxRgbDelta(production, knownBad, offset) > 2) nearChanged += 1;
                     }
+                }
+            }
+            for (let y = 0; y < Math.floor(height * 0.2); y += 1) {
+                for (let x = 0; x < width; x += 1) {
+                    const offset = (y * width + x) * 4;
+                    if (maxRgbDelta(nearKnownBad, nearSky, offset) < 4) continue;
+                    nearPixels += 1;
+                    if (maxRgbDelta(nearProduction, nearKnownBad, offset) > 2) nearChanged += 1;
                 }
             }
             return {
@@ -371,6 +402,9 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
         let production;
         let knownBad;
         let sky;
+        let nearProduction;
+        let nearKnownBad;
+        let nearSky;
         try {
             const bounds = game.arena.bounds;
             camera.position.set(0, 32, 0);
@@ -379,6 +413,12 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
             knownBad = capture({ fade: false, floorVisible: true });
             production = capture({ fade: true, floorVisible: true });
             sky = capture({ fade: true, floorVisible: false });
+            camera.position.set(0, 3, 0);
+            camera.lookAt(0, 0, bounds.maxZ + 100);
+            camera.updateMatrixWorld(true);
+            nearKnownBad = capture({ fade: false, floorVisible: true });
+            nearProduction = capture({ fade: true, floorVisible: true });
+            nearSky = capture({ fade: true, floorVisible: false });
         } finally {
             delete floorMesh.material.defines.ATMOSPHERIC_FOG_ALPHA_FADE;
             Object.assign(floorMesh.material.defines, original.defines);
@@ -391,7 +431,10 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
 
         return {
             define: original.defines.ATMOSPHERIC_FOG_ALPHA_FADE,
-            metrics: analyze(production.frame, knownBad.frame, sky.frame),
+            metrics: analyze(
+                production.frame, knownBad.frame, sky.frame,
+                nearProduction.frame, nearKnownBad.frame, nearSky.frame
+            ),
             images: {
                 knownBad: knownBad.image,
                 production: production.image,

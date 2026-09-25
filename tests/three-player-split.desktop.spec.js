@@ -66,6 +66,7 @@ test('three-player split starts with all three players on separate keyboard bind
     for (let playerIndex = 0; playerIndex < 3; playerIndex += 1) {
         await deviceSelects.nth(playerIndex).selectOption('keyboard');
     }
+    await page.locator('[data-three-player-split-viewport-layout]').selectOption('three_columns');
 
     await expect(page.locator('[data-three-player-split-device-status]')).toBeHidden();
     await expect(page.locator('[data-three-player-split-start]')).toBeEnabled();

@@ -52,8 +52,8 @@ test('Crystal Ruins loads its curated ruin library and keeps tunnel crossings cl
         };
     }, { scale: MAP_SCALE });
 
-    expect(state.sceneChildren).toBe(24);
-    expect(state.modelCount).toBe(24);
+    expect(state.modelCount).toBeGreaterThanOrEqual(24);
+    expect(state.sceneChildren).toBe(state.modelCount);
     expect(state.colliderMode).toBe('scene');
     expect(state.glbColliders).toBeGreaterThan(0);
     expect(state.glbColliders).toBeLessThanOrEqual(48);

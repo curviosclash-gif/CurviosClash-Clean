@@ -37,9 +37,19 @@ async function startMap(page, mapKey) {
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-    await page.selectOption('#map-select', mapKey);
-    await page.waitForFunction((key) => window.GAME_INSTANCE?.settings?.mapKey === key, mapKey);
-    await page.click('#btn-start');
+    const hasMapOption = await page.locator(`#map-select option[value="${mapKey}"]`).count() > 0;
+    if (hasMapOption) {
+        await page.selectOption('#map-select', mapKey);
+        await page.waitForFunction((key) => window.GAME_INSTANCE?.settings?.mapKey === key, mapKey);
+        await page.click('#btn-start');
+    } else {
+        // Hidden authored variants stay loadable through the runtime for collision checks.
+        await page.evaluate(async (key) => {
+            const game = window.GAME_INSTANCE;
+            game.settings.mapKey = key;
+            await game.runtimeFacade.startMatch();
+        }, mapKey);
+    }
     await page.waitForFunction((key) => (
         window.GAME_INSTANCE?.arena?.currentMapKey === key
         && (window.GAME_INSTANCE?.arena?._glbScene?.children?.length || 0) > 0

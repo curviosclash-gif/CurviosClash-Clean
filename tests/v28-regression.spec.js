@@ -150,7 +150,8 @@ test.describe('V28 Baseline Regression Setup (28.0)', () => {
 
         expect(metrics.error).toBeNull();
         expect(metrics.sampleCount).toBe(20);
-        expect(metrics.drawCallsAverage).toBeLessThanOrEqual(38);
-        expect(metrics.drawCallsMax).toBeLessThanOrEqual(50);
+        // The authored maze world adds meshes beyond the original V28 primitive arena.
+        expect(metrics.drawCallsAverage).toBeLessThanOrEqual(100);
+        expect(metrics.drawCallsMax).toBeLessThanOrEqual(120);
     });
 });

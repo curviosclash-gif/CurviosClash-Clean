@@ -317,7 +317,8 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
             }, null, { timeout: 15000 });
             await waitForRenderFrames(page, 2);
             await returnToMenu(page);
-            await page.click('#menu-nav [data-session-type=\"single\"]');
+            await page.evaluate(() => window.GAME_INSTANCE?.uiManager?.showMainNav?.());
+            await selectSessionType(page, 'single');
         }
 
         expect(errors).toHaveLength(0);

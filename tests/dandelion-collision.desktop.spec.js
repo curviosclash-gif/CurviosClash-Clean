@@ -113,6 +113,9 @@ test('the last dandelion seed opens the guarded root chamber and keeps its inter
             after: {
                 progress: { ...arena.getDandelionSeedProgress() },
                 portalOpen: roomPortal?.active === true,
+                roomOpen: entry.open === true,
+                unlockSeconds: entry.unlockSeconds,
+                elapsedSeconds: arena.glbAnimationElapsedSeconds,
                 visibleGuards: turretSystem.turrets.filter((turret) => turret.root?.visible).length,
                 insideTurrets,
             },
@@ -126,7 +129,7 @@ test('the last dandelion seed opens the guarded root chamber and keeps its inter
     expect(result.before.visibleGuards).toBe(0);
     expect(result.after.progress.released).toBe(result.seedTotal);
     expect(result.after.progress.allReleased).toBe(true);
-    expect(result.after.portalOpen).toBe(true);
+    expect(result.after.portalOpen, JSON.stringify(result.after)).toBe(true);
     expect(result.after.visibleGuards).toBe(3);
     expect(result.after.insideTurrets).toBe(0);
     expect(result.entered.inside).toBe(true);

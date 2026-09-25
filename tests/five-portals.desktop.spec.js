@@ -8,6 +8,7 @@ test('Fünf Portale starts solo, rebuilds each map and shows five times', async 
     await page.locator('#submenu-custom:not(.hidden) [data-mode-path="arcade"]').click({ force: true });
     await page.locator('#submenu-game:not(.hidden) [data-start-section-target="arcade"]')
         .evaluate((button) => button.click());
+    await page.locator('.arcade-start-mode-options-summary').click();
     await expect(page.locator('#btn-arcade-five-portals-start-inline')).toBeVisible();
     await page.locator('#btn-arcade-five-portals-start-inline').click({ force: true });
 

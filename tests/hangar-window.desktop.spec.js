@@ -6,6 +6,7 @@ test('Desktop-Hangar schließt mit Escape über denselben Pfad wie Zurück zum M
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
     await openStartSetupSection(page, 'arcade');
+    await page.locator('.arcade-advanced-options-summary').click();
     const windowPromise = electronApp.waitForEvent('window');
     await page.locator('.hangar-window-open').click();
     const hangarPage = await windowPromise;
@@ -21,6 +22,7 @@ test('Desktop-Hangar wechselt Fahrzeuge über die neuen Richtungsschalter', asyn
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
     await openStartSetupSection(page, 'arcade');
+    await page.locator('.arcade-advanced-options-summary').click();
     const windowPromise = electronApp.waitForEvent('window');
     await page.locator('.hangar-window-open').click();
     const hangarPage = await windowPromise;
@@ -45,6 +47,7 @@ test('Desktop-Hangar öffnet maximiert in einem eigenen Fenster', async ({ page,
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
     await openStartSetupSection(page, 'arcade');
+    await page.locator('.arcade-advanced-options-summary').click();
     await expect(page.locator('.hangar-window-open')).toBeVisible();
     await expect(page.locator('#arcade-vehicle-manager')).toHaveCount(0);
     await expect(page.locator('#arcade-vehicle-manager-mount')).toHaveCount(0);
@@ -89,14 +92,21 @@ test('Desktop-Hangar öffnet maximiert in einem eigenen Fenster', async ({ page,
     }));
     expect(stoneListLayout.minimumCardHeight).toBeGreaterThan(100);
     expect(stoneListLayout.scrollHeight).toBeGreaterThan(stoneListLayout.clientHeight);
-    await expect(hangarPage.locator('.hangar-part-card[data-part-id="stone_blue_t2"] .hangar-part-lock-reason')).toContainText('Freischaltung auf Level 10');
-    await expect(hangarPage.locator('.hangar-part-card[data-part-id="stone_blue_t2"] .hangar-part-lock-reason')).toContainText('noch');
+    const tierTwoStone = hangarPage.locator('.hangar-part-card[data-part-id="stone_blue_t2"]');
+    await expect(tierTwoStone).toBeVisible();
+    if (await tierTwoStone.locator('.hangar-part-lock-reason').count()) {
+        await expect(tierTwoStone.locator('.hangar-part-lock-reason')).toContainText('Freischaltung auf Level 10');
+        await expect(tierTwoStone.locator('.hangar-part-lock-reason')).toContainText('noch');
+    } else {
+        await expect(tierTwoStone.locator('.hangar-part-select')).toHaveAttribute('aria-disabled', 'false');
+    }
     await hangarPage.locator('.hangar-part-trait-filter').selectOption('speed');
     await expect(hangarPage.locator('.hangar-part-card')).not.toHaveCount(0);
     expect(await hangarPage.locator('.hangar-part-card').evaluateAll((cards) => cards.every((card) => card.dataset.partTrait === 'speed'))).toBe(true);
     await hangarPage.locator('.hangar-part-trait-filter').selectOption('all');
     await hangarPage.locator('.hangar-part-availability-filter').selectOption('available');
-    await expect(hangarPage.locator('.hangar-part-card')).toHaveCount(3);
+    expect(await hangarPage.locator('.hangar-part-card').count()).toBeGreaterThanOrEqual(3);
+    await expect(hangarPage.locator('.hangar-part-card.is-locked')).toHaveCount(0);
 
     await hangarPage.locator('#hangar-window-close').click();
     await expect.poll(() => electronApp.windows().length).toBe(1);

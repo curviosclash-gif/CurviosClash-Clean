@@ -87,16 +87,15 @@ float headDensity(vec3 p) {
     vec2 tube = vec2((r - R) / a, q.y / b);
     float ring = length(tube) - 1.0;
     // The dome closes the ring's hole from above; its underside stops at the ring's middle.
-    // It reaches almost to the ring's own radius: left narrower, the crown thinned out between
-    // dome and rim, and from below the sky shone through that gap as a bright ring.
+    // It overlaps the ring's inner rim so the underside stays filled between dome and tube.
     float domeBase = 0.1 * b;
     // Steepened: the flat ellipsoid barely reached -0.35 through the ring's inner half, so one
     // noise sample could push a whole column outside and punch a hole clean through the crown.
-    float lid = (length(vec2(r / (R * 0.98), (q.y - domeBase) / max(1.0, dome - domeBase))) - 1.0) * 1.7;
+    float lid = (length(vec2(r / (R * 1.1), (q.y - domeBase) / max(1.0, dome - domeBase))) - 1.0) * 1.7;
     // Its underside is a shallow bowl that rises a little towards the axis, where the stem is
     // drawn in. A deep bowl thinned the crown until the sky showed through it from below as a
     // star; the billow displacement, not the bowl, is what keeps the underside from reading flat.
-    float floorY = domeBase - 0.75 * b + 0.3 * b * (1.0 - clamp(r / (R * 0.8), 0.0, 1.0));
+    float floorY = domeBase - b + 0.3 * b * (1.0 - clamp(r / (R * 0.8), 0.0, 1.0));
     // A soft floor cut left a thick layer whose shape value barely changed with height, so one
     // noise sample decided a whole column and the sky came through in a regular ring of holes.
     lid = max(lid, (floorY - q.y) / (1.0 * b));

@@ -171,7 +171,7 @@ export function buildDownloadFileName(downloadDirectoryName, fileName) {
  *   masterContainer?: string,
  *   autoDownload: boolean,
  *   downloadHandler: function,
- *   logger: object
+ *   logger: object, runtimeGlobal?: typeof globalThis
  * }} params
  * @returns {Promise<{requested: boolean, transport: string, status: string, fallbackReason: string|null, apiStatus: number|null, masterContainer?: string, deliveryContainer?: string, container?: string, transcodeApplied?: boolean, masterPath?: string, filePath?: string, deliveryPath?: string, warnings?: string[], failureReason?: string, nativeTranscodeCapability?: any, transcodeFailureCode?: string, saveCapabilityId?: string, saveCode?: string, exportMatrix?: any}>}
  */
@@ -184,16 +184,16 @@ export async function attemptAutoDownload({
     masterContainer = null,
     autoDownload,
     downloadHandler,
-    logger,
+    logger, runtimeGlobal = globalThis,
 }) {
-    const platformRuntimeSnapshot = resolveElectronRuntimeSnapshot(globalThis);
+    const platformRuntimeSnapshot = resolveElectronRuntimeSnapshot(runtimeGlobal);
     const videoFeatureClassification = resolveSurfaceFeatureClassification(
         PLATFORM_SURFACE_FEATURE_IDS.VIDEO_EXPORT,
-        { runtimeGlobal: globalThis, platformRuntimeSnapshot }
+        { runtimeGlobal, platformRuntimeSnapshot }
     );
     const safeFileName = String(fileName || '').trim();
     const browserFileName = safeFileName.replace(/\\/g, '/').split('/').filter(Boolean).pop() || safeFileName;
-    const desktopSaveAdapter = createElectronPreloadSaveAdapter(globalThis);
+    const desktopSaveAdapter = createElectronPreloadSaveAdapter(runtimeGlobal);
     const saveRequest = createRecordingVideoExportRequest({
         runtimeKind: desktopSaveAdapter.isAvailable() ? 'desktop' : 'web',
         fileName: safeFileName,
@@ -252,7 +252,7 @@ export async function attemptAutoDownload({
         || videoFeatureClassification.classification === PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS.DEMO_SAFE;
     if (!desktopSaveAdapter.isAvailable() && !browserVideoFallbackAllowed) {
         const blockedFeatureFeedback = resolveSurfaceBlockedFeatureFeedback('Video-Export', {
-            runtimeGlobal: globalThis,
+            runtimeGlobal,
             platformRuntimeSnapshot,
         });
         const containers = resolveResultContainers();
@@ -276,12 +276,12 @@ export async function attemptAutoDownload({
         });
     }
     const saveSurfaceCapability = resolveSurfaceCapabilityAccess(PLATFORM_CAPABILITY_IDS.SAVE, {
-        runtimeGlobal: globalThis,
+        runtimeGlobal,
         platformRuntimeSnapshot,
     });
     const fileIoFeatureClassification = resolveSurfaceFeatureClassification(
         PLATFORM_SURFACE_FEATURE_IDS.FILE_IO,
-        { runtimeGlobal: globalThis, platformRuntimeSnapshot }
+        { runtimeGlobal, platformRuntimeSnapshot }
     );
     const desktopSaveAdapterVersionSupported = isSupportedDesktopSaveAdapterContract(desktopSaveAdapter);
     const recordingVideoExportInvoker = resolveRecordingVideoExportInvoker(desktopSaveAdapter);
@@ -455,7 +455,7 @@ export async function attemptAutoDownload({
             pushStatusWarning('Desktop-App konnte die Aufnahme nicht direkt speichern; Dateipfad-Fallback wird versucht.');
         }
     }
-    if (typeof fetch !== 'function') {
+    if (typeof runtimeGlobal?.fetch !== 'function') {
         const downloaded = await downloadViaBrowser('fetch-unavailable');
         const containers = resolveResultContainers({
             container: requestMasterContainer,
@@ -485,7 +485,7 @@ export async function attemptAutoDownload({
         });
     }
     try {
-        const response = await fetch(EDITOR_API_ROUTES.SAVE_VIDEO_DISK, {
+        const response = await runtimeGlobal.fetch(EDITOR_API_ROUTES.SAVE_VIDEO_DISK, {
             method: 'POST',
             headers: { 'x-file-name': safeFileName },
             body: blob,

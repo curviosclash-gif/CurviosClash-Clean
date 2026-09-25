@@ -979,10 +979,8 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         await loadGame(page);
         const result = await page.evaluate(async () => {
             const { attemptAutoDownload } = await window.__curviosImport('/src/core/recording/DownloadService.js');
-            const originalApp = globalThis.curviosApp;
-            const originalFetch = globalThis.fetch;
             let appSaveCalls = 0;
-            globalThis.curviosApp = {
+            const runtimeGlobal = { curviosApp: {
                 saveVideo: async (videoBytes, defaultName, mimeType) => {
                     appSaveCalls += 1;
                     return {
@@ -992,30 +990,20 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                             && mimeType === 'video/webm',
                     };
                 },
-            };
-            globalThis.fetch = async () => {
-                throw new Error('fetch should not run when app save succeeds');
-            };
+            } };
 
-            try {
-                const status = await attemptAutoDownload({
-                    blob: new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'video/webm' }),
-                    fileName: 'recordings/clip.webm',
-                    mimeType: 'video/webm',
-                    autoDownload: true,
-                    downloadHandler: () => {
-                        throw new Error('browser download fallback should not run');
-                    },
-                    logger: null,
-                });
-                return {
-                    appSaveCalls,
-                    status,
-                };
-            } finally {
-                globalThis.curviosApp = originalApp;
-                globalThis.fetch = originalFetch;
-            }
+            const status = await attemptAutoDownload({
+                blob: new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'video/webm' }),
+                fileName: 'recordings/clip.webm',
+                mimeType: 'video/webm',
+                autoDownload: true,
+                downloadHandler: () => {
+                    throw new Error('browser download fallback should not run');
+                },
+                logger: null,
+                runtimeGlobal,
+            });
+            return { appSaveCalls, status };
         });
 
         expect(result.appSaveCalls).toBe(1);

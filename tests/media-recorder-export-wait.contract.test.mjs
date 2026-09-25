@@ -76,7 +76,13 @@ function createRecordingSystem({ exportWaitTimeoutMs }) {
         autoDownload: true,
         exportWaitTimeoutMs,
         logger: null,
-        globalScope: { setTimeout, clearTimeout },
+        globalScope: {
+            setTimeout,
+            clearTimeout,
+            __CURVIOS_APP__: globalThis.__CURVIOS_APP__,
+            curviosApp: globalThis.curviosApp,
+            fetch: globalThis.fetch,
+        },
     });
     recorder._isRecording = true;
     recorder._activeMimeType = 'video/webm';

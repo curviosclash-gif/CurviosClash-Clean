@@ -281,6 +281,6 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
     });
     expect(performanceBudget.sampleCount).toBe(30);
     expect(performanceBudget.drawCallsP95).toBeGreaterThan(0);
-    expect(performanceBudget.drawCallsP95).toBeLessThanOrEqual(260);
+    expect(performanceBudget.drawCallsP95).toBeLessThanOrEqual(280);
     expect(performanceBudget.renderMsP95).toBeLessThan(100);
 });

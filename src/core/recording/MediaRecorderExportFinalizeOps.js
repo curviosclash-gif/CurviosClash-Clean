@@ -118,6 +118,7 @@ async function attemptSystemAutoDownload(
         autoDownload: system.autoDownload,
         downloadHandler: system.downloadHandler,
         logger: system.logger,
+        runtimeGlobal: system._globalScope,
     });
 }
 

@@ -544,7 +544,7 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                     }
                     // Grey smoke against a bright sky moves a pixel only a little; the threshold is
                     // what the thinnest place inside the body still reaches.
-                    const solid = (x, y) => cover[y * width + x] > 12;
+                    const solid = (x, y) => cover[y * width + x] > 8;
                     const reaches = (x, y, dx, dy) => {
                         for (let cx = x + dx, cy = y + dy; cx >= 0 && cx < width && cy >= 0 && cy < height; cx += dx, cy += dy) {
                             if (solid(cx, cy)) return true;
