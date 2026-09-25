@@ -79,6 +79,7 @@ export class Renderer {
         // The map may carry its own lighting profile; undefined means the style base stands.
         this._mapLighting = undefined;
         this._mapScale = 1;
+        this._mapCameraFar = 0;
         // A map whose fog travels during the round owns the two height edges; the lighting rig
         // owns everything else about the fog. Maps without one never reach the driver at all.
         this._mapFogLayerDriver = new MapFogLayerDriver({ apply: applyAtmosphericFogLayer });
@@ -187,9 +188,10 @@ export class Renderer {
     // are authored in that same space, but the shader compares them against world coordinates, so
     // they have to travel with it - otherwise a map scaled by three has its fog layer sitting at a
     // third of the height it states, and everything above stays unfogged.
-    setMapLighting(profile, mapScale = 1) {
+    setMapLighting(profile, mapScale = 1, cameraFar = 0) {
         this._mapLighting = profile; const numericScale = Number(mapScale);
         this._mapScale = Number.isFinite(numericScale) && numericScale > 0 ? numericScale : 1;
+        this._mapCameraFar = Number.isFinite(cameraFar) && cameraFar > 0 ? cameraFar : 0;
         this._mapFogLayerDriver.setScale(this._mapScale);
         this._applySceneAppearance();
         return this._mapLighting;
@@ -342,9 +344,11 @@ export class Renderer {
             viewDistance: this._viewDistance,
             globalFogRange: this._globalFogEffect?.active === true ? globalFogRange : null,
         });
-        // Authored long-range fog needs matching clipping, including after a map switch.
-        this._cameraFar = Math.max(CONFIG.CAMERA.FAR, this.scene.fog.far);
-        setAtmosphericFogClipDistance(this._cameraFar);
+        // Some map effects extend beyond the fog's designed visibility range. Keep the fog
+        // closure at its authored distance while giving those effects enough camera depth.
+        const fogClipDistance = Math.max(CONFIG.CAMERA.FAR, this.scene.fog.far);
+        this._cameraFar = Math.max(fogClipDistance, this._mapCameraFar);
+        setAtmosphericFogClipDistance(fogClipDistance);
         if (this.cameras) {
             for (const camera of this.cameras) {
                 if (camera.far === this._cameraFar) continue;

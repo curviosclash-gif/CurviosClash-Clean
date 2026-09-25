@@ -275,8 +275,8 @@ function injectAtmosphericFogUniforms(shader) {
     shader.uniforms.fogClipClosureStart = sharedFogUniforms.fogClipClosureStart;
 }
 
-// The distance at which the camera stops drawing. The fog has to be fully closed by then, otherwise
-// geometry disappears while still faintly visible.
+// Opaque map geometry must be fully fogged by this distance. It normally matches the camera's
+// far plane; a map can give large effects a farther camera plane without extending its fog.
 export function setAtmosphericFogClipDistance(distance) {
     const numeric = Number(distance);
     sharedFogUniforms.fogClipDistance.value = Number.isFinite(numeric) && numeric > 0 ? numeric : 1e6;

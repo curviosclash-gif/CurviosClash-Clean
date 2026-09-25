@@ -46,7 +46,8 @@ export class ArenaBuilder {
         // fog layer somewhere it never asked for.
         this.arena.renderer?.setMapLighting?.(
             mapResolution.map?.lighting,
-            mapResolution.map?.scaleAuthoredAnchors === true ? scale : 1
+            mapResolution.map?.scaleAuthoredAnchors === true ? scale : 1,
+            mapResolution.map?.cameraFar
         );
         // Passed on every build for the same reason, and after the lighting: the rig writes the
         // static height terms, and a map that moves its fog takes those two over from here on.

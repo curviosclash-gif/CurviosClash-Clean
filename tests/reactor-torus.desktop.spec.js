@@ -853,6 +853,57 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
         expect(quality[2].surge).toBeGreaterThan(100);
         expect(quality[2].lowDetail).toBe(0);
     }
+    // Render from a player's low viewpoint with the actual map camera range. Earlier shots
+    // forced 5000 units and missed the far-plane cut through the rising cloud.
+    const clipProof = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const runtime = game.renderer;
+        const camera = runtime.cameras[0];
+        const renderer = runtime.renderer;
+        const arena = game.arena;
+        const slot = arena._glbScene.children.find((node) => node.visible
+            && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
+        const head = slot.getObjectByName('reactor-volume-head_nocol_noshadow');
+        const held = { position: camera.position.clone(), quaternion: camera.quaternion.clone(),
+            far: camera.far, quality: runtime.getQualityState().requestedQuality };
+        const probe = document.createElement('canvas'); probe.width = 160; probe.height = 90;
+        const context = probe.getContext('2d', { willReadFrequently: true });
+        arena.setGlbAnimationElapsedSeconds(40); arena._glbAnimation.advance(0);
+        camera.position.set(120, 80, 180);
+        camera.lookAt(0, 815, 0);
+        camera.updateMatrixWorld(true);
+        const grab = (far) => {
+            camera.far = far; camera.updateProjectionMatrix();
+            renderer.setRenderTarget(null); renderer.render(runtime.scene, camera);
+            context.drawImage(renderer.domElement, 0, 0, 160, 90);
+            return { pixels: context.getImageData(0, 0, 160, 90).data,
+                png: renderer.domElement.toDataURL('image/png') };
+        };
+        const results = [];
+        for (const quality of ['LOW', 'MEDIUM']) {
+            runtime.setQuality(quality);
+            const reference = grab(5000);
+            const actual = grab(held.far);
+            let changed = 0;
+            for (let i = 0; i < actual.pixels.length; i += 4) {
+                const difference = Math.abs(actual.pixels[i] - reference.pixels[i])
+                    + Math.abs(actual.pixels[i + 1] - reference.pixels[i + 1])
+                    + Math.abs(actual.pixels[i + 2] - reference.pixels[i + 2]);
+                if (difference > 45) changed += 1;
+            }
+            results.push({ quality, changedFraction: changed / (160 * 90), png: actual.png,
+                cameraFar: held.far, headTop: head.material.uniforms.bounds.value.z });
+        }
+        camera.position.copy(held.position); camera.quaternion.copy(held.quaternion);
+        camera.far = held.far; camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
+        runtime.setQuality(held.quality);
+        return results;
+    });
+    for (const result of clipProof) {
+        await writeFile(testInfo.outputPath(`cloud-map-camera-${result.quality}.png`), Buffer.from(result.png.split(',')[1], 'base64'));
+        expect(result.cameraFar, 'the map camera reaches the high cloud').toBeGreaterThan(result.headTop);
+        expect(result.changedFraction, `${result.quality} keeps the full cloud at the map camera range`).toBeLessThan(0.05);
+    }
     if (process.env.REACTOR_SPLIT_BENCH === '1') {
         // Fixed 2560x1080 split render, independent of an off-screen Electron window's size.
         // Compare the whole scene with and without smoke on the actual quality pixel ratios.

@@ -39,6 +39,9 @@ export const REACTOR_SITE_MAPS = {
     reactor_site: {
         name: 'Reaktor Sperrzone',
         size: REACTOR_MAP_SIZE,
+        // The animated cloud rises to nearly 1000 world units and drifts beyond the plant.
+        // Fog still closes at 600; only the camera's far plane needs the extra reach.
+        cameraFar: 2000,
         exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
         // The destructible segments are anchored in authored units and the map is built at the
         // runtime scale, so the anchors a hit is measured against have to grow with it.
