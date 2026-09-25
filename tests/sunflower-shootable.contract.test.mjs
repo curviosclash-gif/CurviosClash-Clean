@@ -92,11 +92,11 @@ function frontRayFor(node, distance = 6) {
     return { origin: center.clone().addScaledVector(normal, distance), direction: normal.negate() };
 }
 
-test('sunflower package contains editable source, five QA views, and 220 distinct mesh kernels', async () => {
+test('sunflower package contains editable source, six QA views, and 220 distinct mesh kernels', async () => {
     const blend = await stat(path.join(ASSET_DIR, 'blender', 'sunflower.blend'));
     assert.ok(blend.size > 250_000, 'editable Blender source is unexpectedly small');
 
-    for (const view of ['front', 'quarter', 'side', 'back', 'game']) {
+    for (const view of ['front', 'quarter', 'side', 'back', 'bloom', 'game']) {
         const png = await readFile(path.join(
             ASSET_DIR, 'blender', 'previews', 'sunflower_' + view + '.png',
         ));

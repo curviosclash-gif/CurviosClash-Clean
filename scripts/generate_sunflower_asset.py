@@ -106,21 +106,21 @@ def make_material(name, color, roughness=0.75, metallic=0.0):
 
 def create_materials():
     return {
-        "stem": make_material("Stalk | olive green", 0x35431F, 0.84),
-        "stem_light": make_material("Stalk ridges | soft green", 0x596A2C, 0.86),
-        "leaf": make_material("Leaf | matte sage", 0x354E28, 0.88),
-        "leaf_light": make_material("Leaf underside | pale sage", 0x536B39, 0.9),
-        "vein": make_material("Leaf veins | warm green", 0x81904B, 0.84),
+        "stem": make_material("Stalk | olive green", 0x35431F, 0.91),
+        "stem_light": make_material("Stalk ridges | soft green", 0x596A2C, 0.91),
+        "leaf": make_material("Leaf | matte sage", 0x354E28, 0.92),
+        "leaf_light": make_material("Leaf sunward surface | pale sage", 0x536B39, 0.92),
+        "vein": make_material("Leaf veins | warm green", 0x81904B, 0.9),
         "bract": make_material("Phyllaries | deep green", 0x2F4928, 0.86),
         "bract_light": make_material("Phyllary ridges | fresh green", 0x60753C, 0.84),
-        "ray": make_material("Ray florets | sunflower gold", 0xD99A12, 0.55),
-        "ray_light": make_material("Ray florets | sunlit gold", 0xE9B920, 0.52),
-        "ray_age": make_material("Ray tips | late-season amber", 0xA95C1A, 0.66),
+        "ray": make_material("Ray florets | sunflower gold", 0xD99A12, 0.76),
+        "ray_light": make_material("Ray florets | sunlit gold", 0xE9B920, 0.74),
+        "ray_age": make_material("Ray tips | late-season amber", 0xA95C1A, 0.8),
         "disc": make_material("Receptacle | warm umber", 0x291C18, 0.86),
         "disk_flower": make_material("Disc florets | rusty brown", 0x75401F, 0.74),
-        "seed_shell_a": make_material("Achene shell | chestnut", 0x30231C, 0.58),
-        "seed_shell_b": make_material("Achene shell | dark mahogany", 0x201917, 0.6),
-        "seed_stripe": make_material("Achene stripe | muted cream", 0x8A704D, 0.66),
+        "seed_shell_a": make_material("Achene shell | charcoal brown", 0x39352E, 0.78),
+        "seed_shell_b": make_material("Achene shell | chestnut brown", 0x463229, 0.8),
+        "seed_stripe": make_material("Achene stripe | muted warm grey", 0x897B61, 0.84),
         "socket_rim": make_material("Empty socket | ochre rim", 0x87602F, 0.83),
         "socket_well": make_material("Empty socket | shadowed well", 0x221A14, 0.92),
         "ground": make_material("Studio ground", 0x29352B, 0.98),
@@ -270,23 +270,30 @@ def build_stem_and_hairs(collection, mats, rng):
 
 
 def leaf_surface_height(t, across, curl, teeth_phase):
-    envelope = max(0.0, sin(pi * t)) ** 0.72 * (0.82 + 0.26 * t)
-    return (0.12 * sin(pi * t) - curl * t * t
-            - 0.07 * across * across * envelope
-            + 0.018 * sin(t * 2.0 * pi + teeth_phase) * across)
+    envelope = leaf_width_profile(t)
+    margin_wave = abs(across) ** 1.5 * sin(t * 16.0 * pi + teeth_phase) * 0.012
+    return (0.105 * sin(pi * t) - curl * t * t
+            - 0.085 * across * across * envelope
+            + 0.015 * sin(t * 2.0 * pi + teeth_phase) * across + margin_wave)
 
 
-def leaf_surface(length, width, curl, teeth_phase=0.0, rows=40, columns=10):
+def leaf_width_profile(t):
+    """Broad, lower-weighted ovate blade with a pointed petiole and tip."""
+    t = max(0.0, min(1.0, t))
+    return (t ** 0.48) * ((1.0 - t) ** 0.88) / 0.405
+
+
+def leaf_surface(length, width, curl, teeth_phase=0.0, rows=56, columns=12):
     vertices, faces = [], []
     for row in range(rows + 1):
         t = row / rows
-        envelope = max(0.0, sin(pi * t)) ** 0.72
-        envelope *= 0.82 + 0.26 * t
-        tooth = 1.0 + 0.11 * cos(t * 18.0 * pi + teeth_phase)
+        envelope = leaf_width_profile(t)
+        tooth = 1.0 + 0.105 * cos(t * 26.0 * pi + teeth_phase) + 0.025 * sin(t * 38.0 * pi + teeth_phase * 0.73)
         half_width = width * envelope * tooth
         for column in range(columns + 1):
             across = column / columns * 2.0 - 1.0
-            vertices.append((length * t, half_width * across,
+            asymmetry = 1.0 + 0.105 * across * sin(pi * t * 1.8 + teeth_phase)
+            vertices.append((length * t, half_width * across * asymmetry,
                              leaf_surface_height(t, across, curl, teeth_phase)))
     for row in range(rows):
         for column in range(columns):
@@ -298,25 +305,30 @@ def leaf_surface(length, width, curl, teeth_phase=0.0, rows=40, columns=10):
 
 def build_leaves(collection, mats, rng):
     levels = [
-        (0.58, 1.08, 0.62, -1.52, -0.17),
-        (0.62, 1.00, 0.59, 1.58, -0.11),
-        (1.42, 0.96, 0.57, -0.79, -0.16),
-        (2.13, 0.88, 0.54, 2.22, -0.21),
-        (2.78, 0.79, 0.50, -0.42, -0.15),
-        (3.23, 0.65, 0.44, 2.91, -0.09),
+        (0.53, 1.15, 0.61, -0.38),
+        (0.91, 1.14, 0.60, -0.31),
+        (1.31, 1.08, 0.58, -0.25),
+        (1.73, 1.02, 0.56, -0.21),
+        (2.16, 0.95, 0.54, -0.17),
+        (2.56, 0.88, 0.51, -0.14),
+        (2.94, 0.79, 0.48, -0.10),
+        (3.29, 0.69, 0.44, -0.07),
     ]
     blades_vertices, blades_faces, blade_materials = [], [], []
     vein_vertices, vein_faces = [], []
-    for leaf_index, (height, length, width, azimuth, droop) in enumerate(levels):
-        azimuth += rng.uniform(-0.12, 0.12)
+    hair_vertices, hair_faces = [], []
+    for leaf_index, (height, length, width, droop) in enumerate(levels):
+        # Mature sunflower leaves alternate along the stalk; neighboring nodes share a
+        # golden-angle turn rather than forming the conspicuous opposite pairs in the old mesh.
+        azimuth = -1.52 + leaf_index * GOLDEN_ANGLE + rng.uniform(-0.055, 0.055)
         horizontal = Vector((cos(azimuth), sin(azimuth), 0.0))
         direction = horizontal.copy()
         direction.z = sin(droop)
         direction.normalize()
         sideward = Vector((-sin(azimuth), cos(azimuth), 0.0))
-        leaf_normal = (sideward * rng.uniform(0.72, 0.88)
-                       + horizontal * rng.uniform(-0.16, 0.16)
-                       + Vector((0.0, 0.0, rng.uniform(0.34, 0.5)))).normalized()
+        leaf_normal = (sideward * rng.uniform(0.68, 0.84)
+                       + horizontal * rng.uniform(-0.2, 0.2)
+                       + Vector((0.0, 0.0, rng.uniform(0.38, 0.56)))).normalized()
         lateral = leaf_normal.cross(direction).normalized()
         attach = Vector((0.012 * height, -0.045 * height, height))
         petiole_end = attach + direction * length * 0.28 + Vector((0.0, 0.0, 0.07))
@@ -330,7 +342,7 @@ def build_leaves(collection, mats, rng):
             point = blade_origin + basis @ Vector((x, y, z))
             blades_vertices.append(tuple(point))
         blades_faces.extend(tuple(offset + index for index in face) for face in local_faces)
-        blade_materials.extend([0] * len(local_faces))
+        blade_materials.extend([1 if leaf_index in (1, 4, 6) else 0] * len(local_faces))
 
         petiole_points = [attach,
                           attach.lerp(petiole_end, 0.45) + Vector((0.0, 0.0, 0.035)),
@@ -346,9 +358,9 @@ def build_leaves(collection, mats, rng):
             midrib.append(blade_origin + local)
         append_tube_path(vein_vertices, vein_faces, midrib,
                          [0.006, 0.005, 0.0045, 0.004, 0.0035, 0.003, 0.0025, 0.0018], sides=5)
-        for vein_index in range(1, 7):
+        for vein_index in range(1, 8):
             t = vein_index / 8
-            envelope = max(0.0, sin(pi * t)) ** 0.72 * (0.82 + 0.26 * t)
+            envelope = leaf_width_profile(t)
             center = blade_origin + basis @ Vector((length * 0.9 * t, 0.0,
                                                     leaf_surface_height(t, 0.0,
                                                                         leaf_curl,
@@ -357,7 +369,7 @@ def build_leaves(collection, mats, rng):
                 edge_t = min(1.0, t + 0.11)
                 edge_across = side_sign * 0.86
                 edge = blade_origin + basis @ Vector((length * 0.9 * edge_t,
-                                                       edge_across * width * envelope,
+                                                       edge_across * width * envelope * (1.0 + 0.105 * edge_across * sin(pi * edge_t * 1.8 + leaf_phase)),
                                                        leaf_surface_height(edge_t, edge_across,
                                                                            leaf_curl,
                                                                            leaf_phase) + 0.008))
@@ -366,12 +378,32 @@ def build_leaves(collection, mats, rng):
                                   + basis @ Vector((0.0, 0.0, 0.005)), edge],
                                  [0.0032, 0.0022, 0.001], sides=4)
 
+        # Fine marginal setae break the blade outline at close range without turning it into fur.
+        for side_sign in (-1, 1):
+            for hair_index in range(2, 15):
+                t = hair_index / 16
+                local_envelope = leaf_width_profile(t)
+                local_tooth = 1.0 + 0.105 * cos(t * 26.0 * pi + leaf_phase)
+                edge_across = side_sign * 0.99
+                edge = blade_origin + basis @ Vector((length * 0.9 * t,
+                                                       edge_across * width * local_envelope * local_tooth,
+                                                       leaf_surface_height(t, edge_across, leaf_curl, leaf_phase) + 0.004))
+                direction_sign = -1.0 if (hair_index + leaf_index) % 2 else 1.0
+                tip = edge + basis @ Vector((0.004 * direction_sign,
+                                             side_sign * rng.uniform(0.006, 0.012),
+                                             rng.uniform(0.004, 0.009)))
+                append_tube_path(hair_vertices, hair_faces, [edge, tip],
+                                 [0.0014, 0.00025], sides=3)
+
     blades = create_mesh_object("SunflowerLeaves_nocol", blades_vertices, blades_faces,
-                                [mats["leaf"]], collection=collection)
+                                [mats["leaf"], mats["leaf_light"]], blade_materials, collection)
     blades["role"] = "sunflower_leaves"
     veins = create_mesh_object("SunflowerLeafStemsAndVeins_nocol", vein_vertices, vein_faces,
                                [mats["leaf_light"], mats["vein"]], collection=collection)
     veins["role"] = "sunflower_leaf_veins"
+    hairs = create_mesh_object("LeafMarginalSetae_nocol", hair_vertices, hair_faces,
+                               [mats["vein"]], collection=collection)
+    hairs["role"] = "sunflower_leaf_surface_hairs"
 
 
 def append_head_dish(vertices, faces, face_materials, radius=DISK_RADIUS, radial_steps=12, sides=64):
@@ -416,7 +448,6 @@ def build_head_receptacle(collection, mats, basis):
 
 def build_kernels(collection, mats, basis, rng):
     shell_vertices, shell_faces = [], []
-    stripe_vertices, stripe_faces = [], []
     stations = [-1.0, -0.78, -0.42, 0.0, 0.42, 0.78, 1.0]
     body_half_length = KERNEL_RADII[1]
     body_half_width = KERNEL_RADII[0]
@@ -441,31 +472,34 @@ def build_kernels(collection, mats, basis, rng):
     shell_faces.append(tuple(reversed(rings[0])))
     shell_faces.append(tuple(rings[-1]))
 
-    # A raised, narrow longitudinal shell stripe reads as a seed marking and stays a separate
-    # primitive under the same logical kernel node when GLTFLoader splits the materials.
-    stripe_rows = []
-    for station in [-0.84, -0.58, -0.28, 0.0, 0.28, 0.58, 0.84]:
-        taper = sqrt(max(0.0, 1.0 - station * station))
-        half_width = body_half_width * taper * 0.17
-        z = body_half_height * taper + 0.0015
-        y = station * body_half_length
-        stripe_rows.append((
-            len(stripe_vertices), len(stripe_vertices) + 1,
-            len(stripe_vertices) + 2, len(stripe_vertices) + 3,
-        ))
-        stripe_vertices.extend([(-half_width, y, z), (half_width, y, z),
-                                (-half_width, y, z + 0.001), (half_width, y, z + 0.001)])
-    for row in range(len(stripe_rows) - 1):
-        low = stripe_rows[row]
-        high = stripe_rows[row + 1]
-        stripe_faces.append((low[2], low[3], high[3], high[2]))
-        stripe_faces.append((low[0], high[0], high[1], low[1]))
-
-    vertices = shell_vertices + stripe_vertices
-    stripe_offset = len(shell_vertices)
-    faces = shell_faces + [tuple(stripe_offset + index for index in face) for face in stripe_faces]
     shell_data = []
     for variant, shell_material in enumerate((mats["seed_shell_a"], mats["seed_shell_b"])):
+        # A raised, narrow longitudinal shell stripe reads as a seed marking and stays a
+        # separate primitive under the same logical kernel node when GLTFLoader splits materials.
+        stripe_vertices, stripe_faces = [], []
+        stripe_rows = []
+        stripe_half_width = body_half_width * (0.135 + variant * 0.035)
+        stripe_offset = 0.0 if variant == 0 else 0.001
+        for station in [-0.84, -0.58, -0.28, 0.0, 0.28, 0.58, 0.84]:
+            taper = sqrt(max(0.0, 1.0 - station * station))
+            half_width = stripe_half_width * taper
+            z = body_half_height * taper + 0.0015 + stripe_offset
+            y = station * body_half_length
+            stripe_rows.append((
+                len(stripe_vertices), len(stripe_vertices) + 1,
+                len(stripe_vertices) + 2, len(stripe_vertices) + 3,
+            ))
+            stripe_vertices.extend([(-half_width, y, z), (half_width, y, z),
+                                    (-half_width, y, z + 0.001), (half_width, y, z + 0.001)])
+        for row in range(len(stripe_rows) - 1):
+            low = stripe_rows[row]
+            high = stripe_rows[row + 1]
+            stripe_faces.append((low[2], low[3], high[3], high[2]))
+            stripe_faces.append((low[0], high[0], high[1], low[1]))
+
+        vertices = shell_vertices + stripe_vertices
+        stripe_vertex_offset = len(shell_vertices)
+        faces = shell_faces + [tuple(stripe_vertex_offset + index for index in face) for face in stripe_faces]
         mesh = bpy.data.meshes.new("SunflowerAcheneMesh_" + str(variant))
         mesh.from_pydata(vertices, [], faces)
         mesh.materials.append(shell_material)
@@ -484,15 +518,15 @@ def build_kernels(collection, mats, basis, rng):
         y = radius * sin(angle)
         z = disk_height(radius) + 0.024 + 0.004 * sin(kernel_index * 1.7)
         center = head_point(x, y, z, basis)
-        local_rotation = Euler((rng.uniform(-0.085, 0.085), rng.uniform(-0.085, 0.085),
-                                angle + rng.uniform(-0.18, 0.18)), "XYZ").to_quaternion()
+        local_rotation = Euler((rng.uniform(-0.11, 0.11), rng.uniform(-0.11, 0.11),
+                                angle + rng.uniform(-0.24, 0.24)), "XYZ").to_quaternion()
         obj = bpy.data.objects.new("SunflowerKernel_" + str(kernel_index).zfill(3)
                                    + "_SHOOTABLE_nocol", shell_data[kernel_index % 2])
         link_object(obj, collection)
         obj.location = center
         obj.rotation_mode = "QUATERNION"
         obj.rotation_quaternion = basis[3] @ local_rotation
-        size = rng.uniform(0.91, 1.09)
+        size = rng.uniform(0.89, 1.11)
         obj.scale = (size, size, size)
         obj["role"] = "shootable_kernel"
         obj["kernel_index"] = kernel_index
@@ -539,32 +573,37 @@ def build_kernel_sockets(collection, mats, basis, positions):
 
 def build_ray_florets(collection, mats, basis, rng):
     vertices, faces, face_materials = [], [], []
-    radial_rows = 12
-    across_rows = 6
+    radial_rows = 16
+    across_rows = 8
     for layer in range(2):
         petal_count = 34 if layer == 0 else 28
         phase = 0.12 if layer == 0 else pi / petal_count + 0.04
         for petal_index in range(petal_count):
-            angle = 2.0 * pi * petal_index / petal_count + phase + rng.uniform(-0.035, 0.035)
-            start = rng.uniform(0.61, 0.68) + layer * 0.025
-            length = rng.uniform(0.36, 0.59) if layer == 0 else rng.uniform(0.42, 0.68)
-            width = rng.uniform(0.073, 0.105)
-            curve = rng.uniform(-0.045, 0.045)
+            angle = 2.0 * pi * petal_index / petal_count + phase + rng.uniform(-0.045, 0.045)
+            start = rng.uniform(0.60, 0.69) + layer * 0.025
+            length = rng.uniform(0.35, 0.59) if layer == 0 else rng.uniform(0.42, 0.68)
+            width = rng.uniform(0.071, 0.102)
+            curve = rng.uniform(-0.055, 0.055)
+            tip_phase = rng.uniform(0.0, 2.0 * pi)
             age_tip = rng.random() < 0.15
             rows = []
             for row in range(radial_rows + 1):
                 t = row / radial_rows
-                envelope = max(0.0, sin(pi * t)) ** 0.68
-                half_width = width * envelope * (0.72 + 0.34 * (1.0 - t))
-                center_r = start + length * t
+                envelope = (0.27 + 0.73 * min(1.0, t * 3.8))
+                envelope *= 1.0 - 0.34 * max(0.0, (t - 0.82) / 0.18) ** 1.7
+                half_width = width * envelope
+                center_r = start + length * t + 0.018 * cos(2.5 * pi + tip_phase) * t ** 12
                 center_angle = angle + curve * t * t
-                z_center = 0.018 + 0.025 * sin(pi * t) - 0.035 * t * t + 0.009 * layer
+                z_center = 0.018 + 0.031 * sin(pi * t) - 0.042 * t * t + 0.009 * layer
                 row_indices = []
                 for column in range(across_rows + 1):
                     across = column / across_rows * 2.0 - 1.0
-                    r = center_r + curve * across * t * 0.15
+                    # Ray florets terminate in several shallow lobes instead of one needle point.
+                    r = center_r + 0.016 * cos(across * 2.5 * pi + tip_phase) * t ** 12
+                    r += curve * across * t * 0.15
                     theta = center_angle + across * half_width / max(0.2, center_r)
-                    z = z_center + 0.012 * (1.0 - across * across) * envelope
+                    z = z_center + 0.018 * (1.0 - across * across) * sin(pi * min(1.0, t * 1.4))
+                    z += 0.004 * sin(t * 4.0 * pi + tip_phase) * across
                     row_indices.append(len(vertices))
                     vertices.append((r * cos(theta), r * sin(theta), z))
                 rows.append(row_indices)
@@ -588,6 +627,7 @@ def build_ray_florets(collection, mats, basis, rng):
 def build_phyllaries(collection, mats, basis, rng):
     vertices, faces, face_materials = [], [], []
     vein_vertices, vein_faces = [], []
+    hair_vertices, hair_faces = [], []
     for row in range(3):
         count = 22 + row * 2
         phase = row * 0.17 + pi / count
@@ -625,6 +665,68 @@ def build_phyllaries(collection, mats, basis, rng):
             append_tube_path(vein_vertices, vein_faces, line,
                              [0.0048, 0.0045, 0.0042, 0.0038, 0.0034, 0.0029, 0.0022, 0.0013],
                              sides=4)
+
+    # The smooth receptacle cap used to remain exposed on the back. Four overlapping
+    # involucre ranks now follow its ellipsoid and read as real, ribbed phyllaries.
+    back_rows = (
+        (12, 0.025, 0.40, 0.052),
+        (17, 0.17, 0.48, 0.062),
+        (22, 0.33, 0.53, 0.071),
+        (28, 0.49, 0.48, 0.075),
+    )
+    for row, (count, start_radius, length_base, width_base) in enumerate(back_rows):
+        phase = GOLDEN_ANGLE * row * 0.43 + 0.11
+        for index in range(count):
+            angle = 2.0 * pi * index / count + phase + rng.uniform(-0.045, 0.045)
+            length = length_base * rng.uniform(0.88, 1.12)
+            width = width_base * rng.uniform(0.88, 1.12)
+            steps, across_steps = 12, 6
+            rows = []
+            for step in range(steps + 1):
+                t = step / steps
+                radius = start_radius + length * t
+                envelope = max(0.0, sin(pi * (0.08 + 0.84 * t))) ** 0.64
+                half_width = width * envelope * (0.92 - 0.18 * t)
+                clipped_radius = min(0.73, radius)
+                cap_z = -0.20 - 0.29 * sqrt(max(0.02, 1.0 - (clipped_radius / 0.73) ** 2))
+                row_indices = []
+                for across_index in range(across_steps + 1):
+                    across = across_index / across_steps * 2.0 - 1.0
+                    theta = angle + across * half_width / max(0.15, radius)
+                    z = cap_z - 0.008 - 0.024 * (1.0 - across * across) * envelope
+                    z -= 0.014 * t * t
+                    row_indices.append(len(vertices))
+                    vertices.append((radius * cos(theta), radius * sin(theta), z))
+                rows.append(row_indices)
+            for step in range(steps):
+                for across in range(across_steps):
+                    faces.append((rows[step][across], rows[step][across + 1],
+                                  rows[step + 1][across + 1], rows[step + 1][across]))
+                    face_materials.append(1 if across in (2, 3) and (index + row) % 3 == 0 else 0)
+
+            midline = []
+            for step in range(7):
+                t = step / 6
+                radius = start_radius + length * t
+                clipped_radius = min(0.73, radius)
+                cap_z = -0.20 - 0.29 * sqrt(max(0.02, 1.0 - (clipped_radius / 0.73) ** 2))
+                midline.append(Vector((radius * cos(angle), radius * sin(angle), cap_z - 0.044 - 0.014 * t * t)))
+            append_tube_path(vein_vertices, vein_faces, midline,
+                             [0.0042, 0.004, 0.0037, 0.0032, 0.0027, 0.002, 0.0012], sides=4)
+
+            for t in (0.28, 0.52, 0.76, 0.93):
+                radius = start_radius + length * t
+                clipped_radius = min(0.73, radius)
+                cap_z = -0.20 - 0.29 * sqrt(max(0.02, 1.0 - (clipped_radius / 0.73) ** 2))
+                envelope = max(0.0, sin(pi * (0.08 + 0.84 * t))) ** 0.64
+                half_width = width * envelope * (0.92 - 0.18 * t)
+                for side_sign in (-1, 1):
+                    theta = angle + side_sign * half_width / max(0.15, radius)
+                    edge = Vector((radius * cos(theta), radius * sin(theta), cap_z - 0.012 - 0.014 * t * t))
+                    tangent = Vector((-sin(theta) * side_sign, cos(theta) * side_sign, 0.0))
+                    hair_tip = edge + tangent * rng.uniform(0.009, 0.016) + Vector((0.0, 0.0, -0.006))
+                    append_tube_path(hair_vertices, hair_faces, [edge, hair_tip],
+                                     [0.0016, 0.00025], sides=3)
     bracts = create_mesh_object("SunflowerInvolucre_nocol", vertices, faces,
                                 [mats["bract"], mats["bract_light"]], face_materials, collection)
     bracts.location = HEAD_CENTER
@@ -637,6 +739,12 @@ def build_phyllaries(collection, mats, basis, rng):
     veins.rotation_mode = "QUATERNION"
     veins.rotation_quaternion = basis[3]
     veins["role"] = "sunflower_bract_veins"
+    hairs = create_mesh_object("InvolucreCilia_nocol", hair_vertices, hair_faces,
+                               [mats["bract_light"]], collection=collection)
+    hairs.location = HEAD_CENTER
+    hairs.rotation_mode = "QUATERNION"
+    hairs.rotation_quaternion = basis[3]
+    hairs["role"] = "sunflower_bract_cilia"
 
 
 def build_disc_floret_collar(collection, mats, basis):
@@ -703,6 +811,8 @@ def build_studio(scene, collection):
         "side": add_camera(collection, "QA_Side", (11.5, 0.0, 2.55), (0.0, 0.0, 2.35), ortho=5.8),
         "back": add_camera(collection, "QA_Back", (0.0, 11.5, 2.55), (0.0, 0.0, 2.35), ortho=5.8),
         "game": add_camera(collection, "QA_GameCamera", (0.0, -10.0, 3.0), (0.15, -0.1, 3.85), ortho=3.45),
+        "bloom": add_camera(collection, "QA_BloomClose", HEAD_CENTER + HEAD_NORMAL * 3.5,
+                            HEAD_CENTER, ortho=3.15),
     }
     add_area_light(collection, "Key | warm", (-4.5, -5.5, 8.5), (0, 0, 2.5), 570, 5.0, (1.0, 0.83, 0.58))
     add_area_light(collection, "Fill | cool", (5.0, -3.0, 4.5), (0, 0, 2.6), 300, 4.0, (0.63, 0.78, 1.0))
@@ -717,7 +827,7 @@ def render_previews(scene, cameras):
     scene.render.resolution_x = 720
     scene.render.resolution_y = 720
     scene.render.resolution_percentage = 100
-    for view in ("front", "quarter", "side", "back", "game"):
+    for view in ("front", "quarter", "side", "back", "bloom", "game"):
         scene.camera = cameras[view]
         scene.render.filepath = str(PREVIEW_DIR / ("sunflower_" + view + ".png"))
         bpy.ops.render.render(write_still=True)

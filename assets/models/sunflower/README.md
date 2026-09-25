@@ -10,7 +10,8 @@ and phyllary proportions at the map's 15 m target size. The Blender source uses 
 - `sunflower_shootable.glb` is the runtime model. It has no baked flight animation.
 - `blender/sunflower.blend` is the editable Blender 4.2 scene and contains the studio setup.
 - `blender/previews/sunflower_front.png`, `sunflower_quarter.png`, `sunflower_side.png`, and
-  `sunflower_back.png` are the form checks. `sunflower_game.png` is framed at game scale.
+  `sunflower_back.png` are the form checks. `sunflower_bloom.png` shows the bloom close-up, and
+  `sunflower_game.png` is framed at game scale.
 - `blender/previews/sunflower_desktop_game_camera.png` and the `sunflower_desktop_*_removed.png`
   captures show the loaded prop and two adjacent MG hits in the desktop renderer.
 - `scripts/generate_sunflower_asset.py` rebuilds the source, previews, and GLB.
@@ -46,7 +47,7 @@ through the regular Hunt MG path.
 - [Cornell CALS: Common sunflower morphology](https://cals.cornell.edu/weed-science/weed-profiles/common-sunflower)
 - [Royal Society Open Science: sunflower capitulum spiral observations](https://doi.org/10.1098/rsos.160091)
 
-The plant uses the annual upright habit, coarse toothed leaves, overlapping involucral bracts,
-yellow sterile rays, a thick receptacle, and a dark spiral achene field described in those sources.
-The model does not include roots below ground or a texture atlas; its depth comes from the modeled
-organs and the game renderer's scene lighting.
+The plant uses the annual upright habit, alternate broad toothed leaves with raised veins, overlapping
+ciliate involucral bracts, cupped yellow rays, a thick receptacle, and a varied dark spiral achene
+field described in those sources. The model does not include roots below ground or a texture atlas;
+its depth comes from the modeled organs and the game renderer's scene lighting.
