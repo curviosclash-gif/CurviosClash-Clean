@@ -17,6 +17,8 @@ import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigCont
 import * as THREE from 'three';
 
 const WIND_STEPS = 3600;
+const REACTOR_SEGMENT_ID = 'reactor_dome';
+const REACTOR_BURN_FRACTION_PER_SECOND = 0.1 / 60;
 
 /**
  * Runtime owner of the map geometry a match can shoot apart.
@@ -41,6 +43,7 @@ export class MapDestructibleSystem {
         this._pendingPressureFeedback = null;
         this.fireDefinition = null;
         this.fireState = null;
+        this._reactorBurnUpdatedAtSeconds = -1;
     }
 
     /**
@@ -62,6 +65,7 @@ export class MapDestructibleSystem {
             ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
             : 1;
         this.state = createMapDestructibleState(this.definition);
+        this._reactorBurnUpdatedAtSeconds = -1;
         this.fireDefinition = map?.fireProgression || null;
         this.fireState = createMapFireProgression(this.fireDefinition);
         this._fireWarnings = new Set();
@@ -88,6 +92,7 @@ export class MapDestructibleSystem {
         this._pendingPressureFeedback = null;
         // An arena that was reused rather than rebuilt still shows last round's collapse.
         arena?.resetMapDestructibleScenes?.();
+        arena?.setMapDestructibleFireState?.(this.state);
         return this.state.segments.length;
     }
 
@@ -99,6 +104,7 @@ export class MapDestructibleSystem {
     }
 
     updateFeedback() {
+        if (!this.networkReplica) this._advanceReactorBurn();
         if (this.fireState) {
             if (!this.networkReplica) advanceMapFireProgression(this.fireDefinition, this.fireState, this.getElapsedSeconds(), (id, atSeconds) => {
                 const result = applyMapDestructibleDamage(this.state, this.definition, id, 100000, { atSeconds });
@@ -125,6 +131,19 @@ export class MapDestructibleSystem {
         }
     }
 
+    _advanceReactorBurn() {
+        const segment = this.state.segments.find((entry) => entry.id === REACTOR_SEGMENT_ID);
+        if (!segment || segment.destroyed || segment.burnStartedAtSeconds < 0) return;
+        const elapsed = this.getElapsedSeconds();
+        const previous = this._reactorBurnUpdatedAtSeconds < 0
+            ? segment.burnStartedAtSeconds : this._reactorBurnUpdatedAtSeconds;
+        if (elapsed <= previous) return;
+        this._reactorBurnUpdatedAtSeconds = elapsed;
+        this.applySegmentHit(REACTOR_SEGMENT_ID,
+            segment.maxHp * REACTOR_BURN_FRACTION_PER_SECOND * (elapsed - previous),
+            { cause: 'burn', recordHit: false });
+    }
+
     setNetworkReplica(enabled) {
         this.networkReplica = enabled === true;
     }
@@ -135,6 +154,8 @@ export class MapDestructibleSystem {
         this.entityManager?.arena?.setMapFireState?.(null);
         this.definition = null;
         this.state = createMapDestructibleState(null);
+        this._reactorBurnUpdatedAtSeconds = -1;
+        this.entityManager?.arena?.setMapDestructibleFireState?.(this.state);
         this.anchorScale = 1;
         this._targets.length = 0;
         this._forwardedEventSignature = '';
@@ -190,13 +211,20 @@ export class MapDestructibleSystem {
         }
         const result = applyMapDestructibleDamage(this.state, this.definition, segmentId, damage, {
             atSeconds: this.getElapsedSeconds(),
+            recordHit: options?.recordHit,
             hitDirection: options?.hitDirection,
             chooseVariant: (count) => this.entityManager?.runtimeRng?.int?.(count) ?? 0,
             // Tenths of a degree from the same match rng, so a replay rolls the same wind.
             chooseWind: () => ((this.entityManager?.runtimeRng?.int?.(WIND_STEPS) ?? 0) / WIND_STEPS) * Math.PI * 2,
         });
         if (!result.applied) return null;
+        if (segmentId === REACTOR_SEGMENT_ID && options?.cause !== 'burn'
+            && !result.destroyed && result.segment.burnStartedAtSeconds < 0) {
+            result.segment.burnStartedAtSeconds = this.getElapsedSeconds();
+            this._reactorBurnUpdatedAtSeconds = result.segment.burnStartedAtSeconds;
+        }
         this._syncTargets();
+        this.entityManager?.arena?.setMapDestructibleFireState?.(this.state);
         if (result.event) this._onSegmentDestroyed(result.event, options);
         return result;
     }
@@ -241,6 +269,7 @@ export class MapDestructibleSystem {
     applyNetworkState(serialized) {
         if (!serialized) return this.state;
         applyMapDestructibleNetworkState(this.state, serialized);
+        this.entityManager?.arena?.setMapDestructibleFireState?.(this.state);
         if (this.fireDefinition) {
             this.fireState = createMapFireProgression(this.fireDefinition, serialized.fireProgression);
             this.entityManager?.arena?.setMapFireState?.(this.fireState);

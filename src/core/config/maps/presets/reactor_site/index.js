@@ -75,6 +75,21 @@ export const REACTOR_SITE_MAPS = {
         glbAuthoredObstaclesCollisionOnly: true,
         glbLoadConcurrency: 3,
         destructibles: REACTOR_SITE_DESTRUCTIBLES,
+        lights: [{ id: 'reactor_fire', x: 0, y: up(35), z: 0,
+            color: 0xff6a24, intensity: 1800, distance: 32 }],
+        fireFxActivationSegmentId: 'reactor_dome',
+        fireFx: {
+            emitters: [
+                { position: [-10, up(31), -7], radius: 7, smokeHeight: 35, emberHeight: 20, phase: 0.1 },
+                { position: [10, up(34), 4], radius: 8, smokeHeight: 40, emberHeight: 23, phase: 0.45 },
+                { position: [0, up(38), 10], radius: 6, smokeHeight: 32, emberHeight: 19, phase: 0.8 },
+            ],
+            smoke: { count: 48, color: 0x221b19, size: 9, lifetime: 9, opacity: 0.34 },
+            embers: { count: 96, color: 0xff6820, size: 1.2, lifetime: 2.8, opacity: 0.95 },
+            ash: { count: 0 },
+            wind: [-1.2, 0.8, 0.6],
+            flicker: [{ lightId: 'reactor_fire', amplitude: 0.18, frequency: 1.6 }],
+        },
         // An overcast, slightly sick-green day over the zone: flat light so the concrete reads as
         // volume, a cold horizon, and the fog pushed out as far as the tallest structures need.
         lighting: {

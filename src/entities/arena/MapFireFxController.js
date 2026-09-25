@@ -121,6 +121,7 @@ export class MapFireFxController {
         this.intensity = Math.max(0, Math.min(1, Number(value) || 0));
         if (this.group) this.group.visible = this.intensity > 0;
         if (this.layers) for (const key in this.layers) { const layer = this.layers[key]; layer.points.material.opacity = layer.definition.opacity * this.intensity; }
+        this._updateLights();
     }
 
     update(elapsedSeconds) {
