@@ -1,0 +1,290 @@
+{
+  "species": "Prunus × yedoensis 'Akebono'",
+  "generator": "scripts/generate_sakura_akebono_asset.py",
+  "blender": "4.2.16 LTS",
+  "seed": 270425,
+  "target_dimensions_m": [
+    10.2,
+    10.2,
+    9.8
+  ],
+  "profiles": {
+    "hero": {
+      "objects": 9,
+      "vertices": 3447084,
+      "triangles": 2836796,
+      "bounds_m": {
+        "min": [
+          -4.6949,
+          -4.7169,
+          -0.0044
+        ],
+        "max": [
+          5.2805,
+          5.1118,
+          9.9414
+        ],
+        "size": [
+          9.9754,
+          9.8287,
+          9.9458
+        ]
+      },
+      "materials": [
+        "Akebono | calyx and young growth",
+        "Akebono | lenticels",
+        "Akebono | petal highlights",
+        "Akebono | petals, blush to ivory",
+        "Akebono | silver-grey bark",
+        "Akebono | sparse spring leaves",
+        "Akebono | stamens"
+      ],
+      "profile": "hero",
+      "seed": 270425,
+      "branch_counts_by_order": [
+        1,
+        14,
+        69,
+        207,
+        442
+      ],
+      "flower_count": 23590,
+      "file_bytes": 116916936
+    },
+    "lod1": {
+      "objects": 9,
+      "vertices": 200722,
+      "triangles": 176402,
+      "bounds_m": {
+        "min": [
+          -4.5332,
+          -4.6456,
+          -0.0031
+        ],
+        "max": [
+          5.1949,
+          5.0012,
+          9.8428
+        ],
+        "size": [
+          9.7281,
+          9.6468,
+          9.846
+        ]
+      },
+      "materials": [
+        "Akebono | calyx and young growth",
+        "Akebono | lenticels",
+        "Akebono | petal highlights",
+        "Akebono | petals, blush to ivory",
+        "Akebono | silver-grey bark",
+        "Akebono | sparse spring leaves",
+        "Akebono | stamens"
+      ],
+      "profile": "lod1",
+      "seed": 270425,
+      "branch_counts_by_order": [
+        1,
+        14,
+        69,
+        207,
+        442
+      ],
+      "flower_count": 1726,
+      "file_bytes": 6354416
+    },
+    "lod2": {
+      "objects": 8,
+      "vertices": 80408,
+      "triangles": 85418,
+      "bounds_m": {
+        "min": [
+          -4.6111,
+          -4.6454,
+          -0.0019
+        ],
+        "max": [
+          5.192,
+          4.9723,
+          9.9041
+        ],
+        "size": [
+          9.8031,
+          9.6176,
+          9.906
+        ]
+      },
+      "materials": [
+        "Akebono | calyx and young growth",
+        "Akebono | petal highlights",
+        "Akebono | petals, blush to ivory",
+        "Akebono | silver-grey bark",
+        "Akebono | sparse spring leaves",
+        "Akebono | stamens"
+      ],
+      "profile": "lod2",
+      "seed": 270425,
+      "branch_counts_by_order": [
+        1,
+        14,
+        69,
+        207,
+        442
+      ],
+      "flower_count": 573,
+      "file_bytes": 2920036
+    },
+    "collision": {
+      "objects": 2,
+      "vertices": 332,
+      "triangles": 524,
+      "bounds_m": {
+        "min": [
+          -2.8308,
+          -3.2444,
+          -0.0044
+        ],
+        "max": [
+          3.7789,
+          3.1787,
+          9.7803
+        ],
+        "size": [
+          6.6098,
+          6.4231,
+          9.7847
+        ]
+      },
+      "materials": [
+        "Akebono | silver-grey bark"
+      ],
+      "profile": "collision",
+      "seed": 270425,
+      "branch_counts_by_order": [
+        1,
+        6,
+        4,
+        0,
+        0
+      ],
+      "flower_count": 0,
+      "file_bytes": 18116
+    }
+  },
+  "files": {
+    "README.md": 4373,
+    "sakura_akebono.blend": 186888472,
+    "sakura_akebono.glb": 116916936,
+    "sakura_akebono_collision.glb": 18116,
+    "sakura_akebono_lod1.glb": 6354416,
+    "sakura_akebono_lod2.glb": 2920036
+  },
+  "preview_bloom_mask": {
+    "angles_degrees": [
+      0,
+      45,
+      90,
+      135,
+      180,
+      225,
+      270,
+      315
+    ],
+    "pink_condition_rgb": "r > g*1.035, b > g*1.015, r > 100, g > 65",
+    "fixed_ellipse_mask": {
+      "definition": "ellipse centered at (500,355), radii (400,250), clipped to x=80..919 and y=100..609; denominator includes background pixels",
+      "pink_percent": [
+        16.6,
+        24.1,
+        29.22,
+        31.44,
+        27.07,
+        23.99,
+        15.99,
+        10.33
+      ],
+      "mean_percent": 22.34,
+      "minimum_percent": 10.33
+    },
+    "tree_silhouette_mask": {
+      "definition": "same ellipse; denominator pixels with max(abs(R-56),abs(G-73),abs(B-88)) > 12, using studio background RGB (56,73,88)",
+      "pink_percent": [
+        27.73,
+        40.34,
+        50.34,
+        54.07,
+        46.49,
+        39.55,
+        28.08,
+        18.45
+      ],
+      "mean_percent": 38.13,
+      "minimum_percent": 18.45
+    },
+    "review_benchmark_percent": 55.0,
+    "benchmark_met": false,
+    "note": "Silhouette pink share reaches 54.07% only at 135 degrees; mean and minimum sector remain below guidance. This is a stylized full-bloom tree, not a photorealistic closed blossom crown."
+  },
+  "reimport_qa": {
+    "blender": "4.2.16 LTS",
+    "blend_reopened": true,
+    "blend_scene_objects": 23,
+    "studio_lights": 3,
+    "azimuth_cameras": 8,
+    "macro_cameras": 2,
+    "active_camera": "Camera_Azimuth_000",
+    "blend_collections": [
+      "Presentation_Studio",
+      "SakuraAkebono_Collision",
+      "SakuraAkebono_Render"
+    ],
+    "hero_and_all_lods_imported_into_separate_empty_scenes": true,
+    "triangle_counts_match_generator": true,
+    "bounds_match_generator": true,
+    "collision_contains_only_wood_meshes": true,
+    "glb_object_role_custom_properties_preserved": false,
+    "glb_role_note": "Blender glTF import retains object names/materials but does not restore generator custom role properties; roles are clear from named objects and separate collision file.",
+    "import_results": {
+      "hero": {
+        "objects": 9,
+        "materials": 7,
+        "triangles": 2836796,
+        "bounds_m": [
+          9.9754,
+          9.8287,
+          9.9458
+        ]
+      },
+      "lod1": {
+        "objects": 9,
+        "materials": 6,
+        "triangles": 176402,
+        "bounds_m": [
+          9.7281,
+          9.6468,
+          9.846
+        ]
+      },
+      "lod2": {
+        "objects": 8,
+        "materials": 5,
+        "triangles": 85418,
+        "bounds_m": [
+          9.8031,
+          9.6176,
+          9.906
+        ]
+      },
+      "collision": {
+        "objects": 2,
+        "materials": 1,
+        "triangles": 524,
+        "bounds_m": [
+          6.6098,
+          6.4231,
+          9.7847
+        ]
+      }
+    }
+  }
+}
