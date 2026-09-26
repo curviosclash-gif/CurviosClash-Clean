@@ -9,6 +9,7 @@ import {
     installAtmosphericFog,
     setAtmosphericFogClipDistance,
 } from './renderer/AtmosphericFogShaderPatch.js';
+import { applyCameraFar, resolveCameraFarRange } from './renderer/CameraFarOps.js';
 import { MapFogLayerDriver } from './renderer/MapFogLayerDriver.js';
 import { SceneLightingRig } from './renderer/SceneLightingRig.js';
 import { SceneEnvironmentController } from './renderer/SceneEnvironmentFactory.js';
@@ -344,18 +345,10 @@ export class Renderer {
             viewDistance: this._viewDistance,
             globalFogRange: this._globalFogEffect?.active === true ? globalFogRange : null,
         });
-        // Some map effects extend beyond the fog's designed visibility range. Keep the fog
-        // closure at its authored distance while giving those effects enough camera depth.
-        const fogClipDistance = Math.max(CONFIG.CAMERA.FAR, this.scene.fog.far);
-        this._cameraFar = Math.max(fogClipDistance, this._mapCameraFar);
-        setAtmosphericFogClipDistance(fogClipDistance);
-        if (this.cameras) {
-            for (const camera of this.cameras) {
-                if (camera.far === this._cameraFar) continue;
-                camera.far = this._cameraFar;
-                camera.updateProjectionMatrix();
-            }
-        }
+        const farRange = resolveCameraFarRange(this.scene.fog.far, CONFIG.CAMERA.FAR, this._mapCameraFar);
+        this._cameraFar = farRange.cameraFar;
+        setAtmosphericFogClipDistance(farRange.fogClipDistance);
+        applyCameraFar(this.cameras, this._cameraFar);
         // The reflection has to follow the same lighting the rig just applied, otherwise the metal
         // in the scene keeps mirroring whatever sky the previous map had.
         if (refreshEnvironment) this._environmentController.apply(this._graphicsStyle, lighting);
