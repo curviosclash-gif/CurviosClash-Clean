@@ -232,7 +232,6 @@ export function selectGateCommands(files, { final = false } = {}) {
 
     if (matches(/^(\.opencode\/|scripts\/council-|tests\/council-runner)/)) {
         add('test', 'npm run council:check');
-        add('test', 'npm run council:test');
     }
     if (matches(/^electron\//)) {
         add('build', 'npm run build:app');

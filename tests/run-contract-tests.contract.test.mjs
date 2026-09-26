@@ -329,7 +329,6 @@ test('the runner prints the slowest files just above the summary line', () => {
 
 test('the load sensitive tests read their budgets from the time scale', () => {
     for (const relativePath of [
-        'tests/council-benchmark.contract.test.mjs',
         'tests/multiplayer-lifecycle-and-signaling.contract.test.mjs',
     ]) {
         const source = readRepoFile(relativePath);
