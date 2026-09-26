@@ -1,4 +1,4 @@
-import { VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
+import { isPlayerSelectableVehicleId, VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
 import { hasGLBMapSource, resolveGLBMapSourceFootprint } from '../../entities/GLBMapLoader.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import {
@@ -132,19 +132,27 @@ export function resolveMapPreview(mapKey) {
     };
 }
 
-export function listVehiclePreviewEntries() {
-    return VEHICLE_DEFINITIONS.map((vehicle) => ({
+/** @param {any} vehicle */
+function toVehiclePreviewEntry(vehicle) {
+    return {
         id: normalizeString(vehicle?.id),
         label: normalizeString(vehicle?.label, vehicle?.id || 'Vehicle'),
         hitboxRadius: toNumber(vehicle?.hitbox?.radius, 1.1),
         category: resolveVehicleCategory(vehicle),
-    }));
+    };
+}
+
+// Lists what the player may pick; lookups below still know bot-only vehicles.
+export function listVehiclePreviewEntries() {
+    return VEHICLE_DEFINITIONS
+        .filter((vehicle) => isPlayerSelectableVehicleId(vehicle?.id))
+        .map((vehicle) => toVehiclePreviewEntry(vehicle));
 }
 
 export function resolveVehiclePreview(vehicleId) {
     const normalizedVehicleId = normalizeString(vehicleId);
-    const vehicle = listVehiclePreviewEntries().find((candidate) => candidate.id === normalizedVehicleId);
-    if (vehicle) return vehicle;
+    const vehicle = VEHICLE_DEFINITIONS.find((candidate) => normalizeString(candidate?.id) === normalizedVehicleId);
+    if (vehicle) return toVehiclePreviewEntry(vehicle);
     return {
         id: normalizedVehicleId,
         label: normalizedVehicleId || 'Vehicle',

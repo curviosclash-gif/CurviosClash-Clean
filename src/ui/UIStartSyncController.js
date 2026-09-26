@@ -4,7 +4,7 @@
 // Extrahiert aus UIManager.js (V38 Phase 38.3.1)
 // ============================================
 
-import { VEHICLE_DEFINITIONS } from '../entities/vehicle-registry.js';
+import { isPlayerSelectableVehicleId, VEHICLE_DEFINITIONS } from '../entities/vehicle-registry.js';
 import { MENU_SESSION_TYPES } from './menu/MenuStateContracts.js';
 import {
     listMapPreviewEntries,
@@ -107,7 +107,7 @@ export class UIStartSyncController {
         const populate = (select) => {
             if (!select) return;
             select.replaceChildren();
-            VEHICLE_DEFINITIONS.forEach(v => {
+            VEHICLE_DEFINITIONS.filter((v) => isPlayerSelectableVehicleId(v.id)).forEach(v => {
                 const opt = document.createElement('option');
                 opt.value = v.id;
                 opt.textContent = v.label;

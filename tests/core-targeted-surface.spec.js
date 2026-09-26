@@ -72,7 +72,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             const vehicleIds = Array.from(select.options)
                 .map((option) => String(option.value || '').trim())
                 .filter(Boolean);
-            return vehicleIds.includes('aircraft') ? 'aircraft' : (vehicleIds[0] || null);
+            return vehicleIds.includes('arrow') ? 'arrow' : (vehicleIds[0] || null);
         });
         expect(selectedVehicleId).toBeTruthy();
         await page.selectOption('#vehicle-select-p1', String(selectedVehicleId));
@@ -1466,7 +1466,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.selectOption('#map-select', 'complex');
         await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
-            game.settings.vehicles.PLAYER_1 = 'ship8';
+            game.settings.vehicles.PLAYER_1 = 'arrow';
             game.runtimeFacade.onSettingsChanged({ changedKeys: ['vehicles.player1'] });
         });
         await page.click('#btn-level3-reset');
@@ -2396,7 +2396,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 vehicles: {
                     ...(defaults?.vehicles || {}),
                     PLAYER_1: 'ship5',
-                    PLAYER_2: 'ship8',
+                    PLAYER_2: 'arrow',
                 },
                 localSettings: {
                     ...(defaults?.localSettings || {}),

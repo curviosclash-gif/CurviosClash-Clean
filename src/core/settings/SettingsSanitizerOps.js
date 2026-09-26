@@ -43,10 +43,17 @@ import {
     normalizeSplitScreenVariant,
     normalizeThreePlayerSplitSettings,
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
-import { getVehicleIds } from '../../entities/vehicle-registry.js';
+import { getPlayerVehicleIds, isPlayerSelectableVehicleId } from '../../entities/vehicle-registry.js';
 import { createBotHeuristicTuningSnapshot } from '../../shared/contracts/BotHeuristicTuningContract.js';
 import { normalizeTeamHuntSettings } from '../../shared/contracts/TeamHuntContract.js';
 import { normalizeTeamObjectiveType } from '../../shared/contracts/FlagObjectiveContract.js';
+
+/** @param {unknown} savedVehicleId @param {unknown} defaultVehicleId @returns {string} */
+function resolvePlayerVehicleId(savedVehicleId, defaultVehicleId) {
+    if (isPlayerSelectableVehicleId(savedVehicleId)) return String(savedVehicleId);
+    if (isPlayerSelectableVehicleId(defaultVehicleId)) return String(defaultVehicleId);
+    return DEFAULT_VEHICLE_ID;
+}
 
 function applySessionSanitization({ merged, src, defaults, migratedSessionType, runtimeLimits }) {
     const huntFeatureEnabled = CONFIG.HUNT?.ENABLED !== false;
@@ -88,8 +95,8 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
     if (!merged.vehicles) {
         merged.vehicles = { PLAYER_1: DEFAULT_VEHICLE_ID, PLAYER_2: DEFAULT_VEHICLE_ID };
     }
-    merged.vehicles.PLAYER_1 = src?.vehicles?.PLAYER_1 || defaults?.vehicles?.PLAYER_1 || DEFAULT_VEHICLE_ID;
-    merged.vehicles.PLAYER_2 = src?.vehicles?.PLAYER_2 || defaults?.vehicles?.PLAYER_2 || DEFAULT_VEHICLE_ID;
+    merged.vehicles.PLAYER_1 = resolvePlayerVehicleId(src?.vehicles?.PLAYER_1, defaults?.vehicles?.PLAYER_1);
+    merged.vehicles.PLAYER_2 = resolvePlayerVehicleId(src?.vehicles?.PLAYER_2, defaults?.vehicles?.PLAYER_2);
 
     merged.portalsEnabled = src?.portalsEnabled !== undefined ? !!src.portalsEnabled : defaults.portalsEnabled;
     merged.hunt.respawnEnabled = !!(src?.hunt?.respawnEnabled ?? defaults.hunt.respawnEnabled);
@@ -212,7 +219,7 @@ function finalizeSanitizedSettings({ merged, migratedSessionType }) {
         merged.localSettings.fourPlayerPlanar,
         {
             allowedMapKeys: new Set(Object.keys(CONFIG.MAPS || {})),
-            allowedVehicleIds: new Set(getVehicleIds()),
+            allowedVehicleIds: new Set(getPlayerVehicleIds()),
             fallbackMapKey: merged.mapKey || 'standard',
             fallbackVehicleId: merged?.vehicles?.PLAYER_1 || DEFAULT_VEHICLE_ID,
         }
@@ -221,7 +228,7 @@ function finalizeSanitizedSettings({ merged, migratedSessionType }) {
         merged.localSettings.threePlayerSplit,
         {
             allowedMapKeys: new Set(Object.keys(CONFIG.MAPS || {})),
-            allowedVehicleIds: new Set(getVehicleIds()),
+            allowedVehicleIds: new Set(getPlayerVehicleIds()),
             fallbackMapKey: merged.mapKey || 'standard',
             fallbackVehicleId: merged?.vehicles?.PLAYER_1 || DEFAULT_VEHICLE_ID,
         }

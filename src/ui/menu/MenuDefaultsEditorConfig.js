@@ -61,7 +61,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
             PLAYER_2: true,
         },
         vehicles: {
-            PLAYER_1: 'ship8',
+            PLAYER_1: 'ship5',
             PLAYER_2: 'ship5',
         },
         portalsEnabled: true,

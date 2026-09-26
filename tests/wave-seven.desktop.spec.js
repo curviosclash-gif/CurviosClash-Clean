@@ -38,9 +38,9 @@ test('Wave 7: getrennte Fahrzeugprofile und Kosmetik sind im Desktop-Hangar sich
                 trailStyleId: 'prism',
                 weaponStyleIds: { mg: 'nova', rockets: 'ion', flamethrower: 'ember', railgun: 'nova', lightning: 'ion' },
             },
-            ship2: {
+            ship9: {
                 ...common,
-                vehicleId: 'ship2', xp: 520, xpBank: 275, totalXpEarned: 520, level: 3,
+                vehicleId: 'ship9', xp: 520, xpBank: 275, totalXpEarned: 520, level: 3,
                 trailStyleId: 'standard',
                 weaponStyleIds: { mg: 'standard', rockets: 'standard', flamethrower: 'standard', railgun: 'standard', lightning: 'standard' },
             },
@@ -58,7 +58,7 @@ test('Wave 7: getrennte Fahrzeugprofile und Kosmetik sind im Desktop-Hangar sich
     await expect(page.locator('.hangar-cosmetic-select').first()).toHaveValue('prism');
     await page.screenshot({ path: testInfo.outputPath('wave7-01-profile-a-prism.png'), fullPage: true, animations: 'disabled' });
 
-    await page.locator('.arcade-vehicle-card[data-vehicle-id="ship2"]').click();
+    await page.locator('.arcade-vehicle-card[data-vehicle-id="ship9"]').click();
     await expect(page.locator('.arcade-vehicle-level')).toContainText('Level 3');
     await expect(page.locator('.arcade-vehicle-level')).toContainText('XP-Bank 275');
     await expect(page.locator('.hangar-cosmetic-select').first()).toHaveValue('standard');

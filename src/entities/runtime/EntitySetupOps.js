@@ -150,7 +150,7 @@ export class EntitySetupOps {
     resolveSetupPlayerContext(options = {}) {
         const entityRuntimeConfig = resolveEntityRuntimeConfig(options.entityRuntimeConfig || this.entityManager?.entityRuntimeConfig || null);
         const availableVehicleIds = getVehicleIds();
-        const defaultVehicleId = String(entityRuntimeConfig.PLAYER?.DEFAULT_VEHICLE_ID || availableVehicleIds[0] || 'aircraft');
+        const defaultVehicleId = String(entityRuntimeConfig.PLAYER?.DEFAULT_VEHICLE_ID || availableVehicleIds[0] || 'ship5');
         const normalizeVehicleId = (value) => {
             const candidate = String(value || '').trim();
             if (isValidVehicleId(candidate)) {

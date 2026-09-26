@@ -35,6 +35,11 @@ const BASE_VEHICLE_DEFINITIONS = [
     { id: 'ship8', label: 'Striker (Ship 8)', MeshClass: OBJVehicleMesh, isObj: true, hitbox: { radius: 1.1 } },
     { id: 'ship9', label: 'Recon (Ship 9)', MeshClass: OBJVehicleMesh, isObj: true, hitbox: { radius: 1.0 } },
 ];
+// Built-in vehicles a player may pick. The other built-ins stay registered because bots
+// fly them and map presets place them as decoration jets. Vehicle Lab builds stay selectable.
+const PLAYER_SELECTABLE_BUILT_IN_IDS = new Set([
+    'ship5', 'spaceship', 'arrow', 'manta', 'drone', 'ship1', 'ship9', 'lab_helix_interceptor',
+]);
 /** @type {Map<string, any>} */
 const BASE_VEHICLE_BY_ID = new Map(BASE_VEHICLE_DEFINITIONS.map((entry) => [entry.id, entry]));
 const BUILT_IN_COMPLEX_VEHICLE_ID_SET = new Set(BUILT_IN_COMPLEX_VEHICLE_IDS);
@@ -84,6 +89,18 @@ export function isValidVehicleId(vehicleId) {
     return VEHICLE_BY_ID.has(String(vehicleId || '').trim());
 }
 
+/** @param {unknown} vehicleId @returns {boolean} */
+export function isPlayerSelectableVehicleId(vehicleId) {
+    const entry = VEHICLE_BY_ID.get(String(vehicleId || '').trim());
+    if (!entry) return false;
+    return entry.isBuiltIn !== true || PLAYER_SELECTABLE_BUILT_IN_IDS.has(entry.id);
+}
+
+/** @returns {string[]} */
+export function getPlayerVehicleIds() {
+    return getVehicleIds().filter((vehicleId) => isPlayerSelectableVehicleId(vehicleId));
+}
+
 export function createBaseVehicleMesh(vehicleId, color) {
     const selected = BASE_VEHICLE_BY_ID.get(String(vehicleId || '').trim()) || BASE_VEHICLE_DEFINITIONS[0];
     if (selected.isObj) return new selected.MeshClass(color, selected.id);
@@ -123,6 +140,7 @@ export function listVehicleDescriptors() {
         isGeneratedModular: entry.isGeneratedModular === true,
         isBuiltIn: entry.isBuiltIn === true,
         usesObjMesh: /** @type {any} */ (entry).isObj === true,
+        playerSelectable: isPlayerSelectableVehicleId(entry.id),
     }));
 }
 

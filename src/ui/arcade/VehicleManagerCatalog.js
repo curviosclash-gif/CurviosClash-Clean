@@ -1,4 +1,4 @@
-import { VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
+import { isPlayerSelectableVehicleId, VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
 const LIGHT_CATEGORY_IDS = new Set(['aircraft', 'arrow', 'drone']);
@@ -168,8 +168,11 @@ function cloneCatalogEntry(entry) {
     };
 }
 
+// Lists what the player may pick; resolveVehicleManagerCatalogEntry still knows bot-only vehicles.
 export function listVehicleManagerCatalogEntries() {
-    return VEHICLE_MANAGER_CATALOG_ENTRIES.map((entry) => cloneCatalogEntry(entry));
+    return VEHICLE_MANAGER_CATALOG_ENTRIES
+        .filter((entry) => isPlayerSelectableVehicleId(entry.vehicleId))
+        .map((entry) => cloneCatalogEntry(entry));
 }
 
 export function resolveVehicleManagerCatalogEntry(vehicleId) {

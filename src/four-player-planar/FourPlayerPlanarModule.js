@@ -1,7 +1,7 @@
 import './four-player-planar.css';
 
 import { CONFIG } from '../core/Config.js';
-import { getVehicleIds, VEHICLE_DEFINITIONS } from '../entities/vehicle-registry.js';
+import { getPlayerVehicleIds, VEHICLE_DEFINITIONS } from '../entities/vehicle-registry.js';
 import { resolveInventoryActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { isMapEligibleForModePath } from '../shared/contracts/MapModeContract.js';
@@ -55,7 +55,7 @@ export class FourPlayerPlanarModule {
             keyBindings: FOUR_PLAYER_PLANAR_KEY_BINDINGS,
             playerColors: FOUR_PLAYER_PLANAR_PLAYER_COLORS,
             mapOptions: this._listMapOptions(),
-            vehicleOptions: getVehicleIds()
+            vehicleOptions: getPlayerVehicleIds()
                 .map((vehicleId) => ({ value: vehicleId, label: resolveVehicleLabel(vehicleId) })),
             handlers: {
                 onOpenRequested: () => this.openSetup(),
@@ -86,7 +86,7 @@ export class FourPlayerPlanarModule {
             ? FOUR_PLAYER_PLANAR_MODES.HUNT
             : FOUR_PLAYER_PLANAR_MODES.CLASSIC;
         const mapKeys = this._getEligibleMapKeys(normalizedMode);
-        const vehicleIds = new Set(getVehicleIds());
+        const vehicleIds = new Set(getPlayerVehicleIds());
         const currentMapKey = String(settings?.mapKey || '');
         return normalizeFourPlayerPlanarSettings(
             settings?.localSettings?.fourPlayerPlanar,
@@ -207,7 +207,7 @@ export class FourPlayerPlanarModule {
             rollBindings: localSettings.fourPlayerPlanar?.rollBindings,
         }, {
             allowedMapKeys: eligibleMapKeys,
-            allowedVehicleIds: new Set(getVehicleIds()),
+            allowedVehicleIds: new Set(getPlayerVehicleIds()),
             fallbackMapKey: eligibleMapKeys.values().next().value || 'standard',
         });
         localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;

@@ -34,7 +34,7 @@ export const DEFAULT_ENTITY_RUNTIME_CONFIG = Object.freeze({
         BOOST_SLOWMO_RECHARGE_BONUS: 2,
         HITBOX_RADIUS: 0.8,
         MODEL_SCALE: 1,
-        DEFAULT_VEHICLE_ID: 'aircraft',
+        DEFAULT_VEHICLE_ID: 'ship5',
         SPAWN_PROTECTION: 0,
         START_Y: 5,
         AUTO_ROLL: false,

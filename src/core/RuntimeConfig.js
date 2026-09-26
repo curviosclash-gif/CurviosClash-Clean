@@ -39,7 +39,7 @@ import {
     createFourPlayerPlanarRuntimeSelection,
     createThreePlayerSplitRuntimeSelection,
 } from '../four-player-planar/FourPlayerPlanarContract.js';
-import { getVehicleIds } from '../entities/vehicle-registry.js';
+import { getPlayerVehicleIds, isPlayerSelectableVehicleId } from '../entities/vehicle-registry.js';
 import { createBotHeuristicTuningSnapshot } from '../shared/contracts/BotHeuristicTuningContract.js';
 function toNumber(value, fallback) {
     const parsed = Number(value);
@@ -142,6 +142,12 @@ const BOT_POLICY_STRATEGY_ALIASES = Object.freeze({
     'pure-heuristic': BOT_POLICY_STRATEGIES.HEURISTIC,
 });
 
+// Hidden vehicles stay for bots and decoration; a human always starts in a selectable one.
+/** @param {unknown} vehicleId @param {unknown} fallbackVehicleId @returns {string} */
+function resolveHumanVehicleId(vehicleId, fallbackVehicleId) {
+    return isPlayerSelectableVehicleId(vehicleId) ? String(vehicleId) : String(fallbackVehicleId || 'ship5');
+}
+
 /**
  * @param {unknown} strategy
  * @param {string} [fallback]
@@ -213,17 +219,17 @@ export function createRuntimeConfigSnapshot(settings, {
     const sessionType = sessionContract.sessionType;
     const fourPlayerPlanarSelection = createFourPlayerPlanarRuntimeSelection(source, {
         allowedMapKeys: new Set(Object.keys(baseConfig?.MAPS || CONFIG.MAPS || {})),
-        allowedVehicleIds: new Set(getVehicleIds()),
+        allowedVehicleIds: new Set(getPlayerVehicleIds()),
         fallbackMapKey: String(source.mapKey || 'standard'),
-        fallbackVehicleId: String(source?.vehicles?.PLAYER_1 || baseConfig?.PLAYER?.DEFAULT_VEHICLE_ID || 'ship5'),
+        fallbackVehicleId: resolveHumanVehicleId(source?.vehicles?.PLAYER_1, baseConfig?.PLAYER?.DEFAULT_VEHICLE_ID),
     });
     const fourPlayerPlanarActive = sessionType === RUNTIME_SESSION_TYPES.SPLITSCREEN
         && fourPlayerPlanarSelection.active;
     const threePlayerSplitSelection = createThreePlayerSplitRuntimeSelection(source, {
         allowedMapKeys: new Set(Object.keys(baseConfig?.MAPS || CONFIG.MAPS || {})),
-        allowedVehicleIds: new Set(getVehicleIds()),
+        allowedVehicleIds: new Set(getPlayerVehicleIds()),
         fallbackMapKey: String(source.mapKey || 'standard'),
-        fallbackVehicleId: String(source?.vehicles?.PLAYER_1 || baseConfig?.PLAYER?.DEFAULT_VEHICLE_ID || 'ship5'),
+        fallbackVehicleId: resolveHumanVehicleId(source?.vehicles?.PLAYER_1, baseConfig?.PLAYER?.DEFAULT_VEHICLE_ID),
     });
     const threePlayerSplitActive = sessionType === RUNTIME_SESSION_TYPES.SPLITSCREEN
         && !fourPlayerPlanarActive
@@ -348,10 +354,10 @@ export function createRuntimeConfigSnapshot(settings, {
             vehicles: {
                 PLAYER_1: fourPlayerPlanarActive
                     ? sharedFourPlayerVehicleId
-                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (source?.vehicles?.PLAYER_1 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5')),
+                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (resolveHumanVehicleId(source?.vehicles?.PLAYER_1, playerDefaults.DEFAULT_VEHICLE_ID))),
                 PLAYER_2: fourPlayerPlanarActive
                     ? sharedFourPlayerVehicleId
-                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (source?.vehicles?.PLAYER_2 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5')),
+                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (resolveHumanVehicleId(source?.vehicles?.PLAYER_2, playerDefaults.DEFAULT_VEHICLE_ID))),
                 ...(fourPlayerPlanarActive ? {
                     PLAYER_3: sharedFourPlayerVehicleId,
                     PLAYER_4: sharedFourPlayerVehicleId,
@@ -361,8 +367,8 @@ export function createRuntimeConfigSnapshot(settings, {
                 } : {}),
             },
             fightLoadouts: modePath === 'fight' ? {
-                PLAYER_1: normalizeFightBonuses(fightBonusesByVehicle[source?.vehicles?.PLAYER_1 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5']),
-                PLAYER_2: normalizeFightBonuses(fightBonusesByVehicle[source?.vehicles?.PLAYER_2 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5']),
+                PLAYER_1: normalizeFightBonuses(fightBonusesByVehicle[resolveHumanVehicleId(source?.vehicles?.PLAYER_1, playerDefaults.DEFAULT_VEHICLE_ID)]),
+                PLAYER_2: normalizeFightBonuses(fightBonusesByVehicle[resolveHumanVehicleId(source?.vehicles?.PLAYER_2, playerDefaults.DEFAULT_VEHICLE_ID)]),
             } : null,
         },
         gameplay: {
