@@ -4,6 +4,7 @@ import process from 'node:process';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const FORMATS = Object.freeze({
     landscape: { width: 1920, height: 1080, captionSize: 58, detailSize: 43, markerSize: 28 },
@@ -11,11 +12,21 @@ const FORMATS = Object.freeze({
 });
 const DURATION = 18;
 const FRAMES = DURATION * 60;
+const MUSIC = fileURLToPath(new URL('../../assets/audio/music/mozart-nachtmusik-advent-chamber.mp3', import.meta.url));
+const CAPTIONS = Object.freeze([
+    { start: 0.25, end: 2.35, key: 'hook', copy: 'Your trail is a weapon.' },
+    { start: 3.3, end: 5.6, key: 'duel', copy: 'Every turn can close a path.' },
+    { start: 7.25, end: 8.85, key: 'classic', copy: 'Classic mode.' },
+    { start: 10.55, end: 13.6, key: 'thick', copy: 'THICK makes the trail wider.' },
+    { start: 16, end: 18, key: 'endcard', copy: 'CURVIOSCLASH\nFollow development.' },
+]);
 const PUBLICATION = 'Your trail is a weapon. Your next turn could be a trap.\n'
-    + 'Discover Classic, one of CurviosClash’s game modes: fast 3D duels where every turn matters.\n'
+    + 'Discover Classic and the THICK item: fast 3D duels where every turn matters.\n'
     + 'Would you have escaped? Follow development on itch.io.\n'
     + 'Development footage.\n'
-    + 'https://curviosclash.itch.io/\n';
+    + 'https://curviosclash.itch.io/\n'
+    + 'Music: Mozart, Eine kleine Nachtmusik, performed by Advent Chamber Orchestra; CC BY-SA 2.0.\n'
+    + 'https://commons.wikimedia.org/wiki/File:Mozart_-_Eine_kleine_Nachtmusik_-_1._Allegro.ogg\n';
 
 function fail(message) {
     throw new Error(`[marketing:trail-short] ${message}`);
@@ -78,7 +89,6 @@ export function buildRenderArgs(name, entry) {
     if (!format) fail(`unknown orientation: ${name}`);
     const timeline = buildTimeline(entry);
     const top = Math.round(format.height * (name === 'portrait' ? 0.12 : 0.145));
-    const captionFile = { hook: 'hook', duel: 'duel', classic: 'classic' };
     const chains = timeline.slice(0, 4).map((shot, index) => {
         const sourceIndex = shot.source === 'gameplay' ? 0 : 1;
         const filters = [
@@ -86,26 +96,27 @@ export function buildRenderArgs(name, entry) {
             'setpts=PTS-STARTPTS', 'fps=60',
             `scale=${format.width}:${format.height}:flags=lanczos`, 'setsar=1',
         ];
-        if (shot.caption) {
-            filters.push(drawText(`captions/${captionFile[shot.caption]}.txt`, format.captionSize, top));
-            if (shot.caption === 'classic') {
-                filters.push(drawText('captions/classic-detail.txt', format.detailSize,
-                    top + format.captionSize + 40, { color: '0x9cedff' }));
-            }
-        }
         filters.push(marker(format));
         return `[${sourceIndex}:v:0]${filters.join(',')}[v${index}]`;
     });
-    chains.push(`[2:v:0]${drawText('captions/title.txt', name === 'portrait' ? 96 : 112,
+    chains.push(`[3:v:0]${drawText('captions/title.txt', name === 'portrait' ? 96 : 112,
         '(h-text_h)/2-95', { boxed: false })},`
         + `${drawText('captions/cta.txt', name === 'portrait' ? 53 : 61,
             '(h-text_h)/2+85', { color: '0x9cedff', boxed: false })}[v4]`);
-    chains.push('[v0][v1][v2][v3][v4]concat=n=5:v=1:a=0[video]');
+    chains.push('[v0][v1][v2][v3][v4]concat=n=5:v=1:a=0[base]');
+    const timed = CAPTIONS.filter((caption) => caption.key !== 'endcard').map((caption) =>
+        `${drawText(`captions/${caption.key}.txt`, format.captionSize, top)}`
+        + `:enable='between(t,${caption.start},${caption.end})'`);
+    chains.push(`[base]${timed.join(',')}[video]`);
     chains.push(`[0:a:0]atrim=start=${entry.gameplayStart}:duration=16,asetpts=PTS-STARTPTS,`
-        + 'aresample=async=1:first_pts=0,loudnorm=I=-20:TP=-2:LRA=11,afade=t=out:st=15.2:d=0.8,'
-        + 'apad,atrim=duration=18[audio]');
+        + 'aresample=async=1:first_pts=0,loudnorm=I=-20:TP=-2:LRA=11,'
+        + 'apad,atrim=duration=18[game]');
+    chains.push('[2:a:0]atrim=start=2:duration=18,asetpts=PTS-STARTPTS,volume=0.24,'
+        + 'afade=t=in:st=0:d=0.5,afade=t=out:st=16.5:d=1.5[music]');
+    chains.push('[game][music]amix=inputs=2:duration=first:normalize=0,'
+        + 'alimiter=limit=0.95[audio]');
     return [
-        '-i', entry.gameplay, '-i', entry.cinematic,
+        '-i', entry.gameplay, '-i', entry.cinematic, '-i', MUSIC,
         '-f', 'lavfi', '-i', `color=c=0x081320:s=${format.width}x${format.height}:r=60:d=2`,
         '-filter_complex', chains.join(';'), '-map', '[video]', '-map', '[audio]',
         '-frames:v', String(FRAMES), '-t', String(DURATION),
@@ -214,12 +225,8 @@ function srtTime(seconds) {
 }
 
 export function buildSrt() {
-    return [
-        [0, 3, 'Your trail is a weapon.'],
-        [3, 7, '3D duels. Outfly. Outlast.'],
-        [7, 10, 'Classic mode\nOne of several game modes.'],
-        [16, 18, 'CURVIOSCLASH\nFollow development.'],
-    ].map(([start, end, copy], index) => `${index + 1}\n${srtTime(start)} --> ${srtTime(end)}\n${copy}\n`).join('\n');
+    return CAPTIONS.map(({ start, end, copy }, index) =>
+        `${index + 1}\n${srtTime(start)} --> ${srtTime(end)}\n${copy}\n`).join('\n');
 }
 
 async function main(args) {
@@ -244,9 +251,9 @@ async function main(args) {
     await mkdir(path.join(outputDir, 'captions'));
     const captions = {
         'hook.txt': 'Your trail is a weapon.\n',
-        'duel.txt': '3D duels. Outfly. Outlast.\n',
+        'duel.txt': 'Every turn can close a path.\n',
         'classic.txt': 'Classic mode\n',
-        'classic-detail.txt': 'One of several game modes.\n',
+        'thick.txt': 'THICK makes the trail wider.\n',
         'marker.txt': 'Development footage\n',
         'title.txt': 'CURVIOSCLASH\n',
         'cta.txt': 'Follow development.\n',

@@ -134,6 +134,7 @@ try {
     await page.waitForFunction((size) => window.innerWidth === size.width && window.innerHeight === size.height, dimensions);
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
     await page.addStyleTag({ content: `
+        #hud, #crosshair-container { opacity: var(--trail-short-hud-opacity, 1) !important; }
         body[data-trail-short-player="0"] [id^="p2-"],
         body[data-trail-short-player="0"] #crosshair-p2,
         body[data-trail-short-player="1"] [id^="p1-"],
@@ -148,6 +149,7 @@ try {
         game.settings.cockpitCamera = { PLAYER_1: false, PLAYER_2: false };
         game.settings.cameraPerspective = { normal: 'classic', reduceMotion: true, speedFovEnabled: false };
         game.settings.recording = { profile: 'cinematic', hudMode: 'clean', exportPreset: 'youtube-mp4', orientation };
+        // The licensed Classic track is mixed once during the final render.
         game.settings.audio = { ...game.settings.audio, enabled: true, musicVolume: 0 };
         game._applySettingsToRuntime({ schedulePrewarm: false });
         game.audio?.applySettings?.(game.settings.audio);
@@ -189,6 +191,8 @@ try {
     }
     const state = await page.evaluate(() => ({ ...window.__trailShortRun.state,
         alive: window.GAME_INSTANCE.entityManager.players.every((player) => player.alive),
+        thickActive: window.GAME_INSTANCE.entityManager.players[0].activeEffects
+            .some((effect) => effect.type === 'THICK'),
         nativeStartedAt: window.__trailShortRun.nativeStartedAt,
         windowStartedAt: window.__trailShortCapture?.startedAt,
         events: window.GAME_INSTANCE.recorder.events.filter((entry) => entry.type).slice(-25) }));
@@ -197,6 +201,9 @@ try {
         const stop = await page.evaluate(() => window.GAME_INSTANCE.mediaRecorderSystem.stopRecording());
         await finishWindowRecording(page, path.join(output, `${format}-gameplay.webm`));
         if (!state.alive || !state.finishedAt) throw new Error('Rehearsal failed: both pilots must survive the complete take');
+        if (!state.itemCollected || !state.itemRequested || !state.thickActive) {
+            throw new Error('Take has no verified THICK pickup and use');
+        }
         const elapsed = (state.finishedAt - state.clipStartedAt) / 1000;
         if (Math.abs(elapsed - TRAIL_SHORT.duration) > 0.08) {
             throw new Error(`Capture fell behind simulation: ${elapsed.toFixed(3)}s for the 16s clip`);
@@ -207,11 +214,12 @@ try {
         const gameplayStart = (state.clipStartedAt - state.windowStartedAt) / 1000;
         await page.evaluate(({ offset, portrait }) => {
             const game = window.GAME_INSTANCE;
-            const camera = window.__trailShort.createTrailShortCamera(game.renderer.cameras[0]);
+            const camera = window.__trailShort.createTrailShortCamera(game.renderer.cameras[0], { handoff: true });
             const exporter = game.mediaRecorderSystem._cinematicReplayExporter;
             const original = exporter.renderFrame;
             const onStatus = exporter.onStatus;
             let progress = -1;
+            let lensVerified = false;
             exporter.onStatus = (status) => {
                 onStatus?.(status);
                 const next = Math.floor(Number(status.progress || 0) * 10);
@@ -221,12 +229,14 @@ try {
                 }
             };
             exporter.renderFrame = async (frame) => {
-                if (frame.projection) frame.projection.recordedCamera = camera.sample(frame.projection, frame.timeMs / 1000 - offset, portrait);
+                const clipTime = frame.timeMs / 1000 - offset;
+                if (frame.projection) frame.projection.recordedCamera = camera.sample(frame.projection, clipTime, portrait);
                 const canvas = await original(frame);
-                if (frame.frameIndex === 360) {
+                if (!lensVerified && clipTime >= 3 && clipTime < 3.1) {
                     const renderedCamera = game.renderer.recordingCapturePipeline._cinematicCameraRig.cameras[0];
-                    if (renderedCamera?.fov !== 55) throw new Error('Cinematic camera did not retain its 55-degree lens');
-                    console.info('[trail-short] Cinematic camera verified: 55 degrees');
+                    if (renderedCamera?.fov !== 75) throw new Error('Cinematic camera did not reach the 75-degree follow lens');
+                    lensVerified = true;
+                    console.info('[trail-short] Cinematic handoff camera verified: 75 degrees');
                 }
                 return canvas;
             };

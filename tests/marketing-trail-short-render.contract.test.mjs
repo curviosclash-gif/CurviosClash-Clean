@@ -52,15 +52,18 @@ test('render args preserve source paths as argv and set exact format, fps, codec
         const graph = args[args.indexOf('-filter_complex') + 1];
         assert.equal(args[args.indexOf('-i') + 1], entry.gameplay);
         assert.equal(args[args.indexOf('-i') + 3], entry.cinematic);
+        assert.match(args[args.indexOf('-i') + 5], /mozart-nachtmusik-advent-chamber\.mp3$/);
         assert.match(graph, new RegExp(`scale=${dimensions}:flags=lanczos`));
         assert.match(graph, /fps=60/);
         const captionTop = Number(/textfile=captions\/hook\.txt:[^;]*?:y=(\d+)/.exec(graph)?.[1]);
         assert.equal(captionTop, name === 'landscape' ? 157 : 230);
         if (name === 'landscape') assert.ok(captionTop > 126 && captionTop + 58 + 18 < 252);
         assert.match(graph, /trim=start=11\.25:duration=6,.*\[v3\]/);
-        assert.doesNotMatch(graph.split('[v3]')[0].split('[v2]')[1], /captions\/(?:hook|duel|classic)/);
-        assert.match(graph, /atrim=start=1\.25:duration=16.*apad,atrim=duration=18\[audio\]/);
-        assert.match(graph, /loudnorm=I=-20:TP=-2:LRA=11,afade/);
+        assert.match(graph, /captions\/thick\.txt.*enable='between\(t,10\.55,13\.6\)'/);
+        assert.doesNotMatch(graph, /overlay=/, 'the cut must not ghost two different world views');
+        assert.match(graph, /atrim=start=1\.25:duration=16.*\[game\]/);
+        assert.match(graph, /atrim=start=2:duration=18.*\[music\]/);
+        assert.match(graph, /\[game\]\[music\]amix=/);
         assert.match(graph, name === 'portrait' ? /:y=h-text_h-221/ : /:y=h-text_h-59/);
         assert.deepEqual(args.slice(args.indexOf('-frames:v'), args.indexOf('-frames:v') + 2), ['-frames:v', '1080']);
         assert.deepEqual(args.slice(args.indexOf('-r'), args.indexOf('-r') + 2), ['-r', '60']);
@@ -79,11 +82,12 @@ test('packet endpoint uses timestamps and durations rather than packet count for
     assert.equal(packetEndTime('stream_index=0|pts_time=N/A|duration_time=N/A'), null);
 });
 
-test('subtitles show the end card but leave 10–16 seconds without a main caption', () => {
+test('subtitles follow the hook, duel, mode, and THICK item beats', () => {
     const srt = buildSrt();
-    assert.match(srt, /00:00:07,000 --> 00:00:10,000\nClassic mode\nOne of several game modes\./);
+    assert.match(srt, /00:00:00,250 --> 00:00:02,350\nYour trail is a weapon\./);
+    assert.match(srt, /00:00:07,250 --> 00:00:08,850\nClassic mode\./);
+    assert.match(srt, /00:00:10,550 --> 00:00:13,600\nTHICK makes the trail wider\./);
     assert.match(srt, /00:00:16,000 --> 00:00:18,000\nCURVIOSCLASH\nFollow development\./);
-    assert.doesNotMatch(srt, /00:00:10,000 -->/);
 });
 
 test('existing output path fails preflight', async () => {

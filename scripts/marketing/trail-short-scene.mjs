@@ -19,6 +19,13 @@ export function resolveTrailShortShot(time) {
 }
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+export function trailShortHudOpacity(clipTime) {
+    const fade = (time) => clamp(time / 0.25, 0, 1);
+    if (clipTime < 3) return 0;
+    if (clipTime < 7) return Math.min(fade(clipTime - 3), fade(7 - clipTime));
+    if (clipTime < 10) return 0;
+    return fade(clipTime - 10);
+}
 // Irregular, open 3D routes in the built 240 x 90 x 240 Standard Arena.
 const ROUTE_ANCHORS = [
     [[-48, 45, -38], [-15, 62, -54], [38, 47, -38], [25, 37, 5], [-38, 59, 8],
@@ -60,7 +67,7 @@ export function installTrailShortFlight(game) {
         throw new Error('The trail short requires exactly two human slots and no bots');
     }
     const state = { time: 0, history: [], lastSample: -1, clipStartedAt: null, finishedAt: null,
-        closestPass: { distance: Infinity, time: 0 } };
+        closestPass: { distance: Infinity, time: 0 }, itemRequested: false, itemCollected: false };
     game.input.clearPlayerSources();
     const sources = manager.players.map((player, index) => {
         const route = ROUTES[index];
@@ -71,7 +78,7 @@ export function installTrailShortFlight(game) {
         const inverse = player.quaternion.clone();
         const desired = start.clone();
         const localUp = start.clone();
-        const input = { pitchAxis: 0, yawAxis: 0, rollAxis: 0 };
+        const input = { pitchAxis: 0, yawAxis: 0, rollAxis: 0, useItem: false };
         const source = {
             type: 'marketing-sequence', active: true, playerIndex: index, time: 0, progress: { index: 0 },
             bind(slot) { this.playerIndex = slot; this.active = true; },
@@ -87,6 +94,16 @@ export function installTrailShortFlight(game) {
                 input.pitchAxis = clamp(pitch * 2, -1, 1) * (player.invertPitchBase ? -1 : 1);
                 input.rollAxis = clamp(-Math.atan2(localUp.x, localUp.y) * 1.5, -1, 1);
                 this.time += Math.max(0, dt);
+                input.useItem = false;
+                if (index === 0) {
+                    document.body?.style?.setProperty('--trail-short-hud-opacity',
+                        String(trailShortHudOpacity(this.time - TRAIL_SHORT.warmup)));
+                    state.itemCollected ||= player.inventory?.includes('THICK') === true;
+                    if (state.itemCollected && !state.itemRequested && this.time >= TRAIL_SHORT.warmup + 10.5) {
+                        input.useItem = true;
+                        state.itemRequested = true;
+                    }
+                }
                 if (index === 1 && this.time >= 16) {
                     for (const ref of manager.players[0].trail?.segmentRefs || []) {
                         const segment = ref?.entry;
@@ -131,19 +148,28 @@ export function installTrailShortFlight(game) {
         game.input.setPlayerSource(index, source);
         return source;
     });
+    const pickup = game.powerupManager?.spawnAtAnchor?.({
+        ownerId: 'marketing-trail-short', type: 'THICK',
+        x: ROUTES[0].points[0].x, y: ROUTES[0].points[0].y, z: ROUTES[0].points[0].z,
+    });
+    if (!pickup) throw new Error('The trail short needs a real THICK pickup');
     game.renderer.setSplitScreen(false);
     document.getElementById('hud')?.classList.remove('split-screen');
     game.renderer.cameraModes.fill(0);
     return { state, sources };
 }
 
-export function createTrailShortCamera(templateCamera) {
+export function createTrailShortCamera(templateCamera, { handoff = false } = {}) {
     const camera = templateCamera.clone();
     const focus = camera.position.clone();
     const offset = camera.position.clone();
     const across = camera.position.clone();
     const smoothedFocus = camera.position.clone();
     const desiredPosition = camera.position.clone();
+    const followPosition = camera.position.clone();
+    const followTarget = camera.position.clone();
+    const followDirection = camera.position.clone();
+    const followCamera = templateCamera.clone();
     let previousTime = -Infinity;
     const pose = { index: 0, position: {}, quaternion: {}, fov: 55, near: camera.near, far: camera.far, zoom: 1 };
     return {
@@ -160,10 +186,11 @@ export function createTrailShortCamera(templateCamera) {
             const orbit = 0.18 + Math.sin(time * 0.22) * 0.035;
             const radius = portrait ? span * 0.5 + 28 + Math.abs(second.position.y - first.position.y) * 0.9
                 : Math.max(36, span * 0.8 + 16);
+            const side = portrait && handoff && time < 7 ? -1 : 1;
             offset.set(
-                (across.x * Math.cos(orbit) - across.z * Math.sin(orbit)) * radius,
+                (across.x * Math.cos(orbit) - across.z * Math.sin(orbit)) * radius * side,
                 5,
-                (across.z * Math.cos(orbit) + across.x * Math.sin(orbit)) * radius,
+                (across.z * Math.cos(orbit) + across.x * Math.sin(orbit)) * radius * side,
             );
             if (!portrait) {
                 // A stable side angle and gentle dolly keep the spatial duel readable.
@@ -182,9 +209,41 @@ export function createTrailShortCamera(templateCamera) {
             previousTime = time;
             camera.up.set(0, 1, 0);
             camera.lookAt(smoothedFocus);
+            // Fly into the same native third-person position before the HUD shot begins.
+            const openingBlend = portrait ? clamp((time - 1.25) / 1.75, 0, 1)
+                : clamp(time / 3, 0, 1);
+            const transition = time < 7 ? { player: first, amount: openingBlend }
+                : time >= 7 && time < 8 ? { player: first, amount: 8 - time }
+                    : time >= 9 ? { player: second, amount: clamp(time - 9, 0, 1) } : null;
+            if (handoff && transition) {
+                const player = transition.player;
+                const recorded = projection.recordedCamera;
+                if (recorded?.position && recorded?.quaternion) {
+                    followCamera.position.set(recorded.position.x, recorded.position.y, recorded.position.z);
+                    followCamera.quaternion.set(recorded.quaternion.x, recorded.quaternion.y,
+                        recorded.quaternion.z, recorded.quaternion.w);
+                    followCamera.fov = Number(recorded.fov) || 75;
+                } else {
+                    followDirection.set(player.direction?.x || 0, player.direction?.y || 0, player.direction?.z || -1);
+                    followDirection.normalize();
+                    followPosition.set(player.position.x, player.position.y, player.position.z)
+                        .addScaledVector(followDirection, -9);
+                    followPosition.y += 5;
+                    followTarget.set(player.position.x, player.position.y, player.position.z)
+                        .addScaledVector(followDirection, 7);
+                    followCamera.position.copy(followPosition);
+                    followCamera.lookAt(followTarget);
+                    followCamera.fov = 75;
+                }
+                const amount = clamp(transition.amount, 0, 1);
+                const blend = amount * amount * (3 - 2 * amount);
+                camera.position.lerp(followCamera.position, blend);
+                camera.quaternion.slerp(followCamera.quaternion, blend);
+                camera.fov = 55 + (followCamera.fov - 55) * blend;
+            } else camera.fov = 55;
             // The native replay projection reuses this object and overwrites lens fields.
             pose.index = 0;
-            pose.fov = 55;
+            pose.fov = camera.fov;
             pose.near = camera.near;
             pose.far = camera.far;
             pose.zoom = 1;

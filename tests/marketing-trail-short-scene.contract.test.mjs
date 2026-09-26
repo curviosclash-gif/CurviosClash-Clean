@@ -6,6 +6,7 @@ import {
     installTrailShortFlight,
     resolveTrailFlightTarget,
     resolveTrailShortShot,
+    trailShortHudOpacity,
     TRAIL_SHORT,
 } from '../scripts/marketing/trail-short-scene.mjs';
 
@@ -24,6 +25,18 @@ test('shot handoffs cover the 16-second footage without gaps', () => {
     assert.equal(resolveTrailShortShot(3).kind, 'third-person');
     assert.equal(resolveTrailShortShot(7).kind, 'cinematic');
     assert.equal(resolveTrailShortShot(10).player, 1);
+});
+
+test('the live HUD fades in after arrival and out before the return camera move', () => {
+    assert.equal(trailShortHudOpacity(2.99), 0);
+    assert.equal(trailShortHudOpacity(3), 0);
+    assert.equal(trailShortHudOpacity(3.125), 0.5);
+    assert.equal(trailShortHudOpacity(3.25), 1);
+    assert.equal(trailShortHudOpacity(6.875), 0.5);
+    assert.equal(trailShortHudOpacity(7), 0);
+    assert.equal(trailShortHudOpacity(10), 0);
+    assert.equal(trailShortHudOpacity(10.125), 0.5);
+    assert.equal(trailShortHudOpacity(10.25), 1);
 });
 
 test('camera poses stay finite, level enough to see the duel, and continuous in both formats', () => {
@@ -59,6 +72,60 @@ test('camera restores its lens after the native replay mutates the returned pose
     const next = rig.sample(subjects, 1 + 1 / 60);
     assert.equal(next.fov, 55);
     assert.equal(next.zoom, 1);
+});
+
+test('optional handoff flight meets both third-person camera positions at the shot cuts', () => {
+    for (const portrait of [false, true]) {
+        const rig = createTrailShortCamera(new PerspectiveCamera(70, portrait ? 9 / 16 : 16 / 9, 0.1, 1000),
+            { handoff: true });
+        let previous = null;
+        let previousStep = null;
+        for (let frame = 0; frame <= 600; frame += 1) {
+            const time = frame / 60;
+            const first = { x: -16 + time * 0.4, y: 10 + time * 0.2, z: -5 + time * 0.3 };
+            const second = { x: 16 - time * 0.3, y: 8 + time * 0.25, z: 5 - time * 0.2 };
+            const pose = rig.sample(projection(first, second), time, portrait);
+            const camera = new Vector3(pose.position.x, pose.position.y, pose.position.z);
+            const openingBlend = portrait ? Math.max(0, Math.min((time - 1.25) / 1.75, 1))
+                : Math.min(time / 3, 1);
+            const amount = time < 7 ? openingBlend
+                : time < 8 ? 8 - time : time < 9 ? 0 : Math.min(time - 9, 1);
+            const blend = amount * amount * (3 - 2 * amount);
+            assert.ok(Math.abs(pose.fov - (55 + 20 * blend)) < 1e-9);
+            assert.ok(Object.values(pose.quaternion).every(Number.isFinite));
+            if (previous) {
+                const step = camera.distanceTo(previous);
+                assert.ok(step < 1.7, 'handoff flight must not teleport');
+                if (previousStep !== null) {
+                    assert.ok(Math.abs(step - previousStep) < 0.2, 'handoff flight must not jerk');
+                }
+                previousStep = step;
+            }
+            if ([180, 420, 600].includes(frame)) {
+                const subject = frame === 600 ? second : first;
+                assert.ok(camera.distanceTo(new Vector3(subject.x, subject.y + 5, subject.z + 9)) < 1e-9,
+                    'handoff must reach the native follow position');
+            }
+            previous = camera;
+        }
+    }
+});
+
+test('handoff uses the actual camera recorded with gameplay when available', () => {
+    const rig = createTrailShortCamera(new PerspectiveCamera(70, 16 / 9, 0.1, 1000),
+        { handoff: true });
+    const scene = projection({ x: -15, y: 10, z: 0 }, { x: 15, y: 12, z: 4 });
+    scene.recordedCamera = {
+        position: { x: 22, y: 18, z: 7 },
+        quaternion: { x: 0, y: 0.3, z: 0, w: Math.sqrt(0.91) },
+        fov: 68,
+    };
+    for (const time of [3, 7, 10]) {
+        const pose = rig.sample(scene, time);
+        assert.deepEqual(pose.position, scene.recordedCamera.position);
+        assert.deepEqual(pose.quaternion, scene.recordedCamera.quaternion);
+        assert.equal(pose.fov, scene.recordedCamera.fov);
+    }
 });
 
 function verticalLegs(points, minChange = 6) {
@@ -136,7 +203,7 @@ test('both flight targets weave through substantial climbs, dives, and reversing
 test('flight controller steers within input limits without changing player transforms after spawn', () => {
     const players = [0, 1].map((index) => ({
         position: new Vector3(index, 0, 0), quaternion: new Quaternion(),
-        alive: true, isBot: false, trail: { segmentCount: 0 },
+        alive: true, isBot: false, inventory: index === 0 ? ['THICK'] : [], trail: { segmentCount: 0 },
     }));
     const sources = new Map();
     let spawns = 0;
@@ -145,6 +212,7 @@ test('flight controller steers within input limits without changing player trans
             players,
             _spawnOps: { spawnPlayerAt(player, start) { spawns += 1; player.position.copy(start); } },
         },
+        powerupManager: { spawnAtAnchor(anchor) { assert.equal(anchor.type, 'THICK'); return {}; } },
         input: { clearPlayerSources() {}, setPlayerSource(index, source) { sources.set(index, source); } },
         renderer: {
             setSplitScreen() {}, cameraModes: [1, 1], cameras: [],
@@ -159,9 +227,11 @@ test('flight controller steers within input limits without changing player trans
         assert.equal(sources.size, 2);
         const spawnPositions = players.map((player) => player.position.clone());
         const spawnRotations = players.map((player) => player.quaternion.clone());
+        let itemUses = 0;
         for (let step = 0; step < 22 * 60; step += 1) {
             for (const source of flight.sources) {
                 const input = source.poll({ dt: 1 / 60 });
+                if (input.useItem) itemUses += 1;
                 for (const axis of ['pitchAxis', 'yawAxis', 'rollAxis']) {
                     assert.ok(Number.isFinite(input[axis]) && Math.abs(input[axis]) <= 1, axis);
                 }
@@ -180,6 +250,8 @@ test('flight controller steers within input limits without changing player trans
         assert.ok(players[0].quaternion.equals(bankLeft), 'poll must not change the bank');
         players[0].quaternion.copy(spawnRotations[0]);
         assert.equal(spawns, 2);
+        assert.equal(itemUses, 1);
+        assert.equal(flight.state.itemCollected, true);
         players.forEach((player, index) => {
             assert.ok(player.position.equals(spawnPositions[index]));
             assert.ok(player.quaternion.equals(spawnRotations[index]));
