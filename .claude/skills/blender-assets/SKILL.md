@@ -18,7 +18,7 @@ Zwei Begriffe vorab:
 
 1. **Deterministisch.** Jeder Zufall kommt aus `random.Random(<fester Seed>)`, nie aus `random.random()`. Zwei Läufe müssen dieselben Zahlen im Bericht liefern. Sonst lässt sich ein Fehler nicht nachstellen und jeder Neu-Export verändert die Karte unbemerkt.
 2. **Kein Handeingriff in die `.blend`.** Änderungen gehen in den Generator. Ausnahme nur, wenn der Nutzer eine Szene ausdrücklich als Handarbeit bestimmt.
-3. **Eingecheckte Packs nicht beiläufig neu backen.** Manche GLBs sind mit dem heutigen Generator nicht mehr reproduzierbar (z. B. `eiffel_tower/01_champ_de_mars.glb`). Vor jedem Lauf über ein fremdes Pack: `npm run maps:generate -- --map <key> --dry-run` und `git diff --stat assets/` nach dem Lauf. Unbeabsichtigt geänderte GLBs zurücksetzen, nicht committen.
+3. **Eingecheckte Packs nicht beiläufig neu backen.** Manche GLBs sind mit dem heutigen Generator nicht mehr reproduzierbar (z. B. `eiffel_tower/01_champ_de_mars.glb`). Vor jedem Lauf über ein fremdes Pack: `npm run maps:generate -- --map <key> --dry-run` und `git diff --stat assets/` nach dem Lauf. Bei unbeabsichtigten Änderungen an GLBs den Lauf stoppen und die betroffenen Dateien prüfen; fremde Änderungen unangetastet lassen.
 4. **Nur Kern-glTF plus das, was three.js ohne Zusatzdecoder liest.** Das Spiel registriert **keinen** Draco-, Meshopt- oder KTX2-Decoder. Ein GLB mit `KHR_draco_mesh_compression`, `EXT_meshopt_compression` oder KTX2-Texturen lädt nicht. Das Prüfskript meldet das als FAIL.
 5. **`.blend`-Quellen bleiben im Repo, landen aber nie im Build.** Der Build kopiert nur `.glb` (`dev/vite/productAssetCopyPlugin.js`), der Spiel-Export verbietet `blender/`-Ordner und `.blend` (`scripts/game-export-contract.mjs`). `*.blend1`-Sicherungen ignoriert git.
 
@@ -165,7 +165,7 @@ Jedes Pack bekommt `tests/<pack-mit-bindestrichen>-blender-assets.contract.test.
 
 `geometryOnlyGlbLoader` wirft Materialien weg. Farbe und Emission prüft der Test deshalb am GLB-JSON selbst (`baseColorFactor`, `emissiveFactor × emissive_strength`, `COLOR_0`), nicht über den geladenen Szenengraphen.
 
-Danach die Pflichtprüfung aus `CLAUDE.md` (Skill **verify-scope**): mindestens `npm run lint`, `npm run test:contract:fast`, der neue Test vorher nachweislich rot. Für Karten-GLBs und Map-Presets nennt die Tabelle zusätzlich `npm run test:desktop:smoke` und Cluster `desktop-flows` (Stufe 2 gezielt, Stufe 3 nur in der Hauptsitzung). Beleg im Spiel über Skill **desktop-proof**. Commit über Skill **atomic-commit**: `.blend` + `.glb` + Generator + Preset + Test in einem Commit, nur die eigenen Dateien.
+Danach die Pflichtprüfung aus `CLAUDE.md` (Skill **verify-scope**): mindestens `npm run lint`, `npm run test:contract:fast`, der neue Test vorher nachweislich rot. Für Karten-GLBs und Map-Presets nennt die Tabelle zusätzlich `npm run test:desktop:smoke` und Cluster `desktop-flows` (Stufe 2 gezielt, Stufe 3 nur in der Hauptsitzung). Beleg im Spiel über Skill **desktop-proof**. Für die Aufgabe gehören `.blend`, `.glb`, Generator, Preset und Test zusammen.
 
 ## Schritt 7 — Bericht an den Nutzer
 

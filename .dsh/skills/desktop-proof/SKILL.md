@@ -1,6 +1,6 @@
 ---
 name: desktop-proof
-description: Belegt eine Änderung in der laufenden Anwendung mit konkreten Zahlen statt nur mit grünen Tests — wählt den günstigsten Weg (Headless-Smoke, Playwright-Desktop-Spec, Browser-Vorschau oder manueller Lauf) und formuliert den Beleg für den Commit-Body. Nutze diesen Skill wenn eine Änderung spürbares Spielverhalten betrifft (Leben, Schaden, Geschwindigkeit, Fortschritt, Punkte, Speichern, Menüzustand, HUD), wenn gefragt wird "funktioniert das wirklich", "sieht man das im Spiel", "starte mal die App", "zeig mir dass es geht", und immer bevor du in einem Commit-Body von "Desktop proof" sprechen willst.
+description: Belegt eine Änderung in der laufenden Anwendung mit konkreten Zahlen statt nur mit grünen Tests — wählt den günstigsten Weg (Headless-Smoke, Playwright-Desktop-Spec, Browser-Vorschau oder manueller Lauf) und formuliert den Beleg für den Ergebnisbericht. Nutze diesen Skill wenn eine Änderung spürbares Spielverhalten betrifft (Leben, Schaden, Geschwindigkeit, Fortschritt, Punkte, Speichern, Menüzustand, HUD), wenn gefragt wird "funktioniert das wirklich", "sieht man das im Spiel", "starte mal die App", "zeig mir dass es geht", und immer bevor du "Desktop proof" als belegt meldest.
 ---
 
 # Beweis aus der laufenden Anwendung
@@ -75,7 +75,7 @@ Für Menü, Einstellungen und HUD reicht der Renderer im Browser und ist deutlic
 npm run dev
 ```
 
-Danach die Vorschau öffnen und die Oberfläche über den Barrierefreiheits-Baum lesen statt über Bildschirmfotos — das ist genauer und billiger. Sag im Commit-Body ausdrücklich, dass der Beleg aus dem Browser stammt.
+Danach die Vorschau öffnen und die Oberfläche über den Barrierefreiheits-Baum lesen statt über Bildschirmfotos — das ist genauer und billiger. Sag im Ergebnisbericht ausdrücklich, dass der Beleg aus dem Browser stammt.
 
 ## Weg D — manueller Lauf
 
@@ -85,7 +85,7 @@ Wenn nur ein Mensch beurteilen kann, ob es stimmt:
 npm run app:start
 ```
 
-Beschreibe dem Nutzer **genau** und in wenigen Schritten, was er tun und worauf er achten soll — welcher Modus, welche Karte, welche Anzeige, welche Zahl. Warte auf seine Beobachtung und übernimm sie wörtlich in den Commit-Body. Erfinde keinen Beleg, den du nicht gesehen hast; ein fehlender Desktop-Beweis ist ehrlich, ein erfundener ist wertlos.
+Beschreibe dem Nutzer **genau** und in wenigen Schritten, was er tun und worauf er achten soll — welcher Modus, welche Karte, welche Anzeige, welche Zahl. Warte auf seine Beobachtung und übernimm sie wörtlich in den Ergebnisbericht. Erfinde keinen Beleg, den du nicht gesehen hast; ein fehlender Desktop-Beweis ist ehrlich, ein erfundener ist wertlos.
 
 ## Schritt 2 — den Vorher-Zustand mitnehmen
 
@@ -110,7 +110,7 @@ real save path were still in storage after a full restart, and the run used
 eight sectors instead of five.
 ```
 
-Beides sind echte Beispiele aus der Historie dieses Projekts. Der Satz gehört in die `Tests:`-Zeile des Commits; `atomic-commit` übernimmt von dort.
+Beides sind echte Beispiele aus der Historie dieses Projekts. Halte den Satz als überprüfbaren Beleg im Ergebnisbericht fest.
 
 ## Woran ein Beleg scheitert
 

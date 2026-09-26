@@ -179,7 +179,7 @@ Die generischen Contract-Tests (`tests/map-destructible*.contract.test.mjs`) lau
 
 ## Phase 7 — Erweiterungen der Maschinerie, nur wenn der Plan sie verlangt
 
-Jede dieser Erweiterungen ist eine eigene Aufgabe mit rotem Test zuerst (`red-first-fix`) und, wo der Contract betroffen ist, `contract-change` samt Coverage-Tor (`npm run test:contract:coverage`, 90/75/85 in `src/shared/contracts`). Keine davon nebenbei im Preset-Commit.
+Jede dieser Erweiterungen ist eine eigene Aufgabe mit rotem Test zuerst (`red-first-fix`) und, wo der Contract betroffen ist, `contract-change` samt Coverage-Tor (`npm run test:contract:coverage`, 90/75/85 in `src/shared/contracts`). Keine davon nebenbei im Preset-Arbeitsschritt.
 
 **7a — Anderes HUD-Wort.** `formatMapDestructibleStatus` sagt „TURM STÜRZT / TURM BRICHT / TURM · SEGMENT 40 %". Für eine Brücke braucht die Definition ein Wort: neues optionales Feld `hudNoun` im `destructibles`-Block (Normalisierer mit Rückfall `TURM`), durch `resolveMapDestructibleHudState` in den HUD-Zustand, und `MapDestructibleStatusText.js` liest es. Test: `tests/map-destructible-hud.contract.test.mjs`. Prüfe, dass die Projektion in `MatchRuntimeProjectionContract.js` das Feld mitnimmt — sonst kommt es am Spieler-HUD nicht an.
 
@@ -267,9 +267,9 @@ Der Zustand reist im Hunt-Zustandsblock (`mapDestructibles`) als vollständiger 
 4. **Der Bruch wirkt**: versiegelt (falls Art versiegelt), blendet die intakten Slots aus, blendet die Szene ein, dreht sie auf die Ankerrichtung, HUD meldet — und nach N gesteppten Sekunden finden Bodensonden auf der Falllinie `piece_`-Meshes, wo vorher Luft war.
 5. **Außerhalb des Modus** installiert dieselbe Karte keine Segmente.
 
-Praktische Regeln aus den Memory-Notizen: Das Fenster muss sichtbar sein (verdeckt läuft die Schleife mit 1 fps), die Runde wird per `manager.update`-Schleife gesteppt, die Sekundenzahl richtet sich nach der längsten Szene (Turm: 52 s bei 50 s Clip), und `desktop-flows` verliert pro Lauf gern einen anderen Spec an ein Teardown-Timeout — einzeln nachfahren statt Cluster wiederholen. `desktop-proof` formuliert den Beleg für den Commit-Body.
+Praktische Regeln aus den Memory-Notizen: Das Fenster muss sichtbar sein (verdeckt läuft die Schleife mit 1 fps), die Runde wird per `manager.update`-Schleife gesteppt, die Sekundenzahl richtet sich nach der längsten Szene (Turm: 52 s bei 50 s Clip), und `desktop-flows` verliert pro Lauf gern einen anderen Spec an ein Teardown-Timeout — einzeln nachfahren statt Cluster wiederholen. `desktop-proof` formuliert den Beleg für den Ergebnisbericht.
 
-## Phase 10 — Prüfumfang und Commit
+## Phase 10 — Prüfumfang und Abschluss
 
 `verify-scope` mit den eigenen Pfaden ergibt die Liste; für diese Kartenart läuft es meist auf Folgendes hinaus:
 
@@ -282,11 +282,11 @@ Praktische Regeln aus den Memory-Notizen: Das Fenster muss sichtbar sein (verdec
 | Generator-Registrierung | `node --test tests/map-asset-jobs.contract.test.mjs` |
 | HUD (`src/ui/**`) | Cluster `core-surface` |
 
-Die Diagnostik-Cluster sind teilrot ohne eigenes Zutun; `failure-baseline` belegt das, bevor der Commit-Body „known pre-existing failures" schreibt. Dann `atomic-commit`: nur eigene Dateien stagen, die `.blend`-Quellen gehören dazu, und der Body nennt im `Why:` den Bruchplan (welche Segmente, welche Szenen, wohin) und in `Tests:` den Desktop-Beleg mit Zahlen.
+Die Diagnostik-Cluster sind teilrot ohne eigenes Zutun; `failure-baseline` belegt das. Im Ergebnisbericht den Bruchplan (Segmente, Szenen, Ziel) und den Desktop-Beleg mit Zahlen nennen.
 
-Ein Sturz ist ein Commit. Bauwerk, Szenen, Preset und Beleg gehören zusammen — eine Karte, die im Katalog steht, aber deren Szenen noch nicht existieren, wäre im Picker wählbar und im Match kaputt. Wenn die Arbeit über mehrere Sitzungen geht, bleibt sie bis zum Beleg uncommittet; lege den Stand in einer Memory-Notiz ab, wie bei `eiffelturm-belagerung-plan`.
+Bauwerk, Szenen, Preset und Beleg gehören zusammen — eine Karte, die im Katalog steht, aber deren Szenen noch nicht existieren, wäre im Picker wählbar und im Match kaputt. Wenn die Arbeit über mehrere Sitzungen geht, bleibt sie bis zum Beleg offen.
 
-## Checkliste vor dem Commit
+## Checkliste vor dem Abschluss
 
 - [ ] Bruchplan steht als Kommentarkopf in `<Name>Destructibles.js`, mit Nutzerentscheidungen und Annahmen getrennt.
 - [ ] Jedes Segment hat Art, `hp`, Label, Präfixe, Anker und (wo nötig) `piece`; keine Verwerfung im Prüfskript.
@@ -294,6 +294,6 @@ Ein Sturz ist ein Commit. Bauwerk, Szenen, Preset und Beleg gehören zusammen �
 - [ ] Feldgröße und Rückfall-Boden aus der berichteten Reichweite, nicht geschätzt.
 - [ ] Pack an beiden Generatorseiten registriert, Zählungen im Jobs-Test angehoben.
 - [ ] Asset-Test und Preset-Test grün; alle Zahlen darin mit Herkunft kommentiert.
-- [ ] Erweiterungen aus Phase 7 als eigene Commits mit rotem Test zuerst.
-- [ ] Desktop-Spec im Cluster `desktop-flows`, Beleg mit Zahlen im Commit-Body.
+- [ ] Erweiterungen aus Phase 7 getrennt bearbeiten, mit rotem Test zuerst.
+- [ ] Desktop-Spec im Cluster `desktop-flows`, Beleg mit Zahlen im Ergebnisbericht.
 - [ ] `verify-scope` gelaufen, Alt-Fehler per `failure-baseline` belegt.

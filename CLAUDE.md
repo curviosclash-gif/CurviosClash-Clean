@@ -2,11 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Projektsprache ist Deutsch; Code, Commit-Betreffe und Bezeichner sind Englisch.
+@AGENTS.md
+
+Projektsprache ist Deutsch; Code und Bezeichner sind Englisch.
 
 ## Sprache in Antworten und Erklärungen
 
-Alle Antworten, Erklärungen, Zusammenfassungen und Commit-Beschreibungen an den Nutzer werden in **einfacher, laienverständlicher Sprache** geschrieben. Ziel ist nicht Vereinfachung um jeden Preis, sondern Verständlichkeit **mit** Lerneffekt.
+Alle Antworten, Erklärungen, Zusammenfassungen und Beschreibungen an den Nutzer werden in **einfacher, laienverständlicher Sprache** geschrieben. Ziel ist nicht Vereinfachung um jeden Preis, sondern Verständlichkeit **mit** Lerneffekt.
 
 - Kurze Sätze, aktive Formulierungen, keine verschachtelten Nebensatzketten.
 - **Fachbegriffe werden nicht vermieden, sondern erklärt.** Beim ersten Auftreten im Gespräch: Begriff nennen, dann in einem Halbsatz erklären, was er bedeutet — z. B. „Ein *Contract-Test* prüft, ob eine Datenform noch zum vereinbarten Format passt (also ob ein gespeichertes Fahrzeug noch geladen werden kann)."
@@ -14,17 +16,14 @@ Alle Antworten, Erklärungen, Zusammenfassungen und Commit-Beschreibungen an den
 - Analogien und konkrete Beispiele aus dem Spiel sind erwünscht, wenn sie ein Konzept greifbar machen.
 - Abkürzungen (IPC, ESM, ADR, CSP, …) beim ersten Mal ausschreiben und einordnen.
 - Keine unerklärten Anglizismen, wo ein deutsches Wort genauso genau ist. Wo der englische Begriff der Standard ist (Commit, Build, Renderer), bleibt er stehen — dann aber erklärt.
-- Das gilt für Chat-Antworten und Erklärtexte. **Code, Bezeichner, Kommentare im Code und Commit-Betreffe bleiben davon unberührt** und folgen weiter den Regeln oben.
+- Das gilt für Chat-Antworten und Erklärtexte. **Code, Bezeichner, Kommentare im Code bleiben davon unberührt** und folgen weiter den Regeln oben.
 
 Der Nutzer soll nach jeder Antwort nicht nur wissen, *dass* etwas funktioniert, sondern ein Stück besser verstehen, *warum*.
 
 ## Verbindliche Arbeitsregeln
 
-`AGENTS.md` enthält die vollständigen Projektregeln und gilt uneingeschränkt. Besonders relevant für Claude Code:
+Die gemeinsamen Projektregeln stehen in `AGENTS.md` und gelten uneingeschränkt. Besonders relevant für Claude Code:
 
-- Genau **ein atomarer Commit** pro abgeschlossener Aufgabe, und nur wenn betroffene Tests und der passende Build grün waren. Niemals `git add -A` / `git add .` — nur Dateien der aktuellen Aufgabe stagen.
-- Der Arbeitsbaum enthält häufig fremde, laufende Nutzeränderungen. Diese nicht übernehmen; bei Überschneidung keinen Commit erstellen, sondern den Konflikt melden.
-- **Untracked-Dateien niemals eigenständig löschen.** Bei Freigabe: `Remove-Item` ohne `-Force` (Papierkorb) oder vorher nach `$env:TEMP\opencode-trash\` verschieben.
 - Keine Planarchive, Statuskopien, Agenten-Wissensbasen oder generierten Prozessberichte im Repo anlegen.
 - Der Council (`.opencode/agents/council-*`, `npm run council:*`, Regeln in `.opencode/AGENTS.md`) läuft **nur auf ausdrückliche Nutzeraufforderung** und betrifft ausschließlich OpenCode-Agenten. Ohne Aufforderung bearbeitet das Hauptmodell Analyse, Planung und Umsetzung selbst.
 - Desktop (Electron) ist die Leitplattform; Browser und Mobile werden danach separat geprüft.
@@ -104,21 +103,21 @@ Windows-Einstiege für den Nutzer (`START_CURVIOSCLASH.cmd`, `start_development.
 
 Bots und Performance laufen über `dev/training/scripts/`: `npm run bot:validate`, `npm run bot:analyze`, `npm run benchmark:lifecycle`, `npm run benchmark:jitter`.
 
-## Pflichtprüfung vor dem Commit
+## Pflichtprüfung für Änderungen
 
-`AGENTS.md` verlangt „die kleinsten betroffenen Tests und den passenden Build". Die Prüfung läuft in **drei Stufen**. Die Trennlinie ist das Playwright-Schloss — die Sperrdatei, die nur einen Playwright-Lauf je Rechner zulässt:
+Für Änderungen sind die kleinsten betroffenen Tests und der passende Build erforderlich. Die Prüfung läuft in **drei Stufen**. Die Trennlinie ist das Playwright-Schloss — die Sperrdatei, die nur einen Playwright-Lauf je Rechner zulässt:
 
-- **Stufe 1 (immer, im Agenten, vor jedem Commit):** der eigene Contract-Test (`node --test tests/<datei>.contract.test.mjs`, vor der Änderung nachweislich rot), `npm run lint`, `npm run test:contract:fast`, dazu die Typecheck- und Architektur-Prüfungen der Tabelle unten. Nichts davon nimmt das Schloss. **Ohne grüne Stufe 1 kein Commit.**
-- **Stufe 2 (gezielt, Richtwert unter 10 Minuten):** die Test-IDs des berührten Bereichs statt eines ganzen Clusters, z. B. `node scripts/run-playwright-targeted.mjs tests/core-targeted-surface.spec.js --grep "T20kb:|T20kc:|T20i:"`. Welche IDs zu welchem Bereich gehören, sagt `node .claude/skills/verify-scope/scripts/select-verification.mjs <deine-dateien>`. Stufe 2 ist **vor dem Commit Pflicht**, sobald die Tabelle unten für den Bereich einen Cluster nennt; sie ersetzt dort den Clusterlauf. Stufe 3 folgt in der Hauptsitzung vor dem Merge.
+- **Stufe 1 (immer, im Agenten, für jede betroffene Änderung):** der eigene Contract-Test (`node --test tests/<datei>.contract.test.mjs`, vor der Änderung nachweislich rot), `npm run lint`, `npm run test:contract:fast`, dazu die Typecheck- und Architektur-Prüfungen der Tabelle unten. Nichts davon nimmt das Schloss. **Ohne grüne Stufe 1 kein Abschluss.**
+- **Stufe 2 (gezielt, Richtwert unter 10 Minuten):** die Test-IDs des berührten Bereichs statt eines ganzen Clusters, z. B. `node scripts/run-playwright-targeted.mjs tests/core-targeted-surface.spec.js --grep "T20kb:|T20kc:|T20i:"`. Welche IDs zu welchem Bereich gehören, sagt `node .claude/skills/verify-scope/scripts/select-verification.mjs <deine-dateien>`. Stufe 2 ist **Pflicht**, sobald die Tabelle unten für den Bereich einen Cluster nennt; sie ersetzt dort den Clusterlauf. Stufe 3 folgt in der Hauptsitzung vor der Integration.
 - **Stufe 3 (ganze Cluster):** nur in der Hauptsitzung, losgelöst gestartet (`Start-Process` mit UTF-8-Protokoll), immer mit `--skip-known` und `CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS` von mindestens zwei Stunden. **Nie in einem Subagenten** — der wartet 20–40 Minuten und beendet sich vorher. Beleg ist die letzte Zeile `[playwright:summary] passed=… failed=… skipped=… didNotRun=… flaky=… known=… new=…`. Ein Lauf ohne `didNotRun=0` hat über den eigenen Bereich nichts ausgesagt.
 
 **Exit-Code 75** aus einem Playwright-Wrapper heißt Schloss-Timeout, nicht Testfehler (Zeile `[playwright:lock] LOCK_TIMEOUT holder=… pid=… waited=…s`): eine andere Sitzung hielt die Maschine. Später erneut starten, nicht als rot werten.
 
-Bekannte Alt-Fehler stehen in `scripts/architecture/playwright-known-failures.json` (Spec, Testtitel, Datum, Ursache, Art). `--skip-known` blendet sie aus, damit ein Lauf nur Neues meldet; die Zählung `count` in derselben Datei ist ein Ratchet und darf nur sinken. Ein reparierter Test kommt im selben Commit aus der Liste.
+Bekannte Alt-Fehler stehen in `scripts/architecture/playwright-known-failures.json` (Spec, Testtitel, Datum, Ursache, Art). `--skip-known` blendet sie aus, damit ein Lauf nur Neues meldet; die Zählung `count` in derselben Datei ist ein Ratchet und darf nur sinken. Ein reparierter Test kommt im selben Änderungspaket aus der Liste.
 
 `node scripts/run-playwright-targeted-clusters.mjs --print-clusters` listet nur und startet nichts.
 
-Aufträge an Subagenten enthalten den Satz „bis Stufe 1 grün, kein Commit, keine Cluster".
+Aufträge an Subagenten enthalten den Satz „bis Stufe 1 grün, keine Cluster".
 
 Zuordnung nach geändertem Bereich (`npm run lint` gilt immer, `test:contract:fast` ist die Grundlast; `npm run quality` ist der langsame Ersatz, wenn nichts Genaueres passt):
 
@@ -182,7 +181,6 @@ Diese Regeln brechen den Build, nicht nur das Review:
 - **`max-lines` 500** für `src/**/*.js`. Bestehende Ausnahmen stehen in `scripts/architecture/LegacyMaxLinesConfig.mjs` und sind Schulden, keine Erlaubnis — keine neuen Einträge hinzufügen.
 - **Kein `innerHTML`** in `src/` (Lint-Warnung, XSS). `createElement` + `textContent` verwenden.
 - **Determinismus-Guard**: In `src/network/SessionAdapterBase.js`, `LANSessionAdapter.js`, `OnlineSessionAdapter.js`, `src/ui/menu/MenuMultiplayerBridge.js` und `src/core/runtime/MenuRuntimeSessionService.js` sind `Date.now`, `Math.random` und `performance.now` verboten — Zeit und Zufall werden injiziert.
-- **Commit-Hook**: `.githooks/commit-msg` erzwingt `<type>(<scope>): <kleingeschriebene englische Beschreibung>` mit maximal 72 Zeichen Betreff. Einmalig aktivieren mit `npm run git:hooks:install`.
 
 ## Tests
 

@@ -1,6 +1,6 @@
 ---
 name: failure-baseline
-description: Klärt in diesem Repo, ob ein roter Playwright-Cluster an der eigenen Änderung liegt oder schon vorher rot war — nimmt den Fehlerstand ohne die Änderung auf und vergleicht ihn mit dem aktuellen. Nutze diesen Skill immer wenn ein Cluster oder Spec fehlschlägt und unklar ist ob das neu ist, wenn jemand fragt "war das vorher schon kaputt", "liegt das an mir", "sind das bekannte Fehler", und immer bevor du in einem Commit-Body von "known pre-existing failures" sprechen willst. Verhindert sowohl verschleppte Regressionen als auch das Stoppen an fremden Alt-Fehlern.
+description: Klärt in diesem Repo, ob ein roter Playwright-Cluster an der eigenen Änderung liegt oder schon vorher rot war — nimmt den Fehlerstand ohne die Änderung auf und vergleicht ihn mit dem aktuellen. Nutze diesen Skill immer wenn ein Cluster oder Spec fehlschlägt und unklar ist ob das neu ist, wenn jemand fragt "war das vorher schon kaputt", "liegt das an mir", "sind das bekannte Fehler", und immer bevor du "known pre-existing failures" im Ergebnisbericht meldest. Verhindert sowohl verschleppte Regressionen als auch das Stoppen an fremden Alt-Fehlern.
 ---
 
 # Alt-Fehler von eigenen Fehlern trennen
@@ -11,7 +11,7 @@ Das ist wichtiger, als es klingt. „War schon vorher kaputt" ist die bequemste 
 
 ## Schritt 0 — erst in die eingecheckte Liste schauen
 
-Seit `scripts/architecture/playwright-known-failures.json` im Repo liegt, ist der erste Schritt kein Testlauf, sondern ein Blick in diese Datei. Sie nennt je Eintrag Spec-Datei, Testtitel, das Datum seit wann er rot ist, die Ursache und die Art (`stale-test`, `regression`, `env`, `flaky`). Steht dein roter Test dort, ist der Beleg damit erbracht — nenne im Commit-Body Datum und Grund aus dem Eintrag.
+Seit `scripts/architecture/playwright-known-failures.json` im Repo liegt, ist der erste Schritt kein Testlauf, sondern ein Blick in diese Datei. Sie nennt je Eintrag Spec-Datei, Testtitel, das Datum seit wann er rot ist, die Ursache und die Art (`stale-test`, `regression`, `env`, `flaky`). Steht dein roter Test dort, ist der Beleg damit erbracht — nenne im Ergebnisbericht Datum und Grund aus dem Eintrag.
 
 Noch schneller geht es über die Zusammenfassung: `scripts/summarize-playwright-results.mjs` liest dieselbe Datei und klassifiziert jeden roten Test eines Laufs selbst als `known`, `env` oder `new`. Steht in der letzten Zeile `new=0`, hat dein Lauf keinen neuen Fehler erzeugt.
 
@@ -77,7 +77,7 @@ node .claude/skills/failure-baseline/scripts/compare-failures.mjs "$TEMP/curvios
 Das Skript liest die nummerierten Fehlerblöcke des Playwright-`list`-Reporters aus beiden Logs und teilt sie in drei Gruppen:
 
 - **Neu kaputt** — steht nur im aktuellen Lauf. Das ist deine Regression, und sie ist ein Stopp.
-- **Bekannte Alt-Fehler** — steht in beiden. Die darfst du im Commit-Body benennen.
+- **Bekannte Alt-Fehler** — steht in beiden. Die darfst du im Ergebnisbericht benennen.
 - **Nebenbei grün geworden** — stand nur in der Baseline. Erwähnenswert, aber prüfe kurz nach, ob der Test wirklich das Richtige tut und nicht bloß übersprungen wird.
 
 Der Exit-Code ist `1`, sobald es mindestens eine neue Regression gibt.
@@ -94,7 +94,7 @@ node scripts/run-playwright-targeted.mjs tests/physics-hunt.spec.js --grep "T4:"
 
 Wenn er auch ohne deine Änderung sprunghaft ist, sag das so. „Flaky" ist eine zulässige Antwort, „war schon vorher kaputt" ohne Beleg nicht.
 
-## Was in den Commit gehört
+## Was in den Ergebnisbericht gehört
 
 Formuliere das Ergebnis so, dass es nachprüfbar bleibt:
 

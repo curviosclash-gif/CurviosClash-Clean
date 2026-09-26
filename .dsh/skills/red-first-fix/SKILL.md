@@ -21,7 +21,7 @@ Passt die Beschreibung des Nutzers nicht zum Arbeitsbaum (genannte Dateien unver
 
 ## Schritt 1 — den ganzen Ablauf verstehen, bevor du etwas änderst
 
-`AGENTS.md` Regel 19 verlangt das ausdrücklich, und in dieser Codebasis ist es keine Förmlichkeit: die Schichten sind echt getrennt, und ein Symptom in der UI hat seine Ursache regelmäßig drei Schichten tiefer.
+`AGENTS.md` Regel 11 verlangt das ausdrücklich, und in dieser Codebasis ist es keine Förmlichkeit: die Schichten sind echt getrennt, und ein Symptom in der UI hat seine Ursache regelmäßig drei Schichten tiefer.
 
 Verfolge den Weg vom Auslöser bis zum Symptom und schreibe ihn dir auf:
 
@@ -75,7 +75,7 @@ node --test tests/arcade-collision-health-pool.contract.test.mjs
 
 Der Test **muss** jetzt fehlschlagen, und zwar aus dem erwarteten Grund. Schlägt er aus einem anderen Grund fehl (Tippfehler im Import, falscher Stellvertreter), hast du keinen Beweis, sondern einen kaputten Test.
 
-Halte die entscheidende Zeile der Ausgabe fest — sie geht später wörtlich in den Commit-Body. Nicht „der Test war rot", sondern:
+Halte die entscheidende Zeile der Ausgabe fest — sie gehört später in den Ergebnisbericht. Nicht „der Test war rot", sondern:
 
 ```
 one wall hit ended the run where five should
@@ -119,7 +119,7 @@ Danach `verify-scope` für die geänderten Pfade. Ein grüner Einzeltest neben e
 
 ## Schritt 6 — den Beweis weiterreichen
 
-Der Rot-Text aus Schritt 3 gehört in die `Tests:`-Zeile des Commits, die Ursache aus Schritt 1 in die `Why:`-Zeile. `atomic-commit` übernimmt von hier.
+Halte den Rot-Text aus Schritt 3 und die Ursache aus Schritt 1 für den Ergebnisbericht fest.
 
 ## Woran du merkst, dass es noch nicht fertig ist
 

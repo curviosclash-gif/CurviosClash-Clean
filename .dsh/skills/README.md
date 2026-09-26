@@ -7,7 +7,6 @@ Die Quelle jedes Skills ist `.claude/skills/<name>/SKILL.md`; inhaltliche Korrek
 
 - Skriptpfade zeigen auf `.dsh/skills/<name>/scripts/` — die Skripte (und Referenzen) wurden mitkopiert.
 - „PostToolUse-Hook" heißt hier „ESLint-Hook" (der DSH-Hook wird separat konfiguriert).
-- `atomic-commit`: Claude-spezifische `Co-Authored-By`-Zeile entfernt; Push-Regel auf `AGENTS.md` Regeln 28/29 ausgerichtet.
 
 ## Bewusst nicht übernommen
 

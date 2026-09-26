@@ -95,7 +95,7 @@ Ein neuer Contract wird also nicht automatisch streng geprüft. Trage ihn in die
 npm run typecheck:contracts
 ```
 
-Wenn du ihn nicht einträgst, sag im Commit-Body, dass er nur unter der lockeren Produktprüfung läuft. Stillschweigend auslassen ist die schlechteste Variante, weil später niemand erkennt, ob das Absicht war.
+Wenn du ihn nicht einträgst, sag im Ergebnisbericht, dass er nur unter der lockeren Produktprüfung läuft. Stillschweigend auslassen ist die schlechteste Variante, weil später niemand erkennt, ob das Absicht war.
 
 ## Schritt 5 — testen und das Coverage-Tor bedienen
 
@@ -114,13 +114,13 @@ npm run test:contract:coverage
 
 Der Ratchet misst außerdem `src/state`, `src/entities/systems` und `src/modes` im selben Lauf. Wenn du in Schritt 3 dort Code hinzugefügt hast, kann die Grenze auch dort reißen — dann fehlen Tests für den neuen Zweig, nicht für den Contract.
 
-## Schritt 6 — Umfang und Commit
+## Schritt 6 — Umfang und Abschluss
 
 ```bash
 npm run check:architecture
 ```
 
-Danach `verify-scope` für die tatsächlich geänderten Pfade, dann `atomic-commit`. Der `Why:`-Teil sollte benennen, welche zwei Seiten jetzt durch dieselbe Funktion gehen und welche Abweichung dadurch unmöglich geworden ist.
+Danach `verify-scope` für die tatsächlich geänderten Pfade. Erkläre im Ergebnisbericht, welche zwei Seiten jetzt durch dieselbe Funktion gehen und welche Abweichung dadurch unmöglich geworden ist.
 
 ## Bestehende Verträge ändern
 

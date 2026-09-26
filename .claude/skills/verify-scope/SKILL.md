@@ -1,11 +1,11 @@
 ---
 name: verify-scope
-description: Bestimmt für geänderte Dateien in diesem Repo die verpflichtenden Prüfbefehle (Lint, Contract-Tests, Typecheck, Architektur-Checks, Playwright-Cluster, Builds) und führt sie in sinnvoller Reihenfolge aus. Nutze diesen Skill immer, bevor du einen Commit vorbereitest, und immer wenn gefragt wird "welche Tests muss ich laufen lassen", "was muss ich prüfen", "reicht das so", "kann ich committen" — und auch dann, wenn nur beiläufig eine Verifikation erwähnt wird oder du gerade eine Änderung an src, editor, electron, assets, dev/training oder .opencode abgeschlossen hast. Verhindert sowohl das langsame Pauschal-Gate npm run quality als auch vergessene Cluster.
+description: Bestimmt für geänderte Dateien in diesem Repo die verpflichtenden Prüfbefehle (Lint, Contract-Tests, Typecheck, Architektur-Checks, Playwright-Cluster, Builds) und führt sie in sinnvoller Reihenfolge aus. Nutze diesen Skill immer vor dem Abschluss einer Änderung und wenn gefragt wird "welche Tests muss ich laufen lassen", "was muss ich prüfen", "reicht das so" — und auch dann, wenn nur beiläufig eine Verifikation erwähnt wird oder du gerade eine Änderung an src, editor, electron, assets, dev/training oder .opencode abgeschlossen hast. Verhindert sowohl das langsame Pauschal-Gate npm run quality als auch vergessene Cluster.
 ---
 
 # Prüfumfang bestimmen und ausführen
 
-`AGENTS.md` Regel 8 verlangt vor jedem Commit „mindestens die kleinsten betroffenen Tests und den passenden Build". Die Zuordnungstabelle dafür steht in `CLAUDE.md`. Sie ist die **einzige** Regelmenge in diesem Projekt, die kein Werkzeug erzwingt: Schichtgrenzen, Ratchets und das Commit-Format brechen den Build von allein, die Testauswahl nicht. Deshalb wird sie hier abgeleitet statt jedes Mal neu erinnert.
+`AGENTS.md` Regel 8 verlangt vor Abschluss einer Änderung die kleinsten betroffenen Tests und den passenden Build. Die Zuordnungstabelle dafür steht in `CLAUDE.md`. Sie ist die **einzige** Regelmenge in diesem Projekt, die kein Werkzeug erzwingt: Schichtgrenzen und Ratchets brechen den Build von allein, die Testauswahl nicht. Deshalb wird sie hier abgeleitet statt jedes Mal neu erinnert.
 
 Zwei Fehlerrichtungen sind gleichermaßen teuer. Zu wenig prüfen lässt Regressionen durch. Ersatzweise `npm run quality` laufen zu lassen kostet viele Minuten und trainiert an, das Gate zu überspringen, wenn es eilt.
 
@@ -17,7 +17,7 @@ Der Arbeitsbaum trägt fast immer parallele Änderungen des Nutzers. `git status
 node .claude/skills/verify-scope/scripts/select-verification.mjs src/modes/ArcadeModeStrategy.js tests/arcade-run.contract.test.mjs
 ```
 
-Ohne Argumente liest das Skript `git status` und sagt selbst dazu, dass fremde Änderungen enthalten sein können. Das ist als Überblick brauchbar, als Commit-Vorbereitung nicht.
+Ohne Argumente liest das Skript `git status` und sagt selbst dazu, dass fremde Änderungen enthalten sein können. Das ist als Überblick brauchbar, als Grundlage für eine gezielte Verifikation nicht.
 
 `--json` gibt dieselbe Auswahl maschinenlesbar aus, wenn du sie weiterverarbeiten willst.
 
@@ -25,7 +25,7 @@ Ohne Argumente liest das Skript `git status` und sagt selbst dazu, dass fremde �
 
 Die Ausgabe ist in drei Stufen geteilt. Die Trennlinie ist das **Playwright-Schloss** — eine Sperrdatei, die dafür sorgt, dass immer nur ein Playwright-Lauf gleichzeitig läuft, weil zwei Electron-Fenster auf derselben Grafikkarte sich gegenseitig verfälschen.
 
-**Stufe 1 — immer, im Agenten, vor jedem Commit.** Der eigene Contract-Test, `npm run lint`, `npm run test:contract:fast`, dazu Typechecks und Architektur-Prüfungen. Nichts davon nimmt das Schloss, alles passt in eine Agentenrunde. **Stufe 1 muss grün sein, bevor du committest.**
+**Stufe 1 — immer, im Agenten, für jede betroffene Änderung.** Der eigene Contract-Test, `npm run lint`, `npm run test:contract:fast`, dazu Typechecks und Architektur-Prüfungen. Nichts davon nimmt das Schloss, alles passt in eine Agentenrunde. **Stufe 1 muss für den Abschluss grün sein.**
 
 **Stufe 2 — gezielte Test-IDs statt eines ganzen Clusters, Richtwert unter 10 Minuten.** Statt `core-surface` (67 Tests, 12–14 min, bricht an jedem alten Fehler ab) laufen vier bis sechs IDs des berührten Bereichs:
 
@@ -62,7 +62,7 @@ Ein roter Cluster ist deshalb **kein** automatischer Stopp — aber die Behauptu
 
 ## Auftrag an Subagenten
 
-Wer Arbeit an einen Subagenten gibt, schreibt den Umfang hinein: **„bis Stufe 1 grün, kein Commit, keine Cluster."** Ein Subagent, der auf einen Clusterlauf wartet, liefert am Ende gar nichts.
+Wer Arbeit an einen Subagenten gibt, schreibt den Umfang hinein: **„bis Stufe 1 grün, keine Cluster."** Ein Subagent, der auf einen Clusterlauf wartet, liefert am Ende gar nichts.
 
 ## Was das Skript abbildet
 
