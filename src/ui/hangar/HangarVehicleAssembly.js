@@ -260,7 +260,28 @@ export class HangarVehicleAssembly {
         vehicleNode.position.copy(_center).multiplyScalar(-1);
         this.baseVehicleRoot.scale.setScalar(scale);
         this.baseVehicleRoot.position.y = -0.05;
+        this._alignHardpointsToParts(vehicleNode);
         return true;
+    }
+
+    // Part-built vehicles name their core, nose, wing, engine and utility parts; a stone
+    // then sits on top of the real part instead of on the estimated layout.
+    _alignHardpointsToParts(vehicleNode) {
+        if (!vehicleNode.isModularVehicle) return;
+        this.group.updateWorldMatrix(true, true);
+        const aligned = new Set();
+        vehicleNode.traverse((child) => {
+            const role = child.userData?.config?.role;
+            const hardpoint = role ? this.hardpoints.get(role) : null;
+            if (!hardpoint || child.userData.isMirror || aligned.has(role)) return;
+            _bounds.setFromObject(child);
+            if (_bounds.isEmpty()) return;
+            _bounds.getCenter(_center);
+            _center.y = _bounds.max.y;
+            this.group.worldToLocal(_center);
+            hardpoint.position = [_center.x, _center.y + 0.06, _center.z];
+            aligned.add(role);
+        });
     }
 
     setVehicle(vehicleId, color = '#66b6ff') {

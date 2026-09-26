@@ -9,6 +9,18 @@ export const VEHICLE_LAB_CONFIG_LIMITS = Object.freeze({
     maxScale: 20,
 });
 
+export const VEHICLE_LAB_BASE_MESH_REFERENCE = 'reference';
+
+/**
+ * True when the game model behind a Vehicle Lab config is only a tracing aid and the
+ * parts alone form the vehicle.
+ * @param {unknown} config
+ * @returns {boolean}
+ */
+export function isVehicleLabBaseMeshReferenceOnly(config) {
+    return /** @type {any} */ (config)?.baseMeshMode === VEHICLE_LAB_BASE_MESH_REFERENCE;
+}
+
 export const VEHICLE_LAB_CATALOG_VERSION = 'vehicle-lab-catalog.v1';
 export const VEHICLE_LAB_CATALOG_STORAGE_KEY = 'curviosclash.vehicle-lab.catalog.v1';
 export const VEHICLE_LAB_GAME_VEHICLE_IDS = Object.freeze([
@@ -180,6 +192,9 @@ export function normalizeVehicleLabConfig(raw, options = {}) {
             ? source.baseTransform
             : {};
         config.baseVehicleId = baseVehicleId;
+        // 'reference': the parts are the whole vehicle; the game model only serves as a tracing aid in the lab.
+        if (source.baseMeshMode === VEHICLE_LAB_BASE_MESH_REFERENCE) config.baseMeshMode = VEHICLE_LAB_BASE_MESH_REFERENCE;
+        else delete config.baseMeshMode;
         config.baseTransform = {
             pos: normalizeVector(transform.pos, [0, 0, 0], -limits.maxAbsPosition, limits.maxAbsPosition),
             rot: normalizeVector(transform.rot, [0, 0, 0], -limits.maxAbsRotation, limits.maxAbsRotation),
@@ -188,6 +203,7 @@ export function normalizeVehicleLabConfig(raw, options = {}) {
     } else {
         delete config.baseVehicleId;
         delete config.baseTransform;
+        delete config.baseMeshMode;
     }
 
     return { ok: errors.length === 0, config, errors, warnings };

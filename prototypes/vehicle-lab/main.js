@@ -7,6 +7,7 @@ import { ModularVehicleMesh } from './src/ModularVehicleMesh.js';
 import { VEHICLE_PRESETS } from './src/VehiclePresets.js';
 import { GameVehicleReferenceMesh } from './src/GameVehicleReferenceMesh.js';
 import { listVehicleLabGameReferences } from './src/VehicleLabGameVehicleCatalog.js';
+import { getPlayerShipPartConfig } from '../../src/shared/vehicle-lab/player-ships/index.js';
 import {
     buildValidatedArcadeBlueprint,
     describeArcadeBlueprintStatus,
@@ -191,6 +192,7 @@ class VehicleLabApp {
             },
             onWireframeChange: (val) => { this.vehicle?.setWireframe?.(val); },
             onHitboxChange: (val) => { this.viewport.setHitboxVisible(val); },
+            onReferenceChange: (val) => { this.referenceVisible = val; this.vehicle?.setReferenceVisible?.(val); },
             onUndo: () => this.undo(),
             onRedo: () => this.redo(),
             onCompareVehicleChange: (vehicleId) => this.setCompareVehicle(vehicleId),
@@ -472,9 +474,10 @@ class VehicleLabApp {
 
     createEditorVehicleMesh(config) {
         const vehicle = GAME_VEHICLE_REFERENCES.find((entry) => entry.id === config?.baseVehicleId);
-        return vehicle
-            ? new GameVehicleReferenceMesh(vehicle, config.primaryColor, config)
-            : new ModularVehicleMesh(config);
+        if (!vehicle) return new ModularVehicleMesh(config);
+        const mesh = new GameVehicleReferenceMesh(vehicle, config.primaryColor, config);
+        mesh.setReferenceVisible(this.referenceVisible !== false);
+        return mesh;
     }
 
     replaceVehicle(nextVehicle) {
@@ -491,8 +494,10 @@ class VehicleLabApp {
     async loadGameVehicleReference(vehicle) {
         this.flushPendingSave();
         this.captureRecoveryDraft();
-        // Ein unveraendertes Spielmodell hat noch keine eigene Fassung.
+        // Ein unveraendertes Spielmodell hat noch keine eigene Fassung; aus Bauteilen
+        // gebaute Spielschiffe starten mit ihrer Werksfassung.
         let config = await this.readVehicleFromDisk(vehicle.id);
+        config ||= getPlayerShipPartConfig(vehicle.id);
         config ||= {
             id: vehicle.id,
             label: vehicle.label,

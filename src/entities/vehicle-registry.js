@@ -7,11 +7,12 @@ import { OrbMesh } from './orb-mesh.js';
 import { OBJVehicleMesh } from './obj-vehicle-mesh.js';
 import { RuntimeModularVehicleMesh } from './runtime-modular-vehicle-mesh.js';
 import { GENERATED_VEHICLE_CONFIGS } from './GeneratedVehicleConfigs.js';
-import { loadVehicleLabCatalog } from '../shared/contracts/VehicleLabConfigContract.js';
+import { isVehicleLabBaseMeshReferenceOnly, loadVehicleLabCatalog } from '../shared/contracts/VehicleLabConfigContract.js';
 import {
     BUILT_IN_COMPLEX_VEHICLE_CONFIGS,
     BUILT_IN_COMPLEX_VEHICLE_IDS,
 } from '../shared/vehicle-lab/VehiclePresetCatalogBridge.js';
+import { PLAYER_SHIP_PART_CATALOG } from '../shared/vehicle-lab/player-ships/index.js';
 import {
     CONTENT_DESCRIPTOR_TYPES,
     createContentRegistryDescriptor,
@@ -47,6 +48,7 @@ const BUILT_IN_COMPLEX_VEHICLE_ID_SET = new Set(BUILT_IN_COMPLEX_VEHICLE_IDS);
 const LOCAL_VEHICLE_CONFIGS = loadVehicleLabCatalog().vehicles;
 const CUSTOM_VEHICLE_CONFIGS = Array.from(new Map([
     ...BUILT_IN_COMPLEX_VEHICLE_CONFIGS,
+    ...PLAYER_SHIP_PART_CATALOG,
     ...(Array.isArray(GENERATED_VEHICLE_CONFIGS) ? GENERATED_VEHICLE_CONFIGS : []),
     ...LOCAL_VEHICLE_CONFIGS,
 ].map((entry) => [String(entry?.id || '').trim(), entry])).values());
@@ -112,7 +114,7 @@ export function createVehicleMesh(vehicleId, color) {
     const selected = VEHICLE_BY_ID.get(key) || VEHICLE_DEFINITIONS[0];
     if (selected.isGeneratedModular) {
         const baseVehicleId = String(selected.modularConfig?.baseVehicleId || '').trim();
-        const baseMesh = BASE_VEHICLE_BY_ID.has(baseVehicleId)
+        const baseMesh = BASE_VEHICLE_BY_ID.has(baseVehicleId) && !isVehicleLabBaseMeshReferenceOnly(selected.modularConfig)
             ? createBaseVehicleMesh(baseVehicleId, color)
             : null;
         return new selected.MeshClass(color, selected.modularConfig, { baseMesh });
