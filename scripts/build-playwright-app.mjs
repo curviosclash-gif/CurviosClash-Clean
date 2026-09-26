@@ -1,6 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+
+const esbuildFallback = fileURLToPath(new URL('./esbuild-stream-fallback.cjs', import.meta.url));
 
 const env = {
     ...process.env,
@@ -9,7 +12,7 @@ const env = {
 };
 
 for (const args of [
-    [path.resolve('node_modules/vite/bin/vite.js'), 'build', '--mode', 'app'],
+    ['--require', esbuildFallback, path.resolve('node_modules/vite/bin/vite.js'), 'build', '--mode', 'app'],
     [path.resolve('scripts/check-production-training-boundary.mjs'), 'dist-app-test'],
 ]) {
     const result = spawnSync(process.execPath, args, { stdio: 'inherit', env, windowsHide: true });

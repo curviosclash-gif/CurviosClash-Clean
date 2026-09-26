@@ -13,6 +13,7 @@ test('desktop profiles use Electron while browser compatibility remains explicit
     assert.equal(PLAYWRIGHT_RUN_PROFILES['desktop-e2e'].useExternalWebServer, false);
     assert.equal(PLAYWRIGHT_RUN_PROFILES['browser-compat'].runtimeKind, 'browser');
     assert.equal(PLAYWRIGHT_RUN_PROFILES['browser-compat'].useExternalWebServer, true);
+    assert.equal(PLAYWRIGHT_RUN_PROFILES['browser-compat'].serverMode, 'preview');
 });
 
 test('playwright profile runner translates legacy -g grep flag', () => {

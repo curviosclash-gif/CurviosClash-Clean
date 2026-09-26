@@ -18,7 +18,8 @@ const ELECTRON_DIR = path.resolve(process.cwd(), 'electron');
 const IS_BROWSER_COMPAT = String(process.env.PW_RUN_PROFILE || '').trim() === 'browser-compat';
 const ELECTRON_EXECUTABLE = IS_BROWSER_COMPAT
     ? null
-    : require(path.resolve(ELECTRON_DIR, 'node_modules', 'electron'));
+    : (String(process.env.CURVIOS_TEST_ELECTRON_EXECUTABLE || '').trim()
+        || require(path.resolve(ELECTRON_DIR, 'node_modules', 'electron')));
 const DESKTOP_DIAGNOSTICS_FILE = 'desktop-startup-diagnostics.json';
 const DESKTOP_MAIN_PROCESS_LOG_FILE = 'desktop-main-process.log';
 const DESKTOP_RENDERER_CONSOLE_LOG_FILE = 'desktop-renderer-console.log';

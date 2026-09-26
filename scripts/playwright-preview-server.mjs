@@ -3,6 +3,7 @@ import { createWriteStream } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 function readArg(flag, fallback = '') {
     const index = process.argv.indexOf(flag);
@@ -85,6 +86,7 @@ const errLogPath = path.resolve(
     readArg('--err-log', String(process.env.PW_SERVER_LOG_ERR || `tmp/playwright/${runTag}/server.err.log`).trim())
 );
 const viteCliPath = path.resolve('node_modules', 'vite', 'bin', 'vite.js');
+const esbuildFallback = fileURLToPath(new URL('./esbuild-stream-fallback.cjs', import.meta.url));
 await Promise.all([
     mkdir(path.dirname(outLogPath), { recursive: true }),
     mkdir(path.dirname(errLogPath), { recursive: true }),
@@ -104,7 +106,7 @@ errLogStream.write(
 let previewProcess = null;
 
 try {
-    await runCommand([viteCliPath, 'build'], 'vite build', outLogStream, errLogStream);
+    await runCommand(['--require', esbuildFallback, viteCliPath, 'build'], 'vite build', outLogStream, errLogStream);
 
     previewProcess = spawnNodeCommand([
         viteCliPath,

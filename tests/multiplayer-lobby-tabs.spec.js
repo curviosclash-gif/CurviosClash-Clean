@@ -4,7 +4,7 @@ import { loadGame, openMultiplayerSubmenu } from './helpers.js';
 // Both tests need a second tab in the same browser context (`page.context().newPage()`).
 // Electron answers that CDP call with "Target.createTarget: Not supported", so these tests
 // can never run in a desktop profile. They live in their own spec so the `network` cluster
-// can run them in the `browser-compat` profile against the Vite dev server, and so a red
+// can run them in the `browser-compat` profile against the Vite preview server, and so a red
 // T20d1 no longer aborts the serial chain of `core-targeted-platform.spec.js`.
 const REQUIRED_RUN_PROFILE = 'browser-compat';
 
@@ -35,13 +35,13 @@ test.describe('T20d1-T20d2: Multiplayer-Lobby ueber zwei Tabs', () => {
             await loadGame(page);
             await loadGame(secondPage);
 
-            const hostMultiplayerActive = await openMultiplayerSubmenu(page);
+            const hostMultiplayerActive = await openMultiplayerSubmenu(page, { requireActive: true });
             await page.fill('#multiplayer-lobby-code', 'SYNC-LOBBY');
             await page.click('[data-connection-intent-target="host"]');
             await page.click('#btn-multiplayer-host');
             await page.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
 
-            const clientMultiplayerActive = await openMultiplayerSubmenu(secondPage);
+            const clientMultiplayerActive = await openMultiplayerSubmenu(secondPage, { requireActive: true });
             expect(hostMultiplayerActive && clientMultiplayerActive, 'Multiplayer-Surface muss in beiden Tabs aktiv sein.').toBe(true);
             await secondPage.fill('#multiplayer-lobby-code', 'SYNC-LOBBY');
             await secondPage.click('#btn-multiplayer-join');
@@ -98,7 +98,7 @@ test.describe('T20d1-T20d2: Multiplayer-Lobby ueber zwei Tabs', () => {
             await loadGame(page);
             await loadGame(secondPage);
 
-            const hostMultiplayerActive = await openMultiplayerSubmenu(page);
+            const hostMultiplayerActive = await openMultiplayerSubmenu(page, { requireActive: true });
             await page.fill('#multiplayer-lobby-code', 'START-LOBBY');
             await page.click('[data-connection-intent-target="host"]');
             await page.click('#btn-multiplayer-host');
@@ -122,7 +122,7 @@ test.describe('T20d1-T20d2: Multiplayer-Lobby ueber zwei Tabs', () => {
             await page.click('#btn-setup-lobby');
             await page.waitForSelector('#submenu-multiplayer:not(.hidden)', { timeout: 5000 });
 
-            const clientMultiplayerActive = await openMultiplayerSubmenu(secondPage);
+            const clientMultiplayerActive = await openMultiplayerSubmenu(secondPage, { requireActive: true });
             expect(hostMultiplayerActive && clientMultiplayerActive, 'Multiplayer-Surface muss in beiden Tabs aktiv sein.').toBe(true);
             await secondPage.fill('#multiplayer-lobby-code', 'START-LOBBY');
             await secondPage.click('#btn-multiplayer-join');
