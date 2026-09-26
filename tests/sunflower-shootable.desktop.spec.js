@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { stat, writeFile } from 'node:fs/promises';
 import { expect, test } from './helpers.desktop.js';
-import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
 
 const MAP_KEY = 'dandelion_sky';
 const PREVIEW_DIR = path.resolve('assets/models/sunflower/blender/previews');
@@ -215,7 +215,7 @@ test('desktop MG shots remove two adjacent sunflower kernels and leave visible g
     await writeFile(firstView, Buffer.from(firstShot.image, 'base64'));
     await testInfo.attach('one-kernel-in-flight-gap-open', { path: firstView, contentType: 'image/png' });
 
-    await page.waitForTimeout(180);
+    await waitForRenderFrames(page, 12);
     const secondShot = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
         const player = game.entityManager.humanPlayers[0];
