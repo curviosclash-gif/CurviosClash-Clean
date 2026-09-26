@@ -31,7 +31,7 @@ test.describe('V59-59.7.3: Network Adapter Robustness', () => {
         await loadGame(page);
         const result = await page.evaluate(async () => {
             try {
-                const mod = await import('/src/network/LANSessionAdapter.js');
+                const mod = await globalThis.__curviosImport('/src/network/LANSessionAdapter.js');
                 return { ok: true, hasClass: typeof mod.LANSessionAdapter === 'function' };
             } catch (err) {
                 return { ok: false, error: err.message };
@@ -45,7 +45,7 @@ test.describe('V59-59.7.3: Network Adapter Robustness', () => {
         await loadGame(page);
         const result = await page.evaluate(async () => {
             try {
-                const mod = await import('/src/network/OnlineSessionAdapter.js');
+                const mod = await globalThis.__curviosImport('/src/network/OnlineSessionAdapter.js');
                 return { ok: true, hasClass: typeof mod.OnlineSessionAdapter === 'function' };
             } catch (err) {
                 return { ok: false, error: err.message };
@@ -59,7 +59,7 @@ test.describe('V59-59.7.3: Network Adapter Robustness', () => {
         await loadGame(page);
         const result = await page.evaluate(async () => {
             try {
-                const mod = await import('/src/network/LANMatchLobby.js');
+                const mod = await globalThis.__curviosImport('/src/network/LANMatchLobby.js');
                 return { ok: true, hasClass: typeof mod.LANMatchLobby === 'function' };
             } catch (err) {
                 return { ok: false, error: err.message };
@@ -88,7 +88,7 @@ test.describe('V59-59.7.3: Network Adapter Robustness', () => {
             const {
                 createBrowserDiscoveryAdapter,
                 createBrowserHostAdapter,
-            } = await import('/src/platform/browser/BrowserPlatformAdapters.js');
+            } = await globalThis.__curviosImport('/src/platform/browser/BrowserPlatformAdapters.js');
             const discovery = createBrowserDiscoveryAdapter();
             const host = createBrowserHostAdapter();
             return {
@@ -115,7 +115,7 @@ test.describe('V59-59.7.4: Signaling error and late ICE candidate characterizati
         await loadGame(page);
         const result = await page.evaluate(async () => {
             try {
-                const { OnlineSessionAdapter } = await import('/src/network/OnlineSessionAdapter.js');
+                const { OnlineSessionAdapter } = await globalThis.__curviosImport('/src/network/OnlineSessionAdapter.js');
                 const adapter = new OnlineSessionAdapter({ isHost: true, signalingUrl: 'ws://127.0.0.1:1' });
                 await adapter.connect({ connectTimeoutMs: 3000 });
                 return { rejected: false };
@@ -130,7 +130,7 @@ test.describe('V59-59.7.4: Signaling error and late ICE candidate characterizati
         await loadGame(page);
         const result = await page.evaluate(async () => {
             try {
-                const { OnlineSessionAdapter } = await import('/src/network/OnlineSessionAdapter.js');
+                const { OnlineSessionAdapter } = await globalThis.__curviosImport('/src/network/OnlineSessionAdapter.js');
                 const adapter = new OnlineSessionAdapter({ isHost: false });
                 // Simulate signaling error via the internal handler directly
                 let rejectCalled = false;
@@ -154,7 +154,7 @@ test.describe('V59-59.7.4: Signaling error and late ICE candidate characterizati
         await loadGame(page);
         const result = await page.evaluate(async () => {
             try {
-                const { OnlineMatchLobby } = await import('/src/network/OnlineMatchLobby.js');
+                const { OnlineMatchLobby } = await globalThis.__curviosImport('/src/network/OnlineMatchLobby.js');
                 const lobby = new OnlineMatchLobby({ signalingUrl: '' });
                 let rejectCalled = false;
                 await new Promise((resolve, reject) => {
@@ -176,7 +176,7 @@ test.describe('V59-59.7.4: Signaling error and late ICE candidate characterizati
     test('LANSessionAdapter._pollIceCandidates continues past first batch (trickle-ICE)', async ({ page }) => {
         await loadGame(page);
         const result = await page.evaluate(async () => {
-            const { LANSessionAdapter } = await import('/src/network/LANSessionAdapter.js');
+            const { LANSessionAdapter } = await globalThis.__curviosImport('/src/network/LANSessionAdapter.js');
             const adapter = new LANSessionAdapter({ isHost: false, signalingUrl: 'http://127.0.0.1:1' });
             // Track addIceCandidate calls
             const added = [];
@@ -208,7 +208,7 @@ test.describe('V59-59.7.4: Signaling error and late ICE candidate characterizati
         await loadGame(page);
         const result = await page.evaluate(async () => {
             try {
-                const { OnlineSessionAdapter } = await import('/src/network/OnlineSessionAdapter.js');
+                const { OnlineSessionAdapter } = await globalThis.__curviosImport('/src/network/OnlineSessionAdapter.js');
                 const adapter = new OnlineSessionAdapter({ isHost: true, signalingUrl: 'ws://127.0.0.1:1' });
                 await adapter.connect({ connectTimeoutMs: 500 });
                 return { rejected: false };
@@ -260,7 +260,7 @@ test.describe('V67-67.2: Retry and resilience hardening', () => {
             }
             globalThis.WebSocket = MockWebSocket;
             try {
-                const { OnlineSessionAdapter } = await import('/src/network/OnlineSessionAdapter.js');
+                const { OnlineSessionAdapter } = await globalThis.__curviosImport('/src/network/OnlineSessionAdapter.js');
                 const adapter = new OnlineSessionAdapter({ isHost: true, signalingUrl: 'ws://mock' });
                 await adapter.connect({
                     connectTimeoutMs: 250,
@@ -325,7 +325,7 @@ test.describe('V67-67.2: Retry and resilience hardening', () => {
             }
             globalThis.WebSocket = MockWebSocket;
             try {
-                const { OnlineMatchLobby } = await import('/src/network/OnlineMatchLobby.js');
+                const { OnlineMatchLobby } = await globalThis.__curviosImport('/src/network/OnlineMatchLobby.js');
                 const lobby = new OnlineMatchLobby({ signalingUrl: 'ws://mock' });
                 await lobby.create({
                     connectTimeoutMs: 250,

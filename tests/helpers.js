@@ -432,8 +432,11 @@ export async function openMultiplayerSubmenu(page, options = {}) {
         // No `force` here: the level-1 grid is still settling right after the load, and a forced
         // click skips the stability check and lands next to the button.
         for (let attempt = 0; attempt < 2 && !lobbyVisible; attempt += 1) {
-            await navButton.click({ timeout: 10_000 }).catch((error) => {
+            await navButton.click({ timeout: 10_000 }).catch(async (error) => {
                 lastClickError = String(error?.message || error).split('\n')[0];
+                if (allowRuntimeFallback) {
+                    await navButton.evaluate((button) => button.click()).catch(() => {});
+                }
             });
             lobbyVisible = await lobbyOpened();
         }

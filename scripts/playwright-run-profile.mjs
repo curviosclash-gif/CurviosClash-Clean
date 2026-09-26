@@ -53,7 +53,7 @@ export const PLAYWRIGHT_RUN_PROFILES = Object.freeze({
         name: 'browser-compat',
         projectName: 'browser-compat',
         runtimeKind: 'browser',
-        serverMode: 'dev',
+        serverMode: 'preview',
         useExternalWebServer: true,
         useGlobalWarmup: true,
         moduleWarmupEnabled: false,

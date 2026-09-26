@@ -13,10 +13,21 @@ const UI_TEST_MODULE_EXPORTS = Object.freeze({
     '/src/ui/PauseOverlayController.js': Object.freeze({ ...PauseOverlayControllerModule }),
 });
 
+const NETWORK_TEST_MODULE_IMPORTERS = Object.freeze({
+    '/src/network/LANSessionAdapter.js': () => import('../../src/network/LANSessionAdapter.js'),
+    '/src/network/OnlineSessionAdapter.js': () => import('../../src/network/OnlineSessionAdapter.js'),
+    '/src/network/LANMatchLobby.js': () => import('../../src/network/LANMatchLobby.js'),
+    '/src/network/OnlineMatchLobby.js': () => import('../../src/network/OnlineMatchLobby.js'),
+    '/src/platform/browser/BrowserPlatformAdapters.js': () => import('../../src/platform/browser/BrowserPlatformAdapters.js'),
+});
+
 async function importE2EUiTestModule(moduleSpecifier) {
     const normalizedSpecifier = String(moduleSpecifier || '').trim();
     if (Object.prototype.hasOwnProperty.call(UI_TEST_MODULE_EXPORTS, normalizedSpecifier)) {
         return UI_TEST_MODULE_EXPORTS[normalizedSpecifier];
+    }
+    if (Object.prototype.hasOwnProperty.call(NETWORK_TEST_MODULE_IMPORTERS, normalizedSpecifier)) {
+        return NETWORK_TEST_MODULE_IMPORTERS[normalizedSpecifier]();
     }
     return import(normalizedSpecifier);
 }
