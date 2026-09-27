@@ -61,13 +61,16 @@ export function resolveTrailFlightTarget(index, time, position, out, progress = 
     return out;
 }
 
-export function installTrailShortFlight(game) {
+export function installTrailShortFlight(game, { variant = 'thick' } = {}) {
+    const ghost = variant === 'ghost';
+    if (!ghost && variant !== 'thick') throw new Error(`Unknown trail short variant: ${variant}`);
     const manager = game.entityManager;
     if (manager?.players?.length !== 2 || manager.players.some((player) => player.isBot)) {
         throw new Error('The trail short requires exactly two human slots and no bots');
     }
     const state = { time: 0, history: [], lastSample: -1, clipStartedAt: null, finishedAt: null,
-        closestPass: { distance: Infinity, time: 0 }, itemRequested: false, itemCollected: false };
+        closestPass: { distance: Infinity, time: 0 }, itemRequested: false, itemCollected: false,
+        variant, crossingTarget: null, ghostActiveAtCrossing: false };
     game.input.clearPlayerSources();
     const sources = manager.players.map((player, index) => {
         const route = ROUTES[index];
@@ -86,6 +89,35 @@ export function installTrailShortFlight(game) {
             dispose() { this.unbind(); },
             poll({ dt = 0 } = {}) {
                 resolveTrailFlightTarget(index, this.time, player.position, target, this.progress);
+                if (ghost && index === 1 && this.time >= 18) {
+                    if (!state.crossingTarget) {
+                        let nearest = Infinity;
+                        let crossX = 0; let crossY = 0; let crossZ = 0;
+                        for (const ref of manager.players[0].trail?.segmentRefs || []) {
+                            const segment = ref?.entry;
+                            if (!segment) continue;
+                            const dx = segment.toX - segment.fromX;
+                            const dy = segment.toY - segment.fromY;
+                            const dz = segment.toZ - segment.fromZ;
+                            const fraction = clamp(((player.position.x - segment.fromX) * dx
+                                + (player.position.y - segment.fromY) * dy
+                                + (player.position.z - segment.fromZ) * dz) / (dx * dx + dy * dy + dz * dz || 1), 0, 1);
+                            const x = segment.fromX + dx * fraction;
+                            const y = segment.fromY + dy * fraction;
+                            const z = segment.fromZ + dz * fraction;
+                            const distance = Math.hypot(player.position.x - x, player.position.y - y, player.position.z - z);
+                            if (distance < nearest) { nearest = distance; crossX = x; crossY = y; crossZ = z; }
+                        }
+                        if (nearest < 25) {
+                            const scale = 10 / (nearest || 1);
+                            state.crossingTarget = { x: crossX + (crossX - player.position.x) * scale,
+                                y: crossY + (crossY - player.position.y) * scale - 2,
+                                z: crossZ + (crossZ - player.position.z) * scale };
+                        }
+                    }
+                    if (state.crossingTarget) target.set(state.crossingTarget.x,
+                        state.crossingTarget.y, state.crossingTarget.z);
+                }
                 inverse.copy(player.quaternion).invert();
                 desired.copy(target).sub(player.position).normalize().applyQuaternion(inverse);
                 localUp.set(0, 1, 0).applyQuaternion(inverse);
@@ -98,8 +130,11 @@ export function installTrailShortFlight(game) {
                 if (index === 0) {
                     document.body?.style?.setProperty('--trail-short-hud-opacity',
                         String(trailShortHudOpacity(this.time - TRAIL_SHORT.warmup)));
-                    state.itemCollected ||= player.inventory?.includes('THICK') === true;
-                    if (state.itemCollected && !state.itemRequested && this.time >= TRAIL_SHORT.warmup + 10.5) {
+                }
+                if (index === (ghost ? 1 : 0)) {
+                    state.itemCollected ||= player.inventory?.includes(ghost ? 'GHOST' : 'THICK') === true;
+                    if (state.itemCollected && !state.itemRequested
+                        && this.time >= (ghost ? 16.3 : TRAIL_SHORT.warmup + 10.5)) {
                         input.useItem = true;
                         state.itemRequested = true;
                     }
@@ -119,6 +154,15 @@ export function installTrailShortFlight(game) {
                         if (distance < state.closestPass.distance) {
                             state.closestPass.distance = distance;
                             state.closestPass.time = this.time;
+                            if (ghost) {
+                                state.closestPass.playerX = player.position.x;
+                                state.closestPass.playerY = player.position.y;
+                                state.closestPass.playerZ = player.position.z;
+                                state.closestPass.trailX = segment.fromX + dx * fraction;
+                                state.closestPass.trailY = segment.fromY + dy * fraction;
+                                state.closestPass.trailZ = segment.fromZ + dz * fraction;
+                            }
+                            state.ghostActiveAtCrossing = player.isGhost === true;
                         }
                     }
                 }
@@ -126,7 +170,8 @@ export function installTrailShortFlight(game) {
                     state.time = this.time;
                     if (this.time >= TRAIL_SHORT.warmup && state.clipStartedAt === null) state.clipStartedAt = performance.now();
                     if (this.time >= TRAIL_SHORT.warmup + TRAIL_SHORT.duration && state.finishedAt === null) state.finishedAt = performance.now();
-                    const subject = resolveTrailShortShot(this.time - TRAIL_SHORT.warmup).player || 0;
+                    const shot = resolveTrailShortShot(this.time - TRAIL_SHORT.warmup);
+                    const subject = ghost && shot.kind === 'third-person' ? 1 : (shot.player || 0);
                     if (state.subject !== subject) {
                         state.subject = subject;
                         game.renderer.viewportSystem.setNetworkMode(true, subject, game.renderer.cameras, 1);
@@ -149,17 +194,19 @@ export function installTrailShortFlight(game) {
         return source;
     });
     const pickup = game.powerupManager?.spawnAtAnchor?.({
-        ownerId: 'marketing-trail-short', type: 'THICK',
-        x: ROUTES[0].points[0].x, y: ROUTES[0].points[0].y, z: ROUTES[0].points[0].z,
+        ownerId: 'marketing-trail-short', type: ghost ? 'GHOST' : 'THICK',
+        x: ghost ? -24.1 : ROUTES[0].points[0].x,
+        y: ghost ? 48.5 : ROUTES[0].points[0].y,
+        z: ghost ? -40.8 : ROUTES[0].points[0].z,
     });
-    if (!pickup) throw new Error('The trail short needs a real THICK pickup');
+    if (!pickup) throw new Error(`The trail short needs a real ${ghost ? 'GHOST' : 'THICK'} pickup`);
     game.renderer.setSplitScreen(false);
     document.getElementById('hud')?.classList.remove('split-screen');
     game.renderer.cameraModes.fill(0);
     return { state, sources };
 }
 
-export function createTrailShortCamera(templateCamera, { handoff = false } = {}) {
+export function createTrailShortCamera(templateCamera, { handoff = false, variant = 'thick' } = {}) {
     const camera = templateCamera.clone();
     const focus = camera.position.clone();
     const offset = camera.position.clone();
@@ -178,24 +225,26 @@ export function createTrailShortCamera(templateCamera, { handoff = false } = {})
             const second = projection.players.find((player) => player.playerIndex === 1);
             if (!first?.position || !second?.position) throw new Error('Camera subjects missing');
             focus.set(first.position.x, first.position.y, first.position.z)
-                .lerp(second.position, 0.5);
+                .lerp(second.position, variant === 'ghost' ? 0.78 : 0.5);
             across.set(second.position.x - first.position.x, 0, second.position.z - first.position.z);
             const span = Math.hypot(across.x, second.position.y - first.position.y, across.z);
             if (across.lengthSq() < 0.01) across.set(1, 0, 0);
             across.normalize();
             const orbit = 0.18 + Math.sin(time * 0.22) * 0.035;
-            const radius = portrait ? span * 0.5 + 28 + Math.abs(second.position.y - first.position.y) * 0.9
-                : Math.max(36, span * 0.8 + 16);
-            const side = portrait && handoff && time < 7 ? -1 : 1;
+            const radius = variant === 'ghost' ? (portrait ? 48 : 46)
+                : portrait ? span * 0.5 + 28 + Math.abs(second.position.y - first.position.y) * 0.9
+                    : Math.max(36, span * 0.8 + 16);
+            const side = variant !== 'ghost' && portrait && handoff && time < 7 ? -1 : 1;
             offset.set(
                 (across.x * Math.cos(orbit) - across.z * Math.sin(orbit)) * radius * side,
-                5,
+                variant === 'ghost' ? 16 : 5,
                 (across.z * Math.cos(orbit) + across.x * Math.sin(orbit)) * radius * side,
             );
             if (!portrait) {
                 // A stable side angle and gentle dolly keep the spatial duel readable.
                 const angle = Math.PI / 4 + Math.sin(time * 0.12) * 0.07;
-                offset.set(Math.cos(angle) * radius, 5, Math.sin(angle) * radius);
+                offset.set(Math.cos(angle) * radius, variant === 'ghost' ? 16 : 5,
+                    Math.sin(angle) * radius);
             }
             desiredPosition.copy(focus).add(offset);
             const dt = time - previousTime;
@@ -212,8 +261,9 @@ export function createTrailShortCamera(templateCamera, { handoff = false } = {})
             // Fly into the same native third-person position before the HUD shot begins.
             const openingBlend = portrait ? clamp((time - 1.25) / 1.75, 0, 1)
                 : clamp(time / 3, 0, 1);
-            const transition = time < 7 ? { player: first, amount: openingBlend }
-                : time >= 7 && time < 8 ? { player: first, amount: 8 - time }
+            const openingPlayer = variant === 'ghost' ? second : first;
+            const transition = time < 7 ? { player: openingPlayer, amount: openingBlend }
+                : time >= 7 && time < 8 ? { player: openingPlayer, amount: 8 - time }
                     : time >= 9 ? { player: second, amount: clamp(time - 9, 0, 1) } : null;
             if (handoff && transition) {
                 const player = transition.player;

@@ -12,9 +12,10 @@ import { TRAIL_SHORT } from './trail-short-scene.mjs';
 const root = process.cwd();
 const outputRoot = path.resolve(process.argv[2] || path.join(root, 'output', 'marketing'));
 const probe = process.argv.includes('--probe');
+const variant = process.argv.includes('--ghost') ? 'ghost' : 'thick';
 const formats = process.argv.includes('--landscape') ? ['landscape']
     : process.argv.includes('--portrait') ? ['portrait'] : ['landscape', 'portrait'];
-const output = path.join(outputRoot, `trail-short-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+const output = path.join(outputRoot, `${variant === 'ghost' ? 'ghost-short' : 'trail-short'}-${new Date().toISOString().replace(/[:.]/g, '-')}`);
 const requireElectron = createRequire(path.join(root, 'electron', 'package.json'));
 const lock = await acquirePlaywrightRunLock({ label: 'trail short production' });
 releasePlaywrightRunLockOnExit(lock.release);
@@ -103,15 +104,18 @@ try {
       app = await electron.launch({
         executablePath: requireElectron('electron'), args: ['--force-device-scale-factor=1', '.'], cwd: path.join(root, 'electron'),
         env: { ...process.env, CURVIOS_ELECTRON_SHOW_WINDOW: '0', CURVIOS_ELECTRON_TEST_RENDER: '1',
-            CURVIOS_USER_DATA_ROOT: path.join(output, `${format}-user-data`) },
+            CURVIOS_USER_DATA_ROOT: path.join(output, `${format}-user-data`),
+            CURVIOS_E2E_RENDERER: '1' },
     });
     const page = await app.firstWindow();
+    console.log(`[trail-short] ${format} window ready`);
     await page.setViewportSize(format === 'portrait' ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 });
     page.on('pageerror', (error) => console.error(`[trail-short] ${error.message}`));
     page.on('console', (message) => {
         if (message.text().startsWith('[trail-short]')) console.log(message.text());
     });
     await waitForLoadedGame(page);
+    console.log(`[trail-short] ${format} game loaded`);
     const dimensions = format === 'portrait' ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 };
     // Apply after startup has restored the window; otherwise a late restore can resize the take.
     await page.setViewportSize(dimensions);
@@ -133,6 +137,7 @@ try {
     }
     await page.waitForFunction((size) => window.innerWidth === size.width && window.innerHeight === size.height, dimensions);
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
+    console.log(`[trail-short] ${format} flight controller loaded`);
     await page.addStyleTag({ content: `
         #hud, #crosshair-container { opacity: var(--trail-short-hud-opacity, 1) !important; }
         body[data-trail-short-player="0"] [id^="p2-"],
@@ -155,17 +160,20 @@ try {
         game.audio?.applySettings?.(game.settings.audio);
         game.startMatch();
     }, format);
+    console.log(`[trail-short] ${format} match started`);
     await page.waitForFunction(() => window.GAME_INSTANCE?.entityManager?.players?.length === 2, null, { timeout: 60000 });
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'PLAYING', null, { timeout: 30000 });
     await page.evaluate(() => window.GAME_INSTANCE.runtimeCoordinator.getRuntimeFacade().pauseMatch());
     await page.waitForFunction(() => window.GAME_INSTANCE.state === 'PAUSED', null, { timeout: 5000 });
-    await page.evaluate(() => {
-        window.__trailShortRun = window.__trailShort.installTrailShortFlight(window.GAME_INSTANCE);
+    await page.evaluate((selectedVariant) => {
+        window.__trailShortRun = window.__trailShort.installTrailShortFlight(window.GAME_INSTANCE,
+            { variant: selectedVariant });
         document.getElementById('p2-hud')?.classList.add('hidden');
         // The real HUD projects into the selected full-window viewport during this two-slot take.
         const viewport = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
         window.GAME_INSTANCE.crosshairSystem._resolveViewportRect = () => viewport;
-    });
+    }, variant);
+    console.log(`[trail-short] ${format} ${variant} flight installed`);
     if (!probe) {
         console.log(`[trail-short] ${format} window capture: ${JSON.stringify(await beginWindowRecording(page, format))}`);
         const start = await page.evaluate(async () => {
@@ -189,20 +197,23 @@ try {
         if (probe) await page.screenshot({ path: path.join(output, `${format}-probe-${sample}.png`) });
         if (state.state !== 'PLAYING' || state.time >= TRAIL_SHORT.warmup + TRAIL_SHORT.duration + 0.3) break;
     }
-    const state = await page.evaluate(() => ({ ...window.__trailShortRun.state,
+    const state = await page.evaluate((selectedVariant) => ({ ...window.__trailShortRun.state,
         alive: window.GAME_INSTANCE.entityManager.players.every((player) => player.alive),
-        thickActive: window.GAME_INSTANCE.entityManager.players[0].activeEffects
-            .some((effect) => effect.type === 'THICK'),
+        itemActive: window.GAME_INSTANCE.entityManager.players[selectedVariant === 'ghost' ? 1 : 0].activeEffects
+            .some((effect) => effect.type === (selectedVariant === 'ghost' ? 'GHOST' : 'THICK')),
         nativeStartedAt: window.__trailShortRun.nativeStartedAt,
         windowStartedAt: window.__trailShortCapture?.startedAt,
-        events: window.GAME_INSTANCE.recorder.events.filter((entry) => entry.type).slice(-25) }));
+        events: window.GAME_INSTANCE.recorder.events.filter((entry) => entry.type).slice(-25) }), variant);
     await writeFile(path.join(output, `${format}-take.json`), `${JSON.stringify(state, null, 2)}\n`, { flag: 'wx' });
     if (!probe) {
         const stop = await page.evaluate(() => window.GAME_INSTANCE.mediaRecorderSystem.stopRecording());
         await finishWindowRecording(page, path.join(output, `${format}-gameplay.webm`));
         if (!state.alive || !state.finishedAt) throw new Error('Rehearsal failed: both pilots must survive the complete take');
-        if (!state.itemCollected || !state.itemRequested || !state.thickActive) {
-            throw new Error('Take has no verified THICK pickup and use');
+        if (!state.itemCollected || !state.itemRequested || !state.itemActive) {
+            throw new Error(`Take has no verified ${variant.toUpperCase()} pickup and use`);
+        }
+        if (variant === 'ghost' && (state.closestPass.distance > 1.2 || !state.ghostActiveAtCrossing)) {
+            throw new Error(`Take has no verified GHOST trail crossing: ${JSON.stringify(state.closestPass)}`);
         }
         const elapsed = (state.finishedAt - state.clipStartedAt) / 1000;
         if (Math.abs(elapsed - TRAIL_SHORT.duration) > 0.08) {
@@ -212,9 +223,10 @@ try {
         await page.evaluate(() => window.GAME_INSTANCE.runtimeCoordinator.getRuntimeFacade().pauseMatch());
         const cinematicStart = (state.clipStartedAt - state.nativeStartedAt) / 1000;
         const gameplayStart = (state.clipStartedAt - state.windowStartedAt) / 1000;
-        await page.evaluate(({ offset, portrait }) => {
+        await page.evaluate(({ offset, portrait, selectedVariant }) => {
             const game = window.GAME_INSTANCE;
-            const camera = window.__trailShort.createTrailShortCamera(game.renderer.cameras[0], { handoff: true });
+            const camera = window.__trailShort.createTrailShortCamera(game.renderer.cameras[0],
+                { handoff: true, variant: selectedVariant });
             const exporter = game.mediaRecorderSystem._cinematicReplayExporter;
             const original = exporter.renderFrame;
             const onStatus = exporter.onStatus;
@@ -240,10 +252,11 @@ try {
                 }
                 return canvas;
             };
-        }, { offset: cinematicStart, portrait: format === 'portrait' });
+        }, { offset: cinematicStart, portrait: format === 'portrait', selectedVariant: variant });
         console.log(`[trail-short] Rendering ${format} cinematic replay`);
         const rendered = await page.evaluate((id) => window.GAME_INSTANCE.mediaRecorderSystem.renderCinematicReplayRecording(id), stop.recordingId);
         if (!rendered.saved) throw new Error(`Replay export failed: ${JSON.stringify(rendered)}`);
+        manifest.variant = variant;
         manifest.orientations[format] = { gameplay: `${format}-gameplay.webm`, cinematic: `${format}-cinematic.mp4`, gameplayStart, cinematicStart };
         await writeFile(path.join(output, 'take.json'), `${JSON.stringify(manifest, null, 2)}\n`);
     }

@@ -20,10 +20,23 @@ const CAPTIONS = Object.freeze([
     { start: 10.55, end: 13.6, key: 'thick', copy: 'THICK makes the trail wider.' },
     { start: 16, end: 18, key: 'endcard', copy: 'CURVIOSCLASH\nFollow development.' },
 ]);
+const GHOST_CAPTIONS = Object.freeze([
+    { start: 0.25, end: 1.8, key: 'hook', copy: 'No way out?' },
+    { start: 3.15, end: 5.0, key: 'duel', copy: 'GHOST picked up.' },
+    { start: 11.5, end: 12.8, key: 'classic', copy: 'Use GHOST.' },
+    { start: 13.4, end: 15.3, key: 'effect', copy: 'Through the trail.' },
+    { start: 16, end: 18, key: 'endcard', copy: 'CURVIOSCLASH\nFollow development.' },
+]);
 const PUBLICATION = 'Your trail is a weapon. Your next turn could be a trap.\n'
     + 'Discover Classic and the THICK item: fast 3D duels where every turn matters.\n'
     + 'Would you have escaped? Follow development on itch.io.\n'
     + 'Development footage.\n'
+    + 'https://curviosclash.itch.io/\n'
+    + 'Music: Mozart, Eine kleine Nachtmusik, performed by Advent Chamber Orchestra; CC BY-SA 2.0.\n'
+    + 'https://commons.wikimedia.org/wiki/File:Mozart_-_Eine_kleine_Nachtmusik_-_1._Allegro.ogg\n';
+const GHOST_PUBLICATION = 'No way out? GHOST lets you fly through an existing trail.\n'
+    + 'Watch the pickup, the activation, and the escape in one real Classic round.\n'
+    + 'Follow CurviosClash development on itch.io. Development footage.\n'
     + 'https://curviosclash.itch.io/\n'
     + 'Music: Mozart, Eine kleine Nachtmusik, performed by Advent Chamber Orchestra; CC BY-SA 2.0.\n'
     + 'https://commons.wikimedia.org/wiki/File:Mozart_-_Eine_kleine_Nachtmusik_-_1._Allegro.ogg\n';
@@ -84,9 +97,49 @@ function marker(format) {
         + ':box=1:boxcolor=0x081320@0.65:boxborderw=9:fix_bounds=1';
 }
 
-export function buildRenderArgs(name, entry) {
+function buildGhostRenderArgs(name, entry) {
+    const format = FORMATS[name];
+    const top = Math.round(format.height * (name === 'portrait' ? 0.12 : 0.145));
+    const frame = (start, duration, label) => `[${label}:v:0]trim=start=${start}:duration=${duration},`
+        + `setpts=PTS-STARTPTS,fps=60,scale=${format.width}:${format.height}:flags=lanczos,setsar=1,`
+        + `${marker(format)}`;
+    const chains = [
+        `${frame(entry.cinematicStart + 7.5, 3, 1)}[v0]`,
+        `${frame(entry.gameplayStart + 3, 13, 0)}[v1]`,
+        `[0:v:0]trim=start=${entry.gameplayStart + 15.6}:duration=0.1,setpts=PTS-STARTPTS,`
+            + `fps=60,scale=${format.width}:${format.height}:flags=lanczos,setsar=1,`
+            + `tpad=stop_mode=clone:stop_duration=2,trim=duration=2,`
+            + `${drawText('captions/title.txt', name === 'portrait' ? 74 : 88,
+                Math.round(format.height * 0.095), { boxed: true })},`
+            + `${drawText('captions/cta.txt', name === 'portrait' ? 43 : 53,
+                Math.round(format.height * 0.82), { color: '0x9cedff', boxed: true })}[v2]`,
+        '[v0][v1][v2]concat=n=3:v=1:a=0[base]',
+    ];
+    const timed = GHOST_CAPTIONS.filter((caption) => caption.key !== 'endcard').map((caption) =>
+        `${drawText(`captions/${caption.key}.txt`, format.captionSize, top)}`
+        + `:enable='between(t,${caption.start},${caption.end})'`);
+    chains.push(`[base]${timed.join(',')}[video]`);
+    chains.push(`[0:a:0]atrim=start=${entry.gameplayStart + 7.5}:duration=3,asetpts=PTS-STARTPTS[hookaudio]`);
+    chains.push(`[0:a:0]atrim=start=${entry.gameplayStart + 3}:duration=13,asetpts=PTS-STARTPTS[storyaudio]`);
+    chains.push('[hookaudio][storyaudio]concat=n=2:v=0:a=1,aresample=async=1:first_pts=0,'
+        + 'loudnorm=I=-20:TP=-2:LRA=11,apad,atrim=duration=18[game]');
+    chains.push('[2:a:0]atrim=start=2:duration=18,asetpts=PTS-STARTPTS,volume=0.24,'
+        + 'afade=t=in:st=0:d=0.5,afade=t=out:st=16.5:d=1.5[music]');
+    chains.push('[game][music]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[audio]');
+    return [
+        '-i', entry.gameplay, '-i', entry.cinematic, '-i', MUSIC,
+        '-filter_complex', chains.join(';'), '-map', '[video]', '-map', '[audio]',
+        '-frames:v', String(FRAMES), '-t', String(DURATION),
+        '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p',
+        '-r', '60', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2',
+        '-movflags', '+faststart', `curviosclash-${name}.mp4`,
+    ];
+}
+
+export function buildRenderArgs(name, entry, variant = 'thick') {
     const format = FORMATS[name];
     if (!format) fail(`unknown orientation: ${name}`);
+    if (variant === 'ghost') return buildGhostRenderArgs(name, entry);
     const timeline = buildTimeline(entry);
     const top = Math.round(format.height * (name === 'portrait' ? 0.12 : 0.145));
     const chains = timeline.slice(0, 4).map((shot, index) => {
@@ -104,7 +157,8 @@ export function buildRenderArgs(name, entry) {
         + `${drawText('captions/cta.txt', name === 'portrait' ? 53 : 61,
             '(h-text_h)/2+85', { color: '0x9cedff', boxed: false })}[v4]`);
     chains.push('[v0][v1][v2][v3][v4]concat=n=5:v=1:a=0[base]');
-    const timed = CAPTIONS.filter((caption) => caption.key !== 'endcard').map((caption) =>
+    const timed = (variant === 'ghost' ? GHOST_CAPTIONS : CAPTIONS)
+        .filter((caption) => caption.key !== 'endcard').map((caption) =>
         `${drawText(`captions/${caption.key}.txt`, format.captionSize, top)}`
         + `:enable='between(t,${caption.start},${caption.end})'`);
     chains.push(`[base]${timed.join(',')}[video]`);
@@ -224,8 +278,8 @@ function srtTime(seconds) {
         + String(milliseconds % 1000).padStart(3, '0');
 }
 
-export function buildSrt() {
-    return CAPTIONS.map(({ start, end, copy }, index) =>
+export function buildSrt(variant = 'thick') {
+    return (variant === 'ghost' ? GHOST_CAPTIONS : CAPTIONS).map(({ start, end, copy }, index) =>
         `${index + 1}\n${srtTime(start)} --> ${srtTime(end)}\n${copy}\n`).join('\n');
 }
 
@@ -233,7 +287,9 @@ async function main(args) {
     if (args.length !== 2) fail('usage: node scripts/marketing/render-trail-short.mjs <take.json> <new-output-dir>');
     const manifestPath = path.resolve(args[0]);
     const outputDir = path.resolve(args[1]);
-    const entries = validateTake(JSON.parse(await readFile(manifestPath, 'utf8')), path.dirname(manifestPath));
+    const take = JSON.parse(await readFile(manifestPath, 'utf8'));
+    const variant = take.variant === 'ghost' ? 'ghost' : 'thick';
+    const entries = validateTake(take, path.dirname(manifestPath));
     await assertNewOutputDirectory(outputDir);
     const root = process.cwd();
     const requireElectron = createRequire(path.join(root, 'electron', 'package.json'));
@@ -244,34 +300,43 @@ async function main(args) {
     await run(ffmpeg, ['-version'], root);
     for (const [name, entry] of Object.entries(entries)) {
         await probeSource(entry.gameplay, FORMATS[name], entry.gameplayStart + 16, true, ffprobe);
-        await probeSource(entry.cinematic, FORMATS[name], entry.cinematicStart + 10, false, ffprobe);
+        await probeSource(entry.cinematic, FORMATS[name], entry.cinematicStart + (variant === 'ghost' ? 10.5 : 10), false, ffprobe);
     }
     await mkdir(path.dirname(outputDir), { recursive: true });
     await mkdir(outputDir);
     await mkdir(path.join(outputDir, 'captions'));
+    const captionSet = variant === 'ghost' ? GHOST_CAPTIONS : CAPTIONS;
     const captions = {
-        'hook.txt': 'Your trail is a weapon.\n',
-        'duel.txt': 'Every turn can close a path.\n',
-        'classic.txt': 'Classic mode\n',
-        'thick.txt': 'THICK makes the trail wider.\n',
         'marker.txt': 'Development footage\n',
         'title.txt': 'CURVIOSCLASH\n',
         'cta.txt': 'Follow development.\n',
     };
+    for (const caption of captionSet) {
+        if (caption.key !== 'endcard') captions[`${caption.key}.txt`] = `${caption.copy}\n`;
+    }
     await Promise.all(Object.entries(captions).map(([name, copy]) => writeFile(
         path.join(outputDir, 'captions', name), copy, { flag: 'wx' })));
-    await writeFile(path.join(outputDir, 'captions.srt'), buildSrt(), { flag: 'wx' });
-    await writeFile(path.join(outputDir, 'publication.txt'), PUBLICATION, { flag: 'wx' });
+    await writeFile(path.join(outputDir, 'captions.srt'), buildSrt(variant), { flag: 'wx' });
+    await writeFile(path.join(outputDir, 'publication.txt'), variant === 'ghost' ? GHOST_PUBLICATION : PUBLICATION,
+        { flag: 'wx' });
     for (const [name, entry] of Object.entries(entries)) {
         await run(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-n',
-            ...buildRenderArgs(name, entry)], outputDir);
+            ...buildRenderArgs(name, entry, variant)], outputDir);
         console.log(`[marketing:trail-short] ${name} video ready`);
     }
     const landscape = entries.landscape;
     await run(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-n',
-        '-ss', String(landscape.cinematicStart + 8), '-i', landscape.cinematic,
+        '-ss', String(variant === 'ghost' ? landscape.gameplayStart + 12.8 : landscape.cinematicStart + 8),
+        '-i', variant === 'ghost' ? landscape.gameplay : landscape.cinematic,
         '-frames:v', '1', '-vf', 'scale=1920:1080:flags=lanczos,setsar=1',
         'thumbnail-landscape.png'], outputDir);
+    if (variant === 'ghost') {
+        const portrait = entries.portrait;
+        await run(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-n',
+            '-ss', String(portrait.cinematicStart + 7.8), '-i', portrait.cinematic,
+            '-frames:v', '1', '-vf', 'scale=1080:1920:flags=lanczos,setsar=1',
+            'thumbnail-portrait.png'], outputDir);
+    }
     console.log(`[marketing:trail-short] Saved to ${outputDir}`);
 }
 

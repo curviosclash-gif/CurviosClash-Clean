@@ -90,6 +90,21 @@ test('subtitles follow the hook, duel, mode, and THICK item beats', () => {
     assert.match(srt, /00:00:16,000 --> 00:00:18,000\nCURVIOSCLASH\nFollow development\./);
 });
 
+test('GHOST cut follows the real pickup, activation and crossing and keeps trails behind its endcard', () => {
+    const args = buildRenderArgs('portrait', entry, 'ghost');
+    const graph = args[args.indexOf('-filter_complex') + 1];
+    assert.match(graph, /trim=start=10:duration=3/);
+    assert.match(graph, /trim=start=4\.25:duration=13/);
+    assert.match(graph, /tpad=stop_mode=clone:stop_duration=2/);
+    assert.match(graph, /\[hookaudio\]\[storyaudio\]concat=n=2:v=0:a=1/);
+    assert.match(graph, /captions\/classic\.txt.*between\(t,11\.5,12\.8\)/);
+    assert.match(graph, /captions\/effect\.txt.*between\(t,13\.4,15\.3\)/);
+    assert.doesNotMatch(graph, /color=c=0x081320/);
+    const srt = buildSrt('ghost');
+    assert.match(srt, /00:00:11,500 --> 00:00:12,800\nUse GHOST\./);
+    assert.match(srt, /00:00:13,400 --> 00:00:15,300\nThrough the trail\./);
+});
+
 test('existing output path fails preflight', async () => {
     await assert.rejects(assertNewOutputDirectory(import.meta.filename), /already exists/);
 });
