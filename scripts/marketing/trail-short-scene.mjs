@@ -1,5 +1,5 @@
 /* global document, performance */
-import { CatmullRomCurve3, Vector3 } from 'three';
+import { CatmullRomCurve3, Quaternion, Vector3 } from 'three';
 
 export const TRAIL_SHORT = Object.freeze({
     warmup: 6,
@@ -9,7 +9,7 @@ export const TRAIL_SHORT = Object.freeze({
         { start: 0, end: 3, kind: 'cinematic', caption: 'Your trail is a weapon.' },
         { start: 3, end: 7, kind: 'third-person', player: 0, caption: '3D duels. Outfly. Outlast.' },
         { start: 7, end: 10, kind: 'cinematic', caption: 'Classic mode\nOne of several game modes.' },
-        { start: 10, end: 16, kind: 'third-person', player: 1, caption: '' },
+        { start: 10, end: 16, kind: 'third-person', player: 0, caption: '' },
     ]),
 });
 
@@ -20,11 +20,34 @@ export function resolveTrailShortShot(time) {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 export function trailShortHudOpacity(clipTime) {
-    const fade = (time) => clamp(time / 0.25, 0, 1);
+    const fade = (time) => clamp(time / 0.5, 0, 1);
     if (clipTime < 3) return 0;
     if (clipTime < 7) return Math.min(fade(clipTime - 3), fade(7 - clipTime));
     if (clipTime < 10) return 0;
     return fade(clipTime - 10);
+}
+
+export function trailShortSubject(clipTime, variant = 'thick') {
+    const shot = resolveTrailShortShot(clipTime);
+    return variant === 'ghost' && shot.kind === 'third-person' ? 1 : (shot.player ?? 0);
+}
+
+export function sampleTrailShortRecordedCamera(leftSnapshot, rightSnapshot, alpha, playerIndex, out = null) {
+    const left = leftSnapshot?.cameras?.find((camera) => camera.index === playerIndex);
+    const right = rightSnapshot?.cameras?.find((camera) => camera.index === playerIndex);
+    if (!left || !right) throw new Error(`Recorded camera missing for player ${playerIndex}`);
+    const amount = clamp(alpha, 0, 1);
+    const pose = out || { position: {}, quaternion: {} };
+    for (const [index, axis] of ['x', 'y', 'z'].entries()) {
+        pose.position[axis] = left.position[index] + (right.position[index] - left.position[index]) * amount;
+    }
+    const q = new Quaternion(...left.quaternion).slerp(new Quaternion(...right.quaternion), amount);
+    pose.quaternion.x = q.x;
+    pose.quaternion.y = q.y;
+    pose.quaternion.z = q.z;
+    pose.quaternion.w = q.w;
+    pose.fov = left.fov + (right.fov - left.fov) * amount;
+    return pose;
 }
 // Irregular, open 3D routes in the built 240 x 90 x 240 Standard Arena.
 const ROUTE_ANCHORS = [
@@ -170,8 +193,7 @@ export function installTrailShortFlight(game, { variant = 'thick' } = {}) {
                     state.time = this.time;
                     if (this.time >= TRAIL_SHORT.warmup && state.clipStartedAt === null) state.clipStartedAt = performance.now();
                     if (this.time >= TRAIL_SHORT.warmup + TRAIL_SHORT.duration && state.finishedAt === null) state.finishedAt = performance.now();
-                    const shot = resolveTrailShortShot(this.time - TRAIL_SHORT.warmup);
-                    const subject = ghost && shot.kind === 'third-person' ? 1 : (shot.player || 0);
+                    const subject = trailShortSubject(this.time - TRAIL_SHORT.warmup, variant);
                     if (state.subject !== subject) {
                         state.subject = subject;
                         game.renderer.viewportSystem.setNetworkMode(true, subject, game.renderer.cameras, 1);
@@ -264,7 +286,7 @@ export function createTrailShortCamera(templateCamera, { handoff = false, varian
             const openingPlayer = variant === 'ghost' ? second : first;
             const transition = time < 7 ? { player: openingPlayer, amount: openingBlend }
                 : time >= 7 && time < 8 ? { player: openingPlayer, amount: 8 - time }
-                    : time >= 9 ? { player: second, amount: clamp(time - 9, 0, 1) } : null;
+                    : time >= 8 ? { player: openingPlayer, amount: clamp((time - 8) / 2, 0, 1) } : null;
             if (handoff && transition) {
                 const player = transition.player;
                 const recorded = projection.recordedCamera;

@@ -6,7 +6,9 @@ import {
     installTrailShortFlight,
     resolveTrailFlightTarget,
     resolveTrailShortShot,
+    sampleTrailShortRecordedCamera,
     trailShortHudOpacity,
+    trailShortSubject,
     TRAIL_SHORT,
 } from '../scripts/marketing/trail-short-scene.mjs';
 
@@ -24,19 +26,21 @@ test('shot handoffs cover the 16-second footage without gaps', () => {
     }
     assert.equal(resolveTrailShortShot(3).kind, 'third-person');
     assert.equal(resolveTrailShortShot(7).kind, 'cinematic');
-    assert.equal(resolveTrailShortShot(10).player, 1);
+    assert.equal(resolveTrailShortShot(10).player, 0);
+    assert.equal(trailShortSubject(10, 'thick'), 0);
+    assert.equal(trailShortSubject(10, 'ghost'), 1);
 });
 
 test('the live HUD fades in after arrival and out before the return camera move', () => {
     assert.equal(trailShortHudOpacity(2.99), 0);
     assert.equal(trailShortHudOpacity(3), 0);
-    assert.equal(trailShortHudOpacity(3.125), 0.5);
-    assert.equal(trailShortHudOpacity(3.25), 1);
-    assert.equal(trailShortHudOpacity(6.875), 0.5);
+    assert.equal(trailShortHudOpacity(3.25), 0.5);
+    assert.equal(trailShortHudOpacity(3.5), 1);
+    assert.equal(trailShortHudOpacity(6.75), 0.5);
     assert.equal(trailShortHudOpacity(7), 0);
     assert.equal(trailShortHudOpacity(10), 0);
-    assert.equal(trailShortHudOpacity(10.125), 0.5);
-    assert.equal(trailShortHudOpacity(10.25), 1);
+    assert.equal(trailShortHudOpacity(10.25), 0.5);
+    assert.equal(trailShortHudOpacity(10.5), 1);
 });
 
 test('camera poses stay finite, level enough to see the duel, and continuous in both formats', () => {
@@ -89,7 +93,7 @@ test('optional handoff flight meets both third-person camera positions at the sh
             const openingBlend = portrait ? Math.max(0, Math.min((time - 1.25) / 1.75, 1))
                 : Math.min(time / 3, 1);
             const amount = time < 7 ? openingBlend
-                : time < 8 ? 8 - time : time < 9 ? 0 : Math.min(time - 9, 1);
+                : time < 8 ? 8 - time : Math.min((time - 8) / 2, 1);
             const blend = amount * amount * (3 - 2 * amount);
             assert.ok(Math.abs(pose.fov - (55 + 20 * blend)) < 1e-9);
             assert.ok(Object.values(pose.quaternion).every(Number.isFinite));
@@ -102,13 +106,28 @@ test('optional handoff flight meets both third-person camera positions at the sh
                 previousStep = step;
             }
             if ([180, 420, 600].includes(frame)) {
-                const subject = frame === 600 ? second : first;
+                const subject = first;
                 assert.ok(camera.distanceTo(new Vector3(subject.x, subject.y + 5, subject.z + 9)) < 1e-9,
                     'handoff must reach the native follow position');
             }
             previous = camera;
         }
     }
+});
+
+test('handoff samples the selected pilot camera instead of the other pilot', () => {
+    const left = { cameras: [
+        { index: 0, position: [0, 0, 0], quaternion: [0, 0, 0, 1], fov: 70 },
+        { index: 1, position: [20, 5, 10], quaternion: [0, 0, 0, 1], fov: 75 },
+    ] };
+    const right = { cameras: [
+        { index: 0, position: [1, 0, 0], quaternion: [0, 0, 0, 1], fov: 70 },
+        { index: 1, position: [22, 7, 12], quaternion: [0, 0, 0, 1], fov: 75 },
+    ] };
+    const selected = sampleTrailShortRecordedCamera(left, right, 0.5, trailShortSubject(3, 'ghost'));
+    assert.deepEqual(selected.position, { x: 21, y: 6, z: 11 });
+    assert.equal(selected.fov, 75);
+    assert.throws(() => sampleTrailShortRecordedCamera(left, right, 0.5, 2), /missing/);
 });
 
 test('handoff uses the actual camera recorded with gameplay when available', () => {

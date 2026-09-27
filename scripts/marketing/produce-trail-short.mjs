@@ -197,13 +197,29 @@ try {
         if (probe) await page.screenshot({ path: path.join(output, `${format}-probe-${sample}.png`) });
         if (state.state !== 'PLAYING' || state.time >= TRAIL_SHORT.warmup + TRAIL_SHORT.duration + 0.3) break;
     }
-    const state = await page.evaluate((selectedVariant) => ({ ...window.__trailShortRun.state,
-        alive: window.GAME_INSTANCE.entityManager.players.every((player) => player.alive),
-        itemActive: window.GAME_INSTANCE.entityManager.players[selectedVariant === 'ghost' ? 1 : 0].activeEffects
-            .some((effect) => effect.type === (selectedVariant === 'ghost' ? 'GHOST' : 'THICK')),
-        nativeStartedAt: window.__trailShortRun.nativeStartedAt,
-        windowStartedAt: window.__trailShortCapture?.startedAt,
-        events: window.GAME_INSTANCE.recorder.events.filter((entry) => entry.type).slice(-25) }), variant);
+    const state = await page.evaluate((selectedVariant) => {
+        const game = window.GAME_INSTANCE;
+        const item = selectedVariant === 'ghost' ? 'GHOST' : 'THICK';
+        const playerIndex = selectedVariant === 'ghost' ? 1 : 0;
+        const events = game.recorder.events.filter((entry) => entry.type);
+        const itemEvent = (type) => events.find((entry) => entry.type === type
+            && entry.player === playerIndex && entry.data?.includes(`type=${item}`));
+        const clipTime = (event) => event ? event.time - window.__trailShort.TRAIL_SHORT.warmup : null;
+        return { ...window.__trailShortRun.state,
+            alive: game.entityManager.players.every((player) => player.alive),
+            itemActive: game.entityManager.players[playerIndex].activeEffects
+                .some((effect) => effect.type === item),
+            nativeStartedAt: window.__trailShortRun.nativeStartedAt,
+            windowStartedAt: window.__trailShortCapture?.startedAt,
+            beats: {
+                pickup: clipTime(itemEvent('ITEM_PICKUP')),
+                use: clipTime(itemEvent('ITEM_USE')),
+                crossing: selectedVariant === 'ghost'
+                    ? window.__trailShortRun.state.closestPass.time - window.__trailShort.TRAIL_SHORT.warmup : null,
+            },
+            events: events.slice(-25),
+        };
+    }, variant);
     await writeFile(path.join(output, `${format}-take.json`), `${JSON.stringify(state, null, 2)}\n`, { flag: 'wx' });
     if (!probe) {
         const stop = await page.evaluate(() => window.GAME_INSTANCE.mediaRecorderSystem.stopRecording());
@@ -214,6 +230,14 @@ try {
         }
         if (variant === 'ghost' && (state.closestPass.distance > 1.2 || !state.ghostActiveAtCrossing)) {
             throw new Error(`Take has no verified GHOST trail crossing: ${JSON.stringify(state.closestPass)}`);
+        }
+        if (!Number.isFinite(state.beats.use) || state.beats.use < 10 || state.beats.use >= 15) {
+            throw new Error(`Take has no correctly timed ${variant.toUpperCase()} activation`);
+        }
+        if (variant === 'ghost' && (!Number.isFinite(state.beats.pickup)
+            || state.beats.pickup < 3 || state.beats.pickup >= 7
+            || state.beats.crossing <= state.beats.use || state.beats.crossing >= 16)) {
+            throw new Error(`Take has no correctly ordered GHOST story beats: ${JSON.stringify(state.beats)}`);
         }
         const elapsed = (state.finishedAt - state.clipStartedAt) / 1000;
         if (Math.abs(elapsed - TRAIL_SHORT.duration) > 0.08) {
@@ -231,7 +255,7 @@ try {
             const original = exporter.renderFrame;
             const onStatus = exporter.onStatus;
             let progress = -1;
-            let lensVerified = false;
+            const verifiedHandoffs = new Set();
             exporter.onStatus = (status) => {
                 onStatus?.(status);
                 const next = Math.floor(Number(status.progress || 0) * 10);
@@ -242,22 +266,43 @@ try {
             };
             exporter.renderFrame = async (frame) => {
                 const clipTime = frame.timeMs / 1000 - offset;
-                if (frame.projection) frame.projection.recordedCamera = camera.sample(frame.projection, clipTime, portrait);
-                const canvas = await original(frame);
-                if (!lensVerified && clipTime >= 3 && clipTime < 3.1) {
-                    const renderedCamera = game.renderer.recordingCapturePipeline._cinematicCameraRig.cameras[0];
-                    if (renderedCamera?.fov !== 75) throw new Error('Cinematic camera did not reach the 75-degree follow lens');
-                    lensVerified = true;
-                    console.info('[trail-short] Cinematic handoff camera verified: 75 degrees');
+                if (frame.projection) {
+                    const playerIndex = selectedVariant === 'ghost' ? 1 : 0;
+                    const recorded = window.__trailShort.sampleTrailShortRecordedCamera(
+                        frame.leftSnapshot, frame.rightSnapshot, frame.alpha, playerIndex);
+                    frame.projection.recordedCamera = recorded;
+                    const pose = camera.sample(frame.projection, clipTime, portrait);
+                    for (const cut of [3, 7, 10]) {
+                        if (verifiedHandoffs.has(cut) || clipTime < cut || clipTime > cut + 1 / 60 + 0.001) continue;
+                        const distance = Math.hypot(pose.position.x - recorded.position.x,
+                            pose.position.y - recorded.position.y, pose.position.z - recorded.position.z);
+                        const fovDifference = Math.abs(pose.fov - recorded.fov);
+                        const dot = Math.abs(pose.quaternion.x * recorded.quaternion.x
+                            + pose.quaternion.y * recorded.quaternion.y
+                            + pose.quaternion.z * recorded.quaternion.z
+                            + pose.quaternion.w * recorded.quaternion.w);
+                        if (distance > 0.5 || fovDifference > 0.1 || dot < 0.9999) {
+                            throw new Error(`Camera handoff at ${cut}s does not match player ${playerIndex}`);
+                        }
+                        verifiedHandoffs.add(cut);
+                    }
+                    frame.projection.recordedCamera = pose;
                 }
+                const canvas = await original(frame);
                 return canvas;
             };
+            window.__trailShortHandoffs = verifiedHandoffs;
         }, { offset: cinematicStart, portrait: format === 'portrait', selectedVariant: variant });
         console.log(`[trail-short] Rendering ${format} cinematic replay`);
         const rendered = await page.evaluate((id) => window.GAME_INSTANCE.mediaRecorderSystem.renderCinematicReplayRecording(id), stop.recordingId);
         if (!rendered.saved) throw new Error(`Replay export failed: ${JSON.stringify(rendered)}`);
+        const handoffs = await page.evaluate(() => [...window.__trailShortHandoffs]);
+        if (handoffs.length !== 3) {
+            throw new Error(`Missing camera handoff checks: ${handoffs.join(', ')}`);
+        }
         manifest.variant = variant;
-        manifest.orientations[format] = { gameplay: `${format}-gameplay.webm`, cinematic: `${format}-cinematic.mp4`, gameplayStart, cinematicStart };
+        manifest.orientations[format] = { gameplay: `${format}-gameplay.webm`, cinematic: `${format}-cinematic.mp4`, gameplayStart, cinematicStart,
+            beats: state.beats, handoffs };
         await writeFile(path.join(output, 'take.json'), `${JSON.stringify(manifest, null, 2)}\n`);
     }
     await app.close();
