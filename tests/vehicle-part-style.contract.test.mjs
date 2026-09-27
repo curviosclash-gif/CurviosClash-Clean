@@ -6,9 +6,10 @@ import {
     VEHICLE_PART_STYLE_SCALE_RANGE,
     applyVehiclePartStyle,
     listVehiclePartVariants,
+    measureVehiclePartBounds,
     normalizeVehiclePartStyle,
 } from '../src/shared/contracts/VehiclePartStyleContract.js';
-import { estimateVehicleLabPartExtent } from '../src/shared/contracts/VehicleLabConfigContract.js';
+import { ModularVehicleMesh } from '../src/shared/vehicle-lab/ModularVehicleMeshBridge.js';
 import { normalizeArcadeVehicleProfileRecord } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 import { listPlayerShipPartDonors } from '../src/shared/vehicle-lab/player-ships/index.js';
 import { RuntimeModularVehicleMesh } from '../src/entities/runtime-modular-vehicle-mesh.js';
@@ -62,13 +63,41 @@ test('applying a style recolors, rescales and swaps parts without touching the s
     assert.deepEqual(core.scale, [1.2, 1.2, 1.2]);
     assert.equal(nose.name, 'Nase');
     assert.equal(nose.role, 'nose');
-    assert.deepEqual(nose.pos, [0, 0, -2]);
     assert.equal(nose.geo, 'capsule');
     assert.equal(nose.children[0].name, 'Nase · Spitze', 'child names stay unique');
-    const originalExtent = estimateVehicleLabPartExtent(SHIP.parts[1]);
-    assert.ok(Math.abs(estimateVehicleLabPartExtent(nose) - originalExtent) < 1e-6, 'the donor shape is fitted to the old part size');
     assert.deepEqual(wing, SHIP.parts[2]);
     assert.deepEqual(deco, SHIP.parts[3]);
+});
+
+function renderedBounds(config, partName) {
+    const mesh = new ModularVehicleMesh(config);
+    mesh.updateMatrixWorld(true);
+    const part = mesh.children.find((child) => child.name === partName && !child.userData.isMirror);
+    const box = new THREE.Box3().setFromObject(part);
+    mesh.dispose();
+    return box;
+}
+
+test('a swapped shape takes the place and footprint of the old part, rotation included', () => {
+    const ship5 = listPlayerShipPartDonors().find((donor) => donor.id === 'ship5');
+    for (const role of ['wing_left', 'wing_right', 'nose', 'engine_left']) {
+        const name = ship5.parts.find((part) => part.role === role).name;
+        const styled = applyVehiclePartStyle(ship5, { [name]: { variant: 'lab_helix_interceptor' } }, listPlayerShipPartDonors());
+        const before = renderedBounds(ship5, name);
+        const after = renderedBounds(styled, name);
+        const sizeBefore = before.getSize(new THREE.Vector3());
+        const sizeAfter = after.getSize(new THREE.Vector3());
+        const centerBefore = before.getCenter(new THREE.Vector3());
+        const centerAfter = after.getCenter(new THREE.Vector3());
+        for (const axis of ['x', 'z']) {
+            assert.ok(sizeAfter[axis] <= sizeBefore[axis] * 1.02 + 1e-6, `${role} ${axis} footprint ${sizeAfter[axis].toFixed(2)} fits ${sizeBefore[axis].toFixed(2)}`);
+            assert.ok(Math.abs(centerAfter[axis] - centerBefore[axis]) < 0.02, `${role} ${axis} center stays`);
+        }
+        const fills = Math.max(sizeAfter.x / sizeBefore.x, sizeAfter.z / sizeBefore.z);
+        assert.ok(fills > 0.98, `${role} fills the old footprint on one axis (${fills.toFixed(2)})`);
+        const measured = measureVehiclePartBounds(styled.parts.find((part) => part.name === name));
+        assert.ok(Math.abs(measured.size[0] - sizeAfter.x) < 0.1, `${role} measured width matches the renderer`);
+    }
 });
 
 test('only role parts except the core offer shapes of other ships with the same role', () => {

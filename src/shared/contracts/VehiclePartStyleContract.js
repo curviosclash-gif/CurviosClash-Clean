@@ -1,5 +1,3 @@
-import { estimateVehicleLabPartExtent } from './VehicleLabConfigContract.js';
-
 // Per-vehicle look a player sets in the arcade hangar: keyed by the name of a top-level
 // part, each entry may recolor it, scale it within limits or swap its shape for the part
 // with the same role from another ship. Hitboxes never follow these changes.
@@ -46,6 +44,85 @@ export function normalizeVehiclePartStyle(raw) {
     return style;
 }
 
+const DEG = Math.PI / 180;
+
+// Half extents of each lab geometry in its own frame (see ModularVehicleMesh).
+function halfExtents(part) {
+    const s = Array.isArray(part.size) ? part.size.map((value) => Math.abs(Number(value) || 0)) : [1, 1, 1];
+    const radius = Math.max(s[0] || 0, s[1] || 0);
+    switch (part.geo) {
+        case 'sphere': return [s[0], s[0], s[0]];
+        case 'cone': return [s[0], s[1] / 2, s[0]];
+        case 'cylinder':
+        case 'pylon': return [radius, (s[2] ?? 1) / 2, radius];
+        case 'torus': return [s[0] + s[1], s[0] + s[1], s[1]];
+        case 'capsule': return [s[0], s[1] / 2 + s[0], s[0]];
+        case 'engine': return [radius, radius, (s[2] ?? 0.5) * 0.65];
+        case 'flame':
+        case 'forcefield': return [radius, radius, (s[2] ?? 0.5) / 2];
+        default: return [(s[0] ?? 1) / 2, (s[1] ?? 1) / 2, (s[2] ?? 1) / 2];
+    }
+}
+
+// Rotation matrix for Three.js Euler order XYZ, rows as arrays.
+function rotationMatrix(rot = [0, 0, 0]) {
+    const [a, b, c] = [0, 1, 2].map((axis) => (Number(rot?.[axis]) || 0) * DEG);
+    const [ca, sa, cb, sb, cc, sc] = [Math.cos(a), Math.sin(a), Math.cos(b), Math.sin(b), Math.cos(c), Math.sin(c)];
+    return [
+        [cb * cc, -cb * sc, sb],
+        [ca * sc + sa * sb * cc, ca * cc - sa * sb * sc, -sa * cb],
+        [sa * sc - ca * sb * cc, sa * cc + ca * sb * sc, ca * cb],
+    ];
+}
+
+function multiply(m, n) {
+    return m.map((row) => [0, 1, 2].map((col) => row[0] * n[0][col] + row[1] * n[1][col] + row[2] * n[2][col]));
+}
+
+function apply(m, v) {
+    return m.map((row) => row[0] * v[0] + row[1] * v[1] + row[2] * v[2]);
+}
+
+function collectOrientedBounds(part, parentMatrix, parentOffset, bounds) {
+    const scale = Array.isArray(part.scale) ? part.scale.map((value) => Number(value) || 1) : [1, 1, 1];
+    const pos = apply(parentMatrix, Array.isArray(part.pos) ? part.pos.map((value) => Number(value) || 0) : [0, 0, 0]);
+    const offset = [0, 1, 2].map((axis) => parentOffset[axis] + pos[axis]);
+    const matrix = multiply(parentMatrix, multiply(rotationMatrix(part.rot), [[scale[0], 0, 0], [0, scale[1], 0], [0, 0, scale[2]]]));
+    const half = halfExtents(part);
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+        const corner = apply(matrix, [sx * half[0], sy * half[1], sz * half[2]]);
+        for (const axis of [0, 1, 2]) {
+            bounds.min[axis] = Math.min(bounds.min[axis], offset[axis] + corner[axis]);
+            bounds.max[axis] = Math.max(bounds.max[axis], offset[axis] + corner[axis]);
+        }
+    }
+    for (const child of Array.isArray(part.children) ? part.children : []) {
+        if (child && typeof child === 'object') collectOrientedBounds(child, matrix, offset, bounds);
+    }
+    return bounds;
+}
+
+/**
+ * Axis-aligned bounds of one top-level part with its children, rotation and scale
+ * included, in vehicle space.
+ * @param {object} part
+ * @returns {{min: number[], max: number[], size: number[], center: number[]}}
+ */
+export function measureVehiclePartBounds(part) {
+    const identity = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    const { min, max } = collectOrientedBounds(part || {}, identity, [0, 0, 0], {
+        min: [Infinity, Infinity, Infinity],
+        max: [-Infinity, -Infinity, -Infinity],
+    });
+    if (!Number.isFinite(min[0])) return { min: [0, 0, 0], max: [0, 0, 0], size: [0, 0, 0], center: [0, 0, 0] };
+    return {
+        min,
+        max,
+        size: [0, 1, 2].map((axis) => max[axis] - min[axis]),
+        center: [0, 1, 2].map((axis) => (max[axis] + min[axis]) / 2),
+    };
+}
+
 function clone(value) {
     return JSON.parse(JSON.stringify(value));
 }
@@ -63,18 +140,21 @@ function prefixChildNames(children, prefix) {
     }));
 }
 
-// The donor shape takes the place, name and role of the old part and is scaled so its
-// longest extent matches the old part; otherwise a Manta wing would dwarf a Pfeil.
+// The donor shape takes the name, role and footprint of the old part: scaled evenly until
+// it fits the old part's two largest extents (rotation included, otherwise a Manta wing
+// would dwarf a Pfeil) and centered where the old part sat.
 function swapShape(part, donorPart) {
     const donor = clone(donorPart);
-    const targetExtent = estimateVehicleLabPartExtent(part);
-    const donorExtent = estimateVehicleLabPartExtent(donor);
-    const fit = targetExtent > 0 && donorExtent > 0 ? targetExtent / donorExtent : 1;
+    const target = measureVehiclePartBounds(part);
+    const source = measureVehiclePartBounds({ ...donor, pos: [0, 0, 0] });
+    const axes = [0, 1, 2].sort((a, b) => target.size[b] - target.size[a]).slice(0, 2);
+    const ratios = axes.filter((axis) => source.size[axis] > 1e-6).map((axis) => target.size[axis] / source.size[axis]);
+    const fit = ratios.length > 0 ? Math.min(...ratios) : 1;
     const swapped = {
         ...donor,
         name: part.name,
         role: part.role,
-        pos: part.pos ? [...part.pos] : [0, 0, 0],
+        pos: [0, 1, 2].map((axis) => target.center[axis] - source.center[axis] * fit),
         scale: (donor.scale || [1, 1, 1]).map((value) => value * fit),
     };
     delete swapped.mirror;
