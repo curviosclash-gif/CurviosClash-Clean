@@ -8,6 +8,8 @@ Diese Datei ist das schlanke Produktgedächtnis für zukünftige Ideen. Neue Ged
 - Modvertrieb: fremde Karten und Fahrzeuge im Spiel anbieten. Offen: nur Karten oder auch Fahrzeuge, bloßer Dateiaustausch oder Katalog im Spiel, wer fremde Inhalte auf Absturz, Anstößigkeit und Urheberrecht prüft, und ob Läufe auf Modkarten in Ranglisten zählen.
 - Bezahlinhalte: ob es sie überhaupt gibt und in welcher Form; heute nicht entschieden.
 - Fight-Lab: ein frei nutzbares Lab für den Kampfmodus mit eigenen Regeln und eigenem Speicherbereich, getrennt vom freizuschaltenden Arcade-Lab (gleiche Lab-Oberfläche, zweiter Modus). Schiffe daraus sind nur im Kampfmodus wählbar. Offen: Regeln, Budgets und ob Fight-Schiffe an Ranglisten teilnehmen; eigener Plan nach der Arcade-Werkstatt.
+- Trefferzone aus Bauteil-Boxen für alle Modi: Die genauere, der Flugzeugform folgende Trefferzone der Arcade-Werkstatt auch in Classic, Jagd, Kampf, Parcours und Mehrspieler nutzen, sobald sie sich im Arcade-Modus bewährt hat. Offen: Wirkung auf Spielgefühl und Balance jedes Modus; braucht Tests und Spieltests je Modus.
+- Unbegrenzte Nebenwerte in Arcade prüfen: Boost-Dauer, Reichweite, Rollgeschwindigkeit und Regeneration wachsen über Größe und Steine ohne Obergrenze. Nach der Umsetzung prüfen, ob etwa ein Dauer-Boost oder übergroße Reichweite das Spiel stören, und bei Bedarf Grenzen einführen.
 - Erzählerische Rahmung aus `story/das-turnier-der-letzten-staedte.md` ins Spiel holen; bewusst zurückgestellt und im Code bisher nicht vorhanden.
 
 ## Jetzt
