@@ -76,6 +76,7 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
     let renderHeight = 0;
     let activeBuild = null;
     let activeVehicleId = '';
+    let activeVehicleColor = '';
     let activeBuildSignature = '';
     let partStyleKey = '';
     let slotStates = [];
@@ -268,12 +269,16 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
     function setBuild(build, options = {}) {
         activeBuild = build;
         const vehicleId = String(build?.vehicleId || 'ship5');
-        if (vehicleId !== activeVehicleId) {
+        const vehicleColor = String(options.color || color).trim().toLowerCase();
+        if (vehicleId !== activeVehicleId || vehicleColor !== activeVehicleColor) {
             activeVehicleId = vehicleId;
+            activeVehicleColor = vehicleColor;
+            activeBuildSignature = '';
             partStyleKey = '';
             assembly.clearGhost();
-            assembly.setVehicle(vehicleId, options.color || color);
+            assembly.setVehicle(vehicleId, vehicleColor);
         }
+        assembly.setMachineGunModel(options.machineGunId);
         const slots = build?.slots || {};
         const signature = `${vehicleId}|${HANGAR_SLOT_DEFINITIONS.map((slot) => slots[slot.id] || '').join('|')}`;
         if (signature !== activeBuildSignature) {

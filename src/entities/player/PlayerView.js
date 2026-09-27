@@ -282,11 +282,18 @@ export class PlayerView {
 
     syncFromState() {
         if (!this.group) return;
+        this._syncWeaponVisuals();
         this.group.position.copy(this.player.position);
         this.group.quaternion.copy(this.player.quaternion);
         this._renderPosition.copy(this.player.position);
         this._renderQuaternion.copy(this.player.quaternion);
         this._renderDirection.set(0, 0, -1).applyQuaternion(this._renderQuaternion).normalize();
+    }
+
+    _syncWeaponVisuals() {
+        if (!this.vehicleMesh) return;
+        this.vehicleMesh.setMachineGunModel?.(this.player?.fightLoadout?.machineGunId || 'vector_m7');
+        this.vehicleMesh.syncRocketInventory?.(this.player?.rocketInventory);
     }
 
     _resolveExhaustOrigin(out) {
@@ -379,6 +386,8 @@ export class PlayerView {
 
     updateVisuals(dt, { emitParticles = true } = {}) {
         if (!this.group) return;
+
+        this._syncWeaponVisuals();
 
         const safeDt = Math.max(0, Math.min(0.05, Number(dt) || 0));
         this._visualTime += safeDt;
@@ -481,6 +490,10 @@ export class PlayerView {
         if (this.group) {
             if (this.renderer?.removeFromScene) {
                 this.renderer.removeFromScene(this.group);
+            }
+            if (typeof this.vehicleMesh?.dispose === 'function') {
+                this.vehicleMesh.removeFromParent();
+                this.vehicleMesh.dispose();
             }
             disposeObject3DResources(this.group);
         }

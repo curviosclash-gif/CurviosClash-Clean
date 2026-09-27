@@ -41,6 +41,7 @@ export class HangarVehicleAssembly {
         this.vehicleNode = null;
         this.vehicleLoadedHandler = null;
         this.vehicleId = '';
+        this.vehicleColor = '';
         this.selectedSlotId = '';
     }
 
@@ -288,13 +289,15 @@ export class HangarVehicleAssembly {
 
     setVehicle(vehicleId, color = '#66b6ff') {
         const normalizedVehicleId = String(vehicleId || '').trim().toLowerCase() || 'ship5';
-        if (normalizedVehicleId === this.vehicleId && this.vehicleNode) return;
+        const normalizedColor = String(color).trim().toLowerCase();
+        if (normalizedVehicleId === this.vehicleId && normalizedColor === this.vehicleColor && this.vehicleNode) return;
         if (this.vehicleNode) {
             this._detachVehicleLoadedHandler();
             this.baseVehicleRoot.remove(this.vehicleNode);
             disposeExternalVehicle(this.vehicleNode);
         }
         this.vehicleId = normalizedVehicleId;
+        this.vehicleColor = normalizedColor;
         this.hardpoints = new Map(resolveVehicleHardpoints(normalizedVehicleId).map((point) => [point.id, point]));
         this.vehicleNode = createVehicleMesh(normalizedVehicleId, color);
         this.factoryConfig = this.vehicleNode.isModularVehicle ? JSON.parse(JSON.stringify(this.vehicleNode.config)) : null;
@@ -309,6 +312,10 @@ export class HangarVehicleAssembly {
             };
             pendingVehicle.addEventListener?.('loaded', this.vehicleLoadedHandler);
         }
+    }
+
+    setMachineGunModel(machineGunId) {
+        this.vehicleNode?.setMachineGunModel?.(machineGunId);
     }
 
     // Shows the arcade part style on a part-built vehicle and moves the stones with it.

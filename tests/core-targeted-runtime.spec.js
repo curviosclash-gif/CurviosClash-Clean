@@ -413,7 +413,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         expect(result.frameTimingReason).toBe('cinematic-toggle');
     });
 
-    test('T20ai2: Kamera-Update nutzt gerenderte Transforms und spart Anchor-Arbeit ausserhalb First-Person', async ({ page }) => {
+    test('T20ai2: Kamera-Update nutzt gerenderte Transforms und spart Anchor-Arbeit ausserhalb First-Person', async ({ page }, testInfo) => {
         await startGame(page);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -478,6 +478,32 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         expect(result.thirdPersonAnchorDelta).toBeLessThanOrEqual(1);
         expect(result.firstPersonResolveDelta).toBe(0);
         expect(result.firstPersonAnchorDelta).toBeGreaterThanOrEqual(1);
+
+        await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const player = game?.entityManager?.humanPlayers?.[0];
+            const modes = game?.config?.CAMERA?.MODES || [];
+            if (!game || !player) return;
+            player.cockpitCamera = false;
+            player.rocketInventory.splice(0, player.rocketInventory.length,
+                'ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA', 'ROCKET_GUIDED');
+            player.vehicleMesh?.syncRocketInventory?.(player.rocketInventory);
+            game.renderer.cameraModes[player.index] = Math.max(0, modes.indexOf('THIRD_PERSON'));
+            game.entityManager.updateCameras(1 / 60);
+        });
+        await waitForRenderFrames(page, 12);
+        await page.screenshot({ path: testInfo.outputPath('player-follow-camera.png') });
+        await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const player = game?.entityManager?.humanPlayers?.[0];
+            const modes = game?.config?.CAMERA?.MODES || [];
+            if (!game || !player) return;
+            player.cockpitCamera = true;
+            game.renderer.cameraModes[player.index] = Math.max(0, modes.indexOf('FIRST_PERSON'));
+            game.entityManager.updateCameras(1 / 60);
+        });
+        await waitForRenderFrames(page, 12);
+        await page.screenshot({ path: testInfo.outputPath('player-cockpit-camera.png') });
     });
 
     test('T20ai4: Third-Person-Cinematic nutzt smoothes Boost-Blend und speed-basierten Sway', async ({ page }) => {

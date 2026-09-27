@@ -476,7 +476,11 @@ export function createArcadeHangarWorkshopRenderer(options) {
         renderPartPreview(state);
         renderSlots(state, validation, activePartId, progression);
         renderPresets(state);
-        viewport.setBuild(state.draft, { color: resolvePlayerColor(settings), changedSlots: syncOptions.changedSlots || [] });
+        viewport.setBuild(state.draft, {
+            color: resolvePlayerColor(settings),
+            changedSlots: syncOptions.changedSlots || [],
+            machineGunId: state.draft.machineGunId,
+        });
         viewport.setComparison(persistence.getBuild(buildCompareSelect.value));
         viewport.setDragActive(Boolean(activePartId));
         if (!syncOptions.dragPartId) {

@@ -232,7 +232,7 @@ test('Desktop-Hangar: Fahrzeugschalter wechseln sichtbar vor und zurück', async
     await expect(nextButton).toBeDisabled();
 });
 
-test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung', async ({ page }) => {
+test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung', async ({ page }, testInfo) => {
     test.setTimeout(300_000);
     await loadGame(page);
     await seedUnlockedProfiles(page);
@@ -272,6 +272,15 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await page.mouse.move(canvasPoint.x + Math.min(120, canvasPoint.width * 0.25), canvasPoint.y + Math.min(35, canvasPoint.height * 0.08), { steps: 8 });
     await page.mouse.up();
     await expect.poll(async () => Number(await stage.getAttribute('data-camera-revision') || 0)).toBeGreaterThan(revisionBefore);
+    await page.locator('.hangar-camera-reset').click({ force: true });
+    await waitForRenderFrames(page, 72);
+    await page.screenshot({ path: testInfo.outputPath('vehicle-preview-hero.png') });
+    await page.locator('[data-camera-preset="front"]').click({ force: true });
+    await waitForRenderFrames(page, 72);
+    await page.screenshot({ path: testInfo.outputPath('vehicle-preview-front.png') });
+    await page.locator('[data-camera-preset="top"]').click({ force: true });
+    await waitForRenderFrames(page, 72);
+    await page.screenshot({ path: testInfo.outputPath('vehicle-preview-top.png') });
     await page.locator('.hangar-camera-reset').click({ force: true });
     await waitForRenderFrames(page, 72);
 
