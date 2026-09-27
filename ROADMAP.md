@@ -9,7 +9,7 @@ Diese Datei ist das schlanke Produktgedächtnis für zukünftige Ideen. Neue Ged
 - Bezahlinhalte: ob es sie überhaupt gibt und in welcher Form; heute nicht entschieden.
 - Fight-Lab: ein frei nutzbares Lab für den Kampfmodus mit eigenen Regeln und eigenem Speicherbereich, getrennt vom freizuschaltenden Arcade-Lab (gleiche Lab-Oberfläche, zweiter Modus). Schiffe daraus sind nur im Kampfmodus wählbar. Offen: Regeln, Budgets und ob Fight-Schiffe an Ranglisten teilnehmen; eigener Plan nach der Arcade-Werkstatt.
 - Trefferzone aus Bauteil-Boxen für alle Modi: Die genauere, der Flugzeugform folgende Trefferzone der Arcade-Werkstatt auch in Classic, Jagd, Kampf, Parcours und Mehrspieler nutzen, sobald sie sich im Arcade-Modus bewährt hat. Offen: Wirkung auf Spielgefühl und Balance jedes Modus; braucht Tests und Spieltests je Modus.
-- Unbegrenzte Nebenwerte in Arcade prüfen: Boost-Dauer, Reichweite, Rollgeschwindigkeit und Regeneration wachsen über Größe und Steine ohne Obergrenze. Nach der Umsetzung prüfen, ob etwa ein Dauer-Boost oder übergroße Reichweite das Spiel stören, und bei Bedarf Grenzen einführen.
+- Dauer-Boost in Arcade prüfen: Die Boost-Dauer wächst über Antriebsgröße und Steine ohne Obergrenze. Die übrigen Nebenwerte sind begrenzt: Reichweite endet an der Sichtweite der Karte, Rollgeschwindigkeit wie Tempo bei Grundwert + 100 Prozentpunkten, die Wartezeit bis zur Regeneration sinkt nie unter 1 Sekunde. Nach der Umsetzung prüfen, ob ein Dauer-Boost das Spiel stört, und bei Bedarf eine Grenze einführen.
 - Erzählerische Rahmung aus `story/das-turnier-der-letzten-staedte.md` ins Spiel holen; bewusst zurückgestellt und im Code bisher nicht vorhanden.
 
 ## Jetzt
