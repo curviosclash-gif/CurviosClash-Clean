@@ -7,8 +7,6 @@ description: Delegate a bounded task to the locally installed Claude Code CLI wh
 
 Use Claude as an external process, not as a native Codex collaboration agent. Keep task ownership, integration, and final verification in the current Codex task.
 
-Before each Claude launch or resume, verify that the **current** user instruction starts on its first line with exactly `CLAUDE-AGENT-FREIGABE: 3141`. A prior approval, a skill invocation, or an implementation handoff does not replace this check. The helper cannot reliably read the current user instruction; `.claude/hooks/claude-agent-lock.mjs` guards Claude-internal agent calls, not this Codex helper.
-
 ## Token-efficient routing
 
 Apply the [Ponytail-lite baseline](../adaptive-model-routing/SKILL.md#ponytail-lite-baseline) after tracing the affected flow. Use Claude Fable at low or medium effort for ordinary read-only discovery and review unless the user names another Claude model. Reserve stronger Claude models and higher effort for implementation, difficult integration, or unresolved high-risk findings. Do not add a Codex subagent when it would duplicate the same Claude task; a cheap Codex `economy_scout` is useful only for a separate repository inventory or evidence-gathering lane. Explicit model assignments in a calling skill override this default.
