@@ -169,8 +169,8 @@ export const VEHICLE_PRESETS = [
             { name: 'R-Main Engine', geo: 'engine', size: [0.34, 0.28, 1.0], pos: [0.52, 0, 2.1], role: 'engine_right', children: [
                 { name: 'R-Ion Flame', geo: 'flame', size: [0.19, 0.1, 0.85], pos: [0, 0, 0.86], color: 0x22d3ee, material: 'glow', anim: { type: 'pulse', speed: 6, amount: 0.6 } }
             ] },
-            { name: 'L-Sensor Pylon', geo: 'pylon', size: [0.12, 0.18, 0.8], pos: [-1.05, 0.2, -0.3], rot: [90, 0, 0], material: 'secondary', role: 'utility' },
-            { name: 'R-Sensor Pylon', geo: 'pylon', size: [0.12, 0.18, 0.8], pos: [1.05, 0.2, -0.3], rot: [90, 0, 0], material: 'secondary', role: 'utility' },
+            { name: 'L-Sensor Pylon', geo: 'pylon', size: [0.12, 0.18, 0.8], pos: [-1.05, 0.2, -0.3], rot: [90, 0, 0], material: 'secondary' },
+            { name: 'R-Sensor Pylon', geo: 'pylon', size: [0.12, 0.18, 0.8], pos: [1.05, 0.2, -0.3], rot: [90, 0, 0], material: 'secondary' },
             { name: 'L-Wing Beacon', geo: 'sphere', size: [0.12], pos: [-2.2, 0.02, 0.15], material: 'glow', emissive: 0x7dd3fc, emissiveIntensity: 1.4 },
             { name: 'R-Wing Beacon', geo: 'sphere', size: [0.12], pos: [2.2, 0.02, 0.15], material: 'glow', emissive: 0x7dd3fc, emissiveIntensity: 1.4 }
         ]
