@@ -7,6 +7,7 @@ Diese Datei ist das schlanke Produktgedächtnis für zukünftige Ideen. Neue Ged
 - Neue Ideen hier kurz und ungeordnet ergänzen.
 - Modvertrieb: fremde Karten und Fahrzeuge im Spiel anbieten. Offen: nur Karten oder auch Fahrzeuge, bloßer Dateiaustausch oder Katalog im Spiel, wer fremde Inhalte auf Absturz, Anstößigkeit und Urheberrecht prüft, und ob Läufe auf Modkarten in Ranglisten zählen.
 - Bezahlinhalte: ob es sie überhaupt gibt und in welcher Form; heute nicht entschieden.
+- Fight-Lab: ein frei nutzbares Lab für den Kampfmodus mit eigenen Regeln und eigenem Speicherbereich, getrennt vom freizuschaltenden Arcade-Lab (gleiche Lab-Oberfläche, zweiter Modus). Schiffe daraus sind nur im Kampfmodus wählbar. Offen: Regeln, Budgets und ob Fight-Schiffe an Ranglisten teilnehmen; eigener Plan nach der Arcade-Werkstatt.
 - Erzählerische Rahmung aus `story/das-turnier-der-letzten-staedte.md` ins Spiel holen; bewusst zurückgestellt und im Code bisher nicht vorhanden.
 
 ## Jetzt
