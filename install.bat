@@ -54,6 +54,11 @@ set "EXIT_CODE=%errorlevel%"
 if not "%EXIT_CODE%"=="0" goto :fail_electron
 
 :electron_runtime_ready
+echo Setze die normale Integritaetsstufe fuer die Electron-Laufzeit...
+icacls "%ROOT%electron\node_modules\electron\dist" /setintegritylevel "(OI)(CI)M" /T /Q
+set "EXIT_CODE=%errorlevel%"
+if not "%EXIT_CODE%"=="0" goto :fail_electron
+
 if exist "%ROOT%electron\node_modules\ffmpeg-static\ffmpeg.exe" goto :ffmpeg_runtime_ready
 echo Lade die gesperrte FFmpeg-Laufzeit...
 call node "%ROOT%electron\node_modules\ffmpeg-static\install.js"
