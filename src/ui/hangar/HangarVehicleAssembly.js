@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { createVehicleMesh } from '../../entities/vehicle-registry.js';
 import { resolveHangarPart, resolveVehicleHardpoints } from './HangarPartCatalog.js';
+import { applyVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
+import { listPlayerShipPartDonors } from '../../shared/vehicle-lab/player-ships/index.js';
 
 const _bounds = new THREE.Box3();
 const _size = new THREE.Vector3();
@@ -260,7 +262,28 @@ export class HangarVehicleAssembly {
         vehicleNode.position.copy(_center).multiplyScalar(-1);
         this.baseVehicleRoot.scale.setScalar(scale);
         this.baseVehicleRoot.position.y = -0.05;
+        this._alignHardpointsToParts(vehicleNode);
         return true;
+    }
+
+    // Part-built vehicles name their core, nose, wing, engine and utility parts; a stone
+    // then sits on top of the real part instead of on the estimated layout.
+    _alignHardpointsToParts(vehicleNode) {
+        if (!vehicleNode.isModularVehicle) return;
+        this.group.updateWorldMatrix(true, true);
+        const aligned = new Set();
+        vehicleNode.traverse((child) => {
+            const role = child.userData?.config?.role;
+            const hardpoint = role ? this.hardpoints.get(role) : null;
+            if (!hardpoint || child.userData.isMirror || aligned.has(role)) return;
+            _bounds.setFromObject(child);
+            if (_bounds.isEmpty()) return;
+            _bounds.getCenter(_center);
+            _center.y = _bounds.max.y;
+            this.group.worldToLocal(_center);
+            hardpoint.position = [_center.x, _center.y + 0.06, _center.z];
+            aligned.add(role);
+        });
     }
 
     setVehicle(vehicleId, color = '#66b6ff') {
@@ -274,6 +297,7 @@ export class HangarVehicleAssembly {
         this.vehicleId = normalizedVehicleId;
         this.hardpoints = new Map(resolveVehicleHardpoints(normalizedVehicleId).map((point) => [point.id, point]));
         this.vehicleNode = createVehicleMesh(normalizedVehicleId, color);
+        this.factoryConfig = this.vehicleNode.isModularVehicle ? JSON.parse(JSON.stringify(this.vehicleNode.config)) : null;
         this.baseVehicleRoot.add(this.vehicleNode);
         this._normalizeVehicleNode(this.vehicleNode);
         if (this.vehicleNode._loadingPromise && this.vehicleNode._loaded !== true) {
@@ -287,7 +311,21 @@ export class HangarVehicleAssembly {
         }
     }
 
+    // Shows the arcade part style on a part-built vehicle and moves the stones with it.
+    setPartStyle(style, selectedPartName = '') {
+        const node = this.vehicleNode;
+        if (!node?.isModularVehicle || !this.factoryConfig) return false;
+        node.updateConfig(applyVehiclePartStyle(this.factoryConfig, style, listPlayerShipPartDonors()));
+        this.hardpoints = new Map(resolveVehicleHardpoints(this.vehicleId).map((point) => [point.id, point]));
+        this._normalizeVehicleNode(node);
+        const index = node.config.parts.findIndex((part) => part.name === selectedPartName);
+        node.setSelectedSelection(index >= 0 ? index : null, []);
+        if (this.lastBuild) this.setBuild(this.lastBuild);
+        return true;
+    }
+
     setBuild(build, options = {}) {
+        this.lastBuild = build;
         this._disposeNodeMaterials(this.partsRoot);
         this.partsRoot.clear();
         this.partNodes.clear();

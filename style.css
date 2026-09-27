@@ -6040,6 +6040,49 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     font-size: 0.72rem;
 }
 
+.hangar-part-style {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.hangar-part-style-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.hangar-part-style-item {
+    width: auto;
+    flex: 0 1 auto;
+    padding: 4px 10px;
+}
+
+.hangar-part-style-item.is-active {
+    border-color: #62b8ff;
+    color: #f1f8ff;
+}
+
+.hangar-part-style-item.is-styled::after {
+    content: ' ●';
+    color: #f6c453;
+}
+
+.hangar-part-style-role {
+    margin-left: 6px;
+    color: #a9c6dc;
+    font-size: 0.72rem;
+}
+
+.hangar-part-style-editor {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.hangar-part-style-scale-value {
+    color: #f1f8ff;
+    font-size: 0.78rem;
+}
+
 .hangar-stat-row {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 5px 8px;

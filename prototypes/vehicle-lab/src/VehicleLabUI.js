@@ -94,6 +94,11 @@ export class VehicleLabUI {
             wireToggle.onchange = (e) => this.callbacks.onWireframeChange(e.target.checked);
         }
 
+        const referenceToggle = document.getElementById('chkReference');
+        if (referenceToggle) {
+            referenceToggle.onchange = (e) => this.callbacks.onReferenceChange?.(e.target.checked);
+        }
+
         const hitboxToggle = document.getElementById('chkHitbox');
         if (hitboxToggle) {
             hitboxToggle.onchange = (e) => this.callbacks.onHitboxChange(e.target.checked);
