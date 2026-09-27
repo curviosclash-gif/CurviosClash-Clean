@@ -254,7 +254,13 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     presetsViewButton.setAttribute('role', 'tab');
     presetsViewButton.setAttribute('aria-selected', 'false');
     presetsViewButton.setAttribute('aria-controls', 'hangar-build-panel-presets');
-    buildViewSwitch.append(workshopViewButton, statsViewButton, presetsViewButton);
+    const formViewButton = button(`hangar-build-view-tab${mode === 'fight' ? ' hidden' : ''}`, 'Form');
+    formViewButton.id = 'hangar-build-view-form';
+    formViewButton.dataset.buildView = 'form';
+    formViewButton.setAttribute('role', 'tab');
+    formViewButton.setAttribute('aria-selected', 'false');
+    formViewButton.setAttribute('aria-controls', 'hangar-build-panel-form');
+    buildViewSwitch.append(workshopViewButton, statsViewButton, presetsViewButton, formViewButton);
     const machineGunPanel = el('section', `hangar-preset-panel hangar-machine-gun-panel${mode === 'fight' ? '' : ' hidden'}`);
     machineGunPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Maschinengewehr'));
     const machineGunSelect = document.createElement('select');
@@ -381,8 +387,13 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
         loadoutPanel,
         infoHint('Entf: Stein entfernen · Strg+Z/Y: Undo/Redo · Vorschau: Pfeile wechseln das Fahrzeug', 'arcade-vehicle-shortcuts')
     );
+    const formViewPanel = el('div', 'hangar-build-view-panel hidden');
+    formViewPanel.id = 'hangar-build-panel-form';
+    formViewPanel.dataset.buildViewPanel = 'form';
+    formViewPanel.setAttribute('role', 'tabpanel');
+    formViewPanel.setAttribute('aria-labelledby', formViewButton.id);
     buildScroll.append(
-        detailHead, profileBox, cosmeticsBox, buildViewSwitch, workshopViewPanel, statsViewPanel, presetsViewPanel
+        detailHead, profileBox, cosmeticsBox, buildViewSwitch, workshopViewPanel, statsViewPanel, presetsViewPanel, formViewPanel
     );
     const activationDock = el('div', 'hangar-activation-dock');
     activationDock.appendChild(activateButton);
@@ -408,7 +419,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
         presetSaveAs, presetLoad, presetRename, presetDuplicate, presetDelete, presetSort, presetTags,
         presetFavorite, presetExport, presetImport, buildScroll, buildViewSwitch,
         workshopViewButton, statsViewButton, presetsViewButton,
-        workshopViewPanel, statsViewPanel, presetsViewPanel, activationDock, activateButton,
+        workshopViewPanel, statsViewPanel, presetsViewPanel, formViewButton, formViewPanel, activationDock, activateButton,
         statusMessage, activeBuildLabel,
     };
 }

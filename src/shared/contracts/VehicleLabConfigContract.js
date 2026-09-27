@@ -275,6 +275,38 @@ function collectVehicleLabBounds(parts, offset, bounds) {
     return bounds;
 }
 
+function collectPartExtentBounds(part, offset, parentScale, bounds) {
+    const size = Array.isArray(part.size) && part.size.length > 0 ? part.size : [1, 1, 1];
+    const ownScale = Array.isArray(part.scale) && part.scale.length > 0 ? part.scale : [1, 1, 1];
+    const scale = [0, 1, 2].map((axis) => parentScale[axis] * (Number(ownScale[axis]) || 1));
+    for (const axis of [0, 1, 2]) {
+        const half = Math.abs((Number(size[axis]) || Number(size[0]) || 1) * scale[axis]) / 2;
+        bounds.min[axis] = Math.min(bounds.min[axis], offset[axis] - half);
+        bounds.max[axis] = Math.max(bounds.max[axis], offset[axis] + half);
+    }
+    for (const child of Array.isArray(part.children) ? part.children : []) {
+        const pos = Array.isArray(child?.pos) ? child.pos : [0, 0, 0];
+        const childOffset = [0, 1, 2].map((axis) => offset[axis] + (Number(pos[axis]) || 0) * scale[axis]);
+        if (child && typeof child === 'object') collectPartExtentBounds(child, childOffset, scale, bounds);
+    }
+    return bounds;
+}
+
+/**
+ * Longest axis-aligned extent of one part including its children; rotation is ignored,
+ * parent scale carries over to children like in the renderer.
+ * @param {object} part
+ * @returns {number}
+ */
+export function estimateVehicleLabPartExtent(part) {
+    if (!part || typeof part !== 'object') return 0;
+    const bounds = collectPartExtentBounds(part, [0, 0, 0], [1, 1, 1], {
+        min: [Infinity, Infinity, Infinity],
+        max: [-Infinity, -Infinity, -Infinity],
+    });
+    return Math.max(...[0, 1, 2].map((axis) => bounds.max[axis] - bounds.min[axis]));
+}
+
 /**
  * Schaetzt den Kollisionsradius eines im Lab gebauten Fahrzeugs.
  *

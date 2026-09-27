@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { createVehicleMesh } from '../../entities/vehicle-registry.js';
 import { resolveHangarPart, resolveVehicleHardpoints } from './HangarPartCatalog.js';
+import { applyVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
+import { listPlayerShipPartDonors } from '../../shared/vehicle-lab/player-ships/index.js';
 
 const _bounds = new THREE.Box3();
 const _size = new THREE.Vector3();
@@ -295,6 +297,7 @@ export class HangarVehicleAssembly {
         this.vehicleId = normalizedVehicleId;
         this.hardpoints = new Map(resolveVehicleHardpoints(normalizedVehicleId).map((point) => [point.id, point]));
         this.vehicleNode = createVehicleMesh(normalizedVehicleId, color);
+        this.factoryConfig = this.vehicleNode.isModularVehicle ? JSON.parse(JSON.stringify(this.vehicleNode.config)) : null;
         this.baseVehicleRoot.add(this.vehicleNode);
         this._normalizeVehicleNode(this.vehicleNode);
         if (this.vehicleNode._loadingPromise && this.vehicleNode._loaded !== true) {
@@ -308,7 +311,21 @@ export class HangarVehicleAssembly {
         }
     }
 
+    // Shows the arcade part style on a part-built vehicle and moves the stones with it.
+    setPartStyle(style, selectedPartName = '') {
+        const node = this.vehicleNode;
+        if (!node?.isModularVehicle || !this.factoryConfig) return false;
+        node.updateConfig(applyVehiclePartStyle(this.factoryConfig, style, listPlayerShipPartDonors()));
+        this.hardpoints = new Map(resolveVehicleHardpoints(this.vehicleId).map((point) => [point.id, point]));
+        this._normalizeVehicleNode(node);
+        const index = node.config.parts.findIndex((part) => part.name === selectedPartName);
+        node.setSelectedSelection(index >= 0 ? index : null, []);
+        if (this.lastBuild) this.setBuild(this.lastBuild);
+        return true;
+    }
+
     setBuild(build, options = {}) {
+        this.lastBuild = build;
         this._disposeNodeMaterials(this.partsRoot);
         this.partsRoot.clear();
         this.partNodes.clear();

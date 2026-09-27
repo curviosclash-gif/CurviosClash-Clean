@@ -77,6 +77,7 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
     let activeBuild = null;
     let activeVehicleId = '';
     let activeBuildSignature = '';
+    let partStyleKey = '';
     let slotStates = [];
     let onSlotClick = null;
     let selectedSlotId = '';
@@ -269,6 +270,7 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
         const vehicleId = String(build?.vehicleId || 'ship5');
         if (vehicleId !== activeVehicleId) {
             activeVehicleId = vehicleId;
+            partStyleKey = '';
             assembly.clearGhost();
             assembly.setVehicle(vehicleId, options.color || color);
         }
@@ -330,6 +332,14 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
             assembly.setSelectedSlot(selectedSlotId);
             assembly.setComparison(comparisonBuild);
             syncMarkerVisuals();
+        },
+        setPartStyle(style, selectedPartName = '') {
+            const key = `${activeVehicleId}|${JSON.stringify(style || {})}|${selectedPartName}`;
+            if (key === partStyleKey) return;
+            partStyleKey = key;
+            assembly.setPartStyle(style, selectedPartName);
+            syncMarkerVisuals();
+            projectOverlay();
         },
         setCameraPreset: (presetId) => cameraController?.setPreset(presetId),
         resetCamera: () => cameraController?.reset(),

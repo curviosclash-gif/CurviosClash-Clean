@@ -1,4 +1,5 @@
 import { resolveArtifactVersionState } from './ArtifactVersionMigrationContract.js';
+import { normalizeVehiclePartStyle } from './VehiclePartStyleContract.js';
 
 export const ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION = 'arcade-vehicle-profile.v2';
 export const ARCADE_VEHICLE_PROFILE_LEGACY_SCHEMA_VERSION = 'arcade-vehicle-profile.v1';
@@ -72,6 +73,7 @@ export function createArcadeVehicleProfileRecord(vehicleId, nowMs = Date.now()) 
         upgrades: {},
         trailStyleId: 'standard',
         weaponStyleIds: normalizeArcadeWeaponStyleIds(),
+        partStyle: {},
         createdAt: toIsoString(nowMs),
         updatedAt: toIsoString(nowMs),
     };
@@ -95,6 +97,7 @@ export function normalizeArcadeVehicleProfileRecord(vehicleId, source) {
             : {},
         trailStyleId: normalizeArcadeTrailStyleId(candidate.trailStyleId),
         weaponStyleIds: normalizeArcadeWeaponStyleIds(candidate.weaponStyleIds),
+        partStyle: normalizeVehiclePartStyle(candidate.partStyle),
     };
 }
 
