@@ -19,6 +19,7 @@ GENERATORS = {
     'reactor_site': 'generate_reactor_site_assets',
     'giant_forest': 'generate_giant_forest_assets',
     'hydra_temple': 'generate_hydra_temple_assets',
+    'toybox_titan': 'generate_toybox_titan_assets',
     'burg_falkenwacht': 'generate_falkenwacht_assets',
     'storm_bridge_siege': 'generate_wave6_landmark_assets',
     'storm_lighthouse_siege': 'generate_wave6_landmark_assets',

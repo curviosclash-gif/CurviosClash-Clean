@@ -158,6 +158,7 @@ test('only the selected presets define lighting and all others resolve to defaul
         'storm_bridge_siege',
         'storm_dam_siege',
         'storm_lighthouse_siege',
+        'toybox_titan',
         'trench',
         'vertical_maze',
         'wind_cathedral',
