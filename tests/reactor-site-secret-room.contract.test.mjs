@@ -108,9 +108,9 @@ test('T-S38a: the reactor site carries exactly one secret room with the agreed t
     // one of them: whichever breaks first opens the portal, four seconds later.
     assert.equal(ROOM.unlock.when, 'anyBreak');
     assert.equal(ROOM.unlock.delaySeconds, 4);
-    // User decision 28.09.2026: twice the ten points of the first version, plus the bomber and one
-    // more free draw beside it.
-    assert.equal(ROOM.items.length, 22, `items: ${ROOM.items.length}`);
+    // User decision 28.09.2026: twice the ten points of the first version, plus the bomber strike
+    // and the lightning, each with one more free draw beside it.
+    assert.equal(ROOM.items.length, 24, `items: ${ROOM.items.length}`);
     const untyped = ROOM.items.filter((item) => !item.type).length;
     assert.ok(untyped * 2 >= ROOM.items.length, `untyped item points: ${untyped}`);
 });

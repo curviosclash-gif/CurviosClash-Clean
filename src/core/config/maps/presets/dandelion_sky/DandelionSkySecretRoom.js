@@ -130,6 +130,9 @@ const ITEMS = Object.freeze([
     { pos: [0, -11, 16], type: 'HEALTH' },
     { pos: [-16, -11, 0], type: 'ROCKET_MEDIUM' },
     { pos: [16, -11, 0], type: 'SPEED_UP' },
+    // The prizes every secret room holds (user decision 28.09.2026).
+    { pos: [0, -8, -8], type: 'BOMBER_STRIKE' },
+    { pos: [0, -8, 8], type: 'LIGHTNING' },
 ]);
 
 export const DANDELION_SKY_ROOT_CHAMBER = Object.freeze({

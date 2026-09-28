@@ -95,11 +95,11 @@ export const REACTOR_SITE_SECRET_ROOM_TURRETS = Object.freeze([
     allowedModes: ['HUNT', 'ARCADE'],
 })));
 
-// Twenty-two item points at mid height. Half of them name no type on purpose: an unnamed point
+// Twenty-four item points at mid height. Half of them name no type on purpose: an unnamed point
 // draws from the mode's own weighted choice, so the room is worth entering twice. The named ones
 // are the plant's own flavour - shield, speed, ghost and the two heavier rockets a siege needs, each
-// twice since the room doubled - and one bomber strike under the rocket guard, the prize of the
-// bunker (user decision 28.09.2026).
+// twice since the room doubled - and the two prizes every secret room holds (user decision
+// 28.09.2026): the bomber strike under the rocket guard and a lightning beside it.
 const ITEMS = Object.freeze([
     { pos: [-24, -10, -24] },
     { pos: [24, -10, -24] },
@@ -112,6 +112,7 @@ const ITEMS = Object.freeze([
     { pos: [-34, -10, 12] },
     { pos: [0, -8, -20] },
     { pos: [0, -8, 20] },
+    { pos: [-20, -10, 34] },
     { pos: [-12, -8, -12], type: 'SHIELD' },
     { pos: [12, -8, 12], type: 'SHIELD' },
     { pos: [12, -8, -12], type: 'SPEED_UP' },
@@ -123,6 +124,7 @@ const ITEMS = Object.freeze([
     { pos: [30, -10, 0], type: 'ROCKET_HEAVY' },
     { pos: [-30, -10, -30], type: 'ROCKET_HEAVY' },
     { pos: [0, -10, 32], type: 'BOMBER_STRIKE' },
+    { pos: [20, -10, 34], type: 'LIGHTNING' },
 ]);
 
 export const REACTOR_SITE_SECRET_ROOM = Object.freeze({
