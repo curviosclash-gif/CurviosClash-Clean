@@ -123,7 +123,9 @@ test('pyramid: modular Blender sources and GLBs form a bounded collidable arena'
     });
     try {
         assert.deepEqual(loaded.warnings, []);
-        assert.ok(loaded.colliders.length >= 40 && loaded.colliders.length <= 100,
+        // The generator merges each role into one mesh per material, so a structure is a handful
+        // of colliders rather than one per stone.
+        assert.ok(loaded.colliders.length >= 20 && loaded.colliders.length <= 60,
             `${loaded.colliders.length} colliders stay within the authored budget`);
         assert.deepEqual(
             loaded.colliders.filter((entry) => entry.sourceName.includes('_colonly'))

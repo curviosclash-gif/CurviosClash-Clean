@@ -5,6 +5,37 @@
 import { TEST_HANGAR_GLB_DATA_URI } from './EmbeddedGlbMapAssets.js';
 import { CLASSIC_WORLD_APPEARANCE, STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
 
+// Storm and ambience share one shelter list; the volumes are the interiors built by
+// scripts/generate_pyramid_map_assets.py (tests/pyramid-blender-assets.contract.test.mjs).
+const PYRAMID_SANDSTORM = {
+    enabled: true,
+    initialDelaySeconds: [45, 90],
+    repeatDelaySeconds: [90, 150],
+    warningSeconds: 20,
+    // 20 s swell, 30 s peak, 20 s ease-off.
+    activeSeconds: 70,
+    ingressSeconds: 20,
+    egressSeconds: 20,
+    outdoorNear: 1.6,
+    outdoorFar: 8,
+    shelterNear: 18,
+    shelterFar: 85,
+    proximityCueRange: 18,
+    shelterVolumes: [
+        { id: 'king-hall', min: [-35.5, 1, -95.5], max: [35.5, 33.5, -24.5] },
+        { id: 'king-gallery-lower', min: [-31.5, 36.5, -91.5], max: [31.5, 47, -28.5] },
+        { id: 'king-atrium', min: [-23, 47, -83], max: [23, 71.5, -37] },
+        { id: 'king-gallery-upper', min: [-15, 73.5, -75], max: [15, 96.5, -45] },
+        { id: 'dawn-hall', min: [53, 1, 30], max: [103, 33.5, 80] },
+        { id: 'dawn-atrium', min: [62, 36.5, 39], max: [94, 65.5, 71] },
+        { id: 'dawn-portal-chamber', min: [68, 67.5, 45], max: [88, 89.5, 65] },
+        { id: 'dusk-hall', min: [-103, 1, 30], max: [-53, 33.5, 80] },
+        { id: 'dusk-atrium', min: [-94, 36.5, 39], max: [-62, 65.5, 71] },
+        { id: 'dusk-portal-chamber', min: [-88, 67.5, 45], max: [-68, 89.5, 65] },
+        { id: 'sun-pavilion', min: [-19.5, 0.8, 3.8], max: [19.5, 13.2, 28.2] },
+    ],
+};
+
 export const MAP_PRESET_CATALOG_BASE_DATA = {
     standard: {
         name: 'Standard Arena',
@@ -107,12 +138,13 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         size: [260, 160, 260],
         scaleAuthoredAnchors: true,
         glbModels: [
-            { id: 'sun-crown-terrain', url: 'assets/maps/pyramid/glb/01_terrain.glb', position: [-5.277441, -10.123137, 0], scale: 1 },
-            { id: 'sun-king-exterior', url: 'assets/maps/pyramid/glb/02_sun_king_exterior.glb', position: [0, 0, -61.962502], scale: 1 },
+            // Positions are the bounding-box anchors printed by scripts/generate_pyramid_map_assets.py.
+            { id: 'sun-crown-terrain', url: 'assets/maps/pyramid/glb/01_terrain.glb', position: [0, 0.1, 0], scale: 1 },
+            { id: 'sun-king-exterior', url: 'assets/maps/pyramid/glb/02_sun_king_exterior.glb', position: [0, 0, -56.85], scale: 1 },
             { id: 'sun-king-interior', url: 'assets/maps/pyramid/glb/03_sun_king_interior.glb', position: [0, 0, -60], scale: 1 },
             { id: 'dawn-pyramid', url: 'assets/maps/pyramid/glb/04_dawn_pyramid.glb', position: [78, 0, 55], scale: 1 },
             { id: 'dusk-pyramid', url: 'assets/maps/pyramid/glb/05_dusk_pyramid.glb', position: [-78, 0, 55], scale: 1 },
-            { id: 'sun-plaza', url: 'assets/maps/pyramid/glb/06_sun_plaza.glb', position: [0, 0, -46], scale: 1 },
+            { id: 'sun-plaza', url: 'assets/maps/pyramid/glb/06_sun_plaza.glb', position: [0, 0, 40.1], scale: 1 },
             { id: 'sun-crown-beacons', url: 'assets/maps/pyramid/glb/07_beacons_portals.glb', position: [0, 0, -4], scale: 1 },
         ],
         glbColliderMode: 'scene',
@@ -131,8 +163,8 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
                 heightFalloff: 0.04,
                 turbulence: 0.05,
                 skyBlend: 1,
-                colorHigh: 0x0b1020,
-                colorLow: 0x0b1020,
+                colorHigh: 0xc7a476,
+                colorLow: 0x8c6844,
                 clipClosureStart: 0.8,
             },
             starsVisible: false,
@@ -149,63 +181,30 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { pos: [-78, 24, 55], size: [78, 48, 78] },
             { pos: [-78, 76, 55], size: [38, 56, 38] },
         ],
+        // The two portals hang free in the upper chambers of the side pyramids, seen through the windows.
         portals: [
-            { a: [-78, 84, 55], b: [78, 84, 55], color: 0x21e6ff },
+            { a: [-78, 80, 55], b: [78, 80, 55], color: 0x21e6ff },
         ],
         playerSpawn: { x: 0, y: 18, z: 112 },
         botSpawns: [
             { x: 104, y: 18, z: 12 }, { x: -104, y: 18, z: 12 },
             { x: 92, y: 24, z: -88 }, { x: -92, y: 24, z: -88 },
             { x: 42, y: 18, z: 105 }, { x: -42, y: 18, z: 105 },
-            { x: 0, y: 112, z: -58 },
+            { x: 0, y: 52, z: -60 },
         ],
+        // Half outdoors, half in a shelter (pavilion, both halls, king gallery).
         items: [
-            { pos: [-28, 12, 12] }, { pos: [28, 12, 12] },
+            { pos: [0, 7, 16] }, { pos: [0, 40, -88] },
             { pos: [-104, 18, -18] }, { pos: [104, 18, -18] },
-            { pos: [-78, 48, 55] }, { pos: [78, 48, 55] },
-            { pos: [-18, 62, -60] }, { pos: [18, 62, -60] },
+            { pos: [-78, 16, 38] }, { pos: [78, 16, 38] },
+            { pos: [-40, 12, 60] }, { pos: [40, 12, 60] },
         ],
-        sandstorm: {
-            enabled: true,
-            initialDelaySeconds: [45, 90],
-            repeatDelaySeconds: [90, 150],
-            warningSeconds: 20,
-            // 20 s swell, 30 s peak, 20 s ease-off.
-            activeSeconds: 70,
-            ingressSeconds: 20,
-            egressSeconds: 20,
-            outdoorNear: 1.6,
-            outdoorFar: 8,
-            shelterNear: 18,
-            shelterFar: 85,
-            proximityCueRange: 18,
-            shelterVolumes: [
-                { id: 'king-cross-north-south', min: [-8, 2, -88], max: [8, 28, -32] },
-                { id: 'king-cross-east-west', min: [-34, 2, -68], max: [34, 28, -52] },
-                { id: 'king-gallery-lower', min: [-11, 24, -84], max: [11, 52, -36] },
-                { id: 'king-gallery-middle', min: [-10, 52, -79], max: [10, 78, -41] },
-                { id: 'king-gallery-upper', min: [-8, 78, -73], max: [8, 102, -47] },
-                { id: 'king-chamber', min: [-14, 8, -48], max: [14, 30, -36] },
-                { id: 'dawn-hall', min: [54, 4, 34], max: [102, 42, 76] },
-                { id: 'dusk-hall', min: [-102, 4, 34], max: [-54, 42, 76] },
-                { id: 'sunken-plaza', min: [-24, -2, -5], max: [24, 18, 33] },
-            ],
-        },
+        sandstorm: PYRAMID_SANDSTORM,
         audioProfile: {
             id: 'pyramid_sandstorm',
-            activeSeconds: 70,
-            ingressSeconds: 20,
-            shelterVolumes: [
-                { min: [-8, 2, -88], max: [8, 28, -32] },
-                { min: [-34, 2, -68], max: [34, 28, -52] },
-                { min: [-11, 24, -84], max: [11, 52, -36] },
-                { min: [-10, 52, -79], max: [10, 78, -41] },
-                { min: [-8, 78, -73], max: [8, 102, -47] },
-                { min: [-14, 8, -48], max: [14, 30, -36] },
-                { min: [54, 4, 34], max: [102, 42, 76] },
-                { min: [-102, 4, 34], max: [-54, 42, 76] },
-                { min: [-24, -2, -5], max: [24, 18, 33] },
-            ],
+            activeSeconds: PYRAMID_SANDSTORM.activeSeconds,
+            ingressSeconds: PYRAMID_SANDSTORM.ingressSeconds,
+            shelterVolumes: PYRAMID_SANDSTORM.shelterVolumes,
         },
     },
     vertical_maze: {
