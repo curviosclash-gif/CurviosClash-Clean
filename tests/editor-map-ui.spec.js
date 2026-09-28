@@ -1,5 +1,4 @@
-import { mkdir, readFile, mkdtemp, writeFile } from 'node:fs/promises';
-import os from 'node:os';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test as baseTest, expect } from './helpers.desktop.js';
 import { collectErrors, resolveAppUrl } from './helpers.js';
@@ -16,9 +15,10 @@ let currentElectronApp = null;
 // Exercise the real editor window and leave the game window available for its
 // desktop shutdown handshake. Navigating the game window breaks that handshake.
 const test = IS_BROWSER_COMPAT ? baseTest : baseTest.extend({
-    page: async ({ page, electronApp }, use) => {
+    page: async ({ page, electronApp }, use, testInfo) => {
         currentElectronApp = electronApp;
-        const downloads = await mkdtemp(path.join(os.tmpdir(), 'curvios-editor-ui-downloads-'));
+        const downloads = testInfo.outputPath('downloads');
+        await mkdir(downloads, { recursive: true });
         await electronApp.evaluate(({ app }, directory) => app.setPath('downloads', directory), downloads);
         const popupPromise = page.waitForEvent('popup');
         await page.evaluate((editorPath) => window.open(editorPath, '_blank'), EDITOR_VIEW_PATHS.MAP_EDITOR);

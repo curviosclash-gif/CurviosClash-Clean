@@ -1,11 +1,11 @@
 import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 import { test, expect } from './helpers.desktop.js';
-import { mkdtemp, readFile } from 'node:fs/promises';
-import os from 'node:os';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-test('editor window saves drafts with confirmed downloads and transforms groups', async ({ page, electronApp }) => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), 'curvios-editor-draft-'));
+test('editor window saves drafts with confirmed downloads and transforms groups', async ({ page, electronApp }, testInfo) => {
+    const directory = testInfo.outputPath('downloads');
+    await mkdir(directory, { recursive: true });
     await electronApp.evaluate(({ app }, downloads) => app.setPath('downloads', downloads), directory);
     const popupPromise = page.waitForEvent('popup');
     await page.evaluate((editorPath) => window.open(editorPath, '_blank'), EDITOR_VIEW_PATHS.MAP_EDITOR);

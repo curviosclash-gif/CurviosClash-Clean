@@ -1,6 +1,4 @@
 import { writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 
 import { expect, test } from './helpers.desktop.js';
 import { collectErrors, selectSessionType, waitForLoadedGame } from './helpers.js';
@@ -22,7 +20,7 @@ async function startDamMatch(page) {
     ), MAP_KEY, { timeout: 120_000 });
 }
 
-test('the giant rear-wall dam breaches and launches its flood wave into the arena', async ({ page }) => {
+test('the giant rear-wall dam breaches and launches its flood wave into the arena', async ({ page }, testInfo) => {
     test.setTimeout(240_000);
     const errors = collectErrors(page);
     await startDamMatch(page);
@@ -238,7 +236,7 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
     expect(result.assetReservoirY).toBeCloseTo(result.reservoirSurfaceY, 2);
 
     for (const [phase, picture] of Object.entries(result.pictures)) {
-        const screenshot = path.join(tmpdir(), `storm-dam-breach-${phase}-${Date.now()}.png`);
+        const screenshot = testInfo.outputPath(`storm-dam-breach-${phase}.png`);
         await writeFile(screenshot, Buffer.from(picture.split(',')[1], 'base64'));
         console.log(`dam screenshot ${phase}: ${screenshot}`);
     }
