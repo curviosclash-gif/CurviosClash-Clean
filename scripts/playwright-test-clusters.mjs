@@ -142,6 +142,7 @@ export const DESKTOP_FLOWS_MAP_BOUND_SPECS = Object.freeze({
     'tests/falkenwacht-grain-proof.desktop.spec.js': ['burg_falkenwacht'],
     'tests/storm-lighthouse.desktop.spec.js': ['storm_lighthouse_siege'],
     'tests/sky-dome-gradient.desktop.spec.js': ['eiffel_tower'],
+    'tests/canyon-sandstorm.desktop.spec.js': ['clockwork_canyon'],
 });
 
 export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([
