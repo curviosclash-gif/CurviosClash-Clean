@@ -66,6 +66,7 @@ export class SunflowerKernelController {
         this.events = [];
         /** @type {((position: THREE.Vector3, atSeconds: number) => void) | null} Reused vector. */
         this.onRelease = null;
+        this._serialized = null;
         this._center = new THREE.Vector3();
         this._scale = new THREE.Vector3(1, 1, 1);
         this._localOrigin = new THREE.Vector3();
@@ -277,6 +278,7 @@ export class SunflowerKernelController {
             Math.round(kernel.hitDirection.y * 1000),
             Math.round(kernel.hitDirection.z * 1000),
         ]);
+        this._serialized = null;
         this._latestReleaseSeconds = Math.max(this._latestReleaseSeconds, at);
         const progress = this._progress;
         progress.released += 1;
@@ -342,6 +344,7 @@ export class SunflowerKernelController {
         }
         this._renderBatch?.commit();
         this.events.length = 0;
+        this._serialized = null;
         this._latestReleaseSeconds = 0;
         this._progress.released = 0;
         this._progress.remaining = this._progress.total;
@@ -349,7 +352,11 @@ export class SunflowerKernelController {
         this._progress.completedAtSeconds = 0;
     }
 
-    serialize() { return this.events.map((event) => [...event]); }
+    /** Wire form of the releases, rebuilt only after a release or reset; callers must not mutate it. */
+    serialize() {
+        if (!this._serialized) this._serialized = this.events.map((event) => [...event]);
+        return this._serialized;
+    }
 
     applyNetworkState(events) {
         if (!Array.isArray(events)) return;

@@ -243,6 +243,21 @@ test('a shot that misses the head never refreshes the whole map scene', () => {
         'a moved plant is still hit where it now stands');
 });
 
+test('the kernel network state is rebuilt only when a kernel was released', () => {
+    const { scene, kernels } = makeSunflowerScene();
+    const controller = new SunflowerKernelController(scene);
+    const empty = controller.serialize();
+    assert.equal(controller.serialize(), empty);
+    controller.releaseByName(kernels[0].name, 1.5, new THREE.Vector3(0, 0, -1));
+    const one = controller.serialize();
+    assert.notEqual(one, empty);
+    assert.equal(one.length, 1);
+    assert.deepEqual(empty, []);
+    assert.equal(controller.serialize(), one);
+    controller.reset();
+    assert.deepEqual(controller.serialize(), []);
+});
+
 test('MG and projectile hit resolution release the exact kernel and pass their hit direction', () => {
     const { scene, kernels } = makeSunflowerScene();
     const controller = new SunflowerKernelController(scene);

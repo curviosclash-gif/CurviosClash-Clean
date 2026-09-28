@@ -13,6 +13,8 @@ const PAPPUS_RADIUS_SCALE = 0.7;
 const GRAVITY_RESPONSE_SECONDS = 2.5;
 const GRAVITY_TERMINAL_SPEED_FACTOR = 0.25;
 const MOVING_SHAFT_SWEEP_STEPS = 4;
+// A player flying through a drifting cloud meets one seed, then gets a moment before the next.
+const RELEASED_CONTACT_PAUSE_SECONDS = 0.5;
 const UP = new THREE.Vector3(0, 1, 0);
 const TUMBLE_AXIS = new THREE.Vector3(1, 0.3, 0).normalize();
 
@@ -37,6 +39,9 @@ export class DandelionSeedController {
         this.events = [];
         /** @type {((position: THREE.Vector3, atSeconds: number) => void) | null} Reused vector. */
         this.onRelease = null;
+        this._now = 0;
+        this._releasedContactUntil = new Map();
+        this._serialized = null;
         this._wind = new THREE.Vector3();
         this._target = new THREE.Vector3();
         this._tumble = new THREE.Quaternion();
@@ -172,6 +177,7 @@ export class DandelionSeedController {
         seed.previousRoot.copy(seed.currentRoot);
         seed.previousTip.copy(seed.currentTip);
         this.events.push([seed.index, at]);
+        this._serialized = null;
         this._latestReleaseSeconds = Math.max(this._latestReleaseSeconds, at);
         const progress = this._progress;
         progress.released += 1;
@@ -185,6 +191,7 @@ export class DandelionSeedController {
 
     update(seconds) {
         const now = Math.max(0, Number(seconds) || 0);
+        this._now = now;
         dandelionWindAt(now, this._wind);
         this._renderBatch?.beginUpdate();
         for (const seed of this.seeds) {
@@ -353,16 +360,21 @@ export class DandelionSeedController {
         if (touchingAttached) this._attachedContactPlayers.add(entityKey);
         else this._attachedContactPlayers.delete(entityKey);
 
-        const seed = releasedSeed || (!wasTouchingAttached ? attachedSeed : null);
-        if (!seed) return null;
-        if (releasedSeed) {
-            if (!seed.hitPlayers) seed.hitPlayers = new Set();
-            seed.hitPlayers.add(entityKey);
+        let released = releasedSeed;
+        if (released) {
+            // This seed had its chance either way; only the pause decides whether it lands.
+            if (!released.hitPlayers) released.hitPlayers = new Set();
+            released.hitPlayers.add(entityKey);
+            const pausedUntil = this._releasedContactUntil.get(entityKey);
+            if (pausedUntil !== undefined && this._now < pausedUntil) released = null;
+            else this._releasedContactUntil.set(entityKey, this._now + RELEASED_CONTACT_PAUSE_SECONDS);
         }
+        const seed = released || (!wasTouchingAttached ? attachedSeed : null);
+        if (!seed) return null;
         const collision = this._collision;
         collision.seedIndex = seed.index;
         collision.attached = seed.releasedAt === null;
-        if (releasedSeed) collision.normal.copy(releasedNormal);
+        if (released) collision.normal.copy(releasedNormal);
         return collision;
     }
 
@@ -383,7 +395,9 @@ export class DandelionSeedController {
         }
         this._renderBatch?.commit();
         this._attachedContactPlayers.clear();
+        this._releasedContactUntil.clear();
         this.events.length = 0;
+        this._serialized = null;
         this._latestReleaseSeconds = 0;
         this._progress.released = 0;
         this._progress.remaining = this._progress.total;
@@ -391,7 +405,11 @@ export class DandelionSeedController {
         this._progress.completedAtSeconds = 0;
     }
 
-    serialize() { return this.events.map(([index, at]) => [index, at]); }
+    /** Wire form of the releases, rebuilt only after a release or reset; callers must not mutate it. */
+    serialize() {
+        if (!this._serialized) this._serialized = this.events.map(([index, at]) => [index, at]);
+        return this._serialized;
+    }
 
     applyNetworkState(events) {
         if (!Array.isArray(events)) return;

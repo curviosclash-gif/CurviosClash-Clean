@@ -222,6 +222,36 @@ test('a released seed collides softly with each player once', () => {
     assert.equal(controller.consumeCollision(seed.tip, 0.4, 2)?.attached, true);
 });
 
+test('a cloud of airborne seeds cannot stack contacts on one player within half a second', () => {
+    const scene = makeScene();
+    scene.children[1].position.x = 0.1;
+    scene.children[2].position.x = 0.2;
+    const controller = new DandelionSeedController(scene);
+    for (const seed of controller.seeds) controller.releaseByName(seed.node.name, 3);
+    controller.update(3.2);
+    const at = controller.seeds[0].currentTip.clone();
+    assert.ok(controller.consumeCollision(at, 0.4, 2), 'the first airborne seed deflects');
+    assert.equal(controller.consumeCollision(at, 0.4, 2), null, 'the next overlapping seed waits');
+    assert.ok(controller.consumeCollision(at, 0.4, 5), 'another player is not blocked');
+    controller.update(3.8);
+    const later = controller.seeds[2].currentTip.clone();
+    assert.ok(controller.consumeCollision(later, 0.4, 2), 'after the pause a seed may hit again');
+});
+
+test('the network state is rebuilt only when a seed was released', () => {
+    const controller = new DandelionSeedController(makeScene());
+    const empty = controller.serialize();
+    assert.equal(controller.serialize(), empty, 'an unchanged round reuses its state');
+    controller.releaseByName(controller.seeds[0].node.name, 2);
+    const one = controller.serialize();
+    assert.notEqual(one, empty);
+    assert.deepEqual(one, [[1, 2]]);
+    assert.deepEqual(empty, [], 'an earlier snapshot is never mutated');
+    assert.equal(controller.serialize(), one);
+    controller.reset();
+    assert.deepEqual(controller.serialize(), []);
+});
+
 test('seed hitboxes sweep between frames instead of missing fast crossings', () => {
     const controller = new DandelionSeedController(makeScene());
     const seed = controller.seeds[0];
