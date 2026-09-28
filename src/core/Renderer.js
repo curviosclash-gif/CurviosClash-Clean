@@ -19,7 +19,7 @@ import { CameraRigSystem } from './renderer/CameraRigSystem.js';
 import { RenderViewportSystem } from './renderer/RenderViewportSystem.js';
 import { SceneRootManager } from './renderer/SceneRootManager.js';
 import { RenderQualityController } from './renderer/RenderQualityController.js';
-import { RecordingCapturePipeline } from './renderer/RecordingCapturePipeline.js';
+import { RecordingCapturePipeline, createCaptureCameraHooks } from './renderer/RecordingCapturePipeline.js';
 import { ScenePostProcessingPipeline } from './renderer/ScenePostProcessingPipeline.js';
 import {
     GRAPHICS_STYLES,
@@ -139,7 +139,7 @@ export class Renderer {
         this.recordingCapturePipeline = new RecordingCapturePipeline({
             sourceCanvas: this.canvas,
             sourceRenderer: this.renderer,
-            scene: this.scene,
+            scene: this.scene, ...createCaptureCameraHooks(this),
         });
 
         this._onWindowResize = () => this._onResize();
@@ -301,7 +301,8 @@ export class Renderer {
         let near = this._renderFogNear;
         let far = this._renderFogFar;
         const stormActive = this._mapSandstormEffect?.phase === MAP_SANDSTORM_PHASES.ACTIVE;
-        const stormRange = Number(camera?.userData?.sandstormVisibilityRange);
+        // Player cameras always carry a range (Infinity = no player); a camera without one (a capture view) gets the outdoor storm.
+        const stormRange = Number(camera?.userData?.sandstormVisibilityRange ?? this._mapSandstormRanges.outdoorFar);
         if (stormActive && Number.isFinite(stormRange) && stormRange > 0) {
             const sheltered = stormRange > this._mapSandstormRanges.outdoorFar;
             const stormNear = sheltered

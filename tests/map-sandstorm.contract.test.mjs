@@ -4,6 +4,8 @@ import * as THREE from 'three';
 
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
 import { Renderer } from '../src/core/Renderer.js';
+import { RecordingCapturePipeline, createCaptureCameraHooks } from '../src/core/renderer/RecordingCapturePipeline.js';
+import { renderCaptureView } from '../src/core/renderer/RecordingCaptureViewOps.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { updateReplayProjection } from '../src/core/recording/CinematicReplayProjection.js';
 import { resolveMapSandstormLighting, resolveSandstormLighting } from '../src/core/renderer/SandstormLightingOps.js';
@@ -201,6 +203,34 @@ test('network clients relight the scene as snapshots carry the storm intensity',
         });
     }
     assert.deepEqual(applied, [0.05, 0.3, 0.7, 1], 'each new lighting step relights once, repeats do not');
+});
+
+test('recordings render the storm fog of the player they follow', () => {
+    // Capture cameras are the pipeline's own; only the live player cameras carry the per-player
+    // storm range. A capture view therefore borrows the followed player's camera, and a view with
+    // no such camera (a bot subject, the fallback shot) gets the outdoor storm.
+    const renderer = Object.create(Renderer.prototype);
+    Object.assign(renderer, {
+        scene: new THREE.Scene(),
+        _mapSandstormEffect: createMapSandstormState({ enabled: true, phase: 'ACTIVE', remainingSeconds: 40, intensity: 1 }),
+        _mapSandstormRanges: { outdoorNear: 1.6, outdoorFar: 12, shelterNear: 18, shelterFar: 85 },
+        cameras: [new THREE.PerspectiveCamera(), new THREE.PerspectiveCamera()],
+    });
+    renderer.scene.fog = new THREE.Fog(0, 360, 560);
+    renderer.cameras[0].userData.sandstormVisibilityRange = 12;
+    renderer.cameras[1].userData.sandstormVisibilityRange = 85;
+    const pipeline = new RecordingCapturePipeline({
+        scene: renderer.scene,
+        ...createCaptureCameraHooks(renderer),
+    });
+    const seen = [];
+    const target = { render: (scene) => seen.push(scene.fog.far) };
+    const captureCamera = new THREE.PerspectiveCamera();
+    renderCaptureView(pipeline, target, captureCamera, 1);
+    renderCaptureView(pipeline, target, captureCamera, 0);
+    renderCaptureView(pipeline, target, captureCamera, 5);
+    assert.deepEqual(seen, [85, 12, 12], 'sheltered subject, outdoor subject, subject without a camera');
+    assert.equal(renderer.scene.fog.far, 560, 'the live fog is restored after every capture view');
 });
 
 test('replay interpolates time only within one event and keeps phases and directions discrete', () => {

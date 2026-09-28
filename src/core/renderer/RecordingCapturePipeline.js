@@ -13,8 +13,11 @@ import { applyProjectionQuaternion, applyProjectionVector3, CinematicCaptureSubj
 import { createCaptureCameraContext, resetCapturePerspectiveState, setCaptureCameraFrameTiming, syncCinematicCaptureSubject, updateCaptureCameraContext, updateShortsCaptureCamera } from './RecordingCaptureCameraUpdateOps.js';
 import { VIEWPORT_LAYOUTS, normalizeViewportLayout } from '../../shared/contracts/ViewportLayoutContract.js';
 import { buildStandardCaptureSegments } from './RecordingCaptureLayoutOps.js';
+import { renderCaptureView } from './RecordingCaptureViewOps.js';
 import { ScenePostProcessingPipeline } from './ScenePostProcessingPipeline.js';
 import { configurePlayerHealthAuraCaptureCamera } from '../../shared/rendering/PlayerHealthAuraLayers.js';
+
+export { createCaptureCameraHooks } from './RecordingCaptureViewOps.js';
 
 const SHORTS_OUTPUT_ASPECT = Object.freeze({ width: 9, height: 16 });
 
@@ -23,10 +26,12 @@ export class RecordingCapturePipeline {
         sourceCanvas,
         sourceRenderer,
         scene,
+        beforeCameraRender = null, afterCameraRender = null,
     }) {
         this.sourceCanvas = sourceCanvas || null;
         this.sourceRenderer = sourceRenderer || null;
         this.scene = scene || null;
+        Object.assign(this, { beforeCameraRender, afterCameraRender });
 
         this._active = false;
         this._settings = createDefaultRecordingCaptureSettings();
@@ -330,7 +335,7 @@ export class RecordingCapturePipeline {
         }, segments);
     }
 
-    _renderShortsToCapture({ sizes, topCamera, bottomCamera }) {
+    _renderShortsToCapture({ sizes, topCamera, bottomCamera, topIndex = null, bottomIndex = null }) {
         const shortsRenderer = this._ensureShortsRenderer(sizes.width, sizes.height);
         const captureCanvas = this._ensureCaptureCanvas(sizes.width, sizes.height);
         const captureCtx = this._captureCtx;
@@ -340,10 +345,10 @@ export class RecordingCapturePipeline {
         shortsRenderer.setScissorTest(true);
         shortsRenderer.setViewport(0, halfHeight, sizes.width, halfHeight);
         shortsRenderer.setScissor(0, halfHeight, sizes.width, halfHeight);
-        shortsRenderer.render(this.scene, topCamera);
+        renderCaptureView(this, shortsRenderer, topCamera, topIndex);
         shortsRenderer.setViewport(0, 0, sizes.width, halfHeight);
         shortsRenderer.setScissor(0, 0, sizes.width, halfHeight);
-        shortsRenderer.render(this.scene, bottomCamera);
+        renderCaptureView(this, shortsRenderer, bottomCamera, bottomIndex);
         shortsRenderer.setScissorTest(false);
         shortsRenderer.getContext()?.flush?.();
 
@@ -410,7 +415,9 @@ export class RecordingCapturePipeline {
         const bottomCamera = cameras[1] || cameras[0];
         if (!topCamera || !bottomCamera) return;
 
-        if (!this._renderShortsToCapture({ sizes, topCamera, bottomCamera })) {
+        if (!this._renderShortsToCapture({
+            sizes, topCamera, bottomCamera, topIndex: player1?.playerIndex, bottomIndex: player2?.playerIndex,
+        })) {
             this._renderShortsFallbackFromSource({
                 sizes,
                 splitScreen: splitScreen !== false && players.length > 1,
@@ -700,9 +707,7 @@ export class RecordingCapturePipeline {
             this._cinematicOrbitPoseReady = true;
         }
 
-        if (!this._cinematicPostProcessingPipeline?.render?.(this.scene, camera)) {
-            cinRenderer.render(this.scene, camera);
-        }
+        renderCaptureView(this, cinRenderer, camera, player?.playerIndex, this._cinematicPostProcessingPipeline);
         cinRenderer.getContext()?.flush?.();
 
         captureCtx.clearRect(0, 0, width, height);
