@@ -1,14 +1,18 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import os from 'node:os';
 import { expect, test } from './helpers.desktop.js';
 import { collectErrors, startHuntGame, waitForLoadedGame } from './helpers.js';
 
-const OUT = process.env.EXPLOSION_QA_DIR || path.join(os.tmpdir(), 'curvios-explosion-qa', process.env.PW_RUN_TAG || String(process.pid));
+// Regular runs keep their proof images in the run's own test-results folder. The
+// 80-frame comparison clips per profile are delivery material, not assertions, so
+// they are only rendered when a QA folder is requested explicitly.
+const QA_DIR = process.env.EXPLOSION_QA_DIR || '';
+const outputDir = (testInfo) => QA_DIR || testInfo.outputPath();
 
-test('conventional explosions render from near, far and opposing gameplay cameras and end cleanly', async ({ page, electronApp }) => {
+test('conventional explosions render from near, far and opposing gameplay cameras and end cleanly', async ({ page, electronApp }, testInfo) => {
     test.setTimeout(240_000);
+    const OUT = outputDir(testInfo);
     const errors = collectErrors(page);
     await waitForLoadedGame(page);
     await startHuntGame(page);
@@ -131,7 +135,7 @@ test('conventional explosions render from near, far and opposing gameplay camera
         particles.dispose(); floor.geometry.dispose(); floor.material.dispose();
         gl.autoClear = held.autoClear; runtime.render();
         return { captures, counts, timings, animation, wallOccluded: blockedBefore === blockedAfter };
-    }, { isolated: otherApps.length === 0, animationEnabled: process.env.EXPLOSION_BENCH_ONLY !== '1' });
+    }, { isolated: otherApps.length === 0, animationEnabled: Boolean(QA_DIR) && process.env.EXPLOSION_BENCH_ONLY !== '1' });
     for (const shot of proof.captures) await writeFile(path.join(OUT, shot.name), Buffer.from(shot.data, 'base64'));
     for (const frame of proof.animation) {
         const directory = path.join(OUT, 'frames', frame.profile);
@@ -149,8 +153,9 @@ test('conventional explosions render from near, far and opposing gameplay camera
     expect(errors).toEqual([]);
 });
 
-test('all ten profiles appear at their real game event entry points', async ({ page }) => {
+test('all ten profiles appear at their real game event entry points', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
+    const OUT = outputDir(testInfo);
     const errors = collectErrors(page);
     await startHuntGame(page);
     await page.waitForFunction(() => window.GAME_INSTANCE?.entityManager?.particles?.conventionalExplosionEffect?.ready);
