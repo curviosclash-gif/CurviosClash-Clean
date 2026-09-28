@@ -52,9 +52,8 @@ test('T-S37a: the siege map carries exactly one secret room with the agreed timi
     assert.equal(ROOM.refillSeconds, 30);
     assert.equal(ROOM.unlock.when, 'anyBreak');
     assert.equal(ROOM.unlock.delaySeconds, 4);
-    // Eight to twelve points, and at least half of them without a type, so the room keeps drawing
-    // from the mode's own weighted choice instead of handing out the same four pickups every time.
-    assert.ok(ROOM.items.length >= 8 && ROOM.items.length <= 12, `items: ${ROOM.items.length}`);
+    // Twenty-four points, at least half without a type, keep drawing from the mode's weighted choice.
+    assert.equal(ROOM.items.length, 24, `items: ${ROOM.items.length}`);
     const untyped = ROOM.items.filter((item) => !item.type).length;
     assert.ok(untyped * 2 >= ROOM.items.length, `untyped item points: ${untyped}`);
 });
