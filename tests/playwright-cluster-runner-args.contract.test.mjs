@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
@@ -42,6 +43,15 @@ test('cluster args: selectors stop at the first option', () => {
     const resolved = resolveClusterRunnerArgs(['core-surface', 'editor', '--grep', 'T20:']);
     assert.deepEqual(resolved.selectors, ['core-surface', 'editor']);
     assert.deepEqual(resolved.playwrightArgs, ['--grep', 'T20:', CLUSTER_RUNNER_DEFAULT_TIMEOUT_ARG]);
+});
+
+// The yield itself is proven in playwright-run-lock.contract.test.mjs; this guards the wiring:
+// without kind 'long' other cluster runs would count as short, without the yield nothing changes.
+test('cluster runner: marks its lock as long and yields between two clusters', () => {
+    const source = readFileSync(new URL('../scripts/run-playwright-targeted-clusters.mjs', import.meta.url), 'utf8');
+    assert.match(source, /kind: 'long'/);
+    assert.match(source, /if \(index > 0\) \{[\s\S]{0,120}yieldPlaywrightRunLock\(lock, lockOptions\)/);
+    assert.match(source, /releasePlaywrightRunLockOnExit\(\(\) => lock\.release\(\)\)/, 'the exit handler must release the current lock, not the first one');
 });
 
 test('cluster args: --dry-run prints the plan without running', () => {
