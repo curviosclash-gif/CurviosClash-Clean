@@ -45,6 +45,7 @@
     "check:architecture": "node scripts/check-architecture-boundaries.mjs && node scripts/check-architecture-ratchet.mjs && node scripts/check-runtime-determinism.mjs && node scripts/check-runtime-encoding.mjs && node scripts/check-editor-path-drift.mjs",
     "check:parcours": "node scripts/check-parcours-routes.mjs",
     "test": "npm run test:contract",
+    "telemetry:report": "node scripts/telemetry-report.mjs",
     "test:contract:fast": "node scripts/run-contract-tests.mjs fast",
     "test:contract:coverage": "node scripts/run-contract-tests.mjs fast --coverage",
     "pretest:contract:dist": "npm run build:app",
