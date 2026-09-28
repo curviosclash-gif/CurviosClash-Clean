@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { resolveArcadeWeaponColor } from '../../../shared/contracts/ArcadeVehicleCosmeticContract.js';
+import { applyAdditiveFogFade } from '../../../shared/rendering/AdditiveFogDefines.js';
 
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 const DEFAULT_MAX_SEGMENTS = 10_000;
@@ -60,7 +61,7 @@ export class RocketTrailSystem {
             color: 0xffffff,
             toneMapped: false,
         });
-        this.glowMaterial = new THREE.MeshBasicMaterial({
+        this.glowMaterial = applyAdditiveFogFade(new THREE.MeshBasicMaterial({
             color: 0xffffff,
             transparent: true,
             opacity: 0.22,
@@ -68,7 +69,7 @@ export class RocketTrailSystem {
             depthWrite: false,
             toneMapped: false,
             side: THREE.DoubleSide,
-        });
+        }));
         this.mesh = new THREE.InstancedMesh(this.geometry, this.material, this.capacity);
         this.glowMesh = new THREE.InstancedMesh(this.geometry, this.glowMaterial, this.capacity);
         const initialColors = new Float32Array(this.capacity * 3).fill(1);

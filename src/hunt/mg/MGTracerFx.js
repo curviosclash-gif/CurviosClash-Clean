@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 import { clamp } from '../../shared/utils/MathOps.js';
+import { applyAdditiveFogFade } from '../../shared/rendering/AdditiveFogDefines.js';
 
 const MG_TRACER_UP_AXIS = new THREE.Vector3(0, 1, 0);
 const MG_TRACER_WHITE = new THREE.Color(0xffffff);
@@ -45,14 +46,14 @@ export class MGTracerFx {
             opacity: 0.96,
             depthWrite: false,
         });
-        const muzzleMaterial = new THREE.MeshBasicMaterial({
+        const muzzleMaterial = applyAdditiveFogFade(new THREE.MeshBasicMaterial({
             color: 0xffffff,
             transparent: true,
             opacity: 0,
             depthWrite: false,
             blending: THREE.AdditiveBlending,
-        });
-        const impactMaterial = muzzleMaterial.clone();
+        }));
+        const impactMaterial = applyAdditiveFogFade(muzzleMaterial.clone());
 
         const mesh = new THREE.Group();
         mesh.renderOrder = 210;

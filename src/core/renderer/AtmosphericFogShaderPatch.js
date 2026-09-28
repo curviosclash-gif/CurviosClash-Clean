@@ -205,7 +205,18 @@ const FOG_FRAGMENT = /* glsl */`
 		vec3 skyTint = atmosphereGradient( fogElevation, fogSkyZenith, fogSkyHorizon, fogSkyNadir, fogSkyHaze );
 		fogTint = mix( fogTint, linearToOutputTexel( vec4( skyTint, 1.0 ) ).rgb, clampedFogFactor );
 	}
-	gl_FragColor.rgb = mix( gl_FragColor.rgb, fogTint, clampedFogFactor );
+	// An additive glow is added on top of what lies behind it; pulled towards the fog colour it would
+	// keep lighting up through a closed fog (a sandstorm showed every enemy trail as an orange streak).
+	// Opted-in glows therefore fade to black - to no contribution - as the fog closes.
+	#ifdef ATMOSPHERIC_FOG_ADDITIVE
+
+		gl_FragColor.rgb *= 1.0 - clampedFogFactor;
+
+	#else
+
+		gl_FragColor.rgb = mix( gl_FragColor.rgb, fogTint, clampedFogFactor );
+
+	#endif
 
 	// Arena boundaries end in real geometric silhouettes: a grazing ray can miss a wall while its
 	// neighbour still hits it, and the floor itself ends at the camera's clip distance. Matching a
