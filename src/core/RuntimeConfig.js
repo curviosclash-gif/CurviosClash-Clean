@@ -15,7 +15,7 @@ import {
     hasExplicitArcadeSeed,
     normalizeArcadeRunSettings,
 } from '../shared/contracts/ArcadeRunSettingsContract.js';
-import { FIVE_PORTALS_MAPS, isFivePortalsRunType } from '../shared/contracts/FivePortalsContract.js';
+import { isFivePortalsRunType, resolvePortalChain } from '../shared/contracts/PortalChainContract.js';
 import {
     createDefaultRecordingCaptureSettings,
     normalizeRecordingCaptureSettings,
@@ -295,7 +295,7 @@ export function createRuntimeConfigSnapshot(settings, {
         ghostDuelMode: arcadeGhostDuelMode,
     });
 
-    const sessionMapKey = fivePortalsActive ? FIVE_PORTALS_MAPS[0] : fourPlayerPlanarActive
+    const sessionMapKey = fivePortalsActive ? resolvePortalChain(arcadeSource.portalChainId).maps[0] : fourPlayerPlanarActive
         ? fourPlayerPlanarSelection.mapKey
         : (threePlayerSplitActive ? threePlayerSplitSelection.mapKey : String(source.mapKey || 'standard'));
 

@@ -39,6 +39,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/mushroom-proof.desktop.spec.js',
             'tests/parcours-guidance.desktop.spec.js',
             'tests/five-portals.desktop.spec.js',
+            'tests/sky-ladder.desktop.spec.js',
             'tests/pickup-blender.desktop.spec.js',
             'tests/portal-visual-design.desktop.spec.js',
             'tests/pyramid-sandstorm.desktop.spec.js',

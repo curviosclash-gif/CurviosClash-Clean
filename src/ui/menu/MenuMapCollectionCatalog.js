@@ -71,6 +71,10 @@ const COLLECTION_DEFINITIONS = [
             'storm_switchyard',
             'wind_cathedral',
             'chrono_spillway',
+            'sky_ladder_abyss',
+            'sky_ladder_foundry',
+            'sky_ladder_storm',
+            'sky_ladder_star',
         ],
     },
     {

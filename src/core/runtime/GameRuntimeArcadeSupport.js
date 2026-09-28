@@ -9,7 +9,7 @@ import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesConfig } from '../../shared/contr
 import { ArenaWavesRuntime } from '../arcade/ArenaWavesRuntime.js';
 import { getArcadeObjectiveRuntimeState } from '../arcade/ArcadeObjectiveRuntimeOps.js';
 import { resolveObjectiveTargetIndex } from '../../entities/systems/ObjectiveTargetMarkerOps.js';
-import { FIVE_PORTALS_MAPS, isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
+import { isFivePortalsConfig, resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
 import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
 import { applyArcadeRuntimeCosmetics } from '../arcade/ArcadeRuntimeCosmeticOps.js';
 import { WEAPON_RACE_BOT_COUNT, WEAPON_RACE_MAP_KEY, isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
@@ -247,7 +247,7 @@ export class GameRuntimeArcadeSupport {
             this._preparedEncounterPlan = null;
             this._pendingSectorTransition = null;
             const state = this.fivePortalsRuntime.getHudState();
-            return { mapKey: FIVE_PORTALS_MAPS[state.phase === 'idle' || state.phase === 'finished' ? 0 : state.mapIndex], botCount: 0, fivePortals: true };
+            return { mapKey: resolvePortalChain(runtimeConfig?.arcade?.portalChainId).maps[state.phase === 'idle' || state.phase === 'finished' ? 0 : state.mapIndex], botCount: 0, fivePortals: true };
         }
         if (isArenaWavesConfig(runtimeConfig)) {
             this._preparedEncounterPlan = null;
@@ -330,7 +330,7 @@ export class GameRuntimeArcadeSupport {
         if (isFivePortalsConfig(runtimeConfig)) {
             this._bindGameplayCallback(runtimeState);
             const started = this.fivePortalsRuntime.start(runtimeState?.entityManager || null,
-                { vehicleId: this._resolveActiveVehicleId(runtimeConfig) });
+                { vehicleId: this._resolveActiveVehicleId(runtimeConfig), chainId: runtimeConfig?.arcade?.portalChainId });
             this._sectorRebuildInFlight = false;
             return started;
         }

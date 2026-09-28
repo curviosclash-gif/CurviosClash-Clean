@@ -70,6 +70,10 @@ const BASE_MAP_KEYS = [
     'storm_dam_siege',
     'skyline_siege',
     'hydra_temple',
+    'sky_ladder_abyss',
+    'sky_ladder_foundry',
+    'sky_ladder_storm',
+    'sky_ladder_star',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(
