@@ -3,6 +3,7 @@ import test from 'node:test';
 import * as THREE from 'three';
 
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
+import { Renderer } from '../src/core/Renderer.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { updateReplayProjection } from '../src/core/recording/CinematicReplayProjection.js';
 import { resolveMapSandstormLighting, resolveSandstormLighting } from '../src/core/renderer/SandstormLightingOps.js';
@@ -172,6 +173,34 @@ test('replicas never schedule weather and restore late-join state exactly', () =
     const warning = { ...snapshot, phase: 'WARNING', remainingSeconds: 7, intensity: 0 };
     assert.deepEqual(system.applyNetworkSnapshot(warning), warning);
     assert.equal(system.applyNetworkSnapshot(undefined).enabled, false);
+});
+
+test('network clients relight the scene as snapshots carry the storm intensity', () => {
+    // A client (and the cinematic replay) never runs the storm clock; every step reaches it only as
+    // a snapshot through setMapSandstormEffect. Scene lighting is expensive and applied in 5 % steps.
+    const applied = [];
+    const renderer = Object.create(Renderer.prototype);
+    Object.assign(renderer, {
+        _mapSandstormEffect: createMapSandstormState(),
+        _mapSandstormRanges: {},
+        _mapSandstormLightingStep: 0,
+        cameras: [],
+        addToScene() {},
+        removeFromScene() {},
+        getBaseFogVisibilityRange: () => 560,
+        _applySceneAppearance() { applied.push(this._mapSandstormEffect.intensity); },
+    });
+    const { owner } = createOwner(7);
+    owner.renderer = renderer;
+    const client = new MapSandstormSystem(owner);
+    client.setNetworkReplica(true);
+    client.startRound();
+    for (const intensity of [0.05, 0.3, 0.3, 0.7, 1]) {
+        client.applyNetworkSnapshot({
+            enabled: true, phase: 'ACTIVE', remainingSeconds: 60, eventIndex: 1, directionIndex: 0, intensity,
+        });
+    }
+    assert.deepEqual(applied, [0.05, 0.3, 0.7, 1], 'each new lighting step relights once, repeats do not');
 });
 
 test('replay interpolates time only within one event and keeps phases and directions discrete', () => {

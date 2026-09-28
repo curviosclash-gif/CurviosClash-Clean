@@ -252,8 +252,11 @@ export class Renderer {
         this._mapSandstormRanges.shelterNear = Math.max(0, Number(source.shelterNear) || 0);
         this._mapSandstormRanges.shelterFar = Math.max(0, Number(source.shelterFar) || 0);
         const nextActive = this._mapSandstormEffect.phase === MAP_SANDSTORM_PHASES.ACTIVE;
-        this._mapSandstormLightingStep = Math.round(this._mapSandstormEffect.intensity * 20);
-        if (previousActive !== nextActive) this._applySceneAppearance();
+        // Clients and replays get every intensity step only through here, never via setMapSandstormIntensity.
+        const lightingStep = Math.round(this._mapSandstormEffect.intensity * 20);
+        const relight = previousActive !== nextActive || (nextActive && lightingStep !== this._mapSandstormLightingStep);
+        this._mapSandstormLightingStep = lightingStep;
+        if (relight) this._applySceneAppearance();
         return { ...this._mapSandstormEffect };
     }
 
