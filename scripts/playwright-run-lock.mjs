@@ -17,6 +17,10 @@
 // - CURVIOS_PLAYWRIGHT_LOCK_HOLDER is set for child processes so a cluster runner and the
 //   spec runners it spawns share one lock instead of waiting for each other.
 //
+// Long runs (a cluster list) yield between two clusters: the short runs already waiting ahead
+// of the first long waiter go first, then the long run takes the lock back. Each run still has
+// the GPU to itself; only the order changes, so a two-minute stage-2 run no longer waits an hour.
+//
 // A wait that runs out of time is not a test failure. It logs a single machine-readable line
 // `[playwright:lock] LOCK_TIMEOUT holder=… pid=… waited=…s` and rejects with `exitCode = 75`
 // (EX_TEMPFAIL), which the wrappers hand back to the shell unchanged.
@@ -41,6 +45,9 @@ const DEFAULT_POLL_MS = 5000;
 const REPORT_EVERY_MS = 30 * 1000;
 const LOCK_FILE_NAME = 'curviosclash-playwright-run.lock';
 const TICKET_NAME_PATTERN = /^(\d{1,16})-(\d+)\.json$/;
+// Wrappers older than the `kind` field still sit in other worktrees; their long runs are
+// recognised by label so a yielding run never lets them jump the queue.
+const LEGACY_LONG_RUN_LABEL_PREFIXES = Object.freeze(['desktop-e2e clusters', 'bot validation', 'bot self-trail']);
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const defaultLog = (message) => console.log(message);
@@ -92,12 +99,33 @@ function describeHolder(holder) {
 // ---------- queue ----------
 
 /** Writes one waiting ticket and returns its path. Sortable by name: `<enqueuedAt>-<pid>.json`. */
-export function enqueuePlaywrightRunLockTicket(queueDir, { pid, label = 'playwright run', enqueuedAt = Date.now(), cwd = '' } = {}) {
+export function enqueuePlaywrightRunLockTicket(queueDir, { pid, label = 'playwright run', kind = 'short', enqueuedAt = Date.now(), cwd = '' } = {}) {
     fs.mkdirSync(queueDir, { recursive: true });
     const stamp = String(Math.max(0, Math.trunc(Number(enqueuedAt) || 0))).padStart(16, '0');
     const ticketPath = path.join(queueDir, `${stamp}-${pid}.json`);
-    fs.writeFileSync(ticketPath, `${JSON.stringify({ pid, label, cwd, enqueuedAt }, null, 2)}\n`, 'utf8');
+    fs.writeFileSync(ticketPath, `${JSON.stringify({ pid, label, kind, cwd, enqueuedAt }, null, 2)}\n`, 'utf8');
     return ticketPath;
+}
+
+/** A ticket or lock of a cluster list or bot validation; an explicit `kind` wins over the label. */
+export function isLongPlaywrightRun(entry) {
+    if (entry?.kind === 'long') return true;
+    if (entry?.kind === 'short') return false;
+    const label = String(entry?.label || '');
+    return LEGACY_LONG_RUN_LABEL_PREFIXES.some((prefix) => label.startsWith(prefix));
+}
+
+/**
+ * Where a yielding long run re-enters the queue: right behind the short runs that wait ahead of
+ * the first long waiter. Returns null when nobody short waits there, so the lock is kept.
+ */
+export function resolveYieldQueueStamp(queue) {
+    let lastShortAhead = null;
+    for (const ticket of queue) {
+        if (isLongPlaywrightRun(ticket)) break;
+        lastShortAhead = ticket;
+    }
+    return lastShortAhead ? lastShortAhead.enqueuedAt + 1 : null;
 }
 
 /** Lists the living waiters in order, dropping (and deleting) tickets of dead processes. */
@@ -120,10 +148,13 @@ export function readPlaywrightRunLockQueue(queueDir, { isAlive = isProcessAlive,
             continue;
         }
         let label = 'playwright run';
+        let kind;
         try {
-            label = String(JSON.parse(fs.readFileSync(ticketPath, 'utf8'))?.label || label);
+            const parsed = JSON.parse(fs.readFileSync(ticketPath, 'utf8'));
+            label = String(parsed?.label || label);
+            kind = parsed?.kind;
         } catch { /* a ticket being written right now still counts by its name */ }
-        tickets.push({ pid, enqueuedAt: Number(match[1]), label, path: ticketPath });
+        tickets.push({ pid, enqueuedAt: Number(match[1]), label, kind, path: ticketPath });
     }
 
     tickets.sort((left, right) => left.enqueuedAt - right.enqueuedAt || left.pid - right.pid);
@@ -250,6 +281,9 @@ function createLockTimeoutError(blockedBy, lockPath, waitedSeconds) {
  */
 export async function acquirePlaywrightRunLock({
     label = 'playwright run',
+    kind = 'short',
+    // Queue position as a timestamp; only a yielding long run sets it (see yieldPlaywrightRunLock).
+    queueAt = null,
     env = process.env,
     lockPath = resolvePlaywrightRunLockPath(env),
     queueDir = resolvePlaywrightRunLockQueueDir(lockPath),
@@ -273,7 +307,7 @@ export async function acquirePlaywrightRunLock({
     }
 
     const startedAtMs = now();
-    const payload = { pid, label, cwd, startedAt: new Date(startedAtMs).toISOString(), heartbeat: new Date(startedAtMs).toISOString() };
+    const payload = { pid, label, kind, cwd, startedAt: new Date(startedAtMs).toISOString(), heartbeat: new Date(startedAtMs).toISOString() };
     const takeLock = () => {
         env[PLAYWRIGHT_RUN_LOCK_HOLDER_ENV] = String(pid);
         const stopHeartbeat = startHeartbeat(lockPath, pid, heartbeatMs, now);
@@ -285,7 +319,8 @@ export async function acquirePlaywrightRunLock({
         return takeLock();
     }
 
-    const enqueue = () => enqueuePlaywrightRunLockTicket(queueDir, { pid, label, cwd, enqueuedAt: startedAtMs });
+    const ticketStamp = queueAt === null ? startedAtMs : Number(queueAt);
+    const enqueue = () => enqueuePlaywrightRunLockTicket(queueDir, { pid, label, kind, cwd, enqueuedAt: ticketStamp });
     const ticketPath = enqueue();
     const deadline = startedAtMs + Math.max(0, waitMs);
     let lastReportAt = -Infinity;
@@ -337,6 +372,32 @@ export async function acquirePlaywrightRunLock({
     } finally {
         removeFileQuietly(ticketPath);
     }
+}
+
+/**
+ * Called by a long run between two of its parts. When short runs wait ahead of the first long
+ * waiter, the lock is released and re-queued right behind them; otherwise it is kept untouched.
+ * Resolves to { yielded, lock } — always continue with the returned lock.
+ */
+export async function yieldPlaywrightRunLock(lock, options = {}) {
+    if (!lock || lock.disabled || lock.inherited || typeof lock.release !== 'function') {
+        return { yielded: false, lock };
+    }
+    const env = options.env || process.env;
+    const lockPath = options.lockPath || resolvePlaywrightRunLockPath(env);
+    const queueDir = options.queueDir || resolvePlaywrightRunLockQueueDir(lockPath);
+    const isAlive = options.isAlive || isProcessAlive;
+    const log = options.log || defaultLog;
+    const queue = readPlaywrightRunLockQueue(queueDir, { isAlive });
+    const queueAt = resolveYieldQueueStamp(queue);
+    if (queueAt === null) return { yielded: false, lock };
+
+    const shortAhead = queue.filter((ticket) => ticket.enqueuedAt < queueAt).length;
+    log(`[playwright:lock] yielding to ${shortAhead} short run(s) before continuing ${options.label || 'the long run'}`);
+    // release and re-enqueue run in the same tick, so no newcomer can take the free lock first.
+    lock.release();
+    const nextLock = await acquirePlaywrightRunLock({ ...options, kind: options.kind || 'long', env, lockPath, queueDir, isAlive, log, queueAt });
+    return { yielded: true, lock: nextLock };
 }
 
 /**
