@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -222,19 +222,23 @@ export async function exportGameRepository({ commit, outputDirectory }) {
     await mkdir(output, { recursive: true });
 
     const indexDirectory = await mkdtemp(path.join(os.tmpdir(), 'curvios-game-export-index-'));
-    const temporaryIndex = path.join(indexDirectory, 'index');
-    const environment = { ...process.env, GIT_INDEX_FILE: temporaryIndex };
-    git(['read-tree', resolvedCommit], { env: environment });
-    const disallowedPaths = trackedPaths.filter((trackedPath) => !allowedPaths.includes(trackedPath));
-    const removeResult = spawnSync('git', ['update-index', '--force-remove', '-z', '--stdin'], {
-        cwd: process.cwd(),
-        env: environment,
-        input: Buffer.from(`${disallowedPaths.join('\0')}\0`),
-        maxBuffer: 1024 * 1024 * 64,
-    });
-    assert.equal(removeResult.status, 0, removeResult.stderr?.toString() || 'Unable to filter export index.');
-    const prefix = `${output}${path.sep}`;
-    git(['checkout-index', '--all', `--prefix=${prefix}`], { env: environment });
+    try {
+        const temporaryIndex = path.join(indexDirectory, 'index');
+        const environment = { ...process.env, GIT_INDEX_FILE: temporaryIndex };
+        git(['read-tree', resolvedCommit], { env: environment });
+        const disallowedPaths = trackedPaths.filter((trackedPath) => !allowedPaths.includes(trackedPath));
+        const removeResult = spawnSync('git', ['update-index', '--force-remove', '-z', '--stdin'], {
+            cwd: process.cwd(),
+            env: environment,
+            input: Buffer.from(`${disallowedPaths.join('\0')}\0`),
+            maxBuffer: 1024 * 1024 * 64,
+        });
+        assert.equal(removeResult.status, 0, removeResult.stderr?.toString() || 'Unable to filter export index.');
+        const prefix = `${output}${path.sep}`;
+        git(['checkout-index', '--all', `--prefix=${prefix}`], { env: environment });
+    } finally {
+        await rm(indexDirectory, { recursive: true, force: true });
+    }
 
     for (const relativePath of allowedPaths) {
         if (!/\.(?:cjs|html|js|json|md|mjs|css)$/i.test(relativePath)) continue;
