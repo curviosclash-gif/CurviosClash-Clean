@@ -648,6 +648,10 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                 const slot = arena._glbScene.children.find((node) => node.visible && String(node.userData.glbModelId).startsWith('reactor-mushroom-cloud'));
                 const layers = ['reactor-soft-smoke_nocol_noshadow', 'reactor-volume-head_nocol_noshadow', 'reactor-volume-stem_nocol_noshadow']
                     .map((name) => slot.getObjectByName(name)).filter(Boolean);
+                // Measured in calm air: the rolled wind carries the widening rest towards or away from
+                // this camera, and that alone moved the ratio below between 0.21 and 0.86.
+                const windYaw = slot.userData.windYaw;
+                delete slot.userData.windYaw;
                 camera.far = 5000; camera.updateProjectionMatrix();
                 camera.position.set(1050, 520, 1150); camera.lookAt(0, 490, 0); camera.updateMatrixWorld(true);
                 const probe = document.createElement('canvas'); probe.width = 160; probe.height = 90;
@@ -674,6 +678,7 @@ test('reactor plays one of four torus clouds with sound, flash and the enlarged 
                     result[seconds] = { change, pixels, overrun: slot.userData.clipOverrunSeconds ?? slot.children[0]?.userData?.clipOverrunSeconds ?? null,
                         png: runtime.renderer.domElement.toDataURL('image/png') };
                 }
+                if (windYaw !== undefined) slot.userData.windYaw = windYaw;
                 camera.far = held.far; camera.updateProjectionMatrix();
                 camera.position.copy(held.position); camera.quaternion.copy(held.quaternion); camera.updateMatrixWorld(true);
                 return result;
