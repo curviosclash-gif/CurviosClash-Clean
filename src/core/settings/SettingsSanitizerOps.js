@@ -97,6 +97,11 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
     }
     merged.vehicles.PLAYER_1 = resolvePlayerVehicleId(src?.vehicles?.PLAYER_1, defaults?.vehicles?.PLAYER_1);
     merged.vehicles.PLAYER_2 = resolvePlayerVehicleId(src?.vehicles?.PLAYER_2, defaults?.vehicles?.PLAYER_2);
+    // Older saves kept the third pilot's plane in the former three-player setup block.
+    merged.vehicles.PLAYER_3 = resolvePlayerVehicleId(
+        src?.vehicles?.PLAYER_3 ?? src?.localSettings?.threePlayerSplit?.vehicleId,
+        defaults?.vehicles?.PLAYER_3 ?? defaults?.vehicles?.PLAYER_1
+    );
 
     merged.portalsEnabled = src?.portalsEnabled !== undefined ? !!src.portalsEnabled : defaults.portalsEnabled;
     merged.hunt.respawnEnabled = !!(src?.hunt?.respawnEnabled ?? defaults.hunt.respawnEnabled);
@@ -224,15 +229,7 @@ function finalizeSanitizedSettings({ merged, migratedSessionType }) {
             fallbackVehicleId: merged?.vehicles?.PLAYER_1 || DEFAULT_VEHICLE_ID,
         }
     );
-    merged.localSettings.threePlayerSplit = normalizeThreePlayerSplitSettings(
-        merged.localSettings.threePlayerSplit,
-        {
-            allowedMapKeys: new Set(Object.keys(CONFIG.MAPS || {})),
-            allowedVehicleIds: new Set(getPlayerVehicleIds()),
-            fallbackMapKey: merged.mapKey || 'standard',
-            fallbackVehicleId: merged?.vehicles?.PLAYER_1 || DEFAULT_VEHICLE_ID,
-        }
-    );
+    merged.localSettings.threePlayerSplit = normalizeThreePlayerSplitSettings(merged.localSettings.threePlayerSplit);
     merged.localSettings.modePath = normalizeModePath(merged.localSettings.modePath, 'normal');
     applyMenuCompatibilityRuleSet(merged);
     return merged;

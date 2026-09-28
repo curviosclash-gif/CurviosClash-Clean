@@ -63,6 +63,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         vehicles: {
             PLAYER_1: 'ship5',
             PLAYER_2: 'ship5',
+            PLAYER_3: 'ship5',
         },
         portalsEnabled: true,
         hunt: {
@@ -166,6 +167,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         vehicles: {
             PLAYER_1: 'ship5',
             PLAYER_2: 'ship5',
+            PLAYER_3: 'ship5',
         },
     },
     configShare: {

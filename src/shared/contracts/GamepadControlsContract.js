@@ -46,7 +46,31 @@ export function resolveSplitscreenInputDevice(layout, playerIndex) {
     return { type: keyboard ? 'keyboard' : 'gamepad', gamepadIndex: normalized === 'controller-controller' ? playerIndex : 0 };
 }
 
-const ACTION_FIELDS = GAMEPAD_ACTIONS.map((action) => ({ key: action.key, fallback: action.button }));
+/** Controller slots a two-player layout cannot start without; 'auto' merges pad and keys, so it needs none. */
+export function resolveSplitscreenLayoutGamepadSlots(layout) {
+    const normalized = normalizeSplitscreenInputLayout(layout);
+    if (normalized === 'controller-controller') return [0, 1];
+    if (normalized === 'controller-keyboard' || normalized === 'keyboard-controller') return [0];
+    return [];
+}
+
+/**
+ * Why a local split-screen start would leave a player without input, or ''.
+ * @param {{ gamepadSlots?: number[], controls?: any, getGamepad?: (index: number) => any }} options
+ */
+export function resolveLocalGamepadIssue({ gamepadSlots = [], controls = null, getGamepad = () => null } = {}) {
+    if (gamepadSlots.length === 0) return '';
+    if (!isGamepadInputEnabled(controls)) {
+        return 'Gamepads sind deaktiviert. Aktiviere sie in den Steuerungs-Einstellungen.';
+    }
+    for (const index of gamepadSlots) {
+        const pad = getGamepad(index);
+        if (!pad || pad.connected === false) return `Gamepad ${index + 1} fehlt. Verbinde es und drücke eine Taste.`;
+    }
+    return '';
+}
+
+const ACTION_FIELDS =GAMEPAD_ACTIONS.map((action) => ({ key: action.key, fallback: action.button }));
 const AXIS_FIELDS = GAMEPAD_AXES.map((axis) => ({ key: axis.key, fallback: axis.axis }));
 
 /**

@@ -19,6 +19,7 @@ export const HANGAR_SELECTION_WRITEBACK_VERSION = 'hangar-selection-writeback.v1
 export const HANGAR_SELECTION_PLAYER_SLOTS = Object.freeze({
     PLAYER_1: 'PLAYER_1',
     PLAYER_2: 'PLAYER_2',
+    PLAYER_3: 'PLAYER_3',
 });
 
 export const HANGAR_SELECTION_MODES = Object.freeze({
@@ -33,14 +34,17 @@ export const HANGAR_SELECTION_WRITEBACK_PATHS = Object.freeze({
     MAP_KEY: 'settings.mapKey',
     VEHICLE_PLAYER_1: 'settings.vehicles.PLAYER_1',
     VEHICLE_PLAYER_2: 'settings.vehicles.PLAYER_2',
+    VEHICLE_PLAYER_3: 'settings.vehicles.PLAYER_3',
     START_SETUP_STATE: 'settings.localSettings.startSetup',
     MODE_SELECTIONS: 'settings.localSettings.startSetup.modeSelections',
     MODE_ARCADE_MAP_KEY: 'settings.localSettings.startSetup.modeSelections.arcade.mapKey',
     MODE_FIGHT_MAP_KEY: 'settings.localSettings.startSetup.modeSelections.fight.mapKey',
     MODE_ARCADE_VEHICLE_PLAYER_1: 'settings.localSettings.startSetup.modeSelections.arcade.vehicles.PLAYER_1',
     MODE_ARCADE_VEHICLE_PLAYER_2: 'settings.localSettings.startSetup.modeSelections.arcade.vehicles.PLAYER_2',
+    MODE_ARCADE_VEHICLE_PLAYER_3: 'settings.localSettings.startSetup.modeSelections.arcade.vehicles.PLAYER_3',
     MODE_FIGHT_VEHICLE_PLAYER_1: 'settings.localSettings.startSetup.modeSelections.fight.vehicles.PLAYER_1',
     MODE_FIGHT_VEHICLE_PLAYER_2: 'settings.localSettings.startSetup.modeSelections.fight.vehicles.PLAYER_2',
+    MODE_FIGHT_VEHICLE_PLAYER_3: 'settings.localSettings.startSetup.modeSelections.fight.vehicles.PLAYER_3',
     START_SETUP_ARCADE_GHOST_DUEL_MODE: 'settings.localSettings.startSetup.arcadeGhostDuelMode',
     START_SETUP_ARCADE_GHOST_TRAIL_COLLISION_ENABLED: 'settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled',
 });
@@ -72,6 +76,7 @@ function ensureVehiclesState(settings) {
     }
     if (typeof settings.vehicles.PLAYER_1 !== 'string') settings.vehicles.PLAYER_1 = 'ship5';
     if (typeof settings.vehicles.PLAYER_2 !== 'string') settings.vehicles.PLAYER_2 = 'ship5';
+    if (typeof settings.vehicles.PLAYER_3 !== 'string') settings.vehicles.PLAYER_3 = 'ship5';
     return settings.vehicles;
 }
 
@@ -100,10 +105,9 @@ function ensureModeSelectionState(settings, mode, fallbackMapKey = 'standard') {
     if (!modeSelection.vehicles || typeof modeSelection.vehicles !== 'object') {
         modeSelection.vehicles = {};
     }
-    const fallbackVehicleP1 = 'ship5';
-    const fallbackVehicleP2 = 'ship5';
-    if (typeof modeSelection.vehicles.PLAYER_1 !== 'string') modeSelection.vehicles.PLAYER_1 = fallbackVehicleP1;
-    if (typeof modeSelection.vehicles.PLAYER_2 !== 'string') modeSelection.vehicles.PLAYER_2 = fallbackVehicleP2;
+    for (const slot of VALID_PLAYER_SLOT_SET) {
+        if (typeof modeSelection.vehicles[slot] !== 'string') modeSelection.vehicles[slot] = 'ship5';
+    }
     return modeSelection;
 }
 
@@ -160,9 +164,7 @@ export function ensureHangarSelectionWritebackState(settings) {
 }
 
 function resolveVehiclePersistencePath(playerSlot) {
-    return playerSlot === HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2
-        ? HANGAR_SELECTION_WRITEBACK_PATHS.VEHICLE_PLAYER_2
-        : HANGAR_SELECTION_WRITEBACK_PATHS.VEHICLE_PLAYER_1;
+    return HANGAR_SELECTION_WRITEBACK_PATHS[`VEHICLE_${playerSlot}`] || HANGAR_SELECTION_WRITEBACK_PATHS.VEHICLE_PLAYER_1;
 }
 
 function resolveModeMapPersistencePath(mode) {
@@ -172,14 +174,9 @@ function resolveModeMapPersistencePath(mode) {
 }
 
 function resolveModeVehiclePersistencePath(mode, playerSlot) {
-    if (mode === HANGAR_SELECTION_MODES.FIGHT) {
-        return playerSlot === HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2
-            ? HANGAR_SELECTION_WRITEBACK_PATHS.MODE_FIGHT_VEHICLE_PLAYER_2
-            : HANGAR_SELECTION_WRITEBACK_PATHS.MODE_FIGHT_VEHICLE_PLAYER_1;
-    }
-    return playerSlot === HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2
-        ? HANGAR_SELECTION_WRITEBACK_PATHS.MODE_ARCADE_VEHICLE_PLAYER_2
-        : HANGAR_SELECTION_WRITEBACK_PATHS.MODE_ARCADE_VEHICLE_PLAYER_1;
+    const modeKey = mode === HANGAR_SELECTION_MODES.FIGHT ? 'FIGHT' : 'ARCADE';
+    return HANGAR_SELECTION_WRITEBACK_PATHS[`MODE_${modeKey}_VEHICLE_${playerSlot}`]
+        || HANGAR_SELECTION_WRITEBACK_PATHS[`MODE_${modeKey}_VEHICLE_PLAYER_1`];
 }
 
 export function resolveHangarSelectionDataSpace(rawModePath) {
@@ -193,6 +190,7 @@ export function resolveHangarSelectionDataSpace(rawModePath) {
         vehiclePersistencePathMap: Object.freeze({
             PLAYER_1: resolveModeVehiclePersistencePath(mode, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1),
             PLAYER_2: resolveModeVehiclePersistencePath(mode, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2),
+            PLAYER_3: resolveModeVehiclePersistencePath(mode, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_3),
         }),
     });
 }
@@ -323,6 +321,7 @@ function createModeSelectionSnapshot(modeSelection = {}, fallbackMapKey) {
         vehicles: Object.freeze({
             PLAYER_1: normalizeString(modeSelection?.vehicles?.PLAYER_1, 'ship5').toLowerCase() || 'ship5',
             PLAYER_2: normalizeString(modeSelection?.vehicles?.PLAYER_2, 'ship5').toLowerCase() || 'ship5',
+            PLAYER_3: normalizeString(modeSelection?.vehicles?.PLAYER_3, 'ship5').toLowerCase() || 'ship5',
         }),
     });
 }
@@ -343,6 +342,12 @@ export function createHangarSelectionWritebackSnapshot(settings, options = {}) {
         'ship5',
         { mode: activeMode }
     );
+    const activeVehicleP3Selection = readHangarVehicleSelection(
+        settings,
+        HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_3,
+        'ship5',
+        { mode: activeMode }
+    );
     const arcadeModeSelection = ensureModeSelectionState(settings, HANGAR_SELECTION_MODES.ARCADE);
     const fightModeSelection = ensureModeSelectionState(settings, HANGAR_SELECTION_MODES.FIGHT);
     return Object.freeze({
@@ -353,6 +358,7 @@ export function createHangarSelectionWritebackSnapshot(settings, options = {}) {
         vehicles: Object.freeze({
             PLAYER_1: activeVehicleP1Selection.value,
             PLAYER_2: activeVehicleP2Selection.value,
+            PLAYER_3: activeVehicleP3Selection.value,
         }),
         modeSelections: Object.freeze({
             [HANGAR_SELECTION_MODES.ARCADE]: createModeSelectionSnapshot(
