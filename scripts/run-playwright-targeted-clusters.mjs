@@ -8,6 +8,7 @@ import {
     PLAYWRIGHT_RUN_LOCK_TIMEOUT_EXIT_CODE,
     acquirePlaywrightRunLock,
     releasePlaywrightRunLockOnExit,
+    yieldPlaywrightRunLock,
 } from './playwright-run-lock.mjs';
 import {
     PLAYWRIGHT_SUMMARY_PREFIX,
@@ -451,16 +452,27 @@ async function main() {
         process.exit(1);
     }
 
-    // Hold the machine-wide Playwright lock for the whole cluster list so no other session
-    // squeezes a run in between two clusters; the spec runners inherit it through the env.
-    const lock = await acquirePlaywrightRunLock({
+    // The spec runners inherit the machine-wide lock through the env. Between two clusters the
+    // runner yields to short runs that already wait (stage 2 takes minutes, a cluster list an
+    // hour); long waiters keep their place behind this run, so the order stays fair.
+    const lockOptions = {
         label: `desktop-e2e clusters ${clusters.map((cluster) => cluster.id).join(',')}`,
-    });
-    releasePlaywrightRunLockOnExit(lock.release);
+        kind: 'long',
+    };
+    let lock = await acquirePlaywrightRunLock(lockOptions);
+    releasePlaywrightRunLockOnExit(() => lock.release());
 
     const failures = [];
     const summaries = [];
     for (let index = 0; index < clusters.length; index += 1) {
+        if (index > 0) {
+            try {
+                ({ lock } = await yieldPlaywrightRunLock(lock, lockOptions));
+            } catch (error) {
+                printClusterSummaries(summaries);
+                throw error;
+            }
+        }
         const result = await runCluster(clusters[index], playwrightArgs, index, clusters.length);
         const collected = collectClusterSummary(clusters[index], result.outputDir);
         if (collected) summaries.push(collected);
