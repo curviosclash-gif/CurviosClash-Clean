@@ -445,6 +445,7 @@ test('guided rocket has its own model instead of the XL rocket with collars', as
     const guided = gltf.scene.getObjectByName('pickup_ROCKET_GUIDED');
     const mega = gltf.scene.getObjectByName('pickup_ROCKET_MEGA');
     assert.equal(guided.userData.guidedRocket, true);
+    assert.equal(guided.userData.rocketTier, 'MEGA', 'the desktop reads the damage tier from the GLB');
     let collars = null;
     guided.traverse((node) => { if (node.userData.rocketTierCollars === true) collars = node; });
     assert.equal(collars, null, 'no tier collars: the XL rocket owns those');

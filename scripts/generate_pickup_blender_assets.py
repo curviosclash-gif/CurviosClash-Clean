@@ -619,6 +619,9 @@ def build_guided_rocket(root):
     cylinder(root, "guided_antenna", (.24, 0, -.3), .025, .55, "frame", 8, "Z")
     sphere(root, "guided_antenna_tip", (.24, 0, -.02), .055, "glow")
     root["guidedRocket"] = True
+    # Same damage tier as the XL rocket (RocketPickupDefinitionsContract), only without its collars.
+    root["rocketTier"] = "MEGA"
+    root["tierMarkers"] = 0
 
 
 DIGITS = {
