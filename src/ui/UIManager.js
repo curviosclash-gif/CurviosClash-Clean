@@ -381,9 +381,8 @@ export class UIManager {
                 btn.classList.toggle('active', btn.dataset.mode === effectiveMode);
             });
         }
-        if (ui.vehicleP2Container) {
-            ui.vehicleP2Container.classList.toggle('hidden', effectiveMode !== '2p');
-        }
+        // The pilot buttons (Pilot 2 in split screen and multiplayer, Pilot 3 for three players)
+        // belong to the 3D vehicle picker alone; a second toggle here fought it in multiplayer.
 
         const huntFeatureEnabled = this._getGameplayConfig()?.HUNT?.ENABLED !== false;
         const resolvedGameMode = resolveActiveGameMode(settings.gameMode, huntFeatureEnabled);

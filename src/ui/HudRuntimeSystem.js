@@ -167,6 +167,8 @@ export class HudRuntimeSystem {
         }
 
         if (humans.length > 0) {
+            // A network match renames this tile to the own seat; locally it is always player one.
+            if (game.ui.p1Name && game.ui.p1Name.textContent !== 'Spieler 1') game.ui.p1Name.textContent = 'Spieler 1';
             const p1Score = String(humans[0].score);
             if (game.ui.p1Score.textContent !== p1Score) {
                 game.ui.p1Score.textContent = p1Score;
