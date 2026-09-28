@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import {
     PLAYWRIGHT_LOCK_TIMEOUT_EXIT_CODE,
     VERIFICATION_STAGES,
+    planBatch,
     selectFor,
     toStage2Command,
 } from '../.claude/skills/verify-scope/scripts/select-verification.mjs';
@@ -104,6 +105,38 @@ test('verify-scope: every stage-2 id really exists in its spec', () => {
         }
     }
     assert.ok(seen.size > 10, `expected a real id table, saw ${seen.size}`);
+});
+
+// Several finished branches share one stage-3 run instead of one run each. The batch must
+// cover every cluster any branch needs, and a red cluster must name the branches that can
+// have caused it, so the culprit is found with small reruns instead of a new batch.
+test('verify-scope: a batch runs the union of clusters once and names the suspects per cluster', () => {
+    const plan = planBatch({
+        'claude/hud-fix': ['src/ui/HUD.js'],
+        'claude/new-map': ['assets/maps/neon/glb/neon.glb', 'src/core/config/maps/presets/neon.js'],
+        'claude/docs': ['README.md'],
+    });
+
+    assert.deepEqual([...plan.clusters].sort(), ['core-surface', 'desktop-flows']);
+    assert.deepEqual(plan.suspectsByCluster['core-surface'], ['claude/hud-fix']);
+    assert.deepEqual(plan.suspectsByCluster['desktop-flows'], ['claude/hud-fix', 'claude/new-map']);
+    assert.deepEqual(plan.withoutClusters, ['claude/docs'], 'a branch without cluster needs is named, not silently dropped');
+    assert.equal((plan.stage3Command.match(/run-playwright-targeted-clusters\.mjs/g) || []).length, 1, 'one run for the whole batch');
+    assert.match(plan.stage3Command, /core-surface/);
+    assert.match(plan.stage3Command, /desktop-flows/);
+    assert.match(plan.stage3Command, /--skip-known/);
+});
+
+test('verify-scope: a batch without any cluster needs no stage-3 run', () => {
+    const plan = planBatch({ 'claude/docs': ['README.md'] });
+    assert.deepEqual(plan.clusters, []);
+    assert.equal(plan.stage3Command, null);
+});
+
+test('verify-scope: CLAUDE.md describes the batch run', () => {
+    const claudeMd = fs.readFileSync(path.join(REPO_ROOT, 'CLAUDE.md'), 'utf8');
+    assert.match(claudeMd, /Sammellauf/);
+    assert.match(claudeMd, /select-verification\.mjs --batch/);
 });
 
 test('verify-scope: the lock timeout exit code is documented as 75', () => {

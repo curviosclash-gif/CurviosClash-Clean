@@ -111,6 +111,14 @@ Für Änderungen sind die kleinsten betroffenen Tests und der passende Build erf
 - **Stufe 2 (gezielt, Richtwert unter 10 Minuten):** die Test-IDs des berührten Bereichs statt eines ganzen Clusters, z. B. `node scripts/run-playwright-targeted.mjs tests/core-targeted-surface.spec.js --grep "T20kb:|T20kc:|T20i:"`. Welche IDs zu welchem Bereich gehören, sagt `node .claude/skills/verify-scope/scripts/select-verification.mjs <deine-dateien>`. Stufe 2 ist **Pflicht**, sobald die Tabelle unten für den Bereich einen Cluster nennt; sie ersetzt dort den Clusterlauf. Stufe 3 folgt in der Hauptsitzung vor der Integration.
 - **Stufe 3 (ganze Cluster):** nur in der Hauptsitzung, losgelöst gestartet (`Start-Process` mit UTF-8-Protokoll), immer mit `--skip-known` und `CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS` von mindestens zwei Stunden. **Nie in einem Subagenten** — der wartet 20–40 Minuten und beendet sich vorher. Beleg ist die letzte Zeile `[playwright:summary] passed=… failed=… skipped=… didNotRun=… flaky=… known=… new=…`. Ein Lauf ohne `didNotRun=0` hat über den eigenen Bereich nichts ausgesagt.
 
+**Sammellauf (bevorzugt, sobald mehrere Branches fertig sind):** Stufe 3 läuft einmal für mehrere Branches statt einmal je Branch. Das prüft den Stand, der wirklich in `main` landet, und hält das Schloss nur einmal.
+
+1. Jeder Branch ist committet, Stufe 1 und 2 sind grün. Die Sitzung meldet „bereit für den Sammellauf“ als offenen Schritt.
+2. Integrations-Worktree auf `main` anlegen (mit `node_modules`-Junctions). Jeden Branch erst mit `git merge-tree --write-tree HEAD <branch>` auf Konflikte prüfen, dann mit `git merge --no-ff <branch>` übernehmen. Ein Branch mit Konflikt bleibt draußen.
+3. `node .claude/skills/verify-scope/scripts/select-verification.mjs --batch <branch> <branch> …` nennt die Vereinigung der Cluster als **einen** Stufe-3-Befehl und je Cluster die Branches, die ihn rot machen können.
+4. `npm run build:app:test`, dann diesen einen Befehl wie jede Stufe 3 starten (losgelöst, `--skip-known`, Wartezeit ≥ 2 h).
+5. Grün (`new=0`, `didNotRun=0`): den Integrations-Branch nach den Git-Regeln per Fast-Forward nach `main` übernehmen und pushen. Rot: nur die roten Tests (`--grep "<Titel>"`) in den Worktrees der genannten Verdächtigen nachfahren; das ist Stufe-2-Größe. Den Schuldigen aus dem Sammellauf nehmen und nur den roten Cluster neu fahren.
+
 **Exit-Code 75** aus einem Playwright-Wrapper heißt Schloss-Timeout, nicht Testfehler (Zeile `[playwright:lock] LOCK_TIMEOUT holder=… pid=… waited=…s`): eine andere Sitzung hielt die Maschine. Später erneut starten, nicht als rot werten.
 
 Bekannte Alt-Fehler stehen in `scripts/architecture/playwright-known-failures.json` (Spec, Testtitel, Datum, Ursache, Art). `--skip-known` blendet sie aus, damit ein Lauf nur Neues meldet; die Zählung `count` in derselben Datei ist ein Ratchet und darf nur sinken. Ein reparierter Test kommt im selben Änderungspaket aus der Liste.

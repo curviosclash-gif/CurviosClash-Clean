@@ -14,6 +14,7 @@
 //   node select-verification.mjs                 # derive from git (warns about foreign changes)
 //   node select-verification.mjs src/ui/Foo.js   # only the paths you actually touched
 //   node select-verification.mjs --json          # machine readable
+//   node select-verification.mjs --batch a b     # one stage-3 run for several branches (vs main)
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import process from 'node:process';
@@ -219,12 +220,40 @@ const RULES = [
 function parseArgs(argv) {
     const paths = [];
     let json = false;
+    let batch = false;
+    let base = 'main';
     for (const raw of argv) {
         if (raw === '--json') json = true;
+        else if (raw === '--batch') batch = true;
+        else if (raw.startsWith('--base=')) base = raw.slice('--base='.length);
         else if (raw.startsWith('--')) continue;
         else paths.push(raw.replace(/\\/g, '/'));
     }
-    return { paths, json };
+    return { paths, json, batch, base };
+}
+
+/** Paths a branch changed since it left `base` (three-dot diff: the branch side only). */
+function changedOnBranch(base, branch) {
+    const result = spawnSync('git', ['diff', '--name-only', `${base}...${branch}`], { encoding: 'utf8', windowsHide: true });
+    if (result.status !== 0) {
+        throw new Error(`git diff ${base}...${branch} failed: ${String(result.stderr || '').trim()}`);
+    }
+    return result.stdout.split(/\r?\n/).filter(Boolean).map((entry) => entry.replace(/\\/g, '/'));
+}
+
+function printBatchReport(base, plan) {
+    console.log(`Sammellauf gegen ${base}: ${plan.stage3Command ? `${plan.clusters.length} Cluster` : 'kein Cluster nötig'}`);
+    if (plan.stage3Command) {
+        console.log(`\n${VERIFICATION_STAGES[3]} — einmal für alle Branches, im Integrations-Worktree`);
+        console.log(`  ${plan.stage3Command}  (losgelöst starten, CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS mindestens 7200000)`);
+        console.log('\nBei Rot kommen je Cluster nur diese Branches in Frage:');
+        for (const [cluster, branches] of Object.entries(plan.suspectsByCluster)) {
+            console.log(`  ${cluster}: ${branches.join(', ')}`);
+        }
+    }
+    if (plan.withoutClusters.length > 0) {
+        console.log(`\nOhne Cluster (Stufe 1+2 genügt): ${plan.withoutClusters.join(', ')}`);
+    }
 }
 
 function changedFromGit() {
@@ -252,6 +281,32 @@ export function toStage2Command(target) {
             ? `${ids.length} Test-IDs aus ${target.spec}`
             : `${target.spec} trägt keine Test-IDs — ganze Spec, nicht der Cluster`,
         note: target.note || '',
+    };
+}
+
+function toStage3Command(clusters) {
+    return `node scripts/run-playwright-targeted-clusters.mjs ${clusters.join(' ')} --skip-known`;
+}
+
+/**
+ * Batch run: several finished branches share one stage-3 run on their merged state. Input maps
+ * each branch to the paths it changed. The result is the cluster union (one run) and, per
+ * cluster, the branches that can have turned it red — the suspects for small reruns.
+ */
+export function planBatch(changedPathsByBranch) {
+    const suspectsByCluster = {};
+    const withoutClusters = [];
+    for (const [branch, paths] of Object.entries(changedPathsByBranch)) {
+        const { clusters } = selectFor(paths);
+        if (clusters.length === 0) withoutClusters.push(branch);
+        for (const cluster of clusters) (suspectsByCluster[cluster] ||= []).push(branch);
+    }
+    const clusters = Object.keys(suspectsByCluster);
+    return {
+        clusters,
+        suspectsByCluster,
+        withoutClusters,
+        stage3Command: clusters.length > 0 ? toStage3Command(clusters) : null,
     };
 }
 
@@ -284,7 +339,7 @@ export function selectFor(paths) {
     for (const target of stage2Targets) list.push(toStage2Command(target));
     if (clusters.size > 0) {
         list.push({
-            command: `node scripts/run-playwright-targeted-clusters.mjs ${[...clusters].join(' ')} --skip-known`,
+            command: toStage3Command([...clusters]),
             rank: RANK.clusters,
             stage: 3,
             reason: 'Playwright-Cluster der betroffenen Bereiche',
@@ -338,7 +393,18 @@ function printReport({ paths, explicit, matched, byStage, hints }) {
 }
 
 function main(argv) {
-    const { paths: argPaths, json } = parseArgs(argv);
+    const { paths: argPaths, json, batch, base } = parseArgs(argv);
+    if (batch) {
+        if (argPaths.length === 0) {
+            console.error('--batch braucht mindestens einen Branch-Namen.');
+            process.exitCode = 1;
+            return;
+        }
+        const plan = planBatch(Object.fromEntries(argPaths.map((branch) => [branch, changedOnBranch(base, branch)])));
+        if (json) console.log(JSON.stringify({ base, ...plan }, null, 2));
+        else printBatchReport(base, plan);
+        return;
+    }
     const explicit = argPaths.length > 0;
     const paths = explicit ? argPaths : changedFromGit();
     const { list, byStage, matched, hints, clusters } = selectFor(paths);

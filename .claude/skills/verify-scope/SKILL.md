@@ -54,6 +54,14 @@ Beleg ist die letzte Zeile des Laufs:
 
 Halte nach dem ersten echten Fehlschlag an, behebe ihn und starte ab dem fehlgeschlagenen Befehl erneut.
 
+**Sammellauf.** Sind mehrere Branches fertig, läuft Stufe 3 einmal auf ihrem zusammengeführten Stand statt einmal je Branch. Der Ablauf steht in `CLAUDE.md` unter „Sammellauf“. Den Befehl und die Verdächtigen je Cluster liefert:
+
+```bash
+node .claude/skills/verify-scope/scripts/select-verification.mjs --batch claude/hud-fix claude/new-map
+```
+
+`--base=<ref>` ändert die Vergleichsbasis (Standard `main`). Wird ein Cluster rot, kommen nur die dort genannten Branches als Ursache in Frage.
+
 ## Schritt 3 — Alt-Fehler benennen, nicht verschweigen
 
 Mehrere Playwright-Cluster tragen Fehler, die es vor deiner Änderung schon gab. Sie stehen jetzt im Repo: `scripts/architecture/playwright-known-failures.json`. Jeder Eintrag nennt Spec, Testtitel, Datum, Ursache und Art; `--skip-known` blendet genau diese Tests aus, damit eine serielle Kette bis zum Ende läuft.
