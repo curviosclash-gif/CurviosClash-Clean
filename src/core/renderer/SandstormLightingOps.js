@@ -28,7 +28,8 @@ export function resolveSandstormLighting(normal, intensity) {
         rim: { ...normal.rim, color: lerpHexColor(normal.rim.color, 0xb94f25, blend), intensity: lerpNumber(normal.rim.intensity, normal.rim.intensity * 0.75, blend) },
         hemisphere: { skyColor: lerpHexColor(normal.hemisphere.skyColor, 0x8c4a2b, blend), groundColor: lerpHexColor(normal.hemisphere.groundColor, 0x2c160e, blend) },
         // The map fog thins with height; the storm fades that out so it fills the map up to its ceiling.
-        fog: { ...normal.fog, color: lerpHexColor(normal.fog.color, 0xb56d32, blend), colorHigh: lerpHexColor(normal.fog.colorHigh, 0x562517, blend), colorLow: lerpHexColor(normal.fog.colorLow, 0x2a110c, blend), heightFalloff: lerpNumber(Number(normal.fog.heightFalloff) || 0, 0, blend) },
-        skyDome: { zenithColor: lerpHexColor(normal.skyDome.zenithColor, 0x5d2d1e, blend), horizonColor: lerpHexColor(normal.skyDome.horizonColor, 0xb56d32, blend), nadirColor: lerpHexColor(normal.skyDome.nadirColor, 0x2a110c, blend) },
+        fog: { ...normal.fog, color: lerpHexColor(normal.fog.color, 0xb56d32, blend), colorHigh: lerpHexColor(normal.fog.colorHigh, 0x9c5c2f, blend), colorLow: lerpHexColor(normal.fog.colorLow, 0x2a110c, blend), heightFalloff: lerpNumber(Number(normal.fog.heightFalloff) || 0, 0, blend) },
+        // Looking up into a storm that fills the map to its ceiling shows sand, not a dark lid.
+        skyDome: { zenithColor: lerpHexColor(normal.skyDome.zenithColor, 0x9a5a2e, blend), horizonColor: lerpHexColor(normal.skyDome.horizonColor, 0xb56d32, blend), nadirColor: lerpHexColor(normal.skyDome.nadirColor, 0x2a110c, blend) },
     };
 }

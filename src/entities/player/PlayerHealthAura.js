@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyAdditiveFogFade } from '../../shared/rendering/AdditiveFogDefines.js';
 import { configurePlayerHealthAuraObject } from '../../shared/rendering/PlayerHealthAuraLayers.js';
 
 export const PLAYER_HEALTH_AURA_COLORS = Object.freeze({
@@ -35,7 +36,7 @@ function getSharedGeometry() {
 }
 
 function createAuraMaterial() {
-    return new THREE.MeshBasicMaterial({
+    return applyAdditiveFogFade(new THREE.MeshBasicMaterial({
         color: PLAYER_HEALTH_AURA_COLORS.full,
         transparent: true,
         opacity: 0,
@@ -44,7 +45,7 @@ function createAuraMaterial() {
         depthTest: true,
         depthWrite: false,
         toneMapped: false,
-    });
+    }));
 }
 
 export function createPlayerHealthAuraState() {

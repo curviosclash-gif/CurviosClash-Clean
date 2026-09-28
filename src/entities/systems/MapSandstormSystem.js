@@ -56,7 +56,7 @@ export class MapSandstormSystem {
             : 1;
         if (this.networkReplica) {
             this.state = createInactiveState();
-            this._visual.build(this.entityManager?.arena?.currentMapDefinition?.size, this.scale);
+            this._buildVisual();
             this._publish();
             return true;
         }
@@ -77,13 +77,20 @@ export class MapSandstormSystem {
             directionIndex: 0,
             intensity: 0,
         };
-        this._visual.build(this.entityManager?.arena?.currentMapDefinition?.size, this.scale);
+        this._buildVisual();
         this._publish();
         return true;
     }
 
     setNetworkReplica(enabled) {
         this.networkReplica = enabled === true;
+    }
+
+    _buildVisual() {
+        this._visual.build(this.entityManager?.arena?.currentMapDefinition?.size, this.scale, {
+            warningSeconds: this.config?.warningSeconds,
+            outdoorFar: this.config?.outdoorFar,
+        });
     }
 
     update(dt) {
@@ -143,7 +150,7 @@ export class MapSandstormSystem {
             this.scale = this.entityManager?.arena?.currentMapDefinition?.scaleAuthoredAnchors === true
                 ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
                 : 1;
-            this._visual.build(this.entityManager?.arena?.currentMapDefinition?.size, this.scale);
+            this._buildVisual();
         }
         this._visual.update(0, this.state, this.getDirection());
         this._publish();
@@ -157,7 +164,7 @@ export class MapSandstormSystem {
     getRenderState() {
         return {
             visible: this._visual.group?.visible === true,
-            particleCount: this._visual.particles?.count || 0,
+            particleCount: this._visual.getDustCount(),
         };
     }
 
