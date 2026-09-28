@@ -10,6 +10,7 @@ import {
     canUpgrade,
     getUpgradeCost,
 } from '../../shared/contracts/ArcadeBlueprintContract.js';
+import { clampArcadeProfileCount as clampCount } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import { toSafeNumber, clampInteger as clampInt } from '../../shared/utils/ArcadeUtils.js';
 
 export function isPersistenceSuccess(result) {
@@ -65,19 +66,15 @@ export function profileEquals(left, right) {
     return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export function normalizeVehicleProfile(profile, {
-    xpConfig,
-    maxUpgradeXpBank,
-} = {}) {
+export function normalizeVehicleProfile(profile) {
     const source = toObject(profile);
-    const level = clampInt(source.level, 1, xpConfig.MAX_LEVEL, 1);
-    const xp = Math.max(0, toSafeNumber(source.xp, 0));
+    const level = clampInt(source.level, 1, Number.MAX_SAFE_INTEGER, 1);
+    const xp = clampCount(source.xp);
     const progression = resolveArcadeHangarProgressionSnapshot(level);
     const upgrades = toObject(source.upgrades);
-    const spentUpgradeXp = Math.max(0, toSafeNumber(source.spentUpgradeXp, 0));
-    const fallbackBank = Math.max(0, xp - spentUpgradeXp);
-    const xpBank = clampInt(source.xpBank, 0, maxUpgradeXpBank, fallbackBank);
-    const totalXpEarned = Math.max(xp, toSafeNumber(source.totalXpEarned, xp));
+    const spentUpgradeXp = clampCount(source.spentUpgradeXp);
+    const xpBank = clampCount(source.xpBank, clampCount(xp - spentUpgradeXp));
+    const totalXpEarned = Math.max(xp, clampCount(source.totalXpEarned, xp));
     const upgradesApplied = Math.max(0, clampInt(source.upgradesApplied, 0, 100_000, Object.keys(upgrades).length));
     const masteryMilestones = uniqueList(source.masteryMilestones).length
         ? uniqueList(source.masteryMilestones)
@@ -98,9 +95,9 @@ export function normalizeVehicleProfile(profile, {
     };
 }
 
-export function ensureProfile(profile, options = {}) {
+export function ensureProfile(profile) {
     if (!profile || typeof profile !== 'object') return null;
-    return normalizeVehicleProfile(profile, options);
+    return normalizeVehicleProfile(profile);
 }
 
 function finalizeUpgradeState(baseState, code, ok = false) {
@@ -111,13 +108,9 @@ export function buildUpgradeState(
     profile,
     slotName,
     targetTier,
-    {
-        xpConfig,
-        maxUpgradeXpBank,
-        upgradePurchaseCodes,
-    } = {}
+    { upgradePurchaseCodes } = {}
 ) {
-    const normalizedProfile = ensureProfile(profile, { xpConfig, maxUpgradeXpBank });
+    const normalizedProfile = ensureProfile(profile);
     if (!normalizedProfile) {
         return finalizeUpgradeState({
             profile,
@@ -185,18 +178,4 @@ export function buildUpgradeState(
         return finalizeUpgradeState(baseState, upgradePurchaseCodes.INSUFFICIENT_XP);
     }
     return finalizeUpgradeState(baseState, upgradePurchaseCodes.APPLIED, true);
-}
-
-export function computeLevel(totalXp, xpConfig) {
-    let level = 1;
-    while (level < xpConfig.MAX_LEVEL && totalXp >= xpForLevel(level + 1, xpConfig)) {
-        level += 1;
-    }
-    return level;
-}
-
-export function xpForLevel(level, xpConfig) {
-    const n = Math.max(1, Math.min(xpConfig.MAX_LEVEL, Math.floor(level)));
-    if (n <= 1) return 0;
-    return Math.floor(xpConfig.BASE_XP * Math.pow(n, xpConfig.EXPONENT));
 }

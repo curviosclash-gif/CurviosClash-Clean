@@ -282,6 +282,8 @@ function createPlayerProjection(value = null) {
         aimDirection: createVector3Projection(value.aimDirection),
         inventory: cloneStringArray(value.inventory),
         rocketInventory: cloneStringArray(value.rocketInventory),
+        // Arcade storage sizes; 0 = POWERUP.MAX_INVENTORY
+        itemCapacity: Math.max(0, normalizeInt(value.itemCapacity, 0)), rocketCapacity: Math.max(0, normalizeInt(value.rocketCapacity, 0)),
         activeEffects: Array.isArray(value.activeEffects) ? value.activeEffects
             .map((effect) => {
                 const type = normalizeString(effect?.type, '').trim().toUpperCase();

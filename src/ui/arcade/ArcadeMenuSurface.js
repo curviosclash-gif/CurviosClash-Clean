@@ -2,7 +2,6 @@ import { resolveArcadeDailySettings } from '../../shared/contracts/ArcadeDailyRu
 import { computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import {
-    ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
     getArcadeVehicleProfileRecord,
     loadArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
@@ -174,10 +173,6 @@ function resolveVehicleMasteryProfile(runtimeAccess, vehicleId) {
     }
 }
 
-function resolveVehicleMasteryMaxLevel() {
-    return ARCADE_VEHICLE_PROFILE_MAX_LEVEL;
-}
-
 function shouldShowArcade(settings) {
     const modePath = String(settings?.localSettings?.modePath || '').trim().toLowerCase();
     return modePath === 'arcade';
@@ -344,11 +339,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
         }
 
         const profile = resolveVehicleMasteryProfile(runtimeAccess, vehicleId);
-        const MAX_LEVEL = resolveVehicleMasteryMaxLevel();
-        const lvl = Math.max(1, Math.min(MAX_LEVEL, Number(profile.level) || 1));
-        const masteryLabel = lvl >= MAX_LEVEL
-            ? `${t('menu.arcade.mastery.progress.label', 'Level')} ${t('menu.arcade.mastery.max', 'MAX')}`
-            : `${t('menu.arcade.mastery.progress.label', 'Level')} ${lvl}/${MAX_LEVEL}`;
+        const lvl = Math.max(1, Math.floor(Number(profile.level) || 1));
+        const masteryLabel = `${t('menu.arcade.mastery.progress.label', 'Level')} ${lvl}`;
         refs.masteryLine.textContent = `${t('menu.arcade.mastery.current.label', 'Fahrzeug')}: ${vehicleId} | ${masteryLabel}`;
     };
 

@@ -1,5 +1,9 @@
 import { isPlayerSelectableVehicleId, VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
+import {
+    hasArcadeVehicleBalanceEntry,
+    resolveArcadeVehicleBaseStats,
+} from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 
 const LIGHT_CATEGORY_IDS = new Set(['aircraft', 'arrow', 'drone']);
 const SPECIAL_CATEGORY_IDS = new Set(['manta', 'orb']);
@@ -100,6 +104,14 @@ function resolveStatsSummary({ radius, category, hitboxClass }) {
     });
 }
 
+// Arcade-only table values for the factory ships (null otherwise). Classic and the Fight
+// hangar keep reading statsSummary, so their display stays unchanged.
+function resolveArcadeBalance(vehicleId) {
+    if (!hasArcadeVehicleBalanceEntry(vehicleId)) return null;
+    const { role, maxHpPct, speedPct, turnPct, itemCapacity, rocketCapacity } = resolveArcadeVehicleBaseStats(vehicleId);
+    return Object.freeze({ role, maxHpPct, speedPct, turnPct, itemCapacity, rocketCapacity });
+}
+
 function buildKeywords({ vehicleId, label, category, hitboxClass, shortDescription }) {
     const keywordSet = new Set();
     const pools = [
@@ -143,6 +155,7 @@ function buildCatalogEntry(vehicleDefinition, index) {
         }),
         previewToken: normalizeString(previewToken, DEFAULT_PREVIEW_TOKEN),
         statsSummary: resolveStatsSummary({ radius, category, hitboxClass }),
+        arcadeBalance: resolveArcadeBalance(vehicleId),
     });
 }
 
@@ -165,6 +178,7 @@ function cloneCatalogEntry(entry) {
         keywords: [...entry.keywords],
         previewToken: entry.previewToken,
         statsSummary: { ...entry.statsSummary },
+        arcadeBalance: entry.arcadeBalance ? { ...entry.arcadeBalance } : null,
     };
 }
 
@@ -197,6 +211,7 @@ export function resolveVehicleManagerCatalogEntry(vehicleId) {
             hitboxRadius: 1.1,
             hitboxClass: 'standard',
         },
+        arcadeBalance: null,
     };
     return fallbackEntry;
 }

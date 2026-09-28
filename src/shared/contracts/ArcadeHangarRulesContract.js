@@ -21,7 +21,7 @@ export const ARCADE_HANGAR_RULES_CONTRACT_VERSION = 'arcade-hangar-rules.v2';
 export const ARCADE_HANGAR_LEVEL_BANDS = Object.freeze({
     RECRUIT: Object.freeze({ id: 'recruit', minLevel: 1, maxLevel: 9, label: 'Recruit' }),
     VETERAN: Object.freeze({ id: 'veteran', minLevel: 10, maxLevel: 19, label: 'Veteran' }),
-    ELITE: Object.freeze({ id: 'elite', minLevel: 20, maxLevel: 30, label: 'Elite' }),
+    ELITE: Object.freeze({ id: 'elite', minLevel: 20, maxLevel: Number.MAX_SAFE_INTEGER, label: 'Elite' }),
 });
 
 // --- Chassis Paths ---
@@ -156,8 +156,9 @@ const PART_FAMILY_BY_SLOT_PREFIX = Object.freeze({
     signature: 'signature',
 });
 
+// Levels have no ceiling (arcade-vehicle-profile.v3); everything above 20 stays 'elite'.
 function normalizeLevel(level) {
-    return Math.max(1, Math.min(30, Math.floor(Number(level) || 1)));
+    return Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(Number(level) || 1)));
 }
 
 function freezeList(values) {

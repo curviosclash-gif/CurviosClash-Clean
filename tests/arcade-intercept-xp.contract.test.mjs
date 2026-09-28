@@ -186,7 +186,7 @@ test('the endless parcours pays the same ten xp for an intercept', () => {
 test('a vehicle profile stored before the change still loads with its level and xp', () => {
     const stored = {
         ship1: {
-            schemaVersion: 'arcade-vehicle-profile.v1',
+            schemaVersion: 'arcade-vehicle-profile.v3',
             vehicleId: 'ship1',
             xp: 700,
             level: 4,

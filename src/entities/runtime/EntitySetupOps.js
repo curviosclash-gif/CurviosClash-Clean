@@ -105,6 +105,7 @@ export class EntitySetupOps {
             runtimeRng: owner.runtimeRng,
             runType: owner.runtimeConfig?.arcade?.runType,
             combatProfile: owner.runtimeConfig?.arcade?.combatProfile,
+            isDailyChallenge: owner.runtimeConfig?.arcade?.dailyChallenge === true,
         });
         owner.combatModeType = owner.gameModeStrategy.getPickupModeType();
         if (owner.gameModeStrategy.hasCombatHud()) owner.huntEnabled = true;

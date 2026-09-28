@@ -12,8 +12,6 @@ import {
 } from '../src/state/arcade/ArcadeVehicleProfile.js';
 import { purchaseHangarStone } from '../src/ui/hangar/HangarStoneInventory.js';
 
-const UPGRADE_STAT_CAP_PCT = 50;
-
 function bonusesToStrategy(bonuses) {
     const strategy = new ArcadeModeStrategy({ random: () => 0.5 });
     strategy.applyVehicleUpgrades(bonuses);
@@ -74,14 +72,19 @@ test('an upgraded core slot raises the health the player spawns with', () => {
     assert.equal(player.hp, 130);
 });
 
-test('every stat bonus stays capped at fifty percent of the base value', () => {
+// Paket 1 (Arcade-Hangar: Fahrzeugrollen und Ausbau) hat die Tempo-/Wendigkeitsobergrenze
+// für normale Arcade-Runs von "Grundwert + 50 Punkte" auf "Grundwert + 100 Punkte" je
+// Fahrzeug angehoben (siehe ArcadeVehicleBalanceContract.resolveArcadeStatCapPct). Der
+// Spieler hier hat keine vehicleId, fällt also auf die Star-Cruiser-Grundwerte (100 %)
+// zurück; die HP-Klemmung (weiterhin 50 % des Fahrzeug-Grundwerts) ist davon nicht berührt.
+test('every stat bonus stays capped at the vehicle base plus one hundred points', () => {
     const strategy = bonusesToStrategy({ turningBonusPct: 400, speedBonusPct: 400, maxHpBonus: 400 });
-    assert.equal(strategy.getTurnRateMultiplier(), 1 + UPGRADE_STAT_CAP_PCT / 100);
-    assert.equal(strategy.getSpeedMultiplier(), 1 + UPGRADE_STAT_CAP_PCT / 100);
+    assert.equal(strategy.getTurnRateMultiplier(), 2);
+    assert.equal(strategy.getSpeedMultiplier(), 2);
 
     const player = spawnPlayer(strategy, 18);
     assert.equal(player.maxHp, 150);
-    assert.ok(Math.abs(player.baseSpeed - 27) < 1e-9);
+    assert.ok(Math.abs(player.baseSpeed - 36) < 1e-9);
 });
 
 test('the sector modifier and the upgrade bonus multiply instead of replacing each other', () => {

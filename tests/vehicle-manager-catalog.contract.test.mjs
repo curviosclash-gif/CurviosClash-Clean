@@ -26,6 +26,33 @@ test('vehicle manager catalog entries expose required metadata', () => {
     }
 });
 
+test('factory ships expose the arcade balance table separately as arcadeBalance', () => {
+    const manta = resolveVehicleManagerCatalogEntry('manta');
+    assert.deepEqual(manta.arcadeBalance, {
+        role: 'tank', maxHpPct: 150, speedPct: 80, turnPct: 75, itemCapacity: 7, rocketCapacity: 8,
+    });
+    assert.equal(resolveVehicleManagerCatalogEntry('arrow').arcadeBalance.role, 'fighter');
+    assert.equal('maxHpPct' in manta.statsSummary, false);
+});
+
+// Classic (StartSetupVehiclePicker3d) and the Fight hangar (HangarStatProjection) read
+// armor/agility/control; these must keep main's hitbox-radius formula for every ship.
+test('statsSummary armor/agility/control stay the hitbox-radius estimate from main', () => {
+    const clampScore = (value) => Math.max(1, Math.min(5, value));
+    for (const entry of listVehicleManagerCatalogEntries()) {
+        const radius = entry.statsSummary.hitboxRadius;
+        const armor = clampScore(Math.round(2 + radius * 2));
+        const agilityBase = clampScore(Math.round(6 - radius * 2));
+        const agility = entry.kategorie === 'jaeger' ? clampScore(agilityBase + 1) : agilityBase;
+        const control = clampScore(Math.round((agility + armor) / 2) + (entry.kategorie === 'spezial' ? 1 : 0));
+        assert.deepEqual(
+            [entry.statsSummary.armor, entry.statsSummary.agility, entry.statsSummary.control],
+            [armor, agility, control],
+            entry.vehicleId,
+        );
+    }
+});
+
 test('vehicle manager interaction rules define filters and responsive breakpoints', () => {
     const rules = getVehicleManagerInteractionRules();
 

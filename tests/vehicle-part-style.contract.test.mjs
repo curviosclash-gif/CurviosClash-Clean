@@ -124,7 +124,9 @@ test('arcade runs draw the styled vehicle for humans but keep the hitbox and nev
     const bot = createPlayer(true);
     const hitboxBefore = human.vehicleMesh.localBox.clone();
     const store = {
-        loadJsonRecord: () => ({ test_ship: { vehicleId: 'test_ship', partStyle: { Rumpf: { scale: 1.25 } } } }),
+        loadJsonRecord: () => ({
+            test_ship: { schemaVersion: 'arcade-vehicle-profile.v3', vehicleId: 'test_ship', partStyle: { Rumpf: { scale: 1.25 } } },
+        }),
     };
     const support = {
         _resolveActiveVehicleId: () => 'test_ship',

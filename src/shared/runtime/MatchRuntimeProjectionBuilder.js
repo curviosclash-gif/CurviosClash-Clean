@@ -123,6 +123,8 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         aimDirection,
         inventory: player?.inventory,
         rocketInventory: player?.rocketInventory,
+        itemCapacity: player?.itemCapacity,
+        rocketCapacity: player?.rocketCapacity,
         activeEffects: player?.activeEffects,
         railCharge: player?.railCharge,
         selectedItemIndex: Number(player?.selectedItemIndex) || 0,

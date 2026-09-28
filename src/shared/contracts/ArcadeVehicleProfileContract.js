@@ -1,11 +1,14 @@
 import { resolveArtifactVersionState } from './ArtifactVersionMigrationContract.js';
 import { normalizeVehiclePartStyle } from './VehiclePartStyleContract.js';
 
-export const ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION = 'arcade-vehicle-profile.v2';
-export const ARCADE_VEHICLE_PROFILE_LEGACY_SCHEMA_VERSION = 'arcade-vehicle-profile.v1';
+// v3 (Paket 1): levels have no ceiling. Records of any other schema are dropped
+// without migration and the vehicle starts fresh. The storage key keeps its v2
+// suffix on purpose: the key is only the location, schemaVersion decides validity.
+export const ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION = 'arcade-vehicle-profile.v3';
 export const ARCADE_VEHICLE_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-vehicle-profile.v2';
 export const ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY = 'cuviosclash.arcade-vehicle-profile.v1';
-export const ARCADE_VEHICLE_PROFILE_MAX_LEVEL = 30;
+const XP_BASE = 100;
+const XP_EXPONENT = 1.5;
 export const ARCADE_TRAIL_STYLE_IDS = Object.freeze([
     'standard', 'ion', 'ember', 'acid', 'violet', 'frost', 'solar', 'prism',
 ]);
@@ -28,10 +31,46 @@ const BASE_SLOTS = Object.freeze([
 ]);
 const ARCADE_VEHICLE_PROFILE_VERSION_FIELDS = Object.freeze(['schemaVersion']);
 const ARCADE_VEHICLE_PROFILE_SUPPORTED_SCHEMAS = Object.freeze([ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION]);
-const ARCADE_VEHICLE_PROFILE_FALLBACK_SCHEMAS = Object.freeze([ARCADE_VEHICLE_PROFILE_LEGACY_SCHEMA_VERSION]);
 
 function toIsoString(nowMs) {
     return new Date(Math.max(0, Number(nowMs) || Date.now())).toISOString();
+}
+
+/**
+ * Whole number in [0, MAX_SAFE_INTEGER]; +Infinity saturates, NaN uses the fallback.
+ * @param {unknown} value
+ * @param {number} [fallback]
+ */
+export function clampArcadeProfileCount(value, fallback = 0) {
+    const n = Number(value);
+    if (Number.isNaN(n)) return fallback;
+    return Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(n)));
+}
+
+/** @param {number} level */
+function rawXpForLevel(level) {
+    return level <= 1 ? 0 : Math.floor(XP_BASE * Math.pow(level, XP_EXPONENT));
+}
+
+/**
+ * Total XP needed to reach a level (100 * n^1.5), saturated at MAX_SAFE_INTEGER.
+ * @param {unknown} level
+ */
+export function arcadeVehicleXpForLevel(level) {
+    return Math.min(Number.MAX_SAFE_INTEGER, rawXpForLevel(Math.floor(Number(level) || 1)));
+}
+
+/**
+ * Inverse of arcadeVehicleXpForLevel without a level ceiling.
+ * @param {unknown} xp
+ */
+export function arcadeVehicleLevelForXp(xp) {
+    const value = clampArcadeProfileCount(xp);
+    // ponytail: closed-form inverse, then nudge off pow() rounding; the curve is monotonic.
+    let level = Math.max(1, Math.floor(Math.pow(value / XP_BASE, 1 / XP_EXPONENT)));
+    while (level > 1 && rawXpForLevel(level) > value) level -= 1;
+    while (rawXpForLevel(level + 1) <= value) level += 1;
+    return level;
 }
 
 export function isArcadeVehicleUpgradeSlot(slotName) {
@@ -117,9 +156,7 @@ export function readArcadeVehicleProfileRecord(rawProfiles) {
             artifactType: 'arcade-vehicle-profile',
             versionFields: ARCADE_VEHICLE_PROFILE_VERSION_FIELDS,
             supportedVersions: ARCADE_VEHICLE_PROFILE_SUPPORTED_SCHEMAS,
-            fallbackVersions: ARCADE_VEHICLE_PROFILE_FALLBACK_SCHEMAS,
             currentVersion: ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION,
-            allowMissingVersion: true,
         });
         if (versionState.shouldReject) {
             shouldPersist = true;

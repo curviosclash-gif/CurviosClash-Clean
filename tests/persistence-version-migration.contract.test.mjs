@@ -263,11 +263,12 @@ test('V85.2 menu draft/text/telemetry stores migrate legacy payloads to schema w
     assert.ok(telemetryPersisted.state && typeof telemetryPersisted.state === 'object');
 });
 
-test('V85.2 arcade persistence drops rejected future schemas and rewrites legacy payloads', () => {
+test('V85.2 arcade persistence drops future and unversioned schemas and rewrites the store', () => {
     const profileStore = {
         data: {
-            ship1: { xp: 120, level: 2, upgrades: { core_t2: 'T2' } },
+            ship1: { schemaVersion: 'arcade-vehicle-profile.v3', xp: 120, level: 2, upgrades: { core_t2: 'T2' } },
             ship2: { schemaVersion: 'arcade-vehicle-profile.v9', xp: 9999 },
+            ship3: { xp: 120, level: 2 },
         },
         saved: null,
         loadJsonRecord() {
@@ -279,10 +280,12 @@ test('V85.2 arcade persistence drops rejected future schemas and rewrites legacy
     };
     const profiles = loadVehicleProfiles(profileStore);
     assert.ok(profiles.ship1);
-    assert.equal(profiles.ship1.schemaVersion, 'arcade-vehicle-profile.v2');
+    assert.equal(profiles.ship1.schemaVersion, 'arcade-vehicle-profile.v3');
     assert.equal(profiles.ship2, undefined);
+    assert.equal(profiles.ship3, undefined, 'a record without schemaVersion is dropped, not adopted');
     assert.ok(profileStore.saved);
     assert.equal(profileStore.saved.ship2, undefined);
+    assert.equal(profileStore.saved.ship3, undefined);
 
     const loadoutStore = {
         data: {

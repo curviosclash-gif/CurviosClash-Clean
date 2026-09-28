@@ -93,7 +93,11 @@ export function applyLiveRuntimeConfig(em, entityRuntimeConfig, runtimeConfig) {
             player.setControlOptions(controlOptions);
         }
         player.gameplayConfig = resolveGameplayConfig(player);
-        if (Number.isFinite(nextMaxHp) && nextMaxHp > 0 && Number.isFinite(Number(player.maxHp))) {
+        // Paket 1: Arcade-Fahrzeuge skalieren maxHp selbst (siehe ArcadeVehicleBalanceContract);
+        // die globale Hunt-Basis darf das in normalen Arcade-Runs nicht überschreiben.
+        const skipMaxHpRewrite = typeof em.gameModeStrategy?.isNormalArcadeRun === 'function'
+            && em.gameModeStrategy.isNormalArcadeRun();
+        if (!skipMaxHpRewrite && Number.isFinite(nextMaxHp) && nextMaxHp > 0 && Number.isFinite(Number(player.maxHp))) {
             player.maxHp = nextMaxHp;
             const hp = Number(player.hp);
             if (Number.isFinite(hp)) {

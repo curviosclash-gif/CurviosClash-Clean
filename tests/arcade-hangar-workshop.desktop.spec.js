@@ -127,7 +127,7 @@ async function seedUnlockedProfiles(page) {
             'nose_t2', 'utility_t2', 'core_t3', 'nose_t3',
         ];
         const profiles = Object.fromEntries(ids.map((vehicleId) => [vehicleId, {
-            schemaVersion: 'arcade-vehicle-profile.v1',
+            schemaVersion: 'arcade-vehicle-profile.v3',
             vehicleId,
             xp: 999999,
             xpBank: 999999,

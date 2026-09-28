@@ -1,9 +1,11 @@
 // Arcade Vehicle Profile: XP, levels, unlocks and upgrade progression.
 
 import {
-    ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
     ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION,
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
+    arcadeVehicleLevelForXp,
+    arcadeVehicleXpForLevel,
+    clampArcadeProfileCount as clampCount,
     createArcadeVehicleProfileRecord,
     getArcadeVehicleProfileRecord,
     loadArcadeVehicleProfileRecord,
@@ -14,11 +16,10 @@ import {
     resolveArcadeHangarProgressionSnapshot,
     resolveArcadeHangarUnlockedSlots,
 } from '../../shared/contracts/ArcadeHangarRulesContract.js';
-import { toSafeNumber, clampInteger as clampInt } from '../../shared/utils/ArcadeUtils.js';
+import { toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 import { XP_REWARD_TABLE, calculateSectorXp } from './ArcadeXpRewards.js';
 import {
     buildUpgradeState,
-    computeLevel,
     ensureProfile,
     isValidTier,
     normalizeSlotName,
@@ -30,19 +31,11 @@ import {
     toIsoString,
     toObject,
     warnPersistenceFailure,
-    xpForLevel as xpForLevelInternal,
 } from './ArcadeVehicleProfileInternals.js';
 
 const VEHICLE_PROFILE_SCHEMA_VERSION = ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION;
 const STORAGE_KEY = ARCADE_VEHICLE_PROFILE_STORAGE_KEY;
-const MAX_UPGRADE_XP_BANK = 9_999_999;
 const MAX_LOADOUT_PRESET_UPGRADE_ENTRIES = 64;
-
-export const XP_CONFIG = Object.freeze({
-    BASE_XP: 100,
-    EXPONENT: 1.5,
-    MAX_LEVEL: ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
-});
 
 export const SLOT_UNLOCK_LEVELS = ARCADE_HANGAR_SLOT_UNLOCK_GATES;
 
@@ -64,43 +57,32 @@ export const UPGRADE_PURCHASE_CODES = Object.freeze({
 
 function normalizeVehicleProfileSafe(profile) {
     const contractProfile = normalizeArcadeVehicleProfileRecord(profile?.vehicleId, profile);
-    return normalizeVehicleProfile(contractProfile, {
-        xpConfig: XP_CONFIG,
-        maxUpgradeXpBank: MAX_UPGRADE_XP_BANK,
-    });
+    return normalizeVehicleProfile(contractProfile);
 }
 
 function ensureProfileSafe(profile) {
-    return ensureProfile(profile, {
-        xpConfig: XP_CONFIG,
-        maxUpgradeXpBank: MAX_UPGRADE_XP_BANK,
-    });
+    return ensureProfile(profile);
 }
 
 function buildUpgradeStateSafe(profile, slotName, targetTier) {
     return buildUpgradeState(profile, slotName, targetTier, {
-        xpConfig: XP_CONFIG,
-        maxUpgradeXpBank: MAX_UPGRADE_XP_BANK,
         upgradePurchaseCodes: UPGRADE_PURCHASE_CODES,
     });
 }
 
 
-// XP Curve
+// XP Curve (no level ceiling since arcade-vehicle-profile.v3)
 
 export function xpForLevel(level) {
-    return xpForLevelInternal(level, XP_CONFIG);
+    return arcadeVehicleXpForLevel(level);
 }
 
 export function xpToNextLevel(profile) {
     if (!profile || typeof profile !== 'object') return { current: 0, required: 100, progress: 0 };
     const normalized = normalizeVehicleProfileSafe(profile);
-    const level = clampInt(normalized.level, 1, XP_CONFIG.MAX_LEVEL, 1);
-    if (level >= XP_CONFIG.MAX_LEVEL) return { current: 0, required: 0, progress: 1 };
-    const currentLevelXp = xpForLevel(level);
-    const nextLevelXp = xpForLevel(level + 1);
-    const required = nextLevelXp - currentLevelXp;
-    const current = Math.max(0, toSafeNumber(normalized.xp, 0) - currentLevelXp);
+    const currentLevelXp = xpForLevel(normalized.level);
+    const required = xpForLevel(normalized.level + 1) - currentLevelXp;
+    const current = Math.max(0, normalized.xp - currentLevelXp);
     return {
         current,
         required,
@@ -173,10 +155,10 @@ export function addXp(profile, amount, nowMs = Date.now()) {
         };
     }
     const normalized = normalizeVehicleProfileSafe(profile);
-    const prevLevel = clampInt(normalized.level, 1, XP_CONFIG.MAX_LEVEL, 1);
-    const gain = Math.max(0, toSafeNumber(amount, 0));
-    const totalXp = Math.max(0, toSafeNumber(normalized.xp, 0) + gain);
-    const newLevel = computeLevel(totalXp, XP_CONFIG);
+    const prevLevel = normalized.level;
+    const gain = clampCount(amount);
+    const totalXp = clampCount(normalized.xp + gain);
+    const newLevel = arcadeVehicleLevelForXp(totalXp);
     const leveledUp = newLevel > prevLevel;
 
     const prevSnapshot = resolveArcadeHangarProgressionSnapshot(prevLevel);
@@ -195,11 +177,7 @@ export function addXp(profile, amount, nowMs = Date.now()) {
     const prevMilestones = new Set(prevSnapshot.masteryMilestones);
     const masteryMilestonesGained = nextSnapshot.masteryMilestones.filter((milestoneId) => !prevMilestones.has(milestoneId));
 
-    const xpBank = clampInt((toSafeNumber(normalized.xpBank, 0) + gain), 0, MAX_UPGRADE_XP_BANK, 0);
-    const priorTotalXpEarned = Math.max(
-        toSafeNumber(normalized.totalXpEarned, normalized.xp),
-        toSafeNumber(normalized.xp, 0)
-    );
+    const xpBank = clampCount(normalized.xpBank + gain);
     return {
         profile: {
             ...normalized,
@@ -210,7 +188,7 @@ export function addXp(profile, amount, nowMs = Date.now()) {
             unlockedUpgradeTiers: nextSnapshot.allowedTiers.slice(),
             masteryMilestones: nextSnapshot.masteryMilestones.slice(),
             xpBank,
-            totalXpEarned: Math.max(totalXp, priorTotalXpEarned + gain),
+            totalXpEarned: clampCount(Math.max(totalXp, normalized.totalXpEarned + gain)),
             updatedAt: toIsoString(nowMs),
         },
         leveledUp,
@@ -303,7 +281,7 @@ export function sanitizeLoadoutPresetUpgrades(profile, upgrades) {
     let simulatedProfile = normalizeVehicleProfileSafe({
         ...normalizedProfile,
         upgrades: {},
-        xpBank: MAX_UPGRADE_XP_BANK,
+        xpBank: Number.MAX_SAFE_INTEGER,
     });
 
     for (let index = 0; index < entries.length; index += 1) {
@@ -433,7 +411,6 @@ export function getOrCreateProfile(profiles, vehicleId, nowMs = Date.now()) {
 
 export default {
     VEHICLE_PROFILE_SCHEMA_VERSION,
-    XP_CONFIG,
     SLOT_UNLOCK_LEVELS,
     XP_REWARD_TABLE,
     UPGRADE_PURCHASE_CODES,

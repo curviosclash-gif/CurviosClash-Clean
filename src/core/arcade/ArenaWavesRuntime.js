@@ -13,6 +13,7 @@ import {
     resolveArenaWavesProfile,
 } from '../../shared/contracts/ArenaWavesContract.js';
 import { applyArcadeBotAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
+import { clampArcadeVehicleSpeedMultiplier } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
 import {
     awardBoundArcadeVehicleXpInStore,
@@ -75,7 +76,11 @@ export class ArenaWavesRuntime {
         player.fightLoadout = { ...(player.fightLoadout || {}), machineGunId: this.upgrades.machineGunId, arenaWavesMgTuning: this.upgrades.mgTuning };
         if (!Number.isFinite(player._arenaWavesBaseSpeed)) player._arenaWavesBaseSpeed = player.baseSpeed;
         if (!Number.isFinite(player._arenaWavesBaseMaxHp)) player._arenaWavesBaseMaxHp = player.maxHp;
-        player.baseSpeed = player._arenaWavesBaseSpeed * (1 + this.upgrades.speed / 100);
+        const speed = player._arenaWavesBaseSpeed * (1 + this.upgrades.speed / 100);
+        // Arena waves is always a normal Arcade run: cap relative to the settings base speed (_arcadeBaseSpeed).
+        const settingsBaseSpeed = Number(player._arcadeBaseSpeed);
+        player.baseSpeed = settingsBaseSpeed > 0
+            ? settingsBaseSpeed * clampArcadeVehicleSpeedMultiplier(player.vehicleId, speed / settingsBaseSpeed) : speed;
         player.speed = player.baseSpeed;
         player.maxHp = Math.max(1, player._arenaWavesBaseMaxHp + this.upgrades.maxHp);
         if (fullHeal) player.hp = player.maxHp;

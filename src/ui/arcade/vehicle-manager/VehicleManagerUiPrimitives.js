@@ -47,7 +47,6 @@ export function collectCardBadges(entry, profile, favorite, recent) {
     if (favorite) badges.push('FAV');
     if (recent) badges.push('RECENT');
     if (entry.kategorie === 'custom') badges.push('CUSTOM');
-    if ((Number(profile?.level) || 1) >= 30) badges.push('MAX');
     if ((Number(profile?.level) || 1) <= 2) badges.push('NEW');
     return badges;
 }
