@@ -249,7 +249,8 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             hint: window.__CURVIOS_AUTOMATION__ || '',
             href: window.location.href,
         }));
-        test.skip(!state.isApp, 'Nur die Desktop-Shell kennt die Startschalter.');
+        // Dieser Spec laeuft nur im Desktop-Profil; nur die Shell kennt die Startschalter.
+        expect(state.isApp).toBe(true);
         // Playwright startet Electron mit Debug-Schnittstelle; der Hauptprozess muss genau das
         // melden, sonst zaehlt jede Testrunde als menschliches Spiel (electron/automation-hint.cjs).
         expect(state.hint).toBe('cdp');
