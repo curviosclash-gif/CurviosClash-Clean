@@ -82,6 +82,20 @@ export function normalizeGamepadControls(source) {
     return result;
 }
 
+/**
+ * Item bar hints in the {SHOOT, USE_ITEM} shape of a keyboard scope: a player
+ * steered by a controller sees that slot's buttons, everyone else their keys.
+ * @param {{type?: string, gamepadIndex?: number} | null | undefined} source
+ * @param {Record<string, string> | null | undefined} keyboardBindings
+ * @param {Record<string, any> | null | undefined} controls
+ */
+export function resolvePlayerActionHintBindings(source, keyboardBindings, controls) {
+    const slot = source?.type === 'gamepad' && Number.isInteger(source.gamepadIndex) ? source.gamepadIndex : -1;
+    if (slot < 0) return keyboardBindings || null;
+    const mapping = normalizeGamepadControls(controls?.[`GAMEPAD_${slot + 1}`]);
+    return { SHOOT: GAMEPAD_BUTTON_LABELS[mapping.SHOOT], USE_ITEM: GAMEPAD_BUTTON_LABELS[mapping.USE_ITEM] };
+}
+
 // Only an explicit false disables controllers, so older saves keep them enabled.
 export function isGamepadInputEnabled(controls) {
     return controls?.GAMEPAD?.enabled !== false;

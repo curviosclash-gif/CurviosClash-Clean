@@ -8,6 +8,7 @@ import { ArcadeScoreHUD } from './arcade/ArcadeScoreHUD.js';
 import { ParcoursOverlayController } from './arcade/ParcoursOverlayController.js';
 import { updateActiveEffectBar, updateItemBar, updateRocketBar } from './ItemBarPresenter.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import { resolvePlayerActionHintBindings } from '../shared/contracts/GamepadControlsContract.js';
 import { syncHudSlowMoClass } from './HudSlowMoIndicator.js';
 import { MatchScoreHudPresenter } from './MatchScoreHudPresenter.js';
 import { MapSandstormHud } from './MapSandstormHud.js';
@@ -385,10 +386,13 @@ export class HudRuntimeSystem {
      * key that actually fires them (items are cycled, never number-selected).
      */
     _getPlayerKeyBindings(playerIndex) {
-        const scope = playerIndex === 1 ? 'PLAYER_2' : 'PLAYER_1';
-        return this.game?.inputManager?.bindings?.[scope]
-            || this.game?.settings?.controls?.[scope]
-            || null;
+        const index = Math.max(0, Number(playerIndex) || 0);
+        const scope = `PLAYER_${index + 1}`;
+        return resolvePlayerActionHintBindings(
+            this.game?.input?.getPlayerSource?.(index),
+            this.game?.input?.bindings?.[scope] || this.game?.settings?.controls?.[scope] || null,
+            this.game?.settings?.controls
+        );
     }
 
     _updateItemBar(container, player, projection = null, playerIndex = 0) {
