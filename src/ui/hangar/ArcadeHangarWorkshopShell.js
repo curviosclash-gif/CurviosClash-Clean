@@ -92,7 +92,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     categoryTabs.setAttribute('aria-label', 'Fahrzeugklasse');
     const hitboxChips = el('div', 'arcade-vehicle-chip-row');
     hitboxChips.setAttribute('role', 'group');
-    hitboxChips.setAttribute('aria-label', 'Hitboxklasse');
+    hitboxChips.setAttribute('aria-label', mode === 'arcade' ? 'Rolle' : 'Hitboxklasse');
     const levelChips = el('div', 'arcade-vehicle-chip-row');
     levelChips.setAttribute('role', 'group');
     levelChips.setAttribute('aria-label', 'Fahrzeuglevel');

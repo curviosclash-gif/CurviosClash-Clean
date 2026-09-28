@@ -18,6 +18,7 @@ import { ARENA_WAVES_COMBAT_PROFILE } from '../shared/contracts/ArenaWavesContra
 import { resolveArcadeParcoursRespawnFallback, resolveArcadeRunCombatProfile } from './ArcadeRunRulesOps.js';
 import { applyArcadeEndlessSpawnBonuses, resetArcadeEndlessPlayerHealth } from './ArcadeEndlessVehicleBonusOps.js';
 import { applyArcadeBuildToPlayer, applyArcadeGauntletHealthReset, applyArcadeVehicleSpawnCapacities, capArcadeVehicleSpeedMultiplier, isNormalArcadeRunType, normalizeArcadeUpgradeBonuses, resolveArcadePlayerUpgradeBonuses, resolveArcadeVehicleStatPct } from './ArcadeVehicleStatOps.js';
+import { resolveArcadeSimulationSeconds, stampArcadeHitOnSimulationClock, updateArcadeBaseRegen } from './ArcadeBaseRegenOps.js';
 
 const DEFAULT_MAX_HP = 100;
 const DEFAULT_SHIELD_HP = 40;
@@ -305,7 +306,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     applyDamage(player, amount, options) {
-        if (this._huntCombat) return this._huntCombat.applyDamage(player, amount, options);
+        if (this._huntCombat) return stampArcadeHitOnSimulationClock(player, this._huntCombat.applyDamage(player, amount, options), options, this.isNormalArcadeRun());
         if (!player) return { applied: 0, absorbedByShield: 0, remainingHp: 0, isDead: true };
         // 61.6.2: Scale incoming damage by SD damage multiplier
         const rawDmg = Math.max(0, toSafe(amount, 0));
@@ -327,10 +328,9 @@ export class ArcadeModeStrategy extends GameModeContract {
             if (player.shieldHP <= 0) player.hasShield = false;
         }
 
-        if (remaining > 0) {
-            player.hp = Math.max(0, toSafe(player.hp, player.maxHp) - remaining);
-            player.lastDamageTimestamp = toSafe(options?.nowSeconds, this._nowSeconds());
-        }
+        if (remaining > 0) player.hp = Math.max(0, toSafe(player.hp, player.maxHp) - remaining);
+        // Every hit pauses the regen, also one the shield absorbs completely (as in the Hunt profile).
+        player.lastDamageTimestamp = toSafe(options?.nowSeconds, resolveArcadeSimulationSeconds(this.isNormalArcadeRun() ? player.entityManager : null, this._nowSeconds()));
 
         return { applied: dmg, absorbedByShield: absorbed, remainingHp: player.hp, isDead: player.hp <= 0 };
     }
@@ -428,16 +428,15 @@ export class ArcadeModeStrategy extends GameModeContract {
         return this.applyDamage(player, amount, { ignoreShield: true });
     }
 
-    // 61.4.1: heat_stress drains HP over time; no natural regen in Arcade
-    // 61.6.2: Also aggregates SD stacked modifier effects
+    // 61.4.1: heat_stress drains HP over time (61.6.2: plus SD stacks). Paket 1: normal runs get the
+    // base regen (ArcadeBaseRegenOps) instead of the Hunt regen; daily and weapon race keep their rules.
     updateHealthRegen(player, dt, entityManager = null) {
-        if (this._huntCombat) return this._huntCombat.updateHealthRegen(player, dt, entityManager);
+        if (this._huntCombat && !this.isNormalArcadeRun()) return this._huntCombat.updateHealthRegen(player, dt, entityManager);
         if (!player || player.hp <= 0) return null;
-        const fx = this._getAggregatedModifierEffects();
-        if (!fx || !fx.hpDrainPerSecond) return null;
-        const drain = fx.hpDrainPerSecond * Math.max(0, dt);
-        if (drain <= 0) return null;
-        return this._applyModifierDamage(player, drain, 'HEAT_STRESS', entityManager);
+        const drain = ((this._huntCombat ? null : this._getAggregatedModifierEffects())?.hpDrainPerSecond || 0) * Math.max(0, dt);
+        if (drain > 0) return this._applyModifierDamage(player, drain, 'HEAT_STRESS', entityManager);
+        if (!this.isNormalArcadeRun()) return null;
+        return updateArcadeBaseRegen(player, dt, resolveArcadeSimulationSeconds(entityManager || player.entityManager, this._nowSeconds()), this._sdActive);
     }
 
     // 61.4.1: boost_tax — drains HP while boosting

@@ -28,7 +28,10 @@ export function createFallbackProfilePort(store) {
     });
 }
 
+// Arcade catalog entries carry a fixed role instead of the old hitbox class. The build chassis
+// classes compact/standard/heavy belong to Lab builds (Paket 6), so factory ships use standard.
 export function mapHangarHitboxClass(entry) {
+    if (entry?.rolle) return 'standard';
     return HITBOX_TO_CONTRACT[String(entry?.hitboxKlasse || '').toLowerCase()] || 'standard';
 }
 

@@ -2,17 +2,15 @@ import { persistHangarVehicleSelection } from './HangarWindowSettingsSync.js';
 /* eslint-disable max-lines -- Hangar lifecycle wiring stays in one controller. */
 import {
     getVehicleManagerInteractionRules,
-    listVehicleManagerCatalogEntries,
+    listArcadeVehicleManagerCatalogEntries, listVehicleManagerCatalogEntries,
     resolveVehicleManagerCatalogEntry,
 } from '../arcade/VehicleManagerCatalog.js';
 import { createVehicleManagerSelectionState } from '../arcade/vehicle-manager/VehicleManagerSelectionState.js';
 import {
-    HITBOX_LABELS,
-    LEVEL_LABELS,
-    createUiNode as el,
     normalizeVehicleValue as norm,
     resolvePlayerColor,
 } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
+import { renderHangarVehicleFilterChips } from './HangarVehicleFilterChips.js';
 import { registerPublishedHangarParts, resolveHangarPart } from './HangarPartCatalog.js';
 import { VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY } from '../../shared/contracts/VehicleLabHangarPublishContract.js';
 import {
@@ -44,12 +42,6 @@ import {
     selectArcadeWeaponStyle,
 } from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
-function createButton(className, text) {
-    const button = el('button', className, text);
-    button.type = 'button';
-    return button;
-}
-
 export function setupArcadeHangarWorkshop(ctx = {}) {
     const ui = ctx.ui || {};
     const settings = ctx.settings && typeof ctx.settings === 'object' ? ctx.settings : {};
@@ -62,11 +54,12 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     const store = runtimeAccess?.getSettingsStore?.() || ctx.settingsManager?.getSettingsRecordStorePort?.() || null;
     registerPublishedHangarParts(store?.loadJsonRecord?.(VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY, null));
     const profilePort = runtimeAccess?.arcadeVehicleProfileWorkshop || createFallbackProfilePort(store);
-    const rules = getVehicleManagerInteractionRules();
-    const catalogEntries = listVehicleManagerCatalogEntries();
+    const rules = getVehicleManagerInteractionRules(hangarMode);
+    // Arcade flies only the factory ships (with their fixed role); the Fight hangar keeps Lab builds.
+    const catalogEntries = hangarMode === 'arcade' ? listArcadeVehicleManagerCatalogEntries() : listVehicleManagerCatalogEntries();
     if (!catalogEntries.length) return null;
     const byVehicleId = new Map(catalogEntries.map((entry) => [entry.vehicleId, entry]));
-    const selection = createVehicleManagerSelectionState({ settings, catalogEntries });
+    const selection = createVehicleManagerSelectionState({ settings, catalogEntries, mode: hangarMode });
     const persistence = createHangarBuildPersistenceAdapter({ mode: hangarMode, store, invokeCapability: runtimeAccess?.invokeHangarCapability });
     const draftPersistence = createHangarDraftPersistence({ mode: hangarMode, store });
     const audio = createHangarWorkshopAudio(ctx.audio || null);
@@ -225,7 +218,9 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function selectVehicle(vehicleId, options = {}) {
-        if (draft && norm(vehicleId, 'ship5').toLowerCase() !== draft.vehicleId) flushDraft();
+        const requestedId = norm(vehicleId, 'ship5').toLowerCase();
+        if (hangarMode === 'arcade' && !byVehicleId.has(requestedId)) return; // Arcade: factory ships only
+        if (draft && requestedId !== draft.vehicleId) flushDraft();
         const id = syncVehicleWriteback(vehicleId);
         selection.setSelectedVehicleId(id, options);
         selectedPartId = '';
@@ -497,21 +492,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         onCancel(reason) { if (reason === 'escape') toast('Drag abgebrochen'); syncDisplay(); },
     });
 
-    rules.categories.forEach((category) => {
-        const node = createButton('secondary-btn arcade-vehicle-tab', category.label);
-        node.dataset.category = category.id;
-        categoryTabs.appendChild(node);
-    });
-    ['all', ...rules.filterChips.hitboxKlasse].forEach((value) => {
-        const node = createButton('secondary-btn arcade-vehicle-chip', HITBOX_LABELS[value] || value);
-        node.dataset.filterValue = value;
-        hitboxChips.appendChild(node);
-    });
-    ['all', ...rules.filterChips.levelBand].forEach((value) => {
-        const node = createButton('secondary-btn arcade-vehicle-chip', LEVEL_LABELS[value] || value);
-        node.dataset.filterValue = value;
-        levelChips.appendChild(node);
-    });
+    renderHangarVehicleFilterChips({ rules, mode: hangarMode, categoryTabs, hitboxChips, levelChips, catalogEntries, levelOf: (vehicleId) => profileFor(vehicleId).level });
 
     bind(viewSwitch, 'click', (event) => {
         const view = event.target?.closest?.('[data-catalog-view]')?.dataset.catalogView;
@@ -766,7 +747,9 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     });
     if (ui.vehicleSelectP1) bind(ui.vehicleSelectP1, 'change', () => { const id = norm(ui.vehicleSelectP1.value).toLowerCase(); if (id && draft && id !== draft.vehicleId) selectVehicle(id, { skipRecent: true }); });
 
-    const initialVehicleId = syncVehicleWriteback(selection.getSelectedVehicleId());
+    // A stored choice outside the Arcade catalog (a Classic Lab build) stays until the player picks a ship here.
+    const initialVehicleId = hangarMode === 'arcade' && !byVehicleId.has(norm(settings.vehicles?.PLAYER_1).toLowerCase())
+        ? selection.getSelectedVehicleId() : syncVehicleWriteback(selection.getSelectedVehicleId());
     const recoveredDraft = draftPersistence.load(initialVehicleId);
     savedBuild = persistence.getActiveBuild(initialVehicleId) || persistence.listBuilds(initialVehicleId)[0] || null;
     baselineBuild = savedBuild || initialBuild(initialVehicleId);

@@ -257,8 +257,8 @@ export function renderStartSetupSummaryAndPreview({
     ghostDuelState,
 }) {
     const mapPreview = resolveMapPreview(effectiveMapKey);
-    const vehiclePreviewP1 = resolveVehiclePreview(settings?.vehicles?.PLAYER_1);
-    const vehiclePreviewP2 = resolveVehiclePreview(settings?.vehicles?.PLAYER_2);
+    const vehiclePreviewP1 = resolveVehiclePreview(settings?.vehicles?.PLAYER_1, modePath);
+    const vehiclePreviewP2 = resolveVehiclePreview(settings?.vehicles?.PLAYER_2, modePath);
     if (ui.menuSummary) {
         renderSummaryBlocks(ui.menuSummary, createSummaryBlocks({
             ui,

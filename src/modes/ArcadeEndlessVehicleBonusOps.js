@@ -22,6 +22,8 @@ export function resetArcadeEndlessPlayerHealth(huntCombat, player, bonuses, isNo
     );
     player.maxHp = baseMaxHp + hpBonus;
     player.hp = player.maxHp;
+    // Fresh spawn value for run upgrades on top (ArenaWavesRuntime consumes it once).
+    player._arcadeSpawnMaxHp = player.maxHp;
     return player;
 }
 

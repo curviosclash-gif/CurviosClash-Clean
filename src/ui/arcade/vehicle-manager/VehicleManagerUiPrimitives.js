@@ -1,3 +1,5 @@
+import { resolveArcadeLevelRange } from '../../../shared/contracts/ArcadeHangarRulesContract.js';
+
 export const UPGRADE_SLOT_DISPLAY = [
     { key: 'core', label: 'Core' },
     { key: 'nose', label: 'Nose' },
@@ -8,8 +10,24 @@ export const UPGRADE_SLOT_DISPLAY = [
     { key: 'utility', label: 'Utility' },
 ];
 
+// Classic picker and Fight hangar keep the hitbox classes and level bands; Arcade shows the fixed
+// vehicle roles of the balance table and level ranges in steps of five.
 export const HITBOX_LABELS = { all: 'Alle Hitboxen', kompakt: 'Kompakt', standard: 'Standard', schwer: 'Schwer' };
 export const LEVEL_LABELS = { all: 'Alle Level', rookie: 'Rookie', mid: 'Mid', elite: 'Elite' };
+export const ROLE_LABELS = { all: 'Alle Rollen', fighter: 'Jäger', allrounder: 'Allrounder', tank: 'Tank' };
+
+/** Role (Arcade catalog entries) or old hitbox class (all others). */
+export function resolveVehicleClassLabel(entry) {
+    if (entry?.rolle) return ROLE_LABELS[entry.rolle] || entry.rolle;
+    return HITBOX_LABELS[entry?.hitboxKlasse] || entry?.hitboxKlasse || '';
+}
+
+/** Arcade: level range ("Level 11–15"); other hangars: the old level band name. */
+export function resolveVehicleLevelLabel(levelValue, mode) {
+    if (mode === 'arcade') return `Level ${resolveArcadeLevelRange(levelValue).label}`;
+    const levelBand = toVehicleLevelBand(levelValue);
+    return LEVEL_LABELS[levelBand] || levelBand;
+}
 
 export function createUiNode(tag, className, text = '') {
     const node = document.createElement(tag);

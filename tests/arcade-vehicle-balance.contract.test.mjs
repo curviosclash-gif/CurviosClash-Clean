@@ -8,15 +8,19 @@ import assert from 'node:assert/strict';
 
 import {
     ARCADE_STORAGE_MAX_SLOTS,
+    ARCADE_VEHICLE_ROLE_TEMPLATES,
     resolveArcadeStatCapPct,
     resolveArcadeVehicleBaseStats,
 } from '../src/shared/contracts/ArcadeVehicleBalanceContract.js';
+import { resolveArcadeVehicleBuildStats } from '../src/shared/contracts/ArcadeVehicleBuildContract.js';
+import { applyArenaWavesChoice } from '../src/shared/contracts/ArenaWavesContract.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { addPlayerInventoryItem } from '../src/entities/player/PlayerInventoryOps.js';
 import { findPreferredPickupTarget } from '../src/entities/ai/BotPickupTargetingOps.js';
 import { isNormalArcadeRunType } from '../src/modes/ArcadeVehicleStatOps.js';
 import { normalizeArcadeRunSettings } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 import { ArenaWavesRuntime } from '../src/core/arcade/ArenaWavesRuntime.js';
+import { applyLiveRuntimeConfig } from '../src/entities/EntityManagerLiveConfigOps.js';
 
 const PLAN_TABLE = {
     ship5: { role: 'allrounder', maxHpPct: 100, itemCapacity: 5, rocketCapacity: 5, speedPct: 100, turnPct: 100 },
@@ -59,6 +63,27 @@ test('arcade-vehicle-balance: Tempo-/Wendigkeitsobergrenze ist Grundwert + 100 P
 
 test('arcade-vehicle-balance: Lager ist höchstens 10 Plätze', () => {
     assert.equal(ARCADE_STORAGE_MAX_SLOTS, 10);
+});
+
+test('arcade-vehicle-balance: Rollgeschwindigkeit ist ein Tabellenfeld (100 %), gedeckelt auf Grundwert + 100', () => {
+    for (const vehicleId of [...Object.keys(PLAN_TABLE), 'aircraft']) {
+        assert.equal(resolveArcadeVehicleBaseStats(vehicleId).rollPct, 100, vehicleId);
+    }
+    for (const [role, template] of Object.entries(ARCADE_VEHICLE_ROLE_TEMPLATES)) assert.equal(template.rollPct, 100, role);
+    const maxedWings = resolveArcadeVehicleBuildStats('drone', null, { wings: 500 });
+    assert.equal(maxedWings.rollPct, resolveArcadeStatCapPct(resolveArcadeVehicleBaseStats('drone').rollPct));
+});
+
+test('arcade-vehicle-balance: Live-Konfiguration setzt rollSpeed neu, der Arcade-Rollfaktor und das Leben bleiben', () => {
+    const player = {
+        rollSpeed: 7, arcadeRollMultiplier: 1.1, maxHp: 150, hp: 150,
+        setControlOptions(options) { this.rollSpeed = options.rollSpeed; },
+    };
+    const em = { players: [player], humanPlayers: [player], bots: [], gameModeStrategy: new ArcadeModeStrategy({ runType: 'gauntlet' }) };
+    applyLiveRuntimeConfig(em, null, undefined);
+    assert.notEqual(player.rollSpeed, 7, 'die Einstellungs-Rollgeschwindigkeit wird wie bisher neu geschrieben');
+    assert.equal(player.arcadeRollMultiplier, 1.1, 'der Build-Faktor liegt getrennt und bleibt');
+    assert.equal(player.maxHp, 150);
 });
 
 // --- Runtime-naher Test: Spawn-Pfad, getrennte Lager, Bot-Pickup ---
@@ -198,6 +223,76 @@ test('arcade-vehicle-balance: Arena-Aufwertung klemmt das Tempo auf die Fahrzeug
     slowRuntime.upgrades.speed = 50;
     slowRuntime._applyHumanUpgrades();
     assert.ok(Math.abs(slow.baseSpeed - 12) < 1e-9, 'unter dem Deckel wirkt die Arena-Aufwertung voll');
+});
+
+function makeArenaHuman(vehicleId) {
+    return {
+        index: 0, isBot: false, alive: true, vehicleId, maxHp: 100, hp: 100, baseSpeed: 10, speed: 10,
+        fightLoadout: {}, hasShield: false, shieldHP: 0, maxShieldHp: 40,
+    };
+}
+
+test('Arena: Leben-Aufwertung setzt auf das Tabellenleben nach dem Spawn auf, nicht auf den Wert vor dem Spawn', () => {
+    const strategy = new ArcadeModeStrategy({ runType: 'arena_waves', combatProfile: 'hunt' });
+    const human = makeArenaHuman('manta');
+    const runtime = new ArenaWavesRuntime();
+    runtime.start({ entityManager: { humanPlayers: [human], players: [human], bots: [] }, strategy });
+    strategy.resetPlayerHealth(human);
+    assert.equal(human.maxHp, 150, 'Spawn: Manta-Tabellenleben');
+    runtime.update(0);
+    assert.equal(human.maxHp, 150);
+    runtime.upgrades = applyArenaWavesChoice(runtime.upgrades, 'max_hp');
+    runtime._applyHumanUpgrades(true);
+    assert.equal(human.maxHp, 162, '150 + 12 statt 100 + 12');
+    assert.equal(human.hp, 162);
+    runtime.dispose();
+    assert.equal(human.maxHp, 150, 'Abbau stellt das Spawn-Leben wieder her');
+});
+
+test('Arena: nach dem Neuaufbau einer Karte gilt die Leben-Aufwertung auch auf dem neuen Spawn', () => {
+    const strategy = new ArcadeModeStrategy({ runType: 'arena_waves', combatProfile: 'hunt' });
+    const runtime = new ArenaWavesRuntime();
+    const first = makeArenaHuman('manta');
+    runtime.start({ entityManager: { humanPlayers: [first], players: [first], bots: [] }, strategy });
+    strategy.resetPlayerHealth(first);
+    runtime.update(0);
+    runtime.upgrades = applyArenaWavesChoice(runtime.upgrades, 'max_hp');
+    runtime._applyHumanUpgrades(true);
+
+    const reborn = makeArenaHuman('manta');
+    runtime.start({ entityManager: { humanPlayers: [reborn], players: [reborn], bots: [] }, strategy });
+    strategy.resetPlayerHealth(reborn);
+    runtime.update(0);
+    assert.equal(reborn.maxHp, 162, 'neuer Spawn 150 + Aufwertung 12');
+    assert.equal(reborn.hp, 162);
+});
+
+test('Arena: das Tabellentempo bleibt nach dem ersten Bild, unter einer Tempo-Aufwertung und nach dem Neuaufbau', () => {
+    // Echte Reihenfolge: start() vor dem Spawn, dann resetPlayerHealth + applySpawnStatBonuses, dann update().
+    for (const [vehicleId, tableFactor] of [['manta', 0.8], ['drone', 1.15]]) {
+        const runtime = new ArenaWavesRuntime();
+        const strategy = new ArcadeModeStrategy({ runType: 'arena_waves', combatProfile: 'hunt' });
+        const human = makeArenaHuman(vehicleId);
+        runtime.start({ entityManager: { humanPlayers: [human], players: [human], bots: [] }, strategy });
+        strategy.resetPlayerHealth(human);
+        strategy.applySpawnStatBonuses(human);
+        assert.ok(Math.abs(human.baseSpeed - 10 * tableFactor) < 1e-9, `${vehicleId}: Spawn-Tempo ${human.baseSpeed}`);
+        runtime.update(0);
+        assert.ok(Math.abs(human.baseSpeed - 10 * tableFactor) < 1e-9, `${vehicleId}: nach dem ersten Bild ${human.baseSpeed}`);
+        assert.equal(human.speed, human.baseSpeed);
+        runtime.upgrades = applyArenaWavesChoice(runtime.upgrades, 'speed');
+        runtime._applyHumanUpgrades(true);
+        assert.ok(Math.abs(human.baseSpeed - 10 * tableFactor * 1.04) < 1e-9, `${vehicleId}: Aufwertung auf das Tabellentempo ${human.baseSpeed}`);
+
+        // Neuaufbau nach einem Tod: neue Sitzung, neue Strategie, neuer Spieler; die Aufwertung zählt genau einmal.
+        const rebuilt = new ArcadeModeStrategy({ runType: 'arena_waves', combatProfile: 'hunt' });
+        const reborn = makeArenaHuman(vehicleId);
+        runtime.start({ entityManager: { humanPlayers: [reborn], players: [reborn], bots: [] }, strategy: rebuilt });
+        rebuilt.resetPlayerHealth(reborn);
+        rebuilt.applySpawnStatBonuses(reborn);
+        runtime.update(0);
+        assert.ok(Math.abs(reborn.baseSpeed - 10 * tableFactor * 1.04) < 1e-9, `${vehicleId}: neuer Spawn ${reborn.baseSpeed}`);
+    }
 });
 
 test('arcade-vehicle-balance: Wendigkeit wird beim Spawn gecacht und pro Bild nur gelesen', () => {

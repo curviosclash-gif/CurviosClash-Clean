@@ -5,6 +5,7 @@ import {
     getArcadeVehicleProfileRecord,
     loadArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
+import { resolveArcadeRunVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { applyHangarWindowStorageEvent, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 import { readActiveHangarBuildFromStore } from '../hangar/HangarBuildPersistence.js';
 import {
@@ -39,6 +40,11 @@ const ARCADE_PHASE_LABELS = Object.freeze({
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized || fallback;
+}
+
+// Arcade flies only the factory ships: a stored Vehicle Lab build shows and starts as the Star-Cruiser.
+function resolveArcadeMenuVehicleId(settings) {
+    return resolveArcadeRunVehicleId(settings?.vehicles?.PLAYER_1);
 }
 
 function t(textId, fallback) {
@@ -184,7 +190,7 @@ function createArcadeRunSnapshot(settings, seed, hangarBuild = null) {
     return createArcadeLastRunRecord({
         at: new Date().toISOString(),
         mapKey: normalizeString(settings?.mapKey, 'standard'),
-        vehicleId: normalizeString(settings?.vehicles?.PLAYER_1, 'ship5'),
+        vehicleId: resolveArcadeMenuVehicleId(settings),
         botCount: toInt(settings?.numBots, 0),
         botDifficulty: normalizeString(settings?.botDifficulty, 'NORMAL').toUpperCase(),
         seed: toInt(seed, 0),
@@ -257,7 +263,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         if (!hasOpenSetupSection) refs.details.open = true;
 
         const mapKey = normalizeString(settings?.mapKey, 'standard');
-        const vehicleId = normalizeString(settings?.vehicles?.PLAYER_1, 'ship5');
+        const vehicleId = resolveArcadeMenuVehicleId(settings);
         const difficulty = normalizeString(settings?.botDifficulty, 'NORMAL').toUpperCase();
         const botCount = toInt(settings?.numBots, 0);
         const dailySeed = computeDailySeed();
@@ -346,7 +352,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
     const prepareHangarRunStart = () => {
         if (settings.arcade?.dailyChallenge) return { ok: true, build: null };
-        const vehicleId = normalizeString(settings?.vehicles?.PLAYER_1, 'ship5').toLowerCase();
+        const vehicleId = resolveArcadeMenuVehicleId(settings).toLowerCase();
         const build = readActiveHangarBuildFromStore({
             store: runtimeAccess?.getSettingsStore?.(),
             mode: 'arcade',

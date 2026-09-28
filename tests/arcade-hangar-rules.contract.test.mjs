@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+    ARCADE_HANGAR_LEVEL_BANDS,
     ARCADE_HANGAR_RULES_CONTRACT_VERSION,
+    resolveArcadeHangarProgressionSnapshot,
     resolveArcadeHangarRulesForLevel,
+    resolveArcadeLevelRange,
     validateArcadeHangarBlueprintForLevel,
 } from '../src/shared/contracts/ArcadeHangarRulesContract.js';
 
@@ -58,6 +61,29 @@ test('V76.3.1 rules resolve deterministic chassis, part-family and tier gates by
     assert.equal(veteran.allowedTiers.includes('T2'), true);
     assert.equal(veteran.allowedTiers.includes('T3'), false);
     assert.equal(veteran.unlockedSlots.includes('utility'), true);
+});
+
+test('Levelbereiche in Fünferschritten mit Halbgeviertstrich, Level wie normalizeLevel geklemmt', () => {
+    assert.deepEqual(resolveArcadeLevelRange(1), { min: 1, max: 5, label: '1–5' });
+    assert.deepEqual(resolveArcadeLevelRange(5), { min: 1, max: 5, label: '1–5' });
+    assert.deepEqual(resolveArcadeLevelRange(6), { min: 6, max: 10, label: '6–10' });
+    assert.deepEqual(resolveArcadeLevelRange(11.9), { min: 11, max: 15, label: '11–15' });
+    assert.deepEqual(resolveArcadeLevelRange(123), { min: 121, max: 125, label: '121–125' });
+    for (const junk of [0, -7, NaN, undefined, null, 'abc']) {
+        assert.deepEqual(resolveArcadeLevelRange(junk), { min: 1, max: 5, label: '1–5' }, String(junk));
+    }
+    const top = resolveArcadeLevelRange(Infinity);
+    assert.equal(top.max, Number.MAX_SAFE_INTEGER, 'kein Überlauf über MAX_SAFE_INTEGER');
+    assert.ok(top.min <= Number.MAX_SAFE_INTEGER && top.min > Number.MAX_SAFE_INTEGER - 5);
+    assert.equal(Object.isFrozen(resolveArcadeLevelRange(3)), true);
+});
+
+test('Budget-/Freischalt-Bänder bleiben intern, ihre sichtbaren Namen entfallen', () => {
+    assert.deepEqual(Object.values(ARCADE_HANGAR_LEVEL_BANDS).map((band) => band.id), ['recruit', 'veteran', 'elite']);
+    for (const band of Object.values(ARCADE_HANGAR_LEVEL_BANDS)) assert.equal('label' in band, false, band.id);
+    assert.equal(resolveArcadeHangarRulesForLevel(12).band, 'veteran');
+    assert.equal('bandLabel' in resolveArcadeHangarRulesForLevel(12), false);
+    assert.equal('bandLabel' in resolveArcadeHangarProgressionSnapshot(25), false);
 });
 
 test('V76.3.1 blueprint validation rejects locked chassis classes at recruit levels', () => {

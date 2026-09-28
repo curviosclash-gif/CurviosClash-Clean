@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import {
     getVehicleManagerInteractionRules,
+    listArcadeVehicleManagerCatalogEntries,
     listVehicleManagerCatalogEntries,
     resolveVehicleManagerCatalogEntry,
 } from '../src/ui/arcade/VehicleManagerCatalog.js';
@@ -24,6 +25,20 @@ test('vehicle manager catalog entries expose required metadata', () => {
             assert.equal(typeof entry.statsSummary[stat], 'number');
         }
     }
+});
+
+test('arcade catalog entries carry the fixed role instead of the hitbox class', () => {
+    const entries = listArcadeVehicleManagerCatalogEntries();
+    assert.equal(entries.length, 8);
+    for (const entry of entries) {
+        assert.ok(['fighter', 'allrounder', 'tank'].includes(entry.rolle), entry.vehicleId);
+        assert.equal(entry.rolle, entry.arcadeBalance.role, entry.vehicleId);
+        assert.equal('hitboxKlasse' in entry, false, entry.vehicleId);
+        assert.ok(entry.keywords.includes(entry.rolle), `${entry.vehicleId} is searchable by its role`);
+        assert.equal(entry.keywords.some((word) => ['kompakt', 'schwer'].includes(word)), false, entry.vehicleId);
+        assert.ok(entry.kurzbeschreibung.length > 0);
+    }
+    assert.equal(resolveVehicleManagerCatalogEntry('manta').hitboxKlasse, 'schwer', 'Classic keeps the hitbox class');
 });
 
 test('factory ships expose the arcade balance table separately as arcadeBalance', () => {
@@ -60,6 +75,8 @@ test('vehicle manager interaction rules define filters and responsive breakpoint
     assert.deepEqual(rules.categories.map((entry) => entry.id), ['all', 'jaeger', 'kreuzer', 'spezial', 'custom']);
     assert.ok(rules.filterChips.category.includes('jaeger'));
     assert.ok(rules.filterChips.hitboxKlasse.includes('kompakt'));
+    assert.deepEqual(getVehicleManagerInteractionRules('arcade').filterChips.rolle, ['fighter', 'allrounder', 'tank']);
+    assert.equal(getVehicleManagerInteractionRules('arcade').filterChips.hitboxKlasse, undefined);
     assert.equal(rules.preview.mode, 'interactive-3d');
     assert.equal(rules.preview.allowOrbit, true);
     assert.equal(rules.upgradeFlow.maxTier, 'T3');

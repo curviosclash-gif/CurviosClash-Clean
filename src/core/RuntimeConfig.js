@@ -16,10 +16,7 @@ import {
     normalizeArcadeRunSettings,
 } from '../shared/contracts/ArcadeRunSettingsContract.js';
 import { FIVE_PORTALS_MAPS, isFivePortalsRunType } from '../shared/contracts/FivePortalsContract.js';
-import {
-    createDefaultRecordingCaptureSettings,
-    normalizeRecordingCaptureSettings,
-} from '../shared/contracts/RecordingCaptureContract.js';
+import { createDefaultRecordingCaptureSettings, normalizeRecordingCaptureSettings } from '../shared/contracts/RecordingCaptureContract.js';
 import { createDefaultCameraPerspectiveSettings, normalizeCameraPerspectiveSettings } from '../shared/contracts/CameraPerspectiveContract.js';
 import {
     MULTIPLAYER_TRANSPORTS,
@@ -40,6 +37,7 @@ import {
     createThreePlayerSplitRuntimeSelection,
 } from '../four-player-planar/FourPlayerPlanarContract.js';
 import { getPlayerVehicleIds, isPlayerSelectableVehicleId } from '../entities/vehicle-registry.js';
+import { isArcadeSelectableVehicleId } from '../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { createBotHeuristicTuningSnapshot } from '../shared/contracts/BotHeuristicTuningContract.js';
 function toNumber(value, fallback) {
     const parsed = Number(value);
@@ -143,9 +141,11 @@ const BOT_POLICY_STRATEGY_ALIASES = Object.freeze({
 });
 
 // Hidden vehicles stay for bots and decoration; a human always starts in a selectable one.
-/** @param {unknown} vehicleId @param {unknown} fallbackVehicleId @returns {string} */
-function resolveHumanVehicleId(vehicleId, fallbackVehicleId) {
-    return isPlayerSelectableVehicleId(vehicleId) ? String(vehicleId) : String(fallbackVehicleId || 'ship5');
+// Arcade flies only the factory ships, so a stored Vehicle Lab build falls back there.
+/** @param {unknown} vehicleId @param {unknown} fallbackVehicleId @param {boolean} [arcadeOnly] @returns {string} */
+function resolveHumanVehicleId(vehicleId, fallbackVehicleId, arcadeOnly = false) {
+    const selectable = arcadeOnly ? isArcadeSelectableVehicleId(vehicleId) : isPlayerSelectableVehicleId(vehicleId);
+    return selectable ? String(vehicleId) : String(fallbackVehicleId || 'ship5');
 }
 
 /**
@@ -354,10 +354,10 @@ export function createRuntimeConfigSnapshot(settings, {
             vehicles: {
                 PLAYER_1: fourPlayerPlanarActive
                     ? sharedFourPlayerVehicleId
-                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (resolveHumanVehicleId(source?.vehicles?.PLAYER_1, playerDefaults.DEFAULT_VEHICLE_ID))),
+                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (resolveHumanVehicleId(source?.vehicles?.PLAYER_1, playerDefaults.DEFAULT_VEHICLE_ID, arcadeEnabled))),
                 PLAYER_2: fourPlayerPlanarActive
                     ? sharedFourPlayerVehicleId
-                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (resolveHumanVehicleId(source?.vehicles?.PLAYER_2, playerDefaults.DEFAULT_VEHICLE_ID))),
+                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (resolveHumanVehicleId(source?.vehicles?.PLAYER_2, playerDefaults.DEFAULT_VEHICLE_ID, arcadeEnabled))),
                 ...(fourPlayerPlanarActive ? {
                     PLAYER_3: sharedFourPlayerVehicleId,
                     PLAYER_4: sharedFourPlayerVehicleId,

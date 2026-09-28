@@ -75,20 +75,28 @@ export class ArenaWavesRuntime {
         if (!Object.prototype.hasOwnProperty.call(player, '_arenaWavesBaseMachineGunId')) player._arenaWavesBaseMachineGunId = player.fightLoadout?.machineGunId;
         player.fightLoadout = { ...(player.fightLoadout || {}), machineGunId: this.upgrades.machineGunId, arenaWavesMgTuning: this.upgrades.mgTuning };
         if (!Number.isFinite(player._arenaWavesBaseSpeed)) player._arenaWavesBaseSpeed = player.baseSpeed;
+        // The run starts before the spawn: the base life is the spawn's (table/build) value, not the pre-spawn one.
+        if (Number.isFinite(player._arcadeSpawnMaxHp)) { player._arenaWavesBaseMaxHp = player._arcadeSpawnMaxHp; player._arcadeSpawnMaxHp = undefined; }
         if (!Number.isFinite(player._arenaWavesBaseMaxHp)) player._arenaWavesBaseMaxHp = player.maxHp;
-        const speed = player._arenaWavesBaseSpeed * (1 + this.upgrades.speed / 100);
-        // Arena waves is always a normal Arcade run: cap relative to the settings base speed (_arcadeBaseSpeed).
-        const settingsBaseSpeed = Number(player._arcadeBaseSpeed);
-        player.baseSpeed = settingsBaseSpeed > 0
-            ? settingsBaseSpeed * clampArcadeVehicleSpeedMultiplier(player.vehicleId, speed / settingsBaseSpeed) : speed;
-        player.speed = player.baseSpeed;
-        player.maxHp = Math.max(1, player._arenaWavesBaseMaxHp + this.upgrades.maxHp);
-        if (fullHeal) player.hp = player.maxHp;
         this.strategy?.applyRunRewardEffects?.({
             speedBonusPct: this.upgrades.speed,
             maxHpBonus: this.upgrades.maxHp,
             spawnRateMultiplier: this.upgrades.pickup,
         });
+        const settingsBaseSpeed = Number(player._arcadeBaseSpeed);
+        if (typeof this.strategy?.getSpeedMultiplier === 'function') {
+            // The spawn formula: settings speed x vehicle table x hangar x arena reward, capped. Before the
+            // spawn (_arcadeBaseSpeed unset) the spawn applies it itself, so the reward never counts twice.
+            if (settingsBaseSpeed > 0) player.baseSpeed = settingsBaseSpeed * this.strategy.getSpeedMultiplier(player);
+        } else {
+            // Arena waves is always a normal Arcade run: cap relative to the settings base speed (_arcadeBaseSpeed).
+            const speed = player._arenaWavesBaseSpeed * (1 + this.upgrades.speed / 100);
+            player.baseSpeed = settingsBaseSpeed > 0
+                ? settingsBaseSpeed * clampArcadeVehicleSpeedMultiplier(player.vehicleId, speed / settingsBaseSpeed) : speed;
+        }
+        player.speed = player.baseSpeed;
+        player.maxHp = Math.max(1, player._arenaWavesBaseMaxHp + this.upgrades.maxHp);
+        if (fullHeal) player.hp = player.maxHp;
     }
     _planWave(wave = this.wave, warningSeconds = 1) {
         this._pendingWave = wave;
@@ -232,6 +240,8 @@ export class ArenaWavesRuntime {
         if (human && human.alive === false && (this.phase === 'combat' || this.phase === 'countdown' || this.phase === 'telegraph')) {
             this._onHumanDeath(); return;
         }
+        // A fresh spawn reset max HP to its table/build value: re-apply the run's upgrades on top.
+        if (Number.isFinite(human?._arcadeSpawnMaxHp)) this._applyHumanUpgrades(true);
         const elapsed = Math.max(0, safe(dt));
         if (this.phase === 'combat' || (this.phase === 'telegraph' && (this._nextWaveIn !== null || this._activeSlots.size > 0))) this.survivalSeconds += elapsed;
         if (this.phase === 'countdown') {

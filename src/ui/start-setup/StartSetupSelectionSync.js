@@ -7,6 +7,7 @@ import {
 } from '../hangar/HangarSelectionWritebackContract.js';
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 import { isMapEligibleForModePath } from '../../shared/contracts/MapModeContract.js';
+import { isArcadeSelectableVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { ARCADE_GHOST_DUEL_MODES } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { renderQuickList } from './StartSetupUiOps.js';
 import { isMapOfferedForModePath } from './StartSetupMapOffer.js';
@@ -306,7 +307,10 @@ export function syncStartSetupSelectionState({
         hasStoredCustomMap,
     });
 
-    const vehicleCandidates = vehiclePreviewEntries.filter((entry) => {
+    // Arcade flies only the factory ships; a stored Lab build stays saved (Classic keeps it) and shows as the fallback.
+    const isVehicleOffered = (vehicleId) => modePath !== 'arcade' || isArcadeSelectableVehicleId(vehicleId);
+    const offeredVehicles = vehiclePreviewEntries.filter((entry) => isVehicleOffered(entry.id));
+    const vehicleCandidates = offeredVehicles.filter((entry) => {
         const matchesSearch = !startSetupFilters.vehicleSearch
             || entry.label.toLowerCase().includes(startSetupFilters.vehicleSearch)
             || entry.id.toLowerCase().includes(startSetupFilters.vehicleSearch);
@@ -325,7 +329,7 @@ export function syncStartSetupSelectionState({
         slot: HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1,
         hangarSelectionModePath,
         vehicleCandidates,
-        vehiclePreviewEntries,
+        vehiclePreviewEntries: offeredVehicles,
     });
     syncVehicleSelect({
         select: ui.vehicleSelectP2,
@@ -333,7 +337,7 @@ export function syncStartSetupSelectionState({
         slot: HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2,
         hangarSelectionModePath,
         vehicleCandidates,
-        vehiclePreviewEntries,
+        vehiclePreviewEntries: offeredVehicles,
     });
 
     const resolveMapQuickLabel = (mapKey) => mapPreviewEntries.find((entry) => entry.key === mapKey)?.name
@@ -356,7 +360,7 @@ export function syncStartSetupSelectionState({
     );
     const matchesVehicleFilters = (vehicleId) => {
         const preview = resolveVehiclePreview(vehicleId);
-        return (!startSetupFilters.vehicleSearch || vehicleId.toLowerCase().includes(startSetupFilters.vehicleSearch)
+        return isVehicleOffered(vehicleId) && (!startSetupFilters.vehicleSearch || vehicleId.toLowerCase().includes(startSetupFilters.vehicleSearch)
             || preview.label.toLowerCase().includes(startSetupFilters.vehicleSearch))
             && (startSetupFilters.vehicleFilter === 'all' || preview.category === startSetupFilters.vehicleFilter);
     };
