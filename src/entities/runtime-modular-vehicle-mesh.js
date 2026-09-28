@@ -61,14 +61,15 @@ export class RuntimeModularVehicleMesh extends ModularVehicleMesh {
         const relative = new THREE.Matrix4();
         const partBounds = new THREE.Box3();
         this.traverse((child) => {
-            if (!child.isMesh || !child.geometry) return;
+            const mesh = /** @type {THREE.Mesh} */ (child);
+            if (!mesh.isMesh || !mesh.geometry) return;
             for (let node = child; node && node !== this; node = node.parent) {
                 if (node.userData?.runtimeVisual === true || node.userData?.runtimeHelper === true) return;
             }
-            if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
-            if (!child.geometry.boundingBox) return;
+            if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+            if (!mesh.geometry.boundingBox) return;
             relative.multiplyMatrices(inverseWorld, child.matrixWorld);
-            partBounds.copy(child.geometry.boundingBox).applyMatrix4(relative);
+            partBounds.copy(mesh.geometry.boundingBox).applyMatrix4(relative);
             box.union(partBounds);
         });
         if (box.isEmpty()) {
