@@ -213,6 +213,9 @@ def reset_scene():
 def material(name, color, roughness, metallic=0.0):
     mat = bpy.data.materials.new(name)
     mat.diffuse_color = color
+    # Every part is real, outward-facing geometry, so the runtime never needs the back faces;
+    # the exporter writes this as doubleSided: false and the GPU skips half the fill work.
+    mat.use_backface_culling = True
     mat.use_nodes = True
     shader = mat.node_tree.nodes.get("Principled BSDF")
     shader.inputs["Base Color"].default_value = color
@@ -445,6 +448,11 @@ def build_head(collection, profile, materials, rng):
     patch_axis = Vector((0.965, 0.08, 0.25)).normalized()
     attached_count = 0
     missing_count = 0
+    # Shootable seeds share one mesh per (shade, seed_index % 4): exactly the templates the
+    # runtime instancing batch draws, so the game looks the same while the file stores eight
+    # seed meshes instead of 220. Every seed still draws its random numbers, which keeps the
+    # site pattern, the omitted patch and the seed IDs of earlier exports.
+    shootable_variants = {}
     for site_index, direction in enumerate(fibonacci_directions(profile.seed_count, rng), 1):
         patch_strength = direction.dot(patch_axis)
         omit_chance = 0.78 if patch_strength > 0.80 else (0.30 if patch_strength > 0.66 else 0.02)
@@ -456,11 +464,25 @@ def build_head(collection, profile, materials, rng):
             separate = MeshBuilder()
             pappus_height = append_shootable_seed(
                 separate, rng, profile.bristles_per_seed, shade_index)
-            obj = object_from_builder(f"AttachedSeed_{site_index:03d}_SHOOTABLE_nocol",
-                                      separate, collection,
-                                      [materials["achene"], materials["pappus"],
-                                       materials["pappus_shadow"]],
-                                      "shootable_seed", profile.label)
+            name = f"AttachedSeed_{site_index:03d}_SHOOTABLE_nocol"
+            variant_key = (shade_index, site_index % 4)
+            variant = shootable_variants.get(variant_key)
+            if variant is None:
+                obj = object_from_builder(name, separate, collection,
+                                          [materials["achene"], materials["pappus"],
+                                           materials["pappus_shadow"]],
+                                          "shootable_seed", profile.label)
+                obj.data.name = f"ShootableSeedVariant_{shade_index}_{site_index % 4}_nocolMesh"
+                variant = (obj.data, pappus_height)
+                shootable_variants[variant_key] = variant
+            else:
+                obj = bpy.data.objects.new(name, variant[0])
+                collection.objects.link(obj)
+                obj["asset"] = "giant_dandelion"
+                obj["role"] = "shootable_seed"
+                obj["lod"] = profile.label
+            # The shared geometry fixes the crown height, so the metadata follows it.
+            pappus_height = variant[1]
             obj.location = HEAD_CENTER + direction * 0.47
             obj.rotation_euler = Vector((0, 0, 1)).rotation_difference(direction).to_euler()
             obj["seed_index"] = site_index

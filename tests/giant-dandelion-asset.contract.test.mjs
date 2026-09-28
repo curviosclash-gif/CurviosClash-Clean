@@ -161,6 +161,31 @@ test('shootable GLB keeps every visible attached seed as an individually address
         'runtime flight must be triggered by hits, not autoplayed');
 });
 
+test('shootable seeds share one mesh per render variant and every material culls back faces', async () => {
+    const buffer = await readFile(path.join(ASSET_DIR, 'giant_dandelion_shootable.glb'));
+    const { document } = parseGlb(buffer);
+    const seeds = document.nodes.filter((node) => node.extras?.role === 'shootable_seed');
+    // The runtime batch draws one template per material and seed_index % 4; storing more
+    // seed meshes than that only makes the file larger.
+    assert.ok(new Set(seeds.map((seed) => seed.mesh)).size <= 8, 'seeds are stored mesh by mesh');
+    for (const mesh of new Set(seeds.map((seed) => seed.mesh))) {
+        const heights = new Set(seeds.filter((seed) => seed.mesh === mesh)
+            .map((seed) => seed.extras.pappus_height));
+        assert.equal(heights.size, 1, 'seeds sharing geometry must share their crown height');
+    }
+    // The same sites as before the sharing: the random draws per seed were kept.
+    const indices = seeds.map((seed) => seed.extras.seed_index);
+    assert.equal(indices.length, 220);
+    assert.equal(indices.reduce((total, value) => total + value, 0), 28514);
+    assert.ok(buffer.length < 400_000, `shootable GLB is ${buffer.length} bytes`);
+    for (const file of ['giant_dandelion_shootable.glb', 'giant_dandelion.glb',
+        'giant_dandelion_lod1.glb', 'giant_dandelion_lod2.glb']) {
+        const glb = parseGlb(await readFile(path.join(ASSET_DIR, file)));
+        assert.ok(glb.document.materials.every((material) => material.doubleSided !== true),
+            `${file} still renders back faces`);
+    }
+});
+
 test('dandelion map halves its vertical layout around the shortened flower stem', () => {
     const map = DANDELION_SKY_MAP.dandelion_sky;
     assert.equal(MAP_PRESET_CATALOG.dandelion_sky, map);
