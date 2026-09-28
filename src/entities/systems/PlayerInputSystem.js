@@ -9,6 +9,7 @@ import {
 } from '../../shared/contracts/CameraModeContract.js';
 import { sanitizeBotAction } from '../ai/actions/BotActionContract.js';
 import { routeGuidedRocketOwnerInput } from '../ai/GuidedRocketAutopilotOps.js';
+import { applyBotOpenFaceReturn } from '../ai/BotOpenFaceReturnOps.js';
 
 const logger = createLogger('PlayerInputSystem');
 import { createBotRuntimeContext } from '../ai/BotRuntimeContextFactory.js';
@@ -352,9 +353,7 @@ export class PlayerInputSystem {
 
     _invokeBotPolicyUpdate(policy, dt, player, runtimeContext) {
         const update = policy?.update;
-        if (typeof update !== 'function') {
-            return getEmptyInput();
-        }
+        if (typeof update !== 'function') return getEmptyInput();
 
         const preferRuntimeContext = policy?.usesRuntimeContext === true || update.length <= 3;
         if (preferRuntimeContext) {
@@ -505,6 +504,7 @@ export class PlayerInputSystem {
                     const output = this._invokeBotPolicyUpdate(botAI, dt, player, runtimeContext);
                     input = sanitizeBotAction(output, sanitizeOptions, input);
                     this._applyDynamicActionAdapter(input, output, runtimeContext);
+                    if (player.isBot) applyBotOpenFaceReturn(input, player, entityManager.arena);
                 } catch (error) {
                     this._warnInvalidBotAction(player, 'policy update threw', error);
                     input = getEmptyInput();
