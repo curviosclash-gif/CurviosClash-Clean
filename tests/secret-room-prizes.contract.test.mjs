@@ -14,6 +14,7 @@ const ENLARGED_ROOMS = {
     reactor_site: { height: 24, items: 48 },
     eiffel_tower_siege: { height: 24, items: 24 },
     dandelion_sky: { height: 28, items: 24 },
+    sunflower_meadow: { height: 28, items: 24 },
     storm_lighthouse_siege: { height: 24, items: 22 },
     storm_dam_siege: { height: 24, items: 22 },
     storm_bridge_siege: { height: 24, items: 22 },
@@ -31,7 +32,7 @@ function distance(a, b) {
 
 test('every map with a secret room is covered', () => {
     const maps = new Set(ROOMS.map((entry) => entry.mapKey));
-    for (const mapKey of ['reactor_site', 'eiffel_tower_siege', 'dandelion_sky', 'storm_lighthouse_siege', 'storm_dam_siege', 'storm_bridge_siege']) {
+    for (const mapKey of ['reactor_site', 'eiffel_tower_siege', 'dandelion_sky', 'sunflower_meadow', 'storm_lighthouse_siege', 'storm_dam_siege', 'storm_bridge_siege']) {
         assert.ok(maps.has(mapKey), `${mapKey} lost its secret room`);
     }
 });

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
 import { DANDELION_SKY_MAP } from '../src/core/config/maps/presets/dandelion_sky.js';
+import { SUNFLOWER_MEADOW_MAP } from '../src/core/config/maps/presets/sunflower_meadow.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
 import { loadGLBMapCollection } from '../src/entities/GLBMapLoader.js';
 import { SunflowerKernelController } from '../src/entities/arena/SunflowerKernelController.js';
@@ -129,14 +130,15 @@ test('sunflower package contains editable source, six QA views, and 220 distinct
     assert.ok(buffer.length < 2_000_000);
 });
 
-test('dandelion sky loads the sunflower GLB at map scale without per-kernel physics colliders', async () => {
-    const map = DANDELION_SKY_MAP.dandelion_sky;
-    const model = map.glbModels.find((entry) => entry.id === 'dandelion-sky-sunflower');
+test('the sunflower meadow loads the sunflower GLB as its landmark without per-kernel colliders', async () => {
+    assert.equal(DANDELION_SKY_MAP.dandelion_sky.glbModels.some((entry) => entry.url === GLB_URL), false,
+        'the sunflower moved to its own map');
+    const map = SUNFLOWER_MEADOW_MAP.sunflower_meadow;
+    const model = map.glbModels.find((entry) => entry.id === 'sunflower-meadow-flower');
     assert.ok(model);
     assert.equal(model.url, GLB_URL);
-    assert.equal(model.targetSize, 15);
-    assert.deepEqual(model.position, [10, 216, -135]);
-    assert.equal(model.collision, false);
+    assert.equal(model.targetSize, 150);
+    assert.deepEqual(model.position, [0, 0, 0]);
 
     const raw = await geometryOnlyGlbLoader.loadAsync(GLB_URL);
     raw.scene.updateWorldMatrix(true, true);

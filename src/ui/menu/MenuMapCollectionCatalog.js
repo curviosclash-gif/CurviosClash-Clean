@@ -43,6 +43,7 @@ const COLLECTION_DEFINITIONS = [
             'kinetic_tide',
             'verdant_aperture',
             'dandelion_sky',
+            'sunflower_meadow',
             'aetherion_orrery',
             'giant_forest',
             'notre_dame',

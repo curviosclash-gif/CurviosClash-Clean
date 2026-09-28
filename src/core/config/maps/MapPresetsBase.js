@@ -52,6 +52,7 @@ const BASE_MAP_KEYS = [
     'kinetic_tide',
     'verdant_aperture',
     'dandelion_sky',
+    'sunflower_meadow',
     'aetherion_orrery',
     'notre_dame',
     'notre_dame_arena',
