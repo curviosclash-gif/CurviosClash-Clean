@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import generate_conventional_explosions as base
 
 GENERATOR_ID = 'airburst-explosion-generator'
-GENERATOR_VERSION = '1.0.0'
+GENERATOR_VERSION = '1.0.1'
 DESIGNS = [
     ('Compact airburst', 1.0, (1, 1, 1), 10, 15, 14),
     ('Fragmentation flash', .65, (1, 1, 1), 5, 10, 46),
@@ -38,7 +38,11 @@ def cooling_fire(seed, delay, fuel):
     mat = base.fire_material('Cooling flame %d' % seed, seed)
     nodes = mat.node_tree.nodes
     volume = next(n for n in nodes if n.type == 'PRINCIPLED_VOLUME')
-    strength = next(n for n in nodes if n.type == 'MAP_RANGE').inputs['To Max']
+    glow = next(n for n in nodes if n.type == 'MAP_RANGE')
+    # Volume emission remains visible independently of density in Blender.
+    # Both ends of the remap must reach zero, including the cool lower bound.
+    glow.inputs['To Min'].default_value = 0
+    strength = glow.inputs['To Max']
     for f, heat in [(1, 0), (4, 11), (10, 8), (23 if fuel else 16, 3), (35 if fuel else 25, 0), (72, 0)]:
         strength.default_value = heat
         strength.keyframe_insert('default_value', frame=f+delay)

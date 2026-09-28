@@ -28,6 +28,9 @@ for index in range(1, 6):
         if mat.name.startswith('Cooling flame'):
             vol = next(n for n in mat.node_tree.nodes if n.type == 'PRINCIPLED_VOLUME')
             assert vol.inputs['Density'].default_value == 0, mat.name
+            glow = next(n for n in mat.node_tree.nodes if n.type == 'MAP_RANGE')
+            assert glow.inputs['To Min'].default_value == 0, mat.name
+            assert glow.inputs['To Max'].default_value == 0, mat.name
         if mat.name.startswith('Cooling smoke'):
             mul = next(n for n in mat.node_tree.nodes if n.type == 'MATH' and n.operation == 'MULTIPLY')
             assert mul.inputs[1].default_value == 0, mat.name
