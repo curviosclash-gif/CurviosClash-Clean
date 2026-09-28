@@ -59,6 +59,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/skyline-siege.desktop.spec.js',
             'tests/giant-forest.desktop.spec.js',
             'tests/hydra-temple.desktop.spec.js',
+            'tests/toybox-titan.desktop.spec.js',
             'tests/storm-dam.desktop.spec.js',
             'tests/falkenwacht.desktop.spec.js',
             'tests/falkenwacht-grain-proof.desktop.spec.js',
