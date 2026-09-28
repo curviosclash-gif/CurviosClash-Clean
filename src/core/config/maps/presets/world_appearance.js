@@ -46,14 +46,6 @@ export const CLASSIC_WORLD_APPEARANCE = {
         fill: { color: 0x9ab6f5, intensity: .8 },
         fog: { near: 100, far: 200, height: 2, heightFalloff: .1 },
     }),
-    pyramid: classicWorld('pyramid', -.12, {
-        key: { color: 0xffd697, intensity: 1.9 },
-        fill: { color: 0xbcd5ef, intensity: .65 },
-        hemisphere: { skyColor: 0xf2dfb6, groundColor: 0x846b49 },
-        skyDome: { zenithColor: 0x4d789a, horizonColor: 0xccbd9a, nadirColor: 0x6b5740 },
-        fog: { near: 110, far: 200, height: 1, heightFalloff: .15 },
-        starsVisible: false,
-    }),
     vertical_maze: classicWorld('vertical_maze', -.12, {
         key: { color: 0xffe1bd, intensity: 1.75 },
         fill: { color: 0xacd5ef, intensity: .8 },

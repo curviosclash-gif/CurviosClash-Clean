@@ -21,6 +21,20 @@ test('both generator registries name the same packs and real scripts', () => {
     }
 });
 
+test('packs on the preset world generator only ask it for the one part it can build', () => {
+    // generate_map_world builds a single 01_world from preset data and rejects every other part,
+    // so a modular pack registered there fails the moment its generation is requested.
+    for (const [pack, script] of Object.entries(BLENDER_ASSET_GENERATORS)) {
+        if (script !== 'generate_map_world.py') continue;
+        for (const map of Object.values(MAP_PRESET_CATALOG)) {
+            for (const model of map.glbModels || []) {
+                const match = new RegExp(`^assets/maps/${pack}/glb/([a-z0-9_]+)\\.glb$`).exec(model.url || '');
+                if (match) assert.equal(match[1], '01_world', `${pack} asks generate_map_world for ${match[1]}`);
+            }
+        }
+    }
+});
+
 test('map asset selection rejects ambiguous and unsafe requests before generation', () => {
     for (const args of [[], ['--all', '--map', 'standard'], ['--all', '--part', 'roof'], ['--bogus']]) {
         assert.throws(() => parseMapAssetArgs(args));

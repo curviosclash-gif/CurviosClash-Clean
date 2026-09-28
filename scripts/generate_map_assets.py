@@ -29,7 +29,7 @@ GENERATORS = {
     'chrono_forge_nexus': 'generate_map_world',
     'maze': 'generate_map_world',
     'complex': 'generate_map_world',
-    'pyramid': 'generate_map_world',
+    'pyramid': 'generate_pyramid_map_assets',
     'vertical_maze': 'generate_map_world',
     'trench': 'generate_map_world',
 }
