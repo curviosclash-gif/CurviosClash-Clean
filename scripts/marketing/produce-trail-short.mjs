@@ -3,16 +3,27 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import { _electron as electron } from '@playwright/test';
 import { acquirePlaywrightRunLock, releasePlaywrightRunLockOnExit } from '../playwright-run-lock.mjs';
 import { waitForLoadedGame } from '../../tests/helpers.js';
 import { TRAIL_SHORT } from './trail-short-scene.mjs';
+import { SHORT_EVIDENCE_VERSION, validateBrief } from './short-quality-contract.mjs';
 
 const root = process.cwd();
 const outputRoot = path.resolve(process.argv[2] || path.join(root, 'output', 'marketing'));
 const probe = process.argv.includes('--probe');
 const variant = process.argv.includes('--ghost') ? 'ghost' : 'thick';
+const briefArg = process.argv.indexOf('--brief');
+const brief = briefArg >= 0
+    ? validateBrief(JSON.parse(await readFile(path.resolve(process.argv[briefArg + 1]), 'utf8')))
+    : null;
+if (brief && (brief.scenario !== variant || brief.mode !== 'CLASSIC' || brief.mapKey !== 'standard'
+    || brief.subjectPlayer !== (variant === 'ghost' ? 1 : 0))) {
+    throw new Error('This capture recipe supports only the matching THICK/GHOST Classic scene on the standard map');
+}
 const formats = process.argv.includes('--landscape') ? ['landscape']
     : process.argv.includes('--portrait') ? ['portrait'] : ['landscape', 'portrait'];
 const output = path.join(outputRoot, `${variant === 'ghost' ? 'ghost-short' : 'trail-short'}-${new Date().toISOString().replace(/[:.]/g, '-')}`);
@@ -99,7 +110,8 @@ try {
     await mkdir(output, { recursive: true });
     const bundle = await build({ entryPoints: [path.join(root, 'scripts/marketing/trail-short-scene.mjs')],
         bundle: true, write: false, format: 'iife', globalName: '__trailShort', platform: 'browser' });
-    const manifest = { orientations: {} };
+    const manifest = { variant, orientations: {} };
+    let portraitEvidence = null;
     for (const format of formats) {
       app = await electron.launch({
         executablePath: requireElectron('electron'), args: ['--force-device-scale-factor=1', '.'], cwd: path.join(root, 'electron'),
@@ -234,6 +246,14 @@ try {
         if (!Number.isFinite(state.beats.use) || state.beats.use < 10 || state.beats.use >= 15) {
             throw new Error(`Take has no correctly timed ${variant.toUpperCase()} activation`);
         }
+        const beforeWidth = state.history.findLast((sample) => sample.time < TRAIL_SHORT.warmup + state.beats.use)
+            ?.players?.[brief?.subjectPlayer]?.trailWidth;
+        const afterWidthSample = state.history.find((sample) => sample.time >= TRAIL_SHORT.warmup + state.beats.use + 0.3
+            && sample.time < TRAIL_SHORT.warmup + 15.8
+            && sample.players?.[brief?.subjectPlayer]?.trailWidth > beforeWidth + 0.5);
+        if (brief?.scenario === 'thick' && (!Number.isFinite(beforeWidth) || !afterWidthSample)) {
+            throw new Error('Take has no verified THICK trail width increase');
+        }
         if (variant === 'ghost' && (!Number.isFinite(state.beats.pickup)
             || state.beats.pickup < 3 || state.beats.pickup >= 7
             || state.beats.crossing <= state.beats.use || state.beats.crossing >= 16)) {
@@ -256,6 +276,12 @@ try {
             const onStatus = exporter.onStatus;
             let progress = -1;
             const verifiedHandoffs = new Set();
+            const handoffSamples = new Map([3, 7, 10].map((cut) => [cut, {}]));
+            const clonePose = (value) => ({
+                position: [value.position.x, value.position.y, value.position.z],
+                quaternion: [value.quaternion.x, value.quaternion.y, value.quaternion.z, value.quaternion.w],
+                fov: value.fov,
+            });
             exporter.onStatus = (status) => {
                 onStatus?.(status);
                 const next = Math.floor(Number(status.progress || 0) * 10);
@@ -272,6 +298,14 @@ try {
                         frame.leftSnapshot, frame.rightSnapshot, frame.alpha, playerIndex);
                     frame.projection.recordedCamera = recorded;
                     const pose = camera.sample(frame.projection, clipTime, portrait);
+                    for (const cut of [3, 7, 10]) {
+                        const relativeFrame = Math.round((clipTime - cut) * 60);
+                        if (relativeFrame < -2 || relativeFrame > 1
+                            || Math.abs((clipTime - cut) * 60 - relativeFrame) > 0.51) continue;
+                        handoffSamples.get(cut)[relativeFrame] = {
+                            cinematic: clonePose(pose), gameplay: clonePose(recorded),
+                        };
+                    }
                     for (const cut of [3, 7, 10]) {
                         if (verifiedHandoffs.has(cut) || clipTime < cut || clipTime > cut + 1 / 60 + 0.001) continue;
                         const distance = Math.hypot(pose.position.x - recorded.position.x,
@@ -292,18 +326,76 @@ try {
                 return canvas;
             };
             window.__trailShortHandoffs = verifiedHandoffs;
+            window.__trailShortMotion = handoffSamples;
         }, { offset: cinematicStart, portrait: format === 'portrait', selectedVariant: variant });
         console.log(`[trail-short] Rendering ${format} cinematic replay`);
         const rendered = await page.evaluate((id) => window.GAME_INSTANCE.mediaRecorderSystem.renderCinematicReplayRecording(id), stop.recordingId);
         if (!rendered.saved) throw new Error(`Replay export failed: ${JSON.stringify(rendered)}`);
         const handoffs = await page.evaluate(() => [...window.__trailShortHandoffs]);
+        const handoffMotion = await page.evaluate((selectedVariant) => [3, 7, 10].map((cut) => ({
+            at: cut,
+            direction: cut === 7 ? 'to-cinematic' : 'to-gameplay',
+            playerIndex: selectedVariant === 'ghost' ? 1 : 0,
+            hudFadeSeconds: 0.5,
+            samples: window.__trailShortMotion.get(cut),
+        })), variant);
         if (handoffs.length !== 3) {
             throw new Error(`Missing camera handoff checks: ${handoffs.join(', ')}`);
         }
         manifest.variant = variant;
         manifest.orientations[format] = { gameplay: `${format}-gameplay.webm`, cinematic: `${format}-cinematic.mp4`, gameplayStart, cinematicStart,
-            beats: state.beats, handoffs };
+            beats: state.beats, handoffs, handoffMotion };
+        if (brief && format === 'portrait') {
+            const start = state.history.find((sample) => sample.time >= TRAIL_SHORT.warmup);
+            const duel = state.history.find((sample) => sample.time >= TRAIL_SHORT.warmup + 3.3);
+            const hasTwoTrails = (sample) => sample?.players?.filter((player) => player.trail > 0).length >= 2;
+            const events = [];
+            if (hasTwoTrails(start)) events.push({ id: 'trails-start', type: 'TRAILS_PRESENT', at: 0, playerId: null });
+            if (hasTwoTrails(duel)) events.push({ id: 'trails-duel', type: 'TRAILS_PRESENT', at: 3.3, playerId: null });
+            for (const [key, type] of Object.entries({ pickup: 'ITEM_PICKUP', use: 'ITEM_USE', crossing: 'TRAIL_CROSSING' })) {
+                if (Number.isFinite(state.beats[key])) events.push({
+                    id: key, type, at: state.beats[key], playerId: brief.subjectPlayer,
+                });
+            }
+            if (variant === 'thick') events.push({
+                id: 'widened', type: 'TRAIL_WIDENED',
+                at: afterWidthSample.time - TRAIL_SHORT.warmup,
+                playerId: brief.subjectPlayer,
+                beforeWidth,
+                afterWidth: afterWidthSample.players[brief.subjectPlayer].trailWidth,
+            });
+            events.sort((left, right) => left.at - right.at);
+            portraitEvidence = {
+                contractVersion: SHORT_EVIDENCE_VERSION,
+                briefId: brief.id,
+                buildCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
+                mode: 'CLASSIC', mapKey: 'standard',
+                media: { video: 'curviosclash-portrait.mp4', cover: 'thumbnail-portrait.png',
+                    subtitles: 'captions-portrait.srt' },
+                assets: [
+                    { id: 'curviosclash-gameplay', source: 'desktop game build' },
+                    { id: 'game-effects', source: 'desktop game audio capture' },
+                    { id: 'classic-music', source: 'assets/audio/music/mozart-nachtmusik-advent-chamber.mp3' },
+                ],
+                events,
+                timeline: [
+                    { kind: 'cinematic', outputStart: 0, sourceTime: 0, duration: 3 },
+                    { kind: 'gameplay', outputStart: 3, sourceTime: 3, duration: 4 },
+                    { kind: 'cinematic', outputStart: 7, sourceTime: 7, duration: 3 },
+                    { kind: 'gameplay', outputStart: 10, sourceTime: 10, duration: 6 },
+                    { kind: 'endcard', outputStart: 16, duration: 2 },
+                ],
+                trailsAtStart: (start?.players || []).map((player, playerId) => ({
+                    playerId, segmentCount: player.trail || 0,
+                })),
+                handoffs: handoffMotion,
+                sourceFiles: { gameplay: `${format}-gameplay.webm`, cinematic: `${format}-cinematic.mp4` },
+            };
+        }
         await writeFile(path.join(output, 'take.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+    }
+    if (portraitEvidence) {
+        await writeFile(path.join(output, 'evidence.json'), `${JSON.stringify(portraitEvidence, null, 2)}\n`, { flag: 'wx' });
     }
     await app.close();
     app = null;

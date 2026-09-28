@@ -44,10 +44,10 @@ function inputFile(value, label, manifestDir) {
     return path.resolve(manifestDir, value);
 }
 
-export function validateTake(take, manifestDir) {
+export function validateTake(take, manifestDir, formats = Object.keys(FORMATS)) {
     if (!take || typeof take !== 'object' || !take.orientations) fail('take needs orientations');
     const orientations = {};
-    for (const name of Object.keys(FORMATS)) {
+    for (const name of formats) {
         const entry = take.orientations[name];
         if (!entry || typeof entry !== 'object') fail(`take needs orientations.${name}`);
         orientations[name] = {
@@ -312,12 +312,14 @@ export function buildSrt(variant, beats) {
 }
 
 async function main(args) {
-    if (args.length !== 2) fail('usage: node scripts/marketing/render-trail-short.mjs <take.json> <new-output-dir>');
+    const portraitOnly = args.includes('--portrait');
+    args = args.filter((arg) => arg !== '--portrait');
+    if (args.length !== 2) fail('usage: node scripts/marketing/render-trail-short.mjs <take.json> <new-output-dir> [--portrait]');
     const manifestPath = path.resolve(args[0]);
     const outputDir = path.resolve(args[1]);
     const take = JSON.parse(await readFile(manifestPath, 'utf8'));
     const variant = take.variant || 'thick';
-    const entries = validateTake(take, path.dirname(manifestPath));
+    const entries = validateTake(take, path.dirname(manifestPath), portraitOnly ? ['portrait'] : Object.keys(FORMATS));
     await assertNewOutputDirectory(outputDir);
     const root = process.cwd();
     const requireElectron = createRequire(path.join(root, 'electron', 'package.json'));
@@ -353,13 +355,15 @@ async function main(args) {
         await verifyRenderedShort(path.join(outputDir, `curviosclash-${name}.mp4`), FORMATS[name], ffprobe, ffmpeg, outputDir);
         console.log(`[marketing:trail-short] ${name} video verified`);
     }
-    const landscape = entries.landscape;
-    await run(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-n',
-        '-ss', String(variant === 'ghost' ? landscape.gameplayStart + landscape.beats.crossing
-            : landscape.gameplayStart + landscape.beats.use + 1.2),
-        '-i', landscape.gameplay,
-        '-frames:v', '1', '-vf', 'scale=1920:1080:flags=lanczos,setsar=1',
-        'thumbnail-landscape.png'], outputDir);
+    if (!portraitOnly) {
+        const landscape = entries.landscape;
+        await run(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-n',
+            '-ss', String(variant === 'ghost' ? landscape.gameplayStart + landscape.beats.crossing
+                : landscape.gameplayStart + landscape.beats.use + 1.2),
+            '-i', landscape.gameplay,
+            '-frames:v', '1', '-vf', 'scale=1920:1080:flags=lanczos,setsar=1',
+            'thumbnail-landscape.png'], outputDir);
+    }
     const portrait = entries.portrait;
     await run(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-n',
         '-ss', String(portrait.gameplayStart + (variant === 'ghost' ? portrait.beats.crossing : portrait.beats.use + 1.2)),

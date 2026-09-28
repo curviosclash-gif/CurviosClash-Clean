@@ -206,6 +206,7 @@ export function installTrailShortFlight(game, { variant = 'thick' } = {}) {
                         state.lastSample = sample;
                         state.history.push({ time: this.time, players: manager.players.map((item) => ({
                             alive: item.alive, position: item.position.toArray(), trail: item.trail?.segmentCount,
+                            trailWidth: item.trail?.width,
                         })) });
                     }
                 }
