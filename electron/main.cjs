@@ -32,6 +32,7 @@ const {
     createSecureWindowWebPreferences,
     isTrustedEditorUrl,
 } = require('./window-security-options.cjs');
+const { appendAutomationHint, resolveAutomationHint } = require('./automation-hint.cjs');
 const { installEditorDownloadTarget } = require('./editor-download-target.cjs');
 const { installEditorUnloadGuard } = require('./editor-unload-guard.cjs');
 const { createFocusScopedShortcut } = require('./focus-scoped-shortcut.cjs');
@@ -623,7 +624,7 @@ async function createWindow() {
             ));
         });
     });
-    await mainWindow.loadURL(appServer.url);
+    await mainWindow.loadURL(appendAutomationHint(appServer.url, resolveAutomationHint(process.argv, process.env)));
     mainWindow.on('closed', () => {
         mainWindow = null;
     });

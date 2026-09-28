@@ -18,6 +18,7 @@
       "main.cjs",
       "launch.cjs",
       "preload.cjs",
+      "automation-hint.cjs",
       "ipc-sender-guard.cjs",
       "window-security-options.cjs",
       "test-render-window.cjs",
