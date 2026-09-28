@@ -41,6 +41,14 @@ function formatDecimal(value) {
     return normalized.toFixed(1);
 }
 
+// Macht sichtbar, wie viele Runden ueberhaupt von Hand gespielt wurden: ein
+// offen stehendes Fenster und ein Werkzeuglauf zaehlen sonst als Spiel mit.
+function formatControlSourceCounts(counts = null) {
+    const value = counts && typeof counts === 'object' ? counts : {};
+    const read = (key) => Math.max(0, Number(value[key]) || 0);
+    return `Mensch ${read('human')} · untätig ${read('idle')} · automatisch ${read('automation')} · unbekannt ${read('unknown')}`;
+}
+
 function topCountLabel(source = null) {
     const entries = source && typeof source === 'object' ? Object.entries(source) : [];
     if (entries.length === 0) return '-';
@@ -270,6 +278,7 @@ export function renderTelemetryHistorySection(container, historySummary) {
 
     const rounds = Math.max(0, Number(historySummary.rounds) || 0);
     appendRow(list, 'history-rounds', 'Gesamt-Runden', String(rounds));
+    appendRow(list, 'history-control', 'Steuerung', formatControlSourceCounts(historySummary.controlSourceCounts));
     appendRow(list, 'history-human-wr', 'Human-Winrate', formatPercent(historySummary.humanWinRate));
     appendRow(list, 'history-bot-wr', 'Bot-Winrate', formatPercent(historySummary.botWinRate));
     appendRow(list, 'history-avg-dur', 'Avg. Dauer', formatDuration(historySummary.averageDuration));

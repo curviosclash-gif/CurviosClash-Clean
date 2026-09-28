@@ -8,6 +8,7 @@
 // sondern die neuen Felder mit Null auffuellen.
 
 import { normalizeHeatmapCells } from '../../shared/contracts/RoundHeatmapContract.js';
+import { normalizeRoundControl } from '../../shared/contracts/RoundControlContract.js';
 
 export function toNonNegativeNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -179,12 +180,17 @@ export function normalizeTelemetryHistoryEntry(source) {
         vehicles: normalizeStringArray(context.vehicles ?? s.vehicles),
         performance: normalizePerformance(s.performance),
         arcade: normalizeArcadeTelemetry(s.arcade),
+        // Ohne diesen Block zaehlt jede Runde mit einem freien Spielerplatz als
+        // menschlich - auch das offen stehende Fenster und der Werkzeuglauf.
+        // Aeltere Eintraege kennen ihn nicht und bleiben bewusst "unknown".
+        control: normalizeRoundControl(s.control),
     };
 }
 
 /**
  * @param {Record<string, any>} entry
- * @param {{buildId?: string, mapKey?: string, mode?: string, sinceDays?: number} | null} [filters]
+ * @param {{buildId?: string, mapKey?: string, mode?: string, controlSource?: string,
+ *          sinceDays?: number} | null} [filters]
  * @returns {boolean}
  */
 export function matchesTelemetryHistoryFilters(entry, filters = null) {
@@ -196,6 +202,7 @@ export function matchesTelemetryHistoryFilters(entry, filters = null) {
     if (!equalsIfSet(entry.buildId, value.buildId)) return false;
     if (!equalsIfSet(entry.mapKey, value.mapKey)) return false;
     if (!equalsIfSet(entry.mode, value.mode)) return false;
+    if (!equalsIfSet(normalizeRoundControl(entry.control).source, value.controlSource)) return false;
     const sinceDays = toNonNegativeInt(value.sinceDays, 0);
     if (sinceDays > 0) {
         const timestamp = Date.parse(entry.at);

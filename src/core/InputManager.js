@@ -38,8 +38,31 @@ const GLOBAL_ACTION_KEYS = [
 
 const PREVENT_DEFAULT_NATIVE_INPUT_TYPES = new Set(['range', 'checkbox', 'radio', 'button', 'submit', 'reset']);
 
+// Ein Analogstick ruht selten exakt auf Null; darunter zaehlt er als Ruhe.
+const INPUT_ACTIVITY_AXIS_DEADZONE = 0.15;
+
+const INPUT_ACTIVITY_AXES = ['pitchAxis', 'yawAxis', 'rollAxis'];
+
+const INPUT_ACTIVITY_FLAGS = [
+    'pitchUp', 'pitchDown', 'yawLeft', 'yawRight', 'rollLeft', 'rollRight',
+    'boost', 'slowMo', 'useItem', 'shootItem', 'shootRocket', 'shootMG',
+    'nextItem', 'dropItem', 'cameraSwitch',
+];
+
 function deepClone(obj) {
     return JSON.parse(JSON.stringify(obj));
+}
+
+// Zaehlt eine Abfrage als "da hat jemand etwas getan". Das trennt ein
+// unbedientes Fenster von echtem Spiel - Tastendruecke eines Werkzeugs sehen
+// dagegen genauso aus wie von Hand getippte und werden erst in der
+// Telemetrie ueber die Automatisierungskennung aussortiert.
+function isActiveInputState(state) {
+    if (!state || typeof state !== 'object') return false;
+    for (const axis of INPUT_ACTIVITY_AXES) {
+        if (Math.abs(Number(state[axis]) || 0) > INPUT_ACTIVITY_AXIS_DEADZONE) return true;
+    }
+    return INPUT_ACTIVITY_FLAGS.some((flag) => state[flag] === true);
 }
 
 export class InputManager {
@@ -80,6 +103,11 @@ export class InputManager {
          * @type {Map<number, import('./input/PlayerInputSource.js').PlayerInputSource>}
          */
         this._playerSources = new Map();
+
+        // Rundenweite Eingabebilanz: wie viele Abfragen menschlicher Plaetze gab
+        // es, und bei wie vielen lag wirklich eine Eingabe an.
+        this._inputActivitySamples = 0;
+        this._inputActivityActiveSamples = 0;
 
         this._rebuildPreventDefaultCodes();
         this._document = window.document;
@@ -410,11 +438,31 @@ export class InputManager {
             // Options carry the fixed step of the caller: a source that integrates over
             // time (the network guest ramp) must never read a clock of its own.
             const polled = source.poll(options);
-            if (polled) return polled;
+            if (polled) return this._trackInputActivity(polled);
         }
 
         // Fallback: keyboard bindings (original behavior)
-        return this.getKeyboardInput(playerIndex, options);
+        return this._trackInputActivity(this.getKeyboardInput(playerIndex, options));
+    }
+
+    _trackInputActivity(inputState) {
+        this._inputActivitySamples += 1;
+        if (isActiveInputState(inputState)) this._inputActivityActiveSamples += 1;
+        return inputState;
+    }
+
+    /**
+     * Nur menschliche Plaetze fragen hier an: Bots liefern ihre Aktionen aus der
+     * Policy. Der Anteil aktiver Abfragen sagt deshalb, ob ein Mensch mitspielte.
+     * @returns {{samples: number, activeSamples: number}}
+     */
+    getInputActivitySnapshot() {
+        return { samples: this._inputActivitySamples, activeSamples: this._inputActivityActiveSamples };
+    }
+
+    resetInputActivity() {
+        this._inputActivitySamples = 0;
+        this._inputActivityActiveSamples = 0;
     }
 
     dispose() {

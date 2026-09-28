@@ -327,6 +327,7 @@ export function createGameUiRefs(doc = document) {
         telemetryFilterBuild: doc.getElementById('telemetry-filter-build'),
         telemetryFilterMap: doc.getElementById('telemetry-filter-map'),
         telemetryFilterMode: doc.getElementById('telemetry-filter-mode'),
+        telemetryFilterControl: doc.getElementById('telemetry-filter-control'),
         telemetryFilterPeriod: doc.getElementById('telemetry-filter-period'),
         telemetryRefreshButton: doc.getElementById('btn-telemetry-refresh'),
         telemetryExportJsonButton: doc.getElementById('btn-telemetry-export-json'),

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GAME_STATE_IDS, normalizeGameStateId } from '../shared/contracts/GameStateIds.js';
 import { normalizeHeatmapCells } from '../shared/contracts/RoundHeatmapContract.js';
+import { classifyRoundControl } from '../shared/contracts/RoundControlContract.js';
 import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
 import {
     getLastRoundRecordingMetrics,
@@ -47,6 +48,26 @@ function buildTelemetryContext(game) {
         botPolicy: normalizeTelemetryString(runtimeConfig.bot?.policyType || runtimeConfig.bot?.policyStrategy, 'unknown'),
         vehicles: [...new Set(vehicles)].slice(0, 8),
     };
+}
+
+// Nur die startende Seite kann Automatisierung sicher melden: Tastendruecke
+// eines Werkzeugs kommen im Fenster genauso an wie von Hand getippte.
+function resolveAutomationSignal(game) {
+    const runtimeWindow = game?.runtimeWindow || (typeof window !== 'undefined' ? window : null);
+    if (!runtimeWindow) return 'headless';
+    if (runtimeWindow.navigator?.webdriver === true) return 'webdriver';
+    if (runtimeWindow.CURVIOS_TEST_API && typeof runtimeWindow.CURVIOS_TEST_API === 'object') return 'test-api';
+    return '';
+}
+
+function buildControlTelemetry(game, humanCount) {
+    const activity = game?.input?.getInputActivitySnapshot?.() || null;
+    return classifyRoundControl({
+        automationSignal: resolveAutomationSignal(game),
+        humanCount,
+        inputSamples: activity?.samples,
+        activeInputSamples: activity?.activeSamples,
+    });
 }
 
 function buildPerformanceTelemetry(game) {
@@ -241,10 +262,13 @@ export class MatchFlowTelemetryController {
         const unitsDestroyed = sumHumanScoreboardStat(scoreboardRows, humanPlayers, 'unitsDestroyed');
         const unitDestroyedXp = sumHumanScoreboardStat(scoreboardRows, humanPlayers, 'unitDestroyedXp');
 
+        const context = buildTelemetryContext(game);
+
         return {
             telemetrySchemaVersion: 'round-telemetry.v2',
-            context: buildTelemetryContext(game),
+            context,
             performance: buildPerformanceTelemetry(game),
+            control: buildControlTelemetry(game, context.humanCount),
             mapKey: normalizeTelemetryString(game?.arena?.currentMapKey || game?.mapKey, 'standard'),
             mode: normalizeTelemetryString(game?.activeGameMode || game?.runtimeConfig?.session?.activeGameMode, 'classic').toLowerCase(),
             state: normalizeGameStateId(roundEndPlan?.outcome?.state, GAME_STATE_IDS.ROUND_END),
@@ -290,5 +314,8 @@ export class MatchFlowTelemetryController {
         if (telemetryPayload.state === GAME_STATE_IDS.MATCH_END) {
             recordMatchEndTelemetry(this.runtimePort, this.game, telemetryPayload);
         }
+        // Die Eingabebilanz gehoert zur Runde: ohne Nullstellung erbt die
+        // naechste Runde die Tastendruecke der vorigen.
+        this.game?.input?.resetInputActivity?.();
     }
 }
