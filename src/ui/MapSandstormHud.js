@@ -7,6 +7,21 @@ function createElement(tag, className, text = '') {
     return element;
 }
 
+const CUE_TOP_IN_VIEW = 0.18;
+
+function toPercent(value) {
+    return `${Math.round(value * 100) / 100}%`;
+}
+
+// Column/row grid of the local player views, matching the renderer viewport layouts.
+function resolveCueGrid(viewportLayout, localHumanCount) {
+    if (viewportLayout === 'three_columns') return { columns: 3, rows: 1 };
+    if (viewportLayout === 'three_rows') return { columns: 1, rows: 3 };
+    if (viewportLayout === 'four_grid') return { columns: 2, rows: 2 };
+    if (viewportLayout === 'single') return { columns: 1, rows: 1 };
+    return localHumanCount >= 2 ? { columns: 2, rows: 1 } : { columns: 1, rows: 1 };
+}
+
 export class MapSandstormHud {
     constructor(parent = document.body) {
         this.parent = parent || document.body;
@@ -29,12 +44,24 @@ export class MapSandstormHud {
             const label = createElement('span', 'sandstorm-proximity-label', 'BEWEGUNG IN DER NÄHE');
             cue.append(arrow, label);
             this.parent.appendChild(cue);
-            this.cues.push({ root: cue, arrow });
+            this.cues.push({ root: cue, arrow, anchorKey: '' });
         }
         return this.cues[index];
     }
 
-    update(state, entityManager, { localHumanCount = 1, localPlayerIndex = 0, network = false } = {}) {
+    _placeCue(cue, slot, grid) {
+        const key = `${grid.columns}x${grid.rows}:${slot}`;
+        if (cue.anchorKey === key) return;
+        cue.anchorKey = key;
+        const column = slot % grid.columns;
+        const row = Math.floor(slot / grid.columns) % grid.rows;
+        cue.root.style.left = toPercent(((column + 0.5) / grid.columns) * 100);
+        cue.root.style.top = toPercent(((row + CUE_TOP_IN_VIEW) / grid.rows) * 100);
+    }
+
+    update(state, entityManager, {
+        localHumanCount = 1, localPlayerIndex = 0, network = false, viewportLayout = null,
+    } = {}) {
         const enabled = state?.enabled === true;
         const phase = String(state?.phase || MAP_SANDSTORM_PHASES.CALM);
         const remaining = Math.max(0, Number(state?.remainingSeconds) || 0);
@@ -65,8 +92,10 @@ export class MapSandstormHud {
         const visibleCueCount = enabled && phase === MAP_SANDSTORM_PHASES.ACTIVE
             ? Math.max(1, Number(localHumanCount) || 1)
             : 0;
+        const grid = resolveCueGrid(viewportLayout, visibleCueCount);
         for (let slot = 0; slot < Math.max(this.cues.length, visibleCueCount); slot += 1) {
             const cue = this._ensureCue(slot);
+            if (slot < visibleCueCount) this._placeCue(cue, slot, grid);
             const playerIndex = network ? localPlayerIndex : slot;
             const cueState = slot < visibleCueCount
                 ? entityManager?.getSandstormProximityCue?.(playerIndex)

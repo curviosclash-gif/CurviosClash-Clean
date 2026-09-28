@@ -488,6 +488,7 @@ export class HudRuntimeSystem {
             localHumanCount: projection?.localHumanCount || game.numHumans || 1,
             localPlayerIndex: this._getLocalPlayerIndex(projection),
             network: this._isNetworkSession(projection),
+            viewportLayout: game.runtimeConfig?.session?.viewportLayout,
         });
         this._syncHudMode(projection);
         const updateMinimap = this._consumeInterval(
