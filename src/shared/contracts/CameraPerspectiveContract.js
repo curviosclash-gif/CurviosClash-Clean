@@ -10,6 +10,8 @@ export const CAMERA_PERSPECTIVE_EFFECT_INTENSITY_MAX = 1.5;
 export const DEFAULT_CAMERA_PERSPECTIVE_SETTINGS = Object.freeze({
     normal: CAMERA_PERSPECTIVE_MODE.CLASSIC,
     reduceMotion: true,
+    reactorFlashEnabled: true,
+    reactorCameraShakeEnabled: true,
     speedFovEnabled: true,
     speedFovIntensity: 1,
     thrusterExhaustEnabled: true,
@@ -62,6 +64,8 @@ export function createDefaultCameraPerspectiveSettings() {
     return {
         normal: DEFAULT_CAMERA_PERSPECTIVE_SETTINGS.normal,
         reduceMotion: DEFAULT_CAMERA_PERSPECTIVE_SETTINGS.reduceMotion,
+        reactorFlashEnabled: DEFAULT_CAMERA_PERSPECTIVE_SETTINGS.reactorFlashEnabled,
+        reactorCameraShakeEnabled: DEFAULT_CAMERA_PERSPECTIVE_SETTINGS.reactorCameraShakeEnabled,
         speedFovEnabled: DEFAULT_CAMERA_PERSPECTIVE_SETTINGS.speedFovEnabled,
         speedFovIntensity: DEFAULT_CAMERA_PERSPECTIVE_SETTINGS.speedFovIntensity,
         thrusterExhaustEnabled: DEFAULT_CAMERA_PERSPECTIVE_SETTINGS.thrusterExhaustEnabled,
@@ -77,6 +81,8 @@ export function normalizeCameraPerspectiveSettings(source, fallback = DEFAULT_CA
     return {
         normal: normalizeCameraPerspectiveMode(src.normal, normalizedFallback.normal),
         reduceMotion: normalizeBoolean(src.reduceMotion, normalizedFallback.reduceMotion),
+        reactorFlashEnabled: normalizeBoolean(src.reactorFlashEnabled, normalizedFallback.reactorFlashEnabled),
+        reactorCameraShakeEnabled: normalizeBoolean(src.reactorCameraShakeEnabled, normalizedFallback.reactorCameraShakeEnabled),
         speedFovEnabled: normalizeBoolean(
             src.speedFovEnabled,
             normalizeBoolean(normalizedFallback.speedFovEnabled, DEFAULT_CAMERA_PERSPECTIVE_SETTINGS.speedFovEnabled)

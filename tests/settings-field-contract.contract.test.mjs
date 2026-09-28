@@ -13,6 +13,7 @@ import {
     readSettingsFieldValue,
 } from '../src/ui/SettingsFieldRegistry.js';
 import { isSettingsChangeKey } from '../src/shared/settings/SettingsChangeKeys.js';
+import { SETTINGS_CHANGE_KEYS } from '../src/shared/settings/SettingsChangeKeys.js';
 import { STORAGE_KEYS } from '../src/shared/storage/StorageKeys.js';
 
 function createMemoryStoragePlatform(options = {}) {
@@ -74,6 +75,28 @@ test('settings sanitizer is idempotent for malformed mixed input', () => {
     });
 
     assert.deepEqual(manager.sanitizeSettings(once), once);
+});
+
+test('reactor flash and camera shake are independent saved boolean settings', () => {
+    const storagePlatform = createMemoryStoragePlatform();
+    const manager = new SettingsManager({ storagePlatform });
+    const settings = manager.createDefaultSettings();
+    for (const key of [SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_REACTOR_FLASH,
+        SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_REACTOR_SHAKE]) {
+        const field = SETTINGS_FIELD_DESCRIPTORS.find((entry) => entry.changeKey === key);
+        assert.equal(field?.normalizer, SETTINGS_FIELD_NORMALIZERS.BOOLEAN);
+    }
+    settings.cameraPerspective.reactorFlashEnabled = false;
+    settings.cameraPerspective.reactorCameraShakeEnabled = true;
+    assert.equal(manager.saveSettings(settings).success, true);
+    const saved = storagePlatform.getRecord(STORAGE_KEYS.settings);
+    assert.equal(saved.cameraPerspective.reactorFlashEnabled, false);
+    assert.equal(saved.cameraPerspective.reactorCameraShakeEnabled, true);
+    const normalized = manager.sanitizeSettings({ cameraPerspective: {
+        reactorFlashEnabled: true, reactorCameraShakeEnabled: false,
+    } });
+    assert.equal(normalized.cameraPerspective.reactorFlashEnabled, true);
+    assert.equal(normalized.cameraPerspective.reactorCameraShakeEnabled, false);
 });
 
 test('empty partial settings sanitize to the complete current defaults', () => {

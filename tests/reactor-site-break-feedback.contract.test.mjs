@@ -5,7 +5,7 @@ import { MapDestructibleSystem } from '../src/entities/systems/MapDestructibleSy
 import { emitMapDestructibleBreakFeedback } from '../src/entities/effects/MapDestructibleBreakFeedback.js';
 import { REACTOR_SITE_METRE } from '../src/core/config/maps/presets/reactor_site/ReactorSiteModels.js';
 
-function createFixture({ mapKey = 'reactor_site', reduceMotion = false } = {}) {
+function createFixture({ mapKey = 'reactor_site', reduceMotion = false, reactorCameraShakeEnabled = true } = {}) {
     const calls = { particles: [], waves: [], audio: [], shakes: [], impacts: [] };
     const owner = {
         arena: { currentMapKey: mapKey },
@@ -25,7 +25,7 @@ function createFixture({ mapKey = 'reactor_site', reduceMotion = false } = {}) {
                 { position: { x: 0, y: 84, z: 0 }, quaternion: { x: 0, y: 0, z: 0, w: 1 } },
                 { position: { x: 1000, y: 84, z: 0 }, quaternion: { x: 0, y: 0, z: 0, w: 1 } },
             ],
-            getCameraPerspectiveSettings: () => ({ reduceMotion }),
+            getCameraPerspectiveSettings: () => ({ reduceMotion, reactorCameraShakeEnabled }),
             triggerCameraShake: (...args) => calls.shakes.push(args),
             reportImpact: (...args) => calls.impacts.push(args),
         },
@@ -135,6 +135,17 @@ test('reduced motion keeps impact feedback but leaves the picture still', () => 
     assert.equal(calls.shakes.length, 0);
     assert.equal(calls.impacts.length, 1);
     assert.equal(calls.waves[0][3], 3 * 0.65, 'reduced motion dims and narrows the flash');
+});
+
+test('the reactor shake switch leaves pressure and sound while keeping the camera still', () => {
+    const { calls, owner } = createFixture({ reactorCameraShakeEnabled: false });
+    emitMapDestructibleBreakFeedback(owner, { segmentId: 'reactor_dome' });
+    owner.arena.glbAnimationElapsedSeconds = .28;
+    owner._mapDestructibleSystem.updateFeedback();
+    assert.equal(calls.shakes.length, 0);
+    assert.equal(calls.impacts.length, 1);
+    assert.equal(calls.audio.length, 1);
+    assert.equal(calls.waves.length, 2);
 });
 
 test('other maps and other reactor segments stay quiet', () => {

@@ -120,7 +120,7 @@ export function attachReactorFlashShell(root, action) {
 /**
  * A screen whiteout and after-image for every camera that renders the breach. It lives in the
  * scene rather than in post-processing, because split screen renders without the composer.
- * `userData.reduceMotion` starts true and is set from the player's setting when a breach fires.
+ * The overlay reads the player's flash and motion settings when a breach fires.
  */
 export function attachReactorFlash(root, action) {
     const fire = root.getObjectByName('fire');
@@ -141,6 +141,7 @@ export function attachReactorFlash(root, action) {
     overlay.frustumCulled = false;
     overlay.renderOrder = 1e9;
     overlay.userData.reduceMotion = true;
+    overlay.userData.flashEnabled = true;
     const firePosition = new THREE.Vector3();
     const view = new THREE.Vector3();
     const toFire = new THREE.Vector3();
@@ -151,9 +152,11 @@ export function attachReactorFlash(root, action) {
         toFire.copy(firePosition).sub(camera.position);
         const distance = toFire.length();
         const facing = distance > 0 ? view.dot(toFire.divideScalar(distance)) : 1;
-        const { white, glow } = reactorFlashStrength(action.time, {
-            distance, facing, reduced: overlay.userData.reduceMotion !== false,
-        });
+        const { white, glow } = overlay.userData.flashEnabled === false
+            ? { white: 0, glow: 0 }
+            : reactorFlashStrength(action.time, {
+                distance, facing, reduced: overlay.userData.reduceMotion !== false,
+            });
         uniforms.flashActive.value = white > 0.001 || glow > 0.001 ? 1 : 0;
         uniforms.flashWhite.value = white;
         uniforms.flashGlow.value = glow;

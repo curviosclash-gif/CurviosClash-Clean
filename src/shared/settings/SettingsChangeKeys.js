@@ -83,6 +83,8 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     RECORDING_ORIENTATION: 'recording.orientation',
     CAMERA_PERSPECTIVE_NORMAL: 'cameraPerspective.normal',
     CAMERA_PERSPECTIVE_REDUCE_MOTION: 'cameraPerspective.reduceMotion',
+    CAMERA_PERSPECTIVE_REACTOR_FLASH: 'cameraPerspective.reactorFlashEnabled',
+    CAMERA_PERSPECTIVE_REACTOR_SHAKE: 'cameraPerspective.reactorCameraShakeEnabled',
     CAMERA_PERSPECTIVE_SPEED_FOV_ENABLED: 'cameraPerspective.speedFovEnabled',
     CAMERA_PERSPECTIVE_SPEED_FOV_INTENSITY: 'cameraPerspective.speedFovIntensity',
     CAMERA_PERSPECTIVE_THRUSTER_EXHAUST_ENABLED: 'cameraPerspective.thrusterExhaustEnabled',

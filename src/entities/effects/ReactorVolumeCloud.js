@@ -56,10 +56,8 @@ uniform float heat;
 uniform vec3 fogColor;
 uniform float fogNear;
 uniform float fogFar;
-#ifdef SURGE_DEPTH
-// Only the fragment prefix's viewMatrix comes for free; the renderer fills this one too.
+// The renderer supplies viewMatrix to fragment shaders; declare projectionMatrix explicitly.
 uniform mat4 projectionMatrix;
-#endif
 varying vec3 vWorld;
 
 const float TAU = 6.28318530718;
@@ -253,13 +251,14 @@ void main() {
     if (alpha < 0.003) discard;
     vec3 color = light / alpha;
     gl_FragColor = vec4(color, alpha);
-    #ifdef SURGE_DEPTH
-    // A camera inside the collar draws the proxy's back faces, and every wall in front of them
-    // hides the dust between the camera and that wall. Reporting the depth of the first smoke
-    // the ray met lets the depth test compare the dust itself, not the far side of its proxy.
-    vec4 clip = projectionMatrix * viewMatrix * vec4(ro + rd * (firstHit < 0.0 ? tEnter : firstHit), 1.0);
-    gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
-    #endif
+    // Inside any proxy, the visible back face can lie behind a wall even when smoke is between
+    // that wall and the camera. Outside, keep the proxy face's original depth and appearance.
+    if (insideProxy > 0.5) {
+        vec4 clip = projectionMatrix * viewMatrix * vec4(ro + rd * (firstHit < 0.0 ? tEnter : firstHit), 1.0);
+        gl_FragDepth = clamp(clip.z / clip.w * 0.5 + 0.5, 0.0, 1.0);
+    } else {
+        gl_FragDepth = gl_FragCoord.z;
+    }
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
     #ifdef USE_FOG
@@ -285,9 +284,7 @@ function createPart(part, steps, noise) {
             skyColor: { value: new THREE.Color(0.62, 0.68, 0.75) }, smokeAlbedo: { value: new THREE.Color(0.4, 0.33, 0.26) },
             heat: { value: 0 },
         },
-        // The collar is the one part a player stands inside of, so only it pays for a written
-        // fragment depth - the early depth rejection of the other two stays.
-        defines: part === 2 ? { SURGE_DEPTH: '' } : {},
+        // All three proxies may enclose a camera; their first smoke must pass the wall depth test.
         vertexShader: VOLUME_VERTEX, fragmentShader: VOLUME_FRAGMENT,
         // Both sides, one discarded per camera: switching `side` would compile a second program
         // the first time a camera flies into the cloud.
