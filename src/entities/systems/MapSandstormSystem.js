@@ -13,6 +13,7 @@ import {
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { MapSandstormVisualController } from '../effects/MapSandstormVisualController.js';
+import { ownsGuidedRocketCamera } from '../runtime/GuidedRocketCameraOps.js';
 
 const SAND_SEED_SALT = 0x53414e44;
 
@@ -283,8 +284,12 @@ export class MapSandstormSystem {
             const camera = cameras[index];
             if (!camera?.userData) continue;
             const player = this.entityManager?.players?.[index];
+            // Dead players, the killcam and a guided rocket move the camera away from the player.
+            const followsPlayer = player?.alive !== false
+                && this.entityManager?._killcamSystem?.ownsCamera?.(index) !== true
+                && !ownsGuidedRocketCamera(this.entityManager, index);
             camera.userData.sandstormVisibilityRange = player
-                ? this._getAuthoredVisibilityRange(player.position)
+                ? this._getAuthoredVisibilityRange(followsPlayer ? player.position : camera.position)
                 : Infinity;
         }
     }

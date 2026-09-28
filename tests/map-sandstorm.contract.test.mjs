@@ -257,6 +257,29 @@ test('the motion cue points at enemies hidden in the storm, not only at visible 
     assert.equal(system.getProximityCue(observer, owner.players)?.active, true, 'yet the cue still points at it');
 });
 
+test('a camera that no longer follows its living player takes the storm where the camera is', () => {
+    // After death the killcam (or a guided rocket) owns the camera and flies it elsewhere; the
+    // wreck in a hall must not keep lending that camera the hall's clear view.
+    const { owner, system } = createOwner(11);
+    system.startRound();
+    system.applyNetworkSnapshot({
+        enabled: true, phase: 'ACTIVE', remainingSeconds: 30, eventIndex: 1, directionIndex: 0, intensity: 1,
+    });
+    const player = { alive: true, index: 0, position: new THREE.Vector3(0, 5, 0) };
+    owner.players = [player];
+    const camera = owner.renderer.cameras[0];
+    camera.position.set(100, 10, 100);
+    system.update(0);
+    assert.equal(camera.userData.sandstormVisibilityRange, 85, 'a living player in the hall sees the hall range');
+    player.alive = false;
+    system.update(0);
+    assert.equal(camera.userData.sandstormVisibilityRange, 40, 'the death camera out in the storm sees the storm');
+    player.alive = true;
+    owner._killcamSystem = { ownsCamera: (index) => index === 0 };
+    system.update(0);
+    assert.equal(camera.userData.sandstormVisibilityRange, 40, 'nor does a killcam that owns the camera');
+});
+
 test('replay interpolates time only within one event and keeps phases and directions discrete', () => {
     const projection = { players: [], localPlayerIndex: 0, localHumanCount: 1 };
     const warning = {
