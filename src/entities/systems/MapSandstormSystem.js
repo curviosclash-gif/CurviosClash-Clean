@@ -32,7 +32,8 @@ export class MapSandstormSystem {
         this.state = createInactiveState();
         this.networkReplica = false;
         this.scale = 1;
-        this._rng = createRuntimeRng({ seed: 1 });
+        this._rng = null;
+        this._rngMatchSource = null;
         this._visiblePlayersByObserver = new WeakMap();
         this._visiblePowerupsByObserver = new WeakMap();
         this._cueByObserver = new WeakMap();
@@ -57,11 +58,15 @@ export class MapSandstormSystem {
             this._publish();
             return true;
         }
-        const matchRng = this.entityManager?.runtimeRng;
-        const matchSeed = Math.max(1, Number(this.entityManager?.matchSeed) >>> 0);
-        this._rng = matchRng && typeof matchRng.next === 'function'
-            ? matchRng
-            : createRuntimeRng({ seed: (matchSeed ^ SAND_SEED_SALT) >>> 0 || 1 });
+        // Own salted stream: rolling on the shared match dice would shift every later spawn,
+        // item and bot draw whenever the storm timing changes. A new match hands out a new
+        // runtimeRng, so that identity (not the seed) decides when the storm stream restarts.
+        const matchRng = this.entityManager?.runtimeRng || null;
+        if (!this._rng || this._rngMatchSource !== matchRng) {
+            const matchSeed = Math.max(1, Number(this.entityManager?.matchSeed) >>> 0);
+            this._rng = createRuntimeRng({ seed: (matchSeed ^ SAND_SEED_SALT) >>> 0 || 1 });
+            this._rngMatchSource = matchRng;
+        }
         this.state = {
             enabled: true,
             phase: MAP_SANDSTORM_PHASES.CALM,

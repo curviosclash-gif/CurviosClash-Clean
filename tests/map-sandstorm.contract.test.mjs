@@ -96,8 +96,8 @@ test('sandstorm contract normalizes timing, ranges, state and shelter bounds', (
 });
 
 test('known match seeds cover early and late starts and later rounds consume new draws', () => {
-    const early = createOwner(1);
-    const late = createOwner(15955);
+    const early = createOwner(2560);
+    const late = createOwner(13312);
     early.system.startRound();
     late.system.startRound();
     assert.ok(early.system.getState().remainingSeconds < 46);
@@ -105,6 +105,17 @@ test('known match seeds cover early and late starts and later rounds consume new
     const firstRoundDelay = early.system.getState().remainingSeconds;
     early.system.startRound();
     assert.notEqual(early.system.getState().remainingSeconds, firstRoundDelay);
+});
+
+test('storm scheduling leaves the shared match dice untouched', () => {
+    // Spawns, items, bots and trails all roll on owner.runtimeRng. A storm that rolls there
+    // too shifts every later draw, so retiming the storm would reshuffle the whole match.
+    const { owner, system } = createOwner(2024);
+    const untouched = createRuntimeRng({ seed: 2024 });
+    system.startRound();
+    system.update(90 + 20 + 60 + 150 + 20 + 60 + 1);
+    assert.ok(system.getState().eventIndex >= 2, 'the storm ran through several events');
+    assert.equal(owner.runtimeRng.next(), untouched.next(), 'the match dice rolled as if there were no storm');
 });
 
 test('sandstorm timing is seeded, exact and survives large simulation steps', () => {
