@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 import { SunflowerKernelController } from '../src/entities/arena/SunflowerKernelController.js';
 import { SecretRoomSystem } from '../src/entities/systems/SecretRoomSystem.js';
+import { normalizeMapSchemaDocument } from '../src/entities/mapSchema/MapSchemaSanitizeOps.js';
 import {
     normalizeSecretRooms,
     resolveSecretRoomUnlockSeconds,
@@ -71,6 +72,14 @@ test('a sunflower kernel room is a valid unlock and opens only on the last kerne
     Object.assign(state, progress(4, 4, 49));
     system.update(0);
     assert.equal(system.isRoomOpen(room.id), true);
+});
+
+test('a kernel-locked room survives the map schema round trip', () => {
+    const document = normalizeMapSchemaDocument({ secretRooms: [roomWith('sunflowerKernels')] });
+    assert.equal(document.secretRooms.length, 1);
+    assert.deepEqual(document.secretRooms[0].unlock, {
+        source: 'sunflowerKernels', when: 'allReleased', delaySeconds: 0,
+    });
 });
 
 test('the seed objective belongs to the round only where its room exists in the mode', () => {
