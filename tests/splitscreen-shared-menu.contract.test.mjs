@@ -58,6 +58,30 @@ test('a three-player match uses the map, planes and bots of the shared match men
     assert.deepEqual(buildHumanConfigs(settings, runtime).map((entry) => entry.vehicleId), ['ship5', 'arrow', 'drone']);
 });
 
+test('a save from the former three-player form loads cleanly and keeps its devices, layout and plane', () => {
+    const { manager, settings } = createSplitSettings();
+    settings.vehicles = { PLAYER_1: 'ship5', PLAYER_2: 'arrow' };
+    settings.localSettings.threePlayerSplit = {
+        mode: 'hunt',
+        mapKey: 'maze',
+        vehicleId: 'drone',
+        botCount: 4,
+        viewportLayout: 'three_rows',
+        deviceAssignment: ['keyboard', 'gamepad-2', 'gamepad-1'],
+    };
+    manager.saveSettings(manager.sanitizeSettings(settings));
+
+    const loaded = manager.loadSettings();
+
+    assert.deepEqual(loaded.localSettings.threePlayerSplit, {
+        viewportLayout: 'three_rows',
+        deviceAssignment: ['keyboard', 'gamepad-2', 'gamepad-1'],
+    });
+    assert.equal(loaded.vehicles.PLAYER_3, 'drone', 'the former shared plane becomes pilot three\'s plane');
+    assert.equal(loaded.vehicles.PLAYER_2, 'arrow');
+    assert.equal(manager.createRuntimeConfig(loaded).session.numHumans, 3);
+});
+
 test('team and escort rules of the shared menu never reach the three-player HUD', () => {
     const { manager, settings } = createSplitSettings();
     settings.hunt = { ...settings.hunt, teamMode: true, teamObjective: 'ESCORT' };
