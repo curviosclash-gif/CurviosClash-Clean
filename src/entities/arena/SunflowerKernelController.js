@@ -120,6 +120,16 @@ export class SunflowerKernelController {
         this.kernels.sort((a, b) => a.index - b.index);
         // Refreshing just these keeps a shot from walking every node of the map it sits in.
         this._kernelParents = [...new Set(this.kernels.map((kernel) => kernel.homeParent))];
+        // Same shape as the dandelion's, so a secret room can open on either plant. Reused so a
+        // per-frame status query allocates nothing.
+        this._progress = {
+            total: this.kernels.length,
+            released: 0,
+            remaining: this.kernels.length,
+            allReleased: false,
+            completedAtSeconds: 0,
+        };
+        this._latestReleaseSeconds = 0;
         if (this.kernels.length === 0) {
             this.flightRoot = null;
             this._renderBatch = null;
@@ -138,6 +148,9 @@ export class SunflowerKernelController {
     }
 
     get count() { return this.kernels.length; }
+
+    /** Match-wide release progress. The returned object is owned and reused by this controller. */
+    getProgress() { return this._progress; }
 
     getRenderBatchMetrics() {
         return this._renderBatch?.getMetrics()
@@ -262,6 +275,12 @@ export class SunflowerKernelController {
             Math.round(kernel.hitDirection.y * 1000),
             Math.round(kernel.hitDirection.z * 1000),
         ]);
+        this._latestReleaseSeconds = Math.max(this._latestReleaseSeconds, at);
+        const progress = this._progress;
+        progress.released += 1;
+        progress.remaining = Math.max(0, progress.total - progress.released);
+        progress.allReleased = progress.total > 0 && progress.remaining === 0;
+        progress.completedAtSeconds = progress.allReleased ? this._latestReleaseSeconds : 0;
         return true;
     }
 
@@ -319,6 +338,11 @@ export class SunflowerKernelController {
         }
         this._renderBatch?.commit();
         this.events.length = 0;
+        this._latestReleaseSeconds = 0;
+        this._progress.released = 0;
+        this._progress.remaining = this._progress.total;
+        this._progress.allReleased = false;
+        this._progress.completedAtSeconds = 0;
     }
 
     serialize() { return this.events.map((event) => [...event]); }

@@ -1,3 +1,5 @@
+import { resolveSeedObjectiveLabels } from './DandelionSeedStatusText.js';
+
 export function createHudObjectiveMarker(container) {
     const doc = container?.ownerDocument || globalThis.document;
     const objectiveReticle = doc.createElement('div');
@@ -18,8 +20,25 @@ export function createHudObjectiveMarker(container) {
     return { objectiveReticle, objectiveBox, objectiveArrow, objectiveLabel, objectiveDistance };
 }
 
+// Once a plant has opened its room, the pointer leads there until the player is inside. Only an
+// escort objective, which is the round's main goal, takes precedence.
+function resolveSeedRoomObjective(hud, player) {
+    const seeds = player?.dandelionSeeds;
+    if (seeds?.portalOpen !== true || !seeds.portalPosition || player?.secretRoom?.inside === true) {
+        return null;
+    }
+    const objective = hud._seedRoomObjective || (hud._seedRoomObjective = {
+        active: true, phase: 'OPEN', label: '', position: { x: 0, y: 0, z: 0 },
+    });
+    objective.label = resolveSeedObjectiveLabels(seeds.source).room;
+    objective.position.x = seeds.portalPosition.x;
+    objective.position.y = seeds.portalPosition.y;
+    objective.position.z = seeds.portalPosition.z;
+    return objective;
+}
+
 export function updateHudObjectiveMarker(hud, player, context = {}) {
-    const objective = context?.objectiveTarget || null;
+    const objective = context?.objectiveTarget || resolveSeedRoomObjective(hud, player);
     if (!objective?.active || objective.phase === 'GOAL' || objective.phase === 'DESTROYED') {
         hud._setClassFlag(hud.objectiveReticle, 'hidden', true);
         return;
@@ -36,7 +55,8 @@ export function updateHudObjectiveMarker(hud, player, context = {}) {
         (Number(objective?.position?.y) || 0) + 3,
         Number(objective?.position?.z) || 0,
     );
-    hud._setText(hud.objectiveLabel, player?.teamId === 'BRAVO' ? 'ZERSTÖREN' : 'SCHÜTZEN');
+    hud._setText(hud.objectiveLabel, objective.label
+        || (player?.teamId === 'BRAVO' ? 'ZERSTÖREN' : 'SCHÜTZEN'));
     hud._setText(hud.objectiveDistance, `${Math.round(hud._playerPosition.distanceTo(hud._targetPosition))}m`);
     hud._vec.copy(hud._targetPosition).project(camera);
     const width = hud.container.clientWidth;

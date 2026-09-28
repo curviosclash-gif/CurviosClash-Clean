@@ -221,14 +221,25 @@ test('the HUD projection reports seed progress and announces the open portal', (
         dandelionSeeds: { total: 220, released: 137, allReleased: false },
     });
     assert.deepEqual(partial.dandelionSeeds, {
-        active: true, total: 220, released: 137, remaining: 83,
-        allReleased: false, completedAtSeconds: 0,
+        active: true, source: 'dandelionSeeds', total: 220, released: 137, remaining: 83,
+        allReleased: false, completedAtSeconds: 0, portalOpen: false, portalPosition: null,
     });
-    assert.equal(formatDandelionSeedStatus(partial.dandelionSeeds), 'PUSTEBLUME · 137/220 SAMEN');
+    assert.equal(formatDandelionSeedStatus(partial.dandelionSeeds),
+        'PUSTEBLUME · 137/220 SAMEN → WURZELKAMMER');
 
     const complete = createMatchRuntimePlayerProjection({
         playerIndex: 0,
         dandelionSeeds: { total: 220, released: 220, allReleased: true, completedAtSeconds: 42 },
     });
-    assert.equal(formatDandelionSeedStatus(complete.dandelionSeeds), 'ALLE SAMEN GELÖST · PORTAL OFFEN');
+    assert.equal(formatDandelionSeedStatus(complete.dandelionSeeds), 'ALLE SAMEN GELÖST · PORTAL ÖFFNET');
+
+    const open = createMatchRuntimePlayerProjection({
+        playerIndex: 0,
+        dandelionSeeds: {
+            total: 220, released: 220, allReleased: true, completedAtSeconds: 42,
+            portalOpen: true, portalPosition: { x: 117, y: 954, z: 0 },
+        },
+    });
+    assert.equal(formatDandelionSeedStatus(open.dandelionSeeds), 'PORTAL OFFEN · WURZELKAMMER');
+    assert.deepEqual(open.dandelionSeeds.portalPosition, { x: 117, y: 954, z: 0 });
 });
