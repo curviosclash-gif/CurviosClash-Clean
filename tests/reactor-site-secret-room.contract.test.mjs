@@ -108,20 +108,19 @@ test('T-S38a: the reactor site carries exactly one secret room with the agreed t
     // one of them: whichever breaks first opens the portal, four seconds later.
     assert.equal(ROOM.unlock.when, 'anyBreak');
     assert.equal(ROOM.unlock.delaySeconds, 4);
-    // User decision 28.09.2026: twice the ten points of the first version, plus the bomber strike
-    // and the lightning, each with one more free draw beside it.
-    assert.equal(ROOM.items.length, 24, `items: ${ROOM.items.length}`);
+    // Two layers of twenty-four points preserve the room's balance of random and fixed pickups.
+    assert.equal(ROOM.items.length, 48, `items: ${ROOM.items.length}`);
     const untyped = ROOM.items.filter((item) => !item.type).length;
     assert.ok(untyped * 2 >= ROOM.items.length, `untyped item points: ${untyped}`);
 });
 
-test('T-S38j: the doubled bunker holds one fixed bomber strike the room modes can spawn', () => {
-    // User decision 28.09.2026: the room doubles in width and depth; its height stays.
+test('T-S38j: the enlarged bunker holds two fixed bomber strikes the room modes can spawn', () => {
+    // The bunker keeps its enlarged footprint and now doubles height and item stock as well.
     assert.equal(ROOM.bounds.max[0] - ROOM.bounds.min[0], 80);
     assert.equal(ROOM.bounds.max[2] - ROOM.bounds.min[2], 80);
-    assert.equal(ROOM.bounds.max[1] - ROOM.bounds.min[1], 12);
+    assert.equal(ROOM.bounds.max[1] - ROOM.bounds.min[1], 24);
     const bombers = ROOM.items.filter((item) => item.type === 'BOMBER_STRIKE');
-    assert.equal(bombers.length, 1, 'exactly one fixed bomber strike');
+    assert.equal(bombers.length, 2, 'exactly two fixed bomber strikes');
     // A type the mode cannot spawn silently becomes a random draw at runtime
     // (SecretRoomRefillOps), so the fixed bomber only holds where both room modes allow it.
     for (const mode of ROOM.modes) {
