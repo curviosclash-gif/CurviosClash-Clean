@@ -116,6 +116,7 @@ export function resolveSurfaceMenuState(settings = {}, options = {}) {
 
     const maps = options?.maps && typeof options.maps === 'object' ? options.maps : null;
     const requestedMapKey = normalizeString(settings?.mapKey, '');
+    const gameMode = normalizeString(settings?.gameMode, '');
     const requestedMapDefinition = requestedMapKey && maps ? maps[requestedMapKey] : null;
     const requestedMapAllowed = (
         requestedMapKey === 'custom'
@@ -124,18 +125,18 @@ export function resolveSurfaceMenuState(settings = {}, options = {}) {
         || (
             requestedMapKey
             && !!requestedMapDefinition
-            && isMapEligibleForModePath(requestedMapDefinition, modePath)
+            && isMapEligibleForModePath(requestedMapDefinition, modePath, gameMode)
             && isSurfaceMapKeyAllowedForModePath(requestedMapKey, modePath, { productSurfaceId })
         );
     const surfaceAllowedMapKeys = listSurfaceAllowedMapKeysForModePath(modePath, { productSurfaceId });
     const fallbackMapKey = maps
         ? (
             surfaceAllowedMapKeys
-                .find((mapKey) => maps?.[mapKey] && isMapEligibleForModePath(maps[mapKey], modePath))
+                .find((mapKey) => maps?.[mapKey] && isMapEligibleForModePath(maps[mapKey], modePath, gameMode))
             || (
                 resolveSurfacePolicy({ productSurfaceId }).requiresCuratedMaps === true
                     ? normalizeString(surfaceAllowedMapKeys[0], '')
-                    : resolveModePathFallbackMapKey(maps, modePath, requestedMapKey || 'standard')
+                    : resolveModePathFallbackMapKey(maps, modePath, requestedMapKey || 'standard', gameMode)
             )
         )
         : requestedMapKey;

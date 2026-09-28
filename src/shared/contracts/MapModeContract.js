@@ -40,33 +40,76 @@ export function isParcoursActiveForGameMode(mapDefinition, gameMode) {
     return listParcoursGameModes(mapDefinition.parcours).includes(normalizeGameModeId(gameMode));
 }
 
-export function isMapEligibleForModePath(mapDefinition, modePath) {
-    // Keep mode-path normalization for contract compatibility, but map eligibility
-    // is intentionally mode-agnostic: every valid map can run in every mode path.
-    normalizeModePath(modePath);
-    return !!(mapDefinition && typeof mapDefinition === 'object');
+const MAP_GAME_MODES = new Set(['CLASSIC', 'HUNT', 'ESCORT', 'ARCADE']);
+const NO_EXCLUDED_GAME_MODES = Object.freeze([]);
+// Every mode path but the quick start pins its game mode; the quick start keeps the one set.
+/** @type {Readonly<Record<string, string>>} */
+const MODE_PATH_GAME_MODES = Object.freeze({ normal: 'CLASSIC', fight: 'HUNT', arcade: 'ARCADE' });
+
+/**
+ * Game modes a map is authored out of (`excludedModes`); unknown entries drop out.
+ *
+ * @param {unknown} mapDefinition
+ * @returns {readonly string[]}
+ */
+export function listMapExcludedGameModes(mapDefinition) {
+    const source = mapDefinition && typeof mapDefinition === 'object'
+        ? /** @type {{ excludedModes?: unknown }} */ (mapDefinition).excludedModes
+        : null;
+    if (!Array.isArray(source) || source.length === 0) return NO_EXCLUDED_GAME_MODES;
+    const modes = source
+        .map((mode) => (typeof mode === 'string' ? mode.trim().toUpperCase() : ''))
+        .filter((mode) => MAP_GAME_MODES.has(mode));
+    return modes.length > 0 ? Object.freeze([...new Set(modes)]) : NO_EXCLUDED_GAME_MODES;
 }
 
+/**
+ * @param {unknown} mapDefinition
+ * @param {string} modePath
+ * @param {string} [gameMode] Only read for the quick start, whose path does not pin a mode.
+ * @returns {boolean}
+ */
+export function isMapEligibleForModePath(mapDefinition, modePath, gameMode = '') {
+    if (!mapDefinition || typeof mapDefinition !== 'object') return false;
+    // Apart from authored exclusions, every valid map can run in every mode path.
+    const resolvedGameMode = MODE_PATH_GAME_MODES[normalizeModePath(modePath)]
+        || normalizeString(gameMode, '').toUpperCase();
+    return !resolvedGameMode || !listMapExcludedGameModes(mapDefinition).includes(resolvedGameMode);
+}
+
+/**
+ * @param {unknown} maps
+ * @param {string} modePath
+ * @param {{ includeCustom?: boolean, gameMode?: string }} [options]
+ * @returns {string[]}
+ */
 export function listEligibleMapKeysForModePath(maps, modePath, options = {}) {
     const includeCustom = options?.includeCustom === true;
-    const sourceMaps = maps && typeof maps === 'object' ? maps : {};
+    const sourceMaps = /** @type {Record<string, unknown>} */ (maps && typeof maps === 'object' ? maps : {});
     return Object.keys(sourceMaps)
         .filter((mapKey) => {
             const normalizedMapKey = normalizeString(mapKey, '');
             if (!normalizedMapKey) return false;
             if (normalizedMapKey === 'custom' && !includeCustom) return false;
-            return isMapEligibleForModePath(sourceMaps[normalizedMapKey], modePath);
+            return isMapEligibleForModePath(sourceMaps[normalizedMapKey], modePath, options?.gameMode);
         });
 }
 
-export function resolveModePathFallbackMapKey(maps, modePath, currentMapKey = '') {
-    const sourceMaps = maps && typeof maps === 'object' ? maps : {};
+/**
+ * @param {unknown} maps
+ * @param {string} modePath
+ * @param {string} [currentMapKey]
+ * @param {string} [gameMode]
+ * @returns {string}
+ */
+export function resolveModePathFallbackMapKey(maps, modePath, currentMapKey = '', gameMode = '') {
+    const sourceMaps = /** @type {Record<string, unknown>} */ (maps && typeof maps === 'object' ? maps : {});
     const normalizedCurrentMapKey = normalizeString(currentMapKey, '');
-    if (normalizedCurrentMapKey && isMapEligibleForModePath(sourceMaps[normalizedCurrentMapKey], modePath)) {
+    if (normalizedCurrentMapKey && isMapEligibleForModePath(sourceMaps[normalizedCurrentMapKey], modePath, gameMode)) {
         return normalizedCurrentMapKey;
     }
 
-    const eligibleKeys = listEligibleMapKeysForModePath(sourceMaps, modePath);
+    const eligibleKeys = listEligibleMapKeysForModePath(sourceMaps, modePath, { gameMode });
     if (eligibleKeys.length === 0) {
         return sourceMaps.standard ? 'standard' : normalizeString(Object.keys(sourceMaps)[0], 'standard');
     }
