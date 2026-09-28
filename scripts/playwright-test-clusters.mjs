@@ -144,6 +144,7 @@ export const DESKTOP_FLOWS_MAP_BOUND_SPECS = Object.freeze({
     'tests/storm-lighthouse.desktop.spec.js': ['storm_lighthouse_siege'],
     'tests/sky-dome-gradient.desktop.spec.js': ['eiffel_tower'],
     'tests/canyon-sandstorm.desktop.spec.js': ['clockwork_canyon'],
+    'tests/sky-ladder.desktop.spec.js': ['sky_ladder', 'standard'],
 });
 
 export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([
