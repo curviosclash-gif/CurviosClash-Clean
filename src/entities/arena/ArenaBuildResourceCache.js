@@ -183,6 +183,35 @@ function hashString(input = '') {
     return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
+const MAP_FLOOR_MATERIAL_CACHE = new Map();
+
+/**
+ * A map can swap the technical checker floor for a plain surface of its own (a meadow under a
+ * flower, say). Materials are shared per look like the checker bundle, never disposed per build.
+ * @param {{ color?: unknown, roughness?: unknown } | null | undefined} floorAppearance
+ * @returns {THREE.MeshStandardMaterial | null} Null keeps the checker floor.
+ */
+export function getMapFloorMaterial(floorAppearance) {
+    const color = Number(floorAppearance?.color);
+    if (!Number.isInteger(color) || color < 0 || color > 0xffffff) return null;
+    const rawRoughness = Number(floorAppearance?.roughness);
+    const roughness = Number.isFinite(rawRoughness) ? Math.min(1, Math.max(0, rawRoughness)) : 0.95;
+    const key = `${color}|${round2(roughness)}`;
+    let material = MAP_FLOOR_MATERIAL_CACHE.get(key);
+    if (!material) {
+        material = new THREE.MeshStandardMaterial({
+            color,
+            roughness,
+            metalness: 0,
+            // Same horizon release as the checker floor, so the far edge still fades into the sky.
+            transparent: true,
+            defines: { ATMOSPHERIC_FOG_ALPHA_FADE: 1 },
+        });
+        MAP_FLOOR_MATERIAL_CACHE.set(key, material);
+    }
+    return material;
+}
+
 export function createArenaMapFingerprint(map) {
     return hashString(stableSerialize(map && typeof map === 'object' ? map : null));
 }
