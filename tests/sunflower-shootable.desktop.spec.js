@@ -4,7 +4,6 @@ import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
 
 const MAP_KEY = 'dandelion_sky';
-const PREVIEW_DIR = path.resolve('assets/models/sunflower/blender/previews');
 const GLB_PATH = path.resolve('assets/models/sunflower/sunflower_shootable.glb');
 
 async function startSunflowerFight(page) {
@@ -28,7 +27,7 @@ async function startSunflowerFight(page) {
     }, MAP_KEY, { timeout: 120_000 });
 }
 
-async function captureCanvas(page, filename) {
+async function captureCanvas(page, filePath) {
     const image = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
         const qa = window.__sunflowerDesktopQa;
@@ -41,7 +40,6 @@ async function captureCanvas(page, filename) {
         game.renderer.render();
         return game.renderer.canvas.toDataURL('image/png').split(',')[1];
     });
-    const filePath = path.join(PREVIEW_DIR, filename);
     await writeFile(filePath, Buffer.from(image, 'base64'));
     return filePath;
 }
@@ -170,7 +168,7 @@ test('desktop MG shots remove two adjacent sunflower kernels and leave visible g
     expect(metrics.renderBatch.instances).toBe(220);
     expect(metrics.renderBatch.estimatedDrawCalls).toBeLessThanOrEqual(12);
     expect(metrics.adjacentIndices[1]).toBe(metrics.adjacentIndices[0] + 1);
-    const initialView = await captureCanvas(page, 'sunflower_desktop_game_camera.png');
+    const initialView = await captureCanvas(page, testInfo.outputPath('sunflower_desktop_game_camera.png'));
     await testInfo.attach('game-camera-at-map-spawn', { path: initialView, contentType: 'image/png' });
 
     const firstShot = await page.evaluate(() => {
@@ -211,7 +209,7 @@ test('desktop MG shots remove two adjacent sunflower kernels and leave visible g
     expect(firstShot.event[0]).toBe(firstShot.expectedIndex);
     expect(firstShot.parentRole).toBe('sunflower_kernel_flight_root');
     expect(firstShot.gapTravel).toBeGreaterThan(0.5);
-    const firstView = path.join(PREVIEW_DIR, 'sunflower_desktop_one_kernel_removed.png');
+    const firstView = testInfo.outputPath('sunflower_desktop_one_kernel_removed.png');
     await writeFile(firstView, Buffer.from(firstShot.image, 'base64'));
     await testInfo.attach('one-kernel-in-flight-gap-open', { path: firstView, contentType: 'image/png' });
 
@@ -256,7 +254,7 @@ test('desktop MG shots remove two adjacent sunflower kernels and leave visible g
     expect(secondShot.parentRole).toBe('sunflower_kernel_flight_root');
     expect(secondShot.gapTravel).toBeGreaterThan(0.5);
     expect(secondShot.releasedIndices).toEqual(metrics.adjacentIndices);
-    const secondView = path.join(PREVIEW_DIR, 'sunflower_desktop_two_kernels_removed.png');
+    const secondView = testInfo.outputPath('sunflower_desktop_two_kernels_removed.png');
     await writeFile(secondView, Buffer.from(secondShot.image, 'base64'));
     await testInfo.attach('two-adjacent-kernel-gaps-open', { path: secondView, contentType: 'image/png' });
     console.log(JSON.stringify({ sunflowerDesktopMetrics: metrics,
