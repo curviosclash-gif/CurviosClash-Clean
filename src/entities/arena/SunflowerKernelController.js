@@ -118,6 +118,8 @@ export class SunflowerKernelController {
             this.byIndex.set(index, kernel);
         });
         this.kernels.sort((a, b) => a.index - b.index);
+        // Refreshing just these keeps a shot from walking every node of the map it sits in.
+        this._kernelParents = [...new Set(this.kernels.map((kernel) => kernel.homeParent))];
         if (this.kernels.length === 0) {
             this.flightRoot = null;
             this._renderBatch = null;
@@ -182,9 +184,9 @@ export class SunflowerKernelController {
     /** Nearest attached kernel on a coarse-tested head, using each achene's transformed ellipsoid. */
     raycast(origin, direction, maxDistance, padding = 0) {
         if (!origin || !direction || !(maxDistance > 0) || this.kernels.length === 0) return null;
-        this.scene?.updateWorldMatrix?.(true, true);
         let headCandidate = false;
         for (const head of this.heads) {
+            head.node.updateWorldMatrix(true, false);
             head.node.getWorldPosition(this._center);
             matrixWorldScale(head.node, this._scale);
             const radius = head.radius * Math.max(this._scale.x, this._scale.y, this._scale.z);
@@ -194,6 +196,7 @@ export class SunflowerKernelController {
             }
         }
         if (!headCandidate) return null;
+        this._refreshKernelTransforms();
 
         let nearest = null;
         let distance = maxDistance;
@@ -218,7 +221,7 @@ export class SunflowerKernelController {
     releaseByName(name, seconds, hitDirection = null) {
         const kernel = this.byName.get(String(name || ''));
         if (!kernel || kernel.releasedAt !== null) return false;
-        this.scene?.updateWorldMatrix?.(true, true);
+        this._refreshKernelTransforms();
         const at = Math.round(Math.max(0, Number(seconds) || 0) * 1000) / 1000;
         kernel.releasedAt = at;
         kernel.worldStart.copy(kernel.node.getWorldPosition(this._center));
@@ -288,6 +291,10 @@ export class SunflowerKernelController {
             this._renderBatch?.updateSeed(kernel, true, true);
         }
         this._renderBatch?.commit();
+    }
+
+    _refreshKernelTransforms() {
+        for (const parent of this._kernelParents) parent.updateWorldMatrix(true, true);
     }
 
     _returnToAttachment(kernel, visible) {

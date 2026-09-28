@@ -221,6 +221,26 @@ test('targeted hits leave neighboring kernels available and close misses release
     assert.equal(controller.kernels[2].node.parent, controller.heads[0].node);
 });
 
+test('a shot that misses the head never refreshes the whole map scene', () => {
+    const { scene, plant, kernels } = makeSunflowerScene();
+    const controller = new SunflowerKernelController(scene);
+    let fullRefreshes = 0;
+    const refresh = scene.updateWorldMatrix.bind(scene);
+    scene.updateWorldMatrix = (updateParents, updateChildren) => {
+        if (updateChildren) fullRefreshes += 1;
+        return refresh(updateParents, updateChildren);
+    };
+    const miss = controller.raycast(new THREE.Vector3(50, 50, 50), new THREE.Vector3(0, 1, 0), 30);
+    assert.equal(miss, null);
+    assert.equal(fullRefreshes, 0, 'every shot on the map would otherwise walk every node');
+
+    plant.position.x += 5;
+    // frontRayFor reads the kernel's refreshed world position, so the ray aims at the new spot.
+    const ray = frontRayFor(kernels[0]);
+    assert.equal(controller.raycast(ray.origin, ray.direction, 12)?.kernelIndex, 1,
+        'a moved plant is still hit where it now stands');
+});
+
 test('MG and projectile hit resolution release the exact kernel and pass their hit direction', () => {
     const { scene, kernels } = makeSunflowerScene();
     const controller = new SunflowerKernelController(scene);
