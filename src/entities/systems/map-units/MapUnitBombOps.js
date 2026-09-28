@@ -38,5 +38,6 @@ export function updateBomberBombs(system, unit, dt, canFire) {
     unit.bombsFired += 1;
     system.entityManager?.particles?.spawnExplosion?.(impactPoint, BOMB_COLOR, {
         cause: 'PROJECTILE', projectileType: 'BOMBER_BOMB',
+        kind: 'bomb',
     });
 }

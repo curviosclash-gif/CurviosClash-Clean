@@ -199,6 +199,7 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
             // Only the picture: damage, loot and credit already happened on the host.
             system.entityManager?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, {
                 cause: 'PROJECTILE', projectileType: unit.hydra ? 'HYDRA_DEATH' : 'ROCKET_HEAVY',
+                kind: unit.kind === 'bomber' ? 'bomber-crash' : unit.hydra ? 'death' : 'ground-unit', large: unit.scale >= 1,
             });
             spawnMapUnitWreck(system, unit);
         }

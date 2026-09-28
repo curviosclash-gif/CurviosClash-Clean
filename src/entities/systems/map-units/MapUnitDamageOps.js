@@ -139,6 +139,7 @@ export function destroyMapUnit(system, unit, sourcePlayer) {
     spawnMapUnitWreck(system, unit);
     owner?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, {
         cause: 'PROJECTILE', projectileType: unit.hydra ? 'HYDRA_DEATH' : 'ROCKET_HEAVY',
+        kind: unit.hydra ? 'death' : 'ground-unit', large: unit.scale >= 1,
     });
     owner?.audio?.play?.('HIT', { intensity: 1 });
     owner?.recorder?.logEvent?.(

@@ -46,6 +46,9 @@ export class ProjectileStatePool {
             turretTargeting: null,
             sourceTurretId: '',
             detonated: false,
+            explosionContact: { hit: false, normal: new THREE.Vector3(), dust: false },
+            explosionKind: '',
+            suppressExplosionPresentation: false,
             huntRocket: false,
             homingEnabled: false,
             itemHomingProfile: false,
@@ -109,6 +112,11 @@ export class ProjectileStatePool {
         projectile.turretTargeting = null;
         projectile.sourceTurretId = '';
         projectile.detonated = false;
+        projectile.explosionContact.hit = false;
+        projectile.explosionContact.normal.set(0, 0, 0);
+        projectile.explosionContact.dust = false;
+        projectile.explosionKind = '';
+        projectile.suppressExplosionPresentation = false;
         projectile.huntRocket = false;
         projectile.homingEnabled = false;
         projectile.itemHomingProfile = false;

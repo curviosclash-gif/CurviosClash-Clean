@@ -202,6 +202,8 @@ export function resolveInterceptHit(system, projectile, hitResolver) {
         start.z + (projectile.position.z - start.z) * approach.alongFirst,
     );
     projectile.mesh?.position.copy(projectile.position);
+    projectile.suppressExplosionPresentation = true;
+    target.suppressExplosionPresentation = true;
     hitResolver?.detonateProjectile?.(projectile, projectile.position);
     hitResolver?.detonateProjectile?.(target, projectile.position);
     const targetIndex = system.projectiles.indexOf(target);
@@ -223,6 +225,7 @@ export function interceptRocket(system, target, defender, interceptor = null) {
         || target.isInterceptor === true || !isRocketTierType(target.type)) return false;
     const index = system.projectiles?.indexOf(target) ?? -1;
     if (index < 0) return false;
+    target.suppressExplosionPresentation = true;
     system._hitResolver?.detonateProjectile?.(target, target.position);
     system.onRocketIntercepted?.({ defender, interceptor, target, position: target.position });
     const liveIndex = system.projectiles.indexOf(target);
