@@ -25,6 +25,7 @@ import {
     up,
     across,
     REACTOR_MAP_SIZE,
+    REACTOR_HALF_SIZE,
     REACTOR_SITE_OBSTACLES,
     REACTOR_SITE_GATES,
     REACTOR_SITE_ITEMS,
@@ -52,8 +53,16 @@ export const REACTOR_SITE_MAPS = {
             // the playable volume of the room stays free of it - see ReactorSiteSecretRoom.js.
             ...REACTOR_SITE_SECRET_ROOM_OBSTACLES,
         ],
-        // No portals: every one of them would end somewhere a collapse can take away.
-        portals: [],
+        // A fixed way out from the reactor hall reaches a safe site edge beyond every collapse.
+        // The separate bunker portal pair remains owned by SecretRoomSystem.
+        portals: [{
+            // Keep the entry inside the containment ring and outside both the pedestal and
+            // the fuel-rod radiation radius. The layout builder may rescue blocked entries,
+            // so author the endpoint in the clear central hall instead of on its outer wall.
+            a: [0, 14, 13.2],
+            b: [0, up(10), REACTOR_HALF_SIZE - 9],
+            color: 0x66ddff,
+        }],
         // Breaking any part of the plant opens a portal north of the containment four seconds
         // later. What it leads to, and the three emplacements guarding it, live in
         // ReactorSiteSecretRoom.js.
@@ -65,6 +74,27 @@ export const REACTOR_SITE_MAPS = {
         // the placements below and scatter pickups across the field instead.
         itemSpawnMode: 'hybrid',
         items: REACTOR_SITE_ITEMS,
+        // These two HUNT prizes are map-owned rather than weight-rolled from the hybrid field.
+        // Their lifetime ends with containment, and the ordinary powerup snapshot carries that
+        // host-side removal to every replica.
+        mapOwnedPickups: [
+            { id: 'rs_bomber_strike_core', pickupType: 'BOMBER_STRIKE', x: 0, y: up(8), z: -across(14),
+                despawnOnBreakSegment: 'reactor_dome' },
+            { id: 'rs_lightning_core', pickupType: 'LIGHTNING', x: 0, y: up(10), z: across(14),
+                despawnOnBreakSegment: 'reactor_dome' },
+        ],
+        mapProximityDamage: [{
+            id: 'reactor_fuel_rods_radiation',
+            position: [0, up(8.1), 0],
+            radius: 12,
+            nearDamagePerSecond: 2,
+            farDamagePerSecond: 0.5,
+            modes: ['HUNT', 'ARCADE'],
+        }],
+        permanentWaterZones: [
+            { id: 'reactor_basin_west', center: [-63, 0], radius: 24.5, floorLevel: 2, surfaceLevel: 8.1 },
+            { id: 'reactor_basin_east', center: [63, 0], radius: 24.5, floorLevel: 2, surfaceLevel: 8.1 },
+        ],
         glbModels: [
             ...REACTOR_SITE_MODELS,
             ...REACTOR_SITE_PROP_MODELS,
@@ -78,17 +108,22 @@ export const REACTOR_SITE_MAPS = {
         glbAuthoredObstaclesCollisionOnly: true,
         glbLoadConcurrency: 3,
         destructibles: REACTOR_SITE_DESTRUCTIBLES,
-        lights: [{ id: 'reactor_fire', x: 0, y: up(35), z: 0,
-            color: 0xff6a24, intensity: 1800, distance: 32 }],
+        lights: [{ id: 'reactor_fire', x: 0, y: up(8.1), z: 0,
+            color: 0xff5a1e, intensity: 5200, distance: 48 }],
+        mapDestructibleGlow: {
+            segmentId: 'reactor_dome', modelId: 'reactor-site',
+            meshNames: ['reactor_fuel_core', 'reactor_fuel_rods'],
+            emissive: 0xff5a1e, emissiveIntensity: 8,
+        },
         fireFxActivationSegmentId: 'reactor_dome',
         fireFx: {
             emitters: [
-                { position: [-10, up(31), -7], radius: 7, smokeHeight: 35, emberHeight: 20, phase: 0.1 },
-                { position: [10, up(34), 4], radius: 8, smokeHeight: 40, emberHeight: 23, phase: 0.45 },
-                { position: [0, up(38), 10], radius: 6, smokeHeight: 32, emberHeight: 19, phase: 0.8 },
+                { position: [-4, up(9), -3], radius: 3, smokeHeight: 10, emberHeight: 6, phase: 0.1 },
+                { position: [4, up(10), 2], radius: 3.5, smokeHeight: 12, emberHeight: 7, phase: 0.45 },
+                { position: [0, up(11), 5], radius: 3, smokeHeight: 9, emberHeight: 6, phase: 0.8 },
             ],
-            smoke: { count: 48, color: 0x221b19, size: 9, lifetime: 9, opacity: 0.34 },
-            embers: { count: 96, color: 0xff6820, size: 1.2, lifetime: 2.8, opacity: 0.95 },
+            smoke: { count: 36, color: 0x221b19, size: 5, lifetime: 7, opacity: 0.28 },
+            embers: { count: 96, color: 0xff9a24, size: 1, lifetime: 2.2, opacity: 1 },
             ash: { count: 0 },
             wind: [-1.2, 0.8, 0.6],
             flicker: [{ lightId: 'reactor_fire', amplitude: 0.18, frequency: 1.6 }],
