@@ -233,6 +233,30 @@ test('recordings render the storm fog of the player they follow', () => {
     assert.equal(renderer.scene.fog.far, 560, 'the live fog is restored after every capture view');
 });
 
+test('the motion cue points at enemies hidden in the storm, not only at visible ones', () => {
+    // The cue exists for what the fog hides. Capping it at the outdoor view (12 m on the pyramid)
+    // made it point only at enemies the player could already see.
+    const config = MAP_PRESET_CATALOG.pyramid.sandstorm;
+    const normalized = normalizeMapSandstorm(config);
+    assert.equal(normalized.outdoorFar, 12);
+    assert.equal(normalized.proximityCueRange, 18, 'the authored cue range survives normalisation');
+    assert.equal(normalizeMapSandstorm({ ...config, proximityCueRange: 400 }).proximityCueRange,
+        normalized.shelterFar, 'but never reaches beyond the widest storm view');
+
+    const { owner, system } = createOwner(9);
+    owner.arena.currentMapDefinition.sandstorm = config;
+    owner.arena.currentMapDefinition.scaleAuthoredAnchors = false;
+    system.startRound();
+    system.applyNetworkSnapshot({
+        enabled: true, phase: 'ACTIVE', remainingSeconds: 30, eventIndex: 1, directionIndex: 0, intensity: 1,
+    });
+    const observer = { alive: true, index: 0, position: new THREE.Vector3(100, 10, 100), teamId: 'alpha' };
+    const hidden = { alive: true, index: 1, position: new THREE.Vector3(115, 10, 100), teamId: 'bravo' };
+    owner.players = [observer, hidden];
+    assert.equal(system.isPositionVisible(observer.position, hidden.position), false, 'the enemy is lost in the storm');
+    assert.equal(system.getProximityCue(observer, owner.players)?.active, true, 'yet the cue still points at it');
+});
+
 test('replay interpolates time only within one event and keeps phases and directions discrete', () => {
     const projection = { players: [], localPlayerIndex: 0, localHumanCount: 1 };
     const warning = {

@@ -88,7 +88,8 @@ export function normalizeMapSandstorm(value = null) {
         outdoorFar,
         shelterNear: clamp(value.shelterNear, 18, 0, shelterFar),
         shelterFar,
-        proximityCueRange: clamp(value.proximityCueRange, 18, 0, outdoorFar),
+        // The cue is for what the fog hides, so it may reach past the outdoor view.
+        proximityCueRange: clamp(value.proximityCueRange, 18, 0, shelterFar),
         shelterVolumes: Object.freeze(shelterVolumes),
     });
     NORMALIZED_CONFIGS.add(normalized);
