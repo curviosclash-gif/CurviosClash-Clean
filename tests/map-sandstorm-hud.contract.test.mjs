@@ -9,7 +9,9 @@ function createStubElement() {
     const element = {
         children: [],
         style: {},
-        textContent: '',
+        _text: '',
+        set textContent(value) { element.writes += 1; element._text = String(value); },
+        get textContent() { return element._text; },
         attributes: {},
         set className(value) { classes.clear(); String(value).split(/\s+/).filter(Boolean).forEach((name) => classes.add(name)); },
         get className() { return [...classes].join(' '); },
@@ -19,7 +21,8 @@ function createStubElement() {
             contains: (name) => classes.has(name),
             toggle: (name, force) => ((force ?? !classes.has(name)) ? classes.add(name) : classes.delete(name)),
         },
-        setAttribute(name, value) { element.attributes[name] = String(value); },
+        setAttribute(name, value) { element.writes += 1; element.attributes[name] = String(value); },
+        writes: 0,
         append(...nodes) { element.children.push(...nodes); },
         appendChild(node) { element.children.push(node); return node; },
         remove() {},
@@ -49,6 +52,25 @@ function cueAnchors(localHumanCount, viewportLayout) {
         return hud.cues.map((cue) => [cue.root.style.left, cue.root.style.top]);
     });
 }
+
+test('the storm HUD leaves the page alone on frames where nothing changes', () => {
+    // It runs every frame on every map; calm maps must not rewrite the DOM sixty times a second.
+    withStubDocument(() => {
+        const hud = new MapSandstormHud(createStubElement());
+        const calm = { enabled: false, phase: 'CALM' };
+        hud.update(calm, null);
+        const afterFirstCalm = hud.root.writes;
+        for (let frame = 0; frame < 60; frame += 1) hud.update(calm, null);
+        assert.equal(hud.root.writes, afterFirstCalm, 'a calm map writes nothing after the first frame');
+
+        const warning = { enabled: true, phase: 'WARNING', remainingSeconds: 14.5 };
+        hud.update(warning, null);
+        const afterWarningStart = hud.root.writes;
+        for (let frame = 0; frame < 20; frame += 1) hud.update({ ...warning, remainingSeconds: 14.4 - frame * 0.01 }, null);
+        assert.equal(hud.root.writes, afterWarningStart, 'the same countdown second writes nothing again');
+        assert.equal(hud.root.textContent, 'Sandsturm in 15 Sekunden');
+    });
+});
 
 test('the storm motion cue sits over its own player view in every screen layout', () => {
     assert.deepEqual(cueAnchors(1, 'single'), [['50%', '18%']], 'one player: centred, not in the left half');
