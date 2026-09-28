@@ -44,6 +44,58 @@ test('shots hit the narrow seed body and shaft below the pappus crown', () => {
     assert.ok(hit.distance < 5);
 });
 
+test('a shot fired from inside a pappus crown passes through it to the next seed ahead', () => {
+    const controller = new DandelionSeedController(makeScene());
+    const inside = controller.seeds[0].tip.clone();
+    const hit = controller.raycast(inside, new THREE.Vector3(1, 0, 0), 10);
+    assert.equal(hit?.seedIndex, 2, 'the crown around the muzzle must not swallow the shot');
+    assert.ok(hit.distance > 1, `the shot should travel to the next crown, got ${hit?.distance}`);
+    assert.equal(controller.raycast(inside, new THREE.Vector3(0, 1, 0), 10), null,
+        'a shot leaving the only crown it starts in hits nothing');
+});
+
+function makeBatchedScene(count = 40) {
+    const scene = new THREE.Group();
+    const material = new THREE.MeshBasicMaterial();
+    for (let index = 1; index <= count; index += 1) {
+        const seed = new THREE.Group();
+        seed.name = `AttachedSeed_${String(index).padStart(3, '0')}_SHOOTABLE_nocol`;
+        seed.position.set(index * 3, 0, 0);
+        seed.userData = { role: 'shootable_seed', seed_index: index, pappus_height: 1.8 };
+        seed.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, 0.1), material));
+        scene.add(seed);
+    }
+    return scene;
+}
+
+test('a landed seed stops re-uploading its batch every frame', () => {
+    const controller = new DandelionSeedController(makeBatchedScene());
+    assert.equal(controller.getRenderBatchMetrics().enabled, true);
+    const seed = controller.seeds[0];
+    controller.releaseByName(seed.node.name, 0);
+    controller.update(30);
+    assert.equal(seed.visible, false);
+    const meshes = controller._renderBatch.root.children;
+    const versions = meshes.map((mesh) => mesh.instanceMatrix.version);
+    controller.update(31);
+    controller.update(32);
+    assert.deepEqual(meshes.map((mesh) => mesh.instanceMatrix.version), versions);
+});
+
+test('an airborne seed shrinks away at the end of its flight instead of vanishing', () => {
+    const controller = new DandelionSeedController(makeScene());
+    const seed = controller.seeds[0];
+    const restScale = seed.node.scale.x;
+    controller.releaseByName(seed.node.name, 0);
+    controller.update(10);
+    assert.equal(seed.node.scale.x, restScale, 'mid-flight seeds keep their size');
+    controller.update(17.5);
+    assert.ok(seed.node.scale.x > 0 && seed.node.scale.x < restScale * 0.5,
+        `the seed should be shrinking, got ${seed.node.scale.x}`);
+    controller.reset();
+    assert.equal(seed.node.scale.x, restScale, 'a new round restores the full seed');
+});
+
 test('wind changes slowly and release time changes the subsequent flight heading', () => {
     const earlyWind = dandelionWindAt(0);
     const laterWind = dandelionWindAt(90);
