@@ -9119,10 +9119,6 @@ body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
     transform-origin: center;
 }
 
-.sandstorm-proximity-cue.p1 { left: 25%; }
-.sandstorm-proximity-cue.p2 { left: 75%; }
-.sandstorm-proximity-cue.p3 { left: 25%; top: 68%; }
-.sandstorm-proximity-cue.p4 { left: 75%; top: 68%; }
 
 @keyframes sandstorm-cue-pulse {
     0%, 100% { opacity: 0.45; }

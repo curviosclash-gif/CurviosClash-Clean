@@ -19,7 +19,7 @@ import { CameraRigSystem } from './renderer/CameraRigSystem.js';
 import { RenderViewportSystem } from './renderer/RenderViewportSystem.js';
 import { SceneRootManager } from './renderer/SceneRootManager.js';
 import { RenderQualityController } from './renderer/RenderQualityController.js';
-import { RecordingCapturePipeline } from './renderer/RecordingCapturePipeline.js';
+import { RecordingCapturePipeline, createCaptureCameraHooks } from './renderer/RecordingCapturePipeline.js';
 import { ScenePostProcessingPipeline } from './renderer/ScenePostProcessingPipeline.js';
 import {
     GRAPHICS_STYLES,
@@ -39,7 +39,7 @@ import {
     createGlobalFogEffectState,
     resolveGlobalFogMapRange,
 } from '../shared/contracts/GlobalFogEffectContract.js';
-import { MAP_SANDSTORM_PHASES, createMapSandstormState } from '../shared/contracts/MapSandstormContract.js';
+import { MAP_SANDSTORM_PHASES, createMapSandstormState, resolveSandstormVisibilityRange } from '../shared/contracts/MapSandstormContract.js';
 
 export class Renderer {
     constructor(canvas) {
@@ -139,7 +139,7 @@ export class Renderer {
         this.recordingCapturePipeline = new RecordingCapturePipeline({
             sourceCanvas: this.canvas,
             sourceRenderer: this.renderer,
-            scene: this.scene,
+            scene: this.scene, ...createCaptureCameraHooks(this),
         });
 
         this._onWindowResize = () => this._onResize();
@@ -252,8 +252,12 @@ export class Renderer {
         this._mapSandstormRanges.shelterNear = Math.max(0, Number(source.shelterNear) || 0);
         this._mapSandstormRanges.shelterFar = Math.max(0, Number(source.shelterFar) || 0);
         const nextActive = this._mapSandstormEffect.phase === MAP_SANDSTORM_PHASES.ACTIVE;
-        this._mapSandstormLightingStep = Math.round(this._mapSandstormEffect.intensity * 20);
-        if (previousActive !== nextActive) this._applySceneAppearance();
+        // Clients and replays get every intensity step only through here, never via setMapSandstormIntensity.
+        const lightingStep = Math.round(this._mapSandstormEffect.intensity * 20);
+        const relight = previousActive !== nextActive || (nextActive && lightingStep !== this._mapSandstormLightingStep);
+        this._mapSandstormLightingStep = lightingStep;
+        // The reflection map (a PMREM rebuild) follows only at 0 %, 50 % and 100 %; light and fog take every step.
+        if (relight) this._applySceneAppearance(previousActive !== nextActive || lightingStep % 10 === 0);
         return { ...this._mapSandstormEffect };
     }
 
@@ -270,7 +274,7 @@ export class Renderer {
             && this._mapSandstormEffect.phase === MAP_SANDSTORM_PHASES.ACTIVE
         ) {
             this._mapSandstormLightingStep = lightingStep;
-            this._applySceneAppearance();
+            this._applySceneAppearance(lightingStep % 10 === 0);
         }
     }
 
@@ -298,15 +302,16 @@ export class Renderer {
         let near = this._renderFogNear;
         let far = this._renderFogFar;
         const stormActive = this._mapSandstormEffect?.phase === MAP_SANDSTORM_PHASES.ACTIVE;
-        const stormRange = Number(camera?.userData?.sandstormVisibilityRange);
+        // Player cameras always carry a range (Infinity = no player); a camera without one (a capture view) gets the outdoor storm.
+        const stormRange = Number(camera?.userData?.sandstormVisibilityRange ?? this._mapSandstormRanges.outdoorFar);
         if (stormActive && Number.isFinite(stormRange) && stormRange > 0) {
             const sheltered = stormRange > this._mapSandstormRanges.outdoorFar;
             const stormNear = sheltered
                 ? this._mapSandstormRanges.shelterNear
                 : this._mapSandstormRanges.outdoorNear;
             const intensity = Math.max(0, Math.min(1, Number(this._mapSandstormEffect.intensity) || 0));
-            far = Math.min(far, THREE.MathUtils.lerp(far, stormRange, intensity));
-            near = Math.min(near, THREE.MathUtils.lerp(near, stormNear, intensity));
+            far = resolveSandstormVisibilityRange(far, stormRange, intensity);
+            near = resolveSandstormVisibilityRange(near, stormNear, intensity);
         }
         const multiplier = Number(camera?.userData?.waterVisibilityMultiplier);
         if (Number.isFinite(multiplier) && multiplier < 1) {
