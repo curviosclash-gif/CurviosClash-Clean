@@ -13,9 +13,12 @@ import {
     acquirePlaywrightRunLock,
     enqueuePlaywrightRunLockTicket,
     readPlaywrightRunLock,
+    isLongPlaywrightRun,
     readPlaywrightRunLockQueue,
     resolvePlaywrightRunLockPath,
     resolvePlaywrightRunLockQueueDir,
+    resolveYieldQueueStamp,
+    yieldPlaywrightRunLock,
 } from '../scripts/playwright-run-lock.mjs';
 
 function createLockPath(name) {
@@ -400,6 +403,92 @@ test('playwright lock: tickets of dead waiters are skipped and removed', async (
         });
         assert.equal(lock.acquired, true, 'a dead ticket must not block the queue');
         assert.equal(readPlaywrightRunLockQueue(queueDir).length, 0, 'dead tickets are removed from the queue');
+        lock.release();
+    } finally {
+        cleanup(lockPath);
+    }
+});
+
+// 28.09.2026: ten stage-2 runs of two minutes each waited up to an hour behind one
+// seven-cluster run. A long run now lets the short runs that already wait go first
+// between two of its clusters; every run still has the GPU to itself.
+test('playwright lock: long runs are recognised by kind and by the labels of older wrappers', () => {
+    assert.equal(isLongPlaywrightRun({ kind: 'long', label: 'anything' }), true);
+    assert.equal(isLongPlaywrightRun({ label: 'desktop-e2e clusters core-surface,desktop-flows' }), true, 'cluster runner before the kind field');
+    assert.equal(isLongPlaywrightRun({ label: 'bot validation' }), true);
+    assert.equal(isLongPlaywrightRun({ label: 'desktop-e2e tests/physics-core.spec.js --grep T41:' }), false);
+    assert.equal(isLongPlaywrightRun({ kind: 'short', label: 'desktop-e2e clusters editor' }), false, 'an explicit kind wins');
+});
+
+test('playwright lock: the yield stamp lets the short runs ahead of the first long waiter go first', () => {
+    const short = (enqueuedAt) => ({ pid: enqueuedAt, enqueuedAt, label: 'desktop-e2e tests/x.spec.js' });
+    const long = (enqueuedAt) => ({ pid: enqueuedAt, enqueuedAt, label: 'desktop-e2e clusters editor', kind: 'long' });
+
+    assert.equal(resolveYieldQueueStamp([]), null, 'nobody waits: keep the lock');
+    assert.equal(resolveYieldQueueStamp([long(10), short(20)]), null, 'a long run waits first: keep the lock, it is next anyway');
+    assert.equal(resolveYieldQueueStamp([short(10), short(20)]), 21, 'all waiting short runs go first');
+    assert.equal(resolveYieldQueueStamp([short(10), long(15), short(20)]), 11, 'the long waiter keeps its place behind us; the late short run waits one cluster');
+});
+
+test('playwright lock: yielding hands the lock to a waiting short run and takes it back afterwards', async () => {
+    const lockPath = createLockPath('yield');
+    const queueDir = resolvePlaywrightRunLockQueueDir(lockPath);
+    const env = {};
+    const shortPid = 4343;
+    const events = [];
+    try {
+        const lock = await acquirePlaywrightRunLock({ label: 'desktop-e2e clusters a,b', kind: 'long', env, lockPath, log: quietLog });
+        enqueuePlaywrightRunLockTicket(queueDir, { pid: shortPid, label: 'desktop-e2e tests/x.spec.js --grep T1:', enqueuedAt: 1_000 });
+
+        let shortRan = false;
+        const result = await yieldPlaywrightRunLock(lock, {
+            label: 'desktop-e2e clusters a,b',
+            kind: 'long',
+            env,
+            lockPath,
+            pollMs: 1,
+            isAlive: () => true,
+            log: (message) => events.push(message),
+            // Stands in for the short run's own wrapper: it sees the free lock, runs and leaves.
+            sleep: async () => {
+                if (shortRan) return;
+                const queue = readPlaywrightRunLockQueue(queueDir, { isAlive: () => true });
+                assert.equal(queue[0].pid, shortPid, 'the short run is first in line');
+                assert.equal(fs.existsSync(lockPath), false, 'the lock is free while the short run is first');
+                fs.writeFileSync(lockPath, JSON.stringify({ pid: shortPid, label: 'short run', heartbeat: new Date().toISOString() }));
+                fs.unlinkSync(queue[0].path);
+                fs.unlinkSync(lockPath);
+                shortRan = true;
+            },
+        });
+
+        assert.equal(result.yielded, true);
+        assert.equal(shortRan, true, 'the short run got its turn');
+        assert.equal(readPlaywrightRunLock(lockPath).pid, process.pid, 'the long run holds the lock again');
+        assert.equal(readPlaywrightRunLock(lockPath).kind, 'long');
+        assert.equal(env[PLAYWRIGHT_RUN_LOCK_HOLDER_ENV], String(process.pid), 'children of the long run inherit again');
+        assert.ok(events.some((message) => message.includes('yielding to 1 short run')), `expected a yield line, got ${JSON.stringify(events)}`);
+        result.lock.release();
+    } finally {
+        cleanup(lockPath);
+    }
+});
+
+test('playwright lock: without short waiters, or for an inherited lock, yielding keeps the lock', async () => {
+    const lockPath = createLockPath('yield-none');
+    const queueDir = resolvePlaywrightRunLockQueueDir(lockPath);
+    const env = {};
+    try {
+        const lock = await acquirePlaywrightRunLock({ label: 'desktop-e2e clusters a,b', kind: 'long', env, lockPath, log: quietLog });
+        const kept = await yieldPlaywrightRunLock(lock, { env, lockPath, isAlive: () => true, log: quietLog });
+        assert.equal(kept.yielded, false);
+        assert.equal(kept.lock, lock);
+
+        enqueuePlaywrightRunLockTicket(queueDir, { pid: 4444, label: 'short', enqueuedAt: 1_000 });
+        const inherited = { acquired: true, inherited: true, disabled: false, release: () => {} };
+        const keptInherited = await yieldPlaywrightRunLock(inherited, { env, lockPath, isAlive: () => true, log: quietLog });
+        assert.equal(keptInherited.yielded, false, 'only the real holder may give the lock away');
+        assert.equal(readPlaywrightRunLock(lockPath).pid, process.pid);
         lock.release();
     } finally {
         cleanup(lockPath);

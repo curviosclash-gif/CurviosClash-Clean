@@ -33,11 +33,11 @@ import { up } from './ReactorSiteStructure.js';
 
 /**
  * Interior of the room. The ceiling is four map units below the arena floor. The first version was
- * 40 map units across; the user doubled width and depth on 28.09.2026 and kept the height.
+ * 40 map units across; width and depth are doubled, and the room now has twice its original height.
  */
 const ROOM_HALF = 40;
 const ROOM_CEILING = -4;
-const ROOM_FLOOR = -16;
+const ROOM_FLOOR = -28;
 
 const ROOM_BOUNDS = Object.freeze({
     min: Object.freeze([-ROOM_HALF, ROOM_FLOOR, -ROOM_HALF]),
@@ -95,11 +95,8 @@ export const REACTOR_SITE_SECRET_ROOM_TURRETS = Object.freeze([
     allowedModes: ['HUNT', 'ARCADE'],
 })));
 
-// Twenty-four item points at mid height. Half of them name no type on purpose: an unnamed point
-// draws from the mode's own weighted choice, so the room is worth entering twice. The named ones
-// are the plant's own flavour - shield, speed, ghost and the two heavier rockets a siege needs, each
-// twice since the room doubled - and the two prizes every secret room holds (user decision
-// 28.09.2026): the bomber strike under the rocket guard and a lightning beside it.
+// Two layers of twenty-four item points. Each layer keeps the same mix of random pickups and
+// plant prizes, including the bomber strike under the rocket guard and the lightning beside it.
 const ITEMS = Object.freeze([
     { pos: [-24, -10, -24] },
     { pos: [24, -10, -24] },
@@ -125,7 +122,10 @@ const ITEMS = Object.freeze([
     { pos: [-30, -10, -30], type: 'ROCKET_HEAVY' },
     { pos: [0, -10, 32], type: 'BOMBER_STRIKE' },
     { pos: [20, -10, 34], type: 'LIGHTNING' },
-]);
+].flatMap((item) => [
+    item,
+    { ...item, pos: [item.pos[0], item.pos[1] - ROOM_HEIGHT / 2, item.pos[2]] },
+]));
 
 export const REACTOR_SITE_SECRET_ROOM = Object.freeze({
     id: 'bunker',

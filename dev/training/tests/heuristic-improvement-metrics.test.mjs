@@ -48,11 +48,12 @@ test('engagement tracker reports how long a bot lets safety override its tactics
     assert.deepEqual(tracker.totals(3), { updates: 0, safetyUpdates: 0, shots: 0 });
 });
 
-test('engagement guard rejects a candidate that hides behind safety more than its reference', async () => {
+test('engagement guard anchors on the unchanged baseline bots, not on the moving candidate', async () => {
     const { retainsHeuristicEngagement } = await import('../scripts/heuristic-improvement-metrics.mjs');
-    const reference = { candidateSafetyShare: 0.5 };
-    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.5 }, reference), true);
-    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.52 }, reference), true);
-    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.6 }, reference), false);
-    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.3 }, reference), true);
+    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.74, baselineSafetyShare: 0.74 }), true);
+    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.76, baselineSafetyShare: 0.74 }), true);
+    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.6, baselineSafetyShare: 0.74 }), true);
+    // Ten accepted steps of +0.03 each must not add up: the anchor stays at the baseline bots.
+    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.8, baselineSafetyShare: 0.74 }), false);
+    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.5 }), false);
 });

@@ -31,7 +31,8 @@ export function createHeuristicLifeTracker() {
 }
 
 const SAFETY_STATES = new Set(['evade', 'recover']);
-// A candidate may not drift further into evasion than the profile it replaces.
+// A candidate may not evade more than the unchanged baseline bots it plays against.
+// Anchoring on the baseline (not on the last accepted candidate) keeps small steps from adding up.
 const SAFETY_SHARE_TOLERANCE = 0.03;
 
 export function createHeuristicEngagementTracker() {
@@ -51,6 +52,6 @@ export function createHeuristicEngagementTracker() {
     };
 }
 
-export function retainsHeuristicEngagement(candidate, reference) {
-    return Number(candidate?.candidateSafetyShare) <= Number(reference?.candidateSafetyShare) + SAFETY_SHARE_TOLERANCE;
+export function retainsHeuristicEngagement(result) {
+    return Number(result?.candidateSafetyShare) <= Number(result?.baselineSafetyShare) + SAFETY_SHARE_TOLERANCE;
 }
