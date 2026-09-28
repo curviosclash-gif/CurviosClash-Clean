@@ -146,6 +146,8 @@ Zuordnung nach geändertem Bereich (`npm run lint` gilt immer, `test:contract:fa
 
 Cluster (Stufe 3) werden mit `node scripts/run-playwright-targeted-clusters.mjs <cluster-id> --skip-known` gestartet.
 
+**`desktop-flows` nach Karte.** Holt eine Änderung `desktop-flows` nur über Kartendateien herein (ein Preset unter `src/core/config/maps/presets/<karte>` oder dessen Ordner in `assets/maps/`), nennt `select-verification.mjs` statt des Clusters eine Spec-Liste. Sie enthält die an diese Karten gebundenen Specs und **alle ungebundenen** (Rundgänge über alle Karten, Tests auf der Standardkarte). Ganz läuft der Cluster weiter bei geteiltem Code (Renderer, `GLBMapLoader`, Katalog, Sammel-Presets wie `arena_maps.js`), bei Asset-Ordnern ohne Besitzer, bei Karten ohne gebundene Spec und zusammen mit UI-Änderungen. Die Bindungen stehen in `DESKTOP_FLOWS_MAP_BOUND_SPECS` (`scripts/playwright-test-clusters.mjs`). Eine neue Karten-Spec dort eintragen, sonst bleibt ihre Karte beim ganzen Cluster. `tests/desktop-flows-map-bindings.contract.test.mjs` meldet jede Bindung, der eine benutzte Karte fehlt.
+
 ## Architektur
 
 Vanilla-JS-ESM ohne Framework, Three.js für das Rendering, Vite als Bundler. Die Schichtung wird nicht nur konventionell, sondern **maschinell erzwungen** (siehe unten).

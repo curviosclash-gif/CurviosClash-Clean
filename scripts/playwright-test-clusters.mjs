@@ -101,6 +101,48 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
     },
 ]);
 
+// desktop-flows specs that load only the named maps (file or folder names under
+// src/core/config/maps/presets). A change confined to map files then runs the bound specs of the
+// maps it reaches plus every spec NOT listed here; shared or unknown files still run the whole
+// cluster (.claude/skills/verify-scope/scripts/select-verification.mjs). Bind a spec only when it
+// never loads another map â€” tests/desktop-flows-map-bindings.contract.test.mjs checks the map
+// keys and asset packs it names. Unlisted is always safe: the spec then runs on every map change.
+export const DESKTOP_FLOWS_MAP_BOUND_SPECS = Object.freeze({
+    'tests/atmospheric-fog.desktop.spec.js': ['magma_maze', 'burg_falkenwacht'],
+    'tests/fog-edge-proof.desktop.spec.js': ['eiffel_tower'],
+    'tests/global-fog-pickup.desktop.spec.js': ['magma_maze', 'burg_falkenwacht'],
+    'tests/chrono-forge-nexus.desktop.spec.js': ['chrono_forge_nexus'],
+    'tests/crystal-ruins.desktop.spec.js': ['crystal_ruins'],
+    'tests/dandelion-collision.desktop.spec.js': ['dandelion_sky'],
+    'tests/sunflower-shootable.desktop.spec.js': ['dandelion_sky'],
+    'tests/eclipse-foundry.desktop.spec.js': ['eclipse_foundry'],
+    'tests/kinetic-tide-branches.desktop.spec.js': ['kinetic_tide'],
+    'tests/kinetic-tide.desktop.spec.js': ['kinetic_tide'],
+    'tests/magma-maze-pickups.desktop.spec.js': ['magma_maze'],
+    'tests/mushroom-proof.desktop.spec.js': ['crystal_ruins', 'verdant_aperture'],
+    'tests/verdant-aperture.desktop.spec.js': ['verdant_aperture'],
+    'tests/aetherion-orrery.desktop.spec.js': ['aetherion_orrery'],
+    'tests/notre-dame.desktop.spec.js': ['notre_dame'],
+    'tests/notre-dame-arena.desktop.spec.js': ['notre_dame'],
+    'tests/notre-dame-atmosphere.desktop.spec.js': ['notre_dame'],
+    'tests/notre-dame-fire.desktop.spec.js': ['notre_dame', 'notre_dame_fire'],
+    'tests/notre-dame-evolution.desktop.spec.js': ['notre_dame', 'standard'],
+    'tests/notre-dame-wall-approach.desktop.spec.js': ['notre_dame'],
+    'tests/eiffel-tower.desktop.spec.js': ['eiffel_tower', 'neon_abyss'],
+    'tests/eiffel-tower-siege.desktop.spec.js': ['eiffel_tower_siege'],
+    'tests/reactor-site.desktop.spec.js': ['reactor_site'],
+    'tests/reactor-cloud.desktop.spec.js': ['reactor_site'],
+    'tests/reactor-torus.desktop.spec.js': ['reactor_site'],
+    'tests/skyline-siege.desktop.spec.js': ['skyline_siege'],
+    'tests/giant-forest.desktop.spec.js': ['giant_forest'],
+    'tests/hydra-temple.desktop.spec.js': ['hydra_temple'],
+    'tests/storm-dam.desktop.spec.js': ['storm_dam_siege'],
+    'tests/falkenwacht.desktop.spec.js': ['burg_falkenwacht', 'notre_dame'],
+    'tests/falkenwacht-grain-proof.desktop.spec.js': ['burg_falkenwacht'],
+    'tests/storm-lighthouse.desktop.spec.js': ['storm_lighthouse_siege'],
+    'tests/sky-dome-gradient.desktop.spec.js': ['eiffel_tower'],
+});
+
 export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([
     { id: 'physics-core', specs: ['tests/physics-core.spec.js'] },
     { id: 'physics-hunt', specs: ['tests/physics-hunt.spec.js'] },
