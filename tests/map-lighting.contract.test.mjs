@@ -147,6 +147,7 @@ test('only the selected presets define lighting and all others resolve to defaul
         'magma_maze',
         'maze',
         'neon_abyss',
+        'neon_carnival',
         'notre_dame',
         'notre_dame_arena',
         'notre_dame_fire',

@@ -117,6 +117,7 @@ export const ARCADE_SECTOR_CATALOG = Object.freeze([
             'wind_cathedral',
             'chrono_spillway',
             'aether_relay',
+            'neon_carnival',
         ],
     }),
 ]);

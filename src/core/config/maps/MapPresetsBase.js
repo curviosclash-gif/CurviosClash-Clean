@@ -50,6 +50,7 @@ const BASE_MAP_KEYS = [
     'chrono_forge_nexus',
     'eclipse_foundry',
     'kinetic_tide',
+    'neon_carnival',
     'verdant_aperture',
     'dandelion_sky',
     'aetherion_orrery',
