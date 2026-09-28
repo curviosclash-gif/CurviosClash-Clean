@@ -7,6 +7,10 @@ const SMOKE_URL = new URL('../../../assets/vfx/conventional-runtime/smoke-atlas.
 export const EXPLOSION_BUDGET = Object.freeze({ events: 24, fireCards: 96, smokeCards: 192, sharedParticles: 1000 });
 const UP = new THREE.Vector3(0, 1, 0);
 const RIGHT = new THREE.Vector3(1, 0, 0);
+// A replacement effect restarts its event ids at 1; the per-process instance number
+// keeps them apart from ids a client has already replayed. Match sessions build fresh
+// particle systems on both ends, so a process-wide counter is unique enough.
+let effectInstanceCount = 0;
 
 const VERTEX = `
 attribute float explosionRow;
@@ -62,7 +66,7 @@ export class ConventionalExplosionEffect {
         this.ready = false;
         this.count = 0;
         this.nextId = 1;
-        this.epoch = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        this.epoch = (++effectInstanceCount).toString(36);
         this.events = Array.from({ length: EXPLOSION_BUDGET.events }, () => ({
             id: 0, profile: null, age: 0, scale: 1, color: 0, kind: '', replicate: true, useAtlas: false,
             projectileType: '', wireId: '', fireSuppressed: false,

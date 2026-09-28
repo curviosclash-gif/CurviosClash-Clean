@@ -172,6 +172,15 @@ test('authoritative presentation events retain their profile, pose and age and r
     host.dispose(); client.dispose();
 });
 
+test('a replacement host effect never reuses network ids a client has already replayed', () => {
+    const first = new ParticleSystem(renderer()), second = new ParticleSystem(renderer());
+    for (const host of [first, second]) host.spawnRocketImpact(at, 'ROCKET_HEAVY', 0xff8040, { profile: 'air-compact' });
+    const [a] = first.conventionalExplosionEffect.serializeNetworkState();
+    const [b] = second.conventionalExplosionEffect.serializeNetworkState();
+    assert.notEqual(a.id, b.id);
+    first.dispose(); second.dispose();
+});
+
 test('a shared intercept produces one presentation and sound while preserving defender credit', () => {
     const particles = new ParticleSystem(renderer());
     const sounds = [], credits = [];

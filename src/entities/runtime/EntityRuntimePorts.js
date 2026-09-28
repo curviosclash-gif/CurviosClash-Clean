@@ -14,6 +14,7 @@ export function createEntityRuntimePorts(runtime) {
             overheatGunSystem: systems.overheatGunSystem || null,
             projectileSystem: systems.projectileSystem || null,
             staticTurretSystem: systems.staticTurretSystem || null,
+            mapUnitSystem: systems.mapUnitSystem || null,
             huntScoring: support.huntScoring || null,
             roundOutcomeSystem: systems.roundOutcomeSystem || null,
         },

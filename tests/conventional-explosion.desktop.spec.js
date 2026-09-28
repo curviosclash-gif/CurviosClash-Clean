@@ -156,7 +156,8 @@ test('all ten profiles appear at their real game event entry points', async ({ p
     await page.waitForFunction(() => window.GAME_INSTANCE?.entityManager?.particles?.conventionalExplosionEffect?.ready);
     const proof = await page.evaluate(() => {
         const game = window.GAME_INSTANCE, manager = game.entityManager;
-        const particles = manager.particles, system = manager._projectileSystem, arena = manager.arena;
+        const combat = manager.runtimePorts.combat;
+        const particles = manager.particles, system = combat.projectileSystem, arena = manager.arena;
         const human = manager.humanPlayers[0], bot = manager.players.find((player) => player.isBot);
         if (!bot) throw new Error('Hunt test requires a bot player');
         const floorY = Number(arena.bounds.minY ?? arena.bounds.min?.y) || 0;
@@ -203,7 +204,7 @@ test('all ten profiles appear at their real game event entry points', async ({ p
             if (particles.conventionalExplosionEffect.count !== 1) throw new Error('An intercept must have one shared visual event');
         }
         system.clear(); particles.clear();
-        const units = manager._mapUnitSystem;
+        const units = combat.mapUnitSystem;
         if (!units.callBomberStrike(human)) throw new Error('Bomber call unavailable');
         const bomber = units.units.find((unit) => unit.summoned);
         bomber.bombCooldownRemaining = 0;
@@ -217,7 +218,7 @@ test('all ten profiles appear at their real game event entry points', async ({ p
             ['mega-vehicle-death', 'ROCKET_MEGA', 'air-secondary']]) {
             particles.clear();
             bot.alive = true; bot.hp = 100; bot.position.set(20, floorY+45, 10);
-            manager._killPlayer(bot, 'PROJECTILE', { killer: human, projectileType: type });
+            manager.runtimePorts.runtimeContext.callbacks.lifecycle.killPlayer(bot, 'PROJECTILE', { killer: human, projectileType: type });
             capture(label, expected);
         }
         return { shots, events };
