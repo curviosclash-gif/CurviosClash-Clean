@@ -80,7 +80,10 @@ export function syncPlayerHitboxFromVehicleMesh(player, mesh = null) {
 export function updatePlayerMotion(player, dt, controlState = null, turnRateMultiplier = 1, motionDt = dt) {
     const config = resolveEntityRuntimeConfig(player);
     const resolvedTurnSpeed = Number(player?.turnSpeed) || Number(config.PLAYER.TURN_SPEED) || 0;
-    const resolvedRollSpeed = Number(player?.rollSpeed) || Number(config.PLAYER.ROLL_SPEED) || 0;
+    // Paket 2a: the Arcade wing size speeds up the roll; without the field it is exactly 1.
+    const arcadeRoll = Number(player?.arcadeRollMultiplier);
+    const resolvedRollSpeed = (Number(player?.rollSpeed) || Number(config.PLAYER.ROLL_SPEED) || 0)
+        * (Number.isFinite(arcadeRoll) && arcadeRoll > 0 ? arcadeRoll : 1);
     // 61.4.1: tight_turns modifier reduces turn rate
     const turnRateMul = Number.isFinite(turnRateMultiplier)
         ? Math.max(0.1, turnRateMultiplier) : 1.0;

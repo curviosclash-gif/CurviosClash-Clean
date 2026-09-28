@@ -1,5 +1,6 @@
 import { resolveArtifactVersionState } from './ArtifactVersionMigrationContract.js';
 import { normalizeVehiclePartStyle } from './VehiclePartStyleContract.js';
+import { normalizeArcadeSizeProfileFields } from './ArcadeVehicleBuildContract.js';
 
 // v3 (Paket 1): levels have no ceiling. Records of any other schema are dropped
 // without migration and the vehicle starts fresh. The storage key keeps its v2
@@ -113,6 +114,7 @@ export function createArcadeVehicleProfileRecord(vehicleId, nowMs = Date.now()) 
         trailStyleId: 'standard',
         weaponStyleIds: normalizeArcadeWeaponStyleIds(),
         partStyle: {},
+        ...normalizeArcadeSizeProfileFields(null),
         createdAt: toIsoString(nowMs),
         updatedAt: toIsoString(nowMs),
     };
@@ -137,6 +139,8 @@ export function normalizeArcadeVehicleProfileRecord(vehicleId, source) {
         trailStyleId: normalizeArcadeTrailStyleId(candidate.trailStyleId),
         weaponStyleIds: normalizeArcadeWeaponStyleIds(candidate.weaponStyleIds),
         partStyle: normalizeVehiclePartStyle(candidate.partStyle),
+        // Paket 2a: Größenumbau; Summenregel und Grenzen wie beim Kauf.
+        ...normalizeArcadeSizeProfileFields(candidate),
     };
 }
 

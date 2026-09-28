@@ -14,6 +14,12 @@ function toSafeNumber(value, fallback) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+// Paket 2a: Arcade-Build-Multiplikator am Spieler; ohne gesetzten Wert exakt 1 (andere Modi).
+function arcadeFactor(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
 function getNowSeconds() {
     if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
         return performance.now() * 0.001;
@@ -146,7 +152,7 @@ export class HuntModeStrategy extends GameModeContract {
         if (!player) return null;
         const activeConfig = resolveConfig(config || player, this.entityRuntimeConfig);
         const maxHp = Math.max(1, toSafeNumber(activeConfig?.HUNT?.PLAYER_MAX_HP, 100));
-        const maxShieldHp = Math.max(1, toSafeNumber(activeConfig?.HUNT?.SHIELD_MAX_HP, 40));
+        const maxShieldHp = Math.max(1, toSafeNumber(activeConfig?.HUNT?.SHIELD_MAX_HP, 40)) * arcadeFactor(player.arcadeShieldMultiplier);
         player.maxHp = maxHp;
         player.hp = maxHp;
         player.maxShieldHp = maxShieldHp;
@@ -245,7 +251,7 @@ export class HuntModeStrategy extends GameModeContract {
         if (!player) return 0;
         const activeConfig = resolveConfig(config || player, this.entityRuntimeConfig);
         player.hasShield = true;
-        player.maxShieldHp = Math.max(1, toSafeNumber(activeConfig?.HUNT?.SHIELD_MAX_HP, 40));
+        player.maxShieldHp = Math.max(1, toSafeNumber(activeConfig?.HUNT?.SHIELD_MAX_HP, 40)) * arcadeFactor(player.arcadeShieldMultiplier);
         player.shieldHP = player.maxShieldHp;
         player.shieldHitFeedback = 0;
         return player.shieldHP;
@@ -257,7 +263,9 @@ export class HuntModeStrategy extends GameModeContract {
         if (player.hp <= 0) return;
         const maxHp = Math.max(1, toSafeNumber(player.maxHp, toSafeNumber(activeConfig?.HUNT?.PLAYER_MAX_HP, 100)));
         if (player.hp >= maxHp) return;
-        const regenDelay = Math.max(0, toSafeNumber(activeConfig?.HUNT?.PLAYER_REGEN_DELAY, 3.0));
+        // Paket 2a: the Arcade hull size shortens the delay (set only in normal Arcade runs).
+        const regenDelay = Math.max(0, toSafeNumber(player.arcadeRegenDelay,
+            toSafeNumber(activeConfig?.HUNT?.PLAYER_REGEN_DELAY, 3.0)));
         const simulationClockMs = config?._simulationClockMs;
         const now = toSafeNumber(nowSeconds, Number.isFinite(simulationClockMs)
             ? Math.max(0, simulationClockMs) * 0.001 : getNowSeconds());

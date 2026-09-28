@@ -32,6 +32,13 @@ function resolveEndlessProjectileDamage(owner, damage) {
         : 1;
     return damage * multiplier;
 }
+
+// Paket 2a: the Arcade nose size raises the rocket damage of its owner (direct hit, blast,
+// turret, map). The field is only set in normal Arcade runs and is 1 for bots there.
+function resolveRocketDamage(projectile, system) {
+    const factor = Number(projectile?.owner?.arcadeDamageMultiplier);
+    return resolveRocketTierDamage(projectile.type, system) * (Number.isFinite(factor) && factor > 0 ? factor : 1);
+}
 import { resolveEntityRuntimeConfig } from '../../../shared/contracts/EntityRuntimeConfig.js';
 import { getPickupDefinition } from '../../PickupRegistry.js';
 
@@ -114,7 +121,7 @@ export class ProjectileHitResolver {
         const rocketConfig = resolveEntityRuntimeConfig(this.system)?.HUNT?.ROCKET || HUNT_CONFIG.ROCKET;
         const explosionRadius = Math.max(1, Number(rocketConfig?.EXPLOSION_RADIUS || 25));
         const explosionDamageFalloff = Math.max(0, Math.min(1, Number(rocketConfig?.EXPLOSION_DAMAGE_FALLOFF || 0.5)));
-        const baseDamage = resolveRocketTierDamage(projectile.type, this.system);
+        const baseDamage = resolveRocketDamage(projectile, this.system);
         const damageAtCenter = baseDamage * (1 + explosionDamageFalloff);
 
         for (const target of players || []) {
@@ -154,7 +161,7 @@ export class ProjectileHitResolver {
             if (!this._isProjectileSweepTouchingTarget(projectile, turret)) continue;
             this.detonateProjectile(projectile);
             const damage = isRocketTierType(projectile.type)
-                ? resolveRocketTierDamage(projectile.type, this.system)
+                ? resolveRocketDamage(projectile, this.system)
                 : 1;
             turret.takeDamage?.(damage, {
                 sourcePlayer: projectile.owner || null,
@@ -187,7 +194,7 @@ export class ProjectileHitResolver {
         // atan2 only reads the direction, so the unnormalized velocity is enough.
         return destructibles.applyMeshHit(
             sourceName,
-            resolveRocketTierDamage(projectile.type, this.system),
+            resolveRocketDamage(projectile, this.system),
             {
                 // Where the rocket stopped tells the four identically named legs apart.
                 hitPoint: projectile.position || null,
@@ -306,7 +313,7 @@ export class ProjectileHitResolver {
             if (huntRocketHit) {
                 const damage = resolveEndlessProjectileDamage(
                     projectile.owner,
-                    resolveRocketTierDamage(projectile.type, this.system)
+                    resolveRocketDamage(projectile, this.system)
                 );
                 const damageResult = target.takeDamage(damage);
                 this.system?.onProjectilePowerup?.(target, projectile);

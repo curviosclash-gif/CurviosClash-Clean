@@ -298,7 +298,10 @@ test('start vehicle bonuses are frozen, revive does not stack them, and abort gr
     const strategy = new ArcadeModeStrategy({ runType: 'endless_parcours', combatProfile: 'hunt' });
     first.runtime.setRecordStore(store);
     first.runtime.setRunProfile({ recordStore: store, vehicleId: 'ship1', strategy });
-    assert.deepEqual(first.runtime.startBonuses, { turningBonusPct: 0, speedBonusPct: 8, maxHpBonus: 15 });
+    // Paket 2a: the frozen start bonuses also carry the size build of the start vehicle.
+    const { build: startBuild, ...slotBonuses } = first.runtime.startBonuses;
+    assert.deepEqual(slotBonuses, { turningBonusPct: 0, speedBonusPct: 8, maxHpBonus: 15 });
+    assert.equal(startBuild.purchasedSizeSteps, 0);
     assert.equal(first.human.baseSpeed, 21.6);
     assert.equal(first.human.maxHp, 115);
 

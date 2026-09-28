@@ -78,6 +78,28 @@ export function clampArcadeStorageCapacity(capacity) {
     return Math.max(1, Math.min(ARCADE_STORAGE_MAX_SLOTS, n));
 }
 
+// --- Paket 2: Größenumbau (arcade-spec.md Abschnitt 2). Werte sind vorläufig. ---
+
+export const ARCADE_SIZE_UNLOCK_COST_XP = 100;
+/** Ein gekaufter Schritt kostet Basis + Zuwachs je bereits gekauftem Schritt (100, 120 ... 580). */
+export const ARCADE_SIZE_STEP_BASE_COST_XP = 100;
+export const ARCADE_SIZE_STEP_COST_INCREMENT_XP = 20;
+export const ARCADE_SIZE_MAX_PURCHASED_STEPS = 25;
+/** Wirkung je 5-%-Schritt in Prozent des Schiffs-Grundwerts: Haupt- und Nebenwert je Gruppe. */
+export const ARCADE_SIZE_STEP_EFFECTS_PCT = Object.freeze({
+    hull: Object.freeze({ maxHpPct: 4, regenDelayPct: -4 }),
+    nose: Object.freeze({ damagePct: 3, rangePct: 2 }),
+    wings: Object.freeze({ turnPct: 3, rollPct: 2 }),
+    engines: Object.freeze({ speedPct: 2.5, boostDurationPct: 3 }),
+    utility: Object.freeze({ shieldPct: 4 }),
+});
+/** Wartezeit bis zur Regeneration (wie HUNT.PLAYER_REGEN_DELAY); der Rumpf verkürzt sie, nie unter 1 s. */
+export const ARCADE_BASE_REGEN_DELAY_S = 3;
+export const ARCADE_MIN_REGEN_DELAY_S = 1;
+/** Lagerstufe k (1..3) je Lager: nötige Utility-Größe und XP-Preis. */
+export const ARCADE_STORAGE_TIER_UTILITY_PCT = Object.freeze([105, 115, 125]);
+export const ARCADE_STORAGE_TIER_COST_XP = Object.freeze([300, 600, 900]);
+
 export default {
     ARCADE_STORAGE_MAX_SLOTS,
     ARCADE_VEHICLE_ROLE_TEMPLATES,

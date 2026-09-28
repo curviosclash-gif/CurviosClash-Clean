@@ -484,3 +484,99 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await expect(page.locator('#arcade-vehicle-manager .hangar-viewport-canvas-node')).toHaveCount(1);
     await expect(page.locator('#arcade-vehicle-manager [data-hangar-slot]')).toHaveCount(7);
 });
+
+// --- Paket 2a: Größenumbau im Reiter "Form" ---
+
+async function readStoredProfile(page, vehicleId) {
+    const key = await resolveProfileScopedKey(page, ARCADE_VEHICLE_PROFILE_STORAGE_KEY);
+    return page.evaluate(({ storageKey, id }) => {
+        try {
+            return JSON.parse(localStorage.getItem(storageKey) || '{}')?.[id] || null;
+        } catch {
+            return null;
+        }
+    }, { storageKey: key, id: vehicleId });
+}
+
+async function openSizeWorkshop(page) {
+    await loadGame(page);
+    await seedUnlockedProfiles(page);
+    await page.reload();
+    await loadGameWithRetry(page);
+    await openArcadeHangar(page);
+    const vehicleId = await page.evaluate(() => {
+        const cards = Array.from(document.querySelectorAll('#arcade-vehicle-manager .arcade-vehicle-card'));
+        const card = cards.find((node) => node.getAttribute('data-vehicle-id') === 'ship5') || cards[0];
+        card?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        return String(card?.getAttribute('data-vehicle-id') || '');
+    });
+    expect(vehicleId).not.toBe('');
+    await page.locator('#hangar-build-view-form').click();
+    await expect(page.locator('.hangar-size-panel')).toBeVisible();
+    return vehicleId;
+}
+
+async function confirmPurchase(page, trigger, expectedLines) {
+    await page.locator(trigger).click();
+    const dialog = page.locator('.hangar-size-confirm');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('role', 'alertdialog');
+    for (const line of expectedLines) await expect(dialog).toContainText(line);
+    await dialog.locator('.hangar-size-confirm-accept').click();
+    await expect(dialog).toBeHidden();
+}
+
+test('T-ARC-S1: Größenumbau freischalten und Schritt kaufen nur mit Bestätigung', async ({ page }) => {
+    test.setTimeout(180_000);
+    const vehicleId = await openSizeWorkshop(page);
+    await expect(page.locator('.hangar-part-style-scale, .hangar-part-style-variant')).toHaveCount(0);
+    await expect(page.locator('.hangar-size-editor')).toBeHidden();
+
+    await page.locator('.hangar-size-unlock').click();
+    await page.locator('.hangar-size-confirm-cancel').click();
+    await expect(page.locator('.hangar-size-confirm')).toBeHidden();
+    expect((await readStoredProfile(page, vehicleId))?.sizeWorkshopUnlocked).not.toBe(true);
+
+    await confirmPurchase(page, '.hangar-size-unlock', ['Kosten: 100 XP', 'XP-Käufe sind endgültig']);
+    await expect(page.locator('.hangar-size-editor')).toBeVisible();
+    await expect(page.locator('.hangar-size-steps')).toContainText('belegt 0 / gekauft 0');
+
+    await confirmPurchase(page, '.hangar-size-buy-step', ['Kosten: 100 XP', 'Gekaufte Schritte: 0 → 1']);
+    await expect(page.locator('.hangar-size-steps')).toContainText('gekauft 1');
+    await expect(page.locator('.hangar-size-buy-step')).toContainText('120 XP');
+    const stored = await readStoredProfile(page, vehicleId);
+    expect(stored.sizeWorkshopUnlocked).toBe(true);
+    expect(stored.purchasedSizeSteps).toBe(1);
+    expect(stored.xpBank).toBe(999999 - 200);
+});
+
+test('T-ARC-S1: Umverteilen zeigt die Wertvorschau vor dem Übernehmen und ist rückgängig zu machen', async ({ page }) => {
+    test.setTimeout(180_000);
+    const vehicleId = await openSizeWorkshop(page);
+    await confirmPurchase(page, '.hangar-size-unlock', ['Kosten: 100 XP']);
+    await confirmPurchase(page, '.hangar-size-buy-step', ['Kosten: 100 XP']);
+
+    const hull = page.locator('.hangar-size-row[data-size-group="hull"]');
+    await hull.locator('.hangar-size-plus').click();
+    await expect(hull.locator('.hangar-size-value')).toHaveText('105 %');
+    await expect(page.locator('.hangar-size-preview')).toContainText('Leben');
+    await expect(page.locator('.hangar-size-preview')).toContainText('→');
+    await expect(hull.locator('.hangar-size-plus')).toBeDisabled();
+    expect((await readStoredProfile(page, vehicleId)).partSizes.hull).toBe(100);
+
+    await page.locator('.hangar-size-apply').click();
+    await expect.poll(async () => (await readStoredProfile(page, vehicleId)).partSizes.hull).toBe(105);
+    const xpAfterApply = (await readStoredProfile(page, vehicleId)).xpBank;
+
+    await hull.locator('.hangar-size-minus').click();
+    await page.locator('.hangar-size-row[data-size-group="nose"] .hangar-size-plus').click();
+    await page.locator('.hangar-size-apply').click();
+    await expect.poll(async () => (await readStoredProfile(page, vehicleId)).partSizes.nose).toBe(105);
+
+    await page.locator('.hangar-size-undo').click();
+    await expect.poll(async () => (await readStoredProfile(page, vehicleId)).partSizes.hull).toBe(105);
+    const undone = await readStoredProfile(page, vehicleId);
+    expect(undone.partSizes.nose).toBe(100);
+    expect(undone.xpBank).toBe(xpAfterApply);
+    await expect(hull.locator('.hangar-size-value')).toHaveText('105 %');
+});

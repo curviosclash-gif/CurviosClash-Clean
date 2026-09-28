@@ -157,9 +157,14 @@ export class ParcoursOverlayController {
         const stats = hudState?.vehicleStats;
         if (sectorChanged && stats && stats.level > 1) {
             const parts = [`Lv ${stats.level}`];
-            if (stats.speedBonusPct > 0) parts.push(`Speed +${stats.speedBonusPct}%`);
-            if (stats.turningBonusPct > 0) parts.push(`Kurve +${stats.turningBonusPct}%`);
-            if (stats.maxHpBonus > 0) parts.push(`HP +${stats.maxHpBonus}`);
+            // Paket 2a: the size build can also lower a value (parts below 100 %).
+            const signed = (label, value, unit) => {
+                const rounded = Math.round(Number(value) || 0);
+                if (rounded) parts.push(`${label} ${rounded > 0 ? '+' : ''}${rounded}${unit}`);
+            };
+            signed('Speed', stats.speedBonusPct, '%');
+            signed('Kurve', stats.turningBonusPct, '%');
+            signed('HP', stats.maxHpBonus, '');
             const el = this._ensureOverlay('arcade-stats-flash', 'arcade-stats-flash hidden');
             if (el) {
                 el.textContent = parts.join('  |  ');

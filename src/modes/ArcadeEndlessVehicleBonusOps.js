@@ -1,4 +1,4 @@
-import { resolveArcadeVehicleMaxHp } from './ArcadeVehicleStatOps.js';
+import { resolveArcadePlayerBuild, resolveArcadeVehicleMaxHp } from './ArcadeVehicleStatOps.js';
 
 const MAX_BONUS_PCT = 50;
 
@@ -9,7 +9,7 @@ export function resetArcadeEndlessPlayerHealth(huntCombat, player, bonuses, isNo
     const reset = huntCombat?.resetPlayerHealth?.(player) || null;
     if (!reset) return reset;
     const modeBaseMaxHp = Math.max(1, Number(player.maxHp) || 100);
-    const baseMaxHp = resolveArcadeVehicleMaxHp(player?.vehicleId, modeBaseMaxHp, isNormalRun);
+    const baseMaxHp = resolveArcadeVehicleMaxHp(player?.vehicleId, modeBaseMaxHp, isNormalRun, resolveArcadePlayerBuild(player, bonuses)?.maxHpPct);
     if (player?.isBot === true) {
         if (!isNormalRun) return reset;
         player.maxHp = baseMaxHp;

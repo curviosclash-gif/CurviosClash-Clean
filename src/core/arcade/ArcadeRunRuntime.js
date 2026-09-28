@@ -14,7 +14,7 @@ import { resolveMapSequence, getMapKeyForSector } from '../../state/arcade/Arcad
 import {
     calculateSectorXp,
     loadVehicleProfiles,
-    getSlotStatBonuses,
+    getArcadeRunVehicleBonuses, resolveArcadeRunHudVehicleStats,
     XP_REWARD_TABLE,
 } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { awardBoundArcadeVehicleXp } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
@@ -374,7 +374,7 @@ export class ArcadeRunRuntime {
     }
 
     _getVehicleBonuses(profile = this.getVehicleProfile()) {
-        return this._config.dailyChallenge ? null : getSlotStatBonuses(profile?.upgrades, profile?.hangarBonuses);
+        return this._config.dailyChallenge ? null : getArcadeRunVehicleBonuses(profile);
     }
 
     setStrategy(strategy) {
@@ -681,17 +681,10 @@ export class ArcadeRunRuntime {
         const parcoursXpGain = this._peekHudEvent('parcours_xp') || this._state.lastParcoursXpGain || null;
         const parcoursSegmentSplit = this._peekHudEvent('parcours_split') || this._state.lastParcoursSegmentSplit || null;
         const parcoursPenalty = this._peekHudEvent('parcours_penalty') || this._state.lastParcoursPenalty || null;
-        // 82.8.3: Vehicle stats for sector-start HUD flash
-        // Profiles are canonicalized when loaded or changed. Re-normalizing the full
-        // Hangar progression here would allocate several collections every HUD frame.
-        const profile = this._vehicleProfiles?.[this._getRunVehicleId()] || null;
-        const profileBonuses = this._config.dailyChallenge ? null : (profile ? getSlotStatBonuses(profile.upgrades, profile.hangarBonuses) : null);
-        const vehicleStats = {
-            level: profile?.level ?? 1,
-            speedBonusPct: Math.min(50, profileBonuses?.speedBonusPct || 0),
-            turningBonusPct: Math.min(50, profileBonuses?.turningBonusPct || 0),
-            maxHpBonus: Math.min(50, profileBonuses?.maxHpBonus || 0),
-        };
+        // 82.8.3: Vehicle stats for sector-start HUD flash, incl. the size build (Paket 2a).
+        // Profiles are canonicalized when loaded or changed, so the stats are cached per profile.
+        const runVehicleId = this._getRunVehicleId();
+        const vehicleStats = resolveArcadeRunHudVehicleStats(this._vehicleProfiles?.[runVehicleId] || null, runVehicleId, this._config.dailyChallenge);
         return {
             nowMs,
             parcoursXpGain,

@@ -38,8 +38,7 @@ import { createFallbackProfilePort, createHangarBuildFromProfile as buildFromPro
 import { validateFightHangarBuild, validateFightHangarDrop } from './FightHangarValidation.js';
 import { normalizeFightMachineGunId, resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
 import { armConfirmButton } from '../ConfirmButtonArming.js';
-import { createHangarPartStylePanel } from './HangarPartStylePanel.js';
-import { normalizeVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
+import { createHangarFormTab } from './HangarFormTab.js';
 import {
     selectArcadeTrailStyle,
     selectArcadeWeaponStyle,
@@ -171,29 +170,18 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         };
     }
 
-    // Tab "Form": arcade-only look of the parts, stored per vehicle in the arcade profile.
-    const partStylePanel = createHangarPartStylePanel({
-        bind,
-        onStyleChange(style) {
-            const id = draft.vehicleId;
-            profiles[id] = { ...profileFor(id), partStyle: normalizeVehiclePartStyle(style), updatedAt: new Date().toISOString() };
+    // Tab "Form": arcade-only colours and size build, stored per vehicle in the arcade profile.
+    const formTab = createHangarFormTab({
+        bind, toast, viewport, enabled: hangarMode === 'arcade', panel: formViewPanel, tabButton: formViewButton,
+        getProfile: () => profileFor(draft.vehicleId),
+        saveProfile(next) {
+            profiles[draft.vehicleId] = { ...next, updatedAt: new Date().toISOString() };
             profilePort.save(profiles);
             syncDisplay({ preserveCatalog: true });
         },
-        onSelectPart: () => syncDisplay({ preserveCatalog: true }),
+        onChange: () => syncDisplay({ preserveCatalog: true }),
     });
-    formViewPanel.appendChild(partStylePanel.root);
-
-    function syncPartStyle() {
-        const style = hangarMode === 'arcade' ? normalizeVehiclePartStyle(profileFor(draft.vehicleId).partStyle) : {};
-        partStylePanel.render({ vehicleId: draft.vehicleId, style });
-        viewport.setPartStyle(style, buildView === 'form' ? partStylePanel.getSelectedPart() : '');
-        const formActive = buildView === 'form';
-        formViewButton.classList.toggle('is-active', formActive);
-        formViewButton.setAttribute('aria-selected', String(formActive));
-        formViewButton.tabIndex = formActive ? 0 : -1;
-        formViewPanel.classList.toggle('hidden', !formActive);
-    }
+    function syncPartStyle() { formTab.sync(draft.vehicleId, buildView === 'form'); }
 
     function syncDisplay(options = {}) {
         if (disposed) return;

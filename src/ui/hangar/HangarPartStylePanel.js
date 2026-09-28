@@ -1,9 +1,5 @@
 import { createUiNode as el } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
-import {
-    VEHICLE_PART_STYLE_SCALE_RANGE,
-    listVehiclePartVariants,
-    normalizeVehiclePartStyle,
-} from '../../shared/contracts/VehiclePartStyleContract.js';
+import { normalizeVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
 import { listPlayerShipPartDonors } from '../../shared/vehicle-lab/player-ships/index.js';
 
 const ROLE_LABELS = Object.freeze({
@@ -22,12 +18,14 @@ function button(className, text) {
 }
 
 /**
- * Hangar tab "Form": pick a part of a part-built ship and change its color, size or shape.
+ * Hangar tab "Form": pick a part of a part-built ship and change its color. Size lives in the
+ * size workshop (HangarSizePanel); every ship keeps its factory shape, so stored scale and
+ * shape entries are ignored (Paket 2a).
  * @param {{bind: Function, onStyleChange: (style: object) => void, onSelectPart: (name: string) => void}} options
  */
 export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }) {
     const root = el('div', 'hangar-part-style');
-    const hint = el('p', 'field-hint', 'Teil wählen, dann Farbe, Größe oder Form ändern. Gilt im Arcade-Modus; die Hitbox bleibt unverändert.');
+    const hint = el('p', 'field-hint', 'Teil wählen, dann die Farbe ändern. Gilt im Arcade-Modus.');
     const empty = el('p', 'field-hint hidden', 'Dieses Fahrzeug besteht nicht aus Einzelteilen.');
     const list = el('div', 'hangar-part-style-list');
     list.setAttribute('role', 'listbox');
@@ -38,17 +36,6 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
     colorInput.type = 'color';
     colorInput.className = 'hangar-part-style-color';
     colorInput.setAttribute('aria-label', 'Farbe des Teils');
-    const scaleInput = document.createElement('input');
-    scaleInput.type = 'range';
-    scaleInput.className = 'hangar-part-style-scale';
-    scaleInput.min = String(VEHICLE_PART_STYLE_SCALE_RANGE.min);
-    scaleInput.max = String(VEHICLE_PART_STYLE_SCALE_RANGE.max);
-    scaleInput.step = '0.05';
-    scaleInput.setAttribute('aria-label', 'Größe des Teils');
-    const scaleValue = el('span', 'hangar-part-style-scale-value', '100 %');
-    const variantSelect = document.createElement('select');
-    variantSelect.className = 'hangar-cosmetic-select hangar-part-style-variant';
-    variantSelect.setAttribute('aria-label', 'Form des Teils');
     const resetPart = button('secondary-btn hangar-part-style-reset', 'Teil zurücksetzen');
     const resetAll = button('secondary-btn hangar-part-style-reset-all', 'Alles zurücksetzen');
     const field = (label, ...nodes) => {
@@ -56,7 +43,7 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
         node.append(el('span', 'hangar-cosmetic-field-label', label), ...nodes);
         return node;
     };
-    editor.append(title, field('Farbe', colorInput), field('Größe', scaleInput, scaleValue), field('Form', variantSelect), resetPart);
+    editor.append(title, field('Farbe', colorInput), resetPart);
     root.append(hint, empty, list, editor, resetAll);
 
     const donors = listPlayerShipPartDonors();
@@ -65,8 +52,14 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
     let style = {};
     let selected = '';
 
+    function colorsOnly(source) {
+        return Object.fromEntries(Object.entries(normalizeVehiclePartStyle(source))
+            .filter(([, entry]) => entry.color !== undefined)
+            .map(([name, entry]) => [name, { color: entry.color }]));
+    }
+
     function emit(nextStyle) {
-        style = normalizeVehiclePartStyle(nextStyle);
+        style = colorsOnly(nextStyle);
         onStyleChange(style);
     }
 
@@ -101,17 +94,6 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
         const entry = style[selected] || {};
         title.textContent = part.role ? `${part.name} · ${ROLE_LABELS[part.role] || part.role}` : part.name;
         colorInput.value = hex(entry.color ?? part.color ?? 0x8aa4c8);
-        scaleInput.value = String(entry.scale ?? 1);
-        scaleValue.textContent = `${Math.round((entry.scale ?? 1) * 100)} %`;
-        const variants = listVehiclePartVariants(factory, selected, donors);
-        variantSelect.replaceChildren(el('option', '', 'Original'), ...variants.map((variant) => {
-            const option = el('option', '', `Form von ${variant.label}`);
-            option.value = variant.id;
-            return option;
-        }));
-        variantSelect.firstChild.value = '';
-        variantSelect.value = variants.some((variant) => variant.id === entry.variant) ? entry.variant : '';
-        variantSelect.disabled = variants.length === 0;
         resetPart.disabled = !style[selected];
     }
 
@@ -123,8 +105,6 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
         onSelectPart(name);
     });
     bind(colorInput, 'input', () => patchSelected({ color: colorInput.value }));
-    bind(scaleInput, 'input', () => patchSelected({ scale: Number(scaleInput.value) }));
-    bind(variantSelect, 'change', () => patchSelected({ variant: variantSelect.value || null }));
     bind(resetPart, 'click', () => {
         const next = { ...style };
         delete next[selected];
@@ -144,7 +124,7 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
                 empty.classList.toggle('hidden', !!factory);
                 renderList();
             }
-            style = normalizeVehiclePartStyle(next.style);
+            style = colorsOnly(next.style);
             renderEditor();
         },
     });

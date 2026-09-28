@@ -16,6 +16,7 @@ import {
     resolveWeaponFanProjectileCount,
 } from './WeaponFanOps.js';
 import { nextPlayerArcadeWeaponColor } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
+import { applyArcadeBuildToMachineGunConfig } from '../shared/contracts/ArcadeVehicleBuildContract.js';
 
 function getMgConfig(source = null) {
     return resolveEntityRuntimeConfig(source)?.HUNT?.MG || {};
@@ -159,10 +160,10 @@ export class OverheatGunSystem {
             });
         }
 
-        const mg = resolveFightMachineGunConfig(
+        const mg = applyArcadeBuildToMachineGunConfig(resolveFightMachineGunConfig(
             getMgConfig(this.runtimeContext || this.entityManager),
             player?.fightLoadout?.machineGunId
-        );
+        ), player);
         const shotCooldown = Math.max(0.01, Number(mg.COOLDOWN || 0.08));
         if ((player.shootCooldown || 0) > 0) {
             return buildGameplayActionResult({

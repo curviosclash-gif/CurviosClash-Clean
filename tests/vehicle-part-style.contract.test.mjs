@@ -119,27 +119,40 @@ function createPlayer(isBot = false) {
     return { isBot, vehicleMesh: new RuntimeModularVehicleMesh(0x3366ff, SHIP), trail: null };
 }
 
-test('arcade runs draw the styled vehicle for humans but keep the hitbox and never compound', () => {
+test('arcade runs draw the functional part size for humans but keep the hitbox and never compound', () => {
     const human = createPlayer();
     const bot = createPlayer(true);
     const hitboxBefore = human.vehicleMesh.localBox.clone();
     const store = {
         loadJsonRecord: () => ({
-            test_ship: { schemaVersion: 'arcade-vehicle-profile.v3', vehicleId: 'test_ship', partStyle: { Rumpf: { scale: 1.25 } } },
+            test_ship: {
+                schemaVersion: 'arcade-vehicle-profile.v3',
+                vehicleId: 'test_ship',
+                // Paket 2a: a stored style scale no longer counts; the size build does.
+                partStyle: { Rumpf: { scale: 0.8 } },
+                sizeWorkshopUnlocked: true,
+                purchasedSizeSteps: 5,
+                partSizes: { hull: 125 },
+            },
         }),
     };
     const support = {
         _resolveActiveVehicleId: () => 'test_ship',
         game: { settingsManager: { getPlayerRecordStorePort: () => store } },
     };
-    const runtimeState = { entityManager: { players: [human, bot] } };
+    const gameModeStrategy = { isNormalArcadeRun: () => true };
+    const runtimeState = { entityManager: { players: [human, bot], gameModeStrategy } };
     const runtimeConfig = { arcade: { enabled: true } };
     applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig);
     applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig);
     const core = (mesh) => mesh.children.find((child) => child.name === 'Rumpf');
-    assert.ok(Math.abs(core(human.vehicleMesh).scale.x - 1.25) < 1e-6, 'style applied once, not twice');
+    assert.ok(Math.abs(core(human.vehicleMesh).scale.x - 1.25) < 1e-6, 'size applied once, not twice');
     assert.equal(core(bot.vehicleMesh).scale.x, 1, 'bots keep the factory vehicle');
     assert.ok(human.vehicleMesh.localBox.equals(hitboxBefore), 'hitbox stays the factory hitbox');
+
+    gameModeStrategy.isNormalArcadeRun = () => false;
+    applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig);
+    assert.equal(core(human.vehicleMesh).scale.x, 1, 'daily runs fly the factory size');
 
     applyArcadeRuntimeCosmetics(support, runtimeState, { arcade: { enabled: false } });
     assert.equal(core(human.vehicleMesh).scale.x, 1, 'outside arcade the factory vehicle returns');

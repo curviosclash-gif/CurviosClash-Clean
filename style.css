@@ -6078,9 +6078,53 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     gap: 0.5rem;
 }
 
-.hangar-part-style-scale-value {
+.hangar-size-panel,
+.hangar-size-editor,
+.hangar-size-shop,
+.hangar-size-confirm {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.hangar-size-row {
+    display: grid;
+    grid-template-columns: minmax(6rem, 1fr) 2rem 3.5rem 2rem minmax(0, 1.5fr);
+    align-items: center;
+    gap: 6px;
+}
+
+.hangar-size-row button {
+    width: auto;
+    padding: 2px 0;
+}
+
+.hangar-size-value {
     color: #f1f8ff;
-    font-size: 0.78rem;
+    text-align: center;
+}
+
+.hangar-size-effect {
+    color: #a9c6dc;
+    font-size: 0.72rem;
+}
+
+.hangar-size-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.hangar-size-preview {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: #f1f8ff;
+    font-size: 0.8rem;
+}
+
+.hangar-size-confirm {
+    padding: 0.6rem;
+    border: 1px solid #f6c453;
+    border-radius: 6px;
 }
 
 .hangar-stat-row {

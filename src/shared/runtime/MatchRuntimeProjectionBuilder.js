@@ -95,7 +95,8 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
     const aimDirection = typeof player?.getAimDirection === 'function'
         ? player.getAimDirection(TMP_AIM_DIRECTION)
         : null;
-    const boostCapacity = Math.max(0.001, Number(playerConfig.BOOST_DURATION) || 1);
+    // Paket 2a: Arcade engine size lengthens the boost (field unset elsewhere -> 1).
+    const boostCapacity = Math.max(0.001, (Number(playerConfig.BOOST_DURATION) || 1) * (Number(player?.arcadeBoostDurationMultiplier) || 1));
     const boostCharge = Math.max(0, Math.min(boostCapacity, Number(player?.boostCharge) || 0));
     const slowMoCapacity = Math.max(0.001, Number(playerConfig.SLOWMO_DURATION) || 1);
     const slowMoCharge = Math.max(0, Math.min(slowMoCapacity, Number(player?.slowMoCharge) || 0));

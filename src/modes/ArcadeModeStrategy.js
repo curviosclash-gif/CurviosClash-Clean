@@ -17,7 +17,7 @@ import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE } from '../s
 import { ARENA_WAVES_COMBAT_PROFILE } from '../shared/contracts/ArenaWavesContract.js';
 import { resolveArcadeParcoursRespawnFallback, resolveArcadeRunCombatProfile } from './ArcadeRunRulesOps.js';
 import { applyArcadeEndlessSpawnBonuses, resetArcadeEndlessPlayerHealth } from './ArcadeEndlessVehicleBonusOps.js';
-import { applyArcadeGauntletHealthReset, applyArcadeVehicleSpawnCapacities, capArcadeVehicleSpeedMultiplier, isNormalArcadeRunType, resolveArcadeVehicleStatPct } from './ArcadeVehicleStatOps.js';
+import { applyArcadeBuildToPlayer, applyArcadeGauntletHealthReset, applyArcadeVehicleSpawnCapacities, capArcadeVehicleSpeedMultiplier, isNormalArcadeRunType, normalizeArcadeUpgradeBonuses, resolveArcadePlayerUpgradeBonuses, resolveArcadeVehicleStatPct } from './ArcadeVehicleStatOps.js';
 
 const DEFAULT_MAX_HP = 100;
 const DEFAULT_SHIELD_HP = 40;
@@ -169,18 +169,11 @@ export class ArcadeModeStrategy extends GameModeContract {
     // fuer das ganze Match, also muss jede Anwendung fragen, wen sie vor sich hat --
     // sonst fliegen die Gegner mit derselben Aufruestung. Ohne bekannten Spieler
     // bleibt es beim alten Verhalten, damit vorhandene Aufrufer weiter funktionieren.
-    _upgradeBonusesFor(player) { return player?.isBot === true ? NULL_SLOT_BONUSES : this._slotBonuses; }
+    _upgradeBonusesFor(player) { return player?.isBot === true ? NULL_SLOT_BONUSES : resolveArcadePlayerUpgradeBonuses(player, this._slotBonuses); }
 
+    // Paket 2a: bonuses.build (Größenfelder des Profils) rechnet nur in normalen Runs mit.
     applyVehicleUpgrades(bonuses) {
-        if (!bonuses || typeof bonuses !== 'object') {
-            this._slotBonuses = NULL_SLOT_BONUSES;
-        } else {
-            this._slotBonuses = Object.freeze({
-                turningBonusPct: Number.isFinite(bonuses.turningBonusPct) ? bonuses.turningBonusPct : 0,
-                speedBonusPct: Number.isFinite(bonuses.speedBonusPct) ? bonuses.speedBonusPct : 0,
-                maxHpBonus: Number.isFinite(bonuses.maxHpBonus) ? bonuses.maxHpBonus : 0,
-            });
-        }
+        this._slotBonuses = normalizeArcadeUpgradeBonuses(bonuses, NULL_SLOT_BONUSES, this.isNormalArcadeRun());
     }
 
     applyRunRewardEffects(effects) {
@@ -305,9 +298,10 @@ export class ArcadeModeStrategy extends GameModeContract {
     // 61.8.1 / 82.8.4: T2 Core adds HP bonus, capped at +50% of vehicle base (Paket 1)
     resetPlayerHealth(player) {
         const isNormalRun = this.isNormalArcadeRun();
+        applyArcadeBuildToPlayer(player, this._upgradeBonusesFor(player), isNormalRun);
         if (this._huntCombat) return resetArcadeEndlessPlayerHealth(this._huntCombat, player, this._upgradeBonusesFor(player), isNormalRun);
         if (!player) return null;
-        return applyArcadeGauntletHealthReset(player, player.vehicleId, DEFAULT_MAX_HP, isNormalRun, this._upgradeBonusesFor(player).maxHpBonus, this._runRewardEffects.maxHpBonus, UPGRADE_STAT_CAP_PCT, DEFAULT_SHIELD_HP);
+        return applyArcadeGauntletHealthReset(player, player.vehicleId, DEFAULT_MAX_HP, isNormalRun, this._upgradeBonusesFor(player), this._runRewardEffects.maxHpBonus, UPGRADE_STAT_CAP_PCT, DEFAULT_SHIELD_HP);
     }
 
     applyDamage(player, amount, options) {
@@ -418,8 +412,8 @@ export class ArcadeModeStrategy extends GameModeContract {
         if (this._huntCombat) return this._huntCombat.grantShield(player);
         if (!player) return 0;
         player.hasShield = true;
-        player.maxShieldHp = DEFAULT_SHIELD_HP;
-        player.shieldHP = DEFAULT_SHIELD_HP;
+        player.maxShieldHp = DEFAULT_SHIELD_HP * (Number(player.arcadeShieldMultiplier) || 1);
+        player.shieldHP = player.maxShieldHp;
         player.shieldHitFeedback = 0;
         return player.shieldHP;
     }
@@ -479,7 +473,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     // 82.8.1: Apply upgrade speed bonus to player base speed at spawn
     applySpawnStatBonuses(player) {
         if (!player) return;
-        applyArcadeVehicleSpawnCapacities(player, this.isNormalArcadeRun());
+        applyArcadeVehicleSpawnCapacities(player, this.isNormalArcadeRun(), this._upgradeBonusesFor(player));
         if (applyArcadeEndlessSpawnBonuses(this._huntCombat, player, this.getSpeedMultiplier(player), this.isNormalArcadeRun())) return;
         const speedMult = this.getSpeedMultiplier(player);
         if (!Number.isFinite(player._arcadeBaseSpeed)) player._arcadeBaseSpeed = player.baseSpeed;

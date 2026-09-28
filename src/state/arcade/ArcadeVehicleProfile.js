@@ -16,6 +16,8 @@ import {
     resolveArcadeHangarProgressionSnapshot,
     resolveArcadeHangarUnlockedSlots,
 } from '../../shared/contracts/ArcadeHangarRulesContract.js';
+import { normalizeArcadeSizeProfileFields, resolveArcadeVehicleBuildStats } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
+import { resolveArcadeVehicleBaseStats } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 import { XP_REWARD_TABLE, calculateSectorXp } from './ArcadeXpRewards.js';
 import {
@@ -115,6 +117,52 @@ export function getSlotStatBonuses(upgrades, hangarBonuses = null) {
         speedBonusPct: engineTier >= 3 ? 16 : (engineTier >= 2 ? 8 : 0),
         maxHpBonus: coreTier >= 3 ? 30 : (coreTier >= 2 ? 15 : 0),
     };
+}
+
+/**
+ * Run-Start-Boni eines Fahrzeugs: Hangar-Slotboni plus die Größenfelder des Profils
+ * (Paket 2a). Die Strategie rechnet daraus mit resolveArcadeVehicleBuildStats die Werte.
+ * @param {any} profile
+ */
+export function getArcadeRunVehicleBonuses(profile) {
+    const bonuses = getSlotStatBonuses(profile?.upgrades, profile?.hangarBonuses);
+    if (!profile || typeof profile !== 'object') return bonuses;
+    return {
+        ...bonuses,
+        build: { vehicleId: String(profile.vehicleId || ''), ...normalizeArcadeSizeProfileFields(profile) },
+    };
+}
+
+const NO_PROFILE_HUD_STATS = Object.freeze({ level: 1, speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0 });
+const HUD_STATS_BY_PROFILE = new WeakMap();
+
+/**
+ * Werte-Banner zum Sektorstart (82.8.3, Gauntlet): Hangar-Slotboni plus die Wirkung des
+ * Größen-Builds auf Tempo und Wendigkeit (Prozentpunkte über dem Tabellenwert) und Leben
+ * (Modus-Basis 100 HP), gerechnet mit denselben Contract-Funktionen wie die Strategie im Run.
+ * Pro kanonischem Profil gecacht: der HUD-Pfad läuft jedes Bild, ein geändertes Profil ist ein
+ * neues Objekt. Daily: feste Startbedingungen, also keine Boni.
+ * @param {any} profile
+ * @param {string} vehicleId
+ * @param {boolean} dailyChallenge
+ */
+export function resolveArcadeRunHudVehicleStats(profile, vehicleId, dailyChallenge) {
+    if (!profile || typeof profile !== 'object') return NO_PROFILE_HUD_STATS;
+    const key = dailyChallenge ? '' : String(vehicleId || '');
+    const cached = HUD_STATS_BY_PROFILE.get(profile);
+    if (cached?.key === key) return cached.stats;
+    const slot = dailyChallenge ? { speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0 } : getSlotStatBonuses(profile.upgrades, profile.hangarBonuses);
+    const base = resolveArcadeVehicleBaseStats(key);
+    const build = dailyChallenge ? base : resolveArcadeVehicleBuildStats(key, profile);
+    const delta = (/** @type {number} */ after, /** @type {number} */ before) => Math.round((after - before) * 100) / 100;
+    const stats = Object.freeze({
+        level: profile.level ?? 1,
+        speedBonusPct: Math.min(50, slot.speedBonusPct) + delta(build.speedPct, base.speedPct),
+        turningBonusPct: Math.min(50, slot.turningBonusPct) + delta(build.turnPct, base.turnPct),
+        maxHpBonus: Math.min(50, slot.maxHpBonus) + Math.round(build.maxHpPct) - Math.round(base.maxHpPct),
+    });
+    HUD_STATS_BY_PROFILE.set(profile, { key, stats });
+    return stats;
 }
 
 // Kept as a compatibility shape; vehicle levels grant no passive perks.

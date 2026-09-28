@@ -22,8 +22,14 @@ function resolvePlayerConfigValue(player, key, fallback) {
     return Number.isFinite(value) && value !== 0 ? value : fallback;
 }
 
+// Paket 2a: the Arcade engine size lengthens the boost; without the field it is exactly 1.
+function resolveArcadeBoostDurationFactor(player) {
+    const factor = Number(player?.arcadeBoostDurationMultiplier);
+    return Number.isFinite(factor) && factor > 0 ? factor : 1;
+}
+
 function resolveBoostCapacity(player) {
-    return Math.max(MIN_CAPACITY, resolvePlayerConfigValue(player, 'BOOST_DURATION', 1));
+    return Math.max(MIN_CAPACITY, resolvePlayerConfigValue(player, 'BOOST_DURATION', 1) * resolveArcadeBoostDurationFactor(player));
 }
 
 function resolveBoostRechargeTime(player) {
@@ -221,7 +227,9 @@ export function resetPlayerCharges(player, playerConfig = null) {
     if (!player) return;
     const boostDuration = Number(playerConfig?.BOOST_DURATION);
     const slowMoDuration = Number(playerConfig?.SLOWMO_DURATION);
-    player.boostCharge = Number.isFinite(boostDuration) ? boostDuration : resolveBoostCapacity(player);
+    player.boostCharge = Number.isFinite(boostDuration)
+        ? boostDuration * resolveArcadeBoostDurationFactor(player)
+        : resolveBoostCapacity(player);
     player.boostTimer = player.boostCharge;
     player.boostCooldown = 0;
     player.manualBoostActive = false;
