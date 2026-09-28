@@ -6128,6 +6128,48 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     border-radius: 6px;
 }
 
+/* Locked hangar area (HangarLockedSection): visible, dimmed, its condition stays readable. */
+.hangar-locked-section {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.hangar-locked-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+.hangar-locked-head button {
+    width: auto;
+}
+
+.hangar-locked-condition {
+    margin: 0;
+    color: #f6c453;
+    font-size: 0.8rem;
+}
+
+.hangar-locked-body {
+    display: grid;
+    gap: 0.5rem;
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.hangar-locked-section.is-locked > .hangar-locked-body {
+    opacity: 0.45;
+    filter: grayscale(0.6);
+}
+
+/* The disabled fieldset makes every button inside :disabled; the area already dims them once. */
+.hangar-locked-section.is-locked > .hangar-locked-body .secondary-btn:disabled {
+    opacity: 1;
+}
+
 .hangar-stat-row {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 5px 8px;

@@ -485,7 +485,7 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await expect(page.locator('#arcade-vehicle-manager [data-hangar-slot]')).toHaveCount(7);
 });
 
-// --- Paket 2a: Größenumbau im Reiter "Form" ---
+// --- Paket 2a: Größenumbau im Reiter "Ausbau" ("Form" behält nur die Farbe) ---
 
 async function readStoredProfile(page, vehicleId) {
     const key = await resolveProfileScopedKey(page, ARCADE_VEHICLE_PROFILE_STORAGE_KEY);
@@ -511,8 +511,9 @@ async function openSizeWorkshop(page) {
         return String(card?.getAttribute('data-vehicle-id') || '');
     });
     expect(vehicleId).not.toBe('');
-    await page.locator('#hangar-build-view-form').click();
-    await expect(page.locator('.hangar-size-panel')).toBeVisible();
+    await page.locator('#hangar-build-view-upgrade').click();
+    await expect(page.locator('#hangar-build-view-upgrade')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-build-view-panel="upgrade"] .hangar-size-panel')).toBeVisible();
     return vehicleId;
 }
 
@@ -530,7 +531,8 @@ test('T-ARC-S1: Größenumbau freischalten und Schritt kaufen nur mit Bestätigu
     test.setTimeout(180_000);
     const vehicleId = await openSizeWorkshop(page);
     await expect(page.locator('.hangar-part-style-scale, .hangar-part-style-variant')).toHaveCount(0);
-    await expect(page.locator('.hangar-size-editor')).toBeHidden();
+    await expect(page.locator('.hangar-size-editor')).toBeVisible();
+    await expect(page.locator('.hangar-size-buy-step')).toBeDisabled();
 
     await page.locator('.hangar-size-unlock').click();
     await page.locator('.hangar-size-confirm-cancel').click();
@@ -539,6 +541,7 @@ test('T-ARC-S1: Größenumbau freischalten und Schritt kaufen nur mit Bestätigu
 
     await confirmPurchase(page, '.hangar-size-unlock', ['Kosten: 100 XP', 'XP-Käufe sind endgültig']);
     await expect(page.locator('.hangar-size-editor')).toBeVisible();
+    await expect(page.locator('.hangar-size-buy-step')).toBeEnabled();
     await expect(page.locator('.hangar-size-steps')).toContainText('belegt 0 / gekauft 0');
 
     await confirmPurchase(page, '.hangar-size-buy-step', ['Kosten: 100 XP', 'Gekaufte Schritte: 0 → 1']);
@@ -598,4 +601,51 @@ test('T-ARC-S2: Trefferzone zeigen legt die Bauteil-Boxen über das Schiff, die 
 
     await toggle.uncheck();
     await expect(stage).toHaveAttribute('data-hitbox-boxes', '0');
+});
+
+test('T-ARC-S3: gesperrter Größenumbau ist im Reiter „Ausbau“ sichtbar, abgedunkelt, nennt seine Bedingung und ist nicht bedienbar', async ({ page }) => {
+    test.setTimeout(180_000);
+    await openSizeWorkshop(page);
+    const editorLock = page.locator('.hangar-size-panel > .hangar-locked-section');
+    const editorBody = editorLock.locator(':scope > .hangar-locked-body');
+    const hullMinus = page.locator('.hangar-size-row[data-size-group="hull"] .hangar-size-minus');
+
+    // Vor der Freigabe: sichtbar, abgedunkelt, Bedingung genannt, Bedienelemente gesperrt.
+    await expect(editorLock).toHaveClass(/is-locked/);
+    await expect(page.locator('.hangar-size-editor')).toBeVisible();
+    await expect(editorLock.locator(':scope > .hangar-locked-head .hangar-locked-condition')).toHaveText('Größenumbau freischalten: 100 XP');
+    await expect(editorBody).toHaveAttribute('aria-disabled', 'true');
+    expect(await editorBody.evaluate((node) => Number(getComputedStyle(node).opacity))).toBeLessThan(1);
+    await expect(hullMinus).toBeVisible();
+    await expect(hullMinus).toBeDisabled();
+    // Only the area dims: a disabled button inside it keeps full opacity instead of about 0.25.
+    expect(await hullMinus.evaluate((node) => getComputedStyle(node).opacity)).toBe('1');
+    await expect(page.locator('.hangar-size-buy-storage[data-storage="items"]')).toBeDisabled();
+    await expect(page.locator('.hangar-size-unlock')).toBeEnabled();
+    await expect(page.locator('.hangar-size-unlock')).toHaveAttribute('aria-label', 'Größenumbau freischalten (100 XP)');
+
+    // Reiter per Tastatur: Builds -> Ausbau -> Form; "Form" zeigt nur die Farbe.
+    await page.locator('#hangar-build-view-presets').click();
+    await page.locator('#hangar-build-view-presets').press('ArrowRight');
+    await expect(page.locator('#hangar-build-view-upgrade')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#hangar-build-view-upgrade')).toBeFocused();
+    await page.locator('#hangar-build-view-upgrade').press('ArrowRight');
+    await expect(page.locator('#hangar-build-view-form')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-build-view-panel="upgrade"]')).toBeHidden();
+    await expect(page.locator('[data-build-view-panel="form"] .hangar-part-style')).toBeVisible();
+    await expect(page.locator('[data-build-view-panel="form"] .hangar-size-panel, [data-build-view-panel="form"] .hangar-hitbox-toggle')).toHaveCount(0);
+
+    // Nach der Freigabe bedienbar; die erste Lagerstufe nennt die nötige Utility-Größe.
+    await page.locator('#hangar-build-view-upgrade').click();
+    await confirmPurchase(page, '.hangar-size-unlock', ['Kosten: 100 XP']);
+    await expect(editorLock).not.toHaveClass(/is-locked/);
+    await expect(editorBody).not.toHaveAttribute('aria-disabled', 'true');
+    expect(await editorBody.evaluate((node) => Number(getComputedStyle(node).opacity))).toBe(1);
+    await expect(hullMinus).toBeEnabled();
+    const itemsLock = page.locator('.hangar-size-storage', { has: page.locator('[data-storage="items"]') });
+    await expect(itemsLock).toHaveClass(/is-locked/);
+    await expect(itemsLock.locator('.hangar-locked-condition')).toHaveText('Utility auf 105 % bringen');
+    await expect(page.locator('.hangar-size-buy-storage[data-storage="items"]')).toBeVisible();
+    await expect(page.locator('.hangar-size-buy-storage[data-storage="items"]')).toBeDisabled();
+    expect(await page.locator('.hangar-size-buy-storage[data-storage="items"]').evaluate((node) => getComputedStyle(node).opacity)).toBe('1');
 });

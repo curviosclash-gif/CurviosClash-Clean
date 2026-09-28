@@ -92,7 +92,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         revertButton, defaultButton, presetName, presetSelect, presetSave, presetSaveAs, presetLoad,
         presetRename, presetDuplicate, presetDelete, presetSort, presetTags, presetFavorite,
         presetExport, presetImport, buildCompareSelect, starterBuilds, machineGunSelect, activateButton, statusMessage,
-        buildViewSwitch, trailStyleSelect, weaponStyleSelects, formViewButton, formViewPanel,
+        buildViewSwitch, trailStyleSelect, weaponStyleSelects, formViewButton, formViewPanel, upgradeViewButton, upgradeViewPanel,
     } = shell;
     search.value = selection.getSearchTerm();
     const viewport = createHangarViewport3d({ mount: previewStage, overlay: previewOverlay, color: resolvePlayerColor(settings) });
@@ -163,10 +163,10 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         };
     }
 
-    // Tab "Form": arcade-only colours and size build, stored per vehicle in the arcade profile.
+    // Tabs "Form" (colours) and, arcade only, "Ausbau" (size build), stored per vehicle in the arcade profile.
     const formTab = createHangarFormTab({
         bind, toast, viewport, enabled: hangarMode === 'arcade', panel: formViewPanel, tabButton: formViewButton,
-        getProfile: () => profileFor(draft.vehicleId),
+        upgradePanel: upgradeViewPanel, upgradeTabButton: upgradeViewButton, getProfile: () => profileFor(draft.vehicleId),
         saveProfile(next) {
             profiles[draft.vehicleId] = { ...next, updatedAt: new Date().toISOString() };
             profilePort.save(profiles);
@@ -174,7 +174,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         },
         onChange: () => syncDisplay({ preserveCatalog: true }),
     });
-    function syncPartStyle() { formTab.sync(draft.vehicleId, buildView === 'form'); }
+    function syncPartStyle() { formTab.sync(draft.vehicleId, buildView); }
 
     function syncDisplay(options = {}) {
         if (disposed) return;
@@ -519,7 +519,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     });
     bind(buildViewSwitch, 'click', (event) => {
         const view = event.target?.closest?.('[data-build-view]')?.dataset.buildView;
-        if (!['workshop', 'stats', 'presets', 'form'].includes(view)) return;
+        if (!['workshop', 'stats', 'presets', 'upgrade', 'form'].includes(view)) return;
         buildView = view;
         syncDisplay({ preserveCatalog: true });
     });

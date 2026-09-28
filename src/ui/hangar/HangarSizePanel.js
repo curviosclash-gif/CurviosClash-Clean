@@ -1,8 +1,11 @@
-// Hangar tab "Form", section "Größe" (Paket 2a): unlock the size workshop, move part sizes in
+// Hangar tab "Ausbau", section "Größe" (Paket 2a): unlock the size workshop, move part sizes in
 // 5 % steps with a value preview before "Übernehmen", undo free redistributions and buy size
 // steps or storage tiers after a confirmation that names cost, old and new values.
+// The editor and every storage tier are visible from the start; before their condition is met
+// they are dimmed, name it and cannot be used (HangarLockedSection).
 // All rules come from ArcadeVehicleBuildContract; this module only shows and asks.
 import { createUiNode as el } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
+import { createHangarLockedSection } from './HangarLockedSection.js';
 import {
     ARCADE_PART_SIZE_GROUPS,
     ARCADE_PART_SIZE_MAX_PCT,
@@ -99,10 +102,10 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
     const hint = el('p', 'field-hint', 'Größere Bauteile verbessern ihre Werte und sind sichtbar größer. Umverteilen ist kostenlos; XP-Käufe sind endgültig.');
     const xpLine = el('p', 'hangar-size-xp', '');
 
-    const lockBox = el('div', 'hangar-size-lock');
-    const lockText = el('p', 'field-hint', `Der Größenumbau ist gesperrt. Die Freigabe kostet einmalig ${ARCADE_SIZE_UNLOCK_COST_XP} XP.`);
-    const unlockButton = button('primary-btn hangar-size-unlock', `Größenumbau freischalten (${ARCADE_SIZE_UNLOCK_COST_XP} XP)`);
-    lockBox.append(lockText, unlockButton);
+    const unlockButton = button('primary-btn hangar-size-unlock', 'Freischalten');
+    // The short visible text needs the condition line beside it; screen readers get the full name.
+    unlockButton.setAttribute('aria-label', `Größenumbau freischalten (${formatNumber(ARCADE_SIZE_UNLOCK_COST_XP)} XP)`);
+    const editorLock = createHangarLockedSection({ className: 'hangar-size-lock', action: unlockButton });
 
     const editor = el('div', 'hangar-size-editor');
     const stepsLine = el('p', 'hangar-size-steps', '');
@@ -147,8 +150,15 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
     buyItems.dataset.storage = 'items';
     const buyRockets = button('secondary-btn hangar-size-buy-storage', '');
     buyRockets.dataset.storage = 'rockets';
-    shop.append(el('h5', 'hangar-size-shop-title', 'Mit XP kaufen'), buyStep, buyItems, buyRockets);
+    // A storage tier waits for its utility size: visible, dimmed, with the size it needs.
+    const storageLocks = new Map([buyItems, buyRockets].map((node) => {
+        const lock = createHangarLockedSection({ className: 'hangar-size-storage' });
+        lock.body.appendChild(node);
+        return [node, lock];
+    }));
+    shop.append(el('h5', 'hangar-size-shop-title', 'Mit XP kaufen'), buyStep, ...Array.from(storageLocks.values(), (lock) => lock.root));
     editor.append(stepsLine, groupList, el('h5', 'hangar-size-preview-title', 'Vorschau'), preview, actions, shop);
+    editorLock.body.appendChild(editor);
 
     const confirmBox = el('div', 'hangar-size-confirm hidden');
     confirmBox.setAttribute('role', 'alertdialog');
@@ -161,7 +171,7 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
     const confirmAccept = button('primary-btn hangar-size-confirm-accept', 'Kaufen');
     const confirmCancel = button('secondary-btn hangar-size-confirm-cancel', 'Abbrechen');
     confirmBox.append(confirmTitle, confirmLines, confirmAccept, confirmCancel);
-    root.append(title, hint, xpLine, lockBox, editor, confirmBox);
+    root.append(title, hint, xpLine, editorLock.root, confirmBox);
 
     let vehicleId = '';
     let profile = {};
@@ -195,17 +205,20 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
         preview.replaceChildren(...(lines.length > 0 ? lines : ['Keine Änderung']).map((line) => el('li', '', line)));
     }
 
-    function renderShop() {
+    function renderShop(unlocked) {
         const step = evaluateArcadeSizeStepPurchase(profile);
         buyStep.textContent = step.ok || step.reason === 'insufficient_xp'
             ? `Größenschritt kaufen (${formatNumber(step.cost)} XP)`
             : `Größenschritt: ${reasonText(step)}`;
         buyStep.disabled = !step.ok;
-        for (const node of [buyItems, buyRockets]) {
+        for (const [node, lock] of storageLocks) {
             const storage = node.dataset.storage;
             const offer = resolveArcadeStorageOffer(profile, storage);
             const result = evaluateArcadeStoragePurchase(profile, storage);
             node.disabled = !result.ok;
+            // Before the workshop unlock its own lock covers the shop; one dimming is enough.
+            const waitsForUtility = unlocked && !!offer && !offer.utilityReached;
+            lock.setLocked(waitsForUtility, waitsForUtility ? `Utility auf ${offer.requiredUtilityPct} % bringen` : '');
             if (!offer) {
                 node.textContent = `${STORAGE_LABELS[storage]}: voll ausgebaut`;
                 node.removeAttribute('aria-description');
@@ -223,8 +236,7 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
     function update() {
         const fields = normalizeArcadeSizeProfileFields(profile);
         xpLine.textContent = `Verfügbare XP: ${formatNumber(resolveArcadeSpendableXp(profile))}`;
-        lockBox.classList.toggle('hidden', fields.sizeWorkshopUnlocked);
-        editor.classList.toggle('hidden', !fields.sizeWorkshopUnlocked);
+        editorLock.setLocked(!fields.sizeWorkshopUnlocked, `Größenumbau freischalten: ${formatNumber(ARCADE_SIZE_UNLOCK_COST_XP)} XP`);
         const unlock = evaluateArcadeSizeUnlock(profile);
         unlockButton.disabled = !unlock.ok;
         unlockButton.setAttribute('aria-description', unlock.ok ? 'Kaufbar' : reasonText(unlock));
@@ -240,7 +252,7 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
         resetButton.disabled = !dirty;
         undoButton.disabled = !(history.get(vehicleId)?.length > 0);
         renderPreview();
-        renderShop();
+        renderShop(fields.sizeWorkshopUnlocked);
         keepFocus();
     }
 
@@ -400,7 +412,7 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
         /**
          * @param {string} nextVehicleId
          * @param {any} nextProfile
-         * @param {boolean} [editing] false outside the "Form" tab: an unapplied draft is dropped,
+         * @param {boolean} [editing] false outside the "Ausbau" tab: an unapplied draft is dropped,
          *   so no other view shows a ship that differs from the one that flies.
          */
         render(nextVehicleId, nextProfile, editing = true) {

@@ -1,136 +1,22 @@
 // ============================================
-// arcade-hangar-size-panel.contract.test.mjs - Paket 2a, Hangar-Reiter "Form" / Abschnitt "Größe":
+// arcade-hangar-size-panel.contract.test.mjs - Paket 2a, Hangar-Reiter "Ausbau" / Abschnitt "Größe":
 // Kaufbestätigung (gehaltene Enter-Taste, frische XP-Werte), Tastaturfokus, Lager-Tooltip und
 // der nicht übernommene Größenentwurf in der 3D-Vorschau.
 //
-// Node hat keinen Browser: ein kleiner Dokument-Ersatz merkt sich, was das Panel baut. Enter auf
-// einem Knopf löst wie in Chromium einen Klick aus, solange kein keydown-Lauscher das verhindert.
+// Node hat keinen Browser: der Dokument-Ersatz aus tests/helpers/fake-hangar-dom.mjs merkt sich,
+// was das Panel baut.
 // ============================================
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-
-class FakeClassList {
-    constructor() { this.values = new Set(); }
-    add(...names) { names.forEach((name) => this.values.add(name)); }
-    remove(...names) { names.forEach((name) => this.values.delete(name)); }
-    toggle(name, force) {
-        const on = force === undefined ? !this.values.has(name) : !!force;
-        if (on) this.values.add(name); else this.values.delete(name);
-        return on;
-    }
-    contains(name) { return this.values.has(name); }
-}
-
-function matches(node, selector) {
-    if (selector.startsWith('.')) return node.classList.contains(selector.slice(1));
-    const data = /^\[data-([a-z-]+)\]$/.exec(selector);
-    if (!data) throw new Error(`selector not supported: ${selector}`);
-    const key = data[1].replace(/-([a-z])/g, (_, char) => char.toUpperCase());
-    return node.dataset[key] !== undefined;
-}
-
-class FakeElement {
-    constructor(tagName) {
-        this.tagName = String(tagName).toUpperCase();
-        this.children = [];
-        this.parentElement = null;
-        this.attributes = new Map();
-        this.dataset = {};
-        this.classList = new FakeClassList();
-        this.listeners = {};
-        this.textContent = '';
-        this.disabled = false;
-        this.type = '';
-        this.id = '';
-        this.value = '';
-        this.tabIndex = 0;
-    }
-    set className(value) {
-        this.classList = new FakeClassList();
-        String(value).split(/\s+/).filter(Boolean).forEach((name) => this.classList.add(name));
-    }
-    get className() { return [...this.classList.values].join(' '); }
-    get title() { return this.attributes.get('title') ?? ''; }
-    set title(value) { this.attributes.set('title', String(value)); }
-    setAttribute(name, value) { this.attributes.set(name, String(value)); }
-    getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null; }
-    removeAttribute(name) { this.attributes.delete(name); }
-    append(...nodes) {
-        for (const node of nodes) {
-            if (typeof node === 'string') { this.textContent += node; continue; }
-            node.parentElement = this;
-            this.children.push(node);
-        }
-    }
-    appendChild(node) { this.append(node); return node; }
-    replaceChildren(...nodes) {
-        this.children.forEach((child) => { child.parentElement = null; });
-        this.children = [];
-        this.append(...nodes);
-    }
-    addEventListener(type, handler) { (this.listeners[type] ||= []).push(handler); }
-    removeEventListener() {}
-    dispatchEvent(event) {
-        event.target ||= this;
-        for (let node = this; node && !event.stopped; node = node.parentElement) {
-            (node.listeners[event.type] || []).forEach((handler) => handler(event));
-        }
-        return !event.defaultPrevented;
-    }
-    click() { if (!this.disabled) this.dispatchEvent(createEvent('click')); }
-    focus() { if (isUsable(this)) fakeDocument.activeElement = this; }
-    closest(selector) {
-        for (let node = this; node; node = node.parentElement) if (matches(node, selector)) return node;
-        return null;
-    }
-    contains(node) {
-        for (let current = node; current; current = current.parentElement) if (current === this) return true;
-        return false;
-    }
-    querySelectorAll(selector) {
-        const found = [];
-        const walk = (node) => node.children.forEach((child) => { if (matches(child, selector)) found.push(child); walk(child); });
-        walk(this);
-        return found;
-    }
-}
-
-function createEvent(type, extra = {}) {
-    return {
-        type, defaultPrevented: false, stopped: false, ...extra,
-        preventDefault() { this.defaultPrevented = true; },
-        stopPropagation() { this.stopped = true; },
-    };
-}
-
-function isUsable(node) {
-    for (let current = node; current; current = current.parentElement) {
-        if (current.disabled || current.classList.contains('hidden')) return false;
-    }
-    return true;
-}
-
-const fakeDocument = { activeElement: null, createElement: (tag) => new FakeElement(tag) };
-globalThis.document = fakeDocument;
+import {
+    FakeElement, bind, createEvent, fakeDocument, find, isUsable, pressEnter,
+} from './helpers/fake-hangar-dom.mjs';
 
 const { createHangarSizePanel } = await import('../src/ui/hangar/HangarSizePanel.js');
 const { createHangarFormTab } = await import('../src/ui/hangar/HangarFormTab.js');
 const { createArcadeVehicleProfileRecord } = await import('../src/shared/contracts/ArcadeVehicleProfileContract.js');
 const hitboxContract = await import('../src/shared/contracts/ArcadeVehicleHitboxContract.js');
 const { PLAYER_SHIP_PART_CONFIGS } = await import('../src/shared/vehicle-lab/player-ships/index.js');
-
-const bind = (node, type, handler) => node.addEventListener(type, handler);
-
-// Enter on a focused button: keydown bubbles, then Chromium clicks unless a listener prevented it.
-function pressEnter(node, repeat = false) {
-    const event = createEvent('keydown', { key: 'Enter', repeat, target: node });
-    node.dispatchEvent(event);
-    if (!event.defaultPrevented && node.tagName === 'BUTTON') node.click();
-}
-
-function find(root, className) {
-    return root.classList.contains(className) ? root : root.querySelectorAll(`.${className}`)[0];
-}
 
 function createPanel(extra = {}) {
     const harness = {
@@ -253,36 +139,38 @@ test('L: das Werte-Banner zeigt die Größen-Wirkung, auch gesenkte Werte mit Vo
 
 // --- H: nicht übernommener Größenentwurf ---
 
-test('H: ein nicht übernommener Größenentwurf gilt nur im Reiter „Form“ und verfällt beim Verlassen', () => {
+test('H: ein nicht übernommener Größenentwurf gilt nur im Reiter „Ausbau“ und verfällt beim Verlassen', () => {
     const styles = [];
     let profile = {
         ...createArcadeVehicleProfileRecord('ship5', 0),
         sizeWorkshopUnlocked: true, purchasedSizeSteps: 5,
     };
-    let active = true;
-    const panel = new FakeElement('div');
+    let view = 'upgrade';
+    const upgradePanel = new FakeElement('div');
     const tab = createHangarFormTab({
         bind,
         enabled: true,
         viewport: { setPartStyle: (style) => styles.push(style), setHitboxOverlay() {} },
-        panel,
+        panel: new FakeElement('div'),
         tabButton: new FakeElement('button'),
+        upgradePanel,
+        upgradeTabButton: new FakeElement('button'),
         getProfile: () => profile,
         saveProfile: (next) => { profile = next; },
         toast() {},
-        onChange: () => tab.sync('ship5', active),
+        onChange: () => tab.sync('ship5', view),
     });
-    tab.sync('ship5', true);
-    const noseRow = panel.querySelectorAll('[data-size-group]').find((node) => node.dataset.sizeGroup === 'nose');
+    tab.sync('ship5', view);
+    const noseRow = upgradePanel.querySelectorAll('[data-size-group]').find((node) => node.dataset.sizeGroup === 'nose');
     find(noseRow, 'hangar-size-plus').click();
     find(noseRow, 'hangar-size-plus').click();
-    assert.equal(styles.at(-1).Bugkeil?.scale, 1.1, 'im Reiter „Form“ zeigt die Vorschau den Entwurf');
+    assert.equal(styles.at(-1).Bugkeil?.scale, 1.1, 'im Reiter „Ausbau“ zeigt die Vorschau den Entwurf');
 
-    active = false;
-    tab.sync('ship5', false);
-    assert.equal(styles.at(-1).Bugkeil?.scale, undefined, 'außerhalb zeigt das Schiff die übernommene Größe');
-    active = true;
-    tab.sync('ship5', true);
+    view = 'form';
+    tab.sync('ship5', view);
+    assert.equal(styles.at(-1).Bugkeil?.scale, undefined, 'außerhalb, auch im Reiter „Form“, zeigt das Schiff die übernommene Größe');
+    view = 'upgrade';
+    tab.sync('ship5', view);
     assert.equal(styles.at(-1).Bugkeil?.scale, undefined, 'der verlassene Entwurf ist verworfen');
     assert.equal(profile.partSizes?.nose ?? 100, 100, 'das Profil blieb unverändert');
 });
@@ -291,17 +179,19 @@ test('H: ein nicht übernommener Größenentwurf gilt nur im Reiter „Form“ u
 
 const SHIP5 = PLAYER_SHIP_PART_CONFIGS.find((config) => config.id === 'ship5');
 
-function createFormTab() {
-    const harness = { overlays: [], active: true };
+function createUpgradeTab() {
+    const harness = { overlays: [], view: 'upgrade' };
     harness.profile = { ...createArcadeVehicleProfileRecord('ship5', 0), sizeWorkshopUnlocked: true, purchasedSizeSteps: 5 };
     harness.panel = new FakeElement('div');
-    const sync = () => harness.tab.sync('ship5', harness.active);
+    const sync = () => harness.tab.sync('ship5', harness.view);
     harness.tab = createHangarFormTab({
         bind,
         enabled: true,
         viewport: { setPartStyle() {}, setHitboxOverlay: (boxes) => harness.overlays.push(boxes) },
-        panel: harness.panel,
+        panel: new FakeElement('div'),
         tabButton: new FakeElement('button'),
+        upgradePanel: harness.panel,
+        upgradeTabButton: new FakeElement('button'),
         getProfile: () => harness.profile,
         saveProfile: (next) => { harness.profile = next; sync(); },
         toast() {},
@@ -318,8 +208,8 @@ function panelRow(panel, group) {
     return panel.querySelectorAll('[data-size-group]').find((node) => node.dataset.sizeGroup === group);
 }
 
-test('Trefferzone: der Schalter legt die Boxen des Entwurfs über das Schiff, nur im Reiter „Form“', () => {
-    const harness = createFormTab();
+test('Trefferzone: der Schalter legt die Boxen des Entwurfs über das Schiff, nur im Reiter „Ausbau“', () => {
+    const harness = createUpgradeTab();
     assert.ok(harness.toggle, 'Schalter „Trefferzone zeigen“ vorhanden');
     assert.equal(harness.overlays.at(-1), null, 'aus: keine Boxen');
     harness.toggle.checked = true;
@@ -327,17 +217,17 @@ test('Trefferzone: der Schalter legt die Boxen des Entwurfs über das Schiff, nu
     assert.deepEqual(harness.overlays.at(-1), hitboxContract.listArcadeHitboxBoxes(SHIP5, null), 'an: volle Trefferzone in Werksgröße');
     harness.click('wings', 'hangar-size-plus');
     assert.deepEqual(harness.overlays.at(-1), hitboxContract.listArcadeHitboxBoxes(SHIP5, { wings: 105 }), 'folgt dem nicht übernommenen Entwurf');
-    harness.active = false;
-    harness.tab.sync('ship5', false);
-    assert.equal(harness.overlays.at(-1), null, 'außerhalb des Reiters keine Boxen');
+    harness.view = 'form';
+    harness.tab.sync('ship5', harness.view);
+    assert.equal(harness.overlays.at(-1), null, 'außerhalb des Reiters, auch im Reiter „Form“, keine Boxen');
     harness.toggle.checked = false;
-    harness.active = true;
-    harness.tab.sync('ship5', true);
+    harness.view = 'upgrade';
+    harness.tab.sync('ship5', harness.view);
     assert.equal(harness.overlays.at(-1), null, 'ausgeschaltet: keine Boxen');
 });
 
 test('Trefferzone: die Wertvorschau nennt ihre Veränderung (alt → neu, Prozent der Werksgröße)', () => {
-    const harness = createFormTab();
+    const harness = createUpgradeTab();
     assert.deepEqual(harness.preview(), ['Keine Änderung']);
     const factory = hitboxContract.measureArcadeHitboxSurface(SHIP5.parts, null);
     const expectLine = (sizes) => {
