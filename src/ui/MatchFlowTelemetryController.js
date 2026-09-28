@@ -50,12 +50,6 @@ function buildTelemetryContext(game) {
     };
 }
 
-function readAutomationHintParam(search) {
-    if (typeof search !== 'string' || !search) return '';
-    const value = new URLSearchParams(search).get('automation') || '';
-    return value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 32);
-}
-
 // Nur die startende Seite kann Automatisierung sicher melden: Tastendruecke
 // eines Werkzeugs kommen im Fenster genauso an wie von Hand getippte.
 function resolveAutomationSignal(game) {
@@ -63,9 +57,9 @@ function resolveAutomationSignal(game) {
     if (!runtimeWindow) return 'headless';
     if (runtimeWindow.navigator?.webdriver === true) return 'webdriver';
     if (runtimeWindow.CURVIOS_TEST_API && typeof runtimeWindow.CURVIOS_TEST_API === 'object') return 'test-api';
-    // Die Desktop-Shell haengt den Hinweis an die Adresse, wenn sie mit
-    // offener Debug-Schnittstelle gestartet wurde (siehe automation-hint.cjs).
-    return normalizeTelemetryString(readAutomationHintParam(runtimeWindow.location?.search), '');
+    // Die Desktop-Shell setzt diesen Wert, wenn sie mit offener
+    // Debug-Schnittstelle gestartet wurde (siehe electron/automation-hint.cjs).
+    return normalizeTelemetryString(runtimeWindow.__CURVIOS_AUTOMATION__, '');
 }
 
 function buildControlTelemetry(game, humanCount) {

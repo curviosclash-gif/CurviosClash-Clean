@@ -32,7 +32,7 @@ const {
     createSecureWindowWebPreferences,
     isTrustedEditorUrl,
 } = require('./window-security-options.cjs');
-const { appendAutomationHint, resolveAutomationHint } = require('./automation-hint.cjs');
+const { installAutomationHintReporter, resolveAutomationHint } = require('./automation-hint.cjs');
 const { installEditorDownloadTarget } = require('./editor-download-target.cjs');
 const { installEditorUnloadGuard } = require('./editor-unload-guard.cjs');
 const { createFocusScopedShortcut } = require('./focus-scoped-shortcut.cjs');
@@ -586,6 +586,10 @@ async function createWindow() {
         mainWindow.showInactive();
     }
 
+    // Der Hinweis auf Fernsteuerung wird im Fenster gesetzt, nicht an die Adresse
+    // gehaengt: eine veraenderte Adresse zwingt jeden Desktop-Test zu einem
+    // zweiten Ladevorgang und verschiebt damit sein Startverhalten.
+    installAutomationHintReporter(mainWindow.webContents, resolveAutomationHint(process.argv, process.env));
     mainWindow.webContents.on('will-navigate', createMainWindowNavigationGuard(appServer.url));
     installEditorDownloadTarget(session.defaultSession, {
         isTrustedEditorUrl: (url) => isTrustedEditorUrl(url, appServer.url),
@@ -624,7 +628,7 @@ async function createWindow() {
             ));
         });
     });
-    await mainWindow.loadURL(appendAutomationHint(appServer.url, resolveAutomationHint(process.argv, process.env)));
+    await mainWindow.loadURL(appServer.url);
     mainWindow.on('closed', () => {
         mainWindow = null;
     });

@@ -6,7 +6,10 @@
 // schickt, ist im Fenster nicht von einem Menschen zu unterscheiden: die
 // Ereignisse tragen dieselben Merkmale. Erkennbar ist die Fernsteuerung nur
 // hier im Hauptprozess, denn nur der kennt die Startschalter des Browsers.
-// Der Hinweis reist deshalb als Abfrageparameter mit der Adresse zum Fenster.
+//
+// Der Hinweis wird nach jedem Laden im Fenster gesetzt und nicht an die
+// Adresse gehaengt: eine veraenderte Adresse laesst die Desktop-Tests ihren
+// vorgebooteten Zustand verwerfen und ein zweites Mal laden.
 
 const AUTOMATION_ARGV_MARKERS = Object.freeze([
     '--remote-debugging-port',
@@ -15,7 +18,7 @@ const AUTOMATION_ARGV_MARKERS = Object.freeze([
     '--inspect-brk',
 ]);
 
-const AUTOMATION_HINT_PARAM = 'automation';
+const AUTOMATION_HINT_GLOBAL = '__CURVIOS_AUTOMATION__';
 
 function sanitizeHint(value) {
     const normalized = String(value || '').trim().toLowerCase();
@@ -40,26 +43,27 @@ function resolveAutomationHint(argv = [], env = {}) {
 }
 
 /**
- * @param {string} url Adresse des eigenen Servers
+ * Setzt den Hinweis nach jedem Laden erneut, denn ein Neuladen raeumt die
+ * Variable mit der alten Seite ab.
+ *
+ * @param {{on?: Function, executeJavaScript?: Function} | null} webContents
  * @param {string} hint Ergebnis aus resolveAutomationHint
- * @returns {string} Adresse, bei leerem Hinweis unveraendert
+ * @returns {boolean} true, wenn ein Hinweis eingerichtet wurde
  */
-function appendAutomationHint(url, hint) {
+function installAutomationHintReporter(webContents, hint) {
     const normalizedHint = sanitizeHint(hint);
-    const baseUrl = String(url || '');
-    if (!normalizedHint || !baseUrl) return baseUrl;
-    try {
-        const parsed = new URL(baseUrl);
-        parsed.searchParams.set(AUTOMATION_HINT_PARAM, normalizedHint);
-        return parsed.toString();
-    } catch {
-        // Eine unlesbare Adresse darf den Start nicht verhindern.
-        return baseUrl;
-    }
+    if (!normalizedHint || typeof webContents?.on !== 'function') return false;
+    const script = `window.${AUTOMATION_HINT_GLOBAL} = ${JSON.stringify(normalizedHint)};`;
+    webContents.on('did-finish-load', () => {
+        // Ein fehlgeschlagener Hinweis darf das Fenster nicht stoeren; die Runde
+        // gilt dann als von Hand gespielt, was der bisherige Zustand war.
+        Promise.resolve(webContents.executeJavaScript?.(script)).catch(() => {});
+    });
+    return true;
 }
 
 module.exports = {
-    AUTOMATION_HINT_PARAM,
-    appendAutomationHint,
+    AUTOMATION_HINT_GLOBAL,
+    installAutomationHintReporter,
     resolveAutomationHint,
 };
