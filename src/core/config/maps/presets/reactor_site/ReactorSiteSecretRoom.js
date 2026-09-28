@@ -26,13 +26,16 @@
 //   containment     no topple at all; the cloud is authored decorative and collides with nothing,
 //                   the ruin stays inside the 36 unit footprint - the portal is 48 away
 // The eject point is the same axis, 130 units out on the grass between the perimeter fence and the
-// tree line: past every wreck field again, and 373 world metres from the rocket emplacement in the
+// tree line: past every wreck field again, and 334 world metres from the rocket emplacement in the
 // room, which reaches 270.
 
 import { up } from './ReactorSiteStructure.js';
 
-/** Interior of the room. The ceiling is four map units below the arena floor. */
-const ROOM_HALF = 20;
+/**
+ * Interior of the room. The ceiling is four map units below the arena floor. The first version was
+ * 40 map units across; the user doubled width and depth on 28.09.2026 and kept the height.
+ */
+const ROOM_HALF = 40;
 const ROOM_CEILING = -4;
 const ROOM_FLOOR = -16;
 
@@ -69,8 +72,10 @@ export const REACTOR_SITE_SECRET_ROOM_OBSTACLES = Object.freeze([
 
 /**
  * Three emplacements around the way back, so arriving in the middle of the room costs something.
- * Ranges stay at the contract's own fallbacks: the room is 40 map units across, so everything is
- * in reach of everything anyway. What the map does say is what was decided: 45 hit points, 45
+ * Ranges stay at the contract's own fallbacks. Since the room doubled they sit at twice their old
+ * distance from the centre and no longer reach every corner - the far side is where a visitor can
+ * breathe. The count stays three, because the twelve seconds below are measured for three. What
+ * the map does say is what was decided: 45 hit points, 45
  * seconds until a destroyed guard stands there again - and a fire rate tamed so that a vehicle
  * just sitting there lasts about twelve seconds instead of four (guns 2 hp every 1.3 s instead
  * of 4 every 0.8 s, a rocket every 6 s instead of 3.4 s). tests/secret-room-guard-balance pins it.
@@ -79,9 +84,9 @@ const MG_GUARD = Object.freeze({ weapon: 'mg', damage: 2, cooldown: 1.3 });
 const ROCKET_GUARD = Object.freeze({ weapon: 'rocket', rocketType: 'ROCKET_WEAK', cooldown: 6 });
 
 export const REACTOR_SITE_SECRET_ROOM_TURRETS = Object.freeze([
-    { ...MG_GUARD, id: 'reactor_site_bunker_mg_west', pos: [-13, -13, -13] },
-    { ...MG_GUARD, id: 'reactor_site_bunker_mg_east', pos: [13, -13, -13] },
-    { ...ROCKET_GUARD, id: 'reactor_site_bunker_rocket', pos: [0, -13, 14] },
+    { ...MG_GUARD, id: 'reactor_site_bunker_mg_west', pos: [-26, -13, -26] },
+    { ...MG_GUARD, id: 'reactor_site_bunker_mg_east', pos: [26, -13, -26] },
+    { ...ROCKET_GUARD, id: 'reactor_site_bunker_rocket', pos: [0, -13, 28] },
 ].map((turret) => Object.freeze({
     ...turret,
     destructible: true,
@@ -90,20 +95,34 @@ export const REACTOR_SITE_SECRET_ROOM_TURRETS = Object.freeze([
     allowedModes: ['HUNT', 'ARCADE'],
 })));
 
-// Ten item points at mid height. Five of them name no type on purpose: an unnamed point draws from
-// the mode's own weighted choice, so the room is worth entering twice. The five that do name one
-// are the plant's own flavour - shield, speed, ghost and the two heavier rockets a siege needs.
+// Twenty-two item points at mid height. Half of them name no type on purpose: an unnamed point
+// draws from the mode's own weighted choice, so the room is worth entering twice. The named ones
+// are the plant's own flavour - shield, speed, ghost and the two heavier rockets a siege needs, each
+// twice since the room doubled - and one bomber strike under the rocket guard, the prize of the
+// bunker (user decision 28.09.2026).
 const ITEMS = Object.freeze([
-    { pos: [-12, -10, -12] },
-    { pos: [12, -10, -12] },
-    { pos: [12, -10, 12] },
-    { pos: [-12, -10, 12] },
+    { pos: [-24, -10, -24] },
+    { pos: [24, -10, -24] },
+    { pos: [24, -10, 24] },
+    { pos: [-24, -10, 24] },
     { pos: [0, -8, 0] },
-    { pos: [-6, -8, -6], type: 'SHIELD' },
-    { pos: [6, -8, -6], type: 'SPEED_UP' },
-    { pos: [0, -10, -15], type: 'GHOST' },
-    { pos: [-15, -10, 0], type: 'ROCKET_MEDIUM' },
-    { pos: [15, -10, 0], type: 'ROCKET_HEAVY' },
+    { pos: [-12, -10, -34] },
+    { pos: [12, -10, 34] },
+    { pos: [34, -10, -12] },
+    { pos: [-34, -10, 12] },
+    { pos: [0, -8, -20] },
+    { pos: [0, -8, 20] },
+    { pos: [-12, -8, -12], type: 'SHIELD' },
+    { pos: [12, -8, 12], type: 'SHIELD' },
+    { pos: [12, -8, -12], type: 'SPEED_UP' },
+    { pos: [-12, -8, 12], type: 'SPEED_UP' },
+    { pos: [0, -10, -30], type: 'GHOST' },
+    { pos: [-30, -10, 30], type: 'GHOST' },
+    { pos: [-30, -10, 0], type: 'ROCKET_MEDIUM' },
+    { pos: [30, -10, 30], type: 'ROCKET_MEDIUM' },
+    { pos: [30, -10, 0], type: 'ROCKET_HEAVY' },
+    { pos: [-30, -10, -30], type: 'ROCKET_HEAVY' },
+    { pos: [0, -10, 32], type: 'BOMBER_STRIKE' },
 ]);
 
 export const REACTOR_SITE_SECRET_ROOM = Object.freeze({
