@@ -202,6 +202,17 @@ export function collectAnimatedNodes(root, clips) {
  * The collection slot a mesh sits in, or null on a single-model map - there is no slot there,
  * so its colliders carry an empty model id and nothing can be switched on or off separately.
  */
+// Shootable seeds and kernels are drawn by an instanced batch that hides their nodes, and a
+// swarm of small parts spends the shadow budget the landmark's big surfaces need.
+const BATCHED_SHOOTABLE_ROLES = new Set(['shootable_seed', 'shootable_kernel']);
+
+function isBatchedShootablePart(mesh) {
+    for (let node = mesh; node; node = node.parent) {
+        if (BATCHED_SHOOTABLE_ROLES.has(node.userData?.role)) return true;
+    }
+    return false;
+}
+
 function resolveColliderSlot(object) {
     for (let node = object; node; node = node.parent) {
         const modelId = node.userData?.glbModelId;
@@ -245,7 +256,7 @@ function collectSceneColliders(root, options = {}) {
         const collisionOnly = isMeshCollisionOnly(child);
         const transparent = materials.some((material) => material?.transparent === true);
         const noShadow = String(child.name || '').toLowerCase().includes('_noshadow');
-        if (!transparent && !noShadow && !collisionOnly) {
+        if (!transparent && !noShadow && !collisionOnly && !isBatchedShootablePart(child)) {
             const width = box.max.x - box.min.x;
             const height = box.max.y - box.min.y;
             const depth = box.max.z - box.min.z;
