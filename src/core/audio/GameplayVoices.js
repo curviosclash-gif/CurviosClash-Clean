@@ -285,6 +285,23 @@ function playFlagCapture(audio, options) {
     ], options);
 }
 
+// A soft, airy puff for a shot-off seed or kernel: low filtered noise and a short falling sigh.
+function playSeedPuff(audio, options) {
+    const intensity = audio._intensity(options, 0.7, 0.15, 1.1);
+    audio._playNoise({
+        duration: 0.18,
+        peak: 0.12 * intensity,
+        filterType: 'lowpass',
+        startFrequency: 2400,
+        endFrequency: 420,
+        options,
+    });
+    audio._playTone({
+        type: 'sine', startFreq: 520, endFreq: 260, duration: 0.14,
+        peak: 0.05 * intensity, attack: 0.01, options,
+    });
+}
+
 function playUiTone(audio, options, tone) {
     audio._playTone({ ...tone, options: { ...options, bus: 'ui' } });
 }
@@ -311,6 +328,7 @@ const PLAYERS = Object.freeze({
     FIGHT_ASSIST: playFightAssist,
     FIGHT_LEAD: playFightLead,
     FLAG_CAPTURE: playFlagCapture,
+    SEED_PUFF: playSeedPuff,
     UI_DROP: (audio, options) => playUiTone(audio, options, {
         type: 'sine', startFreq: 520, endFreq: 700, duration: 0.09,
         peak: 0.12, attack: 0.006, ramp: 'linear',

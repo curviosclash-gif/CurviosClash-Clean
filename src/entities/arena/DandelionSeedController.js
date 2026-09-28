@@ -35,6 +35,8 @@ export class DandelionSeedController {
         this.seeds = [];
         this.byName = new Map();
         this.events = [];
+        /** @type {((position: THREE.Vector3, atSeconds: number) => void) | null} Reused vector. */
+        this.onRelease = null;
         this._wind = new THREE.Vector3();
         this._target = new THREE.Vector3();
         this._tumble = new THREE.Quaternion();
@@ -176,6 +178,8 @@ export class DandelionSeedController {
         progress.remaining = Math.max(0, progress.total - progress.released);
         progress.allReleased = progress.total > 0 && progress.remaining === 0;
         progress.completedAtSeconds = progress.allReleased ? this._latestReleaseSeconds : 0;
+        // Host and replica both release here, so feedback hooked in here reaches every screen.
+        this.onRelease?.(seed.currentTip, at);
         return true;
     }
 

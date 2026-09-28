@@ -64,6 +64,8 @@ export class SunflowerKernelController {
         this.byIndex = new Map();
         this.heads = [];
         this.events = [];
+        /** @type {((position: THREE.Vector3, atSeconds: number) => void) | null} Reused vector. */
+        this.onRelease = null;
         this._center = new THREE.Vector3();
         this._scale = new THREE.Vector3(1, 1, 1);
         this._localOrigin = new THREE.Vector3();
@@ -281,6 +283,8 @@ export class SunflowerKernelController {
         progress.remaining = Math.max(0, progress.total - progress.released);
         progress.allReleased = progress.total > 0 && progress.remaining === 0;
         progress.completedAtSeconds = progress.allReleased ? this._latestReleaseSeconds : 0;
+        // Host and replica both release here, so feedback hooked in here reaches every screen.
+        this.onRelease?.(kernel.worldStart, at);
         return true;
     }
 

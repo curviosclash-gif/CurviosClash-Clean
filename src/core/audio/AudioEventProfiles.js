@@ -23,6 +23,8 @@ export const SOUND_COOLDOWNS_MS = Object.freeze({
     FIGHT_KILL: 120,
     FIGHT_ASSIST: 180,
     FIGHT_LEAD: 800, FLAG_CAPTURE: 320,
+    // Dense MG fire into a crown releases a seed nearly every shot; one puff per burst is enough.
+    SEED_PUFF: 60,
     UI_DROP: 40,
     UI_PICKUP: 40,
     UI_REJECT: 80, EXCLUSION_WARNING: 900,
