@@ -24,7 +24,7 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     chrono_forge_nexus: 'generate_map_world.py',
     maze: 'generate_map_world.py',
     complex: 'generate_map_world.py',
-    pyramid: 'generate_map_world.py',
+    pyramid: 'generate_pyramid_map_assets.py',
     vertical_maze: 'generate_map_world.py',
     trench: 'generate_map_world.py',
 });
