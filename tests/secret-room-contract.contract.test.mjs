@@ -38,7 +38,7 @@ test('T-SR1: contract version and limits are frozen house values', () => {
     assert.equal(SECRET_ROOM_CONTRACT_VERSION, 'secret-room.v1');
     assert.deepEqual([...SECRET_ROOM_MODES], ['HUNT', 'ARCADE']);
     assert.equal(SECRET_ROOM_LIMITS.maxRooms, 3);
-    assert.equal(SECRET_ROOM_LIMITS.maxItems, 16);
+    assert.equal(SECRET_ROOM_LIMITS.maxItems, 24);
     assert.equal(SECRET_ROOM_LIMITS.stayLimitSeconds.fallback, 20);
     assert.equal(SECRET_ROOM_LIMITS.stayLimitSeconds.min, 5);
     assert.equal(SECRET_ROOM_LIMITS.stayLimitSeconds.max, 120);

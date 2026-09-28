@@ -10,6 +10,7 @@ import { REACTOR_SITE_SECRET_ROOM_OBSTACLES } from '../src/core/config/maps/pres
 import { REACTOR_HALF_SIZE, METRE } from '../src/core/config/maps/presets/reactor_site/ReactorSiteStructure.js';
 import { normalizeSecretRooms } from '../src/shared/contracts/SecretRoomContract.js';
 import { normalizeStaticTurretDefinition } from '../src/shared/contracts/MapSinglePlayerScenarioContract.js';
+import { getPickupSpawnWeight, isPickupTypeAllowedForMode } from '../src/shared/contracts/PickupRegistryContract.js';
 import {
     PLAYABLE_VOLUME_INSIDE,
     probeArenaPlayableVolumes,
@@ -107,9 +108,33 @@ test('T-S38a: the reactor site carries exactly one secret room with the agreed t
     // one of them: whichever breaks first opens the portal, four seconds later.
     assert.equal(ROOM.unlock.when, 'anyBreak');
     assert.equal(ROOM.unlock.delaySeconds, 4);
-    assert.ok(ROOM.items.length >= 8 && ROOM.items.length <= 12, `items: ${ROOM.items.length}`);
+    // User decision 28.09.2026: twice the ten points of the first version, plus the bomber and one
+    // more free draw beside it.
+    assert.equal(ROOM.items.length, 22, `items: ${ROOM.items.length}`);
     const untyped = ROOM.items.filter((item) => !item.type).length;
     assert.ok(untyped * 2 >= ROOM.items.length, `untyped item points: ${untyped}`);
+});
+
+test('T-S38j: the doubled bunker holds one fixed bomber strike the room modes can spawn', () => {
+    // User decision 28.09.2026: the room doubles in width and depth; its height stays.
+    assert.equal(ROOM.bounds.max[0] - ROOM.bounds.min[0], 80);
+    assert.equal(ROOM.bounds.max[2] - ROOM.bounds.min[2], 80);
+    assert.equal(ROOM.bounds.max[1] - ROOM.bounds.min[1], 12);
+    const bombers = ROOM.items.filter((item) => item.type === 'BOMBER_STRIKE');
+    assert.equal(bombers.length, 1, 'exactly one fixed bomber strike');
+    // A type the mode cannot spawn silently becomes a random draw at runtime
+    // (SecretRoomRefillOps), so the fixed bomber only holds where both room modes allow it.
+    for (const mode of ROOM.modes) {
+        assert.ok(isPickupTypeAllowedForMode('BOMBER_STRIKE', mode), `bomber strike not allowed in ${mode}`);
+        assert.ok(getPickupSpawnWeight('BOMBER_STRIKE', mode) > 0, `bomber strike never spawns in ${mode}`);
+    }
+    // No two points share a spot, or one item would hide the other.
+    for (let a = 0; a < ROOM.items.length; a += 1) {
+        for (let b = a + 1; b < ROOM.items.length; b += 1) {
+            const gap = Math.hypot(...[0, 1, 2].map((axis) => ROOM.items[a].pos[axis] - ROOM.items[b].pos[axis]));
+            assert.ok(gap >= 4, `items ${a} and ${b} stand ${gap.toFixed(1)} apart`);
+        }
+    }
 });
 
 test('T-S38b: the room hangs clear below the arena box', () => {

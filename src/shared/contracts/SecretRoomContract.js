@@ -46,7 +46,7 @@ export const SECRET_ROOM_MODES = Object.freeze(['HUNT', 'ARCADE']);
  */
 export const SECRET_ROOM_LIMITS = Object.freeze({
     maxRooms: 3,
-    maxItems: 16,
+    maxItems: 24,
     idMaxLength: 80,
     minBoundsExtent: 0.001,
     stayLimitSeconds: Object.freeze({ min: 5, max: 120, fallback: 20 }),
