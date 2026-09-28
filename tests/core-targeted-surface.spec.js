@@ -3227,6 +3227,36 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await expect(page.locator('#start-map-preview-mount canvas')).toHaveCount(selectedState.canvasCount);
     });
 
+    test('T20z7: Karten-Miniatur laedt die echten 3D-Modelle einer GLB-Karte', async ({ page }, testInfo) => {
+        await loadGame(page);
+        await openGameSubmenu(page);
+        await openStartSetupSection(page, 'map');
+        const mount = page.locator('#start-map-preview-mount');
+        await expect(mount).toHaveAttribute('data-preview-status', 'ready');
+
+        const pickAvailable = (candidates) => page.evaluate((keys) => {
+            const available = new Set(Array.from(document.getElementById('map-select')?.options || [], (option) => option.value));
+            return keys.find((key) => available.has(key)) || '';
+        }, candidates);
+        const boxMapKey = await pickAvailable(['empty', 'foam_forest', 'crossfire', 'checkerboard']);
+        expect(boxMapKey).not.toBe('');
+        await page.selectOption('#map-select', boxMapKey);
+        await expect(mount).toHaveAttribute('data-preview-glb', 'none');
+
+        const glbMapKeys = [];
+        for (const key of ['eiffel_tower_siege', 'notre_dame', 'reactor_site', 'burg_falkenwacht', 'standard']) {
+            if (await pickAvailable([key])) glbMapKeys.push(key);
+        }
+        expect(glbMapKeys.length).toBeGreaterThan(0);
+        for (const glbMapKey of glbMapKeys) {
+            await page.selectOption('#map-select', glbMapKey);
+            await expect(mount).toHaveAttribute('data-preview-map-key', glbMapKey);
+            await expect(mount).toHaveAttribute('data-preview-glb', 'ready', { timeout: 20000 });
+            await expect(mount.locator('.start-map-preview-status')).toHaveText('3D-Kartenansicht bereit');
+            await mount.screenshot({ path: testInfo.outputPath(`map-preview-${glbMapKey}.png`) });
+        }
+    });
+
     test('T20z4: Mini-Hangar wechselt Fahrzeuge ueber den bestehenden Writeback und pausiert geschlossen', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
