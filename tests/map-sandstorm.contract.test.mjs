@@ -15,6 +15,7 @@ import {
     isPositionInSandstormShelter,
     normalizeMapSandstorm,
     resolveMapSandstormIntensity,
+    resolveSandstormVisibilityRange,
 } from '../src/shared/contracts/MapSandstormContract.js';
 import { createMatchRuntimeProjection } from '../src/shared/contracts/MatchRuntimeProjectionContract.js';
 import { createRuntimeRng } from '../src/shared/contracts/RuntimeRngContract.js';
@@ -245,8 +246,9 @@ test('storm ingress keeps gameplay visibility aligned with rendered intensity', 
         enabled: true, phase: 'ACTIVE', remainingSeconds: 58,
         eventIndex: 1, directionIndex: 0, intensity: .5,
     });
-    assert.equal(system.getVisibilityRange(new THREE.Vector3(100, 10, 100)), 300);
-    assert.equal(system.getVisibilityRange(new THREE.Vector3(0, 10, 0)), 322.5);
+    // Half way the view has closed by the same factor it still has to close: sqrt(560 * 40).
+    assert.ok(Math.abs(system.getVisibilityRange(new THREE.Vector3(100, 10, 100)) - Math.sqrt(560 * 40)) < 1e-9);
+    assert.ok(Math.abs(system.getVisibilityRange(new THREE.Vector3(0, 10, 0)) - Math.sqrt(560 * 85)) < 1e-9);
     const clear = resolveSandstormLighting({
         key: { color: 0xffffff, intensity: 2 }, fill: { color: 0xffffff, intensity: 1 },
         rim: { color: 0xffffff, intensity: 1 }, hemisphere: { skyColor: 0xffffff, groundColor: 0xffffff },
@@ -260,6 +262,44 @@ test('storm ingress keeps gameplay visibility aligned with rendered intensity', 
     assert.equal(resolveMapSandstormLighting(clear, null), clear);
     assert.deepEqual(resolveMapSandstormLighting(clear, { phase: 'ACTIVE', intensity: 0.5 }),
         resolveSandstormLighting(clear, 0.5));
+});
+
+test('the pyramid storm swells slowly, holds its peak for 30 seconds and eases off slowly', () => {
+    const config = MAP_PRESET_CATALOG.pyramid.sandstorm;
+    const active = normalizeMapSandstorm(config).activeSeconds;
+    const atElapsed = (seconds) => resolveMapSandstormIntensity(config, active - seconds);
+    let peakSeconds = 0;
+    for (let tenth = 0; tenth < active * 10; tenth += 1) {
+        if (atElapsed(tenth / 10 + 0.05) >= 1) peakSeconds += 0.1;
+    }
+    assert.equal(Math.round(peakSeconds), 30, 'the storm stays at full strength for 30 seconds');
+    assert.ok(atElapsed(5) < 0.2, 'five seconds in the storm has barely started');
+    assert.ok(atElapsed(5) > 0, 'but it has started');
+    assert.ok(atElapsed(active - 5) < 0.2, 'five seconds before the end it has almost settled');
+    for (let second = 1; second <= 20; second += 1) {
+        assert.ok(atElapsed(second) > atElapsed(second - 1), 'the swell rises every second');
+    }
+});
+
+test('views close by a steady factor and the storm reaches the map ceiling', () => {
+    // Fog distance is perceived by ratio: 560 -> 280 reads as much as 24 -> 12. A linear blend
+    // keeps the view wide open for most of the swell and slams shut in the last seconds.
+    assert.equal(resolveSandstormVisibilityRange(560, 12, 0), 560);
+    assert.equal(resolveSandstormVisibilityRange(560, 12, 1), 12);
+    assert.ok(Math.abs(resolveSandstormVisibilityRange(560, 12, 0.5) - Math.sqrt(560 * 12)) < 1e-9);
+    assert.equal(resolveSandstormVisibilityRange(360, 0, 0.5), 180, 'a zero end falls back to a plain blend');
+    assert.equal(resolveSandstormVisibilityRange(40, 85, 0.5), 40, 'a storm never widens the view');
+
+    // The map fog thins with height; a storm that keeps that thinning ends a few metres up.
+    const normal = {
+        key: { color: 0xffffff, intensity: 2 }, fill: { color: 0xffffff, intensity: 1 },
+        rim: { color: 0xffffff, intensity: 1 }, hemisphere: { skyColor: 0xffffff, groundColor: 0xffffff },
+        fog: { color: 0xffffff, colorHigh: 0xffffff, colorLow: 0xffffff, height: 3, heightFalloff: 0.04 },
+        skyDome: { zenithColor: 0xffffff, horizonColor: 0xffffff, nadirColor: 0xffffff },
+    };
+    assert.equal(resolveSandstormLighting(normal, 0).fog.heightFalloff, 0.04);
+    assert.equal(resolveSandstormLighting(normal, 0.5).fog.heightFalloff, 0.02);
+    assert.equal(resolveSandstormLighting(normal, 1).fog.heightFalloff, 0, 'at its peak the storm is as dense at the ceiling as on the ground');
 });
 
 test('shelter volumes follow the narrowing king pyramid and bots use composite sight', () => {
@@ -318,7 +358,9 @@ test('pyramid preset and network projections expose the authored storm', () => {
     assert.equal(map.botSpawns.length, 7);
     assert.equal(map.items.length, 8);
     assert.equal(map.sandstorm.warningSeconds, 20);
-    assert.equal(map.sandstorm.activeSeconds, 60);
+    assert.equal(map.sandstorm.activeSeconds, 70);
+    assert.equal(map.audioProfile.activeSeconds, map.sandstorm.activeSeconds, 'ambience follows the storm length');
+    assert.equal(map.audioProfile.ingressSeconds, map.sandstorm.ingressSeconds, 'ambience follows the swell');
 
     const state = {
         enabled: true, phase: 'WARNING', remainingSeconds: 12, eventIndex: 1, directionIndex: 3, intensity: 0,

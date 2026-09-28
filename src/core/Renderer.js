@@ -39,7 +39,7 @@ import {
     createGlobalFogEffectState,
     resolveGlobalFogMapRange,
 } from '../shared/contracts/GlobalFogEffectContract.js';
-import { MAP_SANDSTORM_PHASES, createMapSandstormState } from '../shared/contracts/MapSandstormContract.js';
+import { MAP_SANDSTORM_PHASES, createMapSandstormState, resolveSandstormVisibilityRange } from '../shared/contracts/MapSandstormContract.js';
 
 export class Renderer {
     constructor(canvas) {
@@ -305,8 +305,8 @@ export class Renderer {
                 ? this._mapSandstormRanges.shelterNear
                 : this._mapSandstormRanges.outdoorNear;
             const intensity = Math.max(0, Math.min(1, Number(this._mapSandstormEffect.intensity) || 0));
-            far = Math.min(far, THREE.MathUtils.lerp(far, stormRange, intensity));
-            near = Math.min(near, THREE.MathUtils.lerp(near, stormNear, intensity));
+            far = resolveSandstormVisibilityRange(far, stormRange, intensity);
+            near = resolveSandstormVisibilityRange(near, stormNear, intensity);
         }
         const multiplier = Number(camera?.userData?.waterVisibilityMultiplier);
         if (Number.isFinite(multiplier) && multiplier < 1) {

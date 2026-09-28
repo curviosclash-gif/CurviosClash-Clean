@@ -170,9 +170,10 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             initialDelaySeconds: [45, 90],
             repeatDelaySeconds: [90, 150],
             warningSeconds: 20,
-            activeSeconds: 60,
-            ingressSeconds: 4,
-            egressSeconds: 4,
+            // 20 s swell, 30 s peak, 20 s ease-off.
+            activeSeconds: 70,
+            ingressSeconds: 20,
+            egressSeconds: 20,
             outdoorNear: 1.6,
             outdoorFar: 8,
             shelterNear: 18,
@@ -192,8 +193,8 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         },
         audioProfile: {
             id: 'pyramid_sandstorm',
-            activeSeconds: 60,
-            ingressSeconds: 4,
+            activeSeconds: 70,
+            ingressSeconds: 20,
             shelterVolumes: [
                 { min: [-8, 2, -88], max: [8, 28, -32] },
                 { min: [-34, 2, -68], max: [34, 28, -52] },

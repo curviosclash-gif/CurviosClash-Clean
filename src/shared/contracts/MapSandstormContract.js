@@ -126,7 +126,21 @@ export function resolveMapSandstormIntensity(config, remainingSeconds) {
     const egress = normalized.egressSeconds > 0
         ? Math.min(1, remaining / normalized.egressSeconds)
         : 1;
-    return Math.max(0, Math.min(1, ingress, egress));
+    // Smoothstep: the storm creeps in, gathers and settles onto its peak without a kink.
+    const ramp = Math.max(0, Math.min(1, ingress, egress));
+    return ramp * ramp * (3 - 2 * ramp);
+}
+
+export function resolveSandstormVisibilityRange(baseRange, stormRange, intensity) {
+    const base = Number(baseRange);
+    const storm = Number(stormRange);
+    const blend = clamp(intensity, 0, 0, 1);
+    if (!(base > 0)) return storm;
+    if (blend >= 1) return Math.min(base, storm);
+    // Distance is read by ratio, so the view closes by a steady factor. A zero end has no
+    // ratio to close by and falls back to a plain blend.
+    if (!(storm > 0)) return Math.min(base, base + (storm - base) * blend);
+    return Math.min(base, base * Math.pow(storm / base, blend));
 }
 
 export function isPositionInSandstormShelter(position, config, scale = 1) {

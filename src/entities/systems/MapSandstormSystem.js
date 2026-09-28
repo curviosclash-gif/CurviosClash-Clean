@@ -8,6 +8,7 @@ import {
     isWithinSandstormRange,
     normalizeMapSandstorm,
     resolveMapSandstormIntensity,
+    resolveSandstormVisibilityRange,
 } from '../../shared/contracts/MapSandstormContract.js';
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
@@ -187,7 +188,7 @@ export class MapSandstormSystem {
         const baseRange = Number(this.entityManager?.renderer?.getBaseFogVisibilityRange?.());
         const intensity = Math.max(0, Math.min(1, Number(this.state.intensity) || 0));
         if (!(baseRange > 0) || intensity >= 1) return targetRange;
-        return Math.min(baseRange, THREE.MathUtils.lerp(baseRange, targetRange, intensity));
+        return resolveSandstormVisibilityRange(baseRange, targetRange, intensity);
     }
 
     isPositionVisible(observerPosition, targetPosition) {
