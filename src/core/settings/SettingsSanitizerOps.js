@@ -192,6 +192,7 @@ function applyControlAndMediaSanitization({ merged, src, defaults }) {
     );
     merged.controls.PLAYER_1 = normalizeControlBindings(src?.controls?.PLAYER_1, defaults.controls.PLAYER_1, { guardCombatConflicts: true });
     merged.controls.PLAYER_2 = normalizeControlBindings(src?.controls?.PLAYER_2, defaults.controls.PLAYER_2, { guardCombatConflicts: true });
+    merged.controls.PLAYER_3 = normalizeControlBindings(src?.controls?.PLAYER_3, defaults.controls.PLAYER_3, { guardCombatConflicts: true });
     merged.controls.GLOBAL = normalizeGlobalControlBindings(src?.controls?.GLOBAL, defaults.controls.GLOBAL);
     Object.assign(merged.controls, createGamepadControlsSnapshot(src?.controls));
 }

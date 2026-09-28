@@ -248,6 +248,7 @@ export function createGameUiRefs(doc = document) {
         crosshairP2: doc.getElementById('crosshair-p2'),
         keybindP1: doc.getElementById('keybind-p1'),
         keybindP2: doc.getElementById('keybind-p2'),
+        keybindP3: doc.getElementById('keybind-p3'),
         keybindGlobal: doc.getElementById('keybind-global'),
         resetKeysButton: doc.getElementById('btn-reset-keys'),
         profileNameInput: doc.getElementById('profile-name'),

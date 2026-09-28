@@ -19,6 +19,7 @@ import {
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
 import { HANGAR_SELECTION_PLAYER_SLOTS, writeHangarVehicleSelection } from '../hangar/HangarSelectionWritebackContract.js';
 import { resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
+import { formatKeyCodeShort } from '../KeybindLabels.js';
 
 const THREE_PLAYER_HINT = 'Mit 3 Spielern: höchstens 6 Bots, kein Team-Modus.';
 const ARCADE_HINT = '3 Spieler gibt es in Kampf und Klassisch, nicht in Arcade.';
@@ -110,7 +111,10 @@ export function syncSplitPlayersSection({ ui, settings, sessionType, getGamepad 
         ensureOptions(select, Object.entries(THREE_PLAYER_SPLIT_DEVICE_LABELS));
         select.value = threePlayerSettings.deviceAssignment[index];
         const hint = ui.splitKeyboardHints?.[index];
-        if (hint) hint.hidden = select.value !== 'keyboard';
+        if (!hint) return;
+        hint.hidden = select.value !== 'keyboard';
+        const keys = settings?.controls?.[`PLAYER_${index + 1}`];
+        if (keys) hint.textContent = `Tastatur: ${['UP', 'DOWN', 'LEFT', 'RIGHT'].map((key) => formatKeyCodeShort(keys[key])).join(' / ')}`;
     });
     if (ui.splitViewportLayoutSelect) ui.splitViewportLayoutSelect.value = threePlayerSettings.viewportLayout;
     renderSplitDeviceStatus(ui, settings, getGamepad);
