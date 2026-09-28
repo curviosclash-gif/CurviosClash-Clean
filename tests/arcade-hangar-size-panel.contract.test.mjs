@@ -116,6 +116,8 @@ globalThis.document = fakeDocument;
 const { createHangarSizePanel } = await import('../src/ui/hangar/HangarSizePanel.js');
 const { createHangarFormTab } = await import('../src/ui/hangar/HangarFormTab.js');
 const { createArcadeVehicleProfileRecord } = await import('../src/shared/contracts/ArcadeVehicleProfileContract.js');
+const hitboxContract = await import('../src/shared/contracts/ArcadeVehicleHitboxContract.js');
+const { PLAYER_SHIP_PART_CONFIGS } = await import('../src/shared/vehicle-lab/player-ships/index.js');
 
 const bind = (node, type, handler) => node.addEventListener(type, handler);
 
@@ -262,7 +264,7 @@ test('H: ein nicht übernommener Größenentwurf gilt nur im Reiter „Form“ u
     const tab = createHangarFormTab({
         bind,
         enabled: true,
-        viewport: { setPartStyle: (style) => styles.push(style) },
+        viewport: { setPartStyle: (style) => styles.push(style), setHitboxOverlay() {} },
         panel,
         tabButton: new FakeElement('button'),
         getProfile: () => profile,
@@ -283,4 +285,73 @@ test('H: ein nicht übernommener Größenentwurf gilt nur im Reiter „Form“ u
     tab.sync('ship5', true);
     assert.equal(styles.at(-1).Bugkeil?.scale, undefined, 'der verlassene Entwurf ist verworfen');
     assert.equal(profile.partSizes?.nose ?? 100, 100, 'das Profil blieb unverändert');
+});
+
+// --- Trefferzone: Anzeige als Boxen und Zeile in der Wertvorschau ---
+
+const SHIP5 = PLAYER_SHIP_PART_CONFIGS.find((config) => config.id === 'ship5');
+
+function createFormTab() {
+    const harness = { overlays: [], active: true };
+    harness.profile = { ...createArcadeVehicleProfileRecord('ship5', 0), sizeWorkshopUnlocked: true, purchasedSizeSteps: 5 };
+    harness.panel = new FakeElement('div');
+    const sync = () => harness.tab.sync('ship5', harness.active);
+    harness.tab = createHangarFormTab({
+        bind,
+        enabled: true,
+        viewport: { setPartStyle() {}, setHitboxOverlay: (boxes) => harness.overlays.push(boxes) },
+        panel: harness.panel,
+        tabButton: new FakeElement('button'),
+        getProfile: () => harness.profile,
+        saveProfile: (next) => { harness.profile = next; sync(); },
+        toast() {},
+        onChange: sync,
+    });
+    sync();
+    harness.click = (group, className) => find(panelRow(harness.panel, group), className).click();
+    harness.preview = () => find(harness.panel, 'hangar-size-preview').children.map((line) => line.textContent);
+    harness.toggle = find(harness.panel, 'hangar-hitbox-toggle-input');
+    return harness;
+}
+
+function panelRow(panel, group) {
+    return panel.querySelectorAll('[data-size-group]').find((node) => node.dataset.sizeGroup === group);
+}
+
+test('Trefferzone: der Schalter legt die Boxen des Entwurfs über das Schiff, nur im Reiter „Form“', () => {
+    const harness = createFormTab();
+    assert.ok(harness.toggle, 'Schalter „Trefferzone zeigen“ vorhanden');
+    assert.equal(harness.overlays.at(-1), null, 'aus: keine Boxen');
+    harness.toggle.checked = true;
+    harness.toggle.dispatchEvent(createEvent('change'));
+    assert.deepEqual(harness.overlays.at(-1), hitboxContract.listArcadeHitboxBoxes(SHIP5, null), 'an: volle Trefferzone in Werksgröße');
+    harness.click('wings', 'hangar-size-plus');
+    assert.deepEqual(harness.overlays.at(-1), hitboxContract.listArcadeHitboxBoxes(SHIP5, { wings: 105 }), 'folgt dem nicht übernommenen Entwurf');
+    harness.active = false;
+    harness.tab.sync('ship5', false);
+    assert.equal(harness.overlays.at(-1), null, 'außerhalb des Reiters keine Boxen');
+    harness.toggle.checked = false;
+    harness.active = true;
+    harness.tab.sync('ship5', true);
+    assert.equal(harness.overlays.at(-1), null, 'ausgeschaltet: keine Boxen');
+});
+
+test('Trefferzone: die Wertvorschau nennt ihre Veränderung (alt → neu, Prozent der Werksgröße)', () => {
+    const harness = createFormTab();
+    assert.deepEqual(harness.preview(), ['Keine Änderung']);
+    const factory = hitboxContract.measureArcadeHitboxSurface(SHIP5.parts, null);
+    const expectLine = (sizes) => {
+        const line = harness.preview().find((text) => text.startsWith('Trefferzone'));
+        const match = /^Trefferzone: 100 % → (\d+(?:,\d)?) %$/.exec(line || '');
+        assert.ok(match, harness.preview().join(' | '));
+        const expected = hitboxContract.measureArcadeHitboxSurface(SHIP5.parts, sizes) / factory * 100;
+        assert.ok(Math.abs(Number(match[1].replace(',', '.')) - expected) <= 0.05, `${match[1]} vs ${expected}`);
+        return expected;
+    };
+    harness.click('wings', 'hangar-size-plus');
+    assert.ok(expectLine({ wings: 105 }) > 100, 'größere Flügel: größere Trefferzone');
+    harness.click('wings', 'hangar-size-minus');
+    assert.deepEqual(harness.preview(), ['Keine Änderung']);
+    harness.click('hull', 'hangar-size-minus');
+    assert.ok(expectLine({ hull: 95 }) < 100, 'kleinerer Rumpf: kleinere Trefferzone');
 });

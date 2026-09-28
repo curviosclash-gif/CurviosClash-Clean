@@ -580,3 +580,22 @@ test('T-ARC-S1: Umverteilen zeigt die Wertvorschau vor dem Übernehmen und ist r
     expect(undone.xpBank).toBe(xpAfterApply);
     await expect(hull.locator('.hangar-size-value')).toHaveText('105 %');
 });
+
+test('T-ARC-S2: Trefferzone zeigen legt die Bauteil-Boxen über das Schiff, die Vorschau nennt ihre Änderung', async ({ page }) => {
+    test.setTimeout(180_000);
+    await openSizeWorkshop(page);
+    const stage = page.locator('#arcade-vehicle-manager [data-hitbox-boxes]');
+    const toggle = page.locator('.hangar-hitbox-toggle-input');
+    await expect(stage).toHaveAttribute('data-hitbox-boxes', '0');
+    await toggle.check();
+    await expect(stage).toHaveAttribute('data-hitbox-boxes', /^[1-9]\d*$/);
+
+    await confirmPurchase(page, '.hangar-size-unlock', ['Kosten: 100 XP']);
+    await confirmPurchase(page, '.hangar-size-buy-step', ['Kosten: 100 XP']);
+    await page.locator('.hangar-size-row[data-size-group="wings"] .hangar-size-plus').click();
+    await expect(page.locator('.hangar-size-preview')).toContainText(/Trefferzone: 100 % → 1\d\d/);
+    await expect(stage).toHaveAttribute('data-hitbox-boxes', /^[1-9]\d*$/);
+
+    await toggle.uncheck();
+    await expect(stage).toHaveAttribute('data-hitbox-boxes', '0');
+});

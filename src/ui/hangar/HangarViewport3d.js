@@ -19,7 +19,8 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
     if (!mount) {
         return Object.freeze({
             getStatus: () => 'unavailable', setBuild() {}, setSlotStates() {}, setDragPreview() {},
-            clearDragPreview() {}, setSelectedSlot() {}, setCameraPreset() {}, resetCamera() {}, hitTestHardpoint() { return ''; }, setComparison() {}, dispose() {},
+            clearDragPreview() {}, setSelectedSlot() {}, setCameraPreset() {}, resetCamera() {}, hitTestHardpoint() { return ''; }, setComparison() {},
+            setHitboxOverlay() {}, dispose() {},
         });
     }
 
@@ -345,6 +346,10 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
             assembly.setPartStyle(style, selectedPartName);
             syncMarkerVisuals();
             projectOverlay();
+        },
+        /** Hit zone boxes ({center, halfSize} in vehicle space) over the ship, or null to hide them. */
+        setHitboxOverlay(boxes) {
+            mount.dataset.hitboxBoxes = String(assembly.setHitboxBoxes(boxes));
         },
         setCameraPreset: (presetId) => cameraController?.setPreset(presetId),
         resetCamera: () => cameraController?.reset(),

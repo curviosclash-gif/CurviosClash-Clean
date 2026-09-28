@@ -224,6 +224,31 @@ test('arcade hitbox: Hangar gets the boxes as plain data', () => {
     assert.deepEqual(listArcadeHitboxBoxes(null, null).length, 1, 'empty config: only the core anchor');
 });
 
+test('arcade hitbox: the Hangar hit-zone size is the summed box surface of the full shape and follows every part size', async () => {
+    const contract = await import('../src/shared/contracts/ArcadeVehicleHitboxContract.js');
+    assert.equal(typeof contract.measureArcadeHitboxSurface, 'function', 'measureArcadeHitboxSurface exported');
+    const surfaceOf = (boxes) => boxes.reduce((sum, { halfSize: [x, y, z] }) => sum + 8 * (x * y + y * z + z * x), 0);
+    for (const config of FACTORY) {
+        const factory = contract.measureArcadeHitboxSurface(config.parts, null);
+        assert.ok(Math.abs(factory - surfaceOf(listArcadeHitboxBoxes(config, null))) < EPS, `${config.id}: the boxes the Hangar draws`);
+        // Every group the ship has moves the number on its own (a bounding sphere would miss parts
+        // inside the span); a group without parts leaves it alone.
+        let moved = 0;
+        for (const group of ['hull', 'nose', 'wings', 'engines', 'utility']) {
+            const grown = contract.measureArcadeHitboxSurface(config.parts, { [group]: 125 });
+            const shrunk = contract.measureArcadeHitboxSurface(config.parts, { [group]: 80 });
+            if (grown === factory) {
+                assert.equal(shrunk, factory, `${config.id} ${group}: no parts, no change`);
+                continue;
+            }
+            assert.ok(grown > factory && shrunk < factory, `${config.id} ${group}: ${shrunk} < ${factory} < ${grown}`);
+            moved += 1;
+        }
+        assert.ok(moved >= 4, `${config.id}: ${moved} groups move the hit zone`);
+    }
+    assert.equal(contract.default.measureArcadeHitboxSurface, contract.measureArcadeHitboxSurface);
+});
+
 test('arcade hitbox runtime: spawn state follows vehicle and part sizes, clear restores the old radius', () => {
     const player = { vehicleId: 'ship5', modelScale: 2, hitboxRadius: 2.4, hitboxBox: new THREE.Box3() };
     applyArcadePartHitbox(player);

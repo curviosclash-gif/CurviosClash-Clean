@@ -258,6 +258,27 @@ export function listArcadeHitboxBoxes(config, partSizes) {
 }
 
 /**
+ * Size of the hit zone for the Hangar value preview: the summed surface of the part boxes of the
+ * full shape (vehicle space). A box's mean silhouette over all directions is a quarter of its
+ * surface (Cauchy), so the number follows how easily the ship is hit from any side, and unlike a
+ * bounding sphere it counts every part, also one inside the wing span.
+ * @param {ReadonlyArray<any>|null|undefined} parts
+ * @param {unknown} partSizes
+ * @returns {number}
+ */
+export function measureArcadeHitboxSurface(parts, partSizes) {
+    const { boxes, count } = buildArcadeHitboxShape(parts, partSizes);
+    let surface = 0;
+    for (let i = 0; i < count; i++) {
+        const x = boxes[i * 6 + 3];
+        const y = boxes[i * 6 + 4];
+        const z = boxes[i * 6 + 5];
+        surface += 8 * (x * y + y * z + z * x);
+    }
+    return surface;
+}
+
+/**
  * Sweep samples for one frame: consecutive samples move the origin (and with it the core
  * anchor) by at most one anchor edge, and a point on the outermost probe by at most the
  * same plus its share of the rotation.
@@ -316,6 +337,7 @@ export default {
     buildArcadeHitboxShape,
     buildArcadeCoreHitboxShape,
     listArcadeHitboxBoxes,
+    measureArcadeHitboxSurface,
     computeArcadeSweepSteps,
     resolveArcadeMotionWorstCase,
 };

@@ -88,7 +88,9 @@ export class PlayerCollisionPhase {
         if (!player.alive) return true;
 
         if (!bouncedOnFoam) {
-            const selfTrailSkipRecent = entityManager.constructor.deriveSelfTrailSkipRecentSegments(player);
+            // Arcade: the own-trail skip also covers this frame's move (the sweep starts at prevPos).
+            const stepDistance = arcade && prevPos ? player.position.distanceTo(prevPos) : 0;
+            const selfTrailSkipRecent = entityManager.constructor.deriveSelfTrailSkipRecentSegments(player, stepDistance);
             // Arcade: after a wall contact only the flown path counts, not the response's turn.
             const collision = arcade
                 ? resolveArcadeTrailCollision(this, player, prevPos, selfTrailSkipRecent, arenaCollision)

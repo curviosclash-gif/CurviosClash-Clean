@@ -53,7 +53,14 @@ export function hasArcadeVehicleBalanceEntry(vehicleId) {
     return Object.prototype.hasOwnProperty.call(ARCADE_VEHICLE_BALANCE_TABLE, String(vehicleId || '').trim());
 }
 
-/** Tempo-/Wendigkeitsobergrenze in Prozentpunkten: Grundwert + 100 (siehe arcade-spec.md 1). */
+/**
+ * Grundwert der Rollgeschwindigkeit in Prozent: gleich für alle Schiffe (die Tabelle hat kein
+ * eigenes Feld). Mit resolveArcadeStatCapPct ergibt das den Roll-Deckel, den Build und
+ * Sicherheitsnachweis gemeinsam nutzen.
+ */
+export const ARCADE_ROLL_BASE_PCT = 100;
+
+/** Tempo-/Wendigkeits-/Roll-Obergrenze in Prozentpunkten: Grundwert + 100 (siehe arcade-spec.md 1). */
 export function resolveArcadeStatCapPct(basePct) {
     return (Number(basePct) || 0) + 100;
 }
@@ -114,6 +121,7 @@ export const ARCADE_STORAGE_TIER_COST_XP = Object.freeze([300, 600, 900]);
 
 export default {
     ARCADE_STORAGE_MAX_SLOTS,
+    ARCADE_ROLL_BASE_PCT,
     ARCADE_VEHICLE_ROLE_TEMPLATES,
     resolveArcadeVehicleBaseStats,
     hasArcadeVehicleBalanceEntry,

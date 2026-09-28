@@ -34,6 +34,13 @@ export class HangarVehicleAssembly {
         this.partsRoot = new THREE.Group();
         this.ghostRoot = new THREE.Group();
         this.group.add(this.baseVehicleRoot, this.partsRoot, this.ghostRoot);
+        // Hit zone overlay: beside the vehicle node, whose rebuild clears its children, under the
+        // same normalising scale and centring offset, so vehicle-space boxes sit on the model.
+        this.hitboxRoot = new THREE.Group();
+        this.hitboxRoot.name = 'HangarHitboxOverlay';
+        this.baseVehicleRoot.add(this.hitboxRoot);
+        this.hitboxKey = '';
+        this.hitboxMaterials = null;
         this.geometryCache = new Map();
         this.materials = new Set();
         this.partNodes = new Map();
@@ -261,6 +268,7 @@ export class HangarVehicleAssembly {
         const longest = Math.max(0.001, _size.x, _size.y, _size.z);
         const scale = Math.min(1.45, Math.max(0.55, HANGAR_VEHICLE_TARGET_SIZE / longest));
         vehicleNode.position.copy(_center).multiplyScalar(-1);
+        this.hitboxRoot.position.copy(vehicleNode.position);
         this.baseVehicleRoot.scale.setScalar(scale);
         this.baseVehicleRoot.position.y = -0.05;
         this._alignHardpointsToParts(vehicleNode);
@@ -329,6 +337,40 @@ export class HangarVehicleAssembly {
         node.setSelectedSelection(index >= 0 ? index : null, []);
         if (this.lastBuild) this.setBuild(this.lastBuild);
         return true;
+    }
+
+    /**
+     * Translucent hit zone boxes ({center, halfSize} in vehicle space); null or [] hides them.
+     * Drawn on top of the hull, because 90 % boxes mostly sit inside it. Returns the box count.
+     */
+    setHitboxBoxes(boxes) {
+        const list = Array.isArray(boxes) ? boxes : [];
+        const key = JSON.stringify(list);
+        if (key === this.hitboxKey) return list.length;
+        this.hitboxKey = key;
+        this.hitboxRoot.clear();
+        if (list.length === 0) return 0;
+        if (!this.hitboxMaterials) {
+            const fill = new THREE.MeshBasicMaterial({ color: 0xff9f43, transparent: true, opacity: 0.18, depthTest: false, depthWrite: false });
+            const edge = new THREE.LineBasicMaterial({ color: 0xffc56e, transparent: true, opacity: 0.9, depthTest: false });
+            this.materials.add(fill);
+            this.materials.add(edge);
+            this.hitboxMaterials = { fill, edge };
+        }
+        const cube = this._geometry('hitbox-cube', () => new THREE.BoxGeometry(1, 1, 1));
+        const edges = this._geometry('hitbox-edges', () => new THREE.EdgesGeometry(cube));
+        for (const entry of list) {
+            const node = new THREE.Group();
+            node.position.fromArray(entry.center);
+            node.scale.set(entry.halfSize[0] * 2, entry.halfSize[1] * 2, entry.halfSize[2] * 2);
+            const fill = new THREE.Mesh(cube, this.hitboxMaterials.fill);
+            const outline = new THREE.LineSegments(edges, this.hitboxMaterials.edge);
+            fill.renderOrder = 10;
+            outline.renderOrder = 11;
+            node.add(fill, outline);
+            this.hitboxRoot.add(node);
+        }
+        return list.length;
     }
 
     setBuild(build, options = {}) {

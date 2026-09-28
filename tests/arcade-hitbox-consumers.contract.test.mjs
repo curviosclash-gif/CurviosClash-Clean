@@ -204,7 +204,9 @@ test('arcade consumers: the own-trail skip covers the wall shape tail (long Arro
                 for (const speed of [12, 16, 20, 30, 54]) {
                     player.speed = speed;
                     const skip = EntityManager.deriveSelfTrailSkipRecentSegments(player);
-                    if (skip >= 12) continue; // the shared cap, the same for every mode
+                    // The speed estimate's cap. It only runs without a laid trail here; with one, Arcade
+                    // measures the trail itself (arcade-collision-safety: straight flight).
+                    if (skip >= 12) continue;
                     // The newest segment is still growing: the skipped ones reach (skip - 1) spacings back.
                     const covered = (skip - 1) * speed * interval;
                     assert.ok(covered >= tail + 0.3, `${config.id} ${size}% s=${s} ${speed} u/s: skip ${skip} covers ${covered.toFixed(2)} < tail ${(tail + 0.3).toFixed(2)}`);

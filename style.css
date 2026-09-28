@@ -5917,7 +5917,8 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     box-shadow: 0 0 0 5px rgba(255, 82, 104, 0.16), 0 0 22px rgba(255, 82, 104, 0.62);
 }
 
-.hangar-pair-toggle {
+.hangar-pair-toggle,
+.hangar-hitbox-toggle {
     color: #b8cada;
     font-size: 0.75rem;
     white-space: nowrap;

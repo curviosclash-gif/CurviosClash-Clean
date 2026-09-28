@@ -19,7 +19,13 @@ import {
     computeArcadeSweepSteps,
     resolveArcadeMotionWorstCase,
 } from '../src/shared/contracts/ArcadeVehicleHitboxContract.js';
-import { resolveArcadeStatCapPct, resolveArcadeVehicleBaseStats, resolveArcadeWallHitboxScale } from '../src/shared/contracts/ArcadeVehicleBalanceContract.js';
+import {
+    ARCADE_ROLL_BASE_PCT,
+    resolveArcadeStatCapPct,
+    resolveArcadeVehicleBaseStats,
+    resolveArcadeWallHitboxScale,
+} from '../src/shared/contracts/ArcadeVehicleBalanceContract.js';
+import { resolveArcadeVehicleBuildStats } from '../src/shared/contracts/ArcadeVehicleBuildContract.js';
 import { SETTINGS_LIMITS } from '../src/shared/contracts/SettingsRuntimeContract.js';
 import { PICKUP_REGISTRY } from '../src/shared/contracts/PickupRegistryContract.js';
 import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
@@ -33,6 +39,10 @@ import { CollisionResponseSystem } from '../src/entities/systems/CollisionRespon
 import { SpawnPlacementSystem } from '../src/entities/systems/SpawnPlacementSystem.js';
 import { recoverPlayerFromCollision } from '../src/modes/HuntCollisionOps.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
+import { EntityManager } from '../src/entities/EntityManager.js';
+import { Trail } from '../src/entities/Trail.js';
+import { TrailSpatialIndex } from '../src/entities/systems/TrailSpatialIndex.js';
+import { listVehicleDescriptors } from '../src/entities/vehicle-registry.js';
 import v8 from 'node:v8';
 import vm from 'node:vm';
 
@@ -67,8 +77,8 @@ function worstCaseEnv() {
         turnSpeed: Math.max(SETTINGS_LIMITS.gameplay.turnSensitivity.max, PLAYER.TURN_SPEED),
         turnCapPct: Math.max(...table.map((stats) => resolveArcadeStatCapPct(stats.turnPct))),
         rollSpeed: PLAYER.ROLL_SPEED,
-        // Roll has no cap of its own yet (wing side value, Paket 2a): the proof assumes the turn cap.
-        rollCapPct: Math.max(...table.map((stats) => resolveArcadeStatCapPct(stats.turnPct))),
+        // Roll (wing side value, Paket 2a) has its own cap: the same base for every ship + 100 points.
+        rollCapPct: resolveArcadeStatCapPct(ARCADE_ROLL_BASE_PCT),
         frameDt: CONFIG_SECTIONS.TIME_STEP,
         minClockScale: Math.min(PLAYER.SLOWMO_TIME_SCALE, PICKUP_REGISTRY.SLOW_TIME.timeScale),
     };
@@ -91,7 +101,18 @@ test('arcade safety: worst case numbers from the real limits', () => {
     assert.ok(Math.abs(worst.stepDt - 1 / 24) < 1e-12, 'slow motion owner: 1/60 s at clock 0.4');
     assert.ok(Math.abs(worst.specStepDistance - 45 * 2.2 * 2.3 / 24) < 1e-9, 'capped speed x boost: 9.49 u per step');
     assert.ok(Math.abs(worst.stepDistance - (45 * 2.2 * 2.3 * 1.6 + ARCADE_EXTERNAL_IMPULSE_MAX) / 24) < 1e-9, 'with SPEED_UP and map pushes');
-    assert.ok(Math.abs(worst.stepAngle - (Math.SQRT2 * 5 * 2.3 + 3 * 2.3) / 24) < 1e-9);
+    assert.equal(env.rollCapPct, 200, 'roll: its own base 100 % + 100 points');
+    assert.ok(Math.abs(worst.stepAngle - (Math.SQRT2 * 5 * 2.3 + 3 * 2.0) / 24) < 1e-9);
+});
+
+test('arcade safety: the proof rolls with the roll cap the build really clamps to (wings, stones), not the turn cap', () => {
+    const env = worstCaseEnv();
+    const maxWings = { sizeWorkshopUnlocked: true, purchasedSizeSteps: 25, partSizes: { wings: 125 } };
+    // Stones (Paket 3) add wing steps on top; a huge count saturates the clamp.
+    const runtimeMax = Math.max(...FACTORY.map((config) => resolveArcadeVehicleBuildStats(config.id, maxWings, { wings: 1e6 }).rollPct));
+    assert.equal(env.rollCapPct, runtimeMax, 'proof and runtime share one roll cap');
+    const factory = resolveArcadeVehicleBuildStats('drone', null).rollPct;
+    assert.ok(env.rollCapPct > factory, `the cap sits above the factory roll (${factory} %)`);
 });
 
 test('arcade safety: sweep steps stay under the cap for every ship, size and plane scale', () => {
@@ -491,6 +512,100 @@ test('arcade safety: a bounce off the tunnel wall heads back into the tunnel, ne
             }
         }
     }
+});
+
+// Own trail on a straight flight: the real Trail (a segment every TRAIL.UPDATE_INTERVAL, no gaps),
+// the real TrailSpatialIndex and PlayerCollisionPhase.run, whose skip comes from the real
+// EntityManager.deriveSelfTrailSkipRecentSegments. `legs` are [speed, distance] pieces flown in a
+// row along -z; each frame moves, lays the trail and checks it (PlayerLifecycleSystem order).
+const HITBOX_RADIUS = new Map(listVehicleDescriptors().map((entry) => [entry.id, entry.hitboxRadius]));
+const HEADLESS_RENDERER = { addToScene() {}, removeFromScene() {}, getGraphicsStyle() { return 'classic'; } };
+const FORWARD = new THREE.Vector3(0, 0, -1);
+
+function createTrailFlight(vehicleId, sizes, s) {
+    const players = [];
+    const trailSpatialIndex = new TrailSpatialIndex({ getPlayers: () => players });
+    const manager = {
+        constructor: EntityManager,
+        entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_SECTIONS),
+        runtimeRng: { next: () => 1 },
+        arena: { getCollisionInfo: () => null },
+        players,
+        getTrailSpatialIndex: () => trailSpatialIndex,
+        _trailSpatialIndex: trailSpatialIndex,
+    };
+    const player = makePlayer(vehicleId, sizes, s);
+    // Production hitboxBox is finite (fallback or mesh box); an empty Box3 would read as an endless body.
+    Object.assign(player, { index: 0, entityManager: manager, hitboxBox: null, hitboxRadius: (HITBOX_RADIUS.get(vehicleId) || PLAYER.HITBOX_RADIUS) * s });
+    player.trail = new Trail(HEADLESS_RENDERER, 0xffffff, 0, manager);
+    players.push(player);
+    const causes = [];
+    const strategy = { handleWallCollision: () => false, handleTrailCollision: (p, collision, cause) => { causes.push(cause); return false; } };
+    return { player, phase: new PlayerCollisionPhase(manager), strategy, causes };
+}
+
+function flyStraight(flight, legs, dt = CONFIG_SECTIONS.TIME_STEP, direction = FORWARD) {
+    const { player, phase, strategy, causes } = flight;
+    const prev = new THREE.Vector3();
+    for (const [speed, distance] of legs) {
+        player.speed = speed;
+        for (let flown = 0; flown < distance; flown += speed * dt) {
+            prev.copy(player.position);
+            player.position.addScaledVector(direction, speed * dt);
+            player.trail.update(dt, player.position, direction);
+            phase.run(player, prev, strategy);
+            if (causes.length > 0) return `${causes[0]} at ${speed.toFixed(2)} u/s after ${flown.toFixed(2)} u`;
+        }
+    }
+    return '';
+}
+
+test('arcade safety: a straight flight never hits its own trail - slowest speed, speed jumps, grown parts, every plane scale', () => {
+    const slowDown = PICKUP_REGISTRY.SLOW_DOWN.multiplier;
+    const scales = [SETTINGS_LIMITS.gameplay.planeScale.min, 1, 1.5, SETTINGS_LIMITS.gameplay.planeScale.max];
+    let flights = 0;
+    for (const config of FACTORY) {
+        for (const sizes of [null, { hull: 125 }, { wings: 125 }, { engines: 125 }, { hull: 125, engines: 80 }]) {
+            const build = { sizeWorkshopUnlocked: true, purchasedSizeSteps: 25, partSizes: sizes };
+            // Slowest cruise: lowest speed setting x table/engine tempo x SLOW_DOWN (Manta, engines 80 %: 2.88 u/s).
+            const slowest = SETTINGS_LIMITS.gameplay.speed.min * resolveArcadeVehicleBuildStats(config.id, build).speedPct / 100 * slowDown;
+            for (const s of scales) {
+                const label = `${config.id} ${JSON.stringify(sizes)} s=${s} at ${slowest.toFixed(2)} u/s`;
+                const cruise = [slowest, 2.5 * makePlayer(config.id, sizes, s).arcadeHitbox.wall.boundRadius * s + 3];
+                assert.equal(flyStraight(createTrailFlight(config.id, sizes, s), [cruise]), '', `${label}: cruise`);
+                // The short slow segments are still behind the ship when it speeds up (boost, map push),
+                // also on the long slow-motion step of the owner.
+                for (const [fast, dt] of [[slowest * PLAYER.BOOST_MULTIPLIER, CONFIG_SECTIONS.TIME_STEP], [slowest + ARCADE_EXTERNAL_IMPULSE_MAX, 1 / 24]]) {
+                    assert.equal(flyStraight(createTrailFlight(config.id, sizes, s), [cruise, [fast, 12]], dt), '', `${label}: then ${fast.toFixed(1)} u/s, step ${dt.toFixed(3)} s`);
+                }
+                flights += 3;
+            }
+        }
+    }
+    assert.equal(flights, FACTORY.length * 5 * scales.length * 3);
+});
+
+test('arcade safety: the skipped own trail stays behind the ship - crossing an older stretch still hits', () => {
+    for (const s of [SETTINGS_LIMITS.gameplay.planeScale.min, SETTINGS_LIMITS.gameplay.planeScale.max]) {
+        const flight = createTrailFlight('manta', { hull: 125 }, s);
+        const reach = flight.player.arcadeHitbox.wall.boundRadius * s;
+        assert.equal(flyStraight(flight, [[30, 80]]), '', 'the straight stretch itself is free');
+        // Gap, then back across that stretch sideways (+x), slowly, 60 u behind its end.
+        flight.player.trail.forceGap(10);
+        flight.player.position.set(-2 * reach, 0, -20);
+        faceAlong(flight.player, new THREE.Vector3(1, 0, 0));
+        assert.match(flyStraight(flight, [[4, 4 * reach]], CONFIG_SECTIONS.TIME_STEP, new THREE.Vector3(1, 0, 0)), /^TRAIL_SELF/, `s=${s}`);
+    }
+});
+
+test('arcade safety: only the Arcade part hitbox measures the laid trail; other modes keep the capped speed estimate', () => {
+    const flight = createTrailFlight('manta', { hull: 125 }, 2);
+    assert.equal(flyStraight(flight, [[3.2, 30]]), '');
+    const measured = EntityManager.deriveSelfTrailSkipRecentSegments(flight.player);
+    assert.ok(measured > 12, `Arcade skips the whole tail stretch (${measured} segments)`);
+    assert.ok(EntityManager.deriveSelfTrailSkipRecentSegments(flight.player, 1) >= measured, 'the frame move widens it');
+    flight.player.arcadeHitbox = null;
+    assert.equal(EntityManager.deriveSelfTrailSkipRecentSegments(flight.player, 5), 12, 'estimate, cap and signature use unchanged');
 });
 
 test('arcade safety: no module state keeps the last match alive', async () => {

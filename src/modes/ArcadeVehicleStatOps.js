@@ -11,7 +11,7 @@ import {
     resolveArcadeStatCapPct,
     resolveArcadeVehicleBaseStats,
 } from '../shared/contracts/ArcadeVehicleBalanceContract.js';
-import { resolveArcadeVehicleBuildStats } from '../shared/contracts/ArcadeVehicleBuildContract.js';
+import { normalizeArcadeSizeProfileFields, resolveArcadeVehicleBuildStats } from '../shared/contracts/ArcadeVehicleBuildContract.js';
 import { normalizeArcadePartSizes } from '../shared/contracts/ArcadeVehicleSizeContract.js';
 
 const NORMAL_ARCADE_RUN_TYPES = Object.freeze(['gauntlet', 'endless_parcours', 'five_portals', 'arena_waves']);
@@ -39,7 +39,9 @@ function finiteOrZero(value) {
  * Normalisiert die Run-Start-Boni für ArcadeModeStrategy.applyVehicleUpgrades. In normalen Runs
  * rechnet der Größen-Build (bonuses.build, Profilfelder) mit: Tempo und Wendigkeit fließen als
  * Prozentpunkte über dem Tabellenwert in die Hangar-Boni (die Obergrenze klemmt danach die Summe),
- * der übrige Wertesatz liegt als `build`, die Gruppen-Größen als `partSizes` bereit. `otherVehicle`
+ * der übrige Wertesatz liegt als `build`, die Gruppen-Größen als `partSizes` bereit - aus denselben
+ * normalisierten Profilfeldern wie der Wertesatz, damit Trefferzone und Werte nie auseinanderlaufen
+ * (gesperrte Werkstatt oder mehr belegte als gekaufte Schritte: beide Werksgröße). `otherVehicle`
  * sind dieselben Hangar-Boni ohne Größen-Build für einen Menschen in einem anderen Fahrzeug.
  * @param {any} bonuses
  * @param {any} fallback
@@ -64,7 +66,7 @@ export function normalizeArcadeUpgradeBonuses(bonuses, fallback, isNormalRun) {
         speedBonusPct: slots.speedBonusPct + build.speedPct - base.speedPct,
         build,
         buildVehicleId: vehicleId.toLowerCase(),
-        partSizes: normalizeArcadePartSizes(source.partSizes),
+        partSizes: normalizeArcadeSizeProfileFields(source).partSizes,
         otherVehicle,
     });
 }

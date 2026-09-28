@@ -25,6 +25,7 @@ import {
     resolveArcadeStorageOffer,
     resolveArcadeVehicleBuildStats,
 } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
+import { measureArcadeHitboxSurface } from '../../shared/contracts/ArcadeVehicleHitboxContract.js';
 
 const GROUP_LABELS = Object.freeze({
     hull: 'Rumpf', nose: 'Nase', wings: 'Flügelpaar', engines: 'Antriebspaar', utility: 'Utility',
@@ -85,9 +86,11 @@ function reasonText(result) {
 
 /**
  * @param {{ bind: Function, getProfile: () => any, saveProfile: (profile: any) => void,
- *   toast: (message: string, tone?: string) => void, onDraftChange: () => void }} options
+ *   toast: (message: string, tone?: string) => void, onDraftChange: () => void,
+ *   partsOf?: (vehicleId: string) => ReadonlyArray<any> }} options
+ *   partsOf: the ship's factory parts, for the hit zone line of the value preview.
  */
-export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, onDraftChange }) {
+export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, onDraftChange, partsOf = () => [] }) {
     const root = el('section', 'hangar-size-panel');
     root.setAttribute('aria-labelledby', 'hangar-size-title');
     const title = el('h4', 'arcade-vehicle-subtitle', 'Größe');
@@ -175,9 +178,20 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
             .map((entry) => `${STAT_LABELS[entry.key]}: ${formatStat(entry.key, entry.before)} → ${formatStat(entry.key, entry.after)}`);
     }
 
+    // Hit zone in percent of the factory ship: bigger parts are easier to hit (full part boxes).
+    function hitboxLines(before, after) {
+        const parts = partsOf(vehicleId);
+        if (parts.length === 0) return [];
+        const factory = measureArcadeHitboxSurface(parts, null);
+        const pct = (sizes) => Math.round((measureArcadeHitboxSurface(parts, sizes) / factory) * 1000) / 10;
+        const from = pct(before);
+        const to = pct(after);
+        return from === to ? [] : [`Trefferzone: ${formatNumber(from)} % → ${formatNumber(to)} %`];
+    }
+
     function renderPreview() {
         const fields = normalizeArcadeSizeProfileFields(profile);
-        const lines = statLines(profile, { ...fields, partSizes: draft });
+        const lines = [...statLines(profile, { ...fields, partSizes: draft }), ...hitboxLines(fields.partSizes, draft)];
         preview.replaceChildren(...(lines.length > 0 ? lines : ['Keine Änderung']).map((line) => el('li', '', line)));
     }
 

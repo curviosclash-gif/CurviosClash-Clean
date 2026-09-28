@@ -19,6 +19,7 @@ import { emitArcadeDamageEvent, emitArcadeGameplayEvent } from './runtime/Entity
 import { updateEntityCameras } from './runtime/EntityCameraUpdateOps.js';
 import { clearEndlessBotRuntimeIdentity, resetEndlessBotRuntimeIdentity } from './endless/EndlessBotRuntimeIdentityOps.js';
 import { emitMapDestructibleBreakFeedback } from './effects/MapDestructibleBreakFeedback.js';
+import { countArcadeSelfTrailSkip } from './systems/lifecycle/ArcadePartCollisionOps.js';
 
 function clampInt(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -66,7 +67,7 @@ function bindRuntimePorts(owner, runtime) {
 }
 
 export class EntityManager {
-    static deriveSelfTrailSkipRecentSegments(player) {
+    static deriveSelfTrailSkipRecentSegments(player, stepDistance = 0) {
         const entityRuntimeConfig = resolveEntityRuntimeConfig(player?.entityManager || player);
         const updateInterval = Math.max(0.01, Number(entityRuntimeConfig.TRAIL?.UPDATE_INTERVAL) || 0.07);
         const speed = Math.max(1, Number(player?.speed) || Number(player?.baseSpeed) || Number(entityRuntimeConfig.PLAYER?.SPEED) || 18);
@@ -88,7 +89,10 @@ export class EntityManager {
         );
         const estimatedSegmentSpacing = Math.max(0.2, speed * updateInterval);
 
-        return clampInt(Math.ceil(graceDistance / estimatedSegmentSpacing) + 1, 5, 12);
+        // Arcade part hitbox (null otherwise): the stretch is measured on the laid trail, widened by
+        // this frame's move (stepDistance, the trail sweep starts at the previous pose); every other
+        // mode keeps the capped speed estimate.
+        return countArcadeSelfTrailSkip(player, graceDistance + (Number(stepDistance) || 0)) ?? clampInt(Math.ceil(graceDistance / estimatedSegmentSpacing) + 1, 5, 12);
     }
 
     constructor(renderer, arena, powerupManager, particles, audio, recorder, runtimeProfiler = null, options = {}) {

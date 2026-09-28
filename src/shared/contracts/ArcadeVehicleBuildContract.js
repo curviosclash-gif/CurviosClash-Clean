@@ -8,6 +8,7 @@
 import {
     ARCADE_BASE_REGEN_DELAY_S,
     ARCADE_MIN_REGEN_DELAY_S,
+    ARCADE_ROLL_BASE_PCT,
     ARCADE_SIZE_MAX_PURCHASED_STEPS,
     ARCADE_SIZE_STEP_BASE_COST_XP,
     ARCADE_SIZE_STEP_COST_INCREMENT_XP,
@@ -320,7 +321,7 @@ export function resolveArcadeVehicleBuildStats(vehicleId, build, extraSteps = nu
         damagePct: pct(100, 'nose', 'damagePct'),
         rangePct: pct(100, 'nose', 'rangePct'),
         turnPct: capped(base.turnPct, 'wings', 'turnPct'),
-        rollPct: capped(100, 'wings', 'rollPct'),
+        rollPct: capped(ARCADE_ROLL_BASE_PCT, 'wings', 'rollPct'),
         speedPct: capped(base.speedPct, 'engines', 'speedPct'),
         boostDurationPct: pct(100, 'engines', 'boostDurationPct'),
         shieldPct: pct(100, 'utility', 'shieldPct'),

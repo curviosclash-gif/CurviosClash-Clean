@@ -239,6 +239,45 @@ export function resolveArcadeTrailCollision(phase, player, prevPos, skipRecent, 
     return info;
 }
 
+function distance3(ax, ay, az, bx, by, bz) {
+    const dx = ax - bx;
+    const dy = ay - by;
+    const dz = az - bz;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+/**
+ * Own-trail segments an Arcade ship skips: the newest ones whose nearer end lies within
+ * `protectDistance` along the laid trail from the ship, plus the first one beyond (the spare
+ * segment of the speed estimate). Measured on the trail itself instead of estimated from the
+ * current speed: that estimate stopped at 12 segments, which left the wall-shape tail on its own
+ * trail in slow flight, and it undercounted the short slow segments right after a speed jump.
+ * A destroyed segment or a gap counts by the straight distance between its neighbours.
+ * Returns null without the part hitbox or a laid trail (every other mode keeps its estimate).
+ */
+export function countArcadeSelfTrailSkip(player, protectDistance) {
+    const trail = player?.trail;
+    const refs = trail?.segmentRefs;
+    if (!player?.arcadeHitbox || !Array.isArray(refs)) return null;
+    const size = trail.maxSegments;
+    const count = Math.min(trail.segmentCount, size);
+    let x = player.position.x;
+    let y = player.position.y;
+    let z = player.position.z;
+    let along = 0;
+    for (let age = 0; age < count; age++) {
+        const entry = refs[(trail.writeIndex - 1 - age + size) % size]?.entry;
+        if (!entry || entry.destroyed) continue;
+        along += distance3(entry.toX, entry.toY, entry.toZ, x, y, z);
+        if (along >= protectDistance) return age + 1;
+        along += distance3(entry.fromX, entry.fromY, entry.fromZ, entry.toX, entry.toY, entry.toZ);
+        x = entry.fromX;
+        y = entry.fromY;
+        z = entry.fromZ;
+    }
+    return count;
+}
+
 /** Full part shapes of two Arcade vehicles touch (end pose, like the legacy crash test). */
 export function arcadeShipsTouch(player, other) {
     const a = player?.arcadeHitbox?.full;
