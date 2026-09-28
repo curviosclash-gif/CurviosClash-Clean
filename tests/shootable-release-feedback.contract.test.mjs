@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { DandelionSeedController } from '../src/entities/arena/DandelionSeedController.js';
 import { SunflowerKernelController } from '../src/entities/arena/SunflowerKernelController.js';
 import { emitShootablePartReleaseFeedback } from '../src/entities/effects/ShootablePartReleaseFeedback.js';
+import { bindMapFeedback } from '../src/entities/effects/MapFeedbackBindings.js';
 import { playGameplayVoice } from '../src/core/audio/GameplayVoices.js';
 import { SOUND_COOLDOWNS_MS } from '../src/core/audio/AudioEventProfiles.js';
 
@@ -92,9 +93,16 @@ test('the puff is a real, rate-limited gameplay voice', () => {
 });
 
 test('the entity manager feeds arena releases into the feedback', () => {
-    const arena = readFileSync(new URL('../src/entities/Arena.js', import.meta.url), 'utf8');
-    assert.match(arena, /seeds\.onRelease = /);
-    assert.match(arena, /sunflowerKernels\.onRelease = /);
+    const arenaSource = readFileSync(new URL('../src/entities/Arena.js', import.meta.url), 'utf8');
+    assert.match(arenaSource, /seeds\.onRelease = /);
+    assert.match(arenaSource, /sunflowerKernels\.onRelease = /);
     const manager = readFileSync(new URL('../src/entities/EntityManager.js', import.meta.url), 'utf8');
-    assert.match(manager, /setShootableReleaseListener\?\.\(/);
+    assert.match(manager, /bindMapFeedback\(this, arena\)/);
+
+    let listener = null;
+    const owner = fakeOwner(7);
+    bindMapFeedback(owner, { setShootableReleaseListener: (callback) => { listener = callback; } });
+    assert.equal(typeof owner.onMapDestructibleBreak, 'function');
+    listener(new THREE.Vector3(), 7, 'dandelionSeeds');
+    assert.equal(owner.played[0]?.type, 'SEED_PUFF');
 });

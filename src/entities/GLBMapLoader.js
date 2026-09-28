@@ -198,10 +198,6 @@ export function collectAnimatedNodes(root, clips) {
     return animated;
 }
 
-/**
- * The collection slot a mesh sits in, or null on a single-model map - there is no slot there,
- * so its colliders carry an empty model id and nothing can be switched on or off separately.
- */
 // Shootable seeds and kernels are drawn by an instanced batch that hides their nodes, and a
 // swarm of small parts spends the shadow budget the landmark's big surfaces need.
 const BATCHED_SHOOTABLE_ROLES = new Set(['shootable_seed', 'shootable_kernel']);
@@ -213,6 +209,10 @@ function isBatchedShootablePart(mesh) {
     return false;
 }
 
+/**
+ * The collection slot a mesh sits in, or null on a single-model map - there is no slot there,
+ * so its colliders carry an empty model id and nothing can be switched on or off separately.
+ */
 function resolveColliderSlot(object) {
     for (let node = object; node; node = node.parent) {
         const modelId = node.userData?.glbModelId;
