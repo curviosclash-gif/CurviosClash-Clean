@@ -12,6 +12,7 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     eiffel_tower: 'generate_eiffel_tower_assets.py',
     eiffel_tower_siege: 'generate_eiffel_tower_siege_assets.py',
     reactor_site: 'generate_reactor_site_assets.py',
+    orbital_shipyard: 'generate_orbital_shipyard_assets.py',
     giant_forest: 'generate_giant_forest_assets.py',
     hydra_temple: 'generate_hydra_temple_assets.py',
     burg_falkenwacht: 'generate_falkenwacht_assets.py',

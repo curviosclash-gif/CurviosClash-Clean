@@ -182,6 +182,7 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         'notre_dame_arena',
         'notre_dame_fire',
         'notre_dame_fire_arena',
+        'orbital_shipyard',
         'pyramid',
         'reactor_site',
         'skyline_siege',

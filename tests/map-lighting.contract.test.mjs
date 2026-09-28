@@ -151,6 +151,7 @@ test('only the selected presets define lighting and all others resolve to defaul
         'notre_dame_arena',
         'notre_dame_fire',
         'notre_dame_fire_arena',
+        'orbital_shipyard',
         'pyramid',
         'reactor_site',
         'skyline_siege',

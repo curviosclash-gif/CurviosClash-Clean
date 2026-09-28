@@ -53,6 +53,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/notre-dame-evolution.desktop.spec.js',
             'tests/eiffel-tower.desktop.spec.js',
             'tests/eiffel-tower-siege.desktop.spec.js',
+            'tests/orbital-shipyard.desktop.spec.js',
             'tests/reactor-site.desktop.spec.js',
             'tests/reactor-cloud.desktop.spec.js',
             'tests/reactor-torus.desktop.spec.js',
