@@ -1,4 +1,4 @@
-// One bounded coordinate-ascent iteration for the heuristic bot.
+﻿// One bounded coordinate-ascent iteration for the heuristic bot.
 // Search state is kept outside the repository so goal continuations can resume without reports.
 
 import fs from 'node:fs';
@@ -14,7 +14,9 @@ import {
     HEURISTIC_PROFILE_FIELD_BOUNDS, HEURISTIC_PROFILES,
 } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
 import { createRuntimeRng } from '../../../src/shared/contracts/RuntimeRngContract.js';
-import { createHeuristicLifeTracker } from './heuristic-improvement-metrics.mjs';
+import {
+    createHeuristicEngagementTracker, createHeuristicLifeTracker, retainsHeuristicEngagement,
+} from './heuristic-improvement-metrics.mjs';
 import { HEURISTIC_IMPROVEMENT_BASELINE } from './heuristic-improvement-baseline.mjs';
 
 const FIXED_STEP = MATCH_KERNEL_FIXED_STEP_SECONDS;
@@ -54,7 +56,7 @@ const DEFAULT_TIMEOUT_MS = 90 * 60 * 1000;
 const MIN_CONFIRMED_GAIN = 1e-6;
 const PLATEAU_GAIN = 0.02;
 const TARGET_RATIO = 2;
-const STATE_VERSION = 16;
+const STATE_VERSION = 17;
 const MIN_ELIMINATION_SURVIVAL_RETENTION = 0.95;
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -261,6 +263,15 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
         const candidateBot = bots[candidateSlot];
         const activeCandidateFields = Object.freeze(clampProfile(profile, candidateFields));
         candidateBot.ai.profile = activeCandidateFields;
+        const engagement = createHeuristicEngagementTracker();
+        for (const bot of bots) {
+            const wrappedUpdate = bot.ai.update;
+            bot.ai.update = function (dt, player, context) {
+                const action = wrappedUpdate.call(this, dt, player, context);
+                engagement.record(player?.index, action, this._safetyState?.state);
+                return action;
+            };
+        }
         const actionTrace = trace ? {
             updates: 0,
             modes: {},
@@ -406,9 +417,14 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
         let baselineLives = 0;
         let baselineKills = 0;
         let baselineCount = 0;
+        const baselineEngagement = { updates: 0, safetyUpdates: 0, shots: 0 };
         for (const bot of bots) {
             const playerIndex = bot?.player?.index;
             if (!Number.isInteger(playerIndex) || playerIndex === candidateIndex) continue;
+            const botEngagement = engagement.totals(playerIndex);
+            baselineEngagement.updates += botEngagement.updates;
+            baselineEngagement.safetyUpdates += botEngagement.safetyUpdates;
+            baselineEngagement.shots += botEngagement.shots;
             const life = lifeTracker.lifeTotals(bot.player, endSeconds);
             baselineLifeSeconds += life.seconds;
             baselineLives += life.lives;
@@ -427,6 +443,8 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
             baselineKills: baselineCount > 0 ? baselineKills / baselineCount : 0,
             candidateDeathCauses,
             baselineDeathCauses,
+            candidateEngagement: engagement.totals(candidateIndex),
+            baselineEngagement,
             forced,
             ...(actionTrace ? { actionTrace } : {}),
         };
@@ -466,6 +484,12 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
         baselineLives: 0,
         baselineKills: 0,
         forcedMatches: 0,
+        candidateUpdates: 0,
+        candidateSafetyUpdates: 0,
+        candidateShots: 0,
+        baselineUpdates: 0,
+        baselineSafetyUpdates: 0,
+        baselineShots: 0,
     };
     const candidateDeathCauses = {};
     const baselineDeathCauses = {};
@@ -480,6 +504,12 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
             sums.baselineLives += result.baselineLives;
             sums.baselineKills += result.baselineKills;
             if (result.forced) sums.forcedMatches += 1;
+            sums.candidateUpdates += result.candidateEngagement.updates;
+            sums.candidateSafetyUpdates += result.candidateEngagement.safetyUpdates;
+            sums.candidateShots += result.candidateEngagement.shots;
+            sums.baselineUpdates += result.baselineEngagement.updates;
+            sums.baselineSafetyUpdates += result.baselineEngagement.safetyUpdates;
+            sums.baselineShots += result.baselineEngagement.shots;
             mergeCauseCounts(candidateDeathCauses, result.candidateDeathCauses);
             mergeCauseCounts(baselineDeathCauses, result.baselineDeathCauses);
             matches += 1;
@@ -500,6 +530,10 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
         killRatio,
         combinedScore: Math.sqrt(survivalRatio * killRatio),
         forcedMatches: sums.forcedMatches,
+        candidateSafetyShare: sums.candidateUpdates > 0 ? sums.candidateSafetyUpdates / sums.candidateUpdates : 0,
+        baselineSafetyShare: sums.baselineUpdates > 0 ? sums.baselineSafetyUpdates / sums.baselineUpdates : 0,
+        candidateShotsPerMatch: sums.candidateShots / matches,
+        baselineShotsPerMatch: sums.baselineShots / matches,
         candidateDeathCauses,
         baselineDeathCauses,
         candidateTrailDeathShare: trailDeathShare(candidateDeathCauses),
@@ -546,6 +580,10 @@ function toRatioRecord(result) {
         candidateDeathCauses: result.candidateDeathCauses,
         baselineDeathCauses: result.baselineDeathCauses,
         forcedMatches: result.forcedMatches,
+        candidateSafetyShare: result.candidateSafetyShare,
+        baselineSafetyShare: result.baselineSafetyShare,
+        candidateShotsPerMatch: result.candidateShotsPerMatch,
+        baselineShotsPerMatch: result.baselineShotsPerMatch,
         candidateTrailDeathShare: result.candidateTrailDeathShare,
         baselineTrailDeathShare: result.baselineTrailDeathShare,
     };
@@ -646,7 +684,8 @@ async function runIteration() {
             maxTicks: FULL_MAX_TICKS,
         });
         reported = fullCandidate;
-        if (isStrictlyBetterOnBoth(fullCandidate, fullCurrent)) {
+        if (isStrictlyBetterOnBoth(fullCandidate, fullCurrent)
+            && retainsHeuristicEngagement(fullCandidate, fullCurrent)) {
             const shortCurrent = await evaluateVariant({
                 profile,
                 fields: HEURISTIC_IMPROVEMENT_BASELINE[profile],
@@ -695,6 +734,8 @@ async function runIteration() {
         + ` stage=${selected ? 'holdout' : 'coarse'}`
         + ` survivalRatio=${formatRatio(reported.survivalRatio)}`
         + ` killRatio=${formatRatio(reported.killRatio)}`
+        + ` safetyShare=${reported.candidateSafetyShare.toFixed(3)}`
+        + ` shots=${reported.candidateShotsPerMatch.toFixed(1)}`
         + ` decision=${decision}`
     );
 
@@ -741,6 +782,8 @@ async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true, produc
             `profile=${profile} ${product ? 'product' : persist ? 'verified' : 'confirmed'}SurvivalRatio=${formatRatio(result.survivalRatio)}`
             + ` ${product ? 'product' : persist ? 'verified' : 'confirmed'}KillRatio=${formatRatio(result.killRatio)}`
             + (product ? ` candidateKills=${result.candidateKills.toFixed(3)} baselineKills=${result.baselineKills.toFixed(3)}` : '')
+            + ` safetyShare=${result.candidateSafetyShare.toFixed(3)}/${result.baselineSafetyShare.toFixed(3)}`
+            + ` shots=${result.candidateShotsPerMatch.toFixed(1)}/${result.baselineShotsPerMatch.toFixed(1)}`
             + ` shortSafe=${shortSafe}`
         );
     }
@@ -802,7 +845,7 @@ async function probeCurrentProfile(fullHoldout, adopt = false, shortOnly = false
     const result = await evaluateVariant({ profile, fields, seeds, slots, maxTicks, respawnEnabled: !shortOnly });
     const better = shortOnly
         ? result.candidateSurvival >= currentResult.candidateSurvival * MIN_ELIMINATION_SURVIVAL_RETENTION
-        : isStrictlyBetterOnBoth(result, currentResult);
+        : isStrictlyBetterOnBoth(result, currentResult) && retainsHeuristicEngagement(result, currentResult);
     let decision = shortOnly
         ? (better ? 'short-safe' : 'short-unsafe')
         : (better ? 'better-both' : 'not-better-both');
@@ -839,6 +882,8 @@ async function probeCurrentProfile(fullHoldout, adopt = false, shortOnly = false
         + ` killRatio=${formatRatio(result.killRatio)}`
         + ` survivalGain=${formatRatio(result.candidateSurvival / currentResult.candidateSurvival)}`
         + ` killGain=${formatRatio(result.candidateKills / currentResult.candidateKills)}`
+        + ` safetyShare=${result.candidateSafetyShare.toFixed(3)}/${currentResult.candidateSafetyShare.toFixed(3)}`
+        + ` shots=${result.candidateShotsPerMatch.toFixed(1)}/${currentResult.candidateShotsPerMatch.toFixed(1)}`
         + ` decision=${decision}`
     );
 }

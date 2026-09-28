@@ -29,3 +29,28 @@ export function createHeuristicLifeTracker() {
         },
     };
 }
+
+const SAFETY_STATES = new Set(['evade', 'recover']);
+// A candidate may not drift further into evasion than the profile it replaces.
+const SAFETY_SHARE_TOLERANCE = 0.03;
+
+export function createHeuristicEngagementTracker() {
+    const rows = new Map();
+    return {
+        record(playerIndex, action, safetyState) {
+            let row = rows.get(playerIndex);
+            if (!row) rows.set(playerIndex, row = { updates: 0, safetyUpdates: 0, shots: 0 });
+            row.updates += 1;
+            if (SAFETY_STATES.has(safetyState)) row.safetyUpdates += 1;
+            if (action?.shootMG || action?.shootRocket || action?.shootItem) row.shots += 1;
+        },
+        totals(playerIndex) {
+            const row = rows.get(playerIndex);
+            return row ? { ...row } : { updates: 0, safetyUpdates: 0, shots: 0 };
+        },
+    };
+}
+
+export function retainsHeuristicEngagement(candidate, reference) {
+    return Number(candidate?.candidateSafetyShare) <= Number(reference?.candidateSafetyShare) + SAFETY_SHARE_TOLERANCE;
+}

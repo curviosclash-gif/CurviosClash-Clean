@@ -35,3 +35,24 @@ test('life totals can be pooled without overweighting a long single life', () =>
     const b = tracker.lifeTotals(shortLives, 90);
     assert.equal((a.seconds + b.seconds) / (a.lives + b.lives), 180 / 11);
 });
+
+test('engagement tracker reports how long a bot lets safety override its tactics', async () => {
+    const { createHeuristicEngagementTracker } = await import('../scripts/heuristic-improvement-metrics.mjs');
+    const tracker = createHeuristicEngagementTracker();
+    tracker.record(1, { shootMG: false }, 'evade');
+    tracker.record(1, { shootMG: false }, 'recover');
+    tracker.record(1, { shootMG: true }, 'normal');
+    tracker.record(1, { shootRocket: true }, 'cooldown');
+    tracker.record(2, { shootItem: true }, 'normal');
+    assert.deepEqual(tracker.totals(1), { updates: 4, safetyUpdates: 2, shots: 2 });
+    assert.deepEqual(tracker.totals(3), { updates: 0, safetyUpdates: 0, shots: 0 });
+});
+
+test('engagement guard rejects a candidate that hides behind safety more than its reference', async () => {
+    const { retainsHeuristicEngagement } = await import('../scripts/heuristic-improvement-metrics.mjs');
+    const reference = { candidateSafetyShare: 0.5 };
+    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.5 }, reference), true);
+    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.52 }, reference), true);
+    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.6 }, reference), false);
+    assert.equal(retainsHeuristicEngagement({ candidateSafetyShare: 0.3 }, reference), true);
+});
