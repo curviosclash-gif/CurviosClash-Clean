@@ -224,6 +224,8 @@ export function createGameUiRefs(doc = document) {
         hudAppearanceHint: doc.getElementById('hud-appearance-hint'),
         normalCameraPerspectiveSelect: doc.getElementById('normal-camera-perspective-select'),
         normalCameraReduceMotionToggle: doc.getElementById('normal-camera-reduce-motion-toggle'),
+        normalCameraReactorFlashToggle: doc.getElementById('normal-camera-reactor-flash-toggle'),
+        normalCameraReactorShakeToggle: doc.getElementById('normal-camera-reactor-shake-toggle'),
         normalCameraSpeedFovToggle: doc.getElementById('normal-camera-speed-fov-toggle'),
         normalCameraSpeedFovIntensitySlider: doc.getElementById('normal-camera-speed-fov-intensity-slider'),
         normalCameraSpeedFovIntensityLabel: doc.getElementById('normal-camera-speed-fov-intensity-label'),

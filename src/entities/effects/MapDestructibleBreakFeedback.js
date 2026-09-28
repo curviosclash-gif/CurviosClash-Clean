@@ -37,7 +37,8 @@ function distanceTo(point, position) {
 function shakeReachedCameras(owner, pending, front, expired) {
     const renderer = owner?.renderer;
     const cameras = Array.isArray(renderer?.cameras) ? renderer.cameras : [];
-    const reduceMotion = renderer?.getCameraPerspectiveSettings?.()?.reduceMotion === true;
+    const settings = renderer?.getCameraPerspectiveSettings?.();
+    const reduceMotion = settings?.reduceMotion === true || settings?.reactorCameraShakeEnabled === false;
     const scale = Math.max(0.001, Number(owner?._mapDestructibleSystem?.anchorScale) || 1);
     const range = SHAKE_RANGE_AUTHORED * scale;
     let waiting = false;
@@ -74,9 +75,11 @@ export function emitMapDestructibleBreakFeedback(owner, event) {
     if (!position) return false;
 
     // The flash overlays live in the cloud models and cannot see the player's settings.
-    const reduceMotion = owner.renderer?.getCameraPerspectiveSettings?.()?.reduceMotion === true;
+    const settings = owner.renderer?.getCameraPerspectiveSettings?.();
+    const reduceMotion = settings?.reduceMotion === true;
     for (const overlay of owner.renderer?.scene?.getObjectsByProperty?.('name', REACTOR_FLASH_NAME) || []) {
         overlay.userData.reduceMotion = reduceMotion;
+        overlay.userData.flashEnabled = settings?.reactorFlashEnabled !== false;
     }
     owner.particles?.spawn?.(position, 96, BREACH_COLOR, 24, 1.35, 1.2, {
         gravity: -3.2,

@@ -276,6 +276,18 @@ export function bindMenuRecordingCameraControls({
             });
         });
     }
+    if (ui.normalCameraReactorFlashToggle) {
+        bind(ui.normalCameraReactorFlashToggle, 'change', () => {
+            ensureCameraPerspectiveSettings(settings).reactorFlashEnabled = ui.normalCameraReactorFlashToggle.checked;
+            emitSettingsChangedImmediate([keys.CAMERA_PERSPECTIVE_REACTOR_FLASH]);
+        });
+    }
+    if (ui.normalCameraReactorShakeToggle) {
+        bind(ui.normalCameraReactorShakeToggle, 'change', () => {
+            ensureCameraPerspectiveSettings(settings).reactorCameraShakeEnabled = ui.normalCameraReactorShakeToggle.checked;
+            emitSettingsChangedImmediate([keys.CAMERA_PERSPECTIVE_REACTOR_SHAKE]);
+        });
+    }
     if (ui.normalCameraSpeedFovToggle) {
         bind(ui.normalCameraSpeedFovToggle, 'change', () => {
             const cameraPerspectiveSettings = ensureCameraPerspectiveSettings(settings);

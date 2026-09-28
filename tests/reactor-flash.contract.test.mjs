@@ -51,6 +51,12 @@ test('the overlay draws per camera, last, and collapses when idle', async () => 
     overlay.userData.reduceMotion = false;
     overlay.onBeforeRender(null, null, camera);
     assert.ok(overlay.material.uniforms.flashWhite.value > 0.9);
+    overlay.userData.flashEnabled = false;
+    overlay.onBeforeRender(null, null, camera);
+    assert.equal(overlay.material.uniforms.flashActive.value, 0, 'the dedicated switch removes whiteout and after-image');
+    overlay.userData.flashEnabled = true;
+    overlay.onBeforeRender(null, null, camera);
+    assert.equal(overlay.material.uniforms.flashActive.value, 1);
     const spot = overlay.material.uniforms.flashSpot.value;
     assert.ok(Math.abs(spot.x) < 0.1 && Math.abs(spot.y) < 0.1, 'the after-image sits on the fireball');
 

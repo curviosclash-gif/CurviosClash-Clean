@@ -17,6 +17,12 @@ export function syncNormalCameraPerspectiveUi(ui, cameraPerspectiveSettingsSourc
     if (ui.normalCameraReduceMotionToggle) {
         ui.normalCameraReduceMotionToggle.checked = !!cameraPerspectiveSettings.reduceMotion;
     }
+    if (ui.normalCameraReactorFlashToggle) {
+        ui.normalCameraReactorFlashToggle.checked = cameraPerspectiveSettings.reactorFlashEnabled;
+    }
+    if (ui.normalCameraReactorShakeToggle) {
+        ui.normalCameraReactorShakeToggle.checked = cameraPerspectiveSettings.reactorCameraShakeEnabled;
+    }
 
     const speedFovIntensityPercent = Math.round(
         Math.min(CAMERA_PERSPECTIVE_EFFECT_INTENSITY_MAX, Math.max(0, Number(cameraPerspectiveSettings.speedFovIntensity) || 0)) * 100
