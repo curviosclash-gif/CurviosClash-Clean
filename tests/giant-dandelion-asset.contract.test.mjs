@@ -171,10 +171,14 @@ test('dandelion map halves its vertical layout around the shortened flower stem'
     assert.equal(map.glbModels[0].url, 'assets/models/giant_dandelion/giant_dandelion_shootable.glb');
     assert.deepEqual(map.portalLevels, [29, 135, 230]);
     assert.equal(map.playerSpawn.y, 227);
-    assert.ok(map.botSpawns.every((spawn) => spawn.y <= 254));
+    // Starts stay in the upper band just below the crown; the one above the eastern portal end
+    // is raised clear of it.
+    assert.ok(map.botSpawns.every((spawn) => spawn.y >= 227 && spawn.y <= 265));
     assert.equal(map.gates[0].params.liftImpulse, 34);
-    assert.equal(map.lighting.fog.near, 55 * 5);
-    assert.equal(map.lighting.fog.far, 190 * 5);
+    // Golden-hour haze: an earlier start than the old night fog, the far end still keeps the
+    // whole landmark readable.
+    assert.equal(map.lighting.fog.near, 200);
+    assert.equal(map.lighting.fog.far, 1000);
     assert.equal(map.singlePlayerScenario.gameMode, 'HUNT');
 });
 

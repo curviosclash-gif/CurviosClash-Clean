@@ -105,10 +105,13 @@ export const DANDELION_SKY_ROOT_CHAMBER_MODELS = Object.freeze([
 const MG_GUARD = Object.freeze({ weapon: 'mg', damage: 2, cooldown: 1.3 });
 const ROCKET_GUARD = Object.freeze({ weapon: 'rocket', rocketType: 'ROCKET_WEAK', cooldown: 6 });
 
+// The guards stand about 80 units from the entry portal, well inside their 150 range, so a
+// visitor is under fire from every side of the approach, not only from the gun he flies past.
+// They only appear once the crown is bare, so standing where the seeds hung is free.
 export const DANDELION_SKY_ROOT_CHAMBER_TURRETS = Object.freeze([
-    { ...MG_GUARD, id: 'dandelion_root_mg_west', pos: [-100, 280, 0] },
-    { ...MG_GUARD, id: 'dandelion_root_mg_east', pos: [175, 280, 0] },
-    { ...ROCKET_GUARD, id: 'dandelion_root_rocket_south', pos: [39, 280, 135] },
+    { ...MG_GUARD, id: 'dandelion_root_mg_west', pos: [-41, 305, 0] },
+    { ...MG_GUARD, id: 'dandelion_root_mg_east', pos: [119, 305, 0] },
+    { ...ROCKET_GUARD, id: 'dandelion_root_rocket_south', pos: [39, 305, 80] },
 ].map((turret) => Object.freeze({
     ...turret,
     range: 150,

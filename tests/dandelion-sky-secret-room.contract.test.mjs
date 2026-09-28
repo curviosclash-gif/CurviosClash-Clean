@@ -194,25 +194,65 @@ test('new routes, pickups and the crown portal are clear of hard flower geometry
         colliderMode: MAP.glbColliderMode,
     });
     const hard = result.colliders.filter((entry) => entry.meshCollider);
-    const probes = [
-        ROOM.entryPortal.pos,
-        ROOM.ejectPoint.pos,
-        ...MAP.staticTurrets.map((entry) => entry.pos),
-        ...MAP.gates.slice(-2).map((entry) => entry.pos),
-        ...MAP.items.slice(1).map((entry) => [entry.x, entry.y, entry.z]),
+    const seeds = new DandelionSeedController(result.scene);
+    const turretProbes = MAP.staticTurrets.map((entry) => entry.pos);
+    const openSkyProbes = [
+        [MAP.playerSpawn.x, MAP.playerSpawn.y, MAP.playerSpawn.z],
+        ...MAP.botSpawns.map((spawn) => [spawn.x, spawn.y, spawn.z]),
+        ...MAP.items.map((entry) => [entry.x, entry.y, entry.z]),
+        ...MAP.portals.flatMap((portal) => [portal.a, portal.b]),
+        ...MAP.gates.map((entry) => entry.pos),
     ];
-    for (const probe of probes) {
+    for (const probe of [ROOM.entryPortal.pos, ROOM.ejectPoint.pos, ...turretProbes, ...openSkyProbes]) {
         const point = new THREE.Vector3(...probe);
         assert.equal(hard.some((entry) => sphereIntersectsStaticMeshCollider(
             entry.meshCollider, point, 4,
         )), false, `probe ${probe} intersects hard geometry`);
     }
+    // Guards and the chamber portal stand where the crown was; they only appear once it is bare.
+    for (const probe of openSkyProbes) {
+        assert.equal(seeds.consumeCollision(new THREE.Vector3(...probe), 4, 0), null,
+            `probe ${probe} touches an attached seed`);
+    }
+});
 
-    const seeds = new DandelionSeedController(result.scene);
-    const rocket = MAP.items.find((entry) => entry.id === 'dandelion_sky_rocket_east');
-    assert.equal(seeds.consumeCollision(
-        new THREE.Vector3(rocket.x, rocket.y, rocket.z), 4, 0,
-    ), null, 'the moved eastern rocket still touches an attached seed');
+test('every start is equally far from the others and has a pickup within reach', () => {
+    const starts = [MAP.playerSpawn, ...MAP.botSpawns].map((spawn) => [spawn.x, spawn.y, spawn.z]);
+    const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    assert.ok(MAP.botSpawns.length >= 7, 'eight players never share a start');
+    const items = MAP.items.map((entry) => [entry.x, entry.y, entry.z]);
+    const portalEnds = MAP.portals.flatMap((portal) => [portal.a, portal.b]);
+    for (const start of starts) {
+        const nearestStart = Math.min(...starts.filter((other) => other !== start)
+            .map((other) => distance(start, other)));
+        assert.ok(nearestStart > 90, `start ${start} is only ${nearestStart.toFixed(0)} from another`);
+        const nearestItem = Math.min(...items.map((item) => distance(start, item)));
+        assert.ok(nearestItem < 70, `start ${start} has no pickup nearby (${nearestItem.toFixed(0)})`);
+        const nearestPortal = Math.min(...portalEnds.map((end) => distance(start, end)));
+        assert.ok(nearestPortal > 30, `start ${start} sits on a portal`);
+    }
+    // The first bots of a small match must not start next to the player.
+    const player = starts[0];
+    for (const spawn of starts.slice(1, 5)) {
+        assert.ok(distance(player, spawn) > 200, `early bot start ${spawn} crowds the player`);
+    }
+    assert.ok(MAP.items.length >= 12, 'the widest map on the list needs more than a handful of pickups');
+});
+
+test('the chamber guards cover the whole approach to the entry portal', () => {
+    const turrets = MAP.staticTurrets.map((entry) => normalizeStaticTurretDefinition(
+        entry, 0, { preserveSpatialRange: true },
+    ));
+    const portal = ROOM.entryPortal.pos;
+    // A ring around the portal at the distance a visitor commits to his run.
+    for (let step = 0; step < 16; step += 1) {
+        const angle = (step / 16) * Math.PI * 2;
+        const point = [portal[0] + Math.cos(angle) * 60, portal[1], portal[2] + Math.sin(angle) * 60];
+        const covering = turrets.filter((turret) => Math.hypot(
+            ...point.map((value, axis) => value - turret.pos[axis]),
+        ) < turret.range).length;
+        assert.ok(covering >= 2, `approach ${point.map(Math.round)} is covered by ${covering} guard(s)`);
+    }
 });
 
 test('the HUD projection reports seed progress and announces the open portal', () => {
