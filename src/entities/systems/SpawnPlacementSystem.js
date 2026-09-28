@@ -92,6 +92,7 @@ export class SpawnPlacementSystem {
         this._tmpSpawnProbe = new THREE.Vector3();
         this._tmpSpawnDirection = new THREE.Vector3();
         this._tmpBounceDirection = new THREE.Vector3();
+        this._tmpBounceStart = new THREE.Vector3();
         this._recentSpawnPositions = [];
     }
 
@@ -384,6 +385,7 @@ export class SpawnPlacementSystem {
         this._tmpBounceDirection.copy(baseDirection);
         if (this._tmpBounceDirection.lengthSq() <= 0.000001) return;
         this._tmpBounceDirection.normalize();
+        this._tmpBounceStart.copy(pos);
 
         const firstDistance = Number.isFinite(preferredDistance) && preferredDistance > 0
             ? preferredDistance
@@ -413,6 +415,14 @@ export class SpawnPlacementSystem {
             const normalPush = Number.isFinite(options.normalPush) ? options.normalPush : 2.0;
             pos.addScaledVector(normal, normalPush);
             if (this.isBotPositionSafe(player, pos)) return;
+        }
+
+        // Arcade part hitbox: the wall sweep left the vehicle on a pose its part boxes find
+        // free, nearer the wall than the hitbox sphere checked above allows. Keep that pose
+        // instead of jumping to the arena centre.
+        if (player.arcadeHitbox) {
+            pos.copy(this._tmpBounceStart);
+            return;
         }
 
         const bounds = owner?.arena?.bounds;

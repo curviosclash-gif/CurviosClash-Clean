@@ -73,7 +73,8 @@ export class EntityManager {
         const hitboxRadius = Math.max(0.4, Number(player?.hitboxRadius) || Number(entityRuntimeConfig.PLAYER?.HITBOX_RADIUS) || 0.8);
         const trailRadius = Math.max(0.05, (Number(player?.trail?.width) || Number(entityRuntimeConfig.TRAIL?.WIDTH) || 0.6) * 0.5);
 
-        let bodyLengthEstimate = hitboxRadius * 2.5;
+        // Arcade part hitbox: its wall shape can reach further back than hitboxRadius says (Arrow tail).
+        let bodyLengthEstimate = Math.max(hitboxRadius * 2.5, (Number(player?.arcadeHitbox?.wall?.boundRadius) || 0) * (Number(player?.modelScale) || 1));
         const box = player?.hitboxBox;
         if (box && box.min && box.max) {
             const lenX = Math.abs(Number(box.max.x) - Number(box.min.x)) || 0;

@@ -1,6 +1,7 @@
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { resolveParcoursSpawnDirection } from '../systems/ParcoursRespawnOps.js';
 import { resolveWeaponRaceGridSpawn } from '../arcade/WeaponRaceSpawnOps.js';
+import { applyArcadeSpawnHitbox } from '../player/ArcadePartHitboxOps.js';
 
 export class EntitySpawnOps {
     constructor(entityManager) {
@@ -108,6 +109,8 @@ export class EntitySpawnOps {
                 strategy.applySpawnStatBonuses(player);
             }
         }
+        // Part hitbox only in normal Arcade runs (not Daily, not weapon race), humans and bots.
+        applyArcadeSpawnHitbox(player, strategy?.isNormalArcadeRun?.() === true);
         player.shootCooldown = 0;
         owner._parcoursProgressSystem?.onPlayerSpawn?.(player, { reason: 'spawn_all' });
         owner._exclusionZoneSystem?.resetPlayer?.(player);

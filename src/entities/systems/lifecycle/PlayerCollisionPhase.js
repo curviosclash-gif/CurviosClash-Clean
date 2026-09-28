@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { syncArcadePartHitbox } from '../../player/ArcadePartHitboxOps.js';
+import { arcadeShipsTouch, resolveArcadeArenaCollision, resolveArcadeTrailCollision } from './ArcadePartCollisionOps.js';
 
 // Broadphase slack for vehicle-vs-vehicle checks: the hitbox sphere is much smaller than
 // the vehicle body, so the sphere test only preselects and the oriented box decides.
@@ -39,14 +41,20 @@ export class PlayerCollisionPhase {
             return false;
         }
         const spawnProtected = (player.spawnProtectionTimer || 0) > 0;
+        // Arcade part hitbox (normal Arcade runs only): walls, trails and crashes use the
+        // part boxes; every other mode keeps the sphere/box code below.
+        const arcade = syncArcadePartHitbox(player) !== null;
 
         const hRadius = Math.max(0.05, Number(player.hitboxRadius) || 0.4);
         let bouncedOnFoam = false;
 
         // A bounce just pushed this player off a surface; re-testing the arena immediately
         // would resolve the very same contact again. Trails stay armed on purpose.
+        let arenaCollision = null;
         if ((player.arenaCollisionGraceTimer || 0) <= 0) {
-            const arenaCollision = this._resolveArenaCollision(player, prevPos, hRadius);
+            arenaCollision = arcade
+                ? resolveArcadeArenaCollision(this, player, prevPos)
+                : this._resolveArenaCollision(player, prevPos, hRadius);
             if (arenaCollision?.hit) {
                 // Protection suspends the damage, not the geometry. Skipping the arena
                 // entirely let the vehicle travel its whole protected flight through solid
@@ -81,7 +89,10 @@ export class PlayerCollisionPhase {
 
         if (!bouncedOnFoam) {
             const selfTrailSkipRecent = entityManager.constructor.deriveSelfTrailSkipRecentSegments(player);
-            const collision = this._resolveTrailCollision(player, prevPos, hRadius * 2.0, selfTrailSkipRecent);
+            // Arcade: after a wall contact only the flown path counts, not the response's turn.
+            const collision = arcade
+                ? resolveArcadeTrailCollision(this, player, prevPos, selfTrailSkipRecent, arenaCollision)
+                : this._resolveTrailCollision(player, prevPos, hRadius * 2.0, selfTrailSkipRecent);
             if (collision?.hit) {
                 const trailCause = collision.playerIndex === player.index ? 'TRAIL_SELF' : 'TRAIL_OTHER';
                 const sourcePlayer = collision.playerIndex >= 0 && collision.playerIndex !== player.index
@@ -237,16 +248,20 @@ export class PlayerCollisionPhase {
             if ((other.spawnProtectionTimer || 0) > 0) continue;
             if ((other.crashDamageCooldown || 0) > 0) continue;
 
-            const otherRadius = Math.max(0.05, Number(other.hitboxRadius) || 0.4);
-            const contactRadius = probeRadius + otherRadius;
-            const broadphaseRadius = contactRadius * CRASH_BROADPHASE_SCALE;
-            const distanceSq = player.position.distanceToSquared(other.position);
-            if (distanceSq > broadphaseRadius * broadphaseRadius) continue;
+            if (player.arcadeHitbox && other.arcadeHitbox) {
+                if (!arcadeShipsTouch(player, other)) continue;
+            } else {
+                const otherRadius = Math.max(0.05, Number(other.hitboxRadius) || 0.4);
+                const contactRadius = probeRadius + otherRadius;
+                const broadphaseRadius = contactRadius * CRASH_BROADPHASE_SCALE;
+                const distanceSq = player.position.distanceToSquared(other.position);
+                if (distanceSq > broadphaseRadius * broadphaseRadius) continue;
 
-            const touching = typeof other.isSphereInOBB === 'function'
-                ? other.isSphereInOBB(player.position, probeRadius)
-                : distanceSq <= contactRadius * contactRadius;
-            if (!touching) continue;
+                const touching = typeof other.isSphereInOBB === 'function'
+                    ? other.isSphereInOBB(player.position, probeRadius)
+                    : distanceSq <= contactRadius * contactRadius;
+                if (!touching) continue;
+            }
 
             this._tmpCrashNormal.subVectors(player.position, other.position);
             if (this._tmpCrashNormal.lengthSq() <= 0.000001) {

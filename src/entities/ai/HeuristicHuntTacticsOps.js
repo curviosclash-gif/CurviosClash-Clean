@@ -64,7 +64,7 @@ function probeFightCorridor(policy, player, targetPosition, runtimeContext) {
         HEURISTIC_SAFETY_CONFIG.shotProbeMaxSamples,
         Math.max(2, Math.ceil(distance / HEURISTIC_SAFETY_CONFIG.shotProbeStep))
     );
-    const radius = Math.max(0.1, Number(player.hitboxRadius) || 0.8)
+    const radius = Math.max(0.1, Number(player.arcadeAvoidRadius || player.hitboxRadius) || 0.8)
         * HEURISTIC_SAFETY_CONFIG.shotProbeRadiusMultiplier;
     const skipRecent = resolveHeuristicSelfTrailSkipRecentSegments(runtimeContext, player);
     let trailBlocked = false;

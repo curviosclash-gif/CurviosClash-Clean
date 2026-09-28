@@ -23,7 +23,7 @@ const ARCADE_VEHICLE_BALANCE_TABLE = Object.freeze({
     ship5: Object.freeze({ role: 'allrounder', maxHpPct: 100, itemCapacity: 5, rocketCapacity: 5, speedPct: 100, turnPct: 100, startMachineGuns: Object.freeze(['vector_m7', 'raptor_r9']) }),
     spaceship: Object.freeze({ role: 'tank', maxHpPct: 125, itemCapacity: 6, rocketCapacity: 5, speedPct: 90, turnPct: 90, startMachineGuns: Object.freeze(['vector_m7', 'bastion_h3']) }),
     arrow: Object.freeze({ role: 'fighter', maxHpPct: 75, itemCapacity: 3, rocketCapacity: 3, speedPct: 120, turnPct: 125, startMachineGuns: Object.freeze(['vector_m7', 'raptor_r9']) }),
-    manta: Object.freeze({ role: 'tank', maxHpPct: 150, itemCapacity: 7, rocketCapacity: 8, speedPct: 80, turnPct: 75, startMachineGuns: Object.freeze(['vector_m7', 'bastion_h3']) }),
+    manta: Object.freeze({ role: 'tank', maxHpPct: 150, itemCapacity: 7, rocketCapacity: 8, speedPct: 80, turnPct: 75, startMachineGuns: Object.freeze(['vector_m7', 'bastion_h3']), wallHitboxScale: 0.14 }),
     drone: Object.freeze({ role: 'fighter', maxHpPct: 70, itemCapacity: 3, rocketCapacity: 2, speedPct: 115, turnPct: 130, startMachineGuns: Object.freeze(['vector_m7', 'raptor_r9']) }),
     ship1: Object.freeze({ role: 'fighter', maxHpPct: 90, itemCapacity: 4, rocketCapacity: 4, speedPct: 110, turnPct: 110, startMachineGuns: Object.freeze(['vector_m7', 'raptor_r9']) }),
     ship9: Object.freeze({ role: 'fighter', maxHpPct: 80, itemCapacity: 4, rocketCapacity: 3, speedPct: 120, turnPct: 115, startMachineGuns: Object.freeze(['vector_m7', 'raptor_r9']) }),
@@ -70,6 +70,18 @@ export function clampArcadeVehicleSpeedMultiplier(vehicleId, multiplier) {
 }
 
 /**
+ * Wand- und Spur-Trefferzone relativ zur vollen Bauteilform (Paket 2b, Nutzerentscheidung):
+ * MG, Raketen und Zusammenstoesse sehen immer die volle Form, Waende und Spuren die um den
+ * Schiffsursprung mit diesem Faktor verkleinerte. Die Manta passt so wie das Raumschiff durch Tunnel.
+ * @param {string} vehicleId
+ * @returns {number}
+ */
+export function resolveArcadeWallHitboxScale(vehicleId) {
+    const entry = /** @type {{wallHitboxScale?: number}} */ (resolveArcadeVehicleBaseStats(vehicleId));
+    return Number(entry.wallHitboxScale) || 1;
+}
+
+/**
  * Klemmt eine Lagergröße auf [1, ARCADE_STORAGE_MAX_SLOTS].
  * @param {number} capacity
  */
@@ -108,4 +120,5 @@ export default {
     resolveArcadeStatCapPct,
     clampArcadeVehicleSpeedMultiplier,
     clampArcadeStorageCapacity,
+    resolveArcadeWallHitboxScale,
 };

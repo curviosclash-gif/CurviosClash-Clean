@@ -83,7 +83,30 @@ function apply(m, v) {
     return m.map((row) => row[0] * v[0] + row[1] * v[1] + row[2] * v[2]);
 }
 
-function collectOrientedBounds(part, parentMatrix, parentOffset, bounds) {
+const IDENTITY = Object.freeze([[1, 0, 0], [0, 1, 0], [0, 0, 1]]);
+const MIRROR_MATRICES = Object.freeze({
+    x: [[-1, 0, 0], [0, 1, 0], [0, 0, 1]],
+    y: [[1, 0, 0], [0, -1, 0], [0, 0, 1]],
+    z: [[1, 0, 0], [0, 1, 0], [0, 0, -1]],
+});
+
+/**
+ * Axis a part is mirrored on, or null. A mirrored part is drawn a second time, reflected in
+ * its parent's frame (see VehicleLabConfigContract: `mirror: true` means the x axis).
+ * @param {any} part
+ * @returns {'x'|'y'|'z'|null}
+ */
+export function resolveVehiclePartMirrorAxis(part) {
+    const axis = part?.mirrorAxis || (part?.mirror === true ? 'x' : null);
+    return axis === 'x' || axis === 'y' || axis === 'z' ? axis : null;
+}
+
+function collectOrientedBounds(part, parentMatrix, parentOffset, bounds, options = {}, mirrored = false) {
+    if (options.ignoreGeos?.includes(part.geo)) return bounds;
+    const mirrorAxis = resolveVehiclePartMirrorAxis(part);
+    if (options.includeMirrors && !mirrored && mirrorAxis) {
+        collectOrientedBounds(part, multiply(parentMatrix, MIRROR_MATRICES[mirrorAxis]), parentOffset, bounds, options, true);
+    }
     const scale = Array.isArray(part.scale) ? part.scale.map((value) => Number(value) || 1) : [1, 1, 1];
     const pos = apply(parentMatrix, Array.isArray(part.pos) ? part.pos.map((value) => Number(value) || 0) : [0, 0, 0]);
     const offset = [0, 1, 2].map((axis) => parentOffset[axis] + pos[axis]);
@@ -97,23 +120,30 @@ function collectOrientedBounds(part, parentMatrix, parentOffset, bounds) {
         }
     }
     for (const child of Array.isArray(part.children) ? part.children : []) {
-        if (child && typeof child === 'object') collectOrientedBounds(child, matrix, offset, bounds);
+        if (child && typeof child === 'object') collectOrientedBounds(child, matrix, offset, bounds, options);
     }
     return bounds;
 }
 
 /**
  * Axis-aligned bounds of one top-level part with its children, rotation and scale
- * included, in vehicle space.
+ * included, in vehicle space. Mirrored copies only count with `includeMirrors`;
+ * parts (and their children) whose geo is in `ignoreGeos` are skipped. `mirrorHalf`
+ * measures one half of a mirrored part alone: 'own' as authored, 'copy' its reflection
+ * (mirrored children inside that half still count with `includeMirrors`).
  * @param {object} part
+ * @param {{includeMirrors?: boolean, ignoreGeos?: ReadonlyArray<string>, mirrorHalf?: 'own'|'copy'}} [options]
  * @returns {{min: number[], max: number[], size: number[], center: number[]}}
  */
-export function measureVehiclePartBounds(part) {
-    const identity = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
-    const { min, max } = collectOrientedBounds(part || {}, identity, [0, 0, 0], {
+export function measureVehiclePartBounds(part, options = {}) {
+    const opts = options || {};
+    const source = part || {};
+    const halfAxis = opts.mirrorHalf ? resolveVehiclePartMirrorAxis(source) : null;
+    const frame = halfAxis && opts.mirrorHalf === 'copy' ? MIRROR_MATRICES[halfAxis] : IDENTITY;
+    const { min, max } = collectOrientedBounds(source, frame, [0, 0, 0], {
         min: [Infinity, Infinity, Infinity],
         max: [-Infinity, -Infinity, -Infinity],
-    });
+    }, opts, halfAxis !== null);
     if (!Number.isFinite(min[0])) return { min: [0, 0, 0], max: [0, 0, 0], size: [0, 0, 0], center: [0, 0, 0] };
     return {
         min,

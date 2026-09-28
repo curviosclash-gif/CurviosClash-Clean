@@ -5,6 +5,7 @@ import { isRocketTierType, resolveRocketTierDamage } from '../../../hunt/RocketP
 import { applyTrailDamageFromProjectile } from '../../../hunt/DestructibleTrail.js';
 import { applyExplosionKnockback } from '../ExplosionKnockbackOps.js';
 import { resolveInterceptHit } from './RocketInterceptOps.js';
+import { segmentHitsArcadePartBoxes, sphereHitsArcadePartBoxes } from '../../player/ArcadePartHitboxOps.js';
 import { canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamCombatContract.js';
 
 // Der Spawnschutz aus dem RespawnSystem (INVULNERABILITY_SECONDS) macht einen frisch
@@ -86,6 +87,8 @@ export class ProjectileHitResolver {
     }
 
     _isProjectileTouchingTarget(projectile, target, point) {
+        // Arcade part hitbox: the boxes decide alone, no sphere fallback around the ship.
+        if (target.arcadeHitbox) return sphereHitsArcadePartBoxes(target, point, Number(projectile.radius) || 0);
         if (target.isSphereInOBB && target.isSphereInOBB(point, projectile.radius)) {
             return true;
         }
@@ -100,6 +103,14 @@ export class ProjectileHitResolver {
         const previousPosition = projectile.previousPosition;
         if (!previousPosition || typeof previousPosition.distanceTo !== 'function' || !this._tmpVec) {
             return this._isProjectileTouchingTarget(projectile, target, projectile.position);
+        }
+        if (target.arcadeHitbox) {
+            // Exact segment test: thin wings cannot slip between two sweep samples.
+            const t = segmentHitsArcadePartBoxes(target, previousPosition, projectile.position, Number(projectile.radius) || 0);
+            if (t < 0) return false;
+            projectile.position.lerpVectors(previousPosition, projectile.position, t);
+            projectile.mesh?.position.copy(projectile.position);
+            return true;
         }
 
         const distance = previousPosition.distanceTo(projectile.position);

@@ -106,8 +106,8 @@ export class TrailSpatialIndex {
         return this._segmentRegistry.destroySegment(entry);
     }
 
-    checkGlobalCollision(position, radius, excludePlayerIndex = -1, skipRecent = 0, playerRef = null) {
-        return this._collisionQuery.checkGlobalCollision(position, radius, excludePlayerIndex, skipRecent, playerRef);
+    checkGlobalCollision(position, radius, excludePlayerIndex = -1, skipRecent = 0, playerRef = null, cellRange = 1) {
+        return this._collisionQuery.checkGlobalCollision(position, radius, excludePlayerIndex, skipRecent, playerRef, cellRange);
     }
 
     clear() {

@@ -55,7 +55,9 @@ function isInsideTunnel(point, tunnel, radius = 0) {
     return (d1 * d1 + d2 * d2) < (effectiveRadius * effectiveRadius);
 }
 
-function getTubeCollisionInfo(point, tube, radius = 0, outNormal = null) {
+// `capsule` rounds the tube ends instead of cutting them off: the broad query needs a shape
+// that every sphere enclosing a touching sphere touches as well (see checkCollisionBroad).
+function getTubeCollisionInfo(point, tube, radius = 0, outNormal = null, capsule = false) {
     if (!point || !tube || typeof tube !== 'object') return false;
     const ax = Number(tube.ax);
     const ay = Number(tube.ay);
@@ -74,9 +76,10 @@ function getTubeCollisionInfo(point, tube, radius = 0, outNormal = null) {
     const apx = point.x - ax;
     const apy = point.y - ay;
     const apz = point.z - az;
-    const projection = (apx * abx + apy * aby + apz * abz) / lengthSq;
+    let projection = (apx * abx + apy * aby + apz * abz) / lengthSq;
     if (projection < 0 || projection > 1) {
-        return false;
+        if (!capsule) return false;
+        projection = projection < 0 ? 0 : 1;
     }
 
     const cx = ax + abx * projection;
@@ -411,6 +414,33 @@ export class ArenaCollision {
             if (obs.meshCollider) continue;
             if (obs.tube && getTubeCollisionInfo(position, obs.tube, radius)) return true;
             if (obs.tube) continue;
+            if (obs.tunnel && isInsideTunnel(position, obs.tunnel, radius)) continue;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Broad variant of checkCollisionFast / checkBotCollisionFast for enclosing spheres: it never
+     * misses a contact the exact query finds, and a sphere that holds a touching sphere always
+     * touches too. The exact tube test lacks the second property - it ignores every sphere whose
+     * centre lies beyond a tube end, however large - so tubes count with rounded ends here.
+     */
+    checkCollisionBroad(position, radius = 0, botNavigation = false) {
+        if (!position) return false;
+        if (this._checkBoundsCollision(position, radius, botNavigation ? null : this.arena.openFaces)) return true;
+        this._tmpSphere.center.copy(position);
+        this._tmpSphere.radius = radius;
+        for (const obs of this._getFastCollisionObstacles(position, radius)) {
+            if (!obs.box.intersectsSphere(this._tmpSphere)) continue;
+            if (obs.meshCollider) {
+                if (sphereIntersectsStaticMeshCollider(obs.meshCollider, position, radius)) return true;
+                continue;
+            }
+            if (obs.tube) {
+                if (getTubeCollisionInfo(position, obs.tube, radius, null, true)) return true;
+                continue;
+            }
             if (obs.tunnel && isInsideTunnel(position, obs.tunnel, radius)) continue;
             return true;
         }

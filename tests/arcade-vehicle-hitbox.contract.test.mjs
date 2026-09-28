@@ -1,0 +1,250 @@
+// ============================================
+// arcade-vehicle-hitbox.contract.test.mjs - Paket 2b: Arcade hitbox from part boxes.
+// One box per top-level part (factory shape x functional size x 0.9), minimum thickness,
+// core anchor, probe spheres that cover every box, Manta wall factor, Hangar box list.
+// ============================================
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+
+import {
+    ARCADE_HITBOX_MAX_BOXES,
+    ARCADE_HITBOX_MIN_THICKNESS,
+    ARCADE_HITBOX_SCALE,
+    buildArcadeCoreHitboxShape,
+    buildArcadeHitboxShape,
+    listArcadeHitboxBoxes,
+} from '../src/shared/contracts/ArcadeVehicleHitboxContract.js';
+import { resolveArcadeWallHitboxScale } from '../src/shared/contracts/ArcadeVehicleBalanceContract.js';
+import { measureVehiclePartBounds } from '../src/shared/contracts/VehiclePartStyleContract.js';
+import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicle-lab/player-ships/index.js';
+import { VEHICLE_PRESETS } from '../src/shared/vehicle-lab/VehiclePresets.js';
+import { createVehicleMesh, getVehicleIds, getVehicleModularConfig } from '../src/entities/vehicle-registry.js';
+import {
+    applyArcadePartHitbox,
+    clearArcadePartHitbox,
+    rayHitsArcadePartBoxes,
+    syncArcadePartHitbox,
+} from '../src/entities/player/ArcadePartHitboxOps.js';
+
+const HELIX = VEHICLE_PRESETS.find((preset) => preset.id === 'lab_helix_interceptor');
+const FACTORY = [...PLAYER_SHIP_PART_CONFIGS, HELIX];
+const MAX = { hull: 125, nose: 125, wings: 125, engines: 125, utility: 125 };
+const EPS = 1e-9;
+
+function boxAt(shape, i) {
+    const b = shape.boxes;
+    return { c: [b[i * 6], b[i * 6 + 1], b[i * 6 + 2]], h: [b[i * 6 + 3], b[i * 6 + 4], b[i * 6 + 5]] };
+}
+
+function unionOf(shape) {
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < shape.count; i++) {
+        const { c, h } = boxAt(shape, i);
+        for (let a = 0; a < 3; a++) {
+            min[a] = Math.min(min[a], c[a] - h[a]);
+            max[a] = Math.max(max[a], c[a] + h[a]);
+        }
+    }
+    return { min, max };
+}
+
+test('arcade hitbox: every factory ship gets one box per top-level part, roles included', () => {
+    assert.equal(FACTORY.length, 8);
+    for (const config of FACTORY) {
+        const shape = buildArcadeHitboxShape(config.parts, null);
+        assert.ok(shape.count <= ARCADE_HITBOX_MAX_BOXES, `${config.id}: ${shape.count} boxes`);
+        const roles = config.parts.map((part) => part.role).filter(Boolean);
+        for (const role of roles) assert.ok(shape.roles.includes(role), `${config.id}: ${role} has a box`);
+        for (let i = 0; i < shape.count; i++) {
+            const { h } = boxAt(shape, i);
+            for (const half of h) assert.ok(half >= 0, `${config.id} box ${shape.names[i]} is a real box`);
+        }
+        // Two-stage wall check: only the core carries the minimum thickness (anchor cube).
+        const core = boxAt(shape, shape.roles.indexOf('core'));
+        for (const half of core.h) assert.ok(half >= ARCADE_HITBOX_MIN_THICKNESS / 2 - EPS, `${config.id} core too thin`);
+        for (let a = 0; a < 3; a++) {
+            assert.ok(core.c[a] - core.h[a] <= -ARCADE_HITBOX_MIN_THICKNESS / 2 + EPS, `${config.id} core anchor min axis ${a}`);
+            assert.ok(core.c[a] + core.h[a] >= ARCADE_HITBOX_MIN_THICKNESS / 2 - EPS, `${config.id} core anchor max axis ${a}`);
+        }
+    }
+});
+
+test('arcade hitbox: at factory size the boxes stay inside the drawn model and cover most of it', () => {
+    for (const config of FACTORY) {
+        const shape = buildArcadeHitboxShape(config.parts, null);
+        const union = unionOf(shape);
+        const box = createVehicleMesh(config.id, 0xffffff).localBox;
+        const size = box.getSize(new THREE.Vector3()).toArray();
+        const min = box.min.toArray();
+        const max = box.max.toArray();
+        for (let a = 0; a < 3; a++) {
+            const slack = Math.max(ARCADE_HITBOX_MIN_THICKNESS, size[a] * 0.05);
+            assert.ok(union.min[a] >= min[a] - slack && union.max[a] <= max[a] + slack, `${config.id} axis ${a} inside the model`);
+            const covered = (union.max[a] - union.min[a]) / size[a];
+            assert.ok(covered >= 0.6, `${config.id} axis ${a} covers ${covered.toFixed(2)} of the model`);
+        }
+    }
+});
+
+test('arcade hitbox: Star-Cruiser wing tip sits at x 2.16 and grows around the wing pivot', () => {
+    const ship5 = FACTORY.find((config) => config.id === 'ship5');
+    const shape = buildArcadeHitboxShape(ship5.parts, null);
+    const wing = boxAt(shape, shape.roles.indexOf('wing_right'));
+    assert.ok(Math.abs(wing.c[0] + wing.h[0] - 2.16) < 0.01, `tip ${wing.c[0] + wing.h[0]}`);
+    assert.ok(Math.abs(wing.c[2] - wing.h[2] + 0.989) < 0.01 && Math.abs(wing.c[2] + wing.h[2] - 0.659) < 0.01);
+
+    const grown = buildArcadeHitboxShape(ship5.parts, { wings: 125 });
+    const big = boxAt(grown, grown.roles.indexOf('wing_right'));
+    const pivot = ship5.parts.find((part) => part.role === 'wing_right').pos;
+    assert.ok(Math.abs((big.c[0] - pivot[0]) - 1.25 * (wing.c[0] - pivot[0])) < 1e-6, 'center moves away from the pivot');
+    assert.ok(Math.abs(big.h[0] - 1.25 * wing.h[0]) < 1e-6, 'span grows by 25 %');
+    const nose = boxAt(grown, grown.roles.indexOf('nose'));
+    const nose100 = boxAt(shape, shape.roles.indexOf('nose'));
+    assert.deepEqual(nose.h, nose100.h, 'other groups keep their size');
+});
+
+test('arcade hitbox: mirrored copies are measured, engine flames are not', () => {
+    const flank = FACTORY.find((config) => config.id === 'ship5').parts.find((part) => part.name === 'Rumpfflanke');
+    const plain = measureVehiclePartBounds(flank);
+    const mirrored = measureVehiclePartBounds(flank, { includeMirrors: true });
+    assert.ok(plain.min[0] > 0, 'default stays the unmirrored part');
+    assert.ok(Math.abs(mirrored.min[0] + mirrored.max[0]) < 1e-9, 'mirror copy spans both sides');
+
+    const shape = buildArcadeHitboxShape(FACTORY.find((config) => config.id === 'ship5').parts, null);
+    const engine = boxAt(shape, shape.roles.indexOf('engine_right'));
+    assert.ok(engine.c[2] + engine.h[2] < 2.0, `engine box ends at the nozzle, not the flame tip (${engine.c[2] + engine.h[2]})`);
+});
+
+function isMirrored(part) {
+    return part.mirror === true || ['x', 'y', 'z'].includes(part.mirrorAxis);
+}
+
+const near = (a, b) => Math.abs(a - b) < 1e-6;
+
+test('arcade hitbox: each half of a mirrored part gets its own box, nothing in between', () => {
+    const spaceship = FACTORY.find((config) => config.id === 'spaceship');
+    const shape = buildArcadeHitboxShape(spaceship.parts, null);
+    const ship = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), modelScale: 1, arcadeHitbox: { full: shape } };
+    const down = new THREE.Vector3(0, -1, 0);
+    // The two thin nose cannons sit at x +-0.5 in front of the saucer; between them is empty space.
+    assert.equal(rayHitsArcadePartBoxes(ship, new THREE.Vector3(0, 10, -2), down, 100), -1, 'between the cannons');
+    assert.equal(rayHitsArcadePartBoxes(ship, new THREE.Vector3(0.2, 10, -2.3), down, 100), -1, 'beside the right cannon');
+    assert.ok(rayHitsArcadePartBoxes(ship, new THREE.Vector3(0.5, 10, -2), down, 100) > 0, 'on the right cannon');
+    assert.ok(rayHitsArcadePartBoxes(ship, new THREE.Vector3(-0.5, 10, -2), down, 100) > 0, 'on the left cannon');
+
+    for (const config of FACTORY) {
+        const built = buildArcadeHitboxShape(config.parts, MAX);
+        for (const part of config.parts.filter(isMirrored)) {
+            const axis = { x: 0, y: 1, z: 2 }[part.mirrorAxis || 'x'];
+            const halves = built.names.flatMap((name, i) => (name === part.name ? [boxAt(built, i)] : []));
+            assert.equal(halves.length, 2, `${config.id} ${part.name}: one box per half`);
+            for (let a = 0; a < 3; a++) {
+                const mirrored = a === axis ? near(halves[0].c[a], -halves[1].c[a]) : near(halves[0].c[a], halves[1].c[a]);
+                assert.ok(mirrored && near(halves[0].h[a], halves[1].h[a]), `${config.id} ${part.name} axis ${a}`);
+            }
+        }
+    }
+});
+
+test('arcade hitbox: the box budget keeps mirror partners together (no one-sided hit zone)', () => {
+    const boxesOf = (shape, name) => shape.names.flatMap((entry, i) => (entry === name ? [boxAt(shape, i)] : []));
+    const hasPartner = (box, list) => list.some((other) => near(box.c[0], -other.c[0]) && near(box.c[1], other.c[1])
+        && near(box.c[2], other.c[2]) && box.h.every((half, a) => near(half, other.h[a])));
+    let capped = 0;
+    for (const id of getVehicleIds()) {
+        const parts = getVehicleModularConfig(id)?.parts;
+        if (!Array.isArray(parts)) continue;
+        const shape = buildArcadeHitboxShape(parts, null);
+        assert.ok(shape.count <= ARCADE_HITBOX_MAX_BOXES, `${id}: ${shape.count} boxes`);
+        // Every part's boxes without any budget; some ships are a little asymmetric by design.
+        const all = parts.flatMap((part) => boxesOf(buildArcadeHitboxShape([part], null), part.name));
+        if (all.length > ARCADE_HITBOX_MAX_BOXES) capped += 1;
+        const kept = shape.names.map((_, i) => boxAt(shape, i));
+        const lonely = shape.names.filter((name, i) => hasPartner(kept[i], all) && !hasPartner(kept[i], kept));
+        assert.deepEqual(lonely, [], `${id}: the budget dropped only one side of these`);
+    }
+    assert.ok(capped >= 2, `Leviathan and Aegis exceed the budget (${capped})`);
+});
+
+test('arcade hitbox: probe spheres enclose every box', () => {
+    for (const config of FACTORY) {
+        const shape = buildArcadeHitboxShape(config.parts, MAX);
+        for (let i = 0; i < shape.count; i++) {
+            const { c, h } = boxAt(shape, i);
+            // 5 x 5 x 5 grid over the box, corners included.
+            for (let n = 0; n < 125; n++) {
+                const p = [n % 5, Math.floor(n / 5) % 5, Math.floor(n / 25)].map((k, a) => c[a] + h[a] * (k / 2 - 1));
+                let inside = false;
+                for (let k = shape.probeStart[i]; k < shape.probeStart[i + 1]; k++) {
+                    const q = shape.probes;
+                    const d = Math.hypot(p[0] - q[k * 4], p[1] - q[k * 4 + 1], p[2] - q[k * 4 + 2]);
+                    if (d <= q[k * 4 + 3] + 1e-9) { inside = true; break; }
+                }
+                assert.ok(inside, `${config.id} ${shape.names[i]} point ${p} uncovered`);
+            }
+            assert.ok(shape.probeStart[i + 1] - shape.probeStart[i] <= 6);
+        }
+    }
+});
+
+test('arcade hitbox: Manta walls use about spaceship size, every other ship the full shape', () => {
+    for (const config of FACTORY) {
+        const scale = resolveArcadeWallHitboxScale(config.id);
+        if (config.id === 'manta') {
+            assert.ok(scale > 0 && scale < 0.2, `manta wall scale ${scale}`);
+            const wall = buildArcadeHitboxShape(config.parts, MAX, { originScale: scale });
+            assert.ok(wall.boundRadius > 3.2 && wall.boundRadius < 3.8, `manta wall radius ${wall.boundRadius}`);
+            const full = buildArcadeHitboxShape(config.parts, MAX);
+            assert.ok(full.boundRadius > 20, 'MG and rockets still see the full manta');
+        } else {
+            assert.equal(scale, 1, config.id);
+        }
+    }
+    assert.equal(resolveArcadeWallHitboxScale('aircraft'), 1);
+});
+
+test('arcade hitbox: vehicles without parts get one core box from the model bounds', () => {
+    const shape = buildArcadeCoreHitboxShape([-1, -0.5, -2], [1, 0.5, 2]);
+    assert.equal(shape.count, 1);
+    const { c, h } = boxAt(shape, 0);
+    assert.deepEqual(c, [0, 0, 0]);
+    assert.deepEqual(h, [ARCADE_HITBOX_SCALE, 0.5 * ARCADE_HITBOX_SCALE, 2 * ARCADE_HITBOX_SCALE]);
+});
+
+test('arcade hitbox: Hangar gets the boxes as plain data', () => {
+    const ship5 = FACTORY.find((config) => config.id === 'ship5');
+    const list = listArcadeHitboxBoxes(ship5, { wings: 125 });
+    assert.equal(list.length, ship5.parts.length + ship5.parts.filter(isMirrored).length, 'mirrored parts: one box per half');
+    const wing = list.find((entry) => entry.role === 'wing_right');
+    assert.equal(wing.name, ship5.parts.find((part) => part.role === 'wing_right').name);
+    assert.equal(wing.center.length, 3);
+    assert.equal(wing.halfSize.length, 3);
+    assert.deepEqual(listArcadeHitboxBoxes(null, null).length, 1, 'empty config: only the core anchor');
+});
+
+test('arcade hitbox runtime: spawn state follows vehicle and part sizes, clear restores the old radius', () => {
+    const player = { vehicleId: 'ship5', modelScale: 2, hitboxRadius: 2.4, hitboxBox: new THREE.Box3() };
+    applyArcadePartHitbox(player);
+    const state = player.arcadeHitbox;
+    assert.ok(state, 'state set');
+    assert.equal(player.arcadeAvoidRadius, state.wall.crossRadius * 2, 'bot evasion radius follows the wall shape');
+    assert.equal(player.hitboxRadius, 2.4, 'every other reader keeps the old radius');
+
+    player.arcadePartSizes = { wings: 125 };
+    syncArcadePartHitbox(player);
+    assert.notEqual(player.arcadeHitbox.full, state.full, 'size change rebuilds');
+    const rebuilt = player.arcadeHitbox.full;
+    syncArcadePartHitbox(player);
+    assert.equal(player.arcadeHitbox.full, rebuilt, 'unchanged sizes keep the cached shape');
+
+    player.modelScale = 1;
+    syncArcadePartHitbox(player);
+    assert.equal(player.arcadeAvoidRadius, player.arcadeHitbox.wall.crossRadius, 'radius follows the live model scale');
+
+    clearArcadePartHitbox(player);
+    assert.equal(player.arcadeHitbox, null);
+    assert.equal(player.hitboxRadius, 2.4);
+    assert.equal(player.arcadeAvoidRadius, 0);
+});

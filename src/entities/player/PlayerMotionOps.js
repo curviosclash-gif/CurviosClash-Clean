@@ -1,6 +1,7 @@
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { applyFourPlayerPlanarPhysicsConstraint } from '../../four-player-planar/FourPlayerPlanarPhysics.js';
 import { updatePlayerCharges } from './PlayerChargeOps.js';
+import { sphereHitsArcadePartBoxes } from './ArcadePartHitboxOps.js';
 
 const MIN_HITBOX_RADIUS = 0.2;
 const HITBOX_HEIGHT_FACTOR = 0.7;
@@ -101,6 +102,9 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
     //   trail sweep ceil(4.3125 / 1.36) =  4 steps of 1.08 u  <= the 12 step cap, and
     //               1.08 u stays inside the 2 * 1.6 u search diameter.
     // Both sweeps therefore stay gap-free; no substepping and no raised cap needed.
+    // Arcade part hitbox (player.arcadeHitbox) sweeps on its own proof instead, from the
+    // capped vehicle stats, SPEED_UP, map pushes, roll and slow motion:
+    // resolveArcadeMotionWorstCase in ArcadeVehicleHitboxContract.js.
     const resolvedMotionDt = Number.isFinite(motionDt) && motionDt > 0 ? motionDt : dt;
     const turnSpeed = resolvedTurnSpeed * turnRateMul * waterTurnMultiplier * resolvedMotionDt;
     const rollSpeed = resolvedRollSpeed * waterTurnMultiplier * resolvedMotionDt;
@@ -219,6 +223,7 @@ export function preparePlayerObbCollisionQuery(player) {
 
 export function isSphereInPlayerOBB(player, worldCenter, radius) {
     if (!player?.alive || !player?.hitboxBox || !worldCenter) return false;
+    if (player.arcadeHitbox) return sphereHitsArcadePartBoxes(player, worldCenter, radius);
     if (!player._obbCollisionPrepared && !preparePlayerObbCollisionQuery(player)) return false;
 
     player._tmpLocalSphere.center.copy(worldCenter).applyMatrix4(player._tmpWorldToLocal);

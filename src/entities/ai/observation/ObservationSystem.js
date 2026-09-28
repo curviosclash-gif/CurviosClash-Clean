@@ -294,7 +294,7 @@ export function buildObservation(player, context = {}, target = null) {
     const selectedItemIndex = playerInventory.length > 0
         ? clamp(Number(player.selectedItemIndex) || 0, 0, ITEM_SLOT_COUNT - 1)
         : -1;
-    const radius = Math.max(0.1, Number(player.hitboxRadius) || 0.8);
+    const radius = Math.max(0.1, Number(player.arcadeAvoidRadius || player.hitboxRadius) || 0.8);
 
     buildBasisFromPlayer(player);
     const wallRatios = sampleWallRatios(player, runtimeContext, radius);

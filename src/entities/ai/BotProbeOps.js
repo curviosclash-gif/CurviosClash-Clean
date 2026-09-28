@@ -30,7 +30,7 @@ export function scanProbeRay(bot, player, arena, allPlayers, direction, lookAhea
     out.trailDist = lookAhead;
     out.immediateDanger = false;
 
-    const radius = player.hitboxRadius * AI_SENSOR_TRAIL_COLLISION.radiusMultiplier;
+    const radius = (player.arcadeAvoidRadius || player.hitboxRadius) * AI_SENSOR_TRAIL_COLLISION.radiusMultiplier;
     const skipRecent = AI_SENSOR_TRAIL_COLLISION.skipRecentSegments;
     const stepX = direction.x * step;
     const stepY = direction.y * step;
