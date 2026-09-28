@@ -80,8 +80,9 @@ export const EIFFEL_SIEGE_SECRET_ROOM_TURRETS = Object.freeze([
     allowedModes: ['HUNT', 'ARCADE'],
 })));
 
-// Ten item points at mid height. Six of them name no type on purpose: an unnamed point draws from
-// the mode's own weighted choice, so the room is worth entering twice.
+// Twelve item points at mid height. Six of them name no type on purpose: an unnamed point draws
+// from the mode's own weighted choice, so the room is worth entering twice. The last two are the
+// prizes every secret room holds (user decision 28.09.2026).
 const ITEMS = Object.freeze([
     { pos: [-12, -10, -12] },
     { pos: [12, -10, -12] },
@@ -93,6 +94,8 @@ const ITEMS = Object.freeze([
     { pos: [0, -10, 14], type: 'HEALTH' },
     { pos: [-14, -10, 0], type: 'ROCKET_MEDIUM' },
     { pos: [14, -10, 0], type: 'ROCKET_HEAVY' },
+    { pos: [0, -8, -7], type: 'BOMBER_STRIKE' },
+    { pos: [0, -8, 7], type: 'LIGHTNING' },
 ]);
 
 export const EIFFEL_SIEGE_SECRET_ROOM = Object.freeze({
