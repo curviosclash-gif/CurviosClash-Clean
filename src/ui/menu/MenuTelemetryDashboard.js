@@ -279,6 +279,7 @@ export function renderTelemetryHistorySection(container, historySummary) {
     const rounds = Math.max(0, Number(historySummary.rounds) || 0);
     appendRow(list, 'history-rounds', 'Gesamt-Runden', String(rounds));
     appendRow(list, 'history-control', 'Steuerung', formatControlSourceCounts(historySummary.controlSourceCounts));
+    appendRow(list, 'history-control-idle-seat', 'Davon mit leerem Spielerplatz', String(Math.max(0, Number(historySummary.roundsWithIdleHumanSeat) || 0)));
     appendRow(list, 'history-human-wr', 'Human-Winrate', formatPercent(historySummary.humanWinRate));
     appendRow(list, 'history-bot-wr', 'Bot-Winrate', formatPercent(historySummary.botWinRate));
     appendRow(list, 'history-avg-dur', 'Avg. Dauer', formatDuration(historySummary.averageDuration));

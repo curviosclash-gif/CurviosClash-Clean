@@ -69,6 +69,7 @@ function buildControlTelemetry(game, humanCount) {
         humanCount,
         inputSamples: activity?.samples,
         activeInputSamples: activity?.activeSamples,
+        players: activity?.players,
     });
 }
 
