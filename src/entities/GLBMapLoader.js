@@ -268,7 +268,9 @@ function collectSceneColliders(root, options = {}) {
         if (collisionOnly) child.visible = false;
 
         if (!collectColliders) return;
-        if (isMeshColliderDisabled(child)) return;
+        // A shootable part is hit through its controller's targeted queries; a baked collider
+        // would stay behind in the air after the part itself was shot away.
+        if (isMeshColliderDisabled(child) || isBatchedShootablePart(child)) return;
 
         const slot = resolveColliderSlot(child);
         // A break scene is placed and turned at runtime, so every one of its meshes needs a

@@ -27,6 +27,16 @@ function createFlowerLoader(role) {
     };
 }
 
+test('shootable parts never become static colliders, even when their meshes lack _nocol', async () => {
+    // The sunflower's kernels share one mesh named without the marker. A baked collider would
+    // stay in the air after the kernel it belonged to had been shot away.
+    const result = await loadGLBMapCollection([
+        { id: 'flower', url: 'assets/models/test/flower.glb', collision: true },
+    ], { loader: createFlowerLoader('shootable_kernel'), colliderMode: 'scene' });
+    assert.equal(result.colliders.length, 1, 'only the leaf collides');
+    disposeObject3DResources(result.scene);
+});
+
 for (const role of ['shootable_seed', 'shootable_kernel']) {
     test(`${role} parts never take a shadow slot from the landmark`, async () => {
         const result = await loadGLBMapCollection([
