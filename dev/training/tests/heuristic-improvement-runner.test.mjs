@@ -22,7 +22,7 @@ test('runner re-verifies before reporting a target from stored state', () => {
 
 function targetState(overrides = {}) {
     return {
-        version: 17,
+        version: 18,
         plateauRounds: 0,
         completeProfiles: ['defensive', 'balanced', 'aggressive'],
         verifiedRatios: {
@@ -49,7 +49,7 @@ test('runner requires both metrics and all profiles before reporting the target'
 
 test('runner stops immediately on an existing plateau without starting an iteration', () => {
     let calls = 0;
-    const state = { version: 17, plateauRounds: 3 };
+    const state = { version: 18, plateauRounds: 3 };
     const result = runSearch({
         executeIteration: () => {
             calls += 1;
@@ -65,8 +65,8 @@ test('runner stops immediately on an existing plateau without starting an iterat
 
 test('runner invokes bounded iterations serially until the target is recorded', () => {
     const states = [
-        { version: 17, plateauRounds: 0 },
-        { version: 17, plateauRounds: 1 },
+        { version: 18, plateauRounds: 0 },
+        { version: 18, plateauRounds: 1 },
         targetState(),
     ];
     let cursor = 0;
@@ -94,17 +94,17 @@ test('runner preserves timeout, child failure, and iteration-limit outcomes', ()
     assert.equal(runSearch({
         maxIterations: 1,
         executeIteration: () => ({ status: 0 }),
-        readState: () => ({ version: 17, plateauRounds: 0 }),
+        readState: () => ({ version: 18, plateauRounds: 0 }),
     }).outcome, 'iterationLimit');
 
     assert.equal(runSearch({
         executeIteration: () => ({ status: null, timedOut: true }),
-        readState: () => ({ version: 17, plateauRounds: 0 }),
+        readState: () => ({ version: 18, plateauRounds: 0 }),
     }).outcome, 'timeout');
 
     assert.equal(runSearch({
         executeIteration: () => ({ status: 7 }),
-        readState: () => ({ version: 17, plateauRounds: 0 }),
+        readState: () => ({ version: 18, plateauRounds: 0 }),
     }).outcome, 'error');
 
     assert.deepEqual(RUNNER_EXIT_CODES, {

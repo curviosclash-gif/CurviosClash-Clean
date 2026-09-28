@@ -56,7 +56,7 @@ const DEFAULT_TIMEOUT_MS = 90 * 60 * 1000;
 const MIN_CONFIRMED_GAIN = 1e-6;
 const PLATEAU_GAIN = 0.02;
 const TARGET_RATIO = 2;
-const STATE_VERSION = 17;
+const STATE_VERSION = 18;
 const MIN_ELIMINATION_SURVIVAL_RETENTION = 0.95;
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -639,6 +639,7 @@ async function runIteration() {
             maxTicks: COARSE_MAX_TICKS,
         });
         if (result.combinedScore <= coarseCurrent.combinedScore + MIN_CONFIRMED_GAIN) continue;
+        if (!retainsHeuristicEngagement(result)) continue;
         shortCoarseCurrent ||= await evaluateVariant({
             profile,
             fields: HEURISTIC_IMPROVEMENT_BASELINE[profile],
@@ -685,7 +686,7 @@ async function runIteration() {
         });
         reported = fullCandidate;
         if (isStrictlyBetterOnBoth(fullCandidate, fullCurrent)
-            && retainsHeuristicEngagement(fullCandidate, fullCurrent)) {
+            && retainsHeuristicEngagement(fullCandidate)) {
             const shortCurrent = await evaluateVariant({
                 profile,
                 fields: HEURISTIC_IMPROVEMENT_BASELINE[profile],
@@ -845,7 +846,7 @@ async function probeCurrentProfile(fullHoldout, adopt = false, shortOnly = false
     const result = await evaluateVariant({ profile, fields, seeds, slots, maxTicks, respawnEnabled: !shortOnly });
     const better = shortOnly
         ? result.candidateSurvival >= currentResult.candidateSurvival * MIN_ELIMINATION_SURVIVAL_RETENTION
-        : isStrictlyBetterOnBoth(result, currentResult) && retainsHeuristicEngagement(result, currentResult);
+        : isStrictlyBetterOnBoth(result, currentResult) && retainsHeuristicEngagement(result);
     let decision = shortOnly
         ? (better ? 'short-safe' : 'short-unsafe')
         : (better ? 'better-both' : 'not-better-both');

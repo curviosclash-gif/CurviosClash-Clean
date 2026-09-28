@@ -133,7 +133,8 @@ test('match replay is stable for one seed and changes for another seed', () => {
 test('heuristic improvement loop measures engagement and gates every accept on it', () => {
     assert.match(source, /engagement\.record\(player\?\.index, action, this\._safetyState\?\.state\)/);
     assert.match(source, /candidateSafetyShare: sums\.candidateUpdates > 0/);
-    assert.match(source, /isStrictlyBetterOnBoth\(fullCandidate, fullCurrent\)\s*&& retainsHeuristicEngagement\(fullCandidate, fullCurrent\)/);
-    assert.match(source, /isStrictlyBetterOnBoth\(result, currentResult\) && retainsHeuristicEngagement\(result, currentResult\)/);
+    assert.match(source, /isStrictlyBetterOnBoth\(fullCandidate, fullCurrent\)\s*&& retainsHeuristicEngagement\(fullCandidate\)/);
+    assert.match(source, /isStrictlyBetterOnBoth\(result, currentResult\) && retainsHeuristicEngagement\(result\)/);
+    assert.match(source, /if \(!retainsHeuristicEngagement\(result\)\) continue;/);
     assert.match(source, /candidateShotsPerMatch: result\.candidateShotsPerMatch/);
 });
