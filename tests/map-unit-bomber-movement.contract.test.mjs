@@ -28,7 +28,8 @@ test('a bomber uses one lightweight airframe rooted at its authored flight heigh
     const [bomber] = system.units;
 
     assert.equal(bomber.root.userData.bomber, true);
-    assert.equal(bomber.root.children.length, 5);
+    // The five-box stand-in flies until the jet model has loaded (MapUnitBomberVisualOps).
+    assert.equal(bomber.root.userData.bomberVisual.fallback.children.length, 5);
     assert.deepEqual(bomber.position.toArray(), [-30, 45, 0]);
     assert.equal(scene.size, 1);
 });
