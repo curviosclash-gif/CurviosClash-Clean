@@ -7,10 +7,10 @@
   "scripts": {
     "dev": "vite",
     "git:hooks:install": "git config core.hooksPath .githooks",
-    "build": "vite build && node scripts/check-production-training-boundary.mjs dist",
-    "build:web": "vite build --mode web && node scripts/check-production-training-boundary.mjs dist",
+    "build": "node scripts/vite-build.mjs && node scripts/check-production-training-boundary.mjs dist",
+    "build:web": "node scripts/vite-build.mjs --mode web && node scripts/check-production-training-boundary.mjs dist",
     "build:app": "node scripts/build-app.mjs",
-    "build:game": "vite build --mode game && node scripts/check-game-build.mjs dist-game",
+    "build:game": "node scripts/vite-build.mjs --mode game && node scripts/check-game-build.mjs dist-game",
     "build:app:test": "node scripts/build-playwright-app.mjs",
     "preview": "vite preview",
     "browser:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./server.ps1",
