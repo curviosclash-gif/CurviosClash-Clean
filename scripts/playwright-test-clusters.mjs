@@ -131,6 +131,7 @@ export const DESKTOP_FLOWS_MAP_BOUND_SPECS = Object.freeze({
     'tests/notre-dame-wall-approach.desktop.spec.js': ['notre_dame'],
     'tests/eiffel-tower.desktop.spec.js': ['eiffel_tower', 'neon_abyss'],
     'tests/eiffel-tower-siege.desktop.spec.js': ['eiffel_tower_siege'],
+    'tests/orbital-shipyard.desktop.spec.js': ['orbital_shipyard'],
     'tests/reactor-site.desktop.spec.js': ['reactor_site'],
     'tests/reactor-cloud.desktop.spec.js': ['reactor_site'],
     'tests/reactor-torus.desktop.spec.js': ['reactor_site'],
