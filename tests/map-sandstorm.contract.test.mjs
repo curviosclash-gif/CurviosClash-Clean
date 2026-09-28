@@ -205,6 +205,23 @@ test('network clients relight the scene as snapshots carry the storm intensity',
     assert.deepEqual(applied, [0.05, 0.3, 0.7, 1], 'each new lighting step relights once, repeats do not');
 });
 
+test('a storm swell relights in 5 % steps but rebuilds the reflection map only three times', () => {
+    // Every environment refresh regenerates a PMREM from the sky; twenty of them per swell stall
+    // the frame on an iGPU while the light and fog steps themselves are cheap.
+    const refreshes = [];
+    const renderer = Object.create(Renderer.prototype);
+    Object.assign(renderer, {
+        _mapSandstormEffect: createMapSandstormState(),
+        _mapSandstormRanges: {},
+        _mapSandstormLightingStep: 0,
+        _applySceneAppearance(refreshEnvironment = true) { refreshes.push(refreshEnvironment); },
+    });
+    renderer.setMapSandstormEffect({ enabled: true, phase: 'ACTIVE', remainingSeconds: 70, intensity: 0 });
+    for (let step = 1; step <= 20; step += 1) renderer.setMapSandstormIntensity(step / 20);
+    assert.equal(refreshes.length, 21, 'the light follows every 5 % step');
+    assert.equal(refreshes.filter(Boolean).length, 3, 'the reflection map is rebuilt at 0 %, 50 % and 100 % only');
+});
+
 test('recordings render the storm fog of the player they follow', () => {
     // Capture cameras are the pipeline's own; only the live player cameras carry the per-player
     // storm range. A capture view therefore borrows the followed player's camera, and a view with

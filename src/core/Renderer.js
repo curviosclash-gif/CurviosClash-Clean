@@ -256,7 +256,8 @@ export class Renderer {
         const lightingStep = Math.round(this._mapSandstormEffect.intensity * 20);
         const relight = previousActive !== nextActive || (nextActive && lightingStep !== this._mapSandstormLightingStep);
         this._mapSandstormLightingStep = lightingStep;
-        if (relight) this._applySceneAppearance();
+        // The reflection map (a PMREM rebuild) follows only at 0 %, 50 % and 100 %; light and fog take every step.
+        if (relight) this._applySceneAppearance(previousActive !== nextActive || lightingStep % 10 === 0);
         return { ...this._mapSandstormEffect };
     }
 
@@ -273,7 +274,7 @@ export class Renderer {
             && this._mapSandstormEffect.phase === MAP_SANDSTORM_PHASES.ACTIVE
         ) {
             this._mapSandstormLightingStep = lightingStep;
-            this._applySceneAppearance();
+            this._applySceneAppearance(lightingStep % 10 === 0);
         }
     }
 
