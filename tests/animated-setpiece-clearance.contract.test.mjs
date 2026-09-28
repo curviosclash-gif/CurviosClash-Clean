@@ -54,24 +54,15 @@ const KNOWN_FINDINGS = [
     'chrono_forge_nexus|chrono-forge-rift-shards|-|static-uncovered',
     'chrono_forge_nexus|chrono-forge-temple-chronometer|-|static-uncovered',
     'chrono_forge_nexus|chrono-forge-temple-gates|-|static-uncovered',
-    // eclipse_foundry: reuses the Chrono Forge setpieces and inherits both of its findings. Not
-    // part of the 28.09. audit and not covered by the Chrono beat decision.
+    // eclipse_foundry (plan I, together with Chrono Forge): reuses the Chrono Forge setpieces and
+    // inherits their missing obstacle boxes; the beat findings are deliberate exceptions below.
     'eclipse_foundry|eclipse-foundry-arrival-crane|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-arrival-drones|-|beat',
-    'eclipse_foundry|eclipse-foundry-crown-shards|-|beat',
     'eclipse_foundry|eclipse-foundry-crown-shards|-|static-uncovered',
     'eclipse_foundry|eclipse-foundry-descent-clock|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-eclipse-heart|-|beat',
     'eclipse_foundry|eclipse-foundry-furnace-core|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-furnace-gates|-|beat',
     'eclipse_foundry|eclipse-foundry-furnace-gates|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-lens-shards|-|beat',
     'eclipse_foundry|eclipse-foundry-lens-shards|-|static-uncovered',
     'eclipse_foundry|eclipse-foundry-orbit-clock|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-orbit-core|-|beat',
-    'eclipse_foundry|eclipse-foundry-shipyard-airship|-|beat',
-    'eclipse_foundry|eclipse-foundry-shipyard-drones|-|beat',
-    'eclipse_foundry|eclipse-foundry-temple-gates|-|beat',
     'eclipse_foundry|eclipse-foundry-temple-gates|-|static-uncovered',
     // eiffel_tower* (plan F): summit lift axis crosses portal, bot spawn, ghost item and sling;
     // the arena bot spawn TOP_DECK+8 sits in the beacon.
@@ -180,6 +171,16 @@ const DELIBERATE_EXCEPTIONS = [
     'chrono_forge_nexus|chrono-forge-sky-drones|-|beat',
     'chrono_forge_nexus|chrono-forge-temple-gates|-|beat',
     'chrono_forge_nexus|chrono-forge-time-core|-|beat',
+    // Eclipse Foundry: the same Chrono Forge loops, exempt for the same reason (decided 28.09.2026).
+    'eclipse_foundry|eclipse-foundry-arrival-drones|-|beat',
+    'eclipse_foundry|eclipse-foundry-crown-shards|-|beat',
+    'eclipse_foundry|eclipse-foundry-eclipse-heart|-|beat',
+    'eclipse_foundry|eclipse-foundry-furnace-gates|-|beat',
+    'eclipse_foundry|eclipse-foundry-lens-shards|-|beat',
+    'eclipse_foundry|eclipse-foundry-orbit-core|-|beat',
+    'eclipse_foundry|eclipse-foundry-shipyard-airship|-|beat',
+    'eclipse_foundry|eclipse-foundry-shipyard-drones|-|beat',
+    'eclipse_foundry|eclipse-foundry-temple-gates|-|beat',
 ];
 
 // Every map with animated setpieces the 28.09. audit named; the scan must reach all of them.
