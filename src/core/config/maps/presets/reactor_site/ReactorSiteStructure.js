@@ -15,6 +15,7 @@ import cloudConfig from './ReactorTorusCloudConfig.json' with { type: 'json' };
 
 const GROUND = 8;
 const METRE = 0.6;
+export const REACTOR_BUILDING_LINEAR_SCALE = Math.cbrt(1.5);
 
 /** Authored height for a real height above the apron. */
 function up(metres) {
@@ -32,12 +33,10 @@ function south(metres) {
 }
 
 // The one field number everything else follows from: how far the wreck of the furthest collapse
-// reaches. The cooling tower keels 115.2 m from its own axis (generate_reactor_site_assets.py
-// reports it as `reach`), and its axis stands 105 m out, so the wreck reaches 220.2 m, that is
-// 132.1 authored units, from the map centre. The stack (88.4 m from an axis 116.5 m out) and the
-// hall (88.4 m from a centre 108 m out) both stay inside that. Half the field is that reach plus
-// a 20 unit margin, rounded to 155 - the same field the Eiffel siege plays on.
-export const REACTOR_WRECK_REACH = (105 + 115.2) * METRE;
+// reaches. The scaled cooling tower's final Blender export reports a 130.3 m reach from its own
+// axis, and the axis stands 105 m out, so the wreck reaches 235.3 m, or 141.18 authored units,
+// from the map centre. Half the field is that reach plus a 12 unit margin, rounded to 155.
+export const REACTOR_WRECK_REACH = (105 + 130.3) * METRE;
 export const REACTOR_HALF_SIZE = 155;
 export const REACTOR_MAP_SIZE = [REACTOR_HALF_SIZE * 2, cloudConfig.baseMapHeight * cloudConfig.mapHeightMultiplier, REACTOR_HALF_SIZE * 2];
 
@@ -53,24 +52,41 @@ export const STACK_X = across(STACK_METRES[0]);               // 57.6
 export const STACK_Z = south(STACK_METRES[1]);                // -39.6
 export const SWITCHYARD_Z = south(SWITCHYARD_METRES);         // 67.2
 
-export const CONTAINMENT_RADIUS = across(24);                 // 14.4
-export const DOME_TOP = up(66);                               // 47.6
-export const TOWER_HEIGHT = up(100);                          // 68
-export const TOWER_BASE_RADIUS = across(42);                  // 25.2
-export const STACK_HEIGHT = up(90);                           // 62
-export const HALL_HEIGHT = up(26);                            // 23.6
+export const CONTAINMENT_RADIUS = across(24 * REACTOR_BUILDING_LINEAR_SCALE);
+export const DOME_TOP = up(66 * REACTOR_BUILDING_LINEAR_SCALE);
+export const TOWER_HEIGHT = up(100 * REACTOR_BUILDING_LINEAR_SCALE);
+export const TOWER_BASE_RADIUS = across(42 * REACTOR_BUILDING_LINEAR_SCALE);
+export const STACK_HEIGHT = up(90 * REACTOR_BUILDING_LINEAR_SCALE);
+export const HALL_HEIGHT = up(26 * REACTOR_BUILDING_LINEAR_SCALE);
+
+// Keep the streaming fallback ground, with openings enclosing the two round recessed basins.
+const GROUND_X_CUTS = [-REACTOR_HALF_SIZE, -90, -36, 36, 90, REACTOR_HALF_SIZE];
+const GROUND_Z_CUTS = [-REACTOR_HALF_SIZE, -27, 27, REACTOR_HALF_SIZE];
+export const REACTOR_SITE_GROUND_TILES = [];
+for (let xi = 0; xi < GROUND_X_CUTS.length - 1; xi += 1) {
+    for (let zi = 0; zi < GROUND_Z_CUTS.length - 1; zi += 1) {
+        const x0 = GROUND_X_CUTS[xi];
+        const x1 = GROUND_X_CUTS[xi + 1];
+        const z0 = GROUND_Z_CUTS[zi];
+        const z1 = GROUND_Z_CUTS[zi + 1];
+        if ((x0 === -90 || x0 === 36) && z0 === -27) continue;
+        REACTOR_SITE_GROUND_TILES.push({
+            pos: [(x0 + x1) / 2, 4, (z0 + z1) / 2],
+            size: [x1 - x0, 8, z1 - z0],
+            kind: 'foam',
+            compileWithGlb: true,
+        });
+    }
+}
+Object.freeze(REACTOR_SITE_GROUND_TILES);
 
 export const REACTOR_SITE_OBSTACLES = [
-    // --- The apron -------------------------------------------------------------------------------
-    // The one surface that stays active with the GLBs loaded: a ship that clips the ground should
-    // scrape rather than fall through the world while the site mesh is still streaming in. It
-    // spans the whole field, because the field is wider than the apron the plant stands on.
-    { pos: [0, 4, 0], size: [REACTOR_MAP_SIZE[0], 8, REACTOR_MAP_SIZE[2]], kind: 'foam', compileWithGlb: true },
+    ...REACTOR_SITE_GROUND_TILES,
 
     // --- The reactor block ------------------------------------------------------------------------
-    { pos: [0, up(33), 0], size: [across(50), across(66), across(50)] },
+    { pos: [0, up(33 * REACTOR_BUILDING_LINEAR_SCALE), 0], size: [across(50 * REACTOR_BUILDING_LINEAR_SCALE), across(66 * REACTOR_BUILDING_LINEAR_SCALE), across(50 * REACTOR_BUILDING_LINEAR_SCALE)] },
     ...[-1, 1].map((sign) => (
-        { pos: [0, up(11), sign * across(46)], size: [across(44), across(22), across(28)] }
+        { pos: [0, up(11 * REACTOR_BUILDING_LINEAR_SCALE), sign * across(46 * REACTOR_BUILDING_LINEAR_SCALE)], size: [across(44 * REACTOR_BUILDING_LINEAR_SCALE), across(22 * REACTOR_BUILDING_LINEAR_SCALE), across(28 * REACTOR_BUILDING_LINEAR_SCALE)] }
     )),
 
     // --- The two cooling towers, as columns; the hollow inside is lost in the fallback ------------
@@ -79,17 +95,17 @@ export const REACTOR_SITE_OBSTACLES = [
         kind: 'hard',
         start: [sign * TOWER_X, GROUND, 0],
         end: [sign * TOWER_X, TOWER_HEIGHT, 0],
-        radius: across(30),
+        radius: across(30 * REACTOR_BUILDING_LINEAR_SCALE),
     })),
 
     // --- The turbine hall and the stack -----------------------------------------------------------
-    { pos: [0, up(14), HALL_Z], size: [across(120), across(28), across(40)] },
+    { pos: [0, up(14 * REACTOR_BUILDING_LINEAR_SCALE), HALL_Z], size: [across(120 * REACTOR_BUILDING_LINEAR_SCALE), across(28 * REACTOR_BUILDING_LINEAR_SCALE), across(40 * REACTOR_BUILDING_LINEAR_SCALE)] },
     {
         shape: 'beam',
         kind: 'hard',
         start: [STACK_X, GROUND, STACK_Z],
         end: [STACK_X, STACK_HEIGHT, STACK_Z],
-        radius: across(5),
+        radius: across(5 * REACTOR_BUILDING_LINEAR_SCALE),
     },
 ];
 
@@ -115,10 +131,10 @@ export const REACTOR_SITE_ITEMS = [
     // The basins, machinery, steam lines and switchyard live in 01_site.glb and remain after a
     // collapse. Pickups therefore never hang from a tower rim, roof, stack or containment dome
     // that the break scene has removed. Stable ids are kept for replay compatibility.
-    { id: 'rs_shield_west_rim', type: 'item_shield', pickupType: 'SHIELD', x: -TOWER_X, y: up(6), z: across(36), weight: 1.0 },
-    { id: 'rs_shield_east_rim', type: 'item_shield', pickupType: 'SHIELD', x: TOWER_X, y: up(6), z: -across(36), weight: 1.0 },
-    { id: 'rs_speed_west_basin', type: 'item_battery', pickupType: 'SPEED_UP', x: -TOWER_X, y: up(8), z: -across(36), weight: 1.1 },
-    { id: 'rs_speed_east_basin', type: 'item_battery', pickupType: 'SPEED_UP', x: TOWER_X, y: up(8), z: across(36), weight: 1.1 },
+    { id: 'rs_shield_west_rim', type: 'item_shield', pickupType: 'SHIELD', x: -TOWER_X, y: up(6), z: across(47), weight: 1.0 },
+    { id: 'rs_shield_east_rim', type: 'item_shield', pickupType: 'SHIELD', x: TOWER_X, y: up(6), z: -across(47), weight: 1.0 },
+    { id: 'rs_speed_west_basin', type: 'item_battery', pickupType: 'SPEED_UP', x: -TOWER_X, y: up(8), z: -across(47), weight: 1.1 },
+    { id: 'rs_speed_east_basin', type: 'item_battery', pickupType: 'SPEED_UP', x: TOWER_X, y: up(8), z: across(47), weight: 1.1 },
     { id: 'rs_rocket_dome', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 0, y: up(14), z: south(42), weight: 0.7 },
     { id: 'rs_rocket_hall', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 0, y: up(12), z: HALL_Z, weight: 0.9 },
     { id: 'rs_ghost_switchyard', type: 'item_coin', pickupType: 'GHOST', x: 0, y: up(20), z: SWITCHYARD_Z, weight: 0.8 },

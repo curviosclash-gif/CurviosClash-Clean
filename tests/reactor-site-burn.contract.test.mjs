@@ -105,7 +105,8 @@ test('reactor site has a localized fire presentation gated by the reactor segmen
 
     state.segments[0].destroyed = true;
     Arena.prototype.setMapDestructibleFireState.call(arena, state);
-    assert.equal(fire.group.visible, false);
+    assert.equal(fire.group.visible, true, 'the core fire presentation remains on after collapse');
+    assert.ok(light.intensity > 0);
     fire.clear();
     assert.equal(light.intensity, MAP.lights[0].intensity);
 });
