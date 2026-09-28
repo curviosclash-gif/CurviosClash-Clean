@@ -14,7 +14,7 @@ import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
 import { applyArcadeRuntimeCosmetics } from '../arcade/ArcadeRuntimeCosmeticOps.js';
 import { WEAPON_RACE_BOT_COUNT, WEAPON_RACE_MAP_KEY, isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { WeaponRaceRuntime } from '../arcade/WeaponRaceRuntime.js';
-import { buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, lockSelectedMapToFirstSector, requestObjectiveRoundEnd } from './GameRuntimeArcadeSupportOps.js';
+import { buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, lockSelectedMapToFirstSector, requestObjectiveRoundEnd, resolveLocalPlayerVehicleId } from './GameRuntimeArcadeSupportOps.js';
 import { resolveArcadePostMatchProgression } from '../arcade/ArcadePostMatchProgression.js';
 
 export class GameRuntimeArcadeSupport {
@@ -192,7 +192,7 @@ export class GameRuntimeArcadeSupport {
                     ? this.weaponRaceRuntime.handleCheckpoint({ playerIndex, checkpointId: context?.checkpointId })
                     : this.weaponRaceRuntime.handleFinish({ playerIndex, finishedAtMs: context?.finishedAtMs }))
                     : fivePortals ? (eventType, playerIndex) => this.fivePortalsRuntime.handleXpEvent(eventType, playerIndex)
-                    : (eventType, playerIndex) => this.arcadeRunRuntime.applyParcoursXpEvent(eventType, playerIndex)
+                    : (eventType, playerIndex) => this.arcadeRunRuntime.applyParcoursXpEvent(eventType, playerIndex, resolveLocalPlayerVehicleId(runtimeState, playerIndex))
             );
         }
         if (parcoursSystem && typeof parcoursSystem.setLeaderboardCallback === 'function') {
