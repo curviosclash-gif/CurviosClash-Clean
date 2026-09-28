@@ -1,6 +1,19 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { bindChoiceStripKeys } from './ChoiceStripKeys.js';
+import { createMapChoiceStrip, readMapOptions } from './MapChoiceStrip.js';
+import { applyPreviewCameraFit } from './MapPreviewFraming.js';
+import { createMapPreviewGlbLayer } from './MapPreviewGlbLayer.js';
+import {
+    collectPortalPoints,
+    collectSpawnPoints,
+    normalizeNumber,
+    normalizePositiveNumber,
+    normalizeVector3,
+    resolveObstacleBox,
+} from './MapMiniatureSource.js';
+
+export { collectSpawnPoints };
 
 const FALLBACK_MAP_DEFINITION = Object.freeze({
     size: Object.freeze([80, 30, 80]),
@@ -12,79 +25,6 @@ const identityQuaternion = new THREE.Quaternion();
 const instanceMatrix = new THREE.Matrix4();
 const instancePosition = new THREE.Vector3();
 const instanceScale = new THREE.Vector3();
-
-function normalizeNumber(value, fallback = 0) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function normalizePositiveNumber(value, fallback = 1) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function normalizeVector3(value, fallback = [0, 0, 0]) {
-    const source = Array.isArray(value) ? value : fallback;
-    return [
-        normalizeNumber(source[0], fallback[0]),
-        normalizeNumber(source[1], fallback[1]),
-        normalizeNumber(source[2], fallback[2]),
-    ];
-}
-
-function selectedOptions(select) {
-    return Array.from(select?.options || []).map((option) => ({
-        id: String(option.value || '').trim(),
-        label: String(option.textContent || option.value || '').trim(),
-        collection: String(option.dataset?.mapCollection || 'other').trim(),
-        collectionLabel: String(option.dataset?.mapCollectionLabel || 'Weitere Karten').trim(),
-    })).filter((entry) => entry.id);
-}
-
-function resolveObstacleBox(obstacle) {
-    if (Array.isArray(obstacle?.pos) && Array.isArray(obstacle?.size)) {
-        const position = normalizeVector3(obstacle.pos);
-        const size = normalizeVector3(obstacle.size, [1, 1, 1]).map((value) => Math.max(0.1, Math.abs(value)));
-        return { position, size, foam: String(obstacle?.kind || '').toLowerCase() === 'foam' };
-    }
-
-    if (String(obstacle?.shape || '').toLowerCase() !== 'tube') return null;
-    const start = normalizeVector3(obstacle.start);
-    const end = normalizeVector3(obstacle.end);
-    const radius = normalizePositiveNumber(obstacle.radius, 1);
-    return {
-        position: start.map((value, index) => (value + end[index]) * 0.5),
-        size: start.map((value, index) => Math.max(radius * 2, Math.abs(end[index] - value) + radius * 2)),
-        foam: String(obstacle?.kind || '').toLowerCase() === 'foam',
-    };
-}
-
-function collectPortalPoints(mapDefinition) {
-    const points = [];
-    const portals = Array.isArray(mapDefinition?.portals) ? mapDefinition.portals : [];
-    portals.forEach((portal) => {
-        [portal?.a, portal?.b, portal?.position, portal?.pos].forEach((position) => {
-            if (Array.isArray(position) && position.length >= 3) points.push(normalizeVector3(position));
-        });
-    });
-    return points;
-}
-
-export function collectSpawnPoints(mapDefinition) {
-    const points = [];
-    const append = (spawn) => {
-        const position = Array.isArray(spawn) ? spawn : (spawn?.position || spawn?.pos);
-        if (Array.isArray(position) && position.length >= 3) {
-            points.push(normalizeVector3(position));
-        } else if (spawn && typeof spawn === 'object') {
-            const xyz = [Number(spawn.x), Number(spawn.y), Number(spawn.z)];
-            if (xyz.every(Number.isFinite)) points.push(xyz);
-        }
-    };
-    append(mapDefinition?.playerSpawn);
-    (Array.isArray(mapDefinition?.botSpawns) ? mapDefinition.botSpawns : []).forEach(append);
-    return points;
-}
 
 function findRenderSize(element) {
     return {
@@ -132,13 +72,21 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
     let mapRoot = null;
     let status = 'booting';
     let activeMapSignature = '';
-    let choiceSignature = '';
+    const choiceStrip = createMapChoiceStrip({
+        strip: ui.mapPickerChoiceStrip,
+        previousButton: ui.mapPickerPreviousButton,
+        nextButton: ui.mapPickerNextButton,
+    });
     let rafId = 0;
     let lastFrameMs = 0;
     let renderWidth = 0;
     let renderHeight = 0;
     let active = true;
     let disposed = false;
+    const glbLayer = createMapPreviewGlbLayer();
+    let glbRequest = null;
+    let authoredObstacleMeshes = [];
+    let viewTouched = false;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x081321);
@@ -204,6 +152,8 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
     }
 
     function clearMapRoot() {
+        glbLayer.release();
+        authoredObstacleMeshes = [];
         if (!mapRoot) return;
         mapRoot.traverse((child) => {
             if (child?.isInstancedMesh) child.dispose();
@@ -214,7 +164,7 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
     }
 
     function appendInstances(root, entries, geometry, material, resolveTransform) {
-        if (!entries.length) return;
+        if (!entries.length) return null;
         const instances = new THREE.InstancedMesh(geometry, material, entries.length);
         instances.frustumCulled = false;
         entries.forEach((entry, index) => {
@@ -226,6 +176,7 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
         });
         instances.instanceMatrix.needsUpdate = true;
         root.add(instances);
+        return instances;
     }
 
     function buildMapMiniature(mapKey, mapDefinition) {
@@ -261,8 +212,10 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
         const hardObstacles = obstacleBoxes.filter((entry) => !entry.foam);
         const foamObstacles = obstacleBoxes.filter((entry) => entry.foam);
         const obstacleTransform = (entry) => ({ position: entry.position, scale: entry.size });
-        appendInstances(mapRoot, hardObstacles, unitBoxGeometry, obstacleMaterial, obstacleTransform);
-        appendInstances(mapRoot, foamObstacles, unitBoxGeometry, foamMaterial, obstacleTransform);
+        authoredObstacleMeshes = [
+            appendInstances(mapRoot, hardObstacles, unitBoxGeometry, obstacleMaterial, obstacleTransform),
+            appendInstances(mapRoot, foamObstacles, unitBoxGeometry, foamMaterial, obstacleTransform),
+        ].filter(Boolean);
 
         const markerSize = Math.max(0.8, footprint * 0.018);
         appendInstances(mapRoot, collectPortalPoints(definition), portalGeometry, portalMaterial, (position) => ({
@@ -277,13 +230,53 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
         scene.add(mapRoot);
         mount.dataset.previewMapKey = String(mapKey || '');
         mount.dataset.previewObstacleCount = String(obstacleBoxes.length);
-        if (renderer) {
-            const isSchematicGlbPreview = typeof definition.glbModel === 'string'
-                || (Array.isArray(definition.glbModels) && definition.glbModels.length > 0);
-            setStatus('ready', isSchematicGlbPreview
-                ? 'Schematische Vorschau - 3D-Art wird im Spiel geladen'
+        // The authored models load once the preview is on screen; the boxes stand in until then.
+        glbRequest = { definition, started: false };
+        viewTouched = false;
+        setGlbState('pending');
+        frameMap();
+    }
+
+    function frameMap() {
+        if (!mapRoot) return;
+        applyPreviewCameraFit(camera, controls, mapRoot);
+        scheduleFrame();
+    }
+
+    function setGlbState(glbState) {
+        mount.dataset.previewGlb = glbState;
+        if (!renderer) return;
+        setStatus('ready', glbState === 'loading'
+            ? '3D-Modell wird geladen …'
+            : glbState === 'failed'
+                ? 'Schematische Vorschau - 3D-Modell nicht geladen'
                 : '3D-Kartenansicht bereit');
-        }
+    }
+
+    function loadPreviewGlb() {
+        const request = glbRequest;
+        if (!request || request.started || !renderer) return;
+        request.started = true;
+        setGlbState('loading');
+        glbLayer.load(request.definition).then((outcome) => {
+            if (disposed || request !== glbRequest || outcome.status === 'stale') return;
+            if (outcome.status === 'ready') {
+                mapRoot.add(outcome.scene);
+                if (outcome.hideAuthoredObstacles) authoredObstacleMeshes.forEach((mesh) => { mesh.visible = false; });
+                if (!viewTouched) frameMap();
+            }
+            setGlbState(outcome.status);
+            scheduleFrame();
+        });
+    }
+
+    // A running match hides the menu; its textures should not sit in a second GPU context meanwhile.
+    function releasePreviewGlb() {
+        if (!glbRequest?.started) return;
+        glbLayer.release();
+        glbRequest.started = false;
+        authoredObstacleMeshes.forEach((mesh) => { mesh.visible = true; });
+        setGlbState('released');
     }
 
     function syncRendererSize(force = false) {
@@ -295,6 +288,7 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
         renderer.setSize(width, height, false);
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
+        if (!viewTouched) frameMap();
         // Resizing clears the WebGL drawing buffer. A read-only preview has no
         // continuous loop, so the resize itself must request a fresh frame.
         scheduleFrame();
@@ -317,7 +311,9 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
         if (!readOnly && !reducedMotion?.matches) scheduleFrame();
     }
 
+    const markViewTouched = () => { viewTouched = true; };
     const markManualInteraction = () => {
+        markViewTouched();
         if (controls) controls.autoRotate = false;
         mount.dataset.previewMotion = 'manual';
     };
@@ -344,20 +340,17 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
             controls.enabled = !readOnly;
             controls.addEventListener('change', scheduleFrame);
             controls.autoRotateSpeed = 0.32;
-            controls.minDistance = 3.4;
-            controls.maxDistance = 10;
             controls.maxPolarAngle = Math.PI * 0.49;
-            controls.target.set(0, 0.25, 0);
-            controls.update(0);
 
             mount.addEventListener('pointerdown', markManualInteraction, true);
+            mount.addEventListener('wheel', markViewTouched, { passive: true });
             window.addEventListener('pointerup', resumeIdleRotation);
             window.addEventListener('pointercancel', resumeIdleRotation);
             window.addEventListener('blur', resumeIdleRotation);
             window.addEventListener('resize', syncRendererSize);
             resumeIdleRotation();
             syncRendererSize(true);
-            setStatus('ready', '3D-Kartenansicht bereit');
+            setGlbState(mount.dataset.previewGlb || 'pending');
             scheduleFrame();
         } catch {
             renderer = null;
@@ -366,19 +359,25 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
         }
     }
 
+    function isMenuShown() {
+        const menu = mount.closest?.('#main-menu');
+        const menuVisible = !menu || (!menu.classList.contains('hidden') && menu.getAttribute('aria-hidden') !== 'true');
+        return menuVisible && !mount.classList.contains('hidden');
+    }
+
     function isPreviewVisible() {
         const sectionOpen = !ui.mapPickerSection || ui.mapPickerSection.open === true;
         const panel = mount.closest?.('.submenu-panel');
-        const menu = mount.closest?.('#main-menu');
         const panelVisible = !panel || (!panel.classList.contains('hidden') && panel.getAttribute('aria-hidden') !== 'true');
-        const menuVisible = !menu || (!menu.classList.contains('hidden') && menu.getAttribute('aria-hidden') !== 'true');
-        return sectionOpen && panelVisible && menuVisible && !mount.classList.contains('hidden') && document.visibilityState !== 'hidden';
+        return sectionOpen && panelVisible && isMenuShown() && document.visibilityState !== 'hidden';
     }
 
     function syncVisibility() {
         if (disposed) return;
         active = isPreviewVisible();
         if (active && !rendererAttempted) initializeRenderer();
+        if (active) loadPreviewGlb();
+        else if (!isMenuShown()) releasePreviewGlb();
         mount.dataset.previewActive = String(active);
         if (!active && rafId) {
             window.cancelAnimationFrame(rafId);
@@ -398,63 +397,10 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
     }
 
     function moveSelection(direction) {
-        const options = selectedOptions(select);
+        const options = readMapOptions(select);
         if (options.length < 2) return;
         const currentIndex = Math.max(0, options.findIndex((entry) => entry.id === select.value));
         selectMap(options[(currentIndex + direction + options.length) % options.length].id);
-    }
-
-    function renderChoices(selectedMapKey) {
-        const options = selectedOptions(select);
-        const nextSignature = options
-            .map((entry) => `${entry.collection}:${entry.id}:${entry.label}`)
-            .join('|');
-        if (nextSignature !== choiceSignature) {
-            choiceSignature = nextSignature;
-            const fragment = document.createDocumentFragment();
-            const groups = new Map();
-            options.forEach((entry) => {
-                const group = groups.get(entry.collection) || {
-                    label: entry.collectionLabel,
-                    entries: [],
-                };
-                group.entries.push(entry);
-                groups.set(entry.collection, group);
-            });
-            groups.forEach((group) => {
-                const groupNode = document.createElement('div');
-                groupNode.className = 'start-map-choice-group';
-                groupNode.setAttribute('role', 'group');
-                groupNode.setAttribute('aria-label', group.label);
-
-                const heading = document.createElement('span');
-                heading.className = 'start-map-choice-group-label';
-                heading.textContent = group.label;
-                groupNode.appendChild(heading);
-
-                const choices = document.createElement('div');
-                choices.className = 'start-map-choice-group-row';
-                group.entries.forEach((entry) => {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.className = 'start-map-choice';
-                    button.dataset.mapKey = entry.id;
-                    button.setAttribute('role', 'option');
-                    button.textContent = entry.label;
-                    choices.appendChild(button);
-                });
-                groupNode.appendChild(choices);
-                fragment.appendChild(groupNode);
-            });
-            ui.mapPickerChoiceStrip?.replaceChildren(fragment);
-        }
-        ui.mapPickerChoiceStrip?.querySelectorAll?.('[data-map-key]').forEach((button) => {
-            const selected = button.dataset.mapKey === selectedMapKey;
-            button.classList.toggle('active', selected);
-            button.setAttribute('aria-selected', String(selected));
-            button.tabIndex = selected ? 0 : -1;
-        });
-        [ui.mapPickerPreviousButton, ui.mapPickerNextButton].forEach((button) => { if (button) button.disabled = options.length < 2; });
     }
 
     function sync({ mapKey, maps } = {}) {
@@ -471,15 +417,14 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
             activeMapSignature = signature;
             buildMapMiniature(selectedMapKey, definition);
         }
-        if (!readOnly) renderChoices(selectedMapKey);
+        if (!readOnly) choiceStrip.render(readMapOptions(select), selectedMapKey);
         syncVisibility();
     }
 
     function resetView() {
-        camera.position.set(5.8, 5.2, 5.8);
-        controls?.target.set(0, 0.25, 0);
-        controls?.update(0);
+        viewTouched = false;
         syncRendererSize(true);
+        frameMap();
     }
 
     bind(ui.mapPickerPreviousButton, 'click', () => moveSelection(-1));
@@ -520,6 +465,7 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
             rafId = 0;
             window.removeEventListener('resize', syncRendererSize);
             mount.removeEventListener('pointerdown', markManualInteraction, true);
+            mount.removeEventListener('wheel', markViewTouched);
             window.removeEventListener('pointerup', resumeIdleRotation);
             window.removeEventListener('pointercancel', resumeIdleRotation);
             window.removeEventListener('blur', resumeIdleRotation);
@@ -549,6 +495,7 @@ export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {
             delete mount.dataset.previewMapKey;
             delete mount.dataset.previewMotion;
             delete mount.dataset.previewObstacleCount;
+            delete mount.dataset.previewGlb;
             setStatus('disposed', '3D-Kartenansicht beendet');
         },
     });
