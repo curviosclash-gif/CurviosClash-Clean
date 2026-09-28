@@ -59,7 +59,8 @@ const BOSS_DEFAULTS = Object.freeze({
 const BOMBER_DEFAULTS = Object.freeze({
     speed: 30,
     maxHp: 120,
-    hitboxRadius: 4,
+    // Half the 13.5 long fighter jet the bomber flies (user decision 28.09.2026).
+    hitboxRadius: 6.75,
     respawnSeconds: 90,
     mg: null,
     rocket: null,
