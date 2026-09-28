@@ -143,6 +143,8 @@ export function normalizeTelemetryHistoryEntry(source) {
         duration: toNonNegativeNumber(s.duration),
         selfCollisions: toNonNegativeInt(s.selfCollisions),
         itemUses: toNonNegativeInt(s.itemUses),
+        // Druecke ohne Item im Inventar; aeltere Runden fuehrten sie als UNKNOWN in itemUses.
+        emptyItemActions: toNonNegativeInt(s.emptyItemActions),
         mgFireSeconds: toMeasuredSeconds(s.mgFireSeconds),
         itemUseByMode: normalizeItemUseModeCounts(s.itemUseByMode || s.itemUse?.byMode),
         itemUseByType: normalizeItemUseTypeCounts(s.itemUseByType || s.itemUse?.byType),

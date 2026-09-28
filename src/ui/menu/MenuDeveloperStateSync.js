@@ -41,7 +41,7 @@ function syncFilterOptions(select, values) {
 const TELEMETRY_CSV_FIELDS = [
     'at', 'buildId', 'appVersion', 'mapKey', 'mapRevision', 'mode', 'modePath', 'sessionType',
     'platform', 'graphicsQuality', 'playerCount', 'humanCount', 'botCount', 'botDifficulty',
-    'botPolicy', 'winnerType', 'reason', 'duration', 'selfCollisions', 'itemUses', 'stuckEvents',
+    'botPolicy', 'winnerType', 'reason', 'duration', 'selfCollisions', 'itemUses', 'emptyItemActions', 'stuckEvents',
     'kills', 'spawnDeaths', 'mgHits', 'rocketHits', 'hpDamage', 'shieldAbsorb',
     'parcoursCompleted', 'parcoursCompletionTimeMs', 'parcoursCheckpointCount',
 ];

@@ -52,8 +52,9 @@ test('Rundenkennzahl trennt Item-Einsaetze von MG-Schuessen', () => {
     metrics.finalizeRound(null, []);
 
     const aggregate = metrics.getAggregateMetrics();
-    assert.equal(aggregate.itemUsePerRound, 404);
-    assert.equal(aggregate.itemUseWithoutMgPerRound, 3);
+    // Der Druck mit leerem Inventar ist kein Item-Einsatz (siehe Leerversuch-Test unten).
+    assert.equal(aggregate.itemUsePerRound, 403);
+    assert.equal(aggregate.itemUseWithoutMgPerRound, 2);
     assert.equal(aggregate.itemUseModePerRound.mg, 401, 'MG attempts stay in the separate MG counter');
 });
 
@@ -419,4 +420,24 @@ test('Schuss-Cooldown protokolliert den wartenden Item-Typ', () => {
     assert.equal(recorder.events.length, 1);
     assert.equal(recorder.events[0].code, GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_COOLDOWN);
     assert.equal(recorder.events[0].type, 'ROCKET_WEAK');
+});
+
+// Ein Druck auf die Item- oder Raketentaste mit leerem Inventar ist kein Item-Einsatz:
+// Es gab kein Item. Bisher landete er als Typ UNKNOWN in der Nutzung und drueckte
+// ueber itemUses auch den Arcade-Risikobonus. Er bleibt als eigener Leerversuch sichtbar.
+test('Leere Tastendruecke zaehlen als Leerversuch, nicht als Item-Einsatz', () => {
+    const metrics = new RoundMetricsStore({ timeProvider: () => 30 });
+    metrics.startRound([]);
+    metrics.registerEventType('ITEM_USE', 'mode=use type=SHIELD code=item.use.success ok=1');
+    metrics.registerEventType('ITEM_USE', 'mode=use type=UNKNOWN code=item.use.empty ok=0');
+    metrics.registerEventType('ITEM_USE', 'mode=shoot type=UNKNOWN code=item.shoot.empty ok=0');
+    metrics.registerEventType('ITEM_USE', 'mode=use type=HEALTH code=item.use.cooldown ok=0');
+    const round = metrics.finalizeRound(null, []);
+
+    assert.equal(round.itemUseEvents, 2, 'nur der Einsatz und der abgelehnte Cooldown-Versuch');
+    assert.equal(round.itemUseTypeCounts.UNKNOWN, undefined);
+    assert.deepEqual(round.itemUseModeCounts, { use: 2, shoot: 0, mg: 0, other: 0 });
+    assert.equal(round.failedItemActions, 1, 'ein Cooldown ist ein Fehlversuch mit Item');
+    assert.equal(round.emptyItemActions, 2);
+    assert.equal(metrics.getAggregateMetrics().emptyItemActionsPerRound, 2);
 });

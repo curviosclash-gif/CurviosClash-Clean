@@ -9,6 +9,8 @@ import {
 const ITEM_USE_MODES = Object.freeze(['use', 'shoot', 'mg', 'other']);
 const GAMEPLAY_RESULT_EVENTS = Object.freeze(['ITEM_USE', 'ITEM_PICKUP', 'ITEM_SPAWN', 'ITEM_HIT', 'PORTAL_USE', 'GATE_TRIGGER']);
 const FAILED_ITEM_ACTION_CODE_PREFIXES = Object.freeze(['item.use.', 'item.shoot.', 'mg.shoot.']);
+// Ein Druck ohne Item im Inventar ist kein Item-Einsatz und auch kein Fehlversuch mit Item.
+const EMPTY_ITEM_ACTION_CODES = Object.freeze(['item.use.empty', 'item.shoot.empty']);
 
 function normalizeItemUseMode(value) {
     const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -97,6 +99,7 @@ export class RoundMetricsStore {
         this._roundBounceWallEvents = 0;
         this._roundBounceTrailEvents = 0;
         this._roundItemUseEvents = 0;
+        this._roundEmptyItemActions = 0;
         this._roundMgFireSeconds = 0;
         this._roundItemUseModeCounts = createItemUseModeCounts();
         this._roundItemUseTypeCounts = {};
@@ -169,9 +172,11 @@ export class RoundMetricsStore {
             const codeKey = normalizeActionCode(parsedItemUse.code);
             this._roundActionResultCodeCounts[codeKey] = (this._roundActionResultCodeCounts[codeKey] || 0) + 1;
         }
-        if (isItemUseEvent) {
+        const itemUse = isItemUseEvent ? (parsedItemUse || parseItemUseEventData(data)) : null;
+        if (itemUse && EMPTY_ITEM_ACTION_CODES.includes(normalizeActionCode(itemUse.code))) {
+            this._roundEmptyItemActions++;
+        } else if (itemUse) {
             this._roundItemUseEvents++;
-            const itemUse = parsedItemUse || parseItemUseEventData(data);
             const modeKey = normalizeItemUseMode(itemUse.mode);
             this._roundItemUseModeCounts[modeKey] += 1;
             if (modeKey === 'mg' && itemUse.durationSeconds !== null) {
@@ -308,6 +313,7 @@ export class RoundMetricsStore {
         round.bounceWallEvents = this._roundBounceWallEvents;
         round.bounceTrailEvents = this._roundBounceTrailEvents;
         round.itemUseEvents = this._roundItemUseEvents;
+        round.emptyItemActions = this._roundEmptyItemActions;
         round.mgFireSeconds = this._roundMgFireSeconds;
         round.itemUseModeCounts = { ...this._roundItemUseModeCounts };
         round.itemUseTypeCounts = { ...this._roundItemUseTypeCounts };
@@ -347,6 +353,7 @@ export class RoundMetricsStore {
         this._aggregate.totalBounceWallEvents += this._roundBounceWallEvents;
         this._aggregate.totalBounceTrailEvents += this._roundBounceTrailEvents;
         this._aggregate.totalItemUseEvents += this._roundItemUseEvents;
+        this._aggregate.totalEmptyItemActions += this._roundEmptyItemActions;
         this._aggregate.totalMgFireSeconds += this._roundMgFireSeconds;
         for (const mode of ITEM_USE_MODES) {
             this._aggregate.totalItemUseModeCounts[mode] += Math.max(0, Number(this._roundItemUseModeCounts[mode]) || 0);
@@ -421,6 +428,7 @@ export class RoundMetricsStore {
                 ? Math.max(0, this._aggregate.totalItemUseEvents - this._aggregate.totalItemUseModeCounts.mg) / rounds
                 : 0,
             failedItemActionsPerRound: rounds > 0 ? this._aggregate.totalFailedItemActions / rounds : 0,
+            emptyItemActionsPerRound: rounds > 0 ? this._aggregate.totalEmptyItemActions / rounds : 0,
             itemUseFailureRate: this._aggregate.totalItemUseEvents > 0
                 ? this._aggregate.totalFailedItemActions / this._aggregate.totalItemUseEvents
                 : 0,

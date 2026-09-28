@@ -282,6 +282,7 @@ export class MatchFlowTelemetryController {
             duration: Math.max(0, Number(roundMetrics.duration) || 0),
             selfCollisions: Math.max(0, Number(roundMetrics.selfCollisions) || 0),
             itemUses: Math.max(0, Number(roundMetrics.itemUseEvents) || 0),
+            emptyItemActions: Math.max(0, Number(roundMetrics.emptyItemActions) || 0),
             mgFireSeconds: Math.max(0, Number(roundMetrics.mgFireSeconds) || 0),
             itemUse: {
                 total: Math.max(0, Number(roundMetrics.itemUseEvents) || 0),
