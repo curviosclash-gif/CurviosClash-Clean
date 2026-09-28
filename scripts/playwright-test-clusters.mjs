@@ -42,6 +42,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/pickup-blender.desktop.spec.js',
             'tests/portal-visual-design.desktop.spec.js',
             'tests/pyramid-sandstorm.desktop.spec.js',
+            'tests/canyon-sandstorm.desktop.spec.js',
             'tests/verdant-aperture.desktop.spec.js',
             'tests/wave-seven.desktop.spec.js',
             'tests/aetherion-orrery.desktop.spec.js',
