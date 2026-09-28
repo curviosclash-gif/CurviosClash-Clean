@@ -6,6 +6,7 @@ import { applyHuntNetworkState } from '../hunt/HuntNetworkState.js';
 import { replayPlayerDeathPresentation } from '../entities/EntityPlayerDeathOps.js';
 import { spawnFlameJet } from '../hunt/FlamethrowerFlameEffect.js';
 import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
+import { resolveWorldAudioOptions } from '../entities/audio/WorldAudioOptions.js';
 
 const MIN_POSITION_DISTANCE = 0.01;
 const MIN_VECTOR_DISTANCE = 0.001;
@@ -186,6 +187,14 @@ export class StateReconciler {
     reconcile(localPlayers, entityManager) {
         if (!this._lastStateUpdate) return;
 
+        const explosionEvents = this._lastStateUpdate?.state?.explosionEvents;
+        if (entityManager?._projectileSystem) entityManager._projectileSystem.authoritativeExplosionEvents = Array.isArray(explosionEvents);
+        entityManager?.particles?.applyNetworkExplosionEvents?.(explosionEvents, (kind, position) => {
+            if (kind === 'rocket' || kind === 'intercept') {
+                entityManager?.audio?.play?.('ROCKET_IMPACT', resolveWorldAudioOptions(entityManager, position));
+            }
+        });
+
         entityManager?.applyNetworkSnapshot?.(this._lastStateUpdate?.state);
         applyHuntNetworkState(entityManager, this._lastStateUpdate?.state?.fight);
 
@@ -225,6 +234,7 @@ export class StateReconciler {
                 // presentation: host state owns scoring, lifecycle and respawn timing.
                 replayPlayerDeathPresentation(entityManager, localPlayer, serverPlayer.deathCause || 'UNKNOWN', {
                     projectileType: serverPlayer.deathProjectileType || null,
+                    profile: serverPlayer.deathExplosionProfile || null,
                 });
             }
             localPlayer.alive = serverPlayer.alive;

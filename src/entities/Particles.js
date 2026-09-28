@@ -10,8 +10,10 @@ import { RocketBlastEffect } from './effects/RocketBlastEffect.js';
 import { applyParticleColorRamp } from './effects/ParticleColorRamp.js';
 import { resolveDeathExplosionScale } from './effects/DeathExplosionScale.js';
 import { selectTrailBlastIndices } from './effects/TrailBlastBudget.js';
+import { ConventionalExplosionEffect, EXPLOSION_BUDGET } from './effects/ConventionalExplosionEffect.js';
+import { CONVENTIONAL_EXPLOSION_PROFILES, rocketVisualScale, selectConventionalExplosionProfile } from './effects/ConventionalExplosionProfiles.js';
 
-const MAX_PARTICLES = 1000;
+const MAX_PARTICLES = EXPLOSION_BUDGET.sharedParticles;
 const DUMMY = new THREE.Object3D();
 
 export class ParticleSystem {
@@ -23,6 +25,8 @@ export class ParticleSystem {
         this._debugEvents = [];
         this._maxDebugEvents = 24;
         this._presentationSuppressed = false;
+        this._networkExplosionAuthority = false;
+        this._networkExplosionIds = new Set();
 
         // Data arrays (Structure of Arrays for cache locality)
         this.positions = new Float32Array(MAX_PARTICLES * 3);
@@ -73,6 +77,7 @@ export class ParticleSystem {
         this._tmpUp = new THREE.Vector3();
         this._tmpVelocity = new THREE.Vector3();
         this.rocketBlastEffect = new RocketBlastEffect(renderer, { modernGraphics });
+        this.conventionalExplosionEffect = new ConventionalExplosionEffect(renderer);
     }
 
     _recordDebugEvent(type, count, color) {
@@ -104,6 +109,18 @@ export class ParticleSystem {
 
     isPresentationSuppressed() {
         return this._presentationSuppressed;
+    }
+
+    _conventionalFragmentCount(position, requested, context) {
+        requested = Math.min(requested, selectConventionalExplosionProfile(context).fragments);
+        let distanceSquared = Infinity;
+        for (const camera of this.renderer?.cameras || []) {
+            if (!camera?.position) continue;
+            const dx = camera.position.x-position.x, dy = camera.position.y-position.y, dz = camera.position.z-position.z;
+            distanceSquared = Math.min(distanceSquared, dx*dx+dy*dy+dz*dz);
+        }
+        if (distanceSquared > 120*120 && distanceSquared < Infinity) return Math.min(this.count > 800 ? 4 : 8, requested);
+        return Math.min(34, requested);
     }
 
     // Returns the slot a freshly spawned particle should write to. Once the buffer is
@@ -244,22 +261,27 @@ export class ParticleSystem {
 
     spawnExplosion(position, color, options = {}) {
         const presentationOverride = options?.presentationOverride === true;
-        if (this._presentationSuppressed && !presentationOverride) return;
         const blast = options?.blast || 'DEATH';
+        if (this._presentationSuppressed && !presentationOverride) return;
+        if (blast === 'DEATH' && this._networkExplosionAuthority && options.replicate !== false && !presentationOverride) return;
         const feedback = resolveGameplayConfig(this.configSource).HUNT?.FEEDBACK?.DEATH_EXPLOSION || {};
         // Knocking an item loose keeps its authored pickup-scale burst - it is not
         // a kill, so it must not grow with whatever happened to hit it.
-        const scale = blast === 'ITEM_BURST'
+        const scale = Number(options.visualScale) > 0 ? Number(options.visualScale) : blast === 'ITEM_BURST'
             ? 1
             : resolveDeathExplosionScale(feedback, options?.cause, options?.projectileType);
 
+        const context = { ...options, kind: options.kind || 'death' };
+        const conventional = blast === 'DEATH' && this.conventionalExplosionEffect?.spawn(position, context, scale, color, options.age);
         this.spawn(
             position,
-            Math.max(1, Math.round((Number(feedback.count) || 30) * scale)),
+            Number(options.age) >= (Number(feedback.life) || .6)*scale ? 0 : conventional
+                ? this._conventionalFragmentCount(position, Math.max(1, Math.round((Number(feedback.count) || 30)*scale)), context)
+                : Math.max(1, Math.round((Number(feedback.count) || 30)*scale)),
             color,
             Math.max(0.1, (Number(feedback.speed) || 12.0) * scale),
-            Math.max(0.05, (Number(feedback.size) || 0.7) * scale),
-            Math.max(0.05, (Number(feedback.life) || 0.6) * scale),
+            Math.max(0.05, (Number(feedback.size) || 0.7) * scale * (conventional ? .3 : 1)),
+            Math.max(0.05, (Number(feedback.life) || 0.6)*scale-(Number(options.age) || 0)),
             {
                 gravity: Number(feedback.gravity) || -6.0,
                 type: 'explosion',
@@ -268,7 +290,7 @@ export class ParticleSystem {
         );
         // Only the shockwave radius follows the scale, not its lifetime: a blast is
         // a fast slap that gets wider, not a slow one that lingers.
-        this.rocketBlastEffect?.spawn(position, blast, color, scale);
+        this.rocketBlastEffect?.spawn(position, blast, color, scale, conventional === true, options.age);
     }
 
     spawnHit(position, color) {
@@ -328,8 +350,9 @@ export class ParticleSystem {
         );
     }
 
-    spawnRocketImpact(position, rocketType = '', color = null) {
-        if (this._presentationSuppressed) return;
+    spawnRocketImpact(position, rocketType = '', color = null, context = {}) {
+        if (this._presentationSuppressed && context.presentationOverride !== true) return;
+        if (this._networkExplosionAuthority && context.presentationOverride !== true) return;
         const feedback = resolveGameplayConfig(this.configSource).HUNT?.FEEDBACK?.ROCKET_IMPACT || {};
         const type = String(rocketType || '').toUpperCase();
         let fallbackColor = feedback.mediumColor;
@@ -340,19 +363,56 @@ export class ParticleSystem {
             ? Number(color)
             : Number(fallbackColor) || 0xff8844;
 
+        const explosionContext = { ...context, kind: context.kind || 'rocket', projectileType: type };
+        const conventional = this.conventionalExplosionEffect?.spawn(position, explosionContext,
+            context.visualScale || rocketVisualScale(type), impactColor, context.age);
         this.spawn(
             position,
-            Math.max(1, Number(feedback.count) || 42),
+            Number(context.age) >= (Number(feedback.life) || .68) ? 0 : conventional
+                ? this._conventionalFragmentCount(position, Math.max(1, Number(feedback.count) || 42), explosionContext)
+                : Math.max(1, Number(feedback.count) || 42),
             impactColor,
             Math.max(0.1, Number(feedback.speed) || 13.5),
-            Math.max(0.05, Number(feedback.size) || 0.92),
-            Math.max(0.05, Number(feedback.life) || 0.68),
+            Math.max(0.05, (Number(feedback.size) || 0.92) * (conventional ? .25 : 1)),
+            Math.max(0.05, (Number(feedback.life) || 0.68)-(Number(context.age) || 0)),
             {
                 gravity: Number(feedback.gravity) || -6.4,
                 type: 'rocket-impact',
+                presentationOverride: context.presentationOverride === true,
             }
         );
-        this.rocketBlastEffect?.spawn(position, type, impactColor);
+        this.rocketBlastEffect?.spawn(position, type, impactColor, 1, conventional === true, context.age);
+    }
+
+    applyNetworkExplosionEvents(entries, onEvent = null) {
+        this._networkExplosionAuthority = Array.isArray(entries);
+        if (!Array.isArray(entries)) return;
+        for (const entry of entries.slice(0, 24)) {
+            const profile = CONVENTIONAL_EXPLOSION_PROFILES[entry?.profile];
+            if (!profile || typeof entry.id !== 'string'
+                || !Array.isArray(entry.pos) || entry.pos.length !== 3 || !entry.pos.every(Number.isFinite)
+                || !Number.isFinite(entry.age) || entry.age < 0 || entry.age >= profile.lifetime) continue;
+            if (this._networkExplosionIds.has(entry.id)) {
+                for (const event of this.conventionalExplosionEffect.events) {
+                    if (event.profile && event.wireId === entry.id) {
+                        event.age = Math.max(event.age, entry.age);
+                        event.fireSuppressed ||= entry.fireSuppressed === true;
+                    }
+                }
+                continue;
+            }
+            this._networkExplosionIds.add(entry.id);
+            if (this._networkExplosionIds.size > 128) this._networkExplosionIds.delete(this._networkExplosionIds.values().next().value);
+            if (this._presentationSuppressed) continue;
+            this._tmpDirection.fromArray(entry.pos);
+            const context = { profile: entry.profile, kind: entry.kind, orientation: entry.orientation,
+                visualScale: entry.scale, age: entry.age, presentationOverride: true, replicate: false,
+                networkId: entry.id, fireSuppressed: entry.fireSuppressed === true };
+            if (entry.kind === 'rocket' || entry.kind === 'intercept') {
+                this.spawnRocketImpact(this._tmpDirection, entry.projectileType, entry.color, context);
+            } else this.spawnExplosion(this._tmpDirection, entry.color, { ...context, projectileType: entry.projectileType });
+            if (typeof onEvent === 'function') onEvent(entry.kind, this._tmpDirection);
+        }
     }
 
     spawnTrailExplosion(points, trailColor = null) {
@@ -388,6 +448,7 @@ export class ParticleSystem {
     update(dt) {
         if (!this.mesh) return;
         this.rocketBlastEffect?.update(dt);
+        this.conventionalExplosionEffect?.update(dt);
         if (this.count === 0) {
             this.mesh.count = 0;
             return;
@@ -469,6 +530,9 @@ export class ParticleSystem {
         this.count = 0;
         this._recycleCursor = 0;
         this.rocketBlastEffect?.clear();
+        this.conventionalExplosionEffect?.clear();
+        this._networkExplosionIds.clear();
+        this._networkExplosionAuthority = false;
         if (this.mesh) {
             this.mesh.count = 0;
         }
@@ -483,6 +547,8 @@ export class ParticleSystem {
         }
         this.rocketBlastEffect?.dispose();
         this.rocketBlastEffect = null;
+        this.conventionalExplosionEffect?.dispose();
+        this.conventionalExplosionEffect = null;
         this.renderer = null;
         this.positions = null;
         this.velocities = null;

@@ -22,6 +22,7 @@ import { shootPlayerItemProjectile } from './projectile/PlayerProjectileFireOps.
 import { applyGuidedRocketInput } from './projectile/GuidedRocketControlOps.js';
 import { endGuidedRocketAutopilot } from '../ai/GuidedRocketAutopilotOps.js';
 import { interceptRocket } from './projectile/RocketInterceptOps.js';
+import { copyExplosionContact } from '../effects/ConventionalExplosionProfiles.js';
 import {
     applyProjectileCosmeticColor,
     createProjectileCosmeticGroup,
@@ -463,12 +464,10 @@ export class ProjectileSystem {
             let simulationResult = null;
             try {
                 simulationResult = this._simulationOps.stepProjectile(projectile, i, dt, arena, players, trailSpatialIndex, time);
+                copyExplosionContact(projectile.explosionContact, simulationResult?.arenaCollision,
+                    simulationResult?.projectileHitArena === true && simulationResult?.bouncedOnFoam !== true);
                 shouldRemove = this._hitResolver.resolveProjectileOutcome(
-                    projectile,
-                    players,
-                    trailSpatialIndex,
-                    simulationResult
-                );
+                    projectile, players, trailSpatialIndex, simulationResult);
             } finally {
                 this._deferProjectileRemovals = false;
             }
@@ -507,7 +506,7 @@ export class ProjectileSystem {
         }
 
         if (projectile.guidedActive) endGuidedRocketAutopilot(projectile.owner);
-        this._hitResolver.detonateProjectile(projectile);
+        if (!(this.networkReplica && this.authoritativeExplosionEvents)) this._hitResolver.detonateProjectile(projectile);
         this._releaseProjectileMesh(projectile);
         const lastIndex = this.projectiles.length - 1;
         if (index !== lastIndex) {
@@ -541,6 +540,7 @@ export class ProjectileSystem {
         this._pendingRemovals.length = 0;
         this._elapsedSeconds = 0;
         this._rocketTrailSystem.clear();
+        this.authoritativeExplosionEvents = false;
         this._rocketThreatTracker.clear();
     }
 

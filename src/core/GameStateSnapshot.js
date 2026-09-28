@@ -72,6 +72,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
         frame: roundState?.frame ?? 0,
         players,
         projectiles,
+        explosionEvents: entityManager?.particles?.conventionalExplosionEffect?.serializeNetworkState?.() || [],
         powerups,
         turrets,
         repairDrones: entityManager?._repairDroneSystem?.serializeNetworkState?.() || null,
@@ -120,6 +121,7 @@ export function serializePlayer(player) {
         // resolve itself (e.g. a rocket hit only the host simulates) - see StateReconciler.
         deathCause: typeof player.lastDeathCause === 'string' ? player.lastDeathCause : null,
         deathProjectileType: typeof player.lastDeathProjectileType === 'string' ? player.lastDeathProjectileType : null,
+        deathExplosionProfile: typeof player.lastDeathExplosionProfile === 'string' ? player.lastDeathExplosionProfile : null,
         pos: vecToArray(player.position),
         rot: quatToArray(player.quaternion),
         vel: vecToArray(player.velocity),

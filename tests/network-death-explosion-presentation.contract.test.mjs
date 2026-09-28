@@ -88,7 +88,10 @@ test('a client replays the explosion for a remote death it could not simulate it
 
     assert.equal(player.alive, false, 'the player is marked dead');
     assert.equal(explosions.length, 1, 'the explosion presentation ran exactly once');
-    assert.deepEqual(explosions[0], { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
+    assert.deepEqual(explosions[0], {
+        cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY', contact: null,
+        direction: { x: 0, y: 0, z: 0 }, profile: null, replicate: false,
+    });
     respawn.update(10);
     assert.equal(respawn.scheduled, 0, 'the replica remains dead after a full respawn delay until the host respawns it');
 });

@@ -100,13 +100,15 @@ export class RocketBlastEffect {
     // a mega rocket is the same kind of event as a death against a wall, just
     // bigger. The lifetime deliberately stays at the profile value so a larger
     // blast hits harder rather than hanging around longer.
-    spawn(position, blastType, color, radiusScale = 1) {
+    spawn(position, blastType, color, radiusScale = 1, feedbackOnly = false, initialAge = 0) {
         if (!position || !this.coreMesh || !this.waveMesh) return;
 
         const profile = BLAST_PROFILES[blastType] || BLAST_PROFILES.ROCKET_MEDIUM;
         const scale = Number.isFinite(Number(radiusScale)) && Number(radiusScale) > 0 ? Number(radiusScale) : 1;
         const radius = profile.radius * scale;
         const lifetime = profile.lifetime;
+        const age = Math.max(0, Number(initialAge) || 0);
+        if (age >= lifetime) return;
 
         let index = this.count;
         if (this.count < MAX_ROCKET_BLASTS) {
@@ -121,10 +123,10 @@ export class RocketBlastEffect {
         this.positions[index3] = position.x;
         this.positions[index3 + 1] = position.y;
         this.positions[index3 + 2] = position.z;
-        this.lifetimes[index] = lifetime;
+        this.lifetimes[index] = lifetime-age;
         this.maxLifetimes[index] = lifetime;
         this.radii[index] = radius;
-        this.modes[index] = profile.mode || 0;
+        this.modes[index] = feedbackOnly ? 3 : profile.mode || 0;
 
         this._tmpColor.setHex(color);
         this.colors[index3] = this._tmpColor.r;
@@ -134,8 +136,8 @@ export class RocketBlastEffect {
         this._tmpColor.lerp(this._coreTint, 0.72);
         this.coreMesh.setColorAt(index, this._tmpColor);
 
-        if (!this.modes[index]) this._shakeNearbyCameras(position, radius);
-        this._writeMatrices(index, 0);
+        if (age < LIGHT_FLASH_SECONDS && (!this.modes[index] || this.modes[index] === 3)) this._shakeNearbyCameras(position, radius);
+        this._writeMatrices(index, age/lifetime);
         this.coreMesh.count = this.count;
         this.waveMesh.count = this.count;
         this.coreMesh.instanceMatrix.needsUpdate = true;
@@ -178,11 +180,11 @@ export class RocketBlastEffect {
 
         DUMMY.position.set(this.positions[index3], this.positions[index3 + 1], this.positions[index3 + 2]);
         DUMMY.rotation.set(0, 0, 0);
-        DUMMY.scale.setScalar(this.modes[index] === 2 ? 0 : coreScale);
+        DUMMY.scale.setScalar(this.modes[index] >= 2 ? 0 : coreScale);
         DUMMY.updateMatrix();
         this.coreMesh.setMatrixAt(index, DUMMY.matrix);
 
-        DUMMY.scale.setScalar(this.modes[index] === 1 ? 0 : waveScale);
+        DUMMY.scale.setScalar(this.modes[index] === 1 || this.modes[index] === 3 ? 0 : waveScale);
         DUMMY.updateMatrix();
         this.waveMesh.setMatrixAt(index, DUMMY.matrix);
     }

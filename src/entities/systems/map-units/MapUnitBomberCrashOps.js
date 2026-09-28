@@ -44,6 +44,7 @@ function finishBomberCrash(system, unit) {
     applyCrashDamage(system, unit);
     system.entityManager?.particles?.spawnExplosion?.(unit.position, CRASH_COLOR, {
         cause: 'PROJECTILE', projectileType: 'BOMBER_CRASH',
+        kind: 'bomber-crash',
     });
     system.entityManager?.audio?.play?.('HIT', { intensity: 1 });
     unit.deaths += 1;
