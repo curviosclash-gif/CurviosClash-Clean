@@ -23,7 +23,7 @@ test('the report separates real play from machine rounds', () => {
     assert.equal(report.data.realPlay.rounds, 1, 'nur die Runde mit echter Eingabe');
     assert.equal(report.data.realPlay.maps[0].mapKey, 'pillar_hall');
     assert.equal(report.data.realPlay.maps[0].spawnDeathsPerMinute, 4);
-    assert.equal(report.data.realPlay.maps[0].fps, 50);
+    assert.equal(report.data.realPlay.maps[0].fpsSingle, 50);
     assert.match(report.markdown, /Nur echtes Spiel/);
     assert.match(report.markdown, /Port 38765/);
     assert.match(report.markdown, /pillar_hall/);

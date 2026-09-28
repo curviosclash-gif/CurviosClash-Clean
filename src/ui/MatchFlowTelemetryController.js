@@ -83,6 +83,11 @@ function buildPerformanceTelemetry(game) {
         frameP99Ms: Math.max(0, Number(snapshot.frameMs?.p99) || 0),
         frameMaxMs: Math.max(0, Number(snapshot.frameMs?.max) || 0),
         spikeCount: Math.max(0, Number(snapshot.spikes?.recent) || 0),
+        // Ohne diese drei Werte sind Bildraten nicht vergleichbar: der geteilte Bildschirm
+        // zeichnet mehrere Ausschnitte, und ein kleines Fenster rechnet weniger Pixel.
+        viewportCount: Array.isArray(game?.renderer?.cameras) ? game.renderer.cameras.length : 0,
+        renderWidth: Math.max(0, Number(game?.renderer?.renderer?.domElement?.width) || 0),
+        renderHeight: Math.max(0, Number(game?.renderer?.renderer?.domElement?.height) || 0),
         subsystems: Object.fromEntries(Object.entries(snapshot.subsystems || {}).map(([id, metric]) => [
             id,
             Math.max(0, Number(metric?.avg) || 0),

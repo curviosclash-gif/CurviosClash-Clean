@@ -78,6 +78,10 @@ function normalizePerformance(source = null) {
         frameP99Ms: toNonNegativeNumber(value.frameP99Ms ?? value.frameMs?.p99, 0),
         frameMaxMs: toNonNegativeNumber(value.frameMaxMs ?? value.frameMs?.max, 0),
         spikeCount: toNonNegativeInt(value.spikeCount ?? value.spikes?.recent, 0),
+        // 0 heisst unbekannt: aeltere Runden haben Aufloesung und Ausschnitte nicht erfasst.
+        viewportCount: toNonNegativeInt(value.viewportCount, 0),
+        renderWidth: toNonNegativeInt(value.renderWidth, 0),
+        renderHeight: toNonNegativeInt(value.renderHeight, 0),
         subsystems: value.subsystems && typeof value.subsystems === 'object'
             ? Object.fromEntries(Object.entries(value.subsystems).slice(0, 16).map(([key, metric]) => [
                 sanitizeString(key, 'unknown'),

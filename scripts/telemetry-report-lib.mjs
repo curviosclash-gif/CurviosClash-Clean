@@ -38,6 +38,20 @@ function median(values) {
     return sorted[Math.floor(sorted.length / 2)];
 }
 
+// Aeltere Runden kennen die Zahl der Bildausschnitte nicht; der Sitzungstyp verraet
+// dann den geteilten Bildschirm, der mehrere Ausschnitte zeichnet.
+function isSplitRound(row) {
+    if (row.performance.viewportCount > 0) return row.performance.viewportCount > 1;
+    return row.sessionType === 'splitscreen' && row.humanCount > 1;
+}
+
+function averageFps(rows) {
+    const measured = rows.filter((row) => row.performance.frameAvgMs > 0);
+    if (measured.length === 0) return null;
+    const frameMs = measured.reduce((sum, row) => sum + row.performance.frameAvgMs, 0) / measured.length;
+    return Math.round(1000 / frameMs);
+}
+
 function summarizeMaps(rows) {
     const byMap = new Map();
     for (const row of rows) {
@@ -49,8 +63,6 @@ function summarizeMaps(rows) {
         .map(([mapKey, mapRows]) => {
             const minutes = mapRows.reduce((sum, row) => sum + row.duration, 0) / 60;
             const perMinute = (field) => (minutes > 0 ? round1(mapRows.reduce((sum, row) => sum + row[field], 0) / minutes) : 0);
-            const measured = mapRows.filter((row) => row.performance.frameAvgMs > 0);
-            const frameMs = measured.reduce((sum, row) => sum + row.performance.frameAvgMs, 0) / (measured.length || 1);
             return {
                 mapKey,
                 rounds: mapRows.length,
@@ -58,7 +70,8 @@ function summarizeMaps(rows) {
                 humanWinRate: Math.round(100 * mapRows.filter((row) => row.winnerType === 'human').length / mapRows.length),
                 spawnDeathsPerMinute: perMinute('spawnDeaths'),
                 stuckPerMinute: perMinute('stuckEvents'),
-                fps: measured.length > 0 ? Math.round(1000 / frameMs) : null,
+                fpsSingle: averageFps(mapRows.filter((row) => !isSplitRound(row))),
+                fpsSplit: averageFps(mapRows.filter(isSplitRound)),
             };
         })
         .sort((left, right) => right.rounds - left.rounds || left.mapKey.localeCompare(right.mapKey));
@@ -94,9 +107,9 @@ function summarizeSet(rows) {
 function mapTable(maps) {
     if (maps.length === 0) return ['_Keine Runden._'];
     return [
-        '| Karte | Runden | Minuten | Mensch siegt | Spawn-Tode/min | Festfahrer/min | FPS |',
-        '| --- | ---: | ---: | ---: | ---: | ---: | ---: |',
-        ...maps.map((map) => `| ${map.mapKey} | ${map.rounds} | ${map.minutes} | ${map.humanWinRate} % | ${map.spawnDeathsPerMinute} | ${map.stuckPerMinute} | ${map.fps ?? '–'} |`),
+        '| Karte | Runden | Minuten | Mensch siegt | Spawn-Tode/min | Festfahrer/min | FPS allein | FPS geteilt |',
+        '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
+        ...maps.map((map) => `| ${map.mapKey} | ${map.rounds} | ${map.minutes} | ${map.humanWinRate} % | ${map.spawnDeathsPerMinute} | ${map.stuckPerMinute} | ${map.fpsSingle ?? '–'} | ${map.fpsSplit ?? '–'} |`),
     ];
 }
 
