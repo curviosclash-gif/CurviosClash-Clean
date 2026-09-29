@@ -156,10 +156,13 @@ export function recomputePlayerEffectState(player) {
     // Shield: mode-specific - in HUNT expires by HP, in CLASSIC/ARCADE by timer
     const shieldEffectActive = hasAllowedEffect(player, 'SHIELD', modeType);
     if (shieldEffectActive) {
-        player._pickupShieldOwned = true;
-        if (modeType !== 'HUNT' && !player.hasShield) {
+        // Hits break a shield only through hasShield = false and leave the entry for the next
+        // effect tick to remove. An entry that already granted its shield must not grant it
+        // again in between; a new pickup grants directly in applyPlayerPowerup.
+        if (modeType !== 'HUNT' && !player.hasShield && player._pickupShieldOwned !== true) {
             grantShield(player, runtimeConfig);
         }
+        player._pickupShieldOwned = true;
     } else if (player._pickupShieldOwned === true) {
         resetShieldState(player);
         player._pickupShieldOwned = false;

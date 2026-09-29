@@ -201,7 +201,8 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ],
         sandstorm: PYRAMID_SANDSTORM,
         audioProfile: {
-            id: 'pyramid_sandstorm',
+            id: 'sandstorm',
+            warningSeconds: PYRAMID_SANDSTORM.warningSeconds,
             activeSeconds: PYRAMID_SANDSTORM.activeSeconds,
             ingressSeconds: PYRAMID_SANDSTORM.ingressSeconds,
             shelterVolumes: PYRAMID_SANDSTORM.shelterVolumes,

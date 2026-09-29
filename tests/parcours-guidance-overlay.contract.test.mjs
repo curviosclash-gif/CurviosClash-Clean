@@ -18,6 +18,10 @@ function installDom() {
     return body;
 }
 
+function assertNear(actual, expected) {
+    assert.ok(Math.abs(actual - expected) < 1e-9, `expected ${actual} to be close to ${expected}`);
+}
+
 function makeCamera() {
     const camera = new THREE.PerspectiveCamera(70, 4 / 3, 0.1, 1000);
     camera.position.set(0, 0, 0);
@@ -33,7 +37,7 @@ test('Parcours guidance edge cues hide on-screen targets, use viewport edges off
     try {
         const controller = new ParcoursOverlayController();
         const target = { checkpointId: 'FINISH', pos: { x: 0, y: 0, z: -10 }, mesh: { userData: { checkpointColor: 0xffd700 } } };
-        const view = { active: true, intensity: 2, targets: [target] };
+        const view = { active: true, intensity: 1, pulse: 0, targets: [target] };
         const camera = makeCamera();
         const entityManager = {
             arena: { _portalGateSystem: { checkpointRingRuntime: { getGuidanceView: () => view } } },
@@ -44,12 +48,46 @@ test('Parcours guidance edge cues hide on-screen targets, use viewport edges off
         const first = controller._guidanceEdges.get('0:FINISH');
         assert.equal(first.style.display, 'none');
 
+        // Outside the breath (pulse 0) the arrow stays visible at the resting opacity.
         target.pos.x = 100;
         controller._tickGuidanceEdges(entityManager);
         assert.equal(first.style.display, 'block');
         assert.equal(first.style.left, '784px');
+        assert.match(first.style.clipPath, /polygon/);
         assert.match(first.style.background, /#ffd700/i);
-        assert.equal(first.style.opacity, '0.3');
+        assertNear(Number(first.style.opacity), 0.45);
+        assert.equal(first.style.transform, 'rotate(0rad)');
+
+        view.pulse = 1;
+        controller._tickGuidanceEdges(entityManager);
+        assertNear(Number(first.style.opacity), 0.75);
+
+        view.intensity = 3 / 1.35;
+        view.pulse = 0;
+        controller._tickGuidanceEdges(entityManager);
+        assert.ok(Number(first.style.opacity) > 0.9 && Number(first.style.opacity) <= 0.95);
+        view.intensity = 1;
+
+        // Target straight above: the arrow points up (screen y grows downwards).
+        target.pos.x = 0;
+        target.pos.y = 100;
+        controller._tickGuidanceEdges(entityManager);
+        assert.match(first.style.transform, /^rotate\(-1\.5707963\d*rad\)$/);
+        target.pos.y = 0;
+        target.pos.x = 100;
+
+        // The colour is only written when it changes.
+        first.style.background = 'stale';
+        controller._tickGuidanceEdges(entityManager);
+        assert.equal(first.style.background, 'stale');
+        target.mesh.userData.checkpointColor = 0x00ff00;
+        controller._tickGuidanceEdges(entityManager);
+        assert.match(first.style.background, /#00ff00/i);
+
+        view.intensity = 0;
+        controller._tickGuidanceEdges(entityManager);
+        assert.equal(first.style.display, 'none');
+        view.intensity = 1;
 
         target.pos.x = 0;
         target.pos.z = 10;
@@ -79,6 +117,28 @@ test('Parcours guidance edge cues hide on-screen targets, use viewport edges off
 
         controller.dispose();
         assert.equal(body.children.length, 0);
+    } finally {
+        globalThis.document = previousDocument;
+        globalThis.window = previousWindow;
+    }
+});
+
+test('Parcours guidance edge arrows only show in the viewport of the guided player on a shared screen', () => {
+    const previousDocument = globalThis.document;
+    const previousWindow = globalThis.window;
+    installDom();
+    try {
+        const controller = new ParcoursOverlayController();
+        const target = { checkpointId: 'CP01', pos: { x: 100, y: 0, z: -10 }, mesh: { userData: { checkpointColor: 0xffd700 } } };
+        const view = { active: true, intensity: 1, pulse: 0, player: { index: 1 }, targets: [target] };
+        const entityManager = {
+            arena: { _portalGateSystem: { checkpointRingRuntime: { getGuidanceView: () => view } } },
+            renderer: { cameras: [makeCamera(), makeCamera()], viewportSystem: { width: 800, height: 600, layout: 'two_columns' } },
+        };
+        controller._tickGuidanceEdges(entityManager);
+        assert.notEqual(controller._guidanceEdges.get('0:CP01')?.style.display, 'block');
+        assert.equal(controller._guidanceEdges.get('1:CP01').style.display, 'block');
+        controller.dispose();
     } finally {
         globalThis.document = previousDocument;
         globalThis.window = previousWindow;

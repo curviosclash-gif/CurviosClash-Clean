@@ -93,6 +93,57 @@ test('desktop smoke covers product, dependency, branding, and launcher changes',
     }
 });
 
+function readWorkflowPathFilters(workflow, trigger) {
+    const lines = workflow.split(/\r?\n/);
+    const start = lines.indexOf(`  ${trigger}:`);
+    assert.notEqual(start, -1, `workflow has no ${trigger} trigger`);
+    assert.equal(lines[start + 1]?.trim(), 'paths:');
+    const filters = [];
+    for (const line of lines.slice(start + 2)) {
+        const match = /^ {6}- (.+)$/.exec(line);
+        if (!match) break;
+        filters.push(match[1].replace(/^'(.*)'$/, '$1'));
+    }
+    return filters;
+}
+
+test('desktop and package workflows run for every entry their builds read', () => {
+    const requiredFilters = {
+        '.github/workflows/desktop.yml': [
+            'index.html',
+            'hangar.html',
+            'style.css',
+            'app-shell.css',
+            'scripts/playwright-*.mjs',
+            'scripts/build-playwright-app.mjs',
+            'scripts/vite-build.mjs',
+            'scripts/esbuild-stream-fallback.cjs',
+            'playwright.editor.config.mjs',
+        ],
+        '.github/workflows/package-check.yml': [
+            'server/**',
+            'index.html',
+            'scripts/build-app.mjs',
+            'scripts/vite-build.mjs',
+            'scripts/esbuild-stream-fallback.cjs',
+        ],
+    };
+    for (const [file, required] of Object.entries(requiredFilters)) {
+        const workflow = readRepoFile(file);
+        for (const trigger of ['push', 'pull_request']) {
+            const filters = readWorkflowPathFilters(workflow, trigger);
+            for (const entry of required) {
+                assert.ok(filters.includes(entry), `${file} ${trigger} paths miss ${entry}`);
+            }
+        }
+    }
+});
+
+test('package check also builds the web bundle behind the training boundary', () => {
+    const workflow = readRepoFile('.github/workflows/package-check.yml');
+    assert.match(workflow, /^\s+npm run build\s*$/m);
+});
+
 test('contract runner discovers every root Node test exactly once', () => {
     const allNodeTests = readdirSync(new URL('../tests/', import.meta.url))
         .filter((fileName) => fileName.endsWith('.test.mjs'))

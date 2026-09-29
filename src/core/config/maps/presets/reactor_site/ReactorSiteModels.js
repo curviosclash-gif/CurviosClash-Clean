@@ -60,11 +60,11 @@ function breakScene(id, file, clipName, baseMetres, x = 0, z = 0) {
 
 /** Undersides the generator reported (`base_y`), in metres above the apron. */
 export const REACTOR_PART_BASE_METRES = Object.freeze({
-    'reactor-site': -1.6,             // the grass slab, 1.4 m thick under the apron's -0.2
+    'reactor-site': -10.0,            // measured 01_site minimum at the recessed pool bottoms
     'reactor-turbine-hall': 0.0,
     'reactor-block': 0.0,
-    'reactor-cooling-tower-west': -0.36,  // the splayed inlet columns overhang their feet
-    'reactor-cooling-tower-east': -0.36,
+    'reactor-cooling-tower-west': -0.42,  // scaled splayed inlet columns overhang their feet
+    'reactor-cooling-tower-east': -0.42,
     'reactor-vent-stack': 0.0,
 });
 
@@ -79,8 +79,8 @@ export const REACTOR_SCENE_CLIPS = Object.freeze({
 
 /** Scene model id -> the underside of the intact part it replaces, in metres. */
 export const REACTOR_SCENE_BASE_METRES = Object.freeze({
-    'reactor-topple-tower-west': -0.36,   // the same underside as 04_cooling_tower
-    'reactor-topple-tower-east': -0.36,
+    'reactor-topple-tower-west': -0.42,   // the same underside as 04_cooling_tower
+    'reactor-topple-tower-east': -0.42,
     'reactor-topple-stack': 0.0,          // 05_vent_stack
     'reactor-collapse-hall': 0.0,         // 02_turbine_hall
     'reactor-mushroom-cloud': 0.0,        // 03_reactor_block: the ruin's floor is the block's own
@@ -100,14 +100,14 @@ const REACTOR_SITE_PARTS = [
     part('turbine-hall', '02_turbine_hall', 0.0, 0, HALL_Z),
     part('block', '03_reactor_block', 0.0),
     // The same file twice: the anchor of the destructible segment tells the two towers apart.
-    part('cooling-tower-west', '04_cooling_tower', -0.36, -TOWER_X, 0),
-    part('cooling-tower-east', '04_cooling_tower', -0.36, TOWER_X, 0),
+    part('cooling-tower-west', '04_cooling_tower', -0.42, -TOWER_X, 0),
+    part('cooling-tower-east', '04_cooling_tower', -0.42, TOWER_X, 0),
     part('vent-stack', '05_vent_stack', 0.0, STACK_X, STACK_Z),
 ];
 
 const REACTOR_SITE_SCENES = [
-    breakScene('topple-tower-west', '20_topple_tower_west', 'ToppleTowerWestOnce', -0.36, -TOWER_X, 0),
-    breakScene('topple-tower-east', '21_topple_tower_east', 'ToppleTowerEastOnce', -0.36, TOWER_X, 0),
+    breakScene('topple-tower-west', '20_topple_tower_west', 'ToppleTowerWestOnce', -0.42, -TOWER_X, 0),
+    breakScene('topple-tower-east', '21_topple_tower_east', 'ToppleTowerEastOnce', -0.42, TOWER_X, 0),
     breakScene('topple-stack', '22_topple_stack', 'ToppleStackOnce', 0.0, STACK_X, STACK_Z),
     breakScene('collapse-hall', '23_collapse_hall', 'CollapseHallOnce', 0.0, 0, HALL_Z),
     ...Array.from({ length: 4 }, (_, index) => breakScene(

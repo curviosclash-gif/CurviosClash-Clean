@@ -17,6 +17,7 @@ export const SIGNALING_COMMAND_TYPES = Object.freeze({
     INVALIDATE_READY: 'invalidate_ready',
     UPDATE_LOBBY_METADATA: 'update_lobby_metadata',
     START_MATCH: 'start_match',
+    END_MATCH: 'end_match',
     LEAVE: 'leave',
     OFFER: 'offer',
     ANSWER: 'answer',
@@ -36,6 +37,7 @@ export const SIGNALING_EVENT_TYPES = Object.freeze({
     PLAYER_READY: 'player_ready',
     LOBBY_METADATA_UPDATED: 'lobby_metadata_updated',
     MATCH_START: 'match_start',
+    MATCH_ENDED: 'match_ended',
     ERROR: 'error',
 });
 
@@ -48,6 +50,7 @@ export const SIGNALING_HTTP_ROUTES = Object.freeze({
     LOBBY_LEAVE: '/lobby/leave',
     LOBBY_ACK_PENDING: '/lobby/ack-pending',
     LOBBY_MATCH_START: '/lobby/match-start',
+    LOBBY_MATCH_END: '/lobby/match-end',
     LOBBY_INVALIDATE_READY: '/lobby/invalidate-ready',
     LOBBY_METADATA: '/lobby/metadata',
     LOBBY_STATUS: '/lobby/status',
@@ -151,6 +154,7 @@ export const SIGNALING_COMMAND_ROLE_MAP = Object.freeze({
     [SIGNALING_COMMAND_TYPES.INVALIDATE_READY]: 'host',
     [SIGNALING_COMMAND_TYPES.UPDATE_LOBBY_METADATA]: 'host',
     [SIGNALING_COMMAND_TYPES.START_MATCH]: 'host',
+    [SIGNALING_COMMAND_TYPES.END_MATCH]: 'host',
     [SIGNALING_COMMAND_TYPES.LEAVE]: 'both',
     [SIGNALING_COMMAND_TYPES.OFFER]: 'host',
     [SIGNALING_COMMAND_TYPES.ANSWER]: 'client',

@@ -19,6 +19,8 @@ export function buildLanRequestError({
     let message = fallbackMessage;
     if (signalingCode === 'lobby_full') {
         message = 'Lobby ist voll.';
+    } else if (signalingCode === 'match_in_progress') {
+        message = 'In dieser Lobby läuft gerade ein Match. Beitritt nach Matchende möglich.';
     } else if (signalingCode === 'lobby_not_found') {
         message = 'Lobby nicht gefunden.';
     } else if (signalingCode === 'host_required') {
@@ -112,6 +114,31 @@ export async function publishLanLobbyMetadata({
             fallbackMessage: 'Lobby-Metadaten aktualisieren fehlgeschlagen.',
             fallbackCode: 'metadata_update_failed',
         });
+    }
+    return res.json();
+}
+
+/**
+ * Host-only lobby command (ready reset, match start, match end) against the embedded LAN server.
+ *
+ * @param {{ signalingUrl?: string, route: string, body: object,
+ *   fallbackMessage: string, fallbackCode: string }} options
+ */
+export async function postLanHostCommand({
+    signalingUrl,
+    route,
+    body,
+    fallbackMessage,
+    fallbackCode,
+}) {
+    const res = await fetch(`${signalingUrl}${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (res?.ok === false) {
+        const payload = await res.json().catch(() => ({}));
+        throw buildLanRequestError({ response: res, payload, fallbackMessage, fallbackCode });
     }
     return res.json();
 }

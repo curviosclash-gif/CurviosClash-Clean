@@ -28,6 +28,7 @@ import {
 } from './OnlineSignalingSupport.js';
 import { routeOnlineLobbyMessage } from './OnlineMatchLobbyMessageRouter.js';
 import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
+import { endOnlineLobbyMatch, startOnlineLobbyMatch } from './OnlineLobbyMatchCommands.js';
 
 const MUTATION_ACK_TIMEOUT_MS = 3_500;
 
@@ -511,30 +512,9 @@ export class OnlineMatchLobby extends MatchLobby {
 
     updateSettings(settings) { return applyOnlineLobbySettings(this, settings); }
 
-    async startMatch(options = {}) {
-        if (this.isHost !== true) {
-            throw createLobbyUsageError('host_required', 'Nur der Host darf das Match starten.');
-        }
-        const commandId = this._createMutationAckId('match');
-        const pendingMatchStart = {
-            commandId,
-            lobbyCode: this.sessionState.lobbyCode || this.lobbyCode || '',
-            hostPeerId: this.sessionState.hostPeerId || this._playerId || '',
-            issuedAt: this._lobbyRuntime.nowMs(),
-            settingsSnapshot: options?.settingsSnapshot ?? this.settings ?? null,
-            settingsRevision: options.settingsRevision ?? this.sessionState.settingsRevision ?? undefined,
-        };
-        await this._sendMutationWithAck({
-            commandType: SIGNALING_COMMAND_TYPES.START_MATCH,
-            payload: pendingMatchStart,
-            ackMatcher: (msg) => (
-                msg?.type === SIGNALING_EVENT_TYPES.MATCH_START
-                && String(msg?.pendingMatchStart?.commandId || '').trim() === commandId
-            ),
-            timeoutMs: Math.max(MUTATION_ACK_TIMEOUT_MS, 5000),
-        });
-        return { pendingMatchStart };
-    }
+    startMatch(options = {}) { return startOnlineLobbyMatch(this, options); }
+
+    endMatch(commandId) { return endOnlineLobbyMatch(this, commandId); }
 
     getLocalPeerId() { return String(this._playerId || '').trim(); }
     getLocalPeerToken() { return this._sessionToken; }

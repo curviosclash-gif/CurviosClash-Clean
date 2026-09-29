@@ -48,7 +48,8 @@ export class PlayerLifecycleSystem {
         this.entityManager?._mapHazardSystem?.updatePlayer?.(
             player,
             prevPos,
-            Math.max(0, Number(simulationNowMs) || 0) * 0.001
+            Math.max(0, Number(simulationNowMs) || 0) * 0.001,
+            dt,
         );
         if (!player.alive) return;
         const collisionStart = runtimeProfiler?.startSample?.();
