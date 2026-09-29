@@ -20,17 +20,56 @@ What stands on the site
 -----------------------
   01_site           the apron, the grass beyond it, roads, the perimeter fence, the switchyard
                     and its pylons, irregular blast-wall compounds, staggered checkpoints, lamp
-                    masts, the basin under each cooling tower, and everything around and inside
-                    the turbine hall that survives it: the floor, the turbine sets, the annexes,
-                    the steam lines. Static.
+                    masts, a drained basin sunk into the ground under each cooling tower, the two
+                    permanent galleries that run from those basins into the containment, the
+                    reactor core that stands on the block's own axis, and everything around and
+                    inside the turbine hall that survives it: the floor, the turbine sets, the
+                    annexes, the steam lines. Static.
   02_turbine_hall   the shell of the long hall south of the reactor: four walls, the roof, the
                     two gable doors a ship can fly through. Destructible: segment `turbine_hall`.
-  03_reactor_block  the containment cylinder with its dome, flanked by two auxiliary wings on
-                    -Y and +Y. Destructible: segment `reactor_dome`.
+  03_reactor_block  the containment cylinder with its dome as a hollow shell, flanked by two
+                    auxiliary wings on -Y and +Y, with the two doorways cut in its wall where the
+                    galleries arrive. Destructible: segment `reactor_dome`.
   04_cooling_tower  one hyperboloid shell on a ring of inlet columns. Placed twice by the preset,
                     west and east; the anchor tells the two apart.
                     Destructible: segments `cooling_tower_w` / `cooling_tower_e`.
   05_vent_stack     the tall discharge chimney beside the turbine hall. Destructible: `vent_stack`.
+
+Every building is half again the volume at the same proportions
+----------------------------------------------------------------
+The whole plant was asked for at volume x1.5 with the centre spacing untouched, which is a uniform
+linear factor of 1.5 ** (1/3) = 1.1447142425533319 applied about each building's own anchor - the
+tower about its axis, the hall and the block about their own centres, an annex about its own. Doing
+it inside the files rather than through the preset's `scale` is what keeps the spacing: the preset
+still places every part at the same map position and at the same 0.6 authored units per metre.
+`building_scale` is the frame that carries the factor; the standing part, the baked collapse and the
+ruin all read it, so a structure and its wreck cannot drift apart. The wreck reaches further as a
+result (the tower's keel reaches 130.3 m instead of 115.2 m), which the preset's field size and its
+`REACTOR_WRECK_REACH` have to follow.
+
+Pools, galleries and the core
+-----------------------------
+The old basins were a flat disc of solid `Water` inside a low ring: a lid a ship could not descend
+through. They are now real, drained pools. The apron and the grass are cut through where a pool is
+(`ground_slab`, a rectangular slab with round holes), a concrete bowl with a floor and a rim collar
+sits in the shaft, and no water is drawn at all - the runtime supplies the animated surface. Nothing
+in the pool's volume collides, so a ship flies down into the basin and around inside it. Measured:
+outer wall radius 43.2 m, usable (inner) radius 41.6 m, rim top 0.42 m, floor 10.0 m below the
+apron, ground cut at radius 44.8 m. A runtime water surface of its own belongs 7 m below the rim
+(3 m of water over the floor), which leaves 7 m of air to fly in; the geometry is a drained bowl
+either way and draws no water.
+
+From each basin a permanent, enclosed gallery runs along X on the plant's centre line into the
+containment: 8.75 m clear half-width, 12.75 m clear height over a deck 0.35 m above the apron, walls
+and roof 1.2 m of concrete. It is in 01_site, so it stands through every collapse. The shell's two
+doorways are cut by azimuth at exactly the gallery's outer half-width, and the ruin leaves the same
+sectors out, so the route has no step and no seam before or after the breach.
+
+The core - `reactor_fuel_core` and its lit `reactor_fuel_rods` - is emitted by name into 01_site on
+the block's own axis (Blender x = y = 0), so it survives the breach. The intact shell hides it from
+every direction except the two doorways; the ruin is open at the top and shows it off. Its pedestal
+is 9.6 m across and the rods ring at 6.6 m, which leaves a 15 m ring of clear air to fly around it.
+`CoreGlow` is the emissive material; the point light that goes with it is the preset's business.
 
 What comes down
 ---------------
@@ -57,7 +96,9 @@ What comes down
                     front running out ahead of it, all keyed from curves above the containment's
                     broken lower half. Nothing in the cloud collides (every cloud mesh is `_nocol`);
                     the ruin does. The fireball is the one part of it that is dangerous, and only
-                    while it is drawn - see FIREBALL_CURVE.
+                    while it is drawn - see FIREBALL_CURVE. The ruin leaves the two doorway sectors
+                    out of its wall and its floor is a ring around the core, so the galleries and
+                    the core stay reachable and visible once the block is gone.
 
 Sixteen pieces in all - four per tower, two for the stack, five for the hall, one for the
 reactor - which is exactly what MapDestructibleContract allows a map.
@@ -87,7 +128,9 @@ than thrown out as a ring.
 
 import json
 import sys
-from math import atan2, cos, degrees, exp, hypot, pi, radians, sin, sqrt
+from contextlib import contextmanager
+from functools import wraps
+from math import asin, atan2, cos, degrees, exp, hypot, pi, radians, sin, sqrt
 from pathlib import Path
 
 import bpy
@@ -124,6 +167,62 @@ GLB_DIR = ROOT / "assets" / "maps" / "reactor_site" / "glb"
 BASE = et
 FPS = et.FPS
 
+# --- Building enlargement ---------------------------------------------------------------------------
+# Every building on the site holds half again the volume at exactly the same proportions. A uniform
+# linear factor is the only way to do that: 1.5 ** (1/3) multiplies every edge, so volume and mass
+# grow by 1.5 while the shape stays similar. Scaling each dimension by 1.5 instead would grow the
+# volume by 3.375 and change every silhouette, and scaling the whole site would move the buildings
+# apart - both are explicitly not wanted. Each building is scaled about its own anchor: the tower
+# about its axis, the hall and the block about their own centres, an annex about its own.
+#
+# The factor is applied as a frame that the canvas and the collision proxies read while a building is
+# drawn (`building_scale`), so the standing part, the baked collapse and the ruin are enlarged by the
+# very same transform and cannot drift apart.
+BUILDING_VOLUME_FACTOR = 1.5
+BUILDING_SCALE = BUILDING_VOLUME_FACTOR ** (1.0 / 3.0)   # 1.1447142425533319
+
+_BUILDING_FRAME = None
+
+
+@contextmanager
+def building_scale(anchor=(0.0, 0.0, 0.0), factor=None):
+    """Enlarge everything drawn inside the block by `factor` about `anchor`.
+
+    Nested use is allowed and restores the frame it found, so a builder wrapped in `@enlarged` can
+    still call helpers that open their own frame.
+    """
+    global _BUILDING_FRAME
+    previous = _BUILDING_FRAME
+    _BUILDING_FRAME = (Vector(anchor), BUILDING_SCALE if factor is None else float(factor))
+    try:
+        yield
+    finally:
+        _BUILDING_FRAME = previous
+
+
+def building_point(point):
+    """A point in the frame that is open, enlarged about that frame's anchor."""
+    if _BUILDING_FRAME is None:
+        return Vector(point)
+    anchor, factor = _BUILDING_FRAME
+    return anchor + (Vector(point) - anchor) * factor
+
+
+def authored(site_metres):
+    """A dimension authored in the enlarged site frame, as it is written in the building's own file."""
+    return site_metres / BUILDING_SCALE
+
+
+def enlarged(builder):
+    """Mark a building builder: everything it draws is enlarged about the file's own anchor."""
+
+    @wraps(builder)
+    def wrapper(canvas, *args, **kwargs):
+        with building_scale():
+            return builder(canvas, *args, **kwargs)
+
+    return wrapper
+
 # --- Materials ------------------------------------------------------------------------------------
 # Added to the Eiffel palette rather than replacing it: `build_material` reads one dictionary, and
 # the site has no use for a second copy of the grain and occlusion rules that hang off it.
@@ -136,7 +235,13 @@ GRASS = et.GRASS
 STEEL = et.STEEL
 STEEL_DARK = "SteelDark"
 GLASS = et.GLASS
-WATER = "Water"
+CORE_GLOW = "CoreGlow"
+# The ground slabs get materials of their own, identical in colour to the grass and the pale
+# concrete they are cut from. Nothing in the scene reads the difference; the one thing it buys is
+# that the occlusion bake can tell the open ground from the things that stand on it (see
+# `bake_parts_occlusion`).
+GROUND_GRASS = "GroundGrass"
+GROUND_APRON = "GroundApron"
 WARNING = "Warning"
 LAMP = et.LAMP
 SCORCHED = "Scorched"
@@ -153,7 +258,10 @@ et.MATERIAL_COLORS.update({
     BLAST_WALL: ((0.43, 0.42, 0.39, 1.0), 0.0, 0.0),
     ASPHALT: ((0.16, 0.16, 0.17, 1.0), 0.0, 0.0),
     STEEL_DARK: ((0.22, 0.24, 0.27, 1.0), 0.0, 0.7),
-    WATER: ((0.08, 0.22, 0.28, 1.0), 0.0, 0.3),
+    # The reactor core, in its own permanent file. One dominant warm channel and an emission just
+    # under two, the same ceiling the fireball keeps to: hotter than that and the tone mapping
+    # clips the whole rod to white and the glow stops reading as a body.
+    CORE_GLOW: ((0.72, 0.26, 0.05, 1.0), 1.9, 0.0),
     WARNING: ((0.85, 0.62, 0.08, 1.0), 0.0, 0.1),
     SCORCHED: ((0.11, 0.10, 0.09, 1.0), 0.0, 0.0),
     RUBBLE: ((0.30, 0.28, 0.25, 1.0), 0.0, 0.0),
@@ -169,6 +277,7 @@ et.MATERIAL_GRAIN.update({
     CONCRETE: 0.09,
     CONCRETE_DARK: 0.08,
     CONCRETE_PALE: 0.08,
+    GROUND_APRON: 0.08,
     BLAST_WALL: 0.11,
     ASPHALT: 0.06,
     RUBBLE: 0.12,
@@ -177,6 +286,42 @@ et.MATERIAL_GRAIN.update({
     CLOUD_DARK: 0.0,
     DUST: 0.0,
 })
+# The ground slabs are the grass slab and the apron slab, drawn exactly as the materials they copy.
+et.MATERIAL_COLORS[GROUND_GRASS] = et.MATERIAL_COLORS[et.GRASS]
+et.MATERIAL_COLORS[GROUND_APRON] = et.MATERIAL_COLORS[CONCRETE_PALE]
+
+
+def bake_parts_occlusion(objects, distance=None, samples=None):
+    """The pack's occlusion bake, with the open ground left unrefined.
+
+    Blender's bake cuts every large face an occluder stands over into a six-metre grid, and the
+    ground is one huge face per strip. Because an apron is occluded by everything that stands on
+    it, every one of those faces would pay the full refinement - measured at 31 000 triangles for
+    the site, more than twice everything else in the pack - for a shading gradient on flat
+    concrete. The slabs stay in the bake, so the buildings keep the ground's occlusion and the
+    ground keeps one value per corner; only the refinement is skipped.
+    """
+    ground = {id(obj) for obj in objects if "ground" in obj.name}
+    if not ground:
+        return _ORIGINAL_BAKE(objects, distance, samples)
+    original_subdivide = et._subdivide_shadowed_faces
+
+    def subdivide(obj, bvh, target_edge, min_area, ray_distance):
+        if id(obj) in ground:
+            return
+        return original_subdivide(obj, bvh, target_edge, min_area, ray_distance)
+
+    et._subdivide_shadowed_faces = subdivide
+    try:
+        return _ORIGINAL_BAKE(objects, distance, samples)
+    finally:
+        et._subdivide_shadowed_faces = original_subdivide
+
+
+_ORIGINAL_BAKE = et.bake_ambient_occlusion
+# The exporter calls the bake through the Eiffel module's own name, so the pack's version goes in
+# its place for every part of this pack -- the same way `SmoothCanvas` replaces `Canvas` below.
+et.bake_ambient_occlusion = bake_parts_occlusion
 
 # --- Measurements, all in metres --------------------------------------------------------------------
 # The apron the plant stands on, and the grass beyond it. The grass has to reach past the furthest
@@ -190,6 +335,7 @@ GROUND_HALF = 260.0
 # bounding box, and the cloud scene has to land on exactly the same centre as the intact block.
 CONTAINMENT_RADIUS = 24.0
 CONTAINMENT_WALL_TOP = 42.0
+CONTAINMENT_WALL = 1.5            # the shell's own thickness: it is hollow now, and ships fly in
 DOME_TOP = 66.0
 WING_SIZE = (44.0, 28.0, 22.0)
 WING_OFFSET_Y = CONTAINMENT_RADIUS + WING_SIZE[1] / 2 + 8.0   # 46: the wing's centre along Y
@@ -235,6 +381,58 @@ HALL_FOOTING_STRIP = 0.5
 HALL_FOOTING_BAND = 3.0
 HALL_CROWN_STRIP = 0.4
 HALL_CROWN_BAND = 2.0
+
+# --- Basins, tunnels and the core, in the enlarged site frame ----------------------------------------
+# Everything below is authored in the metres the enlarged plant actually occupies, because it has to
+# meet the enlarged buildings exactly. The two cooling towers stand at x = +/-105 m (unchanged: the
+# building centres do not move), each is 42 * BUILDING_SCALE = 48.08 m across at its inlet ring, and
+# the apron reaches 150 m out - so a basin that fits in the apron and inside the inlet ring is
+# 44 m across at the rim.
+#
+# The old basin was a flat disc of solid `Water` at apron level inside a low ring. It is replaced by
+# a real, drained pool: the apron and the grass are cut through, a concrete bowl with a rim collar
+# sits in the shaft, and the water itself is left to the runtime (an animated surface, no collision).
+POOL_INNER_RADIUS = 41.6        # the usable radius: the wall's inner face
+POOL_OUTER_RADIUS = 43.2        # the concrete wall's outer face, inside the enlarged inlet ring
+POOL_WALL_THICKNESS = POOL_OUTER_RADIUS - POOL_INNER_RADIUS
+POOL_RIM_WIDTH = 1.6            # the collar between the wall and the cut ground
+POOL_HOLE_RADIUS = POOL_OUTER_RADIUS + POOL_RIM_WIDTH   # 44.8: what the ground is cut at, inside
+                                                        # the apron edge at 105 + 44.8 = 149.8
+POOL_DEPTH = 10.0               # apron (z = 0) to floor: the pool's own depth
+POOL_RIM_TOP = 0.42             # a low curb above the apron
+
+# The tunnels: one enclosed gallery from each basin to the containment, along X on the plant's own
+# centre line (y = 0). Permanent - they are part of 01_site, so they stand before and after the
+# block comes down, and the shell and the ruin both carry the matching opening.
+TUNNEL_CLEAR_HALF = 8.75        # clear half-width: 17.5 m of air between the walls
+TUNNEL_WALL = 1.2
+TUNNEL_CLEAR_HEIGHT = 12.75     # deck to the roof's underside, so a ship flies through upright
+TUNNEL_DECK = 0.35              # the gallery floor: just under the basin's curb, so the rim collar
+                                # swallows the slab's edges instead of fighting them for the same plane
+TUNNEL_DECK_BOTTOM = -0.05      # bedded into the apron rather than laid on its top face
+TUNNEL_ROOF = 1.2
+# The door in the containment wall is cut by azimuth. The angle is set by the gallery's *outer*
+# half-width on the wall's outer face, so the gallery walls overlap the jambs instead of leaving a
+# step; the opening is then wider again at the inner face, so nothing pinches the passage.
+TUNNEL_OUTER_HALF = TUNNEL_CLEAR_HALF + TUNNEL_WALL
+DOOR_AZIMUTH = asin(authored(TUNNEL_OUTER_HALF) / CONTAINMENT_RADIUS)   # 21.2 degrees
+DOOR_TOP = TUNNEL_DECK + TUNNEL_CLEAR_HEIGHT
+DOOR_HEIGHT_AUTHORED = authored(DOOR_TOP)
+
+# The reactor core: permanent, in 01_site, on the block's own axis, so it is still there and still
+# glowing after the containment is gone. The intact shell hides it from outside except through the
+# two tunnels; the ruin is open and shows it off. Its radius leaves a 15.7 m ring to fly around.
+CORE_CLEARANCE = 12.0           # the ruin's floor starts this far out, so the core stands free
+CORE_PEDESTAL_RADIUS = 9.6
+CORE_PEDESTAL_HEIGHT = 3.0
+CORE_COLUMN_RADIUS = 2.6
+CORE_COLUMN_HEIGHT = 18.0
+CORE_CAP_RADIUS = 3.4
+CORE_CAP_HEIGHT = 1.2
+CORE_ROD_RING = 6.6
+CORE_ROD_RADIUS = 0.55
+CORE_ROD_HEIGHT = 9.0
+CORE_ROD_COUNT = 12
 
 # --- Cloud measurements ---------------------------------------------------------------------------
 CLOUD_SECONDS = 48.0            # the keyed part of the clip
@@ -363,7 +561,7 @@ class SmoothCanvas(et.Canvas):
 
     def _add(self, material, decorative, verts, faces, matrix, smooth=False):
         bucket_verts, bucket_faces, bucket_colors, bucket_smooth = self._bucket(material, decorative)
-        placed = [matrix @ Vector(vertex) for vertex in verts]
+        placed = [building_point(matrix @ Vector(vertex)) for vertex in verts]
         if not placed:
             return
         offset = len(bucket_verts)
@@ -405,6 +603,23 @@ class SmoothCanvas(et.Canvas):
 # The exporter instantiates the canvas by name out of its own module, so the smooth-capable one
 # is put in its place for every part of this pack.
 et.Canvas = SmoothCanvas
+
+
+def emit_named(canvas, name, parent=None):
+    """Emit one canvas under exactly `name`, for the parts the runtime has to find by name.
+
+    The shared `emit` names a mesh after its material (`reactor_fuel_core_concretedark`), which is
+    what every other part wants. The core is the exception: its node names are part of the contract,
+    so a canvas holding it must carry exactly one material and be renamed after linking.
+    """
+    created = canvas.emit(name, parent=parent)
+    if len(created) != 1:
+        raise RuntimeError(f"{name} must be one mesh, got {len(created)}")
+    created[0].name = name
+    # The object and its mesh data live in separate namespaces in Blender and in glTF alike, so
+    # both can carry the bare name and the runtime finds the same string on either side.
+    created[0].data.name = name
+    return created[0]
 
 
 def revolve(canvas, material, profile, segments=48, center=(0.0, 0.0, 0.0), decorative=False,
@@ -472,6 +687,72 @@ def shell_profile(outer, thickness):
     """A closed profile for a shell: the outer curve up, then the inner curve back down."""
     inner = [(max(0.3, radius - thickness), height) for radius, height in outer]
     return list(outer) + list(reversed(inner))
+
+
+def prism(canvas, material, points, z_bottom, z_top, decorative=False):
+    """One straight-sided vertical prism: a flat polygon swept between two heights.
+
+    The ground has to be drawn *around* the basins rather than through them, and a box cannot do
+    that. `points` is the polygon in plan; its winding is normalised so every face points out: the
+    top up, the bottom down, the sides away from the middle.
+    """
+    corners = list(points)
+    area = sum(
+        corners[index][0] * corners[(index + 1) % len(corners)][1]
+        - corners[(index + 1) % len(corners)][0] * corners[index][1]
+        for index in range(len(corners))
+    )
+    if area < 0.0:
+        corners.reverse()
+    count = len(corners)
+    verts = [(x, y, z_bottom) for x, y in corners] + [(x, y, z_top) for x, y in corners]
+    faces = [tuple(range(count)), tuple(reversed(range(count, 2 * count)))]
+    for index in range(count):
+        following = (index + 1) % count
+        faces.append((index, following, count + following, count + index))
+    canvas._add(material, decorative, verts, faces, Matrix.Identity(4))
+
+
+def round_hole_quadrant(canvas, material, cx, cy, radius, quadrant, z_bottom, z_top,
+                        arc_steps=6, decorative=False):
+    """One quarter of a round hole's surround: the fan between the arc and the square corner."""
+    sign_x, sign_y = quadrant
+    corner = (cx + sign_x * radius, cy + sign_y * radius)
+    polygon = [corner]
+    for step in range(arc_steps + 1):
+        angle = (pi / 2.0) * step / arc_steps
+        polygon.append((cx + sign_x * radius * cos(angle), cy + sign_y * radius * sin(angle)))
+    prism(canvas, material, polygon, z_bottom, z_top, decorative=decorative)
+
+
+def ground_slab(canvas, material, bounds, holes, z_bottom, z_top):
+    """A rectangular slab with round holes cut clean through it.
+
+    The basin has to be a hole in the apron and the grass, not a bowl resting on them, because the
+    collision comes from these triangles: a slab left whole over a pool is a lid. The slab is split
+    by the holes' own tangents into full-height strips and, in a hole's strip, into the part above
+    and below it plus four quadrant fans.
+    """
+    x_min, x_max, y_min, y_max = bounds
+    strips = sorted({x_min, x_max} | {x for cx, _cy, radius in holes for x in (cx - radius, cx + radius)})
+    for low, high in zip(strips, strips[1:]):
+        if high - low <= 1e-6:
+            continue
+        containing = [hole for hole in holes
+                      if hole[0] - hole[2] <= low + 1e-6 and hole[0] + hole[2] >= high - 1e-6]
+        if not containing:
+            prism(canvas, material, [(low, y_min), (high, y_min), (high, y_max), (low, y_max)],
+                  z_bottom, z_top)
+            continue
+        for cx, cy, radius in containing:
+            if cy - radius > y_min + 1e-6:
+                prism(canvas, material, [(low, y_min), (high, y_min), (high, cy - radius),
+                                         (low, cy - radius)], z_bottom, z_top)
+            if cy + radius < y_max - 1e-6:
+                prism(canvas, material, [(low, cy + radius), (high, cy + radius),
+                                         (high, y_max), (low, y_max)], z_bottom, z_top)
+            for quadrant in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+                round_hole_quadrant(canvas, material, cx, cy, radius, quadrant, z_bottom, z_top)
 
 
 def shell_sections(canvas, material, radius_of, heights, thickness, joints, segments):
@@ -617,10 +898,112 @@ def build_security_compounds(canvas):
                      1.7, warning_cap=index % 2 == 0)
 
 
+def build_pool(canvas, centre):
+    """One drained basin: the concrete bowl in the shaft, its rim collar and the fill above it.
+
+    No water is drawn. The old solid `Water` disc is gone; the volume between the floor and the rim
+    is the pool, and the runtime supplies the animated surface it owns. Nothing in that volume
+    collides, so a ship can come down and fly around inside the basin.
+    """
+    segments = 40
+    # The wall, from the floor up to the curb, with its own thickness: real concrete inside the
+    # pool and a real shaft outside it.
+    revolve(canvas, CONCRETE_DARK,
+            shell_profile([(POOL_OUTER_RADIUS, -POOL_DEPTH), (POOL_OUTER_RADIUS, POOL_RIM_TOP)],
+                          POOL_WALL_THICKNESS),
+            segments=segments, center=centre)
+    # The floor: one flat disc at the foot of the wall. The rocks between the wall and the cut edge
+    # of the ground belong to nobody, so a ship descending meets concrete.
+    revolve(canvas, CONCRETE_DARK,
+            [(0.0, -POOL_DEPTH), (POOL_INNER_RADIUS, -POOL_DEPTH), (POOL_OUTER_RADIUS, -POOL_DEPTH)],
+            segments=segments, center=centre, closed=False)
+    # The rim collar fills the gap between the wall and the cut ground and stands a low curb proud
+    # of the apron: the basin reads as a basin and the apron edge is a lip, not a raw cut.
+    revolve(canvas, CONCRETE,
+            [(POOL_OUTER_RADIUS, -0.4), (POOL_OUTER_RADIUS, POOL_RIM_TOP),
+             (POOL_HOLE_RADIUS, POOL_RIM_TOP), (POOL_HOLE_RADIUS, -0.4)],
+            segments=segments, center=centre)
+    # The fill packs stay where they were, above the water inside the tower's inlet ring, and grow
+    # with the tower they belong to.
+    with building_scale(anchor=centre):
+        for index in range(8):
+            angle = 2.0 * pi * index / 8
+            canvas.box(STEEL_DARK, (centre[0] + 22.0 * cos(angle), 22.0 * sin(angle), 6.0),
+                       (11.0, 5.0, 3.0), rotation=(0, 0, angle))
+
+
+def build_tunnel(canvas, sign):
+    """One permanent enclosed gallery from a basin to the containment, along X on y = 0.
+
+    It lives in the site file, so it stands through every collapse. Its inner end reaches into the
+    containment's wall opening and its outer end sits inside the pool's inner face, and its walls
+    are wider than the door the shell is cut with - so the route has no step and no seam at either
+    end, before or after the block comes down.
+    """
+    outer_half = TUNNEL_OUTER_HALF
+    containment_face = CONTAINMENT_RADIUS * BUILDING_SCALE
+    pool_face = TOWER_OFFSET_X - sqrt(POOL_INNER_RADIUS ** 2 - TUNNEL_CLEAR_HALF ** 2) + 0.3
+    # The gallery reaches 2.5 m into the containment wall so its walls overlap the door jambs and
+    # its deck overlaps the containment floor: no step and no slit at the seam.
+    inner_x = sign * (containment_face - 2.5)
+    outer_x = sign * pool_face
+    low_x, high_x = sorted((inner_x, outer_x))
+    length = high_x - low_x
+    middle = (low_x + high_x) / 2.0
+    roof_top = TUNNEL_DECK + TUNNEL_CLEAR_HEIGHT + TUNNEL_ROOF
+    deck_height = TUNNEL_DECK - TUNNEL_DECK_BOTTOM
+    canvas.box(CONCRETE, (middle, 0.0, TUNNEL_DECK_BOTTOM + deck_height / 2.0),
+               (length, 2.0 * outer_half, deck_height))
+    for side in (-1, 1):
+        canvas.box(CONCRETE,
+                   (middle, side * (TUNNEL_CLEAR_HALF + TUNNEL_WALL / 2.0),
+                    (TUNNEL_DECK_BOTTOM + roof_top) / 2.0),
+                   (length, TUNNEL_WALL, roof_top - TUNNEL_DECK_BOTTOM))
+    canvas.box(CONCRETE, (middle, 0.0, TUNNEL_DECK + TUNNEL_CLEAR_HEIGHT + TUNNEL_ROOF / 2.0),
+               (length, 2.0 * outer_half, TUNNEL_ROOF))
+
+
+def build_core():
+    """The permanent reactor core and its glowing rods, on the block's own axis.
+
+    Emitted under exact names because the runtime addresses it by name: `reactor_fuel_core` for the
+    pedestal, the pressure column and its cap, `reactor_fuel_rods` for the lit rods. Both are drawn
+    into 01_site, so the breach that takes the containment leaves them standing and lit; the intact
+    shell hides them from outside except through the two tunnels.
+    """
+    core = SmoothCanvas()
+    core.frustum(CONCRETE_DARK, (0.0, 0.0, CORE_PEDESTAL_HEIGHT / 2.0),
+                 CORE_PEDESTAL_RADIUS, CORE_PEDESTAL_RADIUS - 0.6, CORE_PEDESTAL_HEIGHT, sides=24)
+    column_base = CORE_PEDESTAL_HEIGHT
+    core.frustum(CONCRETE_DARK, (0.0, 0.0, column_base + CORE_COLUMN_HEIGHT / 2.0),
+                 CORE_COLUMN_RADIUS, CORE_COLUMN_RADIUS - 0.4, CORE_COLUMN_HEIGHT, sides=16)
+    cap_base = column_base + CORE_COLUMN_HEIGHT
+    core.frustum(CONCRETE_DARK, (0.0, 0.0, cap_base + CORE_CAP_HEIGHT / 2.0),
+                 CORE_CAP_RADIUS, CORE_CAP_RADIUS - 0.8, CORE_CAP_HEIGHT, sides=12)
+    revolve(core, CONCRETE_DARK,
+            shell_profile([(CORE_ROD_RING + 1.2, CORE_PEDESTAL_HEIGHT),
+                           (CORE_ROD_RING + 1.2, CORE_PEDESTAL_HEIGHT + 0.6)], 0.6), segments=28)
+    emit_named(core, "reactor_fuel_core")
+
+    rods = SmoothCanvas()
+    for index in range(CORE_ROD_COUNT):
+        angle = 2.0 * pi * index / CORE_ROD_COUNT
+        rods.frustum(CORE_GLOW,
+                     (CORE_ROD_RING * cos(angle), CORE_ROD_RING * sin(angle),
+                      CORE_PEDESTAL_HEIGHT + 0.6 + CORE_ROD_HEIGHT / 2.0),
+                     CORE_ROD_RADIUS, CORE_ROD_RADIUS, CORE_ROD_HEIGHT, sides=8)
+    emit_named(rods, "reactor_fuel_rods")
+
+
 def build_site(canvas):
     """The apron, roads, irregular compounds, switchyard, basins and permanent machinery."""
-    canvas.box(GRASS, (0, 0, -0.9), (GROUND_HALF * 2, GROUND_HALF * 2, 1.4))
-    canvas.box(CONCRETE_PALE, (0, 0, -0.2), (APRON_HALF * 2, APRON_HALF * 2, 0.4))
+    # The ground is cut where the two basins are: a whole slab over a drained pool would be a lid,
+    # and the collision of the site comes from exactly these triangles.
+    pools = [(-TOWER_OFFSET_X, 0.0, POOL_HOLE_RADIUS), (TOWER_OFFSET_X, 0.0, POOL_HOLE_RADIUS)]
+    ground_slab(canvas, GROUND_GRASS, (-GROUND_HALF, GROUND_HALF, -GROUND_HALF, GROUND_HALF),
+                pools, -1.6, -0.2)
+    ground_slab(canvas, GROUND_APRON, (-APRON_HALF, APRON_HALF, -APRON_HALF, APRON_HALF),
+                pools, -0.4, 0.0)
     # The ring road around the apron and the two access roads out to the fence.
     for sign in (-1, 1):
         canvas.box(ASPHALT, (0, sign * (APRON_HALF + 8), 0.02), (APRON_HALF * 2 + 32, 12, 0.3))
@@ -660,19 +1043,17 @@ def build_site(canvas):
     # Overhead lines between the pylons.
     for sx in (-1, 1):
         canvas.box(STEEL_DARK, (0, yard_y + 10 + sx * 0.5, 16.0), (88, 0.12, 0.12), decorative=True)
-    # The basin of each cooling tower stands on the site rather than in the tower's own file: a
-    # tower that comes down leaves its basin, its water and the fill packs behind on the ground.
+    # The basin of each cooling tower is a drained pool cut into the site, and the permanent
+    # galleries run from each of them to the containment. All of it stands on the site rather than
+    # in the tower's own file: a tower that comes down leaves its pool and its route behind.
     for sign in (-1, 1):
         centre = (sign * TOWER_OFFSET_X, 0.0, 0.0)
-        base_radius = tower_radius(COLUMN_HEIGHT)
-        revolve(canvas, CONCRETE_DARK, shell_profile([(base_radius + 2.0, 0.0), (base_radius + 2.0, 1.4)],
-                                                     1.6), segments=60, center=centre)
-        revolve(canvas, WATER, [(0.0, 0.0), (base_radius - 0.5, 0.0), (base_radius - 0.5, 0.6),
-                                (0.0, 0.6)], segments=60, center=centre, decorative=True)
-        for index in range(8):
-            angle = 2.0 * pi * index / 8
-            canvas.box(STEEL_DARK, (centre[0] + 22.0 * cos(angle), 22.0 * sin(angle), 6.0),
-                       (11.0, 5.0, 3.0), rotation=(0, 0, angle))
+        build_pool(canvas, centre)
+    build_tunnel(canvas, -1)
+    build_tunnel(canvas, 1)
+    # The core is emitted as its own named objects rather than into this canvas, because its names
+    # are the interface the runtime reads.
+    build_core()
     # Lamp masts on the apron corners and along the ring road.
     for sx in (-1, 1):
         for sy in (-1, 1):
@@ -695,7 +1076,11 @@ def build_hall_surroundings(canvas):
     the steam lines to the containment and the transformers. All of it stands on the site, so
     it is still there when the hall's shell has come down around it."""
     y = HALL_CENTRE_Y
-    canvas.box(CONCRETE_DARK, (0, y, 0.15), (HALL_LENGTH + 2.0, HALL_DEPTH + 2.0, 0.3))
+    # The hall's own floor grows with the hall, about the hall's centre, so the enlarged walls still
+    # stand on it. The machinery inside it does not: a turbine set is a prop, and the ships and the
+    # pickups keep their scale.
+    with building_scale(anchor=(0.0, y, 0.0)):
+        canvas.box(CONCRETE_DARK, (0, y, 0.15), (HALL_LENGTH + 2.0, HALL_DEPTH + 2.0, 0.3))
     # Three turbine-generator sets down the hall: a pedestal, the turbine casings, the generator.
     for index in range(-1, 2):
         x = index * 36.0
@@ -705,8 +1090,11 @@ def build_hall_surroundings(canvas):
         canvas.box(WARNING, (x + 11.5, y, 5.0), (2.0, 3.0, 2.0))
         canvas.box(STEEL_DARK, (x, y - 6.5, 1.2), (20.0, 1.0, 2.4))
     # Two annexes beyond the reach of the falling gables: the switchgear house and the workshop.
-    canvas.box(CONCRETE_DARK, (-HALL_LENGTH / 2 - 52, y, 6.0), (28, 26, 12.0))
-    canvas.box(CONCRETE_DARK, (HALL_LENGTH / 2 + 50, y + 4, 4.5), (24, 22, 9.0))
+    # Each is a building, so each grows about its own anchor and its centre stays where it was.
+    with building_scale(anchor=(-HALL_LENGTH / 2 - 52, y, 0.0)):
+        canvas.box(CONCRETE_DARK, (-HALL_LENGTH / 2 - 52, y, 6.0), (28, 26, 12.0))
+    with building_scale(anchor=(HALL_LENGTH / 2 + 50, y + 4, 0.0)):
+        canvas.box(CONCRETE_DARK, (HALL_LENGTH / 2 + 50, y + 4, 4.5), (24, 22, 9.0))
     # Steam lines from the containment to the hall, on trestles.
     for index, x in enumerate((-10.0, 0.0, 10.0)):
         start_y = CONTAINMENT_RADIUS + 2
@@ -723,6 +1111,7 @@ def build_hall_surroundings(canvas):
         canvas.box(WARNING, (-40 + index * 14, 62.0, 6.5), (4, 3, 1.0))
 
 
+@enlarged
 def build_turbine_hall(canvas):
     """The shell of the turbine hall about its own centre: walls, gables with their doors, roof.
 
@@ -758,22 +1147,65 @@ def build_turbine_hall(canvas):
         canvas.box(STEEL_DARK, (index * 12.0, 0, h + HALL_ROOF_THICKNESS + 3.0), (2.6, 2.6, 2.0))
 
 
+@enlarged
 def build_reactor_block(canvas):
-    """The containment under its dome, and the two auxiliary wings that flank it."""
-    dome = [
+    """The containment under its dome as a hollow shell, and the two auxiliary wings that flank it.
+
+    The block used to be a solid of revolution: nothing could fly inside it. It is now a real
+    containment - an outer wall and dome, an inner wall, and a floor - with two rectangular doorways
+    cut into the wall on the plant's X axis. Those doorways are where the permanent tunnels from the
+    two basins arrive: the tunnel walls are wider than the door's outer opening, so they overlap the
+    jambs, and the door is widest at the inner face, so nothing pinches the passage.
+
+    The containment hides the core that stands in the site file (01_site) from every direction
+    except those two doorways, which is exactly what the intact reactor should do.
+    """
+    outer = [
         (CONTAINMENT_RADIUS, 0.0), (CONTAINMENT_RADIUS, CONTAINMENT_WALL_TOP),
         (CONTAINMENT_RADIUS - 1.0, CONTAINMENT_WALL_TOP + 5.0), (20.5, 53.0), (16.0, 59.0),
         (10.0, 63.5), (4.0, 65.6), (0.0, DOME_TOP),
     ]
-    revolve(canvas, CONCRETE, [(0.0, 0.0)] + dome, segments=56, closed=False)
+    # The wall below the doorway, in the two arcs the doorway leaves, and the whole shell above it.
+    # The lower band is cut at the gallery's outer half-width on the wall's outer face; the opening
+    # is therefore at least as wide as the gallery everywhere behind it.
+    door = DOOR_AZIMUTH
+    lower = shell_profile([(CONTAINMENT_RADIUS, 0.0), (CONTAINMENT_RADIUS, DOOR_HEIGHT_AUTHORED)],
+                          CONTAINMENT_WALL)
+    upper_profile = [(CONTAINMENT_RADIUS, DOOR_HEIGHT_AUTHORED)]
+    upper_profile += [(radius, height) for radius, height in outer if height > CONTAINMENT_WALL_TOP]
+    upper = shell_profile(upper_profile, CONTAINMENT_WALL)
+    for angle_range in ((door, pi - door), (pi + door, 2.0 * pi - door)):
+        revolve(canvas, CONCRETE, lower, segments=56, angle_range=angle_range)
+    revolve(canvas, CONCRETE, upper, segments=56)
+    # The floor of the containment, just under the galleries' decks, so the route through the seam
+    # at the doorway stays level.
+    revolve(canvas, CONCRETE_DARK, [(0.0, 0.0), (CONTAINMENT_RADIUS, 0.0),
+                                    (CONTAINMENT_RADIUS, authored(0.30)), (0.0, authored(0.30))],
+            segments=56)
     # The ring beam where the dome meets the wall, and the vent penetration on top.
     revolve(canvas, CONCRETE_DARK, shell_profile(
         [(CONTAINMENT_RADIUS + 1.2, CONTAINMENT_WALL_TOP - 2.0),
          (CONTAINMENT_RADIUS + 1.2, CONTAINMENT_WALL_TOP + 1.0)], 1.2), segments=56)
     canvas.frustum(STEEL_DARK, (0, 0, DOME_TOP + 1.2), 2.4, 2.0, 2.4, sides=12)
-    # The equipment hatch and the personnel airlock on the containment wall.
-    canvas.box(STEEL_DARK, (CONTAINMENT_RADIUS - 0.3, 0, 12.0), (2.4, 8.0, 8.0))
-    canvas.box(WARNING, (CONTAINMENT_RADIUS + 0.9, 0, 12.0), (0.4, 6.0, 6.0), decorative=True)
+    # The equipment hatch and the personnel airlock, high on the wall: they used to sit at the
+    # height of the doorway, which is now the way in.
+    canvas.box(STEEL_DARK, (CONTAINMENT_RADIUS - 0.3, 0, 24.0), (2.4, 8.0, 8.0))
+    canvas.box(WARNING, (CONTAINMENT_RADIUS + 0.9, 0, 24.0), (0.4, 6.0, 6.0), decorative=True)
+    for sign in (-1, 1):
+        wing_y = sign * WING_OFFSET_Y
+        wx, wy, wz = WING_SIZE
+        canvas.box(CONCRETE, (0, wing_y, wz / 2), (wx, wy, wz))
+        canvas.box(CONCRETE_DARK, (0, wing_y, wz + 0.6), (wx + 1.0, wy + 1.0, 1.2))
+        # The link between the wing and the containment, and rooftop ventilation.
+        canvas.box(CONCRETE_DARK, (0, sign * (CONTAINMENT_RADIUS + 4.0), 6.0), (16.0, 10.0, 12.0))
+        for index in range(-1, 2):
+            canvas.box(STEEL_DARK, (index * 12.0, wing_y, wz + 2.6), (4.0, 3.0, 2.8))
+        canvas.box(GLASS, (0, wing_y + sign * (wy / 2 + 0.1), 10.0), (wx - 6, 0.2, 2.4),
+                   decorative=True)
+    # A gantry crane rail down the length of the block, over the wings.
+    for x in (-18.0, 18.0):
+        canvas.beam(STEEL, (x, -WING_OFFSET_Y - 10, WING_SIZE[2] + 6),
+                    (x, WING_OFFSET_Y + 10, WING_SIZE[2] + 6), 0.9)
     for sign in (-1, 1):
         wing_y = sign * WING_OFFSET_Y
         wx, wy, wz = WING_SIZE
@@ -798,6 +1230,7 @@ def flank_ranges():
     return far, near
 
 
+@enlarged
 def build_cooling_tower(canvas):
     """One hyperboloid shell on its ring of inlet columns.
 
@@ -838,6 +1271,7 @@ def build_cooling_tower(canvas):
                        0.5, 0.5, 1.6, sides=6, decorative=True)
 
 
+@enlarged
 def build_vent_stack(canvas):
     """The discharge chimney: a tapering concrete tube with its ladder cage and bands."""
     shell_sections(canvas, CONCRETE_PALE, stack_radius, [height for height, _radius in STACK_PROFILE],
@@ -929,6 +1363,20 @@ class PieceSpec:
     def relative(self, point):
         return (point[0] - self.origin.x, point[1] - self.origin.y, point[2] - self.origin.z)
 
+    def frame_relative(self, point):
+        """`relative`, enlarged about the file's own anchor.
+
+        A uniform scale about an anchor subtracts out of a piece's own frame, so the drawn geometry
+        and the hull it collides with stay in step whichever anchor the building grows about. The
+        factor is read from the building rather than from the open frame, because the rigs are
+        placed outside the block the canvas is drawn in.
+        """
+        return tuple((Vector(point) - self.origin) * BUILDING_SCALE)
+
+    def frame_origin(self):
+        """Where the piece's rig and its collision body stand once the building is enlarged."""
+        return Vector(self.origin) * BUILDING_SCALE
+
     def proxy_object(self, name):
         """The collision proxy, with its origin at the piece's centre of mass.
 
@@ -963,9 +1411,9 @@ class ShellPiece(PieceSpec):
                     angle = 2.0 * pi * index / SECTOR_STEPS
                     x, y = radius * cos(angle), radius * sin(angle)
                     if all(keep(x, y) for keep in keeps):
-                        points.append(self.relative((x, y, level)))
+                        points.append(self.frame_relative((x, y, level)))
             height = top
-        return hull_object(name, points, location=self.origin), "CONVEX_HULL", []
+        return hull_object(name, points, location=self.frame_origin()), "CONVEX_HULL", []
 
 
 class CompoundShellPiece(PieceSpec):
@@ -984,7 +1432,7 @@ class CompoundShellPiece(PieceSpec):
     def proxy_object(self, name):
         parent = hull_object(name, [(dx, dy, dz) for dx, dy, dz in
                                     ((0.1, 0, 0), (0, 0.1, 0), (0, 0, 0.1), (-0.1, -0.1, -0.1))],
-                             location=self.origin)
+                             location=self.frame_origin())
         children = []
         for index, (foot, head, cuts) in enumerate(self.bands):
             points = []
@@ -998,7 +1446,7 @@ class CompoundShellPiece(PieceSpec):
                         angle = 2.0 * pi * step / SECTOR_STEPS
                         x, y = radius * cos(angle), radius * sin(angle)
                         if all(keep(x, y) for keep in keeps):
-                            points.append(self.relative((x, y, level)))
+                            points.append(self.frame_relative((x, y, level)))
                 height = top
             child = hull_object(f"{name}_band{index}", points, location=(0.0, 0.0, 0.0))
             child.parent = parent
@@ -1047,8 +1495,8 @@ class BoxPiece(PieceSpec):
                         continue
                     y = cy - sy / 2 + sy * iy / steps_y
                     if all(keep(x, y) for keep in keeps):
-                        points.append(self.relative((x, y, self.foot + level)))
-        return hull_object(name, points, location=self.origin), "CONVEX_HULL", []
+                        points.append(self.frame_relative((x, y, self.foot + level)))
+        return hull_object(name, points, location=self.frame_origin()), "CONVEX_HULL", []
 
 
 class Structure:
@@ -1269,22 +1717,25 @@ class Collapse:
         self.simulation.append(ground)
 
         structure = self.structure
-        for spec in structure.pieces:
-            proxy, shape, children = spec.proxy_object(f"sim_piece_{spec.suffix}")
-            for child in children:
-                add_body(child, "ACTIVE", "CONVEX_HULL", mass=spec.mass / len(children))
-            add_body(proxy, "ACTIVE", shape, mass=spec.mass)
-            self.proxies[spec.suffix] = proxy
-            self.simulation.append(proxy)
-            self.simulation.extend(children)
-            self.simulation.append(add_plane_lock(f"sim_plane_{spec.suffix}", proxy, ground,
-                                                  spec.fall_yaw))
-
-        if structure.joint is not None:
-            height = structure.joint[0]
-            self.joint = add_constraint("sim_joint", (0.0, 0.0, height),
-                                        self.proxies[self.pieces[0]], self.proxies[self.pieces[1]])
-            self.simulation.append(self.joint)
+        # The proxies are the drawn structure enlarged by the same frame, so the hulls the solver
+        # throws about are the hulls the file draws.
+        with building_scale():
+            for spec in structure.pieces:
+                proxy, shape, children = spec.proxy_object(f"sim_piece_{spec.suffix}")
+                for child in children:
+                    add_body(child, "ACTIVE", "CONVEX_HULL", mass=spec.mass / len(children))
+                add_body(proxy, "ACTIVE", shape, mass=spec.mass)
+                self.proxies[spec.suffix] = proxy
+                self.simulation.append(proxy)
+                self.simulation.extend(children)
+                self.simulation.append(add_plane_lock(f"sim_plane_{spec.suffix}", proxy, ground,
+                                                      spec.fall_yaw))
+            if structure.joint is not None:
+                height = structure.joint[0]
+                self.joint = add_constraint(
+                    "sim_joint", tuple(building_point((0.0, 0.0, height))),
+                    self.proxies[self.pieces[0]], self.proxies[self.pieces[1]])
+                self.simulation.append(self.joint)
 
     # -- the joint ---------------------------------------------------------------------------
 
@@ -1402,22 +1853,26 @@ def build_topple_scene(stem, clip_name, structure, prefix):
         rigs = {}
         for index, spec in enumerate(structure.pieces):
             piece = f"{prefix}_{spec.suffix}"
-            rig = et.rig(f"piece_{piece}", spec.origin)
+            # The rig stands where the enlarged collision body's own origin stood, so the baked
+            # pose and the hull it came from are the same body.
+            origin = spec.frame_origin()
+            rig = et.rig(f"piece_{piece}", origin)
             rig.rotation_mode = "QUATERNION"
             piece_canvas(structure, index).emit(f"piece_{piece}", parent=rig)
-            rigs[spec.suffix] = (rig, spec.origin)
+            rigs[spec.suffix] = (rig, origin)
         # The keyed pieces: not in the solver, but in the file like every other piece, under a
         # rig of their own with one key per frame, so the runtime moves their colliders too.
         for keyed in structure.keyed:
             piece = f"{prefix}_{keyed.suffix}"
-            rig = et.rig(f"piece_{piece}", keyed.origin)
+            origin = building_point(keyed.origin)
+            rig = et.rig(f"piece_{piece}", origin)
             canvas = PieceCanvas(keyed)
             structure.builder(canvas)
             canvas.emit(f"piece_{piece}", parent=rig)
             for index in range(len(frames)):
                 location, scale = keyed.pose(index / FPS)
                 et.keyframe(rig, scene.frame_start + index,
-                            location=keyed.origin + Vector(location), scale=scale)
+                            location=origin + Vector(location), scale=scale)
 
         for index, frame in enumerate(frames):
             at = scene.frame_start + index
@@ -1546,18 +2001,31 @@ def cloud_pose(t):
     }
 
 
+@enlarged
 def build_ruin(canvas):
     """The containment's lower half, torn open, and what is left of the wings.
 
     Drawn to the same footprint as the intact block -- the wings' plinths keep its extents -- so
     the scene's bounding box centres where the intact one does and the loader puts the ruin on the
     block's own axis.
+
+    The wall is left out where the two tunnels arrive, so the route through the doorway survives
+    the breach instead of being sealed by the wreck, and the floor stops short of the core that
+    stays standing in the site file, so the core is never buried by its own containment.
     """
     # The broken wall: the lower half of the containment with a jagged top edge, sector by sector.
+    # The sectors the doorways pass through are not drawn at all: the ruin's opening has to line up
+    # with the shell's, or the permanent tunnel would end against fresh rubble.
     sectors = 28
+    sector_span = 2.0 * pi / sectors
     for index in range(sectors):
         angle = 2.0 * pi * index / sectors
         following = 2.0 * pi * (index + 1) / sectors
+        middle = angle + sector_span / 2.0
+        to_door = min(abs((middle + pi) % (2.0 * pi) - pi),
+                      abs((middle - pi + pi) % (2.0 * pi) - pi))
+        if to_door < DOOR_AZIMUTH:
+            continue
         top = 14.0 + 12.0 * et.hash01(index * 1.7, 3.1, 0.4)
         radius = CONTAINMENT_RADIUS - 0.6
         start = (radius * cos(angle), radius * sin(angle))
@@ -1566,10 +2034,12 @@ def build_ruin(canvas):
         width = hypot(end[0] - start[0], end[1] - start[1])
         canvas.box(SCORCHED, centre, (width + 0.2, 1.4, top),
                    rotation=(0, 0, angle + pi / 2 + pi / sectors))
-    # The floor of the containment and the exposed reactor cavity ring.
-    revolve(canvas, RUBBLE, [(0.0, 0.0), (CONTAINMENT_RADIUS - 0.2, 0.0),
-                             (CONTAINMENT_RADIUS - 0.2, 1.2), (0.0, 1.2)], segments=40)
-    revolve(canvas, SCORCHED, shell_profile([(9.0, 1.2), (9.0, 6.0)], 2.0), segments=32)
+    # The floor of the containment, as a ring around the permanent core: level with the intact
+    # block's own floor, so the tunnel deck runs straight into it before and after the breach.
+    inner = authored(CORE_CLEARANCE)
+    top = authored(0.30)
+    revolve(canvas, RUBBLE, [(inner, 0.0), (CONTAINMENT_RADIUS - 0.2, 0.0),
+                            (CONTAINMENT_RADIUS - 0.2, top), (inner, top)], segments=40)
     # Rubble heaps spilled around the wall, in opposite pairs so the ruin's bounding box stays
     # centred on the axis, and the plinths of the two wings.
     for index in range(7):

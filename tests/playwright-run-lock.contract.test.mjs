@@ -69,6 +69,67 @@ test('playwright lock: a child of the holder inherits instead of waiting', async
     }
 });
 
+// 28.09.2026: a cluster run in sky-ladder ran for fifty minutes next to the lock holder and
+// printed no single [playwright:lock] line. Windows reuses pids, so a leftover holder variable
+// that points at any living process used to count as "inherited". Only the pid the lock file
+// names may be inherited from, and both bypass branches now say so in the log.
+test('playwright lock: a holder variable the lock file does not name is ignored', async () => {
+    const lockPath = createLockPath('inherit-foreign');
+    const env = { [PLAYWRIGHT_RUN_LOCK_HOLDER_ENV]: String(process.pid) };
+    const messages = [];
+    try {
+        fs.writeFileSync(lockPath, JSON.stringify({ pid: 4545, label: 'other session desktop-flows', heartbeat: new Date().toISOString() }));
+        let clock = Date.now();
+        const error = await acquirePlaywrightRunLock({
+            label: 'my cluster run',
+            env,
+            lockPath,
+            waitMs: 20,
+            pollMs: 10,
+            now: () => clock,
+            sleep: async (ms) => { clock += ms; },
+            isAlive: () => true,
+            log: (message) => messages.push(message),
+        }).then(() => null, (rejection) => rejection);
+
+        assert.ok(error, 'a foreign holder must make us wait, not inherit');
+        assert.equal(error.exitCode, 75);
+        assert.equal(readPlaywrightRunLock(lockPath).pid, 4545, 'the real holder keeps the lock');
+        assert.ok(messages.some((message) => /ignoring CURVIOS_PLAYWRIGHT_LOCK_HOLDER=\d+: the lock names pid 4545/.test(message)), `expected an ignore line, got ${JSON.stringify(messages)}`);
+    } finally {
+        cleanup(lockPath);
+    }
+});
+
+test('playwright lock: a holder variable without any lock file takes the lock normally', async () => {
+    const lockPath = createLockPath('inherit-nolock');
+    const env = { [PLAYWRIGHT_RUN_LOCK_HOLDER_ENV]: '4646' };
+    try {
+        const lock = await acquirePlaywrightRunLock({ label: 'fresh run', env, lockPath, isAlive: () => true, log: quietLog });
+        assert.equal(lock.inherited, false);
+        assert.equal(readPlaywrightRunLock(lockPath).pid, process.pid, 'the run now holds the lock itself');
+        assert.equal(env[PLAYWRIGHT_RUN_LOCK_HOLDER_ENV], String(process.pid), 'children inherit from the real holder');
+        lock.release();
+    } finally {
+        cleanup(lockPath);
+    }
+});
+
+test('playwright lock: inheriting and switching the lock off are both logged', async () => {
+    const lockPath = createLockPath('bypass-log');
+    const messages = [];
+    const log = (message) => messages.push(message);
+    try {
+        fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, label: 'parent cluster' }));
+        await acquirePlaywrightRunLock({ label: 'child spec', env: { [PLAYWRIGHT_RUN_LOCK_HOLDER_ENV]: String(process.pid) }, lockPath, log });
+        await acquirePlaywrightRunLock({ label: 'unlocked run', env: { [PLAYWRIGHT_RUN_LOCK_ENV]: '0' }, lockPath, log });
+        assert.ok(messages.some((message) => /^\[playwright:lock\] inherited from pid \d+ for child spec$/.test(message)), JSON.stringify(messages));
+        assert.ok(messages.some((message) => /^\[playwright:lock\] DISABLED by CURVIOS_PLAYWRIGHT_LOCK=0 for unlocked run$/.test(message)), JSON.stringify(messages));
+    } finally {
+        cleanup(lockPath);
+    }
+});
+
 test('playwright lock: a stale lock of a dead process is taken over', async () => {
     const lockPath = createLockPath('stale');
     const env = {};

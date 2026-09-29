@@ -297,13 +297,26 @@ export async function acquirePlaywrightRunLock({
     now = () => Date.now(),
     isAlive = isProcessAlive,
 } = {}) {
+    // Both bypass branches log a line: a run that skips the queue must be visible in its output.
     if (String(env?.[PLAYWRIGHT_RUN_LOCK_ENV] || '').trim() === '0') {
+        log(`[playwright:lock] DISABLED by ${PLAYWRIGHT_RUN_LOCK_ENV}=0 for ${label}`);
         return { acquired: true, inherited: false, disabled: true, release: noop };
     }
 
+    // Inherit only from the pid the lock file names. Windows reuses pids, so a leftover holder
+    // variable pointing at any living process would otherwise skip the queue unseen.
     const holderPid = Number(env?.[PLAYWRIGHT_RUN_LOCK_HOLDER_ENV]);
-    if (Number.isInteger(holderPid) && holderPid > 0 && isAlive(holderPid)) {
-        return { acquired: true, inherited: true, disabled: false, release: noop };
+    if (Number.isInteger(holderPid) && holderPid > 0) {
+        const lockHolder = readPlaywrightRunLock(lockPath);
+        if (Number(lockHolder?.pid) === holderPid && isAlive(holderPid)) {
+            log(`[playwright:lock] inherited from pid ${holderPid} for ${label}`);
+            return { acquired: true, inherited: true, disabled: false, release: noop };
+        }
+        log(
+            `[playwright:lock] ignoring ${PLAYWRIGHT_RUN_LOCK_HOLDER_ENV}=${holderPid}: ` +
+            `the lock names ${lockHolder ? `pid ${lockHolder.pid}` : 'no holder'}`
+        );
+        delete env[PLAYWRIGHT_RUN_LOCK_HOLDER_ENV];
     }
 
     const startedAtMs = now();
