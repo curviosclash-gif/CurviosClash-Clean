@@ -699,14 +699,16 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await loadGame(page);
         await openLevel4Drawer(page, { section: 'controls' });
 
+        // T and Z are the only letters no player (P1-P3) uses by default; any other key
+        // opens the swap prompt instead of saving.
         await page.click('#keybind-global .keybind-btn[data-action="CINEMATIC_TOGGLE"]');
-        await page.keyboard.press('KeyB');
+        await page.keyboard.press('KeyT');
         await waitForRenderFrames(page, 1);
 
         const globalBinding = await page.evaluate(() => (
             window.GAME_INSTANCE?.settings?.controls?.GLOBAL?.CINEMATIC_TOGGLE || ''
         ));
-        expect(globalBinding).toBe('KeyB');
+        expect(globalBinding).toBe('KeyT');
     });
 
     test('T20k1: Globale Recording-Taste ist im Menue belegbar', async ({ page }) => {
@@ -714,13 +716,13 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await openLevel4Drawer(page, { section: 'controls' });
 
         await page.click('#keybind-global .keybind-btn[data-action="RECORDING_TOGGLE"]');
-        await page.keyboard.press('KeyN');
+        await page.keyboard.press('KeyZ');
         await waitForRenderFrames(page, 1);
 
         const globalBinding = await page.evaluate(() => (
             window.GAME_INSTANCE?.settings?.controls?.GLOBAL?.RECORDING_TOGGLE || ''
         ));
-        expect(globalBinding).toBe('KeyN');
+        expect(globalBinding).toBe('KeyZ');
     });
 
     test('T20k2: Belegungskonflikt tauscht erst nach Bestaetigung und Escape bricht ab', async ({ page }) => {
