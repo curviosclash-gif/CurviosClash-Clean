@@ -8,10 +8,13 @@ import {
     createWaterZoneState,
     isPointUnderwater,
     normalizeWaterZone,
+    normalizePermanentWaterZones,
+    isPointInPermanentWaterZone,
     serializeWaterZoneState,
     stepWaterZoneState,
     triggerWaterZone,
 } from '../src/shared/contracts/WaterZoneContract.js';
+import { WaterZoneSystem } from '../src/entities/systems/WaterZoneSystem.js';
 
 const zone = normalizeWaterZone({
     id: 'dam_basin',
@@ -108,4 +111,54 @@ test('water effects encode slower flight, buoyancy, reduced sight and no passive
     assert.equal(zone.effects.flamethrowerEnabled, false);
     assert.ok(zone.effects.projectileSpeedMultiplier < 1);
     assert.equal(zone.effects.groundUnitsEnabled, true);
+});
+
+test('permanent basin water uses circular underwater boundaries and finite basin depth', () => {
+    const [west] = normalizePermanentWaterZones([{
+        id: 'tower_west_basin', center: [-63, 0], radius: 28,
+        floorLevel: 2, surfaceLevel: 6,
+    }]);
+    assert.ok(isPointInPermanentWaterZone(west, [-63, 4, 0]));
+    assert.ok(isPointInPermanentWaterZone(west, [-35, 4, 0]));
+    assert.equal(isPointInPermanentWaterZone(west, [-34.99, 4, 0]), false);
+    assert.equal(isPointInPermanentWaterZone(west, [-63, 1.99, 0]), false);
+    assert.equal(isPointInPermanentWaterZone(west, [-63, 6.01, 0]), false);
+});
+
+test('WaterZoneSystem renders permanent circles and keeps the legacy dam zone path independent', () => {
+    const added = [];
+    const removed = [];
+    const owner = {
+        arena: { currentMapDefinition: {
+            scaleAuthoredAnchors: false,
+            permanentWaterZones: [
+                { id: 'west_basin', center: [-63, 0], radius: 28, floorLevel: 2, surfaceLevel: 6 },
+                { id: 'east_basin', center: [63, 0], radius: 28, floorLevel: 2, surfaceLevel: 6 },
+            ],
+        } },
+        renderer: {
+            addToScene(group) { added.push(group); },
+            removeFromScene(group) { removed.push(group); },
+        },
+    };
+    const system = new WaterZoneSystem(owner);
+    assert.equal(system.startRound(), true);
+    assert.equal(system.getZone(), null, 'the site adds static pools without creating a dam flood');
+    assert.equal(system.isPositionUnderwater({ x: -63, y: 4, z: 0 }), true);
+    assert.equal(system.isPositionUnderwater({ x: -34.9, y: 4, z: 0 }), false);
+    assert.deepEqual(added.map((group) => group.name), ['water-zone-west_basin', 'water-zone-east_basin']);
+    assert.ok(added.every((group) => group.children[0].geometry.attributes.position.count > 100));
+    const firstSurface = added[0].children[0];
+    const geometry = firstSurface.geometry;
+    const vertexCount = geometry.attributes.position.count;
+    assert.ok([...geometry.index.array].every((index) => index >= 0 && index < vertexCount));
+    assert.ok([...geometry.attributes.position.array].every(Number.isFinite));
+    assert.ok([...geometry.attributes.normal.array].every(Number.isFinite));
+    const before = firstSurface.geometry.attributes.position.array[2];
+    system.update(1);
+    assert.notEqual(firstSurface.geometry.attributes.position.array[2], before, 'the pool surface carries moving radial ripples');
+    const centerRipples = Array.from({ length: 49 }, (_, index) => geometry.attributes.position.array[index * 3 + 2]);
+    assert.ok(centerRipples.every((value) => value === centerRipples[0]), 'the shared center ring stays smooth');
+    system.clear();
+    assert.equal(removed.length, 2);
 });
