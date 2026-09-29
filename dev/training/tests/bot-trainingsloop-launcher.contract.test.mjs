@@ -6,6 +6,7 @@ const read = (relative) => fs.readFileSync(new URL(relative, import.meta.url), '
 const launcher = read('../../../start-bot-trainingsloop.ps1');
 const consumers = [
     read('../scripts/heuristic-improvement-loop.mjs'),
+    read('../scripts/heuristic-improvement-match.mjs'),
     read('../scripts/heuristic-improvement-runner.mjs'),
 ].join('\n');
 

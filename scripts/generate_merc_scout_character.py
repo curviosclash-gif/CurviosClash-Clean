@@ -36,8 +36,12 @@ def parse_args() -> argparse.Namespace:
                         help="skip the PBR texture pass (fast geometry iteration)")
     parser.add_argument("--no-animations", action="store_true",
                         help="skip the action build (fast geometry iteration)")
+    parser.add_argument("--no-occlusion", action="store_true",
+                        help="skip the ambient-occlusion bake into the textures")
     parser.add_argument("--blend", type=Path)
     parser.add_argument("--glb", type=Path)
+    parser.add_argument("--texture-dir", type=Path,
+                        help="write the PBR maps here instead of the product folder")
     parser.add_argument("--resolution", default="520x700")
     parser.add_argument("--samples", type=int, default=16)
     parser.add_argument("--engine", default="CYCLES", choices=("CYCLES", "BLENDER_EEVEE_NEXT"))
@@ -63,6 +67,8 @@ def main() -> None:
         views=tuple(name for name in args.views.split(",") if name),
         engine=args.engine,
         do_painting=not args.no_painting,
+        do_occlusion=not args.no_occlusion,
+        texture_dir=args.texture_dir,
         do_actions=not args.no_animations,
         do_fbx=args.fbx,
         do_verify=args.verify,

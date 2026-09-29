@@ -1,6 +1,7 @@
 // ============================================
 
 import { createHuntNetworkState } from '../hunt/HuntNetworkState.js';
+import { createRoundOutcomeNetworkState } from '../entities/systems/RoundOutcomeNetworkState.js';
 import { isRocketTierType } from '../hunt/RocketPickupSystem.js';
 import { ROCKET_THREAT_SOURCES, resolveRocketThreatSource } from '../entities/systems/projectile/RocketThreatTracker.js';
 import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
@@ -83,6 +84,8 @@ export function createGameStateSnapshot(entityManager, roundState) {
         dandelionSeeds: entityManager?.arena?.serializeDandelionSeeds?.() || null,
         sunflowerKernels: entityManager?.arena?.serializeSunflowerKernels?.() || null,
         fight: createHuntNetworkState(entityManager),
+        // Host round result for every mode; null while the round runs (see RoundOutcomeNetworkState).
+        roundOutcome: createRoundOutcomeNetworkState(entityManager),
         roundState: roundState ? {
             round: roundState.round ?? 0,
             timeRemaining: roundState.timeRemaining ?? 0,

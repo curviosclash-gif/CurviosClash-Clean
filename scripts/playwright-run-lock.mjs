@@ -111,12 +111,51 @@ function describeHolder(holder) {
 // ---------- queue ----------
 
 /** Writes one waiting ticket and returns its path. Sortable by name: `<enqueuedAt>-<pid>.json`. */
-export function enqueuePlaywrightRunLockTicket(queueDir, { pid, label = 'playwright run', kind = 'short', enqueuedAt = Date.now(), cwd = '' } = {}) {
+export function enqueuePlaywrightRunLockTicket(queueDir, { pid, label = 'playwright run', kind = 'short', enqueuedAt = Date.now(), cwd = '', overtakenSince = null } = {}) {
     fs.mkdirSync(queueDir, { recursive: true });
     const stamp = String(Math.max(0, Math.trunc(Number(enqueuedAt) || 0))).padStart(16, '0');
     const ticketPath = path.join(queueDir, `${stamp}-${pid}.json`);
-    fs.writeFileSync(ticketPath, `${JSON.stringify({ pid, label, kind, cwd, enqueuedAt }, null, 2)}\n`, 'utf8');
+    const ticket = {
+        pid, label, kind, cwd, enqueuedAt,
+        // Marks a long waiter that notes when it is first passed; see mayBePassed.
+        ...(kind === 'long' ? { countsOvertaking: true } : {}),
+        ...(Number.isFinite(overtakenSince) ? { overtakenSince } : {}),
+    };
+    fs.writeFileSync(ticketPath, `${JSON.stringify(ticket, null, 2)}\n`, 'utf8');
     return ticketPath;
+}
+
+/**
+ * A waiting long run lets short runs go first for this long in total, counted from the first time
+ * one passed it. Short runs are stage-2 checks somebody waits for; the cap keeps a steady stream of
+ * them from starving a cluster run.
+ */
+export const PLAYWRIGHT_RUN_LOCK_OVERTAKE_BUDGET_MS = 30 * 60 * 1000;
+
+// Wrappers between 73e4f90f and the overtaking rule write kind 'long' but never note when they are
+// passed, so their thirty minutes would never start; only tickets that count can be passed.
+function mayBePassed(ticket, nowMs, budgetMs) {
+    if (ticket?.kind !== 'long' || ticket.countsOvertaking !== true) return false;
+    const since = Number(ticket.overtakenSince);
+    return !Number.isFinite(since) || nowMs - since < budgetMs;
+}
+
+/**
+ * The order in which waiters get the lock: arrival order, except that a short run moves ahead of
+ * the long runs directly before it that may still be passed. Only tickets that name their kind
+ * take part; tickets of older wrappers keep their place and are never passed, because an older
+ * wrapper orders by arrival alone and would otherwise wait for the run waiting for it.
+ */
+export function orderPlaywrightRunLockQueue(queue, nowMs = Date.now(), budgetMs = PLAYWRIGHT_RUN_LOCK_OVERTAKE_BUDGET_MS) {
+    const ordered = [];
+    for (const ticket of queue) {
+        let index = ordered.length;
+        if (ticket?.kind === 'short') {
+            while (index > 0 && mayBePassed(ordered[index - 1], nowMs, budgetMs)) index -= 1;
+        }
+        ordered.splice(index, 0, ticket);
+    }
+    return ordered;
 }
 
 /** A ticket or lock of a cluster list or bot validation; an explicit `kind` wins over the label. */
@@ -128,16 +167,17 @@ export function isLongPlaywrightRun(entry) {
 }
 
 /**
- * Where a yielding long run re-enters the queue: right behind the short runs that wait ahead of
- * the first long waiter. Returns null when nobody short waits there, so the lock is kept.
+ * Where a yielding long run re-enters the queue. It yields only when a short run would be next;
+ * it then queues just before the first long waiter, so the short runs that may pass that waiter
+ * pass it too, and it still goes before the waiter afterwards. Without a long waiter it queues
+ * behind the last short run. Returns null when nobody short would be next, so the lock is kept.
  */
-export function resolveYieldQueueStamp(queue) {
-    let lastShortAhead = null;
-    for (const ticket of queue) {
-        if (isLongPlaywrightRun(ticket)) break;
-        lastShortAhead = ticket;
-    }
-    return lastShortAhead ? lastShortAhead.enqueuedAt + 1 : null;
+export function resolveYieldQueueStamp(queue, nowMs = Date.now(), budgetMs = PLAYWRIGHT_RUN_LOCK_OVERTAKE_BUDGET_MS) {
+    const next = orderPlaywrightRunLockQueue(queue, nowMs, budgetMs)[0];
+    if (!next || isLongPlaywrightRun(next)) return null;
+    const firstLong = queue.find((ticket) => isLongPlaywrightRun(ticket));
+    if (firstLong) return firstLong.enqueuedAt - 1;
+    return queue[queue.length - 1].enqueuedAt + 1;
 }
 
 /** Lists the living waiters in order, dropping (and deleting) tickets of dead processes. */
@@ -161,12 +201,16 @@ export function readPlaywrightRunLockQueue(queueDir, { isAlive = isProcessAlive,
         }
         let label = 'playwright run';
         let kind;
+        let overtakenSince;
+        let countsOvertaking;
         try {
             const parsed = JSON.parse(fs.readFileSync(ticketPath, 'utf8'));
             label = String(parsed?.label || label);
             kind = parsed?.kind;
+            overtakenSince = Number.isFinite(parsed?.overtakenSince) ? parsed.overtakenSince : undefined;
+            countsOvertaking = parsed?.countsOvertaking === true ? true : undefined;
         } catch { /* a ticket being written right now still counts by its name */ }
-        tickets.push({ pid, enqueuedAt: Number(match[1]), label, kind, path: ticketPath });
+        tickets.push({ pid, enqueuedAt: Number(match[1]), label, kind, countsOvertaking, overtakenSince, path: ticketPath });
     }
 
     tickets.sort((left, right) => left.enqueuedAt - right.enqueuedAt || left.pid - right.pid);
@@ -370,7 +414,8 @@ export async function acquirePlaywrightRunLock({
     }
 
     const ticketStamp = queueAt === null ? startedAtMs : Number(queueAt);
-    const enqueue = () => enqueuePlaywrightRunLockTicket(queueDir, { pid, label, kind, cwd, enqueuedAt: ticketStamp });
+    let overtakenSince = null;
+    const enqueue = () => enqueuePlaywrightRunLockTicket(queueDir, { pid, label, kind, cwd, enqueuedAt: ticketStamp, overtakenSince });
     const ticketPath = enqueue();
     const deadline = startedAtMs + Math.max(0, waitMs);
     let lastReportAt = -Infinity;
@@ -385,8 +430,17 @@ export async function acquirePlaywrightRunLock({
                 enqueue();
                 queue = readPlaywrightRunLockQueue(queueDir, { isAlive });
             }
-            const position = Math.max(1, queue.findIndex((ticket) => ticket.path === ticketPath) + 1);
+            queue = orderPlaywrightRunLockQueue(queue, now());
+            const ownIndex = queue.findIndex((ticket) => ticket.path === ticketPath);
+            const position = Math.max(1, ownIndex + 1);
             const isOurTurn = position === 1;
+            // A long waiter notes the first time a later short run stands before it; from then on
+            // its thirty minutes of letting short runs go first are counting down.
+            if (kind === 'long' && overtakenSince === null
+                && queue.slice(0, Math.max(0, ownIndex)).some((ticket) => ticket.kind === 'short' && ticket.enqueuedAt > ticketStamp)) {
+                overtakenSince = now();
+                enqueue();
+            }
 
             if (isOurTurn && tryTakeLock()) {
                 if (announced) log(`[playwright:lock] acquired for ${label}`);
@@ -439,10 +493,13 @@ export async function yieldPlaywrightRunLock(lock, options = {}) {
     const isAlive = options.isAlive || isProcessAlive;
     const log = options.log || defaultLog;
     const queue = readPlaywrightRunLockQueue(queueDir, { isAlive });
-    const queueAt = resolveYieldQueueStamp(queue);
+    const nowMs = (options.now || Date.now)();
+    const queueAt = resolveYieldQueueStamp(queue, nowMs);
     if (queueAt === null) return { yielded: false, lock };
 
-    const shortAhead = queue.filter((ticket) => ticket.enqueuedAt < queueAt).length;
+    const ordered = orderPlaywrightRunLockQueue(queue, nowMs);
+    const firstLongIndex = ordered.findIndex((ticket) => isLongPlaywrightRun(ticket));
+    const shortAhead = firstLongIndex === -1 ? ordered.length : firstLongIndex;
     log(`[playwright:lock] yielding to ${shortAhead} short run(s) before continuing ${options.label || 'the long run'}`);
     // release and re-enqueue run in the same tick, so no newcomer can take the free lock first.
     lock.release();

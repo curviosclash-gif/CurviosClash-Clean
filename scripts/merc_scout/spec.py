@@ -20,7 +20,7 @@ Naming
     silently become ``UpperArmL``. Meshes carry the ``merc_scout_`` prefix.
 
 Variants (three saleable densities from one generator)
-    mobile  ~15k triangles, 1024 px textures, 7 materials, 2 finger segments
+    mobile  ~24k triangles, 1024 px textures, 7 materials, 2 finger segments
     pc      ~45k triangles, 2048 px textures, 8 materials, 3 finger segments
     high    ~120k triangles, 4096 px skin texture (2048 px elsewhere), 8 materials,
             added stitching, laces and seam geometry
@@ -104,38 +104,91 @@ LANDMARKS = {
     "neck_base": 1.498,
     "shoulder_top": 1.472,
     "armpit": 1.355,
-    "chest": 1.310,
-    "waist": 1.118,
-    "hip": 0.962,
-    "crotch": 0.892,
-    "knee": 0.487,
-    "ankle": 0.085,
+    "chest": 1.296,
+    "waist": 1.134,
+    "hip": 0.954,
+    "crotch": 0.873,
+    "knee": 0.513,
+    "ankle": 0.070,
 }
 
-#: Cross-section half widths (rx = side to side, ry = front to back).
+#: Cross-section half widths (rx = side to side, ry = front to back). The values
+#: are half of the reference breadths in ANTHROPOMETRY, not guesses.
 WIDTHS = {
     "neck": (0.058, 0.055),
-    "shoulder": (0.232, 0.098),
-    "chest": (0.176, 0.108),
-    "waist": (0.136, 0.098),
-    "hip": (0.168, 0.112),
+    "shoulder": (0.220, 0.105),
+    "chest": (0.157, 0.112),
+    "waist": (0.140, 0.104),
+    "hip": (0.172, 0.115),
     "thigh": (0.092, 0.094),
     "calf": (0.064, 0.068),
-    "upper_arm": (0.052, 0.050),
+    "upper_arm": (0.050, 0.048),
     "forearm": (0.043, 0.041),
     "wrist": (0.031, 0.024),
     "palm": (0.048, 0.026),
     "finger": (0.0105, 0.0105),
-    "head": (0.086, 0.104),
+    "head": (0.079, 0.100),
     "foot": (0.040, 0.108),
 }
 
+#: Reference body measurements for a 1.80 m adult, in metres. The fractions behind
+#: them are the anthropometric proportions that game and film rigs are built on
+#: (Drillis/Contini tables, as used for character rigs and ergonomic design):
+#: eye 0.936 H, acromion 0.818 H, waist 0.630 H, crotch 0.485 H, trochanter 0.530 H,
+#: knee 0.285 H, malleolus 0.039 H, foot 0.152 H, biacromial 0.245 H, head breadth
+#: 0.087 H, head length 0.111 H, arm span 1.00-1.06 H.
+#: ``audit.proportion_audit`` compares the built model against this table; a
+#: deviation beyond ``TOLERANCE`` is reported instead of being hidden.
+ANTHROPOMETRY = {
+    "total_height": 1.800,
+    "eye": 1.685,
+    "chin": 1.575,
+    "shoulder": 1.472,
+    "chest": 1.296,
+    "waist": 1.134,
+    "crotch": 0.873,
+    "hip_joint": 0.954,
+    "knee": 0.513,
+    "ankle": 0.070,
+    "head_breadth": 0.157,
+    "head_length": 0.200,
+    "head_height": 0.234,
+    "shoulder_breadth": 0.440,
+    "chest_breadth": 0.314,
+    "waist_breadth": 0.280,
+    "hip_breadth": 0.344,
+    "humerus": 0.315,
+    "radius": 0.250,
+    "hand": 0.190,
+    "femur": 0.441,
+    "tibia": 0.443,
+    "foot": 0.274,
+    #: The foot *bone* runs from the ankle to the toe joint; the heel sits about
+    #: 60 mm behind the ankle, so the bone is shorter than the anatomical foot.
+    "foot_bone": 0.214,
+    #: Distance between the two shoulder joints (glenohumeral), not the acromion span.
+    "shoulder_joint_distance": 0.380,
+    #: Silhouette breadth across the deltoids; a body is wider here than the bone span.
+    "deltoid_breadth": 0.520,
+    "arm_span_ratio": (1.00, 1.06),
+}
+
+#: The finished model is scaled to the contract height and dropped onto z = 0. That
+#: correction has to stay small: a large offset means geometry dips below the sole
+#: plane, which silently lifts every landmark and distorts every proportion.
+NORMALISATION_TOLERANCE = 0.02
+
+#: How far the built model may sit from the reference before the audit complains.
+TOLERANCE = 0.06
+
 ARM_ANGLE_DEG = 40.0  # from vertical, the usual A-pose
 ARM_FORWARD_LEAN = 0.06
-UPPER_ARM_LENGTH = 0.300
-FOREARM_LENGTH = 0.265
-PALM_LENGTH = 0.098
-FINGER_LENGTHS = {"Index": 0.073, "Middle": 0.079, "Ring": 0.073, "Pinky": 0.058, "Thumb": 0.055}
+#: The arm is split the way an anatomical arm is split (upper arm longer than the
+#: forearm) while keeping the total, so the T-pose span stays at about 1.05 H.
+UPPER_ARM_LENGTH = 0.315
+FOREARM_LENGTH = 0.250
+PALM_LENGTH = 0.105
+FINGER_LENGTHS = {"Index": 0.078, "Middle": 0.085, "Ring": 0.078, "Pinky": 0.063, "Thumb": 0.060}
 FINGER_SPREAD = {  # along the forward axis of the hand, thumb side positive
     "Index": 0.0265,
     "Middle": 0.0090,
@@ -155,20 +208,23 @@ SHOULDER = (0.190, -0.010, 1.445)
 ELBOW = add(SHOULDER, scale(_ARM_DIRECTION, UPPER_ARM_LENGTH))
 WRIST = add(ELBOW, scale(_ARM_DIRECTION, FOREARM_LENGTH))
 
-HIP_JOINT = (0.088, -0.005, 0.930)
-KNEE_JOINT = (0.098, -0.020, LANDMARKS["knee"])
-ANKLE_JOINT = (0.103, 0.010, LANDMARKS["ankle"])
-TOE_JOINT = (0.105, -0.150, 0.030)
+HIP_JOINT = (0.088, -0.005, ANTHROPOMETRY["hip_joint"])
+KNEE_JOINT = (0.100, -0.022, LANDMARKS["knee"])
+ANKLE_JOINT = (0.104, 0.012, LANDMARKS["ankle"])
+#: The ankle sits about 60 mm in front of the heel, so the toe joint has to reach
+#: 214 mm forward for the reference foot length of 274 mm.
+TOE_JOINT = (0.106, -0.202, 0.026)
 
-#: All joints for the character's left side; the right side mirrors x.
+#: All joints for the character's left side; the right side mirrors x. The spine
+#: describes a real S-curve: lumbar forward, thoracic back, cervical forward again.
 JOINTS_L: dict[str, Vec3] = {
-    "hips": (0.0, -0.005, 0.955),
-    "spine": (0.0, -0.006, 1.070),
-    "chest": (0.0, -0.008, 1.205),
-    "upper_chest": (0.0, -0.012, 1.335),
-    "neck": (0.0, -0.020, 1.478),
-    "head": (0.0, -0.012, 1.552),
-    "head_top": (0.0, -0.004, 1.788),
+    "hips": (0.0, -0.005, 0.995),
+    "spine": (0.0, -0.020, 1.100),
+    "chest": (0.0, 0.012, 1.230),
+    "upper_chest": (0.0, 0.008, 1.350),
+    "neck": (0.0, -0.015, 1.482),
+    "head": (0.0, -0.010, 1.556),
+    "head_top": (0.0, -0.004, 1.790),
     "shoulder": (0.048, -0.008, 1.418),
     "upper_arm": SHOULDER,
     "lower_arm": ELBOW,
@@ -187,25 +243,51 @@ _hand_side = normalize(cross(HAND_DIRECTION, PALM_NORMAL))
 HAND_FORWARD = _hand_side if _hand_side[1] < 0 else scale(_hand_side, -1.0)
 
 
+#: A relaxed hand curls a little more at every phalanx. A straight bind pose reads
+#: as a claw and makes every glove look like a mitten, because body mesh, rig bones
+#: and glove shells are all derived from these chains.
+FINGER_CURL_DEG = (9.0, 21.0, 26.0)
+THUMB_CURL_DEG = (10.0, 18.0, 20.0)
+#: Lateral fan in degrees, positive towards the thumb side. Fingers that all point
+#: the same way are the other half of the "claw" look.
+FINGER_FAN_DEG = {"Index": 5.0, "Middle": 0.0, "Ring": -5.0, "Pinky": -11.0, "Thumb": 0.0}
+
+
+def _rotate_axis(vector: Vec3, axis: Vec3, degrees: float) -> Vec3:
+    """Rodrigues rotation of ``vector`` around (not necessarily unit) ``axis``."""
+    angle = math.radians(degrees)
+    cosine, sine = math.cos(angle), math.sin(angle)
+    unit = normalize(axis)
+    return add(add(scale(vector, cosine), scale(cross(unit, vector), sine)),
+               scale(unit, dot(unit, vector) * (1.0 - cosine)))
+
+
 def hand_points(side: int) -> dict[str, list[Vec3]]:
-    """Joint chains of one hand in world space, base first, tip last."""
+    """Joint chains of one relaxed hand in world space, base first, tip last."""
     wrist = mirror_x(WRIST, side)
     forward = mirror_x(HAND_FORWARD, side)
     normal = mirror_x(PALM_NORMAL, side)
     direction = mirror_x(HAND_DIRECTION, side)
+    # Curling around this axis swings a fingertip towards the palm.
+    curl_axis = cross(direction, normal)
     chains: dict[str, list[Vec3]] = {}
     knuckle_line = add(wrist, scale(direction, PALM_LENGTH))
     for finger, total in FINGER_LENGTHS.items():
         if finger == "Thumb":
             root = add(add(knuckle_line, scale(forward, FINGER_SPREAD[finger])),
                        scale(normal, 0.012))
-            heading = normalize(add(add(scale(direction, 0.45), scale(forward, 0.80)),
-                                    scale(normal, 0.20)))
+            heading = normalize(add(add(scale(direction, 0.55), scale(forward, 0.78)),
+                                    scale(normal, 0.18)))
+            curls = THUMB_CURL_DEG
         else:
             root = add(knuckle_line, scale(forward, FINGER_SPREAD[finger]))
-            heading = direction
+            heading = normalize(add(direction, scale(
+                forward, math.tan(math.radians(FINGER_FAN_DEG[finger])))))
+            curls = FINGER_CURL_DEG
         chain = [root]
-        for share in PHALANX_SHARE[finger]:
+        for index, share in enumerate(PHALANX_SHARE[finger]):
+            if index:
+                heading = _rotate_axis(heading, curl_axis, curls[min(index - 1, len(curls) - 1)])
             chain.append(add(chain[-1], scale(heading, total * share)))
         chains[finger] = chain
     return {"wrist": wrist, "knuckle": knuckle_line, "chains": chains}
@@ -312,7 +394,9 @@ VARIANTS: tuple[Variant, ...] = (
         subdivision=1,
         texture_size=1024,
         skin_texture_size=1024,
-        max_triangles=15000,
+        #: The realistic head (9k) and the garment detail pass set the floor; 15k
+        #: would only be reachable by decimating, which destroys the quad topology.
+        max_triangles=26000,
         max_glb_mib=6.0,
         materials=("Skin", "Hair", "Eye", "Jacket", "Trousers", "Leather", "Metal"),
         finger_segments=2,
@@ -388,6 +472,10 @@ REGION_SLOTS: tuple[str, ...] = (
     "boots", "boot_sole", "boot_cuff", "laces", "gloves", "glove_palm", "glove_knuckle", "straps",
     # row 5 - accents and metal trim
     "accent", "accent_L", "accent_R", "metal", "metal_dark", "spare_a", "spare_b", "spare_c",
+    # row 6 - realism pass: seams and face detail
+    "stitch", "seam", "rivet", "buckle", "tread", "stubble", "cheek", "lobe",
+    # row 7 - realism pass: skin and wear
+    "nostril", "lip_upper", "lip_lower", "lid_crease", "hairline", "grime", "worn", "pores",
 )
 REGIONS: dict[str, tuple[int, int]] = {
     name: (index % REGION_GRID, index // REGION_GRID) for index, name in enumerate(REGION_SLOTS)
