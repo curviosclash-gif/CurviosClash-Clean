@@ -133,6 +133,22 @@ test('an external time source can pull a drifted client back onto the shared pos
     disposeObject3DResources(result.scene);
 });
 
+test('setting the elapsed time moves the setpiece at once, before the next tick', async () => {
+    const result = await loadGLBMap('/setpiece.glb', {
+        loader: createTwoClipLoader(),
+        collectColliders: false,
+    });
+    const arena = createArena(result);
+
+    arena.update(3);
+    // A round restart sets the clock back and checks spawn points right away, without a
+    // tick in between; the setpiece has to be where the new time says it is.
+    arena.setGlbAnimationElapsedSeconds(0);
+    assert.equal(findNode(result).position.x, 0);
+
+    disposeObject3DResources(result.scene);
+});
+
 test('loading a scene restarts the animation clock at zero', async () => {
     const result = await loadGLBMap('/setpiece.glb', {
         loader: createTwoClipLoader(),
