@@ -6,28 +6,29 @@ the others.
 
 The realism comes from four layers that all work on the same ring loft:
 
-1. **Anatomical cut** - the cross sections are not guesses. ``_anatomy_radius``
-   measures the *actual* skin surface with a ray cast from the limb axis, and the
-   cloth radius is that measurement plus a named ease (2-4 cm of cloth, not 8 cm
-   of air). Waist, chest, deltoid, knee and calf therefore land where the body
-   puts them, and a shoulder cap that would be boxy on its own follows the
-   deltoid down.
+1. **Anatomical cut** - the cross sections are measured from the built body, not
+   guessed at. ``measure_radius`` walks outwards from the limb axis until
+   ``find_nearest`` says the probe has left the skin; the ring tables below are the
+   result of running that over the arms, legs, torso and feet of the pc variant.
+   ``build_clothing`` then runs two passes over every shell: ``repair_penetration``
+   pushes anything that ended up under the skin back out to cloth thickness, and
+   ``pad_ease`` lifts the whole shell by its comfort ease (2-4 cm, not the 8 cm of
+   the first pass) *radially*, away from the ring centre it was lofted around,
+   which keeps the cut intact where the skin normal points the wrong way.
 2. **Fold pattern** - ``_fold`` is a deterministic sum of smooth ridges (no
    randomness): tension folds off the armpit, creases at the elbow, compression
-   folds at the waist, behind the knee, over the boot and at the cuff. Ridges run
-   along the surface in a ring/height parametrisation, so they read as fabric
-   instead of noise.
-3. **Seams and edges** - raised decorative seams on the shoulder, the side seam,
-   the sleeve underside, the trouser outseam and the collar edge; plus a stand
-   collar, a sleeve cuff, a jacket hem and a boot cuff as separate geometry.
-4. **Fitting pass** - after the folds, ``_fit_to_skin`` walks every cloth vertex
-   against the body mesh (BVHTree) and pushes it out wherever the cloth would sit
-   inside the skin. That is the guarantee behind the red test: no skin through
-   cloth, whatever the fold does.
+   folds at the waist, behind the knee, over the boot and at the cuff. Amplitudes
+   stay in the 2-5 mm range; deeper reads as damage, not as fabric.
+3. **Seams and edges** - raised decorative seams on the centre front, the side
+   seam, the sleeve underside and the trouser outseams; plus a stand collar, a
+   shoulder yoke, a jacket hem, a sleeve cuff and leather boots with a treaded sole
+   and laced eyelets as separate geometry.
+4. **Density** - the same silhouettes serve all three variants. ``_segments`` and
+   ``_thin`` cut the ring subdivision and the number of bands for mobile, and the
+   fingers, zip teeth and laces are only built when ``variant.detail`` is set.
 
-Material thickness is 6-10 mm for cloth and 4-6 mm for leather; the shells are
-open at both ends (solidify closes them), which keeps the triangle count inside
-the mobile budget.
+Material thickness is 6-10 mm for cloth and 4-6 mm for leather; the shells are open
+at both ends (solidify closes them).
 """
 
 from __future__ import annotations
@@ -499,16 +500,16 @@ def _jacket(materials: dict[str, bpy.types.Material], detail: bool) -> list[bpy.
     # Shoulder yoke: a shell over the trapezius that reaches outboard far enough to
     # meet the sleeve cap, and *down* far enough to cover the top of the deltoid.
     # The measurement that set these numbers: the highest bare point left on the
-    # shoulder sat at (0.182, -0.018, 1.395), 5 mm above the old yoke's hem, on the
-    # arm axis, with the skin bulging to 4 cm there.
+    # shoulder sat at (0.182, -0.018, 1.395), where the arm's upper surface is about
+    # 6 cm from the arm axis, so the yoke has to start below 1.40 and reach 0.15 out.
     for side, suffix in ((1, "_L"), (-1, "_R")):
         yoke = []
-        for step in range(6):
-            blend = step / 5.0
-            z = 1.424 + 0.086 * blend
-            rx = 0.150 - 0.028 * blend + 0.010 * math.sin(blend * math.pi)
-            ry = 0.112 - 0.024 * blend
-            yoke.append({"center": (side * (0.060 + 0.036 * blend), -0.008, z),
+        for step in range(7):
+            blend = step / 6.0
+            z = 1.330 + 0.178 * blend
+            rx = 0.158 - 0.026 * blend + 0.010 * math.sin(blend * math.pi)
+            ry = 0.118 - 0.030 * blend
+            yoke.append({"center": (side * (0.066 + 0.028 * blend), -0.008, z),
                          "rx": rx, "ry": ry, "exponent": 2.2})
         parts.append(_loft_shell(JACKET + "_yoke" + suffix, yoke, materials["Jacket"],
                                  "jacket", CLOTH, segments=_segments(20, detail)))
@@ -605,20 +606,20 @@ def _jacket_folds(co: Vector, index: int = 0) -> float:
 #: shoulder in the isolated renders.
 _SLEEVE_STATIONS = (
     # station, base, rise, offset
-    (-0.26, 0.048, 0.010, 0.006),   # cap top, over the trapezius
-    (-0.12, 0.055, 0.012, 0.012),
-    (0.00, 0.062, 0.014, 0.024),    # deltoid
-    (0.14, 0.066, 0.012, 0.038),
-    (0.32, 0.086, 0.008, 0.050),
-    (0.50, 0.108, 0.006, 0.050),    # biceps, the widest part of the arm
-    (0.68, 0.058, 0.006, 0.010),
-    (0.82, 0.040, 0.004, 0.004),
-    (1.00, 0.050, 0.000, 0.000),    # elbow
-    (1.28, 0.046, 0.000, 0.000),
-    (1.58, 0.040, 0.000, 0.000),
-    (1.84, 0.032, 0.000, 0.000),
-    (2.00, 0.028, 0.000, 0.000),    # wrist
-    (2.12, 0.028, 0.000, 0.000),
+    (-0.26, 0.044, 0.014, 0.008),   # cap top, over the trapezius
+    (-0.12, 0.050, 0.022, 0.016),
+    (0.00, 0.056, 0.038, 0.028),    # deltoid
+    (0.14, 0.052, 0.064, 0.038),
+    (0.32, 0.048, 0.088, 0.046),
+    (0.50, 0.046, 0.092, 0.048),    # biceps, the widest part of the arm
+    (0.68, 0.044, 0.060, 0.042),
+    (0.82, 0.050, 0.032, 0.026),
+    (1.00, 0.070, 0.014, 0.012),    # elbow
+    (1.28, 0.058, 0.008, 0.008),
+    (1.58, 0.046, 0.004, 0.004),
+    (1.84, 0.034, 0.000, 0.000),
+    (2.00, 0.029, 0.000, 0.000),    # wrist
+    (2.12, 0.029, 0.000, 0.000),
 )
 
 
@@ -862,12 +863,12 @@ _BOOT_UPPER = (
     # z, y offset, rx, ry, forward tilt 0..1
     (0.313, -0.006, 0.052, 0.058, 0.00),
     (0.260, -0.008, 0.049, 0.055, 0.00),
-    (0.208, -0.010, 0.047, 0.054, 0.05),
-    (0.160, -0.014, 0.047, 0.058, 0.15),
-    (0.112, -0.024, 0.048, 0.064, 0.35),
-    (0.082, -0.052, 0.049, 0.036, 0.70),
-    (0.062, -0.098, 0.048, 0.019, 0.95),
-    (0.055, -0.148, 0.040, 0.016, 1.00),
+    (0.208, -0.012, 0.048, 0.070, 0.05),
+    (0.160, -0.032, 0.049, 0.105, 0.30),
+    (0.112, -0.068, 0.050, 0.128, 0.55),
+    (0.072, -0.108, 0.050, 0.098, 0.80),
+    (0.050, -0.148, 0.046, 0.052, 0.95),
+    (0.042, -0.176, 0.036, 0.022, 1.00),
 )
 
 

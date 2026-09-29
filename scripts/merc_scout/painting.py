@@ -75,12 +75,32 @@ NORMAL_STRENGTH = {
 NORMAL_STRENGTH_DEFAULT = 0.35
 
 #: Converts the per-pixel slope of a height field into a tangent space tilt. The
-#: height fields carry real relief (see :func:`_relief`), so a slope of 1 means the
-#: surface rises one texel depth per texel width - a true 45 degrees - and this
-#: factor is a mild, deliberate exaggeration on top of that. The earlier code
-#: scaled by 2.0 on top of heights that were 1000x too large, which is what
-#: produced the 90 degree cliffs that read as film grain on the jacket.
+#: height fields carry real relief (see :func:`_relief`) and :func:`_normal_map`
+#: turns them into a true surface slope, so a slope of 1 is a 45 degree facet and
+#: this factor is the deliberate exaggeration on top of that. It used to be the only
+#: factor, because the slope itself was 256 times too small - see _normal_map.
 NORMAL_RELIEF = 2.0
+
+#: Gain on the physical relief, per material. With :func:`_normal_map` fixed every
+#: painted height finally reaches the normal map, which multiplies all of them by the
+#: tile's pixel count - 256 on a pc atlas. The garment and hair amplitudes were
+#: written and reviewed against the old, flat maps, so switching the factor on for
+#: everything at once turned the hair into a chaos of 90 degree normals (measured
+#: std 0.31 on the hair tile, 0.002 on the shipped maps). The gains below bring each
+#: material back to the relief its amplitudes were tuned for, and the skin, which
+#: this pass is about, up to the relief a face needs. Measured tile by tile with
+#: ``.scratch/face/measure_relief.py``; the numbers are in the generator report.
+RELIEF_GAIN = {
+    "Skin": 1.0,
+    "Hair": 0.10,
+    "Eye": 1.0,
+    "Jacket": 0.20,
+    "Trousers": 0.20,
+    "Leather": 0.20,
+    "Accent": 0.20,
+    "Metal": 0.20,
+}
+RELIEF_GAIN_DEFAULT = 0.20
 
 #: Tick to the blur radius of the height field before the normals are taken.
 #: Cell noise and grain leave single-texel spikes; unblurred they become the
@@ -105,11 +125,15 @@ PAINTED_REGIONS: dict[str, tuple[str, ...]] = {
         "cheek",         # cheek redness and the nasolabial fold
         "lobe",          # ear lobe, deeper red than the shell
         "nostril",       # dark nostril and the alar crease
-        "lip_upper",     # mouth red, upper lip
-        "lip_lower",     # mouth red, lower lip
+        "lip_upper",     # mouth red, upper lip, plus the mouth line at its lower edge
+        "lip_lower",     # mouth red, lower lip, plus the mouth line at its top edge
         "lid_crease",    # upper lid crease, slightly darker
         "hairline",      # forehead hairline shadow and temple recession
         "pores",         # pore detail of the limbs and torso
+        # Reserve tiles that hold geometry since the realism pass: the nose wings
+        # and the right nostril live here, because the grid has no ``ala_*`` slot
+        # and only one ``nostril``. Left out of this table they would ship black.
+        "spare_a", "spare_b", "spare_c",
     ),
     "Hair": ("hair", "fringe"),
     "Eye": ("eye_L", "eye_R"),
@@ -147,6 +171,12 @@ _SPARE_SLOTS = frozenset({"spare_a", "spare_b", "spare_c", "spare_d", "spare_e",
 
 #: Colour of the skin slots before shading, shared by face, limbs and scar.
 SKIN_BASE = (0.62, 0.44, 0.34)
+
+#: Vermilion of the lips, as an absolute albedo and not as an offset from the skin.
+#: Adding a red delta to the skin base overshot into a pale salmon: a lip is darker
+#: *and* redder than the face, not just redder.
+_LIP = (0.330, 0.100, 0.088)
+_LIP_LIGHT = (0.200, 0.088, 0.070)
 
 
 # --------------------------------------------------------------------------- #
@@ -438,6 +468,60 @@ def _relief(millimetres: float) -> float:
     return millimetres / _MILLIMETRES_PER_UNIT
 
 
+def _stroke(tu: np.ndarray, tv: np.ndarray, origin_u: float, origin_v: float,
+            angle: float, length: float, width: float) -> np.ndarray:
+    """One straight groove of finite length, in tile coordinates.
+
+    ``origin`` is the near end, ``angle`` the direction in tile space (0 = along u),
+    ``length`` the extent and ``width`` the half width. Used for the small face
+    creases - crow's feet, frown lines, nasolabial fold - whose position matters
+    more than their shape.
+    """
+    du = tu - origin_u
+    dv = tv - origin_v
+    cosine, sine = math.cos(angle), math.sin(angle)
+    along = du * cosine + dv * sine
+    across = -du * sine + dv * cosine
+    onset = _smoothstep(along, -0.15 * length, 0.05 * length)
+    fade = 1.0 - _smoothstep(along, 0.85 * length, 1.15 * length)
+    return (np.exp(-(across / width) ** 2) * onset * fade).astype(np.float32)
+
+
+try:  # the head module owns the face stations; the painter only reads them
+    from . import head as _head
+except ImportError:  # pragma: no cover - head is part of the package
+    _head = None  # type: ignore[assignment]
+
+#: Tile u of the eye centres in the skull slot. The skull loft starts the ring on
+#: the face centre, so a feature at ring parameter ``t`` is at tile u = ``t``. The
+#: painter used to place the eye socket at 0.058, which is the value of the *old*
+#: flat head in ``body.py``: every eye-related fold of the face was painted on the
+#: cheek, 20 mm away from the eye.
+FACE_EYE_U = _head.EYE_RING_T if _head is not None else 0.1115
+#: Tile u of the mouth corner, same convention.
+FACE_MOUTH_U = _head.MOUTH_CORNER_T if _head is not None else 0.0385
+#: Philtrum: the flat groove between the nose base and the upper lip.
+PHILTRUM_Z = 1.6075
+
+
+def _part_slots(*names: str) -> frozenset[str]:
+    """Atlas slots of named head parts, taken from head.py.
+
+    The atlas grid has no ``ala_L`` and only one ``nostril`` tile, so head.py parks
+    those parts in the reserve slots. Deriving them here instead of writing the
+    names twice keeps both modules in step: move a part and only head.py changes.
+    """
+    fallback = {"ala_L": "spare_a", "ala_R": "spare_b",
+                "nostril_L": "nostril", "nostril_R": "spare_c"}
+    table = getattr(_head, "FACE_PART_REGIONS", fallback) if _head is not None else fallback
+    return frozenset(table[name] for name in names if name in table)
+
+
+#: Slots that hold one nose wing / one nostril, wherever head.py put them.
+_ALA_REGIONS = _part_slots("ala_L", "ala_R")
+_NOSTRIL_REGIONS = _part_slots("nostril_L", "nostril_R")
+
+
 # --------------------------------------------------------------------------- #
 # skin: face, limbs and the scar slot
 # --------------------------------------------------------------------------- #
@@ -510,10 +594,8 @@ def _skin_tile(rng: np.random.Generator, size: int, region: str) -> tuple[np.nda
     pore_shade = np.clip(pores - 0.45, 0.0, 3.0)
     colour = _shade(colour, pore_shade * np.float32(0.11))
     # Skin is never a flat surface: the centimetre-scale undulation of the flesh is
-    # what the eye reads as "not a decal".
-    # Pores and tone only in the height field: the skin surface is nearly flat at
-    # texel scale, everything else in this slot would show up as an edge where the
-    # nose, lip or lid island meets the skull. See the note in the "head" branch.
+    # what the eye reads as "not a decal". Kept at 0.03 mm because it is the one
+    # term every skin slot shares - a face part gets its own relief below.
     undulation = _fbm_row(rng, size, region, 26, octaves=2)
     height = height + undulation * _relief(0.03)
 
@@ -532,52 +614,176 @@ def _skin_tile(rng: np.random.Generator, size: int, region: str) -> tuple[np.nda
                 + np.exp(-(_wrap_distance(np.float32(0.945), tu) / 0.045) ** 2)) \
             * np.exp(-((tv - _head_v(1.604)) / 0.022) ** 2)
         brow_glabella = _face_arc(tu, 0.045) * np.exp(-((tv - _head_v(1.696)) / 0.016) ** 2)
-        eye_socket = (np.exp(-(_wrap_distance(np.float32(0.058), tu) / 0.035) ** 2)
-                      + np.exp(-(_wrap_distance(np.float32(0.942), tu) / 0.035) ** 2)) \
+        eye_socket = (np.exp(-(_wrap_distance(np.float32(FACE_EYE_U), tu) / 0.035) ** 2)
+                      + np.exp(-(_wrap_distance(np.float32(1.0 - FACE_EYE_U), tu) / 0.035) ** 2)) \
             * np.exp(-((tv - _head_v(1.672)) / 0.018) ** 2)
-        lid_fold = (np.exp(-(_wrap_distance(np.float32(0.058), tu) / 0.030) ** 2)
-                    + np.exp(-(_wrap_distance(np.float32(0.942), tu) / 0.030) ** 2)) \
+        lid_fold = (np.exp(-(_wrap_distance(np.float32(FACE_EYE_U), tu) / 0.030) ** 2)
+                    + np.exp(-(_wrap_distance(np.float32(1.0 - FACE_EYE_U), tu) / 0.030) ** 2)) \
             * np.exp(-((tv - _head_v(1.684)) / 0.013) ** 2)
         chin_light = _face_arc(tu, 0.10) * np.exp(-((tv - _head_v(1.566)) / 0.045) ** 2)
         forehead_light = _face_arc(tu, 0.30) * np.exp(-((tv - _head_v(1.730)) / 0.055) ** 2)
 
-        # Every z-based term below is deliberately soft and low contrast. The head
-        # slot is shared: nose, lips, ears and lids are separate islands inside it
-        # (see head.py), so anything this skull paint writes into the tile also
-        # lands on those parts. A hard hairline here painted a grey stripe down the
-        # nose; the strong, part-specific detail lives in the part's own slot, and
-        # the shared tile keeps tone, redness and pores only.
+        # The skull is alone in its slot since the realism pass: nose, wings,
+        # nostrils, both lips and the lids moved to their own tiles (head.py). Tone
+        # can therefore be stronger than the old "soft and low contrast" pass, which
+        # existed only because everything painted here also landed on the nose.
         red = np.clip(0.34 * nose_red + 0.22 * cheek_red + 0.30 * ear_red + 0.10 * chin_light, 0.0, 0.62)
         colour = colour + np.stack([red, red * 0.24, red * 0.18], axis=-1)
         dark = np.clip(0.12 * fold + 0.10 * eye_socket + 0.08 * brow_glabella + 0.07 * lid_fold, 0.0, 0.4)
         colour = colour - np.stack([dark, dark * 0.95, dark * 0.90], axis=-1)
         # Skull shine: forehead, nose bridge and cheekbones stay a touch lighter.
-        # Kept faint and neutral on purpose: the nose is an island in this slot and
-        # a lighter patch here showed up as a pale stripe down the nose.
         light = np.clip(0.05 * forehead_light + 0.04 * chin_light, 0.0, 0.12)
         colour = colour + np.stack([light, light * 0.9, light * 0.8], axis=-1)
-        # The skull tile is shared with the nose, lips, ears and lids, which are
-        # separate uv islands inside the same slot (head.py fits them all to
-        # ``region_uv("head")``). A bump painted here is therefore also a bump on
-        # the nose island, and because the islands have different sizes the same
-        # tile gradient becomes a visible edge where the nose surface meets the
-        # face. That is why the skull gets tone and colour detail but no relief:
-        # the relief of the face belongs in the face, and the geometry warp in
-        # head.py is what carries it.
-        height = height * 0.0
+
+        # Relief of the face, in millimetres. One texel of the skull slot is about
+        # 1.3 mm of skin vertically and 2.2 mm around the head, so a fold narrower
+        # than 3 texels is not a fold but aliasing. The widths below are therefore
+        # 3 to 6 mm of skin - a real forehead crease is a round depression of that
+        # width, not a hairline scratch - and the depth is 0.4 to 0.9 mm.
+        forehead = np.exp(-(_wrap_distance(np.float32(0.0), tu) / 0.16) ** 2)
+        folds = np.zeros_like(tu, dtype=np.float32)
+        for index, (z, depth, width) in enumerate(((1.7360, 0.90, 0.0170),
+                                                   (1.7530, 0.75, 0.0155),
+                                                   (1.7690, 0.55, 0.0140))):
+            wave = 0.006 * np.sin(np.pi * (_wrap_distance(np.float32(0.0), tu) / 0.14 * 3.0 + index))
+            line = np.exp(-((tv - (_head_v(z) + wave)) / width) ** 2)
+            folds = np.maximum(folds, line * forehead * (1.0 - index * 0.18))
+        frown = np.zeros_like(tu, dtype=np.float32)
+        for side in (1.0, -1.0):
+            frown = np.maximum(frown, _stroke(tu, tv, side * 0.0130, _head_v(1.6880),
+                                              side * 0.35, 0.062, 0.0070))
+            frown = np.maximum(frown, _stroke(tu, tv, side * 0.0230, _head_v(1.6895),
+                                              side * 0.30, 0.048, 0.0062))
+        crows = np.zeros_like(tu, dtype=np.float32)
+        for side in (1.0, -1.0):
+            for index, (dz, angle, length, depth) in enumerate(((0.0010, 0.55, 0.024, 0.30),
+                                                               (-0.0016, 0.15, 0.028, 0.34),
+                                                               (-0.0042, -0.20, 0.022, 0.28))):
+                crows = np.maximum(crows, _stroke(
+                    tu, tv, side * (FACE_EYE_U + 0.024), _head_v(1.6720) + dz,
+                    angle if side > 0 else math.pi - angle, length, 0.0062) * (1.0 - index * 0.1))
+        nasolabial = np.zeros_like(tu, dtype=np.float32)
+        for side in (1.0, -1.0):
+            nasolabial = np.maximum(nasolabial, _stroke(
+                tu, tv, side * 0.0620, _head_v(1.6340), side * 1.28, 0.055, 0.0085))
+        philtrum = np.exp(-(_wrap_distance(np.float32(0.0), tu) / 0.014) ** 2) \
+            * np.exp(-((tv - _head_v(PHILTRUM_Z)) / 0.0180) ** 2)
+        chin_crease = _face_arc(tu, 0.055) * np.exp(-((tv - _head_v(1.5780)) / 0.0120) ** 2)
+        relief = (0.55 * folds + 0.45 * frown + 0.60 * crows + 0.50 * nasolabial
+                  + 0.45 * philtrum + 0.30 * chin_crease)
+        height = height - relief * _relief(1.0)
+        colour = _shade(colour, np.clip(0.30 * folds + 0.26 * frown + 0.20 * crows
+                                        + 0.22 * nasolabial + 0.26 * philtrum, 0.0, 0.55))
+        # Cheekbones and the hollow under them: a broad, soft relief that the
+        # geometry warp only hints at. Deliberately low frequency - a narrow bump
+        # would read as a scar, which this slot also carries a proper tile for.
+        cheek_bone = (np.exp(-(_wrap_distance(np.float32(0.150), tu) / 0.055) ** 2)
+                      + np.exp(-(_wrap_distance(np.float32(0.850), tu) / 0.055) ** 2))
+        hollow = (np.exp(-(_wrap_distance(np.float32(0.190), tu) / 0.045) ** 2)
+                  + np.exp(-(_wrap_distance(np.float32(0.810), tu) / 0.045) ** 2))
+        colour = colour + np.clip(0.05 * cheek_bone, 0.0, 0.06)[..., None]
+        height = height + (cheek_bone * np.exp(-((tv - _head_v(1.6380)) / 0.045) ** 2)
+                           * _relief(0.35))
+        height = height - (hollow * np.exp(-((tv - _head_v(1.6200)) / 0.040) ** 2)
+                           * _relief(0.40))
     elif region == "nose":
-        # The nose has its own slot, so this tile is free to carry the part's own
-        # colour: the thin skin over cartilage is a touch redder than the cheek.
-        # The relief stays flat because the nose shares its surface with nothing.
-        red = np.exp(-((tu - 0.5) / 0.36) ** 2) * np.exp(-((tv - 0.30) / 0.40) ** 2)
-        colour = colour + np.stack([red * 0.22, red * 0.030, red * 0.012], axis=-1)
-        height = height + red * _relief(0.15)
+        # The nose body runs from the nasion (tile v = 0) to the columella (v = 1).
+        # Measured on the built tube, the dorsum and the tip face tile u = 0.75; the
+        # old painter centred its redness at 0.5 and so tinted the character's left
+        # flank of the nose while the bridge stayed grey.
+        front = np.exp(-(_wrap_distance(np.float32(0.75), tu) / 0.16) ** 2)
+        dorsum = front * np.exp(-((tv - 0.30) / 0.30) ** 2)
+        tip = front * np.exp(-((tv - 0.80) / 0.14) ** 2)
+        # Thin skin over cartilage: redder than the cheek, and the bridge is the
+        # only part of the face that catches the light without a fold in it.
+        colour = colour + np.stack([front * 0.16, front * 0.030, front * 0.018], axis=-1)
+        colour = colour + (tip * 0.30)[..., None] * (np.array((0.10, 0.035, 0.025), dtype=np.float32)
+                                                     - colour)
+        # Sebaceous sheen: the tip and the bridge go slightly paler, which is what
+        # reads as specular in a base colour map. Kept to a warm grey - mixed towards
+        # a cold grey the nose looked like a separate plastic part.
+        sheen = np.clip(tip * 0.7 + dorsum * 0.45, 0.0, 1.0)
+        colour = colour + (sheen * 0.14)[..., None] * (np.array((0.78, 0.70, 0.64), dtype=np.float32)
+                                                       - colour)
+        # Cartilage relief, in millimetres: a shallow ridge down the bridge, the
+        # ball of the tip, and the two creases where the wings will meet it.
+        bridge = np.exp(-(_wrap_distance(np.float32(0.75), tu) / 0.075) ** 2) \
+            * np.exp(-((tv - 0.34) / 0.28) ** 2)
+        ball = front * np.exp(-((tv - 0.80) / 0.115) ** 2)
+        waist = np.exp(-(_wrap_distance(np.float32(0.75), tu) / 0.05) ** 2) \
+            * np.exp(-((tv - 0.545) / 0.045) ** 2)
+        granular = _grain(rng, size, region, 1.7, octaves=2)
+        colour = _shade(colour, np.clip(granular - 0.85, 0.0, 3.0) * 0.34)
+        height = height + bridge * _relief(0.45) + ball * _relief(0.90) - waist * _relief(0.35)
+    elif region in _ALA_REGIONS:
+        # A nose wing: a dome whose crown faces the front of the face (tile u = 0.75
+        # on the built tube). The mask is periodic in u, so the dome has no seam on
+        # the tile border, which is the same point of the geometry.
+        dome = 0.5 + 0.5 * np.cos(2.0 * np.pi * _wrap_distance(np.float32(0.75), tu))
+        dome = dome * (0.45 + 0.55 * np.sin(np.pi * np.clip(tv, 0.0, 1.0)))
+        colour = colour + (dome * 0.16)[..., None] * (np.array((0.78, 0.60, 0.52), dtype=np.float32)
+                                                      - colour)
+        # Alar crease: the fold that separates the wing from the cheek, at the back
+        # of the wing (u = 0.25) and towards its base (v = 1).
+        crease = np.exp(-(_wrap_distance(np.float32(0.25), tu) / 0.13) ** 2) \
+            * np.exp(-((tv - 0.92) / 0.22) ** 2)
+        colour = _shade(colour, crease * 0.26)
+        height = height + dome * _relief(0.85) - crease * _relief(0.55)
+    elif region in _NOSTRIL_REGIONS:
+        # Dark cavity with a thin rim; the alar crease sits in the wing's own tile.
+        # The tube is simply the hollow, so the whole tile is the inside of the nose
+        # and v = 1 is its deep end.
+        cavity = np.clip(np.exp(-(np.hypot((tu - 0.5) / 0.30, (tv - 0.55) / 0.40) ** 2)) * 1.5,
+                         0.0, 1.0)
+        depth = np.clip(0.55 + 0.45 * tv, 0.0, 1.0)
+        colour = colour + (cavity * depth * 0.95)[..., None] \
+            * (np.array((0.032, 0.018, 0.016), dtype=np.float32) - colour)
+        rim = _seam(np.abs(np.hypot((tu - 0.5) / 0.34, (tv - 0.12) / 0.16) - 1.0), 0.12)
+        colour = _shade(colour, rim * 0.34)
+        height = height - cavity * _relief(3.0) + rim * _relief(0.5)
+    elif region in ("lip_upper", "lip_lower"):
+        # Measured on the built rolls: tile u = 0 is the crest of the lip (the part
+        # that faces the camera), u = 0.5 the back where the roll meets the face,
+        # u = 0.75 the top of the roll and u = 0.25 its bottom. Which of the two
+        # ends is the mouth line depends on the lip: the upper roll meets the lower
+        # one at its bottom, the lower roll at its top.
+        mouth_u = 0.25 if region == "lip_upper" else 0.75
+        skin_u = 0.75 if region == "lip_upper" else 0.25
+        crest = np.exp(-(_wrap_distance(np.float32(0.0), tu) / 0.26) ** 2)
+        body = _fbm_row(rng, size, region, 14, octaves=3)
+        # Vermilion: an absolute colour, uneven from lip line to lip line.
+        red = np.clip(0.55 + 0.45 * body, 0.0, 1.0)
+        lip_colour = np.array(_LIP, dtype=np.float32).reshape(1, 1, 3) \
+            + np.array(_LIP_LIGHT, dtype=np.float32).reshape(1, 1, 3) * red[..., None]
+        colour = colour + (crest * red)[..., None] * (lip_colour - colour)
+        # The mouth line: a dark, slightly cool groove where the two rolls meet.
+        line = np.exp(-(_wrap_distance(np.float32(mouth_u), tu) / 0.055) ** 2)
+        # The vermilion border: the lip fades into the skin over a millimetre or two.
+        border = np.exp(-(_wrap_distance(np.float32(skin_u), tu) / 0.10) ** 2)
+        colour = _shade(colour, line * 0.42)
+        colour = colour + (border * 0.55)[..., None] * (np.array(SKIN_BASE, dtype=np.float32) - colour)
+        # Vertical lip lines. They run across the roll, so they are lines of constant
+        # v, warped a little so they are not ruled. 18 lines over a mouth that is
+        # about 40 mm wide is a line every 2 mm - and each line is 5 texels wide on
+        # purpose: at 0.5 texels the normal map turned them into a sawtooth, which is
+        # the striped lip the first render after the relief fix showed.
+        lines = _lines(tv + 0.10 * np.sin(5.0 * np.pi * tu), 1.0 / 18.0, 0.0050)
+        colour = _shade(colour, lines * crest * 0.07)
+        if region == "lip_lower":
+            sheen = np.exp(-(((tu - 0.5) / 0.30) ** 2 + ((tv - 0.60) / 0.30) ** 2))
+            colour = colour + (sheen * crest * 0.18)[..., None] \
+                * (np.array((0.90, 0.86, 0.84), dtype=np.float32) - colour)
+            height = height + sheen * _relief(0.08)
+        height = height - (lines * crest * _relief(0.10) + line * _relief(0.30))
     elif region == "lips":
+        # No geometry owns this slot any more (the two lips have their own tiles);
+        # it stays in the painted list so the atlas carries no black hole. It is
+        # painted as a plain lip so a stray island would still read as a mouth.
         lip = np.exp(-((tv - 0.5) / 0.32) ** 2)
         colour = colour + lip[..., None] * np.array((0.215, -0.075, -0.060), dtype=np.float32)
         creases = _lines(tv + 0.16 * np.sin(6.0 * np.pi * tu), 1.0 / 22.0, 0.0022)
         colour = _shade(colour, creases * lip * 0.055)
-        height = height - creases * lip * _relief(0.03)
+        height = height - creases * lip * _relief(0.15)
     elif region in ("ear_L", "ear_R"):
         red = np.exp(-((tv - 0.45) / 0.40) ** 2)
         colour = colour + np.stack([red * 0.115, red * 0.010, red * 0.005], axis=-1)
@@ -585,9 +791,23 @@ def _skin_tile(rng: np.random.Generator, size: int, region: str) -> tuple[np.nda
         colour = _shade(colour, rim * 0.030)
         height = height + rim * _relief(0.05)
     elif region in ("lid_L", "lid_R"):
-        fold = np.exp(-((tv - 0.72) / 0.10) ** 2)
-        colour = colour + np.stack([fold * 0.06, fold * 0.01, fold * 0.008], axis=-1)
-        height = height - fold * _relief(0.05)
+        # The lid shell is a closed ring: v = 0 and v = 1 are the same curve - the
+        # lid margin that touches the eyeball - and v = 0.5 is the rim, which turns
+        # away behind the skull (head.py, ``LID_RIM_RHO``). The visible skin is the
+        # outer half between them, and everything is written symmetrically in
+        # |v - 0.5| so the margin curve is painted on both surfaces at once.
+        distance = np.abs(tv - 0.5)
+        wave = 0.030 * np.sin(2.0 * np.pi * (tu * 1.0 + 0.15))
+        crease = np.exp(-((distance - (0.115 + wave)) / 0.050) ** 2)
+        margin = np.exp(-((distance - 0.455) / 0.032) ** 2)
+        pad = np.exp(-((distance - 0.280) / 0.110) ** 2)
+        colour = _shade(colour, crease * 0.24 + margin * 0.34)
+        colour = colour + (pad * 0.10)[..., None] * (np.array((0.86, 0.74, 0.70), dtype=np.float32)
+                                                     - colour)
+        fine = _lines(tu + 0.08 * np.sin(3.0 * np.pi * tv), 1.0 / 18.0, 0.0055)
+        colour = _shade(colour, fine * pad * 0.05)
+        height = height - crease * _relief(0.55) - margin * _relief(0.25) \
+            + pad * _relief(0.15) - fine * pad * _relief(0.06)
     elif region in ("body", "body_back"):
         # Nearly all of the body is covered by clothing; tone and pores matter.
         stretch = _fbm_row(rng, size, region, 8, octaves=3)
@@ -682,37 +902,48 @@ def _skin_tile(rng: np.random.Generator, size: int, region: str) -> tuple[np.nda
 # --------------------------------------------------------------------------- #
 
 
-#: Where the cornea lands in an eye slot, in tile coordinates. The eyeball is a
-#: sphere built along Z and then mirrored in X and Y, so the gaze direction does
-#: not fall on the middle of the slot: measured on the built mesh it lands at
-#: (0.278, 0.060), about 68 degrees of longitude away from the tile centre. The
-#: first pass painted the iris dead centre, which is why the eye rendered as a dark
-#: ring around the edge of the visible eyeball.
-_CORNEA_TILE_U = 0.220
-_CORNEA_TILE_V = 0.050
-#: The tile is not square in world terms - u spans half the sphere (180 degrees)
-#: and v the full one (360 degrees) - so the radial distance is stretched to keep
-#: the iris a circle.
-_EYE_V_SCALE = 0.5
-#: Iris radius in tile units. The eyeball's whole visible cap is only about 0.24 of
-#: the tile across, so the painted iris has to be small in tile terms; at 0.36 it
-#: covered the visible sclera completely and the eye rendered as a dark ring.
-_EYE_IRIS_RADIUS = 0.22
+#: Where the cornea lands in an eye slot, in tile coordinates. Measured on the
+#: built mesh (``.scratch/face/probe_faces.py``): the vertex whose direction is the
+#: gaze direction carries uv (0.5, 0.5) on *both* eyeballs, exactly. The
+#: (0.220, 0.050) this constant used to hold was measured on the old eyeball, whose
+#: rings were built perpendicular to the gaze; the current one is lofted along Z and
+#: mirrored in X and Y, which moves the seam to the back of the eye and the gaze to
+#: the middle of the tile. Painted at the stale position the iris sat 68 degrees off
+#: and the visible cap rendered as a white ball with a dark rim.
+_CORNEA_TILE_U = 0.5
+_CORNEA_TILE_V = 0.5
+#: The slot is not an angle chart. u spans 360 degrees of longitude, v is the path
+#: through the ring centres, ``v = (1 - cos(phi)) / 2``, so v compresses towards the
+#: poles and a circle around the gaze pole is an ellipse in tile coordinates - 1.6
+#: times taller than wide. These two constants turn a tile offset into the angle it
+#: covers, in radians, so the iris stays round: 360 degrees of longitude are 2 pi,
+#: and the polar offset is ``arcsin(2 * dv)``.
+_EYE_LONGITUDE = 2.0 * math.pi
+#: Half angle of the iris, in radians. A 10 mm iris on the 25.2 mm eyeball is 23.4
+#: degrees, and the lid opening spans -6.8 to +17.7 degrees around the gaze, so the
+#: upper and lower lid cut the iris the way they do on a real eye. An iris sized to
+#: the opening instead (12 degrees) leaves a small pupil in a lot of sclera, and the
+#: old 0.22 tile radius covered the whole visible cap.
+_EYE_IRIS_ANGLE = 0.42
+#: Pupil radius as a share of the iris: a 4.5 mm pupil inside a 10 mm iris.
+_EYE_PUPIL_SHARE = 0.45
 
 
 def _eye_tile(rng: np.random.Generator, size: int, region: str) -> tuple[np.ndarray, np.ndarray]:
     _u, _v, tu, tv = _coordinates_atlas(size, region)
-    # Local coordinates relative to the cornea, u corrected for the aspect: this
-    # puts u = v = 0 at the pupil and keeps the radius isotropic.
-    local_u = (tu - _CORNEA_TILE_U) / _EYE_V_SCALE
-    local_v = tv - _CORNEA_TILE_V
-    radius = np.hypot(local_u, local_v) / _EYE_IRIS_RADIUS
+    # Angular distance from the cornea, in radians: this puts 0 at the pupil and
+    # keeps the radius isotropic on the sphere instead of in the tile.
+    local_u = (tu - _CORNEA_TILE_U) * _EYE_LONGITUDE
+    local_v = np.arcsin(np.clip((tv - _CORNEA_TILE_V) * 2.0, -1.0, 1.0))
+    radius = np.hypot(local_u, local_v) / _EYE_IRIS_ANGLE
     sclera = np.array(_SCLERA, dtype=np.float32).reshape(1, 1, 3)
     veins = _fbm_row(rng, size, region, 26, octaves=3)
     colour = sclera + veins[..., None] * np.array((0.045, 0.010, 0.010), dtype=np.float32)
-    iris = np.exp(-(((radius - 0.60) / 0.30) ** 2))
-    pupil = _seam(radius, 0.30)
-    limbus = np.exp(-(((radius - 0.86) / 0.08) ** 2))
+    # Iris, pupil and limbus are discs with a real edge: a Gaussian iris blends into
+    # the sclera over a third of its radius and reads as a smudge, not an eye.
+    iris = 1.0 - _smoothstep(radius, 0.90, 1.02)
+    pupil = 1.0 - _smoothstep(radius, _EYE_PUPIL_SHARE - 0.07, _EYE_PUPIL_SHARE + 0.07)
+    limbus = _seam(radius - 0.94, 0.09)
     # Radial iris fibres: the strands run outward from the pupil, so the noise is
     # sampled around the angle instead of along the tile axes.
     angle = np.arctan2(local_v, local_u)
@@ -723,12 +954,24 @@ def _eye_tile(rng: np.random.Generator, size: int, region: str) -> tuple[np.ndar
         + np.array(_IRIS_LIGHT, dtype=np.float32).reshape(1, 1, 3) \
         * (fibres * 0.35 + fine * 0.25 + 0.35)[..., None]
     colour = colour + (iris_colour - colour) * np.clip(iris, 0.0, 1.0)[..., None]
+    # An iris darkens towards its rim.
+    colour = _shade(colour, iris * _smoothstep(radius, 0.55, 1.0) * 0.30)
+    colour = _shade(colour, limbus * 0.40)
     colour = colour + (np.array(_PUPIL, dtype=np.float32).reshape(1, 1, 3) - colour) * pupil[..., None]
-    colour = _shade(colour, limbus * iris * 0.16)
-    # Cornea: a 0.04 mm dome over the iris. The eyeball shares its slot with its own
-    # lid shell, so the relief stays this shallow on purpose.
-    height = (iris * _relief(0.04) - pupil * _relief(0.02) + veins * _relief(0.01)
-              + fibres * _relief(0.01))
+    # Beyond the canthus the eyeball is not seen through the lid opening. The lid
+    # shell reaches exactly as far as the socket is wide, so the sclera 40 to 90
+    # degrees off the gaze is exposed at the corners, where the eye has neither
+    # sclera nor lid but the caruncle and the conjunctiva. Painted as the vascular
+    # tissue it would be: left white, the corner read as a hole in the face.
+    tissue = _smoothstep(radius, 1.35, 2.20)
+    colour = colour + tissue[..., None] * (np.array((0.400, 0.190, 0.170), dtype=np.float32)
+                                           - colour)
+    colour = colour + (tissue * np.clip(veins, 0.0, 3.0) * 0.08)[..., None]
+    # Cornea: the eyeball is alone in its slot, so the dome over the iris can carry
+    # the real bulge - 0.25 mm in the middle, dropping to the sclera at the limbus.
+    cornea = np.exp(-((radius / 0.95) ** 4))
+    height = (cornea * _relief(0.25) - pupil * _relief(0.10)
+              + veins * _relief(0.01) + fibres * _relief(0.01))
     return np.clip(colour, 0.0, 1.0), height.astype(np.float32)
 
 
@@ -739,6 +982,29 @@ def _eye_tile(rng: np.random.Generator, size: int, region: str) -> tuple[np.ndar
 
 def _hair_tile(rng: np.random.Generator, size: int, region: str) -> tuple[np.ndarray, np.ndarray]:
     _u, _v, tu, tv = _coordinates_atlas(size, region)
+    if region in ("brow_L", "brow_R"):
+        # An eyebrow is a different surface from the hair cap and needs its own
+        # branch: the strip is 35 mm long and 6 mm tall, so its tile is mostly
+        # magnified. Individual hairs run along the brow (tile u), and the mesh has
+        # only two rows of vertices across its height, which means only detail that
+        # varies *along* u survives the interpolation.
+        clumps = _fbm_row(rng, size, region, 9, octaves=3) + 0.5 * _fbm_row(rng, size, region, 21, octaves=2)
+        hairs = _wrapped_1d(rng, tu, 40) * 0.5 + _wrapped_1d(rng, tu * 1.0, 18) * 0.5
+        density = np.clip(0.55 + 0.45 * clumps + 0.30 * hairs, 0.0, 1.4)
+        # Towards the nose (u = 0) the brow thins out, at the temple end it fades.
+        taper = np.clip(0.35 + 0.65 * np.sin(np.pi * np.clip(tu, 0.0, 1.0)) ** 0.5, 0.0, 1.0)
+        # Across the brow: darker at the lower edge (v = 0), lighter towards the skin.
+        edge = 0.75 + 0.25 * (1.0 - np.clip(tv, 0.0, 1.0))
+        colour = np.array(_HAIR, dtype=np.float32).reshape(1, 1, 3) \
+            + np.array(_HAIR_SHADE, dtype=np.float32).reshape(1, 1, 3) * (1.0 - density)[..., None] * 1.2 \
+            + np.array(_HAIR_TIP, dtype=np.float32).reshape(1, 1, 3) * (density - 1.0)[..., None] * 0.5
+        colour = colour + (np.array(SKIN_BASE, dtype=np.float32) - colour) \
+            * np.clip(1.0 - density * taper * edge, 0.0, 1.0)[..., None] * 0.5
+        # Brow hairs are 0.3 mm thick and the strip is magnified, so the ridges can be
+        # painted at 1.2 mm with the strand noise in charge of where they sit.
+        height = (density * _relief(1.2) + clumps * _relief(0.5) + hairs * _relief(0.4))
+        return np.clip(colour, 0.0, 1.0), height.astype(np.float32)
+
     # Strand bundles run downwards: the noise is sampled along the tile's own
     # diagonal so the streaks follow v, whichever way the slot is unwrapped.
     strands = _fbm_row(rng, size, region, 11, octaves=3) + 0.6 * _fbm_row(rng, size, region, 5, octaves=2)
@@ -1422,16 +1688,27 @@ def _blur(values: np.ndarray, radius: int = 1) -> np.ndarray:
 def _normal_map(height: np.ndarray, strength: float, relief: float, radius: int = 1) -> np.ndarray:
     """Tangent space normals from a height field; the u axis is periodic.
 
+    The height is written in *tile* units - one unit spans the whole slot, which is
+    ``SLOT_SPAN_METRES`` of surface - while the gradient is taken from one texel to
+    the next. A texel is ``1 / width`` of a tile unit, so the slope of the surface is
+    ``dh * width``, not ``dh``. Without that factor every normal map this module
+    wrote was flat to within half a grey level: measured on the shipped maps, the
+    whole Leather atlas varied by 0.0019 around 0.5, and no painted fold, crease or
+    seam could show in a render however deep it was painted. That is also why the
+    skull used to be painted without relief - there was no point, the relief never
+    arrived.
+
     The height is smoothed first: single-texel spikes of the grain and cell noise
     would otherwise turn into the sparkle that reads as film grain on a smooth
     surface. Everything wider than two texels - pores, creases, seams - survives
     the blur and stays in the normal.
     """
     smooth = _blur(height.astype(np.float32), radius)
+    height_px, width_px = smooth.shape
     padded = np.pad(smooth, ((0, 0), (1, 1)), mode="wrap")
-    slope_x = (padded[:, 2:] - padded[:, :-2]) * 0.5
+    slope_x = (padded[:, 2:] - padded[:, :-2]) * 0.5 * float(width_px)
     padded = np.pad(smooth, ((1, 1), (0, 0)), mode="edge")
-    slope_y = (padded[:-2] - padded[2:]) * 0.5
+    slope_y = (padded[:-2] - padded[2:]) * 0.5 * float(height_px)
     normal = np.empty(height.shape + (3,), dtype=np.float32)
     normal[..., 0] = -slope_x * strength * relief
     normal[..., 1] = -slope_y * strength * relief
@@ -1579,7 +1856,8 @@ def paint_and_wire(variant: spec.Variant, materials: dict[str, bpy.types.Materia
 
         _write_image(base_image, np.clip(base, 0.0, 1.0))
         strength = float(NORMAL_STRENGTH.get(name, NORMAL_STRENGTH_DEFAULT))
-        normal = _normal_map(height, strength, NORMAL_RELIEF, radius=1)
+        gain = float(RELIEF_GAIN.get(name, RELIEF_GAIN_DEFAULT))
+        normal = _normal_map(height, strength, NORMAL_RELIEF * gain, radius=1)
         normal_data = np.ones((size, size, 4), dtype=np.float32)
         normal_data[..., :3] = normal
         _write_image(normal_image, normal_data)

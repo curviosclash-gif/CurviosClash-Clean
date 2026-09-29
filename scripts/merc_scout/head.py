@@ -73,11 +73,21 @@ LIGHT = {"rings": 28, "segments": 40, "lid_segments": 32, "ear_rings": 6, "ear_s
 
 EYE_HEIGHT = 1.668          # spec.LANDMARKS["eye"]
 EYE_RING_T = 0.1115         # arc position of the pupil on the face (t = 0 is the nose)
-EYE_RADIUS = 0.0126
-#: How far the eyeball centre sits in front of its own socket bed. The socket
-#: floor must lie behind the eyeball's equator, otherwise the sphere would stand
-#: proud of the orbital rim by more than a cornea.
-EYE_DEPTH = 0.0042
+#: Eyeball radius. 11.5 mm is a 23 mm eyeball - the low end of the adult range, and
+#: the reason to pick it is the socket: the lid shell spans 1.30 of this radius in
+#: every direction, so a larger ball pushed the lid out of the face at the canthi,
+#: where the exposed sclera showed as white crescents. Measured with
+#: ``.scratch/face/probe_eye_fit.py``.
+EYE_RADIUS = 0.0115
+#: How far the eyeball centre sits behind its own socket bed. Measured on the built
+#: surface (``.scratch/face/probe_eye_fit.py``): at 0.0042 the front pole of the
+#: eyeball stood 8.4 mm *in front of* the skull around it, so the eye rendered as a
+#: ball glued on the face. 0.0080 fixed that but buried the iris in a dark socket;
+#: 0.0062 leaves the cornea 6.4 mm proud, which still reads as an eye in a socket
+#: while the iris stays visible from the front. The socket floor must lie behind the
+#: eyeball's equator: it does, the equator is 12.6 mm from the centre and the dish
+#: is 11.5 mm deep.
+EYE_DEPTH = 0.0062
 #: Share of the skull half width at which the eyeball centre sits. It leaves the
 #: whole canthus inside the skull silhouette instead of poking out sideways.
 EYE_SOCKET_SHARE = 0.86
@@ -86,15 +96,35 @@ EYE_SOCKET_SHARE = 0.86
 #: measures. They sit above the 25 % / 10 % of an adult fissure on purpose: with
 #: the eyeball radius this spec allows, the stricter shares left a slit that read
 #: as a squint in the front view.
-LID_COVER_UPPER = 0.32
-LID_COVER_LOWER = 0.12
-#: Horizontal semi axis of the fissure, in eyeball radii.
-LID_FISSURE_SHARE = 1.05
+LID_COVER_UPPER = 0.30
+LID_COVER_LOWER = 0.14
+#: Horizontal semi axis of the fissure, in eyeball radii. Past 1.0 the canthus sits
+#: behind the eyeball's equator, where the lid can no longer wrap over the sphere:
+#: the exposed white crescent beyond the corner is what that looks like in a render.
+#: At 1.10 the *rim* of the lid shell (``LID_RIM_RHO``) reaches the eyeball's
+#: silhouette sideways, which is what closes the corner.
+LID_FISSURE_SHARE = 1.10
 #: Outermost radius of the lid shell, in eyeball radii. Past this the shell would
 #: leave the head silhouette at the canthi, so the fold is carried by the skull.
-LID_RIM_RHO = 1.45
+LID_RIM_RHO = 1.30
 
 EYEBROW_Z = 1.700           # spec.LANDMARKS["brow"]
+
+#: Atlas slots of the small face parts. ``spec.REGION_SLOTS`` carries one slot per
+#: *kind* of part, not one per side: there is a single ``nostril``, a single
+#: ``lid_crease`` and no ``ala_*`` at all, so the nose wings and the right nostril
+#: have no tile of their own to move to. The reserve slots ``spare_a`` to
+#: ``spare_c`` are the only free tiles left in the 8x8 grid, and painting.py paints
+#: them with the matching face-part branch, so every part below ends up alone in
+#: its own tile instead of sharing the skull's. What matters for the relief is not
+#: the name of the slot but that two surfaces with different size never sample the
+#: same texels: one island's bump is the other island's seam.
+FACE_PART_REGIONS: dict[str, str] = {
+    "ala_L": "spare_a",
+    "ala_R": "spare_b",
+    "nostril_L": "nostril",
+    "nostril_R": "spare_c",
+}
 
 # --------------------------------------------------------------------------- #
 # landmark table
@@ -220,13 +250,15 @@ def _orbit_bed(z: float, t: float) -> tuple[float, float]:
     """Eye socket: an inward dish that is deepest at its centre.
 
     Without it the eyeball would stand *on* the face instead of *in* it. Returns
-    the inward push in metres (positive = towards the brain) and the rim lift.
+    the inward push in metres (positive = towards the brain) and the rim lift. The
+    dish is 28 mm wide and 22 mm tall: the eyeball is 23 mm across, and the lid shell
+    has to fit inside the bowl, otherwise it stands in front of the face as a flap.
     """
     depth = 0.0
     rim = 0.0
     for centre in (EYE_RING_T, 1.0 - EYE_RING_T):
-        radial = _angle_gap(t, centre) / 0.0440
-        drop = (z - EYE_HEIGHT) / 0.0170
+        radial = _angle_gap(t, centre) / 0.0500
+        drop = (z - EYE_HEIGHT) / 0.0185
         radius = math.hypot(radial, drop)
         depth += 0.0115 * (1.0 - _ramp((radius - 0.50) / 0.62))
         rim += 0.0018 * _gauss(radius - 1.30, 0.30)
@@ -244,29 +276,29 @@ def _skull_offsets(z: float, t: float) -> tuple[float, float, float]:
     symmetry = 0.5 * (_band(t, EYE_RING_T, 0.06) + _band(t, 1.0 - EYE_RING_T, 0.06))
 
     out_x = 0.0
-    out_x += 0.040 * _band(t, 0.125, 0.055) * _gauss(z - 1.6415, 0.0135)   # zygomatic arch
+    out_x += 0.056 * _band(t, 0.125, 0.055) * _gauss(z - 1.6415, 0.0135)   # zygomatic arch
     out_x -= 0.026 * _band(t, 0.245, 0.045) * _gauss(z - 1.7120, 0.0160)   # flat temple
     out_x -= 0.026 * _band(t, 0.755, 0.045) * _gauss(z - 1.7120, 0.0160)
-    out_x += 0.030 * _band(t, 0.150, 0.040) * _gauss(z - 1.5605, 0.0125)   # gonion
-    out_x += 0.017 * _band(t, 0.163, 0.050) * _gauss(z - 1.5905, 0.0170)   # masseter
-    out_x -= 0.062 * _band(t, 0.148, 0.048) * _gauss(z - 1.6055, 0.0230)   # buccal hollow
-    out_x -= 0.045 * _band(t, 0.500, 0.070) * _gauss(z - 1.6690, 0.0180)   # temporal fossa
-    out_x += 0.013 * _band(t, 0.040, 0.048) * _gauss(z - 1.6150, 0.0180)   # alar hollow
-    out_x -= 0.014 * _band(t, 0.075, 0.038) * _gauss(z - 1.5980, 0.0110)   # nasolabial
+    out_x += 0.040 * _band(t, 0.150, 0.040) * _gauss(z - 1.5605, 0.0125)   # gonion
+    out_x += 0.023 * _band(t, 0.163, 0.050) * _gauss(z - 1.5905, 0.0170)   # masseter
+    out_x -= 0.080 * _band(t, 0.148, 0.048) * _gauss(z - 1.6055, 0.0230)   # buccal hollow
+    out_x -= 0.052 * _band(t, 0.500, 0.070) * _gauss(z - 1.6690, 0.0180)   # temporal fossa
+    out_x += 0.018 * _band(t, 0.040, 0.048) * _gauss(z - 1.6150, 0.0180)   # alar hollow
+    out_x -= 0.019 * _band(t, 0.075, 0.038) * _gauss(z - 1.5980, 0.0110)   # nasolabial
 
     out_y = 0.0
     out_y += 0.0044 * symmetry * _gauss(z - 1.6905, 0.0090)                # brow ridge
     out_y += 0.0026 * front_near * _gauss(z - 1.6350, 0.0110)              # nose bridge root
-    out_y += 0.0062 * _band(t, 0.124, 0.042) * _gauss(z - 1.6420, 0.0125)  # zygomatic body
+    out_y += 0.0086 * _band(t, 0.124, 0.042) * _gauss(z - 1.6420, 0.0125)  # zygomatic body
     out_y += 0.0028 * _band(t, 0.128, 0.050) * _gauss(z - 1.6050, 0.0180)  # canine
-    out_y += 0.0092 * front_near * _gauss(z - 1.5665, 0.0125)              # chin
+    out_y += 0.0105 * front_near * _gauss(z - 1.5665, 0.0125)              # chin
     out_y += 0.0048 * front_near * _gauss(z - 1.7990, 0.0900)              # occiput mass
     out_y += 0.0022 * _band(t, 0.500, 0.090) * _gauss(z - 1.7560, 0.0250)  # parietal
-    out_y += 0.0020 * _band(t, 0.172, 0.050) * _gauss(z - 1.5640, 0.0135)  # mandible body
+    out_y += 0.0030 * _band(t, 0.172, 0.050) * _gauss(z - 1.5640, 0.0135)  # mandible body
 
     in_y = 0.0
     in_y += 0.0018 * front_near * _gauss(z - 1.7005, 0.0048)               # glabella
-    in_y += 0.0034 * _band(t, 0.145, 0.036) * _gauss(z - 1.6115, 0.0110)   # cheek hollow
+    in_y += 0.0050 * _band(t, 0.145, 0.036) * _gauss(z - 1.6115, 0.0110)   # cheek hollow
     in_y += 0.0032 * _band(t, 0.500, 0.055) * _gauss(z - 1.7350, 0.0170)   # occipital shelf
     in_y += 0.0016 * front_near * _gauss(z - 1.5760, 0.0040)               # chin crease
     in_y += 0.0018 * front_near * _gauss(z - 1.6760, 0.0060)               # nose root
@@ -404,26 +436,37 @@ def lid_surface_point(frame: dict, angle: float, rho: float, layer: float = 0.0
 
     ``rho = 1`` lies on the fissure -- that is, exactly on the eyeball -- so the
     visible opening is bounded by a real geometric edge. Growing ``rho`` towards
-    :data:`LID_RIM_RHO` sweeps the shell outwards; because the radius grows
-    faster than the chord between two sphere points, it never cuts into the
-    eyeball. ``layer`` adds the shell thickness, which is what makes the
-    supraorbital fold a crease edge instead of a painted stripe.
+    :data:`LID_RIM_RHO` sweeps the shell outwards; because the radius grows faster
+    than the chord between two sphere points, it never cuts into the eyeball.
+    ``layer`` adds the shell thickness, which is what makes the fold a crease edge
+    instead of a painted stripe.
+
+    A shell that *wraps* the eyeball instead (direction turning towards the tangent
+    while the radius stays put) was tried and reverted: with a 12.6 mm eyeball 6 mm
+    in front of the socket floor, a shell that reaches past the canthus is a sphere
+    of 15 mm radius around a centre that sits close to the skin, so it pushed the
+    lid out of the face as a flap. The shell reaches exactly as far as the socket
+    is wide - which is why the eyeball radius, not the shell, is what limits the
+    exposed sclera at the canthi.
     """
     base = eye_lid_margin(frame, angle)
     point = frame["centre"] + base * (rho * frame["radius"])
     if layer:
         normal = Vector(point - frame["centre"]).normalized()
         bulge = 1.0 - math.cos(min(max((rho - 1.0) / (LID_RIM_RHO - 1.0), 0.0), 1.0) * 1.35)
-        point = point + normal * (frame["radius"] * layer * 0.34 * bulge)
+        point = point + normal * (frame["radius"] * layer * 0.24 * bulge)
     return (point.x, point.y, point.z)
 
 
-#: Radius growth of the lid shell; the last step carries it behind the skull.
-LID_PROFILE = (1.004, 1.02, 1.06, 1.14, 1.26, LID_RIM_RHO)
+#: Radius growth of the lid shell; the last step carries it behind the skull. The
+#: first step sits 2 % (0.23 mm) off the eyeball: at 1.004 the shell and the sphere
+#: intersect, because the eyeball is lofted with 18 segments and the lid with 40, and
+#: the sclera poked through the lid as white speckles at the canthi.
+LID_PROFILE = (1.020, 1.040, 1.085, 1.155, 1.230, LID_RIM_RHO)
 
 
 def _build_lid(frame: dict, materials: dict[str, bpy.types.Material], density: dict,
-               name: str) -> bpy.types.Object:
+               name: str, region: str) -> bpy.types.Object:
     """Closed eyelid shell: one surface on the eyeball, one rounded fold outside."""
     segments = density["lid_segments"]
     rows = len(LID_PROFILE)
@@ -451,7 +494,10 @@ def _build_lid(frame: dict, materials: dict[str, bpy.types.Material], density: d
             faces.append((lower[step], upper[step], upper[nxt], lower[nxt]))
     obj = mu.make_object(name, verts, faces, uvs)
     obj.data.materials.append(materials["Skin"])
-    mu.fit_uv_region(obj, spec.region_uv("head"))
+    # Its own ``lid_L``/``lid_R`` tile instead of the skull's: the lid shell is a
+    # closed ring around the eye whose two surfaces meet on a seam, and the skull's
+    # tile gradient turned that seam into a bright band across the eyelid.
+    mu.fit_uv_region(obj, spec.region_uv(region))
     return obj
 
 
@@ -539,7 +585,7 @@ def _build_nose(materials: dict[str, bpy.types.Material]) -> list[bpy.types.Obje
         verts, faces, uvs = mu.tube(ala_path, ala_radii, segments=12, exponent=2.15)
         ala = mu.make_object(HEAD + "_ala" + suffix, verts, faces, uvs)
         ala.data.materials.append(skin)
-        mu.fit_uv_region(ala, spec.region_uv("nose"))
+        mu.fit_uv_region(ala, spec.region_uv(FACE_PART_REGIONS["ala" + suffix]))
         parts.append(ala)
 
         # Nostril: a genuine hollow that opens downwards and backwards, tucked
@@ -554,25 +600,14 @@ def _build_nose(materials: dict[str, bpy.types.Material]) -> list[bpy.types.Obje
         verts, faces, uvs = mu.tube(nostril_path, nostril_radii, segments=10, exponent=2.0)
         hollow = mu.make_object(HEAD + "_nostril" + suffix, verts, faces, uvs)
         hollow.data.materials.append(skin)
-        mu.fit_uv_region(hollow, spec.region_uv("nose"))
-        # Park the inside of the nose in the lower left of the nose slot, so a
-        # painter can darken it without touching the outside.
-        _remap_uv(hollow, 0.00, 0.00, 0.55, 0.30)
+        # The hollow owns its whole slot; painting.py darkens the cavity in it. The
+        # earlier version parked the inside in the lower left of the *nose* slot with
+        # absolute UV coordinates (0.00, 0.00, 0.55, 0.30), which is not a rectangle
+        # inside a slot at all but a patch across fourteen atlas tiles - the dark
+        # smudges on the cheeks in the review render.
+        mu.fit_uv_region(hollow, spec.region_uv(FACE_PART_REGIONS["nostril" + suffix]))
         parts.append(hollow)
     return parts
-
-
-def _remap_uv(obj: bpy.types.Object, u0: float, v0: float, u1: float, v1: float) -> None:
-    """Squash the active UV layer into a normalised sub-rectangle of its slot."""
-    layer = obj.data.uv_layers.active
-    us = [item.uv[0] for item in layer.data]
-    vs = [item.uv[1] for item in layer.data]
-    min_u, max_u, min_v, max_v = min(us), max(us), min(vs), max(vs)
-    span_u = max(max_u - min_u, 1e-6)
-    span_v = max(max_v - min_v, 1e-6)
-    for item in layer.data:
-        item.uv[0] = u0 + (item.uv[0] - min_u) / span_u * (u1 - u0)
-        item.uv[1] = v0 + (item.uv[1] - min_v) / span_v * (v1 - v0)
 
 
 # --------------------------------------------------------------------------- #
@@ -624,7 +659,9 @@ def _build_mouth(materials: dict[str, bpy.types.Material]) -> list[bpy.types.Obj
         verts, faces, uvs = mu.tube(path, radii, segments=14, exponent=2.05)
         lip = mu.make_object(HEAD + "_" + name, verts, faces, uvs)
         lip.data.materials.append(skin)
-        mu.fit_uv_region(lip, spec.region_uv("lips"))
+        # One tile per lip: the upper and the lower roll used to share ``lips``, so
+        # the mouth line could not be painted on the surface that owns it.
+        mu.fit_uv_region(lip, spec.region_uv(name))
         parts.append(lip)
     return parts
 
@@ -635,12 +672,18 @@ def _build_mouth(materials: dict[str, bpy.types.Material]) -> list[bpy.types.Obj
 
 
 def _ear_height(ax: float, az: float, radius: float) -> float:
-    """Outward lift of the ear shell: ridge at the rim, bowl in the middle."""
+    """Outward lift of the ear shell: ridge at the rim, bowl in the middle.
+
+    The lift is a real fold, not a bump: the helix stands 9 mm proud of the concha,
+    which is the depth an ear has when it is measured from the bowl of the shell to
+    the crest of the rim. At the 4.8 mm of the first pass the ear read as a flat
+    pancake with a rim drawn on it.
+    """
     helix = _gauss(radius - 0.86, 0.16) * (0.55 + 0.45 * _gauss(ax + 0.10, 0.62))
-    antihelix = _gauss(math.hypot(ax + 0.02, az - 0.10) - 0.50, 0.19) * 0.0030
+    antihelix = _gauss(math.hypot(ax + 0.02, az - 0.10) - 0.50, 0.19) * 0.0056
     lobe = 1.6 * _gauss(ax + 0.10, 0.34) * _gauss(az + 0.86, 0.30) * max(0.0, 1.0 - radius)
-    concha = _gauss(ax + 0.02, 0.42) * _gauss(az + 0.08, 0.34) * 0.0042
-    return 0.0048 * helix + antihelix + 0.0026 * lobe - concha
+    concha = _gauss(ax + 0.02, 0.42) * _gauss(az + 0.08, 0.34) * 0.0086
+    return 0.0090 * helix + antihelix + 0.0038 * lobe - concha
 
 
 def _build_ear(materials: dict[str, bpy.types.Material], side: int, suffix: str,
@@ -804,7 +847,12 @@ def build_hair(materials: dict[str, bpy.types.Material], detail: bool) -> list[b
     top = 1.8035
 
     def thickness(t: float, share: float) -> float:
-        volume = 0.0030 + 0.0052 * _ramp((share - 0.05) / 0.95)
+        # The shell thins out to almost nothing at the hairline: a cropped cut does
+        # not end in a 3 mm cliff, and the rim of the solidify modifier is the hard
+        # edge that made the hair read as a helmet. 1.2 mm at the hairline is small
+        # enough to disappear under the painted transition and large enough that the
+        # shell does not sink into the skull.
+        volume = 0.0012 + 0.0070 * _ramp((share - 0.02) / 0.98)
         volume += 0.0018 * _band(t, 0.5, 0.24)      # occiput
         volume += 0.0010 * _band(t, 0.0, 0.16)      # forelock
         for centre, width, amount in HAIR_STRANDS:
@@ -859,15 +907,22 @@ def build_hair(materials: dict[str, bpy.types.Material], detail: bool) -> list[b
 def head_material_regions() -> tuple[str, ...]:
     """Atlas slots this module really writes into.
 
-    Note on the realism-pass slots: ``stubble``, ``cheek``, ``lid_crease``,
-    ``nostril``, ``pores`` and friends exist in ``spec.REGION_SLOTS``, but their
-    whole point is to be *painted* -- stubble and cheek shading are texture work,
-    and a nostril is a hollow whose rim the painter darkens. Nothing here needs
-    them, and ``mesh_utils.fit_uv_region`` can only scale into a slot that some
-    geometry already owns. They are therefore deliberately absent from this list.
+    Every part of the face owns its own tile: the skull, the nose body, one wing
+    per side, one nostril per side, both lips separately, the ears, the brows and
+    the eyelid shells. Nothing of the face shares a slot with the skull any more,
+    which is what allows the skull tile to carry real relief: two islands of
+    different size in one slot turn every painted bump into a visible seam, so the
+    skull used to be painted flat while the fold it needed lived in the geometry
+    warp only.
+
+    The reserve slots (``spare_a`` to ``spare_c``) hold the nose wings and the
+    right nostril because ``spec.REGION_SLOTS`` has no ``ala_*`` and only one
+    ``nostril`` tile; ``painting`` paints them with the matching face-part branch.
     """
-    return ("head", "nose", "lips", "ear_L", "ear_R", "brow_L", "brow_R",
-            "eye_L", "eye_R")
+    slots = ["head", "nose", "lip_upper", "lip_lower", "ear_L", "ear_R",
+             "brow_L", "brow_R", "lid_L", "lid_R", "eye_L", "eye_R"]
+    slots.extend(FACE_PART_REGIONS.values())
+    return tuple(slots)
 
 
 def build_head(variant: spec.Variant, materials: dict[str, bpy.types.Material]) -> bpy.types.Object:
@@ -879,7 +934,8 @@ def build_head(variant: spec.Variant, materials: dict[str, bpy.types.Material]) 
     for side, suffix in ((1, "_L"), (-1, "_R")):
         parts.append(_build_ear(materials, side, suffix, density))
         parts.append(_build_brow(materials, side, suffix))
-        parts.append(_build_lid(eye_frame(side), materials, density, HEAD + "_lid" + suffix))
+        parts.append(_build_lid(eye_frame(side), materials, density, HEAD + "_lid" + suffix,
+                                "lid" + suffix))
     return mu.join(parts, HEAD)
 
 
