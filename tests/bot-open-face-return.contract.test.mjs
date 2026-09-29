@@ -44,10 +44,13 @@ function resolveBotInput(arena, player) {
         arena,
         players: [player],
         humanPlayers: [],
+        renderer: { cameraModes: [] },
         botByPlayer: new Map([[player, straightFlight]]),
         createBotRuntimeContext: () => ({ arena }),
     };
-    return { ...new PlayerInputSystem(manager).resolvePlayerInput(player, 1 / 60, null) };
+    return { ...new PlayerInputSystem(manager).resolvePlayerInput(player, 1 / 60, {
+        getPlayerInput: () => ({}),
+    }) };
 }
 
 function hasSteering(input) {
