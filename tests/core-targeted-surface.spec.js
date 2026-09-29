@@ -1717,6 +1717,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0;
             });
             const contextRect = context?.getBoundingClientRect?.() || { width: 0, height: 0 };
+            document.activeElement?.blur?.();
             const focusAttempt = window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime
                 ?.focusMainAction?.({ onlyIfFocusLost: true });
             return {
