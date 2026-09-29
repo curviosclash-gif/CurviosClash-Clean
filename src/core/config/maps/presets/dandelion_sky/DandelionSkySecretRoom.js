@@ -8,7 +8,7 @@ import {
 } from '../glowing_mushrooms.js';
 
 const ROOM_HALF = 22;
-const ROOM_FLOOR = -18;
+const ROOM_FLOOR = -32;
 const ROOM_CEILING = -4;
 const WALL = 1;
 const SHELL_HALF = ROOM_HALF + WALL;
@@ -34,7 +34,7 @@ export const DANDELION_SKY_ROOT_CHAMBER_OBSTACLES = Object.freeze([
 // dark. Teal carries the entry portal's colour down into the room; the violet brackets keep the
 // walls from reading as one flat tone.
 //
-// The render distance is short on purpose. The chamber sits at y=-11 while the match plays
+// The render distance is short on purpose. The chamber sits below y=-4 while the match plays
 // between y=29 and y=250, so at this distance the mushrooms are drawn for whoever is inside and
 // for nobody else, even though the models load with the map like everything else.
 const MUSHROOM_RENDER_DISTANCE = 55;
@@ -133,7 +133,10 @@ const ITEMS = Object.freeze([
     // The prizes every secret room holds (user decision 28.09.2026).
     { pos: [0, -8, -8], type: 'BOMBER_STRIKE' },
     { pos: [0, -8, 8], type: 'LIGHTNING' },
-]);
+].flatMap((item) => [
+    item,
+    { ...item, pos: [item.pos[0], item.pos[1] - ROOM_HEIGHT / 2, item.pos[2]] },
+]));
 
 export const DANDELION_SKY_ROOT_CHAMBER = Object.freeze({
     id: 'root_chamber',

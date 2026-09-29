@@ -26,7 +26,7 @@ import { TIP } from '../eiffel_tower/EiffelTowerStructure.js';
 /** Interior of the room. The ceiling is four map units below the arena floor. */
 const ROOM_HALF = 20;
 const ROOM_CEILING = -4;
-const ROOM_FLOOR = -16;
+const ROOM_FLOOR = -28;
 
 const ROOM_BOUNDS = Object.freeze({
     min: Object.freeze([-ROOM_HALF, ROOM_FLOOR, -ROOM_HALF]),
@@ -80,9 +80,8 @@ export const EIFFEL_SIEGE_SECRET_ROOM_TURRETS = Object.freeze([
     allowedModes: ['HUNT', 'ARCADE'],
 })));
 
-// Twelve item points at mid height. Six of them name no type on purpose: an unnamed point draws
-// from the mode's own weighted choice, so the room is worth entering twice. The last two are the
-// prizes every secret room holds (user decision 28.09.2026).
+// Two layers of twelve item points. Each layer keeps the same mix of random pickups and fixed
+// prizes, with the second layer halfway down the enlarged room.
 const ITEMS = Object.freeze([
     { pos: [-12, -10, -12] },
     { pos: [12, -10, -12] },
@@ -96,7 +95,10 @@ const ITEMS = Object.freeze([
     { pos: [14, -10, 0], type: 'ROCKET_HEAVY' },
     { pos: [0, -8, -7], type: 'BOMBER_STRIKE' },
     { pos: [0, -8, 7], type: 'LIGHTNING' },
-]);
+].flatMap((item) => [
+    item,
+    { ...item, pos: [item.pos[0], item.pos[1] - ROOM_HEIGHT / 2, item.pos[2]] },
+]));
 
 export const EIFFEL_SIEGE_SECRET_ROOM = Object.freeze({
     id: 'vault',

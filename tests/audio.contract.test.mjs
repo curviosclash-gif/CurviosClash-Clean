@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { AudioManager } from '../src/core/Audio.js';
 import { ProceduralMusicDirector } from '../src/core/audio/ProceduralMusicDirector.js';
+import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
 import { NOTRE_DAME_FIRE_MAPS } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
 
@@ -335,6 +336,39 @@ test('AudioManager initializes dedicated music, UI and ambience buses', async ()
             assert.equal(audio._ambienceGain.gain.value, 0.2);
             assert.equal(audio.music.state, 'menu');
             assert.ok(audio.music._sceneGain);
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('the sandstorm ambience plays on every storm map and hears the canyon rock nooks as indoors', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        const audio = new AudioManager();
+        const map = MAP_PRESET_CATALOG.clockwork_canyon;
+        const mapScale = 3;
+        const nook = map.sandstorm.shelterVolumes[0];
+        const player = {
+            index: 0, alive: true, isBot: false,
+            position: {
+                x: (nook.min[0] + nook.max[0]) / 2 * mapScale,
+                y: (nook.min[1] + nook.max[1]) / 2 * mapScale,
+                z: (nook.min[2] + nook.max[2]) / 2 * mapScale,
+            },
+        };
+        const options = {
+            mapDefinition: map, mapScale, elapsedSeconds: 0,
+            sandstormState: { enabled: true, phase: 'ACTIVE', remainingSeconds: 40, intensity: 1 },
+        };
+        try {
+            mockWindow.dispatchEvent({ type: 'click' });
+            assert.equal(audio.syncMapAmbienceFromPlayers([player], options), 'interior');
+            player.position = { x: 0, y: 30, z: 0 };
+            assert.equal(audio.syncMapAmbienceFromPlayers([player], options), 'outdoor');
+            assert.equal(audio.syncMapAmbienceFromPlayers([player], {
+                ...options, mapDefinition: MAP_PRESET_CATALOG.pyramid,
+            }), 'outdoor', 'the pyramid keeps its storm ambience');
         } finally {
             audio.dispose();
         }

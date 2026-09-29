@@ -129,3 +129,21 @@ test('match replay is stable for one seed and changes for another seed', () => {
     assert.equal(other.matchSeed, 139);
     assert.notEqual(first.endPositionSignature, other.endPositionSignature);
 });
+
+test('heuristic improvement loop measures engagement and gates every accept on it', () => {
+    assert.match(source, /engagement\.record\(player\?\.index, action, this\._safetyState\?\.state\)/);
+    assert.match(source, /candidateSafetyShare: sums\.candidateUpdates > 0/);
+    assert.match(source, /isStrictlyBetterOnBoth\(fullCandidate, fullCurrent\)\s*&& retainsHeuristicEngagement\(fullCandidate\)/);
+    assert.match(source, /isStrictlyBetterOnBoth\(result, currentResult\) && retainsHeuristicEngagement\(result\)/);
+    assert.match(source, /if \(!retainsHeuristicEngagement\(result\)\) continue;/);
+    assert.match(source, /candidateShotsPerMatch: result\.candidateShotsPerMatch/);
+});
+
+test('heuristic benchmark matches run on simulated time and restore the real clock', () => {
+    assert.match(source, /performance\.now = \(\) => simulatedNowMs;/);
+    assert.match(source, /Date\.now = \(\) => simulatedNowMs;/);
+    assert.match(source, /simulatedNowMs = SIMULATED_CLOCK_ORIGIN_MS \+ frame \* FIXED_STEP \* 1000;\n\s*runtime\.step\(inputFrame, tickOptions\);/);
+    assert.match(source, /Date\.now = originalDateNow;\n\s*performance\.now = originalPerformanceNow;/);
+    assert.match(source, /verifyHeuristicBenchmarkArena\(em\.arena, setup\.mapKey\);/);
+    assert.match(source, /baseConfig: HEURISTIC_BENCHMARK_BASE_CONFIG/);
+});

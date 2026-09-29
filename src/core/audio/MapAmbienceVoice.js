@@ -1,6 +1,7 @@
 const NOTRE_DAME_PROFILE_ID = 'notre_dame';
 const NOTRE_DAME_FIRE_PROFILE_ID = 'notre_dame_fire';
-const PYRAMID_SANDSTORM_PROFILE_ID = 'pyramid_sandstorm';
+// Shared by every map with a sandstorm (pyramid, canyon); the shelters and timings come from the profile.
+const SANDSTORM_PROFILE_ID = 'sandstorm';
 const SILENT_GAIN = 0.0001;
 
 function clamp(value, min, max) {
@@ -168,7 +169,7 @@ export function syncMapAmbienceVoice(audio, options = {}) {
     const profileId = String(profile?.id || '').trim();
     if ((profileId !== NOTRE_DAME_PROFILE_ID
         && profileId !== NOTRE_DAME_FIRE_PROFILE_ID
-        && profileId !== PYRAMID_SANDSTORM_PROFILE_ID) || !options.playerPosition) {
+        && profileId !== SANDSTORM_PROFILE_ID) || !options.playerPosition) {
         silenceMapAmbience(audio, audio?._mapAmbience);
         return 'none';
     }
@@ -178,14 +179,15 @@ export function syncMapAmbienceVoice(audio, options = {}) {
 
     const position = options.playerPosition;
     const scale = Math.max(0.0001, Number(options.mapScale) || 1);
-    if (profileId === PYRAMID_SANDSTORM_PROFILE_ID) {
+    if (profileId === SANDSTORM_PROFILE_ID) {
         const storm = options.sandstormState || null;
         const phase = String(storm?.phase || 'CALM');
         const active = storm?.enabled === true && phase === 'ACTIVE';
         const warning = storm?.enabled === true && phase === 'WARNING';
         const sheltered = scaledVolumeListContains(profile.shelterVolumes, position, scale);
         const intensity = active ? clamp(Number(storm?.intensity) || 0, 0, 1) : 0;
-        const warningMix = warning ? clamp(1 - (Number(storm?.remainingSeconds) || 0) / 20, 0, 1) : 0;
+        const warningSeconds = Math.max(1, Number(profile.warningSeconds) || 20);
+        const warningMix = warning ? clamp(1 - (Number(storm?.remainingSeconds) || 0) / warningSeconds, 0, 1) : 0;
         const activeSeconds = Math.max(1, Number(profile.activeSeconds) || 60);
         const ingressSeconds = clamp(Number(profile.ingressSeconds) || 4, 0, activeSeconds);
         const remaining = Math.max(0, Number(storm?.remainingSeconds) || 0);

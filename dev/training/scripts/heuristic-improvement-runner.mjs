@@ -1,4 +1,4 @@
-// Serially invokes the bounded heuristic improvement iteration until a terminal outcome.
+﻿// Serially invokes the bounded heuristic improvement iteration until a terminal outcome.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const PROFILES = Object.freeze(['defensive', 'balanced', 'aggressive']);
 const TARGET_RATIO = 2;
-const SEARCH_STATE_VERSION = 16;
+const SEARCH_STATE_VERSION = 19;
 const DEFAULT_MAX_ITERATIONS = 256;
 export const MAX_RUNNER_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = MAX_RUNNER_TIMEOUT_MS;

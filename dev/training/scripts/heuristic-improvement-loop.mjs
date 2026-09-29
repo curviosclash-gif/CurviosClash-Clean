@@ -1,4 +1,4 @@
-// One bounded coordinate-ascent iteration for the heuristic bot.
+﻿// One bounded coordinate-ascent iteration for the heuristic bot.
 // Search state is kept outside the repository so goal continuations can resume without reports.
 
 import fs from 'node:fs';
@@ -14,8 +14,13 @@ import {
     HEURISTIC_PROFILE_FIELD_BOUNDS, HEURISTIC_PROFILES,
 } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
 import { createRuntimeRng } from '../../../src/shared/contracts/RuntimeRngContract.js';
-import { createHeuristicLifeTracker } from './heuristic-improvement-metrics.mjs';
-import { HEURISTIC_IMPROVEMENT_BASELINE } from './heuristic-improvement-baseline.mjs';
+import {
+    createHeuristicEngagementTracker, createHeuristicLifeTracker, retainsHeuristicEngagement,
+} from './heuristic-improvement-metrics.mjs';
+import {
+    HEURISTIC_BENCHMARK_BASE_CONFIG, HEURISTIC_IMPROVEMENT_BASELINE, resolveHeuristicBenchmarkSetup,
+    verifyHeuristicBenchmarkArena,
+} from './heuristic-improvement-baseline.mjs';
 
 const FIXED_STEP = MATCH_KERNEL_FIXED_STEP_SECONDS;
 const TRAINING_SEEDS = Object.freeze([2, 5, 13, 29]);
@@ -54,8 +59,9 @@ const DEFAULT_TIMEOUT_MS = 90 * 60 * 1000;
 const MIN_CONFIRMED_GAIN = 1e-6;
 const PLATEAU_GAIN = 0.02;
 const TARGET_RATIO = 2;
-const STATE_VERSION = 16;
+const STATE_VERSION = 19;
 const MIN_ELIMINATION_SURVIVAL_RETENTION = 0.95;
+const SIMULATED_CLOCK_ORIGIN_MS = 1_000_000;
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 function parseFreshAuditSeeds(raw) {
@@ -114,15 +120,15 @@ const STATE_PATH = path.resolve(
         || path.join(os.tmpdir(), 'curviosclash-heuristic-improvement-state.json')
 );
 
-function fightSettings(profile, respawnEnabled, seed) {
+function fightSettings(profile, respawnEnabled, seed, { difficulty, mapKey }) {
     return {
         localSettings: { modePath: 'fight', sessionType: 'single' },
         mode: '1p',
-        mapKey: 'standard',
+        mapKey,
         gameMode: 'HUNT',
         numBots: NUM_BOTS,
         winsNeeded: 1,
-        botDifficulty: 'NORMAL',
+        botDifficulty: difficulty,
         botPolicyStrategy: 'heuristic',
         botHeuristicProfile: profile,
         gameplay: {
@@ -219,20 +225,31 @@ function isTrailDeath(cause) {
     return cause === 'TRAIL_SELF' || cause === 'TRAIL_OTHER';
 }
 
-async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTicks, respawnEnabled = true, trace = false }) {
+async function runMatch({
+    profile, seed, setup, candidateFields, candidateSlot, maxTicks, respawnEnabled = true, trace = false,
+}) {
     const originalRandom = Math.random;
+    const originalDateNow = Date.now;
+    const originalPerformanceNow = performance.now;
+    // Some systems (wall probe reuse, regen delay, pickup bobbing) read the wall clock. Headless
+    // ticks run far faster than real time, so show them simulated time as the game at 60 fps would.
+    let simulatedNowMs = SIMULATED_CLOCK_ORIGIN_MS;
+    Date.now = () => simulatedNowMs;
+    performance.now = () => simulatedNowMs;
     const seededRandom = createRuntimeRng({ seed });
     let runtime = null;
     Math.random = seededRandom.next;
     try {
-        const settings = fightSettings(profile, respawnEnabled, seed);
-        const runtimeConfig = createRuntimeConfigSnapshot(settings);
-        if (runtimeConfig.arcade.seed !== seed || runtimeConfig.hunt.timeLimitSeconds !== 0) {
+        const settings = fightSettings(profile, respawnEnabled, seed, setup);
+        const runtimeConfig = createRuntimeConfigSnapshot(settings, { baseConfig: HEURISTIC_BENCHMARK_BASE_CONFIG });
+        if (runtimeConfig.arcade.seed !== seed || runtimeConfig.hunt.timeLimitSeconds !== 0
+            || runtimeConfig.session.mapKey !== setup.mapKey || runtimeConfig.bot.activeDifficulty !== setup.difficulty) {
             throw new Error(`invalid benchmark configuration for seed ${seed}`);
         }
         runtime = await Promise.resolve(createHeadlessMatchKernelRuntime({
             settings,
             runtimeConfig,
+            baseConfig: HEURISTIC_BENCHMARK_BASE_CONFIG,
             requestedMapKey: runtimeConfig.session.mapKey,
             profile: {
                 sessionId: `heuristic-h2h-${profile}-${seed}-${candidateSlot}`,
@@ -242,6 +259,7 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
         }));
 
         const em = runtime.session.entityManager;
+        verifyHeuristicBenchmarkArena(em.arena, setup.mapKey);
         if (em.matchSeed !== seed) throw new Error(`benchmark seed mismatch: ${em.matchSeed} !== ${seed}`);
         // Score hit/assist windows on simulated time, not CPU-dependent wall time.
         em._huntScoring._nowSeconds = () => Math.max(0, Number(em._simulationClockMs) || 0) * 0.001;
@@ -261,6 +279,15 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
         const candidateBot = bots[candidateSlot];
         const activeCandidateFields = Object.freeze(clampProfile(profile, candidateFields));
         candidateBot.ai.profile = activeCandidateFields;
+        const engagement = createHeuristicEngagementTracker();
+        for (const bot of bots) {
+            const wrappedUpdate = bot.ai.update;
+            bot.ai.update = function (dt, player, context) {
+                const action = wrappedUpdate.call(this, dt, player, context);
+                engagement.record(player?.index, action, this._safetyState?.state);
+                return action;
+            };
+        }
         const actionTrace = trace ? {
             updates: 0,
             modes: {},
@@ -365,9 +392,13 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
             tickOptions.frameId = frame;
             tickOptions.wallClockMs = frame * 16;
             tickOptions.highResTimestampMs = frame * 16;
+            simulatedNowMs = SIMULATED_CLOCK_ORIGIN_MS + frame * FIXED_STEP * 1000;
             runtime.step(inputFrame, tickOptions);
             if (frame === 1) {
                 for (const bot of bots) {
+                    if (bot.ai.difficultyName !== setup.difficulty.toLowerCase()) {
+                        throw new Error(`benchmark difficulty lost: ${bot.ai.difficultyName} !== ${setup.difficulty}`);
+                    }
                     const expected = bot === candidateBot ? activeCandidateFields : baselineFields;
                     for (const field of TUNABLE_FIELDS) {
                         if (bot.ai.profile[field] !== expected[field]) {
@@ -406,9 +437,14 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
         let baselineLives = 0;
         let baselineKills = 0;
         let baselineCount = 0;
+        const baselineEngagement = { updates: 0, safetyUpdates: 0, shots: 0 };
         for (const bot of bots) {
             const playerIndex = bot?.player?.index;
             if (!Number.isInteger(playerIndex) || playerIndex === candidateIndex) continue;
+            const botEngagement = engagement.totals(playerIndex);
+            baselineEngagement.updates += botEngagement.updates;
+            baselineEngagement.safetyUpdates += botEngagement.safetyUpdates;
+            baselineEngagement.shots += botEngagement.shots;
             const life = lifeTracker.lifeTotals(bot.player, endSeconds);
             baselineLifeSeconds += life.seconds;
             baselineLives += life.lives;
@@ -427,12 +463,16 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
             baselineKills: baselineCount > 0 ? baselineKills / baselineCount : 0,
             candidateDeathCauses,
             baselineDeathCauses,
+            candidateEngagement: engagement.totals(candidateIndex),
+            baselineEngagement,
             forced,
             ...(actionTrace ? { actionTrace } : {}),
         };
     } finally {
         runtime?.dispose?.();
         Math.random = originalRandom;
+        Date.now = originalDateNow;
+        performance.now = originalPerformanceNow;
     }
 }
 
@@ -466,13 +506,20 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
         baselineLives: 0,
         baselineKills: 0,
         forcedMatches: 0,
+        candidateUpdates: 0,
+        candidateSafetyUpdates: 0,
+        candidateShots: 0,
+        baselineUpdates: 0,
+        baselineSafetyUpdates: 0,
+        baselineShots: 0,
     };
     const candidateDeathCauses = {};
     const baselineDeathCauses = {};
     let matches = 0;
-    for (const seed of seeds) {
+    for (const [seedIndex, seed] of seeds.entries()) {
+        const setup = resolveHeuristicBenchmarkSetup(seedIndex);
         for (const candidateSlot of slots) {
-            const result = await runMatch({ profile, seed, candidateFields: fields, candidateSlot, maxTicks, respawnEnabled });
+            const result = await runMatch({ profile, seed, setup, candidateFields: fields, candidateSlot, maxTicks, respawnEnabled });
             sums.candidateLifeSeconds += result.candidateLifeSeconds;
             sums.candidateLives += result.candidateLives;
             sums.candidateKills += result.candidateKills;
@@ -480,6 +527,12 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
             sums.baselineLives += result.baselineLives;
             sums.baselineKills += result.baselineKills;
             if (result.forced) sums.forcedMatches += 1;
+            sums.candidateUpdates += result.candidateEngagement.updates;
+            sums.candidateSafetyUpdates += result.candidateEngagement.safetyUpdates;
+            sums.candidateShots += result.candidateEngagement.shots;
+            sums.baselineUpdates += result.baselineEngagement.updates;
+            sums.baselineSafetyUpdates += result.baselineEngagement.safetyUpdates;
+            sums.baselineShots += result.baselineEngagement.shots;
             mergeCauseCounts(candidateDeathCauses, result.candidateDeathCauses);
             mergeCauseCounts(baselineDeathCauses, result.baselineDeathCauses);
             matches += 1;
@@ -500,6 +553,10 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
         killRatio,
         combinedScore: Math.sqrt(survivalRatio * killRatio),
         forcedMatches: sums.forcedMatches,
+        candidateSafetyShare: sums.candidateUpdates > 0 ? sums.candidateSafetyUpdates / sums.candidateUpdates : 0,
+        baselineSafetyShare: sums.baselineUpdates > 0 ? sums.baselineSafetyUpdates / sums.baselineUpdates : 0,
+        candidateShotsPerMatch: sums.candidateShots / matches,
+        baselineShotsPerMatch: sums.baselineShots / matches,
         candidateDeathCauses,
         baselineDeathCauses,
         candidateTrailDeathShare: trailDeathShare(candidateDeathCauses),
@@ -546,6 +603,10 @@ function toRatioRecord(result) {
         candidateDeathCauses: result.candidateDeathCauses,
         baselineDeathCauses: result.baselineDeathCauses,
         forcedMatches: result.forcedMatches,
+        candidateSafetyShare: result.candidateSafetyShare,
+        baselineSafetyShare: result.baselineSafetyShare,
+        candidateShotsPerMatch: result.candidateShotsPerMatch,
+        baselineShotsPerMatch: result.baselineShotsPerMatch,
         candidateTrailDeathShare: result.candidateTrailDeathShare,
         baselineTrailDeathShare: result.baselineTrailDeathShare,
     };
@@ -601,6 +662,7 @@ async function runIteration() {
             maxTicks: COARSE_MAX_TICKS,
         });
         if (result.combinedScore <= coarseCurrent.combinedScore + MIN_CONFIRMED_GAIN) continue;
+        if (!retainsHeuristicEngagement(result)) continue;
         shortCoarseCurrent ||= await evaluateVariant({
             profile,
             fields: HEURISTIC_IMPROVEMENT_BASELINE[profile],
@@ -646,7 +708,8 @@ async function runIteration() {
             maxTicks: FULL_MAX_TICKS,
         });
         reported = fullCandidate;
-        if (isStrictlyBetterOnBoth(fullCandidate, fullCurrent)) {
+        if (isStrictlyBetterOnBoth(fullCandidate, fullCurrent)
+            && retainsHeuristicEngagement(fullCandidate)) {
             const shortCurrent = await evaluateVariant({
                 profile,
                 fields: HEURISTIC_IMPROVEMENT_BASELINE[profile],
@@ -695,6 +758,8 @@ async function runIteration() {
         + ` stage=${selected ? 'holdout' : 'coarse'}`
         + ` survivalRatio=${formatRatio(reported.survivalRatio)}`
         + ` killRatio=${formatRatio(reported.killRatio)}`
+        + ` safetyShare=${reported.candidateSafetyShare.toFixed(3)}`
+        + ` shots=${reported.candidateShotsPerMatch.toFixed(1)}`
         + ` decision=${decision}`
     );
 
@@ -741,6 +806,8 @@ async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true, produc
             `profile=${profile} ${product ? 'product' : persist ? 'verified' : 'confirmed'}SurvivalRatio=${formatRatio(result.survivalRatio)}`
             + ` ${product ? 'product' : persist ? 'verified' : 'confirmed'}KillRatio=${formatRatio(result.killRatio)}`
             + (product ? ` candidateKills=${result.candidateKills.toFixed(3)} baselineKills=${result.baselineKills.toFixed(3)}` : '')
+            + ` safetyShare=${result.candidateSafetyShare.toFixed(3)}/${result.baselineSafetyShare.toFixed(3)}`
+            + ` shots=${result.candidateShotsPerMatch.toFixed(1)}/${result.baselineShotsPerMatch.toFixed(1)}`
             + ` shortSafe=${shortSafe}`
         );
     }
@@ -762,10 +829,15 @@ async function replayMatch(product = false) {
         || !Number.isInteger(candidateSlot) || candidateSlot < 0 || candidateSlot >= NUM_BOTS) {
         throw new Error('replay requires profile, positive seed and valid candidate slot');
     }
+    const setup = {
+        difficulty: String(process.argv[6] || 'NORMAL').trim().toUpperCase(),
+        mapKey: String(process.argv[7] || 'standard').trim(),
+    };
     const state = loadState();
     const result = await runMatch({
         profile,
         seed,
+        setup,
         candidateFields: product ? HEURISTIC_PROFILES[profile] : state.profiles[profile],
         candidateSlot,
         maxTicks: COARSE_MAX_TICKS,
@@ -802,7 +874,7 @@ async function probeCurrentProfile(fullHoldout, adopt = false, shortOnly = false
     const result = await evaluateVariant({ profile, fields, seeds, slots, maxTicks, respawnEnabled: !shortOnly });
     const better = shortOnly
         ? result.candidateSurvival >= currentResult.candidateSurvival * MIN_ELIMINATION_SURVIVAL_RETENTION
-        : isStrictlyBetterOnBoth(result, currentResult);
+        : isStrictlyBetterOnBoth(result, currentResult) && retainsHeuristicEngagement(result);
     let decision = shortOnly
         ? (better ? 'short-safe' : 'short-unsafe')
         : (better ? 'better-both' : 'not-better-both');
@@ -839,6 +911,8 @@ async function probeCurrentProfile(fullHoldout, adopt = false, shortOnly = false
         + ` killRatio=${formatRatio(result.killRatio)}`
         + ` survivalGain=${formatRatio(result.candidateSurvival / currentResult.candidateSurvival)}`
         + ` killGain=${formatRatio(result.candidateKills / currentResult.candidateKills)}`
+        + ` safetyShare=${result.candidateSafetyShare.toFixed(3)}/${currentResult.candidateSafetyShare.toFixed(3)}`
+        + ` shots=${result.candidateShotsPerMatch.toFixed(1)}/${currentResult.candidateShotsPerMatch.toFixed(1)}`
         + ` decision=${decision}`
     );
 }

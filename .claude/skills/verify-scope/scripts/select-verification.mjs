@@ -14,10 +14,54 @@
 //   node select-verification.mjs                 # derive from git (warns about foreign changes)
 //   node select-verification.mjs src/ui/Foo.js   # only the paths you actually touched
 //   node select-verification.mjs --json          # machine readable
+//   node select-verification.mjs --batch a b     # one stage-3 run for several branches (vs main)
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import {
+    DESKTOP_E2E_CLUSTERS,
+    DESKTOP_FLOWS_MAP_BOUND_SPECS,
+} from '../../../../scripts/playwright-test-clusters.mjs';
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const PRESET_DIR = 'src/core/config/maps/presets/';
+const CATALOG_FILE = 'src/core/config/maps/MapPresetCatalog.js';
+
+/**
+ * Which preset modules define each catalog map key, found by object identity: the catalog
+ * imports every preset module, so a key belongs to every module whose export holds its object.
+ * Null when the catalog cannot be loaded — callers then fall back to the whole cluster.
+ */
+async function loadCatalogOwners(repoRoot) {
+    try {
+        const catalogPath = path.join(repoRoot, CATALOG_FILE);
+        const { MAP_PRESET_CATALOG } = await import(pathToFileURL(catalogPath).href);
+        const source = fs.readFileSync(catalogPath, 'utf8');
+        const owners = new Map();
+        for (const match of source.matchAll(/import \{([^}]+)\} from '\.\/presets\/([^']+)'/g)) {
+            const module = await import(pathToFileURL(path.join(repoRoot, PRESET_DIR, match[2])).href);
+            const name = match[2].split('/')[0].replace(/\.js$/, '');
+            for (const ident of match[1].split(',').map((entry) => entry.trim()).filter(Boolean)) {
+                const value = module[ident];
+                if (!value || typeof value !== 'object') continue;
+                for (const [key, def] of Object.entries(MAP_PRESET_CATALOG)) {
+                    if (def !== value && !Object.values(value).includes(def)) continue;
+                    const set = owners.get(key) || new Set();
+                    set.add(name);
+                    owners.set(key, set);
+                }
+            }
+        }
+        return Object.keys(MAP_PRESET_CATALOG).every((key) => owners.has(key)) ? owners : null;
+    } catch {
+        return null;
+    }
+}
+
+const CATALOG_OWNERS = await loadCatalogOwners(REPO_ROOT);
 
 export const VERIFICATION_STAGES = Object.freeze({
     1: 'Stufe 1 — immer, im Agenten, vor jedem Commit (nimmt kein Playwright-Schloss)',
@@ -219,12 +263,42 @@ const RULES = [
 function parseArgs(argv) {
     const paths = [];
     let json = false;
+    let batch = false;
+    let base = 'main';
     for (const raw of argv) {
         if (raw === '--json') json = true;
+        else if (raw === '--batch') batch = true;
+        else if (raw.startsWith('--base=')) base = raw.slice('--base='.length);
         else if (raw.startsWith('--')) continue;
         else paths.push(raw.replace(/\\/g, '/'));
     }
-    return { paths, json };
+    return { paths, json, batch, base };
+}
+
+/** Paths a branch changed since it left `base` (three-dot diff: the branch side only). */
+function changedOnBranch(base, branch) {
+    const result = spawnSync('git', ['diff', '--name-only', `${base}...${branch}`], { encoding: 'utf8', windowsHide: true });
+    if (result.status !== 0) {
+        throw new Error(`git diff ${base}...${branch} failed: ${String(result.stderr || '').trim()}`);
+    }
+    return result.stdout.split(/\r?\n/).filter(Boolean).map((entry) => entry.replace(/\\/g, '/'));
+}
+
+function printBatchReport(base, plan) {
+    const specCount = Object.keys(plan.suspectsBySpec).length;
+    console.log(`Sammellauf gegen ${base}: ${plan.stage3Command ? `${plan.clusters.length} Cluster, ${specCount} einzelne desktop-flows-Specs` : 'kein Cluster nötig'}`);
+    if (plan.stage3Command) {
+        console.log(`\n${VERIFICATION_STAGES[3]} — einmal für alle Branches, im Integrations-Worktree, nacheinander`);
+        for (const command of plan.stage3Command.split('\n')) console.log(`  ${command}`);
+        console.log('  (losgelöst starten, CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS mindestens 7200000)');
+        console.log('\nBei Rot kommen nur diese Branches in Frage:');
+        for (const [target, branches] of [...Object.entries(plan.suspectsByCluster), ...Object.entries(plan.suspectsBySpec)]) {
+            console.log(`  ${target}: ${branches.join(', ')}`);
+        }
+    }
+    if (plan.withoutClusters.length > 0) {
+        console.log(`\nOhne Cluster (Stufe 1+2 genügt): ${plan.withoutClusters.join(', ')}`);
+    }
 }
 
 function changedFromGit() {
@@ -255,12 +329,172 @@ export function toStage2Command(target) {
     };
 }
 
+function toStage3Command(clusters) {
+    return `node scripts/run-playwright-targeted-clusters.mjs ${clusters.join(' ')} --skip-known`;
+}
+
+function toStage3SpecCommand(specs) {
+    return `node scripts/run-playwright-targeted.mjs ${specs.join(' ')} --skip-known`;
+}
+
+/** `src/core/config/maps/presets/<name>(.js|/…)` → `<name>`, anything else → null. */
+function presetNameOf(p) {
+    if (!p.startsWith(PRESET_DIR)) return null;
+    const first = p.slice(PRESET_DIR.length).split('/')[0];
+    return first.replace(/\.js$/, '') || null;
+}
+
+function listFilesRecursive(dir) {
+    const out = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) out.push(...listFilesRecursive(full));
+        else if (entry.name.endsWith('.js')) out.push(full);
+    }
+    return out;
+}
+
+const presetIndexCache = new Map();
+
+/**
+ * Reads the map presets once: which presets define each map key (from the catalog), which asset
+ * packs each preset loads, and which other presets import it.
+ */
+export function collectPresetIndex(repoRoot = REPO_ROOT) {
+    if (presetIndexCache.has(repoRoot)) return presetIndexCache.get(repoRoot);
+    const presetRoot = path.join(repoRoot, PRESET_DIR);
+    const presetNames = new Set();
+    const keyToPresets = new Map([...(CATALOG_OWNERS || [])].map(([key, owners]) => [key, [...owners]]));
+    const packToPresets = new Map();
+    const importers = new Map();
+    for (const file of listFilesRecursive(presetRoot)) {
+        const relative = path.relative(repoRoot, file).replace(/\\/g, '/');
+        const name = presetNameOf(relative);
+        presetNames.add(name);
+        const source = fs.readFileSync(file, 'utf8');
+        for (const match of source.matchAll(/assets\/maps\/([a-z0-9_]+)/g)) {
+            const owners = packToPresets.get(match[1]) || new Set();
+            owners.add(name);
+            packToPresets.set(match[1], owners);
+        }
+        for (const match of source.matchAll(/from\s+'(\.{1,2}\/[^']+)'/g)) {
+            const target = presetNameOf(path.relative(repoRoot, path.resolve(path.dirname(file), match[1])).replace(/\\/g, '/'));
+            if (!target || target === name) continue;
+            const set = importers.get(target) || new Set();
+            set.add(name);
+            importers.set(target, set);
+        }
+    }
+    const index = {
+        catalogLoaded: CATALOG_OWNERS !== null,
+        presetNames,
+        keyToPresets,
+        packToPresets: new Map([...packToPresets].map(([pack, owners]) => [pack, [...owners]])),
+        importers,
+    };
+    presetIndexCache.set(repoRoot, index);
+    return index;
+}
+
+const BOUND_PRESETS = new Set(Object.values(DESKTOP_FLOWS_MAP_BOUND_SPECS).flat());
+
+/**
+ * The presets a change to preset `name` reaches, or null when the change cannot be confined:
+ * an unbound preset that defines maps, or an unbound preset that imports it.
+ */
+function presetsReachedBy(name, index) {
+    const reached = new Set([name]);
+    const queue = [name];
+    while (queue.length > 0) {
+        for (const importer of index.importers.get(queue.shift()) || []) {
+            if (!reached.has(importer)) {
+                reached.add(importer);
+                queue.push(importer);
+            }
+        }
+    }
+    const definesMaps = [...index.keyToPresets.values()].some((owners) => owners.includes(name));
+    const selfOk = BOUND_PRESETS.has(name) || (!definesMaps && reached.size > 1);
+    const importersOk = [...reached].every((preset) => preset === name || BOUND_PRESETS.has(preset));
+    return selfOk && importersOk ? reached : null;
+}
+
+/**
+ * For paths that only pull in desktop-flows through map files: the bound specs of the reached
+ * presets plus every unbound spec, in cluster order. Null means: run the whole cluster.
+ */
+export function resolveDesktopFlowsScope(paths, repoRoot = REPO_ROOT) {
+    if (paths.length === 0) return null;
+    const index = collectPresetIndex(repoRoot);
+    if (!index.catalogLoaded) return null;
+    const reached = new Set();
+    for (const p of paths) {
+        const preset = presetNameOf(p);
+        const pack = /^assets\/maps\/([a-z0-9_]+)\//.exec(p)?.[1];
+        const owners = preset ? [preset] : pack ? index.packToPresets.get(pack) || [] : [];
+        if (owners.length === 0) return null;
+        for (const owner of owners) {
+            const presets = presetsReachedBy(owner, index);
+            if (!presets) return null;
+            for (const entry of presets) reached.add(entry);
+        }
+    }
+    const specs = DESKTOP_E2E_CLUSTERS.find((cluster) => cluster.id === 'desktop-flows').specs;
+    return specs.filter((spec) => {
+        const bound = DESKTOP_FLOWS_MAP_BOUND_SPECS[spec];
+        return !bound || bound.some((preset) => reached.has(preset));
+    });
+}
+
+/**
+ * Batch run: several finished branches share one stage-3 run on their merged state. Input maps
+ * each branch to the paths it changed. The result is the cluster union (one run) and, per
+ * cluster, the branches that can have turned it red — the suspects for small reruns.
+ */
+export function planBatch(changedPathsByBranch) {
+    const suspectsByCluster = {};
+    let suspectsBySpec = {};
+    const withoutClusters = [];
+    for (const [branch, paths] of Object.entries(changedPathsByBranch)) {
+        const { clusters, desktopFlowsSpecs } = selectFor(paths);
+        if (clusters.length === 0 && !desktopFlowsSpecs) withoutClusters.push(branch);
+        for (const cluster of clusters) (suspectsByCluster[cluster] ||= []).push(branch);
+        for (const spec of desktopFlowsSpecs || []) (suspectsBySpec[spec] ||= []).push(branch);
+    }
+    // One branch that needs the whole cluster covers every spec list; its suspects are all of them.
+    if (suspectsByCluster['desktop-flows']) {
+        const spread = new Set(Object.values(suspectsBySpec).flat());
+        suspectsByCluster['desktop-flows'] = Object.keys(changedPathsByBranch)
+            .filter((branch) => spread.has(branch) || suspectsByCluster['desktop-flows'].includes(branch));
+        suspectsBySpec = {};
+    }
+    const clusters = Object.keys(suspectsByCluster);
+    const specs = Object.keys(suspectsBySpec);
+    const commands = [
+        ...(clusters.length > 0 ? [toStage3Command(clusters)] : []),
+        ...(specs.length > 0 ? [toStage3SpecCommand(orderLikeDesktopFlows(specs))] : []),
+    ];
+    return {
+        clusters,
+        suspectsByCluster,
+        suspectsBySpec,
+        withoutClusters,
+        stage3Command: commands.length > 0 ? commands.join('\n') : null,
+    };
+}
+
+function orderLikeDesktopFlows(specs) {
+    const order = DESKTOP_E2E_CLUSTERS.find((cluster) => cluster.id === 'desktop-flows').specs;
+    return [...specs].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+}
+
 export function selectFor(paths) {
     const commands = new Map();
     const clusters = new Set();
     const matched = [];
     const hints = new Set();
     const stage2Targets = [];
+    const desktopFlowsRules = new Set();
 
     for (const entry of ALWAYS) commands.set(entry.command, entry);
 
@@ -277,17 +511,34 @@ export function selectFor(paths) {
             }
         }
         for (const cluster of rule.clusters || []) clusters.add(cluster);
+        if (rule.clusters?.includes('desktop-flows')) desktopFlowsRules.add(rule.id);
         if (rule.hint) hints.add(rule.hint);
+    }
+
+    // Only map files pulled desktop-flows in: run the reached maps' specs instead of the cluster.
+    let desktopFlowsSpecs = null;
+    if (desktopFlowsRules.size === 1 && desktopFlowsRules.has('renderer')) {
+        desktopFlowsSpecs = resolveDesktopFlowsScope(paths.filter((p) => RULES.find((rule) => rule.id === 'renderer').match(p)));
+        if (desktopFlowsSpecs) clusters.delete('desktop-flows');
     }
 
     const list = [...commands.values()].map((entry) => ({ ...entry, stage: entry.stage || 1 }));
     for (const target of stage2Targets) list.push(toStage2Command(target));
     if (clusters.size > 0) {
         list.push({
-            command: `node scripts/run-playwright-targeted-clusters.mjs ${[...clusters].join(' ')} --skip-known`,
+            command: toStage3Command([...clusters]),
             rank: RANK.clusters,
             stage: 3,
             reason: 'Playwright-Cluster der betroffenen Bereiche',
+            note: 'losgelöst starten, CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS mindestens 7200000',
+        });
+    }
+    if (desktopFlowsSpecs) {
+        list.push({
+            command: toStage3SpecCommand(desktopFlowsSpecs),
+            rank: RANK.clusters,
+            stage: 3,
+            reason: 'desktop-flows nur für die berührten Karten (plus alle ungebundenen Specs)',
             note: 'losgelöst starten, CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS mindestens 7200000',
         });
     }
@@ -295,7 +546,7 @@ export function selectFor(paths) {
 
     const byStage = { 1: [], 2: [], 3: [] };
     for (const entry of list) byStage[entry.stage].push(entry);
-    return { list, byStage, matched, hints: [...hints], clusters: [...clusters] };
+    return { list, byStage, matched, hints: [...hints], clusters: [...clusters], desktopFlowsSpecs };
 }
 
 function printReport({ paths, explicit, matched, byStage, hints }) {
@@ -338,7 +589,18 @@ function printReport({ paths, explicit, matched, byStage, hints }) {
 }
 
 function main(argv) {
-    const { paths: argPaths, json } = parseArgs(argv);
+    const { paths: argPaths, json, batch, base } = parseArgs(argv);
+    if (batch) {
+        if (argPaths.length === 0) {
+            console.error('--batch braucht mindestens einen Branch-Namen.');
+            process.exitCode = 1;
+            return;
+        }
+        const plan = planBatch(Object.fromEntries(argPaths.map((branch) => [branch, changedOnBranch(base, branch)])));
+        if (json) console.log(JSON.stringify({ base, ...plan }, null, 2));
+        else printBatchReport(base, plan);
+        return;
+    }
     const explicit = argPaths.length > 0;
     const paths = explicit ? argPaths : changedFromGit();
     const { list, byStage, matched, hints, clusters } = selectFor(paths);
