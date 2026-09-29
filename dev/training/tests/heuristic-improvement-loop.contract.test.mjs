@@ -128,6 +128,8 @@ test('match replay is stable for one seed and changes for another seed', () => {
     const other = replay(139);
     assert.deepEqual(replay(127, '--replay-product'), replay(127, '--replay-product'));
     assert.equal(first.matchSeed, 127);
+    assert.ok(Number.isFinite(first.candidateDamage) && first.candidateDamage >= 0);
+    assert.ok(Number.isFinite(first.baselineDamage) && first.baselineDamage >= 0);
     assert.equal(other.matchSeed, 139);
     assert.notEqual(first.endPositionSignature, other.endPositionSignature);
 });

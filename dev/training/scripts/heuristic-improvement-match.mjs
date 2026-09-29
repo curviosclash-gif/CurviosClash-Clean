@@ -314,9 +314,11 @@ export async function runMatch({
         }
         const candidateLife = lifeTracker.lifeTotals(candidateBot.player, endSeconds);
         const candidateKills = Math.max(0, Number(scoreboardByPlayer.get(candidateIndex)?.kills) || 0);
+        const candidateDamage = Math.max(0, Number(scoreboardByPlayer.get(candidateIndex)?.damage) || 0);
         let baselineLifeSeconds = 0;
         let baselineLives = 0;
         let baselineKills = 0;
+        let baselineDamage = 0;
         let baselineCount = 0;
         const baselineEngagement = { updates: 0, safetyUpdates: 0, shots: 0 };
         for (const bot of bots) {
@@ -330,6 +332,7 @@ export async function runMatch({
             baselineLifeSeconds += life.seconds;
             baselineLives += life.lives;
             baselineKills += Math.max(0, Number(scoreboardByPlayer.get(playerIndex)?.kills) || 0);
+            baselineDamage += Math.max(0, Number(scoreboardByPlayer.get(playerIndex)?.damage) || 0);
             baselineCount += 1;
         }
 
@@ -339,9 +342,11 @@ export async function runMatch({
             candidateLifeSeconds: candidateLife.seconds,
             candidateLives: candidateLife.lives,
             candidateKills,
+            candidateDamage,
             baselineLifeSeconds: baselineCount > 0 ? baselineLifeSeconds / baselineCount : 0,
             baselineLives: baselineCount > 0 ? baselineLives / baselineCount : 0,
             baselineKills: baselineCount > 0 ? baselineKills / baselineCount : 0,
+            baselineDamage: baselineCount > 0 ? baselineDamage / baselineCount : 0,
             candidateDeathCauses,
             baselineDeathCauses,
             candidateEngagement: engagement.totals(candidateIndex),

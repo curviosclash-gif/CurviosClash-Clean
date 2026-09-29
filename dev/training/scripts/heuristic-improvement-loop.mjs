@@ -170,9 +170,11 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
         candidateLifeSeconds: 0,
         candidateLives: 0,
         candidateKills: 0,
+        candidateDamage: 0,
         baselineLifeSeconds: 0,
         baselineLives: 0,
         baselineKills: 0,
+        baselineDamage: 0,
         forcedMatches: 0,
         candidateUpdates: 0,
         candidateSafetyUpdates: 0,
@@ -191,9 +193,11 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
             sums.candidateLifeSeconds += result.candidateLifeSeconds;
             sums.candidateLives += result.candidateLives;
             sums.candidateKills += result.candidateKills;
+            sums.candidateDamage += result.candidateDamage;
             sums.baselineLifeSeconds += result.baselineLifeSeconds;
             sums.baselineLives += result.baselineLives;
             sums.baselineKills += result.baselineKills;
+            sums.baselineDamage += result.baselineDamage;
             if (result.forced) sums.forcedMatches += 1;
             sums.candidateUpdates += result.candidateEngagement.updates;
             sums.candidateSafetyUpdates += result.candidateEngagement.safetyUpdates;
@@ -210,6 +214,7 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
                 candidateLifeSeconds: result.candidateLifeSeconds,
                 candidateLives: result.candidateLives,
                 candidateKills: result.candidateKills,
+                candidateDamage: result.candidateDamage,
             });
         }
     }
@@ -220,6 +225,8 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
     const baselineKills = sums.baselineKills / matches;
     const survivalRatio = ratio(candidateSurvival, baselineSurvival);
     const killRatio = ratio(candidateKills, baselineKills);
+    const candidateDamage = sums.candidateDamage / matches;
+    const baselineDamage = sums.baselineDamage / matches;
     return {
         candidateSurvival,
         candidateKills,
@@ -227,6 +234,9 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
         baselineKills,
         survivalRatio,
         killRatio,
+        candidateDamage,
+        baselineDamage,
+        damageRatio: ratio(candidateDamage, baselineDamage),
         combinedScore: Math.sqrt(survivalRatio * killRatio),
         forcedMatches: sums.forcedMatches,
         candidateSafetyShare: sums.candidateUpdates > 0 ? sums.candidateSafetyUpdates / sums.candidateUpdates : 0,
@@ -276,6 +286,9 @@ function toRatioRecord(result) {
         baselineSurvival: result.baselineSurvival,
         candidateKills: result.candidateKills,
         baselineKills: result.baselineKills,
+        damage: result.damageRatio,
+        candidateDamage: result.candidateDamage,
+        baselineDamage: result.baselineDamage,
         candidateDeathCauses: result.candidateDeathCauses,
         baselineDeathCauses: result.baselineDeathCauses,
         forcedMatches: result.forcedMatches,
@@ -435,6 +448,7 @@ async function runIteration() {
         + ` stage=${selected ? 'holdout' : 'coarse'}`
         + ` survivalRatio=${formatRatio(reported.survivalRatio)}`
         + ` killRatio=${formatRatio(reported.killRatio)}`
+        + ` damageRatio=${formatRatio(reported.damageRatio)}`
         + ` safetyShare=${reported.candidateSafetyShare.toFixed(3)}`
         + ` shots=${reported.candidateShotsPerMatch.toFixed(1)}`
         + ` decision=${decision}`
@@ -590,6 +604,7 @@ async function probeCurrentProfile(fullHoldout, adopt = false, shortOnly = false
         + ` killRatio=${formatRatio(result.killRatio)}`
         + ` survivalGain=${formatRatio(result.candidateSurvival / currentResult.candidateSurvival)}`
         + ` killGain=${formatRatio(result.candidateKills / currentResult.candidateKills)}`
+        + ` damageGain=${formatRatio(result.candidateDamage / currentResult.candidateDamage)}`
         + ` safetyShare=${result.candidateSafetyShare.toFixed(3)}/${currentResult.candidateSafetyShare.toFixed(3)}`
         + ` shots=${result.candidateShotsPerMatch.toFixed(1)}/${currentResult.candidateShotsPerMatch.toFixed(1)}`
         + ` decision=${decision}`

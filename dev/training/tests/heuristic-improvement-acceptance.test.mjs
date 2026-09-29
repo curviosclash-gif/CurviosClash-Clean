@@ -4,8 +4,10 @@ import test from 'node:test';
 import { judgeCandidate } from '../scripts/heuristic-improvement-acceptance.mjs';
 
 // One benchmark match per seed/slot pair, as evaluateVariant records it.
-function match(seed, slot, lifeSeconds, kills) {
-    return { seed, slot, candidateLifeSeconds: lifeSeconds, candidateLives: 1, candidateKills: kills };
+function match(seed, slot, lifeSeconds, kills, damage = 50) {
+    return {
+        seed, slot, candidateLifeSeconds: lifeSeconds, candidateLives: 1, candidateKills: kills, candidateDamage: damage,
+    };
 }
 
 function evaluation(matches) {
@@ -13,12 +15,14 @@ function evaluation(matches) {
     const lives = matches.reduce((sum, row) => sum + row.candidateLives, 0);
     const kills = matches.reduce((sum, row) => sum + row.candidateKills, 0) / matches.length;
     const survival = lifeSeconds / lives;
+    const damage = matches.reduce((sum, row) => sum + row.candidateDamage, 0) / matches.length;
     // Comparison bots fixed at 10 s and 1 kill, so the ratios follow the candidate.
     return {
         candidateSurvival: survival,
         candidateKills: kills,
         survivalRatio: survival / 10,
         killRatio: kills,
+        candidateDamage: damage,
         matches,
     };
 }
@@ -71,4 +75,25 @@ test('from zero kills any kill is a gain, but zero stays zero', () => {
 test('paired comparison refuses results from different seeds or slots', () => {
     const shifted = evaluation(CURRENT.matches.map((row) => ({ ...row, seed: row.seed + 1 })));
     assert.throws(() => judgeCandidate(shifted, CURRENT), /pair/);
+});
+
+test('a candidate that survives and kills more but deals less damage stays out', () => {
+    const timid = evaluation(CURRENT.matches.map((row) => ({
+        ...row,
+        candidateLifeSeconds: row.candidateLifeSeconds * 1.2,
+        candidateKills: row.candidateKills * 1.2,
+        candidateDamage: row.candidateDamage * 0.9,
+    })));
+    const verdict = judgeCandidate(timid, CURRENT);
+    assert.equal(verdict.accepted, false);
+    assert.deepEqual(verdict.failed, ['damage', 'damage-pairs']);
+});
+
+test('equal damage keeps a clear survival and kill gain acceptable', () => {
+    const steady = evaluation(CURRENT.matches.map((row) => ({
+        ...row, candidateLifeSeconds: row.candidateLifeSeconds * 1.2, candidateKills: row.candidateKills * 1.2,
+    })));
+    const verdict = judgeCandidate(steady, CURRENT);
+    assert.equal(verdict.accepted, true);
+    assert.deepEqual(verdict.pairs.damage, { better: 0, equal: 4, worse: 0 });
 });

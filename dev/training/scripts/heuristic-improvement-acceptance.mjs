@@ -5,7 +5,7 @@
 // not be worse in most of the individual matches, which both play on the same seed and slot.
 
 // Loop and runner read the same state file; one constant keeps their versions from drifting apart.
-export const HEURISTIC_SEARCH_STATE_VERSION = 20;
+export const HEURISTIC_SEARCH_STATE_VERSION = 21;
 
 // Required relative gain of the mean over the current profile, for survival and for kills.
 export const MIN_ACCEPTED_GAIN = 0.05;
@@ -16,6 +16,8 @@ export const MIN_NOT_WORSE_PAIR_SHARE = 0.5;
 const PAIRED_METRICS = Object.freeze({
     survival: (row) => (row.candidateLives > 0 ? row.candidateLifeSeconds / row.candidateLives : 0),
     kills: (row) => row.candidateKills,
+    // Hit point damage dealt, as the Hunt scoreboard counts it.
+    damage: (row) => row.candidateDamage,
 });
 
 export function comparePairedMatches(candidateMatches, currentMatches, readMetric) {
@@ -56,8 +58,12 @@ export function judgeCandidate(candidate, current) {
     const pairs = {
         survival: comparePairedMatches(candidate.matches, current.matches, PAIRED_METRICS.survival),
         kills: comparePairedMatches(candidate.matches, current.matches, PAIRED_METRICS.kills),
+        damage: comparePairedMatches(candidate.matches, current.matches, PAIRED_METRICS.damage),
     };
     if (!isNotWorseInMostPairs(pairs.survival)) failed.push('survival-pairs');
     if (!isNotWorseInMostPairs(pairs.kills)) failed.push('kill-pairs');
+    // Damage needs no gain of its own, but a candidate may not buy its lives by fighting less.
+    if (!(candidate.candidateDamage >= current.candidateDamage)) failed.push('damage');
+    if (!isNotWorseInMostPairs(pairs.damage)) failed.push('damage-pairs');
     return { accepted: failed.length === 0, failed, pairs };
 }
