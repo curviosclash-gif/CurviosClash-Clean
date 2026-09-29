@@ -61,9 +61,7 @@ test('heuristic improvement loop separates coarse training from rotated holdout 
     assert.match(source, /HOLDOUT_SEEDS = Object\.freeze\(\[3, 7, 11, 17, 23, 31, 41, 53, 67, 79, 97, 113\]\)/);
     assert.match(source, /coarseSlots = \[\.\.\.new Set\(\[0, Math\.max\(0, NUM_BOTS - 1\)\]\)\]/);
     assert.match(source, /fullSlots = Array\.from\(\{ length: NUM_BOTS \}/);
-    assert.match(source, /isStrictlyBetterOnBoth\(fullCandidate, fullCurrent\)/);
-    assert.match(source, /candidate\.survivalRatio > current\.survivalRatio \+ MIN_CONFIRMED_GAIN/);
-    assert.match(source, /candidate\.killRatio > current\.killRatio \+ MIN_CONFIRMED_GAIN/);
+    assert.match(source, /verdict = judgeCandidate\(fullCandidate, fullCurrent\)/);
     assert.match(source, /state\.holdoutCache\[profile\]\?\.key === currentCacheKey/);
     assert.match(source, /holdoutCacheKey\(current, HOLDOUT_SEEDS, fullSlots, FULL_MAX_TICKS\)/);
     assert.match(source, /JSON\.stringify\(\[BENCHMARK_FINGERPRINT, fields, seeds, slots, maxTicks\]\)/);
@@ -137,8 +135,8 @@ test('match replay is stable for one seed and changes for another seed', () => {
 test('heuristic improvement loop measures engagement and gates every accept on it', () => {
     assert.match(source, /engagement\.record\(player\?\.index, action, this\._safetyState\?\.state\)/);
     assert.match(source, /candidateSafetyShare: sums\.candidateUpdates > 0/);
-    assert.match(source, /isStrictlyBetterOnBoth\(fullCandidate, fullCurrent\)\s*&& retainsHeuristicEngagement\(fullCandidate\)/);
-    assert.match(source, /isStrictlyBetterOnBoth\(result, currentResult\) && retainsHeuristicEngagement\(result\)/);
+    assert.match(source, /if \(verdict\.accepted && retainsHeuristicEngagement\(fullCandidate\)\)/);
+    assert.match(source, /: verdict\.accepted && retainsHeuristicEngagement\(result\)/);
     assert.match(source, /if \(!retainsHeuristicEngagement\(result\)\) continue;/);
     assert.match(source, /candidateShotsPerMatch: result\.candidateShotsPerMatch/);
 });

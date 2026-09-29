@@ -11,6 +11,7 @@ import {
     HEURISTIC_PROFILES,
 } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
 import { retainsHeuristicEngagement } from './heuristic-improvement-metrics.mjs';
+import { HEURISTIC_SEARCH_STATE_VERSION, judgeCandidate } from './heuristic-improvement-acceptance.mjs';
 import {
     HEURISTIC_IMPROVEMENT_BASELINE, resolveHeuristicBenchmarkSetup,
 } from './heuristic-improvement-baseline.mjs';
@@ -36,7 +37,7 @@ const DEFAULT_TIMEOUT_MS = 90 * 60 * 1000;
 const MIN_CONFIRMED_GAIN = 1e-6;
 const PLATEAU_GAIN = 0.02;
 const TARGET_RATIO = 2;
-const STATE_VERSION = 19;
+const STATE_VERSION = HEURISTIC_SEARCH_STATE_VERSION;
 const MIN_ELIMINATION_SURVIVAL_RETENTION = 0.95;
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -182,7 +183,7 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
     };
     const candidateDeathCauses = {};
     const baselineDeathCauses = {};
-    let matches = 0;
+    const matchRows = [];
     for (const [seedIndex, seed] of seeds.entries()) {
         const setup = resolveHeuristicBenchmarkSetup(seedIndex);
         for (const candidateSlot of slots) {
@@ -202,9 +203,17 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
             sums.baselineShots += result.baselineEngagement.shots;
             mergeCauseCounts(candidateDeathCauses, result.candidateDeathCauses);
             mergeCauseCounts(baselineDeathCauses, result.baselineDeathCauses);
-            matches += 1;
+            // One row per seed and slot, so two evaluations can be compared match by match.
+            matchRows.push({
+                seed,
+                slot: candidateSlot,
+                candidateLifeSeconds: result.candidateLifeSeconds,
+                candidateLives: result.candidateLives,
+                candidateKills: result.candidateKills,
+            });
         }
     }
+    const matches = matchRows.length;
     const candidateSurvival = sums.candidateLives > 0 ? sums.candidateLifeSeconds / sums.candidateLives : 0;
     const candidateKills = sums.candidateKills / matches;
     const baselineSurvival = sums.baselineLives > 0 ? sums.baselineLifeSeconds / sums.baselineLives : 0;
@@ -228,6 +237,7 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
         baselineDeathCauses,
         candidateTrailDeathShare: trailDeathShare(candidateDeathCauses),
         baselineTrailDeathShare: trailDeathShare(baselineDeathCauses),
+        matches: matchRows,
     };
 }
 
@@ -236,13 +246,6 @@ function perturb(profile, field, step) {
         ...profile,
         [field]: clampScalar(field, Number(profile[field]) * (1 + step)),
     };
-}
-
-function isStrictlyBetterOnBoth(candidate, current) {
-    return candidate.candidateSurvival > current.candidateSurvival + MIN_CONFIRMED_GAIN
-        && candidate.candidateKills > current.candidateKills + MIN_CONFIRMED_GAIN
-        && candidate.survivalRatio > current.survivalRatio + MIN_CONFIRMED_GAIN
-        && candidate.killRatio > current.killRatio + MIN_CONFIRMED_GAIN;
 }
 
 function targetReached(result) {
@@ -257,6 +260,12 @@ function targetReached(result) {
 
 function formatRatio(value) {
     return Number.isFinite(value) ? value.toFixed(3) : 'inf';
+}
+
+function formatPairs(pairs) {
+    return Object.entries(pairs)
+        .map(([metric, { better, equal, worse }]) => `${metric}:${better}/${equal}/${worse}`)
+        .join(',');
 }
 
 function toRatioRecord(result) {
@@ -355,6 +364,7 @@ async function runIteration() {
 
     let decision = 'coarse-reject';
     let reported = coarseCurrent;
+    let verdict = null;
     if (selected) {
         const currentCacheKey = holdoutCacheKey(current, HOLDOUT_SEEDS, fullSlots, FULL_MAX_TICKS);
         const fullCurrent = state.holdoutCache[profile]?.key === currentCacheKey
@@ -375,8 +385,8 @@ async function runIteration() {
             maxTicks: FULL_MAX_TICKS,
         });
         reported = fullCandidate;
-        if (isStrictlyBetterOnBoth(fullCandidate, fullCurrent)
-            && retainsHeuristicEngagement(fullCandidate)) {
+        verdict = judgeCandidate(fullCandidate, fullCurrent);
+        if (verdict.accepted && retainsHeuristicEngagement(fullCandidate)) {
             const shortCurrent = await evaluateVariant({
                 profile,
                 fields: HEURISTIC_IMPROVEMENT_BASELINE[profile],
@@ -428,6 +438,7 @@ async function runIteration() {
         + ` safetyShare=${reported.candidateSafetyShare.toFixed(3)}`
         + ` shots=${reported.candidateShotsPerMatch.toFixed(1)}`
         + ` decision=${decision}`
+        + (verdict ? ` failed=${verdict.failed.join('+') || 'none'} pairs=${formatPairs(verdict.pairs)}` : '')
     );
 
     if (state.plateauRounds >= 3) process.exitCode = 3;
@@ -539,9 +550,10 @@ async function probeCurrentProfile(fullHoldout, adopt = false, shortOnly = false
         ? state.holdoutCache[profile].result
         : await evaluateVariant({ profile, fields: reference, seeds, slots, maxTicks, respawnEnabled: !shortOnly });
     const result = await evaluateVariant({ profile, fields, seeds, slots, maxTicks, respawnEnabled: !shortOnly });
+    const verdict = shortOnly ? null : judgeCandidate(result, currentResult);
     const better = shortOnly
         ? result.candidateSurvival >= currentResult.candidateSurvival * MIN_ELIMINATION_SURVIVAL_RETENTION
-        : isStrictlyBetterOnBoth(result, currentResult) && retainsHeuristicEngagement(result);
+        : verdict.accepted && retainsHeuristicEngagement(result);
     let decision = shortOnly
         ? (better ? 'short-safe' : 'short-unsafe')
         : (better ? 'better-both' : 'not-better-both');
@@ -581,6 +593,7 @@ async function probeCurrentProfile(fullHoldout, adopt = false, shortOnly = false
         + ` safetyShare=${result.candidateSafetyShare.toFixed(3)}/${currentResult.candidateSafetyShare.toFixed(3)}`
         + ` shots=${result.candidateShotsPerMatch.toFixed(1)}/${currentResult.candidateShotsPerMatch.toFixed(1)}`
         + ` decision=${decision}`
+        + (verdict ? ` failed=${verdict.failed.join('+') || 'none'} pairs=${formatPairs(verdict.pairs)}` : '')
     );
 }
 
