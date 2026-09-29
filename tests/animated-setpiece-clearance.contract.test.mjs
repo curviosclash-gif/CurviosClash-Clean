@@ -22,7 +22,7 @@ import assert from 'node:assert/strict';
 import { before, test } from 'node:test';
 
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
-import { collectGameplayPoints, scanAnimatedSetpieces } from './helpers/animated-setpiece-scan.mjs';
+import { MAP_SCALE, scanAnimatedSetpieces } from './helpers/animated-setpiece-scan.mjs';
 
 const KNOWN_FINDINGS = [
     // aetherion_orrery (plan G): astrolabe bars rise through FINISH, an item and both turrets;
@@ -82,27 +82,10 @@ const KNOWN_FINDINGS = [
     'glb_gallery|pm-chromatic-chaos/Building_Corner_01|-|beat',
     'glb_gallery|pm-chromatic-chaos/Building_Corner_01|-|clip-static',
     'glb_gallery|pm-chromatic-chaos/ComputerScreen_Retro|-|beat',
-    // kinetic_tide (plan H): rare lens inside the reactor core, CP07/CP11/P3a/lift sling in the
-    // stroke of their mechanism, static frames without obstacle boxes. CP02, CP14 and the
-    // pendulum item were not in the plan: the gate leaves, tide panels and bob close them briefly.
-    'kinetic_tide|kinetic-tide-carousel|-|static-uncovered',
-    'kinetic_tide|kinetic-tide-gate-one|-|static-uncovered',
-    'kinetic_tide|kinetic-tide-gate-three|-|static-uncovered',
-    'kinetic_tide|kinetic-tide-gate-three|ring:CP02|clearance',
-    'kinetic_tide|kinetic-tide-gate-two|-|static-uncovered',
+    // kinetic_tide (plan H): the iris stands with its bounding-box bottom on [-14,58,-10], so its
+    // opening centre is 16 units above CP06 and the flight tunnel; the lower rim and fin 9 cross
+    // the CP06 ring, and a box there would close the ring. Needs a layout decision (iris or CP06).
     'kinetic_tide|kinetic-tide-iris-shutter|-|static-uncovered',
-    'kinetic_tide|kinetic-tide-lift-rings|-|static-uncovered',
-    'kinetic_tide|kinetic-tide-lift-rings|gate:tide_lift_sling|clearance',
-    'kinetic_tide|kinetic-tide-lift-rings|ring:CP11|clearance',
-    'kinetic_tide|kinetic-tide-pendulums|-|static-uncovered',
-    'kinetic_tide|kinetic-tide-pendulums|item:tide_speed_pendulum|clearance',
-    'kinetic_tide|kinetic-tide-piston-tunnel|-|static-uncovered',
-    'kinetic_tide|kinetic-tide-reactor-heart|-|static-uncovered',
-    'kinetic_tide|kinetic-tide-reactor-heart|item:tide_rare_lens|clearance',
-    'kinetic_tide|kinetic-tide-reactor-heart|ring:CP07|clearance',
-    'kinetic_tide|kinetic-tide-tide-wall|-|static-uncovered',
-    'kinetic_tide|kinetic-tide-tide-wall|portal:P3a|clearance',
-    'kinetic_tide|kinetic-tide-tide-wall|ring:CP14|clearance',
     // Storm sieges (plan K1/K2): loops one frame short of the beat, the train jumps back across
     // the bridge at every loop end, wrecks outside the arena or below the floor.
     'storm_bridge_siege|storm-bridge-collapse|-|end-below-ground',
@@ -181,6 +164,12 @@ const DELIBERATE_EXCEPTIONS = [
     'eclipse_foundry|eclipse-foundry-shipyard-airship|-|beat',
     'eclipse_foundry|eclipse-foundry-shipyard-drones|-|beat',
     'eclipse_foundry|eclipse-foundry-temple-gates|-|beat',
+    // Kinetic Tide: timing is the level design (decided 29.09.2026, plan H). CP02 sits in the
+    // opening of the third lock gate the chain is timed against, CP14 in the tide wall the return
+    // leg is timed against, and the pendulum speed item under the bob it rewards passing.
+    'kinetic_tide|kinetic-tide-gate-three|ring:CP02|clearance',
+    'kinetic_tide|kinetic-tide-pendulums|item:tide_speed_pendulum|clearance',
+    'kinetic_tide|kinetic-tide-tide-wall|ring:CP14|clearance',
 ];
 
 // Every map with animated setpieces the 28.09. audit named; the scan must reach all of them.
@@ -227,13 +216,13 @@ test('deliberate exceptions still apply', () => {
 
 test('the scan sees a point inside a moving part and ignores one far away', async () => {
     // Self-check of the detector, so a broken pose or placement cannot turn every map green:
-    // put a probe on the Kinetic Tide reactor core and one far above the arena.
+    // put a probe in the Kinetic Tide reactor core (authored centre [0,63,0]) and one far above
+    // the arena.
     const map = MAP_PRESET_CATALOG.kinetic_tide;
-    const lens = collectGameplayPoints(map).find((point) => point.id === 'item:tide_rare_lens');
     const result = await scanAnimatedSetpieces({
         catalog: { kinetic_tide: map },
         pointsOverride: () => [
-            { id: 'probe:core', samples: lens.samples },
+            { id: 'probe:core', samples: [[0, 63 * MAP_SCALE, 0]] },
             { id: 'probe:sky', samples: [[0, 5000, 0]] },
         ],
     });

@@ -1,10 +1,40 @@
 // Kinetic Tide runs on one four second beat. Every moving setpiece loops on a whole
 // multiple of it and states how far it runs ahead, so the obstacles form a rhythm a player
 // can learn instead of a set of independent surprises. The offsets below are the level
-// design: three gates a third of a beat apart become a chain, two lifts half a beat apart
-// become an alternating pair.
+// design: three gates a third of a beat apart become a chain, and the two lift decks of one
+// four beat loop run two beats apart, so they take turns.
 
 const BEAT_SECONDS = 4;
+
+// Box obstacle from its two corners, in authored units.
+function span(min, max) {
+    return {
+        pos: min.map((value, axis) => (value + max[axis]) / 2),
+        size: min.map((value, axis) => max[axis] - value),
+    };
+}
+
+// The four sides of a horizontal hoop of the piston tunnel, each over the arc within about
+// thirty degrees of its axis, so the boxes stay inside the hoop and leave the corners open.
+function hoopSides(minY, maxY) {
+    const [cx, cz, outer, inner, half] = [-104, 26, 12.2, 10, 6.3];
+    return [
+        span([cx + inner, minY, cz - half], [cx + outer, maxY, cz + half]),
+        span([cx - outer, minY, cz - half], [cx - inner, maxY, cz + half]),
+        span([cx - half, minY, cz + inner], [cx + half, maxY, cz + outer]),
+        span([cx - half, minY, cz - outer], [cx + half, maxY, cz - inner]),
+    ];
+}
+
+// Posts (with their hydraulic housings) and lintel (with its signal) of one breath gate
+// standing on baseY; the leaves slide into the posts, the opening stays free.
+function gateFrame(x, baseY) {
+    return [
+        span([x - 2.1, baseY, 9.6], [x + 1.7, baseY + 14.1, 13]),
+        span([x - 2.1, baseY, -13], [x + 1.7, baseY + 14.1, -9.6]),
+        span([x - 2.1, baseY + 12.9, -12.4], [x + 2, baseY + 15.3, 12.4]),
+    ];
+}
 
 function landmark(id, pack, model, position, targetSize, rotateY = 0) {
     return {
@@ -114,15 +144,12 @@ const KINETIC_TIDE_LANDMARKS = [
     cladding('reactor-heart-panel', 'maintenance-panel', 10, [12, 40, -8], 7, -Math.PI / 3),
 ];
 
-const KINETIC_TIDE_OBSTACLES = [
+const KINETIC_TIDE_AUTHORED_OBSTACLES = [
     // Sector 1: launch deck and the lock chain.
     { pos: [-210, 10, 0], size: [34, 3, 48] },
     { pos: [-186, 11, 0], size: [22, 3, 34] },
     { pos: [-166, 12, 0], size: [22, 3, 30] },
     { pos: [-150, 13, 0], size: [18, 3, 26] },
-    { pos: [-196, 20, -19], size: [6, 16, 6] },
-    { pos: [-176, 21, 19], size: [6, 16, 6] },
-    { pos: [-156, 22, -19], size: [6, 16, 6] },
 
     // Sector 2: wide low lane, tight high lane, foam floor under both.
     { pos: [-136, 16, 0], size: [18, 3, 34] },
@@ -188,11 +215,67 @@ const KINETIC_TIDE_OBSTACLES = [
     { pos: [0, 26, 0], size: [20, 52, 20] },
 ];
 
+// In 'dynamic' collider mode only the moving meshes of a setpiece collide. These boxes give
+// its fixed frame the collision the player sees, measured from the placed GLB parts. They are
+// collision only: the GLB already draws the part.
+const KINETIC_TIDE_FRAME_COLLIDERS = [
+    ...gateFrame(-196, 10),
+    ...gateFrame(-176, 11),
+    ...gateFrame(-156, 12),
+
+    // Piston tunnel: hoops, corner rails, pulse markers and the sleeves the pistons run in.
+    ...hoopSides(30.8, 32.3),
+    ...hoopSides(37.2, 38.7),
+    ...hoopSides(43.7, 45.2),
+    ...hoopSides(50.2, 51.7),
+    ...[[-94.1, 35.9], [-114.9, 35.9], [-94.1, 15.1], [-114.9, 15.1]]
+        .map(([x, z]) => span([x, 28, z], [x + 1, 54.5, z + 1])),
+    ...[28.3, 34.5, 40.8, 47, 53.3].map((y) => span([-92.5, y, 24.6], [-91.9, y + 0.5, 27.4])),
+    span([-107.1, 35, 11], [-100.9, 41, 15.5]),
+    span([-119, 35, 22.9], [-114.5, 41, 29.1]),
+    span([-107.1, 35, 36.5], [-100.9, 41, 41]),
+    span([-93.5, 35, 22.9], [-89, 41, 29.1]),
+
+    // Carousel hub and its two supports.
+    span([48.7, 88.6, -2.9], [52.5, 94.5, 2.9]),
+    span([47.5, 74, 16.4], [51.4, 109.1, 18]),
+    span([47.5, 74, -18], [51.4, 109.1, -16.4]),
+
+    // Pendulum rail with its phase lamps, and the two arch legs.
+    span([111, 99.4, 20.6], [145, 101.2, 23.6]),
+    span([111, 84, 20.5], [112.7, 100.7, 23.5]),
+    span([143.3, 84, 20.5], [145, 100.7, 23.5]),
+
+    // Lift column with its steps, and the two deck guides.
+    span([169.8, 88, 41.7], [174.2, 121.6, 46.5]),
+    span([160.7, 89, 42], [161.5, 120.5, 42.8]),
+    span([182.5, 89, 42], [183.3, 120.5, 42.8]),
+
+    // Tide wall: four pillars (with the drive drums) and the arch with its meters.
+    ...[113.9, 106.5, 84.1, 76.7].map((z) => span([78.5, 96, z], [83.2, 112.9, z + 5.5])),
+    span([78.2, 112.8, 76], [83.8, 114.7, 120]),
+
+    // Reactor plinth and the six crown pylons with their tips.
+    span([-18.9, 46.7, -18.9], [18.9, 51.4, 18.9]),
+    span([16.2, 49.3, -1.8], [19.7, 66.6, 1.8]),
+    span([-19.7, 49.3, -1.8], [-16.2, 66.6, 1.8]),
+    ...[[6.9, -17.4], [-11.1, -17.4], [-11.1, 13.7], [6.9, 13.7]]
+        .map(([x, z]) => span([x, 49.3, z], [x + 4.2, 66.6, z + 3.7])),
+];
+
+// The authored boxes keep their visuals; the frame colliders stay invisible
+// (glbAuthoredObstaclesCollisionOnly). Without the GLB every box shows again.
+const KINETIC_TIDE_OBSTACLES = [
+    ...KINETIC_TIDE_AUTHORED_OBSTACLES.map((obstacle) => ({ ...obstacle, renderWithGlb: true })),
+    ...KINETIC_TIDE_FRAME_COLLIDERS,
+];
+
 const KINETIC_TIDE_PORTALS = [
     { a: [-128, 19, 14], b: [-102, 34, 26], color: 0x22ccdd },
     { a: [50, 72, -30], b: [52, 80, 34], color: 0xff8811 },
     { a: [190, 102, 58], b: [170, 108, 96], color: 0xaa66ff },
-    { a: [64, 96, 88], b: [-6, 72, 30], color: 0x44ffbb },
+    // Just past the end of the tide panels' stroke, beside the descent tunnel mouth.
+    { a: [52, 96, 88], b: [-6, 72, 30], color: 0x44ffbb },
 ];
 
 const KINETIC_TIDE_GATES = [
@@ -203,7 +286,7 @@ const KINETIC_TIDE_GATES = [
     { id: 'tide_orbit_inner', type: 'boost', pos: [30, 71, -14], forward: [0.75, 0.1, -0.65], params: { duration: 0.9, forwardImpulse: 35, bonusSpeed: 44, cooldown: 0.7 } },
     { id: 'tide_orbit_outer', type: 'slingshot', pos: [32, 77, 18], forward: [0.7, 0.3, 0.65], up: [0, 1, 0], params: { duration: 1.4, forwardImpulse: 32, liftImpulse: 11, cooldown: 1.0 } },
     { id: 'tide_pendulum_boost', type: 'boost', pos: [108, 85, 10], forward: [0.85, 0.15, 0.5], params: { duration: 0.9, forwardImpulse: 38, bonusSpeed: 47, cooldown: 0.8 } },
-    { id: 'tide_lift_sling', type: 'slingshot', pos: [166, 95, 40], forward: [0.6, 0.4, 0.7], up: [0, 1, 0], params: { duration: 1.6, forwardImpulse: 33, liftImpulse: 14, cooldown: 1.1 } },
+    { id: 'tide_lift_sling', type: 'slingshot', pos: [158, 94, 30], forward: [0.6, 0.4, 0.7], up: [0, 1, 0], params: { duration: 1.6, forwardImpulse: 33, liftImpulse: 14, cooldown: 1.1 } },
     { id: 'tide_return_boost', type: 'boost', pos: [128, 107, 98], forward: [-0.98, -0.1, 0.05], params: { duration: 0.9, forwardImpulse: 36, bonusSpeed: 45, cooldown: 0.7 } },
     { id: 'tide_descent_boost', type: 'boost', pos: [30, 89, 70], forward: [-0.7, -0.3, -0.6], params: { duration: 0.8, forwardImpulse: 34, bonusSpeed: 42, cooldown: 0.7 } },
 ];
@@ -216,12 +299,14 @@ const KINETIC_TIDE_CHECKPOINTS = [
     { id: 'CP04_FAST', type: 'fast_orange', pos: [-104, 34, 26], radius: 4.5, forward: [0.75, 0.3, 0.55], nextIds: ['CP05'] },
     { id: 'CP05', type: 'furnace_merge', pos: [-70, 40, 0], radius: 6.0, forward: [1, 0.2, 0] },
     { id: 'CP06', type: 'iris', pos: [-14, 58, -10], radius: 5.6, forward: [0.9, 0.3, -0.2] },
-    { id: 'CP07', type: 'branch_entry', pos: [16, 66, 0], radius: 6.0, forward: [0.9, 0.2, 0.3], nextIds: ['CP08_INNER', 'CP08_OUTER'] },
+    // Beyond the crown pylon and the petal stroke, so neither reaches into the ring.
+    { id: 'CP07', type: 'branch_entry', pos: [24, 68, 0], radius: 6.0, forward: [0.9, 0.2, 0.3], nextIds: ['CP08_INNER', 'CP08_OUTER'] },
     { id: 'CP08_INNER', type: 'orbit_inner', pos: [50, 72, -30], radius: 4.6, forward: [0.7, 0.1, -0.7], nextIds: ['CP09'] },
     { id: 'CP08_OUTER', type: 'orbit_outer', pos: [52, 80, 34], radius: 5.4, forward: [0.7, 0.2, 0.65], nextIds: ['CP09'] },
     { id: 'CP09', type: 'orbit_merge', pos: [88, 80, 0], radius: 6.0, forward: [0.85, 0.15, 0.5] },
     { id: 'CP10', type: 'pendulum_hall', pos: [128, 86, 22], radius: 5.6, forward: [0.85, 0.1, 0.5] },
-    { id: 'CP11', type: 'branch_entry', pos: [166, 94, 40], radius: 5.8, forward: [0.85, 0.15, 0.45], nextIds: ['CP12_LIFT', 'CP12_TECH'] },
+    // In front of the lift deck's shaft: the lowered deck used to fill the ring.
+    { id: 'CP11', type: 'branch_entry', pos: [158, 93, 30], radius: 5.8, forward: [0.85, 0.15, 0.45], nextIds: ['CP12_LIFT', 'CP12_TECH'] },
     { id: 'CP12_LIFT', type: 'lift_high', pos: [190, 104, 58], radius: 5.2, forward: [0.7, 0.25, 0.65], nextIds: ['CP13'] },
     { id: 'CP12_TECH', type: 'technical_low', pos: [186, 88, 74], radius: 4.4, forward: [0.5, -0.15, 0.85], nextIds: ['CP13'] },
     { id: 'CP13', type: 'crown_merge', pos: [170, 108, 96], radius: 5.8, forward: [-0.55, 0.1, 0.8] },
@@ -244,8 +329,9 @@ export const KINETIC_TIDE_MAP = {
         // One beat for the whole map; each setpiece states its own offset against it.
         glbAnimationClock: { beatSeconds: BEAT_SECONDS },
         // The moving setpieces collide through their animated mesh colliders; the static
-        // CC0 dressing stays on the authored box obstacles.
+        // CC0 dressing and the fixed setpiece frames stay on box obstacles.
         glbColliderMode: 'dynamic',
+        glbAuthoredObstaclesCollisionOnly: true,
         glbLoadConcurrency: 3,
         playerSpawn: { x: -222, y: 14, z: 0 },
         botSpawns: [
@@ -260,7 +346,8 @@ export const KINETIC_TIDE_MAP = {
             { id: 'tide_shield_safe', type: 'item_shield', pickupType: 'SHIELD', x: -104, y: 24, z: -30, weight: 1.2 },
             { id: 'tide_ghost_fast', type: 'item_coin', pickupType: 'GHOST', x: -104, y: 38, z: 26, weight: 0.8 },
             { id: 'tide_speed_lens', type: 'item_battery', pickupType: 'SPEED_UP', x: -28, y: 54, z: 4, weight: 1.1 },
-            { id: 'tide_rare_lens', type: 'item_crystal', pickupType: 'SHIELD', x: 4, y: 66, z: -4, weight: 0.6 },
+            // In the gap between two reactor petals on the way from the iris to CP07.
+            { id: 'tide_rare_lens', type: 'item_crystal', pickupType: 'SHIELD', x: 11, y: 66, z: -7, weight: 0.6 },
             { id: 'tide_rocket_inner', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 50, y: 74, z: -30, weight: 0.9 },
             { id: 'tide_thick_outer', type: 'item_coin', pickupType: 'THICK', x: 52, y: 82, z: 32, weight: 0.8 },
             { id: 'tide_speed_pendulum', type: 'item_battery', pickupType: 'SPEED_UP', x: 128, y: 88, z: 22, weight: 1.2 },
