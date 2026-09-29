@@ -138,6 +138,7 @@ export const DESKTOP_FLOWS_MAP_BOUND_SPECS = Object.freeze({
     'tests/skyline-siege.desktop.spec.js': ['skyline_siege'],
     'tests/giant-forest.desktop.spec.js': ['giant_forest'],
     'tests/hydra-temple.desktop.spec.js': ['hydra_temple'],
+    'tests/toybox-titan.desktop.spec.js': ['toybox_titan'],
     'tests/storm-dam.desktop.spec.js': ['storm_dam_siege'],
     'tests/falkenwacht.desktop.spec.js': ['burg_falkenwacht', 'notre_dame'],
     'tests/falkenwacht-grain-proof.desktop.spec.js': ['burg_falkenwacht'],
