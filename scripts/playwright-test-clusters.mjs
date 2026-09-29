@@ -115,7 +115,7 @@ export const DESKTOP_FLOWS_MAP_BOUND_SPECS = Object.freeze({
     'tests/chrono-forge-nexus.desktop.spec.js': ['chrono_forge_nexus'],
     'tests/crystal-ruins.desktop.spec.js': ['crystal_ruins'],
     'tests/dandelion-collision.desktop.spec.js': ['dandelion_sky'],
-    'tests/sunflower-shootable.desktop.spec.js': ['dandelion_sky'],
+    'tests/sunflower-shootable.desktop.spec.js': ['sunflower_meadow'],
     'tests/eclipse-foundry.desktop.spec.js': ['eclipse_foundry'],
     'tests/kinetic-tide-branches.desktop.spec.js': ['kinetic_tide'],
     'tests/kinetic-tide.desktop.spec.js': ['kinetic_tide'],

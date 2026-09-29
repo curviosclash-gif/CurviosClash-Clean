@@ -137,6 +137,6 @@ test('the last dandelion seed opens the guarded root chamber and keeps its inter
     expect(result.ejectPosition).toEqual([0, 360, 510]);
 
     await expect(page.locator('.map-destructible-status').first()).toContainText(
-        'ALLE SAMEN GELÖST · PORTAL OFFEN',
+        'PORTAL OFFEN · WURZELKAMMER',
     );
 });
