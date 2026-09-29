@@ -48,6 +48,7 @@ const COLLECTION_DEFINITIONS = [
             'notre_dame',
             'notre_dame_fire',
             'eiffel_tower',
+            'orbital_shipyard',
             'burg_falkenwacht',
             'clockwork_canyon',
             'storm_bridge_siege',
@@ -71,6 +72,7 @@ const COLLECTION_DEFINITIONS = [
             'storm_switchyard',
             'wind_cathedral',
             'chrono_spillway',
+            'neon_carnival',
         ],
     },
     {

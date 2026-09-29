@@ -32,7 +32,8 @@ export const ROCKET_PICKUP_DEFINITIONS = Object.freeze({
         botRule: { self: 0.06, offense: 0.65, defensiveScale: 0.03, emergencyScale: 0.08, combatSelf: 0 },
     },
     ROCKET_GUIDED: {
-        name: 'Steuerbare Rakete', color: 0xa533ff, icon: '🚀', duration: 0, damage: 70,
+        // Cold cyan and a joystick instead of the warm rocket tiers: the one you fly yourself.
+        name: 'Steuerbare Rakete', color: 0x2ee6ff, icon: '🕹️', duration: 0, damage: 70,
         selfUsable: false, shootable: true, offensive: true, projectileOnly: true,
         allowedModes: HUNT_AND_ARCADE, observationSlot: 11, visualKind: 'rocket', visualScale: 1.35,
         rocketTier: 'MEGA', rocketTierLabel: 'G',
