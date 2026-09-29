@@ -15,6 +15,7 @@ const liveSize = { width: 1280, height: 720 };
 const output = path.resolve(process.argv[2] || path.join(root, 'output', 'marketing',
     `rocket-duel-${new Date().toISOString().replace(/[:.]/g, '-')}`));
 const probe = process.argv.includes('--probe');
+console.warn('[rocket-duel] Technikprobe: Beide Spielerslots werden per Skript gesteuert; kein Gameplay menschlicher Spieler.');
 const requireElectron = createRequire(path.join(root, 'electron', 'package.json'));
 const lock = await acquirePlaywrightRunLock({ label: 'marketing rocket duel' });
 releasePlaywrightRunLockOnExit(lock.release);
@@ -175,6 +176,7 @@ try {
     await writeFile(path.join(output, 'evidence.json'), `${JSON.stringify({
         buildCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
         map: 'rift_bazaar', mode: 'HUNT', players: 2, bots: 3,
+        playerControl: 'scripted-input', itemPlacement: 'scripted-spawn',
         prerollSeconds: preroll.seconds, ...evidence,
     }, null, 2)}\n`);
     if (probe) {

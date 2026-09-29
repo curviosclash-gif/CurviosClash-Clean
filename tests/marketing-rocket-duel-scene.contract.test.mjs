@@ -43,7 +43,7 @@ test('cinematic handoffs begin at the previous pose and end at the recorded next
     assert.equal(reused.position.x, 10);
 });
 
-test('flight uses two human inputs with three bots and fires an acquired rocket', () => {
+test('scripted flight controls two non-bot slots alongside three bots and fires a rocket', () => {
     const players = Array.from({ length: 5 }, (_, index) => ({
         index, isBot: index >= 2, alive: true, hp: 100, score: 0,
         position: new Vector3(index * 5 + 10, 50, 0), quaternion: new Quaternion(),
