@@ -6,6 +6,7 @@ import { createGlbAnimationTrack } from './arena/GlbAnimationDriver.js';
 import { createDynamicMeshCollider, createStaticMeshCollider } from './arena/StaticMeshCollider.js';
 import { normalizeAllowedGLBUrl, resolveGLBColliderMode } from './mapSchema/MapSchemaGlbOps.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
+import { computeCollectionPlacement } from './GLBCollectionPlacement.js';
 
 const SHARED_GLB_LOADER = new GLTFLoader();
 const DEFAULT_GLB_SHADOW_CASTER_BUDGET = 24;
@@ -337,25 +338,17 @@ function placeCollectionScene(scene, bounds, descriptor, placementScale) {
         });
     }
 
-    const [px, py, pz] = descriptor.position;
-    const [rx, ry, rz] = descriptor.rotation;
-    slot.position.set(px * placementScale, py * placementScale, pz * placementScale);
-    slot.rotation.set(rx, ry, rz);
-
     const modelBounds = bounds?.isBox3 ? bounds : new THREE.Box3().setFromObject(scene);
-    const size = modelBounds.getSize(new THREE.Vector3());
-    const center = modelBounds.getCenter(new THREE.Vector3());
-    const maxDimension = Math.max(size.x, size.y, size.z, 0.0001);
-    const fitScale = descriptor.targetSize > 0
-        ? (descriptor.targetSize * placementScale) / maxDimension
-        : descriptor.scale * placementScale;
+    const placement = computeCollectionPlacement(modelBounds, descriptor, placementScale);
+    slot.position.set(...placement.slotPosition);
+    slot.rotation.set(...placement.slotRotation);
 
     const normalizer = new THREE.Group();
     normalizer.name = `glb-normalizer-${descriptor.id}`;
-    normalizer.scale.setScalar(fitScale);
+    normalizer.scale.setScalar(placement.fitScale);
 
     const offset = new THREE.Group();
-    offset.position.set(-center.x, -modelBounds.min.y, -center.z);
+    offset.position.set(...placement.offset);
     offset.add(scene);
     normalizer.add(offset);
     if (descriptor.maxRenderDistance > 0) {
