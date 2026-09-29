@@ -94,6 +94,36 @@ export function normalizeWaterZone(value) {
     });
 }
 
+/** Static circular pools use the same underwater effects as a flooded water zone. */
+export function normalizePermanentWaterZones(source) {
+    if (!Array.isArray(source)) return Object.freeze([]);
+    return Object.freeze(source.slice(0, 8).map((entry, index) => {
+        const center = Array.isArray(entry?.center) ? entry.center : [0, 0];
+        const radius = clamp(entry?.radius, 0.1, 200);
+        const floorLevel = finite(entry?.floorLevel, 0);
+        const surfaceLevel = Math.max(floorLevel, finite(entry?.surfaceLevel, floorLevel + 1));
+        return Object.freeze({
+            id: String(entry?.id || `permanent_water_${index}`).trim().slice(0, 64) || `permanent_water_${index}`,
+            center: readVec3([center[0], surfaceLevel, center[1]], [0, surfaceLevel, 0]),
+            radius,
+            floorLevel,
+            surfaceLevel,
+            effects: readEffects({ ...DEFAULT_EFFECTS, ...(entry?.effects || {}) }),
+        });
+    }));
+}
+
+export function isPointInPermanentWaterZone(zone, point) {
+    if (!zone || !point) return false;
+    const x = finite(point?.[0] ?? point?.x, Infinity);
+    const y = finite(point?.[1] ?? point?.y, Infinity);
+    const z = finite(point?.[2] ?? point?.z, Infinity);
+    const dx = x - zone.center[0];
+    const dz = z - zone.center[2];
+    return dx * dx + dz * dz <= zone.radius * zone.radius
+        && y >= zone.floorLevel && y <= zone.surfaceLevel;
+}
+
 export function createWaterZoneState(zone) {
     return {
         phase: WATER_PHASES.DRY,

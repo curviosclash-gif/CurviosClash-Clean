@@ -57,7 +57,7 @@ const SCENES = Object.freeze({
         clip: 'ToppleTowerWestOnce',
         pieces: ['tower_w_shell', 'tower_w_debris'],
         intact: '04_cooling_tower',
-        baseMetres: -0.36,   // the splayed inlet columns overhang their feet
+        baseMetres: -0.42,   // the splayed inlet columns overhang their feet
         simulated: ['tower_w_shell'],
         keyed: ['tower_w_debris'],
     },
@@ -65,7 +65,7 @@ const SCENES = Object.freeze({
         clip: 'ToppleTowerEastOnce',
         pieces: ['tower_e_shell', 'tower_e_debris'],
         intact: '04_cooling_tower',
-        baseMetres: -0.36,
+        baseMetres: -0.42,
         simulated: ['tower_e_shell'],
         keyed: ['tower_e_debris'],
     },
@@ -121,7 +121,7 @@ const STATIC_PARTS = Object.freeze(['01_site', '02_turbine_hall', '03_reactor_bl
 const TOWER_OFFSET_METRES = 105;
 // The furthest any piece settles from its structure's axis: the tower shell, as the generator
 // reports it. The preset sizes the field off this number; here it is measured off the file.
-const REPORTED_TOWER_REACH_METRES = 115.2;
+const REPORTED_TOWER_REACH_METRES = 130.3;
 
 // The most any one piece may turn over a whole clip. A hall wall turns a right angle, the stack's
 // top a little more; nothing rolls away across the apron.

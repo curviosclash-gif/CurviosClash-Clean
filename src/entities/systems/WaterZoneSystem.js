@@ -6,12 +6,15 @@ import {
     createWaterZoneState,
     isPointUnderwater,
     normalizeWaterZone,
+    normalizePermanentWaterZones,
+    isPointInPermanentWaterZone,
     serializeWaterZoneState,
     stepWaterZoneState,
     triggerWaterZone,
 } from '../../shared/contracts/WaterZoneContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { disposeObject3DResources } from '../../shared/rendering/ThreeDisposal.js';
+import { WaterZonePermanentPoolVisuals } from './WaterZonePermanentPoolVisuals.js';
 import {
     createBreachCrestGeometry, createJetGeometry, createSoftSprayTexture,
     createWaveFoamGeometry, createWaveFrontGeometry, createWaveSprayGeometry,
@@ -40,6 +43,17 @@ function scaledZone(zone, scale) {
     });
 }
 
+function scaledPermanentWaterZone(zone, scale) {
+    if (!zone) return null;
+    return Object.freeze({
+        ...zone,
+        center: Object.freeze(zone.center.map((value) => value * scale)),
+        radius: zone.radius * scale,
+        floorLevel: zone.floorLevel * scale,
+        surfaceLevel: zone.surfaceLevel * scale,
+    });
+}
+
 function waveStartZ(zone) {
     if (zone.waveOrigin === WATER_WAVE_ORIGINS.MAX_Z) {
         if (zone.waveSourceInset > 0) return zone.bounds.max[2] - zone.waveSourceInset;
@@ -62,6 +76,8 @@ export class WaterZoneSystem {
         this.scale = 1;
         this._seenBreakCount = 0;
         this._visual = null;
+        this.permanentZones = [];
+        this.permanentPoolVisuals = new WaterZonePermanentPoolVisuals(this.entityManager?.renderer);
         this._visualTime = 0;
     }
 
@@ -69,14 +85,19 @@ export class WaterZoneSystem {
         this.clear();
         const map = this.entityManager?.arena?.currentMapDefinition;
         const authored = normalizeWaterZone(map?.waterZone);
-        if (!authored) return false;
+        const permanent = normalizePermanentWaterZones(map?.permanentWaterZones);
+        if (!authored && permanent.length === 0) return false;
         this.scale = map?.scaleAuthoredAnchors === true
             ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
             : 1;
         this.zone = scaledZone(authored, this.scale);
         this.state = createWaterZoneState(this.zone);
-        this._buildVisual();
-        this._syncVisual();
+        this.permanentZones = permanent.map((zone) => scaledPermanentWaterZone(zone, this.scale));
+        if (this.zone) {
+            this._buildVisual();
+            this._syncVisual();
+        }
+        this.permanentPoolVisuals.build(this.permanentZones);
         return true;
     }
 
@@ -85,11 +106,14 @@ export class WaterZoneSystem {
     }
 
     update(dt) {
-        if (!this.zone) return;
-        if (!this.networkReplica) this._triggerFromBreakEvents();
-        stepWaterZoneState(this.state, this.zone, dt);
+        if (!this.zone && this.permanentZones.length === 0) return;
+        if (this.zone) {
+            if (!this.networkReplica) this._triggerFromBreakEvents();
+            stepWaterZoneState(this.state, this.zone, dt);
+        }
         this._visualTime += Math.max(0, Number(dt) || 0);
-        this._syncVisual();
+        if (this.zone) this._syncVisual();
+        this.permanentPoolVisuals.update(dt, this.scale);
     }
 
     _triggerFromBreakEvents() {
@@ -116,11 +140,15 @@ export class WaterZoneSystem {
     }
 
     getEffects() {
-        return this.zone?.effects || null;
+        return this.zone?.effects || this.permanentZones[0]?.effects || null;
     }
 
     isPositionUnderwater(position) {
-        return isPointUnderwater(this.zone, this.state, position);
+        if (isPointUnderwater(this.zone, this.state, position)) return true;
+        for (const zone of this.permanentZones) {
+            if (isPointInPermanentWaterZone(zone, position)) return true;
+        }
+        return false;
     }
 
     serializeNetworkState() {
@@ -474,6 +502,8 @@ export class WaterZoneSystem {
             disposeObject3DResources(this._visual.group);
         }
         this._visual = null;
+        this.permanentPoolVisuals.clear();
+        this.permanentZones = [];
         this.zone = null;
         this.state = createWaterZoneState(null);
         this.scale = 1;
