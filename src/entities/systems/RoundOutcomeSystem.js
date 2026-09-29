@@ -79,7 +79,7 @@ export class RoundOutcomeSystem {
 
     resolve() {
         // A network replica never decides a round on its own copy of the fight: the host's
-        // outcome arrives through the fight state (applyHuntNetworkState) and ends it there.
+        // outcome arrives in the network snapshot (applyRoundOutcomeNetworkState) and ends it there.
         if (!this.isOutcomeAuthority()) {
             return { shouldEnd: false, winner: null, reason: '', parcours: null };
         }
