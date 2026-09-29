@@ -612,7 +612,7 @@ test('playwright lock: long runs are recognised by kind and by the labels of old
 const NOW = 10_000_000;
 const oldShort = (enqueuedAt) => ({ pid: enqueuedAt, enqueuedAt, label: 'desktop-e2e tests/x.spec.js' });
 const newShort = (enqueuedAt) => ({ ...oldShort(enqueuedAt), kind: 'short' });
-const newLong = (enqueuedAt, overtakenSince) => ({ pid: enqueuedAt, enqueuedAt, label: 'desktop-e2e clusters editor', kind: 'long', overtakenSince });
+const newLong = (enqueuedAt, overtakenSince) => ({ pid: enqueuedAt, enqueuedAt, label: 'desktop-e2e clusters editor', kind: 'long', countsOvertaking: true, overtakenSince });
 const pids = (queue) => queue.map((ticket) => ticket.pid);
 
 test('playwright lock: short runs pass a waiting long run until its thirty minutes are used up', () => {
@@ -629,6 +629,23 @@ test('playwright lock: tickets of older wrappers are never overtaken and never o
     const legacyLong = { pid: 10, enqueuedAt: 10, label: 'desktop-e2e clusters editor' };
     assert.deepEqual(pids(orderPlaywrightRunLockQueue([legacyLong, newShort(20)], NOW)), [10, 20]);
     assert.deepEqual(pids(orderPlaywrightRunLockQueue([newLong(10), oldShort(20)], NOW)), [10, 20]);
+    // Wrappers from 73e4f90f on write kind 'long' but never note when they are passed; with no
+    // count they would let short runs pass forever. Only a ticket that counts can be passed.
+    const kindOnlyLong = { pid: 10, enqueuedAt: 10, label: 'desktop-e2e clusters editor', kind: 'long' };
+    assert.deepEqual(pids(orderPlaywrightRunLockQueue([kindOnlyLong, newShort(20)], NOW)), [10, 20]);
+});
+
+test('playwright lock: a waiting long run marks its ticket as one that counts being passed', () => {
+    const queueDir = `${createLockPath('marker')}.queue`;
+    try {
+        enqueuePlaywrightRunLockTicket(queueDir, { pid: 9090, label: 'desktop-e2e clusters a', kind: 'long', enqueuedAt: 1_000 });
+        enqueuePlaywrightRunLockTicket(queueDir, { pid: 9191, label: 'desktop-e2e tests/x.spec.js', enqueuedAt: 2_000 });
+        const [long, short] = readPlaywrightRunLockQueue(queueDir, { isAlive: () => true });
+        assert.equal(long.countsOvertaking, true);
+        assert.equal(short.countsOvertaking, undefined, 'short tickets carry no marker');
+    } finally {
+        fs.rmSync(queueDir, { recursive: true, force: true });
+    }
 });
 
 test('playwright lock: the yield stamp lets every short run go first that may pass the long waiters', () => {

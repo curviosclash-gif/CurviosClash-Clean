@@ -115,7 +115,12 @@ export function enqueuePlaywrightRunLockTicket(queueDir, { pid, label = 'playwri
     fs.mkdirSync(queueDir, { recursive: true });
     const stamp = String(Math.max(0, Math.trunc(Number(enqueuedAt) || 0))).padStart(16, '0');
     const ticketPath = path.join(queueDir, `${stamp}-${pid}.json`);
-    const ticket = { pid, label, kind, cwd, enqueuedAt, ...(Number.isFinite(overtakenSince) ? { overtakenSince } : {}) };
+    const ticket = {
+        pid, label, kind, cwd, enqueuedAt,
+        // Marks a long waiter that notes when it is first passed; see mayBePassed.
+        ...(kind === 'long' ? { countsOvertaking: true } : {}),
+        ...(Number.isFinite(overtakenSince) ? { overtakenSince } : {}),
+    };
     fs.writeFileSync(ticketPath, `${JSON.stringify(ticket, null, 2)}\n`, 'utf8');
     return ticketPath;
 }
@@ -127,8 +132,10 @@ export function enqueuePlaywrightRunLockTicket(queueDir, { pid, label = 'playwri
  */
 export const PLAYWRIGHT_RUN_LOCK_OVERTAKE_BUDGET_MS = 30 * 60 * 1000;
 
+// Wrappers between 73e4f90f and the overtaking rule write kind 'long' but never note when they are
+// passed, so their thirty minutes would never start; only tickets that count can be passed.
 function mayBePassed(ticket, nowMs, budgetMs) {
-    if (ticket?.kind !== 'long') return false;
+    if (ticket?.kind !== 'long' || ticket.countsOvertaking !== true) return false;
     const since = Number(ticket.overtakenSince);
     return !Number.isFinite(since) || nowMs - since < budgetMs;
 }
@@ -195,13 +202,15 @@ export function readPlaywrightRunLockQueue(queueDir, { isAlive = isProcessAlive,
         let label = 'playwright run';
         let kind;
         let overtakenSince;
+        let countsOvertaking;
         try {
             const parsed = JSON.parse(fs.readFileSync(ticketPath, 'utf8'));
             label = String(parsed?.label || label);
             kind = parsed?.kind;
             overtakenSince = Number.isFinite(parsed?.overtakenSince) ? parsed.overtakenSince : undefined;
+            countsOvertaking = parsed?.countsOvertaking === true ? true : undefined;
         } catch { /* a ticket being written right now still counts by its name */ }
-        tickets.push({ pid, enqueuedAt: Number(match[1]), label, kind, overtakenSince, path: ticketPath });
+        tickets.push({ pid, enqueuedAt: Number(match[1]), label, kind, countsOvertaking, overtakenSince, path: ticketPath });
     }
 
     tickets.sort((left, right) => left.enqueuedAt - right.enqueuedAt || left.pid - right.pid);
