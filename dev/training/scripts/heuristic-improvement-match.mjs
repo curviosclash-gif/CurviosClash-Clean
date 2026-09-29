@@ -4,7 +4,8 @@
 import { createRuntimeConfigSnapshot } from '../../../src/core/RuntimeConfig.js';
 import { MATCH_KERNEL_FIXED_STEP_SECONDS } from '../../../src/shared/contracts/MatchKernelRuntimeContract.js';
 import { createHeadlessMatchKernelRuntime } from '../src/state/HeadlessMatchKernelRuntime.js';
-import { HEURISTIC_PROFILE_FIELD_BOUNDS } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
+import { HEURISTIC_PROFILE_FIELD_BOUNDS, HEURISTIC_PROFILES } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
+import { BOT_POLICY_TYPES } from '../../../src/entities/ai/BotPolicyTypes.js';
 import { createRuntimeRng } from '../../../src/shared/contracts/RuntimeRngContract.js';
 import {
     createHeuristicEngagementTracker, createHeuristicLifeTracker,
@@ -56,7 +57,7 @@ const GAME_COMBAT_RULES = Object.freeze({
 // Respawn, the high kill limit and no time limit stay benchmark rules on purpose: the search scores
 // the average life length over many lives, and a match that ended at the first few kills would
 // leave only one or two lives per bot to average.
-export function createBenchmarkFightSettings(profile, respawnEnabled, seed, { difficulty, mapKey }) {
+export function createBenchmarkFightSettings(profile, respawnEnabled, seed, { difficulty, mapKey }, opponent = 'baseline') {
     return {
         localSettings: { modePath: 'fight', sessionType: 'single' },
         mode: '1p',
@@ -65,7 +66,8 @@ export function createBenchmarkFightSettings(profile, respawnEnabled, seed, { di
         numBots: NUM_BOTS,
         winsNeeded: 1,
         botDifficulty: difficulty,
-        botPolicyStrategy: 'heuristic',
+        // The menu default "Auto" gives Hunt bots the HuntBotPolicy; the candidate slot is swapped later.
+        botPolicyStrategy: opponent === 'hunt' ? 'auto' : 'heuristic',
         botHeuristicProfile: profile,
         gameplay: {
             planarMode: false,
@@ -102,13 +104,45 @@ export function clampProfile(profileName, profile) {
     return result;
 }
 
+// Who the candidate plays against: the frozen July profiles the search tunes against, the profile
+// the game ships today, or the standard Hunt bot a player meets with the bot type left on "Auto".
+export const BENCHMARK_OPPONENTS = Object.freeze(['baseline', 'product', 'hunt']);
+
+export function resolveOpponentFields(profile, opponent) {
+    if (!BENCHMARK_OPPONENTS.includes(opponent)) throw new Error(`unknown benchmark opponent: ${opponent}`);
+    if (opponent === 'hunt') return null;
+    const source = opponent === 'product' ? HEURISTIC_PROFILES[profile] : HEURISTIC_IMPROVEMENT_BASELINE[profile];
+    return Object.freeze(clampProfile(profile, source));
+}
+
+// Gives the candidate slot the heuristic policy with exactly the options the entity setup uses.
+function installHeuristicCandidate(em, bot, difficulty) {
+    const ai = em.botPolicyRegistry.create(BOT_POLICY_TYPES.HEURISTIC, {
+        difficulty,
+        recorder: em.recorder,
+        runtimeConfig: em.runtimeConfig,
+        runtimeProfiler: em.runtimeProfiler,
+        entityRuntimeConfig: em.entityRuntimeConfig,
+        bridgeEnabled: false,
+        activeGameMode: em.combatModeType,
+        isDesktopRuntime: em.botIsDesktopRuntime,
+        runtimeRng: em.runtimeRng,
+    });
+    ai.setSensePhase?.(bot.ai.sensePhase);
+    ai.sensePhase = bot.ai.sensePhase;
+    bot.ai = ai;
+    em.botByPlayer.set(bot.player, ai);
+}
+
 function incrementCauseCount(target, cause) {
     target[cause] = (target[cause] || 0) + 1;
 }
 
 export async function runMatch({
     profile, seed, setup, candidateFields, candidateSlot, maxTicks, respawnEnabled = true, trace = false,
+    opponent = 'baseline',
 }) {
+    const opponentFields = resolveOpponentFields(profile, opponent);
     const originalRandom = Math.random;
     const originalDateNow = Date.now;
     const originalPerformanceNow = performance.now;
@@ -121,7 +155,7 @@ export async function runMatch({
     let runtime = null;
     Math.random = seededRandom.next;
     try {
-        const settings = createBenchmarkFightSettings(profile, respawnEnabled, seed, setup);
+        const settings = createBenchmarkFightSettings(profile, respawnEnabled, seed, setup, opponent);
         const runtimeConfig = createRuntimeConfigSnapshot(settings, { baseConfig: HEURISTIC_BENCHMARK_BASE_CONFIG });
         if (runtimeConfig.arcade.seed !== seed || runtimeConfig.hunt.timeLimitSeconds !== 0
             || runtimeConfig.session.mapKey !== setup.mapKey || runtimeConfig.bot.activeDifficulty !== setup.difficulty) {
@@ -155,9 +189,20 @@ export async function runMatch({
             throw new Error(`head-to-head requires at least two bots and candidate slot ${candidateSlot}`);
         }
 
-        const baselineFields = Object.freeze(clampProfile(profile, HEURISTIC_IMPROVEMENT_BASELINE[profile]));
-        for (const bot of bots) bot.ai.profile = baselineFields;
+        // "Auto" resolves like the game does (hunt-3d: the Hunt bridge policy, which plays the
+        // HuntBotPolicy while no trainer bridge or checkpoint is attached).
+        const opponentPolicyType = opponentFields ? BOT_POLICY_TYPES.HEURISTIC : runtimeConfig.bot.policyType;
+        if (!opponentFields && !String(opponentPolicyType).startsWith(BOT_POLICY_TYPES.HUNT)) {
+            throw new Error(`benchmark Hunt opponent resolved to ${opponentPolicyType}`);
+        }
+        for (const bot of bots) {
+            if (bot.ai.type !== opponentPolicyType) {
+                throw new Error(`benchmark opponent ${opponent} expected ${opponentPolicyType} bots, got ${bot.ai.type}`);
+            }
+            if (opponentFields) bot.ai.profile = opponentFields;
+        }
         const candidateBot = bots[candidateSlot];
+        if (!opponentFields) installHeuristicCandidate(em, candidateBot, setup.difficulty);
         const activeCandidateFields = Object.freeze(clampProfile(profile, candidateFields));
         candidateBot.ai.profile = activeCandidateFields;
         const engagement = createHeuristicEngagementTracker();
@@ -277,10 +322,14 @@ export async function runMatch({
             runtime.step(inputFrame, tickOptions);
             if (frame === 1) {
                 for (const bot of bots) {
+                    const expected = bot === candidateBot ? activeCandidateFields : opponentFields;
+                    if (!expected) {
+                        if (bot.ai.type !== opponentPolicyType) throw new Error('benchmark Hunt opponent lost');
+                        continue;
+                    }
                     if (bot.ai.difficultyName !== setup.difficulty.toLowerCase()) {
                         throw new Error(`benchmark difficulty lost: ${bot.ai.difficultyName} !== ${setup.difficulty}`);
                     }
-                    const expected = bot === candidateBot ? activeCandidateFields : baselineFields;
                     for (const field of TUNABLE_FIELDS) {
                         if (bot.ai.profile[field] !== expected[field]) {
                             throw new Error(`benchmark profile injection lost for ${field}`);
@@ -338,6 +387,8 @@ export async function runMatch({
 
         return {
             matchSeed: em.matchSeed,
+            opponent,
+            policyTypes: bots.map((bot) => bot.ai.type),
             endPositionSignature,
             candidateLifeSeconds: candidateLife.seconds,
             candidateLives: candidateLife.lives,

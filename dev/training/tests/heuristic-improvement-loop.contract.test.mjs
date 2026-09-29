@@ -40,7 +40,7 @@ test('heuristic candidate injection preserves the complete named profile', () =>
     assert.match(source, /const result = \{ \.\.\.baseProfile \};/);
     assert.match(source, /clampProfile\(profile, candidateFields\)/);
     assert.match(source, /clampScalar\(field, source\[field\], baseProfile\[field\]\)/);
-    assert.match(source, /bot\.ai\.profile = baselineFields/);
+    assert.match(source, /if \(opponentFields\) bot\.ai\.profile = opponentFields;/);
     assert.match(source, /benchmark profile injection lost/);
 });
 
@@ -156,4 +156,29 @@ test('heuristic evaluation runs its matches through the worker pool in job order
     assert.match(source, /const results = await matchPool\.runMatches\(jobs\);/);
     assert.match(source, /for \(const \[index, result\] of results\.entries\(\)\)/);
     assert.match(source, /await matchPool\.close\(\)/);
+});
+
+test('opponent check plays the search profile against product profiles and the standard Hunt bot', () => {
+    const statePath = path.join(os.tmpdir(), `heuristic-opponents-test-${process.pid}.json`);
+    try {
+        const child = spawnSync(process.execPath, [fileURLToPath(sourceUrl), '--check-opponents', 'balanced', 'product,hunt'], {
+            env: {
+                ...process.env,
+                HEURISTIC_LOOP_MAX_TICKS: '60',
+                HEURISTIC_LOOP_NUM_BOTS: '2',
+                HEURISTIC_LOOP_STATE_PATH: statePath,
+            },
+            encoding: 'utf8',
+            timeout: 120000,
+        });
+        assert.equal(child.status, 0, child.stderr);
+        assert.match(child.stdout, /profile=balanced opponent=product survivalRatio=\S+ killRatio=\S+ damageRatio=\S+/);
+        assert.match(child.stdout, /profile=balanced opponent=hunt survivalRatio=\S+ killRatio=\S+ damageRatio=\S+/);
+        assert.doesNotMatch(child.stdout, /opponent=baseline/);
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+        assert.deepEqual(Object.keys(state.opponentChecks.balanced.results), ['product', 'hunt']);
+        assert.ok(Number.isFinite(state.opponentChecks.balanced.results.hunt.kills));
+    } finally {
+        fs.rmSync(statePath, { force: true });
+    }
 });

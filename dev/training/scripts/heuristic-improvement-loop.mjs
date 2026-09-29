@@ -18,7 +18,7 @@ import {
     HEURISTIC_IMPROVEMENT_BASELINE, resolveHeuristicBenchmarkSetup,
 } from './heuristic-improvement-baseline.mjs';
 import {
-    clampProfile, clampScalar, NUM_BOTS, parsePositiveInteger, runMatch, TUNABLE_FIELDS,
+    BENCHMARK_OPPONENTS, clampProfile, clampScalar, NUM_BOTS, parsePositiveInteger, runMatch, TUNABLE_FIELDS,
 } from './heuristic-improvement-match.mjs';
 import { createMatchPool } from './heuristic-improvement-pool.mjs';
 
@@ -169,7 +169,9 @@ function trailDeathShare(counts) {
     return total > 0 ? trail / total : 0;
 }
 
-async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respawnEnabled = true }) {
+async function evaluateVariant({
+    profile, fields, seeds, slots, maxTicks, respawnEnabled = true, opponent = 'baseline',
+}) {
     const sums = {
         candidateLifeSeconds: 0,
         candidateLives: 0,
@@ -193,7 +195,7 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
     for (const [seedIndex, seed] of seeds.entries()) {
         const setup = resolveHeuristicBenchmarkSetup(seedIndex);
         for (const candidateSlot of slots) {
-            jobs.push({ profile, seed, setup, candidateFields: fields, candidateSlot, maxTicks, respawnEnabled });
+            jobs.push({ profile, seed, setup, candidateFields: fields, candidateSlot, maxTicks, respawnEnabled, opponent });
         }
     }
     // Matches are independent; the pool returns them in job order, so every sum below is formed
@@ -533,6 +535,44 @@ async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true, produc
     saveState(state);
 }
 
+// The search tunes against the frozen July profiles. This check shows how the search profiles fare
+// against what players meet today: the shipped heuristic profiles and the standard Hunt bot.
+async function checkOpponents() {
+    const requestedProfile = String(process.argv[3] || 'all').trim().toLowerCase();
+    const profiles = requestedProfile === 'all' ? PROFILES : [requestedProfile];
+    if (!profiles.every((profile) => PROFILES.includes(profile))) throw new Error(`unknown profile: ${requestedProfile}`);
+    const opponents = process.argv[4] ? String(process.argv[4]).split(',').map((name) => name.trim()) : BENCHMARK_OPPONENTS;
+    if (!opponents.every((opponent) => BENCHMARK_OPPONENTS.includes(opponent))) {
+        throw new Error(`opponents must be among ${BENCHMARK_OPPONENTS.join(',')}`);
+    }
+    const state = loadState();
+    const slots = Array.from({ length: NUM_BOTS }, (_, index) => index);
+    const checks = {};
+    for (const profile of profiles) {
+        const fields = clampProfile(profile, state.profiles[profile]);
+        checks[profile] = { at: new Date().toISOString(), seeds: FINAL_SEEDS, maxTicks: FULL_MAX_TICKS, results: {} };
+        for (const opponent of opponents) {
+            const result = await evaluateVariant({
+                profile, fields, seeds: FINAL_SEEDS, slots, maxTicks: FULL_MAX_TICKS, opponent,
+            });
+            checks[profile].results[opponent] = toRatioRecord(result);
+            console.log(
+                `profile=${profile} opponent=${opponent}`
+                + ` survivalRatio=${formatRatio(result.survivalRatio)}`
+                + ` killRatio=${formatRatio(result.killRatio)}`
+                + ` damageRatio=${formatRatio(result.damageRatio)}`
+                + ` kills=${result.candidateKills.toFixed(2)}/${result.baselineKills.toFixed(2)}`
+                + ` damage=${result.candidateDamage.toFixed(0)}/${result.baselineDamage.toFixed(0)}`
+                + ` survival=${result.candidateSurvival.toFixed(1)}s/${result.baselineSurvival.toFixed(1)}s`
+            );
+        }
+    }
+    // A search may have saved its state meanwhile; add the checks to the newest state only.
+    const latest = loadState();
+    latest.opponentChecks = { ...latest.opponentChecks, ...checks };
+    saveState(latest);
+}
+
 async function replayMatch(product = false) {
     const profile = String(process.argv[3] || '').trim().toLowerCase();
     const seed = Number(process.argv[4]);
@@ -655,6 +695,8 @@ const task = command === '--verify'
         if (profile && !PROFILES.includes(profile)) throw new Error(`unknown audit profile: ${profile}`);
         return verifyCurrentProfiles(parseFreshAuditSeeds(process.argv[3]), false, true, profile ? [profile] : PROFILES);
     }
+    : command === '--check-opponents'
+    ? checkOpponents
     : command === '--replay'
     ? replayMatch
     : command === '--replay-product'
