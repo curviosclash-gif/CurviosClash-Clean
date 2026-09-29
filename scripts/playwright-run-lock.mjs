@@ -53,9 +53,21 @@ const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const defaultLog = (message) => console.log(message);
 const noop = () => {};
 
+/**
+ * The machine-wide lock must be the same file for every wrapper. On Windows it therefore sits in
+ * the user's own temp folder, not in whatever TEMP/TMP point to: sessions redirect those into a
+ * worktree for builds, and a wrapper started from there used to create a private lock and run
+ * next to the real holder without a word.
+ */
+function resolveSharedTempDir(env) {
+    if (process.platform !== 'win32') return os.tmpdir();
+    const localAppData = String(env?.LOCALAPPDATA || '').trim() || path.join(os.homedir(), 'AppData', 'Local');
+    return path.join(localAppData, 'Temp');
+}
+
 export function resolvePlaywrightRunLockPath(env = process.env) {
     const explicit = String(env?.[PLAYWRIGHT_RUN_LOCK_PATH_ENV] || '').trim();
-    return explicit || path.join(os.tmpdir(), LOCK_FILE_NAME);
+    return explicit || path.join(resolveSharedTempDir(env), LOCK_FILE_NAME);
 }
 
 export function resolvePlaywrightRunLockQueueDir(lockPath) {

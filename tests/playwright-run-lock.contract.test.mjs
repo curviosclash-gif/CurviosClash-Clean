@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -251,8 +252,35 @@ test('playwright lock: the lock can be switched off per environment', async () =
 });
 
 test('playwright lock: the default path lives in the temp folder and can be overridden', () => {
-    assert.equal(path.dirname(resolvePlaywrightRunLockPath({})), os.tmpdir());
+    // realpath: the system temp may be spelled with a short 8.3 name on Windows.
+    assert.equal(fs.realpathSync.native(path.dirname(resolvePlaywrightRunLockPath({}))), fs.realpathSync.native(os.tmpdir()));
     assert.equal(resolvePlaywrightRunLockPath({ CURVIOS_PLAYWRIGHT_LOCK_PATH: 'X:\\custom.lock' }), 'X:\\custom.lock');
+});
+
+// 29.09.2026: a session redirected TEMP/TMP into its worktree so esbuild could write, and started
+// the Playwright wrapper with that environment. The wrapper created a private lock there, saw no
+// queue and ran next to the real holder without a single [playwright:lock] line.
+test('playwright lock: a redirected TEMP never moves the lock on Windows', { skip: process.platform !== 'win32' }, () => {
+    const redirected = 'F:\\worktree\\tmp\\build-temp';
+    assert.equal(
+        resolvePlaywrightRunLockPath({ TEMP: redirected, TMP: redirected, LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' }),
+        'C:\\Users\\u\\AppData\\Local\\Temp\\curviosclash-playwright-run.lock'
+    );
+
+    const buildTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'lock-build-temp-'));
+    try {
+        const moduleUrl = new URL('../scripts/playwright-run-lock.mjs', import.meta.url).href;
+        const child = spawnSync(process.execPath, ['--input-type=module', '-e', `import(${JSON.stringify(moduleUrl)}).then((m) => console.log(m.resolvePlaywrightRunLockPath()))`], {
+            encoding: 'utf8',
+            env: { ...process.env, TEMP: buildTemp, TMP: buildTemp },
+        });
+        assert.equal(child.status, 0, child.stderr);
+        const childLockDir = fs.realpathSync.native(path.dirname(child.stdout.trim()));
+        assert.equal(childLockDir, fs.realpathSync.native(path.dirname(resolvePlaywrightRunLockPath())), 'a wrapper started with a redirected TEMP must find the shared lock');
+        assert.notEqual(childLockDir, fs.realpathSync.native(buildTemp));
+    } finally {
+        fs.rmSync(buildTemp, { recursive: true, force: true });
+    }
 });
 
 test('playwright lock: waiting a full window ends in LOCK_TIMEOUT with exit code 75', async () => {
