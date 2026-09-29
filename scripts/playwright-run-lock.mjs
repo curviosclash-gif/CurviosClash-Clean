@@ -53,9 +53,21 @@ const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const defaultLog = (message) => console.log(message);
 const noop = () => {};
 
+/**
+ * The machine-wide lock must be the same file for every wrapper. On Windows it therefore sits in
+ * the user's own temp folder, not in whatever TEMP/TMP point to: sessions redirect those into a
+ * worktree for builds, and a wrapper started from there used to create a private lock and run
+ * next to the real holder without a word.
+ */
+function resolveSharedTempDir(env) {
+    if (process.platform !== 'win32') return os.tmpdir();
+    const localAppData = String(env?.LOCALAPPDATA || '').trim() || path.join(os.homedir(), 'AppData', 'Local');
+    return path.join(localAppData, 'Temp');
+}
+
 export function resolvePlaywrightRunLockPath(env = process.env) {
     const explicit = String(env?.[PLAYWRIGHT_RUN_LOCK_PATH_ENV] || '').trim();
-    return explicit || path.join(os.tmpdir(), LOCK_FILE_NAME);
+    return explicit || path.join(resolveSharedTempDir(env), LOCK_FILE_NAME);
 }
 
 export function resolvePlaywrightRunLockQueueDir(lockPath) {
@@ -194,13 +206,26 @@ function tryCreateLock(lockPath, payload) {
  * A lock is dead when its process is gone, or when it carries a heartbeat that stopped more
  * than ten minutes ago. Locks written by an older wrapper have no heartbeat at all; those are
  * judged by their pid alone so a running neighbour is never stolen from.
+ *
+ * `lastWriteMs` is the lock file's modification time. Every holder rewrites the file when it takes
+ * the lock and with each beat, old wrappers included, so a recent write counts as a sign of life
+ * even when the stamp inside is old: wrappers before 71f6b4b6 wrote their wait start as heartbeat.
  */
-export function isPlaywrightRunLockStale(holder, nowMs, { isAlive = isProcessAlive, staleMs = PLAYWRIGHT_RUN_LOCK_HEARTBEAT_STALE_MS } = {}) {
+export function isPlaywrightRunLockStale(holder, nowMs, { isAlive = isProcessAlive, staleMs = PLAYWRIGHT_RUN_LOCK_HEARTBEAT_STALE_MS, lastWriteMs = NaN } = {}) {
     if (!holder) return true;
     if (!isAlive(holder.pid)) return true;
     const beatAt = Date.parse(String(holder.heartbeat || ''));
     if (!Number.isFinite(beatAt)) return false;
-    return nowMs - beatAt > staleMs;
+    const lastSignOfLife = Number.isFinite(lastWriteMs) ? Math.max(beatAt, lastWriteMs) : beatAt;
+    return nowMs - lastSignOfLife > staleMs;
+}
+
+function readLockWriteTime(lockPath) {
+    try {
+        return fs.statSync(lockPath).mtimeMs;
+    } catch {
+        return NaN;
+    }
 }
 
 /**
@@ -218,7 +243,7 @@ export function isUnreadableLockStale(lockPath, nowMs, { staleMs = PLAYWRIGHT_RU
 
 function removeStaleLock(lockPath, holder, nowMs, isAlive) {
     const stale = holder
-        ? isPlaywrightRunLockStale(holder, nowMs, { isAlive })
+        ? isPlaywrightRunLockStale(holder, nowMs, { isAlive, lastWriteMs: readLockWriteTime(lockPath) })
         : isUnreadableLockStale(lockPath, nowMs);
     if (!stale) return false;
     removeFileQuietly(lockPath);
@@ -237,9 +262,16 @@ function writeLockAtomically(lockPath, payload, pid) {
     }
 }
 
-function startHeartbeat(lockPath, pid, intervalMs, now) {
+function startHeartbeat(lockPath, pid, intervalMs, now, label = 'playwright run', log = defaultLog) {
+    let lostReported = false;
     const writeBeat = () => {
         const current = readPlaywrightRunLock(lockPath);
+        if (current && Number(current.pid) !== pid && !lostReported) {
+            // Another run removed or replaced our lock. The tests keep running, so the overlap
+            // must at least show up in this run's output.
+            lostReported = true;
+            log(`[playwright:lock] LOST the lock of ${label} to ${describeHolder(current)}; results of this run are not reliable`);
+        }
         if (!current || Number(current.pid) !== pid) return;
         try {
             writeLockAtomically(lockPath, { ...current, heartbeat: new Date(now()).toISOString() }, pid);
@@ -320,15 +352,20 @@ export async function acquirePlaywrightRunLock({
     }
 
     const startedAtMs = now();
-    const payload = { pid, label, kind, cwd, startedAt: new Date(startedAtMs).toISOString(), heartbeat: new Date(startedAtMs).toISOString() };
+    // Stamped at the moment of taking, never at the start of the wait: a run that waited longer
+    // than the stale window would otherwise look hung at once and be removed by the next waiter.
+    const tryTakeLock = () => {
+        const takenAt = new Date(now()).toISOString();
+        return tryCreateLock(lockPath, { pid, label, kind, cwd, startedAt: takenAt, heartbeat: takenAt });
+    };
     const takeLock = () => {
         env[PLAYWRIGHT_RUN_LOCK_HOLDER_ENV] = String(pid);
-        const stopHeartbeat = startHeartbeat(lockPath, pid, heartbeatMs, now);
+        const stopHeartbeat = startHeartbeat(lockPath, pid, heartbeatMs, now, label, log);
         return { acquired: true, inherited: false, disabled: false, release: createRelease(lockPath, env, pid, stopHeartbeat) };
     };
 
     // Fast path: nobody is queued and the lock is free.
-    if (readPlaywrightRunLockQueue(queueDir, { isAlive }).length === 0 && tryCreateLock(lockPath, payload)) {
+    if (readPlaywrightRunLockQueue(queueDir, { isAlive }).length === 0 && tryTakeLock()) {
         return takeLock();
     }
 
@@ -351,7 +388,7 @@ export async function acquirePlaywrightRunLock({
             const position = Math.max(1, queue.findIndex((ticket) => ticket.path === ticketPath) + 1);
             const isOurTurn = position === 1;
 
-            if (isOurTurn && tryCreateLock(lockPath, payload)) {
+            if (isOurTurn && tryTakeLock()) {
                 if (announced) log(`[playwright:lock] acquired for ${label}`);
                 return takeLock();
             }

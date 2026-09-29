@@ -175,7 +175,10 @@ export class RespawnSystem {
             }
             player.spawn(spawnPos, spawnDir);
             const strategy = this.runtime?.callbacks?.getStrategy?.() || null;
+            // Same order as the round start in EntitySpawnOps: the health reset drops the
+            // loadout bonuses, so they are applied again on top of it.
             strategy?.resetPlayerHealth?.(player);
+            strategy?.applySpawnStatBonuses?.(player);
             player.fightLastAttackerIndex = -1;
             player.fightLastThreatSourceIndex = -1;
             player.fightLastThreatAtSeconds = -Infinity;

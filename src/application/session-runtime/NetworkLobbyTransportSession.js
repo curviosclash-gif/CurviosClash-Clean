@@ -104,6 +104,10 @@ export class NetworkLobbyTransportSession {
         return this._lobby.startMatch(options);
     }
 
+    endMatch(commandId) {
+        return this._lobby?.endMatch?.(commandId);
+    }
+
     hasLobby() {
         return !!this._lobby;
     }

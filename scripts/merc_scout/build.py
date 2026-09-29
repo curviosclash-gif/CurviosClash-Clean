@@ -10,8 +10,8 @@ from pathlib import Path
 
 import bpy
 
-from . import (animation, body, clothing, glb_post, materials as material_lib,
-               mesh_utils as mu, painting, preview, rig as rigging, spec)
+from . import (animation, audit, body, clothing, glb_post, head, materials as material_lib,
+               mesh_utils as mu, occlusion, painting, preview, rig as rigging, spec)
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL_DIR = ROOT / "assets/models/characters/merc_scout"
@@ -40,6 +40,24 @@ def prepare_scene(variant: spec.Variant) -> None:
     scene["licence"] = "royalty free, commercial use, no redistribution of the model"
 
 
+def clamp_to_ground(objects: list[bpy.types.Object], *, floor: float = 0.004) -> int:
+    """Keep every garment out of the space below the sole plane.
+
+    Geometry under z = 0 forces the final normalisation to lift the whole character,
+    which shifts every landmark away from the anthropometric reference: boots that
+    reached 56 mm below the floor lifted the skeleton by 47 mm and pushed the ankle
+    from 70 mm to 115 mm. The offending vertices sit where boot sole and trouser hem
+    overlap, so flattening them costs nothing and keeps the design on the ground.
+    """
+    moved = 0
+    for obj in objects:
+        for vertex in obj.data.vertices:
+            if vertex.co.z < floor:
+                vertex.co.z = floor
+                moved += 1
+    return moved
+
+
 def build_character(variant_key: str, *, do_actions: bool = True) -> dict:
     variant = variant_by_key(variant_key)
     prepare_scene(variant)
@@ -48,23 +66,29 @@ def build_character(variant_key: str, *, do_actions: bool = True) -> dict:
 
     deformable: list[bpy.types.Object] = [
         body.build_body(variant, material_set),
-        body.build_head(material_set),
+        head.build_head(variant, material_set),
     ]
-    deformable.extend(body.build_hair(material_set, variant.detail))
+    deformable.extend(head.build_hair(material_set, variant.detail))
     deformable.extend(clothing.build_clothing(variant, material_set))
+    eyes = head.build_eyes(material_set)
+    # Each eyeball is weighted to its own gaze bone instead of to the head, so a
+    # buyer can animate the look direction.
     rigid: list[tuple[bpy.types.Object, str]] = [
-        (eye, "Head") for eye in body.build_eyes(material_set)
+        (eye, "Eye_L" if eye.name.endswith("_L") else "Eye_R") for eye in eyes
     ]
 
-    rig = rigging.build_rig(variant)
+    rig = rigging.build_rig(variant, eye_objects=eyes)
     rigging.bind_auto(rig, deformable)
     for obj, bone in rigid:
         rigging.bind_rigid(rig, obj, bone)
     meshes = deformable + [obj for obj, _ in rigid]
+    report["vertices_clamped_to_ground"] = clamp_to_ground(deformable)
 
     report["bones"] = len(rig.data.bones)
     report["mesh_count"] = len(meshes)
     report["mesh_names"] = sorted(obj.name for obj in meshes)
+    report["slot_usage"] = {name: sorted(slots)
+                            for name, slots in sorted(material_lib.slot_usage(meshes).items())}
     report["vertices"] = {obj.name: len(obj.data.vertices) for obj in meshes}
     report["profile_body"] = body.profile_measurements(meshes, mesh_name=body.BODY)
     report["profile_clothed"] = body.profile_measurements(meshes)
@@ -75,6 +99,8 @@ def build_character(variant_key: str, *, do_actions: bool = True) -> dict:
 
     report["triangles"] = mu.triangles(meshes)
     report["measurements"] = body.measure(meshes)
+    report["audit"] = audit.proportion_audit(meshes, rig, profile=report["profile_body"],
+                                            normalisation=report["normalisation"])
     report["weights"] = {obj.name: rigging.weight_report(obj) for obj in meshes}
     report["deformation"] = rigging.deformation_report(rig, meshes,
                                                        rigging.extreme_poses(variant.finger_segments))
@@ -174,8 +200,9 @@ def run(variant_key: str, *, preview_dir: Path | None = None, blend_path: Path |
         glb_path: Path | None = None, do_preview: bool = True,
         resolution: tuple[int, int] = (520, 700), samples: int = 16,
         views: tuple[str, ...] = preview.VIEWS, engine: str = "CYCLES",
-        do_painting: bool = True, do_fbx: bool = False, do_verify: bool = False,
-        do_actions: bool = True) -> dict:
+        do_painting: bool = True, do_occlusion: bool = True,
+        do_fbx: bool = False, do_verify: bool = False,
+        do_actions: bool = True, texture_dir: Path | None = None) -> dict:
     variant = variant_by_key(variant_key)
     result = build_character(variant_key, do_actions=do_actions)
     report, meshes = result["report"], result["meshes"]
@@ -183,12 +210,16 @@ def run(variant_key: str, *, preview_dir: Path | None = None, blend_path: Path |
     if do_painting:
         # The texture directory is generator output: maps from an earlier run that
         # this variant no longer produces would otherwise be shipped as stale files.
-        texture_dir = TEXTURE_DIR / variant.key
+        texture_dir = Path(texture_dir) if texture_dir else TEXTURE_DIR / variant.key
         if texture_dir.exists():
             for stale in texture_dir.glob("*.png"):
                 stale.unlink()
         report["textures"] = painting.paint_and_wire(variant, result["materials"],
                                                      texture_dir=texture_dir)
+    if do_painting and do_occlusion:
+        # Ambient occlusion goes into the same maps the buyer receives, so the
+        # contact shadows survive outside this renderer.
+        report["occlusion"] = occlusion.bake_occlusion(meshes, result["materials"])
 
     blend = Path(blend_path) if blend_path else MODEL_DIR / f"blender/merc_scout_{variant_key}.blend"
     blend.parent.mkdir(parents=True, exist_ok=True)
