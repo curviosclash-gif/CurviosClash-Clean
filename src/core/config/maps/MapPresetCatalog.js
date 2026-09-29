@@ -38,6 +38,7 @@ import { STORM_LIGHTHOUSE_SIEGE_MAPS } from './presets/storm_lighthouse_siege/in
 import { STORM_DAM_SIEGE_MAPS } from './presets/storm_dam_siege/index.js';
 import { SKYLINE_SIEGE_MAPS } from './presets/skyline_siege/Map.js';
 import { HYDRA_TEMPLE_MAP } from './presets/hydra_temple.js';
+import { TOYBOX_TITAN_MAP } from './presets/toybox_titan.js';
 
 export const MAP_PRESET_CATALOG = {
     ...(STANDARD_MAPS || {}),
@@ -80,4 +81,5 @@ export const MAP_PRESET_CATALOG = {
     ...STORM_DAM_SIEGE_MAPS,
     ...SKYLINE_SIEGE_MAPS,
     ...HYDRA_TEMPLE_MAP,
+    ...TOYBOX_TITAN_MAP,
 };
