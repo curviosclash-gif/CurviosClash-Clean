@@ -77,10 +77,8 @@ const KNOWN_FINDINGS = [
     'eiffel_tower|eiffel-lift-north-east|gate:et_leg_sling|clearance',
     'eiffel_tower|eiffel-summit-lift|portal:P1b|clearance',
     'eiffel_tower|eiffel-summit-lift|ring:CP09|clearance',
-    // glb_gallery (plan L): Building_Corner_01 plays its first clip, which moves nothing; the
-    // gallery has no map beat, so its library clips run against the 4 s default.
+    // glb_gallery: the gallery has no map beat, so its library clips run against the 4 s default.
     'glb_gallery|pm-chromatic-chaos/Building_Corner_01|-|beat',
-    'glb_gallery|pm-chromatic-chaos/Building_Corner_01|-|clip-static',
     'glb_gallery|pm-chromatic-chaos/ComputerScreen_Retro|-|beat',
     // kinetic_tide (plan H): rare lens inside the reactor core, CP07/CP11/P3a/lift sling in the
     // stroke of their mechanism, static frames without obstacle boxes. CP02, CP14 and the

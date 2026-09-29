@@ -1,14 +1,34 @@
 import { normalizeMapLighting } from '../../../../../shared/contracts/MapLightingContract.js';
 
+const SKYLINE_MODELS = Object.freeze([
+    ['spire', 'Spire', -32, 0, 58, 0.2],
+    ['crown', 'Crown', 0, 18, 52, 0.2],
+    ['arcology', 'Arcology', 32, -16, 47, 0.2],
+]);
+// The street plane the towers stand on, in authored units.
+const TOWER_BASE_Y = 4;
+
+/**
+ * A segment anchor follows the other siege maps (Eiffel legs, reactor towers): the foot of the
+ * structure, in authored units that scaleAuthoredAnchors grows with the map. It is read from the
+ * tower's own slot so the two cannot drift apart, and sits one unit above the street so the
+ * point bots aim at is inside the tower rather than on the floor under it.
+ * @param {string} key
+ */
+function towerAnchor(key) {
+    const [, , x, z] = SKYLINE_MODELS.find(([id]) => id === key);
+    return Object.freeze([x, TOWER_BASE_Y + 1, z]);
+}
+
 export const SKYLINE_SIEGE_DESTRUCTIBLES = Object.freeze({
     gameModes: Object.freeze(['HUNT']),
     segments: Object.freeze([
         Object.freeze({ id: 'spire', label: 'Spire Tower', kind: 'masonry', piece: 'spire_tower', hp: 420,
-            meshPrefixes: Object.freeze(['skyline_spire']), anchor: Object.freeze([-32, 58, 0]) }),
+            meshPrefixes: Object.freeze(['skyline_spire']), anchor: towerAnchor('spire') }),
         Object.freeze({ id: 'crown', label: 'Crown Tower', kind: 'masonry', piece: 'crown_tower', hp: 480,
-            meshPrefixes: Object.freeze(['skyline_crown']), anchor: Object.freeze([0, 52, 0]) }),
+            meshPrefixes: Object.freeze(['skyline_crown']), anchor: towerAnchor('crown') }),
         Object.freeze({ id: 'arcology', label: 'Arcology', kind: 'masonry', piece: 'arcology_tower', hp: 520,
-            meshPrefixes: Object.freeze(['skyline_arcology']), anchor: Object.freeze([32, 47, 0]) }),
+            meshPrefixes: Object.freeze(['skyline_arcology']), anchor: towerAnchor('arcology') }),
     ]),
     pieces: Object.freeze(['spire_tower', 'crown_tower', 'arcology_tower']),
     breakScenes: Object.freeze([
@@ -27,17 +47,12 @@ export const SKYLINE_SIEGE_DESTRUCTIBLES = Object.freeze({
     ]),
 });
 
-const SKYLINE_MODELS = Object.freeze([
-    ['spire', 'Spire', -32, 0, 58, 0.2],
-    ['crown', 'Crown', 0, 18, 52, 0.2],
-    ['arcology', 'Arcology', 32, -16, 47, 0.2],
-]);
 
 export const SKYLINE_SIEGE_MODELS = Object.freeze(SKYLINE_MODELS.flatMap(([key, label, x, z, height, scale]) => [
     Object.freeze({ id: `skyline-${key}-intact`, url: `assets/maps/skyline_siege/glb/01_${key}.glb`,
-        position: [x, 4, z], rotation: [0, 0, 0], scale }),
+        position: [x, TOWER_BASE_Y, z], rotation: [0, 0, 0], scale }),
     Object.freeze({ id: `skyline-${key}-collapse`, url: `assets/maps/skyline_siege/glb/20_${key}_collapse.glb`,
-        position: [x, 4, z], rotation: [0, 0, 0], scale, hiddenUntilTriggered: true,
+        position: [x, TOWER_BASE_Y, z], rotation: [0, 0, 0], scale, hiddenUntilTriggered: true,
         animationClock: Object.freeze({ mode: 'once', clipName: `Skyline${label}CollapseOnce` }) }),
 ]));
 
