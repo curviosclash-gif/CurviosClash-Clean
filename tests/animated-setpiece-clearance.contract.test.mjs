@@ -158,6 +158,11 @@ const NOTRE_DAME_SITE_FINDINGS = [
 // the ratchet but must still occur, so a fixed setpiece does not keep an exemption it no longer
 // needs.
 const DELIBERATE_EXCEPTIONS = [
+    // Neon Carnival: the marquee's 16-ray sunburst and five-point stars, and the big top's
+    // eightfold crown lights, rotate by one symmetry step. Their nodes reset at the loop seam,
+    // but their visible non-colliding geometry is in the same pose.
+    'neon_carnival|neon-carnival-marquee|-|loop-seam',
+    'neon_carnival|neon-carnival-big-top|-|loop-seam',
     // Eiffel: IlluminationRingLoop 9 s and LegElevatorLoop 14 s run against the 4 s beat on
     // purpose, so the ring and the two lifts drift through every combination of openings.
     ...['eiffel_tower', 'eiffel_tower_arena', 'eiffel_tower_siege'].flatMap((mapKey) => [
