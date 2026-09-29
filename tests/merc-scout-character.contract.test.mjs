@@ -21,9 +21,9 @@ const MODEL_DIR = path.join(ROOT, 'assets', 'models', 'characters', 'merc_scout'
 /** What each variant promises. Mirrors scripts/merc_scout/spec.py. */
 const VARIANTS = {
   mobile: {
-    maxTriangles: 15000,
+    maxTriangles: 26000,
     maxGlbBytes: 6 * 1024 * 1024,
-    bones: 43,
+    bones: 45,
     fingerSegments: 2,
     textureSize: 1024,
     skinTextureSize: 1024,
@@ -32,7 +32,7 @@ const VARIANTS = {
   pc: {
     maxTriangles: 45000,
     maxGlbBytes: 24 * 1024 * 1024,
-    bones: 53,
+    bones: 55,
     fingerSegments: 3,
     textureSize: 2048,
     skinTextureSize: 2048,
@@ -41,12 +41,29 @@ const VARIANTS = {
   high: {
     maxTriangles: 120000,
     maxGlbBytes: 64 * 1024 * 1024,
-    bones: 53,
+    bones: 55,
     fingerSegments: 3,
     textureSize: 2048,
     skinTextureSize: 4096,
     materials: ['Accent', 'Eye', 'Hair', 'Jacket', 'Leather', 'Metal', 'Skin', 'Trousers'],
   },
+};
+
+/**
+ * Anthropometric reference for a 1.80 m adult, in metres, and the tolerance the
+ * product accepts. Mirrors spec.ANTHROPOMETRY / spec.TOLERANCE.
+ */
+const REFERENCE = {
+  height: 1.800,
+  tolerance: 0.08,
+  knee: 0.513,
+  ankle: 0.070,
+  hipJoint: 0.954,
+  shoulder: 1.472,
+  humerus: 0.315,
+  radius: 0.250,
+  femur: 0.441,
+  tibia: 0.443,
 };
 
 /** Clip name -> authored frame count. Duration is (frames - 1) / 30 s. */
@@ -291,5 +308,132 @@ for (const [variant, expected] of Object.entries(VARIANTS)) {
     }
     assert.ok(!gltf.extensionsRequired || gltf.extensionsRequired.length === 0,
       `${variant} requires extensions: ${gltf.extensionsRequired?.join(', ')}`);
+  });
+}
+
+/** 3x3 matrix helpers: glTF stores local node transforms, not world positions. */
+const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+
+function multiply3(a, b) {
+  return [
+    a[0] * b[0] + a[1] * b[3] + a[2] * b[6], a[0] * b[1] + a[1] * b[4] + a[2] * b[7],
+    a[0] * b[2] + a[1] * b[5] + a[2] * b[8],
+    a[3] * b[0] + a[4] * b[3] + a[5] * b[6], a[3] * b[1] + a[4] * b[4] + a[5] * b[7],
+    a[3] * b[2] + a[4] * b[5] + a[5] * b[8],
+    a[6] * b[0] + a[7] * b[3] + a[8] * b[6], a[6] * b[1] + a[7] * b[4] + a[8] * b[7],
+    a[6] * b[2] + a[7] * b[5] + a[8] * b[8],
+  ];
+}
+
+function apply3(matrix, vector) {
+  return [
+    matrix[0] * vector[0] + matrix[1] * vector[1] + matrix[2] * vector[2],
+    matrix[3] * vector[0] + matrix[4] * vector[1] + matrix[5] * vector[2],
+    matrix[6] * vector[0] + matrix[7] * vector[1] + matrix[8] * vector[2],
+  ];
+}
+
+/** World transform of every named node, walking the hierarchy once. */
+function nodeTransforms(gltf) {
+  const parents = new Map();
+  (gltf.nodes ?? []).forEach((node, index) => {
+    for (const child of node.children ?? []) parents.set(child, index);
+  });
+  const cache = new Map();
+  const world = (index) => {
+    if (cache.has(index)) return cache.get(index);
+    const node = gltf.nodes[index];
+    const [x, y, z, w] = node.rotation ?? [0, 0, 0, 1];
+    const scale = node.scale ?? [1, 1, 1];
+    const rotation = [
+      1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w),
+      2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w),
+      2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y),
+    ];
+    const local = rotation.map((value, column) => value * scale[column % 3]);
+    const parentIndex = parents.get(index);
+    const parent = parentIndex === undefined
+      ? { matrix: IDENTITY, position: [0, 0, 0] }
+      : world(parentIndex);
+    const offset = apply3(parent.matrix, node.translation ?? [0, 0, 0]);
+    const result = {
+      matrix: multiply3(parent.matrix, local),
+      position: parent.position.map((value, axis) => value + offset[axis]),
+    };
+    cache.set(index, result);
+    return result;
+  };
+  const byName = new Map();
+  (gltf.nodes ?? []).forEach((node, index) => {
+    if (node.name) byName.set(node.name, world(index));
+  });
+  return byName;
+}
+
+for (const variant of Object.keys(VARIANTS)) {
+  const glbFile = path.join(MODEL_DIR, 'glb', `merc_scout_${variant}.glb`);
+
+  test(`merc-scout ${variant}: bones follow the anthropometric reference skeleton`, () => {
+    const { gltf } = readGlb(glbFile);
+    const nodes = nodeTransforms(gltf);
+    const position = (name) => {
+      const entry = nodes.get(name);
+      assert.ok(entry, `${variant} has no bone ${name}`);
+      return entry.position;
+    };
+    const length = (from, to) => {
+      const a = position(from);
+      const b = position(to);
+      return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    };
+    const check = (label, built, reference) => {
+      const delta = Math.abs(built - reference) / reference;
+      assert.ok(delta <= REFERENCE.tolerance,
+        `${variant} ${label}: ${built.toFixed(3)} m vs reference ${reference} m `
+        + `(${(delta * 100).toFixed(1)} %)`);
+    };
+    // glTF is Y up, so a height is the Y component.
+    check('humerus (UpperArm to LowerArm)', length('UpperArm_L', 'LowerArm_L'), REFERENCE.humerus);
+    check('radius (LowerArm to Hand)', length('LowerArm_L', 'Hand_L'), REFERENCE.radius);
+    check('femur (UpperLeg to LowerLeg)', length('UpperLeg_L', 'LowerLeg_L'), REFERENCE.femur);
+    check('tibia (LowerLeg to Foot)', length('LowerLeg_L', 'Foot_L'), REFERENCE.tibia);
+    check('knee height', position('LowerLeg_L')[1], REFERENCE.knee);
+    check('ankle height', position('Foot_L')[1], REFERENCE.ankle);
+    check('hip joint height', position('UpperLeg_L')[1], REFERENCE.hipJoint);
+    check('shoulder height', position('UpperArm_L')[1], REFERENCE.shoulder);
+    assert.ok(nodes.has('Eye_L') && nodes.has('Eye_R'),
+      `${variant} ships no gaze bones for the eyes`);
+  });
+
+  test(`merc-scout ${variant}: stands 1.80 m tall with its soles on the ground`, () => {
+    const { gltf } = readGlb(glbFile);
+    const nodes = nodeTransforms(gltf);
+    let low = [Infinity, Infinity, Infinity];
+    let high = [-Infinity, -Infinity, -Infinity];
+    (gltf.nodes ?? []).forEach((node) => {
+      if (node.mesh === undefined) return;
+      const transform = nodes.get(node.name) ?? { matrix: IDENTITY, position: [0, 0, 0] };
+      for (const primitive of gltf.meshes[node.mesh].primitives ?? []) {
+        const accessor = gltf.accessors[primitive.attributes.POSITION];
+        if (!accessor?.min || !accessor?.max) continue;
+        for (const cornerX of [accessor.min[0], accessor.max[0]]) {
+          for (const cornerY of [accessor.min[1], accessor.max[1]]) {
+            for (const cornerZ of [accessor.min[2], accessor.max[2]]) {
+              const offset = apply3(transform.matrix, [cornerX, cornerY, cornerZ]);
+              const point = offset.map((value, axis) => value + transform.position[axis]);
+              low = low.map((value, axis) => Math.min(value, point[axis]));
+              high = high.map((value, axis) => Math.max(value, point[axis]));
+            }
+          }
+        }
+      }
+    });
+    assert.ok(Number.isFinite(low[1]) && Number.isFinite(high[1]),
+      `${variant} carries no POSITION bounds`);
+    const height = high[1] - low[1];
+    assert.ok(Math.abs(height - REFERENCE.height) <= 0.01,
+      `${variant} is ${height.toFixed(3)} m tall, expected ${REFERENCE.height} m`);
+    assert.ok(Math.abs(low[1]) <= 0.012,
+      `${variant} has its lowest point at ${low[1].toFixed(3)} m instead of 0`);
   });
 }

@@ -4,6 +4,7 @@ import {
     RING_STATE_NEXT,
     RING_STATE_PASSED,
 } from '../CheckpointRingMeshFactory.js';
+import { SETTINGS_LIMITS } from '../../../shared/contracts/SettingsRuntimeContract.js';
 
 const TRIGGER_PULSE_DURATION_MS = 300;
 const TRIGGER_FLASH_ATTACK_MS = 65;
@@ -15,16 +16,18 @@ const NEXT_PULSE_HZ = 2.5;
 const NEXT_EMISSIVE_MIN = 0.5;
 const NEXT_EMISSIVE_MAX = 1.5;
 const NEXT_GLOW_STRENGTH_FALLBACK = 1.35;
-const GUIDANCE_CYCLE_MS = 4500;
 const GUIDANCE_BREATH_MS = 1200;
-const GUIDANCE_MAX_DISTANCE = 24;
-const GUIDANCE_MAX_OPACITY = 0.42;
-
-function safeNow() {
-    return typeof performance !== 'undefined' && typeof performance.now === 'function'
-        ? performance.now()
-        : Date.now();
-}
+// The trail starts just ahead of the ship and runs towards the target, so it reads as
+// "fly this way" even while the ring itself is still far off or out of view.
+const GUIDANCE_NEAR_OFFSET = 8;
+const GUIDANCE_TRAIL_LENGTH = 36;
+const GUIDANCE_BASE_OPACITY = 0.42;
+// One slider drives ring glow, trail and edge arrow; the cap is only reached at its maximum.
+const GUIDANCE_MAX_FACTOR = SETTINGS_LIMITS.gameplay.nextCheckpointGlowIntensity.max / NEXT_GLOW_STRENGTH_FALLBACK;
+const GUIDANCE_OPACITY_CAP = 0.93;
+// Help on demand: a new breath only when the player stops closing in on the target.
+const GUIDANCE_PROGRESS_EPSILON = 2;
+const GUIDANCE_STALL_MS = 3000;
 
 export class CheckpointRingRuntime {
     constructor(arena) {
@@ -34,21 +37,27 @@ export class CheckpointRingRuntime {
         this._progressProvider = null;
         this._particles = null;
         this._prevPassedCheckpointIds = new Set();
+        this._passedCheckpointIdScratch = new Set();
         this._prevNextIndex = -1;
         this._prevCompleted = false;
         this._triggerAnimations = new Map(); // checkpointId -> { startMs, baseScale }
         this._finishAnimStartMs = -1;
         this._finishBaseScale = 1;
+        // Game time, so slow motion and pauses slow or stop every ring animation with the match.
+        this._clockMs = 0;
         this._guidanceProvider = null;
         this._guidanceTargets = [];
         this._previousGuidanceTargets = [];
         this._guidanceView = {
             active: false,
             intensity: 0,
+            pulse: 0,
             player: null,
             targets: this._guidanceTargets,
         };
         this._guidanceTargetChangedAtMs = 0;
+        this._guidanceBestDistance = Infinity;
+        this._guidanceLastProgressMs = 0;
     }
 
     setProgressProvider(fn) {
@@ -91,6 +100,7 @@ export class CheckpointRingRuntime {
         this._prevPassedCheckpointIds.clear();
         this._prevNextIndex = -1;
         this._prevCompleted = false;
+        this._clockMs = 0;
         this._resetGuidance();
     }
 
@@ -98,8 +108,9 @@ export class CheckpointRingRuntime {
         const rings = this.arena.checkpointRings;
         if (!rings || rings.length === 0) return;
 
-        const now = safeNow();
         const deltaSeconds = Number.isFinite(dt) ? Math.max(0, dt) : 0;
+        this._clockMs += deltaSeconds * 1000;
+        const now = this._clockMs;
 
         if (this.spinEnabled) {
             this.spinAngle = (this.spinAngle + deltaSeconds * 0.2) % (Math.PI * 2);
@@ -122,11 +133,14 @@ export class CheckpointRingRuntime {
 
     _syncRingStates(rings, snapshot, now) {
         const { passedMask, passedCheckpointIds, nextCheckpointIndex, completed } = snapshot;
-        const passedCheckpointIdSet = new Set(
-            Array.isArray(passedCheckpointIds)
-                ? passedCheckpointIds.map((checkpointId) => String(checkpointId || '').trim()).filter(Boolean)
-                : []
-        );
+        const passedCheckpointIdSet = this._passedCheckpointIdScratch;
+        passedCheckpointIdSet.clear();
+        if (Array.isArray(passedCheckpointIds)) {
+            for (let i = 0; i < passedCheckpointIds.length; i += 1) {
+                const checkpointId = String(passedCheckpointIds[i] || '').trim();
+                if (checkpointId) passedCheckpointIdSet.add(checkpointId);
+            }
+        }
         const hasExplicitPassedCheckpointIds = passedCheckpointIdSet.size > 0;
 
         for (const entry of rings) {
@@ -176,6 +190,8 @@ export class CheckpointRingRuntime {
             }
         }
 
+        // Swap the two sets instead of allocating a fresh one every frame.
+        this._passedCheckpointIdScratch = this._prevPassedCheckpointIds;
         this._prevPassedCheckpointIds = passedCheckpointIdSet;
         this._prevNextIndex = nextCheckpointIndex;
         this._prevCompleted = !!completed;
@@ -200,9 +216,12 @@ export class CheckpointRingRuntime {
         this._guidanceTargets.length = 0;
         this._guidanceView.active = false;
         this._guidanceView.intensity = 0;
+        this._guidanceView.pulse = 0;
         this._guidanceView.player = null;
         this._previousGuidanceTargets.length = 0;
         this._guidanceTargetChangedAtMs = 0;
+        this._guidanceBestDistance = Infinity;
+        this._guidanceLastProgressMs = 0;
         const rings = Array.isArray(this.arena?.checkpointRings) ? this.arena.checkpointRings : [];
         for (const entry of rings) this._hideGuidanceMotifs(entry);
     }
@@ -221,15 +240,18 @@ export class CheckpointRingRuntime {
         const rawIntensity = Number.isFinite(configuredIntensity)
             ? configuredIntensity
             : NEXT_GLOW_STRENGTH_FALLBACK;
-        const factor = Math.min(2, Math.max(0, rawIntensity / NEXT_GLOW_STRENGTH_FALLBACK));
+        const factor = Math.min(GUIDANCE_MAX_FACTOR, Math.max(0, rawIntensity / NEXT_GLOW_STRENGTH_FALLBACK));
+        const view = this._guidanceView;
         const targets = this._guidanceTargets;
         targets.length = 0;
+        view.pulse = 0;
         if (!player?.position || factor <= 0 || source?.active !== true) {
-            this._guidanceView.active = false;
-            this._guidanceView.intensity = factor;
-            this._guidanceView.player = null;
+            view.active = false;
+            view.intensity = factor;
+            view.player = null;
             this._previousGuidanceTargets.length = 0;
             this._guidanceTargetChangedAtMs = 0;
+            this._guidanceBestDistance = Infinity;
             for (const entry of rings) this._hideGuidanceMotifs(entry);
             return;
         }
@@ -252,22 +274,27 @@ export class CheckpointRingRuntime {
         this._previousGuidanceTargets.length = targets.length;
         if (targetChanged) {
             this._guidanceTargetChangedAtMs = now;
+            this._guidanceLastProgressMs = now;
+            this._guidanceBestDistance = Infinity;
         }
-        this._guidanceView.active = targets.length > 0;
-        this._guidanceView.intensity = factor;
-        this._guidanceView.player = player;
+        // `active` means "there is something to point at": the edge arrow stays up between
+        // breaths, only the world trail waits for the next breath.
+        view.active = targets.length > 0;
+        view.intensity = factor;
+        view.player = player;
         if (targets.length === 0) return;
+        this._trackGuidanceProgress(targets, player, now);
 
-        const cycleElapsed = (now - this._guidanceTargetChangedAtMs) % GUIDANCE_CYCLE_MS;
-        if (cycleElapsed >= GUIDANCE_BREATH_MS) {
-            this._guidanceView.active = false;
+        const elapsed = Math.max(0, now - this._guidanceTargetChangedAtMs);
+        if (elapsed >= GUIDANCE_BREATH_MS) {
             for (let i = 0; i < targets.length; i += 1) this._hideGuidanceMotifs(targets[i]);
             return;
         }
-        const breathT = cycleElapsed / GUIDANCE_BREATH_MS;
+        const breathT = elapsed / GUIDANCE_BREATH_MS;
         // A target handoff starts at the breath peak so the new route is readable immediately.
         const breath = Math.cos(breathT * Math.PI * 0.5);
-        const opacity = Math.min(GUIDANCE_MAX_OPACITY, GUIDANCE_MAX_OPACITY * factor) * breath;
+        view.pulse = breath;
+        const opacity = Math.min(GUIDANCE_OPACITY_CAP, GUIDANCE_BASE_OPACITY * factor) * breath;
         for (let targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
             const entry = targets[targetIndex];
             const dx = (Number(entry.pos.x) || 0) - (Number(player.position.x) || 0);
@@ -279,8 +306,8 @@ export class CheckpointRingRuntime {
                 this._hideGuidanceMotifs(entry);
                 continue;
             }
-            const travelDistance = Math.min(GUIDANCE_MAX_DISTANCE, distance);
-            const startDistance = distance - travelDistance;
+            const startDistance = Math.min(GUIDANCE_NEAR_OFFSET, distance * 0.3);
+            const travelDistance = Math.min(startDistance + GUIDANCE_TRAIL_LENGTH, distance) - startDistance;
             const inverseDistance = 1 / distance;
             const color = entry.mesh?.userData?.checkpointColor;
             for (let i = 0; i < motifs.length; i += 1) {
@@ -311,6 +338,26 @@ export class CheckpointRingRuntime {
                 const coreMaterial = motif.userData?.guidanceCore?.material;
                 if (coreMaterial) coreMaterial.opacity = opacity * edgeFade;
             }
+        }
+    }
+
+    _trackGuidanceProgress(targets, player, now) {
+        let nearest = Infinity;
+        for (let i = 0; i < targets.length; i += 1) {
+            const pos = targets[i].pos;
+            const distance = Math.hypot(
+                (Number(pos.x) || 0) - (Number(player.position.x) || 0),
+                (Number(pos.y) || 0) - (Number(player.position.y) || 0),
+                (Number(pos.z) || 0) - (Number(player.position.z) || 0)
+            );
+            if (distance < nearest) nearest = distance;
+        }
+        if (nearest < this._guidanceBestDistance - GUIDANCE_PROGRESS_EPSILON) {
+            this._guidanceBestDistance = nearest;
+            this._guidanceLastProgressMs = now;
+        } else if (now - this._guidanceLastProgressMs >= GUIDANCE_STALL_MS) {
+            this._guidanceTargetChangedAtMs = now;
+            this._guidanceLastProgressMs = now;
         }
     }
 
