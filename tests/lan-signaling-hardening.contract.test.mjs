@@ -460,7 +460,8 @@ test('LAN signaling lets current mobile clients play every mode and map but keep
             actorId: 'Old Android',
             participantMetadata: {
                 productSurfaceId: MOBILE_LAN_PARTICIPANT_SURFACE_ID,
-                protocolVersion: 'curvios-multiplayer.v0',
+                // v1 apps predate END_MATCH/MATCH_ENDED and would hang after a match.
+                protocolVersion: 'curvios-multiplayer.v1',
             },
         });
         const outdatedReady = await postJson(lanServer.baseUrl, '/lobby/ready', {

@@ -4,7 +4,8 @@ import { normalizeLobbyMatchSummary } from './LobbyMatchSummaryContract.js';
 export { MULTIPLAYER_SESSION_ROLES } from './RuntimeSessionContract.js';
 
 export const SIGNALING_SESSION_CONTRACT_VERSION = 'signaling-session.v1';
-export const MULTIPLAYER_PROTOCOL_VERSION = 'curvios-multiplayer.v1';
+// v2: lobbies end matches via END_MATCH/MATCH_ENDED; v1 phones would miss the return to the lobby.
+export const MULTIPLAYER_PROTOCOL_VERSION = 'curvios-multiplayer.v2';
 export const MOBILE_LAN_PARTICIPANT_SURFACE_ID = 'mobile-app';
 
 export const SIGNALING_COMMAND_TYPES = Object.freeze({
