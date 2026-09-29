@@ -11,7 +11,9 @@ import {
     HEURISTIC_PROFILES,
 } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
 import { retainsHeuristicEngagement } from './heuristic-improvement-metrics.mjs';
-import { HEURISTIC_SEARCH_STATE_VERSION, judgeCandidate } from './heuristic-improvement-acceptance.mjs';
+import {
+    HEURISTIC_SEARCH_STATE_VERSION, isInertTacticStep, judgeCandidate,
+} from './heuristic-improvement-acceptance.mjs';
 import {
     HEURISTIC_IMPROVEMENT_BASELINE, resolveHeuristicBenchmarkSetup,
 } from './heuristic-improvement-baseline.mjs';
@@ -339,6 +341,17 @@ async function runIteration() {
     const current = clampProfile(profile, state.profiles[profile]);
     const coarseSlots = [...new Set([0, Math.max(0, NUM_BOTS - 1)])];
     const fullSlots = Array.from({ length: NUM_BOTS }, (_, index) => index);
+    const candidates = [step, -step, step * 0.5, -step * 0.5]
+        .map((direction) => perturb(current, field, direction))
+        .filter((fields) => fields[field] !== current[field]
+            && !isInertTacticStep(field, current[field], fields[field]));
+    if (candidates.length === 0) {
+        advanceCursor(state, profile);
+        saveState(state);
+        console.log(`profile=${profile} candidate=${field}:${Number(current[field]).toFixed(4)} decision=inert-skip`);
+        if (state.plateauRounds >= 3) process.exitCode = 3;
+        return;
+    }
     const coarseCurrent = await evaluateVariant({
         profile,
         fields: current,
@@ -349,9 +362,7 @@ async function runIteration() {
 
     let selected = null;
     let shortCoarseCurrent = null;
-    for (const direction of [step, -step, step * 0.5, -step * 0.5]) {
-        const fields = perturb(current, field, direction);
-        if (fields[field] === current[field]) continue;
+    for (const fields of candidates) {
         const result = await evaluateVariant({
             profile,
             fields,

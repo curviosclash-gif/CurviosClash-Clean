@@ -40,6 +40,23 @@ export function comparePairedMatches(candidateMatches, currentMatches, readMetri
     return counts;
 }
 
+// The bot reads these tactics only above the neutral 0.5 (src/entities/ai/Heuristic*Ops.js).
+// Strength tactics scale with (value - 0.5) * 2 from there; switch tactics are simply on above 0.5.
+const NEUTRAL_TACTIC_BIAS = 0.5;
+export const TACTIC_STRENGTH_FIELDS = Object.freeze(['escapeLateralBias', 'attackCutoffBias']);
+export const TACTIC_SWITCH_FIELDS = Object.freeze([
+    'finisherBias', 'openingFanoutBias', 'opportunistBias', 'openingHookBias', 'trafficAvoidanceBias',
+]);
+
+// A search step that cannot change what the bot does would only replay the same matches.
+export function isInertTacticStep(field, currentValue, nextValue) {
+    const currentOn = Number(currentValue) > NEUTRAL_TACTIC_BIAS;
+    const nextOn = Number(nextValue) > NEUTRAL_TACTIC_BIAS;
+    if (TACTIC_SWITCH_FIELDS.includes(field)) return currentOn === nextOn;
+    if (TACTIC_STRENGTH_FIELDS.includes(field)) return !currentOn && !nextOn;
+    return false;
+}
+
 function isClearGain(candidateValue, currentValue) {
     return candidateValue > currentValue && candidateValue >= currentValue * (1 + MIN_ACCEPTED_GAIN);
 }

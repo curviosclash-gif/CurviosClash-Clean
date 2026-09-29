@@ -32,7 +32,7 @@ test('heuristic improvement loop records candidate and baseline death causes and
 });
 
 test('heuristic coordinate ascent evaluates the accumulated candidate profile', () => {
-    assert.match(source, /const fields = perturb\(current, field, direction\);/);
+    assert.match(source, /\.map\(\(direction\) => perturb\(current, field, direction\)\)/);
     assert.match(source, /state\.profiles\[profile\] = selected\.fields;/);
 });
 
