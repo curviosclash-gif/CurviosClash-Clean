@@ -81,21 +81,27 @@ Halte die entscheidende Zeile der Ausgabe fest — sie gehört später in den Er
 one wall hit ended the run where five should
 ```
 
-**Falls du die Korrektur schon geschrieben hast**, bevor der Test stand: du kannst den Beweis nachholen, ohne den Arbeitsbaum zu gefährden. Lege deine Korrektur beiseite, lass den Test laufen, hole sie zurück:
+**Falls du die Korrektur schon geschrieben hast**, bevor der Test stand: ändere den Aufgaben-Worktree nicht und benutze keinen Stash. Der Stash-Stack wird von allen Worktrees dieses Repositorys geteilt. Erzeuge nach Prüfung der Sitzungsgrenze einen getrennten, detached Baseline-Worktree am Ausgangscommit der Aufgabe. Ist die Grenze erreicht, hole zuerst die in `AGENTS.md` verlangte Nutzerzustimmung ein.
 
-```bash
-git stash push -- src/modes/ArcadeModeStrategy.js
+```powershell
+$commonGitDir = (Resolve-Path (git rev-parse --git-common-dir)).Path
+$repositoryRoot = Split-Path -Parent $commonGitDir
+$baselineDir = Join-Path $repositoryRoot '.claude/worktrees/red-proof-<unique>'
+git worktree add --detach $baselineDir '<task-base-commit>'
 ```
 
-```bash
-node --test tests/arcade-collision-health-pool.contract.test.mjs
+Kopiere ausschließlich den neuen oder geänderten Test und nötige test-only Fixtures in diesen Baseline-Worktree, niemals die Produktkorrektur. Bei überlappenden fremden Änderungen an der Testdatei ist diese Gegenprobe nicht sicher; melde dann die Überschneidung.
+
+```powershell
+Push-Location -LiteralPath $baselineDir
+try {
+    node --test tests/arcade-collision-health-pool.contract.test.mjs
+} finally {
+    Pop-Location
+}
 ```
 
-```bash
-git stash pop
-```
-
-Beachte: `git stash` fasst nur die genannten Dateien an, aber der Arbeitsbaum trägt fremde Änderungen — nenne die Pfade deshalb immer ausdrücklich und nie pauschal.
+Entferne den Baseline-Worktree erst nach gesichertem Rot-Beleg und nach den aktuellen Bereinigungsregeln. Löse vorhandene `node_modules`-Junctions vorher.
 
 ## Schritt 4 — die kleinste tragfähige Korrektur
 
