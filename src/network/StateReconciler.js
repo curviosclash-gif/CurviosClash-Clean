@@ -3,6 +3,7 @@
 // ============================================
 import { normalizeMultiplayerStateUpdateEvent } from '../shared/contracts/MultiplayerSessionContract.js';
 import { applyHuntNetworkState } from '../hunt/HuntNetworkState.js';
+import { applyRoundOutcomeNetworkState } from '../entities/systems/RoundOutcomeNetworkState.js';
 import { replayPlayerDeathPresentation } from '../entities/EntityPlayerDeathOps.js';
 import { spawnFlameJet } from '../hunt/FlamethrowerFlameEffect.js';
 import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
@@ -197,6 +198,8 @@ export class StateReconciler {
 
         entityManager?.applyNetworkSnapshot?.(this._lastStateUpdate?.state);
         applyHuntNetworkState(entityManager, this._lastStateUpdate?.state?.fight);
+        // After the fight state, so the result board already sees the final HUNT scores.
+        applyRoundOutcomeNetworkState(entityManager, this._lastStateUpdate?.state?.roundOutcome);
 
         const serverPlayers = this._lastStateUpdate?.state?.players;
         if (!Array.isArray(localPlayers) || !serverPlayers) return;

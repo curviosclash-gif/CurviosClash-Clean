@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 GENERATORS = {
     'chrono_forge': 'generate_chrono_forge_blender_assets',
     'kinetic_tide': 'generate_kinetic_tide_assets',
+    'neon_carnival': 'generate_neon_carnival_assets',
     'verdant_aperture': 'generate_verdant_aperture_assets',
     'aetherion_orrery': 'generate_aetherion_orrery_assets',
     'notre_dame': 'generate_notre_dame_assets',
@@ -17,6 +18,7 @@ GENERATORS = {
     'eiffel_tower': 'generate_eiffel_tower_assets',
     'eiffel_tower_siege': 'generate_eiffel_tower_siege_assets',
     'reactor_site': 'generate_reactor_site_assets',
+    'orbital_shipyard': 'generate_orbital_shipyard_assets',
     'giant_forest': 'generate_giant_forest_assets',
     'hydra_temple': 'generate_hydra_temple_assets',
     'burg_falkenwacht': 'generate_falkenwacht_assets',

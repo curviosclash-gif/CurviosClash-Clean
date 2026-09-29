@@ -21,8 +21,9 @@ export class EntitySpawnOps {
         owner._globalFogEffectSystem?.reset?.();
         owner._mapSandstormSystem?.startRound?.();
         owner._lastRoundOutcome = null;
+        // Round serial for the network round result; a client keeps its applied serial on purpose.
+        owner._networkRoundSerial = (Number(owner._networkRoundSerial) || 0) + 1;
         owner._authoritativeHuntState = null;
-        owner._lastAppliedAuthoritativeOutcomeKey = '';
         owner._parcoursProgressSystem?.startRound?.(owner.players);
         owner._mapHazardSystem?.startRound?.();
         owner._mapDestructibleSystem?.startRound?.();

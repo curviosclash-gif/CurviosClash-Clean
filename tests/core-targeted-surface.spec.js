@@ -1717,6 +1717,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0;
             });
             const contextRect = context?.getBoundingClientRect?.() || { width: 0, height: 0 };
+            document.activeElement?.blur?.();
             const focusAttempt = window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime
                 ?.focusMainAction?.({ onlyIfFocusLost: true });
             return {
@@ -3032,6 +3033,34 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await page.click('.start-step-tab[data-start-section-target="vehicle"]');
         await expect(page.locator('#btn-start')).toBeInViewport();
         await expect(page.locator('#start-vehicle-section > summary')).toBeInViewport();
+    });
+
+    test('T20y1: Startleiste verdeckt im kleinen Fenster keine Arcade-Knoepfe', async ({ page }) => {
+        await loadGame(page);
+        await openCustomSubmenu(page);
+        await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
+        await page.waitForSelector('#submenu-game:not(.hidden)');
+        await page.locator('#arcade-inline-surface').evaluate((node) => { node.open = true; });
+        await page.locator('.arcade-start-mode-options').evaluate((node) => { node.open = true; });
+
+        // 1008x655 is what a 1024x768 desktop leaves for the window. A forced
+        // click scrolls its target to the centre, so each button must be the
+        // hit target there instead of the start rail.
+        for (const viewport of [{ width: 1008, height: 655 }, { width: 1280, height: 720 }]) {
+            await page.setViewportSize(viewport);
+            const covered = await page.evaluate(() => [...document.querySelectorAll('#arcade-inline-surface button')]
+                .filter((button) => button.checkVisibility() && button.getClientRects().length > 0)
+                .map((button) => {
+                    button.scrollIntoView({ block: 'center' });
+                    const rect = button.getBoundingClientRect();
+                    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+                    return button.contains(hit) ? null : `${button.id || button.textContent.trim()} <- ${hit?.id || hit?.className}`;
+                })
+                .filter(Boolean));
+            expect(covered, `${viewport.width}x${viewport.height}`).toEqual([]);
+        }
+        await page.locator('#btn-arcade-five-portals-start-inline').click({ force: true });
+        await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE.settings.arcade.runType)).toBe('five_portals');
     });
 
     test('T20z2a: Start-Setup fuehrt exklusiv durch Karte, Flugzeug und kompakte Regeln', async ({ page }) => {

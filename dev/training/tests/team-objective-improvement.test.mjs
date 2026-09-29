@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { createRuntimeConfigSnapshot } from '../../../src/core/RuntimeConfig.js';
 import {
     HEURISTIC_PROFILE_FIELD_BOUNDS,
     HEURISTIC_PROFILES,
@@ -13,6 +14,8 @@ import {
     advanceTeamObjectiveSearchState,
     clampTeamObjectiveProfile,
     createInitialTeamObjectiveState,
+    createTeamSettings,
+    resolveTeamObjectiveDifficulty,
     runTeamObjectiveMatch,
     TEAM_OBJECTIVE_AUDIT_SEEDS,
     TEAM_OBJECTIVE_HOLDOUT_SEEDS,
@@ -134,11 +137,13 @@ test('scaled headless flag match produces real objective damage', async () => {
     const result = await runTeamObjectiveMatch({
         objective: 'FLAGS',
         seed: 7331,
+        difficulty: 'NORMAL',
         candidateTeamId: 'ALPHA',
         candidateProfile: HEURISTIC_PROFILES.balanced,
         deadlineMs: Date.now() + 60_000,
     });
     assert.equal(result.objective, 'FLAGS');
+    assert.equal(result.difficulty, 'NORMAL');
     assert.ok(result.attackProgress > 0.05, `expected damaged flags, got ${result.attackProgress}`);
     assert.ok(result.assignmentRate > 0.5);
 });
@@ -180,4 +185,18 @@ test('loop keeps candidate state external and evaluates both team objectives and
     assert.match(source, /mode: '2p'/);
     assert.match(source, /entityManager\.spawnAll\(\)/);
     assert.doesNotMatch(source, /writeFileSync\([^\n]*src\//);
+});
+
+test('team objective search spans several seeds and plays every difficulty in each split', () => {
+    for (const seeds of [TEAM_OBJECTIVE_TRAINING_SEEDS, TEAM_OBJECTIVE_HOLDOUT_SEEDS, TEAM_OBJECTIVE_AUDIT_SEEDS]) {
+        assert.ok(seeds.length >= 3, `only ${seeds.length} seeds`);
+        const difficulties = new Set(seeds.map((_, index) => resolveTeamObjectiveDifficulty(index)));
+        assert.deepEqual([...difficulties].sort(), ['EASY', 'HARD', 'NORMAL']);
+    }
+});
+
+test('team objective benchmark gives both teams the rotated difficulty', () => {
+    const runtimeConfig = createRuntimeConfigSnapshot(createTeamSettings('FLAGS', 7331, 'HARD'));
+    assert.equal(runtimeConfig.bot.activeDifficulty, 'HARD');
+    assert.deepEqual(runtimeConfig.hunt.teamBotDifficulty, { ALPHA: 'HARD', BRAVO: 'HARD' });
 });

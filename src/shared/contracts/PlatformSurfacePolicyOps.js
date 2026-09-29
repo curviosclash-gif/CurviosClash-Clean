@@ -412,6 +412,19 @@ export function resolveSurfaceMultiplayerGateAccess(action, options = {}) {
                 durationMs: SURFACE_POLICY_BLOCKED_DURATION_MS,
             });
         }
+        const requestedTransport = normalizeString(options?.transport, '').toLowerCase();
+        if (requestedTransport && !policy.hostMultiplayerTransports.includes(requestedTransport)) {
+            return Object.freeze({
+                allowed: false,
+                action: 'host',
+                productSurfaceId,
+                multiplayerRole,
+                reason: 'surface_host_transport_denied',
+                message: `Hosten über ${requestedTransport === 'lan' ? 'LAN' : requestedTransport} ist hier nicht verfügbar. Wähle ${policy.hostMultiplayerTransports.map((transport) => (transport === 'lan' ? 'LAN' : 'Online')).join(' oder ')}.`,
+                tone: SURFACE_POLICY_BLOCKED_TONE,
+                durationMs: SURFACE_POLICY_BLOCKED_DURATION_MS,
+            });
+        }
         return Object.freeze({
             allowed: true,
             action: 'host',
