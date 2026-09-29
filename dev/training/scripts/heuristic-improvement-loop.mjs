@@ -12,8 +12,10 @@ import {
 } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
 import { retainsHeuristicEngagement } from './heuristic-improvement-metrics.mjs';
 import {
-    HEURISTIC_SEARCH_STATE_VERSION, isInertTacticStep, judgeCandidate,
+    HEURISTIC_PLATEAU_ROUND_LIMIT, HEURISTIC_SEARCH_PROFILES, HEURISTIC_SEARCH_STATE_VERSION, HEURISTIC_SEARCH_STEPS,
+    isInertTacticStep, judgeCandidate,
 } from './heuristic-improvement-acceptance.mjs';
+import { formatHeuristicSearchStatus } from './heuristic-improvement-status.mjs';
 import {
     HEURISTIC_IMPROVEMENT_BASELINE, resolveHeuristicBenchmarkSetup,
 } from './heuristic-improvement-baseline.mjs';
@@ -31,9 +33,11 @@ const FINAL_SEEDS = Object.freeze([293, 307, 317, 331, 347, 359, 373, 389, 401, 
 const CONFIRMATION_SEEDS = Object.freeze([457, 461, 479, 487, 499, 503, 521, 541, 557, 569, 587, 601]);
 const AUDIT_SEEDS = Object.freeze([607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673]);
 const FIXED_SEEDS = new Set([...TRAINING_SEEDS, ...HOLDOUT_SEEDS, ...FINAL_SEEDS, ...CONFIRMATION_SEEDS, ...AUDIT_SEEDS]);
-const PROFILES = Object.freeze(['defensive', 'balanced', 'aggressive']);
+const PROFILES = HEURISTIC_SEARCH_PROFILES;
 
-const SEARCH_STEPS = Object.freeze([0.20, 0.10, 0.05]);
+const SEARCH_STEPS = HEURISTIC_SEARCH_STEPS;
+// Decisions kept in the state for npm run bot:improve:status.
+const HISTORY_LIMIT = 50;
 const DEFAULT_COARSE_MAX_TICKS = 1200;
 const DEFAULT_FULL_MAX_TICKS = 5400;
 const DEFAULT_TIMEOUT_MS = 90 * 60 * 1000;
@@ -142,6 +146,24 @@ function saveState(state) {
     const temporaryPath = `${STATE_PATH}.${process.pid}.tmp`;
     fs.writeFileSync(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
     fs.renameSync(temporaryPath, STATE_PATH);
+}
+
+function recordDecision(state, entry) {
+    state.history = [...(Array.isArray(state.history) ? state.history : []), {
+        at: new Date().toISOString(),
+        ...entry,
+    }].slice(-HISTORY_LIMIT);
+}
+
+function printStatus() {
+    let state = null;
+    try {
+        state = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
+    } catch {
+        console.log(`no search state at ${STATE_PATH}`);
+        return;
+    }
+    console.log(formatHeuristicSearchStatus(state, { statePath: STATE_PATH }));
 }
 
 function isTrailDeath(cause) {
@@ -348,10 +370,11 @@ async function runIteration() {
         .filter((fields) => fields[field] !== current[field]
             && !isInertTacticStep(field, current[field], fields[field]));
     if (candidates.length === 0) {
+        recordDecision(state, { profile, field, value: current[field], decision: 'inert-skip' });
         advanceCursor(state, profile);
         saveState(state);
         console.log(`profile=${profile} candidate=${field}:${Number(current[field]).toFixed(4)} decision=inert-skip`);
-        if (state.plateauRounds >= 3) process.exitCode = 3;
+        if (state.plateauRounds >= HEURISTIC_PLATEAU_ROUND_LIMIT) process.exitCode = 3;
         return;
     }
     const coarseCurrent = await evaluateVariant({
@@ -462,6 +485,16 @@ async function runIteration() {
         else completeProfiles.delete(profile);
     }
     state.completeProfiles = [...completeProfiles];
+    recordDecision(state, {
+        profile,
+        field,
+        value: (selected?.fields || current)[field],
+        decision,
+        ...(verdict ? { failed: verdict.failed.join('+') || 'none' } : {}),
+        survivalRatio: reported.survivalRatio,
+        killRatio: reported.killRatio,
+        damageRatio: reported.damageRatio,
+    });
     advanceCursor(state, profile, decision.startsWith('accept'));
     saveState(state);
 
@@ -477,7 +510,7 @@ async function runIteration() {
         + (verdict ? ` failed=${verdict.failed.join('+') || 'none'} pairs=${formatPairs(verdict.pairs)}` : '')
     );
 
-    if (state.plateauRounds >= 3) process.exitCode = 3;
+    if (state.plateauRounds >= HEURISTIC_PLATEAU_ROUND_LIMIT) process.exitCode = 3;
 }
 
 async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true, product = false, profiles = PROFILES) {
@@ -679,7 +712,9 @@ const timer = setTimeout(() => {
 timer.unref?.();
 
 const command = process.argv[2];
-const task = command === '--verify'
+const task = command === '--status'
+    ? async () => printStatus()
+    : command === '--verify'
     ? verifyCurrentProfiles
     : command === '--confirm'
     ? () => verifyCurrentProfiles(CONFIRMATION_SEEDS, false)

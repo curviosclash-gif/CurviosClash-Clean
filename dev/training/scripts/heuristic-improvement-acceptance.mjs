@@ -6,6 +6,10 @@
 
 // Loop and runner read the same state file; one constant keeps their versions from drifting apart.
 export const HEURISTIC_SEARCH_STATE_VERSION = 21;
+// Search shape shared by loop, runner and status.
+export const HEURISTIC_SEARCH_PROFILES = Object.freeze(['defensive', 'balanced', 'aggressive']);
+export const HEURISTIC_SEARCH_STEPS = Object.freeze([0.20, 0.10, 0.05]);
+export const HEURISTIC_PLATEAU_ROUND_LIMIT = 3;
 
 // Required relative gain of the mean over the current profile, for survival and for kills.
 export const MIN_ACCEPTED_GAIN = 0.05;

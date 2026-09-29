@@ -6,9 +6,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { HEURISTIC_SEARCH_STATE_VERSION } from './heuristic-improvement-acceptance.mjs';
+import {
+    HEURISTIC_PLATEAU_ROUND_LIMIT, HEURISTIC_SEARCH_PROFILES, HEURISTIC_SEARCH_STATE_VERSION,
+} from './heuristic-improvement-acceptance.mjs';
 
-const PROFILES = Object.freeze(['defensive', 'balanced', 'aggressive']);
+const PROFILES = HEURISTIC_SEARCH_PROFILES;
 const TARGET_RATIO = 2;
 const SEARCH_STATE_VERSION = HEURISTIC_SEARCH_STATE_VERSION;
 const DEFAULT_MAX_ITERATIONS = 256;
@@ -56,7 +58,7 @@ function targetReached(state) {
 export function classifySearchState(state) {
     if (state?.version !== SEARCH_STATE_VERSION) return 'continue';
     if (targetReached(state)) return 'target';
-    if (Number(state?.plateauRounds) >= 3) return 'plateau';
+    if (Number(state?.plateauRounds) >= HEURISTIC_PLATEAU_ROUND_LIMIT) return 'plateau';
     return 'continue';
 }
 
