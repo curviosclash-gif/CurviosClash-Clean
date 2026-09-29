@@ -177,6 +177,8 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         'eiffel_tower',
         'eiffel_tower_arena',
         'eiffel_tower_siege',
+        // Only its setpiece frame colliders; the authored platforms keep renderWithGlb.
+        'kinetic_tide',
         'maze',
         'notre_dame',
         'notre_dame_arena',
