@@ -7,7 +7,11 @@ import os from 'node:os';
 import path from 'node:path';
 
 const sourceUrl = new URL('../scripts/heuristic-improvement-loop.mjs', import.meta.url);
-const source = fs.readFileSync(sourceUrl, 'utf8');
+// The loop orchestrates; one benchmark match lives in its own module so workers can run it.
+const source = [
+    fs.readFileSync(sourceUrl, 'utf8'),
+    fs.readFileSync(new URL('../scripts/heuristic-improvement-match.mjs', import.meta.url), 'utf8'),
+].join('\n');
 
 test('heuristic improvement loop reuses the booted headless match lifecycle', () => {
     const entityManagerIndex = source.indexOf('const em = runtime.session.entityManager;');
