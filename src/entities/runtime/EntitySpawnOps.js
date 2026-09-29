@@ -26,6 +26,7 @@ export class EntitySpawnOps {
         owner._parcoursProgressSystem?.startRound?.(owner.players);
         owner._mapHazardSystem?.startRound?.();
         owner._mapDestructibleSystem?.startRound?.();
+        owner._mapOwnedPickupSystem?.startRound?.();
         owner._mapDestructibleBlastSystem?.startRound?.();
         owner._waterZoneSystem?.startRound?.();
         owner._secretRoomSystem?.startRound?.();

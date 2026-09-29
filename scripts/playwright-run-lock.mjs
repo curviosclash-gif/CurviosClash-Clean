@@ -237,9 +237,16 @@ function writeLockAtomically(lockPath, payload, pid) {
     }
 }
 
-function startHeartbeat(lockPath, pid, intervalMs, now) {
+function startHeartbeat(lockPath, pid, intervalMs, now, label = 'playwright run', log = defaultLog) {
+    let lostReported = false;
     const writeBeat = () => {
         const current = readPlaywrightRunLock(lockPath);
+        if (current && Number(current.pid) !== pid && !lostReported) {
+            // Another run removed or replaced our lock. The tests keep running, so the overlap
+            // must at least show up in this run's output.
+            lostReported = true;
+            log(`[playwright:lock] LOST the lock of ${label} to ${describeHolder(current)}; results of this run are not reliable`);
+        }
         if (!current || Number(current.pid) !== pid) return;
         try {
             writeLockAtomically(lockPath, { ...current, heartbeat: new Date(now()).toISOString() }, pid);
@@ -297,25 +304,43 @@ export async function acquirePlaywrightRunLock({
     now = () => Date.now(),
     isAlive = isProcessAlive,
 } = {}) {
+    // Both bypass branches log a line: a run that skips the queue must be visible in its output.
     if (String(env?.[PLAYWRIGHT_RUN_LOCK_ENV] || '').trim() === '0') {
+        log(`[playwright:lock] DISABLED by ${PLAYWRIGHT_RUN_LOCK_ENV}=0 for ${label}`);
         return { acquired: true, inherited: false, disabled: true, release: noop };
     }
 
+    // Inherit only from the pid the lock file names. Windows reuses pids, so a leftover holder
+    // variable pointing at any living process would otherwise skip the queue unseen.
     const holderPid = Number(env?.[PLAYWRIGHT_RUN_LOCK_HOLDER_ENV]);
-    if (Number.isInteger(holderPid) && holderPid > 0 && isAlive(holderPid)) {
-        return { acquired: true, inherited: true, disabled: false, release: noop };
+    if (Number.isInteger(holderPid) && holderPid > 0) {
+        const lockHolder = readPlaywrightRunLock(lockPath);
+        if (Number(lockHolder?.pid) === holderPid && isAlive(holderPid)) {
+            log(`[playwright:lock] inherited from pid ${holderPid} for ${label}`);
+            return { acquired: true, inherited: true, disabled: false, release: noop };
+        }
+        log(
+            `[playwright:lock] ignoring ${PLAYWRIGHT_RUN_LOCK_HOLDER_ENV}=${holderPid}: ` +
+            `the lock names ${lockHolder ? `pid ${lockHolder.pid}` : 'no holder'}`
+        );
+        delete env[PLAYWRIGHT_RUN_LOCK_HOLDER_ENV];
     }
 
     const startedAtMs = now();
-    const payload = { pid, label, kind, cwd, startedAt: new Date(startedAtMs).toISOString(), heartbeat: new Date(startedAtMs).toISOString() };
+    // Stamped at the moment of taking, never at the start of the wait: a run that waited longer
+    // than the stale window would otherwise look hung at once and be removed by the next waiter.
+    const tryTakeLock = () => {
+        const takenAt = new Date(now()).toISOString();
+        return tryCreateLock(lockPath, { pid, label, kind, cwd, startedAt: takenAt, heartbeat: takenAt });
+    };
     const takeLock = () => {
         env[PLAYWRIGHT_RUN_LOCK_HOLDER_ENV] = String(pid);
-        const stopHeartbeat = startHeartbeat(lockPath, pid, heartbeatMs, now);
+        const stopHeartbeat = startHeartbeat(lockPath, pid, heartbeatMs, now, label, log);
         return { acquired: true, inherited: false, disabled: false, release: createRelease(lockPath, env, pid, stopHeartbeat) };
     };
 
     // Fast path: nobody is queued and the lock is free.
-    if (readPlaywrightRunLockQueue(queueDir, { isAlive }).length === 0 && tryCreateLock(lockPath, payload)) {
+    if (readPlaywrightRunLockQueue(queueDir, { isAlive }).length === 0 && tryTakeLock()) {
         return takeLock();
     }
 
@@ -338,7 +363,7 @@ export async function acquirePlaywrightRunLock({
             const position = Math.max(1, queue.findIndex((ticket) => ticket.path === ticketPath) + 1);
             const isOurTurn = position === 1;
 
-            if (isOurTurn && tryCreateLock(lockPath, payload)) {
+            if (isOurTurn && tryTakeLock()) {
                 if (announced) log(`[playwright:lock] acquired for ${label}`);
                 return takeLock();
             }

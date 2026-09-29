@@ -27,6 +27,7 @@ import { RailgunSystem } from '../../hunt/RailgunSystem.js';
 import { RepairDroneSystem } from '../systems/RepairDroneSystem.js';
 import { FlagObjectiveSystem } from '../systems/FlagObjectiveSystem.js';
 import { WaterZoneSystem } from '../systems/WaterZoneSystem.js';
+import { MapOwnedPickupSystem } from '../systems/MapOwnedPickupSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -44,6 +45,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         mapDestructibleSystem: new MapDestructibleSystem(owner),
         mapDestructibleBlastSystem: new MapDestructibleBlastSystem(owner),
         waterZoneSystem: new WaterZoneSystem(owner),
+        mapOwnedPickupSystem: new MapOwnedPickupSystem(owner),
         objectiveTargetMarkerSystem: new ObjectiveTargetMarkerSystem(owner),
         secretRoomSystem: new SecretRoomSystem(owner),
         flagObjectiveSystem: null,
@@ -78,6 +80,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     // Published here rather than with the other systems in EntityManager: that file sits on the
     // 500 line limit, and this is the module that owns the wiring anyway.
     owner._secretRoomSystem = systems.secretRoomSystem;
+    owner._mapOwnedPickupSystem = systems.mapOwnedPickupSystem;
     // Every weapon reads its non-player targets from here; map units add their provider later.
     systems.targetableRegistry = new TargetableRegistry();
     systems.targetableRegistry.addProvider(() => systems.staticTurretSystem.getDestructibleTargets());
