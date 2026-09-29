@@ -35,8 +35,10 @@ export class MatchStartRuntimeService {
                 const message = ports?.uiFeedbackPort?.getDeathMessage?.(cause) || '';
                 ports?.uiFeedbackPort?.showStatusToast?.(message, 2500, 'error');
             },
+            // On a network client only the host's round end gets here: RoundOutcomeSystem
+            // stops replicas from ending a round locally. Dropping it here would leave the
+            // kernel on round_end while the game stays PLAYING, which froze the client.
             onRoundEnd: (winner, outcome) => {
-                if (this._facade?.isNetworkSession?.() && !this._facade?.isHost?.()) return;
                 ports?.matchUiPort?.onRoundEnd?.(winner, outcome);
             },
         };
