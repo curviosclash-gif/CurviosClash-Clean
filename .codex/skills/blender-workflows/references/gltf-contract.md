@@ -6,6 +6,7 @@ Read this before creating or validating `.glb` or `.gltf` output. Treat `.blend`
 
 - Exported glTF geometry is mesh-based. Evaluate Blender curves, text, Geometry Nodes, and other procedural types on an export copy.
 - Measure the exported result. Quads and n-gons become triangles, while UV discontinuities, material boundaries, and hard normals may duplicate vertices.
+- Validate evaluated or decimated export copies before freezing source counts and bounds. Blender's glTF exporter can call `Mesh.validate()` and remove invalid or duplicate faces, changing an earlier triangle count even when no triangle has zero area. Clean the copy, triangulate when needed, remove vertices and edges unused by faces, preserve materials and vertex colors, and capture the baseline from the visible surface after cleanup. Loose vertices can inflate source bounds even though the exporter omits them. Recheck the original failing mesh and a nearby valid mesh, then require exact counts and bounds after a real empty-scene import; do not suppress the mismatch.
 - Verify positive, finite transforms and the intended up and forward axes after roundtrip.
 - Keep collision, render geometry, cameras, lights, and helpers in explicit export sets.
 - Preserve stable node and action names only where the runtime actually consumes them.

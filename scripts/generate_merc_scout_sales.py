@@ -50,13 +50,17 @@ LIMITS = """\
 
 - The walk cycle implies roughly 0.9 m/s, the run roughly 2.3 m/s; drive the character
   faster and the planted foot slides. Step length is capped by the leg length.
-- The boot toe corner can sink a few millimetres into the floor during the walk stance.
+- Measured on the built model: during the walk stance the lowest boot point sinks up to
+  18 mm below the floor, in the run 19 mm. The idle stance stays within 7 mm.
+- Skin coverage is measured per build: about 12 % of the body's vertices carry no
+  garment within 70 mm, most of them on the arm (16 %), the collar opening and the
+  boot; the head and the hands are meant to be bare.
 - Hit and Death slide the right foot on purpose instead of lifting it.
 - Ambient occlusion is baked into the base-colour maps, not delivered as a separate
   AO map, so it cannot be re-used for a different lighting setup.
 - Roughness and metallic are scalar per material; there are no roughness or metallic maps.
 - The hair is a sculpted mass, not card geometry: no strand-level silhouette.
-- The renders for this datasheet are EEVEE previews (hero shot: Cycles), not offline
+- The renders for this datasheet are EEVEE previews (hero shots: Cycles), not offline
   production renders.
 """
 

@@ -148,7 +148,9 @@ def render_views(objects: list[bpy.types.Object], output_dir: Path, *, prefix: s
         "head": ("PERSP", (0.34, -0.58, 1.755), (0.0, -0.015, 1.672), 95.0),
         "face": ("ORTHO", (0.0, -2.0, 1.678), (0.0, 0.0, 1.678), 0.34),
         "profile": ("ORTHO", (2.0, -0.01, 1.678), (0.0, -0.01, 1.678), 0.34),
-        "hand": ("PERSP", (0.80, -0.60, 1.18), (0.556, -0.042, 1.02), 85.0),
+        # Orthographic like the face and profile close-ups: the perspective camera
+        # that used to sit here framed empty space and shipped blank hand shots.
+        "hand": ("ORTHO", (0.560, 0.60, 1.00), (0.560, -0.02, 1.00), 0.85),
     }
 
     written: list[Path] = []
