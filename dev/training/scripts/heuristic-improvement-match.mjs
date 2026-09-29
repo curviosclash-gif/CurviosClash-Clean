@@ -45,7 +45,18 @@ export function parsePositiveInteger(value, fallback) {
 
 export const NUM_BOTS = parsePositiveInteger(process.env.HEURISTIC_LOOP_NUM_BOTS, DEFAULT_NUM_BOTS);
 
-function fightSettings(profile, respawnEnabled, seed, { difficulty, mapKey }) {
+// The hit points and machine gun a player meets in the shipped game, so a tuned profile is
+// judged by the fights it will actually have.
+const GAME_COMBAT_RULES = Object.freeze({
+    fightPlayerHp: HEURISTIC_BENCHMARK_BASE_CONFIG.HUNT.PLAYER_MAX_HP,
+    fightMgDamage: HEURISTIC_BENCHMARK_BASE_CONFIG.HUNT.MG.DAMAGE,
+    mgTrailAimRadius: HEURISTIC_BENCHMARK_BASE_CONFIG.HUNT.MG.TRAIL_HIT_RADIUS,
+});
+
+// Respawn, the high kill limit and no time limit stay benchmark rules on purpose: the search scores
+// the average life length over many lives, and a match that ended at the first few kills would
+// leave only one or two lives per bot to average.
+export function createBenchmarkFightSettings(profile, respawnEnabled, seed, { difficulty, mapKey }) {
     return {
         localSettings: { modePath: 'fight', sessionType: 'single' },
         mode: '1p',
@@ -58,9 +69,7 @@ function fightSettings(profile, respawnEnabled, seed, { difficulty, mapKey }) {
         botHeuristicProfile: profile,
         gameplay: {
             planarMode: false,
-            fightPlayerHp: 100,
-            fightMgDamage: 15,
-            mgTrailAimRadius: 0.3,
+            ...GAME_COMBAT_RULES,
         },
         hunt: {
             respawnEnabled,
@@ -112,7 +121,7 @@ export async function runMatch({
     let runtime = null;
     Math.random = seededRandom.next;
     try {
-        const settings = fightSettings(profile, respawnEnabled, seed, setup);
+        const settings = createBenchmarkFightSettings(profile, respawnEnabled, seed, setup);
         const runtimeConfig = createRuntimeConfigSnapshot(settings, { baseConfig: HEURISTIC_BENCHMARK_BASE_CONFIG });
         if (runtimeConfig.arcade.seed !== seed || runtimeConfig.hunt.timeLimitSeconds !== 0
             || runtimeConfig.session.mapKey !== setup.mapKey || runtimeConfig.bot.activeDifficulty !== setup.difficulty) {

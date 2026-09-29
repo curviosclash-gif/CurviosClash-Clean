@@ -141,7 +141,7 @@ function saveTeamObjectiveState(state, statePath = TEAM_OBJECTIVE_STATE_PATH) {
     fs.renameSync(temporaryPath, statePath);
 }
 
-function createTeamSettings(objective, seed) {
+export function createTeamSettings(objective, seed) {
     return {
         localSettings: { modePath: 'fight', sessionType: 'splitscreen' },
         mode: '2p',
@@ -153,9 +153,10 @@ function createTeamSettings(objective, seed) {
         botHeuristicProfile: 'balanced',
         gameplay: {
             planarMode: false,
-            fightPlayerHp: 100,
-            fightMgDamage: 15,
-            mgTrailAimRadius: 0.3,
+            // The shipped hit points and machine gun; respawn and the kill limit stay benchmark rules.
+            fightPlayerHp: BENCHMARK_BASE_CONFIG.HUNT.PLAYER_MAX_HP,
+            fightMgDamage: BENCHMARK_BASE_CONFIG.HUNT.MG.DAMAGE,
+            mgTrailAimRadius: BENCHMARK_BASE_CONFIG.HUNT.MG.TRAIL_HIT_RADIUS,
         },
         hunt: {
             respawnEnabled: true,
