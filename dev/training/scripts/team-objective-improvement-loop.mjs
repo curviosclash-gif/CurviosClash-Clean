@@ -24,8 +24,11 @@ import {
 } from './team-objective-improvement-metrics.mjs';
 
 const FIXED_STEP = MATCH_KERNEL_FIXED_STEP_SECONDS;
-export const TEAM_OBJECTIVE_TRAINING_SEEDS = Object.freeze([7331]);
-export const TEAM_OBJECTIVE_HOLDOUT_SEEDS = Object.freeze([9341]);
+// Three seeds per split, each on another menu difficulty: one seed let a candidate win on one
+// lucky spawn layout, and every match ran on NORMAL only. About 6-7 s per match, so an
+// iteration costs up to 60 matches (roughly 7 minutes) instead of 20.
+export const TEAM_OBJECTIVE_TRAINING_SEEDS = Object.freeze([7331, 7349, 7351]);
+export const TEAM_OBJECTIVE_HOLDOUT_SEEDS = Object.freeze([9341, 9343, 9349]);
 // Never use these seeds for candidate selection. Run once after the search is frozen.
 export const TEAM_OBJECTIVE_AUDIT_SEEDS = Object.freeze([12101, 12113, 12119]);
 export const TEAM_OBJECTIVE_TUNABLE_FIELDS = Object.freeze([
@@ -38,9 +41,10 @@ export const TEAM_OBJECTIVE_TUNABLE_FIELDS = Object.freeze([
 ]);
 
 const OBJECTIVES = Object.freeze(['FLAGS', 'ESCORT']);
+const DIFFICULTIES = Object.freeze(['EASY', 'NORMAL', 'HARD']);
 const CANDIDATE_TEAMS = Object.freeze([TEAM_IDS.ALPHA, TEAM_IDS.BRAVO]);
 const SEARCH_STEPS = Object.freeze([0.10, 0.05]);
-const STATE_VERSION = 2;
+const STATE_VERSION = 3;
 const DEFAULT_MAX_TICKS = 1800;
 const DEFAULT_TIMEOUT_MS = 45 * 60 * 1000;
 const SAMPLE_INTERVAL_TICKS = 15;
@@ -141,14 +145,18 @@ function saveTeamObjectiveState(state, statePath = TEAM_OBJECTIVE_STATE_PATH) {
     fs.renameSync(temporaryPath, statePath);
 }
 
-export function createTeamSettings(objective, seed) {
+export function resolveTeamObjectiveDifficulty(seedIndex) {
+    return DIFFICULTIES[Math.max(0, Math.trunc(Number(seedIndex) || 0)) % DIFFICULTIES.length];
+}
+
+export function createTeamSettings(objective, seed, difficulty = 'NORMAL') {
     return {
         localSettings: { modePath: 'fight', sessionType: 'splitscreen' },
         mode: '2p',
         mapKey: 'standard',
         gameMode: 'HUNT',
         winsNeeded: 1,
-        botDifficulty: 'NORMAL',
+        botDifficulty: difficulty,
         botPolicyStrategy: 'heuristic',
         botHeuristicProfile: 'balanced',
         gameplay: {
@@ -165,7 +173,7 @@ export function createTeamSettings(objective, seed) {
             teamMode: true,
             teamObjective: objective,
             teamSize: 3,
-            teamBotDifficulty: { ALPHA: 'NORMAL', BRAVO: 'NORMAL' },
+            teamBotDifficulty: { ALPHA: difficulty, BRAVO: difficulty },
         },
         arcade: { seed },
         portalsEnabled: false,
@@ -189,13 +197,15 @@ export function verifyTeamObjectiveArenaBounds(bounds, mapSize, mapScale) {
     }
 }
 
-export async function runTeamObjectiveMatch({ objective, seed, candidateTeamId, candidateProfile, deadlineMs }) {
+export async function runTeamObjectiveMatch({
+    objective, seed, difficulty = 'NORMAL', candidateTeamId, candidateProfile, deadlineMs,
+}) {
     const matchSeed = seedForMatch(seed, objective);
     const originalRandom = Math.random;
     Math.random = createRuntimeRng({ seed: matchSeed }).next;
     let runtime = null;
     try {
-        const settings = createTeamSettings(objective, matchSeed);
+        const settings = createTeamSettings(objective, matchSeed, difficulty);
         const runtimeConfig = createRuntimeConfigSnapshot(settings, { baseConfig: BENCHMARK_BASE_CONFIG });
         runtime = await Promise.resolve(createHeadlessMatchKernelRuntime({
             settings,
@@ -203,7 +213,7 @@ export async function runTeamObjectiveMatch({ objective, seed, candidateTeamId, 
             baseConfig: BENCHMARK_BASE_CONFIG,
             requestedMapKey: runtimeConfig.session.mapKey,
             profile: {
-                sessionId: `team-objective-${objective.toLowerCase()}-${matchSeed}-${candidateTeamId.toLowerCase()}`,
+                sessionId: `team-objective-${objective.toLowerCase()}-${matchSeed}-${difficulty.toLowerCase()}-${candidateTeamId.toLowerCase()}`,
                 fixedStepSeconds: FIXED_STEP,
                 deterministic: true,
             },
@@ -263,6 +273,9 @@ export async function runTeamObjectiveMatch({ objective, seed, candidateTeamId, 
             runtime.step(inputFrame, tickOptions);
             if (frame === 1) {
                 for (const bot of bots) {
+                    if (bot.ai.difficultyName !== difficulty.toLowerCase()) {
+                        throw new Error(`team benchmark difficulty lost: ${bot.ai.difficultyName} !== ${difficulty}`);
+                    }
                     const expected = bot.player.teamId === candidateTeamId ? activeCandidate : baselineProfile;
                     for (const field of TEAM_OBJECTIVE_TUNABLE_FIELDS) {
                         if (bot.ai.profile[field] !== expected[field]) {
@@ -275,10 +288,13 @@ export async function runTeamObjectiveMatch({ objective, seed, candidateTeamId, 
             if (entityManager._roundEnded) break;
         }
 
-        return tracker.summarize(
-            entityManager,
-            Math.max(0, Number(entityManager._simulationClockMs) || 0) * 0.001
-        );
+        return {
+            ...tracker.summarize(
+                entityManager,
+                Math.max(0, Number(entityManager._simulationClockMs) || 0) * 0.001
+            ),
+            difficulty,
+        };
     } finally {
         runtime?.dispose?.();
         Math.random = originalRandom;
@@ -288,12 +304,14 @@ export async function runTeamObjectiveMatch({ objective, seed, candidateTeamId, 
 export async function evaluateTeamObjectiveProfile({ profile, seeds, timeoutMs = TIMEOUT_MS }) {
     const deadlineMs = Date.now() + timeoutMs;
     const results = [];
-    for (const seed of seeds) {
+    for (const [seedIndex, seed] of seeds.entries()) {
+        const difficulty = resolveTeamObjectiveDifficulty(seedIndex);
         for (const objective of OBJECTIVES) {
             for (const candidateTeamId of CANDIDATE_TEAMS) {
                 results.push(await runTeamObjectiveMatch({
                     objective,
                     seed,
+                    difficulty,
                     candidateTeamId,
                     candidateProfile: profile,
                     deadlineMs,
