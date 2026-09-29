@@ -82,20 +82,20 @@ export const SUNFLOWER_MEADOW_HONEY_CHAMBER_MODELS = Object.freeze([
     }),
 ]);
 
-// 18 units in front of the kernel disc, which faces up and towards +z.
-export const SUNFLOWER_MEADOW_HONEY_PORTAL = Object.freeze([3, 130, 16]);
+// In front of the enlarged kernel disc, clear of its petals and head collider.
+export const SUNFLOWER_MEADOW_HONEY_PORTAL = Object.freeze([3, 254, 43]);
 
 const MG_GUARD = Object.freeze({ weapon: 'mg', damage: 2, cooldown: 1.3 });
 const ROCKET_GUARD = Object.freeze({ weapon: 'rocket', rocketType: 'ROCKET_WEAK', cooldown: 6 });
 
-// About 50 units from the portal on a compact map: the whole approach is inside two ranges.
+// The guards ring the larger head's portal without reaching the chamber below the meadow.
 export const SUNFLOWER_MEADOW_HONEY_CHAMBER_TURRETS = Object.freeze([
-    { ...MG_GUARD, id: 'sunflower_honey_mg_west', pos: [-47, 135, 16] },
-    { ...MG_GUARD, id: 'sunflower_honey_mg_east', pos: [53, 135, 16] },
-    { ...ROCKET_GUARD, id: 'sunflower_honey_rocket_front', pos: [3, 145, 62] },
+    { ...MG_GUARD, id: 'sunflower_honey_mg_west', pos: [-65, 260, 43] },
+    { ...MG_GUARD, id: 'sunflower_honey_mg_east', pos: [71, 260, 43] },
+    { ...ROCKET_GUARD, id: 'sunflower_honey_rocket_front', pos: [3, 275, 105] },
 ].map((turret) => Object.freeze({
     ...turret,
-    range: 110,
+    range: 135,
     destructible: true,
     maxHp: 45,
     respawnSeconds: 45,

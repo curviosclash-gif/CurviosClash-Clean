@@ -127,18 +127,19 @@ test('sunflower package contains editable source, six QA views, and 220 distinct
     assert.ok(triangleCount(document) < 100_000);
     assert.ok(document.materials.length <= 20);
     assert.equal(document.textures?.length || 0, 0);
-    assert.ok(buffer.length < 2_000_000);
+    assert.ok(buffer.length < 2_400_000);
 });
 
-test('the sunflower meadow loads the sunflower GLB as its landmark without per-kernel colliders', async () => {
+test('the sunflower meadow loads the sunflower GLB with only the tunnel wall colliding', async () => {
     assert.equal(DANDELION_SKY_MAP.dandelion_sky.glbModels.some((entry) => entry.url === GLB_URL), false,
         'the sunflower moved to its own map');
     const map = SUNFLOWER_MEADOW_MAP.sunflower_meadow;
     const model = map.glbModels.find((entry) => entry.id === 'sunflower-meadow-flower');
     assert.ok(model);
     assert.equal(model.url, GLB_URL);
-    assert.equal(model.targetSize, 150);
+    assert.equal(model.targetSize, 300);
     assert.deepEqual(model.position, [0, 0, 0]);
+    assert.equal(model.collision, true);
 
     const raw = await geometryOnlyGlbLoader.loadAsync(GLB_URL);
     raw.scene.updateWorldMatrix(true, true);
@@ -153,8 +154,8 @@ test('the sunflower meadow loads the sunflower GLB as its landmark without per-k
         colliderMode: map.glbColliderMode,
     });
     assert.ok(result.scene);
-    assert.ok(result.colliders.length <= 6,
-        'shootable kernels must use targeted queries instead of permanent colliders');
+    assert.deepEqual(result.colliders.map((entry) => entry.sourceName), ['SunflowerStalkRibs'],
+        'the tunnel wall is solid while kernels use targeted queries');
     result.scene.updateWorldMatrix(true, true);
     const controller = new SunflowerKernelController(result.scene);
     assert.equal(controller.count, 220);

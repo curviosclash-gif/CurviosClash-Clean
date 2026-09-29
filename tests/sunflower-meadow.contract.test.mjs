@@ -9,6 +9,7 @@ import { SUNFLOWER_MEADOW_MAP } from '../src/core/config/maps/presets/sunflower_
 import { getMapFloorMaterial } from '../src/entities/arena/ArenaBuildResourceCache.js';
 import { SUNFLOWER_MEADOW_HONEY_CHAMBER_MODELS } from '../src/core/config/maps/presets/sunflower_meadow/SunflowerMeadowHoneyChamber.js';
 import { loadGLBMapCollection } from '../src/entities/GLBMapLoader.js';
+import { raycastStaticMeshCollider, sphereIntersectsStaticMeshCollider } from '../src/entities/arena/StaticMeshCollider.js';
 import { SunflowerKernelController } from '../src/entities/arena/SunflowerKernelController.js';
 import { isPointInSecretRoom, normalizeSecretRooms } from '../src/shared/contracts/SecretRoomContract.js';
 import { normalizeStaticTurretDefinition } from '../src/shared/contracts/MapSinglePlayerScenarioContract.js';
@@ -56,6 +57,7 @@ test('the sunflower meadow is a listed adventure map with a kernel-locked honey 
     assert.deepEqual(ROOM.unlock, { source: 'sunflowerKernels', when: 'allReleased', delaySeconds: 0 });
     assert.deepEqual(ROOM.modes, ['HUNT', 'ARCADE']);
     assert.equal(MAP.singlePlayerScenario.gameMode, 'HUNT');
+    assert.deepEqual(MAP.size, [420, 360, 420]);
 });
 
 test('both flower maps stand on a meadow instead of the checker floor', () => {
@@ -64,11 +66,51 @@ test('both flower maps stand on a meadow instead of the checker floor', () => {
     }
 });
 
-test('the GLB brings no colliders, so stalk and head collide only through their beams', async () => {
+test('the stalk is a collidable hollow tunnel and the kernel head keeps its size', async () => {
     const { result, controller } = await loadKernels();
-    assert.equal(result.colliders.length, 0, 'every plant mesh is _nocol and kernels never collide');
+    assert.deepEqual(result.colliders.map((entry) => entry.sourceName), ['SunflowerStalkRibs']);
     assert.equal(controller.count, 220);
-    assert.equal(beams.length, 2);
+    assert.equal(beams.length, 1, 'the old solid stalk beam would block the tunnel');
+
+    const stalk = result.scene.getObjectByName('SunflowerStalkRibs');
+    const collider = result.colliders[0].meshCollider;
+    // Blender is Z-up; the GLB importer presents the same point as (x, height, -y).
+    const worldPoint = (x, y, height) => new THREE.Vector3(x, height, -y)
+        .applyMatrix4(stalk.matrixWorld);
+    for (const point of [[0.056, -0.014, 4.40], [0.67, -0.34, 9.20]]) {
+        const centre = worldPoint(...point);
+        assert.equal(raycastStaticMeshCollider(collider, centre, new THREE.Vector3(1, 0, 0), 25), false,
+            `opening ${point} must let a ship pass out of the stalk`);
+        assert.equal(sphereIntersectsStaticMeshCollider(collider, centre, 1.4), false,
+            `opening ${point} must fit the player hitbox`);
+        for (let distance = 0; distance <= 0.70; distance += 0.05) {
+            const approach = worldPoint(point[0] + distance, point[1], point[2]);
+            assert.equal(sphereIntersectsStaticMeshCollider(collider, approach, 1.4), false,
+                `opening ${point} must allow the full approach at ${distance.toFixed(2)}`);
+        }
+    }
+    const closedSection = worldPoint(0.35, -0.20, 6.80);
+    assert.ok(raycastStaticMeshCollider(collider, closedSection, new THREE.Vector3(1, 0, 0), 25),
+        'the wall between the windows must still block flight');
+    for (let step = 0; step <= 40; step += 1) {
+        const t = step / 40;
+        const centre = worldPoint(0.056 + 0.614 * t, -0.014 - 0.326 * t, 4.40 + 4.80 * t);
+        assert.equal(sphereIntersectsStaticMeshCollider(collider, centre, 1.4), false,
+            `the bore must be passable along the flight line at ${t.toFixed(2)}`);
+    }
+    const stalkItems = MAP.items.filter((entry) => entry.id.startsWith('sunflower_meadow_stalk_'));
+    assert.deepEqual(stalkItems.map((entry) => entry.pickupType), ['SHIELD', 'SPEED_UP', 'ROCKET_WEAK']);
+    for (const item of stalkItems) {
+        assert.equal(sphereIntersectsStaticMeshCollider(collider,
+            new THREE.Vector3(item.x, item.y, item.z), 1.4), false,
+        `${item.id} must sit in the flyable bore`);
+    }
+
+    const kernelBounds = new THREE.Box3().setFromPoints(controller.kernels.map((kernel) =>
+        kernel.node.getWorldPosition(new THREE.Vector3())));
+    const kernelWidth = kernelBounds.getSize(new THREE.Vector3()).x;
+    assert.ok(kernelWidth >= 70 && kernelWidth <= 85,
+        `the enlarged kernel field must remain close to 76 units (${kernelWidth.toFixed(2)})`);
 });
 
 test('every kernel sits in front of the head body, so shots reach it first', async () => {
@@ -121,7 +163,7 @@ test('starts, pickups, portals and gates stay clear of the plant and of each oth
         const nearestStart = Math.min(...starts.filter((other) => other !== start).map((other) => distance(start, other)));
         assert.ok(nearestStart > 45, `start ${start} crowds another (${nearestStart.toFixed(0)})`);
         const nearestItem = Math.min(...items.map((item) => distance(start, item)));
-        assert.ok(nearestItem < 50, `start ${start} has no pickup nearby (${nearestItem.toFixed(0)})`);
+        assert.ok(nearestItem < 85, `start ${start} has no pickup nearby (${nearestItem.toFixed(0)})`);
     }
     assert.ok(MAP.botSpawns.length >= 7);
 });
