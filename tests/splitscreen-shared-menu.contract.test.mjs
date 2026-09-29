@@ -11,8 +11,11 @@ import {
     SPLIT_SCREEN_VARIANTS,
     resolveSplitScreenDeviceIssue,
 } from '../src/four-player-planar/FourPlayerPlanarContract.js';
+import { SETTINGS_CHANGE_KEYS } from '../src/shared/settings/SettingsChangeKeys.js';
+import { START_VALIDATION_RELEVANT_KEY_SET } from '../src/core/runtime/GameRuntimeSettingsKeySets.js';
 import {
     assignThreePlayerSplitDevice,
+    bindSplitPlayersSection,
     createLocalPilotSummaryBlocks,
     resolveMenuBotCount,
     resolveMenuBotLimits,
@@ -173,6 +176,34 @@ test('the planar module only resets its own variant when a mode card is picked',
     settings.localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
     module._selectStandardSplitScreen();
     assert.equal(settings.localSettings.splitScreenVariant, SPLIT_SCREEN_VARIANTS.STANDARD);
+});
+
+test('split setup changes and plugged pads report a start-relevant change, so a stale start block clears', () => {
+    const listeners = new Map();
+    const view = {};
+    const section = { classList: { contains: () => false }, closest: () => null, ownerDocument: { defaultView: view } };
+    const countButton = { dataset: { splitPlayerCount: '3' }, disabled: false };
+    const emitted = [];
+    const { settings } = createSplitSettings({ players: 2 });
+    bindSplitPlayersSection({
+        ui: { splitPlayersSection: section, splitPlayerCountButtons: [countButton] },
+        settings,
+        settingsChangeKeys: SETTINGS_CHANGE_KEYS,
+        bind: (target, type, handler) => listeners.set(`${target === view ? 'view' : 'button'}:${type}`, handler),
+        emitSettingsChangedImmediate: (keys) => emitted.push(keys),
+        getGamepad: CONNECTED,
+    });
+
+    listeners.get('button:click')();
+    assert.equal(settings.localSettings.splitScreenVariant, SPLIT_SCREEN_VARIANTS.THREE_PLAYER);
+    listeners.get('view:gamepadconnected')();
+    assert.equal(emitted.length, 2);
+    for (const keys of emitted) assert.ok(START_VALIDATION_RELEVANT_KEY_SET.has(keys[0]), `got ${keys}`);
+
+    // During a match the pad events must not touch the settings.
+    settings.localSettings.sessionType = 'single';
+    listeners.get('view:gamepaddisconnected')();
+    assert.equal(emitted.length, 2);
 });
 
 function createNode(dataset = {}) {

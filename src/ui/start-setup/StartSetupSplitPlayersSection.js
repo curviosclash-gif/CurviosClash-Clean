@@ -143,10 +143,13 @@ export function bindSplitPlayersSection({
     settings,
     bind,
     emitSettingsChangedImmediate,
+    settingsChangeKeys,
     getGamepad = readGamepad,
     resolveModePath = () => settings?.localSettings?.modePath,
 }) {
-    const changed = () => emitSettingsChangedImmediate([]);
+    // Player count and devices are part of the session: the session key also clears a
+    // start block that a missing pad left behind.
+    const changed = () => emitSettingsChangedImmediate([settingsChangeKeys?.SESSION_TYPE].filter(Boolean));
     for (const button of ui?.splitPlayerCountButtons || []) {
         bind(button, 'click', () => {
             if (button.disabled) return;
@@ -194,7 +197,14 @@ export function bindSplitPlayersSection({
         if (writeback.changed) changed();
     });
     const view = ui?.splitPlayersSection?.ownerDocument?.defaultView || null;
-    const refreshStatus = () => renderSplitDeviceStatus(ui, settings, getGamepad);
+    // Only while the section is offered in the menu; a pad plugged in mid-match changes nothing.
+    const refreshStatus = () => {
+        const section = ui?.splitPlayersSection;
+        const offered = isSplitScreen(settings) && section && !section.classList.contains('hidden')
+            && !section.closest?.('#submenu-game')?.classList?.contains('hidden');
+        if (offered) changed();
+        else renderSplitDeviceStatus(ui, settings, getGamepad);
+    };
     bind(view, 'gamepadconnected', refreshStatus);
     bind(view, 'gamepaddisconnected', refreshStatus);
 }
