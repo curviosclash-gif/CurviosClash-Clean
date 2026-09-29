@@ -911,6 +911,26 @@ export function createSignalingServer(port = 9090, options = {}) {
                 break;
             }
 
+            case SIGNALING_COMMAND_TYPES.END_MATCH: {
+                // The host is back in the lobby: the start command has done its
+                // job, so joins, settings, the public listing and the next start
+                // open up again. A stale commandId leaves the running match alone.
+                const lobbyCode = peerToLobby.get(ws);
+                const lobby = lobbyCode ? lobbies.get(lobbyCode) : null;
+                if (!lobby || lobby.hostPeerId !== peerId) break;
+                const commandId = normalizeString(msg.commandId, '');
+                const endsRunningMatch = !!lobby.pendingMatchStart
+                    && (!commandId || commandId === lobby.pendingMatchStart.commandId);
+                if (!endsRunningMatch) {
+                    sendSignaling(ws, SIGNALING_EVENT_TYPES.MATCH_ENDED, { sessionState: buildLobbyState(lobby) });
+                    break;
+                }
+                lobby.pendingMatchStart = null;
+                bumpLobbyState(lobby);
+                broadcastToLobby(lobby, SIGNALING_EVENT_TYPES.MATCH_ENDED, { sessionState: buildLobbyState(lobby) });
+                break;
+            }
+
             case SIGNALING_COMMAND_TYPES.LEAVE:
                 removePeerFromLobby(ws, { allowResume: false });
                 break;

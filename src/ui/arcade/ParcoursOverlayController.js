@@ -255,11 +255,12 @@ export class ParcoursOverlayController {
         if (el || !document?.body) return el || null;
         el = document.createElement('div');
         el.setAttribute('aria-hidden', 'true');
+        // A chevron pointing right at rotate(0); the tick only rotates, moves and fades it.
         Object.assign(el.style, {
-            position: 'fixed', width: '30px', height: '30px', marginLeft: '-15px', marginTop: '-15px',
-            borderRadius: '50%', pointerEvents: 'none', zIndex: '12',
-            background: 'radial-gradient(circle, rgba(255,255,255,.28) 0%, rgba(120,220,255,.12) 35%, rgba(120,220,255,0) 72%)',
-            boxShadow: '0 0 16px 6px rgba(120,220,255,.18)',
+            position: 'fixed', width: '26px', height: '26px', marginLeft: '-13px', marginTop: '-13px',
+            pointerEvents: 'none', zIndex: '12',
+            clipPath: 'polygon(0% 0%, 100% 50%, 0% 100%, 32% 50%)',
+            background: '#78dcff',
             transition: 'opacity 120ms linear, left 120ms linear, top 120ms linear',
         });
         document.body.appendChild(el);
@@ -284,8 +285,14 @@ export class ParcoursOverlayController {
         }
         this._guidanceTick += 1;
         const tick = this._guidanceTick;
-        const edgeOpacity = Math.min(0.30, Math.max(0, Number(view.intensity) || 0) * 0.15);
+        const pulse = Math.max(0, Math.min(1, Number(view.pulse) || 0));
+        const edgeOpacity = Math.min(0.95, Math.max(0, Number(view.intensity) || 0) * 0.45 + 0.3 * pulse);
+        // The rings follow one progress player; on a shared screen only that player's view points at them.
+        const guidedIndex = Number(view.player?.index);
+        const guidedViewport = this._guidanceViewportCount > 1 && Number.isInteger(guidedIndex)
+            && guidedIndex >= 0 && guidedIndex < this._guidanceViewportCount ? guidedIndex : -1;
         for (let viewportIndex = 0; viewportIndex < this._guidanceViewportCount; viewportIndex += 1) {
+            if (guidedViewport >= 0 && viewportIndex !== guidedViewport) continue;
             const viewport = this._guidanceViewports[viewportIndex];
             const { x, y, width, height, camera } = viewport;
             if (!camera?.position) continue;
@@ -313,9 +320,12 @@ export class ParcoursOverlayController {
                 el.style.left = `${px}px`;
                 el.style.top = `${py}px`;
                 el.style.opacity = String(edgeOpacity);
-                const color = colorToCss(target.mesh?.userData?.checkpointColor);
-                el.style.background = `radial-gradient(circle, ${color}55 0%, ${color}2e 35%, ${color}00 72%)`;
-                el.style.boxShadow = `0 0 16px 6px ${color}3d`;
+                el.style.transform = `rotate(${Math.atan2(-edge.y, edge.x)}rad)`;
+                const colorHex = target.mesh?.userData?.checkpointColor;
+                if (el._guidanceColor !== colorHex) {
+                    el._guidanceColor = colorHex;
+                    el.style.background = colorToCss(colorHex);
+                }
                 el._guidanceTick = tick;
             }
         }
