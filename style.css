@@ -1201,9 +1201,10 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     gap: 14px;
 }
 
+/* Sticky only in the wide launch-bay layout, where the rail owns a grid
+   column. In the single-column layout a sticky rail covers the content that
+   scrolls beneath it - at short windows that hid the arcade mode buttons. */
 .start-rail {
-    position: sticky;
-    top: 64px;
     z-index: 5;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -1593,10 +1594,6 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
         grid-template-columns: 1fr;
     }
 
-    .start-rail {
-        top: 112px;
-    }
-
     .start-rail-actions {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -1702,7 +1699,6 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     }
 
     .start-rail {
-        top: 96px;
         padding: 12px;
     }
 }
@@ -6688,7 +6684,6 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     }
 
     .start-rail {
-        top: 58px;
         grid-template-columns: 1fr;
         align-items: stretch;
     }
