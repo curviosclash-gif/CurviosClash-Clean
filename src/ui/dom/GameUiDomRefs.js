@@ -370,6 +370,7 @@ export function createGameUiRefs(doc = document) {
         vehicleSelectP3: doc.getElementById('vehicle-select-p3'),
         vehicleSelectP3Panel: doc.getElementById('vehicle-select-p3-panel'),
         splitPlayersSection: doc.getElementById('start-players-section'),
+        splitPlayersStepTab: doc.getElementById('btn-start-step-players'),
         splitPlayerCountButtons: Array.from(doc.querySelectorAll('[data-split-player-count]')),
         splitPlayerCountHint: doc.getElementById('split-player-count-hint'),
         splitPlayersForNodes: Array.from(doc.querySelectorAll('[data-split-players-for]')),

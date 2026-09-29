@@ -83,7 +83,16 @@ export function syncSplitPlayersSection({ ui, settings, sessionType, getGamepad 
     const visible = sessionType === 'splitscreen' && variant !== SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
     section.classList.toggle('hidden', !visible);
     section.setAttribute('aria-hidden', String(!visible));
-    if (!visible) return;
+    // The wide layout shows one section at a time and reaches it only through this tab.
+    ui.splitPlayersStepTab?.classList.toggle('hidden', !visible);
+    if (!visible) {
+        // A hidden open section would leave the wide layout with an empty middle column.
+        if (section.open) {
+            section.open = false;
+            if (ui.mapPickerSection) ui.mapPickerSection.open = true;
+        }
+        return;
+    }
 
     const threeAllowed = isThreePlayerSplitModePathAllowed(settings?.localSettings?.modePath);
     const playerCount = isThreePlayerSplitSelected(settings) ? 3 : 2;

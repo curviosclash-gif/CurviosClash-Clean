@@ -8,7 +8,14 @@ async function openSharedSplitMenu(page, modePath = 'normal') {
     await page.locator('[data-session-type="splitscreen"]').click();
     await page.locator(`#submenu-custom [data-mode-path="${modePath}"]`).click();
     await expect(page.locator('#submenu-game')).toBeVisible();
-    await openStartSetupSection(page, 'players');
+    // The wide desktop layout shows one section at a time; the rail tab is the user's way in.
+    const railTab = page.locator('#btn-start-step-players');
+    if (await railTab.isVisible()) {
+        await railTab.click();
+        await expect(page.locator('#start-players-section')).toBeVisible();
+    } else {
+        await openStartSetupSection(page, 'players');
+    }
 }
 
 async function chooseThreePlayers(page) {
