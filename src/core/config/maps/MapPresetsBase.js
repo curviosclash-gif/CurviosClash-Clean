@@ -74,6 +74,10 @@ const BASE_MAP_KEYS = [
     'skyline_siege',
     'hydra_temple',
     'toybox_titan',
+    'sky_ladder_abyss',
+    'sky_ladder_foundry',
+    'sky_ladder_storm',
+    'sky_ladder_star',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(

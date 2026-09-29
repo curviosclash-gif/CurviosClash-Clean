@@ -74,6 +74,11 @@ const COLLECTION_DEFINITIONS = [
             'wind_cathedral',
             'chrono_spillway',
             'neon_carnival',
+            'sky_ladder_abyss',
+            'sky_ladder_foundry',
+            'sky_ladder_storm',
+            'sky_ladder_star',
+            'neon_carnival',
         ],
     },
     {
