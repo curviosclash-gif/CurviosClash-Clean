@@ -21,6 +21,10 @@ export const REACTOR_VOLUME_SMOKE = true;
 export function isLowQualityScene(scene) {
     return String(scene?.userData?.graphicsQuality || '').toUpperCase() === 'LOW';
 }
+/** True on the ULTRA step, where the volume is sampled more finely. */
+export function isUltraQualityScene(scene) {
+    return String(scene?.userData?.graphicsQuality || '').toUpperCase() === 'ULTRA';
+}
 // After the 49 s clip the cloud stands on the match clock for seven minutes, the way a real
 // one stays in the sky: the head keeps rolling ever slower and spreads out flat, it loses only
 // a little density for five minutes and thins to a faint, wide rest over the last two.
@@ -405,7 +409,7 @@ function attachVolume(root, cap, capLobe, frame, refreshShape, { head, shape, to
         state.surgeDensity = frame.density * frame.settle * surgeDensityAfter(frame.after);
         const c = capLobe.color;
         state.albedo.setRGB((c.r * .85 + .16) * 1.1, (c.g * .85 + .16) * 1.1, (c.b * .85 + .16) * 1.1);
-        volume.update(state, lowQuality);
+        volume.update(state, lowQuality, isUltraQualityScene(scene));
     };
     for (const mesh of [volume.head, volume.stem, volume.surge]) {
         mesh.onBeforeRender = (renderer, scene, camera) => { pose(renderer, scene); volume.faceCamera(mesh, camera); };

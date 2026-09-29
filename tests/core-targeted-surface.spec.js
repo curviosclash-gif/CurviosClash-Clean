@@ -108,6 +108,70 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(matchState.humanVehicleId).toBe(String(selectedVehicleId));
     });
 
+    test('T20kq: Grafikstufe Sehr hoch schaltet Schattenkarte, Pixel und GPU-Uhr im echten Fenster', async ({ page }) => {
+        await loadGame(page);
+        await openLevel4Drawer(page, { section: 'gameplay' });
+        await page.click('#level4-tab-graphics');
+        await expect(page.locator('#graphics-quality-select')).toHaveValue('auto');
+
+        // Draws explicitly, so the GPU timer has frames to measure whether or not the menu animates.
+        const renderFrames = (count) => page.evaluate(async (frameCount) => {
+            for (let i = 0; i < frameCount; i += 1) {
+                window.GAME_INSTANCE.renderer.render();
+                await new Promise((resolve) => requestAnimationFrame(resolve));
+            }
+        }, count);
+        const readState = () => page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const controller = game.renderer.qualityController;
+            let mapSize = 0;
+            game.renderer.scene.traverse((child) => {
+                if (!mapSize && child.isDirectionalLight && child.castShadow) mapSize = child.shadow?.mapSize?.width || 0;
+            });
+            const stats = controller.gpuFrameTimer.getStats();
+            return {
+                stored: game.settings.localSettings.graphicsQuality,
+                effective: controller.getQualityState().effectiveQuality,
+                published: game.renderer.scene.userData.graphicsQuality,
+                mapSize,
+                pixelRatio: game.renderer.renderer.getPixelRatio(),
+                capabilities: { ...controller.gpuCapabilities },
+                timerAvailable: controller.gpuFrameTimer.available,
+                gpuSamples: stats.samples,
+                gpuMedianMs: stats.medianMs,
+            };
+        });
+
+        await renderFrames(30);
+        const high = await readState();
+        await page.selectOption('#graphics-quality-select', 'ULTRA');
+        await renderFrames(30);
+        const ultra = await readState();
+        console.log(`[ultra-probe] gpu="${ultra.capabilities.gpuKey}" tier=${ultra.capabilities.tier} timer=${ultra.timerAvailable}`
+            + ` highMs=${high.gpuMedianMs} ultraMs=${ultra.gpuMedianMs} pixelRatio=${high.pixelRatio}->${ultra.pixelRatio}`);
+
+        expect(high.effective).toBe('HIGH');
+        expect(high.mapSize).toBe(1024);
+        expect(ultra.stored).toBe('ULTRA');
+        expect(ultra.effective).toBe('ULTRA');
+        expect(ultra.published).toBe('ULTRA');
+        expect(ultra.mapSize).toBe(2048);
+        expect(ultra.pixelRatio).toBeGreaterThanOrEqual(high.pixelRatio);
+        expect(typeof ultra.capabilities.gpuKey).toBe('string');
+        expect(ultra.capabilities.timerQuery).toBe(ultra.timerAvailable);
+        if (ultra.timerAvailable) {
+            expect(ultra.gpuSamples).toBeGreaterThan(0);
+            expect(ultra.gpuMedianMs).toBeGreaterThan(0);
+        }
+
+        // Under automation "Automatisch" never climbs to ULTRA on its own, so it lands on HIGH.
+        await page.selectOption('#graphics-quality-select', 'auto');
+        await renderFrames(3);
+        const back = await readState();
+        expect(back.effective).toBe('HIGH');
+        expect(back.mapSize).toBe(1024);
+    });
+
     test('T66a: Arcade-Menü zeigt kompaktes Leaderboard und dedizierten Hangar', async ({ page }) => {
         await page.setViewportSize({ width: 1280, height: 720 });
         await loadGame(page);

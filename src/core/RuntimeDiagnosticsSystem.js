@@ -1,6 +1,21 @@
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
+import {
+    GRAPHICS_AUTO_PROFILE_STORAGE_KEY,
+    GRAPHICS_QUALITY_AUTO,
+    GRAPHICS_QUALITY_LEVELS,
+    normalizeGraphicsAutoProfile,
+    normalizeGraphicsQualitySetting,
+} from '../shared/contracts/GraphicsQualityContract.js';
 import { isCinematicCaptureProfile } from '../shared/contracts/RecordingCaptureContract.js';
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
+import {
+    compareQualityLevels,
+    isUltraAllowed,
+    recordUltraOutcome,
+    resolveAdaptiveQualityStep,
+    resolveAutoStartQuality,
+    shouldSupersample,
+} from './renderer/AdaptiveQualityPolicy.js';
 
 // Breites Messfenster (~3s bei 60fps): der Regler soll auf anhaltende Last reagieren,
 // nicht auf einzelne Frame-Spikes.
@@ -9,13 +24,19 @@ const ADAPTIVE_CHECK_INTERVAL_SECONDS = 3.0;
 // Nach jedem Stufenwechsel pausiert der Regler, damit er nicht seine eigene Wirkung misst
 // und zwischen zwei Stufen hin- und herpendelt.
 const ADAPTIVE_COOLDOWN_SECONDS = 10.0;
-// Breite Hysterese: ein Stufenwechsel verschiebt die Framerate selbst um 20-40%.
-const ADAPTIVE_FPS_THRESHOLDS = Object.freeze({
-    HIGH_TO_MEDIUM: 45,
-    MEDIUM_TO_LOW: 25,
-    LOW_TO_MEDIUM: 50,
-    MEDIUM_TO_HIGH: 58,
-});
+const { LOW, MEDIUM, HIGH, ULTRA } = GRAPHICS_QUALITY_LEVELS;
+const NOT_READ = Symbol('not-read');
+
+// A test run must keep its measurements comparable across machines, so the regulator never
+// steps up to ULTRA while a tool drives the window. Read at decision time: Playwright attaches
+// its API only after boot.
+function isAutomationRuntime() {
+    const runtimeWindow = typeof window !== 'undefined' ? window : null;
+    if (!runtimeWindow) return true;
+    return runtimeWindow.navigator?.webdriver === true
+        || !!runtimeWindow.CURVIOS_TEST_API
+        || !!runtimeWindow.__CURVIOS_AUTOMATION__;
+}
 
 // Diagnose-Hotkeys hoeren global mit. Wer gerade in ein Eingabefeld tippt, meint den
 // Buchstaben und nicht den Schalter - solche Tastendruecke gehoeren dem Feld.
@@ -74,10 +95,15 @@ function isCinematicRecordingActive(recorder) {
 
 function resolveEffectiveQualityLabel(renderer, isLowQuality = false) {
     const effectiveQuality = renderer?.getQualityState?.()?.effectiveQuality;
-    if (effectiveQuality === 'LOW' || effectiveQuality === 'MEDIUM' || effectiveQuality === 'HIGH') {
+    if (effectiveQuality === LOW || effectiveQuality === MEDIUM || effectiveQuality === HIGH || effectiveQuality === ULTRA) {
         return effectiveQuality;
     }
-    return isLowQuality ? 'LOW' : 'HIGH';
+    return isLowQuality ? LOW : HIGH;
+}
+
+function formatGpuLine(renderer) {
+    const stats = renderer?.qualityController?.gpuFrameTimer?.getStats?.();
+    return stats && stats.samples > 0 ? `GPU ms (Median): ${formatMs(stats.medianMs)}\n` : '';
 }
 
 export function createRuntimeDiagnosticsRuntimeAccess(runtime) {
@@ -97,6 +123,9 @@ export function createRuntimeDiagnosticsRuntimeAccess(runtime) {
         getEntityManager: () => game?.entityManager || null,
         getRuntimePerfProfiler: () => game?.runtimePerfProfiler || null,
         getState: () => game?.state || null,
+        getGraphicsQualitySetting: () => game?.settings?.localSettings?.graphicsQuality,
+        getBloomQualityUserSet: () => game?.settings?.localSettings?.bloomQualityUserSet === true,
+        getSettingsRecordStore: () => game?.settingsManager?.settingsRecordStorePort || null,
     };
     });
 }
@@ -112,7 +141,13 @@ export class RuntimeDiagnosticsSystem {
         this._statsTimer = 0;
         this._isLowQuality = false;
         this._autoLowActive = false;
-        this._quality = 'HIGH';
+        this._quality = HIGH;
+        this._ultraSupersample = false;
+        this._qualitySetting = GRAPHICS_QUALITY_AUTO;
+        this._rawQualitySetting = NOT_READ;
+        this._bloomUserSet = NOT_READ;
+        this._autoProfile = null;
+        this._playingSeconds = 0;
         this._statsElement = null;
         this._fpsTracker = createFpsTracker();
 
@@ -127,12 +162,10 @@ export class RuntimeDiagnosticsSystem {
         const recorder = this.runtimeAccess.getMediaRecorderSystem?.() || null;
 
         if (event.code === 'KeyP') {
-            this._isLowQuality = !this._isLowQuality;
+            const quality = this._isLowQuality ? HIGH : LOW;
             this._autoLowActive = false;
-            this._quality = this._isLowQuality ? 'LOW' : 'HIGH';
-            const quality = this._isLowQuality ? 'LOW' : 'HIGH';
-            renderer?.setQuality?.(quality);
-            this._startAdaptiveCooldown();
+            this._setQuality(renderer, quality, false);
+            this._startAdaptiveCooldown(renderer);
             if (quality === 'LOW' && isCinematicRecordingActive(recorder)) {
                 this.runtimeAccess.actionShowStatusToast?.(
                     'Grafik: Niedrig vorgemerkt (während Cinematic-Aufnahme bleibt Hoch)'
@@ -165,6 +198,15 @@ export class RuntimeDiagnosticsSystem {
         const recorder = this.runtimeAccess.getMediaRecorderSystem?.() || null;
         const renderDt = this.runtimeAccess.getRenderDelta?.();
         this._fpsTracker.update(Number.isFinite(renderDt) && renderDt > 0 ? renderDt : dt);
+        this._syncQualitySettings(renderer);
+        const isPlaying = this.runtimeAccess.getState?.() === GAME_STATE_IDS.PLAYING;
+        if (!isPlaying) {
+            this._playingSeconds = 0;
+        } else {
+            // GPU samples from the menu or the loading screen say nothing about the round.
+            if (this._playingSeconds === 0) renderer?.qualityController?.gpuFrameTimer?.reset?.();
+            this._playingSeconds += Math.max(0, Number(dt) || 0);
+        }
 
         if (this._statsElement) {
             this._statsTimer += dt;
@@ -198,6 +240,7 @@ export class RuntimeDiagnosticsSystem {
                     `Texturen: ${texs}\n` +
                     `Spieler: ${players}\n` +
                     `Qualität: ${quality}\n` +
+                    formatGpuLine(renderer) +
                     `Frame ms avg/p95/p99: ${formatMs(frameAvgMs)} / ${formatMs(frameP95Ms)} / ${formatMs(frameP99Ms)}\n` +
                     `Spikes>${formatMs(spikeThreshold)}ms: ${spikeRecent}`;
                 this._statsElement.replaceChildren(fpsLine, detailLines);
@@ -213,43 +256,120 @@ export class RuntimeDiagnosticsSystem {
         this._adaptiveTimer = 0;
         if (this._adaptiveCooldown > 0) return;
 
-        const avgFps = this._fpsTracker.avg;
-        const isPlaying = this.runtimeAccess.getState?.() === GAME_STATE_IDS.PLAYING;
         const isRecording = isCinematicRecordingActive(recorder);
-        if (!isPlaying || isRecording) return;
+        // A level the player picked in the menu stands; only "Automatisch" is regulated.
+        if (!isPlaying || isRecording || this._qualitySetting !== GRAPHICS_QUALITY_AUTO) return;
 
-        let nextQuality = this._quality;
-        if (this._quality === 'HIGH' && avgFps < ADAPTIVE_FPS_THRESHOLDS.HIGH_TO_MEDIUM) {
-            nextQuality = 'MEDIUM';
-        } else if (this._quality === 'MEDIUM' && avgFps < ADAPTIVE_FPS_THRESHOLDS.MEDIUM_TO_LOW) {
-            nextQuality = 'LOW';
-        } else if (this._autoLowActive && this._quality === 'LOW' && avgFps > ADAPTIVE_FPS_THRESHOLDS.LOW_TO_MEDIUM) {
-            nextQuality = 'MEDIUM';
-        } else if (this._autoLowActive && this._quality === 'MEDIUM' && avgFps > ADAPTIVE_FPS_THRESHOLDS.MEDIUM_TO_HIGH) {
-            nextQuality = 'HIGH';
-        }
-
+        const gpu = renderer?.qualityController?.gpuFrameTimer?.getStats?.() || null;
+        const nextQuality = resolveAdaptiveQualityStep({
+            quality: this._quality,
+            autoLowActive: this._autoLowActive,
+            avgFps: this._fpsTracker.avg,
+            gpu,
+            ultraAllowed: this._isUltraAllowed(renderer),
+            playingSeconds: this._playingSeconds,
+        });
         if (nextQuality === this._quality) return;
 
         const previousQuality = this._quality;
-        this._quality = nextQuality;
-        this._isLowQuality = nextQuality === 'LOW';
-        this._autoLowActive = nextQuality !== 'HIGH';
-        renderer?.setQuality?.(nextQuality);
-        this._startAdaptiveCooldown();
-        this.runtimeAccess.actionShowStatusToast?.(
-            previousQuality === 'HIGH' || nextQuality === 'LOW'
-                ? 'Grafik automatisch reduziert'
-                : 'Grafik automatisch erhöht'
-        );
+        const gpuKey = renderer?.qualityController?.gpuCapabilities?.gpuKey || '';
+        const supersample = nextQuality === ULTRA && shouldSupersample(gpu);
+        if (nextQuality === ULTRA) {
+            this._saveAutoProfile(recordUltraOutcome(this._loadAutoProfile(), gpuKey, 'promote', { supersample }));
+        } else if (previousQuality === ULTRA) {
+            this._saveAutoProfile(recordUltraOutcome(this._loadAutoProfile(), gpuKey, 'demote'));
+        }
+        this._setQuality(renderer, nextQuality, supersample);
+        this._autoLowActive = nextQuality === LOW || nextQuality === MEDIUM;
+        this._startAdaptiveCooldown(renderer);
+        let toast = 'Grafik automatisch erhöht';
+        if (compareQualityLevels(nextQuality, previousQuality) < 0) toast = 'Grafik automatisch reduziert';
+        else if (nextQuality === ULTRA) toast = 'Grafik: Sehr hoch';
+        this.runtimeAccess.actionShowStatusToast?.(toast);
     }
 
-    _startAdaptiveCooldown() {
+    _setQuality(renderer, quality, supersample) {
+        this._quality = quality;
+        this._isLowQuality = quality === LOW;
+        this._ultraSupersample = quality === ULTRA && supersample === true;
+        renderer?.setQuality?.(quality, { supersample: this._ultraSupersample });
+    }
+
+    // Reads the two menu values every frame but only acts when one changes: the reads are plain
+    // property lookups, the reaction swaps shaders.
+    _syncQualitySettings(renderer) {
+        if (!renderer) return;
+        const rawSetting = this.runtimeAccess.getGraphicsQualitySetting?.();
+        if (rawSetting !== this._rawQualitySetting) {
+            this._rawQualitySetting = rawSetting;
+            this._applyQualitySetting(renderer, normalizeGraphicsQualitySetting(rawSetting));
+        }
+        const bloomUserSet = this.runtimeAccess.getBloomQualityUserSet?.() === true;
+        if (bloomUserSet !== this._bloomUserSet) {
+            this._bloomUserSet = bloomUserSet;
+            renderer.qualityController?.setBloomAutoFloor?.(!bloomUserSet);
+        }
+    }
+
+    _applyQualitySetting(renderer, setting) {
+        this._qualitySetting = setting;
+        this._autoLowActive = false;
+        const capabilities = renderer?.qualityController?.gpuCapabilities;
+        const profile = this._loadAutoProfile();
+        let target = setting;
+        let supersample = false;
+        if (setting === GRAPHICS_QUALITY_AUTO) {
+            ({ quality: target, supersample } = resolveAutoStartQuality({
+                capabilities,
+                profile,
+                ultraAllowed: this._isUltraAllowed(renderer),
+            }));
+        } else if (setting === ULTRA) {
+            supersample = profile.gpuKey === capabilities?.gpuKey && profile.supersample;
+        }
+        if (target === this._quality && supersample === this._ultraSupersample) return;
+        this._setQuality(renderer, target, supersample);
+        this._startAdaptiveCooldown(renderer);
+    }
+
+    _isUltraAllowed(renderer) {
+        return isUltraAllowed({
+            setting: this._qualitySetting,
+            capabilities: renderer?.qualityController?.gpuCapabilities,
+            profile: this._loadAutoProfile(),
+            automation: isAutomationRuntime(),
+        });
+    }
+
+    _loadAutoProfile() {
+        if (!this._autoProfile) {
+            let raw = null;
+            try {
+                raw = this.runtimeAccess.getSettingsRecordStore?.()?.loadJsonRecord?.(GRAPHICS_AUTO_PROFILE_STORAGE_KEY, null);
+            } catch {
+                raw = null;
+            }
+            this._autoProfile = normalizeGraphicsAutoProfile(raw);
+        }
+        return this._autoProfile;
+    }
+
+    _saveAutoProfile(profile) {
+        this._autoProfile = normalizeGraphicsAutoProfile(profile);
+        try {
+            this.runtimeAccess.getSettingsRecordStore?.()?.saveJsonRecord?.(GRAPHICS_AUTO_PROFILE_STORAGE_KEY, this._autoProfile);
+        } catch {
+            // A full or blocked store only costs the next start its shortcut; the level itself holds.
+        }
+    }
+
+    _startAdaptiveCooldown(renderer = null) {
         this._adaptiveCooldown = ADAPTIVE_COOLDOWN_SECONDS;
         this._adaptiveTimer = 0;
         // Alte Samples stammen aus der vorherigen Qualitaetsstufe und wuerden den naechsten
         // Vergleich verfaelschen.
         this._fpsTracker.reset();
+        renderer?.qualityController?.gpuFrameTimer?.reset?.();
     }
 
     dispose() {

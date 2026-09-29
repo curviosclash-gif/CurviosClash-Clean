@@ -143,6 +143,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['localSettings.modePath', 'normal'],
     ['localSettings.seededModePaths', ['fight', 'arcade']],
     ['localSettings.graphicsStyle', 'classic'],
+    ['localSettings.graphicsQuality', 'ULTRA'],
     ['localSettings.mapBrightness', 'hell'],
     ['localSettings.hud.colorPreset', 'amber'],
     ['localSettings.startSetup.mapSearch', 'maze'],

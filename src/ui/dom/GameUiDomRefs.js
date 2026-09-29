@@ -190,6 +190,7 @@ export function createGameUiRefs(doc = document) {
         mapBrightnessSelect: doc.getElementById('map-brightness-select'),
         viewDistanceSlider: doc.getElementById('view-distance-slider'),
         viewDistanceLabel: doc.getElementById('view-distance-label'),
+        graphicsQualitySelect: doc.getElementById('graphics-quality-select'),
         shadowQualitySlider: doc.getElementById('shadow-quality-slider'),
         shadowQualityLabel: doc.getElementById('shadow-quality-label'),
         bloomQualitySlider: doc.getElementById('bloom-quality-slider'),

@@ -12,26 +12,52 @@ import {
     normalizeBloomQuality,
     resolveBloomQualityPreset,
 } from '../../shared/contracts/BloomQualityContract.js';
+import {
+    GRAPHICS_QUALITY_LEVELS,
+    normalizeGraphicsQualityLevel,
+} from '../../shared/contracts/GraphicsQualityContract.js';
+import { GpuFrameTimer } from './GpuFrameTimer.js';
+import { readGpuCapabilities } from './GpuCapabilityProbe.js';
+
+const { LOW, MEDIUM, HIGH, ULTRA } = GRAPHICS_QUALITY_LEVELS;
+// One shadow map covers the whole arena, so its texels are spread thin; doubling the edge is the
+// most visible gain of ULTRA. It only replaces the player's highest shadow setting.
+export const ULTRA_SHADOW_MAP_SIZE = 2048;
+export const ULTRA_MAX_PIXEL_RATIO = 2;
+// Rendering 1.25x the screen and filtering down calms shimmer on glossy hulls at pixel ratio 1.
+export const ULTRA_SUPERSAMPLE_PIXEL_RATIO = 1.25;
 
 export class RenderQualityController {
     constructor(renderer, scene, postProcessingPipeline = null) {
         this.renderer = renderer;
         this.scene = scene;
-        this.requestedQuality = 'HIGH';
-        this.quality = 'HIGH';
+        this.requestedQuality = HIGH;
+        this.quality = HIGH;
+        this.ultraSupersample = false;
         this.shadowQuality = DEFAULT_SHADOW_QUALITY;
         this.bloomQuality = DEFAULT_BLOOM_QUALITY;
+        this.bloomAutoFloor = false;
         this.postProcessingPipeline = postProcessingPipeline;
         this.qualityLockReason = null;
         this.highQualityEnvironment = scene?.environment || null;
+        const gl = renderer?.getContext?.() || null;
+        this.gpuFrameTimer = new GpuFrameTimer(gl);
+        this.gpuCapabilities = readGpuCapabilities(gl, this.gpuFrameTimer.available);
         this._publishQuality();
         this._applyShadowQuality();
         this._applyBloomQuality();
     }
 
-    setQuality(quality) {
+    /**
+     * @param {string} quality LOW, MEDIUM, HIGH or ULTRA
+     * @param {{supersample?: boolean}} [options] supersample only matters for ULTRA
+     */
+    setQuality(quality, options = {}) {
         this.requestedQuality = this._normalizeQuality(quality);
-        this._applyEffectiveQuality();
+        const supersample = options?.supersample === true;
+        const supersampleChanged = supersample !== this.ultraSupersample;
+        this.ultraSupersample = supersample;
+        this._applyEffectiveQuality(supersampleChanged && this.quality === ULTRA);
     }
 
     setQualityLock(active, reason = null) {
@@ -57,20 +83,20 @@ export class RenderQualityController {
     }
 
     _normalizeQuality(quality) {
-        if (quality === 'LOW' || quality === 'MEDIUM') return quality;
-        return 'HIGH';
+        return normalizeGraphicsQualityLevel(quality, HIGH);
     }
 
     _resolveEffectiveQuality() {
         if (this.qualityLockReason) {
-            return 'HIGH';
+            // A cinematic recording never runs below HIGH, but keeps ULTRA where the machine has it.
+            return this.requestedQuality === ULTRA ? ULTRA : HIGH;
         }
         return this.requestedQuality;
     }
 
-    _applyEffectiveQuality() {
+    _applyEffectiveQuality(force = false) {
         const nextQuality = this._resolveEffectiveQuality();
-        if (this.quality === nextQuality) {
+        if (this.quality === nextQuality && !force) {
             return;
         }
         this.quality = nextQuality;
@@ -80,18 +106,23 @@ export class RenderQualityController {
         // sichtbar zwischen hell und dunkel. Fog gehoert dem Grafikstil (Renderer.setGraphicsStyle).
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.scene.environment = this.highQualityEnvironment;
-        if (this.quality === 'LOW') {
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 0.8));
-        } else if (this.quality === 'MEDIUM') {
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
-        } else {
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.RENDER.MAX_PIXEL_RATIO));
-        }
+        this.renderer.setPixelRatio(this._resolvePixelRatio(window.devicePixelRatio));
 
         this._applyShadowQuality();
         this._applyBloomQuality();
         this.postProcessingPipeline?.setPixelRatio?.(this.renderer.getPixelRatio());
         this._refreshMaterials();
+    }
+
+    _resolvePixelRatio(devicePixelRatio) {
+        const dpr = Number(devicePixelRatio) || 1;
+        if (this.quality === LOW) return Math.min(dpr, 0.8);
+        if (this.quality === MEDIUM) return Math.min(dpr, 1);
+        if (this.quality === ULTRA) {
+            const native = Math.min(dpr, ULTRA_MAX_PIXEL_RATIO);
+            return this.ultraSupersample ? Math.max(native, ULTRA_SUPERSAMPLE_PIXEL_RATIO) : native;
+        }
+        return Math.min(dpr, CONFIG.RENDER.MAX_PIXEL_RATIO);
     }
 
     /**
@@ -128,31 +159,50 @@ export class RenderQualityController {
         return this.bloomQuality;
     }
 
+    /**
+     * While the player never picked a bloom level, ULTRA lifts "off" to a soft glow. Once they
+     * move the slider their choice stands at every level.
+     */
+    setBloomAutoFloor(enabled) {
+        const next = enabled === true;
+        if (this.bloomAutoFloor === next) return;
+        this.bloomAutoFloor = next;
+        this._applyBloomQuality();
+    }
+
     _applyBloomQuality() {
-        const effectiveBloomQuality = this.quality === 'HIGH'
-            ? this.bloomQuality
-            : BLOOM_QUALITY_LEVELS.OFF;
+        let effectiveBloomQuality = BLOOM_QUALITY_LEVELS.OFF;
+        if (this.quality === HIGH) {
+            effectiveBloomQuality = this.bloomQuality;
+        } else if (this.quality === ULTRA) {
+            effectiveBloomQuality = this.bloomAutoFloor
+                ? Math.max(this.bloomQuality, BLOOM_QUALITY_LEVELS.LOW)
+                : this.bloomQuality;
+        }
         this.postProcessingPipeline?.setQualityPreset?.(
             resolveBloomQualityPreset(effectiveBloomQuality)
         );
     }
 
     _applyShadowQuality() {
-        const effectiveShadowQuality = this.quality === 'LOW'
+        const effectiveShadowQuality = this.quality === LOW
             ? SHADOW_QUALITY_LEVELS.OFF
-            : (this.quality === 'MEDIUM'
+            : (this.quality === MEDIUM
                 ? Math.min(this.shadowQuality, SHADOW_QUALITY_LEVELS.MEDIUM)
                 : this.shadowQuality);
         const preset = resolveShadowQualityPreset(effectiveShadowQuality);
+        const mapSize = this.quality === ULTRA && effectiveShadowQuality === SHADOW_QUALITY_LEVELS.HIGH
+            ? ULTRA_SHADOW_MAP_SIZE
+            : preset.mapSize;
         this.renderer.shadowMap.enabled = preset.enabled;
 
-        if (preset.enabled && preset.mapSize > 0) {
+        if (preset.enabled && mapSize > 0) {
             this.scene.traverse((child) => {
                 if (!child?.isDirectionalLight || !child.castShadow || !child.shadow?.mapSize) {
                     return;
                 }
-                if (child.shadow.mapSize.width !== preset.mapSize || child.shadow.mapSize.height !== preset.mapSize) {
-                    child.shadow.mapSize.set(preset.mapSize, preset.mapSize);
+                if (child.shadow.mapSize.width !== mapSize || child.shadow.mapSize.height !== mapSize) {
+                    child.shadow.mapSize.set(mapSize, mapSize);
                     if (child.shadow.map) {
                         child.shadow.map.dispose();
                         child.shadow.map = null;
@@ -170,5 +220,9 @@ export class RenderQualityController {
                 child.material.needsUpdate = true;
             }
         });
+    }
+
+    dispose() {
+        this.gpuFrameTimer.dispose();
     }
 }
