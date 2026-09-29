@@ -115,20 +115,18 @@ const KNOWN_FINDINGS = [
     'storm_lighthouse_siege|storm-lighthouse-collapse|-|end-outside-arena',
     'storm_lighthouse_siege|storm-lighthouse-lift|-|beat',
     'storm_lighthouse_siege|storm-lighthouse-lift|item:lighthouse_speed_lift|clearance',
-    // verdant_aperture (plan D): rocket heart item on the seed core; static hubs, rails, posts and
-    // plinths without obstacle boxes (not in the plan, which only lists the placement offsets).
+    // verdant_aperture (plan D): static parts that stay without a box on purpose, because the box
+    // would sit in the opening the setpiece gates or in the path of its moving parts - the hub
+    // signals in the middle of the shutter and iris holes, the louvre ridge across its hole, the
+    // mill hubs inside the rotor and the slender buttresses right beside the heart seed's petals.
     'verdant_aperture|verdant-aperture-bloom-east|-|static-uncovered',
     'verdant_aperture|verdant-aperture-bloom-west|-|static-uncovered',
-    'verdant_aperture|verdant-aperture-canopy-east|-|static-uncovered',
-    'verdant_aperture|verdant-aperture-canopy-west|-|static-uncovered',
     'verdant_aperture|verdant-aperture-heart-seed|-|static-uncovered',
-    'verdant_aperture|verdant-aperture-heart-seed|item:verdant_rocket_heart|clearance',
     'verdant_aperture|verdant-aperture-leaf-shutter-east|-|static-uncovered',
     'verdant_aperture|verdant-aperture-leaf-shutter-west|-|static-uncovered',
     'verdant_aperture|verdant-aperture-louvre-centre|-|static-uncovered',
     'verdant_aperture|verdant-aperture-mill-north|-|static-uncovered',
     'verdant_aperture|verdant-aperture-mill-south|-|static-uncovered',
-    'verdant_aperture|verdant-aperture-vine-gate|-|static-uncovered',
 ];
 
 // notre_dame site (wird entfernt): the construction site GLBs 10-17 leave with plan J. Their
