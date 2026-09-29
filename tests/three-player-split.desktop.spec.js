@@ -1,6 +1,17 @@
 import { expect, test } from './helpers.desktop.js';
 import { collectErrors, openStartSetupSection, returnToMenu, waitForLoadedGame } from './helpers.js';
 
+// All desktop tests of a run share one profile, and the menu remembers the player count.
+// Leave two players behind, or later split-screen specs start a three-player match.
+test.afterEach(async ({ page }) => {
+    await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        if (!game?.settings?.localSettings) return;
+        game.settings.localSettings.splitScreenVariant = 'standard';
+        game._saveSettings?.();
+    }).catch(() => {});
+});
+
 // Two and three players share the level-3 match menu; the player count sits in "Spieler & Geräte".
 async function openSharedSplitMenu(page, modePath = 'normal') {
     await waitForLoadedGame(page);
