@@ -4,6 +4,10 @@ import {
     resolveMapHazardCycleIndex,
 } from '../../shared/contracts/MapHazardContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import {
+    normalizeMapProximityDamageSources,
+    resolveMapProximityDamage,
+} from '../../shared/contracts/MapProximityDamageContract.js';
 
 const NEVER_HIT_CYCLE = -2147483648;
 
@@ -31,6 +35,8 @@ export class MapHazardSystem {
         this.playerHitCycles = new Map();
         this.networkReplica = false;
         this.scale = 1;
+        this.proximityDamageSources = [];
+        this._proximityDamageOptions = { impactPoint: null, nowSeconds: 0, emitDamageEvent: false };
     }
 
     startRound() {
@@ -49,6 +55,15 @@ export class MapHazardSystem {
             ]),
             radius: hazard.radius * this.scale,
         }));
+        const strategy = this.entityManager?.gameModeStrategy;
+        const mode = String(strategy?.getPickupModeType?.() || strategy?.modeType || '').toUpperCase();
+        this.proximityDamageSources = normalizeMapProximityDamageSources(map?.mapProximityDamage)
+            .filter((source) => source.modes.length === 0 || source.modes.includes(mode))
+            .map((source) => ({
+                ...source,
+                position: source.position.map((value) => value * this.scale),
+                radius: source.radius * this.scale,
+            }));
         return this.hazards.length;
     }
 
@@ -56,36 +71,50 @@ export class MapHazardSystem {
         this.networkReplica = enabled === true;
     }
 
-    updatePlayer(player, previousPosition, elapsedSeconds) {
+    updatePlayer(player, previousPosition, elapsedSeconds, deltaSeconds = 0) {
+        const simulationNowSeconds = Math.max(0, Number(elapsedSeconds) || 0);
         const fireTime = this.entityManager?.arena?.mapFireHazardTime;
+        let fireHazardsEnabled = true;
         if (typeof fireTime === 'number') {
-            if (fireTime < 0) return false;
-            elapsedSeconds = fireTime;
+            if (fireTime < 0) fireHazardsEnabled = false;
+            else elapsedSeconds = fireTime;
         }
         if (
             this.networkReplica
             || !player?.alive
-            || !previousPosition
             || !player.position
             || Number(player.spawnProtectionTimer) > 0
-            || this.hazards.length === 0
+            || (this.hazards.length === 0 && this.proximityDamageSources.length === 0)
         ) return false;
-        let hitCycles = this.playerHitCycles.get(player.index);
-        if (!hitCycles) {
-            hitCycles = new Int32Array(this.hazards.length);
-            hitCycles.fill(NEVER_HIT_CYCLE);
-            this.playerHitCycles.set(player.index, hitCycles);
+        if (fireHazardsEnabled && this.hazards.length > 0 && previousPosition) {
+            let hitCycles = this.playerHitCycles.get(player.index);
+            if (!hitCycles) {
+                hitCycles = new Int32Array(this.hazards.length);
+                hitCycles.fill(NEVER_HIT_CYCLE);
+                this.playerHitCycles.set(player.index, hitCycles);
+            }
+            for (let index = 0; index < this.hazards.length; index += 1) {
+                const runtimeHazard = this.hazards[index];
+                const hazard = runtimeHazard.hazard;
+                if (!isMapHazardActive(hazard, elapsedSeconds)) continue;
+                const cycleIndex = resolveMapHazardCycleIndex(hazard, elapsedSeconds);
+                if (hitCycles[index] === cycleIndex) continue;
+                const radius = runtimeHazard.radius + Math.max(0, Number(player.hitboxRadius) || 0);
+                if (segmentPointDistanceSquared(previousPosition, player.position, runtimeHazard.position) > radius * radius) continue;
+                hitCycles[index] = cycleIndex;
+                this._applyHit(player, hazard, elapsedSeconds);
+                return true;
+            }
         }
-        for (let index = 0; index < this.hazards.length; index += 1) {
-            const runtimeHazard = this.hazards[index];
-            const hazard = runtimeHazard.hazard;
-            if (!isMapHazardActive(hazard, elapsedSeconds)) continue;
-            const cycleIndex = resolveMapHazardCycleIndex(hazard, elapsedSeconds);
-            if (hitCycles[index] === cycleIndex) continue;
-            const radius = runtimeHazard.radius + Math.max(0, Number(player.hitboxRadius) || 0);
-            if (segmentPointDistanceSquared(previousPosition, player.position, runtimeHazard.position) > radius * radius) continue;
-            hitCycles[index] = cycleIndex;
-            this._applyHit(player, hazard, elapsedSeconds);
+        const dt = Math.max(0, Number(deltaSeconds) || 0);
+        if (dt <= 0) return false;
+        for (const source of this.proximityDamageSources) {
+            const damage = resolveMapProximityDamage(source, player.position) * dt;
+            if (damage <= 0) continue;
+            const options = this._proximityDamageOptions;
+            options.impactPoint = player.position;
+            options.nowSeconds = simulationNowSeconds;
+            this.entityManager?._applyModeDamage?.(player, damage, 'MAP_PROXIMITY_HAZARD', options);
             return true;
         }
         return false;
@@ -109,6 +138,7 @@ export class MapHazardSystem {
 
     clear() {
         this.hazards = [];
+        this.proximityDamageSources = [];
         this.playerHitCycles.clear();
         this.scale = 1;
     }

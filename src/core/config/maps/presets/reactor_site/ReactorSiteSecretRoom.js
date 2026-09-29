@@ -29,7 +29,7 @@
 // tree line: past every wreck field again, and 334 world metres from the rocket emplacement in the
 // room, which reaches 270.
 
-import { up } from './ReactorSiteStructure.js';
+import { up, REACTOR_HALF_SIZE } from './ReactorSiteStructure.js';
 
 /**
  * Interior of the room. The ceiling is four map units below the arena floor. The first version was
@@ -95,8 +95,8 @@ export const REACTOR_SITE_SECRET_ROOM_TURRETS = Object.freeze([
     allowedModes: ['HUNT', 'ARCADE'],
 })));
 
-// Two layers of twenty-four item points. Each layer keeps the same mix of random pickups and
-// plant prizes, including the bomber strike under the rocket guard and the lightning beside it.
+// Two layers of twenty-two item points. Bomber Strike and Lightning are guaranteed map-owned
+// pickups in the reactor room instead of lottery prizes hidden in the bunker.
 const ITEMS = Object.freeze([
     { pos: [-24, -10, -24] },
     { pos: [24, -10, -24] },
@@ -120,8 +120,6 @@ const ITEMS = Object.freeze([
     { pos: [30, -10, 30], type: 'ROCKET_MEDIUM' },
     { pos: [30, -10, 0], type: 'ROCKET_HEAVY' },
     { pos: [-30, -10, -30], type: 'ROCKET_HEAVY' },
-    { pos: [0, -10, 32], type: 'BOMBER_STRIKE' },
-    { pos: [20, -10, 34], type: 'LIGHTNING' },
 ].flatMap((item) => [
     item,
     { ...item, pos: [item.pos[0], item.pos[1] - ROOM_HEIGHT / 2, item.pos[2]] },
@@ -140,12 +138,11 @@ export const REACTOR_SITE_SECRET_ROOM = Object.freeze({
     unlock: Object.freeze({ destructible: 'reactor_site', when: 'anyBreak', delaySeconds: 4 }),
     stayLimitSeconds: 20,
     refillSeconds: 30,
-    // Due north of the containment, on the axis of the plant, at the height the map is flown at.
-    entryPortal: Object.freeze({ pos: Object.freeze([0, up(36), 48]), color: 0x8cff4d }),
+    // At the east field edge, clear of the fixed reactor-hall exit portal on the north edge.
+    entryPortal: Object.freeze({ pos: Object.freeze([REACTOR_HALF_SIZE - 9, up(36), 0]), color: 0x8cff4d }),
     roomPortal: Object.freeze({ pos: Object.freeze([0, -10, 0]) }),
     bounds: ROOM_BOUNDS,
-    // The same axis, out on the grass. Yaw 0 leaves the ship's forward (0, 0, -1) pointing south,
-    // which is where the plant stands from here.
-    ejectPoint: Object.freeze({ pos: Object.freeze([0, up(40), 130]), yawDeg: 0 }),
+    // Out on the south grass, clear of the fixed hall exit; yaw 180 points back toward the plant.
+    ejectPoint: Object.freeze({ pos: Object.freeze([0, up(40), -REACTOR_HALF_SIZE + 9]), yawDeg: 180 }),
     items: ITEMS,
 });
