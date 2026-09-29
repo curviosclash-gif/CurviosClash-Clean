@@ -80,9 +80,8 @@ const KNOWN_FINDINGS = [
     // glb_gallery: the gallery has no map beat, so its library clips run against the 4 s default.
     'glb_gallery|pm-chromatic-chaos/Building_Corner_01|-|beat',
     'glb_gallery|pm-chromatic-chaos/ComputerScreen_Retro|-|beat',
-    // kinetic_tide (plan H): the iris stands with its bounding-box bottom on [-14,58,-10], so its
-    // opening centre is 16 units above CP06 and the flight tunnel; the lower rim and fin 9 cross
-    // the CP06 ring, and a box there would close the ring. Needs a layout decision (iris or CP06).
+    // kinetic_tide (plan H): the iris and flange now frame CP06. The static signal ring remains
+    // unboxed because a fixed obstacle there would close the timed opening.
     'kinetic_tide|kinetic-tide-iris-shutter|-|static-uncovered',
     // Storm sieges (plan K1/K2): loops one frame short of the beat, the train jumps back across
     // the bridge at every loop end, wrecks outside the arena or below the floor.
@@ -103,8 +102,6 @@ const KNOWN_FINDINGS = [
     'verdant_aperture|verdant-aperture-bloom-east|-|static-uncovered',
     'verdant_aperture|verdant-aperture-bloom-west|-|static-uncovered',
     'verdant_aperture|verdant-aperture-heart-seed|-|static-uncovered',
-    'verdant_aperture|verdant-aperture-leaf-shutter-east|-|static-uncovered',
-    'verdant_aperture|verdant-aperture-leaf-shutter-west|-|static-uncovered',
     'verdant_aperture|verdant-aperture-louvre-centre|-|static-uncovered',
     'verdant_aperture|verdant-aperture-mill-north|-|static-uncovered',
     'verdant_aperture|verdant-aperture-mill-south|-|static-uncovered',
@@ -166,9 +163,10 @@ const DELIBERATE_EXCEPTIONS = [
     'eclipse_foundry|eclipse-foundry-shipyard-drones|-|beat',
     'eclipse_foundry|eclipse-foundry-temple-gates|-|beat',
     // Kinetic Tide: timing is the level design (decided 29.09.2026, plan H). CP02 sits in the
-    // opening of the third lock gate the chain is timed against, CP14 in the tide wall the return
-    // leg is timed against, and the pendulum speed item under the bob it rewards passing.
+    // opening of the third lock gate, CP06 in the iris, CP14 in the tide wall, and the pendulum
+    // speed item under the bob it rewards passing.
     'kinetic_tide|kinetic-tide-gate-three|ring:CP02|clearance',
+    'kinetic_tide|kinetic-tide-iris-shutter|ring:CP06|clearance',
     'kinetic_tide|kinetic-tide-pendulums|item:tide_speed_pendulum|clearance',
     'kinetic_tide|kinetic-tide-tide-wall|ring:CP14|clearance',
 ];

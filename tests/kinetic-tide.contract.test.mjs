@@ -88,6 +88,19 @@ test('Kinetic Tide curates static cladding around every moving mechanism', () =>
     assert.ok(cladding.every((model) => !model.animationClock), 'cladding slots remain static');
 });
 
+test('the iris and its flange frame the CP06 flight line', () => {
+    const cp06 = map.parcours.checkpoints.find((checkpoint) => checkpoint.id === 'CP06');
+    const iris = map.glbModels.find((model) => model.id === 'kinetic-tide-iris-shutter');
+    const flange = map.glbModels.find((model) => model.id === 'kinetic-tide-cladding-iris-shutter-flange');
+    assert.ok(cp06 && iris && flange);
+    for (const model of [iris, flange]) {
+        assert.equal(model.position[0], cp06.pos[0]);
+        assert.equal(model.position[2], cp06.pos[2]);
+        // The loader bottom-anchors the round GLB; its opening is half a diameter higher.
+        assert.ok(Math.abs(model.position[1] + model.targetSize / 2 - cp06.pos[1]) <= 1);
+    }
+});
+
 test('every setpiece states a clip name and a phase on the shared map beat', () => {
     assert.deepEqual(map.glbAnimationClock, { beatSeconds: BEAT_SECONDS });
 

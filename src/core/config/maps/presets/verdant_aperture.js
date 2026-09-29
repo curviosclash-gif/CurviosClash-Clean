@@ -65,7 +65,7 @@ function setpiece(id, file, clipName, phaseOffsetBeats, position, targetSize, ro
  * join slot says how far the slot has to sit from the hole centre for the shut blades to land in
  * the deck - `lift` along Y, `swing` back along Z for a model the turn carries sideways.
  * tests/verdant-aperture-openings.contract.test.mjs shoots rays through the holes and checks
- * that they really shut and really open (all but the two below that still wait for Blender).
+ * that they really shut and really open.
  */
 function joinSetpiece(join, deckY, id, file, clipName, phaseOffsetBeats, slot) {
     return setpiece(id, file, clipName, phaseOffsetBeats,
@@ -129,11 +129,8 @@ const GLASS_LOUVRE_SIZE = joinTargetSize(24.0, 10.8);
 
 // Offsets measured by placing each GLB with computeCollectionPlacement at the target size above.
 //
-// The leaf shutter and the bloom iris still sit in their holes the old way, and each covers only
-// part of its hole, so the rest stays open all the time. Placed properly they would seal their
-// hole for the whole clip instead: their blades and petals overlap so far that the one that
-// retracts leaves no gap a ship fits through. They keep their old slot until Blender gives them
-// blades that open; the measured proper slots are in the comments below.
+// The blades and petals now retract together. Place their shut pose across each deck hole;
+// the old edge-on placements left permanent gaps around the barrier.
 const JOIN_SLOT = {
     // Blades span 10.8 of the shutter's 15.4 model units when shut. The generator builds the
     // shutter in Blender's XZ plane and the glTF export turns Z-up into Y-up, so it arrives
@@ -144,16 +141,16 @@ const JOIN_SLOT = {
         targetSize: LEAF_SHUTTER_SIZE,
         rotation: [Math.PI / 2, 0, 0],
         lift: 0,
-        swing: 0,
+        swing: (15.2 / 2) * (LEAF_SHUTTER_SIZE / 15.36),
     },
     // Petals span 12.0 of the blossom's 13.8 model units (its sepals are the widest part, so a
     // flat iris would be sized joinTargetSize(13.8, 12.0) = 49). The iris is built lying flat;
     // the quarter turn stands it on edge. Flat, its shut petals start 6.75 above the base at size
     // 49, and lift = DECK_THICKNESS / 2 - 6.746 rests their rim on the deck top.
     bloomIris: {
-        targetSize: joinTargetSize(12.8, 12.0),
-        rotation: [Math.PI / 2, 0, 0],
-        lift: 0,
+        targetSize: joinTargetSize(13.8, 12.0),
+        rotation: [0, 0, 0],
+        lift: DECK_THICKNESS / 2 - 6.746,
         swing: 0,
     },
     // Sized from the louvre's 24.0 by 10.8 frame; the shut panes then span 82.6 by 35.6, which
@@ -434,7 +431,7 @@ export const VERDANT_APERTURE_MAP = {
             { id: 'verdant_rocket_east', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 45, y: 64, z: 35, weight: 1.2 },
             // Above the heart seed: its core sweeps y 69.6-88.4 and would swallow the pickup.
             { id: 'verdant_rocket_heart', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 0, y: 94, z: 0, weight: 0.6 },
-            { id: 'verdant_rocket_bloom', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -45, y: 118, z: 45, weight: 0.9 },
+            { id: 'verdant_rocket_bloom', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -45, y: 128, z: 45, weight: 0.9 },
             // Shields in the open crown hall, where the MG rules and cover does not help.
             { id: 'verdant_shield_crown_west', type: 'item_shield', pickupType: 'SHIELD', x: -40, y: 78, z: 0, weight: 1.3 },
             { id: 'verdant_shield_crown_east', type: 'item_shield', pickupType: 'SHIELD', x: 40, y: 78, z: 0, weight: 1.3 },

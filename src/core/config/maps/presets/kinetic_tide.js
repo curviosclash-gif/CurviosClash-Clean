@@ -93,7 +93,7 @@ const KINETIC_TIDE_LANDMARKS = [
 
     // Sector 3: a corkscrew climb that ends in the iris.
     landmark('lens-arch', 'pm-crystal-crossroads', 'Arc', [-44, 44, 6], 30, Math.PI / 2),
-    setpiece('iris-shutter', '03_iris_shutter', 'IrisShutterLoop', 0, [-14, 58, -10], 32, Math.PI / 2),
+    setpiece('iris-shutter', '03_iris_shutter', 'IrisShutterLoop', 0, [-14, 42, -10], 32, Math.PI / 2),
     landmark('lens-crystals', 'pm-crystal-crossroads', 'Crystal_Cluster', [4, 52, 24], 24, 0.7),
 
     // Sector 4: the carousel decides which orbit is open.
@@ -126,7 +126,7 @@ const KINETIC_TIDE_LANDMARKS = [
     cladding('piston-tunnel-flange', 'bearing-flange', 2, [-104, 28, 26], 34, Math.PI / 2),
     cladding('piston-tunnel-panel', 'maintenance-panel', 3, [-104, 28, 41], 7, Math.PI / 2),
 
-    cladding('iris-shutter-flange', 'bearing-flange', 4, [-14, 56, -10], 38, Math.PI / 2),
+    cladding('iris-shutter-flange', 'bearing-flange', 4, [-14, 40, -10], 38, Math.PI / 2),
     cladding('iris-shutter-beacon', 'warning-beacon', 3, [-14, 55, -23], 5.5, Math.PI / 2),
 
     cladding('carousel-ring-flange', 'bearing-flange', 6, [50, 72, 0], 42, Math.PI / 2),

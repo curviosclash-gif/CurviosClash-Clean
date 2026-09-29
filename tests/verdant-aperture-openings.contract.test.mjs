@@ -50,10 +50,11 @@ function joinOpening(id, [x, z], deckY) {
     return { id, kind: 'shut', axis: 1, rect: [x - DECK_HALF, x + DECK_HALF, z - DECK_HALF, z + DECK_HALF], band: [deckY - 5, deckY + 25] };
 }
 
-// The leaf shutters (root deck) and bloom irises (crown deck) are not listed yet: their GLB blades
-// and petals overlap so far that, centred on their holes, they seal them for the whole clip, and
-// in their old slot they never shut. They join this list once Blender gives them blades that open.
 const OPENINGS = [
+    joinOpening('leaf-shutter-west', [-45, -45], 54),
+    joinOpening('leaf-shutter-east', [45, 45], 54),
+    joinOpening('bloom-west', [-45, 45], CROWN_DECK),
+    joinOpening('bloom-east', [45, -45], CROWN_DECK),
     joinOpening('louvre-centre', [15, 15], CROWN_DECK),
     // The vine gate between the outer faces of its flanks, from the cellar floor to their top.
     { id: 'vine-gate', kind: 'shut', axis: 2, rect: [-39, 39, 8, 48], band: [-7, 7] },
