@@ -72,7 +72,7 @@ test('guided owner remains human and damageable while the bot flies; impact rest
     assert.equal(owner.hp, 75);
     const inputSystem = new PlayerInputSystem(manager);
     const planeInput = inputSystem.resolvePlayerInput(owner, 0.1, {
-        getPlayerInput: () => ({ yawAxis: 0.7, boostPressed: true, shootRocket: true }),
+        getPlayerInput: () => ({ yawAxis: 0.7, boostPressed: true }),
     });
     assert.equal(system.projectiles[0].steerYaw, 0.7);
     assert.equal(system.projectiles[0].boostRemaining, 2);

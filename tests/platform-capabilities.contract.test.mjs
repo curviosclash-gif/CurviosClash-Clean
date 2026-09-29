@@ -82,7 +82,7 @@ function createBrowserDemoBuildArtifactRuntimeGlobal({
     };
 }
 
-test('mobile-classic resolves to a join-only LAN-only product surface', () => {
+test('mobile-classic resolves to a product surface that hosts online and joins LAN or online', () => {
     const productSurfaceId = resolvePlatformProductSurfaceId({
         appMode: 'app',
         appTarget: 'mobile-classic',
@@ -92,12 +92,13 @@ test('mobile-classic resolves to a join-only LAN-only product surface', () => {
     const discovery = resolveSurfaceCapabilityAccess(PLATFORM_CAPABILITY_IDS.DISCOVERY, { productSurfaceId });
 
     assert.equal(productSurfaceId, PLATFORM_PRODUCT_SURFACE_IDS.MOBILE_APP);
-    assert.equal(policy.multiplayerRole, PLATFORM_SURFACE_MULTIPLAYER_ROLES.JOIN_ONLY);
+    assert.equal(policy.multiplayerRole, PLATFORM_SURFACE_MULTIPLAYER_ROLES.HOST_AND_JOIN);
     assert.deepEqual(policy.allowedSessionTypes, ['single', 'multiplayer']);
-    assert.deepEqual(policy.allowedMultiplayerTransports, ['lan']);
-    assert.deepEqual(policy.hostMultiplayerTransports, []);
-    assert.deepEqual(policy.joinMultiplayerTransports, ['lan']);
-    assert.equal(host.available, false);
+    assert.deepEqual(policy.allowedMultiplayerTransports, ['lan', 'online']);
+    assert.deepEqual(policy.hostMultiplayerTransports, ['online']);
+    assert.deepEqual(policy.joinMultiplayerTransports, ['lan', 'online']);
+    assert.equal(host.available, true);
+    assert.equal(host.providerKind, PLATFORM_PROVIDER_KINDS.MENU_ONLINE_LOBBY);
     assert.equal(discovery.available, false);
 });
 

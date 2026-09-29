@@ -160,6 +160,8 @@ export function createEntityRuntimeSupport(owner) {
         },
         applyEnvironmentDamage: (target, projectile) => applyEnvironmentProjectileDamage(owner, target, projectile),
         onRocketIntercepted: (event) => handleRocketIntercept(owner, event),
+        onGuidedRocketImpact: (projectile) => owner._killcamSystem?.onGuidedRocketImpact?.(
+            projectile.owner, projectile.position, projectile.velocity) === true,
         runtimeProfiler: owner.runtimeProfiler || null,
     });
 

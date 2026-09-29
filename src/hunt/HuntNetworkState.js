@@ -1,15 +1,5 @@
 import { normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
 import { createTeamScoreboard } from '../shared/contracts/TeamHuntContract.js';
-import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
-
-function normalizeOutcome(outcome) {
-    if (!outcome?.shouldEnd) return null;
-    return {
-        reason: String(outcome.reason || ''),
-        winnerIndex: Number.isInteger(outcome?.winner?.index) ? outcome.winner.index : -1,
-        winnerTeamId: normalizeTeamId(outcome?.winnerTeamId || outcome?.winner?.teamId),
-    };
-}
 
 export function createHuntNetworkState(entityManager) {
     if (!entityManager?.huntEnabled) return null;
@@ -37,7 +27,6 @@ export function createHuntNetworkState(entityManager) {
         flags: entityManager._flagObjectiveSystem?.serializeNetworkState?.() || null,
         lightning: entityManager._lightningStrikeSystem?.serializeNetworkState?.() || null,
         railgunBeams: entityManager._railgunSystem?.serializeNetworkState?.() || null,
-        outcome: normalizeOutcome(entityManager._lastRoundOutcome),
     };
 }
 
@@ -55,19 +44,5 @@ export function applyHuntNetworkState(entityManager, state) {
     // Always applied, also when null: a finished warning has to leave the client sky.
     entityManager._lightningStrikeSystem?.applyNetworkState?.(state.lightning || { pending: [], strikes: [] });
     entityManager._railgunSystem?.applyNetworkState?.(state.railgunBeams || []);
-
-    const outcome = state.outcome;
-    if (!outcome) return;
-    const key = `${outcome.reason}:${outcome.winnerTeamId || outcome.winnerIndex}`;
-    if (entityManager._lastAppliedAuthoritativeOutcomeKey === key) return;
-    entityManager._lastAppliedAuthoritativeOutcomeKey = key;
-    entityManager._roundEnded = true;
-    const winner = entityManager.players?.find((player) => player?.index === outcome.winnerIndex) || null;
-    entityManager._eventBus?.emitRoundEnd?.(winner, {
-        shouldEnd: true,
-        winner,
-        winnerTeamId: normalizeTeamId(outcome.winnerTeamId),
-        reason: String(outcome.reason || 'KILL_LIMIT'),
-        parcours: null,
-    });
+    // The round result travels outside the fight state for every mode: RoundOutcomeNetworkState.
 }

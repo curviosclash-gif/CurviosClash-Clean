@@ -77,6 +77,9 @@ export class GlbAnimationDriver {
     setElapsedSeconds(seconds) {
         const parsed = Number(seconds);
         this._elapsedSeconds = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+        // Callers read the pose right after this (colliders, spawn checks, a replay frame),
+        // so the pose must follow the new time now, not on the next advance().
+        this._applyPhase();
     }
 
     advance(dt) {

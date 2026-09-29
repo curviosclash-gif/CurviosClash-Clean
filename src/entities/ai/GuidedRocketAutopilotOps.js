@@ -50,6 +50,13 @@ export function endGuidedRocketAutopilot(player) {
 }
 
 export function routeGuidedRocketOwnerInput(manager, player, dt, inputManager, emptyInput) {
+    // Control returns one frame after the rocket is gone or let go, so the releasing press
+    // cannot reach the ship, and not before the impact killcam has shown the blast.
+    if (!manager?._projectileSystem?.getGuidedProjectileForOwner?.(player)
+        && manager?._killcamSystem?.ownsCamera?.(player.index) !== true) {
+        endGuidedRocketAutopilot(player);
+        return emptyInput;
+    }
     const includeSecondaryBindings = manager?.humanPlayers?.length === 1 && player.index === 0;
     const input = inputManager?.getPlayerInput?.(player.index, { includeSecondaryBindings, dt });
     manager?._projectileSystem?.applyGuidedInput?.(player, input);
