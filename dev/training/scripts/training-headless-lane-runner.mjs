@@ -5,6 +5,7 @@ import {
     createHeadlessMatchKernelRuntime,
     MATCH_KERNEL_HEADLESS_RUNTIME_CONTRACT_VERSION,
 } from '../src/state/HeadlessMatchKernelRuntime.js';
+import { HEADLESS_PRODUCT_BASE_CONFIG, verifyHeadlessProductArena } from '../src/state/HeadlessProductMapConfig.js';
 import {
     createMatchKernelTrainingAdapter,
     MATCH_KERNEL_TRAINING_ADAPTER_CONTRACT_VERSION,
@@ -234,6 +235,29 @@ function createSmokeSettings(options = {}) {
         },
         portalsEnabled: false,
     };
+}
+
+export async function createHeadlessLaneRuntime(options = {}) {
+    const settings = createSmokeSettings(options);
+    const runtimeConfig = createRuntimeConfigSnapshot(settings, { baseConfig: HEADLESS_PRODUCT_BASE_CONFIG });
+    const runtime = await Promise.resolve(createHeadlessMatchKernelRuntime({
+        settings,
+        runtimeConfig,
+        baseConfig: HEADLESS_PRODUCT_BASE_CONFIG,
+        requestedMapKey: runtimeConfig?.session?.mapKey,
+        profile: {
+            sessionId: String(options.sessionId || DEFAULT_SESSION_ID),
+            fixedStepSeconds: MATCH_KERNEL_FIXED_STEP_SECONDS,
+            deterministic: true,
+        },
+    }));
+    try {
+        verifyHeadlessProductArena(runtime.session?.entityManager?.arena, runtimeConfig.session.mapKey);
+    } catch (error) {
+        runtime.dispose?.();
+        throw error;
+    }
+    return { settings, runtimeConfig, runtime };
 }
 
 function normalizeKernelLifecycle(...values) {
@@ -900,18 +924,11 @@ export class HeadlessBoundaryController {
         assert(bridgeReady === true, 'sidecar ready handshake failed');
         this.readyPayload = this.bridge.consumeLatestReadyPayload?.() || this.bridge.consumeLatestResponse?.() || null;
 
-        this.settings = createSmokeSettings(this.options);
-        this.runtimeConfig = createRuntimeConfigSnapshot(this.settings);
-        this.runtime = await Promise.resolve(createHeadlessMatchKernelRuntime({
+        ({
             settings: this.settings,
             runtimeConfig: this.runtimeConfig,
-            requestedMapKey: this.runtimeConfig?.session?.mapKey,
-            profile: {
-                sessionId: this.options.sessionId,
-                fixedStepSeconds: MATCH_KERNEL_FIXED_STEP_SECONDS,
-                deterministic: true,
-            },
-        }));
+            runtime: this.runtime,
+        } = await createHeadlessLaneRuntime(this.options));
         this.trainingAdapter = createMatchKernelTrainingAdapter({
             headlessRuntime: this.runtime,
         });

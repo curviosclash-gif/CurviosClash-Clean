@@ -1,4 +1,6 @@
+import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 import { createRuntimeConfigSnapshot } from '../../../src/core/RuntimeConfig.js';
 import {
@@ -10,6 +12,7 @@ import {
     createHeadlessMatchKernelRuntime,
     MATCH_KERNEL_HEADLESS_RUNTIME_CONTRACT_VERSION,
 } from '../src/state/HeadlessMatchKernelRuntime.js';
+import { HEADLESS_PRODUCT_BASE_CONFIG, verifyHeadlessProductArena } from '../src/state/HeadlessProductMapConfig.js';
 
 function assert(condition, message) {
     if (!condition) {
@@ -36,12 +39,13 @@ function createSmokeSettings() {
     };
 }
 
-async function createRuntimeFixture() {
+export async function createRuntimeFixture() {
     const settings = createSmokeSettings();
-    const runtimeConfig = createRuntimeConfigSnapshot(settings);
+    const runtimeConfig = createRuntimeConfigSnapshot(settings, { baseConfig: HEADLESS_PRODUCT_BASE_CONFIG });
     const runtime = await Promise.resolve(createHeadlessMatchKernelRuntime({
         settings,
         runtimeConfig,
+        baseConfig: HEADLESS_PRODUCT_BASE_CONFIG,
         requestedMapKey: runtimeConfig?.session?.mapKey,
         profile: {
             sessionId: 'v84-headless-kernel-smoke',
@@ -62,6 +66,7 @@ async function runHeadlessKernelFlow() {
     assert(runtime?.contractVersion === MATCH_KERNEL_HEADLESS_RUNTIME_CONTRACT_VERSION, 'headless runtime contract mismatch');
     assert(kernel, 'headless runtime should expose a kernel');
     assert(session?.entityManager, 'headless runtime should expose an entityManager');
+    verifyHeadlessProductArena(session.entityManager.arena, runtimeConfig.session.mapKey);
     assert(kernel.lifecycle === 'running', `expected running kernel lifecycle, got ${kernel?.lifecycle}`);
     assert(kernel.surface === MATCH_KERNEL_SURFACES.HEADLESS, `expected headless surface, got ${kernel?.surface}`);
     assert(kernel.profile?.tickDriver === MATCH_KERNEL_TICK_DRIVERS.MANUAL, `expected manual tick driver, got ${kernel?.profile?.tickDriver}`);
@@ -137,13 +142,16 @@ async function main() {
 }
 
 const SMOKE_TIMEOUT_MS = 15000;
-const safetyTimer = setTimeout(() => {
-    console.error('[headless-smoke] timeout after ' + SMOKE_TIMEOUT_MS + 'ms — forcing exit');
-    process.exit(2);
-}, SMOKE_TIMEOUT_MS);
-safetyTimer.unref?.();
+const entryPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
+if (entryPath === fileURLToPath(import.meta.url)) {
+    const safetyTimer = setTimeout(() => {
+        console.error('[headless-smoke] timeout after ' + SMOKE_TIMEOUT_MS + 'ms — forcing exit');
+        process.exit(2);
+    }, SMOKE_TIMEOUT_MS);
+    safetyTimer.unref?.();
 
-main().catch((error) => {
-    console.error(error?.stack || String(error));
-    process.exit(1);
-});
+    main().catch((error) => {
+        console.error(error?.stack || String(error));
+        process.exit(1);
+    });
+}

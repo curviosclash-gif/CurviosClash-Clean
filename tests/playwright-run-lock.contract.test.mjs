@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,6 +16,7 @@ import {
     readPlaywrightRunLock,
     isLongPlaywrightRun,
     isPlaywrightRunLockStale,
+    orderPlaywrightRunLockQueue,
     readPlaywrightRunLockQueue,
     resolvePlaywrightRunLockPath,
     resolvePlaywrightRunLockQueueDir,
@@ -173,6 +175,37 @@ test('playwright lock: a run that waited long writes a fresh heartbeat when it t
     }
 });
 
+// 29.09.2026 05:18: a wrapper with the old code (before 71f6b4b6) still wrote its wait start as
+// heartbeat when it took the lock; a waiter with the new code removed it as stale at once. The
+// file itself was written a moment ago, and every holder rewrites it with each beat, so its
+// modification time is a liveness sign that old wrappers give as well.
+test('playwright lock: a freshly written lock with an old heartbeat stamp is not taken as stale', async () => {
+    const lockPath = createLockPath('old-stamp-fresh-file');
+    const env = {};
+    try {
+        const waitStart = new Date(Date.now() - 35 * 60 * 1000).toISOString();
+        fs.writeFileSync(lockPath, JSON.stringify({ pid: 5050, label: 'old wrapper after a long wait', startedAt: waitStart, heartbeat: waitStart }));
+        let clock = Date.now();
+        const error = await acquirePlaywrightRunLock({
+            label: 'new waiter at the head of the queue',
+            env,
+            lockPath,
+            waitMs: 20,
+            pollMs: 10,
+            now: () => clock,
+            sleep: async (ms) => { clock += ms; },
+            isAlive: () => true,
+            log: quietLog,
+        }).then(() => null, (rejection) => rejection);
+
+        assert.ok(error, 'the waiter must keep waiting instead of taking the lock');
+        assert.equal(error.exitCode, 75);
+        assert.equal(readPlaywrightRunLock(lockPath).pid, 5050, 'the old wrapper keeps its lock');
+    } finally {
+        cleanup(lockPath);
+    }
+});
+
 test('playwright lock: a holder whose lock was taken over says so instead of running on silently', async () => {
     const lockPath = createLockPath('lost-lock');
     const env = {};
@@ -251,8 +284,35 @@ test('playwright lock: the lock can be switched off per environment', async () =
 });
 
 test('playwright lock: the default path lives in the temp folder and can be overridden', () => {
-    assert.equal(path.dirname(resolvePlaywrightRunLockPath({})), os.tmpdir());
+    // realpath: the system temp may be spelled with a short 8.3 name on Windows.
+    assert.equal(fs.realpathSync.native(path.dirname(resolvePlaywrightRunLockPath({}))), fs.realpathSync.native(os.tmpdir()));
     assert.equal(resolvePlaywrightRunLockPath({ CURVIOS_PLAYWRIGHT_LOCK_PATH: 'X:\\custom.lock' }), 'X:\\custom.lock');
+});
+
+// 29.09.2026: a session redirected TEMP/TMP into its worktree so esbuild could write, and started
+// the Playwright wrapper with that environment. The wrapper created a private lock there, saw no
+// queue and ran next to the real holder without a single [playwright:lock] line.
+test('playwright lock: a redirected TEMP never moves the lock on Windows', { skip: process.platform !== 'win32' }, () => {
+    const redirected = 'F:\\worktree\\tmp\\build-temp';
+    assert.equal(
+        resolvePlaywrightRunLockPath({ TEMP: redirected, TMP: redirected, LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' }),
+        'C:\\Users\\u\\AppData\\Local\\Temp\\curviosclash-playwright-run.lock'
+    );
+
+    const buildTemp = fs.mkdtempSync(path.join(os.tmpdir(), 'lock-build-temp-'));
+    try {
+        const moduleUrl = new URL('../scripts/playwright-run-lock.mjs', import.meta.url).href;
+        const child = spawnSync(process.execPath, ['--input-type=module', '-e', `import(${JSON.stringify(moduleUrl)}).then((m) => console.log(m.resolvePlaywrightRunLockPath()))`], {
+            encoding: 'utf8',
+            env: { ...process.env, TEMP: buildTemp, TMP: buildTemp },
+        });
+        assert.equal(child.status, 0, child.stderr);
+        const childLockDir = fs.realpathSync.native(path.dirname(child.stdout.trim()));
+        assert.equal(childLockDir, fs.realpathSync.native(path.dirname(resolvePlaywrightRunLockPath())), 'a wrapper started with a redirected TEMP must find the shared lock');
+        assert.notEqual(childLockDir, fs.realpathSync.native(buildTemp));
+    } finally {
+        fs.rmSync(buildTemp, { recursive: true, force: true });
+    }
 });
 
 test('playwright lock: waiting a full window ends in LOCK_TIMEOUT with exit code 75', async () => {
@@ -300,6 +360,9 @@ test('playwright lock: a stale heartbeat frees the lock even while the pid lives
             startedAt: '2026-09-15T10:00:00.000Z',
             heartbeat: '2026-09-15T11:45:00.000Z',
         }));
+        // A hung holder stops rewriting the file too; its last write is its last beat.
+        const lastBeat = new Date('2026-09-15T11:45:00.000Z');
+        fs.utimesSync(lockPath, lastBeat, lastBeat);
         const lock = await acquirePlaywrightRunLock({
             label: 'fresh run',
             env,
@@ -542,14 +605,106 @@ test('playwright lock: long runs are recognised by kind and by the labels of old
     assert.equal(isLongPlaywrightRun({ kind: 'short', label: 'desktop-e2e clusters editor' }), false, 'an explicit kind wins');
 });
 
-test('playwright lock: the yield stamp lets the short runs ahead of the first long waiter go first', () => {
-    const short = (enqueuedAt) => ({ pid: enqueuedAt, enqueuedAt, label: 'desktop-e2e tests/x.spec.js' });
-    const long = (enqueuedAt) => ({ pid: enqueuedAt, enqueuedAt, label: 'desktop-e2e clusters editor', kind: 'long' });
+// 29.09.2026: six stage-2 runs waited 70 to 85 minutes behind a seven-cluster run, because a second
+// cluster run waited at the head of the queue and short runs could only pass the holder, never a
+// long waiter. Short runs may now pass a waiting long run too, but each long waiter lets them go
+// first for at most thirty minutes in total; after that it is next, so nobody starves.
+const NOW = 10_000_000;
+const oldShort = (enqueuedAt) => ({ pid: enqueuedAt, enqueuedAt, label: 'desktop-e2e tests/x.spec.js' });
+const newShort = (enqueuedAt) => ({ ...oldShort(enqueuedAt), kind: 'short' });
+const newLong = (enqueuedAt, overtakenSince) => ({ pid: enqueuedAt, enqueuedAt, label: 'desktop-e2e clusters editor', kind: 'long', countsOvertaking: true, overtakenSince });
+const pids = (queue) => queue.map((ticket) => ticket.pid);
 
-    assert.equal(resolveYieldQueueStamp([]), null, 'nobody waits: keep the lock');
-    assert.equal(resolveYieldQueueStamp([long(10), short(20)]), null, 'a long run waits first: keep the lock, it is next anyway');
-    assert.equal(resolveYieldQueueStamp([short(10), short(20)]), 21, 'all waiting short runs go first');
-    assert.equal(resolveYieldQueueStamp([short(10), long(15), short(20)]), 11, 'the long waiter keeps its place behind us; the late short run waits one cluster');
+test('playwright lock: short runs pass a waiting long run until its thirty minutes are used up', () => {
+    assert.deepEqual(pids(orderPlaywrightRunLockQueue([newLong(10), newShort(20), newShort(30)], NOW)), [20, 30, 10], 'fresh long waiter: both short runs go first, in their own order');
+    assert.deepEqual(pids(orderPlaywrightRunLockQueue([newLong(10, NOW - 29 * 60_000), newShort(20)], NOW)), [20, 10], 'twenty-nine minutes overtaken: one more may pass');
+    assert.deepEqual(pids(orderPlaywrightRunLockQueue([newLong(10, NOW - 31 * 60_000), newShort(20)], NOW)), [10, 20], 'thirty minutes used up: the long run is next');
+    assert.deepEqual(pids(orderPlaywrightRunLockQueue([newLong(10, NOW - 31 * 60_000), newLong(15), newShort(20)], NOW)), [10, 20, 15], 'a short run never passes a long run whose time is up');
+    assert.deepEqual(pids(orderPlaywrightRunLockQueue([newShort(5), newLong(10), newShort(20)], NOW)), [5, 20, 10], 'short runs keep first come, first served among themselves');
+});
+
+test('playwright lock: tickets of older wrappers are never overtaken and never overtake', () => {
+    // An older wrapper orders by arrival only. If a new short run passed it, each would wait for
+    // the other; so only tickets that say kind 'short' pass, and only kind 'long' can be passed.
+    const legacyLong = { pid: 10, enqueuedAt: 10, label: 'desktop-e2e clusters editor' };
+    assert.deepEqual(pids(orderPlaywrightRunLockQueue([legacyLong, newShort(20)], NOW)), [10, 20]);
+    assert.deepEqual(pids(orderPlaywrightRunLockQueue([newLong(10), oldShort(20)], NOW)), [10, 20]);
+    // Wrappers from 73e4f90f on write kind 'long' but never note when they are passed; with no
+    // count they would let short runs pass forever. Only a ticket that counts can be passed.
+    const kindOnlyLong = { pid: 10, enqueuedAt: 10, label: 'desktop-e2e clusters editor', kind: 'long' };
+    assert.deepEqual(pids(orderPlaywrightRunLockQueue([kindOnlyLong, newShort(20)], NOW)), [10, 20]);
+});
+
+test('playwright lock: a waiting long run marks its ticket as one that counts being passed', () => {
+    const queueDir = `${createLockPath('marker')}.queue`;
+    try {
+        enqueuePlaywrightRunLockTicket(queueDir, { pid: 9090, label: 'desktop-e2e clusters a', kind: 'long', enqueuedAt: 1_000 });
+        enqueuePlaywrightRunLockTicket(queueDir, { pid: 9191, label: 'desktop-e2e tests/x.spec.js', enqueuedAt: 2_000 });
+        const [long, short] = readPlaywrightRunLockQueue(queueDir, { isAlive: () => true });
+        assert.equal(long.countsOvertaking, true);
+        assert.equal(short.countsOvertaking, undefined, 'short tickets carry no marker');
+    } finally {
+        fs.rmSync(queueDir, { recursive: true, force: true });
+    }
+});
+
+test('playwright lock: the yield stamp lets every short run go first that may pass the long waiters', () => {
+    assert.equal(resolveYieldQueueStamp([], NOW), null, 'nobody waits: keep the lock');
+    assert.equal(resolveYieldQueueStamp([oldShort(10), oldShort(20)], NOW), 21, 'all waiting short runs go first');
+    assert.equal(resolveYieldQueueStamp([newLong(10), newShort(20)], NOW), 9, 'a short run may pass the long waiter, so we yield and queue just before that waiter');
+    assert.equal(resolveYieldQueueStamp([newLong(10, NOW - 31 * 60_000), newShort(20)], NOW), null, 'the long waiter is next: keep the lock, it is next anyway');
+    assert.equal(resolveYieldQueueStamp([oldShort(10), newLong(15), newShort(20)], NOW), 14, 'we keep our place before the long waiter; the late short run passes both of us');
+});
+
+test('playwright lock: a new short run takes the free lock past a fresh long waiter', async () => {
+    const lockPath = createLockPath('overtake');
+    const queueDir = resolvePlaywrightRunLockQueueDir(lockPath);
+    try {
+        enqueuePlaywrightRunLockTicket(queueDir, { pid: 6060, label: 'desktop-e2e clusters a,b', kind: 'long', enqueuedAt: Date.now() - 60_000 });
+        const lock = await acquirePlaywrightRunLock({ label: 'stage-2 run', env: {}, lockPath, waitMs: 50, pollMs: 5, sleep: noSleep, isAlive: () => true, log: quietLog });
+        assert.equal(lock.acquired, true);
+        assert.equal(readPlaywrightRunLock(lockPath).pid, process.pid);
+        lock.release();
+    } finally {
+        cleanup(lockPath);
+    }
+});
+
+test('playwright lock: a long waiter notes when it is first passed, and a short run waits once its time is up', async () => {
+    const lockPath = createLockPath('overtake-budget');
+    const queueDir = resolvePlaywrightRunLockQueueDir(lockPath);
+    try {
+        // A short run arrived after us and takes the lock: we are being passed.
+        fs.writeFileSync(lockPath, JSON.stringify({ pid: 7070, label: 'short run', heartbeat: new Date().toISOString() }));
+        enqueuePlaywrightRunLockTicket(queueDir, { pid: 7171, label: 'another short run', kind: 'short', enqueuedAt: Date.now() + 60_000 });
+        let clock = Date.now();
+        let noted = null;
+        await assert.rejects(acquirePlaywrightRunLock({
+            label: 'waiting cluster run',
+            kind: 'long',
+            env: {},
+            lockPath,
+            waitMs: 30,
+            pollMs: 10,
+            now: () => clock,
+            sleep: async (ms) => {
+                clock += ms;
+                const own = readPlaywrightRunLockQueue(queueDir, { isAlive: () => true }).find((ticket) => ticket.pid === process.pid);
+                noted ??= own?.overtakenSince ?? null;
+            },
+            isAlive: () => true,
+            log: quietLog,
+        }), (error) => error.exitCode === 75);
+        assert.ok(Number.isFinite(noted), 'the long waiter wrote when it was first passed into its ticket');
+
+        // Thirty-one minutes later its time is up: a new short run has to wait behind it.
+        enqueuePlaywrightRunLockTicket(queueDir, { pid: 8080, label: 'desktop-e2e clusters a,b', kind: 'long', enqueuedAt: 1_000, overtakenSince: Date.now() - 31 * 60_000 });
+        fs.unlinkSync(lockPath);
+        await assert.rejects(acquirePlaywrightRunLock({ label: 'late stage-2 run', env: {}, lockPath, waitMs: 30, pollMs: 10, isAlive: () => true, log: quietLog, sleep: async () => {} , now: (() => { let t = Date.now(); return () => (t += 10); })() }), (error) => error.exitCode === 75);
+        assert.equal(fs.existsSync(lockPath), false, 'the free lock stays free for the long run whose time is up');
+    } finally {
+        cleanup(lockPath);
+    }
 });
 
 test('playwright lock: yielding hands the lock to a waiting short run and takes it back afterwards', async () => {
