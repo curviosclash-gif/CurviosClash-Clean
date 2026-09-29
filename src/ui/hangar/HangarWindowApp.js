@@ -61,6 +61,14 @@ bind(closeButton, 'click', async () => {
     globalThis.location.assign('/');
 });
 
+if (!hangarWindow.isAvailable()) {
+    // Android back leaves the hangar page instead of closing the app.
+    globalThis.__curviosAndroidBackHandler = () => {
+        closeButton?.click();
+        return true;
+    };
+}
+
 bind(document, 'keydown', (event) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
     event.preventDefault();

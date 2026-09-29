@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile as execFileCallback } from 'node:child_process';
@@ -9,13 +10,6 @@ import {
   createMobileClassicGithubUpdateConfig,
   normalizeMobileClassicGithubRepository,
 } from '../src/mobile-classic/MobileClassicUpdateConfig.js';
-import {
-  ARCADE_GHOST_DUEL_MODES,
-} from '../src/shared/contracts/ArcadeGhostDuelContract.js';
-import {
-  listMobileArcadeRouteAllowlist,
-  MOBILE_ARCADE_DEFAULT_MAP_KEY,
-} from '../src/mobile-arcade/MobileArcadeApp.js';
 
 const execFile = promisify(execFileCallback);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,31 +38,24 @@ async function detectGithubRepository() {
 
 async function writeManifest() {
   const githubRepository = await detectGithubRepository();
-  const routeAllowlist = listMobileArcadeRouteAllowlist();
   const manifest = {
-    contract: 'curvios.mobile-android-app.v1',
+    contract: 'curvios.mobile-android-app.v2',
     generatedAt: new Date().toISOString(),
     app: {
       id: 'de.curviosclash.classic',
       name: 'Curvios Clash',
       target: 'mobile-classic',
     },
+    // Desktop game parity except splitscreen; LAN hosting needs the Electron LAN server.
     modeScope: {
       sessionTypes: ['single', 'multiplayer'],
-      modePaths: ['normal', 'arcade'],
+      modePaths: ['quick_action', 'arcade', 'fight', 'normal'],
       defaultModePath: 'normal',
-      gameMode: 'CLASSIC',
+      pages: ['index.html', 'hangar.html'],
       multiplayer: {
-        role: 'client',
-        transport: 'lan',
-        modePath: 'normal',
-        mapKeys: ['standard', 'maze'],
-      },
-      arcade: {
-        defaultMapKey: MOBILE_ARCADE_DEFAULT_MAP_KEY,
-        routeAllowlist,
-        ghostDuelMode: ARCADE_GHOST_DUEL_MODES.SELF_LONGEST_GHOST,
-        ghostTrailCollisionEnabled: false,
+        role: 'host-and-join',
+        joinTransports: ['lan', 'online'],
+        hostTransports: ['online'],
       },
     },
     updates: createMobileClassicGithubUpdateConfig(githubRepository),
@@ -111,6 +98,8 @@ async function pruneBuiltHtml() {
 }
 
 async function main() {
+  // Same esbuild stream fallback as scripts/vite-build.mjs; loaded before Vite starts esbuild.
+  createRequire(import.meta.url)('./esbuild-stream-fallback.cjs');
   const { build } = await import('vite');
   await build({ mode: 'app' });
   await pruneBuiltHtml();
