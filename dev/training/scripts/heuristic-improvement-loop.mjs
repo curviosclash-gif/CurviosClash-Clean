@@ -18,6 +18,7 @@ import {
 import {
     clampProfile, clampScalar, NUM_BOTS, parsePositiveInteger, runMatch, TUNABLE_FIELDS,
 } from './heuristic-improvement-match.mjs';
+import { createMatchPool } from './heuristic-improvement-pool.mjs';
 
 export { TUNABLE_FIELDS };
 
@@ -86,6 +87,7 @@ const FULL_MAX_TICKS = parsePositiveInteger(
     DEFAULT_FULL_MAX_TICKS
 );
 const TIMEOUT_MS = parsePositiveInteger(process.env.HEURISTIC_LOOP_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
+const matchPool = createMatchPool();
 const STATE_PATH = path.resolve(
     process.env.HEURISTIC_LOOP_STATE_PATH
         || path.join(os.tmpdir(), 'curviosclash-heuristic-improvement-state.json')
@@ -185,38 +187,45 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
     };
     const candidateDeathCauses = {};
     const baselineDeathCauses = {};
-    const matchRows = [];
+    const jobs = [];
     for (const [seedIndex, seed] of seeds.entries()) {
         const setup = resolveHeuristicBenchmarkSetup(seedIndex);
         for (const candidateSlot of slots) {
-            const result = await runMatch({ profile, seed, setup, candidateFields: fields, candidateSlot, maxTicks, respawnEnabled });
-            sums.candidateLifeSeconds += result.candidateLifeSeconds;
-            sums.candidateLives += result.candidateLives;
-            sums.candidateKills += result.candidateKills;
-            sums.candidateDamage += result.candidateDamage;
-            sums.baselineLifeSeconds += result.baselineLifeSeconds;
-            sums.baselineLives += result.baselineLives;
-            sums.baselineKills += result.baselineKills;
-            sums.baselineDamage += result.baselineDamage;
-            if (result.forced) sums.forcedMatches += 1;
-            sums.candidateUpdates += result.candidateEngagement.updates;
-            sums.candidateSafetyUpdates += result.candidateEngagement.safetyUpdates;
-            sums.candidateShots += result.candidateEngagement.shots;
-            sums.baselineUpdates += result.baselineEngagement.updates;
-            sums.baselineSafetyUpdates += result.baselineEngagement.safetyUpdates;
-            sums.baselineShots += result.baselineEngagement.shots;
-            mergeCauseCounts(candidateDeathCauses, result.candidateDeathCauses);
-            mergeCauseCounts(baselineDeathCauses, result.baselineDeathCauses);
-            // One row per seed and slot, so two evaluations can be compared match by match.
-            matchRows.push({
-                seed,
-                slot: candidateSlot,
-                candidateLifeSeconds: result.candidateLifeSeconds,
-                candidateLives: result.candidateLives,
-                candidateKills: result.candidateKills,
-                candidateDamage: result.candidateDamage,
-            });
+            jobs.push({ profile, seed, setup, candidateFields: fields, candidateSlot, maxTicks, respawnEnabled });
         }
+    }
+    // Matches are independent; the pool returns them in job order, so every sum below is formed
+    // in the same order as on one thread and the result is bit-identical.
+    const results = await matchPool.runMatches(jobs);
+    const matchRows = [];
+    for (const [index, result] of results.entries()) {
+        const { seed, candidateSlot } = jobs[index];
+        sums.candidateLifeSeconds += result.candidateLifeSeconds;
+        sums.candidateLives += result.candidateLives;
+        sums.candidateKills += result.candidateKills;
+        sums.candidateDamage += result.candidateDamage;
+        sums.baselineLifeSeconds += result.baselineLifeSeconds;
+        sums.baselineLives += result.baselineLives;
+        sums.baselineKills += result.baselineKills;
+        sums.baselineDamage += result.baselineDamage;
+        if (result.forced) sums.forcedMatches += 1;
+        sums.candidateUpdates += result.candidateEngagement.updates;
+        sums.candidateSafetyUpdates += result.candidateEngagement.safetyUpdates;
+        sums.candidateShots += result.candidateEngagement.shots;
+        sums.baselineUpdates += result.baselineEngagement.updates;
+        sums.baselineSafetyUpdates += result.baselineEngagement.safetyUpdates;
+        sums.baselineShots += result.baselineEngagement.shots;
+        mergeCauseCounts(candidateDeathCauses, result.candidateDeathCauses);
+        mergeCauseCounts(baselineDeathCauses, result.baselineDeathCauses);
+        // One row per seed and slot, so two evaluations can be compared match by match.
+        matchRows.push({
+            seed,
+            slot: candidateSlot,
+            candidateLifeSeconds: result.candidateLifeSeconds,
+            candidateLives: result.candidateLives,
+            candidateKills: result.candidateKills,
+            candidateDamage: result.candidateDamage,
+        });
     }
     const matches = matchRows.length;
     const candidateSurvival = sums.candidateLives > 0 ? sums.candidateLifeSeconds / sums.candidateLives : 0;
@@ -645,4 +654,6 @@ const task = command === '--verify'
 task().catch((error) => {
     console.error(error?.stack || error);
     process.exitCode = 1;
+}).finally(async () => {
+    await matchPool.close();
 });

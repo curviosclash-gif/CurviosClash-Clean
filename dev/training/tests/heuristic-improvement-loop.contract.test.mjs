@@ -151,3 +151,9 @@ test('heuristic benchmark matches run on simulated time and restore the real clo
     assert.match(source, /verifyHeuristicBenchmarkArena\(em\.arena, setup\.mapKey\);/);
     assert.match(source, /baseConfig: HEURISTIC_BENCHMARK_BASE_CONFIG/);
 });
+
+test('heuristic evaluation runs its matches through the worker pool in job order', () => {
+    assert.match(source, /const results = await matchPool\.runMatches\(jobs\);/);
+    assert.match(source, /for \(const \[index, result\] of results\.entries\(\)\)/);
+    assert.match(source, /await matchPool\.close\(\)/);
+});
