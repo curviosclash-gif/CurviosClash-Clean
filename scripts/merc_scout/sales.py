@@ -103,6 +103,15 @@ def datasheet(report: dict, textures: dict[str, dict[str, str]] | None = None) -
         "",
     ]
     audit = report.get("audit")
+    exposure = report.get("exposure") or {}
+    if exposure.get("total_vertices"):
+        lines.append(f"- Skin coverage: {exposure['exposed_vertices']} of "
+                     f"{exposure['total_vertices']} body vertices "
+                     f"({exposure['ratio']:.1%}) are bare skin, most on the "
+                     f"{exposure['worst_region']}; head and hands are meant to be bare.")
+        for warning in exposure.get("warnings", []):
+            lines.append(f"  - {warning}")
+        lines.append("")
     if audit:
         lines.append("Proportions, measured on the built model against the anthropometric "
                      "reference of a 1.80 m adult:")
