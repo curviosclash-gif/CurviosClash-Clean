@@ -23,6 +23,8 @@ export class RenderViewportSystem {
             ? options.beforeCameraRender : null;
         this.afterCameraRender = typeof options.afterCameraRender === 'function'
             ? options.afterCameraRender : null;
+        // Brackets the whole logical frame, so split screen and post-processing count as one frame.
+        this.frameTimer = options.frameTimer || null;
         // A logical frame may render several cameras and post-processing passes. three.js resets
         // renderer.info before every render() by default, which made split-screen diagnostics show
         // only the last camera instead of the complete frame.
@@ -125,6 +127,15 @@ export class RenderViewportSystem {
     }
 
     render(scene, cameras) {
+        this.frameTimer?.begin();
+        try {
+            this._renderLayout(scene, cameras);
+        } finally {
+            this.frameTimer?.end();
+        }
+    }
+
+    _renderLayout(scene, cameras) {
         this.renderer.info?.reset?.();
         const w = this.width;
         const h = this.height;
