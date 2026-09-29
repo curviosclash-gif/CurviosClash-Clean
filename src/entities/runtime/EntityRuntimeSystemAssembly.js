@@ -29,6 +29,11 @@ import { FlagObjectiveSystem } from '../systems/FlagObjectiveSystem.js';
 import { WaterZoneSystem } from '../systems/WaterZoneSystem.js';
 import { MapOwnedPickupSystem } from '../systems/MapOwnedPickupSystem.js';
 
+// The Endlosjagd ends only through its own summary (EndlessParcoursRuntime.finalize ->
+// requestRoundEnd with an ENDLESS_* reason). Until then no elimination may end the round: the
+// entity update resolves the outcome before the runtime turns a human death into that summary.
+const ENDLESS_RUN_IN_PROGRESS = Object.freeze({ shouldEnd: false });
+
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
         projectileSystem: support?.projectileSystem || null,
@@ -64,7 +69,8 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
             getWinCondition: () => owner.entityRuntimeConfig?.HUNT?.WIN_CONDITION,
             getDeathmatchTimeLimitSeconds: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_TIME_LIMIT_SECONDS || 0,
             getElapsedSeconds: () => Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
-            getObjectiveOutcome: () => owner._flagObjectiveSystem?.getRoundOutcome?.()
+            getObjectiveOutcome: () => (owner.endlessParcoursRuntime ? ENDLESS_RUN_IN_PROGRESS : null)
+                || owner._flagObjectiveSystem?.getRoundOutcome?.()
                 || owner._mapUnitSystem?.getEscortOutcome?.()
                 || (isFivePortalsConfig(owner.runtimeConfig)
                     ? null : (owner._parcoursProgressSystem?.getRoundOutcome?.() || null)),
