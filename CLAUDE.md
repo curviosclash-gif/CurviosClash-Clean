@@ -198,4 +198,4 @@ Diese Regeln brechen den Build, nicht nur das Review:
 
 Coverage-Gate gilt nur für `src/shared/contracts/**` (70 % Lines / 60 % Branches / 60 % Functions) über `npm run test:contract:coverage`.
 
-CI (`.github/workflows/`): `quality.yml` bei jedem Push/PR auf Windows, `desktop.yml` für Smoke und vier E2E-Cluster bei Produktänderungen, `package-check.yml` bei Electron-/Dependency-/Build-Änderungen, `security-audit.yml` wöchentlich.
+CI (`.github/workflows/`): `quality.yml` bei jedem Push/PR auf Windows, `desktop.yml` für Smoke und die neun Standard-Cluster bei Produktänderungen (die fünf Diagnose-Cluster nur nach Zeitplan oder von Hand), `package-check.yml` bei Electron-/Dependency-/Build-Änderungen, `security-audit.yml` wöchentlich.
