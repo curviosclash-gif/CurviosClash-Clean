@@ -28,6 +28,7 @@ import { NOTRE_DAME_FIRE_MAPS } from './presets/notre_dame_fire/index.js';
 import { EIFFEL_TOWER_MAPS } from './presets/eiffel_tower/index.js';
 import { EIFFEL_TOWER_SIEGE_MAPS } from './presets/eiffel_tower_siege/index.js';
 import { REACTOR_SITE_MAPS } from './presets/reactor_site/index.js';
+import { ORBITAL_SHIPYARD_MAPS } from './presets/orbital_shipyard/index.js';
 import { GIANT_FOREST_MAPS } from './presets/giant_forest/index.js';
 import { FALKENWACHT_MAPS } from './presets/burg_falkenwacht/index.js';
 import { CLOCKWORK_CANYON_MAPS } from './presets/clockwork_canyon/index.js';
@@ -68,6 +69,7 @@ export const MAP_PRESET_CATALOG = {
     ...(EIFFEL_TOWER_MAPS || {}),
     ...(EIFFEL_TOWER_SIEGE_MAPS || {}),
     ...(REACTOR_SITE_MAPS || {}),
+    ...(ORBITAL_SHIPYARD_MAPS || {}),
     ...GIANT_FOREST_MAPS,
     ...FALKENWACHT_MAPS,
     ...CLOCKWORK_CANYON_MAPS,
