@@ -24,7 +24,6 @@ const EXCEPTIONS = {
     'src/entities/arena/ArenaBuilder.js': { reason: 'visual-only decoration scatter' },
     'src/entities/Powerup.js': { reason: 'visual-only animation phase' },
     'src/entities/arena/portal/SpecialGateRuntime.js': { reason: 'visual-only animation phase' },
-    'src/entities/arena/portal/CheckpointRingRuntime.js': { reason: 'visual-only animation phase' },
 
     // Messen echte Transport- oder Laufzeit — genau dafuer ist die Wanduhr da.
     'src/network/LatencyMonitor.js': { reason: 'measures real transport round-trip time' },

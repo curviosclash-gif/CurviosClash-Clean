@@ -8,10 +8,11 @@ import { createSecretRoomItemPoints } from '../src/entities/powerup/SecretRoomRe
 import { getPickupSpawnWeight, isPickupTypeAllowedForMode } from '../src/shared/contracts/PickupRegistryContract.js';
 import { isPointInSecretRoom, normalizeSecretRooms } from '../src/shared/contracts/SecretRoomContract.js';
 
-// Every secret room doubles its stock, including its fixed bomber and lightning prizes.
+// Secret rooms carry fixed bomber and lightning prizes except reactor_site, where they now live
+// in the flyable reactor room and are tied to the containment break.
 const PRIZES = Object.freeze(['BOMBER_STRIKE', 'LIGHTNING']);
 const ENLARGED_ROOMS = {
-    reactor_site: { height: 24, items: 48 },
+    reactor_site: { height: 24, items: 44 },
     eiffel_tower_siege: { height: 24, items: 24 },
     dandelion_sky: { height: 28, items: 24 },
     sunflower_meadow: { height: 28, items: 24 },
@@ -65,7 +66,14 @@ for (const { mapKey, room } of ROOMS) {
         assert.equal(new Set(points.ownerIds).size, expected.items, 'every point needs its own refill owner');
     });
 
-    test(`${mapKey}/${room.id}: two fixed bomber strikes and two fixed lightnings`, () => {
+    test(`${mapKey}/${room.id}: prize ownership matches its map contract`, () => {
+        if (mapKey === 'reactor_site') {
+            const map = MAP_PRESET_CATALOG[mapKey];
+            assert.deepEqual(map.mapOwnedPickups.map((entry) => entry.pickupType), PRIZES);
+            assert.ok(map.mapOwnedPickups.every((entry) => entry.despawnOnBreakSegment === 'reactor_dome'));
+            assert.equal(room.items.filter((item) => PRIZES.includes(item.type)).length, 0);
+            return;
+        }
         for (const type of PRIZES) {
             const points = room.items.filter((item) => item.type === type);
             assert.equal(points.length, 2, `${type}: ${points.length} fixed points`);

@@ -133,6 +133,67 @@ test('verify-scope: a batch without any cluster needs no stage-3 run', () => {
     assert.equal(plan.stage3Command, null);
 });
 
+// desktop-flows grows with every map spec (122 tests, 17.5 min on 27.09.2026). A change confined
+// to one map's own files runs that map's bound specs plus every unbound spec; anything shared or
+// unknown still runs the whole cluster.
+function stage3Of(paths) {
+    return commandsOf(selectFor(paths).byStage[3]);
+}
+
+test('verify-scope: a change inside one map preset runs its bound specs and every unbound spec', () => {
+    const stage3 = stage3Of(['src/core/config/maps/presets/reactor_site/ReactorSiteModels.js']);
+    assert.equal(stage3.length, 1);
+    assert.doesNotMatch(stage3[0], /clusters\.mjs/, 'no whole cluster for a single-map change');
+    assert.match(stage3[0], /run-playwright-targeted\.mjs /);
+    assert.match(stage3[0], /tests\/reactor-site\.desktop\.spec\.js/);
+    assert.match(stage3[0], /tests\/reactor-torus\.desktop\.spec\.js/);
+    assert.match(stage3[0], /tests\/map-reference-worlds\.desktop\.spec\.js/, 'all-map sweeps stay unbound and always run');
+    assert.match(stage3[0], /tests\/hud-layout\.spec\.js/, 'default-map flows stay unbound and always run');
+    assert.doesNotMatch(stage3[0], /tests\/notre-dame\.desktop\.spec\.js/, 'another map\'s bound spec is skipped');
+    assert.match(stage3[0], /--skip-known/);
+});
+
+test('verify-scope: an asset pack counts for the presets that load it', () => {
+    const stage3 = stage3Of(['assets/maps/reactor_site/glb/reactor_site.glb']);
+    assert.match(stage3[0], /tests\/reactor-site\.desktop\.spec\.js/);
+    assert.doesNotMatch(stage3[0], /clusters\.mjs/);
+});
+
+test('verify-scope: shared, unknown or mixed changes still run the whole desktop-flows cluster', () => {
+    for (const paths of [
+        ['src/core/renderer/Renderer.js'],
+        ['src/entities/GLBMapLoader.js'],
+        ['assets/maps/no_such_pack_xyz/a.glb'],
+        ['src/core/config/maps/presets/world_appearance.js'],
+        ['src/core/config/maps/presets/reactor_site/ReactorSiteModels.js', 'src/ui/HUD.js'],
+    ]) {
+        const stage3 = stage3Of(paths);
+        assert.ok(stage3.some((command) => /clusters\.mjs .*desktop-flows/.test(command)), `${paths.join(', ')} must run the whole cluster, got ${JSON.stringify(stage3)}`);
+        assert.ok(!stage3.some((command) => /run-playwright-targeted\.mjs /.test(command)), 'and no extra spec list next to it');
+    }
+});
+
+test('verify-scope: a batch of map-only branches unions their specs and names suspects per spec', () => {
+    const plan = planBatch({
+        'claude/reactor': ['src/core/config/maps/presets/reactor_site/ReactorSiteModels.js'],
+        'claude/notre-dame': ['src/core/config/maps/presets/notre_dame/NotreDameModels.js'],
+    });
+    assert.deepEqual(plan.clusters, []);
+    assert.match(plan.stage3Command, /run-playwright-targeted\.mjs /);
+    assert.match(plan.stage3Command, /reactor-site\.desktop\.spec\.js/);
+    assert.match(plan.stage3Command, /notre-dame\.desktop\.spec\.js/);
+    assert.deepEqual(plan.suspectsBySpec['tests/reactor-site.desktop.spec.js'], ['claude/reactor']);
+    assert.deepEqual(plan.suspectsBySpec['tests/map-reference-worlds.desktop.spec.js'], ['claude/reactor', 'claude/notre-dame']);
+
+    const mixed = planBatch({
+        'claude/reactor': ['src/core/config/maps/presets/reactor_site/ReactorSiteModels.js'],
+        'claude/hud': ['src/ui/HUD.js'],
+    });
+    assert.ok(mixed.clusters.includes('desktop-flows'), 'one branch needing the whole cluster wins');
+    assert.deepEqual(mixed.suspectsByCluster['desktop-flows'], ['claude/reactor', 'claude/hud']);
+    assert.deepEqual(mixed.suspectsBySpec, {});
+});
+
 test('verify-scope: CLAUDE.md describes the batch run', () => {
     const claudeMd = fs.readFileSync(path.join(REPO_ROOT, 'CLAUDE.md'), 'utf8');
     assert.match(claudeMd, /Sammellauf/);

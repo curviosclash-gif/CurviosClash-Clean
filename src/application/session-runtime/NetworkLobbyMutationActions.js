@@ -99,3 +99,50 @@ export function requestNetworkLobbyMatchStart(service, options = {}) {
         service.onStateChanged?.(service.getSessionState());
     });
 }
+
+export function invalidateNetworkLobbyReadyForAll(service, reason = 'host_settings_changed') {
+    const sessionState = service.getSessionState();
+    if (!service._transportSession.hasLobby() || !sessionState.isHost) return null;
+    return Promise.resolve(service._transportSession.invalidateReadyForAll()).then(() => {
+        const updatedSessionState = service.getSessionState();
+        const event = service._emit(LOBBY_SERVICE_EVENT_TYPES.READY_INVALIDATED, {
+            reason: normalizeString(reason, 'host_settings_changed'),
+            lobbyCode: updatedSessionState.lobbyCode,
+            peerId: updatedSessionState.peerId,
+        });
+        service._setStatus('Bereitschaft zurückgesetzt, weil der Host etwas geändert hat');
+        return {
+            ok: true,
+            event,
+            sessionState: service.getSessionState(),
+            snapshot: service.getSnapshot(),
+        };
+    }).catch((error) => service._fail(
+        error instanceof Error ? error.message : 'Bereitschaft konnte nicht zurückgesetzt werden.',
+        normalizeString(error?.code, 'ready_invalidation_failed')
+    ));
+}
+
+/**
+ * Reports the last started match as over, once, and only from the host. The
+ * server keeps the start command until then, so without this report the lobby
+ * refuses joins, settings changes and every further match start.
+ */
+export function reportNetworkLobbyMatchEnded(service) {
+    const commandId = normalizeString(service._lastNotifiedMatchCommandId, '');
+    if (!commandId || commandId === service._lastEndedMatchCommandId) return null;
+    if (!service._transportSession.hasLobby() || service.getSessionState().isHost !== true) return null;
+    service._lastEndedMatchCommandId = commandId;
+    return Promise.resolve(service._transportSession.endMatch(commandId)).then(() => ({
+        ok: true,
+        commandId,
+        sessionState: service.getSessionState(),
+    })).catch((error) => {
+        // Allow the next finalize to try again instead of leaving the lobby locked.
+        if (service._lastEndedMatchCommandId === commandId) service._lastEndedMatchCommandId = '';
+        return service._fail(
+            error instanceof Error ? error.message : 'Matchende konnte nicht an die Lobby gemeldet werden.',
+            normalizeString(error?.code, 'match_end_failed')
+        );
+    });
+}

@@ -51,9 +51,7 @@ export class MapSandstormSystem {
             this.entityManager?.arena?.currentMapDefinition?.sandstorm
         );
         if (!this.config) return false;
-        this.scale = this.entityManager?.arena?.currentMapDefinition?.scaleAuthoredAnchors === true
-            ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
-            : 1;
+        this.scale = this._resolveGeometryScale();
         if (this.networkReplica) {
             this.state = createInactiveState();
             this._buildVisual();
@@ -84,6 +82,12 @@ export class MapSandstormSystem {
 
     setNetworkReplica(enabled) {
         this.networkReplica = enabled === true;
+    }
+
+    // Shelters are rooms of the map geometry, and the arena scales all geometry (boxes, tubes, GLBs)
+    // by MAP_SCALE whether or not a map also scales its spawn anchors; the ambience does the same.
+    _resolveGeometryScale() {
+        return Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1);
     }
 
     _buildVisual() {
@@ -147,9 +151,7 @@ export class MapSandstormSystem {
         const next = createMapSandstormState(value);
         this.state = this.config && next.enabled ? next : createInactiveState();
         if (this.config && !this._visual.group) {
-            this.scale = this.entityManager?.arena?.currentMapDefinition?.scaleAuthoredAnchors === true
-                ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
-                : 1;
+            this.scale = this._resolveGeometryScale();
             this._buildVisual();
         }
         this._visual.update(0, this.state, this.getDirection());

@@ -27,6 +27,12 @@ import { RailgunSystem } from '../../hunt/RailgunSystem.js';
 import { RepairDroneSystem } from '../systems/RepairDroneSystem.js';
 import { FlagObjectiveSystem } from '../systems/FlagObjectiveSystem.js';
 import { WaterZoneSystem } from '../systems/WaterZoneSystem.js';
+import { MapOwnedPickupSystem } from '../systems/MapOwnedPickupSystem.js';
+
+// The Endlosjagd ends only through its own summary (EndlessParcoursRuntime.finalize ->
+// requestRoundEnd with an ENDLESS_* reason). Until then no elimination may end the round: the
+// entity update resolves the outcome before the runtime turns a human death into that summary.
+const ENDLESS_RUN_IN_PROGRESS = Object.freeze({ shouldEnd: false });
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -44,6 +50,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         mapDestructibleSystem: new MapDestructibleSystem(owner),
         mapDestructibleBlastSystem: new MapDestructibleBlastSystem(owner),
         waterZoneSystem: new WaterZoneSystem(owner),
+        mapOwnedPickupSystem: new MapOwnedPickupSystem(owner),
         objectiveTargetMarkerSystem: new ObjectiveTargetMarkerSystem(owner),
         secretRoomSystem: new SecretRoomSystem(owner),
         flagObjectiveSystem: null,
@@ -62,7 +69,8 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
             getWinCondition: () => owner.entityRuntimeConfig?.HUNT?.WIN_CONDITION,
             getDeathmatchTimeLimitSeconds: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_TIME_LIMIT_SECONDS || 0,
             getElapsedSeconds: () => Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
-            getObjectiveOutcome: () => owner._flagObjectiveSystem?.getRoundOutcome?.()
+            getObjectiveOutcome: () => (owner.endlessParcoursRuntime ? ENDLESS_RUN_IN_PROGRESS : null)
+                || owner._flagObjectiveSystem?.getRoundOutcome?.()
                 || owner._mapUnitSystem?.getEscortOutcome?.()
                 || (isFivePortalsConfig(owner.runtimeConfig)
                     ? null : (owner._parcoursProgressSystem?.getRoundOutcome?.() || null)),
@@ -78,6 +86,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     // Published here rather than with the other systems in EntityManager: that file sits on the
     // 500 line limit, and this is the module that owns the wiring anyway.
     owner._secretRoomSystem = systems.secretRoomSystem;
+    owner._mapOwnedPickupSystem = systems.mapOwnedPickupSystem;
     // Every weapon reads its non-player targets from here; map units add their provider later.
     systems.targetableRegistry = new TargetableRegistry();
     systems.targetableRegistry.addProvider(() => systems.staticTurretSystem.getDestructibleTargets());
