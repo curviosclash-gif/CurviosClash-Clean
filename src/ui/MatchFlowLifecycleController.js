@@ -158,6 +158,9 @@ export class MatchFlowLifecycleController {
         // The round-end countdown and the ghost replay run on game time, so a slow
         // motion that was still active must not stretch three seconds into seven.
         game.gameLoop?.setTimeScale?.(1.0);
+        // A killcam ends with its respawn countdown, which stands still on the result
+        // board; left running it covers the board and freezes the round-end replay.
+        game.entityManager?.resetKillcamFrameCapture?.();
         this.runtimePort?.enterRoundEnd?.(3.0);
 
         const roundEndPlan = this.coordinateRoundEnd
