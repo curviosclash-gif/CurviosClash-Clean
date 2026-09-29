@@ -35,6 +35,8 @@ import {
     tryResolveNetworkLobbyUrl,
 } from './NetworkLobbyExperienceSupport.js';
 import {
+    invalidateNetworkLobbyReadyForAll,
+    reportNetworkLobbyMatchEnded,
     requestNetworkLobbyMatchStart,
     setNetworkLobbyName,
     toggleNetworkLobbyReady,
@@ -103,6 +105,7 @@ export class NetworkLobbyService {
         this._matchStartPending = false;
         this._shareAddress = '';
         this._lastNotifiedMatchCommandId = '';
+        this._lastEndedMatchCommandId = '';
         this._sessionStateProjection = createNetworkLobbySessionStateProjection({
             transport: this.transport,
         });
@@ -404,26 +407,7 @@ export class NetworkLobbyService {
     }
 
     invalidateReadyForAll(reason = 'host_settings_changed') {
-        const sessionState = this.getSessionState();
-        if (!this._transportSession.hasLobby() || !sessionState.isHost) return null;
-        return Promise.resolve(this._transportSession.invalidateReadyForAll()).then(() => {
-            const updatedSessionState = this.getSessionState();
-            const event = this._emit(LOBBY_SERVICE_EVENT_TYPES.READY_INVALIDATED, {
-                reason: normalizeString(reason, 'host_settings_changed'),
-                lobbyCode: updatedSessionState.lobbyCode,
-                peerId: updatedSessionState.peerId,
-            });
-            this._setStatus('Bereitschaft zurückgesetzt, weil der Host etwas geändert hat');
-            return {
-                ok: true,
-                event,
-                sessionState: this.getSessionState(),
-                snapshot: this.getSnapshot(),
-            };
-        }).catch((error) => this._fail(
-            error instanceof Error ? error.message : 'Bereitschaft konnte nicht zurückgesetzt werden.',
-            normalizeString(error?.code, 'ready_invalidation_failed')
-        ));
+        return invalidateNetworkLobbyReadyForAll(this, reason);
     }
 
     syncActorIdentity(actorId) {
@@ -445,6 +429,11 @@ export class NetworkLobbyService {
 
     requestMatchStart(options = {}) {
         return requestNetworkLobbyMatchStart(this, options);
+    }
+
+    /** Host back in the lobby after a match: reopens joins, settings and the next start. */
+    notifyMatchEnded() {
+        return reportNetworkLobbyMatchEnded(this);
     }
 
     leave(options = {}) {
