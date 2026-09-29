@@ -73,6 +73,8 @@
     "bot:analyze": "node dev/training/scripts/bot-play-analysis.mjs",
     "bot:improve": "node dev/training/scripts/heuristic-improvement-loop.mjs",
     "bot:improve:auto": "node dev/training/scripts/heuristic-improvement-runner.mjs",
+    "bot:improve:check": "node dev/training/scripts/heuristic-improvement-loop.mjs --check-opponents",
+    "bot:improve:status": "node dev/training/scripts/heuristic-improvement-loop.mjs --status",
     "bot:improve:team": "node dev/training/scripts/team-objective-improvement-loop.mjs",
     "bot:improve:team:auto": "node dev/training/scripts/team-objective-improvement-runner.mjs",
     "bot:improve:team:status": "node dev/training/scripts/team-objective-improvement-loop.mjs --status",
