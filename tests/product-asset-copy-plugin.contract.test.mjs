@@ -50,6 +50,7 @@ test('renderer build copies every editor OBJ asset group', (context) => {
         'assets/models/verdant_wildwuchs/fern_v01.glb',
         'assets/models/glowing_mushroom/cap_v01.glb',
         'assets/models/glowing_mushroom/shelf_v03.glb',
+        'assets/models/fighter_jet/glb/01_fighter_jet.glb',
     ]) {
         assert.ok(statSync(path.join(outDir, relativePath)).size > 0, `${relativePath} was not copied`);
     }
@@ -59,6 +60,8 @@ test('renderer build copies every editor OBJ asset group', (context) => {
         // so the copy has to filter by extension rather than take the directory whole.
         'assets/models/glowing_mushroom/blender/cap_v01.blend',
         'assets/models/glowing_mushroom/manifest.json',
+        // Same rule for the jet: the painted livery travels inside the GLB, the source stays out.
+        'assets/models/fighter_jet/blender/01_fighter_jet.blend',
     ]) {
         assert.equal(existsSync(path.join(outDir, relativePath)), false,
             `${relativePath} stays out of the renderer build`);

@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import {
     PLAYWRIGHT_LOCK_TIMEOUT_EXIT_CODE,
     VERIFICATION_STAGES,
+    planBatch,
     selectFor,
     toStage2Command,
 } from '../.claude/skills/verify-scope/scripts/select-verification.mjs';
@@ -104,6 +105,99 @@ test('verify-scope: every stage-2 id really exists in its spec', () => {
         }
     }
     assert.ok(seen.size > 10, `expected a real id table, saw ${seen.size}`);
+});
+
+// Several finished branches share one stage-3 run instead of one run each. The batch must
+// cover every cluster any branch needs, and a red cluster must name the branches that can
+// have caused it, so the culprit is found with small reruns instead of a new batch.
+test('verify-scope: a batch runs the union of clusters once and names the suspects per cluster', () => {
+    const plan = planBatch({
+        'claude/hud-fix': ['src/ui/HUD.js'],
+        'claude/new-map': ['assets/maps/neon/glb/neon.glb', 'src/core/config/maps/presets/neon.js'],
+        'claude/docs': ['README.md'],
+    });
+
+    assert.deepEqual([...plan.clusters].sort(), ['core-surface', 'desktop-flows']);
+    assert.deepEqual(plan.suspectsByCluster['core-surface'], ['claude/hud-fix']);
+    assert.deepEqual(plan.suspectsByCluster['desktop-flows'], ['claude/hud-fix', 'claude/new-map']);
+    assert.deepEqual(plan.withoutClusters, ['claude/docs'], 'a branch without cluster needs is named, not silently dropped');
+    assert.equal((plan.stage3Command.match(/run-playwright-targeted-clusters\.mjs/g) || []).length, 1, 'one run for the whole batch');
+    assert.match(plan.stage3Command, /core-surface/);
+    assert.match(plan.stage3Command, /desktop-flows/);
+    assert.match(plan.stage3Command, /--skip-known/);
+});
+
+test('verify-scope: a batch without any cluster needs no stage-3 run', () => {
+    const plan = planBatch({ 'claude/docs': ['README.md'] });
+    assert.deepEqual(plan.clusters, []);
+    assert.equal(plan.stage3Command, null);
+});
+
+// desktop-flows grows with every map spec (122 tests, 17.5 min on 27.09.2026). A change confined
+// to one map's own files runs that map's bound specs plus every unbound spec; anything shared or
+// unknown still runs the whole cluster.
+function stage3Of(paths) {
+    return commandsOf(selectFor(paths).byStage[3]);
+}
+
+test('verify-scope: a change inside one map preset runs its bound specs and every unbound spec', () => {
+    const stage3 = stage3Of(['src/core/config/maps/presets/reactor_site/ReactorSiteModels.js']);
+    assert.equal(stage3.length, 1);
+    assert.doesNotMatch(stage3[0], /clusters\.mjs/, 'no whole cluster for a single-map change');
+    assert.match(stage3[0], /run-playwright-targeted\.mjs /);
+    assert.match(stage3[0], /tests\/reactor-site\.desktop\.spec\.js/);
+    assert.match(stage3[0], /tests\/reactor-torus\.desktop\.spec\.js/);
+    assert.match(stage3[0], /tests\/map-reference-worlds\.desktop\.spec\.js/, 'all-map sweeps stay unbound and always run');
+    assert.match(stage3[0], /tests\/hud-layout\.spec\.js/, 'default-map flows stay unbound and always run');
+    assert.doesNotMatch(stage3[0], /tests\/notre-dame\.desktop\.spec\.js/, 'another map\'s bound spec is skipped');
+    assert.match(stage3[0], /--skip-known/);
+});
+
+test('verify-scope: an asset pack counts for the presets that load it', () => {
+    const stage3 = stage3Of(['assets/maps/reactor_site/glb/reactor_site.glb']);
+    assert.match(stage3[0], /tests\/reactor-site\.desktop\.spec\.js/);
+    assert.doesNotMatch(stage3[0], /clusters\.mjs/);
+});
+
+test('verify-scope: shared, unknown or mixed changes still run the whole desktop-flows cluster', () => {
+    for (const paths of [
+        ['src/core/renderer/Renderer.js'],
+        ['src/entities/GLBMapLoader.js'],
+        ['assets/maps/no_such_pack_xyz/a.glb'],
+        ['src/core/config/maps/presets/world_appearance.js'],
+        ['src/core/config/maps/presets/reactor_site/ReactorSiteModels.js', 'src/ui/HUD.js'],
+    ]) {
+        const stage3 = stage3Of(paths);
+        assert.ok(stage3.some((command) => /clusters\.mjs .*desktop-flows/.test(command)), `${paths.join(', ')} must run the whole cluster, got ${JSON.stringify(stage3)}`);
+        assert.ok(!stage3.some((command) => /run-playwright-targeted\.mjs /.test(command)), 'and no extra spec list next to it');
+    }
+});
+
+test('verify-scope: a batch of map-only branches unions their specs and names suspects per spec', () => {
+    const plan = planBatch({
+        'claude/reactor': ['src/core/config/maps/presets/reactor_site/ReactorSiteModels.js'],
+        'claude/notre-dame': ['src/core/config/maps/presets/notre_dame/NotreDameModels.js'],
+    });
+    assert.deepEqual(plan.clusters, []);
+    assert.match(plan.stage3Command, /run-playwright-targeted\.mjs /);
+    assert.match(plan.stage3Command, /reactor-site\.desktop\.spec\.js/);
+    assert.match(plan.stage3Command, /notre-dame\.desktop\.spec\.js/);
+    assert.deepEqual(plan.suspectsBySpec['tests/reactor-site.desktop.spec.js'], ['claude/reactor']);
+    assert.deepEqual(plan.suspectsBySpec['tests/map-reference-worlds.desktop.spec.js'], ['claude/reactor', 'claude/notre-dame']);
+
+    const mixed = planBatch({
+        'claude/reactor': ['src/core/config/maps/presets/reactor_site/ReactorSiteModels.js'],
+        'claude/hud': ['src/ui/HUD.js'],
+    });
+    assert.ok(mixed.clusters.includes('desktop-flows'), 'one branch needing the whole cluster wins');
+    assert.deepEqual(mixed.suspectsByCluster['desktop-flows'], ['claude/reactor', 'claude/hud']);
+    assert.deepEqual(mixed.suspectsBySpec, {});
+});
+
+test('verify-scope: CLAUDE.md describes the batch run', () => {
+    const claudeMd = fs.readFileSync(path.join(REPO_ROOT, 'CLAUDE.md'), 'utf8');
+    assert.match(claudeMd, /Sammellauf/);
+    assert.match(claudeMd, /select-verification\.mjs --batch/);
 });
 
 test('verify-scope: the lock timeout exit code is documented as 75', () => {

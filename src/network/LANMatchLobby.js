@@ -17,6 +17,7 @@ import {
 } from './OnlineSignalingSupport.js';
 import {
     buildLanRequestError,
+    postLanHostCommand,
     publishLanLobbyMetadata, publishLanLobbyName,
 } from './LANSignalingSupport.js';
 import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
@@ -480,52 +481,43 @@ export class LANMatchLobby extends MatchLobby {
     }
 
     async invalidateReadyForAll() {
-        const res = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_INVALIDATE_READY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                hostPeerId: this._localPeerId || 'host',
-                hostToken: this._localPeerToken,
-            }),
+        const data = await postLanHostCommand({
+            signalingUrl: this._signalingUrl,
+            route: SIGNALING_HTTP_ROUTES.LOBBY_INVALIDATE_READY,
+            body: { hostPeerId: this._localPeerId || 'host', hostToken: this._localPeerToken },
+            fallbackMessage: 'Bereitschaft konnte nicht zurückgesetzt werden.',
+            fallbackCode: 'ready_invalidation_failed',
         });
-        if (res?.ok === false) {
-            const payload = await res.json().catch(() => ({}));
-            throw buildLanRequestError({
-                response: res,
-                payload,
-                fallbackMessage: 'Bereitschaft konnte nicht zurückgesetzt werden.',
-                fallbackCode: 'ready_invalidation_failed',
-            });
-        }
-        const data = await res.json();
         this._processServerStatus(data);
         return data;
     }
 
     async startMatch(options = {}) {
-        const settingsSnapshot = options?.settingsSnapshot ?? this.settings ?? null;
-        const commandId = options?.commandId || `match-${this._lobbyRuntime.nowMs().toString(36)}-${this._lobbyRuntime.random().toString(36).slice(2, 8)}`;
-        const res = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_MATCH_START}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+        const data = await postLanHostCommand({
+            signalingUrl: this._signalingUrl,
+            route: SIGNALING_HTTP_ROUTES.LOBBY_MATCH_START,
+            body: {
                 hostPeerId: this._localPeerId || 'host',
                 hostToken: this._localPeerToken,
-                commandId,
-                settingsSnapshot,
+                commandId: options?.commandId || `match-${this._lobbyRuntime.nowMs().toString(36)}-${this._lobbyRuntime.random().toString(36).slice(2, 8)}`,
+                settingsSnapshot: options?.settingsSnapshot ?? this.settings ?? null,
                 settingsRevision: options.settingsRevision ?? this.sessionState.settingsRevision ?? undefined,
-            }),
+            },
+            fallbackMessage: 'Lobby-Matchstart fehlgeschlagen.',
+            fallbackCode: 'match_start_failed',
         });
-        if (res?.ok === false) {
-            const payload = await res.json().catch(() => ({}));
-            throw buildLanRequestError({
-                response: res,
-                payload,
-                fallbackMessage: 'Lobby-Matchstart fehlgeschlagen.',
-                fallbackCode: 'match_start_failed',
-            });
-        }
-        const data = await res.json();
+        this._processServerStatus(data);
+        return data;
+    }
+
+    async endMatch(commandId) {
+        const data = await postLanHostCommand({
+            signalingUrl: this._signalingUrl,
+            route: SIGNALING_HTTP_ROUTES.LOBBY_MATCH_END,
+            body: { hostPeerId: this._localPeerId || 'host', hostToken: this._localPeerToken, commandId },
+            fallbackMessage: 'Matchende konnte nicht an die Lobby gemeldet werden.',
+            fallbackCode: 'match_end_failed',
+        });
         this._processServerStatus(data);
         return data;
     }

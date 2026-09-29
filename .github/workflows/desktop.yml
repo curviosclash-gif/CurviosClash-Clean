@@ -18,7 +18,16 @@ on:
       - prototypes/vehicle-lab/**
       - tests/**
       - scripts/run-playwright-*.mjs
+      - scripts/playwright-*.mjs
+      - scripts/build-playwright-app.mjs
+      - scripts/vite-build.mjs
+      - scripts/esbuild-stream-fallback.cjs
       - playwright.config.js
+      - playwright.editor.config.mjs
+      - index.html
+      - hangar.html
+      - style.css
+      - app-shell.css
       - dev/vite/**
       - vite.config.js
       - package.json
@@ -40,7 +49,16 @@ on:
       - prototypes/vehicle-lab/**
       - tests/**
       - scripts/run-playwright-*.mjs
+      - scripts/playwright-*.mjs
+      - scripts/build-playwright-app.mjs
+      - scripts/vite-build.mjs
+      - scripts/esbuild-stream-fallback.cjs
       - playwright.config.js
+      - playwright.editor.config.mjs
+      - index.html
+      - hangar.html
+      - style.css
+      - app-shell.css
       - dev/vite/**
       - vite.config.js
       - package.json

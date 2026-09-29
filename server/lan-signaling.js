@@ -246,6 +246,10 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         // key: target playerId, value: Array<{ fromPlayerId: string, candidate: any }>
         ice: new Map(),
         pendingMatchStart: null,
+        // Set from match start until the host reports the match over. The start
+        // command itself expires after MATCH_START_RETENTION_MS; this flag keeps
+        // latecomers out of the running match instead.
+        matchInProgress: null,
         // key: playerId, value: { token, ready, expiresAt } — allows a ghost-cleaned
         // or dropped player to rejoin with its original playerId (host-side
         // reconnect window relies on stable playerIds).
@@ -432,6 +436,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             lobby.answers.clear();
             lobby.ice.clear();
             lobby.pendingMatchStart = null;
+            lobby.matchInProgress = null;
             lobby.reconnectLeases.clear();
             jsonResponse(res, {
                 ok: true,
@@ -460,6 +465,10 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             }
             if (lobby.pendingMatchStart) {
                 jsonResponse(res, { ok: false, message: 'match_start_pending' }, 409);
+                return;
+            }
+            if (lobby.matchInProgress) {
+                jsonResponse(res, { ok: false, message: 'match_in_progress' }, 409);
                 return;
             }
             if (countLobbyPlayers(lobby) >= Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS)) {
@@ -607,6 +616,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 lobby.answers.clear();
                 lobby.ice.clear();
                 lobby.pendingMatchStart = null;
+                lobby.matchInProgress = null;
                 lobby.reconnectLeases.clear();
                 jsonResponse(res, {
                     ok: true,
@@ -872,11 +882,39 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 settingsSnapshot: body?.settingsSnapshot ?? null,
                 settingsRevision: lobby.settingsRevision,
             };
+            lobby.matchInProgress = { commandId: lobby.pendingMatchStart.commandId };
             jsonResponse(res, {
                 ok: true,
                 pendingMatchStart: lobby.pendingMatchStart,
                 sessionState: buildLobbyState(lobby),
             });
+            return;
+        }
+
+        if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_MATCH_END) {
+            const body = await readBody(req);
+            if (body?.__tooLarge === true) {
+                rejectOversizedRequest(req, res);
+                return;
+            }
+            if (body?.__badJson === true) {
+                jsonResponse(res, { ok: false, message: 'bad_json' }, 400);
+                return;
+            }
+            if (!isHostPeerId(body.hostPeerId || body.playerId || 'host')) {
+                jsonResponse(res, { ok: false, message: 'host_required' }, 403);
+                return;
+            }
+            if (!isValidHostToken(body.hostToken)) {
+                jsonResponse(res, { ok: false, message: 'host_auth_failed' }, 403);
+                return;
+            }
+            // A stale commandId (an older match) leaves the running match alone.
+            const commandId = String(body.commandId || '').trim();
+            const matchesCommand = (entry) => !!entry && (!commandId || commandId === entry.commandId);
+            if (matchesCommand(lobby.matchInProgress)) lobby.matchInProgress = null;
+            if (matchesCommand(lobby.pendingMatchStart)) lobby.pendingMatchStart = null;
+            jsonResponse(res, { ok: true, sessionState: buildLobbyState(lobby) });
             return;
         }
 

@@ -19,6 +19,7 @@ import {
 import {
     REACTOR_WRECK_REACH,
     REACTOR_HALF_SIZE,
+    REACTOR_SITE_GROUND_TILES,
 } from '../src/core/config/maps/presets/reactor_site/ReactorSiteStructure.js';
 import { REACTOR_SITE_PIECES } from '../src/core/config/maps/presets/reactor_site/ReactorSiteDestructibles.js';
 import {
@@ -28,6 +29,9 @@ import {
     resolveMapDestructibleSceneTimeline,
 } from '../src/shared/contracts/MapDestructibleContract.js';
 import { resolveMapSinglePlayerScenario } from '../src/shared/contracts/MapSinglePlayerScenarioContract.js';
+import { MapOwnedPickupSystem } from '../src/entities/systems/MapOwnedPickupSystem.js';
+import { MapDestructibleGlowController } from '../src/entities/arena/MapDestructibleGlowController.js';
+import { PortalRuntimeSystem } from '../src/entities/arena/portal/PortalRuntimeSystem.js';
 
 // The map preset of the reactor site. The Blender side of the same contract lives in
 // reactor-site-blender-assets.contract.test.mjs; this file checks the half the preset owns: that
@@ -38,7 +42,7 @@ import { resolveMapSinglePlayerScenario } from '../src/shared/contracts/MapSingl
 const MAP_KEY = 'reactor_site';
 const MAP = MAP_PRESET_CATALOG[MAP_KEY];
 const FUNGUS_PREFIX = 'assets/models/glowing_mushroom/';
-const WRECK_MARGIN = 20;
+const WRECK_MARGIN = 12;
 const RUNTIME_WORLD_SCALE = 3;
 
 // Which intact model each segment's meshes live in, and which scene replaces it.
@@ -108,12 +112,58 @@ test('the map is a scene-collided, scaled-anchor hunt map with a single-player s
     assert.equal(MAP.scaleAuthoredAnchors, true);
     assert.equal(MAP.itemSpawnMode, 'hybrid', 'authored pickup routes are used before random fallback');
     assert.equal(MAP.parcours, undefined);
-    assert.deepEqual(MAP.portals, []);
+    assert.equal(MAP.portals.length, 1, 'the reactor hall has one fixed exit portal pair');
+    assert.deepEqual(MAP.portals[0].a, [0, 14, 13.2]);
+    assert.deepEqual(MAP.portals[0].b, [0, 14, REACTOR_HALF_SIZE - 9]);
+    assert.equal(MAP.secretRooms[0].id, 'bunker', 'the existing bunker portal remains available');
     const scenario = resolveMapSinglePlayerScenario(MAP);
     assert.equal(scenario?.gameMode, 'HUNT');
     assert.equal(scenario?.modePath, 'fight');
     assert.equal(scenario?.id, MAP_KEY);
     assert.ok(scenario.minBots >= 1 && scenario.minBots <= scenario.botCount);
+});
+
+test('the basin contract follows the recessed Blender wells and opens the fallback floor', () => {
+    const [west, east] = MAP.permanentWaterZones;
+    assert.deepEqual(west.center, [-63, 0]);
+    assert.deepEqual(east.center, [63, 0]);
+    assert.equal(west.floorLevel, 2);
+    assert.equal(east.floorLevel, 2);
+    assert.equal(west.radius, 24.5);
+    assert.equal(east.radius, 24.5);
+    assert.ok(west.surfaceLevel < 8.25 && west.surfaceLevel > west.floorLevel);
+    assert.ok(east.surfaceLevel < 8.25 && east.surfaceLevel > east.floorLevel);
+    for (const centerX of [-63, 63]) {
+        for (const tile of REACTOR_SITE_GROUND_TILES) {
+            const dx = Math.max(Math.abs(tile.pos[0] - centerX) - tile.size[0] / 2, 0);
+            const dz = Math.max(Math.abs(tile.pos[2]) - tile.size[2] / 2, 0);
+            assert.ok(Math.hypot(dx, dz) >= 27, `fallback ground intrudes into the basin at ${Math.hypot(dx, dz).toFixed(1)}`);
+        }
+    }
+    for (const item of MAP.items) {
+        for (const pool of MAP.permanentWaterZones) {
+            assert.ok(Math.hypot(item.x - pool.center[0], item.z - pool.center[1]) > pool.radius,
+                `${item.id} does not spawn under permanent pool water`);
+        }
+    }
+});
+
+test('the fixed reactor exit endpoint is collision-free and portal traversal reaches the safe field edge', () => {
+    const [pair] = MAP.portals;
+    const a = new THREE.Vector3(...pair.a.map((value) => value * RUNTIME_WORLD_SCALE));
+    const b = new THREE.Vector3(...pair.b.map((value) => value * RUNTIME_WORLD_SCALE));
+    const entryRadius = Math.hypot(pair.a[0], pair.a[2]);
+    assert.ok(entryRadius > 12, 'the reactor endpoint stays outside the radiation radius');
+    assert.ok(entryRadius < 15.45, 'the reactor endpoint stays inside the containment ring');
+    assert.ok(pair.a[1] > 0 && pair.a[1] < 26, 'the entry is in the open reactor hall, clear of the roof');
+    assert.ok(Math.hypot(pair.b[0], pair.b[2]) > REACTOR_WRECK_REACH, 'the field endpoint clears all tower wreck reach');
+    assert.ok(Math.abs(pair.b[0]) < REACTOR_HALF_SIZE && Math.abs(pair.b[2]) < REACTOR_HALF_SIZE);
+    const portal = { posA: a, posB: b, forwardA: null, forwardB: null, cooldowns: new Map() };
+    const arena = { portalsEnabled: true, portals: [portal] };
+    const runtime = new PortalRuntimeSystem(arena);
+    const transfer = runtime.checkPortal(a.clone(), 1, 'test-player');
+    assert.equal(transfer.ok, true);
+    assert.deepEqual(transfer.target.toArray(), b.toArray());
 });
 
 test('the opening view reaches the plant and traversal stays on persistent site geometry', () => {
@@ -205,6 +255,43 @@ test('a scene stands exactly where the intact part it replaces stands', () => {
         assert.ok(Math.abs(scene.position[1] - (REACTOR_SITE_GROUND + baseMetres * REACTOR_SITE_METRE)) < 1e-6,
             `${sceneId} sits at the underside the generator reported`);
     }
+});
+
+test('the permanent fuel core applies a strong collapse emissive and restores on round reset', () => {
+    const controller = new MapDestructibleGlowController();
+    const map = MAP.mapDestructibleGlow;
+    const base = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x102030, emissiveIntensity: 0.6 });
+    const rods = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), base);
+    rods.name = 'reactor_fuel_rods';
+    const unrelated = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), base);
+    unrelated.name = 'reactor_wall_concrete';
+    const slot = new THREE.Group();
+    slot.name = 'glb-slot-reactor-site';
+    slot.add(rods, unrelated);
+    const scene = new THREE.Group();
+    scene.add(slot);
+    const intact = { segments: [{ id: 'reactor_dome', destroyed: false }] };
+    const collapsed = { segments: [{ id: 'reactor_dome', destroyed: true }] };
+
+    assert.equal(controller.update(scene, map, intact), true, 'late-loaded assets start with their intact material');
+    assert.equal(base.emissiveIntensity, 0.6);
+    assert.notEqual(rods.material, base, 'the targeted core gets a private material');
+    assert.equal(unrelated.material, base, 'the unrelated mesh keeps the shared GLB material');
+    assert.equal(controller.update(scene, map, collapsed), true);
+    assert.equal(rods.material.emissiveIntensity, 8);
+    assert.equal(rods.material.emissive.getHex(), 0xff5a1e);
+    assert.equal(unrelated.material.emissiveIntensity, 0.6, 'a mesh sharing the source material stays unlit');
+    assert.equal(unrelated.material.emissive.getHex(), 0x102030);
+    assert.equal(controller.update(scene, map, collapsed), false, 'unchanged burn ticks do no material traversal');
+    assert.equal(controller.update(scene, map, intact), true, 'round reset restores the asset emissive');
+    assert.equal(rods.material.emissiveIntensity, 0.6);
+    assert.equal(rods.material.emissive.getHex(), 0x102030);
+    assert.equal(base.emissiveIntensity, 0.6);
+    assert.equal(base.emissive.getHex(), 0x102030);
+    rods.geometry.dispose();
+    unrelated.geometry.dispose();
+    rods.material.dispose();
+    base.dispose();
 });
 
 test('a scene animates exactly the pieces its GLB carries and hides exactly its own part', () => {
@@ -302,10 +389,12 @@ test('the field is wide enough for the wreck and the fallback ground covers it',
     assert.ok(sizeZ / 2 >= REACTOR_WRECK_REACH + WRECK_MARGIN);
     // The cloud climbs past the ceiling on purpose; the standing plant does not.
     assert.ok(REACTOR_SITE_GROUND + 100 * REACTOR_SITE_METRE < sizeY);
-    const [ground] = MAP.obstacles;
-    assert.equal(ground.kind, 'foam');
-    assert.equal(ground.compileWithGlb, true);
-    assert.ok(ground.size[0] >= sizeX && ground.size[2] >= sizeZ, 'the fallback ground spans the field');
+    assert.ok(REACTOR_SITE_GROUND_TILES.length > 1);
+    assert.ok(REACTOR_SITE_GROUND_TILES.every((ground) => ground.kind === 'foam' && ground.compileWithGlb === true));
+    assert.equal(Math.min(...REACTOR_SITE_GROUND_TILES.map((tile) => tile.pos[0] - tile.size[0] / 2)), -sizeX / 2);
+    assert.equal(Math.max(...REACTOR_SITE_GROUND_TILES.map((tile) => tile.pos[0] + tile.size[0] / 2)), sizeX / 2);
+    assert.equal(Math.min(...REACTOR_SITE_GROUND_TILES.map((tile) => tile.pos[2] - tile.size[2] / 2)), -sizeZ / 2);
+    assert.equal(Math.max(...REACTOR_SITE_GROUND_TILES.map((tile) => tile.pos[2] + tile.size[2] / 2)), sizeZ / 2);
     // Nothing authored above the apron is drawn beside the GLBs, so nothing can be left hanging
     // where a structure was. The one exception is the secret room below the site: no GLB draws it,
     // and no collapse can reach under the ground to leave it hanging.
@@ -339,4 +428,56 @@ test('the destructible block survives normalization without losing anything', ()
         assert.notEqual(segment.label, segment.id, `${segment.id} has a readable label`);
         assert.ok(def.pieces.includes(segment.piece), `${segment.id} belongs to a listed piece`);
     }
+});
+
+test('the reactor room has exactly one host-owned bomber and lightning pickup that vanish with containment', () => {
+    const [bomber, lightning] = MAP.mapOwnedPickups;
+    assert.equal(MAP.mapOwnedPickups.length, 2);
+    assert.deepEqual([bomber.id, lightning.id], ['rs_bomber_strike_core', 'rs_lightning_core']);
+    assert.deepEqual([bomber.pickupType, lightning.pickupType], ['BOMBER_STRIKE', 'LIGHTNING']);
+    assert.ok(MAP.mapOwnedPickups.every((entry) => entry.despawnOnBreakSegment === 'reactor_dome'));
+    assert.ok(MAP.mapOwnedPickups.every((entry) => entry.x === 0 && Math.abs(entry.z) >= 8));
+
+    const spawned = [];
+    const removed = [];
+    const owner = {
+        arena: { currentMapDefinition: MAP },
+        powerupManager: {
+            spawnAtAnchor(anchor) {
+                const item = { ownerId: anchor.ownerId, type: anchor.type, anchor };
+                spawned.push(item);
+                return item;
+            },
+            removeByOwnerId(ownerId) { removed.push(ownerId); },
+        },
+        _mapDestructibleSystem: { getState: () => ({ events: [] }) },
+    };
+    const system = new MapOwnedPickupSystem(owner);
+    assert.equal(system.startRound(), 2);
+    assert.deepEqual(spawned.map((entry) => entry.type), ['BOMBER_STRIKE', 'LIGHTNING']);
+    assert.deepEqual(spawned.map((entry) => entry.anchor.ownerId), [
+        'map-owned:rs_bomber_strike_core', 'map-owned:rs_lightning_core',
+    ]);
+    assert.equal(spawned[0].anchor.x, 0);
+    assert.equal(spawned[1].anchor.x, 0);
+    assert.ok(Math.abs(spawned[0].anchor.z + 25.2) < 1e-9);
+    assert.ok(Math.abs(spawned[1].anchor.z - 25.2) < 1e-9);
+
+    owner._mapDestructibleSystem.getState = () => ({ events: [{ segmentId: 'cooling_tower_w' }] });
+    system.update();
+    assert.deepEqual(removed, []);
+    owner._mapDestructibleSystem.getState = () => ({ events: [{ segmentId: 'reactor_dome' }] });
+    system.update();
+    system.update();
+    assert.deepEqual(removed, ['map-owned:rs_bomber_strike_core', 'map-owned:rs_lightning_core']);
+    assert.deepEqual(spawned.length, 2, 'the map-owned pickup system never respawns an item after collapse');
+
+    owner._mapDestructibleSystem.getState = () => ({ events: [] });
+    assert.equal(system.startRound(), 2, 'round reset reinitializes the two fixed pickups');
+    assert.equal(spawned.length, 4);
+    assert.deepEqual(removed.slice(-2), ['map-owned:rs_bomber_strike_core', 'map-owned:rs_lightning_core']);
+    const replicaSystem = new MapOwnedPickupSystem(owner);
+    replicaSystem.setNetworkReplica(true);
+    replicaSystem.startRound();
+    assert.equal(spawned.length, 4, 'replicas leave spawning and lifetime removal to the host snapshot');
 });
