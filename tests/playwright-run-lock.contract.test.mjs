@@ -174,6 +174,37 @@ test('playwright lock: a run that waited long writes a fresh heartbeat when it t
     }
 });
 
+// 29.09.2026 05:18: a wrapper with the old code (before 71f6b4b6) still wrote its wait start as
+// heartbeat when it took the lock; a waiter with the new code removed it as stale at once. The
+// file itself was written a moment ago, and every holder rewrites it with each beat, so its
+// modification time is a liveness sign that old wrappers give as well.
+test('playwright lock: a freshly written lock with an old heartbeat stamp is not taken as stale', async () => {
+    const lockPath = createLockPath('old-stamp-fresh-file');
+    const env = {};
+    try {
+        const waitStart = new Date(Date.now() - 35 * 60 * 1000).toISOString();
+        fs.writeFileSync(lockPath, JSON.stringify({ pid: 5050, label: 'old wrapper after a long wait', startedAt: waitStart, heartbeat: waitStart }));
+        let clock = Date.now();
+        const error = await acquirePlaywrightRunLock({
+            label: 'new waiter at the head of the queue',
+            env,
+            lockPath,
+            waitMs: 20,
+            pollMs: 10,
+            now: () => clock,
+            sleep: async (ms) => { clock += ms; },
+            isAlive: () => true,
+            log: quietLog,
+        }).then(() => null, (rejection) => rejection);
+
+        assert.ok(error, 'the waiter must keep waiting instead of taking the lock');
+        assert.equal(error.exitCode, 75);
+        assert.equal(readPlaywrightRunLock(lockPath).pid, 5050, 'the old wrapper keeps its lock');
+    } finally {
+        cleanup(lockPath);
+    }
+});
+
 test('playwright lock: a holder whose lock was taken over says so instead of running on silently', async () => {
     const lockPath = createLockPath('lost-lock');
     const env = {};
@@ -328,6 +359,9 @@ test('playwright lock: a stale heartbeat frees the lock even while the pid lives
             startedAt: '2026-09-15T10:00:00.000Z',
             heartbeat: '2026-09-15T11:45:00.000Z',
         }));
+        // A hung holder stops rewriting the file too; its last write is its last beat.
+        const lastBeat = new Date('2026-09-15T11:45:00.000Z');
+        fs.utimesSync(lockPath, lastBeat, lastBeat);
         const lock = await acquirePlaywrightRunLock({
             label: 'fresh run',
             env,

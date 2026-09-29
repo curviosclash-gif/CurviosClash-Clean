@@ -206,13 +206,26 @@ function tryCreateLock(lockPath, payload) {
  * A lock is dead when its process is gone, or when it carries a heartbeat that stopped more
  * than ten minutes ago. Locks written by an older wrapper have no heartbeat at all; those are
  * judged by their pid alone so a running neighbour is never stolen from.
+ *
+ * `lastWriteMs` is the lock file's modification time. Every holder rewrites the file when it takes
+ * the lock and with each beat, old wrappers included, so a recent write counts as a sign of life
+ * even when the stamp inside is old: wrappers before 71f6b4b6 wrote their wait start as heartbeat.
  */
-export function isPlaywrightRunLockStale(holder, nowMs, { isAlive = isProcessAlive, staleMs = PLAYWRIGHT_RUN_LOCK_HEARTBEAT_STALE_MS } = {}) {
+export function isPlaywrightRunLockStale(holder, nowMs, { isAlive = isProcessAlive, staleMs = PLAYWRIGHT_RUN_LOCK_HEARTBEAT_STALE_MS, lastWriteMs = NaN } = {}) {
     if (!holder) return true;
     if (!isAlive(holder.pid)) return true;
     const beatAt = Date.parse(String(holder.heartbeat || ''));
     if (!Number.isFinite(beatAt)) return false;
-    return nowMs - beatAt > staleMs;
+    const lastSignOfLife = Number.isFinite(lastWriteMs) ? Math.max(beatAt, lastWriteMs) : beatAt;
+    return nowMs - lastSignOfLife > staleMs;
+}
+
+function readLockWriteTime(lockPath) {
+    try {
+        return fs.statSync(lockPath).mtimeMs;
+    } catch {
+        return NaN;
+    }
 }
 
 /**
@@ -230,7 +243,7 @@ export function isUnreadableLockStale(lockPath, nowMs, { staleMs = PLAYWRIGHT_RU
 
 function removeStaleLock(lockPath, holder, nowMs, isAlive) {
     const stale = holder
-        ? isPlaywrightRunLockStale(holder, nowMs, { isAlive })
+        ? isPlaywrightRunLockStale(holder, nowMs, { isAlive, lastWriteMs: readLockWriteTime(lockPath) })
         : isUnreadableLockStale(lockPath, nowMs);
     if (!stale) return false;
     removeFileQuietly(lockPath);
