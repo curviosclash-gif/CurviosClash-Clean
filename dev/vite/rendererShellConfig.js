@@ -25,10 +25,8 @@ function resolveRendererAppTarget(env = process.env) {
 
 function resolveRendererInputFiles(env = process.env) {
     const appTarget = resolveRendererAppTarget(env);
-    if (appTarget === RENDERER_APP_TARGETS.MOBILE_CLASSIC) {
-        return { app: RENDERER_INPUT_FILES.app };
-    }
-    if (appTarget === RENDERER_APP_TARGETS.GAME) {
+    // The Android app ships the same pages as the desktop game export.
+    if (appTarget === RENDERER_APP_TARGETS.MOBILE_CLASSIC || appTarget === RENDERER_APP_TARGETS.GAME) {
         return {
             app: RENDERER_INPUT_FILES.app,
             hangar: RENDERER_INPUT_FILES.hangar,

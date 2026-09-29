@@ -443,7 +443,7 @@ test('LAN rejoin cannot exceed the lobby player limit', async () => {
     }
 });
 
-test('LAN signaling gates mobile Ready and Start on the crossplay compatibility contract', async () => {
+test('LAN signaling lets current mobile clients play every mode and map but keeps protocol and consistency gates', async () => {
     const lanServer = await startLanServer();
     try {
         const created = await postJson(lanServer.baseUrl, '/lobby/create', {
@@ -495,14 +495,13 @@ test('LAN signaling gates mobile Ready and Start on the crossplay compatibility 
             hostToken: created.payload.hostToken,
             metadata: {
                 mapKey: 'city',
-                gameMode: 'CLASSIC',
-                modePath: 'normal',
+                gameMode: 'HUNT',
+                modePath: 'fight',
                 protocolVersion: MULTIPLAYER_PROTOCOL_VERSION,
             },
         });
-        const incompatibleReady = await postJson(lanServer.baseUrl, '/lobby/ready', readyBody);
-        assert.equal(incompatibleReady.status, 409);
-        assert.equal(incompatibleReady.payload.message, 'mobile_map_incompatible');
+        const fightReady = await postJson(lanServer.baseUrl, '/lobby/ready', readyBody);
+        assert.equal(fightReady.ok, true, 'the Android app ships Fight mode and every map');
 
         await postJson(lanServer.baseUrl, '/lobby/metadata', {
             hostPeerId: 'host',
@@ -516,21 +515,20 @@ test('LAN signaling gates mobile Ready and Start on the crossplay compatibility 
         });
         assert.equal((await postJson(lanServer.baseUrl, '/lobby/ready', readyBody)).ok, true);
 
-        const incompatibleStart = await postJson(lanServer.baseUrl, '/lobby/match-start', {
+        const notLanStart = await postJson(lanServer.baseUrl, '/lobby/match-start', {
             hostPeerId: 'host',
             hostToken: created.payload.hostToken,
             settingsSnapshot: {
                 gameMode: 'CLASSIC',
-                mapKey: 'city',
+                mapKey: 'maze',
                 localSettings: {
-                    sessionType: 'multiplayer',
-                    multiplayerTransport: 'lan',
+                    sessionType: 'single',
                     modePath: 'normal',
                 },
             },
         });
-        assert.equal(incompatibleStart.status, 409);
-        assert.equal(incompatibleStart.payload.message, 'mobile_map_incompatible');
+        assert.equal(notLanStart.status, 409);
+        assert.equal(notLanStart.payload.message, 'mobile_mode_incompatible');
 
         const staleReadyStart = await postJson(lanServer.baseUrl, '/lobby/match-start', {
             hostPeerId: 'host',

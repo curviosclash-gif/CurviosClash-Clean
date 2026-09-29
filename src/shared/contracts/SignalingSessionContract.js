@@ -6,7 +6,6 @@ export { MULTIPLAYER_SESSION_ROLES } from './RuntimeSessionContract.js';
 export const SIGNALING_SESSION_CONTRACT_VERSION = 'signaling-session.v1';
 export const MULTIPLAYER_PROTOCOL_VERSION = 'curvios-multiplayer.v1';
 export const MOBILE_LAN_PARTICIPANT_SURFACE_ID = 'mobile-app';
-export const MOBILE_LAN_CROSSPLAY_MAP_KEYS = Object.freeze(['standard', 'maze']);
 
 export const SIGNALING_COMMAND_TYPES = Object.freeze({
     LIST_LOBBIES: 'list_lobbies',
@@ -96,16 +95,11 @@ export function validateMobileLanParticipantMetadata(value = null) {
     return createMobileLanCompatibilityResult();
 }
 
+// The Android app bundles every mode and map, so crossplay only needs a matching protocol.
 export function validateMobileLanLobbyMetadata(value = null) {
     const metadata = normalizePublicLobbyMetadata(value);
     if (metadata.protocolVersion !== MULTIPLAYER_PROTOCOL_VERSION) {
         return createMobileLanCompatibilityResult('mobile_protocol_incompatible');
-    }
-    if (metadata.modePath.toLowerCase() !== 'normal' || metadata.gameMode.toUpperCase() !== 'CLASSIC') {
-        return createMobileLanCompatibilityResult('mobile_mode_incompatible');
-    }
-    if (!MOBILE_LAN_CROSSPLAY_MAP_KEYS.includes(metadata.mapKey)) {
-        return createMobileLanCompatibilityResult('mobile_map_incompatible');
     }
     return createMobileLanCompatibilityResult();
 }
@@ -116,13 +110,8 @@ export function validateMobileLanMatchSettingsSnapshot(value = null) {
         ? snapshot.localSettings
         : {};
     if (String(localSettings.sessionType || '').trim().toLowerCase() !== 'multiplayer'
-        || String(localSettings.multiplayerTransport || '').trim().toLowerCase() !== 'lan'
-        || String(localSettings.modePath || '').trim().toLowerCase() !== 'normal'
-        || String(snapshot.gameMode || '').trim().toUpperCase() !== 'CLASSIC') {
+        || String(localSettings.multiplayerTransport || '').trim().toLowerCase() !== 'lan') {
         return createMobileLanCompatibilityResult('mobile_mode_incompatible');
-    }
-    if (!MOBILE_LAN_CROSSPLAY_MAP_KEYS.includes(String(snapshot.mapKey || '').trim())) {
-        return createMobileLanCompatibilityResult('mobile_map_incompatible');
     }
     return createMobileLanCompatibilityResult();
 }

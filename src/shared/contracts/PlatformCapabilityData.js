@@ -178,33 +178,47 @@ export const PLATFORM_CAPABILITY_REGISTRY = Object.freeze({
             runtimeKind: PLATFORM_RUNTIME_KINDS.WEB,
             defaultLobbyTransport: MULTIPLAYER_TRANSPORTS.LAN,
             toolingSurfaceId: PLATFORM_PRODUCT_SURFACE_IDS.MOBILE_APP,
+            // Android mirrors the desktop game except splitscreen. LAN hosting and
+            // discovery need the Electron LAN server, so the phone hosts online only.
             surfacePolicy: Object.freeze({
                 defaultAccessMode: PLATFORM_SURFACE_POLICY_MODES.DEFAULT_DENY,
-                multiplayerRole: PLATFORM_SURFACE_MULTIPLAYER_ROLES.JOIN_ONLY,
+                multiplayerRole: PLATFORM_SURFACE_MULTIPLAYER_ROLES.HOST_AND_JOIN,
                 defaultModePath: PLATFORM_SURFACE_MENU_MODE_PATHS.NORMAL,
                 allowedSessionTypes: Object.freeze([
                     PLATFORM_SURFACE_SESSION_TYPES.SINGLE,
                     PLATFORM_SURFACE_SESSION_TYPES.MULTIPLAYER,
                 ]),
                 defaultMultiplayerTransport: MULTIPLAYER_TRANSPORTS.LAN,
-                allowedMultiplayerTransports: Object.freeze([MULTIPLAYER_TRANSPORTS.LAN]),
-                hostMultiplayerTransports: Object.freeze([]),
-                joinMultiplayerTransports: Object.freeze([MULTIPLAYER_TRANSPORTS.LAN]),
+                allowedMultiplayerTransports: Object.freeze([MULTIPLAYER_TRANSPORTS.LAN, MULTIPLAYER_TRANSPORTS.ONLINE]),
+                hostMultiplayerTransports: Object.freeze([MULTIPLAYER_TRANSPORTS.ONLINE]),
+                joinMultiplayerTransports: Object.freeze([MULTIPLAYER_TRANSPORTS.LAN, MULTIPLAYER_TRANSPORTS.ONLINE]),
                 legacyMultiplayerTransports: Object.freeze([]),
-                allowedGameModes: Object.freeze(['Arcade', 'Normal', 'Classic']),
+                allowedGameModes: Object.freeze([
+                    'Arcade',
+                    'Parcours',
+                    'Fight',
+                    'Normal',
+                    'Classic',
+                ]),
                 allowedModePaths: Object.freeze([
+                    PLATFORM_SURFACE_MENU_MODE_PATHS.QUICK_ACTION,
                     PLATFORM_SURFACE_MENU_MODE_PATHS.ARCADE,
+                    PLATFORM_SURFACE_MENU_MODE_PATHS.FIGHT,
                     PLATFORM_SURFACE_MENU_MODE_PATHS.NORMAL,
                 ]),
-                allowedQuickStartActionIds: Object.freeze([]),
+                allowedQuickStartActionIds: Object.freeze([
+                    PLATFORM_SURFACE_QUICK_START_ACTION_IDS.LAST_SETTINGS,
+                    PLATFORM_SURFACE_QUICK_START_ACTION_IDS.EVENT_PLAYLIST,
+                    PLATFORM_SURFACE_QUICK_START_ACTION_IDS.RANDOM_MAP,
+                ]),
                 allowedPresetIds: Object.freeze([]),
                 curatedMapKeysByModePath: Object.freeze({}),
                 requiresCuratedMaps: false,
                 developerAccess: Object.freeze({
-                    available: false,
-                    accessMode: PLATFORM_SURFACE_DEVELOPER_ACCESS_MODES.BLOCKED,
-                    reason: PLATFORM_SURFACE_DEVELOPER_ACCESS_REASONS.UNAVAILABLE,
-                    message: 'Developer- und Desktop-Werkzeuge sind in der Android-App nicht verfügbar.',
+                    available: true,
+                    accessMode: PLATFORM_SURFACE_DEVELOPER_ACCESS_MODES.LOCAL_UNLOCK,
+                    reason: PLATFORM_SURFACE_DEVELOPER_ACCESS_REASONS.LOCAL_DEVTOOLS,
+                    message: 'Experten- und Debug-Schalter bleiben lokale Diagnosepfade; Entwickler-Werkzeuge gibt es nur auf dem Desktop.',
                 }),
             }),
             capabilities: Object.freeze({
@@ -213,15 +227,17 @@ export const PLATFORM_CAPABILITY_REGISTRY = Object.freeze({
                     unavailable: PLATFORM_PROVIDER_KINDS.UNAVAILABLE,
                 }),
                 [PLATFORM_CAPABILITY_IDS.HOST]: Object.freeze({
-                    enabled: false,
+                    enabled: true,
+                    available: PLATFORM_PROVIDER_KINDS.MENU_ONLINE_LOBBY,
                     unavailable: PLATFORM_PROVIDER_KINDS.UNAVAILABLE,
                 }),
+                // Files leave the app through the Android share sheet (BrowserFileExport).
                 [PLATFORM_CAPABILITY_IDS.SAVE]: Object.freeze({
-                    enabled: false,
+                    available: PLATFORM_PROVIDER_KINDS.BROWSER_DOWNLOAD,
                     unavailable: PLATFORM_PROVIDER_KINDS.UNAVAILABLE,
                 }),
                 [PLATFORM_CAPABILITY_IDS.RECORDING]: Object.freeze({
-                    enabled: false,
+                    available: PLATFORM_PROVIDER_KINDS.BROWSER_NATIVE,
                     unavailable: PLATFORM_PROVIDER_KINDS.UNAVAILABLE,
                 }),
             }),

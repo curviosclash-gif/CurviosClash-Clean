@@ -55,7 +55,7 @@ test('Unified Android target builds one mobile shell for Classic and Arcade-Parc
   });
 
   assert.equal(config.outDir, 'dist/mobile-classic');
-  assert.deepEqual(Object.keys(config.rollupOptions.input), ['app']);
+  assert.deepEqual(Object.keys(config.rollupOptions.input), ['app', 'hangar']);
   assert.match(config.rollupOptions.input.app, /index\.html$/);
 
   const defines = createRendererBuildDefines({
@@ -71,7 +71,7 @@ test('Unified Android target builds one mobile shell for Classic and Arcade-Parc
   assert.equal(defines.__APP_TARGET__, '"mobile-classic"');
 });
 
-test('Unified Mobile Android settings preserve Arcade-Parcours with curated routes', () => {
+test('Unified Mobile Android settings keep every Arcade route, ghost option and match rule', () => {
   const settings = {
     mode: '2p',
     gameMode: 'HUNT',
@@ -102,34 +102,32 @@ test('Unified Mobile Android settings preserve Arcade-Parcours with curated rout
 
   applyMobileClassicSettings(settings);
 
-  assert.equal(settings.mode, '1p');
-  assert.equal(settings.gameMode, 'CLASSIC');
-  assert.equal(settings.localSettings.sessionType, 'single');
+  // A multiplayer snapshot keeps the host's layout and rules untouched.
+  assert.equal(settings.mode, '2p');
+  assert.equal(settings.gameMode, 'HUNT');
+  assert.equal(settings.localSettings.sessionType, 'multiplayer');
   assert.equal(settings.localSettings.modePath, 'arcade');
-  assert.equal(settings.mapKey, 'micro_maw');
+  assert.equal(settings.mapKey, 'storm_switchyard');
   assert.equal(settings.localSettings.startSetup.modeSelections.arcade.mapKey, 'micro_maw');
-  assert.equal(
-    settings.localSettings.startSetup.arcadeGhostDuelMode,
-    ARCADE_GHOST_DUEL_MODES.SELF_LONGEST_GHOST,
-  );
-  assert.equal(settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled, false);
+  assert.equal(settings.localSettings.startSetup.arcadeGhostDuelMode, 'bad');
+  assert.equal(settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled, true);
   assert.equal(settings.localSettings.mobileControls.tiltSensitivity, 1.8);
-  assert.equal(settings.gameplay.planarMode, false);
-  assert.equal(settings.hunt.respawnEnabled, false);
+  assert.equal(settings.gameplay.planarMode, true);
+  assert.equal(settings.hunt.respawnEnabled, true);
 
-  const fallbackSettings = {
+  const soloSettings = {
+    mode: '2p',
     mapKey: 'storm_switchyard',
     localSettings: {
+      sessionType: 'single',
       modePath: 'arcade',
-      startSetup: {},
+      startSetup: { arcadeGhostDuelMode: ARCADE_GHOST_DUEL_MODES.SELF_LONGEST_GHOST },
     },
   };
-  applyMobileClassicSettings(fallbackSettings);
-  assert.equal(fallbackSettings.mapKey, MOBILE_ARCADE_DEFAULT_MAP_KEY);
-  assert.equal(
-    fallbackSettings.localSettings.startSetup.arcadeGhostDuelMode,
-    ARCADE_GHOST_DUEL_MODES.SELF_LONGEST_GHOST,
-  );
+  applyMobileClassicSettings(soloSettings);
+  assert.equal(soloSettings.mode, '1p');
+  assert.equal(soloSettings.mapKey, 'storm_switchyard');
+  assert.equal(isMobileArcadeRouteAllowed('storm_switchyard'), false, 'the separate mobile-arcade target keeps its own allowlist');
 });
 
 test('Mobile Arcade route allowlist preserves MVP routes and existing route keyspace', () => {
@@ -158,7 +156,7 @@ test('Unified Mobile Android shell carries Arcade HUD, Ghost, and pause affordan
   const mobileClassicSurface = `${mobileClassicApp}\n${mobileClassicStyles}\n${mobileClassicMenuUi}`;
   const hudRuntimeSystem = await readText('src/ui/HudRuntimeSystem.js');
 
-  assert.match(mobileClassicApp, /modePath === MENU_MODE_PATHS\.ARCADE/);
+  assert.doesNotMatch(mobileClassicApp, /MOBILE_ARCADE_DEFAULT_MAP_KEY|resolveMobileArcadeMapKey/);
   assert.match(mobileClassicSurface, /touch-button-pause/);
   assert.doesNotMatch(mobileClassicMenuUi, /mobile-android-entry-panel/);
   assert.doesNotMatch(mobileClassicMenuUi, /mobileModeEntry|Spielstil wählen|Start vorbereiten/);
@@ -168,8 +166,8 @@ test('Unified Mobile Android shell carries Arcade HUD, Ghost, and pause affordan
   assert.match(sharedMenuHtml, />Klassisch</);
   assert.match(mobileClassicSurface, /#parcours-hud/);
   assert.match(mobileClassicSurface, /#parcours-minimap/);
-  assert.match(mobileClassicSurface, /mobile-arcade-ghost-status/);
-  assert.match(mobileClassicMenuUi, /Ghost: Selbstduell/);
+  // The ghost duel is selectable on Android, so no fixed "Selbstduell" label is pinned over the match.
+  assert.doesNotMatch(mobileClassicSurface, /mobile-arcade-ghost-status|Ghost: Selbstduell/);
   assert.match(hudRuntimeSystem, /_updateParcoursHud[\s\S]*tickMinimap/);
 });
 
@@ -252,9 +250,8 @@ test('Arcade Android scripts are folded into the unified Android app path', asyn
   assert.equal(await pathExists('scripts/capacitor-mobile-arcade.mjs'), false);
   assert.equal(await pathExists('tools/mobile-arcade-app/capacitor.config.json'), false);
 
-  assert.match(buildScript, /curvios\.mobile-android-app\.v1/);
-  assert.match(buildScript, /listMobileArcadeRouteAllowlist/);
-  assert.match(buildScript, /MOBILE_ARCADE_DEFAULT_MAP_KEY/);
+  assert.match(buildScript, /curvios\.mobile-android-app\.v2/);
+  assert.doesNotMatch(buildScript, /listMobileArcadeRouteAllowlist|MOBILE_ARCADE_DEFAULT_MAP_KEY/);
   assert.match(capacitorScript, /dist', 'mobile-classic'/);
   assert.match(capacitorScript, /de\.curviosclash\.classic/);
   assert.doesNotMatch(capacitorScript, /CURVIOS_ANDROID_TARGET|de\.curviosclash\.arcade/);
@@ -263,6 +260,6 @@ test('Arcade Android scripts are folded into the unified Android app path', asyn
   assert.doesNotMatch(gradleFile, /mobileAndroidIsArcade|de\.curviosclash\.arcade/);
   assert.match(manifest, /android:label="\$\{appName\}"/);
   assert.match(manifest, /de\.curviosclash\.classic\.MainActivity/);
-  assert.match(readme, /Classic and\s+Arcade-Parcours ship together/);
+  assert.match(readme, /every desktop game feature except\s+splitscreen/);
 });
 
