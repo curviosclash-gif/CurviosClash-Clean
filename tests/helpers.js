@@ -848,6 +848,7 @@ export async function startHuntGameWithBots(page, botCount = 1, options = {}) {
     await trySelectModePath(page, 'fight');
     await ensureModePathSelected(page, 'fight', options);
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+    if (options.mapKey) await page.selectOption('#map-select', options.mapKey);
     await page.evaluate((count) => {
         const slider = document.getElementById('bot-count');
         slider.value = String(count);
