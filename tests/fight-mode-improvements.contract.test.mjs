@@ -297,7 +297,7 @@ test('Fight scoring exposes K/T/A and runtime projection keeps deathmatch state'
     assert.equal(projection.hunt.respawnRemainingByPlayer[0], 2.4);
 });
 
-test('Fight host state synchronizes scores and one authoritative outcome to a client', () => {
+test('Fight host state synchronizes scores; the round outcome travels outside it', () => {
     const hostPlayers = [player(0), player(1, { isBot: true })];
     const hostScoring = new HuntScoring();
     hostScoring.registerElimination(hostPlayers[1], { killer: hostPlayers[0], spawnAgeSeconds: 3 });
@@ -321,9 +321,10 @@ test('Fight host state synchronizes scores and one authoritative outcome to a cl
     applyHuntNetworkState(client, state);
     assert.equal(client._huntScoring.getScoreboard(clientPlayers)[0].kills, 1);
     assert.equal(client._authoritativeHuntState.killLimit, 5);
-    assert.equal(emitted.length, 1);
-    assert.equal(emitted[0].winner, clientPlayers[0]);
-    assert.equal(emitted[0].outcome.reason, 'KILL_LIMIT');
+    // The round end reaches every mode through snapshot.roundOutcome (see
+    // network-client-round-end); the fight state must not end the round a second time.
+    assert.equal('outcome' in state, false);
+    assert.equal(emitted.length, 0);
 });
 
 function element() {
