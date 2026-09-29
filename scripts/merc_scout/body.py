@@ -80,8 +80,8 @@ def skeleton_nodes(finger_segments: int = 3) -> list[Node]:
     # *resulting* surface, otherwise the torso corners poke through the cloth.
     add("hips", joints["hips"], (0.148, 0.108), None)
     add("spine", joints["spine"], (0.128, 0.098), "hips")
-    add("chest", joints["chest"], (0.145, 0.108), "spine")
-    add("upper_chest", joints["upper_chest"], (0.150, 0.102), "chest")
+    add("chest", joints["chest"], (0.152, 0.110), "spine")
+    add("upper_chest", joints["upper_chest"], (0.140, 0.100), "chest")
     add("neck", joints["neck"], (0.066, 0.062), "upper_chest")
     add("head_stub", (0.0, -0.010, 1.552), (0.064, 0.066), "neck")
 
@@ -90,16 +90,18 @@ def skeleton_nodes(finger_segments: int = 3) -> list[Node]:
         upper_arm = spec.mirror_x(joints["upper_arm"], side)
         elbow = spec.mirror_x(joints["lower_arm"], side)
         wrist = spec.mirror_x(joints["hand"], side)
-        add("shoulder" + suffix, shoulder, (0.032, 0.031), "upper_chest")
+        add("shoulder" + suffix, shoulder, (0.028, 0.027), "upper_chest")
         add("upper_arm" + suffix, upper_arm, (0.039, 0.038), "shoulder" + suffix)
         add("bicep" + suffix, spec.lerp(upper_arm, elbow, 0.45), (0.041, 0.039), "upper_arm" + suffix)
         add("elbow" + suffix, elbow, (0.038, 0.036), "bicep" + suffix)
         add("forearm" + suffix, spec.lerp(elbow, wrist, 0.45), (0.035, 0.033), "elbow" + suffix)
-        add("wrist" + suffix, wrist, (0.032, 0.027), "forearm" + suffix)
+        add("wrist" + suffix, wrist, (0.031, 0.019), "forearm" + suffix)
 
+        # Palm and knuckles were 10 cm wide and 6 cm thick, which is what made the
+        # hands read as paws. An adult hand is about 8.8 cm across and 3 cm thick.
         hand = spec.hand_points(side)
-        add("palm" + suffix, spec.lerp(hand["wrist"], hand["knuckle"], 0.5), (0.050, 0.031), "wrist" + suffix)
-        add("knuckle" + suffix, hand["knuckle"], (0.047, 0.029), "palm" + suffix)
+        add("palm" + suffix, spec.lerp(hand["wrist"], hand["knuckle"], 0.5), (0.044, 0.016), "wrist" + suffix)
+        add("knuckle" + suffix, hand["knuckle"], (0.042, 0.014), "palm" + suffix)
         for finger, chain in hand["chains"].items():
             parent = "knuckle" + suffix
             landmarks = chain[1:] if finger_segments == 3 else chain[2:]

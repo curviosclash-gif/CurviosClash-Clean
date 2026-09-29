@@ -101,6 +101,7 @@ def build_character(variant_key: str, *, do_actions: bool = True) -> dict:
     report["measurements"] = body.measure(meshes)
     report["audit"] = audit.proportion_audit(meshes, rig, profile=report["profile_body"],
                                             normalisation=report["normalisation"])
+    report["exposure"] = audit.skin_exposure(meshes)
     report["weights"] = {obj.name: rigging.weight_report(obj) for obj in meshes}
     report["deformation"] = rigging.deformation_report(rig, meshes,
                                                        rigging.extreme_poses(variant.finger_segments))
@@ -216,6 +217,11 @@ def run(variant_key: str, *, preview_dir: Path | None = None, blend_path: Path |
                 stale.unlink()
         report["textures"] = painting.paint_and_wire(variant, result["materials"],
                                                      texture_dir=texture_dir)
+        report["unpainted_slots"] = audit.unpainted_slots(meshes, result["materials"])
+        if report["unpainted_slots"]:
+            report["warnings"] = report.get("warnings", []) + [
+                f"unpainted atlas slots: {report['unpainted_slots']}"
+            ]
     if do_painting and do_occlusion:
         # Ambient occlusion goes into the same maps the buyer receives, so the
         # contact shadows survive outside this renderer.
