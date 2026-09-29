@@ -4,6 +4,7 @@ import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js'
 export const BLENDER_ASSET_GENERATORS = Object.freeze({
     chrono_forge: 'generate_chrono_forge_blender_assets.py',
     kinetic_tide: 'generate_kinetic_tide_assets.py',
+    neon_carnival: 'generate_neon_carnival_assets.py',
     verdant_aperture: 'generate_verdant_aperture_assets.py',
     aetherion_orrery: 'generate_aetherion_orrery_assets.py',
     notre_dame: 'generate_notre_dame_assets.py',

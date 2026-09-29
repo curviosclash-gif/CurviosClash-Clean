@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 GENERATORS = {
     'chrono_forge': 'generate_chrono_forge_blender_assets',
     'kinetic_tide': 'generate_kinetic_tide_assets',
+    'neon_carnival': 'generate_neon_carnival_assets',
     'verdant_aperture': 'generate_verdant_aperture_assets',
     'aetherion_orrery': 'generate_aetherion_orrery_assets',
     'notre_dame': 'generate_notre_dame_assets',

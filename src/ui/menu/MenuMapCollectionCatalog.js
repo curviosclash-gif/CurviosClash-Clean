@@ -71,6 +71,7 @@ const COLLECTION_DEFINITIONS = [
             'storm_switchyard',
             'wind_cathedral',
             'chrono_spillway',
+            'neon_carnival',
         ],
     },
     {

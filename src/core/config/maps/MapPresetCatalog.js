@@ -19,6 +19,7 @@ import { MAGMA_MAZE_MAP } from './presets/magma_maze.js';
 import { CHRONO_FORGE_NEXUS_MAP } from './presets/chrono_forge_nexus.js';
 import { ECLIPSE_FOUNDRY_MAP } from './presets/eclipse_foundry.js';
 import { KINETIC_TIDE_MAP } from './presets/kinetic_tide.js';
+import { NEON_CARNIVAL_MAP } from './presets/neon_carnival.js';
 import { VERDANT_APERTURE_MAP } from './presets/verdant_aperture.js';
 import { DANDELION_SKY_MAP } from './presets/dandelion_sky.js';
 import { AETHERION_ORRERY_MAP } from './presets/aetherion_orrery.js';
@@ -57,6 +58,7 @@ export const MAP_PRESET_CATALOG = {
     ...(CHRONO_FORGE_NEXUS_MAP || {}),
     ...(ECLIPSE_FOUNDRY_MAP || {}),
     ...(KINETIC_TIDE_MAP || {}),
+    ...(NEON_CARNIVAL_MAP || {}),
     ...(VERDANT_APERTURE_MAP || {}),
     ...(DANDELION_SKY_MAP || {}),
     ...(AETHERION_ORRERY_MAP || {}),
