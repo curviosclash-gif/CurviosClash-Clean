@@ -534,6 +534,9 @@ test('Arcade sector profiles apply authored squad pressure and request session r
         aggressiveness: 0.85,
         parcoursEnabled: false,
         isBoss: true,
+        scenarioId: null,
+        combatProfile: '',
+        waterZoneTriggerSec: 0,
     });
 
     const appliedProfiles = [];

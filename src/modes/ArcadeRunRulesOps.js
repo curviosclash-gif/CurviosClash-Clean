@@ -1,4 +1,8 @@
-import { normalizeArcadeCombatProfile } from '../shared/contracts/EndlessParcoursContract.js';
+import {
+    ENDLESS_PARCOURS_COMBAT_PROFILE,
+    normalizeArcadeCombatProfile,
+    normalizeArcadeRunType,
+} from '../shared/contracts/EndlessParcoursContract.js';
 import { isArenaWavesRunType, normalizeArenaWavesCombatProfile } from '../shared/contracts/ArenaWavesContract.js';
 import { FIVE_PORTALS_COMBAT_PROFILE, isFivePortalsRunType } from '../shared/contracts/FivePortalsContract.js';
 import { WEAPON_RACE_RESPAWN_DELAY_SECONDS, isWeaponRaceRunType } from '../shared/contracts/WeaponRaceContract.js';
@@ -23,6 +27,8 @@ export function resolveArcadeRunCombatProfile(runType, combatProfile) {
     if (isWeaponRaceRunType(runType)) return 'hunt';
     if (isFivePortalsRunType(runType)) return FIVE_PORTALS_COMBAT_PROFILE;
     if (isArenaWavesRunType(runType)) return normalizeArenaWavesCombatProfile(combatProfile, runType);
+    // A scenario sector of a gauntlet run fights with hunt weapons; its runtime profile sets this.
+    if (normalizeArcadeRunType(runType) === 'gauntlet' && combatProfile === ENDLESS_PARCOURS_COMBAT_PROFILE) return combatProfile;
     return normalizeArcadeCombatProfile(combatProfile, runType);
 }
 

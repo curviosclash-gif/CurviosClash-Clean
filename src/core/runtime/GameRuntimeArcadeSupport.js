@@ -8,13 +8,12 @@ import { isEndlessParcoursConfig } from '../../shared/contracts/EndlessParcoursC
 import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { ArenaWavesRuntime } from '../arcade/ArenaWavesRuntime.js';
 import { getArcadeObjectiveRuntimeState } from '../arcade/ArcadeObjectiveRuntimeOps.js';
-import { resolveObjectiveTargetIndex } from '../../entities/systems/ObjectiveTargetMarkerOps.js';
 import { FIVE_PORTALS_MAPS, isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
 import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
 import { applyArcadeRuntimeCosmetics } from '../arcade/ArcadeRuntimeCosmeticOps.js';
 import { WEAPON_RACE_BOT_COUNT, WEAPON_RACE_MAP_KEY, isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { WeaponRaceRuntime } from '../arcade/WeaponRaceRuntime.js';
-import { buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, lockSelectedMapToFirstSector, requestObjectiveRoundEnd } from './GameRuntimeArcadeSupportOps.js';
+import { buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, lockSelectedMapToFirstSector, requestObjectiveRoundEnd, syncArcadeObjectiveIntoEntities } from './GameRuntimeArcadeSupportOps.js';
 import { resolveArcadePostMatchProgression } from '../arcade/ArcadePostMatchProgression.js';
 
 export class GameRuntimeArcadeSupport {
@@ -306,7 +305,9 @@ export class GameRuntimeArcadeSupport {
         const currentBotCount = Math.max(0, Math.trunc(Number(runtimeConfig?.session?.numBots) || 0));
         const nextMapKey = String(transition.toMap || transition.mapKey || currentMapKey).trim() || currentMapKey;
         const nextBotCount = Math.max(0, Math.trunc(Number(transition.botCount) || 0));
-        const requiresSessionRebuild = currentMapKey !== nextMapKey || currentBotCount !== nextBotCount;
+        // The weapons profile is read once, when the session builds its mode strategy.
+        const requiresSessionRebuild = currentMapKey !== nextMapKey || currentBotCount !== nextBotCount
+            || String(runtimeConfig?.arcade?.combatProfile || '') !== String(transition.combatProfile || '');
         const resolvedTransition = {
             ...transition,
             mapKey: nextMapKey,
@@ -471,12 +472,9 @@ export class GameRuntimeArcadeSupport {
      * arcade state themselves, so core hands over a plain player index here.
      */
     _syncObjectiveTargetMarker(runtimeState = this.getRuntimeState()) {
-        const markerSystem = runtimeState?.entityManager?._objectiveTargetMarkerSystem
-            || this.game?.entityManager?._objectiveTargetMarkerSystem
-            || null;
-        if (!markerSystem) return null;
-        return markerSystem.setTarget(
-            resolveObjectiveTargetIndex(getArcadeObjectiveRuntimeState(this.arcadeRunRuntime))
+        return syncArcadeObjectiveIntoEntities(
+            runtimeState?.entityManager || this.game?.entityManager,
+            getArcadeObjectiveRuntimeState(this.arcadeRunRuntime)
         );
     }
 

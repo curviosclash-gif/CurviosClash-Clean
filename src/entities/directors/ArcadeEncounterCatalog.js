@@ -122,6 +122,7 @@ export const ARCADE_SECTOR_CATALOG = Object.freeze([
 ]);
 
 import { createSeededRandom } from '../../shared/utils/ArcadeUtils.js';
+import { applyArcadeScenarioToSectorEntry, resolveArcadeScenarioForSector } from './ArcadeScenarioCatalog.js';
 
 function pickFromPool(pool, randomFn) {
     if (!Array.isArray(pool) || pool.length === 0) return null;
@@ -184,12 +185,15 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
         mapKey: String(options.mapKey || entry.mapKey || 'standard').trim() || 'standard',
         templateId: String(entry.templateId || 'sector_intro').trim() || 'sector_intro',
         squadId: parcoursEnabled ? null : (squadId || null),
-        botCount: parcoursEnabled ? 0 : (squad?.botCount ?? fallbackBotCount),
+        botCount: parcoursEnabled ? 0 : (Number.isInteger(entry.botCount) ? entry.botCount : (squad?.botCount ?? fallbackBotCount)),
         botDifficulty,
         pressure,
         aggressiveness: parcoursEnabled ? 0 : Math.max(0, Math.min(1, Number(squad?.aggressiveness) || 0)),
         parcoursEnabled,
         isBoss: entry.isBoss === true,
+        scenarioId: String(entry.scenarioId || '').trim() || null,
+        combatProfile: entry.combatProfile === 'hunt' ? 'hunt' : '',
+        waterZoneTriggerSec: Math.max(0, Number(entry.waterZoneTriggerSec) || 0),
     };
 }
 
@@ -207,6 +211,7 @@ export function buildArcadeSectorPlan(options = {}) {
         Math.min(MAX_SECTOR_COUNT, Math.floor(Number(options.sectorCount) || 8))
     );
     const randomFn = createSeededRandom(options.seed);
+    const scenarioRandomFn = createSeededRandom(`${String(options.seed ?? 'arcade-default')}-scenario`);
     const difficultyScale = resolveDifficultyScale(options.difficulty);
     const parcoursTemplate = ARCADE_SECTOR_CATALOG.find((t) => t.id === 'sector_parcours');
     const sequence = [];
@@ -255,7 +260,8 @@ export function buildArcadeSectorPlan(options = {}) {
             ? Math.min(1.0, (ARCADE_SQUAD_PROFILES.elite_lance?.pressure || 0.85) * 1.2 * difficultyScale)
             : pressure;
 
-        sequence.push({
+        const scenario = resolveArcadeScenarioForSector({ sectorNumber, sectorCount, isBoss, isParcours: false }, scenarioRandomFn);
+        sequence.push(applyArcadeScenarioToSectorEntry({
             sectorNumber,
             templateId: template.id,
             squadId: resolvedSquadId,
@@ -267,7 +273,7 @@ export function buildArcadeSectorPlan(options = {}) {
             mapKey,
             isBoss,
             bossMultiplier: isBoss ? 2 : 1,
-        });
+        }, scenario));
     }
 
     return {

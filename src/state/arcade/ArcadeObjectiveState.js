@@ -3,7 +3,12 @@ const OBJECTIVE_TYPES = new Set([
     'bounty_hunt',
     'clean_sector',
     'hazard_lane',
+    'destroy_units',
 ]);
+
+const UNIT_KIND_LABELS = Object.freeze({
+    tank: 'Panzer', swarm: 'Schwarm', boss: 'Boss', bomber: 'Bomber', creature: 'Kreatur',
+});
 
 function toSafeNumber(value, fallback = 0) {
     const numeric = Number(value);
@@ -25,6 +30,15 @@ function resolveBountyTarget(participants) {
 
 function withHudProgress(state) {
     const durationSec = Math.max(1, state.durationSec);
+    if (state.objectiveId === 'destroy_units') {
+        const counter = `${UNIT_KIND_LABELS[state.unitKind] || 'Einheit'} ${state.unitsDestroyed}/${state.unitTarget}`;
+        const remainingSec = Math.ceil(Math.max(0, state.durationSec - state.elapsedSec));
+        return {
+            ...state,
+            progressFraction: state.completed ? 1 : state.unitsDestroyed / state.unitTarget,
+            progressText: state.timeLimited && !state.completed && !state.failed ? `${counter} · ${remainingSec} s` : counter,
+        };
+    }
     if (state.objectiveId === 'bounty_hunt') {
         return {
             ...state,
@@ -71,6 +85,8 @@ function failObjective(state) {
 export function createArcadeObjectiveState(definition = null, options = {}) {
     const objectiveId = String(definition?.id || '').trim().toLowerCase();
     if (!OBJECTIVE_TYPES.has(objectiveId)) return null;
+    // destroy_units may run without a clock (a boss fight); every other objective needs one.
+    const timeLimited = objectiveId !== 'destroy_units' || toSafeNumber(definition?.durationSec, 0) > 0;
     const durationSec = Math.max(1, toSafeNumber(definition?.durationSec, 1));
     const target = objectiveId === 'bounty_hunt' ? resolveBountyTarget(options.participants) : null;
     return withHudProgress({
@@ -78,6 +94,10 @@ export function createArcadeObjectiveState(definition = null, options = {}) {
         objectiveId,
         label: String(definition?.label || objectiveId.replace(/_/g, ' ')),
         durationSec,
+        timeLimited,
+        unitKind: objectiveId === 'destroy_units' ? String(definition?.unitKind || 'creature') : '',
+        unitTarget: Math.max(1, Math.trunc(toSafeNumber(definition?.count, 1))),
+        unitsDestroyed: 0,
         scoreWeight: Math.max(1, toSafeNumber(definition?.scoreWeight, 1)),
         elapsedSec: 0,
         safeElapsedSec: 0,
@@ -108,6 +128,16 @@ export function updateArcadeObjectiveState(objectiveState = null, event = null) 
     if (next.objectiveId === 'survive_window' && event.type === 'tick' && next.elapsedSec >= next.durationSec) {
         return completeObjective(next, true);
     }
+    if (next.objectiveId === 'destroy_units') {
+        if (event.type === 'unit_destroyed' && String(event.unitKind || '') === next.unitKind) {
+            next.unitsDestroyed = Math.min(next.unitTarget, next.unitsDestroyed + Math.max(1, Math.trunc(toSafeNumber(event.count, 1))));
+            if (next.unitsDestroyed >= next.unitTarget) return completeObjective(next, true);
+        }
+        // Out of time ends the sector without the bonus: a scenario without bots has no other end.
+        if (event.type === 'tick' && next.timeLimited && next.elapsedSec >= next.durationSec) {
+            return { ...failObjective(next), shouldEnd: true };
+        }
+    }
     if (next.objectiveId === 'bounty_hunt') {
         if (event.type === 'kill' && Number(event.victimIndex) === next.targetPlayerIndex) {
             return completeObjective(next, true);
@@ -131,4 +161,12 @@ export function updateArcadeObjectiveState(objectiveState = null, event = null) 
         return failObjective(next);
     }
     return withHudProgress(next);
+}
+
+/**
+ * True while the objective itself decides when the sector ends: the last bot falling must not
+ * end a hunt for a map unit that still stands.
+ */
+export function doesArcadeObjectiveHoldRound(objectiveState = null) {
+    return objectiveState?.objectiveId === 'destroy_units' && objectiveState.status === 'active';
 }

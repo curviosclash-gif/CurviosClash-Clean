@@ -8,6 +8,7 @@ import {
 } from '../../state/arcade/ArcadeObjectiveState.js';
 import { ARCADE_SECTOR_OBJECTIVES } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { getRuntimeMapCatalog, getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
+import { resolveArcadeSectorObjectiveDefinition } from '../../shared/contracts/ArcadeScenarioContract.js';
 
 const ARCADE_MISSION_GENERATOR_VERSION = 'arcade-missions.v2';
 
@@ -29,9 +30,10 @@ export function buildArcadeMissionSeed({
     ].join(':');
 }
 
-function resolveObjectiveDefinition(objectiveId) {
-    const normalized = String(objectiveId || '').trim().toLowerCase();
-    return ARCADE_SECTOR_OBJECTIVES.find((entry) => entry.id === normalized) || null;
+function resolveObjectiveDefinition(encounterEntry) {
+    const normalized = String(encounterEntry?.objectiveId || '').trim().toLowerCase();
+    const shared = ARCADE_SECTOR_OBJECTIVES.find((entry) => entry.id === normalized) || null;
+    return resolveArcadeSectorObjectiveDefinition(shared, encounterEntry);
 }
 
 export function assignArcadeSectorRuntimeState(runtime) {
@@ -46,7 +48,7 @@ export function assignArcadeSectorRuntimeState(runtime) {
     const mapMissions = Array.isArray(mapDefinition?.missions) && mapDefinition.missions.length > 0
         ? mapDefinition.missions
         : null;
-    const objective = resolveObjectiveDefinition(encounterEntry?.objectiveId);
+    const objective = resolveObjectiveDefinition(encounterEntry);
     const profile = runtime.getSectorRuntimeProfile(sectorIndex);
     const capabilities = runtime._getMissionCapabilities?.() || {};
     const context = {
@@ -76,7 +78,7 @@ export function assignArcadeSectorRuntimeState(runtime) {
     );
     runtime._missionState = createSectorMissionState(missions);
     runtime._state.objectiveState = createArcadeObjectiveState(
-        resolveObjectiveDefinition(encounterEntry?.objectiveId),
+        objective,
         {
             sectorIndex,
             participants: runtime._getObjectiveParticipants?.() || [],

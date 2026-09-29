@@ -118,6 +118,12 @@ export class WaterZoneSystem {
 
     _triggerFromBreakEvents() {
         if (this.state.phase !== WATER_PHASES.DRY) return;
+        // An arcade scenario opens the dam on a clock: its sector keeps the wall itself intact.
+        const triggerSeconds = Number(this.entityManager?.runtimeConfig?.arcade?.waterZoneTriggerSec) || 0;
+        if (triggerSeconds > 0 && this._visualTime >= triggerSeconds) {
+            triggerWaterZone(this.state);
+            return;
+        }
         const destructibles = this.entityManager?._mapDestructibleSystem;
         const events = destructibles?.isActive?.() === true ? destructibles.getState?.()?.events : null;
         if (!Array.isArray(events)) return;

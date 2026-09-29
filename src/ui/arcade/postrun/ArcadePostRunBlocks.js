@@ -210,6 +210,14 @@ export function createArcadeIntermissionBlocks(intermission = {}) {
  * @returns {import('../../../shared/contracts/PostMatchStatsContract.js').PostMatchStatsBlock|null}
  */
 export function createArcadeNextSectorBlock(preview = {}) {
+    const scenarioLabel = String(preview.scenarioLabel || '').trim();
+    if (scenarioLabel) {
+        // A scenario brings its own rules instead of a modifier, so its briefing takes those rows.
+        return createArcadeBlock('arcade-next-sector', `Einsatz: ${scenarioLabel}`, [
+            textRow('map', 'Karte', resolveArcadeMapLabel(preview.mapKey, preview.mapLabel)),
+            textRow('briefing', 'Auftrag', String(preview.briefing || '').trim() || scenarioLabel),
+        ]);
+    }
     return createArcadeBlock('arcade-next-sector', 'Nächster Sektor', [
         textRow('map', 'Karte', resolveArcadeMapLabel(preview.mapKey, preview.mapLabel)),
         textRow('modifier', 'Modifier', String(preview.modifierLabel || 'Kein Modifier')),

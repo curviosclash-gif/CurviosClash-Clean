@@ -1,5 +1,17 @@
 import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../../shared/contracts/PlayerDisplayLabelContract.js';
 import { isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
+import { resolveObjectiveTargetIndex } from '../../entities/systems/ObjectiveTargetMarkerOps.js';
+import { doesArcadeObjectiveHoldRound } from '../../state/arcade/ArcadeObjectiveState.js';
+
+/**
+ * Hands the live arcade objective to the entity layer, which must not read arcade state itself:
+ * the bounty target for the marker and whether the objective holds the round open.
+ */
+export function syncArcadeObjectiveIntoEntities(entityManager, objectiveState) {
+    entityManager?._roundOutcomeSystem?.setObjectiveHold?.(doesArcadeObjectiveHoldRound(objectiveState));
+    const markerSystem = entityManager?._objectiveTargetMarkerSystem || null;
+    return markerSystem ? markerSystem.setTarget(resolveObjectiveTargetIndex(objectiveState)) : null;
+}
 
 export function configureArcadeRunRuntime(runtime, runtimeConfig) {
     if (!isWeaponRaceConfig(runtimeConfig)) return runtime.configure(runtimeConfig);

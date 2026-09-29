@@ -89,7 +89,8 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
     const targetIndex = Math.max(0, toSafeInt(nextSectorIndex, 1) - 1);
     const baseMapKey = getMapKeyForSector(sequence, targetIndex);
     const encounterEntry = runtime._getEncounterSectorEntry(nextSectorIndex);
-    const baseModifierId = encounterEntry?.parcoursEnabled ? '' : String(encounterEntry?.modifierId || runtime._activeModifierId || '').trim();
+    const isScenario = !!encounterEntry?.scenarioId;
+    const baseModifierId = encounterEntry?.parcoursEnabled || isScenario ? '' : String(encounterEntry?.modifierId || runtime._activeModifierId || '').trim();
 
     const runtimeMapCatalog = getRuntimeMapCatalog();
     const mapCatalogKeys = listRuntimeMapPresetKeys(runtimeMapCatalog);
@@ -115,8 +116,9 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
     };
 
     pushChoice(baseMapKey, baseModifierId, 'plan');
-    // The Daily is the same run for everyone, so it offers no alternative routes.
-    if (runtime._state?.isDailyChallenge === true || runtime._config?.dailyChallenge === true) return choices;
+    // The Daily is the same run for everyone, so it offers no alternative routes. A scenario is
+    // bound to its map: its objective names units that only that map carries.
+    if (isScenario || runtime._state?.isDailyChallenge === true || runtime._config?.dailyChallenge === true) return choices;
 
     const nextSectorIsParcours = encounterEntry?.parcoursEnabled === true;
     const candidateMaps = mapCatalogKeys.filter((mapKey) => {
@@ -181,6 +183,8 @@ export function prepareArcadeIntermissionState(runtime, nowMs = Date.now()) {
             modifierId: String(selectedChoice?.modifierId || ''),
             modifierLabel: String(selectedChoice?.modifierLabel || ''),
             modifierEffect: String(selectedChoice?.modifierEffect || ''),
+            scenarioLabel: String(nextSectorEntry?.scenarioLabel || ''),
+            briefing: String(nextSectorEntry?.briefing || ''),
         },
         selectedRewardLabel: String(selectedReward?.label || ''),
         selectedRewardEffect: String(selectedReward?.effectText || ''),

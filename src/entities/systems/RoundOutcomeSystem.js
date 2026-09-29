@@ -35,11 +35,21 @@ export class RoundOutcomeSystem {
         this.isTeamMode = isTeamMode;
         this._overtime = false;
         this._requestedOutcome = null;
+        this._objectiveHold = false;
     }
 
     reset() {
         this._overtime = false;
         this._requestedOutcome = null;
+        this._objectiveHold = false;
+    }
+
+    /**
+     * An arcade objective that decides the round end itself (a hunt for a map unit) holds the
+     * round open past the last bot. Core sets this every frame; a new round starts without it.
+     */
+    setObjectiveHold(active) {
+        this._objectiveHold = active === true;
     }
 
     requestRoundEnd({ winner = null, allowNoWinner = false, reason = 'OBJECTIVE', parcours = null } = {}) {
@@ -166,7 +176,7 @@ export class RoundOutcomeSystem {
         const humans = combatants.filter((player) => player && player.isBot !== true);
         const humansOut = humans.length > 0
             && humans.every((player) => !player.alive && this.isRespawnPending(player) !== true);
-        const eliminationSuppressed = this.isEliminationSuppressed();
+        const eliminationSuppressed = this._objectiveHold || this.isEliminationSuppressed();
 
         // Parcours respawns suppress elimination without turning the route into a Hunt
         // deathmatch. Completion remains objective-driven, with no kill/time-limit rules.
