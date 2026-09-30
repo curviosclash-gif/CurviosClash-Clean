@@ -11,7 +11,7 @@ Run through the `blender-object-batches` runner, inside Blender 4.2 LTS:
 
 Contract for this module
 ------------------------
-Identity        GENERATOR_ID "marketplace-nature-plants", version 1.1.0.
+Identity        GENERATOR_ID "marketplace-nature-plants", version 1.2.0.
 Interface       build_variant(context) -> {outputs, metrics, warnings, metadata}.
 Context         context["id"] is the variant name, context["seed"] the only
                 stochastic source, context["parameters"]["species"] one of
@@ -53,7 +53,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 
 GENERATOR_ID = "marketplace-nature-plants"
-GENERATOR_VERSION = "1.1.0"
+GENERATOR_VERSION = "1.2.0"
 
 SPECIES_HEIGHT_M = {
     "daisy": 0.65,
@@ -65,15 +65,27 @@ SPECIES_HEIGHT_M = {
     "cornflower": 0.70,
     "red_clover": 0.40,
     "cattail": 1.60,
+    "buttercup": 0.45,
+    "chicory": 0.90,
+    "yarrow": 0.65,
+    "ribwort_plantain": 0.45,
+    "wild_strawberry": 0.25,
 }
+# Flowering species get a dedicated bloom closeup camera. The five species added
+# in 1.2.0 all carry a real blossom, so all of them are listed here.
 BLOOM_SPECIES = ("daisy", "lavender", "poppy", "sunflower", "cornflower",
-                 "red_clover", "cattail")
+                 "red_clover", "cattail", "buttercup", "chicory", "yarrow",
+                 "ribwort_plantain", "wild_strawberry")
 # Vertical size of the bloom feature that a closeup must cover, in metres. The
 # lavender value frames one whole connected terminal head (its flowering zone is
 # about 0.12 of the axis) instead of centring a wide shot on bare stem.
 BLOOM_EXTENT_M = {"daisy": 0.085, "lavender": 0.110,
                   "poppy": 0.155, "sunflower": 0.58, "cornflower": 0.23,
-                   "red_clover": 0.17, "cattail": 0.60}
+                  "red_clover": 0.17, "cattail": 0.60,
+                  # 1.2.0 additions: one single blossom head each, measured on
+                  # the built geometry (petal span or the whole spike).
+                  "buttercup": 0.075, "chicory": 0.10, "yarrow": 0.075,
+                  "ribwort_plantain": 0.095, "wild_strawberry": 0.045}
 
 # Triangles at or below this area are collapsed geometry, not blades: the
 # smallest real triangle in the catalogue measures about 5e-8 m2 (a petal tip
@@ -133,6 +145,88 @@ LANCE_CUPS = (0.24, 0.28, 0.26, 0.20, 0.08)
 GRASS_STATIONS = 6
 GRASS_WIDTHS = (0.55, 0.92, 1.00, 0.86, 0.58, 0.12)
 GRASS_CUPS = (0.16, 0.26, 0.30, 0.28, 0.20, 0.06)
+
+# ---------------------------------------------------------------------------
+# 1.2.0 species profiles
+# ---------------------------------------------------------------------------
+
+# A buttercup leaf is divided into three to five wedge-shaped lobes whose
+# sinuses cut deeper towards the base; a terminal lobe sits at the tip.
+BUTTERCUP_LEAF_STATIONS = (0.0, 0.16, 0.32, 0.48, 0.64, 0.80, 0.92, 1.0)
+BUTTERCUP_LEAF_WIDTHS = (0.20, 0.55, 0.34, 0.86, 0.42, 0.96, 0.66, 0.30)
+BUTTERCUP_LEAF_CUPS = (0.18, 0.26, 0.26, 0.25, 0.23, 0.20, 0.15, 0.08)
+BUTTERCUP_LEAF_LOBES = 2
+BUTTERCUP_PETALS = 5
+
+# A buttercup petal is a broad, glossy, almost circular blade with a tiny
+# nectar scale; the rounded apex keeps width so the rim stays a soft arc.
+BUTTERCUP_PETAL_STATIONS = (0.0, 0.14, 0.30, 0.48, 0.66, 0.82, 0.93, 1.0)
+BUTTERCUP_PETAL_WIDTHS = (0.26, 0.56, 0.78, 0.94, 1.00, 0.98, 0.86, 0.62)
+BUTTERCUP_PETAL_CUPS = (0.30, 0.28, 0.25, 0.22, 0.19, 0.15, 0.12, 0.08)
+# The glossy yellow corolla sits on a raised, rounded green receptacle whose
+# surface carries the same faceted bump as the daisy centre. 0.026 of the plant
+# height gives a receptacle of about 1.2 cm and a corolla of about 4.3 cm across
+# on the 0.45 m buttercup, which is the stylized-realistic scale of the sheet.
+BUTTERCUP_CENTRE_FRACTION = 0.026
+BUTTERCUP_PETAL_REACH = 1.85
+BUTTERCUP_PETAL_HALF_WIDTH = 0.60
+
+# A chicory leaf is runcinate: a long lanceolate outline with deep back-curved
+# lobes and a broad terminal lobe, so the rosette never reads as a plain oval.
+CHICORY_LEAF_STATIONS = (0.0, 0.18, 0.34, 0.50, 0.66, 0.82, 0.94, 1.0)
+CHICORY_LEAF_WIDTHS = (0.18, 0.42, 0.88, 0.44, 0.96, 0.52, 0.74, 0.16)
+CHICORY_LEAF_CUPS = (0.20, 0.28, 0.26, 0.25, 0.23, 0.20, 0.14, 0.06)
+CHICORY_LEAF_LOBES = 2
+
+# A ligulate chicory floret is a long strap with five small teeth at its tip.
+# Only the last station carries the teeth; the caller splits its single tip
+# vertex into a small comb instead of widening the whole blade.
+CHICORY_STRAP_STATIONS = (0.0, 0.20, 0.42, 0.64, 0.84, 1.0)
+CHICORY_STRAP_WIDTHS = (0.22, 0.62, 0.86, 0.96, 1.00, 1.00)
+CHICORY_STRAP_CUPS = (0.24, 0.26, 0.24, 0.21, 0.17, 0.12)
+CHICORY_HEAD_FLORETS = 12
+CHICORY_STRAP_TEETH = 5
+CHICORY_HEAD_ORIGIN_FRACTION = 0.006
+# Two flower heads sit on short upright branches above the basal rosette.
+CHICORY_BRANCHES = 2
+
+# A yarrow leaf is bipinnate: a rachis carries many small segments, each of
+# which carries its own opposite pair of tiny linear leaflets. The segment
+# count is the divisor of the leaf length, so the whole blade is fine and even.
+YARROW_LEAF_SEGMENTS = 7
+YARROW_SEGMENT_STATIONS = (0.0, 0.34, 0.68, 1.0)
+YARROW_SEGMENT_WIDTHS = (0.18, 0.72, 0.95, 0.10)
+YARROW_SEGMENT_CUPS = (0.16, 0.22, 0.20, 0.06)
+YARROW_PINNULE_PAIRS = 2
+YARROW_PINNULE_LENGTH_FRACTION = 0.30
+YARROW_BASAL_LEAVES = 6
+
+# One yarrow head is a small flat-topped corymb: a plate of tight white
+# capitula on short pedicels, all sitting at nearly the same height.
+YARROW_HEAD_FLORETS = 9
+YARROW_CORYMB_FLORETS = 26
+
+# Ribwort plantain leaves are entire lanceolates with several strong parallel
+# veins that sit proud of the blade; the veins are separate thin ridges.
+PLANTAIN_LEAF_STATIONS = (0.0, 0.20, 0.42, 0.64, 0.84, 1.0)
+PLANTAIN_LEAF_WIDTHS = (0.20, 0.62, 0.88, 1.00, 0.78, 0.22)
+PLANTAIN_LEAF_CUPS = (0.20, 0.24, 0.24, 0.22, 0.18, 0.10)
+PLANTAIN_ROSETTE_LEAVES = 11
+PLANTAIN_VEINS = 3
+# The inflorescence is a brown cylindrical spike on a long grooved scape.
+PLANTAIN_SPIKES = 4
+PLANTAIN_SPIKE_FLORETS = 26
+
+# A strawberry leaflet is obovate with a coarsely toothed margin, so its
+# silhouette is drawn by an explicit toothed width profile, not a smooth oval.
+STRAWBERRY_LEAFLET_STATIONS = (0.0, 0.14, 0.28, 0.42, 0.56, 0.70, 0.84, 1.0)
+STRAWBERRY_LEAFLET_WIDTHS = (0.16, 0.52, 0.86, 0.70, 1.00, 0.82, 0.96, 0.20)
+STRAWBERRY_LEAFLET_CUPS = (0.20, 0.26, 0.26, 0.24, 0.22, 0.19, 0.15, 0.07)
+STRAWBERRY_TRIFOLIATE_GROUPS = 6
+STRAWBERRY_FRUITS = 2
+STRAWBERRY_PETALS = 5
+STRAWBERRY_FLOWER_CENTRE_FRACTION = 0.016
+STRAWBERRY_PETAL_REACH = 1.75
 
 # Exactly five material definitions. A species only references the subset it
 # needs; the exporter drops unused slots, so every hero stays <= 5 materials.
@@ -1876,6 +1970,648 @@ def _build_cattail(height, rng):
                              "strap_leaves": 15}
 
 
+def _petal_ray(geometry, centre, normal, angle, inner, outer, half_width,
+               height, material, rng, *, stations, widths, cup=0.22, wave=0.08,
+               notch=0.0, tint=None):
+    """A radial corolla petal on an explicit lengthwise profile.
+
+    `_market_ray` owns the poppy/sunflower rim with its own fixed stations; the
+    1.2.0 blossoms (buttercup's broad round petal, strawberry's five whites)
+    need their own outlines, so this sibling keeps the same cupped cross-section
+    and uneven rim but takes the profile from the caller. The valley never
+    overtakes the rim, so a rounded apex stays wide instead of folding back.
+    """
+    u, v, n = _plane_axes(normal)
+    radial = _normalize(_add(_scale(u, math.cos(angle)), _scale(v, math.sin(angle))))
+    side = _normalize(_cross(n, radial))
+    curl = rng.uniform(-1.0, 1.0)
+    sections = []
+    flex = []
+    last = len(stations) - 1
+    for i, t in enumerate(stations):
+        reach = inner + (outer - inner) * t
+        lift = (outer - inner) * (0.06 * math.sin(math.pi * t) + wave * curl * t * t)
+        mid = _add(centre, _add(_scale(radial, reach), _scale(n, lift)))
+        width = half_width * widths[i]
+        # A shallow notch only shortens the valley, never the rim.
+        valley_reach = reach - (outer - inner) * notch if i == last else reach
+        left = _add(mid, _scale(side, width))
+        right = _sub(mid, _scale(side, width))
+        valley = _add(_sub(mid, _scale(n, width * cup)),
+                      _scale(radial, valley_reach - reach))
+        sections.append((left, valley, right))
+        flex.append(_flex(mid[2], height, t))
+    geometry.cupped_blade(sections, material, flex=flex,
+                          tint=tint if tint is not None else rng.uniform(0.58, 0.91))
+
+
+def _add_buttercup_head(geometry, height, rng, centre, normal):
+    """One glossy yellow buttercup blossom on a raised green receptacle.
+
+    Five broad, almost circular petals sit on a rounded, faintly faceted
+    receptacle; the wide apexes overlap so the corolla reads as a closed cup.
+    """
+    normal = _normalize(normal)
+    head_flex = _flex(centre[2], height, 1.0)
+    receptacle_radius = height * BUTTERCUP_CENTRE_FRACTION
+    # The green receptacle reaches back to the stem tip, so the blossom is a
+    # rooted organ rather than a disc floating above the stalk.
+    geometry.tube([_sub(centre, _scale(normal, height * 0.018)), centre],
+                  [height * 0.0030, height * 0.0092], "StemGreen", sides=6,
+                  flex=[head_flex * 0.88, head_flex], tint=0.50)
+    geometry.dome(centre, receptacle_radius * 0.32, receptacle_radius * 0.25,
+                  "BloomYellow", segments=10, rings=3, bump=0.16, rng=rng,
+                  flex=head_flex, tint=0.68, normal=normal)
+    petals = BUTTERCUP_PETALS
+    phase = rng.uniform(0.0, 2.0 * math.pi)
+    inner = receptacle_radius * 0.25
+    outer = receptacle_radius * BUTTERCUP_PETAL_REACH
+    for index in range(petals):
+        petal_angle = phase + 2.0 * math.pi * index / petals
+        # High tint pushes the shared BloomYellow towards its light stop: the
+        # glossy look comes from smooth shading plus the vertex-colour palette,
+        # no extra material is introduced.
+        _petal_ray(geometry, centre, normal, petal_angle, inner, outer,
+                   height * BUTTERCUP_PETAL_HALF_WIDTH * BUTTERCUP_CENTRE_FRACTION
+                   * 1.6, height, "BloomYellow", rng,
+                   stations=BUTTERCUP_PETAL_STATIONS,
+                   widths=BUTTERCUP_PETAL_WIDTHS, cup=BUTTERCUP_PETAL_CUPS[0],
+                   wave=0.10, notch=0.03, tint=rng.uniform(0.55, 0.72))
+
+
+def _build_buttercup(height, rng):
+    geometry = PlantGeometry()
+    geometry.dome((0, 0, 0), height * 0.030, height * 0.018, "StemGreen",
+                  flex=0.0, tint=0.16)
+    # Basal rosette: divided palmate leaves held upright so the wedge lobes and
+    # their deep sinuses are visible from the front, not edge-on.
+    basal = 7
+    for index in range(basal):
+        angle = 2.0 * math.pi * index / basal + rng.uniform(-0.22, 0.22)
+        length = height * rng.uniform(0.22, 0.31)
+        origin = (math.cos(angle) * height * 0.020, math.sin(angle) * height * 0.020,
+                  height * 0.010)
+        _market_leaf(geometry, origin, angle, rng.uniform(0.20, 0.50), length,
+                     length * rng.uniform(0.44, 0.54), height, rng, tint=0.58,
+                     stations=BUTTERCUP_LEAF_STATIONS,
+                     widths=BUTTERCUP_LEAF_WIDTHS, cups=BUTTERCUP_LEAF_CUPS,
+                     curl=0.16)
+    # Two or three slender flowering stems, each with one blossom and a couple
+    # of small undivided cauline leaves below it.
+    flowers = 3
+    focus = None
+    focus_normal = None
+    for index in range(flowers):
+        angle = 2.0 * math.pi * index / flowers + rng.uniform(-0.30, 0.30)
+        tip = (math.cos(angle) * height * rng.uniform(0.05, 0.11),
+               math.sin(angle) * height * rng.uniform(0.05, 0.11),
+               height * rng.uniform(0.74, 0.94))
+        points = _market_stem(geometry, (0, 0, 0), tip, height, height * 0.0036)
+        for node in (0.30, 0.56):
+            anchor, _tangent = _sample_polyline(points, node)
+            _market_leaf(geometry, anchor, angle + rng.uniform(-1.4, 1.4),
+                         rng.uniform(0.12, 0.42), height * rng.uniform(0.055, 0.085),
+                         height * 0.014, height, rng, tint=0.61,
+                         stations=LANCE_STATIONS, widths=LANCE_WIDTHS,
+                         cups=LANCE_CUPS, curl=0.14)
+        normal = _normalize((math.cos(angle) * 0.55, math.sin(angle) * 0.55,
+                             1.0 + rng.uniform(-0.10, 0.10)))
+        centre = _add(tip, _scale(normal, height * 0.012))
+        _add_buttercup_head(geometry, height, rng, centre, normal)
+        if focus is None or centre[2] > focus[2]:
+            focus, focus_normal = centre, normal
+    return geometry, focus, {"flower_stems": flowers, "basal_leaves": basal,
+                             "petals_per_flower": BUTTERCUP_PETALS,
+                             "leaf_lobes": BUTTERCUP_LEAF_LOBES,
+                             "receptacle_radius_m": height * BUTTERCUP_CENTRE_FRACTION * 0.32,
+                             "bloom_normal": list(focus_normal)}
+
+
+def _chicory_lobes(stations, widths, cups, lobes):
+    """Widen two of the deepest sinuses so a blade reads as runcinate.
+
+    A chicory leaf is not a smooth oval: its back-curved lateral lobes are cut
+    off by a sharp sinus. This records the lobe count honestly and deepens the
+    matching width samples, so the outline is authored rather than shaded.
+    """
+    shaped = list(widths)
+    for lobe in range(lobes):
+        shaped[2 + 2 * lobe] *= 0.62
+    return tuple(stations), tuple(shaped), tuple(cups)
+
+
+CHICORY_LEAF_PROFILE = _chicory_lobes(CHICORY_LEAF_STATIONS, CHICORY_LEAF_WIDTHS,
+                                      CHICORY_LEAF_CUPS, CHICORY_LEAF_LOBES)
+
+
+def _chicory_strap_profile(teeth=CHICORY_STRAP_TEETH):
+    """A ligulate floret strap whose apex carries `teeth` small teeth."""
+    stations = [0.0, 0.20, 0.42, 0.64, 0.82]
+    widths = [0.22, 0.64, 0.88, 0.98, 1.00]
+    cups = [0.24, 0.26, 0.24, 0.21, 0.17]
+    for index in range(teeth):
+        span = 0.0 if teeth <= 1 else 0.14 * index / (teeth - 1)
+        stations.append(0.86 + span)
+        widths.append(0.92 if index % 2 == 0 else 0.40)
+        cups.append(0.12)
+    widths[-1] = 0.26
+    return tuple(stations), tuple(widths), tuple(cups)
+
+
+CHICORY_STRAP_PROFILE = _chicory_strap_profile()
+
+
+def _build_chicory(height, rng):
+    geometry = PlantGeometry()
+    geometry.dome((0, 0, 0), height * 0.028, height * 0.017, "StemGreen",
+                  flex=0.0, tint=0.18)
+    # Runcinate basal leaves form the rosette; each is held upright so the deep
+    # lateral notches of its outline are visible from both specimen views.
+    basal = 8
+    stations, widths, cups = CHICORY_LEAF_PROFILE
+    for index in range(basal):
+        angle = 2.0 * math.pi * index / basal + rng.uniform(-0.20, 0.20)
+        length = height * rng.uniform(0.22, 0.33)
+        origin = (math.cos(angle) * height * 0.020, math.sin(angle) * height * 0.020,
+                  height * 0.010)
+        _market_leaf(geometry, origin, angle, rng.uniform(0.18, 0.48), length,
+                     length * rng.uniform(0.34, 0.44), height, rng, tint=0.57,
+                     stations=stations, widths=widths, cups=cups, curl=0.20)
+
+    # A branching herb: one main axis forks into two flowering branches above
+    # the rosette; each branch end carries one blue ligulate flower head.
+    trunk_tip = (height * 0.055, height * 0.020, height * 0.66)
+    trunk = _market_stem(geometry, (0, 0, 0), trunk_tip, height, height * 0.0042,
+                         sides=6)
+    head_centres = []
+    head_normals = []
+    for index in range(CHICORY_BRANCHES):
+        side = -1.0 if index == 0 else 1.0
+        anchor, _tangent = _sample_polyline(trunk, 0.52 if index == 0 else 0.74)
+        angle = side * (0.65 + 0.25 * rng.random())
+        tip = (anchor[0] + side * height * rng.uniform(0.16, 0.24),
+               anchor[1] + math.cos(angle) * height * rng.uniform(0.05, 0.12),
+               height * rng.uniform(0.86, 1.0))
+        branch = _market_stem(geometry, anchor, tip, height, height * 0.0034,
+                              sides=5)
+        for node in (0.42, 0.78):
+            leaf_anchor, _leaf_tangent = _sample_polyline(branch, node)
+            _market_leaf(geometry, leaf_anchor, angle + rng.uniform(-0.9, 0.9),
+                         rng.uniform(0.05, 0.34), height * rng.uniform(0.055, 0.085),
+                         height * 0.010, height, rng, tint=0.60,
+                         stations=LANCE_STATIONS, widths=LANCE_WIDTHS,
+                         cups=LANCE_CUPS, curl=0.14)
+        normal = _normalize((side * 0.30, math.cos(angle) * 0.25,
+                             1.0 + rng.uniform(-0.08, 0.08)))
+        centre = _add(tip, _scale(normal, height * 0.006))
+        _add_chicory_head(geometry, height, rng, centre, normal)
+        head_centres.append(centre)
+        head_normals.append(normal)
+    # The two heads sit at slightly different heights; the closeup follows the
+    # taller one, whose ligulate straps fill the frame.
+    tallest = max(range(len(head_centres)), key=lambda i: head_centres[i][2])
+    focus = head_centres[tallest]
+    return geometry, focus, {"growth_habit": "branching_herb",
+                             "primary_axes": 1, "flower_branches": CHICORY_BRANCHES,
+                             "basal_leaves": basal, "flower_heads": len(head_centres),
+                             "ligulate_florets": CHICORY_BRANCHES * CHICORY_HEAD_FLORETS,
+                             "florets_per_head": CHICORY_HEAD_FLORETS,
+                             "strap_tip_teeth": CHICORY_STRAP_TEETH,
+                             "leaf_lobes": CHICORY_LEAF_LOBES,
+                             "bloom_normal": list(head_normals[tallest])}
+
+
+def _add_chicory_head(geometry, height, rng, centre, normal):
+    """One blue chicory capitulum of ligulate strap florets on an involucre."""
+    normal = _normalize(normal)
+    u, v, _n = _plane_axes(normal)
+    head_flex = _flex(centre[2], height, 1.0)
+    station, widths, cups = CHICORY_STRAP_PROFILE
+    # Green involucre: a shallow cup the straps grow out of.
+    geometry.dome(centre, height * 0.011, height * 0.014, "StemGreen",
+                  segments=10, rings=3, flex=head_flex, tint=0.42, normal=normal)
+    for index in range(CHICORY_HEAD_FLORETS):
+        phi = 2.0 * math.pi * index / CHICORY_HEAD_FLORETS + rng.uniform(-0.10, 0.10)
+        radial = _normalize(_add(_scale(u, math.cos(phi)), _scale(v, math.sin(phi))))
+        # The outer straps open flat, inner ones stand up: a two-row capitulum.
+        inner = index % 3 == 0
+        tilt = 0.42 if inner else 0.78
+        direction = _normalize(_add(_scale(radial, math.sin(tilt)),
+                                    _scale(normal, math.cos(tilt))))
+        origin = _add(centre, _scale(radial, height * CHICORY_HEAD_ORIGIN_FRACTION * 1.6))
+        length = height * (rng.uniform(0.030, 0.038) if inner
+                           else rng.uniform(0.038, 0.048))
+        # The strap's flat face points along the head normal-ish so the ligule
+        # shows its blue face instead of standing edge-on in the closeup.
+        face_normal = _normalize(_add(_scale(radial, 0.35), _scale(normal, 1.0)))
+        sections, axis_z = _blade_sections(origin, direction, length,
+                                           length * rng.uniform(0.115, 0.145),
+                                           face_normal, stations=station,
+                                           widths=widths, cups=cups, curl=0.10)
+        geometry.cupped_blade(sections, "PetalBlue",
+                              flex=[_flex(z, height, 1.0) for z in axis_z],
+                              tint=rng.uniform(0.62, 0.90))
+    # A short indigo style column marks the centre of the capitulum.
+    geometry.tube([centre, _add(centre, _scale(normal, height * 0.014))],
+                  [height * 0.0022, height * 0.0014], "BloomIndigo", sides=4,
+                  flex=[head_flex * 0.9, head_flex], tint=0.70)
+
+
+def _add_yarrow_leaf(geometry, origin, direction, length, face_normal, height, rng,
+                     flex_base):
+    """One bipinnate yarrow leaf: a thin rachis with pairs of tiny segments.
+
+    The rachis is a real (if slender) tube; every leaflet sits exactly on it and
+    carries its own opposite pair of linear pinnules, so the blade is finely
+    divided without a single floating fragment.
+    """
+    direction = _normalize(direction)
+    face_normal = _normalize(_sub(face_normal,
+                                  _scale(direction, _dot(face_normal, direction))))
+    side = _normalize(_cross(face_normal, direction))
+    reach = length * 0.98
+    rachis = [_add(origin, _scale(direction, reach * t))
+              for t in (0.0, 0.34, 0.67, 1.0)]
+    radius = max(length * 0.012, height * 0.0006)
+    geometry.tube(rachis, [radius, radius * 0.85, radius * 0.60, radius * 0.35],
+                  "StemGreen", sides=3,
+                  flex=[_flex(point[2], height, 0.5 + 0.5 * index / 3.0)
+                        for index, point in enumerate(rachis)], tint=0.44)
+    for segment in range(YARROW_LEAF_SEGMENTS):
+        t = 0.06 + 0.88 * segment / (YARROW_LEAF_SEGMENTS - 1)
+        anchor = _add(origin, _scale(direction, reach * t))
+        envelope = math.sin(math.pi * min(1.0, 0.18 + 0.82 * t)) * 0.55 + 0.55
+        segment_length = length * YARROW_PINNULE_LENGTH_FRACTION * envelope
+        for sign in (-1.0, 1.0):
+            leaflet_direction = _normalize(_add(_scale(side, sign),
+                                                _scale(direction, 0.55)))
+            leaflet_normal = _normalize(_add(_scale(face_normal, 1.0),
+                                             _scale(side, sign * 0.35)))
+            sections, axis_z = _blade_sections(
+                anchor, leaflet_direction, segment_length,
+                segment_length * 0.16, leaflet_normal,
+                stations=YARROW_SEGMENT_STATIONS, widths=YARROW_SEGMENT_WIDTHS,
+                cups=YARROW_SEGMENT_CUPS, curl=0.06)
+            strap_flex = [_flex(z, height, flex_base) for z in axis_z]
+            geometry.cupped_blade(sections, "LeafGreen", flex=strap_flex, tint=0.60)
+            # Each segment carries its own pair of tiny linear pinnules, which
+            # is what makes the blade look finely divided, not merely toothed.
+            for pair in range(YARROW_PINNULE_PAIRS):
+                fraction = 0.32 + 0.42 * pair
+                pinnule_origin = _add(anchor,
+                                      _scale(leaflet_direction, segment_length * fraction))
+                for branch in (-1.0, 1.0):
+                    pinnule_direction = _normalize(
+                        _add(_scale(leaflet_normal, branch),
+                             _scale(leaflet_direction, 0.45)))
+                    pinnule_length = segment_length * (0.34 - 0.08 * pair)
+                    pinnule_sections, pinnule_z = _blade_sections(
+                        pinnule_origin, pinnule_direction, pinnule_length,
+                        pinnule_length * 0.14, leaflet_direction,
+                        stations=YARROW_SEGMENT_STATIONS,
+                        widths=YARROW_SEGMENT_WIDTHS, cups=YARROW_SEGMENT_CUPS,
+                        curl=0.05)
+                    geometry.cupped_blade(
+                        pinnule_sections, "LeafGreen",
+                        flex=[_flex(z, height, flex_base) for z in pinnule_z],
+                        tint=0.62)
+    # A terminal segment closes the outline.
+    terminal_direction = _normalize(_add(direction, _scale(side, rng.uniform(-0.2, 0.2))))
+    terminal_sections, terminal_z = _blade_sections(
+        rachis[-1], terminal_direction, length * 0.16, length * 0.020,
+        face_normal, stations=YARROW_SEGMENT_STATIONS,
+        widths=YARROW_SEGMENT_WIDTHS, cups=YARROW_SEGMENT_CUPS, curl=0.05)
+    geometry.cupped_blade(terminal_sections, "LeafGreen",
+                          flex=[_flex(z, height, flex_base) for z in terminal_z],
+                          tint=0.60)
+
+
+def _add_yarrow_corymb(geometry, height, rng, hub, normal):
+    """A flat-topped white corymb: many small capitula on short pedicels."""
+    normal = _normalize(normal)
+    u, v, _n = _plane_axes(normal)
+    head_flex = _flex(hub[2], height, 1.0)
+    geometry.dome(hub, height * 0.010, height * 0.006, "StemGreen",
+                  segments=8, rings=2, flex=head_flex * 0.9, tint=0.42,
+                  normal=normal)
+    plate = height * 0.048
+    for index in range(YARROW_CORYMB_FLORETS):
+        phi = index * 2.399963229728653 + rng.uniform(-0.08, 0.08)
+        u_radius = math.sqrt((index + 0.5) / YARROW_CORYMB_FLORETS)
+        radial_distance = plate * u_radius
+        # Flat top: outer pedicels reach further out and only slightly lower, so
+        # every capitulum ends at nearly the same height.
+        drop = height * 0.010 * (u_radius ** 2)
+        radial = _normalize(_add(_scale(u, math.cos(phi)), _scale(v, math.sin(phi))))
+        base = _add(hub, _add(_scale(radial, radial_distance),
+                              _scale(normal, -drop)))
+        geometry.tube([hub, base], [height * 0.0016, height * 0.0011],
+                      "StemGreen", sides=3,
+                      flex=[head_flex * 0.85, head_flex], tint=0.46)
+        capitulum_normal = _normalize(_add(normal, _scale(radial, 0.18)))
+        geometry.dome(base, height * 0.0105, height * 0.0048, "PetalWhite",
+                      segments=7, rings=2, bump=0.20, rng=rng, flex=head_flex,
+                      tint=rng.uniform(0.72, 0.94), normal=capitulum_normal)
+        geometry.octa(_add(base, _scale(capitulum_normal, height * 0.0032)),
+                      (height * 0.0018, height * 0.0018, height * 0.0014),
+                      "BloomYellow", flex=head_flex, tint=0.70)
+
+
+def _build_yarrow(height, rng):
+    geometry = PlantGeometry()
+    geometry.dome((0, 0, 0), height * 0.034, height * 0.020, "StemGreen",
+                  flex=0.0, tint=0.20)
+    for index in range(YARROW_BASAL_LEAVES):
+        angle = 2.0 * math.pi * index / YARROW_BASAL_LEAVES + rng.uniform(-0.24, 0.24)
+        length = height * rng.uniform(0.24, 0.36)
+        origin = (math.cos(angle) * height * 0.018, math.sin(angle) * height * 0.018,
+                  height * 0.008)
+        direction = _normalize((math.cos(angle), math.sin(angle),
+                                rng.uniform(0.35, 0.95)))
+        face_normal = _normalize((math.cos(angle + 1.4), math.sin(angle + 1.4),
+                                  rng.uniform(-0.25, 0.35)))
+        _add_yarrow_leaf(geometry, origin, direction, length, face_normal, height,
+                         rng, 0.35)
+    stems = 3
+    focus = None
+    focus_normal = None
+    for index in range(stems):
+        angle = 2.0 * math.pi * index / stems + rng.uniform(-0.30, 0.30)
+        tip = (math.cos(angle) * height * rng.uniform(0.06, 0.14),
+               math.sin(angle) * height * rng.uniform(0.06, 0.14),
+               height * rng.uniform(0.78, 1.0))
+        points = _market_stem(geometry, (0, 0, 0), tip, height, height * 0.0040)
+        for node in (0.26, 0.48, 0.68):
+            anchor, _tangent = _sample_polyline(points, node)
+            leaf_angle = angle + rng.uniform(-1.1, 1.1)
+            _market_leaf(geometry, anchor, leaf_angle, rng.uniform(0.10, 0.45),
+                         height * rng.uniform(0.070, 0.110), height * 0.012,
+                         height, rng, tint=0.58, stations=LANCE_STATIONS,
+                         widths=LANCE_WIDTHS, cups=LANCE_CUPS, curl=0.12)
+        normal = _normalize((math.cos(angle) * 0.30, math.sin(angle) * 0.30,
+                             1.0 + rng.uniform(-0.08, 0.08)))
+        hub = _add(tip, _scale(normal, height * 0.008))
+        _add_yarrow_corymb(geometry, height, rng, hub, normal)
+        if focus is None or hub[2] > focus[2]:
+            focus, focus_normal = hub, normal
+    return geometry, focus, {"flower_stems": stems,
+                             "leaf_segments_per_leaf": YARROW_LEAF_SEGMENTS,
+                             "pinnule_pairs_per_segment": YARROW_PINNULE_PAIRS,
+                             "basal_leaves": YARROW_BASAL_LEAVES,
+                             "corymb_florets": YARROW_CORYMB_FLORETS,
+                             "flower_heads": stems,
+                             "bloom_normal": list(focus_normal)}
+
+
+def _add_plantain_leaf(geometry, origin, direction, length, face_normal, height, rng,
+                       flex_base):
+    """One lanceolate ribwort leaf with parallel veins proud of the blade."""
+    direction = _normalize(direction)
+    face_normal = _normalize(_sub(face_normal,
+                                  _scale(direction, _dot(face_normal, direction))))
+    side = _normalize(_cross(face_normal, direction))
+    sections, axis_z = _blade_sections(
+        origin, direction, length, length * rng.uniform(0.085, 0.105), face_normal,
+        stations=PLANTAIN_LEAF_STATIONS, widths=PLANTAIN_LEAF_WIDTHS,
+        cups=PLANTAIN_LEAF_CUPS, curl=0.14)
+    geometry.cupped_blade(sections, "LeafGreen",
+                          flex=[_flex(z, height, flex_base) for z in axis_z],
+                          tint=0.56)
+    # Three to five strong parallel veins stand proud of the upper face: they
+    # are separate thin ridges, which is how ribwort reads up close.
+    for vein in range(PLANTAIN_VEINS):
+        offset = (vein - (PLANTAIN_VEINS - 1) * 0.5) / max(1, PLANTAIN_VEINS - 1)
+        points = []
+        for t in (0.06, 0.42, 0.78, 0.97):
+            spread = width_at = length * 0.092 * PLANTAIN_LEAF_WIDTHS[
+                min(len(PLANTAIN_LEAF_WIDTHS) - 1,
+                    int(round(t * (len(PLANTAIN_LEAF_WIDTHS) - 1))))]
+            point = _add(origin, _add(_scale(direction, length * t),
+                                      _add(_scale(side, offset * 0.85 * spread),
+                                           _scale(face_normal, length * 0.006))))
+            points.append(point)
+        geometry.tube(points, [length * 0.006, length * 0.005, length * 0.004,
+                               length * 0.002], "LeafGreen", sides=3,
+                      flex=[_flex(point[2], height, flex_base) for point in points],
+                      tint=0.70)
+
+
+def _add_plantain_spike(geometry, height, rng, scape_tip, direction):
+    """A brown cylindrical flowering spike on the tip of a grooved scape."""
+    direction = _normalize(direction)
+    spike_length = height * rng.uniform(0.085, 0.110)
+    radius = height * 0.0115
+    axis = [_add(scape_tip, _scale(direction, spike_length * t))
+            for t in (0.0, 0.35, 0.72, 1.0)]
+    geometry.tube(axis, [radius * 0.72, radius, radius, radius * 0.55],
+                  "SeedBrown", sides=9, cap_start=True, cap_end=True,
+                  flex=[_flex(point[2], height, 0.94) for point in axis], tint=0.52)
+    u, v, _n = _plane_axes(direction)
+    # Rings of tiny brown florets plus the white stamens that make the spike
+    # read as a flowering head rather than a plain brown peg.
+    for index in range(PLANTAIN_SPIKE_FLORETS):
+        t = 0.06 + 0.88 * index / (PLANTAIN_SPIKE_FLORETS - 1)
+        ring_radius = radius * (0.95 if 0.15 < t < 0.85 else 0.55)
+        phi = index * 2.399963229728653
+        radial = _normalize(_add(_scale(u, math.cos(phi)), _scale(v, math.sin(phi))))
+        root = _add(_add(scape_tip, _scale(direction, spike_length * t)),
+                    _scale(radial, ring_radius * 0.55))
+        stamen_tip = _add(root, _add(_scale(radial, height * 0.0060),
+                                     _scale(direction, height * 0.0030)))
+        geometry.tube([root, stamen_tip], [height * 0.0012, height * 0.0007],
+                      "PetalWhite", sides=3,
+                      flex=[_flex(root[2], height, 0.95),
+                            _flex(stamen_tip[2], height, 1.0)], tint=0.74)
+        geometry.octa(stamen_tip, (height * 0.0014,) * 3, "SeedBrown",
+                      flex=1.0, tint=0.60)
+
+
+def _build_ribwort_plantain(height, rng):
+    geometry = PlantGeometry()
+    geometry.dome((0, 0, 0), height * 0.032, height * 0.018, "StemGreen",
+                  flex=0.0, tint=0.20)
+    # A tight basal rosette of entire lanceolate leaves; every leaf grows out of
+    # the crown, so the plant is firmly rooted.
+    for index in range(PLANTAIN_ROSETTE_LEAVES):
+        angle = 2.0 * math.pi * index / PLANTAIN_ROSETTE_LEAVES + rng.uniform(-0.18, 0.18)
+        length = height * rng.uniform(0.30, 0.46)
+        origin = (math.cos(angle) * height * 0.020, math.sin(angle) * height * 0.020,
+                  height * 0.010)
+        direction = _normalize((math.cos(angle) * rng.uniform(0.75, 1.05),
+                                math.sin(angle) * rng.uniform(0.75, 1.05),
+                                rng.uniform(0.55, 1.10)))
+        face_normal = _normalize((math.cos(angle + 1.45), math.sin(angle + 1.45),
+                                  rng.uniform(-0.20, 0.30)))
+        _add_plantain_leaf(geometry, origin, direction, length, face_normal, height,
+                           rng, 0.30)
+    # Four upright grooved scapes, each ending in one brown cylindrical spike
+    # that carries its own tiny florets and white stamens.
+    focus = None
+    for index in range(PLANTAIN_SPIKES):
+        angle = 2.0 * math.pi * index / PLANTAIN_SPIKES + rng.uniform(-0.20, 0.20)
+        lean = rng.uniform(0.03, 0.10)
+        tip = (math.cos(angle) * height * lean, math.sin(angle) * height * lean,
+               height * rng.uniform(0.88, 1.0))
+        points = _market_stem(geometry, (0, 0, 0), tip, height, height * 0.0050,
+                              sides=6)
+        _add_plantain_spike(geometry, height, rng, points[-1],
+                            _section_tangent(points, len(points) - 1))
+        midpoint = (points[-1][0], points[-1][1], points[-1][2] - height * 0.045)
+        if focus is None or midpoint[2] > focus[2]:
+            focus = midpoint
+    return geometry, focus, {"growth_habit": "basal_rosette",
+                             "rosette_leaves": PLANTAIN_ROSETTE_LEAVES,
+                             "leaf_veins": PLANTAIN_VEINS,
+                             "flower_scapes": PLANTAIN_SPIKES,
+                             "flower_spikes": PLANTAIN_SPIKES,
+                             "spike_florets": PLANTAIN_SPIKE_FLORETS,
+                             "spike_shape": "cylinder"}
+
+
+def _add_strawberry_leaflet(geometry, origin, angle, elevation, length, width, height,
+                            rng):
+    """One obovate, coarsely toothed strawberry leaflet."""
+    sections, axis_z = _leaf_sections(
+        origin, angle, elevation, length, width, rng, curl=0.18,
+        stations=STRAWBERRY_LEAFLET_STATIONS, widths=STRAWBERRY_LEAFLET_WIDTHS,
+        cups=STRAWBERRY_LEAFLET_CUPS)
+    geometry.cupped_blade(sections, "LeafGreen",
+                          flex=[_flex(z, height, 0.25 + 0.75 * index / (len(axis_z) - 1))
+                                for index, z in enumerate(axis_z)],
+                          tint=rng.uniform(0.52, 0.66))
+
+
+def _add_strawberry_flower(geometry, height, rng, centre, normal):
+    """Five white petals around a yellow centre; a strawberry flower."""
+    normal = _normalize(normal)
+    head_flex = _flex(centre[2], height, 1.0)
+    centre_radius = height * STRAWBERRY_FLOWER_CENTRE_FRACTION
+    geometry.dome(centre, centre_radius, centre_radius * 0.62, "BloomYellow",
+                  segments=8, rings=2, bump=0.14, rng=rng, flex=head_flex,
+                  tint=0.72, normal=normal)
+    phase = rng.uniform(0.0, 2.0 * math.pi)
+    for index in range(STRAWBERRY_PETALS):
+        _petal_ray(geometry, centre, normal, phase + 2.0 * math.pi * index / STRAWBERRY_PETALS,
+                   centre_radius * 0.68, centre_radius * STRAWBERRY_PETAL_REACH,
+                   centre_radius * 0.66, height,
+                   "PetalWhite", rng, stations=BUTTERCUP_PETAL_STATIONS,
+                   widths=BUTTERCUP_PETAL_WIDTHS, cup=0.20, wave=0.09,
+                   notch=0.03, tint=rng.uniform(0.80, 0.95))
+
+
+def _add_strawberry_fruit(geometry, height, rng, anchor, direction):
+    """One red strawberry: a seeded, tapering berry with a green calyx."""
+    direction = _normalize(direction)
+    length = height * rng.uniform(0.055, 0.075)
+    tip = _add(anchor, _scale(direction, length))
+    geometry.tube([anchor, tip], [height * 0.0045, height * 0.0130],
+                  "PetalRed", sides=8, cap_start=True,
+                  flex=[_flex(anchor[2], height, 0.85),
+                        _flex(tip[2], height, 1.0)], tint=0.62)
+    # A shoulder ring plus a rounded tip give the berry its real silhouette; the
+    # achenes are tiny dark octahedra sitting proud of the surface.
+    geometry.dome(tip, height * 0.0130, height * 0.0125, "PetalRed",
+                  segments=8, rings=2, bump=0.12, rng=rng,
+                  flex=_flex(tip[2], height, 1.0), tint=0.58, normal=direction)
+    u, v, _n = _plane_axes(direction)
+    for index in range(12):
+        phi = index * 2.399963229728653
+        t = 0.18 + 0.62 * (index / 12.0)
+        radial = _normalize(_add(_scale(u, math.cos(phi)), _scale(v, math.sin(phi))))
+        surface = _add(anchor, _add(_scale(direction, length * t),
+                                    _scale(radial, height * 0.0125 * (0.55 + 0.45 * t))))
+        geometry.octa(surface, (height * 0.0018,) * 3, "BloomYellow",
+                      flex=1.0, tint=0.66)
+    # The green calyx closes the top of the berry.
+    geometry.dome(anchor, height * 0.0110, height * 0.0060, "LeafGreen",
+                  segments=7, rings=2, flex=_flex(anchor[2], height, 0.9),
+                  tint=0.50, normal=_scale(direction, -1.0))
+
+
+def _build_wild_strawberry(height, rng):
+    geometry = PlantGeometry()
+    geometry.dome((0, 0, 0), height * 0.055, height * 0.028, "StemGreen",
+                  flex=0.0, tint=0.22)
+    # A low clump of trifoliate leaves on short petioles: one terminal and two
+    # lateral toothed leaflets per group, so every node reads as a strawberry
+    # leaf and not as a plain foliage fan.
+    for index in range(STRAWBERRY_TRIFOLIATE_GROUPS):
+        angle = 2.0 * math.pi * index / STRAWBERRY_TRIFOLIATE_GROUPS + rng.uniform(-0.20, 0.20)
+        petiole_length = height * rng.uniform(0.18, 0.32)
+        origin = (math.cos(angle) * height * 0.045, math.sin(angle) * height * 0.045,
+                  height * 0.012)
+        joint = _add(origin, (math.cos(angle) * petiole_length,
+                              math.sin(angle) * petiole_length,
+                              petiole_length * rng.uniform(0.35, 0.60)))
+        geometry.tube([origin, joint], [height * 0.0038, height * 0.0026],
+                      "StemGreen", sides=4,
+                      flex=[_flex(origin[2], height, 0.2),
+                            _flex(joint[2], height, 0.5)], tint=0.44)
+        leaflet_length = height * rng.uniform(0.26, 0.34)
+        for leaflet, (leaf_angle, elevation, scale) in enumerate(
+                ((angle, 0.30, 1.0),
+                 (angle + 1.62, 0.10, 0.88),
+                 (angle - 1.62, 0.10, 0.88))):
+            side_offset = (leaflet - 1) * height * 0.020
+            tangent = (-math.sin(angle), math.cos(angle), 0.0)
+            leaf_origin = _add(joint, _add(_scale(tangent, side_offset),
+                                           _scale((math.cos(angle), math.sin(angle), 0.0),
+                                                  height * (0.014 if leaflet == 0 else 0.0))))
+            if _length(_sub(leaf_origin, joint)) > 1e-8:
+                geometry.tube([joint, leaf_origin],
+                              [height * 0.0026, height * 0.0018],
+                              "StemGreen", sides=4,
+                              flex=[_flex(joint[2], height, 0.5),
+                                    _flex(leaf_origin[2], height, 0.5)], tint=0.44)
+            _add_strawberry_leaflet(geometry, leaf_origin, leaf_angle, elevation,
+                                    leaflet_length * scale,
+                                    leaflet_length * scale * rng.uniform(0.29, 0.36),
+                                    height, rng)
+    # Two reproductive stems: each carries one white flower, and the trailing
+    # one also carries the two red fruit on short drooping pedicels.
+    focus = None
+    focus_normal = None
+    fruits_placed = 0
+    for index in range(2):
+        angle = 2.0 * math.pi * index / 2 + rng.uniform(-0.40, 0.40)
+        tip = (math.cos(angle) * height * rng.uniform(0.10, 0.18),
+               math.sin(angle) * height * rng.uniform(0.10, 0.18),
+               height * rng.uniform(0.82, 0.96))
+        points = _market_stem(geometry, (0, 0, 0), tip, height, height * 0.0040,
+                              sides=5)
+        normal = _normalize((math.cos(angle) * 0.45, math.sin(angle) * 0.45,
+                             1.0 + rng.uniform(-0.10, 0.10)))
+        centre = _add(tip, _scale(normal, height * 0.012))
+        _add_strawberry_flower(geometry, height, rng, centre, normal)
+        if focus is None or centre[2] > focus[2]:
+            focus, focus_normal = centre, normal
+        if index == 0:
+            # Two berries hang below the flowering stem on their own pedicels.
+            anchor, _tangent = _sample_polyline(points, 0.62)
+            for fruit in range(STRAWBERRY_FRUITS):
+                fruit_angle = angle + (0.9 if fruit == 0 else -0.9)
+                pedicel = _add(anchor, (math.cos(fruit_angle) * height * 0.030,
+                                        math.sin(fruit_angle) * height * 0.030,
+                                        -height * 0.012))
+                geometry.tube([anchor, pedicel], [height * 0.0028, height * 0.0020],
+                              "StemGreen", sides=4,
+                              flex=[_flex(anchor[2], height, 0.7),
+                                    _flex(pedicel[2], height, 0.85)], tint=0.46)
+                _add_strawberry_fruit(geometry, height, rng, pedicel,
+                                      _normalize((math.cos(fruit_angle) * 0.30,
+                                                  math.sin(fruit_angle) * 0.30, -1.0)))
+                fruits_placed += 1
+    return geometry, focus, {"growth_habit": "low_clump",
+                             "trifoliate_groups": STRAWBERRY_TRIFOLIATE_GROUPS,
+                             "leaflets": STRAWBERRY_TRIFOLIATE_GROUPS * 3,
+                             "leaflet_margin": "toothed",
+                             "flower_stems": 2,
+                             "petals_per_flower": STRAWBERRY_PETALS,
+                             "flowers": 2, "fruits": fruits_placed,
+                             "fruit_colour": "PetalRed",
+                             "bloom_normal": list(focus_normal)}
+
+
 BUILDERS = {
     "daisy": _build_daisy,
     "lavender": _build_lavender,
@@ -1886,6 +2622,11 @@ BUILDERS = {
     "cornflower": _build_cornflower,
     "red_clover": _build_red_clover,
     "cattail": _build_cattail,
+    "buttercup": _build_buttercup,
+    "chicory": _build_chicory,
+    "yarrow": _build_yarrow,
+    "ribwort_plantain": _build_ribwort_plantain,
+    "wild_strawberry": _build_wild_strawberry,
 }
 
 
