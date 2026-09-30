@@ -22,7 +22,7 @@ import assert from 'node:assert/strict';
 import { before, test } from 'node:test';
 
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
-import { MAP_SCALE, scanAnimatedSetpieces } from './helpers/animated-setpiece-scan.mjs';
+import { MAP_SCALE, SHIP_RADIUS, scanAnimatedSetpieces } from './helpers/animated-setpiece-scan.mjs';
 
 const KNOWN_FINDINGS = [
     // aetherion_orrery (plan G): astrolabe bars rise through FINISH, an item and both turrets;
@@ -48,22 +48,7 @@ const KNOWN_FINDINGS = [
     'aetherion_orrery|aetherion-orrery-zodiac-crown|-|loop-seam',
     'aetherion_orrery|aetherion-orrery-zodiac-foundry|-|loop-seam',
     'aetherion_orrery|aetherion-orrery-zodiac-gallery|-|loop-seam',
-    // chrono_forge_nexus (plan I): static parts without the obstacle boxes the preset promises.
-    'chrono_forge_nexus|chrono-forge-dock-crane|-|static-uncovered',
-    'chrono_forge_nexus|chrono-forge-machine-core|-|static-uncovered',
-    'chrono_forge_nexus|chrono-forge-rift-shards|-|static-uncovered',
-    'chrono_forge_nexus|chrono-forge-temple-chronometer|-|static-uncovered',
-    'chrono_forge_nexus|chrono-forge-temple-gates|-|static-uncovered',
-    // eclipse_foundry (plan I, together with Chrono Forge): reuses the Chrono Forge setpieces and
-    // inherits their missing obstacle boxes; the beat findings are deliberate exceptions below.
-    'eclipse_foundry|eclipse-foundry-arrival-crane|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-crown-shards|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-descent-clock|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-furnace-core|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-furnace-gates|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-lens-shards|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-orbit-clock|-|static-uncovered',
-    'eclipse_foundry|eclipse-foundry-temple-gates|-|static-uncovered',
+    // Chrono Forge and Eclipse (plan I): their fixed setpiece parts now have obstacle boxes.
     'eiffel_tower_siege|eiffel-topple-lower|-|end-below-ground',
     // glb_gallery: the gallery has no map beat, so its library clips run against the 4 s default.
     'glb_gallery|pm-chromatic-chaos/Building_Corner_01|-|beat',
@@ -138,7 +123,7 @@ const DELIBERATE_EXCEPTIONS = [
 
 // Every map with animated setpieces the 28.09. audit named; the scan must reach all of them.
 const AUDITED_MAPS = [
-    'aetherion_orrery', 'chrono_forge_nexus', 'kinetic_tide', 'verdant_aperture', 'burg_falkenwacht',
+    'aetherion_orrery', 'chrono_forge_nexus', 'eclipse_foundry', 'kinetic_tide', 'verdant_aperture', 'burg_falkenwacht',
     'eiffel_tower', 'eiffel_tower_arena', 'eiffel_tower_siege', 'reactor_site', 'skyline_siege', 'storm_bridge_siege',
     'storm_dam_siege', 'storm_lighthouse_siege', 'notre_dame', 'glb_gallery',
 ];
@@ -192,4 +177,28 @@ test('the scan sees a point inside a moving part and ignores one far away', asyn
     });
     assert.ok(result.findings.has('kinetic_tide|kinetic-tide-reactor-heart|probe:core|clearance'));
     assert.ok(![...result.findings.keys()].some((key) => key.includes('probe:sky')));
+});
+
+test('the Eclipse crown pedestal clears the full CP15 ring disc and ship radius', () => {
+    const map = MAP_PRESET_CATALOG.eclipse_foundry;
+    const checkpoint = map.parcours.checkpoints.find((entry) => entry.id === 'CP15');
+    const pedestal = map.obstacles.find((obstacle) => obstacle.tunnel?.axis === 'y'
+        && obstacle.pos?.[0] === -60 && obstacle.pos?.[2] === 4);
+    assert.ok(checkpoint);
+    assert.ok(pedestal);
+
+    const discRadius = Math.max(3.2, checkpoint.radius * 0.75) * MAP_SCALE;
+    // Use the full radius as an orientation-independent upper bound on its horizontal projection.
+    const horizontalDiscRadius = discRadius;
+    const centerOffset = Math.hypot(
+        (checkpoint.pos[0] - pedestal.pos[0]) * MAP_SCALE,
+        (checkpoint.pos[2] - pedestal.pos[2]) * MAP_SCALE,
+    );
+    const furthestDiscPoint = centerOffset + horizontalDiscRadius;
+    const availableRadius = pedestal.tunnel.radius * MAP_SCALE - SHIP_RADIUS;
+
+    assert.ok(
+        availableRadius > furthestDiscPoint,
+        `CP15 needs ${furthestDiscPoint.toFixed(2)} units; tunnel leaves ${availableRadius.toFixed(2)}`,
+    );
 });
