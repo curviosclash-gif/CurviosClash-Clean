@@ -239,3 +239,20 @@ test('the raised triforium and gallery form two continuous, collider-clear fligh
             `${id} remains clear of the updated interior GLBs`);
     }
 });
+
+test('the ten-pigeon loop clears every loaded cathedral collider at its full formation radius', async () => {
+    const meshes = await loadChurchMeshes();
+    const [flock] = map.mapUnits || [];
+    assert.ok(flock && flock.kind === 'swarm' && flock.memberCount === 10);
+    assert.equal(flock.path.length >= 12, true, 'the loop includes nave, both transept exits, towers and parvis');
+    const radius = flock.hitboxRadius + flock.formationRadius;
+
+    for (let index = 0; index < flock.path.length; index += 1) {
+        const from = flock.path[index];
+        const to = flock.path[(index + 1) % flock.path.length];
+        const hit = sphereSweepHit(meshes.colliding, from, to, radius);
+        assert.equal(hit, undefined,
+            `the whole flock clears actual GLB triangles on authored leg ${index + 1}: ${JSON.stringify(hit)}`);
+    }
+    assert.deepEqual(flock.path[0], flock.path.at(-1), 'the first and last authored anchors close the loop');
+});

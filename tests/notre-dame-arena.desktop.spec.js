@@ -7,7 +7,7 @@ import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 // because a desktop run keeps one window, and a second map cannot be selected from inside a
 // match that is already going.
 
-test('the Notre-Dame arena flies the same building without a route', async ({ page }) => {
+test('the Notre-Dame arena flies the same building with ten flapping pigeons and no route', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
@@ -24,7 +24,6 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
         if (slider) slider.value = '0';
         game.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['bots.count'] });
     });
-
     await page.click('#btn-start');
     await expect.poll(() => page.evaluate(() => (
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame_arena'
@@ -34,6 +33,58 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
         timeout: 150_000,
         message: 'the arena variant should load the same seven parts and 32 trees',
     }).toBeTruthy();
+
+    await expect.poll(() => page.evaluate(() => {
+        const system = window.GAME_INSTANCE?.entityManager?._mapUnitSystem;
+        const flock = system?.units?.find((unit) => unit.id === 'notre_dame_pigeons');
+        return flock?.members?.length === 10
+            && flock.root?.children?.length === 10;
+    }), { timeout: 20_000, message: 'the arena should start its ten-pigeon swarm' }).toBeTruthy();
+    await expect.poll(() => page.evaluate(() => {
+        const parts = window.GAME_INSTANCE?.entityManager?._mapUnitSystem?._modelLibrary?.parts;
+        return parts?.has('pigeon_body') === true && parts?.has('pigeon_wing') === true;
+    }), { timeout: 20_000, message: 'the shared GLB should supply both authored pigeon parts' }).toBeTruthy();
+
+    const flockVisual = await page.evaluate(() => {
+        const system = window.GAME_INSTANCE.entityManager._mapUnitSystem;
+        const flock = system.units.find((unit) => unit.id === 'notre_dame_pigeons');
+        const birds = flock.root.children;
+        const bodyGeometry = system._modelLibrary.parts.get('pigeon_body').geometry;
+        const wingGeometry = system._modelLibrary.parts.get('pigeon_wing').geometry;
+        const containsGeometry = (root, geometry) => {
+            let found = false;
+            root?.traverse?.((node) => { if (node.geometry === geometry) found = true; });
+            return found;
+        };
+        const wings = flock.members.map((member) => member.visualWings?.map((wing) => wing.rotation.z) || []);
+        const authoredBodies = birds.filter((bird) => containsGeometry(bird, bodyGeometry));
+        const authoredWingPairs = flock.members.filter((member) => member.visualWings?.length === 2
+            && member.visualWings.every((wing) => containsGeometry(wing, wingGeometry)));
+        return {
+            visibleBirds: birds.filter((bird) => bird.visible).length,
+            authoredBodies: authoredBodies.length,
+            authoredWingPairs: authoredWingPairs.length,
+            wings,
+            parcours: !!window.GAME_INSTANCE.arena.currentMapDefinition?.parcours?.enabled,
+        };
+    });
+    expect(flockVisual.visibleBirds).toBe(10);
+    expect(flockVisual.authoredBodies).toBe(10);
+    expect(flockVisual.authoredWingPairs).toBe(10);
+    expect(flockVisual.parcours).toBe(false);
+    await page.waitForTimeout(220);
+    const flappedWings = await page.evaluate(() => {
+        const flock = window.GAME_INSTANCE.entityManager._mapUnitSystem.units
+            .find((unit) => unit.id === 'notre_dame_pigeons');
+        return flock.members.map((member) => member.visualWings?.map((wing) => wing.rotation.z) || []);
+    });
+    expect(flappedWings.some((pair, index) => pair.some((angle, wingIndex) => (
+        Math.abs(angle - (flockVisual.wings[index]?.[wingIndex] ?? angle)) > 0.08
+    )))).toBe(true);
+    await testInfo.attach('notre-dame-arena-pigeons-gameplay.png', {
+        body: await page.screenshot(),
+        contentType: 'image/png',
+    });
 
     const state = await page.evaluate(() => ({
         parcours: !!window.GAME_INSTANCE.arena.currentMapDefinition?.parcours?.enabled,
@@ -57,7 +108,7 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
     expect(state.authoredObstacleCount).toBeGreaterThan(0);
     expect(state).toEqual({
         parcours: false,
-        tracks: 6,
+        tracks: 7,
         warnings: 0,
         colliderMode: 'scene',
         authoredObstacleCount: state.authoredObstacleCount,

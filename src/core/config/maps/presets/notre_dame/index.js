@@ -63,6 +63,30 @@ export const NOTRE_DAME_COMMON = {
     audioProfile: NOTRE_DAME_AUDIO_PROFILE,
     items: NOTRE_DAME_ITEMS,
     aircraft: NOTRE_DAME_AIRCRAFT,
+    // One shared, host-driven flock. It crosses the nave, leaves and re-enters through the actual
+    // west rose, then circles both towers and the parvis on the clear exterior perimeter.
+    mapUnits: [Object.freeze({
+        id: 'notre_dame_pigeons',
+        kind: 'swarm',
+        path: Object.freeze([
+            [-112, GROUND + 37, 0], [-83, GROUND + 37, 0], [-60, GROUND + 37, 0],
+            [0, GROUND + 37, 0], [-24, GROUND + 37, 0], [-60, GROUND + 37, 0],
+            [-83, GROUND + 37, 0], [-105, GROUND + 37, 0], [-105, GROUND + 37, 45],
+            [-72, GROUND + 37, 45], [-72, 112, 45], [-72, 112, -45],
+            [-72, GROUND + 37, -45], [-105, GROUND + 37, -45],
+            [-105, GROUND + 37, 0], [-112, GROUND + 37, 0],
+        ].map((point) => Object.freeze(point))),
+        loop: true,
+        speed: 13,
+        maxHp: 10,
+        hitboxRadius: 0.55,
+        memberCount: 10,
+        memberHp: 1,
+        formationRadius: 1.4,
+        weapons: { mg: false, rocket: false },
+        attack: { damage: 14, cooldown: 3.2, radius: 0.7, range: 9, diveSpeed: 26 },
+          allowedModes: Object.freeze(['HUNT', 'ARENA']),
+    })],
     // Warm light inside the nave, running the length of the building between the west front and the
     // apse. The lamps sit above head height so the vaults catch them, and they deliberately do not
     // cast shadows - the point is that some of this reaches the outside through the portals, the

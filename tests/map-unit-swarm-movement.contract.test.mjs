@@ -9,7 +9,7 @@ const SWARM = {
     kind: 'swarm',
     path: [[0, 6, 0], [36, 6, 0]],
     speed: 18,
-    memberCount: 8,
+    memberCount: 10,
     memberHp: 8,
     formationRadius: 5,
     weapons: { mg: false, rocket: false },
@@ -29,16 +29,23 @@ function createHarness() {
     return { owner, scene, system };
 }
 
-test('a swarm builds eight lightweight members around its path centre', () => {
+test('a flock builds ten lightweight members with shared geometry and procedural wings', () => {
     const { scene, system } = createHarness();
     assert.equal(system.startRound(), 1);
     const [swarm] = system.units;
 
     assert.equal(swarm.kind, 'swarm');
-    assert.equal(swarm.members.length, 8);
+    assert.equal(swarm.members.length, 10);
     assert.equal(swarm.root.userData.swarm, true);
-    assert.equal(swarm.root.children.length, 8);
+    assert.equal(swarm.root.children.length, 10);
     assert.equal(scene.size, 1, 'the swarm is one scene root');
+    assert.equal(swarm.root.children[0].children[0].geometry, swarm.root.children[1].children[0].geometry,
+        'all members reuse the same body geometry');
+    const wing = swarm.members[0].visualWings[0].children[0];
+    const initialWingAngle = swarm.members[0].visualWings[0].rotation.z;
+    system._updateVisual(swarm, 0.02);
+    assert.notEqual(swarm.members[0].visualWings[0].rotation.z, initialWingAngle, 'wing flaps without an animation mixer');
+    assert.equal(wing.isMesh, true);
     for (const member of swarm.members) {
         assert.equal(member.position.distanceTo(swarm.position) <= 5.001, true);
     }

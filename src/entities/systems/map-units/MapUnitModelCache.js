@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { TANK_TURRET_HEIGHT } from './MapUnitVisualOps.js';
+import { applyAuthoredSwarmVisual } from './MapUnitSwarmVisualOps.js';
 
 /**
  * The authored tank model (B2). The library is one GLB with a named part per piece, built by
@@ -29,6 +30,8 @@ const LIBRARY_PART_NAMES = Object.freeze([
     ...MAP_UNIT_BODY_PARTS,
     ...MAP_UNIT_HEAD_PARTS,
     'tank_wreck',
+    'pigeon_body',
+    'pigeon_wing',
 ]);
 
 let libraryPromise = null;
@@ -124,4 +127,29 @@ export function applyAuthoredMapUnitBody(root, library) {
 /** The wreck left behind by a destroyed tank, or null while the library is not there yet. */
 export function createAuthoredWreck(library) {
     return library?.parts ? clonePart(library, 'tank_wreck') : null;
+}
+
+/** Loads the shared editable model library once and applies only parts each live unit needs. */
+export function requestMapUnitLibrary(system, unit) {
+    if (!unit?.root) return;
+    if (system._modelLibrary) {
+        applyMapUnitLibraryPart(unit, system._modelLibrary);
+        return;
+    }
+    if (system._modelLibraryRequested || typeof window === 'undefined') return;
+    system._modelLibraryRequested = true;
+    loadMapUnitLibrary().then((library) => {
+        if (!library) return;
+        system._modelLibrary = library;
+        applyLoadedMapUnitLibrary(system, library);
+    });
+}
+
+function applyLoadedMapUnitLibrary(system, library) {
+    for (const unit of system.units) applyMapUnitLibraryPart(unit, library);
+}
+
+function applyMapUnitLibraryPart(unit, library) {
+    if (unit.kind === 'tank' || unit.kind === 'boss') applyAuthoredMapUnitBody(unit.root, library);
+    else if (unit.kind === 'swarm') applyAuthoredSwarmVisual(unit.root, unit.members, library.parts);
 }
