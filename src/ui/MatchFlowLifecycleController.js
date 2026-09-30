@@ -137,6 +137,7 @@ export class MatchFlowLifecycleController {
         if (game.ui.crosshairP2) {
             game.ui.crosshairP2.style.display = 'none';
         }
+        game.crosshairSystem?.hideAllCrosshairs?.();
 
         this.sessionOrchestrator?.resetRoundRuntime?.();
         this._requestGhostPlaybackForActiveRoute();

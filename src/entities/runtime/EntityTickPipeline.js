@@ -62,11 +62,10 @@ export class EntityTickPipeline {
                 return;
             }
 
-            owner.audio?.syncEngineFromPlayers?.(owner.players, {
-                localPlayerIndex: owner.renderer?.viewportSystem?.localPlayerIndex,
-            });
             const ambienceOptions = this._mapAmbienceOptions;
             ambienceOptions.localPlayerIndex = owner.renderer?.viewportSystem?.localPlayerIndex;
+            ambienceOptions.localHumanCount = owner.renderer?.viewportSystem?.localHumanCount;
+            owner.audio?.syncEngineFromPlayers?.(owner.players, ambienceOptions);
             ambienceOptions.mapDefinition = owner.arena?.currentMapDefinition;
             ambienceOptions.fireProgress = owner.arena?.mapFireProgress;
             ambienceOptions.mapScale = owner.entityRuntimeConfig?.ARENA?.MAP_SCALE;

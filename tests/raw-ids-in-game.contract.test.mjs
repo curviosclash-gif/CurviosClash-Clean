@@ -24,8 +24,9 @@ test('the two map filters called "Parcours" are told apart', () => {
     assert.notEqual(collection, feature);
 });
 
-test('local 3- and 4-player modules offer "Klassisch" and "Kampf"', () => {
-    for (const file of ['ThreePlayerSplitSetupView.js', 'FourPlayerPlanarSetupView.js']) {
+// Three players pick their play style with the shared mode cards; only the planar module keeps its own list.
+test('the local 4-player module offers "Klassisch" and "Kampf"', () => {
+    for (const file of ['FourPlayerPlanarSetupView.js']) {
         const source = readFileSync(new URL(`../src/ui/four-player-planar/${file}`, import.meta.url), 'utf8');
         assert.match(source, /<option value="classic">Klassisch<\/option>/u, file);
         assert.match(source, /<option value="hunt">Kampf<\/option>/u, file);

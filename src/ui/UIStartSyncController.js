@@ -25,6 +25,7 @@ import {
 import { bindStartSetupControls } from './start-setup/StartSetupControlBindings.js';
 import { createStartSetupMapPicker3d } from './start-setup/StartSetupMapPicker3d.js';
 import { createStartSetupVehiclePicker3d } from './start-setup/StartSetupVehiclePicker3d.js';
+import { syncSplitPlayersSection } from './start-setup/StartSetupSplitPlayersSection.js';
 import {
     formatStartSetupMapLabel,
     renderStartFieldHints,
@@ -116,6 +117,7 @@ export class UIStartSyncController {
         };
         populate(this.ui.vehicleSelectP1);
         populate(this.ui.vehicleSelectP2);
+        populate(this.ui.vehicleSelectP3);
     }
 
     setupMapSelect() {
@@ -403,6 +405,7 @@ export class UIStartSyncController {
             this.ui.lobbyMapPreviewMount?.classList.toggle('hidden', !hasActiveLobbySession || !runtimeMaps[lobbyMapKey]);
             this._lobbyMapPicker3d?.sync({ mapKey: lobbyMapKey, maps: runtimeMaps });
             this._vehiclePicker3d?.sync({ settings, sessionType });
+            syncSplitPlayersSection({ ui: this.ui, settings, sessionType });
 
         const surfaceEntryCopy = resolveSurfaceEntryCopy({
             productSurfaceId: this._resolveSurfacePolicy()?.productSurfaceId,

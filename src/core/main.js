@@ -109,7 +109,6 @@ export class Game {
         this.fourPlayerPlanar = new FourPlayerPlanarModule({ runtimePort: localSplitRuntimePort });
         this.threePlayerSplit = createThreePlayerSplitModule({ runtimePort: localSplitRuntimePort });
         this.fourPlayerPlanar.mountSetupUi();
-        this.threePlayerSplit.mountSetupUi();
         this._boundKeyCaptureHandler = (event) => this.runtimeCoordinator?.getRuntimeHandle?.('keybindEditorController')?.handleKeyCapture?.(event);
 
         this.runtimeCoordinator.initialize({

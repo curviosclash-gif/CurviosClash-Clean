@@ -4,10 +4,12 @@ import { HITBOX_LABELS } from '../arcade/vehicle-manager/VehicleManagerUiPrimiti
 import { HANGAR_SELECTION_PLAYER_SLOTS } from '../hangar/HangarSelectionWritebackContract.js';
 import { MENU_SESSION_TYPES } from '../menu/MenuStateContracts.js';
 import { bindChoiceStripKeys } from './ChoiceStripKeys.js';
+import { isThreePlayerSplitSelected } from './StartSetupSplitPlayersSection.js';
 
 const PLAYER_COLORS = Object.freeze({
     [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1]: '#66b6ff',
     [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2]: '#ff9f5a',
+    [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_3]: '#7dff6a',
 });
 
 const CATEGORY_LABELS = Object.freeze({
@@ -45,9 +47,15 @@ function updateStat(progress, valueNode, value) {
     if (valueNode) valueNode.textContent = `${normalizedValue}/5`;
 }
 
-function supportsSecondVehicleSelection(sessionType) {
-    return sessionType === MENU_SESSION_TYPES.SPLITSCREEN
-        || sessionType === MENU_SESSION_TYPES.MULTIPLAYER;
+function resolveAvailableSlots(sessionType, settings) {
+    const slots = [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1];
+    if (sessionType === MENU_SESSION_TYPES.SPLITSCREEN || sessionType === MENU_SESSION_TYPES.MULTIPLAYER) {
+        slots.push(HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2);
+    }
+    if (sessionType === MENU_SESSION_TYPES.SPLITSCREEN && isThreePlayerSplitSelected(settings)) {
+        slots.push(HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_3);
+    }
+    return slots;
 }
 
 export function createStartSetupVehiclePicker3d({ ui, listen } = {}) {
@@ -75,9 +83,12 @@ export function createStartSetupVehiclePicker3d({ ui, listen } = {}) {
     let lastSessionType = MENU_SESSION_TYPES.SINGLE;
     let disposed = false;
 
-    const selectForSlot = (slot = activeSlot) => (
-        slot === HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2 ? ui.vehicleSelectP2 : ui.vehicleSelectP1
-    );
+    const slotControls = {
+        [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1]: { button: ui.vehiclePickerPlayerP1Button, select: ui.vehicleSelectP1, panel: ui.vehicleSelectP1Panel },
+        [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2]: { button: ui.vehiclePickerPlayerP2Button, select: ui.vehicleSelectP2, panel: ui.vehicleSelectP2Panel },
+        [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_3]: { button: ui.vehiclePickerPlayerP3Button, select: ui.vehicleSelectP3, panel: ui.vehicleSelectP3Panel },
+    };
+    const selectForSlot = (slot = activeSlot) => slotControls[slot]?.select || ui.vehicleSelectP1;
 
     function isPreviewVisible() {
         const sectionOpen = !ui.vehiclePickerSection || ui.vehiclePickerSection.open === true;
@@ -145,18 +156,17 @@ export function createStartSetupVehiclePicker3d({ ui, listen } = {}) {
         if (ui.vehiclePickerNextButton) ui.vehiclePickerNextButton.disabled = !hasAlternatives;
     }
 
-    function syncPlayerUi(isP2Available) {
-        if (!isP2Available && activeSlot === HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2) {
-            activeSlot = HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1;
+    function syncPlayerUi(availableSlots) {
+        if (!availableSlots.includes(activeSlot)) activeSlot = HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1;
+        for (const [slot, controls] of Object.entries(slotControls)) {
+            const active = slot === activeSlot;
+            if (slot !== HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1) {
+                controls.button?.classList.toggle('hidden', !availableSlots.includes(slot));
+            }
+            controls.button?.classList.toggle('active', active);
+            controls.button?.setAttribute('aria-pressed', String(active));
+            controls.panel?.classList.toggle('hidden', !active);
         }
-        const isPlayer2 = activeSlot === HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2;
-        ui.vehiclePickerPlayerP2Button?.classList.toggle('hidden', !isP2Available);
-        ui.vehiclePickerPlayerP1Button?.classList.toggle('active', !isPlayer2);
-        ui.vehiclePickerPlayerP1Button?.setAttribute('aria-pressed', String(!isPlayer2));
-        ui.vehiclePickerPlayerP2Button?.classList.toggle('active', isPlayer2);
-        ui.vehiclePickerPlayerP2Button?.setAttribute('aria-pressed', String(isPlayer2));
-        ui.vehicleSelectP1Panel?.classList.toggle('hidden', isPlayer2);
-        ui.vehicleSelectP2Panel?.classList.toggle('hidden', !isPlayer2);
     }
 
     function syncDetails(vehicleId) {
@@ -193,8 +203,7 @@ export function createStartSetupVehiclePicker3d({ ui, listen } = {}) {
         if (disposed) return;
         lastSettings = settings || lastSettings;
         lastSessionType = sessionType || lastSessionType;
-        const isP2Available = supportsSecondVehicleSelection(lastSessionType);
-        syncPlayerUi(isP2Available);
+        syncPlayerUi(resolveAvailableSlots(lastSessionType, lastSettings));
         const select = selectForSlot();
         const vehicleId = String(select?.value || lastSettings?.vehicles?.[activeSlot] || 'ship5').trim().toLowerCase();
         const color = resolvePlayerColor(lastSettings, activeSlot);
@@ -210,8 +219,7 @@ export function createStartSetupVehiclePicker3d({ ui, listen } = {}) {
     }
 
     function setActiveSlot(slot) {
-        if (slot === HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2
-            && !supportsSecondVehicleSelection(lastSessionType)) return;
+        if (!resolveAvailableSlots(lastSessionType, lastSettings).includes(slot)) return;
         activeSlot = slot;
         activeVehicleSignature = '';
         choiceSignature = '';
@@ -223,6 +231,7 @@ export function createStartSetupVehiclePicker3d({ ui, listen } = {}) {
     bind(ui.vehiclePickerResetButton, 'click', () => preview.resetView());
     bind(ui.vehiclePickerPlayerP1Button, 'click', () => setActiveSlot(HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1));
     bind(ui.vehiclePickerPlayerP2Button, 'click', () => setActiveSlot(HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2));
+    bind(ui.vehiclePickerPlayerP3Button, 'click', () => setActiveSlot(HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_3));
     bind(ui.vehiclePickerChoiceStrip, 'click', (event) => {
         const button = event.target?.closest?.('[data-vehicle-id]');
         if (button) selectVehicle(button.dataset.vehicleId);

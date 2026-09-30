@@ -285,13 +285,9 @@ export function handleLevel3ResetAction(ctx) {
         { modePath }
     );
     if (sessionType === 'splitscreen') {
-        writeHangarVehicleSelection(
-            game.settings,
-            HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2,
-            defaults.vehicles.PLAYER_2,
-            defaults.vehicles.PLAYER_2,
-            { modePath }
-        );
+        for (const slot of [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_3]) {
+            writeHangarVehicleSelection(game.settings, slot, defaults.vehicles[slot], defaults.vehicles[slot], { modePath });
+        }
     }
     onSettingsChanged({
         changedKeys: [

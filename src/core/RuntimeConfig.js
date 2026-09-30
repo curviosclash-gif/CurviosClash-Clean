@@ -36,6 +36,7 @@ import { normalizeTeamObjectiveType, TEAM_OBJECTIVE_TYPES } from '../shared/cont
 import {
     FOUR_PLAYER_PLANAR_MODES,
     SPLIT_SCREEN_VARIANTS,
+    clampThreePlayerSplitBotCount,
     createFourPlayerPlanarRuntimeSelection,
     createThreePlayerSplitRuntimeSelection,
 } from '../four-player-planar/FourPlayerPlanarContract.js';
@@ -225,12 +226,7 @@ export function createRuntimeConfigSnapshot(settings, {
     });
     const fourPlayerPlanarActive = sessionType === RUNTIME_SESSION_TYPES.SPLITSCREEN
         && fourPlayerPlanarSelection.active;
-    const threePlayerSplitSelection = createThreePlayerSplitRuntimeSelection(source, {
-        allowedMapKeys: new Set(Object.keys(baseConfig?.MAPS || CONFIG.MAPS || {})),
-        allowedVehicleIds: new Set(getPlayerVehicleIds()),
-        fallbackMapKey: String(source.mapKey || 'standard'),
-        fallbackVehicleId: resolveHumanVehicleId(source?.vehicles?.PLAYER_1, baseConfig?.PLAYER?.DEFAULT_VEHICLE_ID),
-    });
+    const threePlayerSplitSelection = createThreePlayerSplitRuntimeSelection(source);
     const threePlayerSplitActive = sessionType === RUNTIME_SESSION_TYPES.SPLITSCREEN
         && !fourPlayerPlanarActive
         && threePlayerSplitSelection.active;
@@ -254,11 +250,13 @@ export function createRuntimeConfigSnapshot(settings, {
     const huntFeatureEnabled = baseConfig?.HUNT?.ENABLED !== false;
     const requestedGameMode = fourPlayerPlanarActive
         ? (fourPlayerPlanarSelection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? GAME_MODE_TYPES.HUNT : GAME_MODE_TYPES.CLASSIC)
-        : (threePlayerSplitActive
-            ? (threePlayerSplitSelection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? GAME_MODE_TYPES.HUNT : GAME_MODE_TYPES.CLASSIC)
-            : source.gameMode);
-    const requestedTeamObjective = normalizeTeamObjectiveType(huntSource.teamObjective);
-    const objectiveGameMode = requestedGameMode === GAME_MODE_TYPES.HUNT && huntSource.teamMode === true
+        : source.gameMode;
+    // The three-player HUD has no team, flag or escort panels.
+    const teamModeRequested = huntSource.teamMode === true && !threePlayerSplitActive;
+    const requestedTeamObjective = threePlayerSplitActive
+        ? TEAM_OBJECTIVE_TYPES.HUNT
+        : normalizeTeamObjectiveType(huntSource.teamObjective);
+    const objectiveGameMode = requestedGameMode === GAME_MODE_TYPES.HUNT && teamModeRequested
         && requestedTeamObjective === GAME_MODE_TYPES.ESCORT
         ? GAME_MODE_TYPES.ESCORT
         : requestedGameMode;
@@ -276,7 +274,6 @@ export function createRuntimeConfigSnapshot(settings, {
     const controlsDefaults = baseConfig.KEYS || CONFIG.KEYS;
     const planarMode = fourPlayerPlanarActive || !!gameplaySource.planarMode;
     const sharedFourPlayerVehicleId = fourPlayerPlanarSelection.vehicleId;
-    const sharedThreePlayerVehicleId = threePlayerSplitSelection.vehicleId;
 
     const botDifficulty = resolveBotDifficulty(source.botDifficulty, botDefaults);
     const requestedHeuristicProfile = String(source.botHeuristicProfile || 'balanced').trim().toLowerCase();
@@ -297,9 +294,10 @@ export function createRuntimeConfigSnapshot(settings, {
 
     const sessionMapKey = fivePortalsActive ? resolvePortalChain(arcadeSource.portalChainId).maps[0] : fourPlayerPlanarActive
         ? fourPlayerPlanarSelection.mapKey
-        : (threePlayerSplitActive ? threePlayerSplitSelection.mapKey : String(source.mapKey || 'standard'));
+        : String(source.mapKey || 'standard');
 
-    const teamHunt = normalizeTeamHuntSettings(huntSource);
+    const teamHunt = normalizeTeamHuntSettings({ ...huntSource, teamMode: teamModeRequested });
+    const humanVehicleId = (slot) => resolveHumanVehicleId(source?.vehicles?.[slot], playerDefaults.DEFAULT_VEHICLE_ID);
     const runtimeConfig = {
         session: {
             sessionType,
@@ -324,10 +322,7 @@ export function createRuntimeConfigSnapshot(settings, {
                 rollBindings: fourPlayerPlanarSelection.rollBindings,
             } : null,
             threePlayerSplit: threePlayerSplitActive ? {
-                mode: threePlayerSplitSelection.mode,
-                mapKey: threePlayerSplitSelection.mapKey,
-                vehicleId: sharedThreePlayerVehicleId,
-                botCount: threePlayerSplitSelection.botCount,
+                mode: huntModeActive ? FOUR_PLAYER_PLANAR_MODES.HUNT : FOUR_PLAYER_PLANAR_MODES.CLASSIC,
                 viewportLayout: threePlayerSplitSelection.viewportLayout,
                 deviceAssignment: threePlayerSplitSelection.deviceAssignment,
             } : null,
@@ -335,7 +330,7 @@ export function createRuntimeConfigSnapshot(settings, {
             numBots: fivePortalsActive ? 0 : fourPlayerPlanarActive
                 ? fourPlayerPlanarSelection.botCount
                 : (threePlayerSplitActive
-                    ? threePlayerSplitSelection.botCount
+                    ? clampThreePlayerSplitBotCount(clampSettingValue(source.numBots, runtimeLimits.session.numBots, 0))
                     : clampSettingValue(source.numBots, runtimeLimits.session.numBots, 0)),
             winsNeeded: clampSettingValue(source.winsNeeded, runtimeLimits.session.winsNeeded, 5),
             mapKey: sessionMapKey,
@@ -352,23 +347,22 @@ export function createRuntimeConfigSnapshot(settings, {
                 PLAYER_2: source?.invertPitch?.PLAYER_2 === true, PLAYER_3: source?.invertPitch?.PLAYER_3 === true,
             },
             vehicles: {
-                PLAYER_1: fourPlayerPlanarActive
-                    ? sharedFourPlayerVehicleId
-                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (resolveHumanVehicleId(source?.vehicles?.PLAYER_1, playerDefaults.DEFAULT_VEHICLE_ID))),
-                PLAYER_2: fourPlayerPlanarActive
-                    ? sharedFourPlayerVehicleId
-                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (resolveHumanVehicleId(source?.vehicles?.PLAYER_2, playerDefaults.DEFAULT_VEHICLE_ID))),
+                PLAYER_1: fourPlayerPlanarActive ? sharedFourPlayerVehicleId : humanVehicleId('PLAYER_1'),
+                PLAYER_2: fourPlayerPlanarActive ? sharedFourPlayerVehicleId : humanVehicleId('PLAYER_2'),
                 ...(fourPlayerPlanarActive ? {
                     PLAYER_3: sharedFourPlayerVehicleId,
                     PLAYER_4: sharedFourPlayerVehicleId,
                 } : {}),
                 ...(threePlayerSplitActive ? {
-                    PLAYER_3: sharedThreePlayerVehicleId,
+                    PLAYER_3: humanVehicleId('PLAYER_3'),
                 } : {}),
             },
             fightLoadouts: modePath === 'fight' ? {
-                PLAYER_1: normalizeFightBonuses(fightBonusesByVehicle[resolveHumanVehicleId(source?.vehicles?.PLAYER_1, playerDefaults.DEFAULT_VEHICLE_ID)]),
-                PLAYER_2: normalizeFightBonuses(fightBonusesByVehicle[resolveHumanVehicleId(source?.vehicles?.PLAYER_2, playerDefaults.DEFAULT_VEHICLE_ID)]),
+                PLAYER_1: normalizeFightBonuses(fightBonusesByVehicle[humanVehicleId('PLAYER_1')]),
+                PLAYER_2: normalizeFightBonuses(fightBonusesByVehicle[humanVehicleId('PLAYER_2')]),
+                ...(threePlayerSplitActive ? {
+                    PLAYER_3: normalizeFightBonuses(fightBonusesByVehicle[humanVehicleId('PLAYER_3')]),
+                } : {}),
             } : null,
         },
         gameplay: {

@@ -9,6 +9,11 @@ export function configureArcadeRunRuntime(runtime, runtimeConfig) {
     });
 }
 
+/** Plane of a local human by player index; bots have no PLAYER_n slot and get null. */
+export function resolveLocalPlayerVehicleId(runtimeState, playerIndex) {
+    return runtimeState?.runtimeConfig?.player?.vehicles?.[`PLAYER_${(Number(playerIndex) || 0) + 1}`] || null;
+}
+
 export function handleWeaponRaceLeaderboard(support, runtimeState, data) {
     if (data?.type === 'round_outcome') return support.weaponRaceRuntime.getRoundOutcome(data.now);
     const humanIndexes = runtimeState?.entityManager?.humanPlayers?.map((player) => player?.index) || [];

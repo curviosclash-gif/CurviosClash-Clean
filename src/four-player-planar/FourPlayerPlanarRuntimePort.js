@@ -1,4 +1,5 @@
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import { resolvePlayerActionHintBindings } from '../shared/contracts/GamepadControlsContract.js';
 
 /**
  * Publishes exactly the runtime capabilities the four player planar module
@@ -49,10 +50,13 @@ export function createFourPlayerPlanarRuntimePort({ getRuntime }) {
                 || null;
         },
         getPlayerKeyBindings(playerIndex) {
-            const scope = `PLAYER_${Math.max(0, Number(playerIndex) || 0) + 1}`;
-            return runtime()?.input?.bindings?.[scope]
-                || runtime()?.settings?.controls?.[scope]
-                || null;
+            const index = Math.max(0, Number(playerIndex) || 0);
+            const scope = `PLAYER_${index + 1}`;
+            return resolvePlayerActionHintBindings(
+                runtime()?.input?.getPlayerSource?.(index),
+                runtime()?.input?.bindings?.[scope] || runtime()?.settings?.controls?.[scope] || null,
+                runtime()?.settings?.controls
+            );
         },
         getGameStateId() {
             return runtime()?.state ?? null;

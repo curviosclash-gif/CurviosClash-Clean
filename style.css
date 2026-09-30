@@ -6870,6 +6870,39 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     gap: 8px;
 }
 
+.split-players-body {
+    display: grid;
+    gap: 10px;
+}
+
+.split-device-rows {
+    display: grid;
+    gap: 8px;
+}
+
+.split-device-row {
+    display: grid;
+    grid-template-columns: minmax(80px, auto) 1fr;
+    align-items: center;
+    gap: 4px 10px;
+    padding-left: 8px;
+    border-left: 3px solid var(--player-color, #66b6ff);
+}
+
+.split-device-row .menu-hint {
+    grid-column: 2;
+    margin: 0;
+}
+
+/* .menu-hint sets its own display, which would otherwise override the hidden attribute. */
+.split-device-row [hidden] {
+    display: none !important;
+}
+
+.split-device-row-p1 { --player-color: #33d6ff; }
+.split-device-row-p2 { --player-color: #ff4d7d; }
+.split-device-row-p3 { --player-color: #7dff6a; }
+
 .start-vehicle-title {
     margin: 0;
     color: #f6fbff;
