@@ -273,10 +273,17 @@ class MarketplacePlantGenerator(unittest.TestCase):
         self.assertEqual(plants.SPECIES_HEIGHT_M,
                          {"daisy": 0.65, "lavender": 0.70, "fern": 0.75, "grass": 0.85,
                           "poppy": 0.72, "sunflower": 1.80, "cornflower": 0.70,
-                          "red_clover": 0.40, "cattail": 1.60})
+                          "red_clover": 0.40, "cattail": 1.60,
+                          "buttercup": 0.45, "chicory": 0.90, "yarrow": 0.65,
+                          "ribwort_plantain": 0.45, "wild_strawberry": 0.25})
         for species, height in plants.SPECIES_HEIGHT_M.items():
             self.assertEqual(plants.resolve_species({"species": species, "height_m": height}),
                              (species, height))
+        # Every catalogued species has a builder, and each bloom species has an
+        # explicit closeup extent so no closeup falls back to a guess.
+        self.assertEqual(sorted(plants.BUILDERS), sorted(plants.SPECIES_HEIGHT_M))
+        self.assertTrue(set(plants.BLOOM_EXTENT_M).issubset(plants.BLOOM_SPECIES))
+        self.assertTrue(set(plants.BLOOM_SPECIES).issubset(plants.SPECIES_HEIGHT_M))
 
     def test_wrong_species_or_height_is_rejected(self):
         bad_inputs = (
@@ -702,7 +709,11 @@ class MarketplacePlantGenerator(unittest.TestCase):
                  "fern": 309645258, "grass": 2053589320,
                  "poppy": 146543107, "sunflower": 700173905,
                  "cornflower": 1709707538, "red_clover": 845627433,
-                 "cattail": 1276587960}
+                 "cattail": 1276587960,
+                 # 1.2.0 species: fixed variant seeds for the catalogue sheet.
+                 "buttercup": 506281733, "chicory": 1189463024, "yarrow": 921573464,
+                 "ribwort_plantain": 305871255, "wild_strawberry": 1748290633}
+        self.assertEqual(sorted(seeds), sorted(plants.SPECIES_HEIGHT_M))
         for species, height in plants.SPECIES_HEIGHT_M.items():
             plan = plants.enforce_plan_budgets(
                 plants.build_geometry(species, height, seeds[species]))
@@ -777,7 +788,7 @@ class InterfaceContract(unittest.TestCase):
         self.assertEqual(trees.GENERATOR_ID, "marketplace-ancient-nature")
         self.assertEqual(trees.GENERATOR_VERSION, "1.0.0")
         self.assertEqual(plants.GENERATOR_ID, "marketplace-nature-plants")
-        self.assertEqual(plants.GENERATOR_VERSION, "1.1.0")
+        self.assertEqual(plants.GENERATOR_VERSION, "1.2.0")
         self.assertTrue(callable(trees.build_variant))
         self.assertTrue(callable(plants.build_variant))
         self.assertEqual(trees.MODEL_NAMES, ("ancient_tree.glb", "ancient_tree_lod1.glb",
