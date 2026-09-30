@@ -14,8 +14,9 @@
 // oeffnet den Port nicht selbst.
 
 import { spawn } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -86,19 +87,21 @@ async function main() {
         throw new Error(`Kein Speicher fuer Port ${port}. Vorhanden: ${known.join(', ') || 'keiner'}.`);
     }
 
-    const profileDir = path.join(outDir, 'profile');
-    const rowsFile = path.join(outDir, 'rounds.json');
-    rmSync(profileDir, { recursive: true, force: true });
-    mkdirSync(outDir, { recursive: true });
+    const scratchDir = mkdtempSync(path.join(tmpdir(), 'curviosclash-telemetry-report-'));
+    const profileDir = path.join(scratchDir, 'profile');
+    const rowsFile = path.join(scratchDir, 'rounds.json');
+    let rows;
     try {
         copyStore(sourceDir, profileDir);
         await runReader({ profileDir, port, rowsFile });
+        rows = JSON.parse(readFileSync(rowsFile, 'utf8'));
     } finally {
-        // Die Kopie enthaelt Spieldaten; sie bleibt nicht liegen.
-        rmSync(profileDir, { recursive: true, force: true });
+        // Kopie und rohe Rundenhistorie enthalten Spieldaten und bleiben nicht liegen.
+        rmSync(scratchDir, { recursive: true, force: true });
     }
 
-    const report = buildTelemetryReport(JSON.parse(readFileSync(rowsFile, 'utf8')), { source: `Port ${port}` });
+    mkdirSync(outDir, { recursive: true });
+    const report = buildTelemetryReport(rows, { source: `Port ${port}` });
     writeFileSync(path.join(outDir, 'report.md'), report.markdown);
     writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report.data, null, 2));
     process.stdout.write(`${report.markdown}\nGespeichert in ${path.relative(ROOT, outDir)}\n`);

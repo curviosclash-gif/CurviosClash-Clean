@@ -108,6 +108,15 @@ export class PlayerActionPhase {
             }
         }
 
+        if (input.emptyItemUsePressed === true && !wantsUseItem && entityManager.recorder) {
+            const result = buildGameplayActionResult({
+                ok: false,
+                code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_EMPTY,
+                mode: 'use',
+            });
+            entityManager.recorder.logEvent('ITEM_USE', player.index, encodeGameplayActionResultForLog(result));
+        }
+
         if ((wantsShootItem || wantsShootRocket) && !itemActionHandled) {
             let result = null;
             if (player.itemActionsDisabled) {

@@ -52,6 +52,11 @@ test('the reader answers the address internally and keeps the store name', async
     assert.doesNotMatch(reader, /\.listen\(/);
     // Die Herkunft steckt auch in der Datenbank: eine umbenannte Kopie liest sich leer.
     assert.match(cli, /path\.basename\(sourceDir\)/);
-    // Die Kopie enthaelt Spieldaten und wird nach dem Lesen entfernt.
-    assert.match(cli, /finally \{[\s\S]*?rmSync\(profileDir/);
+    // Kopie und Rohdaten liegen nur in einem exklusiven System-Temp-Pfad; --out wird
+    // ausschliesslich fuer die angeforderten Berichtsdateien verwendet.
+    assert.match(cli, /mkdtempSync\(path\.join\(tmpdir\(\), 'curviosclash-telemetry-report-'\)\)/);
+    assert.match(cli, /rowsFile = path\.join\(scratchDir, 'rounds\.json'\)/);
+    assert.match(cli, /finally \{[\s\S]*?rmSync\(scratchDir, \{ recursive: true, force: true \}\)/);
+    assert.doesNotMatch(cli, /rmSync\(profileDir/);
+    assert.doesNotMatch(cli, /rowsFile = path\.join\(outDir/);
 });
