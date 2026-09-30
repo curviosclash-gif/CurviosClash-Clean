@@ -35,31 +35,33 @@ test('the Notre-Dame arena flies the same building with ten flapping pigeons and
     }).toBeTruthy();
 
     await expect.poll(() => page.evaluate(() => {
-        const system = window.GAME_INSTANCE?.entityManager?._mapUnitSystem;
+        const system = window.GAME_INSTANCE?.entityManager?.runtimePorts?.combat?.mapUnitSystem;
         const flock = system?.units?.find((unit) => unit.id === 'notre_dame_pigeons');
         return flock?.members?.length === 10
             && flock.root?.children?.length === 10;
     }), { timeout: 20_000, message: 'the arena should start its ten-pigeon swarm' }).toBeTruthy();
     await expect.poll(() => page.evaluate(() => {
-        const parts = window.GAME_INSTANCE?.entityManager?._mapUnitSystem?._modelLibrary?.parts;
-        return parts?.has('pigeon_body') === true && parts?.has('pigeon_wing') === true;
+        const flock = window.GAME_INSTANCE?.entityManager?.runtimePorts?.combat?.mapUnitSystem?.units
+            ?.find((unit) => unit.id === 'notre_dame_pigeons');
+        return !!flock?.root?.getObjectByName('pigeon_body')
+            && !!flock?.root?.getObjectByName('pigeon_wing');
     }), { timeout: 20_000, message: 'the shared GLB should supply both authored pigeon parts' }).toBeTruthy();
 
     const flockVisual = await page.evaluate(() => {
-        const system = window.GAME_INSTANCE.entityManager._mapUnitSystem;
+        const system = window.GAME_INSTANCE.entityManager.runtimePorts.combat.mapUnitSystem;
         const flock = system.units.find((unit) => unit.id === 'notre_dame_pigeons');
         const birds = flock.root.children;
-        const bodyGeometry = system._modelLibrary.parts.get('pigeon_body').geometry;
-        const wingGeometry = system._modelLibrary.parts.get('pigeon_wing').geometry;
-        const containsGeometry = (root, geometry) => {
+        const containsAuthoredPart = (root, partName) => {
             let found = false;
-            root?.traverse?.((node) => { if (node.geometry === geometry) found = true; });
+            root?.getObjectByName?.(partName)?.traverse?.((node) => {
+                if (node.geometry) found = true;
+            });
             return found;
         };
         const wings = flock.members.map((member) => member.visualWings?.map((wing) => wing.rotation.z) || []);
-        const authoredBodies = birds.filter((bird) => containsGeometry(bird, bodyGeometry));
+        const authoredBodies = birds.filter((bird) => containsAuthoredPart(bird, 'pigeon_body'));
         const authoredWingPairs = flock.members.filter((member) => member.visualWings?.length === 2
-            && member.visualWings.every((wing) => containsGeometry(wing, wingGeometry)));
+            && member.visualWings.every((wing) => containsAuthoredPart(wing, 'pigeon_wing')));
         return {
             visibleBirds: birds.filter((bird) => bird.visible).length,
             authoredBodies: authoredBodies.length,
@@ -72,15 +74,16 @@ test('the Notre-Dame arena flies the same building with ten flapping pigeons and
     expect(flockVisual.authoredBodies).toBe(10);
     expect(flockVisual.authoredWingPairs).toBe(10);
     expect(flockVisual.parcours).toBe(false);
-    await page.waitForTimeout(220);
-    const flappedWings = await page.evaluate(() => {
-        const flock = window.GAME_INSTANCE.entityManager._mapUnitSystem.units
+    await expect.poll(() => page.evaluate((previousWings) => {
+        const flock = window.GAME_INSTANCE.entityManager.runtimePorts.combat.mapUnitSystem.units
             .find((unit) => unit.id === 'notre_dame_pigeons');
-        return flock.members.map((member) => member.visualWings?.map((wing) => wing.rotation.z) || []);
-    });
-    expect(flappedWings.some((pair, index) => pair.some((angle, wingIndex) => (
-        Math.abs(angle - (flockVisual.wings[index]?.[wingIndex] ?? angle)) > 0.08
-    )))).toBe(true);
+        return flock.members.some((member, index) => member.visualWings?.some((wing, wingIndex) => (
+            Math.abs(wing.rotation.z - (previousWings[index]?.[wingIndex] ?? wing.rotation.z)) > 0.08
+        )));
+    }, flockVisual.wings), {
+        timeout: 5000,
+        message: 'the authored pigeon wings should visibly flap',
+    }).toBe(true);
     await testInfo.attach('notre-dame-arena-pigeons-gameplay.png', {
         body: await page.screenshot(),
         contentType: 'image/png',
