@@ -147,7 +147,7 @@ const EIFFEL_TOWER_OBSTACLES = [
 // outside of the tower for a run that lost its climb.
 const EIFFEL_TOWER_PORTALS = [
     { a: [-72, up(18.0), 0], b: [0, up(34.0), 0], color: 0x77aaff },
-    { a: [FIRST_OUTER + 4, FIRST_DECK + 6, 0], b: [0, SECOND_DECK + 10, 0], color: 0xffaa33 },
+    { a: [FIRST_OUTER + 4, FIRST_DECK + 6, 0], b: [9, SECOND_DECK + 10, 0], color: 0xffaa33 },
     { a: [0, TOP_DECK + 14, 0], b: [-72, up(20.0), 0], color: 0xaa66ff },
 ];
 
@@ -156,7 +156,7 @@ const EIFFEL_TOWER_GATES = [
     { id: 'et_approach_boost', type: 'boost', pos: [-58, up(20.0), 0], forward: [1, 0, 0], params: { duration: 1.2, forwardImpulse: 40, bonusSpeed: 48, cooldown: 0.9 } },
     { id: 'et_pier_sling', type: 'slingshot', pos: [-24, up(20.0), 0], forward: [0.7, 0.7, 0], up: [0, 1, 0], params: { duration: 1.6, forwardImpulse: 30, liftImpulse: 20, cooldown: 1.2 } },
     { id: 'et_core_sling', type: 'slingshot', pos: [0, up(48.0), 0], forward: [0.1, 0.99, 0], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 22, liftImpulse: 24, cooldown: 1.1 } },
-    { id: 'et_leg_sling', type: 'slingshot', pos: [26, up(40.0), 26], forward: [0.25, 0.94, 0.25], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 24, liftImpulse: 22, cooldown: 1.1 } },
+    { id: 'et_leg_sling', type: 'slingshot', pos: [20, up(40.0), 18], forward: [0.25, 0.94, 0.25], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 24, liftImpulse: 22, cooldown: 1.1 } },
     { id: 'et_first_deck_boost', type: 'boost', pos: [0, FIRST_DECK + 8, 0], forward: [0, 1, 0], params: { duration: 1.1, forwardImpulse: 38, bonusSpeed: 46, cooldown: 0.8 } },
     { id: 'et_shaft_sling', type: 'slingshot', pos: [0, up(96.0), 0], forward: [0, 1, 0], up: [0, 1, 0], params: { duration: 1.6, forwardImpulse: 20, liftImpulse: 26, cooldown: 1.2 } },
     { id: 'et_gallery_boost', type: 'boost', pos: [SECOND_OUTER + 3, SECOND_DECK - 2, -SECOND_OUTER - 3], forward: [-0.3, 0.9, 0.3], params: { duration: 1.0, forwardImpulse: 34, bonusSpeed: 44, cooldown: 0.8 } },
@@ -188,7 +188,7 @@ const EIFFEL_TOWER_ARENA_GATES = [
     { id: 'et_arena_first_east', type: 'boost', pos: [FIRST_OUTER + 4, FIRST_DECK + 5, 0], forward: [-0.2, 0, -1], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
     { id: 'et_arena_first_west', type: 'boost', pos: [-FIRST_OUTER - 4, FIRST_DECK + 5, 0], forward: [0.2, 0, 1], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
     { id: 'et_arena_core_sling', type: 'slingshot', pos: [0, up(30.0), 0], forward: [0, 1, 0], up: [0, 1, 0], params: { duration: 1.6, forwardImpulse: 18, liftImpulse: 28, cooldown: 1.2 } },
-    { id: 'et_arena_second_sling', type: 'slingshot', pos: [0, SECOND_DECK + 6, 0], forward: [0, 1, 0], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 20, liftImpulse: 24, cooldown: 1.1 } },
+    { id: 'et_arena_second_sling', type: 'slingshot', pos: [9, SECOND_DECK + 6, 0], forward: [0, 1, 0], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 20, liftImpulse: 24, cooldown: 1.1 } },
 ];
 
 const EIFFEL_TOWER_ARENA_ITEMS = [
@@ -197,8 +197,8 @@ const EIFFEL_TOWER_ARENA_ITEMS = [
     { id: 'et_arena_speed_east', type: 'item_battery', pickupType: 'SPEED_UP', x: FIRST_OUTER, y: FIRST_DECK + 5, z: 0, weight: 1.1 },
     { id: 'et_arena_speed_west', type: 'item_battery', pickupType: 'SPEED_UP', x: -FIRST_OUTER, y: FIRST_DECK + 5, z: 0, weight: 1.1 },
     { id: 'et_arena_rocket_core', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 0, y: up(34.0), z: 0, weight: 0.9 },
-    { id: 'et_arena_ghost_second', type: 'item_coin', pickupType: 'GHOST', x: 0, y: SECOND_DECK + 5, z: 0, weight: 0.8 },
-    { id: 'et_arena_heavy_summit', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 0, y: TOP_DECK + 6, z: 0, weight: 0.6 },
+    { id: 'et_arena_ghost_second', type: 'item_coin', pickupType: 'GHOST', x: -9, y: SECOND_DECK + 5, z: 0, weight: 0.8 },
+    { id: 'et_arena_heavy_summit', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 0, y: TOP_DECK + 6, z: -8, weight: 0.6 },
 ];
 
 const EIFFEL_TOWER_AIRCRAFT = [

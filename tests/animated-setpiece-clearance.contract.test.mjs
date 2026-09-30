@@ -64,19 +64,7 @@ const KNOWN_FINDINGS = [
     'eclipse_foundry|eclipse-foundry-lens-shards|-|static-uncovered',
     'eclipse_foundry|eclipse-foundry-orbit-clock|-|static-uncovered',
     'eclipse_foundry|eclipse-foundry-temple-gates|-|static-uncovered',
-    // eiffel_tower* (plan F): summit lift axis crosses portal, bot spawn, ghost item and sling;
-    // the arena bot spawn TOP_DECK+8 sits in the beacon.
-    'eiffel_tower_arena|eiffel-beacon|spawn:bot5|clearance',
-    'eiffel_tower_arena|eiffel-summit-lift|gate:et_arena_second_sling|clearance',
-    'eiffel_tower_arena|eiffel-summit-lift|item:et_arena_ghost_second|clearance',
-    'eiffel_tower_arena|eiffel-summit-lift|portal:P1b|clearance',
-    'eiffel_tower_arena|eiffel-summit-lift|spawn:bot4|clearance',
-    'eiffel_tower_siege|eiffel-summit-lift|gate:et_arena_second_sling|clearance',
-    'eiffel_tower_siege|eiffel-summit-lift|item:et_arena_ghost_second|clearance',
     'eiffel_tower_siege|eiffel-topple-lower|-|end-below-ground',
-    'eiffel_tower|eiffel-lift-north-east|gate:et_leg_sling|clearance',
-    'eiffel_tower|eiffel-summit-lift|portal:P1b|clearance',
-    'eiffel_tower|eiffel-summit-lift|ring:CP09|clearance',
     // glb_gallery: the gallery has no map beat, so its library clips run against the 4 s default.
     'glb_gallery|pm-chromatic-chaos/Building_Corner_01|-|beat',
     'glb_gallery|pm-chromatic-chaos/ComputerScreen_Retro|-|beat',
@@ -151,7 +139,7 @@ const DELIBERATE_EXCEPTIONS = [
 // Every map with animated setpieces the 28.09. audit named; the scan must reach all of them.
 const AUDITED_MAPS = [
     'aetherion_orrery', 'chrono_forge_nexus', 'kinetic_tide', 'verdant_aperture', 'burg_falkenwacht',
-    'eiffel_tower', 'eiffel_tower_siege', 'reactor_site', 'skyline_siege', 'storm_bridge_siege',
+    'eiffel_tower', 'eiffel_tower_arena', 'eiffel_tower_siege', 'reactor_site', 'skyline_siege', 'storm_bridge_siege',
     'storm_dam_siege', 'storm_lighthouse_siege', 'notre_dame', 'glb_gallery',
 ];
 
