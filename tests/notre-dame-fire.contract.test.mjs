@@ -91,9 +91,11 @@ test('the fire keeps surviving fabric and replaces damaged sections', () => {
             !model.url.includes('30_fire_')
             && !model.url.includes('31_fire_')
             && !model.url.includes('32_ember_')
-            && model.animationClock === undefined
+            && (model.id === 'notre-dame-west-facade'
+                ? model.animationClock?.clipName === 'NotreDameMotion'
+                : model.animationClock === undefined)
         )),
-        'the fire contains no cone or ember GLB effect',
+        'the fire contains no cone or ember GLB effect and keeps only the facade motion',
     );
     // The whole point of filtering rather than re-listing: an unburnt part is the same object the
     // intact map holds, so it cannot pick up a different scale, position or url over time.

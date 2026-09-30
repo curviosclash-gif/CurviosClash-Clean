@@ -2,6 +2,14 @@ import assert from 'node:assert/strict';
 import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import * as THREE from 'three';
+
+import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
+import { loadGLBMap } from '../src/entities/GLBMapLoader.js';
+import { GlbAnimationDriver } from '../src/entities/arena/GlbAnimationDriver.js';
+import { refreshDynamicMeshCollider, sphereIntersectsStaticMeshCollider } from '../src/entities/arena/StaticMeshCollider.js';
+import { disposeObject3DResources } from '../src/shared/rendering/ThreeDisposal.js';
+import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
 
 const ASSET_ROOT = path.resolve('assets/maps/notre_dame');
 const TOTAL_GLB_BUDGET_BYTES = 4 * 1024 * 1024;
@@ -17,10 +25,10 @@ const TRIANGLE_BUDGET_PER_ARCHITECTURE_PART = 18_000;
 // floor, and Z is width across it.
 const PARTS = Object.freeze({
     '01_west_facade': {
-        nodes: 10,
+        nodes: 17,
         collisionShell: true,
-        centerX: -59.31,
-        span: { x: 9.5, y: 75.5, z: 44.0 },
+        centerX: -59.78,
+        span: { x: 10.67, y: 75.5, z: 44.0 },
         floorY: 0.0,
     },
     '02_nave': {
@@ -266,6 +274,51 @@ function boundingBox(document) {
     };
 }
 
+/** Bounding box with glTF node transforms applied, which matters for animated pivots. */
+function sceneBoundingBox(document) {
+    const bounds = new THREE.Box3().makeEmpty();
+    const visit = (nodeIndex, parentMatrix) => {
+        const node = document.nodes?.[nodeIndex];
+        if (!node) return;
+        const local = new THREE.Matrix4();
+        if (Array.isArray(node.matrix)) local.fromArray(node.matrix);
+        else {
+            local.compose(
+                new THREE.Vector3().fromArray(node.translation || [0, 0, 0]),
+                new THREE.Quaternion().fromArray(node.rotation || [0, 0, 0, 1]),
+                new THREE.Vector3().fromArray(node.scale || [1, 1, 1]),
+            );
+        }
+        const world = new THREE.Matrix4().multiplyMatrices(parentMatrix, local);
+        const mesh = document.meshes?.[node.mesh];
+        for (const primitive of mesh?.primitives || []) {
+            const accessor = document.accessors?.[primitive.attributes?.POSITION];
+            if (!accessor?.min || !accessor?.max) continue;
+            bounds.union(new THREE.Box3(
+                new THREE.Vector3().fromArray(accessor.min),
+                new THREE.Vector3().fromArray(accessor.max),
+            ).applyMatrix4(world));
+        }
+        for (const child of node.children || []) visit(child, world);
+    };
+    for (const nodeIndex of document.scenes?.[document.scene || 0]?.nodes || []) {
+        visit(nodeIndex, new THREE.Matrix4());
+    }
+    const low = bounds.min.toArray();
+    const high = bounds.max.toArray();
+    return {
+        low,
+        high,
+        span: { x: high[0] - low[0], y: high[1] - low[1], z: high[2] - low[2] },
+        center: { x: (low[0] + high[0]) / 2, z: (low[2] + high[2]) / 2 },
+    };
+}
+
+function measuredPartBounds(name) {
+    const document = readGlbJson(path.join(ASSET_ROOT, 'glb', `${name}.glb`));
+    return name === '01_west_facade' ? sceneBoundingBox(document) : boundingBox(document);
+}
+
 function meshNodeNames(document) {
     return (document.nodes || [])
         .filter((node) => node.mesh !== undefined)
@@ -285,10 +338,11 @@ test('Notre-Dame keeps editable Blender sources and merged, texture-free exports
         totalGlbBytes += glbSize;
 
         const document = readGlbJson(glbPath);
-        assert.ok(
-            !document.animations?.length,
-            `${name} is static architecture and carries no clip`,
-        );
+        if (name === '01_west_facade') {
+            assert.deepEqual(document.animations?.map((animation) => animation.name), ['NotreDameMotion']);
+        } else {
+            assert.ok(!document.animations?.length, `${name} is static architecture and carries no clip`);
+        }
         assert.ok(
             triangleCount(document) <= TRIANGLE_BUDGET_PER_ARCHITECTURE_PART,
             `${name} stays within the ${TRIANGLE_BUDGET_PER_ARCHITECTURE_PART} triangle budget`,
@@ -339,7 +393,7 @@ test('Notre-Dame keeps editable Blender sources and merged, texture-free exports
 
 test('every part keeps the measured proportions of the real building', () => {
     for (const [name, expected] of Object.entries(PARTS)) {
-        const box = boundingBox(readGlbJson(path.join(ASSET_ROOT, 'glb', `${name}.glb`)));
+        const box = measuredPartBounds(name);
 
         for (const axis of ['x', 'y', 'z']) {
             const tolerance = Math.max(0.5, expected.span[axis] * 0.02);
@@ -366,17 +420,94 @@ test('every part keeps the measured proportions of the real building', () => {
 test('the west facade exports its copper bells as visible geometry', () => {
     const facade = readGlbJson(path.join(ASSET_ROOT, 'glb', '01_west_facade.glb'));
     const names = meshNodeNames(facade);
-    const copperNode = names.find((name) => /copper_nocol/i.test(name));
-    assert.ok(copperNode, 'the belfry bells export as a separate decorative mesh');
+    const copperNodes = names.filter((name) => /copper_nocol_animated/i.test(name));
+    assert.equal(copperNodes.length, 4, 'both towers keep two independent animated bell meshes');
     const copper = facade.materials?.find((material) => /NDCopper/i.test(material.name || ''));
     assert.ok(copper, 'the bells keep their copper material in glTF');
-    assert.ok(facade.meshes[facade.nodes.find((node) => node.name === copperNode).mesh]
-        .primitives.some((primitive) => (facade.accessors[primitive.indices]?.count || 0) >= 300),
+    assert.ok(copperNodes.every((name) => facade.meshes[facade.nodes.find((node) => node.name === name).mesh]
+        .primitives.some((primitive) => (facade.accessors[primitive.indices]?.count || 0) >= 300)),
     'four open shells export with their rims and clappers');
+    const doors = names.filter((name) => /portal_[02]_door_.*_animated$/i.test(name));
+    assert.equal(doors.length, 4, 'only the two side portals have animated door leaves');
+    assert.ok(!names.some((name) => /portal_1_door_/i.test(name)),
+        'the central CP05 portal remains doorless');
+});
+
+test('the west-facade Blender clip moves door colliders and leaves the CP05 portal doorless', async () => {
+    const facade = readGlbJson(path.join(ASSET_ROOT, 'glb', '01_west_facade.glb'));
+    const model = NOTRE_DAME_MAPS.notre_dame.glbModels.find((entry) => entry.id === 'notre-dame-west-facade');
+    assert.equal(model.animationClock.mode, 'loop');
+    assert.equal(model.animationClock.beatSeconds, 6);
+    assert.equal(model.animationClock.clipName, 'NotreDameMotion');
+    assert.equal(animationDurationSeconds(facade, facade.animations[0]), 12,
+        'the clip loops over two six-second beats');
+
+    const result = await loadGLBMap('assets/maps/notre_dame/glb/01_west_facade.glb', {
+        loader: geometryOnlyGlbLoader,
+        colliderMode: 'scene',
+        animationClock: model.animationClock,
+        modelId: model.id,
+    });
+    const driver = new GlbAnimationDriver();
+    try {
+        driver.setTracks(result.animationTracks);
+        const doorColliders = result.colliders.filter((entry) => /portal_[02]_door_.*_animated/i.test(entry.sourceName));
+        assert.equal(doorColliders.length, 4, 'each visible moving door leaf has a mesh collider');
+        assert.ok(doorColliders.every((entry) => entry.dynamic), 'door collisions follow the animated pivots');
+        assert.equal(result.colliders.filter((entry) => entry.dynamic).length, 4,
+            'decorative swinging bells do not add colliders');
+        const bellPivots = [];
+        result.scene.traverse((node) => {
+            if (/west_facade_tower_(north|south)_bell_[ab]_pivot/.test(node.name)) bellPivots.push(node);
+        });
+        assert.equal(bellPivots.length, 4, 'both towers retain four independent bell pivots');
+        const bellRestRotations = bellPivots.map((pivot) => pivot.quaternion.clone());
+        const center = new THREE.Vector3();
+        let portal0ClosedAtZero = false;
+        let portal2ClosedAtZero = false;
+        let portal0ClosedAtSix = false;
+        let portal2ClosedAtSix = false;
+        for (const seconds of [0, 3, 6, 9, 12]) {
+            driver.setElapsedSeconds(seconds);
+            result.scene.updateMatrixWorld(true);
+            for (const entry of doorColliders) refreshDynamicMeshCollider(entry.meshCollider, entry.box);
+            const sideDoorCenters = doorColliders.map((entry) => {
+                entry.box.getCenter(center);
+                return center.clone();
+            });
+            assert.ok(sideDoorCenters.every((point) => Math.abs(point.z) > 8),
+                `side door sweep stays outside the central portal at ${seconds}s`);
+            const portal0Closed = doorColliders.some((entry) => /portal_0_/i.test(entry.sourceName)
+                && sphereIntersectsStaticMeshCollider(entry.meshCollider,
+                    { x: -61.5, y: 3, z: 13.5 }, 0.3));
+            const portal2Closed = doorColliders.some((entry) => /portal_2_/i.test(entry.sourceName)
+                && sphereIntersectsStaticMeshCollider(entry.meshCollider,
+                    { x: -61.5, y: 3, z: -13.5 }, 0.3));
+            if (seconds === 0) {
+                portal0ClosedAtZero = portal0Closed;
+                portal2ClosedAtZero = portal2Closed;
+            } else if (seconds === 6) {
+                portal0ClosedAtSix = portal0Closed;
+                portal2ClosedAtSix = portal2Closed;
+            }
+        }
+        assert.ok(portal0ClosedAtZero !== portal2ClosedAtZero,
+            'one side portal starts closed while the other is already open');
+        assert.equal(portal0ClosedAtSix, portal2ClosedAtZero,
+            'the first side portal opens when the second closes');
+        assert.equal(portal2ClosedAtSix, portal0ClosedAtZero,
+            'the second side portal opens when the first closes');
+        driver.setElapsedSeconds(1);
+        assert.ok(bellPivots.every((pivot, index) => pivot.quaternion.angleTo(bellRestRotations[index]) > 0.02),
+            'the exported clip visibly swings every bell pivot');
+    } finally {
+        driver.clear();
+        disposeObject3DResources(result.scene);
+    }
 });
 
 test('the parts add up to the cathedral rather than to seven separate buildings', () => {
-    const box = (name) => boundingBox(readGlbJson(path.join(ASSET_ROOT, 'glb', `${name}.glb`)));
+    const box = measuredPartBounds;
 
     const facade = box('01_west_facade');
     const nave = box('02_nave');

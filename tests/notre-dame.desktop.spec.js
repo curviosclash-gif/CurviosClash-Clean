@@ -2,9 +2,9 @@ import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
 // Seven cathedral GLBs and 32 Blender-tree instances form one building. The running app
-// proves that the parts land together and that the future collapse scenes stay dormant.
+// proves that the west-facade loop runs while the future collapse scenes stay dormant.
 
-test('Notre-Dame loads as one cathedral without construction machinery', async ({ page }) => {
+test('Notre-Dame loads as one cathedral without construction machinery', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
@@ -28,10 +28,10 @@ test('Notre-Dame loads as one cathedral without construction machinery', async (
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame'
         && window.GAME_INSTANCE?.arena?._glbScene
         && !window.GAME_INSTANCE?.arena?._glbLoadError
-        && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === 6
+        && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === 7
     )), {
         timeout: 150_000,
-        message: 'Notre-Dame should load the seven fabric parts and six dormant collapse scenes',
+        message: 'Notre-Dame should load its west-facade motion and six dormant collapse scenes',
     }).toBeTruthy();
     const loadDurationMs = await page.evaluate((startedAt) => performance.now() - startedAt, loadStartedAt);
     expect(loadDurationMs).toBeLessThan(120_000);
@@ -57,11 +57,11 @@ test('Notre-Dame loads as one cathedral without construction machinery', async (
         };
     });
 
-    // The only loaded clips belong to the dormant collapse scenes.
+    // Six loaded clips belong to dormant collapse scenes and one to the active west facade.
     expect(state.authoredObstacleCount).toBeGreaterThan(0);
     expect(state).toEqual({
         mapKey: 'notre_dame',
-        trackCount: 6,
+        trackCount: 7,
         warningCount: 0,
         colliderMode: 'scene',
         glbSceneChildren: 45,
@@ -85,7 +85,7 @@ test('Notre-Dame loads as one cathedral without construction machinery', async (
         window.GAME_INSTANCE.arena._glbAnimation._tracks
             .filter((track) => track.clipName !== 'NotreDameCollapse').length
     ));
-    expect(siteClips).toBe(0);
+    expect(siteClips).toBe(1);
 
     // Where every part actually ended up in the world. If the preset had undone the recentring
     // the loader applies wrongly, the towers would sit somewhere other than the nave, and it
@@ -163,9 +163,7 @@ test('Notre-Dame loads as one cathedral without construction machinery', async (
         const arena = window.GAME_INSTANCE.arena;
         const radius = 1.1;
         const targets = [
-            ['portal-south', [-83, 17, -18.9], [1, 0, 0]],
             ['portal-centre', [-83, 17, 0], [1, 0, 0]],
-            ['portal-north', [-83, 17, 18.9], [1, 0, 0]],
             ['gallery-south', [-83, 61.2, -20.3], [1, 0, 0]],
             ['gallery-centre', [-83, 61.2, 0], [1, 0, 0]],
             ['gallery-north', [-83, 61.2, 20.3], [1, 0, 0]],
@@ -198,6 +196,20 @@ test('Notre-Dame loads as one cathedral without construction machinery', async (
                 ];
                 if (probes.some(hit)) blocked.push(`${id}@${elapsed}`);
             }
+            const sidePortalOpen = (z) => {
+                const point = [-83, 17, z].map((value) => value * 3);
+                const probes = [
+                    point,
+                    [point[0] + 12, point[1], point[2]],
+                    [point[0] - 4.5, point[1], point[2]],
+                    [point[0], point[1], point[2] + 6],
+                    [point[0], point[1], point[2] - 6],
+                ];
+                return !probes.some(hit);
+            };
+            if (!sidePortalOpen(-18.9) && !sidePortalOpen(18.9)) {
+                blocked.push(`all-side-portals@${elapsed}`);
+            }
         }
         return blocked;
     });
@@ -208,7 +220,34 @@ test('Notre-Dame loads as one cathedral without construction machinery', async (
             .filter((model) => model.animationClock && !model.hiddenUntilTriggered)
             .map((model) => model.id)
     ));
-    expect(movingSiteModels).toEqual([]);
+    expect(movingSiteModels).toEqual(['notre-dame-west-facade']);
+
+    const poseWestFacade = async (elapsed) => page.evaluate((seconds) => {
+        const game = window.GAME_INSTANCE;
+        const arena = game.arena;
+        arena.setGlbAnimationElapsedSeconds(seconds);
+        arena.update(0);
+        const player = game.entityManager.players[0];
+        const rig = game.renderer.cameraRigSystem;
+        player.position.set(-292, 55, 56.7);
+        player.quaternion.set(0, -Math.SQRT1_2, 0, Math.SQRT1_2);
+        player.speed = 0;
+        player.view.syncFromState();
+        rig.setCinematicEnabled(false);
+        rig.cameraModes[0] = 0;
+        rig.cameraSubjectInitialized[0] = false;
+        game.entityManager.updateCameras(1 / 60, 1, true);
+        game.renderer.render();
+        return player.position.toArray();
+    }, elapsed);
+    await poseWestFacade(0);
+    await testInfo.attach('notre-dame-j7-portal-phase-0.png', {
+        body: await page.screenshot(), contentType: 'image/png',
+    });
+    await poseWestFacade(6);
+    await testInfo.attach('notre-dame-j7-portal-phase-6.png', {
+        body: await page.screenshot(), contentType: 'image/png',
+    });
 
     const performanceBudget = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
