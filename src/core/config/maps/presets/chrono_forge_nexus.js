@@ -61,6 +61,9 @@ const CHRONO_FORGE_OBSTACLES = [
     { pos: [-148, 15, -9], size: [8, 14, 8] },
     { pos: [-136, 15, 9], size: [8, 14, 8] },
     { pos: [-124, 15, -9], size: [8, 14, 8] },
+    // The crane's fixed base and mast stay solid while its boom swings.
+    { pos: [-136.1, 9.8, 47.5], size: [18.5, 3.7, 18.5] },
+    { pos: [-136.1, 22.6, 47.5], size: [5.1, 25.8, 5.1] },
 
     // Zone 2: safe lower maintenance route and narrow upper bridge.
     { pos: [-90, 14, 0], size: [22, 3, 36] },
@@ -70,6 +73,7 @@ const CHRONO_FORGE_OBSTACLES = [
     { pos: [-67, 34, 18], size: [17, 3, 8] },
     { pos: [-48, 39, 18], size: [17, 3, 7] },
     { pos: [-25, 40, 0], size: [24, 4, 28] },
+    { pos: [-38, 41.3, 0], size: [24.2, 2.8, 24.2] },
     { pos: [-82, 28, -45], size: [7, 56, 7] },
     { pos: [-82, 28, 45], size: [7, 56, 7] },
     { pos: [-55, 8, 0], size: [62, 3, 64], kind: 'foam' },
@@ -82,6 +86,7 @@ const CHRONO_FORGE_OBSTACLES = [
     { pos: [56, 54, 25], size: [18, 3, 16] },
     { pos: [70, 56, 45], size: [18, 3, 18] },
     { pos: [82, 58, 52], size: [24, 28, 24], tunnel: { radius: 5.4, axis: 'x' } },
+    { pos: [68, 42.8, 52], size: [27.4, 2.1, 27.4] },
     { shape: 'tube', kind: 'hard', start: [22, 50, -18], end: [72, 58, 42], radius: 3.4 },
     { pos: [42, 20, 12], size: [94, 4, 82], kind: 'foam' },
     { pos: [25, 42, -54], size: [7, 36, 7] },
@@ -89,6 +94,11 @@ const CHRONO_FORGE_OBSTACLES = [
 
     // Zone 4: symmetric temple split; safe blue lane is wider, orange lane is shorter.
     { pos: [94, 58, 54], size: [25, 4, 24] },
+    // The temple's fixed side arches border the timed gate opening.
+    { pos: [83, 53.9, 68], size: [4.8, 17.9, 4.2] },
+    { pos: [83, 53.9, 40], size: [4.8, 17.9, 4.2] },
+    { pos: [83, 64.8, 54], size: [4.8, 4.2, 32.2] },
+    { pos: [104, 82, 77.6], size: [6.6, 6.6, 4.0] },
     { pos: [84, 61, 84], size: [18, 4, 28] },
     { pos: [98, 65, 102], size: [24, 4, 18] },
     { pos: [115, 70, 76], size: [12, 3, 14] },
@@ -181,7 +191,8 @@ export const CHRONO_FORGE_NEXUS_MAP = {
         glbColliderMode: 'dynamic',
         glbAuthoredObstaclesCollisionOnly: true,
         glbLoadConcurrency: 3,
-        // Local fill keeps both temple approaches readable inside the tunnel walls.
+        // The shared 10-second gate clip leaves the tunnel centre blocked for roughly 19% of its
+        // loop; this short timed closure is intentional. Local fill keeps both approaches readable.
         lights: [
             { id: 'chrono_temple_entry', x: 75, y: 64, z: 46, color: 0xffefd5, intensity: 2400, distance: 32 },
             { id: 'chrono_temple_exit', x: 91, y: 64, z: 62, color: 0xc9e6ff, intensity: 1700, distance: 28 },
