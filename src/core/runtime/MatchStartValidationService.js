@@ -173,7 +173,7 @@ export function resolveMatchStartValidationIssue({
     }
 
     const modePath = String(settings?.localSettings?.modePath || 'normal').toLowerCase();
-    if (mapExists && mapKey !== 'custom' && !isMapEligibleForModePath(maps?.[mapKey], modePath)) {
+    if (mapExists && mapKey !== 'custom' && !isMapEligibleForModePath(maps?.[mapKey], modePath, settings?.gameMode)) {
         return {
             message: 'Start nicht möglich: Die gewählte Karte ist in dieser Version nicht startbar.',
             fieldKey: 'map',

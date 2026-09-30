@@ -27,9 +27,10 @@ collision through the preset's authored boxes and hollow tunnel corridors. Decor
 still carry the _nocol suffix so they stay excluded even if that mode ever changes.
 """
 
-from math import asin, atan2, cos, hypot, pi, radians, sin
+from math import asin, atan2, cos, hypot, pi, radians, sin, sqrt
 from pathlib import Path
 
+import bmesh
 import bpy
 
 
@@ -91,9 +92,15 @@ LEAD = (0.35, 0.37, 0.39, 1.0)
 OAK = (0.27, 0.17, 0.09, 1.0)
 COPPER_AGED = (0.24, 0.47, 0.42, 1.0)
 GOLD = (0.86, 0.68, 0.26, 1.0)
-GLASS_BLUE = (0.11, 0.19, 0.62, 1.0)
-GLASS_RED = (0.64, 0.13, 0.15, 1.0)
-GLASS_WARM = (0.92, 0.72, 0.38, 1.0)
+# Stained glass by daylight is nearly black: its colour is light coming through, not paint on
+# the surface. Every pane shares one near-black base and carries its hue as emission with a
+# single dominant channel, so blue stays blue under the tone mapper instead of bleaching white.
+GLASS_BASE = (0.018, 0.018, 0.024, 1.0)
+GLASS_BLUE = (0.10, 0.22, 1.0, 1.0)
+GLASS_RED = (1.0, 0.12, 0.08, 1.0)
+GLASS_WARM = (1.0, 0.45, 0.10, 1.0)
+# From outside the same panes show only a trace of their hue, the way real ones do by day.
+GLASS_OUTSIDE_STRENGTH = 0.3
 SLATE = (0.20, 0.21, 0.24, 1.0)
 FOLIAGE = (0.17, 0.31, 0.13, 1.0)
 WATER = (0.15, 0.26, 0.31, 1.0)
@@ -121,7 +128,8 @@ def reset_scene(name):
     return scene
 
 
-def material(name, color, emission_strength=0.0, metallic=0.0, roughness=0.68):
+def material(name, color, emission_strength=0.0, metallic=0.0, roughness=0.68,
+             emission_color=None):
     value = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     value.diffuse_color = color
     value.use_nodes = True
@@ -132,13 +140,45 @@ def material(name, color, emission_strength=0.0, metallic=0.0, roughness=0.68):
         metallic_input.default_value = metallic
     shader.inputs["Roughness"].default_value = roughness
     if emission_strength > 0:
-        shader.inputs["Emission Color"].default_value = color
+        shader.inputs["Emission Color"].default_value = emission_color or color
         shader.inputs["Emission Strength"].default_value = emission_strength
     return value
 
 
+def glass_materials(mats, key, name, hue, strength):
+    """A lit glass for the interior and its dim `...Outside` twin for the faces that look out.
+
+    glTF has no per-side material, so the panes split by face instead (see shade_outer_faces).
+    The hue's dominant channel is 1.0, which makes the exported emission read back as exactly
+    `strength` -- the number the glass contract checks.
+    """
+    mats[key] = material(name, GLASS_BASE, strength, 0.0, 0.14, emission_color=hue)
+    mats[f"{key}_outside"] = material(f"{name}Outside", GLASS_BASE, GLASS_OUTSIDE_STRENGTH,
+                                      0.0, 0.14, emission_color=hue)
+
+
+def outside_glass(mat_glass):
+    return bpy.data.materials[f"{mat_glass.name}Outside"]
+
+
+def shade_outer_faces(obj, mat_glass, outward):
+    """Give the faces of a pane that turn toward the outside the dim twin of its glass.
+
+    The geometry and therefore the part's bounding box stay exactly as they were; only the
+    faces whose normal points along `outward` change slot, so the lit side is what the flight
+    path through the interior sees and the dark side is what the approach sees.
+    """
+    obj.data.materials.append(outside_glass(mat_glass))
+    rotation = obj.rotation_euler.to_matrix()
+    for polygon in obj.data.polygons:
+        normal = rotation @ polygon.normal
+        if normal.x * outward[0] + normal.y * outward[1] + normal.z * outward[2] > 0.25:
+            polygon.material_index = 1
+    return obj
+
+
 def build_materials():
-    return {
+    mats = {
         "stone": material("NDStone", LIMESTONE, roughness=0.82),
         "stone_shaded": material("NDStoneShaded", LIMESTONE_SHADED, roughness=0.86),
         "stone_dark": material("NDStoneDark", LIMESTONE_DARK, roughness=0.9),
@@ -146,9 +186,6 @@ def build_materials():
         "oak": material("NDOak", OAK, roughness=0.88),
         "copper": material("NDCopper", COPPER_AGED, metallic=0.4, roughness=0.6),
         "gold": material("NDGold", GOLD, 1.2, 0.85, 0.28),
-        "glass_blue": material("NDGlassBlue", GLASS_BLUE, 2.6, 0.0, 0.14),
-        "glass_red": material("NDGlassRed", GLASS_RED, 2.4, 0.0, 0.14),
-        "glass_warm": material("NDGlassWarm", GLASS_WARM, 2.0, 0.0, 0.16),
         "slate": material("NDSlate", SLATE, roughness=0.78),
         "foliage": material("NDFoliage", FOLIAGE, roughness=0.92),
         "water": material("NDWater", WATER, metallic=0.2, roughness=0.22),
@@ -158,6 +195,10 @@ def build_materials():
         "rope": material("NDRope", ROPE, roughness=0.9),
         "signal": material("NDSignal", SIGNAL, 3.4, 0.0, 0.2),
     }
+    glass_materials(mats, "glass_blue", "NDGlassBlue", GLASS_BLUE, 1.15)
+    glass_materials(mats, "glass_red", "NDGlassRed", GLASS_RED, 1.0)
+    glass_materials(mats, "glass_warm", "NDGlassWarm", GLASS_WARM, 0.9)
+    return mats
 
 
 def finish_mesh(obj, name, mat):
@@ -213,6 +254,133 @@ def torus(name, location, major_radius, minor_radius, mat, rotation=(0, 0, 0), m
         rotation=rotation,
     )
     return finish_mesh(bpy.context.object, name, mat)
+
+
+def mesh_object(name, vertices, faces, mat):
+    mesh = bpy.data.meshes.new(f"{name}_mesh")
+    mesh.from_pydata(vertices, [], faces)
+    normal_mesh = bmesh.new()
+    normal_mesh.from_mesh(mesh)
+    bmesh.ops.recalc_face_normals(normal_mesh, faces=normal_mesh.faces)
+    normal_mesh.to_mesh(mesh)
+    normal_mesh.free()
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    mesh.materials.append(mat)
+    return obj
+
+
+def semicircle_wall(name, *, center, radius, thickness, bottom, top, mat, segments=20):
+    """A real east-facing half-round wall band, rather than a flat chord across the apse."""
+    vertices = []
+    for index in range(segments + 1):
+        angle = -pi / 2 + pi * index / segments
+        for ring in (radius - thickness / 2, radius + thickness / 2):
+            x = center[0] + ring * cos(angle)
+            y = center[1] + ring * sin(angle)
+            vertices.extend(((x, y, bottom), (x, y, top)))
+    faces = []
+    for index in range(segments):
+        a, b = index * 4, (index + 1) * 4
+        faces.extend(((a, b, b + 2, a + 2), (a + 1, a + 3, b + 3, b + 1),
+                      (a, a + 1, b + 1, b), (a + 2, b + 2, b + 3, a + 3)))
+    faces.extend(((0, 2, 3, 1), (segments * 4, segments * 4 + 1,
+                                 segments * 4 + 3, segments * 4 + 2)))
+    return mesh_object(name, vertices, faces, mat)
+
+
+def apse_dome(name, *, center, radius, springing_z, rise, mat, radial_steps=6, arc_steps=24):
+    """Low-poly half-dome whose plan is the apse's semicircle and whose crown meets the choir ridge."""
+    vertices = [(center[0], center[1], springing_z + rise)]
+    rings = []
+    for radial in range(1, radial_steps + 1):
+        fraction = radial / radial_steps
+        ring = []
+        height = springing_z + rise * sqrt(max(0.0, 1.0 - fraction * fraction))
+        for index in range(arc_steps + 1):
+            angle = -pi / 2 + pi * index / arc_steps
+            ring.append(len(vertices))
+            vertices.append((center[0] + radius * fraction * cos(angle),
+                             center[1] + radius * fraction * sin(angle), height))
+        rings.append(ring)
+    faces = []
+    for index in range(arc_steps):
+        faces.append((0, rings[0][index], rings[0][index + 1]))
+    for inner, outer in zip(rings, rings[1:]):
+        for index in range(arc_steps):
+            faces.append((inner[index], outer[index], outer[index + 1], inner[index + 1]))
+    return mesh_object(name, vertices, faces, mat)
+
+
+def bell(name, *, center, radius, height, mat):
+    """An open-bottom, low-poly bell shell and clapper for the visible belfry openings."""
+    profile = ((0.20, 0.0), (0.28, 0.12), (0.43, 0.36), (0.72, 0.72), (0.78, 0.88))
+    vertices = []
+    for ring_radius, z_fraction in profile:
+        for index in range(10):
+            angle = 2 * pi * index / 10
+            vertices.append((center[0] + radius * ring_radius * cos(angle),
+                             center[1] + radius * ring_radius * sin(angle),
+                             center[2] + height * z_fraction))
+    faces = []
+    for ring in range(len(profile) - 1):
+        lower, upper = ring * 10, (ring + 1) * 10
+        for index in range(10):
+            faces.append((lower + index, lower + (index + 1) % 10,
+                          upper + (index + 1) % 10, upper + index))
+    mesh_object(f"{name}_nocol", vertices, faces, mat)
+    torus(f"{name}_lip_nocol", (center[0], center[1], center[2]), radius * 0.78,
+          radius * 0.045, mat, major_segments=10)
+    cylinder(f"{name}_clapper_nocol", (center[0], center[1], center[2] + height * 0.32),
+             radius * 0.055, height * 0.48, mat, vertices=6)
+
+
+def parent_preserving_world(obj, parent):
+    """Parent a generated mesh under a rig pivot without changing its authored position."""
+    world = obj.matrix_world.copy()
+    obj.parent = parent
+    obj.matrix_parent_inverse = parent.matrix_world.inverted()
+    obj.matrix_world = world
+
+
+def animated_pivot(name, location):
+    pivot = bpy.data.objects.new(name, None)
+    bpy.context.scene.collection.objects.link(pivot)
+    pivot.location = location
+    pivot.empty_display_type = "PLAIN_AXES"
+    pivot.empty_display_size = 0.5
+    return pivot
+
+
+def animate_euler_component(obj, component, seconds_values):
+    """Author a beat-aligned cyclic transform on one real Blender object action."""
+    scene = bpy.context.scene
+    for second, value in seconds_values:
+        scene.frame_set(scene.frame_start + round(second * FPS))
+        obj.rotation_euler[component] = value
+        obj.keyframe_insert(data_path="rotation_euler", index=component, group=obj.name)
+    action = obj.animation_data.action
+    action.name = f"NotreDameMotion_{obj.name}"
+    for curve in action.fcurves:
+        for keyframe in curve.keyframe_points:
+            keyframe.interpolation = "LINEAR"
+
+
+def join_objects_preserving_world(objects, name):
+    """Join sibling meshes into one animated bell while preserving the pivot hierarchy."""
+    if not objects:
+        return None
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in objects:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = objects[0]
+    if len(objects) > 1:
+        bpy.ops.object.join()
+    target = bpy.context.view_layer.objects.active
+    target.name = name
+    target.data.name = f"{name}_mesh"
+    return target
 
 
 # --- Gothic building blocks -------------------------------------------------------------------
@@ -313,13 +481,54 @@ def flying_arch(name, mat, *, springing, landing, steps=6, thickness=0.6, width=
     return pieces
 
 
-def rose_window(name, mat_frame, mat_glass, *, center, radius, spokes=12, axis="x"):
-    """A rose window: two concentric rings, radial mullions in two tiers, and a glazed disc.
+def rose_glass(name, palette, *, center, radius, spokes, axis, outward, depth=0.12):
+    """The glazing of a rose: one wedge per outer spoke, coloured in sectors.
+
+    A single-colour disc read as a lamp. Real roses alternate a ground colour with two accents,
+    so the wedges follow primary, secondary, primary, accent round the circle. Each wedge is a
+    lit triangle on the inside and a dim one on the outside, `depth` apart -- the old closed
+    cylinder paid for a rim and two ngon caps that nothing needed. The wedge edges sit on the
+    spoke angles, so the mullions cover every colour seam.
+    """
+    pattern = (0, 1, 0, 2)
+    slots = list(palette) + [outside_glass(mat) for mat in palette]
+    vertices = []
+    faces = []
+    face_slots = []
+    for layer, lift in ((0, -depth / 2), (1, depth / 2)):
+        base = len(vertices)
+        normal = [value * lift for value in outward]
+        hub = (center[0] + normal[0], center[1] + normal[1], center[2] + normal[2])
+        vertices.append(hub)
+        for index in range(spokes):
+            angle = index * (2 * pi / spokes)
+            across, up = cos(angle) * radius, sin(angle) * radius
+            vertices.append((hub[0] + (0 if axis == "x" else across),
+                             hub[1] + (across if axis == "x" else 0), hub[2] + up))
+        for index in range(spokes):
+            faces.append((base, base + 1 + index, base + 1 + (index + 1) % spokes))
+            face_slots.append(pattern[index % len(pattern)] + layer * len(palette))
+
+    mesh = bpy.data.meshes.new(f"{name}_mesh")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    for mat in slots:
+        mesh.materials.append(mat)
+    for polygon, slot in zip(mesh.polygons, face_slots):
+        polygon.material_index = slot
+    return obj
+
+
+def rose_window(name, mat_frame, palette, *, center, radius, spokes=12, axis="x", outward):
+    """A rose window: two concentric rings, radial mullions in two tiers, and glazed sectors.
 
     The tracery is the whole character of a rose -- a plain ring with spokes reads as a wheel, so
     the outer tier is doubled and the ring of foils between the spokes is what the eye picks up
     from a distance. The glass is emissive so the window carries colour inward the way the real
-    ones do, and every piece is _nocol because a rose must never block a flight path.
+    ones do, and every piece is _nocol because a rose must never block a flight path. `palette`
+    is (ground, secondary, accent); `outward` points out of the building.
     """
     plane_rotation = (0, pi / 2, 0) if axis == "x" else (pi / 2, 0, 0)
     torus(f"{name}_ring_nocol", center, radius, radius * 0.07, mat_frame, plane_rotation, 20)
@@ -356,33 +565,30 @@ def rose_window(name, mat_frame, mat_glass, *, center, radius, spokes=12, axis="
             radius * 0.1, 0.09, mat_frame, 6, plane_rotation,
         )
 
-    cylinder(f"{name}_glass_nocol", center, radius * 0.94, 0.12, mat_glass, 20, plane_rotation)
+    rose_glass(f"{name}_glass_nocol", palette, center=center, radius=radius * 0.94,
+               spokes=spokes, axis=axis, outward=outward)
 
 
-def lancet_window(name, mat_glass, *, center, width, height, depth=0.22, axis="x"):
-    """A tall pointed window: a rectangle with a small arch of glass on top."""
-    if axis == "x":
-        cube(f"{name}_pane_nocol", center, (depth / 2, width / 2, height / 2), mat_glass)
-        cone(
-            f"{name}_head_nocol",
-            (center[0], center[1], center[2] + height / 2 + width * 0.35),
-            width / 2,
-            0.0,
-            width * 0.7,
-            mat_glass,
-            vertices=6,
-        )
-    else:
-        cube(f"{name}_pane_nocol", center, (width / 2, depth / 2, height / 2), mat_glass)
-        cone(
-            f"{name}_head_nocol",
-            (center[0], center[1], center[2] + height / 2 + width * 0.35),
-            width / 2,
-            0.0,
-            width * 0.7,
-            mat_glass,
-            vertices=6,
-        )
+def lancet_window(name, mat_glass, *, center, width, height, depth=0.22, axis="x", outward):
+    """A tall pointed window: a rectangle with a small arch of glass on top.
+
+    The shapes are unchanged on purpose: the heads set the outer bounds of the facade and the
+    nave, and the preset places each part by its bounding box. Only the outward faces switch to
+    the dim outside glass.
+    """
+    scale = (depth / 2, width / 2, height / 2) if axis == "x" else (width / 2, depth / 2,
+                                                                  height / 2)
+    shade_outer_faces(cube(f"{name}_pane_nocol", center, scale, mat_glass), mat_glass, outward)
+    head = cone(
+        f"{name}_head_nocol",
+        (center[0], center[1], center[2] + height / 2 + width * 0.35),
+        width / 2,
+        0.0,
+        width * 0.7,
+        mat_glass,
+        vertices=6,
+    )
+    shade_outer_faces(head, mat_glass, outward)
 
 
 def pinnacle(name, mat, *, base, height, width):
@@ -482,6 +688,8 @@ def build_west_facade(mats):
     """
     stone = mats["stone"]
     shaded = mats["stone_shaded"]
+    bpy.context.scene.frame_start = 0
+    bpy.context.scene.frame_end = 12 * FPS
     facade_x = WEST_FRONT_X + FACADE_DEPTH / 2
     # Centre and half-depth of the thin wall panels that the carving is applied to.
     wall_x = WEST_FRONT_X + FACADE_WALL_FRONT + FACADE_WALL_THICKNESS / 2
@@ -547,6 +755,43 @@ def build_west_facade(mats):
                     thickness=0.36,
                 )
 
+    # The side portals trade their closed phase across one 12-second loop. The central portal
+    # deliberately stays doorless, so the low CP05 flight corridor is clear at every phase.
+    for portal_index, offset in ((0, -13.5), (2, 13.5)):
+        for leaf_sign in (-1, 1):
+            leaf_width = 3.4
+            hinge_y = offset + leaf_sign * (3.6 - 0.18)
+            pivot_name = (f"west_facade_portal_{portal_index}_door_"
+                          f"{'north' if leaf_sign > 0 else 'south'}_pivot")
+            pivot = animated_pivot(pivot_name,
+                                   (WEST_FRONT_X + FACADE_WALL_FRONT, hinge_y, 0.12))
+            leaf = cube(
+                pivot_name.replace("_pivot", "_animated"),
+                (WEST_FRONT_X + FACADE_WALL_FRONT,
+                 hinge_y - leaf_sign * leaf_width / 2, 3.05),
+                (0.16, leaf_width / 2, 2.93), mats["oak"],
+            )
+            parent_preserving_world(leaf, pivot)
+            pivot["role"] = "notre_dame_animated_portal_door"
+            pivot["portal_index"] = portal_index
+            pivot["leaf_sign"] = leaf_sign
+
+    for portal_index, offset in ((0, -13.5), (2, 13.5)):
+        for leaf_sign in (-1, 1):
+            pivot = bpy.data.objects[
+                f"west_facade_portal_{portal_index}_door_"
+                f"{'north' if leaf_sign > 0 else 'south'}_pivot"
+            ]
+            samples = []
+            for step in range(25):
+                second = step * 0.5
+                south_closed = 0.5 + 0.5 * cos(2 * pi * second / 12.0)
+                closed = (1.0 - south_closed) if offset > 0 else south_closed
+                swing = (1.0 - closed) * 1.38
+                outward_sign = -leaf_sign
+                samples.append((second, outward_sign * swing))
+            animate_euler_component(pivot, 2, samples)
+
     cube("facade_wall_mid", (wall_x, 0, 17.0), (wall_half, 21.75, 1.4), stone)
 
     # Gallery of kings: 28 figures in a continuous arcaded band at 18 m.
@@ -571,9 +816,9 @@ def build_west_facade(mats):
     cube("facade_wall_rose_sill", (wall_x, 0, 22.0),
          (wall_half, WEST_ROSE_RADIUS + 1.2, 1.1), stone)
     rose_window(
-        "facade_west_rose", shaded, mats["glass_blue"],
+        "facade_west_rose", shaded, (mats["glass_blue"], mats["glass_red"], mats["glass_warm"]),
         center=(WEST_FRONT_X + FACADE_DETAIL_X, 0, 26.5),
-        radius=WEST_ROSE_RADIUS, spokes=16, axis="x",
+        radius=WEST_ROSE_RADIUS, spokes=16, axis="x", outward=(-1, 0, 0),
     )
     for side in (-1, 1):
         for twin in (-1, 1):
@@ -581,12 +826,59 @@ def build_west_facade(mats):
                 f"facade_lancet_{'n' if side > 0 else 's'}{'a' if twin > 0 else 'b'}",
                 mats["glass_warm"],
                 center=(WEST_FRONT_X + FACADE_DETAIL_X, side * 14.5 + twin * 3.0, 26.0),
-                width=2.4, height=8.0, axis="x",
+                width=2.4, height=8.0, axis="x", outward=(-1, 0, 0),
             )
 
-    # Chimera gallery: the open colonnade that ties the two towers together at 43 m, and the
-    # gargoyles leaning over its balustrade that every photograph of this building has in it.
-    cube("facade_gallery_floor", (facade_x, 0, 33.4), (FACADE_DEPTH / 2, 21.75, 1.1), shaded)
+    # Chimera gallery and the rounded Galerie de la Vierge below the west rose. The broad old
+    # landing slab hid the sculpture and read as a platform; this short semicircular balcony
+    # follows the facade and leaves the rose itself open above it.
+    arc_center_x = WEST_FRONT_X + 3.3
+    gallery_radius_x, gallery_radius_y = 3.0, 6.6
+    gallery_floor_z = 33.4
+    gallery_vertices = []
+    gallery_segments = 16
+    for index in range(gallery_segments + 1):
+        angle = -pi / 2 + pi * index / gallery_segments
+        front_x = arc_center_x - gallery_radius_x * cos(angle)
+        front_y = gallery_radius_y * sin(angle)
+        rear_x = front_x + 1.5
+        rear_y = front_y * 0.83
+        gallery_vertices.extend(((front_x, front_y, gallery_floor_z - 0.45),
+                                 (front_x, front_y, gallery_floor_z + 0.45),
+                                 (rear_x, rear_y, gallery_floor_z - 0.45),
+                                 (rear_x, rear_y, gallery_floor_z + 0.45)))
+    gallery_faces = []
+    for index in range(gallery_segments):
+        a, b = index * 4, (index + 1) * 4
+        gallery_faces.extend(((a + 1, b + 1, b + 3, a + 3),
+                              (a, a + 2, b + 2, b),
+                              (a, b, b + 1, a + 1),
+                              (a + 2, a + 3, b + 3, b + 2)))
+    gallery_faces.extend(((0, 1, 3, 2),
+                          (gallery_segments * 4, gallery_segments * 4 + 2,
+                           gallery_segments * 4 + 3, gallery_segments * 4 + 1)))
+    mesh_object("facade_virgin_gallery_floor", gallery_vertices, gallery_faces, shaded)
+    # The Mary figure stands against the stone below the rose, clear of the route ring above.
+    statue("facade_virgin", stone,
+           base=(WEST_FRONT_X + FACADE_DETAIL_X - 0.15, 0, 27.0), height=2.8)
+    for index in range(1, gallery_segments):
+        angle = -pi / 2 + pi * index / gallery_segments
+        x = arc_center_x - gallery_radius_x * cos(angle)
+        y = gallery_radius_y * sin(angle)
+        cylinder(f"facade_virgin_gallery_baluster_{index}_nocol",
+                 (x, y, gallery_floor_z + 1.0), 0.12, 1.1, shaded, vertices=6)
+    # The west-facing rail is faceted into short stones so its outline remains legible at game scale.
+    for index in range(gallery_segments):
+        angle0 = -pi / 2 + pi * index / gallery_segments
+        angle1 = -pi / 2 + pi * (index + 1) / gallery_segments
+        x0, y0 = arc_center_x - gallery_radius_x * cos(angle0), gallery_radius_y * sin(angle0)
+        x1, y1 = arc_center_x - gallery_radius_x * cos(angle1), gallery_radius_y * sin(angle1)
+        dx, dy = x1 - x0, y1 - y0
+        length = hypot(dx, dy)
+        cube(f"facade_virgin_gallery_rail_{index}_nocol",
+             ((x0 + x1) / 2, (y0 + y1) / 2, gallery_floor_z + 1.52),
+             (length / 2, 0.16, 0.16), shaded,
+             rotation=(0, 0, atan2(dy, dx)))
     for index in range(24):
         offset_y = -20.0 + index * 1.74
         cylinder(f"facade_gallery_column_{index}_nocol", (WEST_FRONT_X + 1.2, offset_y, 38.0),
@@ -602,8 +894,8 @@ def build_west_facade(mats):
                base=(WEST_FRONT_X + 0.5, chimera_y, 43.6), height=1.9)
     cube("facade_gallery_head", (facade_x, 0, 43.0), (FACADE_DEPTH / 2, 21.75, 1.3), shaded)
 
-    # The towers: square shafts, tall paired openings with tracery, corner turrets and the open
-    # balustrade at 69 m. Deliberately flat-topped -- the spires were never built.
+    # The towers: solid lower shafts, then open belfries with twin bells, pointed arches and the
+    # open balustrade at 69 m. The former full-height boxes made the belfry lights decorative only.
     for side in (-1, 1):
         tag = "north" if side > 0 else "south"
         center_y = side * TOWER_CENTER_Y
@@ -611,29 +903,73 @@ def build_west_facade(mats):
         # lights read as openings in a wall instead of panes buried in solid stone. The plinth
         # and the cornices below still carry the building line out to the full 9 m depth.
         tower_front = WEST_FRONT_X + FACADE_DETAIL_X + 0.3
-        cube(f"facade_tower_{tag}",
+        lower_top = 45.5
+        cube(f"facade_tower_{tag}_lower",
              ((tower_front + WEST_FRONT_X + FACADE_DEPTH) / 2, center_y,
-              (43.0 + TOWER_TOP_Z) / 2),
+              (43.0 + lower_top) / 2),
              ((WEST_FRONT_X + FACADE_DEPTH - tower_front) / 2, TOWER_HALF_WIDTH,
-              (TOWER_TOP_Z - 43.0) / 2), stone)
+              (lower_top - 43.0) / 2), stone)
+        tower_center_x = (tower_front + WEST_FRONT_X + FACADE_DEPTH) / 2
+        for corner_x in (-1, 1):
+            for corner_y in (-1, 1):
+                cylinder(f"facade_tower_{tag}_belfry_pier_{corner_x}_{corner_y}",
+                         (tower_center_x + corner_x * 3.35,
+                          center_y + corner_y * 6.25, (lower_top + TOWER_TOP_Z) / 2),
+                         0.78, TOWER_TOP_Z - lower_top, stone, vertices=8)
+        # Two open bells in each chamber; the pointed arches are stone frames, not glazed panels.
         for twin in (-1, 1):
-            lancet_window(
-                f"facade_tower_{tag}_light_{'a' if twin > 0 else 'b'}", mats["glass_warm"],
-                center=(WEST_FRONT_X + FACADE_DETAIL_X, center_y + twin * 3.2, 54.0),
-                width=2.8, height=15.0, axis="x",
+            pointed_arch(
+                f"facade_tower_{tag}_front_arch_{twin}", shaded,
+                center=(WEST_FRONT_X + FACADE_DETAIL_X, center_y + twin * 3.0, 47.0),
+                span=5.6, rise=7.8, depth=0.7, steps=5, thickness=0.55, axis="x",
             )
-            tracery(
-                f"facade_tower_{tag}_tracery_{'a' if twin > 0 else 'b'}", shaded,
-                center=(WEST_FRONT_X + FACADE_DETAIL_X - 0.15, center_y + twin * 3.2, 54.0),
-                width=2.8, height=15.0, lights=2, axis="x",
+            pointed_arch(
+                f"facade_tower_{tag}_rear_arch_{twin}", shaded,
+                center=(WEST_FRONT_X + FACADE_DEPTH - 0.7, center_y + twin * 3.0, 47.0),
+                span=5.6, rise=7.8, depth=0.7, steps=5, thickness=0.55, axis="x",
             )
-        # Vertical buttress strips break up the tower faces the way the real ones do.
-        for strip in (-1, 1):
-            cube(f"facade_tower_{tag}_strip_{'p' if strip > 0 else 'm'}_nocol",
-                 (WEST_FRONT_X + FACADE_DETAIL_X - 0.2,
-                  center_y + strip * (TOWER_HALF_WIDTH - 0.7), 56.0),
-                 (0.5, 0.8, 13.0), shaded)
+            bell_name = f"west_facade_tower_{tag}_bell_{'a' if twin > 0 else 'b'}"
+            previous_objects = set(bpy.context.scene.objects)
+            bell(f"{bell_name}_copper_nocol_animated",
+                 center=(tower_center_x, center_y + twin * 1.55, 51.5),
+                 radius=1.35, height=3.3, mat=mats["copper"])
+            bell_parts = [obj for obj in bpy.context.scene.objects
+                          if obj not in previous_objects and obj.type == "MESH"]
+            bell_mesh = join_objects_preserving_world(
+                bell_parts, f"{bell_name}_copper_nocol_animated")
+            bell_pivot = animated_pivot(f"{bell_name}_pivot",
+                                        (tower_center_x, center_y + twin * 1.55, 54.8))
+            # bell() and its torus/cylinder helpers store their authored absolute coordinates in
+            # vertex data, unlike cube() which keeps them in object transforms. Rebase this joined
+            # mesh to the hinge before parenting or glTF would add the pivot's world position twice.
+            for vertex in bell_mesh.data.vertices:
+                vertex.co.x -= tower_center_x
+                vertex.co.y -= center_y + twin * 1.55
+                vertex.co.z -= 54.8
+            bell_mesh.parent = bell_pivot
+            bell_mesh.matrix_parent_inverse.identity()
+            bell_mesh.location = (0, 0, 0)
+            samples = []
+            phase = (0.15 if tag == "north" else 0.65) + (0.25 if twin > 0 else 0.0)
+            for step in range(25):
+                second = step * 0.5
+                angle = radians(8.0) * sin(2 * pi * second / 4.0 + phase)
+                samples.append((second, angle))
+            animate_euler_component(bell_pivot, 1, samples)
+        # Side arches keep the chamber open from the transept-facing and outer sides too.
+        for face_side in (-1, 1):
+            for twin in (-1, 1):
+                pointed_arch(
+                    f"facade_tower_{tag}_side_arch_{face_side}_{twin}", shaded,
+                    center=(tower_center_x + twin * 1.55,
+                            center_y + face_side * 6.25, 47.0),
+                    span=3.0, rise=7.8, depth=0.7, steps=5, thickness=0.55, axis="y",
+                )
+        cube(f"facade_tower_{tag}_belfry_sill", (tower_center_x, center_y, 46.0),
+             (4.2, 6.8, 0.55), shaded)
         cube(f"facade_tower_{tag}_cornice_nocol", (facade_x, center_y, TOWER_TOP_Z + 0.7),
+             (FACADE_DEPTH / 2, TOWER_HALF_WIDTH + 0.5, 0.7), shaded)
+        cube(f"facade_tower_{tag}_cornice_colonly", (facade_x, center_y, TOWER_TOP_Z + 0.7),
              (FACADE_DEPTH / 2, TOWER_HALF_WIDTH + 0.5, 0.7), shaded)
         # Open balustrade on the platform: the walk between the towers.
         for baluster in range(10):
@@ -644,6 +980,11 @@ def build_west_facade(mats):
                     f"{'w' if face_x < facade_x else 'e'}_nocol",
                     (face_x, baluster_y, TOWER_TOP_Z + 2.2), 0.14, 2.2, shaded, vertices=6,
                 )
+                cylinder(
+                    f"facade_tower_{tag}_baluster_{baluster}_"
+                    f"{'w' if face_x < facade_x else 'e'}_colonly",
+                    (face_x, baluster_y, TOWER_TOP_Z + 2.2), 0.14, 2.2, shaded, vertices=6,
+                )
         for corner_x in (-1, 1):
             for corner_y in (-1, 1):
                 pinnacle(
@@ -652,6 +993,12 @@ def build_west_facade(mats):
                           center_y + corner_y * (TOWER_HALF_WIDTH - 0.4), TOWER_TOP_Z + 1.2),
                     height=5.0, width=1.1,
                 )
+                base_x = facade_x + corner_x * (FACADE_DEPTH / 2 - 0.4)
+                base_y = center_y + corner_y * (TOWER_HALF_WIDTH - 0.4)
+                cube(f"facade_tower_{tag}_pinnacle_{corner_x}_{corner_y}_shaft_colonly",
+                     (base_x, base_y, TOWER_TOP_Z + 2.7), (0.55, 0.55, 1.5), stone)
+                cone(f"facade_tower_{tag}_pinnacle_{corner_x}_{corner_y}_cap_colonly",
+                     (base_x, base_y, TOWER_TOP_Z + 5.1), 0.68, 0.0, 2.75, stone, vertices=6)
 
 
 def build_nave(mats):
@@ -663,6 +1010,7 @@ def build_nave(mats):
     """
     stone = mats["stone"]
     shaded = mats["stone_shaded"]
+    oak = mats["oak"]
 
     for side in (-1, 1):
         # Outer aisle wall, buttressed in the next part.
@@ -674,10 +1022,25 @@ def build_nave(mats):
                                               side * CLERESTORY_HALF,
                                               (TRIFORIUM_TOP_Z + CLERESTORY_TOP_Z) / 2),
              (NAVE_BAYS * BAY_LENGTH / 2, 0.8, (CLERESTORY_TOP_Z - TRIFORIUM_TOP_Z) / 2), stone)
-        cube(f"nave_triforium_band_{side}_nocol", ((NAVE_START_X + NAVE_END_X) / 2,
-                                                   side * CLERESTORY_HALF,
-                                                   (ARCADE_TOP_Z + TRIFORIUM_TOP_Z) / 2),
-             (NAVE_BAYS * BAY_LENGTH / 2, 0.5, (TRIFORIUM_TOP_Z - ARCADE_TOP_Z) / 2), shaded)
+        # The triforium is an arcade, not a continuous wall. Each bay leaves a real opening
+        # between the vessel and the raised side gallery; the collision geometry is the same
+        # stonework the eye sees, so a ship can thread it without passing through a proxy slab.
+        cube(f"nave_triforium_sill_{side}", ((NAVE_START_X + NAVE_END_X) / 2,
+                                             side * CLERESTORY_HALF,
+                                             ARCADE_TOP_Z + 0.25),
+             (NAVE_BAYS * BAY_LENGTH / 2, 0.5, 0.25), shaded)
+        cube(f"nave_triforium_crown_{side}", ((NAVE_START_X + NAVE_END_X) / 2,
+                                               side * CLERESTORY_HALF,
+                                               TRIFORIUM_TOP_Z - 0.25),
+             (NAVE_BAYS * BAY_LENGTH / 2, 0.5, 0.25), shaded)
+        for bay in range(NAVE_BAYS + 1):
+            service_x = NAVE_START_X + bay * BAY_LENGTH
+            cube(f"nave_triforium_service_{bay}_{side}",
+                 (service_x, side * CLERESTORY_HALF, (ARCADE_TOP_Z + TRIFORIUM_TOP_Z) / 2),
+                 (0.35, 0.48, (TRIFORIUM_TOP_Z - ARCADE_TOP_Z) / 2), stone)
+
+    cube("nave_vault_shell_colonly", ((NAVE_START_X + NAVE_END_X) / 2, 0, NAVE_VAULT_Z),
+         (NAVE_BAYS * BAY_LENGTH / 2, NAVE_HALF_WIDTH, 0.6), shaded)
 
     for bay in range(NAVE_BAYS):
         bay_x = NAVE_START_X + BAY_LENGTH * (bay + 0.5)
@@ -700,14 +1063,22 @@ def build_nave(mats):
                     center=(bay_x + BAY_LENGTH / 2, side * NAVE_HALF_WIDTH, ARCADE_TOP_Z),
                     span=BAY_LENGTH, rise=3.4, depth=1.0, steps=5, thickness=0.5, axis="y",
                 )
+            pointed_arch(
+                f"nave_triforium_arch_{bay}_{side}", shaded,
+                center=(bay_x, side * CLERESTORY_HALF, ARCADE_TOP_Z + 0.35),
+                span=BAY_LENGTH - 0.95, rise=TRIFORIUM_TOP_Z - ARCADE_TOP_Z - 0.7,
+                depth=0.9, steps=4, thickness=0.42, axis="y",
+            )
             # Clerestory window: the light source of the central vessel.
             lancet_window(
                 f"nave_clerestory_{bay}_{side}", mats["glass_warm"],
                 center=(bay_x, side * CLERESTORY_HALF, 25.0), width=3.2, height=7.6, axis="y",
+                outward=(0, side, 0),
             )
             lancet_window(
                 f"nave_aisle_window_{bay}_{side}", mats["glass_blue"],
                 center=(bay_x, side * AISLE_OUTER, 6.4), width=2.6, height=5.6, axis="y",
+                outward=(0, side, 0),
             )
             # Aisle vault, low and dark, the flyable side route under the tribune.
             rib_vault_bay(
@@ -722,6 +1093,47 @@ def build_nave(mats):
             center=(bay_x, 0), span=NAVE_HALF_WIDTH * 2, length=BAY_LENGTH,
             crown_z=NAVE_VAULT_Z, springing_z=CLERESTORY_TOP_Z - 4.0,
         )
+
+    # The nave part of the aisle roof is authored with the shared roof GLB below. It rises over
+    # the upper-flight corridor, while this nave part keeps its slim stone supports. The choir
+    # retains its existing lower aisle roof.
+    roof_outer_z = 21.0
+    for side in (-1, 1):
+        for bay in range(NAVE_BAYS + 1):
+            support_x = NAVE_START_X + bay * BAY_LENGTH
+            cube(f"nave_raised_roof_service_{bay}_{side}",
+                 (support_x, side * 19.6, (ARCADE_TOP_Z + roof_outer_z) / 2),
+                 (0.28, 0.38, (roof_outer_z - ARCADE_TOP_Z) / 2), stone)
+        # A narrow gallery ledge makes the route legible while leaving the flight corridor open.
+        cube(f"nave_triforium_gallery_{side}",
+             ((NAVE_START_X + NAVE_END_X) / 2, side * 11.5, 15.2),
+             (NAVE_BAYS * BAY_LENGTH / 2, 1.45, 0.18), stone)
+
+    # Low interior furnishing is placed off the centre lane and below the existing race line.
+    # Benches remain real colliders; only the flush floor pattern is visual-only.
+    for bay in range(NAVE_BAYS):
+        x = NAVE_START_X + BAY_LENGTH * (bay + 0.5)
+        for row, across in enumerate((-2.45, 2.45)):
+            cube(f"nave_pew_{bay}_{row}_seat", (x, across, 0.72),
+                 (1.25, 0.8, 0.14), oak)
+            cube(f"nave_pew_{bay}_{row}_back", (x - 1.05, across, 1.42),
+                 (0.13, 0.8, 0.62), oak)
+            for end in (-1, 1):
+                cube(f"nave_pew_{bay}_{row}_leg_{end}",
+                     (x + end * 0.95, across, 0.35), (0.13, 0.7, 0.37), oak)
+        # A small repeating cross motif, flush with the nave floor.
+        cube(f"nave_floor_cross_{bay}_nocol", (x, 0, 0.012),
+             (1.45, 0.09, 0.008), shaded)
+        cube(f"nave_floor_crossbar_{bay}_nocol", (x, 0, 0.012),
+             (0.09, 1.45, 0.008), shaded)
+
+    # The grand organ is mounted high on the west wall and stays clear of the centre flight line.
+    cube("nave_organ_case", (NAVE_START_X + 1.4, 0, 11.4), (0.75, 3.8, 1.5), oak)
+    for pipe in range(15):
+        across = -3.25 + pipe * 0.46
+        height = 3.2 + (1 - abs(pipe - 7) / 7) * 2.2
+        cylinder(f"nave_organ_pipe_{pipe}", (NAVE_START_X + 0.95, across, 12.0 + height / 2),
+                 0.12, height, mats["gold"], vertices=6)
 
     cube("nave_floor", ((NAVE_START_X + NAVE_END_X) / 2, 0, -0.4),
          (NAVE_BAYS * BAY_LENGTH / 2, AISLE_OUTER, 0.4), mats["stone_dark"])
@@ -743,6 +1155,8 @@ def build_transept(mats):
         # The gable above the rose, stepped back and topped by its own small arcade.
         cube(f"transept_{tag}_gable_nocol", (CROSSING_CENTER_X, gable_y, ROOF_RIDGE_Z * 0.78),
              (CROSSING_LENGTH / 2 * 0.7, 0.7, 6.0), stone)
+        cube(f"transept_{tag}_gable_colonly", (CROSSING_CENTER_X, gable_y, ROOF_RIDGE_Z * 0.78),
+             (CROSSING_LENGTH / 2 * 0.7, 0.7, 6.0), stone)
         for index in range(7):
             cylinder(f"transept_{tag}_gable_column_{index}_nocol",
                      (CROSSING_CENTER_X - 4.5 + index * 1.5, gable_y - side * 0.5, 32.6),
@@ -750,9 +1164,10 @@ def build_transept(mats):
 
         rose_window(
             f"transept_{tag}_rose", shaded,
-            mats["glass_red"] if side > 0 else mats["glass_blue"],
+            (mats["glass_red"], mats["glass_blue"], mats["glass_warm"]) if side > 0
+            else (mats["glass_blue"], mats["glass_red"], mats["glass_warm"]),
             center=(CROSSING_CENTER_X, gable_y - side * 0.7, 25.0),
-            radius=TRANSEPT_ROSE_RADIUS, spokes=16, axis="y",
+            radius=TRANSEPT_ROSE_RADIUS, spokes=16, axis="y", outward=(0, side, 0),
         )
         # The band of tall lancets that carries the rose, glazed in the opposite colour.
         for index in range(7):
@@ -760,7 +1175,7 @@ def build_transept(mats):
                 f"transept_{tag}_lancet_{index}",
                 mats["glass_blue"] if side > 0 else mats["glass_red"],
                 center=(CROSSING_CENTER_X - 6.0 + index * 2.0, gable_y - side * 0.7, 15.6),
-                width=1.5, height=5.6, axis="y",
+                width=1.5, height=5.6, axis="y", outward=(0, side, 0),
             )
         tracery(f"transept_{tag}_lancet_tracery", shaded,
                 center=(CROSSING_CENTER_X, gable_y - side * 0.8, 15.6),
@@ -820,6 +1235,7 @@ def build_transept(mats):
                 mats["glass_warm"],
                 center=(arm_x, side * (TRANSEPT_HALF + AISLE_OUTER) / 2, 8.0),
                 width=2.4, height=6.4, axis="x",
+                outward=(-1 if arm_x < CROSSING_CENTER_X else 1, 0, 0),
             )
 
     # The four crossing piers carry the spire above; they are the heaviest supports in the church.
@@ -852,6 +1268,7 @@ def build_choir_apse(mats):
     """
     stone = mats["stone"]
     shaded = mats["stone_shaded"]
+    oak = mats["oak"]
 
     for bay in range(CHOIR_BAYS):
         bay_x = CHOIR_START_X + BAY_LENGTH * (bay + 0.5)
@@ -866,9 +1283,13 @@ def build_choir_apse(mats):
             cube(f"choir_clerestory_wall_{bay}_{side}",
                  (bay_x, side * CLERESTORY_HALF, (TRIFORIUM_TOP_Z + CLERESTORY_TOP_Z) / 2),
                  (BAY_LENGTH / 2, 0.8, (CLERESTORY_TOP_Z - TRIFORIUM_TOP_Z) / 2), stone)
+            cube(f"choir_triforium_band_{bay}_{side}",
+                 (bay_x, side * CLERESTORY_HALF, (ARCADE_TOP_Z + TRIFORIUM_TOP_Z) / 2),
+                 (BAY_LENGTH / 2, 0.5, (TRIFORIUM_TOP_Z - ARCADE_TOP_Z) / 2), shaded)
             lancet_window(
                 f"choir_clerestory_{bay}_{side}", mats["glass_red"],
                 center=(bay_x, side * CLERESTORY_HALF, 25.0), width=3.0, height=7.2, axis="y",
+                outward=(0, side, 0),
             )
             if bay < CHOIR_BAYS - 1:
                 pointed_arch(
@@ -881,6 +1302,12 @@ def build_choir_apse(mats):
             center=(bay_x, 0), span=NAVE_HALF_WIDTH * 2, length=BAY_LENGTH,
             crown_z=NAVE_VAULT_Z, springing_z=CLERESTORY_TOP_Z - 4.0,
         )
+
+    cube("choir_vault_shell_colonly", ((CHOIR_START_X + CHOIR_END_X) / 2, 0, NAVE_VAULT_Z),
+         ((CHOIR_END_X - CHOIR_START_X) / 2, NAVE_HALF_WIDTH, 0.6), shaded)
+    for side in (-1, 1):
+        cube(f"choir_apse_seam_{side}", (CHOIR_END_X, side * 10.7, 23.0),
+             (0.9, 1.0, 3.0), stone)
 
     # The apse: hemicycle piers, an outer wall of chapels, and the vault fanning over both.
     for index in range(9):
@@ -900,14 +1327,20 @@ def build_choir_apse(mats):
         lancet_window(
             f"apse_chapel_window_{index}", mats["glass_blue"],
             center=(outer_x + 1.6 * cos(angle), outer_y + 1.6 * sin(angle), 6.0),
-            width=2.2, height=5.4, axis="y",
+            width=2.2, height=5.4, axis="y", outward=(cos(angle), sin(angle), 0),
         )
         cone(f"apse_chapel_roof_{index}_nocol", (outer_x, outer_y, AISLE_VAULT_Z + 1.6),
              CHAPEL_DEPTH, 0.0, 3.2, mats["lead"], vertices=6)
 
-    cube("apse_hemicycle_wall", (CHOIR_END_X + APSE_RADIUS * 0.55, 0,
-                                 (TRIFORIUM_TOP_Z + CLERESTORY_TOP_Z) / 2),
-         (APSE_RADIUS * 0.5, CLERESTORY_HALF, (CLERESTORY_TOP_Z - TRIFORIUM_TOP_Z) / 2), stone)
+    semicircle_wall(
+        "apse_hemicycle_wall",
+        center=(CHOIR_END_X, 0),
+        radius=NAVE_HALF_WIDTH * 1.24,
+        thickness=0.8,
+        bottom=TRIFORIUM_TOP_Z,
+        top=CLERESTORY_TOP_Z,
+        mat=stone,
+    )
     rib_vault_bay(
         "apse_vault", shaded,
         center=(CHOIR_END_X + APSE_RADIUS * 0.4, 0), span=NAVE_HALF_WIDTH * 2,
@@ -915,6 +1348,42 @@ def build_choir_apse(mats):
     )
     cube("choir_floor", ((CHOIR_START_X + CHOIR_END_X + APSE_RADIUS) / 2, 0, -0.4),
          ((CHOIR_END_X + APSE_RADIUS - CHOIR_START_X) / 2, AISLE_OUTER, 0.4), mats["stone_dark"])
+
+    # A low, open chancel screen separates the nave from the choir without sealing either aisle.
+    screen_x = CHOIR_START_X + 0.8
+    for across in (-6.0, -3.0, 3.0, 6.0):
+        cube(f"choir_screen_post_{across}", (screen_x, across, 4.1),
+             (0.38, 0.38, 4.1), shaded)
+        cube(f"choir_screen_finial_{across}_nocol", (screen_x, across, 8.35),
+             (0.55, 0.55, 0.35), mats["gold"])
+    for lower, upper in ((-6.0, -3.0), (3.0, 6.0)):
+        pointed_arch(f"choir_screen_arch_{lower}", shaded,
+                     center=(screen_x, (lower + upper) / 2, 4.1),
+                     span=upper - lower - 0.7, rise=2.8, depth=0.7,
+                     steps=4, thickness=0.32, axis="x")
+    cube("choir_screen_rail", (screen_x, 0, 7.4), (0.45, 2.65, 0.22), oak)
+    for index in range(9):
+        across = -2.4 + index * 0.6
+        cube(f"choir_screen_baluster_{index}", (screen_x, across, 6.35),
+             (0.22, 0.08, 0.85), oak)
+
+    # Stalls face inward on each side of the choir; their low profiles stay beneath every route.
+    for bay in range(4):
+        x = CHOIR_START_X + 3.2 + bay * 3.2
+        for side in (-1, 1):
+            across = side * 3.4
+            cube(f"choir_stall_{bay}_{side}_seat", (x, across, 0.78),
+                 (1.25, 0.95, 0.16), oak)
+            cube(f"choir_stall_{bay}_{side}_back", (x - 1.05, across, 1.65),
+                 (0.14, 0.95, 0.72), oak)
+            for end in (-1, 1):
+                cube(f"choir_stall_{bay}_{side}_end_{end}",
+                     (x + end * 0.95, across, 0.43), (0.14, 0.82, 0.36), oak)
+
+    # The altar stands on the choir axis but stays low enough to read beneath the high branch.
+    cube("choir_altar_mensa", (CHOIR_END_X - 4.3, 0, 1.65), (1.25, 2.15, 0.2), mats["stone"])
+    cube("choir_altar_pedestal", (CHOIR_END_X - 4.3, 0, 0.9), (0.7, 1.4, 0.55), shaded)
+    cube("choir_altar_frontal", (CHOIR_END_X - 4.3, -2.18, 1.55), (0.55, 0.08, 0.34), mats["gold"])
 
 
 def build_buttresses(mats):
@@ -1017,6 +1486,8 @@ def build_roof_fleche(mats):
                  (length / 2, half_width / 2 * 1.12, 0.4), lead,
                  rotation=(side * -0.98, 0, 0))
         cube(f"{name}_ridge_nocol", (center_x, 0, ROOF_RIDGE_Z), (length / 2, 0.5, 0.5), lead)
+        cube(f"{name}_ridge_colonly", (center_x, 0, ROOF_RIDGE_Z),
+             (length / 2, 3.5, 0.5), lead)
         # The oak frame that gave the attic its nickname, the forest: a truss every 1.5 m, each
         # one a pair of rafters with a collar beam and a strut. Dense on purpose -- this is the
         # part of the building the reconstruction is actually about.
@@ -1045,30 +1516,74 @@ def build_roof_fleche(mats):
                      (center_x, side * inset, height), (length / 2, 0.18, 0.18), oak)
 
     roof_run("roof_nave", NAVE_START_X, NAVE_END_X, CLERESTORY_HALF * 2)
-    roof_run("roof_choir", CHOIR_START_X, CHOIR_END_X + APSE_RADIUS, CLERESTORY_HALF * 2)
+    roof_run("roof_choir", CHOIR_START_X, CHOIR_END_X, CLERESTORY_HALF * 2)
+    apse_dome(
+        "roof_apse_dome",
+        center=(CHOIR_END_X, 0),
+        radius=APSE_RADIUS,
+        springing_z=CLERESTORY_TOP_Z,
+        rise=ROOF_RIDGE_Z - CLERESTORY_TOP_Z,
+        mat=lead,
+    )
     for side in (-1, 1):
         cube(f"roof_transept_slope_{side}",
              (CROSSING_CENTER_X + side * CROSSING_LENGTH / 4, 0,
               (CLERESTORY_TOP_Z + ROOF_RIDGE_Z) / 2),
              (CROSSING_LENGTH / 4 * 1.12, TRANSEPT_HALF, 0.4), lead,
              rotation=(0, side * 0.98, 0))
-    # Aisle lean-to roofs, lower and shallower.
+    # The upper nave gallery uses an elevated aisle roof. Keep it as a colliding roof surface:
+    # only the route corridor below it is clear. The adjacent choir keeps its former profile.
+    nave_roof_angle = atan2(2.0, AISLE_OUTER - CLERESTORY_HALF)
     for side in (-1, 1):
-        cube(f"roof_aisle_{side}", ((NAVE_START_X + CHOIR_END_X) / 2,
-                                    side * (CLERESTORY_HALF + AISLE_OUTER) / 2, 16.5),
-             ((CHOIR_END_X - NAVE_START_X) / 2, (AISLE_OUTER - CLERESTORY_HALF) / 2 * 1.1, 0.35),
+        cube(f"roof_aisle_nave_{side}", ((NAVE_START_X + NAVE_END_X) / 2,
+                                          side * (CLERESTORY_HALF + AISLE_OUTER) / 2, 22.0),
+             (NAVE_BAYS * BAY_LENGTH / 2, (AISLE_OUTER - CLERESTORY_HALF) / 2, 0.35),
+             lead, rotation=(-side * nave_roof_angle, 0, 0))
+        cube(f"roof_aisle_choir_{side}", ((NAVE_END_X + CHOIR_END_X) / 2,
+                                           side * (CLERESTORY_HALF + AISLE_OUTER) / 2, 16.5),
+             ((CHOIR_END_X - NAVE_END_X) / 2,
+              (AISLE_OUTER - CLERESTORY_HALF) / 2 * 1.1, 0.35),
              lead, rotation=(side * -0.34, 0, 0))
 
-    # The spire. Base at the ridge, an octagonal tapering shaft, then the cross and cockerel.
+    # The spire. A tapered lower shaft rises from the roof to an open octagonal lantern. The
+    # upper shaft and finial remain visible above the lantern, which is the new route finish.
     spire_base_z = ROOF_RIDGE_Z
     cube("fleche_base", (CROSSING_CENTER_X, 0, spire_base_z + 3.0), (5.0, 5.0, 3.0), oak)
-    cone("fleche_shaft", (CROSSING_CENTER_X, 0, (spire_base_z + 6.0 + SPIRE_TIP_Z - 6.0) / 2),
-         4.6, 0.5, SPIRE_TIP_Z - 6.0 - spire_base_z - 6.0, lead, vertices=8)
+    lantern_bottom, lantern_top, lantern_radius = 69.0, 77.0, 3.8
+    cone("fleche_lower_shaft",
+         (CROSSING_CENTER_X, 0, (spire_base_z + 6.0 + lantern_bottom) / 2),
+         4.6, lantern_radius + 0.55,
+         lantern_bottom - (spire_base_z + 6.0), lead, vertices=8)
+    for index in range(8):
+        angle = index * (2 * pi / 8)
+        x = CROSSING_CENTER_X + lantern_radius * cos(angle)
+        y = lantern_radius * sin(angle)
+        cylinder(f"fleche_lantern_pier_{index}",
+                 (x, y, (lantern_bottom + lantern_top) / 2), 0.34,
+                 lantern_top - lantern_bottom, lead, vertices=6)
+    for ring_z in (lantern_bottom + 0.25, lantern_top - 0.25):
+        for index in range(8):
+            angle = index * (2 * pi / 8)
+            next_angle = (index + 1) * (2 * pi / 8)
+            start = (CROSSING_CENTER_X + lantern_radius * cos(angle),
+                     lantern_radius * sin(angle), ring_z)
+            end = (CROSSING_CENTER_X + lantern_radius * cos(next_angle),
+                   lantern_radius * sin(next_angle), ring_z)
+            dx, dy = end[0] - start[0], end[1] - start[1]
+            cube(f"fleche_lantern_architrave_{ring_z}_{index}",
+                 ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2, ring_z),
+                 (hypot(dx, dy) / 2, 0.24, 0.28), lead,
+                 rotation=(0, 0, atan2(dy, dx)))
+    cone("fleche_upper_shaft",
+         (CROSSING_CENTER_X, 0, (lantern_top + SPIRE_TIP_Z) / 2),
+         lantern_radius - 0.35, 0.5, SPIRE_TIP_Z - lantern_top, lead, vertices=8)
     for index in range(8):
         angle = index * (2 * pi / 8)
         cube(f"fleche_rib_{index}_nocol",
-             (CROSSING_CENTER_X + 2.6 * cos(angle), 2.6 * sin(angle), spire_base_z + 18.0),
-             (0.18, 0.18, 16.0), lead, rotation=(0, 0.09, angle))
+             (CROSSING_CENTER_X + 2.6 * cos(angle), 2.6 * sin(angle),
+              (lantern_top + SPIRE_TIP_Z) / 2),
+             (0.18, 0.18, (SPIRE_TIP_Z - lantern_top) / 2 - 1.0),
+             lead, rotation=(0, 0.09, angle))
     # Twelve apostles and four evangelists climbing the roof toward the spire.
     for index in range(16):
         angle = index * (2 * pi / 16)
@@ -1114,411 +1629,6 @@ def build_parvis_island(mats):
     # same living island instead of carrying a second baked copy.
 
 
-# --- The reconstruction site ------------------------------------------------------------------
-# Everything above is masonry and stands still. What moves on this map is the site that was set
-# up to rebuild it: tower cranes, hoists, scaffold lifts, sheeting. That choice keeps the
-# building honest -- no cathedral is a machine -- while still giving the map the moving obstacles
-# the mode needs. All eight loop on whole multiples of one six second beat, so the preset can
-# offset them against each other and the site reads as one rhythm rather than eight surprises.
-#
-# These are exported with their rigs intact. Their moving collision bodies remain individual so
-# the loader can follow them, but static roots and decorative children can share a mesh when they
-# share a material. That preserves the motion and the collision/_nocol split without paying a
-# glTF node and primitive for every rope, lamp, and lattice strut.
-
-BEAT_SECONDS = 6
-
-
-def reset_animated_scene(name, duration_seconds):
-    if duration_seconds % BEAT_SECONDS != 0:
-        raise ValueError(f"{name}: {duration_seconds}s is not a whole multiple of the beat")
-    scene = reset_scene(name)
-    scene.frame_end = 1 + round(duration_seconds * FPS)
-    scene["loop_duration_seconds"] = duration_seconds
-    scene["beat_seconds"] = BEAT_SECONDS
-    return scene
-
-
-def empty(name, location=(0, 0, 0)):
-    obj = bpy.data.objects.new(name, None)
-    obj.empty_display_type = "PLAIN_AXES"
-    obj.location = location
-    bpy.context.collection.objects.link(obj)
-    return obj
-
-
-def parent_keep_world(child, parent):
-    world = child.matrix_world.copy()
-    child.parent = parent
-    child.matrix_world = world
-
-
-def keyframe(obj, frame, *, location=None, rotation=None, scale=None):
-    if location is not None:
-        obj.location = location
-        obj.keyframe_insert("location", frame=frame)
-    if rotation is not None:
-        obj.rotation_mode = "XYZ"
-        obj.rotation_euler = rotation
-        obj.keyframe_insert("rotation_euler", frame=frame)
-    if scale is not None:
-        obj.scale = scale
-        obj.keyframe_insert("scale", frame=frame)
-
-
-def beat_frame(scene, beats):
-    return scene.frame_start + round(beats * BEAT_SECONDS * FPS)
-
-
-def traveling_gap(rig, scene, total_beats, index, count, *, closed, opened):
-    """Each element owns one slot of the loop and steps aside during it, so the gap walks along
-    the barrier once per loop instead of blinking on and off everywhere at once. Borrowed from
-    the sheeting on a real site, where one bay at a time is unlaced for a lift to pass."""
-    width = total_beats / count
-    slot = index * width
-
-    def key(beats, state):
-        keyframe(rig, beat_frame(scene, beats), **state)
-
-    if slot > 0:
-        key(0, closed)
-    key(slot, closed)
-    key(slot + width * 0.3, opened)
-    key(slot + width * 0.7, opened)
-    key(slot + width, closed)
-    if slot + width < total_beats:
-        key(total_beats, closed)
-
-
-def lattice_mast(name, mats, *, base, height, width, segments):
-    """An open steel lattice: four legs and a bracing ring per segment. Cheap and unmistakably
-    site equipment rather than masonry."""
-    steel = mats["steel"]
-    for corner_x in (-1, 1):
-        for corner_y in (-1, 1):
-            cube(f"{name}_leg_{corner_x}_{corner_y}_nocol",
-                 (base[0] + corner_x * width, base[1] + corner_y * width, base[2] + height / 2),
-                 (0.16, 0.16, height / 2), steel)
-    for segment in range(segments):
-        ring_z = base[2] + height * (segment + 0.5) / segments
-        cube(f"{name}_ring_{segment}_nocol", (base[0], base[1], ring_z),
-             (width, width, 0.11), steel)
-
-
-def build_tower_crane(scene, mats):
-    """Four beats. The big yellow crane that stood over the crossing: the jib sweeps a full turn
-    per loop, so the way past it travels around the mast rather than opening and shutting.
-
-    The jib is the collision body -- coarse and low-poly on purpose, because it is the one mesh
-    the physics has to follow every frame -- while the lattice, the hook block and the counter
-    weight are decoration.
-    """
-    crane = mats["crane"]
-    lattice_mast("tower_crane_mast", mats, base=(0, 0, 0), height=54.0, width=1.5, segments=9)
-    cylinder("tower_crane_base_signal", (0, 0, 1.0), 3.2, 2.0, mats["signal"], vertices=12)
-
-    slew = empty("CraneSlew", (0, 0, 54.0))
-    # The jib: one long bar, the collision body a player has to fly around or under.
-    jib = cube("tower_crane_jib", (17.0, 0, 55.4), (17.0, 0.8, 0.8), crane)
-    tie = cube("tower_crane_tie_nocol", (9.0, 0, 59.0), (9.4, 0.2, 0.2), mats["steel"],
-               rotation=(0, 0.34, 0))
-    tower_top = cone("tower_crane_apex", (0, 0, 60.5), 1.4, 0.2, 6.0, crane, vertices=6)
-    counter = cube("tower_crane_counterweight", (-7.0, 0, 55.0), (4.0, 1.6, 1.4),
-                   mats["stone_dark"])
-    counter_jib = cube("tower_crane_counterjib", (-6.0, 0, 56.2), (6.2, 0.5, 0.35), crane)
-    # Hook block on a rope, hanging where the jib passes over the roof.
-    rope = cylinder("tower_crane_rope_nocol", (13.0, 0, 47.0), 0.09, 16.0, mats["rope"],
-                    vertices=6)
-    hook = cube("tower_crane_hook", (13.0, 0, 38.6), (0.9, 0.9, 1.1), mats["steel"])
-    lamp = sphere("tower_crane_jib_lamp_nocol", (32.0, 0, 55.4), (0.6, 0.6, 0.6),
-                  mats["signal"], 8, 5)
-    for obj in (jib, tie, tower_top, counter, counter_jib, rope, hook, lamp):
-        parent_keep_world(obj, slew)
-
-    keyframe(slew, beat_frame(scene, 0), rotation=(0, 0, 0))
-    keyframe(slew, beat_frame(scene, 4), rotation=(0, 0, 2 * pi))
-
-
-def build_scaffold_lift(scene, mats):
-    """One beat. The hoist that ran up the scaffold: two cages on one mast, counterweighted, so
-    one is always at the top while the other is at the bottom. The gap to slip through is
-    whichever level the cages are not on."""
-    steel = mats["steel"]
-    lattice_mast("scaffold_lift_mast", mats, base=(0, 0, 0), height=34.0, width=1.2, segments=7)
-    cube("scaffold_lift_foot_signal", (0, 0, 0.4), (3.0, 3.0, 0.4), mats["signal"])
-    for level in range(6):
-        # The scaffold decks the cages serve.
-        cube(f"scaffold_lift_deck_{level}_nocol", (0, 4.4, 4.0 + level * 5.4),
-             (2.6, 2.6, 0.14), mats["oak"])
-        cube(f"scaffold_lift_rail_{level}_nocol", (0, 6.8, 4.9 + level * 5.4),
-             (2.6, 0.08, 0.5), steel)
-
-    for index, side in enumerate((-1, 1)):
-        cage = empty(f"LiftCage{index}", (side * 2.2, 0, 3.0))
-        body = cube(f"scaffold_cage_{index}", (side * 2.2, 0, 3.0), (1.5, 1.5, 1.9),
-                    mats["crane"])
-        mesh_side = cube(f"scaffold_cage_{index}_mesh_nocol", (side * 3.6, 0, 3.0),
-                         (0.1, 1.5, 1.9), steel)
-        lamp = sphere(f"scaffold_cage_{index}_lamp_nocol", (side * 2.2, -1.7, 4.7),
-                      (0.34, 0.34, 0.34), mats["signal"], 8, 5)
-        for obj in (body, mesh_side, lamp):
-            parent_keep_world(obj, cage)
-
-        low = (side * 2.2, 0, 3.0)
-        high = (side * 2.2, 0, 30.0)
-        # Offset by half a beat between the two cages, so they pass each other mid-mast.
-        first, second = (low, high) if index == 0 else (high, low)
-        keyframe(cage, beat_frame(scene, 0), location=first)
-        keyframe(cage, beat_frame(scene, 0.5), location=second)
-        keyframe(cage, beat_frame(scene, 1), location=first)
-
-
-def build_stone_hoist(scene, mats):
-    """One beat. Dressed blocks on slings, swinging over the crossing. Five of them on staggered
-    phases, so the safe line through the group shifts continuously instead of the whole row
-    swinging as one wall."""
-    steel = mats["steel"]
-    cube("stone_hoist_beam", (0, 0, 22.0), (14.0, 0.7, 0.6), steel)
-    cube("stone_hoist_beam_signal", (0, -0.8, 21.3), (13.4, 0.14, 0.18), mats["signal"])
-    for side in (-1, 1):
-        lattice_mast(f"stone_hoist_tower_{side}", mats, base=(side * 13.4, 0, 0),
-                     height=21.4, width=0.9, segments=5)
-
-    for index in range(5):
-        offset_x = -10.0 + index * 5.0
-        pivot = empty(f"StoneSling{index}", (offset_x, 0, 21.6))
-        rope = cylinder(f"stone_rope_{index}_nocol", (offset_x, 0, 17.0), 0.07, 9.0,
-                        mats["rope"], vertices=6)
-        block = cube(f"stone_block_{index}", (offset_x, 0, 11.6), (1.5, 1.5, 1.2),
-                     mats["stone"])
-        strap = cube(f"stone_strap_{index}_nocol", (offset_x, 0, 12.9), (1.6, 0.12, 0.5),
-                     mats["crane"])
-        for obj in (rope, block, strap):
-            parent_keep_world(obj, pivot)
-
-        # A fifth of a beat of phase between neighbours: the group ripples instead of pulsing.
-        # Sampled at 20 steps per beat, which is fine enough that each block reaches its own
-        # extreme at its own moment -- at four steps two neighbours peaked on the same frame and
-        # the row briefly became a solid wall.
-        phase = index * 0.2
-        swing = 0.5
-        steps = 20
-        for step in range(steps + 1):
-            beats = step / steps
-            keyframe(pivot, beat_frame(scene, beats),
-                     rotation=(sin((beats - phase) * 2 * pi) * swing, 0, 0))
-
-
-def build_fleche_hoist(scene, mats):
-    """Two beats. The spire section being lifted into place, and the reason to cross the map:
-    the segment rises out of its cradle, hangs at the top of the loop, and settles back.
-
-    Nothing here blocks a lane. It is a prize marker, readable from every level of the map.
-    """
-    steel = mats["steel"]
-    cube("fleche_hoist_cradle", (0, 0, 1.2), (5.0, 5.0, 1.2), mats["oak"])
-    cube("fleche_hoist_cradle_signal", (0, 0, 2.5), (4.4, 4.4, 0.16), mats["signal"])
-    for corner_x in (-1, 1):
-        for corner_y in (-1, 1):
-            lattice_mast(
-                f"fleche_hoist_gantry_{corner_x}_{corner_y}", mats,
-                base=(corner_x * 6.5, corner_y * 6.5, 0), height=30.0, width=0.7, segments=6,
-            )
-    cube("fleche_hoist_head_nocol", (0, 0, 30.4), (7.2, 7.2, 0.5), steel)
-    for corner in (-1, 1):
-        cylinder(f"fleche_hoist_rope_{corner}_nocol", (corner * 2.4, 0, 24.0), 0.08, 13.0,
-                 mats["rope"], vertices=6)
-
-    # The segment itself: an octagonal spire section with its lead ribs.
-    segment = empty("FlecheSegment", (0, 0, 4.6))
-    cone_body = cone("fleche_segment_body", (0, 0, 4.6), 3.6, 1.4, 9.0, mats["lead"], vertices=8)
-    for index in range(8):
-        angle = index * (2 * pi / 8)
-        rib = cube(f"fleche_segment_rib_{index}_nocol",
-                   (2.5 * cos(angle), 2.5 * sin(angle), 4.6), (0.16, 0.16, 4.4), mats["lead"],
-                   rotation=(0, 0.12, angle))
-        parent_keep_world(rib, segment)
-    crown = torus("fleche_segment_crown_nocol", (0, 0, 9.2), 1.5, 0.18, mats["gold"],
-                  major_segments=14)
-    for obj in (cone_body, crown):
-        parent_keep_world(obj, segment)
-
-    keyframe(segment, beat_frame(scene, 0), location=(0, 0, 4.6))
-    keyframe(segment, beat_frame(scene, 0.8), location=(0, 0, 22.0))
-    keyframe(segment, beat_frame(scene, 1.2), location=(0, 0, 22.0))
-    keyframe(segment, beat_frame(scene, 2), location=(0, 0, 4.6))
-
-
-def build_tarpaulin_wall(scene, mats):
-    """Two beats. The sheeted hoarding that wrapped the works. Seven bays; one bay at a time is
-    drawn aside, so the opening walks along the wall and a player learns *where* to be rather
-    than counting out *when* to go.
-
-    The wall is set out across the building, on Y, and every bay draws aside on Y as well. That
-    is the whole point of it: a run comes up the river along X, so a hoarding set out on X would
-    hang edge-on in the flight line -- seven sheets lying along the route for their full length,
-    a face no one ever sees, and a gap traveling away from the player instead of across them.
-    The battens, lamps and the signal strip sit on -X, the side a run approaches from.
-
-    The bay spacing is what a run has to fly through, so it is stated rather than inlined. Three
-    of the seven openings fall inside CP02, which is 9.1 m across here: the middle one and its
-    two neighbours. Narrowing the spacing until all seven fit inside the ring was tried and is
-    worse -- at 1.5 m the opening is 5 world units wide against the 16 it has now, and a run
-    cannot thread it at flying speed. A wide gap that comes round three times a loop beats a
-    permanent one too narrow to use."""
-    steel = mats["steel"]
-    bay_spacing = 4.0
-    half_span = bay_spacing * 3
-    cube("tarpaulin_wall_head", (0, 0, 18.4), (0.6, half_span + bay_spacing, 0.5), steel)
-    cube("tarpaulin_wall_head_signal", (-0.7, 0, 17.8), (0.14, half_span + bay_spacing * 0.8, 0.18),
-         mats["signal"])
-    for side in (-1, 1):
-        cube(f"tarpaulin_wall_post_{side}", (0, side * (half_span + bay_spacing * 0.9), 9.0),
-             (0.7, 0.5, 9.0), steel)
-
-    for index in range(7):
-        offset_y = -half_span + index * bay_spacing
-        shut = (0, offset_y, 9.0)
-        # A bay slides just under one spacing aside, so it ends up behind its neighbour and the
-        # opening it leaves is the full width of the bay.
-        aside = (0, offset_y + bay_spacing * 0.9, 9.0)
-
-        bay = empty(f"TarpBay{index}", shut)
-        sheet = cube(f"tarp_sheet_{index}", shut, (0.14, bay_spacing * 0.475, 8.6), mats["tarp"])
-        batten = cube(f"tarp_batten_{index}_nocol", (-0.2, offset_y, 9.0),
-                      (0.08, bay_spacing * 0.4875, 0.16), steel)
-        lamp = sphere(f"tarp_lamp_{index}_nocol", (-0.4, offset_y + bay_spacing * 0.475, 16.6),
-                      (0.3, 0.3, 0.3), mats["signal"], 8, 5)
-        for obj in (sheet, batten, lamp):
-            parent_keep_world(obj, bay)
-
-        traveling_gap(bay, scene, 2, index, 7,
-                      closed={"location": shut}, opened={"location": aside})
-
-
-def build_vault_gantry(scene, mats):
-    """Two beats. The rolling gantry that worked on the vaults from inside, running the length of
-    the nave and back. Indoors, so it is the one moving piece a player meets while flying the
-    interior, and it sweeps the corridor rather than blocking it."""
-    steel = mats["steel"]
-    # The gantry has to fit inside the central vessel, which is 12.5 m in the clear. Anything
-    # wider stands in the arcade piers, so the rails sit at 4.8 m either side of the axis and the
-    # whole frame stays under 11 m across.
-    for side in (-1, 1):
-        cube(f"vault_gantry_rail_{side}", (0, side * 4.8, 0.3), (26.0, 0.34, 0.3), steel)
-
-    carriage = empty("GantryCarriage", (0, 0, 0))
-    deck = cube("gantry_deck", (0, 0, 12.4), (2.4, 5.0, 0.4), mats["oak"])
-    for side in (-1, 1):
-        for end in (-1, 1):
-            leg = cube(f"gantry_leg_{side}_{end}", (end * 2.0, side * 4.6, 6.2),
-                       (0.2, 0.2, 6.2), steel)
-            parent_keep_world(leg, carriage)
-        brace = cube(f"gantry_brace_{side}_nocol", (0, side * 4.6, 8.4), (2.2, 0.14, 0.14), steel)
-        parent_keep_world(brace, carriage)
-    rail_top = cube("gantry_handrail_nocol", (0, 0, 13.6), (2.4, 5.0, 0.1), steel)
-    lamp = sphere("gantry_lamp_nocol", (0, 0, 14.2), (0.42, 0.42, 0.42), mats["signal"], 8, 5)
-    # A working platform slung under the deck, where the vault webs were repointed.
-    cradle = cube("gantry_cradle", (0, 0, 15.6), (1.8, 2.6, 0.3), mats["crane"])
-    for obj in (deck, rail_top, lamp, cradle):
-        parent_keep_world(obj, carriage)
-
-    keyframe(carriage, beat_frame(scene, 0), location=(-22.0, 0, 0))
-    keyframe(carriage, beat_frame(scene, 1), location=(22.0, 0, 0))
-    keyframe(carriage, beat_frame(scene, 2), location=(-22.0, 0, 0))
-
-
-def build_bell_swing(scene, mats):
-    """One beat. The bell frame in the south tower. Three bells on staggered phases, which is
-    what a real peal does -- they never swing together -- so the frame keeps a rolling rhythm
-    that the rest of the site can be read against."""
-    oak = mats["oak"]
-    # An open oak frame, not a pair of solid walls: a bell frame is a cage of posts and braces,
-    # and a closed one would hide the bells that are the whole point of the setpiece.
-    for side in (-1, 1):
-        for end in (-1, 1):
-            cube(f"bell_frame_post_{side}_{end}", (end * 5.0, side * 5.0, 5.0),
-                 (0.42, 0.42, 5.0), oak)
-        cube(f"bell_frame_sill_{side}_nocol", (0, side * 5.0, 0.5), (5.4, 0.38, 0.38), oak)
-        cube(f"bell_frame_plate_{side}_nocol", (0, side * 5.0, 9.8), (5.4, 0.38, 0.38), oak)
-        # Diagonal braces in the long faces, the way a bell frame resists the swing.
-        for end in (-1, 1):
-            _strut(f"bell_frame_brace_{side}_{end}_nocol", oak,
-                   start=(end * 4.8, side * 5.0, 1.0), end=(end * 1.6, side * 5.0, 9.4),
-                   thickness=0.3)
-    for end in (-1, 1):
-        cube(f"bell_frame_tie_{end}_nocol", (end * 5.0, 0, 9.8), (0.38, 5.0, 0.38), oak)
-    cube("bell_frame_head", (0, 0, 10.4), (5.4, 5.0, 0.45), oak)
-    cube("bell_frame_signal", (0, 0, 9.6), (4.8, 0.16, 0.16), mats["signal"])
-
-    for index in range(3):
-        offset_x = -3.2 + index * 3.2
-        headstock = empty(f"BellHeadstock{index}", (offset_x, 0, 9.4))
-        stock = cube(f"bell_stock_{index}_nocol", (offset_x, 0, 9.4), (0.9, 0.3, 0.22),
-                     oak)
-        # The bell body: a cone plus its rim, the coarse collision shape of this setpiece.
-        bell = cone(f"bell_body_{index}", (offset_x, 0, 7.6), 1.35, 0.45, 2.6,
-                    mats["copper"], vertices=10, rotation=(pi, 0, 0))
-        rim = torus(f"bell_rim_{index}_nocol", (offset_x, 0, 6.3), 1.35, 0.14, mats["copper"],
-                    major_segments=12)
-        clapper = sphere(f"bell_clapper_{index}_nocol", (offset_x, 0, 6.6),
-                         (0.24, 0.24, 0.3), mats["steel"], 6, 4)
-        wheel = torus(f"bell_wheel_{index}_nocol", (offset_x + 1.1, 0, 9.4), 1.5, 0.1, oak,
-                      (0, pi / 2, 0), 14)
-        for obj in (stock, bell, rim, clapper, wheel):
-            parent_keep_world(obj, headstock)
-
-        # Twelve samples per beat: a third of a beat of phase lands exactly on a sample, so all
-        # three bells reach their swing at three separate moments.
-        phase = index / 3
-        steps = 12
-        for step in range(steps + 1):
-            beats = step / steps
-            keyframe(headstock, beat_frame(scene, beats),
-                     rotation=(sin((beats - phase) * 2 * pi) * 0.85, 0, 0))
-
-
-def build_rose_ring(scene, mats):
-    """Two beats. The ring of scaffold that stood off the west rose while it was cleaned. Eight
-    bays with one socket left empty, and the whole ring turns -- so the gap rides around the
-    window once per loop. Nothing opens or shuts; the hole is simply always somewhere else."""
-    steel = mats["steel"]
-    cylinder("rose_ring_hub", (0, 0, 0), 1.7, 1.4, steel, vertices=12, rotation=(pi / 2, 0, 0))
-    cylinder("rose_ring_hub_signal", (0, -0.85, 0), 1.0, 0.16, mats["signal"], vertices=12,
-             rotation=(pi / 2, 0, 0))
-    for side in (-1, 1):
-        cube(f"rose_ring_stand_{side}", (side * 9.4, 0.8, 0), (0.42, 0.8, 9.2), steel)
-
-    ring = empty("RoseScaffoldRing", (0, 0, 0))
-    rim = torus("rose_ring_rim_nocol", (0, 0, 0), 8.6, 0.3, steel, (pi / 2, 0, 0), 20)
-    parent_keep_world(rim, ring)
-
-    for index in range(8):
-        angle = index * (2 * pi / 8)
-        if index == 0:
-            # The empty socket: this is the way through, and it travels with the ring.
-            for lamp_index, radius in enumerate((4.2, 6.0, 7.8)):
-                lamp = sphere(
-                    f"rose_gap_lamp_{lamp_index}_nocol",
-                    (radius * cos(angle), -0.6, radius * sin(angle)),
-                    (0.32, 0.32, 0.32), mats["signal"], 8, 5,
-                )
-                parent_keep_world(lamp, ring)
-            continue
-
-        bay = cube(f"rose_bay_{index}", (5.2 * cos(angle), 0, 5.2 * sin(angle)),
-                   (3.4, 0.42, 0.62), steel, rotation=(0, -angle, 0))
-        plank = cube(f"rose_plank_{index}_nocol", (5.2 * cos(angle), -0.5, 5.2 * sin(angle)),
-                     (3.3, 0.1, 0.5), mats["oak"], rotation=(0, -angle, 0))
-        tie = cube(f"rose_tie_{index}_nocol", (7.9 * cos(angle), 0, 7.9 * sin(angle)),
-                   (0.5, 0.4, 0.5), mats["crane"])
-        for obj in (bay, plank, tie):
-            parent_keep_world(obj, ring)
-
-    keyframe(ring, beat_frame(scene, 0), rotation=(0, 0, 0))
-    keyframe(ring, beat_frame(scene, 2), rotation=(0, 2 * pi, 0))
-
-
 ARCHITECTURE = (
     ("01_west_facade", build_west_facade),
     ("02_nave", build_nave),
@@ -1532,17 +1642,6 @@ ARCHITECTURE = (
 # Loop lengths are whole multiples of the six second beat. The slow ones are slow on purpose:
 # the spire lift is the map's prize and the sheeting is its longest wait, while the bells and
 # the stone slings tick every beat to keep the site's pulse audible.
-SETPIECES = (
-    ("10_tower_crane", "TowerCraneLoop", 24, build_tower_crane),
-    ("11_scaffold_lift", "ScaffoldLiftLoop", 6, build_scaffold_lift),
-    ("12_stone_hoist", "StoneHoistLoop", 6, build_stone_hoist),
-    ("13_fleche_hoist", "FlecheHoistLoop", 12, build_fleche_hoist),
-    ("14_tarpaulin_wall", "TarpaulinWallLoop", 12, build_tarpaulin_wall),
-    ("15_vault_gantry", "VaultGantryLoop", 12, build_vault_gantry),
-    ("16_bell_swing", "BellSwingLoop", 6, build_bell_swing),
-    ("17_rose_ring", "RoseRingLoop", 12, build_rose_ring),
-)
-
 
 def merge_static_meshes(part_name):
     """Join every static mesh that shares a material into one object per (material, collision)
@@ -1559,27 +1658,33 @@ def merge_static_meshes(part_name):
     """
     meshes = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
 
-    # Bake every rotation into the vertices first. Joining adopts the active object's local
+    static_meshes = [obj for obj in meshes if "_animated" not in obj.name.lower()]
+
+    # Bake every static rotation into the vertices first. Joining adopts the active object's local
     # frame, so a rotated member would drag the whole merged object into a tilted frame and the
     # bounding box read back below -- the number the preset places by -- would be wrong.
     bpy.ops.object.select_all(action="DESELECT")
-    for obj in meshes:
+    for obj in static_meshes:
         obj.select_set(True)
-    if meshes:
-        bpy.context.view_layer.objects.active = meshes[0]
+    if static_meshes:
+        bpy.context.view_layer.objects.active = static_meshes[0]
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     bpy.ops.object.select_all(action="DESELECT")
 
     groups = {}
+    merged = []
     for obj in meshes:
         for layer in list(obj.data.uv_layers):
             obj.data.uv_layers.remove(layer)
         material_name = obj.data.materials[0].name if obj.data.materials else "plain"
-        decorative = "_nocol" in obj.name.lower()
-        groups.setdefault((material_name, decorative), []).append(obj)
+        lower_name = obj.name.lower()
+        if "_animated" in lower_name:
+            merged.append(obj.name)
+            continue
+        role = "nocol" if "_nocol" in lower_name else "colonly" if "_colonly" in lower_name else ""
+        groups.setdefault((material_name, role), []).append(obj)
 
-    merged = []
-    for (material_name, decorative), members in sorted(groups.items()):
+    for (material_name, role), members in sorted(groups.items()):
         bpy.ops.object.select_all(action="DESELECT")
         for member in members:
             member.select_set(True)
@@ -1589,75 +1694,43 @@ def merge_static_meshes(part_name):
         target = bpy.context.view_layer.objects.active
         # Material names are prefixed ND by build_materials; strip that for readable node names.
         suffix = material_name[2:].lower() if material_name.startswith("ND") else material_name
-        target.name = f"{part_name}_{suffix}{'_nocol' if decorative else ''}"
+        target.name = f"{part_name}_{suffix}{'_' + role if role else ''}"
         target.data.name = f"{target.name}_mesh"
+        if role == "nocol":
+            removed = remove_opposing_duplicates(target)
+            if removed:
+                print(f"{target.name}: removed {removed} hidden opposing faces")
         merged.append(target.name)
     bpy.ops.object.select_all(action="DESELECT")
     return merged
 
 
-def join_mesh_group(members, name):
-    """Join a same-parent mesh group and give the surviving node a stable, readable name."""
-    bpy.ops.object.select_all(action="DESELECT")
-    for member in members:
-        member.select_set(True)
-    bpy.context.view_layer.objects.active = members[0]
-    if len(members) > 1:
-        bpy.ops.object.join()
-    target = bpy.context.view_layer.objects.active
-    target.name = name
-    target.data.name = f"{name}_mesh"
-    return target
+def remove_opposing_duplicates(obj):
+    """Delete pairs of faces that sit on the same vertices but face opposite ways.
 
-
-def merge_animated_meshes(file_stem):
-    """Trim animated export primitives without changing what animation or collision follows.
-
-    Root meshes never inherit an animated transform, so they can be joined by material and the
-    _nocol collision marker. Under a rig, only decorative (_nocol) direct children join, again
-    per material and parent. Collidable children deliberately stay one mesh each: in particular,
-    the rose-ring bays stay separate so their open socket remains a real gap while the ring turns.
-    Readability landmarks are excluded so their authored node names survive the export.
+    Two primitives that touch exactly -- a lintel on a pier, a cap on a shaft -- leave one face
+    each on the shared plane, back to back, where no camera can ever see them. Only the
+    decorative _nocol meshes are cleaned: collision and foam meshes keep every face they were
+    authored with. The vertices stay, so the bounding box the preset places by cannot move.
     """
-    landmark_names = {
-        "tower_crane_base_signal",
-        "scaffold_lift_foot_signal",
-        "stone_hoist_beam_signal",
-        "fleche_hoist_cradle_signal",
-        "tarpaulin_wall_head_signal",
-        "gantry_cradle",
-        "bell_frame_signal",
-        "rose_ring_hub_signal",
-    }
-    meshes = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
-    groups = {}
-    for obj in meshes:
-        if obj.name in landmark_names:
-            continue
-        material_name = obj.data.materials[0].name if obj.data.materials else "plain"
-        decorative = "_nocol" in obj.name.lower()
-        if obj.parent is None:
-            key = ("root", material_name, decorative)
-        elif decorative:
-            key = ("decorative", obj.parent.name, material_name)
+    mesh = bmesh.new()
+    mesh.from_mesh(obj.data)
+    mesh.normal_update()
+    open_faces = {}
+    doomed = []
+    for face in mesh.faces:
+        key = tuple(sorted(tuple(round(value, 4) for value in vert.co) for vert in face.verts))
+        twin = open_faces.get(key)
+        if twin is not None and twin.normal.dot(face.normal) < -0.99:
+            doomed.extend((twin, face))
+            del open_faces[key]
         else:
-            continue
-        groups.setdefault(key, []).append(obj)
-
-    merged = []
-    for key, members in sorted(groups.items(), key=lambda entry: str(entry[0])):
-        kind = key[0]
-        material_name = key[-1] if kind == "decorative" else key[1]
-        decorative = kind == "decorative" or key[2]
-        material_suffix = material_name[2:].lower() if material_name.startswith("ND") else material_name
-        parent_suffix = "root" if kind == "root" else key[1].lower()
-        suffix = "_nocol" if decorative else ""
-        merged.append(join_mesh_group(
-            members,
-            f"{file_stem}_{parent_suffix}_{material_suffix}{suffix}",
-        ).name)
-    bpy.ops.object.select_all(action="DESELECT")
-    return merged
+            open_faces[key] = face
+    if doomed:
+        bmesh.ops.delete(mesh, geom=doomed, context="FACES_ONLY")
+        mesh.to_mesh(obj.data)
+    mesh.free()
+    return len(doomed)
 
 
 def scene_bounds():
@@ -1713,7 +1786,9 @@ def export_part(file_stem, builder):
     bpy.ops.export_scene.gltf(
         filepath=str(glb_path),
         export_format="GLB",
-        export_animations=False,
+        export_animations=(file_stem == "01_west_facade"),
+        export_animation_mode="ACTIVE_ACTIONS",
+        export_nla_strips_merged_animation_name="NotreDameMotion",
         export_yup=True,
         export_cameras=False,
         export_lights=False,
@@ -1732,54 +1807,11 @@ def export_part(file_stem, builder):
     )
 
 
-def export_setpiece(file_stem, clip_name, duration, builder):
-    """Export one animated site piece with its moving colliders and readability names intact."""
-    scene = reset_animated_scene(clip_name, duration)
-    builder(scene, build_materials())
-    for obj in bpy.context.scene.objects:
-        if obj.type == "MESH":
-            for layer in list(obj.data.uv_layers):
-                obj.data.uv_layers.remove(layer)
-    merged = merge_animated_meshes(file_stem)
-    scene.frame_set(scene.frame_start)
-
-    lows, highs = scene_bounds()
-    triangles = triangle_count()
-    blend_path = SOURCE_DIR / f"{file_stem}.blend"
-    glb_path = GLB_DIR / f"{file_stem}.glb"
-    bpy.ops.wm.save_as_mainfile(filepath=str(blend_path), check_existing=False)
-    bpy.ops.export_scene.gltf(
-        filepath=str(glb_path),
-        export_format="GLB",
-        export_animations=True,
-        # SCENE mode exports exactly one clip named after the scene, which is what the runtime
-        # clock addresses by name.
-        export_animation_mode="SCENE",
-        export_anim_scene_split_object=False,
-        export_anim_slide_to_zero=True,
-        export_yup=True,
-        export_cameras=False,
-        export_lights=False,
-        export_extras=True,
-        export_apply=True,
-    )
-    print(
-        f"generated {glb_path.relative_to(ROOT)} "
-        f"clip={clip_name} loop={duration}s tris={triangles} nodes={len(merged)} "
-        f"center_x={(lows[0] + highs[0]) / 2:.2f} "
-        f"center_z={-(lows[1] + highs[1]) / 2:.2f} "
-        f"base_y={lows[2]:.2f} "
-        f"size=({highs[0] - lows[0]:.1f}, {highs[2] - lows[2]:.1f}, {highs[1] - lows[1]:.1f})"
-    )
-
-
 def main():
     SOURCE_DIR.mkdir(parents=True, exist_ok=True)
     GLB_DIR.mkdir(parents=True, exist_ok=True)
     for part in ARCHITECTURE:
         export_part(*part)
-    for setpiece in SETPIECES:
-        export_setpiece(*setpiece)
 
 
 if __name__ == "__main__":

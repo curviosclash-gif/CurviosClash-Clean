@@ -55,11 +55,14 @@ public class ExampleInstrumentedTest {
         assertTrue(indexHtml.contains("<title>Curvios Clash</title>"));
         assertTrue(indexHtml.contains("id=\"game-container\""));
 
+        String hangarHtml = readAsset(appContext, "public/hangar.html");
+        assertTrue(hangarHtml.contains("id=\"hangar-window-mount\""));
+
         JSONObject manifest = new JSONObject(readAsset(
             appContext,
             "public/mobile-classic.manifest.json"
         ));
-        assertEquals("curvios.mobile-android-app.v1", manifest.getString("contract"));
+        assertEquals("curvios.mobile-android-app.v2", manifest.getString("contract"));
         assertEquals(APP_ID, manifest.getJSONObject("app").getString("id"));
         assertEquals("mobile-classic", manifest.getJSONObject("app").getString("target"));
 

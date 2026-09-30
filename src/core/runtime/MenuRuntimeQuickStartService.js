@@ -205,7 +205,10 @@ export async function handleQuickStartRandomStartAction(ctx) {
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
         return false;
     }
-    const mapKeys = listEligibleMapKeysForModePath(CONFIG?.MAPS, 'quick_action', { includeCustom: false });
+    const mapKeys = listEligibleMapKeysForModePath(CONFIG?.MAPS, 'quick_action', {
+        includeCustom: false,
+        gameMode: game.settings?.gameMode,
+    });
     if (mapKeys.length > 0) {
         const rng = resolveQuickStartRng(game, event);
         const randomIndex = rng.int(mapKeys.length);

@@ -18,6 +18,7 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     LOCAL_VIEW_DISTANCE: 'local.viewDistance',
     LOCAL_SHADOW_QUALITY: 'local.shadowQuality',
     LOCAL_BLOOM_QUALITY: 'local.bloomQuality',
+    LOCAL_GRAPHICS_QUALITY: 'local.graphicsQuality',
     LOCAL_MOUSE_STEERING: 'local.mouseSteering',
     LOCAL_GAMEPAD_VIBRATION: 'local.gamepadVibration',
     LOCAL_SMOOTH_STEERING: 'local.smoothSteering',

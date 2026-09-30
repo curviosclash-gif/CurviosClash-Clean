@@ -18,6 +18,9 @@ const SURGE_STEPS = 32;
 const LOW_HEAD_STEPS = 40;
 const LOW_STEM_STEPS = 30;
 const LOW_SURGE_STEPS = 20;
+// ULTRA stays inside the shader's loop bound of 64; the head already uses all of it.
+const ULTRA_STEM_STEPS = 64;
+const ULTRA_SURGE_STEPS = 48;
 
 // The proxy is a unit cylinder placed in world space here, from the same uniforms the rays use.
 // Its object stays unit-sized, so it adds nothing to the cloud's measured bounds.
@@ -318,7 +321,8 @@ export function createReactorVolume(root) {
         mesh.material.uniforms.proxyAxis.value.set(x, z);
         mesh.material.uniforms.bounds.value.set(radius, bottom, Math.max(bottom + 0.01, top), partOf(mesh));
     };
-    const update = (state, lowQuality = false) => {
+    const update = (state, lowQuality = false, ultraQuality = false) => {
+        const stepScale = lowQuality ? 1.25 : (ultraQuality ? 0.75 : 1);
         // Never hidden: a hidden mesh gets no onBeforeRender, so it could not come back. An empty
         // cloud draws nothing, the shader discards every pixel of its tiny proxies.
         // Proxies follow the wind: the head's to its drift at the ring, the stem's widens over it.
@@ -346,10 +350,14 @@ export function createReactorVolume(root) {
             // A fifth of the rim's height in the head, a quarter of the stem's radius in the stem,
             // a fifth of the collar's height in the collar.
             u.stepTarget.value = Math.max(2, mesh === head ? state.rimHeight * 0.2
-                : mesh === stem ? state.stemRadiusHigh * 0.25 : state.surgeHeight * 0.2) * (lowQuality ? 1.25 : 1);
-            u.marchSteps.value = lowQuality
-                ? (mesh === head ? LOW_HEAD_STEPS : mesh === stem ? LOW_STEM_STEPS : LOW_SURGE_STEPS)
-                : (mesh === head ? HEAD_STEPS : mesh === stem ? STEM_STEPS : SURGE_STEPS);
+                : mesh === stem ? state.stemRadiusHigh * 0.25 : state.surgeHeight * 0.2) * stepScale;
+            if (lowQuality) {
+                u.marchSteps.value = mesh === head ? LOW_HEAD_STEPS : mesh === stem ? LOW_STEM_STEPS : LOW_SURGE_STEPS;
+            } else if (ultraQuality) {
+                u.marchSteps.value = mesh === head ? HEAD_STEPS : mesh === stem ? ULTRA_STEM_STEPS : ULTRA_SURGE_STEPS;
+            } else {
+                u.marchSteps.value = mesh === head ? HEAD_STEPS : mesh === stem ? STEM_STEPS : SURGE_STEPS;
+            }
             u.lowDetail.value = lowQuality ? 1 : 0;
             u.flowTurns.value = state.flowTurns;
             u.riseTravel.value = state.riseTravel;

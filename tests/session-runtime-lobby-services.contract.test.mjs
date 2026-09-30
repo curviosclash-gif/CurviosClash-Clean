@@ -556,7 +556,7 @@ test('V96.2 NetworkLobbyService emits lifecycle events without UI runtime helper
         gameMode: 'HUNT',
         modePath: 'fight',
         winsNeeded: 5,
-        protocolVersion: 'curvios-multiplayer.v1',
+        protocolVersion: 'curvios-multiplayer.v2',
         matchSummary: { numBots: 0, botDifficulty: 'NORMAL', targetKind: 'wins', targetValue: 5 },
     });
     assert.equal(hostReadyResult.sessionState.localReady, true);

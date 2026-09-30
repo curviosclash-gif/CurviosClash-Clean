@@ -1,7 +1,62 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { expect, test } from './helpers.desktop.js';
 import { selectSessionType, waitForLoadedGame } from './helpers.js';
 
-test('Hydra-Tempelring starts a three-bot Hunt with independent static and animated GLBs', async ({ page }) => {
+async function captureHydraPose(page, testInfo, pose) {
+    const png = await page.evaluate((requestedPose) => {
+        const game = window.GAME_INSTANCE;
+        const system = game?.entityManager?._mapUnitSystem;
+        const unit = system?.units?.[0];
+        if (!unit?.root?.userData?.hydra?.model) throw new Error('Hydra GLB is not loaded');
+        unit.yaw = 0;
+        if (requestedPose === 'bite') {
+            unit.hydra.phase = 'warning';
+            unit.hydra.action = 'snap';
+            unit.hydra.head = 3;
+            unit.hydra.event += 1;
+            unit.hydra.direction.set(0, 0, 1);
+            unit.hydra.moving = false;
+            system._updateVisual(unit, 0);
+            system._updateVisual(unit, 0.92);
+        } else {
+            unit.hydra.phase = 'idle';
+            unit.hydra.action = 'idle';
+            unit.hydra.moving = true;
+            system._updateVisual(unit, 0.2);
+        }
+        const renderer = game.renderer;
+        const camera = renderer.cameras[0].clone();
+        const center = unit.root.position.clone().add(new unit.root.position.constructor(0, 12, 0));
+        camera.position.copy(center).add(new unit.root.position.constructor(0, 1, 38));
+        camera.lookAt(center);
+        camera.updateProjectionMatrix();
+        const qaScene = new renderer.scene.constructor();
+        qaScene.background = renderer.scene.background;
+        renderer.scene.traverse((object) => {
+            if (object.isLight) {
+                const light = object.clone();
+                if (Number.isFinite(light.intensity)) light.intensity *= 3;
+                qaScene.add(light);
+            }
+        });
+        const previousParent = unit.root.parent;
+        previousParent?.remove(unit.root);
+        qaScene.add(unit.root);
+        try {
+            renderer.renderer.render(qaScene, camera);
+            return renderer.renderer.domElement.toDataURL('image/png').split(',')[1];
+        } finally {
+            qaScene.remove(unit.root);
+            previousParent?.add(unit.root);
+        }
+    }, pose);
+    const outputPath = testInfo.outputPath(`hydra-${pose}.png`);
+    await mkdir(path.dirname(outputPath), { recursive: true });
+    await writeFile(outputPath, Buffer.from(png, 'base64'));
+}
+
+test('Hydra-Tempelring starts a three-bot Hunt with independent static and animated GLBs', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await waitForLoadedGame(page);
     await selectSessionType(page, 'single');
@@ -47,4 +102,6 @@ test('Hydra-Tempelring starts a three-bot Hunt with independent static and anima
     ]);
     expect(state.fallbackVisible).toBe(false);
     expect(state.mapLoadError).toBe(false);
+    await captureHydraPose(page, testInfo, 'front');
+    await captureHydraPose(page, testInfo, 'bite');
 });

@@ -1201,9 +1201,10 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     gap: 14px;
 }
 
+/* Sticky only in the wide launch-bay layout, where the rail owns a grid
+   column. In the single-column layout a sticky rail covers the content that
+   scrolls beneath it - at short windows that hid the arcade mode buttons. */
 .start-rail {
-    position: sticky;
-    top: 64px;
     z-index: 5;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -1593,10 +1594,6 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
         grid-template-columns: 1fr;
     }
 
-    .start-rail {
-        top: 112px;
-    }
-
     .start-rail-actions {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -1702,7 +1699,6 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     }
 
     .start-rail {
-        top: 96px;
         padding: 12px;
     }
 }
@@ -6688,7 +6684,6 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     }
 
     .start-rail {
-        top: 58px;
         grid-template-columns: 1fr;
         align-items: stretch;
     }
@@ -8091,13 +8086,21 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     scale: 1;
 }
 
+/* Shared by the corner vitals and the centred arcs, so split-screen can keep
+   the two apart (see the split-screen .hunt-meter rule below). */
+#hud:has(#hunt-hud:not(.hidden)) .hunt-player-panel {
+    --hunt-arc-center-y: 53.6%;
+    --hunt-vital-size: 270px;
+    --hunt-vital-drop: 82px;
+}
+
 #hud:has(#hunt-hud:not(.hidden)) .hunt-meter {
     --hunt-vital-color: #70ff45;
     --hunt-vital-track: rgba(112, 255, 69, 0.14);
     position: absolute;
-    bottom: -82px;
-    width: 270px;
-    height: 270px;
+    bottom: calc(-1 * var(--hunt-vital-drop));
+    width: var(--hunt-vital-size);
+    height: var(--hunt-vital-size);
     padding: 0;
     border: 0;
     border-radius: 50%;
@@ -8191,7 +8194,7 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-arc-meter {
-    top: 53.6%;
+    top: var(--hunt-arc-center-y);
     left: 50%;
     width: 270px;
     height: 270px;
@@ -8336,11 +8339,22 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     display: block;
 }
 
+/* A viewport half is so narrow that the corner vitals reach under the arcs
+   (504px per half on a 1024x768 screen). The arcs stay around the aim point;
+   in short windows the vitals sink until their top clears the arcs' lower edge. */
+#hud.split-screen:has(#hunt-hud:not(.hidden)) .hunt-meter {
+    bottom: min(
+        calc(-1 * var(--hunt-vital-drop)),
+        calc(100% - var(--hunt-arc-center-y) - 6px
+            - var(--hunt-vital-size) * var(--hud-scale, 1)
+            - 135px * var(--hunt-widget-scale, var(--hud-scale, 1)))
+    );
+}
+
 @media (max-width: 900px), (max-height: 720px) {
-    #hud:has(#hunt-hud:not(.hidden)) .hunt-meter {
-        bottom: -55px;
-        width: 235px;
-        height: 235px;
+    #hud:has(#hunt-hud:not(.hidden)) .hunt-player-panel {
+        --hunt-vital-size: 235px;
+        --hunt-vital-drop: 55px;
     }
 
     #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-hp { right: -72px; }

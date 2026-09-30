@@ -1,6 +1,7 @@
 import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleContract.js';
+import { normalizeGraphicsQualitySetting } from '../../shared/contracts/GraphicsQualityContract.js';
 import { normalizeMapBrightness } from '../../shared/contracts/MapBrightnessContract.js';
-import { normalizeViewDistance } from '../../shared/contracts/ViewDistanceContract.js';
+import { normalizeViewDistance, resolveViewDistanceLabel } from '../../shared/contracts/ViewDistanceContract.js';
 
 export function bindGraphicsStyleSelect({
     ui,
@@ -36,5 +37,29 @@ export function bindGraphicsStyleSelect({
             ensureLocalSettings().viewDistance = normalizeViewDistance(ui.viewDistanceSlider.value);
             queueInputSettingsChanged?.([settingsChangeKeys.LOCAL_VIEW_DISTANCE]);
         });
+    }
+
+    if (ui.graphicsQualitySelect) {
+        bind(ui.graphicsQualitySelect, 'change', () => {
+            ensureLocalSettings().graphicsQuality = normalizeGraphicsQualitySetting(ui.graphicsQualitySelect.value);
+            emitSettingsChangedImmediate([settingsChangeKeys.LOCAL_GRAPHICS_QUALITY]);
+        });
+    }
+}
+
+/** Shows the stored style, brightness, view distance and graphics level in the menu controls. */
+export function syncGraphicsStyleControls({ ui, settings }) {
+    const localSettings = settings?.localSettings;
+    if (ui.graphicsStyleSelect) {
+        ui.graphicsStyleSelect.value = normalizeGraphicsStyle(localSettings?.graphicsStyle);
+    }
+    if (ui.mapBrightnessSelect) {
+        ui.mapBrightnessSelect.value = normalizeMapBrightness(localSettings?.mapBrightness);
+    }
+    const viewDistance = normalizeViewDistance(localSettings?.viewDistance);
+    if (ui.viewDistanceSlider) ui.viewDistanceSlider.value = String(viewDistance);
+    if (ui.viewDistanceLabel) ui.viewDistanceLabel.textContent = resolveViewDistanceLabel(viewDistance);
+    if (ui.graphicsQualitySelect) {
+        ui.graphicsQualitySelect.value = normalizeGraphicsQualitySetting(localSettings?.graphicsQuality);
     }
 }

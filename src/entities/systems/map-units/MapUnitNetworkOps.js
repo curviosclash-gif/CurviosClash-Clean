@@ -169,7 +169,7 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
             unit.hydra.phase = ['idle', 'warning', 'active'].includes(hydra.phase) ? hydra.phase : 'idle';
             unit.hydra.head = Math.max(0, Math.min(5, Math.trunc(Number(hydra.head) || 0)));
             unit.hydra.event = Math.max(0, Math.trunc(Number(hydra.event) || 0));
-            unit.hydra.moving = unit.hydra.phase === 'idle';
+            unit.hydra.moving = unit.hydra.phase === 'idle' && unit.speed > 0;
             if (Array.isArray(hydra.direction)) unit.hydra.direction.set(
                 Number(hydra.direction[0]) || 0,
                 Number(hydra.direction[1]) || 0,

@@ -7,22 +7,25 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createRuntimeConfigSnapshot } from '../../../src/core/RuntimeConfig.js';
-import { MATCH_KERNEL_FIXED_STEP_SECONDS } from '../../../src/shared/contracts/MatchKernelRuntimeContract.js';
-import { createHeadlessMatchKernelRuntime } from '../src/state/HeadlessMatchKernelRuntime.js';
 import {
-    HEURISTIC_PROFILE_FIELD_BOUNDS, HEURISTIC_PROFILES,
+    HEURISTIC_PROFILES,
 } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
-import { createRuntimeRng } from '../../../src/shared/contracts/RuntimeRngContract.js';
+import { retainsHeuristicEngagement } from './heuristic-improvement-metrics.mjs';
 import {
-    createHeuristicEngagementTracker, createHeuristicLifeTracker, retainsHeuristicEngagement,
-} from './heuristic-improvement-metrics.mjs';
+    HEURISTIC_PLATEAU_ROUND_LIMIT, HEURISTIC_SEARCH_PROFILES, HEURISTIC_SEARCH_STATE_VERSION, HEURISTIC_SEARCH_STEPS,
+    isInertTacticStep, judgeCandidate,
+} from './heuristic-improvement-acceptance.mjs';
+import { formatHeuristicSearchStatus } from './heuristic-improvement-status.mjs';
 import {
-    HEURISTIC_BENCHMARK_BASE_CONFIG, HEURISTIC_IMPROVEMENT_BASELINE, resolveHeuristicBenchmarkSetup,
-    verifyHeuristicBenchmarkArena,
+    HEURISTIC_IMPROVEMENT_BASELINE, resolveHeuristicBenchmarkSetup,
 } from './heuristic-improvement-baseline.mjs';
+import {
+    BENCHMARK_OPPONENTS, clampProfile, clampScalar, NUM_BOTS, parsePositiveInteger, runMatch, TUNABLE_FIELDS,
+} from './heuristic-improvement-match.mjs';
+import { createMatchPool } from './heuristic-improvement-pool.mjs';
 
-const FIXED_STEP = MATCH_KERNEL_FIXED_STEP_SECONDS;
+export { TUNABLE_FIELDS };
+
 const TRAINING_SEEDS = Object.freeze([2, 5, 13, 29]);
 const HOLDOUT_SEEDS = Object.freeze([3, 7, 11, 17, 23, 31, 41, 53, 67, 79, 97, 113]);
 // Fixed evaluation splits; once inspected, their results are development data.
@@ -30,38 +33,19 @@ const FINAL_SEEDS = Object.freeze([293, 307, 317, 331, 347, 359, 373, 389, 401, 
 const CONFIRMATION_SEEDS = Object.freeze([457, 461, 479, 487, 499, 503, 521, 541, 557, 569, 587, 601]);
 const AUDIT_SEEDS = Object.freeze([607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673]);
 const FIXED_SEEDS = new Set([...TRAINING_SEEDS, ...HOLDOUT_SEEDS, ...FINAL_SEEDS, ...CONFIRMATION_SEEDS, ...AUDIT_SEEDS]);
-const PROFILES = Object.freeze(['defensive', 'balanced', 'aggressive']);
-export const TUNABLE_FIELDS = Object.freeze([
-    'predictiveSafetyBias',
-    'openingFanoutBias',
-    'opportunistBias',
-    'attackCutoffBias',
-    'finisherBias',
-    'attackWindow',
-    'retreatVitality',
-    'escapeLateralBias',
-    'openingHookBias',
-    'trafficAvoidanceBias',
-    'retreatPressure',
-    'boostBias',
-    'defensiveItemThresholdScale',
-    'offensiveItemThresholdScale',
-    'safetyDistance',
-    'preferredRange',
-    'strafeDistance',
-]);
+const PROFILES = HEURISTIC_SEARCH_PROFILES;
 
-const SEARCH_STEPS = Object.freeze([0.20, 0.10, 0.05]);
-const DEFAULT_NUM_BOTS = 4;
+const SEARCH_STEPS = HEURISTIC_SEARCH_STEPS;
+// Decisions kept in the state for npm run bot:improve:status.
+const HISTORY_LIMIT = 50;
 const DEFAULT_COARSE_MAX_TICKS = 1200;
 const DEFAULT_FULL_MAX_TICKS = 5400;
 const DEFAULT_TIMEOUT_MS = 90 * 60 * 1000;
 const MIN_CONFIRMED_GAIN = 1e-6;
 const PLATEAU_GAIN = 0.02;
 const TARGET_RATIO = 2;
-const STATE_VERSION = 19;
+const STATE_VERSION = HEURISTIC_SEARCH_STATE_VERSION;
 const MIN_ELIMINATION_SURVIVAL_RETENTION = 0.95;
-const SIMULATED_CLOCK_ORIGIN_MS = 1_000_000;
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 function parseFreshAuditSeeds(raw) {
@@ -100,12 +84,6 @@ function holdoutCacheKey(fields, seeds, slots, maxTicks) {
     return JSON.stringify([BENCHMARK_FINGERPRINT, fields, seeds, slots, maxTicks]);
 }
 
-function parsePositiveInteger(value, fallback) {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-const NUM_BOTS = parsePositiveInteger(process.env.HEURISTIC_LOOP_NUM_BOTS, DEFAULT_NUM_BOTS);
 const COARSE_MAX_TICKS = parsePositiveInteger(
     process.env.HEURISTIC_LOOP_COARSE_MAX_TICKS,
     DEFAULT_COARSE_MAX_TICKS
@@ -115,58 +93,11 @@ const FULL_MAX_TICKS = parsePositiveInteger(
     DEFAULT_FULL_MAX_TICKS
 );
 const TIMEOUT_MS = parsePositiveInteger(process.env.HEURISTIC_LOOP_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
+const matchPool = createMatchPool();
 const STATE_PATH = path.resolve(
     process.env.HEURISTIC_LOOP_STATE_PATH
         || path.join(os.tmpdir(), 'curviosclash-heuristic-improvement-state.json')
 );
-
-function fightSettings(profile, respawnEnabled, seed, { difficulty, mapKey }) {
-    return {
-        localSettings: { modePath: 'fight', sessionType: 'single' },
-        mode: '1p',
-        mapKey,
-        gameMode: 'HUNT',
-        numBots: NUM_BOTS,
-        winsNeeded: 1,
-        botDifficulty: difficulty,
-        botPolicyStrategy: 'heuristic',
-        botHeuristicProfile: profile,
-        gameplay: {
-            planarMode: false,
-            fightPlayerHp: 100,
-            fightMgDamage: 15,
-            mgTrailAimRadius: 0.3,
-        },
-        hunt: {
-            respawnEnabled,
-            deathmatchKillLimit: 100,
-            timeLimitEnabled: false,
-        },
-        arcade: { seed },
-        portalsEnabled: false,
-    };
-}
-
-function clampScalar(field, value, fallbackValue) {
-    const bounds = HEURISTIC_PROFILE_FIELD_BOUNDS[field];
-    const numeric = Number(value);
-    const fallback = Number(fallbackValue);
-    if (!bounds) return Number.isFinite(numeric) ? numeric : (Number.isFinite(fallback) ? fallback : 0);
-    if (!Number.isFinite(numeric)) {
-        return Math.max(bounds[0], Math.min(bounds[1], Number.isFinite(fallback) ? fallback : 0));
-    }
-    return Math.max(bounds[0], Math.min(bounds[1], numeric));
-}
-
-function clampProfile(profileName, profile) {
-    const baseProfile = HEURISTIC_IMPROVEMENT_BASELINE[profileName] || HEURISTIC_IMPROVEMENT_BASELINE.balanced;
-    const source = profile && typeof profile === 'object' ? profile : baseProfile;
-    const result = { ...baseProfile };
-    for (const field of TUNABLE_FIELDS) {
-        result[field] = clampScalar(field, source[field], baseProfile[field]);
-    }
-    return result;
-}
 
 function createInitialState() {
     return {
@@ -217,263 +148,26 @@ function saveState(state) {
     fs.renameSync(temporaryPath, STATE_PATH);
 }
 
-function incrementCauseCount(target, cause) {
-    target[cause] = (target[cause] || 0) + 1;
+function recordDecision(state, entry) {
+    state.history = [...(Array.isArray(state.history) ? state.history : []), {
+        at: new Date().toISOString(),
+        ...entry,
+    }].slice(-HISTORY_LIMIT);
+}
+
+function printStatus() {
+    let state = null;
+    try {
+        state = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
+    } catch {
+        console.log(`no search state at ${STATE_PATH}`);
+        return;
+    }
+    console.log(formatHeuristicSearchStatus(state, { statePath: STATE_PATH }));
 }
 
 function isTrailDeath(cause) {
     return cause === 'TRAIL_SELF' || cause === 'TRAIL_OTHER';
-}
-
-async function runMatch({
-    profile, seed, setup, candidateFields, candidateSlot, maxTicks, respawnEnabled = true, trace = false,
-}) {
-    const originalRandom = Math.random;
-    const originalDateNow = Date.now;
-    const originalPerformanceNow = performance.now;
-    // Some systems (wall probe reuse, regen delay, pickup bobbing) read the wall clock. Headless
-    // ticks run far faster than real time, so show them simulated time as the game at 60 fps would.
-    let simulatedNowMs = SIMULATED_CLOCK_ORIGIN_MS;
-    Date.now = () => simulatedNowMs;
-    performance.now = () => simulatedNowMs;
-    const seededRandom = createRuntimeRng({ seed });
-    let runtime = null;
-    Math.random = seededRandom.next;
-    try {
-        const settings = fightSettings(profile, respawnEnabled, seed, setup);
-        const runtimeConfig = createRuntimeConfigSnapshot(settings, { baseConfig: HEURISTIC_BENCHMARK_BASE_CONFIG });
-        if (runtimeConfig.arcade.seed !== seed || runtimeConfig.hunt.timeLimitSeconds !== 0
-            || runtimeConfig.session.mapKey !== setup.mapKey || runtimeConfig.bot.activeDifficulty !== setup.difficulty) {
-            throw new Error(`invalid benchmark configuration for seed ${seed}`);
-        }
-        runtime = await Promise.resolve(createHeadlessMatchKernelRuntime({
-            settings,
-            runtimeConfig,
-            baseConfig: HEURISTIC_BENCHMARK_BASE_CONFIG,
-            requestedMapKey: runtimeConfig.session.mapKey,
-            profile: {
-                sessionId: `heuristic-h2h-${profile}-${seed}-${candidateSlot}`,
-                fixedStepSeconds: FIXED_STEP,
-                deterministic: true,
-            },
-        }));
-
-        const em = runtime.session.entityManager;
-        verifyHeuristicBenchmarkArena(em.arena, setup.mapKey);
-        if (em.matchSeed !== seed) throw new Error(`benchmark seed mismatch: ${em.matchSeed} !== ${seed}`);
-        // Score hit/assist windows on simulated time, not CPU-dependent wall time.
-        em._huntScoring._nowSeconds = () => Math.max(0, Number(em._simulationClockMs) || 0) * 0.001;
-        // The headless 1p setup creates one human. Exclude this inert pilot so the
-        // measured match is genuinely candidate versus baseline bots only.
-        for (const human of em.humanPlayers || []) {
-            human.entitySlotActive = false;
-            human.kill();
-        }
-        const bots = em.bots || [];
-        if (bots.length < 2 || !bots[candidateSlot]) {
-            throw new Error(`head-to-head requires at least two bots and candidate slot ${candidateSlot}`);
-        }
-
-        const baselineFields = Object.freeze(clampProfile(profile, HEURISTIC_IMPROVEMENT_BASELINE[profile]));
-        for (const bot of bots) bot.ai.profile = baselineFields;
-        const candidateBot = bots[candidateSlot];
-        const activeCandidateFields = Object.freeze(clampProfile(profile, candidateFields));
-        candidateBot.ai.profile = activeCandidateFields;
-        const engagement = createHeuristicEngagementTracker();
-        for (const bot of bots) {
-            const wrappedUpdate = bot.ai.update;
-            bot.ai.update = function (dt, player, context) {
-                const action = wrappedUpdate.call(this, dt, player, context);
-                engagement.record(player?.index, action, this._safetyState?.state);
-                return action;
-            };
-        }
-        const actionTrace = trace ? {
-            updates: 0,
-            modes: {},
-            targetDistanceBuckets: {},
-            safetyStates: {},
-            safetyReasons: {},
-            intents: {},
-            turnChoices: {},
-            yawTies: 0,
-            bothSafeTurns: 0,
-            collisionNormalUpdates: 0,
-            activeBounceWindowUpdates: 0,
-            inventoryUpdates: 0,
-            rocketUpdates: 0,
-            itemUses: 0,
-            mgShots: 0,
-            rocketShots: 0,
-            itemShots: 0,
-            boosts: 0,
-            deaths: [],
-            recentSafety: [],
-        } : null;
-        if (actionTrace) {
-            const originalUpdate = candidateBot.ai.update;
-            candidateBot.ai.update = function (dt, player, context) {
-                const action = originalUpdate.call(this, dt, player, context);
-                const decision = this.getDecisionSnapshot();
-                actionTrace.updates += 1;
-                incrementCauseCount(actionTrace.modes, decision.mode);
-                incrementCauseCount(actionTrace.targetDistanceBuckets, String(Math.floor(decision.targetDistanceRatio * 10) / 10));
-                incrementCauseCount(actionTrace.safetyStates, decision.safetyState);
-                incrementCauseCount(actionTrace.safetyReasons, decision.safetyReason || 'none');
-                incrementCauseCount(actionTrace.intents, decision.intent);
-                const safety = this._safetyState;
-                incrementCauseCount(actionTrace.turnChoices, `${safety.turnAxis}:${safety.turnDirection}`);
-                if (Math.abs(safety.leftClearance - safety.rightClearance) <= 0.06) actionTrace.yawTies += 1;
-                if (safety.leftClearance > 0.9 && safety.rightClearance > 0.9) actionTrace.bothSafeTurns += 1;
-                if (safety.hasCollisionNormal) actionTrace.collisionNormalUpdates += 1;
-                if (safety.bounceWindowTimer > 0) actionTrace.activeBounceWindowUpdates += 1;
-                actionTrace.recentSafety.push({
-                    reason: decision.safetyReason,
-                    turn: `${safety.turnAxis}:${safety.turnDirection}`,
-                    front: safety.frontClearance,
-                    left: safety.leftClearance,
-                    right: safety.rightClearance,
-                    planned: safety.plannedClearance,
-                });
-                if (actionTrace.recentSafety.length > 8) actionTrace.recentSafety.shift();
-                if (Array.isArray(player?.inventory) && player.inventory.length > 0) actionTrace.inventoryUpdates += 1;
-                if (Array.isArray(player?.rocketInventory) && player.rocketInventory.length > 0) actionTrace.rocketUpdates += 1;
-                if (action.useItem >= 0) actionTrace.itemUses += 1;
-                if (action.shootMG) actionTrace.mgShots += 1;
-                if (action.shootRocket) actionTrace.rocketShots += 1;
-                if (action.shootItem) actionTrace.itemShots += 1;
-                if (action.boost) actionTrace.boosts += 1;
-                return action;
-            };
-        }
-        const candidateIndex = candidateBot.player.index;
-        const lifeTracker = createHeuristicLifeTracker();
-        const candidateDeathCauses = {};
-        const baselineDeathCauses = {};
-        let lastCandidateKills = 0;
-        let forced = true;
-        const inputFrame = { players: [{ actions: {} }] };
-        const tickOptions = {
-            tickIndex: 0,
-            fixedStepSeconds: FIXED_STEP,
-            frameId: 0,
-            wallClockMs: 0,
-            highResTimestampMs: 0,
-        };
-
-        em.onPlayerDied = (deadPlayer, rawCause) => {
-            if (!deadPlayer?.isBot) return;
-            const cause = String(rawCause || 'UNKNOWN').trim().toUpperCase() || 'UNKNOWN';
-            lifeTracker.recordDeath(deadPlayer, Math.max(0, Number(em._simulationClockMs) || 0) * 0.001);
-            incrementCauseCount(
-                deadPlayer.index === candidateIndex ? candidateDeathCauses : baselineDeathCauses,
-                cause
-            );
-            if (actionTrace) {
-                const rows = em.getHuntScoreboard?.() || [];
-                const currentKills = Number(rows.find((row) => row.playerIndex === candidateIndex)?.kills) || 0;
-                const distance = candidateBot.player.position?.distanceTo?.(deadPlayer.position);
-                actionTrace.deaths.push({
-                    second: Math.round((Number(em._simulationClockMs) || 0) * 0.001),
-                    victim: deadPlayer.index === candidateIndex ? 'candidate' : 'baseline',
-                    cause,
-                    candidateKill: currentKills > lastCandidateKills,
-                    distance: Number.isFinite(distance) ? Math.round(distance) : null,
-                    ...(deadPlayer.index === candidateIndex
-                        ? { recentSafety: [...actionTrace.recentSafety] }
-                        : {}),
-                });
-                lastCandidateKills = currentKills;
-            }
-        };
-
-        for (let frame = 1; frame <= maxTicks; frame += 1) {
-            tickOptions.tickIndex = runtime.kernel.tickIndex;
-            tickOptions.frameId = frame;
-            tickOptions.wallClockMs = frame * 16;
-            tickOptions.highResTimestampMs = frame * 16;
-            simulatedNowMs = SIMULATED_CLOCK_ORIGIN_MS + frame * FIXED_STEP * 1000;
-            runtime.step(inputFrame, tickOptions);
-            if (frame === 1) {
-                for (const bot of bots) {
-                    if (bot.ai.difficultyName !== setup.difficulty.toLowerCase()) {
-                        throw new Error(`benchmark difficulty lost: ${bot.ai.difficultyName} !== ${setup.difficulty}`);
-                    }
-                    const expected = bot === candidateBot ? activeCandidateFields : baselineFields;
-                    for (const field of TUNABLE_FIELDS) {
-                        if (bot.ai.profile[field] !== expected[field]) {
-                            throw new Error(`benchmark profile injection lost for ${field}`);
-                        }
-                    }
-                }
-            }
-            if (respawnEnabled && em._roundEnded) {
-                throw new Error(`benchmark match ended early at frame ${frame} of ${maxTicks}`);
-            }
-            if (!respawnEnabled) {
-                let aliveCount = 0;
-                for (const player of em.players) if (player?.alive) aliveCount += 1;
-                if (aliveCount <= 1) {
-                    forced = false;
-                    break;
-                }
-            }
-        }
-
-        const scoreboard = em.getHuntScoreboard?.() || [];
-        const scoreboardByPlayer = new Map(scoreboard.map((row) => [row.playerIndex, row]));
-        const endSeconds = Math.max(0, Number(em._simulationClockMs) || 0) * 0.001;
-        const endPositionSignature = bots.map((bot) => [
-            Number(bot.player.position?.x).toFixed(3),
-            Number(bot.player.position?.y).toFixed(3),
-            Number(bot.player.position?.z).toFixed(3),
-        ].join(',')).join('|');
-        if (respawnEnabled && Math.abs(endSeconds - maxTicks * FIXED_STEP) > FIXED_STEP * 0.1) {
-            throw new Error(`benchmark time mismatch: ${endSeconds} vs ${maxTicks * FIXED_STEP}`);
-        }
-        const candidateLife = lifeTracker.lifeTotals(candidateBot.player, endSeconds);
-        const candidateKills = Math.max(0, Number(scoreboardByPlayer.get(candidateIndex)?.kills) || 0);
-        let baselineLifeSeconds = 0;
-        let baselineLives = 0;
-        let baselineKills = 0;
-        let baselineCount = 0;
-        const baselineEngagement = { updates: 0, safetyUpdates: 0, shots: 0 };
-        for (const bot of bots) {
-            const playerIndex = bot?.player?.index;
-            if (!Number.isInteger(playerIndex) || playerIndex === candidateIndex) continue;
-            const botEngagement = engagement.totals(playerIndex);
-            baselineEngagement.updates += botEngagement.updates;
-            baselineEngagement.safetyUpdates += botEngagement.safetyUpdates;
-            baselineEngagement.shots += botEngagement.shots;
-            const life = lifeTracker.lifeTotals(bot.player, endSeconds);
-            baselineLifeSeconds += life.seconds;
-            baselineLives += life.lives;
-            baselineKills += Math.max(0, Number(scoreboardByPlayer.get(playerIndex)?.kills) || 0);
-            baselineCount += 1;
-        }
-
-        return {
-            matchSeed: em.matchSeed,
-            endPositionSignature,
-            candidateLifeSeconds: candidateLife.seconds,
-            candidateLives: candidateLife.lives,
-            candidateKills,
-            baselineLifeSeconds: baselineCount > 0 ? baselineLifeSeconds / baselineCount : 0,
-            baselineLives: baselineCount > 0 ? baselineLives / baselineCount : 0,
-            baselineKills: baselineCount > 0 ? baselineKills / baselineCount : 0,
-            candidateDeathCauses,
-            baselineDeathCauses,
-            candidateEngagement: engagement.totals(candidateIndex),
-            baselineEngagement,
-            forced,
-            ...(actionTrace ? { actionTrace } : {}),
-        };
-    } finally {
-        runtime?.dispose?.();
-        Math.random = originalRandom;
-        Date.now = originalDateNow;
-        performance.now = originalPerformanceNow;
-    }
 }
 
 function ratio(candidate, baseline) {
@@ -497,14 +191,18 @@ function trailDeathShare(counts) {
     return total > 0 ? trail / total : 0;
 }
 
-async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respawnEnabled = true }) {
+async function evaluateVariant({
+    profile, fields, seeds, slots, maxTicks, respawnEnabled = true, opponent = 'baseline',
+}) {
     const sums = {
         candidateLifeSeconds: 0,
         candidateLives: 0,
         candidateKills: 0,
+        candidateDamage: 0,
         baselineLifeSeconds: 0,
         baselineLives: 0,
         baselineKills: 0,
+        baselineDamage: 0,
         forcedMatches: 0,
         candidateUpdates: 0,
         candidateSafetyUpdates: 0,
@@ -515,35 +213,55 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
     };
     const candidateDeathCauses = {};
     const baselineDeathCauses = {};
-    let matches = 0;
+    const jobs = [];
     for (const [seedIndex, seed] of seeds.entries()) {
         const setup = resolveHeuristicBenchmarkSetup(seedIndex);
         for (const candidateSlot of slots) {
-            const result = await runMatch({ profile, seed, setup, candidateFields: fields, candidateSlot, maxTicks, respawnEnabled });
-            sums.candidateLifeSeconds += result.candidateLifeSeconds;
-            sums.candidateLives += result.candidateLives;
-            sums.candidateKills += result.candidateKills;
-            sums.baselineLifeSeconds += result.baselineLifeSeconds;
-            sums.baselineLives += result.baselineLives;
-            sums.baselineKills += result.baselineKills;
-            if (result.forced) sums.forcedMatches += 1;
-            sums.candidateUpdates += result.candidateEngagement.updates;
-            sums.candidateSafetyUpdates += result.candidateEngagement.safetyUpdates;
-            sums.candidateShots += result.candidateEngagement.shots;
-            sums.baselineUpdates += result.baselineEngagement.updates;
-            sums.baselineSafetyUpdates += result.baselineEngagement.safetyUpdates;
-            sums.baselineShots += result.baselineEngagement.shots;
-            mergeCauseCounts(candidateDeathCauses, result.candidateDeathCauses);
-            mergeCauseCounts(baselineDeathCauses, result.baselineDeathCauses);
-            matches += 1;
+            jobs.push({ profile, seed, setup, candidateFields: fields, candidateSlot, maxTicks, respawnEnabled, opponent });
         }
     }
+    // Matches are independent; the pool returns them in job order, so every sum below is formed
+    // in the same order as on one thread and the result is bit-identical.
+    const results = await matchPool.runMatches(jobs);
+    const matchRows = [];
+    for (const [index, result] of results.entries()) {
+        const { seed, candidateSlot } = jobs[index];
+        sums.candidateLifeSeconds += result.candidateLifeSeconds;
+        sums.candidateLives += result.candidateLives;
+        sums.candidateKills += result.candidateKills;
+        sums.candidateDamage += result.candidateDamage;
+        sums.baselineLifeSeconds += result.baselineLifeSeconds;
+        sums.baselineLives += result.baselineLives;
+        sums.baselineKills += result.baselineKills;
+        sums.baselineDamage += result.baselineDamage;
+        if (result.forced) sums.forcedMatches += 1;
+        sums.candidateUpdates += result.candidateEngagement.updates;
+        sums.candidateSafetyUpdates += result.candidateEngagement.safetyUpdates;
+        sums.candidateShots += result.candidateEngagement.shots;
+        sums.baselineUpdates += result.baselineEngagement.updates;
+        sums.baselineSafetyUpdates += result.baselineEngagement.safetyUpdates;
+        sums.baselineShots += result.baselineEngagement.shots;
+        mergeCauseCounts(candidateDeathCauses, result.candidateDeathCauses);
+        mergeCauseCounts(baselineDeathCauses, result.baselineDeathCauses);
+        // One row per seed and slot, so two evaluations can be compared match by match.
+        matchRows.push({
+            seed,
+            slot: candidateSlot,
+            candidateLifeSeconds: result.candidateLifeSeconds,
+            candidateLives: result.candidateLives,
+            candidateKills: result.candidateKills,
+            candidateDamage: result.candidateDamage,
+        });
+    }
+    const matches = matchRows.length;
     const candidateSurvival = sums.candidateLives > 0 ? sums.candidateLifeSeconds / sums.candidateLives : 0;
     const candidateKills = sums.candidateKills / matches;
     const baselineSurvival = sums.baselineLives > 0 ? sums.baselineLifeSeconds / sums.baselineLives : 0;
     const baselineKills = sums.baselineKills / matches;
     const survivalRatio = ratio(candidateSurvival, baselineSurvival);
     const killRatio = ratio(candidateKills, baselineKills);
+    const candidateDamage = sums.candidateDamage / matches;
+    const baselineDamage = sums.baselineDamage / matches;
     return {
         candidateSurvival,
         candidateKills,
@@ -551,6 +269,9 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
         baselineKills,
         survivalRatio,
         killRatio,
+        candidateDamage,
+        baselineDamage,
+        damageRatio: ratio(candidateDamage, baselineDamage),
         combinedScore: Math.sqrt(survivalRatio * killRatio),
         forcedMatches: sums.forcedMatches,
         candidateSafetyShare: sums.candidateUpdates > 0 ? sums.candidateSafetyUpdates / sums.candidateUpdates : 0,
@@ -561,6 +282,7 @@ async function evaluateVariant({ profile, fields, seeds, slots, maxTicks, respaw
         baselineDeathCauses,
         candidateTrailDeathShare: trailDeathShare(candidateDeathCauses),
         baselineTrailDeathShare: trailDeathShare(baselineDeathCauses),
+        matches: matchRows,
     };
 }
 
@@ -569,13 +291,6 @@ function perturb(profile, field, step) {
         ...profile,
         [field]: clampScalar(field, Number(profile[field]) * (1 + step)),
     };
-}
-
-function isStrictlyBetterOnBoth(candidate, current) {
-    return candidate.candidateSurvival > current.candidateSurvival + MIN_CONFIRMED_GAIN
-        && candidate.candidateKills > current.candidateKills + MIN_CONFIRMED_GAIN
-        && candidate.survivalRatio > current.survivalRatio + MIN_CONFIRMED_GAIN
-        && candidate.killRatio > current.killRatio + MIN_CONFIRMED_GAIN;
 }
 
 function targetReached(result) {
@@ -592,6 +307,12 @@ function formatRatio(value) {
     return Number.isFinite(value) ? value.toFixed(3) : 'inf';
 }
 
+function formatPairs(pairs) {
+    return Object.entries(pairs)
+        .map(([metric, { better, equal, worse }]) => `${metric}:${better}/${equal}/${worse}`)
+        .join(',');
+}
+
 function toRatioRecord(result) {
     return {
         survival: result.survivalRatio,
@@ -600,6 +321,9 @@ function toRatioRecord(result) {
         baselineSurvival: result.baselineSurvival,
         candidateKills: result.candidateKills,
         baselineKills: result.baselineKills,
+        damage: result.damageRatio,
+        candidateDamage: result.candidateDamage,
+        baselineDamage: result.baselineDamage,
         candidateDeathCauses: result.candidateDeathCauses,
         baselineDeathCauses: result.baselineDeathCauses,
         forcedMatches: result.forcedMatches,
@@ -641,6 +365,18 @@ async function runIteration() {
     const current = clampProfile(profile, state.profiles[profile]);
     const coarseSlots = [...new Set([0, Math.max(0, NUM_BOTS - 1)])];
     const fullSlots = Array.from({ length: NUM_BOTS }, (_, index) => index);
+    const candidates = [step, -step, step * 0.5, -step * 0.5]
+        .map((direction) => perturb(current, field, direction))
+        .filter((fields) => fields[field] !== current[field]
+            && !isInertTacticStep(field, current[field], fields[field]));
+    if (candidates.length === 0) {
+        recordDecision(state, { profile, field, value: current[field], decision: 'inert-skip' });
+        advanceCursor(state, profile);
+        saveState(state);
+        console.log(`profile=${profile} candidate=${field}:${Number(current[field]).toFixed(4)} decision=inert-skip`);
+        if (state.plateauRounds >= HEURISTIC_PLATEAU_ROUND_LIMIT) process.exitCode = 3;
+        return;
+    }
     const coarseCurrent = await evaluateVariant({
         profile,
         fields: current,
@@ -651,9 +387,7 @@ async function runIteration() {
 
     let selected = null;
     let shortCoarseCurrent = null;
-    for (const direction of [step, -step, step * 0.5, -step * 0.5]) {
-        const fields = perturb(current, field, direction);
-        if (fields[field] === current[field]) continue;
+    for (const fields of candidates) {
         const result = await evaluateVariant({
             profile,
             fields,
@@ -688,6 +422,7 @@ async function runIteration() {
 
     let decision = 'coarse-reject';
     let reported = coarseCurrent;
+    let verdict = null;
     if (selected) {
         const currentCacheKey = holdoutCacheKey(current, HOLDOUT_SEEDS, fullSlots, FULL_MAX_TICKS);
         const fullCurrent = state.holdoutCache[profile]?.key === currentCacheKey
@@ -708,8 +443,8 @@ async function runIteration() {
             maxTicks: FULL_MAX_TICKS,
         });
         reported = fullCandidate;
-        if (isStrictlyBetterOnBoth(fullCandidate, fullCurrent)
-            && retainsHeuristicEngagement(fullCandidate)) {
+        verdict = judgeCandidate(fullCandidate, fullCurrent);
+        if (verdict.accepted && retainsHeuristicEngagement(fullCandidate)) {
             const shortCurrent = await evaluateVariant({
                 profile,
                 fields: HEURISTIC_IMPROVEMENT_BASELINE[profile],
@@ -750,6 +485,16 @@ async function runIteration() {
         else completeProfiles.delete(profile);
     }
     state.completeProfiles = [...completeProfiles];
+    recordDecision(state, {
+        profile,
+        field,
+        value: (selected?.fields || current)[field],
+        decision,
+        ...(verdict ? { failed: verdict.failed.join('+') || 'none' } : {}),
+        survivalRatio: reported.survivalRatio,
+        killRatio: reported.killRatio,
+        damageRatio: reported.damageRatio,
+    });
     advanceCursor(state, profile, decision.startsWith('accept'));
     saveState(state);
 
@@ -758,12 +503,14 @@ async function runIteration() {
         + ` stage=${selected ? 'holdout' : 'coarse'}`
         + ` survivalRatio=${formatRatio(reported.survivalRatio)}`
         + ` killRatio=${formatRatio(reported.killRatio)}`
+        + ` damageRatio=${formatRatio(reported.damageRatio)}`
         + ` safetyShare=${reported.candidateSafetyShare.toFixed(3)}`
         + ` shots=${reported.candidateShotsPerMatch.toFixed(1)}`
         + ` decision=${decision}`
+        + (verdict ? ` failed=${verdict.failed.join('+') || 'none'} pairs=${formatPairs(verdict.pairs)}` : '')
     );
 
-    if (state.plateauRounds >= 3) process.exitCode = 3;
+    if (state.plateauRounds >= HEURISTIC_PLATEAU_ROUND_LIMIT) process.exitCode = 3;
 }
 
 async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true, product = false, profiles = PROFILES) {
@@ -821,6 +568,44 @@ async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true, produc
     saveState(state);
 }
 
+// The search tunes against the frozen July profiles. This check shows how the search profiles fare
+// against what players meet today: the shipped heuristic profiles and the standard Hunt bot.
+async function checkOpponents() {
+    const requestedProfile = String(process.argv[3] || 'all').trim().toLowerCase();
+    const profiles = requestedProfile === 'all' ? PROFILES : [requestedProfile];
+    if (!profiles.every((profile) => PROFILES.includes(profile))) throw new Error(`unknown profile: ${requestedProfile}`);
+    const opponents = process.argv[4] ? String(process.argv[4]).split(',').map((name) => name.trim()) : BENCHMARK_OPPONENTS;
+    if (!opponents.every((opponent) => BENCHMARK_OPPONENTS.includes(opponent))) {
+        throw new Error(`opponents must be among ${BENCHMARK_OPPONENTS.join(',')}`);
+    }
+    const state = loadState();
+    const slots = Array.from({ length: NUM_BOTS }, (_, index) => index);
+    const checks = {};
+    for (const profile of profiles) {
+        const fields = clampProfile(profile, state.profiles[profile]);
+        checks[profile] = { at: new Date().toISOString(), seeds: FINAL_SEEDS, maxTicks: FULL_MAX_TICKS, results: {} };
+        for (const opponent of opponents) {
+            const result = await evaluateVariant({
+                profile, fields, seeds: FINAL_SEEDS, slots, maxTicks: FULL_MAX_TICKS, opponent,
+            });
+            checks[profile].results[opponent] = toRatioRecord(result);
+            console.log(
+                `profile=${profile} opponent=${opponent}`
+                + ` survivalRatio=${formatRatio(result.survivalRatio)}`
+                + ` killRatio=${formatRatio(result.killRatio)}`
+                + ` damageRatio=${formatRatio(result.damageRatio)}`
+                + ` kills=${result.candidateKills.toFixed(2)}/${result.baselineKills.toFixed(2)}`
+                + ` damage=${result.candidateDamage.toFixed(0)}/${result.baselineDamage.toFixed(0)}`
+                + ` survival=${result.candidateSurvival.toFixed(1)}s/${result.baselineSurvival.toFixed(1)}s`
+            );
+        }
+    }
+    // A search may have saved its state meanwhile; add the checks to the newest state only.
+    const latest = loadState();
+    latest.opponentChecks = { ...latest.opponentChecks, ...checks };
+    saveState(latest);
+}
+
 async function replayMatch(product = false) {
     const profile = String(process.argv[3] || '').trim().toLowerCase();
     const seed = Number(process.argv[4]);
@@ -872,9 +657,10 @@ async function probeCurrentProfile(fullHoldout, adopt = false, shortOnly = false
         ? state.holdoutCache[profile].result
         : await evaluateVariant({ profile, fields: reference, seeds, slots, maxTicks, respawnEnabled: !shortOnly });
     const result = await evaluateVariant({ profile, fields, seeds, slots, maxTicks, respawnEnabled: !shortOnly });
+    const verdict = shortOnly ? null : judgeCandidate(result, currentResult);
     const better = shortOnly
         ? result.candidateSurvival >= currentResult.candidateSurvival * MIN_ELIMINATION_SURVIVAL_RETENTION
-        : isStrictlyBetterOnBoth(result, currentResult) && retainsHeuristicEngagement(result);
+        : verdict.accepted && retainsHeuristicEngagement(result);
     let decision = shortOnly
         ? (better ? 'short-safe' : 'short-unsafe')
         : (better ? 'better-both' : 'not-better-both');
@@ -911,9 +697,11 @@ async function probeCurrentProfile(fullHoldout, adopt = false, shortOnly = false
         + ` killRatio=${formatRatio(result.killRatio)}`
         + ` survivalGain=${formatRatio(result.candidateSurvival / currentResult.candidateSurvival)}`
         + ` killGain=${formatRatio(result.candidateKills / currentResult.candidateKills)}`
+        + ` damageGain=${formatRatio(result.candidateDamage / currentResult.candidateDamage)}`
         + ` safetyShare=${result.candidateSafetyShare.toFixed(3)}/${currentResult.candidateSafetyShare.toFixed(3)}`
         + ` shots=${result.candidateShotsPerMatch.toFixed(1)}/${currentResult.candidateShotsPerMatch.toFixed(1)}`
         + ` decision=${decision}`
+        + (verdict ? ` failed=${verdict.failed.join('+') || 'none'} pairs=${formatPairs(verdict.pairs)}` : '')
     );
 }
 
@@ -924,7 +712,9 @@ const timer = setTimeout(() => {
 timer.unref?.();
 
 const command = process.argv[2];
-const task = command === '--verify'
+const task = command === '--status'
+    ? async () => printStatus()
+    : command === '--verify'
     ? verifyCurrentProfiles
     : command === '--confirm'
     ? () => verifyCurrentProfiles(CONFIRMATION_SEEDS, false)
@@ -940,6 +730,8 @@ const task = command === '--verify'
         if (profile && !PROFILES.includes(profile)) throw new Error(`unknown audit profile: ${profile}`);
         return verifyCurrentProfiles(parseFreshAuditSeeds(process.argv[3]), false, true, profile ? [profile] : PROFILES);
     }
+    : command === '--check-opponents'
+    ? checkOpponents
     : command === '--replay'
     ? replayMatch
     : command === '--replay-product'
@@ -950,4 +742,6 @@ const task = command === '--verify'
 task().catch((error) => {
     console.error(error?.stack || error);
     process.exitCode = 1;
+}).finally(async () => {
+    await matchPool.close();
 });

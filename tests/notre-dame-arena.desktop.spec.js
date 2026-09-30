@@ -1,9 +1,8 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
-// The arena variant shares its fabric, its site and its collision with the parcours map, so the
-// only thing worth proving in the running app is that sharing actually holds: the same fifteen
-// cathedral parts and 32 tree instances load and the same eight clips run, but no ordered route
+// The arena variant shares its fabric and collision with the parcours map, so the
+// running app proves that the same seven cathedral parts and 32 tree instances load, but no ordered route
 // is active. It gets its own file
 // because a desktop run keeps one window, and a second map cannot be selected from inside a
 // match that is already going.
@@ -29,11 +28,11 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
     await page.click('#btn-start');
     await expect.poll(() => page.evaluate(() => (
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame_arena'
-        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 53
+        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 45
         && !window.GAME_INSTANCE?.arena?._glbLoadError
     )), {
         timeout: 150_000,
-        message: 'the arena variant should load the same fifteen parts and 32 trees',
+        message: 'the arena variant should load the same seven parts and 32 trees',
     }).toBeTruthy();
 
     const state = await page.evaluate(() => ({
@@ -49,17 +48,21 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
             window.GAME_INSTANCE.arena._mergedObstacleEdges,
             window.GAME_INSTANCE.arena._mergedFoamEdges,
         ].filter(Boolean).length,
+        // Retain a positive GLB-backed solid probe on the parvis island, away from J6's open gallery.
         authoredCollisionSolid: window.GAME_INSTANCE.arena
-            .checkCollisionFast({ x: -249, y: 168, z: -60.9 }, 0.1),
+            .checkCollisionFast({ x: -67.2, y: 21.48, z: 0 }, 0.1),
+        galleryOpeningClear: !window.GAME_INSTANCE.arena
+            .checkCollisionFast({ x: -249, y: 183.6, z: 0 }, 0.1),
     }));
     expect(state.authoredObstacleCount).toBeGreaterThan(0);
     expect(state).toEqual({
         parcours: false,
-        tracks: 14,
+        tracks: 6,
         warnings: 0,
         colliderMode: 'scene',
         authoredObstacleCount: state.authoredObstacleCount,
         authoredObstacleVisuals: 2,
         authoredCollisionSolid: true,
+        galleryOpeningClear: true,
     });
 });

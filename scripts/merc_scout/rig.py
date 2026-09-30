@@ -21,7 +21,8 @@ RIG = "merc_scout_rig"
 MAX_INFLUENCES = 4
 
 
-def build_rig(variant: spec.Variant) -> bpy.types.Object:
+def build_rig(variant: spec.Variant,
+              eye_objects: list[bpy.types.Object] | None = None) -> bpy.types.Object:
     armature = bpy.data.armatures.new(RIG)
     rig = bpy.data.objects.new(RIG, armature)
     bpy.context.collection.objects.link(rig)
@@ -40,6 +41,21 @@ def build_rig(variant: spec.Variant) -> bpy.types.Object:
     for bone in bones:
         if bone["parent"]:
             armature.edit_bones[bone["name"]].parent = armature.edit_bones[bone["parent"]]
+
+    # One gaze bone per eye. Its position comes from the eyeball mesh itself, so rig
+    # and geometry cannot drift apart, and buyers get look-at control for free.
+    for obj in eye_objects or []:
+        coordinates = [obj.matrix_world @ vertex.co for vertex in obj.data.vertices]
+        if not coordinates:
+            continue
+        centre = sum(coordinates, Vector((0.0, 0.0, 0.0))) / len(coordinates)
+        name = "Eye_L" if obj.name.endswith("_L") else "Eye_R"
+        edit_bone = armature.edit_bones.new(name)
+        edit_bone.head = centre
+        edit_bone.tail = centre + Vector((0.0, -0.032, 0.0))  # gaze points forward (-Y)
+        edit_bone.parent = armature.edit_bones["Head"]
+        edit_bone.use_deform = True
+
     for edit_bone in armature.edit_bones:
         direction = (edit_bone.tail - edit_bone.head).normalized()
         reference = Vector((0.0, 1.0, 0.0))

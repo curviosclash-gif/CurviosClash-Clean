@@ -1,6 +1,7 @@
 import { HUNT_CONFIG } from '../../hunt/HuntConfig.js';
 import { DEFAULT_SHADOW_QUALITY } from '../../shared/contracts/ShadowQualityContract.js';
 import { DEFAULT_BLOOM_QUALITY } from '../../shared/contracts/BloomQualityContract.js';
+import { DEFAULT_GRAPHICS_QUALITY_SETTING } from '../../shared/contracts/GraphicsQualityContract.js';
 import { createDefaultRecordingCaptureSettings } from '../../shared/contracts/RecordingCaptureContract.js';
 import { createDefaultCameraPerspectiveSettings } from '../../shared/contracts/CameraPerspectiveContract.js';
 import { DEFAULT_MOBILE_CLASSIC_CONTROLS } from '../../shared/contracts/MobileClassicControlsContract.js';
@@ -130,6 +131,8 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         viewDistance: DEFAULT_VIEW_DISTANCE,
         shadowQuality: DEFAULT_SHADOW_QUALITY,
         bloomQuality: DEFAULT_BLOOM_QUALITY,
+        bloomQualityUserSet: false,
+        graphicsQuality: DEFAULT_GRAPHICS_QUALITY_SETTING,
         mouseSteering: false,
         gamepadVibration: true,
         smoothSteering: false,

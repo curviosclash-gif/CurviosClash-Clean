@@ -1,4 +1,4 @@
-import { FIVE_PORTALS_MAPS, FIVE_PORTALS_RECORD_KEY, FIVE_PORTALS_RECORD_VERSION } from '../../shared/contracts/FivePortalsContract.js';
+import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
 import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
 import {
     awardBoundArcadeVehicleXpInStore,
@@ -9,14 +9,14 @@ function safeMs(value) {
     return Math.max(0, Math.round(Number(value) || 0));
 }
 
-function loadRecords(store) {
-    const raw = store?.loadJsonRecord?.(FIVE_PORTALS_RECORD_KEY, null);
-    if (raw?.version !== FIVE_PORTALS_RECORD_VERSION) return { version: FIVE_PORTALS_RECORD_VERSION, lastTotalMs: 0, bestTotalMs: 0, lastMapsMs: [] };
+function loadRecords(store, chain) {
+    const raw = store?.loadJsonRecord?.(chain.recordKey, null);
+    if (raw?.version !== chain.recordVersion) return { version: chain.recordVersion, lastTotalMs: 0, bestTotalMs: 0, lastMapsMs: [] };
     return {
-        version: FIVE_PORTALS_RECORD_VERSION,
+        version: chain.recordVersion,
         lastTotalMs: safeMs(raw.lastTotalMs),
         bestTotalMs: safeMs(raw.bestTotalMs),
-        lastMapsMs: Array.isArray(raw.lastMapsMs) ? raw.lastMapsMs.slice(0, FIVE_PORTALS_MAPS.length).map(safeMs) : [],
+        lastMapsMs: Array.isArray(raw.lastMapsMs) ? raw.lastMapsMs.slice(0, chain.maps.length).map(safeMs) : [],
     };
 }
 
@@ -32,7 +32,9 @@ export class FivePortalsRuntime {
         this.reset();
     }
 
-    reset() {
+    /** @param {string} [chainId] which portal chain (Fünf Portale, Himmelsleiter, ...) this run plays; defaults to Fünf Portale. */
+    reset(chainId) {
+        this.chain = resolvePortalChain(chainId);
         this.entityManager = null;
         this.phase = 'idle';
         this.mapIndex = 0;
@@ -41,12 +43,12 @@ export class FivePortalsRuntime {
         this._transitionRequested = false;
         this.rewardBinding = null;
         this.xpEarned = 0;
-        this.records = loadRecords(this._getRecordStore());
+        this.records = loadRecords(this._getRecordStore(), this.chain);
     }
 
-    start(entityManager, { vehicleId = 'ship1' } = {}) {
+    start(entityManager, { vehicleId = 'ship1', chainId } = {}) {
         if (this.phase === 'idle' || this.phase === 'finished') {
-            this.reset();
+            this.reset(chainId);
             this.rewardBinding = bindArcadeVehicleRewards({ runType: 'five_portals', vehicleId });
             this.phase = 'racing';
         } else if (this.phase === 'transition') {
@@ -87,16 +89,16 @@ export class FivePortalsRuntime {
         if (event?.type !== 'exit_portal' || Number(event.playerIndex) !== 0 || this.phase !== 'portal') return null;
         this.mapTimesMs[this.mapIndex] = this.currentTimeMs;
         this.entityManager?.arena?._portalGateSystem?.portalRuntime?.deactivateExitPortals?.();
-        if (this.mapIndex === FIVE_PORTALS_MAPS.length - 1) {
+        if (this.mapIndex === this.chain.maps.length - 1) {
             this.phase = 'finished';
             const total = this.mapTimesMs.reduce((sum, time) => sum + safeMs(time), 0);
             this.records = {
-                version: FIVE_PORTALS_RECORD_VERSION,
+                version: this.chain.recordVersion,
                 lastTotalMs: total,
                 bestTotalMs: this.records.bestTotalMs > 0 ? Math.min(this.records.bestTotalMs, total) : total,
                 lastMapsMs: [...this.mapTimesMs],
             };
-            this._getRecordStore()?.saveJsonRecord?.(FIVE_PORTALS_RECORD_KEY, this.records);
+            this._getRecordStore()?.saveJsonRecord?.(this.chain.recordKey, this.records);
             return this.getHudState();
         }
         this.mapIndex += 1;
@@ -104,7 +106,7 @@ export class FivePortalsRuntime {
         this.phase = 'transition';
         if (!this._transitionRequested) {
             this._transitionRequested = true;
-            this._requestMapTransition({ mapKey: FIVE_PORTALS_MAPS[this.mapIndex], botCount: 0, fivePortals: true });
+            this._requestMapTransition({ mapKey: this.chain.maps[this.mapIndex], botCount: 0, fivePortals: true });
             this._requestAdvance();
         }
         return this.getHudState();
@@ -132,12 +134,14 @@ export class FivePortalsRuntime {
         const completedTotalMs = this.mapTimesMs.reduce((sum, time) => sum + safeMs(time), 0);
         return {
             runType: 'five_portals',
+            chainId: this.chain.id,
+            chainLabel: this.chain.label,
             vehicleId: this.rewardBinding?.vehicleId || '',
             xpEarned: this.xpEarned,
             phase: this.phase,
             mapIndex: this.mapIndex,
-            mapCount: FIVE_PORTALS_MAPS.length,
-            currentMapKey: FIVE_PORTALS_MAPS[this.mapIndex],
+            mapCount: this.chain.maps.length,
+            currentMapKey: this.chain.maps[this.mapIndex],
             checkpoint: Math.max(0, Number(progress?.nextCheckpointIndex) || 0),
             checkpointCount: Math.max(0, Number(progress?.totalCheckpoints) || 0),
             respawnsRemaining: Math.max(0, 3 - (Number(progress?.checkpointRespawnsUsed) || 0)),
@@ -146,7 +150,7 @@ export class FivePortalsRuntime {
             mapTimesMs: [...this.mapTimesMs],
             records: { ...this.records },
             postRunSummary: this.phase === 'finished'
-                ? { maps: FIVE_PORTALS_MAPS.map((mapKey, index) => ({ mapKey, timeMs: this.mapTimesMs[index] })), totalMs: completedTotalMs, bestTotalMs: this.records.bestTotalMs }
+                ? { maps: this.chain.maps.map((mapKey, index) => ({ mapKey, timeMs: this.mapTimesMs[index] })), totalMs: completedTotalMs, bestTotalMs: this.records.bestTotalMs }
                 : null,
         };
     }

@@ -34,12 +34,12 @@ test('one guided rocket takes only its owner input and forwards host input field
     const entityManager = { humanPlayers: [owner], _projectileSystem: system };
     const inputSystem = new PlayerInputSystem(entityManager);
     const remoteInput = normalizeNetworkInputState({ yawAxis: 0.7, pitchAxis: -0.3,
-        boostPressed: true, shootRocket: true });
+        boostPressed: true, shootMG: true });
     const flightInput = inputSystem.resolvePlayerInput(owner, 0.1, { getPlayerInput: () => remoteInput });
     assert.equal(projectile.steerYaw, 0.7);
     assert.equal(projectile.steerPitch, -0.3);
     assert.equal(projectile.boostRemaining, 2);
-    assert.equal(flightInput.shootRocket, false, 'rocket control cannot fire or cancel early');
+    assert.equal(flightInput.shootMG, false, 'rocket control cannot fire the ship guns');
     assert.equal(flightInput.boost, false, 'pilot does not consume the boost');
     const snapshot = createGameStateSnapshot({ players: [owner], projectiles: [projectile] });
     assert.equal(snapshot.projectiles[0].guided, true);

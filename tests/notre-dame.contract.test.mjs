@@ -11,32 +11,15 @@ import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/inde
 import { NOTRE_DAME_TREE_MODELS } from '../src/core/config/maps/presets/notre_dame/NotreDameModels.js';
 import { resolveMapPickerCollection } from '../src/ui/menu/MenuMapCollectionCatalog.js';
 import { buildRouteFromParcours } from '../src/entities/systems/ParcoursProgressUtils.js';
-import {
-    normalizeMapAnimationClock,
-    resolveMapAnimationClipPhase,
-} from '../src/shared/contracts/MapAnimationClockContract.js';
 
 const map = NOTRE_DAME_MAPS.notre_dame;
-const SITE_FILES = [
-    '10_tower_crane', '11_scaffold_lift', '12_stone_hoist', '13_fleche_hoist',
-    '14_tarpaulin_wall', '15_vault_gantry', '16_bell_swing', '17_rose_ring',
-];
-const BEAT_SECONDS = 6;
-
 // Must match NotreDameModels: authored units per metre, and the height of the church floor.
 const METRE = 1.4;
 const GROUND = 8;
 
-function siteModels() {
-    return map.glbModels.filter((model) => (
-        SITE_FILES.some((file) => model.url.endsWith(`${file}.glb`))
-    ));
-}
-
 function fabricModels() {
     return map.glbModels.filter((model) => (
         model.url.includes('assets/maps/notre_dame/glb/')
-        && !siteModels().includes(model)
     ));
 }
 
@@ -114,14 +97,14 @@ test('Notre-Dame is registered everywhere a map has to appear', () => {
 });
 
 test('the map places one cathedral assembly plus the curated Blender tree row', () => {
-    assert.equal(map.glbModels.length, 47);
-    assert.equal(new Set(map.glbModels.map((model) => model.id)).size, 47);
+    assert.equal(map.glbModels.length, 39);
+    assert.equal(new Set(map.glbModels.map((model) => model.id)).size, 39);
     assert.equal(map.glbColliderMode, 'scene');
     assert.equal(map.glbAuthoredObstaclesCollisionOnly, true);
-    for (const model of [...fabricModels(), ...siteModels()]) {
+    for (const model of fabricModels()) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local GLB`);
         // targetSize would normalise each file to a size of its own and tear the building into
-        // fifteen different scales; one shared scale factor is what keeps it a single object.
+        // seven different scales; one shared scale factor is what keeps it a single object.
         assert.equal(model.scale, METRE, `${model.id} shares the one scale factor`);
         assert.equal(model.targetSize, undefined, `${model.id} must not be size-normalised`);
     }
@@ -177,11 +160,14 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         'eiffel_tower',
         'eiffel_tower_arena',
         'eiffel_tower_siege',
+        // Only its setpiece frame colliders; the authored platforms keep renderWithGlb.
+        'kinetic_tide',
         'maze',
         'notre_dame',
         'notre_dame_arena',
         'notre_dame_fire',
         'notre_dame_fire_arena',
+        'orbital_shipyard',
         'pyramid',
         'reactor_site',
         'skyline_siege',
@@ -200,7 +186,9 @@ test('the parts land back in the positions they were modelled in', () => {
     // recentres each file on its own bounding box. This is the test that the preset undoes that
     // recentring correctly: get it wrong and the towers drift away from the nave.
     for (const model of fabricModels()) {
-        const box = boundingBox(model.url);
+        const box = model.url.endsWith('/01_west_facade.glb')
+            ? sceneBoundingBox(model.url)
+            : boundingBox(model.url);
         const centreMetres = (box.low[0] + box.high[0]) / 2;
         const baseMetres = box.low[1];
 
@@ -239,42 +227,15 @@ test('the spire clears the map ceiling and the building fits the floor plan', ()
     }
 });
 
-test('every site piece states a clip and a phase on the shared beat', () => {
-    assert.deepEqual(map.glbAnimationClock, { beatSeconds: BEAT_SECONDS });
-    const site = siteModels();
-    assert.equal(site.length, 8);
-
-    for (const model of site) {
-        const clock = normalizeMapAnimationClock(model.animationClock, map.glbAnimationClock);
-        assert.equal(clock.beatSeconds, BEAT_SECONDS, `${model.id} inherits the map beat`);
-        assert.ok(clock.clipName, `${model.id} names the clip it plays`);
-        assert.ok(
-            clock.phaseOffsetBeats >= 0 && clock.phaseOffsetBeats < 1,
-            `${model.id} offsets within a single beat (got ${clock.phaseOffsetBeats})`,
-        );
-    }
-
-    // The building has no clip at all: it is masonry and stands still.
-    for (const model of fabricModels()) {
-        assert.equal(model.animationClock, undefined, `${model.id} is static architecture`);
-    }
-});
-
-test('the two travelling-gap pieces never show the same opening at once', () => {
-    // The crane jib and the rose scaffold both work by carrying their gap around as they turn.
-    // On the same phase they would sweep in lockstep and the site would read as one machine
-    // rather than two independent hazards.
-    const travelling = siteModels().filter((model) => (
-        model.url.endsWith('10_tower_crane.glb') || model.url.endsWith('17_rose_ring.glb')
-    ));
-    assert.equal(travelling.length, 2);
-
-    const phases = travelling.map((model) => resolveMapAnimationClipPhase(
-        0,
-        normalizeMapAnimationClock(model.animationClock, map.glbAnimationClock),
-        BEAT_SECONDS,
-    ));
-    assert.equal(new Set(phases.map((phase) => phase.toFixed(4))).size, 2);
+test('only the west facade carries the authored church-motion clip', () => {
+    assert.equal(map.glbAnimationClock, undefined);
+    assert.equal(fabricModels().length, 7);
+    assert.deepEqual(
+        map.glbModels.filter((model) => model.animationClock).map((model) => model.id),
+        ['notre-dame-west-facade'],
+    );
+    assert.equal(map.glbModels.find((model) => model.animationClock)?.animationClock.clipName,
+        'NotreDameMotion');
 });
 
 test('the route runs three branches through the building and stays inside the arena', () => {
@@ -295,7 +256,7 @@ test('the route runs three branches through the building and stays inside the ar
     assert.deepEqual(new Set(branchOptions.map((checkpoint) => checkpoint.params.height)), new Set(['high', 'low']));
     assert.equal(new Set(branchOptions.map((checkpoint) => checkpoint.params.color)).size, 2);
     assert.equal(map.portals.length, 4);
-    assert.equal(map.gates.filter((gate) => gate.type === 'boost').length, 7);
+    assert.equal(map.gates.filter((gate) => gate.type === 'boost').length, 6);
     assert.equal(map.gates.filter((gate) => gate.type === 'slingshot').length, 3);
     assert.equal(map.items.length, 12);
     assert.equal(map.aircraft.length, 4);
@@ -308,6 +269,22 @@ test('the route runs three branches through the building and stays inside the ar
         assert.ok(y - entry.radius >= 0 && y + entry.radius <= height, `${entry.id} fits in Y`);
         assert.ok(Math.abs(z) + entry.radius <= depth / 2, `${entry.id} fits in Z`);
     }
+});
+
+test('the high route visits both belfries and finishes inside the spire lantern', () => {
+    const checkpoint = (id) => map.parcours.checkpoints.find((entry) => entry.id === id);
+    for (const id of ['CP13', 'CP14']) {
+        const ring = checkpoint(id);
+        assert.ok(ring, `${id} exists`);
+        const heightMetres = (ring.pos[1] - GROUND) / METRE;
+        assert.ok(heightMetres >= 46 && heightMetres <= 61, `${id} is between 46 m and 61 m`);
+    }
+
+    const [finishX, finishY, finishZ] = map.parcours.finish.pos;
+    assert.ok(Math.abs(finishX - 17.15) < 0.3 && Math.abs(finishZ) < 0.1,
+        'the finish sits on the spire axis');
+    assert.ok(Math.abs((finishY - GROUND) / METRE - 72) < 0.1,
+        'the finish is inside the 69-77 m lantern');
 });
 
 /**
@@ -393,10 +370,10 @@ test('nothing the route asks a player to reach is buried in the collision', () =
 
 test('landing collision that has no matching GLB surface remains visible', () => {
     const landingPlatforms = map.obstacles.filter((obstacle) => obstacle.renderWithGlb === true);
-    assert.equal(landingPlatforms.length, 5);
+    assert.equal(landingPlatforms.length, 2);
     assert.deepEqual(
         landingPlatforms.map((obstacle) => obstacle.pos),
-        [[-150, 20, 0], [-112, 14, 0], [-93.6, 52, 0], [110, 16, 0], [130, 38, 0]],
+        [[-112, 14, 0], [110, 16, 0]],
     );
 });
 
@@ -435,6 +412,9 @@ test('the interior is the hall it is drawn as, floor to vault to attic', () => {
     for (const metres of [50, 65, 80, 94]) {
         assert.ok(isSolid([17.15, GROUND + metres * METRE, 0]), `the spire is solid at ${metres} m`);
     }
+    assert.ok(!isSolid([17.15, GROUND + 72 * METRE, 0]), 'the lantern centre stays open');
+    assert.ok(isSolid([17.15 + 5.32, GROUND + 72 * METRE, 0]),
+        'the lantern ring supports remain collidable');
     // The crossing under it stays the open shaft the route branches in.
     assert.ok(!isSolid([17.15, GROUND + 20 * METRE, 0]), 'the crossing stays open');
 });
@@ -444,7 +424,7 @@ test('no collision stands where the map draws nothing at all', () => {
     // bounding box of some model the map actually loads. It is only a bounding box, so it will
     // not catch a block that is merely in the wrong place -- but it does catch the case that bit
     // this map twice: collision floating in open air with no geometry anywhere near it.
-    const placed = [...fabricModels(), ...siteModels()].map((model) => {
+    const placed = fabricModels().map((model) => {
         const box = sceneBoundingBox(model.url);
         const centreX = (box.low[0] + box.high[0]) / 2;
         const centreZ = (box.low[2] + box.high[2]) / 2;

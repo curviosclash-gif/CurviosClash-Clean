@@ -7,6 +7,7 @@ import { normalizeHuntWinCondition } from './HuntWinConditionContract.js';
 import { normalizeHuntLivesByPlayer } from './HuntLivesContract.js';
 import { normalizeTeamId } from './TeamCombatContract.js';
 import { createEscortObjectiveProjection } from './EscortObjectiveProjectionContract.js';
+import { createSeedObjectiveProjection } from './SeedObjectiveProjectionContract.js';
 
 export const MATCH_RUNTIME_PROJECTION_CONTRACT_VERSION = 'match-runtime-projection.v1';
 export const MATCH_RUNTIME_PROJECTION_VERSION_FIELDS = Object.freeze(['contractVersion']);
@@ -237,21 +238,7 @@ function createSecretRoomProjection(value = null) {
 }
 
 function createDandelionSeedProjection(value = null) {
-    const source = value && typeof value === 'object' ? value : {};
-    const total = normalizeNonNegativeInt(source.total, 0);
-    const released = Math.min(total, normalizeNonNegativeInt(source.released, 0));
-    const active = total > 0;
-    const allReleased = active && released === total && source.allReleased === true;
-    return {
-        active,
-        total,
-        released,
-        remaining: active ? total - released : 0,
-        allReleased,
-        completedAtSeconds: allReleased
-            ? Math.max(0, normalizeNumber(source.completedAtSeconds, 0))
-            : 0,
-    };
+    return createSeedObjectiveProjection(value);
 }
 
 function createPlayerProjection(value = null) {

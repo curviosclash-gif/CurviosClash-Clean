@@ -23,7 +23,7 @@ import bpy
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from merc_scout import sales, spec  # noqa: E402
+from merc_scout import preview, sales, spec  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_DIR = ROOT / "assets/models/characters/merc_scout"
@@ -48,15 +48,20 @@ compared listings offer; the honest limits are listed below.
 LIMITS = """\
 ## Honest limits
 
-- The walk cycle implies 0.91 m/s, the run 2.24 m/s; drive the character faster and the
-  planted foot slides. Step length is capped by the leg length of a straight bind pose.
-- The boot toe corner sinks up to 10 mm into the floor during the walk stance.
+- The walk cycle implies roughly 0.9 m/s, the run roughly 2.3 m/s; drive the character
+  faster and the planted foot slides. Step length is capped by the leg length.
+- Measured on the built model: during the walk stance the lowest boot point sinks up to
+  18 mm below the floor, in the run 19 mm. The idle stance stays within 7 mm.
+- Skin coverage is measured per build: about 12 % of the body's vertices carry no
+  garment within 70 mm, most of them on the arm (16 %), the collar opening and the
+  boot; the head and the hands are meant to be bare.
 - Hit and Death slide the right foot on purpose instead of lifting it.
-- A small patch of skin can show at the outer deltoid, where the skin modifier's branch
-  bulge is wider than the sleeve.
-- The high variant's extra cloth bones (``CoatBack``, ``StrapFront``) carry no motion yet.
+- Ambient occlusion is baked into the base-colour maps, not delivered as a separate
+  AO map, so it cannot be re-used for a different lighting setup.
 - Roughness and metallic are scalar per material; there are no roughness or metallic maps.
-- The renders for this datasheet are EEVEE previews, not offline renders.
+- The hair is a sculpted mass, not card geometry: no strand-level silhouette.
+- The renders for this datasheet are EEVEE previews (hero shots: Cycles), not offline
+  production renders.
 """
 
 
@@ -71,6 +76,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resolution", default="720x900")
     parser.add_argument("--samples", type=int, default=24)
     parser.add_argument("--datasheet", type=Path, default=MODEL_DIR / "DATASHEET.md")
+    parser.add_argument("--hero-views", default="hero,three_quarter,face,hand")
+    parser.add_argument("--hero-engine", default="BLENDER_EEVEE_NEXT",
+                        choices=("BLENDER_EEVEE_NEXT", "CYCLES"))
+    parser.add_argument("--hero-resolution", default="900x1200")
+    parser.add_argument("--hero-samples", type=int, default=48)
     parser.add_argument("--skip-renders", action="store_true")
     return parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
 
@@ -97,6 +107,14 @@ def main() -> None:
             sales.render_wireframe(meshes, args.output_dir / variant,
                                    prefix=f"merc_scout_{variant}_",
                                    resolution=(width, height), samples=args.samples)
+            hero_width, hero_height = (int(part) for part in args.hero_resolution.lower().split("x"))
+            print(f"[sales] hero {variant} ({args.hero_engine})", flush=True)
+            preview.render_views(meshes, args.output_dir / variant,
+                                 prefix=f"merc_scout_{variant}_hero_",
+                                 resolution=(hero_width, hero_height),
+                                 samples=args.hero_samples,
+                                 views=tuple(name for name in args.hero_views.split(",") if name),
+                                 engine=args.hero_engine, ground=True)
             for clip in clips:
                 print(f"[sales] motion {variant} {clip}", flush=True)
                 sales.render_motion(rig, clip,

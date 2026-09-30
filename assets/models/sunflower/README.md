@@ -1,8 +1,8 @@
 # Shootable sunflower
 
-This is a mature-transition *Helianthus annuus* with a 4.8 m authored height and a 2.3 m
+This is a mature-transition *Helianthus annuus* with a 15.8 m authored stem and a 9.2 m
 flower-head spread. The large cultivated silhouette keeps recognizable stem, leaf, head, ray,
-and phyllary proportions at the map's 15 m target size. The Blender source uses a fixed seed and
+and phyllary proportions at the `sunflower_meadow` map's 300 m target size. The Blender source uses a fixed seed and
 220 individual achenes placed on a perturbed golden-angle spiral.
 
 ## Files
@@ -36,10 +36,11 @@ kernel's ID, release time in milliseconds, and quantized hit direction. The heav
 fixed outward impulse, bounded tangent response, tumble, and gravity; after 4.5 seconds it is
 removed from the flight view. A round restart reattaches every kernel and clears the event list.
 
-The target is placed in the open upper play volume on `dandelion_sky` at a 15 m map size. It has
-`collision: false`; aimed hits use the shared shootable-organ ray query and do not add hidden head
-or per-kernel colliders. The desktop contract fires two directly aimable neighboring kernels
-through the regular Hunt MG path.
+The target stands on `sunflower_meadow`. Its stalk is one collidable hollow shell with two side
+windows and three pickups in the bore. The head has one authored beam behind the kernels. All
+other plant meshes are non-colliding; aimed kernel hits use the shared shootable-organ ray query.
+The taller stem and fourfold head scale make the kernel field roughly twice its former world width. The
+desktop contract fires two directly aimable neighboring kernels through the regular Hunt MG path.
 
 ## Botanical references
 

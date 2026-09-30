@@ -11,14 +11,12 @@
 // the vessel is walled instead -- the island is its floor, two clerestory walls its sides, the
 // vault its ceiling -- and the flyable space is whatever the walls leave. Bores are kept only
 // where the building really is a hole in a wall: the west portals, the roses, the transept doors.
-// The piers that carry the arcade are boxes of their own in NotreDameInterior, and the standing
-// parts of the building site are in NotreDameSiteFrames.
+// The piers that carry the arcade are boxes of their own in NotreDameInterior.
 //
 // Coordinates are authored units with the church floor at y = 8; multiply by the map scale of 3
 // for world units. One real metre is 1.4 authored units, matching the generator.
 
 import { NOTRE_DAME_INTERIOR_PIERS } from './NotreDameInterior.js';
-import { NOTRE_DAME_SITE_FRAMES } from './NotreDameSiteFrames.js';
 
 const GROUND = 8;
 
@@ -225,16 +223,11 @@ function westTowerAroundPortal(side) {
     const portalMaxZ = portalCentreZ + 5.5;
     const lowerTop = GROUND + 16;
     const galleryAirMin = 56.3;
-    const galleryAirMax = 66.38;
     const towerTop = GROUND + 96;
     const boxes = [
         {
             pos: [-83, (lowerTop + galleryAirMin) / 2, towerCentreZ],
             size: [13, galleryAirMin - lowerTop, 20],
-        },
-        {
-            pos: [-83, (galleryAirMax + towerTop) / 2, towerCentreZ],
-            size: [13, towerTop - galleryAirMax, 20],
         },
     ];
     for (const [minZ, maxZ] of [[towerMinZ, portalMinZ], [portalMaxZ, towerMaxZ]]) {
@@ -244,14 +237,26 @@ function westTowerAroundPortal(side) {
             size: [13, lowerTop - GROUND, maxZ - minZ],
         });
     }
+    // The upper tower is an open belfry. Keep only its four load-bearing piers solid; a full
+    // box here would cover the bells and bury both route rings inside an invisible wall.
+    for (const xSide of [-1, 1]) {
+        for (const zSide of [-1, 1]) {
+            const x = -83 + xSide * 4.69;
+            const z = towerCentreZ + zSide * 8.75;
+            boxes.push({
+                shape: 'beam', kind: 'hard',
+                start: [x, galleryAirMin, z], end: [x, towerTop, z], radius: 1.1,
+            });
+        }
+    }
     return boxes;
 }
 
 const NOTRE_DAME_OBSTACLES = [
     // --- The island it all stands on -------------------------------------------------------
-    { pos: [-31, 4, 0], size: [364, 8, 200], kind: 'foam', compileWithGlb: true },
-    { pos: [-31, 1, 96], size: [364, 3, 60], kind: 'foam', compileWithGlb: true },
-    { pos: [-31, 1, -96], size: [364, 3, 60], kind: 'foam', compileWithGlb: true },
+    { pos: [-31, 4, 0], size: [364, 8, 130], kind: 'foam', compileWithGlb: true },
+    { pos: [-31, 1, 95], size: [364, 3, 62], kind: 'foam', compileWithGlb: true },
+    { pos: [-31, 1, -95], size: [364, 3, 62], kind: 'foam', compileWithGlb: true },
 
     // --- West front ------------------------------------------------------------------------
     // The two towers remain solid around the side portal bores. A single full-height box here
@@ -259,7 +264,7 @@ const NOTRE_DAME_OBSTACLES = [
     ...westTowerAroundPortal(-1),
     ...westTowerAroundPortal(1),
     // Wall band above the portals, pierced by the rose. The rose itself is left open: flying
-    // through it is the reward for taking the scaffold route up the facade.
+    // through it is the reward for taking the high route up the facade.
     { pos: [-83, GROUND + 24, 0], size: [13, 12, 22] },
     { pos: [-83, 52.15, 0], size: [13, 8.3, 22] },
     { pos: [-83, 67.19, 0], size: [13, 1.62, 22] },
@@ -314,11 +319,19 @@ const NOTRE_DAME_OBSTACLES = [
     },
 
     // --- The spire ---------------------------------------------------------------------------
-    // Fifty metres of the tallest thing on the map, stepped down in five stages so the collision
-    // follows the taper of the octagonal shaft instead of standing as one column.
+    // The spire remains solid below and above its open lantern. Eight narrow supports follow the
+    // lantern's octagon while leaving its centre clear for the route finish.
     { pos: [CROSSING_CENTRE, 75.2, 0], size: [14, 8.4, 14] },
     { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 79.4, 0], end: [CROSSING_CENTRE, 97.6, 0], radius: 4.18 },
-    { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 97.6, 0], end: [CROSSING_CENTRE, 115.8, 0], radius: 2.41 },
+    { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 97.6, 0], end: [CROSSING_CENTRE, 106, 0], radius: 2.41 },
+    ...Array.from({ length: 8 }, (_, index) => {
+        const angle = index * Math.PI / 4;
+        const offset = 5.32;
+        const start = [CROSSING_CENTRE + offset * Math.cos(angle), 106,
+            offset * Math.sin(angle)];
+        const end = [start[0], 115.8, start[2]];
+        return { shape: 'beam', kind: 'hard', start, end, radius: 0.48 };
+    }),
     { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 115.8, 0], end: [CROSSING_CENTRE, 134.0, 0], radius: 0.64 },
     { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 134.0, 0], end: [CROSSING_CENTRE, SPIRE_TIP, 0], radius: 0.45 },
 
@@ -330,28 +343,20 @@ const NOTRE_DAME_OBSTACLES = [
     ...buttressRow(CROSSING_END, 5, 33.6),
 
     // --- Landing platforms for the route -----------------------------------------------------
-    // Each one stands inside something a player can see: the first two on the island, the third
-    // inside the turning rose scaffold, the last two on the quay and the spire hoist. There is
+    // Each one stands inside something a player can see: one on the island and one on the east
+    // quay. There is
     // deliberately none over the roof at the crest -- nothing is drawn there, so nothing collides
     // there; the ring at that point is flown through like every other ring on the route.
-    { pos: [-150, GROUND + 12, 0], size: [22, 3, 26], renderWithGlb: true, compileWithGlb: true },
     { pos: [-112, GROUND + 6, 0], size: [26, 3, 30], renderWithGlb: true, compileWithGlb: true },
-    { pos: [-93.6, GROUND + 44, 0], size: [16, 3, 20], renderWithGlb: true, compileWithGlb: true },
     { pos: [110, GROUND + 8, 0], size: [24, 3, 26], renderWithGlb: true, compileWithGlb: true },
-    { pos: [130, GROUND + 30, 0], size: [22, 4, 24], renderWithGlb: true, compileWithGlb: true },
-
-    // --- What stands still on the reconstruction site ----------------------------------------
-    // 'dynamic' collides a mesh only while an animation moves it, which left the machines that do
-    // the moving as scenery: the jib blocks, the mast under it did not.
-    ...NOTRE_DAME_SITE_FRAMES,
 ];
 
 // Portals shortcut the long way round: up the facade, across the roof, and back down the nave.
 const NOTRE_DAME_PORTALS = [
-    { a: [-93.6, GROUND + 46, 0], b: [-83, GROUND + 92, 0], color: 0x77aaff },
+    { a: [-94, GROUND + 37, 0], b: [-83, GROUND + 92, 0], color: 0x77aaff },
     { a: [CROSSING_CENTRE, ROOF_RIDGE + 12, -52], b: [CROSSING_CENTRE, GROUND + 30, 0], color: 0xffaa33 },
     { a: [79, GROUND + 52, 0], b: [-40, NAVE_VAULT + 8, 0], color: 0xaa66ff },
-    { a: [110, GROUND + 12, 0], b: [-150, GROUND + 16, 0], color: 0x44ffbb },
+    { a: [128, GROUND + 12, 0], b: [-150, GROUND + 16, 0], color: 0x44ffbb },
 ];
 
 const NOTRE_DAME_GATES = [
@@ -361,10 +366,9 @@ const NOTRE_DAME_GATES = [
     { id: 'nd_nave_boost', type: 'boost', pos: [-70, GROUND + 20, 0], forward: [1, 0, 0], params: { duration: 1.1, forwardImpulse: 38, bonusSpeed: 46, cooldown: 0.8 } },
     { id: 'nd_attic_sling', type: 'slingshot', pos: [-20, NAVE_VAULT + 8, 0], forward: [0.9, 0.3, 0], up: [0, 1, 0], params: { duration: 1.4, forwardImpulse: 32, liftImpulse: 12, cooldown: 1.0 } },
     { id: 'nd_ambulatory_boost', type: 'boost', pos: [30, AISLE_RUN, -19.6], forward: [1, 0, 0.1], params: { duration: 0.9, forwardImpulse: 34, bonusSpeed: 42, cooldown: 0.7 } },
-    { id: 'nd_apse_sling', type: 'slingshot', pos: [72, GROUND + 30, 0], forward: [0.6, 0.6, 0], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 30, liftImpulse: 14, cooldown: 1.1 } },
+    { id: 'nd_apse_sling', type: 'slingshot', pos: [85, GROUND + 23, 0], forward: [0.8, 0.4, 0], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 30, liftImpulse: 14, cooldown: 1.1 } },
     { id: 'nd_buttress_boost', type: 'boost', pos: [40, GROUND + 33, 36], forward: [-0.95, 0, -0.2], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 45, cooldown: 0.8 } },
-    { id: 'nd_return_boost', type: 'boost', pos: [-30, GROUND + 33, 36], forward: [-0.9, 0.1, -0.3], params: { duration: 0.9, forwardImpulse: 34, bonusSpeed: 43, cooldown: 0.7 } },
-    { id: 'nd_spire_boost', type: 'boost', pos: [112, GROUND + 14, 0], forward: [0.8, 0.55, 0], params: { duration: 1.1, forwardImpulse: 35, bonusSpeed: 44, cooldown: 0.8 } },
+    { id: 'nd_spire_boost', type: 'boost', pos: [96, GROUND + 14, 0], forward: [1, 0.1, 0], params: { duration: 1.1, forwardImpulse: 35, bonusSpeed: 44, cooldown: 0.8 } },
 ];
 
 const NOTRE_DAME_ITEMS = [
@@ -375,12 +379,12 @@ const NOTRE_DAME_ITEMS = [
     { id: 'nd_ghost_aisle', type: 'item_coin', pickupType: 'GHOST', x: -50, y: AISLE_RUN, z: -19.6, weight: 0.8 },
     { id: 'nd_thick_attic', type: 'item_coin', pickupType: 'THICK', x: -20, y: NAVE_VAULT + 8, z: 0, weight: 0.8 },
     { id: 'nd_rocket_crossing', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: CROSSING_CENTRE, y: GROUND + 30, z: 0, weight: 0.9 },
-    { id: 'nd_shield_ambulatory', type: 'item_shield', pickupType: 'SHIELD', x: 40, y: AISLE_RUN, z: 19.6, weight: 1.0 },
+    { id: 'nd_shield_ambulatory', type: 'item_shield', pickupType: 'SHIELD', x: 40, y: AISLE_RUN, z: -19.6, weight: 1.0 },
     { id: 'nd_speed_choir', type: 'item_battery', pickupType: 'SPEED_UP', x: 48, y: GROUND + 28, z: 0, weight: 1.1 },
     // Between the piers at 48 and 62, not against the transept gable it used to sit inside.
     { id: 'nd_rocket_buttress', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 55, y: GROUND + 33, z: 36, weight: 0.7 },
     { id: 'nd_ghost_tower', type: 'item_coin', pickupType: 'GHOST', x: -83, y: GROUND + 92, z: 0, weight: 0.7 },
-    { id: 'nd_shield_spire', type: 'item_shield', pickupType: 'SHIELD', x: 130, y: GROUND + 34, z: 0, weight: 1.0 },
+    { id: 'nd_shield_spire', type: 'item_shield', pickupType: 'SHIELD', x: 110, y: GROUND + 12, z: 8, weight: 1.0 },
 ];
 
 const NOTRE_DAME_ARENA_GATES = [

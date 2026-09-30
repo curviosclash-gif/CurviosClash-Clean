@@ -177,6 +177,12 @@ const SLOT_SPACING = 22;
 const MODEL_TARGET_SIZE = 14;
 const PEDESTAL_SIZE = 16;
 const MODEL_BASE_Y = 1;
+// The loader plays the first clip unless a model names one. Building_Corner_01's first clip moves
+// nothing; its corner screen rig is the third. The name is copied exactly as stored in the GLB,
+// where the exporter truncated it.
+const MODEL_CLIP_NAMES = Object.freeze({
+    'pm-chromatic-chaos/Building_Corner_01': 'Armature_Corner_Screen_01|Armature_Corner_Screen_01|Armature_Co',
+});
 
 function createGalleryContent() {
     const glbModels = [];
@@ -187,8 +193,11 @@ function createGalleryContent() {
             const modelName = pack.models[columnIndex];
             const x = (columnIndex - (COLUMN_COUNT - 1) * 0.5) * SLOT_SPACING;
             const z = (rowIndex - (ROW_COUNT - 1) * 0.5) * SLOT_SPACING;
+            const id = `${pack.id}/${modelName}`;
+            const clipName = MODEL_CLIP_NAMES[id];
             glbModels.push(Object.freeze({
-                id: `${pack.id}/${modelName}`,
+                id,
+                ...(clipName ? { animationClock: Object.freeze({ clipName }) } : {}),
                 url: `assets/models/${pack.id === 'pm-avatar-garden' ? 'optimized_cc0' : 'downloaded_cc0'}/${pack.id}/${modelName}.glb`,
                 position: Object.freeze([x, MODEL_BASE_Y, z]),
                 rotation: Object.freeze([0, Math.PI, 0]),

@@ -2,6 +2,14 @@ import assert from 'node:assert/strict';
 import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import * as THREE from 'three';
+
+import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
+import { loadGLBMap } from '../src/entities/GLBMapLoader.js';
+import { GlbAnimationDriver } from '../src/entities/arena/GlbAnimationDriver.js';
+import { refreshDynamicMeshCollider, sphereIntersectsStaticMeshCollider } from '../src/entities/arena/StaticMeshCollider.js';
+import { disposeObject3DResources } from '../src/shared/rendering/ThreeDisposal.js';
+import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
 
 const ASSET_ROOT = path.resolve('assets/maps/notre_dame');
 const TOTAL_GLB_BUDGET_BYTES = 4 * 1024 * 1024;
@@ -17,27 +25,31 @@ const TRIANGLE_BUDGET_PER_ARCHITECTURE_PART = 18_000;
 // floor, and Z is width across it.
 const PARTS = Object.freeze({
     '01_west_facade': {
-        nodes: 7,
-        centerX: -59.31,
-        span: { x: 9.5, y: 75.5, z: 44.0 },
+        nodes: 17,
+        collisionShell: true,
+        centerX: -59.78,
+        span: { x: 10.67, y: 75.5, z: 44.0 },
         floorY: 0.0,
     },
     '02_nave': {
-        nodes: 6,
+        nodes: 9,
+        collisionShell: true,
         centerX: -24.75,
-        span: { x: 60.4, y: 34.1, z: 42.6 },
+        span: { x: 60.4, y: 34.4, z: 42.6 },
         floorY: -0.8,
     },
     '03_transept': {
-        nodes: 8,
+        nodes: 9,
+        collisionShell: true,
         centerX: 12.25,
         span: { x: 17.0, y: 41.9, z: 50.5 },
         floorY: -0.8,
     },
     '04_choir_apse': {
-        nodes: 7,
-        centerX: 41.76,
-        span: { x: 45.4, y: 34.1, z: 41.7 },
+        nodes: 11,
+        collisionShell: true,
+        centerX: 41.4,
+        span: { x: 45.4, y: 34.4, z: 41.7 },
         floorY: -0.8,
     },
     '05_buttresses': {
@@ -47,7 +59,8 @@ const PARTS = Object.freeze({
         floorY: 0.0,
     },
     '06_roof_fleche': {
-        nodes: 6,
+        nodes: 7,
+        collisionShell: true,
         centerX: 4.5,
         span: { x: 118.5, y: 82.1, z: 48.0 },
         floorY: 14.06,
@@ -58,26 +71,6 @@ const PARTS = Object.freeze({
         span: { x: 259.5, y: 5.8, z: 172.0 },
         floorY: -1.8,
     },
-});
-
-// The reconstruction site. These are the meshes collision has to follow every frame, so they
-// keep the same 6000 triangle budget the other animated maps use rather than the architecture
-// budget above. Every loop is a whole multiple of one six second beat, which is what lets the
-// preset offset them against each other into a single rhythm.
-const BEAT_SECONDS = 6;
-const TRIANGLE_BUDGET_PER_SETPIECE = 6_000;
-// Static roots and decorative rig children are batched by material. Moving collision bodies
-// remain distinct, so this budget protects the draw-call win without sealing the rose-ring gap.
-const TOTAL_SETPIECE_PRIMITIVE_BUDGET = 110;
-const SETPIECES = Object.freeze({
-    '10_tower_crane': { clip: 'TowerCraneLoop', duration: 24, landmark: 'tower_crane_base_signal' },
-    '11_scaffold_lift': { clip: 'ScaffoldLiftLoop', duration: 6, landmark: 'scaffold_lift_foot_signal' },
-    '12_stone_hoist': { clip: 'StoneHoistLoop', duration: 6, landmark: 'stone_hoist_beam_signal' },
-    '13_fleche_hoist': { clip: 'FlecheHoistLoop', duration: 12, landmark: 'fleche_hoist_cradle_signal' },
-    '14_tarpaulin_wall': { clip: 'TarpaulinWallLoop', duration: 12, landmark: 'tarpaulin_wall_head_signal' },
-    '15_vault_gantry': { clip: 'VaultGantryLoop', duration: 12, landmark: 'gantry_cradle' },
-    '16_bell_swing': { clip: 'BellSwingLoop', duration: 6, landmark: 'bell_frame_signal' },
-    '17_rose_ring': { clip: 'RoseRingLoop', duration: 12, landmark: 'rose_ring_hub_signal' },
 });
 
 const CATHEDRAL_LENGTH = 127.5;
@@ -178,19 +171,7 @@ test('scene collision keeps foam and moving structural members correctly typed',
         'every collidable island mesh keeps the foam response',
     );
 
-    const crane = new Set(nodeNames('10_tower_crane'));
-    assert.ok(crane.has('tower_crane_apex'), 'the moving crane apex collides with its rig');
-    assert.ok(crane.has('tower_crane_counterjib'), 'the moving counter-jib collides with its rig');
 
-    const gantry = new Set(nodeNames('15_vault_gantry'));
-    for (const side of [-1, 1]) {
-        for (const end of [-1, 1]) {
-            assert.ok(
-                gantry.has(`gantry_leg_${side}_${end}`),
-                `moving gantry leg ${side}/${end} keeps dynamic collision`,
-            );
-        }
-    }
 });
 
 /**
@@ -293,10 +274,77 @@ function boundingBox(document) {
     };
 }
 
+/** Bounding box with glTF node transforms applied, which matters for animated pivots. */
+function sceneBoundingBox(document) {
+    const bounds = new THREE.Box3().makeEmpty();
+    const visit = (nodeIndex, parentMatrix) => {
+        const node = document.nodes?.[nodeIndex];
+        if (!node) return;
+        const local = new THREE.Matrix4();
+        if (Array.isArray(node.matrix)) local.fromArray(node.matrix);
+        else {
+            local.compose(
+                new THREE.Vector3().fromArray(node.translation || [0, 0, 0]),
+                new THREE.Quaternion().fromArray(node.rotation || [0, 0, 0, 1]),
+                new THREE.Vector3().fromArray(node.scale || [1, 1, 1]),
+            );
+        }
+        const world = new THREE.Matrix4().multiplyMatrices(parentMatrix, local);
+        const mesh = document.meshes?.[node.mesh];
+        for (const primitive of mesh?.primitives || []) {
+            const accessor = document.accessors?.[primitive.attributes?.POSITION];
+            if (!accessor?.min || !accessor?.max) continue;
+            bounds.union(new THREE.Box3(
+                new THREE.Vector3().fromArray(accessor.min),
+                new THREE.Vector3().fromArray(accessor.max),
+            ).applyMatrix4(world));
+        }
+        for (const child of node.children || []) visit(child, world);
+    };
+    for (const nodeIndex of document.scenes?.[document.scene || 0]?.nodes || []) {
+        visit(nodeIndex, new THREE.Matrix4());
+    }
+    const low = bounds.min.toArray();
+    const high = bounds.max.toArray();
+    return {
+        low,
+        high,
+        span: { x: high[0] - low[0], y: high[1] - low[1], z: high[2] - low[2] },
+        center: { x: (low[0] + high[0]) / 2, z: (low[2] + high[2]) / 2 },
+    };
+}
+
+function measuredPartBounds(name) {
+    const document = readGlbJson(path.join(ASSET_ROOT, 'glb', `${name}.glb`));
+    return name === '01_west_facade' ? sceneBoundingBox(document) : boundingBox(document);
+}
+
 function meshNodeNames(document) {
     return (document.nodes || [])
         .filter((node) => node.mesh !== undefined)
         .map((node) => String(node.name || ''));
+}
+
+function floorCrossBayCentres({ document, binary }) {
+    const node = document.nodes.find((entry) => entry.name === 'nave_stoneshaded_nocol');
+    assert.ok(node, 'the decorative nave stone mesh is present');
+    const primitive = document.meshes[node.mesh]?.primitives?.[0];
+    assert.ok(primitive?.attributes?.POSITION !== undefined, 'the nave decoration has exported positions');
+    const accessor = document.accessors[primitive.attributes.POSITION];
+    const view = document.bufferViews[accessor.bufferView];
+    const stride = view.byteStride || 12;
+    const start = (view.byteOffset || 0) + (accessor.byteOffset || 0);
+    const centres = [];
+    for (let index = 0; index < accessor.count; index += 1) {
+        const offset = start + index * stride;
+        const x = binary.readFloatLE(offset);
+        const y = binary.readFloatLE(offset + 4);
+        const z = binary.readFloatLE(offset + 8);
+        // The ten cross centres are the only shaded, non-colliding geometry just above the nave
+        // floor, and their long arm crosses the axis within 9 cm.
+        if (y > 0.002 && y < 0.022 && Math.abs(z) < 0.1) centres.push(x);
+    }
+    return centres;
 }
 
 test('Notre-Dame keeps editable Blender sources and merged, texture-free exports', () => {
@@ -312,10 +360,11 @@ test('Notre-Dame keeps editable Blender sources and merged, texture-free exports
         totalGlbBytes += glbSize;
 
         const document = readGlbJson(glbPath);
-        assert.ok(
-            !document.animations?.length,
-            `${name} is static architecture and carries no clip`,
-        );
+        if (name === '01_west_facade') {
+            assert.deepEqual(document.animations?.map((animation) => animation.name), ['NotreDameMotion']);
+        } else {
+            assert.ok(!document.animations?.length, `${name} is static architecture and carries no clip`);
+        }
         assert.ok(
             triangleCount(document) <= TRIANGLE_BUDGET_PER_ARCHITECTURE_PART,
             `${name} stays within the ${TRIANGLE_BUDGET_PER_ARCHITECTURE_PART} triangle budget`,
@@ -340,6 +389,12 @@ test('Notre-Dame keeps editable Blender sources and merged, texture-free exports
             nodeNames.some((nodeName) => /_nocol$/i.test(nodeName)),
             `${name} keeps its decorative meshes marked _nocol`,
         );
+        if (expected.collisionShell) {
+            assert.ok(
+                nodeNames.some((nodeName) => /_colonly$/i.test(nodeName)),
+                `${name} keeps its invisible collision shell separate from visual meshes`,
+            );
+        }
 
         // No texture coordinates: the materials are flat colours, so UVs were pure weight.
         for (const mesh of document.meshes || []) {
@@ -352,161 +407,39 @@ test('Notre-Dame keeps editable Blender sources and merged, texture-free exports
         }
     }
 
-    for (const name of Object.keys(SETPIECES)) {
-        totalGlbBytes += statSync(path.join(ASSET_ROOT, 'glb', `${name}.glb`)).size;
-    }
-
     assert.ok(
         totalGlbBytes <= TOTAL_GLB_BUDGET_BYTES,
         `Notre-Dame GLBs stay within ${TOTAL_GLB_BUDGET_BYTES} bytes (got ${totalGlbBytes})`,
     );
 });
 
-test('the reconstruction site loops on the shared beat and separates its collision', () => {
-    let totalPrimitives = 0;
-    for (const [name, expected] of Object.entries(SETPIECES)) {
-        const blendPath = path.join(ASSET_ROOT, 'blender', `${name}.blend`);
-        const glbPath = path.join(ASSET_ROOT, 'glb', `${name}.glb`);
-        assert.ok(statSync(blendPath).size > 100_000, `${name} keeps its editable Blender source`);
-        assert.ok(statSync(glbPath).size > 10_000, `${name} exports a non-empty GLB`);
-
-        const document = readGlbJson(glbPath);
-        assert.equal(document.animations?.length, 1, `${name} exports exactly one animation`);
-        assert.equal(document.animations[0].name, expected.clip, `${name} keeps its clip name`);
-        assert.ok(
-            Math.abs(animationDurationSeconds(document, document.animations[0]) - expected.duration) <= (1 / 30),
-            `${name} keeps its ${expected.duration}s loop`,
-        );
-        assert.equal(
-            expected.duration % BEAT_SECONDS,
-            0,
-            `${name} loops on a whole multiple of the ${BEAT_SECONDS}s beat`,
-        );
-        assert.ok(
-            (document.nodes || []).some((node) => node.name === expected.landmark),
-            `${name} contains its readability landmark ${expected.landmark}`,
-        );
-        assert.ok(
-            triangleCount(document) <= TRIANGLE_BUDGET_PER_SETPIECE,
-            `${name} stays within the ${TRIANGLE_BUDGET_PER_SETPIECE} triangle budget`,
-        );
-        totalPrimitives += primitiveCount(document);
-
-        // The split that makes the map affordable: a moving mesh gets a collider, so exactly
-        // one coarse body per moving part carries collision while the detail rides along as
-        // _nocol. Without both halves the setpiece either collides against nothing or makes
-        // the physics chase every rope and lamp.
-        const animated = animatedMeshNames(document);
-        assert.ok(
-            animated.some((nodeName) => !/_nocol$/i.test(nodeName)),
-            `${name} retains a coarse animated collision mesh`,
-        );
-        assert.ok(
-            animated.some((nodeName) => /_nocol$/i.test(nodeName)),
-            `${name} separates animated visual detail from collision`,
-        );
+test('the nave exports a pierced triforium, raised gallery roof and furnished interior', () => {
+    const naveFile = readGlb(path.join(ASSET_ROOT, 'glb', '02_nave.glb'));
+    const nave = naveFile.document;
+    const naveNodes = meshNodeNames(nave);
+    assert.ok(naveNodes.includes('nave_oak'), 'the gallery organ and nave furnishings stay editable in Blender');
+    assert.ok(naveNodes.includes('nave_gold'), 'organ stops export with their brass material');
+    const roof = readGlbJson(path.join(ASSET_ROOT, 'glb', '06_roof_fleche.glb'));
+    assert.ok(meshNodeNames(roof).includes('roof_fleche_lead'),
+        'the raised gallery roof remains an authored, colliding surface in the roof asset');
+    assert.ok(!naveNodes.some((name) => /triforium_band/i.test(name)),
+        'the former continuous collision wall is gone');
+    const exportedFloorCrosses = floorCrossBayCentres(naveFile);
+    for (let bay = 0; bay < 10; bay += 1) {
+        const expectedX = -54.75 + 3 + bay * 6;
+        assert.ok(exportedFloorCrosses.some((x) => Math.abs(x - expectedX) < 1.6),
+            `the floor pattern is exported above the nave floor at bay ${bay}`);
     }
-    assert.ok(
-        totalPrimitives <= TOTAL_SETPIECE_PRIMITIVE_BUDGET,
-        `reconstruction-site exports stay within ${TOTAL_SETPIECE_PRIMITIVE_BUDGET} primitives `
-        + `(got ${totalPrimitives})`,
-    );
-});
 
-test('the sheeting opens one bay at a time instead of everywhere at once', () => {
-    const glb = readGlb(path.join(ASSET_ROOT, 'glb', '14_tarpaulin_wall.glb'));
-    const duration = SETPIECES['14_tarpaulin_wall'].duration;
-    const moments = openingMoments(glb);
-
-    assert.equal(moments.length, 7, 'all seven bays are animated');
-    assert.ok(moments.every((entry) => entry.travel > 0.5), 'every bay actually draws aside');
-
-    // If every bay opened at the same moment the hoarding would be a blinking wall rather than
-    // a traveling gap, and a player could not learn where to be. Evenly spaced moments are what
-    // makes the position learnable.
-    const times = moments.map((entry) => entry.time).sort((left, right) => left - right);
-    assert.equal(
-        new Set(times.map((time) => time.toFixed(3))).size,
-        7,
-        `the sheeting opens at seven distinct moments, got ${times.join(', ')}`,
-    );
-    const expectedStride = duration / 7;
-    for (let index = 1; index < times.length; index += 1) {
-        const stride = times[index] - times[index - 1];
-        assert.ok(
-            Math.abs(stride - expectedStride) <= expectedStride * 0.25,
-            `the sheeting keeps an even stride near ${expectedStride.toFixed(2)}s, got ${stride.toFixed(2)}s`,
-        );
-    }
-});
-
-test('the hoarding stands across the approach instead of along it', () => {
-    const glb = readGlb(path.join(ASSET_ROOT, 'glb', '14_tarpaulin_wall.glb'));
-
-    // glTF X runs along the building, which is the line a run flies in on from the river, and
-    // glTF Z runs across it. A barrier meant to be flown through has to be wide across and thin
-    // along. Built the other way round it hangs edge-on in the flight line: its face is never in
-    // front of anyone, its sheets lie on the route for their whole length, and the traveling gap
-    // opens along the flight path instead of across it.
-    const box = boundingBox(glb.document);
-    assert.ok(
-        box.span.z > box.span.x * 4,
-        `the hoarding spans wider across the approach (${box.span.z.toFixed(1)} m) `
-        + `than along it (${box.span.x.toFixed(1)} m)`,
-    );
-
-    // The same rule for the movement: each bay draws aside across the approach, so the opening
-    // walks along the face a player is looking at.
-    const travels = openingTravels(glb);
-    assert.equal(travels.length, 7, 'all seven bays are animated');
-    for (const entry of travels) {
-        assert.ok(
-            Math.abs(entry.offset[2]) > Math.abs(entry.offset[0]) * 4,
-            `${entry.node} draws aside across the approach, `
-            + `got along=${entry.offset[0].toFixed(2)} across=${entry.offset[2].toFixed(2)}`,
-        );
-    }
-});
-
-test('the crane and the rose scaffold carry their gap around instead of opening one', () => {
-    // Two setpieces state the rule the other way round: nothing opens or shuts, the whole
-    // assembly turns and the way past it travels with it. Both animate exactly one rig.
-    for (const [name, rig] of [['10_tower_crane', 'CraneSlew'], ['17_rose_ring', 'RoseScaffoldRing']]) {
-        const { document } = readGlb(path.join(ASSET_ROOT, 'glb', `${name}.glb`));
-        const channels = document.animations[0].channels;
-        assert.equal(channels.length, 1, `${name} turns as a single rig`);
-        assert.equal(document.nodes[channels[0].target.node].name, rig);
-        assert.equal(
-            channels[0].target.path,
-            'rotation',
-            `${name} carries its gap around by turning`,
-        );
-    }
-});
-
-test('the bells and the stone slings run on staggered phases', () => {
-    // A peal never swings as one, and a row of blocks that swung together would be a wall with
-    // no line through it. Both rely on their elements being out of phase with each other.
-    for (const [name, expectedCount] of [['16_bell_swing', 3], ['12_stone_hoist', 5]]) {
-        const moments = openingMoments(readGlb(path.join(ASSET_ROOT, 'glb', `${name}.glb`)));
-        assert.equal(moments.length, expectedCount, `${name} animates all ${expectedCount} elements`);
-        assert.ok(moments.every((entry) => entry.travel > 0.05), `${name} actually moves every element`);
-
-        // Every element has to reach its extreme at its own moment. Anything less than one
-        // distinct moment per element means two of them swing together, and the group turns
-        // back into a solid row at that instant.
-        const times = moments.map((entry) => entry.time);
-        assert.equal(
-            new Set(times.map((time) => time.toFixed(3))).size,
-            expectedCount,
-            `${name} reaches its extremes at ${expectedCount} distinct moments, got ${times.join(', ')}`,
-        );
-    }
+    const choir = readGlbJson(path.join(ASSET_ROOT, 'glb', '04_choir_apse.glb'));
+    const choirNodes = meshNodeNames(choir);
+    assert.ok(choirNodes.includes('choir_apse_oak'), 'the chancel screen and choir stalls are present');
+    assert.ok(choirNodes.includes('choir_apse_gold'), 'the screen and altar keep their gilded details');
 });
 
 test('every part keeps the measured proportions of the real building', () => {
     for (const [name, expected] of Object.entries(PARTS)) {
-        const box = boundingBox(readGlbJson(path.join(ASSET_ROOT, 'glb', `${name}.glb`)));
+        const box = measuredPartBounds(name);
 
         for (const axis of ['x', 'y', 'z']) {
             const tolerance = Math.max(0.5, expected.span[axis] * 0.02);
@@ -530,8 +463,97 @@ test('every part keeps the measured proportions of the real building', () => {
     }
 });
 
+test('the west facade exports its copper bells as visible geometry', () => {
+    const facade = readGlbJson(path.join(ASSET_ROOT, 'glb', '01_west_facade.glb'));
+    const names = meshNodeNames(facade);
+    const copperNodes = names.filter((name) => /copper_nocol_animated/i.test(name));
+    assert.equal(copperNodes.length, 4, 'both towers keep two independent animated bell meshes');
+    const copper = facade.materials?.find((material) => /NDCopper/i.test(material.name || ''));
+    assert.ok(copper, 'the bells keep their copper material in glTF');
+    assert.ok(copperNodes.every((name) => facade.meshes[facade.nodes.find((node) => node.name === name).mesh]
+        .primitives.some((primitive) => (facade.accessors[primitive.indices]?.count || 0) >= 300)),
+    'four open shells export with their rims and clappers');
+    const doors = names.filter((name) => /portal_[02]_door_.*_animated$/i.test(name));
+    assert.equal(doors.length, 4, 'only the two side portals have animated door leaves');
+    assert.ok(!names.some((name) => /portal_1_door_/i.test(name)),
+        'the central CP05 portal remains doorless');
+});
+
+test('the west-facade Blender clip moves door colliders and leaves the CP05 portal doorless', async () => {
+    const facade = readGlbJson(path.join(ASSET_ROOT, 'glb', '01_west_facade.glb'));
+    const model = NOTRE_DAME_MAPS.notre_dame.glbModels.find((entry) => entry.id === 'notre-dame-west-facade');
+    assert.equal(model.animationClock.mode, 'loop');
+    assert.equal(model.animationClock.beatSeconds, 6);
+    assert.equal(model.animationClock.clipName, 'NotreDameMotion');
+    assert.equal(animationDurationSeconds(facade, facade.animations[0]), 12,
+        'the clip loops over two six-second beats');
+
+    const result = await loadGLBMap('assets/maps/notre_dame/glb/01_west_facade.glb', {
+        loader: geometryOnlyGlbLoader,
+        colliderMode: 'scene',
+        animationClock: model.animationClock,
+        modelId: model.id,
+    });
+    const driver = new GlbAnimationDriver();
+    try {
+        driver.setTracks(result.animationTracks);
+        const doorColliders = result.colliders.filter((entry) => /portal_[02]_door_.*_animated/i.test(entry.sourceName));
+        assert.equal(doorColliders.length, 4, 'each visible moving door leaf has a mesh collider');
+        assert.ok(doorColliders.every((entry) => entry.dynamic), 'door collisions follow the animated pivots');
+        assert.equal(result.colliders.filter((entry) => entry.dynamic).length, 4,
+            'decorative swinging bells do not add colliders');
+        const bellPivots = [];
+        result.scene.traverse((node) => {
+            if (/west_facade_tower_(north|south)_bell_[ab]_pivot/.test(node.name)) bellPivots.push(node);
+        });
+        assert.equal(bellPivots.length, 4, 'both towers retain four independent bell pivots');
+        const bellRestRotations = bellPivots.map((pivot) => pivot.quaternion.clone());
+        const center = new THREE.Vector3();
+        let portal0ClosedAtZero = false;
+        let portal2ClosedAtZero = false;
+        let portal0ClosedAtSix = false;
+        let portal2ClosedAtSix = false;
+        for (const seconds of [0, 3, 6, 9, 12]) {
+            driver.setElapsedSeconds(seconds);
+            result.scene.updateMatrixWorld(true);
+            for (const entry of doorColliders) refreshDynamicMeshCollider(entry.meshCollider, entry.box);
+            const sideDoorCenters = doorColliders.map((entry) => {
+                entry.box.getCenter(center);
+                return center.clone();
+            });
+            assert.ok(sideDoorCenters.every((point) => Math.abs(point.z) > 8),
+                `side door sweep stays outside the central portal at ${seconds}s`);
+            const portal0Closed = doorColliders.some((entry) => /portal_0_/i.test(entry.sourceName)
+                && sphereIntersectsStaticMeshCollider(entry.meshCollider,
+                    { x: -61.5, y: 3, z: 13.5 }, 0.3));
+            const portal2Closed = doorColliders.some((entry) => /portal_2_/i.test(entry.sourceName)
+                && sphereIntersectsStaticMeshCollider(entry.meshCollider,
+                    { x: -61.5, y: 3, z: -13.5 }, 0.3));
+            if (seconds === 0) {
+                portal0ClosedAtZero = portal0Closed;
+                portal2ClosedAtZero = portal2Closed;
+            } else if (seconds === 6) {
+                portal0ClosedAtSix = portal0Closed;
+                portal2ClosedAtSix = portal2Closed;
+            }
+        }
+        assert.ok(portal0ClosedAtZero !== portal2ClosedAtZero,
+            'one side portal starts closed while the other is already open');
+        assert.equal(portal0ClosedAtSix, portal2ClosedAtZero,
+            'the first side portal opens when the second closes');
+        assert.equal(portal2ClosedAtSix, portal0ClosedAtZero,
+            'the second side portal opens when the first closes');
+        driver.setElapsedSeconds(1);
+        assert.ok(bellPivots.every((pivot, index) => pivot.quaternion.angleTo(bellRestRotations[index]) > 0.02),
+            'the exported clip visibly swings every bell pivot');
+    } finally {
+        driver.clear();
+        disposeObject3DResources(result.scene);
+    }
+});
+
 test('the parts add up to the cathedral rather than to seven separate buildings', () => {
-    const box = (name) => boundingBox(readGlbJson(path.join(ASSET_ROOT, 'glb', `${name}.glb`)));
+    const box = measuredPartBounds;
 
     const facade = box('01_west_facade');
     const nave = box('02_nave');

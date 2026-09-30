@@ -15,9 +15,7 @@ import { listMenuTextCatalogEntries } from './menu/MenuTextCatalog.js';
 import { MenuTextRuntime } from './menu/MenuTextRuntime.js';
 import { DEFAULT_SHADOW_QUALITY, normalizeShadowQuality, resolveShadowQualityLabel } from '../shared/contracts/ShadowQualityContract.js';
 import { DEFAULT_BLOOM_QUALITY, normalizeBloomQuality, resolveBloomQualityLabel } from '../shared/contracts/BloomQualityContract.js';
-import { normalizeGraphicsStyle } from '../shared/contracts/GraphicsStyleContract.js';
-import { normalizeMapBrightness } from '../shared/contracts/MapBrightnessContract.js';
-import { normalizeViewDistance, resolveViewDistanceLabel } from '../shared/contracts/ViewDistanceContract.js';
+import { syncGraphicsStyleControls } from './menu/MenuGraphicsStyleBindings.js';
 import {
     createDefaultRecordingCaptureSettings,
     normalizeRecordingCaptureSettings,
@@ -543,15 +541,7 @@ export class UIManager {
         applyRangeInputLimits(ui.fightPlayerHpSlider, runtimeLimits.gameplay.fightPlayerHp);
         applyRangeInputLimits(ui.fightMgDamageSlider, runtimeLimits.gameplay.fightMgDamage);
         syncFightMenuTuningUi({ ui, settings, gameplay: gp, config: runtimeConfig });
-        if (ui.graphicsStyleSelect) {
-            ui.graphicsStyleSelect.value = normalizeGraphicsStyle(settings?.localSettings?.graphicsStyle);
-        }
-        if (ui.mapBrightnessSelect) {
-            ui.mapBrightnessSelect.value = normalizeMapBrightness(settings?.localSettings?.mapBrightness);
-        }
-        const viewDistance = normalizeViewDistance(settings?.localSettings?.viewDistance);
-        if (ui.viewDistanceSlider) ui.viewDistanceSlider.value = String(viewDistance);
-        if (ui.viewDistanceLabel) ui.viewDistanceLabel.textContent = resolveViewDistanceLabel(viewDistance);
+        syncGraphicsStyleControls({ ui, settings });
         const shadowQuality = normalizeShadowQuality(settings?.localSettings?.shadowQuality, DEFAULT_SHADOW_QUALITY);
         if (ui.shadowQualitySlider) ui.shadowQualitySlider.value = String(shadowQuality);
         if (ui.shadowQualityLabel) ui.shadowQualityLabel.textContent = resolveShadowQualityLabel(shadowQuality);

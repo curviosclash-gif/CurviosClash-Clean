@@ -1,7 +1,7 @@
 import { MapFireEvolutionController } from './MapFireEvolutionController.js';
 import * as THREE from 'three';
 import { ArenaGeometryCompilePipeline } from './ArenaGeometryCompilePipeline.js';
-import { createArenaBuildSignature, createArenaMapFingerprint, getArenaMaterialBundle } from './ArenaBuildResourceCache.js';
+import { createArenaBuildSignature, createArenaMapFingerprint, getArenaMaterialBundle, getMapFloorMaterial } from './ArenaBuildResourceCache.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleContract.js';
 import { AuthoredMapLightRig } from './AuthoredMapLightRig.js';
@@ -87,7 +87,8 @@ export class ArenaBuilder {
             this.geometryPipeline.beginBuildStage();
             materialBundle = this._resolveMaterialBundle(size);
             this._assignArenaMaterials(materialBundle);
-            this._compileFloorStage(size.sx, size.sz, materialBundle.floorMat);
+            this._compileFloorStage(size.sx, size.sz,
+                getMapFloorMaterial(mapResolution.map?.floorAppearance) || materialBundle.floorMat);
             this.geometryPipeline.compileWallStage({
                 sx: size.sx,
                 sy: size.sy,

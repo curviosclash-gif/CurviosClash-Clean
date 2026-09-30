@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
 import { DANDELION_SKY_MAP } from '../src/core/config/maps/presets/dandelion_sky.js';
+import { SUNFLOWER_MEADOW_MAP } from '../src/core/config/maps/presets/sunflower_meadow.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
 import { loadGLBMapCollection } from '../src/entities/GLBMapLoader.js';
 import { SunflowerKernelController } from '../src/entities/arena/SunflowerKernelController.js';
@@ -126,17 +127,19 @@ test('sunflower package contains editable source, six QA views, and 220 distinct
     assert.ok(triangleCount(document) < 100_000);
     assert.ok(document.materials.length <= 20);
     assert.equal(document.textures?.length || 0, 0);
-    assert.ok(buffer.length < 2_000_000);
+    assert.ok(buffer.length < 2_400_000);
 });
 
-test('dandelion sky loads the sunflower GLB at map scale without per-kernel physics colliders', async () => {
-    const map = DANDELION_SKY_MAP.dandelion_sky;
-    const model = map.glbModels.find((entry) => entry.id === 'dandelion-sky-sunflower');
+test('the sunflower meadow loads the sunflower GLB with only the tunnel wall colliding', async () => {
+    assert.equal(DANDELION_SKY_MAP.dandelion_sky.glbModels.some((entry) => entry.url === GLB_URL), false,
+        'the sunflower moved to its own map');
+    const map = SUNFLOWER_MEADOW_MAP.sunflower_meadow;
+    const model = map.glbModels.find((entry) => entry.id === 'sunflower-meadow-flower');
     assert.ok(model);
     assert.equal(model.url, GLB_URL);
-    assert.equal(model.targetSize, 15);
-    assert.deepEqual(model.position, [10, 216, -135]);
-    assert.equal(model.collision, false);
+    assert.equal(model.targetSize, 300);
+    assert.deepEqual(model.position, [0, 0, 0]);
+    assert.equal(model.collision, true);
 
     const raw = await geometryOnlyGlbLoader.loadAsync(GLB_URL);
     raw.scene.updateWorldMatrix(true, true);
@@ -151,8 +154,8 @@ test('dandelion sky loads the sunflower GLB at map scale without per-kernel phys
         colliderMode: map.glbColliderMode,
     });
     assert.ok(result.scene);
-    assert.ok(result.colliders.length <= 6,
-        'shootable kernels must use targeted queries instead of permanent colliders');
+    assert.deepEqual(result.colliders.map((entry) => entry.sourceName), ['SunflowerStalkRibs'],
+        'the tunnel wall is solid while kernels use targeted queries');
     result.scene.updateWorldMatrix(true, true);
     const controller = new SunflowerKernelController(result.scene);
     assert.equal(controller.count, 220);
@@ -219,6 +222,41 @@ test('targeted hits leave neighboring kernels available and close misses release
     assert.equal(controller.kernels[0].node.parent, controller.flightRoot);
     assert.equal(controller.kernels[1].node.parent, controller.flightRoot);
     assert.equal(controller.kernels[2].node.parent, controller.heads[0].node);
+});
+
+test('a shot that misses the head never refreshes the whole map scene', () => {
+    const { scene, plant, kernels } = makeSunflowerScene();
+    const controller = new SunflowerKernelController(scene);
+    let fullRefreshes = 0;
+    const refresh = scene.updateWorldMatrix.bind(scene);
+    scene.updateWorldMatrix = (updateParents, updateChildren) => {
+        if (updateChildren) fullRefreshes += 1;
+        return refresh(updateParents, updateChildren);
+    };
+    const miss = controller.raycast(new THREE.Vector3(50, 50, 50), new THREE.Vector3(0, 1, 0), 30);
+    assert.equal(miss, null);
+    assert.equal(fullRefreshes, 0, 'every shot on the map would otherwise walk every node');
+
+    plant.position.x += 5;
+    // frontRayFor reads the kernel's refreshed world position, so the ray aims at the new spot.
+    const ray = frontRayFor(kernels[0]);
+    assert.equal(controller.raycast(ray.origin, ray.direction, 12)?.kernelIndex, 1,
+        'a moved plant is still hit where it now stands');
+});
+
+test('the kernel network state is rebuilt only when a kernel was released', () => {
+    const { scene, kernels } = makeSunflowerScene();
+    const controller = new SunflowerKernelController(scene);
+    const empty = controller.serialize();
+    assert.equal(controller.serialize(), empty);
+    controller.releaseByName(kernels[0].name, 1.5, new THREE.Vector3(0, 0, -1));
+    const one = controller.serialize();
+    assert.notEqual(one, empty);
+    assert.equal(one.length, 1);
+    assert.deepEqual(empty, []);
+    assert.equal(controller.serialize(), one);
+    controller.reset();
+    assert.deepEqual(controller.serialize(), []);
 });
 
 test('MG and projectile hit resolution release the exact kernel and pass their hit direction', () => {

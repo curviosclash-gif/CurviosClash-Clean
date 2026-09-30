@@ -71,7 +71,7 @@ export function buildArcadeSurface(level3Body, ui) {
     dailyCard.classList.add('arcade-daily-start-card');
     startGroup.appendChild(dailyCard);
     const alternateModes = createElement('details', 'arcade-start-mode-options');
-    const alternateModesSummary = createElement('summary', 'arcade-start-mode-options-summary', 'Weitere Arcade-Modi (4)');
+    const alternateModesSummary = createElement('summary', 'arcade-start-mode-options-summary', 'Weitere Arcade-Modi (5)');
     alternateModes.appendChild(alternateModesSummary);
     const alternateModesBody = createElement('div', 'arcade-start-mode-options-body');
     const startEndlessButton = createStartOption(alternateModesBody, 'btn-arcade-endless-start-inline', 'Endlosjagd starten',
@@ -80,6 +80,8 @@ export function buildArcadeSurface(level3Body, ui) {
         'Fünf Arenen mit anrollenden Bot-Wellen; zwischen den Wellen wählst du Verbesserungen.');
     const startFivePortalsButton = createStartOption(alternateModesBody, 'btn-arcade-five-portals-start-inline', 'Fünf Portale',
         'Fünf Parcours-Karten auf Zeit; das Ausgangsportal bringt dich jeweils zur nächsten.');
+    const startSkyLadderButton = createStartOption(alternateModesBody, 'btn-arcade-sky-ladder-start-inline', 'Himmelsleiter',
+        'Vier Stufen vom Meeresgrund zu den Sternen – durchs Portal geht es eine Etage höher.');
     const startWeaponRaceButton = createStartOption(alternateModesBody, 'btn-arcade-weapon-race-start-inline', 'Waffenrennen',
         'Fünf Fahrer jagen durch den Angriffsparcours und wechseln ihre Waffe an festen Checkpoints.');
     alternateModes.appendChild(alternateModesBody);
@@ -189,6 +191,7 @@ export function buildArcadeSurface(level3Body, ui) {
     ui.arcadeEndlessStartInlineButton = startEndlessButton;
     ui.arcadeFiveFrontsStartInlineButton = startFiveFrontsButton;
     ui.arcadeFivePortalsStartInlineButton = startFivePortalsButton;
+    ui.arcadeSkyLadderStartInlineButton = startSkyLadderButton;
     ui.arcadeWeaponRaceStartInlineButton = startWeaponRaceButton;
     ui.arcadeSeedRerollButton = rerollSeedButton;
     ui.arcadeSeedCopyButton = copySeedButton;
@@ -222,6 +225,7 @@ export function buildArcadeSurface(level3Body, ui) {
         startEndlessButton,
         startFiveFrontsButton,
         startFivePortalsButton,
+        startSkyLadderButton,
         startWeaponRaceButton,
         rerollSeedButton,
         copySeedButton,

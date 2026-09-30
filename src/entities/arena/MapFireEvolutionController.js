@@ -52,22 +52,6 @@ export class MapFireEvolutionController {
             this.arena.renderer?.updateMapFireLighting?.(this.profile);
             this.lastProgress = skyProgress;
         }
-        // Keep authored machinery brace colliders in the same state as its visible models.
-        const roof = this.state?.segments[0];
-        const removeFrames = roof?.brokenAt >= 0;
-        const obstacles = this.arena._staticStreamingSnapshot?.obstacles || this.arena.obstacles;
-        if (obstacles && removeFrames !== this.framesRemoved) {
-            if (removeFrames) {
-                const ids = this.definition.siteFrameIds;
-                this.frames = obstacles.filter((item) => ids.includes(item.id) || ids.includes(item.sourceId));
-                const removed = new Set(this.frames);
-                let write = 0;
-                for (const item of obstacles) if (!removed.has(item)) obstacles[write++] = item;
-                obstacles.length = write;
-            } else for (const frame of this.frames) if (!obstacles.includes(frame)) obstacles.push(frame);
-            this.framesRemoved = removeFrames;
-            this.arena.staticCollisionRevision = (this.arena.staticCollisionRevision || 0) + 1;
-        }
         for (let i = 0; i < (this.state?.segments.length || 0); i += 1) {
             const segment = this.state.segments[i];
             const modelId = this.arena.currentMapDefinition.destructibles.breakScenes[i].hideModelIds[0];
@@ -79,17 +63,10 @@ export class MapFireEvolutionController {
         }
     }
     clear() {
-        const obstacles = this.arena._staticStreamingSnapshot?.obstacles || this.arena.obstacles;
-        if (obstacles && this.framesRemoved) {
-            for (const frame of this.frames) if (!obstacles.includes(frame)) obstacles.push(frame);
-            this.arena.staticCollisionRevision = (this.arena.staticCollisionRevision || 0) + 1;
-        }
         if (this.restPositions) for (const [root, x] of this.restPositions) root.position.x = x;
         this.definition = null;
         this.state = null;
         this.channels = [];
-        this.frames = [];
-        this.framesRemoved = false;
         this.restPositions = new Map();
         this.lastProgress = -1;
         this.arena.mapFireProgress = null;

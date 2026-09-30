@@ -308,9 +308,10 @@ export class ArcadeScoreHUD {
             this._transitionBanner?.classList?.add('hidden');
             this._arenaWavesSection.style.display = 'block';
             setNodeText(this._scoreValue, formatTimerMs(hudState.currentTimeMs));
-            const mapNumber = Math.min(5, Math.max(1, Number(hudState.mapIndex || 0) + 1));
+            const mapCount = Math.max(1, Number(hudState.mapCount) || 5);
+            const mapNumber = Math.min(mapCount, Math.max(1, Number(hudState.mapIndex || 0) + 1));
             const status = hudState.phase === 'portal' ? '\nZiel erreicht · Goldenes Portal durchfliegen' : '';
-            this._arenaWavesSection.textContent = `Map ${mapNumber}/5: ${resolveArcadeMapLabel(hudState.currentMapKey, hudState.currentMapLabel)}\nCheckpoints ${hudState.checkpoint || 0}/${hudState.checkpointCount || 0} | Respawns ${hudState.respawnsRemaining ?? 3}\nGesamt bisher ${formatTimerMs(hudState.completedTotalMs)}${status}`;
+            this._arenaWavesSection.textContent = `Map ${mapNumber}/${mapCount}: ${resolveArcadeMapLabel(hudState.currentMapKey, hudState.currentMapLabel)}\nCheckpoints ${hudState.checkpoint || 0}/${hudState.checkpointCount || 0} | Respawns ${hudState.respawnsRemaining ?? 3}\nGesamt bisher ${formatTimerMs(hudState.completedTotalMs)}${status}`;
             return;
         }
         if (isArenaWaves) {

@@ -188,7 +188,7 @@ test('desktop build ships Vehicle Lab while the mobile target remains game-only'
         chunkSizeWarningLimit: 1300,
         env: { VITE_APP_MODE: 'app', VITE_APP_TARGET: 'mobile-classic' },
     });
-    assert.deepEqual(Object.keys(mobile.rollupOptions.input), ['app']);
+    assert.deepEqual(Object.keys(mobile.rollupOptions.input), ['app', 'hangar']);
 });
 
 test('Vehicle Lab slug transliterates diacritics instead of dropping them', () => {

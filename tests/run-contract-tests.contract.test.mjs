@@ -8,6 +8,7 @@ import {
     CONTRACT_LOAD_TIME_SCALE,
     CONTRACT_SLOW_FILE_COUNT,
     CONTRACT_TEST_TIMEOUT_MS,
+    buildNodeTestFileArgs,
     buildContractSummaryReporterArgs,
     resolveAutoTimeScaleEnv,
     formatContractSlowFileLines,
@@ -36,6 +37,21 @@ async function collectReporterOutput(events, options = undefined) {
 test('every contract test gets a hard time limit', () => {
     assert.equal(CONTRACT_TEST_TIMEOUT_MS, 120000);
     assert.ok(resolveContractTestArgs({}, 8).includes('--test-timeout=120000'));
+});
+
+test('Windows contract arguments stay short as the suite grows', () => {
+    const files = Array.from({ length: 700 }, (_, index) => `contract-${index}.test.mjs`);
+    files.push('nested/another.test.mjs');
+    const args = buildNodeTestFileArgs(files, 'fast', 'win32');
+    assert.deepEqual(args, [
+        'tests/!(electron-renderer-dist-drift.contract).test.mjs',
+        'tests/nested/!(electron-renderer-dist-drift.contract).test.mjs',
+    ]);
+    assert.ok(args.join(' ').length < 1000);
+    assert.deepEqual(
+        buildNodeTestFileArgs(['electron-renderer-dist-drift.contract.test.mjs'], 'dist', 'win32'),
+        [path.join('tests', 'electron-renderer-dist-drift.contract.test.mjs')],
+    );
 });
 
 const FORCE_EXIT = '--test-force-exit';

@@ -84,14 +84,16 @@ def datasheet(report: dict, textures: dict[str, dict[str, str]] | None = None) -
         "",
         f"- Triangles: **{report['triangles']}** (budget {report['budget_triangles']})",
         f"- Vertices: {sum(report['vertices'].values())} across {report['mesh_count']} meshes",
-        f"- Bones: **{report['bones']}**, at most 4 influences per vertex, "
+        f"- Bones: **{report['bones']}** (including one gaze bone per eye), "
+        f"at most 4 influences per vertex, "
         f"{sum(item['unweighted'] for item in report['weights'].values())} unweighted vertices",
         f"- Materials: {len(summary['materials'])} ({', '.join(sorted(summary['materials']))})",
-        f"- Textures: {len(summary['images'])} embedded PNG maps",
+        f"- Textures: {len(summary['images'])} embedded PNG maps, ambient occlusion baked in",
         f"- Clips: {len(clips)} — " + ", ".join(f"{item['name']} ({item['seconds']:.2f} s)" for item in clips),
         f"- Looping clips: {', '.join(report.get('looping_clips', []))}",
-        f"- Size: height {report['measurements']['height']} m, soles on z = {report['measurements']['ground']} m, "
-        f"arm span {report['measurements']['width']} m",
+        f"- Size: height {report['measurements']['height']} m, soles on z = "
+        f"{report['measurements']['ground']} m, width in the A-pose "
+        f"{report['measurements']['width']} m",
         f"- Files: `.blend` {(files['blend_bytes'] / 1024 / 1024):.2f} MiB, "
         f"`.glb` {(files['glb_bytes'] / 1024 / 1024):.2f} MiB, "
         f"`.fbx` {(files.get('fbx_bytes', 0) / 1024 / 1024):.2f} MiB",
@@ -100,6 +102,42 @@ def datasheet(report: dict, textures: dict[str, dict[str, str]] | None = None) -
         f"{report['round_trip']['missing'] or 'none'}",
         "",
     ]
+    audit = report.get("audit")
+    exposure = report.get("exposure") or {}
+    if exposure.get("total_vertices"):
+        lines.append(f"- Skin coverage: {exposure['exposed_vertices']} of "
+                     f"{exposure['total_vertices']} body vertices "
+                     f"({exposure['ratio']:.1%}) are bare skin, most on the "
+                     f"{exposure['worst_region']}; head and hands are meant to be bare.")
+        for warning in exposure.get("warnings", []):
+            lines.append(f"  - {warning}")
+        lines.append("")
+    if audit:
+        lines.append("Proportions, measured on the built model against the anthropometric "
+                     "reference of a 1.80 m adult:")
+        lines.append("")
+        lines.append("| Measure | Built | Reference | Deviation |")
+        lines.append("| --- | --- | --- | --- |")
+        for group in ("joints", "lengths", "breadths"):
+            for label, entry in audit.get(group, {}).items():
+                lines.append(f"| {label.replace('_', ' ')} | {entry['built']:.3f} m | "
+                             f"{entry['reference']:.3f} m | {entry['delta']:+.1%} |")
+        head = audit.get("head")
+        if head:
+            lines.append(f"| head (including ears) | {head['breadth']:.3f} m | "
+                         f"{spec.ANTHROPOMETRY['head_breadth']:.3f} m skull | — |")
+        span = audit.get("arm_span") or {}
+        if span.get("built"):
+            lines.append(f"| arm span, T-pose | {span['built']:.3f} m | "
+                         f"{span['reference'][0]:.2f}-{span['reference'][1]:.2f} x height | "
+                         f"{span['ratio']:.2f} x height |")
+        lines.append("")
+        if audit.get("warnings"):
+            lines.append("Open deviations:")
+            lines.append("")
+            for warning in audit["warnings"]:
+                lines.append(f"- {warning}")
+            lines.append("")
     return "\n".join(lines)
 
 

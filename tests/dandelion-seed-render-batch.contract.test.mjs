@@ -35,7 +35,24 @@ test('large shootable crowns batch a bounded number of geometry variants', () =>
         estimatedDrawCalls: 8,
     });
     assert.ok(seeds.every((seed) => seed.node.visible === false));
-    assert.ok(batch.root.children.every((mesh) => mesh.isInstancedMesh && mesh.frustumCulled === false));
+    assert.ok(batch.root.children.every((mesh) => mesh.isInstancedMesh));
+});
+
+test('batches stay frustum culled with bounds that follow every committed instance', () => {
+    const { scene, seeds } = makeBatchFixture();
+    const batch = DandelionSeedRenderBatch.create(scene, seeds);
+    const seed = seeds[5];
+    const entry = batch._entriesBySeed.get(seed)[0];
+    assert.ok(batch.root.children.every((mesh) => mesh.frustumCulled === true),
+        'a crown the camera looks away from must not be drawn');
+    assert.ok(entry.mesh.boundingSphere.containsPoint(seed.node.position));
+
+    seed.node.position.set(0, 60, 0);
+    batch.beginUpdate();
+    batch.updateSeed(seed, true);
+    batch.commit();
+    assert.ok(entry.mesh.boundingSphere.containsPoint(seed.node.position),
+        'an airborne seed keeps its batch drawable wherever it drifts');
 });
 
 test('render instances follow logical seed transforms and can be hidden without allocation churn', () => {

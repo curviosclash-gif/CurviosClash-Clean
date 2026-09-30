@@ -75,26 +75,27 @@ const EIFFEL_STRUCTURE = [
 ];
 
 // The two inclined leg lifts. The file is modelled in one leg's own frame -- the track climbs
-// along +Y as it rises -- so a yaw of a quarter turn puts it on the north-east leg and a yaw of
-// five eighths of a turn puts the second one on the opposite leg. The file recentres on its own
+// along +Y as it rises -- so a yaw of an eighth of a turn puts it on the north-east leg and a yaw
+// of five eighths of a turn puts the second one on the opposite leg. The file recentres on its own
 // box, which sits 20.58 m up the track, so the position is the leg foot pulled back by that much
 // along the same diagonal: 62.5 - 20.58 / sqrt(2) = 47.95.
 const ELEVATOR_ANCHOR = 47.95;
-const QUARTER_TURN = Math.PI / 4;
+const EIGHTH_TURN = Math.PI / 4;
 
 // The moving parts. The offsets are the level design: the iris under the tower and the north-east
-// lift are what a run meets first, so they start half a beat apart and never present the same
-// opening at the same moment. The beacon runs on zero, so a player crossing the summit meets its
-// sweep at the same point of the loop on every attempt.
+// lift are what a run meets first, so their phase offsets stagger the openings initially. The
+// 9-second iris and 14-second lifts then drift against the map's 4-second beat. The beacon runs on
+// zero, so a player crossing the summit meets its sweep at the same point of the loop on every attempt.
 const EIFFEL_MACHINES = [
     // The way up through the middle of the tower, and the first thing a run has to read rather
     // than simply aim at.
     machine('illumination-iris', '12_illumination_ring', 'IlluminationRingLoop', 0.5, [0, 19.2, 0]),
-    // The two leg lifts, on opposite legs so the tower never looks half-abandoned.
+    // The two leg lifts, on opposite legs so the tower never looks half-abandoned. Their tracks
+    // sit at 45 degrees to the map axes, an eighth of a turn.
     machine('lift-north-east', '09_leg_elevator', 'LegElevatorLoop', 0,
-        [ELEVATOR_ANCHOR, -0.15, ELEVATOR_ANCHOR], QUARTER_TURN),
+        [ELEVATOR_ANCHOR, -0.15, ELEVATOR_ANCHOR], EIGHTH_TURN),
     machine('lift-south-west', '09_leg_elevator', 'LegElevatorLoop', 2 / 3,
-        [-ELEVATOR_ANCHOR, -0.15, -ELEVATOR_ANCHOR], QUARTER_TURN + Math.PI),
+        [-ELEVATOR_ANCHOR, -0.15, -ELEVATOR_ANCHOR], EIGHTH_TURN + Math.PI),
     // The summit lift, inside the upper shaft. The shaft is the map's shortcut, and this is the
     // reason taking it costs something.
     machine('summit-lift', '10_shaft_lift', 'ShaftLiftLoop', 1 / 3, [0, 118.6, 0]),

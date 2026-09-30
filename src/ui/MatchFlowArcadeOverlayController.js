@@ -467,7 +467,7 @@ export class MatchFlowArcadeOverlayController {
         if (runtimeState?.runType !== 'five_portals' || !summary || !Array.isArray(summary.maps)) return false;
         const panel = this._ensureArcadeOverlayPanel(); if (!panel) return false;
         while (panel.firstChild) panel.removeChild(panel.firstChild);
-        const title = document.createElement('h2'); title.textContent = 'Fünf Portale abgeschlossen';
+        const title = document.createElement('h2'); title.textContent = `${runtimeState?.chainLabel || 'Fünf Portale'} abgeschlossen`;
         const list = createArcadeCardScroller(createFivePortalsBlocks(summary), 'Zeiten', 'Keine Zeiten.');
         const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Schließen';
         close.addEventListener('click', () => { panel.classList.add('hidden'); this.game?.ui?.messageOverlay?.classList?.add?.('hidden'); });
