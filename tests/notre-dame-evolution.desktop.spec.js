@@ -37,6 +37,10 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
                 game.renderer.renderer.render(game.renderer.scene, camera);
                 samples.push({ at, image: game.renderer.renderer.domElement.toDataURL('image/png'),
                     progress: arena.mapFireProgress, events: system.state.events.map((entry) => entry.segmentId),
+                    vaultProbeBlockers: at < 350 ? null : [-68, -52, -36, -20, -4].map((x) => {
+                        const hit = arena.getCollisionInfo({ x: x * 3, y: 55 * 3, z: 0 }, 1.6);
+                        return hit?.obstacle?.sourceName || hit?.obstacle?.sourceId || hit?.kind || null;
+                    }),
                     sky: structuredClone(game.renderer.getMapLighting().skyDome),
                     roofSolid: solid(-34.65, 60, 12),
                     finishBlockers: (() => {
@@ -69,6 +73,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
         expect(proof.samples[0].constructionFrames).toBe(0);
         const lateFire = proof.samples.find((sample) => sample.at === 350);
         expect(lateFire.events).toEqual(['roof','nave','transept']);
+        expect(lateFire.vaultProbeBlockers).toEqual([null, null, null, null, null]);
         expect(lateFire.roofSolid).toBe(false);
         expect(lateFire.constructionFrames).toBe(0);
         expect(lateFire.sky.zenithColor).toBe(0x050912);
