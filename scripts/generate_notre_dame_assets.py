@@ -30,6 +30,7 @@ still carry the _nocol suffix so they stay excluded even if that mode ever chang
 from math import asin, atan2, cos, hypot, pi, radians, sin
 from pathlib import Path
 
+import bmesh
 import bpy
 
 
@@ -91,9 +92,15 @@ LEAD = (0.35, 0.37, 0.39, 1.0)
 OAK = (0.27, 0.17, 0.09, 1.0)
 COPPER_AGED = (0.24, 0.47, 0.42, 1.0)
 GOLD = (0.86, 0.68, 0.26, 1.0)
-GLASS_BLUE = (0.11, 0.19, 0.62, 1.0)
-GLASS_RED = (0.64, 0.13, 0.15, 1.0)
-GLASS_WARM = (0.92, 0.72, 0.38, 1.0)
+# Stained glass by daylight is nearly black: its colour is light coming through, not paint on
+# the surface. Every pane shares one near-black base and carries its hue as emission with a
+# single dominant channel, so blue stays blue under the tone mapper instead of bleaching white.
+GLASS_BASE = (0.018, 0.018, 0.024, 1.0)
+GLASS_BLUE = (0.10, 0.22, 1.0, 1.0)
+GLASS_RED = (1.0, 0.12, 0.08, 1.0)
+GLASS_WARM = (1.0, 0.45, 0.10, 1.0)
+# From outside the same panes show only a trace of their hue, the way real ones do by day.
+GLASS_OUTSIDE_STRENGTH = 0.3
 SLATE = (0.20, 0.21, 0.24, 1.0)
 FOLIAGE = (0.17, 0.31, 0.13, 1.0)
 WATER = (0.15, 0.26, 0.31, 1.0)
@@ -121,7 +128,8 @@ def reset_scene(name):
     return scene
 
 
-def material(name, color, emission_strength=0.0, metallic=0.0, roughness=0.68):
+def material(name, color, emission_strength=0.0, metallic=0.0, roughness=0.68,
+             emission_color=None):
     value = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     value.diffuse_color = color
     value.use_nodes = True
@@ -132,13 +140,45 @@ def material(name, color, emission_strength=0.0, metallic=0.0, roughness=0.68):
         metallic_input.default_value = metallic
     shader.inputs["Roughness"].default_value = roughness
     if emission_strength > 0:
-        shader.inputs["Emission Color"].default_value = color
+        shader.inputs["Emission Color"].default_value = emission_color or color
         shader.inputs["Emission Strength"].default_value = emission_strength
     return value
 
 
+def glass_materials(mats, key, name, hue, strength):
+    """A lit glass for the interior and its dim `...Outside` twin for the faces that look out.
+
+    glTF has no per-side material, so the panes split by face instead (see shade_outer_faces).
+    The hue's dominant channel is 1.0, which makes the exported emission read back as exactly
+    `strength` -- the number the glass contract checks.
+    """
+    mats[key] = material(name, GLASS_BASE, strength, 0.0, 0.14, emission_color=hue)
+    mats[f"{key}_outside"] = material(f"{name}Outside", GLASS_BASE, GLASS_OUTSIDE_STRENGTH,
+                                      0.0, 0.14, emission_color=hue)
+
+
+def outside_glass(mat_glass):
+    return bpy.data.materials[f"{mat_glass.name}Outside"]
+
+
+def shade_outer_faces(obj, mat_glass, outward):
+    """Give the faces of a pane that turn toward the outside the dim twin of its glass.
+
+    The geometry and therefore the part's bounding box stay exactly as they were; only the
+    faces whose normal points along `outward` change slot, so the lit side is what the flight
+    path through the interior sees and the dark side is what the approach sees.
+    """
+    obj.data.materials.append(outside_glass(mat_glass))
+    rotation = obj.rotation_euler.to_matrix()
+    for polygon in obj.data.polygons:
+        normal = rotation @ polygon.normal
+        if normal.x * outward[0] + normal.y * outward[1] + normal.z * outward[2] > 0.25:
+            polygon.material_index = 1
+    return obj
+
+
 def build_materials():
-    return {
+    mats = {
         "stone": material("NDStone", LIMESTONE, roughness=0.82),
         "stone_shaded": material("NDStoneShaded", LIMESTONE_SHADED, roughness=0.86),
         "stone_dark": material("NDStoneDark", LIMESTONE_DARK, roughness=0.9),
@@ -146,9 +186,6 @@ def build_materials():
         "oak": material("NDOak", OAK, roughness=0.88),
         "copper": material("NDCopper", COPPER_AGED, metallic=0.4, roughness=0.6),
         "gold": material("NDGold", GOLD, 1.2, 0.85, 0.28),
-        "glass_blue": material("NDGlassBlue", GLASS_BLUE, 2.6, 0.0, 0.14),
-        "glass_red": material("NDGlassRed", GLASS_RED, 2.4, 0.0, 0.14),
-        "glass_warm": material("NDGlassWarm", GLASS_WARM, 2.0, 0.0, 0.16),
         "slate": material("NDSlate", SLATE, roughness=0.78),
         "foliage": material("NDFoliage", FOLIAGE, roughness=0.92),
         "water": material("NDWater", WATER, metallic=0.2, roughness=0.22),
@@ -158,6 +195,10 @@ def build_materials():
         "rope": material("NDRope", ROPE, roughness=0.9),
         "signal": material("NDSignal", SIGNAL, 3.4, 0.0, 0.2),
     }
+    glass_materials(mats, "glass_blue", "NDGlassBlue", GLASS_BLUE, 1.15)
+    glass_materials(mats, "glass_red", "NDGlassRed", GLASS_RED, 1.0)
+    glass_materials(mats, "glass_warm", "NDGlassWarm", GLASS_WARM, 0.9)
+    return mats
 
 
 def finish_mesh(obj, name, mat):
@@ -313,13 +354,54 @@ def flying_arch(name, mat, *, springing, landing, steps=6, thickness=0.6, width=
     return pieces
 
 
-def rose_window(name, mat_frame, mat_glass, *, center, radius, spokes=12, axis="x"):
-    """A rose window: two concentric rings, radial mullions in two tiers, and a glazed disc.
+def rose_glass(name, palette, *, center, radius, spokes, axis, outward, depth=0.12):
+    """The glazing of a rose: one wedge per outer spoke, coloured in sectors.
+
+    A single-colour disc read as a lamp. Real roses alternate a ground colour with two accents,
+    so the wedges follow primary, secondary, primary, accent round the circle. Each wedge is a
+    lit triangle on the inside and a dim one on the outside, `depth` apart -- the old closed
+    cylinder paid for a rim and two ngon caps that nothing needed. The wedge edges sit on the
+    spoke angles, so the mullions cover every colour seam.
+    """
+    pattern = (0, 1, 0, 2)
+    slots = list(palette) + [outside_glass(mat) for mat in palette]
+    vertices = []
+    faces = []
+    face_slots = []
+    for layer, lift in ((0, -depth / 2), (1, depth / 2)):
+        base = len(vertices)
+        normal = [value * lift for value in outward]
+        hub = (center[0] + normal[0], center[1] + normal[1], center[2] + normal[2])
+        vertices.append(hub)
+        for index in range(spokes):
+            angle = index * (2 * pi / spokes)
+            across, up = cos(angle) * radius, sin(angle) * radius
+            vertices.append((hub[0] + (0 if axis == "x" else across),
+                             hub[1] + (across if axis == "x" else 0), hub[2] + up))
+        for index in range(spokes):
+            faces.append((base, base + 1 + index, base + 1 + (index + 1) % spokes))
+            face_slots.append(pattern[index % len(pattern)] + layer * len(palette))
+
+    mesh = bpy.data.meshes.new(f"{name}_mesh")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    for mat in slots:
+        mesh.materials.append(mat)
+    for polygon, slot in zip(mesh.polygons, face_slots):
+        polygon.material_index = slot
+    return obj
+
+
+def rose_window(name, mat_frame, palette, *, center, radius, spokes=12, axis="x", outward):
+    """A rose window: two concentric rings, radial mullions in two tiers, and glazed sectors.
 
     The tracery is the whole character of a rose -- a plain ring with spokes reads as a wheel, so
     the outer tier is doubled and the ring of foils between the spokes is what the eye picks up
     from a distance. The glass is emissive so the window carries colour inward the way the real
-    ones do, and every piece is _nocol because a rose must never block a flight path.
+    ones do, and every piece is _nocol because a rose must never block a flight path. `palette`
+    is (ground, secondary, accent); `outward` points out of the building.
     """
     plane_rotation = (0, pi / 2, 0) if axis == "x" else (pi / 2, 0, 0)
     torus(f"{name}_ring_nocol", center, radius, radius * 0.07, mat_frame, plane_rotation, 20)
@@ -356,33 +438,30 @@ def rose_window(name, mat_frame, mat_glass, *, center, radius, spokes=12, axis="
             radius * 0.1, 0.09, mat_frame, 6, plane_rotation,
         )
 
-    cylinder(f"{name}_glass_nocol", center, radius * 0.94, 0.12, mat_glass, 20, plane_rotation)
+    rose_glass(f"{name}_glass_nocol", palette, center=center, radius=radius * 0.94,
+               spokes=spokes, axis=axis, outward=outward)
 
 
-def lancet_window(name, mat_glass, *, center, width, height, depth=0.22, axis="x"):
-    """A tall pointed window: a rectangle with a small arch of glass on top."""
-    if axis == "x":
-        cube(f"{name}_pane_nocol", center, (depth / 2, width / 2, height / 2), mat_glass)
-        cone(
-            f"{name}_head_nocol",
-            (center[0], center[1], center[2] + height / 2 + width * 0.35),
-            width / 2,
-            0.0,
-            width * 0.7,
-            mat_glass,
-            vertices=6,
-        )
-    else:
-        cube(f"{name}_pane_nocol", center, (width / 2, depth / 2, height / 2), mat_glass)
-        cone(
-            f"{name}_head_nocol",
-            (center[0], center[1], center[2] + height / 2 + width * 0.35),
-            width / 2,
-            0.0,
-            width * 0.7,
-            mat_glass,
-            vertices=6,
-        )
+def lancet_window(name, mat_glass, *, center, width, height, depth=0.22, axis="x", outward):
+    """A tall pointed window: a rectangle with a small arch of glass on top.
+
+    The shapes are unchanged on purpose: the heads set the outer bounds of the facade and the
+    nave, and the preset places each part by its bounding box. Only the outward faces switch to
+    the dim outside glass.
+    """
+    scale = (depth / 2, width / 2, height / 2) if axis == "x" else (width / 2, depth / 2,
+                                                                  height / 2)
+    shade_outer_faces(cube(f"{name}_pane_nocol", center, scale, mat_glass), mat_glass, outward)
+    head = cone(
+        f"{name}_head_nocol",
+        (center[0], center[1], center[2] + height / 2 + width * 0.35),
+        width / 2,
+        0.0,
+        width * 0.7,
+        mat_glass,
+        vertices=6,
+    )
+    shade_outer_faces(head, mat_glass, outward)
 
 
 def pinnacle(name, mat, *, base, height, width):
@@ -571,9 +650,9 @@ def build_west_facade(mats):
     cube("facade_wall_rose_sill", (wall_x, 0, 22.0),
          (wall_half, WEST_ROSE_RADIUS + 1.2, 1.1), stone)
     rose_window(
-        "facade_west_rose", shaded, mats["glass_blue"],
+        "facade_west_rose", shaded, (mats["glass_blue"], mats["glass_red"], mats["glass_warm"]),
         center=(WEST_FRONT_X + FACADE_DETAIL_X, 0, 26.5),
-        radius=WEST_ROSE_RADIUS, spokes=16, axis="x",
+        radius=WEST_ROSE_RADIUS, spokes=16, axis="x", outward=(-1, 0, 0),
     )
     for side in (-1, 1):
         for twin in (-1, 1):
@@ -581,7 +660,7 @@ def build_west_facade(mats):
                 f"facade_lancet_{'n' if side > 0 else 's'}{'a' if twin > 0 else 'b'}",
                 mats["glass_warm"],
                 center=(WEST_FRONT_X + FACADE_DETAIL_X, side * 14.5 + twin * 3.0, 26.0),
-                width=2.4, height=8.0, axis="x",
+                width=2.4, height=8.0, axis="x", outward=(-1, 0, 0),
             )
 
     # Chimera gallery: the open colonnade that ties the two towers together at 43 m, and the
@@ -620,7 +699,7 @@ def build_west_facade(mats):
             lancet_window(
                 f"facade_tower_{tag}_light_{'a' if twin > 0 else 'b'}", mats["glass_warm"],
                 center=(WEST_FRONT_X + FACADE_DETAIL_X, center_y + twin * 3.2, 54.0),
-                width=2.8, height=15.0, axis="x",
+                width=2.8, height=15.0, axis="x", outward=(-1, 0, 0),
             )
             tracery(
                 f"facade_tower_{tag}_tracery_{'a' if twin > 0 else 'b'}", shaded,
@@ -724,10 +803,12 @@ def build_nave(mats):
             lancet_window(
                 f"nave_clerestory_{bay}_{side}", mats["glass_warm"],
                 center=(bay_x, side * CLERESTORY_HALF, 25.0), width=3.2, height=7.6, axis="y",
+                outward=(0, side, 0),
             )
             lancet_window(
                 f"nave_aisle_window_{bay}_{side}", mats["glass_blue"],
                 center=(bay_x, side * AISLE_OUTER, 6.4), width=2.6, height=5.6, axis="y",
+                outward=(0, side, 0),
             )
             # Aisle vault, low and dark, the flyable side route under the tribune.
             rib_vault_bay(
@@ -772,9 +853,10 @@ def build_transept(mats):
 
         rose_window(
             f"transept_{tag}_rose", shaded,
-            mats["glass_red"] if side > 0 else mats["glass_blue"],
+            (mats["glass_red"], mats["glass_blue"], mats["glass_warm"]) if side > 0
+            else (mats["glass_blue"], mats["glass_red"], mats["glass_warm"]),
             center=(CROSSING_CENTER_X, gable_y - side * 0.7, 25.0),
-            radius=TRANSEPT_ROSE_RADIUS, spokes=16, axis="y",
+            radius=TRANSEPT_ROSE_RADIUS, spokes=16, axis="y", outward=(0, side, 0),
         )
         # The band of tall lancets that carries the rose, glazed in the opposite colour.
         for index in range(7):
@@ -782,7 +864,7 @@ def build_transept(mats):
                 f"transept_{tag}_lancet_{index}",
                 mats["glass_blue"] if side > 0 else mats["glass_red"],
                 center=(CROSSING_CENTER_X - 6.0 + index * 2.0, gable_y - side * 0.7, 15.6),
-                width=1.5, height=5.6, axis="y",
+                width=1.5, height=5.6, axis="y", outward=(0, side, 0),
             )
         tracery(f"transept_{tag}_lancet_tracery", shaded,
                 center=(CROSSING_CENTER_X, gable_y - side * 0.8, 15.6),
@@ -842,6 +924,7 @@ def build_transept(mats):
                 mats["glass_warm"],
                 center=(arm_x, side * (TRANSEPT_HALF + AISLE_OUTER) / 2, 8.0),
                 width=2.4, height=6.4, axis="x",
+                outward=(-1 if arm_x < CROSSING_CENTER_X else 1, 0, 0),
             )
 
     # The four crossing piers carry the spire above; they are the heaviest supports in the church.
@@ -894,6 +977,7 @@ def build_choir_apse(mats):
             lancet_window(
                 f"choir_clerestory_{bay}_{side}", mats["glass_red"],
                 center=(bay_x, side * CLERESTORY_HALF, 25.0), width=3.0, height=7.2, axis="y",
+                outward=(0, side, 0),
             )
             if bay < CHOIR_BAYS - 1:
                 pointed_arch(
@@ -931,7 +1015,7 @@ def build_choir_apse(mats):
         lancet_window(
             f"apse_chapel_window_{index}", mats["glass_blue"],
             center=(outer_x + 1.6 * cos(angle), outer_y + 1.6 * sin(angle), 6.0),
-            width=2.2, height=5.4, axis="y",
+            width=2.2, height=5.4, axis="y", outward=(cos(angle), sin(angle), 0),
         )
         cone(f"apse_chapel_roof_{index}_nocol", (outer_x, outer_y, AISLE_VAULT_Z + 1.6),
              CHAPEL_DEPTH, 0.0, 3.2, mats["lead"], vertices=6)
@@ -1209,9 +1293,41 @@ def merge_static_meshes(part_name):
         suffix = material_name[2:].lower() if material_name.startswith("ND") else material_name
         target.name = f"{part_name}_{suffix}{'_' + role if role else ''}"
         target.data.name = f"{target.name}_mesh"
+        if role == "nocol":
+            removed = remove_opposing_duplicates(target)
+            if removed:
+                print(f"{target.name}: removed {removed} hidden opposing faces")
         merged.append(target.name)
     bpy.ops.object.select_all(action="DESELECT")
     return merged
+
+
+def remove_opposing_duplicates(obj):
+    """Delete pairs of faces that sit on the same vertices but face opposite ways.
+
+    Two primitives that touch exactly -- a lintel on a pier, a cap on a shaft -- leave one face
+    each on the shared plane, back to back, where no camera can ever see them. Only the
+    decorative _nocol meshes are cleaned: collision and foam meshes keep every face they were
+    authored with. The vertices stay, so the bounding box the preset places by cannot move.
+    """
+    mesh = bmesh.new()
+    mesh.from_mesh(obj.data)
+    mesh.normal_update()
+    open_faces = {}
+    doomed = []
+    for face in mesh.faces:
+        key = tuple(sorted(tuple(round(value, 4) for value in vert.co) for vert in face.verts))
+        twin = open_faces.get(key)
+        if twin is not None and twin.normal.dot(face.normal) < -0.99:
+            doomed.extend((twin, face))
+            del open_faces[key]
+        else:
+            open_faces[key] = face
+    if doomed:
+        bmesh.ops.delete(mesh, geom=doomed, context="FACES_ONLY")
+        mesh.to_mesh(obj.data)
+    mesh.free()
+    return len(doomed)
 
 
 def scene_bounds():
