@@ -95,7 +95,7 @@ const NOTRE_DAME_FABRIC = [
     stone('west-facade', '01_west_facade', -59.31, 0),
     stone('nave', '02_nave', -24.75, -0.8),
     stone('transept', '03_transept', 12.25, -0.8),
-    stone('choir-apse', '04_choir_apse', 41.76, -0.8),
+    stone('choir-apse', '04_choir_apse', 41.4, -0.8),
     stone('buttresses', '05_buttresses', 5.15, 0),
     stone('roof-fleche', '06_roof_fleche', 4.5, 14.06),
 ];

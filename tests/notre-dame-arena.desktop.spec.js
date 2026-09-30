@@ -48,8 +48,11 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
             window.GAME_INSTANCE.arena._mergedObstacleEdges,
             window.GAME_INSTANCE.arena._mergedFoamEdges,
         ].filter(Boolean).length,
+        // Retain a positive GLB-backed solid probe on the parvis island, away from J6's open gallery.
         authoredCollisionSolid: window.GAME_INSTANCE.arena
-            .checkCollisionFast({ x: -249, y: 168, z: -60.9 }, 0.1),
+            .checkCollisionFast({ x: -67.2, y: 21.48, z: 0 }, 0.1),
+        galleryOpeningClear: !window.GAME_INSTANCE.arena
+            .checkCollisionFast({ x: -249, y: 183.6, z: 0 }, 0.1),
     }));
     expect(state.authoredObstacleCount).toBeGreaterThan(0);
     expect(state).toEqual({
@@ -60,5 +63,6 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
         authoredObstacleCount: state.authoredObstacleCount,
         authoredObstacleVisuals: 2,
         authoredCollisionSolid: true,
+        galleryOpeningClear: true,
     });
 });

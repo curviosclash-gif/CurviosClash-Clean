@@ -264,6 +264,22 @@ test('the route runs three branches through the building and stays inside the ar
     }
 });
 
+test('the high route visits both belfries and finishes inside the spire lantern', () => {
+    const checkpoint = (id) => map.parcours.checkpoints.find((entry) => entry.id === id);
+    for (const id of ['CP13', 'CP14']) {
+        const ring = checkpoint(id);
+        assert.ok(ring, `${id} exists`);
+        const heightMetres = (ring.pos[1] - GROUND) / METRE;
+        assert.ok(heightMetres >= 46 && heightMetres <= 61, `${id} is between 46 m and 61 m`);
+    }
+
+    const [finishX, finishY, finishZ] = map.parcours.finish.pos;
+    assert.ok(Math.abs(finishX - 17.15) < 0.3 && Math.abs(finishZ) < 0.1,
+        'the finish sits on the spire axis');
+    assert.ok(Math.abs((finishY - GROUND) / METRE - 72) < 0.1,
+        'the finish is inside the 69-77 m lantern');
+});
+
 /**
  * Whether a point in authored units sits inside hard collision. Mirrors the three obstacle
  * shapes ArenaGeometryCompilePipeline compiles: a plain box, a box with a bore through it, and
@@ -389,6 +405,9 @@ test('the interior is the hall it is drawn as, floor to vault to attic', () => {
     for (const metres of [50, 65, 80, 94]) {
         assert.ok(isSolid([17.15, GROUND + metres * METRE, 0]), `the spire is solid at ${metres} m`);
     }
+    assert.ok(!isSolid([17.15, GROUND + 72 * METRE, 0]), 'the lantern centre stays open');
+    assert.ok(isSolid([17.15 + 5.32, GROUND + 72 * METRE, 0]),
+        'the lantern ring supports remain collidable');
     // The crossing under it stays the open shaft the route branches in.
     assert.ok(!isSolid([17.15, GROUND + 20 * METRE, 0]), 'the crossing stays open');
 });

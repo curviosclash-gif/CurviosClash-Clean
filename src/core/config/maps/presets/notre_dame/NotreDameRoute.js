@@ -6,8 +6,7 @@
 // west rose. Both land in the nave. Inside, the choice is height -- the timber attic above the
 // vault, or the dark aisle beside it. They meet at the crossing under the spire. The choir offers
 // the last pair, the high vessel or the ambulatory round the chapels, and both come out at the
-// apse. The return leg runs outside, threading the flying buttresses, and finishes at the spire
-// east quay beyond the building.
+// apse. The return route crosses the two open bell chambers before climbing to the spire lantern.
 //
 // Coordinates are authored units with the church floor at y = 8, matching NotreDameStructure.
 
@@ -15,7 +14,6 @@ import {
     GROUND,
     AISLE_RUN,
     NAVE_VAULT,
-    ROOF_RIDGE,
     CROSSING_CENTRE,
 } from './NotreDameStructure.js';
 
@@ -86,7 +84,7 @@ const NOTRE_DAME_CHECKPOINTS = [
     {
         id: 'CP10',
         type: 'branch_entry',
-        pos: [32, GROUND + 30, 0],
+        pos: [32, GROUND + 32, 0],
         radius: 6.0,
         forward: [1, 0, 0],
         nextIds: ['CP11_CHOIR', 'CP11_AMBULATORY'],
@@ -112,21 +110,17 @@ const NOTRE_DAME_CHECKPOINTS = [
     // Both choir branches meet inside the apse and leave east through the opening in its end
     // wall, so the ring stands in the vessel and faces the way out rather than up into the roof.
     { id: 'CP12', type: 'apse_merge', pos: [85, GROUND + 15, 0], radius: 5.4, forward: [1, 0.1, 0] },
-    // The return leg runs outside, between the buttress piers. It picks up the north side at the
-    // first gap east of the transept -- the arm itself carries no piers to thread.
-    { id: 'CP13', type: 'buttress_run', pos: [41, GROUND + 33, 36], radius: 5.4, forward: [-0.95, 0, -0.3] },
-    // Over the roof and away east. The ring faces the average of the two legs meeting here: a
-    // player arrives climbing from the north buttresses and leaves descending to the east, so a
-    // ring aimed at either one alone would sit edge-on to the other.
-    { id: 'CP14', type: 'roof_crest', pos: [CROSSING_CENTRE, ROOF_RIDGE + 12, -52], radius: 5.6, forward: [0.85, 0.12, -0.51] },
+    // Both rings stay in the requested 46-61 m height band and above the hanging bells.
+    { id: 'CP13', type: 'south_belfry', pos: [-83, GROUND + 57 * 1.4, 20.3], radius: 3.4, forward: [-0.67, 0.34, -0.62] },
+    { id: 'CP14', type: 'north_belfry', pos: [-83, GROUND + 61 * 1.4, -20.3], radius: 3.4, forward: [0.78, 0.22, -0.61] },
 ];
 
 const NOTRE_DAME_FINISH = {
     id: 'FINISH',
     type: 'finish',
-    pos: [110, GROUND + 15, 0],
-    radius: 7.2,
-    forward: [1, 0.2, 0],
+    pos: [CROSSING_CENTRE, GROUND + 72 * 1.4, 0],
+    radius: 4.0,
+    forward: [0, 1, 0],
 };
 
 const NOTRE_DAME_PARCOURS_RULES = {

@@ -223,16 +223,11 @@ function westTowerAroundPortal(side) {
     const portalMaxZ = portalCentreZ + 5.5;
     const lowerTop = GROUND + 16;
     const galleryAirMin = 56.3;
-    const galleryAirMax = 66.38;
     const towerTop = GROUND + 96;
     const boxes = [
         {
             pos: [-83, (lowerTop + galleryAirMin) / 2, towerCentreZ],
             size: [13, galleryAirMin - lowerTop, 20],
-        },
-        {
-            pos: [-83, (galleryAirMax + towerTop) / 2, towerCentreZ],
-            size: [13, towerTop - galleryAirMax, 20],
         },
     ];
     for (const [minZ, maxZ] of [[towerMinZ, portalMinZ], [portalMaxZ, towerMaxZ]]) {
@@ -241,6 +236,18 @@ function westTowerAroundPortal(side) {
             pos: [-83, (GROUND + lowerTop) / 2, (minZ + maxZ) / 2],
             size: [13, lowerTop - GROUND, maxZ - minZ],
         });
+    }
+    // The upper tower is an open belfry. Keep only its four load-bearing piers solid; a full
+    // box here would cover the bells and bury both route rings inside an invisible wall.
+    for (const xSide of [-1, 1]) {
+        for (const zSide of [-1, 1]) {
+            const x = -83 + xSide * 4.69;
+            const z = towerCentreZ + zSide * 8.75;
+            boxes.push({
+                shape: 'beam', kind: 'hard',
+                start: [x, galleryAirMin, z], end: [x, towerTop, z], radius: 1.1,
+            });
+        }
     }
     return boxes;
 }
@@ -312,11 +319,19 @@ const NOTRE_DAME_OBSTACLES = [
     },
 
     // --- The spire ---------------------------------------------------------------------------
-    // Fifty metres of the tallest thing on the map, stepped down in five stages so the collision
-    // follows the taper of the octagonal shaft instead of standing as one column.
+    // The spire remains solid below and above its open lantern. Eight narrow supports follow the
+    // lantern's octagon while leaving its centre clear for the route finish.
     { pos: [CROSSING_CENTRE, 75.2, 0], size: [14, 8.4, 14] },
     { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 79.4, 0], end: [CROSSING_CENTRE, 97.6, 0], radius: 4.18 },
-    { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 97.6, 0], end: [CROSSING_CENTRE, 115.8, 0], radius: 2.41 },
+    { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 97.6, 0], end: [CROSSING_CENTRE, 106, 0], radius: 2.41 },
+    ...Array.from({ length: 8 }, (_, index) => {
+        const angle = index * Math.PI / 4;
+        const offset = 5.32;
+        const start = [CROSSING_CENTRE + offset * Math.cos(angle), 106,
+            offset * Math.sin(angle)];
+        const end = [start[0], 115.8, start[2]];
+        return { shape: 'beam', kind: 'hard', start, end, radius: 0.48 };
+    }),
     { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 115.8, 0], end: [CROSSING_CENTRE, 134.0, 0], radius: 0.64 },
     { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 134.0, 0], end: [CROSSING_CENTRE, SPIRE_TIP, 0], radius: 0.45 },
 

@@ -67,7 +67,7 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         "id": "notre-dame-evolution-north",
         "url": "assets/maps/notre_dame_evolution/glb/north.glb",
         "position": [
-            -83.03526229858397,
+            -82.87344017028808,
             8.0,
             -0.0
         ],
@@ -88,9 +88,9 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         "id": "notre-dame-evolution-south",
         "url": "assets/maps/notre_dame_evolution/glb/south.glb",
         "position": [
-            -86.32512664794922,
+            -86.2485668182373,
             8.0,
-            -6.497103309631347
+            -4.553165626525878
         ],
         "rotation": [
             0,
@@ -109,9 +109,9 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         "id": "notre-dame-evolution-crown",
         "url": "assets/maps/notre_dame_evolution/glb/crown.glb",
         "position": [
-            -86.45941009521484,
+            -86.24941062927246,
             8.0,
-            -0.2761959075927734
+            -1.0499999999999998
         ],
         "rotation": [
             0,

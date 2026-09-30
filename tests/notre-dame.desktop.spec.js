@@ -51,7 +51,9 @@ test('Notre-Dame loads as one cathedral without construction machinery', async (
                 arena._mergedObstacleEdges,
                 arena._mergedFoamEdges,
             ].filter(Boolean).length,
-            authoredCollisionSolid: arena.checkCollisionFast({ x: -249, y: 168, z: -60.9 }, 0.1),
+            // Retain a positive GLB-backed solid probe on the parvis island, away from J6's open gallery.
+            authoredCollisionSolid: arena.checkCollisionFast({ x: -67.2, y: 21.48, z: 0 }, 0.1),
+            galleryOpeningClear: !arena.checkCollisionFast({ x: -249, y: 183.6, z: 0 }, 0.1),
         };
     });
 
@@ -66,6 +68,7 @@ test('Notre-Dame loads as one cathedral without construction machinery', async (
         authoredObstacleCount: state.authoredObstacleCount,
         authoredObstacleVisuals: 2,
         authoredCollisionSolid: true,
+        galleryOpeningClear: true,
     });
 
     const initialElapsed = await page.evaluate(() => (
