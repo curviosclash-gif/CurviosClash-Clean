@@ -271,7 +271,9 @@ class MarketplaceTreeGenerator(unittest.TestCase):
 class MarketplacePlantGenerator(unittest.TestCase):
     def test_species_height_pairs_are_exact(self):
         self.assertEqual(plants.SPECIES_HEIGHT_M,
-                         {"daisy": 0.65, "lavender": 0.70, "fern": 0.75, "grass": 0.85})
+                         {"daisy": 0.65, "lavender": 0.70, "fern": 0.75, "grass": 0.85,
+                          "poppy": 0.72, "sunflower": 1.80, "cornflower": 0.70,
+                          "red_clover": 0.40, "cattail": 1.60})
         for species, height in plants.SPECIES_HEIGHT_M.items():
             self.assertEqual(plants.resolve_species({"species": species, "height_m": height}),
                              (species, height))
@@ -439,6 +441,62 @@ class MarketplacePlantGenerator(unittest.TestCase):
         grass = plants.build_geometry("grass", 0.85, 20260101)["stats"]
         self.assertTrue(4 <= grass["flower_stalks"] <= 7)
 
+        poppy = plants.build_geometry("poppy", 0.72, 146543107)["stats"]
+        self.assertEqual((poppy["flower_heads"], poppy["buds"], poppy["ray_petals"]),
+                         (2, 1, 11))
+        sunflower = plants.build_geometry("sunflower", 1.80, 700173905)["stats"]
+        self.assertEqual((sunflower["flower_heads"], sunflower["leaves"],
+                          sunflower["ray_petals"], sunflower["seeds"], sunflower["bracts"]),
+                         (1, 6, 36, 240, 24))
+        self.assertAlmostEqual(sunflower["receptacle_depth_m"], 1.80 * .065)
+        self.assertAlmostEqual(sunflower["bract_backset_m"], 1.80 * .055)
+        sunflower_plan = plants.build_geometry("sunflower", 1.80, 700173905)
+        face_leaf = plants.MATERIAL_NAMES.index("LeafGreen")
+        supported_vertices = {index for face, material in zip(
+            sunflower_plan["faces"], sunflower_plan["face_materials"])
+            if material == face_leaf for index in face}
+        focus = sunflower_plan["bloom_focus"]
+        normal = sunflower_plan["bloom_normal"]
+        backing_depth = min(plants._dot(
+            plants._sub(sunflower_plan["vertices"][index], focus), normal)
+            for index in supported_vertices)
+        self.assertLess(backing_depth, -1.80 * .055,
+                        "the sunflower head needs a substantial green receptacle behind it")
+        projected_head_diameter = 2 * 1.80 * .164
+        bloom_frame_height = .367 * 3.6 * plants.BLOOM_EXTENT_M["sunflower"]
+        self.assertGreaterEqual(bloom_frame_height, projected_head_diameter * 1.2,
+                                "the sunflower bloom camera crops the outer ray florets")
+        cornflower = plants.build_geometry("cornflower", 0.70, 1709707538)["stats"]
+        self.assertEqual((cornflower["flower_heads"],
+                          cornflower["central_tubular_florets"],
+                          cornflower["fringed_outer_florets"], cornflower["florets"]),
+                         (4, 112, 48, 160))
+        self.assertIn("BloomIndigo", cornflower["materials"])
+        self.assertNotIn("BloomViolet", cornflower["materials"])
+        self.assertLessEqual(cornflower["outer_fringe_length_fraction"], .02)
+        self.assertGreaterEqual(cornflower["outer_fringe_notch"], .70)
+        self.assertGreaterEqual(.367 * 3.6 * plants.BLOOM_EXTENT_M["cornflower"], .29)
+        clover = plants.build_geometry("red_clover", 0.40, 845627433)["stats"]
+        self.assertEqual((clover["growth_habit"], clover["primary_axes"],
+                          clover["secondary_branches"], clover["flower_heads"],
+                          clover["head_florets"], clover["trifoliate_groups"],
+                          clover["leaflets"]),
+                         ("low_spreading_clump", 4, 2, 6, 40, 12, 36))
+        self.assertLess(clover["leaf_node_height_range"][0], .20)
+        self.assertGreater(clover["leaf_node_height_range"][1], .45)
+        self.assertGreater(clover["shoot_lateral_bend_fraction"], .10)
+        self.assertGreater(clover["leaflet_fan_angle_rad"], 1.30)
+        self.assertGreaterEqual(.367 * 3.0 * plants.BLOOM_EXTENT_M["red_clover"],
+                                clover["flower_head_diameter_m"] * 1.2,
+                                "the red clover bloom camera crops individual florets")
+        cattail = plants.build_geometry("cattail", 1.60, 1276587960)["stats"]
+        self.assertEqual((cattail["female_spikes"], cattail["male_spikes"],
+                          cattail["strap_leaves"], cattail["spike_gap_fraction"]),
+                         (3, 3, 15, 0.050))
+        self.assertGreaterEqual(.367 * 3 * plants.BLOOM_EXTENT_M["cattail"],
+                                1.60 * .29 * 1.15,
+                                "the cattail bloom camera crops a male spike tip")
+
     def test_only_flowering_species_get_a_bloom_focus(self):
         for species, height in plants.SPECIES_HEIGHT_M.items():
             focus = plants.build_geometry(species, height, 20260101)["bloom_focus"]
@@ -452,7 +510,9 @@ class MarketplacePlantGenerator(unittest.TestCase):
         self.assertEqual(plants.MODEL_NAMES,
                          ("plant.glb", "plant_lod1.glb", "plant_lod2.glb"))
         for identity in ("nature-plant-v01", "nature-plant-v02",
-                         "nature-plant-v03", "nature-plant-v04"):
+                         "nature-plant-v03", "nature-plant-v04", "nature-plant-v05",
+                         "nature-plant-v06", "nature-plant-v07", "nature-plant-v08",
+                         "nature-plant-v09"):
             self.assertEqual(plants.variant_identity({"id": identity}), identity)
         # A delivered file basename must never become the variant id.
         for basename in plants.MODEL_NAMES + ("fern_lod2.glb",):
@@ -639,7 +699,10 @@ class MarketplacePlantGenerator(unittest.TestCase):
 
     def test_variant_seeds_stay_inside_the_hero_budget(self):
         seeds = {"daisy": 560265243, "lavender": 19365155,
-                 "fern": 309645258, "grass": 2053589320}
+                 "fern": 309645258, "grass": 2053589320,
+                 "poppy": 146543107, "sunflower": 700173905,
+                 "cornflower": 1709707538, "red_clover": 845627433,
+                 "cattail": 1276587960}
         for species, height in plants.SPECIES_HEIGHT_M.items():
             plan = plants.enforce_plan_budgets(
                 plants.build_geometry(species, height, seeds[species]))
@@ -714,7 +777,7 @@ class InterfaceContract(unittest.TestCase):
         self.assertEqual(trees.GENERATOR_ID, "marketplace-ancient-nature")
         self.assertEqual(trees.GENERATOR_VERSION, "1.0.0")
         self.assertEqual(plants.GENERATOR_ID, "marketplace-nature-plants")
-        self.assertEqual(plants.GENERATOR_VERSION, "1.0.3")
+        self.assertEqual(plants.GENERATOR_VERSION, "1.1.0")
         self.assertTrue(callable(trees.build_variant))
         self.assertTrue(callable(plants.build_variant))
         self.assertEqual(trees.MODEL_NAMES, ("ancient_tree.glb", "ancient_tree_lod1.glb",

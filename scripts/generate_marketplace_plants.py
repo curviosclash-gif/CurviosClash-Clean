@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build one stylized-realistic marketplace plant: daisy, lavender, fern or grass.
+"""Build one stylized-realistic marketplace plant from the nature catalogue.
 
 Run through the `blender-object-batches` runner, inside Blender 4.2 LTS:
 
@@ -11,12 +11,11 @@ Run through the `blender-object-batches` runner, inside Blender 4.2 LTS:
 
 Contract for this module
 ------------------------
-Identity        GENERATOR_ID "marketplace-nature-plants", version 1.0.3.
+Identity        GENERATOR_ID "marketplace-nature-plants", version 1.1.0.
 Interface       build_variant(context) -> {outputs, metrics, warnings, metadata}.
 Context         context["id"] is the variant name, context["seed"] the only
                 stochastic source, context["parameters"]["species"] one of
-                daisy/lavender/fern/grass and context["parameters"]["height_m"]
-                exactly 0.65/0.70/0.75/0.85 m for those species.
+                one of SPECIES_HEIGHT_M with the matching fixed height.
 Units/axes      Source scene and GLB are metres. The source scene is Blender
                 Z-up; GLB is exported with Y-up (Blender +Z -> runtime +Y).
 Origin          The plant stands on z = 0 with its base centre at the origin;
@@ -54,19 +53,27 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 
 GENERATOR_ID = "marketplace-nature-plants"
-GENERATOR_VERSION = "1.0.3"
+GENERATOR_VERSION = "1.1.0"
 
 SPECIES_HEIGHT_M = {
     "daisy": 0.65,
     "lavender": 0.70,
     "fern": 0.75,
     "grass": 0.85,
+    "poppy": 0.72,
+    "sunflower": 1.80,
+    "cornflower": 0.70,
+    "red_clover": 0.40,
+    "cattail": 1.60,
 }
-BLOOM_SPECIES = ("daisy", "lavender")
+BLOOM_SPECIES = ("daisy", "lavender", "poppy", "sunflower", "cornflower",
+                 "red_clover", "cattail")
 # Vertical size of the bloom feature that a closeup must cover, in metres. The
 # lavender value frames one whole connected terminal head (its flowering zone is
 # about 0.12 of the axis) instead of centring a wide shot on bare stem.
-BLOOM_EXTENT_M = {"daisy": 0.085, "lavender": 0.110}
+BLOOM_EXTENT_M = {"daisy": 0.085, "lavender": 0.110,
+                  "poppy": 0.155, "sunflower": 0.58, "cornflower": 0.23,
+                   "red_clover": 0.17, "cattail": 0.60}
 
 # Triangles at or below this area are collapsed geometry, not blades: the
 # smallest real triangle in the catalogue measures about 5e-8 m2 (a petal tip
@@ -109,13 +116,21 @@ GRASS_CUPS = (0.16, 0.26, 0.30, 0.28, 0.20, 0.06)
 
 # Exactly five material definitions. A species only references the subset it
 # needs; the exporter drops unused slots, so every hero stays <= 5 materials.
-MATERIAL_NAMES = ("StemGreen", "LeafGreen", "PetalWhite", "BloomYellow", "BloomViolet")
+MATERIAL_NAMES = ("StemGreen", "LeafGreen", "PetalWhite", "BloomYellow", "BloomViolet",
+                  "PetalRed", "PetalBlue", "CloverPink", "SeedBrown", "DarkCenter",
+                  "BloomIndigo")
 MATERIAL_COLORS = {
     "StemGreen": ((0.030, 0.062, 0.020, 1.0), (0.150, 0.285, 0.085, 1.0)),
     "LeafGreen": ((0.022, 0.070, 0.018, 1.0), (0.235, 0.430, 0.105, 1.0)),
     "PetalWhite": ((0.560, 0.545, 0.480, 1.0), (0.970, 0.960, 0.885, 1.0)),
     "BloomYellow": ((0.520, 0.330, 0.020, 1.0), (0.930, 0.760, 0.115, 1.0)),
     "BloomViolet": ((0.150, 0.075, 0.280, 1.0), (0.540, 0.350, 0.790, 1.0)),
+    "PetalRed": ((0.310, 0.012, 0.012, 1.0), (0.840, 0.075, 0.050, 1.0)),
+    "PetalBlue": ((0.025, 0.055, 0.280, 1.0), (0.135, 0.295, 0.820, 1.0)),
+    "CloverPink": ((0.315, 0.075, 0.170, 1.0), (0.820, 0.375, 0.540, 1.0)),
+    "SeedBrown": ((0.100, 0.045, 0.016, 1.0), (0.340, 0.165, 0.070, 1.0)),
+    "DarkCenter": ((0.025, 0.016, 0.018, 1.0), (0.125, 0.070, 0.080, 1.0)),
+    "BloomIndigo": ((0.035, 0.025, 0.160, 1.0), (0.105, 0.085, 0.390, 1.0)),
 }
 MATERIAL_ROUGHNESS = {
     "StemGreen": 0.86,
@@ -123,6 +138,12 @@ MATERIAL_ROUGHNESS = {
     "PetalWhite": 0.66,
     "BloomYellow": 0.72,
     "BloomViolet": 0.68,
+    "PetalRed": 0.72,
+    "PetalBlue": 0.72,
+    "CloverPink": 0.78,
+    "SeedBrown": 0.91,
+    "DarkCenter": 0.89,
+    "BloomIndigo": 0.78,
 }
 WOOD_DARK = (0.055, 0.035, 0.018, 1.0)
 WOOD_LIGHT = (0.185, 0.130, 0.070, 1.0)
@@ -1405,11 +1426,425 @@ def _build_grass(height_m, rng, level=0):
                             "lod_level": level}
 
 
+def _market_stem(geometry, base, tip, height, radius, *, sides=5):
+    """A rooted, gently curved axis shared by the five later species."""
+    points = [base,
+              (base[0], base[1], height * 0.08),
+              _lerp(base, tip, 0.42),
+              _lerp(base, tip, 0.72), tip]
+    radii = [radius, radius * 0.95, radius * 0.72, radius * 0.52, radius * 0.40]
+    geometry.tube(points, radii, "StemGreen", sides=sides,
+                  flex=[_flex(p[2], height, i / 4) for i, p in enumerate(points)],
+                  tint=0.40)
+    return points
+
+
+def _market_leaf(geometry, origin, angle, elevation, length, width, height, rng,
+                 *, tint=0.55, stations=LEAF_STATIONS, widths=LEAF_WIDTHS,
+                 curl=0.16, cups=None):
+    sections, axis_z = _leaf_sections(origin, angle, elevation, length, width,
+                                      rng, curl=curl, stations=stations,
+                                      widths=widths, cups=(cups if cups is not None else
+                                      LEAF_CUP if len(stations) == len(LEAF_CUP) else
+                                      tuple(0.18 for _ in stations)))
+    geometry.cupped_blade(sections, "LeafGreen",
+                          flex=[_flex(z, height, i / (len(axis_z) - 1))
+                                for i, z in enumerate(axis_z)], tint=tint)
+
+
+def _market_ray(geometry, centre, normal, angle, inner, outer, half_width,
+                height, material, rng, *, wave=0.12, notch=0.0):
+    """A cupped radial petal with an uneven rim, attached to its receptacle."""
+    u, v, n = _plane_axes(normal)
+    radial = _normalize(_add(_scale(u, math.cos(angle)), _scale(v, math.sin(angle))))
+    side = _normalize(_cross(n, radial))
+    stations = (0.0, 0.16, 0.36, 0.58, 0.78, 0.93, 1.0)
+    widths = (0.30, 0.58, 0.85, 1.0, 0.97, 0.82, 0.72)
+    sections = []
+    flex = []
+    curl = rng.uniform(-1.0, 1.0)
+    for i, t in enumerate(stations):
+        reach = inner + (outer - inner) * t
+        lift = (outer - inner) * (0.08 * math.sin(math.pi * t) + wave * curl * t * t)
+        mid = _add(centre, _add(_scale(radial, reach), _scale(n, lift)))
+        width = half_width * widths[i]
+        ripple = width * wave * math.sin(2.7 * math.pi * t + angle)
+        left = _add(mid, _add(_scale(side, width), _scale(n, ripple)))
+        right = _sub(mid, _add(_scale(side, width), _scale(n, ripple * 0.6)))
+        valley = _sub(mid, _scale(n, width * 0.22))
+        if notch and i == len(stations) - 1:
+            valley = _sub(valley, _scale(radial, (outer - inner) * notch))
+        sections.append((left, valley, right))
+        flex.append(_flex(mid[2], height, t))
+    geometry.cupped_blade(sections, material, flex=flex,
+                          tint=rng.uniform(0.58, 0.91))
+
+
+def _build_poppy(height, rng):
+    geometry = PlantGeometry()
+    geometry.dome((0, 0, 0), height * 0.028, height * 0.013,
+                  "StemGreen", flex=0.0, tint=0.18)
+    # A single root crown feeds two open blooms and a hooked unopened bud.
+    focus = None
+    focus_normal = None
+    for i in range(3):
+        angle = 2 * math.pi * i / 3 + rng.uniform(-0.2, 0.2)
+        base = (0.0, 0.0, 0.0)
+        reach = height * (0.10 + i * 0.035)
+        tip = (math.cos(angle) * reach, math.sin(angle) * reach,
+               height * (0.76 + 0.10 * i))
+        points = _market_stem(geometry, base, tip, height, height * 0.004)
+        for node in (0.25, 0.47, 0.67):
+            anchor, _ = _sample_polyline(points, node)
+            leaf_angle = angle + (1 if node < 0.5 else -1) * 1.2
+            # Lobed outlines replace the uniform oval silhouette.
+            _market_leaf(geometry, anchor, leaf_angle, rng.uniform(0.24, 0.52),
+                         height * rng.uniform(0.10, 0.17), height * 0.014,
+                         height, rng, stations=(0, .16, .32, .48, .64, .82, 1),
+                         widths=(.25, .75, .45, 1, .42, .72, .10))
+        if i == 2:
+            hooked = _add(tip, (height * 0.018, 0, -height * 0.040))
+            geometry.tube([tip, hooked], [height * .0025, height * .0015],
+                          "StemGreen", sides=4, flex=[.8, .95], tint=.42)
+            geometry.dome(hooked, height * .014, height * .028,
+                          "StemGreen", segments=8, rings=2, flex=.95, tint=.34,
+                          normal=_normalize((.4, 0, -1)))
+            continue
+        normal = _normalize((math.cos(angle) * .72, math.sin(angle) * .72, 1.0))
+        centre = _add(tip, _scale(normal, height * .006))
+        geometry.dome(centre, height * .021, height * .014,
+                      "DarkCenter", segments=12, rings=3,
+                      flex=_flex(centre[2], height, 1), tint=.44, normal=normal)
+        count = 5 + (i % 2)
+        for petal in range(count):
+            _market_ray(geometry, centre, normal, 2 * math.pi * petal / count,
+                        height * .013, height * rng.uniform(.075, .092),
+                        height * rng.uniform(.030, .040), height,
+                        "PetalRed", rng, wave=.24, notch=.05)
+        if focus is None or centre[2] > focus[2]:
+            focus, focus_normal = centre, normal
+    return geometry, focus, {"flower_heads": 2, "buds": 1, "ray_petals": 11,
+                             "bloom_normal": list(focus_normal)}
+
+
+def _build_sunflower(height, rng):
+    geometry = PlantGeometry()
+    geometry.dome((0, 0, 0), height * .021, height * .016,
+                  "StemGreen", flex=0.0, tint=.24)
+    tip = (height * .055, -height * .025, height * .88)
+    points = _market_stem(geometry, (0, 0, 0), tip, height, height * .010, sides=8)
+    # Alternate leaves are attached at nodes through explicit short petioles.
+    for i, node in enumerate((.20, .34, .47, .59, .71, .79)):
+        anchor, _ = _sample_polyline(points, node)
+        angle = i * 2.39996 + rng.uniform(-.15, .15)
+        petiole = _add(anchor, (height * .030 * math.cos(angle),
+                                 height * .030 * math.sin(angle), height * .012))
+        geometry.tube([anchor, petiole], [height * .0027, height * .0017],
+                      "StemGreen", sides=4,
+                      flex=[_flex(anchor[2], height, .4), _flex(petiole[2], height, .6)])
+        _market_leaf(geometry, petiole, angle, rng.uniform(.18, .42),
+                     height * rng.uniform(.13, .19), height * .030,
+                     height, rng, tint=.59, curl=.22,
+                     cups=(.28, .34, .36, .32, .26, .18))
+    normal = _normalize((.16, -.72, .72))
+    centre = _add(tip, _scale(normal, height * .010))
+    reverse = _scale(normal, -1.0)
+    # Sunflower heads have a substantial receptacle behind the florets, with
+    # overlapping green involucral bracts supporting the ray-floret margin.
+    geometry.dome(centre, height * .105, height * .065, "LeafGreen",
+                  segments=20, rings=4, flex=.92, tint=.46, normal=reverse)
+    bract_count = 24
+    bract_origin = _add(centre, _scale(reverse, height * .055))
+    for bract in range(bract_count):
+        _market_ray(geometry, bract_origin, reverse, 2 * math.pi * bract / bract_count,
+                    height * .070, height * .137, height * .0105,
+                    height, "LeafGreen", rng, wave=.14, notch=.03)
+    geometry.dome(centre, height * .090, height * .028,
+                  "DarkCenter", segments=24, rings=4,
+                  flex=_flex(centre[2], height, 1), tint=.47, normal=normal)
+    # The convex disk has a seed mosaic on its actual domed surface rather
+    # than seeds buried beneath the taller centre of the receptacle.
+    u, v, _ = _plane_axes(normal)
+    seed_count = 240
+    disk_radius = height * .085
+    disk_rise = height * .028
+    for j in range(seed_count):
+        phi = j * 2.39996
+        radial = disk_radius * math.sqrt((j + .5) / seed_count)
+        surface_rise = disk_rise * math.sqrt(max(0.0, 1.0 - (radial / (height * .090)) ** 2))
+        centre_seed = _add(centre,
+                           _add(_scale(u, radial * math.cos(phi)),
+                                _add(_scale(v, radial * math.sin(phi)),
+                                     _scale(normal, surface_rise + height * .005))))
+        geometry.octa(centre_seed, (height * .0025,) * 3,
+                      "SeedBrown", flex=.9, tint=.60)
+    ray_petals = 0
+    for layer, count in ((0, 17), (1, 19)):
+        for j in range(count):
+            angle = (j + .35 * layer) * 2 * math.pi / count
+            _market_ray(geometry, centre, normal, angle,
+                        height * (.078 + layer * .003),
+                        height * (.151 + layer * .013),
+                        height * (.012 + layer * .001), height,
+                        "BloomYellow", rng, wave=.10, notch=.04)
+            ray_petals += 1
+    return geometry, centre, {"flower_heads": 1, "leaves": 6,
+                              "ray_petals": ray_petals, "seeds": seed_count,
+                              "receptacle_depth_m": height * .065,
+                              "bracts": bract_count, "bract_backset_m": height * .055,
+                              "bloom_normal": list(normal)}
+
+
+def _build_cornflower(height, rng):
+    geometry = PlantGeometry()
+    geometry.dome((0, 0, 0), height * .025, height * .015,
+                  "StemGreen", flex=0.0, tint=.2)
+    head_centres = []
+    normal = _normalize((.20, -.52, .88))
+    central_florets = 0
+    fringed_florets = 0
+    for i in range(4):
+        angle = i * 2.39996
+        tip = (height * .13 * math.cos(angle), height * .13 * math.sin(angle),
+               height * (.75 + .075 * (i % 3)))
+        points = _market_stem(geometry, (0, 0, 0), tip, height, height * .003)
+        for node in (.22, .48, .67):
+            anchor, _ = _sample_polyline(points, node)
+            _market_leaf(geometry, anchor, angle + 1.25, .36,
+                         height * .10, height * .006, height, rng,
+                         stations=LANCE_STATIONS, widths=LANCE_WIDTHS)
+        centre = _add(tip, _scale(normal, height * .006))
+        head_centres.append(centre)
+        # A small indigo cup supports individual tubular disk florets; the
+        # coloured centre stays textured by florets instead of a broad pastel
+        # disk that makes the head read like a daisy.
+        geometry.dome(centre, height * .026, height * .009,
+                      "BloomIndigo", segments=16, rings=3,
+                      flex=_flex(centre[2], height, 1), normal=normal)
+        # Dense short tubes fill the centre in a correlated spiral.
+        u, v, _ = _plane_axes(normal)
+        for j in range(28):
+            phi = j * 2.39996
+            radius = height * .021 * math.sqrt((j + .5) / 28)
+            radial = _normalize(_add(_scale(u, math.cos(phi)),
+                                     _scale(v, math.sin(phi))))
+            base = _add(centre, _add(_scale(radial, radius),
+                                     _scale(normal, height * .008)))
+            tip_floret = _add(base, _add(_scale(radial, height * .002),
+                                         _scale(normal, height * rng.uniform(.009, .014))))
+            geometry.tube([base, tip_floret], [height * .0020, height * .0014],
+                          "PetalBlue", sides=4, flex=[.88, 1],
+                          tint=rng.uniform(.67, .91))
+            central_florets += 1
+
+        # The outer sterile florets form a short, fringed indigo-blue rim.
+        # Their stalks are deliberately tiny so each floret reads as one
+        # attached organ rather than a tube ring with detached petals.
+        fringe_count = 12
+        for j in range(fringe_count):
+            phi = 2 * math.pi * (j + .25 * (i % 2)) / fringe_count
+            radial = _normalize(_add(_scale(u, math.cos(phi)),
+                                     _scale(v, math.sin(phi))))
+            base = _add(centre, _add(_scale(radial, height * .020),
+                                     _scale(normal, height * .006)))
+            mouth = _add(base, _add(_scale(radial, height * .003),
+                                    _scale(normal, height * .002)))
+            geometry.tube([base, mouth], [height * .0018, height * .0022],
+                          "PetalBlue", sides=4, flex=[.9, 1], tint=.77)
+            _market_ray(geometry, mouth, normal, phi,
+                        0.0, height * .017, height * .0032, height,
+                        "PetalBlue", rng, wave=.20, notch=.78)
+            fringed_florets += 1
+
+    focus = tuple(sum(point[axis] for point in head_centres) / len(head_centres)
+                  for axis in range(3))
+    return geometry, focus, {"flower_heads": 4, "central_tubular_florets": central_florets,
+                             "fringed_outer_florets": fringed_florets,
+                             "florets": central_florets + fringed_florets,
+                             "outer_fringe_length_fraction": .017,
+                             "outer_fringe_notch": .78,
+                             "bloom_normal": list(normal)}
+
+
+def _build_red_clover(height, rng):
+    geometry = PlantGeometry()
+    geometry.dome((0, 0, 0), height * .04, height * .02,
+                  "StemGreen", flex=0.0, tint=.20)
+    def shoot(start, angle, spread, tip_fraction, radius_scale=1.0):
+        direction = (math.cos(angle), math.sin(angle))
+        perpendicular = (-direction[1], direction[0])
+        bend = height * spread * (.18 if tip_fraction > .68 else .10)
+        tip = (start[0] + direction[0] * height * spread,
+               start[1] + direction[1] * height * spread,
+               height * tip_fraction)
+        points = [start,
+                  (start[0] + direction[0] * height * spread * .13 + perpendicular[0] * bend * .20,
+                   start[1] + direction[1] * height * spread * .13 + perpendicular[1] * bend * .20,
+                   height * .10),
+                  (start[0] + direction[0] * height * spread * .43 + perpendicular[0] * bend,
+                   start[1] + direction[1] * height * spread * .43 + perpendicular[1] * bend,
+                   height * .27),
+                  (start[0] + direction[0] * height * spread * .77 + perpendicular[0] * bend * .45,
+                   start[1] + direction[1] * height * spread * .77 + perpendicular[1] * bend * .45,
+                   height * max(.48, tip_fraction * .76)),
+               tip]
+        radii = [height * .0040 * radius_scale, height * .0037 * radius_scale,
+                 height * .0030 * radius_scale, height * .0022 * radius_scale,
+                 height * .0016 * radius_scale]
+        geometry.tube(points, radii, "StemGreen", sides=5,
+                      flex=[_flex(point[2], height, index / 4)
+                            for index, point in enumerate(points)], tint=.41)
+        return points
+
+    def add_trifoliate(anchor, angle, group_index):
+        # One short petiole leads to a separated terminal and two lateral
+        # leaflets, so each node reads as a clover leaf rather than a foliage fan.
+        outward = (math.cos(angle), math.sin(angle), 0.0)
+        joint = _add(anchor, _add(_scale(outward, height * .050),
+                                  (0.0, 0.0, height * .025)))
+        geometry.tube([anchor, joint], [height * .0020, height * .0013],
+                      "StemGreen", sides=3,
+                      flex=[_flex(anchor[2], height, .45),
+                            _flex(joint[2], height, .65)], tint=.44)
+        tangent = (-outward[1], outward[0], 0.0)
+        leaflet_specs = ((angle, .40, .112),
+                         (angle + 1.42, .18, .100),
+                         (angle - 1.42, .18, .100))
+        for leaflet_index, (leaf_angle, elevation, length_fraction) in enumerate(leaflet_specs):
+            side_offset = (leaflet_index - 1) * .040 * height
+            origin = _add(joint, _add(_scale(tangent, side_offset),
+                                      _scale(outward, height * (.012 if leaflet_index else 0))))
+            _market_leaf(geometry, origin, leaf_angle, elevation,
+                         height * length_fraction * rng.uniform(.92, 1.08),
+                         height * (.022 if leaflet_index == 0 else .019),
+                         height, rng, tint=.62 + .04 * (group_index % 3),
+                          curl=.24, cups=(.27, .39, .43, .36, .25, .18))
+
+    main_count = 4
+    main_paths = []
+    leaf_node_heights = []
+    head_centres = []
+    main_tip_fractions = (.66, .73, .79, .84)
+    for i in range(main_count):
+        angle = 2 * math.pi * i / main_count + rng.uniform(-.16, .16)
+        base = (height * .018 * math.cos(angle), height * .018 * math.sin(angle), 0.0)
+        spread = (.42, .50, .45, .53)[i]
+        points = shoot(base, angle, spread, main_tip_fractions[i])
+        main_paths.append(points)
+        for group_index, node in enumerate((.20, .40, .60)):
+            anchor, _ = _sample_polyline(points, node)
+            add_trifoliate(anchor, angle + (.16 if group_index % 2 else -.16),
+                           i * 3 + group_index)
+            leaf_node_heights.append(anchor[2] / height)
+        centre = points[-1]
+        head_centres.append(centre)
+
+    # Two lateral flowering branches arise halfway up separated main shoots.
+    for branch_index, main_index in enumerate((0, 2)):
+        parent = main_paths[main_index]
+        anchor, _ = _sample_polyline(parent, .54)
+        angle = (main_index * math.pi / 2) + (1 if branch_index == 0 else -1) * .88
+        branch = shoot(anchor, angle, .27, (.60, .66)[branch_index], radius_scale=.72)
+        head_centres.append(branch[-1])
+
+    head_florets = 40
+    for head_index, centre in enumerate(head_centres):
+        normal = _normalize((.20 * math.cos(head_index * 1.7),
+                             .20 * math.sin(head_index * 1.7), 1.0))
+        geometry.dome(centre, height * .023, height * .036,
+                      "CloverPink", segments=12, rings=4,
+                      flex=_flex(centre[2], height, 1), tint=.53,
+                      normal=normal)
+        u, v, n = _plane_axes(normal)
+        for j in range(head_florets):
+            phi = j * 2.39996
+            t = (j + .5) / head_florets
+            radial_distance = height * .021 * math.sqrt(t)
+            radial = _normalize(_add(_scale(u, math.cos(phi)),
+                                     _scale(v, math.sin(phi))))
+            rise = height * .033 * math.sqrt(max(0.0, 1.0 - t))
+            root = _add(centre, _add(_scale(radial, radial_distance), _scale(n, rise)))
+            direction = _normalize(_add(_scale(radial, .48), _scale(n, .88)))
+            tip = _add(root, _scale(direction, height * rng.uniform(.009, .014)))
+            geometry.tube([root, tip], [height * .0018, height * .0013],
+                          "CloverPink", sides=4, flex=[.92, 1], tint=.69)
+            geometry.dome(tip, height * .0020, height * .0018,
+                          "CloverPink", segments=5, rings=2,
+                          flex=1, tint=.76, normal=direction)
+    heights = [centre[2] for centre in head_centres]
+    focus = head_centres[max(range(len(head_centres)), key=lambda index: heights[index])]
+    return geometry, focus, {"growth_habit": "low_spreading_clump",
+                             "primary_axes": main_count, "secondary_branches": 2,
+                             "flower_heads": len(head_centres), "head_florets": head_florets,
+                             "florets": len(head_centres) * head_florets,
+                             "trifoliate_groups": main_count * 3, "leaflets": main_count * 9,
+                             "shoot_lateral_bend_fraction": .18,
+                             "leaflet_fan_angle_rad": 1.42,
+                             "flower_head_diameter_m": height * .046,
+                             "leaf_node_height_range": [min(leaf_node_heights),
+                                                        max(leaf_node_heights)]}
+
+
+def _build_cattail(height, rng):
+    geometry = PlantGeometry()
+    geometry.dome((0, 0, 0), height * .025, height * .018,
+                  "StemGreen", flex=0.0, tint=.22)
+    # An upright fan of strap leaves, each bending naturally after its midrib.
+    for i in range(15):
+        angle = i * 2 * math.pi / 15 + rng.uniform(-.10, .10)
+        reach = height * rng.uniform(.16, .27)
+        leaf_height = height * rng.uniform(.50, .84)
+        points = [(0, 0, height * .008),
+                  (reach * .10 * math.cos(angle), reach * .10 * math.sin(angle), leaf_height * .30),
+                  (reach * .35 * math.cos(angle), reach * .35 * math.sin(angle), leaf_height * .62),
+                  (reach * .72 * math.cos(angle), reach * .72 * math.sin(angle), leaf_height * .87),
+                  (reach * math.cos(angle), reach * math.sin(angle), leaf_height)]
+        geometry.ribbon(points, [height * .007, height * .017, height * .018,
+                                 height * .012, height * .001],
+                        "LeafGreen", flex=[.04, .18, .42, .72, 1],
+                        tint=.42 + .20 * (i % 3) / 2,
+                        reference=(math.cos(angle + math.pi / 2),
+                                   math.sin(angle + math.pi / 2), 0))
+    focus = None
+    for i in range(3):
+        angle = i * 2 * math.pi / 3 + .2
+        stalk_h = height * (.90 + .04 * (i % 2))
+        base = (0, 0, 0)
+        tip = (height * .07 * math.cos(angle),
+               height * .07 * math.sin(angle), stalk_h)
+        points = _market_stem(geometry, base, tip, height, height * .0045)
+        female_start = stalk_h - height * .26
+        female_end = stalk_h - height * .09
+        x, y = tip[:2]
+        geometry.tube([(x, y, female_start), (x, y, female_start + height * .015),
+                       (x, y, female_end - height * .015), (x, y, female_end)],
+                      [height * .015, height * .022, height * .022, height * .015],
+                      "SeedBrown", sides=12, cap_start=True, cap_end=True,
+                      flex=[.70, .78, .88, .92], tint=.55)
+        # Leave a substantial stretch of exposed green axis between the female
+        # and male inflorescences so the two spikes remain visually separate.
+        male_start = female_end + height * .050
+        geometry.tube([(x, y, male_start), (x, y, male_start + height * .07)],
+                      [height * .006, height * .004], "BloomYellow", sides=8,
+                      cap_start=True, cap_end=True, flex=[.94, 1], tint=.50)
+        reproductive_midpoint = (female_start + male_start + height * .07) * .5
+        if focus is None or reproductive_midpoint > focus[2]:
+            focus = (x, y, reproductive_midpoint)
+    return geometry, focus, {"female_spikes": 3, "male_spikes": 3,
+                             "spike_gap_fraction": .050,
+                             "strap_leaves": 15}
+
+
 BUILDERS = {
     "daisy": _build_daisy,
     "lavender": _build_lavender,
     "fern": _build_fern,
     "grass": _build_grass,
+    "poppy": _build_poppy,
+    "sunflower": _build_sunflower,
+    "cornflower": _build_cornflower,
+    "red_clover": _build_red_clover,
+    "cattail": _build_cattail,
 }
 
 
