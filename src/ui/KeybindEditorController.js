@@ -6,6 +6,7 @@ import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
 const KEY_BIND_SCOPES = [
     { key: 'PLAYER_1', label: 'Spieler 1', actions: KEY_BIND_ACTIONS },
     { key: 'PLAYER_2', label: 'Spieler 2', actions: KEY_BIND_ACTIONS },
+    { key: 'PLAYER_3', label: 'Spieler 3', actions: KEY_BIND_ACTIONS },
     { key: 'GLOBAL', label: 'Allgemein', actions: GLOBAL_KEY_BIND_ACTIONS },
 ];
 
@@ -69,6 +70,7 @@ export class KeybindEditorController {
         const conflicts = this.collectKeyConflicts();
         this.renderKeybindRows('PLAYER_1', ui?.keybindP1, KEY_BIND_ACTIONS, conflicts);
         this.renderKeybindRows('PLAYER_2', ui?.keybindP2, KEY_BIND_ACTIONS, conflicts);
+        this.renderKeybindRows('PLAYER_3', ui?.keybindP3, KEY_BIND_ACTIONS, conflicts);
         this.renderKeybindRows('GLOBAL', ui?.keybindGlobal, GLOBAL_KEY_BIND_ACTIONS, conflicts);
         if (this.pendingSwap) this._showPendingSwapPrompt();
         else this.updateKeyConflictWarning(conflicts);

@@ -75,7 +75,10 @@ export class FourPlayerPlanarModule {
 
     _selectStandardSplitScreen() {
         const localSettings = this.runtime?.ensureLocalSettings?.();
-        if (localSettings) localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.STANDARD;
+        // Only leave the planar variant; a picked three-player split must survive the mode cards.
+        if (localSettings?.splitScreenVariant === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR) {
+            localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.STANDARD;
+        }
         this.closeSetup();
     }
 

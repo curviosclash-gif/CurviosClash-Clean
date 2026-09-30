@@ -17,6 +17,20 @@ export function ensureArcadeRunVehicleRewards(runtime) {
     return runtime?._rewardBinding || null;
 }
 
+/**
+ * XP binding for one local pilot: a split-screen partner in another plane levels that
+ * plane; the run's own plane keeps the mastery perks of the run.
+ * @returns {{ binding: object|null, ownsRunPerks: boolean }}
+ */
+export function resolveArcadePlayerRewardBinding(runtime, playerVehicleId = null) {
+    const runBinding = ensureArcadeRunVehicleRewards(runtime);
+    const ownVehicleId = String(playerVehicleId || '').trim();
+    if (!runBinding || !ownVehicleId || ownVehicleId === runBinding.vehicleId) {
+        return { binding: runBinding, ownsRunPerks: true };
+    }
+    return { binding: { ...runBinding, vehicleId: ownVehicleId }, ownsRunPerks: false };
+}
+
 export function getArcadeRunVehicleId(runtime) {
     return ensureArcadeRunVehicleRewards(runtime)?.vehicleId || runtime?._activeVehicleId || null;
 }

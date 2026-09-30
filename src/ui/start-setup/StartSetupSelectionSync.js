@@ -319,22 +319,13 @@ export function syncStartSetupSelectionState({
             && vehicleCandidates.length === 0,
         'Kein Flugzeug gefunden — Suche oder Filter ändern'
     );
-    syncVehicleSelect({
-        select: ui.vehicleSelectP1,
-        settings,
-        slot: HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1,
-        hangarSelectionModePath,
-        vehicleCandidates,
-        vehiclePreviewEntries,
-    });
-    syncVehicleSelect({
-        select: ui.vehicleSelectP2,
-        settings,
-        slot: HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2,
-        hangarSelectionModePath,
-        vehicleCandidates,
-        vehiclePreviewEntries,
-    });
+    for (const [select, slot] of [
+        [ui.vehicleSelectP1, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1],
+        [ui.vehicleSelectP2, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2],
+        [ui.vehicleSelectP3, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_3],
+    ]) {
+        syncVehicleSelect({ select, settings, slot, hangarSelectionModePath, vehicleCandidates, vehiclePreviewEntries });
+    }
 
     const resolveMapQuickLabel = (mapKey) => mapPreviewEntries.find((entry) => entry.key === mapKey)?.name
         || resolveMapPreview(mapKey).name;

@@ -1,38 +1,94 @@
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, returnToMenu, waitForLoadedGame } from './helpers.js';
+import { collectErrors, openStartSetupSection, returnToMenu, waitForLoadedGame } from './helpers.js';
 
-test('three-player split setup guards missing pads and starts with swapped device seats', async ({ page }) => {
-    const errors = collectErrors(page);
+// All desktop tests of a run share one profile, and the menu remembers the player count.
+// Leave two players behind, or later split-screen specs start a three-player match.
+test.afterEach(async ({ page }) => {
+    await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        if (!game?.settings?.localSettings) return;
+        game.settings.localSettings.splitScreenVariant = 'standard';
+        game._saveSettings?.();
+    }).catch(() => {});
+});
+
+// Two and three players share the level-3 match menu; the player count sits in "Spieler & Geräte".
+async function openSharedSplitMenu(page, modePath = 'normal') {
     await waitForLoadedGame(page);
     await page.evaluate(() => window.GAME_INSTANCE?.runtimeCoordinator?.getUiManager?.()?.showMainNav?.());
     await page.locator('[data-session-type="splitscreen"]').click();
-    await expect(page.locator('#btn-three-player-split')).toBeVisible();
-    await page.locator('#btn-three-player-split').click();
-    await expect(page.locator('#three-player-split-setup')).toBeVisible();
+    await page.locator(`#submenu-custom [data-mode-path="${modePath}"]`).click();
+    await expect(page.locator('#submenu-game')).toBeVisible();
+    // The wide desktop layout shows one section at a time; the rail tab is the user's way in.
+    const railTab = page.locator('#btn-start-step-players');
+    if (await railTab.isVisible()) {
+        await railTab.click();
+        await expect(page.locator('#start-players-section')).toBeVisible();
+    } else {
+        await openStartSetupSection(page, 'players');
+    }
+}
+
+async function chooseThreePlayers(page) {
+    await page.locator('[data-split-player-count="3"]').click();
+    await expect(page.locator('[data-split-player-count="3"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#split-device-p1')).toBeVisible();
+}
+
+async function startAndWaitForThreeHumans(page) {
+    await page.locator('#submenu-game #btn-start').click();
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
+        && window.GAME_INSTANCE?.entityManager?.humanPlayers?.length === 3);
+}
+
+test('the shared split menu switches between two and three players without losing either setup', async ({ page }) => {
+    const errors = collectErrors(page);
+    await openSharedSplitMenu(page);
+
+    await expect(page.locator('[data-split-player-count="2"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#split-input-layout')).toBeVisible();
+    await expect(page.locator('#split-device-p1')).toBeHidden();
+    await expect(page.locator('#btn-vehicle-player-p3')).toHaveClass(/hidden/);
+
+    await chooseThreePlayers(page);
+    await expect(page.locator('#split-input-layout')).toBeHidden();
+    await expect(page.locator('#btn-vehicle-player-p3')).not.toHaveClass(/hidden/);
+    await expect(page.locator('#menu-selection-summary')).toContainText('Flugzeug P3');
+
+    await page.locator('[data-split-player-count="2"]').click();
+    await expect(page.locator('#split-input-layout')).toBeVisible();
+    await expect(page.locator('#btn-vehicle-player-p3')).toHaveClass(/hidden/);
+    expect(await page.evaluate(() => window.GAME_INSTANCE?.settings?.localSettings?.threePlayerSplit?.deviceAssignment))
+        .toEqual(['gamepad-1', 'gamepad-2', 'keyboard']);
+    expect(errors).toHaveLength(0);
+});
+
+test('three-player split guards missing pads and starts with swapped device seats', async ({ page }) => {
+    const errors = collectErrors(page);
+    await openSharedSplitMenu(page);
     await page.evaluate(() => {
         Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [] });
-        window.dispatchEvent(new Event('gamepaddisconnected'));
     });
+    await chooseThreePlayers(page);
+    await page.evaluate(() => window.dispatchEvent(new Event('gamepaddisconnected')));
 
-    await expect(page.locator('[data-three-player-split-start]')).toBeDisabled();
-    await expect(page.locator('[data-three-player-split-device-status]')).toContainText('Gamepad 1 fehlt');
+    await expect(page.locator('#split-device-status')).toContainText('Gamepad 1 fehlt');
+    await page.locator('#submenu-game #btn-start').click();
+    await expect(page.locator('#start-validation-status')).toContainText('Gamepad 1 fehlt');
     expect(await page.evaluate(() => window.GAME_INSTANCE?.state)).toBe('MENU');
-    await page.locator('[data-three-player-split-viewport-layout]').selectOption('three_rows');
 
-    await page.locator('[data-three-player-split-device][data-player-index="2"]').selectOption('gamepad-1');
-    await expect(page.locator('[data-three-player-split-device][data-player-index="0"]')).toHaveValue('keyboard');
-    await expect(page.locator('[data-three-player-split-device][data-player-index="2"]')).toHaveValue('gamepad-1');
+    await page.locator('#split-viewport-layout').selectOption('three_rows');
+    await page.locator('#split-device-p3').selectOption('gamepad-1');
+    await expect(page.locator('#split-device-p1')).toHaveValue('keyboard');
+    await expect(page.locator('#split-device-p3')).toHaveValue('gamepad-1');
 
     await page.evaluate(() => {
         const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, () => ({ pressed: false })) };
         Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [pad, pad] });
         window.dispatchEvent(new Event('gamepadconnected'));
     });
-    await expect(page.locator('[data-three-player-split-device-status]')).toBeHidden();
-    await expect(page.locator('[data-three-player-split-start]')).toBeEnabled();
-    await page.locator('[data-three-player-split-start]').click();
-    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
-        && window.GAME_INSTANCE?.entityManager?.humanPlayers?.length === 3);
+    await expect(page.locator('#split-device-status')).toBeHidden();
+    await startAndWaitForThreeHumans(page);
 
     const state = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
@@ -51,28 +107,26 @@ test('three-player split setup guards missing pads and starts with swapped devic
     });
     expect(errors).toHaveLength(0);
     await returnToMenu(page);
+    // Back in the shared menu the next start is still a three-player match with the same seats.
+    expect(await page.evaluate(() => window.GAME_INSTANCE?.settings?.localSettings?.splitScreenVariant)).toBe('three_player');
+    await expect(page.locator('[data-split-player-count="3"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('three-player split starts with all three players on separate keyboard bindings', async ({ page }) => {
     const errors = collectErrors(page);
-    await waitForLoadedGame(page);
-    await page.evaluate(() => window.GAME_INSTANCE?.runtimeCoordinator?.getUiManager?.()?.showMainNav?.());
-    await page.locator('[data-session-type="splitscreen"]').click();
-    await page.locator('#btn-three-player-split').click();
+    await openSharedSplitMenu(page);
+    await chooseThreePlayers(page);
 
-    const deviceSelects = page.locator('[data-three-player-split-device]');
+    const deviceSelects = page.locator('[data-split-device]');
     await expect(deviceSelects).toHaveCount(3);
     await expect(deviceSelects.first().locator('option[value="gamepad-3"]')).toHaveCount(1);
     for (let playerIndex = 0; playerIndex < 3; playerIndex += 1) {
         await deviceSelects.nth(playerIndex).selectOption('keyboard');
     }
-    await page.locator('[data-three-player-split-viewport-layout]').selectOption('three_columns');
+    await page.locator('#split-viewport-layout').selectOption('three_columns');
 
-    await expect(page.locator('[data-three-player-split-device-status]')).toBeHidden();
-    await expect(page.locator('[data-three-player-split-start]')).toBeEnabled();
-    await page.locator('[data-three-player-split-start]').click();
-    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
-        && window.GAME_INSTANCE?.entityManager?.humanPlayers?.length === 3);
+    await expect(page.locator('#split-device-status')).toBeHidden();
+    await startAndWaitForThreeHumans(page);
 
     const sources = await page.evaluate(() => [0, 1, 2].map((index) => ({
         type: window.GAME_INSTANCE?.input?.getPlayerSource?.(index)?.type,
@@ -125,23 +179,19 @@ test('three-player split starts with all three players on separate keyboard bind
     }
     expect(errors).toHaveLength(0);
     await returnToMenu(page);
+    await expect(page.locator('#crosshair-p3')).toBeHidden();
 });
 
 test('three-player Hunt exposes compact combat vitals and match status for all players', async ({ page }) => {
     const errors = collectErrors(page);
-    await waitForLoadedGame(page);
-    await page.evaluate(() => window.GAME_INSTANCE?.runtimeCoordinator?.getUiManager?.()?.showMainNav?.());
-    await page.locator('[data-session-type="splitscreen"]').click();
-    await page.locator('#btn-three-player-split').click();
-    await page.locator('[data-three-player-split-mode]').selectOption('hunt');
-    const deviceSelects = page.locator('[data-three-player-split-device]');
+    await openSharedSplitMenu(page, 'fight');
+    await chooseThreePlayers(page);
+    const deviceSelects = page.locator('[data-split-device]');
     for (let playerIndex = 0; playerIndex < 3; playerIndex += 1) {
         await deviceSelects.nth(playerIndex).selectOption('keyboard');
     }
 
-    await page.locator('[data-three-player-split-start]').click();
-    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
-        && window.GAME_INSTANCE?.entityManager?.humanPlayers?.length === 3);
+    await startAndWaitForThreeHumans(page);
 
     const compactHud = page.locator('#three-player-split-hud');
     await expect(compactHud).toBeVisible();

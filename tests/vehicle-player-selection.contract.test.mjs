@@ -52,12 +52,14 @@ test('a saved hidden vehicle falls back to the star cruiser on load', () => {
     const saved = manager.createDefaultSettings();
     saved.vehicles = { PLAYER_1: 'aircraft', PLAYER_2: 'arrow' };
     saved.localSettings.fourPlayerPlanar = { ...saved.localSettings.fourPlayerPlanar, vehicleId: 'ship8' };
+    // An old save still carries the third pilot's plane in the former three-player block.
     saved.localSettings.threePlayerSplit = { ...saved.localSettings.threePlayerSplit, vehicleId: 'orb' };
     const loaded = manager.sanitizeSettings(saved);
     assert.equal(loaded.vehicles.PLAYER_1, 'ship5');
     assert.equal(loaded.vehicles.PLAYER_2, 'arrow');
+    assert.equal(loaded.vehicles.PLAYER_3, 'ship5');
     assert.equal(loaded.localSettings.fourPlayerPlanar.vehicleId, 'ship5');
-    assert.equal(loaded.localSettings.threePlayerSplit.vehicleId, 'ship5');
+    assert.equal(loaded.localSettings.threePlayerSplit.vehicleId, undefined);
 });
 
 test('a match never starts a human player in a hidden vehicle', () => {
