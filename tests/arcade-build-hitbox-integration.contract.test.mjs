@@ -81,7 +81,7 @@ function assertBoxes(player, partSizes, label) {
  * runtime), then MatchStartRuntimeService.startRound -> resetRoundRuntime -> spawnAll ->
  * EntitySpawnOps.spawnPlayerAt. Every session is a new strategy, like a (re)built MatchSession.
  */
-function createRunHarness(runType, profiles) {
+function createRunHarness(runType, profiles, { dailyChallenge = false } = {}) {
     const holder = { runtimeState: null, profiles };
     const store = {
         loadJsonRecord: (key, fallback) => (key === ARCADE_VEHICLE_PROFILE_STORAGE_KEY ? holder.profiles : fallback),
@@ -93,10 +93,15 @@ function createRunHarness(runType, profiles) {
     });
     const startSession = ({ vehicleId = 'ship5', players = null } = {}) => {
         const combatProfile = runType === 'arena_waves' ? ARENA_WAVES_COMBAT_PROFILE : undefined;
-        const strategy = new ArcadeModeStrategy({ runType, combatProfile });
-        const [human, bot] = players || [makePlayer(vehicleId), makePlayer(vehicleId, { isBot: true, index: 1 })];
+        const strategy = new ArcadeModeStrategy({ runType, combatProfile, isDailyChallenge: dailyChallenge });
+        const sessionPlayers = players || [makePlayer(vehicleId), makePlayer(vehicleId, { isBot: true, index: 1 })];
+        const human = sessionPlayers[0];
+        const bot = sessionPlayers.find((player) => player?.isBot === true) || null;
         const entityManager = {
-            players: [human, bot], humanPlayers: [human], bots: [], gameModeStrategy: strategy, _simulationClockMs: 0,
+            players: sessionPlayers,
+            humanPlayers: sessionPlayers.filter((player) => player?.isBot !== true),
+            bots: sessionPlayers.filter((player) => player?.isBot === true),
+            gameModeStrategy: strategy, _simulationClockMs: 0,
         };
         const endless = {
             entityManager,
@@ -106,8 +111,8 @@ function createRunHarness(runType, profiles) {
         };
         holder.runtimeState = {
             runtimeConfig: {
-                arcade: { enabled: true, runType, seed: 7 },
-                player: { vehicles: { PLAYER_1: vehicleId } },
+                arcade: { enabled: true, runType, dailyChallenge, seed: 7 },
+                player: { vehicles: { PLAYER_1: String(human?.vehicleId || vehicleId) } },
                 session: { numBots: 1 },
             },
             entityManager,
@@ -117,10 +122,72 @@ function createRunHarness(runType, profiles) {
         support.startRunIfEnabled();
         const spawnOps = new EntitySpawnOps(entityManager);
         for (const player of entityManager.players) spawnOps.spawnPlayerAt(player, new THREE.Vector3());
-        return { strategy, human, bot, spawnOps };
+        return { strategy, human, bot, players: sessionPlayers, spawnOps };
     };
     return { holder, support, startSession };
 }
+
+test('gauntlet map rebind reapplies each human vehicle profile after setStrategy', () => {
+    const profiles = {
+        ship1: { ...sizedProfile('ship1', {}), hangarBonuses: { speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0 } },
+        ship5: { ...sizedProfile('ship5', { wings: 125 }), hangarBonuses: { speedBonusPct: 8, turningBonusPct: 10, maxHpBonus: 15 } },
+        ship9: { ...sizedProfile('ship9', { engines: 80 }), hangarBonuses: { speedBonusPct: 20, turningBonusPct: 5, maxHpBonus: 30 } },
+    };
+    const run = createRunHarness('gauntlet', profiles);
+    const makeRoster = () => [
+        makePlayer('ship1', { index: 0 }),
+        makePlayer('ship5', { index: 1 }),
+        makePlayer('ship9', { index: 2 }),
+    ];
+
+    const first = run.startSession({ vehicleId: 'ship1', players: makeRoster() });
+    for (const player of first.players) {
+        assert.ok(Number.isFinite(first.strategy.getSpeedMultiplier(player)));
+    }
+
+    // A map/session rebuild rebinds a new strategy while the same run remains active;
+    // startRunIfEnabled returns the existing run before it can republish the profile map.
+    const rebound = run.startSession({ vehicleId: 'ship1', players: makeRoster() });
+    const expected = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    expected.applyVehicleUpgrades({
+        byVehicleId: Object.fromEntries(Object.entries(profiles).map(([id, profile]) => [id, getArcadeRunVehicleBonuses(profile)])),
+    });
+    for (const player of rebound.players) {
+        assert.equal(
+            rebound.strategy.getSpeedMultiplier(player),
+            expected.getSpeedMultiplier(player),
+            `${player.vehicleId} uses its own saved functional profile after rebind`,
+        );
+        assert.deepEqual(
+            player.arcadePartSizes,
+            sizes(player.vehicleId === 'ship5' ? { wings: 125 } : (player.vehicleId === 'ship9' ? { engines: 80 } : {})),
+            `${player.vehicleId} keeps its own size profile and hitbox source`,
+        );
+    }
+    assert.notEqual(rebound.strategy.getSpeedMultiplier(rebound.players[0]), rebound.strategy.getSpeedMultiplier(rebound.players[1]));
+    assert.notEqual(rebound.strategy.getSpeedMultiplier(rebound.players[1]), rebound.strategy.getSpeedMultiplier(rebound.players[2]));
+});
+
+test('daily challenge keeps fixed factory stats and sizes on first start and existing-run rebind', () => {
+    const profiles = {
+        ship1: { ...sizedProfile('ship1', { hull: 125 }), hangarBonuses: { speedBonusPct: 50, turningBonusPct: 50, maxHpBonus: 50 } },
+        ship5: { ...sizedProfile('ship5', { wings: 125 }), hangarBonuses: { speedBonusPct: 50, turningBonusPct: 50, maxHpBonus: 50 } },
+    };
+    const run = createRunHarness('gauntlet', profiles, { dailyChallenge: true });
+    const makeRoster = () => [makePlayer('ship1', { index: 0 }), makePlayer('ship5', { index: 1 })];
+    const baseline = new ArcadeModeStrategy({ runType: 'gauntlet', isDailyChallenge: true });
+
+    for (const session of [
+        run.startSession({ vehicleId: 'ship1', players: makeRoster() }),
+        run.startSession({ vehicleId: 'ship1', players: makeRoster() }),
+    ]) {
+        for (const player of session.players) {
+            assert.equal(session.strategy.getSpeedMultiplier(player), baseline.getSpeedMultiplier(player));
+            assert.equal(player.arcadePartSizes, undefined, 'daily size build is not applied');
+            assert.equal(player.arcadeDamageMultiplier, undefined, 'daily profile build stays inactive');
+        }
+    }
+});
 
 // --- I1: the boxes are built from the sizes of this spawn ---
 

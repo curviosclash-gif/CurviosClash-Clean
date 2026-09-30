@@ -1,19 +1,19 @@
-import { getArcadeRunVehicleBonuses, loadVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
+import { loadVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { applyArcadeCosmeticLoadoutToPlayer } from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
 import { applyVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
 import { resolveArcadeSizedPartStyle } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
 import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
 import { listPlayerShipPartDonors } from '../../shared/vehicle-lab/player-ships/index.js';
+import { createArcadeVehicleUpgradeBonusMap } from './ArcadeRunVehicleRewardOps.js';
 
 // Five portals and arena waves have no run runtime that hands the size build to the strategy
 // (gauntlet: ArcadeRunRuntime.setStrategy, endless: setEndlessRunProfile). The profile that sizes
 // the mesh below gives it to the strategy here, before the spawn, so the functional size always
 // matches the drawn size. Only the size build: the hangar slot bonuses never applied in these runs.
-function applyArcadeRunSizeBuild(strategy, profile, runtimeConfig) {
+function applyArcadeRunSizeBuild(strategy, profiles, players, runtimeConfig) {
     if (!isFivePortalsConfig(runtimeConfig) && !isArenaWavesConfig(runtimeConfig)) return;
-    const build = profile ? getArcadeRunVehicleBonuses(profile).build : null;
-    strategy?.applyVehicleUpgrades?.(build ? { build } : null);
+    strategy?.applyVehicleUpgrades?.(createArcadeVehicleUpgradeBonusMap(profiles, players, { buildOnly: true }));
 }
 
 // Draws the hangar part style on a human's part-built vehicle in arcade runs. Always
@@ -41,14 +41,16 @@ export function applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig
     const entityManager = runtimeState?.entityManager;
     const players = Array.isArray(entityManager?.players) ? entityManager.players : [];
     if (!players.length) return;
-    const vehicleId = support?._resolveActiveVehicleId?.(runtimeConfig) || 'ship5';
+    const fallbackVehicleId = support?._resolveActiveVehicleId?.(runtimeConfig) || 'ship5';
     const recordStore = support?.game?.settingsManager?.getPlayerRecordStorePort?.() || null;
-    const profile = loadVehicleProfiles(recordStore)[vehicleId] || null;
-    applyArcadeRunSizeBuild(entityManager?.gameModeStrategy, profile, runtimeConfig);
+    const profiles = loadVehicleProfiles(recordStore);
+    applyArcadeRunSizeBuild(entityManager?.gameModeStrategy, profiles, entityManager?.humanPlayers, runtimeConfig);
     const arcadeEnabled = runtimeConfig?.arcade?.enabled === true;
     // Visible size = functional size: Daily and weapon race fly at factory size.
     const useSizes = entityManager?.gameModeStrategy?.isNormalArcadeRun?.() === true;
     for (const player of players) {
+        const vehicleId = String(player?.vehicleId || fallbackVehicleId).trim() || fallbackVehicleId;
+        const profile = profiles[vehicleId] || null;
         applyArcadeCosmeticLoadoutToPlayer(player, profile, arcadeEnabled);
         applyArcadePartStyle(player, arcadeEnabled ? profile : null, vehicleId, useSizes);
     }

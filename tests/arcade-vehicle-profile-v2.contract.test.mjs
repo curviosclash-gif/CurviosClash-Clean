@@ -112,7 +112,7 @@ test('W7.1 keeps v1 and v2 records separately reachable inside a player profile'
     );
 });
 
-test('W7.1 shared profile readers drop v1 records from the fallback key without rewriting it', () => {
+test('W7.1 shared profile readers keep v1 records from the fallback key without rewriting it', () => {
     const store = createKeyedStore({
         [ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY]: {
             aircraft: {
@@ -127,6 +127,8 @@ test('W7.1 shared profile readers drop v1 records from the fallback key without 
 
     const result = loadArcadeVehicleProfileRecord(store);
     assert.equal(result.usedLegacyFallback, true);
-    assert.deepEqual(result.profiles, {}, 'v1 is not migrated into v3');
+    assert.equal(result.profiles.aircraft.schemaVersion, ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION);
+    assert.equal(result.profiles.aircraft.xp, 999999);
+    assert.equal(result.profiles.aircraft.xpBank, 999999);
     assert.equal(store.writes.length, 0);
 });

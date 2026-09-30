@@ -49,3 +49,22 @@ test('hangar stones sit on top of the named parts of a part-built vehicle', () =
     expectTopCenter('engine_right', 'R-Main Engine');
     assembly.dispose();
 });
+
+test('the utility stone sits on the utility part of Raumschiff, Pfeil and Manta', () => {
+    for (const vehicleId of ['spaceship', 'arrow', 'manta']) {
+        const assembly = new HangarVehicleAssembly(new THREE.Group());
+        assembly.setVehicle(vehicleId);
+        let utility = null;
+        assembly.vehicleNode.traverse((child) => {
+            if (child.userData?.config?.role === 'utility' && !child.userData.isMirror) utility = child;
+        });
+        assert.ok(utility, `${vehicleId}: utility part drawn`);
+        const box = new THREE.Box3().setFromObject(utility);
+        const center = box.getCenter(new THREE.Vector3());
+        const hardpoint = assembly.getHardpoint('utility');
+        assert.ok(Math.abs(hardpoint.position[0] - center.x) < 1e-6, `${vehicleId} utility x`);
+        assert.ok(Math.abs(hardpoint.position[2] - center.z) < 1e-6, `${vehicleId} utility z`);
+        assert.ok(hardpoint.position[1] > box.max.y, `${vehicleId} utility stone above the part`);
+        assembly.dispose();
+    }
+});

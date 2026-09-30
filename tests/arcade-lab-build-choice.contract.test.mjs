@@ -189,6 +189,7 @@ function syncStartSetup(modePath, settings) {
         mapSelect: document.createElement('select'),
         vehicleSelectP1: document.createElement('select'),
         vehicleSelectP2: document.createElement('select'),
+        vehicleSelectP3: document.createElement('select'),
         vehicleFavoritesList: document.createElement('div'),
         vehicleRecentList: document.createElement('div'),
     };
@@ -213,21 +214,23 @@ test('Start-Setup-Wähler: Arcade bietet nur Werksschiffe, Classic behält den L
         mapSearch: '', mapFilter: 'all', vehicleSearch: '', vehicleFilter: 'all',
         favoriteMaps: [], recentMaps: [], favoriteVehicles: [LAB_ID], recentVehicles: [LAB_ID, 'manta'],
     };
-    const settings = { mapKey: 'standard', vehicles: { PLAYER_1: LAB_ID, PLAYER_2: LAB_ID }, localSettings: { modePath: 'arcade', startSetup } };
+    const settings = { mapKey: 'standard', vehicles: { PLAYER_1: LAB_ID, PLAYER_2: LAB_ID, PLAYER_3: LAB_ID }, localSettings: { modePath: 'arcade', startSetup } };
 
     const arcade = syncStartSetup('arcade', settings);
-    for (const select of [arcade.vehicleSelectP1, arcade.vehicleSelectP2]) {
+    for (const select of [arcade.vehicleSelectP1, arcade.vehicleSelectP2, arcade.vehicleSelectP3]) {
         assert.deepEqual(select.options.map((option) => option.value).sort(), [...ARCADE_FACTORY_VEHICLE_IDS].sort());
         assert.equal(select.value, 'ship5', 'die gespeicherte Lab-Wahl zeigt sich in Arcade als Star-Cruiser');
     }
     assert.deepEqual(arcade.vehicleRecentList.children.map((node) => node.dataset.vehicleId), ['manta']);
     assert.deepEqual(arcade.vehicleFavoritesList.children, []);
-    assert.deepEqual(settings.vehicles, { PLAYER_1: LAB_ID, PLAYER_2: LAB_ID }, 'Arcade überschreibt die Classic-Wahl nicht');
+    assert.deepEqual(settings.vehicles, { PLAYER_1: LAB_ID, PLAYER_2: LAB_ID, PLAYER_3: LAB_ID }, 'Arcade überschreibt die Classic-Wahl nicht');
 
     settings.localSettings.modePath = 'normal';
     const classic = syncStartSetup('normal', settings);
     assert.ok(classic.vehicleSelectP1.options.some((option) => option.value === LAB_ID), 'Classic listet den Lab-Bau');
     assert.equal(classic.vehicleSelectP1.value, LAB_ID);
+    assert.ok(classic.vehicleSelectP3.options.some((option) => option.value === LAB_ID), 'Classic listet den Lab-Bau für Pilot 3');
+    assert.equal(classic.vehicleSelectP3.value, LAB_ID);
     assert.deepEqual(classic.vehicleRecentList.children.map((node) => node.dataset.vehicleId), [LAB_ID, 'manta']);
 });
 

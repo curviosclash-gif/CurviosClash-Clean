@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const PRESETS = Object.freeze({
+export const HANGAR_CAMERA_PRESETS = Object.freeze({
     hero: Object.freeze({ position: [4.2, 2.1, 4.8], target: [0, 0.2, 0] }),
     front: Object.freeze({ position: [0, 0.55, -5.6], target: [0, 0.1, 0] }),
     top: Object.freeze({ position: [0, 6.2, 0.3], target: [0, 0, 0] }),
@@ -27,7 +27,7 @@ export class HangarCameraController {
     }
 
     setPreset(presetId, options = {}) {
-        const preset = PRESETS[presetId] || PRESETS.hero;
+        const preset = HANGAR_CAMERA_PRESETS[presetId] || HANGAR_CAMERA_PRESETS.hero;
         this.targetPosition.fromArray(preset.position);
         this.targetLookAt.fromArray(preset.target);
         this.transitioning = options.immediate !== true;

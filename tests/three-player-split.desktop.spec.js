@@ -1,5 +1,6 @@
 import { expect, test } from './helpers.desktop.js';
 import { collectErrors, openStartSetupSection, returnToMenu, waitForLoadedGame } from './helpers.js';
+import { ARCADE_FACTORY_VEHICLE_IDS } from '../src/shared/contracts/ArcadeVehicleBalanceContract.js';
 
 // All desktop tests of a run share one profile, and the menu remembers the player count.
 // Leave two players behind, or later split-screen specs start a three-player match.
@@ -186,6 +187,104 @@ test('three-player split starts with all three players on separate keyboard bind
     expect(errors).toHaveLength(0);
     await returnToMenu(page);
     await expect(page.locator('#crosshair-p3')).toBeHidden();
+});
+
+test('Arcade starts three pilots with independent factory ships and the three-player HUD', async ({ page }) => {
+    const errors = collectErrors(page);
+    await openSharedSplitMenu(page, 'arcade');
+    await chooseThreePlayers(page);
+    await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        Object.assign(game.settings.arcade, { sectorCount: 2, seed: 3, dailyChallenge: false });
+        game.runtimeFacade.onSettingsChanged({ changedKeys: ['arcade.sectorCount', 'arcade.seed'] });
+    });
+    for (const device of await page.locator('[data-split-device]').all()) {
+        await device.selectOption('keyboard');
+    }
+
+    await openStartSetupSection(page, 'vehicle');
+    await expect(page.locator('#btn-vehicle-player-p3')).toBeVisible();
+    const offeredVehicles = await page.evaluate(() => {
+        const ids = ['p1', 'p2', 'p3'].map((player) => Array.from(
+            document.querySelectorAll(`#vehicle-select-${player} option`),
+            (option) => String(option.value || '').trim(),
+        ));
+        return ids[0].filter((id) => id && ids.every((list) => list.includes(id)));
+    });
+    expect(offeredVehicles.length).toBeGreaterThanOrEqual(3);
+    expect(offeredVehicles.every((vehicleId) => ARCADE_FACTORY_VEHICLE_IDS.includes(vehicleId))).toBe(true);
+    const selectedVehicles = offeredVehicles.slice(0, 3);
+    await page.selectOption('#vehicle-select-p1', selectedVehicles[0]);
+    await page.locator('#vehicle-p2-container').click();
+    await page.selectOption('#vehicle-select-p2', selectedVehicles[1]);
+    await page.locator('#btn-vehicle-player-p3').click();
+    await page.selectOption('#vehicle-select-p3', selectedVehicles[2]);
+
+    await page.locator('#submenu-game #btn-start').click();
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
+        && window.GAME_INSTANCE?.entityManager?.humanPlayers?.length === 3);
+    await expect(page.locator('#three-player-split-hud')).toBeVisible();
+    await expect(page.locator('#three-player-split-hud .three-player-split-hud-column')).toHaveCount(3);
+
+    const state = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        return {
+            modePath: game.runtimeConfig?.session?.modePath,
+            arcadeEnabled: game.runtimeConfig?.arcade?.enabled,
+            playerCount: game.runtimeConfig?.session?.numHumans,
+            viewportLayout: game.renderer?.viewportLayout,
+            cameraCount: game.renderer?.cameras?.length,
+            vehicles: game.runtimeConfig?.player?.vehicles,
+            playerVehicles: game.entityManager?.humanPlayers?.map((player) => player.vehicleId),
+            overlayLayout: document.querySelector('#three-player-split-hud')?.dataset.viewportLayout,
+            overlayPlayers: document.querySelectorAll('#three-player-split-hud .three-player-split-hud-column').length,
+        };
+    });
+    expect(state).toMatchObject({
+        modePath: 'arcade',
+        arcadeEnabled: true,
+        playerCount: 3,
+        viewportLayout: 'three_columns',
+        cameraCount: 3,
+        playerVehicles: selectedVehicles,
+        overlayLayout: 'three_columns',
+        overlayPlayers: 3,
+    });
+    expect(state.vehicles).toMatchObject({ PLAYER_1: selectedVehicles[0], PLAYER_2: selectedVehicles[1], PLAYER_3: selectedVehicles[2] });
+    expect(errors).toHaveLength(0);
+
+    const completeSector = async () => page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const human = game.entityManager.humanPlayers[0];
+        human.alive = true;
+        human.hp = Math.max(60, human.hp);
+        game.matchFlowUiController.onRoundEnd(human, { reason: 'ARCADE_OBJECTIVE' });
+    });
+    await completeSector();
+    await expect(page.locator('#btn-arcade-intermission-continue')).toBeVisible();
+    await expect(page.locator('#three-player-split-hud .three-player-split-hud-column')).toHaveCount(3);
+    await page.click('#btn-arcade-intermission-continue');
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
+        && window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime.getStateSnapshot().sectorIndex === 2);
+    await expect(page.locator('#three-player-split-hud .three-player-split-hud-column')).toHaveCount(3);
+    const nextSectorVehicles = await page.evaluate(() => window.GAME_INSTANCE.entityManager.humanPlayers.map((player) => player.vehicleId));
+    expect(nextSectorVehicles).toEqual(selectedVehicles);
+
+    await completeSector();
+    await expect(page.locator('#btn-arcade-victory-continue')).toBeVisible();
+    await expect(page.locator('[data-stats-block-id="arcade-victory-breakdown"]')).toBeVisible();
+    await page.click('#btn-arcade-victory-continue');
+    await expect(page.locator('#btn-arcade-intermission-continue')).toBeVisible();
+    await page.click('#btn-arcade-intermission-continue');
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
+        && window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime.getPhase() === 'sudden_death');
+    await expect(page.locator('#three-player-split-hud .three-player-split-hud-column')).toHaveCount(3);
+    await returnToMenu(page);
+    await openSharedSplitMenu(page, 'arcade');
+    await chooseThreePlayers(page);
+    await openStartSetupSection(page, 'vehicle');
+    await expect(page.locator('#btn-vehicle-player-p3')).toBeVisible();
+    await expect(page.locator('#three-player-split-hud')).toBeHidden();
 });
 
 test('three-seat telemetry records activity per player and all three viewports', async ({ page }) => {

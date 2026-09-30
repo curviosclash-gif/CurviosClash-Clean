@@ -18,7 +18,7 @@ import {
     loadCustomMapFromStorage,
     resolveCustomMapStorageCapability,
 } from '../src/entities/CustomMapLoader.js';
-import { applyLoadoutPreset, loadVehicleProfiles } from '../src/state/arcade/ArcadeVehicleProfile.js';
+import { applyLoadoutPreset, loadVehicleProfiles, saveVehicleProfiles } from '../src/state/arcade/ArcadeVehicleProfile.js';
 import {
     ARTIFACT_VERSION_DECISIONS,
     resolveArtifactVersionState,
@@ -263,7 +263,7 @@ test('V85.2 menu draft/text/telemetry stores migrate legacy payloads to schema w
     assert.ok(telemetryPersisted.state && typeof telemetryPersisted.state === 'object');
 });
 
-test('V85.2 arcade persistence drops future and unversioned schemas and rewrites the store', () => {
+test('V85.2 arcade persistence migrates missing schemas and preserves future records across saves', () => {
     const profileStore = {
         data: {
             ship1: { schemaVersion: 'arcade-vehicle-profile.v3', xp: 120, level: 2, upgrades: { core_t2: 'T2' } },
@@ -276,16 +276,26 @@ test('V85.2 arcade persistence drops future and unversioned schemas and rewrites
         },
         saveJsonRecord(_key, value) {
             this.saved = value;
+            this.data = value;
+            return true;
         },
     };
     const profiles = loadVehicleProfiles(profileStore);
     assert.ok(profiles.ship1);
     assert.equal(profiles.ship1.schemaVersion, 'arcade-vehicle-profile.v3');
     assert.equal(profiles.ship2, undefined);
-    assert.equal(profiles.ship3, undefined, 'a record without schemaVersion is dropped, not adopted');
+    assert.equal(profiles.ship3.schemaVersion, 'arcade-vehicle-profile.v3', 'a legacy record without schemaVersion is adopted');
+    assert.equal(profiles.ship3.xp, 120);
     assert.ok(profileStore.saved);
-    assert.equal(profileStore.saved.ship2, undefined);
-    assert.equal(profileStore.saved.ship3, undefined);
+    assert.equal(profileStore.saved.ship2.schemaVersion, 'arcade-vehicle-profile.v9', 'future data is retained as an opaque record');
+    assert.equal(profileStore.saved.ship2.xp, 9999);
+    assert.equal(profileStore.saved.ship3.schemaVersion, 'arcade-vehicle-profile.v3');
+
+    profiles.ship1.xp += 50;
+    assert.equal(saveVehicleProfiles(profileStore, profiles), true);
+    assert.equal(profileStore.saved.ship1.xp, 170);
+    assert.deepEqual(profileStore.saved.ship2, { schemaVersion: 'arcade-vehicle-profile.v9', xp: 9999 });
+    assert.equal(loadVehicleProfiles(profileStore).ship3.xp, 120, 'a reload after migration keeps the original progress');
 
     const loadoutStore = {
         data: {

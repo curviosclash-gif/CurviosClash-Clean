@@ -18,8 +18,11 @@ import {
 import * as BuildContract from '../src/shared/contracts/ArcadeVehicleBuildContract.js';
 import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { getArcadeRunVehicleBonuses } from '../src/state/arcade/ArcadeVehicleProfile.js';
+import { createArcadeVehicleUpgradeBonusMap } from '../src/core/arcade/ArcadeRunVehicleRewardOps.js';
+import { applyArcadeRuntimeCosmetics } from '../src/core/arcade/ArcadeRuntimeCosmeticOps.js';
 import { listPlayerShipPartDonors } from '../src/shared/vehicle-lab/player-ships/index.js';
 import { RuntimeModularVehicleMesh } from '../src/entities/runtime-modular-vehicle-mesh.js';
+import { buildArcadeHitboxShape } from '../src/shared/contracts/ArcadeVehicleHitboxContract.js';
 import { applyPlayerPowerup } from '../src/entities/player/PlayerEffectOps.js';
 import { resetPlayerCharges } from '../src/entities/player/PlayerChargeOps.js';
 import { grantShield } from '../src/hunt/HealthSystem.js';
@@ -83,6 +86,17 @@ for (const [runType, combatProfile] of [['five_portals', undefined], ['arena_wav
 
         const hull = human.vehicleMesh.children.find((child) => child.name === 'Rumpf');
         assert.ok(Math.abs(hull.scale.x - 1.25) < 1e-6, 'sichtbar: Rumpf 125 %');
+        const utility = human.vehicleMesh.children.find((child) => child.userData?.config?.role === 'utility');
+        assert.ok(utility, 'die Manta zeigt ein Utility-Bauteil');
+        const factoryScaleX = manta.parts.find((part) => part.role === 'utility').scale?.[0] ?? 1;
+        assert.ok(Math.abs(utility.scale.x / factoryScaleX - 1.25) < 1e-6, 'sichtbar: Utility 125 %');
+        // Der größere Rumpf nimmt das Heckmodul mit, statt es zu verschlucken (Drehpunkt des Rumpfs x 1,25).
+        const hullPivot = manta.parts.find((part) => part.role === 'core').pos;
+        const utilityPivot = manta.parts.find((part) => part.role === 'utility').pos;
+        utility.position.toArray().forEach((value, axis) => {
+            const expected = hullPivot[axis] + (utilityPivot[axis] - hullPivot[axis]) * 1.25;
+            assert.ok(Math.abs(value - expected) < 1e-6, `sichtbar: Heckmodul fährt mit dem Rumpf (Achse ${axis}: ${value} statt ${expected})`);
+        });
         assert.equal(human.maxHp, 180, 'funktional: Manta 150 * 1,2');
         assert.equal(human.itemCapacity, 10, '7 + 3 gekaufte Plätze bei Utility 125 %');
         assert.deepEqual(human.arcadePartSizes, profile.partSizes);
@@ -110,6 +124,70 @@ test('B: ein aufgesammelter Schild und das Respawn-Schild haben den Utility-Bonu
     const other = makePlayer('manta');
     grantShield(other, ARCADE_CONFIG);
     assert.equal(other.maxShieldHp, 40, 'ohne Arcade-Feld exakt wie bisher');
+});
+
+test('Arcade profile builds and visible part sizes stay keyed to each human pilot vehicle', () => {
+    const donors = listPlayerShipPartDonors();
+    const vehicles = ['spaceship', 'arrow', 'manta'];
+    const partSizes = [
+        sizes({ hull: 105 }),
+        sizes({ nose: 110 }),
+        sizes({ utility: 115 }),
+    ];
+    const upgrades = [{ core: 'T2' }, { wing_left: 'T2' }, { engine_left: 'T2' }];
+    const profiles = Object.fromEntries(vehicles.map((vehicleId, index) => [vehicleId, {
+        ...createArcadeVehicleProfileRecord(vehicleId, 0),
+        upgrades: upgrades[index],
+        sizeWorkshopUnlocked: true,
+        purchasedSizeSteps: index + 1,
+        partSizes: partSizes[index],
+    }]));
+    const store = {
+        loadJsonRecord: (key, fallback) => (key === ARCADE_VEHICLE_PROFILE_STORAGE_KEY ? profiles : fallback),
+    };
+    const players = vehicles.map((vehicleId) => {
+        const donor = donors.find((entry) => entry.id === vehicleId);
+        return makePlayer(vehicleId, { vehicleMesh: new RuntimeModularVehicleMesh(0x3366ff, donor) });
+    });
+    const strategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    const runtimeConfig = { arcade: { enabled: true, runType: 'gauntlet' } };
+    const runtimeState = {
+        runtimeConfig,
+        entityManager: { players, humanPlayers: players, bots: [], gameModeStrategy: strategy },
+    };
+    const support = {
+        _resolveActiveVehicleId: () => vehicles[0],
+        game: { settingsManager: { getPlayerRecordStorePort: () => store } },
+    };
+
+    applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig);
+    strategy.applyVehicleUpgrades(createArcadeVehicleUpgradeBonusMap(profiles, players));
+    for (let index = 0; index < players.length; index += 1) {
+        const player = players[index];
+        const vehicleId = vehicles[index];
+        strategy.resetPlayerHealth(player);
+        strategy.applySpawnStatBonuses(player);
+        assert.deepEqual(player.arcadePartSizes, partSizes[index], `${vehicleId}: functional build uses its profile`);
+
+        const vehicle = donors.find((donor) => donor.id === vehicleId);
+        const role = ['core', 'nose', 'utility'][index];
+        const sizeGroup = role === 'core' ? 'hull' : role;
+        const sourcePart = vehicle.parts.find((part) => part.role === role);
+        const renderedPart = player.vehicleMesh.children.find((child) => child.userData?.config?.role === role);
+        assert.ok(renderedPart, `${vehicleId}: actual modular mesh has its ${role} part`);
+        const factor = partSizes[index][sizeGroup] / 100;
+        const factoryScale = sourcePart.scale?.[0] ?? 1;
+        assert.ok(Math.abs(renderedPart.scale.x / factoryScale - factor) < 1e-6,
+            `${vehicleId}: rendered ${role} scale follows its independent profile`);
+
+        const hitbox = buildArcadeHitboxShape(vehicle.parts, player.arcadePartSizes);
+        const roleIndex = hitbox.roles.indexOf(role);
+        assert.ok(roleIndex >= 0, `${vehicleId}: its scaled part remains in the collision shape`);
+        assert.ok(Math.abs(hitbox.boxes[roleIndex * 6 + 3] / buildArcadeHitboxShape(vehicle.parts, null).boxes[roleIndex * 6 + 3] - factor) < 1e-6,
+            `${vehicleId}: functional hitbox follows the same profile size`);
+    }
+    assert.notEqual(players[0].maxHp, players[1].maxHp, 'T2 hull/core progression is applied to the selected vehicle only');
+    assert.notEqual(players[1].speed, players[2].speed, 'different selected vehicle upgrades do not collapse onto P1');
 });
 
 // --- C: Nasen-Raketenschaden über den echten Trefferweg ---

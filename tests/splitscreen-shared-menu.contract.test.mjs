@@ -7,6 +7,7 @@ import { CONFIG } from '../src/core/Config.js';
 import { resolveMatchStartValidationIssue } from '../src/core/runtime/MatchStartValidationService.js';
 import { buildHumanConfigs } from '../src/state/match-session/MatchSessionSetupOps.js';
 import { VIEWPORT_LAYOUTS } from '../src/shared/contracts/ViewportLayoutContract.js';
+import { ARCADE_FACTORY_VEHICLE_IDS } from '../src/shared/contracts/ArcadeVehicleBalanceContract.js';
 import {
     SPLIT_SCREEN_VARIANTS,
     resolveSplitScreenDeviceIssue,
@@ -104,15 +105,34 @@ test('the shared flight style applies to three players because it is visible in 
     assert.equal(manager.createRuntimeConfig(settings).gameplay.planarMode, false);
 });
 
-test('arcade falls back to the two-player split and the start check explains why', () => {
+test('Arcade starts three independent pilots in the chosen split layout', () => {
     const { manager, settings } = createSplitSettings({ modePath: 'arcade' });
+    settings.localSettings.threePlayerSplit = {
+        deviceAssignment: ['keyboard', 'keyboard', 'keyboard'],
+        viewportLayout: 'three_rows',
+    };
+    settings.vehicles = { PLAYER_1: 'ship5', PLAYER_2: 'arrow', PLAYER_3: 'manta' };
     const runtime = manager.createRuntimeConfig(settings);
-    assert.equal(runtime.session.numHumans, 2);
-    assert.equal(runtime.session.viewportLayout, VIEWPORT_LAYOUTS.TWO_COLUMNS);
+    assert.equal(runtime.session.numHumans, 3);
+    assert.equal(runtime.session.viewportLayout, VIEWPORT_LAYOUTS.THREE_ROWS);
+    assert.equal(runtime.arcade.enabled, true);
+    assert.deepEqual(runtime.player.vehicles, settings.vehicles);
+    assert.deepEqual(buildHumanConfigs(settings, runtime).map((entry) => entry.vehicleId), ['ship5', 'arrow', 'manta']);
 
     const issue = resolveMatchStartValidationIssue({ settings, maps: CONFIG.MAPS, getGamepad: CONNECTED });
-    assert.equal(issue?.fieldKey, 'players');
-    assert.match(issue.message, /nicht in Arcade/);
+    assert.equal(issue, null);
+});
+
+test('Arcade three-player runtime replaces non-factory selections with an offered factory ship', () => {
+    const { manager, settings } = createSplitSettings({ modePath: 'arcade' });
+    settings.vehicles = { PLAYER_1: 'custom_lab_1', PLAYER_2: 'custom_lab_2', PLAYER_3: 'custom_lab_3' };
+    const runtime = manager.createRuntimeConfig(settings);
+    assert.deepEqual(runtime.player.vehicles, {
+        PLAYER_1: 'ship5',
+        PLAYER_2: 'ship5',
+        PLAYER_3: 'ship5',
+    });
+    assert.ok(ARCADE_FACTORY_VEHICLE_IDS.includes(runtime.player.vehicles.PLAYER_3));
 });
 
 test('the start check blocks a missing controller for two and three players', () => {
@@ -228,7 +248,7 @@ function createNode(dataset = {}) {
     return node;
 }
 
-test('the section shows the right controls for two and three players and locks three players in arcade', () => {
+test('the section shows the right controls for two and three players in Arcade', () => {
     const ui = {
         splitPlayersSection: createNode(),
         splitPlayersStepTab: createNode(),
@@ -255,9 +275,10 @@ test('the section shows the right controls for two and three players and locks t
 
     settings.localSettings.modePath = 'arcade';
     syncSplitPlayersSection({ ui, settings, sessionType: 'splitscreen', getGamepad: CONNECTED });
-    assert.equal(ui.splitPlayerCountButtons[1].disabled, true);
-    assert.equal(ui.splitPlayerCountButtons[0].attributes['aria-pressed'], 'true');
-    assert.match(ui.splitPlayerCountHint.textContent, /nicht in Arcade/);
+    assert.equal(ui.splitPlayerCountButtons[1].disabled, false);
+    assert.equal(ui.splitPlayerCountButtons[1].attributes['aria-pressed'], 'true');
+    assert.equal(ui.splitPlayersForNodes[1].classList.contains('hidden'), false);
+    assert.match(ui.splitPlayerCountHint.textContent, /höchstens 6 Bots/);
 
     assert.equal(ui.splitPlayersStepTab.classList.contains('hidden'), false, 'the wide layout reaches the section by its rail tab');
 

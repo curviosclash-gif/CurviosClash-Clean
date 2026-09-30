@@ -193,6 +193,33 @@ function swapShape(part, donorPart) {
     return swapped;
 }
 
+const HULL_MEASURE = Object.freeze({ includeMirrors: true, ignoreGeos: Object.freeze(['flame', 'forcefield']) });
+const HULL_EPSILON = 1e-6;
+
+/**
+ * Pivot of a utility part built into the hull once the hull (role 'core') is drawn at `coreScale`.
+ * Its pivot lies inside the hull's bounds, so it is a point of the hull: the hull grows around its
+ * own pivot and carries it along, and a larger hull no longer swallows the part (Manta tail hump) nor
+ * a smaller one leaves it hanging past the deck edge (spaceship deck module). The part still grows
+ * around that pivot with its own size. A utility part standing on the hull or on another part
+ * (Star-Cruiser deck, Helix fin on its reactor spine) and every other part keep their pivot.
+ * @param {any} part
+ * @param {any} core
+ * @param {unknown} coreScale
+ * @returns {number[]|null} the new pivot, or null when the part stays where it is
+ */
+export function resolveHullMountedPivot(part, core, coreScale) {
+    const scale = Number(coreScale);
+    if (part?.role !== 'utility' || !core || !Number.isFinite(scale) || scale <= 0 || scale === 1) return null;
+    const pivot = [0, 1, 2].map((axis) => Number(part.pos?.[axis]) || 0);
+    const hull = measureVehiclePartBounds(core, HULL_MEASURE);
+    if (pivot.some((value, axis) => value < hull.min[axis] - HULL_EPSILON || value > hull.max[axis] + HULL_EPSILON)) return null;
+    return pivot.map((value, axis) => {
+        const origin = Number(core.pos?.[axis]) || 0;
+        return origin + (value - origin) * scale;
+    });
+}
+
 /**
  * Returns a styled copy of a Vehicle Lab config; the input stays untouched.
  * @param {{parts?: object[]}} config
@@ -202,13 +229,16 @@ function swapShape(part, donorPart) {
 export function applyVehiclePartStyle(config, style, donors = []) {
     const styled = clone(config || {});
     const entries = normalizeVehiclePartStyle(style);
+    const core = (styled.parts || []).find((part) => part?.role === 'core');
+    const coreScale = core ? entries[core.name]?.scale : undefined;
     styled.parts = (styled.parts || []).map((part) => {
+        const pivot = resolveHullMountedPivot(part, core, coreScale);
+        let next = pivot ? { ...part, pos: pivot } : part;
         const entry = entries[part?.name];
-        if (!entry) return part;
-        let next = part;
+        if (!entry) return next;
         if (entry.variant && part.role && !NON_SWAPPABLE_ROLES.has(part.role)) {
             const donorPart = findDonorPart(donors, entry.variant, part.role);
-            if (donorPart) next = swapShape(part, donorPart);
+            if (donorPart) next = swapShape(next, donorPart);
         }
         if (entry.scale) next = { ...next, scale: (next.scale || [1, 1, 1]).map((value) => value * entry.scale) };
         if (entry.color !== undefined) next = { ...next, color: entry.color };

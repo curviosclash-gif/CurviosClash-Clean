@@ -61,7 +61,7 @@ export function resolveMatchStartValidationIssue({
         if (isThreePlayerSplitVariant(settings)) {
             if (!isThreePlayerSplitModePathAllowed(settings?.localSettings?.modePath)) {
                 return {
-                    message: 'Start nicht möglich: 3 Spieler gibt es in Kampf und Klassisch, nicht in Arcade.',
+                    message: 'Start nicht möglich: Für diesen Spielstil ist die Drei-Spieler-Aufteilung nicht verfügbar.',
                     fieldKey: 'players',
                     fieldMessage: '2 Spieler wählen oder einen anderen Spielstil nehmen.',
                 };

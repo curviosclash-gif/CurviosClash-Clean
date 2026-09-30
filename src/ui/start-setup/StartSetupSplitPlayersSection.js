@@ -22,7 +22,7 @@ import { resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 import { formatKeyCodeShort } from '../KeybindLabels.js';
 
 const THREE_PLAYER_HINT = 'Mit 3 Spielern: höchstens 6 Bots, kein Team-Modus.';
-const ARCADE_HINT = '3 Spieler gibt es in Kampf und Klassisch, nicht in Arcade.';
+const UNSUPPORTED_MODE_HINT = 'Für diesen Spielstil ist die Drei-Spieler-Aufteilung nicht verfügbar.';
 
 function isSplitScreen(settings) {
     return String(settings?.localSettings?.sessionType || '').trim().toLowerCase() === 'splitscreen';
@@ -102,10 +102,10 @@ export function syncSplitPlayersSection({ ui, settings, sessionType, getGamepad 
         button.classList.toggle('active', active);
         button.setAttribute('aria-pressed', String(active));
         button.disabled = count === 3 && !threeAllowed;
-        button.title = button.disabled ? ARCADE_HINT : '';
+        button.title = button.disabled ? UNSUPPORTED_MODE_HINT : '';
     }
     if (ui.splitPlayerCountHint) {
-        ui.splitPlayerCountHint.textContent = !threeAllowed ? ARCADE_HINT : (playerCount === 3 ? THREE_PLAYER_HINT : '');
+        ui.splitPlayerCountHint.textContent = !threeAllowed ? UNSUPPORTED_MODE_HINT : (playerCount === 3 ? THREE_PLAYER_HINT : '');
     }
     for (const node of ui.splitPlayersForNodes || []) {
         node.classList.toggle('hidden', node.dataset.splitPlayersFor !== String(playerCount));

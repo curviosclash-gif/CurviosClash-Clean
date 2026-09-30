@@ -208,9 +208,12 @@ export function clampThreePlayerSplitBotCount(value) {
     ));
 }
 
-// Arcade overlays exist once per screen, so a three-way split has no place for them.
+const THREE_PLAYER_SPLIT_ALLOWED_MODE_PATHS = new Set(['normal', 'arcade', 'fight', 'quick_action']);
+
+// The three-player layout already owns a per-player HUD surface; Arcade's match
+// overlays remain shared while each pilot keeps an independent viewport and HUD row.
 export function isThreePlayerSplitModePathAllowed(modePath) {
-    return String(modePath || '').trim().toLowerCase() !== 'arcade';
+    return THREE_PLAYER_SPLIT_ALLOWED_MODE_PATHS.has(String(modePath || '').trim().toLowerCase());
 }
 
 export function resolveThreePlayerSplitGamepadSlots(deviceAssignment) {

@@ -17,7 +17,7 @@ import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE } from '../s
 import { ARENA_WAVES_COMBAT_PROFILE } from '../shared/contracts/ArenaWavesContract.js';
 import { resolveArcadeParcoursRespawnFallback, resolveArcadeRunCombatProfile } from './ArcadeRunRulesOps.js';
 import { applyArcadeEndlessSpawnBonuses, resetArcadeEndlessPlayerHealth } from './ArcadeEndlessVehicleBonusOps.js';
-import { applyArcadeBuildToPlayer, applyArcadeGauntletHealthReset, applyArcadeVehicleSpawnCapacities, capArcadeVehicleSpeedMultiplier, isNormalArcadeRunType, normalizeArcadeUpgradeBonuses, resolveArcadePlayerUpgradeBonuses, resolveArcadeVehicleStatPct } from './ArcadeVehicleStatOps.js';
+import { applyArcadeBuildToPlayer, applyArcadeGauntletHealthReset, applyArcadeVehicleSpawnCapacities, capArcadeVehicleSpeedMultiplier, isNormalArcadeRunType, normalizeArcadeUpgradeBonusMap, normalizeArcadeUpgradeBonuses, resolveArcadePlayerUpgradeBonuses, resolveArcadeVehicleStatPct } from './ArcadeVehicleStatOps.js';
 import { resolveArcadeSimulationSeconds, stampArcadeHitOnSimulationClock, updateArcadeBaseRegen } from './ArcadeBaseRegenOps.js';
 
 const DEFAULT_MAX_HP = 100;
@@ -69,6 +69,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._random = this.runtimeRng.next;
         this._activeModifierId = null;
         this._slotBonuses = NULL_SLOT_BONUSES;
+        this._slotBonusesByVehicle = null;
         /** @type {any} */
         this._runRewardEffects = createDefaultArcadeRunRewardEffects();
         this._roundScores = {};
@@ -170,10 +171,19 @@ export class ArcadeModeStrategy extends GameModeContract {
     // fuer das ganze Match, also muss jede Anwendung fragen, wen sie vor sich hat --
     // sonst fliegen die Gegner mit derselben Aufruestung. Ohne bekannten Spieler
     // bleibt es beim alten Verhalten, damit vorhandene Aufrufer weiter funktionieren.
-    _upgradeBonusesFor(player) { return player?.isBot === true ? NULL_SLOT_BONUSES : resolveArcadePlayerUpgradeBonuses(player, this._slotBonuses); }
+    _upgradeBonusesFor(player) {
+        if (player?.isBot === true) return NULL_SLOT_BONUSES;
+        return this._slotBonusesByVehicle ? (this._slotBonusesByVehicle[String(player?.vehicleId || '').trim()] || NULL_SLOT_BONUSES) : resolveArcadePlayerUpgradeBonuses(player, this._slotBonuses);
+    }
 
     // Paket 2a: bonuses.build (Größenfelder des Profils) rechnet nur in normalen Runs mit.
     applyVehicleUpgrades(bonuses) {
+        const byVehicleId = bonuses?.byVehicleId;
+        if (byVehicleId && typeof byVehicleId === 'object' && !Array.isArray(byVehicleId)) {
+            this._slotBonusesByVehicle = normalizeArcadeUpgradeBonusMap(byVehicleId, this.isNormalArcadeRun());
+            this._slotBonuses = NULL_SLOT_BONUSES; return;
+        }
+        this._slotBonusesByVehicle = null;
         this._slotBonuses = normalizeArcadeUpgradeBonuses(bonuses, NULL_SLOT_BONUSES, this.isNormalArcadeRun());
     }
 

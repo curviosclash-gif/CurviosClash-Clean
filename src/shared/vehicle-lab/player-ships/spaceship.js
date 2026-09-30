@@ -3,6 +3,10 @@
 // dome, glass cockpit dome ahead of centre, two long side stabilizers reaching forward, twin nose
 // cannons and two rim engines with orange glow. The belly hemisphere has no primitive of its own, so a
 // stack of three frustums and a flattened sphere cap stands in for it.
+// The utility part (not in the old model) is a small oval deck module behind the cockpit: a frustum
+// with a dark ring like the rim and a dark sensor cap. Its pivot and ring sit on the deck line and the
+// hull carries that pivot along when it grows (resolveHullMountedPivot), so at every hull and utility
+// size (80-125 %) the ring lies on the deck and the module stays between cockpit and deck edge.
 const DARK = 0x0a0a1a;
 
 function stabilizer(side) {
@@ -40,6 +44,11 @@ export default {
         ] },
         { name: 'Cockpitkuppel', geo: 'sphere', size: [0.625], pos: [0, 0.25, -0.5], material: 'glass', color: 0x88ccff, opacity: 0.62, role: 'nose' },
         { name: 'Bugkanone', geo: 'pylon', size: [0.05, 0.05, 1.25], pos: [0.5, 0, -2], rot: [90, 0, 0], material: 'secondary', color: 0x334466, mirror: true },
+        // Pivot on the deck (y 0.125), oval 0.6 wide and 0.46 deep: the lower half sits in the saucer.
+        { name: 'Rückenmodul', geo: 'cylinder', size: [0.2, 0.26, 0.32], pos: [0, 0.125, 0.575], scale: [1.3, 1, 1], material: 'primary', role: 'utility', children: [
+            { name: 'Modulring', geo: 'torus', size: [0.23, 0.022], rot: [90, 0, 0], material: 'secondary', color: DARK },
+            { name: 'Sensorkappe', geo: 'sphere', size: [0.15], pos: [0, 0.16, 0], scale: [1, 0.6, 1], material: 'secondary', color: DARK },
+        ] },
         stabilizer('left'),
         stabilizer('right'),
         engine('left'),

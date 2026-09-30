@@ -18,7 +18,7 @@ import {
     XP_REWARD_TABLE,
 } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { awardBoundArcadeVehicleXp } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
-import { bindArcadeRunVehicleRewards, ensureArcadeRunVehicleRewards, getArcadeRunVehicleId, getArcadeRunVehicleProfile, resolveArcadePlayerRewardBinding } from './ArcadeRunVehicleRewardOps.js';
+import { bindArcadeRunVehicleRewards, ensureArcadeRunVehicleRewards, getArcadeRunVehicleId, getArcadeRunVehicleProfile, resolveArcadePlayerRewardBinding, resolveArcadeRunStrategyUpgradeBonuses } from './ArcadeRunVehicleRewardOps.js';
 import { createLeaderboardProjection, loadLeaderboard } from '../../state/arcade/ArcadeLeaderboard.js';
 import {
     ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET,
@@ -377,13 +377,13 @@ export class ArcadeRunRuntime {
         return this._config.dailyChallenge ? null : getArcadeRunVehicleBonuses(profile);
     }
 
-    setStrategy(strategy) {
+    setStrategy(strategy, humanPlayers = null) {
         this._strategy = strategy || null;
         if (!this._strategy) return;
         try { this._strategy.setActiveModifier?.(this._activeModifierId); } catch { /* no-op */ }
         try { this._strategy.setSectorType?.(this._currentSectorType); } catch { /* no-op */ }
         const profile = this.getVehicleProfile();
-        try { this._strategy.applyVehicleUpgrades?.(this._getVehicleBonuses(profile)); } catch { /* no-op */ }
+        try { this._strategy.applyVehicleUpgrades?.(resolveArcadeRunStrategyUpgradeBonuses(this._vehicleProfiles, humanPlayers, this._getVehicleBonuses(profile), this._config.dailyChallenge)); } catch { /* no-op */ }
         syncArcadeRunRewardEffects(this._state, this._strategy);
         if (this._state?.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH) {
             this._restoreSuddenDeath();
@@ -849,7 +849,12 @@ export class ArcadeRunRuntime {
         this._vehicleProfiles = loadVehicleProfiles(store);
         const activeProfile = this.getVehicleProfile();
         syncArcadeMasteryPerks(this._state, activeProfile);
-        this._notifyVehicleUpgradesChanged(this._getVehicleBonuses(activeProfile));
+        this._notifyVehicleUpgradesChanged(resolveArcadeRunStrategyUpgradeBonuses(
+            this._vehicleProfiles,
+            options.entityManager?.humanPlayers,
+            options.dailyChallenge || runConfig.dailyChallenge === true ? null : this._getVehicleBonuses(activeProfile),
+            options.dailyChallenge === true || runConfig.dailyChallenge === true,
+        ));
 
         // Resolve map sequence from encounter plan if available
         if (options.encounterPlan) {

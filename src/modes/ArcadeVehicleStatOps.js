@@ -19,6 +19,7 @@ const NORMAL_ARCADE_RUN_TYPES = Object.freeze(['gauntlet', 'endless_parcours', '
 // Tägliche Challenge und Waffenrennen behalten ihre heutigen festen Startbedingungen:
 // gleicher Deckel wie vor Paket 1 (Grundwert 100 % + 50 Prozentpunkte Hangar-Bonus).
 const LEGACY_STAT_CAP_BONUS_PCT = 50;
+const NULL_UPGRADE_BONUSES = Object.freeze({ turningBonusPct: 0, speedBonusPct: 0, maxHpBonus: 0 });
 
 /**
  * "Normale Arcade-Runs" (gauntlet, endless_parcours, five_portals, arena_waves) bekommen
@@ -69,6 +70,16 @@ export function normalizeArcadeUpgradeBonuses(bonuses, fallback, isNormalRun) {
         partSizes: normalizeArcadeSizeProfileFields(source).partSizes,
         otherVehicle,
     });
+}
+
+/** Normalize the per-vehicle profile lookup once when a run starts, never on the update path. */
+export function normalizeArcadeUpgradeBonusMap(byVehicleId, isNormalRun) {
+    const normalized = Object.create(null);
+    for (const [vehicleId, bonuses] of Object.entries(byVehicleId || {})) {
+        const key = String(vehicleId || '').trim();
+        if (key) normalized[key] = normalizeArcadeUpgradeBonuses(bonuses, NULL_UPGRADE_BONUSES, isNormalRun);
+    }
+    return Object.freeze(normalized);
 }
 
 /**

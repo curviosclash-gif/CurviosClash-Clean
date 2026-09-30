@@ -423,7 +423,13 @@ export function applyLoadoutPreset(profile, upgrades, nowMs = Date.now()) {
 
 export function loadVehicleProfiles(store) {
     if (!store || typeof store.loadJsonRecord !== 'function') return {};
-    const { profiles: contractProfiles, shouldPersist, usedLegacyFallback } = loadArcadeVehicleProfileRecord(store);
+    const {
+        profiles: contractProfiles,
+        preservedProfiles = {},
+        shouldPersist,
+        canPersist = true,
+        usedLegacyFallback,
+    } = loadArcadeVehicleProfileRecord(store);
     const normalizedProfiles = {};
     let shouldRewrite = shouldPersist;
 
@@ -433,8 +439,8 @@ export function loadVehicleProfiles(store) {
         if (!profileEquals(profile, normalized)) shouldRewrite = true;
     });
 
-    if (shouldRewrite && !usedLegacyFallback && typeof store.saveJsonRecord === 'function') {
-        const saveResult = store.saveJsonRecord(STORAGE_KEY, normalizedProfiles);
+    if (shouldRewrite && canPersist && !usedLegacyFallback && typeof store.saveJsonRecord === 'function') {
+        const saveResult = store.saveJsonRecord(STORAGE_KEY, { ...preservedProfiles, ...normalizedProfiles });
         warnPersistenceFailure('canonical write-back', saveResult);
     }
     return normalizedProfiles;
@@ -442,12 +448,17 @@ export function loadVehicleProfiles(store) {
 
 export function saveVehicleProfiles(store, profiles) {
     if (!store || typeof store.saveJsonRecord !== 'function') return false;
+    const { preservedProfiles = {}, canPersist = true } = loadArcadeVehicleProfileRecord(store);
+    // A malformed top-level record cannot be safely merged with writable profiles.
+    if (!canPersist) return false;
     const sourceProfiles = profiles && typeof profiles === 'object' ? profiles : {};
     const normalizedProfiles = {};
     Object.entries(sourceProfiles).forEach(([vehicleId, profile]) => {
         normalizedProfiles[vehicleId] = normalizeVehicleProfileSafe(profile);
     });
-    const saveResult = store.saveJsonRecord(STORAGE_KEY, normalizedProfiles);
+    // Rejected or malformed per-vehicle records stay byte-for-byte equivalent at the
+    // JSON value level, including when a fresh runtime profile has the same vehicle ID.
+    const saveResult = store.saveJsonRecord(STORAGE_KEY, { ...normalizedProfiles, ...preservedProfiles });
     warnPersistenceFailure('saveVehicleProfiles', saveResult);
     return saveResult;
 }

@@ -7,7 +7,7 @@
 // queries. Pure data + math, no Three.js, no imports from core/ui/state.
 // ============================================
 
-import { measureVehiclePartBounds, resolveVehiclePartMirrorAxis } from './VehiclePartStyleContract.js';
+import { measureVehiclePartBounds, resolveHullMountedPivot, resolveVehiclePartMirrorAxis } from './VehiclePartStyleContract.js';
 import { resolveArcadePartSizeFactors } from './ArcadeVehicleSizeContract.js';
 
 export const ARCADE_HITBOX_SCALE = 0.9;
@@ -201,13 +201,21 @@ export function buildArcadeHitboxShape(parts, partSizes, options = {}) {
     const list = Array.isArray(parts) ? parts : [];
     const factors = resolveArcadePartSizeFactors(list, partSizes);
     const originScale = Number(options.originScale) > 0 ? Number(options.originScale) : 1;
+    // The drawn utility part rides on the hull (applyVehiclePartStyle); its box does the same.
+    const hull = list.find((part) => part?.role === 'core');
+    const hullFactor = hull ? factors[String(hull.name || '')] : 1;
     /** @type {Array<{name: string, role: string, center: number[], half: number[]}>} */
     const boxes = [];
     for (const part of pickParts(list)) {
         const factor = factors[String(part.name || '')] || 1;
-        const scaled = factor === 1
+        const pivot = resolveHullMountedPivot(part, hull, hullFactor);
+        const scaled = factor === 1 && !pivot
             ? part
-            : { ...part, scale: [0, 1, 2].map((a) => (Array.isArray(part.scale) ? Number(part.scale[a]) || 1 : 1) * factor) };
+            : {
+                ...part,
+                ...(pivot ? { pos: pivot } : {}),
+                scale: [0, 1, 2].map((a) => (Array.isArray(part.scale) ? Number(part.scale[a]) || 1 : 1) * factor),
+            };
         for (const measure of measuresOf(part)) {
             const bounds = measureVehiclePartBounds(scaled, measure);
             const center = bounds.center.slice();

@@ -2,9 +2,8 @@ import * as THREE from 'three';
 import { HANGAR_SLOT_DEFINITIONS } from './HangarPartCatalog.js';
 import { HangarVehicleAssembly } from './HangarVehicleAssembly.js';
 import { HangarCameraController } from './HangarCameraController.js';
+import { createHangarHardpointButtonLayout, layoutHangarHardpointButtons } from './HangarHardpointButtonLayout.js';
 
-const _projected = new THREE.Vector3();
-const _worldPoint = new THREE.Vector3();
 const _pointer = new THREE.Vector2();
 const _raycaster = new THREE.Raycaster();
 
@@ -57,6 +56,7 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
     const assembly = new HangarVehicleAssembly(root);
     const markerGeometry = new THREE.SphereGeometry(0.075, 12, 8);
     const markers = new Map();
+    const buttonLayout = createHangarHardpointButtonLayout();
     const markerRoot = new THREE.Group();
     root.add(markerRoot);
     for (const slot of HANGAR_SLOT_DEFINITIONS) {
@@ -194,26 +194,19 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
         }
     }
 
+    // buildOverlay adds one button per slot in HANGAR_SLOT_DEFINITIONS order, the layout's order.
     function projectOverlay() {
         if (!overlay || !renderer) return;
+        layoutHangarHardpointButtons(assembly, root, camera, renderWidth, renderHeight, buttonLayout);
         const buttons = overlay.children;
-        for (let index = 0; index < buttons.length; index += 1) {
+        const count = Math.min(buttons.length, buttonLayout.visible.length);
+        for (let index = 0; index < count; index += 1) {
             const button = buttons[index];
-            const slotId = String(button.dataset.hangarSlot || '');
-            if (!assembly.copyHardpointPosition(slotId, _worldPoint)) {
-                button.classList.add('hidden');
-                continue;
-            }
-            _projected.copy(_worldPoint);
-            root.localToWorld(_projected);
-            _projected.project(camera);
-            const visible = _projected.z > -1 && _projected.z < 1
-                && _projected.x >= -1 && _projected.x <= 1
-                && _projected.y >= -1 && _projected.y <= 1;
+            const visible = buttonLayout.visible[index] === 1;
             button.classList.toggle('hidden', !visible);
             if (!visible) continue;
-            button.style.left = `${((_projected.x * 0.5 + 0.5) * renderWidth).toFixed(1)}px`;
-            button.style.top = `${((-_projected.y * 0.5 + 0.5) * renderHeight).toFixed(1)}px`;
+            button.style.left = `${buttonLayout.x[index].toFixed(1)}px`;
+            button.style.top = `${buttonLayout.y[index].toFixed(1)}px`;
         }
     }
 
@@ -278,6 +271,9 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
             partStyleKey = '';
             assembly.clearGhost();
             assembly.setVehicle(vehicleId, vehicleColor);
+            // The buttons of another ship start on their hardpoints, not where the last ship's sat.
+            buttonLayout.offsetX.fill(0);
+            buttonLayout.offsetY.fill(0);
         }
         assembly.setMachineGunModel(options.machineGunId);
         const slots = build?.slots || {};

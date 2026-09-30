@@ -69,6 +69,40 @@ test('applying a style recolors, rescales and swaps parts without touching the s
     assert.deepEqual(deco, SHIP.parts[3]);
 });
 
+test('a utility part built into the hull rides on it: a larger or smaller hull carries it along, other parts keep their pivot', () => {
+    // Hull box at (0, -0.1, 0.4) reaches up to y 0.15; the module pivot (0, 0.1, 0.9) lies inside it.
+    const withModule = (pos) => ({
+        ...SHIP,
+        parts: [
+            { ...SHIP.parts[0], pos: [0, -0.1, 0.4] },
+            SHIP.parts[1],
+            SHIP.parts[2],
+            { name: 'Rückenmodul', geo: 'box', size: [0.4, 0.3, 0.6], pos, role: 'utility' },
+            SHIP.parts[3],
+        ],
+    });
+    const ship = withModule([0, 0.1, 0.9]);
+    const byName = (config, name) => config.parts.find((part) => part.name === name);
+    for (const hull of [0.8, 1.25]) {
+        const styled = applyVehiclePartStyle(ship, { Rumpf: { scale: hull }, Rückenmodul: { scale: 1.1 } });
+        // The hull grows around its pivot (0, -0.1, 0.4); the module keeps its spot in the hull.
+        const expected = [0, -0.1 + 0.2 * hull, 0.4 + 0.5 * hull];
+        byName(styled, 'Rückenmodul').pos.forEach((value, axis) => {
+            assert.ok(Math.abs(value - expected[axis]) < 1e-9, `hull ${hull}: module axis ${axis} at ${value}, expected ${expected[axis]}`);
+        });
+        assert.deepEqual(byName(styled, 'Rückenmodul').scale, [1.1, 1.1, 1.1], 'the module keeps its own size');
+        assert.deepEqual(byName(styled, 'Rumpf').pos, [0, -0.1, 0.4], 'the hull keeps its pivot');
+        for (const name of ['Nase', 'Linker Flügel', 'Deko']) {
+            assert.deepEqual(byName(styled, name), byName(ship, name), `${name} stays where it is`);
+        }
+        // A module standing on the hull (pivot above it) keeps its pivot as before.
+        const standing = applyVehiclePartStyle(withModule([0, 0.3, 0.9]), { Rumpf: { scale: hull } });
+        assert.deepEqual(byName(standing, 'Rückenmodul').pos, [0, 0.3, 0.9], `hull ${hull}: a standing module keeps its pivot`);
+    }
+    assert.deepEqual(byName(applyVehiclePartStyle(ship, { Rückenmodul: { scale: 1.25 } }), 'Rückenmodul').pos, [0, 0.1, 0.9],
+        'without a hull scale the module keeps its pivot');
+});
+
 function renderedBounds(config, partName) {
     const mesh = new ModularVehicleMesh(config);
     mesh.updateMatrixWorld(true);

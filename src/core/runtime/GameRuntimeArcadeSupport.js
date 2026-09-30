@@ -379,7 +379,7 @@ export class GameRuntimeArcadeSupport {
         this._bindGameplayCallback(runtimeState);
         this.arcadeRunRuntime.setActiveVehicle(this._resolveActiveVehicleId(runtimeConfig));
         const strategy = runtimeState?.entityManager?.gameModeStrategy || null;
-        this.arcadeRunRuntime.setStrategy(strategy);
+        this.arcadeRunRuntime.setStrategy(strategy, runtimeState?.entityManager?.humanPlayers);
         // Die neue Sitzung steht; ab hier darf ein Reset den Run wieder verwerfen.
         this._sectorRebuildInFlight = false;
         const existing = this.arcadeRunRuntime.getStateSnapshot?.();
