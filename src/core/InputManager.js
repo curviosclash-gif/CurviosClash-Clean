@@ -104,10 +104,10 @@ export class InputManager {
          */
         this._playerSources = new Map();
 
-        // Rundenweite Eingabebilanz: wie viele Abfragen menschlicher Plaetze gab
-        // es, und bei wie vielen lag wirklich eine Eingabe an.
-        this._inputActivitySamples = 0;
-        this._inputActivityActiveSamples = 0;
+        // Rundenweite Eingabebilanz je Spielerplatz: wie viele Abfragen gab es,
+        // und bei wie vielen lag wirklich eine Eingabe an.
+        /** @type {Map<number, {samples: number, activeSamples: number}>} */
+        this._inputActivityByPlayer = new Map();
 
         this._rebuildPreventDefaultCodes();
         this._document = window.document;
@@ -438,31 +438,43 @@ export class InputManager {
             // Options carry the fixed step of the caller: a source that integrates over
             // time (the network guest ramp) must never read a clock of its own.
             const polled = source.poll(options);
-            if (polled) return this._trackInputActivity(polled);
+            if (polled) return this._trackInputActivity(playerIndex, polled);
         }
 
         // Fallback: keyboard bindings (original behavior)
-        return this._trackInputActivity(this.getKeyboardInput(playerIndex, options));
+        return this._trackInputActivity(playerIndex, this.getKeyboardInput(playerIndex, options));
     }
 
-    _trackInputActivity(inputState) {
-        this._inputActivitySamples += 1;
-        if (isActiveInputState(inputState)) this._inputActivityActiveSamples += 1;
+    _trackInputActivity(playerIndex, inputState) {
+        let activity = this._inputActivityByPlayer.get(playerIndex);
+        if (!activity) {
+            activity = { samples: 0, activeSamples: 0 };
+            this._inputActivityByPlayer.set(playerIndex, activity);
+        }
+        activity.samples += 1;
+        if (isActiveInputState(inputState)) activity.activeSamples += 1;
         return inputState;
     }
 
     /**
      * Nur menschliche Plaetze fragen hier an: Bots liefern ihre Aktionen aus der
      * Policy. Der Anteil aktiver Abfragen sagt deshalb, ob ein Mensch mitspielte.
-     * @returns {{samples: number, activeSamples: number}}
+     * @returns {{samples: number, activeSamples: number,
+     *            players: Array<{index: number, samples: number, activeSamples: number}>}}
      */
     getInputActivitySnapshot() {
-        return { samples: this._inputActivitySamples, activeSamples: this._inputActivityActiveSamples };
+        const players = [...this._inputActivityByPlayer.entries()]
+            .sort(([left], [right]) => left - right)
+            .map(([index, activity]) => ({ index, samples: activity.samples, activeSamples: activity.activeSamples }));
+        return {
+            samples: players.reduce((sum, player) => sum + player.samples, 0),
+            activeSamples: players.reduce((sum, player) => sum + player.activeSamples, 0),
+            players,
+        };
     }
 
     resetInputActivity() {
-        this._inputActivitySamples = 0;
-        this._inputActivityActiveSamples = 0;
+        this._inputActivityByPlayer.clear();
     }
 
     dispose() {

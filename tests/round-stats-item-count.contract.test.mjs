@@ -59,5 +59,8 @@ test('the raw telemetry count stays untouched by the overlay figure', () => {
     const recorder = recordRound();
     endRound(recorder);
 
-    assert.equal(recorder.getLastRoundMetrics().itemUseEvents, 405);
+    // 400 MG-Takte, drei Einsaetze und der Cooldown-Versuch; der leere Raketendruck ist
+    // ein Leerversuch und kein Item-Einsatz.
+    assert.equal(recorder.getLastRoundMetrics().itemUseEvents, 404);
+    assert.equal(recorder.getLastRoundMetrics().emptyItemActions, 1);
 });
