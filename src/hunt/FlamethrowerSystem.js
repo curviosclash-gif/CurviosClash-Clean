@@ -6,6 +6,7 @@ import { shouldSkipOwnerSegment } from '../entities/systems/trails/TrailCollisio
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { isHuntHealthActive } from './HealthSystem.js';
+import { canDamage, TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
 
 export const FLAMETHROWER_CAUSE = 'FLAMETHROWER';
 
@@ -174,6 +175,7 @@ export class FlamethrowerSystem {
     _burnPlayers(player, origin, aim, range, tanHalfAngle, damage) {
         for (const target of this.entityManager?.players || []) {
             if (!target || target === player || target.alive !== true || !target.position) continue;
+            if (!canDamage(player, target, TEAM_WEAPON_KINDS.ITEM_PROJECTILE)) continue;
             if ((Number(target.spawnProtectionTimer) || 0) > 0) continue;
             const radius = Math.max(
                 0.2,
@@ -210,6 +212,7 @@ export class FlamethrowerSystem {
         for (const turret of turrets) {
             if (!isDestructibleTurret(turret) || turret.hp <= 0 || !turret.position) continue;
             if (turret.ownerPlayer === player || turret.ownerIndex === player?.index) continue;
+            if (!canDamage(player, turret, TEAM_WEAPON_KINDS.ITEM_PROJECTILE)) continue;
             const radius = Math.max(0.5, Number(turret.hitboxRadius) || 2.2);
             if (!isInsideFlameCone(origin, aim, turret.position, radius, range, tanHalfAngle, this._offset)) continue;
             if (!this._hasLineOfSight(origin, turret.position)) continue;

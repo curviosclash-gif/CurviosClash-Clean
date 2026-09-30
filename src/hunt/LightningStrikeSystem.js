@@ -3,6 +3,7 @@ import { HUNT_CONFIG } from './HuntConfig.js';
 import { isHuntHealthActive } from './HealthSystem.js';
 import { LightningStrikeEffect } from '../entities/effects/LightningStrikeEffect.js';
 import { nextPlayerArcadeWeaponColor } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
+import { canDamage, TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
 
 export const LIGHTNING_CAUSE = 'LIGHTNING';
 // Strikes kept for the network: bots may cast together, so several can land between two snapshots.
@@ -22,6 +23,7 @@ export function selectLightningTargets(players, caster, share, out = []) {
     out.length = 0;
     for (const player of players || []) {
         if (!player || player === caster || player.alive !== true || !player.position) continue;
+        if (!canDamage(caster, player, TEAM_WEAPON_KINDS.ITEM_PROJECTILE)) continue;
         if (player.entitySlotActive === false || (Number(player.spawnProtectionTimer) || 0) > 0) continue;
         out.push(player);
     }

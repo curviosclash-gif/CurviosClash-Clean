@@ -6,7 +6,7 @@ import { CONFIG_BASE } from '../src/core/Config.js';
 import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
 import { applyDamage } from '../src/hunt/HealthSystem.js';
 import { FlamethrowerSystem, isInsideFlameCone } from '../src/hunt/FlamethrowerSystem.js';
-import { applyPlayerPowerup } from '../src/entities/player/PlayerEffectOps.js';
+import { applyPlayerPowerup, isPlayerBurning } from '../src/entities/player/PlayerEffectOps.js';
 import { PlayerActionPhase } from '../src/entities/systems/lifecycle/PlayerActionPhase.js';
 
 const HUNT_MODE_CONFIG = {
@@ -19,9 +19,10 @@ const CLASSIC_MODE_CONFIG = {
     HUNT: { ...CONFIG_BASE.HUNT, ENABLED: false, ACTIVE_MODE: 'CLASSIC', DEFAULT_MODE: 'CLASSIC' },
 };
 
-function createPlayer(index, position, config) {
+function createPlayer(index, position, config, teamId = null) {
     return {
         index,
+        teamId,
         alive: true,
         isBot: false,
         position: new THREE.Vector3(position[0], position[1], position[2]),
@@ -61,9 +62,10 @@ function createWorld({
     arena = null,
     turrets = [],
     isFightOutcomeAuthority = true,
+    shooterTeamId = null,
 } = {}) {
     const config = mode === 'HUNT' ? HUNT_MODE_CONFIG : CLASSIC_MODE_CONFIG;
-    const shooter = createPlayer(0, [0, 0, 0], config);
+    const shooter = createPlayer(0, [0, 0, 0], config, shooterTeamId);
     const damageEvents = [];
     const kills = [];
     const entityManager = {
@@ -85,8 +87,8 @@ function createWorld({
     return { config, entityManager, shooter, system, damageEvents, kills };
 }
 
-function addTarget(world, index, position) {
-    const target = createPlayer(index, position, world.config);
+function addTarget(world, index, position, teamId = null) {
+    const target = createPlayer(index, position, world.config, teamId);
     target.entityManager = world.entityManager;
     world.entityManager.players.push(target);
     return target;
@@ -153,6 +155,20 @@ test('the cone damage is 30 per second at any frame rate', () => {
             `one second of contact at ${fps} fps burns 30 (+-1), got ${applied.toFixed(3)}`,
         );
     }
+});
+
+test('the flamethrower spares a teammate but still burns an enemy in the same cone', () => {
+    const world = createWorld({ shooterTeamId: 'ALPHA' });
+    armFlamethrower(world.shooter);
+    const ally = addTarget(world, 1, [0, 0, -6], 'ALPHA');
+    const enemy = addTarget(world, 2, [0, 0, -10], 'BRAVO');
+
+    world.system.fire(world.shooter, 0.5);
+
+    assert.equal(ally.hp, 100, 'friendly fire is disabled for the flame');
+    assert.equal(isPlayerBurning(ally), false, 'a teammate is not ignited for afterburn damage');
+    assert.ok(enemy.hp < 100, 'the enemy still takes direct flame damage');
+    assert.equal(isPlayerBurning(enemy), true, 'the enemy still catches fire');
 });
 
 test('the flame spares the shooter, spawn protected targets and targets behind a wall', () => {
