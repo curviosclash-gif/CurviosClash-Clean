@@ -96,6 +96,26 @@ LEAF_STATIONS = (0.0, 0.20, 0.40, 0.60, 0.80, 1.0)
 LEAF_WIDTHS = (0.34, 0.66, 0.92, 1.00, 0.88, 0.42)
 LEAF_CUP = (0.22, 0.24, 0.24, 0.22, 0.18, 0.12)
 
+# A poppy leaf is coarsely lobed, not an even oval: two deep sinuses separate a
+# broad terminal lobe from a pair of lateral lobes. The stations are uneven on
+# purpose (0.16/0.32/0.48/0.64) so each lobe gets a high and a low width sample
+# and the midrib pinch is real geometry rather than a shading trick.
+POPPY_LEAF_STATIONS = (0.0, .14, .28, .42, .56, .70, .86, 1.0)
+POPPY_LEAF_WIDTHS = (.22, .78, .40, 1.0, .38, .76, .52, .06)
+POPPY_LEAF_CUPS = (.20, .26, .24, .24, .22, .20, .15, .07)
+
+# The poppy capsule is ringed by a dense crown of dark stamens. Each is one
+# short filament leaning out over the petals plus a tiny anther head; the ring
+# radius sits just inside the petal root so the filaments rest on the corolla.
+POPPY_STAMEN_COUNT = 34
+POPPY_STAMEN_RING_FRACTION = .020
+POPPY_STAMEN_FILAMENT_FRACTION = .013
+POPPY_STAMEN_LEAN = .64
+
+# Poppy petals are a shallow bowl, not the deeply cupped spoon of a daisy: the
+# valley sits far below the rim so the dark stamen ring stays visible.
+POPPY_PETAL_CUP = .20
+
 # A fern pinnule is a small pointed leaflet, not a rounded spoon. The narrow
 # root, a broad middle and a sharply drawn tip keep the half-width between 0.08
 # and 0.12 of the leaflet length.
@@ -1453,7 +1473,7 @@ def _market_leaf(geometry, origin, angle, elevation, length, width, height, rng,
 
 
 def _market_ray(geometry, centre, normal, angle, inner, outer, half_width,
-                height, material, rng, *, wave=0.12, notch=0.0):
+                height, material, rng, *, wave=0.12, notch=0.0, cup=0.22):
     """A cupped radial petal with an uneven rim, attached to its receptacle."""
     u, v, n = _plane_axes(normal)
     radial = _normalize(_add(_scale(u, math.cos(angle)), _scale(v, math.sin(angle))))
@@ -1471,7 +1491,7 @@ def _market_ray(geometry, centre, normal, angle, inner, outer, half_width,
         ripple = width * wave * math.sin(2.7 * math.pi * t + angle)
         left = _add(mid, _add(_scale(side, width), _scale(n, ripple)))
         right = _sub(mid, _add(_scale(side, width), _scale(n, ripple * 0.6)))
-        valley = _sub(mid, _scale(n, width * 0.22))
+        valley = _sub(mid, _scale(n, width * cup))
         if notch and i == len(stations) - 1:
             valley = _sub(valley, _scale(radial, (outer - inner) * notch))
         sections.append((left, valley, right))
@@ -1500,8 +1520,8 @@ def _build_poppy(height, rng):
             # Lobed outlines replace the uniform oval silhouette.
             _market_leaf(geometry, anchor, leaf_angle, rng.uniform(0.24, 0.52),
                          height * rng.uniform(0.10, 0.17), height * 0.014,
-                         height, rng, stations=(0, .16, .32, .48, .64, .82, 1),
-                         widths=(.25, .75, .45, 1, .42, .72, .10))
+                         height, rng, stations=POPPY_LEAF_STATIONS,
+                         widths=POPPY_LEAF_WIDTHS, cups=POPPY_LEAF_CUPS)
         if i == 2:
             hooked = _add(tip, (height * 0.018, 0, -height * 0.040))
             geometry.tube([tip, hooked], [height * .0025, height * .0015],
@@ -1520,10 +1540,31 @@ def _build_poppy(height, rng):
             _market_ray(geometry, centre, normal, 2 * math.pi * petal / count,
                         height * .013, height * rng.uniform(.075, .092),
                         height * rng.uniform(.030, .040), height,
-                        "PetalRed", rng, wave=.24, notch=.05)
+                        "PetalRed", rng, wave=.24, notch=.05, cup=POPPY_PETAL_CUP)
+        # A dense crown of dark stamens rings the capsule just above the petal
+        # roots: each short filament leans out over the corolla and carries a
+        # tiny anther head, so the black centre reads as a ring, not a blob.
+        u, v, n = _plane_axes(normal)
+        ring = height * POPPY_STAMEN_RING_FRACTION
+        filament = height * POPPY_STAMEN_FILAMENT_FRACTION
+        for stamen in range(POPPY_STAMEN_COUNT):
+            phi = 2 * math.pi * stamen / POPPY_STAMEN_COUNT + rng.uniform(-.04, .04)
+            radial = _normalize(_add(_scale(u, math.cos(phi)), _scale(v, math.sin(phi))))
+            stamen_base = _add(centre, _add(_scale(radial, ring),
+                                            _scale(normal, height * .002)))
+            anther = _add(stamen_base,
+                          _add(_scale(radial, filament * POPPY_STAMEN_LEAN),
+                               _scale(normal, filament * .90)))
+            geometry.tube([stamen_base, anther], [height * .0016, height * .0011],
+                          "DarkCenter", sides=3, flex=[.90, 1.0], tint=.30)
+            geometry.octa(anther, (height * .0023,) * 3, "DarkCenter",
+                          flex=1.0, tint=.38)
         if focus is None or centre[2] > focus[2]:
             focus, focus_normal = centre, normal
     return geometry, focus, {"flower_heads": 2, "buds": 1, "ray_petals": 11,
+                             "stamens": 2 * POPPY_STAMEN_COUNT,
+                             "stamen_ring_fraction": POPPY_STAMEN_RING_FRACTION,
+                             "petal_cup": POPPY_PETAL_CUP,
                              "bloom_normal": list(focus_normal)}
 
 
@@ -1543,7 +1584,7 @@ def _build_sunflower(height, rng):
                       "StemGreen", sides=4,
                       flex=[_flex(anchor[2], height, .4), _flex(petiole[2], height, .6)])
         _market_leaf(geometry, petiole, angle, rng.uniform(.18, .42),
-                     height * rng.uniform(.13, .19), height * .030,
+                     height * rng.uniform(.15, .22), height * .034,
                      height, rng, tint=.59, curl=.22,
                      cups=(.28, .34, .36, .32, .26, .18))
     normal = _normalize((.16, -.72, .72))
