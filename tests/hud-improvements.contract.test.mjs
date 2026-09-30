@@ -650,8 +650,9 @@ test('item slots render cooldown sweep and remaining seconds instead of title-on
 test('item slots expose the bound key, not the slot number, for the usable action', () => {
     const documentStub = installDocumentStub();
     try {
+        // The live bindings sit on game.input, the same InputManager that owns the player sources.
         const game = {
-            inputManager: {
+            input: {
                 bindings: {
                     PLAYER_1: { SHOOT: 'KeyF', USE_ITEM: 'KeyG' },
                     PLAYER_2: { SHOOT: 'ArrowUp', USE_ITEM: 'Quote' },

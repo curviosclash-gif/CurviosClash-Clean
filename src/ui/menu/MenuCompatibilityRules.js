@@ -180,11 +180,12 @@ function applyMapKeyValidityGuardRule(settings, result) {
     const maps = getRuntimeMapCatalog();
     const mapDefinition = maps?.[currentMapKey];
     const mapExists = !!mapDefinition;
-    const mapModeEligible = mapExists ? isMapEligibleForModePath(mapDefinition, modePath) : false;
+    const gameMode = settings?.gameMode;
+    const mapModeEligible = mapExists ? isMapEligibleForModePath(mapDefinition, modePath, gameMode) : false;
     if (mapExists && mapModeEligible) return;
 
     const previousMapKey = settings.mapKey;
-    settings.mapKey = resolveModePathFallbackMapKey(maps, modePath, previousMapKey);
+    settings.mapKey = resolveModePathFallbackMapKey(maps, modePath, previousMapKey, gameMode);
     addChangedKey(result, SETTINGS_CHANGE_KEYS.MAP_KEY);
     trackFix(
         result,

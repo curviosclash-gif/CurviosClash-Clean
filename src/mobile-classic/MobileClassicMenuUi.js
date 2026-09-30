@@ -1,22 +1,11 @@
 // @ts-check
 
 import { MENU_SESSION_TYPES } from '../composition/core-ui/CoreSettingsPorts.js';
-import { LEVEL4_SECTION_IDS, MENU_MODE_PATHS } from '../ui/menu/MenuStateContracts.js';
-import {
-    isMobileArcadeRouteAllowed,
-    resolveMobileArcadeMapKey,
-} from '../mobile-arcade/MobileArcadeApp.js';
+import { MENU_MODE_PATHS } from '../ui/menu/MenuStateContracts.js';
 
-const MOBILE_ANDROID_GHOST_STATUS_ID = 'mobile-arcade-ghost-status';
-const MOBILE_ANDROID_MODE_PATHS = Object.freeze([MENU_MODE_PATHS.NORMAL, MENU_MODE_PATHS.ARCADE]);
-const MOBILE_ANDROID_LEVEL4_SECTION_IDS = Object.freeze([
-    LEVEL4_SECTION_IDS.MOBILE_CONTROLS,
-    LEVEL4_SECTION_IDS.GAMEPLAY,
-    LEVEL4_SECTION_IDS.AUDIO,
-    LEVEL4_SECTION_IDS.GRAPHICS,
-    LEVEL4_SECTION_IDS.RECORDING,
-    LEVEL4_SECTION_IDS.HUD,
-]);
+// The phone shows the full desktop menu; only splitscreen (one screen, two players) stays locked.
+const MOBILE_ANDROID_LOCKED_SESSION_TYPES = Object.freeze([MENU_SESSION_TYPES.SPLITSCREEN]);
+const MOBILE_ANDROID_MODE_PATHS = Object.freeze(Object.values(MENU_MODE_PATHS));
 
 function normalizeTarget(value = '') {
     return String(value || '').trim().toLowerCase();
@@ -33,42 +22,8 @@ export function resolveMobileAndroidModePath(settings = null) {
         : MENU_MODE_PATHS.NORMAL;
 }
 
-export function resolveMobileAndroidLevel4SectionId(value = '') {
-    const requestedSection = normalizeTarget(value);
-    return MOBILE_ANDROID_LEVEL4_SECTION_IDS.includes(requestedSection)
-        ? requestedSection
-        : LEVEL4_SECTION_IDS.MOBILE_CONTROLS;
-}
-
-export function ensureMobileAndroidStartSetup(settings) {
-    if (!settings.localSettings || typeof settings.localSettings !== 'object') {
-        settings.localSettings = {};
-    }
-    if (!settings.localSettings.startSetup || typeof settings.localSettings.startSetup !== 'object') {
-        settings.localSettings.startSetup = {};
-    }
-    const startSetup = settings.localSettings.startSetup;
-    if (!startSetup.modeSelections || typeof startSetup.modeSelections !== 'object') {
-        startSetup.modeSelections = {};
-    }
-    if (!startSetup.modeSelections.arcade || typeof startSetup.modeSelections.arcade !== 'object') {
-        startSetup.modeSelections.arcade = {};
-    }
-    return startSetup;
-}
-
-function ensureStatusUi(doc = document) {
-    if (!doc?.createElement || typeof doc.body?.appendChild !== 'function'
-        || doc.getElementById?.(MOBILE_ANDROID_GHOST_STATUS_ID)) {
-        return;
-    }
-    const status = doc.createElement('div');
-    status.id = MOBILE_ANDROID_GHOST_STATUS_ID;
-    status.textContent = 'Ghost: Selbstduell';
-    doc.body.appendChild(status);
-}
-
 function configureMobileLanLobbyUi(doc = document) {
+    // Without LAN discovery the phone joins a LAN host by typing its address.
     const manualAddress = doc?.getElementById?.('multiplayer-manual-address');
     if (manualAddress) {
         manualAddress.setAttribute?.('open', '');
@@ -107,7 +62,6 @@ function ensureMenuVisibilityObserver(doc = document) {
 }
 
 export function setupMobileClassicMenuDocumentState(doc = document) {
-    ensureStatusUi(doc);
     configureMobileLanLobbyUi(doc);
     ensureMenuVisibilityObserver(doc);
 }
@@ -120,47 +74,24 @@ function setButtonLocked(button, locked) {
 }
 
 function updateDocumentMode(modePath, doc = (typeof document !== 'undefined' ? document : null)) {
-    const normalizedModePath = resolveMobileAndroidModePath({ localSettings: { modePath } });
-    if (doc?.documentElement?.dataset) doc.documentElement.dataset.mobileModePath = normalizedModePath;
-    if (doc?.body?.dataset) doc.body.dataset.mobileModePath = normalizedModePath;
+    if (doc?.documentElement?.dataset) doc.documentElement.dataset.mobileModePath = modePath;
+    if (doc?.body?.dataset) doc.body.dataset.mobileModePath = modePath;
     updateMenuVisibility(doc);
 }
 
-function pruneMapSelectToArcadeAllowlist(select) {
-    if (!select?.options) return '';
-    const options = Array.from(select.options);
-    for (let i = options.length - 1; i >= 0; i -= 1) {
-        if (!isMobileArcadeRouteAllowed(options[i]?.value)) options[i].remove?.();
-    }
-    const selectedValue = resolveMobileArcadeMapKey(select.value);
-    const hasSelectedOption = Array.from(select.options).some((option) => option.value === selectedValue);
-    select.value = hasSelectedOption ? selectedValue : String(select.options[0]?.value || '');
-
-    const doc = select.ownerDocument || null;
-    doc?.querySelectorAll?.('#start-map-choice-strip [data-map-key]')?.forEach((button) => {
-        if (!isMobileArcadeRouteAllowed(button?.dataset?.mapKey)) {
-            button.remove?.();
-            return;
-        }
-        const active = button.dataset.mapKey === select.value;
-        button.classList.toggle('active', active);
-        button.setAttribute('aria-selected', String(active));
-        button.tabIndex = active ? 0 : -1;
-    });
-    return String(select.value || '');
+function lockHostLocalPlayerCount(select) {
+    // "2 Spieler · Geteilter Bildschirm" at the host would be splitscreen through the back door.
+    if (!select) return;
+    select.value = '1';
+    select.disabled = true;
 }
 
-function bindMobileModeResync(game, button, applyMobileClassicSettings) {
+function bindMobileMenuResync(game, button, applyMobileClassicSettings) {
     if (!button?.dataset || button.dataset.mobileAndroidModeBound === '1') return;
     button.dataset.mobileAndroidModeBound = '1';
     button.addEventListener?.('click', () => {
         const ownerWindow = button.ownerDocument?.defaultView || (typeof window !== 'undefined' ? window : null);
         ownerWindow?.setTimeout?.(() => {
-            const requestedSessionType = normalizeTarget(button?.dataset?.sessionType);
-            if (requestedSessionType === MENU_SESSION_TYPES.MULTIPLAYER && game?.settings?.localSettings) {
-                game.settings.localSettings.modePath = MENU_MODE_PATHS.NORMAL;
-                game.settings.localSettings.multiplayerTransport = 'lan';
-            }
             applyMobileClassicMenuUiLocks(game, { applyMobileClassicSettings });
         }, 0);
     });
@@ -174,42 +105,21 @@ export function applyMobileClassicMenuUiLocks(game = null, { applyMobileClassicS
     const ui = game?.runtimeCoordinator?.getRuntimeHandle?.('ui') || game?.ui || null;
     if (!ui) return;
 
-    const modePath = resolveMobileAndroidModePath(game?.settings || null);
     const doc = ui.mainMenu?.ownerDocument || ui.mapSelect?.ownerDocument
         || (typeof document !== 'undefined' ? document : null);
     configureMobileLanLobbyUi(doc);
-    updateDocumentMode(modePath, doc);
+    updateDocumentMode(resolveMobileAndroidModePath(game?.settings || null), doc);
 
     if (Array.isArray(ui.sessionButtons)) {
         ui.sessionButtons.forEach((button) => {
             const sessionType = normalizeTarget(button?.dataset?.sessionType);
-            const allowed = sessionType === MENU_SESSION_TYPES.SINGLE || sessionType === MENU_SESSION_TYPES.MULTIPLAYER;
-            setButtonLocked(button, sessionType && !allowed);
-            if (allowed) bindMobileModeResync(game, button, applyMobileClassicSettings);
+            const locked = MOBILE_ANDROID_LOCKED_SESSION_TYPES.includes(sessionType);
+            setButtonLocked(button, locked);
+            if (!locked) bindMobileMenuResync(game, button, applyMobileClassicSettings);
         });
     }
     if (Array.isArray(ui.modePathButtons)) {
-        ui.modePathButtons.forEach((button) => {
-            const buttonModePath = normalizeTarget(button?.dataset?.modePath);
-            const multiplayerActive = game?.settings?.localSettings?.sessionType === MENU_SESSION_TYPES.MULTIPLAYER;
-            const allowed = buttonModePath === MENU_MODE_PATHS.NORMAL
-                || (!multiplayerActive && buttonModePath === MENU_MODE_PATHS.ARCADE);
-            setButtonLocked(button, buttonModePath && !allowed);
-            if (allowed) bindMobileModeResync(game, button, applyMobileClassicSettings);
-        });
+        ui.modePathButtons.forEach((button) => bindMobileMenuResync(game, button, applyMobileClassicSettings));
     }
-    if (ui.multiplayerHostButton) setButtonLocked(ui.multiplayerHostButton, true);
-    if (Array.isArray(ui.multiplayerTransportButtons)) {
-        ui.multiplayerTransportButtons.forEach((button) => {
-            setButtonLocked(button, normalizeTarget(button?.dataset?.multiplayerTransport) !== 'lan');
-        });
-    }
-    if (modePath === MENU_MODE_PATHS.ARCADE) {
-        const selectedMapKey = pruneMapSelectToArcadeAllowlist(ui.mapSelect);
-        if (selectedMapKey && game?.settings) {
-            const startSetup = ensureMobileAndroidStartSetup(game.settings);
-            game.settings.mapKey = selectedMapKey;
-            startSetup.modeSelections.arcade.mapKey = selectedMapKey;
-        }
-    }
+    lockHostLocalPlayerCount(ui.multiplayerHostLocalPlayerCount);
 }

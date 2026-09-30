@@ -6,6 +6,7 @@ import { createGlbAnimationTrack } from './arena/GlbAnimationDriver.js';
 import { createDynamicMeshCollider, createStaticMeshCollider } from './arena/StaticMeshCollider.js';
 import { normalizeAllowedGLBUrl, resolveGLBColliderMode } from './mapSchema/MapSchemaGlbOps.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
+import { computeCollectionPlacement } from './GLBCollectionPlacement.js';
 
 const SHARED_GLB_LOADER = new GLTFLoader();
 const DEFAULT_GLB_SHADOW_CASTER_BUDGET = 24;
@@ -61,14 +62,16 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
             // A break scene: loaded and placed with the map, but neither drawn nor solid until
             // the event that starts it arrives.
             //
-            // Two consequences for whoever authors such a model. Every mesh in it gets a
-            // collider that follows its transform, animated or not, because the runtime turns
-            // the whole slot into the direction the structure topples towards. And its rest
-            // pose - the first frame of the baked clip - has to be the structure still
-            // standing, exported upright with no rotation on X or Z: the slot origin is the
-            // footprint centre of that rest pose, and the event yaw turns the scene around it.
-            // A model authored already lying down would swing around the wrong point.
+            // Most break scenes turn the whole slot toward the hit and need every collider to
+            // follow that transform. fixedTriggeredPlacement keeps the slot at its authored yaw,
+            // so stationary meshes can use baked collision while animated pieces remain dynamic.
+            // For slots that do follow event yaw, the rest pose must be the structure standing
+            // upright, with the slot origin at its footprint centre; an already toppled model
+            // would swing around the wrong point.
             hiddenUntilTriggered: source?.hiddenUntilTriggered === true,
+            // Some authored break scenes keep their placed slot fixed and animate only the
+            // falling pieces. Their stationary fabric can use baked collision.
+            fixedTriggeredPlacement: source?.fixedTriggeredPlacement === true,
             // A body that is solid but never drawn, for maps that place a coarse collision
             // model behind a detailed one - a forest draws a 23k triangle crown and collides
             // against the 196 triangle trunk exported beside it.
@@ -198,6 +201,17 @@ export function collectAnimatedNodes(root, clips) {
     return animated;
 }
 
+// Shootable seeds and kernels are drawn by an instanced batch that hides their nodes, and a
+// swarm of small parts spends the shadow budget the landmark's big surfaces need.
+const BATCHED_SHOOTABLE_ROLES = new Set(['shootable_seed', 'shootable_kernel']);
+
+function isBatchedShootablePart(mesh) {
+    for (let node = mesh; node; node = node.parent) {
+        if (BATCHED_SHOOTABLE_ROLES.has(node.userData?.role)) return true;
+    }
+    return false;
+}
+
 /**
  * The collection slot a mesh sits in, or null on a single-model map - there is no slot there,
  * so its colliders carry an empty model id and nothing can be switched on or off separately.
@@ -245,7 +259,7 @@ function collectSceneColliders(root, options = {}) {
         const collisionOnly = isMeshCollisionOnly(child);
         const transparent = materials.some((material) => material?.transparent === true);
         const noShadow = String(child.name || '').toLowerCase().includes('_noshadow');
-        if (!transparent && !noShadow && !collisionOnly) {
+        if (!transparent && !noShadow && !collisionOnly && !isBatchedShootablePart(child)) {
             const width = box.max.x - box.min.x;
             const height = box.max.y - box.min.y;
             const depth = box.max.z - box.min.z;
@@ -257,14 +271,15 @@ function collectSceneColliders(root, options = {}) {
         if (collisionOnly) child.visible = false;
 
         if (!collectColliders) return;
-        if (isMeshColliderDisabled(child)) return;
+        // A shootable part is hit through its controller's targeted queries; a baked collider
+        // would stay behind in the air after the part itself was shot away.
+        if (isMeshColliderDisabled(child) || isBatchedShootablePart(child)) return;
 
         const slot = resolveColliderSlot(child);
-        // A break scene is placed and turned at runtime, so every one of its meshes needs a
-        // collider that follows its transform - a baked one would stay where the model was
-        // loaded and leave a wall standing in empty air.
+        // A break scene that turns toward the hit needs every collider to follow its slot.
+        // Fixed-placement scenes can bake meshes that their clip does not animate.
         const inTriggeredModel = slot?.userData?.glbHiddenUntilTriggered === true;
-        const isAnimated = inTriggeredModel
+        const isAnimated = (inTriggeredModel && slot?.userData?.glbFixedTriggeredPlacement !== true)
             || isMeshColliderForcedDynamic(child)
             || !!animatedNodes?.has(child);
         if (dynamicOnly && !isAnimated) return;
@@ -310,6 +325,7 @@ function placeCollectionScene(scene, bounds, descriptor, placementScale) {
     slot.userData.glbModelId = descriptor.id;
     slot.userData.glbModelUrl = descriptor.url;
     slot.userData.glbHiddenUntilTriggered = descriptor.hiddenUntilTriggered === true;
+    slot.userData.glbFixedTriggeredPlacement = descriptor.fixedTriggeredPlacement === true;
     slot.userData.glbCollisionOnly = descriptor.collisionOnly === true;
     if (descriptor.hiddenUntilTriggered === true || descriptor.collisionOnly === true) {
         slot.visible = false;
@@ -337,25 +353,17 @@ function placeCollectionScene(scene, bounds, descriptor, placementScale) {
         });
     }
 
-    const [px, py, pz] = descriptor.position;
-    const [rx, ry, rz] = descriptor.rotation;
-    slot.position.set(px * placementScale, py * placementScale, pz * placementScale);
-    slot.rotation.set(rx, ry, rz);
-
     const modelBounds = bounds?.isBox3 ? bounds : new THREE.Box3().setFromObject(scene);
-    const size = modelBounds.getSize(new THREE.Vector3());
-    const center = modelBounds.getCenter(new THREE.Vector3());
-    const maxDimension = Math.max(size.x, size.y, size.z, 0.0001);
-    const fitScale = descriptor.targetSize > 0
-        ? (descriptor.targetSize * placementScale) / maxDimension
-        : descriptor.scale * placementScale;
+    const placement = computeCollectionPlacement(modelBounds, descriptor, placementScale);
+    slot.position.set(...placement.slotPosition);
+    slot.rotation.set(...placement.slotRotation);
 
     const normalizer = new THREE.Group();
     normalizer.name = `glb-normalizer-${descriptor.id}`;
-    normalizer.scale.setScalar(fitScale);
+    normalizer.scale.setScalar(placement.fitScale);
 
     const offset = new THREE.Group();
-    offset.position.set(-center.x, -modelBounds.min.y, -center.z);
+    offset.position.set(...placement.offset);
     offset.add(scene);
     normalizer.add(offset);
     if (descriptor.maxRenderDistance > 0) {

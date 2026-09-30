@@ -1,4 +1,8 @@
 import { VIEWPORT_LAYOUTS } from '../shared/contracts/ViewportLayoutContract.js';
+import {
+    resolveLocalGamepadIssue,
+    resolveSplitscreenLayoutGamepadSlots,
+} from '../shared/contracts/GamepadControlsContract.js';
 
 export const SPLIT_SCREEN_VARIANTS = Object.freeze({
     STANDARD: 'standard',
@@ -61,6 +65,12 @@ export const THREE_PLAYER_SPLIT_INPUT_DEVICES = Object.freeze({
     GAMEPAD_1: 'gamepad-1',
     GAMEPAD_2: 'gamepad-2',
     GAMEPAD_3: 'gamepad-3',
+});
+export const THREE_PLAYER_SPLIT_DEVICE_LABELS = Object.freeze({
+    [THREE_PLAYER_SPLIT_INPUT_DEVICES.KEYBOARD]: 'Tastatur',
+    [THREE_PLAYER_SPLIT_INPUT_DEVICES.GAMEPAD_1]: 'Gamepad 1',
+    [THREE_PLAYER_SPLIT_INPUT_DEVICES.GAMEPAD_2]: 'Gamepad 2',
+    [THREE_PLAYER_SPLIT_INPUT_DEVICES.GAMEPAD_3]: 'Gamepad 3',
 });
 /** @type {Set<string>} */
 const THREE_PLAYER_SPLIT_INPUT_DEVICE_SET = new Set(Object.values(THREE_PLAYER_SPLIT_INPUT_DEVICES));
@@ -178,23 +188,46 @@ export function normalizeFourPlayerPlanarSettings(value = null, options = {}) {
     };
 }
 
-export function normalizeThreePlayerSplitSettings(value = null, options = {}) {
+/**
+ * Only what the shared match menu has no field for: map, planes, bots and rules of a
+ * three-player match come from the same settings as the two-player split-screen.
+ */
+export function normalizeThreePlayerSplitSettings(value = null) {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    const fallbackMapKey = String(options.fallbackMapKey || 'standard');
-    const fallbackVehicleId = String(options.fallbackVehicleId || 'ship5');
-    const botCount = Math.max(0, Math.min(
-        THREE_PLAYER_SPLIT_MAX_BOTS,
-        THREE_PLAYER_SPLIT_MAX_PARTICIPANTS - THREE_PLAYER_SPLIT_HUMAN_COUNT,
-        Math.trunc(Number(source.botCount) || 0)
-    ));
     return {
-        mode: normalizeFourPlayerPlanarMode(source.mode),
-        mapKey: normalizeSelection(source.mapKey, options.allowedMapKeys, fallbackMapKey),
-        vehicleId: normalizeSelection(source.vehicleId, options.allowedVehicleIds, fallbackVehicleId),
-        botCount,
         viewportLayout: normalizeThreePlayerSplitViewportLayout(source.viewportLayout),
         deviceAssignment: normalizeThreePlayerSplitDeviceAssignment(source.deviceAssignment),
     };
+}
+
+export function clampThreePlayerSplitBotCount(value) {
+    return Math.max(0, Math.min(
+        THREE_PLAYER_SPLIT_MAX_BOTS,
+        THREE_PLAYER_SPLIT_MAX_PARTICIPANTS - THREE_PLAYER_SPLIT_HUMAN_COUNT,
+        Math.trunc(Number(value) || 0)
+    ));
+}
+
+// Arcade overlays exist once per screen, so a three-way split has no place for them.
+export function isThreePlayerSplitModePathAllowed(modePath) {
+    return String(modePath || '').trim().toLowerCase() !== 'arcade';
+}
+
+export function resolveThreePlayerSplitGamepadSlots(deviceAssignment) {
+    return normalizeThreePlayerSplitDeviceAssignment(deviceAssignment)
+        .filter((device) => device !== THREE_PLAYER_SPLIT_INPUT_DEVICES.KEYBOARD)
+        .map((device) => Number(device.slice('gamepad-'.length)) - 1);
+}
+
+/** Missing controller for the local split-screen that is about to start, or ''. */
+export function resolveSplitScreenDeviceIssue(settings = null, getGamepad = () => null) {
+    if (String(settings?.localSettings?.sessionType || '').trim().toLowerCase() !== 'splitscreen') return '';
+    const variant = normalizeSplitScreenVariant(settings?.localSettings?.splitScreenVariant);
+    if (variant === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR) return '';
+    const gamepadSlots = variant === SPLIT_SCREEN_VARIANTS.THREE_PLAYER
+        ? resolveThreePlayerSplitGamepadSlots(settings?.localSettings?.threePlayerSplit?.deviceAssignment)
+        : resolveSplitscreenLayoutGamepadSlots(settings?.controls?.SPLITSCREEN?.layout);
+    return resolveLocalGamepadIssue({ gamepadSlots, controls: settings?.controls, getGamepad });
 }
 
 export function isThreePlayerSplitVariant(settings = null) {
@@ -203,12 +236,10 @@ export function isThreePlayerSplitVariant(settings = null) {
             === SPLIT_SCREEN_VARIANTS.THREE_PLAYER;
 }
 
-export function createThreePlayerSplitRuntimeSelection(settings = null, options = {}) {
-    const active = isThreePlayerSplitVariant(settings);
-    const selection = normalizeThreePlayerSplitSettings(
-        settings?.localSettings?.threePlayerSplit,
-        options
-    );
+export function createThreePlayerSplitRuntimeSelection(settings = null) {
+    const active = isThreePlayerSplitVariant(settings)
+        && isThreePlayerSplitModePathAllowed(settings?.localSettings?.modePath);
+    const selection = normalizeThreePlayerSplitSettings(settings?.localSettings?.threePlayerSplit);
     return {
         active,
         variant: active ? SPLIT_SCREEN_VARIANTS.THREE_PLAYER : SPLIT_SCREEN_VARIANTS.STANDARD,

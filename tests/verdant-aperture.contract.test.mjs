@@ -22,6 +22,14 @@ const DECK_CELL = 30;
 const DECK_CELLS_PER_AXIS = 10;
 const ROOT_DECK_Y = 54;
 const CROWN_DECK_Y = 112;
+// The deck holes and the setpieces that gate them. A setpiece's position is where the loader
+// stands the bottom of its bounding box, not the hole centre, so the holes are listed here and
+// tests/verdant-aperture-openings.contract.test.mjs checks the placement geometrically.
+const JOINS = {
+    [ROOT_DECK_Y]: { cells: [[-45, -45], [45, 45]], gates: ['leaf-shutter-west', 'leaf-shutter-east'] },
+    [CROWN_DECK_Y]: { cells: [[-45, 45], [45, -45], [15, 15]], gates: ['bloom-west', 'bloom-east', 'louvre-centre'] },
+};
+const JOIN_CELLS = Object.values(JOINS).flatMap((deck) => deck.cells);
 
 function setpieces() {
     return map.glbModels.filter((model) => model.url.startsWith(SETPIECE_PREFIX));
@@ -132,8 +140,6 @@ test('Verdant Wildwuchs stays on level edges and clear of spawns and moving join
 
     const anchors = [map.playerSpawn, ...map.botSpawns,
         ...map.portals.flatMap((portal) => [portal.a, portal.b].map(([x, y, z]) => ({ x, y, z })))];
-    const joins = setpieces().filter((model) => model.position[1] === ROOT_DECK_Y
-        || model.position[1] === CROWN_DECK_Y);
     for (const model of decorations) {
         assert.equal(model.animationClock, undefined, `${model.id} adds no loop`);
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} has a runtime asset`);
@@ -144,8 +150,8 @@ test('Verdant Wildwuchs stays on level edges and clear of spawns and moving join
             assert.ok(Math.hypot(anchor.x - model.position[0], anchor.z - model.position[2]) > model.targetSize / 2 + 12,
                 `${model.id} stays away from a spawn or portal`);
         }
-        for (const join of joins) {
-            assert.ok(Math.hypot(join.position[0] - model.position[0], join.position[2] - model.position[2])
+        for (const [x, z] of JOIN_CELLS) {
+            assert.ok(Math.hypot(x - model.position[0], z - model.position[2])
                 > model.targetSize / 2 + 25, `${model.id} stays away from a moving join`);
         }
     }
@@ -179,12 +185,13 @@ test('each storey deck is closed except where a setpiece gates the way through',
         );
 
         const occupied = new Set(cells.map((cell) => `${cell.pos[0]}/${cell.pos[2]}`));
-        const gates = setpieces().filter((model) => model.position[1] === y);
+        const { cells: holes, gates: gateIds } = JOINS[y];
+        assert.equal(holes.length, expectedJoins);
+        for (const [x, z] of holes) assert.equal(occupied.has(`${x}/${z}`), false, `${x}/${z} is a hole in the deck at y=${y}`);
+        const gates = setpieces().filter((model) => gateIds.includes(model.id.replace('verdant-aperture-', '')));
         assert.equal(gates.length, expectedJoins, `the deck at y=${y} carries one setpiece per join`);
 
         for (const gate of gates) {
-            const key = `${gate.position[0]}/${gate.position[2]}`;
-            assert.equal(occupied.has(key), false, `${gate.id} sits in a hole, not on solid deck`);
             // The cut-out is one cell; a shut shutter has to overlap its rim rather than float
             // inside it, or the ring of open air around it becomes a permanent way through.
             assert.ok(
@@ -217,12 +224,8 @@ test('rocket pickups sit at the level joins the movement actually gates', () => 
     const rockets = map.items.filter((item) => item.type === 'item_rocket');
     assert.ok(rockets.length >= 3, 'the map hands out rockets as its signature reward');
 
-    const joinColumns = setpieces()
-        .filter((model) => model.position[1] === ROOT_DECK_Y || model.position[1] === CROWN_DECK_Y)
-        .map((model) => [model.position[0], model.position[2]]);
-
     // Rewards sit just beyond the join, clear of the crown's static walls.
-    const atJoin = rockets.filter((item) => joinColumns.some(([x, z]) => Math.hypot(item.x - x, item.z - z) <= 10));
+    const atJoin = rockets.filter((item) => JOIN_CELLS.some(([x, z]) => Math.hypot(item.x - x, item.z - z) <= 10));
     assert.ok(
         atJoin.length >= 3,
         `most rockets sit under or above a gated join, got ${atJoin.length} of ${rockets.length}`,

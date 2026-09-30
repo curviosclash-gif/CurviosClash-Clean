@@ -137,6 +137,11 @@
                                 <span class="start-step-index" aria-hidden="true">1</span>
                                 <span><strong>Karte</strong><small>Arena auswählen</small></span>
                             </button>
+                            <button type="button" id="btn-start-step-players" class="start-step-tab start-step-tab-utility hidden"
+                                data-start-section-target="players" aria-controls="start-players-section">
+                                <span class="start-step-tab-glyph" aria-hidden="true">⚇</span>
+                                <span><strong>Spieler &amp; Geräte</strong><small>2 oder 3 Spieler</small></span>
+                            </button>
                             <button type="button" class="start-step-tab" data-start-section-target="vehicle"
                                 aria-controls="start-vehicle-section">
                                 <span class="start-step-index" aria-hidden="true">2</span>
@@ -183,6 +188,60 @@
                                     data-menu-text-id="menu.level3.start.label">Spiel starten</button>
                             </div>
                         </div>
+
+                        <details id="start-players-section" class="menu-section menu-accordion start-section-card hidden"
+                            data-start-section="players">
+                            <summary class="menu-accordion-summary">
+                                <span class="section-title">Spieler &amp; Geräte</span>
+                                <span class="menu-accordion-copy">Wie viele spielen mit, wer steuert womit, wie wird geteilt</span>
+                            </summary>
+                            <div class="menu-accordion-body split-players-body">
+                                <div class="menu-section">
+                                    <h3 class="section-title" id="split-player-count-title">Spielerzahl</h3>
+                                    <div class="btn-group" role="group" aria-labelledby="split-player-count-title">
+                                        <button type="button" class="mode-btn" data-split-player-count="2" aria-pressed="true">2 Spieler</button>
+                                        <button type="button" class="mode-btn" data-split-player-count="3" aria-pressed="false">3 Spieler</button>
+                                    </div>
+                                    <small id="split-player-count-hint" class="menu-hint menu-copy-secondary"></small>
+                                </div>
+                                <div class="menu-section" data-split-players-for="2">
+                                    <label for="split-input-layout">Geräte</label>
+                                    <select id="split-input-layout"></select>
+                                    <small class="menu-hint menu-copy-secondary">„Automatisch“: Tastatur und Gamepad derselben Nummer steuern gemeinsam.</small>
+                                </div>
+                                <div class="menu-section split-device-rows" data-split-players-for="3"
+                                    role="group" aria-label="Geräte-Zuordnung für drei Spieler">
+                                    <div class="split-device-row split-device-row-p1">
+                                        <label for="split-device-p1">Spieler 1</label>
+                                        <select id="split-device-p1" data-split-device data-player-index="0"></select>
+                                        <small class="menu-hint" data-split-keyboard-hint hidden>Tastatur: W / S / A / D</small>
+                                    </div>
+                                    <div class="split-device-row split-device-row-p2">
+                                        <label for="split-device-p2">Spieler 2</label>
+                                        <select id="split-device-p2" data-split-device data-player-index="1"></select>
+                                        <small class="menu-hint" data-split-keyboard-hint hidden>Tastatur: Num 8 / 5 / 4 / 6</small>
+                                    </div>
+                                    <div class="split-device-row split-device-row-p3">
+                                        <label for="split-device-p3">Spieler 3</label>
+                                        <select id="split-device-p3" data-split-device data-player-index="2"></select>
+                                        <small class="menu-hint" data-split-keyboard-hint hidden>Tastatur: I / K / J / L</small>
+                                    </div>
+                                </div>
+                                <div class="menu-section">
+                                    <span class="setup-chip-label">Bildaufteilung</span>
+                                    <p class="menu-hint" data-split-players-for="2">Nebeneinander · 2 Spalten</p>
+                                    <div data-split-players-for="3">
+                                        <label for="split-viewport-layout" class="sr-only">Bildaufteilung für drei Spieler</label>
+                                        <select id="split-viewport-layout">
+                                            <option value="three_columns">Hochformat · 3 Spalten</option>
+                                            <option value="three_rows">Querformat · 3 Reihen</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <p id="split-device-status" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                                <p id="split-players-field-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                            </div>
+                        </details>
 
                         <details id="start-map-section" class="menu-section menu-accordion start-section-card" data-start-section="map" open>
                             <summary class="menu-accordion-summary">
@@ -302,6 +361,8 @@
                                                     aria-pressed="true">Pilot 1</button>
                                                 <button type="button" id="vehicle-p2-container" class="secondary-btn hidden"
                                                     aria-pressed="false">Pilot 2</button>
+                                                <button type="button" id="btn-vehicle-player-p3" class="secondary-btn hidden"
+                                                    aria-pressed="false">Pilot 3</button>
                                             </div>
                                             <button type="button" id="btn-vehicle-favorite-toggle" class="secondary-btn start-vehicle-favorite"
                                                 aria-label="Fahrzeug als Favorit markieren">☆ Favorit</button>
@@ -342,6 +403,11 @@
                                             <label for="vehicle-select-p2" data-menu-text-id="menu.level3.vehicle.p2.label">Direktauswahl Pilot 2</label>
                                             <select id="vehicle-select-p2"></select>
                                             <p id="vehicle-p2-field-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                                        </div>
+                                        <div id="vehicle-select-p3-panel" class="start-vehicle-direct-select hidden">
+                                            <label for="vehicle-select-p3">Direktauswahl Pilot 3</label>
+                                            <select id="vehicle-select-p3"></select>
+                                            <p id="vehicle-p3-field-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
                                         </div>
                                     </div>
                                 </div>
@@ -607,6 +673,10 @@
                                     <label data-menu-text-id="menu.level4.controls.player2_keys.label">Tasten Spieler 2</label>
                                     <div id="keybind-p2" class="keybind-grid"></div>
                                 </div>
+                                <div>
+                                    <label>Tasten Spieler 3 (nur 3 Spieler)</label>
+                                    <div id="keybind-p3" class="keybind-grid"></div>
+                                </div>
                             </div>
                             <label class="secondary-btn-spaced" data-menu-text-id="menu.level4.controls.global_key.label">Globale Taste</label>
                             <div id="keybind-global" class="keybind-grid"></div>
@@ -752,6 +822,14 @@
                                     </select>
                                     <label for="view-distance-slider"><span data-menu-text-id="menu.level4.graphics.view_distance.label">Sichtweite:</span> <span id="view-distance-label">Automatisch</span></label>
                                     <input type="range" id="view-distance-slider" min="0" max="190" step="10" value="0">
+                                    <label for="graphics-quality-select" data-menu-text-id="menu.level4.graphics.quality.label">Grafikstufe</label>
+                                    <select id="graphics-quality-select">
+                                        <option value="auto" selected>Automatisch</option>
+                                        <option value="LOW">Niedrig</option>
+                                        <option value="MEDIUM">Mittel</option>
+                                        <option value="HIGH">Hoch</option>
+                                        <option value="ULTRA">Sehr hoch</option>
+                                    </select>
                                     <label for="shadow-quality-slider"><span data-menu-text-id="menu.level4.graphics.shadow_quality.label">Schattenqualität:</span> <span id="shadow-quality-label">Hoch</span></label>
                                     <input type="range" id="shadow-quality-slider" min="0" max="3" step="1" value="3">
                                     <label for="bloom-quality-slider"><span data-menu-text-id="menu.level4.graphics.bloom_quality.label">Bloom:</span> <span id="bloom-quality-label">Aus</span></label>

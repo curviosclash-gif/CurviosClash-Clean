@@ -48,12 +48,14 @@ export function createHydraVisual(renderer, scale = 1) {
     const bar = new THREE.Mesh(new THREE.BoxGeometry(5, 0.26, 0.14), new THREE.MeshBasicMaterial({ color: 0x8cfa65 }));
     bar.position.set(0, 10.2, 0.09);
     root.add(bar);
-    root.userData.hydra = { fallback, warning, bar, mixer: null, clips: new Map(), model: null, sockets: [], actionKey: '', disposed: false };
+    root.userData.hydra = {
+        fallback, warning, bar, mixer: null, clips: new Map(), model: null, sockets: [],
+        actionKey: '', action: null, actionKind: '', actionEvent: 0, actionClipName: '', disposed: false,
+    };
     renderer.addToScene(root);
     loader.loadAsync(MODEL_URL).then((gltf) => {
         const state = root.userData.hydra;
         if (state.disposed) { disposeLoaded(gltf.scene); return; }
-        gltf.scene.rotation.y = Math.PI;
         root.add(gltf.scene);
         state.model = gltf.scene;
         state.fallback.visible = false;
@@ -84,19 +86,33 @@ export function updateHydraVisual(unit, dt = 0) {
         state.warning.position.z = Math.cos(angle) * 5.5;
     }
     if (!state.mixer) return;
-    const clipName = attack?.phase === 'warning' || attack?.phase === 'active'
+    const attackClipName = attack?.phase === 'warning' || attack?.phase === 'active'
         ? `${attack.action === 'snap' ? 'Snap' : 'Spit'}_${attack.head}`
-        : (attack?.moving === false ? 'Idle' : 'Walk');
-    const actionKey = `${clipName}:${attack?.event || 0}`;
+        : null;
+    const baseClipName = attack?.moving === false ? 'Idle' : 'Walk';
+    let clipName = attackClipName || baseClipName;
+    let actionKind = attackClipName ? 'attack' : 'base';
+    if (!attackClipName && state.actionKind === 'attack' && state.actionEvent === (attack?.event || 0)) {
+        const previousClip = state.clips.get(state.actionClipName);
+        if (state.action && previousClip && state.action.time < previousClip.duration) {
+            clipName = state.actionClipName;
+            actionKind = 'attack';
+        }
+    }
+    const clip = state.clips.get(clipName) || state.clips.get('Idle');
+    const actionKey = `${actionKind}:${clip?.name || clipName}:${attack?.event || 0}`;
     if (actionKey !== state.actionKey) {
-        state.mixer.stopAllAction();
-        const clip = state.clips.get(clipName) || state.clips.get('Idle');
         if (clip) {
             const action = state.mixer.clipAction(clip);
             action.reset();
-            action.setLoop(clipName.startsWith('Snap') || clipName.startsWith('Spit') ? THREE.LoopOnce : THREE.LoopRepeat);
-            action.clampWhenFinished = true;
+            action.setLoop(actionKind === 'attack' ? THREE.LoopOnce : THREE.LoopRepeat);
+            action.clampWhenFinished = actionKind === 'attack';
             action.play();
+            if (state.action) state.action.crossFadeTo(action, 0.2, false);
+            state.action = action;
+            state.actionKind = actionKind;
+            state.actionEvent = attack?.event || 0;
+            state.actionClipName = clip.name;
         }
         state.actionKey = actionKey;
     }

@@ -46,7 +46,31 @@ export function resolveSplitscreenInputDevice(layout, playerIndex) {
     return { type: keyboard ? 'keyboard' : 'gamepad', gamepadIndex: normalized === 'controller-controller' ? playerIndex : 0 };
 }
 
-const ACTION_FIELDS = GAMEPAD_ACTIONS.map((action) => ({ key: action.key, fallback: action.button }));
+/** Controller slots a two-player layout cannot start without; 'auto' merges pad and keys, so it needs none. */
+export function resolveSplitscreenLayoutGamepadSlots(layout) {
+    const normalized = normalizeSplitscreenInputLayout(layout);
+    if (normalized === 'controller-controller') return [0, 1];
+    if (normalized === 'controller-keyboard' || normalized === 'keyboard-controller') return [0];
+    return [];
+}
+
+/**
+ * Why a local split-screen start would leave a player without input, or ''.
+ * @param {{ gamepadSlots?: number[], controls?: any, getGamepad?: (index: number) => any }} options
+ */
+export function resolveLocalGamepadIssue({ gamepadSlots = [], controls = null, getGamepad = () => null } = {}) {
+    if (gamepadSlots.length === 0) return '';
+    if (!isGamepadInputEnabled(controls)) {
+        return 'Gamepads sind deaktiviert. Aktiviere sie in den Steuerungs-Einstellungen.';
+    }
+    for (const index of gamepadSlots) {
+        const pad = getGamepad(index);
+        if (!pad || pad.connected === false) return `Gamepad ${index + 1} fehlt. Verbinde es und drücke eine Taste.`;
+    }
+    return '';
+}
+
+const ACTION_FIELDS =GAMEPAD_ACTIONS.map((action) => ({ key: action.key, fallback: action.button }));
 const AXIS_FIELDS = GAMEPAD_AXES.map((axis) => ({ key: axis.key, fallback: axis.axis }));
 
 /**
@@ -80,6 +104,20 @@ export function normalizeGamepadControls(source) {
     normalizeMappingGroup(result, source, ACTION_FIELDS, 16);
     normalizeMappingGroup(result, source, AXIS_FIELDS, 4);
     return result;
+}
+
+/**
+ * Item bar hints in the {SHOOT, USE_ITEM} shape of a keyboard scope: a player
+ * steered by a controller sees that slot's buttons, everyone else their keys.
+ * @param {{type?: string, gamepadIndex?: number} | null | undefined} source
+ * @param {Record<string, string> | null | undefined} keyboardBindings
+ * @param {Record<string, any> | null | undefined} controls
+ */
+export function resolvePlayerActionHintBindings(source, keyboardBindings, controls) {
+    const slot = source?.type === 'gamepad' && Number.isInteger(source.gamepadIndex) ? source.gamepadIndex : -1;
+    if (slot < 0) return keyboardBindings || null;
+    const mapping = normalizeGamepadControls(controls?.[`GAMEPAD_${slot + 1}`]);
+    return { SHOOT: GAMEPAD_BUTTON_LABELS[mapping.SHOOT], USE_ITEM: GAMEPAD_BUTTON_LABELS[mapping.USE_ITEM] };
 }
 
 // Only an explicit false disables controllers, so older saves keep them enabled.

@@ -1,5 +1,5 @@
 import { MAP_SCHEMA_COLLECTION_LIMITS } from './MapSchemaConstants.js';
-import { normalizeSecretRooms } from '../../shared/contracts/SecretRoomContract.js';
+import { isSecretRoomReleaseSource, normalizeSecretRooms } from '../../shared/contracts/SecretRoomContract.js';
 
 /**
  * Secret rooms in the map schema.
@@ -51,9 +51,9 @@ function toPlainRoom(room, invScale) {
     };
     if (room.unlock) {
         /** @type {Record<string, any>} */
-        const unlock = room.unlock.source === 'dandelionSeeds'
+        const unlock = isSecretRoomReleaseSource(room.unlock.source)
             ? {
-                source: 'dandelionSeeds',
+                source: room.unlock.source,
                 when: 'allReleased',
                 delaySeconds: room.unlock.delaySeconds,
             }

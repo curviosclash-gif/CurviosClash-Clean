@@ -74,10 +74,8 @@ test('Wave 6 maps place three looping moving obstacles on dynamic scene collisio
         assert.equal(model.animationClock?.clipName, entry.clip);
         const scene = entry.map.destructibles.breakScenes[0];
         if (entry.id === 'storm-dam-gate') {
-            assert.equal(scene.hideModelIds.includes(entry.id), false);
-            assert.deepEqual(scene.attachedModels, [{
-                modelId: entry.id, parentNodeName: 'dam_wall_arch_08_tier_2',
-            }]);
+            assert.ok(scene.hideModelIds.includes(entry.id));
+            assert.deepEqual(scene.attachedModels || [], []);
         } else {
             assert.ok(scene.hideModelIds.includes(entry.id));
         }
@@ -94,7 +92,8 @@ test('moving obstacle GLBs keep editable sources, one timed clip and collidable 
         const document = readGlbJson(glbPath);
         assert.equal(document.animations?.length, 1);
         assert.equal(document.animations[0].name, entry.clip);
-        assert.ok(Math.abs(clipDuration(document, document.animations[0]) - entry.duration) <= (1 / 30));
+        assert.ok(Math.abs(clipDuration(document, document.animations[0]) - entry.duration) < 1e-5,
+            `${entry.clip} must retain its full ${entry.duration}s loop`);
         assert.ok(animatedMeshNames(document).length > 0, `${entry.file} moves collidable meshes`);
         assert.equal((document.nodes || []).some((node) => /_nocol/i.test(String(node.name || ''))), false);
     }

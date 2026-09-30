@@ -133,7 +133,7 @@ test('all graphics steps draw the same solid volume with a cheaper LOW ray march
         return { cards: cards.geometry.instanceCount, radius: head.material.uniforms.bounds.value.x,
             density: head.material.uniforms.smokeDensity.value, collar: collar.material.uniforms.bounds.value.x,
             steps: head.material.uniforms.marchSteps.value, stepTarget: head.material.uniforms.stepTarget.value,
-            lowDetail: head.material.uniforms.lowDetail.value };
+            lowDetail: head.material.uniforms.lowDetail.value, collarSteps: collar.material.uniforms.marchSteps.value };
     };
     // The renderer publishes its effective step on the scene; the switch takes effect at once.
     assert.equal(isLowQualityScene({ userData: { graphicsQuality: 'LOW' } }), true);
@@ -150,6 +150,13 @@ test('all graphics steps draw the same solid volume with a cheaper LOW ray march
         'LOW samples the same volume more coarsely');
     assert.equal(low.lowDetail, 1, 'LOW uses the local-density sunlight approximation');
     assert.equal(draw('HIGH').lowDetail, 0, 'HIGH restores full detail');
+    const high = draw('HIGH');
+    const ultra = draw('ULTRA');
+    assert.equal(ultra.cards, 0, 'ULTRA draws the volume as well');
+    assert.ok(ultra.stepTarget < high.stepTarget, 'ULTRA samples the same volume more finely');
+    assert.ok(ultra.collarSteps > high.collarSteps, 'and gives the collar more steps');
+    assert.ok(ultra.steps <= 64, 'within the shader loop bound');
+    assert.equal(ultra.lowDetail, 0);
     disposeObject3DResources(gltf.scene);
 });
 

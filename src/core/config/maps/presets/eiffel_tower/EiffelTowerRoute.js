@@ -93,7 +93,7 @@ const EIFFEL_TOWER_CHECKPOINTS = [
         nextIds: ['CP09'],
         params: { label: 'Galerie außen', height: 'low', color: 0x4da6ff },
     },
-    { id: 'CP09', type: 'second_merge', pos: [0, SECOND_DECK + 12, 0], radius: 6.0, forward: [0, 1, 0] },
+    { id: 'CP09', type: 'second_merge', pos: [9, SECOND_DECK + 12, 0], radius: 6.0, forward: [0, 1, 0] },
     // Four rings up the outside of the shaft. They step a quarter turn each, so the climb is a
     // spiral around the iron rather than a straight line beside it.
     { id: 'CP10', type: 'spiral', pos: [12, up(160.0), 0], radius: 5.0, forward: [0, 0.94, -0.34] },

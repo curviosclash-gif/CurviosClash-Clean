@@ -48,9 +48,12 @@ export function restoreKillcamLivePresentation(killcam) {
     for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
         try {
-            const respawnedPlayer = entry.player
-                && entry.playerWasAlive === false
-                && entry.player.alive === true;
+            if (entry.player && entry.player.alive !== true) {
+                // Died while the killcam hid it: its vehicle stays gone until respawn.
+                entry.object.visible = false;
+                continue;
+            }
+            const respawnedPlayer = entry.player && entry.playerWasAlive === false;
             entry.object.visible = respawnedPlayer ? true : entry.visible;
         } catch {
             // Best-effort presentation restore during teardown.

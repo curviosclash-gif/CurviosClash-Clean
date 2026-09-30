@@ -373,7 +373,10 @@ export async function handleMultiplayerHostAction({
         game._showStatusToast(ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE, 1800, 'warning');
         return { ok: false, message: ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE, reason: 'online_signaling_unconfigured' };
     }
-    const hostGate = resolveSurfaceMultiplayerGateAccess('host', resolveSurfaceResolverOptions());
+    const hostGate = resolveSurfaceMultiplayerGateAccess('host', {
+        ...resolveSurfaceResolverOptions(),
+        transport: selectedTransport,
+    });
     if (!hostGate.allowed) {
         finishPendingAction();
         setMultiplayerStatus(game, hostGate.message || 'Eine Lobby zu erstellen ist hier nicht möglich.');

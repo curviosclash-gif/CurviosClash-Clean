@@ -7,6 +7,11 @@ on:
       - assets/branding/**
       - START_CURVIOSCLASH.cmd
       - dev/vite/**
+      - server/**
+      - index.html
+      - scripts/build-app.mjs
+      - scripts/vite-build.mjs
+      - scripts/esbuild-stream-fallback.cjs
       - scripts/check-packaged-electron.mjs
       - package.json
       - package-lock.json
@@ -18,6 +23,11 @@ on:
       - assets/branding/**
       - START_CURVIOSCLASH.cmd
       - dev/vite/**
+      - server/**
+      - index.html
+      - scripts/build-app.mjs
+      - scripts/vite-build.mjs
+      - scripts/esbuild-stream-fallback.cjs
       - scripts/check-packaged-electron.mjs
       - package.json
       - package-lock.json
@@ -47,6 +57,9 @@ jobs:
             electron/package-lock.json
       - run: npm ci
       - run: npm --prefix electron ci
+      - name: Build web bundle behind the training boundary
+        run: |
+          npm run build
       - name: Build Windows package
         run: |
           npm run build:app

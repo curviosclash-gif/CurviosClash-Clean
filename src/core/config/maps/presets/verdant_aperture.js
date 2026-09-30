@@ -60,20 +60,23 @@ function setpiece(id, file, clipName, phaseOffsetBeats, position, targetSize, ro
 /**
  * A setpiece that gates a level join, placed straight into the hole its join punched.
  *
- * The quarter turn about X is what makes it a hatch rather than a doorway. The generator builds
- * these rings in Blender's XZ plane, and the glTF export turns Blender's Z-up into Y-up, so the
- * ring arrives standing on edge. Placed unrotated it spans the storeys vertically instead of
- * filling the cut-out, which a desktop probe showed directly: the west shutter's colliders sat
- * around y=253 while its slot sat at y=162, leaving the join itself completely unguarded.
+ * The loader does not centre a model on `position`: it stands the model on the bottom of its
+ * bounding box there and only then turns it about that point (GLBCollectionPlacement). So each
+ * join slot says how far the slot has to sit from the hole centre for the shut blades to land in
+ * the deck - `lift` along Y, `swing` back along Z for a model the turn carries sideways.
+ * tests/verdant-aperture-openings.contract.test.mjs shoots rays through the holes and checks
+ * that they really shut and really open.
  */
-function joinSetpiece(join, y, id, file, clipName, phaseOffsetBeats, targetSize) {
-    return setpiece(id, file, clipName, phaseOffsetBeats, [join[0], y, join[1]], targetSize, [Math.PI / 2, 0, 0]);
+function joinSetpiece(join, deckY, id, file, clipName, phaseOffsetBeats, slot) {
+    return setpiece(id, file, clipName, phaseOffsetBeats,
+        [join[0], deckY + slot.lift, join[1] - slot.swing], slot.targetSize, slot.rotation);
 }
 
 const LEVEL_ROOT_DECK = 54;
 const LEVEL_CROWN_DECK = 112;
 const DECK_EXTENT = 150;
 const DECK_CELL = 30;
+const DECK_THICKNESS = 4;
 
 /**
  * A closed storey floor with holes punched where the setpieces sit.
@@ -83,7 +86,7 @@ const DECK_CELL = 30;
  * cell smaller than the setpiece that fills it, so the moving parts overlap the rim of solid deck
  * instead of leaving a ring of open air the collider mode cannot see.
  */
-function deck(y, joins, { thickness = 4 } = {}) {
+function deck(y, joins, { thickness = DECK_THICKNESS } = {}) {
     const boxes = [];
     for (let x = -DECK_EXTENT + DECK_CELL / 2; x < DECK_EXTENT; x += DECK_CELL) {
         for (let z = -DECK_EXTENT + DECK_CELL / 2; z < DECK_EXTENT; z += DECK_CELL) {
@@ -121,14 +124,99 @@ function joinTargetSize(modelWidth, shutCoverageWidth) {
     return Math.ceil((reachNeeded * modelWidth) / shutCoverageWidth);
 }
 
-const JOIN_TARGET_SIZE = {
-    // Blades span 10.8 of the shutter's 15.4 model units when shut.
-    leafShutter: joinTargetSize(15.4, 10.8),
-    // Petals span 12.0 of the blossom's 12.8.
-    bloomIris: joinTargetSize(12.8, 12.0),
-    // Panes span 10.8 across the narrow axis of the 24.0 wide louvre.
-    glassLouvre: joinTargetSize(24.0, 10.8),
+const LEAF_SHUTTER_SIZE = joinTargetSize(15.4, 10.8);
+const GLASS_LOUVRE_SIZE = joinTargetSize(24.0, 10.8);
+
+// Offsets measured by placing each GLB with computeCollectionPlacement at the target size above.
+//
+// The blades and petals now retract together. Place their shut pose across each deck hole;
+// the old edge-on placements left permanent gaps around the barrier.
+const JOIN_SLOT = {
+    // Blades span 10.8 of the shutter's 15.4 model units when shut. The generator builds the
+    // shutter in Blender's XZ plane and the glTF export turns Z-up into Y-up, so it arrives
+    // standing on edge (15.2 tall, 1.7 thick); a quarter turn about X lays it into the deck. The
+    // turn pivots about the bottom edge and swings the shutter's centre half its height towards
+    // +Z - centred, the slot would move back by swing = (15.2 / 2) * (targetSize / 15.36).
+    leafShutter: {
+        targetSize: LEAF_SHUTTER_SIZE,
+        rotation: [Math.PI / 2, 0, 0],
+        lift: 0,
+        swing: (15.2 / 2) * (LEAF_SHUTTER_SIZE / 15.36),
+    },
+    // Petals span 12.0 of the blossom's 13.8 model units (its sepals are the widest part, so a
+    // flat iris would be sized joinTargetSize(13.8, 12.0) = 49). The iris is built lying flat;
+    // the quarter turn stands it on edge. Flat, its shut petals start 6.75 above the base at size
+    // 49, and lift = DECK_THICKNESS / 2 - 6.746 rests their rim on the deck top.
+    bloomIris: {
+        targetSize: joinTargetSize(13.8, 12.0),
+        rotation: [0, 0, 0],
+        lift: DECK_THICKNESS / 2 - 6.746,
+        swing: 0,
+    },
+    // Sized from the louvre's 24.0 by 10.8 frame; the shut panes then span 82.6 by 35.6, which
+    // covers the square hole on both axes - a rectangle needs no diagonal reach. Built lying
+    // flat; the shut panes lie 13.8-15.5 above the base, and their mid-plane sits in the middle
+    // of the deck so they fill the hole flush.
+    glassLouvre: {
+        targetSize: GLASS_LOUVRE_SIZE,
+        rotation: [0, 0, 0],
+        lift: -14.675,
+        swing: 0,
+    },
 };
+
+// The root arches are doors in their piers. Their seven trunks reach 12.48 either side of the
+// arch centre and 8.89 above its base, and one at a time sinks into the floor to open a slot.
+const ROOT_ARCH_TRUNK_HALF_SPAN = 12.48;
+const ROOT_ARCH_TRUNK_TOP = CELLAR_FLOOR + 8.894;
+
+/** A pier with the arch's trunk span cut out of it, so the trunks are the door. */
+function rootArchPier(x, z) {
+    const pierHalfLength = 23;
+    const pierTop = 48;
+    const stub = pierHalfLength - ROOT_ARCH_TRUNK_HALF_SPAN;
+    const stubCentre = ROOT_ARCH_TRUNK_HALF_SPAN + stub / 2;
+    return [
+        { pos: [x, 28, z - stubCentre], size: [8, 40, stub] },
+        { pos: [x, 28, z + stubCentre], size: [8, 40, stub] },
+        {
+            pos: [x, (ROOT_ARCH_TRUNK_TOP + pierTop) / 2, z],
+            size: [8, pierTop - ROOT_ARCH_TRUNK_TOP, 2 * ROOT_ARCH_TRUNK_HALF_SPAN],
+        },
+        // A threshold under the arch's floor signal, which carries no collider in dynamic mode.
+        { pos: [x, CELLAR_FLOOR + 0.25, z], size: [8, 0.5, 2 * ROOT_ARCH_TRUNK_HALF_SPAN] },
+    ];
+}
+
+// The vine gate's braids span 13.65 either side and start 0.93 above the model base; the base
+// sinks by that much so the lowest braid rests on the cellar floor instead of leaving a slot
+// under the gate. Its head starts 29.88 above the base.
+const VINE_GATE_Y = CELLAR_FLOOR - 0.931;
+const VINE_GATE_BRAID_HALF_SPAN = 13.65;
+const VINE_GATE_HEAD_BOTTOM = VINE_GATE_Y + 29.884;
+const VINE_GATE_FLANK_OUTER = 39;
+const CELLAR_WALL_TOP = 48;
+
+// Crown hall walls run from y=58 to 102 around their gaps. The curtain and the mill are centred
+// in those gaps (the curtain model is 19.36 tall, the mill 25.99); sill and lintel boxes close
+// the wall gap above and below the moving panels and rotor, which keep their carried gap.
+const CROWN_WALL_BOTTOM = 58;
+const CROWN_WALL_TOP = 102;
+const CROWN_WALL_CENTRE = (CROWN_WALL_BOTTOM + CROWN_WALL_TOP) / 2;
+const CANOPY_Y = CROWN_WALL_CENTRE - 19.36 / 2;
+const CANOPY_PANEL_BOTTOM = CANOPY_Y + 1.2;
+const CANOPY_PANEL_TOP = CANOPY_Y + 17.2;
+const MILL_Y = CROWN_WALL_CENTRE - 25.989 / 2;
+const MILL_ROTOR_BOTTOM = MILL_Y + 1.044;
+const MILL_ROTOR_TOP = MILL_Y + 24.945;
+
+/** Boxes above and below a moving part inside a crown wall gap. */
+function wallGapFill(x, z, size, bottom, top) {
+    return [
+        { pos: [x, (CROWN_WALL_BOTTOM + bottom) / 2, z], size: [size[0], bottom - CROWN_WALL_BOTTOM, size[1]] },
+        { pos: [x, (top + CROWN_WALL_TOP) / 2, z], size: [size[0], CROWN_WALL_TOP - top, size[1]] },
+    ];
+}
 
 const VERDANT_APERTURE_LANDMARKS = [
     // Root cellar: wet stone and overgrowth, the tightest level.
@@ -136,11 +224,12 @@ const VERDANT_APERTURE_LANDMARKS = [
     landmark('root-bush-west', 'pm-avatar-garden', 'Bush03', [-108, 10, -60], 26),
     landmark('root-bush-east', 'pm-avatar-garden', 'Bush05', [104, 10, 52], 28, 1.1),
     landmark('root-column', 'pm-crystal-crossroads', 'Column_SmallBroken_01', [36, 10, -104], 30),
-    setpiece('root-arch-west', '03_root_arch', 'RootArchLoop', 0, [-46, 26, -70], 30, [0, Math.PI / 2, 0]),
-    setpiece('root-arch-east', '03_root_arch', 'RootArchLoop', 0.5, [46, 26, 70], 30, [0, Math.PI / 2, 0]),
+    // Standing on the cellar floor: the sinking trunk has to disappear into the ground.
+    setpiece('root-arch-west', '03_root_arch', 'RootArchLoop', 0, [-46, CELLAR_FLOOR, -70], 30, [0, Math.PI / 2, 0]),
+    setpiece('root-arch-east', '03_root_arch', 'RootArchLoop', 0.5, [46, CELLAR_FLOOR, 70], 30, [0, Math.PI / 2, 0]),
     // The slowest barrier on the map divides the cellar down the middle; its gap climbs over a
     // full 24 seconds, so crossing here is a commitment rather than a reflex.
-    setpiece('vine-gate', '07_vine_gate', 'VineGateLoop', 0, [0, 28, 0], 34),
+    setpiece('vine-gate', '07_vine_gate', 'VineGateLoop', 0, [0, VINE_GATE_Y, 0], 34),
     wildwuchs('root', 'v01', [-108, 8, -88], 15, 0.3),
     wildwuchs('root', 'v02', [104, 8, -65], 18, -0.5),
     wildwuchs('root', 'v03', [76, 8, 110], 14, 1.1),
@@ -190,8 +279,8 @@ const VERDANT_APERTURE_LANDMARKS = [
     }),
 
     // The two ways up into the crown hall, half a beat apart so they never show the same opening.
-    joinSetpiece(ROOT_TO_CROWN[0], LEVEL_ROOT_DECK, 'leaf-shutter-west', '01_leaf_shutter', 'LeafShutterLoop', 0, JOIN_TARGET_SIZE.leafShutter),
-    joinSetpiece(ROOT_TO_CROWN[1], LEVEL_ROOT_DECK, 'leaf-shutter-east', '01_leaf_shutter', 'LeafShutterLoop', 0.5, JOIN_TARGET_SIZE.leafShutter),
+    joinSetpiece(ROOT_TO_CROWN[0], LEVEL_ROOT_DECK, 'leaf-shutter-west', '01_leaf_shutter', 'LeafShutterLoop', 0, JOIN_SLOT.leafShutter),
+    joinSetpiece(ROOT_TO_CROWN[1], LEVEL_ROOT_DECK, 'leaf-shutter-east', '01_leaf_shutter', 'LeafShutterLoop', 0.5, JOIN_SLOT.leafShutter),
 
     // Crown hall: the main fighting floor, open in the middle, walled by drifting curtains.
     landmark('crown-bridge', 'pm-avatar-garden', 'Bridge01', [0, 62, -96], 52),
@@ -199,10 +288,10 @@ const VERDANT_APERTURE_LANDMARKS = [
     landmark('crown-bush-north', 'pm-avatar-garden', 'Bush01', [-88, 62, 88], 30, 0.6),
     landmark('crown-bush-south', 'pm-avatar-garden', 'Bush06', [92, 62, -84], 30, 2.2),
     landmark('crown-arc', 'pm-crystal-crossroads', 'Arc', [0, 66, 104], 40, Math.PI / 2),
-    setpiece('canopy-west', '04_canopy_drift', 'CanopyDriftLoop', 0.5, [-74, 80, 0], 44, [0, Math.PI / 2, 0]),
-    setpiece('canopy-east', '04_canopy_drift', 'CanopyDriftLoop', 0, [74, 80, 0], 44, [0, Math.PI / 2, 0]),
-    setpiece('mill-north', '06_pollen_mill', 'PollenMillLoop', 0, [0, 80, -46], 28),
-    setpiece('mill-south', '06_pollen_mill', 'PollenMillLoop', 0.5, [0, 80, 46], 28),
+    setpiece('canopy-west', '04_canopy_drift', 'CanopyDriftLoop', 0.5, [-74, CANOPY_Y, 0], 44, [0, Math.PI / 2, 0]),
+    setpiece('canopy-east', '04_canopy_drift', 'CanopyDriftLoop', 0, [74, CANOPY_Y, 0], 44, [0, Math.PI / 2, 0]),
+    setpiece('mill-north', '06_pollen_mill', 'PollenMillLoop', 0, [0, MILL_Y, -46], 28),
+    setpiece('mill-south', '06_pollen_mill', 'PollenMillLoop', 0.5, [0, MILL_Y, 46], 28),
     // The prize sits in the open, readable from both the cellar holes and the roof.
     setpiece('heart-seed', '08_heart_seed', 'HeartSeedLoop', 0, [0, 64, 0], 30),
     wildwuchs('fern', 'v01', [-112, 58, 30], 15, 0.4),
@@ -210,9 +299,9 @@ const VERDANT_APERTURE_LANDMARKS = [
     wildwuchs('fern', 'v03', [0, 58, 118], 15, 1.0),
 
     // The three ways up onto the glass roof, spread across the beat.
-    joinSetpiece(CROWN_TO_CANOPY[0], LEVEL_CROWN_DECK, 'bloom-west', '02_bloom_iris', 'BloomIrisLoop', 0.25, JOIN_TARGET_SIZE.bloomIris),
-    joinSetpiece(CROWN_TO_CANOPY[1], LEVEL_CROWN_DECK, 'bloom-east', '02_bloom_iris', 'BloomIrisLoop', 0.75, JOIN_TARGET_SIZE.bloomIris),
-    joinSetpiece(CROWN_TO_CANOPY[2], LEVEL_CROWN_DECK, 'louvre-centre', '05_glass_louvre', 'GlassLouvreLoop', 0.5, JOIN_TARGET_SIZE.glassLouvre),
+    joinSetpiece(CROWN_TO_CANOPY[0], LEVEL_CROWN_DECK, 'bloom-west', '02_bloom_iris', 'BloomIrisLoop', 0.25, JOIN_SLOT.bloomIris),
+    joinSetpiece(CROWN_TO_CANOPY[1], LEVEL_CROWN_DECK, 'bloom-east', '02_bloom_iris', 'BloomIrisLoop', 0.75, JOIN_SLOT.bloomIris),
+    joinSetpiece(CROWN_TO_CANOPY[2], LEVEL_CROWN_DECK, 'louvre-centre', '05_glass_louvre', 'GlassLouvreLoop', 0.5, JOIN_SLOT.glassLouvre),
 
     // Glass roof: bright, exposed, and the only level with no cover at all.
     landmark('roof-crystal', 'pm-crystal-crossroads', 'Crystal_Cluster', [-84, 118, -78], 32, 0.8),
@@ -229,29 +318,44 @@ const VERDANT_APERTURE_OBSTACLES = [
     ...deck(LEVEL_ROOT_DECK, ROOT_TO_CROWN),
     ...deck(LEVEL_CROWN_DECK, CROWN_TO_CANOPY),
 
-    // Root cellar: a ring of piers that forces movement past the two root arches.
-    { pos: [-46, 28, -70], size: [8, 40, 46] },
-    { pos: [46, 28, 70], size: [8, 40, 46] },
+    // Root cellar: a ring of piers that forces movement past the two root arches, which are the
+    // doors through their piers.
+    ...rootArchPier(-46, -70),
+    ...rootArchPier(46, 70),
     { pos: [-110, 28, 0], size: [10, 40, 90] },
     { pos: [110, 28, 0], size: [10, 40, 90] },
     { pos: [0, 28, -118], size: [86, 40, 10] },
     { pos: [0, 28, 118], size: [86, 40, 10] },
-    // Flanks of the vine gate, so its climbing gap is the way through the middle.
-    { pos: [-34, 28, 0], size: [10, 40, 14] },
-    { pos: [34, 28, 0], size: [10, 40, 14] },
+    // Flanks of the vine gate, so its climbing gap is the way through the middle. They reach in
+    // to the braids and take in the gate's posts; a braid that slides out slides into a flank.
+    ...[-1, 1].map((side) => ({
+        pos: [side * (VINE_GATE_BRAID_HALF_SPAN + VINE_GATE_FLANK_OUTER) / 2, 28, 0],
+        size: [VINE_GATE_FLANK_OUTER - VINE_GATE_BRAID_HALF_SPAN, 40, 14],
+    })),
+    // Above the braids, the gate's head closes up to the flank tops.
+    {
+        pos: [0, (VINE_GATE_HEAD_BOTTOM + CELLAR_WALL_TOP) / 2, 0],
+        size: [2 * VINE_GATE_BRAID_HALF_SPAN, CELLAR_WALL_TOP - VINE_GATE_HEAD_BOTTOM, 4.5],
+    },
 
     // Crown hall: the drifting curtains close the east and west thirds.
     { pos: [-74, 80, -46], size: [10, 44, 52] },
     { pos: [-74, 80, 46], size: [10, 44, 52] },
     { pos: [74, 80, -46], size: [10, 44, 52] },
     { pos: [74, 80, 46], size: [10, 44, 52] },
+    ...wallGapFill(-74, 0, [10, 40], CANOPY_PANEL_BOTTOM, CANOPY_PANEL_TOP),
+    ...wallGapFill(74, 0, [10, 40], CANOPY_PANEL_BOTTOM, CANOPY_PANEL_TOP),
     // Walls around the pollen mills, leaving only the turning gap.
     { pos: [-38, 80, -46], size: [50, 44, 10] },
     { pos: [38, 80, -46], size: [50, 44, 10] },
     { pos: [-38, 80, 46], size: [50, 44, 10] },
     { pos: [38, 80, 46], size: [50, 44, 10] },
+    ...wallGapFill(0, -46, [26, 10], MILL_ROTOR_BOTTOM, MILL_ROTOR_TOP),
+    ...wallGapFill(0, 46, [26, 10], MILL_ROTOR_BOTTOM, MILL_ROTOR_TOP),
     // A low plinth under the heart seed; it blocks nothing overhead so the prize stays reachable.
-    { pos: [0, 60, 0], size: [26, 6, 26] },
+    // It fills the seed's own 30 wide plinth (y 64-68), which carries no collider in dynamic
+    // mode, down to the deck, and stays a hair inside it so the two faces do not flicker.
+    { pos: [0, 61.9, 0], size: [29.6, 11.8, 29.6] },
 
     // Glass roof: low parapets only. This level is deliberately the most exposed one, because it
     // is the only place the MG's wall-piercing fire is not a design problem but the point.
@@ -325,8 +429,9 @@ export const VERDANT_APERTURE_MAP = {
             // geometry actually affects, so reading an opening has to be what earns one.
             { id: 'verdant_rocket_west', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -45, y: 64, z: -35, weight: 1.2 },
             { id: 'verdant_rocket_east', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 45, y: 64, z: 35, weight: 1.2 },
-            { id: 'verdant_rocket_heart', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 0, y: 70, z: 0, weight: 0.6 },
-            { id: 'verdant_rocket_bloom', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -45, y: 118, z: 45, weight: 0.9 },
+            // Above the heart seed: its core sweeps y 69.6-88.4 and would swallow the pickup.
+            { id: 'verdant_rocket_heart', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 0, y: 94, z: 0, weight: 0.6 },
+            { id: 'verdant_rocket_bloom', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -45, y: 128, z: 45, weight: 0.9 },
             // Shields in the open crown hall, where the MG rules and cover does not help.
             { id: 'verdant_shield_crown_west', type: 'item_shield', pickupType: 'SHIELD', x: -40, y: 78, z: 0, weight: 1.3 },
             { id: 'verdant_shield_crown_east', type: 'item_shield', pickupType: 'SHIELD', x: 40, y: 78, z: 0, weight: 1.3 },

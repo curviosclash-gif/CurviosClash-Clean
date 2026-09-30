@@ -64,6 +64,9 @@ export class SunflowerKernelController {
         this.byIndex = new Map();
         this.heads = [];
         this.events = [];
+        /** @type {((position: THREE.Vector3, atSeconds: number) => void) | null} Reused vector. */
+        this.onRelease = null;
+        this._serialized = null;
         this._center = new THREE.Vector3();
         this._scale = new THREE.Vector3(1, 1, 1);
         this._localOrigin = new THREE.Vector3();
@@ -118,6 +121,18 @@ export class SunflowerKernelController {
             this.byIndex.set(index, kernel);
         });
         this.kernels.sort((a, b) => a.index - b.index);
+        // Refreshing just these keeps a shot from walking every node of the map it sits in.
+        this._kernelParents = [...new Set(this.kernels.map((kernel) => kernel.homeParent))];
+        // Same shape as the dandelion's, so a secret room can open on either plant. Reused so a
+        // per-frame status query allocates nothing.
+        this._progress = {
+            total: this.kernels.length,
+            released: 0,
+            remaining: this.kernels.length,
+            allReleased: false,
+            completedAtSeconds: 0,
+        };
+        this._latestReleaseSeconds = 0;
         if (this.kernels.length === 0) {
             this.flightRoot = null;
             this._renderBatch = null;
@@ -136,6 +151,9 @@ export class SunflowerKernelController {
     }
 
     get count() { return this.kernels.length; }
+
+    /** Match-wide release progress. The returned object is owned and reused by this controller. */
+    getProgress() { return this._progress; }
 
     getRenderBatchMetrics() {
         return this._renderBatch?.getMetrics()
@@ -182,9 +200,9 @@ export class SunflowerKernelController {
     /** Nearest attached kernel on a coarse-tested head, using each achene's transformed ellipsoid. */
     raycast(origin, direction, maxDistance, padding = 0) {
         if (!origin || !direction || !(maxDistance > 0) || this.kernels.length === 0) return null;
-        this.scene?.updateWorldMatrix?.(true, true);
         let headCandidate = false;
         for (const head of this.heads) {
+            head.node.updateWorldMatrix(true, false);
             head.node.getWorldPosition(this._center);
             matrixWorldScale(head.node, this._scale);
             const radius = head.radius * Math.max(this._scale.x, this._scale.y, this._scale.z);
@@ -194,6 +212,7 @@ export class SunflowerKernelController {
             }
         }
         if (!headCandidate) return null;
+        this._refreshKernelTransforms();
 
         let nearest = null;
         let distance = maxDistance;
@@ -218,7 +237,7 @@ export class SunflowerKernelController {
     releaseByName(name, seconds, hitDirection = null) {
         const kernel = this.byName.get(String(name || ''));
         if (!kernel || kernel.releasedAt !== null) return false;
-        this.scene?.updateWorldMatrix?.(true, true);
+        this._refreshKernelTransforms();
         const at = Math.round(Math.max(0, Number(seconds) || 0) * 1000) / 1000;
         kernel.releasedAt = at;
         kernel.worldStart.copy(kernel.node.getWorldPosition(this._center));
@@ -259,6 +278,15 @@ export class SunflowerKernelController {
             Math.round(kernel.hitDirection.y * 1000),
             Math.round(kernel.hitDirection.z * 1000),
         ]);
+        this._serialized = null;
+        this._latestReleaseSeconds = Math.max(this._latestReleaseSeconds, at);
+        const progress = this._progress;
+        progress.released += 1;
+        progress.remaining = Math.max(0, progress.total - progress.released);
+        progress.allReleased = progress.total > 0 && progress.remaining === 0;
+        progress.completedAtSeconds = progress.allReleased ? this._latestReleaseSeconds : 0;
+        // Host and replica both release here, so feedback hooked in here reaches every screen.
+        this.onRelease?.(kernel.worldStart, at);
         return true;
     }
 
@@ -290,6 +318,10 @@ export class SunflowerKernelController {
         this._renderBatch?.commit();
     }
 
+    _refreshKernelTransforms() {
+        for (const parent of this._kernelParents) parent.updateWorldMatrix(true, true);
+    }
+
     _returnToAttachment(kernel, visible) {
         if (kernel.node.parent !== kernel.homeParent) kernel.homeParent.attach(kernel.node);
         kernel.node.position.copy(kernel.restPosition);
@@ -312,9 +344,19 @@ export class SunflowerKernelController {
         }
         this._renderBatch?.commit();
         this.events.length = 0;
+        this._serialized = null;
+        this._latestReleaseSeconds = 0;
+        this._progress.released = 0;
+        this._progress.remaining = this._progress.total;
+        this._progress.allReleased = false;
+        this._progress.completedAtSeconds = 0;
     }
 
-    serialize() { return this.events.map((event) => [...event]); }
+    /** Wire form of the releases, rebuilt only after a release or reset; callers must not mutate it. */
+    serialize() {
+        if (!this._serialized) this._serialized = this.events.map((event) => [...event]);
+        return this._serialized;
+    }
 
     applyNetworkState(events) {
         if (!Array.isArray(events)) return;

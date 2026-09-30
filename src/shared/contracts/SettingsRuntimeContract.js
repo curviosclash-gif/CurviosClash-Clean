@@ -104,6 +104,7 @@ export function createControlBindingsSnapshot(controls, fallbackControls, option
     return {
         PLAYER_1: normalizeControlBindings(src.PLAYER_1, defaults.PLAYER_1, options),
         PLAYER_2: normalizeControlBindings(src.PLAYER_2, defaults.PLAYER_2, options),
+        PLAYER_3: normalizeControlBindings(src.PLAYER_3, defaults.PLAYER_3, options),
         GLOBAL: normalizeGlobalControlBindings(src.GLOBAL, defaults.GLOBAL),
         ...createGamepadControlsSnapshot({ ...defaults, ...src }),
     };

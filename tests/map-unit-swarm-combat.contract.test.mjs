@@ -84,6 +84,75 @@ test('the host sends member damage and a replica cannot deal its own', () => {
     assert.equal(client.system.getTargets().length, 7);
 });
 
+test('a host dive damages one unprotected player and credits the map-unit source', () => {
+    const { owner, system, swarm } = createSide();
+    const player = {
+        index: 7, alive: true, spawnProtectionTimer: 0,
+        position: swarm.position.clone().add({ x: 0, y: 0, z: 4 }),
+    };
+    owner.players = [player];
+    owner._applyModeDamage = (target, amount, cause, options) => {
+        assert.equal(target, player);
+        assert.equal(amount, 14);
+        assert.equal(cause, 'PIGEON_DIVE');
+        assert.equal(options.sourcePlayer, swarm.source, 'the flock is the damage and kill source');
+        assert.ok(options.impactPoint);
+        player.damaged = (player.damaged || 0) + 1;
+        return { isDead: false };
+    };
+    swarm.definition = { ...swarm.definition, attack: { damage: 14, cooldown: 3.2, radius: 0.7, range: 9, diveSpeed: 26 } };
+
+    for (let tick = 0; tick < 100 && !player.damaged; tick += 1) system.update(0.05);
+    assert.equal(player.damaged, 1, 'one bird completes the dive');
+    assert.equal(swarm.attacksFired, 1);
+    assert.equal(swarm.contactAttackCooldowns.get(player.index), 3.2);
+
+    swarm.speed = 0;
+    for (let tick = 0; tick < 20; tick += 1) system.update(0.05);
+    assert.equal(player.damaged, 1, 'the same target cannot take several hits in one flock pass');
+});
+
+test('a dive waits out spawn protection and a network replica never applies contact damage', () => {
+    const host = createSide();
+    const protectedPlayer = {
+        index: 4, alive: true, spawnProtectionTimer: 2,
+        position: host.swarm.position.clone(),
+    };
+    host.owner.players = [protectedPlayer];
+    host.swarm.definition = { ...host.swarm.definition, attack: { damage: 14, cooldown: 3.2, radius: 0.7, range: 9, diveSpeed: 26 } };
+    host.owner._applyModeDamage = () => { protectedPlayer.damaged = true; };
+    for (let tick = 0; tick < 30; tick += 1) host.system.update(0.05);
+    assert.equal(protectedPlayer.damaged, undefined);
+    assert.equal(host.swarm.activeDive, null);
+
+    const client = createSide({ replica: true });
+    const target = { index: 4, alive: true, spawnProtectionTimer: 0, position: client.swarm.position.clone() };
+    client.owner.players = [target];
+    client.owner._applyModeDamage = () => { target.damaged = true; };
+    client.swarm.definition = { ...client.swarm.definition, attack: { damage: 14, cooldown: 3.2, radius: 0.7, range: 9, diveSpeed: 26 } };
+    for (let tick = 0; tick < 30; tick += 1) client.system.update(0.05);
+    assert.equal(target.damaged, undefined);
+    assert.equal(client.swarm.activeDive, null);
+});
+
+test('the host synchronizes a diving bird offset to its replica', () => {
+    const host = createSide();
+    host.swarm.definition = { ...host.swarm.definition, attack: { damage: 14, cooldown: 3.2, radius: 0.7, range: 9, diveSpeed: 26 } };
+    host.owner.players = [{
+        index: 2, alive: true, spawnProtectionTimer: 0,
+        position: host.swarm.position.clone().add({ x: 0, y: 0, z: 7 }),
+    }];
+    host.system.update(0.01);
+    host.system.update(0.01);
+    assert.ok(host.swarm.members.some((member) => member.offset.distanceToSquared(member.homeOffset) > 0.000001));
+
+    const client = createSide({ replica: true });
+    client.system.applyNetworkState(host.system.serializeNetworkState());
+    for (let index = 0; index < host.swarm.members.length; index += 1) {
+        assert.ok(client.swarm.members[index].offset.distanceTo(host.swarm.members[index].offset) < 0.001);
+    }
+});
+
 test('Arcade accepts exact mixed-unit XP while old tank telemetry keeps paying thirty', () => {
     const base = calculateSectorXp({ kills: 0, unitsDestroyed: 0 });
     assert.equal(calculateSectorXp({ kills: 0, unitsDestroyed: 1, unitDestroyedXp: 5 }) - base, 5);

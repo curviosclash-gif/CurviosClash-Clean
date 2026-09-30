@@ -108,6 +108,70 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(matchState.humanVehicleId).toBe(String(selectedVehicleId));
     });
 
+    test('T20kq: Grafikstufe Sehr hoch schaltet Schattenkarte, Pixel und GPU-Uhr im echten Fenster', async ({ page }) => {
+        await loadGame(page);
+        await openLevel4Drawer(page, { section: 'gameplay' });
+        await page.click('#level4-tab-graphics');
+        await expect(page.locator('#graphics-quality-select')).toHaveValue('auto');
+
+        // Draws explicitly, so the GPU timer has frames to measure whether or not the menu animates.
+        const renderFrames = (count) => page.evaluate(async (frameCount) => {
+            for (let i = 0; i < frameCount; i += 1) {
+                window.GAME_INSTANCE.renderer.render();
+                await new Promise((resolve) => requestAnimationFrame(resolve));
+            }
+        }, count);
+        const readState = () => page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const controller = game.renderer.qualityController;
+            let mapSize = 0;
+            game.renderer.scene.traverse((child) => {
+                if (!mapSize && child.isDirectionalLight && child.castShadow) mapSize = child.shadow?.mapSize?.width || 0;
+            });
+            const stats = controller.gpuFrameTimer.getStats();
+            return {
+                stored: game.settings.localSettings.graphicsQuality,
+                effective: controller.getQualityState().effectiveQuality,
+                published: game.renderer.scene.userData.graphicsQuality,
+                mapSize,
+                pixelRatio: game.renderer.renderer.getPixelRatio(),
+                capabilities: { ...controller.gpuCapabilities },
+                timerAvailable: controller.gpuFrameTimer.available,
+                gpuSamples: stats.samples,
+                gpuMedianMs: stats.medianMs,
+            };
+        });
+
+        await renderFrames(30);
+        const high = await readState();
+        await page.selectOption('#graphics-quality-select', 'ULTRA');
+        await renderFrames(30);
+        const ultra = await readState();
+        console.log(`[ultra-probe] gpu="${ultra.capabilities.gpuKey}" tier=${ultra.capabilities.tier} timer=${ultra.timerAvailable}`
+            + ` highMs=${high.gpuMedianMs} ultraMs=${ultra.gpuMedianMs} pixelRatio=${high.pixelRatio}->${ultra.pixelRatio}`);
+
+        expect(high.effective).toBe('HIGH');
+        expect(high.mapSize).toBe(1024);
+        expect(ultra.stored).toBe('ULTRA');
+        expect(ultra.effective).toBe('ULTRA');
+        expect(ultra.published).toBe('ULTRA');
+        expect(ultra.mapSize).toBe(2048);
+        expect(ultra.pixelRatio).toBeGreaterThanOrEqual(high.pixelRatio);
+        expect(typeof ultra.capabilities.gpuKey).toBe('string');
+        expect(ultra.capabilities.timerQuery).toBe(ultra.timerAvailable);
+        if (ultra.timerAvailable) {
+            expect(ultra.gpuSamples).toBeGreaterThan(0);
+            expect(ultra.gpuMedianMs).toBeGreaterThan(0);
+        }
+
+        // Under automation "Automatisch" never climbs to ULTRA on its own, so it lands on HIGH.
+        await page.selectOption('#graphics-quality-select', 'auto');
+        await renderFrames(3);
+        const back = await readState();
+        expect(back.effective).toBe('HIGH');
+        expect(back.mapSize).toBe(1024);
+    });
+
     test('T66a: Arcade-Menü zeigt kompaktes Leaderboard und dedizierten Hangar', async ({ page }) => {
         await page.setViewportSize({ width: 1280, height: 720 });
         await loadGame(page);
@@ -699,14 +763,16 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await loadGame(page);
         await openLevel4Drawer(page, { section: 'controls' });
 
+        // T and Z are the only letters no player (P1-P3) uses by default; any other key
+        // opens the swap prompt instead of saving.
         await page.click('#keybind-global .keybind-btn[data-action="CINEMATIC_TOGGLE"]');
-        await page.keyboard.press('KeyB');
+        await page.keyboard.press('KeyT');
         await waitForRenderFrames(page, 1);
 
         const globalBinding = await page.evaluate(() => (
             window.GAME_INSTANCE?.settings?.controls?.GLOBAL?.CINEMATIC_TOGGLE || ''
         ));
-        expect(globalBinding).toBe('KeyB');
+        expect(globalBinding).toBe('KeyT');
     });
 
     test('T20k1: Globale Recording-Taste ist im Menue belegbar', async ({ page }) => {
@@ -714,13 +780,13 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await openLevel4Drawer(page, { section: 'controls' });
 
         await page.click('#keybind-global .keybind-btn[data-action="RECORDING_TOGGLE"]');
-        await page.keyboard.press('KeyN');
+        await page.keyboard.press('KeyZ');
         await waitForRenderFrames(page, 1);
 
         const globalBinding = await page.evaluate(() => (
             window.GAME_INSTANCE?.settings?.controls?.GLOBAL?.RECORDING_TOGGLE || ''
         ));
-        expect(globalBinding).toBe('KeyN');
+        expect(globalBinding).toBe('KeyZ');
     });
 
     test('T20k2: Belegungskonflikt tauscht erst nach Bestaetigung und Escape bricht ab', async ({ page }) => {
@@ -1717,6 +1783,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0;
             });
             const contextRect = context?.getBoundingClientRect?.() || { width: 0, height: 0 };
+            document.activeElement?.blur?.();
             const focusAttempt = window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime
                 ?.focusMainAction?.({ onlyIfFocusLost: true });
             return {
@@ -3032,6 +3099,34 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await page.click('.start-step-tab[data-start-section-target="vehicle"]');
         await expect(page.locator('#btn-start')).toBeInViewport();
         await expect(page.locator('#start-vehicle-section > summary')).toBeInViewport();
+    });
+
+    test('T20y1: Startleiste verdeckt im kleinen Fenster keine Arcade-Knoepfe', async ({ page }) => {
+        await loadGame(page);
+        await openCustomSubmenu(page);
+        await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
+        await page.waitForSelector('#submenu-game:not(.hidden)');
+        await page.locator('#arcade-inline-surface').evaluate((node) => { node.open = true; });
+        await page.locator('.arcade-start-mode-options').evaluate((node) => { node.open = true; });
+
+        // 1008x655 is what a 1024x768 desktop leaves for the window. A forced
+        // click scrolls its target to the centre, so each button must be the
+        // hit target there instead of the start rail.
+        for (const viewport of [{ width: 1008, height: 655 }, { width: 1280, height: 720 }]) {
+            await page.setViewportSize(viewport);
+            const covered = await page.evaluate(() => [...document.querySelectorAll('#arcade-inline-surface button')]
+                .filter((button) => button.checkVisibility() && button.getClientRects().length > 0)
+                .map((button) => {
+                    button.scrollIntoView({ block: 'center' });
+                    const rect = button.getBoundingClientRect();
+                    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+                    return button.contains(hit) ? null : `${button.id || button.textContent.trim()} <- ${hit?.id || hit?.className}`;
+                })
+                .filter(Boolean));
+            expect(covered, `${viewport.width}x${viewport.height}`).toEqual([]);
+        }
+        await page.locator('#btn-arcade-five-portals-start-inline').click({ force: true });
+        await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE.settings.arcade.runType)).toBe('five_portals');
     });
 
     test('T20z2a: Start-Setup fuehrt exklusiv durch Karte, Flugzeug und kompakte Regeln', async ({ page }) => {

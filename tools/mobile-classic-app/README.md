@@ -1,7 +1,11 @@
 # Curvios Clash Mobile
 
-Capacitor wrapper for the phone-first Android game build. Classic and
-Arcade-Parcours ship together in this one app; the separate Map Tools Android
+Capacitor wrapper for the phone-first Android game build. The app ships
+every desktop game feature except splitscreen: Classic, Arcade-Parcours, Fight,
+quick start, the hangar page, the expert menu and online multiplayer. Without
+the Electron LAN server the phone joins LAN games by host address and hosts
+online only. Recordings and exports open the Android share sheet through
+`@capacitor/filesystem` and `@capacitor/share`. The separate Map Tools Android
 wrapper stays independent.
 
 Build the web bundle from the repository root:
@@ -48,6 +52,5 @@ changes, then rebuilds, installs, and launches `de.curviosclash.classic`.
 
 The native project lives in `android-classic`; the shipped web bundle is
 `dist/mobile-classic`. The app icon source is `tools/mobile-classic-app/assets/icon-source.png`.
-The mobile menu also reads `mobile-classic.manifest.json`, exposes Classic plus
-the curated Arcade-Parcours route pool, and offers a compact GitHub release
-check. Set `CURVIOS_CLASSIC_APP_GITHUB_REPOSITORY` when building from a fork.
+The mobile menu also reads `mobile-classic.manifest.json` and offers a compact
+GitHub release check. Set `CURVIOS_CLASSIC_APP_GITHUB_REPOSITORY` when building from a fork.

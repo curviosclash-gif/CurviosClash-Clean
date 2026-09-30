@@ -5,10 +5,9 @@ Run with Blender 4.2 LTS:
 
     blender --background --python scripts/generate_verdant_aperture_assets.py
 
-Verdant Aperture inverts the Kinetic Tide rule. There the obstacles move and the way through
-stays put; here the wall stays put and the *opening travels*. Every setpiece is a barrier with
-exactly one hole in it, and that hole walks along a known path once per loop. A player does not
-learn *when* to go, but *where* to be.
+Verdant Aperture combines traveling gaps with two central irises. The leaf shutter and bloom
+iris retract together so their openings fit a ship; the other barriers carry a gap along a
+known path once per loop.
 
 Collision follows one rule, and the geometry is built around it: with the map running in
 glbColliderMode 'dynamic', only meshes an animation moves get a collider. So each moving part is
@@ -229,11 +228,9 @@ def traveling_opening(rig, scene, total_beats, index, count, *, closed, opened):
 
 
 def build_leaf_shutter(scene, mats):
-    """One beat. Eight overlapping leaves form a ring; one at a time folds outward, so the gap
-    circles the ring once per loop. This is the transition from the root floor into the crown
-    hall, so the ring frame is heavy stone while the leaves stay light."""
-    cylinder("leaf_shutter_collar", (0, 0, 0), 7.2, 1.1, mats["stone"], vertices=16, rotation=(pi / 2, 0, 0))
-    cylinder("leaf_shutter_hub_signal", (0, -0.72, 0), 1.5, 0.2, mats["sun"], vertices=14, rotation=(pi / 2, 0, 0))
+    """One beat. Eight overlapping leaves open together to clear the root-to-crown flight hole."""
+    torus("leaf_shutter_collar", (0, 0, 0), 7.2, 0.55, mats["stone"], (pi / 2, 0, 0), major_segments=32)
+    torus("leaf_shutter_rim_signal_nocol", (0, -0.72, 0), 6.6, 0.12, mats["sun"], (pi / 2, 0, 0), major_segments=32)
     torus("leaf_shutter_wreath_nocol", (0, 0, 0), 7.4, 0.28, mats["moss"], (pi / 2, 0, 0), major_segments=22)
 
     for index in range(8):
@@ -282,18 +279,16 @@ def build_leaf_shutter(scene, mats):
             parent_keep_world(obj, leaf)
 
         traveling_opening(
-            leaf, scene, 1, index, 8,
+            leaf, scene, 1, 0, 1,
             closed={"location": shut},
             opened={"location": aside},
         )
 
 
 def build_bloom_iris(scene, mats):
-    """Two beats. Six petals hinge outward in turn, so the way through swings around the blossom.
-    This is the transition from the crown hall up to the glass roof, hence the upward-facing
-    calyx: it reads as a hole in the ceiling from below."""
-    cylinder("bloom_iris_calyx", (0, 0, -0.9), 6.4, 1.2, mats["stone"], vertices=16)
-    cylinder("bloom_iris_calyx_signal", (0, 0, -0.2), 2.4, 0.16, mats["sun"], vertices=14)
+    """Two beats. Six petals retract and tilt together to clear the crown-to-canopy flight hole."""
+    torus("bloom_iris_calyx", (0, 0, -0.9), 6.4, 0.6, mats["stone"], major_segments=32)
+    torus("bloom_iris_rim_signal_nocol", (0, 0, -0.2), 5.7, 0.12, mats["sun"], major_segments=32)
     for index in range(6):
         angle = index * (2 * pi / 6)
         cube(
@@ -334,14 +329,17 @@ def build_bloom_iris(scene, mats):
         for obj in (petal, blush, stamen):
             parent_keep_world(obj, petal_rig)
 
-        # The hinge tips the petal away from the centre; the opening follows the tip around.
+        # Tilting alone keeps neighbouring petals over the centre; retract them as one iris.
         traveling_opening(
-            petal_rig, scene, 2, index, 6,
-            closed={"rotation": (0, 0, 0)},
-            opened={"rotation": (-0.95 * sin(angle), 0.95 * cos(angle), 0)},
+            petal_rig, scene, 2, 0, 1,
+            closed={"location": hinge_at, "rotation": (0, 0, 0)},
+            opened={
+                "location": (8.8 * cos(angle), 8.8 * sin(angle), 0.6),
+                "rotation": (-0.95 * sin(angle), 0.95 * cos(angle), 0),
+            },
         )
 
-    glow_buds("bloom_rim", center=(0, 0, -0.6), count=5, spacing=1.5, mat=mats["bud"], axis="x", scale=0.9)
+    glow_buds("bloom_rim", center=(0, -5.8, -0.6), count=5, spacing=1.5, mat=mats["bud"], axis="x", scale=0.9)
 
 
 def build_root_arch(scene, mats):

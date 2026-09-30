@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import test from 'node:test';
 import * as THREE from 'three';
 
@@ -7,10 +8,17 @@ import { normalizeMapUnit } from '../src/shared/contracts/MapUnitContract.js';
 import { sanitizeMapUnitList, toRuntimeMapUnits } from '../src/entities/mapSchema/MapSchemaMapUnitOps.js';
 import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 import { HYDRA_FIREBALL, ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
-import { getHydraMouthPosition } from '../src/entities/systems/map-units/MapUnitHydraVisualOps.js';
+import {
+    createHydraVisual,
+    getHydraMouthPosition,
+    removeHydraVisual,
+    updateHydraVisual,
+} from '../src/entities/systems/map-units/MapUnitHydraVisualOps.js';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
+import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
 
 const map = MAP_PRESET_CATALOG.hydra_temple;
+const hydraGltf = await geometryOnlyGlbLoader.loadAsync('assets/models/hydra_v3/glb/hydra_v3.glb');
 
 function player(index, x, z, protectedPlayer = false) {
     return {
@@ -72,6 +80,92 @@ test('the registered desktop map has a clear closed route and outer spawns', () 
         assert.ok(Math.abs(Math.hypot(spawn.x, spawn.z) - 42) < 0.001);
         assert.ok(spawn.y > 0);
     }
+});
+
+test('the loaded Hydra GLB mouth sockets face +Z at yaw zero', async (t) => {
+    t.mock.method(GLTFLoader.prototype, 'loadAsync', async () => hydraGltf);
+    const roots = [];
+    const renderer = {
+        addToScene: (root) => roots.push(root),
+        removeFromScene: (root) => roots.splice(roots.indexOf(root), 1),
+    };
+    const root = createHydraVisual(renderer);
+    await new Promise((resolve) => setImmediate(resolve));
+    const unit = {
+        root, groundPosition: new THREE.Vector3(0, 0, 0), yaw: 0, scale: 1,
+        hp: 600, maxHp: 600,
+    };
+    updateHydraVisual(unit, 0);
+    assert.equal(roots.includes(root), true);
+    assert.equal(root.userData.hydra.fallback.visible, false);
+    for (let head = 1; head <= 5; head += 1) {
+        const mouth = getHydraMouthPosition(unit, head, new THREE.Vector3());
+        assert.ok(mouth.z > 2, `Mouth_${head} should be in front of the Hydra (+Z), got z=${mouth.z}`);
+    }
+    unit.yaw = Math.PI / 2;
+    updateHydraVisual(unit, 0);
+    assert.ok(getHydraMouthPosition(unit, 3, new THREE.Vector3()).x > 3);
+    removeHydraVisual(renderer, unit);
+    assert.equal(roots.length, 0);
+});
+
+test('Hydra warning turn is smooth and frame-step independent', () => {
+    const makeTurningHydra = () => {
+        const setup = world();
+        setup.unit.hydra.initialized = true;
+        setup.unit.hydra.snapRemaining = 0;
+        setup.unit.hydra.spitRemaining = 100;
+        setup.unit.yaw = 0;
+        setup.manager.runtimeRng.next = () => 0.25;
+        setup.system.update(0);
+        return setup;
+    };
+    const oneStep = makeTurningHydra();
+    oneStep.system.update(0.35);
+    assert.ok(Math.abs(oneStep.unit.yaw - Math.PI / 4) < 0.000001);
+    oneStep.system.update(0.35);
+    assert.equal(oneStep.unit.hydra.phase, 'active');
+    assert.ok(Math.abs(oneStep.unit.yaw - Math.PI / 2) < 0.000001);
+
+    const manySteps = makeTurningHydra();
+    manySteps.system.update(0.1);
+    manySteps.system.update(0.2);
+    manySteps.system.update(0.4);
+    assert.ok(Math.abs(manySteps.unit.yaw - oneStep.unit.yaw) < 0.000001);
+});
+
+test('Hydra plays the complete bite clip before fading to its standing or walking pose', async (t) => {
+    t.mock.method(GLTFLoader.prototype, 'loadAsync', async () => hydraGltf);
+    const root = createHydraVisual({ addToScene() {}, removeFromScene() {} });
+    await new Promise((resolve) => setImmediate(resolve));
+    const unit = {
+        root, groundPosition: new THREE.Vector3(), yaw: 0, scale: 1,
+        hp: 600, maxHp: 600,
+        hydra: {
+            phase: 'warning', action: 'snap', head: 3, event: 1,
+            direction: new THREE.Vector3(0, 0, 1), moving: false,
+        },
+    };
+    updateHydraVisual(unit, 0);
+    const state = root.userData.hydra;
+    const snap = state.action;
+    assert.equal(state.actionClipName, 'Snap_3');
+    unit.hydra.phase = 'idle';
+    unit.hydra.action = 'idle';
+    unit.hydra.moving = true;
+    updateHydraVisual(unit, 1);
+    assert.equal(state.action, snap);
+    assert.ok(Math.abs(snap.time - 1) < 0.000001);
+    updateHydraVisual(unit, 0.625);
+    assert.equal(state.action, snap);
+    assert.ok(Math.abs(snap.time - 1.625) < 0.000001);
+    updateHydraVisual(unit, 0.01);
+    assert.equal(state.actionClipName, 'Walk');
+    assert.equal(state.actionKind, 'base');
+    unit.hydra.moving = false;
+    updateHydraVisual(unit, 0);
+    assert.equal(state.actionClipName, 'Idle');
+    removeHydraVisual(null, unit);
 });
 
 test('seeded snap warns for 0.7 s, hits once in its random direction, and pauses the route', () => {

@@ -78,10 +78,10 @@ def skeleton_nodes(finger_segments: int = 3) -> list[Node]:
     # The skin modifier builds a box per node, so the visible surface is roughly
     # 1.2x the radius. Radii stay anatomical; the jacket is sized against the
     # *resulting* surface, otherwise the torso corners poke through the cloth.
-    add("hips", joints["hips"], (0.156, 0.112), None)
-    add("spine", joints["spine"], (0.136, 0.102), "hips")
-    add("chest", joints["chest"], (0.170, 0.116), "spine")
-    add("upper_chest", joints["upper_chest"], (0.176, 0.112), "chest")
+    add("hips", joints["hips"], (0.148, 0.108), None)
+    add("spine", joints["spine"], (0.128, 0.098), "hips")
+    add("chest", joints["chest"], (0.152, 0.110), "spine")
+    add("upper_chest", joints["upper_chest"], (0.140, 0.100), "chest")
     add("neck", joints["neck"], (0.066, 0.062), "upper_chest")
     add("head_stub", (0.0, -0.010, 1.552), (0.064, 0.066), "neck")
 
@@ -90,21 +90,23 @@ def skeleton_nodes(finger_segments: int = 3) -> list[Node]:
         upper_arm = spec.mirror_x(joints["upper_arm"], side)
         elbow = spec.mirror_x(joints["lower_arm"], side)
         wrist = spec.mirror_x(joints["hand"], side)
-        add("shoulder" + suffix, shoulder, (0.052, 0.048), "upper_chest")
-        add("upper_arm" + suffix, upper_arm, (0.050, 0.047), "shoulder" + suffix)
-        add("bicep" + suffix, spec.lerp(upper_arm, elbow, 0.45), (0.046, 0.043), "upper_arm" + suffix)
-        add("elbow" + suffix, elbow, (0.044, 0.041), "bicep" + suffix)
-        add("forearm" + suffix, spec.lerp(elbow, wrist, 0.45), (0.040, 0.037), "elbow" + suffix)
-        add("wrist" + suffix, wrist, (0.032, 0.027), "forearm" + suffix)
+        add("shoulder" + suffix, shoulder, (0.028, 0.027), "upper_chest")
+        add("upper_arm" + suffix, upper_arm, (0.039, 0.038), "shoulder" + suffix)
+        add("bicep" + suffix, spec.lerp(upper_arm, elbow, 0.45), (0.041, 0.039), "upper_arm" + suffix)
+        add("elbow" + suffix, elbow, (0.038, 0.036), "bicep" + suffix)
+        add("forearm" + suffix, spec.lerp(elbow, wrist, 0.45), (0.035, 0.033), "elbow" + suffix)
+        add("wrist" + suffix, wrist, (0.031, 0.019), "forearm" + suffix)
 
+        # Palm and knuckles were 10 cm wide and 6 cm thick, which is what made the
+        # hands read as paws. An adult hand is about 8.8 cm across and 3 cm thick.
         hand = spec.hand_points(side)
-        add("palm" + suffix, spec.lerp(hand["wrist"], hand["knuckle"], 0.5), (0.050, 0.031), "wrist" + suffix)
-        add("knuckle" + suffix, hand["knuckle"], (0.047, 0.029), "palm" + suffix)
+        add("palm" + suffix, spec.lerp(hand["wrist"], hand["knuckle"], 0.5), (0.044, 0.016), "wrist" + suffix)
+        add("knuckle" + suffix, hand["knuckle"], (0.042, 0.014), "palm" + suffix)
         for finger, chain in hand["chains"].items():
             parent = "knuckle" + suffix
             landmarks = chain[1:] if finger_segments == 3 else chain[2:]
             for position, point in enumerate(landmarks):
-                base = 0.0136 if finger == "Thumb" else 0.0118
+                base = 0.0125 if finger == "Thumb" else 0.0108
                 radius = base * (1.0 - 0.15 * position)
                 key = f"{finger}{position + 1}{suffix}"
                 add(key, point, (radius, radius), parent)
@@ -118,8 +120,11 @@ def skeleton_nodes(finger_segments: int = 3) -> list[Node]:
         add("thigh" + suffix, spec.lerp(hip, knee, 0.5), (0.092, 0.096), "upper_leg" + suffix)
         add("lower_leg" + suffix, knee, (0.066, 0.070), "thigh" + suffix)
         add("calf" + suffix, spec.lerp(knee, ankle, 0.35), (0.070, 0.074), "lower_leg" + suffix)
-        add("foot" + suffix, ankle, (0.047, 0.060), "calf" + suffix)
-        add("toe" + suffix, (toe[0], toe[1], 0.026), (0.042, 0.055), "foot" + suffix)
+        add("foot" + suffix, ankle, (0.041, 0.052), "calf" + suffix)
+        # The foot sits above the sole plane: a toe node whose box reaches below z = 0
+        # forces the final normalisation to lift the whole character, which shifts
+        # every landmark and quietly ruins the proportions. The boot covers the foot.
+        add("toe" + suffix, (toe[0], toe[1] + 0.018, 0.056), (0.028, 0.032), "foot" + suffix)
     return nodes
 
 
@@ -133,8 +138,8 @@ def shape_anatomy(obj: bpy.types.Object) -> None:
 
         # Torso: the branch nodes at the chest and shoulders lose the most volume
         # to subdivision, so they get the largest correction.
-        factor_x += _bump(z, 1.118, 0.080, -0.150)
-        factor_y += _bump(z, 1.118, 0.080, -0.120)
+        factor_x += _bump(z, 1.134, 0.080, -0.055)
+        factor_y += _bump(z, 1.134, 0.080, -0.045)
         factor_x += _bump(z, 1.300, 0.100, 0.300)
         factor_y += _bump(z, 1.300, 0.100, 0.200)
         factor_x += _bump(z, 1.420, 0.060, 0.130)
@@ -148,8 +153,8 @@ def shape_anatomy(obj: bpy.types.Object) -> None:
         # Arms: deltoid and biceps volume. Kept small on purpose: a deltoid that
         # outgrows the sleeve leaves bare skin wings beside the shoulders.
         if axis_x > 0.14:
-            factor_x += _bump(z, 1.430, 0.055, 0.014)
-            factor_y += _bump(z, 1.430, 0.055, 0.012)
+            factor_x += _bump(z, 1.430, 0.055, 0.006)
+            factor_y += _bump(z, 1.430, 0.055, 0.005)
         if axis_x > 0.20:
             factor_x += _bump(z, 1.330, 0.055, 0.020)
             factor_y += _bump(z, 1.330, 0.055, 0.016)

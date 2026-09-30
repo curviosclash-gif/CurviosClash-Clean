@@ -174,6 +174,7 @@ def countdown_beacons(scene, prefix, positions, mats):
     """Three collision-free gold lamps count down the final closed seconds of each beat."""
     clip_seconds = (scene.frame_end - scene.frame_start) / FPS
     for index, position in enumerate(positions):
+        loop_scale = 1.0 if index == 0 else 0.34
         beacon = sphere(
             f"{prefix}_countdown_{index}_nocol",
             position,
@@ -191,7 +192,7 @@ def countdown_beacons(scene, prefix, positions, mats):
             keyframe(beacon, start + 4 * FPS, scale=(0.18, 0.18, 0.18))
             keyframe(beacon, start + 8 * FPS, scale=(0.18, 0.18, 0.18))
             keyframe(beacon, start + 9 * FPS, scale=(0.34, 0.34, 0.34))
-            keyframe(beacon, start + 12 * FPS, scale=(0.34, 0.34, 0.34))
+            keyframe(beacon, start + 12 * FPS, scale=(loop_scale, loop_scale, loop_scale))
 
 
 def radial_teeth(prefix, radius, height, count, mats):
@@ -353,7 +354,7 @@ def build_astrolabe_gate(scene, mats):
         parent_keep_world(bar, rig)
         parent_keep_world(marker, rig)
     countdown_beacons(scene, "astrolabe", ((-2.2, -0.8, 18.2), (0, -0.8, 18.2), (2.2, -0.8, 18.2)), mats)
-    animate_open_window(scene, rig, (0, 0, 0), [(-18, 0, 0), (18, 0, 0), (0, 0, 19)])
+    animate_open_window(scene, rig, (0, 0, 0), [(-18, 0, 0), (18, 0, 0), (0, 0, 6)])
 
 
 def build_eclipse_iris(scene, mats):
@@ -362,7 +363,7 @@ def build_eclipse_iris(scene, mats):
     for index in range(8):
         angle = index * pi / 4
         closed = (3.0 * cos(angle), 0, 9 + 3.0 * sin(angle))
-        opened = (11.5 * cos(angle), 0, 9 + 11.5 * sin(angle))
+        opened = (10.8 * cos(angle), 0, 9 + 10.8 * sin(angle))
         rig = empty(f"EclipseBlade{index}", closed)
         blade = cube(f"eclipse_blade_{index}", closed, (3.3, 0.48, 2.3), mats["violet"],
                      rotation=(0, -angle, 0))

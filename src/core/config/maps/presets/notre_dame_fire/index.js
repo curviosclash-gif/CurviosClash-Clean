@@ -2,8 +2,8 @@
 // vault, three breaches open into the nave. The same building as ../notre_dame, at the same scale
 // and in the same coordinate system -- what differs is its condition and its light.
 //
-// Burnt fabric replaces the damaged building sections, while the later restoration machines are
-// absent. See NotreDameFireModels.js for the deliberately small shared-fabric boundary.
+// Burnt fabric replaces the damaged building sections. See NotreDameFireModels.js for the
+// deliberately small shared-fabric boundary.
 //
 // The light is copied rather than shared, on purpose. See NotreDameFireLighting.js.
 //
@@ -13,17 +13,11 @@
 // the fire changed is carried by the models, because with glbColliderMode 'scene' the drawn
 // surface is the collision.
 //
-// The site frames at the end of that list are the exception: they carry compileWithGlb, so they
-// stand as collision even once the GLBs are up, and their visuals are discarded. Every one of
-// them braces a machine this map does not draw, so they are filtered out below -- otherwise the
-// hoarding on the river approach, the stone hoist's beam and the scaffold decks would be
-// invisible walls and floors in open air.
 
 import { NOTRE_DAME_COMMON } from '../notre_dame/index.js';
 import {
     GROUND,
 } from '../notre_dame/NotreDameStructure.js';
-import { NOTRE_DAME_SITE_FRAME_MODEL_ID_BY_FRAME_ID } from '../notre_dame/NotreDameSiteFrames.js';
 import {
     NOTRE_DAME_FIRE_CHECKPOINTS,
     NOTRE_DAME_FIRE_FINISH,
@@ -36,7 +30,6 @@ import {
 } from './NotreDameFireLighting.js';
 import {
     NOTRE_DAME_FIRE_MODELS,
-    NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS,
 } from './NotreDameFireModels.js';
 import { NOTRE_DAME_FIRE_FX } from './NotreDameFireFx.js';
 import { NOTRE_DAME_FIRE_HAZARDS } from './NotreDameFireHazards.js';
@@ -70,8 +63,6 @@ export const NOTRE_DAME_FIRE_AUDIO_PROFILE = Object.freeze({
     // The fire is still in the same cathedral; retaining the measured interior and work-site
     // anchors keeps its fades aligned with the geometry while the mix itself changes completely.
     interiorBounds: NOTRE_DAME_COMMON.audioProfile.interiorBounds,
-    constructionCenters: NOTRE_DAME_COMMON.audioProfile.constructionCenters,
-    constructionRadius: NOTRE_DAME_COMMON.audioProfile.constructionRadius,
     collapse: Object.freeze({
         position: Object.freeze([4, GROUND + 42, 0]),
         intervalSeconds: 23,
@@ -82,14 +73,8 @@ export const NOTRE_DAME_FIRE_AUDIO_PROFILE = Object.freeze({
 
 // The intact obstacle list minus the boxes that brace a machine the fire removed. Kept boxes stay
 // the very objects the intact map holds, so they cannot drift apart from it.
-const NOTRE_DAME_FIRE_OBSTACLES = NOTRE_DAME_COMMON.obstacles.filter((obstacle) => {
-    const bracedModelId = NOTRE_DAME_SITE_FRAME_MODEL_ID_BY_FRAME_ID.get(obstacle?.id);
-    return !bracedModelId || !NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS.has(bracedModelId);
-});
-
 const NOTRE_DAME_FIRE_COMMON = {
     ...NOTRE_DAME_COMMON,
-    obstacles: NOTRE_DAME_FIRE_OBSTACLES,
     audioProfile: NOTRE_DAME_FIRE_AUDIO_PROFILE,
     fireFx: NOTRE_DAME_FIRE_FX,
     mapHazards: NOTRE_DAME_FIRE_HAZARDS,

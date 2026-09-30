@@ -1,13 +1,12 @@
 // The parcours route through Notre-Dame.
 //
 // The building supplies the course; nothing here is an arbitrary waypoint. A run comes up the
-// river, passes the site hoarding, crosses the square, and then faces the first real choice: go
-// straight through the central portal at ground level, or take the scaffold up and thread the
+// river, crosses the island square, and then faces the first real choice: go
+// straight through the central portal at ground level, or climb and thread the
 // west rose. Both land in the nave. Inside, the choice is height -- the timber attic above the
 // vault, or the dark aisle beside it. They meet at the crossing under the spire. The choir offers
 // the last pair, the high vessel or the ambulatory round the chapels, and both come out at the
-// apse. The return leg runs outside, threading the flying buttresses, and finishes at the spire
-// section waiting on its lifting gantry east of the building.
+// apse. The return route crosses the two open bell chambers before climbing to the spire lantern.
 //
 // Coordinates are authored units with the church floor at y = 8, matching NotreDameStructure.
 
@@ -15,15 +14,13 @@ import {
     GROUND,
     AISLE_RUN,
     NAVE_VAULT,
-    ROOF_RIDGE,
     CROSSING_CENTRE,
 } from './NotreDameStructure.js';
 
 const NOTRE_DAME_CHECKPOINTS = [
     { id: 'CP01', type: 'entry', pos: [-196, GROUND + 14, 0], radius: 7.2, forward: [1, 0, 0] },
-    // The hoarding: its gap travels, so this is where a player first has to read the site rather
-    // than simply aim at it.
-    { id: 'CP02', type: 'hoarding', pos: [-150, GROUND + 16, 0], radius: 6.4, forward: [1, 0, 0] },
+    // The open island approach leads into the square and the west facade.
+    { id: 'CP02', type: 'island_entry', pos: [-150, GROUND + 16, 0], radius: 6.4, forward: [1, 0, 0] },
     { id: 'CP03', type: 'parvis', pos: [-112, GROUND + 12, 0], radius: 6.4, forward: [1, 0.05, 0] },
     {
         id: 'CP04',
@@ -33,7 +30,7 @@ const NOTRE_DAME_CHECKPOINTS = [
         forward: [1, 0.1, 0],
         nextIds: ['CP05_ROSE', 'CP05_PORTAL'],
     },
-    // High line: up the turning scaffold and through the west rose.
+    // High line: climb beside the facade and through the west rose.
     {
         id: 'CP05_ROSE',
         type: 'rose_high',
@@ -72,7 +69,7 @@ const NOTRE_DAME_CHECKPOINTS = [
         nextIds: ['CP09'],
         params: { label: 'Dachstuhl hoch', height: 'high', color: 0xffbf45 },
     },
-    // The aisle: tighter, darker, and it passes the gantry sweeping the nave beside it. The ring
+    // The aisle: tighter and darker than the nave. The ring
     // sits on the flight line through the aisle, not up against its ceiling.
     {
         id: 'CP08_AISLE',
@@ -87,7 +84,7 @@ const NOTRE_DAME_CHECKPOINTS = [
     {
         id: 'CP10',
         type: 'branch_entry',
-        pos: [32, GROUND + 30, 0],
+        pos: [32, GROUND + 32, 0],
         radius: 6.0,
         forward: [1, 0, 0],
         nextIds: ['CP11_CHOIR', 'CP11_AMBULATORY'],
@@ -112,22 +109,18 @@ const NOTRE_DAME_CHECKPOINTS = [
     },
     // Both choir branches meet inside the apse and leave east through the opening in its end
     // wall, so the ring stands in the vessel and faces the way out rather than up into the roof.
-    { id: 'CP12', type: 'apse_merge', pos: [79, GROUND + 23, 0], radius: 6.0, forward: [1, 0.1, 0] },
-    // The return leg runs outside, between the buttress piers. It picks up the north side at the
-    // first gap east of the transept -- the arm itself carries no piers to thread.
-    { id: 'CP13', type: 'buttress_run', pos: [41, GROUND + 33, 36], radius: 5.4, forward: [-0.95, 0, -0.3] },
-    // Over the roof and away east. The ring faces the average of the two legs meeting here: a
-    // player arrives climbing from the north buttresses and leaves descending to the east, so a
-    // ring aimed at either one alone would sit edge-on to the other.
-    { id: 'CP14', type: 'roof_crest', pos: [CROSSING_CENTRE, ROOF_RIDGE + 12, -52], radius: 5.6, forward: [0.85, 0.12, -0.51] },
+    { id: 'CP12', type: 'apse_merge', pos: [85, GROUND + 15, 0], radius: 5.4, forward: [1, 0.1, 0] },
+    // Both rings stay in the requested 46-61 m height band and above the hanging bells.
+    { id: 'CP13', type: 'south_belfry', pos: [-83, GROUND + 57 * 1.4, 20.3], radius: 3.4, forward: [-0.67, 0.34, -0.62] },
+    { id: 'CP14', type: 'north_belfry', pos: [-83, GROUND + 61 * 1.4, -20.3], radius: 3.4, forward: [0.78, 0.22, -0.61] },
 ];
 
 const NOTRE_DAME_FINISH = {
     id: 'FINISH',
     type: 'finish',
-    pos: [130, GROUND + 34, 0],
-    radius: 7.2,
-    forward: [1, 0.2, 0],
+    pos: [CROSSING_CENTRE, GROUND + 72 * 1.4, 0],
+    radius: 4.0,
+    forward: [0, 1, 0],
 };
 
 const NOTRE_DAME_PARCOURS_RULES = {

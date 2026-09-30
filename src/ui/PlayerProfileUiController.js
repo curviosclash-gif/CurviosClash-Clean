@@ -1,5 +1,6 @@
 import { PLAYER_PROFILE_MAX_NAME_LENGTH } from '../shared/contracts/PlayerProfileContract.js';
 import { armConfirmButton } from './ConfirmButtonArming.js';
+import { saveBlobAsUserFile } from '../platform/browser/BrowserFileExport.js';
 
 function sanitizeFilePart(value) {
     return String(value || 'spieler')
@@ -192,13 +193,11 @@ export class PlayerProfileUiController {
         if (!result?.ok) return this._handle(result, '');
         const json = JSON.stringify(result.value, null, 2);
         if (this.refs.transfer) this.refs.transfer.value = json;
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const anchor = this.document.createElement('a');
-        anchor.href = url;
-        anchor.download = `curviosclash-profile-${sanitizeFilePart(selected.displayName)}-${new Date().toISOString().slice(0, 10)}.json`;
-        anchor.click();
-        URL.revokeObjectURL(url);
+        void saveBlobAsUserFile({
+            blob: new Blob([json], { type: 'application/json' }),
+            fileName: `curviosclash-profile-${sanitizeFilePart(selected.displayName)}-${new Date().toISOString().slice(0, 10)}.json`,
+            runtimeGlobal: this.document?.defaultView || globalThis,
+        });
         this._setStatus('Spielerprofil exportiert.', 'success');
         return result;
     }

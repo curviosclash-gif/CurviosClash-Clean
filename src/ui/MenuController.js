@@ -5,6 +5,7 @@ import { bindMenuHudAppearanceControls } from './menu/MenuHudAppearanceBindings.
 import { setupMenuProfileBindings } from './menu/MenuProfileBindings.js';
 import { setupMenuControlBindings } from './menu/MenuControlBindings.js';
 import { setupMenuDevPanelBindings } from './menu/MenuDevPanelBindings.js';
+import { bindSplitPlayersSection } from './start-setup/StartSetupSplitPlayersSection.js';
 import { resolveRuntimeMenuFeatureFlags } from './menu/MenuRuntimeFeatureFlags.js';
 import {
     MENU_CONTROLLER_EVENT_CONTRACT_VERSION,
@@ -148,6 +149,7 @@ export class MenuController {
         bindMenuHudAppearanceControls(bindingContext);
         setupMenuProfileBindings(bindingContext);
         setupMenuControlBindings(bindingContext);
+        bindSplitPlayersSection(bindingContext);
         setupMenuDevPanelBindings(bindingContext);
     }
 

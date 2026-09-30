@@ -9,6 +9,8 @@
  */
 
 import { normalizeMapUnitDrive } from './MapUnitDriveContract.js';
+import { isParcoursActiveForGameMode } from './MapModeContract.js';
+import { isTurretCombatActive } from './TurretCombatContract.js';
 
 export const MAP_UNIT_CONTRACT_VERSION = 'map-unit.v1';
 
@@ -19,7 +21,7 @@ export const MAP_UNIT_LIMITS = Object.freeze({
 });
 
 const VALID_KINDS = new Set(['tank', 'swarm', 'boss', 'bomber', 'creature']);
-const VALID_MODES = new Set(['HUNT', 'ARCADE', 'ESCORT']);
+const VALID_MODES = new Set(['HUNT', 'ARCADE', 'ARENA', 'ESCORT']);
 const VALID_ROCKETS = new Set(['ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA']);
 
 /** Balance start values from ideen.md (tank row). */
@@ -42,6 +44,7 @@ const SWARM_DEFAULTS = Object.freeze({
     mg: Object.freeze({ damage: 2, cooldown: 0.6, range: 40 }),
     rocket: null,
     loot: Object.freeze({}),
+    attack: Object.freeze({ damage: 14, cooldown: 3.2, radius: 1.1, range: 9, diveSpeed: 26 }),
 });
 
 /** Balance start values from ideen.md (secret-room boss row). */
@@ -259,9 +262,18 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
         loot: normalizeLoot(source?.loot, defaults.loot),
         drive: normalizeMapUnitDrive(source?.drive, clampNumber, spatial, kind),
         ...(kind === 'swarm' ? {
-            memberCount: Math.trunc(clampNumber(source?.memberCount, 8, 1, 8)),
+            memberCount: Math.trunc(clampNumber(source?.memberCount, 8, 1, 10)),
             memberHp: clampNumber(source?.memberHp, 8, 1, 100),
             formationRadius: spatial(source?.formationRadius, 5, 1, 20),
+            ...(source?.attack && typeof source.attack === 'object' ? {
+                attack: Object.freeze({
+                    damage: clampNumber(source.attack.damage, SWARM_DEFAULTS.attack.damage, 1, 210),
+                    cooldown: clampNumber(source.attack.cooldown, SWARM_DEFAULTS.attack.cooldown, 0.2, 30),
+                    radius: spatial(source.attack.radius, SWARM_DEFAULTS.attack.radius, 0.1, 20),
+                    range: spatial(source.attack.range, SWARM_DEFAULTS.attack.range, 0.1, 100),
+                    diveSpeed: spatial(source.attack.diveSpeed, SWARM_DEFAULTS.attack.diveSpeed, 0.1, 100),
+                }),
+            } : {}),
         } : {}),
         ...(kind === 'boss' ? {
             secretRoomId: String(source?.secretRoomId || '').trim().slice(0, 80),
@@ -331,4 +343,19 @@ export function normalizeMapUnits(rawUnits, options = {}) {
 export function resolveMapUnitDefinitions(mapDefinition, options = {}) {
     const source = mapDefinition && typeof mapDefinition === 'object' ? /** @type {any} */ (mapDefinition).mapUnits : null;
     return normalizeMapUnits(source, { preserveSpatial: options?.preserveSpatial === true });
+}
+
+/**
+ * Map-owned units can opt into combat across every Arcade arena, even when the run does not
+ * borrow HUNT pickups. An active map-owned parcours suppresses them for that run; ordinary
+ * ARCADE map units keep the narrower turret-combat gate.
+ * @param {unknown} strategy
+ * @param {string[]} allowedModes
+ * @param {unknown} mapDefinition
+ */
+export function isMapUnitCombatActive(strategy, allowedModes = ['HUNT', 'ARCADE'], mapDefinition = null) {
+    const mode = String(strategy?.modeType || '').toUpperCase();
+    if (strategy?.isSectorParcours?.() || isParcoursActiveForGameMode(mapDefinition, mode)) return false;
+    if (mode === 'ARCADE' && allowedModes.includes('ARENA')) return true;
+    return isTurretCombatActive(strategy, allowedModes.filter((entry) => entry !== 'ARENA'));
 }

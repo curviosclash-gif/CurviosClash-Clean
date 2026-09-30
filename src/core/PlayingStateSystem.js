@@ -62,6 +62,7 @@ export function createPlayingStateRuntimeAccess(runtime) {
         getRenderTiming: () => game?.gameLoop?.getRenderTiming?.() || null,
         getFixedStep: () => Number(game?.gameLoop?.fixedStep) || (1 / 60),
         getVisualsActive: () => game?.state === GAME_STATE_IDS.PLAYING,
+        getGameStateId: () => game?.state || null,
         getRuntimeProjectionPort: () => game?.runtimeBundle?.ports?.runtimeProjectionPort || null,
         getRuntimePerfProfiler: () => game?.runtimePerfProfiler || null,
         getCrosshairSystem: () => game?.crosshairSystem || null,
@@ -199,7 +200,11 @@ export class PlayingStateSystem {
         this._matchRuntimeProjection = this.runtimeAccess.getRuntimeProjectionPort?.()
             ?.getMatchRuntimeProjection?.() || null;
         this.runtimeAccess.actionUpdatePlayingHudTick?.(dt, this._matchRuntimeProjection);
-        if (!arenaWavesUpgradeActive) this.runtimeAccess.actionApplyPlayingTimeScaleFromEffects?.();
+        // A round that ended inside this tick already reset the clock to 1; reapplying the
+        // players' slow motion here would stretch the countdown and the result board.
+        const stillPlaying = (this.runtimeAccess.getGameStateId?.() ?? GAME_STATE_IDS.PLAYING)
+            === GAME_STATE_IDS.PLAYING;
+        if (!arenaWavesUpgradeActive && stillPlaying) this.runtimeAccess.actionApplyPlayingTimeScaleFromEffects?.();
     }
 
     getMatchRuntimeProjection() {

@@ -19,14 +19,17 @@ import { MAGMA_MAZE_MAP } from './presets/magma_maze.js';
 import { CHRONO_FORGE_NEXUS_MAP } from './presets/chrono_forge_nexus.js';
 import { ECLIPSE_FOUNDRY_MAP } from './presets/eclipse_foundry.js';
 import { KINETIC_TIDE_MAP } from './presets/kinetic_tide.js';
+import { NEON_CARNIVAL_MAP } from './presets/neon_carnival.js';
 import { VERDANT_APERTURE_MAP } from './presets/verdant_aperture.js';
 import { DANDELION_SKY_MAP } from './presets/dandelion_sky.js';
+import { SUNFLOWER_MEADOW_MAP } from './presets/sunflower_meadow.js';
 import { AETHERION_ORRERY_MAP } from './presets/aetherion_orrery.js';
 import { NOTRE_DAME_MAPS } from './presets/notre_dame/index.js';
 import { NOTRE_DAME_FIRE_MAPS } from './presets/notre_dame_fire/index.js';
 import { EIFFEL_TOWER_MAPS } from './presets/eiffel_tower/index.js';
 import { EIFFEL_TOWER_SIEGE_MAPS } from './presets/eiffel_tower_siege/index.js';
 import { REACTOR_SITE_MAPS } from './presets/reactor_site/index.js';
+import { ORBITAL_SHIPYARD_MAPS } from './presets/orbital_shipyard/index.js';
 import { GIANT_FOREST_MAPS } from './presets/giant_forest/index.js';
 import { FALKENWACHT_MAPS } from './presets/burg_falkenwacht/index.js';
 import { CLOCKWORK_CANYON_MAPS } from './presets/clockwork_canyon/index.js';
@@ -35,6 +38,8 @@ import { STORM_LIGHTHOUSE_SIEGE_MAPS } from './presets/storm_lighthouse_siege/in
 import { STORM_DAM_SIEGE_MAPS } from './presets/storm_dam_siege/index.js';
 import { SKYLINE_SIEGE_MAPS } from './presets/skyline_siege/Map.js';
 import { HYDRA_TEMPLE_MAP } from './presets/hydra_temple.js';
+import { TOYBOX_TITAN_MAP } from './presets/toybox_titan.js';
+import { SKY_LADDER_MAPS } from './presets/sky_ladder/index.js';
 
 export const MAP_PRESET_CATALOG = {
     ...(STANDARD_MAPS || {}),
@@ -57,8 +62,10 @@ export const MAP_PRESET_CATALOG = {
     ...(CHRONO_FORGE_NEXUS_MAP || {}),
     ...(ECLIPSE_FOUNDRY_MAP || {}),
     ...(KINETIC_TIDE_MAP || {}),
+    ...(NEON_CARNIVAL_MAP || {}),
     ...(VERDANT_APERTURE_MAP || {}),
     ...(DANDELION_SKY_MAP || {}),
+    ...(SUNFLOWER_MEADOW_MAP || {}),
     ...(AETHERION_ORRERY_MAP || {}),
     ...(NOTRE_DAME_MAPS || {}),
     ...(NOTRE_DAME_FIRE_MAPS || {}),
@@ -66,6 +73,7 @@ export const MAP_PRESET_CATALOG = {
     ...(EIFFEL_TOWER_MAPS || {}),
     ...(EIFFEL_TOWER_SIEGE_MAPS || {}),
     ...(REACTOR_SITE_MAPS || {}),
+    ...(ORBITAL_SHIPYARD_MAPS || {}),
     ...GIANT_FOREST_MAPS,
     ...FALKENWACHT_MAPS,
     ...CLOCKWORK_CANYON_MAPS,
@@ -74,4 +82,6 @@ export const MAP_PRESET_CATALOG = {
     ...STORM_DAM_SIEGE_MAPS,
     ...SKYLINE_SIEGE_MAPS,
     ...HYDRA_TEMPLE_MAP,
+    ...TOYBOX_TITAN_MAP,
+    ...SKY_LADDER_MAPS,
 };

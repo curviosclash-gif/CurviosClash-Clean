@@ -95,7 +95,7 @@ const DEGREES_PER_TURN = 360;
  * - `segment`: one named part has to break; authored as `when: { segmentId }`.
  *
  * @typedef {object} SecretRoomUnlock
- * @property {'dandelionSeeds'} [source] Optional non-destructible source.
+ * @property {'dandelionSeeds'|'sunflowerKernels'} [source] Optional non-destructible source.
  * @property {string} [destructible] Id of the destructible structure whose state is watched.
  * @property {'anyBreak'|'sealed'|'segment'|'allReleased'} when
  * @property {string} [segmentId] Segment that has to break; empty unless `when` is `segment`.
@@ -256,6 +256,20 @@ function boundsContain(bounds, point) {
 }
 
 /**
+ * Shootable plant parts whose release progress can open a room: the dandelion's seeds and the
+ * sunflower's kernels share one progress shape ({ total, released, allReleased, completedAtSeconds }).
+ */
+export const SECRET_ROOM_RELEASE_SOURCES = Object.freeze(['dandelionSeeds', 'sunflowerKernels']);
+
+/**
+ * @param {unknown} source
+ * @returns {boolean}
+ */
+export function isSecretRoomReleaseSource(source) {
+    return typeof source === 'string' && SECRET_ROOM_RELEASE_SOURCES.includes(source);
+}
+
+/**
  * An unlock block without a usable source and condition cannot be resolved later. Treating it as "no unlock"
  * would hand the secret to every player from the first second, so the room is refused instead.
  * @param {unknown} value
@@ -264,14 +278,14 @@ function boundsContain(bounds, point) {
 function readUnlock(value) {
     if (!isRecord(value)) return { ok: true, unlock: null };
     const source = readText(value.source, SECRET_ROOM_LIMITS.idMaxLength);
-    if (source === 'dandelionSeeds') {
+    if (isSecretRoomReleaseSource(source)) {
         if (readText(value.when, SECRET_ROOM_LIMITS.idMaxLength) !== 'allReleased') {
             return { ok: false, unlock: null };
         }
         return {
             ok: true,
             unlock: Object.freeze({
-                source: 'dandelionSeeds',
+                source: /** @type {'dandelionSeeds'|'sunflowerKernels'} */ (source),
                 when: 'allReleased',
                 delaySeconds: clampNumber(value.delaySeconds, SECRET_ROOM_LIMITS.unlockDelaySeconds),
             }),
@@ -479,7 +493,7 @@ function readEventSeconds(event) {
  * Match second from which the entry portal of a room is open.
  *
  * A room without an unlock is open from the start. Otherwise the answer comes purely from its
- * reconciled unlock state: either destructible break events or dandelion release progress. Both
+ * reconciled unlock state: either destructible break events or seed/kernel release progress. Both
  * the live host state and the serialized wire form have the same shape, so host and replica compute
  * the same second without exchanging a single extra message. `Infinity` means the portal is shut.
  * @param {unknown} room
@@ -496,7 +510,7 @@ export function resolveSecretRoomUnlockSeconds(room, unlockState) {
     const delaySeconds = clampNumber(unlock.delaySeconds, SECRET_ROOM_LIMITS.unlockDelaySeconds);
 
     const state = isRecord(unlockState) ? unlockState : null;
-    if (unlock.source === 'dandelionSeeds') {
+    if (isSecretRoomReleaseSource(unlock.source)) {
         const total = Math.max(0, Math.trunc(Number(state?.total) || 0));
         const released = Math.max(0, Math.trunc(Number(state?.released) || 0));
         const completedAtSeconds = Number(state?.completedAtSeconds);
