@@ -17,27 +17,31 @@ const TRIANGLE_BUDGET_PER_ARCHITECTURE_PART = 18_000;
 // floor, and Z is width across it.
 const PARTS = Object.freeze({
     '01_west_facade': {
-        nodes: 7,
+        nodes: 9,
+        collisionShell: true,
         centerX: -59.31,
         span: { x: 9.5, y: 75.5, z: 44.0 },
         floorY: 0.0,
     },
     '02_nave': {
-        nodes: 6,
+        nodes: 7,
+        collisionShell: true,
         centerX: -24.75,
-        span: { x: 60.4, y: 34.1, z: 42.6 },
+        span: { x: 60.4, y: 34.4, z: 42.6 },
         floorY: -0.8,
     },
     '03_transept': {
-        nodes: 8,
+        nodes: 9,
+        collisionShell: true,
         centerX: 12.25,
         span: { x: 17.0, y: 41.9, z: 50.5 },
         floorY: -0.8,
     },
     '04_choir_apse': {
-        nodes: 7,
+        nodes: 8,
+        collisionShell: true,
         centerX: 41.76,
-        span: { x: 45.4, y: 34.1, z: 41.7 },
+        span: { x: 45.4, y: 34.4, z: 41.7 },
         floorY: -0.8,
     },
     '05_buttresses': {
@@ -47,7 +51,8 @@ const PARTS = Object.freeze({
         floorY: 0.0,
     },
     '06_roof_fleche': {
-        nodes: 6,
+        nodes: 7,
+        collisionShell: true,
         centerX: 4.5,
         span: { x: 118.5, y: 82.1, z: 48.0 },
         floorY: 14.06,
@@ -340,6 +345,12 @@ test('Notre-Dame keeps editable Blender sources and merged, texture-free exports
             nodeNames.some((nodeName) => /_nocol$/i.test(nodeName)),
             `${name} keeps its decorative meshes marked _nocol`,
         );
+        if (expected.collisionShell) {
+            assert.ok(
+                nodeNames.some((nodeName) => /_colonly$/i.test(nodeName)),
+                `${name} keeps its invisible collision shell separate from visual meshes`,
+            );
+        }
 
         // No texture coordinates: the materials are flat colours, so UVs were pure weight.
         for (const mesh of document.meshes || []) {

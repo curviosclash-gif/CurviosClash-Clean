@@ -249,9 +249,9 @@ function westTowerAroundPortal(side) {
 
 const NOTRE_DAME_OBSTACLES = [
     // --- The island it all stands on -------------------------------------------------------
-    { pos: [-31, 4, 0], size: [364, 8, 200], kind: 'foam', compileWithGlb: true },
-    { pos: [-31, 1, 96], size: [364, 3, 60], kind: 'foam', compileWithGlb: true },
-    { pos: [-31, 1, -96], size: [364, 3, 60], kind: 'foam', compileWithGlb: true },
+    { pos: [-31, 4, 0], size: [364, 8, 130], kind: 'foam', compileWithGlb: true },
+    { pos: [-31, 1, 95], size: [364, 3, 62], kind: 'foam', compileWithGlb: true },
+    { pos: [-31, 1, -95], size: [364, 3, 62], kind: 'foam', compileWithGlb: true },
 
     // --- West front ------------------------------------------------------------------------
     // The two towers remain solid around the side portal bores. A single full-height box here

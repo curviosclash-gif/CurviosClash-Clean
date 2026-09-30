@@ -635,6 +635,8 @@ def build_west_facade(mats):
                  (0.5, 0.8, 13.0), shaded)
         cube(f"facade_tower_{tag}_cornice_nocol", (facade_x, center_y, TOWER_TOP_Z + 0.7),
              (FACADE_DEPTH / 2, TOWER_HALF_WIDTH + 0.5, 0.7), shaded)
+        cube(f"facade_tower_{tag}_cornice_colonly", (facade_x, center_y, TOWER_TOP_Z + 0.7),
+             (FACADE_DEPTH / 2, TOWER_HALF_WIDTH + 0.5, 0.7), shaded)
         # Open balustrade on the platform: the walk between the towers.
         for baluster in range(10):
             baluster_y = center_y - TOWER_HALF_WIDTH + 0.8 + baluster * 1.38
@@ -642,6 +644,11 @@ def build_west_facade(mats):
                 cylinder(
                     f"facade_tower_{tag}_baluster_{baluster}_"
                     f"{'w' if face_x < facade_x else 'e'}_nocol",
+                    (face_x, baluster_y, TOWER_TOP_Z + 2.2), 0.14, 2.2, shaded, vertices=6,
+                )
+                cylinder(
+                    f"facade_tower_{tag}_baluster_{baluster}_"
+                    f"{'w' if face_x < facade_x else 'e'}_colonly",
                     (face_x, baluster_y, TOWER_TOP_Z + 2.2), 0.14, 2.2, shaded, vertices=6,
                 )
         for corner_x in (-1, 1):
@@ -652,6 +659,12 @@ def build_west_facade(mats):
                           center_y + corner_y * (TOWER_HALF_WIDTH - 0.4), TOWER_TOP_Z + 1.2),
                     height=5.0, width=1.1,
                 )
+                base_x = facade_x + corner_x * (FACADE_DEPTH / 2 - 0.4)
+                base_y = center_y + corner_y * (TOWER_HALF_WIDTH - 0.4)
+                cube(f"facade_tower_{tag}_pinnacle_{corner_x}_{corner_y}_shaft_colonly",
+                     (base_x, base_y, TOWER_TOP_Z + 2.7), (0.55, 0.55, 1.5), stone)
+                cone(f"facade_tower_{tag}_pinnacle_{corner_x}_{corner_y}_cap_colonly",
+                     (base_x, base_y, TOWER_TOP_Z + 5.1), 0.68, 0.0, 2.75, stone, vertices=6)
 
 
 def build_nave(mats):
@@ -678,6 +691,13 @@ def build_nave(mats):
                                                    side * CLERESTORY_HALF,
                                                    (ARCADE_TOP_Z + TRIFORIUM_TOP_Z) / 2),
              (NAVE_BAYS * BAY_LENGTH / 2, 0.5, (TRIFORIUM_TOP_Z - ARCADE_TOP_Z) / 2), shaded)
+        cube(f"nave_triforium_band_{side}_colonly", ((NAVE_START_X + NAVE_END_X) / 2,
+                                                     side * CLERESTORY_HALF,
+                                                     (ARCADE_TOP_Z + TRIFORIUM_TOP_Z) / 2),
+             (NAVE_BAYS * BAY_LENGTH / 2, 0.5, (TRIFORIUM_TOP_Z - ARCADE_TOP_Z) / 2), shaded)
+
+    cube("nave_vault_shell_colonly", ((NAVE_START_X + NAVE_END_X) / 2, 0, NAVE_VAULT_Z),
+         (NAVE_BAYS * BAY_LENGTH / 2, NAVE_HALF_WIDTH, 0.6), shaded)
 
     for bay in range(NAVE_BAYS):
         bay_x = NAVE_START_X + BAY_LENGTH * (bay + 0.5)
@@ -742,6 +762,8 @@ def build_transept(mats):
              (CROSSING_LENGTH / 2, 0.9, CLERESTORY_TOP_Z / 2), stone)
         # The gable above the rose, stepped back and topped by its own small arcade.
         cube(f"transept_{tag}_gable_nocol", (CROSSING_CENTER_X, gable_y, ROOF_RIDGE_Z * 0.78),
+             (CROSSING_LENGTH / 2 * 0.7, 0.7, 6.0), stone)
+        cube(f"transept_{tag}_gable_colonly", (CROSSING_CENTER_X, gable_y, ROOF_RIDGE_Z * 0.78),
              (CROSSING_LENGTH / 2 * 0.7, 0.7, 6.0), stone)
         for index in range(7):
             cylinder(f"transept_{tag}_gable_column_{index}_nocol",
@@ -866,6 +888,9 @@ def build_choir_apse(mats):
             cube(f"choir_clerestory_wall_{bay}_{side}",
                  (bay_x, side * CLERESTORY_HALF, (TRIFORIUM_TOP_Z + CLERESTORY_TOP_Z) / 2),
                  (BAY_LENGTH / 2, 0.8, (CLERESTORY_TOP_Z - TRIFORIUM_TOP_Z) / 2), stone)
+            cube(f"choir_triforium_band_{bay}_{side}",
+                 (bay_x, side * CLERESTORY_HALF, (ARCADE_TOP_Z + TRIFORIUM_TOP_Z) / 2),
+                 (BAY_LENGTH / 2, 0.5, (TRIFORIUM_TOP_Z - ARCADE_TOP_Z) / 2), shaded)
             lancet_window(
                 f"choir_clerestory_{bay}_{side}", mats["glass_red"],
                 center=(bay_x, side * CLERESTORY_HALF, 25.0), width=3.0, height=7.2, axis="y",
@@ -881,6 +906,12 @@ def build_choir_apse(mats):
             center=(bay_x, 0), span=NAVE_HALF_WIDTH * 2, length=BAY_LENGTH,
             crown_z=NAVE_VAULT_Z, springing_z=CLERESTORY_TOP_Z - 4.0,
         )
+
+    cube("choir_vault_shell_colonly", ((CHOIR_START_X + CHOIR_END_X) / 2, 0, NAVE_VAULT_Z),
+         ((CHOIR_END_X - CHOIR_START_X) / 2, NAVE_HALF_WIDTH, 0.6), shaded)
+    for side in (-1, 1):
+        cube(f"choir_apse_seam_{side}", (CHOIR_END_X, side * 10.7, 23.0),
+             (0.9, 1.0, 3.0), stone)
 
     # The apse: hemicycle piers, an outer wall of chapels, and the vault fanning over both.
     for index in range(9):
@@ -1017,6 +1048,8 @@ def build_roof_fleche(mats):
                  (length / 2, half_width / 2 * 1.12, 0.4), lead,
                  rotation=(side * -0.98, 0, 0))
         cube(f"{name}_ridge_nocol", (center_x, 0, ROOF_RIDGE_Z), (length / 2, 0.5, 0.5), lead)
+        cube(f"{name}_ridge_colonly", (center_x, 0, ROOF_RIDGE_Z),
+             (length / 2, 3.5, 0.5), lead)
         # The oak frame that gave the attic its nickname, the forest: a truss every 1.5 m, each
         # one a pair of rafters with a collar beam and a strut. Dense on purpose -- this is the
         # part of the building the reconstruction is actually about.
@@ -1575,11 +1608,12 @@ def merge_static_meshes(part_name):
         for layer in list(obj.data.uv_layers):
             obj.data.uv_layers.remove(layer)
         material_name = obj.data.materials[0].name if obj.data.materials else "plain"
-        decorative = "_nocol" in obj.name.lower()
-        groups.setdefault((material_name, decorative), []).append(obj)
+        lower_name = obj.name.lower()
+        role = "nocol" if "_nocol" in lower_name else "colonly" if "_colonly" in lower_name else ""
+        groups.setdefault((material_name, role), []).append(obj)
 
     merged = []
-    for (material_name, decorative), members in sorted(groups.items()):
+    for (material_name, role), members in sorted(groups.items()):
         bpy.ops.object.select_all(action="DESELECT")
         for member in members:
             member.select_set(True)
@@ -1589,7 +1623,7 @@ def merge_static_meshes(part_name):
         target = bpy.context.view_layer.objects.active
         # Material names are prefixed ND by build_materials; strip that for readable node names.
         suffix = material_name[2:].lower() if material_name.startswith("ND") else material_name
-        target.name = f"{part_name}_{suffix}{'_nocol' if decorative else ''}"
+        target.name = f"{part_name}_{suffix}{'_' + role if role else ''}"
         target.data.name = f"{target.name}_mesh"
         merged.append(target.name)
     bpy.ops.object.select_all(action="DESELECT")

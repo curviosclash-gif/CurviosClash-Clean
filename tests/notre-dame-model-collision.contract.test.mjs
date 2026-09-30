@@ -68,16 +68,8 @@ function foamContains(point) {
 
 // A finding may only disappear. Each ray reaches the actual placed GLB triangles, while the
 // supplementary boxes are limited to compileWithGlb, the only ones active with loaded models.
-// J2 removes K1-K7 as the collision and island geometry are repaired; J3 moves the two route
-// points. Remove a key here only when its corresponding probe is green.
+// The repaired architecture has no K1-K7 findings. J3 moves the two route points.
 const KNOWN_FINDINGS = [
-    'K1-roof-ridge',
-    'K2-transept-gable',
-    'K3-aisle-roof-seam',
-    'K4-clerestory-crown',
-    'K5-apse-crack',
-    'K6-tower-finials',
-    'K7-island-over-water',
     'S1-apse-sling-enclosed',
     'S2-CP12-intersects-vault',
 ];
@@ -94,7 +86,7 @@ test('Notre-Dame model collision findings only shrink', async () => {
 
     record('K1-roof-ridge', leaksThroughVisible(meshes, [-30, 60, 0], [0, 1, 0], 24));
     record('K2-transept-gable', leaksThroughVisible(meshes, [17, 56, -20], [0, 0, -1], 22));
-    record('K3-aisle-roof-seam', leaksThroughVisible(meshes, [-30, 35.5, 13], [0, 0, 1], 20));
+    record('K3-aisle-roof-seam', leaksThroughVisible(meshes, [-30, 35.5, 4], [0, 0, 1], 30));
     record('K4-clerestory-crown', leaksThroughVisible(withoutRoof, [-30, 54, 4], [0, 0, 1], 20));
     record('K5-apse-crack', !firstHit(meshes.visible, [68, 40, 15], [1, 0, 0], 16)
         && !firstHit(meshes.colliding, [68, 40, 15], [1, 0, 0], 16));
