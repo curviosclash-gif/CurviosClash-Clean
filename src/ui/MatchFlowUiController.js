@@ -215,6 +215,7 @@ export class MatchFlowUiController {
         const game = this.game;
         this.resetCrosshairElementUi(game.ui.crosshairP1);
         this.resetCrosshairElementUi(game.ui.crosshairP2);
+        game.crosshairSystem?.hideAllCrosshairs?.();
     }
 
     _handleHuntDamageEvent(event) {

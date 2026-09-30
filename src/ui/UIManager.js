@@ -2,6 +2,7 @@
 
 import { clampSettingValue } from '../shared/contracts/SettingsRuntimeContract.js';
 import { resolveLobbyStatus } from './start-setup/LobbyScreenUi.js';
+import { resolveMenuBotCount, resolveMenuBotLimits } from './start-setup/StartSetupSplitPlayersSection.js';
 import { GAME_MODE_TYPES, resolveActiveGameMode } from '../hunt/HuntMode.js';
 import { isSettingsChangeKey, normalizeSettingsChangeKeys } from '../shared/settings/SettingsChangeKeys.js';
 import { resolveSyncMethodNamesForChangeKeys } from './UISettingsSyncMap.js';
@@ -378,9 +379,8 @@ export class UIManager {
                 btn.classList.toggle('active', btn.dataset.mode === effectiveMode);
             });
         }
-        if (ui.vehicleP2Container) {
-            ui.vehicleP2Container.classList.toggle('hidden', effectiveMode !== '2p');
-        }
+        // The pilot buttons (Pilot 2 in split screen and multiplayer, Pilot 3 for three players)
+        // belong to the 3D vehicle picker alone; a second toggle here fought it in multiplayer.
 
         const huntFeatureEnabled = this._getGameplayConfig()?.HUNT?.ENABLED !== false;
         const resolvedGameMode = resolveActiveGameMode(settings.gameMode, huntFeatureEnabled);
@@ -439,8 +439,9 @@ export class UIManager {
 
     syncBots(settings = this.settings) {
         const ui = this.ui;
-        syncRangeInput(ui.botSlider, settings.numBots, this._runtimeSettingLimits.session.numBots, settings.numBots);
-        ui.botLabel.textContent = settings.numBots;
+        const botCount = resolveMenuBotCount(settings);
+        syncRangeInput(ui.botSlider, botCount, resolveMenuBotLimits(settings, this._runtimeSettingLimits.session.numBots), botCount);
+        ui.botLabel.textContent = botCount;
         if (ui.botDifficultySelect) ui.botDifficultySelect.value = settings.botDifficulty;
         if (ui.botPolicyStrategySelect) ui.botPolicyStrategySelect.value = settings.botPolicyStrategy || 'auto';
         syncBotHeuristicControls(ui, settings);

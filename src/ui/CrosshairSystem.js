@@ -320,6 +320,17 @@ export class CrosshairSystem {
         }
     }
 
+    /** Hides every local crosshair, the dynamic third one included, with its MG aim dot. */
+    hideAllCrosshairs() {
+        const crosshairs = [this.game?.ui?.crosshairP1, this.game?.ui?.crosshairP2, ...this._extraCrosshairs.values()];
+        for (const crosshair of crosshairs) {
+            if (!crosshair) continue;
+            this._setCrosshairDisplay(crosshair, false);
+            const dot = this._mgAimDotByCrosshair.get(crosshair);
+            if (dot) dot.style.display = 'none';
+        }
+    }
+
     updateCrosshairs(runtimeProjection = null) {
         const game = this.game;
         const projection = runtimeProjection || this._getMatchRuntimeProjection();

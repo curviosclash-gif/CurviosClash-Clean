@@ -3,6 +3,7 @@ import { isGamepadInputEnabled, resolveSplitscreenInputDevice } from '../shared/
 import { TOUCH_CONTROL_MODES, TouchInputSource } from './TouchInputSource.js';
 import { normalizeMobileClassicControlSettings } from '../shared/contracts/MobileClassicControlsContract.js';
 import { applyAxisDeadzone } from '../shared/utils/InputAxisOps.js';
+import { resolveFirstViewportFraction } from '../shared/contracts/ViewportLayoutContract.js';
 
 const MOUSE_STEERING_DEADZONE = 0.08;
 const DISCONNECTED_CONTROLLER_INPUT = Object.freeze({
@@ -89,7 +90,24 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
         useItemPressed = false;
         itemScrollPending = false;
     };
+    // In a split screen the mouse belongs to player one's own viewport, not the whole canvas.
+    const fraction = options.viewportFraction || null;
+    const resolveSteeringArea = () => {
+        const rect = target?.getBoundingClientRect?.();
+        if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+        if (!fraction) return rect;
+        return {
+            left: rect.left + rect.width * fraction.x,
+            top: rect.top + rect.height * fraction.y,
+            width: rect.width * fraction.width,
+            height: rect.height * fraction.height,
+        };
+    };
+    const isInsideArea = (area, event) => event.clientX >= area.left && event.clientX <= area.left + area.width
+        && event.clientY >= area.top && event.clientY <= area.top + area.height;
     const handleMouseDown = (event) => {
+        const area = fraction ? resolveSteeringArea() : null;
+        if (area && !isInsideArea(area, event)) return;
         if (event.button === 2) {
             mgDown = true;
             mgPressed = true;
@@ -105,6 +123,8 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
     };
     const handleWheel = (event) => {
         if (!event.deltaY) return;
+        const area = fraction ? resolveSteeringArea() : null;
+        if (area && !isInsideArea(area, event)) return;
         itemScrollPending = true;
         event.preventDefault();
     };
@@ -114,8 +134,8 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
     };
     const handlePointerMove = (event) => {
         if (event?.pointerType === 'touch') return;
-        const rect = target?.getBoundingClientRect?.();
-        if (!rect || rect.width <= 0 || rect.height <= 0) {
+        const rect = resolveSteeringArea();
+        if (!rect || !isInsideArea(rect, event)) {
             resetPointer();
             return;
         }
@@ -291,7 +311,12 @@ export function createPreferredMatchInputSource({
         return createMouseSteeringInputSource(
             inputManager,
             localHumanCount === 1,
-            { keyboardPlayerIndex: 0 }
+            {
+                keyboardPlayerIndex: 0,
+                viewportFraction: localHumanCount > 1
+                    ? resolveFirstViewportFraction(game?.runtimeConfig?.session?.viewportLayout)
+                    : null,
+            }
         );
     }
     const gamepadSource = createGamepadInputSource(resolvedInputDeviceIndex, () => game?.settings?.controls?.[`GAMEPAD_${resolvedInputDeviceIndex + 1}`], gamepadEnabled);

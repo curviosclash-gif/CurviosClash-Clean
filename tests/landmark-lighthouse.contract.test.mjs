@@ -7,7 +7,8 @@ import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js'
 import { normalizeMapDestructibles } from '../src/shared/contracts/MapDestructibleContract.js';
 import { normalizeMapLightSources } from '../src/shared/contracts/MapLightSourcesContract.js';
 import { normalizeSecretRooms } from '../src/shared/contracts/SecretRoomContract.js';
-import { loadGLBMap } from '../src/entities/GLBMapLoader.js';
+import { loadGLBMap, loadGLBMapCollection } from '../src/entities/GLBMapLoader.js';
+import { refreshDynamicMeshCollider } from '../src/entities/arena/StaticMeshCollider.js';
 import { disposeObject3DResources } from '../src/shared/rendering/ThreeDisposal.js';
 import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
 
@@ -51,7 +52,7 @@ test('wave 6 lighthouse is a playable destructible landmark with a secret portal
     }
     assert.deepEqual(lift.position, [44, 4, 0]);
     assert.deepEqual(beacon.position, [0, 144, 0]);
-    assert.deepEqual(destructibles.segments[0].anchor, [0, 84, 0]);
+    assert.deepEqual(destructibles.segments[0].anchor, [0, 4, 0]);
     for (const model of map.glbModels) {
         assert.ok(existsSync(model.url), `missing runtime asset ${model.url}`);
     }
@@ -127,6 +128,7 @@ test('storm eye GLBs keep the authored rings, low-poly budget and timed beacon',
     const beaconPath = `${root}/glb/31_lighthouse_beacon.glb`;
     const island = readGlbJson(islandPath);
     const beacon = readGlbJson(beaconPath);
+    const collapse = readGlbJson(`${root}/glb/20_lighthouse_collapse.glb`);
     const islandNames = (island.nodes || []).map((node) => String(node.name || ''));
 
     assert.ok(islandNames.includes('lighthouse_island_core'));
@@ -135,12 +137,115 @@ test('storm eye GLBs keep the authored rings, low-poly budget and timed beacon',
     assert.equal(islandNames.filter((name) => name.startsWith('lighthouse_spiral_deck_')).length, 5);
     assert.equal(island.animations, undefined);
     assert.ok(statSync(islandPath).size < 750_000, 'static island stays below its runtime budget');
+    assert.equal(collapse.nodes.filter((node) => Number.isInteger(node.mesh)).length, 24,
+        'the editable collapse source exports all 24 tower fragments');
 
     assert.equal(beacon.animations?.length, 1);
     assert.equal(beacon.animations[0].name, 'LighthouseBeaconLoop');
-    assert.ok(Math.abs(animationDuration(beacon, beacon.animations[0]) - 8) <= (1 / 30));
+    assert.ok(Math.abs(animationDuration(beacon, beacon.animations[0]) - 8) < 1e-5,
+        'the beacon loop keeps its full authored frame range');
     assert.ok((beacon.materials || []).some((material) => material.alphaMode === 'BLEND'));
     assert.ok((beacon.nodes || []).filter((node) => /beacon_(east|west)/.test(node.name || '')).length === 2);
+});
+
+test('lighthouse collapse flight and settled debris stay inside the island and clear gameplay anchors', async () => {
+    const map = MAP_PRESET_CATALOG[MAP_KEY];
+    const loaded = await loadGLBMapCollection(map.glbModels, {
+        loader: geometryOnlyGlbLoader,
+        placementScale: 3,
+        colliderMode: map.glbColliderMode,
+        requireComplete: true,
+    });
+    try {
+        const island = loaded.scene.getObjectByName('glb-slot-storm-lighthouse-island');
+        const collapse = loaded.scene.getObjectByName('glb-slot-storm-lighthouse-collapse');
+        const track = loaded.animationTracks.find((entry) => entry.modelId === 'storm-lighthouse-collapse');
+        assert.ok(island && collapse && track);
+        loaded.scene.updateMatrixWorld(true);
+        const islandBounds = new THREE.Box3().setFromObject(island);
+        let terraceBounds = null;
+        island.traverse((object) => {
+            if (object.name.includes('lighthouse_island_terrace')) {
+                terraceBounds = new THREE.Box3().setFromObject(object);
+            }
+        });
+        assert.ok(terraceBounds, 'runtime island terrace is measurable');
+        const debrisColliders = loaded.colliders.filter((entry) =>
+            entry.modelId === 'storm-lighthouse-collapse' && entry.dynamic);
+        assert.equal(debrisColliders.length, 16,
+            'the 24-part collapse preserves collision on its 16 gameplay-solid fragments');
+        const collidersByName = new Map(debrisColliders.map((entry) => [entry.sourceName, entry]));
+        const debrisMeshes = [];
+        collapse.traverse((object) => {
+            if (object.isMesh && object.name.startsWith('lighthouse_tower_')) debrisMeshes.push(object);
+        });
+        assert.equal(debrisMeshes.length, 24, 'all 24 visual fragments remain in the collapse GLB');
+
+        const assertInsideIsland = (bounds, sample) => {
+            assert.ok(bounds.min.x >= islandBounds.min.x - 0.01, `${sample}: debris left island`);
+            assert.ok(bounds.max.x <= islandBounds.max.x + 0.01, `${sample}: debris right island`);
+            assert.ok(bounds.min.z >= islandBounds.min.z - 0.01, `${sample}: debris passed island front`);
+            assert.ok(bounds.max.z <= islandBounds.max.z + 0.01, `${sample}: debris passed island back`);
+        };
+        let settledBounds = null;
+        const frameCount = Math.round(track.durationSeconds * 30);
+        const landingErrors = [];
+        for (let frame = 0; frame <= frameCount; frame += 1) {
+            track.action.time = Math.min(track.durationSeconds, frame / 30);
+            track.mixer.update(0);
+            loaded.scene.updateMatrixWorld(true);
+            const visibleBounds = new THREE.Box3().setFromObject(collapse);
+            assertInsideIsland(visibleBounds, `frame ${frame}`);
+            const collisionBounds = new THREE.Box3();
+            for (const collider of debrisColliders) {
+                refreshDynamicMeshCollider(collider.meshCollider, collider.box);
+                collisionBounds.union(collider.box);
+            }
+            assertInsideIsland(collisionBounds, `collision frame ${frame}`);
+            settledBounds = visibleBounds;
+        }
+        for (const mesh of debrisMeshes) {
+            const visibleBounds = new THREE.Box3().setFromObject(mesh);
+            const collider = collidersByName.get(mesh.name);
+            const visibleBottom = visibleBounds.min.y;
+            const delta = visibleBottom - terraceBounds.max.y;
+            if (Math.abs(delta) >= 1.0
+                || (collider && Math.abs(collider.box.min.y - visibleBottom) > 0.01)) {
+                landingErrors.push({
+                    source: mesh.name,
+                    visibleBottom,
+                    collisionBottom: collider?.box.min.y ?? null,
+                    terrace: terraceBounds.max.y,
+                });
+            }
+        }
+        assert.deepEqual(landingErrors, [],
+            `each solid wreck fragment lands on the actual runtime terrace: ${JSON.stringify(landingErrors)}`);
+
+        const anchors = [
+            ...map.botSpawns,
+            ...map.items.map((item) => ({ x: item.x, z: item.z })),
+            ...map.gates.map((gate) => ({ x: gate.pos[0], z: gate.pos[2] })),
+        { x: 42, z: 0 },
+        ];
+        const clearanceFromBounds = (anchor) => {
+            const x = anchor.x * 3;
+            const z = anchor.z * 3;
+            const dx = Math.max(settledBounds.min.x - x, 0, x - settledBounds.max.x);
+            const dz = Math.max(settledBounds.min.z - z, 0, z - settledBounds.max.z);
+            return Math.hypot(dx, dz);
+        };
+        for (const anchor of anchors) {
+            assert.ok(clearanceFromBounds(anchor) > 5,
+                `gameplay anchor (${anchor.x}, ${anchor.z}) clears the settled wreck`);
+        }
+        const damageAnchor = map.destructibles.segments[0].anchor;
+        const damagePoint = new THREE.Vector3(damageAnchor[0] * 3, damageAnchor[1] * 3, damageAnchor[2] * 3);
+        assert.ok(settledBounds.distanceToPoint(damagePoint) < 20,
+            `collapse blast anchor is placed at the settled debris: bounds=${JSON.stringify(settledBounds.toJSON())}`);
+    } finally {
+        disposeObject3DResources(loaded.scene);
+    }
 });
 
 test('storm eye runtime builds static island collision and no beacon collision', async () => {
@@ -182,7 +287,7 @@ test('storm eye runtime builds static island collision and no beacon collision',
         track.mixer.update(0);
         collapse.scene.updateMatrixWorld(true);
         const size = new THREE.Box3().setFromObject(collapse.scene).getSize(new THREE.Vector3());
-        assert.ok(size.x > size.y * 1.5, 'settled wreck lies across the fixed positive-X corridor');
+        assert.ok(size.y > size.x * 0.5, 'settled rubble preserves a substantial traversable surface');
         assert.ok(collapse.colliders.filter((collider) => collider.dynamic).length >= 10);
     } finally {
         disposeObject3DResources(collapse.scene);

@@ -28,6 +28,7 @@ import {
     normalizeSplitScreenVariant,
     normalizeThreePlayerSplitDeviceAssignment,
     normalizeThreePlayerSplitSettings,
+    clampThreePlayerSplitBotCount,
     normalizeThreePlayerSplitViewportLayout,
     resolveThreePlayerSplitInputDevice,
 } from '../src/four-player-planar/FourPlayerPlanarContract.js';
@@ -127,11 +128,9 @@ test('runtime snapshot creates three local humans on equal-width columns with fu
     settings.localSettings.sessionType = 'splitscreen';
     settings.localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.THREE_PLAYER;
     settings.gameplay.planarMode = false;
+    // Bots, map and planes come from the shared match menu; three players leave room for six bots.
+    settings.numBots = 8;
     settings.localSettings.threePlayerSplit = {
-        mode: 'classic',
-        mapKey: settings.mapKey,
-        vehicleId: settings.vehicles.PLAYER_1,
-        botCount: 20,
         deviceAssignment: ['gamepad-1', 'gamepad-2', 'keyboard'],
     };
     const runtime = manager.createRuntimeConfig(settings);
@@ -322,7 +321,7 @@ test('four-grid renderer uses P1/P2 top, P3/P4 bottom, updates aspects and reset
     }
 });
 
-test('three-player split settings normalize device assignment, clamp bots and reject unknown variants', () => {
+test('three-player split settings keep only devices and layout, clamp bots and reject unknown variants', () => {
     assert.equal(normalizeSplitScreenVariant(SPLIT_SCREEN_VARIANTS.THREE_PLAYER), SPLIT_SCREEN_VARIANTS.THREE_PLAYER);
     assert.equal(normalizeSplitScreenVariant('not-a-real-variant'), SPLIT_SCREEN_VARIANTS.STANDARD);
 
@@ -335,9 +334,11 @@ test('three-player split settings normalize device assignment, clamp bots and re
         ['keyboard', THREE_PLAYER_SPLIT_INPUT_DEVICES.GAMEPAD_2, THREE_PLAYER_SPLIT_INPUT_DEVICES.GAMEPAD_1]
     );
 
+    // Map, planes, bots and rules come from the shared match menu; old saved fields are dropped.
     const settings = normalizeThreePlayerSplitSettings({ mode: 'hunt', botCount: 99, deviceAssignment: ['keyboard', 'keyboard', 'keyboard'] });
-    assert.equal(settings.mode, 'hunt');
-    assert.equal(settings.botCount, 6);
+    assert.deepEqual(Object.keys(settings).sort(), ['deviceAssignment', 'viewportLayout']);
+    assert.equal(clampThreePlayerSplitBotCount(99), 6);
+    assert.equal(clampThreePlayerSplitBotCount(-3), 0);
     assert.deepEqual(settings.deviceAssignment, ['keyboard', 'keyboard', 'keyboard']);
     assert.equal(settings.viewportLayout, THREE_PLAYER_SPLIT_VIEWPORT_LAYOUTS.PORTRAIT);
     assert.deepEqual(

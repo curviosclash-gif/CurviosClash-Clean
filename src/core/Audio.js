@@ -27,6 +27,24 @@ const DEFAULT_COOLDOWN_MS = 50;
 const MAX_ACTIVE_VOICES = 18;
 const AUDIO_INIT_EVENT_TYPES = ['pointerdown', 'click', 'keydown', 'touchstart'];
 
+/**
+ * The local pilot engine sound and ambience follow: the first living one among the local
+ * humans, so a split screen keeps its engine while any local player still flies.
+ */
+export function resolveLocalAudioSource(players, options = {}) {
+    const list = Array.isArray(players) ? players : [];
+    const localIndex = Number(options.localPlayerIndex);
+    const localCount = Math.max(1, Math.floor(Number(options.localHumanCount) || 1));
+    const locals = Number.isInteger(localIndex)
+        ? list.filter((player) => player && player.isBot !== true
+            && player.index >= localIndex && player.index < localIndex + localCount)
+        : [];
+    return locals.find((player) => player.alive !== false)
+        || locals[0]
+        || list.find((player) => player && player.isBot !== true && player.alive !== false)
+        || null;
+}
+
 function isDevEnvironment() {
     try {
         return Boolean(import.meta?.env?.DEV);
@@ -719,15 +737,7 @@ export class AudioManager {
             this.stopEngine();
             return;
         }
-        const list = Array.isArray(players) ? players : [];
-        const localIndex = Number(options.localPlayerIndex);
-        let source = null;
-        if (Number.isInteger(localIndex)) {
-            source = list.find((player) => player && player.index === localIndex && player.isBot !== true) || null;
-        }
-        if (!source) {
-            source = list.find((player) => player && player.isBot !== true && player.alive !== false) || null;
-        }
+        const source = resolveLocalAudioSource(players, options);
         if (!source || source.alive === false) {
             this.stopEngine();
             return;
@@ -742,12 +752,7 @@ export class AudioManager {
 
     syncMapAmbienceFromPlayers(players = [], options = {}) {
         if (!this._mapAmbienceSyncOptions) return 'unavailable';
-        const list = Array.isArray(players) ? players : [];
-        const localIndex = Number(options.localPlayerIndex);
-        let source = Number.isInteger(localIndex)
-            ? list.find((player) => player && player.index === localIndex && player.isBot !== true)
-            : null;
-        if (!source) source = list.find((player) => player && player.isBot !== true && player.alive !== false) || null;
+        const source = resolveLocalAudioSource(players, options);
         const syncOptions = this._mapAmbienceSyncOptions;
         syncOptions.profile = options.fireProgress > 0 ? options.mapDefinition?.fireAudioProfile || options.mapDefinition?.audioProfile : options.mapDefinition?.audioProfile || null;
         syncOptions.fireProgress = options.fireProgress;
