@@ -253,6 +253,20 @@ test('existing Enter and Escape behaviour is unchanged', (t) => {
     assert.equal(input.wasPressed('Escape'), false);
 });
 
+test('result-board Escape polling ignores and drains the gamepad pause edge', (t) => {
+    const { input, pads, tap } = setup(t, { padCount: 1 });
+
+    pads[0].buttons[9].pressed = true;
+    assert.equal(input.wasKeyboardEscapePressed(), false, 'pause is not a keyboard exit');
+    assert.equal(input.wasPressed('Escape'), false, 'the drained pause edge cannot leak into gameplay');
+
+    pads[0].buttons[9].pressed = false;
+    input.wasKeyboardEscapePressed();
+    tap({ code: 'Escape', key: 'Escape' });
+    assert.equal(input.wasKeyboardEscapePressed(), true, 'keyboard Escape still exits the board');
+    assert.equal(input.wasPressed('Escape'), false, 'the keyboard edge is consumed once');
+});
+
 test('the headless kernel adapter speaks the same Continue interface', () => {
     assert.equal(createHeadlessInputAdapter({}).wasPressed('Continue'), false);
     assert.equal(createHeadlessInputAdapter({ commands: ['Continue'] }).wasPressed('Continue'), true);

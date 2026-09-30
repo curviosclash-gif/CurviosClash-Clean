@@ -292,6 +292,17 @@ export class InputManager {
         return controllerPressed;
     }
 
+    /**
+     * Reads keyboard Escape without treating gamepad pause as an exit request. The pad edge is
+     * still polled so a press during a result board cannot leak into gameplay.
+     */
+    wasKeyboardEscapePressed() {
+        this._gamepadPause?.wasPressed();
+        if (!this.justPressed.Escape) return false;
+        this.justPressed.Escape = false;
+        return true;
+    }
+
     /** True for exactly one frame after a key, click or pad button said "continue". */
     _readContinueIntent() {
         // Poll unconditionally: the pad edge memory must advance every frame.
