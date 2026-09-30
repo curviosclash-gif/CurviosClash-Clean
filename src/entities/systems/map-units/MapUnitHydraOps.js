@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { getHydraMouthPosition } from './MapUnitHydraVisualOps.js';
 
 const WARNING_SECONDS = 0.7;
+const TAU = Math.PI * 2;
 const SNAP_SECONDS = 0.3;
 const FIREBALL_SECONDS = 0.3;
 const CONTACT_SECONDS = 1.5;
@@ -54,10 +55,15 @@ function chooseSpitTarget(system, unit) {
     return candidates.length ? candidates[Math.floor(nextRandom(system) * candidates.length)] : null;
 }
 
+function shortestAngleDelta(from, to) {
+    return ((to - from + Math.PI) % TAU + TAU) % TAU - Math.PI;
+}
+
 export function createHydraState() {
     return {
         action: 'idle', phase: 'idle', head: 0, event: 0,
         direction: new THREE.Vector3(0, 0, 1), moving: true,
+        warningStartYaw: 0,
         initialized: false, phaseRemaining: 0, snapRemaining: 0,
         spitRemaining: 0, target: null,
         hitPlayers: new Set(), contactLocks: new Map(),
@@ -82,6 +88,7 @@ function startAttack(system, unit, action) {
     state.action = action;
     state.phase = 'warning';
     state.phaseRemaining = WARNING_SECONDS;
+    state.warningStartYaw = unit.yaw;
     state.moving = false;
     state.event += 1;
     state.hitPlayers.clear();
@@ -156,12 +163,19 @@ export function updateHydra(system, unit, dt, authority) {
     state.snapRemaining = Math.max(0, state.snapRemaining - dt);
     state.spitRemaining = Math.max(0, state.spitRemaining - dt);
     if (state.phase === 'idle') {
-        state.moving = true;
+        state.moving = unit.speed > 0;
         if (state.snapRemaining <= 0) startAttack(system, unit, 'snap');
         else if (state.spitRemaining <= 0) startAttack(system, unit, 'spit');
         return;
     }
     state.moving = false;
+    if (state.phase === 'warning') {
+        const elapsed = Math.min(WARNING_SECONDS, WARNING_SECONDS - state.phaseRemaining + dt);
+        const progress = elapsed / WARNING_SECONDS;
+        const easedProgress = progress * progress * (3 - 2 * progress);
+        const targetYaw = Math.atan2(state.direction.x, state.direction.z);
+        unit.yaw = state.warningStartYaw + shortestAngleDelta(state.warningStartYaw, targetYaw) * easedProgress;
+    }
     state.phaseRemaining -= dt;
     if (state.phase === 'warning' && state.phaseRemaining <= 0) {
         state.phase = 'active';
