@@ -5,7 +5,7 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         "url": "assets/maps/notre_dame_evolution/glb/roof.glb",
         "position": [
             5.309106826782227,
-            7.679942607879639,
+            27.685021972656248,
             -0.0
         ],
         "rotation": [
@@ -15,6 +15,7 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         ],
         "scale": 1.4,
         "hiddenUntilTriggered": true,
+        "fixedTriggeredPlacement": true,
         "animationClock": {
             "mode": "once",
             "clipName": "NotreDameCollapse"
@@ -35,6 +36,7 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         ],
         "scale": 1.4,
         "hiddenUntilTriggered": true,
+        "fixedTriggeredPlacement": true,
         "animationClock": {
             "mode": "once",
             "clipName": "NotreDameCollapse"
@@ -44,7 +46,7 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         "id": "notre-dame-evolution-transept",
         "url": "assets/maps/notre_dame_evolution/glb/transept.glb",
         "position": [
-            17.15,
+            16.974999999999998,
             6.879999983310699,
             -0.0
         ],
@@ -55,6 +57,7 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         ],
         "scale": 1.4,
         "hiddenUntilTriggered": true,
+        "fixedTriggeredPlacement": true,
         "animationClock": {
             "mode": "once",
             "clipName": "NotreDameCollapse"
@@ -75,6 +78,7 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         ],
         "scale": 1.4,
         "hiddenUntilTriggered": true,
+        "fixedTriggeredPlacement": true,
         "animationClock": {
             "mode": "once",
             "clipName": "NotreDameCollapse"
@@ -84,9 +88,9 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         "id": "notre-dame-evolution-south",
         "url": "assets/maps/notre_dame_evolution/glb/south.glb",
         "position": [
-            -86.20722274780273,
-            4.826666021347046,
-            -14.311109924316405
+            -86.32512664794922,
+            8.0,
+            -6.497103309631347
         ],
         "rotation": [
             0,
@@ -95,6 +99,7 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         ],
         "scale": 1.4,
         "hiddenUntilTriggered": true,
+        "fixedTriggeredPlacement": true,
         "animationClock": {
             "mode": "once",
             "clipName": "NotreDameCollapse"
@@ -105,8 +110,8 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         "url": "assets/maps/notre_dame_evolution/glb/crown.glb",
         "position": [
             -86.45941009521484,
-            4.826666021347046,
-            -0.7622203826904297
+            8.0,
+            -0.2761959075927734
         ],
         "rotation": [
             0,
@@ -115,6 +120,7 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         ],
         "scale": 1.4,
         "hiddenUntilTriggered": true,
+        "fixedTriggeredPlacement": true,
         "animationClock": {
             "mode": "once",
             "clipName": "NotreDameCollapse"

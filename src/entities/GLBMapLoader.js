@@ -62,14 +62,16 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
             // A break scene: loaded and placed with the map, but neither drawn nor solid until
             // the event that starts it arrives.
             //
-            // Two consequences for whoever authors such a model. Every mesh in it gets a
-            // collider that follows its transform, animated or not, because the runtime turns
-            // the whole slot into the direction the structure topples towards. And its rest
-            // pose - the first frame of the baked clip - has to be the structure still
-            // standing, exported upright with no rotation on X or Z: the slot origin is the
-            // footprint centre of that rest pose, and the event yaw turns the scene around it.
-            // A model authored already lying down would swing around the wrong point.
+            // Most break scenes turn the whole slot toward the hit and need every collider to
+            // follow that transform. fixedTriggeredPlacement keeps the slot at its authored yaw,
+            // so stationary meshes can use baked collision while animated pieces remain dynamic.
+            // For slots that do follow event yaw, the rest pose must be the structure standing
+            // upright, with the slot origin at its footprint centre; an already toppled model
+            // would swing around the wrong point.
             hiddenUntilTriggered: source?.hiddenUntilTriggered === true,
+            // Some authored break scenes keep their placed slot fixed and animate only the
+            // falling pieces. Their stationary fabric can use baked collision.
+            fixedTriggeredPlacement: source?.fixedTriggeredPlacement === true,
             // A body that is solid but never drawn, for maps that place a coarse collision
             // model behind a detailed one - a forest draws a 23k triangle crown and collides
             // against the 196 triangle trunk exported beside it.
@@ -274,11 +276,10 @@ function collectSceneColliders(root, options = {}) {
         if (isMeshColliderDisabled(child) || isBatchedShootablePart(child)) return;
 
         const slot = resolveColliderSlot(child);
-        // A break scene is placed and turned at runtime, so every one of its meshes needs a
-        // collider that follows its transform - a baked one would stay where the model was
-        // loaded and leave a wall standing in empty air.
+        // A break scene that turns toward the hit needs every collider to follow its slot.
+        // Fixed-placement scenes can bake meshes that their clip does not animate.
         const inTriggeredModel = slot?.userData?.glbHiddenUntilTriggered === true;
-        const isAnimated = inTriggeredModel
+        const isAnimated = (inTriggeredModel && slot?.userData?.glbFixedTriggeredPlacement !== true)
             || isMeshColliderForcedDynamic(child)
             || !!animatedNodes?.has(child);
         if (dynamicOnly && !isAnimated) return;
@@ -324,6 +325,7 @@ function placeCollectionScene(scene, bounds, descriptor, placementScale) {
     slot.userData.glbModelId = descriptor.id;
     slot.userData.glbModelUrl = descriptor.url;
     slot.userData.glbHiddenUntilTriggered = descriptor.hiddenUntilTriggered === true;
+    slot.userData.glbFixedTriggeredPlacement = descriptor.fixedTriggeredPlacement === true;
     slot.userData.glbCollisionOnly = descriptor.collisionOnly === true;
     if (descriptor.hiddenUntilTriggered === true || descriptor.collisionOnly === true) {
         slot.visible = false;
