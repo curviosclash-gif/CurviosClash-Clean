@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { NOTRE_DAME_EVOLUTION_MAPS } from '../src/core/config/maps/presets/notre_dame/NotreDameEvolution.js';
 import { NOTRE_DAME_CHECKPOINTS } from '../src/core/config/maps/presets/notre_dame/NotreDameRoute.js';
 import { loadGLBMapCollection } from '../src/entities/GLBMapLoader.js';
+import { createStaticMeshCollider, sphereIntersectsStaticMeshCollider } from '../src/entities/arena/StaticMeshCollider.js';
 import { disposeObject3DResources } from '../src/shared/rendering/ThreeDisposal.js';
 import { placeMapGlbModel, MAP_SCALE, worldMeshBounds } from './helpers/placed-glb-model.mjs';
 import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
@@ -152,6 +153,49 @@ test('J4 E1 tower collapses use closed, static collision-only boxes', async () =
             || (!collider.dynamic && collider.sourceName.toLowerCase().includes('_base_'))
         )), `${model.id} collides against closed fragment boxes and its static tower base`);
     }
+});
+
+test('Evolution nave uses the current Fire source and leaves the vaulted flight corridor clear', async () => {
+    const source = await geometryOnlyGlbLoader.loadAsync(new URL('../assets/maps/notre_dame_fire/glb/02_nave_burnt.glb', import.meta.url));
+    const exported = await geometryOnlyGlbLoader.loadAsync(new URL('../assets/maps/notre_dame_evolution/glb/nave.glb', import.meta.url));
+    const evolution = await placed('notre-dame-evolution-nave');
+    source.scene.updateWorldMatrix(true, true);
+    exported.scene.updateWorldMatrix(true, true);
+    evolution.scene.updateWorldMatrix(true, true);
+
+    const staleVaultNames = /nave_burnt_stoneshaded_colonly|nave_vault_shell_colonly/i;
+    assert.deepEqual(meshEntries(exported.scene).filter((mesh) => staleVaultNames.test(mesh.name)).map((mesh) => mesh.name), []);
+
+    const sourceMeshes = meshEntries(source.scene);
+    const evolvedMeshes = meshEntries(exported.scene).filter((mesh) => mesh.name.startsWith('nave_burnt_'));
+    const meshesByName = new Map(evolvedMeshes.map((mesh) => [mesh.name, mesh]));
+    assert.equal(meshesByName.size, sourceMeshes.length, 'each current Fire nave mesh appears exactly once in the Evolution GLB');
+    for (const sourceMesh of sourceMeshes) {
+        const evolvedMesh = meshesByName.get(sourceMesh.name);
+        assert.ok(evolvedMesh, `${sourceMesh.name} is retained from the Fire source`);
+        const sourceTriangles = sourceMesh.geometry.index?.count ?? sourceMesh.geometry.getAttribute('position').count;
+        const evolvedTriangles = evolvedMesh.geometry.index?.count ?? evolvedMesh.geometry.getAttribute('position').count;
+        assert.equal(evolvedTriangles, sourceTriangles, `${sourceMesh.name} keeps its source geometry`);
+        const sourceBounds = new THREE.Box3().setFromObject(sourceMesh);
+        const evolvedBounds = new THREE.Box3().setFromObject(evolvedMesh);
+        for (const key of ['x', 'y', 'z']) {
+            assert.ok(Math.abs(sourceBounds.min[key] - evolvedBounds.min[key]) < 0.001, `${sourceMesh.name} min ${key} matches`);
+            assert.ok(Math.abs(sourceBounds.max[key] - evolvedBounds.max[key]) < 0.001, `${sourceMesh.name} max ${key} matches`);
+        }
+    }
+
+    const colliders = meshEntries(evolution.scene)
+        .filter((mesh) => !/_nocol/i.test(mesh.name))
+        .map((mesh) => createStaticMeshCollider(mesh))
+        .filter(Boolean);
+    assert.ok(colliders.length > 0, 'placed nave geometry produces production static colliders');
+    const vaultProbes = [-68, -52, -36, -20, -4].map((x) => ({ x: x * MAP_SCALE, y: 55 * MAP_SCALE, z: 0 }));
+    for (const point of vaultProbes) {
+        assert.equal(colliders.some((collider) => sphereIntersectsStaticMeshCollider(collider, point, 1.6)), false,
+            `world-radius 1.6 aircraft clears the nave vault at (${point.x / MAP_SCALE}, 55, 0)`);
+    }
+    disposeObject3DResources(source.scene);
+    disposeObject3DResources(exported.scene);
 });
 
 test('J4 E2 the roof collapse animates the spire and its rubble into the fall', async () => {

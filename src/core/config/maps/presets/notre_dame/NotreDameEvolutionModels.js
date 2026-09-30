@@ -25,7 +25,7 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         "id": "notre-dame-evolution-nave",
         "url": "assets/maps/notre_dame_evolution/glb/nave.glb",
         "position": [
-            -34.649422550201415,
+            -34.55199975967407,
             6.879999983310699,
             -0.0
         ],
