@@ -87,25 +87,6 @@ def build_burn(part):
     replacements = {'roof': ['06_roof_burnt', '20_fleche_debris'], 'nave': ['02_nave_burnt'], 'transept': ['03_transept_burnt']}
     for filename in replacements[part]:
         load(f'assets/maps/notre_dame_fire/glb/{filename}.glb')
-    if part == 'roof':
-        sites = [
-            ('14_tarpaulin_wall', [-150, 8, 0]), ('17_rose_ring', [-93.6, 32.2, 0]),
-            ('11_scaffold_lift', [-40, 8, 45]), ('15_vault_gantry', [-35, 8, 0]),
-            ('16_bell_swing', [-83, 78, -20.3]), ('12_stone_hoist', [-10, 8, -55]),
-            ('10_tower_crane', [32.3, 8, -90]), ('13_fleche_hoist', [130, 8, 0]),
-        ]
-        for stem, position in sites:
-            meshes = load(f'assets/maps/notre_dame/glb/{stem}.glb')
-            points = [v.co for obj in meshes for v in obj.data.vertices]
-            low = [min(v[i] for v in points) for i in range(3)]
-            high = [max(v[i] for v in points) for i in range(3)]
-            offset = Vector((position[0]/1.4-(low[0]+high[0])/2,
-                             -position[2]/1.4-(low[1]+high[1])/2, (position[1]-8)/1.4-low[2]))
-            for index, obj in enumerate(meshes):
-                obj.name = 'evolution_site_' + obj.name
-                for v in obj.data.vertices:
-                    v.co += offset
-                pose_fall(obj, 1 if index % 2 else -1, index)
     # Falling charred timber fragments, ending outside the fixed checkpoint corridors.
     mat = bpy.data.materials.new('Charred timber')
     mat.diffuse_color = (0.065, 0.035, 0.025, 1)

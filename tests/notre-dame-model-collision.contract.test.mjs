@@ -68,11 +68,8 @@ function foamContains(point) {
 
 // A finding may only disappear. Each ray reaches the actual placed GLB triangles, while the
 // supplementary boxes are limited to compileWithGlb, the only ones active with loaded models.
-// The repaired architecture has no K1-K7 findings. J3 moves the two route points.
-const KNOWN_FINDINGS = [
-    'S1-apse-sling-enclosed',
-    'S2-CP12-intersects-vault',
-];
+// Every measured surface and route probe must remain clear.
+const KNOWN_FINDINGS = [];
 
 test('Notre-Dame model collision findings only shrink', async () => {
     const meshes = await loadChurchMeshes();

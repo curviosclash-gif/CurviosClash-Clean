@@ -65,26 +65,6 @@ const PARTS = Object.freeze({
     },
 });
 
-// The reconstruction site. These are the meshes collision has to follow every frame, so they
-// keep the same 6000 triangle budget the other animated maps use rather than the architecture
-// budget above. Every loop is a whole multiple of one six second beat, which is what lets the
-// preset offset them against each other into a single rhythm.
-const BEAT_SECONDS = 6;
-const TRIANGLE_BUDGET_PER_SETPIECE = 6_000;
-// Static roots and decorative rig children are batched by material. Moving collision bodies
-// remain distinct, so this budget protects the draw-call win without sealing the rose-ring gap.
-const TOTAL_SETPIECE_PRIMITIVE_BUDGET = 110;
-const SETPIECES = Object.freeze({
-    '10_tower_crane': { clip: 'TowerCraneLoop', duration: 24, landmark: 'tower_crane_base_signal' },
-    '11_scaffold_lift': { clip: 'ScaffoldLiftLoop', duration: 6, landmark: 'scaffold_lift_foot_signal' },
-    '12_stone_hoist': { clip: 'StoneHoistLoop', duration: 6, landmark: 'stone_hoist_beam_signal' },
-    '13_fleche_hoist': { clip: 'FlecheHoistLoop', duration: 12, landmark: 'fleche_hoist_cradle_signal' },
-    '14_tarpaulin_wall': { clip: 'TarpaulinWallLoop', duration: 12, landmark: 'tarpaulin_wall_head_signal' },
-    '15_vault_gantry': { clip: 'VaultGantryLoop', duration: 12, landmark: 'gantry_cradle' },
-    '16_bell_swing': { clip: 'BellSwingLoop', duration: 6, landmark: 'bell_frame_signal' },
-    '17_rose_ring': { clip: 'RoseRingLoop', duration: 12, landmark: 'rose_ring_hub_signal' },
-});
-
 const CATHEDRAL_LENGTH = 127.5;
 const SPIRE_TIP_HEIGHT = 96.0;
 const TOWER_HEIGHT = 69.0;
@@ -183,19 +163,7 @@ test('scene collision keeps foam and moving structural members correctly typed',
         'every collidable island mesh keeps the foam response',
     );
 
-    const crane = new Set(nodeNames('10_tower_crane'));
-    assert.ok(crane.has('tower_crane_apex'), 'the moving crane apex collides with its rig');
-    assert.ok(crane.has('tower_crane_counterjib'), 'the moving counter-jib collides with its rig');
 
-    const gantry = new Set(nodeNames('15_vault_gantry'));
-    for (const side of [-1, 1]) {
-        for (const end of [-1, 1]) {
-            assert.ok(
-                gantry.has(`gantry_leg_${side}_${end}`),
-                `moving gantry leg ${side}/${end} keeps dynamic collision`,
-            );
-        }
-    }
 });
 
 /**
@@ -363,156 +331,10 @@ test('Notre-Dame keeps editable Blender sources and merged, texture-free exports
         }
     }
 
-    for (const name of Object.keys(SETPIECES)) {
-        totalGlbBytes += statSync(path.join(ASSET_ROOT, 'glb', `${name}.glb`)).size;
-    }
-
     assert.ok(
         totalGlbBytes <= TOTAL_GLB_BUDGET_BYTES,
         `Notre-Dame GLBs stay within ${TOTAL_GLB_BUDGET_BYTES} bytes (got ${totalGlbBytes})`,
     );
-});
-
-test('the reconstruction site loops on the shared beat and separates its collision', () => {
-    let totalPrimitives = 0;
-    for (const [name, expected] of Object.entries(SETPIECES)) {
-        const blendPath = path.join(ASSET_ROOT, 'blender', `${name}.blend`);
-        const glbPath = path.join(ASSET_ROOT, 'glb', `${name}.glb`);
-        assert.ok(statSync(blendPath).size > 100_000, `${name} keeps its editable Blender source`);
-        assert.ok(statSync(glbPath).size > 10_000, `${name} exports a non-empty GLB`);
-
-        const document = readGlbJson(glbPath);
-        assert.equal(document.animations?.length, 1, `${name} exports exactly one animation`);
-        assert.equal(document.animations[0].name, expected.clip, `${name} keeps its clip name`);
-        assert.ok(
-            Math.abs(animationDurationSeconds(document, document.animations[0]) - expected.duration) <= (1 / 30),
-            `${name} keeps its ${expected.duration}s loop`,
-        );
-        assert.equal(
-            expected.duration % BEAT_SECONDS,
-            0,
-            `${name} loops on a whole multiple of the ${BEAT_SECONDS}s beat`,
-        );
-        assert.ok(
-            (document.nodes || []).some((node) => node.name === expected.landmark),
-            `${name} contains its readability landmark ${expected.landmark}`,
-        );
-        assert.ok(
-            triangleCount(document) <= TRIANGLE_BUDGET_PER_SETPIECE,
-            `${name} stays within the ${TRIANGLE_BUDGET_PER_SETPIECE} triangle budget`,
-        );
-        totalPrimitives += primitiveCount(document);
-
-        // The split that makes the map affordable: a moving mesh gets a collider, so exactly
-        // one coarse body per moving part carries collision while the detail rides along as
-        // _nocol. Without both halves the setpiece either collides against nothing or makes
-        // the physics chase every rope and lamp.
-        const animated = animatedMeshNames(document);
-        assert.ok(
-            animated.some((nodeName) => !/_nocol$/i.test(nodeName)),
-            `${name} retains a coarse animated collision mesh`,
-        );
-        assert.ok(
-            animated.some((nodeName) => /_nocol$/i.test(nodeName)),
-            `${name} separates animated visual detail from collision`,
-        );
-    }
-    assert.ok(
-        totalPrimitives <= TOTAL_SETPIECE_PRIMITIVE_BUDGET,
-        `reconstruction-site exports stay within ${TOTAL_SETPIECE_PRIMITIVE_BUDGET} primitives `
-        + `(got ${totalPrimitives})`,
-    );
-});
-
-test('the sheeting opens one bay at a time instead of everywhere at once', () => {
-    const glb = readGlb(path.join(ASSET_ROOT, 'glb', '14_tarpaulin_wall.glb'));
-    const duration = SETPIECES['14_tarpaulin_wall'].duration;
-    const moments = openingMoments(glb);
-
-    assert.equal(moments.length, 7, 'all seven bays are animated');
-    assert.ok(moments.every((entry) => entry.travel > 0.5), 'every bay actually draws aside');
-
-    // If every bay opened at the same moment the hoarding would be a blinking wall rather than
-    // a traveling gap, and a player could not learn where to be. Evenly spaced moments are what
-    // makes the position learnable.
-    const times = moments.map((entry) => entry.time).sort((left, right) => left - right);
-    assert.equal(
-        new Set(times.map((time) => time.toFixed(3))).size,
-        7,
-        `the sheeting opens at seven distinct moments, got ${times.join(', ')}`,
-    );
-    const expectedStride = duration / 7;
-    for (let index = 1; index < times.length; index += 1) {
-        const stride = times[index] - times[index - 1];
-        assert.ok(
-            Math.abs(stride - expectedStride) <= expectedStride * 0.25,
-            `the sheeting keeps an even stride near ${expectedStride.toFixed(2)}s, got ${stride.toFixed(2)}s`,
-        );
-    }
-});
-
-test('the hoarding stands across the approach instead of along it', () => {
-    const glb = readGlb(path.join(ASSET_ROOT, 'glb', '14_tarpaulin_wall.glb'));
-
-    // glTF X runs along the building, which is the line a run flies in on from the river, and
-    // glTF Z runs across it. A barrier meant to be flown through has to be wide across and thin
-    // along. Built the other way round it hangs edge-on in the flight line: its face is never in
-    // front of anyone, its sheets lie on the route for their whole length, and the traveling gap
-    // opens along the flight path instead of across it.
-    const box = boundingBox(glb.document);
-    assert.ok(
-        box.span.z > box.span.x * 4,
-        `the hoarding spans wider across the approach (${box.span.z.toFixed(1)} m) `
-        + `than along it (${box.span.x.toFixed(1)} m)`,
-    );
-
-    // The same rule for the movement: each bay draws aside across the approach, so the opening
-    // walks along the face a player is looking at.
-    const travels = openingTravels(glb);
-    assert.equal(travels.length, 7, 'all seven bays are animated');
-    for (const entry of travels) {
-        assert.ok(
-            Math.abs(entry.offset[2]) > Math.abs(entry.offset[0]) * 4,
-            `${entry.node} draws aside across the approach, `
-            + `got along=${entry.offset[0].toFixed(2)} across=${entry.offset[2].toFixed(2)}`,
-        );
-    }
-});
-
-test('the crane and the rose scaffold carry their gap around instead of opening one', () => {
-    // Two setpieces state the rule the other way round: nothing opens or shuts, the whole
-    // assembly turns and the way past it travels with it. Both animate exactly one rig.
-    for (const [name, rig] of [['10_tower_crane', 'CraneSlew'], ['17_rose_ring', 'RoseScaffoldRing']]) {
-        const { document } = readGlb(path.join(ASSET_ROOT, 'glb', `${name}.glb`));
-        const channels = document.animations[0].channels;
-        assert.equal(channels.length, 1, `${name} turns as a single rig`);
-        assert.equal(document.nodes[channels[0].target.node].name, rig);
-        assert.equal(
-            channels[0].target.path,
-            'rotation',
-            `${name} carries its gap around by turning`,
-        );
-    }
-});
-
-test('the bells and the stone slings run on staggered phases', () => {
-    // A peal never swings as one, and a row of blocks that swung together would be a wall with
-    // no line through it. Both rely on their elements being out of phase with each other.
-    for (const [name, expectedCount] of [['16_bell_swing', 3], ['12_stone_hoist', 5]]) {
-        const moments = openingMoments(readGlb(path.join(ASSET_ROOT, 'glb', `${name}.glb`)));
-        assert.equal(moments.length, expectedCount, `${name} animates all ${expectedCount} elements`);
-        assert.ok(moments.every((entry) => entry.travel > 0.05), `${name} actually moves every element`);
-
-        // Every element has to reach its extreme at its own moment. Anything less than one
-        // distinct moment per element means two of them swing together, and the group turns
-        // back into a solid row at that instant.
-        const times = moments.map((entry) => entry.time);
-        assert.equal(
-            new Set(times.map((time) => time.toFixed(3))).size,
-            expectedCount,
-            `${name} reaches its extremes at ${expectedCount} distinct moments, got ${times.join(', ')}`,
-        );
-    }
 });
 
 test('every part keeps the measured proportions of the real building', () => {

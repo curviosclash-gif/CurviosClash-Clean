@@ -1,13 +1,10 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
-// Fifteen cathedral GLBs plus 32 Blender-tree instances is more than any earlier map loads, and
-// seven of them are one building split into parts. The running app must prove that the parts land
-// back together as one cathedral, and that the eight site machines
-// run on their own phases of the shared beat instead of moving in lockstep. Both are checked in
-// a single run, because loading this map takes long enough that doing it twice is wasteful.
+// Seven cathedral GLBs and 32 Blender-tree instances form one building. The running app
+// proves that the parts land together and that the future collapse scenes stay dormant.
 
-test('Notre-Dame loads as one cathedral with its site running on the shared beat', async ({ page }) => {
+test('Notre-Dame loads as one cathedral without construction machinery', async ({ page }) => {
     test.setTimeout(180_000);
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
@@ -31,10 +28,10 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame'
         && window.GAME_INSTANCE?.arena?._glbScene
         && !window.GAME_INSTANCE?.arena?._glbLoadError
-        && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === 14
+        && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === 6
     )), {
         timeout: 150_000,
-        message: 'Notre-Dame should load all fifteen parts and animate the eight site pieces',
+        message: 'Notre-Dame should load the seven fabric parts and six dormant collapse scenes',
     }).toBeTruthy();
     const loadDurationMs = await page.evaluate((startedAt) => performance.now() - startedAt, loadStartedAt);
     expect(loadDurationMs).toBeLessThan(120_000);
@@ -58,14 +55,14 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         };
     });
 
-    // Only the site moves, so only eight of the fifteen carry a clip.
+    // The only loaded clips belong to the dormant collapse scenes.
     expect(state.authoredObstacleCount).toBeGreaterThan(0);
     expect(state).toEqual({
         mapKey: 'notre_dame',
-        trackCount: 14,
+        trackCount: 6,
         warningCount: 0,
         colliderMode: 'scene',
-        glbSceneChildren: 53,
+        glbSceneChildren: 45,
         authoredObstacleCount: state.authoredObstacleCount,
         authoredObstacleVisuals: 2,
         authoredCollisionSolid: true,
@@ -78,22 +75,14 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         window.GAME_INSTANCE?.arena?.glbAnimationElapsedSeconds > elapsed
     ), initialElapsed), {
         timeout: 15_000,
-        message: 'the site clock should advance once the match is running',
+        message: 'the map clock should advance once the match is running',
     }).toBeTruthy();
 
-    // The eight clips sit on four different offsets of one six second beat. Reading their clip
-    // positions in a single frame is the proof that those offsets survive into the running game
-    // rather than only holding in the preset.
-    const phases = await page.evaluate(() => (
+    const siteClips = await page.evaluate(() => (
         window.GAME_INSTANCE.arena._glbAnimation._tracks
-            .filter((track) => track.clipName !== 'NotreDameCollapse').map((track) => ({ clip: track.clipName, time: Number(track.action.time.toFixed(3)) }))
+            .filter((track) => track.clipName !== 'NotreDameCollapse').length
     ));
-    expect(phases).toHaveLength(8);
-    expect(new Set(phases.map((entry) => entry.clip)).size).toBe(8);
-    expect(new Set(phases.map((entry) => entry.time)).size).toBeGreaterThan(1);
-    for (const entry of phases) {
-        expect(entry.time).toBeGreaterThanOrEqual(0);
-    }
+    expect(siteClips).toBe(0);
 
     // Where every part actually ended up in the world. If the preset had undone the recentring
     // the loader applies wrongly, the towers would sit somewhere other than the nave, and it
@@ -211,54 +200,12 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
     });
     expect(blockedOpenings).toEqual([]);
 
-    const collisionSweep = await page.evaluate(() => {
-        const game = window.GAME_INSTANCE;
-        const arena = game.arena;
-        const movingIds = arena.currentMapDefinition.glbModels
+    const movingSiteModels = await page.evaluate(() => (
+        window.GAME_INSTANCE.arena.currentMapDefinition.glbModels
             .filter((model) => model.animationClock && !model.hiddenUntilTriggered)
-            .map((model) => model.id);
-        const groupFor = (obstacle) => {
-            let node = obstacle?.meshCollider?.mesh || null;
-            while (node) {
-                if (node.userData?.glbModelId) return node.userData.glbModelId;
-                node = node.parent;
-            }
-            return '';
-        };
-        const grouped = Object.fromEntries(movingIds.map((id) => [id, []]));
-        arena._glbDynamicObstacles.forEach((obstacle) => {
-            const id = groupFor(obstacle);
-            if (grouped[id]) grouped[id].push(obstacle);
-        });
-        const baseline = new Map();
-        const motion = Object.fromEntries(movingIds.map((id) => [id, {
-            colliderCount: grouped[id].length,
-            maxTravel: 0,
-            blockedSamples: 0,
-        }]));
-        const center = game.entityManager.players[0].position.clone();
-        for (let step = 0; step <= 24; step += 1) {
-            arena.setGlbAnimationElapsedSeconds(step * 0.5);
-            arena.update(0);
-            for (const id of movingIds) {
-                for (const obstacle of grouped[id]) {
-                    obstacle.box.getCenter(center);
-                    const key = obstacle.meshCollider.mesh.uuid;
-                    const first = baseline.get(key);
-                    if (!first) baseline.set(key, center.clone());
-                    else motion[id].maxTravel = Math.max(motion[id].maxTravel, center.distanceTo(first));
-                    if (arena.checkCollisionFast(center, 0.1)) motion[id].blockedSamples += 1;
-                }
-            }
-        }
-        return motion;
-    });
-    expect(Object.keys(collisionSweep)).toHaveLength(8);
-    for (const [id, result] of Object.entries(collisionSweep)) {
-        expect(result.colliderCount, `${id} keeps dynamic collision`).toBeGreaterThan(0);
-        expect(result.maxTravel, `${id} moves that collision across its beat`).toBeGreaterThan(0.5);
-        expect(result.blockedSamples, `${id} collides at its visible poses`).toBeGreaterThan(result.colliderCount);
-    }
+            .map((model) => model.id)
+    ));
+    expect(movingSiteModels).toEqual([]);
 
     const performanceBudget = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;

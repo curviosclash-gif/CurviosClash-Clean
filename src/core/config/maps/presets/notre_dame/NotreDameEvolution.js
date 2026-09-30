@@ -1,8 +1,6 @@
 import { normalizeMapLighting } from '../../../../../shared/contracts/MapLightingContract.js';
 import { NOTRE_DAME_MAPS } from './index.js';
 import { NOTRE_DAME_FIRE_MAPS } from '../notre_dame_fire/index.js';
-import { NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS } from '../notre_dame_fire/NotreDameFireModels.js';
-import { NOTRE_DAME_SITE_FRAME_MODEL_ID_BY_FRAME_ID } from './NotreDameSiteFrames.js';
 import { NOTRE_DAME_EVOLUTION_MODELS } from './NotreDameEvolutionModels.js';
 
 const DAY = normalizeMapLighting({
@@ -35,7 +33,7 @@ const destructibles = {
     breakScenes: specs.map(([id], index) => ({
         id: `nd_${id}`, trigger: { segmentId: id }, pieces: [id],
         modelId: `notre-dame-evolution-${id}`, yawFromEvent: false,
-        hideModelIds: index === 0 ? [hidden[index], ...NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS] : [hidden[index]],
+        hideModelIds: [hidden[index]],
     })),
 };
 
@@ -44,7 +42,6 @@ function evolve(intact, burnt, arena) {
         segments: fireSegments,
         lighting: { ...burnt.lighting, fog: { ...burnt.lighting.fog, colorLow: 0x62352b },
             skyDome: { ...burnt.lighting.skyDome, nadirColor: 0x62352b } },
-        siteFrameIds: [...NOTRE_DAME_SITE_FRAME_MODEL_ID_BY_FRAME_ID.keys()],
     };
     return {
         ...intact,
@@ -56,8 +53,7 @@ function evolve(intact, burnt, arena) {
         destructibles,
         mapHazards: burnt.mapHazards,
         glbModels: [...intact.glbModels, ...NOTRE_DAME_EVOLUTION_MODELS],
-        ...(arena ? {} : { parcours: { ...intact.parcours, routeId: 'notre_dame_evolution_v1',
-            checkpoints: intact.parcours.checkpoints.map((cp) => cp.id === 'CP02' ? { ...cp, pos: [-165, 24, 0] } : cp) } }),
+        ...(arena ? {} : { parcours: { ...intact.parcours, routeId: 'notre_dame_evolution_v1' } }),
     };
 }
 const parcours = evolve(NOTRE_DAME_MAPS.notre_dame, NOTRE_DAME_FIRE_MAPS.notre_dame_fire, false);

@@ -10,14 +10,12 @@ import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/inde
 import { NOTRE_DAME_FIRE_AUDIO_PROFILE, NOTRE_DAME_FIRE_MAPS } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
 import {
     NOTRE_DAME_FIRE_MODELS,
-    NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS,
     NOTRE_DAME_FIRE_REPLACED_MODEL_IDS,
 } from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireModels.js';
 import {
     NOTRE_DAME_FIRE_CHECKPOINTS,
     NOTRE_DAME_FIRE_FINISH,
 } from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireRoute.js';
-import { NOTRE_DAME_SITE_FRAME_MODEL_ID_BY_FRAME_ID } from '../src/core/config/maps/presets/notre_dame/NotreDameSiteFrames.js';
 import { resolveMapPickerCollection } from '../src/ui/menu/MenuMapCollectionCatalog.js';
 import { MAP_LIGHT_SOURCE_LIMIT } from '../src/shared/contracts/MapLightSourcesContract.js';
 import { NOTRE_DAME_FIRE_HAZARDS } from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireHazards.js';
@@ -32,7 +30,7 @@ test('the fire maps use their own deterministic emergency ambience profile', () 
     assert.equal(fire.audioProfile, NOTRE_DAME_FIRE_AUDIO_PROFILE);
     assert.equal(fireArena.audioProfile, NOTRE_DAME_FIRE_AUDIO_PROFILE);
     assert.equal(fire.audioProfile.interiorBounds, restoration.audioProfile.interiorBounds);
-    assert.equal(fire.audioProfile.constructionCenters, restoration.audioProfile.constructionCenters);
+    assert.equal(fire.audioProfile.constructionCenters, undefined);
     assert.ok(fire.audioProfile.collapse.intervalSeconds >= 20);
 });
 
@@ -51,21 +49,13 @@ test('both fire maps are registered everywhere a map has to appear', () => {
     assert.equal(resolveMapPickerCollection('notre_dame_fire_arena').id, 'arena');
 });
 
-const bracesRemovedMachine = (obstacle) => {
-    const modelId = NOTRE_DAME_SITE_FRAME_MODEL_ID_BY_FRAME_ID.get(obstacle?.id);
-    return !!modelId && NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS.has(modelId);
-};
-
 test('the fire maps fly the same cathedral instead of loading a second copy', () => {
     // Identity, not equality. The geometry is what this map costs; a copy would double the load
-    // and let the two buildings drift apart. The obstacle list is the one exception: it is the
-    // intact list minus the boxes that brace machines this map does not draw, and every box it
-    // keeps is still the very same object.
-    const carried = restoration.obstacles.filter((obstacle) => !bracesRemovedMachine(obstacle));
-    assert.ok(carried.length < restoration.obstacles.length, 'the site frames are what gets dropped');
+    // and let the two buildings drift apart. Both maps share the same obstacle objects.
+    const carried = restoration.obstacles;
     for (const map of [fire, fireArena]) {
         assert.equal(map.glbModels, fire.glbModels);
-        assert.equal(map.obstacles, fire.obstacles);
+        assert.equal(map.obstacles, carried);
         assert.deepEqual(map.obstacles, carried);
         for (let index = 0; index < carried.length; index += 1) {
             assert.equal(map.obstacles[index], carried[index], 'a kept box is the object the intact map holds');
@@ -77,27 +67,14 @@ test('the fire maps fly the same cathedral instead of loading a second copy', ()
     }
 });
 
-test('no invisible box braces a site machine the fire maps do not draw', () => {
-    // glbColliderMode 'scene' plus glbAuthoredObstaclesCollisionOnly means these boxes compile as
-    // collision even when the GLBs load, and their visuals are discarded -- so a frame left behind
-    // for a removed machine is a wall in mid-air. The hoarding stands on the river approach the
-    // route flies in on, and the stone hoist's beam hangs beside an arena bot spawn.
-    for (const map of [fire, fireArena]) {
-        for (const obstacle of map.obstacles) {
-            const modelId = NOTRE_DAME_SITE_FRAME_MODEL_ID_BY_FRAME_ID.get(obstacle?.id);
-            assert.ok(
-                !modelId || !NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS.has(modelId),
-                `${obstacle?.id} braces ${modelId}, which is absent on the night of the fire`,
-            );
-        }
-    }
-    for (const frameId of ['nd-site-hoarding-head', 'nd-site-stone-hoist-beam', 'nd-site-scaffold-deck-0']) {
-        assert.ok(restoration.obstacles.some((obstacle) => obstacle.id === frameId), `${frameId} braces the site`);
-        assert.ok(!fire.obstacles.some((obstacle) => obstacle.id === frameId), `${frameId} is gone with its machine`);
+test('neither map keeps invisible construction frames', () => {
+    for (const map of [restoration, fire, fireArena]) {
+        assert.ok(map.obstacles.every((obstacle) => !String(obstacle.id || '').startsWith('nd-site-')));
+        assert.ok(map.glbModels.every((model) => !/hoist|scaffold|gantry|hoarding|tower-crane/.test(model.id)));
     }
 });
 
-test('the fire keeps surviving fabric but removes the later restoration site', () => {
+test('the fire keeps surviving fabric and replaces damaged sections', () => {
     const burnt = fire.glbModels.filter((model) => model.url.includes('notre_dame_fire'));
     const carried = fire.glbModels.filter((model) => !model.url.includes('notre_dame_fire'));
     const carriedTrees = carried.filter((model) => model.id.startsWith('notre-dame-tree-'));
@@ -136,10 +113,6 @@ test('the fire keeps surviving fabric but removes the later restoration site', (
             `${id} is replaced rather than left standing beside its burnt version`,
         );
     }
-    for (const id of NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS) {
-        assert.ok(restoration.glbModels.some((model) => model.id === id), `${id} belongs to the restoration site`);
-        assert.ok(!fire.glbModels.some((model) => model.id === id), `${id} is absent on the night of the fire`);
-    }
 });
 
 test('every fire-map model points at a file and keeps the right placement contract', () => {
@@ -160,7 +133,7 @@ test('every fire-map model points at a file and keeps the right placement contra
 });
 
 test('the fire light is held separately from the restoration map it was taken from', () => {
-    // The restoration map is a building site in the late afternoon and its profile is expected to
+    // The intact map is in the late afternoon and its profile is expected to
     // move back towards daylight. This map must not follow it, so nothing here may be the same
     // object -- which is what would silently reintroduce the coupling.
     assert.notEqual(fire.lighting, restoration.lighting);

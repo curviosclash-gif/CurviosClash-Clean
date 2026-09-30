@@ -16,7 +16,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
             game.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['bots.count'] });
         });
         await page.click('#btn-start');
-        await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE?.arena?._glbScene?.children?.length), { timeout: 150000 }).toBe(53);
+        await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE?.arena?._glbScene?.children?.length), { timeout: 150000 }).toBe(45);
         const proof = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const arena = game.arena;
@@ -37,7 +37,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
                     progress: arena.mapFireProgress, events: system.state.events.map((entry) => entry.segmentId),
                     sky: structuredClone(game.renderer.getMapLighting().skyDome),
                     roofSolid: solid(-34.65, 60, 12),
-                    siteFrames: arena.obstacles.filter((o) => arena.currentMapDefinition.fireProgression.siteFrameIds.includes(o.sourceId)).length,
+                    constructionFrames: arena.obstacles.filter((o) => String(o.sourceId || '').startsWith('nd-site-')).length,
                     warnings: arena._glbLoadWarnings, error: String(arena._glbLoadError || ''),
                     checkpointBlocked: (arena.currentMapDefinition.parcours?.checkpoints || []).filter((cp) => solid(...cp.pos)).map((cp) => cp.id),
                 });
@@ -55,10 +55,10 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
         await writeFile(testInfo.outputPath('evolution.json'), JSON.stringify(proof, null, 2));
         expect(proof.samples[0].sky.zenithColor).toBe(0x2586df);
         expect(proof.samples[0].roofSolid).toBe(true);
-        expect(proof.samples[0].siteFrames).toBeGreaterThan(0);
+        expect(proof.samples[0].constructionFrames).toBe(0);
         expect(proof.samples[3].events).toEqual(['roof','nave','transept']);
         expect(proof.samples[3].roofSolid).toBe(false);
-        expect(proof.samples[3].siteFrames).toBe(0);
+        expect(proof.samples[3].constructionFrames).toBe(0);
         expect(proof.samples[3].sky.zenithColor).toBe(0x050912);
         expect(proof.samples[4].events).toHaveLength(6);
         expect(proof.reset).toEqual({ progress: 0, events: 0, roofSolid: true, sky: proof.samples[0].sky });
@@ -77,7 +77,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
             await page.click('#btn-start');
             await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE?.arena?.currentMapKey), { timeout: 150000 }).toBe(nextMap);
             if (nextMap !== 'standard') {
-                await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE?.arena?._glbScene?.children?.length), { timeout: 150000 }).toBe(53);
+                await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE?.arena?._glbScene?.children?.length), { timeout: 150000 }).toBe(45);
             }
             const resources = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;

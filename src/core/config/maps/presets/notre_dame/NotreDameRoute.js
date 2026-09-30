@@ -1,13 +1,13 @@
 // The parcours route through Notre-Dame.
 //
 // The building supplies the course; nothing here is an arbitrary waypoint. A run comes up the
-// river, passes the site hoarding, crosses the square, and then faces the first real choice: go
-// straight through the central portal at ground level, or take the scaffold up and thread the
+// river, crosses the island square, and then faces the first real choice: go
+// straight through the central portal at ground level, or climb and thread the
 // west rose. Both land in the nave. Inside, the choice is height -- the timber attic above the
 // vault, or the dark aisle beside it. They meet at the crossing under the spire. The choir offers
 // the last pair, the high vessel or the ambulatory round the chapels, and both come out at the
 // apse. The return leg runs outside, threading the flying buttresses, and finishes at the spire
-// section waiting on its lifting gantry east of the building.
+// east quay beyond the building.
 //
 // Coordinates are authored units with the church floor at y = 8, matching NotreDameStructure.
 
@@ -21,9 +21,8 @@ import {
 
 const NOTRE_DAME_CHECKPOINTS = [
     { id: 'CP01', type: 'entry', pos: [-196, GROUND + 14, 0], radius: 7.2, forward: [1, 0, 0] },
-    // The hoarding: its gap travels, so this is where a player first has to read the site rather
-    // than simply aim at it.
-    { id: 'CP02', type: 'hoarding', pos: [-150, GROUND + 16, 0], radius: 6.4, forward: [1, 0, 0] },
+    // The open island approach leads into the square and the west facade.
+    { id: 'CP02', type: 'island_entry', pos: [-150, GROUND + 16, 0], radius: 6.4, forward: [1, 0, 0] },
     { id: 'CP03', type: 'parvis', pos: [-112, GROUND + 12, 0], radius: 6.4, forward: [1, 0.05, 0] },
     {
         id: 'CP04',
@@ -33,7 +32,7 @@ const NOTRE_DAME_CHECKPOINTS = [
         forward: [1, 0.1, 0],
         nextIds: ['CP05_ROSE', 'CP05_PORTAL'],
     },
-    // High line: up the turning scaffold and through the west rose.
+    // High line: climb beside the facade and through the west rose.
     {
         id: 'CP05_ROSE',
         type: 'rose_high',
@@ -72,7 +71,7 @@ const NOTRE_DAME_CHECKPOINTS = [
         nextIds: ['CP09'],
         params: { label: 'Dachstuhl hoch', height: 'high', color: 0xffbf45 },
     },
-    // The aisle: tighter, darker, and it passes the gantry sweeping the nave beside it. The ring
+    // The aisle: tighter and darker than the nave. The ring
     // sits on the flight line through the aisle, not up against its ceiling.
     {
         id: 'CP08_AISLE',
@@ -112,7 +111,7 @@ const NOTRE_DAME_CHECKPOINTS = [
     },
     // Both choir branches meet inside the apse and leave east through the opening in its end
     // wall, so the ring stands in the vessel and faces the way out rather than up into the roof.
-    { id: 'CP12', type: 'apse_merge', pos: [79, GROUND + 23, 0], radius: 6.0, forward: [1, 0.1, 0] },
+    { id: 'CP12', type: 'apse_merge', pos: [85, GROUND + 15, 0], radius: 5.4, forward: [1, 0.1, 0] },
     // The return leg runs outside, between the buttress piers. It picks up the north side at the
     // first gap east of the transept -- the arm itself carries no piers to thread.
     { id: 'CP13', type: 'buttress_run', pos: [41, GROUND + 33, 36], radius: 5.4, forward: [-0.95, 0, -0.3] },
@@ -125,7 +124,7 @@ const NOTRE_DAME_CHECKPOINTS = [
 const NOTRE_DAME_FINISH = {
     id: 'FINISH',
     type: 'finish',
-    pos: [130, GROUND + 34, 0],
+    pos: [110, GROUND + 15, 0],
     radius: 7.2,
     forward: [1, 0.2, 0],
 };

@@ -40,7 +40,7 @@ async function startFireArena(page) {
     await page.click('#btn-start');
     await expect.poll(() => page.evaluate(() => (
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame_arena'
-        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 53
+        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 45
         && !window.GAME_INSTANCE?.arena?._glbLoadError
     )), {
         timeout: 150_000,

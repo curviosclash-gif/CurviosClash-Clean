@@ -107,29 +107,6 @@ const KNOWN_FINDINGS = [
     'verdant_aperture|verdant-aperture-mill-south|-|static-uncovered',
 ];
 
-// notre_dame site (wird entfernt): the construction site GLBs 10-17 leave with plan J. Their
-// entries go with them; the route and points that hang on them are rebuilt there.
-const NOTRE_DAME_SITE_FINDINGS = [
-    'notre_dame_arena|notre-dame-hoarding|portal:P3b|clearance',
-    'notre_dame_arena|notre-dame-rose-scaffold|portal:P0a|clearance',
-    'notre_dame_fire_arena|notre-dame-hoarding|portal:P3b|clearance',
-    'notre_dame_fire_arena|notre-dame-rose-scaffold|portal:P0a|clearance',
-    'notre_dame_fire|notre-dame-fleche-hoist|item:nd_shield_spire|clearance',
-    'notre_dame_fire|notre-dame-fleche-hoist|ring:FINISH|clearance',
-    'notre_dame_fire|notre-dame-hoarding|portal:P3b|clearance',
-    'notre_dame_fire|notre-dame-rose-scaffold|item:nd_rare_rose|clearance',
-    'notre_dame_fire|notre-dame-rose-scaffold|portal:P0a|clearance',
-    'notre_dame_fire|notre-dame-rose-scaffold|ring:CP05_ROSE|clearance',
-    'notre_dame_fire|notre-dame-vault-gantry|ring:CP06|clearance',
-    'notre_dame|notre-dame-fleche-hoist|item:nd_shield_spire|clearance',
-    'notre_dame|notre-dame-fleche-hoist|ring:FINISH|clearance',
-    'notre_dame|notre-dame-hoarding|portal:P3b|clearance',
-    'notre_dame|notre-dame-rose-scaffold|item:nd_rare_rose|clearance',
-    'notre_dame|notre-dame-rose-scaffold|portal:P0a|clearance',
-    'notre_dame|notre-dame-rose-scaffold|ring:CP05_ROSE|clearance',
-    'notre_dame|notre-dame-vault-gantry|ring:CP06|clearance',
-];
-
 // Deliberate exceptions, decided 28.09.2026 (PLAN.md section 3, decision 3). They stay out of
 // the ratchet but must still occur, so a fixed setpiece does not keep an exemption it no longer
 // needs.
@@ -197,9 +174,9 @@ test('the scan reaches every animated map of the audit', () => {
 });
 
 test('animated setpiece findings only shrink', () => {
-    const listed = new Set([...KNOWN_FINDINGS, ...NOTRE_DAME_SITE_FINDINGS]);
+    const listed = new Set(KNOWN_FINDINGS);
     const exceptions = new Set(DELIBERATE_EXCEPTIONS);
-    assert.equal(listed.size, KNOWN_FINDINGS.length + NOTRE_DAME_SITE_FINDINGS.length, 'duplicate entry');
+    assert.equal(listed.size, KNOWN_FINDINGS.length, 'duplicate entry');
     const fresh = [...scan.findings].filter(([key]) => !listed.has(key) && !exceptions.has(key));
     const stale = [...listed].filter((key) => !scan.findings.has(key));
     assert.deepEqual(

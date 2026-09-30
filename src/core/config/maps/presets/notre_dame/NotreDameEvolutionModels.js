@@ -4,9 +4,9 @@ export const NOTRE_DAME_EVOLUTION_MODELS = [
         "id": "notre-dame-evolution-roof",
         "url": "assets/maps/notre_dame_evolution/glb/roof.glb",
         "position": [
-            -5.387001800537109,
+            5.309106826782227,
             7.679942607879639,
-            -21.239997482299803
+            -0.0
         ],
         "rotation": [
             0,
