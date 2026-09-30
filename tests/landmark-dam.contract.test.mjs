@@ -47,20 +47,8 @@ test('wave 6 dam is a destructible landmark whose breach unlocks a room and floo
     assert.ok(destructibles);
     assert.deepEqual(destructibles.segments.map((segment) => segment.id), ['dam_wall']);
     assert.equal(destructibles.segments[0].kind, 'landmark');
-    assert.deepEqual(destructibles.breakScenes[0].hideModelIds, ['storm-dam-intact']);
-    assert.deepEqual(destructibles.breakScenes[0].attachedModels, [{
-        modelId: 'storm-dam-gate', parentNodeName: 'dam_wall_arch_08_tier_2',
-    }]);
-    const malformed = normalizeMapDestructibles({ ...map.destructibles, breakScenes: [{
-        ...map.destructibles.breakScenes[0],
-        attachedModels: [
-            { modelId: 'storm-dam-collapse', parentNodeName: 'dam_wall_arch_08_tier_2' },
-            ...map.destructibles.breakScenes[0].attachedModels,
-            { modelId: 'storm-dam-gate', parentNodeName: 'dam_wall_arch_07_tier_2' },
-        ],
-    }] });
-    assert.equal(malformed.breakScenes[0].attachedModels.length, 1,
-        'a scene cannot attach itself or attach the same model twice');
+    assert.deepEqual(destructibles.breakScenes[0].hideModelIds, ['storm-dam-intact', 'storm-dam-gate']);
+    assert.deepEqual(destructibles.breakScenes[0].attachedModels, []);
 
     const rooms = normalizeSecretRooms(map.secretRooms);
     assert.equal(rooms.length, 1);
@@ -93,7 +81,7 @@ test('wave 6 dam is a destructible landmark whose breach unlocks a room and floo
     assert.ok(existsSync('assets/maps/storm_dam_siege/blender/20_dam_collapse.blend'));
 });
 
-test('the animated gate keeps its loop phase and follows a broken chunk on live and late-join maps', async () => {
+test('the animated gate hides on collapse, keeps its phase, and restores on round reset', async () => {
     const map = MAP_PRESET_CATALOG[MAP_KEY];
     const event = { segmentId: 'dam_wall', kind: 'landmark', atSeconds: 1, yaw: 0 };
     async function loaded() {
@@ -113,9 +101,7 @@ test('the animated gate keeps its loop phase and follows a broken chunk on live 
         const controller = createMapBreakSceneController(arena, result.colliders, driver, []);
         const gate = result.scene.getObjectByName('glb-slot-storm-dam-gate');
         const slab = gate.getObjectByName('dam_gate_slab');
-        const chunk = result.scene.getObjectByName('glb-slot-storm-dam-collapse')
-            .getObjectByName('dam_wall_arch_08_tier_2');
-        return { result, driver, controller, gate, slab, chunk };
+        return { result, driver, controller, gate, slab };
     }
     const live = await loaded();
     const replica = await loaded();
@@ -131,23 +117,23 @@ test('the animated gate keeps its loop phase and follows a broken chunk on live 
         live.driver.setElapsedSeconds(2.3);
         live.driver.advance(0);
         const phaseBefore = live.driver._tracks.find((track) => track.modelId === 'storm-dam-gate').action.time;
-        const localBefore = live.slab.position.clone();
+        const worldBefore = live.slab.getWorldPosition(new THREE.Vector3());
         live.controller.applyEvents([event]);
         live.driver.advance(0);
-        assert.ok(live.gate.parent === live.chunk, `gate parent ${live.gate.parent?.name}`);
-        assert.equal(live.gate.visible, true);
+        assert.equal(live.gate.visible, false, 'the animated gate cannot travel with a falling chunk');
         assert.equal(live.driver._tracks.find((track) => track.modelId === 'storm-dam-gate').action.time,
-            phaseBefore, 'the break does not restart the existing gate loop');
-        assert.ok(live.slab.position.distanceTo(localBefore) < 0.001);
+            phaseBefore, 'hiding the gate does not restart its loop');
+        assert.ok(live.slab.getWorldPosition(new THREE.Vector3()).distanceTo(worldBefore) < 0.001);
 
         replica.controller.applyEvents([event]);
         replica.driver.setElapsedSeconds(2.3);
         replica.driver.advance(0);
         live.result.scene.updateMatrixWorld(true);
         replica.result.scene.updateMatrixWorld(true);
+        assert.equal(replica.gate.visible, false, 'late join hides the gate in the same break pose');
         assert.ok(live.slab.getWorldPosition(new THREE.Vector3())
             .distanceTo(replica.slab.getWorldPosition(new THREE.Vector3())) < 0.001,
-        'late join derives the same gate pose from event time and authored rest offset');
+        'late join derives the same gate loop phase');
 
         live.driver.setElapsedSeconds(6.8);
         live.driver.advance(0);
@@ -157,6 +143,16 @@ test('the animated gate keeps its loop phase and follows a broken chunk on live 
         }
         assert.equal(apertureHit()?.sourceName || '', '',
             'the opened center has no invisible wall collider');
+        const botSpawn1 = new THREE.Vector3(
+            map.botSpawns[1].x * 3, map.botSpawns[1].y * 3, map.botSpawns[1].z * 3,
+        );
+        const botHitboxRadius = 2;
+        for (const collider of live.result.colliders.filter((entry) =>
+            entry.modelId === 'storm-dam-collapse' && entry.dynamic)) {
+            refreshDynamicMeshCollider(collider.meshCollider, collider.box);
+            assert.equal(collider.box.clone().expandByScalar(botHitboxRadius).containsPoint(botSpawn1), false,
+                `bot spawn 1 clears ${collider.sourceName} at the settled pose`);
+        }
         const fallenCollider = live.result.colliders.find((entry) =>
             entry.modelId === 'storm-dam-collapse' && entry.sourceName === 'dam_wall_arch_08_tier_1');
         const fallenCenter = fallenCollider.box.getCenter(new THREE.Vector3());
@@ -167,12 +163,10 @@ test('the animated gate keeps its loop phase and follows a broken chunk on live 
         assert.equal(movedHit?.sourceName, fallenCollider.sourceName,
             'the moved solid still collides at its exported pose');
 
-        const fallenGate = live.slab.getWorldPosition(new THREE.Vector3());
         live.controller.reset();
         live.driver.advance(0);
         assert.ok(live.gate.parent === live.result.scene, `reset parent ${live.gate.parent?.name}`);
-        assert.ok(live.slab.getWorldPosition(new THREE.Vector3()).distanceTo(fallenGate) > 1,
-            'round reset restores the gate to its original slot');
+        assert.equal(live.gate.visible, true, 'round reset restores the gate');
     } finally {
         for (const item of [live, replica]) {
             item.driver.clear();

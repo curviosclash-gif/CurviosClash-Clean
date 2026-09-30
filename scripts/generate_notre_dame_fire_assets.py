@@ -52,6 +52,7 @@ GLB_DIR = ROOT / "assets" / "maps" / "notre_dame_fire" / "glb"
 CHARRED = (0.085, 0.065, 0.055, 1.0)
 SOOT_STONE = (0.30, 0.27, 0.25, 1.0)
 SPENT_LEAD = (0.26, 0.26, 0.25, 1.0)
+NAVE_BURNT_BOX_CENTER_X = -24.68
 
 
 def with_fire_materials(mats):
@@ -60,6 +61,15 @@ def with_fire_materials(mats):
     extended["charred"] = nd.material("NDFCharred", CHARRED, roughness=0.96)
     extended["soot"] = nd.material("NDFSoot", SOOT_STONE, roughness=0.93)
     extended["spent_lead"] = nd.material("NDFSpentLead", SPENT_LEAD, metallic=0.3, roughness=0.7)
+    # The surviving north and south aisle roof runs share one colour, but not one collider
+    # footprint. Separate material identities let the exporter keep those disconnected sides in
+    # distinct GLB nodes, so clearance checks measure each actual roof instead of their union AABB.
+    extended["spent_lead_north"] = nd.material(
+        "NDFSpentLeadNorth", SPENT_LEAD, metallic=0.3, roughness=0.7,
+    )
+    extended["spent_lead_south"] = nd.material(
+        "NDFSpentLeadSouth", SPENT_LEAD, metallic=0.3, roughness=0.7,
+    )
     return extended
 
 
@@ -118,6 +128,11 @@ def build_nave_burnt(mats):
     """
     mats = with_fire_materials(mats)
     nd.build_nave(mats)
+    # The intact builder's central-vault shell is a collision-only slab. The fire map uses the
+    # rendered GLB as collision, so keeping it would quietly close the whole burnt attic from
+    # below even though the lead roof and vault ribs are gone. The fallback obstacle boxes retain
+    # their existing role if asset loading fails.
+    assert remove_meshes("nave_vault_shell_colonly") > 0, "the intact vault collision shell must exist"
 
     # North is +Y, and the bay that failed is the last one before the crossing.
     breach_bay = nd.NAVE_BAYS - 1
@@ -142,6 +157,16 @@ def build_nave_burnt(mats):
             mats["soot"],
             rotation=(0.2 * sin(angle), 0.18 * cos(angle), angle),
         )
+
+    # The missing north-aisle bay changes the burnt part's measured box centre slightly. Keep its
+    # measured anchor aligned with the intact nave's authored position; the loader then recentres
+    # both GLBs around the same cathedral coordinate when it assembles the map.
+    bpy.context.view_layer.update()
+    lows, highs = nd.scene_bounds()
+    offset_x = NAVE_BURNT_BOX_CENTER_X - (lows[0] + highs[0]) / 2
+    for obj in bpy.context.scene.objects:
+        if obj.type == "MESH":
+            obj.location.x += offset_x
 
 
 def build_transept_burnt(mats):
@@ -189,7 +214,9 @@ def build_roof_burnt(mats):
     for obj in bpy.context.scene.objects:
         if obj.type == "MESH":
             obj.data.materials.clear()
-            obj.data.materials.append(mats["spent_lead"])
+            side = obj.name.rsplit("_", 1)[-1]
+            material_key = "spent_lead_north" if side == "1" else "spent_lead_south"
+            obj.data.materials.append(mats[material_key])
 
     charred = mats["charred"]
 
@@ -272,253 +299,6 @@ def build_fleche_debris(mats):
               (0.6, 0.4, 0.65), mats["gold"], 8, 5)
 
 
-# --- The fire ---------------------------------------------------------------------------------
-# Flame, ember and the light they throw. None of it is an obstacle: every mesh below carries both
-# _nocol and _noshadow, so nothing here can stop a ship and nothing here casts a shadow. The fire
-# is what the map looks like, not what it does.
-#
-# Two things shape how these are built. Flames are grouped under a handful of rigs rather than
-# animated one by one, because merge_animated_meshes joins decorative children per rig and per
-# material -- six rigs of eight flames is six nodes, sixty separate flames would be sixty. And
-# every loop is a whole multiple of the six second beat the whole map runs on, so the fire
-# breathes with the site rather than against it.
-
-
-def glowing(name, emission_color, strength):
-    """A material that only emits: near-black base colour, coloured emission on top.
-
-    The shared material() helper puts the same colour into base and emission, which is right for
-    stained glass but wrong for fire. A flame with a bright base colour also *receives* light, so
-    the eight fire lights in the preset wash it out, and the scene's tone mapping then finishes the
-    job -- measured, that is exactly what turned the first pass of these flames into pale cones
-    that read as stalagmites. Emission strength is kept low for the same reason: anything much
-    above two saturates to white through the tone map and the fire loses its colour entirely.
-    """
-    value = nd.material(name, (0.06, 0.025, 0.012, 1.0), 0.0, 0.0, 0.5)
-    shader = value.node_tree.nodes.get("Principled BSDF")
-    shader.inputs["Emission Color"].default_value = emission_color
-    shader.inputs["Emission Strength"].default_value = strength
-    value.diffuse_color = emission_color
-    return value
-
-
-def flame_materials(mats):
-    """Fire colours. Emission is what carries them: the map is dark, and a flame that is merely
-    orange reads as painted cardboard next to lit stone.
-
-    The material names end in _noshadow on purpose, and it is not decoration. merge_animated_meshes
-    rebuilds every merged mesh's name from its rig and its material, which drops the suffixes the
-    individual meshes were given -- so a flame authored as `..._nocol_noshadow` comes out of the
-    merge as `..._nocol` and would be eligible to cast a shadow. Carrying the marker in the
-    material name is what survives that rename. Fire must not throw shadows: it is light.
-    """
-    extended = with_fire_materials(mats)
-    # Saturation over brightness. At strength 2.6 the core colour tone-mapped to something
-    # indistinguishable from white, which put pale slabs in the attic; the values below keep the
-    # orange through the tone map, and the fire reads brighter for being coloured, not lighter.
-    extended["flame_core"] = glowing("NDFFlameCore_noshadow", (1.0, 0.50, 0.12, 1.0), 1.8)
-    extended["flame_body"] = glowing("NDFFlameBody_noshadow", (1.0, 0.30, 0.05, 1.0), 1.5)
-    extended["flame_tip"] = glowing("NDFFlameTip_noshadow", (0.82, 0.12, 0.02, 1.0), 1.1)
-    extended["ember"] = glowing("NDFEmber_noshadow", (1.0, 0.40, 0.08, 1.0), 1.9)
-    return extended
-
-
-def flame_tongue(name, mat, *, base, height, radius, lean=0.0, spin=0.0):
-    """One tongue of flame: a cone drawn to a point.
-
-    The taper is the whole shape budget. Measured on the first pass, a cone with a blunt tip and a
-    uniform height reads as a traffic bollard however it is coloured -- what makes a row of these
-    read as fire is that no two are the same height and none of them stand straight up.
-    """
-    return nd.cone(
-        f"{name}_nocol_noshadow", (base[0], base[1], base[2] + height / 2),
-        radius, radius * 0.02, height, mat, vertices=8, rotation=(lean, 0, spin),
-    )
-
-
-def flame_cluster(scene, name, mats, *, center, spread, height, count, beats, phase):
-    """A group of tongues on one rig, breathing together on its own phase.
-
-    The rig scales rather than moves: fire grows and falls back in place. Scaling the whole group
-    at once is also why the count can be raised without paying another animated node.
-
-    Colour follows height rather than index. A fire is yellow where it is fed and dark red where it
-    is running out, so the short tongues get the bright core material and the tall ones the dull
-    tip -- which also means the group has a gradient instead of three colours shuffled together.
-    """
-    rig = nd.empty(f"{name}Rig", (center[0], center[1], center[2]))
-    for index in range(count):
-        angle = index * (2 * pi / count) + phase * 2.1
-        reach = spread * (0.3 + 0.7 * abs(sin(index * 1.7 + phase)))
-        # A wide spread of heights: this is what breaks up the row of identical cones.
-        tall = abs(sin(index * 2.9 + phase * 3.1))
-        tongue_height = height * (0.3 + 0.7 * tall)
-        material = (mats["flame_core"] if tall < 0.34
-                    else mats["flame_body"] if tall < 0.7
-                    else mats["flame_tip"])
-        tongue = flame_tongue(
-            f"{name}_tongue_{index}", material,
-            base=(center[0] + reach * cos(angle), center[1] + reach * 0.7 * sin(angle), center[2]),
-            height=tongue_height, radius=0.34 + 0.42 * abs(sin(index * 2.3)),
-            lean=0.34 * cos(angle * 1.7 + index), spin=angle,
-        )
-        nd.parent_keep_world(tongue, rig)
-
-    # Eight samples per loop, back to the starting scale so the loop closes seamlessly.
-    steps = 8
-    for step in range(steps + 1):
-        at = step / steps
-        pulse = 0.72 + 0.28 * (0.5 + 0.5 * sin((at + phase) * 2 * pi))
-        nd.keyframe(rig, nd.beat_frame(scene, at * beats), scale=(1.0, 1.0, pulse))
-
-
-def ember_bed(name, mats, *, start_x, end_x, half_width, height_z, count):
-    """The burning floor under the flames: scattered coals lying on the vault back.
-
-    Without this the roof fire is a row of cones standing on nothing. What is actually alight up
-    there is the wreckage of the frame lying on the extrados.
-
-    They are small on purpose. The first pass used panels a few metres across, and at that size a
-    glowing surface stops reading as embers and becomes a lit slab -- from above the attic looked
-    like it had been paved. Coals have to be smaller than the flames they feed.
-
-    And they are deliberately not rotated. These are root meshes, so merge_animated_meshes joins
-    them into the frame of whichever one it makes active; a tilted frame then swings the other
-    hundred metres of the run through it, and the part's bounding box -- the number the preset
-    places by -- grows to a width the geometry never has. Measured: a 0.7 radian tilt turned a
-    10 m wide bed into a 105 m one. Shape variety comes from the sizes instead.
-    """
-    span = end_x - start_x
-    for index in range(count):
-        at = (index + 0.5) / count
-        across = half_width * 0.75 * sin(index * 2.7)
-        size = 0.5 + 0.55 * abs(cos(index * 1.9))
-        nd.cube(
-            f"{name}_coal_{index}_nocol_noshadow",
-            (start_x + span * at + 1.4 * cos(index * 3.1), across, height_z),
-            (size, size * (0.5 + 0.5 * abs(sin(index * 2.2))), 0.16),
-            mats["flame_tip"] if index % 3 else mats["flame_body"],
-        )
-
-
-def build_fire_breaches(scene, mats):
-    """One beat. Flame standing in the three holes the fire opened: the crossing, the north
-    transept arm, and the nave's north aisle bay.
-
-    They are placed at the rim of each breach rather than in the middle of it, because that is
-    where the draught is and because a flyable hole must stay flyable -- the light has to say
-    'this is where it burns' without the flame filling the way through.
-    """
-    mats = flame_materials(mats)
-    aisle_bay_x = nd.NAVE_START_X + nd.BAY_LENGTH * (nd.NAVE_BAYS - 0.5)
-    arm_y = (nd.NAVE_HALF_WIDTH + nd.TRANSEPT_HALF) / 2
-
-    # The crossing: the biggest hole and the one the spire came through, so the tallest flame.
-    for index, offset in enumerate((-4.6, 4.6)):
-        flame_cluster(
-            scene, f"FireCrossing{index}", mats,
-            center=(nd.CROSSING_CENTER_X + offset, 0, nd.NAVE_VAULT_Z - 1.0),
-            spread=2.6, height=7.5, count=8, beats=1, phase=index / 2,
-        )
-    # The north transept arm.
-    flame_cluster(
-        scene, "FireTransept", mats,
-        center=(nd.CROSSING_CENTER_X, arm_y, nd.NAVE_VAULT_Z - 2.5),
-        spread=3.2, height=5.5, count=8, beats=1, phase=1 / 3,
-    )
-    # The aisle bay, low and much smaller: this one is seen from inside, at eye level.
-    flame_cluster(
-        scene, "FireAisle", mats,
-        center=(aisle_bay_x, (nd.NAVE_HALF_WIDTH + nd.AISLE_OUTER) / 2, nd.AISLE_VAULT_Z - 1.0),
-        spread=2.2, height=3.4, count=6, beats=1, phase=2 / 3,
-    )
-
-
-def build_fire_attic(scene, mats):
-    """One beat. The roof fire itself, running the length of the open attic.
-
-    This is the piece that is seen from the river, so it is built along the whole vessel rather
-    than as one bonfire: a burning roof is a line of fire, and the silhouette of the building has
-    to be read against it. The clusters are phased across the length so the line ripples instead
-    of pulsing as one block.
-    """
-    mats = flame_materials(mats)
-    # Four clusters over the nave and three over the choir, not one per bay: every cluster costs
-    # one node per material it uses, and nine tongues in four places read as a burning roof just
-    # as well as seven in ten places while drawing less.
-    runs = (
-        (nd.NAVE_START_X, nd.NAVE_END_X, 4),
-        (nd.CHOIR_START_X, nd.CHOIR_END_X + nd.APSE_RADIUS * 0.6, 3),
-    )
-    group = 0
-    for start_x, end_x, count in runs:
-        span = end_x - start_x
-        # The bed of glow the tongues stand in, laid the length of the run.
-        ember_bed(
-            f"attic_glow_{group}", mats,
-            start_x=start_x, end_x=end_x, half_width=nd.CLERESTORY_HALF * 0.9,
-            height_z=nd.NAVE_VAULT_Z + 0.45, count=count * 3,
-        )
-        for index in range(count):
-            at = (index + 0.5) / count
-            flame_cluster(
-                scene, f"FireAttic{group}", mats,
-                center=(start_x + span * at, 0, nd.NAVE_VAULT_Z + 1.2),
-                spread=5.2, height=6.0 + 2.0 * abs(sin(group * 1.9)), count=9,
-                beats=1, phase=(group % 5) / 5,
-            )
-            group += 1
-
-
-def build_ember_column(scene, mats):
-    """Two beats. What rises off the crossing: a standing column of embers, drifting upward.
-
-    Each ember holds its own height on the column and climbs a share of the spacing over the loop,
-    growing as it goes and shrinking again at the top, where the next one has already taken its
-    place. That is what makes the column continuous: no ember has to wrap around the end of the
-    loop, which would interpolate backwards and rain the sparks back down.
-
-    The ends of that pulse are deliberately small rather than zero. A rig scaled to nothing at the
-    start frame collapses the part's bounding box to a point, and the loader places every model by
-    that box -- the whole column would be positioned off a single coordinate. At this height the
-    difference between a spark at 15% and one that is gone is not visible anyway.
-    """
-    mats = flame_materials(mats)
-    total_beats = 2
-    count = 12
-    column_height = 26.0
-    spacing = column_height / count
-    for index in range(count):
-        angle = index * (2 * pi / count) * 3.0
-        drift = 2.2 + 3.4 * (index % 4) / 3
-        base_height = spacing * index
-        origin = (nd.CROSSING_CENTER_X, 0.0, nd.NAVE_VAULT_Z)
-        rig = nd.empty(f"Ember{index}Rig", origin)
-        spark = nd.cube(
-            f"ember_{index}_nocol_noshadow", origin, (0.22, 0.22, 0.32), mats["ember"],
-        )
-        nd.parent_keep_world(spark, rig)
-
-        def key(at_loop, climb, scale):
-            # The rig carries the absolute position: a keyframed location replaces the one the
-            # empty was created with rather than adding to it.
-            reach = climb / column_height
-            nd.keyframe(
-                rig, nd.beat_frame(scene, at_loop * total_beats),
-                location=(origin[0] + drift * cos(angle) * reach,
-                          origin[1] + drift * sin(angle) * reach,
-                          origin[2] + climb),
-                scale=(scale, scale, scale),
-            )
-
-        # Higher embers are smaller: the column tapers, which is what reads as distance.
-        peak = 1.0 - 0.45 * (index / count)
-        for step in range(5):
-            at = step / 4
-            pulse = 0.15 + (peak - 0.15) * (0.5 - 0.5 * cos(at * 2 * pi))
-            key(at, base_height + spacing * at, pulse)
-
-
 # Each entry is (file stem, builder). The numbering continues the intact set so a directory
 # listing still reads west to east, with the debris as a new part of its own.
 ARCHITECTURE = (
@@ -526,13 +306,6 @@ ARCHITECTURE = (
     ("03_transept_burnt", build_transept_burnt),
     ("06_roof_burnt", build_roof_burnt),
     ("20_fleche_debris", build_fleche_debris),
-)
-
-# (file stem, clip name, loop seconds, builder). The clip name is what the runtime clock addresses.
-SETPIECES = (
-    ("30_fire_breaches", "FireBreachesLoop", 6, build_fire_breaches),
-    ("31_fire_attic", "FireAtticLoop", 6, build_fire_attic),
-    ("32_ember_column", "EmberColumnLoop", 12, build_ember_column),
 )
 
 
@@ -546,8 +319,6 @@ def main():
     nd.GLB_DIR = GLB_DIR
     for part in ARCHITECTURE:
         nd.export_part(*part)
-    for setpiece in SETPIECES:
-        nd.export_setpiece(*setpiece)
 
 
 if __name__ == "__main__":

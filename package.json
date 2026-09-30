@@ -7,10 +7,10 @@
   "scripts": {
     "dev": "vite",
     "git:hooks:install": "git config core.hooksPath .githooks",
-    "build": "vite build && node scripts/check-production-training-boundary.mjs dist",
-    "build:web": "vite build --mode web && node scripts/check-production-training-boundary.mjs dist",
+    "build": "node scripts/vite-build.mjs && node scripts/check-production-training-boundary.mjs dist",
+    "build:web": "node scripts/vite-build.mjs --mode web && node scripts/check-production-training-boundary.mjs dist",
     "build:app": "node scripts/build-app.mjs",
-    "build:game": "vite build --mode game && node scripts/check-game-build.mjs dist-game",
+    "build:game": "node scripts/vite-build.mjs --mode game && node scripts/check-game-build.mjs dist-game",
     "build:app:test": "node scripts/build-playwright-app.mjs",
     "preview": "vite preview",
     "browser:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./server.ps1",
@@ -73,6 +73,8 @@
     "bot:analyze": "node dev/training/scripts/bot-play-analysis.mjs",
     "bot:improve": "node dev/training/scripts/heuristic-improvement-loop.mjs",
     "bot:improve:auto": "node dev/training/scripts/heuristic-improvement-runner.mjs",
+    "bot:improve:check": "node dev/training/scripts/heuristic-improvement-loop.mjs --check-opponents",
+    "bot:improve:status": "node dev/training/scripts/heuristic-improvement-loop.mjs --status",
     "bot:improve:team": "node dev/training/scripts/team-objective-improvement-loop.mjs",
     "bot:improve:team:auto": "node dev/training/scripts/team-objective-improvement-runner.mjs",
     "bot:improve:team:status": "node dev/training/scripts/team-objective-improvement-loop.mjs --status",
@@ -107,6 +109,8 @@
   "dependencies": {
     "@capacitor/android": "8.5.2",
     "@capacitor/core": "8.5.2",
+    "@capacitor/filesystem": "8.1.3",
+    "@capacitor/share": "8.0.2",
     "mp4-muxer": "^5.2.2",
     "three": "^0.186.0"
   },

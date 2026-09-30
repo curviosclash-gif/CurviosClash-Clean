@@ -90,7 +90,8 @@ export class DandelionSeedRenderBatch {
                 mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
                 mesh.castShadow = bucket.some((entry) => entry.sourceMesh.castShadow === true);
                 mesh.receiveShadow = bucket.some((entry) => entry.sourceMesh.receiveShadow === true);
-                mesh.frustumCulled = false;
+                // Culling stays on: commit() refits the bounds to every instance it touched.
+                mesh.frustumCulled = true;
                 mesh.renderOrder = template.sourceMesh.renderOrder;
                 mesh.layers.mask = template.sourceMesh.layers.mask;
                 mesh.customDepthMaterial = template.sourceMesh.customDepthMaterial;
@@ -151,6 +152,7 @@ export class DandelionSeedRenderBatch {
         for (const mesh of this._dirtyMeshes) {
             mesh.instanceMatrix.needsUpdate = true;
             if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+            mesh.computeBoundingSphere();
         }
         this._dirtyMeshes.clear();
     }

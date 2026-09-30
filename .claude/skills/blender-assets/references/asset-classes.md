@@ -53,3 +53,5 @@ Vorlagen `generate_ancient_tree_asset.py` (+ `_variants.py`), `generate_giant_da
 ## Fahrzeuge
 
 Fahrzeuge entstehen im Vehicle-Lab (`prototypes/vehicle-lab/`), nicht per Blender-Generator. Wer trotzdem ein Fahrzeug in Blender baut: `src/entities/obj-vehicle-mesh.js` normiert die größte Kante auf 4,5; die Fahrtrichtung vorher an einem bestehenden Fahrzeug im Spiel nachmessen, nicht annehmen.
+
+Ein Fahrzeug-GLB lädt das Spiel noch nicht: `src/entities/vehicle-registry.js` kennt nur OBJ-Meshes (`OBJVehicleMesh`), Part-Konfigurationen (`RuntimeModularVehicleMesh`) und prozedurale Mesh-Klassen. Das Modell lässt sich trotzdem fertig bauen — für den Einbau braucht es zusätzlich eine GLB-Mesh-Klasse, einen Registry-Eintrag und einen Eintrag in `GLB_ONLY_MODEL_DIRS` (`dev/vite/productAssetCopyPlugin.js`), sonst fehlt die Datei im Build. Beispiel eines fertig gebauten, bewusst noch nicht eingebauten Modells: `assets/models/scifi_fighter` mit `tests/scifi-fighter-blender-assets.contract.test.mjs`.

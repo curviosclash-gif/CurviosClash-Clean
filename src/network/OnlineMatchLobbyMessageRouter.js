@@ -158,6 +158,7 @@ export function routeOnlineLobbyMessage(
         break;
 
     case SIGNALING_EVENT_TYPES.LOBBY_METADATA_UPDATED:
+    case SIGNALING_EVENT_TYPES.MATCH_ENDED:
         if (msg?.sessionState && typeof msg.sessionState === 'object') {
             lobby._applySessionState(msg.sessionState);
         }

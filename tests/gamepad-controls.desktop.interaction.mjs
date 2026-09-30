@@ -12,8 +12,9 @@ const requireElectron = createRequire(new URL('../electron/package.json', import
 test('desktop controller editor swaps bindings and persists them across reload', { timeout: 120_000 }, async () => {
     const lock = await acquirePlaywrightRunLock({ label: 'controller bindings desktop' });
     let app;
+    let artifacts;
     try {
-        const artifacts = await fs.mkdtemp(path.join(os.tmpdir(), 'curvios-controller-ui-'));
+        artifacts = await fs.mkdtemp(path.join(os.tmpdir(), 'curvios-controller-ui-'));
         let main = path.resolve('electron/main.cjs');
         if (process.env.CONTROLLER_BUILD_DIR) {
             // A private desktop shell keeps other sessions' dist-app untouched.
@@ -78,5 +79,10 @@ test('desktop controller editor swaps bindings and persists them across reload',
             await page.screenshot({ path: path.join(artifacts, `controller-${width}.png`) });
         }
         console.log(`Controller desktop QA: ${artifacts}`);
-    } finally { await app?.close(); lock.release(); }
+    } finally {
+        await app?.close();
+        // CURVIOS_KEEP_QA=1 keeps the profile and screenshots for a manual look.
+        if (artifacts && process.env.CURVIOS_KEEP_QA !== '1') await fs.rm(artifacts, { recursive: true, force: true, maxRetries: 5 });
+        lock.release();
+    }
 });

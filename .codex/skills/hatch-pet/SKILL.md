@@ -248,12 +248,13 @@ SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/hatch-pet"
   --brand-brief "<optional compact researched brand cue sentence>" \
   --brand-source "https://example.com/source" \
   --style-preset auto \
-  --style-notes "<optional freeform style notes>" \
-  --force
+  --style-notes "<optional freeform style notes>"
 ```
 
 All arguments above are optional except any flags needed to express user constraints. For text-only requests, pass the concept through `--pet-notes` and omit `--reference`; `prepare_pet_run.py` will infer a name, description, chroma key, and output directory as needed.
 For brand-only requests, run the discovery worker first, save the markdown brief, then pass the brief path through `--brand-discovery-file`, `avatar_seed` through `--pet-notes`, `brand_name` through `--brand-name`, `brand_brief` through `--brand-brief`, and each source URL through repeated `--brand-source`.
+
+The default preparation call must target a new or empty run directory. Never pass `--force` to resume an existing run: preparation rewrites `pet_request.json`, prompts, layout guides, and `imagegen-jobs.json`, resetting recorded job progress. Use `--force` only when the user explicitly requests regeneration of a disposable or separately preserved run directory.
 
 2. Inspect `imagegen-jobs.json` for the next ready `$imagegen` jobs. A job is ready when its `status` is not `complete` and every id in `depends_on` is already complete. Prefer reading the manifest directly with `jq` or the editor instead of adding helper scripts for status display:
 

@@ -1,6 +1,7 @@
 // ============================================
 
 import { createHuntNetworkState } from '../hunt/HuntNetworkState.js';
+import { createRoundOutcomeNetworkState } from '../entities/systems/RoundOutcomeNetworkState.js';
 import { isRocketTierType } from '../hunt/RocketPickupSystem.js';
 import { ROCKET_THREAT_SOURCES, resolveRocketThreatSource } from '../entities/systems/projectile/RocketThreatTracker.js';
 import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
@@ -72,6 +73,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
         frame: roundState?.frame ?? 0,
         players,
         projectiles,
+        explosionEvents: entityManager?.particles?.conventionalExplosionEffect?.serializeNetworkState?.() || [],
         powerups,
         turrets,
         repairDrones: entityManager?._repairDroneSystem?.serializeNetworkState?.() || null,
@@ -82,6 +84,8 @@ export function createGameStateSnapshot(entityManager, roundState) {
         dandelionSeeds: entityManager?.arena?.serializeDandelionSeeds?.() || null,
         sunflowerKernels: entityManager?.arena?.serializeSunflowerKernels?.() || null,
         fight: createHuntNetworkState(entityManager),
+        // Host round result for every mode; null while the round runs (see RoundOutcomeNetworkState).
+        roundOutcome: createRoundOutcomeNetworkState(entityManager),
         roundState: roundState ? {
             round: roundState.round ?? 0,
             timeRemaining: roundState.timeRemaining ?? 0,
@@ -120,6 +124,7 @@ export function serializePlayer(player) {
         // resolve itself (e.g. a rocket hit only the host simulates) - see StateReconciler.
         deathCause: typeof player.lastDeathCause === 'string' ? player.lastDeathCause : null,
         deathProjectileType: typeof player.lastDeathProjectileType === 'string' ? player.lastDeathProjectileType : null,
+        deathExplosionProfile: typeof player.lastDeathExplosionProfile === 'string' ? player.lastDeathExplosionProfile : null,
         pos: vecToArray(player.position),
         rot: quatToArray(player.quaternion),
         vel: vecToArray(player.velocity),

@@ -5,6 +5,11 @@ import { PLATFORM_PRODUCT_SURFACE_IDS, resolveSurfaceCapabilityAccess } from '..
 import { PLATFORM_SURFACE_FEATURE_CLASSIFICATIONS, PLATFORM_SURFACE_FEATURE_IDS, resolveSurfaceBlockedFeatureFeedback, resolveSurfaceFeatureClassification } from '../../shared/contracts/PlatformSurfacePolicyOps.js';
 import { createBrowserSaveAdapter } from '../../platform/browser/BrowserPlatformAdapters.js';
 import {
+    downloadBlobViaAnchor,
+    isCapacitorNativePlatform,
+    shareBlobAsNativeFile,
+} from '../../platform/browser/BrowserFileExport.js';
+import {
     createElectronPreloadSaveAdapter,
     resolveElectronRuntimeSnapshot,
 } from '../../platform/electron/ElectronPlatformBridge.js';
@@ -121,30 +126,16 @@ function isSupportedDesktopSaveAdapterContract(adapter) {
 }
 
 /**
- * Triggers a browser anchor-click download for the given Blob.
+ * Triggers a browser anchor-click download for the given Blob; the Android app
+ * hands the file to the share sheet instead.
  * @param {{ blob: Blob, fileName: string, globalScope?: typeof globalThis }} params
  */
 export function defaultDownload({ blob, fileName, globalScope = globalThis }) {
-    const doc = globalScope?.document ?? null;
-    const urlApi = globalScope?.URL ?? globalThis.URL;
-    if (!doc || !blob || !fileName || typeof urlApi?.createObjectURL !== 'function') return;
-    const anchor = doc.createElement?.('a');
-    if (!anchor || typeof anchor.click !== 'function') return;
-    const body = doc.body;
-    if (!body || typeof body.appendChild !== 'function') return;
-    const url = urlApi.createObjectURL(blob);
-    anchor.href = url;
-    anchor.download = fileName;
-    anchor.rel = 'noopener';
-    anchor.style.display = 'none';
-    body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    globalScope?.setTimeout?.(() => {
-        if (typeof urlApi?.revokeObjectURL === 'function') {
-            urlApi.revokeObjectURL(url);
-        }
-    }, 0);
+    if (isCapacitorNativePlatform(globalScope)) {
+        void shareBlobAsNativeFile({ blob, fileName, runtimeGlobal: globalScope });
+        return;
+    }
+    downloadBlobViaAnchor({ blob, fileName, runtimeGlobal: globalScope });
 }
 
 /**

@@ -19,6 +19,11 @@ import {
     toNonNegativeInt,
     toNonNegativeNumber,
 } from './TelemetryHistoryEntry.js';
+import { ROUND_CONTROL_SOURCES, resolveRoundControlSource } from '../../shared/contracts/RoundControlContract.js';
+
+function createControlSourceCounts() {
+    return { human: 0, idle: 0, automation: 0, unknown: 0 };
+}
 
 // Nur Map-Buckets fuehren Heatmaps zusammen: dieselbe Weltkoordinate bedeutet ueber
 // zwei verschiedene Maps hinweg nichts, ueber zwei Runden derselben Map dagegen alles.
@@ -54,6 +59,10 @@ export function createEmptyTelemetryHistorySummary() {
         humanWinRate: 0,
         botWinRate: 0,
         averageDuration: 0,
+        // Trennt echtes Spiel von unbedientem Fenster und Werkzeuglauf; ohne
+        // diese Zahlen liest sich jede Siegquote zu guenstig.
+        controlSourceCounts: createControlSourceCounts(),
+        humanControlledRounds: 0,
         selfCollisionsPerRound: 0,
         itemUsesPerRound: 0,
         itemUsesWithoutMgPerRound: 0,
@@ -119,6 +128,7 @@ export function computeTelemetryHistorySummary(rows) {
     let arcadeSectors = 0;
     let arcadeMissionsCompleted = 0;
     let arcadeMissionsTotal = 0;
+    const controlSourceCounts = createControlSourceCounts();
 
     for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
@@ -161,6 +171,8 @@ export function computeTelemetryHistorySummary(rows) {
         if (r.winnerType === 'human') humanWins += 1;
         if (r.winnerType === 'bot') botWins += 1;
 
+        controlSourceCounts[resolveRoundControlSource(r)] += 1;
+
         const mk = sanitizeString(r.mapKey, 'unknown');
         mapCounts[mk] = (mapCounts[mk] || 0) + 1;
 
@@ -179,6 +191,8 @@ export function computeTelemetryHistorySummary(rows) {
         humanWinRate: rounds > 0 ? humanWins / rounds : 0,
         botWinRate: rounds > 0 ? botWins / rounds : 0,
         averageDuration: rounds > 0 ? totalDuration / rounds : 0,
+        controlSourceCounts: { ...controlSourceCounts },
+        humanControlledRounds: controlSourceCounts[ROUND_CONTROL_SOURCES.HUMAN],
         selfCollisionsPerRound: rounds > 0 ? totalSelfCollisions / rounds : 0,
         itemUsesPerRound: rounds > 0 ? totalItemUses / rounds : 0,
         mgFireMeasuredRounds,

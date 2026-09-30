@@ -1,5 +1,5 @@
 const ROOM_HALF = 17;
-const FLOOR = -17;
+const FLOOR = -29;
 const CEILING = -5;
 const WALL = 1;
 const MID_Y = (FLOOR + CEILING) / 2;
@@ -16,9 +16,17 @@ export const STORM_LIGHTHOUSE_SECRET_ROOM_OBSTACLES = Object.freeze([
 ].map((box) => Object.freeze({ ...box, kind: 'hard', renderWithGlb: true, compileWithGlb: true })));
 
 const ITEMS = Object.freeze([
-    [-10, -11, -10], [10, -11, -10], [10, -11, 10], [-10, -11, 10],
-    [0, -9, 0], [-7, -9, 0], [7, -9, 0], [0, -9, 7], [0, -9, -7],
-].map((pos) => Object.freeze({ pos: Object.freeze(pos) })));
+    ...[
+        [-10, -11, -10], [10, -11, -10], [10, -11, 10], [-10, -11, 10],
+        [0, -9, 0], [-7, -9, 0], [7, -9, 0], [0, -9, 7], [0, -9, -7],
+    ].map((pos) => ({ pos })),
+    // The prizes every secret room holds (user decision 28.09.2026).
+    { pos: [0, -11, -13], type: 'BOMBER_STRIKE' },
+    { pos: [0, -11, 13], type: 'LIGHTNING' },
+].flatMap((item) => [
+    item,
+    { ...item, pos: [item.pos[0], item.pos[1] - HEIGHT / 2, item.pos[2]] },
+]).map(({ pos, type }) => Object.freeze({ pos: Object.freeze(pos), ...(type ? { type } : {}) })));
 
 export const STORM_LIGHTHOUSE_SECRET_ROOM = Object.freeze({
     id: 'lighthouse_vault',

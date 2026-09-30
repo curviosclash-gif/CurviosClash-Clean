@@ -54,6 +54,11 @@ export function serializeMapUnits(units) {
         } : {}),
         ...(unit.kind === 'swarm' ? {
             members: unit.members.map((member) => ({ alive: member.alive === true, hp: round(member.hp, 10) })),
+            diveOffsets: unit.members.map((member) => (
+                member.offset.distanceToSquared(member.homeOffset) > 0.000001
+                    ? [round(member.offset.x), round(member.offset.y), round(member.offset.z)]
+                    : null
+            )),
         } : {}),
         ...(unit.hydra ? { hydra: {
             action: unit.hydra.action,
@@ -162,6 +167,15 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
             }
             unit.hp = totalHp;
             if (unit.source) unit.source.alive = unit.alive;
+            if (Array.isArray(entry.diveOffsets)) {
+                for (let index = 0; index < unit.members.length; index += 1) {
+                    const member = unit.members[index];
+                    const offset = entry.diveOffsets[index];
+                    if (Array.isArray(offset) && offset.length === 3) {
+                        member.offset.set(Number(offset[0]) || 0, Number(offset[1]) || 0, Number(offset[2]) || 0);
+                    } else member.offset.copy(member.homeOffset);
+                }
+            }
         }
         if (unit.hydra) {
             const hydra = entry.hydra || {};
@@ -169,7 +183,7 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
             unit.hydra.phase = ['idle', 'warning', 'active'].includes(hydra.phase) ? hydra.phase : 'idle';
             unit.hydra.head = Math.max(0, Math.min(5, Math.trunc(Number(hydra.head) || 0)));
             unit.hydra.event = Math.max(0, Math.trunc(Number(hydra.event) || 0));
-            unit.hydra.moving = unit.hydra.phase === 'idle';
+            unit.hydra.moving = unit.hydra.phase === 'idle' && unit.speed > 0;
             if (Array.isArray(hydra.direction)) unit.hydra.direction.set(
                 Number(hydra.direction[0]) || 0,
                 Number(hydra.direction[1]) || 0,
@@ -199,6 +213,7 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
             // Only the picture: damage, loot and credit already happened on the host.
             system.entityManager?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, {
                 cause: 'PROJECTILE', projectileType: unit.hydra ? 'HYDRA_DEATH' : 'ROCKET_HEAVY',
+                kind: unit.kind === 'bomber' ? 'bomber-crash' : unit.hydra ? 'death' : 'ground-unit', large: unit.scale >= 1,
             });
             spawnMapUnitWreck(system, unit);
         }

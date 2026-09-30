@@ -195,6 +195,8 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         await expect(page.locator('#quick-last-summary')).toHaveText(quickStartBeforeTutorial);
     } finally {
         await app.close();
+        // CURVIOS_KEEP_QA=1 keeps the profile and screenshots for a manual look.
+        if (process.env.CURVIOS_KEEP_QA !== '1') await fs.rm(artifacts, { recursive: true, force: true, maxRetries: 5 });
     }
 });
 
@@ -288,5 +290,6 @@ test('desktop LAN lobby creates, joins, readies, starts and leaves through menu 
         }
     } finally {
         for (const app of apps.reverse()) await app.close();
+        if (process.env.CURVIOS_KEEP_QA !== '1') await fs.rm(artifacts, { recursive: true, force: true, maxRetries: 5 });
     }
 });

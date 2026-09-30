@@ -156,6 +156,31 @@ export function createBrowserSaveAdapter(options = {}) {
     });
 }
 
+/**
+ * Opens the hangar by navigating the current page (Android WebView has no second window).
+ * The hangar page returns to the menu through its own close button.
+ */
+export function createBrowserPageHangarAdapter(runtimeGlobal = globalThis) {
+    const location = runtimeGlobal?.location;
+    const available = typeof location?.assign === 'function';
+    const openWindow = available
+        ? async (options = {}) => {
+            const mode = options?.mode === 'fight' ? 'fight' : 'arcade';
+            location.assign(`hangar.html?mode=${mode}`);
+            return { ok: true, mode };
+        }
+        : null;
+    return Object.freeze({
+        adapterName: 'browser.page.hangar.v1',
+        contractVersion: 'browser.page.hangar.v1',
+        isAvailable: () => available,
+        openWindow,
+        getStatus: null,
+        closeWindow: null,
+        setUnsavedChanges: null,
+    });
+}
+
 export function createBrowserRecordingAdapter(options = {}) {
     const available = options.available === true;
     const supportsCapture = options.supportsCapture === true || available;

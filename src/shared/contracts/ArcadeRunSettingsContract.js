@@ -7,6 +7,7 @@ import {
 import { ARENA_WAVES_COMBAT_PROFILE, ARENA_WAVES_RUN_TYPE, isArenaWavesRunType, normalizeArenaWavesCombatProfile } from './ArenaWavesContract.js';
 import { FIVE_PORTALS_COMBAT_PROFILE, FIVE_PORTALS_RUN_TYPE, isFivePortalsRunType } from './FivePortalsContract.js';
 import { WEAPON_RACE_RUN_TYPE, isWeaponRaceRunType } from './WeaponRaceContract.js';
+import { DEFAULT_PORTAL_CHAIN_ID, normalizePortalChainId } from './PortalChainContract.js';
 
 // Persisted arcade run settings: the single source for the shape and the ranges.
 // Both the settings sanitizer (what survives a save) and the runtime config
@@ -42,12 +43,15 @@ const DEFAULTS = Object.freeze({
     dailyChallenge: false,
     // Arcade-only run tier "Albtraum": the sector plan uses the nightmare scale.
     nightmare: false,
+    // Which fixed map chain a "five_portals" run plays (Fünf Portale, Himmelsleiter, ...).
+    // Only meaningful when runType is FIVE_PORTALS_RUN_TYPE; ignored otherwise.
+    portalChainId: DEFAULT_PORTAL_CHAIN_ID,
 });
 
 /** @typedef {{ profileId: string, runType: string, combatProfile: string, scoreModel: string,
  * seed: number, sectorCount: number, intermissionSeconds: number, comboWindowMs: number,
  * comboDecayPerSecond: number, maxMultiplier: number, replayHooksEnabled: boolean,
- * dailyChallenge: boolean, nightmare: boolean }} ArcadeRunSettings */
+ * dailyChallenge: boolean, nightmare: boolean, portalChainId: string }} ArcadeRunSettings */
 
 function clampNumber(value, range, fallback) {
     const parsed = Number(value);
@@ -119,6 +123,7 @@ export function normalizeArcadeRunSettings(source) {
         replayHooksEnabled: input.replayHooksEnabled !== false,
         dailyChallenge: input.dailyChallenge === true,
         nightmare: input.nightmare === true,
+        portalChainId: normalizePortalChainId(input.portalChainId),
     };
 }
 

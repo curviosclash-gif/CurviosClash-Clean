@@ -8,12 +8,13 @@ import {
     readFileSync,
     realpathSync,
     renameSync,
+    rmSync,
     symlinkSync,
     writeFileSync,
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 
 import {
     buildEditorMapDiskFiles,
@@ -31,8 +32,19 @@ const {
     toEditorMapKey,
 } = require('../electron/editor-map-store.cjs');
 
+const tempDirectories = [];
+after(() => {
+    for (const directory of tempDirectories) rmSync(directory, { recursive: true, force: true });
+});
+
+function makeTempDirectory(prefix) {
+    const directory = mkdtempSync(path.join(os.tmpdir(), prefix));
+    tempDirectories.push(directory);
+    return directory;
+}
+
 function createStore() {
-    const directory = mkdtempSync(path.join(os.tmpdir(), 'curvios-editor-map-store-'));
+    const directory = makeTempDirectory('curvios-editor-map-store-');
     const opened = [];
     const store = createEditorMapStore({
         getMapsDirectory: () => directory,
@@ -270,7 +282,7 @@ test('a failed save leaves the previous map untouched and drops its temporary fi
 });
 
 test('a symlinked target file is refused instead of followed', () => {
-    const directory = mkdtempSync(path.join(os.tmpdir(), 'curvios-editor-map-link-'));
+    const directory = makeTempDirectory('curvios-editor-map-link-');
     // Windows vergibt Dateiverknuepfungen nur mit erhoehten Rechten, deshalb
     // wird die Verknuepfung hier gemeldet statt angelegt.
     const store = createEditorMapStore({
@@ -319,7 +331,7 @@ test('reading skips linked and oversized files instead of following them', () =>
 });
 
 test('a junction below the user data folder stays the boundary the check uses', (t) => {
-    const root = mkdtempSync(path.join(os.tmpdir(), 'curvios-editor-map-junction-'));
+    const root = makeTempDirectory('curvios-editor-map-junction-');
     const realDirectory = path.join(root, 'real-maps');
     mkdirSync(realDirectory, { recursive: true });
     const junction = path.join(root, 'maps');
@@ -363,7 +375,7 @@ test('listing ignores foreign files and stops at the map limit', () => {
 });
 
 test('opening the maps folder creates it and reports the directory it opened', async () => {
-    const directory = path.join(mkdtempSync(path.join(os.tmpdir(), 'curvios-editor-map-open-')), 'maps');
+    const directory = path.join(makeTempDirectory('curvios-editor-map-open-'), 'maps');
     const opened = [];
     const store = createEditorMapStore({
         getMapsDirectory: () => directory,

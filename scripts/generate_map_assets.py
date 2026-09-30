@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 GENERATORS = {
     'chrono_forge': 'generate_chrono_forge_blender_assets',
     'kinetic_tide': 'generate_kinetic_tide_assets',
+    'neon_carnival': 'generate_neon_carnival_assets',
     'verdant_aperture': 'generate_verdant_aperture_assets',
     'aetherion_orrery': 'generate_aetherion_orrery_assets',
     'notre_dame': 'generate_notre_dame_assets',
@@ -17,8 +18,10 @@ GENERATORS = {
     'eiffel_tower': 'generate_eiffel_tower_assets',
     'eiffel_tower_siege': 'generate_eiffel_tower_siege_assets',
     'reactor_site': 'generate_reactor_site_assets',
+    'orbital_shipyard': 'generate_orbital_shipyard_assets',
     'giant_forest': 'generate_giant_forest_assets',
     'hydra_temple': 'generate_hydra_temple_assets',
+    'toybox_titan': 'generate_toybox_titan_assets',
     'burg_falkenwacht': 'generate_falkenwacht_assets',
     'storm_bridge_siege': 'generate_wave6_landmark_assets',
     'storm_lighthouse_siege': 'generate_wave6_landmark_assets',
@@ -29,7 +32,7 @@ GENERATORS = {
     'chrono_forge_nexus': 'generate_map_world',
     'maze': 'generate_map_world',
     'complex': 'generate_map_world',
-    'pyramid': 'generate_map_world',
+    'pyramid': 'generate_pyramid_map_assets',
     'vertical_maze': 'generate_map_world',
     'trench': 'generate_map_world',
 }

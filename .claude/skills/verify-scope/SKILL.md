@@ -54,6 +54,16 @@ Beleg ist die letzte Zeile des Laufs:
 
 Halte nach dem ersten echten Fehlschlag an, behebe ihn und starte ab dem fehlgeschlagenen Befehl erneut.
 
+**Sammellauf.** Sind mehrere Branches fertig, läuft Stufe 3 einmal auf ihrem zusammengeführten Stand statt einmal je Branch. Der Ablauf steht in `CLAUDE.md` unter „Sammellauf“. Den Befehl und die Verdächtigen je Cluster liefert:
+
+```bash
+node .claude/skills/verify-scope/scripts/select-verification.mjs --batch claude/hud-fix claude/new-map
+```
+
+`--base=<ref>` ändert die Vergleichsbasis (Standard `main`). Wird ein Cluster rot, kommen nur die dort genannten Branches als Ursache in Frage.
+
+**`desktop-flows` nach Karte.** Berührt eine Änderung nur Kartendateien (Preset-Ordner oder -Datei, eigener Asset-Ordner), steht in Stufe 3 statt des Clusters `run-playwright-targeted.mjs` mit den Specs dieser Karten und allen ungebundenen Specs. Das spart bei einer einzelnen Karte etwa 40 % der Clusterzeit. Geteilter Code und unklare Fälle fahren weiter den ganzen Cluster; die Regeln stehen in `CLAUDE.md` unter „`desktop-flows` nach Karte“.
+
 ## Schritt 3 — Alt-Fehler benennen, nicht verschweigen
 
 Mehrere Playwright-Cluster tragen Fehler, die es vor deiner Änderung schon gab. Sie stehen jetzt im Repo: `scripts/architecture/playwright-known-failures.json`. Jeder Eintrag nennt Spec, Testtitel, Datum, Ursache und Art; `--skip-known` blendet genau diese Tests aus, damit eine serielle Kette bis zum Ende läuft.

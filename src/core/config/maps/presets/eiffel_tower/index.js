@@ -143,8 +143,8 @@ export const EIFFEL_TOWER_MAPS = {
             { x: -BASE_SPREAD, y: GROUND + 20, z: -BASE_SPREAD },
             { x: FIRST_SPREAD, y: FIRST_DECK + 8, z: -FIRST_SPREAD },
             { x: -FIRST_SPREAD, y: FIRST_DECK + 8, z: FIRST_SPREAD },
-            { x: 0, y: SECOND_DECK + 10, z: 0 },
-            { x: 0, y: TOP_DECK + 8, z: 0 },
+            { x: 0, y: SECOND_DECK + 10, z: -9 },
+            { x: 0, y: TOP_DECK + 8, z: -20 },
         ],
         missions: [
             { type: 'NO_DAMAGE', params: {}, weight: 1.0 },

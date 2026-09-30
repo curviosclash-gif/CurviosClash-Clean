@@ -37,6 +37,7 @@ export class EntityTickPipeline {
         owner._railgunSystem?.update?.(safeDt);
         owner._exclusionZoneSystem?.update?.(safeDt);
         owner._mapDestructibleSystem?.updateFeedback?.();
+        owner._mapOwnedPickupSystem?.update?.();
         owner._mapDestructibleBlastSystem?.update?.();
         owner._waterZoneSystem?.update?.(safeDt);
         // Before the projectiles: a portal that opens this tick has to take their shots too.
@@ -61,11 +62,10 @@ export class EntityTickPipeline {
                 return;
             }
 
-            owner.audio?.syncEngineFromPlayers?.(owner.players, {
-                localPlayerIndex: owner.renderer?.viewportSystem?.localPlayerIndex,
-            });
             const ambienceOptions = this._mapAmbienceOptions;
             ambienceOptions.localPlayerIndex = owner.renderer?.viewportSystem?.localPlayerIndex;
+            ambienceOptions.localHumanCount = owner.renderer?.viewportSystem?.localHumanCount;
+            owner.audio?.syncEngineFromPlayers?.(owner.players, ambienceOptions);
             ambienceOptions.mapDefinition = owner.arena?.currentMapDefinition;
             ambienceOptions.fireProgress = owner.arena?.mapFireProgress;
             ambienceOptions.mapScale = owner.entityRuntimeConfig?.ARENA?.MAP_SCALE;

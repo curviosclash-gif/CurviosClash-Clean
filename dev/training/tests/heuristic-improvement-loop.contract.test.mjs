@@ -7,7 +7,11 @@ import os from 'node:os';
 import path from 'node:path';
 
 const sourceUrl = new URL('../scripts/heuristic-improvement-loop.mjs', import.meta.url);
-const source = fs.readFileSync(sourceUrl, 'utf8');
+// The loop orchestrates; one benchmark match lives in its own module so workers can run it.
+const source = [
+    fs.readFileSync(sourceUrl, 'utf8'),
+    fs.readFileSync(new URL('../scripts/heuristic-improvement-match.mjs', import.meta.url), 'utf8'),
+].join('\n');
 
 test('heuristic improvement loop reuses the booted headless match lifecycle', () => {
     const entityManagerIndex = source.indexOf('const em = runtime.session.entityManager;');
@@ -28,7 +32,7 @@ test('heuristic improvement loop records candidate and baseline death causes and
 });
 
 test('heuristic coordinate ascent evaluates the accumulated candidate profile', () => {
-    assert.match(source, /const fields = perturb\(current, field, direction\);/);
+    assert.match(source, /\.map\(\(direction\) => perturb\(current, field, direction\)\)/);
     assert.match(source, /state\.profiles\[profile\] = selected\.fields;/);
 });
 
@@ -36,7 +40,7 @@ test('heuristic candidate injection preserves the complete named profile', () =>
     assert.match(source, /const result = \{ \.\.\.baseProfile \};/);
     assert.match(source, /clampProfile\(profile, candidateFields\)/);
     assert.match(source, /clampScalar\(field, source\[field\], baseProfile\[field\]\)/);
-    assert.match(source, /bot\.ai\.profile = baselineFields/);
+    assert.match(source, /if \(opponentFields\) bot\.ai\.profile = opponentFields;/);
     assert.match(source, /benchmark profile injection lost/);
 });
 
@@ -57,9 +61,7 @@ test('heuristic improvement loop separates coarse training from rotated holdout 
     assert.match(source, /HOLDOUT_SEEDS = Object\.freeze\(\[3, 7, 11, 17, 23, 31, 41, 53, 67, 79, 97, 113\]\)/);
     assert.match(source, /coarseSlots = \[\.\.\.new Set\(\[0, Math\.max\(0, NUM_BOTS - 1\)\]\)\]/);
     assert.match(source, /fullSlots = Array\.from\(\{ length: NUM_BOTS \}/);
-    assert.match(source, /isStrictlyBetterOnBoth\(fullCandidate, fullCurrent\)/);
-    assert.match(source, /candidate\.survivalRatio > current\.survivalRatio \+ MIN_CONFIRMED_GAIN/);
-    assert.match(source, /candidate\.killRatio > current\.killRatio \+ MIN_CONFIRMED_GAIN/);
+    assert.match(source, /verdict = judgeCandidate\(fullCandidate, fullCurrent\)/);
     assert.match(source, /state\.holdoutCache\[profile\]\?\.key === currentCacheKey/);
     assert.match(source, /holdoutCacheKey\(current, HOLDOUT_SEEDS, fullSlots, FULL_MAX_TICKS\)/);
     assert.match(source, /JSON\.stringify\(\[BENCHMARK_FINGERPRINT, fields, seeds, slots, maxTicks\]\)/);
@@ -126,6 +128,57 @@ test('match replay is stable for one seed and changes for another seed', () => {
     const other = replay(139);
     assert.deepEqual(replay(127, '--replay-product'), replay(127, '--replay-product'));
     assert.equal(first.matchSeed, 127);
+    assert.ok(Number.isFinite(first.candidateDamage) && first.candidateDamage >= 0);
+    assert.ok(Number.isFinite(first.baselineDamage) && first.baselineDamage >= 0);
     assert.equal(other.matchSeed, 139);
     assert.notEqual(first.endPositionSignature, other.endPositionSignature);
+});
+
+test('heuristic improvement loop measures engagement and gates every accept on it', () => {
+    assert.match(source, /engagement\.record\(player\?\.index, action, this\._safetyState\?\.state\)/);
+    assert.match(source, /candidateSafetyShare: sums\.candidateUpdates > 0/);
+    assert.match(source, /if \(verdict\.accepted && retainsHeuristicEngagement\(fullCandidate\)\)/);
+    assert.match(source, /: verdict\.accepted && retainsHeuristicEngagement\(result\)/);
+    assert.match(source, /if \(!retainsHeuristicEngagement\(result\)\) continue;/);
+    assert.match(source, /candidateShotsPerMatch: result\.candidateShotsPerMatch/);
+});
+
+test('heuristic benchmark matches run on simulated time and restore the real clock', () => {
+    assert.match(source, /performance\.now = \(\) => simulatedNowMs;/);
+    assert.match(source, /Date\.now = \(\) => simulatedNowMs;/);
+    assert.match(source, /simulatedNowMs = SIMULATED_CLOCK_ORIGIN_MS \+ frame \* FIXED_STEP \* 1000;\n\s*runtime\.step\(inputFrame, tickOptions\);/);
+    assert.match(source, /Date\.now = originalDateNow;\n\s*performance\.now = originalPerformanceNow;/);
+    assert.match(source, /verifyHeuristicBenchmarkArena\(em\.arena, setup\.mapKey\);/);
+    assert.match(source, /baseConfig: HEURISTIC_BENCHMARK_BASE_CONFIG/);
+});
+
+test('heuristic evaluation runs its matches through the worker pool in job order', () => {
+    assert.match(source, /const results = await matchPool\.runMatches\(jobs\);/);
+    assert.match(source, /for \(const \[index, result\] of results\.entries\(\)\)/);
+    assert.match(source, /await matchPool\.close\(\)/);
+});
+
+test('opponent check plays the search profile against product profiles and the standard Hunt bot', () => {
+    const statePath = path.join(os.tmpdir(), `heuristic-opponents-test-${process.pid}.json`);
+    try {
+        const child = spawnSync(process.execPath, [fileURLToPath(sourceUrl), '--check-opponents', 'balanced', 'product,hunt'], {
+            env: {
+                ...process.env,
+                HEURISTIC_LOOP_MAX_TICKS: '60',
+                HEURISTIC_LOOP_NUM_BOTS: '2',
+                HEURISTIC_LOOP_STATE_PATH: statePath,
+            },
+            encoding: 'utf8',
+            timeout: 120000,
+        });
+        assert.equal(child.status, 0, child.stderr);
+        assert.match(child.stdout, /profile=balanced opponent=product survivalRatio=\S+ killRatio=\S+ damageRatio=\S+/);
+        assert.match(child.stdout, /profile=balanced opponent=hunt survivalRatio=\S+ killRatio=\S+ damageRatio=\S+/);
+        assert.doesNotMatch(child.stdout, /opponent=baseline/);
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+        assert.deepEqual(Object.keys(state.opponentChecks.balanced.results), ['product', 'hunt']);
+        assert.ok(Number.isFinite(state.opponentChecks.balanced.results.hunt.kills));
+    } finally {
+        fs.rmSync(statePath, { force: true });
+    }
 });

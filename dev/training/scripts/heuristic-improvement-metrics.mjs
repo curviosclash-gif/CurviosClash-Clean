@@ -29,3 +29,29 @@ export function createHeuristicLifeTracker() {
         },
     };
 }
+
+const SAFETY_STATES = new Set(['evade', 'recover']);
+// A candidate may not evade more than the unchanged baseline bots it plays against.
+// Anchoring on the baseline (not on the last accepted candidate) keeps small steps from adding up.
+const SAFETY_SHARE_TOLERANCE = 0.03;
+
+export function createHeuristicEngagementTracker() {
+    const rows = new Map();
+    return {
+        record(playerIndex, action, safetyState) {
+            let row = rows.get(playerIndex);
+            if (!row) rows.set(playerIndex, row = { updates: 0, safetyUpdates: 0, shots: 0 });
+            row.updates += 1;
+            if (SAFETY_STATES.has(safetyState)) row.safetyUpdates += 1;
+            if (action?.shootMG || action?.shootRocket || action?.shootItem) row.shots += 1;
+        },
+        totals(playerIndex) {
+            const row = rows.get(playerIndex);
+            return row ? { ...row } : { updates: 0, safetyUpdates: 0, shots: 0 };
+        },
+    };
+}
+
+export function retainsHeuristicEngagement(result) {
+    return Number(result?.candidateSafetyShare) <= Number(result?.baselineSafetyShare) + SAFETY_SHARE_TOLERANCE;
+}

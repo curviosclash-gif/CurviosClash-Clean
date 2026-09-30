@@ -1,4 +1,5 @@
 import { persistHangarVehicleSelection } from './HangarWindowSettingsSync.js';
+import { saveBlobAsUserFile } from '../../platform/browser/BrowserFileExport.js';
 /* eslint-disable max-lines -- Hangar lifecycle wiring stays in one controller. */
 import {
     getVehicleManagerInteractionRules,
@@ -695,12 +696,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         const selected = persistence.getBuild(presetSelect.value);
         if (!selected) return;
         const blob = new Blob([JSON.stringify({ schemaVersion: persistence.version, builds: [selected] }, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = `${selected.name.replace(/[^a-z0-9_-]+/gi, '-')}.hangar.json`;
-        anchor.click();
-        URL.revokeObjectURL(url);
+        void saveBlobAsUserFile({ blob, fileName: `${selected.name.replace(/[^a-z0-9_-]+/gi, '-')}.hangar.json` });
     });
     bind(presetImport, 'click', () => {
         const input = document.createElement('input');

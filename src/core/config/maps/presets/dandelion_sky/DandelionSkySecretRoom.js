@@ -8,7 +8,7 @@ import {
 } from '../glowing_mushrooms.js';
 
 const ROOM_HALF = 22;
-const ROOM_FLOOR = -18;
+const ROOM_FLOOR = -32;
 const ROOM_CEILING = -4;
 const WALL = 1;
 const SHELL_HALF = ROOM_HALF + WALL;
@@ -34,7 +34,7 @@ export const DANDELION_SKY_ROOT_CHAMBER_OBSTACLES = Object.freeze([
 // dark. Teal carries the entry portal's colour down into the room; the violet brackets keep the
 // walls from reading as one flat tone.
 //
-// The render distance is short on purpose. The chamber sits at y=-11 while the match plays
+// The render distance is short on purpose. The chamber sits below y=-4 while the match plays
 // between y=29 and y=250, so at this distance the mushrooms are drawn for whoever is inside and
 // for nobody else, even though the models load with the map like everything else.
 const MUSHROOM_RENDER_DISTANCE = 55;
@@ -105,10 +105,13 @@ export const DANDELION_SKY_ROOT_CHAMBER_MODELS = Object.freeze([
 const MG_GUARD = Object.freeze({ weapon: 'mg', damage: 2, cooldown: 1.3 });
 const ROCKET_GUARD = Object.freeze({ weapon: 'rocket', rocketType: 'ROCKET_WEAK', cooldown: 6 });
 
+// The guards stand about 80 units from the entry portal, well inside their 150 range, so a
+// visitor is under fire from every side of the approach, not only from the gun he flies past.
+// They only appear once the crown is bare, so standing where the seeds hung is free.
 export const DANDELION_SKY_ROOT_CHAMBER_TURRETS = Object.freeze([
-    { ...MG_GUARD, id: 'dandelion_root_mg_west', pos: [-100, 280, 0] },
-    { ...MG_GUARD, id: 'dandelion_root_mg_east', pos: [175, 280, 0] },
-    { ...ROCKET_GUARD, id: 'dandelion_root_rocket_south', pos: [39, 280, 135] },
+    { ...MG_GUARD, id: 'dandelion_root_mg_west', pos: [-41, 305, 0] },
+    { ...MG_GUARD, id: 'dandelion_root_mg_east', pos: [119, 305, 0] },
+    { ...ROCKET_GUARD, id: 'dandelion_root_rocket_south', pos: [39, 305, 80] },
 ].map((turret) => Object.freeze({
     ...turret,
     range: 150,
@@ -130,7 +133,13 @@ const ITEMS = Object.freeze([
     { pos: [0, -11, 16], type: 'HEALTH' },
     { pos: [-16, -11, 0], type: 'ROCKET_MEDIUM' },
     { pos: [16, -11, 0], type: 'SPEED_UP' },
-]);
+    // The prizes every secret room holds (user decision 28.09.2026).
+    { pos: [0, -8, -8], type: 'BOMBER_STRIKE' },
+    { pos: [0, -8, 8], type: 'LIGHTNING' },
+].flatMap((item) => [
+    item,
+    { ...item, pos: [item.pos[0], item.pos[1] - ROOM_HEIGHT / 2, item.pos[2]] },
+]));
 
 export const DANDELION_SKY_ROOT_CHAMBER = Object.freeze({
     id: 'root_chamber',

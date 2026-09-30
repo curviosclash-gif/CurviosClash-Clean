@@ -19,9 +19,10 @@ import {
     buildGameplayActionResult,
 } from '../../shared/contracts/GameplayActionResultContract.js';
 import { shootPlayerItemProjectile } from './projectile/PlayerProjectileFireOps.js';
-import { applyGuidedRocketInput } from './projectile/GuidedRocketControlOps.js';
+import { applyGuidedOwnerInput, findGuidedRocketForOwner } from './projectile/GuidedRocketControlOps.js';
 import { endGuidedRocketAutopilot } from '../ai/GuidedRocketAutopilotOps.js';
 import { interceptRocket } from './projectile/RocketInterceptOps.js';
+import { copyExplosionContact } from '../effects/ConventionalExplosionProfiles.js';
 import {
     applyProjectileCosmeticColor,
     createProjectileCosmeticGroup,
@@ -74,6 +75,7 @@ export class ProjectileSystem {
             : (() => null);
         this.onTrailSegmentHit = typeof options.onTrailSegmentHit === 'function' ? options.onTrailSegmentHit : (() => { });
         this.onRocketIntercepted = typeof options.onRocketIntercepted === 'function' ? options.onRocketIntercepted : (() => { });
+        this.onGuidedRocketImpact = typeof options.onGuidedRocketImpact === 'function' ? options.onGuidedRocketImpact : (() => false);
         this.runtimeProfiler = options.runtimeProfiler || null;
         this.entityRuntimeConfig = resolveEntityRuntimeConfig(options.entityRuntimeConfig || null);
 
@@ -108,16 +110,9 @@ export class ProjectileSystem {
         return shootPlayerItemProjectile(this, player, preferredIndex, rocketOnly);
     }
 
-    getGuidedProjectileForOwner(owner) {
-        return this.projectiles.find((projectile) => projectile.guidedActive && projectile.owner === owner) || null;
-    }
+    getGuidedProjectileForOwner(owner) { return findGuidedRocketForOwner(this.projectiles, owner); }
 
-    applyGuidedInput(owner, input) {
-        const projectile = this.getGuidedProjectileForOwner(owner);
-        if (!projectile) return false;
-        applyGuidedRocketInput(projectile, input, this.entityRuntimeConfig?.HUNT?.ROCKET);
-        return true;
-    }
+    applyGuidedInput(owner, input) { return applyGuidedOwnerInput(this, owner, input); }
 
     deployMine(player) { return deployMine(this, player); }
 
@@ -463,12 +458,10 @@ export class ProjectileSystem {
             let simulationResult = null;
             try {
                 simulationResult = this._simulationOps.stepProjectile(projectile, i, dt, arena, players, trailSpatialIndex, time);
+                copyExplosionContact(projectile.explosionContact, simulationResult?.arenaCollision,
+                    simulationResult?.projectileHitArena === true && simulationResult?.bouncedOnFoam !== true);
                 shouldRemove = this._hitResolver.resolveProjectileOutcome(
-                    projectile,
-                    players,
-                    trailSpatialIndex,
-                    simulationResult
-                );
+                    projectile, players, trailSpatialIndex, simulationResult);
             } finally {
                 this._deferProjectileRemovals = false;
             }
@@ -506,8 +499,9 @@ export class ProjectileSystem {
             return;
         }
 
-        if (projectile.guidedActive) endGuidedRocketAutopilot(projectile.owner);
-        this._hitResolver.detonateProjectile(projectile);
+        // Steered all the way in: the owner watches the blast, the autopilot keeps flying meanwhile.
+        if (projectile.guidedActive && this.onGuidedRocketImpact(projectile) !== true) endGuidedRocketAutopilot(projectile.owner);
+        if (!(this.networkReplica && this.authoritativeExplosionEvents)) this._hitResolver.detonateProjectile(projectile);
         this._releaseProjectileMesh(projectile);
         const lastIndex = this.projectiles.length - 1;
         if (index !== lastIndex) {
@@ -541,6 +535,7 @@ export class ProjectileSystem {
         this._pendingRemovals.length = 0;
         this._elapsedSeconds = 0;
         this._rocketTrailSystem.clear();
+        this.authoritativeExplosionEvents = false;
         this._rocketThreatTracker.clear();
     }
 

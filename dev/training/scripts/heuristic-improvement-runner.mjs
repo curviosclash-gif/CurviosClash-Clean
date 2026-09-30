@@ -1,4 +1,4 @@
-// Serially invokes the bounded heuristic improvement iteration until a terminal outcome.
+﻿// Serially invokes the bounded heuristic improvement iteration until a terminal outcome.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -6,9 +6,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const PROFILES = Object.freeze(['defensive', 'balanced', 'aggressive']);
+import {
+    HEURISTIC_PLATEAU_ROUND_LIMIT, HEURISTIC_SEARCH_PROFILES, HEURISTIC_SEARCH_STATE_VERSION,
+} from './heuristic-improvement-acceptance.mjs';
+
+const PROFILES = HEURISTIC_SEARCH_PROFILES;
 const TARGET_RATIO = 2;
-const SEARCH_STATE_VERSION = 16;
+const SEARCH_STATE_VERSION = HEURISTIC_SEARCH_STATE_VERSION;
 const DEFAULT_MAX_ITERATIONS = 256;
 export const MAX_RUNNER_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = MAX_RUNNER_TIMEOUT_MS;
@@ -54,7 +58,7 @@ function targetReached(state) {
 export function classifySearchState(state) {
     if (state?.version !== SEARCH_STATE_VERSION) return 'continue';
     if (targetReached(state)) return 'target';
-    if (Number(state?.plateauRounds) >= 3) return 'plateau';
+    if (Number(state?.plateauRounds) >= HEURISTIC_PLATEAU_ROUND_LIMIT) return 'plateau';
     return 'continue';
 }
 

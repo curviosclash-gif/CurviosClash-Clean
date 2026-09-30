@@ -3,6 +3,9 @@ import test from 'node:test';
 import * as THREE from 'three';
 
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
+import { Renderer } from '../src/core/Renderer.js';
+import { RecordingCapturePipeline, createCaptureCameraHooks } from '../src/core/renderer/RecordingCapturePipeline.js';
+import { renderCaptureView } from '../src/core/renderer/RecordingCaptureViewOps.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { updateReplayProjection } from '../src/core/recording/CinematicReplayProjection.js';
 import { resolveMapSandstormLighting, resolveSandstormLighting } from '../src/core/renderer/SandstormLightingOps.js';
@@ -15,6 +18,7 @@ import {
     isPositionInSandstormShelter,
     normalizeMapSandstorm,
     resolveMapSandstormIntensity,
+    resolveSandstormVisibilityRange,
 } from '../src/shared/contracts/MapSandstormContract.js';
 import { createMatchRuntimeProjection } from '../src/shared/contracts/MatchRuntimeProjectionContract.js';
 import { createRuntimeRng } from '../src/shared/contracts/RuntimeRngContract.js';
@@ -96,8 +100,8 @@ test('sandstorm contract normalizes timing, ranges, state and shelter bounds', (
 });
 
 test('known match seeds cover early and late starts and later rounds consume new draws', () => {
-    const early = createOwner(1);
-    const late = createOwner(15955);
+    const early = createOwner(2560);
+    const late = createOwner(13312);
     early.system.startRound();
     late.system.startRound();
     assert.ok(early.system.getState().remainingSeconds < 46);
@@ -105,6 +109,17 @@ test('known match seeds cover early and late starts and later rounds consume new
     const firstRoundDelay = early.system.getState().remainingSeconds;
     early.system.startRound();
     assert.notEqual(early.system.getState().remainingSeconds, firstRoundDelay);
+});
+
+test('storm scheduling leaves the shared match dice untouched', () => {
+    // Spawns, items, bots and trails all roll on owner.runtimeRng. A storm that rolls there
+    // too shifts every later draw, so retiming the storm would reshuffle the whole match.
+    const { owner, system } = createOwner(2024);
+    const untouched = createRuntimeRng({ seed: 2024 });
+    system.startRound();
+    system.update(90 + 20 + 60 + 150 + 20 + 60 + 1);
+    assert.ok(system.getState().eventIndex >= 2, 'the storm ran through several events');
+    assert.equal(owner.runtimeRng.next(), untouched.next(), 'the match dice rolled as if there were no storm');
 });
 
 test('sandstorm timing is seeded, exact and survives large simulation steps', () => {
@@ -160,6 +175,126 @@ test('replicas never schedule weather and restore late-join state exactly', () =
     const warning = { ...snapshot, phase: 'WARNING', remainingSeconds: 7, intensity: 0 };
     assert.deepEqual(system.applyNetworkSnapshot(warning), warning);
     assert.equal(system.applyNetworkSnapshot(undefined).enabled, false);
+});
+
+test('network clients relight the scene as snapshots carry the storm intensity', () => {
+    // A client (and the cinematic replay) never runs the storm clock; every step reaches it only as
+    // a snapshot through setMapSandstormEffect. Scene lighting is expensive and applied in 5 % steps.
+    const applied = [];
+    const renderer = Object.create(Renderer.prototype);
+    Object.assign(renderer, {
+        _mapSandstormEffect: createMapSandstormState(),
+        _mapSandstormRanges: {},
+        _mapSandstormLightingStep: 0,
+        cameras: [],
+        addToScene() {},
+        removeFromScene() {},
+        getBaseFogVisibilityRange: () => 560,
+        _applySceneAppearance() { applied.push(this._mapSandstormEffect.intensity); },
+    });
+    const { owner } = createOwner(7);
+    owner.renderer = renderer;
+    const client = new MapSandstormSystem(owner);
+    client.setNetworkReplica(true);
+    client.startRound();
+    for (const intensity of [0.05, 0.3, 0.3, 0.7, 1]) {
+        client.applyNetworkSnapshot({
+            enabled: true, phase: 'ACTIVE', remainingSeconds: 60, eventIndex: 1, directionIndex: 0, intensity,
+        });
+    }
+    assert.deepEqual(applied, [0.05, 0.3, 0.7, 1], 'each new lighting step relights once, repeats do not');
+});
+
+test('a storm swell relights in 5 % steps but rebuilds the reflection map only three times', () => {
+    // Every environment refresh regenerates a PMREM from the sky; twenty of them per swell stall
+    // the frame on an iGPU while the light and fog steps themselves are cheap.
+    const refreshes = [];
+    const renderer = Object.create(Renderer.prototype);
+    Object.assign(renderer, {
+        _mapSandstormEffect: createMapSandstormState(),
+        _mapSandstormRanges: {},
+        _mapSandstormLightingStep: 0,
+        _applySceneAppearance(refreshEnvironment = true) { refreshes.push(refreshEnvironment); },
+    });
+    renderer.setMapSandstormEffect({ enabled: true, phase: 'ACTIVE', remainingSeconds: 70, intensity: 0 });
+    for (let step = 1; step <= 20; step += 1) renderer.setMapSandstormIntensity(step / 20);
+    assert.equal(refreshes.length, 21, 'the light follows every 5 % step');
+    assert.equal(refreshes.filter(Boolean).length, 3, 'the reflection map is rebuilt at 0 %, 50 % and 100 % only');
+});
+
+test('recordings render the storm fog of the player they follow', () => {
+    // Capture cameras are the pipeline's own; only the live player cameras carry the per-player
+    // storm range. A capture view therefore borrows the followed player's camera, and a view with
+    // no such camera (a bot subject, the fallback shot) gets the outdoor storm.
+    const renderer = Object.create(Renderer.prototype);
+    Object.assign(renderer, {
+        scene: new THREE.Scene(),
+        _mapSandstormEffect: createMapSandstormState({ enabled: true, phase: 'ACTIVE', remainingSeconds: 40, intensity: 1 }),
+        _mapSandstormRanges: { outdoorNear: 1.6, outdoorFar: 12, shelterNear: 18, shelterFar: 85 },
+        cameras: [new THREE.PerspectiveCamera(), new THREE.PerspectiveCamera()],
+    });
+    renderer.scene.fog = new THREE.Fog(0, 360, 560);
+    renderer.cameras[0].userData.sandstormVisibilityRange = 12;
+    renderer.cameras[1].userData.sandstormVisibilityRange = 85;
+    const pipeline = new RecordingCapturePipeline({
+        scene: renderer.scene,
+        ...createCaptureCameraHooks(renderer),
+    });
+    const seen = [];
+    const target = { render: (scene) => seen.push(scene.fog.far) };
+    const captureCamera = new THREE.PerspectiveCamera();
+    renderCaptureView(pipeline, target, captureCamera, 1);
+    renderCaptureView(pipeline, target, captureCamera, 0);
+    renderCaptureView(pipeline, target, captureCamera, 5);
+    assert.deepEqual(seen, [85, 12, 12], 'sheltered subject, outdoor subject, subject without a camera');
+    assert.equal(renderer.scene.fog.far, 560, 'the live fog is restored after every capture view');
+});
+
+test('the motion cue points at enemies hidden in the storm, not only at visible ones', () => {
+    // The cue exists for what the fog hides. Capping it at the outdoor view (12 m on the pyramid)
+    // made it point only at enemies the player could already see.
+    const config = MAP_PRESET_CATALOG.pyramid.sandstorm;
+    const normalized = normalizeMapSandstorm(config);
+    assert.equal(normalized.outdoorFar, 12);
+    assert.equal(normalized.proximityCueRange, 18, 'the authored cue range survives normalisation');
+    assert.equal(normalizeMapSandstorm({ ...config, proximityCueRange: 400 }).proximityCueRange,
+        normalized.shelterFar, 'but never reaches beyond the widest storm view');
+
+    const { owner, system } = createOwner(9);
+    owner.arena.currentMapDefinition.sandstorm = config;
+    owner.arena.currentMapDefinition.scaleAuthoredAnchors = false;
+    system.startRound();
+    system.applyNetworkSnapshot({
+        enabled: true, phase: 'ACTIVE', remainingSeconds: 30, eventIndex: 1, directionIndex: 0, intensity: 1,
+    });
+    const observer = { alive: true, index: 0, position: new THREE.Vector3(100, 10, 100), teamId: 'alpha' };
+    const hidden = { alive: true, index: 1, position: new THREE.Vector3(115, 10, 100), teamId: 'bravo' };
+    owner.players = [observer, hidden];
+    assert.equal(system.isPositionVisible(observer.position, hidden.position), false, 'the enemy is lost in the storm');
+    assert.equal(system.getProximityCue(observer, owner.players)?.active, true, 'yet the cue still points at it');
+});
+
+test('a camera that no longer follows its living player takes the storm where the camera is', () => {
+    // After death the killcam (or a guided rocket) owns the camera and flies it elsewhere; the
+    // wreck in a hall must not keep lending that camera the hall's clear view.
+    const { owner, system } = createOwner(11);
+    system.startRound();
+    system.applyNetworkSnapshot({
+        enabled: true, phase: 'ACTIVE', remainingSeconds: 30, eventIndex: 1, directionIndex: 0, intensity: 1,
+    });
+    const player = { alive: true, index: 0, position: new THREE.Vector3(0, 5, 0) };
+    owner.players = [player];
+    const camera = owner.renderer.cameras[0];
+    camera.position.set(100, 10, 100);
+    system.update(0);
+    assert.equal(camera.userData.sandstormVisibilityRange, 85, 'a living player in the hall sees the hall range');
+    player.alive = false;
+    system.update(0);
+    assert.equal(camera.userData.sandstormVisibilityRange, 40, 'the death camera out in the storm sees the storm');
+    player.alive = true;
+    owner._killcamSystem = { ownsCamera: (index) => index === 0 };
+    system.update(0);
+    assert.equal(camera.userData.sandstormVisibilityRange, 40, 'nor does a killcam that owns the camera');
 });
 
 test('replay interpolates time only within one event and keeps phases and directions discrete', () => {
@@ -234,8 +369,9 @@ test('storm ingress keeps gameplay visibility aligned with rendered intensity', 
         enabled: true, phase: 'ACTIVE', remainingSeconds: 58,
         eventIndex: 1, directionIndex: 0, intensity: .5,
     });
-    assert.equal(system.getVisibilityRange(new THREE.Vector3(100, 10, 100)), 300);
-    assert.equal(system.getVisibilityRange(new THREE.Vector3(0, 10, 0)), 322.5);
+    // Half way the view has closed by the same factor it still has to close: sqrt(560 * 40).
+    assert.ok(Math.abs(system.getVisibilityRange(new THREE.Vector3(100, 10, 100)) - Math.sqrt(560 * 40)) < 1e-9);
+    assert.ok(Math.abs(system.getVisibilityRange(new THREE.Vector3(0, 10, 0)) - Math.sqrt(560 * 85)) < 1e-9);
     const clear = resolveSandstormLighting({
         key: { color: 0xffffff, intensity: 2 }, fill: { color: 0xffffff, intensity: 1 },
         rim: { color: 0xffffff, intensity: 1 }, hemisphere: { skyColor: 0xffffff, groundColor: 0xffffff },
@@ -249,6 +385,44 @@ test('storm ingress keeps gameplay visibility aligned with rendered intensity', 
     assert.equal(resolveMapSandstormLighting(clear, null), clear);
     assert.deepEqual(resolveMapSandstormLighting(clear, { phase: 'ACTIVE', intensity: 0.5 }),
         resolveSandstormLighting(clear, 0.5));
+});
+
+test('the pyramid storm swells slowly, holds its peak for 30 seconds and eases off slowly', () => {
+    const config = MAP_PRESET_CATALOG.pyramid.sandstorm;
+    const active = normalizeMapSandstorm(config).activeSeconds;
+    const atElapsed = (seconds) => resolveMapSandstormIntensity(config, active - seconds);
+    let peakSeconds = 0;
+    for (let tenth = 0; tenth < active * 10; tenth += 1) {
+        if (atElapsed(tenth / 10 + 0.05) >= 1) peakSeconds += 0.1;
+    }
+    assert.equal(Math.round(peakSeconds), 30, 'the storm stays at full strength for 30 seconds');
+    assert.ok(atElapsed(5) < 0.2, 'five seconds in the storm has barely started');
+    assert.ok(atElapsed(5) > 0, 'but it has started');
+    assert.ok(atElapsed(active - 5) < 0.2, 'five seconds before the end it has almost settled');
+    for (let second = 1; second <= 20; second += 1) {
+        assert.ok(atElapsed(second) > atElapsed(second - 1), 'the swell rises every second');
+    }
+});
+
+test('views close by a steady factor and the storm reaches the map ceiling', () => {
+    // Fog distance is perceived by ratio: 560 -> 280 reads as much as 24 -> 12. A linear blend
+    // keeps the view wide open for most of the swell and slams shut in the last seconds.
+    assert.equal(resolveSandstormVisibilityRange(560, 12, 0), 560);
+    assert.equal(resolveSandstormVisibilityRange(560, 12, 1), 12);
+    assert.ok(Math.abs(resolveSandstormVisibilityRange(560, 12, 0.5) - Math.sqrt(560 * 12)) < 1e-9);
+    assert.equal(resolveSandstormVisibilityRange(360, 0, 0.5), 180, 'a zero end falls back to a plain blend');
+    assert.equal(resolveSandstormVisibilityRange(40, 85, 0.5), 40, 'a storm never widens the view');
+
+    // The map fog thins with height; a storm that keeps that thinning ends a few metres up.
+    const normal = {
+        key: { color: 0xffffff, intensity: 2 }, fill: { color: 0xffffff, intensity: 1 },
+        rim: { color: 0xffffff, intensity: 1 }, hemisphere: { skyColor: 0xffffff, groundColor: 0xffffff },
+        fog: { color: 0xffffff, colorHigh: 0xffffff, colorLow: 0xffffff, height: 3, heightFalloff: 0.04 },
+        skyDome: { zenithColor: 0xffffff, horizonColor: 0xffffff, nadirColor: 0xffffff },
+    };
+    assert.equal(resolveSandstormLighting(normal, 0).fog.heightFalloff, 0.04);
+    assert.equal(resolveSandstormLighting(normal, 0.5).fog.heightFalloff, 0.02);
+    assert.equal(resolveSandstormLighting(normal, 1).fog.heightFalloff, 0, 'at its peak the storm is as dense at the ceiling as on the ground');
 });
 
 test('shelter volumes follow the narrowing king pyramid and bots use composite sight', () => {
@@ -307,7 +481,9 @@ test('pyramid preset and network projections expose the authored storm', () => {
     assert.equal(map.botSpawns.length, 7);
     assert.equal(map.items.length, 8);
     assert.equal(map.sandstorm.warningSeconds, 20);
-    assert.equal(map.sandstorm.activeSeconds, 60);
+    assert.equal(map.sandstorm.activeSeconds, 70);
+    assert.equal(map.audioProfile.activeSeconds, map.sandstorm.activeSeconds, 'ambience follows the storm length');
+    assert.equal(map.audioProfile.ingressSeconds, map.sandstorm.ingressSeconds, 'ambience follows the swell');
 
     const state = {
         enabled: true, phase: 'WARNING', remainingSeconds: 12, eventIndex: 1, directionIndex: 3, intensity: 0,

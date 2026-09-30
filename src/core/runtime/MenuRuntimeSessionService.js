@@ -23,6 +23,7 @@ import {
     normalizeMultiplayerTransport,
 } from '../../shared/contracts/RuntimeSessionContract.js';
 import { hasConfiguredOnlineSignalingUrl } from '../../shared/contracts/OnlineSignalingConfig.js';
+import { normalizeGraphicsQualitySetting } from '../../shared/contracts/GraphicsQualityContract.js';
 import { appendMutationChangedKeys, resolveMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 import { resolvePresetFailureMessage } from './MenuRuntimeQuickStartService.js';
 import { MODE_PATH_TO_PRESET_ID } from '../settings/FreshProfileSettingsOps.js';
@@ -284,13 +285,9 @@ export function handleLevel3ResetAction(ctx) {
         { modePath }
     );
     if (sessionType === 'splitscreen') {
-        writeHangarVehicleSelection(
-            game.settings,
-            HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2,
-            defaults.vehicles.PLAYER_2,
-            defaults.vehicles.PLAYER_2,
-            { modePath }
-        );
+        for (const slot of [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_3]) {
+            writeHangarVehicleSelection(game.settings, slot, defaults.vehicles[slot], defaults.vehicles[slot], { modePath });
+        }
     }
     onSettingsChanged({
         changedKeys: [
@@ -363,6 +360,8 @@ export function handleLevel4ResetAction(ctx) {
     }
     game.settings.localSettings.shadowQuality = defaults.localSettings.shadowQuality;
     game.settings.localSettings.bloomQuality = defaults.localSettings.bloomQuality;
+    game.settings.localSettings.bloomQualityUserSet = false;
+    game.settings.localSettings.graphicsQuality = normalizeGraphicsQualitySetting(defaults.localSettings.graphicsQuality);
     game.settings.localSettings.mapBrightness = defaults.localSettings.mapBrightness;
     game.settings.localSettings.viewDistance = defaults.localSettings.viewDistance;
     game.settings.autoRoll = defaults.autoRoll;
@@ -396,6 +395,7 @@ export function handleLevel4ResetAction(ctx) {
             SETTINGS_CHANGE_KEYS.GAMEPLAY_FIGHT_MG_DAMAGE,
             SETTINGS_CHANGE_KEYS.LOCAL_SHADOW_QUALITY,
             SETTINGS_CHANGE_KEYS.LOCAL_BLOOM_QUALITY,
+            SETTINGS_CHANGE_KEYS.LOCAL_GRAPHICS_QUALITY,
             SETTINGS_CHANGE_KEYS.LOCAL_MAP_BRIGHTNESS,
             SETTINGS_CHANGE_KEYS.LOCAL_VIEW_DISTANCE,
             SETTINGS_CHANGE_KEYS.RECORDING_PROFILE,
@@ -403,6 +403,8 @@ export function handleLevel4ResetAction(ctx) {
             SETTINGS_CHANGE_KEYS.RECORDING_ORIENTATION,
             SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_NORMAL,
             SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_REDUCE_MOTION,
+            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_REACTOR_FLASH,
+            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_REACTOR_SHAKE,
             SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_SPEED_FOV_ENABLED,
             SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_SPEED_FOV_INTENSITY,
             SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_THRUSTER_EXHAUST_ENABLED,

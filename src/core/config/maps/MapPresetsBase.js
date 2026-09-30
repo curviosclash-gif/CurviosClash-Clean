@@ -50,8 +50,10 @@ const BASE_MAP_KEYS = [
     'chrono_forge_nexus',
     'eclipse_foundry',
     'kinetic_tide',
+    'neon_carnival',
     'verdant_aperture',
     'dandelion_sky',
+    'sunflower_meadow',
     'aetherion_orrery',
     'notre_dame',
     'notre_dame_arena',
@@ -61,6 +63,7 @@ const BASE_MAP_KEYS = [
     'eiffel_tower_arena',
     'eiffel_tower_siege',
     'reactor_site',
+    'orbital_shipyard',
     'giant_forest',
     'burg_falkenwacht',
     'burg_falkenwacht_arena',
@@ -70,6 +73,11 @@ const BASE_MAP_KEYS = [
     'storm_dam_siege',
     'skyline_siege',
     'hydra_temple',
+    'toybox_titan',
+    'sky_ladder_abyss',
+    'sky_ladder_foundry',
+    'sky_ladder_storm',
+    'sky_ladder_star',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(

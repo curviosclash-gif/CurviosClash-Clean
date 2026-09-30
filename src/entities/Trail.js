@@ -1,10 +1,11 @@
-﻿// ============================================
+// ============================================
 // Trail.js - Optimized 3D trail using InstancedMesh & Spatial Hashing
 // ============================================
 
 import * as THREE from 'three';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { isModernGraphicsStyle } from '../shared/contracts/GraphicsStyleContract.js';
+import { applyAdditiveFogFade } from '../shared/rendering/AdditiveFogDefines.js';
 import { resolveArcadeTrailColor } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
 const TRAIL_SEGMENT_GEOMETRY = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
@@ -71,7 +72,7 @@ export class Trail {
             metalness: this.modernGraphics ? 0.28 : 0.2,
         });
         this.glowMaterial = this.modernGraphics
-            ? new THREE.MeshBasicMaterial({
+            ? applyAdditiveFogFade(new THREE.MeshBasicMaterial({
                 color,
                 transparent: true,
                 opacity: 0.16,
@@ -79,7 +80,7 @@ export class Trail {
                 depthWrite: false,
                 toneMapped: false,
                 side: THREE.DoubleSide,
-            })
+            }))
             : null;
 
         // InstancedMesh

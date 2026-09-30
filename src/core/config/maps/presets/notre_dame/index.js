@@ -1,14 +1,12 @@
 // Notre-Dame de Paris as a flyable map, rebuilt from measurements rather than invented: 127.5 m
 // long, 48 m across the transept, towers at 69 m, nave vault at 33 m, spire tip at 96 m. What
-// moves on it is the reconstruction site that stood around the building -- tower crane, hoists,
-// scaffold lifts, sheeting -- because a cathedral is not a machine, and pretending otherwise
-// would have cost the very thing that makes the map worth flying.
+// The cathedral itself supplies the flight corridors, from the west portals to the roof and apse.
 //
 // The map is the same size as the largest existing one, Kinetic Tide, and everything is laid out
 // so the spire tip clears the ceiling: 8 units of island, plus 96 m at 1.4 units per metre, is
 // 142.4 of the 150 available.
 
-import { NOTRE_DAME_MODELS, NOTRE_DAME_BEAT_SECONDS } from './NotreDameModels.js';
+import { NOTRE_DAME_MODELS } from './NotreDameModels.js';
 import {
     GROUND,
     NOTRE_DAME_OBSTACLES,
@@ -32,13 +30,6 @@ const NOTRE_DAME_AUDIO_PROFILE = Object.freeze({
         min: Object.freeze([-76.65, GROUND, -29.5]),
         max: Object.freeze([89.25, GROUND + 64, 29.5]),
     }),
-    constructionCenters: Object.freeze([
-        Object.freeze([-150, GROUND + 16, 0]),
-        Object.freeze([-40, GROUND + 24, 45]),
-        Object.freeze([17, GROUND + 30, -52]),
-        Object.freeze([130, GROUND + 34, 0]),
-    ]),
-    constructionRadius: 48,
     bell: Object.freeze({
         position: Object.freeze([-83, GROUND + 70, -20.3]),
         intervalSeconds: 6,
@@ -47,7 +38,7 @@ const NOTRE_DAME_AUDIO_PROFILE = Object.freeze({
     }),
 });
 
-// Shared by every map on this building: the fabric, the site, and the collision that makes the
+// Shared by every map on this building: the fabric and collision that make the
 // interior flyable. Exported because the fire maps in ../notre_dame_fire build on the same
 // cathedral -- the geometry is the expensive part, and loading a second copy of it would cost
 // what the shared arrays exist to save.
@@ -61,10 +52,8 @@ export const NOTRE_DAME_COMMON = {
     portals: NOTRE_DAME_PORTALS,
     gates: NOTRE_DAME_GATES,
     glbModels: NOTRE_DAME_MODELS,
-    // One beat for the whole site; each piece states its own offset against it.
-    glbAnimationClock: { beatSeconds: NOTRE_DAME_BEAT_SECONDS },
     // Static fabric uses the loader's triangle/BVH collider, so every portal, gallery and arch
-    // follows the surface that is actually drawn. Moving site meshes remain dynamic colliders.
+    // follows the surface that is actually drawn.
     glbColliderMode: 'scene',
     // Those authored boxes describe collision already drawn by the cathedral GLBs. Keeping them
     // out of the render stage prevents coplanar surfaces and transparent depth writes from
@@ -74,6 +63,30 @@ export const NOTRE_DAME_COMMON = {
     audioProfile: NOTRE_DAME_AUDIO_PROFILE,
     items: NOTRE_DAME_ITEMS,
     aircraft: NOTRE_DAME_AIRCRAFT,
+    // One shared, host-driven flock. It crosses the nave, leaves and re-enters through the actual
+    // west rose, then circles both towers and the parvis on the clear exterior perimeter.
+    mapUnits: [Object.freeze({
+        id: 'notre_dame_pigeons',
+        kind: 'swarm',
+        path: Object.freeze([
+            [-112, GROUND + 37, 0], [-83, GROUND + 37, 0], [-60, GROUND + 37, 0],
+            [0, GROUND + 37, 0], [-24, GROUND + 37, 0], [-60, GROUND + 37, 0],
+            [-83, GROUND + 37, 0], [-105, GROUND + 37, 0], [-105, GROUND + 37, 45],
+            [-72, GROUND + 37, 45], [-72, 112, 45], [-72, 112, -45],
+            [-72, GROUND + 37, -45], [-105, GROUND + 37, -45],
+            [-105, GROUND + 37, 0], [-112, GROUND + 37, 0],
+        ].map((point) => Object.freeze(point))),
+        loop: true,
+        speed: 13,
+        maxHp: 10,
+        hitboxRadius: 0.55,
+        memberCount: 10,
+        memberHp: 1,
+        formationRadius: 1.4,
+        weapons: { mg: false, rocket: false },
+        attack: { damage: 14, cooldown: 3.2, radius: 0.7, range: 9, diveSpeed: 26 },
+          allowedModes: Object.freeze(['HUNT', 'ARENA']),
+    })],
     // Warm light inside the nave, running the length of the building between the west front and the
     // apse. The lamps sit above head height so the vaults catch them, and they deliberately do not
     // cast shadows - the point is that some of this reaches the outside through the portals, the

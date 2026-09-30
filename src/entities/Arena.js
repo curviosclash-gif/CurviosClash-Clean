@@ -18,6 +18,7 @@ import { resolveAircraftDecorationColor, resolveAircraftDecorationVehicleId } fr
 import { ExclusionBoundaryVisual } from './arena/ExclusionBoundaryVisual.js';
 import { DandelionSeedController } from './arena/DandelionSeedController.js';
 import { SunflowerKernelController } from './arena/SunflowerKernelController.js';
+import { MapDestructibleGlowController } from './arena/MapDestructibleGlowController.js';
 
 export class Arena {
     constructor(renderer) {
@@ -45,6 +46,8 @@ export class Arena {
         this._glbDynamicObstacles = [];
         this._mapBreakScenes = null;
         this._pendingMapBreakEvents = [];
+        this._mapDestructibleState = null;
+        this._mapDestructibleGlow = new MapDestructibleGlowController();
         this._glbLoadError = null;
         this._glbLoadWarnings = [];
         this._glbFootprint = null;
@@ -95,6 +98,7 @@ export class Arena {
         this._glbDynamicObstacles.length = 0;
         clearArenaBreakScenes(this);
         if (!this._glbScene) return;
+        this._mapDestructibleGlow?.clear?.(this._glbScene, this.currentMapDefinition?.mapDestructibleGlow);
         this.renderer.removeFromScene(this._glbScene);
         disposeObject3DResources(this._glbScene);
         this._glbScene = null;
@@ -253,6 +257,7 @@ export class Arena {
                 }
             }
 
+            this.setMapDestructibleFireState(this._mapDestructibleState);
             this._builder.refitShadowCoverage(this._glbScene, this.bounds);
             this._builder.geometryPipeline.flushMergeStage(buildContext.materialBundle);
             this._portalGateSystem.build(buildContext.map, buildContext.scale);
@@ -301,6 +306,8 @@ export class Arena {
             attachArenaGlbLoadResult(this, glbResult);
             const seeds = new DandelionSeedController(glbResult.scene); this._dandelionSeeds = seeds.count > 0 ? seeds : null;
             const sunflowerKernels = new SunflowerKernelController(glbResult.scene); this._sunflowerKernels = sunflowerKernels.count > 0 ? sunflowerKernels : null; usedGlbModel = true;
+            seeds.onRelease = (position, at) => this._shootableReleaseListener?.(position, at, 'dandelionSeeds');
+            sunflowerKernels.onRelease = (position, at) => this._shootableReleaseListener?.(position, at, 'sunflowerKernels');
             return finalizeBuild();
         }).catch((error) => {
             this._glbLoadError = error?.message || 'Unknown GLB loading error';
@@ -410,7 +417,7 @@ export class Arena {
         return this._portalGateSystem.checkExitPortal(position, radius, entityId);
     }
 
-    getCollisionInfo(position, radius) { return this._collision.getCollisionInfo(position, radius); } raycast(origin, direction, maxDistance) { return this._collision.raycast(origin, direction, maxDistance); } raycastDandelionSeed(origin, direction, maxDistance, padding = 0) { const dandelion = this._dandelionSeeds?.raycast(origin, direction, maxDistance, padding) || null; const sunflower = this._sunflowerKernels?.raycast(origin, direction, maxDistance, padding) || null; return !dandelion ? sunflower : (!sunflower || dandelion.distance <= sunflower.distance ? dandelion : sunflower); } releaseDandelionSeed(name, hitDirection = null) { if (this._dandelionSeedNetworkReplica) return false; const seconds = this.glbAnimationElapsedSeconds; return this._dandelionSeeds?.releaseByName(name, seconds) === true || this._sunflowerKernels?.releaseByName(name, seconds, hitDirection) === true; } consumeDandelionSeedCollision(position, radius, playerIndex, previousPosition = null) { return !this._dandelionSeedNetworkReplica ? this._dandelionSeeds?.consumeCollision(position, radius, playerIndex, previousPosition) || null : null; } resetDandelionSeeds() { this._dandelionSeeds?.reset(); } resetSunflowerKernels() { this._sunflowerKernels?.reset(); } getDandelionSeedProgress() { return this._dandelionSeeds?.getProgress() || null; } serializeDandelionSeeds() { return this._dandelionSeeds?.serialize() || null; } applyDandelionSeedState(state) { this._dandelionSeeds?.applyNetworkState(state); } serializeSunflowerKernels() { return this._sunflowerKernels?.serialize() || null; } applySunflowerKernelState(state) { this._sunflowerKernels?.applyNetworkState(state); } setDandelionSeedNetworkReplica(enabled) { this._dandelionSeedNetworkReplica = enabled === true; }
+    getCollisionInfo(position, radius) { return this._collision.getCollisionInfo(position, radius); } raycast(origin, direction, maxDistance) { return this._collision.raycast(origin, direction, maxDistance); } raycastDandelionSeed(origin, direction, maxDistance, padding = 0) { const dandelion = this._dandelionSeeds?.raycast(origin, direction, maxDistance, padding) || null; const sunflower = this._sunflowerKernels?.raycast(origin, direction, maxDistance, padding) || null; return !dandelion ? sunflower : (!sunflower || dandelion.distance <= sunflower.distance ? dandelion : sunflower); } releaseDandelionSeed(name, hitDirection = null) { if (this._dandelionSeedNetworkReplica) return false; const seconds = this.glbAnimationElapsedSeconds; return this._dandelionSeeds?.releaseByName(name, seconds) === true || this._sunflowerKernels?.releaseByName(name, seconds, hitDirection) === true; } consumeDandelionSeedCollision(position, radius, playerIndex, previousPosition = null) { return !this._dandelionSeedNetworkReplica ? this._dandelionSeeds?.consumeCollision(position, radius, playerIndex, previousPosition) || null : null; } resetDandelionSeeds() { this._dandelionSeeds?.reset(); } resetSunflowerKernels() { this._sunflowerKernels?.reset(); } getDandelionSeedProgress() { return this._dandelionSeeds?.getProgress() || null; } getSunflowerKernelProgress() { return this._sunflowerKernels?.getProgress() || null; } serializeDandelionSeeds() { return this._dandelionSeeds?.serialize() || null; } applyDandelionSeedState(state) { this._dandelionSeeds?.applyNetworkState(state); } serializeSunflowerKernels() { return this._sunflowerKernels?.serialize() || null; } applySunflowerKernelState(state) { this._sunflowerKernels?.applyNetworkState(state); } setDandelionSeedNetworkReplica(enabled) { this._dandelionSeedNetworkReplica = enabled === true; } setShootableReleaseListener(listener) { this._shootableReleaseListener = typeof listener === 'function' ? listener : null; }
     checkCollisionFast(position, radius = 0) { return this._collision.checkCollisionFast(position, radius); }
     checkCollisionBroad(position, radius = 0, botNavigation = false) { return this._collision.checkCollisionBroad(position, radius, botNavigation); }
     getBotCollisionInfo(position, radius) { return this._collision.getBotCollisionInfo(position, radius); } checkBotCollisionFast(position, radius = 0) { return this._collision.checkBotCollisionFast(position, radius); } checkWorldGeometryCollision(position, radius = 0) { return this._collision.checkWorldGeometryCollision(position, radius); }
@@ -427,7 +434,16 @@ export class Arena {
     /** Puts a shot-apart map back together, for a round that reuses this arena as it is. */
     setMapFireState(state) { this._builder.fireEvolution.setState(state); this._builder.fireEvolution.update(this.glbAnimationElapsedSeconds); }
 
-    setMapDestructibleFireState(state) { const id = this.currentMapDefinition?.fireFxActivationSegmentId; if (!id) return; const segment = state?.segments?.find((entry) => entry.id === id); this._builder.fireFxController.setIntensity(segment?.burnStartedAtSeconds >= 0 && !segment.destroyed ? 1 : 0); }
+    setMapDestructibleFireState(state) {
+        this._mapDestructibleState = state || null;
+        const map = this.currentMapDefinition;
+        const id = map?.fireFxActivationSegmentId;
+        if (id) {
+            const segment = state?.segments?.find((entry) => entry.id === id);
+            this._builder.fireFxController.setIntensity(segment?.burnStartedAtSeconds >= 0 ? 1 : 0);
+        }
+        this._mapDestructibleGlow?.update?.(this._glbScene, map?.mapDestructibleGlow, state);
+    }
 
     resetMapDestructibleScenes() {
         resetArenaMapDestructibleScenes(this);

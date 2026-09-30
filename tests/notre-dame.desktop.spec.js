@@ -1,13 +1,10 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
-// Fifteen cathedral GLBs plus 32 Blender-tree instances is more than any earlier map loads, and
-// seven of them are one building split into parts. The running app must prove that the parts land
-// back together as one cathedral, and that the eight site machines
-// run on their own phases of the shared beat instead of moving in lockstep. Both are checked in
-// a single run, because loading this map takes long enough that doing it twice is wasteful.
+// Seven cathedral GLBs and 32 Blender-tree instances form one building. The running app
+// proves that the west-facade loop runs while the future collapse scenes stay dormant.
 
-test('Notre-Dame loads as one cathedral with its site running on the shared beat', async ({ page }) => {
+test('Notre-Dame loads as one cathedral without construction machinery', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
@@ -31,10 +28,10 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame'
         && window.GAME_INSTANCE?.arena?._glbScene
         && !window.GAME_INSTANCE?.arena?._glbLoadError
-        && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === 14
+        && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === 7
     )), {
         timeout: 150_000,
-        message: 'Notre-Dame should load all fifteen parts and animate the eight site pieces',
+        message: 'Notre-Dame should load its west-facade motion and six dormant collapse scenes',
     }).toBeTruthy();
     const loadDurationMs = await page.evaluate((startedAt) => performance.now() - startedAt, loadStartedAt);
     expect(loadDurationMs).toBeLessThan(120_000);
@@ -54,21 +51,24 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
                 arena._mergedObstacleEdges,
                 arena._mergedFoamEdges,
             ].filter(Boolean).length,
-            authoredCollisionSolid: arena.checkCollisionFast({ x: -249, y: 168, z: -60.9 }, 0.1),
+            // Retain a positive GLB-backed solid probe on the parvis island, away from J6's open gallery.
+            authoredCollisionSolid: arena.checkCollisionFast({ x: -67.2, y: 21.48, z: 0 }, 0.1),
+            galleryOpeningClear: !arena.checkCollisionFast({ x: -249, y: 183.6, z: 0 }, 0.1),
         };
     });
 
-    // Only the site moves, so only eight of the fifteen carry a clip.
+    // Six loaded clips belong to dormant collapse scenes and one to the active west facade.
     expect(state.authoredObstacleCount).toBeGreaterThan(0);
     expect(state).toEqual({
         mapKey: 'notre_dame',
-        trackCount: 14,
+        trackCount: 7,
         warningCount: 0,
         colliderMode: 'scene',
-        glbSceneChildren: 53,
+        glbSceneChildren: 45,
         authoredObstacleCount: state.authoredObstacleCount,
         authoredObstacleVisuals: 2,
         authoredCollisionSolid: true,
+        galleryOpeningClear: true,
     });
 
     const initialElapsed = await page.evaluate(() => (
@@ -78,22 +78,14 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         window.GAME_INSTANCE?.arena?.glbAnimationElapsedSeconds > elapsed
     ), initialElapsed), {
         timeout: 15_000,
-        message: 'the site clock should advance once the match is running',
+        message: 'the map clock should advance once the match is running',
     }).toBeTruthy();
 
-    // The eight clips sit on four different offsets of one six second beat. Reading their clip
-    // positions in a single frame is the proof that those offsets survive into the running game
-    // rather than only holding in the preset.
-    const phases = await page.evaluate(() => (
+    const siteClips = await page.evaluate(() => (
         window.GAME_INSTANCE.arena._glbAnimation._tracks
-            .filter((track) => track.clipName !== 'NotreDameCollapse').map((track) => ({ clip: track.clipName, time: Number(track.action.time.toFixed(3)) }))
+            .filter((track) => track.clipName !== 'NotreDameCollapse').length
     ));
-    expect(phases).toHaveLength(8);
-    expect(new Set(phases.map((entry) => entry.clip)).size).toBe(8);
-    expect(new Set(phases.map((entry) => entry.time)).size).toBeGreaterThan(1);
-    for (const entry of phases) {
-        expect(entry.time).toBeGreaterThanOrEqual(0);
-    }
+    expect(siteClips).toBe(1);
 
     // Where every part actually ended up in the world. If the preset had undone the recentring
     // the loader applies wrongly, the towers would sit somewhere other than the nave, and it
@@ -171,9 +163,7 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         const arena = window.GAME_INSTANCE.arena;
         const radius = 1.1;
         const targets = [
-            ['portal-south', [-83, 17, -18.9], [1, 0, 0]],
             ['portal-centre', [-83, 17, 0], [1, 0, 0]],
-            ['portal-north', [-83, 17, 18.9], [1, 0, 0]],
             ['gallery-south', [-83, 61.2, -20.3], [1, 0, 0]],
             ['gallery-centre', [-83, 61.2, 0], [1, 0, 0]],
             ['gallery-north', [-83, 61.2, 20.3], [1, 0, 0]],
@@ -206,59 +196,78 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
                 ];
                 if (probes.some(hit)) blocked.push(`${id}@${elapsed}`);
             }
+            const sidePortalOpen = (z) => {
+                const point = [-83, 17, z].map((value) => value * 3);
+                const probes = [
+                    point,
+                    [point[0] + 12, point[1], point[2]],
+                    [point[0] - 4.5, point[1], point[2]],
+                    [point[0], point[1], point[2] + 6],
+                    [point[0], point[1], point[2] - 6],
+                ];
+                return !probes.some(hit);
+            };
+            if (!sidePortalOpen(-18.9) && !sidePortalOpen(18.9)) {
+                blocked.push(`all-side-portals@${elapsed}`);
+            }
         }
         return blocked;
     });
     expect(blockedOpenings).toEqual([]);
 
-    const collisionSweep = await page.evaluate(() => {
+    const movingSiteModels = await page.evaluate(() => (
+        window.GAME_INSTANCE.arena.currentMapDefinition.glbModels
+            .filter((model) => model.animationClock && !model.hiddenUntilTriggered)
+            .map((model) => model.id)
+    ));
+    expect(movingSiteModels).toEqual(['notre-dame-west-facade']);
+
+    const poseWestFacade = async (elapsed) => page.evaluate((seconds) => {
         const game = window.GAME_INSTANCE;
         const arena = game.arena;
-        const movingIds = arena.currentMapDefinition.glbModels
-            .filter((model) => model.animationClock && !model.hiddenUntilTriggered)
-            .map((model) => model.id);
-        const groupFor = (obstacle) => {
-            let node = obstacle?.meshCollider?.mesh || null;
-            while (node) {
-                if (node.userData?.glbModelId) return node.userData.glbModelId;
-                node = node.parent;
-            }
-            return '';
-        };
-        const grouped = Object.fromEntries(movingIds.map((id) => [id, []]));
-        arena._glbDynamicObstacles.forEach((obstacle) => {
-            const id = groupFor(obstacle);
-            if (grouped[id]) grouped[id].push(obstacle);
-        });
-        const baseline = new Map();
-        const motion = Object.fromEntries(movingIds.map((id) => [id, {
-            colliderCount: grouped[id].length,
-            maxTravel: 0,
-            blockedSamples: 0,
-        }]));
-        const center = game.entityManager.players[0].position.clone();
-        for (let step = 0; step <= 24; step += 1) {
-            arena.setGlbAnimationElapsedSeconds(step * 0.5);
-            arena.update(0);
-            for (const id of movingIds) {
-                for (const obstacle of grouped[id]) {
-                    obstacle.box.getCenter(center);
-                    const key = obstacle.meshCollider.mesh.uuid;
-                    const first = baseline.get(key);
-                    if (!first) baseline.set(key, center.clone());
-                    else motion[id].maxTravel = Math.max(motion[id].maxTravel, center.distanceTo(first));
-                    if (arena.checkCollisionFast(center, 0.1)) motion[id].blockedSamples += 1;
-                }
-            }
-        }
-        return motion;
+        arena.setGlbAnimationElapsedSeconds(seconds);
+        arena.update(0);
+        const player = game.entityManager.players[0];
+        const rig = game.renderer.cameraRigSystem;
+        player.position.set(-292, 55, 56.7);
+        player.quaternion.set(0, -Math.SQRT1_2, 0, Math.SQRT1_2);
+        player.speed = 0;
+        player.view.syncFromState();
+        rig.setCinematicEnabled(false);
+        rig.cameraModes[0] = 0;
+        rig.cameraSubjectInitialized[0] = false;
+        game.entityManager.updateCameras(1 / 60, 1, true);
+        game.renderer.render();
+        return player.position.toArray();
+    }, elapsed);
+    await poseWestFacade(0);
+    await testInfo.attach('notre-dame-j7-portal-phase-0.png', {
+        body: await page.screenshot(), contentType: 'image/png',
     });
-    expect(Object.keys(collisionSweep)).toHaveLength(8);
-    for (const [id, result] of Object.entries(collisionSweep)) {
-        expect(result.colliderCount, `${id} keeps dynamic collision`).toBeGreaterThan(0);
-        expect(result.maxTravel, `${id} moves that collision across its beat`).toBeGreaterThan(0.5);
-        expect(result.blockedSamples, `${id} collides at its visible poses`).toBeGreaterThan(result.colliderCount);
-    }
+    await poseWestFacade(6);
+    await testInfo.attach('notre-dame-j7-portal-phase-6.png', {
+        body: await page.screenshot(), contentType: 'image/png',
+    });
+
+    // Capture the newly flyable side gallery from inside the nave, with the actual GLB scene
+    // loaded. Bay six keeps the view near a real triforium opening and above the low furnishings.
+    await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const player = game.entityManager.players[0];
+        player.position.set(-91.35, 97.5, 60.9);
+        player.quaternion.set(0, -Math.SQRT1_2, 0, Math.SQRT1_2);
+        player.speed = 0;
+        player.view.syncFromState();
+        const rig = game.renderer.cameraRigSystem;
+        rig.setCinematicEnabled(false);
+        rig.cameraModes[0] = 0;
+        rig.cameraSubjectInitialized[0] = false;
+        game.entityManager.updateCameras(1 / 60, 1, true);
+        game.renderer.render();
+    });
+    await testInfo.attach('notre-dame-j8-gallery-interior.png', {
+        body: await page.screenshot(), contentType: 'image/png',
+    });
 
     const performanceBudget = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;

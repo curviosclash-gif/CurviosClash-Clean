@@ -1,3 +1,5 @@
+import { HEADLESS_PRODUCT_BASE_CONFIG, verifyHeadlessProductArena } from '../src/state/HeadlessProductMapConfig.js';
+
 // Fixed pre-optimization profiles: benchmark opponents must not move when product defaults change.
 const NEUTRAL_TACTICS = Object.freeze({
     escapeLateralBias: 0.5,
@@ -30,3 +32,24 @@ export const HEURISTIC_IMPROVEMENT_BASELINE = Object.freeze({
         strafeDistance: 0.38, ...NEUTRAL_TACTICS,
     }),
 });
+
+// Players pick the difficulty in the menu and fight on many maps. Each seed plays one
+// difficulty on one map; 3 x 4 is 12, so any twelve consecutive seeds cover every pair.
+// The maps have preset obstacles and no GLB world, so they build without a renderer.
+export const HEURISTIC_BENCHMARK_DIFFICULTIES = Object.freeze(['EASY', 'NORMAL', 'HARD']);
+export const HEURISTIC_BENCHMARK_MAPS = Object.freeze(['standard', 'pillar_hall', 'mega_maze', 'crossfire']);
+
+export function resolveHeuristicBenchmarkSetup(seedIndex) {
+    const index = Math.max(0, Math.trunc(Number(seedIndex) || 0));
+    return {
+        difficulty: HEURISTIC_BENCHMARK_DIFFICULTIES[index % HEURISTIC_BENCHMARK_DIFFICULTIES.length],
+        mapKey: HEURISTIC_BENCHMARK_MAPS[index % HEURISTIC_BENCHMARK_MAPS.length],
+    };
+}
+
+// Product map presets without their GLB worlds, shared with every headless training run.
+export const HEURISTIC_BENCHMARK_BASE_CONFIG = HEADLESS_PRODUCT_BASE_CONFIG;
+
+export function verifyHeuristicBenchmarkArena(arena, mapKey) {
+    verifyHeadlessProductArena(arena, mapKey, HEURISTIC_BENCHMARK_BASE_CONFIG);
+}

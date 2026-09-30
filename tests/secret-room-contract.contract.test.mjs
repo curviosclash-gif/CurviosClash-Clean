@@ -38,7 +38,7 @@ test('T-SR1: contract version and limits are frozen house values', () => {
     assert.equal(SECRET_ROOM_CONTRACT_VERSION, 'secret-room.v1');
     assert.deepEqual([...SECRET_ROOM_MODES], ['HUNT', 'ARCADE']);
     assert.equal(SECRET_ROOM_LIMITS.maxRooms, 3);
-    assert.equal(SECRET_ROOM_LIMITS.maxItems, 16);
+    assert.equal(SECRET_ROOM_LIMITS.maxItems, 48);
     assert.equal(SECRET_ROOM_LIMITS.stayLimitSeconds.fallback, 20);
     assert.equal(SECRET_ROOM_LIMITS.stayLimitSeconds.min, 5);
     assert.equal(SECRET_ROOM_LIMITS.stayLimitSeconds.max, 120);
@@ -153,7 +153,7 @@ test('T-SR9: items outside the room are dropped, the room survives', () => {
 });
 
 test('T-SR10: item count and room count have hard ceilings', () => {
-    const manyItems = Array.from({ length: 30 }, () => ({ pos: [0, -200, 0] }));
+    const manyItems = Array.from({ length: SECRET_ROOM_LIMITS.maxItems + 1 }, () => ({ pos: [0, -200, 0] }));
     assert.equal(firstRoom({ items: manyItems }).items.length, SECRET_ROOM_LIMITS.maxItems);
     const manyRooms = Array.from({ length: 6 }, (_, index) => authoredRoom({ id: `vault_${index}` }));
     assert.equal(normalizeSecretRooms(manyRooms).length, SECRET_ROOM_LIMITS.maxRooms);

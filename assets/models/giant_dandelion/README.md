@@ -10,7 +10,7 @@ The morphology follows the genus description from
 [Kew Science](https://powo.science.kew.org/taxon/urn%3Alsid%3Aipni.org%3Anames%3A328762-2/general-information):
 perennial rosette habit, solitary capitulum on a leafless hollow scape, and a pappus of numerous
 fine persistent setae. The mesh uses real geometry rather than alpha cards, so no alpha or
-double-sided runtime material is required.
+double-sided runtime material is required; every material culls back faces.
 
 ## Files
 
@@ -20,8 +20,10 @@ double-sided runtime material is required.
   the stem, leaves and head sway.
 - `giant_dandelion_shootable.glb`: reusable interactive plant. All 220 visible attached seeds
   are separate `AttachedSeed_XXX_SHOOTABLE_nocol` nodes with stable `seed_index` and
-  `pappus_height` metadata. This file has no autoplaying seed flight clip: a hit releases only
-  the struck seed, and the game animates its flight.
+  `pappus_height` metadata. The nodes share eight seed meshes, one per shade and
+  `seed_index % 4`, which are exactly the templates the game's instanced seed batch draws;
+  seeds sharing a mesh share its `pappus_height`. This file has no autoplaying seed flight clip:
+  a hit releases only the struck seed, and the game animates its flight.
 - `giant_dandelion_lod1.glb`: middle-distance mesh with five synchronized animated seeds.
 - `giant_dandelion_lod2.glb`: far-distance silhouette mesh.
 - `giant_dandelion_collision.glb`: simple stem-and-head collision proxy.
@@ -34,7 +36,8 @@ frame, keep the pose or hide the airborne seed nodes. Each seed is an independen
 named `FlyingSeed_XX_HERO` and can be moved or hidden separately at runtime. The middle LOD
 uses corresponding odd-numbered seeds and the same timing. The far LOD omits airborne seeds.
 
-The `dandelion_sky` map places `giant_dandelion_shootable.glb` at `targetSize: 368`.
+The `dandelion_sky` map places `giant_dandelion_shootable.glb` at `targetSize: 368`, which the
+map scale of 3 turns into 1104 world units.
 The scape is half its original length while the seed crown keeps its authored size, and the map's
 vertical play space and authored height anchors are reduced by half.
 Other maps can reuse the same GLB with any positive `targetSize`; the seed hit areas and flight

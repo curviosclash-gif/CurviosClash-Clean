@@ -26,6 +26,7 @@ import { REACTOR_SITE_FUNGUS_MODELS, REACTOR_SITE_PROP_MODELS } from '../src/cor
 
 const MAP_KEY = 'reactor_site';
 const MAP_SCALE = 3;
+const BUILDING_SCALE = Math.cbrt(1.5);
 // MAP_DESTRUCTIBLE_DAMAGE.MG: what one pellet takes off a segment, independent of distance.
 const MG_SEGMENT_DAMAGE = 5;
 const TOWER_SEGMENT_ID = 'cooling_tower_w';
@@ -72,6 +73,171 @@ async function startMatch(page, { modePath, sessionType }) {
 }
 
 test.describe('Reactor site', () => {
+    test('water, tunnels, reactor prizes and exit survive the map lifecycle', async ({ page }, testInfo) => {
+        test.setTimeout(480_000);
+        await startMatch(page, { modePath: 'fight', sessionType: 'single' });
+        await expect.poll(() => page.evaluate((count) => (
+            !window.GAME_INSTANCE?.arena?._glbLoadError
+            && window.GAME_INSTANCE?.arena?._glbScene?.children.length === count
+        ), GLB_MODEL_COUNT), { timeout: 360_000 }).toBe(true);
+
+        const evidence = await page.evaluate((scale) => {
+            const game = window.GAME_INSTANCE;
+            game.state = 'PAUSED';
+            const arena = game.arena;
+            const em = game.entityManager;
+            const player = em.humanPlayers[0];
+            const point = (x, y, z = 0) => player.position.clone().set(x * scale, y * scale, z * scale);
+            const capture = (position, target) => {
+                const camera = game.renderer.cameras[0];
+                const cameraPosition = position.clone();
+                camera.parent?.worldToLocal?.(cameraPosition);
+                camera.position.copy(cameraPosition);
+                camera.lookAt(...target.toArray());
+                camera.updateMatrixWorld(true);
+                game.renderer.render();
+                return game.renderer.renderer.domElement.toDataURL('image/png');
+            };
+            const probe = (position) => {
+                const hit = arena.getCollisionInfo(position, player.hitboxRadius);
+                return { position: position.toArray(), hit: hit?.hit === true, source: hit?.sourceName || '' };
+            };
+            const tunnelProbes = () => [-1, 1].flatMap((sign) => [6, 10, 14, 18, 22, 26, 30, 34, 38]
+                .map((x) => probe(point(sign * x, 12))));
+            const coreMaterials = () => {
+                const entries = [];
+                arena._glbScene.getObjectByName('glb-slot-reactor-site').traverse((node) => {
+                    if (!['reactor_fuel_core', 'reactor_fuel_rods'].includes(node.name) || !node.isMesh) return;
+                    for (const material of (Array.isArray(node.material) ? node.material : [node.material])) {
+                        entries.push({ name: node.name, intensity: material.emissiveIntensity });
+                    }
+                });
+                return entries;
+            };
+            const ownedItems = () => em.powerupManager.items.filter((item) => item.ownerId?.startsWith('map-owned:'))
+                .map((item) => ({ type: item.type, ownerId: item.ownerId, position: item.mesh.position.toArray(),
+                    collision: probe(item.mesh.position) }));
+            const siteConcrete = () => {
+                const entries = [];
+                arena._glbScene.getObjectByName('glb-slot-reactor-site').traverse((node) => {
+                    if (!node.isMesh || node.name.startsWith('reactor_fuel_')) return;
+                    for (const material of (Array.isArray(node.material) ? node.material : [node.material])) {
+                        if (material.name === 'ConcreteDark') entries.push({ name: node.name,
+                            intensity: material.emissiveIntensity, emissive: material.emissive.getHex() });
+                    }
+                });
+                return entries;
+            };
+            const intactGlow = coreMaterials();
+            const concreteBefore = siteConcrete();
+            const prizesBefore = ownedItems();
+            const routesBefore = tunnelProbes();
+            const waterPicture = capture(point(-63, 14, -16), point(-63, 6));
+            const tunnelPicture = capture(point(28, 12), point(0, 12.86));
+            const pools = [-63, 63].map((x) => {
+                const submerged = point(x, 5);
+                return { submerged: em._waterZoneSystem.isPositionUnderwater(submerged),
+                    dryAbove: !em._waterZoneSystem.isPositionUnderwater(point(x, 10)),
+                    dryOutside: !em._waterZoneSystem.isPositionUnderwater(point(x, 5, 28)),
+                    free: probe(submerged) };
+            });
+            player.alive = true;
+            player.spawnProtectionTimer = 0;
+            player.position.copy(point(-63, 5));
+            em._playerLifecycleSystem.updatePlayer(player, 1 / 60, {}, 0, 1000);
+            const submergedPlayer = { submerged: player.waterSubmerged, speed: player.waterSpeedMultiplier,
+                visibility: player.waterVisibilityMultiplier, alive: player.alive };
+            player.position.copy(point(-100, 40, -100));
+            em._playerLifecycleSystem.updatePlayer(player, 1 / 60, {}, 0, 1000);
+            const dryPlayer = { submerged: player.waterSubmerged, speed: player.waterSpeedMultiplier };
+            const damageAt = (x) => {
+                player.alive = true;
+                player.hp = player.maxHp;
+                player.hasShield = false;
+                player.shieldHP = 0;
+                player.spawnProtectionTimer = 0;
+                player.position.copy(point(x, 12.86));
+                const before = player.hp;
+                em._mapHazardSystem.updatePlayer(player, player.position, 10, 1);
+                return before - player.hp;
+            };
+            const radiation = { near: damageAt(6), far: damageAt(11), outside: damageAt(15) };
+            const exitPair = arena.portals.find((portal) => portal.secret !== true && portal.posB.z > 100 * scale);
+            const travel = exitPair ? arena.checkPortal(exitPair.posA, player.hitboxRadius, 'reactor-exit-test') : null;
+            const exit = { found: !!exitPair, ok: travel?.ok === true,
+                target: travel?.target?.toArray(), collision: travel?.target ? probe(travel.target) : null,
+                entryRadius: exitPair ? Math.hypot(exitPair.posA.x, exitPair.posA.z) / scale : null,
+                warnings: arena.portalLayoutWarnings, enabled: arena.portalsEnabled,
+                mode: arena.currentMapDefinition.portalMode,
+                pairs: arena.portals.map((portal) => ({ secret: portal.secret, a: portal.posA.toArray(), b: portal.posB.toArray() })) };
+
+            const destructibles = em._mapDestructibleSystem;
+            const segment = destructibles.getDefinition().segments.find((entry) => entry.id === 'reactor_dome');
+            destructibles.applySegmentHit('reactor_dome', segment.hp, { cause: 'MG_BULLET' });
+            // The real entity tick owns prize removal; no manual mutation of item arrays.
+            em.update(0, game.input);
+            const prizesAfter = ownedItems();
+            const collapsedGlow = coreMaterials();
+            const concreteAfter = siteConcrete();
+            const routesAfter = tunnelProbes();
+            arena.update(50);
+            const corePicture = capture(point(0, 14, -8), point(0, 13));
+            em.powerupManager.clear();
+            em.spawnAll();
+            const reset = { prizes: ownedItems(), glow: coreMaterials(),
+                water: em._waterZoneSystem.isPositionUnderwater(point(63, 5)) };
+            return { pools, submergedPlayer, dryPlayer, radiation, exit, prizesBefore, prizesAfter,
+                routesBefore, routesAfter, intactGlow, collapsedGlow, concreteBefore, concreteAfter,
+                reset, corePicture, waterPicture, tunnelPicture };
+        }, MAP_SCALE);
+
+        const screenshot = testInfo.outputPath('reactor-core-after-collapse.png');
+        await writeFile(screenshot, Buffer.from(evidence.corePicture.split(',')[1], 'base64'));
+        await testInfo.attach('reactor-core-after-collapse', { path: screenshot, contentType: 'image/png' });
+        delete evidence.corePicture;
+        for (const [name, key] of [['reactor-water-basin', 'waterPicture'], ['reactor-tunnel-core', 'tunnelPicture']]) {
+            const picturePath = testInfo.outputPath(`${name}.png`);
+            await writeFile(picturePath, Buffer.from(evidence[key].split(',')[1], 'base64'));
+            await testInfo.attach(name, { path: picturePath, contentType: 'image/png' });
+            delete evidence[key];
+        }
+        const measurements = testInfo.outputPath('reactor-water-core-lifecycle.json');
+        await writeFile(measurements, JSON.stringify(evidence, null, 2));
+        await testInfo.attach('reactor-water-core-lifecycle', { path: measurements, contentType: 'application/json' });
+        for (const pool of evidence.pools) {
+            expect(pool.submerged).toBe(true);
+            expect(pool.dryAbove && pool.dryOutside).toBe(true);
+            expect(pool.free.hit, JSON.stringify(pool.free)).toBe(false);
+        }
+        expect(evidence.submergedPlayer.submerged && evidence.submergedPlayer.alive).toBe(true);
+        expect(evidence.submergedPlayer.speed).toBeLessThan(1);
+        expect(evidence.submergedPlayer.visibility).toBeLessThan(1);
+        expect(evidence.dryPlayer).toEqual({ submerged: false, speed: 1 });
+        expect(evidence.radiation.near).toBeGreaterThan(evidence.radiation.far);
+        expect(evidence.radiation.near).toBeLessThan(3);
+        expect(evidence.radiation.far).toBeGreaterThan(0);
+        expect(evidence.radiation.outside).toBe(0);
+        expect(evidence.exit.found && evidence.exit.ok, JSON.stringify(evidence.exit)).toBe(true);
+        expect(evidence.exit.entryRadius, 'the exit starts inside the containment').toBeLessThan(15.45);
+        expect(evidence.exit.target[2]).toBeGreaterThan(100 * MAP_SCALE);
+        expect(evidence.exit.collision.hit).toBe(false);
+        for (const route of [...evidence.routesBefore, ...evidence.routesAfter]) {
+            expect(route.hit, JSON.stringify(route)).toBe(false);
+        }
+        expect(evidence.prizesBefore.map((item) => item.type).sort()).toEqual(['BOMBER_STRIKE', 'LIGHTNING']);
+        for (const item of evidence.prizesBefore) expect(item.collision.hit, JSON.stringify(item)).toBe(false);
+        expect(evidence.prizesAfter).toEqual([]);
+        expect(evidence.intactGlow.length).toBeGreaterThanOrEqual(2);
+        expect(evidence.concreteBefore.length).toBeGreaterThan(0);
+        expect(evidence.concreteAfter, 'the core glow must not change shared pool/site concrete').toEqual(evidence.concreteBefore);
+        for (let index = 0; index < evidence.intactGlow.length; index += 1) {
+            expect(evidence.collapsedGlow[index].intensity).toBeGreaterThan(evidence.intactGlow[index].intensity);
+            expect(evidence.reset.glow[index].intensity).toBe(evidence.intactGlow[index].intensity);
+        }
+        expect(evidence.reset.prizes).toHaveLength(2);
+        expect(evidence.reset.water).toBe(true);
+    });
+
     test('the plant loads shootable, a tower keels over and the reactor breach sends up the cloud', async ({ page }, testInfo) => {
         test.setTimeout(480_000);
         await startMatch(page, { modePath: 'fight', sessionType: 'single' });
@@ -165,7 +331,7 @@ test.describe('Reactor site', () => {
         await page.evaluate(() => { window.GAME_INSTANCE.state = 'PLAYING'; });
 
         // --- 2 to 4, in one evaluate ------------------------------------------------------
-        const siege = await page.evaluate(({ mapScale, towerId, axisX }) => {
+        const siege = await page.evaluate(({ mapScale, towerId, axisX, buildingScale }) => {
             const game = window.GAME_INSTANCE;
             const arena = game.arena;
             const entityManager = game.entityManager;
@@ -212,7 +378,7 @@ test.describe('Reactor site', () => {
             const groundProbes = (direction) => {
                 const hits = [];
                 let probed = 0;
-                for (const distance of [28, 36, 44, 52, 60, 68]) {
+                for (const distance of [34, 42, 50, 58, 66, 74]) {
                     for (const height of [14, 18, 24, 30, 38, 46]) {
                         for (const lateral of [0, 8, -8]) {
                             probed += 1;
@@ -292,10 +458,10 @@ test.describe('Reactor site', () => {
             const hudElement = document.querySelector('#p1-hud .map-destructible-status');
             const hudAfterTower = String(hudElement?.textContent || '').trim();
 
-            // Twenty-five seconds of map time at a fixed step: the keel-over runs 23.3 s.
+            // The enlarged tower's baked keel-over runs 26.13 seconds.
             const clockAtBreak = Number(arena.glbAnimationElapsedSeconds) || 0;
             const stepSeconds = 1 / 60;
-            for (let index = 0; index < 25 * 60; index += 1) arena.update(stepSeconds);
+            for (let index = 0; index < 28 * 60; index += 1) arena.update(stepSeconds);
             const clockAfterFall = Number(arena.glbAnimationElapsedSeconds) || 0;
             const slotFall = fallDirection(Number(toppleSlot?.rotation?.y) || 0);
             const groundAfter = groundProbes(slotFall);
@@ -306,8 +472,9 @@ test.describe('Reactor site', () => {
             ).length;
             const blockCollidersBefore = colliderCount('reactor_block');
             const ruinCollidersBefore = colliderCount('piece_reactor');
-            const domePoint = { x: world(14), y: world(8 + 33 * 0.6), z: 0 };
-            const domeInfo = arena.getCollisionInfo(domePoint, 0.1);
+            const domeOrigin = { x: world(30), y: world(8 + 33 * buildingScale * 0.6), z: world(2) };
+            const domeInfo = arena.raycast(domeOrigin, { x: -1, y: 0, z: 0 }, world(20));
+            const domePoint = domeInfo?.point || domeOrigin;
             const domeName = String(domeInfo?.sourceName || '');
             const reactor = (destructibles.getDefinition()?.segments || []).find((entry) => entry.id === 'reactor_dome');
             const breach = destructibles.applyMeshHit(domeName, reactor ? reactor.hp : 0, {
@@ -324,11 +491,11 @@ test.describe('Reactor site', () => {
             for (let index = 0; index < 10 * 60; index += 1) arena.update(stepSeconds);
             const capProbe = arena.getCollisionInfo({ x: 0, y: world(8 + 130 * 0.6), z: 0 }, 0.1);
             // The middle of the first wall sector of the ruin, 23.4 m out at six metres up.
-            const wallAngle = Math.PI / 28;
+            const wallAngle = Math.PI / 2 + Math.PI / 28;
             const ruinProbe = arena.getCollisionInfo({
-                x: world(23.4 * 0.6 * Math.cos(wallAngle)),
+                x: world(23.4 * buildingScale * 0.6 * Math.cos(wallAngle)),
                 y: world(8 + 6 * 0.6),
-                z: -world(23.4 * 0.6 * Math.sin(wallAngle)),
+                z: -world(23.4 * buildingScale * 0.6 * Math.sin(wallAngle)),
             }, 2.0);
             const refused = destructibles.applyMeshHit('cooling_tower_concrete', 50, {
                 hitPoint: { x: world(63 + 21), y: world(26), z: 0 }, hitDirection: { x: -1, y: 0, z: 0 },
@@ -396,7 +563,7 @@ test.describe('Reactor site', () => {
                 ruinProbe: { hit: ruinProbe?.hit === true, sourceName: String(ruinProbe?.sourceName || '') },
                 refused: refused === null,
             };
-        }, { mapScale: MAP_SCALE, towerId: TOWER_SEGMENT_ID, axisX: TOWER_AXIS_X });
+        }, { mapScale: MAP_SCALE, towerId: TOWER_SEGMENT_ID, axisX: TOWER_AXIS_X, buildingScale: BUILDING_SCALE });
 
         const measurements = testInfo.outputPath('reactor-site-measurements.json');
         await writeFile(measurements, JSON.stringify(siege, null, 2), 'utf8');
@@ -440,7 +607,7 @@ test.describe('Reactor site', () => {
         );
         expect(siege.slotFall.x, `the wreck runs towards (${siege.slotFall.x.toFixed(3)}, ${siege.slotFall.z.toFixed(3)})`).toBeCloseTo(-1, 5);
         expect(siege.hudAfterTower, 'a break that does not seal names its structure').toBe('KÜHLTURM WEST BRICHT');
-        expect(siege.clockAfterFall - siege.clockAtBreak).toBeCloseTo(25, 1);
+        expect(siege.clockAfterFall - siege.clockAtBreak).toBeCloseTo(28, 1);
         const isPiece = (entry) => entry.sourceName.toLowerCase().startsWith('piece_tower_w');
         expect(siege.groundBefore.hits.filter(isPiece), `${siege.groundBefore.probed} probes before the break reported no wreck`).toEqual([]);
         expect(siege.groundBefore.hits, 'west of the tower there is only air before the break').toEqual([]);
@@ -488,7 +655,7 @@ test.describe('Reactor site', () => {
                 {
                     segmentId: 'cooling_tower_e', meshName: 'cooling_tower_concrete',
                     intactId: 'reactor-cooling-tower-east', sceneId: 'reactor-topple-tower-east',
-                    piecePrefix: 'piece_tower_e', seconds: 25,
+                    piecePrefix: 'piece_tower_e', seconds: 28,
                 },
                 {
                     segmentId: 'vent_stack', meshName: 'vent_stack_concrete',

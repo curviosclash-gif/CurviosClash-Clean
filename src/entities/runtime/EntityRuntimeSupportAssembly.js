@@ -39,6 +39,13 @@ export function applyEnvironmentProjectileDamage(owner, target, projectile) {
  * call, so it is only read here and never kept.
  */
 export function handleRocketIntercept(owner, event) {
+    if (event?.position) {
+        owner?.particles?.spawnRocketImpact?.(event.position, event.target?.type, 0xffb65c, {
+            kind: 'intercept', interceptor: event.interceptor?.type ? 'rocket' : 'gun',
+            direction: event.target?.velocity || null,
+        });
+        owner?.audio?.play?.('ROCKET_IMPACT', resolveWorldAudioOptions(owner, event.position));
+    }
     const defender = event?.defender || null;
     const defenderIndex = Number(defender?.index);
     if (!defender || defender.staticTurret === true || !Number.isInteger(defenderIndex) || defenderIndex < 0) return;
@@ -78,8 +85,14 @@ export function createEntityRuntimeSupport(owner) {
             owner.audio.play(isRocketTierType(type) ? 'ROCKET_SHOOT' : 'SHOOT');
         },
         onProjectileHit: (position, color, projectileOwner, projectile) => {
+            if (projectile?.suppressExplosionPresentation === true) return;
             if (isRocketTierType(projectile?.type)) {
-                if (owner.particles) owner.particles.spawnRocketImpact(position, projectile?.type, color);
+                if (owner.particles) {
+                    if (projectile.explosionKind === 'trail') owner.particles.spawnTrailImpact(position, color, { destroyed: true });
+                    else owner.particles.spawnRocketImpact(position, projectile?.type, color, {
+                        contact: projectile.explosionContact, direction: projectile.velocity,
+                    });
+                }
                 owner.audio?.play?.(
                     'ROCKET_IMPACT',
                     resolveWorldAudioOptions(owner, position)
@@ -90,6 +103,7 @@ export function createEntityRuntimeSupport(owner) {
             if (owner.audio && !projectileOwner?.isBot) owner.audio.play('HIT');
         },
         onTrailSegmentHit: (position, projectileOwner, projectile, trailHit) => {
+            if (projectile) projectile.explosionKind = 'trail';
             const isDestroyed = !!trailHit?.destroyed;
             const color = isDestroyed ? 0x66ddff : 0x3388ff;
             if (owner.particles) {
@@ -146,6 +160,8 @@ export function createEntityRuntimeSupport(owner) {
         },
         applyEnvironmentDamage: (target, projectile) => applyEnvironmentProjectileDamage(owner, target, projectile),
         onRocketIntercepted: (event) => handleRocketIntercept(owner, event),
+        onGuidedRocketImpact: (projectile) => owner._killcamSystem?.onGuidedRocketImpact?.(
+            projectile.owner, projectile.position, projectile.velocity) === true,
         runtimeProfiler: owner.runtimeProfiler || null,
     });
 

@@ -349,14 +349,16 @@ test('spawn protection is skipped over rather than used up, and the fireball wai
 });
 
 test('the fireball is over at its last row, and the smoke after it never burns anyone', () => {
-    const { calls, system, breach, tick } = createFireballWorld();
+    const { calls, ship, system, breach, tick } = createFireballWorld();
+    ship.position = { x: 4000, y: 0, z: 0 };
     breach(0);
 
     tick(FIREBALL_WORLD.goneSeconds);
-    assert.equal(calls.length, 0, 'at 4.4 s the fireball has no radius left');
+    assert.equal(calls.length, 0, 'the ship stayed clear of the full fireball interval');
     assert.equal(system._fireballs.length, 0, 'and is forgotten rather than kept as a zero sphere');
 
     // The clip draws stem, cap, rolled rim and ground dust for another forty-five seconds.
+    ship.position = { x: 0, y: FIREBALL_WORLD.peakY, z: 0 };
     for (const seconds of [4.5, 8, 12, 24, 40, 49]) tick(seconds);
     assert.equal(calls.length, 0, 'smoke is scenery');
 });
@@ -370,15 +372,17 @@ test('the breach itself is harmless: at zero seconds the fireball has no radius'
     assert.equal(calls.length, 1, 'half a second later it is half grown and does hit');
 });
 
-test('a fireball is sampled, not swept: a ship that crosses between two updates is missed', () => {
+test('the fireball sweeps a ship crossing it between updates, even after a long frame', () => {
     const { calls, ship, breach, tick } = createFireballWorld();
-    ship.position = { x: 4000, y: 0, z: 0 };
+    ship.position = { x: -400, y: 140, z: 0 };
     breach(0);
-    tick(0.1);
-    // The whole window passes in one step, as it would after a stall. Nobody was measured inside
-    // it, so nobody is charged for it - the safe direction.
+    ship.position = { x: 800, y: 140, z: 0 };
+    // The endpoint is well outside and the observed frame extends beyond the fireball's last row.
+    // The ship still crossed the growing sphere around three seconds into the interval.
     tick(9.0);
-    assert.equal(calls.length, 0);
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].amount > 0);
+    assert.ok(calls[0].options.impactPoint.radius > 0, 'the hit is located in the active fireball');
 });
 
 test('a breach on the map clock, not on the wall clock: a late break burns at its own offset', () => {

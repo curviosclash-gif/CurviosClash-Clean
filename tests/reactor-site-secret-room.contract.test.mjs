@@ -10,6 +10,7 @@ import { REACTOR_SITE_SECRET_ROOM_OBSTACLES } from '../src/core/config/maps/pres
 import { REACTOR_HALF_SIZE, METRE } from '../src/core/config/maps/presets/reactor_site/ReactorSiteStructure.js';
 import { normalizeSecretRooms } from '../src/shared/contracts/SecretRoomContract.js';
 import { normalizeStaticTurretDefinition } from '../src/shared/contracts/MapSinglePlayerScenarioContract.js';
+import { getPickupSpawnWeight, isPickupTypeAllowedForMode } from '../src/shared/contracts/PickupRegistryContract.js';
 import {
     PLAYABLE_VOLUME_INSIDE,
     probeArenaPlayableVolumes,
@@ -38,11 +39,11 @@ const EDGE_MARGIN = 8;
  * is 60 m, from the centre.
  */
 const FALL_REACH_METRES = Object.freeze({
-    cooling_tower_w: 115.2,
-    cooling_tower_e: 115.2,
-    vent_stack: 88.4,
-    turbine_hall: 88.4,
-    reactor_dome: 60,
+    cooling_tower_w: 130.3,
+    cooling_tower_e: 130.3,
+    vent_stack: 88.4 * Math.cbrt(1.5),
+    turbine_hall: 88.4 * Math.cbrt(1.5),
+    reactor_dome: 60 * Math.cbrt(1.5),
 });
 
 /** Distance of a point from a line segment, used for the beam-shaped fallback obstacles. */
@@ -107,9 +108,26 @@ test('T-S38a: the reactor site carries exactly one secret room with the agreed t
     // one of them: whichever breaks first opens the portal, four seconds later.
     assert.equal(ROOM.unlock.when, 'anyBreak');
     assert.equal(ROOM.unlock.delaySeconds, 4);
-    assert.ok(ROOM.items.length >= 8 && ROOM.items.length <= 12, `items: ${ROOM.items.length}`);
+    // The bomber and lightning prizes moved to the flyable reactor room.
+    assert.equal(ROOM.items.length, 44, `items: ${ROOM.items.length}`);
     const untyped = ROOM.items.filter((item) => !item.type).length;
     assert.ok(untyped * 2 >= ROOM.items.length, `untyped item points: ${untyped}`);
+});
+
+test('T-S38j: the bunker no longer owns bomber or lightning prizes', () => {
+    // The bunker keeps its enlarged footprint and now doubles height and item stock as well.
+    assert.equal(ROOM.bounds.max[0] - ROOM.bounds.min[0], 80);
+    assert.equal(ROOM.bounds.max[2] - ROOM.bounds.min[2], 80);
+    assert.equal(ROOM.bounds.max[1] - ROOM.bounds.min[1], 24);
+    assert.equal(ROOM.items.filter((item) => item.type === 'BOMBER_STRIKE').length, 0);
+    assert.equal(ROOM.items.filter((item) => item.type === 'LIGHTNING').length, 0);
+    // No two points share a spot, or one item would hide the other.
+    for (let a = 0; a < ROOM.items.length; a += 1) {
+        for (let b = a + 1; b < ROOM.items.length; b += 1) {
+            const gap = Math.hypot(...[0, 1, 2].map((axis) => ROOM.items[a].pos[axis] - ROOM.items[b].pos[axis]));
+            assert.ok(gap >= 4, `items ${a} and ${b} stand ${gap.toFixed(1)} apart`);
+        }
+    }
 });
 
 test('T-S38b: the room hangs clear below the arena box', () => {

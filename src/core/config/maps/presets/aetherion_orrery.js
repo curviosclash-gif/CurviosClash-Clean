@@ -70,7 +70,7 @@ const AETHERION_MODELS = [
 
     mechanism('bridge-lower', '05_meridian_bridges', 'MeridianBridgeLoop', 0, [-70, 24, -30], 38),
     mechanism('bridge-middle', '05_meridian_bridges', 'MeridianBridgeLoop', 1 / 3, [70, 84, 20], 38, Math.PI / 2),
-    mechanism('bridge-crown', '05_meridian_bridges', 'MeridianBridgeLoop', 2 / 3, [-30, 144, 65], 38, Math.PI / 4),
+    mechanism('bridge-crown', '05_meridian_bridges', 'MeridianBridgeLoop', 2 / 3, [-30, 144, 65], 38),
 
     mechanism('astrolabe-foundry', '06_astrolabe_gate', 'AstrolabeGateLoop', 0.5, [0, 24, 0], 40),
     mechanism('astrolabe-gallery', '06_astrolabe_gate', 'AstrolabeGateLoop', 0, [0, 84, 0], 40, Math.PI / 2),
@@ -210,8 +210,8 @@ export const AETHERION_ORRERY_MAP = {
             { x: 118, y: 144, z: 112 },
         ],
         staticTurrets: [
-            { id: 'orrery_meridian_turret', weapon: 'mg', pos: [0, 96, 0], range: 68, cooldown: 1.0, damage: 4, phase: 0.5 },
-            { id: 'orrery_eclipse_turret', weapon: 'rocket', pos: [0, 158, 0], range: 84, cooldown: 4.2, rocketType: 'ROCKET_MEDIUM', phase: 1.4 },
+            { id: 'orrery_meridian_turret', weapon: 'mg', pos: [104, 96, 0], range: 68, cooldown: 1.0, damage: 4, phase: 0.5 },
+            { id: 'orrery_eclipse_turret', weapon: 'rocket', pos: [100, 158, 0], range: 84, cooldown: 4.2, rocketType: 'ROCKET_MEDIUM', phase: 1.4 },
         ],
         items: [
             { id: 'orrery_shield_lower_west', type: 'item_shield', pickupType: 'SHIELD', x: -122, y: 28, z: -88, weight: 1.2 },
@@ -223,7 +223,7 @@ export const AETHERION_ORRERY_MAP = {
             { id: 'orrery_speed_lower', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: 28, z: -118, weight: 1.1 },
             { id: 'orrery_speed_middle', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: 88, z: 118, weight: 1.1 },
             { id: 'orrery_ghost_crown', type: 'item_coin', pickupType: 'GHOST', x: 88, y: 148, z: -88, weight: 0.8 },
-            { id: 'orrery_thick_core', type: 'item_coin', pickupType: 'THICK', x: 0, y: 92, z: 42, weight: 0.8 },
+            { id: 'orrery_thick_core', type: 'item_coin', pickupType: 'THICK', x: 0, y: 92, z: 58, weight: 0.8 },
         ],
         missions: [
             { type: 'TIME_TRIAL', params: { target: 260 }, weight: 1.4 },

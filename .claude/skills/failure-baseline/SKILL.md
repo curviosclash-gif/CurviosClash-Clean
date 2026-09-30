@@ -33,7 +33,7 @@ Die Logs liegen bewusst außerhalb des Repos: `AGENTS.md` verbietet Logs und gen
 
 ## Der übliche Weg: Baseline nachholen
 
-Meistens fällt der rote Cluster erst auf, wenn die Änderung schon steht. Dann legst du **nur deine eigenen Dateien** kurz beiseite.
+Meistens fällt der rote Cluster erst auf, wenn die Änderung schon steht. Verändere dafür nicht den aktiven Arbeitsbaum und benutze keinen Stash: der Stash-Stack wird von allen Worktrees dieses Repositorys geteilt.
 
 Zuerst den aktuellen Stand festhalten, damit du ihn nicht zweimal laufen lassen musst:
 
@@ -41,32 +41,29 @@ Zuerst den aktuellen Stand festhalten, damit du ihn nicht zweimal laufen lassen 
 node scripts/run-playwright-targeted-clusters.mjs physics-hunt 2>&1 | Tee-Object "$env:TEMP\curvios-baseline\physics-hunt.current.log"
 ```
 
-Dann die eigenen Pfade beiseitelegen — **immer einzeln aufgezählt**, nie pauschal, weil der Arbeitsbaum fremde Änderungen des Nutzers trägt:
+Nimm die Baseline stattdessen in einem getrennten, detached Worktree am unveränderten Ausgangscommit der Aufgabe auf. Prüfe vorher die aktuelle Worktree-Liste und das Playwright-Schloss. Wenn die Sitzungsgrenze erreicht ist, hole vor dem zusätzlichen Worktree die in `AGENTS.md` verlangte Nutzerzustimmung ein.
 
-```bash
-git stash push -u -- src/entities/arena/ArenaCollision.js src/modes/HuntCollisionOps.js src/modes/HuntModeStrategy.js src/hunt/HuntConfig.js src/shared/contracts/EntityRuntimeConfig.js tests/collision-impact-consistency.contract.test.mjs
+```powershell
+$commonGitDir = (Resolve-Path (git rev-parse --git-common-dir)).Path
+$repositoryRoot = Split-Path -Parent $commonGitDir
+$baselineDir = Join-Path $repositoryRoot '.claude/worktrees/failure-baseline-<unique>'
+git worktree add --detach $baselineDir '<task-base-commit>'
 ```
 
-Zwei Fallen stecken in diesem einen Befehl:
-
-- **`-u` ist Pflicht, sobald eine neue Datei dabei ist.** Ohne `-u` lässt `git stash push` unversionierte Dateien liegen. Eine neu angelegte Datei bliebe also stehen, während der Import darauf verschwindet.
-- **Alle Dateien der Änderung müssen mit, nicht nur die auffälligen.** Wenn ein Modul zurückgenommen wird, der Aufrufer aber stehen bleibt, zeigt der Import ins Leere und der ganze Cluster fällt schon beim Laden um. Das Ergebnis sieht aus wie „vorher war alles rot" und ist in Wahrheit gar keine Baseline. Prüfe deshalb vor dem Stash mit `git status --short`, welche Dateien zusammengehören.
+`<task-base-commit>` ist der Commit, von dem der Aufgaben-Worktree erstellt wurde, nicht ein inzwischen weitergelaufener Branchname. Richte benötigte Abhängigkeiten nach dem normalen Worktree-Verfahren des Repositorys ein. Ändere oder kopiere keine Produktdateien in die Baseline; sonst misst du keinen unveränderten Stand.
 
 Baseline aufnehmen:
 
 ```powershell
-node scripts/run-playwright-targeted-clusters.mjs physics-hunt 2>&1 | Tee-Object "$env:TEMP\curvios-baseline\physics-hunt.base.log"
+Push-Location -LiteralPath $baselineDir
+try {
+    node scripts/run-playwright-targeted-clusters.mjs physics-hunt 2>&1 | Tee-Object "$env:TEMP\curvios-baseline\physics-hunt.base.log"
+} finally {
+    Pop-Location
+}
 ```
 
-Und sofort zurückholen:
-
-```bash
-git stash pop
-```
-
-`git stash pop` ist der wichtigste Befehl in diesem Ablauf. Führe ihn auch dann aus, wenn der Testlauf abgebrochen ist, abgestürzt ist oder du zwischendurch etwas anderes gemacht hast. Kontrolliere danach mit `git status`, dass deine Dateien wieder als geändert erscheinen. Bleibt ein Stash liegen, sieht der Nutzer plötzlich seinen eigenen Stand ohne deine Arbeit — und hält das für Datenverlust.
-
-Wenn `git stash pop` einen Konflikt meldet, halte an und melde es. Löse ihn nicht auf gut Glück auf.
+Der Aufgaben-Worktree bleibt währenddessen unverändert. Entferne den Baseline-Worktree erst nach gesicherter Auswertung und nach den aktuellen Regeln für Worktree- und Testartefakt-Bereinigung; löse dabei vorhandene `node_modules`-Junctions zuerst.
 
 ## Vergleichen
 

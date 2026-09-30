@@ -12,6 +12,7 @@ import {
 } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { normalizeMobileClassicControlSettings } from '../../shared/contracts/MobileClassicControlsContract.js';
 import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleContract.js';
+import { normalizeGraphicsQualitySetting } from '../../shared/contracts/GraphicsQualityContract.js';
 import { normalizeMapBrightness } from '../../shared/contracts/MapBrightnessContract.js';
 import { normalizeViewDistance } from '../../shared/contracts/ViewDistanceContract.js';
 import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
@@ -243,6 +244,8 @@ function normalizeLocalSettingsState(localSettings = null) {
         viewDistance: normalizeViewDistance(source.viewDistance, defaults.viewDistance),
         shadowQuality: normalizeShadowQuality(source.shadowQuality, defaults.shadowQuality || DEFAULT_SHADOW_QUALITY),
         bloomQuality: normalizeBloomQuality(source.bloomQuality, defaults.bloomQuality ?? DEFAULT_BLOOM_QUALITY),
+        bloomQualityUserSet: normalizeBoolean(source.bloomQualityUserSet, false),
+        graphicsQuality: normalizeGraphicsQualitySetting(source.graphicsQuality),
         mouseSteering: normalizeBoolean(source.mouseSteering, defaults.mouseSteering),
         gamepadVibration: normalizeBoolean(source.gamepadVibration, defaults.gamepadVibration),
         smoothSteering: normalizeBoolean(source.smoothSteering, defaults.smoothSteering),

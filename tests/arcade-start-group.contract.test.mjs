@@ -45,7 +45,7 @@ function build() {
 
 const byClass = (parent, name) => parent.children.find((child) => String(child.className).split(' ').includes(name));
 
-test('the main run stays visible while four specialist modes are grouped one level deeper', () => {
+test('the main run stays visible while five specialist modes are grouped one level deeper', () => {
     const { body } = build();
     const group = body.children[0];
     assert.match(group.className, /\barcade-start-group\b/);
@@ -55,12 +55,13 @@ test('the main run stays visible while four specialist modes are grouped one lev
     assert.equal(visibleOptions[0].classList.contains('is-primary'), true);
     const specialistModes = byClass(group, 'arcade-start-mode-options');
     assert.equal(specialistModes.tagName, 'DETAILS');
-    assert.equal(specialistModes.children[0].textContent, 'Weitere Arcade-Modi (4)');
+    assert.equal(specialistModes.children[0].textContent, 'Weitere Arcade-Modi (5)');
     const options = specialistModes.children[1].children;
     assert.deepEqual(options.map((option) => option.children[0].id), [
         'btn-arcade-endless-start-inline',
         'btn-arcade-five-fronts-start-inline',
         'btn-arcade-five-portals-start-inline',
+        'btn-arcade-sky-ladder-start-inline',
         'btn-arcade-weapon-race-start-inline',
     ]);
     for (const option of options) {

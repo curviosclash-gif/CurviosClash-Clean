@@ -18,7 +18,7 @@ const TURRET_HEIGHT = 2.1;
 const MAX_TRIANGLES = 3000;
 const MAX_KILOBYTES = 400;
 
-const PARTS = Object.freeze(['tank_hull', 'tank_track_left', 'tank_track_right', 'tank_turret', 'tank_barrel', 'tank_wreck']);
+const PARTS = Object.freeze(['tank_hull', 'tank_track_left', 'tank_track_right', 'tank_turret', 'tank_barrel', 'tank_wreck', 'pigeon_body', 'pigeon_wing']);
 
 function readLibrary() {
     const bytes = readFileSync(LIBRARY);
@@ -89,6 +89,16 @@ test('the barrel points forward, the way the model faces', () => {
     assert.ok(barrel.min[2] > 0, 'the whole barrel is in front of the turret centre');
     assert.ok(barrel.max[2] > 4, `the muzzle reaches past the hull nose, reached ${barrel.max[2]}`);
     assert.ok(barrel.max[2] - barrel.min[2] > barrel.max[0] - barrel.min[0], 'and it is longer than it is wide');
+});
+
+test('the editable flock parts have a small forward-facing body and two wingspan axes', () => {
+    const { nodes } = readLibrary();
+    const body = nodes.get('pigeon_body');
+    const wing = nodes.get('pigeon_wing');
+    assert.ok(body.max[2] > 0.35, 'the beak reaches forward along game +Z / Blender -Y');
+    assert.ok(body.min[2] < -0.25, 'the tail extends behind the body');
+    assert.ok(wing.max[0] > 0.55 && Math.abs(wing.min[0]) < 0.05, 'one wing is authored from its root outwards');
+    assert.ok(wing.max[1] - wing.min[1] < 0.1, 'the wing is a thin low-poly flap surface');
 });
 
 test('the library stays cheap enough for sixteen units on a map', () => {

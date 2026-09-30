@@ -31,6 +31,8 @@ Expected: compile one version 2 contract, combine the applicable domain skill, c
 8. Count changes in `coverage` mode: explain that the design-space allocation may change.
 9. Budget-only change: revalidate without rebuilding unchanged geometry.
 10. Removed IDs: list candidates without deleting outputs.
+11. Ten variations of an existing plant: inspect its source, reuse its generator or a safe adapter, preserve the original, and combine the plant skill without requiring its name in the request. A flattened mesh permits only supported transformations unless reconstruction is authorized.
+12. A procedural plant has an authored flower and one hand-shaped branch: regenerate a representative variant with a stable seed and a changed stem length before the batch. Both additions must survive and follow their attachments; validate every output and visually inspect the family without requiring a separate AI call for each variant.
 
 ## Failure Conditions
 

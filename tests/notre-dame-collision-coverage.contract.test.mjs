@@ -94,12 +94,9 @@ test('the apse hemicycle piers are solid', () => {
     }
 });
 
-// What stands still on the reconstruction site. Measured off the GLB files as placed by
-// NotreDameModels, in authored units, so these are the coordinates the runtime uses. They are
-// the parts 'dynamic' skips: the loader only collides what an animation moves, which leaves the
-// machine that does the moving as scenery -- a 54 m crane mast a player passes through while
-// the jib above it blocks normally.
-const SITE_FRAMES = [
+// Former construction frame positions, measured in authored units. None may leave a hidden
+// collision body after the machines are removed.
+const FORMER_SITE_FRAMES = [
     { id: 'tower crane mast leg', pos: [14.9, 45.8, -92.1] },
     { id: 'stone hoist west-tower leg', pos: [-30.06, 23.0, -56.26] },
     { id: 'stone hoist east-tower leg', pos: [7.54, 23.0, -53.74] },
@@ -113,9 +110,9 @@ const SITE_FRAMES = [
     { id: 'fleche hoist head', pos: [130.0, 50.56, 0.0] },
 ];
 
-test('the standing frames of the reconstruction site are solid', () => {
-    for (const frame of SITE_FRAMES) {
-        assert.ok(isSolid(frame.pos), `${frame.id} is solid`);
+test('the former construction frames leave open air', () => {
+    for (const frame of FORMER_SITE_FRAMES) {
+        assert.ok(!isSolid(frame.pos), `${frame.id} no longer blocks flight`);
     }
 });
 
@@ -143,7 +140,7 @@ test('all three west portal openings stay flyable', () => {
 });
 
 test('both Notre-Dame maps carry the same collision', () => {
-    // The arena variant reuses the fabric, the site and the collision unchanged. Anything added
+    // The arena variant reuses the fabric and collision unchanged. Anything added
     // for one map has to reach the other, or the same building blocks differently per mode.
     assert.equal(NOTRE_DAME_MAPS.notre_dame_arena.obstacles, map.obstacles);
 });

@@ -9,6 +9,7 @@ import {
 import { resolveWorldAudioOptions } from './audio/WorldAudioOptions.js';
 import { emitArcadeEliminationEvents } from './runtime/EntityArcadeGameplayEvents.js';
 import { TEAM_IDS } from '../shared/contracts/TeamCombatContract.js';
+import { selectConventionalExplosionProfile } from './effects/ConventionalExplosionProfiles.js';
 
 function resolveEnvironmentCredit(entityManager, player, cause, deathOptions, nowSeconds) {
     if (deathOptions?.killer || !isEnvironmentKillCause(cause)) return null;
@@ -30,6 +31,10 @@ export function replayPlayerDeathPresentation(entityManager, player, cause = 'UN
     entityManager?.particles?.spawnExplosion?.(player.position, player.color, {
         cause,
         projectileType: options?.projectileType || null,
+        contact: options?.contact || entityManager?.arena?.getCollisionInfo?.(player.position, player.hitboxRadius || .8) || null,
+        direction: player.velocity || null,
+        profile: options?.profile || player.lastDeathExplosionProfile || null,
+        replicate: false,
     });
     entityManager?.audio?.play?.(
         'EXPLOSION',
@@ -61,6 +66,10 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     // to replay the same explosion presentation - see StateReconciler.
     player.lastDeathCause = cause;
     player.lastDeathProjectileType = deathOptions?.projectileType || null;
+    player.lastDeathExplosionProfile = selectConventionalExplosionProfile({
+        kind: 'death', projectileType: player.lastDeathProjectileType,
+        contact: deathOptions.contact || entityManager?.arena?.getCollisionInfo?.(player.position, player.hitboxRadius || .8),
+    }).id;
     entityManager.recorder?.captureSnapshotNow?.(entityManager);
     entityManager._projectileSystem?.clearRocketTrailsForOwner?.(player);
     if (entityManager.gameModeStrategy?.hasScoring() && entityManager.isFightOutcomeAuthority !== false) {

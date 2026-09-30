@@ -99,6 +99,10 @@ export function finalizeMatchFlow(facade, options = undefined, fallbackReason = 
         }
         facade?.teardownRuntimeSession?.();
     }
+    // The menu lobby still holds the start command of this match; as host,
+    // report the match over so the lobby reopens for joins and the next start.
+    // The lobby service ignores this for guests and for local matches.
+    facade?.menuMultiplayerBridge?.notifyMatchEnded?.();
     if (requestedPlan.clearPlayerSources) {
         facade?.ports?.inputPort?.clearPlayerSources?.();
     }

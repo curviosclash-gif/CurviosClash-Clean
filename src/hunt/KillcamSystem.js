@@ -10,86 +10,18 @@ import {
 } from './KillcamPresentationOps.js';
 import { isPixelCaptureEligible, isSingleNodeSession, resolveRespawnDelaySeconds } from './KillcamEligibility.js';
 import { initializePixelReplay, setPixelReplayEnabled } from './KillcamPixelReplayLifecycle.js';
+import { computeReplayRateCalibration, SHOT_SEQUENCE } from './KillcamShotSequence.js';
 
 const KILLCAM_SOURCE_WINDOW_SECONDS = 2;
 const KILLCAM_MAX_DISPLAY_SECONDS = 2.5;
 const KILLCAM_CAMERA_INDEX = 0;
 const KILLCAM_ORBIT_SMOOTH_SPEED = 9.5;
 const KILLCAM_MIN_DURATION = 0.6;
+const KILLCAM_GUIDED_IMPACT_SECONDS = 2.2;
 const KILLCAM_EXPLOSION_TRIGGER_RATIO = 0.78;
-const KILLCAM_SLOWMO_TIMESCALE = 0.38;
 const KILLCAM_LETTERBOX_DOM_ID = 'killcam-letterbox';
 const KILLCAM_HUD_ACTIVE_CLASS = 'killcam-active';
 const KILLCAM_MIN_CAMERA_DISTANCE = 4;
-
-const SHOT_SEQUENCE = Object.freeze([
-    Object.freeze({
-        id: 'death_flight_chase',
-        durationRatio: 0.42,
-        radius: 7.5,
-        offsetBack: 5.5,
-        offsetLift: 1.4,
-        orbitSpeed: 0.10,
-        lookLift: 0.6,
-        fov: 52,
-        timeScale: 1.0,
-    }),
-    Object.freeze({
-        id: 'impact_zoom',
-        durationRatio: 0.22,
-        radius: 4.0,
-        offsetBack: 2.0,
-        offsetLift: 0.5,
-        orbitSpeed: 0.05,
-        lookLift: 0.4,
-        fov: 46,
-        timeScale: 0.7,
-    }),
-    Object.freeze({
-        id: 'explosion_orbit',
-        durationRatio: 0.36,
-        radius: 9.0,
-        offsetBack: 0,
-        offsetLift: 3.2,
-        orbitSpeed: 0.34,
-        lookLift: 0.9,
-        fov: 58,
-        timeScale: KILLCAM_SLOWMO_TIMESCALE,
-    }),
-]);
-
-// Compute a uniform rate multiplier so that the cumulative replay-time advance,
-// driven by per-shot `timeScale` values, reaches exactly `sourceDuration`
-// at the wall-clock instant the explosion is triggered (triggerRatio * displayDuration).
-// Without this calibration the slow-mo shots (timeScale < 1) leave the replay
-// replay stuck short of the death frame, so the orbit never shows the actual impact.
-function computeReplayRateCalibration(displayDuration, sourceDuration, triggerRatio) {
-    const safeD = Math.max(0.001, Number(displayDuration) || 0);
-    const safeSource = Math.max(0.001, Number(sourceDuration) || 0);
-    const trigger = THREE.MathUtils.clamp(Number(triggerRatio) || 0, 0.001, 1);
-    const triggerWall = trigger * safeD;
-
-    let cumulativeScaled = 0;
-    let wallElapsed = 0;
-    for (const shot of SHOT_SEQUENCE) {
-        const shotWall = Math.max(0, Number(shot.durationRatio) || 0) * safeD;
-        const shotTimeScale = Number(shot.timeScale) > 0 ? Number(shot.timeScale) : 1;
-        if (wallElapsed + shotWall <= triggerWall + 1e-9) {
-            cumulativeScaled += shot.durationRatio * shotTimeScale;
-            wallElapsed += shotWall;
-        } else {
-            const remaining = Math.max(0, triggerWall - wallElapsed);
-            const partialFraction = shotWall > 0
-                ? THREE.MathUtils.clamp(remaining / shotWall, 0, 1)
-                : 0;
-            cumulativeScaled += shot.durationRatio * partialFraction * shotTimeScale;
-            break;
-        }
-    }
-
-    const baseConsumed = cumulativeScaled * safeD;
-    return baseConsumed > 1e-6 ? safeSource / baseConsumed : 1;
-}
 
 function hasFinitePosition(value) {
     return Number.isFinite(Number(value?.x))
@@ -120,6 +52,8 @@ export class KillcamSystem {
 
         this._active = false;
         this._sceneReplayActive = false;
+        // A live shot of a guided rocket's blast: no replay, the world keeps running.
+        this._impactActive = false;
         this._pixelReplayActive = false;
         this._pixelReplayPending = null;
         this._pixelTerminalCapturePending = false;
@@ -174,7 +108,7 @@ export class KillcamSystem {
 
     setPixelReplayEnabled(enabled) { return setPixelReplayEnabled(this, enabled); }
 
-    ownsCamera(playerIndex = KILLCAM_CAMERA_INDEX) { return this._active && this._sceneReplayActive && !this._pixelReplayActive && playerIndex === KILLCAM_CAMERA_INDEX; }
+    ownsCamera(playerIndex = KILLCAM_CAMERA_INDEX) { return this._active && (this._sceneReplayActive || this._impactActive) && !this._pixelReplayActive && playerIndex === KILLCAM_CAMERA_INDEX; }
 
     getTimeScale() {
         if (this._pixelReplayActive) return 1;
@@ -222,6 +156,24 @@ export class KillcamSystem {
             return true;
         }
         return this._startSceneReplay(context);
+    }
+
+    /** The pilot of a guided rocket watches its blast; a death killcam always wins over it. */
+    onGuidedRocketImpact(owner, impactPoint, direction = null) {
+        if (this._active || this._pixelReplayPending || !isSingleNodeSession(this.entityManager)) return false;
+        if (!owner || owner.isBot === true || owner.alive === false || owner.index !== KILLCAM_CAMERA_INDEX) return false;
+        const camera = this.renderer?.cameras?.[KILLCAM_CAMERA_INDEX];
+        if (!camera || !hasFinitePosition(impactPoint)) return false;
+        this._impactActive = true;
+        this._configurePlaybackState({
+            player: { index: -1, position: impactPoint, color: owner.color },
+            impactPoint, cause: 'PROJECTILE', projectileType: 'ROCKET_GUIDED',
+            displayDuration: KILLCAM_GUIDED_IMPACT_SECONDS, camera,
+            sourceDuration: KILLCAM_GUIDED_IMPACT_SECONDS, pixelReplay: false,
+        });
+        this._tmpVec.set(Number(direction?.x) || 0, 0, Number(direction?.z) || 0);
+        if (this._tmpVec.lengthSq() > 0.000001) this._impactDirection.copy(this._tmpVec.normalize());
+        return true;
     }
 
     shouldSuppressLiveDeathEffects() {
@@ -444,7 +396,8 @@ export class KillcamSystem {
     }
 
     advanceReplayPlayback(scaledDt) {
-        if (!this._active) return;
+        // The impact shot films the live blast; there is nothing to replay or to re-explode.
+        if (!this._active || this._impactActive) return;
         const calibratedDt = Math.max(0, Number(scaledDt) || 0) * this._replayRateCalibration;
         this._replayElapsed = Math.min(
             this._replaySourceDuration,
@@ -768,6 +721,7 @@ export class KillcamSystem {
         if (hadPixelReplay) this.pixelReplayBuffer?.clearPlayback?.();
         this._active = false;
         this._sceneReplayActive = false;
+        this._impactActive = false;
         this._pixelReplayActive = false;
         this._elapsed = 0;
         this._displayDuration = 0;

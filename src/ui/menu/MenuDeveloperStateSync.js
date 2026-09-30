@@ -11,6 +11,9 @@ function readTelemetryFilters(ui) {
         buildId: String(ui.telemetryFilterBuild?.value || '').trim(),
         mapKey: String(ui.telemetryFilterMap?.value || '').trim(),
         mode: String(ui.telemetryFilterMode?.value || '').trim(),
+        // Steht ab Werk auf "nur echtes Spiel": unbediente Fenster und
+        // Werkzeuglaeufe verschieben sonst still jede Quote.
+        controlSource: String(ui.telemetryFilterControl?.value || '').trim(),
         sinceDays: Number.isFinite(sinceDays) && sinceDays > 0 ? sinceDays : 0,
     };
 }
@@ -45,6 +48,11 @@ const TELEMETRY_CSV_FIELDS = [
 
 /** @type {Array<[string, (row: any) => any]>} */
 const TELEMETRY_CSV_DERIVED_FIELDS = [
+    // Ohne diese Spalten laesst sich in der Tabellenkalkulation nicht trennen,
+    // wer die Runde gefahren hat - Mensch, unbedientes Fenster oder Werkzeug.
+    ['controlSource', (row) => row?.control?.source],
+    ['controlInputShare', (row) => row?.control?.inputShare],
+    ['controlAutomationSignal', (row) => row?.control?.automationSignal],
     ['frameAvgMs', (row) => row?.performance?.frameAvgMs],
     ['frameP95Ms', (row) => row?.performance?.frameP95Ms],
     ['frameP99Ms', (row) => row?.performance?.frameP99Ms],
@@ -110,7 +118,7 @@ export function setupMenuTelemetryControls(ctx = {}) {
     const refresh = () => refreshTelemetryPanel({ ui, game, settingsManager });
     bind(ui.openDebugButton, 'click', () => { setTimeout(refresh, 0); });
     bind(ui.telemetryRefreshButton, 'click', refresh);
-    [ui.telemetryFilterBuild, ui.telemetryFilterMap, ui.telemetryFilterMode, ui.telemetryFilterPeriod]
+    [ui.telemetryFilterBuild, ui.telemetryFilterMap, ui.telemetryFilterMode, ui.telemetryFilterControl, ui.telemetryFilterPeriod]
         .forEach((select) => bind(select, 'change', refresh));
     bind(ui.telemetryCollectionToggle, 'change', () => {
         settingsManager.setTelemetryCollectionEnabled?.(ui.telemetryCollectionToggle.checked);

@@ -67,6 +67,9 @@ def make_materials():
     material("TankTrack", (0.018, 0.020, 0.024), 0.95, 0.12)
     material("TankSteel", (0.045, 0.047, 0.050), 0.62, 0.55)
     material("TankWreck", (0.026, 0.023, 0.020), 1.0, 0.18)
+    material("PigeonBody", (0.28, 0.31, 0.30), 0.9, 0.0)
+    material("PigeonWing", (0.18, 0.20, 0.20), 0.92, 0.0)
+    material("PigeonNeck", (0.34, 0.22, 0.18), 0.8, 0.0)
 
 
 def box(size, location, mat, rotation=(0, 0, 0)):
@@ -195,6 +198,59 @@ def build_wreck():
     return wreck
 
 
+def pigeon_oval(name, radius, location, mat, segments=10, rings=6):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=segments, ring_count=rings, radius=1, location=location)
+    obj = bpy.context.object
+    obj.name = name
+    obj.scale = radius
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    obj.data.materials.append(MATERIALS[mat])
+    return obj
+
+
+def build_pigeon_body():
+    """Shared low-poly body facing Blender -Y (the game's +Z flight direction)."""
+    parts = [
+        pigeon_oval("PigeonBody", (0.18, 0.36, 0.19), (0, 0, 0), "PigeonBody"),
+        pigeon_oval("PigeonBreast", (0.17, 0.20, 0.16), (0, -0.13, -0.025), "PigeonNeck"),
+        pigeon_oval("PigeonHead", (0.105, 0.12, 0.11), (0, -0.28, 0.10), "PigeonBody", 8, 5),
+        # Small pointed beak at the forward end; the body and beak stay one export part.
+    ]
+    bpy.ops.mesh.primitive_cone_add(vertices=6, radius1=0.055, radius2=0.008, depth=0.13, location=(0, -0.39, 0.09))
+    beak = bpy.context.object
+    beak.name = "PigeonBeak"
+    beak.rotation_euler[0] = math.radians(90)
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    beak.data.materials.append(material("PigeonBeak", (0.58, 0.38, 0.15), 0.75, 0.0))
+    parts.append(beak)
+    # A short tapered tail closes the silhouette behind the folded wings.
+    bpy.ops.mesh.primitive_cone_add(vertices=6, radius1=0.12, radius2=0.035, depth=0.28, location=(0, 0.34, 0.015))
+    tail = bpy.context.object
+    tail.name = "PigeonTail"
+    tail.rotation_euler[0] = math.radians(90)
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    tail.data.materials.append(MATERIALS["PigeonWing"])
+    parts.append(tail)
+    return join(parts, "pigeon_body")
+
+
+def build_pigeon_wing():
+    """One right wing mesh; the runtime mirrors it for the left side and flaps both procedurally."""
+    vertices = [
+        (0.02, -0.16, 0.035), (0.62, -0.18, 0.00), (0.67, 0.02, 0.015),
+        (0.56, 0.23, -0.015), (0.12, 0.18, 0.025),
+        (0.52, 0.08, 0.005), (0.42, 0.25, -0.01), (0.31, 0.12, 0.02),
+    ]
+    faces = [(0, 1, 5, 7), (7, 5, 2, 3), (7, 3, 4, 0), (3, 6, 4)]
+    mesh = bpy.data.meshes.new("pigeon_wing_mesh")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.materials.append(MATERIALS["PigeonWing"])
+    mesh.update()
+    wing = bpy.data.objects.new("pigeon_wing", mesh)
+    bpy.context.collection.objects.link(wing)
+    return wing
+
+
 def build_all():
     build_hull()
     build_track(-1, "tank_track_left")
@@ -202,6 +258,8 @@ def build_all():
     build_turret()
     build_barrel()
     build_wreck()
+    build_pigeon_body()
+    build_pigeon_wing()
 
 
 def export(args):

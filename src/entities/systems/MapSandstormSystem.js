@@ -8,10 +8,12 @@ import {
     isWithinSandstormRange,
     normalizeMapSandstorm,
     resolveMapSandstormIntensity,
+    resolveSandstormVisibilityRange,
 } from '../../shared/contracts/MapSandstormContract.js';
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { MapSandstormVisualController } from '../effects/MapSandstormVisualController.js';
+import { ownsGuidedRocketCamera } from '../runtime/GuidedRocketCameraOps.js';
 
 const SAND_SEED_SALT = 0x53414e44;
 
@@ -32,7 +34,8 @@ export class MapSandstormSystem {
         this.state = createInactiveState();
         this.networkReplica = false;
         this.scale = 1;
-        this._rng = createRuntimeRng({ seed: 1 });
+        this._rng = null;
+        this._rngMatchSource = null;
         this._visiblePlayersByObserver = new WeakMap();
         this._visiblePowerupsByObserver = new WeakMap();
         this._cueByObserver = new WeakMap();
@@ -48,20 +51,22 @@ export class MapSandstormSystem {
             this.entityManager?.arena?.currentMapDefinition?.sandstorm
         );
         if (!this.config) return false;
-        this.scale = this.entityManager?.arena?.currentMapDefinition?.scaleAuthoredAnchors === true
-            ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
-            : 1;
+        this.scale = this._resolveGeometryScale();
         if (this.networkReplica) {
             this.state = createInactiveState();
-            this._visual.build(this.entityManager?.arena?.currentMapDefinition?.size, this.scale);
+            this._buildVisual();
             this._publish();
             return true;
         }
-        const matchRng = this.entityManager?.runtimeRng;
-        const matchSeed = Math.max(1, Number(this.entityManager?.matchSeed) >>> 0);
-        this._rng = matchRng && typeof matchRng.next === 'function'
-            ? matchRng
-            : createRuntimeRng({ seed: (matchSeed ^ SAND_SEED_SALT) >>> 0 || 1 });
+        // Own salted stream: rolling on the shared match dice would shift every later spawn,
+        // item and bot draw whenever the storm timing changes. A new match hands out a new
+        // runtimeRng, so that identity (not the seed) decides when the storm stream restarts.
+        const matchRng = this.entityManager?.runtimeRng || null;
+        if (!this._rng || this._rngMatchSource !== matchRng) {
+            const matchSeed = Math.max(1, Number(this.entityManager?.matchSeed) >>> 0);
+            this._rng = createRuntimeRng({ seed: (matchSeed ^ SAND_SEED_SALT) >>> 0 || 1 });
+            this._rngMatchSource = matchRng;
+        }
         this.state = {
             enabled: true,
             phase: MAP_SANDSTORM_PHASES.CALM,
@@ -70,13 +75,26 @@ export class MapSandstormSystem {
             directionIndex: 0,
             intensity: 0,
         };
-        this._visual.build(this.entityManager?.arena?.currentMapDefinition?.size, this.scale);
+        this._buildVisual();
         this._publish();
         return true;
     }
 
     setNetworkReplica(enabled) {
         this.networkReplica = enabled === true;
+    }
+
+    // Shelters are rooms of the map geometry, and the arena scales all geometry (boxes, tubes, GLBs)
+    // by MAP_SCALE whether or not a map also scales its spawn anchors; the ambience does the same.
+    _resolveGeometryScale() {
+        return Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1);
+    }
+
+    _buildVisual() {
+        this._visual.build(this.entityManager?.arena?.currentMapDefinition?.size, this.scale, {
+            warningSeconds: this.config?.warningSeconds,
+            outdoorFar: this.config?.outdoorFar,
+        });
     }
 
     update(dt) {
@@ -133,10 +151,8 @@ export class MapSandstormSystem {
         const next = createMapSandstormState(value);
         this.state = this.config && next.enabled ? next : createInactiveState();
         if (this.config && !this._visual.group) {
-            this.scale = this.entityManager?.arena?.currentMapDefinition?.scaleAuthoredAnchors === true
-                ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
-                : 1;
-            this._visual.build(this.entityManager?.arena?.currentMapDefinition?.size, this.scale);
+            this.scale = this._resolveGeometryScale();
+            this._buildVisual();
         }
         this._visual.update(0, this.state, this.getDirection());
         this._publish();
@@ -150,7 +166,7 @@ export class MapSandstormSystem {
     getRenderState() {
         return {
             visible: this._visual.group?.visible === true,
-            particleCount: this._visual.particles?.count || 0,
+            particleCount: this._visual.getDustCount(),
         };
     }
 
@@ -182,7 +198,7 @@ export class MapSandstormSystem {
         const baseRange = Number(this.entityManager?.renderer?.getBaseFogVisibilityRange?.());
         const intensity = Math.max(0, Math.min(1, Number(this.state.intensity) || 0));
         if (!(baseRange > 0) || intensity >= 1) return targetRange;
-        return Math.min(baseRange, THREE.MathUtils.lerp(baseRange, targetRange, intensity));
+        return resolveSandstormVisibilityRange(baseRange, targetRange, intensity);
     }
 
     isPositionVisible(observerPosition, targetPosition) {
@@ -277,8 +293,12 @@ export class MapSandstormSystem {
             const camera = cameras[index];
             if (!camera?.userData) continue;
             const player = this.entityManager?.players?.[index];
+            // Dead players, the killcam and a guided rocket move the camera away from the player.
+            const followsPlayer = player?.alive !== false
+                && this.entityManager?._killcamSystem?.ownsCamera?.(index) !== true
+                && !ownsGuidedRocketCamera(this.entityManager, index);
             camera.userData.sandstormVisibilityRange = player
-                ? this._getAuthoredVisibilityRange(player.position)
+                ? this._getAuthoredVisibilityRange(followsPlayer ? player.position : camera.position)
                 : Infinity;
         }
     }

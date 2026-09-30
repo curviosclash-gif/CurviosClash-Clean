@@ -21,6 +21,20 @@ test('both generator registries name the same packs and real scripts', () => {
     }
 });
 
+test('packs on the preset world generator only ask it for the one part it can build', () => {
+    // generate_map_world builds a single 01_world from preset data and rejects every other part,
+    // so a modular pack registered there fails the moment its generation is requested.
+    for (const [pack, script] of Object.entries(BLENDER_ASSET_GENERATORS)) {
+        if (script !== 'generate_map_world.py') continue;
+        for (const map of Object.values(MAP_PRESET_CATALOG)) {
+            for (const model of map.glbModels || []) {
+                const match = new RegExp(`^assets/maps/${pack}/glb/([a-z0-9_]+)\\.glb$`).exec(model.url || '');
+                if (match) assert.equal(match[1], '01_world', `${pack} asks generate_map_world for ${match[1]}`);
+            }
+        }
+    }
+});
+
 test('map asset selection rejects ambiguous and unsafe requests before generation', () => {
     for (const args of [[], ['--all', '--map', 'standard'], ['--all', '--part', 'roof'], ['--bogus']]) {
         assert.throws(() => parseMapAssetArgs(args));
@@ -35,10 +49,10 @@ test('map asset selection rejects ambiguous and unsafe requests before generatio
 
 test('all includes each built-in map and deduplicates shared Blender packs', () => {
     const plan = resolveMapAssetJobs({ all: true });
-    assert.equal(plan.selectedMaps.length, 69);
+    assert.equal(plan.selectedMaps.length, 77);
     assert.equal(plan.selectedMaps.includes('custom'), false);
-    assert.equal(plan.jobs.length, 24);
-    assert.equal(new Set(plan.jobs.map((job) => job.pack)).size, 24);
+    assert.equal(plan.jobs.length, 27);
+    assert.equal(new Set(plan.jobs.map((job) => job.pack)).size, 27);
     for (const job of plan.jobs) assert.equal(job.parts.length, new Set(job.parts).size);
     assert.equal(plan.nativeMaps.includes('maze'), false);
     assert.equal(plan.nativeMaps.includes('standard'), false);
@@ -71,8 +85,8 @@ test('the actual dry-run command needs no Blender executable and writes no asset
         '--blender', 'this-executable-must-not-run'], { encoding: 'utf8', windowsHide: true });
     assert.equal(result.status, 0, result.stderr);
     const plan = JSON.parse(result.stdout);
-    assert.equal(plan.selectedMaps.length, 69);
-    assert.equal(plan.jobs.length, 24);
+    assert.equal(plan.selectedMaps.length, 77);
+    assert.equal(plan.jobs.length, 27);
 });
 
 test('mixed generation resolves converted reference worlds before invoking Blender', () => {

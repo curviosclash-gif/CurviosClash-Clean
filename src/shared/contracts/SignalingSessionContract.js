@@ -4,9 +4,9 @@ import { normalizeLobbyMatchSummary } from './LobbyMatchSummaryContract.js';
 export { MULTIPLAYER_SESSION_ROLES } from './RuntimeSessionContract.js';
 
 export const SIGNALING_SESSION_CONTRACT_VERSION = 'signaling-session.v1';
-export const MULTIPLAYER_PROTOCOL_VERSION = 'curvios-multiplayer.v1';
+// v2: lobbies end matches via END_MATCH/MATCH_ENDED; v1 phones would miss the return to the lobby.
+export const MULTIPLAYER_PROTOCOL_VERSION = 'curvios-multiplayer.v2';
 export const MOBILE_LAN_PARTICIPANT_SURFACE_ID = 'mobile-app';
-export const MOBILE_LAN_CROSSPLAY_MAP_KEYS = Object.freeze(['standard', 'maze']);
 
 export const SIGNALING_COMMAND_TYPES = Object.freeze({
     LIST_LOBBIES: 'list_lobbies',
@@ -18,6 +18,7 @@ export const SIGNALING_COMMAND_TYPES = Object.freeze({
     INVALIDATE_READY: 'invalidate_ready',
     UPDATE_LOBBY_METADATA: 'update_lobby_metadata',
     START_MATCH: 'start_match',
+    END_MATCH: 'end_match',
     LEAVE: 'leave',
     OFFER: 'offer',
     ANSWER: 'answer',
@@ -37,6 +38,7 @@ export const SIGNALING_EVENT_TYPES = Object.freeze({
     PLAYER_READY: 'player_ready',
     LOBBY_METADATA_UPDATED: 'lobby_metadata_updated',
     MATCH_START: 'match_start',
+    MATCH_ENDED: 'match_ended',
     ERROR: 'error',
 });
 
@@ -49,6 +51,7 @@ export const SIGNALING_HTTP_ROUTES = Object.freeze({
     LOBBY_LEAVE: '/lobby/leave',
     LOBBY_ACK_PENDING: '/lobby/ack-pending',
     LOBBY_MATCH_START: '/lobby/match-start',
+    LOBBY_MATCH_END: '/lobby/match-end',
     LOBBY_INVALIDATE_READY: '/lobby/invalidate-ready',
     LOBBY_METADATA: '/lobby/metadata',
     LOBBY_STATUS: '/lobby/status',
@@ -96,16 +99,11 @@ export function validateMobileLanParticipantMetadata(value = null) {
     return createMobileLanCompatibilityResult();
 }
 
+// The Android app bundles every mode and map, so crossplay only needs a matching protocol.
 export function validateMobileLanLobbyMetadata(value = null) {
     const metadata = normalizePublicLobbyMetadata(value);
     if (metadata.protocolVersion !== MULTIPLAYER_PROTOCOL_VERSION) {
         return createMobileLanCompatibilityResult('mobile_protocol_incompatible');
-    }
-    if (metadata.modePath.toLowerCase() !== 'normal' || metadata.gameMode.toUpperCase() !== 'CLASSIC') {
-        return createMobileLanCompatibilityResult('mobile_mode_incompatible');
-    }
-    if (!MOBILE_LAN_CROSSPLAY_MAP_KEYS.includes(metadata.mapKey)) {
-        return createMobileLanCompatibilityResult('mobile_map_incompatible');
     }
     return createMobileLanCompatibilityResult();
 }
@@ -116,13 +114,8 @@ export function validateMobileLanMatchSettingsSnapshot(value = null) {
         ? snapshot.localSettings
         : {};
     if (String(localSettings.sessionType || '').trim().toLowerCase() !== 'multiplayer'
-        || String(localSettings.multiplayerTransport || '').trim().toLowerCase() !== 'lan'
-        || String(localSettings.modePath || '').trim().toLowerCase() !== 'normal'
-        || String(snapshot.gameMode || '').trim().toUpperCase() !== 'CLASSIC') {
+        || String(localSettings.multiplayerTransport || '').trim().toLowerCase() !== 'lan') {
         return createMobileLanCompatibilityResult('mobile_mode_incompatible');
-    }
-    if (!MOBILE_LAN_CROSSPLAY_MAP_KEYS.includes(String(snapshot.mapKey || '').trim())) {
-        return createMobileLanCompatibilityResult('mobile_map_incompatible');
     }
     return createMobileLanCompatibilityResult();
 }
@@ -162,6 +155,7 @@ export const SIGNALING_COMMAND_ROLE_MAP = Object.freeze({
     [SIGNALING_COMMAND_TYPES.INVALIDATE_READY]: 'host',
     [SIGNALING_COMMAND_TYPES.UPDATE_LOBBY_METADATA]: 'host',
     [SIGNALING_COMMAND_TYPES.START_MATCH]: 'host',
+    [SIGNALING_COMMAND_TYPES.END_MATCH]: 'host',
     [SIGNALING_COMMAND_TYPES.LEAVE]: 'both',
     [SIGNALING_COMMAND_TYPES.OFFER]: 'host',
     [SIGNALING_COMMAND_TYPES.ANSWER]: 'client',

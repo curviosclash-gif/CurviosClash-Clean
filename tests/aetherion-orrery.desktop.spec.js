@@ -85,6 +85,8 @@ test('Aetherion loads architecture, mechanisms, and orientation props on desktop
         { id: 'gallery-portal-bearing', from: [108, 94, -132], to: [138, 84, -104] },
         { id: 'crown-west-arrival', from: [-120, 156, -62], to: [-145, 146, -92] },
         { id: 'crown-stele-bearing', from: [-74, 160, -126], to: [-102, 144, -96] },
+        { id: 'gallery-astrolabe', from: [-42, 126, 64], to: [0, 98, 0] },
+        { id: 'crown-eclipse-iris', from: [0, 184, 72], to: [0, 158, 0] },
     ];
     for (const view of views) {
         const picture = await page.evaluate((entry) => {
@@ -153,6 +155,10 @@ test('Aetherion shortcuts close and open while its outer ascent stays clear', as
             vacatedOldPose: false,
             corridorSamples: 0,
         }]));
+        const deckMargins = {
+            'aetherion-orrery-astrolabe-gallery': Infinity,
+            'aetherion-orrery-eclipse-iris': Infinity,
+        };
         let safeFailures = 0;
 
         for (let index = 0; index < steps; index += 1) {
@@ -166,6 +172,11 @@ test('Aetherion shortcuts close and open while its outer ascent stays clear', as
                 let corridorHit = false;
                 for (const obstacleIndex of grouped[model.id]) {
                     const obstacle = arena._glbDynamicObstacles[obstacleIndex];
+                    if (model.id === 'aetherion-orrery-astrolabe-gallery') {
+                        deckMargins[model.id] = Math.min(deckMargins[model.id], 134 * scale - obstacle.box.max.y);
+                    } else if (model.id === 'aetherion-orrery-eclipse-iris') {
+                        deckMargins[model.id] = Math.min(deckMargins[model.id], obstacle.box.min.y - 134 * scale);
+                    }
                     const center = centerOf(obstacle.box);
                     if (index === 0) baseline[obstacleIndex] = center;
                     const old = baseline[obstacleIndex];
@@ -196,6 +207,7 @@ test('Aetherion shortcuts close and open while its outer ascent stays clear', as
         return {
             safeFailures,
             motion,
+            deckMargins,
             shortcuts: Object.fromEntries(Object.entries(shortcutSamples).map(([id, samples]) => [id, {
                 blocked: samples.filter(Boolean).length,
                 free: samples.filter((value) => !value).length,
@@ -206,6 +218,10 @@ test('Aetherion shortcuts close and open while its outer ascent stays clear', as
 
     console.log('aetherion twelve-second collision sweep:', JSON.stringify(sweep));
     expect(sweep.safeFailures).toBe(0);
+    expect(sweep.deckMargins['aetherion-orrery-astrolabe-gallery'], 'gallery astrolabe stays below the crown deck')
+        .toBeGreaterThan(0.5 * MAP_SCALE);
+    expect(sweep.deckMargins['aetherion-orrery-eclipse-iris'], 'iris stays above the crown deck')
+        .toBeGreaterThan(0.5 * MAP_SCALE);
     expect(Object.keys(sweep.motion)).toHaveLength(12);
     for (const [id, result] of Object.entries(sweep.motion)) {
         expect(result.colliderCount, `${id} owns gameplay collision`).toBeGreaterThan(0);
@@ -226,7 +242,7 @@ test('Aetherion route heatmap keeps the outer line safe and times all three fast
     const heatmap = await page.evaluate(({ scale, steps, beat }) => {
         const game = window.GAME_INSTANCE;
         const arena = game.arena;
-        const hitbox = game.entityManager.humanPlayers[0].hitboxRadius;
+        const hitbox = Math.max(1.6, game.entityManager.humanPlayers[0].hitboxRadius);
         const world = ([x, y, z]) => ({ x: x * scale, y: y * scale, z: z * scale });
         const routeIsClear = (points) => {
             for (let segmentIndex = 1; segmentIndex < points.length; segmentIndex += 1) {
@@ -253,6 +269,13 @@ test('Aetherion route heatmap keeps the outer line safe and times all three fast
             fast_foundry: [[0, 37.5, -10], [0, 37.5, 10]],
             fast_gallery: [[60, 98, 20], [80, 98, 20]],
             fast_crown: [[0, 164.5, -10], [0, 164.5, 10]],
+            finish: (() => {
+                const finish = arena.currentMapDefinition.parcours.finish;
+                const length = Math.hypot(...finish.forward);
+                return [-10, 10].map((offset) => finish.pos.map((value, axis) => (
+                    value + offset * finish.forward[axis] / length
+                )));
+            })(),
         };
         const samples = Object.fromEntries(Object.keys(routes).map((id) => [id, []]));
         for (let index = 0; index < steps; index += 1) {
@@ -279,6 +302,10 @@ test('Aetherion route heatmap keeps the outer line safe and times all three fast
         expect(heatmap.routes[id].clear, `${id} exposes a useful opening`).toBeGreaterThanOrEqual(8);
         expect(heatmap.routes[id].blocked, `${id} preserves the timing risk`).toBeGreaterThanOrEqual(24);
     }
+    expect(heatmap.routes.finish.clear, 'the actual FINISH approach exposes a ship-sized opening')
+        .toBeGreaterThanOrEqual(8);
+    expect(heatmap.routes.finish.blocked, 'the FINISH iris retains its timed closure')
+        .toBeGreaterThanOrEqual(24);
 });
 
 test('five Aetherion Hunt bots traverse a five-minute accelerated desktop run', async ({ page }) => {

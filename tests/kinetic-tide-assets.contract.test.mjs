@@ -3,6 +3,7 @@ import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
+import { KINETIC_TIDE_MAP } from '../src/core/config/maps/presets/kinetic_tide.js';
 import { isBeatAlignedClipDuration } from '../src/shared/contracts/MapAnimationClockContract.js';
 
 const ASSET_ROOT = path.resolve('assets/maps/kinetic_tide');
@@ -21,8 +22,11 @@ const EXPECTED_SETPIECES = Object.freeze({
     '08_reactor_heart': { beats: 2, clipName: 'ReactorHeartLoop' },
 });
 
-// A moving mesh rebuilds nothing per frame, but every collision query walks its triangles.
-// Coarse collision bodies are the whole reason the decorative parts carry _nocol.
+// Kinetic Tide runs in glbColliderMode 'dynamic': only a mesh a clip moves gets a mesh
+// collider, and only without _nocol. It rebuilds nothing per frame, but every collision query
+// walks its triangles, which is why moving decoration carries _nocol. A fixed part gets no mesh
+// collider at all, _nocol or not; the preset covers the visible frame with box obstacles, and
+// tests/animated-setpiece-clearance.contract.test.mjs checks that cover.
 const MAX_TRIANGLES_PER_COLLIDING_MESH = 600;
 
 function readGlbJson(filePath) {
@@ -109,6 +113,9 @@ test('every setpiece loops on a whole multiple of the map beat under its authore
 });
 
 test('moving parts stay coarse enough to collide against every frame', () => {
+    // The rule above only holds in 'dynamic' mode; a static collider mode would bake every
+    // mesh without _nocol, fixed or moving.
+    assert.equal(KINETIC_TIDE_MAP.kinetic_tide.glbColliderMode, 'dynamic');
     for (const name of Object.keys(EXPECTED_SETPIECES)) {
         const document = readGlbJson(path.join(ASSET_ROOT, 'glb', `${name}.glb`));
         const colliding = collidingMeshNodes(document);

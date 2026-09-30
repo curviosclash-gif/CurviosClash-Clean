@@ -505,5 +505,7 @@ try {
     console.log(`report=${outputPath}`);
 } finally {
     await closeApp(app);
+    // CURVIOS_KEEP_QA=1 keeps the isolated profile for a manual look.
+    if (process.env.CURVIOS_KEEP_QA !== '1') await fs.rm(profilePath, { recursive: true, force: true, maxRetries: 5 });
     lock.release();
 }

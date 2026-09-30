@@ -12,6 +12,8 @@ import {
     applyAuthoredMapUnitBody,
     collectMapUnitParts,
 } from '../src/entities/systems/map-units/MapUnitModelCache.js';
+import { applyAuthoredSwarmVisual, createSwarmVisual, updateSwarmVisual } from '../src/entities/systems/map-units/MapUnitSwarmVisualOps.js';
+import { createSwarmMembers } from '../src/entities/systems/map-units/MapUnitSwarmOps.js';
 
 function fakeRenderer() {
     const scene = new Set();
@@ -29,6 +31,8 @@ function fakeLibrary() {
         ['tank_turret', [2.9, 1.5, 4.1], [0, 2.6, 0]],
         ['tank_barrel', [0.8, 0.7, 3.7], [0, 2.45, 3.1]],
         ['tank_wreck', [4.6, 1.4, 6.8], [0, 0.8, 0]],
+        ['pigeon_body', [0.36, 0.22, 0.72], [0, 0, 0]],
+        ['pigeon_wing', [0.65, 0.04, 0.4], [0.32, 0, 0]],
     ]) {
         const geometry = new THREE.BoxGeometry(...size);
         geometry.translate(...at);
@@ -141,4 +145,35 @@ test('a missing part leaves the boxes alone instead of drawing half a tank', () 
     broken.parts.delete('tank_turret');
     assert.equal(applyAuthoredMapUnitBody(root, broken), false);
     assert.equal(root.userData.authoredBody, false, 'the fallback stays');
+});
+
+test('the Blender pigeon model is shared by every bird and flaps without mixers or GPU instancing', () => {
+    const renderer = fakeRenderer();
+    const assets = {
+        geometry: new THREE.OctahedronGeometry(0.8, 0),
+        wingGeometry: new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 1)]),
+        material: new THREE.MeshStandardMaterial(),
+        wingMaterial: new THREE.MeshStandardMaterial({ side: THREE.DoubleSide }),
+    };
+    const members = createSwarmMembers({ memberCount: 10, memberHp: 1, formationRadius: 1.4 }, 1, new THREE.Vector3());
+    const root = createSwarmVisual(renderer, assets, members);
+    const library = fakeLibrary();
+
+    assert.equal(applyAuthoredSwarmVisual(root, members, library.parts), true);
+    const bodies = [];
+    const wings = [];
+    root.traverse((node) => {
+        if (!node.isMesh) return;
+        if (node.geometry === library.parts.get('pigeon_body').geometry) bodies.push(node);
+        if (node.geometry === library.parts.get('pigeon_wing').geometry) wings.push(node);
+        assert.notEqual(node.isInstancedMesh, true);
+    });
+    assert.equal(bodies.length, 10);
+    assert.equal(wings.length, 20);
+    assert.equal(new Set(bodies.map((node) => node.geometry)).size, 1);
+    assert.equal(new Set(wings.map((node) => node.geometry)).size, 1);
+    const initial = members[0].visualWings[0].rotation.z;
+    const unit = { root, position: new THREE.Vector3(), yaw: 0, members, visualTime: 0 };
+    updateSwarmVisual(unit, 0.02);
+    assert.notEqual(members[0].visualWings[0].rotation.z, initial);
 });

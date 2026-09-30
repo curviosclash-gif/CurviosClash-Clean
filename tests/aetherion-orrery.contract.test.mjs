@@ -55,6 +55,12 @@ test('Aetherion places architecture, beat-synchronised mechanisms, and static or
     for (let index = 1; index < orientation.length; index += 1) {
         assert.notEqual(orientation[index].url, orientation[index - 1].url, 'adjacent props use different models');
     }
+
+    const crownBridge = local.find((model) => model.id === 'aetherion-orrery-bridge-crown');
+    assert.equal(crownBridge.rotation[1], 0, 'crown bridge follows its authored corridor flanks');
+    const crownFlanks = map.obstacles.filter((obstacle) => obstacle.pos?.[1] === 158
+        && obstacle.pos?.[2] === 65);
+    assert.deepEqual(crownFlanks.map(({ pos }) => pos[0]).sort((a, b) => a - b), [-52, -8]);
 });
 
 test('Aetherion keeps its Hunt inventory and spawns away from turrets', () => {

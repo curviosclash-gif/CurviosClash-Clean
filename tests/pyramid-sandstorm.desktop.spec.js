@@ -3,6 +3,20 @@ import { collectErrors, waitForLoadedGame, waitForRenderFrames } from './helpers
 
 const MAP_KEY = 'pyramid';
 
+// The height fade lives only in the shared fog uniforms the shader patch hands to every material
+// (WebGLRenderer keeps them as materialProperties.uniforms), so read it where the GPU gets it.
+function readRenderedFogHeightFalloff() {
+    const renderer = window.GAME_INSTANCE.renderer;
+    let value = null;
+    renderer.scene.traverse((object) => {
+        if (value !== null || !object.material) return;
+        const material = Array.isArray(object.material) ? object.material[0] : object.material;
+        const uniform = renderer.renderer.properties.get(material)?.uniforms?.fogHeightFalloff;
+        if (uniform) value = uniform.value;
+    });
+    return value;
+}
+
 async function startPyramidSplitScreen(page) {
     await waitForLoadedGame(page);
     await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
@@ -44,6 +58,8 @@ test('Krone des Sonnengottes loads and runs warning, storm, shelter and reset @r
     expect(loaded.assets.beaconSurfaces).toBeGreaterThanOrEqual(6);
     expect(loaded.assets.foglessBeaconSurfaces).toBe(loaded.assets.beaconSurfaces);
     expect(loaded.state.phase).toBe('CALM');
+    const calmHeightFalloff = await page.evaluate(readRenderedFogHeightFalloff);
+    expect(calmHeightFalloff, 'calm air thins with height as authored').toBeGreaterThan(0);
     await page.screenshot({ path: testInfo.outputPath('pyramid-clear.png') });
 
     const warning = await page.evaluate(() => {
@@ -60,12 +76,36 @@ test('Krone des Sonnengottes loads and runs warning, storm, shelter and reset @r
         === 'Sandsturm in 20 Sekunden');
     await page.screenshot({ path: testInfo.outputPath('pyramid-warning.png') });
 
-    const active = await page.evaluate(() => {
+    const swell = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
         const manager = game.entityManager;
         const system = manager.runtimePorts.weather.sandstormSystem;
         system.update(20);
-        system.update(4);
+        system.update(10);
+        const outdoor = manager.humanPlayers[0];
+        outdoor.position.set(300, 30, 300);
+        system.update(0);
+        return {
+            state: system.getState(),
+            gameplayRange: system.getVisibilityRange(outdoor.position),
+            renderedFar: game.renderer.getEffectiveCameraFogRange(game.renderer.cameras[0]).far,
+        };
+    });
+    // Half way through the 20 s swell the storm is half strong and the view has closed by the
+    // same factor for bots, lock-on and the picture.
+    expect(swell.state.phase).toBe('ACTIVE');
+    // The running game loop adds a few frames between the steps above.
+    expect(swell.state.intensity).toBeGreaterThan(0.45);
+    expect(swell.state.intensity).toBeLessThan(0.6);
+    expect(swell.gameplayRange).toBeLessThan(200);
+    expect(swell.gameplayRange).toBeGreaterThan(12);
+    expect(swell.renderedFar).toBeCloseTo(swell.gameplayRange, 3);
+
+    const active = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const manager = game.entityManager;
+        const system = manager.runtimePorts.weather.sandstormSystem;
+        system.update(10);
 
         const outdoor = manager.humanPlayers[0];
         const sheltered = manager.humanPlayers[1];
@@ -107,8 +147,8 @@ test('Krone des Sonnengottes loads and runs warning, storm, shelter and reset @r
         };
     });
     expect(active.state.phase).toBe('ACTIVE');
-    expect(active.state.remainingSeconds).toBeGreaterThan(55);
-    expect(active.state.remainingSeconds).toBeLessThanOrEqual(56);
+    expect(active.state.remainingSeconds).toBeGreaterThan(49);
+    expect(active.state.remainingSeconds).toBeLessThanOrEqual(50);
     expect(active.state.intensity).toBe(1);
     expect(active.ranges).toEqual([12, 85]);
     expect(active.perCameraFog).toEqual([{ near: 1.6, far: 12 }, { near: 18, far: 85 }]);
@@ -119,6 +159,19 @@ test('Krone des Sonnengottes loads and runs warning, storm, shelter and reset @r
     expect(active.particles).toBeGreaterThan(0);
     expect(active.particles).toBeLessThanOrEqual(512);
     await page.screenshot({ path: testInfo.outputPath('pyramid-outdoor-and-shelter-storm.png') });
+
+    // Peak storm seen from just under the map ceiling: without the height fade the fog thinned
+    // out a few dozen metres up and the upper pyramids stood in clear air.
+    await page.evaluate(() => {
+        const manager = window.GAME_INSTANCE.entityManager;
+        manager.humanPlayers[0].position.set(0, 12, 200);
+        manager.humanPlayers[1].position.set(0, 400, 120);
+        manager.runtimePorts.weather.sandstormSystem.update(0);
+    });
+    await waitForRenderFrames(page, 6);
+    expect(await page.evaluate(readRenderedFogHeightFalloff), 'the peak storm is as dense at the ceiling as on the ground')
+        .toBe(0);
+    await page.screenshot({ path: testInfo.outputPath('pyramid-storm-ceiling-and-ground.png') });
 
     const reset = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
