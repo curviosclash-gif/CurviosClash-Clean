@@ -120,7 +120,9 @@ const NOTRE_DAME_FINISH = {
     type: 'finish',
     pos: [CROSSING_CENTRE, GROUND + 72 * 1.4, 0],
     radius: 4.0,
-    forward: [0, 1, 0],
+    // The return leg climbs from CP14's bell chamber into the spire lantern, so the finish
+    // plane faces east and back toward the north approach instead of straight up.
+    forward: [0.967, 0.156, 0.206],
 };
 
 const NOTRE_DAME_PARCOURS_RULES = {

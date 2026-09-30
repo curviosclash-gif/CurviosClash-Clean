@@ -1,6 +1,7 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 import { writeFile } from 'node:fs/promises';
+import { NOTRE_DAME_FIRE_MAPS } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
 
 // What the fire actually changed about flying this building, measured in the running app rather
 // than argued from the model files.
@@ -171,4 +172,83 @@ test('the fire opens the roof and puts the spire on the floor', async ({ page },
         path: dynamicsScreenshot,
         contentType: 'image/png',
     });
+});
+
+test('the static fire pack opens the burnt nave while keeping landed roof timbers solid', async ({ page }) => {
+    test.setTimeout(180_000);
+    await waitForLoadedGame(page);
+    const mapKey = 'notre_dame_fire_arena';
+    const staticFireMap = NOTRE_DAME_FIRE_MAPS[mapKey];
+    await page.evaluate(async ({ key, map }) => {
+        const game = window.GAME_INSTANCE;
+        // The menu creates the arena as part of starting a match. Start the standard map first,
+        // then use Arena's supported runtime-map override to exercise the static fire definition
+        // directly; the picker key is also used by the separate Notre-Dame evolution map.
+        game.settings.mapKey = 'standard';
+        game.settings.numBots = 0;
+        await game.runtimeFacade.startMatch();
+        game.arena.runtimeMapKey = key;
+        game.arena.runtimeMapDefinition = map;
+        game.arena.build(key);
+    }, { key: mapKey, map: staticFireMap });
+
+    await page.waitForFunction((key) => {
+        const arena = window.GAME_INSTANCE?.arena;
+        return arena?.currentMapKey === key
+            && arena._glbScene?.getObjectByName('glb-slot-notre-dame-fire-nave')
+            && arena._glbScene?.getObjectByName('glb-slot-notre-dame-fire-roof')
+            && !arena._glbLoadError;
+    }, mapKey, { timeout: 150_000 });
+
+    const evidence = await page.evaluate(({ scale }) => {
+        const game = window.GAME_INSTANCE;
+        const arena = game.arena;
+        const modelIds = ['notre-dame-fire-nave', 'notre-dame-fire-roof'];
+        const loadedModels = modelIds.map((modelId) => {
+            const slot = arena._glbScene.getObjectByName(`glb-slot-${modelId}`);
+            return { modelId, url: slot?.userData?.glbModelUrl || '' };
+        });
+        const naveX = -34.65;
+        const openingPoints = [
+            [52, 0], [54, 0], [56, 0], [54, 6], [54, -6],
+        ];
+        const openPointsBlocked = openingPoints.flatMap(([y, z]) => {
+            const hit = arena.getCollisionInfo({
+                x: naveX * scale, y: y * scale, z: z * scale,
+            }, 0.1);
+            return hit ? [{ y, z, modelId: hit.obstacle?.modelId || '', sourceName: hit.sourceName || '' }] : [];
+        });
+        // A landed burnt roof timber remains a real triangle collider from this same loaded pack.
+        const timberHit = arena.getCollisionInfo({
+            x: naveX * scale, y: 55 * scale, z: 6 * scale,
+        }, 0.1);
+        return {
+            currentMapKey: arena.currentMapKey,
+            sameArenaAsEntityManager: game.entityManager?.arena === arena,
+            sameMapDefinitionAsRuntimeOverride: arena.currentMapDefinition === arena.runtimeMapDefinition,
+            definitionModelIds: arena.currentMapDefinition.glbModels.map((model) => model.id),
+            entityArenaKey: game.entityManager?.arena?.currentMapKey || '',
+            collisionModelIds: [...new Set(arena.obstacles.map((obstacle) => obstacle.modelId).filter(Boolean))],
+            loadedModels,
+            openPointsBlocked,
+            timberHit: timberHit ? {
+                modelId: timberHit.obstacle?.modelId || '',
+                sourceName: timberHit.sourceName || '',
+            } : null,
+            evolvedNaveLoaded: !!arena._glbScene.getObjectByName('glb-slot-notre-dame-evolution-nave'),
+        };
+    }, { scale: MAP_SCALE });
+
+    expect(evidence.currentMapKey).toBe(mapKey);
+    expect(evidence.sameArenaAsEntityManager).toBe(true);
+    expect(evidence.sameMapDefinitionAsRuntimeOverride).toBe(true);
+    expect(evidence.loadedModels).toEqual([
+        { modelId: 'notre-dame-fire-nave', url: 'assets/maps/notre_dame_fire/glb/02_nave_burnt.glb' },
+        { modelId: 'notre-dame-fire-roof', url: 'assets/maps/notre_dame_fire/glb/06_roof_burnt.glb' },
+    ]);
+    expect(evidence.collisionModelIds).toContain('notre-dame-fire-nave');
+    expect(evidence.collisionModelIds).toContain('notre-dame-fire-roof');
+    expect(evidence.evolvedNaveLoaded).toBe(false);
+    expect(evidence.openPointsBlocked, JSON.stringify(evidence)).toEqual([]);
+    expect(evidence.timberHit).toEqual({ modelId: 'notre-dame-fire-roof', sourceName: 'roof_burnt_fcharred' });
 });

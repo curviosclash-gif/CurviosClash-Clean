@@ -195,7 +195,8 @@ const ECLIPSE_FOUNDRY_CHECKPOINTS = [
     { id: 'CP13', type: 'crown_merge', pos: [32, 116, 94], radius: 5.8, forward: [-0.9, 0, -0.4] },
     { id: 'CP14', type: 'inverted_crown', pos: [-39, 102, 49], radius: 5.3, forward: [-0.7, -0.25, -0.65] },
     { id: 'CP15', type: 'descent', pos: [-62.5, 87, 2.5], radius: 5.0, forward: [0.15, -0.35, -0.92] },
-    { id: 'CP16', type: 'heart_approach', pos: [-35, 72, -38], radius: 4.7, forward: [0.8, -0.25, 0.45] },
+    // The last descent comes from CP15 at [-62.5, 87, 2.5]; face the ring along that actual lane.
+    { id: 'CP16', type: 'heart_approach', pos: [-35, 72, -38], radius: 4.7, forward: [0.537, -0.293, -0.791] },
 ];
 
 export const ECLIPSE_FOUNDRY_MAP = {
