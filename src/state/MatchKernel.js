@@ -67,6 +67,13 @@ function readPressedInput(inputAdapter, key) {
     return inputAdapter.wasPressed(key) === true;
 }
 
+function readKeyboardEscapeInput(inputAdapter) {
+    if (typeof inputAdapter?.wasKeyboardEscapePressed === 'function') {
+        return inputAdapter.wasKeyboardEscapePressed() === true;
+    }
+    return readPressedInput(inputAdapter, 'Escape');
+}
+
 /**
  * createHeadlessInputAdapter – wraps a MatchKernelInputFrame for use as an
  * EntityManager-compatible inputAdapter in headless surface runs.
@@ -212,7 +219,7 @@ export class MatchKernel {
             roundPause: this._roundPause,
             continuePressed: boardPress,
             enterPressed: enterRead && boardPress,
-            escapePressed: readPressedInput(inputAdapter, 'Escape'),
+            escapePressed: readKeyboardEscapeInput(inputAdapter),
             inputLockRemaining: this._inputLock.remaining,
         };
     }

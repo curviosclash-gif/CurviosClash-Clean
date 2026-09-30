@@ -243,7 +243,7 @@ test('the route runs three branches through the building and stays inside the ar
 
     assert.ok(route);
     assert.equal(route.routeId, 'notre_dame_v1');
-    assert.equal(route.totalCheckpoints, 14);
+    assert.equal(route.totalCheckpoints, 16);
     assert.equal(route.branches.length, 3);
     assert.ok(route.branches.every((branch) => branch.validMerge));
     assert.ok(route.branches.every((branch) => branch.nextCheckpointIds.length === 2));
@@ -255,6 +255,13 @@ test('the route runs three branches through the building and stays inside the ar
     );
     assert.deepEqual(new Set(branchOptions.map((checkpoint) => checkpoint.params.height)), new Set(['high', 'low']));
     assert.equal(new Set(branchOptions.map((checkpoint) => checkpoint.params.color)).size, 2);
+    const choirExit = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP11_APSE_EXIT');
+    const ambulatoryExit = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP11_APSE_EXIT_AMBULATORY');
+    const apseApproach = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP11_APSE_APPROACH');
+    assert.equal(ambulatoryExit?.aliasOf, choirExit?.id);
+    assert.deepEqual(choirExit?.nextCheckpointIds, [apseApproach?.id]);
+    assert.deepEqual(apseApproach?.nextCheckpointIds, ['CP12']);
+    assert.ok(route.branches.every((branch) => branch.validMerge));
     assert.equal(map.portals.length, 4);
     assert.equal(map.gates.filter((gate) => gate.type === 'boost').length, 6);
     assert.equal(map.gates.filter((gate) => gate.type === 'slingshot').length, 3);

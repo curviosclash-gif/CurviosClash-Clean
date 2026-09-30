@@ -77,3 +77,72 @@ for (const { mapKey, rings } of glbColliderParcoursMaps()) {
         expect(blockedEverySample).toEqual([]);
     });
 }
+
+test('notre_dame: both CP11 branches reach CP12 through the east apse opening', async ({ page }) => {
+    test.setTimeout(180_000);
+    await startMap(page, 'notre_dame');
+
+    const map = MAP_PRESET_CATALOG.notre_dame;
+    const route = map.parcours;
+    const cp12 = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP12');
+    const choir = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP11_CHOIR');
+    const ambulatory = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP11_AMBULATORY');
+    const choirExit = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP11_APSE_EXIT');
+    const ambulatoryExit = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP11_APSE_EXIT_AMBULATORY');
+    const apseApproach = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP11_APSE_APPROACH');
+    expect(cp12).toBeTruthy();
+    expect(choir).toBeTruthy();
+    expect(ambulatory).toBeTruthy();
+    expect(choirExit).toBeTruthy();
+    expect(ambulatoryExit).toBeTruthy();
+    expect(apseApproach).toBeTruthy();
+
+    const approach = cp12.pos.map((value, axis) => value - cp12.forward[axis] * cp12.radius);
+    const exit = cp12.pos.map((value, axis) => value + cp12.forward[axis] * cp12.radius);
+    const apseWallFace = [86.5, cp12.pos[1], cp12.pos[2]];
+    const outside = [94, cp12.pos[1], cp12.pos[2]];
+    const routes = [
+        {
+            id: 'CP11_CHOIR',
+            points: [choir.pos, choirExit.pos, apseApproach.pos, approach, cp12.pos,
+                apseWallFace, exit, outside],
+        },
+        {
+            id: 'CP11_AMBULATORY',
+            points: [ambulatory.pos, ambulatoryExit.pos, apseApproach.pos, approach,
+                cp12.pos, apseWallFace, exit, outside],
+        },
+    ];
+
+    const collisions = await page.evaluate(({ routePaths, scale, shipRadius }) => {
+        const arena = window.GAME_INSTANCE?.arena;
+        if (!arena?.checkCollision) return [{ error: 'runtime arena collision query unavailable' }];
+        const hits = [];
+        for (const routePath of routePaths) {
+            for (let segment = 0; segment < routePath.points.length - 1; segment += 1) {
+                const from = routePath.points[segment];
+                const to = routePath.points[segment + 1];
+                const distance = Math.hypot(
+                    (to[0] - from[0]) * scale,
+                    (to[1] - from[1]) * scale,
+                    (to[2] - from[2]) * scale,
+                );
+                const steps = Math.max(1, Math.ceil(distance / (shipRadius / 2)));
+                for (let step = 0; step <= steps; step += 1) {
+                    const t = step / steps;
+                    const point = {
+                        x: (from[0] + (to[0] - from[0]) * t) * scale,
+                        y: (from[1] + (to[1] - from[1]) * t) * scale,
+                        z: (from[2] + (to[2] - from[2]) * t) * scale,
+                    };
+                    if (arena.checkCollision(point, shipRadius)) {
+                        hits.push({ id: routePath.id, segment, step, point });
+                        break;
+                    }
+                }
+            }
+        }
+        return hits;
+    }, { routePaths: routes, scale: MAP_SCALE, shipRadius: 1.6 });
+    expect(collisions).toEqual([]);
+});

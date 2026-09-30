@@ -49,8 +49,8 @@ function cross(system, player, entry, now) {
     return system.updatePlayerProgress(player, previous, now);
 }
 
-test('all eight Notre-Dame branch combinations complete the fourteen-stage route', () => {
-    for (let choices = 0; choices < 8; choices += 1) {
+test('all sixteen Notre-Dame branch combinations complete the sixteen-stage route', () => {
+    for (let choices = 0; choices < 16; choices += 1) {
         const { system, player } = harness();
         const route = system.getRouteSnapshot();
         const stages = new Map();
@@ -60,7 +60,7 @@ test('all eight Notre-Dame branch combinations complete the fourteen-stage route
             stages.set(checkpoint.routeIndex, entries);
         }
 
-        assert.equal(route.totalCheckpoints, 14);
+        assert.equal(route.totalCheckpoints, 16);
         let branchIndex = 0;
         let now = 1000;
         const ids = [];
@@ -82,7 +82,7 @@ test('all eight Notre-Dame branch combinations complete the fourteen-stage route
         assert.ok(ids.every(Boolean), `branch combination ${choices.toString(2).padStart(3, '0')} validates ${JSON.stringify(ids)}`);
         assert.equal(finish?.type, 'finish');
         assert.equal(hud.completed, true);
-        assert.equal(hud.currentCheckpoint, 14);
+        assert.equal(hud.currentCheckpoint, 16);
         assert.equal(hud.wrongOrderCount, 0);
     }
 });

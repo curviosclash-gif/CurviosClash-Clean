@@ -180,7 +180,7 @@ export class RoundStateTickSystem {
             dt,
             roundPause: game.roundPause,
             ...this._readBoardPress(),
-            escapePressed: game.input.wasPressed('Escape'),
+            escapePressed: game.input.wasKeyboardEscapePressed?.() ?? game.input.wasPressed('Escape'),
             inputLockRemaining: this._inputLock.remaining,
         };
     }
@@ -189,7 +189,7 @@ export class RoundStateTickSystem {
         return {
             dt,
             ...this._readBoardPress(),
-            escapePressed: this.game.input.wasPressed('Escape'),
+            escapePressed: this.game.input.wasKeyboardEscapePressed?.() ?? this.game.input.wasPressed('Escape'),
             inputLockRemaining: this._inputLock.remaining,
         };
     }

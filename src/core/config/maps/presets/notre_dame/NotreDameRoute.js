@@ -95,7 +95,7 @@ const NOTRE_DAME_CHECKPOINTS = [
         pos: [52, GROUND + 30, 0],
         radius: 5.0,
         forward: [1, 0, 0],
-        nextIds: ['CP12'],
+        nextIds: ['CP11_APSE_EXIT'],
         params: { label: 'Chor hoch', height: 'high', color: 0xffbf45 },
     },
     {
@@ -104,12 +104,39 @@ const NOTRE_DAME_CHECKPOINTS = [
         pos: [52, AISLE_RUN, -19.6],
         radius: 4.2,
         forward: [1, 0.1, 0.3],
-        nextIds: ['CP12'],
+        nextIds: ['CP11_APSE_EXIT'],
         params: { label: 'Umgang niedrig', height: 'low', color: 0x4da6ff },
     },
-    // Both choir branches meet inside the apse and leave east through the opening in its end
-    // wall, so the ring stands in the vessel and faces the way out rather than up into the roof.
-    { id: 'CP12', type: 'apse_merge', pos: [85, GROUND + 15, 0], radius: 5.4, forward: [1, 0.1, 0] },
+    // Both branch choices rejoin at an authored exit ring. The alias lets the ambulatory branch
+    // meet the nave flight line at its lower east-end opening without asking it to cross the apse.
+    {
+        id: 'CP11_APSE_EXIT',
+        type: 'apse_exit',
+        pos: [72, GROUND + 22, -3],
+        radius: 4.8,
+        forward: [1, 0, 0],
+        nextIds: ['CP11_APSE_APPROACH'],
+    },
+    {
+        id: 'CP11_APSE_EXIT_AMBULATORY',
+        aliasOf: 'CP11_APSE_EXIT',
+        type: 'apse_exit_ambulatory',
+        pos: [74, GROUND + 24, -22],
+        radius: 4.2,
+        forward: [1, 0, 0],
+    },
+    // This common turn point lines the aircraft up with the east bore before the CP12 plane.
+    {
+        id: 'CP11_APSE_APPROACH',
+        type: 'apse_approach',
+        pos: [80.6, GROUND + 22, -5],
+        radius: 2.4,
+        forward: [1, 0, 0],
+        nextIds: ['CP12'],
+    },
+    // The ring sits in the east-end bore, offset beside the central apse buttress. Its full
+    // approach crosses the actual opening instead of cutting through the buttress or vault.
+    { id: 'CP12', type: 'apse_merge', pos: [86, GROUND + 22, -5], radius: 5.4, forward: [1, 0, 0] },
     // Both rings stay in the requested 46-61 m height band and above the hanging bells.
     { id: 'CP13', type: 'south_belfry', pos: [-83, GROUND + 57 * 1.4, 20.3], radius: 3.4, forward: [-0.67, 0.34, -0.62] },
     { id: 'CP14', type: 'north_belfry', pos: [-83, GROUND + 61 * 1.4, -20.3], radius: 3.4, forward: [0.78, 0.22, -0.61] },
