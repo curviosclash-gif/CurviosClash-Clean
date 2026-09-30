@@ -14,9 +14,10 @@ const HUNT_MODE_CONFIG = {
     HUNT: { ...CONFIG_BASE.HUNT, ENABLED: true, ACTIVE_MODE: 'HUNT', DEFAULT_MODE: 'HUNT' },
 };
 
-function createPlayer(index, position) {
+function createPlayer(index, position, teamId = null) {
     return {
         index,
+        teamId,
         alive: true,
         isBot: index > 0,
         hp: 100,
@@ -37,8 +38,8 @@ function createPlayer(index, position) {
     };
 }
 
-function createWorld({ targets = [], wallAt = null } = {}) {
-    const shooter = createPlayer(0, [0, 10, 0]);
+function createWorld({ targets = [], wallAt = null, shooterTeamId = null } = {}) {
+    const shooter = createPlayer(0, [0, 10, 0], shooterTeamId);
     const registry = new TargetableRegistry();
     const tanks = [];
     registry.addProvider(() => tanks);
@@ -96,6 +97,17 @@ test('holding charges, the release fires through up to three targets in beam ord
     assert.equal(shooter.railShots, 4);
     assert.equal(shooter.railCharge, 0);
     assert.deepEqual(system.lastBeam.to, [0, 10, -250], 'no wall: the full 250 units');
+});
+
+test('the railgun skips a teammate in the beam and still damages the enemy behind them', () => {
+    const ally = createPlayer(1, [0, 10, -30], 'ALPHA');
+    const enemy = createPlayer(2, [0, 10, -50], 'BRAVO');
+    const { system, shooter } = createWorld({ targets: [ally, enemy], shooterTeamId: 'ALPHA' });
+
+    charge(system, shooter, 0.5);
+
+    assert.deepEqual(ally.taken, [], 'friendly fire is disabled for the railgun');
+    assert.equal(enemy.taken.length, 1, 'an enemy behind the teammate remains hittable');
 });
 
 test('walls stop the beam, trails do not, and tanks in the line are hit too', () => {

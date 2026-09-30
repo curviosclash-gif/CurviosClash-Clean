@@ -1,8 +1,12 @@
+import { canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamCombatContract.js';
+
 const BOMB_COLOR = 0xffb347;
 
 function applyBombToPlayer(system, unit, player, bomb, impactPoint) {
     if (!player?.alive || !player.position || Number(player.spawnProtectionTimer) > 0) return;
     if (unit.summoned && player.index === unit.calledByIndex) return;
+    const sourcePlayer = unit.attackSourcePlayer || unit.source || null;
+    if (!canDamage(sourcePlayer, player, TEAM_WEAPON_KINDS.ITEM_PROJECTILE)) return;
     const dx = player.position.x - impactPoint.x;
     const dz = player.position.z - impactPoint.z;
     const radius = bomb.radius * unit.scale;
@@ -10,14 +14,14 @@ function applyBombToPlayer(system, unit, player, bomb, impactPoint) {
     const result = player.takeDamage?.(bomb.damage);
     system.entityManager?._emitHuntDamageEvent?.({
         target: player,
-        sourcePlayer: unit.attackSourcePlayer || unit.source,
+        sourcePlayer,
         cause: 'BOMBER_BOMB',
         damageResult: result,
         impactPoint,
     });
     if (result?.isDead) {
         system.entityManager?._killPlayer?.(player, 'PROJECTILE', {
-            killer: unit.attackSourcePlayer || unit.source,
+            killer: sourcePlayer,
             impactPoint,
             projectileType: 'BOMBER_BOMB',
         });

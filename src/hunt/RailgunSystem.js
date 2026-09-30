@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { consumeRailgunShot, hasRailgunEffect } from '../entities/player/PlayerEffectOps.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import { canDamage, TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
 import { HUNT_CONFIG } from './HuntConfig.js';
 import { RailgunBeamEffect } from '../entities/effects/RailgunBeamEffect.js';
 import {
@@ -157,6 +158,7 @@ export class RailgunSystem {
         for (const target of this.entityManager?.players || []) {
             if (!target || target === player || target.alive !== true || !target.position) continue;
             if ((Number(target.spawnProtectionTimer) || 0) > 0) continue;
+            if (!canDamage(player, target, TEAM_WEAPON_KINDS.ITEM_PROJECTILE)) continue;
             const radius = (Number(target.hitboxRadius) || playerRadius) + beamRadius;
             const along = measureBeamHit(origin, aim, target.position, radius, range, this._scratch);
             if (along >= 0) hits.push({ target, along, isPlayer: true });
@@ -164,6 +166,7 @@ export class RailgunSystem {
         for (const target of this.entityManager?._targetableRegistry?.collect?.() || []) {
             if (!target?.position || !(Number(target.hp) > 0)) continue;
             if (target.ownerPlayer === player || (Number.isInteger(player.index) && target.ownerIndex === player.index)) continue;
+            if (!canDamage(player, target, TEAM_WEAPON_KINDS.ITEM_PROJECTILE)) continue;
             const radius = (Number(target.hitboxRadius) || 2.2) + beamRadius;
             const along = measureBeamHit(origin, aim, target.position, radius, range, this._scratch);
             if (along >= 0) hits.push({ target, along, isPlayer: false });

@@ -9,9 +9,9 @@ const BOMBER = {
     weapons: { bomb: { damage: 50, cooldown: 1.5, radius: 15 } },
 };
 
-function createPlayer(index, x, protectedSeconds = 0) {
+function createPlayer(index, x, protectedSeconds = 0, teamId = null) {
     return {
-        index, alive: true, hp: 100, spawnProtectionTimer: protectedSeconds,
+        index, teamId, alive: true, hp: 100, spawnProtectionTimer: protectedSeconds,
         position: new THREE.Vector3(x, 0, 0),
         takeDamage(amount) {
             this.hp -= amount;
@@ -20,7 +20,7 @@ function createPlayer(index, x, protectedSeconds = 0) {
     };
 }
 
-function createWorld({ authority = true } = {}) {
+function createWorld({ authority = true, mapUnits = [BOMBER] } = {}) {
     const hit = createPlayer(0, 45);
     const safe = createPlayer(1, 45, 2);
     const far = createPlayer(2, 80);
@@ -28,7 +28,7 @@ function createWorld({ authority = true } = {}) {
     const manager = {
         isFightOutcomeAuthority: authority,
         gameModeStrategy: { modeType: 'HUNT', getPickupModeType: () => 'HUNT' },
-        arena: { bounds: { min: { y: 0 } }, currentMapDefinition: { mapUnits: [BOMBER] } },
+        arena: { bounds: { min: { y: 0 } }, currentMapDefinition: { mapUnits } },
         players: [hit, safe, far], humanPlayers: [hit, safe, far],
         _emitHuntDamageEvent: (event) => events.push(event),
         _killPlayer() {},
@@ -68,6 +68,24 @@ test('a bomber strikes below its fixed route every one and a half seconds', () =
     hit.position.x = 90;
     system.update(1.5);
     assert.equal(hit.hp, 0, 'the next cadence drops the second bomb');
+});
+
+test('a called bomber spares its caller team but still bombs a nearby enemy', () => {
+    const { system, hit: caller } = createWorld({ mapUnits: [] });
+    caller.teamId = 'ALPHA';
+    caller.position.x = -120;
+    const ally = createPlayer(3, -75, 0, 'ALPHA');
+    const enemy = createPlayer(4, -75, 0, 'BRAVO');
+    system.entityManager.players.push(ally, enemy);
+    system.entityManager.arena.bounds = {
+        minX: -120, maxX: 120, minY: 0, maxY: 80, minZ: -90, maxZ: 90,
+    };
+
+    assert.equal(system.callBomberStrike(caller), true);
+    system.update(1.5);
+
+    assert.equal(ally.hp, 100, 'the called bomber does not hit its caller team');
+    assert.equal(enemy.hp, 50, 'the same bomb still damages an enemy');
 });
 
 test('a network replica never drops authoritative bombs', () => {

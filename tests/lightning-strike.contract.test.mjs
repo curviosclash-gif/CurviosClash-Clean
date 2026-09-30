@@ -20,9 +20,10 @@ const CLASSIC_MODE_CONFIG = {
     HUNT: { ...CONFIG_BASE.HUNT, ENABLED: false, ACTIVE_MODE: 'CLASSIC', DEFAULT_MODE: 'CLASSIC' },
 };
 
-function createPlayer(index, y, hp = 100) {
+function createPlayer(index, y, hp = 100, teamId = null) {
     return {
         index,
+        teamId,
         alive: true,
         isBot: index > 0,
         hp,
@@ -102,6 +103,20 @@ test('the targets are chosen when the strike lands, two seconds after the cast',
     assert.equal(damageEvents[0].sourcePlayer, caster);
     assert.equal(damageEvents[0].cause, 'LIGHTNING');
     assert.deepEqual(system.lastStrike.targetIndices, [2]);
+});
+
+test('lightning skips higher teammates and chooses a hittable enemy', () => {
+    const caster = createPlayer(0, 0, 100, 'ALPHA');
+    const ally = createPlayer(1, 100, 100, 'ALPHA');
+    const enemy = createPlayer(2, 50, 100, 'BRAVO');
+    const { system } = createWorld([caster, ally, enemy]);
+
+    system.activate(caster);
+    system.update(2);
+
+    assert.equal(ally.taken.length, 0, 'friendly fire is disabled for lightning');
+    assert.equal(enemy.taken.length, 1, 'teammates do not consume the target share');
+    assert.deepEqual(system.lastStrike.targetIndices, [enemy.index]);
 });
 
 test('a weak target dies and the kill goes to the caster', () => {

@@ -21,6 +21,8 @@ function createWorld() {
     const loot = [];
     const scored = [];
     const explosions = [];
+    const damageEvents = [];
+    const killEvents = [];
     const manager = {
         isFightOutcomeAuthority: true,
         gameModeStrategy: { modeType: 'HUNT', getPickupModeType: () => 'HUNT' },
@@ -29,12 +31,14 @@ function createWorld() {
         powerupManager: { spawnAtAnchor: (entry) => loot.push(entry) },
         _huntScoring: { registerUnitDestroyed: (index, kind) => scored.push({ index, kind }) },
         particles: { spawnExplosion: (position) => explosions.push(position.clone()), spawnHit() {} },
-        _emitHuntDamageEvent() {}, _killPlayer() {}, _notifyPlayerFeedback() {},
+        _emitHuntDamageEvent: (event) => damageEvents.push(event),
+        _killPlayer: (target, cause, options) => killEvents.push({ target, cause, options }),
+        _notifyPlayerFeedback() {},
     };
     const system = new MapUnitSystem(manager);
     manager._mapUnitSystem = system;
     system.startRound();
-    return { system, bomber: system.units[0], player, loot, scored, explosions };
+    return { system, bomber: system.units[0], player, loot, scored, explosions, damageEvents, killEvents };
 }
 
 test('a destroyed bomber falls before impact damage, loot and credit', () => {
@@ -92,4 +96,81 @@ test('clients render the authoritative fall without simulating impact damage', (
     assert.equal(client.bomber.alive, false);
     assert.equal(client.explosions.length, 1);
     assert.equal(client.player.hp, 100, 'only the host applies crash damage');
+});
+
+test('a called bomber crash damages an enemy caller, spares teammates and protected players, and credits the enemy hit', () => {
+    const { system, player: caller, damageEvents, killEvents } = createWorld();
+    caller.teamId = 'BRAVO';
+    caller.hp = 100;
+    const ally = {
+        index: 1, teamId: 'ALPHA', alive: true, hp: 100, spawnProtectionTimer: 0,
+        position: new THREE.Vector3(2, 0, 0),
+        takeDamage(amount) { this.hp -= amount; return { hpApplied: amount, remainingHp: this.hp, isDead: this.hp <= 0 }; },
+    };
+    const enemy = {
+        index: 2, teamId: 'BRAVO', alive: true, hp: 50, spawnProtectionTimer: 0,
+        position: new THREE.Vector3(3, 0, 0),
+        takeDamage(amount) { this.hp -= amount; return { hpApplied: amount, remainingHp: this.hp, isDead: this.hp <= 0 }; },
+    };
+    const protectedEnemy = {
+        index: 3, teamId: 'BRAVO', alive: true, hp: 100, spawnProtectionTimer: 1,
+        position: new THREE.Vector3(4, 0, 0),
+        takeDamage(amount) { this.hp -= amount; return { hpApplied: amount, remainingHp: this.hp, isDead: this.hp <= 0 }; },
+    };
+    system.entityManager.players.push(ally, enemy, protectedEnemy);
+    system.entityManager.arena.bounds = { minX: -30, maxX: 30, minY: 0, maxY: 50, minZ: -10, maxZ: 10 };
+
+    assert.equal(system.callBomberStrike(caller), true);
+    const calledBomber = system.units.find((unit) => unit.summoned);
+    calledBomber.position.set(0, 30, 0);
+    calledBomber.groundPosition.set(0, 0, 0);
+    const shooter = { index: 4, teamId: 'ALPHA', isBot: false };
+    calledBomber.takeDamage(999, { sourcePlayer: shooter, cause: 'ROCKET_HEAVY' });
+    system.update(2);
+
+    assert.equal(caller.hp, 50, 'caller identity does not grant immunity when the crash source is an enemy');
+    assert.equal(ally.hp, 100, 'other teammates of the crash source are protected');
+    assert.equal(enemy.hp, 0, 'the crash still damages and kills an enemy');
+    assert.equal(protectedEnemy.hp, 100, 'spawn protection still blocks the crash');
+    assert.equal(damageEvents.length, 2);
+    assert.deepEqual(damageEvents.map(({ target }) => target), [caller, enemy]);
+    assert.equal(damageEvents.every(({ sourcePlayer }) => sourcePlayer === shooter), true);
+    assert.equal(damageEvents.every(({ cause }) => cause === 'BOMBER_CRASH'), true);
+    assert.equal(killEvents.length, 1);
+    assert.equal(killEvents[0].target, enemy);
+    assert.equal(killEvents[0].options.killer, shooter);
+});
+
+for (const { label, teamId } of [
+    { label: 'team mode', teamId: 'ALPHA' },
+    { label: 'FFA', teamId: undefined },
+]) {
+    test(`a bomber crash can damage its own ${label} source without self kill credit`, () => {
+        const { system, bomber, player, damageEvents, killEvents } = createWorld();
+        if (teamId) player.teamId = teamId;
+        player.hp = 50;
+        bomber.position.set(0, 30, 0);
+        bomber.takeDamage(999, { sourcePlayer: player, cause: 'ROCKET_HEAVY' });
+        system.update(2);
+
+        assert.equal(player.hp, 0, 'self damage remains part of the crash blast');
+        assert.equal(damageEvents.length, 1);
+        assert.equal(damageEvents[0].sourcePlayer, player);
+        assert.equal(damageEvents[0].target, player);
+        assert.equal(killEvents.length, 1);
+        assert.equal(killEvents[0].target, player);
+        assert.equal(killEvents[0].options.killer, null);
+    });
+}
+
+test('an unteamed map bomber crash keeps FFA damage and source attribution', () => {
+    const { system, bomber, player, damageEvents } = createWorld();
+    const shooter = { index: 7, isBot: false };
+    bomber.position.set(0, 30, 0);
+    bomber.takeDamage(999, { sourcePlayer: shooter, cause: 'ROCKET_HEAVY' });
+    system.update(2);
+
+    assert.equal(player.hp, 50, 'unteamed FFA players still take the bomber crash');
+    assert.equal(damageEvents[0].sourcePlayer, shooter);
+    assert.equal(damageEvents[0].target, player);
 });

@@ -343,16 +343,27 @@ test('lethal friendly fire records the death without awarding a team kill', () =
     assert.equal(rows.find((row) => row.playerIndex === 2).deaths, 1);
 });
 
-test('friendly-fire contributions intentionally remain eligible for assists', () => {
+test('team damage does not grant assists, while enemy contributions and FFA assists remain valid', () => {
     const scoring = new HuntScoring(() => 1);
     const teammate = combatant(0, TEAM_IDS.ALPHA);
     const victim = { ...combatant(2, TEAM_IDS.ALPHA), maxHp: 100, maxShieldHp: 0 };
-    const enemy = combatant(1, TEAM_IDS.BRAVO);
+    const enemyHelper = combatant(1, TEAM_IDS.BRAVO);
+    const enemyKiller = combatant(3, TEAM_IDS.BRAVO);
 
     scoring.registerDamage(teammate, victim, { applied: 30, hpApplied: 30 }, 0);
-    const result = scoring.registerElimination(victim, { killer: enemy, nowSeconds: 1 });
-    const rows = scoring.getScoreboard([teammate, enemy, victim]);
+    scoring.registerDamage(enemyHelper, victim, { applied: 20, hpApplied: 20 }, 0);
+    const result = scoring.registerElimination(victim, { killer: enemyKiller, nowSeconds: 1 });
+    const rows = scoring.getScoreboard([teammate, enemyHelper, enemyKiller, victim]);
 
-    assert.deepEqual(result.assistIndices, [teammate.index]);
-    assert.equal(rows.find((row) => row.playerIndex === teammate.index).assists, 1);
+    assert.deepEqual(result.assistIndices, [enemyHelper.index]);
+    assert.equal(rows.find((row) => row.playerIndex === teammate.index).assists, 0);
+    assert.equal(rows.find((row) => row.playerIndex === enemyHelper.index).assists, 1);
+
+    const ffa = new HuntScoring(() => 1);
+    const ffaHelper = combatant(0, null);
+    const ffaVictim = { ...combatant(1, null), maxHp: 100, maxShieldHp: 0 };
+    const ffaKiller = combatant(2, null);
+    ffa.registerDamage(ffaHelper, ffaVictim, { applied: 20, hpApplied: 20 }, 0);
+    const ffaResult = ffa.registerElimination(ffaVictim, { killer: ffaKiller, nowSeconds: 1 });
+    assert.deepEqual(ffaResult.assistIndices, [ffaHelper.index], 'no team relation preserves FFA assists');
 });
