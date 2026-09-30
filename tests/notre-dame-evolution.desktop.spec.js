@@ -1,9 +1,11 @@
 import { expect, test } from './helpers.desktop.js';
 import { waitForLoadedGame, openCustomSubmenu, returnToMenu } from './helpers.js';
 import { writeFile } from 'node:fs/promises';
+import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
 
 for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
-    test(`${mapKey} evolves from sunshine through fire to ruins and resets @render`, async ({ page }, testInfo) => {
+    const intactSky = NOTRE_DAME_MAPS[mapKey].lighting.skyDome;
+    test(`${mapKey} evolves from its dusk lighting through fire to ruins and resets @render`, async ({ page }, testInfo) => {
         test.setTimeout(240000);
         await waitForLoadedGame(page);
         await openCustomSubmenu(page);
@@ -53,7 +55,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
             delete sample.image;
         }
         await writeFile(testInfo.outputPath('evolution.json'), JSON.stringify(proof, null, 2));
-        expect(proof.samples[0].sky.zenithColor).toBe(0x2586df);
+        expect(proof.samples[0].sky.zenithColor).toBe(intactSky.zenithColor);
         expect(proof.samples[0].roofSolid).toBe(true);
         expect(proof.samples[0].constructionFrames).toBe(0);
         expect(proof.samples[3].events).toEqual(['roof','nave','transept']);
@@ -89,7 +91,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
             expect(resources.groups).toBe(nextMap === 'standard' ? 0 : 1);
             expect(resources.events).toBe(0);
             if (nextMap === 'standard') expect(resources.progress).toBeNull();
-            else { expect(resources.progress).toBe(0); expect(resources.sky).toBe(0x2586df); }
+            else { expect(resources.progress).toBe(0); expect(resources.sky).toBe(intactSky.zenithColor); }
         }
     });
 }
