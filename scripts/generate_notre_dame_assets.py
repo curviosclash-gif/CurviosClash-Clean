@@ -1010,6 +1010,7 @@ def build_nave(mats):
     """
     stone = mats["stone"]
     shaded = mats["stone_shaded"]
+    oak = mats["oak"]
 
     for side in (-1, 1):
         # Outer aisle wall, buttressed in the next part.
@@ -1021,14 +1022,22 @@ def build_nave(mats):
                                               side * CLERESTORY_HALF,
                                               (TRIFORIUM_TOP_Z + CLERESTORY_TOP_Z) / 2),
              (NAVE_BAYS * BAY_LENGTH / 2, 0.8, (CLERESTORY_TOP_Z - TRIFORIUM_TOP_Z) / 2), stone)
-        cube(f"nave_triforium_band_{side}_nocol", ((NAVE_START_X + NAVE_END_X) / 2,
-                                                   side * CLERESTORY_HALF,
-                                                   (ARCADE_TOP_Z + TRIFORIUM_TOP_Z) / 2),
-             (NAVE_BAYS * BAY_LENGTH / 2, 0.5, (TRIFORIUM_TOP_Z - ARCADE_TOP_Z) / 2), shaded)
-        cube(f"nave_triforium_band_{side}_colonly", ((NAVE_START_X + NAVE_END_X) / 2,
-                                                     side * CLERESTORY_HALF,
-                                                     (ARCADE_TOP_Z + TRIFORIUM_TOP_Z) / 2),
-             (NAVE_BAYS * BAY_LENGTH / 2, 0.5, (TRIFORIUM_TOP_Z - ARCADE_TOP_Z) / 2), shaded)
+        # The triforium is an arcade, not a continuous wall. Each bay leaves a real opening
+        # between the vessel and the raised side gallery; the collision geometry is the same
+        # stonework the eye sees, so a ship can thread it without passing through a proxy slab.
+        cube(f"nave_triforium_sill_{side}", ((NAVE_START_X + NAVE_END_X) / 2,
+                                             side * CLERESTORY_HALF,
+                                             ARCADE_TOP_Z + 0.25),
+             (NAVE_BAYS * BAY_LENGTH / 2, 0.5, 0.25), shaded)
+        cube(f"nave_triforium_crown_{side}", ((NAVE_START_X + NAVE_END_X) / 2,
+                                               side * CLERESTORY_HALF,
+                                               TRIFORIUM_TOP_Z - 0.25),
+             (NAVE_BAYS * BAY_LENGTH / 2, 0.5, 0.25), shaded)
+        for bay in range(NAVE_BAYS + 1):
+            service_x = NAVE_START_X + bay * BAY_LENGTH
+            cube(f"nave_triforium_service_{bay}_{side}",
+                 (service_x, side * CLERESTORY_HALF, (ARCADE_TOP_Z + TRIFORIUM_TOP_Z) / 2),
+                 (0.35, 0.48, (TRIFORIUM_TOP_Z - ARCADE_TOP_Z) / 2), stone)
 
     cube("nave_vault_shell_colonly", ((NAVE_START_X + NAVE_END_X) / 2, 0, NAVE_VAULT_Z),
          (NAVE_BAYS * BAY_LENGTH / 2, NAVE_HALF_WIDTH, 0.6), shaded)
@@ -1054,6 +1063,12 @@ def build_nave(mats):
                     center=(bay_x + BAY_LENGTH / 2, side * NAVE_HALF_WIDTH, ARCADE_TOP_Z),
                     span=BAY_LENGTH, rise=3.4, depth=1.0, steps=5, thickness=0.5, axis="y",
                 )
+            pointed_arch(
+                f"nave_triforium_arch_{bay}_{side}", shaded,
+                center=(bay_x, side * CLERESTORY_HALF, ARCADE_TOP_Z + 0.35),
+                span=BAY_LENGTH - 0.95, rise=TRIFORIUM_TOP_Z - ARCADE_TOP_Z - 0.7,
+                depth=0.9, steps=4, thickness=0.42, axis="y",
+            )
             # Clerestory window: the light source of the central vessel.
             lancet_window(
                 f"nave_clerestory_{bay}_{side}", mats["glass_warm"],
@@ -1078,6 +1093,47 @@ def build_nave(mats):
             center=(bay_x, 0), span=NAVE_HALF_WIDTH * 2, length=BAY_LENGTH,
             crown_z=NAVE_VAULT_Z, springing_z=CLERESTORY_TOP_Z - 4.0,
         )
+
+    # The nave part of the aisle roof is authored with the shared roof GLB below. It rises over
+    # the upper-flight corridor, while this nave part keeps its slim stone supports. The choir
+    # retains its existing lower aisle roof.
+    roof_outer_z = 21.0
+    for side in (-1, 1):
+        for bay in range(NAVE_BAYS + 1):
+            support_x = NAVE_START_X + bay * BAY_LENGTH
+            cube(f"nave_raised_roof_service_{bay}_{side}",
+                 (support_x, side * 19.6, (ARCADE_TOP_Z + roof_outer_z) / 2),
+                 (0.28, 0.38, (roof_outer_z - ARCADE_TOP_Z) / 2), stone)
+        # A narrow gallery ledge makes the route legible while leaving the flight corridor open.
+        cube(f"nave_triforium_gallery_{side}",
+             ((NAVE_START_X + NAVE_END_X) / 2, side * 11.5, 15.2),
+             (NAVE_BAYS * BAY_LENGTH / 2, 1.45, 0.18), stone)
+
+    # Low interior furnishing is placed off the centre lane and below the existing race line.
+    # Benches remain real colliders; only the flush floor pattern is visual-only.
+    for bay in range(NAVE_BAYS):
+        x = NAVE_START_X + BAY_LENGTH * (bay + 0.5)
+        for row, across in enumerate((-2.45, 2.45)):
+            cube(f"nave_pew_{bay}_{row}_seat", (x, across, 0.72),
+                 (1.25, 0.8, 0.14), oak)
+            cube(f"nave_pew_{bay}_{row}_back", (x - 1.05, across, 1.42),
+                 (0.13, 0.8, 0.62), oak)
+            for end in (-1, 1):
+                cube(f"nave_pew_{bay}_{row}_leg_{end}",
+                     (x + end * 0.95, across, 0.35), (0.13, 0.7, 0.37), oak)
+        # A small repeating cross motif, flush with the nave floor.
+        cube(f"nave_floor_cross_{bay}_nocol", (x, 0, 0.012),
+             (1.45, 0.09, 0.008), shaded)
+        cube(f"nave_floor_crossbar_{bay}_nocol", (x, 0, 0.012),
+             (0.09, 1.45, 0.008), shaded)
+
+    # The grand organ is mounted high on the west wall and stays clear of the centre flight line.
+    cube("nave_organ_case", (NAVE_START_X + 1.4, 0, 11.4), (0.75, 3.8, 1.5), oak)
+    for pipe in range(15):
+        across = -3.25 + pipe * 0.46
+        height = 3.2 + (1 - abs(pipe - 7) / 7) * 2.2
+        cylinder(f"nave_organ_pipe_{pipe}", (NAVE_START_X + 0.95, across, 12.0 + height / 2),
+                 0.12, height, mats["gold"], vertices=6)
 
     cube("nave_floor", ((NAVE_START_X + NAVE_END_X) / 2, 0, -0.4),
          (NAVE_BAYS * BAY_LENGTH / 2, AISLE_OUTER, 0.4), mats["stone_dark"])
@@ -1212,6 +1268,7 @@ def build_choir_apse(mats):
     """
     stone = mats["stone"]
     shaded = mats["stone_shaded"]
+    oak = mats["oak"]
 
     for bay in range(CHOIR_BAYS):
         bay_x = CHOIR_START_X + BAY_LENGTH * (bay + 0.5)
@@ -1291,6 +1348,42 @@ def build_choir_apse(mats):
     )
     cube("choir_floor", ((CHOIR_START_X + CHOIR_END_X + APSE_RADIUS) / 2, 0, -0.4),
          ((CHOIR_END_X + APSE_RADIUS - CHOIR_START_X) / 2, AISLE_OUTER, 0.4), mats["stone_dark"])
+
+    # A low, open chancel screen separates the nave from the choir without sealing either aisle.
+    screen_x = CHOIR_START_X + 0.8
+    for across in (-6.0, -3.0, 3.0, 6.0):
+        cube(f"choir_screen_post_{across}", (screen_x, across, 4.1),
+             (0.38, 0.38, 4.1), shaded)
+        cube(f"choir_screen_finial_{across}_nocol", (screen_x, across, 8.35),
+             (0.55, 0.55, 0.35), mats["gold"])
+    for lower, upper in ((-6.0, -3.0), (3.0, 6.0)):
+        pointed_arch(f"choir_screen_arch_{lower}", shaded,
+                     center=(screen_x, (lower + upper) / 2, 4.1),
+                     span=upper - lower - 0.7, rise=2.8, depth=0.7,
+                     steps=4, thickness=0.32, axis="x")
+    cube("choir_screen_rail", (screen_x, 0, 7.4), (0.45, 2.65, 0.22), oak)
+    for index in range(9):
+        across = -2.4 + index * 0.6
+        cube(f"choir_screen_baluster_{index}", (screen_x, across, 6.35),
+             (0.22, 0.08, 0.85), oak)
+
+    # Stalls face inward on each side of the choir; their low profiles stay beneath every route.
+    for bay in range(4):
+        x = CHOIR_START_X + 3.2 + bay * 3.2
+        for side in (-1, 1):
+            across = side * 3.4
+            cube(f"choir_stall_{bay}_{side}_seat", (x, across, 0.78),
+                 (1.25, 0.95, 0.16), oak)
+            cube(f"choir_stall_{bay}_{side}_back", (x - 1.05, across, 1.65),
+                 (0.14, 0.95, 0.72), oak)
+            for end in (-1, 1):
+                cube(f"choir_stall_{bay}_{side}_end_{end}",
+                     (x + end * 0.95, across, 0.43), (0.14, 0.82, 0.36), oak)
+
+    # The altar stands on the choir axis but stays low enough to read beneath the high branch.
+    cube("choir_altar_mensa", (CHOIR_END_X - 4.3, 0, 1.65), (1.25, 2.15, 0.2), mats["stone"])
+    cube("choir_altar_pedestal", (CHOIR_END_X - 4.3, 0, 0.9), (0.7, 1.4, 0.55), shaded)
+    cube("choir_altar_frontal", (CHOIR_END_X - 4.3, -2.18, 1.55), (0.55, 0.08, 0.34), mats["gold"])
 
 
 def build_buttresses(mats):
@@ -1438,11 +1531,18 @@ def build_roof_fleche(mats):
               (CLERESTORY_TOP_Z + ROOF_RIDGE_Z) / 2),
              (CROSSING_LENGTH / 4 * 1.12, TRANSEPT_HALF, 0.4), lead,
              rotation=(0, side * 0.98, 0))
-    # Aisle lean-to roofs, lower and shallower.
+    # The upper nave gallery uses an elevated aisle roof. Keep it as a colliding roof surface:
+    # only the route corridor below it is clear. The adjacent choir keeps its former profile.
+    nave_roof_angle = atan2(2.0, AISLE_OUTER - CLERESTORY_HALF)
     for side in (-1, 1):
-        cube(f"roof_aisle_{side}", ((NAVE_START_X + CHOIR_END_X) / 2,
-                                    side * (CLERESTORY_HALF + AISLE_OUTER) / 2, 16.5),
-             ((CHOIR_END_X - NAVE_START_X) / 2, (AISLE_OUTER - CLERESTORY_HALF) / 2 * 1.1, 0.35),
+        cube(f"roof_aisle_nave_{side}", ((NAVE_START_X + NAVE_END_X) / 2,
+                                          side * (CLERESTORY_HALF + AISLE_OUTER) / 2, 22.0),
+             (NAVE_BAYS * BAY_LENGTH / 2, (AISLE_OUTER - CLERESTORY_HALF) / 2, 0.35),
+             lead, rotation=(-side * nave_roof_angle, 0, 0))
+        cube(f"roof_aisle_choir_{side}", ((NAVE_END_X + CHOIR_END_X) / 2,
+                                           side * (CLERESTORY_HALF + AISLE_OUTER) / 2, 16.5),
+             ((CHOIR_END_X - NAVE_END_X) / 2,
+              (AISLE_OUTER - CLERESTORY_HALF) / 2 * 1.1, 0.35),
              lead, rotation=(side * -0.34, 0, 0))
 
     # The spire. A tapered lower shaft rises from the roof to an open octagonal lantern. The

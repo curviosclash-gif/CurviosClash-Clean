@@ -82,6 +82,19 @@ function sphereHitsMesh(meshes, centre, radius) {
     return '';
 }
 
+function sphereSweepHit(meshes, from, to, radius) {
+    const start = new THREE.Vector3(...from);
+    const end = new THREE.Vector3(...to);
+    const delta = end.clone().sub(start);
+    const steps = Math.ceil(delta.length() / (radius / 2));
+    for (let step = 0; step <= steps; step += 1) {
+        const centre = start.clone().addScaledVector(delta, step / steps);
+        const mesh = sphereHitsMesh(meshes, centre.toArray(), radius);
+        if (mesh) return { mesh, centre: centre.toArray(), step, steps };
+    }
+    return undefined;
+}
+
 function leaksThroughVisible(meshes, from, direction, distance) {
     const visible = firstHit(meshes.visible, from, direction, distance);
     if (!visible) return false;
@@ -162,4 +175,67 @@ test('Notre-Dame model collision findings only shrink', async () => {
         `the half-round roof curves down to the apse rim: ${apseSamples.map((height) => height.toFixed(1)).join(', ')} m`);
 
     assert.deepEqual(findings.sort(), [...KNOWN_FINDINGS].sort());
+});
+
+test('the raised triforium and gallery form two continuous, collider-clear flight paths', async () => {
+    const meshes = await loadChurchMeshes();
+    const galleryHeight = 8 + 17.5 * 1.4;
+    const shipRadius = 1.6 / 3;
+
+    // Enter from the central vessel under the arcade, rise in the side aisle above its decorative
+    // vault ribs, then fly through the real pointed triforium opening into the upper gallery.
+    // Every leg uses the largest shipped ship hitbox, not a centre ray.
+    // The eastmost bay opens into the crossing rather than another nave arcade; its gallery
+    // segment is covered by the full-length lane sweep below, while the adjacent bay supplies
+    // the paired entry and exit.
+    for (let bay = 0; bay < 9; bay += 1) {
+        const galleryX = (-54.75 + 3 + bay * 6) * 1.4;
+        const arcadeX = (-54.75 + 6 + bay * 6) * 1.4;
+        const lowerArcadeHeight = 8 + 14 * 1.4;
+        for (const side of [-1, 1]) {
+            const entry = [
+                [arcadeX, lowerArcadeHeight, 0],
+                [arcadeX, lowerArcadeHeight, side * 10.5],
+                [arcadeX, galleryHeight, side * 10.5],
+                [galleryX, galleryHeight, side * 10.5],
+                [galleryX, galleryHeight, side * 20.3],
+            ];
+            for (let leg = 0; leg < entry.length - 1; leg += 1) {
+                assert.equal(sphereSweepHit(meshes.colliding, entry[leg], entry[leg + 1], shipRadius), undefined,
+                    `bay ${bay} entry leg ${leg} is clear into the ${side > 0 ? 'south' : 'north'} gallery`);
+            }
+            for (let leg = entry.length - 1; leg > 0; leg -= 1) {
+                assert.equal(sphereSweepHit(meshes.colliding, entry[leg], entry[leg - 1], shipRadius), undefined,
+                    `bay ${bay} exit leg ${leg - 1} is clear from the ${side > 0 ? 'south' : 'north'} gallery`);
+            }
+        }
+    }
+
+    // Sweep the whole longitudinal lane, including every bay joint, supports, and both ends.
+    for (const side of [-1, 1]) {
+        const firstBayOpening = (-54.75 + 3) * 1.4;
+        const lastBayOpening = (-54.75 + 3 + 9 * 6) * 1.4;
+        const sweep = sphereSweepHit(meshes.colliding,
+            [firstBayOpening - 3, galleryHeight, side * 20.3],
+            [lastBayOpening + 3, galleryHeight, side * 20.3], shipRadius);
+        assert.equal(sweep, undefined,
+            `the ${side > 0 ? 'south' : 'north'} gallery is ship-clear through every bay seam and end`);
+    }
+
+    // Keep collision on the raised roof itself; the passable gallery must be a deliberate gap
+    // below it rather than a missing collider that would reopen the nave roof to gameplay.
+    for (const side of [-1, 1]) {
+        const roofCentre = [(-54.75 + 3) * 1.4, 8 + 22 * 1.4, side * 20.3];
+        assert.ok(sphereHitsMesh(meshes.colliding, roofCentre, shipRadius),
+            `the ${side > 0 ? 'south' : 'north'} raised gallery roof still blocks above the flight lane`);
+    }
+
+    // The unchanged mandatory route keeps a full ship radius at each nave/choir anchor.
+    for (const id of ['CP06', 'CP07', 'CP08_ATTIC', 'CP08_AISLE', 'CP09', 'CP10',
+        'CP11_CHOIR', 'CP11_AMBULATORY']) {
+        const checkpoint = map.parcours.checkpoints.find((entry) => entry.id === id);
+        assert.ok(checkpoint, `${id} remains on the current route`);
+        assert.equal(sphereHitsMesh(meshes.colliding, checkpoint.pos, shipRadius), '',
+            `${id} remains clear of the updated interior GLBs`);
+    }
 });
