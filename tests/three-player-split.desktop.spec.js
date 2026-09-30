@@ -4,12 +4,8 @@ import { collectErrors, openStartSetupSection, returnToMenu, waitForLoadedGame }
 // All desktop tests of a run share one profile, and the menu remembers the player count.
 // Leave two players behind, or later split-screen specs start a three-player match.
 test.afterEach(async ({ page }) => {
-    await page.evaluate(() => {
-        const game = window.GAME_INSTANCE;
-        if (!game?.settings?.localSettings) return;
-        game.settings.localSettings.splitScreenVariant = 'standard';
-        game._saveSettings?.();
-    }).catch(() => {});
+    await openSharedSplitMenu(page).catch(() => {});
+    await page.locator('[data-split-player-count="2"]').click({ timeout: 1000 }).catch(() => {});
 });
 
 // Two and three players share the level-3 match menu; the player count sits in "Spieler & Geräte".
@@ -54,12 +50,23 @@ test('the shared split menu switches between two and three players without losin
     await expect(page.locator('#split-input-layout')).toBeHidden();
     await expect(page.locator('#btn-vehicle-player-p3')).not.toHaveClass(/hidden/);
     await expect(page.locator('#menu-selection-summary')).toContainText('Flugzeug P3');
+    const threePlayerDevices = await Promise.all(
+        ['#split-device-p1', '#split-device-p2', '#split-device-p3'].map((selector) => (
+            page.locator(selector).inputValue()
+        )),
+    );
+    expect(threePlayerDevices).toEqual(['gamepad-1', 'gamepad-2', 'keyboard']);
 
     await page.locator('[data-split-player-count="2"]').click();
     await expect(page.locator('#split-input-layout')).toBeVisible();
     await expect(page.locator('#btn-vehicle-player-p3')).toHaveClass(/hidden/);
-    expect(await page.evaluate(() => window.GAME_INSTANCE?.settings?.localSettings?.threePlayerSplit?.deviceAssignment))
-        .toEqual(['gamepad-1', 'gamepad-2', 'keyboard']);
+    await page.locator('[data-split-player-count="3"]').click();
+    await expect(page.locator('#split-input-layout')).toBeHidden();
+    expect(await Promise.all(
+        ['#split-device-p1', '#split-device-p2', '#split-device-p3'].map((selector) => (
+            page.locator(selector).inputValue()
+        )),
+    )).toEqual(threePlayerDevices);
     expect(errors).toHaveLength(0);
 });
 
@@ -108,7 +115,6 @@ test('three-player split guards missing pads and starts with swapped device seat
     expect(errors).toHaveLength(0);
     await returnToMenu(page);
     // Back in the shared menu the next start is still a three-player match with the same seats.
-    expect(await page.evaluate(() => window.GAME_INSTANCE?.settings?.localSettings?.splitScreenVariant)).toBe('three_player');
     await expect(page.locator('[data-split-player-count="3"]')).toHaveAttribute('aria-pressed', 'true');
 });
 

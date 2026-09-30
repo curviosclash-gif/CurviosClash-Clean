@@ -52,6 +52,7 @@ GLB_DIR = ROOT / "assets" / "maps" / "notre_dame_fire" / "glb"
 CHARRED = (0.085, 0.065, 0.055, 1.0)
 SOOT_STONE = (0.30, 0.27, 0.25, 1.0)
 SPENT_LEAD = (0.26, 0.26, 0.25, 1.0)
+NAVE_BURNT_BOX_CENTER_X = -24.68
 
 
 def with_fire_materials(mats):
@@ -60,6 +61,15 @@ def with_fire_materials(mats):
     extended["charred"] = nd.material("NDFCharred", CHARRED, roughness=0.96)
     extended["soot"] = nd.material("NDFSoot", SOOT_STONE, roughness=0.93)
     extended["spent_lead"] = nd.material("NDFSpentLead", SPENT_LEAD, metallic=0.3, roughness=0.7)
+    # The surviving north and south aisle roof runs share one colour, but not one collider
+    # footprint. Separate material identities let the exporter keep those disconnected sides in
+    # distinct GLB nodes, so clearance checks measure each actual roof instead of their union AABB.
+    extended["spent_lead_north"] = nd.material(
+        "NDFSpentLeadNorth", SPENT_LEAD, metallic=0.3, roughness=0.7,
+    )
+    extended["spent_lead_south"] = nd.material(
+        "NDFSpentLeadSouth", SPENT_LEAD, metallic=0.3, roughness=0.7,
+    )
     return extended
 
 
@@ -118,6 +128,11 @@ def build_nave_burnt(mats):
     """
     mats = with_fire_materials(mats)
     nd.build_nave(mats)
+    # The intact builder's central-vault shell is a collision-only slab. The fire map uses the
+    # rendered GLB as collision, so keeping it would quietly close the whole burnt attic from
+    # below even though the lead roof and vault ribs are gone. The fallback obstacle boxes retain
+    # their existing role if asset loading fails.
+    assert remove_meshes("nave_vault_shell_colonly") > 0, "the intact vault collision shell must exist"
 
     # North is +Y, and the bay that failed is the last one before the crossing.
     breach_bay = nd.NAVE_BAYS - 1
@@ -142,6 +157,16 @@ def build_nave_burnt(mats):
             mats["soot"],
             rotation=(0.2 * sin(angle), 0.18 * cos(angle), angle),
         )
+
+    # The missing north-aisle bay changes the burnt part's measured box centre slightly. Keep its
+    # measured anchor aligned with the intact nave's authored position; the loader then recentres
+    # both GLBs around the same cathedral coordinate when it assembles the map.
+    bpy.context.view_layer.update()
+    lows, highs = nd.scene_bounds()
+    offset_x = NAVE_BURNT_BOX_CENTER_X - (lows[0] + highs[0]) / 2
+    for obj in bpy.context.scene.objects:
+        if obj.type == "MESH":
+            obj.location.x += offset_x
 
 
 def build_transept_burnt(mats):
@@ -189,7 +214,9 @@ def build_roof_burnt(mats):
     for obj in bpy.context.scene.objects:
         if obj.type == "MESH":
             obj.data.materials.clear()
-            obj.data.materials.append(mats["spent_lead"])
+            side = obj.name.rsplit("_", 1)[-1]
+            material_key = "spent_lead_north" if side == "1" else "spent_lead_south"
+            obj.data.materials.append(mats[material_key])
 
     charred = mats["charred"]
 

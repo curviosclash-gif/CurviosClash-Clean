@@ -39,13 +39,8 @@ const KNOWN_FINDINGS = [
     // Storm sieges (plan K1/K2): loops one frame short of the beat, the train jumps back across
     // the bridge at every loop end, wrecks outside the arena or below the floor.
     'storm_bridge_siege|storm-bridge-collapse|-|end-below-ground',
-    'storm_bridge_siege|storm-bridge-train|-|beat',
     'storm_bridge_siege|storm-bridge-train|-|loop-seam',
     'storm_dam_siege|storm-dam-collapse|-|end-outside-arena',
-    'storm_dam_siege|storm-dam-gate|-|beat',
-    'storm_lighthouse_siege|storm-lighthouse-beacon|-|beat',
-    'storm_lighthouse_siege|storm-lighthouse-collapse|-|end-below-ground',
-    'storm_lighthouse_siege|storm-lighthouse-collapse|-|end-outside-arena',
     'storm_lighthouse_siege|storm-lighthouse-lift|-|beat',
     'storm_lighthouse_siege|storm-lighthouse-lift|item:lighthouse_speed_lift|clearance',
     // verdant_aperture (plan D): static parts that stay without a box on purpose, because the box

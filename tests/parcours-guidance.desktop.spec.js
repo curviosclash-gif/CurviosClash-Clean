@@ -33,20 +33,7 @@ async function countChangedMotifPixels(page, first, second, region) {
     }, { firstPng: first.toString('base64'), secondPng: second.toString('base64'), cssRegion: region });
 }
 
-// Sets the breath phase on the runtime's game clock. The loop is frozen (time scale 0), so
-// the clock stands still; the progress stamp keeps the stall watchdog from restarting the breath.
-async function setBreathPhase(page, elapsedMs) {
-    await page.evaluate((elapsed) => {
-        const game = window.GAME_INSTANCE;
-        const runtime = game.arena._portalGateSystem.checkpointRingRuntime;
-        const now = runtime._clockMs;
-        runtime._guidanceTargetChangedAtMs = now - elapsed;
-        runtime._guidanceLastProgressMs = now;
-        runtime._animateGuidance(game.arena.checkpointRings, now);
-    }, elapsedMs);
-}
-
-test('Arcade checkpoint breath remains visible without bloom in a frozen scene', async ({ page }, testInfo) => {
+test('Arcade checkpoint breath remains visible without bloom during active time', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await loadGame(page);
     await openCustomSubmenu(page);
@@ -69,12 +56,15 @@ test('Arcade checkpoint breath remains visible without bloom in a frozen scene',
     }, null, { timeout: 10000 });
     await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
-        game.gameLoop.setTimeScale(0);
         game.renderer.setBloomQuality('OFF');
         const banner = document.querySelector('#arcade-sector-transition-overlay');
         if (banner) banner.style.setProperty('display', 'none', 'important');
     });
-    await setBreathPhase(page, 400);
+    await page.waitForFunction(() => {
+        const targets = window.GAME_INSTANCE?.arena?._portalGateSystem?.checkpointRingRuntime?.getGuidanceView?.()?.targets || [];
+        return targets.reduce((count, target) => count + (target.mesh.userData.guidanceMotifs || [])
+            .filter((motif) => motif.visible && motif.userData.guidanceCore?.material.opacity > 0).length, 0) >= 2;
+    }, null, { timeout: 10_000 });
 
     const motifProbe = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
@@ -116,7 +106,13 @@ test('Arcade checkpoint breath remains visible without bloom in a frozen scene',
         return motif.getWorldPosition(motif.position.clone()).toArray();
     });
     const before = await motifWorldPosition();
-    await setBreathPhase(page, 800);
+    await page.waitForFunction((previous) => {
+        const runtime = window.GAME_INSTANCE?.arena?._portalGateSystem?.checkpointRingRuntime;
+        const motif = runtime?.getGuidanceView?.()?.targets?.[0]?.mesh?.userData?.guidanceMotifs?.[0];
+        if (!motif?.visible) return false;
+        const current = motif.getWorldPosition(motif.position.clone()).toArray();
+        return current.some((value, index) => Math.abs(value - previous[index]) > 0.001);
+    }, before, { timeout: 10_000 });
     const after = await motifWorldPosition();
     expect(after).not.toEqual(before);
     const laterScreenshot = testInfo.outputPath('arcade-checkpoint-breath-later-no-bloom.png');
