@@ -26,7 +26,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
             const solid = (x,y,z) => arena.checkCollisionFast({x:x*3,y:y*3,z:z*3}, .1);
             const samples = [];
             system.startRound();
-            for (const at of [0, 118, 150, 350, 610]) {
+            for (const at of [0, 118, 120, 121, 123, 126, 150, 350, 610]) {
                 arena.setGlbAnimationElapsedSeconds(at);
                 system.updateFeedback();
                 arena.setGlbAnimationElapsedSeconds(at);
@@ -39,6 +39,15 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
                     progress: arena.mapFireProgress, events: system.state.events.map((entry) => entry.segmentId),
                     sky: structuredClone(game.renderer.getMapLighting().skyDome),
                     roofSolid: solid(-34.65, 60, 12),
+                    finishBlockers: (() => {
+                        const finish = arena.currentMapDefinition.parcours?.finish;
+                        if (!finish) return [];
+                        const [x, y, z] = finish.pos.map((value) => value * 3);
+                        // The largest shipped aircraft has a 1.6-unit hitbox; check the actual
+                        // traversal centre with that hull radius, not an arbitrary wider disc.
+                        const hit = arena.getCollisionInfo({ x, y, z }, 1.6);
+                        return hit ? [hit.obstacle?.sourceName || hit.obstacle?.sourceId || hit.kind || 'unknown'] : [];
+                    })(),
                     constructionFrames: arena.obstacles.filter((o) => String(o.sourceId || '').startsWith('nd-site-')).length,
                     warnings: arena._glbLoadWarnings, error: String(arena._glbLoadError || ''),
                     checkpointBlocked: (arena.currentMapDefinition.parcours?.checkpoints || []).filter((cp) => solid(...cp.pos)).map((cp) => cp.id),
@@ -58,16 +67,18 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
         expect(proof.samples[0].sky.zenithColor).toBe(intactSky.zenithColor);
         expect(proof.samples[0].roofSolid).toBe(true);
         expect(proof.samples[0].constructionFrames).toBe(0);
-        expect(proof.samples[3].events).toEqual(['roof','nave','transept']);
-        expect(proof.samples[3].roofSolid).toBe(false);
-        expect(proof.samples[3].constructionFrames).toBe(0);
-        expect(proof.samples[3].sky.zenithColor).toBe(0x050912);
-        expect(proof.samples[4].events).toHaveLength(6);
+        const lateFire = proof.samples.find((sample) => sample.at === 350);
+        expect(lateFire.events).toEqual(['roof','nave','transept']);
+        expect(lateFire.roofSolid).toBe(false);
+        expect(lateFire.constructionFrames).toBe(0);
+        expect(lateFire.sky.zenithColor).toBe(0x050912);
+        expect(proof.samples.find((sample) => sample.at === 610).events).toHaveLength(6);
         expect(proof.reset).toEqual({ progress: 0, events: 0, roofSolid: true, sky: proof.samples[0].sky });
         for (const sample of proof.samples) {
             expect(sample.error).toBe('');
             expect(sample.warnings).toEqual([]);
             expect(sample.checkpointBlocked).toEqual([]);
+            expect(sample.finishBlockers, `FINISH should stay clear at ${sample.at}s`).toEqual([]);
         }
         // A fresh match must release the previous map's persistent fire resources.
         for (const nextMap of ['standard', mapKey, 'standard', mapKey]) {

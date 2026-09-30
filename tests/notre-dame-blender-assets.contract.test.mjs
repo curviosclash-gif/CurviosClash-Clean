@@ -17,7 +17,7 @@ const TRIANGLE_BUDGET_PER_ARCHITECTURE_PART = 18_000;
 // floor, and Z is width across it.
 const PARTS = Object.freeze({
     '01_west_facade': {
-        nodes: 9,
+        nodes: 10,
         collisionShell: true,
         centerX: -59.31,
         span: { x: 9.5, y: 75.5, z: 44.0 },
@@ -40,7 +40,7 @@ const PARTS = Object.freeze({
     '04_choir_apse': {
         nodes: 8,
         collisionShell: true,
-        centerX: 41.76,
+        centerX: 41.4,
         span: { x: 45.4, y: 34.4, z: 41.7 },
         floorY: -0.8,
     },
@@ -361,6 +361,18 @@ test('every part keeps the measured proportions of the real building', () => {
             `${name} starts at ${expected.floorY} m, got ${box.low[1].toFixed(2)}`,
         );
     }
+});
+
+test('the west facade exports its copper bells as visible geometry', () => {
+    const facade = readGlbJson(path.join(ASSET_ROOT, 'glb', '01_west_facade.glb'));
+    const names = meshNodeNames(facade);
+    const copperNode = names.find((name) => /copper_nocol/i.test(name));
+    assert.ok(copperNode, 'the belfry bells export as a separate decorative mesh');
+    const copper = facade.materials?.find((material) => /NDCopper/i.test(material.name || ''));
+    assert.ok(copper, 'the bells keep their copper material in glTF');
+    assert.ok(facade.meshes[facade.nodes.find((node) => node.name === copperNode).mesh]
+        .primitives.some((primitive) => (facade.accessors[primitive.indices]?.count || 0) >= 300),
+    'four open shells export with their rims and clappers');
 });
 
 test('the parts add up to the cathedral rather than to seven separate buildings', () => {

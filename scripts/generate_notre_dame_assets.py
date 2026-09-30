@@ -27,7 +27,7 @@ collision through the preset's authored boxes and hollow tunnel corridors. Decor
 still carry the _nocol suffix so they stay excluded even if that mode ever changes.
 """
 
-from math import asin, atan2, cos, hypot, pi, radians, sin
+from math import asin, atan2, cos, hypot, pi, radians, sin, sqrt
 from pathlib import Path
 
 import bmesh
@@ -254,6 +254,86 @@ def torus(name, location, major_radius, minor_radius, mat, rotation=(0, 0, 0), m
         rotation=rotation,
     )
     return finish_mesh(bpy.context.object, name, mat)
+
+
+def mesh_object(name, vertices, faces, mat):
+    mesh = bpy.data.meshes.new(f"{name}_mesh")
+    mesh.from_pydata(vertices, [], faces)
+    normal_mesh = bmesh.new()
+    normal_mesh.from_mesh(mesh)
+    bmesh.ops.recalc_face_normals(normal_mesh, faces=normal_mesh.faces)
+    normal_mesh.to_mesh(mesh)
+    normal_mesh.free()
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    mesh.materials.append(mat)
+    return obj
+
+
+def semicircle_wall(name, *, center, radius, thickness, bottom, top, mat, segments=20):
+    """A real east-facing half-round wall band, rather than a flat chord across the apse."""
+    vertices = []
+    for index in range(segments + 1):
+        angle = -pi / 2 + pi * index / segments
+        for ring in (radius - thickness / 2, radius + thickness / 2):
+            x = center[0] + ring * cos(angle)
+            y = center[1] + ring * sin(angle)
+            vertices.extend(((x, y, bottom), (x, y, top)))
+    faces = []
+    for index in range(segments):
+        a, b = index * 4, (index + 1) * 4
+        faces.extend(((a, b, b + 2, a + 2), (a + 1, a + 3, b + 3, b + 1),
+                      (a, a + 1, b + 1, b), (a + 2, b + 2, b + 3, a + 3)))
+    faces.extend(((0, 2, 3, 1), (segments * 4, segments * 4 + 1,
+                                 segments * 4 + 3, segments * 4 + 2)))
+    return mesh_object(name, vertices, faces, mat)
+
+
+def apse_dome(name, *, center, radius, springing_z, rise, mat, radial_steps=6, arc_steps=24):
+    """Low-poly half-dome whose plan is the apse's semicircle and whose crown meets the choir ridge."""
+    vertices = [(center[0], center[1], springing_z + rise)]
+    rings = []
+    for radial in range(1, radial_steps + 1):
+        fraction = radial / radial_steps
+        ring = []
+        height = springing_z + rise * sqrt(max(0.0, 1.0 - fraction * fraction))
+        for index in range(arc_steps + 1):
+            angle = -pi / 2 + pi * index / arc_steps
+            ring.append(len(vertices))
+            vertices.append((center[0] + radius * fraction * cos(angle),
+                             center[1] + radius * fraction * sin(angle), height))
+        rings.append(ring)
+    faces = []
+    for index in range(arc_steps):
+        faces.append((0, rings[0][index], rings[0][index + 1]))
+    for inner, outer in zip(rings, rings[1:]):
+        for index in range(arc_steps):
+            faces.append((inner[index], outer[index], outer[index + 1], inner[index + 1]))
+    return mesh_object(name, vertices, faces, mat)
+
+
+def bell(name, *, center, radius, height, mat):
+    """An open-bottom, low-poly bell shell and clapper for the visible belfry openings."""
+    profile = ((0.20, 0.0), (0.28, 0.12), (0.43, 0.36), (0.72, 0.72), (0.78, 0.88))
+    vertices = []
+    for ring_radius, z_fraction in profile:
+        for index in range(10):
+            angle = 2 * pi * index / 10
+            vertices.append((center[0] + radius * ring_radius * cos(angle),
+                             center[1] + radius * ring_radius * sin(angle),
+                             center[2] + height * z_fraction))
+    faces = []
+    for ring in range(len(profile) - 1):
+        lower, upper = ring * 10, (ring + 1) * 10
+        for index in range(10):
+            faces.append((lower + index, lower + (index + 1) % 10,
+                          upper + (index + 1) % 10, upper + index))
+    mesh_object(f"{name}_nocol", vertices, faces, mat)
+    torus(f"{name}_lip_nocol", (center[0], center[1], center[2]), radius * 0.78,
+          radius * 0.045, mat, major_segments=10)
+    cylinder(f"{name}_clapper_nocol", (center[0], center[1], center[2] + height * 0.32),
+             radius * 0.055, height * 0.48, mat, vertices=6)
 
 
 # --- Gothic building blocks -------------------------------------------------------------------
@@ -663,9 +743,56 @@ def build_west_facade(mats):
                 width=2.4, height=8.0, axis="x", outward=(-1, 0, 0),
             )
 
-    # Chimera gallery: the open colonnade that ties the two towers together at 43 m, and the
-    # gargoyles leaning over its balustrade that every photograph of this building has in it.
-    cube("facade_gallery_floor", (facade_x, 0, 33.4), (FACADE_DEPTH / 2, 21.75, 1.1), shaded)
+    # Chimera gallery and the rounded Galerie de la Vierge below the west rose. The broad old
+    # landing slab hid the sculpture and read as a platform; this short semicircular balcony
+    # follows the facade and leaves the rose itself open above it.
+    arc_center_x = WEST_FRONT_X + 3.3
+    gallery_radius_x, gallery_radius_y = 3.0, 6.6
+    gallery_floor_z = 33.4
+    gallery_vertices = []
+    gallery_segments = 16
+    for index in range(gallery_segments + 1):
+        angle = -pi / 2 + pi * index / gallery_segments
+        front_x = arc_center_x - gallery_radius_x * cos(angle)
+        front_y = gallery_radius_y * sin(angle)
+        rear_x = front_x + 1.5
+        rear_y = front_y * 0.83
+        gallery_vertices.extend(((front_x, front_y, gallery_floor_z - 0.45),
+                                 (front_x, front_y, gallery_floor_z + 0.45),
+                                 (rear_x, rear_y, gallery_floor_z - 0.45),
+                                 (rear_x, rear_y, gallery_floor_z + 0.45)))
+    gallery_faces = []
+    for index in range(gallery_segments):
+        a, b = index * 4, (index + 1) * 4
+        gallery_faces.extend(((a + 1, b + 1, b + 3, a + 3),
+                              (a, a + 2, b + 2, b),
+                              (a, b, b + 1, a + 1),
+                              (a + 2, a + 3, b + 3, b + 2)))
+    gallery_faces.extend(((0, 1, 3, 2),
+                          (gallery_segments * 4, gallery_segments * 4 + 2,
+                           gallery_segments * 4 + 3, gallery_segments * 4 + 1)))
+    mesh_object("facade_virgin_gallery_floor", gallery_vertices, gallery_faces, shaded)
+    # The Mary figure stands against the stone below the rose, clear of the route ring above.
+    statue("facade_virgin", stone,
+           base=(WEST_FRONT_X + FACADE_DETAIL_X - 0.15, 0, 27.0), height=2.8)
+    for index in range(1, gallery_segments):
+        angle = -pi / 2 + pi * index / gallery_segments
+        x = arc_center_x - gallery_radius_x * cos(angle)
+        y = gallery_radius_y * sin(angle)
+        cylinder(f"facade_virgin_gallery_baluster_{index}_nocol",
+                 (x, y, gallery_floor_z + 1.0), 0.12, 1.1, shaded, vertices=6)
+    # The west-facing rail is faceted into short stones so its outline remains legible at game scale.
+    for index in range(gallery_segments):
+        angle0 = -pi / 2 + pi * index / gallery_segments
+        angle1 = -pi / 2 + pi * (index + 1) / gallery_segments
+        x0, y0 = arc_center_x - gallery_radius_x * cos(angle0), gallery_radius_y * sin(angle0)
+        x1, y1 = arc_center_x - gallery_radius_x * cos(angle1), gallery_radius_y * sin(angle1)
+        dx, dy = x1 - x0, y1 - y0
+        length = hypot(dx, dy)
+        cube(f"facade_virgin_gallery_rail_{index}_nocol",
+             ((x0 + x1) / 2, (y0 + y1) / 2, gallery_floor_z + 1.52),
+             (length / 2, 0.16, 0.16), shaded,
+             rotation=(0, 0, atan2(dy, dx)))
     for index in range(24):
         offset_y = -20.0 + index * 1.74
         cylinder(f"facade_gallery_column_{index}_nocol", (WEST_FRONT_X + 1.2, offset_y, 38.0),
@@ -681,8 +808,8 @@ def build_west_facade(mats):
                base=(WEST_FRONT_X + 0.5, chimera_y, 43.6), height=1.9)
     cube("facade_gallery_head", (facade_x, 0, 43.0), (FACADE_DEPTH / 2, 21.75, 1.3), shaded)
 
-    # The towers: square shafts, tall paired openings with tracery, corner turrets and the open
-    # balustrade at 69 m. Deliberately flat-topped -- the spires were never built.
+    # The towers: solid lower shafts, then open belfries with twin bells, pointed arches and the
+    # open balustrade at 69 m. The former full-height boxes made the belfry lights decorative only.
     for side in (-1, 1):
         tag = "north" if side > 0 else "south"
         center_y = side * TOWER_CENTER_Y
@@ -690,28 +817,45 @@ def build_west_facade(mats):
         # lights read as openings in a wall instead of panes buried in solid stone. The plinth
         # and the cornices below still carry the building line out to the full 9 m depth.
         tower_front = WEST_FRONT_X + FACADE_DETAIL_X + 0.3
-        cube(f"facade_tower_{tag}",
+        lower_top = 45.5
+        cube(f"facade_tower_{tag}_lower",
              ((tower_front + WEST_FRONT_X + FACADE_DEPTH) / 2, center_y,
-              (43.0 + TOWER_TOP_Z) / 2),
+              (43.0 + lower_top) / 2),
              ((WEST_FRONT_X + FACADE_DEPTH - tower_front) / 2, TOWER_HALF_WIDTH,
-              (TOWER_TOP_Z - 43.0) / 2), stone)
+              (lower_top - 43.0) / 2), stone)
+        tower_center_x = (tower_front + WEST_FRONT_X + FACADE_DEPTH) / 2
+        for corner_x in (-1, 1):
+            for corner_y in (-1, 1):
+                cylinder(f"facade_tower_{tag}_belfry_pier_{corner_x}_{corner_y}",
+                         (tower_center_x + corner_x * 3.35,
+                          center_y + corner_y * 6.25, (lower_top + TOWER_TOP_Z) / 2),
+                         0.78, TOWER_TOP_Z - lower_top, stone, vertices=8)
+        # Two open bells in each chamber; the pointed arches are stone frames, not glazed panels.
         for twin in (-1, 1):
-            lancet_window(
-                f"facade_tower_{tag}_light_{'a' if twin > 0 else 'b'}", mats["glass_warm"],
-                center=(WEST_FRONT_X + FACADE_DETAIL_X, center_y + twin * 3.2, 54.0),
-                width=2.8, height=15.0, axis="x", outward=(-1, 0, 0),
+            pointed_arch(
+                f"facade_tower_{tag}_front_arch_{twin}", shaded,
+                center=(WEST_FRONT_X + FACADE_DETAIL_X, center_y + twin * 3.0, 47.0),
+                span=5.6, rise=7.8, depth=0.7, steps=5, thickness=0.55, axis="x",
             )
-            tracery(
-                f"facade_tower_{tag}_tracery_{'a' if twin > 0 else 'b'}", shaded,
-                center=(WEST_FRONT_X + FACADE_DETAIL_X - 0.15, center_y + twin * 3.2, 54.0),
-                width=2.8, height=15.0, lights=2, axis="x",
+            pointed_arch(
+                f"facade_tower_{tag}_rear_arch_{twin}", shaded,
+                center=(WEST_FRONT_X + FACADE_DEPTH - 0.7, center_y + twin * 3.0, 47.0),
+                span=5.6, rise=7.8, depth=0.7, steps=5, thickness=0.55, axis="x",
             )
-        # Vertical buttress strips break up the tower faces the way the real ones do.
-        for strip in (-1, 1):
-            cube(f"facade_tower_{tag}_strip_{'p' if strip > 0 else 'm'}_nocol",
-                 (WEST_FRONT_X + FACADE_DETAIL_X - 0.2,
-                  center_y + strip * (TOWER_HALF_WIDTH - 0.7), 56.0),
-                 (0.5, 0.8, 13.0), shaded)
+            bell(f"facade_tower_{tag}_bell_{'a' if twin > 0 else 'b'}",
+                 center=(tower_center_x, center_y + twin * 1.55, 51.5),
+                 radius=1.35, height=3.3, mat=mats["copper"])
+        # Side arches keep the chamber open from the transept-facing and outer sides too.
+        for face_side in (-1, 1):
+            for twin in (-1, 1):
+                pointed_arch(
+                    f"facade_tower_{tag}_side_arch_{face_side}_{twin}", shaded,
+                    center=(tower_center_x + twin * 1.55,
+                            center_y + face_side * 6.25, 47.0),
+                    span=3.0, rise=7.8, depth=0.7, steps=5, thickness=0.55, axis="y",
+                )
+        cube(f"facade_tower_{tag}_belfry_sill", (tower_center_x, center_y, 46.0),
+             (4.2, 6.8, 0.55), shaded)
         cube(f"facade_tower_{tag}_cornice_nocol", (facade_x, center_y, TOWER_TOP_Z + 0.7),
              (FACADE_DEPTH / 2, TOWER_HALF_WIDTH + 0.5, 0.7), shaded)
         cube(f"facade_tower_{tag}_cornice_colonly", (facade_x, center_y, TOWER_TOP_Z + 0.7),
@@ -1020,9 +1164,15 @@ def build_choir_apse(mats):
         cone(f"apse_chapel_roof_{index}_nocol", (outer_x, outer_y, AISLE_VAULT_Z + 1.6),
              CHAPEL_DEPTH, 0.0, 3.2, mats["lead"], vertices=6)
 
-    cube("apse_hemicycle_wall", (CHOIR_END_X + APSE_RADIUS * 0.55, 0,
-                                 (TRIFORIUM_TOP_Z + CLERESTORY_TOP_Z) / 2),
-         (APSE_RADIUS * 0.5, CLERESTORY_HALF, (CLERESTORY_TOP_Z - TRIFORIUM_TOP_Z) / 2), stone)
+    semicircle_wall(
+        "apse_hemicycle_wall",
+        center=(CHOIR_END_X, 0),
+        radius=NAVE_HALF_WIDTH * 1.24,
+        thickness=0.8,
+        bottom=TRIFORIUM_TOP_Z,
+        top=CLERESTORY_TOP_Z,
+        mat=stone,
+    )
     rib_vault_bay(
         "apse_vault", shaded,
         center=(CHOIR_END_X + APSE_RADIUS * 0.4, 0), span=NAVE_HALF_WIDTH * 2,
@@ -1162,7 +1312,15 @@ def build_roof_fleche(mats):
                      (center_x, side * inset, height), (length / 2, 0.18, 0.18), oak)
 
     roof_run("roof_nave", NAVE_START_X, NAVE_END_X, CLERESTORY_HALF * 2)
-    roof_run("roof_choir", CHOIR_START_X, CHOIR_END_X + APSE_RADIUS, CLERESTORY_HALF * 2)
+    roof_run("roof_choir", CHOIR_START_X, CHOIR_END_X, CLERESTORY_HALF * 2)
+    apse_dome(
+        "roof_apse_dome",
+        center=(CHOIR_END_X, 0),
+        radius=APSE_RADIUS,
+        springing_z=CLERESTORY_TOP_Z,
+        rise=ROOF_RIDGE_Z - CLERESTORY_TOP_Z,
+        mat=lead,
+    )
     for side in (-1, 1):
         cube(f"roof_transept_slope_{side}",
              (CROSSING_CENTER_X + side * CROSSING_LENGTH / 4, 0,
@@ -1176,16 +1334,45 @@ def build_roof_fleche(mats):
              ((CHOIR_END_X - NAVE_START_X) / 2, (AISLE_OUTER - CLERESTORY_HALF) / 2 * 1.1, 0.35),
              lead, rotation=(side * -0.34, 0, 0))
 
-    # The spire. Base at the ridge, an octagonal tapering shaft, then the cross and cockerel.
+    # The spire. A tapered lower shaft rises from the roof to an open octagonal lantern. The
+    # upper shaft and finial remain visible above the lantern, which is the new route finish.
     spire_base_z = ROOF_RIDGE_Z
     cube("fleche_base", (CROSSING_CENTER_X, 0, spire_base_z + 3.0), (5.0, 5.0, 3.0), oak)
-    cone("fleche_shaft", (CROSSING_CENTER_X, 0, (spire_base_z + 6.0 + SPIRE_TIP_Z - 6.0) / 2),
-         4.6, 0.5, SPIRE_TIP_Z - 6.0 - spire_base_z - 6.0, lead, vertices=8)
+    lantern_bottom, lantern_top, lantern_radius = 69.0, 77.0, 3.8
+    cone("fleche_lower_shaft",
+         (CROSSING_CENTER_X, 0, (spire_base_z + 6.0 + lantern_bottom) / 2),
+         4.6, lantern_radius + 0.55,
+         lantern_bottom - (spire_base_z + 6.0), lead, vertices=8)
+    for index in range(8):
+        angle = index * (2 * pi / 8)
+        x = CROSSING_CENTER_X + lantern_radius * cos(angle)
+        y = lantern_radius * sin(angle)
+        cylinder(f"fleche_lantern_pier_{index}",
+                 (x, y, (lantern_bottom + lantern_top) / 2), 0.34,
+                 lantern_top - lantern_bottom, lead, vertices=6)
+    for ring_z in (lantern_bottom + 0.25, lantern_top - 0.25):
+        for index in range(8):
+            angle = index * (2 * pi / 8)
+            next_angle = (index + 1) * (2 * pi / 8)
+            start = (CROSSING_CENTER_X + lantern_radius * cos(angle),
+                     lantern_radius * sin(angle), ring_z)
+            end = (CROSSING_CENTER_X + lantern_radius * cos(next_angle),
+                   lantern_radius * sin(next_angle), ring_z)
+            dx, dy = end[0] - start[0], end[1] - start[1]
+            cube(f"fleche_lantern_architrave_{ring_z}_{index}",
+                 ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2, ring_z),
+                 (hypot(dx, dy) / 2, 0.24, 0.28), lead,
+                 rotation=(0, 0, atan2(dy, dx)))
+    cone("fleche_upper_shaft",
+         (CROSSING_CENTER_X, 0, (lantern_top + SPIRE_TIP_Z) / 2),
+         lantern_radius - 0.35, 0.5, SPIRE_TIP_Z - lantern_top, lead, vertices=8)
     for index in range(8):
         angle = index * (2 * pi / 8)
         cube(f"fleche_rib_{index}_nocol",
-             (CROSSING_CENTER_X + 2.6 * cos(angle), 2.6 * sin(angle), spire_base_z + 18.0),
-             (0.18, 0.18, 16.0), lead, rotation=(0, 0.09, angle))
+             (CROSSING_CENTER_X + 2.6 * cos(angle), 2.6 * sin(angle),
+              (lantern_top + SPIRE_TIP_Z) / 2),
+             (0.18, 0.18, (SPIRE_TIP_Z - lantern_top) / 2 - 1.0),
+             lead, rotation=(0, 0.09, angle))
     # Twelve apostles and four evangelists climbing the roof toward the spire.
     for index in range(16):
         angle = index * (2 * pi / 16)

@@ -50,7 +50,36 @@ async function loadChurchMeshes() {
 function firstHit(meshes, from, direction, distance) {
     const ray = new THREE.Raycaster(new THREE.Vector3(...from), new THREE.Vector3(...direction), 0.001, distance);
     const hit = ray.intersectObjects(meshes, false)[0];
-    return hit && { distance: hit.distance, mesh: hit.object.name };
+    return hit && { distance: hit.distance, mesh: hit.object.name, point: hit.point.toArray() };
+}
+
+function sphereHitsMesh(meshes, centre, radius) {
+    const point = new THREE.Vector3(...centre);
+    const closest = new THREE.Vector3();
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const c = new THREE.Vector3();
+    const triangle = new THREE.Triangle();
+    const radiusSq = radius * radius;
+    for (const mesh of meshes) {
+        const geometry = mesh.geometry;
+        const positions = geometry.attributes.position;
+        const index = geometry.index;
+        const bounds = new THREE.Box3().setFromObject(mesh);
+        if (point.distanceToSquared(bounds.clampPoint(point, closest)) > radiusSq) continue;
+        const triangleCount = index ? index.count / 3 : positions.count / 3;
+        for (let face = 0; face < triangleCount; face += 1) {
+            const ia = index ? index.getX(face * 3) : face * 3;
+            const ib = index ? index.getX(face * 3 + 1) : face * 3 + 1;
+            const ic = index ? index.getX(face * 3 + 2) : face * 3 + 2;
+            a.fromBufferAttribute(positions, ia).applyMatrix4(mesh.matrixWorld);
+            b.fromBufferAttribute(positions, ib).applyMatrix4(mesh.matrixWorld);
+            c.fromBufferAttribute(positions, ic).applyMatrix4(mesh.matrixWorld);
+            triangle.set(a, b, c).closestPointToPoint(point, closest);
+            if (point.distanceToSquared(closest) <= radiusSq) return mesh.name;
+        }
+    }
+    return '';
 }
 
 function leaksThroughVisible(meshes, from, direction, distance) {
@@ -74,6 +103,10 @@ const KNOWN_FINDINGS = [];
 test('Notre-Dame model collision findings only shrink', async () => {
     const meshes = await loadChurchMeshes();
     assert.ok(meshes.visible.length > 0 && meshes.colliding.length > 0);
+    const cp10 = map.parcours.checkpoints.find((checkpoint) => checkpoint.id === 'CP10');
+    assert.ok(cp10);
+    assert.equal(sphereHitsMesh(meshes.colliding, cp10.pos, 1.6 / 3), '',
+        'CP10 must clear the updated roof GLB for the largest shipped ship hitbox');
     const withoutRoof = {
         visible: meshes.visible.filter((mesh) => mesh.userData.mapModelId !== 'notre-dame-roof-fleche'),
         colliding: meshes.colliding.filter((mesh) => mesh.userData.mapModelId !== 'notre-dame-roof-fleche'),
@@ -99,6 +132,34 @@ test('Notre-Dame model collision findings only shrink', async () => {
     const cp12 = map.parcours.checkpoints.find((checkpoint) => checkpoint.id === 'CP12');
     assert.ok(cp12);
     record('S2-CP12-intersects-vault', Boolean(firstHit(meshes.colliding, cp12.pos, [0, 1, 0], cp12.radius)));
+
+    for (const id of ['CP13', 'CP14', 'FINISH']) {
+        const ring = id === 'FINISH' ? map.parcours.finish
+            : map.parcours.checkpoints.find((checkpoint) => checkpoint.id === id);
+        assert.ok(ring, `${id} has a route anchor`);
+        const directions = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+        for (const direction of directions) {
+            assert.equal(firstHit(meshes.colliding, ring.pos, direction, ring.radius), undefined,
+                `${id} clears the loaded cathedral meshes along ${direction.join(',')}`);
+        }
+    }
+
+    // The paired belfry openings remain open at route height, on both tower sides.
+    for (const ring of ['CP13', 'CP14'].map((id) => (
+        map.parcours.checkpoints.find((checkpoint) => checkpoint.id === id)
+    ))) {
+        assert.equal(firstHit(meshes.colliding, [ring.pos[0] - 7, ring.pos[1], ring.pos[2]],
+            [1, 0, 0], 14), undefined, 'the belfry stays open through its west/east walls');
+    }
+
+    const apseSamples = [49.25, 56.5, 62.0].map((metresX) => {
+        const x = (metresX - 41.4) * 1.4 + 41.4 * 1.4;
+        const hit = firstHit(meshes.visible, [x, 8 + 96 * 1.4, 0], [0, -1, 0], 120);
+        assert.ok(hit, `the rounded apse roof is visible above x=${metresX} m`);
+        return (hit.point[1] - 8) / 1.4;
+    });
+    assert.ok(apseSamples[0] > apseSamples[1] && apseSamples[1] > apseSamples[2],
+        `the half-round roof curves down to the apse rim: ${apseSamples.map((height) => height.toFixed(1)).join(', ')} m`);
 
     assert.deepEqual(findings.sort(), [...KNOWN_FINDINGS].sort());
 });
