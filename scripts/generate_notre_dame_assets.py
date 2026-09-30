@@ -336,6 +336,53 @@ def bell(name, *, center, radius, height, mat):
              radius * 0.055, height * 0.48, mat, vertices=6)
 
 
+def parent_preserving_world(obj, parent):
+    """Parent a generated mesh under a rig pivot without changing its authored position."""
+    world = obj.matrix_world.copy()
+    obj.parent = parent
+    obj.matrix_parent_inverse = parent.matrix_world.inverted()
+    obj.matrix_world = world
+
+
+def animated_pivot(name, location):
+    pivot = bpy.data.objects.new(name, None)
+    bpy.context.scene.collection.objects.link(pivot)
+    pivot.location = location
+    pivot.empty_display_type = "PLAIN_AXES"
+    pivot.empty_display_size = 0.5
+    return pivot
+
+
+def animate_euler_component(obj, component, seconds_values):
+    """Author a beat-aligned cyclic transform on one real Blender object action."""
+    scene = bpy.context.scene
+    for second, value in seconds_values:
+        scene.frame_set(scene.frame_start + round(second * FPS))
+        obj.rotation_euler[component] = value
+        obj.keyframe_insert(data_path="rotation_euler", index=component, group=obj.name)
+    action = obj.animation_data.action
+    action.name = f"NotreDameMotion_{obj.name}"
+    for curve in action.fcurves:
+        for keyframe in curve.keyframe_points:
+            keyframe.interpolation = "LINEAR"
+
+
+def join_objects_preserving_world(objects, name):
+    """Join sibling meshes into one animated bell while preserving the pivot hierarchy."""
+    if not objects:
+        return None
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in objects:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = objects[0]
+    if len(objects) > 1:
+        bpy.ops.object.join()
+    target = bpy.context.view_layer.objects.active
+    target.name = name
+    target.data.name = f"{name}_mesh"
+    return target
+
+
 # --- Gothic building blocks -------------------------------------------------------------------
 # The shapes below are what make the silhouette read as a cathedral rather than as a box with
 # holes. Each one is a chain of straight segments, so the triangle cost stays predictable: an
@@ -641,6 +688,8 @@ def build_west_facade(mats):
     """
     stone = mats["stone"]
     shaded = mats["stone_shaded"]
+    bpy.context.scene.frame_start = 0
+    bpy.context.scene.frame_end = 12 * FPS
     facade_x = WEST_FRONT_X + FACADE_DEPTH / 2
     # Centre and half-depth of the thin wall panels that the carving is applied to.
     wall_x = WEST_FRONT_X + FACADE_WALL_FRONT + FACADE_WALL_THICKNESS / 2
@@ -705,6 +754,43 @@ def build_west_facade(mats):
                          15.8 + (step + 1) * 1.1),
                     thickness=0.36,
                 )
+
+    # The side portals trade their closed phase across one 12-second loop. The central portal
+    # deliberately stays doorless, so the low CP05 flight corridor is clear at every phase.
+    for portal_index, offset in ((0, -13.5), (2, 13.5)):
+        for leaf_sign in (-1, 1):
+            leaf_width = 3.4
+            hinge_y = offset + leaf_sign * (3.6 - 0.18)
+            pivot_name = (f"west_facade_portal_{portal_index}_door_"
+                          f"{'north' if leaf_sign > 0 else 'south'}_pivot")
+            pivot = animated_pivot(pivot_name,
+                                   (WEST_FRONT_X + FACADE_WALL_FRONT, hinge_y, 0.12))
+            leaf = cube(
+                pivot_name.replace("_pivot", "_animated"),
+                (WEST_FRONT_X + FACADE_WALL_FRONT,
+                 hinge_y - leaf_sign * leaf_width / 2, 3.05),
+                (0.16, leaf_width / 2, 2.93), mats["oak"],
+            )
+            parent_preserving_world(leaf, pivot)
+            pivot["role"] = "notre_dame_animated_portal_door"
+            pivot["portal_index"] = portal_index
+            pivot["leaf_sign"] = leaf_sign
+
+    for portal_index, offset in ((0, -13.5), (2, 13.5)):
+        for leaf_sign in (-1, 1):
+            pivot = bpy.data.objects[
+                f"west_facade_portal_{portal_index}_door_"
+                f"{'north' if leaf_sign > 0 else 'south'}_pivot"
+            ]
+            samples = []
+            for step in range(25):
+                second = step * 0.5
+                south_closed = 0.5 + 0.5 * cos(2 * pi * second / 12.0)
+                closed = (1.0 - south_closed) if offset > 0 else south_closed
+                swing = (1.0 - closed) * 1.38
+                outward_sign = -leaf_sign
+                samples.append((second, outward_sign * swing))
+            animate_euler_component(pivot, 2, samples)
 
     cube("facade_wall_mid", (wall_x, 0, 17.0), (wall_half, 21.75, 1.4), stone)
 
@@ -842,9 +928,34 @@ def build_west_facade(mats):
                 center=(WEST_FRONT_X + FACADE_DEPTH - 0.7, center_y + twin * 3.0, 47.0),
                 span=5.6, rise=7.8, depth=0.7, steps=5, thickness=0.55, axis="x",
             )
-            bell(f"facade_tower_{tag}_bell_{'a' if twin > 0 else 'b'}",
+            bell_name = f"west_facade_tower_{tag}_bell_{'a' if twin > 0 else 'b'}"
+            previous_objects = set(bpy.context.scene.objects)
+            bell(f"{bell_name}_copper_nocol_animated",
                  center=(tower_center_x, center_y + twin * 1.55, 51.5),
                  radius=1.35, height=3.3, mat=mats["copper"])
+            bell_parts = [obj for obj in bpy.context.scene.objects
+                          if obj not in previous_objects and obj.type == "MESH"]
+            bell_mesh = join_objects_preserving_world(
+                bell_parts, f"{bell_name}_copper_nocol_animated")
+            bell_pivot = animated_pivot(f"{bell_name}_pivot",
+                                        (tower_center_x, center_y + twin * 1.55, 54.8))
+            # bell() and its torus/cylinder helpers store their authored absolute coordinates in
+            # vertex data, unlike cube() which keeps them in object transforms. Rebase this joined
+            # mesh to the hinge before parenting or glTF would add the pivot's world position twice.
+            for vertex in bell_mesh.data.vertices:
+                vertex.co.x -= tower_center_x
+                vertex.co.y -= center_y + twin * 1.55
+                vertex.co.z -= 54.8
+            bell_mesh.parent = bell_pivot
+            bell_mesh.matrix_parent_inverse.identity()
+            bell_mesh.location = (0, 0, 0)
+            samples = []
+            phase = (0.15 if tag == "north" else 0.65) + (0.25 if twin > 0 else 0.0)
+            for step in range(25):
+                second = step * 0.5
+                angle = radians(8.0) * sin(2 * pi * second / 4.0 + phase)
+                samples.append((second, angle))
+            animate_euler_component(bell_pivot, 1, samples)
         # Side arches keep the chamber open from the transept-facing and outer sides too.
         for face_side in (-1, 1):
             for twin in (-1, 1):
@@ -1447,27 +1558,32 @@ def merge_static_meshes(part_name):
     """
     meshes = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
 
-    # Bake every rotation into the vertices first. Joining adopts the active object's local
+    static_meshes = [obj for obj in meshes if "_animated" not in obj.name.lower()]
+
+    # Bake every static rotation into the vertices first. Joining adopts the active object's local
     # frame, so a rotated member would drag the whole merged object into a tilted frame and the
     # bounding box read back below -- the number the preset places by -- would be wrong.
     bpy.ops.object.select_all(action="DESELECT")
-    for obj in meshes:
+    for obj in static_meshes:
         obj.select_set(True)
-    if meshes:
-        bpy.context.view_layer.objects.active = meshes[0]
+    if static_meshes:
+        bpy.context.view_layer.objects.active = static_meshes[0]
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     bpy.ops.object.select_all(action="DESELECT")
 
     groups = {}
+    merged = []
     for obj in meshes:
         for layer in list(obj.data.uv_layers):
             obj.data.uv_layers.remove(layer)
         material_name = obj.data.materials[0].name if obj.data.materials else "plain"
         lower_name = obj.name.lower()
+        if "_animated" in lower_name:
+            merged.append(obj.name)
+            continue
         role = "nocol" if "_nocol" in lower_name else "colonly" if "_colonly" in lower_name else ""
         groups.setdefault((material_name, role), []).append(obj)
 
-    merged = []
     for (material_name, role), members in sorted(groups.items()):
         bpy.ops.object.select_all(action="DESELECT")
         for member in members:
@@ -1570,7 +1686,9 @@ def export_part(file_stem, builder):
     bpy.ops.export_scene.gltf(
         filepath=str(glb_path),
         export_format="GLB",
-        export_animations=False,
+        export_animations=(file_stem == "01_west_facade"),
+        export_animation_mode="ACTIVE_ACTIONS",
+        export_nla_strips_merged_animation_name="NotreDameMotion",
         export_yup=True,
         export_cameras=False,
         export_lights=False,

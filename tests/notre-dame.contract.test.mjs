@@ -186,7 +186,9 @@ test('the parts land back in the positions they were modelled in', () => {
     // recentres each file on its own bounding box. This is the test that the preset undoes that
     // recentring correctly: get it wrong and the towers drift away from the nave.
     for (const model of fabricModels()) {
-        const box = boundingBox(model.url);
+        const box = model.url.endsWith('/01_west_facade.glb')
+            ? sceneBoundingBox(model.url)
+            : boundingBox(model.url);
         const centreMetres = (box.low[0] + box.high[0]) / 2;
         const baseMetres = box.low[1];
 
@@ -225,10 +227,15 @@ test('the spire clears the map ceiling and the building fits the floor plan', ()
     }
 });
 
-test('the cathedral contains only static architecture and trees', () => {
+test('only the west facade carries the authored church-motion clip', () => {
     assert.equal(map.glbAnimationClock, undefined);
     assert.equal(fabricModels().length, 7);
-    assert.ok(map.glbModels.every((model) => model.animationClock === undefined));
+    assert.deepEqual(
+        map.glbModels.filter((model) => model.animationClock).map((model) => model.id),
+        ['notre-dame-west-facade'],
+    );
+    assert.equal(map.glbModels.find((model) => model.animationClock)?.animationClock.clipName,
+        'NotreDameMotion');
 });
 
 test('the route runs three branches through the building and stays inside the arena', () => {

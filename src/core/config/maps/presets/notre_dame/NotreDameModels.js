@@ -90,9 +90,16 @@ function buildTreeModels() {
 
 // The building itself. Every entry is a measurement, not a placement choice: the numbers come
 // straight out of the generator's own bounding box report.
+const WEST_FACADE = stone('west-facade', '01_west_facade', -59.78, 0);
+WEST_FACADE.animationClock = Object.freeze({
+    mode: 'loop',
+    beatSeconds: 6,
+    clipName: 'NotreDameMotion',
+});
+
 const NOTRE_DAME_FABRIC = [
     stone('parvis', '07_parvis_island', -22.0, -1.8),
-    stone('west-facade', '01_west_facade', -59.31, 0),
+    WEST_FACADE,
     stone('nave', '02_nave', -24.75, -0.8),
     stone('transept', '03_transept', 12.25, -0.8),
     stone('choir-apse', '04_choir_apse', 41.4, -0.8),
