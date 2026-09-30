@@ -249,6 +249,26 @@ test('Notre-Dame loads as one cathedral without construction machinery', async (
         body: await page.screenshot(), contentType: 'image/png',
     });
 
+    // Capture the newly flyable side gallery from inside the nave, with the actual GLB scene
+    // loaded. Bay six keeps the view near a real triforium opening and above the low furnishings.
+    await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const player = game.entityManager.players[0];
+        player.position.set(-91.35, 97.5, 60.9);
+        player.quaternion.set(0, -Math.SQRT1_2, 0, Math.SQRT1_2);
+        player.speed = 0;
+        player.view.syncFromState();
+        const rig = game.renderer.cameraRigSystem;
+        rig.setCinematicEnabled(false);
+        rig.cameraModes[0] = 0;
+        rig.cameraSubjectInitialized[0] = false;
+        game.entityManager.updateCameras(1 / 60, 1, true);
+        game.renderer.render();
+    });
+    await testInfo.attach('notre-dame-j8-gallery-interior.png', {
+        body: await page.screenshot(), contentType: 'image/png',
+    });
+
     const performanceBudget = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
         const drawCalls = [];

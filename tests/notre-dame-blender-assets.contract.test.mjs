@@ -32,7 +32,7 @@ const PARTS = Object.freeze({
         floorY: 0.0,
     },
     '02_nave': {
-        nodes: 7,
+        nodes: 9,
         collisionShell: true,
         centerX: -24.75,
         span: { x: 60.4, y: 34.4, z: 42.6 },
@@ -46,7 +46,7 @@ const PARTS = Object.freeze({
         floorY: -0.8,
     },
     '04_choir_apse': {
-        nodes: 8,
+        nodes: 11,
         collisionShell: true,
         centerX: 41.4,
         span: { x: 45.4, y: 34.4, z: 41.7 },
@@ -325,6 +325,28 @@ function meshNodeNames(document) {
         .map((node) => String(node.name || ''));
 }
 
+function floorCrossBayCentres({ document, binary }) {
+    const node = document.nodes.find((entry) => entry.name === 'nave_stoneshaded_nocol');
+    assert.ok(node, 'the decorative nave stone mesh is present');
+    const primitive = document.meshes[node.mesh]?.primitives?.[0];
+    assert.ok(primitive?.attributes?.POSITION !== undefined, 'the nave decoration has exported positions');
+    const accessor = document.accessors[primitive.attributes.POSITION];
+    const view = document.bufferViews[accessor.bufferView];
+    const stride = view.byteStride || 12;
+    const start = (view.byteOffset || 0) + (accessor.byteOffset || 0);
+    const centres = [];
+    for (let index = 0; index < accessor.count; index += 1) {
+        const offset = start + index * stride;
+        const x = binary.readFloatLE(offset);
+        const y = binary.readFloatLE(offset + 4);
+        const z = binary.readFloatLE(offset + 8);
+        // The ten cross centres are the only shaded, non-colliding geometry just above the nave
+        // floor, and their long arm crosses the axis within 9 cm.
+        if (y > 0.002 && y < 0.022 && Math.abs(z) < 0.1) centres.push(x);
+    }
+    return centres;
+}
+
 test('Notre-Dame keeps editable Blender sources and merged, texture-free exports', () => {
     let totalGlbBytes = 0;
 
@@ -389,6 +411,30 @@ test('Notre-Dame keeps editable Blender sources and merged, texture-free exports
         totalGlbBytes <= TOTAL_GLB_BUDGET_BYTES,
         `Notre-Dame GLBs stay within ${TOTAL_GLB_BUDGET_BYTES} bytes (got ${totalGlbBytes})`,
     );
+});
+
+test('the nave exports a pierced triforium, raised gallery roof and furnished interior', () => {
+    const naveFile = readGlb(path.join(ASSET_ROOT, 'glb', '02_nave.glb'));
+    const nave = naveFile.document;
+    const naveNodes = meshNodeNames(nave);
+    assert.ok(naveNodes.includes('nave_oak'), 'the gallery organ and nave furnishings stay editable in Blender');
+    assert.ok(naveNodes.includes('nave_gold'), 'organ stops export with their brass material');
+    const roof = readGlbJson(path.join(ASSET_ROOT, 'glb', '06_roof_fleche.glb'));
+    assert.ok(meshNodeNames(roof).includes('roof_fleche_lead'),
+        'the raised gallery roof remains an authored, colliding surface in the roof asset');
+    assert.ok(!naveNodes.some((name) => /triforium_band/i.test(name)),
+        'the former continuous collision wall is gone');
+    const exportedFloorCrosses = floorCrossBayCentres(naveFile);
+    for (let bay = 0; bay < 10; bay += 1) {
+        const expectedX = -54.75 + 3 + bay * 6;
+        assert.ok(exportedFloorCrosses.some((x) => Math.abs(x - expectedX) < 1.6),
+            `the floor pattern is exported above the nave floor at bay ${bay}`);
+    }
+
+    const choir = readGlbJson(path.join(ASSET_ROOT, 'glb', '04_choir_apse.glb'));
+    const choirNodes = meshNodeNames(choir);
+    assert.ok(choirNodes.includes('choir_apse_oak'), 'the chancel screen and choir stalls are present');
+    assert.ok(choirNodes.includes('choir_apse_gold'), 'the screen and altar keep their gilded details');
 });
 
 test('every part keeps the measured proportions of the real building', () => {
