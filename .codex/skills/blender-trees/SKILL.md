@@ -17,6 +17,10 @@ Before every final response, run the short [final learning gate](../blender-work
 
 ## Start with Architecture
 
+Default to a reproducible procedural trunk, branch hierarchy, and foliage sites for new trees, including single specimens. Add authored roots, branch corrections, bark features, or organ meshes when they improve the requested form. Follow [the shared hybrid authoring rules](../blender-workflows/references/method-selection.md#procedural-plant-base-and-authored-detail) so regeneration preserves these additions and their attachments. Reuse an existing tree's source and controls; direct modeling remains appropriate when explicitly requested or when a procedural base is impractical.
+
+For several variations of the same tree, combine this skill with `blender-object-batches` automatically. Use one reusable generator and authored source library, with species architecture and gameplay roles locked as required; a single tree does not imply a batch.
+
 Define the tree's species or archetype, age, environment, scale, crown envelope, trunk habit, central-leader behavior, asymmetry, season, and target platform.
 
 Select the growth method before generating geometry. Use parametric recursion for strong art direction, L-systems for developmental grammar, space colonization for crown-volume and obstacle control, or a hybrid when both architecture and envelope matter. Read [references/growth-algorithms.md](references/growth-algorithms.md) before implementing a new generator.

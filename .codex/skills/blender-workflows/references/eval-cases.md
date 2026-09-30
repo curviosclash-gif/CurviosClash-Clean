@@ -115,6 +115,7 @@ the effect on screen at fixed settings without a competing game instance.
 
 ## Failure Conditions
 
+- A new plant or tree loses authored detail when its procedural base is rebuilt or proportions change. Exercise both a same-seed rebuild and a changed structural parameter; authored source, attachments, interactive roles, and exports must remain valid. An explicitly requested manual specimen remains a valid exception to the procedural default.
 - Only the front render was inspected for a rotational asset.
 - Source faces were reported as the exported triangle or vertex count.
 - A GLB was delivered without re-import or structural validation.

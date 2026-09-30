@@ -60,6 +60,12 @@ Keep all variants inside the same object family. Vary proportions, construction 
 
 ## Generate the Batch
 
+For plant or tree batches, reuse the domain skill's procedural base and authored organ library. Follow [the shared hybrid authoring rules](../blender-workflows/references/method-selection.md#procedural-plant-base-and-authored-detail); verify preservation of authored additions on one representative variant before generating the family.
+
+For variations of an existing model, inspect its editable scene and generator first. Adapt its controls or wrap safe transformations in `build_variant(context)`; do not assume a flattened mesh is procedural or reconstruct its structure unless the request covers that work. Record the source asset identity and version or hash in provenance, and preserve the original.
+
+Use deterministic scripts to generate every variant and check measurable requirements. A separate AI generation or review call per variant is unnecessary. Inspect every variant in a consistent contact sheet, use additional views where details are obscured, and review flagged outliers closely. Scripted checks do not establish botanical plausibility or visual quality; keep the existing per-output export and visual QA gates.
+
 Resolve this skill's installed directory to an absolute path before running its scripts: `$skillDir = (Resolve-Path '<absolute path to blender-object-batches>').Path`. Use that directory for every script and bundled asset, even when the output directory is elsewhere.
 
 1. Run `Join-Path $skillDir 'scripts/generate_variant_manifest.py'` on the locked contract. Use one root seed and stable variant IDs.
