@@ -63,6 +63,17 @@ function animationValues(document, nodeName, pathName) {
     return floatAccessor(document, animation.samplers[channel.sampler].output);
 }
 
+function animationTrack(document, nodeName, pathName) {
+    const nodeIndex = document.nodes.findIndex((node) => node.name === nodeName);
+    assert.ok(nodeIndex >= 0, `${nodeName} exists`);
+    const channel = document.animations[0].channels.find((entry) => (
+        entry.target.node === nodeIndex && entry.target.path === pathName
+    ));
+    assert.ok(channel, `${nodeName} animates ${pathName}`);
+    const sampler = document.animations[0].samplers[channel.sampler];
+    return floatAccessor(document, sampler.output);
+}
+
 function triangles(document) {
     let count = 0;
     for (const mesh of document.meshes || []) {
@@ -187,11 +198,35 @@ test('long Aetherion clips use their full macro cycle instead of repeating one p
     const astrolabeTranslations = animationValues(astrolabe, 'AstrolabeGateRig', 'translation');
     const axes = [0, 1, 2].map((axis) => astrolabeTranslations.map((value) => value[axis]));
     assert.ok(Math.min(...axes[0]) <= -17.9 && Math.max(...axes[0]) >= 17.9, 'astrolabe alternates lateral openings');
-    assert.ok(axes.some((values) => Math.max(...values) >= 18.9), 'astrolabe third beat opens vertically');
+    assert.ok(axes[1].some((value) => value > 0), 'astrolabe third beat opens vertically');
+    assert.ok(Math.max(...axes[1]) <= 6.01, 'astrolabe bars stay below the crown deck');
+
+    const iris = readGlb(path.join(ROOT, 'glb', '07_eclipse_iris.glb'));
+    for (let index = 0; index < 8; index += 1) {
+        const values = animationValues(iris, `EclipseBlade${index}`, 'translation');
+        assert.ok(Math.max(...values.map((value) => value[1])) <= 19.81,
+            `eclipse blade ${index} keeps crown-deck clearance`);
+    }
 
     const beaconScales = animationValues(astrolabe, 'astrolabe_countdown_2_nocol', 'scale');
     const sizes = beaconScales.map((value) => Math.max(...value));
     assert.ok(Math.min(...sizes) <= 0.2 && Math.max(...sizes) >= 0.99, 'gold countdown visibly pulses before opening');
+});
+
+test('countdown lamps in exported GLBs 05-09 match their first and last scale', () => {
+    for (const name of [
+        '05_meridian_bridges', '06_astrolabe_gate', '07_eclipse_iris', '08_comet_pendulum', '09_zodiac_louvre',
+    ]) {
+        const document = readGlb(path.join(ROOT, 'glb', `${name}.glb`));
+        const lamps = document.nodes.filter((node) => /_countdown_\d+_nocol$/i.test(node.name || ''));
+        assert.ok(lamps.length >= 3, `${name} exports all countdown lamps`);
+        for (const lamp of lamps) {
+            const values = animationTrack(document, lamp.name, 'scale');
+            const first = values[0], last = values.at(-1);
+            assert.ok(first.every((value, axis) => Math.abs(value - last[axis]) <= 1e-5),
+                `${name}/${lamp.name} has a continuous loop seam`);
+        }
+    }
 });
 
 test('Aetherion ships exactly thirty static, collision-free orientation variants', () => {

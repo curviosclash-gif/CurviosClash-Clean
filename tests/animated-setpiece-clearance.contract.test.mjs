@@ -25,29 +25,9 @@ import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js'
 import { MAP_SCALE, SHIP_RADIUS, scanAnimatedSetpieces } from './helpers/animated-setpiece-scan.mjs';
 
 const KNOWN_FINDINGS = [
-    // aetherion_orrery (plan G): astrolabe bars rise through FINISH, an item and both turrets;
-    // the iris blades sweep FINISH and the eclipse turret; the crown bridge parks on CP08; every
-    // loop of GLB 05-09 jumps at its end (countdown lamps).
-    'aetherion_orrery|aetherion-orrery-astrolabe-foundry|-|loop-seam',
-    'aetherion_orrery|aetherion-orrery-astrolabe-foundry|turret:orrery_meridian_turret|clearance',
-    'aetherion_orrery|aetherion-orrery-astrolabe-gallery|-|loop-seam',
-    'aetherion_orrery|aetherion-orrery-astrolabe-gallery|item:orrery_thick_core|clearance',
-    'aetherion_orrery|aetherion-orrery-astrolabe-gallery|ring:FINISH|clearance',
-    'aetherion_orrery|aetherion-orrery-astrolabe-gallery|turret:orrery_eclipse_turret|clearance',
-    'aetherion_orrery|aetherion-orrery-astrolabe-gallery|turret:orrery_meridian_turret|clearance',
-    'aetherion_orrery|aetherion-orrery-bridge-crown|-|loop-seam',
-    'aetherion_orrery|aetherion-orrery-bridge-crown|ring:CP08|clearance',
-    'aetherion_orrery|aetherion-orrery-bridge-lower|-|loop-seam',
-    'aetherion_orrery|aetherion-orrery-bridge-middle|-|loop-seam',
-    'aetherion_orrery|aetherion-orrery-comet-crown|-|loop-seam',
-    'aetherion_orrery|aetherion-orrery-comet-foundry|-|loop-seam',
-    'aetherion_orrery|aetherion-orrery-comet-gallery|-|loop-seam',
-    'aetherion_orrery|aetherion-orrery-eclipse-iris|-|loop-seam',
+    // The finish ring shares the timed iris opening by design; the desktop heatmap keeps its
+    // passable and blocked phases measurable while the crown-deck and turret clearances are fixed.
     'aetherion_orrery|aetherion-orrery-eclipse-iris|ring:FINISH|clearance',
-    'aetherion_orrery|aetherion-orrery-eclipse-iris|turret:orrery_eclipse_turret|clearance',
-    'aetherion_orrery|aetherion-orrery-zodiac-crown|-|loop-seam',
-    'aetherion_orrery|aetherion-orrery-zodiac-foundry|-|loop-seam',
-    'aetherion_orrery|aetherion-orrery-zodiac-gallery|-|loop-seam',
     // Chrono Forge and Eclipse (plan I): their fixed setpiece parts now have obstacle boxes.
     'eiffel_tower_siege|eiffel-topple-lower|-|end-below-ground',
     // glb_gallery: the gallery has no map beat, so its library clips run against the 4 s default.
