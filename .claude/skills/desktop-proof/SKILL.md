@@ -85,6 +85,12 @@ Wenn nur ein Mensch beurteilen kann, ob es stimmt:
 npm run app:start
 ```
 
+Dieser Weg zählt in der Rundentelemetrie als menschliches Spiel, und das ist richtig so: der Nutzer spielt. Steuerst du das Spiel dagegen selbst, ohne Playwright (das meldet sich über die Debug-Schnittstelle von allein, siehe `electron/automation-hint.cjs`), dann starte es mit gesetzter Kennung, damit deine Runden die Statistik nicht verfälschen:
+
+```bash
+CURVIOS_AUTOMATION=claude npm run app:start
+```
+
 Beschreibe dem Nutzer **genau** und in wenigen Schritten, was er tun und worauf er achten soll — welcher Modus, welche Karte, welche Anzeige, welche Zahl. Warte auf seine Beobachtung und übernimm sie wörtlich in den Ergebnisbericht. Erfinde keinen Beleg, den du nicht gesehen hast; ein fehlender Desktop-Beweis ist ehrlich, ein erfundener ist wertlos.
 
 ## Schritt 2 — den Vorher-Zustand mitnehmen

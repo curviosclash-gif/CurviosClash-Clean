@@ -44,11 +44,28 @@ function toShare(inputSamples, activeInputSamples) {
     return Math.min(1, activeInputSamples / inputSamples);
 }
 
+// Jeder Platz wird fuer sich bewertet: im geteilten Bildschirm verdeckte die
+// Summe sonst einen Piloten, der gar nicht am Controller sass.
+function countSeats(players) {
+    let activeHumanCount = 0;
+    let idleHumanCount = 0;
+    for (const player of Array.isArray(players) ? players : []) {
+        const samples = toCount(player?.samples);
+        if (samples < ROUND_CONTROL_MIN_SAMPLES) continue;
+        const share = toShare(samples, Math.min(samples, toCount(player?.activeSamples)));
+        if (share <= ROUND_CONTROL_IDLE_SHARE) idleHumanCount += 1;
+        else activeHumanCount += 1;
+    }
+    return { activeHumanCount, idleHumanCount };
+}
+
 /**
  * @param {{automationSignal?: string, humanCount?: number, inputSamples?: number,
- *          activeInputSamples?: number} | null} [source]
+ *          activeInputSamples?: number,
+ *          players?: Array<{index?: number, samples?: number, activeSamples?: number}>} | null} [source]
  * @returns {{source: string, automationSignal: string, inputSamples: number,
- *           activeInputSamples: number, inputShare: number}}
+ *           activeInputSamples: number, inputShare: number,
+ *           activeHumanCount: number, idleHumanCount: number}}
  */
 export function classifyRoundControl(source = null) {
     const value = source && typeof source === 'object' ? source : {};
@@ -57,6 +74,11 @@ export function classifyRoundControl(source = null) {
     const activeInputSamples = Math.min(inputSamples, toCount(value.activeInputSamples));
     const inputShare = toShare(inputSamples, activeInputSamples);
     const humanCount = toCount(value.humanCount);
+    const hasSeats = Array.isArray(value.players) && value.players.length > 0;
+    const seats = hasSeats
+        ? countSeats(value.players)
+        : countSeats([{ samples: inputSamples, activeSamples: activeInputSamples }]);
+    const ratedSeats = seats.activeHumanCount + seats.idleHumanCount;
 
     let controlSource = ROUND_CONTROL_SOURCES.HUMAN;
     if (automationSignal) {
@@ -64,9 +86,9 @@ export function classifyRoundControl(source = null) {
     } else if (humanCount <= 0) {
         // Kein menschlicher Platz heisst kopfloser Lauf, nicht "Mensch war still".
         controlSource = ROUND_CONTROL_SOURCES.AUTOMATION;
-    } else if (inputSamples < ROUND_CONTROL_MIN_SAMPLES) {
+    } else if (ratedSeats === 0) {
         controlSource = ROUND_CONTROL_SOURCES.UNKNOWN;
-    } else if (inputShare <= ROUND_CONTROL_IDLE_SHARE) {
+    } else if (seats.activeHumanCount === 0) {
         controlSource = ROUND_CONTROL_SOURCES.IDLE;
     }
 
@@ -76,6 +98,8 @@ export function classifyRoundControl(source = null) {
         inputSamples,
         activeInputSamples,
         inputShare,
+        activeHumanCount: seats.activeHumanCount,
+        idleHumanCount: seats.idleHumanCount,
     };
 }
 
@@ -85,7 +109,8 @@ export function classifyRoundControl(source = null) {
  *
  * @param {any} source
  * @returns {{source: string, automationSignal: string, inputSamples: number,
- *           activeInputSamples: number, inputShare: number}}
+ *           activeInputSamples: number, inputShare: number,
+ *           activeHumanCount: number, idleHumanCount: number}}
  */
 export function normalizeRoundControl(source) {
     const value = source && typeof source === 'object' ? source : {};
@@ -98,6 +123,8 @@ export function normalizeRoundControl(source) {
         inputSamples,
         activeInputSamples,
         inputShare: toShare(inputSamples, activeInputSamples),
+        activeHumanCount: toCount(value.activeHumanCount),
+        idleHumanCount: toCount(value.idleHumanCount),
     };
 }
 

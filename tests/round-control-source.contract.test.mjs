@@ -87,14 +87,14 @@ test('input manager counts only polls that carry a real input', () => {
         input.setPlayerSource(0, idleSource);
         input.getPlayerInput(0);
         input.getPlayerInput(0);
-        assert.deepEqual(input.getInputActivitySnapshot(), { samples: 2, activeSamples: 0 });
+        assert.deepEqual(input.getInputActivitySnapshot(), { samples: 2, activeSamples: 0, players: [{ index: 0, samples: 2, activeSamples: 0 }] });
 
         input.setPlayerSource(0, busySource);
         input.getPlayerInput(0);
-        assert.deepEqual(input.getInputActivitySnapshot(), { samples: 3, activeSamples: 1 });
+        assert.deepEqual(input.getInputActivitySnapshot(), { samples: 3, activeSamples: 1, players: [{ index: 0, samples: 3, activeSamples: 1 }] });
 
         input.resetInputActivity();
-        assert.deepEqual(input.getInputActivitySnapshot(), { samples: 0, activeSamples: 0 });
+        assert.deepEqual(input.getInputActivitySnapshot(), { samples: 0, activeSamples: 0, players: [] });
     } finally {
         globalThis.window = previousWindow;
     }
@@ -198,4 +198,66 @@ test('recording a round resets the input activity for the next round', () => {
     const controller = new MatchFlowTelemetryController({ game });
     controller.recordRoundEndTelemetry(roundEndPlan);
     assert.equal(game.input.resetCalls, 1);
+});
+
+// Im geteilten Bildschirm zaehlte bisher die Summe beider Plaetze. Spielte nur
+// Pilot 1 und Pilot 2 sass nicht am Controller, galt die Runde als zwei Menschen.
+test('a split round with one absent pilot keeps the active one and flags the idle seat', () => {
+    const split = classifyRoundControl({
+        humanCount: 2,
+        players: [
+            { index: 0, samples: ACTIVE_SAMPLES, activeSamples: Math.floor(ACTIVE_SAMPLES / 2) },
+            { index: 1, samples: ACTIVE_SAMPLES, activeSamples: 0 },
+        ],
+    });
+    assert.equal(split.source, ROUND_CONTROL_SOURCES.HUMAN);
+    assert.equal(split.activeHumanCount, 1);
+    assert.equal(split.idleHumanCount, 1);
+
+    const bothIdle = classifyRoundControl({
+        humanCount: 2,
+        players: [
+            { index: 0, samples: ACTIVE_SAMPLES, activeSamples: 0 },
+            { index: 1, samples: ACTIVE_SAMPLES, activeSamples: 1 },
+        ],
+    });
+    assert.equal(bothIdle.source, ROUND_CONTROL_SOURCES.IDLE);
+    assert.equal(bothIdle.activeHumanCount, 0);
+
+    // Ein Platz mit zu wenig Abfragen wird nicht bewertet, statt als untaetig zu gelten.
+    const short = classifyRoundControl({ humanCount: 1, players: [{ index: 0, samples: 5, activeSamples: 0 }] });
+    assert.equal(short.source, ROUND_CONTROL_SOURCES.UNKNOWN);
+    assert.equal(normalizeRoundControl({ source: 'human' }).idleHumanCount, 0);
+});
+
+test('input manager keeps the activity apart per pilot', () => {
+    const previousWindow = globalThis.window;
+    globalThis.window = { addEventListener() {}, removeEventListener() {}, document: { addEventListener() {} } };
+    try {
+        const input = new InputManager();
+        const createSource = (state) => ({ poll: () => state, bind() {}, unbind() {}, dispose() {} });
+        input.setPlayerSource(0, createSource({ yawLeft: true }));
+        input.setPlayerSource(1, createSource({ yawLeft: false }));
+        input.getPlayerInput(0);
+        input.getPlayerInput(1);
+        input.getPlayerInput(1);
+        const snapshot = input.getInputActivitySnapshot();
+        assert.equal(snapshot.samples, 3);
+        assert.equal(snapshot.activeSamples, 1);
+        assert.deepEqual(snapshot.players, [
+            { index: 0, samples: 1, activeSamples: 1 },
+            { index: 1, samples: 2, activeSamples: 0 },
+        ]);
+    } finally {
+        globalThis.window = previousWindow;
+    }
+});
+
+test('the summary counts rounds that ran with an idle human seat', () => {
+    const rows = [
+        { control: { source: 'human', activeHumanCount: 1, idleHumanCount: 1 } },
+        { control: { source: 'human', activeHumanCount: 2, idleHumanCount: 0 } },
+        { control: { source: 'idle', activeHumanCount: 0, idleHumanCount: 1 } },
+    ].map(normalizeTelemetryHistoryEntry);
+    assert.equal(computeTelemetryHistorySummary(rows).roundsWithIdleHumanSeat, 1);
 });

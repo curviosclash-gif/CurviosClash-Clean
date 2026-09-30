@@ -188,6 +188,65 @@ test('three-player split starts with all three players on separate keyboard bind
     await expect(page.locator('#crosshair-p3')).toBeHidden();
 });
 
+test('three-seat telemetry records activity per player and all three viewports', async ({ page }) => {
+    const errors = collectErrors(page);
+    await openSharedSplitMenu(page);
+    await chooseThreePlayers(page);
+    for (const device of await page.locator('[data-split-device]').all()) {
+        await device.selectOption('keyboard');
+    }
+    await startAndWaitForThreeHumans(page);
+
+    const keys = ['w', 'Numpad8', 'i'];
+    try {
+        for (const key of keys) await page.keyboard.down(key);
+        await page.waitForFunction(() => {
+            const game = window.GAME_INSTANCE;
+            const players = game?.input?.getInputActivitySnapshot?.()?.players || [];
+            return players.length === 3 && players.every((player) => (
+                player.samples >= 60 && player.activeSamples > 0
+            ));
+        }, null, { timeout: 10_000 });
+        await page.waitForFunction(() => (
+            Number(window.GAME_INSTANCE?.runtimePerfProfiler?.getTelemetryIntervalSnapshot?.()?.sampleCount) > 0
+        ), null, { timeout: 10_000 });
+    } finally {
+        for (const key of keys) await page.keyboard.up(key).catch(() => {});
+    }
+
+    const telemetry = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const activity = game.input.getInputActivitySnapshot();
+        const plan = {
+            outcome: { state: 'ROUND_END', reason: 'TEST' },
+            recording: { roundMetrics: { winnerIndex: -1, winnerIsBot: false, duration: 1 } },
+        };
+        const payload = game.matchFlowUiController.telemetryController.buildRoundEndTelemetryPayload(plan);
+        return {
+            cameraCount: game.renderer?.cameras?.length,
+            playerCount: payload?.context?.playerCount,
+            humanCount: payload?.context?.humanCount,
+            viewports: payload?.performance?.viewportCount,
+            renderWidth: payload?.performance?.renderWidth,
+            renderHeight: payload?.performance?.renderHeight,
+            activitySeats: activity.players
+                ?.filter((player) => player.activeSamples > 0)
+                ?.map((player) => player.index),
+            ratedActiveSeats: payload?.control?.activeHumanCount,
+        };
+    });
+    expect(telemetry.cameraCount).toBe(3);
+    expect(telemetry.playerCount).toBeGreaterThanOrEqual(3);
+    expect(telemetry.humanCount).toBe(3);
+    expect(telemetry.viewports).toBe(3);
+    expect(telemetry.renderWidth).toBeGreaterThan(0);
+    expect(telemetry.renderHeight).toBeGreaterThan(0);
+    expect(telemetry.activitySeats).toEqual([0, 1, 2]);
+    expect(telemetry.ratedActiveSeats).toBe(3);
+    expect(errors).toHaveLength(0);
+    await returnToMenu(page);
+});
+
 test('three-player Hunt exposes compact combat vitals and match status for all players', async ({ page }) => {
     const errors = collectErrors(page);
     await openSharedSplitMenu(page, 'fight');

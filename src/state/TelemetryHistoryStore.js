@@ -1,6 +1,6 @@
 // ============================================
 // TelemetryHistoryStore.js - IndexedDB-based persistent telemetry
-// for cross-session comparison (max 500 entries, auto-pruning)
+// for cross-session comparison (max 500 entries, machine rounds pruned first)
 // ============================================
 //
 // Achtung beim Auswerten: IndexedDB haengt an der Herkunft, also auch am Port.
@@ -13,14 +13,13 @@ import {
     normalizeTelemetryHistoryEntry,
 } from './telemetry/TelemetryHistoryEntry.js';
 import { computeTelemetryHistorySummary } from './telemetry/TelemetryHistorySummary.js';
+import { selectTelemetryPruneIds } from './telemetry/TelemetryHistoryPruning.js';
 
 export { normalizeTelemetryHistoryEntry };
 
 const DB_NAME = 'cuviosclash-telemetry';
 const DB_VERSION = 1;
 const STORE_NAME = 'rounds';
-const MAX_ENTRIES = 500;
-const PRUNE_BATCH = 50;
 const DB_RETRY_ATTEMPTS = 2;
 
 function openDb() {
@@ -138,29 +137,14 @@ export class TelemetryHistoryStore {
             try {
                 const tx = db.transaction(STORE_NAME, 'readwrite');
                 const store = tx.objectStore(STORE_NAME);
-                const countReq = store.count();
-                countReq.onsuccess = () => {
-                    const total = countReq.result;
-                    if (total <= MAX_ENTRIES) {
-                        resolve();
-                        return;
-                    }
-                    const deleteCount = total - MAX_ENTRIES + PRUNE_BATCH;
-                    const cursor = store.openCursor();
-                    let deleted = 0;
-                    cursor.onsuccess = (event) => {
-                        const c = /** @type {IDBRequest<IDBCursorWithValue | null>} */ (event.target).result;
-                        if (c && deleted < deleteCount) {
-                            c.delete();
-                            deleted += 1;
-                            c.continue();
-                            return;
-                        }
-                        resolve();
-                    };
-                    cursor.onerror = () => reject(cursor.error || new Error('prune-cursor-failed'));
+                // Liest alle Runden, weil die Wahl vom Steuerungsblock abhaengt: Testserien
+                // und unbediente Fenster gehen vor echten Runden (TelemetryHistoryPruning).
+                const rowsReq = store.getAll();
+                rowsReq.onsuccess = () => {
+                    selectTelemetryPruneIds(rowsReq.result || []).forEach((id) => store.delete(id));
                 };
-                countReq.onerror = () => reject(countReq.error || new Error('prune-count-failed'));
+                rowsReq.onerror = () => reject(rowsReq.error || new Error('prune-read-failed'));
+                tx.oncomplete = () => resolve();
                 tx.onerror = () => reject(tx.error || new Error('prune-tx-failed'));
                 tx.onabort = () => reject(tx.error || new Error('prune-tx-aborted'));
             } catch (error) {

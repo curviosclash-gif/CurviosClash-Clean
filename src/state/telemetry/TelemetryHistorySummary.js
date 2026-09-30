@@ -63,6 +63,8 @@ export function createEmptyTelemetryHistorySummary() {
         // diese Zahlen liest sich jede Siegquote zu guenstig.
         controlSourceCounts: createControlSourceCounts(),
         humanControlledRounds: 0,
+        // Runden, in denen ein menschlicher Platz belegt war, aber niemand steuerte.
+        roundsWithIdleHumanSeat: 0,
         selfCollisionsPerRound: 0,
         itemUsesPerRound: 0,
         itemUsesWithoutMgPerRound: 0,
@@ -129,6 +131,7 @@ export function computeTelemetryHistorySummary(rows) {
     let arcadeMissionsCompleted = 0;
     let arcadeMissionsTotal = 0;
     const controlSourceCounts = createControlSourceCounts();
+    let roundsWithIdleHumanSeat = 0;
 
     for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
@@ -171,7 +174,11 @@ export function computeTelemetryHistorySummary(rows) {
         if (r.winnerType === 'human') humanWins += 1;
         if (r.winnerType === 'bot') botWins += 1;
 
-        controlSourceCounts[resolveRoundControlSource(r)] += 1;
+        const controlSource = resolveRoundControlSource(r);
+        controlSourceCounts[controlSource] += 1;
+        if (controlSource === ROUND_CONTROL_SOURCES.HUMAN && toNonNegativeInt(r.control?.idleHumanCount) > 0) {
+            roundsWithIdleHumanSeat += 1;
+        }
 
         const mk = sanitizeString(r.mapKey, 'unknown');
         mapCounts[mk] = (mapCounts[mk] || 0) + 1;
@@ -193,6 +200,7 @@ export function computeTelemetryHistorySummary(rows) {
         averageDuration: rounds > 0 ? totalDuration / rounds : 0,
         controlSourceCounts: { ...controlSourceCounts },
         humanControlledRounds: controlSourceCounts[ROUND_CONTROL_SOURCES.HUMAN],
+        roundsWithIdleHumanSeat,
         selfCollisionsPerRound: rounds > 0 ? totalSelfCollisions / rounds : 0,
         itemUsesPerRound: rounds > 0 ? totalItemUses / rounds : 0,
         mgFireMeasuredRounds,
