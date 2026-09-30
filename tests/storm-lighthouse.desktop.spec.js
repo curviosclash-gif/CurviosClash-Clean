@@ -36,7 +36,7 @@ async function captureArena(page, camera) {
     }, camera);
 }
 
-test('the storm eye loads three routes and settles its lighthouse into a new ramp', async ({ page }, testInfo) => {
+test('the storm eye loads three routes and settles its lighthouse fragments inside the island', async ({ page }, testInfo) => {
     test.setTimeout(240_000);
     const errors = collectErrors(page);
     await startLighthouseMatch(page);
@@ -124,6 +124,20 @@ test('the storm eye loads three routes and settles its lighthouse into a new ram
         };
     }, { mapScale: MAP_SCALE });
 
+    const collapsedPicture = await captureArena(page, {
+        from: [250, 80, -240],
+        to: [0, 75, 0],
+        fov: 80,
+    });
+    for (const [name, picture] of [
+        ['storm-lighthouse-intact', intactPicture],
+        ['storm-lighthouse-collapsed', collapsedPicture],
+    ]) {
+        const screenshot = testInfo.outputPath(`${name}.png`);
+        await writeFile(screenshot, Buffer.from(picture.split(',')[1], 'base64'));
+        await testInfo.attach(name, { path: screenshot, contentType: 'image/png' });
+    }
+
     expect(result.warningCount).toBe(0);
     expect(result.trackCount).toBe(3);
     expect(result.gateCount).toBe(4);
@@ -131,7 +145,7 @@ test('the storm eye loads three routes and settles its lighthouse into a new ram
     expect(result.towerScaleRatio).toBeCloseTo(10, 5);
     expect(result.liftX).toBeCloseTo(44 * MAP_SCALE, 5);
     expect(result.beaconY).toBeCloseTo(144 * MAP_SCALE, 5);
-    expect(result.anchorY).toBeCloseTo(84 * MAP_SCALE, 5);
+    expect(result.anchorY).toBeCloseTo(4 * MAP_SCALE, 5);
     expect(result.before).toEqual({
         islandVisible: true,
         intactVisible: true,
@@ -147,20 +161,7 @@ test('the storm eye loads three routes and settles its lighthouse into a new ram
     expect(result.beaconVisibleAfter).toBe(false);
     expect(result.collapseYaw).toBeCloseTo(0, 5);
     expect(result.wreckColliderCount).toBeGreaterThan(10);
-    expect(result.wreckWidth).toBeGreaterThan(result.wreckHeight * 1.5);
-
-    const collapsedPicture = await captureArena(page, {
-        from: [276, 210, -260],
-        to: [276, 90, 0],
-        fov: 100,
-    });
-    for (const [name, picture] of [
-        ['storm-lighthouse-intact', intactPicture],
-        ['storm-lighthouse-collapsed', collapsedPicture],
-    ]) {
-        const screenshot = testInfo.outputPath(`${name}.png`);
-        await writeFile(screenshot, Buffer.from(picture.split(',')[1], 'base64'));
-        await testInfo.attach(name, { path: screenshot, contentType: 'image/png' });
-    }
+    expect(result.wreckWidth).toBeLessThan(360);
+    expect(result.wreckHeight).toBeGreaterThan(60);
     expect(errors).toEqual([]);
 });

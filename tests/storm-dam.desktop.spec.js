@@ -181,8 +181,7 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
             risePhase,
             riseSurfaceVisible,
             finalPhase: water.getState().phase,
-            gateAttached: arena._glbScene.getObjectByName('glb-slot-storm-dam-gate')?.parent?.name
-                === 'dam_wall_arch_08_tier_2',
+            gateAttached: arena._glbScene.getObjectByName('glb-slot-storm-dam-gate')?.visible === true,
             waveOrigin: water.getZone().waveOrigin,
             waveStartZ,
             waveHalfZ,
@@ -221,7 +220,7 @@ test('the giant rear-wall dam breaches and launches its flood wave into the aren
     expect(result.risePhase).toBe('rising');
     expect(result.riseSurfaceVisible).toBe(true);
     expect(result.finalPhase).toBe('flooded');
-    expect(result.gateAttached).toBe(true);
+    expect(result.gateAttached).toBe(false);
     expect(result.waveOrigin).toBe('maxZ');
     expect(result.waveStartZ).toBeCloseTo(171, 4);
     const waveProgress = (2 - 0.3) / (4 - 0.3);
