@@ -123,6 +123,8 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
     };
     const handleWheel = (event) => {
         if (!event.deltaY) return;
+        const area = fraction ? resolveSteeringArea() : null;
+        if (area && !isInsideArea(area, event)) return;
         itemScrollPending = true;
         event.preventDefault();
     };

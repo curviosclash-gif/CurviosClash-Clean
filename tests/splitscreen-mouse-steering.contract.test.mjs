@@ -12,7 +12,11 @@ function createTarget() {
         getBoundingClientRect: () => ({ left: 0, top: 0, width: 1000, height: 500 }),
         addEventListener: (type, handler) => handlers.set(type, handler),
         removeEventListener: (type) => handlers.delete(type),
-        fire(type, event) { handlers.get(type)?.({ preventDefault() {}, ...event }); },
+        fire(type, event) {
+            let defaultPrevented = false;
+            handlers.get(type)?.({ preventDefault() { defaultPrevented = true; }, ...event });
+            return { defaultPrevented };
+        },
     };
 }
 
@@ -41,6 +45,24 @@ test('two-player mouse steering is centred on player one\'s own half of the scre
 
     target.fire('mousedown', { button: 2, clientX: 250, clientY: 250 });
     assert.equal(source.poll().shootMG, true);
+});
+
+test('two-player mouse wheel affects only the viewport under the pointer', () => {
+    const target = createTarget();
+    const source = createMouseSteeringInputSource(inputManager, false, {
+        keyboardPlayerIndex: 0,
+        target,
+        viewportFraction: resolveFirstViewportFraction(VIEWPORT_LAYOUTS.TWO_COLUMNS),
+    });
+    source.bind(0);
+
+    const playerTwoScroll = target.fire('wheel', { clientX: 750, clientY: 250, deltaY: -100 });
+    assert.equal(playerTwoScroll.defaultPrevented, false, 'player two\'s viewport keeps its normal wheel behavior');
+    assert.equal(!!source.poll().nextItem, false, 'player two\'s scroll does not change player one\'s item');
+
+    const playerOneScroll = target.fire('wheel', { clientX: 250, clientY: 250, deltaY: 100 });
+    assert.equal(playerOneScroll.defaultPrevented, true, 'player one\'s viewport consumes the wheel event');
+    assert.equal(source.poll().nextItem, true, 'player one\'s scroll changes player one\'s item');
 });
 
 test('the preferred source hands the split layout to player one\'s mouse', () => {
