@@ -1,4 +1,4 @@
-const ALLOWED_TOAST_TONES = new Set(['info', 'success', 'error']);
+const ALLOWED_TOAST_TONES = new Set(['info', 'success', 'error', 'warning']);
 
 function normalizeToastTone(durationMsOrTone, tone) {
     const requestedTone = typeof durationMsOrTone === 'string' ? durationMsOrTone : tone;
@@ -16,7 +16,7 @@ export function showStatusToast(toast, message, durationMsOrTone = 1200, tone = 
     const durationMs = normalizeToastDuration(durationMsOrTone);
     const normalizedTone = normalizeToastTone(durationMsOrTone, tone);
     toast.textContent = message;
-    toast.classList.remove('hidden', 'show', 'toast-info', 'toast-success', 'toast-error');
+    toast.classList.remove('hidden', 'show', 'toast-info', 'toast-success', 'toast-error', 'toast-warning');
     toast.classList.add(`toast-${normalizedTone}`);
     void toast.offsetWidth;
     toast.classList.add('show');
