@@ -24,7 +24,12 @@ export function createStartSetupControllerPort(deps = {}) {
         getMapDefinitions: () => getMapDefinitions() || {},
         getMultiplayerSessionState: () => getMultiplayerSessionState() || null,
         resolveSurfacePolicy: (settings = undefined) => resolveSurfacePolicy(settings) || null,
-        refreshLocalMapCatalog: () => refreshLocalMapCatalog() === true,
+        refreshLocalMapCatalog: () => {
+            const result = refreshLocalMapCatalog();
+            return result && typeof result.then === 'function'
+                ? result.then((changed) => changed === true)
+                : result === true;
+        },
         surfacePolicyPort,
     });
 }
@@ -69,7 +74,7 @@ export function createStartSetupControllerPortFromManager({
         getMultiplayerSessionState: () => game?.menuMultiplayerBridge?.getSessionState?.() || null,
         resolveSurfacePolicy: (settings = manager?.settings) => manager?.resolveSurfacePolicy?.(settings || manager?.settings) || null,
         getProductSurfaceId: () => game?.uiManager?._runtimeFeatureFlags?.surfacePolicy?.productSurfaceId || manager?.settings?.localSettings?.toolsState?.surfacePolicy?.productSurfaceId || '',
-        refreshLocalMapCatalog: () => game?.runtimeCoordinator?.refreshLocalMapCatalog?.() === true,
+        refreshLocalMapCatalog: () => game?.runtimeCoordinator?.refreshLocalMapCatalog?.(),
     });
 }
 

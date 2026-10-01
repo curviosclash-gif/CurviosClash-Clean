@@ -17,17 +17,19 @@ const DEFAULT_LOCAL_MAPS = /** @type {Record<string, unknown>} */ (GENERATED_LOC
  *
  * @param {{
  *   gameState?: string,
+ *   getGameState?: () => string,
  *   applySettings?: () => unknown,
- *   readLocalMaps?: () => Record<string, unknown>|null,
+ *   readLocalMaps?: () => Record<string, unknown>|null|Promise<Record<string, unknown>|null>,
  *   catalog?: Record<string, unknown>,
  *   refreshRuntimeConfig?: () => unknown,
  *   knownKeys?: Set<string>,
  *   fallbackMaps?: Record<string, unknown>,
  * }} [options]
- * @returns {boolean} true, wenn der Katalog sich geaendert hat
+ * @returns {Promise<boolean>} true, wenn der Katalog sich geaendert hat
  */
-export function refreshLocalMapCatalog({
+export async function refreshLocalMapCatalog({
     gameState,
+    getGameState = null,
     applySettings,
     readLocalMaps = refreshElectronLocalMaps,
     catalog = CONFIG_BASE.MAPS,
@@ -36,8 +38,14 @@ export function refreshLocalMapCatalog({
     fallbackMaps = DEFAULT_LOCAL_MAPS,
 } = {}) {
     if (gameState !== GAME_STATE_IDS.MENU) return false;
-    const localMaps = readLocalMaps();
-    if (!localMaps) return false;
+    let localMaps;
+    try {
+        localMaps = await readLocalMaps();
+    } catch {
+        return false;
+    }
+    if (typeof getGameState === 'function' && getGameState() !== GAME_STATE_IDS.MENU) return false;
+    if (!localMaps || typeof localMaps !== 'object' || Array.isArray(localMaps)) return false;
     if (mergePlayableLocalMaps(catalog, localMaps, { knownKeys, fallbackMaps }).length === 0) return false;
     refreshRuntimeConfig();
     applySettings?.();

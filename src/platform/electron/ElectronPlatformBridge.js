@@ -84,14 +84,14 @@ export function readElectronLocalMaps(runtimeGlobal = globalThis) {
  * damit der Aufrufer weiss, dass es nichts nachzuladen gibt.
  *
  * @param {typeof globalThis} [runtimeGlobal]
- * @returns {Record<string, unknown>|null}
+ * @returns {Promise<Record<string, unknown>|null>}
  */
-export function refreshElectronLocalMaps(runtimeGlobal = globalThis) {
+export async function refreshElectronLocalMaps(runtimeGlobal = globalThis) {
     const { appRuntime } = resolveAppRuntime(runtimeGlobal);
     const contract = resolveNamedContract(appRuntime, 'localMaps');
     if (typeof contract?.refresh !== 'function') return null;
     try {
-        const maps = contract.refresh();
+        const maps = await contract.refresh();
         return maps && typeof maps === 'object' && !Array.isArray(maps) ? maps : null;
     } catch {
         return null;

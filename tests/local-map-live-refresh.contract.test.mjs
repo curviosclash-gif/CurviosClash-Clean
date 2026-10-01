@@ -17,19 +17,35 @@ function desktopMap(name, extra = {}) {
  * Laedt das echte Preload-Skript mit einer nachgebauten Electron-Bruecke und
  * liefert, was es dem Fenster anbietet, samt Zaehler fuer den Lesekanal.
  */
-function loadPreload(readMaps, { asyncSnapshot = null } = {}) {
+function loadPreload(readMaps, { asyncSnapshot = undefined } = {}) {
     const exposed = {};
     const syncCalls = [];
+    const asyncCalls = [];
+    let asyncReadCount = 0;
     const electronStub = {
         contextBridge: { exposeInMainWorld: (name, value) => { exposed[name] = value; } },
         ipcRenderer: {
-            invoke: (channel) => Promise.resolve(channel === 'local-maps:read' ? asyncSnapshot : null),
+            invoke: (channel) => {
+                asyncCalls.push(channel);
+                if (channel !== 'local-maps:read') return Promise.resolve(null);
+                const response = asyncReadCount++ === 0 && asyncSnapshot !== undefined
+                    ? asyncSnapshot
+                    : readMaps();
+                return Promise.resolve(response).then((snapshot) => (
+                    snapshot && typeof snapshot === 'object' && Object.hasOwn(snapshot, 'ok')
+                        ? snapshot
+                        : { ok: true, maps: snapshot }
+                ));
+            },
             send: () => {},
             on: () => {},
             removeListener: () => {},
             sendSync: (channel) => {
                 syncCalls.push(channel);
-                return channel === 'local-maps:read-sync' ? { ok: true, maps: readMaps() } : null;
+                const snapshot = readMaps();
+                return channel === 'local-maps:read-sync'
+                    ? (snapshot?.ok === true ? snapshot : { ok: true, maps: snapshot })
+                    : null;
             },
         },
     };
@@ -45,7 +61,7 @@ function loadPreload(readMaps, { asyncSnapshot = null } = {}) {
         Module._load = originalLoad;
         delete require.cache[preloadPath];
     }
-    return { localMaps: exposed.curviosApp.contracts.localMaps, syncCalls };
+    return { localMaps: exposed.curviosApp.contracts.localMaps, syncCalls, asyncCalls };
 }
 
 test('the preload uses an asynchronous local-map snapshot before the sync fallback', async () => {
@@ -73,34 +89,69 @@ test('a late startup snapshot cannot replace the synchronous fallback', async ()
     assert.deepEqual(syncCalls, ['local-maps:read-sync']);
 });
 
-test('the Electron main process exposes the asynchronous local-map read only to the game window', () => {
+test('the Electron main process warms async maps before opening the window and sync reads only cache', () => {
     const source = readFileSync('electron/main.cjs', 'utf8');
     assert.match(source, /ipcMain\.handle\('local-maps:read',\s*withTrustedMainWindowSender/);
     assert.match(source, /ipcMain\.on\('local-maps:read-sync'/);
+    const startup = source.slice(source.indexOf('async function startDesktopShell()'), source.indexOf('const discoveryRateMap'));
+    assert.ok(startup.indexOf('await refreshAndCacheLocalMaps()') < startup.indexOf('await desktopWindowShellCapability.start()'));
+    const syncHandler = source.slice(source.indexOf("ipcMain.on('local-maps:read-sync'"), source.indexOf('// Ein Kanal fuer alle Dateizugriffe'));
+    assert.match(syncHandler, /event\.returnValue = cachedLocalMapsSnapshot/);
+    assert.doesNotMatch(syncHandler, /readRuntimeMaps/);
+    assert.match(source, /'save-map': async \(payload\) => \{\s*const result = await editorMapStore\.saveMap\(payload\);\s*if \(result\?\.ok === true\) \{\s*try \{\s*await refreshAndCacheLocalMaps\(\)/);
+    assert.match(source, /if \(snapshot\?\.ok === true[\s\S]*?cachedLocalMapsSnapshot = snapshot/);
 });
 
-test('the preload re-reads the saved maps on refresh over the existing sync channel', () => {
+test('the preload re-reads maps asynchronously and retains the last good snapshot on failure', async () => {
     let stored = { editor_a: desktopMap('A') };
-    const { localMaps, syncCalls } = loadPreload(() => stored);
+    const { localMaps, syncCalls, asyncCalls } = loadPreload(() => stored);
 
     assert.deepEqual(Object.keys(localMaps.getSnapshot()), ['editor_a']);
     stored = { editor_a: desktopMap('A'), editor_b: desktopMap('B') };
     // Ohne Auffrischen bleibt es beim Stand vom Start.
     assert.deepEqual(Object.keys(localMaps.getSnapshot()), ['editor_a']);
 
-    assert.deepEqual(Object.keys(localMaps.refresh()).sort(), ['editor_a', 'editor_b']);
+    assert.deepEqual(Object.keys(await localMaps.refresh()).sort(), ['editor_a', 'editor_b']);
     assert.deepEqual(Object.keys(localMaps.getSnapshot()).sort(), ['editor_a', 'editor_b']);
-    assert.deepEqual(syncCalls, ['local-maps:read-sync', 'local-maps:read-sync']);
+    stored = { ok: false, error: 'total_payload_too_large', maps: {} };
+    assert.equal(await localMaps.refresh(), null);
+    assert.deepEqual(Object.keys(localMaps.getSnapshot()).sort(), ['editor_a', 'editor_b']);
+    assert.deepEqual(syncCalls, ['local-maps:read-sync']);
+    assert.deepEqual(asyncCalls.filter((channel) => channel === 'local-maps:read'), [
+        'local-maps:read', 'local-maps:read', 'local-maps:read',
+    ]);
 });
 
-test('the platform bridge refreshes only inside the desktop shell', () => {
-    assert.equal(refreshElectronLocalMaps({}), null);
+test('an older concurrent map refresh cannot replace the newer snapshot', async () => {
+    let resolveOlder;
+    let resolveNewer;
+    const olderRead = new Promise((resolve) => { resolveOlder = resolve; });
+    const newerRead = new Promise((resolve) => { resolveNewer = resolve; });
+    const reads = [olderRead, newerRead];
+    const initialMaps = { editor_initial: desktopMap('Initial') };
+    const newerMaps = { editor_newer: desktopMap('Newer') };
+    const { localMaps } = loadPreload(() => reads.shift(), {
+        asyncSnapshot: { ok: true, maps: initialMaps },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const olderRefresh = localMaps.refresh();
+    const newerRefresh = localMaps.refresh();
+    resolveNewer({ ok: true, maps: newerMaps });
+    assert.deepEqual(await newerRefresh, newerMaps);
+    resolveOlder({ ok: true, maps: { editor_stale: desktopMap('Stale') } });
+    assert.equal(await olderRefresh, null);
+    assert.deepEqual(localMaps.getSnapshot(), newerMaps);
+});
+
+test('the platform bridge refreshes only inside the desktop shell', async () => {
+    assert.equal(await refreshElectronLocalMaps({}), null);
 
     const fresh = { editor_new: desktopMap('Neu') };
     const runtimeGlobal = {
         curviosApp: { contracts: { localMaps: { getSnapshot: () => ({}), refresh: () => fresh } } },
     };
-    assert.deepEqual(refreshElectronLocalMaps(runtimeGlobal), fresh);
+    assert.deepEqual(await refreshElectronLocalMaps(runtimeGlobal), fresh);
 });
 
 test('merging saved maps grows the catalog in place and never replaces a built-in map', () => {
@@ -175,50 +226,52 @@ function createRefreshHarness({ gameState = 'MENU', localMaps = {} } = {}) {
     const calls = [];
     const catalog = { standard: desktopMap('Standard') };
     const knownKeys = new Set();
+    let currentState = gameState;
     const run = () => refreshLocalMapCatalog({
         gameState,
+        getGameState: () => currentState,
         catalog,
         knownKeys,
         fallbackMaps: {},
-        readLocalMaps: () => { calls.push('read'); return localMaps; },
+        readLocalMaps: async () => { calls.push('read'); return localMaps; },
         refreshRuntimeConfig: () => { calls.push('refresh-config'); },
         applySettings: () => { calls.push('apply-settings'); },
     });
-    return { run, calls, catalog, knownKeys };
+    return { run, calls, catalog, knownKeys, setGameState: (state) => { currentState = state; } };
 }
 
-test('a deleted user map refreshes the runtime config just like a new one', () => {
+test('a deleted user map refreshes the runtime config just like a new one', async () => {
     const harness = createRefreshHarness({ localMaps: {} });
     harness.catalog.editor_gone = desktopMap('Geloescht');
     harness.knownKeys.add('editor_gone');
-    assert.equal(harness.run(), true);
+    assert.equal(await harness.run(), true);
     assert.deepEqual(harness.calls, ['read', 'refresh-config', 'apply-settings']);
     assert.equal(harness.catalog.editor_gone, undefined);
 });
 
-test('a new saved map refreshes the runtime config and re-applies the settings', () => {
+test('a new saved map refreshes the runtime config and re-applies the settings', async () => {
     const harness = createRefreshHarness({ localMaps: { editor_live: desktopMap('Live') } });
-    assert.equal(harness.run(), true);
+    assert.equal(await harness.run(), true);
     assert.deepEqual(harness.calls, ['read', 'refresh-config', 'apply-settings']);
     assert.ok(harness.catalog.editor_live);
 });
 
-test('an unchanged user folder leaves the runtime untouched', () => {
+test('an unchanged user folder leaves the runtime untouched', async () => {
     const harness = createRefreshHarness({ localMaps: {} });
-    assert.equal(harness.run(), false);
+    assert.equal(await harness.run(), false);
     assert.deepEqual(harness.calls, ['read']);
 });
 
-test('no refresh runs while a match is on', () => {
+test('no refresh runs while a match is on', async () => {
     const harness = createRefreshHarness({ gameState: 'PLAYING', localMaps: { editor_live: desktopMap('Live') } });
-    assert.equal(harness.run(), false);
+    assert.equal(await harness.run(), false);
     assert.deepEqual(harness.calls, []);
     assert.equal(harness.catalog.editor_live, undefined);
 });
 
-test('outside the desktop shell nothing is read or applied', () => {
+test('outside the desktop shell nothing is read or applied', async () => {
     const calls = [];
-    const result = refreshLocalMapCatalog({
+    const result = await refreshLocalMapCatalog({
         gameState: 'MENU',
         catalog: {},
         knownKeys: new Set(['editor_x']),
@@ -228,4 +281,26 @@ test('outside the desktop shell nothing is read or applied', () => {
     });
     assert.equal(result, false);
     assert.deepEqual(calls, []);
+});
+
+test('a menu refresh finishing after gameplay begins does not mutate the live catalog', async () => {
+    let resolveMaps;
+    let currentState = 'MENU';
+    const catalog = {};
+    const applied = [];
+    const refresh = refreshLocalMapCatalog({
+        gameState: 'MENU',
+        getGameState: () => currentState,
+        catalog,
+        knownKeys: new Set(),
+        fallbackMaps: {},
+        readLocalMaps: () => new Promise((resolve) => { resolveMaps = resolve; }),
+        refreshRuntimeConfig: () => applied.push('config'),
+        applySettings: () => applied.push('settings'),
+    });
+    currentState = 'PLAYING';
+    resolveMaps({ editor_late: desktopMap('Late') });
+    assert.equal(await refresh, false);
+    assert.deepEqual(catalog, {});
+    assert.deepEqual(applied, []);
 });

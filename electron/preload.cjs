@@ -217,17 +217,23 @@ function readMenuDefaultsOverrideSnapshot() {
 }
 
 let cachedLocalMapsSnapshot = null;
+let localMapsRefreshGeneration = 0;
 
-// Beginne den Dateizugriff parallel zum Renderer-Bootstrap. Falls die Kartenmodule
-// schneller laden als der Hauptprozess antwortet, bleibt der synchrone Kanal als
-// kompatibler Fallback erhalten.
+function acceptLocalMapsSnapshot(snapshot, generation) {
+    if (generation !== localMapsRefreshGeneration
+        || snapshot?.ok !== true
+        || !snapshot.maps
+        || typeof snapshot.maps !== 'object'
+        || Array.isArray(snapshot.maps)) return null;
+    cachedLocalMapsSnapshot = snapshot.maps;
+    return cachedLocalMapsSnapshot;
+}
+
+// Der Hauptprozess waermt seinen Cache vor dem Fensterstart. Dieser asynchrone
+// Snapshot ist nur ein zusaetzlicher Bootstrap fuer den Renderer.
+const initialLocalMapsGeneration = localMapsRefreshGeneration;
 ipcRenderer.invoke('local-maps:read').then((snapshot) => {
-    if (cachedLocalMapsSnapshot === null
-        && snapshot?.ok === true
-        && snapshot.maps
-        && typeof snapshot.maps === 'object') {
-        cachedLocalMapsSnapshot = snapshot.maps;
-    }
+    if (cachedLocalMapsSnapshot === null) acceptLocalMapsSnapshot(snapshot, initialLocalMapsGeneration);
 }).catch(() => {});
 
 function readLocalMapsSnapshot() {
@@ -248,9 +254,15 @@ function createLocalMapsContract() {
         getSnapshot: () => deepCloneJson(readLocalMapsSnapshot()),
         // Der Editor speichert in einem eigenen Fenster. Das Spiel fragt beim
         // Zurueckkehren ueber denselben Kanal neu, statt einen zweiten zu oeffnen.
-        refresh: () => {
-            cachedLocalMapsSnapshot = null;
-            return deepCloneJson(readLocalMapsSnapshot());
+        refresh: async () => {
+            const generation = ++localMapsRefreshGeneration;
+            try {
+                const snapshot = await ipcRenderer.invoke('local-maps:read');
+                const maps = acceptLocalMapsSnapshot(snapshot, generation);
+                return maps ? deepCloneJson(maps) : null;
+            } catch {
+                return null;
+            }
         },
     });
 }
