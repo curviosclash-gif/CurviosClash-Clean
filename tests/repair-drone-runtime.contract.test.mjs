@@ -9,6 +9,7 @@ function createWorld() {
     let restoredHp = 0;
     const player = {
         index: 0,
+        teamId: 'ALPHA',
         alive: true,
         hp: 50,
         maxHp: 100,
@@ -17,8 +18,12 @@ function createWorld() {
         activeEffects: [{ type: 'REPAIR_DRONE', remaining: 20 }],
     };
     const nearTank = {
-        kind: 'tank', alive: true, hp: 90, maxHp: 150,
+        kind: 'tank', escortTank: true, teamId: 'ALPHA', alive: true, hp: 90, maxHp: 150,
         position: new THREE.Vector3(10, 2, 8),
+    };
+    const hostileTank = {
+        kind: 'tank', teamId: 'BRAVO', alive: true, hp: 60, maxHp: 120,
+        position: new THREE.Vector3(11, 2, 8),
     };
     const farTank = {
         kind: 'tank', alive: true, hp: 70, maxHp: 150,
@@ -37,15 +42,15 @@ function createWorld() {
                 return { healed: target.hp - before, hp: target.hp };
             },
         },
-        _mapUnitSystem: { units: [nearTank, farTank] },
+        _mapUnitSystem: { units: [nearTank, hostileTank, farTank] },
         _huntScoring: { registerRepairDroneHpRestored(_playerIndex, hp) { restoredHp += hp; } },
     };
-    return { manager, player, nearTank, farTank, removed, get restoredHp() { return restoredHp; } };
+    return { manager, player, nearTank, hostileTank, farTank, removed, get restoredHp() { return restoredHp; } };
 }
 
-test('the repair drone follows its owner and heals only to normal maximum', () => {
+test('the repair drone heals its own escort tank but not an enemy normal tank', () => {
     const world = createWorld();
-    const { manager, player, nearTank, farTank } = world;
+    const { manager, player, nearTank, hostileTank, farTank } = world;
     const system = new RepairDroneSystem(manager);
 
     system.update(1);
@@ -57,7 +62,9 @@ test('the repair drone follows its owner and heals only to normal maximum', () =
     assert.equal(drone.position.distanceTo(player.position) <= 5, true, 'the drone stays beside its owner');
     assert.equal(player.hp, 53, 'the owner receives 3 HP per second');
     assert.equal(nearTank.hp, 95, 'a nearby escort tank receives 5 HP per second');
+    assert.equal(hostileTank.hp, 60, 'a nearby enemy normal tank is not healed');
     assert.equal(farTank.hp, 70, 'distant tanks are not repaired');
+    assert.equal(world.restoredHp, 8, 'enemy HP is not counted as repair-drone scoring');
 
     player.hp = 99;
     nearTank.hp = 149;

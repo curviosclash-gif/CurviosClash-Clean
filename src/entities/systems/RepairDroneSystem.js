@@ -148,9 +148,10 @@ export class RepairDroneSystem {
     }
 
     _healNearbyTanks(drone, amount) {
+        const ownerTeamId = drone.ownerPlayer?.teamId || null;
         for (const unit of this.entityManager?._mapUnitSystem?.units || []) {
-            if (unit?.kind !== 'tank' || !unit.alive || !unit.position) continue;
-            if (unit.escortTank === true && drone.ownerPlayer?.teamId !== unit.teamId) continue;
+            if (unit?.kind !== 'tank' || unit.escortTank !== true || !unit.alive || !unit.position) continue;
+            if (!ownerTeamId || ownerTeamId !== unit.teamId) continue;
             if (unit.position.distanceTo(drone.position) > REPAIR_DRONE_RULES.tankRepairRadius) continue;
             const before = Math.max(0, Number(unit.hp) || 0);
             unit.hp = Math.min(Math.max(1, Number(unit.maxHp) || 1), before + amount);
