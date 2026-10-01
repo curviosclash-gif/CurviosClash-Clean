@@ -14,7 +14,7 @@ function renderSize(element) {
     };
 }
 
-export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {}) {
+export function createHangarViewport3d({ mount, overlay, color = '#66b6ff', lifecycle = {} } = {}) {
     if (!mount) {
         return Object.freeze({
             getStatus: () => 'unavailable', setBuild() {}, setSlotStates() {}, setDragPreview() {},
@@ -23,10 +23,24 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
         });
     }
 
-    const canvasHost = document.createElement('div');
+    const documentRef = lifecycle.documentRef || document;
+    const windowRef = lifecycle.windowRef || window;
+    const rendererFactory = lifecycle.rendererFactory
+        || ((options) => new THREE.WebGLRenderer(options));
+    const intersectionObserverFactory = lifecycle.intersectionObserverFactory !== undefined
+        ? lifecycle.intersectionObserverFactory
+        : (typeof globalThis.IntersectionObserver === 'function'
+            ? (callback) => new globalThis.IntersectionObserver(callback)
+            : null);
+    const resizeObserverFactory = lifecycle.resizeObserverFactory !== undefined
+        ? lifecycle.resizeObserverFactory
+        : (typeof globalThis.ResizeObserver === 'function'
+            ? (callback) => new globalThis.ResizeObserver(callback)
+            : null);
+    const canvasHost = documentRef.createElement('div');
     canvasHost.className = 'arcade-vehicle-preview-canvas hangar-viewport-canvas';
     mount.appendChild(canvasHost);
-    const statusLabel = document.createElement('p');
+    const statusLabel = documentRef.createElement('p');
     statusLabel.className = 'menu-hint arcade-vehicle-preview-status hangar-viewport-status';
     mount.appendChild(statusLabel);
     const scene = new THREE.Scene();
@@ -87,11 +101,72 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
     let cameraRevision = 0;
     let dragActive = false;
     let comparisonBuild = null;
+    let intersectionObserver = null;
+    let resizeObserver = null;
+    let intersectsViewport = intersectionObserverFactory === null;
+    let contextLost = false;
+
+    function hasVisibleLayout() {
+        if (documentRef.visibilityState === 'hidden' || mount.isConnected === false) return false;
+        if (typeof mount.getClientRects === 'function' && mount.getClientRects().length === 0) return false;
+        try {
+            if (typeof mount.checkVisibility === 'function' && !mount.checkVisibility()) return false;
+        } catch {
+            // Older DOM implementations may not support checkVisibility reliably.
+        }
+        return true;
+    }
+
+    function isViewportVisible() {
+        return !disposed && !contextLost && intersectsViewport && hasVisibleLayout();
+    }
+
+    function cancelFrame() {
+        if (rafId) windowRef.cancelAnimationFrame(rafId);
+        rafId = 0;
+        lastFrameMs = 0;
+    }
+
+    function scheduleFrame() {
+        if (!disposed && status === 'ready' && renderer && isViewportVisible() && !rafId) {
+            rafId = windowRef.requestAnimationFrame(frame);
+        }
+    }
+
+    function syncRenderActivity() {
+        if (isViewportVisible()) {
+            mount.dataset.hangarRenderLoop = renderer ? 'active' : status;
+            syncSize();
+            scheduleFrame();
+            return;
+        }
+        mount.dataset.hangarRenderLoop = disposed ? 'disposed' : 'paused';
+        cancelFrame();
+    }
+
+    function handleVisibilityChange() {
+        syncRenderActivity();
+    }
+
+    function handleContextLost(event) {
+        event?.preventDefault?.();
+        contextLost = true;
+        syncRenderActivity();
+    }
+
+    function handleContextRestored() {
+        contextLost = false;
+        lastFrameMs = 0;
+        syncSize(true);
+        syncRenderActivity();
+    }
 
     function setStatus(nextStatus, message) {
         status = nextStatus;
         mount.dataset.previewStatus = nextStatus;
-        mount.dataset.hangarRenderLoop = nextStatus === 'ready' ? 'active' : nextStatus;
+        mount.dataset.hangarRenderLoop = nextStatus === 'ready' && !isViewportVisible()
+            ? 'paused'
+            : nextStatus;
         statusLabel.textContent = message;
     }
 
@@ -174,7 +249,7 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
         overlay.replaceChildren();
         for (const slot of HANGAR_SLOT_DEFINITIONS) {
             const state = slotStates.find((entry) => entry.slotKey === slot.id) || {};
-            const button = document.createElement('button');
+            const button = documentRef.createElement('button');
             button.type = 'button';
             button.className = 'arcade-vehicle-slot-dot hangar-slot-hardpoint';
             button.dataset.slot = slot.id;
@@ -211,10 +286,9 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
     }
 
     function frame(nowMs) {
-        if (disposed || !renderer) return;
-        if (!mount.isConnected || mount.getClientRects().length === 0) {
-            lastFrameMs = nowMs;
-            rafId = window.requestAnimationFrame(frame);
+        rafId = 0;
+        if (disposed || status !== 'ready' || !renderer || !isViewportVisible()) {
+            syncRenderActivity();
             return;
         }
         syncSize();
@@ -232,16 +306,18 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
         cameraController?.update();
         renderer.render(scene, camera);
         projectOverlay();
-        rafId = window.requestAnimationFrame(frame);
+        scheduleFrame();
     }
 
     function initialize() {
         try {
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-            renderer.setPixelRatio(Math.min(2, Number(window.devicePixelRatio) || 1));
+            renderer = rendererFactory({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+            renderer.setPixelRatio(Math.min(2, Number(windowRef.devicePixelRatio) || 1));
             renderer.outputColorSpace = THREE.SRGBColorSpace;
             renderer.domElement.className = 'arcade-vehicle-preview-canvas-node hangar-viewport-canvas-node';
             renderer.domElement.setAttribute('aria-label', 'Interaktive 3D-Fahrzeugansicht');
+            renderer.domElement.addEventListener('webglcontextlost', handleContextLost);
+            renderer.domElement.addEventListener('webglcontextrestored', handleContextRestored);
             canvasHost.appendChild(renderer.domElement);
             cameraController = new HangarCameraController(camera, renderer.domElement);
             renderer.domElement.addEventListener('pointermove', onCanvasMove);
@@ -254,7 +330,8 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
             cameraController._cameraChange = cameraChange;
             syncSize(true);
             setStatus('ready', '3D-Workshop bereit');
-            rafId = window.requestAnimationFrame(frame);
+            resizeObserver?.observe?.(canvasHost);
+            syncRenderActivity();
         } catch {
             setStatus('fallback', '3D-Ansicht konnte nicht initialisiert werden');
         }
@@ -311,6 +388,34 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
         syncMarkerVisuals();
     }
 
+    if (intersectionObserverFactory) {
+        try {
+            intersectionObserver = intersectionObserverFactory((entries) => {
+                if (disposed) return;
+                for (const entry of entries) {
+                    if (entry.target === mount) intersectsViewport = entry.isIntersecting === true;
+                }
+                syncRenderActivity();
+            });
+            intersectionObserver?.observe?.(mount);
+        } catch {
+            intersectionObserver = null;
+            intersectsViewport = true;
+        }
+    }
+    if (resizeObserverFactory) {
+        try {
+            resizeObserver = resizeObserverFactory(() => {
+                if (disposed || !isViewportVisible()) return;
+                syncSize();
+                scheduleFrame();
+            });
+        } catch {
+            resizeObserver = null;
+        }
+    }
+    documentRef.addEventListener?.('visibilitychange', handleVisibilityChange);
+
     initialize();
 
     return Object.freeze({
@@ -352,8 +457,14 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
         dispose() {
             if (disposed) return;
             disposed = true;
-            if (rafId) window.cancelAnimationFrame(rafId);
-            rafId = 0;
+            cancelFrame();
+            intersectionObserver?.disconnect?.();
+            intersectionObserver = null;
+            resizeObserver?.disconnect?.();
+            resizeObserver = null;
+            documentRef.removeEventListener?.('visibilitychange', handleVisibilityChange);
+            renderer?.domElement?.removeEventListener('webglcontextlost', handleContextLost);
+            renderer?.domElement?.removeEventListener('webglcontextrestored', handleContextRestored);
             if (cameraController?._cameraChange) cameraController.controls.removeEventListener('change', cameraController._cameraChange);
             cameraController?.dispose();
             cameraController = null;
@@ -365,9 +476,10 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
             grid.geometry.dispose();
             if (Array.isArray(grid.material)) grid.material.forEach((material) => material.dispose());
             else grid.material.dispose();
-            renderer?.dispose();
             renderer?.domElement?.removeEventListener('pointermove', onCanvasMove);
             renderer?.domElement?.removeEventListener('click', onCanvasClick);
+            renderer?.forceContextLoss?.();
+            renderer?.dispose();
             renderer?.domElement?.remove();
             renderer = null;
             overlay?.replaceChildren();
