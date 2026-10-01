@@ -98,9 +98,11 @@ export function createFourPlayerPlanarInputSource({
             output.yawRight = inputManager.isDown(binding.right);
             output.rollLeft = inputManager.isDown(resolvedRollBinding.left);
             output.rollRight = inputManager.isDown(resolvedRollBinding.right);
-            if (controllerInput) {
+            if (Number.isFinite(controllerInput?.yawAxis) && Math.abs(controllerInput.yawAxis) > 0) {
                 output.yawLeft = controllerInput.yawLeft; output.yawRight = controllerInput.yawRight;
                 output.yawAxis = controllerInput.yawAxis;
+            }
+            if (Number.isFinite(controllerInput?.rollAxis) && Math.abs(controllerInput.rollAxis) > 0) {
                 output.rollLeft = controllerInput.rollLeft; output.rollRight = controllerInput.rollRight;
                 output.rollAxis = controllerInput.rollAxis;
             }

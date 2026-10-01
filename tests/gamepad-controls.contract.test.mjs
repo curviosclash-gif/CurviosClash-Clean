@@ -4,6 +4,7 @@ import { createGamepadInputSource, GamepadPauseInput } from '../src/shared/input
 import { normalizeGamepadControls } from '../src/shared/contracts/GamepadControlsContract.js';
 import { createPreferredMatchInputSource } from '../src/ui/MatchInputSourceResolver.js';
 import { createFourPlayerPlanarInputSource } from '../src/four-player-planar/FourPlayerPlanarInputSource.js';
+import { FOUR_PLAYER_PLANAR_KEY_BINDINGS, FOUR_PLAYER_PLANAR_ROLL_BINDINGS } from '../src/four-player-planar/FourPlayerPlanarContract.js';
 import { PlayerController } from '../src/entities/player/PlayerController.js';
 import { SettingsManager } from '../src/core/SettingsManager.js';
 import { createControlBindingsSnapshot } from '../src/shared/contracts/SettingsRuntimeContract.js';
@@ -108,6 +109,60 @@ test('four-player adapter accepts steering while preserving its restricted actio
     source.bind(0); pad.axes[0] = -1; pad.axes[2] = 0.5; pad.buttons[0].pressed = true; pad.buttons[4].pressed = true;
     assert.equal(source.poll().yawAxis, 1); assert.equal(source.poll().rollAxis, -stickAxis(0.5));
     assert.equal(source.poll().boost, false); assert.equal(source.poll().slowMo, false);
+    source.dispose();
+});
+
+test('four-player planar keeps keyboard yaw and roll when the paired gamepad axis is neutral', (t) => {
+    const { pad } = hardware(t);
+    const down = new Set();
+    const source = createFourPlayerPlanarInputSource({
+        inputManager: { isDown: (code) => down.has(code), wasPressed: () => false },
+        playerIndex: 0,
+    });
+    const yawKeys = FOUR_PLAYER_PLANAR_KEY_BINDINGS[0];
+    const rollKeys = FOUR_PLAYER_PLANAR_ROLL_BINDINGS[0];
+    source.bind(0);
+
+    down.add(yawKeys.left);
+    down.add(rollKeys.right);
+    const neutral = source.poll();
+    assert.equal(neutral.yawLeft, true, 'a resting yaw stick leaves keyboard yaw active');
+    assert.equal(neutral.yawAxis, undefined);
+    assert.equal(neutral.rollRight, true, 'a resting roll axis leaves keyboard roll active');
+    assert.equal(neutral.rollAxis, undefined);
+
+    pad.axes[0] = 0.7;
+    const activeYaw = source.poll();
+    assert.equal(activeYaw.yawRight, true, 'an active yaw stick keeps controller priority');
+    assert.equal(activeYaw.yawLeft, false);
+    assert.ok(activeYaw.yawAxis < 0, 'positive raw yaw keeps the controller source sign');
+    assert.equal(activeYaw.rollRight, true, 'neutral roll remains independently keyboard-driven');
+    assert.equal(activeYaw.rollAxis, undefined);
+
+    down.delete(yawKeys.right);
+    down.add(yawKeys.left);
+    down.delete(rollKeys.right);
+    down.add(rollKeys.left);
+    pad.axes[0] = 0;
+    pad.axes[2] = 0.7;
+    const activeRoll = source.poll();
+    assert.equal(activeRoll.yawLeft, true, 'neutral yaw remains independently keyboard-driven');
+    assert.equal(activeRoll.yawAxis, undefined);
+    assert.equal(activeRoll.rollRight, true, 'an active roll axis keeps controller priority');
+    assert.equal(activeRoll.rollLeft, false);
+    assert.ok(activeRoll.rollAxis < 0, 'positive raw roll keeps the controller source sign');
+
+    down.delete(yawKeys.left);
+    down.add(yawKeys.right);
+    down.delete(rollKeys.left);
+    down.add(rollKeys.right);
+    pad.axes[0] = -0.7;
+    pad.axes[2] = -0.7;
+    const negativeAxes = source.poll();
+    assert.equal(negativeAxes.yawLeft, true);
+    assert.ok(negativeAxes.yawAxis > 0, 'negative raw yaw keeps the controller source sign');
+    assert.equal(negativeAxes.rollLeft, true);
+    assert.ok(negativeAxes.rollAxis > 0, 'negative raw roll keeps the controller source sign');
     source.dispose();
 });
 
