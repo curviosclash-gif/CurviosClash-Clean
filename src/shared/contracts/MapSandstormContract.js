@@ -64,7 +64,8 @@ function normalizeShelterVolume(value, index) {
  */
 export function validateAuthoredMapSandstorm(value) {
     if (!value || typeof value !== 'object') return [];
-    const volumes = Array.isArray(value.shelterVolumes) ? value.shelterVolumes : [];
+    const authoredMap = /** @type {Record<string, unknown>} */ (value);
+    const volumes = Array.isArray(authoredMap.shelterVolumes) ? authoredMap.shelterVolumes : [];
     const issues = [];
     for (let index = 0; index < volumes.length; index += 1) {
         const volume = volumes[index];

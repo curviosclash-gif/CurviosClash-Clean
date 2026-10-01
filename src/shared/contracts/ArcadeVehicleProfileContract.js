@@ -160,13 +160,14 @@ function hasValidStoredProfileFieldTypes(entry) {
         const value = entry[field];
         if (!Number.isSafeInteger(value) || value < (field === 'level' ? 1 : 0)) return false;
     }
-    for (const [field, predicate] of [
+    const typedFields = /** @type {Array<[string, (value: unknown) => boolean]>} */ ([
         ['vehicleId', (value) => typeof value === 'string'],
         ['sizeWorkshopUnlocked', (value) => typeof value === 'boolean'],
         ['unlockedSlots', Array.isArray],
         ['upgrades', (value) => !!value && typeof value === 'object' && !Array.isArray(value)],
         ['partSizes', (value) => !!value && typeof value === 'object' && !Array.isArray(value)],
-    ]) {
+    ]);
+    for (const [field, predicate] of typedFields) {
         if (Object.prototype.hasOwnProperty.call(entry, field) && !predicate(entry[field])) return false;
     }
     if (entry.partSizes && typeof entry.partSizes === 'object' && !Array.isArray(entry.partSizes)) {
@@ -201,7 +202,7 @@ function hasValidStoredCosmeticFields(entry) {
                 const isHexColor = typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color);
                 const isNumericColor = typeof color === 'number' && Number.isInteger(color);
                 if (!isHexColor && !isNumericColor) return false;
-                const numericColor = isHexColor ? Number.parseInt(color.slice(1), 16) : color;
+                const numericColor = typeof color === 'number' ? color : Number.parseInt(color.slice(1), 16);
                 if (numericColor < 0 || numericColor > 0xffffff) return false;
             }
             if (Object.prototype.hasOwnProperty.call(value, 'scale')
