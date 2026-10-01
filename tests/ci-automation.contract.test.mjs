@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -19,6 +19,15 @@ import {
 
 function readRepoFile(relativePath) {
     return readFileSync(new URL(`../${relativePath}`, import.meta.url), 'utf8');
+}
+
+function readWorkflowJobSection(workflow, jobName) {
+    const marker = `  ${jobName}:\n`;
+    const start = workflow.indexOf(marker);
+    assert.notEqual(start, -1, `desktop workflow has no ${jobName} job`);
+    const remainder = workflow.slice(start + marker.length);
+    const nextJob = remainder.search(/\n  [a-z][a-z0-9-]*:\n/);
+    return nextJob === -1 ? remainder : remainder.slice(0, nextJob);
 }
 
 // Im Arbeitsordner liegen regelmaessig untracked Specs anderer Sitzungen. Der Katalog
@@ -67,7 +76,7 @@ test('push and pull requests run the complete quality command set', () => {
     }
 });
 
-test('desktop smoke covers product, dependency, branding, and launcher changes', () => {
+test('desktop CI shares one test renderer and installs Chromium only for browser jobs', () => {
     const workflow = readRepoFile('.github/workflows/desktop.yml');
     for (const pathFilter of [
         'src/**',
@@ -82,12 +91,46 @@ test('desktop smoke covers product, dependency, branding, and launcher changes',
     ]) {
         assert.match(workflow, new RegExp(pathFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     }
-    assert.match(workflow, /npm run test:desktop:smoke/);
     assert.match(workflow, /schedule:/);
     assert.match(workflow, /heavy-e2e:/);
     assert.match(workflow, /browser-compat:/);
     assert.match(workflow, /needs: smoke/);
     assert.match(workflow, /npm run test:browser:compat/);
+    assert.equal((workflow.match(/npm run build:app:test/g) || []).length, 1);
+    assert.equal((workflow.match(/run: npx playwright install chromium/g) || []).length, 2);
+    assert.doesNotMatch(workflow, /npm run test:desktop:(?:smoke|e2e)/);
+
+    const buildJob = readWorkflowJobSection(workflow, 'build-test-renderer');
+    assert.match(buildJob, /node-version-file: \.nvmrc/);
+    assert.match(buildJob, /npm ci/);
+    assert.match(buildJob, /npm run build:app:test/);
+    assert.match(buildJob, /uses: actions\/upload-artifact@v7/);
+    assert.match(buildJob, /name: desktop-test-renderer/);
+    assert.match(buildJob, /path: dist-app-test/);
+    assert.match(buildJob, /if-no-files-found: error/);
+
+    const smokeJob = readWorkflowJobSection(workflow, 'smoke');
+    assert.match(smokeJob, /needs: build-test-renderer/);
+    assert.match(smokeJob, /uses: actions\/download-artifact@v8/);
+    assert.match(smokeJob, /path: dist-app-test/);
+    assert.match(smokeJob, /node scripts\/run-playwright-smoke\.mjs/);
+    assert.doesNotMatch(smokeJob, /playwright install chromium/);
+
+    const e2eJob = readWorkflowJobSection(workflow, 'e2e');
+    assert.match(e2eJob, /needs: build-test-renderer/);
+    assert.match(e2eJob, /if: \$\{\{ matrix\.cluster != 'network' \}\}[\s\S]*?uses: actions\/download-artifact@v8/);
+    assert.match(e2eJob, /if: \$\{\{ matrix\.cluster == 'network' \}\}[\s\S]*?run: npx playwright install chromium/);
+    assert.match(e2eJob, /node scripts\/run-playwright-targeted-clusters\.mjs/);
+
+    const heavyJob = readWorkflowJobSection(workflow, 'heavy-e2e');
+    assert.match(heavyJob, /needs: build-test-renderer/);
+    assert.match(heavyJob, /uses: actions\/download-artifact@v8/);
+    assert.doesNotMatch(heavyJob, /playwright install chromium/);
+
+    const browserCompatJob = readWorkflowJobSection(workflow, 'browser-compat');
+    assert.match(browserCompatJob, /needs: smoke/);
+    assert.match(browserCompatJob, /run: npx playwright install chromium/);
+    assert.match(browserCompatJob, /npm run test:browser:compat/);
     for (const cluster of [...DESKTOP_E2E_CLUSTERS, ...HEAVY_DIAGNOSTIC_CLUSTERS]) {
         assert.match(workflow, new RegExp(`- ${cluster.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\r?\\n|$)`));
     }
@@ -285,9 +328,41 @@ function withTempRoots(assertions) {
     }
 }
 
+function writeSuccessfulContractSummary(args) {
+    const destination = args
+        .filter((value) => value.startsWith('--test-reporter-destination='))
+        .at(-1);
+    assert.ok(destination, 'the runner must provide the summary reporter destination');
+    const summaryPath = destination.slice('--test-reporter-destination='.length);
+    const selectedTests = selectNodeTestFiles(collectNodeTestFileNames('tests'), 'fast');
+    writeFileSync(summaryPath, JSON.stringify({
+        tests: selectedTests.length,
+        pass: selectedTests.length,
+        fail: 0,
+        cancelled: 0,
+        skipped: 0,
+        files: selectedTests.map((fileName) => ({
+            file: `tests/${fileName.replace(/\\/g, '/')}`,
+            tests: 1,
+            pass: 1,
+            fail: 0,
+            cancelled: 0,
+            skipped: 0,
+        })),
+    }), 'utf8');
+}
+
 test('the contract runner leaves no coverage temp folder behind', () => {
     withTempRoots((tmpRoot, contractSummaryPath) => {
-        const status = runContractTests(['fast'], { tmpRoot, contractSummaryPath, log: () => {}, spawn: () => ({ status: 0 }) });
+        const status = runContractTests(['fast'], {
+            tmpRoot,
+            contractSummaryPath,
+            log: () => {},
+            spawn: (_command, args) => {
+                writeSuccessfulContractSummary(args);
+                return { status: 0 };
+            },
+        });
 
         assert.equal(status, 0);
         assert.deepEqual(readdirSync(tmpRoot), [], 'a run without --coverage needs no temp folder at all');
