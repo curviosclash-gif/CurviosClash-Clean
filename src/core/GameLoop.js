@@ -18,7 +18,7 @@ export class GameLoop {
         this._errorShown = false;
         this.accumulator = 0;
         this.fixedStep = 1 / 60;
-        this.maxSubSteps = 3;
+        this.maxSubSteps = 4;
         this.renderAlpha = 1;
         this.renderDelta = this.fixedStep;
         this.runtimePerfProfiler = options?.runtimePerfProfiler || null;
