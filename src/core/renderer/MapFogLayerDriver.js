@@ -21,7 +21,12 @@ export class MapFogLayerDriver {
         this._layer = null;
         this._state = createMapFogLayerState();
         this._scale = 1;
-        this._lastWritten = null;
+        this._edges = { height: 0, heightFalloff: 0, floor: 0, floorFalloff: 0 };
+        this._hasLastWritten = false;
+        this._lastWrittenHeight = 0;
+        this._lastWrittenHeightFalloff = 0;
+        this._lastWrittenFloor = 0;
+        this._lastWrittenFloorFalloff = 0;
     }
 
     setLayer(source) {
@@ -30,11 +35,17 @@ export class MapFogLayerDriver {
             this._layer = null;
             // Only a map that actually moved its fog has edges to take back; clearing on every
             // plain map would fight the lighting profile that just wrote them.
-            if (this._lastWritten) this._write({ height: 0, heightFalloff: 0, floor: 0, floorFalloff: 0 });
+            if (this._hasLastWritten) {
+                this._edges.height = 0;
+                this._edges.heightFalloff = 0;
+                this._edges.floor = 0;
+                this._edges.floorFalloff = 0;
+                this._write(this._edges);
+            }
             return null;
         }
         this._layer = layer;
-        this._lastWritten = null;
+        this._hasLastWritten = false;
         return layer;
     }
 
@@ -45,7 +56,7 @@ export class MapFogLayerDriver {
 
     /** Re-sends the current edges, for callers that rewrote the fog uniforms underneath us. */
     refresh() {
-        this._lastWritten = null;
+        this._hasLastWritten = false;
         if (this._layer) this._write(this._edgesFor(this._state));
     }
 
@@ -57,24 +68,26 @@ export class MapFogLayerDriver {
 
     _edgesFor(state) {
         const scale = this._scale;
-        return {
-            height: state.ceiling * scale,
-            heightFalloff: state.ceilingFalloff / scale,
-            floor: state.floor * scale,
-            floorFalloff: state.floorFalloff / scale,
-        };
+        this._edges.height = state.ceiling * scale;
+        this._edges.heightFalloff = state.ceilingFalloff / scale;
+        this._edges.floor = state.floor * scale;
+        this._edges.floorFalloff = state.floorFalloff / scale;
+        return this._edges;
     }
 
     _write(edges) {
-        const last = this._lastWritten;
-        if (last
-            && last.height === edges.height
-            && last.heightFalloff === edges.heightFalloff
-            && last.floor === edges.floor
-            && last.floorFalloff === edges.floorFalloff) {
-            return last;
+        if (this._hasLastWritten
+            && this._lastWrittenHeight === edges.height
+            && this._lastWrittenHeightFalloff === edges.heightFalloff
+            && this._lastWrittenFloor === edges.floor
+            && this._lastWrittenFloorFalloff === edges.floorFalloff) {
+            return edges;
         }
-        this._lastWritten = edges;
+        this._hasLastWritten = true;
+        this._lastWrittenHeight = edges.height;
+        this._lastWrittenHeightFalloff = edges.heightFalloff;
+        this._lastWrittenFloor = edges.floor;
+        this._lastWrittenFloorFalloff = edges.floorFalloff;
         this._apply(edges);
         return edges;
     }

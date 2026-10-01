@@ -5,6 +5,7 @@ import { ATMOSPHERE_GRADIENT_GLSL } from '../src/core/renderer/AtmosphereGradien
 import { SKY_DOME_SHADER_SOURCES } from '../src/core/renderer/SkyDomeMaterial.js';
 
 import {
+    applyAtmosphericFogLayer,
     applyAtmosphericFogSettings,
     getAtmosphericFogSettings,
     getAtmosphericFogUniforms,
@@ -444,6 +445,27 @@ test('the two fog edges are independent and both reach the shader', () => {
     applyAtmosphericFogSettings({ floor: 'nonsense', floorFalloff: -4 });
     assert.equal(getAtmosphericFogSettings().floor, 0);
     assert.equal(getAtmosphericFogSettings().floorFalloff, 0);
+});
+
+test('travelling fog writes edge uniforms without returning an unused settings snapshot', () => {
+    const shared = getAtmosphericFogUniforms();
+    const result = applyAtmosphericFogLayer({
+        height: 146,
+        heightFalloff: 0.025,
+        floor: 26,
+        floorFalloff: 0.025,
+    });
+
+    assert.equal(result, undefined);
+    assert.equal(shared.fogHeightBase.value, 146);
+    assert.equal(shared.fogHeightFalloff.value, 0.025);
+    assert.equal(shared.fogFloorBase.value, 26);
+    assert.equal(shared.fogFloorFalloff.value, 0.025);
+    const snapshot = getAtmosphericFogSettings();
+    assert.deepEqual(
+        [snapshot.height, snapshot.heightFalloff, snapshot.floor, snapshot.floorFalloff],
+        [146, 0.025, 26, 0.025],
+    );
 });
 
 // Both edges active at once is the transition the forest passes through: fog between two heights

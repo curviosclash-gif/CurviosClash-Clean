@@ -64,6 +64,27 @@ test('an unchanged frame writes nothing', () => {
     assert.ok(applied.length > afterFirst, 'but a moving band does');
 });
 
+test('moving fog reuses its edge record without changing applied geometry', () => {
+    const edgeReferences = [];
+    const appliedValues = [];
+    const driver = new MapFogLayerDriver({
+        apply(edges) {
+            edgeReferences.push(edges);
+            appliedValues.push({ ...edges });
+        },
+    });
+    driver.setLayer(FOREST_LAYER);
+
+    driver.update(0);
+    driver.update(140);
+
+    assert.deepEqual(appliedValues, [
+        { height: 52, heightFalloff: 0.05, floor: 0, floorFalloff: 0 },
+        { height: 240, heightFalloff: 0, floor: 52, floorFalloff: 0.05 },
+    ]);
+    assert.strictEqual(edgeReferences[0], edgeReferences[1], 'one edge record is reused across moving frames');
+});
+
 test('leaving the map clears the edges exactly once', () => {
     const { driver, applied } = createDriver();
     driver.setLayer(FOREST_LAYER);

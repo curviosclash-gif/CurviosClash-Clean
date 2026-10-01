@@ -379,6 +379,7 @@ export function applyAtmosphericFogSettings(settings) {
  * left them, so a per-frame update costs four uniform writes and no colour conversion.
  *
  * @param {{height?: unknown, heightFalloff?: unknown, floor?: unknown, floorFalloff?: unknown}} edges
+ * @returns {void}
  */
 export function applyAtmosphericFogLayer(edges) {
     const height = Number(edges?.height);
@@ -389,7 +390,6 @@ export function applyAtmosphericFogLayer(edges) {
     sharedFogUniforms.fogHeightFalloff.value = Number.isFinite(heightFalloff) ? Math.max(0, heightFalloff) : 0;
     sharedFogUniforms.fogFloorBase.value = Number.isFinite(floor) ? floor : 0;
     sharedFogUniforms.fogFloorFalloff.value = Number.isFinite(floorFalloff) ? Math.max(0, floorFalloff) : 0;
-    return getAtmosphericFogSettings();
 }
 
 export function getAtmosphericFogSettings() {
