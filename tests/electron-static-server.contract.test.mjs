@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,6 +8,10 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const { isPortUnavailable, startStaticServer } = require('../electron/static-server.cjs');
+
+function hashSource(text) {
+    return `'sha256-${createHash('sha256').update(text.replace(/\r\n?/g, '\n'), 'utf8').digest('base64')}'`;
+}
 
 test('desktop static server CSP allows LAN HTTP lobby requests', async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), 'curvios-static-csp-'));
@@ -33,6 +38,9 @@ test('desktop static server CSP allows LAN HTTP lobby requests', async () => {
         assert.equal(connectSrc.trim().split(/\s+/).includes('http:'), false);
         assert.equal(connectSrc.trim().split(/\s+/).includes('ws:'), false);
         assert.equal(connectSrc.trim().split(/\s+/).includes('wss:'), false);
+        assert.match(csp, /script-src 'self'(?:\s|;|$)/);
+        assert.doesNotMatch(csp, /script-src[^;]*'unsafe-inline'/);
+        assert.match(csp, /style-src 'self' 'unsafe-inline'/);
         assert.match(csp, /frame-src 'none'/);
         assert.match(csp, /form-action 'none'/);
     } finally {
@@ -60,8 +68,47 @@ test('desktop static server CSP allows GLB texture and embedded map fetches', as
 
         // The relaxation stays confined to connect-src.
         assert.ok(directives.includes("default-src 'self'"), csp);
-        assert.ok(directives.includes("script-src 'self' 'unsafe-inline'"), csp);
+        assert.ok(directives.includes("script-src 'self'"), csp);
+        assert.doesNotMatch(csp, /script-src[^;]*'unsafe-inline'/);
         assert.ok(directives.includes("object-src 'none'"), csp);
+    } finally {
+        await server?.close?.();
+        await rm(rootDir, { recursive: true, force: true });
+    }
+});
+
+test('desktop static server hashes only the exact inline script text for each HTML page', async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), 'curvios-static-csp-hashes-'));
+    let server = null;
+    try {
+        const indexHtml = '<!doctype html><script type="importmap">\r\n{"imports":{}}\r\n</script><script src="/app.js"></script>';
+        const hangarHtml = '<!doctype html><script>window.hangarReady = true;</script>';
+        const emptyHtml = '<!doctype html><script src="/external.js"></script>';
+        await Promise.all([
+            writeFile(path.join(rootDir, 'index.html'), indexHtml, 'utf8'),
+            writeFile(path.join(rootDir, 'hangar.html'), hangarHtml, 'utf8'),
+            writeFile(path.join(rootDir, 'empty.html'), emptyHtml, 'utf8'),
+        ]);
+        server = await startStaticServer({ rootDir, port: 0 });
+
+        const policies = new Map();
+        for (const [page, html] of [['/', indexHtml], ['/hangar.html', hangarHtml], ['/empty.html', emptyHtml]]) {
+            const response = await fetch(new URL(page, server.url));
+            const csp = response.headers.get('content-security-policy') || '';
+            const scriptSrc = csp.split(';').map((part) => part.trim()).find((part) => part.startsWith('script-src')) || '';
+            const expectedHashes = [...html.replace(/\r\n?/g, '\n').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
+                .filter((match) => !/(?:^|\s)src(?:\s|=|$)/i.test(match[1]))
+                .map((match) => hashSource(match[2]));
+
+            assert.doesNotMatch(scriptSrc, /'unsafe-inline'/, `${page}: ${scriptSrc}`);
+            for (const hash of expectedHashes) assert.ok(scriptSrc.split(/\s+/).includes(hash), `${page}: missing ${hash}`);
+            assert.equal(scriptSrc.split(/\s+/).includes(hashSource('window.untrusted = true;')), false);
+            assert.match(csp, /style-src 'self' 'unsafe-inline'/);
+            policies.set(page, scriptSrc);
+        }
+
+        assert.notEqual(policies.get('/'), policies.get('/hangar.html'));
+        assert.equal(policies.get('/empty.html'), "script-src 'self'");
     } finally {
         await server?.close?.();
         await rm(rootDir, { recursive: true, force: true });
