@@ -1,13 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { invalidateMultiplayerReadyIfHostChangedSettings } from '../src/core/runtime/MenuRuntimeMultiplayerService.js';
+import {
+    createMultiplayerMatchSettingsSnapshot,
+    invalidateMultiplayerReadyIfHostChangedSettings,
+} from '../src/core/runtime/MenuRuntimeMultiplayerService.js';
 import { MATCH_SETTING_CHANGE_KEY_SET } from '../src/core/runtime/GameRuntimeSettingsKeySets.js';
 import { StorageLobbyService } from '../src/application/session-runtime/StorageLobbyService.js';
 import { createLobbyStorageKey } from '../src/application/session-runtime/StorageLobbyServiceSupport.js';
 import { LOBBY_SERVICE_EVENT_TYPES } from '../src/shared/contracts/LobbyServiceContract.js';
 import { LOBBY_LIFECYCLE_EVENT_CONTRACT_VERSION } from '../src/shared/contracts/LobbyLifecycleEventContract.js';
-import { SETTINGS_CHANGE_KEYS } from '../src/shared/settings/SettingsChangeKeys.js';
+import {
+    SETTINGS_CHANGE_KEYS,
+    SETTINGS_CHANGE_PATH_ENTRIES,
+} from '../src/shared/settings/SettingsChangeKeys.js';
 
 /**
  * Replaces the Playwright test T75 ("Host-Settings invalidieren Ready-Status per Event-Contract",
@@ -45,6 +51,57 @@ test('every team rule invalidates multiplayer readiness', () => {
         SETTINGS_CHANGE_KEYS.HUNT_TEAM_BOT_DIFFICULTY,
     ]) {
         assert.equal(MATCH_SETTING_CHANGE_KEY_SET.has(key), true, key);
+    }
+});
+
+function writePath(target, path, value) {
+    const segments = path.split('.');
+    let current = target;
+    for (const segment of segments.slice(0, -1)) {
+        current[segment] ??= {};
+        current = current[segment];
+    }
+    current[segments.at(-1)] = value;
+}
+
+function hasPath(target, path) {
+    return path.split('.').every((segment) => {
+        if (target == null || !Object.prototype.hasOwnProperty.call(target, segment)) return false;
+        target = target[segment];
+        return true;
+    });
+}
+
+test('every mutable field in the multiplayer snapshot invalidates host readiness', () => {
+    const settings = {};
+    for (const [path, key] of SETTINGS_CHANGE_PATH_ENTRIES) {
+        if (key === SETTINGS_CHANGE_KEYS.SESSION_TYPE) continue;
+        writePath(settings, path, `snapshot-probe:${key}`);
+    }
+
+    const snapshot = createMultiplayerMatchSettingsSnapshot(settings);
+    for (const [path, key] of SETTINGS_CHANGE_PATH_ENTRIES) {
+        if (key === SETTINGS_CHANGE_KEYS.SESSION_TYPE || !hasPath(snapshot, path)) continue;
+        assert.equal(MATCH_SETTING_CHANGE_KEY_SET.has(key), true, `${key} (${path})`);
+    }
+
+    for (const key of [
+        SETTINGS_CHANGE_KEYS.MODE,
+        SETTINGS_CHANGE_KEYS.GAME_MODE,
+        SETTINGS_CHANGE_KEYS.MAP_KEY,
+    ]) {
+        assert.equal(MATCH_SETTING_CHANGE_KEY_SET.has(key), true, key);
+    }
+
+    for (const key of [
+        SETTINGS_CHANGE_KEYS.LOCAL_AUDIO_MASTER_VOLUME,
+        SETTINGS_CHANGE_KEYS.LOCAL_GRAPHICS_STYLE,
+        SETTINGS_CHANGE_KEYS.LAN_HOST_LOCAL_PLAYER_COUNT,
+        SETTINGS_CHANGE_KEYS.SESSION_TYPE,
+        SETTINGS_CHANGE_KEYS.ARCADE_GHOST_DUEL_MODE,
+        SETTINGS_CHANGE_KEYS.ARCADE_GHOST_TRAIL_COLLISION_ENABLED,
+    ]) {
+        assert.equal(MATCH_SETTING_CHANGE_KEY_SET.has(key), false, key);
     }
 });
 
