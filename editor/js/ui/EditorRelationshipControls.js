@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { writePropertyFieldValue } from './EditorFormState.js';
 
 function listByType(editor, type) {
     return Array.from(editor?.core?.objectsContainer?.children || [])
@@ -120,9 +121,9 @@ export function bindEditorRelationshipControls(editor) {
             dom.propPortalPartner.value = String(object.userData.portalPartnerId || '');
         }
         if (object?.userData?.type === 'checkpoint' && dom.propCheckpointOrder) {
-            dom.propCheckpointOrder.value = String(Number(object.userData.checkpointOrder) || 0);
+            writePropertyFieldValue(editor, 'checkpointOrder', Number(object.userData.checkpointOrder) || 0);
         } else if (object?.userData?.type === 'escort_waypoint' && dom.propCheckpointOrder) {
-            dom.propCheckpointOrder.value = String(Number(object.userData.escortOrder) || 0);
+            writePropertyFieldValue(editor, 'checkpointOrder', Number(object.userData.escortOrder) || 0);
         }
     };
 

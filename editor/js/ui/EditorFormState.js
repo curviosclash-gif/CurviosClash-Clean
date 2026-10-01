@@ -67,6 +67,7 @@ export function setJsonEditorText(editor, value) {
 
 const PROPERTY_FIELD_MAP = Object.freeze({
     group: 'propGroup',
+    checkpointOrder: 'propCheckpointOrder',
     x: 'propX',
     y: 'propY',
     z: 'propZ',
