@@ -1095,7 +1095,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 winsNeeded: lobby.metadata.winsNeeded,
                 ip: hostIp || undefined,
                 hostIp: hostIp || undefined,
-                diagnostics,
+                ...(isLoopbackRequest(req) ? { diagnostics } : {}),
             });
             return;
         }

@@ -28,13 +28,13 @@ async function stopLanServer(server) {
     await new Promise((resolve) => server.close(() => resolve()));
 }
 
-async function invokeRequestFromRemote(server, remoteAddress, headers = {}) {
+async function invokeRequestFromRemote(server, remoteAddress, headers = {}, url = '/discovery/info') {
     const handler = server.listeners('request')[0];
     const req = new EventEmitter();
     Object.assign(req, {
         socket: { remoteAddress },
         method: 'GET',
-        url: '/discovery/info',
+        url,
         headers,
         resume() {},
     });
@@ -197,6 +197,57 @@ test('LAN discovery hides join data, status requires a token, and CORS rejects p
         });
         assert.equal(capacitorPreflight.status, 200);
         assert.equal(capacitorPreflight.headers.get('access-control-allow-origin'), capacitorOrigin);
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
+test('LAN discovery exposes full diagnostics only to loopback and keeps public connection details', async () => {
+    const diagnosticSnapshot = {
+        running: true,
+        hostIp: '192.168.1.44',
+        localIps: ['192.168.1.44', '10.0.0.8'],
+        selectedPort: 19090,
+        selectedPortMode: 'fallback',
+        configuredPorts: [9090, 19090],
+        vpn: { adapters: ['private-vpn'] },
+        lastError: { message: 'private start detail' },
+    };
+    const lanServer = await startLanServer({ resolveDiagnostics: () => diagnosticSnapshot });
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', {
+            maxPlayers: 4,
+            actorId: 'Captain',
+            name: 'Captain',
+            metadata: { mapKey: 'maze', gameMode: 'HUNT', modePath: 'fight', winsNeeded: 7 },
+        });
+        const discoveryPath = `/discovery/info?${new URLSearchParams({ lobbyCode: created.payload.lobbyCode })}`;
+
+        const loopbackResponse = await invokeRequestFromRemote(lanServer.server, '127.0.0.1', {}, discoveryPath);
+        const loopbackPayload = JSON.parse(loopbackResponse.body);
+        assert.deepEqual(loopbackPayload.diagnostics, diagnosticSnapshot);
+
+        const lanResponse = await invokeRequestFromRemote(
+            lanServer.server,
+            '192.168.1.27',
+            { 'x-forwarded-for': '127.0.0.1' },
+            discoveryPath,
+        );
+        const lanPayload = JSON.parse(lanResponse.body);
+        assert.equal(lanPayload.matchesLobby, true);
+        assert.equal(lanPayload.playerCount, 1);
+        assert.equal(lanPayload.maxPlayers, 4);
+        assert.equal(lanPayload.mapKey, 'maze');
+        assert.equal(lanPayload.gameMode, 'HUNT');
+        assert.equal(lanPayload.modePath, 'fight');
+        assert.equal(lanPayload.winsNeeded, 7);
+        assert.equal(lanPayload.ip, '192.168.1.44');
+        assert.equal(lanPayload.hostIp, '192.168.1.44');
+        assert.equal('diagnostics' in lanPayload, false);
+        assert.equal('localIps' in lanPayload, false);
+        assert.equal('configuredPorts' in lanPayload, false);
+        assert.equal('selectedPort' in lanPayload, false);
+        assert.equal('lastError' in lanPayload, false);
     } finally {
         await stopLanServer(lanServer.server);
     }
