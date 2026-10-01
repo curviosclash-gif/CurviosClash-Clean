@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { MediaRecorderSystem } from '../src/core/MediaRecorderSystem.js';
 import { RECORDER_ENGINE } from '../src/core/recording/MediaRecorderSupport.js';
+import { renderQueuedCinematicReplay } from '../src/core/recording/CinematicReplayMediaRecorderOps.js';
 
 function withGlobalPatch(patch, callback) {
     const previous = new Map();
@@ -217,5 +218,106 @@ test('a late desktop save failure updates the pending export to failed', async (
 
         assert.equal(recorder.getLastExportMeta()?.exportStatus?.status, 'desktop_save_failed');
         assert.equal(recorder.getLastExportMeta()?.failureReason, 'desktop-save-failed');
+    });
+});
+
+test('partial export replacements revoke the old URL once and keep the newest export through dispose', async () => {
+    const revokedUrls = [];
+    const createdUrls = [];
+    let nextUrl = 0;
+    await withGlobalPatch({
+        URL: {
+            createObjectURL(blob) {
+                const objectUrl = `blob:recording-${++nextUrl}`;
+                createdUrls.push({ objectUrl, blob });
+                return objectUrl;
+            },
+            revokeObjectURL(objectUrl) { revokedUrls.push(objectUrl); },
+        },
+    }, async () => {
+        const recorder = new MediaRecorderSystem({
+            canvas: null,
+            autoRecordingEnabled: false,
+            autoDownload: false,
+            logger: null,
+        });
+        const normalBlob = new Blob(['normal clip'], { type: 'video/webm' });
+        await recorder._finalizeBlobExport(normalBlob, 'video/webm');
+        const oldUrl = recorder._lastExport.objectUrl;
+        assert.equal(oldUrl, 'blob:recording-1');
+
+        const stopWithPartialBlob = async (engine, blob) => {
+            recorder._isRecording = true;
+            recorder._activeRecorderEngine = engine;
+            recorder._activeRecording = { startedAt: Date.now(), trigger: { type: 'contract_test' } };
+            recorder._activeRecorderStrategy = {
+                stop: async () => ({
+                    ok: true,
+                    blob,
+                    mimeType: 'video/webm',
+                    partial: true,
+                    partialReason: 'contract_test_partial',
+                }),
+                dispose() {},
+            };
+            return recorder.stopRecording({ type: 'contract_test' });
+        };
+
+        const firstPartial = new Blob(['first partial'], { type: 'video/webm' });
+        await stopWithPartialBlob(RECORDER_ENGINE.NATIVE_MEDIARECORDER, firstPartial);
+        assert.deepEqual(revokedUrls, [oldUrl], 'the first partial replaces and releases the previous normal export URL');
+        assert.strictEqual(recorder._lastExport.blob, firstPartial);
+
+        const secondPartial = new Blob(['second partial'], { type: 'video/webm' });
+        await stopWithPartialBlob(RECORDER_ENGINE.NATIVE_WEBCODECS, secondPartial);
+        assert.deepEqual(revokedUrls, [oldUrl], 'the displaced partial had no URL to revoke a second time');
+        assert.strictEqual(recorder._lastExport.blob, secondPartial, 'the newest partial blob remains available');
+
+        const latestNormalBlob = new Blob(['latest normal clip'], { type: 'video/webm' });
+        await recorder._finalizeBlobExport(latestNormalBlob, 'video/webm');
+        const latestUrl = recorder._lastExport.objectUrl;
+        assert.equal(latestUrl, 'blob:recording-2', 'the next normal export keeps its newly created URL');
+        assert.deepEqual(revokedUrls, [oldUrl]);
+
+        await recorder.dispose();
+        assert.deepEqual(revokedUrls, [oldUrl, latestUrl], 'dispose releases the currently retained URL exactly once');
+        assert.deepEqual(createdUrls.map(({ objectUrl }) => objectUrl), [oldUrl, latestUrl]);
+    });
+});
+
+test('cinematic replay replacement revokes a previously retained export URL', async () => {
+    const revokedUrls = [];
+    let nextUrl = 0;
+    await withGlobalPatch({
+        URL: {
+            createObjectURL() { return `blob:cinematic-${++nextUrl}`; },
+            revokeObjectURL(objectUrl) { revokedUrls.push(objectUrl); },
+        },
+    }, async () => {
+        const recorder = new MediaRecorderSystem({
+            canvas: null,
+            autoRecordingEnabled: false,
+            autoDownload: false,
+            logger: null,
+        });
+        await recorder._finalizeBlobExport(new Blob(['prior export'], { type: 'video/webm' }), 'video/webm');
+        const previousUrl = recorder._lastExport.objectUrl;
+
+        recorder._cinematicReplayRecorder = { isRecording: false };
+        recorder._pendingStop = null;
+        recorder._cinematicReplayLibrary = {
+            getReplay: (id) => (id === 'replay-1' ? { id } : null),
+            remove: (id) => id === 'replay-1',
+        };
+        recorder._cinematicReplayExporter = {
+            export: async () => ({ saved: true, fileName: 'replay.mp4' }),
+        };
+        recorder._notifyCinematicReplayLibraryChange = () => {};
+
+        const result = await renderQueuedCinematicReplay(recorder, 'replay-1');
+        assert.equal(result.saved, true);
+        assert.deepEqual(revokedUrls, [previousUrl]);
+        assert.equal(recorder._lastExport.fileName, 'replay.mp4');
+        assert.equal(recorder._lastExport.objectUrl, undefined);
     });
 });

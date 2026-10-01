@@ -1,5 +1,7 @@
 // @ts-nocheck
 
+import { replaceLastExport } from './MediaRecorderExportFinalizeOps.js';
+
 export function startCinematicReplay(system, trigger = null) {
     const capacity = system._cinematicReplayLibrary.getCapacityState();
     if (!capacity.canRecord) {
@@ -116,7 +118,7 @@ export async function renderQueuedCinematicReplay(system, recordingId) {
         return { ...exportResult, recordingId, replayRetained: true };
     }
     system._cinematicReplayLibrary.remove(recordingId);
-    system._lastExport = {
+    replaceLastExport(system, {
         ...exportResult,
         fileName: exportResult.fileName || null,
         filePath: exportResult.filePath || null,
@@ -126,7 +128,7 @@ export async function renderQueuedCinematicReplay(system, recordingId) {
         container: 'mp4',
         mimeType: 'video/mp4',
         warnings: Array.isArray(exportResult.warnings) ? exportResult.warnings.slice() : [],
-    };
+    });
     system._notifyCinematicReplayLibraryChange();
     return {
         ...exportResult,

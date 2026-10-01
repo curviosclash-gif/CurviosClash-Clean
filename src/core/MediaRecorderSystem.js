@@ -44,6 +44,7 @@ import {
     attachDirectMediaRecorderStopHandler,
     DEFAULT_EXPORT_WAIT_TIMEOUT_MS,
     finalizeMediaRecorderBlobExport,
+    replaceLastExport,
 } from './recording/MediaRecorderExportFinalizeOps.js';
 import { CinematicReplayRecorder } from './recording/CinematicReplayRecorder.js';
 import { CinematicReplayExportController } from './recording/CinematicReplayExportController.js';
@@ -1249,12 +1250,12 @@ export class MediaRecorderSystem {
                             replayRetained: false,
                         });
                         const resolve = this._activeRecording?.stopResolve;
-                        this._lastExport = {
+                        replaceLastExport(this, {
                             blob: strategyStopResult.blob,
                             mimeType: strategyStopResult.mimeType || this._activeMimeType,
                             partial: true,
                             partialReason: result.partialReason,
-                        };
+                        });
                         this._cleanupRuntimeRecorder();
                         this._pendingStop = null;
                         if (typeof resolve === 'function') resolve(result);
@@ -1329,12 +1330,12 @@ export class MediaRecorderSystem {
                         replayRetained: false,
                     });
                     const resolve = this._activeRecording?.stopResolve;
-                    this._lastExport = {
+                    replaceLastExport(this, {
                         blob: strategyStopResult.blob,
                         mimeType: strategyStopResult.mimeType || DEFAULT_MIME_TYPE,
                         partial: true,
                         partialReason: result.partialReason,
-                    };
+                    });
                     this._cleanupRuntimeRecorder();
                     this._pendingStop = null;
                     if (typeof resolve === 'function') resolve(result);
@@ -1456,10 +1457,7 @@ export class MediaRecorderSystem {
                 this._pendingStop = null;
             }
         }
-        if (this._lastExport?.objectUrl) {
-            URL.revokeObjectURL(this._lastExport.objectUrl);
-        }
-        this._lastExport = null;
+        replaceLastExport(this, null);
         this._lifecycleEvents.length = 0;
         if (!this._pendingStop && !this._isRecording) {
             this._cleanupRuntimeRecorder();

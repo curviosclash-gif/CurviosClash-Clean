@@ -16,6 +16,14 @@ import { resolveRecordingExportContainerFromMimeType } from './RecordingVideoExp
 export const DEFAULT_EXPORT_WAIT_TIMEOUT_MS = 10_000;
 export const RECORDING_EXPORT_PENDING_STATUS = 'export_pending';
 
+export function replaceLastExport(system, nextExport) {
+    if (system?._lastExport?.objectUrl) {
+        URL.revokeObjectURL(system._lastExport.objectUrl);
+    }
+    if (system) system._lastExport = nextExport ?? null;
+    return nextExport ?? null;
+}
+
 export function attachDirectMediaRecorderStopHandler(system) {
     const recorder = system?._mediaRecorder;
     if (!recorder) return false;
@@ -278,9 +286,6 @@ export async function finalizeMediaRecorderBlobExport(system, blob, mimeType = D
         || createPendingExportStatus(resolvedMasterContainer, exportWaitTimeoutMs);
     const exportFields = resolveExportStatusFields(exportStatus, resolvedMasterContainer);
 
-    if (system._lastExport?.objectUrl) {
-        URL.revokeObjectURL(system._lastExport.objectUrl);
-    }
     const objectUrl = safeBlob.size > 0 ? URL.createObjectURL(safeBlob) : null;
     const exportSummary = {
         fileName,
@@ -312,7 +317,7 @@ export async function finalizeMediaRecorderBlobExport(system, blob, mimeType = D
         objectUrl,
         trigger: activeRecording?.stopTrigger || activeRecording?.trigger || null,
     };
-    system._lastExport = exportRecord;
+    replaceLastExport(system, exportRecord);
 
     const resolve = activeRecording?.stopResolve;
     system._cleanupRuntimeRecorder();
