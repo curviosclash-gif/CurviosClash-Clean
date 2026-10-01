@@ -322,6 +322,11 @@ export function createLANSignalingServer(port = 9090, options = {}) {
     };
 
     const cleanupGhostPlayers = (timestamp = now()) => {
+        for (const [remoteAddress, requestRate] of requestRates.entries()) {
+            if (timestamp - Number(requestRate?.windowStartedAt || 0) >= requestRateWindowMs) {
+                requestRates.delete(remoteAddress);
+            }
+        }
         if (lobby.players.length > 0) {
             const stalePlayers = lobby.players
                 .filter((entry) => timestamp - Number(entry.lastActivityAt || entry.joinedAt || 0) >= ghostPlayerTimeoutMs);
@@ -364,7 +369,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
 
     const server = http.createServer(async (req, res) => {
         if (!isLoopbackRequest(req)) {
-            const timestamp = Date.now();
+            const timestamp = now();
             const remoteAddress = String(req.socket?.remoteAddress || 'unknown');
             let requestRate = requestRates.get(remoteAddress);
             if (!requestRate || timestamp - requestRate.windowStartedAt >= requestRateWindowMs) {

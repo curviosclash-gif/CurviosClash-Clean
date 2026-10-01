@@ -198,6 +198,7 @@ export class SessionAdapterBase extends SessionAdapter {
             clearTimeout(entry.timer);
         }
         this._disconnectedPeers.delete(normalizedPeerId);
+        this._lastInputSequenceByPeer.delete(normalizedPeerId);
         this._closePeerConnection(normalizedPeerId);
         this._removePeerLatency(normalizedPeerId);
         this._sendStateToAll(this._createStateMessage(MULTIPLAYER_MESSAGE_TYPES.PLAYER_REMOVED, {

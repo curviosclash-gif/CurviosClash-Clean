@@ -698,6 +698,29 @@ test('LAN signaling exempts loopback from per-IP limits but still limits LAN soc
     }
 });
 
+test('LAN signaling expires request-rate windows through the injected cleanup clock', async () => {
+    let currentTime = Date.now();
+    const lanServer = await startLanServer({
+        now: () => currentTime,
+        maxRequestsPerIp: 1,
+        requestRateWindowMs: 100,
+        ghostCleanupIntervalMs: 0,
+    });
+
+    try {
+        const remoteAddress = '192.168.1.88';
+        assert.equal((await invokeRequestFromRemote(lanServer.server, remoteAddress)).statusCode, 200);
+        assert.equal((await invokeRequestFromRemote(lanServer.server, remoteAddress)).statusCode, 429);
+
+        currentTime += 100;
+        lanServer.cleanupGhostPlayers();
+
+        assert.equal((await invokeRequestFromRemote(lanServer.server, remoteAddress)).statusCode, 200);
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
 test('LAN signaling requires host token for host-only mutating routes', async () => {
     const lanServer = await startLanServer();
     try {

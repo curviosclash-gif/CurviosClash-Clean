@@ -543,6 +543,37 @@ test('client-side adapters deduplicate disconnect events per peer', () => {
     assert.equal(events.length, 2);
 });
 
+test('input sequence high-water marks survive transient reconnects and clear on final peer removal', () => {
+    class TestAdapter extends SessionAdapterBase {
+        constructor(options = {}) {
+            super({ ...options, isHost: true });
+        }
+        _sendStateToAll() {}
+        _sendStateToPeer() {}
+        _closePeerConnection() {}
+        _removePeerLatency() {}
+    }
+
+    const adapter = new TestAdapter();
+    assert.equal(adapter._acceptInputSequence('peer-a', 4), true);
+    assert.equal(adapter._acceptInputSequence('peer-b', 1), true);
+
+    adapter._registerPeerDisconnect('peer-a', 'network-drop');
+    clearTimeout(adapter._disconnectedPeers.get('peer-a').timer);
+    adapter._resolvePeerReconnect('peer-a');
+    assert.equal(adapter._acceptInputSequence('peer-a', 4), false);
+    assert.equal(adapter._acceptInputSequence('peer-a', 5), true);
+
+    adapter._registerPeerDisconnect('peer-a', 'permanent-drop');
+    clearTimeout(adapter._disconnectedPeers.get('peer-a').timer);
+    adapter._finalizePeerRemoval('peer-a');
+
+    assert.equal(adapter._lastInputSequenceByPeer.has('peer-a'), false);
+    assert.equal(adapter._lastInputSequenceByPeer.get('peer-b'), 1);
+    assert.equal(adapter._acceptInputSequence('peer-a', 1), true);
+    adapter.dispose();
+});
+
 test('multiplayer lifecycle kernel observes async returnToMenu and suppresses duplicate triggers', async () => {
     const session = createEventHarness();
     let callCount = 0;
