@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -75,6 +75,31 @@ test('editor downloads never overwrite an existing export', async () => {
 
         await writeFile(path.join(downloads, 'schiff (2).json'), '{}', 'utf8');
         assert.equal(resolveFreeTargetPath(downloads, 'schiff.json'), path.join(downloads, 'schiff (3).json'));
+    } finally {
+        await rm(downloads, { recursive: true, force: true });
+    }
+});
+
+test('editor downloads keep searching after fifty existing name collisions', async () => {
+    const downloads = await mkdtemp(path.join(os.tmpdir(), 'curvios-dl-'));
+    const session = new EventEmitter();
+    try {
+        for (let index = 1; index <= 60; index += 1) {
+            const fileName = index === 1 ? 'fleet.json' : `fleet (${index}).json`;
+            await writeFile(path.join(downloads, fileName), `keep-${index}`, 'utf8');
+        }
+        installEditorDownloadTarget(session, {
+            isTrustedEditorUrl: (url) => url === TRUSTED_URL,
+            getDownloadsDirectory: () => downloads,
+        });
+
+        const item = emitDownload(session, 'fleet.json', TRUSTED_URL);
+
+        assert.equal(item.getSavePath(), path.join(downloads, 'fleet (61).json'));
+        for (const index of [1, 50, 60]) {
+            const fileName = index === 1 ? 'fleet.json' : `fleet (${index}).json`;
+            assert.equal(await readFile(path.join(downloads, fileName), 'utf8'), `keep-${index}`);
+        }
     } finally {
         await rm(downloads, { recursive: true, force: true });
     }

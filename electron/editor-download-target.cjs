@@ -12,7 +12,6 @@ const UNSAFE_FILE_NAME_CODES = new Set(
 );
 const HIGHEST_CONTROL_CODE = 0x1f;
 const LEADING_NOISE = /^[.\s-]+/;
-const MAX_NAME_ATTEMPTS = 50;
 
 /**
  * Macht aus einer beliebigen Vorgabe einen einzelnen, sicheren Dateinamen.
@@ -44,7 +43,7 @@ function resolveFreeTargetPath(directory, fileName) {
     const extension = path.extname(fileName);
     const stem = extension ? fileName.slice(0, -extension.length) : fileName;
     let candidate = path.join(directory, fileName);
-    for (let attempt = 2; existsSync(candidate) && attempt <= MAX_NAME_ATTEMPTS; attempt += 1) {
+    for (let attempt = 2; existsSync(candidate); attempt += 1) {
         candidate = path.join(directory, `${stem} (${attempt})${extension}`);
     }
     return candidate;
