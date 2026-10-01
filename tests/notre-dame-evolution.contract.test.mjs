@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
+import * as THREE from 'three';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
 import { NOTRE_DAME_EVOLUTION_MAPS as maps } from '../src/core/config/maps/presets/notre_dame/NotreDameEvolution.js';
+import { Renderer } from '../src/core/Renderer.js';
+import { MapFireEvolutionController } from '../src/entities/arena/MapFireEvolutionController.js';
 import { MapDestructibleSystem } from '../src/entities/systems/MapDestructibleSystem.js';
 import { createMapFireProgression, advanceMapFireProgression, damageMapFireSegment, resolveMapFireProgress } from '../src/shared/contracts/MapFireProgressionContract.js';
+import { resolveMapLighting } from '../src/shared/contracts/MapLightingContract.js';
 
 const definition = maps.notre_dame.fireProgression;
 function system() {
@@ -112,4 +116,71 @@ test('even a lethal hit changes the sky gradually, using paused and replicated s
     assert.equal(state.skyProgress, paused);
     assert.ok(paused > 0 && paused < .11);
     assert.equal(createMapFireProgression(definition, state).skyProgress, paused);
+});
+
+test('fire sky relighting is stepped, reaches the authored endpoint and resets for the next round', () => {
+    const applied = [];
+    const renderer = Object.create(Renderer.prototype);
+    renderer._applySceneAppearance = (refreshEnvironment) => {
+        applied.push({ refreshEnvironment, lighting: structuredClone(renderer._mapLighting) });
+    };
+    const arena = {
+        renderer,
+        currentMapDefinition: { destructibles: { breakScenes: [] } },
+        _builder: {
+            fireFxController: { setIntensity() {} },
+            mapHazardVisualController: { group: null, update() {} },
+        },
+    };
+    const controller = new MapFireEvolutionController(arena);
+    controller.build(maps.notre_dame);
+    const state = { skyProgress: 0, segments: [] };
+    controller.setState(state);
+    controller.update(0);
+
+    for (let tick = 1; tick <= 60; tick += 1) {
+        state.skyProgress = tick * 0.0003;
+        controller.update(tick / 60);
+    }
+    assert.equal(applied.length, 1, 'raw progress ticks within one lighting step do not reapply full scene appearance');
+
+    const dayLighting = resolveMapLighting(maps.notre_dame.lighting);
+    const fireLighting = resolveMapLighting(definition.lighting);
+    state.skyProgress = 0.0249;
+    controller.update(1.01);
+    assert.equal(applied.length, 1, 'progress below the first half-step leaves the profile unchanged');
+    state.skyProgress = 0.025;
+    controller.update(1.02);
+    assert.equal(applied.length, 2, 'crossing the first half-step applies exactly one new profile');
+    assert.equal(renderer._mapLighting.key.intensity, dayLighting.key.intensity
+        + (fireLighting.key.intensity - dayLighting.key.intensity) * 0.05);
+    assert.equal(renderer._mapLighting.fog.far, dayLighting.fog.far
+        + (fireLighting.fog.far - dayLighting.fog.far) * 0.05);
+    assert.equal(renderer._mapLighting.skyDome.horizonColor, new THREE.Color(dayLighting.skyDome.horizonColor)
+        .lerp(new THREE.Color(fireLighting.skyDome.horizonColor), 0.05).getHex());
+
+    state.skyProgress = 0.25;
+    controller.update(1.03);
+    assert.equal(applied.length, 3, 'each changed five-percent lighting step applies once');
+    assert.equal(renderer._mapLighting.key.intensity, dayLighting.key.intensity
+        + (fireLighting.key.intensity - dayLighting.key.intensity) * 0.25);
+    assert.equal(renderer._mapLighting.fog.far, dayLighting.fog.far
+        + (fireLighting.fog.far - dayLighting.fog.far) * 0.25);
+    assert.equal(renderer._mapLighting.skyDome.horizonColor, new THREE.Color(dayLighting.skyDome.horizonColor)
+        .lerp(new THREE.Color(fireLighting.skyDome.horizonColor), 0.25).getHex());
+
+    state.skyProgress = 1;
+    controller.update(2);
+    assert.equal(applied.length, 4, 'the final step applies the complete fire profile once');
+    assert.deepEqual(renderer._mapLighting, fireLighting);
+    assert.deepEqual(renderer._mapLighting.fog, fireLighting.fog, 'fog ends at the authored fire profile');
+    assert.deepEqual(renderer._mapLighting.skyDome, fireLighting.skyDome, 'sky ends at the authored fire profile');
+    assert.equal(applied.at(-1).refreshEnvironment, false);
+
+    controller.clear();
+    controller.build(maps.notre_dame);
+    controller.setState({ skyProgress: 0, segments: [] });
+    controller.update(0);
+    assert.equal(applied.length, 5, 'clear/build resets the lighting step for the next round');
+    assert.deepEqual(renderer._mapLighting, resolveMapLighting(maps.notre_dame.lighting));
 });

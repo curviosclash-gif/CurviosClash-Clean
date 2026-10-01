@@ -3,6 +3,8 @@ import { resolveMapLighting } from '../../shared/contracts/MapLightingContract.j
 import { resolveMapFireProgress } from '../../shared/contracts/MapFireProgressionContract.js';
 import { resolveGlbModelRoot } from './GlbModelVisibilityOps.js';
 
+const FIRE_LIGHTING_STEPS = 20;
+
 // Reuses one resolved profile and its colour scratch objects throughout the round.
 export class MapFireEvolutionController {
     constructor(arena) {
@@ -43,14 +45,20 @@ export class MapFireEvolutionController {
         if (builder.mapHazardVisualController.group) builder.mapHazardVisualController.group.visible = hazardTime >= 0;
         if (hazardTime >= 0) builder.mapHazardVisualController.update(hazardTime);
         const skyProgress = this.state?.skyProgress || 0;
-        if (skyProgress !== this.lastProgress) {
+        const lightingStep = Math.round(skyProgress * FIRE_LIGHTING_STEPS);
+        if (lightingStep !== this.lastLightingStep) {
+            const lightingProgress = lightingStep / FIRE_LIGHTING_STEPS;
             for (const channel of this.channels) {
-                channel.out[channel.key] = channel.colorA
-                    ? this.color.copy(channel.colorA).lerp(channel.colorB, skyProgress).getHex()
-                    : channel.from + (channel.to - channel.from) * skyProgress;
+                channel.out[channel.key] = lightingStep === 0
+                    ? channel.from
+                    : lightingStep === FIRE_LIGHTING_STEPS
+                        ? channel.to
+                        : channel.colorA
+                            ? this.color.copy(channel.colorA).lerp(channel.colorB, lightingProgress).getHex()
+                            : channel.from + (channel.to - channel.from) * lightingProgress;
             }
             this.arena.renderer?.updateMapFireLighting?.(this.profile);
-            this.lastProgress = skyProgress;
+            this.lastLightingStep = lightingStep;
         }
         for (let i = 0; i < (this.state?.segments.length || 0); i += 1) {
             const segment = this.state.segments[i];
@@ -68,7 +76,7 @@ export class MapFireEvolutionController {
         this.state = null;
         this.channels = [];
         this.restPositions = new Map();
-        this.lastProgress = -1;
+        this.lastLightingStep = -1;
         this.arena.mapFireProgress = null;
         this.arena.mapFireHazardTime = null;
     }
