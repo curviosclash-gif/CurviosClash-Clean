@@ -15,6 +15,7 @@ const dgram = require('node:dgram');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
 const {
+    admitDiscoveryPacket,
     resolveDiscoveryCandidateIps,
     sendDiscoveryAnnouncement,
 } = require('./lan-discovery-ops.cjs');
@@ -958,9 +959,8 @@ async function startDesktopShell() {
     registerTuningShortcut();
 }
 
-const DISCOVERY_RATE_LIMIT_MS = 500;
-const DISCOVERY_RATE_LIMIT_MAX_SOURCES = 64;
 const discoveryRateMap = new Map();
+const discoveryParseRateMap = new Map();
 
 function normalizeDiscoveryPort(value) {
     const port = Number(value);
@@ -1005,19 +1005,7 @@ function stopDiscoveryListener() {
     }
     discoveredHosts.clear();
     discoveryRateMap.clear();
-}
-
-function isDiscoveryRateLimited(sourceKey) {
-    const now = Date.now();
-    const lastSeen = discoveryRateMap.get(sourceKey);
-    if (lastSeen && (now - lastSeen) < DISCOVERY_RATE_LIMIT_MS) {
-        return true;
-    }
-    if (discoveryRateMap.size >= DISCOVERY_RATE_LIMIT_MAX_SOURCES && !discoveryRateMap.has(sourceKey)) {
-        return true;
-    }
-    discoveryRateMap.set(sourceKey, now);
-    return false;
+    discoveryParseRateMap.clear();
 }
 
 function startDiscoveryListener() {
@@ -1027,10 +1015,14 @@ function startDiscoveryListener() {
     discoverySocket.on('message', (msgBuf, rinfo) => {
         try {
             const sourceKey = `${rinfo.address}:${rinfo.port}`;
-            if (isDiscoveryRateLimited(sourceKey)) return;
-
-            const data = JSON.parse(msgBuf.toString());
-            if (data.magic !== DISCOVERY_MAGIC) return;
+            const data = admitDiscoveryPacket({
+                rateMap: discoveryRateMap,
+                parseRateMap: discoveryParseRateMap,
+                sourceKey,
+                message: msgBuf,
+                magic: DISCOVERY_MAGIC,
+            });
+            if (!data) return;
 
             const candidateIps = resolveDiscoveryCandidateIps(data, rinfo?.address);
             const lobbyCode = String(data.lobbyCode || '').trim().toUpperCase();
