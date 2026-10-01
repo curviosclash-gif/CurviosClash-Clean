@@ -133,7 +133,7 @@ export const DESKTOP_FLOWS_MAP_BOUND_SPECS = Object.freeze({
     'tests/notre-dame.desktop.spec.js': ['notre_dame'],
     'tests/notre-dame-arena.desktop.spec.js': ['notre_dame'],
     'tests/notre-dame-atmosphere.desktop.spec.js': ['notre_dame'],
-    'tests/notre-dame-fire.desktop.spec.js': ['notre_dame', 'notre_dame_fire'],
+    'tests/notre-dame-fire.desktop.spec.js': ['notre_dame', 'notre_dame_fire', 'standard'],
     'tests/notre-dame-evolution.desktop.spec.js': ['notre_dame', 'standard'],
     'tests/notre-dame-wall-approach.desktop.spec.js': ['notre_dame'],
     'tests/eiffel-tower.desktop.spec.js': ['eiffel_tower', 'neon_abyss'],

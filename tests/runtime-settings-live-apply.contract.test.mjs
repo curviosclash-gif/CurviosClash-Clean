@@ -976,13 +976,20 @@ test('Arcade parcours leaderboard persists penaltyTimeMs separately from totalTi
 
 test('V96.7 Arcade persistence scheduler buffers XP and leaderboard writes until flush', () => {
     const writes = [];
+    const records = new Map();
     const runtime = new ArcadeRunRuntime({
         arcadePersistenceSaveThrottleMs: 1000,
         ghostLibrarySaveThrottleMs: 0,
     });
     runtime.settingsManager = createRecordStoreSettingsManager({
+        loadJsonRecord(key, fallback) {
+            return records.has(key) ? structuredClone(records.get(key)) : fallback;
+        },
         saveJsonRecord(key, value) {
-            writes.push({ key, value });
+            const storedValue = structuredClone(value);
+            writes.push({ key, value: storedValue });
+            records.set(key, storedValue);
+            return true;
         },
     });
     runtime._enabled = true;
