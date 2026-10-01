@@ -1548,12 +1548,14 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(await page.inputValue('#vehicle-select-p1')).toBe(expectedDefaults.level3VehicleP1);
 
         await openLevel4Drawer(page, { section: 'gameplay' });
+        const speedSlider = page.locator('#speed-slider');
+        await expect(speedSlider).toHaveCount(1);
         await page.evaluate(() => {
             const slider = document.getElementById('speed-slider');
-            if (!slider) return;
             slider.value = '33';
             slider.dispatchEvent(new Event('input', { bubbles: true }));
         });
+        await expect(speedSlider).toHaveValue('33');
         // Reset = defaults plus the style preset of the current game style (fresh profile values).
         expectedDefaults.level4Speed = await page.evaluate(async () => {
             const mod = await window.__curviosImport('/src/ui/menu/MenuDefaultsEditorConfig.js');
@@ -1733,9 +1735,10 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openStartSetupSection(page, 'match');
         await expect(page.locator('#planar-mode-toggle')).toHaveCount(0);
+        const portalsToggle = page.locator('#portals-toggle');
+        await expect(portalsToggle).toHaveCount(1);
         await page.evaluate(() => {
             const toggle = document.getElementById('portals-toggle');
-            if (!toggle) return;
             toggle.checked = false;
             toggle.dispatchEvent(new Event('change', { bubbles: true }));
         });
