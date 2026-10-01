@@ -15,6 +15,7 @@ import {
     formatContractSummaryLine,
     resolveContractSummaryPath,
     resolveContractTestArgs,
+    runSelectedContractTests,
     resolveTestTimeScale,
     runContractTests,
 } from '../scripts/run-contract-tests.mjs';
@@ -112,9 +113,10 @@ test('the summary reporter writes machine readable counts next to the run', () =
 
 test('the runner ends with one parseable summary line', () => {
     const line = formatContractSummaryLine({
-        tests: 2359,
+        tests: 2360,
         pass: 2356,
         fail: 2,
+        cancelled: 1,
         skipped: 1,
         duration_ms: 62792.575,
         failingFiles: ['tests/ci-automation.contract.test.mjs'],
@@ -122,11 +124,11 @@ test('the runner ends with one parseable summary line', () => {
 
     assert.equal(
         line,
-        '[contract:summary] pass=2356 fail=2 skipped=1 durationMs=62793 summary=F:/tmp/contract/run/summary.json'
+        '[contract:summary] pass=2356 fail=2 cancelled=1 skipped=1 durationMs=62793 summary=F:/tmp/contract/run/summary.json'
     );
     assert.equal(
         formatContractSummaryLine(null, 'F:/tmp/contract/run/summary.json'),
-        '[contract:summary] pass=0 fail=0 skipped=0 durationMs=0 summary=F:/tmp/contract/run/summary.json'
+        '[contract:summary] pass=0 fail=0 cancelled=0 skipped=0 durationMs=0 summary=F:/tmp/contract/run/summary.json'
     );
 });
 
@@ -141,7 +143,7 @@ test('the reporter turns node test events into the summary payload', async () =>
                 file: 'F:/repo/tests/green.contract.test.mjs',
                 success: true,
                 duration_ms: 12,
-                counts: { tests: 3, passed: 3, failed: 0, skipped: 0, todo: 0 },
+                counts: { tests: 4, passed: 3, failed: 0, cancelled: 1, skipped: 0, todo: 0 },
             },
         },
         {
@@ -150,7 +152,7 @@ test('the reporter turns node test events into the summary payload', async () =>
                 file: 'F:/repo/tests/red.contract.test.mjs',
                 success: false,
                 duration_ms: 20,
-                counts: { tests: 2, passed: 1, failed: 1, skipped: 0, todo: 0 },
+                counts: { tests: 2, passed: 1, failed: 1, cancelled: 0, skipped: 0, todo: 0 },
             },
         },
         {
@@ -159,18 +161,20 @@ test('the reporter turns node test events into the summary payload', async () =>
                 file: undefined,
                 success: false,
                 duration_ms: 131.5,
-                counts: { tests: 5, passed: 4, failed: 1, skipped: 1, todo: 0 },
+                counts: { tests: 6, passed: 4, failed: 1, cancelled: 1, skipped: 0, todo: 0 },
             },
         },
     ]);
 
     const summary = JSON.parse(output);
-    assert.equal(summary.tests, 5);
+    assert.equal(summary.tests, 6);
     assert.equal(summary.pass, 4);
     assert.equal(summary.fail, 1);
-    assert.equal(summary.skipped, 1);
+    assert.equal(summary.cancelled, 1);
+    assert.equal(summary.skipped, 0);
     assert.equal(summary.duration_ms, 131.5);
     assert.deepEqual(summary.failingFiles, ['F:/repo/tests/red.contract.test.mjs']);
+    assert.equal(summary.files.find(({ file }) => file.endsWith('/tests/green.contract.test.mjs')).cancelled, 1);
     assert.deepEqual(summary.coverage, coverage);
 });
 
@@ -210,8 +214,8 @@ test('the reporter ranks the file summaries by duration', async () => {
 
     const summary = JSON.parse(output);
     assert.deepEqual(summary.files, [
-        { file: 'tests/slow.contract.test.mjs', duration_ms: 12000, pass: 2, fail: 1, skipped: 1 },
-        { file: 'tests/quick.contract.test.mjs', duration_ms: 40.6, pass: 3, fail: 0, skipped: 0 },
+        { file: 'tests/slow.contract.test.mjs', duration_ms: 12000, tests: 4, pass: 2, fail: 1, cancelled: 0, skipped: 1 },
+        { file: 'tests/quick.contract.test.mjs', duration_ms: 40.6, tests: 3, pass: 3, fail: 0, cancelled: 0, skipped: 0 },
     ]);
     assert.equal(summary.tests, 7, 'the run totals keep coming from the root summary');
 });
@@ -315,18 +319,22 @@ test('the runner prints the slowest files just above the summary line', () => {
     const lines = [];
     try {
         writeFileSync(contractSummaryPath, JSON.stringify({
+            tests: 3,
             pass: 3,
             fail: 0,
             skipped: 0,
             duration_ms: 1234,
             files: [
-                { file: 'tests/slow.contract.test.mjs', duration_ms: 61234, pass: 1, fail: 0, skipped: 0 },
-                { file: 'tests/quick.contract.test.mjs', duration_ms: 400, pass: 2, fail: 0, skipped: 0 },
+                { file: 'tests/slow.contract.test.mjs', tests: 1, duration_ms: 61234, pass: 1, fail: 0, cancelled: 0, skipped: 0 },
+                { file: 'tests/quick.contract.test.mjs', tests: 2, duration_ms: 400, pass: 2, fail: 0, cancelled: 0, skipped: 0 },
             ],
         }), 'utf8');
 
-        const status = runContractTests(['fast'], {
+        const status = runSelectedContractTests({
+            mode: 'fast',
+            coverageEnabled: false,
             contractSummaryPath,
+            selectedTests: ['slow.contract.test.mjs', 'quick.contract.test.mjs'],
             log: (line) => lines.push(String(line)),
             spawn: () => ({ status: 0 }),
         });
@@ -338,9 +346,115 @@ test('the runner prints the slowest files just above the summary line', () => {
     assert.deepEqual(lines.filter((line) => line.startsWith('[contract:')), [
         '[contract:slow] 61.2s tests/slow.contract.test.mjs',
         '[contract:slow] 0.4s tests/quick.contract.test.mjs',
-        `[contract:summary] pass=3 fail=0 skipped=0 durationMs=1234 summary=${contractSummaryPath}`,
+        `[contract:summary] pass=3 fail=0 cancelled=0 skipped=0 durationMs=1234 summary=${contractSummaryPath}`,
     ]);
     assert.ok(lines.at(-1).startsWith('[contract:summary] '), 'nothing may follow the summary line');
+});
+
+test('the runner fails a selected file whose summary reports zero tests', () => {
+    const summaryRoot = mkdtempSync(path.join(tmpdir(), 'curvios-contract-empty-file-'));
+    const contractSummaryPath = path.join(summaryRoot, 'summary.json');
+    const lines = [];
+    try {
+        writeFileSync(contractSummaryPath, JSON.stringify({
+            tests: 2,
+            pass: 2,
+            fail: 0,
+            skipped: 0,
+            duration_ms: 20,
+            files: [
+                { file: 'tests/empty.contract.test.mjs', tests: 0, pass: 0, fail: 0, skipped: 0, duration_ms: 1 },
+                { file: 'tests/normal.contract.test.mjs', tests: 2, pass: 2, fail: 0, skipped: 0, duration_ms: 19 },
+            ],
+        }), 'utf8');
+
+        const status = runSelectedContractTests({
+            mode: 'fast',
+            coverageEnabled: false,
+            contractSummaryPath,
+            selectedTests: ['empty.contract.test.mjs', 'normal.contract.test.mjs'],
+            spawn: () => ({ status: 0 }),
+            log: (line) => lines.push(String(line)),
+        });
+
+        assert.equal(status, 1);
+        assert.ok(lines.some((line) => line.includes('tests/empty.contract.test.mjs')));
+        assert.ok(lines.at(-1).startsWith('[contract:summary] pass=2 fail=0 cancelled=0 skipped=0'));
+    } finally {
+        rmSync(summaryRoot, { recursive: true, force: true });
+    }
+});
+
+test('the runner fails a zero-test run but preserves skipped-test accounting', () => {
+    const summaryRoot = mkdtempSync(path.join(tmpdir(), 'curvios-contract-zero-run-'));
+    const contractSummaryPath = path.join(summaryRoot, 'summary.json');
+    const lines = [];
+    try {
+        writeFileSync(contractSummaryPath, JSON.stringify({
+            tests: 0,
+            pass: 0,
+            fail: 0,
+            skipped: 0,
+            duration_ms: 0,
+            files: [],
+        }), 'utf8');
+        assert.equal(runSelectedContractTests({
+            mode: 'fast',
+            coverageEnabled: false,
+            contractSummaryPath,
+            selectedTests: ['empty.contract.test.mjs'],
+            spawn: () => ({ status: 0 }),
+            log: (line) => lines.push(String(line)),
+        }), 1);
+
+        writeFileSync(contractSummaryPath, JSON.stringify({
+            tests: 1,
+            pass: 0,
+            fail: 0,
+            skipped: 1,
+            duration_ms: 5,
+            files: [{ file: 'tests/skipped.contract.test.mjs', tests: 1, pass: 0, fail: 0, skipped: 1, duration_ms: 5 }],
+        }), 'utf8');
+        assert.equal(runSelectedContractTests({
+            mode: 'fast',
+            coverageEnabled: false,
+            contractSummaryPath,
+            selectedTests: ['skipped.contract.test.mjs'],
+            spawn: () => ({ status: 0 }),
+            log: (line) => lines.push(String(line)),
+        }), 0);
+        assert.ok(lines.at(-1).startsWith('[contract:summary] pass=0 fail=0 cancelled=0 skipped=1'));
+    } finally {
+        rmSync(summaryRoot, { recursive: true, force: true });
+    }
+});
+
+test('the runner does not treat a selected file without a file summary as verified', () => {
+    const summaryRoot = mkdtempSync(path.join(tmpdir(), 'curvios-contract-missing-file-summary-'));
+    const contractSummaryPath = path.join(summaryRoot, 'summary.json');
+    const lines = [];
+    try {
+        writeFileSync(contractSummaryPath, JSON.stringify({
+            tests: 3,
+            pass: 3,
+            fail: 0,
+            skipped: 0,
+            duration_ms: 10,
+            files: [{ file: 'tests/other.contract.test.mjs', tests: 3, pass: 3, fail: 0, skipped: 0 }],
+        }), 'utf8');
+
+        assert.equal(runSelectedContractTests({
+            mode: 'fast',
+            coverageEnabled: false,
+            contractSummaryPath,
+            selectedTests: ['selected.contract.test.mjs'],
+            spawn: () => ({ status: 0 }),
+            log: (line) => lines.push(String(line)),
+        }), 1);
+        assert.ok(lines.some((line) => line.includes('selected files missing test summaries: tests/selected.contract.test.mjs')));
+    } finally {
+        rmSync(summaryRoot, { recursive: true, force: true });
+    }
 });
 
 test('the load sensitive tests read their budgets from the time scale', () => {

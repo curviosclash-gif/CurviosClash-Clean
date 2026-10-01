@@ -156,9 +156,10 @@ export function formatContractSlowFileLines(summary, limit = CONTRACT_SLOW_FILE_
 export function formatContractSummaryLine(summary, summaryPath) {
     const pass = Number(summary?.pass) || 0;
     const fail = Number(summary?.fail) || 0;
+    const cancelled = Number(summary?.cancelled) || 0;
     const skipped = Number(summary?.skipped) || 0;
     const durationMs = Math.round(Number(summary?.duration_ms) || 0);
-    return `[contract:summary] pass=${pass} fail=${fail} skipped=${skipped} durationMs=${durationMs} summary=${summaryPath}`;
+    return `[contract:summary] pass=${pass} fail=${fail} cancelled=${cancelled} skipped=${skipped} durationMs=${durationMs} summary=${summaryPath}`;
 }
 
 function readContractSummary(summaryPath) {
@@ -181,7 +182,7 @@ export function runContractTests(argv = process.argv.slice(2), {
     return runSelectedContractTests({ mode, coverageEnabled, contractSummaryPath, selectedTests, spawn, log });
 }
 
-function runSelectedContractTests({ mode, coverageEnabled, contractSummaryPath, selectedTests, spawn, log }) {
+export function runSelectedContractTests({ mode, coverageEnabled, contractSummaryPath, selectedTests, spawn, log }) {
     mkdirSync(path.dirname(contractSummaryPath), { recursive: true });
     const autoScale = resolveAutoTimeScaleEnv(process.env, existsSync(resolvePlaywrightRunLockPath(process.env)));
     const childEnv = { ...process.env, ...autoScale };
@@ -208,22 +209,45 @@ function runSelectedContractTests({ mode, coverageEnabled, contractSummaryPath, 
     // Die Zusammenfassung ist bewusst die letzte Zeile des Laufs, damit sie sich ohne
     // Parsen der Spec-Ausgabe lesen laesst. Die langsamsten Dateien stehen davor.
     const summary = readContractSummary(contractSummaryPath);
+    const fileSummaries = Array.isArray(summary?.files) ? summary.files : [];
+    const fileSummariesByPath = new Map(fileSummaries.map((entry) => [
+        String(entry?.file || '').replace(/\\/g, '/'),
+        entry,
+    ]));
+    const selectedFilePaths = selectedTests.map((fileName) => `tests/${String(fileName).replace(/\\/g, '/')}`);
+    const missingFileSummaries = selectedFilePaths.filter((fileName) => {
+        const fileSummary = fileSummariesByPath.get(fileName);
+        return !fileSummary || !Number.isFinite(Number(fileSummary.tests));
+    });
+    const zeroTestFiles = fileSummaries
+        .filter((fileSummary) => Number(fileSummary?.tests) === 0)
+        .map((fileSummary) => String(fileSummary.file || 'unknown file'));
+    const noTestsReported = Number(summary?.tests) === 0 || missingFileSummaries.length > 0 || zeroTestFiles.length > 0;
     const slowLines = formatContractSlowFileLines(summary);
     const summaryLine = formatContractSummaryLine(summary, contractSummaryPath);
     const logSummary = () => {
         for (const slowLine of slowLines) log(slowLine);
         log(summaryLine);
     };
+    if (missingFileSummaries.length > 0) {
+        log(`[contract:error] selected files missing test summaries: ${missingFileSummaries.join(', ')}`);
+    }
+    if (zeroTestFiles.length > 0) {
+        log(`[contract:error] selected files reported zero tests: ${zeroTestFiles.join(', ')}`);
+    }
+    if (Number(summary?.tests) === 0) {
+        log('[contract:error] contract run reported zero tests');
+    }
     if (!coverageEnabled) {
         logSummary();
-        return testStatus;
+        return testStatus || (noTestsReported ? 1 : 0);
     }
 
     // Der Ratchet laeuft auch bei roten Tests, damit ein Coverage-Einbruch nicht erst
     // beim naechsten gruenen Lauf auffaellt. Der Testfehler bleibt der Rueckgabewert.
     const ratchetStatus = runCoverageRatchet(contractSummaryPath);
     logSummary();
-    return testStatus || ratchetStatus;
+    return testStatus || (noTestsReported ? 1 : ratchetStatus);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

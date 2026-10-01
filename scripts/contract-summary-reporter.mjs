@@ -49,8 +49,10 @@ export default async function* contractSummaryReporter(source, { rootDirectory =
             // a usable duration keeps null instead of a made up zero, so it never pretends
             // to be the fastest file of the run.
             duration_ms: Number.isFinite(durationMs) ? durationMs : null,
+            tests: toCount(counts.tests),
             pass: toCount(counts.passed),
             fail: toCount(counts.failed),
+            cancelled: toCount(counts.cancelled),
             skipped: toCount(counts.skipped),
         });
     }
@@ -62,6 +64,7 @@ export default async function* contractSummaryReporter(source, { rootDirectory =
         tests: toCount(counts.tests),
         pass: toCount(counts.passed),
         fail: toCount(counts.failed),
+        cancelled: toCount(counts.cancelled),
         skipped: toCount(counts.skipped),
         todo: toCount(counts.todo),
         duration_ms: toCount(rootSummary?.duration_ms),
