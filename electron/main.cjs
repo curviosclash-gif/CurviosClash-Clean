@@ -14,6 +14,10 @@ const {
 const dgram = require('node:dgram');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
+const {
+    resolveDiscoveryCandidateIps,
+    sendDiscoveryAnnouncement,
+} = require('./lan-discovery-ops.cjs');
 const { isPortUnavailable, startStaticServer } = require('./static-server.cjs');
 const {
     configureStoragePaths,
@@ -290,25 +294,19 @@ function startBroadcast(resolveState) {
             if (!lobbyCode || !broadcastSocket) return;
             const metadata = state?.metadata && typeof state.metadata === 'object' ? state.metadata : {};
 
-            const broadcastIps = ips.length > 0 ? ips : ['127.0.0.1'];
-            for (const ip of broadcastIps) {
-                const payload = JSON.stringify({
-                    magic: DISCOVERY_MAGIC,
-                    ip,
-                    port: signalingPort,
-                    lobbyCode,
-                    hostName: String(state?.hostName || metadata.hostName || hostName).trim(),
-                    playerCount: Number(state?.playerCount || 0),
-                    maxPlayers: Number(state?.maxPlayers || 10),
-                    mapKey: String(metadata.mapKey || 'standard').trim(),
-                    gameMode: String(metadata.gameMode || 'CLASSIC').trim(),
-                    modePath: String(metadata.modePath || 'normal').trim(),
-                    winsNeeded: Number(metadata.winsNeeded || 5),
-                    inMatch: state?.inMatch === true,
-                });
-                const buffer = Buffer.from(payload);
-                broadcastSocket.send(buffer, 0, buffer.length, DISCOVERY_PORT, '255.255.255.255');
-            }
+            sendDiscoveryAnnouncement(broadcastSocket, {
+                magic: DISCOVERY_MAGIC,
+                port: signalingPort,
+                lobbyCode,
+                hostName: String(state?.hostName || metadata.hostName || hostName).trim(),
+                playerCount: Number(state?.playerCount || 0),
+                maxPlayers: Number(state?.maxPlayers || 10),
+                mapKey: String(metadata.mapKey || 'standard').trim(),
+                gameMode: String(metadata.gameMode || 'CLASSIC').trim(),
+                modePath: String(metadata.modePath || 'normal').trim(),
+                winsNeeded: Number(metadata.winsNeeded || 5),
+                inMatch: state?.inMatch === true,
+            }, ips.length > 0 ? ips : ['127.0.0.1'], DISCOVERY_PORT, '255.255.255.255');
         }, DISCOVERY_INTERVAL);
     });
 }
@@ -1034,28 +1032,30 @@ function startDiscoveryListener() {
             const data = JSON.parse(msgBuf.toString());
             if (data.magic !== DISCOVERY_MAGIC) return;
 
-            const ip = String(data.ip || '').trim();
+            const candidateIps = resolveDiscoveryCandidateIps(data, rinfo?.address);
             const lobbyCode = String(data.lobbyCode || '').trim().toUpperCase();
             const port = normalizeDiscoveryPort(data.port);
-            if (!ip || !lobbyCode || port <= 0) return;
-
-            const hostRecord = {
-                ip,
-                port,
-                lobbyCode,
-                hostName: String(data.hostName || '').trim(),
-                playerCount: Math.max(0, Math.floor(Number(data.playerCount) || 0)),
-                maxPlayers: Math.max(2, Math.floor(Number(data.maxPlayers) || 10)),
-                mapKey: String(data.mapKey || '').trim(),
-                gameMode: String(data.gameMode || '').trim(),
-                modePath: String(data.modePath || '').trim(),
-                winsNeeded: Math.max(1, Math.floor(Number(data.winsNeeded) || 5)),
-                inMatch: data.inMatch === true,
-                lastSeen: Date.now(),
-            };
-            discoveredHosts.set(buildDiscoveryHostKey(hostRecord), hostRecord);
+            if (candidateIps.length <= 0 || !lobbyCode || port <= 0) return;
 
             const now = Date.now();
+            for (const ip of candidateIps) {
+                const hostRecord = {
+                    ip,
+                    port,
+                    lobbyCode,
+                    hostName: String(data.hostName || '').trim(),
+                    playerCount: Math.max(0, Math.floor(Number(data.playerCount) || 0)),
+                    maxPlayers: Math.max(2, Math.floor(Number(data.maxPlayers) || 10)),
+                    mapKey: String(data.mapKey || '').trim(),
+                    gameMode: String(data.gameMode || '').trim(),
+                    modePath: String(data.modePath || '').trim(),
+                    winsNeeded: Math.max(1, Math.floor(Number(data.winsNeeded) || 5)),
+                    inMatch: data.inMatch === true,
+                    lastSeen: now,
+                };
+                discoveredHosts.set(buildDiscoveryHostKey(hostRecord), hostRecord);
+            }
+
             for (const [hostKey, hostState] of discoveredHosts) {
                 if (now - hostState.lastSeen > 10_000) {
                     discoveredHosts.delete(hostKey);

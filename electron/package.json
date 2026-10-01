@@ -16,6 +16,7 @@
     "files": [
       "entry.cjs",
       "main.cjs",
+      "lan-discovery-ops.cjs",
       "launch.cjs",
       "preload.cjs",
       "automation-hint.cjs",
