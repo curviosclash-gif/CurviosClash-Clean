@@ -206,7 +206,10 @@ export function grantShield(player, config = null) {
         player.shieldHitFeedback = 0;
         return player.shieldHP;
     }
-    player.maxShieldHp = getShieldMaxHp(activeConfig);
+    // Paket 2a: the Arcade utility size strengthens every shield (pickup, respawn); the field is
+    // only set in normal Arcade runs, so every other mode keeps exactly its shield.
+    const arcadeShield = Number(player.arcadeShieldMultiplier);
+    player.maxShieldHp = getShieldMaxHp(activeConfig) * (Number.isFinite(arcadeShield) && arcadeShield > 0 ? arcadeShield : 1);
     player.shieldHP = player.maxShieldHp;
     player.shieldHitFeedback = 0;
     return player.shieldHP;

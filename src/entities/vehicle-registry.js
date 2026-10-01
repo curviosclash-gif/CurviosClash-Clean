@@ -103,6 +103,12 @@ export function getPlayerVehicleIds() {
     return getVehicleIds().filter((vehicleId) => isPlayerSelectableVehicleId(vehicleId));
 }
 
+/** Vehicle Lab part config behind a vehicle id, or null for mesh-only vehicles. */
+export function getVehicleModularConfig(vehicleId) {
+    const entry = VEHICLE_BY_ID.get(String(vehicleId || '').trim());
+    return entry?.isGeneratedModular ? entry.modularConfig || null : null;
+}
+
 export function createBaseVehicleMesh(vehicleId, color) {
     const selected = BASE_VEHICLE_BY_ID.get(String(vehicleId || '').trim()) || BASE_VEHICLE_DEFINITIONS[0];
     if (selected.isObj) return new selected.MeshClass(color, selected.id);

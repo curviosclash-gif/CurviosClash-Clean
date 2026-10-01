@@ -43,6 +43,25 @@ import {
 } from '../src/shared/contracts/MobileClassicControlsContract.js';
 import { PlayerController } from '../src/entities/player/PlayerController.js';
 import { PlayerInputSystem } from '../src/entities/systems/PlayerInputSystem.js';
+import { PLATFORM_CAPABILITY_IDS } from '../src/shared/contracts/PlatformCapabilityContract.js';
+import {
+  PLATFORM_PRODUCT_SURFACE_IDS,
+  resolvePlatformProductSurfaceId,
+  resolveSurfaceCapabilityAccess,
+  resolveSurfaceDeveloperAccess,
+  resolveSurfacePolicy,
+} from '../src/shared/contracts/PlatformCapabilityRegistry.js';
+import {
+  isSurfaceQuickStartActionAllowed,
+  isSurfaceSessionTypeAllowed,
+  resolveSurfaceMultiplayerGateAccess,
+} from '../src/shared/contracts/PlatformSurfacePolicyOps.js';
+import { createHangarWindowMenuPort } from '../src/ui/hangar/HangarWindowMenuBridge.js';
+import {
+  isCapacitorNativePlatform,
+  sanitizeExportFileName,
+  shareBlobAsNativeFile,
+} from '../src/platform/browser/BrowserFileExport.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -193,6 +212,11 @@ test('Unified Mobile Android uses its product-local Capacitor wrapper', async ()
     assert.equal(rootPackage.dependencies[dependencyName], '8.5.2');
     assert.equal(subprojectPackage.dependencies[dependencyName], '8.5.2');
   }
+  // Official file and share plugins carry recordings and exports out of the WebView.
+  for (const [dependencyName, version] of [['@capacitor/filesystem', '8.1.3'], ['@capacitor/share', '8.0.2']]) {
+    assert.equal(rootPackage.dependencies[dependencyName], version);
+    assert.equal(subprojectPackage.dependencies[dependencyName], version);
+  }
   assert.equal(rootPackage.devDependencies['@capacitor/cli'], '8.5.2');
   assert.equal(subprojectPackage.devDependencies['@capacitor/cli'], '8.5.2');
 
@@ -265,7 +289,7 @@ test('Mobile menu panel focus keeps the shared submenu header visible', () => {
   assert.equal(scrollContainer.scrollTop, 0);
 });
 
-test('Mobile Classic build target emits only the game shell into its own dist path', () => {
+test('Mobile Classic build target emits the game shell and the hangar into its own dist path', () => {
   const config = createRendererShellBuildConfig({
     rootDir: root,
     chunkSizeWarningLimit: 1300,
@@ -276,8 +300,9 @@ test('Mobile Classic build target emits only the game shell into its own dist pa
   });
 
   assert.equal(config.outDir, 'dist/mobile-classic');
-  assert.deepEqual(Object.keys(config.rollupOptions.input), ['app']);
+  assert.deepEqual(Object.keys(config.rollupOptions.input), ['app', 'hangar']);
   assert.match(config.rollupOptions.input.app, /index\.html$/);
+  assert.match(config.rollupOptions.input.hangar, /hangar\.html$/);
 
   const defines = createRendererBuildDefines({
     pkgVersion: '0.0.0-test',
@@ -292,7 +317,7 @@ test('Mobile Classic build target emits only the game shell into its own dist pa
   assert.equal(defines.__APP_TARGET__, '"mobile-classic"');
 });
 
-test('Unified Mobile Android runtime guard defaults invalid modes to single-player Classic', () => {
+test('Unified Mobile Android keeps desktop modes and only folds splitscreen into single play', () => {
   const settings = {
     mode: '2p',
     gameMode: 'HUNT',
@@ -301,7 +326,7 @@ test('Unified Mobile Android runtime guard defaults invalid modes to single-play
       PLAYER_2: true,
     },
     localSettings: {
-      sessionType: 'multiplayer',
+      sessionType: 'splitscreen',
       modePath: 'fight',
       mobileControls: {
         tiltSensitivity: 9,
@@ -325,9 +350,9 @@ test('Unified Mobile Android runtime guard defaults invalid modes to single-play
   applyMobileClassicSettings(settings);
 
   assert.equal(settings.mode, '1p');
-  assert.equal(settings.gameMode, 'CLASSIC');
+  assert.equal(settings.gameMode, 'HUNT');
   assert.equal(settings.localSettings.sessionType, 'single');
-  assert.equal(settings.localSettings.modePath, 'normal');
+  assert.equal(settings.localSettings.modePath, 'fight');
   assert.equal(settings.invertPitch.PLAYER_1, false);
   assert.equal(settings.invertPitch.PLAYER_2, true);
   assert.equal(settings.localSettings.mobileControls.tiltSensitivity, 1.8);
@@ -335,30 +360,33 @@ test('Unified Mobile Android runtime guard defaults invalid modes to single-play
   assert.equal(settings.localSettings.mobileControls.tiltAssistMode, MOBILE_CLASSIC_TILT_ASSIST_MODES.ARCADE);
   assert.equal(settings.localSettings.mobileControls.tiltDebugVisible, true);
   assert.equal(settings.localSettings.mobileControls.tiltSensorHzVisible, true);
-  assert.equal(settings.gameplay.planarMode, false);
-  assert.equal(settings.hunt.respawnEnabled, false);
+  assert.equal(settings.gameplay.planarMode, true);
+  assert.equal(settings.hunt.respawnEnabled, true);
 });
 
-test('Unified Mobile Android settings keep Level 4 on phone-relevant sections', () => {
+test('Unified Mobile Android keeps every Level 4 settings section and Arcade choice', () => {
   const settings = {
+    mapKey: 'storm_switchyard',
     localSettings: {
-      modePath: 'normal',
+      modePath: 'arcade',
       toolsState: {
         activeSection: LEVEL4_SECTION_IDS.ADVANCED_MAP,
       },
+      startSetup: {
+        arcadeGhostDuelMode: 'opponent_ghost',
+        arcadeGhostTrailCollisionEnabled: true,
+        modeSelections: { arcade: { mapKey: 'storm_switchyard' } },
+      },
     },
-    gameplay: {},
-    hunt: {},
   };
 
   applyMobileClassicSettings(settings);
 
-  assert.equal(settings.localSettings.toolsState.activeSection, LEVEL4_SECTION_IDS.MOBILE_CONTROLS);
-
-  settings.localSettings.toolsState.activeSection = LEVEL4_SECTION_IDS.GAMEPLAY;
-  applyMobileClassicSettings(settings);
-
-  assert.equal(settings.localSettings.toolsState.activeSection, LEVEL4_SECTION_IDS.GAMEPLAY);
+  assert.equal(settings.localSettings.toolsState.activeSection, LEVEL4_SECTION_IDS.ADVANCED_MAP);
+  assert.equal(settings.mapKey, 'storm_switchyard');
+  assert.equal(settings.localSettings.startSetup.modeSelections.arcade.mapKey, 'storm_switchyard');
+  assert.equal(settings.localSettings.startSetup.arcadeGhostDuelMode, 'opponent_ghost');
+  assert.equal(settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled, true);
 });
 
 test('Mobile Classic default tilt assist is soft for phone play', () => {
@@ -368,15 +396,18 @@ test('Mobile Classic default tilt assist is soft for phone play', () => {
   assert.equal(controls.tiltAssistMode, MOBILE_CLASSIC_TILT_ASSIST_MODES.SOFT);
 });
 
-test('Unified Mobile Android UI keeps the shared game menu copy and mobile mode limits', () => {
+test('Unified Mobile Android UI opens every desktop menu path and locks only splitscreen', () => {
   const singleButton = createButton({ sessionType: 'single' });
   const multiButton = createButton({ sessionType: 'multiplayer' });
+  const splitButton = createButton({ sessionType: 'splitscreen' });
+  const quickButton = createButton({ modePath: 'quick_action' });
   const normalButton = createButton({ modePath: 'normal' });
   const arcadeButton = createButton({ modePath: 'arcade' });
   const fightButton = createButton({ modePath: 'fight' });
   const hostButton = createButton();
   const lanTransportButton = createButton({ multiplayerTransport: 'lan' });
   const onlineTransportButton = createButton({ multiplayerTransport: 'online' });
+  const hostLocalPlayerCount = { value: '2', disabled: false };
   const mapSelect = createMapSelect(['standard', 'micro_maw', 'storm_switchyard', 'mirror_docks'], 'storm_switchyard');
   const startButton = createButton();
   const menuContext = { textContent: 'Hauptmenue' };
@@ -385,6 +416,7 @@ test('Unified Mobile Android UI keeps the shared game menu copy and mobile mode 
   arcadeButton.textContent = 'Arcade';
   startButton.textContent = 'Spiel starten';
   const gameSettings = {
+    mapKey: 'storm_switchyard',
     localSettings: {
       modePath: 'arcade',
     },
@@ -393,10 +425,11 @@ test('Unified Mobile Android UI keeps the shared game menu copy and mobile mode 
   applyMobileClassicUiLocks({
     settings: gameSettings,
     ui: {
-      sessionButtons: [singleButton, multiButton],
-      modePathButtons: [normalButton, arcadeButton, fightButton],
+      sessionButtons: [singleButton, multiButton, splitButton],
+      modePathButtons: [quickButton, normalButton, arcadeButton, fightButton],
       mapSelect,
       multiplayerHostButton: hostButton,
+      multiplayerHostLocalPlayerCount: hostLocalPlayerCount,
       multiplayerTransportButtons: [lanTransportButton, onlineTransportButton],
       startButton,
       menuContext,
@@ -406,21 +439,130 @@ test('Unified Mobile Android UI keeps the shared game menu copy and mobile mode 
   assert.equal(singleButton.disabled, false);
   assert.equal(singleButton.textContent, 'Einzelspieler');
   assert.equal(multiButton.disabled, false);
-  assert.equal(normalButton.disabled, false);
+  assert.equal(splitButton.disabled, true);
+  for (const button of [quickButton, normalButton, arcadeButton, fightButton]) {
+    assert.equal(button.disabled, false);
+  }
   assert.equal(normalButton.textContent, 'Klassisch');
-  assert.equal(arcadeButton.disabled, false);
   assert.equal(arcadeButton.textContent, 'Arcade');
-  assert.equal(fightButton.disabled, true);
-  assert.equal(hostButton.disabled, true);
+  assert.equal(hostButton.disabled, false);
   assert.equal(lanTransportButton.disabled, false);
-  assert.equal(onlineTransportButton.disabled, true);
-  assert.deepEqual(mapSelect.options.map((option) => option.value), ['micro_maw', 'mirror_docks']);
-  assert.equal(mapSelect.value, 'micro_maw');
-  assert.equal(gameSettings.mapKey, 'micro_maw');
-  assert.equal(gameSettings.localSettings.startSetup.modeSelections.arcade.mapKey, 'micro_maw');
-  assert.equal(gameSettings.localSettings.startSetup.arcadeGhostDuelMode, 'self_longest_ghost');
+  assert.equal(onlineTransportButton.disabled, false);
+  assert.equal(hostLocalPlayerCount.value, '1');
+  assert.equal(hostLocalPlayerCount.disabled, true);
+  assert.deepEqual(mapSelect.options.map((option) => option.value), ['standard', 'micro_maw', 'storm_switchyard', 'mirror_docks']);
+  assert.equal(mapSelect.value, 'storm_switchyard');
+  assert.equal(gameSettings.mapKey, 'storm_switchyard');
+  assert.equal(gameSettings.localSettings.startSetup, undefined);
   assert.equal(startButton.textContent, 'Spiel starten');
   assert.equal(menuContext.textContent, 'Hauptmenue');
+});
+
+test('Mobile app surface policy matches the desktop game except splitscreen and LAN hosting', () => {
+  const productSurfaceId = resolvePlatformProductSurfaceId({ appMode: 'app', appTarget: 'mobile-classic' });
+  const desktopSurfaceId = PLATFORM_PRODUCT_SURFACE_IDS.DESKTOP_APP;
+  const policy = resolveSurfacePolicy({ productSurfaceId });
+  const desktopPolicy = resolveSurfacePolicy({ productSurfaceId: desktopSurfaceId });
+
+  assert.equal(productSurfaceId, PLATFORM_PRODUCT_SURFACE_IDS.MOBILE_APP);
+  assert.deepEqual(policy.allowedModePaths, desktopPolicy.allowedModePaths);
+  assert.deepEqual(policy.allowedGameModes, desktopPolicy.allowedGameModes);
+  assert.deepEqual(policy.allowedSessionTypes, ['single', 'multiplayer']);
+  assert.deepEqual(policy.joinMultiplayerTransports, ['lan', 'online']);
+  assert.deepEqual(policy.hostMultiplayerTransports, ['online']);
+  assert.equal(isSurfaceSessionTypeAllowed('splitscreen', { productSurfaceId }), false);
+  assert.equal(isSurfaceQuickStartActionAllowed('random_map', { productSurfaceId }), true);
+  assert.equal(resolveSurfaceDeveloperAccess({ productSurfaceId }).available, true);
+  assert.equal(resolveSurfaceCapabilityAccess(PLATFORM_CAPABILITY_IDS.SAVE, { productSurfaceId }).available, true);
+  assert.equal(resolveSurfaceCapabilityAccess(PLATFORM_CAPABILITY_IDS.RECORDING, { productSurfaceId }).available, true);
+  assert.equal(resolveSurfaceCapabilityAccess(PLATFORM_CAPABILITY_IDS.DISCOVERY, { productSurfaceId }).available, false);
+
+  assert.equal(resolveSurfaceMultiplayerGateAccess('host', { productSurfaceId, transport: 'online' }).allowed, true);
+  const lanHost = resolveSurfaceMultiplayerGateAccess('host', { productSurfaceId, transport: 'lan' });
+  assert.equal(lanHost.allowed, false);
+  assert.equal(lanHost.reason, 'surface_host_transport_denied');
+  assert.match(lanHost.message, /Online/);
+  assert.equal(resolveSurfaceMultiplayerGateAccess('join', { productSurfaceId }).allowed, true);
+  assert.equal(resolveSurfaceMultiplayerGateAccess('host', { productSurfaceId: desktopSurfaceId, transport: 'lan' }).allowed, true);
+});
+
+test('Mobile Classic opens the hangar page in the same WebView and returns via its close button', async () => {
+  const assigned = [];
+  const runtimeGlobal = { location: { assign: (url) => assigned.push(url) } };
+
+  const mobilePort = createHangarWindowMenuPort(runtimeGlobal, { appTarget: 'mobile-classic' });
+  assert.equal(mobilePort.isAvailable(), true);
+  assert.deepEqual(await mobilePort.openWindow({ mode: 'fight', focus: true }), { ok: true, mode: 'fight' });
+  await mobilePort.openWindow({ mode: 'anything' });
+  assert.deepEqual(assigned, ['hangar.html?mode=fight', 'hangar.html?mode=arcade']);
+
+  const browserPort = createHangarWindowMenuPort(runtimeGlobal, { appTarget: 'default' });
+  assert.equal(browserPort.isAvailable(), false);
+
+  const hangarApp = await readText('src/ui/hangar/HangarWindowApp.js');
+  assert.match(hangarApp, /__curviosAndroidBackHandler/);
+  assert.match(hangarApp, /location\.assign\('\/'\)/);
+});
+
+test('Mobile Classic hands exported files to the Android share sheet', async () => {
+  class FakeFileReader {
+    readAsDataURL(blob) {
+      blob.arrayBuffer().then((buffer) => {
+        this.result = `data:${blob.type};base64,${Buffer.from(buffer).toString('base64')}`;
+        this.onload();
+      });
+    }
+  }
+  const writes = [];
+  const shares = [];
+  const plugins = {
+    Directory: { Cache: 'CACHE' },
+    Filesystem: {
+      async writeFile(options) {
+        writes.push(options);
+        return { uri: `file:///cache/${options.path}` };
+      },
+    },
+    Share: {
+      async share(options) {
+        shares.push(options);
+      },
+    },
+  };
+  const nativeGlobal = { FileReader: FakeFileReader, Capacitor: { isNativePlatform: () => true } };
+
+  assert.equal(isCapacitorNativePlatform(nativeGlobal), true);
+  assert.equal(isCapacitorNativePlatform({}), false);
+  assert.equal(sanitizeExportFileName('clips/Mein Clip!.webm'), 'Mein-Clip-.webm');
+
+  const result = await shareBlobAsNativeFile({
+    blob: new Blob(['{"a":1}'], { type: 'application/json' }),
+    fileName: 'profil.json',
+    runtimeGlobal: nativeGlobal,
+    loadPlugins: async () => plugins,
+  });
+  assert.equal(result.saved, true);
+  assert.equal(writes[0].path, 'exports/profil.json');
+  assert.equal(writes[0].directory, 'CACHE');
+  assert.equal(Buffer.from(writes[0].data, 'base64').toString('utf8'), '{"a":1}');
+  assert.deepEqual(shares[0].files, ['file:///cache/exports/profil.json']);
+
+  plugins.Share.share = async () => {
+    throw new Error('Share canceled');
+  };
+  const cancelled = await shareBlobAsNativeFile({
+    blob: new Blob(['x']),
+    fileName: 'x.json',
+    runtimeGlobal: nativeGlobal,
+    loadPlugins: async () => plugins,
+  });
+  assert.equal(cancelled.saved, false);
+  assert.equal(cancelled.cancelled, true);
+
+  for (const relativePath of ['src/core/recording/DownloadService.js', 'src/ui/PlayerProfileUiController.js', 'src/ui/hangar/ArcadeHangarWorkshop.js']) {
+    const source = await readText(relativePath);
+    assert.doesNotMatch(source, /anchor\.download\s*=/, `${relativePath} must route downloads through BrowserFileExport`);
+  }
 });
 
 test('Unified Mobile Android preserves an authoritative LAN multiplayer snapshot', () => {
@@ -1302,12 +1444,13 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   assert.equal(packageJson.scripts['app:classic:android:update:github'], undefined);
   assert.match(buildScript, /VITE_APP_TARGET = 'mobile-classic'/);
   assert.match(buildScript, /mobile-classic\.manifest\.json/);
-  assert.match(buildScript, /curvios\.mobile-android-app\.v1/);
-  assert.match(buildScript, /modePaths: \['normal', 'arcade'\]/);
+  assert.match(buildScript, /curvios\.mobile-android-app\.v2/);
+  assert.match(buildScript, /modePaths: \['quick_action', 'arcade', 'fight', 'normal'\]/);
   assert.match(buildScript, /sessionTypes: \['single', 'multiplayer'\]/);
-  assert.match(buildScript, /role: 'client'/);
-  assert.match(buildScript, /transport: 'lan'/);
-  assert.match(buildScript, /listMobileArcadeRouteAllowlist/);
+  assert.match(buildScript, /pages: \['index\.html', 'hangar\.html'\]/);
+  assert.match(buildScript, /role: 'host-and-join'/);
+  assert.match(buildScript, /hostTransports: \['online'\]/);
+  assert.doesNotMatch(buildScript, /listMobileArcadeRouteAllowlist|ghostDuelMode|gameMode: 'CLASSIC'/);
   assert.match(buildScript, /CURVIOS_CLASSIC_APP_GITHUB_REPOSITORY/);
   assert.match(buildScript, /updates: createMobileClassicGithubUpdateConfig/);
   assert.match(buildScript, /pruneMobileClassicHtml/);
@@ -1356,8 +1499,21 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   assert.doesNotMatch(mobileClassicMenuUi, /mobileRouteKey|dispatchMapSelectChange/);
   assert.match(mobileClassicStyles, /#menu-nav\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
   assert.doesNotMatch(mobileClassicStyles, /nav-btn\[data-session-type="multiplayer"\]/);
-  assert.match(mobileClassicStyles, /#btn-multiplayer-host/);
-  assert.match(mobileClassicStyles, /#btn-multiplayer-transport-online/);
+  assert.match(mobileClassicStyles, /\.nav-btn\[data-session-type="splitscreen"\]/);
+  assert.match(mobileClassicStyles, /\.mp-host-fields/);
+  for (const desktopFeature of [
+    '#btn-multiplayer-host',
+    '#btn-multiplayer-transport-online',
+    'data-mode-path="fight"',
+    '#btn-open-expert',
+    '#btn-open-debug',
+    '#arcade-ghost-duel-row',
+    '#fight-player-hp-setting',
+    '#multiplayer-share-card',
+    '#btn-multiplayer-start',
+  ]) {
+    assert.equal(mobileClassicStyles.includes(desktopFeature), false, `${desktopFeature} must stay visible on Android`);
+  }
   assert.doesNotMatch(mobileClassicStyles, /mobile-android-entry|mobile-android-route/);
   assert.match(mobileClassicApp, /ensureMobileClassicStyles/);
   assert.match(startSetupUiOps, /dataset\.summaryLabel/);
@@ -1369,7 +1525,7 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   assert.match(touchInputSource, /resolveTouchButtonDefinitions/);
   assert.match(touchInputSource, /maxTouchPoints/);
   assert.match(touchInputSource, /aria-hidden/);
-  assert.match(readme, /Classic and\s+Arcade-Parcours/);
+  assert.match(readme, /every desktop game feature except\s+splitscreen/);
   assert.match(readme, /app:android:assets:check/);
   assert.match(readme, /app:android:update:github/);
   assert.doesNotMatch(readme, /app:classic:android:/);

@@ -118,11 +118,14 @@ export class Renderer {
             width: window.innerWidth,
             height: window.innerHeight,
         });
+        // Also owns the GPU frame timer the viewport system wraps every frame in.
+        this.qualityController = new RenderQualityController(this.renderer, this.scene, this.postProcessingPipeline);
         this.viewportSystem = new RenderViewportSystem(this.renderer, {
             width: window.innerWidth,
             height: window.innerHeight,
             splitScreen: false,
             postProcessingPipeline: this.postProcessingPipeline,
+            frameTimer: this.qualityController.gpuFrameTimer,
             beforeCameraRender: (_scene, camera) => this._applyCameraWaterVisibility(camera),
             afterCameraRender: () => this._restoreCameraWaterVisibility(),
         });
@@ -130,12 +133,6 @@ export class Renderer {
         this._height = this.viewportSystem.height;
         this.splitScreen = this.viewportSystem.splitScreen;
         this.viewportLayout = this.viewportSystem.layout;
-
-        this.qualityController = new RenderQualityController(
-            this.renderer,
-            this.scene,
-            this.postProcessingPipeline
-        );
         this.recordingCapturePipeline = new RecordingCapturePipeline({
             sourceCanvas: this.canvas,
             sourceRenderer: this.renderer,
@@ -588,8 +585,8 @@ export class Renderer {
         this._resetCameras();
     }
 
-    setQuality(quality) {
-        this.qualityController.setQuality(quality);
+    setQuality(quality, options = {}) {
+        this.qualityController.setQuality(quality, options);
     }
 
     setRecordingQualityLock(active, reason = 'cinematic-recording') {
@@ -635,6 +632,7 @@ export class Renderer {
         this._lightingRig.dispose();
         this._environmentController.dispose();
         this.postProcessingPipeline.dispose();
+        this.qualityController.dispose();
         this.renderer.dispose();
     }
 }

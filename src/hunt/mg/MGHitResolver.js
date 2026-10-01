@@ -275,7 +275,8 @@ export class MGHitResolver {
         const target = resolveHuntTargetOwnerPlayer(targetDescriptor, this.runtime?.players || []);
         if (!target?.alive || target === attacker) return;
 
-        const maxRange = Math.max(10, Number(mg.RANGE || 95));
+        // FALLOFF_RANGE: Arcade nose range lengthens the flight only (unset elsewhere -> RANGE).
+        const maxRange = Math.max(10, Number(mg.FALLOFF_RANGE || mg.RANGE || 95));
         const minFalloff = clamp(Number(mg.MIN_FALLOFF || 0.5), 0.2, 1);
         const baseDamage = Math.max(1, Number(mg.DAMAGE || 9));
         const distRatio = clamp(distance / maxRange, 0, 1);
@@ -305,7 +306,7 @@ export class MGHitResolver {
 
     applyTurretHit(attacker, turret, distance, mg) {
         if (!isDestructibleTurret(turret) || turret.hp <= 0) return;
-        const maxRange = Math.max(10, Number(mg.RANGE || 95));
+        const maxRange = Math.max(10, Number(mg.FALLOFF_RANGE || mg.RANGE || 95));
         const minFalloff = clamp(Number(mg.MIN_FALLOFF || 0.5), 0.2, 1);
         const baseDamage = Math.max(1, Number(mg.DAMAGE || 9));
         const damage = baseDamage * (1 - (1 - minFalloff) * clamp(distance / maxRange, 0, 1));

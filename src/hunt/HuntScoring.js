@@ -1,5 +1,5 @@
 import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
-import { areTeammates } from '../shared/contracts/TeamCombatContract.js';
+import { areTeammates, canDamage, TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
 
 const ASSIST_WINDOW_SECONDS = 8;
 const ASSIST_MIN_DAMAGE = 10;
@@ -75,6 +75,7 @@ export class HuntScoring {
         const sourceStats = this._ensureStats(sourceIndex);
         sourceStats.damage += hpApplied;
         sourceStats.shieldDamage += absorbedByShield;
+        const assistEligible = canDamage(sourcePlayer, targetPlayer, TEAM_WEAPON_KINDS.ITEM_PROJECTILE);
 
         if (!this._damageHistoryByTarget.has(targetIndex)) {
             this._damageHistoryByTarget.set(targetIndex, new Map());
@@ -84,10 +85,12 @@ export class HuntScoring {
             damage: 0,
             shieldDamage: 0,
             lastHitAt: nowSeconds,
+            assistEligible: false,
         };
         existing.damage += hpApplied;
         existing.shieldDamage += absorbedByShield;
         existing.lastHitAt = nowSeconds;
+        existing.assistEligible ||= assistEligible;
         byAttacker.set(sourceIndex, existing);
     }
 
@@ -198,6 +201,7 @@ export class HuntScoring {
                 if (!Number.isInteger(attackerIndex) || attackerIndex === killerIndex || attackerIndex === targetIndex) {
                     continue;
                 }
+                if (entry?.assistEligible === false) continue;
                 const lastHitAt = Number(entry?.lastHitAt) || 0;
                 if ((nowSeconds - lastHitAt) > ASSIST_WINDOW_SECONDS) {
                     continue;

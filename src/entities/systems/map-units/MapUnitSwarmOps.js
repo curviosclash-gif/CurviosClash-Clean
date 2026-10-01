@@ -23,6 +23,8 @@ export function createSwarmMembers(definition, scale, centre) {
             hp: Number(definition?.memberHp) || 1,
             maxHp: Number(definition?.memberHp) || 1,
             offset,
+            homeOffset: offset.clone(),
+            diveCooldownRemaining: 0,
             position: new THREE.Vector3().copy(centre).add(offset),
         });
     }
@@ -100,9 +102,14 @@ export function resetSwarmMembers(unit) {
     for (const member of unit.members || []) {
         member.alive = true;
         member.hp = member.maxHp;
+        member.offset.copy(member.homeOffset);
+        member.diveCooldownRemaining = 0;
+        member.diveTargetIndex = null;
         totalHp += member.hp;
     }
     unit.maxHp = totalHp;
     unit.hp = totalHp;
+    unit.activeDive = null;
+    unit.contactAttackCooldowns?.clear?.();
     if (unit.source) unit.source.alive = true;
 }

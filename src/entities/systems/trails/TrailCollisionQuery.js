@@ -222,16 +222,21 @@ export class TrailCollisionQuery {
         return result.entry ? result : null;
     }
 
-    checkGlobalCollision(position, radius, excludePlayerIndex = -1, skipRecent = 0, playerRef = null) {
+    // cellRange 1 is the classic 3x3 neighbourhood; the Arcade part hitbox asks wider
+    // spheres (radius > gridSize) and passes ceil(radius / gridSize). Same scan order.
+    checkGlobalCollision(position, radius, excludePlayerIndex = -1, skipRecent = 0, playerRef = null, cellRange = 1) {
         const registry = this.getRegistry();
         if (!registry) return null;
         const cellX = Math.floor(position.x / registry.gridSize);
         const cellZ = Math.floor(position.z / registry.gridSize);
         const players = this.getPlayers();
         const queryStamp = this._nextGlobalQueryStamp();
+        const range = Math.max(1, Math.floor(Number(cellRange) || 1));
+        const side = range * 2 + 1;
 
-        for (let i = 0; i < CELL_OFFSETS_3X3.length; i++) {
-            const [dx, dz] = CELL_OFFSETS_3X3[i];
+        for (let i = 0; i < side * side; i++) {
+            const dx = (i % side) - range;
+            const dz = Math.floor(i / side) - range;
             const key = (cellX + dx + GRID_KEY_OFFSET) * GRID_KEY_STRIDE + (cellZ + dz + GRID_KEY_OFFSET);
                 const cell = registry.spatialGrid.get(key);
                 if (!cell) continue;

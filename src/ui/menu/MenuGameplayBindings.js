@@ -476,6 +476,8 @@ export function setupMenuGameplayBindings(ctx) {
                 settings.localSettings = {};
             }
             settings.localSettings.bloomQuality = normalizeBloomQuality(ui.bloomQualitySlider.value);
+            // From now on the player's bloom level stands, also where ULTRA would lift it.
+            settings.localSettings.bloomQualityUserSet = true;
             queueInputSettingsChanged([keys.LOCAL_BLOOM_QUALITY]);
         });
     }

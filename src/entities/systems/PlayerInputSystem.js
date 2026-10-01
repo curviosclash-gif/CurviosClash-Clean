@@ -9,6 +9,7 @@ import {
 } from '../../shared/contracts/CameraModeContract.js';
 import { sanitizeBotAction } from '../ai/actions/BotActionContract.js';
 import { routeGuidedRocketOwnerInput } from '../ai/GuidedRocketAutopilotOps.js';
+import { applyBotOpenFaceReturn } from '../ai/BotOpenFaceReturnOps.js';
 
 const logger = createLogger('PlayerInputSystem');
 import { createBotRuntimeContext } from '../ai/BotRuntimeContextFactory.js';
@@ -32,7 +33,7 @@ const SHARED_EMPTY_INPUT = {
     shootMG: false,
     shootItemIndex: -1,
     nextItem: false,
-    useItem: -1,
+    useItem: -1, emptyItemUsePressed: false,
 };
 
 function getEmptyInput() {
@@ -51,8 +52,7 @@ function getEmptyInput() {
     SHARED_EMPTY_INPUT.shootItem = false; SHARED_EMPTY_INPUT.shootRocket = false;
     SHARED_EMPTY_INPUT.shootMG = false;
     SHARED_EMPTY_INPUT.shootItemIndex = -1;
-    SHARED_EMPTY_INPUT.nextItem = false;
-    SHARED_EMPTY_INPUT.useItem = -1;
+    SHARED_EMPTY_INPUT.nextItem = false; SHARED_EMPTY_INPUT.useItem = -1; SHARED_EMPTY_INPUT.emptyItemUsePressed = false;
     return SHARED_EMPTY_INPUT;
 }
 
@@ -352,9 +352,7 @@ export class PlayerInputSystem {
 
     _invokeBotPolicyUpdate(policy, dt, player, runtimeContext) {
         const update = policy?.update;
-        if (typeof update !== 'function') {
-            return getEmptyInput();
-        }
+        if (typeof update !== 'function') return getEmptyInput();
 
         const preferRuntimeContext = policy?.usesRuntimeContext === true || update.length <= 3;
         if (preferRuntimeContext) {
@@ -505,6 +503,7 @@ export class PlayerInputSystem {
                     const output = this._invokeBotPolicyUpdate(botAI, dt, player, runtimeContext);
                     input = sanitizeBotAction(output, sanitizeOptions, input);
                     this._applyDynamicActionAdapter(input, output, runtimeContext);
+                    if (player.isBot) applyBotOpenFaceReturn(input, player, entityManager.arena);
                 } catch (error) {
                     this._warnInvalidBotAction(player, 'policy update threw', error);
                     input = getEmptyInput();
@@ -514,7 +513,7 @@ export class PlayerInputSystem {
         }
 
         const includeSecondaryBindings = entityManager.humanPlayers.length === 1 && player.index === 0;
-        const inputState = inputManager.getPlayerInput(player.index, { includeSecondaryBindings, dt });
+        const inputState = inputManager.getPlayerInput(player.index, { includeSecondaryBindings, dt }); let emptyItemUsePressed = false;
         if (inputState) {
             input.pitchAxis = inputState.pitchAxis;
             input.yawAxis = inputState.yawAxis;
@@ -540,7 +539,7 @@ export class PlayerInputSystem {
             const wantsUseItem = !!(inputState.useItem || inputState.dropItem);
             if (wantsUseItem && inventoryLength > 0) {
                 input.useItem = Math.max(0, Math.min(selectedIndex, inventoryLength - 1));
-            }
+            } else if (wantsUseItem) emptyItemUsePressed = true;
 
             if (input.shootItem && inventoryLength > 0) {
                 input.shootItemIndex = Math.max(0, Math.min(selectedIndex, inventoryLength - 1));
@@ -548,6 +547,8 @@ export class PlayerInputSystem {
         }
 
         if (entityManager._projectileSystem?.applyGuidedInput?.(player, input)) return getEmptyInput();
+
+        input.emptyItemUsePressed = emptyItemUsePressed;
 
         const gameplayCameraState = createGameplayCameraState(player?.gameplayConfig || null);
         const fallbackCameraModeIndex = resolveCameraModeIndexFromModes(

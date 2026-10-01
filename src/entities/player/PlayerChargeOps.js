@@ -6,6 +6,7 @@
 // - Inputs: player entity, game-time dt, resolved control state
 // - Outputs: boost/slow-motion charge, timers and active flags on the player
 // - Side effects: mutates the player reserve fields only, plus putting out the afterburn
+//   and ending gate pushes on reset
 // - Hotpath guardrail: no per-frame object creation, primitive parameters only
 
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
@@ -22,8 +23,14 @@ function resolvePlayerConfigValue(player, key, fallback) {
     return Number.isFinite(value) && value !== 0 ? value : fallback;
 }
 
+// Paket 2a: the Arcade engine size lengthens the boost; without the field it is exactly 1.
+function resolveArcadeBoostDurationFactor(player) {
+    const factor = Number(player?.arcadeBoostDurationMultiplier);
+    return Number.isFinite(factor) && factor > 0 ? factor : 1;
+}
+
 function resolveBoostCapacity(player) {
-    return Math.max(MIN_CAPACITY, resolvePlayerConfigValue(player, 'BOOST_DURATION', 1));
+    return Math.max(MIN_CAPACITY, resolvePlayerConfigValue(player, 'BOOST_DURATION', 1) * resolveArcadeBoostDurationFactor(player));
 }
 
 function resolveBoostRechargeTime(player) {
@@ -212,8 +219,9 @@ function syncSlowMoUiState(player, maxCharge, rechargeRate) {
 }
 
 /**
- * Fills both reserves and clears their active state. Used on construction and on
- * every spawn so a fresh round always starts with a full boost and full slow motion.
+ * Fills both reserves and clears their active state, including any running gate push.
+ * Used on construction and on every spawn so a fresh round always starts with a full
+ * boost, full slow motion and no leftover push.
  * @param {object} player
  * @param {object|null} playerConfig resolved PLAYER config section, optional
  */
@@ -221,7 +229,9 @@ export function resetPlayerCharges(player, playerConfig = null) {
     if (!player) return;
     const boostDuration = Number(playerConfig?.BOOST_DURATION);
     const slowMoDuration = Number(playerConfig?.SLOWMO_DURATION);
-    player.boostCharge = Number.isFinite(boostDuration) ? boostDuration : resolveBoostCapacity(player);
+    player.boostCharge = Number.isFinite(boostDuration)
+        ? boostDuration * resolveArcadeBoostDurationFactor(player)
+        : resolveBoostCapacity(player);
     player.boostTimer = player.boostCharge;
     player.boostCooldown = 0;
     player.manualBoostActive = false;
@@ -231,6 +241,12 @@ export function resetPlayerCharges(player, playerConfig = null) {
     player.slowMoCooldown = 0;
     player.manualSlowMoActive = false;
     player.isSlowMoActive = false;
+    // Boost gate and slingshot pushes: their timers only tick in updatePlayerEffects, which a
+    // dead player never reaches, so without this the new life inherits the old push.
+    player.boostPortalTimer = 0;
+    player.boostPortalParams = null;
+    player.slingshotTimer = 0;
+    player.slingshotParams = null;
 }
 
 /**

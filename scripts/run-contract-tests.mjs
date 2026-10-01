@@ -58,6 +58,24 @@ export function selectNodeTestFiles(fileNames, mode = 'fast') {
         .sort();
 }
 
+// Windows caps the whole process command line. Passing hundreds of individual test paths
+// eventually makes spawnSync fail with ENAMETOOLONG before Node starts any test. Node's own
+// test glob expansion keeps the command short; one pattern per discovered directory still
+// respects the fixture-directory filter above.
+export function buildNodeTestFileArgs(selectedTests, mode, platform = process.platform) {
+    if (platform !== 'win32' || mode !== 'fast') {
+        return selectedTests.map((fileName) => path.join('tests', fileName));
+    }
+    const excluded = [...distDependentTests]
+        .map((fileName) => fileName.slice(0, -'.test.mjs'.length))
+        .join('|');
+    const pattern = `!(${excluded}).test.mjs`;
+    const directories = new Set(selectedTests.map((fileName) => path.posix.dirname(fileName)));
+    return [...directories].map((directory) => (
+        directory === '.' ? `tests/${pattern}` : `tests/${directory}/${pattern}`
+    ));
+}
+
 // Node kennt nur eine globale Schwelle fuer den gesamten Include-Satz. Eine einzige
 // Zahl ueber alle Bereiche wuerde entweder src/shared/contracts absenken oder die
 // schwaecheren Bereiche gar nicht erst zulassen, deshalb pruefen die Grenzen je
@@ -160,10 +178,10 @@ export function runContractTests(argv = process.argv.slice(2), {
     const mode = argv.find((value) => !String(value).startsWith('-')) || 'fast';
     const coverageEnabled = argv.includes('--coverage');
     const selectedTests = selectNodeTestFiles(collectNodeTestFileNames('tests'), mode);
-    return runSelectedContractTests({ coverageEnabled, contractSummaryPath, selectedTests, spawn, log });
+    return runSelectedContractTests({ mode, coverageEnabled, contractSummaryPath, selectedTests, spawn, log });
 }
 
-function runSelectedContractTests({ coverageEnabled, contractSummaryPath, selectedTests, spawn, log }) {
+function runSelectedContractTests({ mode, coverageEnabled, contractSummaryPath, selectedTests, spawn, log }) {
     mkdirSync(path.dirname(contractSummaryPath), { recursive: true });
     const autoScale = resolveAutoTimeScaleEnv(process.env, existsSync(resolvePlaywrightRunLockPath(process.env)));
     const childEnv = { ...process.env, ...autoScale };
@@ -179,7 +197,7 @@ function runSelectedContractTests({ coverageEnabled, contractSummaryPath, select
         ...buildContractSummaryReporterArgs(contractSummaryPath),
         ...resolveContractTestArgs(),
         '--test',
-        ...selectedTests.map((fileName) => path.join('tests', fileName)),
+        ...buildNodeTestFileArgs(selectedTests, mode),
     ], {
         stdio: 'inherit',
         env: childEnv,

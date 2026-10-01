@@ -15,6 +15,12 @@ import { VIEWPORT_LAYOUTS, normalizeViewportLayout } from '../../shared/contract
 import { buildStandardCaptureSegments } from './RecordingCaptureLayoutOps.js';
 import { renderCaptureView } from './RecordingCaptureViewOps.js';
 import { ScenePostProcessingPipeline } from './ScenePostProcessingPipeline.js';
+import {
+    releaseCaptureRenderers,
+    releaseCinematicRenderer,
+    releaseShortsRenderer,
+    RecordingCaptureRendererLifecycle,
+} from './RecordingCaptureRendererLifecycle.js';
 import { configurePlayerHealthAuraCaptureCamera } from '../../shared/rendering/PlayerHealthAuraLayers.js';
 
 export { createCaptureCameraHooks } from './RecordingCaptureViewOps.js';
@@ -27,6 +33,7 @@ export class RecordingCapturePipeline {
         sourceRenderer,
         scene,
         beforeCameraRender = null, afterCameraRender = null,
+        rendererScheduler = null,
     }) {
         this.sourceCanvas = sourceCanvas || null;
         this.sourceRenderer = sourceRenderer || null;
@@ -73,6 +80,12 @@ export class RecordingCapturePipeline {
         this._cinematicOrbitPoseReady = false;
         this._cinematicSubjectPlayerIndex = null;
         this._lastMeta = null;
+        this._rendererLifecycle = new RecordingCaptureRendererLifecycle({
+            scheduler: rendererScheduler,
+            isActive: () => this._active,
+            hasRenderers: () => !!(this._shortsRenderer || this._cinematicRenderer),
+            releaseRenderers: () => releaseCaptureRenderers(this),
+        });
     }
 
     setActive(active) {
@@ -83,6 +96,9 @@ export class RecordingCapturePipeline {
             // Retry shorts-renderer creation on the next recording session.
             this._shortsRendererUnavailable = false;
             this._cinematicRendererUnavailable = false;
+            this._rendererLifecycle.schedule();
+        } else {
+            this._rendererLifecycle.cancel();
         }
         this._orbitDirector.reset();
         this._shortsCameraRig.resetCameras();
@@ -187,8 +203,8 @@ export class RecordingCapturePipeline {
                 this._shortsRenderer.toneMappingExposure = this.sourceRenderer?.toneMappingExposure || 1.2;
                 this._shortsRenderer.setClearColor(CONFIG.COLORS.BACKGROUND);
             } catch {
+                releaseShortsRenderer(this);
                 this._shortsRendererUnavailable = true;
-                this._shortsRenderer = null;
                 return null;
             }
         }
@@ -201,8 +217,8 @@ export class RecordingCapturePipeline {
             this._shortsRenderer.setClearColor(CONFIG.COLORS.BACKGROUND);
             this._shortsRenderer.setSize(safeWidth, safeHeight, false);
         } catch {
+            releaseShortsRenderer(this);
             this._shortsRendererUnavailable = true;
-            this._shortsRenderer = null;
             return null;
         }
         return this._shortsRenderer;
@@ -543,9 +559,8 @@ export class RecordingCapturePipeline {
                 );
                 this._cinematicPostProcessingPipeline.setQualityPreset(this._bloomPreset);
             } catch {
+                releaseCinematicRenderer(this);
                 this._cinematicRendererUnavailable = true;
-                this._cinematicRenderer = null;
-                this._cinematicCanvas = null;
                 return null;
             }
         }
@@ -558,16 +573,8 @@ export class RecordingCapturePipeline {
             this._cinematicRenderer.setSize(safeWidth, safeHeight, false);
             this._cinematicPostProcessingPipeline?.setSize?.(safeWidth, safeHeight);
         } catch {
-            try {
-                this._cinematicRenderer?.dispose?.();
-            } catch {
-                // The failed context is discarded below.
-            }
+            releaseCinematicRenderer(this);
             this._cinematicRendererUnavailable = true;
-            this._cinematicPostProcessingPipeline?.dispose?.();
-            this._cinematicPostProcessingPipeline = null;
-            this._cinematicRenderer = null;
-            this._cinematicCanvas = null;
             return null;
         }
         return this._cinematicRenderer;
@@ -746,18 +753,8 @@ export class RecordingCapturePipeline {
     }
 
     dispose() {
-        if (this._shortsRenderer) {
-            this._shortsRenderer.dispose();
-        }
-        this._shortsRenderer = null;
-        this._shortsRendererUnavailable = false;
-        this._shortsCanvas = null;
-        this._cinematicPostProcessingPipeline?.dispose?.();
-        this._cinematicPostProcessingPipeline = null;
-        if (this._cinematicRenderer) { this._cinematicRenderer.dispose(); }
-        this._cinematicRenderer = null;
-        this._cinematicRendererUnavailable = false;
-        this._cinematicCanvas = null;
+        this._rendererLifecycle.cancel();
+        releaseCaptureRenderers(this);
         this._cinematicSubjectSelector.reset();
         this._captureCanvas = null;
         this._captureCtx = null;

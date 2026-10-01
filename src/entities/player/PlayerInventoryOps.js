@@ -38,10 +38,15 @@ export function addPlayerInventoryItem(player, type) {
         return false;
     }
     const collections = ensurePlayerInventoryCollections(player);
-    const destination = isRocketPickupType(normalized)
-        ? collections.rocketInventory
-        : collections.inventory;
-    if (destination.length < resolveGameplayConfig(player).POWERUP.MAX_INVENTORY) {
+    const isRocket = isRocketPickupType(normalized);
+    const destination = isRocket ? collections.rocketInventory : collections.inventory;
+    // Paket 1: Arcade-Fahrzeuge haben getrennte Item-/Raketen-Kapazitäten (player.itemCapacity /
+    // player.rocketCapacity); alle anderen Modi/Spieler fallen auf die globale Konfiguration zurück.
+    const capacityField = isRocket ? player.rocketCapacity : player.itemCapacity;
+    const capacity = Number.isFinite(capacityField) && capacityField > 0
+        ? capacityField
+        : resolveGameplayConfig(player).POWERUP.MAX_INVENTORY;
+    if (destination.length < capacity) {
         destination.push(normalized);
         return true;
     }

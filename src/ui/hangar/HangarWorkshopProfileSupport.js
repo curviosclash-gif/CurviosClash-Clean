@@ -1,6 +1,7 @@
 import {
-    ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
+    arcadeVehicleXpForLevel as xpForLevel,
+    clampArcadeProfileCount,
     getArcadeVehicleProfileRecord,
     loadArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
@@ -9,7 +10,6 @@ import { createDefaultHangarBuild, normalizeHangarBuild } from './HangarBuildDra
 const HITBOX_TO_CONTRACT = Object.freeze({ kompakt: 'compact', standard: 'standard', schwer: 'heavy' });
 
 export function createFallbackProfilePort(store) {
-    const xpForLevel = (level) => level <= 1 ? 0 : Math.floor(100 * Math.pow(level, 1.5));
     return Object.freeze({
         load() {
             return loadArcadeVehicleProfileRecord(store).profiles;
@@ -19,17 +19,19 @@ export function createFallbackProfilePort(store) {
         getSpendableUpgradeXp: (profile) => Math.max(0, Number(profile?.xpBank ?? profile?.xp) || 0),
         xpForLevel,
         xpToNextLevel(profile) {
-            const level = Math.max(1, Math.min(ARCADE_VEHICLE_PROFILE_MAX_LEVEL, Number(profile?.level) || 1));
-            if (level >= ARCADE_VEHICLE_PROFILE_MAX_LEVEL) return { current: 0, required: 0, progress: 1 };
+            const level = Math.max(1, clampArcadeProfileCount(profile?.level, 1));
             const floor = xpForLevel(level);
             const required = xpForLevel(level + 1) - floor;
-            const current = Math.max(0, (Number(profile?.xp) || 0) - floor);
+            const current = Math.max(0, clampArcadeProfileCount(profile?.xp) - floor);
             return { current, required, progress: required > 0 ? Math.min(1, current / required) : 1 };
         },
     });
 }
 
+// Arcade catalog entries carry a fixed role instead of the old hitbox class. The build chassis
+// classes compact/standard/heavy belong to Lab builds (Paket 6), so factory ships use standard.
 export function mapHangarHitboxClass(entry) {
+    if (entry?.rolle) return 'standard';
     return HITBOX_TO_CONTRACT[String(entry?.hitboxKlasse || '').toLowerCase()] || 'standard';
 }
 

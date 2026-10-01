@@ -40,7 +40,7 @@ export function resolveDirectionalProjectileThreat(policy, state, player, runtim
         policy._tmpEvade.copy(policy._tmpProjectileRelative)
             .addScaledVector(policy._tmpProjectileVelocity, timeToImpact);
         const projectileRadius = Math.max(0, Number(projectile.hitboxRadius ?? projectile.radius) || 0);
-        const safetyRadius = Math.max(0.1, Number(player.hitboxRadius) || 0.8)
+        const safetyRadius = Math.max(0.1, Number(player.arcadeAvoidRadius || player.hitboxRadius) || 0.8)
             + projectileRadius
             + config.projectileSafetyRadius;
         if (policy._tmpEvade.lengthSq() > safetyRadius * safetyRadius) continue;

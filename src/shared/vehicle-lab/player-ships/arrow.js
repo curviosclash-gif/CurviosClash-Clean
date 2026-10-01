@@ -6,6 +6,9 @@
 // A box covers its middle; each swept edge is a strip box turned along the edge plus a filler box, all
 // 0.125 thick and overlapping inside the plate, so the fin reads as one even plate from every side.
 // Rectangles cannot reach into the 59-degree corners, so the root and outer tip are clipped by ~0.2.
+// The utility part (not in the old model) is an equipment sleeve around the middle of the shaft:
+// octagonal and tapered like the shaft, light grey with a dark band like the engines. It encloses
+// the shaft at every size (80-125 %) and keeps clear of the arrowhead and the fins.
 const FIN_THICKNESS = 0.125;
 const FIN_SWEEP = -30.96;
 
@@ -50,6 +53,10 @@ export default {
     parts: [
         { name: 'Pfeilschaft', geo: 'pylon', size: [0.1, 0.25, 4], pos: [0, 0, 1], rot: [90, 0, 0], material: 'primary', role: 'core' },
         { name: 'Pfeilspitze', geo: 'cone', size: [0.4, 1.2], pos: [0, 0, -1.6], rot: [-90, 0, 0], material: 'primary', role: 'nose' },
+        // Pylon turned like the shaft: local +y points to the rear, so the thinner end sits behind.
+        { name: 'Ausrüstungsmanschette', geo: 'pylon', size: [0.3, 0.34, 1.3], pos: [0, 0, 0.55], rot: [90, 0, 0], material: 'secondary', color: 0xc8ccd2, role: 'utility', children: [
+            { name: 'Manschettenband', geo: 'pylon', size: [0.335, 0.335, 0.16], material: 'secondary', color: 0x111111 },
+        ] },
         fin('Linke Heckfinne', [-1.25, 0.3125, 3.125], 0, { role: 'wing_left' }),
         fin('Rechte Heckfinne', [1.25, -0.3125, 3.125], 180, { role: 'wing_right' }),
         fin('Untere Heckfinne', [-0.3125, -1.25, 3.125], 90),

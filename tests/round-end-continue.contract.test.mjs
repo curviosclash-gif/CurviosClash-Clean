@@ -22,11 +22,13 @@ import {
 function createContinueInput() {
     const pressed = new Set();
     let continueIntent = false;
+    let gamepadPauseIntent = false;
     const stats = { clearContinue: 0, continueReads: 0 };
     return {
         stats,
         press(key) {
             if (key === 'Continue') continueIntent = true;
+            else if (key === 'GamepadPause') gamepadPauseIntent = true;
             else pressed.add(key);
         },
         wasPressed(key) {
@@ -36,8 +38,18 @@ function createContinueInput() {
                 continueIntent = false;
                 return value;
             }
+            if (key === 'Escape' && gamepadPauseIntent) {
+                gamepadPauseIntent = false;
+                return true;
+            }
             if (!pressed.has(key)) return false;
             pressed.delete(key);
+            return true;
+        },
+        wasKeyboardEscapePressed() {
+            gamepadPauseIntent = false;
+            if (!pressed.has('Escape')) return false;
+            pressed.delete('Escape');
             return true;
         },
         clearContinueIntent() {
@@ -261,6 +273,28 @@ test('network clients never start a round or a match with continue', () => {
     matchHarness.input.press('Escape');
     matchHarness.system.updateMatchEnd(0.05);
     assert.equal(matchHarness.calls.returnToMenu, 1, 'the menu path stays open for clients');
+});
+
+test('gamepad pause is ignored on round and match result boards, keyboard Escape still exits', () => {
+    const roundHarness = createHarness();
+    roundHarness.kernel.signalRoundEnd({ roundPause: 3 });
+    stepRoundEnd(roundHarness, ROUND_END_INPUT_LOCK_SECONDS);
+    roundHarness.input.press('GamepadPause');
+    roundHarness.system.updateRoundEnd(0.05);
+    assert.equal(roundHarness.calls.returnToMenu, 0, 'gamepad pause cannot leave ROUND_END');
+    roundHarness.input.press('Escape');
+    roundHarness.system.updateRoundEnd(0.05);
+    assert.equal(roundHarness.calls.returnToMenu, 1, 'keyboard Escape still leaves ROUND_END');
+
+    const matchHarness = createHarness();
+    matchHarness.kernel.signalMatchEnd();
+    stepMatchEnd(matchHarness, MATCH_END_INPUT_LOCK_SECONDS);
+    matchHarness.input.press('GamepadPause');
+    matchHarness.system.updateMatchEnd(0.05);
+    assert.equal(matchHarness.calls.returnToMenu, 0, 'gamepad pause cannot leave MATCH_END');
+    matchHarness.input.press('Escape');
+    matchHarness.system.updateMatchEnd(0.05);
+    assert.equal(matchHarness.calls.returnToMenu, 1, 'keyboard Escape still leaves MATCH_END');
 });
 
 test('the five fronts advantage choice ignores continue', () => {

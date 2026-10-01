@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { resolveGameplayConfig } from '../../../shared/contracts/GameplayConfigContract.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -11,12 +12,60 @@ function axis(input, key, positive, negative) {
 /** Copy an owner's normal flight axes onto the rocket without keeping the input object. */
 export function applyGuidedRocketInput(projectile, input, config = {}) {
     if (!projectile) return;
-    projectile.steerYaw = axis(input, 'yawAxis', 'yawLeft', 'yawRight');
-    projectile.steerPitch = axis(input, 'pitchAxis', 'pitchUp', 'pitchDown');
+    const owner = projectile.owner;
+    let yaw = axis(input, 'yawAxis', 'yawLeft', 'yawRight');
+    let pitch = axis(input, 'pitchAxis', 'pitchUp', 'pitchDown');
+    // The rocket answers the stick exactly like the owner's ship (PlayerController): the menu's
+    // pitch inversion, the INVERT item and the planar mode apply to both.
+    if (owner?.invertPitchBase) pitch = -pitch;
+    if (owner?.invertControls) {
+        pitch = -pitch;
+        yaw = -yaw;
+    }
+    if (owner && resolveGameplayConfig(owner).GAMEPLAY.PLANAR_MODE) pitch = 0;
+    projectile.steerYaw = yaw;
+    projectile.steerPitch = pitch;
     if (input?.boostPressed === true && projectile.boostUsed !== true) {
         projectile.boostUsed = true;
         projectile.boostRemaining = Math.max(0, Number(config.GUIDED_BOOST_SECONDS) || 2);
     }
+}
+
+/** The fire key pressed again while steering lets go of the rocket. */
+export function wantsGuidedRocketRelease(input) {
+    return input?.shootRocket === true || input?.shootItem === true;
+}
+
+/** Hand a steered rocket to the ordinary homing: it keeps heading and speed and picks its own target. */
+export function releaseGuidedRocket(projectile, acquireTarget) {
+    if (!projectile?.guidedActive) return false;
+    projectile.guidedActive = false;
+    projectile.steerYaw = 0;
+    projectile.steerPitch = 0;
+    projectile.boostRemaining = 0;
+    projectile.homingEnabled = true;
+    projectile.targetReacquireDisabled = false;
+    projectile.homingReacquireTimer = 0;
+    projectile.target = acquireTarget?.(projectile) || null;
+    return true;
+}
+
+export function findGuidedRocketForOwner(projectiles, owner) {
+    return projectiles.find((projectile) => projectile.guidedActive && projectile.owner === owner) || null;
+}
+
+/** Route one owner's flight input to their steered rocket; false when they steer none. */
+export function applyGuidedOwnerInput(system, owner, input) {
+    const projectile = findGuidedRocketForOwner(system.projectiles, owner);
+    if (!projectile) return false;
+    // The press that lets go is swallowed, so it never fires the next rocket as well.
+    if (wantsGuidedRocketRelease(input)) {
+        releaseGuidedRocket(projectile, (rocket) => system._acquireHomingTarget(
+            rocket, system.getPlayers(), system.getTrailSpatialIndex()));
+        return true;
+    }
+    applyGuidedRocketInput(projectile, input, system.entityRuntimeConfig?.HUNT?.ROCKET);
+    return true;
 }
 
 /** Turn and set speed before the ordinary projectile step moves and collides. */

@@ -3,7 +3,7 @@ import { stat, writeFile } from 'node:fs/promises';
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame, waitForRenderFrames } from './helpers.js';
 
-const MAP_KEY = 'dandelion_sky';
+const MAP_KEY = 'sunflower_meadow';
 const GLB_PATH = path.resolve('assets/models/sunflower/sunflower_shootable.glb');
 
 async function startSunflowerFight(page) {

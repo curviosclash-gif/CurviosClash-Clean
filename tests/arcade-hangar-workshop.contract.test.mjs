@@ -56,6 +56,9 @@ import {
     createVehicleLabHangarPublication,
     upsertVehicleLabHangarPublication,
 } from '../src/shared/contracts/VehicleLabHangarPublishContract.js';
+import { listArcadeHitboxBoxes } from '../src/shared/contracts/ArcadeVehicleHitboxContract.js';
+import { resolveArcadeSizedPartStyle } from '../src/shared/contracts/ArcadeVehicleBuildContract.js';
+import { PLAYER_SHIP_PART_CONFIGS } from '../src/shared/vehicle-lab/player-ships/index.js';
 
 const STONE_COLORS = ['blue', 'green', 'gold', 'cyan', 'violet'];
 
@@ -204,6 +207,37 @@ test('loaded vehicle models are normalized and mounted parts change the visible 
     assert.ok(blueCoreMaterials.every((material) => material.emissiveIntensity === 0.85));
     assembly.setSelectedSlot('');
     assert.ok(blueCoreMaterials.every((material) => material.emissiveIntensity === material.userData.hangarBaseEmissiveIntensity));
+    assembly.dispose();
+});
+
+test('hit zone overlay: the part boxes sit on the drawn ship at every size draft, and hiding leaves none', () => {
+    const assembly = new HangarVehicleAssembly(new THREE.Group());
+    const size = new THREE.Vector3();
+    const centre = new THREE.Vector3();
+    for (const config of PLAYER_SHIP_PART_CONFIGS) {
+        assembly.setVehicle(config.id);
+        let factorySpan = 0;
+        for (const sizes of [null, { wings: 125, hull: 80, engines: 125 }]) {
+            const label = `${config.id} ${JSON.stringify(sizes)}`;
+            // The Form tab order: sized model first, then the boxes of the same sizes.
+            assembly.setPartStyle(resolveArcadeSizedPartStyle(config.parts, null, sizes));
+            const boxes = listArcadeHitboxBoxes(config, sizes);
+            assert.equal(assembly.setHitboxBoxes(boxes), boxes.length, label);
+            assembly.group.updateWorldMatrix(true, true);
+            const model = new THREE.Box3().setFromObject(assembly.vehicleNode);
+            const zone = new THREE.Box3().setFromObject(assembly.hitboxRoot);
+            // 90 % boxes of the drawn parts: inside the model (after the Hangar's centring and scale).
+            const slack = 0.03 * model.getSize(size).length();
+            assert.ok(model.clone().expandByScalar(slack).containsBox(zone), `${label}: ${zone.min.toArray()} .. ${zone.max.toArray()} outside ${model.min.toArray()} .. ${model.max.toArray()}`);
+            assert.ok(Math.abs(zone.getCenter(centre).x - model.getCenter(size).x) < slack, `${label}: centred on the ship`);
+            // In vehicle units: the Hangar shrinks a grown ship back to its display size.
+            const span = zone.getSize(size).x / assembly.baseVehicleRoot.scale.x;
+            if (sizes) assert.ok(span > factorySpan, `${label}: bigger wings widen the zone (${factorySpan} -> ${span})`);
+            else factorySpan = span;
+        }
+    }
+    assert.equal(assembly.setHitboxBoxes(null), 0);
+    assert.equal(assembly.hitboxRoot.children.length, 0, 'hidden: no boxes left');
     assembly.dispose();
 });
 

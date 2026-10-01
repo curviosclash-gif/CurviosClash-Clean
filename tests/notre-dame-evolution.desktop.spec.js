@@ -1,9 +1,11 @@
 import { expect, test } from './helpers.desktop.js';
 import { waitForLoadedGame, openCustomSubmenu, returnToMenu } from './helpers.js';
 import { writeFile } from 'node:fs/promises';
+import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
 
 for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
-    test(`${mapKey} evolves from sunshine through fire to ruins and resets @render`, async ({ page }, testInfo) => {
+    const intactSky = NOTRE_DAME_MAPS[mapKey].lighting.skyDome;
+    test(`${mapKey} evolves from its dusk lighting through fire to ruins and resets @render`, async ({ page }, testInfo) => {
         test.setTimeout(240000);
         await waitForLoadedGame(page);
         await openCustomSubmenu(page);
@@ -16,7 +18,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
             game.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['bots.count'] });
         });
         await page.click('#btn-start');
-        await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE?.arena?._glbScene?.children?.length), { timeout: 150000 }).toBe(53);
+        await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE?.arena?._glbScene?.children?.length), { timeout: 150000 }).toBe(45);
         const proof = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const arena = game.arena;
@@ -24,7 +26,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
             const solid = (x,y,z) => arena.checkCollisionFast({x:x*3,y:y*3,z:z*3}, .1);
             const samples = [];
             system.startRound();
-            for (const at of [0, 118, 150, 350, 610]) {
+            for (const at of [0, 118, 120, 121, 123, 126, 150, 350, 610]) {
                 arena.setGlbAnimationElapsedSeconds(at);
                 system.updateFeedback();
                 arena.setGlbAnimationElapsedSeconds(at);
@@ -35,9 +37,22 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
                 game.renderer.renderer.render(game.renderer.scene, camera);
                 samples.push({ at, image: game.renderer.renderer.domElement.toDataURL('image/png'),
                     progress: arena.mapFireProgress, events: system.state.events.map((entry) => entry.segmentId),
+                    vaultProbeBlockers: at < 350 ? null : [-68, -52, -36, -20, -4].map((x) => {
+                        const hit = arena.getCollisionInfo({ x: x * 3, y: 55 * 3, z: 0 }, 1.6);
+                        return hit?.obstacle?.sourceName || hit?.obstacle?.sourceId || hit?.kind || null;
+                    }),
                     sky: structuredClone(game.renderer.getMapLighting().skyDome),
                     roofSolid: solid(-34.65, 60, 12),
-                    siteFrames: arena.obstacles.filter((o) => arena.currentMapDefinition.fireProgression.siteFrameIds.includes(o.sourceId)).length,
+                    finishBlockers: (() => {
+                        const finish = arena.currentMapDefinition.parcours?.finish;
+                        if (!finish) return [];
+                        const [x, y, z] = finish.pos.map((value) => value * 3);
+                        // The largest shipped aircraft has a 1.6-unit hitbox; check the actual
+                        // traversal centre with that hull radius, not an arbitrary wider disc.
+                        const hit = arena.getCollisionInfo({ x, y, z }, 1.6);
+                        return hit ? [hit.obstacle?.sourceName || hit.obstacle?.sourceId || hit.kind || 'unknown'] : [];
+                    })(),
+                    constructionFrames: arena.obstacles.filter((o) => String(o.sourceId || '').startsWith('nd-site-')).length,
                     warnings: arena._glbLoadWarnings, error: String(arena._glbLoadError || ''),
                     checkpointBlocked: (arena.currentMapDefinition.parcours?.checkpoints || []).filter((cp) => solid(...cp.pos)).map((cp) => cp.id),
                 });
@@ -53,19 +68,22 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
             delete sample.image;
         }
         await writeFile(testInfo.outputPath('evolution.json'), JSON.stringify(proof, null, 2));
-        expect(proof.samples[0].sky.zenithColor).toBe(0x2586df);
+        expect(proof.samples[0].sky.zenithColor).toBe(intactSky.zenithColor);
         expect(proof.samples[0].roofSolid).toBe(true);
-        expect(proof.samples[0].siteFrames).toBeGreaterThan(0);
-        expect(proof.samples[3].events).toEqual(['roof','nave','transept']);
-        expect(proof.samples[3].roofSolid).toBe(false);
-        expect(proof.samples[3].siteFrames).toBe(0);
-        expect(proof.samples[3].sky.zenithColor).toBe(0x050912);
-        expect(proof.samples[4].events).toHaveLength(6);
+        expect(proof.samples[0].constructionFrames).toBe(0);
+        const lateFire = proof.samples.find((sample) => sample.at === 350);
+        expect(lateFire.events).toEqual(['roof','nave','transept']);
+        expect(lateFire.vaultProbeBlockers).toEqual([null, null, null, null, null]);
+        expect(lateFire.roofSolid).toBe(false);
+        expect(lateFire.constructionFrames).toBe(0);
+        expect(lateFire.sky.zenithColor).toBe(0x050912);
+        expect(proof.samples.find((sample) => sample.at === 610).events).toHaveLength(6);
         expect(proof.reset).toEqual({ progress: 0, events: 0, roofSolid: true, sky: proof.samples[0].sky });
         for (const sample of proof.samples) {
             expect(sample.error).toBe('');
             expect(sample.warnings).toEqual([]);
             expect(sample.checkpointBlocked).toEqual([]);
+            expect(sample.finishBlockers, `FINISH should stay clear at ${sample.at}s`).toEqual([]);
         }
         // A fresh match must release the previous map's persistent fire resources.
         for (const nextMap of ['standard', mapKey, 'standard', mapKey]) {
@@ -77,7 +95,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
             await page.click('#btn-start');
             await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE?.arena?.currentMapKey), { timeout: 150000 }).toBe(nextMap);
             if (nextMap !== 'standard') {
-                await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE?.arena?._glbScene?.children?.length), { timeout: 150000 }).toBe(53);
+                await expect.poll(() => page.evaluate(() => window.GAME_INSTANCE?.arena?._glbScene?.children?.length), { timeout: 150000 }).toBe(45);
             }
             const resources = await page.evaluate(() => {
                 const game = window.GAME_INSTANCE;
@@ -89,7 +107,7 @@ for (const mapKey of ['notre_dame', 'notre_dame_arena']) {
             expect(resources.groups).toBe(nextMap === 'standard' ? 0 : 1);
             expect(resources.events).toBe(0);
             if (nextMap === 'standard') expect(resources.progress).toBeNull();
-            else { expect(resources.progress).toBe(0); expect(resources.sky).toBe(0x2586df); }
+            else { expect(resources.progress).toBe(0); expect(resources.sky).toBe(intactSky.zenithColor); }
         }
     });
 }

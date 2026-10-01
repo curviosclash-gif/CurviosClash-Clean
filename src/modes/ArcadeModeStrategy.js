@@ -17,6 +17,8 @@ import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE } from '../s
 import { ARENA_WAVES_COMBAT_PROFILE } from '../shared/contracts/ArenaWavesContract.js';
 import { resolveArcadeParcoursRespawnFallback, resolveArcadeRunCombatProfile } from './ArcadeRunRulesOps.js';
 import { applyArcadeEndlessSpawnBonuses, resetArcadeEndlessPlayerHealth } from './ArcadeEndlessVehicleBonusOps.js';
+import { applyArcadeBuildToPlayer, applyArcadeGauntletHealthReset, applyArcadeVehicleSpawnCapacities, capArcadeVehicleSpeedMultiplier, isNormalArcadeRunType, normalizeArcadeUpgradeBonusMap, normalizeArcadeUpgradeBonuses, resolveArcadePlayerUpgradeBonuses, resolveArcadeVehicleStatPct } from './ArcadeVehicleStatOps.js';
+import { resolveArcadeSimulationSeconds, stampArcadeHitOnSimulationClock, updateArcadeBaseRegen } from './ArcadeBaseRegenOps.js';
 
 const DEFAULT_MAX_HP = 100;
 const DEFAULT_SHIELD_HP = 40;
@@ -67,6 +69,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._random = this.runtimeRng.next;
         this._activeModifierId = null;
         this._slotBonuses = NULL_SLOT_BONUSES;
+        this._slotBonusesByVehicle = null;
         /** @type {any} */
         this._runRewardEffects = createDefaultArcadeRunRewardEffects();
         this._roundScores = {};
@@ -77,7 +80,8 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._sdDamageMultiplier = 1.0;
         // 82.1.1: Current sector type (null = default arena)
         this._sectorType = null;
-        this._runType = String(options.runType || '').trim().toLowerCase();
+        this._runType = String(options.runType || 'gauntlet').trim().toLowerCase();
+        this._isDailyChallenge = options.isDailyChallenge === true;
         this._combatProfile = resolveArcadeRunCombatProfile(this._runType, options.combatProfile);
         this._huntCombat = this._combatProfile === ENDLESS_PARCOURS_COMBAT_PROFILE || this._combatProfile === ARENA_WAVES_COMBAT_PROFILE
             ? new HuntModeStrategy({
@@ -167,18 +171,20 @@ export class ArcadeModeStrategy extends GameModeContract {
     // fuer das ganze Match, also muss jede Anwendung fragen, wen sie vor sich hat --
     // sonst fliegen die Gegner mit derselben Aufruestung. Ohne bekannten Spieler
     // bleibt es beim alten Verhalten, damit vorhandene Aufrufer weiter funktionieren.
-    _upgradeBonusesFor(player) { return player?.isBot === true ? NULL_SLOT_BONUSES : this._slotBonuses; }
+    _upgradeBonusesFor(player) {
+        if (player?.isBot === true) return NULL_SLOT_BONUSES;
+        return this._slotBonusesByVehicle ? (this._slotBonusesByVehicle[String(player?.vehicleId || '').trim()] || NULL_SLOT_BONUSES) : resolveArcadePlayerUpgradeBonuses(player, this._slotBonuses);
+    }
 
+    // Paket 2a: bonuses.build (Größenfelder des Profils) rechnet nur in normalen Runs mit.
     applyVehicleUpgrades(bonuses) {
-        if (!bonuses || typeof bonuses !== 'object') {
-            this._slotBonuses = NULL_SLOT_BONUSES;
-        } else {
-            this._slotBonuses = Object.freeze({
-                turningBonusPct: Number.isFinite(bonuses.turningBonusPct) ? bonuses.turningBonusPct : 0,
-                speedBonusPct: Number.isFinite(bonuses.speedBonusPct) ? bonuses.speedBonusPct : 0,
-                maxHpBonus: Number.isFinite(bonuses.maxHpBonus) ? bonuses.maxHpBonus : 0,
-            });
+        const byVehicleId = bonuses?.byVehicleId;
+        if (byVehicleId && typeof byVehicleId === 'object' && !Array.isArray(byVehicleId)) {
+            this._slotBonusesByVehicle = normalizeArcadeUpgradeBonusMap(byVehicleId, this.isNormalArcadeRun());
+            this._slotBonuses = NULL_SLOT_BONUSES; return;
         }
+        this._slotBonusesByVehicle = null;
+        this._slotBonuses = normalizeArcadeUpgradeBonuses(bonuses, NULL_SLOT_BONUSES, this.isNormalArcadeRun());
     }
 
     applyRunRewardEffects(effects) {
@@ -189,6 +195,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     getPickupModeType() { return this._huntCombat ? 'HUNT' : this.modeType; }
     getCombatProfile() { return this._combatProfile; }
     isEndlessParcours() { return this._runType === ENDLESS_PARCOURS_RUN_TYPE; } isWeaponRace() { return this._runType === 'weapon_race'; }
+    isNormalArcadeRun() { return isNormalArcadeRunType(this._runType, this._isDailyChallenge); }
     hasCombatHud() { return !!this._huntCombat; }
 
     // --- Sudden Death (61.6.2) ---
@@ -299,22 +306,17 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     // --- Health & Damage ---
+    // 61.8.1 / 82.8.4: T2 Core adds HP bonus, capped at +50% of vehicle base (Paket 1)
     resetPlayerHealth(player) {
-        if (this._huntCombat) return resetArcadeEndlessPlayerHealth(this._huntCombat, player, this._upgradeBonusesFor(player));
+        const isNormalRun = this.isNormalArcadeRun();
+        applyArcadeBuildToPlayer(player, this._upgradeBonusesFor(player), isNormalRun);
+        if (this._huntCombat) return resetArcadeEndlessPlayerHealth(this._huntCombat, player, this._upgradeBonusesFor(player), isNormalRun);
         if (!player) return null;
-        // 61.8.1 / 82.8.4: T2 Core adds HP bonus, capped at +50% of base
-        const hpBonus = Math.min(DEFAULT_MAX_HP * (UPGRADE_STAT_CAP_PCT / 100), Math.max(0, this._upgradeBonusesFor(player).maxHpBonus));
-        player.maxHp = DEFAULT_MAX_HP + hpBonus + this._runRewardEffects.maxHpBonus;
-        player.hp = player.maxHp;
-        player.maxShieldHp = DEFAULT_SHIELD_HP;
-        player.shieldHP = player.hasShield ? DEFAULT_SHIELD_HP : 0;
-        player.lastDamageTimestamp = -Infinity;
-        player.shieldHitFeedback = 0;
-        return player;
+        return applyArcadeGauntletHealthReset(player, player.vehicleId, DEFAULT_MAX_HP, isNormalRun, this._upgradeBonusesFor(player), this._runRewardEffects.maxHpBonus, UPGRADE_STAT_CAP_PCT, DEFAULT_SHIELD_HP);
     }
 
     applyDamage(player, amount, options) {
-        if (this._huntCombat) return this._huntCombat.applyDamage(player, amount, options);
+        if (this._huntCombat) return stampArcadeHitOnSimulationClock(player, this._huntCombat.applyDamage(player, amount, options), options, this.isNormalArcadeRun());
         if (!player) return { applied: 0, absorbedByShield: 0, remainingHp: 0, isDead: true };
         // 61.6.2: Scale incoming damage by SD damage multiplier
         const rawDmg = Math.max(0, toSafe(amount, 0));
@@ -336,10 +338,9 @@ export class ArcadeModeStrategy extends GameModeContract {
             if (player.shieldHP <= 0) player.hasShield = false;
         }
 
-        if (remaining > 0) {
-            player.hp = Math.max(0, toSafe(player.hp, player.maxHp) - remaining);
-            player.lastDamageTimestamp = toSafe(options?.nowSeconds, this._nowSeconds());
-        }
+        if (remaining > 0) player.hp = Math.max(0, toSafe(player.hp, player.maxHp) - remaining);
+        // Every hit pauses the regen, also one the shield absorbs completely (as in the Hunt profile).
+        player.lastDamageTimestamp = toSafe(options?.nowSeconds, resolveArcadeSimulationSeconds(this.isNormalArcadeRun() ? player.entityManager : null, this._nowSeconds()));
 
         return { applied: dmg, absorbedByShield: absorbed, remainingHp: player.hp, isDead: player.hp <= 0 };
     }
@@ -421,8 +422,8 @@ export class ArcadeModeStrategy extends GameModeContract {
         if (this._huntCombat) return this._huntCombat.grantShield(player);
         if (!player) return 0;
         player.hasShield = true;
-        player.maxShieldHp = DEFAULT_SHIELD_HP;
-        player.shieldHP = DEFAULT_SHIELD_HP;
+        player.maxShieldHp = DEFAULT_SHIELD_HP * (Number(player.arcadeShieldMultiplier) || 1);
+        player.shieldHP = player.maxShieldHp;
         player.shieldHitFeedback = 0;
         return player.shieldHP;
     }
@@ -437,16 +438,15 @@ export class ArcadeModeStrategy extends GameModeContract {
         return this.applyDamage(player, amount, { ignoreShield: true });
     }
 
-    // 61.4.1: heat_stress drains HP over time; no natural regen in Arcade
-    // 61.6.2: Also aggregates SD stacked modifier effects
+    // 61.4.1: heat_stress drains HP over time (61.6.2: plus SD stacks). Paket 1: normal runs get the
+    // base regen (ArcadeBaseRegenOps) instead of the Hunt regen; daily and weapon race keep their rules.
     updateHealthRegen(player, dt, entityManager = null) {
-        if (this._huntCombat) return this._huntCombat.updateHealthRegen(player, dt, entityManager);
+        if (this._huntCombat && !this.isNormalArcadeRun()) return this._huntCombat.updateHealthRegen(player, dt, entityManager);
         if (!player || player.hp <= 0) return null;
-        const fx = this._getAggregatedModifierEffects();
-        if (!fx || !fx.hpDrainPerSecond) return null;
-        const drain = fx.hpDrainPerSecond * Math.max(0, dt);
-        if (drain <= 0) return null;
-        return this._applyModifierDamage(player, drain, 'HEAT_STRESS', entityManager);
+        const drain = ((this._huntCombat ? null : this._getAggregatedModifierEffects())?.hpDrainPerSecond || 0) * Math.max(0, dt);
+        if (drain > 0) return this._applyModifierDamage(player, drain, 'HEAT_STRESS', entityManager);
+        if (!this.isNormalArcadeRun()) return null;
+        return updateArcadeBaseRegen(player, dt, resolveArcadeSimulationSeconds(entityManager || player.entityManager, this._nowSeconds()), this._sdActive);
     }
 
     // 61.4.1: boost_tax — drains HP while boosting
@@ -466,23 +466,24 @@ export class ArcadeModeStrategy extends GameModeContract {
     getTurnRateMultiplier(player = null) {
         const fx = this._getAggregatedModifierEffects();
         const modifierMultiplier = (fx && fx.turnRateMultiplier) ? fx.turnRateMultiplier : 1.0;
-        const cappedPct = Math.min(UPGRADE_STAT_CAP_PCT, this._upgradeBonusesFor(player).turningBonusPct);
-        const upgradeMultiplier = 1.0 + (cappedPct / 100);
-        return modifierMultiplier * upgradeMultiplier;
+        const bonusPct = this._upgradeBonusesFor(player).turningBonusPct;
+        const totalPct = resolveArcadeVehicleStatPct(player?.vehicleId, 'turnPct', bonusPct, this.isNormalArcadeRun(), player?._arcadeTurnPct);
+        return modifierMultiplier * (totalPct / 100);
     }
 
-    // 61.8.1: T2 Engine adds +8% speed; 82.8.4: capped at +50%
+    // 61.8.1: T2 Engine adds speed; Paket 1: Tabelle x Hangar x Lauf-Belohnung, geklemmt auf Grundwert+100
     getSpeedMultiplier(player = null) {
-        const cappedPct = Math.min(UPGRADE_STAT_CAP_PCT, this._upgradeBonusesFor(player).speedBonusPct);
-        const upgradeMultiplier = 1.0 + (cappedPct / 100);
+        const bonusPct = this._upgradeBonusesFor(player).speedBonusPct;
+        const totalPct = resolveArcadeVehicleStatPct(player?.vehicleId, 'speedPct', bonusPct, this.isNormalArcadeRun());
         const rewardMultiplier = 1.0 + (this._runRewardEffects.speedBonusPct / 100);
-        return upgradeMultiplier * rewardMultiplier;
+        return capArcadeVehicleSpeedMultiplier(player?.vehicleId, (totalPct / 100) * rewardMultiplier, this.isNormalArcadeRun());
     }
 
     // 82.8.1: Apply upgrade speed bonus to player base speed at spawn
     applySpawnStatBonuses(player) {
         if (!player) return;
-        if (applyArcadeEndlessSpawnBonuses(this._huntCombat, player, this.getSpeedMultiplier(player))) return;
+        applyArcadeVehicleSpawnCapacities(player, this.isNormalArcadeRun(), this._upgradeBonusesFor(player));
+        if (applyArcadeEndlessSpawnBonuses(this._huntCombat, player, this.getSpeedMultiplier(player), this.isNormalArcadeRun())) return;
         const speedMult = this.getSpeedMultiplier(player);
         if (!Number.isFinite(player._arcadeBaseSpeed)) player._arcadeBaseSpeed = player.baseSpeed;
         player.baseSpeed = player._arcadeBaseSpeed * speedMult;

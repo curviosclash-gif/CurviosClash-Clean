@@ -287,12 +287,12 @@ export class BotAI {
         this.sensorsFacade.scoreProbe(player, arena, allPlayers, probe, lookAhead);
     }
 
-    checkTrailHit(position, player, allPlayers, radius = player.hitboxRadius * 1.6, skipRecent = 20) {
+    checkTrailHit(position, player, allPlayers, radius = (player.arcadeAvoidRadius || player.hitboxRadius) * 1.6, skipRecent = 20) {
         this._ensureSensorsRuntimeBound();
         return this.sensorsFacade.checkTrailHit(position, player, allPlayers, radius, skipRecent);
     }
 
-    _checkTrailHit(position, player, allPlayers, radius = player.hitboxRadius * 1.6, skipRecent = 20) {
+    _checkTrailHit(position, player, allPlayers, radius = (player.arcadeAvoidRadius || player.hitboxRadius) * 1.6, skipRecent = 20) {
         return this.checkTrailHit(position, player, allPlayers, radius, skipRecent);
     }
 

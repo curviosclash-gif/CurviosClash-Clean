@@ -11,9 +11,12 @@ export function findPreferredPickupTarget(player, runtimeContext, {
     maxDistance = 90,
 } = {}) {
     const inventory = Array.isArray(player?.inventory) ? player.inventory : [];
-    const capacity = Math.max(1, Number(resolveGameplayConfig(player).POWERUP?.MAX_INVENTORY) || 1);
+    const fallbackCapacity = Math.max(1, Number(resolveGameplayConfig(player).POWERUP?.MAX_INVENTORY) || 1);
+    // Paket 1: Bots nutzen dieselben fahrzeugspezifischen Lagergrößen wie Menschen.
+    const itemCapacity = Number.isFinite(player?.itemCapacity) && player.itemCapacity > 0 ? player.itemCapacity : fallbackCapacity;
+    const rocketCapacity = Number.isFinite(player?.rocketCapacity) && player.rocketCapacity > 0 ? player.rocketCapacity : fallbackCapacity;
     const rocketInventory = Array.isArray(player?.rocketInventory) ? player.rocketInventory : [];
-    if (!player?.position || (inventory.length >= capacity && rocketInventory.length >= capacity)) return null;
+    if (!player?.position || (inventory.length >= itemCapacity && rocketInventory.length >= rocketCapacity)) return null;
 
     const pickups = Array.isArray(runtimeContext?.powerups) ? runtimeContext.powerups : [];
     const hpRatio = healthRatio(player);
@@ -25,8 +28,9 @@ export function findPreferredPickupTarget(player, runtimeContext, {
         if (!item?.mesh?.position || item.predictedCollected || item.telegraphRemaining > 0) continue;
         const definition = getPickupDefinition(item.type);
         if (!definition) continue;
-        const targetInventory = isRocketPickupType(item.type) ? rocketInventory : inventory;
-        if (targetInventory.length >= capacity) continue;
+        const isRocketItem = isRocketPickupType(item.type);
+        const targetInventory = isRocketItem ? rocketInventory : inventory;
+        if (targetInventory.length >= (isRocketItem ? rocketCapacity : itemCapacity)) continue;
         const distanceSq = player.position.distanceToSquared(item.mesh.position);
         if (distanceSq > maxDistanceSq) continue;
 

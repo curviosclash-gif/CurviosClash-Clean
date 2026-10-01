@@ -33,9 +33,10 @@ GLB_PATH = ASSET_DIR / "sunflower_shootable.glb"
 SEED = 240917
 KERNEL_COUNT = 220
 GOLDEN_ANGLE = pi * (3.0 - sqrt(5.0))
-PLANT_HEIGHT = 4.8
-HEAD_DIAMETER = 2.3
-HEAD_CENTER = Vector((0.22, -0.13, 4.04))
+PLANT_HEIGHT = 15.8
+HEAD_DIAMETER = 9.2
+HEAD_SCALE = 4.0
+HEAD_CENTER = Vector((1.45, -0.95, 15.80))
 HEAD_NORMAL = Vector((0.0, -0.82, 0.57)).normalized()
 DISK_RADIUS = 0.70
 HEAD_KERNEL_RADIUS = 0.82
@@ -104,10 +105,20 @@ def make_material(name, color, roughness=0.75, metallic=0.0):
     return mat
 
 
+def make_emissive_material(name, color, emission_color, emission_strength, roughness=0.9):
+    mat = make_material(name, color, roughness)
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    bsdf.inputs["Emission Color"].default_value = rgba(emission_color)
+    bsdf.inputs["Emission Strength"].default_value = emission_strength
+    return mat
+
+
 def create_materials():
     return {
         "stem": make_material("Stalk | olive green", 0x35431F, 0.91),
         "stem_light": make_material("Stalk ridges | soft green", 0x596A2C, 0.91),
+        "stem_glow": make_emissive_material("Stalk bore | faint amber growth",
+                                            0x120D06, 0xFF8A2E, 0.9),
         "leaf": make_material("Leaf | matte sage", 0x354E28, 0.92),
         "leaf_light": make_material("Leaf sunward surface | pale sage", 0x536B39, 0.92),
         "vein": make_material("Leaf veins | warm green", 0x81904B, 0.9),
@@ -182,6 +193,134 @@ def append_tube_path(vertices, faces, points, radii, sides=10):
     faces.append(tuple(rings[-1]))
 
 
+def append_hollow_stalk(outer_vertices, outer_faces, bore_vertices, bore_faces, rim_faces,
+                        points, wall_radii, bore_radii, openings, sides=60):
+    """A closed, walled stalk tube with side openings punched through its wall.
+
+    Each opening is a round window: the vertices whose surface position falls inside it are
+    dropped from both the outer wall and the bore face, so the tunnel is reachable exactly
+    there and solid everywhere else. Rim faces connect the two surfaces at every cut edge.
+    Both surfaces must share one collider: otherwise the runtime considers the bore solid.
+
+    points        centre-line of the stalk, bottom first
+    wall_radii    outer radius per centre-line point
+    bore_radii    inner (hollow) radius per centre-line point
+    openings      {point, normal (radially out), radius (surface metres), bore_radius}
+    """
+    points = [Vector(point) for point in points]
+    tangents = []
+    for index, point in enumerate(points):
+        if index == 0:
+            tangents.append((points[1] - point).normalized())
+        elif index == len(points) - 1:
+            tangents.append((point - points[index - 1]).normalized())
+        else:
+            tangents.append((points[index + 1] - points[index - 1]).normalized())
+
+    prepared = []
+    for opening in openings:
+        axis = Vector(opening["normal"]).normalized()
+        radius = opening["radius"]
+        prepared.append({
+            "point": Vector(opening["point"]),
+            "axis": axis,
+            "cos_width": cos(min(pi * 0.9, radius / max(0.05, opening["bore_radius"]))),
+            "half_height": radius * 1.08,
+        })
+
+    rings = []
+    for index, point in enumerate(points):
+        tangent = tangents[index]
+        reference = Vector((0.0, 0.0, 1.0))
+        if abs(tangent.dot(reference)) > 0.92:
+            reference = Vector((0.0, 1.0, 0.0))
+        axis_x = tangent.cross(reference).normalized()
+        axis_y = tangent.cross(axis_x).normalized()
+        outer_ring, bore_ring, cut_flags = [], [], []
+        for side in range(sides):
+            angle = 2.0 * pi * side / sides
+            radial = (cos(angle) * axis_x + sin(angle) * axis_y).normalized()
+            vertex = point + radial * bore_radii[index]
+            cut_flags.append(any(is_inside_opening(vertex, opening) for opening in prepared))
+            outer_ring.append(len(outer_vertices))
+            outer_vertices.append(tuple(point + radial * wall_radii[index]))
+            bore_ring.append(len(bore_vertices))
+            bore_vertices.append(tuple(vertex))
+        rings.append({"outer": outer_ring, "bore": bore_ring, "cut": cut_flags})
+
+    kept = []
+    for ring_index in range(len(rings) - 1):
+        current = rings[ring_index]
+        upper = rings[ring_index + 1]
+        kept_row = []
+        for side in range(sides):
+            nxt = (side + 1) % sides
+            cut = (current["cut"][side] and current["cut"][nxt]
+                   and upper["cut"][side] and upper["cut"][nxt])
+            kept_row.append(not cut)
+            if cut:
+                continue
+            outer_faces.append((current["outer"][side], current["outer"][nxt],
+                                upper["outer"][nxt], upper["outer"][side]))
+            bore_faces.append((current["bore"][side], upper["bore"][side],
+                               upper["bore"][nxt], current["bore"][nxt]))
+        kept.append(kept_row)
+
+    # Each missing cell exposes up to four wall edges. Bridge an exposed edge only where the
+    # neighboring cell is retained, so both openings have a closed, collision-safe rim.
+    for ring_index, row in enumerate(kept):
+        lower, upper = rings[ring_index], rings[ring_index + 1]
+        for side, present in enumerate(row):
+            if present:
+                continue
+            nxt = (side + 1) % sides
+            if ring_index > 0 and kept[ring_index - 1][side]:
+                rim_faces.append((lower["outer"][side], lower["outer"][nxt],
+                                  lower["bore"][nxt], lower["bore"][side]))
+            if ring_index + 1 < len(kept) and kept[ring_index + 1][side]:
+                rim_faces.append((upper["outer"][nxt], upper["outer"][side],
+                                  upper["bore"][side], upper["bore"][nxt]))
+            if row[(side - 1) % sides]:
+                rim_faces.append((upper["outer"][side], lower["outer"][side],
+                                  lower["bore"][side], upper["bore"][side]))
+            if row[nxt]:
+                rim_faces.append((lower["outer"][nxt], upper["outer"][nxt],
+                                  upper["bore"][nxt], lower["bore"][nxt]))
+
+    for side in range(sides):
+        nxt = (side + 1) % sides
+        bottom, top = rings[0], rings[-1]
+        rim_faces.append((bottom["outer"][nxt], bottom["outer"][side],
+                          bottom["bore"][side], bottom["bore"][nxt]))
+        rim_faces.append((top["outer"][side], top["outer"][nxt],
+                          top["bore"][nxt], top["bore"][side]))
+
+
+def resample_path(values, samples):
+    """Linear resample of a control-value list, so a wall opening spans several ring pairs."""
+    result = []
+    last = len(values) - 1
+    for index in range(samples + 1):
+        position = index / samples * last
+        lower = min(last - 1, int(position))
+        local_t = position - lower
+        result.append(values[lower] * (1.0 - local_t) + values[lower + 1] * local_t)
+    return result
+
+
+def is_inside_opening(point, opening):
+    """True where a bore-wall vertex falls inside the window of one side opening.
+
+    The window is an ellipse on the tube wall: a round hole of `radius` measured across the
+    surface, which the stalk's lean stretches a little in height.
+    """
+    offset = point - opening["point"]
+    if abs(offset.z) > opening["half_height"]:
+        return False
+    azimuth = Vector((offset.x, offset.y, 0.0)).normalized()
+    return azimuth.dot(opening["axis"]) >= opening["cos_width"]
+
+
 def append_uv_sphere(vertices, faces, center, radii, segments=24, rings=12):
     center = Vector(center)
     top = len(vertices)
@@ -232,18 +371,37 @@ def disk_height(radius):
 
 
 def build_stem_and_hairs(collection, mats, rng):
-    stem_points = [
+    stem_control = [
         Vector((0.0, 0.0, 0.0)),
-        Vector((-0.035, 0.025, 0.82)),
-        Vector((0.065, -0.025, 1.8)),
-        Vector((0.19, -0.10, 2.8)),
-        Vector((0.24, -0.13, 3.42)),
-        Vector((0.16, -0.10, 3.83)),
+        Vector((-0.10, 0.07, 2.60)),
+        Vector((0.16, -0.07, 5.60)),
+        Vector((0.62, -0.30, 8.80)),
+        Vector((1.05, -0.62, 12.20)),
+        Vector((1.42, -0.92, 15.40)),
     ]
-    stem_radii = [0.086, 0.083, 0.077, 0.071, 0.067, 0.073]
-    vertices, faces = [], []
-    append_tube_path(vertices, faces, stem_points, stem_radii, sides=14)
-    stem = create_mesh_object("SunflowerStalk_nocol", vertices, faces, [mats["stem"]], collection=collection)
+    stem_bore = [0.285, 0.280, 0.272, 0.264, 0.254, 0.230]
+    stem_wall = [0.392, 0.386, 0.376, 0.364, 0.352, 0.330]
+    stem_points = resample_path(stem_control, 96)
+    wall_radii = resample_path(stem_wall, 96)
+    bore_radii = resample_path(stem_bore, 96)
+    # Two side openings let a ship enter low, climb through the hollow stem and leave high.
+    openings = (
+        {"point": Vector((0.056, -0.014, 4.40)), "normal": Vector((1.0, 0.0, 0.0)),
+         "radius": 0.32, "bore_radius": 0.260},
+        {"point": Vector((0.67, -0.34, 9.20)), "normal": Vector((1.0, 0.0, 0.0)),
+         "radius": 0.32, "bore_radius": 0.245},
+    )
+    outer_vertices, outer_faces = [], []
+    bore_vertices, bore_faces, rim_faces = [], [], []
+    append_hollow_stalk(outer_vertices, outer_faces, bore_vertices, bore_faces, rim_faces,
+                        stem_points, wall_radii, bore_radii, openings)
+    offset = len(outer_vertices)
+    vertices = outer_vertices + bore_vertices
+    faces = (outer_faces
+             + [tuple(offset + index for index in face) for face in bore_faces]
+             + [(a, b, offset + c, offset + d) for a, b, c, d in rim_faces])
+    stem = create_mesh_object("SunflowerStalkRibs", vertices, faces,
+                              [mats["stem"]], collection=collection)
     stem["role"] = "sunflower_stalk"
 
     hair_vertices, hair_faces = [], []
@@ -252,6 +410,7 @@ def build_stem_and_hairs(collection, mats, rng):
         path_index = min(len(stem_points) - 2, int(fraction * (len(stem_points) - 1)))
         local_t = fraction * (len(stem_points) - 1) - path_index
         point = stem_points[path_index].lerp(stem_points[path_index + 1], local_t)
+        wall_radius = wall_radii[path_index] + (wall_radii[path_index + 1] - wall_radii[path_index]) * local_t
         tangent = (stem_points[path_index + 1] - stem_points[path_index]).normalized()
         reference = Vector((0.0, 0.0, 1.0))
         side = tangent.cross(reference).normalized()
@@ -261,20 +420,47 @@ def build_stem_and_hairs(collection, mats, rng):
         normal = (side * cos(angle) + tangent.cross(side) * sin(angle)).normalized()
         length = rng.uniform(0.018, 0.038)
         append_tube_path(hair_vertices, hair_faces,
-                         [point + normal * stem_radii[path_index],
-                          point + normal * (stem_radii[path_index] + length)],
+                         [point + normal * wall_radius,
+                          point + normal * (wall_radius + length)],
                          [0.0022, 0.0005], sides=4)
     hairs = create_mesh_object("StalkFineHairs_nocol", hair_vertices, hair_faces,
                                [mats["stem_light"]], collection=collection)
     hairs["role"] = "sunflower_stem_detail"
 
-
-def leaf_surface_height(t, across, curl, teeth_phase):
-    envelope = leaf_width_profile(t)
-    margin_wave = abs(across) ** 1.5 * sin(t * 16.0 * pi + teeth_phase) * 0.012
-    return (0.105 * sin(pi * t) - curl * t * t
-            - 0.085 * across * across * envelope
-            + 0.015 * sin(t * 2.0 * pi + teeth_phase) * across + margin_wave)
+    # Bracket fungi on the bore wall: a faint warm glow lights the tunnel from inside and, with
+    # it, the two openings a pilot is looking for. Base colours stay near black because the tone
+    # mapping turns a bright base plus emission into flat white.
+    shelf_vertices, shelf_faces = [], []
+    for index in range(14):
+        fraction = 0.10 + 0.82 * ((index * 0.61803398875) % 1.0)
+        path_index = min(len(stem_points) - 1, int(fraction * len(stem_points)))
+        point = stem_points[path_index]
+        angle = index * GOLDEN_ANGLE * 1.7
+        side = Vector((cos(angle), sin(angle), 0.0))
+        depth = 0.80 + 0.12 * ((index * 0.7) % 1.0)
+        wall_radius = bore_radii[path_index]
+        span = 0.10 + 0.05 * ((index * 0.37) % 1.0)
+        inward = -side
+        # A thin, drooping bracket: a quad strip from where it grips the wall to its free rim.
+        base = len(shelf_vertices)
+        for step in range(5):
+            t = step / 4
+            radius = wall_radius * (depth - 0.17 * depth * t * t)
+            droop = -0.10 * t * t
+            shelf_vertices.append(tuple(point + side * radius
+                                        + Vector((0.0, 0.0, 0.018 + droop))))
+            shelf_vertices.append(tuple(point + side * radius
+                                        + inward.cross(Vector((0.0, 0.0, 1.0))) * span * (0.55 + 0.45 * t)
+                                        + Vector((0.0, 0.0, 0.010 + droop))))
+        for step in range(4):
+            lower = base + step * 2
+            upper = base + step * 2 + 1
+            next_lower = lower + 2
+            next_upper = upper + 2
+            shelf_faces.append((lower, next_lower, next_upper, upper))
+    shelves = create_mesh_object("StalkBoreShelfFungi_nocol", shelf_vertices, shelf_faces,
+                                 [mats["stem_glow"]], collection=collection)
+    shelves["role"] = "sunflower_stalk_bore_life"
 
 
 def leaf_width_profile(t):
@@ -283,96 +469,142 @@ def leaf_width_profile(t):
     return (t ** 0.48) * ((1.0 - t) ** 0.88) / 0.405
 
 
-def leaf_surface(length, width, curl, teeth_phase=0.0, rows=56, columns=12):
-    vertices, faces = [], []
-    for row in range(rows + 1):
-        t = row / rows
-        envelope = leaf_width_profile(t)
-        tooth = 1.0 + 0.105 * cos(t * 26.0 * pi + teeth_phase) + 0.025 * sin(t * 38.0 * pi + teeth_phase * 0.73)
-        half_width = width * envelope * tooth
-        for column in range(columns + 1):
-            across = column / columns * 2.0 - 1.0
-            asymmetry = 1.0 + 0.105 * across * sin(pi * t * 1.8 + teeth_phase)
-            vertices.append((length * t, half_width * across * asymmetry,
-                             leaf_surface_height(t, across, curl, teeth_phase)))
-    for row in range(rows):
-        for column in range(columns):
-            a = row * (columns + 1) + column
-            b = a + columns + 1
-            faces.append((a, b, b + 1, a + 1))
-    return vertices, faces
+def leaf_edge_toothing(t, teeth_phase):
+    """Marginal toothing, shared by the blade outline, its veins and its setae."""
+    return (1.0 + 0.105 * cos(t * 26.0 * pi + teeth_phase)
+            + 0.025 * sin(t * 38.0 * pi + teeth_phase * 0.73))
+
+
+class LeafBlade:
+    """One leaf: a short petiole carries an ovate blade that arches up and outward.
+
+    All local coordinates use x along the blade, y across it and z along its surface
+    normal, so the shape is independent of where the node sits on the stalk.
+    """
+
+    MIN_T = 0.03
+
+    def __init__(self, length, width, lift, curl, teeth_phase):
+        self.length = length
+        self.width = width
+        self.lift = lift
+        self.curl = curl
+        self.teeth_phase = teeth_phase
+
+    def envelope(self, t):
+        return leaf_width_profile(max(self.MIN_T, t))
+
+    def half_width(self, t):
+        return self.width * self.envelope(t) * leaf_edge_toothing(t, self.teeth_phase)
+
+    def height(self, t, across):
+        clamp = max(0.0, min(1.0, t))
+        cupping = 0.075 * across * across * self.envelope(t) * self.length
+        margin_wave = (abs(across) ** 1.5 * sin(t * 16.0 * pi + self.teeth_phase)
+                       * 0.012 * sqrt(self.length))
+        return (self.lift * sin(pi * clamp) - self.curl * clamp * clamp - cupping
+                + 0.015 * sin(t * 2.0 * pi + self.teeth_phase) * across + margin_wave)
+
+    def across_asymmetry(self, t, across):
+        return 1.0 + 0.105 * across * sin(pi * t * 1.8 + self.teeth_phase)
+
+    def surface(self, rows=20, columns=14):
+        vertices, faces = [], []
+        for row in range(rows + 1):
+            t = row / rows
+            half_width = self.half_width(t)
+            for column in range(columns + 1):
+                across = column / columns * 2.0 - 1.0
+                vertices.append((self.length * t,
+                                 half_width * across * self.across_asymmetry(t, across),
+                                 self.height(t, across)))
+        for row in range(rows):
+            for column in range(columns):
+                a = row * (columns + 1) + column
+                b = a + columns + 1
+                faces.append((a, b, b + 1, a + 1))
+        return vertices, faces
 
 
 def build_leaves(collection, mats, rng):
-    levels = [
-        (0.53, 1.15, 0.61, -0.38),
-        (0.91, 1.14, 0.60, -0.31),
-        (1.31, 1.08, 0.58, -0.25),
-        (1.73, 1.02, 0.56, -0.21),
-        (2.16, 0.95, 0.54, -0.17),
-        (2.56, 0.88, 0.51, -0.14),
-        (2.94, 0.79, 0.48, -0.10),
-        (3.29, 0.69, 0.44, -0.07),
-    ]
+    """Alternate nodes on a golden-angle spiral, each with a short petiole.
+
+    Real sunflowers never carry eight leaves on eight evenly spread spokes: the
+    nodes sit close together, the petioles stay short, and every blade arches up
+    and outward. The old layout stretched its blades out to both sides of the
+    stalk, which is what made the side view look like a bare pole with separate
+    green paddles.
+    """
+    leaf_levels = 17
+    lowest_height, highest_height = 1.40, 12.60
+    base_length, tip_length = 2.30, 1.68
+    base_width, tip_width = 1.58, 1.16
+    base_azimuth = -1.42
+    azimuth = base_azimuth
     blades_vertices, blades_faces, blade_materials = [], [], []
     vein_vertices, vein_faces = [], []
     hair_vertices, hair_faces = [], []
-    for leaf_index, (height, length, width, droop) in enumerate(levels):
-        # Mature sunflower leaves alternate along the stalk; neighboring nodes share a
-        # golden-angle turn rather than forming the conspicuous opposite pairs in the old mesh.
-        azimuth = -1.52 + leaf_index * GOLDEN_ANGLE + rng.uniform(-0.055, 0.055)
+
+    for leaf_index in range(leaf_levels):
+        axis = leaf_index / (leaf_levels - 1)
+        height = lowest_height + (highest_height - lowest_height) * axis
+        azimuth += GOLDEN_ANGLE + rng.uniform(-0.05, 0.05)
         horizontal = Vector((cos(azimuth), sin(azimuth), 0.0))
-        direction = horizontal.copy()
-        direction.z = sin(droop)
-        direction.normalize()
-        sideward = Vector((-sin(azimuth), cos(azimuth), 0.0))
-        leaf_normal = (sideward * rng.uniform(0.68, 0.84)
-                       + horizontal * rng.uniform(-0.2, 0.2)
-                       + Vector((0.0, 0.0, rng.uniform(0.38, 0.56)))).normalized()
-        lateral = leaf_normal.cross(direction).normalized()
+        # Lower leaves droop below the horizontal, upper ones reach upward, and the
+        # blade normal stays perpendicular to its own axis so the leaf keeps its
+        # shape while the tip lifts away from the stalk.
+        elevation = 0.36 - 0.18 * axis + rng.uniform(-0.02, 0.02)
+        direction = (horizontal * cos(elevation) + Vector((0.0, 0.0, sin(elevation)))).normalized()
+        reference_up = Vector((0.0, 0.0, 1.0))
+        lateral = reference_up.cross(direction).normalized()
+        blade_normal = direction.cross(lateral).normalized()
+
+        blade_length = base_length + (tip_length - base_length) * axis
+        blade_width = base_width + (tip_width - base_width) * axis
+        petiole_length = 0.70 + 0.28 * axis + rng.uniform(-0.03, 0.03)
+        blade = LeafBlade(blade_length, blade_width,
+                          lift=blade_length * rng.uniform(0.17, 0.28),
+                          curl=blade_length * blade_length * rng.uniform(0.20, 0.30),
+                          teeth_phase=rng.uniform(0.0, 2.0 * pi))
+        roll = rng.uniform(-0.10, 0.10)
+        lateral = (lateral * cos(roll) + blade_normal * sin(roll)).normalized()
+        blade_normal = direction.cross(lateral).normalized()
+
         attach = Vector((0.012 * height, -0.045 * height, height))
-        petiole_end = attach + direction * length * 0.28 + Vector((0.0, 0.0, 0.07))
-        blade_origin = petiole_end
-        basis = Matrix((direction, lateral, direction.cross(lateral))).transposed()
-        leaf_curl = rng.uniform(0.1, 0.23)
-        leaf_phase = rng.uniform(0, 2 * pi)
-        local_vertices, local_faces = leaf_surface(length * 0.9, width, leaf_curl, leaf_phase)
+        petiole_end = attach + direction * petiole_length + reference_up * 0.02
+        basis = Matrix((direction, lateral, blade_normal)).transposed()
+
         offset = len(blades_vertices)
+        local_vertices, local_faces = blade.surface()
         for x, y, z in local_vertices:
-            point = blade_origin + basis @ Vector((x, y, z))
-            blades_vertices.append(tuple(point))
+            blades_vertices.append(tuple(petiole_end + basis @ Vector((x, y, z))))
         blades_faces.extend(tuple(offset + index for index in face) for face in local_faces)
-        blade_materials.extend([1 if leaf_index in (1, 4, 6) else 0] * len(local_faces))
+        blade_materials.extend([1 if leaf_index % 3 == 1 else 0] * len(local_faces))
 
         petiole_points = [attach,
-                          attach.lerp(petiole_end, 0.45) + Vector((0.0, 0.0, 0.035)),
+                          attach.lerp(petiole_end, 0.45) + reference_up * 0.03,
                           petiole_end]
         append_tube_path(vein_vertices, vein_faces, petiole_points,
-                         [0.023, 0.014, 0.008], sides=7)
+                         [0.024, 0.013, 0.007], sides=7)
         # A raised midrib and six paired lateral veins keep the blade from reading as a flat card.
         midrib = []
         for step in range(8):
             t = step / 7
-            local = basis @ Vector((length * 0.9 * t, 0.0,
-                                    leaf_surface_height(t, 0.0, leaf_curl, leaf_phase) + 0.01))
-            midrib.append(blade_origin + local)
+            midrib.append(petiole_end + basis @ Vector((blade_length * t, 0.0,
+                                                        blade.height(t, 0.0) + 0.009)))
         append_tube_path(vein_vertices, vein_faces, midrib,
                          [0.006, 0.005, 0.0045, 0.004, 0.0035, 0.003, 0.0025, 0.0018], sides=5)
         for vein_index in range(1, 8):
             t = vein_index / 8
-            envelope = leaf_width_profile(t)
-            center = blade_origin + basis @ Vector((length * 0.9 * t, 0.0,
-                                                    leaf_surface_height(t, 0.0,
-                                                                        leaf_curl,
-                                                                        leaf_phase) + 0.012))
+            center = petiole_end + basis @ Vector((blade_length * t, 0.0,
+                                                   blade.height(t, 0.0) + 0.011))
             for side_sign in (-1, 1):
                 edge_t = min(1.0, t + 0.11)
                 edge_across = side_sign * 0.86
-                edge = blade_origin + basis @ Vector((length * 0.9 * edge_t,
-                                                       edge_across * width * envelope * (1.0 + 0.105 * edge_across * sin(pi * edge_t * 1.8 + leaf_phase)),
-                                                       leaf_surface_height(edge_t, edge_across,
-                                                                           leaf_curl,
-                                                                           leaf_phase) + 0.008))
+                edge = petiole_end + basis @ Vector(
+                    (blade_length * edge_t,
+                     edge_across * blade.half_width(edge_t) * blade.across_asymmetry(edge_t, edge_across),
+                     blade.height(edge_t, edge_across) + 0.007))
                 append_tube_path(vein_vertices, vein_faces,
                                  [center, center.lerp(edge, 0.5)
                                   + basis @ Vector((0.0, 0.0, 0.005)), edge],
@@ -382,12 +614,11 @@ def build_leaves(collection, mats, rng):
         for side_sign in (-1, 1):
             for hair_index in range(2, 15):
                 t = hair_index / 16
-                local_envelope = leaf_width_profile(t)
-                local_tooth = 1.0 + 0.105 * cos(t * 26.0 * pi + leaf_phase)
                 edge_across = side_sign * 0.99
-                edge = blade_origin + basis @ Vector((length * 0.9 * t,
-                                                       edge_across * width * local_envelope * local_tooth,
-                                                       leaf_surface_height(t, edge_across, leaf_curl, leaf_phase) + 0.004))
+                edge = petiole_end + basis @ Vector(
+                    (blade_length * t,
+                     edge_across * blade.half_width(t) * blade.across_asymmetry(t, edge_across),
+                     blade.height(t, edge_across) + 0.004))
                 direction_sign = -1.0 if (hair_index + leaf_index) % 2 else 1.0
                 tip = edge + basis @ Vector((0.004 * direction_sign,
                                              side_sign * rng.uniform(0.006, 0.012),
@@ -500,7 +731,10 @@ def build_kernels(collection, mats, basis, rng):
         vertices = shell_vertices + stripe_vertices
         stripe_vertex_offset = len(shell_vertices)
         faces = shell_faces + [tuple(stripe_vertex_offset + index for index in face) for face in stripe_faces]
-        mesh = bpy.data.meshes.new("SunflowerAcheneMesh_" + str(variant))
+        # The mesh name has to carry `_nocol` as well: a map may load this library asset with
+        # collision enabled for its stalk, and the loader reads the marker off the mesh that
+        # three.js creates per primitive. Without it the 220 achenes would become solid.
+        mesh = bpy.data.meshes.new("SunflowerAchene_nocolMesh_" + str(variant))
         mesh.from_pydata(vertices, [], faces)
         mesh.materials.append(shell_material)
         mesh.materials.append(mats["seed_stripe"])
@@ -806,18 +1040,18 @@ def build_studio(scene, collection):
     ground["role"] = "presentation_only"
 
     cameras = {
-        "front": add_camera(collection, "QA_Front", (0.0, -11.5, 2.55), (0.0, 0.0, 2.35), ortho=5.8),
-        "quarter": add_camera(collection, "QA_Quarter", (8.0, -9.0, 3.0), (0.0, 0.0, 2.3), ortho=6.1),
-        "side": add_camera(collection, "QA_Side", (11.5, 0.0, 2.55), (0.0, 0.0, 2.35), ortho=5.8),
-        "back": add_camera(collection, "QA_Back", (0.0, 11.5, 2.55), (0.0, 0.0, 2.35), ortho=5.8),
-        "game": add_camera(collection, "QA_GameCamera", (0.0, -10.0, 3.0), (0.15, -0.1, 3.85), ortho=3.45),
-        "bloom": add_camera(collection, "QA_BloomClose", HEAD_CENTER + HEAD_NORMAL * 3.5,
-                            HEAD_CENTER, ortho=3.15),
+        "front": add_camera(collection, "QA_Front", (0.6, -34.0, 10.0), (0.6, 0.4, 10.0), ortho=25.0),
+        "quarter": add_camera(collection, "QA_Quarter", (23.0, -26.0, 10.5), (0.6, 0.4, 10.0), ortho=26.0),
+        "side": add_camera(collection, "QA_Side", (32.0, 0.9, 10.0), (0.6, 0.9, 10.0), ortho=25.0),
+        "back": add_camera(collection, "QA_Back", (0.6, 36.0, 10.0), (0.6, 0.4, 10.0), ortho=25.0),
+        "game": add_camera(collection, "QA_GameCamera", (0.6, -33.0, 16.0), (1.2, -0.8, 16.0), ortho=14.0),
+        "bloom": add_camera(collection, "QA_BloomClose", HEAD_CENTER + HEAD_NORMAL * 11.7,
+                            HEAD_CENTER, ortho=12.6),
     }
-    add_area_light(collection, "Key | warm", (-4.5, -5.5, 8.5), (0, 0, 2.5), 570, 5.0, (1.0, 0.83, 0.58))
-    add_area_light(collection, "Fill | cool", (5.0, -3.0, 4.5), (0, 0, 2.6), 300, 4.0, (0.63, 0.78, 1.0))
-    add_area_light(collection, "Rim | soft", (1.5, 4.5, 6.5), (0, 0, 2.9), 700, 3.5, (1.0, 0.92, 0.72))
-    add_area_light(collection, "Low fill", (-4.0, 2.0, 2.4), (0, 0, 2.0), 180, 3.0, (0.72, 0.88, 0.62))
+    add_area_light(collection, "Key | warm", (-15.0, -18.0, 28.0), (0, 0, 8.0), 2400, 18.0, (1.0, 0.83, 0.58))
+    add_area_light(collection, "Fill | cool", (17.0, -10.0, 15.0), (0, 0, 8.5), 1300, 15.0, (0.63, 0.78, 1.0))
+    add_area_light(collection, "Rim | soft", (5.0, 15.0, 21.0), (0, 0, 9.5), 2900, 14.0, (1.0, 0.92, 0.72))
+    add_area_light(collection, "Low fill", (-13.0, 7.0, 8.0), (0, 0, 6.5), 800, 12.0, (0.72, 0.88, 0.62))
     scene.camera = cameras["front"]
     return cameras
 
@@ -914,15 +1148,24 @@ def main():
 
     build_stem_and_hairs(asset_collection, mats, rng)
     build_leaves(asset_collection, mats, rng)
+    stem_and_leaf_ids = {obj.as_pointer() for obj in asset_collection.objects}
     build_head_receptacle(asset_collection, mats, basis)
     positions = build_kernels(asset_collection, mats, basis, rng)
     build_kernel_sockets(asset_collection, mats, basis, positions)
     build_ray_florets(asset_collection, mats, basis, rng)
     build_phyllaries(asset_collection, mats, basis, rng)
     build_disc_floret_collar(asset_collection, mats, basis)
+    # Scale every part of the capitulum around the same centre, including the 220 interactive
+    # kernels and their hit radii. Scaling only the rendered disc would leave tiny targets.
+    head_transform = (Matrix.Translation(HEAD_CENTER) @ Matrix.Scale(HEAD_SCALE, 4)
+                      @ Matrix.Translation(-HEAD_CENTER))
+    bpy.context.view_layer.update()
+    for obj in asset_collection.objects:
+        if obj.as_pointer() not in stem_and_leaf_ids:
+            obj.matrix_world = head_transform @ obj.matrix_world
     cameras = build_studio(scene, studio_collection)
 
-    if abs(PLANT_HEIGHT - 4.8) > 0.001 or len(positions) != KERNEL_COUNT:
+    if abs(PLANT_HEIGHT - 15.8) > 0.001 or len(positions) != KERNEL_COUNT:
         raise RuntimeError("plant parameter validation failed")
     ids = [obj["kernel_index"] for obj in asset_collection.objects
            if obj.get("role") == "shootable_kernel"]

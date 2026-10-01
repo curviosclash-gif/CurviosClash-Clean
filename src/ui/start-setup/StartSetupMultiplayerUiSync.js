@@ -15,6 +15,7 @@ import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../../shared/con
 import { HUNT_LAST_ALIVE_LIVES } from '../../shared/contracts/HuntLivesContract.js';
 import { normalizeTeamHuntSettings } from '../../shared/contracts/TeamHuntContract.js';
 import { normalizeTeamObjectiveType, TEAM_OBJECTIVE_TYPES } from '../../shared/contracts/FlagObjectiveContract.js';
+import { createLocalPilotSummaryBlocks, isThreePlayerSplitSelected, resolveMenuBotCount } from './StartSetupSplitPlayersSection.js';
 
 function resolveSessionLabel(surfaceEntryCopy, sessionType) {
     return surfaceEntryCopy.sessionSummaryLabels[sessionType]
@@ -41,7 +42,7 @@ export function formatMenuRulesSummary(settings, modePath) {
         const sectors = settings?.arcade?.sectorCount;
         return sectors ? `${sectors} Sektoren bis zum Sieg · Punkte sammeln` : 'Sektoren meistern · Punkte sammeln';
     }
-    const teamMode = modePath === 'fight'
+    const teamMode = modePath === 'fight' && !isThreePlayerSplitSelected(settings)
         && (settings?.gameMode === 'HUNT' || settings?.gameMode === 'ESCORT')
         && (settings?.hunt?.teamMode === true || settings?.gameMode === 'ESCORT');
     if (teamMode) {
@@ -56,7 +57,7 @@ export function formatMenuRulesSummary(settings, modePath) {
         }[objective];
         return `Teams ${teamSize} gegen ${teamSize} · ${objectiveLabel}`;
     }
-    const count = Math.max(0, Number(settings?.numBots) || 0);
+    const count = resolveMenuBotCount(settings);
     const difficulty = { EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' }[settings?.botDifficulty] || 'Normal';
     const bots = count ? `${count} Bots · ${difficulty}` : 'Ohne Bots';
     const winsNeeded = Math.max(1, Number(settings?.winsNeeded) || 1);
@@ -166,10 +167,7 @@ function createSummaryBlocks({
             secondary: true,
         },
     ];
-    if (sessionType === MENU_SESSION_TYPES.SPLITSCREEN
-        || sessionType === MENU_SESSION_TYPES.MULTIPLAYER) {
-        summaryBlocks.push({ label: 'Flugzeug P2', value: vehiclePreviewP2.label });
-    }
+    summaryBlocks.push(...createLocalPilotSummaryBlocks(settings, sessionType, vehiclePreviewP2));
     if (sessionType === MENU_SESSION_TYPES.MULTIPLAYER) {
         const hasCode = String(resolvedMultiplayerSessionState?.lobbyCode || ui.multiplayerLobbyCodeInput?.value || '').trim();
         const readySummary = hasActiveLobbySession
@@ -257,8 +255,8 @@ export function renderStartSetupSummaryAndPreview({
     ghostDuelState,
 }) {
     const mapPreview = resolveMapPreview(effectiveMapKey);
-    const vehiclePreviewP1 = resolveVehiclePreview(settings?.vehicles?.PLAYER_1);
-    const vehiclePreviewP2 = resolveVehiclePreview(settings?.vehicles?.PLAYER_2);
+    const vehiclePreviewP1 = resolveVehiclePreview(settings?.vehicles?.PLAYER_1, modePath);
+    const vehiclePreviewP2 = resolveVehiclePreview(settings?.vehicles?.PLAYER_2, modePath);
     if (ui.menuSummary) {
         renderSummaryBlocks(ui.menuSummary, createSummaryBlocks({
             ui,

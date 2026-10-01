@@ -1,6 +1,7 @@
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { resolveParcoursSpawnDirection } from '../systems/ParcoursRespawnOps.js';
 import { resolveWeaponRaceGridSpawn } from '../arcade/WeaponRaceSpawnOps.js';
+import { applyArcadeSpawnHitbox } from '../player/ArcadePartHitboxOps.js';
 
 export class EntitySpawnOps {
     constructor(entityManager) {
@@ -21,8 +22,9 @@ export class EntitySpawnOps {
         owner._globalFogEffectSystem?.reset?.();
         owner._mapSandstormSystem?.startRound?.();
         owner._lastRoundOutcome = null;
+        // Round serial for the network round result; a client keeps its applied serial on purpose.
+        owner._networkRoundSerial = (Number(owner._networkRoundSerial) || 0) + 1;
         owner._authoritativeHuntState = null;
-        owner._lastAppliedAuthoritativeOutcomeKey = '';
         owner._parcoursProgressSystem?.startRound?.(owner.players);
         owner._mapHazardSystem?.startRound?.();
         owner._mapDestructibleSystem?.startRound?.();
@@ -109,6 +111,8 @@ export class EntitySpawnOps {
                 strategy.applySpawnStatBonuses(player);
             }
         }
+        // Part hitbox only in normal Arcade runs (not Daily, not weapon race), humans and bots.
+        applyArcadeSpawnHitbox(player, strategy?.isNormalArcadeRun?.() === true);
         player.shootCooldown = 0;
         owner._parcoursProgressSystem?.onPlayerSpawn?.(player, { reason: 'spawn_all' });
         owner._exclusionZoneSystem?.resetPlayer?.(player);

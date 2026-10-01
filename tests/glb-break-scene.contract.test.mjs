@@ -149,6 +149,68 @@ function hitName(arena, position) {
     return arena.getCollisionInfo(position, 0.4)?.sourceName ?? null;
 }
 
+test('a fixed break scene bakes stationary fabric but follows its moving debris', async () => {
+    const result = await loadGLBMapCollection([{
+        id: 'fixed-fall', url: '/tower-fall.glb', position: [30, 0, 0], scale: 1,
+        hiddenUntilTriggered: true, fixedTriggeredPlacement: true,
+        animationClock: { mode: 'once', clipName: 'TowerFall' },
+    }], { loader: createBreakSceneLoader() });
+    const stationary = result.colliders.find((collider) => collider.sourceName === 'piece_shaft');
+    const falling = result.colliders.find((collider) => collider.sourceName === 'piece_summit');
+    assert.ok(stationary && falling);
+    assert.equal(stationary.dynamic, false, 'unmoving shaft uses baked collision');
+    assert.equal(falling.dynamic, true, 'animated summit follows its clip');
+    disposeObject3DResources(result.scene);
+});
+
+test('break-scene event yaw adds to the authored slot yaw', async () => {
+    const models = MODELS.map((model) => model.id === 'tower-fall'
+        ? { ...model, rotation: [0, 0.35, 0] }
+        : model);
+    const destructibles = structuredClone(DESTRUCTIBLES);
+    destructibles.breakScenes.find((scene) => scene.id === 'tower_topple').yawFromEvent = true;
+    const result = await loadGLBMapCollection(models, { loader: createBreakSceneLoader() });
+    const arena = new Arena({ addToScene() {}, removeFromScene() {} });
+    arena._portalGateSystem.update = () => {};
+    arena.currentMapDefinition = { destructibles };
+    arena.bounds = { ...BOUNDS };
+    arena.openFaces = [];
+    attachCollection(arena, result);
+
+    arena.applyMapDestructibleEvents([TOPPLE_EVENT]);
+    arena.update(0);
+
+    assert.ok(Math.abs(slot(arena, 'tower-fall').rotation.y - (0.35 + Math.PI / 2)) < 1e-9);
+    assert.equal(result.colliders.find((collider) => collider.sourceName === 'piece_shaft').dynamic, true);
+    assert.equal(result.colliders.find((collider) => collider.sourceName === 'piece_summit').dynamic, true);
+
+    disposeObject3DResources(result.scene);
+});
+
+test('fixed-placement break scenes keep authored yaw when event yaw is enabled', async () => {
+    const models = MODELS.map((model) => model.id === 'tower-fall'
+        ? { ...model, rotation: [0, 0.35, 0], fixedTriggeredPlacement: true }
+        : model);
+    const destructibles = structuredClone(DESTRUCTIBLES);
+    destructibles.breakScenes.find((scene) => scene.id === 'tower_topple').yawFromEvent = true;
+    const result = await loadGLBMapCollection(models, { loader: createBreakSceneLoader() });
+    const arena = new Arena({ addToScene() {}, removeFromScene() {} });
+    arena._portalGateSystem.update = () => {};
+    arena.currentMapDefinition = { destructibles };
+    arena.bounds = { ...BOUNDS };
+    arena.openFaces = [];
+    attachCollection(arena, result);
+
+    arena.applyMapDestructibleEvents([TOPPLE_EVENT]);
+    arena.update(0);
+
+    assert.ok(Math.abs(slot(arena, 'tower-fall').rotation.y - 0.35) < 1e-9);
+    assert.equal(result.colliders.find((collider) => collider.sourceName === 'piece_shaft').dynamic, false);
+    assert.equal(result.colliders.find((collider) => collider.sourceName === 'piece_summit').dynamic, true);
+
+    disposeObject3DResources(result.scene);
+});
+
 test('a break scene model is loaded but neither drawn nor solid before its event', async () => {
     const { arena, result } = await createBrokenTowerArena();
 

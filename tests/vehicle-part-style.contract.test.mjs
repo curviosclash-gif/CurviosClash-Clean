@@ -69,6 +69,40 @@ test('applying a style recolors, rescales and swaps parts without touching the s
     assert.deepEqual(deco, SHIP.parts[3]);
 });
 
+test('a utility part built into the hull rides on it: a larger or smaller hull carries it along, other parts keep their pivot', () => {
+    // Hull box at (0, -0.1, 0.4) reaches up to y 0.15; the module pivot (0, 0.1, 0.9) lies inside it.
+    const withModule = (pos) => ({
+        ...SHIP,
+        parts: [
+            { ...SHIP.parts[0], pos: [0, -0.1, 0.4] },
+            SHIP.parts[1],
+            SHIP.parts[2],
+            { name: 'Rückenmodul', geo: 'box', size: [0.4, 0.3, 0.6], pos, role: 'utility' },
+            SHIP.parts[3],
+        ],
+    });
+    const ship = withModule([0, 0.1, 0.9]);
+    const byName = (config, name) => config.parts.find((part) => part.name === name);
+    for (const hull of [0.8, 1.25]) {
+        const styled = applyVehiclePartStyle(ship, { Rumpf: { scale: hull }, Rückenmodul: { scale: 1.1 } });
+        // The hull grows around its pivot (0, -0.1, 0.4); the module keeps its spot in the hull.
+        const expected = [0, -0.1 + 0.2 * hull, 0.4 + 0.5 * hull];
+        byName(styled, 'Rückenmodul').pos.forEach((value, axis) => {
+            assert.ok(Math.abs(value - expected[axis]) < 1e-9, `hull ${hull}: module axis ${axis} at ${value}, expected ${expected[axis]}`);
+        });
+        assert.deepEqual(byName(styled, 'Rückenmodul').scale, [1.1, 1.1, 1.1], 'the module keeps its own size');
+        assert.deepEqual(byName(styled, 'Rumpf').pos, [0, -0.1, 0.4], 'the hull keeps its pivot');
+        for (const name of ['Nase', 'Linker Flügel', 'Deko']) {
+            assert.deepEqual(byName(styled, name), byName(ship, name), `${name} stays where it is`);
+        }
+        // A module standing on the hull (pivot above it) keeps its pivot as before.
+        const standing = applyVehiclePartStyle(withModule([0, 0.3, 0.9]), { Rumpf: { scale: hull } });
+        assert.deepEqual(byName(standing, 'Rückenmodul').pos, [0, 0.3, 0.9], `hull ${hull}: a standing module keeps its pivot`);
+    }
+    assert.deepEqual(byName(applyVehiclePartStyle(ship, { Rückenmodul: { scale: 1.25 } }), 'Rückenmodul').pos, [0, 0.1, 0.9],
+        'without a hull scale the module keeps its pivot');
+});
+
 function renderedBounds(config, partName) {
     const mesh = new ModularVehicleMesh(config);
     mesh.updateMatrixWorld(true);
@@ -119,25 +153,40 @@ function createPlayer(isBot = false) {
     return { isBot, vehicleMesh: new RuntimeModularVehicleMesh(0x3366ff, SHIP), trail: null };
 }
 
-test('arcade runs draw the styled vehicle for humans but keep the hitbox and never compound', () => {
+test('arcade runs draw the functional part size for humans but keep the hitbox and never compound', () => {
     const human = createPlayer();
     const bot = createPlayer(true);
     const hitboxBefore = human.vehicleMesh.localBox.clone();
     const store = {
-        loadJsonRecord: () => ({ test_ship: { vehicleId: 'test_ship', partStyle: { Rumpf: { scale: 1.25 } } } }),
+        loadJsonRecord: () => ({
+            test_ship: {
+                schemaVersion: 'arcade-vehicle-profile.v3',
+                vehicleId: 'test_ship',
+                // Paket 2a: a stored style scale no longer counts; the size build does.
+                partStyle: { Rumpf: { scale: 0.8 } },
+                sizeWorkshopUnlocked: true,
+                purchasedSizeSteps: 5,
+                partSizes: { hull: 125 },
+            },
+        }),
     };
     const support = {
         _resolveActiveVehicleId: () => 'test_ship',
         game: { settingsManager: { getPlayerRecordStorePort: () => store } },
     };
-    const runtimeState = { entityManager: { players: [human, bot] } };
+    const gameModeStrategy = { isNormalArcadeRun: () => true };
+    const runtimeState = { entityManager: { players: [human, bot], gameModeStrategy } };
     const runtimeConfig = { arcade: { enabled: true } };
     applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig);
     applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig);
     const core = (mesh) => mesh.children.find((child) => child.name === 'Rumpf');
-    assert.ok(Math.abs(core(human.vehicleMesh).scale.x - 1.25) < 1e-6, 'style applied once, not twice');
+    assert.ok(Math.abs(core(human.vehicleMesh).scale.x - 1.25) < 1e-6, 'size applied once, not twice');
     assert.equal(core(bot.vehicleMesh).scale.x, 1, 'bots keep the factory vehicle');
     assert.ok(human.vehicleMesh.localBox.equals(hitboxBefore), 'hitbox stays the factory hitbox');
+
+    gameModeStrategy.isNormalArcadeRun = () => false;
+    applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig);
+    assert.equal(core(human.vehicleMesh).scale.x, 1, 'daily runs fly the factory size');
 
     applyArcadeRuntimeCosmetics(support, runtimeState, { arcade: { enabled: false } });
     assert.equal(core(human.vehicleMesh).scale.x, 1, 'outside arcade the factory vehicle returns');

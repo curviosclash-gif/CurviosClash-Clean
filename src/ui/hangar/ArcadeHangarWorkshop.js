@@ -1,18 +1,17 @@
 import { persistHangarVehicleSelection } from './HangarWindowSettingsSync.js';
+import { saveBlobAsUserFile } from '../../platform/browser/BrowserFileExport.js';
 /* eslint-disable max-lines -- Hangar lifecycle wiring stays in one controller. */
 import {
     getVehicleManagerInteractionRules,
-    listVehicleManagerCatalogEntries,
+    listArcadeVehicleManagerCatalogEntries, listVehicleManagerCatalogEntries,
     resolveVehicleManagerCatalogEntry,
 } from '../arcade/VehicleManagerCatalog.js';
 import { createVehicleManagerSelectionState } from '../arcade/vehicle-manager/VehicleManagerSelectionState.js';
 import {
-    HITBOX_LABELS,
-    LEVEL_LABELS,
-    createUiNode as el,
     normalizeVehicleValue as norm,
     resolvePlayerColor,
 } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
+import { renderHangarVehicleFilterChips } from './HangarVehicleFilterChips.js';
 import { registerPublishedHangarParts, resolveHangarPart } from './HangarPartCatalog.js';
 import { VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY } from '../../shared/contracts/VehicleLabHangarPublishContract.js';
 import {
@@ -38,18 +37,11 @@ import { createFallbackProfilePort, createHangarBuildFromProfile as buildFromPro
 import { validateFightHangarBuild, validateFightHangarDrop } from './FightHangarValidation.js';
 import { normalizeFightMachineGunId, resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
 import { armConfirmButton } from '../ConfirmButtonArming.js';
-import { createHangarPartStylePanel } from './HangarPartStylePanel.js';
-import { normalizeVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
+import { createHangarFormTab } from './HangarFormTab.js';
 import {
     selectArcadeTrailStyle,
     selectArcadeWeaponStyle,
 } from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
-
-function createButton(className, text) {
-    const button = el('button', className, text);
-    button.type = 'button';
-    return button;
-}
 
 export function setupArcadeHangarWorkshop(ctx = {}) {
     const ui = ctx.ui || {};
@@ -63,11 +55,12 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     const store = runtimeAccess?.getSettingsStore?.() || ctx.settingsManager?.getSettingsRecordStorePort?.() || null;
     registerPublishedHangarParts(store?.loadJsonRecord?.(VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY, null));
     const profilePort = runtimeAccess?.arcadeVehicleProfileWorkshop || createFallbackProfilePort(store);
-    const rules = getVehicleManagerInteractionRules();
-    const catalogEntries = listVehicleManagerCatalogEntries();
+    const rules = getVehicleManagerInteractionRules(hangarMode);
+    // Arcade flies only the factory ships (with their fixed role); the Fight hangar keeps Lab builds.
+    const catalogEntries = hangarMode === 'arcade' ? listArcadeVehicleManagerCatalogEntries() : listVehicleManagerCatalogEntries();
     if (!catalogEntries.length) return null;
     const byVehicleId = new Map(catalogEntries.map((entry) => [entry.vehicleId, entry]));
-    const selection = createVehicleManagerSelectionState({ settings, catalogEntries });
+    const selection = createVehicleManagerSelectionState({ settings, catalogEntries, mode: hangarMode });
     const persistence = createHangarBuildPersistenceAdapter({ mode: hangarMode, store, invokeCapability: runtimeAccess?.invokeHangarCapability });
     const draftPersistence = createHangarDraftPersistence({ mode: hangarMode, store });
     const audio = createHangarWorkshopAudio(ctx.audio || null);
@@ -100,7 +93,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         revertButton, defaultButton, presetName, presetSelect, presetSave, presetSaveAs, presetLoad,
         presetRename, presetDuplicate, presetDelete, presetSort, presetTags, presetFavorite,
         presetExport, presetImport, buildCompareSelect, starterBuilds, machineGunSelect, activateButton, statusMessage,
-        buildViewSwitch, trailStyleSelect, weaponStyleSelects, formViewButton, formViewPanel,
+        buildViewSwitch, trailStyleSelect, weaponStyleSelects, formViewButton, formViewPanel, upgradeViewButton, upgradeViewPanel,
     } = shell;
     search.value = selection.getSearchTerm();
     const viewport = createHangarViewport3d({ mount: previewStage, overlay: previewOverlay, color: resolvePlayerColor(settings) });
@@ -171,29 +164,18 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         };
     }
 
-    // Tab "Form": arcade-only look of the parts, stored per vehicle in the arcade profile.
-    const partStylePanel = createHangarPartStylePanel({
-        bind,
-        onStyleChange(style) {
-            const id = draft.vehicleId;
-            profiles[id] = { ...profileFor(id), partStyle: normalizeVehiclePartStyle(style), updatedAt: new Date().toISOString() };
+    // Tabs "Form" (colours) and, arcade only, "Ausbau" (size build), stored per vehicle in the arcade profile.
+    const formTab = createHangarFormTab({
+        bind, toast, viewport, enabled: hangarMode === 'arcade', panel: formViewPanel, tabButton: formViewButton,
+        upgradePanel: upgradeViewPanel, upgradeTabButton: upgradeViewButton, getProfile: () => profileFor(draft.vehicleId),
+        saveProfile(next) {
+            profiles[draft.vehicleId] = { ...next, updatedAt: new Date().toISOString() };
             profilePort.save(profiles);
             syncDisplay({ preserveCatalog: true });
         },
-        onSelectPart: () => syncDisplay({ preserveCatalog: true }),
+        onChange: () => syncDisplay({ preserveCatalog: true }),
     });
-    formViewPanel.appendChild(partStylePanel.root);
-
-    function syncPartStyle() {
-        const style = hangarMode === 'arcade' ? normalizeVehiclePartStyle(profileFor(draft.vehicleId).partStyle) : {};
-        partStylePanel.render({ vehicleId: draft.vehicleId, style });
-        viewport.setPartStyle(style, buildView === 'form' ? partStylePanel.getSelectedPart() : '');
-        const formActive = buildView === 'form';
-        formViewButton.classList.toggle('is-active', formActive);
-        formViewButton.setAttribute('aria-selected', String(formActive));
-        formViewButton.tabIndex = formActive ? 0 : -1;
-        formViewPanel.classList.toggle('hidden', !formActive);
-    }
+    function syncPartStyle() { formTab.sync(draft.vehicleId, buildView); }
 
     function syncDisplay(options = {}) {
         if (disposed) return;
@@ -237,7 +219,9 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function selectVehicle(vehicleId, options = {}) {
-        if (draft && norm(vehicleId, 'ship5').toLowerCase() !== draft.vehicleId) flushDraft();
+        const requestedId = norm(vehicleId, 'ship5').toLowerCase();
+        if (hangarMode === 'arcade' && !byVehicleId.has(requestedId)) return; // Arcade: factory ships only
+        if (draft && requestedId !== draft.vehicleId) flushDraft();
         const id = syncVehicleWriteback(vehicleId);
         selection.setSelectedVehicleId(id, options);
         selectedPartId = '';
@@ -509,21 +493,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         onCancel(reason) { if (reason === 'escape') toast('Drag abgebrochen'); syncDisplay(); },
     });
 
-    rules.categories.forEach((category) => {
-        const node = createButton('secondary-btn arcade-vehicle-tab', category.label);
-        node.dataset.category = category.id;
-        categoryTabs.appendChild(node);
-    });
-    ['all', ...rules.filterChips.hitboxKlasse].forEach((value) => {
-        const node = createButton('secondary-btn arcade-vehicle-chip', HITBOX_LABELS[value] || value);
-        node.dataset.filterValue = value;
-        hitboxChips.appendChild(node);
-    });
-    ['all', ...rules.filterChips.levelBand].forEach((value) => {
-        const node = createButton('secondary-btn arcade-vehicle-chip', LEVEL_LABELS[value] || value);
-        node.dataset.filterValue = value;
-        levelChips.appendChild(node);
-    });
+    renderHangarVehicleFilterChips({ rules, mode: hangarMode, categoryTabs, hitboxChips, levelChips, catalogEntries, levelOf: (vehicleId) => profileFor(vehicleId).level });
 
     bind(viewSwitch, 'click', (event) => {
         const view = event.target?.closest?.('[data-catalog-view]')?.dataset.catalogView;
@@ -550,7 +520,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     });
     bind(buildViewSwitch, 'click', (event) => {
         const view = event.target?.closest?.('[data-build-view]')?.dataset.buildView;
-        if (!['workshop', 'stats', 'presets', 'form'].includes(view)) return;
+        if (!['workshop', 'stats', 'presets', 'upgrade', 'form'].includes(view)) return;
         buildView = view;
         syncDisplay({ preserveCatalog: true });
     });
@@ -726,12 +696,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         const selected = persistence.getBuild(presetSelect.value);
         if (!selected) return;
         const blob = new Blob([JSON.stringify({ schemaVersion: persistence.version, builds: [selected] }, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = `${selected.name.replace(/[^a-z0-9_-]+/gi, '-')}.hangar.json`;
-        anchor.click();
-        URL.revokeObjectURL(url);
+        void saveBlobAsUserFile({ blob, fileName: `${selected.name.replace(/[^a-z0-9_-]+/gi, '-')}.hangar.json` });
     });
     bind(presetImport, 'click', () => {
         const input = document.createElement('input');
@@ -778,7 +743,9 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     });
     if (ui.vehicleSelectP1) bind(ui.vehicleSelectP1, 'change', () => { const id = norm(ui.vehicleSelectP1.value).toLowerCase(); if (id && draft && id !== draft.vehicleId) selectVehicle(id, { skipRecent: true }); });
 
-    const initialVehicleId = syncVehicleWriteback(selection.getSelectedVehicleId());
+    // A stored choice outside the Arcade catalog (a Classic Lab build) stays until the player picks a ship here.
+    const initialVehicleId = hangarMode === 'arcade' && !byVehicleId.has(norm(settings.vehicles?.PLAYER_1).toLowerCase())
+        ? selection.getSelectedVehicleId() : syncVehicleWriteback(selection.getSelectedVehicleId());
     const recoveredDraft = draftPersistence.load(initialVehicleId);
     savedBuild = persistence.getActiveBuild(initialVehicleId) || persistence.listBuilds(initialVehicleId)[0] || null;
     baselineBuild = savedBuild || initialBuild(initialVehicleId);

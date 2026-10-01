@@ -242,6 +242,22 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         expect(resetState.ghost.entryCount).toBe(0);
     });
 
+    test('T20auto: Ferngesteuertes Desktop-Fenster meldet sich fuer die Rundentelemetrie als automatisch', async ({ page }) => {
+        await loadGame(page);
+        const state = await page.evaluate(() => ({
+            isApp: window.__CURVIOS_APP__ === true,
+            hint: window.__CURVIOS_AUTOMATION__ || '',
+            href: window.location.href,
+        }));
+        // Dieser Spec laeuft nur im Desktop-Profil; nur die Shell kennt die Startschalter.
+        expect(state.isApp).toBe(true);
+        // Playwright startet Electron mit Debug-Schnittstelle; der Hauptprozess muss genau das
+        // melden, sonst zaehlt jede Testrunde als menschliches Spiel (electron/automation-hint.cjs).
+        expect(state.hint).toBe('cdp');
+        // Der Hinweis darf die Adresse nicht veraendern, sonst laedt jeder Test doppelt.
+        expect(state.href).not.toContain('automation');
+    });
+
     test('T20c: Multiplayer ist als Session-Typ in Ebene 1 waehlbar', async ({ page }) => {
         await loadGame(page);
         await expect(page.locator('#menu-nav [data-session-type="multiplayer"]')).toBeVisible();

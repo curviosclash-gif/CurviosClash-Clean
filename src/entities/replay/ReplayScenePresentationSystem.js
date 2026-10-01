@@ -172,8 +172,10 @@ function disposeEntry(entry) {
     if (entry?.usesLivePresentation) {
         entry.livePlayer?.view?.syncFromState?.();
         entry.livePlayer?.view?.applyModelScale?.();
-        const respawned = entry.livePlayerWasAlive === false && entry.livePlayer?.alive === true;
-        entry.group.visible = respawned ? true : entry.originalVisible;
+        // A player who died while the replay borrowed its view has no vehicle to show.
+        const alive = entry.livePlayer?.alive === true;
+        const respawned = entry.livePlayerWasAlive === false && alive;
+        entry.group.visible = alive && (respawned || entry.originalVisible);
     }
     const materials = Array.isArray(entry?.materials) ? entry.materials : [];
     for (let i = 0; i < materials.length; i++) {

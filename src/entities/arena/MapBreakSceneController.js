@@ -191,7 +191,8 @@ export class MapBreakSceneController {
         const root = resolveGlbModelRoot(this.arena, modelId);
         if (!root?.rotation) return;
         const authored = this._authoredYaw.get(modelId) || 0;
-        root.rotation.y = yawFromEvent ? authored + (Number(yaw) || 0) : authored;
+        const followsEventYaw = yawFromEvent && root.userData?.glbFixedTriggeredPlacement !== true;
+        root.rotation.y = followsEventYaw ? authored + (Number(yaw) || 0) : authored;
     }
 
     /** @returns {string[]} every model id the break scenes of this map touch. */

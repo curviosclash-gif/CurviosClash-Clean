@@ -9,8 +9,8 @@ const TRIANGLE_BUDGET_PER_SETPIECE = 6000;
 const BEAT_SECONDS = 6;
 
 const SETPIECES = Object.freeze({
-    '01_leaf_shutter': { clip: 'LeafShutterLoop', duration: 6, landmark: 'leaf_shutter_hub_signal' },
-    '02_bloom_iris': { clip: 'BloomIrisLoop', duration: 12, landmark: 'bloom_iris_calyx_signal' },
+    '01_leaf_shutter': { clip: 'LeafShutterLoop', duration: 6, landmark: 'leaf_shutter_rim_signal_nocol' },
+    '02_bloom_iris': { clip: 'BloomIrisLoop', duration: 12, landmark: 'bloom_iris_rim_signal_nocol' },
     '03_root_arch': { clip: 'RootArchLoop', duration: 6, landmark: 'root_arch_floor_signal' },
     '04_canopy_drift': { clip: 'CanopyDriftLoop', duration: 12, landmark: 'canopy_drift_rail_signal' },
     '05_glass_louvre': { clip: 'GlassLouvreLoop', duration: 12, landmark: 'glass_louvre_ridge_signal' },
@@ -22,12 +22,11 @@ const SETPIECES = Object.freeze({
 // The setpieces built from the traveling-opening rule: every element owns one slot of the loop
 // and steps aside during it, so the hole walks along the barrier exactly once per loop.
 const TRAVELING_OPENINGS = Object.freeze({
-    '01_leaf_shutter': 8,
-    '02_bloom_iris': 6,
     '03_root_arch': 7,
     '05_glass_louvre': 9,
     '07_vine_gate': 6,
 });
+const SHARED_APERTURES = Object.freeze({ '01_leaf_shutter': 8, '02_bloom_iris': 6 });
 
 const COMPONENTS_PER_TYPE = Object.freeze({ SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 });
 const CHUNK_TYPE_BIN = 0x004e4942;
@@ -211,6 +210,16 @@ test('the opening travels along each barrier instead of opening everywhere at on
                 `${name} keeps an even stride near ${expectedStride.toFixed(2)}s, got ${stride.toFixed(2)}s`,
             );
         }
+    }
+});
+
+test('leaf shutter and bloom iris retract together to clear a ship-sized centre', () => {
+    for (const [name, elementCount] of Object.entries(SHARED_APERTURES)) {
+        const moments = openingMoments(readGlb(path.join(ASSET_ROOT, 'glb', `${name}.glb`)));
+        assert.ok(moments.length >= elementCount, `${name} animates every blade or petal`);
+        assert.ok(moments.every((entry) => entry.travel > 0.05), `${name} moves every element`);
+        assert.equal(new Set(moments.map((entry) => entry.time.toFixed(3))).size, 1,
+            `${name} clears its centre in one shared window`);
     }
 });
 

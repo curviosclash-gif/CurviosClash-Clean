@@ -19,68 +19,124 @@ reselling or sub-licensing the model itself, modified or not, is not allowed.
 
 ### Mobile / Handheld (`mobile`)
 
-- Triangles: **13980** (budget 15000)
-- Vertices: 7172 across 14 meshes
-- Bones: **43**, at most 4 influences per vertex, 0 unweighted vertices
+- Triangles: **15904** (budget 26000)
+- Vertices: 8258 across 14 meshes
+- Bones: **45** (including one gaze bone per eye), at most 4 influences per vertex, 0 unweighted vertices
 - Materials: 6 (merc_scout_Eye, merc_scout_Hair, merc_scout_Jacket, merc_scout_Leather, merc_scout_Skin, merc_scout_Trousers)
-- Textures: 12 embedded PNG maps
+- Textures: 12 embedded PNG maps, ambient occlusion baked in
 - Clips: 11 — Attack (0.77 s), Death (1.57 s), Emote_Cheer (1.97 s), Emote_Wave (1.57 s), Fall (0.77 s), Hit (0.47 s), Idle (2.97 s), Jump (0.57 s), Land (0.47 s), Run (0.70 s), Walk (1.03 s)
 - Looping clips: Idle, Walk, Run, Fall
-- Size: height 1.8 m, soles on z = 0.0 m, arm span 1.3502 m
-- Files: `.blend` 3.89 MiB, `.glb` 2.58 MiB, `.fbx` 3.44 MiB
-- Round trip: re-imported GLB has 43 bones and 13980 triangles, missing meshes: none
+- Size: height 1.8 m, soles on z = 0.0 m, width in the A-pose 1.3455 m
+- Files: `.blend` 3.99 MiB, `.glb` 4.17 MiB, `.fbx` 3.59 MiB
+- Round trip: re-imported GLB has 45 bones and 15904 triangles, missing meshes: none
+
+- Skin coverage: 138 of 1570 body vertices (8.8%) are bare skin, most on the leg; head and hands are meant to be bare.
+
+Proportions, measured on the built model against the anthropometric reference of a 1.80 m adult:
+
+| Measure | Built | Reference | Deviation |
+| --- | --- | --- | --- |
+| ankle | 0.066 m | 0.070 m | -5.9% |
+| eye | 1.662 m | 1.685 m | -1.4% |
+| hip joint | 0.949 m | 0.954 m | -0.6% |
+| knee | 0.508 m | 0.513 m | -0.9% |
+| shoulder | 1.439 m | 1.472 m | -2.2% |
+| shoulder joint distance | 0.380 m | 0.380 m | -0.1% |
+| femur | 0.441 m | 0.441 m | -0.0% |
+| foot bone | 0.218 m | 0.214 m | +1.9% |
+| humerus | 0.315 m | 0.315 m | -0.1% |
+| radius | 0.250 m | 0.250 m | -0.1% |
+| tibia | 0.444 m | 0.443 m | +0.2% |
+| chest | 0.271 m | 0.314 m | -13.7% |
+| hip | 0.339 m | 0.344 m | -1.5% |
+| shoulder | 0.512 m | 0.520 m | -1.6% |
+| waist | 0.271 m | 0.280 m | -3.1% |
+| head (including ears) | 0.194 m | 0.157 m skull | — |
+
+Open deviations:
+
+- breadth chest: 0.271 m vs reference 0.314 m (-13.7%, on merc_scout_body)
 
 ### PC / Steam (`pc`)
 
-- Triangles: **25016** (budget 45000)
-- Vertices: 12712 across 14 meshes
-- Bones: **53**, at most 4 influences per vertex, 0 unweighted vertices
+- Triangles: **43748** (budget 45000)
+- Vertices: 22820 across 14 meshes
+- Bones: **55** (including one gaze bone per eye), at most 4 influences per vertex, 0 unweighted vertices
 - Materials: 8 (merc_scout_Accent, merc_scout_Eye, merc_scout_Hair, merc_scout_Jacket, merc_scout_Leather, merc_scout_Metal, merc_scout_Skin, merc_scout_Trousers)
-- Textures: 14 embedded PNG maps
+- Textures: 14 embedded PNG maps, ambient occlusion baked in
 - Clips: 11 — Attack (0.77 s), Death (1.57 s), Emote_Cheer (1.97 s), Emote_Wave (1.57 s), Fall (0.77 s), Hit (0.47 s), Idle (2.97 s), Jump (0.57 s), Land (0.47 s), Run (0.70 s), Walk (1.03 s)
 - Looping clips: Idle, Walk, Run, Fall
-- Size: height 1.8 m, soles on z = 0.0 m, arm span 1.3502 m
-- Files: `.blend` 5.24 MiB, `.glb` 8.84 MiB, `.fbx` 4.43 MiB
-- Round trip: re-imported GLB has 53 bones and 25016 triangles, missing meshes: none
+- Size: height 1.8 m, soles on z = 0.0 m, width in the A-pose 1.3685 m
+- Files: `.blend` 6.73 MiB, `.glb` 14.81 MiB, `.fbx` 5.05 MiB
+- Round trip: re-imported GLB has 55 bones and 43748 triangles, missing meshes: none
+
+- Skin coverage: 30 of 7168 body vertices (0.4%) are bare skin, most on the arm; head and hands are meant to be bare.
+
+Proportions, measured on the built model against the anthropometric reference of a 1.80 m adult:
+
+| Measure | Built | Reference | Deviation |
+| --- | --- | --- | --- |
+| ankle | 0.066 m | 0.070 m | -5.9% |
+| eye | 1.662 m | 1.685 m | -1.4% |
+| hip joint | 0.949 m | 0.954 m | -0.6% |
+| knee | 0.508 m | 0.513 m | -0.9% |
+| shoulder | 1.439 m | 1.472 m | -2.2% |
+| shoulder joint distance | 0.380 m | 0.380 m | -0.1% |
+| femur | 0.441 m | 0.441 m | -0.0% |
+| foot bone | 0.218 m | 0.214 m | +1.9% |
+| hand | 0.187 m | 0.190 m | -1.4% |
+| humerus | 0.315 m | 0.315 m | -0.1% |
+| radius | 0.250 m | 0.250 m | -0.1% |
+| tibia | 0.444 m | 0.443 m | +0.2% |
+| chest | 0.303 m | 0.314 m | -3.6% |
+| hip | 0.339 m | 0.344 m | -1.5% |
+| shoulder | 0.594 m | 0.520 m | +14.3% |
+| waist | 0.276 m | 0.280 m | -1.6% |
+| head (including ears) | 0.194 m | 0.157 m skull | — |
+| arm span, T-pose | 1.883 m | 1.00-1.06 x height | 1.05 x height |
+
+Open deviations:
+
+- breadth shoulder: 0.594 m vs reference 0.520 m (+14.3%, acromion band)
 
 ### High / Cinematic (`high`)
 
-- Triangles: **62120** (budget 120000)
-- Vertices: 31264 across 14 meshes
-- Bones: **53**, at most 4 influences per vertex, 0 unweighted vertices
+- Triangles: **86708** (budget 120000)
+- Vertices: 44300 across 14 meshes
+- Bones: **55** (including one gaze bone per eye), at most 4 influences per vertex, 0 unweighted vertices
 - Materials: 8 (merc_scout_Accent, merc_scout_Eye, merc_scout_Hair, merc_scout_Jacket, merc_scout_Leather, merc_scout_Metal, merc_scout_Skin, merc_scout_Trousers)
-- Textures: 14 embedded PNG maps
+- Textures: 14 embedded PNG maps, ambient occlusion baked in
 - Clips: 11 — Attack (0.77 s), Death (1.57 s), Emote_Cheer (1.97 s), Emote_Wave (1.57 s), Fall (0.77 s), Hit (0.47 s), Idle (2.97 s), Jump (0.57 s), Land (0.47 s), Run (0.70 s), Walk (1.03 s)
 - Looping clips: Idle, Walk, Run, Fall
-- Size: height 1.8 m, soles on z = 0.0 m, arm span 1.3502 m
-- Files: `.blend` 8.19 MiB, `.glb` 12.29 MiB, `.fbx` 5.52 MiB
-- Round trip: re-imported GLB has 53 bones and 62120 triangles, missing meshes: none
+- Size: height 1.8 m, soles on z = 0.0 m, width in the A-pose 1.3685 m
+- Files: `.blend` 10.12 MiB, `.glb` 26.13 MiB, `.fbx` 6.28 MiB
+- Round trip: re-imported GLB has 55 bones and 86708 triangles, missing meshes: none
 
-## Price
+- Skin coverage: 120 of 28648 body vertices (0.4%) are bare skin, most on the arm; head and hands are meant to be bare.
 
-Comparable single characters on Fab (prices read on 2026-09-28, EUR, personal licence):
-*Modular Meta Soldier Female* (48 animations, modular, realistic) EUR 35.14; *Stylized Ninja*
-and *Stylized Female Soldier* (modular, **no** animations included) EUR 43.93 each;
-*Elite Tactical Soldier* (4 clips) EUR 21.96; *Modular Character Urban Citizen* (three LODs,
-48 clips) EUR 87.88; *Modular Creative Characters* (420 assets) EUR 140.62.
+Proportions, measured on the built model against the anthropometric reference of a 1.80 m adult:
 
-Recommended list prices for this product, derived from those anchors:
+| Measure | Built | Reference | Deviation |
+| --- | --- | --- | --- |
+| ankle | 0.066 m | 0.070 m | -5.9% |
+| eye | 1.662 m | 1.685 m | -1.4% |
+| hip joint | 0.949 m | 0.954 m | -0.6% |
+| knee | 0.508 m | 0.513 m | -0.9% |
+| shoulder | 1.439 m | 1.472 m | -2.2% |
+| shoulder joint distance | 0.380 m | 0.380 m | -0.1% |
+| femur | 0.441 m | 0.441 m | -0.0% |
+| foot bone | 0.218 m | 0.214 m | +1.9% |
+| hand | 0.187 m | 0.190 m | -1.4% |
+| humerus | 0.315 m | 0.315 m | -0.1% |
+| radius | 0.250 m | 0.250 m | -0.1% |
+| tibia | 0.444 m | 0.443 m | +0.2% |
+| chest | 0.303 m | 0.314 m | -3.6% |
+| hip | 0.345 m | 0.344 m | +0.4% |
+| shoulder | 0.594 m | 0.520 m | +14.3% |
+| waist | 0.284 m | 0.280 m | +1.4% |
+| head (including ears) | 0.194 m | 0.157 m skull | — |
+| arm span, T-pose | 1.883 m | 1.00-1.06 x height | 1.05 x height |
 
-- All three variants together: EUR 60-99 (Professional tier about 2.5x)
-- PC variant alone: EUR 29-45
-- Animation upgrade (11 clips): EUR 19-29
+Open deviations:
 
-The three-variant split and the editable ``.blend`` source are what none of the
-compared listings offer; the honest limits are listed below.
-
-## Honest limits
-
-- The walk cycle implies 0.91 m/s, the run 2.24 m/s; drive the character faster and the
-  planted foot slides. Step length is capped by the leg length of a straight bind pose.
-- The boot toe corner sinks up to 10 mm into the floor during the walk stance.
-- Hit and Death slide the right foot on purpose instead of lifting it.
-- A small patch of skin can show at the outer deltoid, where the skin modifier's branch
-  bulge is wider than the sleeve.
-- The high variant's extra cloth bones (``CoatBack``, ``StrapFront``) carry no motion yet.
-- Roughness and metallic are scalar per material; there are no roughness or metallic maps.
-- The renders for this datasheet are EEVEE previews, not offline renders.
+- breadth shoulder: 0.594 m vs reference 0.520 m (+14.3%, acromion band)

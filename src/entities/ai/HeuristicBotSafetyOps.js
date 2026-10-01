@@ -248,7 +248,7 @@ function refreshSafetyProbes(policy, state, player, runtimeContext, observation)
             predictiveScale,
             HEURISTIC_SAFETY_CONFIG.probeSampleCount
         );
-        const radius = Math.max(0.1, Number(player.hitboxRadius) || 0.8)
+        const radius = Math.max(0.1, Number(player.arcadeAvoidRadius || player.hitboxRadius) || 0.8)
             * HEURISTIC_SAFETY_CONFIG.probeRadiusMultiplier;
         const skipRecent = resolveHeuristicSelfTrailSkipRecentSegments(
             runtimeContext,

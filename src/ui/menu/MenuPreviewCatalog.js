@@ -16,6 +16,7 @@ function resolvePreviewPortalPairCount(mapDefinition, authoredPairs) {
 }
 import { compareMapPickerEntries, resolveMapPickerCollection } from './MenuMapCollectionCatalog.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
+import { resolveArcadeRunVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 
 function toNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -149,8 +150,10 @@ export function listVehiclePreviewEntries() {
         .map((vehicle) => toVehiclePreviewEntry(vehicle));
 }
 
-export function resolveVehiclePreview(vehicleId) {
-    const normalizedVehicleId = normalizeString(vehicleId);
+// With modePath 'arcade' this previews the ship the run starts with, so a stored Lab build
+// shows as the Star-Cruiser there while the shared choice stays saved for Classic.
+export function resolveVehiclePreview(vehicleId, modePath = '') {
+    const normalizedVehicleId = normalizeString(modePath === 'arcade' ? resolveArcadeRunVehicleId(vehicleId) : vehicleId);
     const vehicle = VEHICLE_DEFINITIONS.find((candidate) => normalizeString(candidate?.id) === normalizedVehicleId);
     if (vehicle) return toVehiclePreviewEntry(vehicle);
     return {

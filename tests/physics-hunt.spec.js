@@ -1891,4 +1891,106 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         }
     });
 
+    // Paket 2b: normal Arcade runs hit the part boxes. The bot Star-Cruiser lies with its
+    // back towards the shooter, so the MG ray runs straight through the wing plane: beside
+    // the wing tip it must miss, on the wing it must hit.
+    // The MG only exists in the hunt-combat Arcade runs. #btn-start turns a stored arena_waves
+    // run back into a plain gauntlet (ArcadeRunTypeOps.releaseButtonOnlyArcadeRun), where
+    // hasMachineGun() is false and every shot ends as mg.shoot.inactive - so the run starts
+    // through the runtime. Arena Waves plays notre_dame_arena and keeps its bot slots idle
+    // until a wave calls them, so the test takes slot 0 and looks for a clear line of fire.
+    test('T-ARC-HB1: Arcade MG misses beside the Star-Cruiser wing tip and hits the wing', async ({ page }) => {
+        await loadGame(page);
+        await openCustomSubmenu(page);
+        await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
+        await page.waitForSelector('#submenu-game:not(.hidden)');
+        await page.evaluate(async () => {
+            const game = window.GAME_INSTANCE;
+            game.settings.vehicles.PLAYER_1 = 'ship5';
+            game.settings.gameMode = 'ARCADE';
+            Object.assign(game.settings.arcade, { runType: 'arena_waves', combatProfile: 'hunt', dailyChallenge: false, seed: 7 });
+            game.runtimeFacade.onSettingsChanged({ changedKeys: ['arcade.runType', 'arcade.combatProfile'] });
+            await game.runtimeFacade.startMatch();
+        });
+        await page.waitForFunction(() => {
+            const em = window.GAME_INSTANCE?.entityManager;
+            return window.GAME_INSTANCE?.state === 'PLAYING'
+                && em?.gameModeStrategy?.hasMachineGun?.() === true
+                && em?.humanPlayers?.[0]?.alive === true
+                && em?.bots?.length > 0;
+        }, null, { timeout: 60000 });
+
+        const result = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const em = game.entityManager;
+            const shooter = em.humanPlayers[0];
+            const enemy = em.bots[0].player;
+            const run = {
+                runType: game.runtimeConfig?.arcade?.runType,
+                combatProfile: game.runtimeConfig?.arcade?.combatProfile,
+                hasMachineGun: em.gameModeStrategy?.hasMachineGun?.() === true,
+            };
+            // Fresh spawn of slot 0 as a Star-Cruiser: the spawn switches its part hitbox on.
+            if (enemy.entitySlotActive === true) em.deactivateBotSlot(0);
+            enemy.vehicleId = 'ship5';
+            em.activateBotSlot({ slot: 0, position: shooter.position.clone() });
+            if (!shooter.arcadeHitbox || !enemy.arcadeHitbox) return { error: 'arcade-hitbox-off', run };
+            em.entityRuntimeConfig.HUNT.MG.HUMAN_AIM_ASSIST_ENABLED = false;
+
+            // A horizontal line of fire with no map geometry for 40 units.
+            const Vector = shooter.position.constructor;
+            const origins = [shooter.position.clone(), new Vector(0, 40, 0), new Vector(0, 80, 0)];
+            const directions = [[0, 0, -1], [0, 0, 1], [1, 0, 0], [-1, 0, 0]].map(([x, y, z]) => new Vector(x, y, z));
+            let origin = null;
+            let aim = null;
+            for (const candidate of origins) {
+                aim = directions.find((dir) => !em.arena.raycast?.(candidate, dir, 40)?.hit) || null;
+                if (aim) { origin = candidate; break; }
+            }
+            if (!origin) return { error: 'no-clear-line-of-fire', run };
+            const yaw = Math.atan2(-aim.x, -aim.z);
+            const s = Number(enemy.modelScale) || 1;
+
+            const shoot = (localX) => {
+                enemy.alive = true;
+                enemy.spawnProtectionTimer = 0;
+                enemy.hasShield = false;
+                enemy.shieldHP = 0;
+                enemy.hp = enemy.maxHp;
+                // Back towards the shooter: local +y points back along the shot, local x across it.
+                enemy.quaternion.setFromAxisAngle(new Vector(0, 1, 0), yaw)
+                    .multiply(enemy.quaternion.clone().setFromAxisAngle(new Vector(1, 0, 0), Math.PI / 2));
+                // Local wing point (localX, 0, -0.5) lands on the shot line, 30 units out.
+                const wingOffset = new Vector(localX * s, 0, -0.5 * s).applyQuaternion(enemy.quaternion);
+                enemy.position.copy(origin).addScaledVector(aim, 30).sub(wingOffset);
+                enemy.refreshObbCollisionQuery?.();
+                shooter.position.copy(origin);
+                shooter.setLookAtWorld?.(origin.x + aim.x * 120, origin.y + aim.y * 120, origin.z + aim.z * 120);
+                shooter.shootCooldown = 0;
+                if (em._overheatGunSystem?._overheatByPlayer) em._overheatGunSystem._overheatByPlayer[shooter.index] = 0;
+                if (em._overheatGunSystem?._lockoutByPlayer) em._overheatGunSystem._lockoutByPlayer[shooter.index] = 0;
+                const hpBefore = Number(enemy.hp);
+                const fire = em._shootHuntGun(shooter);
+                return {
+                    localX,
+                    ok: fire?.ok === true,
+                    code: String(fire?.code || fire?.reason || ''),
+                    message: String(fire?.message || ''),
+                    hit: fire?.hit === true,
+                    hpBefore,
+                    hpAfter: Number(enemy.hp),
+                };
+            };
+            return { error: null, run, scale: s, origin: origin.toArray(), aim: aim.toArray(), beside: shoot(2.16 + 0.35), onWing: shoot(1.5) };
+        });
+        console.log(`[T-ARC-HB1] ${JSON.stringify(result)}`);
+        expect(result.error).toBeNull();
+        expect(result.beside.ok, result.beside.code).toBe(true);
+        expect(result.beside.hit).toBe(false);
+        expect(result.beside.hpAfter).toBe(result.beside.hpBefore);
+        expect(result.onWing.ok, result.onWing.code).toBe(true);
+        expect(result.onWing.hit).toBe(true);
+        expect(result.onWing.hpAfter).toBeLessThan(result.onWing.hpBefore);
+    });
+
 });

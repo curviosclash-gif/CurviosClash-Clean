@@ -29,6 +29,7 @@ import {
 import { applyFightHumanAimAssist } from '../../hunt/FightAimAssist.js';
 import { resolveFightMachineGunConfig } from '../../shared/contracts/FightMachineGunContract.js';
 import { applyArenaWavesMachineGunTuning } from '../../shared/contracts/ArenaWavesContract.js';
+import { applyArcadeBuildToMachineGunConfig } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
 import { ensurePlayerInventoryCollections } from '../player/PlayerInventoryOps.js';
 import { isDestructibleTurret } from '../../shared/contracts/TurretCombatContract.js';
 import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
@@ -368,10 +369,10 @@ export class HuntCombatSystem {
             return itemTarget;
         }
 
-        const mg = applyArenaWavesMachineGunTuning(resolveFightMachineGunConfig(
+        const mg = applyArcadeBuildToMachineGunConfig(applyArenaWavesMachineGunTuning(resolveFightMachineGunConfig(
             config?.HUNT?.MG || {},
             player?.fightLoadout?.machineGunId
-        ), player?.isBot === true ? 0 : player?.fightLoadout?.arenaWavesMgTuning);
+        ), player?.isBot === true ? 0 : player?.fightLoadout?.arenaWavesMgTuning), player);
         const visiblePlayers = player?.entityManager?.filterVisiblePlayers?.(player, runtime.players)
             || runtime.players;
         const targetables = runtime?.combat?.getMgTurretTargets?.() || [];

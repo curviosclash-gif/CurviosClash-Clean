@@ -19,6 +19,7 @@ export const SECTOR_MAP_POOLS = Object.freeze({
         'wind_cathedral',
         'chrono_spillway',
         'aether_relay',
+        'neon_carnival',
     ]),
 });
 

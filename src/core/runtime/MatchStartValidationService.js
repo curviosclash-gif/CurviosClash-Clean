@@ -7,6 +7,12 @@ import { resolveDesktopConnectivityProfile } from '../../shared/contracts/Deskto
 import { isMapEligibleForModePath } from '../../shared/contracts/MapModeContract.js';
 import { resolveRuntimeSessionContract } from '../../shared/contracts/RuntimeSessionContract.js';
 import { normalizeTeamHuntSettings, validateTeamRoster } from '../../shared/contracts/TeamHuntContract.js';
+import { readGamepad } from '../../shared/input/GamepadInputSource.js';
+import {
+    isThreePlayerSplitModePathAllowed,
+    isThreePlayerSplitVariant,
+    resolveSplitScreenDeviceIssue,
+} from '../../four-player-planar/FourPlayerPlanarContract.js';
 
 /**
  * @param {{ settings?: any, ui?: any, multiplayerSessionState?: any, surfaceState?: any, currentFallbackModePath?: string }}
@@ -20,6 +26,7 @@ export function resolveMatchStartValidationIssue({
     classicModeType = 'CLASSIC',
     arcadeModeType = 'ARCADE',
     productSurfaceId = '',
+    getGamepad = readGamepad,
 } = {}) {
     const sessionContract = resolveRuntimeSessionContract(settings?.localSettings);
     const sessionType = sessionContract.sessionType;
@@ -50,6 +57,26 @@ export function resolveMatchStartValidationIssue({
                 fieldKey: 'vehicleP2',
                 fieldMessage: 'Flugzeug für Spieler 2 wählen.',
             };
+        }
+        if (isThreePlayerSplitVariant(settings)) {
+            if (!isThreePlayerSplitModePathAllowed(settings?.localSettings?.modePath)) {
+                return {
+                    message: 'Start nicht möglich: Für diesen Spielstil ist die Drei-Spieler-Aufteilung nicht verfügbar.',
+                    fieldKey: 'players',
+                    fieldMessage: '2 Spieler wählen oder einen anderen Spielstil nehmen.',
+                };
+            }
+            if (!String(settings?.vehicles?.PLAYER_3 || '').trim()) {
+                return {
+                    message: 'Start nicht möglich: Flugzeug für Spieler 3 fehlt.',
+                    fieldKey: 'vehicleP3',
+                    fieldMessage: 'Flugzeug für Spieler 3 wählen.',
+                };
+            }
+        }
+        const deviceIssue = resolveSplitScreenDeviceIssue(settings, getGamepad);
+        if (deviceIssue) {
+            return { message: `Start nicht möglich: ${deviceIssue}`, fieldKey: 'players', fieldMessage: deviceIssue };
         }
     }
 
@@ -146,7 +173,7 @@ export function resolveMatchStartValidationIssue({
     }
 
     const modePath = String(settings?.localSettings?.modePath || 'normal').toLowerCase();
-    if (mapExists && mapKey !== 'custom' && !isMapEligibleForModePath(maps?.[mapKey], modePath)) {
+    if (mapExists && mapKey !== 'custom' && !isMapEligibleForModePath(maps?.[mapKey], modePath, settings?.gameMode)) {
         return {
             message: 'Start nicht möglich: Die gewählte Karte ist in dieser Version nicht startbar.',
             fieldKey: 'map',

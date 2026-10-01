@@ -249,7 +249,7 @@ export class BotSensors {
         position,
         player,
         _allPlayers,
-        radius = player.hitboxRadius * AI_SENSOR_TRAIL_COLLISION.radiusMultiplier,
+        radius = (player.arcadeAvoidRadius || player.hitboxRadius) * AI_SENSOR_TRAIL_COLLISION.radiusMultiplier,
         skipRecent = AI_SENSOR_TRAIL_COLLISION.skipRecentSegments
     ) {
         const entityManager = player?.trail?.entityManager;
@@ -261,7 +261,7 @@ export class BotSensors {
         position,
         player,
         allPlayers,
-        radius = player.hitboxRadius * AI_SENSOR_TRAIL_COLLISION.radiusMultiplier,
+        radius = (player.arcadeAvoidRadius || player.hitboxRadius) * AI_SENSOR_TRAIL_COLLISION.radiusMultiplier,
         skipRecent = AI_SENSOR_TRAIL_COLLISION.skipRecentSegments
     ) {
         return this._checkTrailHit(position, player, allPlayers, radius, skipRecent);

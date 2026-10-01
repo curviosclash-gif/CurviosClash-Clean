@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { expect, test } from './helpers.desktop.js';
-import { collectErrors, startHuntGame, waitForLoadedGame } from './helpers.js';
+import { collectErrors, startHuntGame, startHuntGameWithBots, waitForLoadedGame } from './helpers.js';
 
 // Regular runs keep their proof images in the run's own test-results folder. The
 // 80-frame comparison clips per profile are delivery material, not assertions, so
@@ -157,7 +157,7 @@ test('all ten profiles appear at their real game event entry points', async ({ p
     test.setTimeout(180_000);
     const OUT = outputDir(testInfo);
     const errors = collectErrors(page);
-    await startHuntGame(page);
+    await startHuntGameWithBots(page, 1, { mapKey: 'standard' });
     await page.waitForFunction(() => window.GAME_INSTANCE?.entityManager?.particles?.conventionalExplosionEffect?.ready);
     const proof = await page.evaluate(() => {
         const game = window.GAME_INSTANCE, manager = game.entityManager;
@@ -173,7 +173,7 @@ test('all ten profiles appear at their real game event entry points', async ({ p
         const shots = [], events = [];
         const capture = (label, expected) => {
             const event = particles.conventionalExplosionEffect.events.find((candidate) => candidate.profile?.id === expected);
-            if (!event) throw new Error(`Missing ${expected} at ${label}`);
+            if (!event) throw new Error(`Missing ${expected} at ${label}; map=${game.settings.mapKey}; got=${particles.conventionalExplosionEffect.events.map((candidate) => candidate.profile?.id).filter(Boolean).join(',')}`);
             particles.update(.22);
             camera.position.copy(event.position).add(point.clone().set(label === 'rocket-wall' ? -12 : 12, 10, 18));
             camera.lookAt(event.position); camera.updateMatrixWorld();

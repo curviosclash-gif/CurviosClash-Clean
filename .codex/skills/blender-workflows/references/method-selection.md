@@ -24,6 +24,16 @@ Choose the smallest method that preserves editability, repeatability, and target
 
 Prefer a hybrid when appropriate: generate the structural base with Geometry Nodes or `bpy`, preserve an editable authoring scene, then create evaluated export copies without destroying the source.
 
+## Procedural Plant Base and Authored Detail
+
+For new plants and trees, default to a reproducible procedural base, including for a single specimen. Generate growth axes, branching, and organ attachment sites with a small set of meaningful parameters and explicit seeds. Add authored organ meshes, silhouette corrections, or distinctive details where procedural rules alone do not achieve the requested quality. A short `bpy` generator is sufficient; an interactive Geometry Nodes system is optional. Use direct modeling when explicitly requested or when the particular form makes a procedural base impractical, and briefly explain that choice.
+
+Keep generated geometry and authored additions in separate named collections or node branches. Rebuild only the generator-owned parts. Attach additions through stable role IDs and local parent frames so they follow proportion changes; do not rely on world coordinates or vertex indices that regeneration can invalidate. Preserve reusable authored leaves, flowers, and other source meshes. Save the generator or node setup, parameters, seeds, and authored source alongside the editable `.blend` in the permitted asset location.
+
+Before scaling up a hybrid family, regenerate one representative specimen with the same seed and then change one structural parameter. Confirm that authored geometry survives, attachments follow their parents, and materials, interactive IDs, wind, and export selection remain valid. If a correction depends on the old topology, adapt it explicitly or limit the permitted variation instead of silently dropping it. Export evaluated copies while keeping the authoring source editable. Procedural authoring does not require procedural generation in the game.
+
+For existing plants, inspect the `.blend`, generator, modifiers, and object hierarchy first. Reuse available controls; a saved mesh or GLB alone does not establish regenerability. With separate organs, an adapter can vary permitted parts and reapply authored detail. With flattened geometry, restrict variation to safe deformations or materials unless structural reconstruction is part of the request. Preserve the original specimen.
+
 ## Required Output Contract
 
 Before construction, state or infer:

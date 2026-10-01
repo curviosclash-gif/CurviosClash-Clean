@@ -116,7 +116,7 @@ export class BotSensorsFacade {
         this.sensors?._scoreProbe(player, arena, allPlayers, probe, lookAhead);
     }
 
-    checkTrailHit(position, player, allPlayers, radius = player.hitboxRadius * 1.6, skipRecent = 20) {
+    checkTrailHit(position, player, allPlayers, radius = (player.arcadeAvoidRadius || player.hitboxRadius) * 1.6, skipRecent = 20) {
         return !!this.sensors?._checkTrailHit(position, player, allPlayers, radius, skipRecent);
     }
 

@@ -1,4 +1,6 @@
 import { normalizeString } from '../../../shared/contracts/ContractNormalizeUtils.js';
+import { ARCADE_VEHICLE_ROLE_TEMPLATES } from '../../../shared/contracts/ArcadeVehicleBalanceContract.js';
+import { resolveArcadeLevelRange } from '../../../shared/contracts/ArcadeHangarRulesContract.js';
 
 import {
     ensureStartSetupLocalState,
@@ -9,6 +11,7 @@ import {
 const CATEGORY_IDS = new Set(['all', 'jaeger', 'kreuzer', 'spezial', 'custom']);
 const HITBOX_FILTER_IDS = new Set(['all', 'kompakt', 'standard', 'schwer']);
 const LEVEL_FILTER_IDS = new Set(['all', 'rookie', 'mid', 'elite']);
+const ROLE_FILTER_IDS = new Set(['all', ...Object.keys(ARCADE_VEHICLE_ROLE_TEMPLATES)]);
 
 function normalizeCategory(value) {
     const normalized = normalizeString(value, 'all').toLowerCase();
@@ -24,6 +27,31 @@ function normalizeLevelFilter(value) {
     const normalized = normalizeString(value, 'all').toLowerCase();
     return LEVEL_FILTER_IDS.has(normalized) ? normalized : 'all';
 }
+
+function normalizeRoleFilter(value) {
+    const normalized = normalizeString(value, 'all').toLowerCase();
+    return ROLE_FILTER_IDS.has(normalized) ? normalized : 'all';
+}
+
+// Only a real range label ("6–10") survives; anything else shows all levels.
+function normalizeLevelRangeFilter(value) {
+    const normalized = normalizeString(value, 'all');
+    const min = Number(normalized.split('–')[0]);
+    return Number.isSafeInteger(min) && resolveArcadeLevelRange(min).label === normalized ? normalized : 'all';
+}
+
+// Arcade filters by the fixed role and by level ranges and stores them in its own fields,
+// so the Fight hangar keeps its hitbox and level band filters untouched.
+const ARCADE_FILTERS = Object.freeze({
+    classKey: 'vehicleFilterRole', levelKey: 'vehicleFilterLevelRange',
+    normalizeClass: normalizeRoleFilter, normalizeLevel: normalizeLevelRangeFilter,
+    classOf: (entry) => normalizeRoleFilter(entry.rolle), levelOf: (level) => resolveArcadeLevelRange(level).label,
+});
+const LEGACY_FILTERS = Object.freeze({
+    classKey: 'vehicleFilterHitbox', levelKey: 'vehicleFilterLevelBand',
+    normalizeClass: normalizeHitboxFilter, normalizeLevel: normalizeLevelFilter,
+    classOf: (entry) => normalizeHitboxFilter(entry.hitboxKlasse), levelOf: (level) => resolveLevelBand(level),
+});
 
 function normalizeVehicleId(value, fallback = '') {
     return normalizeString(value, fallback).toLowerCase();
@@ -70,7 +98,8 @@ function filterBySearch(entry, query) {
     return false;
 }
 
-export function createVehicleManagerSelectionState({ settings, catalogEntries }) {
+export function createVehicleManagerSelectionState({ settings, catalogEntries, mode = '' }) {
+    const filters = mode === 'arcade' ? ARCADE_FILTERS : LEGACY_FILTERS;
     const sourceSettings = settings && typeof settings === 'object' ? settings : {};
     const entries = Array.isArray(catalogEntries) ? catalogEntries.slice() : [];
     entries.sort((left, right) => {
@@ -96,27 +125,30 @@ export function createVehicleManagerSelectionState({ settings, catalogEntries })
     );
     let category = normalizeCategory(startSetup.vehicleCategoryTab);
     let searchTerm = normalizeString(startSetup.vehicleSearch);
-    let hitboxFilter = normalizeHitboxFilter(startSetup.vehicleFilterHitbox);
-    let levelFilter = normalizeLevelFilter(startSetup.vehicleFilterLevelBand);
+    let hitboxFilter = filters.normalizeClass(startSetup[filters.classKey]);
+    let levelFilter = filters.normalizeLevel(startSetup[filters.levelKey]);
     let favoritesOnly = startSetup.vehicleFavoritesOnly === true;
 
     function persistLocalSelectionState() {
         startSetup.vehicleCategoryTab = category;
         startSetup.vehicleSearch = searchTerm;
-        startSetup.vehicleFilterHitbox = hitboxFilter;
-        startSetup.vehicleFilterLevelBand = levelFilter;
+        startSetup[filters.classKey] = hitboxFilter;
+        startSetup[filters.levelKey] = levelFilter;
         startSetup.vehicleFavoritesOnly = favoritesOnly;
         startSetup.vehicleCompareId = compareVehicleId;
     }
 
+    // The lists are shared by all modes; Arcade only shows the ships of its own catalog (no Lab builds).
+    const isListedVehicle = mode === 'arcade' ? (vehicleId) => catalogById.has(vehicleId) : Boolean;
+
     function getFavorites() {
         const list = Array.isArray(startSetup.favoriteVehicles) ? startSetup.favoriteVehicles : [];
-        return list.map((entry) => normalizeVehicleId(entry)).filter(Boolean);
+        return list.map((entry) => normalizeVehicleId(entry)).filter(isListedVehicle);
     }
 
     function getRecents() {
         const list = Array.isArray(startSetup.recentVehicles) ? startSetup.recentVehicles : [];
-        return list.map((entry) => normalizeVehicleId(entry)).filter(Boolean);
+        return list.map((entry) => normalizeVehicleId(entry)).filter(isListedVehicle);
     }
 
     function isFavorite(vehicleId) {
@@ -166,12 +198,12 @@ export function createVehicleManagerSelectionState({ settings, catalogEntries })
     }
 
     function setHitboxFilter(nextFilter) {
-        hitboxFilter = normalizeHitboxFilter(nextFilter);
+        hitboxFilter = filters.normalizeClass(nextFilter);
         persistLocalSelectionState();
     }
 
     function setLevelFilter(nextFilter) {
-        levelFilter = normalizeLevelFilter(nextFilter);
+        levelFilter = filters.normalizeLevel(nextFilter);
         persistLocalSelectionState();
     }
 
@@ -192,13 +224,10 @@ export function createVehicleManagerSelectionState({ settings, catalogEntries })
         return entries.filter((entry) => {
             if (!entry || !entry.vehicleId) return false;
             if (category !== 'all' && normalizeCategory(entry.kategorie) !== category) return false;
-            if (hitboxFilter !== 'all' && normalizeHitboxFilter(entry.hitboxKlasse) !== hitboxFilter) return false;
+            if (hitboxFilter !== 'all' && filters.classOf(entry) !== hitboxFilter) return false;
             if (!filterBySearch(entry, searchTerm)) return false;
             if (favoritesOnly && !favorites.has(normalizeVehicleId(entry.vehicleId))) return false;
-            if (levelFilter !== 'all') {
-                const levelBand = resolveLevelBand(resolveProfileLevel(profileMap, entry.vehicleId));
-                if (levelBand !== levelFilter) return false;
-            }
+            if (levelFilter !== 'all' && filters.levelOf(resolveProfileLevel(profileMap, entry.vehicleId)) !== levelFilter) return false;
             return true;
         });
     }

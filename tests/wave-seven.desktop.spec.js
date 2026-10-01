@@ -23,7 +23,7 @@ test('Wave 7: getrennte Fahrzeugprofile und Kosmetik sind im Desktop-Hangar sich
         if (!store?.saveJsonRecord) return false;
         const now = new Date().toISOString();
         const common = {
-            schemaVersion: 'arcade-vehicle-profile.v2',
+            schemaVersion: 'arcade-vehicle-profile.v3',
             unlockedSlots: ['core', 'nose', 'wing_left', 'wing_right', 'engine_left', 'engine_right', 'utility'],
             unlockedPartFamilies: ['frame', 'wing', 'engine', 'utility'],
             unlockedUpgradeTiers: ['T1', 'T2', 'T3'],

@@ -16,13 +16,17 @@ import {
 export const ARCADE_HANGAR_RULES_CONTRACT_VERSION = 'arcade-hangar-rules.v2';
 
 // --- Level Bands ---
-// Arcade hangar groups levels into bands that gate chassis, parts and budgets.
+// Internal bands that gate chassis, parts and budgets (for Lab builds from Paket 6 on).
+// They carry no visible name any more: the hangar shows level ranges (resolveArcadeLevelRange).
 
 export const ARCADE_HANGAR_LEVEL_BANDS = Object.freeze({
-    RECRUIT: Object.freeze({ id: 'recruit', minLevel: 1, maxLevel: 9, label: 'Recruit' }),
-    VETERAN: Object.freeze({ id: 'veteran', minLevel: 10, maxLevel: 19, label: 'Veteran' }),
-    ELITE: Object.freeze({ id: 'elite', minLevel: 20, maxLevel: 30, label: 'Elite' }),
+    RECRUIT: Object.freeze({ id: 'recruit', minLevel: 1, maxLevel: 9 }),
+    VETERAN: Object.freeze({ id: 'veteran', minLevel: 10, maxLevel: 19 }),
+    ELITE: Object.freeze({ id: 'elite', minLevel: 20, maxLevel: Number.MAX_SAFE_INTEGER }),
 });
+
+/** Visible level ranges (hangar display, later leaderboards) come in steps of five levels. */
+export const ARCADE_LEVEL_RANGE_SIZE = 5;
 
 // --- Chassis Paths ---
 // Chassis classes are locked behind deterministic level gates.
@@ -156,8 +160,9 @@ const PART_FAMILY_BY_SLOT_PREFIX = Object.freeze({
     signature: 'signature',
 });
 
+// Levels have no ceiling (arcade-vehicle-profile.v3); everything above 20 stays 'elite'.
 function normalizeLevel(level) {
-    return Math.max(1, Math.min(30, Math.floor(Number(level) || 1)));
+    return Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(Number(level) || 1)));
 }
 
 function freezeList(values) {
@@ -248,6 +253,18 @@ export function resolveArcadeHangarMasteryMilestones(level) {
 }
 
 // --- Rule Resolution ---
+
+/**
+ * Level range in steps of five (1–5, 6–10, …) for the given level, clamped like normalizeLevel.
+ * @param {unknown} level
+ * @returns {Readonly<{ min: number, max: number, label: string }>}
+ */
+export function resolveArcadeLevelRange(level) {
+    const n = normalizeLevel(level);
+    const min = Math.floor((n - 1) / ARCADE_LEVEL_RANGE_SIZE) * ARCADE_LEVEL_RANGE_SIZE + 1;
+    const max = Math.min(Number.MAX_SAFE_INTEGER, min + ARCADE_LEVEL_RANGE_SIZE - 1);
+    return Object.freeze({ min, max, label: `${min}–${max}` });
+}
 
 export function resolveArcadeHangarLevelBand(level) {
     const n = normalizeLevel(level);
@@ -356,7 +373,6 @@ export function resolveArcadeHangarRulesForLevel(level) {
         contractVersion: ARCADE_HANGAR_RULES_CONTRACT_VERSION,
         level: resolvedLevel,
         band: band.id,
-        bandLabel: band.label,
         budget: resolveArcadeHangarBudget(resolvedLevel),
         blueprintLimits,
         allowedChassisClasses: resolveArcadeHangarAllowedChassis(resolvedLevel),
@@ -377,7 +393,6 @@ export function resolveArcadeHangarProgressionSnapshot(level) {
         contractVersion: ARCADE_HANGAR_RULES_CONTRACT_VERSION,
         level: resolvedLevel,
         band: band.id,
-        bandLabel: band.label,
         allowedPartFamilies,
         allowedTiers,
         unlockedSlots,
@@ -395,6 +410,8 @@ export default {
     ARCADE_HANGAR_MASTERY_MILESTONE_GATES,
     ARCADE_HANGAR_BLUEPRINT_LIMITS_BY_BAND,
     ARCADE_HANGAR_BUDGET_BY_BAND,
+    ARCADE_LEVEL_RANGE_SIZE,
+    resolveArcadeLevelRange,
     resolveArcadeHangarLevelBand,
     resolveArcadeHangarBudget,
     resolveArcadeHangarBlueprintLimits,

@@ -82,7 +82,7 @@ test('W7.2 every current Arcade run type binds rewards to the deployed vehicle',
     }
 });
 
-test('W7.2 a max-level vehicle keeps earning spendable XP up to the existing cap', () => {
+test('W7.2 a level 30 vehicle keeps levelling and banking XP past the old caps', () => {
     const profiles = {
         ship1: {
             ...createArcadeVehicleProfile('ship1', 0),
@@ -92,12 +92,13 @@ test('W7.2 a max-level vehicle keeps earning spendable XP up to the existing cap
         },
     };
     const binding = bindArcadeVehicleRewards({ runType: 'gauntlet', vehicleId: 'ship1' });
+    const gain = xpForLevel(31) - xpForLevel(30);
 
-    awardBoundArcadeVehicleXp(profiles, binding, 20, 1000);
+    awardBoundArcadeVehicleXp(profiles, binding, gain, 1000);
 
-    assert.equal(profiles.ship1.level, 30);
-    assert.equal(profiles.ship1.xp, xpForLevel(30) + 20);
-    assert.equal(profiles.ship1.xpBank, 9_999_999);
+    assert.equal(profiles.ship1.level, 31);
+    assert.equal(profiles.ship1.xp, xpForLevel(31));
+    assert.equal(profiles.ship1.xpBank, 9_999_990 + gain);
 });
 
 test('W7.2 a Hangar purchase spends only the selected vehicle bank', () => {

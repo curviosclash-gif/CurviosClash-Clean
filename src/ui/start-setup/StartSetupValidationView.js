@@ -12,6 +12,12 @@ export function getStartFieldBinding(ui, fieldKey) {
         map: { control: ui?.mapSelect || null, hint: ui?.mapFieldHint || null, sectionId: 'map' },
         vehicleP1: { control: ui?.vehicleSelectP1 || null, hint: ui?.vehicleP1FieldHint || null, sectionId: 'vehicle' },
         vehicleP2: { control: ui?.vehicleSelectP2 || null, hint: ui?.vehicleP2FieldHint || null, sectionId: 'vehicle' },
+        vehicleP3: { control: ui?.vehicleSelectP3 || null, hint: ui?.vehicleP3FieldHint || null, sectionId: 'vehicle' },
+        players: {
+            control: ui?.splitPlayerCountButtons?.[0] || ui?.splitInputLayoutSelect || null,
+            hint: ui?.splitPlayersFieldHint || null,
+            sectionId: 'players',
+        },
         match: { control: dimensionModeButton || gameModeButton || ui?.huntRespawnToggle || null, hint: ui?.matchFieldHint || null, sectionId: 'match' },
         multiplayer: { control: ui?.multiplayerLobbyCodeInput || null, hint: ui?.matchFieldHint || null, sectionId: 'multiplayer' },
     };
@@ -30,7 +36,7 @@ export function setStartFieldHint(hintElement, message, tone = 'info') {
 }
 
 export function clearStartFieldHints(ui) {
-    ['map', 'vehicleP1', 'vehicleP2', 'theme', 'match', 'multiplayer'].forEach((fieldKey) => {
+    ['map', 'vehicleP1', 'vehicleP2', 'vehicleP3', 'players', 'theme', 'match', 'multiplayer'].forEach((fieldKey) => {
         const binding = getStartFieldBinding(ui, fieldKey);
         if (binding.control) binding.control.classList.remove('menu-field-error');
         if (binding.hint) setStartFieldHint(binding.hint, '', 'info');

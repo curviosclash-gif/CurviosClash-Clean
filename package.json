@@ -45,6 +45,7 @@
     "check:architecture": "node scripts/check-architecture-boundaries.mjs && node scripts/check-architecture-ratchet.mjs && node scripts/check-runtime-determinism.mjs && node scripts/check-runtime-encoding.mjs && node scripts/check-editor-path-drift.mjs",
     "check:parcours": "node scripts/check-parcours-routes.mjs",
     "test": "npm run test:contract",
+    "telemetry:report": "node scripts/telemetry-report.mjs",
     "test:contract:fast": "node scripts/run-contract-tests.mjs fast",
     "test:contract:coverage": "node scripts/run-contract-tests.mjs fast --coverage",
     "pretest:contract:dist": "npm run build:app",
@@ -73,6 +74,8 @@
     "bot:analyze": "node dev/training/scripts/bot-play-analysis.mjs",
     "bot:improve": "node dev/training/scripts/heuristic-improvement-loop.mjs",
     "bot:improve:auto": "node dev/training/scripts/heuristic-improvement-runner.mjs",
+    "bot:improve:check": "node dev/training/scripts/heuristic-improvement-loop.mjs --check-opponents",
+    "bot:improve:status": "node dev/training/scripts/heuristic-improvement-loop.mjs --status",
     "bot:improve:team": "node dev/training/scripts/team-objective-improvement-loop.mjs",
     "bot:improve:team:auto": "node dev/training/scripts/team-objective-improvement-runner.mjs",
     "bot:improve:team:status": "node dev/training/scripts/team-objective-improvement-loop.mjs --status",
@@ -107,6 +110,8 @@
   "dependencies": {
     "@capacitor/android": "8.5.2",
     "@capacitor/core": "8.5.2",
+    "@capacitor/filesystem": "8.1.3",
+    "@capacitor/share": "8.0.2",
     "mp4-muxer": "^5.2.2",
     "three": "^0.186.0"
   },

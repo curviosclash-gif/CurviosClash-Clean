@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
+import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
 import { NOTRE_DAME_EVOLUTION_MAPS as maps } from '../src/core/config/maps/presets/notre_dame/NotreDameEvolution.js';
 import { MapDestructibleSystem } from '../src/entities/systems/MapDestructibleSystem.js';
 import { createMapFireProgression, advanceMapFireProgression, damageMapFireSegment, resolveMapFireProgress } from '../src/shared/contracts/MapFireProgressionContract.js';
@@ -35,7 +36,7 @@ test('local hits accelerate collapse but cannot skip warnings or the fire phase'
     assert.ok(events[0][1] < 120);
     assert.ok(state.segments[1].heat > 0, 'burning roof spreads to adjacent nave');
 });
-test('paused time is inert; restart restores damage, warnings and the sunny start', () => {
+test('paused time is inert; restart restores damage, warnings and the intact lighting', () => {
     const { owner, instance } = system();
     owner.arena.glbAnimationElapsedSeconds = 150;
     instance.updateFeedback();
@@ -64,12 +65,14 @@ test('late-joining replicas receive heat, warnings and collapse events without s
     client.instance.applyNetworkState(host.instance.serializeNetworkState());
     assert.equal(client.instance.state.events.length, 3);
 });
-test('aliases remain resolvable but only two Notre-Dame choices are visible', () => {
+test('aliases remain resolvable, visible maps keep their own dusk profiles, and only two choices are visible', () => {
     assert.equal(maps.notre_dame_fire.hiddenFromMapPicker, true);
     assert.equal(maps.notre_dame_fire_arena.hiddenFromMapPicker, true);
     assert.equal(maps.notre_dame_fire.parcours.routeId, 'notre_dame_evolution_v1');
     assert.equal(maps.notre_dame_arena.parcours?.enabled, undefined);
-    assert.equal(maps.notre_dame.lighting.skyDome.zenithColor, 0x2586df);
+    for (const key of ['notre_dame', 'notre_dame_arena']) {
+        assert.deepEqual(maps[key].lighting, NOTRE_DAME_MAPS[key].lighting);
+    }
 });
 test('each transition has a nonempty exported six-second animation and a source blend', () => {
     for (const model of maps.notre_dame.glbModels.filter((entry) => entry.hiddenUntilTriggered)) {

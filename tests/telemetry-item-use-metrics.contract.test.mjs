@@ -12,6 +12,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { InputManager } from '../src/core/InputManager.js';
+import { PlayerInputSystem } from '../src/entities/systems/PlayerInputSystem.js';
 import { PlayerActionPhase } from '../src/entities/systems/lifecycle/PlayerActionPhase.js';
 import { HuntCombatSystem } from '../src/entities/systems/HuntCombatSystem.js';
 import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
@@ -52,8 +54,9 @@ test('Rundenkennzahl trennt Item-Einsaetze von MG-Schuessen', () => {
     metrics.finalizeRound(null, []);
 
     const aggregate = metrics.getAggregateMetrics();
-    assert.equal(aggregate.itemUsePerRound, 404);
-    assert.equal(aggregate.itemUseWithoutMgPerRound, 3);
+    // Der Druck mit leerem Inventar ist kein Item-Einsatz (siehe Leerversuch-Test unten).
+    assert.equal(aggregate.itemUsePerRound, 403);
+    assert.equal(aggregate.itemUseWithoutMgPerRound, 2);
     assert.equal(aggregate.itemUseModePerRound.mg, 401, 'MG attempts stay in the separate MG counter');
 });
 
@@ -419,4 +422,120 @@ test('Schuss-Cooldown protokolliert den wartenden Item-Typ', () => {
     assert.equal(recorder.events.length, 1);
     assert.equal(recorder.events[0].code, GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_COOLDOWN);
     assert.equal(recorder.events[0].type, 'ROCKET_WEAK');
+});
+
+// Ein Druck auf die Item- oder Raketentaste mit leerem Inventar ist kein Item-Einsatz:
+// Es gab kein Item. Bisher landete er als Typ UNKNOWN in der Nutzung und drueckte
+// ueber itemUses auch den Arcade-Risikobonus. Er bleibt als eigener Leerversuch sichtbar.
+test('Leere Tastendruecke zaehlen als Leerversuch, nicht als Item-Einsatz', () => {
+    const metrics = new RoundMetricsStore({ timeProvider: () => 30 });
+    metrics.startRound([]);
+    metrics.registerEventType('ITEM_USE', 'mode=use type=SHIELD code=item.use.success ok=1');
+    metrics.registerEventType('ITEM_USE', 'mode=use type=UNKNOWN code=item.use.empty ok=0');
+    metrics.registerEventType('ITEM_USE', 'mode=shoot type=UNKNOWN code=item.shoot.empty ok=0');
+    metrics.registerEventType('ITEM_USE', 'mode=use type=HEALTH code=item.use.cooldown ok=0');
+    const round = metrics.finalizeRound(null, []);
+
+    assert.equal(round.itemUseEvents, 2, 'nur der Einsatz und der abgelehnte Cooldown-Versuch');
+    assert.equal(round.itemUseTypeCounts.UNKNOWN, undefined);
+    assert.deepEqual(round.itemUseModeCounts, { use: 2, shoot: 0, mg: 0, other: 0 });
+    assert.equal(round.failedItemActions, 1, 'ein Cooldown ist ein Fehlversuch mit Item');
+    assert.equal(round.emptyItemActions, 2);
+    assert.equal(metrics.getAggregateMetrics().emptyItemActionsPerRound, 2);
+});
+
+test('Ein leerer USE_ITEM-Rand erreicht die Rundentelemetrie einmal und blockiert keinen gleichzeitigen Schuss', () => {
+    const previousWindow = globalThis.window;
+    const previousDocument = globalThis.document;
+    const listeners = new Map();
+    const doc = {
+        activeElement: null,
+        hidden: false,
+        addEventListener() {},
+        removeEventListener() {},
+    };
+    globalThis.document = doc;
+    globalThis.window = {
+        document: doc,
+        addEventListener(type, listener) { listeners.set(type, listener); },
+        removeEventListener(type) { listeners.delete(type); },
+    };
+
+    const dispatch = (type, code) => listeners.get(type)?.({
+        code,
+        key: code === 'KeyG' ? 'g' : 'x',
+        repeat: false,
+        target: null,
+        preventDefault() {},
+    });
+    const metrics = new RoundMetricsStore({ timeProvider: () => 30 });
+    metrics.startRound([]);
+    const player = {
+        index: 0,
+        isBot: false,
+        autopilotActive: false,
+        gameplayConfig: {},
+        inventory: [],
+        selectedItemIndex: 0,
+        itemUseCooldownRemaining: 0.25,
+        cycleItem() {},
+        dropItem() {},
+    };
+    let shots = 0;
+    const entityManager = {
+        humanPlayers: [player],
+        renderer: { cameraModes: [] },
+        recorder: { logEvent(type, _playerIndex, data) { metrics.registerEventType(type, data); } },
+        _projectileSystem: { applyGuidedInput: () => false },
+        _useInventoryItem() { throw new Error('empty input must not call item gameplay'); },
+        _shootHuntGun() {
+            shots += 1;
+            return { ok: true, type: 'MG_BULLET', code: 'mg.shoot.success' };
+        },
+        _notifyPlayerFeedback() {},
+    };
+    const inputManager = new InputManager();
+    try {
+        inputManager.setBindings({ PLAYER_1: { USE_ITEM: 'KeyG' } });
+        const inputSystem = new PlayerInputSystem(entityManager);
+        const actionPhase = new PlayerActionPhase(entityManager);
+        const strategy = { hasMachineGun: () => true, requiresShootItemIndex: () => false };
+
+        dispatch('keydown', 'KeyG');
+        dispatch('keydown', 'KeyX');
+        const firstInput = inputSystem.resolvePlayerInput(player, 1 / 60, inputManager);
+        assert.equal(firstInput.emptyItemUsePressed, true);
+        actionPhase.run(player, firstInput, strategy, 1 / 60);
+        assert.equal(shots, 1, 'the simultaneous held machine-gun input still fires');
+
+        dispatch('keyup', 'KeyX');
+        const heldInput = inputSystem.resolvePlayerInput(player, 1 / 60, inputManager);
+        assert.equal(heldInput.emptyItemUsePressed, false, 'a held USE_ITEM key does not become another press');
+        actionPhase.run(player, heldInput, strategy, 1 / 60);
+
+        const round = metrics.finalizeRound(null, [player]);
+        assert.equal(round.emptyItemActions, 1);
+        assert.equal(round.itemUseEvents, 1, 'only the MG shot is an item-use event; the empty press stays separate');
+        assert.deepEqual(round.itemUseModeCounts, { use: 0, shoot: 0, mg: 1, other: 0 });
+        assert.equal(player.inventory.length, 0);
+        assert.equal(player.itemUseCooldownRemaining, 0.25);
+
+        dispatch('keyup', 'KeyG');
+        const guidedMetrics = new RoundMetricsStore({ timeProvider: () => 30 });
+        guidedMetrics.startRound([]);
+        entityManager.recorder = { logEvent(type, _playerIndex, data) { guidedMetrics.registerEventType(type, data); } };
+        entityManager._projectileSystem.applyGuidedInput = () => true;
+        dispatch('keydown', 'KeyG');
+        const guidedInput = inputSystem.resolvePlayerInput(player, 1 / 60, inputManager);
+        assert.equal(guidedInput.emptyItemUsePressed, false, 'guided control consumes the input before telemetry sees it');
+        new PlayerActionPhase(entityManager).run(player, guidedInput, strategy, 1 / 60);
+        const guidedRound = guidedMetrics.finalizeRound(null, [player]);
+        assert.equal(guidedRound.emptyItemActions, 0);
+        assert.equal(guidedRound.itemUseEvents, 0);
+        assert.equal(shots, 1, 'guided control does not synthesize a shot');
+    } finally {
+        inputManager.dispose();
+        globalThis.window = previousWindow;
+        globalThis.document = previousDocument;
+    }
 });

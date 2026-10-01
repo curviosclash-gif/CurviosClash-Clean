@@ -55,7 +55,13 @@ export function updateItemBar(container, player, projection = null, gameplayConf
     const powerupConfig = gameplayConfig?.POWERUP || {};
     const shootCooldownMax = Math.max(0.001, Number(gameplayConfig?.PROJECTILE?.COOLDOWN) || 0.001);
     const itemUseCooldownMax = Math.max(0.001, Number(gameplayConfig?.HUNT?.ITEM_USE_COOLDOWN_SECONDS) || 0.001);
-    ensureItemSlots(container, powerupConfig.MAX_INVENTORY);
+    // Paket 1: Arcade-Fahrzeuge haben eigene Item-/Raketen-Kapazitäten (player.itemCapacity /
+    // player.rocketCapacity); andere Modi/Spieler fallen auf die globale Konfiguration zurück.
+    const capacityField = inventoryKind === 'rockets' ? player?.rocketCapacity : player?.itemCapacity;
+    const maxInventory = Number.isFinite(capacityField) && capacityField > 0
+        ? capacityField
+        : Number(powerupConfig.MAX_INVENTORY) || 0;
+    ensureItemSlots(container, maxInventory);
     const sourceInventory = inventoryKind === 'rockets' && Array.isArray(player?.rocketInventory)
         ? player.rocketInventory
         : (Array.isArray(player?.inventory) ? player.inventory : []);
@@ -73,7 +79,7 @@ export function updateItemBar(container, player, projection = null, gameplayConf
     const useCooldownRemaining = Math.max(0, Number(player?.itemUseCooldownRemaining || 0));
     const shootCooldownRemaining = Math.max(0, Number(player?.shootCooldown || 0));
 
-    for (let i = 0; i < powerupConfig.MAX_INVENTORY; i++) {
+    for (let i = 0; i < maxInventory; i++) {
         const slot = container.children[i];
         const rawType = i < inventoryLength ? inventory[i] : '';
         const slotAction = resolvePickupActionAvailability({

@@ -193,7 +193,8 @@ export class CollisionResponseSystem {
         // pose and must not receive a second correction.
         if (collision?.responseAlreadySeparated === true) return false;
         if (collision?.responseHasProbe === true) {
-            const radius = Math.max(0.05, Number(player.hitboxRadius) || 0.4);
+            // Arcade part probes carry their own radius; legacy contacts have none.
+            const radius = Math.max(0.05, Number(collision.responseProbeRadius) || Number(player.hitboxRadius) || 0.4);
             const maxDistance = pushDistance * 3;
             const contactSlop = Math.max(0.015, radius * 0.025);
             const offsetX = Number(collision.responseProbeOffsetX) || 0;

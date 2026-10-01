@@ -66,6 +66,9 @@ const ECLIPSE_FOUNDRY_OBSTACLES = [
     { pos: [-181, 17, -12], size: [7, 18, 7] },
     { pos: [-169, 17, 12], size: [7, 18, 7] },
     { pos: [-157, 17, -12], size: [7, 18, 7] },
+    // The crane's fixed base and mast stay solid while its boom swings.
+    { pos: [-169.1, 12.9, 48.1], size: [19.1, 3.9, 19.1] },
+    { pos: [-169.1, 26.6, 48.1], size: [5.3, 27.6, 5.3] },
     { pos: [-126, 18, 0], size: [10, 36, 56], tunnel: { radius: 6.2, axis: 'x' } },
 
     // Sector 2: a wide lower lane and a short elevated precision lane.
@@ -77,6 +80,11 @@ const ECLIPSE_FOUNDRY_OBSTACLES = [
     { pos: [-78, 39, 27], size: [13, 3, 10] },
     { pos: [-62, 43, 13], size: [12, 3, 10] },
     { pos: [-52, 45, 0], size: [22, 4, 25] },
+    { pos: [-92, 35.6, 0], size: [30.2, 3.5, 30.2] },
+    // Fixed arch columns flank the furnace gate; its leaves keep their animated colliders.
+    { pos: [-61, 51.3, 13.1], size: [4.5, 16.8, 4.0] },
+    { pos: [-61, 51.3, -13.1], size: [4.5, 16.8, 4.0] },
+    { pos: [-61, 61.5, 0], size: [4.5, 3.9, 30.2] },
     { pos: [-84, 7, 0], size: [70, 3, 74], kind: 'foam' },
     { pos: [-91, 27, -48], size: [7, 54, 7] },
     { pos: [-91, 27, 48], size: [7, 54, 7] },
@@ -89,6 +97,8 @@ const ECLIPSE_FOUNDRY_OBSTACLES = [
     { pos: [22, 64, 0], size: [14, 3, 12] },
     { pos: [35, 67, 18], size: [14, 3, 12] },
     { pos: [47, 68, 5], size: [17, 3, 16] },
+    // The pedestal is solid around the checkpoint's flight disc, with a vertical clearance hole.
+    { pos: [18, 64, 4], size: [32, 2.2, 32], tunnel: { radius: 9.5, axis: 'y' } },
     { shape: 'tube', kind: 'hard', start: [-18, 52, -13], end: [42, 68, 7], radius: 3.3 },
     { pos: [8, 28, 0], size: [106, 4, 82], kind: 'foam' },
 
@@ -103,6 +113,7 @@ const ECLIPSE_FOUNDRY_OBSTACLES = [
     { pos: [96, 87, 29], size: [12, 3, 11] },
     { shape: 'tube', kind: 'hard', start: [57, 72, 10], end: [98, 87, 25], radius: 3.5 },
     { pos: [110, 84, 0], size: [22, 4, 24] },
+    { pos: [68, 97, 0], size: [7.4, 7.4, 4.5] },
     { pos: [80, 43, 0], size: [82, 4, 104], kind: 'foam' },
 
     // Sector 5: temple turn, portal balcony and technical high road.
@@ -129,6 +140,13 @@ const ECLIPSE_FOUNDRY_OBSTACLES = [
     { pos: [-35, 69, -38], size: [13, 3, 12] },
     { pos: [-14, 62, -28], size: [12, 3, 11] },
     { pos: [0, 57, -10], size: [24, 4, 20] },
+    // Side arches border the timed temple gate; its centre remains a passable opening.
+    { pos: [137.5, 99.6, 52], size: [4.1, 17.4, 4.7] },
+    { pos: [164.5, 99.6, 52], size: [4.1, 17.4, 4.7] },
+    { pos: [151, 110.2, 52], size: [31.2, 4.1, 4.7] },
+    // CP15 sits close enough to the centre for its full ring disc and ship radius to clear this hole.
+    { pos: [-60, 89.9, 4], size: [31.2, 2.2, 31.2], tunnel: { radius: 7.5, axis: 'y' } },
+    { pos: [-34.4, 85, -38], size: [3.7, 5.9, 5.9] },
     { shape: 'tube', kind: 'hard', start: [29, 112, 92], end: [3, 113, 75], radius: 4.8 },
     { shape: 'tube', kind: 'hard', start: [-40, 99, 48], end: [-63, 85, 3], radius: 4.2 },
     { shape: 'tube', kind: 'hard', start: [-63, 83, -3], end: [-36, 70, -36], radius: 3.8 },
@@ -176,8 +194,9 @@ const ECLIPSE_FOUNDRY_CHECKPOINTS = [
     { id: 'CP12_TECH', type: 'technical_high', pos: [70, 111, 88], radius: 4.3, forward: [-0.8, 0.25, 0.4], nextIds: ['CP13'] },
     { id: 'CP13', type: 'crown_merge', pos: [32, 116, 94], radius: 5.8, forward: [-0.9, 0, -0.4] },
     { id: 'CP14', type: 'inverted_crown', pos: [-39, 102, 49], radius: 5.3, forward: [-0.7, -0.25, -0.65] },
-    { id: 'CP15', type: 'descent', pos: [-65, 87, 0], radius: 5.0, forward: [0.15, -0.35, -0.92] },
-    { id: 'CP16', type: 'heart_approach', pos: [-35, 72, -38], radius: 4.7, forward: [0.8, -0.25, 0.45] },
+    { id: 'CP15', type: 'descent', pos: [-62.5, 87, 2.5], radius: 5.0, forward: [0.15, -0.35, -0.92] },
+    // The last descent comes from CP15 at [-62.5, 87, 2.5]; face the ring along that actual lane.
+    { id: 'CP16', type: 'heart_approach', pos: [-35, 72, -38], radius: 4.7, forward: [0.537, -0.293, -0.791] },
 ];
 
 export const ECLIPSE_FOUNDRY_MAP = {
@@ -191,8 +210,10 @@ export const ECLIPSE_FOUNDRY_MAP = {
         portals: ECLIPSE_FOUNDRY_PORTALS,
         gates: ECLIPSE_FOUNDRY_GATES,
         glbModels: ECLIPSE_FOUNDRY_LANDMARKS,
-        // The animatedLandmark() setpieces collide via their animated mesh colliders; the
-        // static CC0 landmarks stay on the authored box obstacles.
+        // The animatedLandmark() setpieces collide via their animated mesh colliders; fixed
+        // setpiece parts and static CC0 landmarks stay on the authored box obstacles. The shared
+        // 10-second gate clip leaves each tunnel centre blocked for roughly 19% of its loop; that
+        // short timed closure is intentional.
         glbColliderMode: 'dynamic',
         glbLoadConcurrency: 3,
         playerSpawn: { x: -210, y: 12, z: 0 },

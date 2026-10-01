@@ -7,6 +7,11 @@
 // flattened ellipsoid with a flattened frustum as narrow root. The old model's eyes, cannon, tail fin and tiny engines
 // sit inside the slab and wings and are never visible, so only the engines return, larger, at the old
 // wing position.
+// The utility part (not in the old model) is an equipment hump at the tail base, a flattened ellipsoid
+// like the wings. It grows out of the rounded rear rim and rests on the tail wedge; its top stays under
+// the slab top (y 2.5) and it ends before the tail tip, so the model box that Classic and Hunt read
+// (hitbox, muzzle, weapon mounts) keeps its size. A larger or smaller hull carries it along
+// (resolveHullMountedPivot), so the rim never swallows it.
 const RIM_SCALE_Y = 1.875; // 1.2 rim radius stretched to the 2.25 half-height of the slab
 
 function wing(side) {
@@ -54,6 +59,8 @@ export default {
         ] },
         // Narrow wing root widening from the hull (r 1.56 at x 4.6) to r 4.09 at x 11; its edges run tangent into the plate.
         { name: 'Flügelwurzel', geo: 'cylinder', size: [1.56, 4.09, 6.4], pos: [7.8, 0, -6.4], rot: [0, 0, 90], scale: [0.19, 1, 1], material: 'primary', mirror: true },
+        // Semi-axes x 2.2, y 0.95, z 3.6: top at y 2.45, rear end at z 20.4 (tail tip 21.14).
+        { name: 'Heckmodul', geo: 'sphere', size: [2.0], pos: [0, 1.5, 16.8], scale: [1.1, 0.475, 1.8], material: 'primary', role: 'utility' },
         wing('left'),
         wing('right'),
         engine('left'),

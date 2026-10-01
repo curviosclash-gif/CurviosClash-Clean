@@ -2,6 +2,7 @@ import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigCont
 import {
     isPointInSecretRoom,
     isSecretRoomActiveInMode,
+    isSecretRoomReleaseSource,
     normalizeSecretRooms,
     resolveSecretRoomUnlockSeconds,
 } from '../../shared/contracts/SecretRoomContract.js';
@@ -47,6 +48,15 @@ export class SecretRoomSystem {
         this._stayRoomIndex = [];
         /** @type {{ inside: boolean, remainingSeconds: number, roomId: string }[]} */
         this._hudStates = [];
+        this._seedObjective = {
+            source: '',
+            total: 0,
+            released: 0,
+            allReleased: false,
+            completedAtSeconds: 0,
+            portalOpen: false,
+            portalPosition: { x: 0, y: 0, z: 0 },
+        };
     }
 
     /** Only the host moves players, so only the host ejects. A replica just counts for the HUD. */
@@ -116,6 +126,31 @@ export class SecretRoomSystem {
     }
 
     /**
+     * The shoot-the-plant goal of this round for the HUD, or null when no room of this round opens
+     * on seed or kernel release. A room that does not exist in the mode being played is not part of
+     * the round, so its plant never announces a portal. The object is reused.
+     */
+    getSeedObjective() {
+        for (const entry of this._rooms) {
+            const source = entry.room.unlock?.source;
+            if (!isSecretRoomReleaseSource(source)) continue;
+            const state = this._resolveUnlockState(entry.room);
+            const objective = this._seedObjective;
+            objective.source = source;
+            objective.total = Math.max(0, Math.trunc(Number(state?.total) || 0));
+            objective.released = Math.max(0, Math.trunc(Number(state?.released) || 0));
+            objective.allReleased = state?.allReleased === true;
+            objective.completedAtSeconds = Math.max(0, Number(state?.completedAtSeconds) || 0);
+            objective.portalOpen = entry.open === true;
+            objective.portalPosition.x = entry.entryPosition[0];
+            objective.portalPosition.y = entry.entryPosition[1];
+            objective.portalPosition.z = entry.entryPosition[2];
+            return objective;
+        }
+        return null;
+    }
+
+    /**
      * Stay state of one player for the HUD. The object is reused, so a caller copies what it needs.
      * @param {number} playerIndex
      * @returns {{ inside: boolean, remainingSeconds: number, roomId: string } | null}
@@ -142,9 +177,7 @@ export class SecretRoomSystem {
         for (const entry of this._rooms) {
             if (entry.open) continue;
             const state = this._resolveUnlockState(entry.room);
-            const signature = createUnlockStateSignature(entry.room, state);
-            if (signature === entry.stateSignature) continue;
-            entry.stateSignature = signature;
+            if (!captureUnlockState(entry, state)) continue;
             entry.unlockSeconds = resolveRoomUnlockSeconds(entry.room, state);
         }
 
@@ -265,8 +298,12 @@ export class SecretRoomSystem {
     }
 
     _resolveUnlockState(room) {
-        if (room?.unlock?.source === 'dandelionSeeds') {
+        const source = room?.unlock?.source;
+        if (source === 'dandelionSeeds') {
             return this.entityManager?.arena?.getDandelionSeedProgress?.() || null;
+        }
+        if (source === 'sunflowerKernels') {
+            return this.entityManager?.arena?.getSunflowerKernelProgress?.() || null;
         }
         return this._resolveDestructibleState();
     }
@@ -279,12 +316,14 @@ export class SecretRoomSystem {
  * @property {object} room The authored room, in map units.
  * @property {object} portal The portal pair built for it.
  * @property {number} unlockSeconds
- * @property {string} stateSignature
+ * @property {{ known: boolean, present: boolean, a: number, b: number, c: number }} seenState
+ *   The unlock state last resolved, as plain numbers so a closed room compares without allocating.
  * @property {boolean} open
  * @property {boolean} clockPaused While true the stay clocks of this room stand still (E62).
  * @property {{ bounds: { min: number[], max: number[] } }} scaledRoom Box in world units.
  * @property {object | null} itemPoints Refill bookkeeping of the item points, in world units.
  * @property {number[]} ejectPosition Safe place in world units.
+ * @property {number[]} entryPosition Entry portal in world units, for the HUD pointer.
  * @property {number} ejectYawRad
  * @property {number} stayLimitSeconds
  */
@@ -303,12 +342,13 @@ function createRoomEntry(room, portal, mapScale) {
         room,
         portal,
         unlockSeconds: Infinity,
-        stateSignature: '',
+        seenState: { known: false, present: false, a: 0, b: 0, c: 0 },
         open: false,
         clockPaused: false,
         scaledRoom: { bounds: { min: scalePoint(room.bounds.min), max: scalePoint(room.bounds.max) } },
         itemPoints: createSecretRoomItemPoints(room, mapScale),
         ejectPosition: scalePoint(room.ejectPoint.pos),
+        entryPosition: scalePoint(room.entryPortal.pos),
         ejectYawRad: Number(room.ejectPoint.yawDeg) * DEGREES_TO_RADIANS,
         stayLimitSeconds: Number(room.stayLimitSeconds) || 0,
     };
@@ -330,8 +370,8 @@ function clearHudState(hud) {
  *
  * A room whose condition can never come true would keep its portal shut for the whole match and
  * silently take a piece of the map out of play, so both such cases open the portal from the start
- * instead: a map that is not destructible in this mode at all, and an unlock naming a part that
- * this map does not have.
+ * instead: a map that is not destructible in this mode at all, a map whose shootable plant is
+ * missing (its model did not load), and an unlock naming a part that this map does not have.
  * @param {object} room
  * @param {{ segments?: { id: string }[] } | null} state
  * @returns {number}
@@ -339,9 +379,6 @@ function clearHudState(hud) {
 function resolveRoomUnlockSeconds(room, state) {
     const unlock = /** @type {{ source?: string, when?: string, segmentId?: string } | null} */ (room?.unlock || null);
     if (!unlock) return 0;
-    if (unlock.source === 'dandelionSeeds') {
-        return resolveSecretRoomUnlockSeconds(room, state);
-    }
     if (!state) return 0;
     if (unlock.when === 'segment'
         && !state.segments?.some((segment) => segment?.id === unlock.segmentId)) {
@@ -350,11 +387,25 @@ function resolveRoomUnlockSeconds(room, state) {
     return resolveSecretRoomUnlockSeconds(room, state);
 }
 
-function createUnlockStateSignature(room, state) {
-    if (room?.unlock?.source === 'dandelionSeeds') {
-        if (!state) return 'dandelion:none';
-        return `dandelion:${Number(state.total) || 0}|${Number(state.released) || 0}|${Number(state.completedAtSeconds) || 0}`;
-    }
-    const eventCount = Array.isArray(state?.events) ? state.events.length : 0;
-    return state ? `destructible:${eventCount}|${state.sealed === true}` : 'destructible:none';
+/**
+ * Stores the numbers the unlock second depends on and reports whether they changed. A closed room
+ * asks every tick, so this compares plain fields instead of building a signature string.
+ * @param {SecretRoomEntry} entry
+ * @param {any} state
+ * @returns {boolean}
+ */
+function captureUnlockState(entry, state) {
+    const release = isSecretRoomReleaseSource(entry.room?.unlock?.source);
+    const present = !!state;
+    const a = release ? Number(state?.total) || 0 : (Array.isArray(state?.events) ? state.events.length : 0);
+    const b = release ? Number(state?.released) || 0 : (state?.sealed === true ? 1 : 0);
+    const c = release ? Number(state?.completedAtSeconds) || 0 : 0;
+    const seen = entry.seenState;
+    if (seen.known && seen.present === present && seen.a === a && seen.b === b && seen.c === c) return false;
+    seen.known = true;
+    seen.present = present;
+    seen.a = a;
+    seen.b = b;
+    seen.c = c;
+    return true;
 }

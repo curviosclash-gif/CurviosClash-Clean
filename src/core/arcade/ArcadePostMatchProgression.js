@@ -5,14 +5,9 @@ import {
     ARCADE_WEAPON_STYLE_LABELS,
     ARCADE_WEAPON_STYLE_UNLOCKS,
 } from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
-import { getOrCreateProfile, loadVehicleProfiles, xpForLevel, XP_CONFIG } from '../../state/arcade/ArcadeVehicleProfile.js';
+import { arcadeVehicleLevelForXp as levelForXp } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
+import { getOrCreateProfile, loadVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
 
-function levelForXp(xp) {
-    const value = Math.max(0, Number(xp) || 0);
-    let level = 1;
-    while (level < XP_CONFIG.MAX_LEVEL && value >= xpForLevel(level + 1)) level += 1;
-    return level;
-}
 function difference(next, previous) {
     const oldValues = new Set(previous || []);
     return (next || []).filter((value) => !oldValues.has(value));

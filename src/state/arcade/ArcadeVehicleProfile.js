@@ -1,9 +1,11 @@
 // Arcade Vehicle Profile: XP, levels, unlocks and upgrade progression.
 
 import {
-    ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
     ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION,
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
+    arcadeVehicleLevelForXp,
+    arcadeVehicleXpForLevel,
+    clampArcadeProfileCount as clampCount,
     createArcadeVehicleProfileRecord,
     getArcadeVehicleProfileRecord,
     loadArcadeVehicleProfileRecord,
@@ -14,11 +16,12 @@ import {
     resolveArcadeHangarProgressionSnapshot,
     resolveArcadeHangarUnlockedSlots,
 } from '../../shared/contracts/ArcadeHangarRulesContract.js';
-import { toSafeNumber, clampInteger as clampInt } from '../../shared/utils/ArcadeUtils.js';
+import { normalizeArcadeSizeProfileFields, resolveArcadeVehicleBuildStats } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
+import { resolveArcadeVehicleBaseStats } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
+import { toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 import { XP_REWARD_TABLE, calculateSectorXp } from './ArcadeXpRewards.js';
 import {
     buildUpgradeState,
-    computeLevel,
     ensureProfile,
     isValidTier,
     normalizeSlotName,
@@ -30,19 +33,11 @@ import {
     toIsoString,
     toObject,
     warnPersistenceFailure,
-    xpForLevel as xpForLevelInternal,
 } from './ArcadeVehicleProfileInternals.js';
 
 const VEHICLE_PROFILE_SCHEMA_VERSION = ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION;
 const STORAGE_KEY = ARCADE_VEHICLE_PROFILE_STORAGE_KEY;
-const MAX_UPGRADE_XP_BANK = 9_999_999;
 const MAX_LOADOUT_PRESET_UPGRADE_ENTRIES = 64;
-
-export const XP_CONFIG = Object.freeze({
-    BASE_XP: 100,
-    EXPONENT: 1.5,
-    MAX_LEVEL: ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
-});
 
 export const SLOT_UNLOCK_LEVELS = ARCADE_HANGAR_SLOT_UNLOCK_GATES;
 
@@ -64,43 +59,32 @@ export const UPGRADE_PURCHASE_CODES = Object.freeze({
 
 function normalizeVehicleProfileSafe(profile) {
     const contractProfile = normalizeArcadeVehicleProfileRecord(profile?.vehicleId, profile);
-    return normalizeVehicleProfile(contractProfile, {
-        xpConfig: XP_CONFIG,
-        maxUpgradeXpBank: MAX_UPGRADE_XP_BANK,
-    });
+    return normalizeVehicleProfile(contractProfile);
 }
 
 function ensureProfileSafe(profile) {
-    return ensureProfile(profile, {
-        xpConfig: XP_CONFIG,
-        maxUpgradeXpBank: MAX_UPGRADE_XP_BANK,
-    });
+    return ensureProfile(profile);
 }
 
 function buildUpgradeStateSafe(profile, slotName, targetTier) {
     return buildUpgradeState(profile, slotName, targetTier, {
-        xpConfig: XP_CONFIG,
-        maxUpgradeXpBank: MAX_UPGRADE_XP_BANK,
         upgradePurchaseCodes: UPGRADE_PURCHASE_CODES,
     });
 }
 
 
-// XP Curve
+// XP Curve (no level ceiling since arcade-vehicle-profile.v3)
 
 export function xpForLevel(level) {
-    return xpForLevelInternal(level, XP_CONFIG);
+    return arcadeVehicleXpForLevel(level);
 }
 
 export function xpToNextLevel(profile) {
     if (!profile || typeof profile !== 'object') return { current: 0, required: 100, progress: 0 };
     const normalized = normalizeVehicleProfileSafe(profile);
-    const level = clampInt(normalized.level, 1, XP_CONFIG.MAX_LEVEL, 1);
-    if (level >= XP_CONFIG.MAX_LEVEL) return { current: 0, required: 0, progress: 1 };
-    const currentLevelXp = xpForLevel(level);
-    const nextLevelXp = xpForLevel(level + 1);
-    const required = nextLevelXp - currentLevelXp;
-    const current = Math.max(0, toSafeNumber(normalized.xp, 0) - currentLevelXp);
+    const currentLevelXp = xpForLevel(normalized.level);
+    const required = xpForLevel(normalized.level + 1) - currentLevelXp;
+    const current = Math.max(0, normalized.xp - currentLevelXp);
     return {
         current,
         required,
@@ -133,6 +117,52 @@ export function getSlotStatBonuses(upgrades, hangarBonuses = null) {
         speedBonusPct: engineTier >= 3 ? 16 : (engineTier >= 2 ? 8 : 0),
         maxHpBonus: coreTier >= 3 ? 30 : (coreTier >= 2 ? 15 : 0),
     };
+}
+
+/**
+ * Run-Start-Boni eines Fahrzeugs: Hangar-Slotboni plus die Größenfelder des Profils
+ * (Paket 2a). Die Strategie rechnet daraus mit resolveArcadeVehicleBuildStats die Werte.
+ * @param {any} profile
+ */
+export function getArcadeRunVehicleBonuses(profile) {
+    const bonuses = getSlotStatBonuses(profile?.upgrades, profile?.hangarBonuses);
+    if (!profile || typeof profile !== 'object') return bonuses;
+    return {
+        ...bonuses,
+        build: { vehicleId: String(profile.vehicleId || ''), ...normalizeArcadeSizeProfileFields(profile) },
+    };
+}
+
+const NO_PROFILE_HUD_STATS = Object.freeze({ level: 1, speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0 });
+const HUD_STATS_BY_PROFILE = new WeakMap();
+
+/**
+ * Werte-Banner zum Sektorstart (82.8.3, Gauntlet): Hangar-Slotboni plus die Wirkung des
+ * Größen-Builds auf Tempo und Wendigkeit (Prozentpunkte über dem Tabellenwert) und Leben
+ * (Modus-Basis 100 HP), gerechnet mit denselben Contract-Funktionen wie die Strategie im Run.
+ * Pro kanonischem Profil gecacht: der HUD-Pfad läuft jedes Bild, ein geändertes Profil ist ein
+ * neues Objekt. Daily: feste Startbedingungen, also keine Boni.
+ * @param {any} profile
+ * @param {string} vehicleId
+ * @param {boolean} dailyChallenge
+ */
+export function resolveArcadeRunHudVehicleStats(profile, vehicleId, dailyChallenge) {
+    if (!profile || typeof profile !== 'object') return NO_PROFILE_HUD_STATS;
+    const key = dailyChallenge ? '' : String(vehicleId || '');
+    const cached = HUD_STATS_BY_PROFILE.get(profile);
+    if (cached?.key === key) return cached.stats;
+    const slot = dailyChallenge ? { speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0 } : getSlotStatBonuses(profile.upgrades, profile.hangarBonuses);
+    const base = resolveArcadeVehicleBaseStats(key);
+    const build = dailyChallenge ? base : resolveArcadeVehicleBuildStats(key, profile);
+    const delta = (/** @type {number} */ after, /** @type {number} */ before) => Math.round((after - before) * 100) / 100;
+    const stats = Object.freeze({
+        level: profile.level ?? 1,
+        speedBonusPct: Math.min(50, slot.speedBonusPct) + delta(build.speedPct, base.speedPct),
+        turningBonusPct: Math.min(50, slot.turningBonusPct) + delta(build.turnPct, base.turnPct),
+        maxHpBonus: Math.min(50, slot.maxHpBonus) + Math.round(build.maxHpPct) - Math.round(base.maxHpPct),
+    });
+    HUD_STATS_BY_PROFILE.set(profile, { key, stats });
+    return stats;
 }
 
 // Kept as a compatibility shape; vehicle levels grant no passive perks.
@@ -173,10 +203,10 @@ export function addXp(profile, amount, nowMs = Date.now()) {
         };
     }
     const normalized = normalizeVehicleProfileSafe(profile);
-    const prevLevel = clampInt(normalized.level, 1, XP_CONFIG.MAX_LEVEL, 1);
-    const gain = Math.max(0, toSafeNumber(amount, 0));
-    const totalXp = Math.max(0, toSafeNumber(normalized.xp, 0) + gain);
-    const newLevel = computeLevel(totalXp, XP_CONFIG);
+    const prevLevel = normalized.level;
+    const gain = clampCount(amount);
+    const totalXp = clampCount(normalized.xp + gain);
+    const newLevel = arcadeVehicleLevelForXp(totalXp);
     const leveledUp = newLevel > prevLevel;
 
     const prevSnapshot = resolveArcadeHangarProgressionSnapshot(prevLevel);
@@ -195,11 +225,7 @@ export function addXp(profile, amount, nowMs = Date.now()) {
     const prevMilestones = new Set(prevSnapshot.masteryMilestones);
     const masteryMilestonesGained = nextSnapshot.masteryMilestones.filter((milestoneId) => !prevMilestones.has(milestoneId));
 
-    const xpBank = clampInt((toSafeNumber(normalized.xpBank, 0) + gain), 0, MAX_UPGRADE_XP_BANK, 0);
-    const priorTotalXpEarned = Math.max(
-        toSafeNumber(normalized.totalXpEarned, normalized.xp),
-        toSafeNumber(normalized.xp, 0)
-    );
+    const xpBank = clampCount(normalized.xpBank + gain);
     return {
         profile: {
             ...normalized,
@@ -210,7 +236,7 @@ export function addXp(profile, amount, nowMs = Date.now()) {
             unlockedUpgradeTiers: nextSnapshot.allowedTiers.slice(),
             masteryMilestones: nextSnapshot.masteryMilestones.slice(),
             xpBank,
-            totalXpEarned: Math.max(totalXp, priorTotalXpEarned + gain),
+            totalXpEarned: clampCount(Math.max(totalXp, normalized.totalXpEarned + gain)),
             updatedAt: toIsoString(nowMs),
         },
         leveledUp,
@@ -303,7 +329,7 @@ export function sanitizeLoadoutPresetUpgrades(profile, upgrades) {
     let simulatedProfile = normalizeVehicleProfileSafe({
         ...normalizedProfile,
         upgrades: {},
-        xpBank: MAX_UPGRADE_XP_BANK,
+        xpBank: Number.MAX_SAFE_INTEGER,
     });
 
     for (let index = 0; index < entries.length; index += 1) {
@@ -397,7 +423,13 @@ export function applyLoadoutPreset(profile, upgrades, nowMs = Date.now()) {
 
 export function loadVehicleProfiles(store) {
     if (!store || typeof store.loadJsonRecord !== 'function') return {};
-    const { profiles: contractProfiles, shouldPersist, usedLegacyFallback } = loadArcadeVehicleProfileRecord(store);
+    const {
+        profiles: contractProfiles,
+        preservedProfiles = {},
+        shouldPersist,
+        canPersist = true,
+        usedLegacyFallback,
+    } = loadArcadeVehicleProfileRecord(store);
     const normalizedProfiles = {};
     let shouldRewrite = shouldPersist;
 
@@ -407,8 +439,8 @@ export function loadVehicleProfiles(store) {
         if (!profileEquals(profile, normalized)) shouldRewrite = true;
     });
 
-    if (shouldRewrite && !usedLegacyFallback && typeof store.saveJsonRecord === 'function') {
-        const saveResult = store.saveJsonRecord(STORAGE_KEY, normalizedProfiles);
+    if (shouldRewrite && canPersist && !usedLegacyFallback && typeof store.saveJsonRecord === 'function') {
+        const saveResult = store.saveJsonRecord(STORAGE_KEY, { ...preservedProfiles, ...normalizedProfiles });
         warnPersistenceFailure('canonical write-back', saveResult);
     }
     return normalizedProfiles;
@@ -416,12 +448,17 @@ export function loadVehicleProfiles(store) {
 
 export function saveVehicleProfiles(store, profiles) {
     if (!store || typeof store.saveJsonRecord !== 'function') return false;
+    const { preservedProfiles = {}, canPersist = true } = loadArcadeVehicleProfileRecord(store);
+    // A malformed top-level record cannot be safely merged with writable profiles.
+    if (!canPersist) return false;
     const sourceProfiles = profiles && typeof profiles === 'object' ? profiles : {};
     const normalizedProfiles = {};
     Object.entries(sourceProfiles).forEach(([vehicleId, profile]) => {
         normalizedProfiles[vehicleId] = normalizeVehicleProfileSafe(profile);
     });
-    const saveResult = store.saveJsonRecord(STORAGE_KEY, normalizedProfiles);
+    // Rejected or malformed per-vehicle records stay byte-for-byte equivalent at the
+    // JSON value level, including when a fresh runtime profile has the same vehicle ID.
+    const saveResult = store.saveJsonRecord(STORAGE_KEY, { ...normalizedProfiles, ...preservedProfiles });
     warnPersistenceFailure('saveVehicleProfiles', saveResult);
     return saveResult;
 }
@@ -433,7 +470,6 @@ export function getOrCreateProfile(profiles, vehicleId, nowMs = Date.now()) {
 
 export default {
     VEHICLE_PROFILE_SCHEMA_VERSION,
-    XP_CONFIG,
     SLOT_UNLOCK_LEVELS,
     XP_REWARD_TABLE,
     UPGRADE_PURCHASE_CODES,

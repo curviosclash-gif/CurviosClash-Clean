@@ -95,7 +95,8 @@ function buildPlayerRenderProjection({ runtimeState, game, player, renderAlpha =
     const cameraConfig = getGameplayConfigSection(configSource, CONFIG_SECTIONS.CAMERA);
     const gameplayConfig = getGameplayConfigSection(configSource, CONFIG_SECTIONS.GAMEPLAY);
     const cameraModeId = cameraConfig?.MODES?.[player?.cameraMode] || 'THIRD_PERSON';
-    const boostCapacity = Math.max(0.001, Number(playerConfig.BOOST_DURATION) || 1);
+    // Paket 2a: Arcade engine size lengthens the boost (field unset elsewhere -> 1).
+    const boostCapacity = Math.max(0.001, (Number(playerConfig.BOOST_DURATION) || 1) * (Number(player?.arcadeBoostDurationMultiplier) || 1));
     const firstPersonAnchor = copyPlayerRenderTransform(player, renderAlpha);
 
     return createMatchRenderPlayerProjection({

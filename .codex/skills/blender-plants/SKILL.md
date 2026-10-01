@@ -31,6 +31,8 @@ Use correlated variation. Neighboring organs should share some direction and sca
 
 ## Procedural Construction
 
+Default to a procedural growth structure for new plants, even for one specimen, and add authored organ shapes or targeted corrections when needed. Follow [the shared hybrid authoring rules](../blender-workflows/references/method-selection.md#procedural-plant-base-and-authored-detail) to preserve those additions across regeneration. Reuse an existing plant's editable source before introducing a replacement generator.
+
 Prefer curves for stems and branch paths, then convert or evaluate them for export. Generate attachment sites from the parent path so leaves and child branches remain connected when proportions change.
 
 Build in this order:
@@ -48,12 +50,14 @@ Keep a deterministic seed and expose a small set of biologically meaningful para
 
 Choose the generator from the requested outcome:
 
-- use direct mesh or curve editing for a single art-directed specimen;
+- use authored meshes or curve corrections on the procedural base for an art-directed specimen; use entirely direct modeling when explicitly requested or when a procedural base is impractical;
 - use Geometry Nodes for interactive families and reusable procedural controls;
 - use deterministic `bpy` for batch generation and repository builds;
 - use an L-system when developmental grammar, node order, or phyllotaxis is the main source of form.
 
 For a Geometry Nodes pipeline, read [references/geometry-nodes.md](references/geometry-nodes.md). For starting archetypes and a portable parameter schema, read [references/species-profiles.md](references/species-profiles.md).
+
+When several variations of the same plant are requested, combine this skill with `blender-object-batches` automatically. A single plant does not imply a batch. Reuse one generator and authored organ library; vary only permitted morphology and preserve species identity and runtime roles.
 
 ## Materials and Seasonality
 

@@ -95,7 +95,8 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
     const aimDirection = typeof player?.getAimDirection === 'function'
         ? player.getAimDirection(TMP_AIM_DIRECTION)
         : null;
-    const boostCapacity = Math.max(0.001, Number(playerConfig.BOOST_DURATION) || 1);
+    // Paket 2a: Arcade engine size lengthens the boost (field unset elsewhere -> 1).
+    const boostCapacity = Math.max(0.001, (Number(playerConfig.BOOST_DURATION) || 1) * (Number(player?.arcadeBoostDurationMultiplier) || 1));
     const boostCharge = Math.max(0, Math.min(boostCapacity, Number(player?.boostCharge) || 0));
     const slowMoCapacity = Math.max(0.001, Number(playerConfig.SLOWMO_DURATION) || 1);
     const slowMoCharge = Math.max(0, Math.min(slowMoCapacity, Number(player?.slowMoCharge) || 0));
@@ -123,6 +124,8 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         aimDirection,
         inventory: player?.inventory,
         rocketInventory: player?.rocketInventory,
+        itemCapacity: player?.itemCapacity,
+        rocketCapacity: player?.rocketCapacity,
         activeEffects: player?.activeEffects,
         railCharge: player?.railCharge,
         selectedItemIndex: Number(player?.selectedItemIndex) || 0,
@@ -134,7 +137,8 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         rocketThreat: entityManager?._projectileSystem?.getRocketThreat?.(player?.index) || null,
         mapExpansion: entityManager?.arena?.getMapExpansionHudState?.() || null,
         mapDestructible: entityManager?._mapDestructibleSystem?.getHudState?.() || null,
-        dandelionSeeds: entityManager?.arena?.getDandelionSeedProgress?.() || null,
+        // Only a plant that opens a room of this round is a goal; elsewhere it is scenery.
+        dandelionSeeds: entityManager?._secretRoomSystem?.getSeedObjective?.() || null,
         secretRoom: entityManager?._secretRoomSystem?.getHudStateForPlayer?.(player?.index) || null,
         secretRoomsOpen: entityManager?._secretRoomSystem?.getOpenedRoomCount?.() || 0,
         traversal: buildTraversalProjection(entityManager, player?.index),

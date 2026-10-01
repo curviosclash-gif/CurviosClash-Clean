@@ -52,7 +52,7 @@ export const STORM_DAM_SIEGE_MAPS = Object.freeze({
         playerSpawn: Object.freeze({ x: 0, y: 18, z: -66 }),
         botSpawns: Object.freeze([
             Object.freeze({ x: -46, y: 18, z: -48 }),
-            Object.freeze({ x: 46, y: 18, z: 46 }),
+            Object.freeze({ x: 75, y: 18, z: 45 }),
             Object.freeze({ x: 0, y: 94, z: 58 }),
         ]),
         items: Object.freeze([

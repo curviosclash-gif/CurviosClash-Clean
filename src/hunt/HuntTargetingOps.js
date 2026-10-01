@@ -3,6 +3,7 @@ import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContrac
 import { HUNT_TARGET_KIND } from '../shared/contracts/HuntTargetingContract.js';
 import { toFiniteNumber } from '../shared/utils/MathOps.js';
 import { areTeammates } from '../shared/contracts/TeamCombatContract.js';
+import { resolvePlayerRayEntryDistance } from './HuntPlayerRayOps.js';
 import {
     createHuntTargetingTelemetryState,
     finalizeHuntTargetingResult,
@@ -408,23 +409,8 @@ export function resolveHuntLineTarget({
         if (excludeTeammates && areTeammates(sourcePlayer, target)) continue;
         if (typeof canTargetPlayer === 'function' && !canTargetPlayer(target, sourcePlayer)) continue;
 
-        const hitboxRadius = Math.max(
-            0.2,
-            Number(target.hitboxRadius) || Number(resolveGameplayConfig(target).PLAYER?.HITBOX_RADIUS) || 0.8
-        );
-        const hitboxRadiusSq = hitboxRadius * hitboxRadius;
-
-        reusable.toTarget.subVectors(target.position, origin);
-        const forwardDistance = reusable.direction.dot(reusable.toTarget);
-        if (forwardDistance < -hitboxRadius || forwardDistance > maxPlayerRange + hitboxRadius) continue;
-
-        const toTargetLenSq = reusable.toTarget.lengthSq();
-        const closestDistanceSq = Math.max(0, toTargetLenSq - forwardDistance * forwardDistance);
-        if (closestDistanceSq > hitboxRadiusSq) continue;
-
-        const intersectionOffset = Math.sqrt(Math.max(0, hitboxRadiusSq - closestDistanceSq));
-        const entryDistance = Math.max(0, forwardDistance - intersectionOffset);
-        if (entryDistance > maxPlayerRange || entryDistance >= bestPlayerDistance) continue;
+        const entryDistance = resolvePlayerRayEntryDistance(target, origin, reusable.direction, maxPlayerRange, reusable.toTarget);
+        if (entryDistance < 0 || entryDistance >= bestPlayerDistance) continue;
 
         reusable.hitPoint.copy(origin).addScaledVector(reusable.direction, entryDistance);
         bestPlayerDistance = entryDistance;

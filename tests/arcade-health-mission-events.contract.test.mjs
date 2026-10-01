@@ -52,13 +52,14 @@ test('Arcade health pickups reset Close Call after the player recovers', () => {
     assert.equal(mission.completed, true);
 });
 
-test('Arcade strategy owns passive regeneration and keeps it disabled', () => {
-    const strategy = new ArcadeModeStrategy();
+test('Arcade strategy owns passive regeneration: normal runs use the base regen, the daily gauntlet none', () => {
     const player = { alive: true, hp: 20, maxHp: 100, shieldHP: 0, hasShield: false };
+    new ArcadeModeStrategy().updateHealthRegen(player, 60 * 60);
+    assert.equal(player.hp, 100, 'normal runs heal 2 % max HP per second up to the maximum');
 
-    strategy.updateHealthRegen(player, 60 * 60);
-
-    assert.equal(player.hp, 20);
+    const dailyPlayer = { alive: true, hp: 20, maxHp: 100, shieldHP: 0, hasShield: false };
+    new ArcadeModeStrategy({ isDailyChallenge: true }).updateHealthRegen(dailyPlayer, 60 * 60);
+    assert.equal(dailyPlayer.hp, 20, 'the daily challenge keeps regeneration disabled');
 });
 
 test('Arcade health pickups do not heal during sudden death', () => {

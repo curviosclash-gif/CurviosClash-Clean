@@ -1,5 +1,16 @@
 import { isPlayerSelectableVehicleId, VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
+import {
+    ARCADE_VEHICLE_ROLE_TEMPLATES,
+    hasArcadeVehicleBalanceEntry,
+    isArcadeSelectableVehicleId,
+    resolveArcadeVehicleBaseStats,
+} from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
+import { ROLE_LABELS } from './vehicle-manager/VehicleManagerUiPrimitives.js';
+
+// Arcade replaces the hitbox classes with the fixed roles of the balance table (also as search words).
+const ARCADE_ROLE_IDS = Object.freeze(Object.keys(ARCADE_VEHICLE_ROLE_TEMPLATES));
+const ARCADE_ROLE_KEYWORDS = Object.freeze({ fighter: 'fighter jaeger', allrounder: 'allrounder', tank: 'tank' });
 
 const LIGHT_CATEGORY_IDS = new Set(['aircraft', 'arrow', 'drone']);
 const SPECIAL_CATEGORY_IDS = new Set(['manta', 'orb']);
@@ -100,6 +111,14 @@ function resolveStatsSummary({ radius, category, hitboxClass }) {
     });
 }
 
+// Arcade-only table values for the factory ships (null otherwise). Classic and the Fight
+// hangar keep reading statsSummary, so their display stays unchanged.
+function resolveArcadeBalance(vehicleId) {
+    if (!hasArcadeVehicleBalanceEntry(vehicleId)) return null;
+    const { role, maxHpPct, speedPct, turnPct, itemCapacity, rocketCapacity } = resolveArcadeVehicleBaseStats(vehicleId);
+    return Object.freeze({ role, maxHpPct, speedPct, turnPct, itemCapacity, rocketCapacity });
+}
+
 function buildKeywords({ vehicleId, label, category, hitboxClass, shortDescription }) {
     const keywordSet = new Set();
     const pools = [
@@ -143,6 +162,7 @@ function buildCatalogEntry(vehicleDefinition, index) {
         }),
         previewToken: normalizeString(previewToken, DEFAULT_PREVIEW_TOKEN),
         statsSummary: resolveStatsSummary({ radius, category, hitboxClass }),
+        arcadeBalance: resolveArcadeBalance(vehicleId),
     });
 }
 
@@ -165,6 +185,7 @@ function cloneCatalogEntry(entry) {
         keywords: [...entry.keywords],
         previewToken: entry.previewToken,
         statsSummary: { ...entry.statsSummary },
+        arcadeBalance: entry.arcadeBalance ? { ...entry.arcadeBalance } : null,
     };
 }
 
@@ -173,6 +194,24 @@ export function listVehicleManagerCatalogEntries() {
     return VEHICLE_MANAGER_CATALOG_ENTRIES
         .filter((entry) => isPlayerSelectableVehicleId(entry.vehicleId))
         .map((entry) => cloneCatalogEntry(entry));
+}
+
+function toArcadeCatalogEntry(entry) {
+    const arcadeEntry = cloneCatalogEntry(entry);
+    delete arcadeEntry.hitboxKlasse;
+    const role = resolveArcadeVehicleBaseStats(entry.vehicleId).role;
+    const keywords = buildKeywords({
+        vehicleId: entry.vehicleId, label: entry.label, category: entry.kategorie, hitboxClass: ARCADE_ROLE_KEYWORDS[role], shortDescription: entry.kurzbeschreibung,
+    });
+    // Also the shown role name as typed ("jäger"): the tokens above drop umlauts.
+    return { ...arcadeEntry, rolle: role, keywords: [...new Set([...keywords, ROLE_LABELS[role].toLowerCase()])] };
+}
+
+// Arcade vehicle selection (hangar and run start): only the factory ships, each with its fixed role.
+export function listArcadeVehicleManagerCatalogEntries() {
+    return VEHICLE_MANAGER_CATALOG_ENTRIES
+        .filter((entry) => isArcadeSelectableVehicleId(entry.vehicleId))
+        .map((entry) => toArcadeCatalogEntry(entry));
 }
 
 export function resolveVehicleManagerCatalogEntry(vehicleId) {
@@ -197,20 +236,21 @@ export function resolveVehicleManagerCatalogEntry(vehicleId) {
             hitboxRadius: 1.1,
             hitboxClass: 'standard',
         },
+        arcadeBalance: null,
     };
     return fallbackEntry;
 }
 
-export function getVehicleManagerInteractionRules() {
+// Arcade: role chips instead of hitbox chips; its level chips are the occupied level ranges
+// (see HangarVehicleFilterChips). Every other caller keeps the old chips.
+export function getVehicleManagerInteractionRules(mode = '') {
+    const chips = VEHICLE_MANAGER_INTERACTION_RULES.filterChips;
     return {
         version: VEHICLE_MANAGER_INTERACTION_RULES.version,
         categories: VEHICLE_MANAGER_INTERACTION_RULES.categories.map((entry) => ({ ...entry })),
-        filterChips: {
-            category: [...VEHICLE_MANAGER_INTERACTION_RULES.filterChips.category],
-            hitboxKlasse: [...VEHICLE_MANAGER_INTERACTION_RULES.filterChips.hitboxKlasse],
-            unlockState: [...VEHICLE_MANAGER_INTERACTION_RULES.filterChips.unlockState],
-            levelBand: [...VEHICLE_MANAGER_INTERACTION_RULES.filterChips.levelBand],
-        },
+        filterChips: mode === 'arcade'
+            ? { category: [...chips.category], rolle: [...ARCADE_ROLE_IDS], unlockState: [...chips.unlockState] }
+            : { category: [...chips.category], hitboxKlasse: [...chips.hitboxKlasse], unlockState: [...chips.unlockState], levelBand: [...chips.levelBand] },
         preview: { ...VEHICLE_MANAGER_INTERACTION_RULES.preview },
         upgradeFlow: { ...VEHICLE_MANAGER_INTERACTION_RULES.upgradeFlow },
         responsiveBreakpoints: { ...VEHICLE_MANAGER_INTERACTION_RULES.responsiveBreakpoints },

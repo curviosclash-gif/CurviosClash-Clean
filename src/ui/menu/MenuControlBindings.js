@@ -55,6 +55,15 @@ export function setupMenuControlBindings(ctx) {
         });
     });
 
+    bind(ui.keybindP3, 'click', (e) => {
+        const btn = e.target.closest('button.keybind-btn');
+        if (!btn) return;
+        emit(eventTypes.START_KEY_CAPTURE, {
+            player: 'PLAYER_3',
+            action: btn.dataset.action,
+        });
+    });
+
     if (ui.keybindGlobal) {
         bind(ui.keybindGlobal, 'click', (e) => {
             const btn = e.target.closest('button.keybind-btn');

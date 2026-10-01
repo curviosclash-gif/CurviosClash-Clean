@@ -21,6 +21,7 @@ import {
     isItemProjectileType,
 } from './ItemProjectileTargetingOps.js';
 import { nextPlayerArcadeWeaponColor } from '../../../shared/contracts/ArcadeVehicleCosmeticContract.js';
+import { resolveArcadeNoseRange } from '../../../shared/contracts/ArcadeVehicleBuildContract.js';
 
 function failed(code, message, type = null) {
     return buildGameplayActionResult({ ok: false, code, message, type });
@@ -94,9 +95,11 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         ? ITEM_PROJECTILE_TARGETING_PROFILE.lockOnAngleDegrees
         : (huntRocket ? Math.max(baseLockOnAngle, rocketParams.homingLockOnAngle) : baseLockOnAngle);
     const baseHomingRange = Math.max(homingMinRange, Number(config?.HOMING?.MAX_LOCK_RANGE || 100));
+    // Paket 2a: the Arcade nose size extends the rocket lock range up to the sight range;
+    // without the field it stays exactly the rocket's range.
     const homingRange = itemHomingProfile
         ? ITEM_PROJECTILE_TARGETING_PROFILE.range
-        : (huntRocket ? Math.max(baseHomingRange, rocketParams.homingRange) : baseHomingRange);
+        : (huntRocket ? Math.max(baseHomingRange, resolveArcadeNoseRange(rocketParams.homingRange, player)) : baseHomingRange);
     const homingReacquireInterval = itemHomingProfile
         ? ITEM_PROJECTILE_TARGETING_PROFILE.reacquireInterval
         : (huntRocket ? rocketParams.homingReacquireInterval : fallbackReacquireInterval);

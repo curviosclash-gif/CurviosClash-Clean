@@ -45,7 +45,7 @@ COLORS = {
     "DECOY": (1.0, .18, .68, 1), "PURGE": (.8, .9, 1.0, 1),
     "SWAP": (.55, .12, 1.0, 1), "MINE": (1.0, .08, .02, 1),
     "ROCKET_WEAK": (1.0, .55, .12, 1), "ROCKET_MEDIUM": (1.0, .25, .03, 1),
-    "ROCKET_HEAVY": (1.0, .2, .267, 1), "ROCKET_MEGA": (.55, .0, 1.0, 1), "ROCKET_GUIDED": (.63, .2, 1.0, 1),
+    "ROCKET_HEAVY": (1.0, .2, .267, 1), "ROCKET_MEGA": (.55, .0, 1.0, 1), "ROCKET_GUIDED": (.18, .9, 1.0, 1),
     "FLAMETHROWER": (1.0, .48, .10, 1),
     "LIGHTNING": (.72, .84, 1.0, 1), "RAILGUN": (.5, .9, 1.0, 1),
     "REPAIR_DRONE": (.33, .94, .64, 1), "BOMBER_STRIKE": (1.0, .61, .26, 1),
@@ -595,6 +595,35 @@ def build_rocket(root, tier="WEAK"):
     build_pilot_rocket(root, tier)
 
 
+def build_guided_rocket(root):
+    # A slim, remote-piloted missile: glowing seeker eye in the nose, canards up front and a
+    # signal ring with an antenna. No tier collars, so it never reads as the fat XL rocket.
+    lathe_profile(root, "guided_slim_body", [(.2, -.9), (.26, -.8), (.29, -.52),
+                                            (.29, .44), (.26, .6)], "accent", 16)
+    lathe_profile(root, "guided_nose_collar", [(.26, .59), (.3, .64), (.3, .72), (.24, .78)],
+                  "frame", 16)
+    sphere(root, "guided_seeker_eye", (0, 0, .88), .23, "glow", scale=(1, 1, 1.2))
+    lathe_profile(root, "guided_nozzle", [(.15, -1.08), (.25, -1.04), (.27, -.97), (.21, -.88)],
+                  "metal", 18, cap_start=False, cap_end=True)
+    cylinder(root, "guided_nozzle_glow", (0, 0, -1.05), .11, .03, "glow", 16, "Z")
+    tail = [(.24, -.46), (.6, -.84), (.58, -1.02), (.24, -.9)]
+    canard = [(.26, .2), (.46, .3), (.46, .4), (.26, .46)]
+    # The small canards stay unbevelled to keep the model inside the triangle budget.
+    for name, contour, role, soft in (("tail", tail, "metal", .03), ("canard", canard, "frame", 0)):
+        mirrored = [(-x, z) for x, z in reversed(contour)]
+        polygon_prism(root, f"guided_{name}_right", contour, .09, role, soft)
+        polygon_prism(root, f"guided_{name}_left", mirrored, .09, role, soft)
+        polygon_prism(root, f"guided_{name}_front", contour, .09, role, soft, rot=(0, 0, math.pi/2))
+        polygon_prism(root, f"guided_{name}_back", mirrored, .09, role, soft, rot=(0, 0, math.pi/2))
+    torus(root, "guided_signal_ring", (0, 0, -.12), .46, .045, "glow", rot=(0, 0, 0))
+    cylinder(root, "guided_antenna", (.24, 0, -.3), .025, .55, "frame", 8, "Z")
+    sphere(root, "guided_antenna_tip", (.24, 0, -.02), .055, "glow")
+    root["guidedRocket"] = True
+    # Same damage tier as the XL rocket (RocketPickupDefinitionsContract), only without its collars.
+    root["rocketTier"] = "MEGA"
+    root["tierMarkers"] = 0
+
+
 DIGITS = {
     3: ("t","m","b","rt","rb"), 4: ("m","lt","rt","rb"),
     5: ("t","m","b","lt","rb"),
@@ -866,7 +895,7 @@ def build_all():
         "DECOY": build_decoy, "PURGE": build_purge, "SWAP": lambda r: build_crossed_arrows(r, True),
         "MINE": build_mine, "ROCKET_WEAK": lambda r: build_rocket(r,"WEAK"),
         "ROCKET_MEDIUM": lambda r: build_rocket(r,"MEDIUM"),
-        "ROCKET_HEAVY": lambda r: build_pilot_rocket(r,"HEAVY"), "ROCKET_MEGA": lambda r: build_rocket(r,"MEGA"), "ROCKET_GUIDED": lambda r: build_rocket(r,"MEGA"),
+        "ROCKET_HEAVY": lambda r: build_pilot_rocket(r,"HEAVY"), "ROCKET_MEGA": lambda r: build_rocket(r,"MEGA"), "ROCKET_GUIDED": build_guided_rocket,
         "FLAMETHROWER": build_flamethrower,
         "LIGHTNING": build_lightning, "RAILGUN": build_railgun,
         "REPAIR_DRONE": build_repair_drone, "BOMBER_STRIKE": build_bomber_strike,

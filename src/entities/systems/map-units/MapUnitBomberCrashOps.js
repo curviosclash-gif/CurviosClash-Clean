@@ -1,4 +1,5 @@
 import { rewardMapUnitDestruction } from './MapUnitRewardOps.js';
+import { canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamCombatContract.js';
 
 const CRASH_FALL_SPEED = 24;
 const CRASH_COLOR = 0xff6a24;
@@ -15,20 +16,22 @@ export function beginBomberCrash(unit, sourcePlayer = null) {
 function applyCrashDamage(system, unit) {
     const crash = unit.definition.crash;
     const radius = crash.radius * unit.scale;
+    const sourcePlayer = unit.crashSourcePlayer || null;
     for (const player of system.entityManager?.players || []) {
         if (!player?.alive || !player.position || Number(player.spawnProtectionTimer) > 0) continue;
+        if (sourcePlayer !== player && !canDamage(sourcePlayer, player, TEAM_WEAPON_KINDS.ITEM_PROJECTILE)) continue;
         if (player.position.distanceTo(unit.position) > radius) continue;
         const result = player.takeDamage?.(crash.damage);
         system.entityManager?._emitHuntDamageEvent?.({
             target: player,
-            sourcePlayer: unit.crashSourcePlayer,
+            sourcePlayer,
             cause: 'BOMBER_CRASH',
             damageResult: result,
             impactPoint: unit.position,
         });
         if (result?.isDead) {
             system.entityManager?._killPlayer?.(player, 'PROJECTILE', {
-                killer: unit.crashSourcePlayer,
+                killer: sourcePlayer === player ? null : sourcePlayer,
                 impactPoint: unit.position,
                 projectileType: 'BOMBER_CRASH',
             });

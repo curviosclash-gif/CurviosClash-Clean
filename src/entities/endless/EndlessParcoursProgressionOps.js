@@ -3,8 +3,8 @@ import { resolveEndlessCosmeticUnlocks } from '../../shared/contracts/EndlessPar
 import { ENDLESS_PARCOURS_RULE_VERSION } from '../../shared/contracts/EndlessParcoursWaveContract.js';
 import {
     addXp,
+    getArcadeRunVehicleBonuses,
     getOrCreateProfile,
-    getSlotStatBonuses,
     loadVehicleProfiles,
     XP_REWARD_TABLE,
 } from '../../state/arcade/ArcadeVehicleProfile.js';
@@ -55,7 +55,7 @@ export function setEndlessRunProfile(runtime, {
     runtime.startVehicleId = runtime.rewardBinding.vehicleId;
     const profile = getOrCreateProfile(profiles, runtime.startVehicleId);
     runtime.startProfile = Object.freeze(JSON.parse(JSON.stringify(profile)));
-    runtime.startBonuses = Object.freeze({ ...getSlotStatBonuses(profile.upgrades, profile.hangarBonuses) });
+    runtime.startBonuses = Object.freeze({ ...getArcadeRunVehicleBonuses(profile) });
     try { strategy?.applyVehicleUpgrades?.(runtime.startBonuses); } catch { /* no-op */ }
     const human = runtime.entityManager?.humanPlayers?.[0] || null;
     try { strategy?.resetPlayerHealth?.(human); } catch { /* no-op */ }

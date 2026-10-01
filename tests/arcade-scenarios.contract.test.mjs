@@ -16,12 +16,17 @@ import {
     doesArcadeObjectiveHoldRound,
     updateArcadeObjectiveState,
 } from '../src/state/arcade/ArcadeObjectiveState.js';
+import { updateArcadeObjectiveRuntimeState } from '../src/core/arcade/ArcadeObjectiveRuntimeOps.js';
+import { requestObjectiveRoundEnd, syncArcadeObjectiveIntoEntities } from '../src/core/runtime/GameRuntimeArcadeSupportOps.js';
 import {
     buildArcadeIntermissionChoices,
     prepareArcadeIntermissionState,
 } from '../src/core/arcade/ArcadeIntermissionPlanOps.js';
 import { createArcadeNextSectorBlock } from '../src/ui/arcade/postrun/ArcadePostRunBlocks.js';
 import { resolveArcadeRunCombatProfile } from '../src/modes/ArcadeRunRulesOps.js';
+import '../src/core/Config.js';
+import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
+import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { rewardMapUnitDestruction } from '../src/entities/systems/map-units/MapUnitRewardOps.js';
 import { RoundOutcomeSystem } from '../src/entities/systems/RoundOutcomeSystem.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
@@ -145,7 +150,7 @@ test('destroy_units ends the sector without its bonus when time runs out, unless
     const late = updateArcadeObjectiveState(endless, { type: 'tick', elapsed: 900 });
     assert.equal(late.failed, false);
     assert.equal(late.progressText, 'Kreatur 0/1');
-    assert.equal(doesArcadeObjectiveHoldRound(createArcadeObjectiveState({ id: 'survive_window', durationSec: 55 })), false);
+    assert.equal(doesArcadeObjectiveHoldRound(createArcadeObjectiveState({ id: 'survive_window', durationSec: 55 })), true);
 });
 
 test('scenario parameters override the shared objective definition', () => {
@@ -234,18 +239,75 @@ test('the storm flood scenario opens the dam on its clock although the wall stay
     system.clear();
 });
 
-test('an objective hold keeps the round open after the last bot until the hold ends', () => {
+test('survive_window holds round elimination until success, but human elimination still ends the round', () => {
     const human = { index: 0, isBot: false, alive: true };
     const bot = { index: 1, isBot: true, alive: false };
-    const system = new RoundOutcomeSystem({ getPlayers: () => [human, bot] });
-    assert.equal(system.resolve().shouldEnd, true, 'without a hold the last survivor wins');
+    const roundOutcome = new RoundOutcomeSystem({ getPlayers: () => [human, bot] });
+    const entityManager = {
+        humanPlayers: [human],
+        _roundOutcomeSystem: roundOutcome,
+        requestRoundEnd: (request) => roundOutcome.requestRoundEnd(request),
+    };
+    const runtime = {
+        _state: {
+            objectiveState: createArcadeObjectiveState({ id: 'survive_window', durationSec: 90 }),
+        },
+        _requestRoundEnd: (request) => requestObjectiveRoundEnd(entityManager, request),
+    };
 
-    system.setObjectiveHold(true);
-    assert.equal(system.resolve().shouldEnd, false, 'the worm still lives');
+    syncArcadeObjectiveIntoEntities(entityManager, runtime._state.objectiveState);
+    assert.equal(doesArcadeObjectiveHoldRound(runtime._state.objectiveState), true);
+    assert.equal(roundOutcome.resolve().shouldEnd, false, 'an empty enemy roster cannot end an active 90s window');
+
+    updateArcadeObjectiveRuntimeState(runtime, { type: 'tick', elapsed: 89 });
+    syncArcadeObjectiveIntoEntities(entityManager, runtime._state.objectiveState);
+    assert.equal(runtime._state.objectiveState.status, 'active');
+    assert.equal(roundOutcome.resolve().shouldEnd, false, 'the objective is still running before its deadline');
+
+    updateArcadeObjectiveRuntimeState(runtime, { type: 'tick', elapsed: 90 });
+    syncArcadeObjectiveIntoEntities(entityManager, runtime._state.objectiveState);
+    const success = roundOutcome.resolve();
+    assert.equal(runtime._state.objectiveState.completed, true);
+    assert.equal(doesArcadeObjectiveHoldRound(runtime._state.objectiveState), false);
+    assert.equal(success.shouldEnd, true);
+    assert.equal(success.winner, human);
+    assert.equal(success.reason, 'ARCADE_OBJECTIVE');
+
+    roundOutcome.reset();
+    assert.equal(roundOutcome.resolve().shouldEnd, true, 'a round reset clears the previous objective hold');
+
     human.alive = false;
-    assert.equal(system.resolve().shouldEnd, true, 'a dead pilot still ends the sector');
-    human.alive = true;
+    const bots = [
+        { index: 1, isBot: true, alive: true },
+        { index: 2, isBot: true, alive: true },
+    ];
+    const strategy = new ArcadeModeStrategy();
+    const arcadeRun = new ArcadeRunRuntime({ strategy, now: () => 100000 });
+    arcadeRun.configure({ arcade: { enabled: true, seed: 5, sectorCount: 3 } });
+    const encounterPlan = buildArcadeSectorPlan({ seed: 5, sectorCount: 3 });
+    encounterPlan.sequence[0] = {
+        ...encounterPlan.sequence[0],
+        objectiveId: 'survive_window',
+        objective: { id: 'survive_window', label: 'Sturmflut', durationSec: 90, scoreWeight: 1.3 },
+    };
+    arcadeRun.startRun({ strategy, encounterPlan });
+    assert.equal(arcadeRun.getStateSnapshot().objectiveState.objectiveId, 'survive_window');
+    assert.equal(arcadeRun.getStateSnapshot().objectiveState.status, 'active');
 
-    system.reset();
-    assert.equal(system.resolve().shouldEnd, true, 'a new round starts without a hold');
+    const lossRoundOutcome = new RoundOutcomeSystem({ getPlayers: () => [human, ...bots] });
+    const lossEntityManager = { _roundOutcomeSystem: lossRoundOutcome };
+    syncArcadeObjectiveIntoEntities(lossEntityManager, arcadeRun.getStateSnapshot().objectiveState);
+    const loss = lossRoundOutcome.resolve();
+    assert.equal(loss.shouldEnd, true, 'all human pilots out still ends with two bots alive');
+    assert.equal(loss.reason, 'ELIMINATION');
+    const defeatPlan = arcadeRun.deriveRoundEndPlan({
+        players: [human, ...bots],
+        inputs: { reason: loss.reason },
+        baseController: {},
+    });
+    assert.equal(defeatPlan.outcome.state, 'MATCH_END');
+    assert.equal(defeatPlan.outcome.reason, 'ELIMINATION');
+    assert.equal(arcadeRun.getPhase(), 'finished');
+    assert.equal(defeatPlan.outcome.arcade.phase, 'finished');
+    assert.equal(arcadeRun.getStateSnapshot().objectiveState.completed, false);
 });

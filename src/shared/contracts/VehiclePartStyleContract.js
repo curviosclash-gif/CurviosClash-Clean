@@ -83,7 +83,30 @@ function apply(m, v) {
     return m.map((row) => row[0] * v[0] + row[1] * v[1] + row[2] * v[2]);
 }
 
-function collectOrientedBounds(part, parentMatrix, parentOffset, bounds) {
+const IDENTITY = Object.freeze([[1, 0, 0], [0, 1, 0], [0, 0, 1]]);
+const MIRROR_MATRICES = Object.freeze({
+    x: [[-1, 0, 0], [0, 1, 0], [0, 0, 1]],
+    y: [[1, 0, 0], [0, -1, 0], [0, 0, 1]],
+    z: [[1, 0, 0], [0, 1, 0], [0, 0, -1]],
+});
+
+/**
+ * Axis a part is mirrored on, or null. A mirrored part is drawn a second time, reflected in
+ * its parent's frame (see VehicleLabConfigContract: `mirror: true` means the x axis).
+ * @param {any} part
+ * @returns {'x'|'y'|'z'|null}
+ */
+export function resolveVehiclePartMirrorAxis(part) {
+    const axis = part?.mirrorAxis || (part?.mirror === true ? 'x' : null);
+    return axis === 'x' || axis === 'y' || axis === 'z' ? axis : null;
+}
+
+function collectOrientedBounds(part, parentMatrix, parentOffset, bounds, options = {}, mirrored = false) {
+    if (options.ignoreGeos?.includes(part.geo)) return bounds;
+    const mirrorAxis = resolveVehiclePartMirrorAxis(part);
+    if (options.includeMirrors && !mirrored && mirrorAxis) {
+        collectOrientedBounds(part, multiply(parentMatrix, MIRROR_MATRICES[mirrorAxis]), parentOffset, bounds, options, true);
+    }
     const scale = Array.isArray(part.scale) ? part.scale.map((value) => Number(value) || 1) : [1, 1, 1];
     const pos = apply(parentMatrix, Array.isArray(part.pos) ? part.pos.map((value) => Number(value) || 0) : [0, 0, 0]);
     const offset = [0, 1, 2].map((axis) => parentOffset[axis] + pos[axis]);
@@ -97,23 +120,30 @@ function collectOrientedBounds(part, parentMatrix, parentOffset, bounds) {
         }
     }
     for (const child of Array.isArray(part.children) ? part.children : []) {
-        if (child && typeof child === 'object') collectOrientedBounds(child, matrix, offset, bounds);
+        if (child && typeof child === 'object') collectOrientedBounds(child, matrix, offset, bounds, options);
     }
     return bounds;
 }
 
 /**
  * Axis-aligned bounds of one top-level part with its children, rotation and scale
- * included, in vehicle space.
+ * included, in vehicle space. Mirrored copies only count with `includeMirrors`;
+ * parts (and their children) whose geo is in `ignoreGeos` are skipped. `mirrorHalf`
+ * measures one half of a mirrored part alone: 'own' as authored, 'copy' its reflection
+ * (mirrored children inside that half still count with `includeMirrors`).
  * @param {object} part
+ * @param {{includeMirrors?: boolean, ignoreGeos?: ReadonlyArray<string>, mirrorHalf?: 'own'|'copy'}} [options]
  * @returns {{min: number[], max: number[], size: number[], center: number[]}}
  */
-export function measureVehiclePartBounds(part) {
-    const identity = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
-    const { min, max } = collectOrientedBounds(part || {}, identity, [0, 0, 0], {
+export function measureVehiclePartBounds(part, options = {}) {
+    const opts = options || {};
+    const source = part || {};
+    const halfAxis = opts.mirrorHalf ? resolveVehiclePartMirrorAxis(source) : null;
+    const frame = halfAxis && opts.mirrorHalf === 'copy' ? MIRROR_MATRICES[halfAxis] : IDENTITY;
+    const { min, max } = collectOrientedBounds(source, frame, [0, 0, 0], {
         min: [Infinity, Infinity, Infinity],
         max: [-Infinity, -Infinity, -Infinity],
-    });
+    }, opts, halfAxis !== null);
     if (!Number.isFinite(min[0])) return { min: [0, 0, 0], max: [0, 0, 0], size: [0, 0, 0], center: [0, 0, 0] };
     return {
         min,
@@ -163,6 +193,33 @@ function swapShape(part, donorPart) {
     return swapped;
 }
 
+const HULL_MEASURE = Object.freeze({ includeMirrors: true, ignoreGeos: Object.freeze(['flame', 'forcefield']) });
+const HULL_EPSILON = 1e-6;
+
+/**
+ * Pivot of a utility part built into the hull once the hull (role 'core') is drawn at `coreScale`.
+ * Its pivot lies inside the hull's bounds, so it is a point of the hull: the hull grows around its
+ * own pivot and carries it along, and a larger hull no longer swallows the part (Manta tail hump) nor
+ * a smaller one leaves it hanging past the deck edge (spaceship deck module). The part still grows
+ * around that pivot with its own size. A utility part standing on the hull or on another part
+ * (Star-Cruiser deck, Helix fin on its reactor spine) and every other part keep their pivot.
+ * @param {any} part
+ * @param {any} core
+ * @param {unknown} coreScale
+ * @returns {number[]|null} the new pivot, or null when the part stays where it is
+ */
+export function resolveHullMountedPivot(part, core, coreScale) {
+    const scale = Number(coreScale);
+    if (part?.role !== 'utility' || !core || !Number.isFinite(scale) || scale <= 0 || scale === 1) return null;
+    const pivot = [0, 1, 2].map((axis) => Number(part.pos?.[axis]) || 0);
+    const hull = measureVehiclePartBounds(core, HULL_MEASURE);
+    if (pivot.some((value, axis) => value < hull.min[axis] - HULL_EPSILON || value > hull.max[axis] + HULL_EPSILON)) return null;
+    return pivot.map((value, axis) => {
+        const origin = Number(core.pos?.[axis]) || 0;
+        return origin + (value - origin) * scale;
+    });
+}
+
 /**
  * Returns a styled copy of a Vehicle Lab config; the input stays untouched.
  * @param {{parts?: object[]}} config
@@ -172,13 +229,16 @@ function swapShape(part, donorPart) {
 export function applyVehiclePartStyle(config, style, donors = []) {
     const styled = clone(config || {});
     const entries = normalizeVehiclePartStyle(style);
+    const core = (styled.parts || []).find((part) => part?.role === 'core');
+    const coreScale = core ? entries[core.name]?.scale : undefined;
     styled.parts = (styled.parts || []).map((part) => {
+        const pivot = resolveHullMountedPivot(part, core, coreScale);
+        let next = pivot ? { ...part, pos: pivot } : part;
         const entry = entries[part?.name];
-        if (!entry) return part;
-        let next = part;
+        if (!entry) return next;
         if (entry.variant && part.role && !NON_SWAPPABLE_ROLES.has(part.role)) {
             const donorPart = findDonorPart(donors, entry.variant, part.role);
-            if (donorPart) next = swapShape(part, donorPart);
+            if (donorPart) next = swapShape(next, donorPart);
         }
         if (entry.scale) next = { ...next, scale: (next.scale || [1, 1, 1]).map((value) => value * entry.scale) };
         if (entry.color !== undefined) next = { ...next, color: entry.color };

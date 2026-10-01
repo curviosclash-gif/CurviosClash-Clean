@@ -165,8 +165,9 @@ export function updateArcadeObjectiveState(objectiveState = null, event = null) 
 
 /**
  * True while the objective itself decides when the sector ends: the last bot falling must not
- * end a hunt for a map unit that still stands.
+ * end a map-unit hunt or a timed survival window.
  */
 export function doesArcadeObjectiveHoldRound(objectiveState = null) {
-    return objectiveState?.objectiveId === 'destroy_units' && objectiveState.status === 'active';
+    return objectiveState?.status === 'active'
+        && (objectiveState.objectiveId === 'destroy_units' || objectiveState.objectiveId === 'survive_window');
 }

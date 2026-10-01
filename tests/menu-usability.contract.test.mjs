@@ -9,7 +9,7 @@ import {
     SOLO_FIGHT_WITHOUT_BOTS_HINT,
 } from '../src/ui/start-setup/StartSetupValidationView.js';
 import { ensureMenuContractState, LEVEL4_SECTION_IDS } from '../src/ui/menu/MenuStateContracts.js';
-import { resolveMobileAndroidLevel4SectionId } from '../src/mobile-classic/MobileClassicMenuUi.js';
+import { applyMobileClassicSettings } from '../src/mobile-classic/MobileClassicApp.js';
 
 test('rule summaries distinguish classic rounds, respawning combat and arcade sectors', () => {
     const base = { numBots: 2, botDifficulty: 'HARD', winsNeeded: 5, gameMode: 'CLASSIC' };
@@ -86,7 +86,8 @@ test('new settings sections survive normalization and remain accessible on mobil
         const settings = { localSettings: { toolsState: { activeSection: section } } };
         ensureMenuContractState(settings);
         assert.equal(settings.localSettings.toolsState.activeSection, section);
-        assert.equal(resolveMobileAndroidLevel4SectionId(section), section);
+        applyMobileClassicSettings(settings);
+        assert.equal(settings.localSettings.toolsState.activeSection, section);
     }
 });
 

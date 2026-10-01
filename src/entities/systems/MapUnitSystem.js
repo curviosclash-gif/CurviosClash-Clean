@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { normalizeMapUnit, resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
-import { isTurretCombatActive } from '../../shared/contracts/TurretCombatContract.js';
+import { isMapUnitCombatActive, normalizeMapUnit, resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import {
     advanceUnitOnPath,
@@ -17,7 +16,7 @@ import {
     updateMapUnitVisual,
 } from './map-units/MapUnitVisualOps.js';
 import { applyGroundClamp, resetGroundClamp } from './map-units/MapUnitGroundOps.js';
-import { applyAuthoredMapUnitBody, loadMapUnitLibrary } from './map-units/MapUnitModelCache.js';
+import { requestMapUnitLibrary } from './map-units/MapUnitModelCache.js';
 import { tickMapUnitRecoil, updateMapUnitDust } from './map-units/MapUnitMotionFxOps.js';
 import {
     clearAllMapUnitWrecks,
@@ -65,6 +64,7 @@ import {
     updateCreatureVisual,
 } from './map-units/MapUnitCreatureVisualOps.js';
 import { updateCreatureAttack } from './map-units/MapUnitCreatureOps.js';
+import { updateSwarmAttack } from './map-units/MapUnitSwarmAttackOps.js';
 import { createHydraState, updateHydra } from './map-units/MapUnitHydraOps.js';
 import { createHydraVisual, removeHydraVisual, updateHydraVisual } from './map-units/MapUnitHydraVisualOps.js';
 import { GAME_MODE_TYPES } from '../../hunt/HuntMode.js';
@@ -124,7 +124,7 @@ export class MapUnitSystem {
         const definitions = resolveMapUnitDefinitions(mapDefinition, { preserveSpatial: mapDefinition?.scaleAuthoredAnchors === true });
         for (const definition of definitions) {
             if (definition.escortObjective) continue;
-            if (!isTurretCombatActive(owner.gameModeStrategy, [...definition.allowedModes])) continue;
+            if (!isMapUnitCombatActive(owner.gameModeStrategy, [...definition.allowedModes], mapDefinition)) continue;
             const unit = this._createUnit(definition, scale);
             this.units.push(unit);
             this.setBossRoomClock(unit, true);
@@ -174,6 +174,7 @@ export class MapUnitSystem {
             attackSourcePlayer: null,
             summonRemaining: Infinity,
             attackCooldownRemaining: definition.attack?.cooldown || 0,
+            contactAttackCooldowns: new Map(),
             attacksFired: 0,
             networkAttacksInitialized: false,
             drivenY: null,
@@ -196,6 +197,7 @@ export class MapUnitSystem {
         if (definition.kind === 'swarm') {
             unit.members = createSwarmMembers(definition, scale, unit.position);
             unit.root = createSwarmVisual(this.entityManager?.renderer, this._resolveSwarmAssets(), unit.members);
+            requestMapUnitLibrary(this, unit);
         } else if (definition.kind === 'bomber') {
             unit.root = createBomberVisual(this.entityManager?.renderer, this._resolveBomberAssets(), scale);
         } else if (definition.kind === 'creature') {
@@ -210,7 +212,7 @@ export class MapUnitSystem {
                 definition.id === 'escort_tank' ? resolveTeamColor(TEAM_IDS.ALPHA) : null,
             );
         }
-        if (definition.kind === 'tank' || definition.kind === 'boss') this._requestAuthoredBody(unit);
+        if (definition.kind === 'tank' || definition.kind === 'boss') requestMapUnitLibrary(this, unit);
         this._updateVisual(unit);
         unit.source = createUnitSource(unit);
         if (unit.hydra) unit.source.combatLabel = 'Hydra';
@@ -223,27 +225,6 @@ export class MapUnitSystem {
             resetSwarmMembers(unit);
         }
         return unit;
-    }
-
-    /**
-     * Hangs the authored tank model on a unit as soon as the shared library is there. Until then
-     * the box model stands in, so a slow or failed load never leaves a map without its tanks.
-     */
-    _requestAuthoredBody(unit) {
-        if (!unit?.root) return;
-        if (this._modelLibrary) {
-            applyAuthoredMapUnitBody(unit.root, this._modelLibrary);
-            return;
-        }
-        if (this._modelLibraryRequested) return;
-        this._modelLibraryRequested = true;
-        loadMapUnitLibrary().then((library) => {
-            if (!library) return;
-            this._modelLibrary = library;
-            for (const built of this.units) {
-                if (built.kind === 'tank' || built.kind === 'boss') applyAuthoredMapUnitBody(built.root, library);
-            }
-        });
     }
 
     _resolveAssets() {
@@ -281,7 +262,7 @@ export class MapUnitSystem {
     }
 
     _updateVisual(unit, dt = 0) {
-        if (unit.kind === 'swarm') updateSwarmVisual(unit);
+        if (unit.kind === 'swarm') updateSwarmVisual(unit, dt);
         else if (unit.kind === 'bomber') updateBomberVisual(unit);
         else if (unit.hydra) updateHydraVisual(unit, dt);
         else if (unit.kind === 'creature') updateCreatureVisual(unit);
@@ -412,6 +393,7 @@ export class MapUnitSystem {
                 tickMapUnitRecoil(unit, safeDt);
             }
             this._placeCentre(unit);
+            if (unit.kind === 'swarm') updateSwarmAttack(this, unit, unitDt, authority);
             this._updateVisual(unit, unitDt);
             updateUnitWeapons(this, unit, unitDt, authority);
             if (unit.kind === 'bomber') updateBomberBombs(this, unit, unitDt, authority);

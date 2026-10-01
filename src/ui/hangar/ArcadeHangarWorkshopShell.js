@@ -92,7 +92,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     categoryTabs.setAttribute('aria-label', 'Fahrzeugklasse');
     const hitboxChips = el('div', 'arcade-vehicle-chip-row');
     hitboxChips.setAttribute('role', 'group');
-    hitboxChips.setAttribute('aria-label', 'Hitboxklasse');
+    hitboxChips.setAttribute('aria-label', mode === 'arcade' ? 'Rolle' : 'Hitboxklasse');
     const levelChips = el('div', 'arcade-vehicle-chip-row');
     levelChips.setAttribute('role', 'group');
     levelChips.setAttribute('aria-label', 'Fahrzeuglevel');
@@ -260,7 +260,16 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     formViewButton.setAttribute('role', 'tab');
     formViewButton.setAttribute('aria-selected', 'false');
     formViewButton.setAttribute('aria-controls', 'hangar-build-panel-form');
-    buildViewSwitch.append(workshopViewButton, statsViewButton, presetsViewButton, formViewButton);
+    // Tab "Ausbau" (arcade only): size build now, stones and weapon tiers later (HangarUpgradeTab).
+    const upgradeViewButton = mode === 'arcade' ? button('hangar-build-view-tab', 'Ausbau') : null;
+    if (upgradeViewButton) {
+        upgradeViewButton.id = 'hangar-build-view-upgrade';
+        upgradeViewButton.dataset.buildView = 'upgrade';
+        upgradeViewButton.setAttribute('role', 'tab');
+        upgradeViewButton.setAttribute('aria-selected', 'false');
+        upgradeViewButton.setAttribute('aria-controls', 'hangar-build-panel-upgrade');
+    }
+    buildViewSwitch.append(...[workshopViewButton, statsViewButton, presetsViewButton, upgradeViewButton, formViewButton].filter(Boolean));
     const machineGunPanel = el('section', `hangar-preset-panel hangar-machine-gun-panel${mode === 'fight' ? '' : ' hidden'}`);
     machineGunPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Maschinengewehr'));
     const machineGunSelect = document.createElement('select');
@@ -392,9 +401,17 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     formViewPanel.dataset.buildViewPanel = 'form';
     formViewPanel.setAttribute('role', 'tabpanel');
     formViewPanel.setAttribute('aria-labelledby', formViewButton.id);
-    buildScroll.append(
-        detailHead, profileBox, cosmeticsBox, buildViewSwitch, workshopViewPanel, statsViewPanel, presetsViewPanel, formViewPanel
-    );
+    const upgradeViewPanel = upgradeViewButton ? el('div', 'hangar-build-view-panel hidden') : null;
+    if (upgradeViewPanel) {
+        upgradeViewPanel.id = 'hangar-build-panel-upgrade';
+        upgradeViewPanel.dataset.buildViewPanel = 'upgrade';
+        upgradeViewPanel.setAttribute('role', 'tabpanel');
+        upgradeViewPanel.setAttribute('aria-labelledby', upgradeViewButton.id);
+    }
+    buildScroll.append(...[
+        detailHead, profileBox, cosmeticsBox, buildViewSwitch, workshopViewPanel, statsViewPanel, presetsViewPanel,
+        upgradeViewPanel, formViewPanel,
+    ].filter(Boolean));
     const activationDock = el('div', 'hangar-activation-dock');
     activationDock.appendChild(activateButton);
     rightPanel.append(buildScroll, activationDock);
@@ -419,7 +436,8 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
         presetSaveAs, presetLoad, presetRename, presetDuplicate, presetDelete, presetSort, presetTags,
         presetFavorite, presetExport, presetImport, buildScroll, buildViewSwitch,
         workshopViewButton, statsViewButton, presetsViewButton,
-        workshopViewPanel, statsViewPanel, presetsViewPanel, formViewButton, formViewPanel, activationDock, activateButton,
+        workshopViewPanel, statsViewPanel, presetsViewPanel, formViewButton, formViewPanel, upgradeViewButton, upgradeViewPanel,
+        activationDock, activateButton,
         statusMessage, activeBuildLabel,
     };
 }

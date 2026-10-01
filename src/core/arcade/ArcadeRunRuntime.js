@@ -14,11 +14,11 @@ import { resolveMapSequence, getMapKeyForSector } from '../../state/arcade/Arcad
 import {
     calculateSectorXp,
     loadVehicleProfiles,
-    getSlotStatBonuses,
+    getArcadeRunVehicleBonuses, resolveArcadeRunHudVehicleStats,
     XP_REWARD_TABLE,
 } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { awardBoundArcadeVehicleXp } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
-import { bindArcadeRunVehicleRewards, ensureArcadeRunVehicleRewards, getArcadeRunVehicleId, getArcadeRunVehicleProfile } from './ArcadeRunVehicleRewardOps.js';
+import { bindArcadeRunVehicleRewards, ensureArcadeRunVehicleRewards, getArcadeRunVehicleId, getArcadeRunVehicleProfile, resolveArcadePlayerRewardBinding, resolveArcadeRunStrategyUpgradeBonuses } from './ArcadeRunVehicleRewardOps.js';
 import { createLeaderboardProjection, loadLeaderboard } from '../../state/arcade/ArcadeLeaderboard.js';
 import {
     ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET,
@@ -374,16 +374,16 @@ export class ArcadeRunRuntime {
     }
 
     _getVehicleBonuses(profile = this.getVehicleProfile()) {
-        return this._config.dailyChallenge ? null : getSlotStatBonuses(profile?.upgrades, profile?.hangarBonuses);
+        return this._config.dailyChallenge ? null : getArcadeRunVehicleBonuses(profile);
     }
 
-    setStrategy(strategy) {
+    setStrategy(strategy, humanPlayers = null) {
         this._strategy = strategy || null;
         if (!this._strategy) return;
         try { this._strategy.setActiveModifier?.(this._activeModifierId); } catch { /* no-op */ }
         try { this._strategy.setSectorType?.(this._currentSectorType); } catch { /* no-op */ }
         const profile = this.getVehicleProfile();
-        try { this._strategy.applyVehicleUpgrades?.(this._getVehicleBonuses(profile)); } catch { /* no-op */ }
+        try { this._strategy.applyVehicleUpgrades?.(resolveArcadeRunStrategyUpgradeBonuses(this._vehicleProfiles, humanPlayers, this._getVehicleBonuses(profile), this._config.dailyChallenge)); } catch { /* no-op */ }
         syncArcadeRunRewardEffects(this._state, this._strategy);
         if (this._state?.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH) {
             this._restoreSuddenDeath();
@@ -681,17 +681,10 @@ export class ArcadeRunRuntime {
         const parcoursXpGain = this._peekHudEvent('parcours_xp') || this._state.lastParcoursXpGain || null;
         const parcoursSegmentSplit = this._peekHudEvent('parcours_split') || this._state.lastParcoursSegmentSplit || null;
         const parcoursPenalty = this._peekHudEvent('parcours_penalty') || this._state.lastParcoursPenalty || null;
-        // 82.8.3: Vehicle stats for sector-start HUD flash
-        // Profiles are canonicalized when loaded or changed. Re-normalizing the full
-        // Hangar progression here would allocate several collections every HUD frame.
-        const profile = this._vehicleProfiles?.[this._getRunVehicleId()] || null;
-        const profileBonuses = this._config.dailyChallenge ? null : (profile ? getSlotStatBonuses(profile.upgrades, profile.hangarBonuses) : null);
-        const vehicleStats = {
-            level: profile?.level ?? 1,
-            speedBonusPct: Math.min(50, profileBonuses?.speedBonusPct || 0),
-            turningBonusPct: Math.min(50, profileBonuses?.turningBonusPct || 0),
-            maxHpBonus: Math.min(50, profileBonuses?.maxHpBonus || 0),
-        };
+        // 82.8.3: Vehicle stats for sector-start HUD flash, incl. the size build (Paket 2a).
+        // Profiles are canonicalized when loaded or changed, so the stats are cached per profile.
+        const runVehicleId = this._getRunVehicleId();
+        const vehicleStats = resolveArcadeRunHudVehicleStats(this._vehicleProfiles?.[runVehicleId] || null, runVehicleId, this._config.dailyChallenge);
         return {
             nowMs,
             parcoursXpGain,
@@ -856,7 +849,12 @@ export class ArcadeRunRuntime {
         this._vehicleProfiles = loadVehicleProfiles(store);
         const activeProfile = this.getVehicleProfile();
         syncArcadeMasteryPerks(this._state, activeProfile);
-        this._notifyVehicleUpgradesChanged(this._getVehicleBonuses(activeProfile));
+        this._notifyVehicleUpgradesChanged(resolveArcadeRunStrategyUpgradeBonuses(
+            this._vehicleProfiles,
+            options.entityManager?.humanPlayers,
+            options.dailyChallenge || runConfig.dailyChallenge === true ? null : this._getVehicleBonuses(activeProfile),
+            options.dailyChallenge === true || runConfig.dailyChallenge === true,
+        ));
 
         // Resolve map sequence from encounter plan if available
         if (options.encounterPlan) {
@@ -1232,8 +1230,9 @@ export class ArcadeRunRuntime {
         this._state.sectorHistory = existing;
     }
 
-    applyParcoursXpEvent(eventType, playerIndex = 0) {
-        const rewardBinding = ensureArcadeRunVehicleRewards(this);
+    // playerVehicleId: plane of that local pilot, so split-screen XP levels the plane that earned it.
+    applyParcoursXpEvent(eventType, playerIndex = 0, playerVehicleId = null) {
+        const { binding: rewardBinding, ownsRunPerks } = resolveArcadePlayerRewardBinding(this, playerVehicleId);
         if (!this._enabled || !rewardBinding || !this._vehicleProfiles) return null;
         const xpByEvent = {
             checkpoint: XP_REWARD_TABLE.parcoursCheckpoint,
@@ -1247,7 +1246,7 @@ export class ArcadeRunRuntime {
         if (!result) return null;
         const xpEarned = result.earned;
         if (this._state) this._state.xpEarned += xpEarned;
-        syncArcadeMasteryPerks(this._state, result.profile);
+        if (ownsRunPerks) syncArcadeMasteryPerks(this._state, result.profile);
         this._scheduleVehicleProfilesSave();
 
         if (this._state) {

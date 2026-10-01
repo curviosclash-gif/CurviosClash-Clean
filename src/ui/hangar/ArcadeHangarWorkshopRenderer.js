@@ -1,9 +1,8 @@
 import {
-    HITBOX_LABELS,
-    LEVEL_LABELS,
     createUiNode as el,
     resolvePlayerColor,
-    toVehicleLevelBand,
+    resolveVehicleClassLabel,
+    resolveVehicleLevelLabel,
 } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
 import { HANGAR_SLOT_DEFINITIONS, listHangarParts, resolveHangarPart, resolvePartLockReason } from './HangarPartCatalog.js';
@@ -80,7 +79,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
             const card = button('arcade-vehicle-card hangar-vehicle-card', '');
             card.dataset.vehicleId = entry.vehicleId;
             card.dataset.vehicleCategory = entry.kategorie;
-            card.dataset.vehicleHitbox = entry.hitboxKlasse;
+            if (entry.rolle) card.dataset.vehicleRole = entry.rolle; else card.dataset.vehicleHitbox = entry.hitboxKlasse;
             card.dataset.vehiclePreviewToken = entry.previewToken;
             card.classList.toggle('selected', entry.vehicleId === state.draft.vehicleId);
             card.classList.toggle('is-favorite', favorites.has(entry.vehicleId));
@@ -93,7 +92,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
                 el(
                     'span',
                     'arcade-vehicle-card-meta',
-                    `${VEHICLE_CATEGORY_LABELS[entry.kategorie] || entry.kategorie} · ${HITBOX_LABELS[entry.hitboxKlasse] || entry.hitboxKlasse} · Lv ${profile.level}`
+                    `${VEHICLE_CATEGORY_LABELS[entry.kategorie] || entry.kategorie} · ${resolveVehicleClassLabel(entry)} · Lv ${profile.level}`
                 )
             );
             catalogList.appendChild(card);
@@ -373,8 +372,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         const validation = validateBuild(state.draft, profile.level, profile);
         const favorites = new Set(selection.getFavorites());
         detailTitle.textContent = entry.label;
-        const levelBand = toVehicleLevelBand(profile.level);
-        detailMeta.textContent = `${VEHICLE_CATEGORY_LABELS[entry.kategorie] || entry.kategorie} · ${HITBOX_LABELS[entry.hitboxKlasse] || entry.hitboxKlasse} · ${LEVEL_LABELS[levelBand] || levelBand}`;
+        detailMeta.textContent = `${VEHICLE_CATEGORY_LABELS[entry.kategorie] || entry.kategorie} · ${resolveVehicleClassLabel(entry)} · ${resolveVehicleLevelLabel(profile.level, mode)}`;
         detailDescription.textContent = entry.kurzbeschreibung;
         const xp = state.xpToNextLevel(profile);
         const progression = projectHangarProgression(profile, state.draft, xp);

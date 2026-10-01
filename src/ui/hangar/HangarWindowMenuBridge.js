@@ -1,4 +1,6 @@
+/* global __APP_TARGET__ */
 import { createElectronPreloadHangarAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
+import { createBrowserPageHangarAdapter } from '../../platform/browser/BrowserPlatformAdapters.js';
 import { STORAGE_KEYS } from '../../shared/storage/StorageKeys.js';
 import { createInfoHintButton } from '../menu/InfoHintToggle.js';
 
@@ -13,8 +15,15 @@ export function createHangarWindowLauncher(createElement) {
     return { card, button };
 }
 
-export function createHangarWindowMenuPort(runtimeGlobal = globalThis) {
-    return createElectronPreloadHangarAdapter(runtimeGlobal);
+function resolveBuildAppTarget() {
+    return typeof __APP_TARGET__ !== 'undefined' ? String(__APP_TARGET__).trim().toLowerCase() : '';
+}
+
+export function createHangarWindowMenuPort(runtimeGlobal = globalThis, { appTarget = resolveBuildAppTarget() } = {}) {
+    const electronPort = createElectronPreloadHangarAdapter(runtimeGlobal);
+    // The Android app bundles hangar.html and opens it in the same WebView.
+    if (electronPort.isAvailable() || appTarget !== 'mobile-classic') return electronPort;
+    return createBrowserPageHangarAdapter(runtimeGlobal);
 }
 
 export function applyHangarWindowStorageEvent(event, settings, ui) {

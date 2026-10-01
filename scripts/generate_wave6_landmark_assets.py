@@ -8,12 +8,14 @@ their moving obstacles.
 """
 
 import argparse
+import json
 import math
+import subprocess
 import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Quaternion
+from mathutils import Euler, Matrix, Quaternion, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from blender_collapse import (
@@ -295,6 +297,7 @@ def generate_bridge(parts=None):
 
     if '30_bridge_train' in selected:
         scene = reset_scene('BridgeTrainLoop', 12)
+        scene.frame_end += 1
         rig = bpy.data.objects.new('BridgeTrainRig', None)
         scene.collection.objects.link(rig)
         steel = material('TrainSteel', (0.08, 0.16, 0.21), 0.82, 0.24)
@@ -468,20 +471,102 @@ def generate_lighthouse(parts=None):
         scene = reset_scene('LighthouseCollapseOnce', 5)
         rig = bpy.data.objects.new('LighthouseCollapseRig', None)
         scene.collection.objects.link(rig)
-        build_lighthouse(rig)
-        rig.rotation_mode = 'XYZ'
-        rig.keyframe_insert('location', frame=1)
-        rig.keyframe_insert('rotation_euler', frame=1)
-        rig.location = (0, 0, 0)
-        rig.rotation_euler = (0.0, 1.32, 0.0)
-        rig.keyframe_insert('location', frame=scene.frame_end)
-        rig.keyframe_insert('rotation_euler', frame=scene.frame_end)
-        if rig.animation_data and rig.animation_data.action:
-            rig.animation_data.action.name = 'LighthouseCollapseOnce'
+        pieces = build_lighthouse(rig)
+        # Keep the 24 mesh parts inside the island after the ten-times runtime scale. They
+        # break apart and settle into a low, traversable mound instead of the oversized tower
+        # sweeping hundreds of world units past the island edge.
+        for index, piece in enumerate(pieces):
+            piece.rotation_mode = 'XYZ'
+            start_location = piece.location.copy()
+            start_rotation = piece.rotation_euler.copy()
+            piece.keyframe_insert('location', frame=1)
+            piece.keyframe_insert('rotation_euler', frame=1)
+
+            column = index % 5
+            row = index // 5
+            x = (column - 2) * 4.0
+            y = (row - 2.0) * 4.5
+            name = piece.name
+            if name == 'lighthouse_tower_foot':
+                end_location = (0, 0, 0)
+                end_rotation = start_rotation
+            elif 'tower_shaft' in name:
+                shaft_index = int(name.rsplit('_', 1)[-1])
+                end_location = (x, y, 0)
+                end_rotation = (math.pi / 2, 0.12 * (shaft_index % 2), 0.18 * (index % 3 - 1))
+            elif name == 'lighthouse_tower_gallery':
+                end_location = (x, y, 0)
+                end_rotation = (math.pi / 2, 0, 0.24)
+            elif name == 'lighthouse_tower_lantern':
+                end_location = (x, y, 0)
+                end_rotation = (math.pi / 2, 0.1, -0.18)
+            elif name == 'lighthouse_tower_roof':
+                end_location = (x, y, 0)
+                end_rotation = (math.pi / 2, 0, 0.16)
+            else:
+                end_location = (x, y, 0)
+                end_rotation = (
+                    start_rotation.x + 0.65,
+                    start_rotation.y + 0.45 * ((index % 2) * 2 - 1),
+                    start_rotation.z + 0.3,
+                )
+
+            # The collapse GLB's scaled placement offsets source Z=0 to the island
+            # terrace. Evaluate the intended end matrix explicitly: the current frame
+            # is still keyed to the start pose, so the dependency graph would otherwise
+            # substitute its evaluated rotation for this unkeyed target rotation.
+            target_matrix = (
+                rig.matrix_world
+                @ Matrix.Translation(Vector((end_location[0], end_location[1], 0)))
+                @ Euler(end_rotation, 'XYZ').to_matrix().to_4x4()
+                @ Matrix.Diagonal(Vector((*piece.scale, 1.0)))
+            )
+            lowest_vertex_z = min((target_matrix @ vertex.co).z for vertex in piece.data.vertices)
+            end_location = (end_location[0], end_location[1], -lowest_vertex_z)
+
+            middle = scene.frame_end // 2
+            piece.location = (
+                (start_location.x + end_location[0]) * 0.5,
+                (start_location.y + end_location[1]) * 0.5,
+                max(end_location[2] + 8, start_location.z * 0.5),
+            )
+            piece.rotation_euler = tuple((a + b) * 0.5 for a, b in zip(start_rotation, end_rotation))
+            piece.keyframe_insert('location', frame=middle)
+            piece.keyframe_insert('rotation_euler', frame=middle)
+            piece.location = end_location
+            piece.rotation_euler = end_rotation
+            piece.keyframe_insert('location', frame=scene.frame_end)
+            piece.keyframe_insert('rotation_euler', frame=scene.frame_end)
+            if piece.animation_data and piece.animation_data.action:
+                piece.animation_data.action.name = 'LighthouseCollapseOnce'
+        export_scene('storm_lighthouse_siege', '20_lighthouse_collapse', 'LighthouseCollapseOnce')
+
+        # Re-measure the exported clip with the same Three.js loader and dynamic
+        # mesh collider used by gameplay. Bake each measured contact delta into its
+        # final location key; source-space Blender bounds alone miss exporter/runtime transforms.
+        measurement = subprocess.run(
+            ['node', str(ROOT / 'tests/helpers/measure-lighthouse-collapse-grounding.mjs')],
+            cwd=str(ROOT), check=True, capture_output=True, text=True,
+        )
+        grounding = json.loads(measurement.stdout)
+        source_unit_scale = float(grounding['sourceUnitScale'])
+        if not source_unit_scale > 0:
+            raise RuntimeError('Invalid runtime scale when grounding lighthouse debris')
+        scene.frame_set(scene.frame_end)
+        grounded_names = set()
+        for piece in pieces:
+            if piece.name not in grounding['corrections']:
+                continue
+            piece.location.z += float(grounding['corrections'][piece.name])
+            piece.keyframe_insert('location', frame=scene.frame_end)
+            grounded_names.add(piece.name)
+        if len(grounded_names) != 24:
+            raise RuntimeError(f'Expected to ground all 24 runtime fragments, got {len(grounded_names)}')
         export_scene('storm_lighthouse_siege', '20_lighthouse_collapse', 'LighthouseCollapseOnce')
 
     if '30_lighthouse_lift' in selected:
         scene = reset_scene('LighthouseLiftLoop', 10)
+        scene.frame_end += 1
         rig = bpy.data.objects.new('LighthouseLiftRig', None)
         scene.collection.objects.link(rig)
         steel = material('LiftSteel', (0.09, 0.13, 0.15), 0.78, 0.28)
@@ -501,6 +586,7 @@ def generate_lighthouse(parts=None):
 
     if '31_lighthouse_beacon' in selected:
         scene = reset_scene('LighthouseBeaconLoop', 8)
+        scene.frame_end += 1
         rig = bpy.data.objects.new('LighthouseBeaconRig', None)
         scene.collection.objects.link(rig)
         beam = emissive_material('BeaconBeam', (1.0, 0.68, 0.16), 4.0, 0.18)
@@ -1021,6 +1107,7 @@ def generate_dam(parts=None):
 
     if '30_dam_gate' in selected:
         scene = reset_scene('DamGateLoop', 8)
+        scene.frame_end += 1
         rig = bpy.data.objects.new('DamGateRig', None)
         scene.collection.objects.link(rig)
         steel = material('GateSteel', (0.055, 0.12, 0.15), 0.88, 0.22)

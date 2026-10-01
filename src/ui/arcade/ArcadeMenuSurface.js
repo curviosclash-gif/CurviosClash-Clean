@@ -2,10 +2,10 @@ import { resolveArcadeDailySettings } from '../../shared/contracts/ArcadeDailyRu
 import { computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import {
-    ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
     getArcadeVehicleProfileRecord,
     loadArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
+import { resolveArcadeRunVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { applyHangarWindowStorageEvent, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 import { readActiveHangarBuildFromStore } from '../hangar/HangarBuildPersistence.js';
 import {
@@ -22,7 +22,7 @@ import {
     ENDLESS_PARCOURS_RECORDS_STORAGE_KEY,
     summarizeEndlessRecordsLine,
 } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
-import { FIVE_PORTALS_RECORD_KEY } from '../../shared/contracts/FivePortalsContract.js';
+import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
 import { getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
@@ -40,6 +40,11 @@ const ARCADE_PHASE_LABELS = Object.freeze({
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized || fallback;
+}
+
+// Arcade flies only the factory ships: a stored Vehicle Lab build shows and starts as the Star-Cruiser.
+function resolveArcadeMenuVehicleId(settings) {
+    return resolveArcadeRunVehicleId(settings?.vehicles?.PLAYER_1);
 }
 
 function t(textId, fallback) {
@@ -174,10 +179,6 @@ function resolveVehicleMasteryProfile(runtimeAccess, vehicleId) {
     }
 }
 
-function resolveVehicleMasteryMaxLevel() {
-    return ARCADE_VEHICLE_PROFILE_MAX_LEVEL;
-}
-
 function shouldShowArcade(settings) {
     const modePath = String(settings?.localSettings?.modePath || '').trim().toLowerCase();
     return modePath === 'arcade';
@@ -189,7 +190,7 @@ function createArcadeRunSnapshot(settings, seed, hangarBuild = null) {
     return createArcadeLastRunRecord({
         at: new Date().toISOString(),
         mapKey: normalizeString(settings?.mapKey, 'standard'),
-        vehicleId: normalizeString(settings?.vehicles?.PLAYER_1, 'ship5'),
+        vehicleId: resolveArcadeMenuVehicleId(settings),
         botCount: toInt(settings?.numBots, 0),
         botDifficulty: normalizeString(settings?.botDifficulty, 'NORMAL').toUpperCase(),
         seed: toInt(seed, 0),
@@ -262,7 +263,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         if (!hasOpenSetupSection) refs.details.open = true;
 
         const mapKey = normalizeString(settings?.mapKey, 'standard');
-        const vehicleId = normalizeString(settings?.vehicles?.PLAYER_1, 'ship5');
+        const vehicleId = resolveArcadeMenuVehicleId(settings);
         const difficulty = normalizeString(settings?.botDifficulty, 'NORMAL').toUpperCase();
         const botCount = toInt(settings?.numBots, 0);
         const dailySeed = computeDailySeed();
@@ -287,9 +288,14 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const tierLabel = settings.arcade?.nightmare === true && !settings.arcade?.dailyChallenge ? ' · Albtraum' : '';
         syncArcadeNightmareToggle(refs.nightmareInput, settings);
         const fivePortalsSelected = settings.arcade?.runType === 'five_portals';
-        const fivePortalsRecord = runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(FIVE_PORTALS_RECORD_KEY, null) || null;
+        const activePortalChain = fivePortalsSelected ? resolvePortalChain(settings.arcade?.portalChainId) : null;
+        const fivePortalsRecord = fivePortalsSelected
+            ? runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(activePortalChain.recordKey, null) || null
+            : null;
         refs.runLine.textContent = fivePortalsSelected
-            ? 'Fünf Portale: fünf Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.'
+            ? (activePortalChain.id === 'five_portals'
+                ? 'Fünf Portale: fünf Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.'
+                : `${activePortalChain.label}: ${activePortalChain.maps.length} Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.`)
             : settings.arcade?.dailyChallenge
             ? `Daily: Solo · ${resolveVehiclePreview('ship5').label} ohne Leistungsboni · 5 Sektoren · Normal. Ergebnis bis zum Boss zählt.`
             : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${resolveMapPreview(mapKey).name} · ${botCount} Bots · ${difficultyLabel}${tierLabel}${dailyLabel}${phaseLabel}`;
@@ -323,7 +329,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
             : '0';
 
         if (fivePortalsSelected && postRunSummary?.totalMs >= 0) {
-            refs.postRunLine.textContent = `Fünf Portale: ${(postRunSummary.totalMs / 1000).toFixed(2)} s gesamt`;
+            refs.postRunLine.textContent = `${activePortalChain.label}: ${(postRunSummary.totalMs / 1000).toFixed(2)} s gesamt`;
         } else if (postRunSummary) {
             refs.postRunLine.textContent = `Punkte ${Math.max(0, Math.round(Number(postRunSummary.score) || 0))} · Beste Kombo ${Math.max(0, Number(postRunSummary.bestCombo) || 0)} · Missionen ${Math.round(Math.max(0, Math.min(1, Number(postRunSummary.missionCompletionRate) || 0)) * 100)} %`;
         } else if (lastRunSnapshot) {
@@ -344,17 +350,14 @@ export function setupArcadeMenuSurface(ctx = {}) {
         }
 
         const profile = resolveVehicleMasteryProfile(runtimeAccess, vehicleId);
-        const MAX_LEVEL = resolveVehicleMasteryMaxLevel();
-        const lvl = Math.max(1, Math.min(MAX_LEVEL, Number(profile.level) || 1));
-        const masteryLabel = lvl >= MAX_LEVEL
-            ? `${t('menu.arcade.mastery.progress.label', 'Level')} ${t('menu.arcade.mastery.max', 'MAX')}`
-            : `${t('menu.arcade.mastery.progress.label', 'Level')} ${lvl}/${MAX_LEVEL}`;
+        const lvl = Math.max(1, Math.floor(Number(profile.level) || 1));
+        const masteryLabel = `${t('menu.arcade.mastery.progress.label', 'Level')} ${lvl}`;
         refs.masteryLine.textContent = `${t('menu.arcade.mastery.current.label', 'Fahrzeug')}: ${vehicleId} | ${masteryLabel}`;
     };
 
     const prepareHangarRunStart = () => {
         if (settings.arcade?.dailyChallenge) return { ok: true, build: null };
-        const vehicleId = normalizeString(settings?.vehicles?.PLAYER_1, 'ship5').toLowerCase();
+        const vehicleId = resolveArcadeMenuVehicleId(settings).toLowerCase();
         const build = readActiveHangarBuildFromStore({
             store: runtimeAccess?.getSettingsStore?.(),
             mode: 'arcade',
@@ -383,10 +386,11 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
     // These runs play on their own map and bot count. Both only ride along with the start
     // (borrowedSettings), so the menu keeps the player's map and bots afterwards.
-    const startRunWithOwnMap = (runType, borrowedSettings) => {
+    const startRunWithOwnMap = (runType, borrowedSettings, portalChainId) => {
         applySeedToSettings(activeSeed, { dailyChallenge: false });
         settings.arcade.runType = runType;
         settings.arcade.combatProfile = 'hunt';
+        if (runType === 'five_portals') settings.arcade.portalChainId = portalChainId || 'five_portals';
         settings.gameMode = 'ARCADE';
         if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
         settings.localSettings.modePath = 'arcade';
@@ -408,7 +412,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
     bind(refs.startEndlessButton, 'click', () => startRunWithOwnMap('endless_parcours', { mapKey: 'standard', numBots: 0 }));
     bind(refs.startFiveFrontsButton, 'click', () => startRunWithOwnMap('arena_waves', { mapKey: 'notre_dame_arena', numBots: 12 }));
-    bind(refs.startFivePortalsButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: 'micro_maw', numBots: 0 }));
+    bind(refs.startFivePortalsButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: 'micro_maw', numBots: 0 }, 'five_portals'));
+    bind(refs.startSkyLadderButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: resolvePortalChain('sky_ladder').maps[0], numBots: 0 }, 'sky_ladder'));
     bind(refs.startWeaponRaceButton, 'click', () => startRunWithOwnMap('weapon_race', { mapKey: 'parcours_assault', numBots: 4 }));
 
     bind(refs.openHangarButton, 'click', async () => {

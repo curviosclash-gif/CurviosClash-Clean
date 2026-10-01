@@ -440,6 +440,22 @@ test('rotating pilot icons keep semantic faces on both sides', async () => {
     }
 });
 
+test('guided rocket has its own model instead of the XL rocket with collars', async () => {
+    const gltf = await parseLibrary();
+    const guided = gltf.scene.getObjectByName('pickup_ROCKET_GUIDED');
+    const mega = gltf.scene.getObjectByName('pickup_ROCKET_MEGA');
+    assert.equal(guided.userData.guidedRocket, true);
+    assert.equal(guided.userData.rocketTier, 'MEGA', 'the desktop reads the damage tier from the GLB');
+    let collars = null;
+    guided.traverse((node) => { if (node.userData.rocketTierCollars === true) collars = node; });
+    assert.equal(collars, null, 'no tier collars: the XL rocket owns those');
+    assert.notEqual(metrics(guided).triangles, metrics(mega).triangles);
+    // The seeker eye glows at the very tip of the nose.
+    const overall = new THREE.Box3().setFromObject(guided);
+    const glow = roleBounds(guided, 'glow');
+    assert.ok(glow.max.y > overall.max.y - 0.02, 'glow reaches the nose tip');
+});
+
 test('heavy rocket exports an outward-facing open nozzle with recessed glow', async () => {
     const gltf = await parseLibrary();
     const heavy = gltf.scene.getObjectByName('pickup_ROCKET_HEAVY');
