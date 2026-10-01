@@ -95,3 +95,49 @@ test('unrelated assets never request smoke and a failed atlas leaves original su
     scene.traverse((node) => { if (node.material) assert.equal(node.material.visible,true); });
     disposeObject3DResources(scene);
 });
+
+test('a partial atlas load releases its fulfilled texture and preserves the first load error', async () => {
+    const buffer = readFileSync(new URL('../assets/maps/reactor_site/glb/torus_cloud_1.glb', import.meta.url));
+
+    for (const firstFailure of [true, false]) {
+        const { scene } = await new GLTFLoader().parseAsync(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), '');
+        const texture = new THREE.Texture();
+        let disposed = 0;
+        texture.addEventListener('dispose', () => disposed++);
+        const expectedError = new Error(firstFailure ? 'first atlas failed' : 'second atlas failed');
+        let loadIndex = 0;
+        const failureIndex = firstFailure ? 0 : 1;
+
+        await assert.rejects(attachReactorSmoke(scene, { time: 0 }, {
+            loadTexture: async () => {
+                const index = loadIndex++;
+                if (index === failureIndex) throw expectedError;
+                return texture;
+            },
+        }), (error) => error === expectedError);
+
+        assert.equal(loadIndex, 2, 'both independent loads settle before cleanup');
+        assert.equal(disposed, 1, 'the fulfilled unique texture is released once');
+        assert.ok(scene.getObjectByName('fire'), 'the pre-texture visual setup remains intact');
+        disposeObject3DResources(scene);
+    }
+});
+
+test('a shared texture returned for both atlas slots still initializes normally', async () => {
+    const buffer = readFileSync(new URL('../assets/maps/reactor_site/glb/torus_cloud_1.glb', import.meta.url));
+    const { scene, animations } = await new GLTFLoader().parseAsync(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), '');
+    const mixer = new THREE.AnimationMixer(scene);
+    const action = mixer.clipAction(animations[0]);
+    action.play();
+    const texture = new THREE.Texture();
+    let disposed = 0;
+    texture.addEventListener('dispose', () => disposed++);
+
+    const smoke = await attachReactorSmoke(scene, action, { loadTexture: async () => texture });
+
+    assert.ok(smoke, 'the ordinary fulfilled path still creates the smoke layer');
+    assert.equal(disposed, 0, 'successful loading keeps the shared texture alive');
+    disposeObject3DResources(scene);
+    mixer.stopAllAction();
+    mixer.uncacheRoot(scene);
+});
