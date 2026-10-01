@@ -1047,7 +1047,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         expect(result.particles).toContain('rocket-impact');
     });
 
-    test('T89d: Hunt-Raketen erfassen gegnerische Trail-Ziele und triggern Rocket-Impact-VFX am Trail', async ({ page }) => {
+    test('T89d: Hunt-Raketen erfassen gegnerische Trail-Ziele und triggern Trail-Zerstörungs-VFX', async ({ page }) => {
         await startHuntGameWithBots(page, 1);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -1162,7 +1162,8 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         expect(result.hpDamage).toBe(0);
         expect(result.audio).toContain('ROCKET_SHOOT');
         expect(result.audio).toContain('ROCKET_IMPACT');
-        expect(result.particles).toContain('rocket-impact');
+        expect(result.particles).toContain('trail-explosion');
+        expect(result.particles).toContain('trail-impact-destroyed');
     });
 
     test('T89e: Rocket-Trail-Blasts zerstoeren meter-basiert und staerkere Raketen zerstoeren mehr', async ({ page }) => {
