@@ -11,9 +11,13 @@ Use Claude as an external process, not as a native Codex collaboration agent. Ke
 
 Apply the [Ponytail-lite baseline](../adaptive-model-routing/SKILL.md#ponytail-lite-baseline) after tracing the affected flow. Use Claude Fable at low or medium effort for ordinary read-only discovery and review unless the user names another Claude model. Reserve stronger Claude models and higher effort for implementation, difficult integration, or unresolved high-risk findings. Do not add a Codex subagent when it would duplicate the same Claude task; a cheap Codex `economy_scout` is useful only for a separate repository inventory or evidence-gathering lane. Explicit model assignments in a calling skill override this default.
 
+## Claude account
+
+The helper uses the Claude subscription `charlybs` by default (`-Account charlybs`, config dir `~/.claude-charlybs`). Pass `-Account linus` only when the user explicitly asks for the linus account in the current task. The helper sets `CLAUDE_CONFIG_DIR` for its own process only; never set it at user or machine level, because the Claude desktop app would then lose its session history. Run every other `claude` command with the same account, for example `$env:CLAUDE_CONFIG_DIR = "$HOME\.claude-charlybs"` in the same command.
+
 ## Preflight
 
-1. Run `scripts/invoke-claude.ps1 -CheckOnly`.
+1. Run `scripts/invoke-claude.ps1 -CheckOnly` and confirm that `account` in its output is the intended one.
 2. If Claude Code is missing, report that exact blocker. Do not install or update it unless the user asks.
 3. If the CLI is not authenticated, ask the user to run `claude auth login` in an interactive terminal. Never handle credentials, browser login, tokens, or recovery codes for them.
 4. Before launching work in a repository, inspect `claude agents --json --all --cwd <repository>`. Treat every existing session as foreign unless it was launched and recorded during the current task. Never resume, stop, or modify a foreign session.

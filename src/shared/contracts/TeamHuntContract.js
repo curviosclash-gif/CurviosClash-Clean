@@ -63,7 +63,9 @@ export function resolveTeamRoster({
     const teamIds = Array.from({ length: normalizedHumanCount }, (_, index) => (
         normalizeTeamId(humanTeamIds?.[index]) || resolveBalancedTeamId(index)
     ));
-    const teamCounts = new Map(Object.values(TEAM_IDS).map((teamId) => [teamId, 0]));
+    const teamCounts = /** @type {Map<string, number>} */ (
+        new Map(Object.values(TEAM_IDS).map((teamId) => [teamId, 0]))
+    );
     for (const teamId of teamIds) {
         teamCounts.set(teamId, (teamCounts.get(teamId) || 0) + 1);
     }

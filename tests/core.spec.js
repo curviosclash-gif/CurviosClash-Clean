@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { expect, test } from './helpers.desktop.js';
 import {
     collectErrors,
@@ -9,6 +10,73 @@ import {
 } from './helpers.js';
 
 test.describe('Desktop Smoke', () => {
+    test('loads Hangar, Editor, and Vehicle Lab without desktop CSP console errors', async ({ page }) => {
+        const cspMessages = [];
+        let currentRoute = '<startup>';
+        page.on('console', (message) => {
+            const text = message.text();
+            if (/content security policy|refused to/i.test(text)) {
+                cspMessages.push({ route: currentRoute, text, source: message.location()?.url || '' });
+            }
+        });
+        await page.addInitScript(() => {
+            window.__cspViolationEvents = [];
+            document.addEventListener('securitypolicyviolation', (event) => {
+                window.__cspViolationEvents.push({
+                    directive: event.effectiveDirective,
+                    blockedURI: event.blockedURI,
+                });
+            });
+        });
+        const origin = new URL(page.url()).origin;
+        const desktopPages = [
+            ['/', /curvios/i],
+            ['/hangar.html', /hangar/i],
+            ['/editor/map-editor-3d.html', /map editor|editor/i],
+            ['/prototypes/vehicle-lab/index.html', /fahrzeug|vehicle/i],
+        ];
+
+        for (const [route, expectedTitle] of desktopPages) {
+            currentRoute = route;
+            const response = await page.goto(new URL(route, `${origin}/`).href);
+            expect(response?.status(), `${route} response status`).toBe(200);
+            await expect(page).toHaveTitle(expectedTitle);
+            const csp = response?.headers()['content-security-policy'] || '';
+            const scriptSrc = csp.split(';').map((part) => part.trim()).find((part) => part.startsWith('script-src')) || '';
+            const inlineTexts = await page.evaluate(() => Array.from(document.scripts)
+                .filter((script) => !script.hasAttribute('src'))
+                .map((script) => script.textContent || ''));
+            const expectedHashes = inlineTexts.map((text) => (
+                `'sha256-${createHash('sha256').update(text, 'utf8').digest('base64')}'`
+            )).sort();
+            const actualHashes = scriptSrc.split(/\s+/).filter((token) => token.startsWith("'sha256-")).sort();
+
+            expect(scriptSrc, `${route} script-src`).not.toMatch(/'unsafe-inline'/);
+            expect(actualHashes, `${route} hashes must match browser DOM script.textContent`).toEqual(expectedHashes);
+            expect(await page.evaluate(() => window.__cspViolationEvents), `${route} CSP violation events`).toEqual([]);
+        }
+
+        await page.evaluate(() => {
+            window.__cspUnexpectedInlineRan = false;
+            const script = document.createElement('script');
+            script.textContent = 'window.__cspUnexpectedInlineRan = true;';
+            document.head.append(script);
+        });
+        expect(await page.evaluate(() => window.__cspUnexpectedInlineRan)).toBe(false);
+        const violations = await page.evaluate(() => window.__cspViolationEvents);
+        expect(violations).toEqual([{ directive: 'script-src-elem', blockedURI: 'inline' }]);
+        const expectedRejectionPattern = /(?:refused to execute inline script|executing inline script violates)[\s\S]*script-src/i;
+        const expectedRejection = cspMessages.filter(({ text }) => expectedRejectionPattern.test(text));
+        expect(expectedRejection).toHaveLength(1);
+        const advisoryMessages = cspMessages.filter(({ text }) => /The Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element\./i.test(text));
+        const unexpectedCspMessages = cspMessages.filter(({ text }) => (
+            !expectedRejectionPattern.test(text)
+            && !/The Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element\./i.test(text)
+        ));
+        expect(advisoryMessages.length).toBeLessThanOrEqual(1);
+        expect(unexpectedCspMessages).toEqual([]);
+    });
+
     test('boots the desktop app to menu with preload bridge and GAME_INSTANCE', async ({ page, desktopHarness, electronApp }) => {
         const errors = collectErrors(page);
         await waitForLoadedGame(page);
