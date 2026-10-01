@@ -16,6 +16,7 @@ export function bindEditorRelationshipControls(editor) {
     const portalMaterial = new THREE.LineBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.8 });
     const parcoursMaterial = new THREE.LineBasicMaterial({ color: 0xaaff00, transparent: true, opacity: 0.65 });
     const escortMaterial = new THREE.LineBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.82 });
+    let portalOptionIdsSignature = null;
 
     const clearVisuals = () => {
         for (const child of [...visualGroup.children]) {
@@ -105,19 +106,24 @@ export function bindEditorRelationshipControls(editor) {
         if (dom.propPortalPartnerRow) dom.propPortalPartnerRow.style.display = object?.userData?.type === 'portal' ? 'grid' : 'none';
         if (dom.propCheckpointOrderRow) dom.propCheckpointOrderRow.style.display = ['checkpoint', 'escort_waypoint'].includes(object?.userData?.type) ? 'grid' : 'none';
         if (object?.userData?.type === 'portal' && dom.propPortalPartner) {
-            const fragment = document.createDocumentFragment();
-            const empty = document.createElement('option');
-            empty.value = '';
-            empty.textContent = 'Noch ohne Partner';
-            fragment.appendChild(empty);
-            for (const portal of listByType(editor, 'portal')) {
-                if (portal === object) continue;
-                const option = document.createElement('option');
-                option.value = portal.userData.id;
-                option.textContent = portal.userData.id;
-                fragment.appendChild(option);
+            const partnerPortals = listByType(editor, 'portal').filter((portal) => portal !== object);
+            const portalIds = partnerPortals.map((portal) => String(portal.userData.id || ''));
+            const signature = JSON.stringify(portalIds);
+            if (signature !== portalOptionIdsSignature) {
+                const fragment = document.createDocumentFragment();
+                const empty = document.createElement('option');
+                empty.value = '';
+                empty.textContent = 'Noch ohne Partner';
+                fragment.appendChild(empty);
+                for (let index = 0; index < partnerPortals.length; index += 1) {
+                    const option = document.createElement('option');
+                    option.value = portalIds[index];
+                    option.textContent = portalIds[index];
+                    fragment.appendChild(option);
+                }
+                dom.propPortalPartner.replaceChildren(fragment);
+                portalOptionIdsSignature = signature;
             }
-            dom.propPortalPartner.replaceChildren(fragment);
             dom.propPortalPartner.value = String(object.userData.portalPartnerId || '');
         }
         if (object?.userData?.type === 'checkpoint' && dom.propCheckpointOrder) {
