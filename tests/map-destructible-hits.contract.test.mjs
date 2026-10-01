@@ -551,3 +551,61 @@ test('a map without destructibles keeps the hunt state and every weapon path qui
     assert.equal(new MapDestructibleSystem(null).startRound(), 0);
     assert.equal(new MapDestructibleSystem(null).getElapsedSeconds(), 0);
 });
+
+test('fire warning feedback resolves targets by segment id and tolerates unmatched fire segments', () => {
+    const particles = [];
+    const collapseAudio = [];
+    const map = {
+        destructibles: {
+            segments: [
+                { id: 'inner', kind: 'masonry', hp: 100, meshPrefixes: ['inner'], anchor: [10, 0, 0] },
+                { id: 'outer', kind: 'masonry', hp: 100, meshPrefixes: ['outer'], anchor: [20, 0, 0] },
+            ],
+        },
+        fireProgression: {
+            segments: [
+                { id: 'outer', anchor: [50, 0, 0], phase: 'fire', hp: 100, breakAt: 30, ignition: 0, duration: 20 },
+                { id: 'inner', anchor: [60, 0, 0], phase: 'fire', hp: 100, breakAt: 30, ignition: 0, duration: 20 },
+                { id: 'unmatched', anchor: [70, 0, 0], phase: 'fire', hp: 100, breakAt: 30, ignition: 0, duration: 20 },
+            ],
+        },
+    };
+    const system = new MapDestructibleSystem({
+        arena: {
+            currentMapDefinition: map,
+            glbAnimationElapsedSeconds: 0,
+            setMapFireState() {},
+            setMapDestructibleFireState() {},
+            resetMapDestructibleScenes() {},
+        },
+        gameModeStrategy: { modeType: 'HUNT' },
+        audio: { playMapCollapse: (...args) => collapseAudio.push(args) },
+        particles: { spawn: (...args) => particles.push(args) },
+    });
+    system.startRound();
+
+    const destroyed = system.state.segments.find((segment) => segment.id === 'outer');
+    destroyed.hp = 0;
+    destroyed.destroyed = true;
+    system.getTargets();
+    for (const fire of system.fireState.segments) {
+        fire.heat = 0.5;
+        fire.warningAt = 0;
+    }
+
+    assert.doesNotThrow(() => system.updateFeedback());
+    assert.deepEqual(particles.map(([position]) => position.toArray()), [[20, 0, 0], [10, 0, 0]]);
+    assert.deepEqual(collapseAudio.map(([anchor]) => anchor), [[50, 0, 0], [60, 0, 0], [70, 0, 0]]);
+    assert.equal(destroyed.hp, 0, 'fire heat never restores health to an already destroyed segment');
+
+    const previousTarget = system.getTargets()[0];
+    system.clear();
+    assert.equal(system.getTargets().length, 0);
+    assert.equal(system.startRound(), 2);
+    assert.notEqual(system.getTargets()[0], previousTarget, 'a new round rebuilds target ownership');
+    system.fireState.segments[0].warningAt = 0;
+    const particleCount = particles.length;
+    system.updateFeedback();
+    assert.equal(particles.length, particleCount + 1);
+    assert.deepEqual(particles.at(-1)[0].toArray(), [20, 0, 0], 'the rebuilt lookup still resolves by id');
+});

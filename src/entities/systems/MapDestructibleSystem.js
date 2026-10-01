@@ -38,6 +38,7 @@ export class MapDestructibleSystem {
         this.networkReplica = false;
         this.anchorScale = 1;
         this._targets = [];
+        this._targetsBySegmentId = new Map();
         this._forwardedEventSignature = '';
         this._feedbackEventSignature = '';
         this._pendingPressureFeedback = null;
@@ -71,6 +72,7 @@ export class MapDestructibleSystem {
         this._fireWarnings = new Set();
         arena?.setMapFireState?.(this.fireState);
         this._targets.length = 0;
+        this._targetsBySegmentId.clear();
         for (let index = 0; index < (this.definition?.segments?.length || 0); index += 1) {
             const segment = this.definition.segments[index];
             const target = {
@@ -86,6 +88,7 @@ export class MapDestructibleSystem {
             };
             target.takeDamage = (amount, options = {}) => this.applySegmentHit(target.segmentId, amount, options);
             this._targets.push(target);
+            this._targetsBySegmentId.set(target.segmentId, target);
         }
         this._forwardedEventSignature = '';
         this._feedbackEventSignature = '';
@@ -116,10 +119,14 @@ export class MapDestructibleSystem {
                 if (segment && !segment.destroyed) segment.hp = Math.max(0.001, segment.maxHp * (1 - fire.heat));
                 if (fire.warningAt < 0 || fire.brokenAt >= 0 || this._fireWarnings.has(fire.id)) continue;
                 this._fireWarnings.add(fire.id);
-                const anchor = this.fireDefinition.segments[index].anchor;
+                const fireSegment = this.fireDefinition?.segments?.[index];
+                if (!fireSegment) continue;
+                const anchor = fireSegment.anchor;
                 this.entityManager?.audio?.playMapCollapse?.(anchor, this.anchorScale);
-                const target = this._targets[index];
-                this.entityManager?.particles?.spawn?.(target.position, 24, 0x8b7361, 5, 3, 1);
+                const target = this._targetsBySegmentId.get(fire.id);
+                if (target?.position) {
+                    this.entityManager?.particles?.spawn?.(target.position, 24, 0x8b7361, 5, 3, 1);
+                }
             }
             this.entityManager?.arena?.setMapFireState?.(this.fireState);
         }
@@ -158,6 +165,7 @@ export class MapDestructibleSystem {
         this.entityManager?.arena?.setMapDestructibleFireState?.(this.state);
         this.anchorScale = 1;
         this._targets.length = 0;
+        this._targetsBySegmentId.clear();
         this._forwardedEventSignature = '';
         this._feedbackEventSignature = '';
         this._pendingPressureFeedback = null;
