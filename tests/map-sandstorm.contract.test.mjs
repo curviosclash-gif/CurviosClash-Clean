@@ -19,6 +19,7 @@ import {
     normalizeMapSandstorm,
     resolveMapSandstormIntensity,
     resolveSandstormVisibilityRange,
+    validateAuthoredMapSandstorm,
 } from '../src/shared/contracts/MapSandstormContract.js';
 import { createMatchRuntimeProjection } from '../src/shared/contracts/MatchRuntimeProjectionContract.js';
 import { createRuntimeRng } from '../src/shared/contracts/RuntimeRngContract.js';
@@ -38,6 +39,48 @@ const CONFIG = {
     proximityCueRange: 18,
     shelterVolumes: [{ id: 'hall', min: [-10, 0, -10], max: [10, 20, 10] }],
 };
+
+test('authored sandstorm validation requires named shelters and explicit bounds', () => {
+    assert.deepEqual(validateAuthoredMapSandstorm(CONFIG), []);
+    assert.deepEqual(validateAuthoredMapSandstorm({
+        enabled: true,
+        shelterVolumes: [
+            ...CONFIG.shelterVolumes,
+            { id: '  ', min: [-1, 0, -1], max: [1, 2, 1] },
+            { min: [-1, 0, -1], max: [1, 2, 1] },
+            { id: 'missing-min', min: null, max: [1, 2, 1] },
+            { id: 'missing-max', min: [-1, 0, -1], max: null },
+        ],
+    }), [
+        'shelterVolumes[1].id',
+        'shelterVolumes[2].id',
+        'shelterVolumes[3].min',
+        'shelterVolumes[4].max',
+    ]);
+});
+
+test('all catalog-authored sandstorms have their required shelter fields', () => {
+    const issues = Object.entries(MAP_PRESET_CATALOG).flatMap(([mapKey, map]) => (
+        validateAuthoredMapSandstorm(map?.sandstorm).map((path) => `${mapKey}.sandstorm.${path}`)
+    ));
+    assert.deepEqual(issues, []);
+});
+
+test('the runtime sandstorm normalizer remains tolerant of incomplete authoring data', () => {
+    const normalized = normalizeMapSandstorm({
+        enabled: true,
+        shelterVolumes: [
+            { id: '  ', min: null, max: null },
+            { min: [1, 2, 3], max: [4, 5, 6] },
+        ],
+    });
+    assert.equal(normalized.shelterVolumes.length, 1);
+    assert.deepEqual(normalized.shelterVolumes[0], {
+        id: 'sandstorm_shelter_1',
+        min: [1, 2, 3],
+        max: [4, 5, 6],
+    });
+});
 
 function createOwner(seed = 123) {
     const rendered = [];

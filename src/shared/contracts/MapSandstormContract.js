@@ -57,6 +57,25 @@ function normalizeShelterVolume(value, index) {
     });
 }
 
+/**
+ * Reports required authored shelter fields without changing the tolerant runtime normalizer.
+ * @param {unknown} value
+ * @returns {string[]} Missing authored field paths.
+ */
+export function validateAuthoredMapSandstorm(value) {
+    if (!value || typeof value !== 'object') return [];
+    const volumes = Array.isArray(value.shelterVolumes) ? value.shelterVolumes : [];
+    const issues = [];
+    for (let index = 0; index < volumes.length; index += 1) {
+        const volume = volumes[index];
+        const prefix = `shelterVolumes[${index}]`;
+        if (typeof volume?.id !== 'string' || !volume.id.trim()) issues.push(`${prefix}.id`);
+        if (volume?.min == null) issues.push(`${prefix}.min`);
+        if (volume?.max == null) issues.push(`${prefix}.max`);
+    }
+    return issues;
+}
+
 export function normalizeMapSandstorm(value = null) {
     if (!value || typeof value !== 'object' || value.enabled === false) return null;
     if (NORMALIZED_CONFIGS.has(value)) return value;
