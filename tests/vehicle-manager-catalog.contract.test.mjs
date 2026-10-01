@@ -2,11 +2,29 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+    VEHICLE_LAB_CATALOG_STORAGE_KEY,
+    upsertVehicleLabCatalogVehicle,
+} from '../src/shared/contracts/VehicleLabConfigContract.js';
+import { createVehicleManagerSelectionState } from '../src/ui/arcade/vehicle-manager/VehicleManagerSelectionState.js';
+
+const generatedMod = upsertVehicleLabCatalogVehicle(null, {
+    label: 'Catalog Review Mod',
+    parts: [{ name: 'Core', geo: 'box', role: 'core' }],
+}).vehicle;
+const previousStorage = globalThis.localStorage;
+globalThis.localStorage = {
+    getItem: (key) => key === VEHICLE_LAB_CATALOG_STORAGE_KEY
+        ? JSON.stringify({ schemaVersion: 'vehicle-lab-catalog.v1', vehicles: [generatedMod] })
+        : null,
+};
+const {
     getVehicleManagerInteractionRules,
     listArcadeVehicleManagerCatalogEntries,
     listVehicleManagerCatalogEntries,
     resolveVehicleManagerCatalogEntry,
-} from '../src/ui/arcade/VehicleManagerCatalog.js';
+} = await import(`../src/ui/arcade/VehicleManagerCatalog.js?vehicle-manager-catalog=${Date.now()}`);
+if (previousStorage === undefined) delete globalThis.localStorage;
+else globalThis.localStorage = previousStorage;
 
 test('vehicle manager catalog entries expose required metadata', () => {
     const entries = listVehicleManagerCatalogEntries();
@@ -48,6 +66,36 @@ test('factory ships expose the arcade balance table separately as arcadeBalance'
     });
     assert.equal(resolveVehicleManagerCatalogEntry('arrow').arcadeBalance.role, 'fighter');
     assert.equal('maxHpPct' in manta.statsSummary, false);
+});
+
+test('built-in modular ships keep factory categories while a generated mod stays in Custom filtering', () => {
+    const catalog = listVehicleManagerCatalogEntries();
+    const categoriesById = new Map(catalog.map((entry) => [entry.vehicleId, entry.kategorie]));
+    assert.deepEqual(
+        ['ship5', 'spaceship', 'arrow', 'manta', 'drone', 'ship1', 'ship9']
+            .map((vehicleId) => [vehicleId, categoriesById.get(vehicleId)]),
+        [
+            ['ship5', 'kreuzer'],
+            ['spaceship', 'kreuzer'],
+            ['arrow', 'jaeger'],
+            ['manta', 'spezial'],
+            ['drone', 'jaeger'],
+            ['ship1', 'kreuzer'],
+            ['ship9', 'kreuzer'],
+        ],
+    );
+    assert.equal(categoriesById.get(generatedMod.id), 'custom');
+
+    const selection = createVehicleManagerSelectionState({
+        settings: { vehicles: { PLAYER_1: 'ship5' }, localSettings: {} },
+        catalogEntries: catalog,
+        mode: 'fight',
+    });
+    selection.setCategory('kreuzer');
+    assert.ok(selection.getVisibleEntries().some((entry) => entry.vehicleId === 'ship5'));
+    assert.equal(selection.getVisibleEntries().some((entry) => entry.vehicleId === generatedMod.id), false);
+    selection.setCategory('custom');
+    assert.deepEqual(selection.getVisibleEntries().map((entry) => entry.vehicleId), [generatedMod.id]);
 });
 
 // Classic (StartSetupVehiclePicker3d) and the Fight hangar (HangarStatProjection) read

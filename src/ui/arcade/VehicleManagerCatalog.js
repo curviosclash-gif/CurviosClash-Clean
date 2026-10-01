@@ -74,7 +74,7 @@ function toKeywordTokens(value) {
 
 function resolveVehicleCategory(vehicleDefinition) {
     const id = normalizeString(vehicleDefinition?.id).toLowerCase();
-    if (vehicleDefinition?.isGeneratedModular) return 'custom';
+    if (vehicleDefinition?.isGeneratedModular && !vehicleDefinition.isBuiltIn) return 'custom';
     if (LIGHT_CATEGORY_IDS.has(id)) return 'jaeger';
     if (SPECIAL_CATEGORY_IDS.has(id)) return 'spezial';
     return 'kreuzer';
