@@ -16,16 +16,20 @@ import { buildStandardCaptureSegments } from './RecordingCaptureLayoutOps.js';
 import { renderCaptureView } from './RecordingCaptureViewOps.js';
 import { ScenePostProcessingPipeline } from './ScenePostProcessingPipeline.js';
 import {
+    CinematicRendererRetryBudget,
     releaseCaptureRenderers,
-    releaseCinematicRenderer,
     releaseShortsRenderer,
     RecordingCaptureRendererLifecycle,
+    recordCinematicRendererFailure,
+    shouldAttemptCinematicRenderer,
 } from './RecordingCaptureRendererLifecycle.js';
 import { configurePlayerHealthAuraCaptureCamera } from '../../shared/rendering/PlayerHealthAuraLayers.js';
 
 export { createCaptureCameraHooks } from './RecordingCaptureViewOps.js';
 
 const SHORTS_OUTPUT_ASPECT = Object.freeze({ width: 9, height: 16 });
+const createCinematicRenderer = (options) => new THREE.WebGLRenderer(options);
+const createCinematicPostProcessingPipeline = (renderer, size) => new ScenePostProcessingPipeline(renderer, size);
 
 export class RecordingCapturePipeline {
     constructor({
@@ -33,7 +37,7 @@ export class RecordingCapturePipeline {
         sourceRenderer,
         scene,
         beforeCameraRender = null, afterCameraRender = null,
-        rendererScheduler = null,
+        rendererScheduler = null, cinematicRendererFactory = null, cinematicPostProcessingFactory = null,
     }) {
         this.sourceCanvas = sourceCanvas || null;
         this.sourceRenderer = sourceRenderer || null;
@@ -59,6 +63,9 @@ export class RecordingCapturePipeline {
         this._cinematicRenderer = null;
         this._cinematicPostProcessingPipeline = null;
         this._cinematicRendererUnavailable = false;
+        this._cinematicRendererRetryBudget = new CinematicRendererRetryBudget();
+        this._cinematicRendererFactory = cinematicRendererFactory ?? createCinematicRenderer;
+        this._cinematicPostProcessingFactory = cinematicPostProcessingFactory ?? createCinematicPostProcessingPipeline;
         this._cinematicBaseFov = Math.max(1, Number(CONFIG?.CAMERA?.FOV) || 60);
         this._cinematicSubjectSelector = new CinematicCaptureSubjectSelector();
         this._cinematicCameraRig = new CameraRigSystem({
@@ -99,6 +106,7 @@ export class RecordingCapturePipeline {
             this._rendererLifecycle.schedule();
         } else {
             this._rendererLifecycle.cancel();
+            this._cinematicRendererRetryBudget.reset();
         }
         this._orbitDirector.reset();
         this._shortsCameraRig.resetCameras();
@@ -526,13 +534,7 @@ export class RecordingCapturePipeline {
 
 
     _ensureCinematicRenderer(width, height) {
-        if (this._cinematicRendererUnavailable) {
-            // A single transient WebGL failure must only skip one frame. The
-            // next frame gets a clean creation attempt instead of disabling
-            // cinematic capture for the rest of the application session.
-            this._cinematicRendererUnavailable = false;
-            return null;
-        }
+        if (!shouldAttemptCinematicRenderer(this)) return null;
         const safeWidth = toPositiveEven(width, 2);
         const safeHeight = toPositiveEven(height, 2);
         if (!this._cinematicCanvas) {
@@ -541,7 +543,7 @@ export class RecordingCapturePipeline {
         if (!this._cinematicCanvas) return null;
         if (!this._cinematicRenderer) {
             try {
-                this._cinematicRenderer = new THREE.WebGLRenderer({
+                this._cinematicRenderer = this._cinematicRendererFactory({
                     canvas: this._cinematicCanvas,
                     antialias: true,
                     alpha: false,
@@ -553,14 +555,13 @@ export class RecordingCapturePipeline {
                 this._cinematicRenderer.toneMapping = THREE.ACESFilmicToneMapping;
                 this._cinematicRenderer.toneMappingExposure = this.sourceRenderer?.toneMappingExposure || 1.2;
                 this._cinematicRenderer.setClearColor(CONFIG.COLORS.BACKGROUND);
-                this._cinematicPostProcessingPipeline = new ScenePostProcessingPipeline(
+                this._cinematicPostProcessingPipeline = this._cinematicPostProcessingFactory(
                     this._cinematicRenderer,
                     { width: safeWidth, height: safeHeight }
                 );
                 this._cinematicPostProcessingPipeline.setQualityPreset(this._bloomPreset);
             } catch {
-                releaseCinematicRenderer(this);
-                this._cinematicRendererUnavailable = true;
+                recordCinematicRendererFailure(this);
                 return null;
             }
         }
@@ -573,8 +574,7 @@ export class RecordingCapturePipeline {
             this._cinematicRenderer.setSize(safeWidth, safeHeight, false);
             this._cinematicPostProcessingPipeline?.setSize?.(safeWidth, safeHeight);
         } catch {
-            releaseCinematicRenderer(this);
-            this._cinematicRendererUnavailable = true;
+            recordCinematicRendererFailure(this);
             return null;
         }
         return this._cinematicRenderer;

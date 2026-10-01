@@ -1,4 +1,26 @@
 const CAPTURE_RENDERER_IDLE_DISPOSE_MS = 60_000;
+const MAX_CINEMATIC_RENDERER_FAILURES_PER_RECORDING = 3;
+
+export class CinematicRendererRetryBudget {
+    constructor() {
+        this.failureCount = 0;
+    }
+
+    reset() {
+        this.failureCount = 0;
+    }
+
+    recordFailure() {
+        this.failureCount = Math.min(
+            MAX_CINEMATIC_RENDERER_FAILURES_PER_RECORDING,
+            this.failureCount + 1
+        );
+    }
+
+    isExhausted() {
+        return this.failureCount >= MAX_CINEMATIC_RENDERER_FAILURES_PER_RECORDING;
+    }
+}
 
 function defaultScheduler() {
     return {
@@ -28,6 +50,24 @@ export function releaseCinematicRenderer(pipeline) {
     pipeline._cinematicRenderer = null;
     pipeline._cinematicCanvas = null;
     pipeline._cinematicRendererUnavailable = false;
+}
+
+export function shouldAttemptCinematicRenderer(pipeline) {
+    if (pipeline._cinematicRendererRetryBudget.isExhausted()) {
+        pipeline._cinematicRendererUnavailable = true;
+        return false;
+    }
+    if (pipeline._cinematicRendererUnavailable) {
+        pipeline._cinematicRendererUnavailable = false;
+        return false;
+    }
+    return true;
+}
+
+export function recordCinematicRendererFailure(pipeline) {
+    releaseCinematicRenderer(pipeline);
+    pipeline._cinematicRendererRetryBudget.recordFailure();
+    pipeline._cinematicRendererUnavailable = true;
 }
 
 export function releaseCaptureRenderers(pipeline) {

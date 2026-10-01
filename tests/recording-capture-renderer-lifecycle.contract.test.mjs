@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { RecordingCapturePipeline } from '../src/core/renderer/RecordingCapturePipeline.js';
+import { releaseCinematicRenderer } from '../src/core/renderer/RecordingCaptureRendererLifecycle.js';
 
 class FakeScheduler {
     nowMs = 0;
@@ -45,8 +46,36 @@ function createRenderer(events, label) {
     };
 }
 
-function createPipeline(scheduler = new FakeScheduler()) {
-    return { pipeline: new RecordingCapturePipeline({ rendererScheduler: scheduler }), scheduler };
+function createPipeline(scheduler = new FakeScheduler(), options = {}) {
+    return { pipeline: new RecordingCapturePipeline({ rendererScheduler: scheduler, ...options }), scheduler };
+}
+
+function createCinematicRenderer(events, label, { failSetSize = false } = {}) {
+    return {
+        shadowMap: {},
+        setPixelRatio() {},
+        setClearColor() {},
+        setSize() {
+            if (failSetSize) throw new Error(`${label}:size-failed`);
+        },
+        dispose() { events.push(`${label}:dispose`); },
+        forceContextLoss() { events.push(`${label}:forceContextLoss`); },
+    };
+}
+
+function createCinematicPostProcessing(events, label) {
+    return {
+        setQualityPreset() {},
+        setSize() {},
+        dispose() { events.push(`${label}:post-dispose`); },
+    };
+}
+
+function retryAfterFailure(pipeline) {
+    pipeline._cinematicCanvas = {};
+    assert.equal(pipeline._ensureCinematicRenderer(32, 24), null);
+    pipeline._cinematicCanvas = {};
+    assert.equal(pipeline._ensureCinematicRenderer(32, 24), null, 'the unavailable frame remains skipped');
 }
 
 test('shorts and cinematic renderers release at the 60-second idle boundary', () => {
@@ -191,4 +220,126 @@ test('cinematic setSize failure disposes post processing and loses the context b
     assert.equal(pipeline._cinematicRendererUnavailable, true);
     pipeline.dispose();
     assert.deepEqual(events, ['post:dispose', 'dispose:true', 'force:true']);
+});
+
+test('three cinematic renderer-construction failures stop retries until the next recording', () => {
+    let attempts = 0;
+    const events = [];
+    const { pipeline } = createPipeline(undefined, {
+        cinematicRendererFactory: () => {
+            attempts += 1;
+            if (attempts <= 3) throw new Error(`context-${attempts}`);
+            return createCinematicRenderer(events, 'recovered');
+        },
+        cinematicPostProcessingFactory: () => createCinematicPostProcessing(events, 'recovered'),
+    });
+    pipeline.setActive(true);
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+        retryAfterFailure(pipeline);
+        assert.equal(attempts, attempt);
+    }
+    pipeline._cinematicCanvas = {};
+    assert.equal(pipeline._ensureCinematicRenderer(32, 24), null);
+    assert.equal(attempts, 3, 'additional frames do not retry an exhausted recording');
+
+    releaseCinematicRenderer(pipeline);
+    pipeline._cinematicCanvas = {};
+    assert.equal(pipeline._ensureCinematicRenderer(32, 24), null);
+    assert.equal(attempts, 3, 'renderer release clears availability but not this recording budget');
+
+    const fallbackDraws = [];
+    pipeline.sourceCanvas = {
+        width: 640,
+        height: 360,
+        cloneNode() {
+            return {
+                getContext() {
+                    return {
+                        clearRect() {},
+                        drawImage(...args) { fallbackDraws.push(args); },
+                    };
+                },
+            };
+        },
+    };
+    pipeline._cinematicCanvas = null;
+    pipeline._prepareCinematicSurface({ renderProjection: null, renderDelta: 0 });
+    assert.equal(fallbackDraws.length, 1, '2D source-copy fallback continues after the retry budget is exhausted');
+
+    pipeline.setActive(false);
+    pipeline.setActive(true);
+    pipeline._cinematicCanvas = {};
+    assert.ok(pipeline._ensureCinematicRenderer(32, 24));
+    assert.equal(attempts, 4, 'a new recording session opens a fresh retry budget');
+});
+
+test('three cinematic post-processing setup failures dispose each renderer and exhaust the shared budget', () => {
+    let attempts = 0;
+    const events = [];
+    const { pipeline } = createPipeline(undefined, {
+        cinematicRendererFactory: () => {
+            attempts += 1;
+            return createCinematicRenderer(events, `setup-${attempts}`);
+        },
+        cinematicPostProcessingFactory: (_renderer, label) => {
+            throw new Error(`${label}:postprocessing-failed`);
+        },
+    });
+    pipeline.setActive(true);
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+        pipeline._cinematicCanvas = {};
+        assert.equal(pipeline._ensureCinematicRenderer(32, 24), null);
+        assert.equal(attempts, attempt);
+        if (attempt < 3) {
+            pipeline._cinematicCanvas = {};
+            assert.equal(pipeline._ensureCinematicRenderer(32, 24), null, 'one unavailable frame is skipped');
+        }
+    }
+    pipeline._cinematicCanvas = {};
+    assert.equal(pipeline._ensureCinematicRenderer(32, 24), null);
+    pipeline._cinematicCanvas = {};
+    assert.equal(pipeline._ensureCinematicRenderer(32, 24), null);
+    assert.equal(attempts, 3);
+    assert.deepEqual(events, [
+        'setup-1:dispose', 'setup-1:forceContextLoss',
+        'setup-2:dispose', 'setup-2:forceContextLoss',
+        'setup-3:dispose', 'setup-3:forceContextLoss',
+    ]);
+});
+
+test('three cinematic resize failures release post processing before renderer and stop retrying', () => {
+    let attempts = 0;
+    const events = [];
+    const { pipeline } = createPipeline(undefined, {
+        cinematicRendererFactory: () => {
+            attempts += 1;
+            return createCinematicRenderer(events, `resize-${attempts}`, { failSetSize: true });
+        },
+        cinematicPostProcessingFactory: () => (
+            createCinematicPostProcessing(events, `resize-${attempts}`)
+        ),
+    });
+    pipeline.setActive(true);
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+        pipeline._cinematicCanvas = {};
+        assert.equal(pipeline._ensureCinematicRenderer(32, 24), null);
+        assert.equal(attempts, attempt);
+        assert.deepEqual(events.slice((attempt - 1) * 3), [
+            `resize-${attempt}:post-dispose`,
+            `resize-${attempt}:dispose`,
+            `resize-${attempt}:forceContextLoss`,
+        ]);
+        if (attempt < 3) {
+            pipeline._cinematicCanvas = {};
+            assert.equal(pipeline._ensureCinematicRenderer(32, 24), null, 'one unavailable frame is skipped');
+        }
+    }
+    pipeline._cinematicCanvas = {};
+    assert.equal(pipeline._ensureCinematicRenderer(32, 24), null);
+    pipeline._cinematicCanvas = {};
+    assert.equal(pipeline._ensureCinematicRenderer(32, 24), null);
+    assert.equal(attempts, 3);
 });
