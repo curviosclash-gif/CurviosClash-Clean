@@ -3,6 +3,7 @@ import { VehicleLabCore } from './src/VehicleLabCore.js';
 import { VehicleLabViewport } from './src/VehicleLabViewport.js';
 import { VEHICLE_LAB_DRAFT_OPTION_VALUE, VehicleLabUI } from './src/VehicleLabUI.js';
 import { VehicleHistory } from './src/VehicleHistory.js';
+import { persistVehicleLabConfig } from './src/VehicleLabPersistence.js';
 import { ModularVehicleMesh } from './src/ModularVehicleMesh.js';
 import { VEHICLE_PRESETS } from './src/VehiclePresets.js';
 import { GameVehicleReferenceMesh } from './src/GameVehicleReferenceMesh.js';
@@ -380,7 +381,9 @@ class VehicleLabApp {
         });
     }
 
-    persistCurrentConfig(statusMessage = 'Entwurf automatisch gesichert.') {
+    persistCurrentConfig(statusMessage = 'Entwurf automatisch gesichert.', options = null) {
+        const saveHistory = options?.saveHistory !== false;
+        const statusTone = options?.statusTone || 'success';
         // Gespeichert wird jetzt der komplette Stand, also hat ein wartender Auto-Speicher-Timer
         // nichts mehr zu tun. Bliebe er stehen, wuerde er 180 ms spaeter die Statusmeldung
         // dieser Aktion mit seinem eigenen Text ueberschreiben.
@@ -388,16 +391,18 @@ class VehicleLabApp {
             clearTimeout(this._saveTimeout);
             this._saveTimeout = null;
         }
-        try {
-            this.history.save(this.vehicle.config);
-            localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(this.vehicle.config));
-            this.ui.updateSaveState('saved', 'Entwurf automatisch gesichert');
-            this.setStatus(statusMessage, 'success');
-        } catch (error) {
-            this.authoringTelemetry?.recordError('autosave_failed');
-            this.ui.updateSaveState('error', 'Speichern fehlgeschlagen');
-            this.setStatus(`Lokales Speichern fehlgeschlagen: ${error.message}`, 'error');
-        }
+        persistVehicleLabConfig({
+            config: this.vehicle.config,
+            history: this.history,
+            storage: localStorage,
+            storageKey: VEHICLE_LAB_CONFIG_STORAGE_KEY,
+            saveHistory,
+            statusMessage,
+            statusTone,
+            onSaveState: (state, message) => this.ui.updateSaveState(state, message),
+            onStatus: (message, tone) => this.setStatus(message, tone),
+            onError: () => this.authoringTelemetry?.recordError('autosave_failed'),
+        });
     }
 
     flushPendingSave() {
@@ -1333,9 +1338,7 @@ class VehicleLabApp {
             this.applyHistoryVehicleConfig(config);
             this.markSceneMetricsDirty();
             this.updateArcadeBlueprintStatus();
-            localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(config));
-            this.ui.updateSaveState('saved', 'Entwurf automatisch gesichert');
-            this.setStatus('Undo angewendet.', 'info');
+            this.persistCurrentConfig('Undo angewendet.', { saveHistory: false, statusTone: 'info' });
             this.selectPart(null);
             this.updateUI();
         } else {
@@ -1351,9 +1354,7 @@ class VehicleLabApp {
             this.applyHistoryVehicleConfig(config);
             this.markSceneMetricsDirty();
             this.updateArcadeBlueprintStatus();
-            localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(config));
-            this.ui.updateSaveState('saved', 'Entwurf automatisch gesichert');
-            this.setStatus('Redo angewendet.', 'info');
+            this.persistCurrentConfig('Redo angewendet.', { saveHistory: false, statusTone: 'info' });
             this.selectPart(null);
             this.updateUI();
         } else {
