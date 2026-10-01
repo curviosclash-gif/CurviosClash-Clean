@@ -17,10 +17,26 @@ param(
 
     [string]$Model,
 
+    [ValidateSet('charlybs', 'linus')]
+    [string]$Account = 'charlybs',
+
     [switch]$CheckOnly
 )
 
 $ErrorActionPreference = 'Stop'
+
+# charlybs lives in its own config dir; linus is the default ~/.claude login.
+# Scope the choice to this process and never persist CLAUDE_CONFIG_DIR for the user,
+# because the Claude desktop app would then lose its session history.
+if ($Account -eq 'charlybs') {
+    $accountConfigDir = Join-Path $HOME '.claude-charlybs'
+    if (-not (Test-Path -LiteralPath $accountConfigDir -PathType Container)) {
+        throw "Claude account profile 'charlybs' is missing at $accountConfigDir."
+    }
+    $env:CLAUDE_CONFIG_DIR = $accountConfigDir
+} else {
+    Remove-Item Env:CLAUDE_CONFIG_DIR -ErrorAction SilentlyContinue
+}
 
 $claudeCommand = Get-Command claude -ErrorAction SilentlyContinue
 if (-not $claudeCommand) {
@@ -36,6 +52,8 @@ try {
 }
 
 $preflight = [ordered]@{
+    account = $Account
+    configDir = $env:CLAUDE_CONFIG_DIR
     command = $claudeCommand.Source
     version = (& $claudeCommand.Source --version 2>&1 | Out-String).Trim()
     loggedIn = [bool]$authStatus.loggedIn
