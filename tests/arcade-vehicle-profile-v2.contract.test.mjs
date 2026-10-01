@@ -8,7 +8,7 @@ import {
     loadArcadeVehicleProfileRecord,
 } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 import { resolvePlayerScopedStorageKey } from '../src/shared/contracts/PlayerProfileStorageContract.js';
-import { loadVehicleProfiles } from '../src/state/arcade/ArcadeVehicleProfile.js';
+import { addXp, loadVehicleProfiles, saveVehicleProfiles } from '../src/state/arcade/ArcadeVehicleProfile.js';
 
 function createKeyedStore(records = {}) {
     const data = new Map(Object.entries(records));
@@ -27,31 +27,32 @@ function createKeyedStore(records = {}) {
     };
 }
 
-test('W7.1 normalizes only damaged cosmetic selections and keeps the rest of a current profile', () => {
+test('W7.1 keeps supported progress usable with cosmetic fallbacks and preserves raw cosmetic data', () => {
+    const rawProfile = {
+        schemaVersion: ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION,
+        vehicleId: 'ship5',
+        xp: 5300,
+        level: 14,
+        xpBank: 1777,
+        upgrades: { utility: 'T2' },
+        customProgress: { cleanSectors: 9 },
+        trailStyleId: 'not-a-style',
+        weaponStyleIds: {
+            mg: 'ion',
+            rockets: 'broken',
+            flamethrower: 'ember',
+            railgun: 'nova',
+            lightning: null,
+        },
+    };
     const store = createKeyedStore({
         [ARCADE_VEHICLE_PROFILE_STORAGE_KEY]: {
-            ship5: {
-                schemaVersion: ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION,
-                vehicleId: 'ship5',
-                xp: 3000,
-                level: 14,
-                xpBank: 1777,
-                upgrades: { utility: 'T2' },
-                customProgress: { cleanSectors: 9 },
-                trailStyleId: 'not-a-style',
-                weaponStyleIds: {
-                    mg: 'ion',
-                    rockets: 'broken',
-                    flamethrower: 'ember',
-                    railgun: 'nova',
-                    lightning: null,
-                },
-            },
+            ship5: rawProfile,
         },
     });
 
     const profile = loadVehicleProfiles(store).ship5;
-    assert.equal(profile.xp, 3000);
+    assert.equal(profile.xp, 5300);
     assert.equal(profile.xpBank, 1777);
     assert.deepEqual(profile.upgrades, { utility: 'T2' });
     assert.deepEqual(profile.customProgress, { cleanSectors: 9 });
@@ -63,6 +64,35 @@ test('W7.1 normalizes only damaged cosmetic selections and keeps the rest of a c
         railgun: 'nova',
         lightning: 'standard',
     });
+
+    const earned = addXp(profile, 25, 1234).profile;
+    assert.equal(saveVehicleProfiles(store, { ship5: earned }), true);
+    const savedProfile = store.data.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship5;
+    assert.equal(savedProfile.xp, 5325);
+    assert.equal(savedProfile.level, 14);
+    assert.equal(savedProfile.xpBank, 1802);
+    assert.equal(savedProfile.trailStyleId, rawProfile.trailStyleId);
+    assert.deepEqual(savedProfile.weaponStyleIds, rawProfile.weaponStyleIds);
+    assert.deepEqual(savedProfile.customProgress, rawProfile.customProgress);
+
+    const reloaded = loadVehicleProfiles(store).ship5;
+    assert.equal(reloaded.xp, 5325);
+    assert.equal(reloaded.level, 14);
+    assert.equal(reloaded.xpBank, 1802);
+    assert.equal(reloaded.trailStyleId, 'standard');
+    assert.equal(reloaded.weaponStyleIds.rockets, 'standard');
+
+    const explicitCosmeticEdit = {
+        ...reloaded,
+        trailStyleId: 'ion',
+        weaponStyleIds: { ...reloaded.weaponStyleIds, rockets: 'nova' },
+    };
+    assert.equal(saveVehicleProfiles(store, { ship5: explicitCosmeticEdit }), true);
+    const editedRawProfile = store.data.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship5;
+    assert.equal(editedRawProfile.trailStyleId, 'ion');
+    assert.equal(editedRawProfile.weaponStyleIds.rockets, 'nova');
+    assert.equal(editedRawProfile.weaponStyleIds.lightning, null);
+    assert.equal(editedRawProfile.trailStyleId, 'ion');
 });
 
 test('W7.1 keeps vehicle progression and nested inventories isolated', () => {

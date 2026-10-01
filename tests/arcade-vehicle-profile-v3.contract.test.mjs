@@ -5,6 +5,7 @@ import {
     ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY,
     ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION,
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
+    ARCADE_VEHICLE_PROFILE_V2_SCHEMA_VERSION,
     arcadeVehicleLevelForXp,
     arcadeVehicleXpForLevel,
 } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
@@ -165,6 +166,36 @@ test('v3: a stored record without schemaVersion follows the legacy-compatible up
     assert.equal(store.data.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship1.schemaVersion, 'arcade-vehicle-profile.v3');
 });
 
+test('v3: v2 records with future cosmetics migrate progress while preserving the raw cosmetic fields', () => {
+    const rawProfile = {
+        schemaVersion: ARCADE_VEHICLE_PROFILE_V2_SCHEMA_VERSION,
+        vehicleId: 'ship5',
+        xp: 250,
+        level: 2,
+        xpBank: 100,
+        trailStyleId: 'future-trail',
+        weaponStyleIds: { mg: 'future-weapon', futureFamily: 'future-value' },
+        customProgress: { clearCount: 7 },
+    };
+    const store = createKeyedStore({
+        [ARCADE_VEHICLE_PROFILE_STORAGE_KEY]: { ship5: rawProfile },
+    });
+
+    const profile = loadVehicleProfiles(store).ship5;
+    assert.equal(profile.xp, 250);
+    assert.equal(profile.level, 2);
+    assert.equal(profile.xpBank, 100);
+    assert.equal(profile.trailStyleId, 'standard');
+    assert.equal(profile.weaponStyleIds.mg, 'standard');
+
+    const migrated = store.data.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship5;
+    assert.equal(migrated.schemaVersion, ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION);
+    assert.equal(migrated.xp, 250);
+    assert.equal(migrated.trailStyleId, rawProfile.trailStyleId);
+    assert.deepEqual(migrated.weaponStyleIds, rawProfile.weaponStyleIds);
+    assert.deepEqual(migrated.customProgress, rawProfile.customProgress);
+});
+
 test('v3: unknown, malformed and future profile records remain recoverable across loads and saves', () => {
     const future = { schemaVersion: 'arcade-vehicle-profile.v9', vehicleId: 'ship1', xp: 9999, newField: { keep: true } };
     const damaged = { schemaVersion: 'arcade-vehicle-profile.v3', vehicleId: 'ship4', xp: 'broken', xpBank: 'broken' };
@@ -189,7 +220,7 @@ test('v3: unknown, malformed and future profile records remain recoverable acros
     assert.equal(store.data.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship3.schemaVersion, 'arcade-vehicle-profile.v3');
 });
 
-test('v3: damaged nested styles and malformed present schema versions stay opaque on sibling save', () => {
+test('v3: damaged cosmetics use runtime fallbacks while raw cosmetic and version records stay preserved', () => {
     const damagedWeaponStyle = {
         schemaVersion: 'arcade-vehicle-profile.v3', vehicleId: 'ship1', xp: 120,
         weaponStyleIds: { mg: 'newer-style' },
@@ -226,6 +257,12 @@ test('v3: damaged nested styles and malformed present schema versions stay opaqu
     });
 
     const profiles = loadVehicleProfiles(store);
+    assert.equal(profiles.ship1.xp, 120);
+    assert.equal(profiles.ship1.weaponStyleIds.mg, 'standard');
+    assert.equal(profiles.ship2.xp, 240);
+    assert.deepEqual(profiles.ship2.partStyle, {});
+    assert.equal(profiles.ship3.xp, 360);
+    assert.deepEqual(profiles.ship3.partStyle, { Utility: { color: 0x123456 } });
     assert.equal(profiles.manta.schemaVersion, 'arcade-vehicle-profile.v3');
     assert.deepEqual(profiles.manta.weaponStyleIds.mg, 'nova');
     assert.deepEqual(profiles.manta.partStyle, validSibling.partStyle);
@@ -239,6 +276,8 @@ test('v3: damaged nested styles and malformed present schema versions stay opaqu
     assert.deepEqual(saved.ship4, emptySchemaVersion);
     assert.deepEqual(saved.ship5, nullSchemaVersion);
     assert.deepEqual(saved.ship6, mismatchedVehicleId);
+    assert.equal(profiles.ship4, undefined, 'invalid progress stays unavailable rather than being defaulted');
+    assert.equal(profiles.ship6, undefined, 'vehicle ID mismatches stay opaque');
     assert.deepEqual(saved.manta.customField, { keep: true });
 });
 
@@ -305,4 +344,84 @@ test('v3: the hangar fallback port uses the same uncapped curve', () => {
     assert.equal(port.xpForLevel(45), xpForLevel(45));
     const profile = { level: 45, xp: xpForLevel(45) + 10 };
     assert.deepEqual(port.xpToNextLevel(profile), xpToNextLevel({ ...createArcadeVehicleProfile('ship5', 0), ...profile }));
+});
+
+test('v3: hangar fallback port saves progression and explicit cosmetics without discarding unknown cosmetic data', () => {
+    const rawProfile = {
+        schemaVersion: ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION,
+        vehicleId: 'ship5',
+        xp: 5300,
+        level: 14,
+        xpBank: 1777,
+        customProgress: { cleanSectors: 9 },
+        trailStyleId: 'newer-trail',
+        weaponStyleIds: { mg: 'newer-weapon', futureFamily: 'future-value' },
+        partStyle: { Utility: { color: 0x123456, rendererHint: 'future-renderer' } },
+    };
+    const store = createKeyedStore({
+        [ARCADE_VEHICLE_PROFILE_STORAGE_KEY]: { ship5: rawProfile },
+    });
+    const port = createFallbackProfilePort(store);
+    const profiles = port.load();
+    assert.equal(profiles.ship5.xp, 5300);
+    assert.equal(profiles.ship5.level, 14);
+    assert.equal(profiles.ship5.trailStyleId, 'standard');
+    assert.equal(profiles.ship5.weaponStyleIds.mg, 'standard');
+
+    profiles.ship5 = {
+        ...addXp(profiles.ship5, 20, 1234).profile,
+        trailStyleId: 'ion',
+        partStyle: { Utility: { color: 0x654321 } },
+    };
+    assert.equal(port.save(profiles), true);
+
+    const saved = store.data.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship5;
+    assert.equal(saved.xp, 5320);
+    assert.equal(saved.level, 14);
+    assert.equal(saved.xpBank, 1797);
+    assert.equal(saved.trailStyleId, 'ion', 'an explicit hangar selection replaces the fallback field');
+    assert.deepEqual(saved.weaponStyleIds, rawProfile.weaponStyleIds);
+    assert.deepEqual(saved.partStyle, {
+        Utility: { color: 0x654321, rendererHint: 'future-renderer' },
+    });
+    assert.deepEqual(saved.customProgress, rawProfile.customProgress);
+
+    const reloaded = port.load().ship5;
+    assert.equal(reloaded.xp, 5320);
+    assert.equal(reloaded.trailStyleId, 'ion');
+    assert.equal(reloaded.weaponStyleIds.mg, 'standard');
+    assert.deepEqual(reloaded.partStyle, { Utility: { color: 0x654321 } });
+});
+
+test('v3: explicit cosmetic edits add missing fields beside preserved unknown styles', () => {
+    const rawProfile = {
+        schemaVersion: ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION,
+        vehicleId: 'ship5',
+        xp: 120,
+        weaponStyleIds: { mg: 'newer-style' },
+        customProgress: { preserve: true },
+    };
+    const store = createKeyedStore({
+        [ARCADE_VEHICLE_PROFILE_STORAGE_KEY]: { ship5: rawProfile },
+    });
+    const port = createFallbackProfilePort(store);
+    const profiles = port.load();
+    assert.equal(profiles.ship5.trailStyleId, 'standard');
+    assert.deepEqual(profiles.ship5.partStyle, {});
+
+    profiles.ship5 = {
+        ...profiles.ship5,
+        trailStyleId: 'ion',
+        weaponStyleIds: { ...profiles.ship5.weaponStyleIds, rockets: 'nova' },
+        partStyle: { Utility: { color: 0xabcdef } },
+    };
+    assert.equal(port.save(profiles), true);
+
+    const saved = store.data.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship5;
+    assert.equal(saved.trailStyleId, 'ion');
+    assert.deepEqual(saved.weaponStyleIds, { mg: 'newer-style', rockets: 'nova' });
+    assert.deepEqual(saved.partStyle, { Utility: { color: 0xabcdef } });
+    assert.deepEqual(saved.customProgress, rawProfile.customProgress);
+    assert.equal(port.load().ship5.trailStyleId, 'ion');
+    assert.equal(port.load().ship5.weaponStyleIds.rockets, 'nova');
 });

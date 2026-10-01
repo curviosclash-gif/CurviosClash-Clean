@@ -72,6 +72,88 @@ function buildUpgradeStateSafe(profile, slotName, targetTier) {
     });
 }
 
+function sameValue(left, right) { return JSON.stringify(left) === JSON.stringify(right); }
+
+function mergePreservedCosmetics(rawProfile, runtimeProfile) {
+    const normalizedRaw = normalizeArcadeVehicleProfileRecord(rawProfile?.vehicleId, rawProfile);
+    const baseline = normalizeVehicleProfileSafe(normalizedRaw);
+    const current = normalizeVehicleProfileSafe(runtimeProfile);
+    const merged = { ...rawProfile };
+    const cosmeticFields = new Set(['trailStyleId', 'weaponStyleIds', 'partStyle']);
+    let progressionChanged = false;
+    for (const key of Object.keys(current)) {
+        if (cosmeticFields.has(key) || ['schemaVersion', 'vehicleId', 'createdAt', 'updatedAt'].includes(key)
+            || sameValue(current[key], baseline[key])) continue;
+        merged[key] = current[key];
+        progressionChanged = true;
+    }
+    // Version migration is safe for supported records; preserve opaque cosmetic values
+    // while still allowing the ordinary v1/v2-to-v3 migration to complete.
+    merged.schemaVersion = current.schemaVersion;
+    merged.vehicleId = current.vehicleId;
+    if (progressionChanged && Object.prototype.hasOwnProperty.call(current, 'updatedAt')) {
+        merged.updatedAt = current.updatedAt;
+    }
+
+    if (sameValue(current.trailStyleId, baseline.trailStyleId)) {
+        if (Object.prototype.hasOwnProperty.call(rawProfile, 'trailStyleId')) merged.trailStyleId = rawProfile.trailStyleId;
+    } else {
+        merged.trailStyleId = current.trailStyleId;
+    }
+
+    if (!sameValue(current.weaponStyleIds, baseline.weaponStyleIds)) {
+        const styles = rawProfile.weaponStyleIds && typeof rawProfile.weaponStyleIds === 'object'
+            && !Array.isArray(rawProfile.weaponStyleIds)
+            ? { ...rawProfile.weaponStyleIds }
+            : {};
+        for (const [familyId, fallbackStyleId] of Object.entries(baseline.weaponStyleIds)) {
+            const nextStyleId = current.weaponStyleIds?.[familyId];
+            if (sameValue(nextStyleId, fallbackStyleId)) continue;
+            if (typeof nextStyleId === 'string') styles[familyId] = nextStyleId;
+            else delete styles[familyId];
+        }
+        merged.weaponStyleIds = styles;
+    } else if (Object.prototype.hasOwnProperty.call(rawProfile, 'weaponStyleIds')) {
+        merged.weaponStyleIds = rawProfile.weaponStyleIds;
+    }
+
+    if (!sameValue(current.partStyle, baseline.partStyle)) {
+        const styles = rawProfile.partStyle && typeof rawProfile.partStyle === 'object'
+            && !Array.isArray(rawProfile.partStyle)
+            ? { ...rawProfile.partStyle }
+            : {};
+        const partNames = new Set([...Object.keys(baseline.partStyle), ...Object.keys(current.partStyle || {})]);
+        for (const partName of partNames) {
+            const fallbackStyle = baseline.partStyle[partName];
+            const nextStyle = current.partStyle?.[partName];
+            if (sameValue(nextStyle, fallbackStyle)) continue;
+            const rawStyle = styles[partName] && typeof styles[partName] === 'object' && !Array.isArray(styles[partName])
+                ? { ...styles[partName] }
+                : {};
+            for (const field of ['color', 'scale', 'variant']) {
+                if (sameValue(nextStyle?.[field], fallbackStyle?.[field])) continue;
+                if (Object.prototype.hasOwnProperty.call(nextStyle || {}, field)) rawStyle[field] = nextStyle[field];
+                else delete rawStyle[field];
+            }
+            if (Object.keys(rawStyle).length) styles[partName] = rawStyle;
+            else delete styles[partName];
+        }
+        merged.partStyle = styles;
+    } else if (Object.prototype.hasOwnProperty.call(rawProfile, 'partStyle')) {
+        merged.partStyle = rawProfile.partStyle;
+    }
+
+    return merged;
+}
+
+function mergeStoredCosmeticRecords(runtimeProfiles, preservedCosmeticProfiles = {}) {
+    const result = { ...runtimeProfiles, ...preservedCosmeticProfiles };
+    for (const [vehicleId, rawProfile] of Object.entries(preservedCosmeticProfiles)) {
+        const runtimeProfile = runtimeProfiles[vehicleId];
+        if (runtimeProfile) result[vehicleId] = mergePreservedCosmetics(rawProfile, runtimeProfile);
+    }
+    return result;
+}
 
 // XP Curve (no level ceiling since arcade-vehicle-profile.v3)
 
@@ -91,7 +173,6 @@ export function xpToNextLevel(profile) {
         progress: required > 0 ? Math.min(1, current / required) : 1,
     };
 }
-
 
 // Slot stat bonuses
 
@@ -426,6 +507,7 @@ export function loadVehicleProfiles(store) {
     const {
         profiles: contractProfiles,
         preservedProfiles = {},
+        preservedCosmeticProfiles = {},
         shouldPersist,
         canPersist = true,
         usedLegacyFallback,
@@ -440,7 +522,10 @@ export function loadVehicleProfiles(store) {
     });
 
     if (shouldRewrite && canPersist && !usedLegacyFallback && typeof store.saveJsonRecord === 'function') {
-        const saveResult = store.saveJsonRecord(STORAGE_KEY, { ...preservedProfiles, ...normalizedProfiles });
+        const saveResult = store.saveJsonRecord(STORAGE_KEY, {
+            ...mergeStoredCosmeticRecords(normalizedProfiles, preservedCosmeticProfiles),
+            ...preservedProfiles,
+        });
         warnPersistenceFailure('canonical write-back', saveResult);
     }
     return normalizedProfiles;
@@ -448,7 +533,11 @@ export function loadVehicleProfiles(store) {
 
 export function saveVehicleProfiles(store, profiles) {
     if (!store || typeof store.saveJsonRecord !== 'function') return false;
-    const { preservedProfiles = {}, canPersist = true } = loadArcadeVehicleProfileRecord(store);
+    const {
+        preservedProfiles = {},
+        preservedCosmeticProfiles = {},
+        canPersist = true,
+    } = loadArcadeVehicleProfileRecord(store);
     // A malformed top-level record cannot be safely merged with writable profiles.
     if (!canPersist) return false;
     const sourceProfiles = profiles && typeof profiles === 'object' ? profiles : {};
@@ -458,7 +547,10 @@ export function saveVehicleProfiles(store, profiles) {
     });
     // Rejected or malformed per-vehicle records stay byte-for-byte equivalent at the
     // JSON value level, including when a fresh runtime profile has the same vehicle ID.
-    const saveResult = store.saveJsonRecord(STORAGE_KEY, { ...normalizedProfiles, ...preservedProfiles });
+    const saveResult = store.saveJsonRecord(STORAGE_KEY, {
+        ...mergeStoredCosmeticRecords(normalizedProfiles, preservedCosmeticProfiles),
+        ...preservedProfiles,
+    });
     warnPersistenceFailure('saveVehicleProfiles', saveResult);
     return saveResult;
 }

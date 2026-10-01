@@ -165,10 +165,7 @@ function hasValidStoredProfileFieldTypes(entry) {
         ['sizeWorkshopUnlocked', (value) => typeof value === 'boolean'],
         ['unlockedSlots', Array.isArray],
         ['upgrades', (value) => !!value && typeof value === 'object' && !Array.isArray(value)],
-        ['weaponStyleIds', (value) => !!value && typeof value === 'object' && !Array.isArray(value)],
-        ['partStyle', (value) => !!value && typeof value === 'object' && !Array.isArray(value)],
         ['partSizes', (value) => !!value && typeof value === 'object' && !Array.isArray(value)],
-        ['trailStyleId', (value) => typeof value === 'string'],
     ]) {
         if (Object.prototype.hasOwnProperty.call(entry, field) && !predicate(entry[field])) return false;
     }
@@ -177,8 +174,15 @@ function hasValidStoredProfileFieldTypes(entry) {
             if (typeof value !== 'number' || !Number.isFinite(value)) return false;
         }
     }
-    if (typeof entry.trailStyleId === 'string'
-        && !ARCADE_TRAIL_STYLE_IDS.includes(entry.trailStyleId.trim().toLowerCase())) return false;
+    return true;
+}
+
+function hasValidStoredCosmeticFields(entry) {
+    if (Object.prototype.hasOwnProperty.call(entry, 'trailStyleId')
+        && (typeof entry.trailStyleId !== 'string'
+            || !ARCADE_TRAIL_STYLE_IDS.includes(entry.trailStyleId.trim().toLowerCase()))) return false;
+    if (Object.prototype.hasOwnProperty.call(entry, 'weaponStyleIds')
+        && (!entry.weaponStyleIds || typeof entry.weaponStyleIds !== 'object' || Array.isArray(entry.weaponStyleIds))) return false;
     if (entry.weaponStyleIds && typeof entry.weaponStyleIds === 'object' && !Array.isArray(entry.weaponStyleIds)) {
         for (const [family, styleId] of Object.entries(entry.weaponStyleIds)) {
             if (!ARCADE_WEAPON_STYLE_FAMILIES.includes(family)
@@ -186,6 +190,8 @@ function hasValidStoredProfileFieldTypes(entry) {
                 || !ARCADE_WEAPON_STYLE_IDS.includes(styleId.trim().toLowerCase())) return false;
         }
     }
+    if (Object.prototype.hasOwnProperty.call(entry, 'partStyle')
+        && (!entry.partStyle || typeof entry.partStyle !== 'object' || Array.isArray(entry.partStyle))) return false;
     if (entry.partStyle && typeof entry.partStyle === 'object' && !Array.isArray(entry.partStyle)) {
         for (const value of Object.values(entry.partStyle)) {
             if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -208,11 +214,12 @@ function hasValidStoredProfileFieldTypes(entry) {
 
 export function readArcadeVehicleProfileRecord(rawProfiles) {
     if (!rawProfiles || typeof rawProfiles !== 'object' || Array.isArray(rawProfiles)) {
-        return { profiles: {}, preservedProfiles: {}, shouldPersist: false, canPersist: false };
+        return { profiles: {}, preservedProfiles: {}, preservedCosmeticProfiles: {}, shouldPersist: false, canPersist: false };
     }
 
     const normalizedProfiles = {};
     const preservedProfiles = {};
+    const preservedCosmeticProfiles = {};
     let shouldPersist = false;
     Object.entries(rawProfiles).forEach(([vehicleId, entry]) => {
         if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
@@ -239,8 +246,8 @@ export function readArcadeVehicleProfileRecord(rawProfiles) {
             return;
         }
         if (!hasValidStoredProfileFieldTypes(entry)) {
-            // A supported version can still contain semantically corrupt field
-            // types. Keep it opaque so defaults never erase recoverable values.
+            // Invalid progress or structural types remain opaque so defaults never
+            // replace values that cannot safely be interpreted.
             preservedProfiles[vehicleId] = cloneProfileValue(entry);
             return;
         }
@@ -251,13 +258,21 @@ export function readArcadeVehicleProfileRecord(rawProfiles) {
         }
         const normalized = normalizeArcadeVehicleProfileRecord(vehicleId, entry);
         normalizedProfiles[vehicleId] = normalized;
+        const preserveCosmetics = !hasValidStoredCosmeticFields(entry);
+        if (preserveCosmetics) {
+            // Keep the unknown or damaged selections as storage data while exposing
+            // normalized fallback cosmetics alongside usable progression at runtime.
+            preservedCosmeticProfiles[vehicleId] = cloneProfileValue(entry);
+        }
         if (
             versionState.shouldFallback
             || versionState.shouldUpgrade
             || String(entry.vehicleId || vehicleId) !== normalized.vehicleId
             || entry.schemaVersion !== ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION
-            || entry.trailStyleId !== normalized.trailStyleId
-            || JSON.stringify(entry.weaponStyleIds) !== JSON.stringify(normalized.weaponStyleIds)
+            || (!preserveCosmetics && (
+                entry.trailStyleId !== normalized.trailStyleId
+                || JSON.stringify(entry.weaponStyleIds) !== JSON.stringify(normalized.weaponStyleIds)
+            ))
         ) {
             shouldPersist = true;
         }
@@ -266,6 +281,7 @@ export function readArcadeVehicleProfileRecord(rawProfiles) {
     return {
         profiles: normalizedProfiles,
         preservedProfiles,
+        preservedCosmeticProfiles,
         shouldPersist,
         canPersist: true,
     };
@@ -273,7 +289,7 @@ export function readArcadeVehicleProfileRecord(rawProfiles) {
 
 export function loadArcadeVehicleProfileRecord(store) {
     if (!store || typeof store.loadJsonRecord !== 'function') {
-        return { profiles: {}, preservedProfiles: {}, shouldPersist: false, canPersist: false, usedLegacyFallback: false };
+        return { profiles: {}, preservedProfiles: {}, preservedCosmeticProfiles: {}, shouldPersist: false, canPersist: false, usedLegacyFallback: false };
     }
     const readRecord = (key, fallback) => {
         if (typeof store.readJsonRecordResult === 'function') {
@@ -289,14 +305,14 @@ export function loadArcadeVehicleProfileRecord(store) {
     };
     const current = readRecord(ARCADE_VEHICLE_PROFILE_STORAGE_KEY, null);
     if (!['found', 'missing'].includes(current.status)) {
-        return { profiles: {}, preservedProfiles: {}, shouldPersist: false, canPersist: false, usedLegacyFallback: false };
+        return { profiles: {}, preservedProfiles: {}, preservedCosmeticProfiles: {}, shouldPersist: false, canPersist: false, usedLegacyFallback: false };
     }
     const usedLegacyFallback = current.status === 'missing';
     const legacy = usedLegacyFallback
         ? readRecord(ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY, {})
         : null;
     if (legacy && !['found', 'missing'].includes(legacy.status)) {
-        return { profiles: {}, preservedProfiles: {}, shouldPersist: false, canPersist: false, usedLegacyFallback: true };
+        return { profiles: {}, preservedProfiles: {}, preservedCosmeticProfiles: {}, shouldPersist: false, canPersist: false, usedLegacyFallback: true };
     }
     const rawProfiles = usedLegacyFallback ? legacy.value : current.value;
     return {

@@ -1,10 +1,10 @@
 import {
-    ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
     arcadeVehicleXpForLevel as xpForLevel,
     clampArcadeProfileCount,
     getArcadeVehicleProfileRecord,
     loadArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
+import { saveVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { createDefaultHangarBuild, normalizeHangarBuild } from './HangarBuildDraftState.js';
 
 const HITBOX_TO_CONTRACT = Object.freeze({ kompakt: 'compact', standard: 'standard', schwer: 'heavy' });
@@ -14,7 +14,7 @@ export function createFallbackProfilePort(store) {
         load() {
             return loadArcadeVehicleProfileRecord(store).profiles;
         },
-        save(profiles) { return store?.saveJsonRecord?.(ARCADE_VEHICLE_PROFILE_STORAGE_KEY, profiles); },
+        save(profiles) { return saveVehicleProfiles(store, profiles); },
         getOrCreate: (profiles, vehicleId) => getArcadeVehicleProfileRecord(profiles, vehicleId),
         getSpendableUpgradeXp: (profile) => Math.max(0, Number(profile?.xpBank ?? profile?.xp) || 0),
         xpForLevel,
