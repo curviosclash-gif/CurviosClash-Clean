@@ -1,13 +1,15 @@
 import { createVehicleManagerPreview3d } from '../arcade/vehicle-manager/VehicleManagerPreview3d.js';
 import { resolveVehicleManagerCatalogEntry } from '../arcade/VehicleManagerCatalog.js';
-import { HITBOX_LABELS } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
+import {
+    HITBOX_LABELS,
+    resolvePlayerColor as resolveVehicleManagerPreviewColor,
+} from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { HANGAR_SELECTION_PLAYER_SLOTS } from '../hangar/HangarSelectionWritebackContract.js';
 import { MENU_SESSION_TYPES } from '../menu/MenuStateContracts.js';
 import { bindChoiceStripKeys } from './ChoiceStripKeys.js';
 import { isThreePlayerSplitSelected } from './StartSetupSplitPlayersSection.js';
 
 const PLAYER_COLORS = Object.freeze({
-    [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1]: '#66b6ff',
     [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2]: '#ff9f5a',
     [HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_3]: '#7dff6a',
 });
@@ -23,12 +25,9 @@ function clampStat(value) {
     return Math.max(0, Math.min(5, Math.round(Number(value) || 0)));
 }
 
-function resolvePlayerColor(settings, slot) {
-    if (slot === HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1) {
-        const configured = String(settings?.localSettings?.playerColorP1 || '').trim();
-        if (/^#[0-9a-fA-F]{6}$/.test(configured)) return configured;
-    }
-    return PLAYER_COLORS[slot] || PLAYER_COLORS.PLAYER_1;
+export function resolveStartSetupPlayerColor(settings, slot) {
+    if (slot === HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1) return resolveVehicleManagerPreviewColor(settings);
+    return PLAYER_COLORS[slot] || resolveVehicleManagerPreviewColor(settings);
 }
 
 function selectedOptions(select) {
@@ -206,7 +205,7 @@ export function createStartSetupVehiclePicker3d({ ui, listen } = {}) {
         syncPlayerUi(resolveAvailableSlots(lastSessionType, lastSettings));
         const select = selectForSlot();
         const vehicleId = String(select?.value || lastSettings?.vehicles?.[activeSlot] || 'ship5').trim().toLowerCase();
-        const color = resolvePlayerColor(lastSettings, activeSlot);
+        const color = resolveStartSetupPlayerColor(lastSettings, activeSlot);
         const nextVehicleSignature = `${activeSlot}|${vehicleId}|${color}`;
         if (nextVehicleSignature !== activeVehicleSignature) {
             activeVehicleSignature = nextVehicleSignature;

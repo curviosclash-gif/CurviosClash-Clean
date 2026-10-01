@@ -1,4 +1,21 @@
 import { resolveArcadeLevelRange } from '../../../shared/contracts/ArcadeHangarRulesContract.js';
+import { TEAM_COLORS, TEAM_IDS } from '../../../shared/contracts/TeamCombatContract.js';
+
+const PLAYER_1_PREVIEW_COLOR = TEAM_COLORS[TEAM_IDS.ALPHA];
+
+function toPreviewColorHex(value) {
+    if (typeof value === 'string') {
+        const normalized = value.trim();
+        const cssHex = /^#?([0-9a-fA-F]{6})$/.exec(normalized);
+        if (cssHex) return `#${cssHex[1].toLowerCase()}`;
+        if (!normalized) return null;
+        const numeric = Number(normalized);
+        if (!Number.isInteger(numeric) || numeric < 0 || numeric > 0xffffff) return null;
+        return `#${numeric.toString(16).padStart(6, '0')}`;
+    }
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 0xffffff) return null;
+    return `#${value.toString(16).padStart(6, '0')}`;
+}
 
 export const UPGRADE_SLOT_DISPLAY = [
     { key: 'core', label: 'Core' },
@@ -56,8 +73,8 @@ export function toVehicleLevelBand(levelValue) {
 }
 
 export function resolvePlayerColor(settings) {
-    const raw = String(settings?.localSettings?.playerColorP1 || '').trim();
-    return /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : '#66b6ff';
+    return toPreviewColorHex(settings?.localSettings?.playerColorP1)
+        || `#${PLAYER_1_PREVIEW_COLOR.toString(16).padStart(6, '0')}`;
 }
 
 export function collectCardBadges(entry, profile, favorite, recent) {
