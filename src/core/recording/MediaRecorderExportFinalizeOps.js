@@ -15,6 +15,12 @@ import { resolveRecordingExportContainerFromMimeType } from './RecordingVideoExp
 // at most this long and lets the save settle in the background.
 export const DEFAULT_EXPORT_WAIT_TIMEOUT_MS = 10_000;
 export const RECORDING_EXPORT_PENDING_STATUS = 'export_pending';
+const SAVED_EXPORT_STATUSES = new Set([
+    'saved_via_app',
+    'saved_via_download',
+    'saved_via_api',
+    'saved_via_download_fallback',
+]);
 
 export function replaceLastExport(system, nextExport) {
     if (system?._lastExport?.objectUrl) {
@@ -22,6 +28,15 @@ export function replaceLastExport(system, nextExport) {
     }
     if (system) system._lastExport = nextExport ?? null;
     return nextExport ?? null;
+}
+
+export function releaseSavedExportPayload(exportRecord) {
+    if (!SAVED_EXPORT_STATUSES.has(exportRecord?.exportStatus?.status)) return false;
+    const objectUrl = exportRecord.objectUrl;
+    exportRecord.objectUrl = null;
+    exportRecord.blob = null;
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    return true;
 }
 
 export function attachDirectMediaRecorderStopHandler(system) {
@@ -208,6 +223,7 @@ function settleLateExport(system, exportRecord, exportPromise) {
         // A disposed recorder or a newer export owns the state now.
         if (system._lastExport !== exportRecord) return;
         Object.assign(exportRecord, resolveExportStatusFields(lateStatus, exportRecord.masterContainer));
+        releaseSavedExportPayload(exportRecord);
         system.logger?.info?.(
             `[MediaRecorderSystem] recording export settled after stop: status=${lateStatus?.status}, filePath=${exportRecord.filePath}`
         );
@@ -318,6 +334,7 @@ export async function finalizeMediaRecorderBlobExport(system, blob, mimeType = D
         trigger: activeRecording?.stopTrigger || activeRecording?.trigger || null,
     };
     replaceLastExport(system, exportRecord);
+    releaseSavedExportPayload(exportRecord);
 
     const resolve = activeRecording?.stopResolve;
     system._cleanupRuntimeRecorder();

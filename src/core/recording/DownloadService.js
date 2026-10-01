@@ -132,10 +132,9 @@ function isSupportedDesktopSaveAdapterContract(adapter) {
  */
 export function defaultDownload({ blob, fileName, globalScope = globalThis }) {
     if (isCapacitorNativePlatform(globalScope)) {
-        void shareBlobAsNativeFile({ blob, fileName, runtimeGlobal: globalScope });
-        return;
+        return shareBlobAsNativeFile({ blob, fileName, runtimeGlobal: globalScope });
     }
-    downloadBlobViaAnchor({ blob, fileName, runtimeGlobal: globalScope });
+    return downloadBlobViaAnchor({ blob, fileName, runtimeGlobal: globalScope });
 }
 
 /**
@@ -279,7 +278,7 @@ export async function attemptAutoDownload({
     const browserSaveAdapter = createBrowserSaveAdapter({
         saveVideo: saveSurfaceCapability.available === true
             && browserVideoFallbackAllowed
-            ? (payload, downloadFileName, resolvedMimeType) => {
+            ? async (payload, downloadFileName, resolvedMimeType) => {
                 if (typeof downloadHandler !== 'function') {
                     return {
                         saved: false,
@@ -289,7 +288,18 @@ export async function attemptAutoDownload({
                 const blobPayload = payload instanceof Blob
                     ? payload
                     : new Blob([payload], { type: resolvedMimeType || mimeType || 'application/octet-stream' });
-                downloadHandler({ blob: blobPayload, fileName: downloadFileName, mimeType: resolvedMimeType || mimeType });
+                const result = await downloadHandler({
+                    blob: blobPayload,
+                    fileName: downloadFileName,
+                    mimeType: resolvedMimeType || mimeType,
+                });
+                if (result && typeof result === 'object') {
+                    return {
+                        transport: 'download',
+                        ...result,
+                    };
+                }
+                if (result === false) return { saved: false, transport: 'download' };
                 return {
                     saved: true,
                     transport: 'download',
@@ -316,26 +326,24 @@ export async function attemptAutoDownload({
         pushStatusWarning('Dateioperationen bleiben desktop-only; ohne Desktop-Speicheradapter wird ein degradiertes Fallback genutzt.');
     }
     const downloadViaBrowser = async (reason, error = null) => {
-        if (saveSurfaceCapability.available !== true) {
-            return false;
-        }
+        if (saveSurfaceCapability.available !== true) return { saved: false, error: new Error('save_capability_unavailable') };
         if (typeof browserSaveAdapter.saveVideo !== 'function') {
             pushStatusWarning('Browser-Download-Handler ist nicht verfügbar; Download-Fallback wurde übersprungen.');
             if (error) {
                 logger?.warn?.(`[DownloadService] recording export fallback unavailable (${reason})`, error);
             }
-            return false;
+            return { saved: false, error: new Error('download_handler_unavailable') };
         }
         if (error) {
             logger?.warn?.(`[DownloadService] recording export fallback (${reason})`, error);
         }
         const result = await browserSaveAdapter.saveVideo(blob, browserFileName, mimeType);
-        if (result?.saved === true) {
-            return true;
-        }
-        logger?.warn?.('[DownloadService] recording export browser download failed', result?.error || null);
-        return false;
+        if (result?.saved !== true) logger?.warn?.('[DownloadService] recording export browser download failed', result?.error || null);
+        return result || { saved: false, error: new Error('browser_download_failed') };
     };
+    const isDownloadCancelled = (result) => result?.cancelled === true || result?.code === 'RECORDING_SAVE_CANCELLED' || result?.error?.code === 'RECORDING_SAVE_CANCELLED';
+    const resolveDownloadFailureReason = (result) => isDownloadCancelled(result) ? 'cancelled'
+        : String(result?.failureReason || result?.error?.message || result?.error?.code || result?.code || 'download-failed').trim() || 'download-failed';
     if (desktopSaveAdapter.isAvailable() && !desktopSaveAdapterVersionSupported) {
         logger?.warn?.('[DownloadService] recording export desktop save skipped due to unsupported adapter contractVersion', desktopSaveAdapter?.contractVersion || null);
         pushStatusWarning('Desktop-Speicheradapter ist veraltet oder inkompatibel; Browser-/API-Fallback wird verwendet.');
@@ -446,32 +454,34 @@ export async function attemptAutoDownload({
             pushStatusWarning('Desktop-App konnte die Aufnahme nicht direkt speichern; Dateipfad-Fallback wird versucht.');
         }
     }
+    const fallbackContainers = resolveResultContainers({ container: requestMasterContainer, masterContainer: requestMasterContainer, deliveryContainer: requestMasterContainer });
     if (typeof runtimeGlobal?.fetch !== 'function') {
-        const downloaded = await downloadViaBrowser('fetch-unavailable');
-        const containers = resolveResultContainers({
-            container: requestMasterContainer,
-            masterContainer: requestMasterContainer,
-            deliveryContainer: requestMasterContainer,
-        });
+        const downloadResult = await downloadViaBrowser('fetch-unavailable');
+        const downloaded = downloadResult?.saved === true;
+        const downloadCancelled = isDownloadCancelled(downloadResult);
+        const downloadFailureReason = resolveDownloadFailureReason(downloadResult);
         return createDownloadStatus({
             requested: true,
-            transport: downloaded ? 'download' : 'download-failed',
-            status: downloaded ? 'saved_via_download' : 'download_failed',
-            fallbackReason: 'fetch-unavailable',
-            failureReason: downloaded ? null : 'fetch-unavailable',
+            transport: downloaded || downloadCancelled ? 'download' : 'download-failed',
+            status: downloaded ? 'saved_via_download' : (downloadCancelled ? 'cancelled' : 'download_failed'),
+            fallbackReason: downloadCancelled ? 'cancelled' : 'fetch-unavailable',
+            failureReason: downloaded ? null : downloadFailureReason,
+            saveCode: downloadResult?.code || downloadResult?.error?.code || '',
             message: downloaded
                 ? 'Recording wurde als Browser-Download gespeichert, weil keine Disk-API verfügbar ist.'
-                : 'Recording konnte ohne Disk-API auch nicht als Browser-Download gespeichert werden.',
+                : (downloadCancelled
+                    ? 'Speichervorgang wurde abgebrochen; es wurde kein weiterer Fallback gestartet.'
+                    : 'Recording konnte ohne Disk-API auch nicht als Browser-Download gespeichert werden.'),
             warnings: withTranscodeDegradationWarning(
                 [...statusWarnings, 'Disk-API ist in dieser Umgebung nicht verfügbar.']
             ),
             surfaceClassification: videoFeatureClassification.classification,
-            container: containers.deliveryContainer,
-            masterContainer: containers.masterContainer,
-            deliveryContainer: containers.deliveryContainer,
-            transcodeApplied: containers.transcodeApplied,
-            masterPath: containers.masterPath,
-            deliveryPath: containers.deliveryPath,
+            container: fallbackContainers.deliveryContainer,
+            masterContainer: fallbackContainers.masterContainer,
+            deliveryContainer: fallbackContainers.deliveryContainer,
+            transcodeApplied: fallbackContainers.transcodeApplied,
+            masterPath: fallbackContainers.masterPath,
+            deliveryPath: fallbackContainers.deliveryPath,
             exportMatrix: saveRequest.exportMatrix,
         });
     }
@@ -483,11 +493,6 @@ export async function attemptAutoDownload({
         });
         if (response?.ok) {
             logger?.info?.('[DownloadService] recording export saved via api', safeFileName);
-            const containers = resolveResultContainers({
-                container: requestMasterContainer,
-                masterContainer: requestMasterContainer,
-                deliveryContainer: requestMasterContainer,
-            });
             return createDownloadStatus({
                 requested: true,
                 transport: 'api',
@@ -496,71 +501,73 @@ export async function attemptAutoDownload({
                 message: 'Recording wurde über die lokale Disk-API gespeichert.',
                 warnings: withTranscodeDegradationWarning(statusWarnings),
                 surfaceClassification: videoFeatureClassification.classification,
-                container: containers.deliveryContainer,
-                masterContainer: containers.masterContainer,
-                deliveryContainer: containers.deliveryContainer,
-                transcodeApplied: containers.transcodeApplied,
-                masterPath: containers.masterPath,
-                deliveryPath: containers.deliveryPath,
+                container: fallbackContainers.deliveryContainer,
+                masterContainer: fallbackContainers.masterContainer,
+                deliveryContainer: fallbackContainers.deliveryContainer,
+                transcodeApplied: fallbackContainers.transcodeApplied,
+                masterPath: fallbackContainers.masterPath,
+                deliveryPath: fallbackContainers.deliveryPath,
                 exportMatrix: saveRequest.exportMatrix,
             });
         }
         const apiStatus = Number(response?.status) || 0;
         const apiError = new Error(`http_${apiStatus || 'unknown'}`);
-        const downloaded = await downloadViaBrowser('api-failed', apiError);
-        const containers = resolveResultContainers({
-            container: requestMasterContainer,
-            masterContainer: requestMasterContainer,
-            deliveryContainer: requestMasterContainer,
-        });
+        const downloadResult = await downloadViaBrowser('api-failed', apiError);
+        const downloaded = downloadResult?.saved === true;
+        const downloadCancelled = isDownloadCancelled(downloadResult);
+        const downloadFailureReason = resolveDownloadFailureReason(downloadResult);
         return createDownloadStatus({
             requested: true,
-            transport: downloaded ? 'api-fallback-download' : 'api-fallback-download-failed',
-            status: downloaded ? 'saved_via_download_fallback' : 'download_fallback_failed',
-            fallbackReason: 'api-failed',
-            failureReason: downloaded ? null : 'api-failed',
+            transport: downloaded ? 'api-fallback-download' : (downloadCancelled ? 'download' : 'api-fallback-download-failed'),
+            status: downloaded ? 'saved_via_download_fallback' : (downloadCancelled ? 'cancelled' : 'download_fallback_failed'),
+            fallbackReason: downloadCancelled ? 'cancelled' : 'api-failed',
+            failureReason: downloaded ? null : downloadFailureReason,
             apiStatus: apiStatus || null,
+            saveCode: downloadResult?.code || downloadResult?.error?.code || '',
             message: downloaded
                 ? 'Recording wurde als Browser-Download gespeichert, weil die Disk-API fehlgeschlagen ist.'
-                : 'Recording konnte nach fehlgeschlagener Disk-API auch nicht als Browser-Download gespeichert werden.',
+                : (downloadCancelled
+                    ? 'Speichervorgang wurde abgebrochen; es wurde kein weiterer Fallback gestartet.'
+                    : 'Recording konnte nach fehlgeschlagener Disk-API auch nicht als Browser-Download gespeichert werden.'),
             warnings: withTranscodeDegradationWarning(
                 [...statusWarnings, `Disk-API-Fehler: HTTP ${apiStatus || 'unknown'}.`]
             ),
             surfaceClassification: videoFeatureClassification.classification,
-            container: containers.deliveryContainer,
-            masterContainer: containers.masterContainer,
-            deliveryContainer: containers.deliveryContainer,
-            transcodeApplied: containers.transcodeApplied,
-            masterPath: containers.masterPath,
-            deliveryPath: containers.deliveryPath,
+            container: fallbackContainers.deliveryContainer,
+            masterContainer: fallbackContainers.masterContainer,
+            deliveryContainer: fallbackContainers.deliveryContainer,
+            transcodeApplied: fallbackContainers.transcodeApplied,
+            masterPath: fallbackContainers.masterPath,
+            deliveryPath: fallbackContainers.deliveryPath,
             exportMatrix: saveRequest.exportMatrix,
         });
     } catch (error) {
-        const downloaded = await downloadViaBrowser('api-throw', error);
-        const containers = resolveResultContainers({
-            container: requestMasterContainer,
-            masterContainer: requestMasterContainer,
-            deliveryContainer: requestMasterContainer,
-        });
+        const downloadResult = await downloadViaBrowser('api-throw', error);
+        const downloaded = downloadResult?.saved === true;
+        const downloadCancelled = isDownloadCancelled(downloadResult);
+        const downloadFailureReason = resolveDownloadFailureReason(downloadResult);
         return createDownloadStatus({
             requested: true,
-            transport: downloaded ? 'download' : 'download-failed',
-            status: downloaded ? 'saved_via_download' : 'download_failed',
-            fallbackReason: 'api-throw',
-            failureReason: downloaded ? null : 'api-throw',
+            transport: downloaded || downloadCancelled ? 'download' : 'download-failed',
+            status: downloaded ? 'saved_via_download' : (downloadCancelled ? 'cancelled' : 'download_failed'),
+            fallbackReason: downloadCancelled ? 'cancelled' : 'api-throw',
+            failureReason: downloaded ? null : downloadFailureReason,
+            saveCode: downloadResult?.code || downloadResult?.error?.code || '',
             message: downloaded
                 ? 'Recording wurde als Browser-Download gespeichert, weil die Disk-API nicht erreichbar war.'
-                : 'Recording konnte weder über die Disk-API noch als Browser-Download gespeichert werden.',
+                : (downloadCancelled
+                    ? 'Speichervorgang wurde abgebrochen; es wurde kein weiterer Fallback gestartet.'
+                    : 'Recording konnte weder über die Disk-API noch als Browser-Download gespeichert werden.'),
             warnings: withTranscodeDegradationWarning(
                 [...statusWarnings, 'Disk-API war nicht erreichbar.']
             ),
             surfaceClassification: videoFeatureClassification.classification,
-            container: containers.deliveryContainer,
-            masterContainer: containers.masterContainer,
-            deliveryContainer: containers.deliveryContainer,
-            transcodeApplied: containers.transcodeApplied,
-            masterPath: containers.masterPath,
-            deliveryPath: containers.deliveryPath,
+            container: fallbackContainers.deliveryContainer,
+            masterContainer: fallbackContainers.masterContainer,
+            deliveryContainer: fallbackContainers.deliveryContainer,
+            transcodeApplied: fallbackContainers.transcodeApplied,
+            masterPath: fallbackContainers.masterPath,
+            deliveryPath: fallbackContainers.deliveryPath,
             exportMatrix: saveRequest.exportMatrix,
         });
     }
