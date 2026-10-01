@@ -1,105 +1,264 @@
-"""Build an editable, render-ready garden rose specimen in Blender 4.2.
+"""Regenerate only the structural parts of the authored Rose 02 specimen.
 
-Run from the repository root with Blender in background mode. No external assets.
+Open ``garden_rose_02.blend`` in Blender, then run this file to rebuild its
+cane, prickles, peduncle, and bud shoot. Authored leaves, flower, and bud are
+kept as editable meshes and follow stable local attachment sockets.
 """
 
+import json
+import hashlib
 import math
 import random
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 
 ROOT = Path(__file__).resolve().parent
-PREVIEWS = ROOT / "previews"
+BLEND_PATH = ROOT / "garden_rose_02.blend"
 SEED = 314159
-rng = random.Random(SEED)
+SCHEMA = "rose02.hybrid.v1"
+OWNER = "garden_rose_02.generator"
+GENERATED_COLLECTION = "ROSE02 | Generated structure"
+SOCKET_COLLECTION = "ROSE02 | Attachment sockets"
+AUTHOR_COLLECTIONS = {
+    "leaf": "02 Compound leaves",
+    "flower": "03 Open flower",
+    "bud": "04 Bud",
+}
+SOCKET_ROLES = ("leaf.01", "leaf.02", "leaf.03", "flower.main", "bud.main")
+DEFAULTS = {"stem_height_scale": 1.0}
+PARAMETER_LIMITS = {"stem_height_scale": (0.9, 1.1)}
 
-bpy.ops.object.select_all(action="SELECT")
-bpy.ops.object.delete(use_global=False)
-for collection in list(bpy.data.collections):
-    if collection.name != "Collection":
-        bpy.data.collections.remove(collection)
-
-scene = bpy.context.scene
-bpy.context.preferences.filepaths.save_version = 0
-scene.unit_settings.system = "METRIC"
-scene.unit_settings.scale_length = 1.0
-scene.render.engine = "BLENDER_EEVEE_NEXT"
-scene.render.resolution_x = 900
-scene.render.resolution_y = 900
-scene.render.resolution_percentage = 100
-scene.render.image_settings.file_format = "PNG"
-scene.render.film_transparent = True
-scene.render.image_settings.color_mode = "RGBA"
-scene.view_settings.view_transform = "AgX"
-scene.render.image_settings.color_depth = "8"
-scene.world.color = (0.15, 0.15, 0.15)
-
-
-def collection(name):
-    group = bpy.data.collections.new(name)
-    scene.collection.children.link(group)
-    return group
-
-
-stems = collection("01 Stems and prickles")
-foliage = collection("02 Compound leaves")
-flower = collection("03 Open flower")
-bud_group = collection("04 Bud")
-studio = collection("05 Studio")
-
-
-def material(name, color, roughness=0.7, subsurface=0.0):
-    mat = bpy.data.materials.new(name)
-    mat.diffuse_color = (*color, 1)
-    mat.use_nodes = True
-    bsdf = mat.node_tree.nodes.get("Principled BSDF")
-    bsdf.inputs["Base Color"].default_value = (*color, 1)
-    bsdf.inputs["Roughness"].default_value = roughness
-    bsdf.inputs["Subsurface Weight"].default_value = subsurface
-    return mat
-
-
-stem_mat = material("Stem | olive green", (0.105, 0.205, 0.055), 0.68)
-thorn_mat = material("Prickles | warm olive", (0.28, 0.25, 0.09), 0.8)
-leaf_mats = [
-    material("Leaf | mature", (0.045, 0.15, 0.042), 0.49, 0.04),
-    material("Leaf | light", (0.075, 0.205, 0.056), 0.53, 0.04),
-    material("Leaf | shaded", (0.035, 0.115, 0.04), 0.57, 0.04),
-]
-vein_mat = material("Leaf midrib", (0.12, 0.235, 0.075), 0.62)
-calyx_mat = material("Calyx", (0.12, 0.22, 0.055), 0.71)
-petal_mats = [
-    material("Petal | carmine", (0.48, 0.018, 0.045), 0.57, 0.07),
-    material("Petal | lit crimson", (0.62, 0.025, 0.055), 0.54, 0.07),
-    material("Petal | inner ruby", (0.35, 0.008, 0.025), 0.6, 0.07),
-    material("Petal | warm edge", (0.58, 0.032, 0.048), 0.56, 0.07),
-]
+_STEM_PATH = (
+    (0.0, 0.0, 0.0), (0.006, 0.003, 0.11), (0.018, 0.006, 0.23),
+    (0.034, 0.005, 0.35), (0.052, 0.012, 0.47),
+    (0.073, 0.025, 0.57), (0.099, 0.044, 0.665),
+)
+_STEM_RADII = (0.0075, 0.0072, 0.0066, 0.0058, 0.005, 0.0042, 0.0033)
+_LEAF_SOCKETS = (
+    (0.022, 0.004, 0.25), (0.046, 0.01, 0.42), (0.066, 0.02, 0.535),
+)
+_FLOWER_SOCKET = (0.099, 0.044, 0.665)
+_BUD_ROOT = (0.055, 0.015, 0.48)
+_BUD_MID = (0.13, -0.036, 0.545)
+_BUD_TIP = (0.207, -0.056, 0.603)
+_LEGACY_GENERATED_NAMES = {
+    "Main arching cane", "Flower peduncle", "Bud lateral shoot",
+    "Curved prickle 1", "Curved prickle 2", "Curved prickle 3",
+    "Curved prickle 4", "Curved prickle 5",
+}
+_LEGACY_VERTEX_COUNTS = {
+    "Main arching cane": 84,
+    "Curved prickle 1": 21, "Curved prickle 2": 21,
+    "Curved prickle 3": 21, "Curved prickle 4": 21, "Curved prickle 5": 21,
+    "Flower peduncle": 20,
+    "Bud lateral shoot": 27,
+}
+_LEGACY_GEOMETRY_SHA256 = {
+    "Main arching cane": "c515ba4cc99253025677871a5afe06bb864a958d2a75ffb778a0d45f4a6498e2",
+    "Flower peduncle": "7044ec85a94962de907ffbba2e1de5aafff8fb657017572b61b1ce283ae8130d",
+    "Bud lateral shoot": "b02a887e0a5c4d6171b44c998e1a99065766d624bd2356595d106d0a37c8ec8b",
+    "Curved prickle 1": "aa451d599d3056836e387079363b59fccdefd889ff1c1bf74be2430471cea0e9",
+    "Curved prickle 2": "0ac4c825faba383a2cdb636037fbc598f51d33cf4c0b0513b7f15e51080b9ff1",
+    "Curved prickle 3": "e4ca91b9032df934a38cb0512e13a367a2a6e7b2beee61916e8e95ab102406ec",
+    "Curved prickle 4": "8a8cdd831f829d12b787c0cbbc2f9669a63a938b943d03382da93ef17a958ae3",
+    "Curved prickle 5": "c24bd1298f0258778ce85bcfcd6c6f8d3fd9c97a8a64be85fcc5aa5516ba3d21",
+}
 
 
-def mesh_object(name, vertices, faces, mat, group, solidify=0.0):
-    mesh = bpy.data.meshes.new(name)
-    mesh.from_pydata(vertices, [], faces)
-    mesh.update()
-    obj = bpy.data.objects.new(name, mesh)
-    group.objects.link(obj)
-    obj.data.materials.append(mat)
-    for polygon in mesh.polygons:
-        polygon.use_smooth = True
-    if solidify:
-        mod = obj.modifiers.new("Petal or leaf membrane", "SOLIDIFY")
-        mod.thickness = solidify
-        mod.offset = 0
-    return obj
+def _validate(parameters, seed):
+    params = dict(DEFAULTS)
+    if parameters is not None:
+        if not isinstance(parameters, dict):
+            raise TypeError("parameters must be a dict")
+        unknown = set(parameters) - set(DEFAULTS)
+        if unknown:
+            raise ValueError(f"unknown parameter(s): {', '.join(sorted(unknown))}")
+        params.update(parameters)
+    for name, value in params.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"{name} must be a finite number")
+        if not math.isfinite(value):
+            raise ValueError(f"{name} must be finite")
+        low, high = PARAMETER_LIMITS[name]
+        if not low <= value <= high:
+            raise ValueError(f"{name} must be in [{low}, {high}]")
+        params[name] = float(value)
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise TypeError("seed must be an integer")
+    return params
 
 
-def tube(name, points, radii, mat, group, sides=10):
+def _preflight(scene):
+    required = set(AUTHOR_COLLECTIONS.values()) | {"01 Stems and prickles"}
+    missing = sorted(name for name in required if bpy.data.collections.get(name) is None)
+    if missing:
+        raise RuntimeError("Rose 02 source collections missing: " + ", ".join(missing))
+    required_materials = ("Stem | olive green", "Prickles | warm olive")
+    missing = [name for name in required_materials if bpy.data.materials.get(name) is None]
+    if missing:
+        raise RuntimeError("Rose 02 source materials missing: " + ", ".join(missing))
+    if scene is None:
+        raise RuntimeError("An active Rose 02 source scene is required")
+    socket_collection = bpy.data.collections.get(SOCKET_COLLECTION)
+    for role in SOCKET_ROLES:
+        name = "Socket | " + role
+        existing = bpy.data.objects.get(name)
+        if existing is None:
+            continue
+        expected_collections = {socket_collection} if socket_collection is not None else set()
+        if (existing.type != "EMPTY" or existing.get("rose02.owner") != "garden_rose_02.socket"
+                or existing.get("rose02.role_id") != role
+                or not expected_collections.intersection(existing.users_collection[:])):
+            raise RuntimeError(f"Unowned or ambiguous Rose 02 socket name: {name}")
+
+    # The original scene has no schema tag. Migrate only its full, validated
+    # canonical structure once. After migration, untagged same-name user objects
+    # are never considered generator-owned.
+    if scene.get("rose02.schema") == SCHEMA:
+        return []
+    if scene.get("rose02.schema") is not None:
+        raise RuntimeError(f"Unsupported Rose 02 schema: {scene.get('rose02.schema')}")
+    stems = bpy.data.collections["01 Stems and prickles"]
+    missing = sorted(name for name in _LEGACY_GENERATED_NAMES
+                     if bpy.data.objects.get(name) is None or bpy.data.objects[name] not in stems.objects[:])
+    if missing:
+        raise RuntimeError("Ambiguous legacy Rose 02 structure; missing canonical objects: " + ", ".join(missing))
+    legacy = []
+    for name, expected_vertices in _LEGACY_VERTEX_COUNTS.items():
+        obj = bpy.data.objects[name]
+        expected_material = "Prickles | warm olive" if name.startswith("Curved prickle") else "Stem | olive green"
+        if (obj.type != "MESH" or obj.data is None or len(obj.data.vertices) != expected_vertices
+                or set(obj.users_collection[:]) != {stems}
+                or [mat.name for mat in obj.data.materials if mat] != [expected_material]):
+            raise RuntimeError(f"Ambiguous legacy Rose 02 structural object: {name}")
+        mesh_signature = {
+            "v": [tuple(round(float(c), 7) for c in vertex.co) for vertex in obj.data.vertices],
+            "e": [tuple(edge.vertices) for edge in obj.data.edges],
+            "f": [tuple(poly.vertices) for poly in obj.data.polygons],
+            "m": [mat.name for mat in obj.data.materials if mat],
+        }
+        signature = hashlib.sha256(json.dumps(mesh_signature, separators=(",", ":")).encode()).hexdigest()
+        if signature != _LEGACY_GEOMETRY_SHA256[name]:
+            raise RuntimeError(f"Ambiguous legacy Rose 02 geometry signature: {name}")
+        legacy.append(obj)
+    if any(any(obj.name == name or obj.name.startswith(name + ".") for name in _LEGACY_GENERATED_NAMES)
+           for obj in stems.objects if obj not in legacy):
+        raise RuntimeError("Ambiguous duplicate legacy Rose 02 structural names")
+    return legacy
+
+
+def _point_at_height(z, scale):
+    points = [Vector((x, y, h * scale)) for x, y, h in _STEM_PATH]
+    for a, b in zip(points, points[1:]):
+        if a.z <= z <= b.z or b.z <= z <= a.z:
+            t = (z - a.z) / (b.z - a.z)
+            return a.lerp(b, t)
+    return points[0] if z < points[0].z else points[-1]
+
+
+def _tangent_at_height(z, scale):
+    points = [Vector((x, y, h * scale)) for x, y, h in _STEM_PATH]
+    index = min(range(len(points)), key=lambda i: abs(points[i].z - z))
+    lo, hi = max(0, index - 1), min(len(points) - 1, index + 1)
+    return (points[hi] - points[lo]).normalized()
+
+
+def _socket_matrix(location, axis, reference):
+    # Keep a reference chosen at the canonical 1.0 pose; don't switch axes as
+    # the stem tangent crosses a threshold during small parameter changes.
+    z_axis = Vector(axis).normalized()
+    up = Vector(reference).normalized()
+    x_axis = up.cross(z_axis).normalized()
+    y_axis = z_axis.cross(x_axis).normalized()
+    rotation = Matrix((x_axis, y_axis, z_axis)).transposed().to_4x4()
+    rotation.translation = Vector(location)
+    return rotation
+
+
+def _socket_specs(scale):
+    specs = {}
+    for index, point in enumerate(_LEAF_SOCKETS, 1):
+        location = (point[0], point[1], point[2] * scale)
+        tangent = _tangent_at_height(location[2], scale)
+        canonical = _tangent_at_height(point[2], 1.0)
+        reference = Vector((0, 0, 1)) if abs(canonical.z) <= 0.96 else Vector((0, 1, 0))
+        specs[f"leaf.{index:02}"] = (location, tangent, reference)
+    flower = (0.099, 0.044, 0.665 * scale)
+    flower_axis = _tangent_at_height(flower[2], scale)
+    canonical_flower_axis = _tangent_at_height(0.665, 1.0)
+    flower_reference = Vector((0, 0, 1)) if abs(canonical_flower_axis.z) <= 0.96 else Vector((0, 1, 0))
+    specs["flower.main"] = (flower, flower_axis, flower_reference)
+    bud_location = (0.207, -0.056, 0.603 * scale)
+    branch_axis = Vector((0.47, -0.13, 0.87 * scale)).normalized()
+    canonical_branch_axis = Vector((0.47, -0.13, 0.87)).normalized()
+    bud_reference = Vector((0, 0, 1)) if abs(canonical_branch_axis.z) <= 0.96 else Vector((0, 1, 0))
+    specs["bud.main"] = (bud_location, branch_axis, bud_reference)
+    return specs
+
+
+def _collection(name, scene):
+    coll = bpy.data.collections.get(name)
+    if coll is None:
+        coll = bpy.data.collections.new(name)
+        scene.collection.children.link(coll)
+    return coll
+
+
+def _ensure_sockets(scene, specs):
+    coll = _collection(SOCKET_COLLECTION, scene)
+    sockets = {}
+    for role in SOCKET_ROLES:
+        name = "Socket | " + role
+        obj = bpy.data.objects.get(name)
+        if obj is None:
+            obj = bpy.data.objects.new(name, None)
+            coll.objects.link(obj)
+            obj.empty_display_type = "ARROWS"
+            obj.empty_display_size = 0.018
+        elif obj.name not in coll.objects:
+            coll.objects.link(obj)
+        obj["rose02.role_id"] = role
+        obj["rose02.owner"] = "garden_rose_02.socket"
+        obj.matrix_world = _socket_matrix(*specs[role])
+        sockets[role] = obj
+    return sockets
+
+
+def _parent_preserving_world(obj, socket):
+    world = obj.matrix_world.copy()
+    obj.parent = socket
+    obj.matrix_parent_inverse = Matrix.Identity(4)
+    obj.matrix_basis = socket.matrix_world.inverted() @ world
+
+
+def _attach_authored(scene, sockets):
+    # One-time localization of baked world-coordinate authoring into stable sockets.
+    for role, collection_name in AUTHOR_COLLECTIONS.items():
+        coll = bpy.data.collections[collection_name]
+        if role == "leaf":
+            # Assign each whole compound leaf to its own anchor by authored naming.
+            for obj in list(coll.objects):
+                import re
+                match = re.match(r"Leaf\s+(\d+)\b", obj.name)
+                index = int(match.group(1)) if match else 1
+                socket = sockets[f"leaf.{min(max(index, 1), 3):02}"]
+                if obj.parent != socket:
+                    _parent_preserving_world(obj, socket)
+        else:
+            socket = sockets["flower.main" if role == "flower" else "bud.main"]
+            for obj in list(coll.objects):
+                if obj.parent != socket:
+                    _parent_preserving_world(obj, socket)
+
+
+def _tube_data(points, radii, sides):
     points = [Vector(p) for p in points]
-    verts, faces = [], []
+    vertices, faces = [], []
     for i, center in enumerate(points):
-        tangent = (points[min(i + 1, len(points)-1)] - points[max(i - 1, 0)]).normalized()
+        tangent = (points[min(i + 1, len(points) - 1)] - points[max(i - 1, 0)]).normalized()
         reference = Vector((0, 0, 1))
         if abs(tangent.dot(reference)) > 0.9:
             reference = Vector((0, 1, 0))
@@ -107,235 +266,106 @@ def tube(name, points, radii, mat, group, sides=10):
         up = tangent.cross(right).normalized()
         for k in range(sides):
             angle = 2 * math.pi * k / sides
-            verts.append(tuple(center + radii[i] * (math.cos(angle)*right + math.sin(angle)*up)))
+            vertices.append(tuple(center + radii[i] * (math.cos(angle) * right + math.sin(angle) * up)))
     faces.append(tuple(reversed(range(sides))))
-    for i in range(len(points)-1):
+    for i in range(len(points) - 1):
         for k in range(sides):
-            j = (k+1) % sides
-            faces.append((i*sides+k, i*sides+j, (i+1)*sides+j, (i+1)*sides+k))
-    faces.append(tuple((len(points)-1)*sides+k for k in range(sides)))
-    return mesh_object(name, verts, faces, mat, group)
+            j = (k + 1) % sides
+            faces.append((i * sides + k, i * sides + j, (i + 1) * sides + j, (i + 1) * sides + k))
+    faces.append(tuple((len(points) - 1) * sides + k for k in range(sides)))
+    return vertices, faces
 
 
-stem_path = [
-    (0.0, 0.0, 0.0), (0.006, 0.003, 0.11), (0.018, 0.006, 0.23),
-    (0.034, 0.005, 0.35), (0.052, 0.012, 0.47),
-    (0.073, 0.025, 0.57), (0.099, 0.044, 0.665),
-]
-tube("Main arching cane", stem_path, [0.0075, 0.0072, 0.0066, 0.0058, 0.005, 0.0042, 0.0033], stem_mat, stems, 12)
-
-
-def leaf_blade(name, base, tip, width, normal_hint, mat, group, serration=7, curl=0.003):
-    base, tip = Vector(base), Vector(tip)
-    axis = (tip-base).normalized()
-    normal = Vector(normal_hint).normalized()
-    side = axis.cross(normal).normalized()
-    normal = side.cross(axis).normalized()
-    length = (tip-base).length
-    verts, faces = [], []
-    steps, across = 24, 6
-    for i in range(steps+1):
-        t = i/steps
-        envelope = max(0.025, max(0, math.sin(math.pi * t)) ** 0.77)
-        for j in range(across+1):
-            u = 2*j/across-1
-            teeth = 1 + (0.09 if j in (0, across) else 0) * math.sin(t*serration*2*math.pi)
-            local_width = width*envelope*teeth*u
-            arch = (1-u*u)*0.004*math.sin(math.pi*t) + curl*u*u*math.sin(math.pi*t)
-            p = base + axis*(length*t) + side*local_width + normal*arch
-            verts.append(tuple(p))
-    for i in range(steps):
-        for j in range(across):
-            a = i*(across+1)+j
-            faces.append((a, a+1, a+across+2, a+across+1))
-    obj = mesh_object(name, verts, faces, mat, group, 0.00055)
-    tube(name + " | midrib", [base, base.lerp(tip, 0.5)+normal*0.004, tip], [0.00075, 0.00055, 0.00012], vein_mat, group, 6)
+def _new_owned_tube(name, role, points, radii, sides, material, collection):
+    vertices, faces = _tube_data(points, radii, sides)
+    mesh = bpy.data.meshes.new(name + " | mesh")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    mesh.materials.append(material)
+    for polygon in mesh.polygons:
+        polygon.use_smooth = True
+    obj["rose02.owner"] = OWNER
+    obj["rose02.role_id"] = role
     return obj
 
 
-leaf_specs = [
-    ((0.022, 0.004, 0.25), (-0.19, -0.045, 0.28), 0.92),
-    ((0.046, 0.01, 0.42), (0.22, -0.065, 0.47), 1.02),
-    ((0.066, 0.02, 0.535), (-0.145, 0.08, 0.575), 0.78),
-]
-for group_index, (root, tip, scale) in enumerate(leaf_specs):
-    root, tip = Vector(root), Vector(tip)
-    direction = (tip-root).normalized()
-    side = Vector((-direction.y, direction.x, 0)).normalized()
-    rachis = [root, root.lerp(tip, 0.35)+Vector((0, 0, 0.014)), root.lerp(tip, 0.68)+Vector((0, 0, 0.013)), tip]
-    tube(f"Leaf {group_index+1} rachis", rachis, [0.002, 0.0017, 0.0012, 0.00045], stem_mat, foliage, 8)
-    for pair in range(2):
-        t = 0.34 + pair*0.28
-        anchor = root.lerp(tip, t)+Vector((0, 0, 0.013))
-        for sign in (-1, 1):
-            blade_length = (0.079 if pair == 0 else 0.068)*scale
-            outward = (direction*0.46 + side*sign*0.89).normalized()
-            petiole_end = anchor + outward*0.018 + Vector((0, 0, 0.007))
-            blade_tip = petiole_end + outward*blade_length + Vector((0, 0, -0.008+0.006*pair))
-            tube(f"Leaf {group_index+1} petiole {pair}-{sign}", [anchor, petiole_end], [0.0011, 0.0005], stem_mat, foliage, 6)
-            leaf_blade(f"Leaf {group_index+1} leaflet {pair}-{sign}", petiole_end, blade_tip,
-                       0.022*scale*(1-0.08*pair), (0, 0, 1), leaf_mats[(group_index+pair+(sign+1)//2)%3], foliage,
-                       curl=0.0025*sign)
-    terminal_tip = tip + direction*0.062*scale + Vector((0, 0, -0.005))
-    leaf_blade(f"Leaf {group_index+1} terminal leaflet", tip-0.009*direction, terminal_tip,
-               0.023*scale, (0, 0, 1), leaf_mats[group_index%3], foliage)
+def _structural_spec(seed, scale):
+    points = [Vector((x, y, z * scale)) for x, y, z in _STEM_PATH]
+    rng = random.Random(seed)
+    prickles = []
+    for index, (height, angle) in enumerate(((0.095, 0.2), (0.18, 2.4), (0.315, 4.4), (0.395, 1.1), (0.505, 3.2)), 1):
+        height *= scale
+        angle += rng.uniform(-0.025, 0.025)
+        base = Vector((0.004 + 0.13 * (height / scale), 0.015 * (height / scale), height))
+        radial = Vector((math.cos(angle), math.sin(angle), 0))
+        base += radial * 0.0045
+        jitter = rng.uniform(-0.001, 0.001)
+        prickles.append((f"Curved prickle {index}", f"prickle.{index:02}",
+                         [base, base + radial * (0.010 + jitter) + Vector((0, 0, 0.005 * scale)),
+                          base + radial * 0.018 + Vector((0, 0, -0.004 * scale))]))
+    bud_root = Vector((_BUD_ROOT[0], _BUD_ROOT[1], _BUD_ROOT[2] * scale))
+    bud_mid = Vector((_BUD_MID[0], _BUD_MID[1], _BUD_MID[2] * scale))
+    bud_tip = Vector((_BUD_TIP[0], _BUD_TIP[1], _BUD_TIP[2] * scale))
+    return points, prickles, (bud_root, bud_mid, bud_tip)
 
 
-for i, (height, angle) in enumerate([(0.095, 0.2), (0.18, 2.4), (0.315, 4.4), (0.395, 1.1), (0.505, 3.2)]):
-    base = Vector((0.004+0.13*height, 0.015*height, height))
-    radial = Vector((math.cos(angle), math.sin(angle), 0))
-    base += radial*0.0045
-    tube(f"Curved prickle {i+1}", [base, base+radial*0.010+Vector((0, 0, 0.005)),
-         base+radial*0.018+Vector((0, 0, -0.004))], [0.0032, 0.0017, 0.0001], thorn_mat, stems, 7)
+def regenerate_scene(parameters=None, seed=SEED, save_path=None):
+    """Regenerate owned structure in the open source scene; authored meshes survive.
+
+    ``stem_height_scale`` is the single bounded structural control (0.9–1.1).
+    Validation and source checks complete before the scene is changed.
+    """
+    params = _validate(parameters, seed)
+    scene = bpy.context.scene
+    legacy_to_migrate = _preflight(scene)
+    scale = params["stem_height_scale"]
+    points, prickles, bud_points = _structural_spec(seed, scale)
+    specs = _socket_specs(scale)
+    stem_mat = bpy.data.materials["Stem | olive green"]
+    thorn_mat = bpy.data.materials["Prickles | warm olive"]
+
+    generated = _collection(GENERATED_COLLECTION, scene)
+    sockets = _ensure_sockets(scene, specs)
+    # Remove only tagged generator output and the exact structural names from the
+    # original build. Unknown/user objects in the source collections are retained.
+    for obj in list(bpy.data.objects):
+        generator_owned = obj.get("rose02.owner") == OWNER and generated in obj.users_collection[:]
+        if generator_owned or obj in legacy_to_migrate:
+            data = obj.data if obj.type == "MESH" else None
+            bpy.data.objects.remove(obj, do_unlink=True)
+            if data is not None and data.users == 0:
+                bpy.data.meshes.remove(data)
+    _attach_authored(scene, sockets)
+
+    _new_owned_tube("Main arching cane", "stem.main", points, _STEM_RADII,
+                    12, stem_mat, generated)
+    for name, role, path in prickles:
+        _new_owned_tube(name, role, path, [0.0032, 0.0017, 0.0001], 7, thorn_mat, generated)
+    _new_owned_tube("Flower peduncle", "peduncle.main", [points[-2], points[-1]],
+                    [0.0042, 0.0032], 10, stem_mat, generated)
+    _new_owned_tube("Bud lateral shoot", "shoot.bud", bud_points,
+                    [0.0031, 0.0025, 0.0019], 9, stem_mat, generated)
+
+    scene["rose02.schema"] = SCHEMA
+    scene["rose02.seed"] = seed
+    scene["rose02.parameters_json"] = json.dumps(params, sort_keys=True, separators=(",", ":"))
+    scene["rose02.source_script"] = str(Path(__file__).resolve())
+    scene["seed"] = seed
+    bpy.context.view_layer.update()
+    if save_path is not None:
+        bpy.ops.wm.save_as_mainfile(filepath=str(Path(save_path).resolve()))
+    return {"seed": seed, "parameters": params, "generated_collection": generated.name,
+            "socket_roles": list(SOCKET_ROLES)}
 
 
-def organ_frame(origin, direction):
-    direction = Vector(direction).normalized()
-    rotation = Vector((0, 0, 1)).rotation_difference(direction)
-    return lambda point: tuple(Vector(origin) + rotation @ Vector(point))
+def save_source(path=BLEND_PATH):
+    """Save the current source scene after regeneration to an explicit .blend path."""
+    bpy.ops.wm.save_as_mainfile(filepath=str(Path(path).resolve()))
+    return Path(path).resolve()
 
 
-def petal(name, frame, angle, root_radius, length, half_width, zbase, ztip, twist, mat, group):
-    vertices, faces = [], []
-    rows, cols = 14, 10
-    for i in range(rows+1):
-        t = i/rows
-        width_shape = max(0, math.sin(math.pi*(0.08+0.88*t)))**0.7
-        for j in range(cols+1):
-            u = 2*j/cols-1
-            theta = angle + twist*t + 0.09*u*t
-            radial = root_radius + length*t - 0.006*(1-u*u)*math.sin(math.pi*t)
-            tangential = half_width*width_shape*u
-            x = math.cos(theta)*radial - math.sin(theta)*tangential
-            y = math.sin(theta)*radial + math.cos(theta)*tangential
-            z = zbase + (ztip-zbase)*(t*t*(3-2*t))
-            z += 0.006*(1-u*u)*math.sin(math.pi*t) + 0.005*u*u*t*t
-            vertices.append(frame((x, y, z)))
-    for i in range(rows):
-        for j in range(cols):
-            a = i*(cols+1)+j
-            faces.append((a, a+1, a+cols+2, a+cols+1))
-    return mesh_object(name, vertices, faces, mat, group, 0.0008)
-
-
-flower_origin = Vector(stem_path[-1])
-flower_axis = Vector((0.13, -0.49, 0.86)).normalized()
-ff = organ_frame(flower_origin, flower_axis)
-
-# A tapered receptacle supports the petals; sepals radiate from its underside.
-tube("Flower peduncle", [stem_path[-2], flower_origin], [0.0042, 0.0032], stem_mat, stems, 10)
-bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=12, location=ff((0, 0, -0.028)))
-receptacle = bpy.context.object
-receptacle.name = "Flower receptacle"
-receptacle.scale = (0.025, 0.025, 0.018)
-bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-for coll in list(receptacle.users_collection): coll.objects.unlink(receptacle)
-flower.objects.link(receptacle)
-receptacle.data.materials.append(calyx_mat)
-
-for k in range(5):
-    angle = 2*math.pi*k/5+0.11
-    direction = Vector((math.cos(angle), math.sin(angle), -0.2)).normalized()
-    base = Vector(ff((0.012*math.cos(angle), 0.012*math.sin(angle), -0.037)))
-    tip = Vector(ff((0.065*math.cos(angle), 0.065*math.sin(angle), -0.045)))
-    leaf_blade(f"Sepal {k+1}", base, tip, 0.010, flower_axis, calyx_mat, flower, 3, 0.002)
-
-ring_specs = [
-    # count, root radius, length, half width, base height, tip height, phase
-    (8, 0.013, 0.077, 0.036, -0.017, -0.005, 0.05),
-    (10, 0.009, 0.064, 0.029, -0.008, 0.007, 0.33),
-    (11, 0.006, 0.048, 0.022, 0.004, 0.025, 0.06),
-    (12, 0.003, 0.032, 0.015, 0.013, 0.037, 0.21),
-]
-for ring, (count, root_r, length, width, zbase, ztip, phase) in enumerate(ring_specs):
-    for k in range(count):
-        angle = 2*math.pi*(k+phase)/count + rng.uniform(-0.075, 0.075)
-        petal(f"Open rose | layer {ring+1} petal {k+1:02}", ff, angle,
-              root_r, length*rng.uniform(0.92, 1.08), width*rng.uniform(0.91, 1.08),
-              zbase, ztip+rng.uniform(-0.005, 0.005), rng.uniform(-0.09, 0.09),
-              petal_mats[(ring+k//3)%len(petal_mats)], flower)
-for k in range(7):
-    petal(f"Heart curl {k+1}", ff, 2*math.pi*k/7, 0.001, 0.021, 0.011, 0.025, 0.049,
-          0.2, petal_mats[2 if k%3 else 1], flower)
-
-
-bud_root = Vector((0.055, 0.015, 0.48))
-bud_mid = Vector((0.13, -0.036, 0.545))
-bud_origin = Vector((0.207, -0.056, 0.603))
-tube("Bud lateral shoot", [bud_root, bud_mid, bud_origin], [0.0031, 0.0025, 0.0019], stem_mat, stems, 9)
-bud_axis = Vector((0.47, -0.13, 0.87)).normalized()
-bf = organ_frame(bud_origin, bud_axis)
-bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=12, location=bf((0, 0, 0.017)))
-bud_core = bpy.context.object
-bud_core.name = "Bud closed petal core"
-bud_core.scale = (0.019, 0.019, 0.039)
-bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-for coll in list(bud_core.users_collection): coll.objects.unlink(bud_core)
-bud_group.objects.link(bud_core)
-bud_core.data.materials.append(petal_mats[2])
-for k in range(5):
-    petal(f"Bud wrapped petal {k+1}", bf, 2*math.pi*k/5, 0.006, 0.029, 0.014,
-          -0.014, 0.051, 0.08, petal_mats[k%3], bud_group)
-    angle = 2*math.pi*k/5
-    base = Vector(bf((0.007*math.cos(angle), 0.007*math.sin(angle), -0.01)))
-    tip = Vector(bf((0.022*math.cos(angle), 0.022*math.sin(angle), 0.034)))
-    leaf_blade(f"Bud sepal {k+1}", base, tip, 0.005, bud_axis, calyx_mat, bud_group, 2, 0.001)
-
-
-def aim(obj, target):
-    direction = Vector(target)-obj.location
-    obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
-
-
-def add_camera(name, position, target):
-    cam_data = bpy.data.cameras.new(name)
-    cam = bpy.data.objects.new(name, cam_data)
-    studio.objects.link(cam)
-    cam.location = position
-    aim(cam, target)
-    cam_data.type = "ORTHO"
-    cam_data.ortho_scale = 0.9
-    return cam
-
-
-target = (0.025, 0.0, 0.36)
-cameras = {
-    "hero": add_camera("Camera | hero", (0.95, -1.35, 0.96), target),
-    "front": add_camera("Camera | front", (0.0, -1.65, 0.53), target),
-    "side": add_camera("Camera | side", (1.65, 0.0, 0.53), target),
-    "back": add_camera("Camera | back", (0.0, 1.65, 0.53), target),
-}
-
-
-def area_light(name, position, energy, size):
-    data = bpy.data.lights.new(name, "AREA")
-    data.energy = energy
-    data.shape = "DISK"
-    data.size = size
-    obj = bpy.data.objects.new(name, data)
-    studio.objects.link(obj)
-    obj.location = position
-    aim(obj, target)
-
-
-area_light("Key | broad softbox", (0.7, -0.7, 1.3), 230, 1.0)
-area_light("Fill | neutral", (-0.7, -0.35, 0.85), 105, 0.85)
-area_light("Rim | rear", (0.1, 0.8, 1.0), 160, 0.65)
-
-scene.camera = cameras["hero"]
-scene["asset_name"] = "Garden rose | carmine hero specimen"
-scene["seed"] = SEED
-scene["source_up_axis"] = "Z"
-scene["origin"] = "cut end of main stem"
-scene["runtime_export"] = "none requested"
-
-PREVIEWS.mkdir(parents=True, exist_ok=True)
-blend_path = ROOT / "garden_rose_02.blend"
-bpy.ops.wm.save_as_mainfile(filepath=str(blend_path))
-for view, camera in cameras.items():
-    scene.camera = camera
-    scene.render.filepath = str(PREVIEWS / f"{view}.png")
-    bpy.ops.render.render(write_still=True)
-scene.camera = cameras["hero"]
-bpy.ops.wm.save_as_mainfile(filepath=str(blend_path))
-print(f"ROSE_OUTPUT {blend_path}")
+if __name__ == "__main__":
+    result = regenerate_scene(save_path=BLEND_PATH)
+    print("ROSE02_REGENERATED " + json.dumps(result, sort_keys=True))
