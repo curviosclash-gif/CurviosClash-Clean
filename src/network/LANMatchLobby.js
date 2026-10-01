@@ -24,9 +24,8 @@ import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 500;
 const DEFAULT_POLL_TIMEOUT_MS = 2500;
-// One lost poll starts the reconnect loop; its three attempts are the tolerance, so the
-// guest sees "Verbindung wird wiederhergestellt" at once instead of a stale "connected".
-const POLL_FAILURE_THRESHOLD = 1;
+const HOST_POLL_FAILURE_THRESHOLD = 3;
+const GUEST_POLL_FAILURE_THRESHOLD = 1;
 
 /**
  * Lobby for LAN play. Communicates with the embedded LAN signaling server
@@ -270,7 +269,10 @@ export class LANMatchLobby extends MatchLobby {
                 } catch (err) {
                     this._consecutivePollFailures += 1;
                     logger.debug('Lobby status poll failed:', err);
-                    if (this._consecutivePollFailures >= POLL_FAILURE_THRESHOLD) {
+                    const failureThreshold = this.isHost
+                        ? HOST_POLL_FAILURE_THRESHOLD
+                        : GUEST_POLL_FAILURE_THRESHOLD;
+                    if (this._consecutivePollFailures >= failureThreshold) {
                         this._handleSignalingClosed(err);
                         this._pollInFlight = false;
                         return;

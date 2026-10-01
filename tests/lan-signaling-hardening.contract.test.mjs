@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import test from 'node:test';
@@ -25,6 +26,25 @@ async function startLanServer(options = {}) {
 async function stopLanServer(server) {
     if (!server || !server.listening) return;
     await new Promise((resolve) => server.close(() => resolve()));
+}
+
+async function invokeRequestFromRemote(server, remoteAddress, headers = {}) {
+    const handler = server.listeners('request')[0];
+    const req = new EventEmitter();
+    Object.assign(req, {
+        socket: { remoteAddress },
+        method: 'GET',
+        url: '/discovery/info',
+        headers,
+        resume() {},
+    });
+    const res = {
+        statusCode: 0,
+        writeHead(statusCode) { this.statusCode = statusCode; },
+        end(body) { this.body = body; },
+    };
+    await handler(req, res);
+    return res;
 }
 
 async function postJson(baseUrl, path, body = {}) {
@@ -597,7 +617,7 @@ test('LAN lobby preserves server error codes for failed joins', async () => {
     }
 });
 
-test('LAN signaling applies per-IP request limits and slow-request timeouts', async () => {
+test('LAN signaling exempts loopback from per-IP limits but still limits LAN socket addresses', async () => {
     const lanServer = await startLanServer({
         maxRequestsPerIp: 2,
         requestRateWindowMs: 10_000,
@@ -607,11 +627,21 @@ test('LAN signaling applies per-IP request limits and slow-request timeouts', as
     try {
         assert.equal(lanServer.server.requestTimeout, 1_200);
         assert.equal(lanServer.server.headersTimeout, 600);
-        assert.equal((await fetch(`${lanServer.baseUrl}/discovery/info`)).status, 200);
-        assert.equal((await fetch(`${lanServer.baseUrl}/discovery/info`)).status, 200);
-        const limited = await fetch(`${lanServer.baseUrl}/discovery/info`);
-        assert.equal(limited.status, 429);
-        assert.equal((await limited.json()).message, 'rate_limit_exceeded');
+        for (let request = 0; request < 400; request += 1) {
+            const response = await fetch(`${lanServer.baseUrl}/discovery/info`);
+            assert.notEqual(response.status, 429, `loopback request ${request + 1} is not rate limited`);
+            assert.equal(response.status, 200);
+        }
+
+        // Exercise the real HTTP handler with the connection's remoteAddress set to
+        // a LAN peer. A forged forwarded header cannot turn that peer into loopback.
+        const peerAddress = '192.168.1.27';
+        const peerHeaders = { 'x-forwarded-for': '127.0.0.1' };
+        assert.equal((await invokeRequestFromRemote(lanServer.server, peerAddress, peerHeaders)).statusCode, 200);
+        assert.equal((await invokeRequestFromRemote(lanServer.server, peerAddress, peerHeaders)).statusCode, 200);
+        const limited = await invokeRequestFromRemote(lanServer.server, peerAddress, peerHeaders);
+        assert.equal(limited.statusCode, 429);
+        assert.equal(JSON.parse(limited.body).message, 'rate_limit_exceeded');
     } finally {
         await stopLanServer(lanServer.server);
     }

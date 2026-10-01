@@ -363,18 +363,20 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         : null;
 
     const server = http.createServer(async (req, res) => {
-        const timestamp = Date.now();
-        const remoteAddress = String(req.socket?.remoteAddress || 'unknown');
-        let requestRate = requestRates.get(remoteAddress);
-        if (!requestRate || timestamp - requestRate.windowStartedAt >= requestRateWindowMs) {
-            requestRate = { windowStartedAt: timestamp, count: 0 };
-            requestRates.set(remoteAddress, requestRate);
-        }
-        requestRate.count += 1;
-        if (requestRate.count > maxRequestsPerIp) {
-            req.resume();
-            jsonResponse(res, { ok: false, message: 'rate_limit_exceeded' }, 429);
-            return;
+        if (!isLoopbackRequest(req)) {
+            const timestamp = Date.now();
+            const remoteAddress = String(req.socket?.remoteAddress || 'unknown');
+            let requestRate = requestRates.get(remoteAddress);
+            if (!requestRate || timestamp - requestRate.windowStartedAt >= requestRateWindowMs) {
+                requestRate = { windowStartedAt: timestamp, count: 0 };
+                requestRates.set(remoteAddress, requestRate);
+            }
+            requestRate.count += 1;
+            if (requestRate.count > maxRequestsPerIp) {
+                req.resume();
+                jsonResponse(res, { ok: false, message: 'rate_limit_exceeded' }, 429);
+                return;
+            }
         }
 
         const corsOrigin = resolveCorsOrigin(req);
