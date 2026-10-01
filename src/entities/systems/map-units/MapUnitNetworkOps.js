@@ -1,6 +1,7 @@
 import { resolveUnitPathPose } from './MapUnitMovementOps.js';
 import { normalizeMapUnit } from '../../../shared/contracts/MapUnitContract.js';
 import { clearMapUnitWreck, spawnMapUnitWreck } from './MapUnitWreckOps.js';
+import { removeMapUnitVisual } from './MapUnitVisualOps.js';
 
 /**
  * Map units across the network. The host decides where a tank is, whether it lives and when it
@@ -12,6 +13,20 @@ const BLAST_COLOR = 0xff8a3d;
 
 function round(value, digits = 1000) {
     return Math.round((Number(value) || 0) * digits) / digits;
+}
+
+export function retireSummonedMapUnit(system, unit) {
+    if (!unit?.summoned) return false;
+    const index = system.units.indexOf(unit);
+    if (index < 0) return false;
+    unit.alive = false;
+    unit.crashing = false;
+    unit.respawnRemaining = Infinity;
+    if (unit.source) unit.source.alive = false;
+    clearMapUnitWreck(system, unit.id);
+    removeMapUnitVisual(system.entityManager?.renderer, unit);
+    system.units.splice(index, 1);
+    return true;
 }
 
 /** Null on every map without tanks, so the block costs nothing there. */
@@ -97,11 +112,12 @@ function applyMounts(system, unit, entries) {
 }
 
 export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
-    if (!Array.isArray(entries)) return;
+    if (entries !== null && !Array.isArray(entries)) return;
+    const snapshot = Array.isArray(entries) ? entries : [];
     system.networkReplica = true;
-    const byId = new Map(entries.map((entry) => [String(entry?.id || ''), entry]));
+    const byId = new Map(snapshot.map((entry) => [String(entry?.id || ''), entry]));
     const knownIds = new Set(system.units.map((unit) => unit.id));
-    for (const entry of entries) {
+    for (const entry of snapshot) {
         if (!entry?.summoned || knownIds.has(String(entry.id || '')) || !Array.isArray(entry.path)) continue;
         const definition = normalizeMapUnit({
             id: entry.id, kind: 'bomber', path: entry.path, loop: false,
@@ -220,5 +236,15 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         // A client never runs the respawn itself, so it clears the wreck when the unit comes back.
         if (!wasAlive && unit.alive) clearMapUnitWreck(system, unit.id);
         applyMounts(system, unit, entry.mounts);
+    }
+    for (let index = system.units.length - 1; index >= 0; index -= 1) {
+        const unit = system.units[index];
+        if (!unit.summoned || byId.has(String(unit.id))) continue;
+        if (unit.crashing) {
+            system.entityManager?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, {
+                cause: 'PROJECTILE', projectileType: 'BOMBER_CRASH', kind: 'bomber-crash',
+            });
+        }
+        retireSummonedMapUnit(system, unit);
     }
 }

@@ -39,7 +39,7 @@ export function applyHuntNetworkState(entityManager, state) {
         entityManager._mapDestructibleSystem?.applyNetworkState?.(state.mapDestructibles);
     }
     if (state.waterZone) entityManager._waterZoneSystem?.applyNetworkState?.(state.waterZone);
-    if (state.mapUnits) entityManager._mapUnitSystem?.applyNetworkState?.(state.mapUnits);
+    if (state.mapUnits !== undefined) entityManager._mapUnitSystem?.applyNetworkState?.(state.mapUnits);
     if (state.flags) entityManager._flagObjectiveSystem?.applyNetworkState?.(state.flags);
     // Always applied, also when null: a finished warning has to leave the client sky.
     entityManager._lightningStrikeSystem?.applyNetworkState?.(state.lightning || { pending: [], strikes: [] });

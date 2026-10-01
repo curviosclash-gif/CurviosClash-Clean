@@ -118,6 +118,36 @@ test('a client never hurts anyone, but shows the host shots and the explosion', 
     assert.equal(client.tank.alive, false, 'a client does not bring the tank back on its own');
 });
 
+test('a snapshot retires only missing called bombers and preserves normal map units', () => {
+    const host = createSide();
+    const client = createSide({ authority: false });
+    host.manager.arena.bounds = { minX: 0, maxX: 30, minY: 0, maxY: 60, minZ: -45, maxZ: 45 };
+    assert.equal(host.system.callBomberStrike(host.human), true);
+    host.human.alive = false;
+
+    applyHuntNetworkState(client.manager, createHuntNetworkState(host.manager));
+    const calledBomber = client.system.units.find((unit) => unit.summoned);
+    assert.ok(calledBomber, 'the client has the called bomber while the host snapshot includes it');
+    const removedRoots = [];
+    const bomberRoot = new THREE.Group();
+    const normalUnitRoot = new THREE.Group();
+    calledBomber.root = bomberRoot;
+    client.tank.root = normalUnitRoot;
+    client.manager.renderer = { removeFromScene: (root) => removedRoots.push(root) };
+
+    host.system.update(1.1);
+    const afterFlight = createHuntNetworkState(host.manager);
+    assert.equal(host.system.units.some((unit) => unit.summoned), false);
+    assert.deepEqual(afterFlight.mapUnits.map((entry) => entry.id), ['tank_a']);
+    applyHuntNetworkState(client.manager, afterFlight);
+
+    assert.equal(client.system.units.length, 1, 'the client removes the absent summoned bomber');
+    assert.strictEqual(client.system.units[0], client.tank, 'normal map unit identity remains intact');
+    assert.equal(client.tank.root, normalUnitRoot, 'the normal unit visual is not detached');
+    assert.equal(calledBomber.root, null, 'the missing bomber visual is detached');
+    assert.deepEqual(removedRoots, [bomberRoot]);
+});
+
 test('entity manager replica mode reaches the tanks', async () => {
     const source = await import('node:fs').then((fs) => fs.readFileSync(new URL('../src/entities/EntityManager.js', import.meta.url), 'utf8'));
     assert.match(source, /_mapUnitSystem\?\.setNetworkReplica\?\.\(enabled\)/);

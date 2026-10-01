@@ -36,7 +36,7 @@ import {
 import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-units/MapUnitWeaponOps.js';
 import { applyMapUnitDamage, destroyMapUnit, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
 import { crushTrailsUnderUnit } from './map-units/MapUnitTrailOps.js';
-import { applyMapUnitsNetworkState, serializeMapUnits } from './map-units/MapUnitNetworkOps.js';
+import { applyMapUnitsNetworkState, retireSummonedMapUnit, serializeMapUnits } from './map-units/MapUnitNetworkOps.js';
 import {
     bindSwarmMemberCombat,
     createSwarmMembers,
@@ -103,6 +103,7 @@ export class MapUnitSystem {
         this._trailQueryStamp = 0;
         this._targets = [];
         this._dueRespawns = [];
+        this._summonedRetireScratch = [];
         this._trailScratch = [];
         this._poseScratch = createUnitPose();
         this.networkReplica = false;
@@ -302,6 +303,7 @@ export class MapUnitSystem {
 
     update(dt) {
         const safeDt = Math.max(0, Number(dt) || 0);
+        this._summonedRetireScratch.length = 0;
         tickMapUnitWrecks(this, safeDt);
         if (!this.networkReplica) {
             for (const unit of tickMapUnitRespawns(this.units, safeDt, this._dueRespawns)) this._respawn(unit);
@@ -309,9 +311,15 @@ export class MapUnitSystem {
         for (const unit of this.units) {
             if (unit.crashing) {
                 if (!this.networkReplica) updateBomberCrash(this, unit, safeDt);
+                if (!unit.crashing && !unit.alive && unit.summoned && !this.networkReplica) {
+                    this._summonedRetireScratch.push(unit);
+                }
                 continue;
             }
-            if (!unit.alive) continue;
+            if (!unit.alive) {
+                if (unit.summoned && !this.networkReplica) this._summonedRetireScratch.push(unit);
+                continue;
+            }
             const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
             if (unit.escortTank) {
                 if (unit.escortReachedGoal) continue;
@@ -407,9 +415,12 @@ export class MapUnitSystem {
                     unit.alive = false;
                     unit.respawnRemaining = Infinity;
                     if (unit.root) unit.root.visible = false;
+                    this._summonedRetireScratch.push(unit);
                 }
             }
         }
+        for (const unit of this._summonedRetireScratch) retireSummonedMapUnit(this, unit);
+        this._summonedRetireScratch.length = 0;
     }
 
     callBomberStrike(player) {
