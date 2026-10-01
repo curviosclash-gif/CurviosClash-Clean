@@ -1,4 +1,5 @@
 const http = require('node:http');
+const { createHash } = require('node:crypto');
 const path = require('node:path');
 const { createReadStream, existsSync, readFileSync } = require('node:fs');
 const { access, constants: fsConstants } = require('node:fs/promises');
@@ -48,10 +49,23 @@ function resolveDesktopConnectSources(rootDir) {
     return sources;
 }
 
-function createCspHeader(connectSources) {
+function collectInlineScriptHashes(html) {
+    // HTML parsing normalizes CRLF and lone CR to LF before exposing script textContent.
+    // Hash that normalized text so the source matches what Chromium checks against CSP.
+    const normalizedHtml = String(html).replace(/\r\n?/g, '\n');
+    const hashes = new Set();
+    for (const match of normalizedHtml.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)) {
+        if (/(?:^|\s)src(?:\s|=|$)/i.test(match[1])) continue;
+        hashes.add(`'sha256-${createHash('sha256').update(match[2], 'utf8').digest('base64')}'`);
+    }
+    return [...hashes];
+}
+
+function createCspHeader(connectSources, html = '') {
+    const inlineScriptHashes = collectInlineScriptHashes(html);
     return [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline'",
+        `script-src 'self'${inlineScriptHashes.length ? ` ${inlineScriptHashes.join(' ')}` : ''}`,
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob:",
         `connect-src ${connectSources.join(' ')}`,
@@ -65,7 +79,7 @@ function createCspHeader(connectSources) {
 }
 
 function createStaticRequestHandler(rootDir) {
-    const cspHeader = createCspHeader(resolveDesktopConnectSources(rootDir));
+    const connectSources = resolveDesktopConnectSources(rootDir);
     return async (req, res) => {
         try {
             const requestUrl = new URL(req.url || '/', 'http://127.0.0.1');
@@ -85,10 +99,16 @@ function createStaticRequestHandler(rootDir) {
 
             const contentType = MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
             const headers = { 'Content-Type': contentType };
+            let htmlBuffer = null;
             if (contentType.startsWith('text/html')) {
-                headers['Content-Security-Policy'] = cspHeader;
+                htmlBuffer = readFileSync(filePath);
+                headers['Content-Security-Policy'] = createCspHeader(connectSources, htmlBuffer.toString('utf8'));
             }
             res.writeHead(200, headers);
+            if (htmlBuffer) {
+                res.end(htmlBuffer);
+                return;
+            }
             const stream = createReadStream(filePath);
             stream.on('error', () => {
                 if (!res.headersSent) {

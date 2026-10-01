@@ -1,4 +1,6 @@
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -10,6 +12,8 @@ const DIST_APP_DIR = path.join(ROOT_DIR, 'dist-app');
 const DIST_HTML_PATH = path.join(DIST_APP_DIR, 'index.html');
 const ELECTRON_PACKAGE_PATH = path.join(ROOT_DIR, 'electron', 'package.json');
 const RUNTIME_RESOURCES_PACKAGE_PATH = path.join(ROOT_DIR, 'electron', 'runtime-resources', 'package.json');
+const require = createRequire(import.meta.url);
+const { startStaticServer } = require('../electron/static-server.cjs');
 
 const CRITICAL_RENDERER_MARKERS = Object.freeze([
     'bot-policy-strategy',
@@ -49,6 +53,14 @@ function extractIds(html) {
 
 function sortedDifference(left, right) {
     return [...left].filter((value) => !right.has(value)).sort();
+}
+
+function inlineScriptHashes(html) {
+    const normalizedHtml = html.replace(/\r\n?/g, '\n');
+    return [...normalizedHtml.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
+        .filter((match) => !/(?:^|\s)src(?:\s|=|$)/i.test(match[1]))
+        .map((match) => `'sha256-${createHash('sha256').update(match[2], 'utf8').digest('base64')}'`)
+        .sort();
 }
 
 function resolveDistAppBundlePath(distHtml) {
@@ -98,6 +110,35 @@ test('Electron renderer dist-app contains critical UI and settings runtime marke
         if (presentInSourceHtml) {
             assert.equal(presentInDistHtml, true, `dist-app/index.html is missing source marker "${marker}".`);
         }
+    }
+});
+
+test('Electron CSP hashes exactly the inline scripts served by each built desktop HTML page', async () => {
+    assert.ok(existsSync(DIST_HTML_PATH), 'dist-app/index.html is missing. Run npm run build:app first.');
+    const pages = [
+        '/',
+        '/hangar.html',
+        '/editor/map-editor-3d.html',
+        '/prototypes/vehicle-lab/index.html',
+    ];
+    let server = null;
+    try {
+        server = await startStaticServer({ rootDir: DIST_APP_DIR, port: 0 });
+        for (const page of pages) {
+            const response = await fetch(new URL(page, server.url));
+            assert.equal(response.status, 200, `${page} must be served from dist-app.`);
+            const html = await response.text();
+            const csp = response.headers.get('content-security-policy') || '';
+            const scriptSrc = csp.split(';').map((part) => part.trim()).find((part) => part.startsWith('script-src')) || '';
+            const actualHashes = scriptSrc.split(/\s+/).filter((token) => token.startsWith("'sha256-")).sort();
+
+            assert.doesNotMatch(scriptSrc, /'unsafe-inline'/, `${page}: ${scriptSrc}`);
+            assert.deepEqual(actualHashes, inlineScriptHashes(html), `${page} script-src hashes must match the served HTML exactly.`);
+            assert.match(csp, /style-src 'self' 'unsafe-inline'/, `${page}: ${csp}`);
+            assert.match(csp, /connect-src[^;]*http:\/\/\*:\*/, `${page}: ${csp}`);
+        }
+    } finally {
+        await server?.close?.();
     }
 });
 
