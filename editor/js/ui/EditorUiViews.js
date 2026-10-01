@@ -60,7 +60,6 @@ export function showPropertyPanelView(editor, obj) {
         propObjectType,
         propObjectSubtypeRow,
         propObjectSubtype,
-        propGroup,
         propContextRow,
         propContext,
         selectionEmpty,
@@ -83,7 +82,7 @@ export function showPropertyPanelView(editor, obj) {
     if (editorTabSelection) {
         editorTabSelection.setAttribute('aria-label', `Auswahl: ${obj.userData?.id || 'Objekt'}`);
     }
-    if (propGroup) propGroup.value = String(obj.userData?.groupId || '');
+    writePropertyFieldValue(editor, 'group', obj.userData?.groupId || '');
     writePropertyFieldValue(editor, 'x', Math.round(obj.position.x));
     writePropertyFieldValue(editor, 'y', Math.round(obj.position.y));
     writePropertyFieldValue(editor, 'z', Math.round(obj.position.z));
