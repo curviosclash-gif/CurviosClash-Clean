@@ -27,9 +27,10 @@ export function createFourPlayerPlanarRuntimePort({ getRuntime }) {
         /**
          * Reads maps saved in the desktop editor again. Runs through the UI so
          * the main map picker is redrawn along with the split setups.
+         * @returns {boolean|Promise<boolean>}
          */
         refreshLocalMapCatalog() {
-            return runtime()?.runtimeCoordinator?.getUiManager?.()?.refreshLocalMapCatalog?.() === true;
+            return runtime()?.runtimeCoordinator?.getUiManager?.()?.refreshLocalMapCatalog?.();
         },
         notifySettingsChanged() {
             runtime()?._onSettingsChanged?.();

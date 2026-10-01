@@ -3,15 +3,17 @@
 const path = require('node:path');
 const {
     existsSync,
-    lstatSync,
-    mkdirSync,
-    readdirSync,
-    readFileSync,
-    realpathSync,
     renameSync,
     rmSync,
     writeFileSync,
 } = require('node:fs');
+const {
+    lstat,
+    mkdir,
+    readFile,
+    readdir,
+    realpath,
+} = require('node:fs/promises');
 const { randomUUID } = require('node:crypto');
 
 const MAP_EDITOR_SUFFIX = '.editor.json';
@@ -24,6 +26,7 @@ const MAP_KEY_SLUG_MAX_LENGTH = 48;
 const MAX_FILE_NAME_LENGTH = 120;
 const MAX_MAPS = 200;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
+const MAX_TOTAL_RUNTIME_MAP_BYTES = 64 * 1024 * 1024;
 const DEFAULT_MAP_NAME = 'Editor Map';
 // Windows behandelt diese Namen als Geraete, unabhaengig von der Endung. Das
 // Praefix editor_ schliesst sie heute schon aus; die Liste bleibt als
@@ -117,16 +120,24 @@ function parseJsonObject(text) {
  *   getMapsDirectory: () => string,
  *   openFolder: (directory: string) => Promise<unknown>,
  *   renameFile?: (source: string, target: string) => void,
- *   statLink?: (filePath: string) => {isSymbolicLink: () => boolean, size?: number},
+ *   statLink?: (filePath: string) => {isSymbolicLink: () => boolean, size?: number}|Promise<{isSymbolicLink: () => boolean, size?: number}>,
  * }} options
  */
-function createEditorMapStore({ getMapsDirectory, openFolder, renameFile = renameSync, statLink = lstatSync }) {
-    function resolveDirectory() {
+function createEditorMapStore({ getMapsDirectory, openFolder, renameFile = renameSync, statLink = lstat }) {
+    let mutationQueue = Promise.resolve();
+
+    function enqueueMutation(operation) {
+        const result = mutationQueue.then(operation);
+        mutationQueue = result.then(() => undefined, () => undefined);
+        return result;
+    }
+
+    async function resolveDirectory() {
         const directory = path.resolve(String(getMapsDirectory()));
-        if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
+        await mkdir(directory, { recursive: true });
         // Ist der Ordner selbst eine Verknuepfung, gilt sein echtes Ziel als
         // Grenze - sonst wuerde der Praefixvergleich unten ins Leere pruefen.
-        return realpathSync(directory);
+        return realpath(directory);
     }
 
     /**
@@ -135,9 +146,9 @@ function createEditorMapStore({ getMapsDirectory, openFolder, renameFile = renam
      * @param {string} directory
      * @param {string} mapKey
      * @param {string} suffix
-     * @returns {{ok: boolean, filePath?: string, error?: string}}
+     * @returns {Promise<{ok: boolean, filePath?: string, error?: string}>}
      */
-    function resolveMapFile(directory, mapKey, suffix) {
+    async function resolveMapFile(directory, mapKey, suffix) {
         const fileName = `${mapKey}${suffix}`;
         if (!isSafeEditorMapFileName(fileName)) return { ok: false, error: 'invalid_map_key' };
 
@@ -146,7 +157,7 @@ function createEditorMapStore({ getMapsDirectory, openFolder, renameFile = renam
         if (!filePath.startsWith(directory + path.sep)) return { ok: false, error: 'invalid_map_key' };
 
         try {
-            if (statLink(filePath).isSymbolicLink()) return { ok: false, error: 'unsafe_target' };
+            if ((await statLink(filePath)).isSymbolicLink()) return { ok: false, error: 'unsafe_target' };
         } catch {
             // Die Datei gibt es noch nicht - das ist der Normalfall beim Anlegen.
         }
@@ -159,35 +170,64 @@ function createEditorMapStore({ getMapsDirectory, openFolder, renameFile = renam
      * sonst koennte ein fremder Eintrag im Ordner den Hauptprozess belasten
      * oder ihn auf eine Datei ausserhalb zeigen lassen.
      */
-    function readMapFile(filePath) {
+    async function readMapFile(filePath, remainingBytes = MAX_TOTAL_RUNTIME_MAP_BYTES) {
         try {
-            const stats = statLink(filePath);
-            if (stats.isSymbolicLink()) return null;
-            if (Number(stats.size) > MAX_JSON_BYTES) return null;
-            return parseJsonObject(readFileSync(filePath, 'utf8'));
+            const stats = await statLink(filePath);
+            if (stats.isSymbolicLink()) return { runtimeMap: null, bytesRead: 0 };
+            const size = Number(stats.size) || 0;
+            if (size > MAX_JSON_BYTES) return { runtimeMap: null, bytesRead: 0 };
+            if (size > remainingBytes) {
+                return { runtimeMap: null, bytesRead: 0, error: 'total_payload_too_large' };
+            }
+            return {
+                runtimeMap: parseJsonObject(await readFile(filePath, 'utf8')),
+                bytesRead: size,
+            };
         } catch {
-            return null;
+            return { runtimeMap: null, bytesRead: 0 };
         }
     }
 
-    /** @returns {Array<{mapKey: string, runtimeMap: object}>} */
-    function readRuntimeEntries() {
-        const directory = resolveDirectory();
+    /**
+     * @param {{directory?: string, mapKey: string, runtimeMap: object, bytesRead: number}|null} [replacement]
+     * @returns {Promise<{entries: Array<{mapKey: string, runtimeMap: object}>, error?: string}>}
+     */
+    async function readRuntimeEntries(replacement = null) {
+        const directory = replacement?.directory || await resolveDirectory();
         const entries = [];
-        for (const fileName of readdirSync(directory).sort((left, right) => left.localeCompare(right))) {
+        let bytesRead = 0;
+        const fileNames = (await readdir(directory)).filter((fileName) => fileName.endsWith(MAP_RUNTIME_SUFFIX));
+        if (replacement) {
+            const replacementFileName = `${replacement.mapKey}${MAP_RUNTIME_SUFFIX}`;
+            if (!fileNames.includes(replacementFileName)) fileNames.push(replacementFileName);
+        }
+        for (const fileName of fileNames.sort((left, right) => left.localeCompare(right))) {
             if (!fileName.endsWith(MAP_RUNTIME_SUFFIX)) continue;
             const mapKey = fileName.slice(0, -MAP_RUNTIME_SUFFIX.length);
             if (!isValidEditorMapKey(mapKey)) continue;
-            const runtimeMap = readMapFile(path.join(directory, fileName));
+            let result;
+            if (replacement?.mapKey === mapKey) {
+                if (replacement.bytesRead > MAX_TOTAL_RUNTIME_MAP_BYTES - bytesRead) {
+                    return { entries: [], error: 'total_payload_too_large' };
+                }
+                result = { runtimeMap: replacement.runtimeMap, bytesRead: replacement.bytesRead };
+            } else {
+                result = await readMapFile(path.join(directory, fileName), MAX_TOTAL_RUNTIME_MAP_BYTES - bytesRead);
+            }
+            if (result.error) return { entries: [], error: result.error };
+            bytesRead += result.bytesRead;
+            const { runtimeMap } = result;
             if (!runtimeMap) continue;
             entries.push({ mapKey, runtimeMap });
             if (entries.length >= MAX_MAPS) break;
         }
-        return entries;
+        return { entries };
     }
 
-    function listMaps() {
-        const maps = readRuntimeEntries().map(({ mapKey, runtimeMap }) => ({
+    async function listMaps() {
+        const result = await readRuntimeEntries();
+        if (result.error) return { ok: false, error: result.error, maps: [] };
+        const maps = result.entries.map(({ mapKey, runtimeMap }) => ({
             mapKey,
             mapName: sanitizeEditorMapName(runtimeMap.name || mapKey),
         }));
@@ -199,9 +239,11 @@ function createEditorMapStore({ getMapsDirectory, openFolder, renameFile = renam
      * kennt eine Karte nur ueber seine Kartenliste; im Desktop gibt es keinen
      * Quellcode, in den der Editor sie eintragen koennte.
      */
-    function readRuntimeMaps() {
+    async function readRuntimeMaps() {
         const maps = {};
-        for (const { mapKey, runtimeMap } of readRuntimeEntries()) maps[mapKey] = runtimeMap;
+        const result = await readRuntimeEntries();
+        if (result.error) return { ok: false, error: result.error, maps: {} };
+        for (const { mapKey, runtimeMap } of result.entries) maps[mapKey] = runtimeMap;
         return { ok: true, maps };
     }
 
@@ -211,16 +253,20 @@ function createEditorMapStore({ getMapsDirectory, openFolder, renameFile = renam
      * @param {string} directory
      * @param {string} mapName
      * @param {boolean} saveAsCopy
-     * @returns {{ok: boolean, mapKey?: string, overwritten?: boolean, error?: string}}
+     * @returns {Promise<{ok: boolean, mapKey?: string, overwritten?: boolean, error?: string}>}
      */
-    function resolveMapKey(directory, mapName, saveAsCopy) {
+    async function resolveMapKey(directory, mapName, saveAsCopy) {
         const baseKey = toEditorMapKey(mapName);
         let candidateKey = baseKey;
         let index = 2;
+        let bytesRead = 0;
         for (let attempt = 0; attempt <= MAX_MAPS; attempt += 1) {
-            const target = resolveMapFile(directory, candidateKey, MAP_RUNTIME_SUFFIX);
+            const target = await resolveMapFile(directory, candidateKey, MAP_RUNTIME_SUFFIX);
             if (!target.ok) return { ok: false, error: target.error };
-            const existing = existsSync(target.filePath) ? readMapFile(target.filePath) : null;
+            const result = await readMapFile(target.filePath, MAX_TOTAL_RUNTIME_MAP_BYTES - bytesRead);
+            if (result.error) return { ok: false, error: result.error };
+            bytesRead += result.bytesRead;
+            const { runtimeMap: existing } = result;
             if (!existing) return { ok: true, mapKey: candidateKey, overwritten: false };
             if (!saveAsCopy && sanitizeEditorMapName(existing.name || '') === mapName) {
                 return { ok: true, mapKey: candidateKey, overwritten: true };
@@ -284,44 +330,58 @@ function createEditorMapStore({ getMapsDirectory, openFolder, renameFile = renam
      * @param {{mapName?: unknown, runtimeJson?: unknown, editorJson?: unknown, saveAsCopy?: unknown}} [request]
      */
     function saveMap({ mapName, runtimeJson, editorJson, saveAsCopy } = {}) {
-        const runtimeText = typeof runtimeJson === 'string' ? runtimeJson : '';
-        const editorText = typeof editorJson === 'string' ? editorJson : '';
-        if (!runtimeText || !editorText) return { ok: false, error: 'empty_payload' };
-        if (Buffer.byteLength(runtimeText, 'utf8') > MAX_JSON_BYTES) return { ok: false, error: 'payload_too_large' };
-        if (Buffer.byteLength(editorText, 'utf8') > MAX_JSON_BYTES) return { ok: false, error: 'payload_too_large' };
+        return enqueueMutation(async () => {
+            const runtimeText = typeof runtimeJson === 'string' ? runtimeJson : '';
+            const editorText = typeof editorJson === 'string' ? editorJson : '';
+            if (!runtimeText || !editorText) return { ok: false, error: 'empty_payload' };
+            if (Buffer.byteLength(runtimeText, 'utf8') > MAX_JSON_BYTES) return { ok: false, error: 'payload_too_large' };
+            if (Buffer.byteLength(editorText, 'utf8') > MAX_JSON_BYTES) return { ok: false, error: 'payload_too_large' };
 
-        const runtimeMap = parseJsonObject(runtimeText);
-        const editorDocument = parseJsonObject(editorText);
-        if (!runtimeMap || !editorDocument) return { ok: false, error: 'invalid_json' };
+            const runtimeMap = parseJsonObject(runtimeText);
+            const editorDocument = parseJsonObject(editorText);
+            if (!runtimeMap || !editorDocument) return { ok: false, error: 'invalid_json' };
 
-        const resolvedName = sanitizeEditorMapName(mapName);
-        const directory = resolveDirectory();
-        const resolvedKey = resolveMapKey(directory, resolvedName, saveAsCopy === true);
-        if (!resolvedKey.ok) return { ok: false, error: resolvedKey.error };
+            const runtimeContent = `${JSON.stringify(runtimeMap, null, 2)}\n`;
+            const runtimeBytes = Buffer.byteLength(runtimeContent, 'utf8');
+            if (runtimeBytes > MAX_JSON_BYTES) return { ok: false, error: 'payload_too_large' };
 
-        const runtimeTarget = resolveMapFile(directory, resolvedKey.mapKey, MAP_RUNTIME_SUFFIX);
-        if (!runtimeTarget.ok) return { ok: false, error: runtimeTarget.error };
-        const editorTarget = resolveMapFile(directory, resolvedKey.mapKey, MAP_EDITOR_SUFFIX);
-        if (!editorTarget.ok) return { ok: false, error: editorTarget.error };
+            const resolvedName = sanitizeEditorMapName(mapName);
+            const directory = await resolveDirectory();
+            const resolvedKey = await resolveMapKey(directory, resolvedName, saveAsCopy === true);
+            if (!resolvedKey.ok) return { ok: false, error: resolvedKey.error };
 
-        const written = writeBothFiles([
-            { filePath: runtimeTarget.filePath, content: `${JSON.stringify(runtimeMap, null, 2)}\n` },
-            { filePath: editorTarget.filePath, content: `${JSON.stringify(editorDocument, null, 2)}\n` },
-        ]);
-        if (!written.ok) return { ok: false, error: written.error };
+            const runtimeTarget = await resolveMapFile(directory, resolvedKey.mapKey, MAP_RUNTIME_SUFFIX);
+            if (!runtimeTarget.ok) return { ok: false, error: runtimeTarget.error };
+            const editorTarget = await resolveMapFile(directory, resolvedKey.mapKey, MAP_EDITOR_SUFFIX);
+            if (!editorTarget.ok) return { ok: false, error: editorTarget.error };
 
-        return {
-            ok: true,
-            mapKey: resolvedKey.mapKey,
-            mapName: sanitizeEditorMapName(runtimeMap.name || resolvedName),
-            overwritten: resolvedKey.overwritten === true,
-            editorSchemaPath: editorTarget.filePath,
-            runtimeMapPath: runtimeTarget.filePath,
-        };
+            const runtimeCatalog = await readRuntimeEntries({
+                directory,
+                mapKey: resolvedKey.mapKey,
+                runtimeMap,
+                bytesRead: runtimeBytes,
+            });
+            if (runtimeCatalog.error) return { ok: false, error: runtimeCatalog.error };
+
+            const written = writeBothFiles([
+                { filePath: runtimeTarget.filePath, content: runtimeContent },
+                { filePath: editorTarget.filePath, content: `${JSON.stringify(editorDocument, null, 2)}\n` },
+            ]);
+            if (!written.ok) return { ok: false, error: written.error };
+
+            return {
+                ok: true,
+                mapKey: resolvedKey.mapKey,
+                mapName: sanitizeEditorMapName(runtimeMap.name || resolvedName),
+                overwritten: resolvedKey.overwritten === true,
+                editorSchemaPath: editorTarget.filePath,
+                runtimeMapPath: runtimeTarget.filePath,
+            };
+        });
     }
 
     async function openMapsFolder() {
-        const directory = resolveDirectory();
+        const directory = await resolveDirectory();
         await openFolder(directory);
         return { ok: true, folderPath: directory };
     }
@@ -332,6 +392,7 @@ function createEditorMapStore({ getMapsDirectory, openFolder, renameFile = renam
 module.exports = {
     MAP_EDITOR_SUFFIX,
     MAP_RUNTIME_SUFFIX,
+    MAX_TOTAL_RUNTIME_MAP_BYTES,
     createEditorMapStore,
     isSafeEditorMapFileName,
     isValidEditorMapKey,

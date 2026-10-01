@@ -579,14 +579,66 @@ test('opening the four player setup reloads desktop maps before it fills the map
     const { module, setupView } = await createFourPlayerModule();
     const { CONFIG } = await import('../src/core/Config.js');
     const order = [];
-    module.runtime.refreshLocalMapCatalog = () => { order.push('refresh'); return true; };
+    let resolveRefresh;
+    module.runtime.refreshLocalMapCatalog = () => {
+        order.push('refresh');
+        return new Promise((resolve) => { resolveRefresh = resolve; });
+    };
     setupView.setMapOptions = (options) => { order.push('options'); setupView.mapOptions = options; };
 
-    module.openSetup();
+    const opening = module.openSetup();
+    assert.deepEqual(order, ['refresh'], 'map options wait for the async catalog refresh');
+    resolveRefresh(true);
+    await opening;
 
     assert.deepEqual(order, ['refresh', 'options']);
     assert.deepEqual(setupView.mapOptions.map((option) => option.value), Object.keys(CONFIG.MAPS));
     assert.equal(setupView.visible, true);
+});
+
+test('closing the four player setup cancels a pending map refresh open', async () => {
+    const { module, setupView } = await createFourPlayerModule();
+    let resolveRefresh;
+    let optionUpdates = 0;
+    module.runtime.refreshLocalMapCatalog = () => new Promise((resolve) => { resolveRefresh = resolve; });
+    setupView.setMapOptions = () => { optionUpdates += 1; };
+
+    const opening = module.openSetup();
+    module.closeSetup();
+    resolveRefresh(true);
+    await opening;
+
+    assert.equal(optionUpdates, 0, 'a closed setup receives no stale map refresh result');
+    assert.equal(setupView.visible, false, 'the pending open cannot reopen a closed setup');
+});
+
+test('only the newest setup open applies refreshed maps and dispose invalidates pending opens', async () => {
+    const { module, setupView } = await createFourPlayerModule();
+    const refreshResolvers = [];
+    let optionUpdates = 0;
+    module.runtime.refreshLocalMapCatalog = () => new Promise((resolve) => { refreshResolvers.push(resolve); });
+    setupView.setMapOptions = () => { optionUpdates += 1; };
+
+    const olderOpen = module.openSetup();
+    const newerOpen = module.openSetup();
+    refreshResolvers[1](true);
+    await newerOpen;
+    assert.equal(optionUpdates, 1, 'the latest open applies its map list');
+    assert.equal(setupView.visible, true);
+
+    refreshResolvers[0](true);
+    await olderOpen;
+    assert.equal(optionUpdates, 1, 'an older open cannot overwrite the latest result');
+
+    module.closeSetup();
+    let resolveAfterDispose;
+    module.runtime.refreshLocalMapCatalog = () => new Promise((resolve) => { resolveAfterDispose = resolve; });
+    const disposedOpen = module.openSetup();
+    module.dispose();
+    resolveAfterDispose(true);
+    await disposedOpen;
+    assert.equal(optionUpdates, 1, 'a disposed module ignores its pending refresh');
+    assert.equal(setupView.visible, false, 'dispose cannot be followed by a stale setup open');
 });
 
 test('a four player match does not leave its values in the normal game settings', async () => {
@@ -623,7 +675,7 @@ test('a four player match does not leave its values in the normal game settings'
 
 test('starting the match ends an open roll key capture instead of eating the keyboard', async () => {
     const { module, setupView } = await createFourPlayerModule();
-    module.openSetup();
+    await module.openSetup();
     module._beginRollKeyCapture({ playerIndex: 1, direction: 'left' });
     assert.deepEqual(setupView.captures, ['1:left'], 'the setup waits for a key');
 

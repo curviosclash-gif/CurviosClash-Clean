@@ -42,6 +42,7 @@ export class FourPlayerPlanarModule {
         this._rollKeyCapture = null;
         this._matchSettingsSnapshot = null;
         this._matchSettingsWereActive = false;
+        this._setupRequestGeneration = 0;
         this._lastHudValues = Array.from({ length: FOUR_PLAYER_PLANAR_HUMAN_COUNT }, () => ({}));
     }
 
@@ -180,18 +181,25 @@ export class FourPlayerPlanarModule {
         return occupied.has(code);
     }
 
-    openSetup() {
+    async openSetup() {
         if (!this.setupView.isMounted()) return;
+        const requestGeneration = ++this._setupRequestGeneration;
         const localSettings = this.runtime?.ensureLocalSettings?.();
         if (localSettings) localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
         // Im Desktop-Editor gespeicherte oder geloeschte Karten nachziehen.
-        this.runtime?.refreshLocalMapCatalog?.();
+        try {
+            await this.runtime?.refreshLocalMapCatalog?.();
+        } catch {
+            // Die Setup-Oberflaeche bleibt mit ihrem letzten Kartenstand nutzbar.
+        }
+        if (!this.setupView.isMounted() || requestGeneration !== this._setupRequestGeneration) return;
         this.setupView.setMapOptions?.(this._listMapOptions());
         this.syncSetupUi();
         this.setupView.openSetup();
     }
 
     closeSetup() {
+        this._setupRequestGeneration += 1;
         this._rollKeyCapture = null;
         if (!this.setupView.isMounted()) return;
         this.setupView.closeSetup();
@@ -429,6 +437,7 @@ export class FourPlayerPlanarModule {
     }
 
     dispose() {
+        this._setupRequestGeneration += 1;
         this.deactivateMatch();
         this.setupView.dispose();
         this.hudView.dispose();

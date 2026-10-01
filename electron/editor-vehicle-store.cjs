@@ -4,15 +4,18 @@ const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const {
     existsSync,
-    lstatSync,
-    mkdirSync,
-    readdirSync,
-    readFileSync,
-    realpathSync,
     renameSync,
     rmSync,
     writeFileSync,
 } = require('node:fs');
+const {
+    lstat,
+    mkdir,
+    readFile,
+    readdir,
+    realpath,
+    rm,
+} = require('node:fs/promises');
 
 const VEHICLE_FILE_SUFFIX = '.vehicle.json';
 // Vehicle Lab ids can reach 66 characters: 15 for "editor_vehicle_",
@@ -66,37 +69,47 @@ function toVehicleId(label) {
  * @param {{getVehiclesDirectory: () => string}} options
  */
 function createEditorVehicleStore({ getVehiclesDirectory, renameFile = renameSync }) {
-    function resolveDirectory() {
+    let mutationQueue = Promise.resolve();
+
+    function enqueueMutation(operation) {
+        const result = mutationQueue.then(operation);
+        mutationQueue = result.then(() => undefined, () => undefined);
+        return result;
+    }
+
+    async function resolveDirectory() {
         const directory = path.resolve(String(getVehiclesDirectory()));
-        if (!existsSync(directory)) mkdirSync(directory, { recursive: true });
-        return realpathSync(directory);
+        await mkdir(directory, { recursive: true });
+        return realpath(directory);
     }
 
     /**
      * Setzt einen Dateipfad zusammen und stellt sicher, dass er den
      * Fahrzeugordner nicht verlaesst.
      */
-    function resolveVehicleFile(vehicleId) {
+    async function resolveVehicleFile(vehicleId) {
         if (!isValidVehicleId(vehicleId)) return { ok: false, error: 'invalid_vehicle_id' };
-        const directory = resolveDirectory();
+        const directory = await resolveDirectory();
         const fileName = `${vehicleId}${VEHICLE_FILE_SUFFIX}`;
         const filePath = path.resolve(directory, fileName);
         if (filePath !== path.join(directory, fileName) || !filePath.startsWith(`${directory}${path.sep}`)) {
             return { ok: false, error: 'invalid_vehicle_id' };
         }
         try {
-            if (lstatSync(filePath).isSymbolicLink()) return { ok: false, error: 'unsafe_target' };
+            const stats = await lstat(filePath);
+            if (stats.isSymbolicLink()) return { ok: false, error: 'unsafe_target' };
+            return { ok: true, filePath, exists: true };
         } catch (error) {
             if (error?.code !== 'ENOENT') return { ok: false, error: 'unsafe_target' };
         }
-        return { ok: true, filePath };
+        return { ok: true, filePath, exists: false };
     }
 
-    function readVehicleFile(filePath) {
+    async function readVehicleFile(filePath) {
         try {
-            const stats = lstatSync(filePath);
+            const stats = await lstat(filePath);
             if (stats.isSymbolicLink() || Number(stats.size) > MAX_JSON_BYTES) return null;
-            return JSON.parse(readFileSync(filePath, 'utf8'));
+            return JSON.parse(await readFile(filePath, 'utf8'));
         } catch {
             return null;
         }
@@ -125,14 +138,14 @@ function createEditorVehicleStore({ getVehiclesDirectory, renameFile = renameSyn
         }
     }
 
-    function listVehicles() {
-        const directory = resolveDirectory();
+    async function listVehicles() {
+        const directory = await resolveDirectory();
         const vehicles = [];
-        for (const fileName of readdirSync(directory)) {
+        for (const fileName of await readdir(directory)) {
             if (!fileName.endsWith(VEHICLE_FILE_SUFFIX)) continue;
             const vehicleId = fileName.slice(0, -VEHICLE_FILE_SUFFIX.length);
             if (!isValidVehicleId(vehicleId)) continue;
-            const config = readVehicleFile(path.join(directory, fileName));
+            const config = await readVehicleFile(path.join(directory, fileName));
             if (!config) continue;
             vehicles.push({ id: vehicleId, label: String(config.label || vehicleId) });
             if (vehicles.length >= MAX_VEHICLES) break;
@@ -141,65 +154,71 @@ function createEditorVehicleStore({ getVehiclesDirectory, renameFile = renameSyn
     }
 
     /** @param {EditorVehicleRequest} [request] */
-    function getVehicle({ vehicleId } = {}) {
-        const target = resolveVehicleFile(vehicleId);
+    async function getVehicle({ vehicleId } = {}) {
+        const target = await resolveVehicleFile(vehicleId);
         if (!target.ok) return { ok: false, error: target.error };
         const { filePath } = target;
-        if (!existsSync(filePath)) return { ok: false, error: 'unknown_vehicle' };
-        const config = readVehicleFile(filePath);
+        if (!target.exists) return { ok: false, error: 'unknown_vehicle' };
+        const config = await readVehicleFile(filePath);
         if (!config) return { ok: false, error: 'unreadable_vehicle' };
         return { ok: true, vehicleId, config };
     }
 
     /** @param {EditorVehicleRequest} [request] */
     function saveVehicle({ jsonText, vehicleName, vehicleId } = {}) {
-        const payload = String(jsonText || '');
-        if (!payload) return { ok: false, error: 'empty_payload' };
-        if (Buffer.byteLength(payload, 'utf8') > MAX_JSON_BYTES) return { ok: false, error: 'payload_too_large' };
-        let config = null;
-        try {
-            config = JSON.parse(payload);
-        } catch {
-            return { ok: false, error: 'invalid_json' };
-        }
-        const requestedId = String(vehicleId ?? '');
-        const resolvedId = requestedId || toVehicleId(vehicleName || config?.label);
-        const target = resolveVehicleFile(resolvedId);
-        if (!target.ok) return { ok: false, error: target.error };
-        const { filePath } = target;
-        const written = writeVehicleFile(filePath, `${JSON.stringify(config, null, 2)}\n`);
-        if (!written.ok) return written;
-        return { ok: true, vehicleId: resolvedId, filePath };
+        return enqueueMutation(async () => {
+            const payload = String(jsonText || '');
+            if (!payload) return { ok: false, error: 'empty_payload' };
+            if (Buffer.byteLength(payload, 'utf8') > MAX_JSON_BYTES) return { ok: false, error: 'payload_too_large' };
+            let config = null;
+            try {
+                config = JSON.parse(payload);
+            } catch {
+                return { ok: false, error: 'invalid_json' };
+            }
+            const requestedId = String(vehicleId ?? '');
+            const resolvedId = requestedId || toVehicleId(vehicleName || config?.label);
+            const target = await resolveVehicleFile(resolvedId);
+            if (!target.ok) return { ok: false, error: target.error };
+            const { filePath } = target;
+            const written = writeVehicleFile(filePath, `${JSON.stringify(config, null, 2)}\n`);
+            if (!written.ok) return written;
+            return { ok: true, vehicleId: resolvedId, filePath };
+        });
     }
 
     /** @param {EditorVehicleRequest} [request] */
     function renameVehicle({ vehicleId, vehicleName } = {}) {
-        const source = resolveVehicleFile(vehicleId);
-        if (!source.ok) return { ok: false, error: source.error };
-        const { filePath: sourcePath } = source;
-        if (!existsSync(sourcePath)) return { ok: false, error: 'unknown_vehicle' };
-        const config = readVehicleFile(sourcePath);
-        if (!config) return { ok: false, error: 'unreadable_vehicle' };
-        const nextId = toVehicleId(vehicleName);
-        const target = resolveVehicleFile(nextId);
-        if (!target.ok) return { ok: false, error: target.error };
-        const { filePath: targetPath } = target;
-        if (targetPath !== sourcePath && existsSync(targetPath)) return { ok: false, error: 'name_taken' };
-        config.label = String(vehicleName || config.label || nextId);
-        const written = writeVehicleFile(sourcePath, `${JSON.stringify(config, null, 2)}\n`);
-        if (!written.ok) return written;
-        if (targetPath !== sourcePath) renameSync(sourcePath, targetPath);
-        return { ok: true, vehicleId: nextId };
+        return enqueueMutation(async () => {
+            const source = await resolveVehicleFile(vehicleId);
+            if (!source.ok) return { ok: false, error: source.error };
+            const { filePath: sourcePath } = source;
+            if (!source.exists) return { ok: false, error: 'unknown_vehicle' };
+            const config = await readVehicleFile(sourcePath);
+            if (!config) return { ok: false, error: 'unreadable_vehicle' };
+            const nextId = toVehicleId(vehicleName);
+            const target = await resolveVehicleFile(nextId);
+            if (!target.ok) return { ok: false, error: target.error };
+            const { filePath: targetPath } = target;
+            if (targetPath !== sourcePath && target.exists) return { ok: false, error: 'name_taken' };
+            config.label = String(vehicleName || config.label || nextId);
+            const written = writeVehicleFile(sourcePath, `${JSON.stringify(config, null, 2)}\n`);
+            if (!written.ok) return written;
+            if (targetPath !== sourcePath) renameSync(sourcePath, targetPath);
+            return { ok: true, vehicleId: nextId };
+        });
     }
 
     /** @param {EditorVehicleRequest} [request] */
     function deleteVehicle({ vehicleId } = {}) {
-        const target = resolveVehicleFile(vehicleId);
-        if (!target.ok) return { ok: false, error: target.error };
-        const { filePath } = target;
-        if (!existsSync(filePath)) return { ok: false, error: 'unknown_vehicle' };
-        rmSync(filePath, { force: true });
-        return { ok: true, vehicleId };
+        return enqueueMutation(async () => {
+            const target = await resolveVehicleFile(vehicleId);
+            if (!target.ok) return { ok: false, error: target.error };
+            const { filePath } = target;
+            if (!target.exists) return { ok: false, error: 'unknown_vehicle' };
+            await rm(filePath, { force: true });
+            return { ok: true, vehicleId };
+        });
     }
 
     return { listVehicles, getVehicle, saveVehicle, renameVehicle, deleteVehicle };
