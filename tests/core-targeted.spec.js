@@ -564,9 +564,28 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
                 player.score = Math.max(0, Math.trunc(winsNeeded) - 1);
             }
 
+            const telemetryBefore = game.settingsManager?.getMenuTelemetrySnapshot?.(game.settings) || null;
+            const recentRoundsBefore = Array.isArray(telemetryBefore?.recentRounds)
+                ? telemetryBefore.recentRounds
+                : null;
+            const telemetryRoundCountBefore = Number(telemetryBefore?.balance?.rounds);
+            if (!recentRoundsBefore || !Number.isFinite(telemetryRoundCountBefore)) {
+                return { error: 'missing-telemetry-baseline' };
+            }
+            const recentRoundCountBefore = recentRoundsBefore.length;
+
             const outcome = entityManager?._roundOutcomeSystem?.resolve?.() || null;
             if (outcome?.shouldEnd) {
                 entityManager?._eventBus?.emitRoundEnd?.(outcome.winner, outcome);
+            }
+
+            const telemetryAfter = game.settingsManager?.getMenuTelemetrySnapshot?.(game.settings) || null;
+            const recentRoundsAfter = Array.isArray(telemetryAfter?.recentRounds)
+                ? telemetryAfter.recentRounds
+                : null;
+            const telemetryRoundCountAfter = Number(telemetryAfter?.balance?.rounds);
+            if (!recentRoundsAfter || !Number.isFinite(telemetryRoundCountAfter)) {
+                return { error: 'missing-telemetry-after-round-end' };
             }
 
             return {
@@ -581,7 +600,11 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
                 parcoursTimer: document.getElementById('parcours-timer')?.textContent || '',
                 parcoursStatus: document.getElementById('parcours-status')?.textContent || '',
                 roundMetrics: game.recorder?.getLastRoundMetrics?.() || null,
-                telemetryRecentRound: game.settings?.localSettings?.telemetryState?.recentRounds?.[0] || null,
+                telemetryRoundCountBefore,
+                telemetryRoundCountAfter,
+                recentRoundCountBefore,
+                recentRoundCountAfter: recentRoundsAfter.length,
+                telemetryRecentRound: recentRoundsAfter.at(-1) || null,
             };
         });
 
@@ -597,6 +620,8 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
         expect(probe.roundMetrics?.parcoursCompleted).toBeTruthy();
         expect(probe.roundMetrics?.parcoursRouteId).toBe('rift_gauntlet_v1');
         expect(probe.roundMetrics?.parcoursCompletionTimeMs).toBeGreaterThan(0);
+        expect(probe.telemetryRoundCountAfter).toBe(probe.telemetryRoundCountBefore + 1);
+        expect(probe.recentRoundCountAfter).toBeGreaterThanOrEqual(probe.recentRoundCountBefore);
         expect(probe.telemetryRecentRound?.parcoursCompleted).toBeTruthy();
         expect(probe.telemetryRecentRound?.parcoursRouteId).toBe('rift_gauntlet_v1');
     });
