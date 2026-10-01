@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -172,6 +172,21 @@ test('a vehicle id can never point outside the vehicle directory', async () => {
     });
 });
 
+test('Windows device ids are rejected before they reach the filesystem', async () => {
+    const reserved = ['con', 'prn', 'aux', 'nul', 'com1', 'com9', 'lpt1', 'lpt9'];
+    for (const id of reserved) assert.equal(isValidVehicleId(id), false, id);
+
+    await withStore(async (store, directory) => {
+        for (const vehicleId of reserved) {
+            assert.equal(store.getVehicle({ vehicleId }).error, 'invalid_vehicle_id', vehicleId);
+            assert.equal(store.deleteVehicle({ vehicleId }).error, 'invalid_vehicle_id', vehicleId);
+            assert.equal(store.saveVehicle({ vehicleId, jsonText: jsonFor('Replacement') }).error, 'invalid_vehicle_id', vehicleId);
+            assert.equal(store.renameVehicle({ vehicleId, vehicleName: 'Replacement' }).error, 'invalid_vehicle_id', vehicleId);
+        }
+        assert.deepEqual(await readdir(directory), []);
+    });
+});
+
 test('renaming moves the file and refuses to clobber another vehicle', async () => {
     await withStore(async (store, directory) => {
         const first = store.saveVehicle({ jsonText: jsonFor('Alpha'), vehicleName: 'Alpha' });
@@ -209,4 +224,55 @@ test('unreadable files are skipped instead of breaking the listing', async () =>
 
         assert.deepEqual(store.listVehicles().vehicles, [{ id: 'editor_vehicle_alpha', label: 'Alpha' }]);
     });
+});
+
+test('oversized vehicle files are skipped before they are parsed', async () => {
+    await withStore(async (store, directory) => {
+        store.saveVehicle({ jsonText: jsonFor('Readable'), vehicleName: 'Readable' });
+        await writeFile(
+            path.join(directory, 'editor_vehicle_oversized.vehicle.json'),
+            JSON.stringify({ label: 'Oversized', filler: 'x'.repeat(3 * 1024 * 1024) }),
+            'utf8',
+        );
+
+        assert.deepEqual(store.listVehicles().vehicles, [
+            { id: 'editor_vehicle_readable', label: 'Readable' },
+        ]);
+        assert.deepEqual(store.getVehicle({ vehicleId: 'editor_vehicle_oversized' }), {
+            ok: false,
+            error: 'unreadable_vehicle',
+        });
+    });
+});
+
+test('a junction at a vehicle file path is refused without changing its target', async (t) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'curvios-vehicle-junction-'));
+    const directory = path.join(root, 'vehicles');
+    const targetDirectory = path.join(root, 'outside-target');
+    await Promise.all([mkdir(directory), mkdir(targetDirectory)]);
+    const sentinelPath = path.join(targetDirectory, 'sentinel.txt');
+    await writeFile(sentinelPath, 'preserve this target', 'utf8');
+    const linkPath = path.join(directory, 'editor_vehicle_external.vehicle.json');
+    try {
+        await symlink(targetDirectory, linkPath, 'junction');
+    } catch {
+        await rm(root, { recursive: true, force: true });
+        return t.skip('directory junctions are unavailable on this machine');
+    }
+
+    try {
+        const store = createEditorVehicleStore({ getVehiclesDirectory: () => directory });
+        const vehicleId = 'editor_vehicle_external';
+        assert.equal(store.listVehicles().vehicles.length, 0);
+        assert.deepEqual(store.getVehicle({ vehicleId }), { ok: false, error: 'unsafe_target' });
+        assert.equal(store.saveVehicle({ vehicleId, jsonText: jsonFor('Replacement') }).error, 'unsafe_target');
+        assert.equal(store.renameVehicle({ vehicleId, vehicleName: 'Replacement' }).error, 'unsafe_target');
+        assert.equal(store.deleteVehicle({ vehicleId }).error, 'unsafe_target');
+
+        assert.equal(await readFile(sentinelPath, 'utf8'), 'preserve this target');
+        assert.deepEqual(await readdir(targetDirectory), ['sentinel.txt']);
+        assert.equal((await lstat(linkPath)).isSymbolicLink(), true);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
 });
