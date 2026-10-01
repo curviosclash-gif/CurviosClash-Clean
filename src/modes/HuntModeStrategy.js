@@ -20,7 +20,9 @@ function arcadeFactor(value) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
-function getNowSeconds() {
+function getNowSeconds(player = null) {
+    const simulationClockMs = player?.entityManager?._simulationClockMs;
+    if (Number.isFinite(simulationClockMs)) return Math.max(0, simulationClockMs) * 0.001;
     if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
         return performance.now() * 0.001;
     }
@@ -207,7 +209,7 @@ export class HuntModeStrategy extends GameModeContract {
             player.hp = Math.max(0, toSafeNumber(player.hp, player.maxHp) - remainingDamage);
         }
         if (damageContact) {
-            player.lastDamageTimestamp = toSafeNumber(options?.nowSeconds, getNowSeconds());
+            player.lastDamageTimestamp = toSafeNumber(options?.nowSeconds, getNowSeconds(player));
         }
 
         return { applied: requestedDamage, absorbedByShield, remainingHp: player.hp, isDead: player.hp <= 0 };

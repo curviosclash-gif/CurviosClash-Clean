@@ -21,6 +21,7 @@ import {
 } from '../src/hunt/RocketPickupSystem.js';
 import { createRuntimeRng } from '../src/shared/contracts/RuntimeRngContract.js';
 import { CONFIG_BASE } from '../src/core/Config.js';
+import { EntityManager } from '../src/entities/EntityManager.js';
 
 test('GameModeRegistry resolves classic fallback and hunt mode deterministically', () => {
     assert.equal(createGameModeStrategy('UNKNOWN_MODE').modeType, 'CLASSIC');
@@ -461,4 +462,64 @@ test('D6 hazard damage keeps the regen delay because both sides read one clock',
     entityManager._simulationClockMs = 24_000;
     strategy.updateHealthRegen(player, 1, entityManager);
     assert.ok(player.hp > 90, 'nach Ablauf der Sperre heilt der Spieler wieder');
+});
+
+test('direct Hunt damage uses match time for regen delay and resets it on a later hit', (t) => {
+    const config = {
+        HUNT: {
+            PLAYER_MAX_HP: 100,
+            PLAYER_REGEN_DELAY: 3,
+            PLAYER_REGEN_PER_SECOND: 2,
+            SHIELD_MAX_HP: 40,
+        },
+    };
+    const strategy = new HuntModeStrategy({ entityRuntimeConfig: config });
+    const entityManager = Object.assign(Object.create(EntityManager.prototype), {
+        _simulationClockMs: 20_000,
+        entityRuntimeConfig: config,
+        gameModeStrategy: strategy,
+    });
+    const player = {
+        alive: true,
+        maxHp: 100,
+        hp: 100,
+        maxShieldHp: 40,
+        shieldHP: 0,
+        hasShield: false,
+        shieldHitFeedback: 0,
+        lastDamageTimestamp: -Infinity,
+        entityManager,
+    };
+    const originalOwnNow = Object.getOwnPropertyDescriptor(performance, 'now');
+    Object.defineProperty(performance, 'now', { configurable: true, value: () => 900_000 });
+    t.after(() => {
+        if (originalOwnNow) Object.defineProperty(performance, 'now', originalOwnNow);
+        else delete performance.now;
+    });
+
+    EntityManager.prototype._applyModeDamage.call(entityManager, player, 10, 'DIRECT', { emitDamageEvent: false });
+    assert.equal(player.lastDamageTimestamp, 20, 'the direct damage path falls back to match time, not wallclock');
+    assert.equal(player.hp, 90);
+
+    entityManager._simulationClockMs = 22_000;
+    strategy.updateHealthRegen(player, 1, entityManager);
+    assert.equal(player.hp, 90, 'regen remains delayed before three match seconds have elapsed');
+    entityManager._simulationClockMs = 24_000;
+    strategy.updateHealthRegen(player, 1, entityManager);
+    assert.equal(player.hp, 92, 'regen resumes when the match-clock delay expires');
+
+    EntityManager.prototype._applyModeDamage.call(entityManager, player, 10, 'DIRECT', { emitDamageEvent: false });
+    assert.equal(player.lastDamageTimestamp, 24, 'a second hit resets the delay from current match time');
+    entityManager._simulationClockMs = 26_000;
+    strategy.updateHealthRegen(player, 1, entityManager);
+    assert.equal(player.hp, 82, 'the second hit starts a fresh delay');
+    entityManager._simulationClockMs = 28_000;
+    strategy.updateHealthRegen(player, 1, entityManager);
+    assert.equal(player.hp, 84, 'regen resumes after the reset delay expires');
+
+    EntityManager.prototype._applyModeDamage.call(entityManager, player, 1, 'DIRECT', {
+        emitDamageEvent: false,
+        nowSeconds: 7,
+    });
+    assert.equal(player.lastDamageTimestamp, 7, 'an explicit damage timestamp still takes precedence');
 });
