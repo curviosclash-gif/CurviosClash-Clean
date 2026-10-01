@@ -65,7 +65,7 @@ export class KeybindEditorController {
         this.pendingSwap = null;
     }
 
-    renderEditor() {
+    renderEditor(focusTarget = this._captureEditorFocusTarget()) {
         const ui = this.runtimeAccess.getUi?.() || null;
         const conflicts = this.collectKeyConflicts();
         this.renderKeybindRows('PLAYER_1', ui?.keybindP1, KEY_BIND_ACTIONS, conflicts);
@@ -75,6 +75,45 @@ export class KeybindEditorController {
         if (this.pendingSwap) this._showPendingSwapPrompt();
         else this.updateKeyConflictWarning(conflicts);
         renderGamepadBindingEditor(ui?.keybindGlobal, this.runtimeAccess);
+        if (!this.pendingSwap) this._restoreEditorFocusTarget(focusTarget);
+    }
+
+    _getKeybindContainer(playerKey, ui = this.runtimeAccess.getUi?.() || null) {
+        if (playerKey === 'PLAYER_1') return ui?.keybindP1 || null;
+        if (playerKey === 'PLAYER_2') return ui?.keybindP2 || null;
+        if (playerKey === 'PLAYER_3') return ui?.keybindP3 || null;
+        if (playerKey === 'GLOBAL') return ui?.keybindGlobal || null;
+        return null;
+    }
+
+    _captureEditorFocusTarget() {
+        const ui = this.runtimeAccess.getUi?.() || null;
+        const activeElement = ui?.mainMenu?.ownerDocument?.activeElement || globalThis.document?.activeElement || null;
+        if (!activeElement) return null;
+        if (this.pendingSwap && (
+            activeElement.classList?.contains('keybind-swap-confirm')
+            || activeElement.classList?.contains('keybind-swap-cancel')
+        )) {
+            return { playerKey: this.pendingSwap.playerKey, actionKey: this.pendingSwap.actionKey };
+        }
+        for (const scope of KEY_BIND_SCOPES) {
+            const container = this._getKeybindContainer(scope.key, ui);
+            if (container?.contains?.(activeElement) && activeElement.classList?.contains('keybind-btn')) {
+                const actionKey = String(activeElement.dataset?.action || '');
+                if (actionKey) return { playerKey: scope.key, actionKey };
+            }
+        }
+        return null;
+    }
+
+    _restoreEditorFocusTarget(focusTarget) {
+        if (!focusTarget?.playerKey || !focusTarget?.actionKey) return false;
+        const container = this._getKeybindContainer(focusTarget.playerKey);
+        const button = Array.from(container?.querySelectorAll?.('.keybind-btn') || [])
+            .find((candidate) => candidate.dataset?.action === focusTarget.actionKey);
+        if (typeof button?.focus !== 'function') return false;
+        button.focus();
+        return true;
     }
 
     renderKeybindRows(playerKey, container, actions, conflicts) {
@@ -89,13 +128,15 @@ export class KeybindEditorController {
 
             const label = document.createElement('div');
             label.className = 'key-action';
-            label.textContent = resolveKeybindActionLabel(action, { invertPitch: this.runtimeAccess.getInvertPitch?.(playerKey) });
+            const actionLabel = resolveKeybindActionLabel(action, { invertPitch: this.runtimeAccess.getInvertPitch?.(playerKey) });
+            label.textContent = actionLabel;
 
             const value = this.getControlValue(playerKey, action.key);
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'keybind-btn';
             button.dataset.action = action.key;
+            button.setAttribute('aria-label', `${actionLabel}: Taste`);
             const isConflict = !!value && (conflicts.get(value) || 0) > 1;
             button.textContent = this.formatKeyCode(value) + (isConflict ? '  (Konflikt)' : '');
             if (isConflict) {
@@ -234,25 +275,27 @@ export class KeybindEditorController {
     confirmPendingSwap() {
         const pending = this.pendingSwap;
         if (!pending) return false;
+        const focusTarget = this._captureEditorFocusTarget();
         this.pendingSwap = null;
         if (this.getControlValue(pending.playerKey, pending.actionKey) !== pending.previousCode
             || this.getControlValue(pending.conflict.scope.key, pending.conflict.action.key) !== pending.code) {
-            this.renderEditor();
+            this.renderEditor(focusTarget);
             return false;
         }
         this.setControlValue(pending.conflict.scope.key, pending.conflict.action.key, pending.previousCode);
         this.setControlValue(pending.playerKey, pending.actionKey, pending.code);
         this.runtimeAccess.actionOnSettingsChanged?.();
         if (this.runtimeAccess.getState?.() === 'PAUSED') this.runtimeAccess.actionApplyPauseBindings?.();
-        this.renderEditor();
+        this.renderEditor(focusTarget);
         this.runtimeAccess.actionShowStatusToast?.('Tasten getauscht!');
         return true;
     }
 
     cancelPendingSwap() {
         if (!this.pendingSwap) return false;
+        const focusTarget = this._captureEditorFocusTarget();
         this.pendingSwap = null;
-        this.renderEditor();
+        this.renderEditor(focusTarget);
         return true;
     }
 
