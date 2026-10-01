@@ -2,6 +2,7 @@ import { normalizeString } from './ContractNormalizeUtils.js';
 
 const MAP_MODE_PATHS = new Set(['normal', 'arcade', 'fight', 'quick_action']);
 
+/** @param {unknown} modePath @returns {string} */
 function normalizeModePath(modePath) {
     const normalized = normalizeString(modePath, 'normal').toLowerCase();
     return MAP_MODE_PATHS.has(normalized) ? normalized : 'normal';
@@ -15,15 +16,21 @@ const PARCOURS_GAME_MODES = new Set(['CLASSIC', 'HUNT', 'ARCADE']);
 // to their combat layout and would otherwise fight inside a course they never asked for.
 const DEFAULT_PARCOURS_GAME_MODES = Object.freeze(['CLASSIC', 'ARCADE']);
 
+/** @param {unknown} gameMode @returns {string} */
 function normalizeGameModeId(gameMode) {
     const normalized = normalizeString(gameMode, 'CLASSIC').toUpperCase();
     return PARCOURS_GAME_MODES.has(normalized) ? normalized : 'CLASSIC';
 }
 
+/** @param {unknown} mapDefinition @returns {boolean} */
 export function isParcoursMapDefinition(mapDefinition) {
-    return !!(mapDefinition && typeof mapDefinition === 'object' && mapDefinition.parcours?.enabled === true);
+    const parcours = mapDefinition && typeof mapDefinition === 'object'
+        ? /** @type {{ parcours?: { enabled?: unknown } | null }} */ (mapDefinition).parcours
+        : null;
+    return parcours?.enabled === true;
 }
 
+/** @param {{ gameModes?: unknown } | null | undefined} parcours @returns {readonly string[]} */
 function listParcoursGameModes(parcours) {
     if (!Array.isArray(parcours?.gameModes)) return DEFAULT_PARCOURS_GAME_MODES;
 
@@ -35,12 +42,15 @@ function listParcoursGameModes(parcours) {
     return declaredGameModes.length > 0 ? declaredGameModes : DEFAULT_PARCOURS_GAME_MODES;
 }
 
+/** @param {unknown} mapDefinition @param {unknown} gameMode @returns {boolean} */
 export function isParcoursActiveForGameMode(mapDefinition, gameMode) {
     if (!isParcoursMapDefinition(mapDefinition)) return false;
-    return listParcoursGameModes(mapDefinition.parcours).includes(normalizeGameModeId(gameMode));
+    const parcours = /** @type {{ parcours?: { gameModes?: unknown } | null }} */ (mapDefinition).parcours;
+    return listParcoursGameModes(parcours).includes(normalizeGameModeId(gameMode));
 }
 
 const MAP_GAME_MODES = new Set(['CLASSIC', 'HUNT', 'ESCORT', 'ARCADE']);
+/** @type {readonly string[]} */
 const NO_EXCLUDED_GAME_MODES = Object.freeze([]);
 // Every mode path but the quick start pins its game mode; the quick start keeps the one set.
 /** @type {Readonly<Record<string, string>>} */

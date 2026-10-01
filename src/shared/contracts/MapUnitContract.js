@@ -349,9 +349,9 @@ export function resolveMapUnitDefinitions(mapDefinition, options = {}) {
  * Map-owned units can opt into combat across every Arcade arena, even when the run does not
  * borrow HUNT pickups. An active map-owned parcours suppresses them for that run; ordinary
  * ARCADE map units keep the narrower turret-combat gate.
- * @param {unknown} strategy
- * @param {string[]} allowedModes
- * @param {unknown} mapDefinition
+ * @param {{ modeType?: unknown, isSectorParcours?: () => boolean, getPickupModeType?: () => unknown } | null | undefined} strategy
+ * @param {readonly string[]} [allowedModes]
+ * @param {unknown} [mapDefinition]
  */
 export function isMapUnitCombatActive(strategy, allowedModes = ['HUNT', 'ARCADE'], mapDefinition = null) {
     const mode = String(strategy?.modeType || '').toUpperCase();
