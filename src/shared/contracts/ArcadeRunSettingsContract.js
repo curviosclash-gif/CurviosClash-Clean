@@ -52,7 +52,8 @@ const DEFAULTS = Object.freeze({
 /** @typedef {{ profileId: string, runType: string, combatProfile: string, scoreModel: string,
  * seed: number, sectorCount: number, intermissionSeconds: number, comboWindowMs: number,
  * comboDecayPerSecond: number, maxMultiplier: number, replayHooksEnabled: boolean,
- * dailyChallenge: boolean, nightmare: boolean, portalChainId: string }} ArcadeRunSettings */
+ * dailyChallenge: boolean, nightmare: boolean, portalChainId: string,
+ * demolitionProfileIds?: readonly string[] }} ArcadeRunSettings */
 
 function clampNumber(value, range, fallback) {
     const parsed = Number(value);

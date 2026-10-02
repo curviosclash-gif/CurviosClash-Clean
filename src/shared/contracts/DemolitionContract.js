@@ -65,6 +65,7 @@ const MAP_PROFILES = Object.freeze([
     }),
 ]);
 
+/** @type {Map<string, typeof MAP_PROFILES[number]>} */
 const PROFILE_BY_MAP = new Map(MAP_PROFILES.map((profile) => [profile.mapKey, profile]));
 const CORE_MAP_KEYS = Object.freeze(MAP_PROFILES.slice(0, 3).map((profile) => profile.mapKey));
 const STORM_MAP_KEYS = Object.freeze(MAP_PROFILES.slice(3).map((profile) => profile.mapKey));

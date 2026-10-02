@@ -28,6 +28,15 @@ function allSegmentsDestroyed(state) {
 
 /** A three-map demolition run. The runtime survives the rebuilt match session between maps. */
 export class DemolitionRuntime {
+    /**
+     * @param {{
+     * getMultiplier?: () => number,
+     * getRecordStoreForPlayerIndex?: (playerIndex: number, profileId: string) => ReturnType<import('../../application/player-profile/PlayerProfileManager.js').PlayerProfileManager['getRecordStorePort']> | null,
+     * onComboAction?: (event: {type: 'kill'}) => void,
+     * requestMapTransition?: (transition: {mapKey: string, botCount: number, combatProfile: string, demolition: true}) => void,
+     * requestAdvance?: () => void,
+     * }=} options
+     */
     constructor({
         getMultiplier = () => 1,
         getRecordStoreForPlayerIndex = () => null,
