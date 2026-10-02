@@ -11,6 +11,7 @@ import {
     SIGNALING_EVENT_TYPES,
     SIGNALING_SESSION_CONTRACT_VERSION,
     createSignalingEnvelope,
+    normalizeSignalingActorId,
     normalizeSignalingEnvelope,
     resolveSignalingCommandRole,
     normalizePublicLobbyMetadata,
@@ -44,7 +45,6 @@ const LOBBY_TIMEOUT = 30 * 60 * 1000;
 const RECONNECT_WINDOW_MS = 30_000;
 const MAX_SIGNALING_PAYLOAD_BYTES = 16 * 1024;
 const MAX_LOBBY_PLAYERS = 10;
-const MAX_ACTOR_ID_LENGTH = 128;
 const MESSAGE_RATE_WINDOW_MS = 10_000;
 const MAX_MESSAGES_PER_SOCKET = 120;
 const MAX_MESSAGES_PER_IP = 600;
@@ -59,10 +59,6 @@ let nextPeerId = 1;
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized || fallback;
-}
-
-function normalizeActorId(value, fallback = '') {
-    return normalizeString(value, normalizeString(fallback, '')).slice(0, MAX_ACTOR_ID_LENGTH);
 }
 
 function normalizeLobbyCode(value, fallback = '') {
@@ -192,7 +188,7 @@ function createLobbyPlayer({
 } = {}) {
     const normalizedPeerId = normalizeString(peerId, '');
     const fallbackName = isHost === true ? 'Host' : normalizedPeerId;
-    const normalizedActorId = normalizeActorId(actorId, fallbackName);
+    const normalizedActorId = normalizeSignalingActorId(actorId, fallbackName);
     return {
         peerId: normalizedPeerId,
         ws,
