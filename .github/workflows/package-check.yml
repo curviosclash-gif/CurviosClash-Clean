@@ -15,6 +15,7 @@ on:
       - scripts/check-packaged-electron.mjs
       - package.json
       - package-lock.json
+      - scripts/install-electron-runtime.mjs
       - vite.config.js
       - .github/workflows/package-check.yml
   pull_request:
@@ -31,6 +32,7 @@ on:
       - scripts/check-packaged-electron.mjs
       - package.json
       - package-lock.json
+      - scripts/install-electron-runtime.mjs
       - vite.config.js
       - .github/workflows/package-check.yml
   workflow_dispatch:
@@ -56,7 +58,7 @@ jobs:
             package-lock.json
             electron/package-lock.json
       - run: npm ci
-      - run: npm --prefix electron ci
+      - run: npm run app:setup
       - name: Build web bundle behind the training boundary
         run: |
           npm run build

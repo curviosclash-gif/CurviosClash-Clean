@@ -14,7 +14,7 @@
     "build:app:test": "node scripts/build-playwright-app.mjs",
     "preview": "vite preview",
     "browser:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./server.ps1",
-    "app:setup": "npm --prefix electron ci",
+    "app:setup": "npm --prefix electron ci && node scripts/install-electron-runtime.mjs",
     "app:start": "npm run build:app && npm --prefix electron run start",
     "app:start:raw": "npm --prefix electron run start",
     "app:settings:start": "npm --prefix electron run start:settings",

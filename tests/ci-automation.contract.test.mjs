@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -52,7 +52,7 @@ test('push and pull requests run the complete quality command set', () => {
     assert.match(workflow, /pull_request:/);
     for (const command of [
         'npm ci',
-        'npm --prefix electron ci',
+        'npm run app:setup',
         'npm run quality',
     ]) {
         assert.match(workflow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -88,6 +88,8 @@ test('desktop smoke covers product, dependency, branding, and launcher changes',
     assert.match(workflow, /browser-compat:/);
     assert.match(workflow, /needs: smoke/);
     assert.match(workflow, /npm run test:browser:compat/);
+    assert.equal((workflow.match(/npm run app:setup/g) || []).length, 3);
+    assert.doesNotMatch(workflow, /npm --prefix electron ci/);
     for (const cluster of [...DESKTOP_E2E_CLUSTERS, ...HEAVY_DIAGNOSTIC_CLUSTERS]) {
         assert.match(workflow, new RegExp(`- ${cluster.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\r?\\n|$)`));
     }
@@ -118,6 +120,7 @@ test('desktop and package workflows run for every entry their builds read', () =
             'scripts/build-playwright-app.mjs',
             'scripts/vite-build.mjs',
             'scripts/esbuild-stream-fallback.cjs',
+            'scripts/install-electron-runtime.mjs',
             'playwright.editor.config.mjs',
         ],
         '.github/workflows/package-check.yml': [
@@ -126,6 +129,7 @@ test('desktop and package workflows run for every entry their builds read', () =
             'scripts/build-app.mjs',
             'scripts/vite-build.mjs',
             'scripts/esbuild-stream-fallback.cjs',
+            'scripts/install-electron-runtime.mjs',
         ],
     };
     for (const [file, required] of Object.entries(requiredFilters)) {
@@ -142,6 +146,8 @@ test('desktop and package workflows run for every entry their builds read', () =
 test('package check also builds the web bundle behind the training boundary', () => {
     const workflow = readRepoFile('.github/workflows/package-check.yml');
     assert.match(workflow, /^\s+npm run build\s*$/m);
+    assert.match(workflow, /npm run app:setup/);
+    assert.doesNotMatch(workflow, /npm --prefix electron ci/);
 });
 
 test('contract runner discovers every root Node test exactly once', () => {
@@ -287,7 +293,22 @@ function withTempRoots(assertions) {
 
 test('the contract runner leaves no coverage temp folder behind', () => {
     withTempRoots((tmpRoot, contractSummaryPath) => {
-        const status = runContractTests(['fast'], { tmpRoot, contractSummaryPath, log: () => {}, spawn: () => ({ status: 0 }) });
+        const selectedTests = selectNodeTestFiles(
+            collectNodeTestFileNames(fileURLToPath(new URL('../tests/', import.meta.url))),
+            'fast'
+        );
+        const status = runContractTests(['fast'], {
+            tmpRoot,
+            contractSummaryPath,
+            log: () => {},
+            spawn: () => {
+                writeFileSync(contractSummaryPath, JSON.stringify({
+                    tests: selectedTests.length,
+                    files: selectedTests.map((file) => ({ file: `tests/${file}`, tests: 1 })),
+                }));
+                return { status: 0 };
+            },
+        });
 
         assert.equal(status, 0);
         assert.deepEqual(readdirSync(tmpRoot), [], 'a run without --coverage needs no temp folder at all');

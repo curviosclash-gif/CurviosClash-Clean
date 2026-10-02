@@ -26,7 +26,7 @@ jobs:
             electron/package-lock.json
       - name: Install root dependencies
         run: npm ci
-      - name: Install Electron dependencies
-        run: npm --prefix electron ci
+      - name: Install Electron dependencies and desktop runtime
+        run: npm run app:setup
       - name: Quality
         run: npm run quality
