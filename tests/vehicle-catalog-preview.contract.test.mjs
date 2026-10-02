@@ -197,6 +197,67 @@ test('vehicle catalog preview renders visible cards with one renderer and releas
     assert.equal(motionListeners.size, 0);
 });
 
+test('vehicle catalog preview rebuilds the same part id when its render style changes after clearing targets', () => {
+    const frameCallbacks = new Map();
+    let nextFrameId = 1;
+    const createdStyles = [];
+    const partNodes = [];
+    const canvas = {
+        dataset: {},
+        setAttribute() {},
+        getContext() { return { clearRect() {}, drawImage() {} }; },
+    };
+    const renderer = {
+        domElement: {},
+        setPixelRatio() {},
+        setSize() {},
+        render() {},
+        dispose() {},
+        forceContextLoss() {},
+    };
+    const documentRef = {
+        visibilityState: 'visible',
+        createElement() { return canvas; },
+        addEventListener() {},
+        removeEventListener() {},
+    };
+    const partAssembly = {
+        createPreviewPartNode(part) {
+            createdStyles.push(part.appearance.style);
+            const node = new THREE.Group();
+            node.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()));
+            partNodes.push(node);
+            return node;
+        },
+        dispose() {
+            partNodes.forEach(disposeVehicleCatalogPreviewObject);
+        },
+    };
+    const preview = createVehicleCatalogPreview3d({
+        rendererFactory: () => renderer,
+        partAssembly,
+        documentRef,
+        motionQuery: { matches: false, addEventListener() {}, removeEventListener() {} },
+        requestAnimationFrame(callback) {
+            const id = nextFrameId;
+            nextFrameId += 1;
+            frameCallbacks.set(id, callback);
+            return id;
+        },
+        cancelAnimationFrame(id) { frameCallbacks.delete(id); },
+        intersectionObserverFactory: null,
+    });
+    const card = { classList: { add() {} }, appendChild() {} };
+
+    preview.attachPartCard(card, { id: 'same-part', appearance: { style: 'standard' } });
+    preview.clearTargets();
+    preview.attachPartCard(card, { id: 'same-part', appearance: { style: 'experimental' } });
+
+    assert.deepEqual(createdStyles, ['standard', 'experimental']);
+    assert.equal(partNodes.length, 2, 'the old cached node must not stand in for the new style');
+    preview.dispose();
+});
+
 test('vehicle catalog preview disposes pending generic mesh resources', () => {
     const vehicle = new THREE.Group();
     const geometry = new THREE.BoxGeometry();
