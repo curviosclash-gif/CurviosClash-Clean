@@ -18,7 +18,7 @@ const { createArcadeVehicleProfileRecord } = await import('../src/shared/contrac
 const hitboxContract = await import('../src/shared/contracts/ArcadeVehicleHitboxContract.js');
 const { PLAYER_SHIP_PART_CONFIGS } = await import('../src/shared/vehicle-lab/player-ships/index.js');
 
-function createPanel(extra = {}) {
+function createPanel(extra = {}, saveResult = undefined) {
     const harness = {
         profile: { ...createArcadeVehicleProfileRecord('ship5', 0), xpBank: 1000, ...extra },
         saves: [],
@@ -31,6 +31,7 @@ function createPanel(extra = {}) {
             harness.profile = next;
             harness.saves.push(next);
             harness.panel.render('ship5', next);
+            return saveResult;
         },
         toast: (message) => harness.toasts.push(message),
         onDraftChange() {},
@@ -68,6 +69,19 @@ test('D: eine gehaltene Enter-Taste bestätigt keinen XP-Kauf, erst ein neuer Ta
     pressEnter(harness.confirmAccept);
     assert.equal(harness.saves.length, 1, 'ein bewusster Tastendruck kauft genau einen Schritt');
     assert.equal(harness.profile.purchasedSizeSteps, 1);
+});
+
+test('ein fehlgeschlagener Profil-Save verbraucht XP nur im offenen Hangar und meldet keinen Kauf-Erfolg', () => {
+    const harness = createPanel({ sizeWorkshopUnlocked: true, xpBank: 8500 }, false);
+    const startingXp = harness.profile.xpBank;
+    harness.buyStep.focus();
+    pressEnter(harness.buyStep);
+    pressEnter(harness.confirmAccept);
+
+    assert.equal(harness.saves.length, 1);
+    assert.equal(harness.profile.purchasedSizeSteps, 1, 'die bestätigte Änderung bleibt im aktuellen Profil erhalten');
+    assert.ok(harness.profile.xpBank < startingXp, 'der bestätigte XP-Aufwand wird im aktuellen Hangar nicht zurückgerollt');
+    assert.ok(!harness.toasts.some((message) => message === 'Größenschritt gekauft'), 'ein fehlgeschlagener Save erzeugt keine Erfolgsmeldung');
 });
 
 // --- I: offene Bestätigung zeigt aktuelle Werte ---

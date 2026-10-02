@@ -25,6 +25,7 @@ import {
     xpForLevel,
     xpToNextLevel,
 } from '../src/state/arcade/ArcadeVehicleProfile.js';
+import { createArcadeVehicleProfileWorkshopPort } from '../src/state/arcade/ArcadeVehicleProfileWorkshopPort.js';
 import { createFallbackProfilePort } from '../src/ui/hangar/HangarWorkshopProfileSupport.js';
 
 const MAX = Number.MAX_SAFE_INTEGER;
@@ -311,7 +312,16 @@ test('v3: unreadable stored JSON blocks canonical and gameplay saves', () => {
     store.invalidReads.add(ARCADE_VEHICLE_PROFILE_STORAGE_KEY);
     assert.deepEqual(loadVehicleProfiles(store), {});
     assert.equal(saveVehicleProfiles(store, { ship5: createArcadeVehicleProfile('ship5', 0) }), false);
+    assert.equal(createArcadeVehicleProfileWorkshopPort(store).save({ ship5: createArcadeVehicleProfile('ship5', 0) }), false);
     assert.equal(store.data.has(ARCADE_VEHICLE_PROFILE_STORAGE_KEY), false);
+});
+
+test('v3: hangar workshop port preserves the profile store save failure result', () => {
+    const store = createKeyedStore();
+    const failure = { success: false, reason: 'quota_exceeded' };
+    store.saveJsonRecord = () => failure;
+
+    assert.equal(createArcadeVehicleProfileWorkshopPort(store).save({ ship5: createArcadeVehicleProfile('ship5', 0) }), failure);
 });
 
 test('v3: levels above 30 never read past a table end', () => {
@@ -346,7 +356,14 @@ test('v3: the hangar fallback port uses the same uncapped curve', () => {
     assert.deepEqual(port.xpToNextLevel(profile), xpToNextLevel({ ...createArcadeVehicleProfile('ship5', 0), ...profile }));
 });
 
-test('v3: hangar fallback port saves progression and explicit cosmetics without discarding unknown cosmetic data', () => {
+test('v3: hangar UI fallback refuses profile writes without a persistence port', () => {
+    const store = createKeyedStore({ [ARCADE_VEHICLE_PROFILE_STORAGE_KEY]: { ship5: { customData: 'keep' } } });
+    const port = createFallbackProfilePort(store);
+    assert.equal(port.save({ ship5: createArcadeVehicleProfile('ship5', 0) }), false);
+    assert.deepEqual(store.data.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY), { ship5: { customData: 'keep' } });
+});
+
+test('v3: hangar workshop port saves progression and explicit cosmetics without discarding unknown cosmetic data', () => {
     const rawProfile = {
         schemaVersion: ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION,
         vehicleId: 'ship5',
@@ -361,7 +378,7 @@ test('v3: hangar fallback port saves progression and explicit cosmetics without 
     const store = createKeyedStore({
         [ARCADE_VEHICLE_PROFILE_STORAGE_KEY]: { ship5: rawProfile },
     });
-    const port = createFallbackProfilePort(store);
+    const port = createArcadeVehicleProfileWorkshopPort(store);
     const profiles = port.load();
     assert.equal(profiles.ship5.xp, 5300);
     assert.equal(profiles.ship5.level, 14);
@@ -393,7 +410,7 @@ test('v3: hangar fallback port saves progression and explicit cosmetics without 
     assert.deepEqual(reloaded.partStyle, { Utility: { color: 0x654321 } });
 });
 
-test('v3: explicit cosmetic edits add missing fields beside preserved unknown styles', () => {
+test('v3: hangar workshop port adds explicit cosmetic edits beside preserved unknown styles', () => {
     const rawProfile = {
         schemaVersion: ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION,
         vehicleId: 'ship5',
@@ -404,7 +421,7 @@ test('v3: explicit cosmetic edits add missing fields beside preserved unknown st
     const store = createKeyedStore({
         [ARCADE_VEHICLE_PROFILE_STORAGE_KEY]: { ship5: rawProfile },
     });
-    const port = createFallbackProfilePort(store);
+    const port = createArcadeVehicleProfileWorkshopPort(store);
     const profiles = port.load();
     assert.equal(profiles.ship5.trailStyleId, 'standard');
     assert.deepEqual(profiles.ship5.partStyle, {});
