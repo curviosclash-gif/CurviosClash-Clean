@@ -28,7 +28,10 @@ export const PLAYABLE_VOLUME_WALL = 1;
 /** The whole sphere fits inside one room. */
 export const PLAYABLE_VOLUME_INSIDE = 2;
 
-/** @typedef {{ minX: number, maxX: number, minY: number, maxY: number, minZ: number, maxZ: number }} ArenaPlayableVolume */
+/** @typedef {{ minX: number, maxX: number, minY: number, maxY: number, minZ: number, maxZ: number }
+ * | { shape: 'cylinder', centerX: number, centerZ: number, radius: number, minY: number, maxY: number }} ArenaPlayableVolume */
+/** @typedef {{ min: readonly number[], max: readonly number[] }
+ * | { shape: 'cylinder', center: readonly number[], radius: number, minY: number, maxY: number }} AuthoredPlayableVolume */
 
 /** @type {readonly ArenaPlayableVolume[]} */
 const NO_VOLUMES = Object.freeze([]);
@@ -49,6 +52,7 @@ export function resolveArenaPlayableVolumes(mapDefinition, scale = 1) {
     const authored = Array.isArray(mapDefinition?.playableVolumes) ? mapDefinition.playableVolumes : [];
     if (rooms.length === 0 && authored.length === 0) return NO_VOLUMES;
     const factor = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    /** @type {AuthoredPlayableVolume[]} */
     const volumes = rooms.map((room) => room.bounds);
     for (const entry of authored.slice(0, 8)) {
         if (entry?.shape === 'cylinder' && Array.isArray(entry.center)) {
@@ -71,7 +75,7 @@ export function resolveArenaPlayableVolumes(mapDefinition, scale = 1) {
         volumes.push({ min, max });
     }
     if (volumes.length === 0) return NO_VOLUMES;
-    return Object.freeze(volumes.map((bounds) => bounds.shape === 'cylinder'
+    return Object.freeze(volumes.map((bounds) => 'shape' in bounds
         ? Object.freeze({
             shape: 'cylinder', centerX: bounds.center[0] * factor, centerZ: bounds.center[1] * factor,
             radius: bounds.radius * factor, minY: bounds.minY * factor, maxY: bounds.maxY * factor,
@@ -101,7 +105,7 @@ export function probeArenaPlayableVolumes(volumes, position, radius = 0, outNorm
     let answer = PLAYABLE_VOLUME_OUTSIDE;
     for (let index = 0; index < volumes.length; index += 1) {
         const volume = volumes[index];
-        if (volume.shape === 'cylinder') {
+        if ('shape' in volume) {
             const dx = position.x - volume.centerX;
             const dz = position.z - volume.centerZ;
             const radialDistance = Math.hypot(dx, dz);
