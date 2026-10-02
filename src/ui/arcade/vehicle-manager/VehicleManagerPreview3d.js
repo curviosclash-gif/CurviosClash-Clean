@@ -64,6 +64,16 @@ function findRenderSize(element) {
     return { width, height };
 }
 
+/**
+ * @typedef {Object} VehicleManagerPreview3dOptions
+ * @property {HTMLElement | null} [mount]
+ * @property {HTMLElement | null} [overlay]
+ * @property {(options: import('three').WebGLRendererParameters) => THREE.WebGLRenderer} [rendererFactory]
+ * @property {(camera: THREE.PerspectiveCamera, element: HTMLElement) => OrbitControls} [controlsFactory]
+ * @property {(vehicleId: string, color: number) => THREE.Object3D} [vehicleFactory]
+ */
+
+/** @param {VehicleManagerPreview3dOptions} [options] */
 export function createVehicleManagerPreview3d({
     mount,
     overlay,
