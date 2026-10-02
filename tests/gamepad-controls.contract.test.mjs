@@ -10,6 +10,7 @@ import { SettingsManager } from '../src/core/SettingsManager.js';
 import { createControlBindingsSnapshot } from '../src/shared/contracts/SettingsRuntimeContract.js';
 import { createMemoryStoragePlatform } from './helpers/settings-manager-contract-test-utils.mjs';
 import { applyAxisDeadzone } from '../src/shared/utils/InputAxisOps.js';
+import { renderGamepadBindingEditor } from '../src/ui/GamepadBindingEditor.js';
 
 // Controller axes grow from 0 at the 0.15 deadzone edge instead of passing the raw value on.
 const stickAxis = (value) => applyAxisDeadzone(value, 0.15);
@@ -21,6 +22,34 @@ function hardware(t) {
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => state.pads, maxTouchPoints: 0 } });
     t.after(() => { if (original) Object.defineProperty(globalThis, 'navigator', original); else delete globalThis.navigator; });
     return state;
+}
+
+function createStubElement(ownerDocument, tagName = 'div') {
+    const element = new EventTarget();
+    Object.assign(element, {
+        ownerDocument,
+        tagName: tagName.toUpperCase(),
+        children: [],
+        dataset: {},
+        style: {},
+        attributes: new Map(),
+        append(...children) { this.children.push(...children); },
+        appendChild(child) { this.children.push(child); return child; },
+        replaceChildren(...children) { this.children = [...children]; },
+        setAttribute(name, value) { this.attributes.set(name, String(value)); },
+        removeAttribute(name) { this.attributes.delete(name); },
+        getAttribute(name) { return this.attributes.get(name) ?? null; },
+    });
+    return element;
+}
+
+function findStubElement(root, predicate) {
+    if (predicate(root)) return root;
+    for (const child of root.children || []) {
+        const found = findStubElement(child, predicate);
+        if (found) return found;
+    }
+    return null;
 }
 
 test('controller axes reach PlayerController with keyboard-equivalent signs and deadzone', (t) => {
@@ -179,4 +208,41 @@ test('custom mappings for all four controllers survive save, reload and runtime 
         assert.deepEqual(loaded.controls[`GAMEPAD_${i}`], settings.controls[`GAMEPAD_${i}`]);
         assert.deepEqual(createControlBindingsSnapshot(loaded.controls)[`GAMEPAD_${i}`], settings.controls[`GAMEPAD_${i}`]);
     }
+});
+
+test('gamepad reset waits for confirmation before persisting controller defaults', () => {
+    const ownerDocument = { createElement: (tagName) => createStubElement(ownerDocument, tagName) };
+    const container = createStubElement(ownerDocument);
+    container.dataset.gamepadPlayer = 'GAMEPAD_1';
+    const controls = {
+        GAMEPAD: { enabled: true },
+        SPLITSCREEN: { layout: 'auto' },
+        GAMEPAD_1: { ...normalizeGamepadControls(), BOOST: 5, PAUSE: 8 },
+    };
+    let settingsSaves = 0;
+    let bindingApplies = 0;
+    const runtimeAccess = {
+        getControls: () => controls,
+        actionEnsurePlayerControls: (key) => controls[key],
+        actionOnSettingsChanged: () => { settingsSaves += 1; },
+        actionApplyPauseBindings: () => { bindingApplies += 1; },
+    };
+
+    renderGamepadBindingEditor(container, runtimeAccess);
+    const reset = findStubElement(container, (element) => element.tagName === 'BUTTON'
+        && element.textContent === 'Controller-Standard wiederherstellen');
+    assert.ok(reset);
+
+    reset.dispatchEvent(new Event('click'));
+    assert.equal(controls.GAMEPAD_1.BOOST, 5);
+    assert.equal(controls.GAMEPAD_1.PAUSE, 8);
+    assert.equal(settingsSaves, 0);
+    assert.equal(bindingApplies, 0);
+    assert.equal(reset.getAttribute('data-reset-armed'), 'true');
+
+    reset.dispatchEvent(new Event('click'));
+    assert.deepEqual(controls.GAMEPAD_1, normalizeGamepadControls());
+    assert.equal(settingsSaves, 1);
+    assert.equal(bindingApplies, 1);
+    assert.equal(reset.getAttribute('data-reset-armed'), null);
 });
