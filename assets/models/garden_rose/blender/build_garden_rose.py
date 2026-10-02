@@ -8,7 +8,7 @@ import random
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 
 SEED = 314159
@@ -18,7 +18,7 @@ BLENDER_DIR = ROOT / "blender"
 PREVIEW_DIR = BLENDER_DIR / "previews"
 BLEND_PATH = BLENDER_DIR / "garden_rose.blend"
 
-random.seed(SEED)
+_RNG = random.Random(SEED)
 ASSET_OBJECTS = []
 STUDIO_OBJECTS = []
 ASSET_COLLECTION = None
@@ -149,6 +149,8 @@ def register(obj, asset=True):
 
 
 def curve_tube(name, points, radii, bevel, mat, asset=True, resolution=3):
+    if len(points) != len(radii):
+        raise ValueError(f"Curve point/radius count mismatch for {name}: {len(points)} points, {len(radii)} radii")
     curve = bpy.data.curves.new(name, "CURVE")
     curve.dimensions = "3D"
     curve.resolution_u = 8
@@ -277,9 +279,9 @@ def make_petal(name, center, right, up, normal, theta, r_start, r_end, half_widt
     arch *= BLOOM_SCALE
     rows, columns = 32, 16
     vertices, faces = [], []
-    length_jitter = random.uniform(-0.035, 0.035)
-    width_jitter = random.uniform(0.82, 1.17)
-    phase = random.uniform(0.0, math.tau) + seed_offset * 0.37
+    length_jitter = _RNG.uniform(-0.035, 0.035)
+    width_jitter = _RNG.uniform(0.82, 1.17)
+    phase = _RNG.uniform(0.0, math.tau) + seed_offset * 0.37
     for row in range(rows + 1):
         t = row / rows
         radius = r_start + (r_end - r_start) * t + length_jitter * t
@@ -432,17 +434,19 @@ def area_light(name, location, target, energy, size, tint):
     return obj
 
 
-def build_scene():
+def build_factory_scene(seed=SEED):
+    """Create the preserved original specimen modelers in a genuinely empty scene only."""
     global ASSET_COLLECTION, STUDIO_COLLECTION
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete(use_global=False)
-    for collection in list(bpy.data.collections):
-        if collection.name != "Collection":
-            bpy.data.collections.remove(collection)
+    if bpy.context.scene.objects or bpy.context.scene.collection.children:
+        raise RuntimeError("Rose factory bootstrap requires an empty scene; use regenerate_scene for an existing specimen")
+    if any(bpy.data.collections.get(name) for name in (
+        "ASSET | Garden rose specimen", "STUDIO | cameras, lights, ground"
+    )):
+        raise RuntimeError("Rose factory bootstrap collection-name collision")
+    ASSET_OBJECTS.clear()
+    STUDIO_OBJECTS.clear()
+    _RNG.seed(seed)
     root_collection = bpy.context.scene.collection
-    old = bpy.data.collections.get("Collection")
-    if old:
-        bpy.data.collections.remove(old)
     ASSET_COLLECTION = bpy.data.collections.new("ASSET | Garden rose specimen")
     STUDIO_COLLECTION = bpy.data.collections.new("STUDIO | cameras, lights, ground")
     root_collection.children.link(ASSET_COLLECTION)
@@ -534,19 +538,19 @@ def build_scene():
         phase = (0.14, 0.39, 0.03, 0.27, 0.19)[layer_index]
         for index in range(count):
             theta = index * golden_angle + phase + layer_index * 0.21
-            theta += random.uniform(-0.16, 0.16)
+            theta += _RNG.uniform(-0.16, 0.16)
             petal_counter += 1
             start_jitter = min(0.025, r_start * 0.30 + 0.001)
-            personal_start = max(0.0, r_start + random.uniform(-start_jitter, start_jitter))
-            personal_end = r_end * random.uniform(0.94, 1.06)
-            personal_width = half_width * random.uniform(0.86, 1.14)
-            personal_z_start = z_start + random.uniform(-0.018, 0.018)
-            personal_z_end = z_end + random.uniform(-0.035, 0.035)
-            personal_spiral = spiral + random.uniform(-0.07, 0.07)
-            personal_arch = arch * random.uniform(0.70, 1.30)
+            personal_start = max(0.0, r_start + _RNG.uniform(-start_jitter, start_jitter))
+            personal_end = r_end * _RNG.uniform(0.94, 1.06)
+            personal_width = half_width * _RNG.uniform(0.86, 1.14)
+            personal_z_start = z_start + _RNG.uniform(-0.018, 0.018)
+            personal_z_end = z_end + _RNG.uniform(-0.035, 0.035)
+            personal_spiral = spiral + _RNG.uniform(-0.07, 0.07)
+            personal_arch = arch * _RNG.uniform(0.70, 1.30)
             make_petal(f"Petal_{layer}_{index + 1:02d}", flower_center, right, up, flower_axis, theta,
                        personal_start, personal_end, personal_width, personal_z_start, personal_z_end,
-                       curl * random.uniform(0.72, 1.28), twist + random.uniform(-0.18, 0.18), personal_spiral,
+                       curl * _RNG.uniform(0.72, 1.28), twist + _RNG.uniform(-0.18, 0.18), personal_spiral,
                        personal_arch, bloom_petal_mat, petal_counter)
 
     # A compact offset bud grows from a visible side node on its own curved pedicel.
@@ -554,7 +558,7 @@ def build_scene():
     bud_axis = Vector((0.82, -0.36, 0.44)).normalized()
     bud_base = bud_origin + bud_axis * 0.24
     curve_tube("Bud_pedicel", [bud_origin, (0.13, -0.07, 1.53), (0.19, -0.11, 1.56), bud_base],
-               [0.70, 0.53, 0.40], 0.008, stem_mat)
+               [0.70, 0.53, 0.40, 0.30], 0.008, stem_mat)
     add_bud(bud_base, bud_axis, calyx_mat, sepal_light, [petal_palette[0], petal_palette[1]])
 
     for obj in ASSET_OBJECTS:
@@ -612,7 +616,8 @@ def build_scene():
     scene.render.image_settings.compression = 18
 
     # Helpful opening state: asset selected, studio hidden from selection, hero camera active.
-    bpy.ops.object.select_all(action="DESELECT")
+    for selected in list(bpy.context.selected_objects):
+        selected.select_set(False)
     root.select_set(True)
     bpy.context.view_layer.objects.active = root
     for area in bpy.context.screen.areas if bpy.context.screen else []:
@@ -621,7 +626,7 @@ def build_scene():
 
     root["species"] = "Rosa sp. | cultivated garden rose"
     root["asset_scale_m"] = "approximately 2.3 m tall"
-    root["generation_seed"] = SEED
+    root["generation_seed"] = seed
     root["description"] = "Single curved flowering shoot with a full crimson bloom, side bud, prickles and compound pinnate leaves."
     return cameras
 
@@ -651,33 +656,319 @@ def mesh_metrics(collection):
     return vertices, triangles, bounds_min, bounds_max
 
 
-def main():
-    BLENDER_DIR.mkdir(parents=True, exist_ok=True)
-    PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
-    cameras = build_scene()
+# Canonical structural source. The existing stem curve is the only
+# generator-owned geometry changed by this adapter; authored organ data stays intact.
+CANONICAL_STEM = (
+    (0.00, 0.00, 0.00, 0.92), (0.035, 0.008, 0.28, 0.88),
+    (0.10, 0.025, 0.59, 0.80), (0.12, 0.035, 0.90, 0.74),
+    (0.08, 0.020, 1.20, 0.66), (0.005, -0.005, 1.49, 0.59),
+    (-0.045, -0.025, 1.78, 0.52), (-0.095, -0.035, 2.00, 0.45),
+)
+SCHEMA_VERSION = 1
+ASSET_COLLECTION_NAME = "ASSET | Garden rose specimen"
+STRUCTURE_COLLECTION_NAME = "PROCEDURAL | Rose shoot"
+AUTHORED_COLLECTION_NAME = "AUTHORED | Rose organs"
+ROOT_OBJECT_NAME = "GardenRose_root_origin"
+STEM_OBJECT_NAME = "Main_stem_curved"
+LEAF_SITES = (
+    ((0.075, 0.020, 0.50), 0.50), ((0.11, 0.030, 0.84), 0.84),
+    ((0.095, 0.025, 1.18), 1.18), ((-0.010, -0.005, 1.52), 1.52),
+)
+THORN_STEM_INDICES = (1, 2, 3, 4, 5, 6, 6, 2)
+
+
+def _expected_role_names():
+    roles = {}
+    for index in range(1, 5):
+        prefix = f"Compound_leaf_{index}"
+        names = {f"{prefix}_petiole", f"{prefix}_rachis", f"{prefix}_terminal", f"{prefix}_terminal_midrib"}
+        for pair in range(1, 6):
+            for side in ("L", "R"):
+                blade = f"{prefix}_leaflet_{pair}_{side}"
+                names.update((blade, blade + "_midrib"))
+        roles[f"leaf:{index:02d}"] = names
+    roles["flower"] = {"Flower_pedicel", "Flower_receptacle"} | {f"Flower_sepal_{i}" for i in range(1, 6)}
+    for layer, count in (("Outer", 14), ("Middle", 12), ("Inner", 10), ("Heart", 8), ("Core", 7)):
+        roles["flower"].update(f"Petal_{layer}_{i:02d}" for i in range(1, count + 1))
+    roles["bud"] = {"Bud_pedicel", "Bud_closed_corolla"} | {f"Bud_sepal_{i}" for i in range(1, 6)} | {
+        f"Bud_petal_seam_{i}" for i in range(1, 6)
+    }
+    for index in range(1, 9):
+        roles[f"thorn:{index:02d}"] = {f"Stem_thorn_{index:02d}"}
+    return roles
+
+
+ROLE_ANCHORS = {
+    **{f"leaf:{i:02d}": (site, source_z) for i, (site, source_z) in enumerate(LEAF_SITES, 1)},
+    **{f"thorn:{i:02d}": (CANONICAL_STEM[source_index][:3], CANONICAL_STEM[source_index][2])
+       for i, source_index in enumerate(THORN_STEM_INDICES, 1)},
+    "flower": (CANONICAL_STEM[6][:3], CANONICAL_STEM[6][2]),
+    "bud": (CANONICAL_STEM[5][:3], CANONICAL_STEM[5][2]),
+}
+
+
+def _canonical_bud_pedicel_points():
+    origin = Vector((0.005, -0.005, 1.49))
+    axis = Vector((0.82, -0.36, 0.44)).normalized()
+    return (origin, Vector((0.13, -0.07, 1.53)), Vector((0.19, -0.11, 1.56)), origin + axis * 0.24)
+
+
+def _repair_canonical_bud_pedicel(root):
+    """Repair only the exact legacy zip-truncation defect; retain edited organ curves."""
+    obj = bpy.data.objects.get("Bud_pedicel")
+    if obj is None or obj.type != "CURVE" or obj.data.users != 1 or obj.modifiers or obj.animation_data:
+        return False
+    authored = bpy.data.collections.get(AUTHORED_COLLECTION_NAME)
+    if authored is None or authored not in obj.users_collection:
+        return False
+    if obj.parent is not _role_socket("bud") or obj.get("rose01_role_id") != "bud":
+        return False
+    root_relative = root.matrix_world.inverted() @ obj.matrix_world
+    if max(abs(root_relative[row][column] - (1.0 if row == column else 0.0))
+           for row in range(4) for column in range(4)) > 1e-5:
+        return False
+    curve = obj.data
+    if (curve.dimensions != "3D" or curve.resolution_u != 8 or len(curve.splines) != 1
+            or abs(curve.bevel_depth - 0.008) > 1e-7 or curve.bevel_resolution != 3
+            or curve.materials[:] != [bpy.data.materials.get("Stem | deep olive green")]):
+        return False
+    spline = curve.splines[0]
+    if spline.type != "POLY" or spline.use_cyclic_u or len(spline.points) != 4:
+        return False
+    legacy_points = _canonical_bud_pedicel_points()[:3] + (Vector((0.0, 0.0, 0.0)),)
+    legacy_radii = (0.70, 0.53, 0.40, 1.0)
+    if not all(
+        max(abs(point.co[axis] - expected[axis]) for axis in range(3)) <= 1e-6
+        and abs(point.radius - radius) <= 1e-6
+        and abs(point.tilt) <= 1e-6
+        and abs(point.weight - 1.0) <= 1e-6
+        for point, expected, radius in zip(spline.points, legacy_points, legacy_radii)
+    ):
+        return False
+    spline.points[-1].co = (*_canonical_bud_pedicel_points()[-1], 1.0)
+    spline.points[-1].radius = 0.30
+    return True
+
+
+def _object_signature_is_canonical_stem(stem):
+    if stem.type != "CURVE" or stem.data.dimensions != "3D" or len(stem.data.splines) != 1:
+        return False
+    spline = stem.data.splines[0]
+    if spline.type != "POLY" or len(spline.points) != len(CANONICAL_STEM):
+        return False
+    if abs(stem.data.bevel_depth - 0.021) > 1e-7 or stem.data.bevel_resolution != 4:
+        return False
+    if stem.data.resolution_u != 8 or stem.modifiers or len(stem.data.materials) != 1:
+        return False
+    if stem.data.materials[0] is None or stem.data.materials[0].name != "Stem | deep olive green":
+        return False
+    if stem.parent is None or stem.parent.name != ROOT_OBJECT_NAME:
+        return False
+    if max(abs(stem.matrix_world[row][column] - (1.0 if row == column else 0.0))
+           for row in range(4) for column in range(4)) > 1e-7:
+        return False
+    return all(
+        max(abs(spline.points[i].co[axis] - expected[axis]) for axis in range(3)) < 1e-6
+        and abs(spline.points[i].radius - expected[3]) < 1e-6
+        for i, expected in enumerate(CANONICAL_STEM)
+    )
+
+
+def _preflight_first_migration():
+    """Validate canonical source and all new names before the first scene mutation."""
     scene = bpy.context.scene
-    bpy.ops.wm.save_as_mainfile(filepath=str(BLEND_PATH))
+    asset = bpy.data.collections.get(ASSET_COLLECTION_NAME)
+    root = bpy.data.objects.get(ROOT_OBJECT_NAME)
+    stem = bpy.data.objects.get(STEM_OBJECT_NAME)
+    if asset is None or root is None or root.type != "EMPTY" or stem is None:
+        raise RuntimeError("Rose migration requires the canonical asset collection, root, and stem")
+    if "rose01_schema_version" in root:
+        raise RuntimeError("Unsupported Rose migration metadata; migration made no changes")
+    if asset not in stem.users_collection:
+        raise RuntimeError("Canonical stem is outside the garden rose asset collection")
+    if stem.data.users != 1:
+        raise RuntimeError("Canonical stem data is shared; migration made no changes")
+    if not _object_signature_is_canonical_stem(stem):
+        raise RuntimeError("Canonical stem signature differs; migration made no changes")
+    expected = _expected_role_names()
+    for role_id, names in expected.items():
+        for name in names:
+            obj = bpy.data.objects.get(name)
+            if obj is None or asset not in obj.users_collection:
+                raise RuntimeError(f"Canonical authored role missing: {role_id}/{name}")
+            expected_type = "CURVE" if (
+                name.endswith("_petiole") or name.endswith("_rachis") or name.endswith("_midrib")
+                or name in {"Flower_pedicel", "Bud_pedicel"} or name.startswith("Bud_petal_seam_")
+            ) else "MESH"
+            if obj.type != expected_type:
+                raise RuntimeError(f"Canonical authored role type mismatch: {role_id}/{name}")
+    if len(scene.objects) < 176:
+        raise RuntimeError("Rose scene is incomplete; migration made no changes")
+    if any(bpy.data.collections.get(name) is not None for name in (
+        STRUCTURE_COLLECTION_NAME, AUTHORED_COLLECTION_NAME
+    )):
+        raise RuntimeError("Rose migration collection name collision")
+    reserved = {f"Rose01_socket_{role.replace(':', '_')}" for role in expected}
+    collision = sorted(name for name in reserved if bpy.data.objects.get(name) is not None)
+    if collision:
+        raise RuntimeError("Rose migration socket name collision: " + ", ".join(collision))
+    return root, stem, asset, expected
 
-    for view_name, camera in cameras.items():
-        scene.camera = camera
-        scene.render.filepath = str(PREVIEW_DIR / f"garden_rose_{view_name}.png")
-        bpy.ops.render.render(write_still=True)
 
-    scene.camera = cameras["hero"]
-    scene.render.filepath = str(PREVIEW_DIR / "garden_rose_hero.png")
-    bpy.ops.wm.save_as_mainfile(filepath=str(BLEND_PATH))
+def _stem_point_at_source_z(source_z, height_ratio):
+    for left, right in zip(CANONICAL_STEM, CANONICAL_STEM[1:]):
+        if left[2] <= source_z <= right[2]:
+            t = (source_z - left[2]) / (right[2] - left[2])
+            return Vector((left[0] + (right[0] - left[0]) * t,
+                           left[1] + (right[1] - left[1]) * t, source_z * height_ratio))
+    raise ValueError(f"Anchor lies outside the canonical stem: {source_z}")
 
-    vertices, triangles, bounds_min, bounds_max = mesh_metrics(ASSET_COLLECTION)
-    dimensions = bounds_max - bounds_min
-    materials = {mat.name for obj in ASSET_COLLECTION.objects if obj.data for mat in obj.data.materials}
-    print("GARDEN_ROSE_QA")
-    print(f"objects={len(ASSET_COLLECTION.objects)} materials={len(materials)} evaluated_vertices={vertices} evaluated_triangles={triangles}")
-    print(f"bounds_min={tuple(round(value, 4) for value in bounds_min)}")
-    print(f"bounds_max={tuple(round(value, 4) for value in bounds_max)}")
-    print(f"dimensions_m={tuple(round(value, 4) for value in dimensions)}")
-    print(f"seed={SEED} blender={bpy.app.version_string} blend={BLEND_PATH}")
-    for view_name in cameras:
-        print(f"preview_{view_name}={(PREVIEW_DIR / f'garden_rose_{view_name}.png').stat().st_size} bytes")
+
+def _stem_tangent_at_source_z(source_z, height_ratio):
+    for left, right in zip(CANONICAL_STEM, CANONICAL_STEM[1:]):
+        if left[2] <= source_z <= right[2]:
+            return Vector((right[0] - left[0], right[1] - left[1],
+                           (right[2] - left[2]) * height_ratio)).normalized()
+    raise ValueError(f"Frame lies outside the canonical stem: {source_z}")
+
+
+def _socket_matrix(role_id, height_ratio):
+    authored_anchor, source_z = ROLE_ANCHORS[role_id]
+    source_path = _stem_point_at_source_z(source_z, 1.0)
+    target_path = _stem_point_at_source_z(source_z, height_ratio)
+    anchor = target_path + (Vector(authored_anchor) - source_path)
+    tangent = _stem_tangent_at_source_z(source_z, height_ratio)
+    # Fixed canonical reference avoids roll flips near the vertical shoot axis.
+    reference = Vector((1.0, 0.0, 0.0))
+    lateral = reference - tangent * reference.dot(tangent)
+    if lateral.length < 1e-6:
+        reference = Vector((0.0, 1.0, 0.0))
+        lateral = reference - tangent * reference.dot(tangent)
+    lateral.normalize()
+    normal = tangent.cross(lateral).normalized()
+    rotation = Matrix((lateral, normal, tangent)).transposed().to_4x4()
+    rotation.translation = anchor
+    return rotation
+
+
+def _role_socket(role_id):
+    socket = bpy.data.objects.get(f"Rose01_socket_{role_id.replace(':', '_')}")
+    if socket is None or socket.get("rose01_role_id") != role_id:
+        raise RuntimeError(f"Rose role socket is missing or ambiguous: {role_id}")
+    return socket
+
+
+def attach_to_role(obj, role_id):
+    """Attach an authored addition to a stable role socket without changing its world matrix."""
+    socket = _role_socket(role_id)
+    world = obj.matrix_world.copy()
+    obj.parent = socket
+    obj.matrix_parent_inverse = socket.matrix_world.inverted()
+    obj.matrix_world = world
+    obj["rose01_role_id"] = role_id
+    return obj
+
+
+def _install_role_sockets(root, stem, asset, expected):
+    structure = bpy.data.collections.new(STRUCTURE_COLLECTION_NAME)
+    authored = bpy.data.collections.new(AUTHORED_COLLECTION_NAME)
+    asset.children.link(structure)
+    asset.children.link(authored)
+    structure.objects.link(stem)
+    asset.objects.unlink(stem)
+    stem["rose01_generated_part"] = "main_shoot_axis"
+    stem["rose01_schema_version"] = SCHEMA_VERSION
+    for role_id, names in expected.items():
+        socket = bpy.data.objects.new(f"Rose01_socket_{role_id.replace(':', '_')}", None)
+        structure.objects.link(socket)
+        socket.empty_display_type = "PLAIN_AXES"
+        socket.empty_display_size = 0.035
+        socket["rose01_role_id"] = role_id
+        socket["rose01_schema_version"] = SCHEMA_VERSION
+        socket.parent = root
+        socket.matrix_parent_inverse = Matrix.Identity(4)
+        socket.matrix_basis = _socket_matrix(role_id, 1.0)
+        for name in names:
+            obj = bpy.data.objects[name]
+            authored.objects.link(obj)
+            asset.objects.unlink(obj)
+            world = obj.matrix_world.copy()
+            obj.parent = socket
+            obj.matrix_parent_inverse = socket.matrix_world.inverted()
+            obj.matrix_world = world
+            obj["rose01_role_id"] = role_id
+    root["rose01_schema_version"] = SCHEMA_VERSION
+    root["rose01_generation_seed"] = SEED
+    root["rose01_height_ratio"] = 1.0
+
+
+def _validate_migrated_scene():
+    root = bpy.data.objects.get(ROOT_OBJECT_NAME)
+    stem = bpy.data.objects.get(STEM_OBJECT_NAME)
+    if root is None or root.get("rose01_schema_version") != SCHEMA_VERSION:
+        raise RuntimeError("Rose scene has no supported adapter schema")
+    if stem is None or stem.get("rose01_generated_part") != "main_shoot_axis":
+        raise RuntimeError("Rose structural stem is not tagged as generator-owned")
+    if stem.type != "CURVE" or len(stem.data.splines) != 1 or len(stem.data.splines[0].points) != len(CANONICAL_STEM):
+        raise RuntimeError("Rose structural stem topology is unsupported")
+    for role_id in ROLE_ANCHORS:
+        _role_socket(role_id)
+    if bpy.data.collections.get(STRUCTURE_COLLECTION_NAME) is None or bpy.data.collections.get(AUTHORED_COLLECTION_NAME) is None:
+        raise RuntimeError("Rose role collections are incomplete")
+    return root, stem
+
+
+def regenerate_scene(seed=SEED, stem_height_ratio=1.0):
+    """Regenerate only the shoot curve and its local role frames in the open Rose01 scene."""
+    if isinstance(seed, bool) or not isinstance(seed, int) or seed != SEED:
+        raise ValueError(f"Rose01 pilot preserves the authored source seed {SEED}")
+    if isinstance(stem_height_ratio, bool) or not isinstance(stem_height_ratio, (int, float)):
+        raise ValueError("stem_height_ratio must be a finite number in [0.9, 1.1]")
+    if not math.isfinite(stem_height_ratio) or not 0.9 <= stem_height_ratio <= 1.1:
+        raise ValueError("stem_height_ratio must be a finite number in [0.9, 1.1]")
+    ratio = float(stem_height_ratio)
+    root = bpy.data.objects.get(ROOT_OBJECT_NAME)
+    if root is not None and root.get("rose01_schema_version") == SCHEMA_VERSION:
+        root, stem = _validate_migrated_scene()
+        _repair_canonical_bud_pedicel(root)
+    else:
+        root, stem, asset, expected = _preflight_first_migration()
+        _install_role_sockets(root, stem, asset, expected)
+        _repair_canonical_bud_pedicel(root)
+        root, stem = _validate_migrated_scene()
+    spline = stem.data.splines[0]
+    for point, canonical in zip(spline.points, CANONICAL_STEM):
+        point.co = (canonical[0], canonical[1], canonical[2] * ratio, 1.0)
+        point.radius = canonical[3]
+    for role_id in ROLE_ANCHORS:
+        _role_socket(role_id).matrix_basis = _socket_matrix(role_id, ratio)
+    root["rose01_generation_seed"] = seed
+    root["rose01_height_ratio"] = ratio
+    bpy.context.view_layer.update()
+    return {"seed": seed, "stem_height_ratio": ratio, "roles": tuple(sorted(ROLE_ANCHORS)), "stem": stem}
+
+
+def save_source(filepath=None, seed=SEED, stem_height_ratio=1.0):
+    """Regenerate the open source scene, then save its editable .blend explicitly."""
+    regenerate_scene(seed=seed, stem_height_ratio=stem_height_ratio)
+    target = Path(filepath) if filepath else BLEND_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    bpy.ops.wm.save_as_mainfile(filepath=str(target))
+    return target
+
+
+def build_scene():
+    """Compatibility entry point for non-destructive regeneration of an open source scene."""
+    return regenerate_scene()
+
+
+def main():
+    if not BLEND_PATH.is_file():
+        raise FileNotFoundError(f"Editable Rose01 source scene not found: {BLEND_PATH}")
+    bpy.ops.wm.open_mainfile(filepath=str(BLEND_PATH))
+    result = regenerate_scene()
+    saved = save_source(seed=result["seed"], stem_height_ratio=result["stem_height_ratio"])
+    print(f"GARDEN_ROSE_REGENERATED seed={result['seed']} height_ratio={result['stem_height_ratio']} blend={saved}")
 
 
 if __name__ == "__main__":
