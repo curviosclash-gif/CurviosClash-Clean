@@ -6,6 +6,8 @@ import { deriveProfileControlSelectState } from './ProfileControlStateOps.js';
 import { deriveProfileActionUiState } from './ProfileUiStateOps.js';
 import { renderProfileSelectOptions } from './dom/ProfileSelectDom.js';
 
+const PROFILE_ERROR_TOAST_DURATION_MS = 4500;
+
 /**
  * Overwrites the live settings object without swapping its reference. UI
  * controllers and menu bindings capture `game.settings` once, so replacing the
@@ -141,7 +143,7 @@ export class ProfileUiController {
     saveProfile(profileName) {
         const result = this._profileManager.saveProfile(profileName, this._getSettings(), this.loadedProfileName);
         if (!result.success) {
-            this._showStatusToast(result.error, 2000, 'error');
+            this._showStatusToast(result.error, PROFILE_ERROR_TOAST_DURATION_MS, 'error');
             return false;
         }
 
@@ -168,7 +170,7 @@ export class ProfileUiController {
     duplicateProfile(sourceProfileName, targetProfileName = '') {
         const result = this._profileManager.duplicateProfile(sourceProfileName, targetProfileName);
         if (!result.success) {
-            this._showStatusToast(result.error, 1800, 'error');
+            this._showStatusToast(result.error, PROFILE_ERROR_TOAST_DURATION_MS, 'error');
             return false;
         }
 
@@ -189,7 +191,7 @@ export class ProfileUiController {
     loadProfile(profileName) {
         const result = this._profileManager.loadProfile(profileName);
         if (!result.success) {
-            this._showStatusToast(result.error, 1500, 'error');
+            this._showStatusToast(result.error, PROFILE_ERROR_TOAST_DURATION_MS, 'error');
             return false;
         }
 
@@ -207,7 +209,7 @@ export class ProfileUiController {
         const result = this._profileManager.exportProfile(profileName);
         if (!result.success) {
             this.setProfileTransferStatus(result.error, 'error');
-            this._showStatusToast(result.error, 1700, 'error');
+            this._showStatusToast(result.error, PROFILE_ERROR_TOAST_DURATION_MS, 'error');
             return false;
         }
 
@@ -228,7 +230,7 @@ export class ProfileUiController {
         const result = this._profileManager.importProfile(inputValue, requestedProfileName);
         if (!result.success) {
             this.setProfileTransferStatus(result.error, 'error');
-            this._showStatusToast(result.error, 1800, 'error');
+            this._showStatusToast(result.error, PROFILE_ERROR_TOAST_DURATION_MS, 'error');
             return false;
         }
 
@@ -261,7 +263,7 @@ export class ProfileUiController {
     setDefaultProfile(profileName) {
         const result = this._profileManager.setDefaultProfile(profileName);
         if (!result.success) {
-            this._showStatusToast(result.error, 1700, 'error');
+            this._showStatusToast(result.error, PROFILE_ERROR_TOAST_DURATION_MS, 'error');
             return false;
         }
 
@@ -277,7 +279,7 @@ export class ProfileUiController {
     deleteProfile(profileName) {
         const result = this._profileManager.deleteProfile(profileName);
         if (!result.success) {
-            this._showStatusToast(result.error, 1700, 'error');
+            this._showStatusToast(result.error, PROFILE_ERROR_TOAST_DURATION_MS, 'error');
             return false;
         }
 
