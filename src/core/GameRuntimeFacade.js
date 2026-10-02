@@ -257,14 +257,15 @@ export class GameRuntimeFacade {
     resolveArcadeVictoryChoice(choice) { return this.arcadeRunRuntime?.resolveVictoryChoice(choice); }
     setArcadeIntermissionPaused(paused) { return this.arcadeRunRuntime?.setIntermissionPaused(paused); }
     selectArcadeReward(rewardId) { return this._arcadeSupport.selectReward(rewardId); }
-    requestArcadeReplayPlayback() { return this._arcadeSupport.requestReplayPlayback(); }
+    requestArcadeReplayExport() { return this._arcadeSupport.requestReplayExport(); }
     _createMenuRuntimeAccess() {
         const game = this.game;
         const playerProfileAccess = createPlayerProfileMenuRuntimeAccess(game);
         const getMediaRecorder = () => this.getRuntimeHandle('mediaRecorderSystem');
         return Object.freeze({
             getArcadeMenuSurfaceState: () => this.getArcadeMenuSurfaceState(),
-            requestArcadeReplayPlayback: () => this.requestArcadeReplayPlayback(),
+            saveSettings: (nextSettings) => game?.settingsManager?.saveSettings?.(nextSettings),
+            requestArcadeReplayExport: () => this.requestArcadeReplayExport(),
             showStatusToast: (message, duration, tone) => game?._showStatusToast?.(message, duration, tone),
             ...playerProfileAccess,
             listCinematicReplayRecordings: () => getMediaRecorder()?.listCinematicReplayRecordings?.() || [],

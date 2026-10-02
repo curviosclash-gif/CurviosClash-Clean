@@ -648,7 +648,7 @@ export class ArcadeRunRuntime {
         return result;
     }
 
-    requestReplayPlayback() {
+    requestReplayExport() {
         const replayState = this.getReplayState();
         if (!replayState.payloadAvailable) {
             return { ok: false, code: 'replay_unavailable', replayState };
@@ -668,6 +668,9 @@ export class ArcadeRunRuntime {
             replayJson,
         };
     }
+
+    // Keep the legacy method for callers that still retrieve the raw replay payload here.
+    requestReplayPlayback() { return this.requestReplayExport(); }
 
     getHudState() {
         if (!this._enabled || !this._state) return null;

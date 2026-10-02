@@ -54,6 +54,20 @@ export function createArcadeVehicleUpgradeBonusMap(profiles, players, { buildOnl
     return { byVehicleId };
 }
 
+export function createArcadePlayerUpgradeBonusMap(profilesByPlayerIndex, players, { buildOnly = false } = {}) {
+    const byPlayerIndex = Object.create(null);
+    for (const player of Array.isArray(players) ? players : []) {
+        if (!player || player.isBot === true) continue;
+        const playerIndex = Number(player.index);
+        if (!Number.isInteger(playerIndex)) continue;
+        const vehicleId = String(player.vehicleId || '').trim();
+        const profiles = profilesByPlayerIndex?.[playerIndex];
+        const bonuses = getArcadeRunVehicleBonuses(profiles?.[vehicleId] || null);
+        byPlayerIndex[playerIndex] = buildOnly ? { build: bonuses.build } : bonuses;
+    }
+    return { byPlayerIndex };
+}
+
 export function resolveArcadeRunStrategyUpgradeBonuses(profiles, players, fallbackBonuses, disabled = false) {
     if (disabled || !profiles || !Array.isArray(players)
         || !players.some((player) => player && player.isBot !== true && String(player.vehicleId || '').trim())) {

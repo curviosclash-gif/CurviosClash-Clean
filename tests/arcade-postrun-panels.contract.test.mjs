@@ -97,7 +97,9 @@ function createStubElement(tagName = 'div') {
         setAttribute(name, value) { this.attributes[name] = String(value); },
         getAttribute(name) { return Object.hasOwn(this.attributes, name) ? this.attributes[name] : null; },
         hasAttribute(name) { return Object.hasOwn(this.attributes, name); },
-        addEventListener() {},
+        listeners: {},
+        addEventListener(type, handler) { this.listeners[type] = handler; },
+        click() { return this.listeners.click?.(); },
         focus() { this.focusCount += 1; },
         querySelector(selector) {
             const match = selector.startsWith('#')
@@ -292,6 +294,56 @@ test('the post-run panel offers watching and exporting the replay separately', (
     });
 });
 
+test('post-run export uses the export command without starting playback', async () => {
+    const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    const previousSetTimeout = globalThis.setTimeout;
+    const calls = [];
+    const copied = [];
+    Object.defineProperty(globalThis, 'navigator', {
+        configurable: true,
+        value: { clipboard: { writeText: (text) => { copied.push(text); return Promise.resolve(); } } },
+    });
+    globalThis.setTimeout = (callback) => { callback(); return 0; };
+    try {
+        let exportPromise = null;
+        withDocument(() => {
+            const overlay = createStubElement('div');
+            const replay = {
+                ok: true,
+                code: 'replay_export_ready',
+                replayJson: '{"matchId":"overlay"}',
+            };
+            const runtimePort = {
+                requestArcadeReplayExport() { calls.push('export-command'); return replay; },
+                getLastRoundGhostClip() {
+                    calls.push('clip');
+                    return { frames: [{ time: 0 }], sourceDuration: 1, displayDuration: 1 };
+                },
+            };
+            const game = {
+                ui: { messageOverlay: overlay },
+                entityManager: { playLastRoundGhost() { calls.push('playback'); return true; } },
+            };
+            const controller = new MatchFlowArcadeOverlayController({ runtime: game, runtimePort });
+            controller._renderArcadePostRunPanel(postRunState());
+            const root = controller._arcadeOverlayPanel;
+            const watch = findFirst(root, (node) => node.id === 'btn-arcade-overlay-replay');
+            const exportButton = findFirst(root, (node) => node.id === 'btn-arcade-overlay-replay-export');
+
+            exportPromise = exportButton.click();
+            assert.deepEqual(calls, ['export-command']);
+            assert.deepEqual(copied, ['{"matchId":"overlay"}']);
+            watch.click();
+            assert.deepEqual(calls, ['export-command', 'export-command', 'clip', 'playback']);
+        });
+        await exportPromise;
+    } finally {
+        globalThis.setTimeout = previousSetTimeout;
+        if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator);
+        else delete globalThis.navigator;
+    }
+});
+
 test('a missing or empty summary leaves the panel empty instead of crashing', () => {
     withDocument(() => {
         const { controller, panel } = makeController();
@@ -362,6 +414,31 @@ test('the five portals panel formats times in german and names the maps', () => 
         assert.match(textOf(root), /Standardarena/);
         assert.equal(valueOf(root, 'total'), '21,50 s');
         assert.equal(valueOf(root, 'record'), '20,00 s');
+    });
+});
+
+test('the demolition panel shows one card per map with score, medal and XP total', () => {
+    withDocument(() => {
+        const { controller, panel } = makeController();
+        const state = {
+            runType: 'demolition',
+            postRunSummary: {
+                total: 1800,
+                xpEarned: 225,
+                maps: [{
+                    mapKey: 'burg', mapLabel: 'Burghof', medal: 'gold', breakEvents: 3,
+                    score: { total: 800, hpPoints: 200, breakPoints: 150, timePoints: 300 },
+                }],
+            },
+        };
+        assert.equal(controller._renderDemolitionPostRunPanel(state), true);
+        const root = panel();
+        assert.match(textOf(root), /Abrisskommando abgeschlossen/);
+        assert.match(textOf(root), /225 Fahrzeug-XP/);
+        assert.equal(valueOf(root, 'score'), '800');
+        assert.equal(valueOf(root, 'medal'), 'Gold');
+        assert.ok(scrollers(root)[0]);
+        assert.ok(findFirst(root, (node) => node.tagName === 'button'));
     });
 });
 

@@ -55,14 +55,16 @@ test('the main run stays visible while five specialist modes are grouped one lev
     assert.equal(visibleOptions[0].classList.contains('is-primary'), true);
     const specialistModes = byClass(group, 'arcade-start-mode-options');
     assert.equal(specialistModes.tagName, 'DETAILS');
-    assert.equal(specialistModes.children[0].textContent, 'Weitere Arcade-Modi (5)');
-    const options = specialistModes.children[1].children;
+    assert.equal(specialistModes.children[0].textContent, 'Weitere Arcade-Modi (6)');
+    const options = specialistModes.children[1].children
+        .filter((option) => option.classList.contains('arcade-start-option'));
     assert.deepEqual(options.map((option) => option.children[0].id), [
         'btn-arcade-endless-start-inline',
         'btn-arcade-five-fronts-start-inline',
         'btn-arcade-five-portals-start-inline',
         'btn-arcade-sky-ladder-start-inline',
         'btn-arcade-weapon-race-start-inline',
+        'btn-arcade-demolition-start-inline',
     ]);
     for (const option of options) {
         const copy = option.children[1];
