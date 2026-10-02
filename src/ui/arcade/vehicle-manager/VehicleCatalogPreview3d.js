@@ -65,6 +65,21 @@ function createUnavailablePreview() {
     });
 }
 
+function resolvePartPreviewKey(part, id) {
+    const appearance = part?.appearance || {};
+    const signature = JSON.stringify([
+        part?.visual || '',
+        part?.tier || '',
+        appearance.style ?? null,
+        appearance.color ?? null,
+        appearance.variant ?? null,
+        appearance.sizeScale ?? null,
+        appearance.geometry ?? null,
+        appearance.size ?? null,
+    ]);
+    return `part:${id}:${signature}`;
+}
+
 export function createVehicleCatalogPreview3d(options = {}) {
     const windowRef = options.windowRef || globalThis.window;
     const documentRef = options.documentRef || globalThis.document;
@@ -273,7 +288,7 @@ export function createVehicleCatalogPreview3d(options = {}) {
         canvas.setAttribute('aria-hidden', 'true');
         card.classList.add('has-preview');
         card.appendChild(canvas);
-        attachTarget(canvas, { id, kind: 'part', part, previewKey: `part:${id}` });
+        attachTarget(canvas, { id, kind: 'part', part, previewKey: resolvePartPreviewKey(part, id) });
     }
 
     function handleVisibilityChange() {
