@@ -219,6 +219,10 @@ function readMenuDefaultsOverrideSnapshot() {
 let cachedLocalMapsSnapshot = null;
 let localMapsRefreshGeneration = 0;
 
+function requestLocalMapsSnapshot() {
+    return ipcRenderer.invoke('local-maps:read');
+}
+
 function acceptLocalMapsSnapshot(snapshot, generation) {
     if (generation !== localMapsRefreshGeneration
         || snapshot?.ok !== true
@@ -232,7 +236,7 @@ function acceptLocalMapsSnapshot(snapshot, generation) {
 // Der Hauptprozess waermt seinen Cache vor dem Fensterstart. Dieser asynchrone
 // Snapshot ist nur ein zusaetzlicher Bootstrap fuer den Renderer.
 const initialLocalMapsGeneration = localMapsRefreshGeneration;
-ipcRenderer.invoke('local-maps:read').then((snapshot) => {
+requestLocalMapsSnapshot().then((snapshot) => {
     if (cachedLocalMapsSnapshot === null) acceptLocalMapsSnapshot(snapshot, initialLocalMapsGeneration);
 }).catch(() => {});
 
@@ -257,7 +261,7 @@ function createLocalMapsContract() {
         refresh: async () => {
             const generation = ++localMapsRefreshGeneration;
             try {
-                const snapshot = await ipcRenderer.invoke('local-maps:read');
+                const snapshot = await requestLocalMapsSnapshot();
                 const maps = acceptLocalMapsSnapshot(snapshot, generation);
                 return maps ? deepCloneJson(maps) : null;
             } catch {
