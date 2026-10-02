@@ -12,7 +12,7 @@ import {
     stepWaterZoneState,
     triggerWaterZone,
 } from '../../shared/contracts/WaterZoneContract.js';
-import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfigContract.js';
 import { disposeObject3DResources } from '../../shared/rendering/ThreeDisposal.js';
 import { WaterZonePermanentPoolVisuals } from './WaterZonePermanentPoolVisuals.js';
 import {
@@ -88,9 +88,7 @@ export class WaterZoneSystem {
         const authored = normalizeWaterZone(map?.waterZone);
         const permanent = normalizePermanentWaterZones(map?.permanentWaterZones);
         if (!authored && permanent.length === 0) return false;
-        this.scale = map?.scaleAuthoredAnchors === true
-            ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
-            : 1;
+        this.scale = resolveAuthoredAnchorScale(map, this.entityManager);
         this.zone = scaledZone(authored, this.scale);
         this.state = createWaterZoneState(this.zone);
         this.permanentZones = permanent.map((zone) => scaledPermanentWaterZone(zone, this.scale));

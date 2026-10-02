@@ -9,7 +9,7 @@ import {
     tickFlagObjectiveProtection,
 } from '../../shared/contracts/FlagObjectiveContract.js';
 import { resolveAuthoredFlagObjectives } from '../../shared/contracts/FlagObjectivePlacementContract.js';
-import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfigContract.js';
 import { normalizeTeamId, resolveTeamColor, resolveTeamLabel, TEAM_IDS } from '../../shared/contracts/TeamCombatContract.js';
 
 const PLACEMENT_PROBES = Object.freeze([
@@ -58,9 +58,7 @@ export class FlagObjectiveSystem {
             }
         }
         const map = arena?.currentMapDefinition;
-        const authoredScale = map?.scaleAuthoredAnchors === true
-            ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
-            : 1;
+        const authoredScale = resolveAuthoredAnchorScale(map, this.entityManager);
         const authored = resolveAuthoredFlagObjectives(map, { spatialScale: authoredScale });
         const placements = authored.length === fallbackPlacements.length ? authored : fallbackPlacements;
         for (let index = 0; index < placements.length; index += 1) {

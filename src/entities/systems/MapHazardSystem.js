@@ -3,7 +3,7 @@ import {
     normalizeMapHazards,
     resolveMapHazardCycleIndex,
 } from '../../shared/contracts/MapHazardContract.js';
-import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfigContract.js';
 import {
     normalizeMapProximityDamageSources,
     resolveMapProximityDamage,
@@ -43,9 +43,7 @@ export class MapHazardSystem {
         this.playerHitCycles.clear();
         const map = this.entityManager?.arena?.currentMapDefinition;
         const authoredHazards = normalizeMapHazards(map?.mapHazards);
-        this.scale = map?.scaleAuthoredAnchors === true
-            ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
-            : 1;
+        this.scale = resolveAuthoredAnchorScale(map, this.entityManager);
         this.hazards = authoredHazards.map((hazard) => ({
             hazard,
             position: Object.freeze([
