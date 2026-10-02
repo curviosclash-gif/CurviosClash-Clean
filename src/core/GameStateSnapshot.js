@@ -41,6 +41,12 @@ export function createGameStateSnapshot(entityManager, roundState) {
         };
         if (proj.guidedActive === true) serializedProjectile.guided = true;
         if (proj.type === 'HYDRA_FIREBALL') serializedProjectile.visualScale = proj.visualScale;
+        if (proj.type === 'BOMBER_BOMB') {
+            serializedProjectile.blastDamage = toFiniteNumber(proj.blastDamage, 50);
+            serializedProjectile.blastRadius = toFiniteNumber(proj.blastRadius, 15);
+            serializedProjectile.gravity = toFiniteNumber(proj.gravity, -24);
+            serializedProjectile.visualScale = 1;
+        }
         if (proj.environmentProjectile === true || proj.zoneProjectile === true) {
             serializedProjectile.environmentProjectile = proj.environmentProjectile === true;
             serializedProjectile.targetPlayerIndex = Number.isInteger(proj.targetPlayerIndex) ? proj.targetPlayerIndex : -1;

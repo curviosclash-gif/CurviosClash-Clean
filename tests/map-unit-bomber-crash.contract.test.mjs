@@ -34,6 +34,7 @@ function createWorld() {
         _emitHuntDamageEvent: (event) => damageEvents.push(event),
         _killPlayer: (target, cause, options) => killEvents.push({ target, cause, options }),
         _notifyPlayerFeedback() {},
+        _projectileSystem: { spawnBomberBomb: () => ({}) },
     };
     const system = new MapUnitSystem(manager);
     manager._mapUnitSystem = system;
@@ -118,7 +119,7 @@ test('a called bomber crash damages an enemy caller, spares teammates and protec
         takeDamage(amount) { this.hp -= amount; return { hpApplied: amount, remainingHp: this.hp, isDead: this.hp <= 0 }; },
     };
     system.entityManager.players.push(ally, enemy, protectedEnemy);
-    system.entityManager.arena.bounds = { minX: -30, maxX: 30, minY: 0, maxY: 50, minZ: -10, maxZ: 10 };
+    system.entityManager.arena.bounds = { minX: -30, maxX: 30, minY: 0, maxY: 50, minZ: -40, maxZ: 40 };
 
     assert.equal(system.callBomberStrike(caller), true);
     const calledBomber = system.units.find((unit) => unit.summoned);

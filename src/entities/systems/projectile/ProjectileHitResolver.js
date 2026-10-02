@@ -127,6 +127,60 @@ export class ProjectileHitResolver {
         return false;
     }
 
+    _resolveBomberBombPlayerContact(projectile, player) {
+        if (player.arcadeHitbox) {
+            return segmentHitsArcadePartBoxes(
+                player, projectile.previousPosition, projectile.position, projectile.radius,
+            );
+        }
+        const start = projectile.previousPosition;
+        const segment = this.system?._tmpVec;
+        const targetOffset = this.system?._tmpVec2;
+        if (!start || !segment) return this._isProjectileTouchingTarget(projectile, player, projectile.position) ? 1 : -1;
+        segment.subVectors(projectile.position, start);
+        const lengthSq = segment.lengthSq();
+        targetOffset.subVectors(start, player.position);
+        const radius = (Number(player.hitboxRadius) || 0) + projectile.radius;
+        const c = targetOffset.lengthSq() - radius * radius;
+        if (c <= 0) return 0;
+        if (lengthSq <= 0.000001) return -1;
+        const b = targetOffset.dot(segment);
+        const discriminant = b * b - lengthSq * c;
+        if (discriminant < 0) return -1;
+        const t = (-b - Math.sqrt(discriminant)) / lengthSq;
+        return t >= 0 && t <= 1 ? t : -1;
+    }
+
+    _detonateBomberBomb(projectile, players) {
+        if (projectile.detonated) return true;
+        projectile.detonated = true;
+        const owner = projectile.owner;
+        const radius = Math.max(0.1, Number(projectile.blastRadius) || 15);
+        const radiusSq = radius * radius;
+        const arena = this.system?.getArena?.();
+        for (const target of players || []) {
+            if (!target?.alive || !target.position || target === owner
+                || isSpawnProtected(target)
+                || !canDamage(owner, target, TEAM_WEAPON_KINDS.ITEM_PROJECTILE)) continue;
+            const dx = target.position.x - projectile.position.x;
+            const dy = target.position.y - projectile.position.y;
+            const dz = target.position.z - projectile.position.z;
+            const distanceSq = dx * dx + dy * dy + dz * dz;
+            if (distanceSq > radiusSq) continue;
+            const distance = Math.sqrt(distanceSq);
+            if (distance > 0.001 && typeof arena?.raycast === 'function') {
+                this._tmpVec.set(dx / distance, dy / distance, dz / distance);
+                const blocker = arena.raycast(projectile.position, this._tmpVec, distance);
+                if (blocker?.hit && Number(blocker.distance) < distance - 0.0001) continue;
+            }
+            const damage = Math.max(1, Number(projectile.blastDamage) || 50);
+            const damageResult = target.takeDamage?.(damage);
+            this.system?.onProjectileDamage?.(target, owner, projectile.type, damageResult, projectile);
+        }
+        this.system?.onProjectileHit?.(projectile.position, 0xffb347, owner, projectile);
+        return true;
+    }
+
     _applyRocketExplosion(projectile, players, directHitTarget) {
         if (projectile?.environmentProjectile) return;
         const rocketConfig = resolveEntityRuntimeConfig(this.system)?.HUNT?.ROCKET || HUNT_CONFIG.ROCKET;
@@ -218,6 +272,27 @@ export class ProjectileHitResolver {
 
     resolveProjectileOutcome(projectile, players, trailSpatialIndex, simulationResult) {
         if (!projectile || !simulationResult) return false;
+
+        if (projectile.type === 'BOMBER_BOMB') {
+            let contactFraction = Infinity;
+            for (const target of players || []) {
+                if (!target?.alive || target === projectile.owner || isSpawnProtected(target)
+                    || !canDamage(projectile.owner, target, TEAM_WEAPON_KINDS.ITEM_PROJECTILE)) continue;
+                const candidateFraction = this._resolveBomberBombPlayerContact(projectile, target);
+                if (candidateFraction < 0 || candidateFraction >= contactFraction) continue;
+                contactFraction = candidateFraction;
+            }
+            if (contactFraction < Infinity) {
+                projectile.position.lerpVectors(projectile.previousPosition, projectile.position, contactFraction);
+                projectile.mesh?.position.copy(projectile.position);
+                return this._detonateBomberBomb(projectile, players);
+            }
+            if (simulationResult.projectileHitArena) {
+                return this._detonateBomberBomb(projectile, players);
+            }
+            if (simulationResult.projectileExpired) return true;
+            return false;
+        }
 
         if (projectile.type === 'HYDRA_FIREBALL') {
             if (simulationResult.projectileExpired || simulationResult.projectileHitArena) {

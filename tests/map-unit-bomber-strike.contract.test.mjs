@@ -32,6 +32,10 @@ function createWorld({ authority = true, mapUnits = [BOMBER] } = {}) {
         players: [hit, safe, far], humanPlayers: [hit, safe, far],
         _emitHuntDamageEvent: (event) => events.push(event),
         _killPlayer() {},
+        _projectileSystem: { spawned: [], spawnBomberBomb(owner, position, velocity, options) {
+            this.spawned.push({ owner, position: position.clone(), velocity: velocity.clone(), options });
+            return {};
+        } },
     };
     const system = new MapUnitSystem(manager);
     manager._mapUnitSystem = system;
@@ -49,25 +53,24 @@ test('a called bomber accepts the flat bounds shape used by the desktop arena', 
     assert.equal(system.callBomberStrike(hit), true);
     const bomber = system.units.find((unit) => unit.summoned);
     assert.ok(bomber);
-    assert.deepEqual(bomber.definition.path, [[-120, 30, 30], [120, 30, 30]]);
+    assert.deepEqual(bomber.definition.path, [[-93.25, 60, 30], [113.25, 60, 30]]);
+    assert.equal(system.units.filter((unit) => unit.summoned).length, 5);
 });
 
-test('a bomber strikes below its fixed route every one and a half seconds', () => {
+test('an ordinary map bomber keeps its 1.5-second drop cadence and launches a projectile', () => {
     const { system, hit, safe, far, events } = createWorld();
 
     system.update(1.49);
     assert.equal(hit.hp, 100, 'the first bomb waits for its full cadence');
     system.update(0.01);
 
-    assert.equal(hit.hp, 50);
-    assert.equal(safe.hp, 100, 'spawn protection blocks the blast');
-    assert.equal(far.hp, 100, 'the fifteen-unit radius is respected');
-    assert.equal(events.length, 1);
-    assert.equal(events[0].cause, 'BOMBER_BOMB');
+    assert.equal(hit.hp, 100, 'the release itself does not cause instant damage');
+    assert.equal(system.entityManager._projectileSystem.spawned.length, 1);
+    assert.equal(system.entityManager._projectileSystem.spawned[0].options.blastRadius, 15);
 
     hit.position.x = 90;
     system.update(1.5);
-    assert.equal(hit.hp, 0, 'the next cadence drops the second bomb');
+    assert.equal(system.entityManager._projectileSystem.spawned.length, 2, 'the ordinary cadence stays unchanged');
 });
 
 test('a called bomber spares its caller team but still bombs a nearby enemy', () => {
@@ -82,10 +85,10 @@ test('a called bomber spares its caller team but still bombs a nearby enemy', ()
     };
 
     assert.equal(system.callBomberStrike(caller), true);
-    system.update(1.5);
-
-    assert.equal(ally.hp, 100, 'the called bomber does not hit its caller team');
-    assert.equal(enemy.hp, 50, 'the same bomb still damages an enemy');
+    system.update(0.75);
+    assert.equal(system.entityManager._projectileSystem.spawned.length, 5);
+    assert.equal(ally.hp, 100, 'dropping a bomb does not instantly affect teammates');
+    assert.equal(enemy.hp, 100, 'the projectile has not contacted the enemy yet');
 });
 
 test('a network replica never drops authoritative bombs', () => {

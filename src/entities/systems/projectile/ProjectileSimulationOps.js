@@ -125,7 +125,8 @@ export class ProjectileSimulationOps {
             }
         }
         const stepDistance = Math.max(0.1, (Number(projectile.radius) || 0.5) * 0.75);
-        const steps = Math.min(64, Math.max(1, Math.ceil(distance / stepDistance)));
+        const maxSteps = 64;
+        const steps = Math.min(maxSteps, Math.max(1, Math.ceil(distance / stepDistance)));
         for (let step = 1; step <= steps; step++) {
             this._tmpCollisionProbe.lerpVectors(previousPosition, this._tmpCollisionEnd, step / steps);
             if (seedHit && seedHit.distance <= distance * step / steps) {
@@ -380,6 +381,7 @@ export class ProjectileSimulationOps {
             projectile.position,
             dt
         );
+        projectile.velocity.y += projectile.type === 'BOMBER_BOMB' ? projectile.gravity * movementDt : 0;
         const vx = projectile.velocity.x * movementDt;
         const vy = projectile.velocity.y * movementDt;
         const vz = projectile.velocity.z * movementDt;
