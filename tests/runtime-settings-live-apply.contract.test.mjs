@@ -936,11 +936,12 @@ test('Arcade HUD reads the canonical cached profile without normalizing it per s
 
     const hud = runtime.getHudState();
 
+    // Paket 3: stored legacy hangarBonuses no longer reach the run; only size build and pool stones do.
     assert.deepEqual(hud.vehicleStats, {
         level: 7,
-        speedBonusPct: 9,
-        turningBonusPct: 4,
-        maxHpBonus: 12,
+        speedBonusPct: 0,
+        turningBonusPct: 0,
+        maxHpBonus: 0,
     });
 });
 

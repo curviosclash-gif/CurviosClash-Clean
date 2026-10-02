@@ -22,7 +22,7 @@ import {
     normalizeHangarBuild,
     removeHangarPart,
 } from './HangarBuildDraftState.js';
-import { describeHangarDropFailure as describeDropFailure, hangarBuildToProfileBonuses, hangarBuildToProfileUpgrades, validateHangarBuild, validateHangarDrop } from './HangarBuildValidation.js';
+import { describeHangarDropFailure as describeDropFailure } from './HangarBuildValidation.js';
 import { createHangarBuildPersistenceAdapter } from './HangarBuildPersistence.js';
 import { createHangarViewport3d } from './HangarViewport3d.js';
 import { createHangarDragDropController } from './HangarDragDropController.js';
@@ -32,7 +32,7 @@ import { createVehicleCatalogPreview3d } from '../arcade/vehicle-manager/Vehicle
 import { createHangarDraftPersistence } from './HangarDraftPersistence.js';
 import { createHangarWorkshopAudio } from './HangarWorkshopAudio.js';
 import { createHangarStarterBuild } from './HangarStarterBuildCatalog.js';
-import { purchaseHangarStone } from './HangarStoneInventory.js';
+import { createArcadeStonePanel } from './ArcadeStonePanel.js';
 import { createFallbackProfilePort, createHangarBuildFromProfile as buildFromProfile, mapHangarHitboxClass } from './HangarWorkshopProfileSupport.js';
 import { validateFightHangarBuild, validateFightHangarDrop } from './FightHangarValidation.js';
 import { normalizeFightMachineGunId, resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
@@ -66,7 +66,8 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     const audio = createHangarWorkshopAudio(ctx.audio || null);
     let profiles = profilePort.load();
     let catalogView = 'vehicles';
-    let buildView = 'workshop';
+    const slotView = hangarMode === 'arcade' ? 'upgrade' : 'workshop'; // Arcade: stone slots live in "Ausbau"
+    let buildView = slotView;
     let partFamily = 'all';
     let partTier = 'ALL';
     let partTrait = 'all';
@@ -160,7 +161,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     function validateForMode(build, level = 1, profile = null) {
         return hangarMode === 'fight'
             ? validateFightHangarBuild(build)
-            : validateHangarBuild(build, level, profile);
+            : stonePanel.validate(build, level, profile);
     }
 
     function isDirty() {
@@ -177,17 +178,33 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         };
     }
 
-    // Tabs "Form" (colours) and, arcade only, "Ausbau" (size build), stored per vehicle in the arcade profile.
+    function saveProfile(next) {
+        const vehicleId = draft.vehicleId;
+        const hadPrevious = Object.prototype.hasOwnProperty.call(profiles, vehicleId);
+        const previous = profiles[vehicleId];
+        profiles[vehicleId] = { ...next, updatedAt: new Date().toISOString() };
+        const saved = persistProfiles();
+        if (!saved) {
+            if (hadPrevious) profiles[vehicleId] = previous;
+            else delete profiles[vehicleId];
+            reportProfileSaveFailure();
+        }
+        syncDisplay({ preserveCatalog: true });
+        return saved;
+    }
+    const getProfile = () => profileFor(draft.vehicleId);
+    // Arcade: stones of the workshop pool (Paket 3) with their slots, docked in "Ausbau" beside the size build.
+    const stonePanel = hangarMode === 'arcade' ? createArcadeStonePanel({
+        bind, toast, store, shell, getProfile, saveProfile, profileFor, getDraft: () => draft, vehicleLabel: (id) => entryFor(id).label,
+        onSelectStone: selectPart, onChange: () => syncDisplay({ preserveCatalog: true }),
+    }) : null;
+    const withActive = (build) => stonePanel?.withActivePlacement(build) || build; // saved build + stones that fly
+    // Tabs "Form" (colours) and, arcade only, "Ausbau" (size build and stones), stored per vehicle in the arcade profile.
     const formTab = createHangarFormTab({
         bind, toast, viewport, enabled: hangarMode === 'arcade', panel: formViewPanel, tabButton: formViewButton,
-        upgradePanel: upgradeViewPanel, upgradeTabButton: upgradeViewButton, getProfile: () => profileFor(draft.vehicleId),
-        saveProfile(next) {
-            profiles[draft.vehicleId] = { ...next, updatedAt: new Date().toISOString() };
-            const saved = persistProfiles();
-            if (!saved) reportProfileSaveFailure();
-            syncDisplay({ preserveCatalog: true });
-            return saved;
-        },
+        getProfile, saveProfile,
+        upgradePanel: upgradeViewPanel, upgradeTabButton: upgradeViewButton,
+        upgradeSections: stonePanel ? [stonePanel.root] : [], getPool: stonePanel?.getPool,
         onChange: () => syncDisplay({ preserveCatalog: true }),
     });
     function syncPartStyle() { formTab.sync(draft.vehicleId, buildView); }
@@ -242,7 +259,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         selectedPartId = '';
         previewPartId = '';
         savedBuild = persistence.getActiveBuild(id) || persistence.listBuilds(id)[0] || null;
-        baselineBuild = savedBuild || initialBuild(id);
+        baselineBuild = withActive(savedBuild || initialBuild(id));
         setDraft(draftPersistence.load(id) || baselineBuild, { resetHistory: true, recordHistory: false, persist: false });
     }
 
@@ -252,10 +269,9 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function evaluateInstall(partId, slotId) {
-        const profile = profileFor(draft.vehicleId);
         return hangarMode === 'fight'
             ? validateFightHangarDrop(draft, partId, slotId, installWithPair)
-            : validateHangarDrop(draft, partId, slotId, profile.level, installWithPair, profile);
+            : stonePanel.evaluateInstall(draft, partId, slotId);
     }
 
     function applyInstall(partId, slotId) {
@@ -269,11 +285,12 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         previewPartId = '';
         setDraft(result.build, { changedSlots: result.changedSlots });
         audio.play('drop');
-        toast(`${resolveHangarPart(partId)?.label || partId} eingesetzt`, 'success');
+        toast(`${(stonePanel?.resolveStone(partId) || resolveHangarPart(partId))?.label || partId} eingesetzt`, 'success');
         return true;
     }
 
     function evaluateRemoval(slotId) {
+        if (stonePanel) return stonePanel.evaluateRemoval(draft, slotId);
         const removal = removeHangarPart(draft, slotId, { pair: pairToggle.checked });
         if (!removal.ok) return removal;
         const profile = profileFor(draft.vehicleId);
@@ -301,9 +318,9 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function selectPart(partId) {
-        const part = resolveHangarPart(partId);
+        const part = stonePanel ? stonePanel.resolveStone(partId) : resolveHangarPart(partId);
         if (!part) return;
-        buildView = 'workshop';
+        buildView = slotView;
         selectedPartId = selectedPartId === part.id ? '' : part.id;
         previewPartId = selectedPartId;
         if (selectedPartId && !part.compatibleSlots.includes(selectedSlotId)) selectedSlotId = part.compatibleSlots[0];
@@ -320,7 +337,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function handleSlotSelection(slotId) {
-        buildView = 'workshop';
+        buildView = slotView;
         if (selectedPartId) {
             applyInstall(selectedPartId, slotId);
             return;
@@ -344,32 +361,6 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         previewPartId = '';
         setDraft(starter, { changedSlots: Object.keys(starter.slots) });
         toast(`${starter.name} geladen`, 'success');
-    }
-
-    function purchaseStone(stoneId) {
-        if (hangarMode === 'fight') {
-            toast('Fight-Bauteile sind frei verfügbar und werden über Nachteile ausbalanciert.', 'info');
-            return false;
-        }
-        const vehicleId = draft.vehicleId;
-        const result = purchaseHangarStone(profileFor(vehicleId), stoneId);
-        if (!result.ok) {
-            const message = result.code === 'insufficient_xrp'
-                ? `Nicht genug XRP · benötigt ${result.priceXrp}`
-                : (result.code === 'level_locked' ? `Kauf ab Level ${result.requiredLevel}` : 'Stein kann nicht gekauft werden');
-            toast(message, 'warning');
-            return false;
-        }
-        profiles[vehicleId] = result.profile;
-        if (!persistProfiles()) {
-            reportProfileSaveFailure('Kauf bleibt im offenen Hangar erhalten, wurde aber nicht gespeichert.');
-            syncDisplay();
-            return false;
-        }
-        audio.play('pickup');
-        toast(`${result.stone.label} gekauft · ${result.remainingXrp} XRP übrig`, 'success');
-        syncDisplay();
-        return true;
     }
 
     function selectTrailStyle(styleId) {
@@ -412,7 +403,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         return true;
     }
 
-    function commitProfileForRun(build) {
+    function commitProfileForRun(build, options = {}) {
         if (hangarMode === 'fight') {
             const validation = validateFightHangarBuild(build);
             if (!validation.ok) return false;
@@ -431,61 +422,60 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             if (latestSettings !== settings) Object.assign(settings, latestSettings);
             return true;
         }
-        const profile = profileFor(build.vehicleId);
-        profiles[build.vehicleId] = {
-            ...profile,
-            upgrades: hangarBuildToProfileUpgrades(build),
-            hangarBonuses: hangarBuildToProfileBonuses(build),
-            updatedAt: new Date().toISOString(),
-        };
-        return persistProfiles();
-    }
-
-    function restoreProfileMapInMemory(previousProfiles) {
-        for (const vehicleId of Object.keys(profiles)) {
-            if (!Object.prototype.hasOwnProperty.call(previousProfiles, vehicleId)) delete profiles[vehicleId];
-        }
-        Object.assign(profiles, previousProfiles);
-    }
-
-    function restoreProfileMap(previousProfiles) {
-        restoreProfileMapInMemory(previousProfiles);
-        return persistProfiles();
+        // Arcade: the pool is the run's only truth; transferring a stone needs confirmation.
+        return stonePanel.commit(build, { confirmed: options.transfersConfirmed === true });
     }
 
     async function saveArcadeBuildAndProfile(build, saveOptions) {
-        const previousProfiles = { ...profiles };
-        if (!commitProfileForRun(build)) {
-            restoreProfileMapInMemory(previousProfiles);
-            return { ok: false, code: 'profile_save_failed' };
-        }
-
+        const previousPool = stonePanel?.getPool() || null;
         let buildResult;
         try {
-            buildResult = await persistence.saveBuild(build, saveOptions);
+            // Save the draft first. It must not become active until both its stones and active pointer persist.
+            buildResult = await persistence.saveBuild(build, { ...saveOptions, activate: false });
         } catch (error) {
             buildResult = { ok: false, code: 'build_save_failed', error };
         }
-        if (buildResult?.ok === true) return { ok: true, buildResult };
+        if (buildResult?.ok !== true) return { ok: false, code: 'build_save_failed', buildResult };
 
-        const profileRestored = restoreProfileMap(previousProfiles);
+        if (!commitProfileForRun(build, saveOptions)) {
+            return { ok: false, code: 'stone_activation_failed', buildResult };
+        }
+
+        let activationResult;
+        try {
+            activationResult = await persistence.saveBuild(buildResult.build, {
+                ...saveOptions,
+                asNew: false,
+                activate: true,
+            });
+        } catch (error) {
+            activationResult = { ok: false, code: 'build_activation_failed', error };
+        }
+        if (activationResult?.ok === true) return { ok: true, buildResult: activationResult };
+
+        const poolRestored = !!previousPool && stonePanel.restorePool(previousPool);
         return {
             ok: false,
-            code: profileRestored ? 'build_save_failed' : 'build_save_failed_profile_rollback_failed',
-            buildResult,
-            profileRestored,
+            code: poolRestored ? 'build_activation_failed' : 'build_activation_failed_pool_rollback_failed',
+            buildResult: activationResult,
+            poolRestored,
         };
     }
 
     function reportArcadeBuildSaveFailure(result) {
-        if (result.code === 'build_save_failed_profile_rollback_failed') {
-            toast('Build konnte nicht gespeichert werden; die Profiländerung konnte nicht zurückgesetzt werden.', 'error');
+        if (result.code === 'build_activation_failed_pool_rollback_failed') {
+            toast('Build konnte nicht aktiviert werden; der Steinpool ließ sich nicht zurücksetzen.', 'error');
+        } else if (result.code === 'build_activation_failed') {
+            toast('Build konnte nicht aktiviert werden; der Steinpool wurde zurückgesetzt.', 'error');
+        } else if (result.code === 'stone_activation_failed') {
+            toast('Build bleibt als Entwurf gespeichert; der Steinpool konnte nicht aktiviert werden.', 'error');
         } else {
-            toast('Build konnte nicht gespeichert werden; die Profiländerung wurde zurückgesetzt.', 'error');
+            toast('Build konnte nicht gespeichert werden; es wurde nichts aktiviert.', 'error');
         }
     }
 
     async function saveCurrent(options = {}) {
+        if (options.activate && stonePanel && !options.transfersConfirmed) return stonePanel.confirmTransfers(draft, () => saveCurrent({ ...options, transfersConfirmed: true }));
         const profile = profileFor(draft.vehicleId);
         const validation = validateForMode(draft, profile.level, profile);
         if (!validation.ok) {
@@ -502,6 +492,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         const saveOptions = {
             asNew: options.asNew === true || !savedBuild,
             activate: options.activate === true,
+            transfersConfirmed: options.transfersConfirmed === true,
             name,
         };
         let result;
@@ -528,9 +519,9 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         baselineBuild = normalizeHangarBuild(result.build);
         history = new HangarBuildHistory(draft);
         presetName.value = '';
-        if (options.activate && hangarMode === 'fight') commitProfileForRun(draft);
+        const activated = !(options.activate && hangarMode === 'fight') || commitProfileForRun(draft);
         draftPersistence.clear(draft.vehicleId);
-        toast(options.activate ? (hangarMode === 'fight' ? 'Build gespeichert und für den nächsten Kampf aktiviert.' : 'Build gespeichert und für den nächsten Run aktiviert.') : `Build gespeichert: ${draft.name}`, 'success');
+        toast(!activated ? 'Build gespeichert, aber die Steine konnten nicht aktiviert werden.' : (options.activate ? (hangarMode === 'fight' ? 'Build gespeichert und für den nächsten Kampf aktiviert.' : 'Build gespeichert und für den nächsten Run aktiviert.') : `Build gespeichert: ${draft.name}`), activated ? 'success' : 'warning');
         syncDisplay();
         return result;
     }
@@ -590,6 +581,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         isDirty,
         mode: hangarMode,
         validateBuild: validateForMode,
+        arcadeView: stonePanel?.arcadeView,
     });
 
     const dragController = createHangarDragDropController({
@@ -634,7 +626,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     });
     bind(buildViewSwitch, 'keydown', (event) => {
         if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-        const tabs = Array.from(buildViewSwitch.querySelectorAll('[data-build-view]'));
+        const tabs = Array.from(buildViewSwitch.querySelectorAll('[data-build-view]:not(.hidden)'));
         const currentIndex = tabs.findIndex((node) => node === event.target);
         if (currentIndex < 0) return;
         event.preventDefault();
@@ -669,24 +661,11 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     bind(catalogList, 'click', (event) => {
         const vehicleId = event.target?.closest?.('[data-vehicle-id]')?.dataset.vehicleId;
         if (vehicleId) { selectVehicle(vehicleId); return; }
-        const purchaseButton = event.target?.closest?.('[data-purchase-stone-id]');
-        if (purchaseButton) {
-            purchaseStone(purchaseButton.dataset.purchaseStoneId);
-            return;
-        }
         const card = event.target?.closest?.('[data-part-id]');
         if (!card) return;
         if (card.dataset.hangarSuppressClick === 'true') return;
         if (card.dataset.locked === 'true') {
             toast(card.dataset.lockedReason || 'Dieser Stein ist noch gesperrt.', 'warning');
-            return;
-        }
-        if (card.querySelector('[data-purchase-stone-id]')) {
-            buildView = 'workshop';
-            selectedPartId = '';
-            previewPartId = card.dataset.partId;
-            toast(`${card.dataset.partLabel} als Vorschau geöffnet · Kauf separat bestätigen`);
-            syncDisplay({ preserveCatalog: true });
             return;
         }
         selectPart(card.dataset.partId);
@@ -717,7 +696,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     bind(catalogList, 'pointerdown', (event) => {
         const selectButton = event.target?.closest?.('[data-part-select]');
         const card = selectButton?.closest?.('[data-part-id]');
-        if (card && card.dataset.locked !== 'true' && !card.querySelector('[data-purchase-stone-id]')) {
+        if (card && card.dataset.locked !== 'true') {
             dragController.begin(event, { partId: card.dataset.partId, label: card.dataset.partLabel }, card);
         }
     });
@@ -777,9 +756,9 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         const result = await persistence.renameBuild(presetSelect.value, name);
         if (result.ok && savedBuild?.buildId === result.build.buildId) {
             savedBuild = result.build;
-            baselineBuild = result.build;
+            baselineBuild = withActive(result.build); // renaming changes the name, never the stones that fly
             if (!wasDirty) {
-                draft = normalizeHangarBuild(result.build);
+                draft = normalizeHangarBuild(baselineBuild);
                 history = new HangarBuildHistory(draft);
             }
         }
@@ -829,7 +808,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             const result = await persistence.deleteBuild(id);
             if (result.ok && savedBuild?.buildId === id) {
                 savedBuild = null;
-                baselineBuild = buildFromProfile(draft.vehicleId, entryFor(draft.vehicleId), profileFor(draft.vehicleId));
+                baselineBuild = withActive(buildFromProfile(draft.vehicleId, entryFor(draft.vehicleId), profileFor(draft.vehicleId)));
             }
             syncDisplay();
         },
@@ -856,7 +835,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         ? selection.getSelectedVehicleId() : syncVehicleWriteback(selection.getSelectedVehicleId());
     const recoveredDraft = draftPersistence.load(initialVehicleId);
     savedBuild = persistence.getActiveBuild(initialVehicleId) || persistence.listBuilds(initialVehicleId)[0] || null;
-    baselineBuild = savedBuild || initialBuild(initialVehicleId);
+    baselineBuild = withActive(savedBuild || initialBuild(initialVehicleId));
     draft = recoveredDraft || baselineBuild;
     history = new HangarBuildHistory(draft);
     persistDraftChanges = true;
@@ -868,13 +847,13 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         const loaded = persistence.getActiveBuild(draft.vehicleId) || persistence.listBuilds(draft.vehicleId)[0];
         if (recoveredDraft) {
             savedBuild = loaded || null;
-            baselineBuild = loaded || baselineBuild;
+            baselineBuild = withActive(loaded) || baselineBuild;
         }
         else if (!isDirty()) {
             if (loaded) {
                 savedBuild = loaded;
-                baselineBuild = loaded;
-                draft = loaded;
+                baselineBuild = withActive(loaded);
+                draft = baselineBuild;
                 history = new HangarBuildHistory(draft);
             }
         }

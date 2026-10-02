@@ -59,16 +59,20 @@ test('Desktop-Hangar öffnet maximiert in einem eigenen Fenster', async ({ page,
     await expect(hangarPage.locator('#arcade-vehicle-manager')).toBeVisible({ timeout: 10_000 });
     await expect(hangarPage.locator('.hangar-viewport-canvas-node')).toBeVisible();
     await expect(hangarPage.locator('.hangar-activation-dock .hangar-activate-build')).toBeVisible();
-    await expect(hangarPage.locator('[data-build-view="workshop"]')).toHaveAttribute('aria-selected', 'true');
-    await expect(hangarPage.locator('[data-build-view-panel="workshop"]')).toBeVisible();
+    // Arcade (Paket 3): "Ausbau" with size build and stones opens first; "Umbau" is Fight only.
+    await expect(hangarPage.locator('[data-build-view="upgrade"]')).toHaveAttribute('aria-selected', 'true');
+    await expect(hangarPage.locator('[data-build-view-panel="upgrade"]')).toBeVisible();
+    await expect(hangarPage.locator('[data-build-view="workshop"]')).toBeHidden();
     await expect(hangarPage.locator('[data-build-view-panel="stats"]')).toBeHidden();
     await hangarPage.locator('[data-build-view="stats"]').click();
     await expect(hangarPage.locator('[data-build-view-panel="stats"]')).toBeVisible();
     await expect(hangarPage.locator('[data-build-view="stats"]')).toHaveAttribute('aria-selected', 'true');
     await hangarPage.locator('[data-build-view="presets"]').click();
     await expect(hangarPage.locator('[data-build-view-panel="presets"]')).toBeVisible();
-    await expect(hangarPage.locator('.hangar-starter-builds')).toBeVisible();
-    await hangarPage.locator('[data-build-view="workshop"]').click();
+    await expect(hangarPage.locator('.arcade-vehicle-preset-select')).toBeVisible();
+    await expect(hangarPage.locator('.hangar-starter-builds')).toBeHidden();
+    await hangarPage.locator('[data-build-view="upgrade"]').click();
+    await expect(hangarPage.locator('[data-build-view-panel="upgrade"] .hangar-stone-panel')).toBeVisible();
     expect(await hangarPage.locator('.hangar-build-scroll').evaluate((node) => (
         node.scrollWidth <= node.clientWidth + 1
     ))).toBe(true);
@@ -82,31 +86,21 @@ test('Desktop-Hangar öffnet maximiert in einem eigenen Fenster', async ({ page,
     const cameraButtons = await hangarPage.locator('.hangar-camera-toolbar .secondary-btn').evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top));
     expect(Math.max(...cameraButtons) - Math.min(...cameraButtons)).toBeLessThan(8);
 
-    await hangarPage.locator('[data-catalog-view="parts"]').click();
-    await expect(hangarPage.locator('.hangar-filter-field-label')).toHaveCount(4);
-    const stoneListLayout = await hangarPage.locator('.hangar-catalog-list').evaluate((list) => ({
-        clientHeight: list.clientHeight,
-        scrollHeight: list.scrollHeight,
-        minimumCardHeight: Math.min(...Array.from(list.querySelectorAll('.hangar-part-card'))
-            .map((card) => card.getBoundingClientRect().height)),
-    }));
-    expect(stoneListLayout.minimumCardHeight).toBeGreaterThan(100);
-    expect(stoneListLayout.scrollHeight).toBeGreaterThan(stoneListLayout.clientHeight);
-    const tierTwoStone = hangarPage.locator('.hangar-part-card[data-part-id="stone_blue_t2"]');
-    await expect(tierTwoStone).toBeVisible();
-    if (await tierTwoStone.locator('.hangar-part-lock-reason').count()) {
-        await expect(tierTwoStone.locator('.hangar-part-lock-reason')).toContainText('Freischaltung auf Level 10');
-        await expect(tierTwoStone.locator('.hangar-part-lock-reason')).toContainText('noch');
+    // Arcade (Paket 3): no catalog of colour stones (Fight only); the stones of the workshop pool and
+    // their slots sit in "Ausbau", locked slot packages visible, dimmed and naming their condition.
+    await expect(hangarPage.locator('[data-catalog-view="parts"]')).toBeHidden();
+    await expect(hangarPage.locator('.hangar-stone-item')).not.toHaveCount(0);
+    await expect(hangarPage.locator('.hangar-stone-count')).toContainText('/ 21');
+    await expect(hangarPage.locator('[data-hangar-slot-row]')).toHaveCount(7);
+    const wings = hangarPage.locator('[data-stone-package="wings"]');
+    if (await wings.evaluate((node) => node.classList.contains('is-locked'))) {
+        await expect(wings.locator('.hangar-locked-condition')).toContainText('Flügelpaar');
+        await expect(wings.locator('.hangar-locked-condition')).toContainText('250 XP');
+        await expect(wings.locator('.hangar-stone-package-buy')).toBeVisible();
+        await expect(hangarPage.locator('[data-select-slot="wing_left"]')).toBeDisabled();
     } else {
-        await expect(tierTwoStone.locator('.hangar-part-select')).toHaveAttribute('aria-disabled', 'false');
+        await expect(hangarPage.locator('[data-select-slot="wing_left"]')).toBeEnabled();
     }
-    await hangarPage.locator('.hangar-part-trait-filter').selectOption('speed');
-    await expect(hangarPage.locator('.hangar-part-card')).not.toHaveCount(0);
-    expect(await hangarPage.locator('.hangar-part-card').evaluateAll((cards) => cards.every((card) => card.dataset.partTrait === 'speed'))).toBe(true);
-    await hangarPage.locator('.hangar-part-trait-filter').selectOption('all');
-    await hangarPage.locator('.hangar-part-availability-filter').selectOption('available');
-    expect(await hangarPage.locator('.hangar-part-card').count()).toBeGreaterThanOrEqual(3);
-    await expect(hangarPage.locator('.hangar-part-card.is-locked')).toHaveCount(0);
 
     await hangarPage.locator('#hangar-window-close').click();
     await expect.poll(() => electronApp.windows().length).toBe(1);

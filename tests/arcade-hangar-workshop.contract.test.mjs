@@ -12,12 +12,8 @@ import {
     validateFightHangarBuild,
     validateFightHangarDrop,
 } from '../src/ui/hangar/FightHangarValidation.js';
-import {
-    hangarBuildToProfileBonuses,
-    hangarBuildToProfileUpgrades,
-    validateHangarBuild,
-    validateHangarDrop,
-} from '../src/ui/hangar/HangarBuildValidation.js';
+import { createArcadeStoneWorkshopRecord } from '../src/shared/contracts/ArcadeStoneWorkshopContract.js';
+import { resolveArcadeStonePlacementPlan } from '../src/shared/contracts/ArcadeStonePlacementContract.js';
 import {
     HANGAR_BUILD_STORAGE_KEYS,
     LEGACY_ARCADE_LOADOUT_STORAGE_KEY,
@@ -35,7 +31,7 @@ import {
     readHangarVehicleSelection,
     writeHangarVehicleSelection,
 } from '../src/ui/hangar/HangarSelectionWritebackContract.js';
-import { getSlotStatBonuses } from '../src/state/arcade/ArcadeVehicleProfile.js';
+import { createArcadeVehicleProfile, getArcadeRunVehicleBonuses } from '../src/state/arcade/ArcadeVehicleProfile.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { createHangarDraftPersistence } from '../src/ui/hangar/HangarDraftPersistence.js';
 import {
@@ -47,7 +43,6 @@ import {
 } from '../src/ui/hangar/HangarPartCatalog.js';
 import {
     normalizeHangarStoneInventory,
-    purchaseHangarStone,
     resolveHangarStoneAvailability,
 } from '../src/ui/hangar/HangarStoneInventory.js';
 import { HANGAR_STARTER_BUILDS, createHangarStarterBuild } from '../src/ui/hangar/HangarStarterBuildCatalog.js';
@@ -90,27 +85,19 @@ test('hangar mode descriptors expose the storage keys used by persistence', () =
     assert.equal(HANGAR_USER_FLOW_DESCRIPTORS.fight.persistenceKey, HANGAR_BUILD_STORAGE_KEYS.fight);
 });
 
-test('hangar stones fit every socket and reject locked or over-budget drafts', () => {
-    const base = createDefaultHangarBuild('ship5', { nowMs: 1 });
-    const valid = validateHangarDrop(base, 'stone_violet_t1', 'wing_left', 30, (build, partId, slotId) => install(build, partId, slotId));
+test('colour stones fit every Fight socket; Arcade stones only go on bought slot packages', () => {
+    const base = createDefaultHangarBuild('ship5', { nowMs: 1, mode: 'fight' });
+    const valid = validateFightHangarDrop(base, 'stone_blue_t2', 'nose', (build, partId, slotId) => install(build, partId, slotId));
     assert.equal(valid.ok, true);
-    assert.equal(valid.build.slots.wing_left, 'stone_violet_t1');
-
-    for (const slotId of ['core', 'nose', 'wing_left', 'wing_right', 'engine_left', 'engine_right']) {
+    assert.equal(valid.build.slots.nose, 'stone_blue_t2');
+    for (const slotId of ['core', 'nose', 'wing_left', 'wing_right', 'engine_left', 'engine_right', 'utility']) {
         assert.equal(install(base, 'stone_violet_t1', slotId).ok, true, slotId);
     }
-    const locked = validateHangarDrop(base, 'stone_blue_t2', 'core', 1, (build, partId, slotId) => install(build, partId, slotId));
-    assert.equal(locked.ok, false);
-    assert.ok(locked.errors.some((error) => ['level_locked', 'tier_locked'].includes(error.code)));
-
-    let expensive = base;
-    for (const [partId, slotId] of [
-        ['stone_violet_t3', 'core'], ['stone_violet_t3', 'nose'], ['stone_violet_t3', 'wing_left'],
-        ['stone_violet_t3', 'wing_right'], ['stone_violet_t3', 'engine_left'], ['stone_violet_t3', 'engine_right'],
-    ]) expensive = install(expensive, partId, slotId).build;
-    const budgetValidation = validateHangarBuild(expensive, 1);
-    assert.ok(budgetValidation.errors.some((error) => error.code === 'editor_budget'));
-    assert.ok(budgetValidation.errors.some((error) => ['level_locked', 'tier_locked'].includes(error.code)));
+    // Paket 3: the Arcade hangar has one stone kind from the workshop pool; level gates and budget of
+    // the colour stones are gone, a stone on an unbought slot package is rejected.
+    const plan = resolveArcadeStonePlacementPlan(createArcadeStoneWorkshopRecord(0), 'ship5', { core: 'stone-0001', wing_left: 'stone-0002' }, { level: 1 });
+    assert.deepEqual(plan.errors, [{ code: 'slot_locked', slotId: 'wing_left', stoneId: 'stone-0002' }]);
+    assert.equal(resolveArcadeStonePlacementPlan(createArcadeStoneWorkshopRecord(0), 'ship5', { core: 'stone-0001' }, { level: 1 }).ok, true);
 });
 
 test('five stone colors have distinct properties across three levels', () => {
@@ -150,7 +137,7 @@ test('color filters, properties and unlock levels stay explicit', () => {
     assert.equal(resolvePartLockReason(resolveHangarPart('stone_blue_t2'), 1).unlockLevel, 10);
 });
 
-test('level one starts with two stones per color and purchases use XRP', () => {
+test('colour stone inventory: two T1 per colour, the Fight hangar is unlimited; purchases moved to the stone pool', () => {
     const profile = { level: 1, xpBank: 0 };
     const inventory = normalizeHangarStoneInventory(profile);
     for (const color of STONE_COLORS) {
@@ -158,19 +145,15 @@ test('level one starts with two stones per color and purchases use XRP', () => {
         assert.equal(inventory.counts[`stone_${color}_t2`], 0);
         assert.equal(inventory.counts[`stone_${color}_t3`], 0);
     }
-    assert.equal(purchaseHangarStone(profile, 'stone_blue_t1').code, 'level_locked');
-    const funded = { level: 5, xpBank: 150 };
-    const purchase = purchaseHangarStone(funded, 'stone_blue_t1', 100);
-    assert.equal(purchase.ok, true);
-    assert.equal(purchase.profile.xpBank, 50);
-    assert.equal(purchase.profile.hangarStoneInventory.counts.stone_blue_t1, 3);
-    assert.equal(resolveHangarStoneAvailability(resolveHangarPart('stone_blue_t1'), purchase.profile, null).owned, 3);
-    assert.equal(purchaseHangarStone({ level: 9, xpBank: 999 }, 'stone_blue_t2').code, 'level_locked');
-
-    let overEquipped = createDefaultHangarBuild('ship5', { nowMs: 101 });
-    overEquipped = install(overEquipped, 'stone_blue_t1', 'core').build;
-    overEquipped = install(overEquipped, 'stone_blue_t1', 'wing_left').build;
-    assert.ok(validateHangarBuild(overEquipped, 1, profile).errors.some((error) => error.code === 'stone_inventory'));
+    const stored = { level: 5, hangarStoneInventory: { counts: { stone_blue_t1: 3 } } };
+    assert.equal(resolveHangarStoneAvailability(resolveHangarPart('stone_blue_t1'), stored, null).owned, 3);
+    let equipped = createDefaultHangarBuild('ship5', { nowMs: 101 });
+    equipped = install(equipped, 'stone_blue_t1', 'core').build;
+    equipped = install(equipped, 'stone_blue_t1', 'wing_left').build;
+    assert.equal(resolveHangarStoneAvailability(resolveHangarPart('stone_blue_t1'), profile, equipped).available, 0);
+    const fight = resolveHangarStoneAvailability(resolveHangarPart('stone_blue_t3'), { fightUnlimitedInventory: true }, equipped);
+    assert.equal(fight.canInstall, true);
+    assert.equal(fight.canPurchase, false, 'Fight kauft keine Steine');
 });
 
 test('loaded vehicle models are normalized and mounted parts change the visible silhouette', async () => {
@@ -268,33 +251,15 @@ test('hangar disposal releases generic vehicle resources with the Three Object3D
     assert.equal(materialDisposed, true);
 });
 
-test('starter builds provide four valid one-click loadouts', () => {
-    const base = createDefaultHangarBuild('ship5', { nowMs: 4 });
+test('starter builds (Fight hangar) provide four valid one-click loadouts', () => {
+    const base = createDefaultHangarBuild('ship5', { nowMs: 4, mode: 'fight' });
     const builds = HANGAR_STARTER_BUILDS.map((preset) => createHangarStarterBuild(base, preset.id, 1));
     assert.equal(builds.length, 4);
     assert.equal(new Set(builds.map((build) => JSON.stringify(build.slots))).size, 4);
-    builds.forEach((build) => assert.equal(validateHangarBuild(build, 1).ok, true, build.name));
+    builds.forEach((build) => assert.equal(validateFightHangarBuild(build).ok, true, build.name));
     const levelFiveTank = createHangarStarterBuild(base, 'tank', 5);
     assert.equal(levelFiveTank.slots.utility, 'stone_violet_t1');
-    assert.equal(validateHangarBuild(levelFiveTank, 5, { level: 5 }).ok, true);
-});
-
-test('level-one alternatives visibly change the build and reach runtime bonuses', () => {
-    const base = createDefaultHangarBuild('ship5', { nowMs: 5 });
-    const violetCore = validateHangarDrop(base, 'stone_violet_t1', 'core', 1, (build, partId, slotId) => install(build, partId, slotId));
-    assert.equal(violetCore.ok, true);
-    assert.equal(violetCore.build.slots.core, 'stone_violet_t1');
-
-    let variant = install(violetCore.build, 'stone_blue_t1', 'wing_left', true).build;
-    variant = install(variant, 'stone_cyan_t1', 'engine_left', true).build;
-    const bonuses = hangarBuildToProfileBonuses(variant);
-    assert.deepEqual(bonuses, { speedBonusPct: 7, turningBonusPct: 3, maxHpBonus: 0 });
-    assert.deepEqual(getSlotStatBonuses({}, bonuses), bonuses);
-
-    const strategy = new ArcadeModeStrategy();
-    strategy.applyVehicleUpgrades(bonuses);
-    assert.equal(strategy.getTurnRateMultiplier(), 1.03);
-    assert.equal(strategy.getSpeedMultiplier(), 1.07);
+    assert.equal(validateFightHangarBuild(levelFiveTank).ok, true);
 });
 
 test('hangar draft supports replacement, optional removal, required slots, symmetry and undo/redo', () => {
@@ -311,7 +276,7 @@ test('hangar draft supports replacement, optional removal, required slots, symme
     assert.equal(removeHangarPart(base, 'core').code, 'required_slot');
 
     const missingCore = removeHangarPart(base, 'core', { allowRequired: true }).build;
-    assert.ok(validateHangarBuild(missingCore, 30).errors.some((error) => error.code === 'required_slot'));
+    assert.ok(validateFightHangarBuild(missingCore).errors.some((error) => error.code === 'required_slot'));
 
     const history = new HangarBuildHistory(base);
     history.push(paired.build);
@@ -448,16 +413,15 @@ test('arcade and fight builds stay isolated while selection and bonuses reach th
     writeHangarVehicleSelection(settings, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1, 'aircraft', 'ship5', { modePath: 'arcade' });
     assert.equal(readHangarVehicleSelection(settings, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1, 'ship5', { modePath: 'arcade' }).value, 'aircraft');
 
-    let runBuild = createDefaultHangarBuild('aircraft', { nowMs: 70 });
-    for (const [partId, slotId] of [['stone_gold_t2', 'core'], ['stone_green_t2', 'wing_left'], ['stone_blue_t2', 'engine_left']]) {
-        runBuild = install(runBuild, partId, slotId).build;
-    }
-    const bonuses = getSlotStatBonuses(hangarBuildToProfileUpgrades(runBuild));
-    assert.deepEqual(bonuses, { turningBonusPct: 10, speedBonusPct: 8, maxHpBonus: 15 });
+    // Paket 3: the old five-colour stone tiers of a profile no longer reach a run; run bonuses are the
+    // build only (sizes plus the stones of the workshop pool, see arcade-stones.contract).
+    const upgrades = { core_t2: 'T2', wing_left_t2: 'T2', engine_left_t2: 'T2' };
+    const bonuses = getArcadeRunVehicleBonuses({ ...createArcadeVehicleProfile('ship5', 70), upgrades });
+    assert.deepEqual(Object.keys(bonuses), ['build']);
     const strategy = new ArcadeModeStrategy();
     strategy.applyVehicleUpgrades(bonuses);
-    assert.equal(strategy.getTurnRateMultiplier(), 1.1);
-    assert.equal(strategy.getSpeedMultiplier(), 1.08);
+    assert.equal(strategy.getTurnRateMultiplier(), 1);
+    assert.equal(strategy.getSpeedMultiplier(), 1);
 });
 
 test('unsaved hangar drafts recover through the settings record port', () => {
@@ -520,8 +484,9 @@ test('normalizing a build without a slots map keeps optional slots empty', () =>
     assert.equal(bare.slots.utility, null);
     assert.equal(bare.slots.core, 'stone_gold_t1');
     assert.equal(bare.slots.wing_left, 'stone_green_t1');
-    assert.deepEqual(validateHangarBuild(bare, 1).errors, []);
-    assert.equal(validateHangarBuild(bare, 1).ok, true);
+    assert.ok(Object.values(bare.stoneSlots).every((stoneId) => stoneId === null), 'Arcade: keine erfundenen Pool-Steine');
+    assert.deepEqual(validateFightHangarBuild(bare).errors, []);
+    assert.equal(validateFightHangarBuild(bare).ok, true);
 });
 
 test('legacy upgrade records still migrate into stone slots', () => {

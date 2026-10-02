@@ -59,23 +59,3 @@ export function resolveHangarStoneAvailability(stone, profile, build) {
         canAfford: xrp >= priceXrp,
     };
 }
-
-export function purchaseHangarStone(profile, stoneId, nowMs = Date.now()) {
-    const stone = resolveHangarPart(stoneId);
-    const availability = resolveHangarStoneAvailability(stone, profile, null);
-    if (!stone || stone.kind !== 'stone') return { ok: false, code: 'unknown_stone', profile };
-    if (!availability.levelAllowsPurchase) return { ok: false, code: 'level_locked', requiredLevel: availability.purchaseLevel, profile };
-    if (!availability.canAfford) return { ok: false, code: 'insufficient_xrp', priceXrp: availability.priceXrp, profile };
-    if (availability.owned >= availability.maxOwned) return { ok: false, code: 'inventory_full', profile };
-    const inventory = normalizeHangarStoneInventory(profile);
-    inventory.counts[stone.id] = availability.owned + 1;
-    const nextProfile = {
-        ...profile,
-        hangarStoneInventory: inventory,
-        xpBank: availability.xrp - availability.priceXrp,
-        spentUpgradeXp: Math.max(0, Number(profile?.spentUpgradeXp) || 0) + availability.priceXrp,
-        lastStonePurchase: { stoneId: stone.id, priceXrp: availability.priceXrp, at: new Date(Math.max(0, Number(nowMs) || Date.now())).toISOString() },
-        updatedAt: new Date(Math.max(0, Number(nowMs) || Date.now())).toISOString(),
-    };
-    return { ok: true, code: 'purchased', profile: nextProfile, stone, remainingXrp: nextProfile.xpBank };
-}

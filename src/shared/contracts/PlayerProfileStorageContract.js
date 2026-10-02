@@ -3,6 +3,7 @@ import {
     ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
 } from './ArcadeVehicleProfileContract.js';
 import { ARCADE_RUN_PROFILE_STORAGE_KEY, LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY } from './ArcadeRunSettingsContract.js';
+import { ARCADE_STONE_WORKSHOP_STORAGE_KEY } from './ArcadeStoneWorkshopContract.js';
 import {
     ARCADE_LAST_RUN_STORAGE_KEY,
     ARCADE_SEED_STORAGE_KEY,
@@ -29,6 +30,7 @@ export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
     FIGHT_HANGAR_DRAFTS: 'fightHangarDrafts',
     ARCADE_LOADOUT_PRESETS: 'arcadeLoadoutPresets',
     LOBBY_NAME: 'lobbyName',
+    ARCADE_STONE_WORKSHOP: 'arcadeStoneWorkshop',
 });
 
 // The name a player last used in a multiplayer lobby; each player profile keeps its own.
@@ -49,6 +51,7 @@ const RECORD_DEFINITIONS = Object.freeze([
     { kind: PLAYER_PROFILE_RECORD_KINDS.FIGHT_HANGAR_DRAFTS, legacyKey: 'curviosclash.hangar.fight-drafts.v1', suffix: 'hangar.fight-drafts.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_LOADOUT_PRESETS, legacyKey: 'cuviosclash.arcade-vehicle-loadouts.v1', suffix: 'arcade-vehicle-loadouts.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.LOBBY_NAME, legacyKey: LOBBY_NAME_STORAGE_KEY, suffix: 'lobby-name.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_STONE_WORKSHOP, legacyKey: ARCADE_STONE_WORKSHOP_STORAGE_KEY, suffix: 'arcade-stone-workshop.v1' },
 ]);
 
 const DEFINITION_BY_LEGACY_KEY = new Map(RECORD_DEFINITIONS.map((entry) => [entry.legacyKey, entry]));

@@ -4,13 +4,41 @@ import test from 'node:test';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { createGameModeStrategy } from '../src/modes/GameModeRegistry.js';
 import { applyMenuCompatibilityRules } from '../src/ui/menu/MenuCompatibilityRules.js';
+import { createArcadeVehicleProfile, getArcadeRunVehicleBonuses } from '../src/state/arcade/ArcadeVehicleProfile.js';
 import {
-    createArcadeVehicleProfile,
-    getSlotStatBonuses,
-    purchaseUpgrade,
-    UPGRADE_PURCHASE_CODES,
-} from '../src/state/arcade/ArcadeVehicleProfile.js';
-import { purchaseHangarStone } from '../src/ui/hangar/HangarStoneInventory.js';
+    ARCADE_STONE_WORKSHOP_STORAGE_KEY,
+    commitArcadeStoneWorkshopResult,
+    createArcadeStoneWorkshopRecord,
+    evaluateArcadeStonePurchase,
+    evaluateArcadeStoneUpgrade,
+    readArcadeStoneWorkshopRecord,
+} from '../src/shared/contracts/ArcadeStoneWorkshopContract.js';
+import { applyArcadeStonePlacement } from '../src/shared/contracts/ArcadeStonePlacementContract.js';
+
+// Paket 3: flight bonuses come from stones of the workshop pool placed in the vehicle's slots.
+
+function createStore() {
+    const records = new Map();
+    return {
+        readJsonRecordResult(key) {
+            return records.has(key)
+                ? { ok: true, status: 'found', value: JSON.parse(records.get(key)) }
+                : { ok: true, status: 'missing', value: null };
+        },
+        loadJsonRecord(key, fallback = null) { return records.has(key) ? JSON.parse(records.get(key)) : fallback; },
+        saveJsonRecord(key, value) { records.set(key, JSON.stringify(value)); return { success: true }; },
+    };
+}
+
+/** Places the three free stones of a fresh pool and saves it; returns the run bonuses of the profile. */
+function bonusesWithStones(profile, stoneSlots) {
+    const store = createStore();
+    const pool = createArcadeStoneWorkshopRecord(0);
+    const placed = applyArcadeStonePlacement(pool, profile.vehicleId, stoneSlots, profile, { nowMs: 0 });
+    assert.equal(placed.ok, true, `placement accepted (${placed.reason})`);
+    store.saveJsonRecord(ARCADE_STONE_WORKSHOP_STORAGE_KEY, placed.pool);
+    return getArcadeRunVehicleBonuses(profile, store);
+}
 
 function bonusesToStrategy(bonuses) {
     const strategy = new ArcadeModeStrategy({ random: () => 0.5 });
@@ -19,57 +47,48 @@ function bonusesToStrategy(bonuses) {
 }
 
 function spawnPlayer(strategy, baseSpeed = 18) {
-    const player = { hasShield: false, baseSpeed, speed: baseSpeed };
+    const player = { vehicleId: 'ship5', hasShield: false, baseSpeed, speed: baseSpeed };
     strategy.resetPlayerHealth(player);
     strategy.applySpawnStatBonuses(player);
     return player;
 }
 
-test('a fresh profile grants no flight bonus at all', () => {
-    const profile = createArcadeVehicleProfile('ship5', 0);
-    const bonuses = getSlotStatBonuses(profile.upgrades, profile.hangarBonuses);
-    assert.deepEqual(bonuses, { turningBonusPct: 0, speedBonusPct: 0, maxHpBonus: 0 });
+function shipProfile(extra = {}) {
+    return { ...createArcadeVehicleProfile('ship5', 0), ...extra };
+}
 
-    const strategy = bonusesToStrategy(bonuses);
+test('a fresh profile with an untouched stone pool grants no flight bonus at all', () => {
+    const strategy = bonusesToStrategy(bonusesWithStones(shipProfile(), {}));
     const player = spawnPlayer(strategy);
-    assert.equal(strategy.getTurnRateMultiplier(), 1);
-    assert.equal(strategy.getSpeedMultiplier(), 1);
+    assert.equal(strategy.getTurnRateMultiplier(player), 1);
+    assert.equal(strategy.getSpeedMultiplier(player), 1);
     assert.equal(player.maxHp, 100);
     assert.equal(player.baseSpeed, 18);
 });
 
-test('an upgraded wing slot raises the turn rate the player actually flies with', () => {
-    const profile = createArcadeVehicleProfile('ship5', 0);
-    const upgraded = { ...profile, upgrades: { wing_left: 'T2', wing_right: 'T2' } };
-    const bonuses = getSlotStatBonuses(upgraded.upgrades, upgraded.hangarBonuses);
-    assert.equal(bonuses.turningBonusPct, 10);
-
-    const strategy = bonusesToStrategy(bonuses);
-    assert.equal(strategy.getTurnRateMultiplier(), 1.1);
+test('stones in both wing slots raise the turn rate the player actually flies with', () => {
+    const profile = shipProfile({ stoneSlotPackages: ['wings'] });
+    const strategy = bonusesToStrategy(bonusesWithStones(profile, { wing_left: 'stone-0001', wing_right: 'stone-0002' }));
+    const player = spawnPlayer(strategy);
+    assert.ok(Math.abs(strategy.getTurnRateMultiplier(player) - 1.06) < 1e-9, 'each wing stone counts as one step');
     // Mirrors Player.js: the strategy multiplier scales the flown turn rate.
     const baseTurnRate = 2.2;
-    assert.ok(baseTurnRate * strategy.getTurnRateMultiplier() > baseTurnRate);
+    assert.ok(baseTurnRate * strategy.getTurnRateMultiplier(player) > baseTurnRate);
 });
 
-test('an upgraded engine slot raises the speed the player spawns with', () => {
-    const upgrades = { engine_left: 'T3', engine_right: 'T3' };
-    const bonuses = getSlotStatBonuses(upgrades, null);
-    assert.equal(bonuses.speedBonusPct, 16);
-
-    const strategy = bonusesToStrategy(bonuses);
+test('stones in both engine slots raise the speed the player spawns with', () => {
+    const profile = shipProfile({ stoneSlotPackages: ['engines'] });
+    const strategy = bonusesToStrategy(bonusesWithStones(profile, { engine_left: 'stone-0001', engine_right: 'stone-0002' }));
     const player = spawnPlayer(strategy, 18);
-    assert.equal(strategy.getSpeedMultiplier(), 1.16);
-    assert.ok(Math.abs(player.baseSpeed - 18 * 1.16) < 1e-9);
+    assert.ok(Math.abs(strategy.getSpeedMultiplier(player) - 1.05) < 1e-9);
+    assert.ok(Math.abs(player.baseSpeed - 18 * 1.05) < 1e-9);
     assert.equal(player.speed, player.baseSpeed);
 });
 
-test('an upgraded core slot raises the health the player spawns with', () => {
-    const bonuses = getSlotStatBonuses({ core: 'T3' }, null);
-    assert.equal(bonuses.maxHpBonus, 30);
-
-    const player = spawnPlayer(bonusesToStrategy(bonuses));
-    assert.equal(player.maxHp, 130);
-    assert.equal(player.hp, 130);
+test('a stone in the core slot raises the health the player spawns with', () => {
+    const player = spawnPlayer(bonusesToStrategy(bonusesWithStones(shipProfile(), { core: 'stone-0001' })));
+    assert.equal(player.maxHp, 104);
+    assert.equal(player.hp, 104);
 });
 
 // Paket 1 (Arcade-Hangar: Fahrzeugrollen und Ausbau) hat die Tempo-/Wendigkeitsobergrenze
@@ -82,7 +101,9 @@ test('every stat bonus stays capped at the vehicle base plus one hundred points'
     assert.equal(strategy.getTurnRateMultiplier(), 2);
     assert.equal(strategy.getSpeedMultiplier(), 2);
 
-    const player = spawnPlayer(strategy, 18);
+    const player = { hasShield: false, baseSpeed: 18, speed: 18 };
+    strategy.resetPlayerHealth(player);
+    strategy.applySpawnStatBonuses(player);
     assert.equal(player.maxHp, 150);
     assert.ok(Math.abs(player.baseSpeed - 36) < 1e-9);
 });
@@ -93,25 +114,23 @@ test('the sector modifier and the upgrade bonus multiply instead of replacing ea
     assert.ok(Math.abs(strategy.getTurnRateMultiplier() - 0.7 * 1.1) < 1e-9);
 });
 
-test('buying a hangar stone spends run points and changes what the player flies with', () => {
-    // The arcade hangar is the production purchase path: it spends the XP bank and
-    // writes the resulting bonuses back into the vehicle profile.
-    const profile = { ...createArcadeVehicleProfile('ship5', 0), level: 12, xp: 5000, xpBank: 5000 };
-    const before = getSlotStatBonuses(profile.upgrades, { turningBonusPct: 0, speedBonusPct: 0, maxHpBonus: 0 });
-    assert.equal(before.speedBonusPct, 0);
+test('buying a stone spends vehicle XP and, once placed, changes what the player flies with', () => {
+    const store = createStore();
+    const profile = shipProfile({ level: 12, xp: 5000, xpBank: 5000 });
+    const bought = evaluateArcadeStonePurchase(readArcadeStoneWorkshopRecord(store, 0).pool, profile, 0);
+    assert.equal(bought.ok, true, `stone purchase succeeded (${bought.reason})`);
+    assert.equal(bought.next.xpBank, profile.xpBank - 200);
+    let saved = null;
+    assert.equal(commitArcadeStoneWorkshopResult(store, bought, (next) => { saved = next; }).ok, true);
+    assert.equal(saved.xpBank, 4800);
 
-    const purchase = purchaseHangarStone(profile, 'stone_blue_t2', 0);
-    assert.equal(purchase.ok, true, `stone purchase succeeded (code ${purchase.code})`);
-    assert.equal(purchase.remainingXrp, profile.xpBank - 350);
-    assert.equal(purchase.profile.xpBank, profile.xpBank - 350);
-
-    const after = getSlotStatBonuses(purchase.profile.upgrades, { turningBonusPct: 0, speedBonusPct: 9, maxHpBonus: 0 });
-    const strategy = bonusesToStrategy(after);
-    const player = spawnPlayer(strategy, 18);
-    assert.ok(player.baseSpeed > 18, 'the equipped bonus reaches the spawned player');
+    const placed = applyArcadeStonePlacement(readArcadeStoneWorkshopRecord(store, 0).pool, 'ship5', { core: 'stone-0004' }, saved, { nowMs: 0 });
+    assert.equal(commitArcadeStoneWorkshopResult(store, placed, null).ok, true);
+    const player = spawnPlayer(bonusesToStrategy(getArcadeRunVehicleBonuses(saved, store)));
+    assert.equal(player.maxHp, 104, 'the placed stone reaches the spawned player');
 });
 
-test('the strategy the arcade menu path resolves to carries the bonuses to the player', () => {
+test('the strategy the arcade menu path resolves to carries the stones to the player', () => {
     // The whole chain in one place: menu settings -> strategy factory -> spawned player.
     // A mode path that resolves to Classic drops every bonus silently, because the
     // Classic strategy has no applyVehicleUpgrades and no health pool at all.
@@ -124,20 +143,23 @@ test('the strategy the arcade menu path resolves to carries the bonuses to the p
     applyMenuCompatibilityRules(settings, {});
 
     const strategy = createGameModeStrategy(settings.gameMode, { random: () => 0.5 });
-    const bonuses = getSlotStatBonuses({ core: 'T3', engine_left: 'T3', engine_right: 'T3' }, null);
-    strategy.applyVehicleUpgrades?.(bonuses);
+    const profile = shipProfile({ stoneSlotPackages: ['engines'] });
+    strategy.applyVehicleUpgrades?.(bonusesWithStones(profile, { core: 'stone-0001', engine_left: 'stone-0002', engine_right: 'stone-0003' }));
 
-    const player = { hasShield: false, baseSpeed: 18, speed: 18 };
+    const player = { vehicleId: 'ship5', hasShield: false, baseSpeed: 18, speed: 18 };
     strategy.resetPlayerHealth(player);
     strategy.applySpawnStatBonuses?.(player);
 
-    assert.equal(player.maxHp, 130, 'the core upgrade reaches the spawned player');
-    assert.ok(player.baseSpeed > 18, 'the engine upgrade reaches the spawned player');
+    assert.equal(player.maxHp, 104, 'the core stone reaches the spawned player');
+    assert.ok(player.baseSpeed > 18, 'the engine stones reach the spawned player');
 });
 
-test('an unaffordable upgrade is refused with its reason instead of applying', () => {
-    const profile = { ...createArcadeVehicleProfile('ship5', 0), level: 12, xpBank: 0 };
-    const result = purchaseUpgrade(profile, 'wing_left', 'T2', 0);
+test('an unaffordable stone upgrade is refused with its reason instead of applying', () => {
+    const pool = createArcadeStoneWorkshopRecord(0);
+    const profile = shipProfile({ level: 12, xpBank: 0 });
+    const result = evaluateArcadeStoneUpgrade(pool, profile, 'stone-0001', 0);
     assert.equal(result.ok, false);
-    assert.equal(result.code, UPGRADE_PURCHASE_CODES.INSUFFICIENT_XP);
+    assert.equal(result.reason, 'insufficient_xp');
+    assert.equal(pool.stones[0].level, 1);
+    assert.equal(profile.xpBank, 0);
 });

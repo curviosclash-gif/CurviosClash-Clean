@@ -11,10 +11,62 @@ import { isDemolitionConfig } from '../../shared/contracts/DemolitionContract.js
 // Five portals and arena waves have no run runtime that hands the size build to the strategy
 // (gauntlet: ArcadeRunRuntime.setStrategy, endless: setEndlessRunProfile). The profile that sizes
 // the mesh below gives it to the strategy here, before the spawn, so the functional size always
-// matches the drawn size. Only the size build: the hangar slot bonuses never applied in these runs.
-function applyArcadeRunSizeBuild(strategy, profiles, players, runtimeConfig) {
+// matches the drawn size. The build also captures the workshop pool once per run, so a session
+// rebuild between maps cannot apply a purchase or level-up made after the run started.
+const RUN_STONE_STEPS = new WeakMap();
+const DEMOLITION_STONE_STEPS = new WeakMap();
+
+function applyArcadeRunSizeBuild(support, strategy, profiles, players, runtimeConfig, recordStore) {
     if (!isFivePortalsConfig(runtimeConfig) && !isArenaWavesConfig(runtimeConfig)) return;
-    strategy?.applyVehicleUpgrades?.(createArcadeVehicleUpgradeBonusMap(profiles, players, { buildOnly: true }));
+    const run = (isFivePortalsConfig(runtimeConfig) ? support?.fivePortalsRuntime : support?.arenaWavesRuntime) || null;
+    const kept = run && run.phase !== 'idle' && run.phase !== 'finished' ? RUN_STONE_STEPS.get(run) : null;
+    const bonuses = createArcadeVehicleUpgradeBonusMap(profiles, players, {
+        buildOnly: true,
+        store: recordStore,
+        stoneStepsByVehicleId: kept,
+    });
+    if (run) {
+        const snapshot = Object.create(null);
+        for (const [vehicleId, value] of Object.entries(bonuses.byVehicleId)) {
+            if (value?.build) snapshot[vehicleId] = value.build.stoneSteps;
+        }
+        RUN_STONE_STEPS.set(run, snapshot);
+    }
+    strategy?.applyVehicleUpgrades?.(bonuses);
+}
+
+function getDemolitionRunStoneSteps(runtime, profileIds, humanPlayers, profilesByPlayerIndex, storesByPlayerIndex) {
+    const current = runtime && runtime.phase !== 'idle' && runtime.phase !== 'finished'
+        ? DEMOLITION_STONE_STEPS.get(runtime)
+        : null;
+    const previousSteps = Object.create(null);
+    for (const player of humanPlayers) {
+        const playerIndex = Number(player?.index);
+        const profileId = String(profileIds?.[playerIndex] || '').trim();
+        const vehicleId = String(player?.vehicleId || '').trim();
+        const previous = current?.[playerIndex];
+        if (previous?.profileId === profileId && previous.vehicleId === vehicleId) {
+            previousSteps[playerIndex] = previous;
+        }
+    }
+    const bonuses = createArcadePlayerUpgradeBonusMap(profilesByPlayerIndex, humanPlayers, {
+        buildOnly: true,
+        storesByPlayerIndex,
+        stoneStepsByPlayerIndex: previousSteps,
+    });
+    const snapshot = Object.create(null);
+    for (const player of humanPlayers) {
+        const playerIndex = Number(player?.index);
+        const build = bonuses.byPlayerIndex[playerIndex]?.build;
+        if (!build) continue;
+        snapshot[playerIndex] = {
+            profileId: String(profileIds?.[playerIndex] || '').trim(),
+            vehicleId: build.vehicleId,
+            stoneSteps: build.stoneSteps,
+        };
+    }
+    if (runtime) DEMOLITION_STONE_STEPS.set(runtime, snapshot);
+    return bonuses;
 }
 
 // Draws the hangar part style on a human's part-built vehicle in arcade runs. Always
@@ -46,23 +98,37 @@ export function applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig
     const recordStore = support?.game?.settingsManager?.getPlayerRecordStorePort?.() || null;
     const profiles = loadVehicleProfiles(recordStore);
     const demolitionProfiles = Object.create(null);
+    const demolitionStores = Object.create(null);
+    const demolitionRuntime = support?.demolitionSupport?.runtime || null;
     if (isDemolitionConfig(runtimeConfig)) {
         const profileIds = runtimeConfig?.arcade?.demolitionProfileIds || [];
+        const runHasBindings = demolitionRuntime?.phase === 'active' || demolitionRuntime?.phase === 'transition';
+        const bindings = runHasBindings ? demolitionRuntime?.playerBindings : null;
+        const snapshotProfileIds = Array.isArray(profileIds) ? [...profileIds] : [];
         for (const player of entityManager?.humanPlayers || []) {
             const index = Number(player?.index);
-            const profileId = String(profileIds?.[index] || '').trim();
-            const store = support?.game?.playerProfileManager?.getProfiles?.().some((entry) => entry.id === profileId)
-                ? support.game.playerProfileManager.getRecordStorePort(profileId)
-                : null;
-            if (store) demolitionProfiles[index] = loadVehicleProfiles(store);
+            const boundProfileId = bindings?.get(index)?.profileId;
+            if (boundProfileId) snapshotProfileIds[index] = boundProfileId;
+            const profileId = String(boundProfileId || profileIds?.[index] || '').trim();
+            const store = bindings?.get(index)?.store
+                || demolitionRuntime?._getRecordStoreForPlayerIndex?.(index, profileId)
+                || null;
+            if (store) {
+                demolitionStores[index] = store;
+                demolitionProfiles[index] = loadVehicleProfiles(store);
+            }
         }
-    }
-    if (isDemolitionConfig(runtimeConfig)) {
         entityManager?.gameModeStrategy?.applyVehicleUpgrades?.(
-            createArcadePlayerUpgradeBonusMap(demolitionProfiles, entityManager?.humanPlayers, { buildOnly: true }),
+            getDemolitionRunStoneSteps(
+                demolitionRuntime,
+                snapshotProfileIds,
+                entityManager?.humanPlayers || [],
+                demolitionProfiles,
+                demolitionStores,
+            ),
         );
     } else {
-        applyArcadeRunSizeBuild(entityManager?.gameModeStrategy, profiles, entityManager?.humanPlayers, runtimeConfig);
+        applyArcadeRunSizeBuild(support, entityManager?.gameModeStrategy, profiles, entityManager?.humanPlayers, runtimeConfig, recordStore);
     }
     const arcadeEnabled = runtimeConfig?.arcade?.enabled === true;
     // Visible size = functional size: Daily and weapon race fly at factory size.
