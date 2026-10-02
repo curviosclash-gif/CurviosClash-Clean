@@ -1,13 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { randomFillSync } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { validateMp4 } = require('../electron/cinematic-replay-video-export-job.cjs');
+const {
+    createCinematicReplayVideoExportJob,
+    validateMp4,
+} = require('../electron/cinematic-replay-video-export-job.cjs');
 
 function resolveCommand(name) {
     const locator = process.platform === 'win32' ? 'where.exe' : 'which';
@@ -113,5 +117,41 @@ test('real FFmpeg output is playable H.264 MP4 at 1080p60 with synchronized audi
         assert.ok(Math.abs(shortAudioValidation.durationSeconds - 1) < 0.1);
     } finally {
         await rm(tempDirectory, { recursive: true });
+    }
+});
+
+test('the export job streams raw frames through its own FFmpeg arguments into a valid MP4', async (t) => {
+    const ffmpeg = resolveCommand(process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+    if (!ffmpeg) {
+        t.skip('FFmpeg not available in test environment');
+        return;
+    }
+    const tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'curvios-replay-job-'));
+    const job = createCinematicReplayVideoExportJob({
+        app: { getPath: () => tempDirectory },
+        dialog: {
+            async showSaveDialog() {
+                return { canceled: false, filePath: path.join(tempDirectory, 'job.mp4') };
+            },
+        },
+        probeCapability: async () => ({ available: true, command: ffmpeg, source: 'test' }),
+    });
+    try {
+        const frameCount = 30;
+        const expectedDurationMs = frameCount * 1000 / 60;
+        const started = await job.begin({ matchId: 'job-integration', width: 1920, height: 1080, fps: 60, expectedDurationMs });
+        assert.equal(started.started, true, JSON.stringify(started));
+        // Noise, so the encoded file clears the exporter's minimum size check.
+        const frame = randomFillSync(new Uint8Array(1920 * 1080 * 4));
+        for (let frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+            const appended = await job.appendFrame({ exportId: started.exportId, frameIndex, frameBytes: frame });
+            assert.equal(appended.accepted, true, JSON.stringify(appended));
+        }
+        const finished = await job.finish({ exportId: started.exportId, frameCount, expectedDurationMs });
+        assert.equal(finished.saved, true, JSON.stringify(finished));
+        assert.equal(finished.validation.videoCodec, 'h264');
+    } finally {
+        await job.cancel();
+        await rm(tempDirectory, { recursive: true, force: true });
     }
 });

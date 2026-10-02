@@ -12,6 +12,8 @@ const TEMP_DIRECTORY_NAME = 'curviosclash-recording-exports';
 const MANIFEST_SUFFIX = '.export.json';
 const MIN_VALID_MP4_BYTES = 16 * 1024;
 const MAX_DIAGNOSTIC_LENGTH = 64 * 1024;
+const REPORTED_DIAGNOSTIC_LENGTH = 4000;
+const ENCODER_EXIT_WAIT_MS = 2500;
 // Mirrors CINEMATIC_REPLAY_EXPORT_FORMATS in src/shared/contracts/RecordingCaptureContract.js.
 const CINEMATIC_EXPORT_FPS = 60;
 const SUPPORTED_CINEMATIC_FORMATS = Object.freeze([
@@ -173,6 +175,14 @@ function buildFfmpegArgs(job) {
     }
     args.push('-f', 'mp4', job.tempVideoPath);
     return args;
+}
+
+// FFmpeg names the real cause only on stderr; a closed stdin alone cannot tell
+// an unwritable target apart from any other abort.
+function classifyEncoderFailure(stderr, fallback) {
+    return /Error opening output[\s\S]*(?:Permission denied|Access is denied)/i.test(String(stderr || ''))
+        ? 'ffmpeg_output_access_denied'
+        : fallback;
 }
 
 function waitForChildClose(child) {
@@ -526,9 +536,18 @@ function createCinematicReplayVideoExportJob({
             job.frameCount++;
             return { accepted: true, frameCount: job.frameCount };
         } catch (error) {
+            // A failed write almost always means FFmpeg has already exited;
+            // wait for it so its stderr explains why.
+            const closeResult = await Promise.race([
+                job.closePromise,
+                new Promise((resolve) => setTimeout(() => resolve(null), ENCODER_EXIT_WAIT_MS)),
+            ]);
             return {
                 accepted: false,
-                reason: normalizeString(error?.message, 'encoder_write_failed'),
+                reason: classifyEncoderFailure(job.stderr, 'ffmpeg_encode_aborted'),
+                writeError: normalizeString(error?.message, 'encoder_write_failed'),
+                exitCode: closeResult?.code ?? null,
+                diagnostics: job.stderr.slice(-REPORTED_DIAGNOSTIC_LENGTH),
             };
         }
     }
@@ -560,9 +579,10 @@ function createCinematicReplayVideoExportJob({
             releaseJob(exportId, job);
             return {
                 saved: false,
-                reason: job.cancelled ? 'cancelled' : 'ffmpeg_encode_failed',
+                reason: job.cancelled ? 'cancelled' : classifyEncoderFailure(job.stderr, 'ffmpeg_encode_failed'),
                 code: closeResult.errorCode,
-                diagnostics: job.stderr.slice(-4000),
+                exitCode: closeResult.code ?? null,
+                diagnostics: job.stderr.slice(-REPORTED_DIAGNOSTIC_LENGTH),
             };
         }
         const validation = await validateMp4({
