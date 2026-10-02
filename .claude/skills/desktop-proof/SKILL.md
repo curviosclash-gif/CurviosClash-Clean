@@ -24,6 +24,7 @@ Nimm die erste Zeile, auf die dein Fall zutrifft. Jede Stufe kostet spürbar meh
 | --- | --- |
 | Zahlen aus Runtime, Kernel, Rundenlogik, Fortschritt | Headless-Smoke in Node |
 | Verhalten im echten Fenster, mehrere Fenster, IPC, Persistenz über Neustart | Playwright-Desktop-Spec |
+| Eine Neuerung selbst anspielen und Schritt für Schritt erkunden (Karte, Waffe, Menüweg) | Fahrskript (Weg B2) |
 | Menü, HUD, Einstellungen, Layout — schnell und plattformunkritisch | Browser-Vorschau |
 | Alles, was nur ein Mensch beurteilen kann (Gefühl, Kamera, Optik) | Manueller Lauf, Nutzer berichtet |
 
@@ -66,6 +67,33 @@ node scripts/run-playwright-targeted.mjs tests/hangar-window.desktop.spec.js
 ```
 
 Wenn der Beleg bleiben soll, wird der Spec ein regulärer Test — und muss dann in `scripts/playwright-test-clusters.mjs` in einem Cluster registriert werden, sonst läuft er in CI nie. Ein Spec, der nur für diesen einen Beleg existiert, gehört nicht dauerhaft ins Repo; frage den Nutzer, ob er ihn behalten will, bevor du ihn wieder entfernst.
+
+## Weg B2 — selbst spielen mit dem Fahrskript
+
+`scripts/playtest/` startet die echte Desktop-App (aus `dist-app-test`, Fenster außerhalb des Bildschirms, eigenes Wegwerf-Profil, Runden als Automation markiert) und hält sie offen, während du einzelne Schritte schickst. Das passt, wenn du erst herausfinden musst, was du messen willst.
+
+```bash
+npm run build:app:test
+```
+
+```bash
+npm run playtest:selftest
+```
+
+```bash
+npm run playtest:daemon
+```
+
+Danach schickst du Schritte als Datei mit `npm run playtest:send -- schritt.mjs` und beendest mit `npm run playtest:send -- --quit`. Die Datei ist der Rumpf einer async-Funktion mit `D` (Bausteine aus `playtest-driver.mjs`), `S` (App und Seite) und `state`:
+
+```js
+const start = await D.startMatch(S, { map: 'sunflower_meadow', mode: 'HUNT', bots: 4 });
+await D.enableAutopilot(S);               // die Bot-KI fliegt das Spielerschiff
+const samples = await D.sample(S, 20000); // Leben, Position, Zustand je Sekunde
+return { start, flown: D.distanceTravelled(samples), shot: await D.shot(S, 'wiese') };
+```
+
+Der Dienst hält das Playwright-Schloss bis zum Beenden und nimmt nur Anfragen mit dem Schlüssel aus `daemon.json` an. Schritte, Fotos und Profile liegen außerhalb des Repos im Ausgabeordner (`%TEMP%curvios-playtest-<Datum>`). Was du dabei nicht echt gespielt, sondern direkt über eine Spielfunktion ausgelöst hast, nennst du im Beleg ausdrücklich so.
 
 ## Weg C — Browser-Vorschau
 
