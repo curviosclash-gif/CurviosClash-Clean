@@ -65,8 +65,12 @@ function summarizeWinRate(rows) {
     };
 }
 
+function formatRate(rate, interval) {
+    return `${rate} % (${interval[0]}–${interval[1]})`;
+}
+
 function formatWinRate({ humanWinRate, humanWinInterval }) {
-    return `${humanWinRate} % (${humanWinInterval[0]}–${humanWinInterval[1]})`;
+    return formatRate(humanWinRate, humanWinInterval);
 }
 
 // Eine Siegquote ueber alle Bot-Stufen und Besetzungen mischt leichte und schwere
@@ -103,6 +107,102 @@ function balanceTable(cells) {
         '| Modus | Bot-Stufe | Besetzung | Runden | Mensch siegt (95-%-Bereich) | belastbar |',
         '| --- | --- | --- | ---: | ---: | --- |',
         ...cells.map((cell) => `| ${cell.mode} | ${cell.botDifficulty} | ${formatLineup(cell.humanCount, cell.botCount)} | ${cell.rounds} | ${formatWinRate(cell)} | ${cell.enough ? 'ja' : 'zu wenig Runden'} |`),
+    ];
+}
+
+function addAmounts(target, source) {
+    for (const [key, value] of Object.entries(source)) target[key] = (target[key] || 0) + value;
+}
+
+function percentOf(part, total) {
+    return total > 0 ? Math.round(100 * part / total) : 0;
+}
+
+// Die Siegquote eines Platzes haengt an der Spielerzahl: mit sieben Gegnern gewinnt
+// selbst ein gleich starkes Fahrzeug nur jede achte Runde. "Erwartet" ist diese
+// Quote bei gleicher Staerke; erst die Abweichung davon spricht fuer oder gegen
+// ein Fahrzeug. Bots und Menschen stehen getrennt, weil ihr Koennen verschieden ist.
+function summarizeVehicles(rows) {
+    const byVehicle = new Map();
+    for (const row of rows) {
+        for (const player of row.players) {
+            const key = `${player.vehicleId}|${player.isBot}`;
+            if (!byVehicle.has(key)) {
+                byVehicle.set(key, {
+                    vehicleId: player.vehicleId, isBot: player.isBot,
+                    seats: 0, wins: 0, expected: 0, minutes: 0, kills: 0, deaths: 0, damage: 0,
+                });
+            }
+            const vehicle = byVehicle.get(key);
+            vehicle.seats += 1;
+            vehicle.wins += player.won ? 1 : 0;
+            vehicle.expected += 1 / row.players.length;
+            vehicle.minutes += row.duration / 60;
+            vehicle.kills += player.kills;
+            vehicle.deaths += player.deaths;
+            vehicle.damage += player.damageDealt;
+        }
+    }
+    return [...byVehicle.values()]
+        .map((vehicle) => {
+            const perMinute = (value) => (vehicle.minutes > 0 ? round1(value / vehicle.minutes) : 0);
+            return {
+                vehicleId: vehicle.vehicleId,
+                controller: vehicle.isBot ? 'Bot' : 'Mensch',
+                seats: vehicle.seats,
+                winRate: percentOf(vehicle.wins, vehicle.seats),
+                winInterval: wilsonInterval(vehicle.wins, vehicle.seats),
+                expectedWinRate: percentOf(vehicle.expected, vehicle.seats),
+                killsPerMinute: perMinute(vehicle.kills),
+                deathsPerMinute: perMinute(vehicle.deaths),
+                damagePerMinute: perMinute(vehicle.damage),
+                enough: vehicle.seats >= MIN_ROUNDS_FOR_RATE,
+            };
+        })
+        .sort((left, right) => right.seats - left.seats
+            || left.vehicleId.localeCompare(right.vehicleId)
+            || left.controller.localeCompare(right.controller));
+}
+
+function summarizeWeapons(rows) {
+    const damage = {};
+    const kills = {};
+    for (const row of rows) {
+        for (const player of row.players) {
+            addAmounts(damage, player.damageByType);
+            addAmounts(kills, player.killsByType);
+        }
+    }
+    const totalDamage = Object.values(damage).reduce((sum, value) => sum + value, 0);
+    const totalKills = Object.values(kills).reduce((sum, value) => sum + value, 0);
+    return [...new Set([...Object.keys(damage), ...Object.keys(kills)])]
+        .map((type) => ({
+            type,
+            damage: Math.round(damage[type] || 0),
+            damageShare: percentOf(damage[type] || 0, totalDamage),
+            kills: kills[type] || 0,
+            killShare: percentOf(kills[type] || 0, totalKills),
+        }))
+        .sort((left, right) => right.damage - left.damage || left.type.localeCompare(right.type));
+}
+
+const NO_PLAYER_ROWS = '_Noch keine Spielerzeilen - sie werden erst seit Telemetrie-Schema v3 erfasst._';
+
+function vehicleTable(vehicles) {
+    if (vehicles.length === 0) return [NO_PLAYER_ROWS];
+    return [
+        '| Fahrzeug | gesteuert von | Einsätze | Sieg (95-%-Bereich) | erwartet | Kills/min | Tode/min | Schaden/min | belastbar |',
+        '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
+        ...vehicles.map((vehicle) => `| ${vehicle.vehicleId} | ${vehicle.controller} | ${vehicle.seats} | ${formatRate(vehicle.winRate, vehicle.winInterval)} | ${vehicle.expectedWinRate} % | ${vehicle.killsPerMinute} | ${vehicle.deathsPerMinute} | ${vehicle.damagePerMinute} | ${vehicle.enough ? 'ja' : 'zu wenig Einsätze'} |`),
+    ];
+}
+
+function weaponTable(weapons) {
+    if (weapons.length === 0) return [NO_PLAYER_ROWS];
+    return [
+        '| Waffe / Ursache | Schaden | Anteil Schaden | Kills | Anteil Kills |',
+        '| --- | ---: | ---: | ---: | ---: |',
+        ...weapons.map((weapon) => `| ${weapon.type} | ${weapon.damage} | ${weapon.damageShare} % | ${weapon.kills} | ${weapon.killShare} % |`),
     ];
 }
 
@@ -170,6 +270,8 @@ function summarizeSet(rows) {
         modes: summarizeModes(rows),
         maps: summarizeMaps(rows),
         balance: summarizeBalance(rows),
+        vehicles: summarizeVehicles(rows),
+        weapons: summarizeWeapons(rows),
     };
 }
 
@@ -235,6 +337,16 @@ export function buildTelemetryReport(rawRows, { source = '' } = {}) {
         `Eine Quote gilt erst ab ${MIN_ROUNDS_FOR_RATE} Runden je Zeile als belastbar. In Klammern steht der Bereich, in dem die wahre Quote mit 95 % Sicherheit liegt.`,
         '',
         ...balanceTable(data.realPlay.balance),
+        '',
+        '### Fahrzeuge',
+        '',
+        '„Erwartet“ ist die Siegquote, wenn alle Plätze gleich stark wären (1 durch Spielerzahl). Ein Fahrzeug liegt erst daneben, wenn der 95-%-Bereich den erwarteten Wert nicht mehr enthält.',
+        '',
+        ...vehicleTable(data.realPlay.vehicles),
+        '',
+        '### Waffen',
+        '',
+        ...weaponTable(data.realPlay.weapons),
         '',
         '## Alle Runden (inklusive Tests und unbedienter Fenster)',
         '',

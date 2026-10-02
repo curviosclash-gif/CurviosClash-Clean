@@ -121,11 +121,13 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     if (entityManager.recorder) {
         const killerIndex = Number.isInteger(killer?.index) ? killer.index : -1;
         const creditSuffix = environmentCredit ? ` credit=${environmentCredit.credit}` : '';
+        // Die Waffe macht den Kill der Balance-Telemetrie zuordenbar; cause sagt nur PROJECTILE.
+        const weaponSuffix = deathOptions?.projectileType ? ` weapon=${String(deathOptions.projectileType).trim().toUpperCase()}` : '';
         entityManager.recorder.markPlayerDeath(player, cause);
         entityManager.recorder.logEvent(
             'KILL',
             player.index,
-            `cause=${cause} killer=${killerIndex}${creditSuffix}`,
+            `cause=${cause} killer=${killerIndex}${creditSuffix}${weaponSuffix}`,
             player.position
         );
     }
