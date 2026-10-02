@@ -13,6 +13,7 @@ import { normalizeStaticTurretDefinition } from '../src/shared/contracts/MapSing
 import { getPickupSpawnWeight, isPickupTypeAllowedForMode } from '../src/shared/contracts/PickupRegistryContract.js';
 import {
     PLAYABLE_VOLUME_INSIDE,
+    PLAYABLE_VOLUME_OUTSIDE,
     probeArenaPlayableVolumes,
     resolveArenaPlayableVolumes,
 } from '../src/entities/arena/ArenaPlayableVolumes.js';
@@ -256,13 +257,15 @@ test('T-S38i: a visitor of the room is not standing in the exclusion zone', () =
     // the exclusion zone asks `ArenaPlayableVolumes` first, and that is what has to answer "in a
     // room" for the buried box. The volumes are world metres, so the room travels by the map scale.
     const volumes = resolveArenaPlayableVolumes(MAP, MAP_SCALE);
-    assert.equal(volumes.length, 1, 'the arena should know exactly one extra volume');
+    assert.equal(volumes.length, 6, 'the bunker and five narrow reactor volumes are map-scoped');
     const centre = {
         x: ((ROOM.bounds.min[0] + ROOM.bounds.max[0]) / 2) * MAP_SCALE,
         y: ((ROOM.bounds.min[1] + ROOM.bounds.max[1]) / 2) * MAP_SCALE,
         z: ((ROOM.bounds.min[2] + ROOM.bounds.max[2]) / 2) * MAP_SCALE,
     };
     assert.equal(probeArenaPlayableVolumes(volumes, centre), PLAYABLE_VOLUME_INSIDE);
+    assert.equal(probeArenaPlayableVolumes(volumes, { x: 0, y: -70 * MAP_SCALE, z: 0 }), PLAYABLE_VOLUME_OUTSIDE,
+        'the bunker remains separated by rock from the shafts');
     // The rock between the arena floor and the room ceiling stays rock, or the room would be a
     // shaft rather than a secret.
     const inRock = { x: centre.x, y: (ROOM.bounds.max[1] + 1) * MAP_SCALE, z: centre.z };

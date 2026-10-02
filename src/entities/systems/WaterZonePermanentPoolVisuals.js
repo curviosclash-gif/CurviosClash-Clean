@@ -41,6 +41,7 @@ export class WaterZonePermanentPoolVisuals {
         this.clear();
         if (!this.renderer?.addToScene) return;
         for (const zone of zones) {
+            if (zone.surfaceVisible === false) continue;
             const group = new THREE.Group();
             group.name = `water-zone-${zone.id}`;
             const material = new THREE.MeshPhysicalMaterial({

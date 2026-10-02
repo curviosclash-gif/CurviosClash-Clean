@@ -15,6 +15,8 @@ import {
 } from '../src/entities/arena/ArenaPlayableVolumes.js';
 import { ExclusionZoneSystem, EXCLUSION_ZONE_PHASES } from '../src/entities/systems/ExclusionZoneSystem.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
+import { normalizeMapSchemaDocument } from '../src/entities/mapSchema/MapSchemaSanitizeOps.js';
+import { toArenaMapDefinition } from '../src/entities/mapSchema/MapSchemaRuntimeOps.js';
 
 const BOUNDS = Object.freeze({ minX: -40, maxX: 40, minY: 0, maxY: 30, minZ: -40, maxZ: 40 });
 
@@ -286,6 +288,37 @@ test('broken, surplus and missing room data never reach the arena', () => {
 
     const many = [0, 1, 2, 3, 4].map((index) => authoredRoom({ id: `cellar-${index}` }));
     assert.equal(resolveArenaPlayableVolumes({ secretRooms: many }, 1).length, 3, 'at most three rooms');
+});
+
+test('authored deep playable volumes survive map-schema export at the same authored bounds', () => {
+    const source = {
+        arenaSize: { width: 100, height: 60, depth: 100 },
+        playableVolumes: [
+            { shape: 'cylinder', center: [0, 0], radius: 8.5, minY: -52.9, maxY: 8.1 },
+            { bounds: { min: [-42, -52.9, -5.25], max: [-7.2, -45.25, 5.25] } },
+        ],
+    };
+    const document = normalizeMapSchemaDocument(source);
+    const runtime = toArenaMapDefinition(document, { mapScale: 3 }).map;
+    const volumes = resolveArenaPlayableVolumes(runtime, 3);
+    const expected = [
+        { shape: 'cylinder', centerX: 0, centerZ: 0, radius: 8.5, minY: -52.9, maxY: 8.1 },
+        { minX: -42, minY: -52.9, minZ: -5.25, maxX: -7.2, maxY: -45.25, maxZ: 5.25 },
+    ];
+    assert.equal(volumes.length, expected.length);
+    for (let index = 0; index < expected.length; index += 1) {
+        for (const [key, value] of Object.entries(expected[index])) {
+            if (typeof value === 'number') {
+                assert.ok(Math.abs(volumes[index][key] - value) < 1e-9,
+                    `${key} round-trips in authored units: ${volumes[index][key]} ≈ ${value}`);
+            } else {
+                assert.equal(volumes[index][key], value);
+            }
+        }
+    }
+    assert.throws(() => normalizeMapSchemaDocument({
+        playableVolumes: Array.from({ length: 9 }, () => source.playableVolumes[0]),
+    }), /playableVolumes.*limit of 8/, 'over-limit input is rejected instead of silently truncated');
 });
 
 test('a growing map replaces only its main box and leaves the rooms standing', () => {

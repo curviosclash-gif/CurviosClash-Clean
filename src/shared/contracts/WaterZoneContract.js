@@ -94,20 +94,27 @@ export function normalizeWaterZone(value) {
     });
 }
 
-/** Static circular pools use the same underwater effects as a flooded water zone. */
+/** Static pools and bounded submerged passages use the same underwater effects as a flooded zone. */
 export function normalizePermanentWaterZones(source) {
     if (!Array.isArray(source)) return Object.freeze([]);
     return Object.freeze(source.slice(0, 8).map((entry, index) => {
+        const bounds = entry?.bounds && typeof entry.bounds === 'object'
+            ? readBounds(entry.bounds, [-100, 0, -100], [100, 100, 100])
+            : null;
         const center = Array.isArray(entry?.center) ? entry.center : [0, 0];
         const radius = clamp(entry?.radius, 0.1, 200);
-        const floorLevel = finite(entry?.floorLevel, 0);
-        const surfaceLevel = Math.max(floorLevel, finite(entry?.surfaceLevel, floorLevel + 1));
+        const floorLevel = finite(entry?.floorLevel, bounds?.min[1] ?? 0);
+        const surfaceLevel = Math.max(floorLevel, finite(entry?.surfaceLevel, bounds?.max[1] ?? floorLevel + 1));
         return Object.freeze({
             id: String(entry?.id || `permanent_water_${index}`).trim().slice(0, 64) || `permanent_water_${index}`,
-            center: readVec3([center[0], surfaceLevel, center[1]], [0, surfaceLevel, 0]),
+            ...(bounds ? { bounds } : {}),
+            center: bounds
+                ? readVec3([(bounds.min[0] + bounds.max[0]) * 0.5, surfaceLevel, (bounds.min[2] + bounds.max[2]) * 0.5], [0, surfaceLevel, 0])
+                : readVec3([center[0], surfaceLevel, center[1]], [0, surfaceLevel, 0]),
             radius,
             floorLevel,
             surfaceLevel,
+            surfaceVisible: entry?.surfaceVisible !== false,
             effects: readEffects({ ...DEFAULT_EFFECTS, ...(entry?.effects || {}) }),
         });
     }));
@@ -118,6 +125,12 @@ export function isPointInPermanentWaterZone(zone, point) {
     const x = finite(point?.[0] ?? point?.x, Infinity);
     const y = finite(point?.[1] ?? point?.y, Infinity);
     const z = finite(point?.[2] ?? point?.z, Infinity);
+    if (zone.bounds) {
+        const { min, max } = zone.bounds;
+        return x >= min[0] && x <= max[0]
+            && y >= min[1] && y <= max[1]
+            && z >= min[2] && z <= max[2];
+    }
     const dx = x - zone.center[0];
     const dz = z - zone.center[2];
     return dx * dx + dz * dz <= zone.radius * zone.radius
