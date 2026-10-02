@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE_HTML_PATH = path.join(ROOT_DIR, 'index.html');
@@ -118,8 +119,8 @@ test('Electron CSP hashes exactly the inline scripts served by each built deskto
     const pages = [
         '/',
         '/hangar.html',
-        '/editor/map-editor-3d.html',
-        '/prototypes/vehicle-lab/index.html',
+        EDITOR_VIEW_PATHS.MAP_EDITOR,
+        EDITOR_VIEW_PATHS.VEHICLE_LAB,
     ];
     let server = null;
     try {
