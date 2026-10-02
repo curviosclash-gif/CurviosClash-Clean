@@ -199,10 +199,10 @@ export class UIStartSyncController {
     /**
      * Der Desktop-Editor speichert in einem eigenen Fenster. Beim Oeffnen der
      * Kartenauswahl kommen seitdem gespeicherte Karten ins Menue.
-     * @returns {boolean} true, wenn neue oder geaenderte Karten dazukamen
+     * @returns {Promise<boolean>} true, wenn neue oder geaenderte Karten dazukamen
      */
-    refreshLocalMapCatalog() {
-        if (this.port?.refreshLocalMapCatalog?.() !== true) return false;
+    async refreshLocalMapCatalog() {
+        if (await this.port?.refreshLocalMapCatalog?.() !== true) return false;
         this._mapPreviewEntries = listMapPreviewEntries();
         this.manager?.syncAll?.();
         return true;

@@ -88,7 +88,7 @@ function reasonText(result) {
 }
 
 /**
- * @param {{ bind: Function, getProfile: () => any, saveProfile: (profile: any) => void,
+ * @param {{ bind: Function, getProfile: () => any, saveProfile: (profile: any) => boolean|void,
  *   toast: (message: string, tone?: string) => void, onDraftChange: () => void,
  *   partsOf?: (vehicleId: string) => ReadonlyArray<any> }} options
  *   partsOf: the ship's factory parts, for the hit zone line of the value preview.
@@ -324,7 +324,7 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
             toast(reasonText(result), 'warning');
             return;
         }
-        saveProfile(result.next);
+        if (saveProfile(result.next) === false) return;
         toast(successText, 'success');
     });
     bind(confirmCancel, 'click', () => hideConfirm());
@@ -382,7 +382,7 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
             return;
         }
         history.set(vehicleId, [...(history.get(vehicleId) || []), before]);
-        saveProfile(result.next);
+        if (saveProfile(result.next) === false) return;
         toast('Größe übernommen · mit „Rückgängig“ jederzeit kostenlos zurück', 'success');
     });
     bind(resetButton, 'click', () => {
@@ -401,7 +401,7 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
         }
         history.set(vehicleId, stack.slice(0, -1));
         draft = { ...previous };
-        saveProfile(result.next);
+        if (saveProfile(result.next) === false) return;
         toast('Letzte Größenänderung zurückgenommen', 'success');
     });
 

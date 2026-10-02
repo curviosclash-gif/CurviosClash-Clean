@@ -10,10 +10,7 @@ import {
 export function createArcadeVehicleProfileWorkshopPort(store) {
     return Object.freeze({
         load: () => loadVehicleProfiles(store),
-        save(profiles) {
-            saveVehicleProfiles(store, profiles);
-            return true;
-        },
+        save: (profiles) => saveVehicleProfiles(store, profiles),
         getOrCreate: (profiles, vehicleId) => getOrCreateProfile(profiles, vehicleId),
         getSpendableUpgradeXp,
         xpForLevel,

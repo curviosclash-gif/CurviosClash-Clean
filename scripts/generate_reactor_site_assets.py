@@ -20,16 +20,16 @@ What stands on the site
 -----------------------
   01_site           the apron, the grass beyond it, roads, the perimeter fence, the switchyard
                     and its pylons, irregular blast-wall compounds, staggered checkpoints, lamp
-                    masts, a drained basin sunk into the ground under each cooling tower, the two
-                    permanent galleries that run from those basins into the containment, the
+                    masts, three drained basins sunk into the ground, two permanent flooded
+                    galleries from the cooling-tower basins into the central shaft, and the
                     reactor core that stands on the block's own axis, and everything around and
                     inside the turbine hall that survives it: the floor, the turbine sets, the
                     annexes, the steam lines. Static.
   02_turbine_hall   the shell of the long hall south of the reactor: four walls, the roof, the
                     two gable doors a ship can fly through. Destructible: segment `turbine_hall`.
   03_reactor_block  the containment cylinder with its dome as a hollow shell, flanked by two
-                    auxiliary wings on -Y and +Y, with the two doorways cut in its wall where the
-                    galleries arrive. Destructible: segment `reactor_dome`.
+                    auxiliary wings on -Y and +Y. Its floor ring frames the central shaft above
+                    the permanent submerged core. Destructible: segment `reactor_dome`.
   04_cooling_tower  one hyperboloid shell on a ring of inlet columns. Placed twice by the preset,
                     west and east; the anchor tells the two apart.
                     Destructible: segments `cooling_tower_w` / `cooling_tower_e`.
@@ -49,27 +49,24 @@ result (the tower's keel reaches 130.3 m instead of 115.2 m), which the preset's
 
 Pools, galleries and the core
 -----------------------------
-The old basins were a flat disc of solid `Water` inside a low ring: a lid a ship could not descend
-through. They are now real, drained pools. The apron and the grass are cut through where a pool is
-(`ground_slab`, a rectangular slab with round holes), a concrete bowl with a floor and a rim collar
-sits in the shaft, and no water is drawn at all - the runtime supplies the animated surface. Nothing
-in the pool's volume collides, so a ship flies down into the basin and around inside it. Measured:
-outer wall radius 43.2 m, usable (inner) radius 41.6 m, rim top 0.42 m, floor 10.0 m below the
-apron, ground cut at radius 44.8 m. A runtime water surface of its own belongs 7 m below the rim
-(3 m of water over the floor), which leaves 7 m of air to fly in; the geometry is a drained bowl
-either way and draws no water.
+The apron and grass are cut through at each basin and the runtime supplies its animated surface.
+Side bowls have outer radius 43.2 m and usable radius 41.6 m; the central bowl has outer radius
+23.6 m and usable radius 22 m. All three floors lie 101.5 m below the apron (61 authored units).
+The water surface is at y=8.1 authored map units, just above the apron at y=8.0. The rods at the
+central bottom are submerged, with more than 75 m of water above their tips.
 
-From each basin a permanent, enclosed gallery runs along X on the plant's centre line into the
-containment: 8.75 m clear half-width, 12.75 m clear height over a deck 0.35 m above the apron, walls
-and roof 1.2 m of concrete. It is in 01_site, so it stands through every collapse. The shell's two
-doorways are cut by azimuth at exactly the gallery's outer half-width, and the ruin leaves the same
-sectors out, so the route has no step and no seam before or after the breach.
+Each side basin connects to the central shaft through a permanently flooded gallery: 31 m clear
+width and 12.75 m clear height (18.6 by 7.65 authored units). The deck is 70 m below the apron,
+high enough for a large ship to pass above the core while remaining underwater. At runtime scale 3,
+the full-width Manta visual envelope (16.59 authored units at its largest size) fits with over one
+authored unit of side clearance; its separate wall hitbox also clears the passage. The site geometry
+owns the bowl openings and galleries, so they remain through collapse and reset.
 
 The core - `reactor_fuel_core` and its lit `reactor_fuel_rods` - is emitted by name into 01_site on
-the block's own axis (Blender x = y = 0), so it survives the breach. The intact shell hides it from
-every direction except the two doorways; the ruin is open at the top and shows it off. Its pedestal
-is 9.6 m across and the rods ring at 6.6 m, which leaves a 15 m ring of clear air to fly around it.
-`CoreGlow` is the emissive material; the point light that goes with it is the preset's business.
+the block's own axis (Blender x = y = 0), so it survives the breach. Its pedestal is 9.6 m across,
+the rods stand on a 6.6 m ring, and the central bowl leaves 8.91 authored map units (26.73 runtime
+units at map scale 3) between the rods' outer edge and the inner wall. `CoreGlow` and node names remain the emissive interface;
+proximity damage and the point light are anchored at the rod midpoint.
 
 What comes down
 ---------------
@@ -130,7 +127,7 @@ import json
 import sys
 from contextlib import contextmanager
 from functools import wraps
-from math import asin, atan2, cos, degrees, exp, hypot, pi, radians, sin, sqrt
+from math import asin, atan2, ceil, cos, degrees, exp, hypot, pi, radians, sin, sqrt
 from pathlib import Path
 
 import bpy
@@ -398,26 +395,29 @@ POOL_WALL_THICKNESS = POOL_OUTER_RADIUS - POOL_INNER_RADIUS
 POOL_RIM_WIDTH = 1.6            # the collar between the wall and the cut ground
 POOL_HOLE_RADIUS = POOL_OUTER_RADIUS + POOL_RIM_WIDTH   # 44.8: what the ground is cut at, inside
                                                         # the apron edge at 105 + 44.8 = 149.8
-POOL_DEPTH = 10.0               # apron (z = 0) to floor: the pool's own depth
+POOL_DEPTH = 101.5              # apron (z = 0) to floor: 61 authored map units at METRE=0.6
 POOL_RIM_TOP = 0.42             # a low curb above the apron
+CORE_POOL_INNER_RADIUS = 22.0
+CORE_POOL_OUTER_RADIUS = 23.6
+CORE_POOL_HOLE_RADIUS = CORE_POOL_OUTER_RADIUS + POOL_RIM_WIDTH
 
 # The tunnels: one enclosed gallery from each basin to the containment, along X on the plant's own
 # centre line (y = 0). Permanent - they are part of 01_site, so they stand before and after the
 # block comes down, and the shell and the ruin both carry the matching opening.
-TUNNEL_CLEAR_HALF = 8.75        # clear half-width: 17.5 m of air between the walls
+TUNNEL_CLEAR_HALF = 15.5        # clear half-width: 31 m of air between the walls
 TUNNEL_WALL = 1.2
 TUNNEL_CLEAR_HEIGHT = 12.75     # deck to the roof's underside, so a ship flies through upright
-TUNNEL_DECK = 0.35              # the gallery floor: just under the basin's curb, so the rim collar
-                                # swallows the slab's edges instead of fighting them for the same plane
-TUNNEL_DECK_BOTTOM = -0.05      # bedded into the apron rather than laid on its top face
+TUNNEL_DECK = -70.0             # raised above the core to clear large ships while staying flooded
+TUNNEL_DECK_BOTTOM = TUNNEL_DECK - 0.4
 TUNNEL_ROOF = 1.2
-# The door in the containment wall is cut by azimuth. The angle is set by the gallery's *outer*
-# half-width on the wall's outer face, so the gallery walls overlap the jambs instead of leaving a
-# step; the opening is then wider again at the inner face, so nothing pinches the passage.
+POOL_DOOR_BOTTOM = TUNNEL_DECK_BOTTOM - 0.25
+POOL_DOOR_TOP = TUNNEL_DECK + TUNNEL_CLEAR_HEIGHT + TUNNEL_ROOF + 0.25
+# Angular width of the passage where it opens through the central basin wall. The angle is set by
+# the gallery's *outer* half-width on the wall's outer face, so the gallery walls overlap the
+# opening instead of leaving a seam. The galleries stay below the containment floor.
 TUNNEL_OUTER_HALF = TUNNEL_CLEAR_HALF + TUNNEL_WALL
-DOOR_AZIMUTH = asin(authored(TUNNEL_OUTER_HALF) / CONTAINMENT_RADIUS)   # 21.2 degrees
-DOOR_TOP = TUNNEL_DECK + TUNNEL_CLEAR_HEIGHT
-DOOR_HEIGHT_AUTHORED = authored(DOOR_TOP)
+POOL_PASSAGE_AZIMUTH = asin(TUNNEL_OUTER_HALF / CORE_POOL_OUTER_RADIUS)
+RUIN_OPENING_AZIMUTH = asin(authored(TUNNEL_OUTER_HALF) / CONTAINMENT_RADIUS)
 
 # The reactor core: permanent, in 01_site, on the block's own axis, so it is still there and still
 # glowing after the containment is gone. The intact shell hides it from outside except through the
@@ -905,48 +905,85 @@ def build_pool(canvas, centre):
     is the pool, and the runtime supplies the animated surface it owns. Nothing in that volume
     collides, so a ship can come down and fly around inside the basin.
     """
-    segments = 40
-    # The wall, from the floor up to the curb, with its own thickness: real concrete inside the
-    # pool and a real shaft outside it.
+    # Keep the complete circular rings visually smooth while staying under the
+    # authored site triangle budget; individual door arcs scale proportionally below.
+    segments = 32
+    is_core_basin = abs(centre[0]) < 1e-6
+    inner_radius = CORE_POOL_INNER_RADIUS if is_core_basin else POOL_INNER_RADIUS
+    outer_radius = CORE_POOL_OUTER_RADIUS if is_core_basin else POOL_OUTER_RADIUS
+    hole_radius = CORE_POOL_HOLE_RADIUS if is_core_basin else POOL_HOLE_RADIUS
+    opening_half_angle = asin(TUNNEL_OUTER_HALF / outer_radius)
+    door_centres = (0.0, pi) if is_core_basin else ((0.0,) if centre[0] < 0 else (pi,))
+    opening_ranges = []
+    for index, angle in enumerate(door_centres):
+        low = angle - opening_half_angle
+        high = angle + opening_half_angle
+        if low < 0:
+            opening_ranges.extend(((0.0, high), (2.0 * pi + low, 2.0 * pi)))
+        elif high > 2.0 * pi:
+            opening_ranges.extend(((low, 2.0 * pi), (0.0, high - 2.0 * pi)))
+        else:
+            opening_ranges.append((low, high))
+    walls = []
+    cursor = 0.0
+    for low, high in sorted(opening_ranges):
+        if low > cursor:
+            walls.append((cursor, low))
+        cursor = max(cursor, high)
+    if cursor < 2.0 * pi:
+        walls.append((cursor, 2.0 * pi))
+    # Close the shaft below the gallery deck, open only around the actual flooded doorway, then
+    # restore the full wall above its roof. These are short underwater portals, not apron-high slits.
     revolve(canvas, CONCRETE_DARK,
-            shell_profile([(POOL_OUTER_RADIUS, -POOL_DEPTH), (POOL_OUTER_RADIUS, POOL_RIM_TOP)],
+            shell_profile([(outer_radius, -POOL_DEPTH), (outer_radius, POOL_DOOR_BOTTOM)],
+                          POOL_WALL_THICKNESS),
+            segments=segments, center=centre)
+    for arc in walls:
+        revolve(canvas, CONCRETE_DARK,
+                shell_profile([(outer_radius, POOL_DOOR_BOTTOM), (outer_radius, POOL_DOOR_TOP)],
+                              POOL_WALL_THICKNESS),
+                segments=max(4, ceil(segments * (arc[1] - arc[0]) / (2.0 * pi))),
+                center=centre, angle_range=arc)
+    revolve(canvas, CONCRETE_DARK,
+            shell_profile([(outer_radius, POOL_DOOR_TOP), (outer_radius, POOL_RIM_TOP)],
                           POOL_WALL_THICKNESS),
             segments=segments, center=centre)
     # The floor: one flat disc at the foot of the wall. The rocks between the wall and the cut edge
     # of the ground belong to nobody, so a ship descending meets concrete.
     revolve(canvas, CONCRETE_DARK,
-            [(0.0, -POOL_DEPTH), (POOL_INNER_RADIUS, -POOL_DEPTH), (POOL_OUTER_RADIUS, -POOL_DEPTH)],
+            [(0.0, -POOL_DEPTH), (inner_radius, -POOL_DEPTH), (outer_radius, -POOL_DEPTH)],
             segments=segments, center=centre, closed=False)
     # The rim collar fills the gap between the wall and the cut ground and stands a low curb proud
     # of the apron: the basin reads as a basin and the apron edge is a lip, not a raw cut.
     revolve(canvas, CONCRETE,
-            [(POOL_OUTER_RADIUS, -0.4), (POOL_OUTER_RADIUS, POOL_RIM_TOP),
-             (POOL_HOLE_RADIUS, POOL_RIM_TOP), (POOL_HOLE_RADIUS, -0.4)],
+            [(outer_radius, -0.4), (outer_radius, POOL_RIM_TOP),
+             (hole_radius, POOL_RIM_TOP), (hole_radius, -0.4)],
             segments=segments, center=centre)
     # The fill packs stay where they were, above the water inside the tower's inlet ring, and grow
     # with the tower they belong to.
-    with building_scale(anchor=centre):
-        for index in range(8):
-            angle = 2.0 * pi * index / 8
-            canvas.box(STEEL_DARK, (centre[0] + 22.0 * cos(angle), 22.0 * sin(angle), 6.0),
-                       (11.0, 5.0, 3.0), rotation=(0, 0, angle))
+    if not is_core_basin:
+        with building_scale(anchor=centre):
+            for index in range(8):
+                angle = 2.0 * pi * index / 8
+                canvas.box(STEEL_DARK, (centre[0] + 22.0 * cos(angle), 22.0 * sin(angle), 6.0),
+                           (11.0, 5.0, 3.0), rotation=(0, 0, angle))
 
 
 def build_tunnel(canvas, sign):
-    """One permanent enclosed gallery from a basin to the containment, along X on y = 0.
+    """One permanent enclosed gallery from a cooling basin into the central water shaft.
 
-    It lives in the site file, so it stands through every collapse. Its inner end reaches into the
-    containment's wall opening and its outer end sits inside the pool's inner face, and its walls
-    are wider than the door the shell is cut with - so the route has no step and no seam at either
-    end, before or after the block comes down.
+    It lives in the site file, so it stands through every collapse. Both ends overlap the basin
+    walls that are opened for it. The inner mouth stops outside the fuel-rod ring; a ship can then
+    rise in the central basin, clear the rods, and fly above them across the open shaft.
     """
     outer_half = TUNNEL_OUTER_HALF
-    containment_face = CONTAINMENT_RADIUS * BUILDING_SCALE
     pool_face = TOWER_OFFSET_X - sqrt(POOL_INNER_RADIUS ** 2 - TUNNEL_CLEAR_HALF ** 2) + 0.3
-    # The gallery reaches 2.5 m into the containment wall so its walls overlap the door jambs and
-    # its deck overlaps the containment floor: no step and no slit at the seam.
-    inner_x = sign * (containment_face - 2.5)
-    outer_x = sign * pool_face
+    # The inner end overlaps the enlarged central bowl far enough for the largest collision sphere
+    # to move between the tunnel box and circular shaft without finding a seam blocker.
+    inner_x = sign * 12.0
+    # Extend the open mouth into the bowl by more than a full gameplay hit radius. This leaves no
+    # narrow seam at the circular wall for a fast ship crossing the basin/gallery join.
+    outer_x = sign * (pool_face + 8.0)
     low_x, high_x = sorted((inner_x, outer_x))
     length = high_x - low_x
     middle = (low_x + high_x) / 2.0
@@ -972,17 +1009,18 @@ def build_core():
     shell hides them from outside except through the two tunnels.
     """
     core = SmoothCanvas()
-    core.frustum(CONCRETE_DARK, (0.0, 0.0, CORE_PEDESTAL_HEIGHT / 2.0),
+    base = -POOL_DEPTH
+    core.frustum(CONCRETE_DARK, (0.0, 0.0, base + CORE_PEDESTAL_HEIGHT / 2.0),
                  CORE_PEDESTAL_RADIUS, CORE_PEDESTAL_RADIUS - 0.6, CORE_PEDESTAL_HEIGHT, sides=24)
-    column_base = CORE_PEDESTAL_HEIGHT
+    column_base = base + CORE_PEDESTAL_HEIGHT
     core.frustum(CONCRETE_DARK, (0.0, 0.0, column_base + CORE_COLUMN_HEIGHT / 2.0),
                  CORE_COLUMN_RADIUS, CORE_COLUMN_RADIUS - 0.4, CORE_COLUMN_HEIGHT, sides=16)
     cap_base = column_base + CORE_COLUMN_HEIGHT
     core.frustum(CONCRETE_DARK, (0.0, 0.0, cap_base + CORE_CAP_HEIGHT / 2.0),
                  CORE_CAP_RADIUS, CORE_CAP_RADIUS - 0.8, CORE_CAP_HEIGHT, sides=12)
     revolve(core, CONCRETE_DARK,
-            shell_profile([(CORE_ROD_RING + 1.2, CORE_PEDESTAL_HEIGHT),
-                           (CORE_ROD_RING + 1.2, CORE_PEDESTAL_HEIGHT + 0.6)], 0.6), segments=28)
+            shell_profile([(CORE_ROD_RING + 1.2, base + CORE_PEDESTAL_HEIGHT),
+                           (CORE_ROD_RING + 1.2, base + CORE_PEDESTAL_HEIGHT + 0.6)], 0.6), segments=28)
     emit_named(core, "reactor_fuel_core")
 
     rods = SmoothCanvas()
@@ -990,7 +1028,7 @@ def build_core():
         angle = 2.0 * pi * index / CORE_ROD_COUNT
         rods.frustum(CORE_GLOW,
                      (CORE_ROD_RING * cos(angle), CORE_ROD_RING * sin(angle),
-                      CORE_PEDESTAL_HEIGHT + 0.6 + CORE_ROD_HEIGHT / 2.0),
+                      base + CORE_PEDESTAL_HEIGHT + 0.6 + CORE_ROD_HEIGHT / 2.0),
                      CORE_ROD_RADIUS, CORE_ROD_RADIUS, CORE_ROD_HEIGHT, sides=8)
     emit_named(rods, "reactor_fuel_rods")
 
@@ -999,7 +1037,8 @@ def build_site(canvas):
     """The apron, roads, irregular compounds, switchyard, basins and permanent machinery."""
     # The ground is cut where the two basins are: a whole slab over a drained pool would be a lid,
     # and the collision of the site comes from exactly these triangles.
-    pools = [(-TOWER_OFFSET_X, 0.0, POOL_HOLE_RADIUS), (TOWER_OFFSET_X, 0.0, POOL_HOLE_RADIUS)]
+    pools = [(-TOWER_OFFSET_X, 0.0, POOL_HOLE_RADIUS), (TOWER_OFFSET_X, 0.0, POOL_HOLE_RADIUS),
+             (0.0, 0.0, CORE_POOL_HOLE_RADIUS)]
     ground_slab(canvas, GROUND_GRASS, (-GROUND_HALF, GROUND_HALF, -GROUND_HALF, GROUND_HALF),
                 pools, -1.6, -0.2)
     ground_slab(canvas, GROUND_APRON, (-APRON_HALF, APRON_HALF, -APRON_HALF, APRON_HALF),
@@ -1049,6 +1088,7 @@ def build_site(canvas):
     for sign in (-1, 1):
         centre = (sign * TOWER_OFFSET_X, 0.0, 0.0)
         build_pool(canvas, centre)
+    build_pool(canvas, (0.0, 0.0, 0.0))
     build_tunnel(canvas, -1)
     build_tunnel(canvas, 1)
     # The core is emitted as its own named objects rather than into this canvas, because its names
@@ -1152,35 +1192,22 @@ def build_reactor_block(canvas):
     """The containment under its dome as a hollow shell, and the two auxiliary wings that flank it.
 
     The block used to be a solid of revolution: nothing could fly inside it. It is now a real
-    containment - an outer wall and dome, an inner wall, and a floor - with two rectangular doorways
-    cut into the wall on the plant's X axis. Those doorways are where the permanent tunnels from the
-    two basins arrive: the tunnel walls are wider than the door's outer opening, so they overlap the
-    jambs, and the door is widest at the inner face, so nothing pinches the passage.
+    containment - an outer wall and dome, an inner wall, and a floor. The deep galleries connect
+    the three pools below this floor; the large opening in the floor keeps the central pool open.
 
-    The containment hides the core that stands in the site file (01_site) from every direction
-    except those two doorways, which is exactly what the intact reactor should do.
+    The containment floor frames the submerged core shaft while its intact outer shell remains
+    complete until the existing collapse event.
     """
     outer = [
         (CONTAINMENT_RADIUS, 0.0), (CONTAINMENT_RADIUS, CONTAINMENT_WALL_TOP),
         (CONTAINMENT_RADIUS - 1.0, CONTAINMENT_WALL_TOP + 5.0), (20.5, 53.0), (16.0, 59.0),
         (10.0, 63.5), (4.0, 65.6), (0.0, DOME_TOP),
     ]
-    # The wall below the doorway, in the two arcs the doorway leaves, and the whole shell above it.
-    # The lower band is cut at the gallery's outer half-width on the wall's outer face; the opening
-    # is therefore at least as wide as the gallery everywhere behind it.
-    door = DOOR_AZIMUTH
-    lower = shell_profile([(CONTAINMENT_RADIUS, 0.0), (CONTAINMENT_RADIUS, DOOR_HEIGHT_AUTHORED)],
-                          CONTAINMENT_WALL)
-    upper_profile = [(CONTAINMENT_RADIUS, DOOR_HEIGHT_AUTHORED)]
-    upper_profile += [(radius, height) for radius, height in outer if height > CONTAINMENT_WALL_TOP]
-    upper = shell_profile(upper_profile, CONTAINMENT_WALL)
-    for angle_range in ((door, pi - door), (pi + door, 2.0 * pi - door)):
-        revolve(canvas, CONCRETE, lower, segments=56, angle_range=angle_range)
-    revolve(canvas, CONCRETE, upper, segments=56)
-    # The floor of the containment, just under the galleries' decks, so the route through the seam
-    # at the doorway stays level.
-    revolve(canvas, CONCRETE_DARK, [(0.0, 0.0), (CONTAINMENT_RADIUS, 0.0),
-                                    (CONTAINMENT_RADIUS, authored(0.30)), (0.0, authored(0.30))],
+    revolve(canvas, CONCRETE, shell_profile(outer, CONTAINMENT_WALL), segments=56)
+    # Keep the intact reactor floor clear of the central bowl's full outside rim.
+    floor_opening = authored(CORE_POOL_HOLE_RADIUS + 0.5)
+    revolve(canvas, CONCRETE_DARK, [(floor_opening, 0.0), (CONTAINMENT_RADIUS, 0.0),
+                                    (CONTAINMENT_RADIUS, authored(0.30)), (floor_opening, authored(0.30))],
             segments=56)
     # The ring beam where the dome meets the wall, and the vent penetration on top.
     revolve(canvas, CONCRETE_DARK, shell_profile(
@@ -2024,7 +2051,7 @@ def build_ruin(canvas):
         middle = angle + sector_span / 2.0
         to_door = min(abs((middle + pi) % (2.0 * pi) - pi),
                       abs((middle - pi + pi) % (2.0 * pi) - pi))
-        if to_door < DOOR_AZIMUTH:
+        if to_door < RUIN_OPENING_AZIMUTH:
             continue
         top = 14.0 + 12.0 * et.hash01(index * 1.7, 3.1, 0.4)
         radius = CONTAINMENT_RADIUS - 0.6
@@ -2036,7 +2063,7 @@ def build_ruin(canvas):
                    rotation=(0, 0, angle + pi / 2 + pi / sectors))
     # The floor of the containment, as a ring around the permanent core: level with the intact
     # block's own floor, so the tunnel deck runs straight into it before and after the breach.
-    inner = authored(CORE_CLEARANCE)
+    inner = authored(CORE_POOL_HOLE_RADIUS + 0.5)
     top = authored(0.30)
     revolve(canvas, RUBBLE, [(inner, 0.0), (CONTAINMENT_RADIUS - 0.2, 0.0),
                             (CONTAINMENT_RADIUS - 0.2, top), (inner, top)], segments=40)

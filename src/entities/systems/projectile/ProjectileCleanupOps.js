@@ -1,7 +1,7 @@
 export function clearProjectilesForOwner(system, owner) {
     let removed = 0;
     for (let index = system.projectiles.length - 1; index >= 0; index -= 1) {
-        if (system.projectiles[index]?.owner !== owner) continue;
+        if (system.projectiles[index]?.owner !== owner || system.projectiles[index]?.type === 'BOMBER_BOMB') continue;
         system._removeProjectileAt(index);
         removed += 1;
     }

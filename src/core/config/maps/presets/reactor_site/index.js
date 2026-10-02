@@ -85,15 +85,27 @@ export const REACTOR_SITE_MAPS = {
         ],
         mapProximityDamage: [{
             id: 'reactor_fuel_rods_radiation',
-            position: [0, up(8.1), 0],
+            position: [0, -48.04, 0],
             radius: 12,
             nearDamagePerSecond: 2,
             farDamagePerSecond: 0.5,
             modes: ['HUNT', 'ARCADE'],
         }],
         permanentWaterZones: [
-            { id: 'reactor_basin_west', center: [-63, 0], radius: 24.5, floorLevel: 2, surfaceLevel: 8.1 },
-            { id: 'reactor_basin_east', center: [63, 0], radius: 24.5, floorLevel: 2, surfaceLevel: 8.1 },
+            { id: 'reactor_basin_west', center: [-63, 0], radius: 24.5, floorLevel: -52.9, surfaceLevel: 8.1 },
+            { id: 'reactor_basin_east', center: [63, 0], radius: 24.5, floorLevel: -52.9, surfaceLevel: 8.1 },
+            { id: 'reactor_basin_core', center: [0, 0], radius: 13.0, floorLevel: -52.9, surfaceLevel: 8.1 },
+            { id: 'reactor_gallery_west', bounds: { min: [-45, -34, -9.3], max: [-7.2, -26.35, 9.3] }, surfaceVisible: false },
+            { id: 'reactor_gallery_east', bounds: { min: [7.2, -34, -9.3], max: [45, -26.35, 9.3] }, surfaceVisible: false },
+        ],
+        // Only these deep, narrow shafts and the central reactor basin cross the ordinary arena
+        // floor. The existing bunker sits below them at y=-108..-84 and remains a separate room.
+        playableVolumes: [
+            { shape: 'cylinder', center: [0, 0], radius: 13.0, minY: -52.9, maxY: 8.1 },
+            { shape: 'cylinder', center: [-63, 0], radius: 24.5, minY: -52.9, maxY: 8.1 },
+            { shape: 'cylinder', center: [63, 0], radius: 24.5, minY: -52.9, maxY: 8.1 },
+            { bounds: { min: [-45, -34, -9.3], max: [-7.2, -26.35, 9.3] } },
+            { bounds: { min: [7.2, -34, -9.3], max: [45, -26.35, 9.3] } },
         ],
         glbModels: [
             ...REACTOR_SITE_MODELS,
@@ -108,7 +120,7 @@ export const REACTOR_SITE_MAPS = {
         glbAuthoredObstaclesCollisionOnly: true,
         glbLoadConcurrency: 3,
         destructibles: REACTOR_SITE_DESTRUCTIBLES,
-        lights: [{ id: 'reactor_fire', x: 0, y: up(8.1), z: 0,
+        lights: [{ id: 'reactor_fire', x: 0, y: -48.04, z: 0,
             color: 0xff5a1e, intensity: 5200, distance: 48 }],
         mapDestructibleGlow: {
             segmentId: 'reactor_dome', modelId: 'reactor-site',

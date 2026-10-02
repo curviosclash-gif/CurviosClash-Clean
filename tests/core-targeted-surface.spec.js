@@ -3076,6 +3076,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
     });
 
     test('T20y: Sticky Startleiste bleibt sichtbar und nutzt strukturierte Summary-Bloecke', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 720 });
         await loadGame(page);
         await openGameSubmenu(page);
 
@@ -3133,6 +3134,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
     });
 
     test('T20z2a: Start-Setup fuehrt exklusiv durch Karte, Flugzeug und kompakte Regeln', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 720 });
         await loadGame(page);
         await openGameSubmenu(page);
 

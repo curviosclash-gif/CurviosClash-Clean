@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { expect, test } from './helpers.desktop.js';
+import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 import {
     collectErrors,
     ensureTestModuleImportBridge,
@@ -32,8 +33,8 @@ test.describe('Desktop Smoke', () => {
         const desktopPages = [
             ['/', /curvios/i],
             ['/hangar.html', /hangar/i],
-            ['/editor/map-editor-3d.html', /map editor|editor/i],
-            ['/prototypes/vehicle-lab/index.html', /fahrzeug|vehicle/i],
+            [EDITOR_VIEW_PATHS.MAP_EDITOR, /map editor|editor/i],
+            [EDITOR_VIEW_PATHS.VEHICLE_LAB, /fahrzeug|vehicle/i],
         ];
 
         for (const [route, expectedTitle] of desktopPages) {

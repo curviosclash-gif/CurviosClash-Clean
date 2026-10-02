@@ -32,6 +32,7 @@ on:
       - vite.config.js
       - package.json
       - package-lock.json
+      - scripts/install-electron-runtime.mjs
       - electron/package.json
       - electron/package-lock.json
       - .github/workflows/desktop.yml
@@ -63,6 +64,7 @@ on:
       - vite.config.js
       - package.json
       - package-lock.json
+      - scripts/install-electron-runtime.mjs
       - electron/package.json
       - electron/package-lock.json
       - .github/workflows/desktop.yml
@@ -110,7 +112,7 @@ jobs:
             package-lock.json
             electron/package-lock.json
       - run: npm ci
-      - run: npm --prefix electron ci
+      - run: npm run app:setup
       - name: Download test renderer
         uses: actions/download-artifact@v8
         with:
@@ -146,7 +148,7 @@ jobs:
             package-lock.json
             electron/package-lock.json
       - run: npm ci
-      - run: npm --prefix electron ci
+      - run: npm run app:setup
       - name: Download test renderer
         if: ${{ matrix.cluster != 'network' }}
         uses: actions/download-artifact@v8
@@ -183,7 +185,7 @@ jobs:
             package-lock.json
             electron/package-lock.json
       - run: npm ci
-      - run: npm --prefix electron ci
+      - run: npm run app:setup
       - name: Download test renderer
         uses: actions/download-artifact@v8
         with:

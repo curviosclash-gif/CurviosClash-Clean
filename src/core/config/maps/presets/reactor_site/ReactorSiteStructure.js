@@ -60,8 +60,9 @@ export const STACK_HEIGHT = up(90 * REACTOR_BUILDING_LINEAR_SCALE);
 export const HALL_HEIGHT = up(26 * REACTOR_BUILDING_LINEAR_SCALE);
 
 // Keep the streaming fallback ground, with openings enclosing the two round recessed basins.
-const GROUND_X_CUTS = [-REACTOR_HALF_SIZE, -90, -36, 36, 90, REACTOR_HALF_SIZE];
-const GROUND_Z_CUTS = [-REACTOR_HALF_SIZE, -27, 27, REACTOR_HALF_SIZE];
+const GROUND_X_CUTS = [-REACTOR_HALF_SIZE, -90, -36, -16, 16, 36, 90, REACTOR_HALF_SIZE];
+const GROUND_Z_CUTS = [-REACTOR_HALF_SIZE, -27, -16, 16, 27, REACTOR_HALF_SIZE];
+const CORE_POOL_FALLBACK_HOLE_RADIUS = 16;
 export const REACTOR_SITE_GROUND_TILES = [];
 for (let xi = 0; xi < GROUND_X_CUTS.length - 1; xi += 1) {
     for (let zi = 0; zi < GROUND_Z_CUTS.length - 1; zi += 1) {
@@ -69,7 +70,10 @@ for (let xi = 0; xi < GROUND_X_CUTS.length - 1; xi += 1) {
         const x1 = GROUND_X_CUTS[xi + 1];
         const z0 = GROUND_Z_CUTS[zi];
         const z1 = GROUND_Z_CUTS[zi + 1];
-        if ((x0 === -90 || x0 === 36) && z0 === -27) continue;
+        if ((x0 === -90 || x0 === 36) && z0 >= -27 && z1 <= 27) continue;
+        const nearestX = Math.max(Math.abs((x0 + x1) / 2) - (x1 - x0) / 2, 0);
+        const nearestZ = Math.max(Math.abs((z0 + z1) / 2) - (z1 - z0) / 2, 0);
+        if (Math.hypot(nearestX, nearestZ) < CORE_POOL_FALLBACK_HOLE_RADIUS) continue;
         REACTOR_SITE_GROUND_TILES.push({
             pos: [(x0 + x1) / 2, 4, (z0 + z1) / 2],
             size: [x1 - x0, 8, z1 - z0],

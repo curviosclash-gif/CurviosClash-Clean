@@ -23,12 +23,10 @@ import { applyGuidedOwnerInput, findGuidedRocketForOwner } from './projectile/Gu
 import { endGuidedRocketAutopilot } from '../ai/GuidedRocketAutopilotOps.js';
 import { interceptRocket } from './projectile/RocketInterceptOps.js';
 import { copyExplosionContact } from '../effects/ConventionalExplosionProfiles.js';
-import {
-    applyProjectileCosmeticColor,
-    createProjectileCosmeticGroup,
-    disposeProjectileCosmeticMaterials,
-} from './projectile/ProjectileCosmeticMeshOps.js';
-import { HYDRA_FIREBALL, spawnHydraFireball, getHydraFireballAssets, createHydraFireballGroup } from './projectile/HydraFireballOps.js';
+import { disposeProjectileCosmeticMaterials } from './projectile/ProjectileCosmeticMeshOps.js';
+import { HYDRA_FIREBALL, spawnHydraFireball, getHydraFireballAssets } from './projectile/HydraFireballOps.js';
+import { simulateBomberBomb, spawnBomberBomb } from './projectile/BomberBombOps.js';
+import { acquireProjectileMesh } from './projectile/ProjectileMeshAcquireOps.js';
 
 export { HYDRA_FIREBALL };
 
@@ -258,26 +256,11 @@ export class ProjectileSystem {
     clearInBounds(minX, maxX, minZ, maxZ) { return clearProjectilesInBounds(this, minX, maxX, minZ, maxZ); }
 
     _acquireProjectileMesh(type, color, visualColor = color) {
-        const pool = this._getProjectilePool(type);
-        let rocketGroup = pool.pop();
+        return acquireProjectileMesh(this, type, color, visualColor);
+    }
 
-        if (!rocketGroup) {
-            const assets = this._getProjectileAssets(type, color);
-            rocketGroup = type === HYDRA_FIREBALL
-                ? createHydraFireballGroup(assets) : createProjectileCosmeticGroup(assets);
-        }
-
-        rocketGroup.visible = true;
-        if (type !== HYDRA_FIREBALL) applyProjectileCosmeticColor(rocketGroup, visualColor);
-        if (rocketGroup.userData.flame) {
-            rocketGroup.userData.flame.scale.set(1, 1, 1);
-        }
-
-        if (this.renderer) {
-            this.renderer.addToScene(rocketGroup);
-        }
-
-        return rocketGroup;
+    spawnBomberBomb(owner, position, velocity, { damage = 50, blastRadius = 15 } = {}) {
+        return spawnBomberBomb(this, owner, position, velocity, { damage, blastRadius });
     }
 
     _getProjectilePool(type) {
@@ -400,6 +383,9 @@ export class ProjectileSystem {
             projectile.guidedActive = type === 'ROCKET_GUIDED' && entry.guided === true;
             projectile.ttl = Math.max(0, Number(entry.ttl) || 0);
             projectile.radius = Math.max(0, Number(entry.radius) || 0);
+            projectile.blastDamage = Math.max(0, Number(entry.blastDamage) || 0);
+            projectile.blastRadius = Math.max(0, Number(entry.blastRadius) || 0);
+            projectile.gravity = Number(entry.gravity) || 0;
             projectile.environmentProjectile = entry.environmentProjectile === true;
             projectile.targetPlayerIndex = Number.isInteger(entry.targetPlayerIndex) ? entry.targetPlayerIndex : -1;
             projectile.zoneProjectile = entry.zoneProjectile === true;
@@ -425,6 +411,9 @@ export class ProjectileSystem {
             for (const projectile of this.projectiles) {
                 projectile.previousPosition.copy(projectile.position);
                 const movementDt = resolveWaterAdjustedDelta(this.getWaterZoneSystem(), projectile.position, dt);
+                if (projectile.type === 'BOMBER_BOMB') {
+                    projectile.velocity.y += projectile.gravity * movementDt;
+                }
                 projectile.position.addScaledVector(projectile.velocity, movementDt);
                 projectile.mesh?.position.copy(projectile.position);
                 if (projectile.mesh && projectile.velocity.lengthSq() > 0.000001) {
@@ -457,11 +446,19 @@ export class ProjectileSystem {
             this._deferProjectileRemovals = true;
             let simulationResult = null;
             try {
-                simulationResult = this._simulationOps.stepProjectile(projectile, i, dt, arena, players, trailSpatialIndex, time);
-                copyExplosionContact(projectile.explosionContact, simulationResult?.arenaCollision,
-                    simulationResult?.projectileHitArena === true && simulationResult?.bouncedOnFoam !== true);
-                shouldRemove = this._hitResolver.resolveProjectileOutcome(
-                    projectile, players, trailSpatialIndex, simulationResult);
+                if (projectile.type === 'BOMBER_BOMB') {
+                    shouldRemove = simulateBomberBomb(
+                        this, projectile, i, dt, arena, players, trailSpatialIndex, time,
+                    );
+                } else {
+                    simulationResult = this._simulationOps.stepProjectile(
+                        projectile, i, dt, arena, players, trailSpatialIndex, time,
+                    );
+                    copyExplosionContact(projectile.explosionContact, simulationResult?.arenaCollision,
+                        simulationResult?.projectileHitArena === true && simulationResult?.bouncedOnFoam !== true);
+                    shouldRemove = this._hitResolver.resolveProjectileOutcome(
+                        projectile, players, trailSpatialIndex, simulationResult);
+                }
             } finally {
                 this._deferProjectileRemovals = false;
             }
@@ -543,7 +540,11 @@ export class ProjectileSystem {
         this.clear();
 
         for (const pool of this._projectilePools.values()) {
-            for (const mesh of pool) disposeProjectileCosmeticMaterials(mesh);
+            for (const mesh of pool) {
+                disposeProjectileCosmeticMaterials(mesh);
+                for (const material of mesh.userData?.bomberBombMaterials || []) material.dispose();
+                if (mesh.userData?.bomberBombMaterials) mesh.traverse((child) => child.geometry?.dispose?.());
+            }
         }
 
         for (const assets of this._projectileAssets.values()) {

@@ -47,6 +47,7 @@ function scaledPermanentWaterZone(zone, scale) {
     if (!zone) return null;
     return Object.freeze({
         ...zone,
+        ...(zone.bounds ? { bounds: scaleBounds(zone.bounds, scale) } : {}),
         center: Object.freeze(zone.center.map((value) => value * scale)),
         radius: zone.radius * scale,
         floorLevel: zone.floorLevel * scale,

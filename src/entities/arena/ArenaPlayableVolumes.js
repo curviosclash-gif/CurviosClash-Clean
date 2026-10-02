@@ -28,7 +28,10 @@ export const PLAYABLE_VOLUME_WALL = 1;
 /** The whole sphere fits inside one room. */
 export const PLAYABLE_VOLUME_INSIDE = 2;
 
-/** @typedef {{ minX: number, maxX: number, minY: number, maxY: number, minZ: number, maxZ: number }} ArenaPlayableVolume */
+/** @typedef {{ minX: number, maxX: number, minY: number, maxY: number, minZ: number, maxZ: number }
+ * | { shape: 'cylinder', centerX: number, centerZ: number, radius: number, minY: number, maxY: number }} ArenaPlayableVolume */
+/** @typedef {{ min: readonly number[], max: readonly number[] }
+ * | { shape: 'cylinder', center: readonly number[], radius: number, minY: number, maxY: number }} AuthoredPlayableVolume */
 
 /** @type {readonly ArenaPlayableVolume[]} */
 const NO_VOLUMES = Object.freeze([]);
@@ -46,16 +49,41 @@ const NO_VOLUMES = Object.freeze([]);
  */
 export function resolveArenaPlayableVolumes(mapDefinition, scale = 1) {
     const rooms = normalizeSecretRooms(mapDefinition?.secretRooms);
-    if (rooms.length === 0) return NO_VOLUMES;
+    const authored = Array.isArray(mapDefinition?.playableVolumes) ? mapDefinition.playableVolumes : [];
+    if (rooms.length === 0 && authored.length === 0) return NO_VOLUMES;
     const factor = Number.isFinite(scale) && scale > 0 ? scale : 1;
-    return Object.freeze(rooms.map((room) => Object.freeze({
-        minX: room.bounds.min[0] * factor,
-        minY: room.bounds.min[1] * factor,
-        minZ: room.bounds.min[2] * factor,
-        maxX: room.bounds.max[0] * factor,
-        maxY: room.bounds.max[1] * factor,
-        maxZ: room.bounds.max[2] * factor,
-    })));
+    /** @type {AuthoredPlayableVolume[]} */
+    const volumes = rooms.map((room) => room.bounds);
+    for (const entry of authored.slice(0, 8)) {
+        if (entry?.shape === 'cylinder' && Array.isArray(entry.center)) {
+            const center = entry.center.slice(0, 2).map(Number);
+            const radius = Number(entry.radius);
+            const minY = Number(entry.minY);
+            const maxY = Number(entry.maxY);
+            if (center.length === 2 && center.every(Number.isFinite) && Number.isFinite(radius)
+                && radius > 0 && Number.isFinite(minY) && Number.isFinite(maxY) && maxY > minY) {
+                volumes.push({ shape: 'cylinder', center, radius, minY, maxY });
+            }
+            continue;
+        }
+        const min = entry?.bounds?.min;
+        const max = entry?.bounds?.max;
+        if (!Array.isArray(min) || !Array.isArray(max) || min.length < 3 || max.length < 3) continue;
+        const values = [...min.slice(0, 3), ...max.slice(0, 3)].map(Number);
+        if (!values.every(Number.isFinite)) continue;
+        if (values[3] - values[0] < 0.1 || values[4] - values[1] < 0.1 || values[5] - values[2] < 0.1) continue;
+        volumes.push({ min, max });
+    }
+    if (volumes.length === 0) return NO_VOLUMES;
+    return Object.freeze(volumes.map((bounds) => 'shape' in bounds
+        ? Object.freeze({
+            shape: 'cylinder', centerX: bounds.center[0] * factor, centerZ: bounds.center[1] * factor,
+            radius: bounds.radius * factor, minY: bounds.minY * factor, maxY: bounds.maxY * factor,
+        })
+        : Object.freeze({
+            minX: bounds.min[0] * factor, minY: bounds.min[1] * factor, minZ: bounds.min[2] * factor,
+            maxX: bounds.max[0] * factor, maxY: bounds.max[1] * factor, maxZ: bounds.max[2] * factor,
+        })));
 }
 
 /**
@@ -77,6 +105,29 @@ export function probeArenaPlayableVolumes(volumes, position, radius = 0, outNorm
     let answer = PLAYABLE_VOLUME_OUTSIDE;
     for (let index = 0; index < volumes.length; index += 1) {
         const volume = volumes[index];
+        if ('shape' in volume) {
+            const dx = position.x - volume.centerX;
+            const dz = position.z - volume.centerZ;
+            const radialDistance = Math.hypot(dx, dz);
+            let nearest = position.y - volume.minY;
+            let nx = 0; let ny = 1; let nz = 0;
+            const dMaxY = volume.maxY - position.y;
+            if (dMaxY < nearest) { nearest = dMaxY; ny = -1; }
+            const dRadial = volume.radius - radialDistance;
+            if (dRadial < nearest) {
+                nearest = dRadial;
+                nx = radialDistance > 1e-6 ? -dx / radialDistance : 1;
+                ny = 0;
+                nz = radialDistance > 1e-6 ? -dz / radialDistance : 0;
+            }
+            if (nearest >= probeRadius) return PLAYABLE_VOLUME_INSIDE;
+            if (nearest <= -probeRadius) continue;
+            if (answer === PLAYABLE_VOLUME_OUTSIDE) {
+                answer = PLAYABLE_VOLUME_WALL;
+                outNormal?.set(nx, ny, nz);
+            }
+            continue;
+        }
         // Signed distances to the six walls: positive inside, negative once the wall is behind the
         // point. The collision phase probes ahead of a ship, so the point regularly sits behind the
         // wall rather than on it - reading only points inside the box would leave those probes with

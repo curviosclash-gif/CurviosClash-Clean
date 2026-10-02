@@ -415,8 +415,7 @@ export function applyPlayerPowerup(player, type, options = {}) {
     }
 
     if (type === 'BOMBER_STRIKE') {
-        player.entityManager?._mapUnitSystem?.callBomberStrike?.(player);
-        return;
+        return player.entityManager?._mapUnitSystem?.callBomberStrike?.(player) === true;
     }
 
     if (type === 'EMP') {

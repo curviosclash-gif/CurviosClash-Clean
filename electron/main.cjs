@@ -9,8 +9,8 @@ const {
     existsSync,
     mkdirSync,
     readFileSync,
-    writeFileSync,
 } = require('node:fs');
+const { writeFile } = require('node:fs/promises');
 const dgram = require('node:dgram');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
@@ -954,6 +954,14 @@ function disposeTuningBridgeIpc() {
 
 async function startDesktopShell() {
     registerTuningBridgeIpc();
+    try {
+        const localMaps = await refreshAndCacheLocalMaps();
+        if (!localMaps.ok) {
+            console.warn('[local-maps] Initial catalog read failed:', localMaps.error);
+        }
+    } catch (error) {
+        console.warn('[local-maps] Initial catalog read failed:', String(error?.message || error));
+    }
     await desktopWindowShellCapability.start();
     createTray();
     registerTuningShortcut();
@@ -1082,8 +1090,33 @@ const editorMapStore = createEditorMapStore({
     },
 });
 
+let cachedLocalMapsSnapshot = { ok: true, maps: {} };
+let localMapsReadQueue = Promise.resolve();
+
+function refreshAndCacheLocalMaps() {
+    const read = localMapsReadQueue.then(async () => {
+        const snapshot = await editorMapStore.readRuntimeMaps();
+        if (snapshot?.ok === true && snapshot.maps && typeof snapshot.maps === 'object') {
+            cachedLocalMapsSnapshot = snapshot;
+        }
+        return snapshot;
+    });
+    localMapsReadQueue = read.then(() => undefined, () => undefined);
+    return read;
+}
+
 const EDITOR_DISK_HANDLERS = Object.freeze({
-    'save-map': (payload) => editorMapStore.saveMap(payload),
+    'save-map': async (payload) => {
+        const result = await editorMapStore.saveMap(payload);
+        if (result?.ok === true) {
+            try {
+                await refreshAndCacheLocalMaps();
+            } catch {
+                // A successful disk save stays successful if catalog refresh fails.
+            }
+        }
+        return result;
+    },
     'list-maps': () => editorMapStore.listMaps(),
     'open-maps-folder': () => editorMapStore.openMapsFolder(),
     'save-vehicle': (payload) => editorVehicleStore.saveVehicle(payload),
@@ -1095,24 +1128,20 @@ const EDITOR_DISK_HANDLERS = Object.freeze({
 
 ipcMain.handle('local-maps:read', withTrustedMainWindowSender(async () => {
     try {
-        return editorMapStore.readRuntimeMaps();
+        return await refreshAndCacheLocalMaps();
     } catch (error) {
         return { ok: false, error: String(error?.message || error), maps: {} };
     }
 }));
 
-// Kompatibler Fallback, wenn der Renderer seine Kartenmodule geladen hat,
-// bevor das asynchrone Preload-Ergebnis eingetroffen ist.
+// Synchroner Startzugriff liest ausschliesslich den vor dem Fensterstart
+// aufgebauten Speicher-Cache; Dateisystemzugriffe bleiben asynchron.
 ipcMain.on('local-maps:read-sync', (event) => {
     if (!isTrustedMainWindowSender(event)) {
         event.returnValue = null;
         return;
     }
-    try {
-        event.returnValue = editorMapStore.readRuntimeMaps();
-    } catch (error) {
-        event.returnValue = { ok: false, error: String(error?.message || error), maps: {} };
-    }
+    event.returnValue = cachedLocalMapsSnapshot;
 });
 
 // Ein Kanal fuer alle Dateizugriffe der Autorenwerkzeuge. Die Aktion wird
@@ -1188,7 +1217,7 @@ ipcMain.handle('save-replay', withTrustedMainWindowSender(async (jsonString, def
         });
 
         if (!result.canceled && result.filePath) {
-            writeFileSync(result.filePath, jsonString, 'utf-8');
+            await writeFile(result.filePath, jsonString, 'utf-8');
             return true;
         }
     } catch {

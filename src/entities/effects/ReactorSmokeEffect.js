@@ -117,7 +117,29 @@ export async function attachReactorSmoke(root, action, { loadTexture = (url) => 
     attachReactorFlashShell(root, action);
     // Each cloud variant throws its own chunks; all clients throw a given variant alike.
     attachReactorDebris(root, action, Number(root.getObjectByName('roll')?.userData?.vortexProfile) || 1);
-    const [lightA, lightB] = await Promise.all([loadTexture(LIGHT_A_URL), loadTexture(LIGHT_B_URL)]);
+    let firstTextureError;
+    let hasTextureError = false;
+    const textureLoads = [LIGHT_A_URL, LIGHT_B_URL].map((url) => Promise.resolve()
+        .then(() => loadTexture(url))
+        .catch((error) => {
+            if (!hasTextureError) {
+                firstTextureError = error;
+                hasTextureError = true;
+            }
+            throw error;
+        }));
+    const textureResults = await Promise.allSettled(textureLoads);
+    const fulfilledTextures = textureResults.flatMap((result) => (
+        result.status === 'fulfilled' ? [result.value] : []
+    ));
+    if (hasTextureError) {
+        const loadedTextures = new Set(fulfilledTextures.filter((texture) => !!texture));
+        for (const texture of loadedTextures) {
+            try { texture.dispose?.(); } catch { /* Preserve the original load error. */ }
+        }
+        throw firstTextureError;
+    }
+    const [lightA, lightB] = fulfilledTextures;
     for (const texture of new Set([lightA, lightB])) texture.colorSpace = THREE.SRGBColorSpace;
     return createReactorSmoke(root, action, lightA, lightB, { volume });
 }

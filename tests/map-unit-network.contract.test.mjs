@@ -32,6 +32,7 @@ function createSide({ authority = true, escort = false } = {}) {
         humanPlayers: [human],
         _emitHuntDamageEvent() {},
         _killPlayer() {},
+        _projectileSystem: { spawnBomberBomb: () => ({}) },
     };
     manager._staticTurretSystem = new StaticTurretSystem(manager);
     manager._mapUnitSystem = new MapUnitSystem(manager);
@@ -121,7 +122,7 @@ test('a client never hurts anyone, but shows the host shots and the explosion', 
 test('a snapshot retires only missing called bombers and preserves normal map units', () => {
     const host = createSide();
     const client = createSide({ authority: false });
-    host.manager.arena.bounds = { minX: 0, maxX: 30, minY: 0, maxY: 60, minZ: -45, maxZ: 45 };
+    host.manager.arena.bounds = { minX: 0, maxX: 60, minY: 0, maxY: 60, minZ: -45, maxZ: 45 };
     assert.equal(host.system.callBomberStrike(host.human), true);
     host.human.alive = false;
 
@@ -135,7 +136,7 @@ test('a snapshot retires only missing called bombers and preserves normal map un
     client.tank.root = normalUnitRoot;
     client.manager.renderer = { removeFromScene: (root) => removedRoots.push(root) };
 
-    host.system.update(1.1);
+    host.system.update(2);
     const afterFlight = createHuntNetworkState(host.manager);
     assert.equal(host.system.units.some((unit) => unit.summoned), false);
     assert.deepEqual(afterFlight.mapUnits.map((entry) => entry.id), ['tank_a']);

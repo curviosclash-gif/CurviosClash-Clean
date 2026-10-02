@@ -98,12 +98,26 @@ test.describe('Reactor site', () => {
                 game.renderer.render();
                 return game.renderer.renderer.domElement.toDataURL('image/png');
             };
-            const probe = (position) => {
-                const hit = arena.getCollisionInfo(position, player.hitboxRadius);
+            const probe = (position, radius = player.hitboxRadius) => {
+                const hit = arena.getCollisionInfo(position, radius);
                 return { position: position.toArray(), hit: hit?.hit === true, source: hit?.sourceName || '' };
             };
-            const tunnelProbes = () => [-1, 1].flatMap((sign) => [6, 10, 14, 18, 22, 26, 30, 34, 38]
-                .map((x) => probe(point(sign * x, 12))));
+            const tunnelProbes = () => [-1, 1].flatMap((sign) => {
+                const route = [[sign * 63, -30.175, 0], [-sign * 63, -30.175, 0]];
+                const probes = [];
+                for (let segment = 0; segment < route.length - 1; segment += 1) {
+                    const from = route[segment];
+                    const to = route[segment + 1];
+                    const length = Math.hypot(...to.map((value, axis) => value - from[axis]));
+                    const steps = Math.ceil(length / 2);
+                    for (let index = 0; index <= steps; index += 1) {
+                        probes.push(probe(point(...from.map((value, axis) => (
+                            value + ((to[axis] - value) * index) / steps
+                        ))), Math.max(player.hitboxRadius, 4.64)));
+                    }
+                }
+                return probes;
+            });
             const coreMaterials = () => {
                 const entries = [];
                 arena._glbScene.getObjectByName('glb-slot-reactor-site').traverse((node) => {
@@ -129,12 +143,14 @@ test.describe('Reactor site', () => {
                 return entries;
             };
             const intactGlow = coreMaterials();
+            const rodsUnderwater = em._waterZoneSystem.isPositionUnderwater(point(0, -48.04));
             const concreteBefore = siteConcrete();
             const prizesBefore = ownedItems();
             const routesBefore = tunnelProbes();
-            const waterPicture = capture(point(-63, 14, -16), point(-63, 6));
-            const tunnelPicture = capture(point(28, 12), point(0, 12.86));
-            const pools = [-63, 63].map((x) => {
+            const waterPicture = capture(point(0, 18, -26), point(0, -25, 0));
+            const sideBasinPicture = capture(point(-63, 24, -18), point(-63, 8, 0));
+            const tunnelPicture = capture(point(28, -30.175), point(0, -30.175));
+            const pools = [-63, 0, 63].map((x) => {
                 const submerged = point(x, 5);
                 return { submerged: em._waterZoneSystem.isPositionUnderwater(submerged),
                     dryAbove: !em._waterZoneSystem.isPositionUnderwater(point(x, 10)),
@@ -156,7 +172,7 @@ test.describe('Reactor site', () => {
                 player.hasShield = false;
                 player.shieldHP = 0;
                 player.spawnProtectionTimer = 0;
-                player.position.copy(point(x, 12.86));
+                player.position.copy(point(x, -48.04));
                 const before = player.hp;
                 em._mapHazardSystem.updatePlayer(player, player.position, 10, 1);
                 return before - player.hp;
@@ -181,21 +197,27 @@ test.describe('Reactor site', () => {
             const concreteAfter = siteConcrete();
             const routesAfter = tunnelProbes();
             arena.update(50);
-            const corePicture = capture(point(0, 14, -8), point(0, 13));
+            const corePicture = capture(point(0, -30.175, -10), point(0, -48.04));
+            const coreOpeningPicture = capture(point(0, -20, -8), point(0, -48.04));
             em.powerupManager.clear();
             em.spawnAll();
             const reset = { prizes: ownedItems(), glow: coreMaterials(),
                 water: em._waterZoneSystem.isPositionUnderwater(point(63, 5)) };
             return { pools, submergedPlayer, dryPlayer, radiation, exit, prizesBefore, prizesAfter,
                 routesBefore, routesAfter, intactGlow, collapsedGlow, concreteBefore, concreteAfter,
-                reset, corePicture, waterPicture, tunnelPicture };
+                reset, rodsUnderwater, corePicture, waterPicture, sideBasinPicture, coreOpeningPicture, tunnelPicture };
         }, MAP_SCALE);
 
         const screenshot = testInfo.outputPath('reactor-core-after-collapse.png');
         await writeFile(screenshot, Buffer.from(evidence.corePicture.split(',')[1], 'base64'));
         await testInfo.attach('reactor-core-after-collapse', { path: screenshot, contentType: 'image/png' });
         delete evidence.corePicture;
-        for (const [name, key] of [['reactor-water-basin', 'waterPicture'], ['reactor-tunnel-core', 'tunnelPicture']]) {
+        for (const [name, key] of [
+            ['reactor-water-basin', 'waterPicture'],
+            ['reactor-side-basin-surface', 'sideBasinPicture'],
+            ['reactor-core-basin-opening', 'coreOpeningPicture'],
+            ['reactor-tunnel-core', 'tunnelPicture'],
+        ]) {
             const picturePath = testInfo.outputPath(`${name}.png`);
             await writeFile(picturePath, Buffer.from(evidence[key].split(',')[1], 'base64'));
             await testInfo.attach(name, { path: picturePath, contentType: 'image/png' });
@@ -212,6 +234,7 @@ test.describe('Reactor site', () => {
         expect(evidence.submergedPlayer.submerged && evidence.submergedPlayer.alive).toBe(true);
         expect(evidence.submergedPlayer.speed).toBeLessThan(1);
         expect(evidence.submergedPlayer.visibility).toBeLessThan(1);
+        expect(evidence.rodsUnderwater).toBe(true);
         expect(evidence.dryPlayer).toEqual({ submerged: false, speed: 1 });
         expect(evidence.radiation.near).toBeGreaterThan(evidence.radiation.far);
         expect(evidence.radiation.near).toBeLessThan(3);

@@ -98,10 +98,9 @@ test('installer locks all dependency trees and legacy launchers only forward', (
     const server = read('server.ps1');
 
     assert.match(install, /call npm ci/);
-    assert.match(install, /call npm --prefix electron ci/);
+    assert.match(install, /call npm run app:setup/);
     assert.match(install, /call npm --prefix server ci/);
-    assert.match(install, /electron\\node_modules\\electron\\install\.js/);
-    assert.match(install, /electron\\node_modules\\ffmpeg-static\\install\.js/);
+    assert.doesNotMatch(install, /electron\\node_modules\\(?:electron\\install|ffmpeg-static\\install)\.js/);
     assert.doesNotMatch(install, /call npm(?: --prefix \S+)? install/);
     assert.match(server, /\$exitCode = 1/);
     assert.match(server, /exit \$exitCode/);

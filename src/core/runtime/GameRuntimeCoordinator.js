@@ -89,9 +89,10 @@ export class GameRuntimeCoordinator {
         return this.getRuntimeFacade()?.applySettingsToRuntime?.(options);
     }
 
-    refreshLocalMapCatalog() {
-        return refreshDesktopLocalMaps({
+    async refreshLocalMapCatalog() {
+        return await refreshDesktopLocalMaps({
             gameState: this.runtime?.state,
+            getGameState: () => this.runtime?.state,
             applySettings: () => this.applySettingsToRuntime({ schedulePrewarm: false }),
         });
     }

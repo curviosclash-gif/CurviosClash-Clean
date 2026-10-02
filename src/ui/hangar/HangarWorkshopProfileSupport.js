@@ -4,7 +4,6 @@ import {
     getArcadeVehicleProfileRecord,
     loadArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
-import { saveVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { createDefaultHangarBuild, normalizeHangarBuild } from './HangarBuildDraftState.js';
 
 const HITBOX_TO_CONTRACT = Object.freeze({ kompakt: 'compact', standard: 'standard', schwer: 'heavy' });
@@ -14,7 +13,9 @@ export function createFallbackProfilePort(store) {
         load() {
             return loadArcadeVehicleProfileRecord(store).profiles;
         },
-        save(profiles) { return saveVehicleProfiles(store, profiles); },
+        // This UI-only fallback has no profile persistence capability. Product entrypoints inject
+        // ArcadeVehicleProfileWorkshopPort; never write a runtime projection over raw profile data.
+        save() { return false; },
         getOrCreate: (profiles, vehicleId) => getArcadeVehicleProfileRecord(profiles, vehicleId),
         getSpendableUpgradeXp: (profile) => Math.max(0, Number(profile?.xpBank ?? profile?.xp) || 0),
         xpForLevel,

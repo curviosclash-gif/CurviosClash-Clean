@@ -214,7 +214,10 @@ test('all ten profiles appear at their real game event entry points', async ({ p
         const bomber = units.units.find((unit) => unit.summoned);
         bomber.bombCooldownRemaining = 0;
         bomber.groundPosition.x = 0; bomber.position.x = 0;
-        units.update(.01); capture('bomber-bomb', 'ground-tnt');
+        units.update(.01);
+        const droppedBomb = system.projectiles.find((projectile) => projectile.type === 'BOMBER_BOMB');
+        for (let frame = 0; droppedBomb && system.projectiles.includes(droppedBomb) && frame < 300; frame += 1) system.update(1 / 60);
+        capture('bomber-bomb', 'ground-tnt');
         particles.clear();
         bomber.takeDamage(10000, { sourcePlayer: human });
         bomber.position.y = floorY+.1; bomber.groundPosition.copy(bomber.position);
@@ -232,5 +235,99 @@ test('all ten profiles appear at their real game event entry points', async ({ p
     for (const shot of proof.shots) await writeFile(path.join(OUT, shot.name), Buffer.from(shot.data, 'base64'));
     await writeFile(path.join(OUT, 'game-event-proof.json'), JSON.stringify(proof.events, null, 2));
     expect(new Set(proof.events.map((event) => event.profile)).size).toBe(10);
+    expect(errors).toEqual([]);
+});
+
+test('Bomber Strike shows five independent aircraft and real falling bombs through contact', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const OUT = testInfo.outputPath();
+    const errors = collectErrors(page);
+    await startHuntGameWithBots(page, 1, { mapKey: 'standard' });
+    await page.waitForFunction(() => window.GAME_INSTANCE?.entityManager?.particles?.conventionalExplosionEffect?.ready);
+    const proof = await page.evaluate(async () => {
+        const game = window.GAME_INSTANCE;
+        const manager = game.entityManager;
+        const units = manager.runtime.systems.mapUnitSystem;
+        const projectiles = manager.runtime.systems.projectileSystem;
+        const human = manager.humanPlayers[0];
+        const enemy = manager.players.find((player) => player.isBot && player.alive);
+        const bounds = manager.arena.bounds;
+        const minY = Number(bounds.minY ?? bounds.min?.y);
+        const maxY = Number(bounds.maxY ?? bounds.max?.y);
+        const expectedY = minY + (maxY - minY) * 0.75;
+        projectiles.clear();
+        manager.particles.clear();
+        if (!enemy || !units.callBomberStrike(human)) throw new Error('Bomber formation activation failed');
+        const formation = units.units.filter((unit) => unit.summoned);
+        if (formation.length !== 5) throw new Error(`Expected five aircraft, found ${formation.length}`);
+        await units._bomberAssets?.jetPromise;
+        for (const plane of formation) {
+            if (!plane.root?.visible || !plane.root.userData.bomberVisual?.jet || plane.maxHp !== 120
+                || Math.abs(plane.position.y - expectedY) > 0.01) {
+                throw new Error(`Formation plane failed visual/height contract: ${plane.id} at ${plane.position.y}`);
+            }
+        }
+        formation[0].takeDamage(1, { sourcePlayer: human, cause: 'BOMBER_CONTRACT' });
+        if (formation[0].hp !== 119 || formation.slice(1).some((plane) => plane.hp !== 120)) {
+            throw new Error('A bomber hit changed another bomber or failed to damage its target');
+        }
+        const enemyHp = enemy.hp;
+        units.update(0.75);
+        if (formation.some((plane) => plane.bombsFired !== 1)) throw new Error('All five bombers must release together at 0.75s');
+        if (projectiles.projectiles.length !== 5 || projectiles.projectiles.some((bomb) => !bomb.mesh?.visible)) {
+            throw new Error('Five visible bomb projectiles were not created');
+        }
+        projectiles.update(0.25);
+        if (enemy.hp !== enemyHp) throw new Error('A falling bomb damaged a player before contact');
+
+        const gl = game.renderer.renderer;
+        const canvas = gl.domElement;
+        const camera = game.renderer.cameras[0].clone();
+        const shots = [];
+        const capture = (name, at) => {
+            camera.position.copy(at).add(new at.constructor(8, 6, 12));
+            camera.lookAt(at); camera.updateMatrixWorld();
+            gl.setScissorTest(false); gl.setViewport(0, 0, canvas.width, canvas.height);
+            gl.render(game.renderer.scene, camera);
+            shots.push({ name, data: canvas.toDataURL('image/png').split(',')[1] });
+        };
+        const formationFocus = formation[0].position.clone();
+        for (const plane of formation.slice(1)) formationFocus.add(plane.position);
+        formationFocus.divideScalar(formation.length);
+        const minX = Number(bounds.minX ?? bounds.min?.x);
+        const maxX = Number(bounds.maxX ?? bounds.max?.x);
+        const minZ = Number(bounds.minZ ?? bounds.min?.z);
+        const maxZ = Number(bounds.maxZ ?? bounds.max?.z);
+        camera.position.set(
+            Math.max(minX + 1, Math.min(maxX - 1, formationFocus.x + 55)),
+            Math.min(maxY - 2, formationFocus.y + 10),
+            Math.max(minZ + 1, Math.min(maxZ - 1, formationFocus.z + 55)),
+        );
+        camera.lookAt(formationFocus); camera.updateMatrixWorld();
+        gl.setScissorTest(false); gl.setViewport(0, 0, canvas.width, canvas.height);
+        gl.render(game.renderer.scene, camera);
+        shots.push({ name: 'bomber-formation.png', data: canvas.toDataURL('image/png').split(',')[1] });
+        const bomb = projectiles.projectiles[0];
+        const midairPosition = bomb.position.clone();
+        capture('bomber-bomb-falling.png', midairPosition);
+
+        enemy.spawnProtectionTimer = 0;
+        enemy.position.copy(midairPosition);
+        projectiles.update(1 / 60);
+        if (enemy.hp >= enemyHp) throw new Error('The bomb did not damage an enemy on actual projectile contact');
+        const explosion = manager.particles.conventionalExplosionEffect.events
+            .find((event) => event.profile?.id === 'ground-tnt');
+        if (!explosion) throw new Error('Bomber bomb contact did not create the shared impact effect');
+        manager.particles.conventionalExplosionEffect.update(0.2);
+        capture('bomber-bomb-contact.png', explosion.position);
+        return { shots, formation: formation.map((plane) => ({ id: plane.id, hp: plane.hp, y: plane.position.y })),
+            bombCount: 5, targetHpBefore: enemyHp, targetHpAfter: enemy.hp, explosion: explosion.profile.id };
+    });
+    await mkdir(OUT, { recursive: true });
+    for (const shot of proof.shots) await writeFile(path.join(OUT, shot.name), Buffer.from(shot.data, 'base64'));
+    await writeFile(path.join(OUT, 'bomber-formation-proof.json'), JSON.stringify(proof, null, 2));
+    expect(proof.formation).toHaveLength(5);
+    expect(proof.targetHpAfter).toBeLessThan(proof.targetHpBefore);
+    expect(proof.explosion).toBe('ground-tnt');
     expect(errors).toEqual([]);
 });

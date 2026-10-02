@@ -125,6 +125,19 @@ test('permanent basin water uses circular underwater boundaries and finite basin
     assert.equal(isPointInPermanentWaterZone(west, [-63, 6.01, 0]), false);
 });
 
+test('permanent flooded passages use bounded underwater volumes without drawing a surface', () => {
+    const [passage] = normalizePermanentWaterZones([{
+        id: 'reactor_passage_west',
+        bounds: { min: [-48, -52.9, -5.25], max: [-14, 8.1, 5.25] },
+        surfaceVisible: false,
+    }]);
+    assert.deepEqual(passage.bounds.min, [-48, -52.9, -5.25]);
+    assert.equal(isPointInPermanentWaterZone(passage, [-30, -20, 0]), true);
+    assert.equal(isPointInPermanentWaterZone(passage, [-30, 8.11, 0]), false);
+    assert.equal(isPointInPermanentWaterZone(passage, [-30, -20, 5.26]), false);
+    assert.equal(passage.surfaceVisible, false);
+});
+
 test('WaterZoneSystem renders permanent circles and keeps the legacy dam zone path independent', () => {
     const added = [];
     const removed = [];
@@ -134,6 +147,7 @@ test('WaterZoneSystem renders permanent circles and keeps the legacy dam zone pa
             permanentWaterZones: [
                 { id: 'west_basin', center: [-63, 0], radius: 28, floorLevel: 2, surfaceLevel: 6 },
                 { id: 'east_basin', center: [63, 0], radius: 28, floorLevel: 2, surfaceLevel: 6 },
+                { id: 'buried_gallery', bounds: { min: [-48, -52.9, -5.25], max: [-14, -45.25, 5.25] }, surfaceVisible: false },
             ],
         } },
         renderer: {
@@ -146,7 +160,7 @@ test('WaterZoneSystem renders permanent circles and keeps the legacy dam zone pa
     assert.equal(system.getZone(), null, 'the site adds static pools without creating a dam flood');
     assert.equal(system.isPositionUnderwater({ x: -63, y: 4, z: 0 }), true);
     assert.equal(system.isPositionUnderwater({ x: -34.9, y: 4, z: 0 }), false);
-    assert.deepEqual(added.map((group) => group.name), ['water-zone-west_basin', 'water-zone-east_basin']);
+    assert.deepEqual(added.map((group) => group.name), ['water-zone-west_basin', 'water-zone-east_basin'], 'the buried gallery stays submerged without a surface above its roof');
     assert.ok(added.every((group) => group.children[0].geometry.attributes.position.count > 100));
     const firstSurface = added[0].children[0];
     const geometry = firstSurface.geometry;

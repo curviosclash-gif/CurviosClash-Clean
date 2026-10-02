@@ -61,7 +61,7 @@ test('push and pull requests run the complete quality command set', () => {
     assert.match(workflow, /pull_request:/);
     for (const command of [
         'npm ci',
-        'npm --prefix electron ci',
+        'npm run app:setup',
         'npm run quality',
     ]) {
         assert.match(workflow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -97,7 +97,6 @@ test('desktop CI shares one test renderer and installs Chromium only for browser
     assert.match(workflow, /needs: smoke/);
     assert.match(workflow, /npm run test:browser:compat/);
     assert.equal((workflow.match(/npm run build:app:test/g) || []).length, 1);
-    assert.equal((workflow.match(/run: npx playwright install chromium/g) || []).length, 2);
     assert.doesNotMatch(workflow, /npm run test:desktop:(?:smoke|e2e)/);
 
     const buildJob = readWorkflowJobSection(workflow, 'build-test-renderer');
@@ -111,6 +110,8 @@ test('desktop CI shares one test renderer and installs Chromium only for browser
 
     const smokeJob = readWorkflowJobSection(workflow, 'smoke');
     assert.match(smokeJob, /needs: build-test-renderer/);
+    assert.match(smokeJob, /npm run app:setup/);
+    assert.doesNotMatch(smokeJob, /npm --prefix electron ci/);
     assert.match(smokeJob, /uses: actions\/download-artifact@v8/);
     assert.match(smokeJob, /path: dist-app-test/);
     assert.match(smokeJob, /node scripts\/run-playwright-smoke\.mjs/);
@@ -118,12 +119,16 @@ test('desktop CI shares one test renderer and installs Chromium only for browser
 
     const e2eJob = readWorkflowJobSection(workflow, 'e2e');
     assert.match(e2eJob, /needs: build-test-renderer/);
+    assert.match(e2eJob, /npm run app:setup/);
+    assert.doesNotMatch(e2eJob, /npm --prefix electron ci/);
     assert.match(e2eJob, /if: \$\{\{ matrix\.cluster != 'network' \}\}[\s\S]*?uses: actions\/download-artifact@v8/);
     assert.match(e2eJob, /if: \$\{\{ matrix\.cluster == 'network' \}\}[\s\S]*?run: npx playwright install chromium/);
     assert.match(e2eJob, /node scripts\/run-playwright-targeted-clusters\.mjs/);
 
     const heavyJob = readWorkflowJobSection(workflow, 'heavy-e2e');
     assert.match(heavyJob, /needs: build-test-renderer/);
+    assert.match(heavyJob, /npm run app:setup/);
+    assert.doesNotMatch(heavyJob, /npm --prefix electron ci/);
     assert.match(heavyJob, /uses: actions\/download-artifact@v8/);
     assert.doesNotMatch(heavyJob, /playwright install chromium/);
 
@@ -161,6 +166,7 @@ test('desktop and package workflows run for every entry their builds read', () =
             'scripts/build-playwright-app.mjs',
             'scripts/vite-build.mjs',
             'scripts/esbuild-stream-fallback.cjs',
+            'scripts/install-electron-runtime.mjs',
             'playwright.editor.config.mjs',
         ],
         '.github/workflows/package-check.yml': [
@@ -169,6 +175,7 @@ test('desktop and package workflows run for every entry their builds read', () =
             'scripts/build-app.mjs',
             'scripts/vite-build.mjs',
             'scripts/esbuild-stream-fallback.cjs',
+            'scripts/install-electron-runtime.mjs',
         ],
     };
     for (const [file, required] of Object.entries(requiredFilters)) {
@@ -185,6 +192,8 @@ test('desktop and package workflows run for every entry their builds read', () =
 test('package check also builds the web bundle behind the training boundary', () => {
     const workflow = readRepoFile('.github/workflows/package-check.yml');
     assert.match(workflow, /^\s+npm run build\s*$/m);
+    assert.match(workflow, /npm run app:setup/);
+    assert.doesNotMatch(workflow, /npm --prefix electron ci/);
 });
 
 test('contract runner discovers every root Node test exactly once', () => {

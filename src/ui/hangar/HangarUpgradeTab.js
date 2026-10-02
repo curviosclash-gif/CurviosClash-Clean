@@ -7,7 +7,7 @@ import { createHangarSizePanel } from './HangarSizePanel.js';
 
 /**
  * @param {{ bind: Function, panel: HTMLElement, getProfile: () => any,
- *   saveProfile: (profile: any) => void, toast: (message: string, tone?: string) => void,
+ *   saveProfile: (profile: any) => boolean|void, toast: (message: string, tone?: string) => void,
  *   onChange: () => void, partsOf: (vehicleId: string) => ReadonlyArray<any> }} options
  */
 export function createHangarUpgradeTab({ bind, panel, getProfile, saveProfile, toast, onChange, partsOf }) {
