@@ -1,11 +1,20 @@
 // Hangar tab "Ausbau", section "Größe" (Paket 2a): unlock the size workshop, move part sizes in
 // 5 % steps with a value preview before "Übernehmen", undo free redistributions and buy size
-// steps or storage tiers after a confirmation that names cost, old and new values.
+// steps or storage tiers after a confirmation that names cost, old and new values
+// (HangarPurchaseConfirm, shared with the stones).
 // The editor and every storage tier are visible from the start; before their condition is met
 // they are dimmed, name it and cannot be used (HangarLockedSection).
-// All rules come from ArcadeVehicleBuildContract; this module only shows and asks.
+// Values come from the one calculation with the active stones of the workshop pool (Paket 3);
+// the preview names stones that a smaller part lets fall back to a lower tier.
+// All rules come from the contracts; this module only shows and asks.
 import { createUiNode as el } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { createHangarLockedSection } from './HangarLockedSection.js';
+import {
+    createHangarPurchaseConfirm,
+    describeHangarStatChanges,
+    formatHangarNumber as formatNumber,
+    formatHangarPurchaseLines,
+} from './HangarPurchaseConfirm.js';
 import {
     ARCADE_PART_SIZE_GROUPS,
     ARCADE_PART_SIZE_MAX_PCT,
@@ -18,7 +27,6 @@ import {
 } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import {
     countArcadeSizeSteps,
-    diffArcadeVehicleBuildStats,
     evaluateArcadeSizeResize,
     evaluateArcadeSizeStepPurchase,
     evaluateArcadeSizeUnlock,
@@ -26,8 +34,12 @@ import {
     normalizeArcadeSizeProfileFields,
     resolveArcadeSpendableXp,
     resolveArcadeStorageOffer,
-    resolveArcadeVehicleBuildStats,
 } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
+import { resolveArcadeVehicleActiveStats } from '../../shared/contracts/ArcadeVehicleActiveStatsContract.js';
+import {
+    listArcadeStoneFallbacks,
+    resolveArcadeStoneExtraSteps,
+} from '../../shared/contracts/ArcadeStonePlacementContract.js';
 import { measureArcadeHitboxSurface } from '../../shared/contracts/ArcadeVehicleHitboxContract.js';
 
 const GROUP_LABELS = Object.freeze({
@@ -40,18 +52,9 @@ const GROUP_EFFECTS = Object.freeze({
     engines: 'Tempo, Boost-Dauer',
     utility: 'Schild, Lagerstufen',
 });
-const STAT_LABELS = Object.freeze({
-    maxHpPct: 'Leben',
-    regenDelay: 'Heilung nach Treffer',
-    damagePct: 'Schaden',
-    rangePct: 'Reichweite',
-    turnPct: 'Wendigkeit',
-    rollPct: 'Rollen',
-    speedPct: 'Tempo',
-    boostDurationPct: 'Boost-Dauer',
-    shieldPct: 'Schild',
-    itemCapacity: 'Item-Plätze',
-    rocketCapacity: 'Raketen-Plätze',
+const STONE_SLOT_LABELS = Object.freeze({
+    core: 'Rumpf', nose: 'Nase', wing_left: 'Flügel L', wing_right: 'Flügel R',
+    engine_left: 'Antrieb L', engine_right: 'Antrieb R', utility: 'Utility',
 });
 const STORAGE_LABELS = Object.freeze({ items: 'Item-Lager', rockets: 'Raketen-Lager' });
 const REASON_TEXT = Object.freeze({
@@ -65,22 +68,11 @@ const REASON_TEXT = Object.freeze({
     over_capacity: 'Mehr Schritte belegt als gekauft',
     invalid_size: 'Ungültige Größe',
 });
-// Health, storages and XP are absolute numbers; the other stats are percent of the ship's base.
-const ABSOLUTE_STATS = new Set(['maxHpPct', 'itemCapacity', 'rocketCapacity']);
 
 function button(className, text) {
     const node = el('button', className, text);
     node.type = 'button';
     return node;
-}
-
-function formatNumber(value) {
-    return Number(value).toLocaleString('de-DE', { maximumFractionDigits: 1 });
-}
-
-function formatStat(key, value) {
-    if (key === 'regenDelay') return `${formatNumber(value)} s`;
-    return ABSOLUTE_STATS.has(key) ? formatNumber(value) : `${formatNumber(value)} %`;
 }
 
 function reasonText(result) {
@@ -90,10 +82,13 @@ function reasonText(result) {
 /**
  * @param {{ bind: Function, getProfile: () => any, saveProfile: (profile: any) => boolean|void,
  *   toast: (message: string, tone?: string) => void, onDraftChange: () => void,
- *   partsOf?: (vehicleId: string) => ReadonlyArray<any> }} options
- *   partsOf: the ship's factory parts, for the hit zone line of the value preview.
+ *   partsOf?: (vehicleId: string) => ReadonlyArray<any>, getPool?: () => any }} options
+ *   partsOf: the ship's factory parts, for the hit zone line of the value preview;
+ *   getPool: the workshop stone pool (null while unreadable: values without stones).
  */
-export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, onDraftChange, partsOf = () => [] }) {
+export function createHangarSizePanel({
+    bind, getProfile, saveProfile, toast, onDraftChange, partsOf = () => [], getPool = () => null,
+}) {
     const root = el('section', 'hangar-size-panel');
     root.setAttribute('aria-labelledby', 'hangar-size-title');
     const title = el('h4', 'arcade-vehicle-subtitle', 'Größe');
@@ -160,32 +155,28 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
     editor.append(stepsLine, groupList, el('h5', 'hangar-size-preview-title', 'Vorschau'), preview, actions, shop);
     editorLock.body.appendChild(editor);
 
-    const confirmBox = el('div', 'hangar-size-confirm hidden');
-    confirmBox.setAttribute('role', 'alertdialog');
-    confirmBox.setAttribute('aria-labelledby', 'hangar-size-confirm-title');
-    confirmBox.setAttribute('aria-describedby', 'hangar-size-confirm-lines');
-    const confirmTitle = el('h5', 'hangar-size-confirm-title', '');
-    confirmTitle.id = 'hangar-size-confirm-title';
-    const confirmLines = el('ul', 'hangar-size-confirm-lines');
-    confirmLines.id = 'hangar-size-confirm-lines';
-    const confirmAccept = button('primary-btn hangar-size-confirm-accept', 'Kaufen');
-    const confirmCancel = button('secondary-btn hangar-size-confirm-cancel', 'Abbrechen');
-    confirmBox.append(confirmTitle, confirmLines, confirmAccept, confirmCancel);
-    root.append(title, hint, xpLine, editorLock.root, confirmBox);
+    const confirm = createHangarPurchaseConfirm({ bind, toast, className: 'hangar-size-confirm', describeReason: reasonText });
+    root.append(title, hint, xpLine, editorLock.root, confirm.root);
 
     let vehicleId = '';
     let profile = {};
     let draft = null;
-    let pending = null;
     const history = new Map();
 
     const committedSizes = () => normalizeArcadeSizeProfileFields(profile).partSizes;
-    const statsOf = (source) => resolveArcadeVehicleBuildStats(vehicleId, source);
+    // The one calculation, with the stones that sit in this vehicle in the pool (what flies).
+    const statsOf = (source) => resolveArcadeVehicleActiveStats(vehicleId, source, resolveArcadeStoneExtraSteps(getPool(), vehicleId, source));
     const isDirty = () => ARCADE_PART_SIZE_GROUPS.some((group) => draft[group] !== committedSizes()[group]);
 
     function statLines(before, after) {
-        return diffArcadeVehicleBuildStats(statsOf(before), statsOf(after))
-            .map((entry) => `${STAT_LABELS[entry.key]}: ${formatStat(entry.key, entry.before)} → ${formatStat(entry.key, entry.after)}`);
+        return describeHangarStatChanges(statsOf(before), statsOf(after));
+    }
+
+    // Stones whose effective tier drops with the new sizes (below 125 % a stone works as T1).
+    function fallbackLines(before, after) {
+        return listArcadeStoneFallbacks(getPool(), vehicleId, before, after).map((entry) => (
+            `Stein ${Number(entry.stoneId.slice('stone-'.length))} (${STONE_SLOT_LABELS[entry.slotId] || entry.slotId}): T${entry.from} → T${entry.to}`
+        ));
     }
 
     // Hit zone in percent of the factory ship: bigger parts are easier to hit (full part boxes).
@@ -201,7 +192,8 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
 
     function renderPreview() {
         const fields = normalizeArcadeSizeProfileFields(profile);
-        const lines = [...statLines(profile, { ...fields, partSizes: draft }), ...hitboxLines(fields.partSizes, draft)];
+        const next = { ...profile, ...fields, partSizes: draft };
+        const lines = [...statLines(profile, next), ...hitboxLines(fields.partSizes, draft), ...fallbackLines(profile, next)];
         preview.replaceChildren(...(lines.length > 0 ? lines : ['Keine Änderung']).map((line) => el('li', '', line)));
     }
 
@@ -277,68 +269,20 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
         counterpart.focus();
     }
 
-    function hideConfirm(returnFocus = true) {
-        const trigger = pending?.trigger;
-        pending = null;
-        confirmBox.classList.add('hidden');
-        if (returnFocus && trigger && !trigger.disabled) trigger.focus();
-    }
-
-    // Builds the open confirmation from the current profile; render() calls it again, so an open
-    // confirmation never shows stale XP or values.
-    function renderConfirm() {
-        const result = pending.evaluate(profile);
-        if (!result.ok) return result;
-        confirmTitle.textContent = pending.heading;
-        const lines = [
-            `Kosten: ${formatNumber(result.cost)} XP`,
-            `XP: ${formatNumber(resolveArcadeSpendableXp(profile))} → ${formatNumber(resolveArcadeSpendableXp(result.next))}`,
-            ...pending.extraLines(result.next),
-            ...statLines(profile, result.next),
-            'XP-Käufe sind endgültig.',
-        ];
-        confirmLines.replaceChildren(...lines.map((line) => el('li', '', line)));
-        return result;
-    }
-
-    // Every XP purchase goes through here: preview with the current profile, confirm, then
-    // evaluate again with the profile of that moment so a stale preview never spends XP.
+    // Every XP purchase goes through the shared confirmation: cost, XP and values old → new; the
+    // offer is evaluated again with the profile of the moment of "Kaufen".
     function askPurchase(trigger, heading, evaluate, extraLines, successText) {
-        pending = { trigger, heading, evaluate, extraLines, successText };
-        const result = renderConfirm();
-        if (!result.ok) {
-            pending = null;
-            toast(reasonText(result), 'warning');
-            return;
-        }
-        confirmBox.classList.remove('hidden');
-        confirmAccept.focus();
+        confirm.ask({
+            trigger,
+            heading,
+            successText,
+            evaluate: () => evaluate(getProfile()),
+            lines: (result) => formatHangarPurchaseLines(result, getProfile(), [
+                ...extraLines(result.next), ...statLines(getProfile(), result.next),
+            ]),
+            commit: (result) => saveProfile(result.next),
+        });
     }
-
-    bind(confirmAccept, 'click', () => {
-        if (!pending) return;
-        const { evaluate, successText } = pending;
-        const result = evaluate(getProfile());
-        hideConfirm();
-        if (!result.ok) {
-            toast(reasonText(result), 'warning');
-            return;
-        }
-        if (saveProfile(result.next) === false) return;
-        toast(successText, 'success');
-    });
-    bind(confirmCancel, 'click', () => hideConfirm());
-    bind(confirmBox, 'keydown', (event) => {
-        // A held Enter repeats and would click "Kaufen": only a fresh key press confirms XP.
-        if (event.key === 'Enter' && event.repeat) {
-            event.preventDefault();
-            return;
-        }
-        if (event.key !== 'Escape') return;
-        event.preventDefault();
-        event.stopPropagation();
-        hideConfirm();
-    });
 
     bind(unlockButton, 'click', () => askPurchase(
         unlockButton,
@@ -422,14 +366,14 @@ export function createHangarSizePanel({ bind, getProfile, saveProfile, toast, on
             if (id !== vehicleId) {
                 vehicleId = id;
                 draft = null;
-                hideConfirm(false);
+                confirm.hide(false);
             }
             if (!editing) draft = null;
             // A clean draft follows the saved sizes (apply, undo, purchases); an edited one stays.
             const wasClean = !draft || !previousCommitted
                 || ARCADE_PART_SIZE_GROUPS.every((group) => draft[group] === previousCommitted[group]);
             if (wasClean) draft = committedSizes();
-            if (pending && !renderConfirm().ok) hideConfirm(false);
+            confirm.refresh();
             update();
         },
     });

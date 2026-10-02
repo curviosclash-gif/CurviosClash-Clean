@@ -123,17 +123,17 @@ test('W7.6 arcade progression block contains vehicle, bank, levels and newly unl
         priorLevel: 3,
         newLevel: 5,
         xpBank: 900,
-        unlockedSlots: ['wing_left'],
-        unlockedTiers: ['T2'],
-        unlockedFamilies: ['flamethrower'],
+        unlockedStonePackages: ['wings'],
+        unlockedStoneTiers: ['T2'],
         unlockedCosmetics: ['Spur Ion', 'Waffenstil Ion'],
     });
     assert.equal(block.id, 'arcade-progression');
     assert.equal(block.tier, 'detail');
     assert.deepEqual(block.rows.map((row) => row.key), [
-        'vehicle', 'xp-earned', 'level-change', 'xp-bank', 'unlocked-slots',
-        'unlocked-tiers', 'unlocked-families', 'unlocked-cosmetics',
+        'vehicle', 'xp-earned', 'level-change', 'xp-bank', 'unlocked-stone-packages',
+        'unlocked-stone-tiers', 'unlocked-cosmetics',
     ]);
+    assert.equal(block.rows[4].value, 'Flügelpaar', 'Pakete erscheinen mit Namen, nicht als ID');
     assert.equal(block.rows.some((row) => /mastery|waffen-xp/i.test(row.key)), false);
 });
 

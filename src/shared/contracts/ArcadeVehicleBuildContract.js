@@ -163,12 +163,14 @@ function reject(reason, cost = 0) {
 }
 
 /**
+ * XP-Kauf aus dem Konto des bezahlenden Fahrzeugs: setzt die Felder und zieht die Kosten ab.
+ * Größenumbau (Paket 2) und Steine (Paket 3) bezahlen über denselben Weg.
  * @param {Record<string, any>} profile
  * @param {number} cost
  * @param {Record<string, any>} fields
  * @returns {ArcadeBuildRuleResult}
  */
-function purchase(profile, cost, fields) {
+export function spendArcadeVehicleXp(profile, cost, fields) {
     const available = resolveArcadeSpendableXp(profile);
     if (available < cost) return reject('insufficient_xp', cost);
     return {
@@ -198,7 +200,7 @@ function profileInput(profile) {
 export function evaluateArcadeSizeUnlock(profile) {
     const { source, fields } = profileInput(profile);
     if (fields.sizeWorkshopUnlocked) return reject('already_unlocked');
-    return purchase(source, ARCADE_SIZE_UNLOCK_COST_XP, { ...fields, sizeWorkshopUnlocked: true });
+    return spendArcadeVehicleXp(source, ARCADE_SIZE_UNLOCK_COST_XP, { ...fields, sizeWorkshopUnlocked: true });
 }
 
 /**
@@ -234,7 +236,7 @@ export function evaluateArcadeSizeStepPurchase(profile) {
     if (!fields.sizeWorkshopUnlocked) return reject('locked');
     if (fields.purchasedSizeSteps >= ARCADE_SIZE_MAX_PURCHASED_STEPS) return reject('max_steps');
     const cost = resolveArcadeSizeStepCost(fields.purchasedSizeSteps);
-    return purchase(source, cost, { ...fields, purchasedSizeSteps: fields.purchasedSizeSteps + 1 });
+    return spendArcadeVehicleXp(source, cost, { ...fields, purchasedSizeSteps: fields.purchasedSizeSteps + 1 });
 }
 
 /**
@@ -281,7 +283,7 @@ export function evaluateArcadeStoragePurchase(profile, storage) {
     const offer = resolveArcadeStorageOffer(source, storage);
     if (!offer) return reject('storage_full');
     if (!offer.utilityReached) return reject('utility_too_small', offer.cost);
-    return purchase(source, offer.cost, { ...fields, [kind.purchasedField]: offer.tier });
+    return spendArcadeVehicleXp(source, offer.cost, { ...fields, [kind.purchasedField]: offer.tier });
 }
 
 /**

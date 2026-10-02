@@ -1,6 +1,7 @@
 import { resolveArtifactVersionState } from './ArtifactVersionMigrationContract.js';
 import { normalizeVehiclePartStyle } from './VehiclePartStyleContract.js';
 import { normalizeArcadeSizeProfileFields } from './ArcadeVehicleBuildContract.js';
+import { normalizeArcadeStoneSlotPackages } from './ArcadeStoneWorkshopContract.js';
 
 // v3 (Paket 1): levels have no ceiling. v2 profiles are upgraded in place; v1
 // profiles retain the previous fallback behavior. The storage key is a location,
@@ -121,6 +122,7 @@ export function createArcadeVehicleProfileRecord(vehicleId, nowMs = Date.now()) 
         weaponStyleIds: normalizeArcadeWeaponStyleIds(),
         partStyle: {},
         ...normalizeArcadeSizeProfileFields(null),
+        stoneSlotPackages: [],
         createdAt: toIsoString(nowMs),
         updatedAt: toIsoString(nowMs),
     };
@@ -147,6 +149,8 @@ export function normalizeArcadeVehicleProfileRecord(vehicleId, source) {
         partStyle: normalizeVehiclePartStyle(candidate.partStyle),
         // Paket 2a: Größenumbau; Summenregel und Grenzen wie beim Kauf.
         ...normalizeArcadeSizeProfileFields(candidate),
+        // Paket 3: gekaufte Steinplatz-Pakete (die Steine selbst liegen im Werkstatt-Pool).
+        stoneSlotPackages: normalizeArcadeStoneSlotPackages(candidate.stoneSlotPackages),
     };
 }
 

@@ -37,7 +37,8 @@ const { createVehicleManagerSelectionState } = await import('../src/ui/arcade/ve
 const { resolveVehicleClassLabel, resolveVehicleLevelLabel } = await import('../src/ui/arcade/vehicle-manager/VehicleManagerUiPrimitives.js');
 const { resolveHangarVehicleFilterChipValues } = await import('../src/ui/hangar/HangarVehicleFilterChips.js');
 const { mapHangarHitboxClass } = await import('../src/ui/hangar/HangarWorkshopProfileSupport.js');
-const { validateHangarBuild } = await import('../src/ui/hangar/HangarBuildValidation.js');
+const { resolveArcadeStonePlacementPlan } = await import('../src/shared/contracts/ArcadeStonePlacementContract.js');
+const { createArcadeStoneWorkshopRecord } = await import('../src/shared/contracts/ArcadeStoneWorkshopContract.js');
 const { createDefaultHangarBuild } = await import('../src/ui/hangar/HangarBuildDraftState.js');
 const { createRuntimeConfigSnapshot } = await import('../src/core/RuntimeConfig.js');
 const { SettingsManager } = await import('../src/core/SettingsManager.js');
@@ -176,8 +177,10 @@ test('Filter-Chips: Rollen und die belegten Levelbereiche in Arcade, alte Chips 
 test('Arcade-Werksschiffe bauen auf dem neutralen Standard-Chassis; Classic-Einträge behalten die alte Zuordnung', () => {
     for (const entry of listArcadeVehicleManagerCatalogEntries()) {
         assert.equal(mapHangarHitboxClass(entry), 'standard', entry.vehicleId);
-        const validation = validateHangarBuild(createDefaultHangarBuild(entry.vehicleId, { hitboxClass: mapHangarHitboxClass(entry) }), 1);
-        assert.equal(validation.ok, true, `${entry.vehicleId} ist ab Level 1 startbar`);
+        // Paket 3: the Arcade build carries only stone wishes; the default has none and starts at level 1.
+        const build = createDefaultHangarBuild(entry.vehicleId, { hitboxClass: mapHangarHitboxClass(entry) });
+        const plan = resolveArcadeStonePlacementPlan(createArcadeStoneWorkshopRecord(0), entry.vehicleId, build.stoneSlots, { level: 1 });
+        assert.equal(plan.ok, true, `${entry.vehicleId} ist ab Level 1 startbar`);
     }
     assert.equal(mapHangarHitboxClass({ hitboxKlasse: 'schwer' }), 'heavy');
     assert.equal(mapHangarHitboxClass({ hitboxKlasse: 'kompakt' }), 'compact');

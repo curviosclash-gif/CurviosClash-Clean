@@ -25,7 +25,16 @@ function createHarness() {
             this.children = [];
             this.dataset = {};
             this.style = {};
-            this.classList = { toggle() {}, add() {}, remove() {} };
+            const classes = new Set();
+            this.classList = {
+                toggle(name, enabled = undefined) {
+                    if (enabled === undefined ? !classes.has(name) : enabled) classes.add(name);
+                    else classes.delete(name);
+                },
+                add(name) { classes.add(name); },
+                remove(name) { classes.delete(name); },
+                contains(name) { return classes.has(name); },
+            };
             this.listeners = new Map();
             this.clientWidth = 640;
             this.clientHeight = 360;
@@ -64,7 +73,10 @@ function createHarness() {
         dispatch(type, event = {}) {
             for (const listener of this.listeners.get(type) || []) listener(event);
         }
-        querySelector() { return null; }
+        querySelector(selector) {
+            const match = String(selector).match(/^\[data-hangar-slot="([^"]+)"\]$/u);
+            return match ? this.children.find((child) => child.dataset?.hangarSlot === match[1]) || null : null;
+        }
         querySelectorAll() { return []; }
     }
 
@@ -195,6 +207,20 @@ test('hangar viewport pauses on hidden or detached mounts and resumes when visib
     harness.mount.isConnected = true;
     harness.setIntersection(true);
     assert.equal(harness.frameCallbacks.size, 1, 'reattaching the mount wakes the renderer');
+});
+
+test('hangar viewport refreshes installed markers when slot states precede the active build', () => {
+    const harness = createHarness();
+    harness.viewport.setSlotStates([{ slotKey: 'core', disabled: false }]);
+    const core = harness.overlay.children.find((button) => button.dataset.hangarSlot === 'core');
+    assert.ok(core);
+    assert.equal(core.classList.contains('is-installed'), false);
+
+    harness.viewport.setBuild({ vehicleId: 'ship5', slots: { core: 'stone-t1' } });
+    assert.equal(core.classList.contains('is-installed'), true);
+    harness.viewport.setBuild({ vehicleId: 'ship5', slots: {} });
+    assert.equal(core.classList.contains('is-installed'), false);
+    harness.viewport.dispose();
 });
 
 test('document visibility, WebGL context recovery, resize, and dispose manage the same RAF lifecycle', () => {

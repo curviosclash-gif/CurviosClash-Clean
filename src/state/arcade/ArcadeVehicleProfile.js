@@ -16,8 +16,15 @@ import {
     resolveArcadeHangarProgressionSnapshot,
     resolveArcadeHangarUnlockedSlots,
 } from '../../shared/contracts/ArcadeHangarRulesContract.js';
-import { normalizeArcadeSizeProfileFields, resolveArcadeVehicleBuildStats } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
+import { normalizeArcadeSizeProfileFields } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
+import { resolveArcadeVehicleActiveStats } from '../../shared/contracts/ArcadeVehicleActiveStatsContract.js';
 import { resolveArcadeVehicleBaseStats } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
+import {
+    listArcadeStoneUnlocksBetween,
+    normalizeArcadeStoneSlotPackages,
+    readArcadeStoneWorkshopRecord,
+} from '../../shared/contracts/ArcadeStoneWorkshopContract.js';
+import { resolveArcadeStoneExtraSteps } from '../../shared/contracts/ArcadeStonePlacementContract.js';
 import { toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 import { XP_REWARD_TABLE, calculateSectorXp } from './ArcadeXpRewards.js';
 import {
@@ -174,43 +181,28 @@ export function xpToNextLevel(profile) {
     };
 }
 
-// Slot stat bonuses
-
-export function getSlotStatBonuses(upgrades, hangarBonuses = null) {
-    if (hangarBonuses && typeof hangarBonuses === 'object') {
-        const clampBonus = (value) => Math.max(0, Math.min(50, Number(value) || 0));
-        return {
-            turningBonusPct: clampBonus(hangarBonuses.turningBonusPct),
-            speedBonusPct: clampBonus(hangarBonuses.speedBonusPct),
-            maxHpBonus: clampBonus(hangarBonuses.maxHpBonus),
-        };
-    }
-    const u = upgrades && typeof upgrades === 'object' ? upgrades : {};
-    const tierRank = (value) => ({ T1: 1, T2: 2, T3: 3 }[String(value || '').toUpperCase()] || 1);
-    const highestTier = (...slotNames) => slotNames.reduce((highest, slotName) => {
-        return Math.max(highest, tierRank(u[slotName]), tierRank(u[`${slotName}_t2`]));
-    }, 1);
-    const wingTier = highestTier('wing_left', 'wing_right');
-    const engineTier = highestTier('engine_left', 'engine_right');
-    const coreTier = highestTier('core');
-    return {
-        turningBonusPct: wingTier >= 3 ? 18 : (wingTier >= 2 ? 10 : 0),
-        speedBonusPct: engineTier >= 3 ? 16 : (engineTier >= 2 ? 8 : 0),
-        maxHpBonus: coreTier >= 3 ? 30 : (coreTier >= 2 ? 15 : 0),
-    };
-}
-
 /**
- * Run-Start-Boni eines Fahrzeugs: Hangar-Slotboni plus die Größenfelder des Profils
- * (Paket 2a). Die Strategie rechnet daraus mit resolveArcadeVehicleBuildStats die Werte.
+ * Run-Start-Boni eines Fahrzeugs: nur der Build aus den Größenfeldern des Profils (Paket 2a), den
+ * gekauften Steinplatz-Paketen und den eingefrorenen Stein-Schritten aus dem Werkstatt-Pool (Paket 3).
+ * Der Pool ist die einzige Wahrheit für den Run und wird hier nur gelesen; ohne Speicher oder bei
+ * einem Lesefehler rechnet der Run ohne Steine. Die Strategie rechnet daraus mit
+ * resolveArcadeVehicleActiveStats die Werte.
  * @param {any} profile
+ * @param {any} [store] Spieler-Speicherport mit readJsonRecordResult
+ * @param {any} [runStoneSteps] schon eingefrorene Stein-Schritte dieses Runs: Hangar-Änderungen und
+ *   Level-Aufstiege während eines Runs wirken erst im nächsten Run; der Pool wird dann nicht gelesen
  */
-export function getArcadeRunVehicleBonuses(profile) {
-    const bonuses = getSlotStatBonuses(profile?.upgrades, profile?.hangarBonuses);
-    if (!profile || typeof profile !== 'object') return bonuses;
+export function getArcadeRunVehicleBonuses(profile, store = null, runStoneSteps = null) {
+    if (!profile || typeof profile !== 'object') return { build: null };
+    const vehicleId = String(profile.vehicleId || '');
+    const pool = store && !runStoneSteps ? readArcadeStoneWorkshopRecord(store).pool : null;
     return {
-        ...bonuses,
-        build: { vehicleId: String(profile.vehicleId || ''), ...normalizeArcadeSizeProfileFields(profile) },
+        build: {
+            vehicleId,
+            ...normalizeArcadeSizeProfileFields(profile),
+            stoneSlotPackages: normalizeArcadeStoneSlotPackages(profile.stoneSlotPackages),
+            stoneSteps: runStoneSteps || resolveArcadeStoneExtraSteps(pool, vehicleId, profile),
+        },
     };
 }
 
@@ -218,31 +210,32 @@ const NO_PROFILE_HUD_STATS = Object.freeze({ level: 1, speedBonusPct: 0, turning
 const HUD_STATS_BY_PROFILE = new WeakMap();
 
 /**
- * Werte-Banner zum Sektorstart (82.8.3, Gauntlet): Hangar-Slotboni plus die Wirkung des
- * Größen-Builds auf Tempo und Wendigkeit (Prozentpunkte über dem Tabellenwert) und Leben
- * (Modus-Basis 100 HP), gerechnet mit denselben Contract-Funktionen wie die Strategie im Run.
- * Pro kanonischem Profil gecacht: der HUD-Pfad läuft jedes Bild, ein geändertes Profil ist ein
- * neues Objekt. Daily: feste Startbedingungen, also keine Boni.
+ * Werte-Banner zum Sektorstart (82.8.3, Gauntlet): Wirkung von Größen-Build und Steinen auf Tempo
+ * und Wendigkeit (Prozentpunkte über dem Tabellenwert) und Leben (Modus-Basis 100 HP), gerechnet
+ * mit derselben Rechenstelle wie die Strategie im Run. Pro kanonischem Profil gecacht: der HUD-Pfad
+ * läuft jedes Bild, ein geändertes Profil ist ein neues Objekt, und ein Treffer verlangt dasselbe
+ * stoneSteps-Objekt. Daily: feste Startbedingungen, also keine Boni.
  * @param {any} profile
  * @param {string} vehicleId
  * @param {boolean} dailyChallenge
+ * @param {any} [stoneSteps] eingefrorene Stein-Schritte des Runs (getArcadeRunVehicleBonuses)
  */
-export function resolveArcadeRunHudVehicleStats(profile, vehicleId, dailyChallenge) {
+export function resolveArcadeRunHudVehicleStats(profile, vehicleId, dailyChallenge, stoneSteps = null) {
     if (!profile || typeof profile !== 'object') return NO_PROFILE_HUD_STATS;
     const key = dailyChallenge ? '' : String(vehicleId || '');
+    const steps = dailyChallenge ? null : stoneSteps;
     const cached = HUD_STATS_BY_PROFILE.get(profile);
-    if (cached?.key === key) return cached.stats;
-    const slot = dailyChallenge ? { speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0 } : getSlotStatBonuses(profile.upgrades, profile.hangarBonuses);
+    if (cached?.key === key && cached.stoneSteps === steps) return cached.stats;
     const base = resolveArcadeVehicleBaseStats(key);
-    const build = dailyChallenge ? base : resolveArcadeVehicleBuildStats(key, profile);
+    const build = dailyChallenge ? base : resolveArcadeVehicleActiveStats(key, profile, steps);
     const delta = (/** @type {number} */ after, /** @type {number} */ before) => Math.round((after - before) * 100) / 100;
     const stats = Object.freeze({
         level: profile.level ?? 1,
-        speedBonusPct: Math.min(50, slot.speedBonusPct) + delta(build.speedPct, base.speedPct),
-        turningBonusPct: Math.min(50, slot.turningBonusPct) + delta(build.turnPct, base.turnPct),
-        maxHpBonus: Math.min(50, slot.maxHpBonus) + Math.round(build.maxHpPct) - Math.round(base.maxHpPct),
+        speedBonusPct: delta(build.speedPct, base.speedPct),
+        turningBonusPct: delta(build.turnPct, base.turnPct),
+        maxHpBonus: Math.round(build.maxHpPct) - Math.round(base.maxHpPct),
     });
-    HUD_STATS_BY_PROFILE.set(profile, { key, stats });
+    HUD_STATS_BY_PROFILE.set(profile, { key, stoneSteps: steps, stats });
     return stats;
 }
 
@@ -293,15 +286,12 @@ export function addXp(profile, amount, nowMs = Date.now()) {
     const prevSnapshot = resolveArcadeHangarProgressionSnapshot(prevLevel);
     const nextSnapshot = resolveArcadeHangarProgressionSnapshot(newLevel);
 
-    const prevSlots = new Set(prevSnapshot.unlockedSlots);
-    const nextSlots = nextSnapshot.unlockedSlots.slice();
-    const unlocksGained = nextSlots.filter((slotId) => !prevSlots.has(slotId));
-
-    const prevPartFamilies = new Set(prevSnapshot.allowedPartFamilies);
-    const partFamiliesGained = nextSnapshot.allowedPartFamilies.filter((familyId) => !prevPartFamilies.has(familyId));
-
-    const prevTiers = new Set(prevSnapshot.allowedTiers);
-    const tiersGained = nextSnapshot.allowedTiers.filter((tierId) => !prevTiers.has(tierId));
+    // Paket 3: a level-up opens stone slot packages for purchase and makes stone tiers usable.
+    // The stored legacy snapshot fields below stay for older readers.
+    const stoneUnlocks = listArcadeStoneUnlocksBetween(prevLevel, newLevel);
+    const unlocksGained = stoneUnlocks.packages;
+    const partFamiliesGained = [];
+    const tiersGained = stoneUnlocks.tiers;
 
     const prevMilestones = new Set(prevSnapshot.masteryMilestones);
     const masteryMilestonesGained = nextSnapshot.masteryMilestones.filter((milestoneId) => !prevMilestones.has(milestoneId));
@@ -567,7 +557,6 @@ export default {
     UPGRADE_PURCHASE_CODES,
     xpForLevel,
     xpToNextLevel,
-    getSlotStatBonuses,
     getMasteryPerks,
     getUnlockedSlots,
     createArcadeVehicleProfile,

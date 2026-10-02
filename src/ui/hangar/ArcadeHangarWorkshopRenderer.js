@@ -1,13 +1,7 @@
-import {
-    createUiNode as el,
-    resolvePlayerColor,
-    resolveVehicleClassLabel,
-    resolveVehicleLevelLabel,
-} from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
+import { createUiNode as el, resolvePlayerColor, resolveVehicleClassLabel, resolveVehicleLevelLabel } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
 import { HANGAR_SLOT_DEFINITIONS, listHangarParts, resolveHangarPart, resolvePartLockReason } from './HangarPartCatalog.js';
 import { resolveHangarStoneAvailability } from './HangarStoneInventory.js';
-import { validateHangarBuild } from './HangarBuildValidation.js';
 import { compareHangarStats, projectHangarStats } from './HangarStatProjection.js';
 import { prependFightEffectRows } from './FightHangarEffectView.js';
 import { projectHangarProgression } from './HangarProgressionProjection.js';
@@ -37,8 +31,10 @@ export function createArcadeHangarWorkshopRenderer(options) {
         getState, entryFor, profileFor, evaluateInstall, describeFailure,
         onSelectSlot, isDirty,
     } = options;
-    const validateBuild = typeof options.validateBuild === 'function' ? options.validateBuild : validateHangarBuild;
+    const validateBuild = options.validateBuild;
     const mode = options.mode === 'fight' ? 'fight' : 'arcade';
+    // Arcade (Paket 3): stone slots, values and the 3D stones come from the stone panel (ArcadeStonePanel).
+    const arcade = mode === 'arcade' ? options.arcadeView || null : null;
     const {
         container, saveState, vehiclesViewButton, partsViewButton, search, onlyFavBtn,
         categoryTabs, hitboxChips, levelChips, partFilters, partFilterReset, quickRows, favRow, recentRow,
@@ -207,13 +203,14 @@ export function createArcadeHangarWorkshopRenderer(options) {
     }
 
     function renderStatistics(state, validation) {
-        const current = projectHangarStats(state.draft);
-        const saved = projectHangarStats(state.baselineBuild || state.savedBuild || state.draft);
+        const [project, compare] = arcade ? [arcade.projectStats, arcade.compareStats] : [projectHangarStats, compareHangarStats];
+        const current = project(state.draft);
+        const saved = project(state.baselineBuild || state.savedBuild || state.draft);
         const savedComparison = persistence.getBuild(buildCompareSelect.value);
         const compareEntry = entryFor(selection.getCompareVehicleId());
         const compareBuild = savedComparison || state.buildFromProfile(compareEntry.vehicleId, compareEntry, profileFor(compareEntry.vehicleId));
-        const savedMetrics = compareHangarStats(current, saved);
-        const compareMetrics = compareHangarStats(current, projectHangarStats(compareBuild));
+        const savedMetrics = compare(current, saved);
+        const compareMetrics = compare(current, project(compareBuild));
         const baselineLabel = state.savedBuild?.name || 'Standard';
         const comparisonLabel = savedComparison?.name || compareEntry.label;
         statRows.replaceChildren();
@@ -237,6 +234,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         });
         if (mode === 'fight') prependFightEffectRows(statRows, { draft: state.draft, baselineBuild: state.baselineBuild || state.savedBuild, baselineLabel }, validateBuild);
         budgetRows.replaceChildren();
+        if (arcade) return; // Arcade stones cost no budget.
         [
             ['Editorbudget', validation.stats.budgetUsed, validation.limits.editorBudget],
             ['Massebudget', validation.stats.massUsed, validation.limits.massBudget],
@@ -256,10 +254,10 @@ export function createArcadeHangarWorkshopRenderer(options) {
     }
 
     function renderSlots(state, validation, activePartId, progression) {
-        slotGrid.replaceChildren();
-        const viewportStates = [];
+        const viewportStates = arcade ? arcade.renderSlots(state, activePartId) : []; // kept nodes: no clearing
+        if (!arcade) slotGrid.replaceChildren();
         const slotProjectionById = new Map((progression?.slots || []).map((entry) => [entry.id, entry]));
-        HANGAR_SLOT_DEFINITIONS.forEach((slot) => {
+        (arcade ? [] : HANGAR_SLOT_DEFINITIONS).forEach((slot) => {
             const part = resolveHangarPart(state.draft.slots[slot.id]);
             const slotProjection = slotProjectionById.get(slot.id) || null;
             const slotLocked = slotProjection ? slotProjection.unlocked === false : false;
@@ -474,12 +472,13 @@ export function createArcadeHangarWorkshopRenderer(options) {
         renderPartPreview(state);
         renderSlots(state, validation, activePartId, progression);
         renderPresets(state);
-        viewport.setBuild(state.draft, {
+        const visual = arcade ? arcade.visualBuild : (build) => build; // Arcade: stones in their effective tier
+        viewport.setBuild(visual(state.draft), {
             color: resolvePlayerColor(settings),
             changedSlots: syncOptions.changedSlots || [],
             machineGunId: state.draft.machineGunId,
         });
-        viewport.setComparison(persistence.getBuild(buildCompareSelect.value));
+        viewport.setComparison(visual(persistence.getBuild(buildCompareSelect.value)));
         viewport.setDragActive(Boolean(activePartId));
         if (!syncOptions.dragPartId) {
             const preview = resolvePreview(state);

@@ -147,6 +147,26 @@ export const ARCADE_BASE_REGEN_PCT_PER_SECOND = 2;
 export const ARCADE_STORAGE_TIER_UTILITY_PCT = Object.freeze([105, 115, 125]);
 export const ARCADE_STORAGE_TIER_COST_XP = Object.freeze([300, 600, 900]);
 
+// --- Paket 3: Steine (arcade-hangar-plan.md "Steine", "Steinplätze und Steinstufen"). Werte sind vorläufig. ---
+
+/** Höchstzahl Steine im werkstattweiten Pool; davon gibt es zum Start einige gratis. */
+export const ARCADE_STONE_MAX_OWNED = 21;
+export const ARCADE_STONE_FREE_COUNT = 3;
+export const ARCADE_STONE_PRICE_XP = 200;
+/** Aufwerten auf Stufe n kostet Faktor * n² XP (Stufe 2: 400, 3: 900, 5: 2 500). */
+export const ARCADE_STONE_UPGRADE_COST_FACTOR_XP = 100;
+/** Volle Steinstufe nur auf einem Bauteil dieser Größe; darunter wirkt ein Stein höchstens als T1. */
+export const ARCADE_STONE_FULL_EFFECT_SIZE_PCT = 125;
+/** Stufe n ist ab Level Intervall * (n - 1) kaufbar und nutzbar (T2 ab 10, T3 ab 20 ...). */
+export const ARCADE_STONE_TIER_LEVEL_INTERVAL = 10;
+/** Steinplatz-Pakete: base ist sofort frei, die übrigen kauft das Fahrzeug ab einem Level mit XP. */
+export const ARCADE_STONE_SLOT_PACKAGES = Object.freeze({
+    base: Object.freeze({ slots: Object.freeze(['core', 'nose']), requiredLevel: 1, costXp: 0 }),
+    wings: Object.freeze({ slots: Object.freeze(['wing_left', 'wing_right']), requiredLevel: 3, costXp: 250 }),
+    engines: Object.freeze({ slots: Object.freeze(['engine_left', 'engine_right']), requiredLevel: 6, costXp: 500 }),
+    utility: Object.freeze({ slots: Object.freeze(['utility']), requiredLevel: 10, costXp: 900 }),
+});
+
 export default {
     ARCADE_STORAGE_MAX_SLOTS,
     ARCADE_ROLL_BASE_PCT,

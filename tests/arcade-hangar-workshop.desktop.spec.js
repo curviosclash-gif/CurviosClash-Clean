@@ -16,6 +16,7 @@ import {
     PLAYER_PROFILE_REGISTRY_STORAGE_KEY,
     resolvePlayerScopedStorageKey,
 } from '../src/shared/contracts/PlayerProfileStorageContract.js';
+import { ARCADE_STONE_WORKSHOP_STORAGE_KEY } from '../src/shared/contracts/ArcadeStoneWorkshopContract.js';
 
 const HANGAR_BUILD_STORAGE_KEY = 'curviosclash.hangar.arcade-builds.v2';
 const BUILD_NAME = 'Desktop E2E Build';
@@ -117,7 +118,7 @@ async function seedUnlockedProfiles(page) {
     const vehicleIds = await page.evaluate(() => Array.from(document.querySelectorAll('#vehicle-select-p1 option'))
         .map((option) => String(option.value || '').trim())
         .filter(Boolean));
-    const seeded = await page.evaluate(({ profileKey, loadoutKey, buildKey, lastRunKey, ids }) => {
+    const seeded = await page.evaluate(({ profileKey, loadoutKey, buildKey, lastRunKey, poolKey, ids }) => {
         const store = window.GAME_INSTANCE?.settingsManager?.getPlayerRecordStorePort?.();
         if (!store?.saveJsonRecord || !store?.removeJsonRecord) return false;
         const nowIso = new Date().toISOString();
@@ -141,12 +142,15 @@ async function seedUnlockedProfiles(page) {
         store.removeJsonRecord(loadoutKey);
         store.removeJsonRecord(buildKey);
         store.removeJsonRecord(lastRunKey);
+        // Paket 3: a fresh stone pool (three free stones, none placed) for every seeded test.
+        store.removeJsonRecord(poolKey);
         return saveResult?.success === true;
     }, {
         profileKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
         loadoutKey: ARCADE_VEHICLE_LOADOUT_STORAGE_KEY,
         buildKey: HANGAR_BUILD_STORAGE_KEY,
         lastRunKey: ARCADE_LAST_RUN_STORAGE_KEY,
+        poolKey: ARCADE_STONE_WORKSHOP_STORAGE_KEY,
         ids: vehicleIds,
     });
     expect(seeded).toBe(true);
@@ -188,8 +192,9 @@ test('Desktop-Hangar: Fahrzeugschalter wechseln sichtbar vor und zurück', async
         const firstFrame = await arrowPreview.evaluate((canvas) => canvas.toDataURL());
         await expect.poll(() => arrowPreview.evaluate((canvas) => canvas.toDataURL())).not.toBe(firstFrame);
     }
-    await expect(page.locator('[data-remove-slot="core"]')).toHaveAttribute('aria-label', 'Core-Fassung: Stein entfernen');
-    await expect(page.locator('[data-remove-slot="core"]')).toHaveAttribute('aria-description', 'Pflichtfassung kann nicht geleert werden');
+    // Paket 3: the Arcade slots are stone slots of the workshop pool (empty or holding a pool stone).
+    await expect(page.locator('[data-remove-slot="core"]')).toHaveAttribute('aria-label', 'Rumpf: Stein entfernen');
+    await expect(page.locator('[data-remove-slot="core"]')).toHaveAttribute('aria-description', /^(Steinplatz ist leer|Stein aus Rumpf entfernen)$/);
 
     const infoHints = page.locator('#arcade-vehicle-manager .menu-info-hint');
     await expect(infoHints).toHaveCount(3);
@@ -293,6 +298,144 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await expect(page.locator('[data-hangar-slot-row="wing_left"]')).toHaveClass(/is-selected/);
     await page.locator('.hangar-hardpoint-overlay').evaluate((node) => { node.style.pointerEvents = ''; });
 
+    // Paket 3: Arcade places stones of the workshop pool, everything in the tab "Ausbau"; the colour
+    // stone catalog, starter builds and purchases per copy live on in the Fight hangar (test below).
+    const turnBefore = await readMetric(page, 'turnPct');
+    await expect(page.locator('[data-build-view-panel="upgrade"] .hangar-stone-panel')).toBeVisible();
+    await expect(page.locator('[data-catalog-view="parts"]')).toBeHidden();
+    await expect(page.locator('.hangar-stone-item')).toHaveCount(3);
+    await confirmStoneDialog(page, '[data-stone-package-buy="wings"]', ['Kosten: 250 XP', 'Steinplätze Flügelpaar: gesperrt → frei']);
+    await expect(page.locator('[data-stone-package="wings"]')).not.toHaveClass(/is-locked/);
+
+    const firstStone = page.locator('[data-stone-select="stone-0001"]');
+    await firstStone.click();
+    await expect(firstStone).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.hangar-status-message')).toContainText('jetzt Fassung anklicken');
+    await expect(page.locator('[data-build-view="upgrade"]')).toHaveAttribute('aria-selected', 'true');
+    await page.locator('[data-hangar-slot="wing_left"]').click();
+    await expect(page.locator('[data-hangar-slot-row="wing_left"] .hangar-installed-part')).toHaveText('Stein 1 · T1');
+    await expect(page.locator('.hangar-status-message')).toContainText('eingesetzt');
+
+    // A second stone by click on the core slot, then dragged onto the right wing (moving is free).
+    await page.locator('[data-stone-select="stone-0002"]').click();
+    await page.locator('[data-select-slot="core"]').click();
+    const coreStone = page.locator('[data-installed-slot="core"]');
+    await expect(coreStone).toHaveText('Stein 2 · T1');
+    await coreStone.scrollIntoViewIfNeeded();
+    await coreStone.hover();
+    await page.mouse.down();
+    const corePoint = await coreStone.evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    });
+    await page.mouse.move(corePoint.x + 8, corePoint.y, { steps: 2 });
+    await expect(page.locator('.hangar-status-message')).toContainText('aufgenommen');
+    await stage.evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'center' }));
+    await waitForRenderFrames(page, 2);
+    const wingTarget = page.locator('[data-hangar-slot="wing_right"]');
+    const targetPoint = await wingTarget.evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        const x = rect.x + rect.width / 2;
+        const y = rect.y + rect.height / 2;
+        const hit = document.elementFromPoint(x, y);
+        return {
+            x,
+            y,
+            hitSlot: hit?.closest?.('[data-hangar-slot]')?.getAttribute('data-hangar-slot') || '',
+            inViewport: x >= 0 && y >= 0 && x <= innerWidth && y <= innerHeight,
+        };
+    });
+    expect(targetPoint.inViewport).toBeTruthy();
+    expect(targetPoint.hitSlot, JSON.stringify(targetPoint)).toBe('wing_right');
+    await page.mouse.move(targetPoint.x, targetPoint.y);
+    await expect(wingTarget).toHaveClass(/is-drop-target/);
+    await page.mouse.up();
+
+    await expect(page.locator('[data-hangar-slot-row="wing_right"] .hangar-installed-part')).toHaveText('Stein 2 · T1');
+    await expect(page.locator('[data-hangar-slot-row="core"] .hangar-installed-part')).toHaveText('Leer');
+    await expect(page.locator('[data-hangar-slot-row="wing_left"] .arcade-vehicle-slot-tier')).toHaveText('T1');
+    await expect(page.locator('[data-hangar-slot-row="wing_right"] .arcade-vehicle-slot-tier')).toHaveText('T1');
+    await expect(page.locator('[data-hangar-slot="wing_left"]')).toHaveClass(/is-installed/);
+    await expect.poll(() => readMetric(page, 'turnPct')).toBeGreaterThan(turnBefore);
+
+    await page.locator('[data-build-view="stats"]').click();
+    await expect(page.locator('[data-metric="turnPct"] .hangar-stat-comparisons')).toContainText('Seit Standard:');
+    await expect(page.locator('[data-metric="turnPct"] .hangar-stat-comparisons')).toContainText('Gegen ');
+    await expect(page.locator('[data-metric="turnPct"] .hangar-stat-value')).toHaveAttribute('title', /Wendigkeit/);
+    await expect(page.locator('.hangar-budget-rows')).toBeHidden();
+
+    await page.locator('[data-build-view="presets"]').click();
+    await expect(page.locator('[data-build-view-panel="presets"]')).toBeVisible();
+    await expect(page.locator('.hangar-starter-panel')).toBeHidden();
+    await expect(page.locator('.hangar-preset-rename')).toBeHidden();
+    await expect(page.locator('.hangar-preset-more summary')).toHaveAttribute('aria-controls', 'hangar-preset-more-actions');
+    await page.locator('.hangar-preset-more summary').click();
+    await expect(page.locator('.hangar-preset-rename')).toBeVisible();
+    await page.locator('.arcade-vehicle-preset-input').fill(BUILD_NAME);
+    await page.locator('.arcade-vehicle-preset-save').click();
+    await expect(page.locator('.arcade-vehicle-preset-select option', { hasText: BUILD_NAME })).toHaveCount(1);
+    await page.locator('.hangar-activate-build').click();
+    await expect(page.locator('.hangar-status-message')).toContainText('aktiviert');
+
+    await page.goto(new URL('/', page.url()).href);
+    await loadGameWithRetry(page);
+    await startArcadeRun(page);
+    const scopedLastRunKey = await resolveProfileScopedKey(page, ARCADE_LAST_RUN_STORAGE_KEY);
+    const runState = await page.evaluate(({ lastRunKey, legacyLastRunKey }) => {
+        const read = (scopedKey, legacyKey) => {
+            try {
+                return JSON.parse(localStorage.getItem(scopedKey) || localStorage.getItem(legacyKey) || "{}");
+            } catch {
+                return {};
+            }
+        };
+        const game = window.GAME_INSTANCE;
+        const snapshot = read(lastRunKey, legacyLastRunKey);
+        return {
+            humanVehicleId: String(game?.entityManager?.humanPlayers?.[0]?.vehicleId || ''),
+            snapshotVehicleId: String(snapshot.vehicleId || ''),
+            snapshotBuildId: String(snapshot.buildId || ''),
+        };
+    }, {
+        lastRunKey: scopedLastRunKey,
+        legacyLastRunKey: ARCADE_LAST_RUN_STORAGE_KEY,
+    });
+    expect(runState.humanVehicleId).toBe(selectedVehicleId);
+    expect(runState.snapshotVehicleId).toBe(selectedVehicleId);
+    expect(runState.snapshotBuildId).not.toBe('');
+    // The pool is the run's only truth: both wing stones sit in the flown vehicle and count one step each.
+    expect(await stonePlacement(page, 'stone-0001')).toEqual({ vehicleId: selectedVehicleId, slotId: 'wing_left' });
+    expect(await stonePlacement(page, 'stone-0002')).toEqual({ vehicleId: selectedVehicleId, slotId: 'wing_right' });
+    await expect.poll(() => page.evaluate(() => (
+        Number(window.GAME_INSTANCE?.runtimeFacade?.arcadeRunRuntime?._runBonuses?.build?.stoneSteps?.wings) || 0
+    ))).toBe(2);
+
+    await returnToMenu(page);
+    await openArcadeHangar(page);
+    await expect(page.locator('.arcade-vehicle-preset-select option', { hasText: BUILD_NAME })).toHaveCount(1);
+    await expect(page.locator('[data-hangar-slot-row="wing_left"] .hangar-installed-part')).toHaveText('Stein 1 · T1');
+    await expect(page.locator('[data-hangar-slot-row="wing_right"] .hangar-installed-part')).toHaveText('Stein 2 · T1');
+    await expect(page.locator('#arcade-vehicle-manager .hangar-viewport-canvas-node')).toHaveCount(1);
+    await expect(page.locator('#arcade-vehicle-manager [data-hangar-slot]')).toHaveCount(7);
+    await expect(page.locator('[data-hangar-slot="wing_right"]')).toHaveText('T1');
+});
+
+async function openFightHangar(page) {
+    await page.goto(new URL('/hangar.html?mode=fight', page.url()).href);
+    await expect(page.locator('#arcade-vehicle-manager')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#arcade-vehicle-preview-stage')).toHaveAttribute('data-preview-status', 'ready');
+}
+
+// The five colour stones stay in the Fight hangar (Paket 3): catalog, starter builds and dragging a
+// catalog stone onto a socket keep working there, unchanged.
+test('Desktop-Hangar (Fight): Farbstein-Katalog, Starter-Builds und Ziehen auf die Fassung bleiben', async ({ page }) => {
+    test.setTimeout(240_000);
+    await loadGame(page);
+    await openFightHangar(page);
+    const stage = page.locator('#arcade-vehicle-preview-stage');
+    await expect(page.locator('[data-build-view="workshop"]')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('.hangar-stone-panel')).toHaveCount(0);
+
     const agilityBefore = await readMetric(page, 'agility');
     await page.locator('[data-build-view="presets"]').click();
     await page.locator('[data-catalog-view="parts"]').click();
@@ -337,7 +480,8 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await expect(page.locator('.hangar-part-filter-reset')).toBeDisabled();
     await expect(page.locator('.hangar-part-card[data-part-id="stone_blue_t1"] .hangar-part-stats')).toContainText('Tempo +3');
     await expect(page.locator('.hangar-part-card[data-part-id="stone_green_t1"] .hangar-part-costs')).toContainText('Paarpreis');
-    await expect(page.locator('.hangar-part-card[data-part-id="stone_green_t1"] .hangar-part-run-bonuses')).toContainText('Wende +4%');
+    await expect(page.locator('.hangar-part-card[data-part-id="stone_green_t1"] .hangar-part-run-bonuses')).toContainText('Run:');
+    await expect(page.locator('[data-purchase-stone-id]')).toHaveCount(0);
 
     const violetCore = page.locator('.hangar-part-card[data-part-id="stone_violet_t1"]');
     await violetCore.locator('.hangar-part-select').click();
@@ -350,12 +494,7 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await expect(page.locator('.hangar-status-message')).toContainText('eingesetzt');
 
     await page.locator('[data-build-view="presets"]').click();
-    await expect(page.locator('[data-build-view-panel="presets"]')).toBeVisible();
     await expect(page.locator('[data-starter-build="sprinter"]')).toContainText('Tempo und geringes Gewicht');
-    await expect(page.locator('.hangar-preset-rename')).toBeHidden();
-    await expect(page.locator('.hangar-preset-more summary')).toHaveAttribute('aria-controls', 'hangar-preset-more-actions');
-    await page.locator('.hangar-preset-more summary').click();
-    await expect(page.locator('.hangar-preset-rename')).toBeVisible();
     await page.locator('[data-starter-build="sprinter"]').click();
     await expect(page.locator('[data-hangar-slot-row="wing_left"] .hangar-installed-part')).toContainText('Wendestein T1');
     await expect(page.locator('.hangar-status-message')).toContainText('Sprinter Build geladen');
@@ -366,18 +505,6 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await waitForRenderFrames(page, 2);
     await expect(wingPart).toBeVisible();
     await expect(wingPart).not.toHaveAttribute('data-locked', 'true');
-    const purchaseButton = wingPart.locator('[data-purchase-stone-id="stone_green_t2"]');
-    await expect(purchaseButton).toBeVisible();
-    await wingPart.locator('.hangar-part-select').click();
-    await expect(purchaseButton).toBeVisible();
-    await expect(page.locator('.hangar-status-message')).toContainText('Kauf separat bestätigen');
-    await purchaseButton.click();
-    await expect(purchaseButton).toBeVisible();
-    await expect(purchaseButton).toContainText('1 Exemplar');
-    await expect(page.locator('.hangar-status-message')).toContainText('gekauft');
-    await purchaseButton.click();
-    await expect(wingPart.locator('[data-purchase-stone-id="stone_green_t2"]')).toHaveCount(0);
-    await expect(page.locator('.hangar-status-message')).toContainText('gekauft');
     await wingPart.locator('.hangar-part-select').hover();
     await page.mouse.down();
     const wingPartPoint = await wingPart.locator('.hangar-part-select').evaluate((node) => {
@@ -410,79 +537,6 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await expect(page.locator('[data-hangar-slot-row="wing_left"] .arcade-vehicle-slot-tier')).toHaveText('T2');
     await expect(page.locator('[data-hangar-slot-row="wing_right"] .arcade-vehicle-slot-tier')).toHaveText('T2');
     await expect.poll(() => readMetric(page, 'agility')).toBeGreaterThan(agilityBefore);
-
-    await page.locator('[data-build-view="stats"]').click();
-    await expect(page.locator('[data-metric="agility"] .hangar-stat-comparisons')).toContainText('Seit Standard:');
-    await expect(page.locator('[data-metric="agility"] .hangar-stat-comparisons')).toContainText('Gegen ');
-    await expect(page.locator('[data-metric="agility"] .hangar-stat-value')).toHaveAttribute('title', /Wendigheitswert/);
-
-    await page.locator('[data-build-view="presets"]').click();
-    await page.locator('.arcade-vehicle-preset-input').fill(BUILD_NAME);
-    await page.locator('.arcade-vehicle-preset-save').click();
-    await expect(page.locator('.arcade-vehicle-preset-select option', { hasText: BUILD_NAME })).toHaveCount(1);
-    await page.locator('.hangar-activate-build').click();
-    await expect(page.locator('.hangar-status-message')).toContainText('aktiviert');
-
-    await page.goto(new URL('/', page.url()).href);
-    await loadGameWithRetry(page);
-    await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
-    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-    await page.waitForFunction(() => (
-        window.GAME_INSTANCE?.settings?.gameMode === 'ARCADE'
-        && window.GAME_INSTANCE?.settings?.localSettings?.modePath === 'arcade'
-    ));
-    await page.selectOption('#map-select', 'standard');
-    await page.waitForFunction(() => window.GAME_INSTANCE?.settings?.mapKey === 'standard');
-    await expect(page.locator('#arcade-vehicle-manager')).toHaveCount(0);
-    await openStartSetupSection(page, 'arcade');
-    await page.locator('#btn-arcade-start-inline').click();
-    await page.waitForFunction(() => (
-        window.GAME_INSTANCE?.state === 'PLAYING'
-        && (window.GAME_INSTANCE?.entityManager?.humanPlayers?.length || 0) > 0
-    ), null, { timeout: 60000 });
-
-    const scopedLastRunKey = await resolveProfileScopedKey(page, ARCADE_LAST_RUN_STORAGE_KEY);
-    const scopedProfileKey = await resolveProfileScopedKey(page, ARCADE_VEHICLE_PROFILE_STORAGE_KEY);
-    const runState = await page.evaluate(({ profileKey, lastRunKey, legacyProfileKey, legacyLastRunKey }) => {
-        const read = (scopedKey, legacyKey) => {
-            try {
-                return JSON.parse(localStorage.getItem(scopedKey) || localStorage.getItem(legacyKey) || "{}");
-            } catch {
-                return {};
-            }
-        };
-        const game = window.GAME_INSTANCE;
-        const profileStore = read(profileKey, legacyProfileKey);
-        const snapshot = read(lastRunKey, legacyLastRunKey);
-        return {
-            humanVehicleId: String(game?.entityManager?.humanPlayers?.[0]?.vehicleId || ''),
-            snapshotVehicleId: String(snapshot.vehicleId || ''),
-            snapshotBuildId: String(snapshot.buildId || ''),
-            profileUpgrades: profileStore[snapshot.vehicleId]?.upgrades || {},
-        };
-    }, {
-        profileKey: scopedProfileKey,
-        lastRunKey: scopedLastRunKey,
-        legacyProfileKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
-        legacyLastRunKey: ARCADE_LAST_RUN_STORAGE_KEY,
-    });
-    expect(runState.humanVehicleId).toBe(selectedVehicleId);
-    expect(runState.snapshotVehicleId).toBe(selectedVehicleId);
-    expect(runState.snapshotBuildId).not.toBe('');
-    expect(runState.profileUpgrades.wing_left_t2).toBe('T2');
-    expect(runState.profileUpgrades.wing_right_t2).toBe('T2');
-    await expect.poll(() => page.evaluate(() => ({
-        ...(window.GAME_INSTANCE?.runtimeFacade?.arcadeRunRuntime?.getVehicleProfile?.()?.upgrades || {}),
-    }))).toEqual(runState.profileUpgrades);
-
-    await returnToMenu(page);
-    await openArcadeHangar(page);
-    await expect(page.locator('.arcade-vehicle-preset-select option', { hasText: BUILD_NAME })).toHaveCount(1);
-    await expect(page.locator('[data-hangar-slot-row="wing_left"] .arcade-vehicle-slot-tier')).toHaveText('T2');
-    await expect(page.locator('[data-hangar-slot-row="wing_right"] .arcade-vehicle-slot-tier')).toHaveText('T2');
-    await expect(page.locator('#arcade-vehicle-manager .hangar-viewport-canvas-node')).toHaveCount(1);
-    await expect(page.locator('#arcade-vehicle-manager [data-hangar-slot]')).toHaveCount(7);
 });
 
 // --- Paket 2a: Größenumbau im Reiter "Ausbau" ("Form" behält nur die Farbe) ---
@@ -648,4 +702,233 @@ test('T-ARC-S3: gesperrter Größenumbau ist im Reiter „Ausbau“ sichtbar, ab
     await expect(page.locator('.hangar-size-buy-storage[data-storage="items"]')).toBeVisible();
     await expect(page.locator('.hangar-size-buy-storage[data-storage="items"]')).toBeDisabled();
     expect(await page.locator('.hangar-size-buy-storage[data-storage="items"]').evaluate((node) => getComputedStyle(node).opacity)).toBe('1');
+});
+
+// --- Paket 3: Steine aus dem Werkstatt-Pool im Reiter "Ausbau" ---
+
+async function readStoredPool(page) {
+    const key = await resolveProfileScopedKey(page, ARCADE_STONE_WORKSHOP_STORAGE_KEY);
+    return page.evaluate(({ storageKey, legacyKey }) => {
+        try {
+            return JSON.parse(localStorage.getItem(storageKey) || localStorage.getItem(legacyKey) || 'null');
+        } catch {
+            return null;
+        }
+    }, { storageKey: key, legacyKey: ARCADE_STONE_WORKSHOP_STORAGE_KEY });
+}
+
+async function stonePlacement(page, stoneId) {
+    const pool = await readStoredPool(page);
+    return pool?.stones?.find((stone) => stone.stoneId === stoneId)?.placement ?? null;
+}
+
+async function selectHangarVehicle(page, vehicleId) {
+    await page.evaluate((id) => {
+        const card = Array.from(document.querySelectorAll('#arcade-vehicle-manager .arcade-vehicle-card'))
+            .find((node) => node.getAttribute('data-vehicle-id') === id);
+        card?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }, vehicleId);
+    await expect(page.locator(`#arcade-vehicle-manager .arcade-vehicle-card[data-vehicle-id="${vehicleId}"]`)).toHaveAttribute('aria-selected', 'true');
+}
+
+async function openStoneWorkshop(page, vehicleId) {
+    await loadGame(page);
+    await seedUnlockedProfiles(page);
+    await page.reload();
+    await loadGameWithRetry(page);
+    await openArcadeHangar(page);
+    await selectHangarVehicle(page, vehicleId);
+    await expect(page.locator('#hangar-build-view-upgrade')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-build-view-panel="upgrade"] .hangar-stone-panel')).toBeVisible();
+}
+
+/** Every XP purchase of the stone panel opens the shared confirmation; nothing is bought before "Kaufen". */
+async function confirmStoneDialog(page, trigger, expectedLines) {
+    await page.locator(trigger).click();
+    const dialog = page.locator('.hangar-stone-confirm');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('role', 'alertdialog');
+    for (const line of expectedLines) await expect(dialog).toContainText(line);
+    await expect(dialog).toContainText('XP-Käufe sind endgültig.');
+    await dialog.locator('.hangar-stone-confirm-accept').click();
+    await expect(dialog).toBeHidden();
+}
+
+/** Starts a normal arcade run on "standard" from the loaded game page (after the hangar page). */
+async function startArcadeRun(page) {
+    await openCustomSubmenu(page);
+    await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
+    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+    await page.waitForFunction(() => (
+        window.GAME_INSTANCE?.settings?.gameMode === 'ARCADE'
+        && window.GAME_INSTANCE?.settings?.localSettings?.modePath === 'arcade'
+    ));
+    await page.selectOption('#map-select', 'standard');
+    await page.waitForFunction(() => window.GAME_INSTANCE?.settings?.mapKey === 'standard');
+    await expect(page.locator('#arcade-vehicle-manager')).toHaveCount(0);
+    await openStartSetupSection(page, 'arcade');
+    await page.locator('#btn-arcade-start-inline').click();
+    await page.waitForFunction(() => (
+        window.GAME_INSTANCE?.state === 'PLAYING'
+        && (window.GAME_INSTANCE?.entityManager?.humanPlayers?.length || 0) > 0
+    ), null, { timeout: 60000 });
+}
+
+test('T-ARC-ST1: Stein kaufen nur mit Bestätigung, in die Nase setzen, Schaden 100 → 103 %, aktivieren; im Run wirkt er', async ({ page }) => {
+    test.setTimeout(300_000);
+    await openStoneWorkshop(page, 'ship5');
+    await expect(page.locator('.hangar-stone-count')).toHaveText('Steine: 3 / 21');
+
+    await page.locator('.hangar-stone-buy').click();
+    await expect(page.locator('.hangar-stone-confirm')).toBeVisible();
+    await page.locator('.hangar-stone-confirm-cancel').click();
+    await expect(page.locator('.hangar-stone-confirm')).toBeHidden();
+    await expect(page.locator('.hangar-stone-item')).toHaveCount(3);
+    expect(await readStoredPool(page)).toBeNull();
+
+    await confirmStoneDialog(page, '.hangar-stone-buy', ['Kosten: 200 XP', 'XP: 999.999 → 999.799', 'Steine: 3 → 4 von 21']);
+    await expect(page.locator('.hangar-stone-item')).toHaveCount(4);
+    await expect(page.locator('.hangar-stone-count')).toHaveText('Steine: 4 / 21');
+    await expect.poll(async () => (await readStoredPool(page))?.stones?.length).toBe(4);
+    await expect.poll(async () => (await readStoredProfile(page, 'ship5'))?.xpBank).toBe(999999 - 200);
+
+    expect(await readMetric(page, 'damagePct')).toBe(100);
+    await page.locator('[data-stone-select="stone-0004"]').click();
+    await page.locator('[data-select-slot="nose"]').click();
+    await expect(page.locator('[data-installed-slot="nose"]')).toHaveText('Stein 4 · T1');
+    await expect.poll(() => readMetric(page, 'damagePct')).toBe(103);
+    await expect(page.locator('.hangar-stone-status')).toContainText('Entwurf weicht vom aktiven Build ab');
+    expect(await stonePlacement(page, 'stone-0004')).toBeNull();
+
+    await page.locator('.hangar-activate-build').click();
+    await expect(page.locator('.hangar-status-message')).toContainText('aktiviert');
+    await expect(page.locator('.hangar-stone-status')).toBeHidden();
+    await expect.poll(() => stonePlacement(page, 'stone-0004')).toEqual({ vehicleId: 'ship5', slotId: 'nose' });
+
+    await page.goto(new URL('/', page.url()).href);
+    await loadGameWithRetry(page);
+    await startArcadeRun(page);
+    await expect.poll(() => page.evaluate(() => (
+        Number(window.GAME_INSTANCE?.entityManager?.humanPlayers?.[0]?.arcadeDamageMultiplier) || 0
+    ))).toBeCloseTo(1.03, 6);
+});
+
+test('T-ARC-ST2: Stein von der Manta in den Pfeil umstecken; erst nach der Bestätigung ist der Manta-Platz leer', async ({ page }) => {
+    test.setTimeout(240_000);
+    await openStoneWorkshop(page, 'manta');
+    await page.locator('[data-stone-select="stone-0001"]').click();
+    await page.locator('[data-select-slot="core"]').click();
+    await page.locator('.hangar-activate-build').click();
+    await expect(page.locator('.hangar-status-message')).toContainText('aktiviert');
+    await expect.poll(() => stonePlacement(page, 'stone-0001')).toEqual({ vehicleId: 'manta', slotId: 'core' });
+
+    await selectHangarVehicle(page, 'arrow');
+    await expect(page.locator('[data-stone-id="stone-0001"] .hangar-stone-location')).toHaveText('aktiv: Manta-Gleiter · Rumpf');
+    await page.locator('[data-stone-select="stone-0001"]').click();
+    await page.locator('[data-select-slot="core"]').click();
+    const coreRow = page.locator('[data-hangar-slot-row="core"]');
+    await expect(coreRow).toHaveClass(/is-foreign/);
+    await expect(coreRow.locator('.hangar-stone-slot-note')).toHaveText('steckt in Manta-Gleiter · Rumpf – wird beim Aktivieren umgesteckt');
+
+    await page.locator('.hangar-activate-build').click();
+    const dialog = page.locator('.hangar-activation-dock .hangar-stone-transfer-confirm');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('role', 'alertdialog');
+    await expect(dialog).toContainText('Stein 1 wird aus Manta-Gleiter · Rumpf entfernt');
+    expect(await stonePlacement(page, 'stone-0001')).toEqual({ vehicleId: 'manta', slotId: 'core' });
+
+    await dialog.locator('.hangar-stone-transfer-confirm-accept').click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('.hangar-status-message')).toContainText('aktiviert');
+    await expect.poll(() => stonePlacement(page, 'stone-0001')).toEqual({ vehicleId: 'arrow', slotId: 'core' });
+    await expect(coreRow).not.toHaveClass(/is-foreign/);
+    await selectHangarVehicle(page, 'manta');
+    await expect(page.locator('[data-installed-slot="core"]')).toHaveText('Leer');
+});
+
+test('T-ARC-ST3: ein schwächer wirkender Stein zeigt sein Warnsymbol mit Grund beim Darüberfahren und nach Antippen', async ({ page }) => {
+    test.setTimeout(180_000);
+    await openStoneWorkshop(page, 'ship5');
+    await confirmStoneDialog(page, '[data-stone-upgrade="stone-0001"]', ['Kosten: 400 XP', 'Stein 1: T1 → T2']);
+    await expect(page.locator('[data-stone-select="stone-0001"]')).toHaveText('Stein 1 · T2');
+    await page.locator('[data-stone-select="stone-0001"]').click();
+    await page.locator('[data-select-slot="core"]').click();
+
+    const row = page.locator('[data-hangar-slot-row="core"]');
+    const warning = row.locator('.hangar-stone-warning');
+    const reason = row.locator('.hangar-stone-warning-text');
+    const text = 'Wirkt als T1 – Rumpf auf 125 % bringen (jetzt 100 %)';
+    await expect(row.locator('.arcade-vehicle-slot-tier')).toHaveText('T1');
+    await expect(warning).toBeVisible();
+    await expect(warning).toHaveAttribute('title', text);
+    await expect(warning).toHaveAttribute('tabindex', '0');
+    await expect(reason).toBeHidden();
+
+    await warning.hover();
+    await expect(reason).toBeVisible();
+    await expect(reason).toHaveText(text);
+    await page.locator('.hangar-stone-title').hover();
+    await expect(reason).toBeHidden();
+
+    // A tap (touch devices have no hover) keeps the reason open until the next tap.
+    await warning.click();
+    await expect(reason).toBeVisible();
+    await expect(warning).toHaveAttribute('aria-expanded', 'true');
+    await page.locator('.hangar-stone-title').hover();
+    await expect(reason).toBeVisible();
+    await warning.click();
+    await expect(warning).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('T-ARC-ST4: Stein und Platz per Klick oder Tastatur, Umstecken, Strg+Z stellt her; der Pool bleibt bis zum Aktivieren gleich', async ({ page }) => {
+    test.setTimeout(180_000);
+    await openStoneWorkshop(page, 'ship5');
+    const poolBefore = await readStoredPool(page);
+    const stone = page.locator('[data-stone-select="stone-0002"]');
+
+    await stone.focus();
+    await page.keyboard.press('Enter');
+    await expect(stone).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('[data-select-slot="nose"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-installed-slot="nose"]')).toHaveText('Stein 2 · T1');
+    await expect(page.locator('[data-hangar-slot="nose"]')).toHaveText('T1');
+    await expect(page.locator('[data-hangar-slot="nose"]')).toHaveClass(/is-installed/);
+
+    await stone.click();
+    await page.locator('[data-select-slot="core"]').click();
+    await expect(page.locator('[data-installed-slot="core"]')).toHaveText('Stein 2 · T1');
+    await expect(page.locator('[data-installed-slot="nose"]')).toHaveText('Leer');
+
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('[data-installed-slot="nose"]')).toHaveText('Stein 2 · T1');
+    await expect(page.locator('[data-installed-slot="core"]')).toHaveText('Leer');
+    await page.keyboard.press('Control+y');
+    await expect(page.locator('[data-installed-slot="core"]')).toHaveText('Stein 2 · T1');
+    expect(await readStoredPool(page)).toEqual(poolBefore);
+});
+
+test('T-ARC-ST5: gesperrte Steinplätze sind sichtbar, abgedunkelt, nennen ihre Bedingung und lassen sich erst nach dem Kauf nutzen', async ({ page }) => {
+    test.setTimeout(180_000);
+    await openStoneWorkshop(page, 'ship5');
+    const wings = page.locator('[data-stone-package="wings"]');
+    await expect(wings).toHaveClass(/is-locked/);
+    await expect(wings.locator('.hangar-locked-condition')).toHaveText('Flügelpaar: Steinplätze für 250 XP freischalten');
+    await expect(wings.locator(':scope > .hangar-locked-body')).toHaveAttribute('aria-disabled', 'true');
+    expect(await wings.locator(':scope > .hangar-locked-body').evaluate((node) => Number(getComputedStyle(node).opacity))).toBeLessThan(1);
+    await expect(page.locator('[data-select-slot="wing_left"]')).toBeVisible();
+    await expect(page.locator('[data-select-slot="wing_left"]')).toBeDisabled();
+    await expect(wings.locator('.hangar-stone-package-buy')).toHaveAttribute('aria-label', 'Steinplätze Flügelpaar freischalten (250 XP)');
+
+    await page.locator('[data-stone-select="stone-0001"]').click();
+    await page.locator('[data-hangar-slot="wing_left"]').click({ force: true });
+    await expect(page.locator('[data-installed-slot="wing_left"]')).toHaveText('Leer');
+
+    await page.locator('.hangar-stone-package-buy[data-stone-package-buy="wings"]').click();
+    await page.locator('.hangar-stone-confirm-cancel').click();
+    await expect(wings).toHaveClass(/is-locked/);
+    await confirmStoneDialog(page, '[data-stone-package-buy="wings"]', ['Kosten: 250 XP', 'XP: 999.999 → 999.749']);
+    await expect(wings).not.toHaveClass(/is-locked/);
+    await expect(page.locator('[data-select-slot="wing_left"]')).toBeEnabled();
+    await expect.poll(async () => (await readStoredProfile(page, 'ship5'))?.stoneSlotPackages).toEqual(['wings']);
 });
