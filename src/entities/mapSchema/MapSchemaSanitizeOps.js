@@ -23,7 +23,7 @@ export function asArray(value) {
     return Array.isArray(value) ? value : [];
 }
 
-function asLimitedArray(value, key) {
+export function asLimitedArray(value, key) {
     const entries = asArray(value);
     const limit = MAP_SCHEMA_COLLECTION_LIMITS[key];
     if (Number.isFinite(limit) && entries.length > limit) {

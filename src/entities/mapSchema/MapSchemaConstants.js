@@ -22,6 +22,7 @@ export const MAP_SCHEMA_COLLECTION_LIMITS = Object.freeze({
     checkpointNextIds: 64,
     // One truth: the contract caps how many rooms a map may hold, the schema refuses the rest.
     secretRooms: SECRET_ROOM_LIMITS.maxRooms,
+    playableVolumes: 8,
 });
 
 export const DEFAULT_ARENA_SIZE = Object.freeze({

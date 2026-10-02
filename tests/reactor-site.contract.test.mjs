@@ -5,6 +5,7 @@ import test from 'node:test';
 import * as THREE from 'three';
 
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
+import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { MAP_PRESETS } from '../src/core/config/MapPresets.js';
 import { getRuntimeMapDefinition } from '../src/shared/contracts/RuntimeMapCatalogContract.js';
 import { resolveMapPickerCollection } from '../src/ui/menu/MenuMapCollectionCatalog.js';
@@ -32,6 +33,8 @@ import { resolveMapSinglePlayerScenario } from '../src/shared/contracts/MapSingl
 import { MapOwnedPickupSystem } from '../src/entities/systems/MapOwnedPickupSystem.js';
 import { MapDestructibleGlowController } from '../src/entities/arena/MapDestructibleGlowController.js';
 import { PortalRuntimeSystem } from '../src/entities/arena/portal/PortalRuntimeSystem.js';
+import { ArenaCollision } from '../src/entities/arena/ArenaCollision.js';
+import { resolveArenaPlayableVolumes } from '../src/entities/arena/ArenaPlayableVolumes.js';
 
 // The map preset of the reactor site. The Blender side of the same contract lives in
 // reactor-site-blender-assets.contract.test.mjs; this file checks the half the preset owns: that
@@ -123,14 +126,27 @@ test('the map is a scene-collided, scaled-anchor hunt map with a single-player s
     assert.ok(scenario.minBots >= 1 && scenario.minBots <= scenario.botCount);
 });
 
-test('the basin contract follows the recessed Blender wells and opens the fallback floor', () => {
-    const [west, east] = MAP.permanentWaterZones;
+test('the deep basin and flooded gallery contract preserves the water surface and opens only mapped shafts', () => {
+    const [west, east, core, westGallery, eastGallery] = MAP.permanentWaterZones;
     assert.deepEqual(west.center, [-63, 0]);
     assert.deepEqual(east.center, [63, 0]);
-    assert.equal(west.floorLevel, 2);
-    assert.equal(east.floorLevel, 2);
+    assert.equal(west.floorLevel, -52.9);
+    assert.equal(east.floorLevel, -52.9);
     assert.equal(west.radius, 24.5);
     assert.equal(east.radius, 24.5);
+    assert.equal(west.surfaceLevel, 8.1);
+    assert.equal(east.surfaceLevel, 8.1);
+    assert.equal(core.floorLevel, -52.9);
+    assert.equal(core.radius, 13.0);
+    assert.equal(core.surfaceLevel, 8.1);
+    assert.equal(westGallery.surfaceVisible, false);
+    assert.equal(eastGallery.surfaceVisible, false);
+    assert.deepEqual(westGallery.bounds, { min: [-45, -34, -9.3], max: [-7.2, -26.35, 9.3] });
+    assert.deepEqual(eastGallery.bounds, { min: [7.2, -34, -9.3], max: [45, -26.35, 9.3] });
+    const clearGallery = MAP.playableVolumes[3].bounds;
+    const visibleMantaWidth = 16.59;
+    assert.ok(clearGallery.max[2] - clearGallery.min[2] >= visibleMantaWidth + 2,
+        'the full-sized Manta visual envelope has a one-unit margin on both tunnel walls');
     assert.ok(west.surfaceLevel < 8.25 && west.surfaceLevel > west.floorLevel);
     assert.ok(east.surfaceLevel < 8.25 && east.surfaceLevel > east.floorLevel);
     for (const centerX of [-63, 63]) {
@@ -141,11 +157,52 @@ test('the basin contract follows the recessed Blender wells and opens the fallba
         }
     }
     for (const item of MAP.items) {
-        for (const pool of MAP.permanentWaterZones) {
+        for (const pool of MAP.permanentWaterZones.filter((zone) => Array.isArray(zone.center))) {
             assert.ok(Math.hypot(item.x - pool.center[0], item.z - pool.center[1]) > pool.radius,
                 `${item.id} does not spawn under permanent pool water`);
         }
     }
+    assert.ok(!REACTOR_SITE_GROUND_TILES.some((tile) => {
+        const dx = Math.max(Math.abs(tile.pos[0]) - tile.size[0] / 2, 0);
+        const dz = Math.max(Math.abs(tile.pos[2]) - tile.size[2] / 2, 0);
+        return Math.hypot(dx, dz) < 15.12;
+    }), 'fallback floor leaves the complete enlarged central bowl hole open');
+});
+
+test('a large vehicle can fly continuously through both flooded routes above the complete reactor core', () => {
+    const scale = CONFIG_SECTIONS.ARENA.MAP_SCALE;
+    const playableVolumes = resolveArenaPlayableVolumes(MAP, scale);
+    const bounds = {
+        minX: -REACTOR_HALF_SIZE * scale, maxX: REACTOR_HALF_SIZE * scale,
+        minY: 0, maxY: MAP.size[1] * scale,
+        minZ: -REACTOR_HALF_SIZE * scale, maxZ: REACTOR_HALF_SIZE * scale,
+    };
+    const collision = new ArenaCollision({ bounds, obstacles: [], playableVolumes });
+    const radius = 4.64; // largest ordinary vehicle bound radius in runtime units
+    const flightY = -30.175; // above the entire fuel core, below the tunnel roof and water surface
+    const routes = [
+        [[-63, flightY, 0], [63, flightY, 0]],
+        [[63, flightY, 0], [-63, flightY, 0]],
+    ];
+    for (const route of routes) {
+        for (let segment = 0; segment < route.length - 1; segment += 1) {
+            const from = route[segment];
+            const to = route[segment + 1];
+            const distance = Math.hypot(...to.map((value, axis) => value - from[axis])) * scale;
+            const steps = Math.ceil(distance / 1.5);
+            for (let index = 0; index <= steps; index += 1) {
+                const point = new THREE.Vector3(...from.map((value, axis) => (
+                    (value + ((to[axis] - value) * index) / steps) * scale
+                )));
+                const label = `segment ${segment} step ${index}`;
+                assert.equal(collision.checkCollisionFast(point, radius), false, `player route blocked at ${label}`);
+                assert.equal(collision.checkBotCollisionFast(point, radius), false, `bot route blocked at ${label}`);
+                assert.equal(collision.getCollisionInfo(point, radius), null, `projectile/precise query blocked at ${label}`);
+            }
+        }
+    }
+    const outsideShaft = new THREE.Vector3(20 * scale, flightY * scale, 20 * scale);
+    assert.equal(collision.checkCollisionFast(outsideShaft, radius), true, 'the surrounding below-map volume stays closed');
 });
 
 test('the fixed reactor exit endpoint is collision-free and portal traversal reaches the safe field edge', () => {

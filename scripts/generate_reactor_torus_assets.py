@@ -289,11 +289,14 @@ def build_variant(context):
 
 def main():
     import argparse
+    from pathlib import Path
     parser = argparse.ArgumentParser()
     parser.add_argument('--variant', type=int, choices=range(1, 5))
+    parser.add_argument('--output-dir', type=Path)
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
     for index in ([args.variant] if args.variant else range(1, 5)):
-        build_variant({'parameters': {'style': index}})
+        build_variant({'parameters': {'style': index},
+                       'output_dir': str(args.output_dir.resolve()) if args.output_dir else None})
 
 
 if __name__ == '__main__':

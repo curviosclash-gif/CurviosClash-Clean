@@ -60,9 +60,9 @@ function breakScene(id, file, clipName, baseMetres, x = 0, z = 0) {
 
 /** Undersides the generator reported (`base_y`), in metres above the apron. */
 export const REACTOR_PART_BASE_METRES = Object.freeze({
-    'reactor-site': -10.0,            // measured 01_site minimum at the recessed pool bottoms
+    'reactor-site': -101.5,           // the deep basin floor is the measured lowest site surface
     'reactor-turbine-hall': 0.0,
-    'reactor-block': 0.0,
+    'reactor-block': 0.0,             // its intact floor ring remains at apron level
     'reactor-cooling-tower-west': -0.42,  // scaled splayed inlet columns overhang their feet
     'reactor-cooling-tower-east': -0.42,
     'reactor-vent-stack': 0.0,
@@ -98,7 +98,7 @@ export const REACTOR_SCENE_INTACT_MODEL = Object.freeze({
 const REACTOR_SITE_PARTS = [
     part('site', '01_site', REACTOR_PART_BASE_METRES['reactor-site']),
     part('turbine-hall', '02_turbine_hall', 0.0, 0, HALL_Z),
-    part('block', '03_reactor_block', 0.0),
+    part('block', '03_reactor_block', REACTOR_PART_BASE_METRES['reactor-block']),
     // The same file twice: the anchor of the destructible segment tells the two towers apart.
     part('cooling-tower-west', '04_cooling_tower', -0.42, -TOWER_X, 0),
     part('cooling-tower-east', '04_cooling_tower', -0.42, TOWER_X, 0),

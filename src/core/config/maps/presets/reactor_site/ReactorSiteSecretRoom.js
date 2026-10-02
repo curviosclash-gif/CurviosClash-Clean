@@ -32,12 +32,13 @@
 import { up, REACTOR_HALF_SIZE } from './ReactorSiteStructure.js';
 
 /**
- * Interior of the room. The ceiling is four map units below the arena floor. The first version was
- * 40 map units across; width and depth are doubled, and the room now has twice its original height.
+ * Interior of the room. It sits eighty authored units below the arena floor so it clears the new
+ * deep reactor shafts while retaining its existing dimensions and encounter layout.
  */
 const ROOM_HALF = 40;
-const ROOM_CEILING = -4;
-const ROOM_FLOOR = -28;
+const ROOM_VERTICAL_OFFSET = -80;
+const ROOM_CEILING = -4 + ROOM_VERTICAL_OFFSET;
+const ROOM_FLOOR = -28 + ROOM_VERTICAL_OFFSET;
 
 const ROOM_BOUNDS = Object.freeze({
     min: Object.freeze([-ROOM_HALF, ROOM_FLOOR, -ROOM_HALF]),
@@ -89,6 +90,7 @@ export const REACTOR_SITE_SECRET_ROOM_TURRETS = Object.freeze([
     { ...ROCKET_GUARD, id: 'reactor_site_bunker_rocket', pos: [0, -13, 28] },
 ].map((turret) => Object.freeze({
     ...turret,
+    pos: Object.freeze([turret.pos[0], turret.pos[1] + ROOM_VERTICAL_OFFSET, turret.pos[2]]),
     destructible: true,
     maxHp: 45,
     respawnSeconds: 45,
@@ -121,8 +123,8 @@ const ITEMS = Object.freeze([
     { pos: [30, -10, 0], type: 'ROCKET_HEAVY' },
     { pos: [-30, -10, -30], type: 'ROCKET_HEAVY' },
 ].flatMap((item) => [
-    item,
-    { ...item, pos: [item.pos[0], item.pos[1] - ROOM_HEIGHT / 2, item.pos[2]] },
+    { ...item, pos: [item.pos[0], item.pos[1] + ROOM_VERTICAL_OFFSET, item.pos[2]] },
+    { ...item, pos: [item.pos[0], item.pos[1] + ROOM_VERTICAL_OFFSET - ROOM_HEIGHT / 2, item.pos[2]] },
 ]));
 
 export const REACTOR_SITE_SECRET_ROOM = Object.freeze({
@@ -140,7 +142,7 @@ export const REACTOR_SITE_SECRET_ROOM = Object.freeze({
     refillSeconds: 30,
     // At the east field edge, clear of the fixed reactor-hall exit portal on the north edge.
     entryPortal: Object.freeze({ pos: Object.freeze([REACTOR_HALF_SIZE - 9, up(36), 0]), color: 0x8cff4d }),
-    roomPortal: Object.freeze({ pos: Object.freeze([0, -10, 0]) }),
+    roomPortal: Object.freeze({ pos: Object.freeze([0, -10 + ROOM_VERTICAL_OFFSET, 0]) }),
     bounds: ROOM_BOUNDS,
     // Out on the south grass, clear of the fixed hall exit; yaw 180 points back toward the plant.
     ejectPoint: Object.freeze({ pos: Object.freeze([0, up(40), -REACTOR_HALF_SIZE + 9]), yawDeg: 180 }),
