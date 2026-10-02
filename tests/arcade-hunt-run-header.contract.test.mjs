@@ -49,7 +49,32 @@ test('arcade hunt runs name their own goal instead of the elimination rule', () 
     assert.match(headerFor('arena_waves'), /Fünf Fronten/);
     assert.doesNotMatch(headerFor('endless_parcours'), /Elimination|Überlebender/);
     assert.match(headerFor('endless_parcours'), /Endlosjagd/);
+    assert.doesNotMatch(headerFor('demolition'), /Elimination|Überlebender/);
+    assert.match(headerFor('demolition'), /Abrisskommando/);
     assert.match(headerFor(''), /Elimination · letzter Überlebender gewinnt/, 'a plain arcade fight keeps the old line');
+});
+
+test('the demolition score box shows its map, timer, briefing, damage target and warning', () => {
+    const previousDocument = globalThis.document;
+    globalThis.document = { createElement: () => element(), getElementById: () => null };
+    try {
+        const hud = new ArcadeScoreHUD(element());
+        hud.update({
+            runType: 'demolition', phase: 'active', mapIndex: 1, mapCount: 3,
+            currentMapKey: 'reactor_site', currentMapLabel: 'Reaktorgelände', remainingSeconds: 41.2,
+            score: { total: 510, currentMap: { total: 210 } }, breakEvents: 2, unitsDestroyed: 1, kills: 3,
+            briefing: 'Reaktor zuletzt zerstören.', warning: 'Reaktor zuletzt!',
+            destructible: { focusSegment: { label: 'Reaktor', ratio: 0.4 } },
+        });
+        assert.match(hud._arenaWavesSection.textContent, /Karte 2\/3: Reaktorgelände/);
+        assert.match(hud._arenaWavesSection.textContent, /Zeit 42 s \| Kartenpunkte 210/);
+        assert.match(hud._arenaWavesSection.textContent, /Auftrag: Reaktor zuletzt zerstören\./);
+        assert.match(hud._arenaWavesSection.textContent, /Ziel Reaktor: 40 %/);
+        assert.match(hud._arenaWavesSection.textContent, /Reaktor zuletzt!/);
+    } finally {
+        if (previousDocument === undefined) delete globalThis.document;
+        else globalThis.document = previousDocument;
+    }
 });
 
 test('the Five Fronts score box shows the map name, not the internal key', () => {

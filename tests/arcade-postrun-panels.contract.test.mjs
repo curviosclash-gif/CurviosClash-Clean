@@ -365,6 +365,31 @@ test('the five portals panel formats times in german and names the maps', () => 
     });
 });
 
+test('the demolition panel shows one card per map with score, medal and XP total', () => {
+    withDocument(() => {
+        const { controller, panel } = makeController();
+        const state = {
+            runType: 'demolition',
+            postRunSummary: {
+                total: 1800,
+                xpEarned: 225,
+                maps: [{
+                    mapKey: 'burg', mapLabel: 'Burghof', medal: 'gold', breakEvents: 3,
+                    score: { total: 800, hpPoints: 200, breakPoints: 150, timePoints: 300 },
+                }],
+            },
+        };
+        assert.equal(controller._renderDemolitionPostRunPanel(state), true);
+        const root = panel();
+        assert.match(textOf(root), /Abrisskommando abgeschlossen/);
+        assert.match(textOf(root), /225 Fahrzeug-XP/);
+        assert.equal(valueOf(root, 'score'), '800');
+        assert.equal(valueOf(root, 'medal'), 'Gold');
+        assert.ok(scrollers(root)[0]);
+        assert.ok(findFirst(root, (node) => node.tagName === 'button'));
+    });
+});
+
 // ---------------------------------------------------------------------------
 // Victory panel
 // ---------------------------------------------------------------------------

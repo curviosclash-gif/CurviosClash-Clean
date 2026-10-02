@@ -14,6 +14,7 @@ import {
     serializeMapDestructibleState,
 } from '../../shared/contracts/MapDestructibleContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { isDemolitionConfig } from '../../shared/contracts/DemolitionContract.js';
 import * as THREE from 'three';
 
 const WIND_STEPS = 3600;
@@ -59,7 +60,8 @@ export class MapDestructibleSystem {
         const map = arena?.currentMapDefinition;
         const authored = normalizeMapDestructibles(map?.destructibles);
         const mode = String(this.entityManager?.gameModeStrategy?.modeType || '').toUpperCase();
-        this.definition = isMapDestructibleModeAllowed(authored, mode) ? authored : null;
+        const demolitionAllowed = mode === 'ARCADE' && isDemolitionConfig(this.entityManager?.runtimeConfig);
+        this.definition = isMapDestructibleModeAllowed(authored, mode) || demolitionAllowed ? authored : null;
         // Authored anchors are given in the map's own units; a scaled map builds its tower that
         // much larger, so the anchors a hit is measured against have to grow with it.
         this.anchorScale = map?.scaleAuthoredAnchors === true

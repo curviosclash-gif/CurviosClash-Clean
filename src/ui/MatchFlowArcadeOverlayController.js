@@ -12,7 +12,7 @@ import {
 } from './arcade/postrun/ArcadePostRunBlocks.js';
 import { formatCount } from './postmatch/PostMatchFormat.js';
 import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/ArcadePostRunCards.js';
-import { createArenaWavesMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
+import { createArenaWavesMapBlocks, createDemolitionMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
 import { formatArenaWavesChoiceLabel, resolveArenaWavesBoardTexts } from './arcade/ArenaWavesOverlayTexts.js';
 import { createArcadeReplayActions } from './arcade/ArcadeReplayActions.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
@@ -474,6 +474,20 @@ export class MatchFlowArcadeOverlayController {
         panel.append(title, list, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
     }
 
+    _renderDemolitionPostRunPanel(runtimeState) {
+        const summary = runtimeState?.postRunSummary;
+        if (runtimeState?.runType !== 'demolition' || !summary || !Array.isArray(summary.maps)) return false;
+        const panel = this._ensureArcadeOverlayPanel(); if (!panel) return false;
+        while (panel.firstChild) panel.removeChild(panel.firstChild);
+        const title = document.createElement('h2');
+        title.textContent = `Abrisskommando abgeschlossen – ${formatCount(toSafeNumber(summary.total, 0))} Punkte`;
+        const list = createArcadeCardScroller(createDemolitionMapBlocks(summary), 'Karten', 'Keine Kartendaten.');
+        const xp = document.createElement('p'); xp.textContent = `${formatCount(toSafeNumber(summary.xpEarned, 0))} Fahrzeug-XP`;
+        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Zum Menü';
+        close.addEventListener('click', () => this.runtimePort?.returnToMenu?.({ reason: 'demolition_finished' }));
+        panel.append(title, list, xp, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
+    }
+
     syncArcadeOverlayPanel() {
         const game = this.game;
         const runtimeProjection = this.runtimePort?.getMatchRuntimeProjection?.() || null;
@@ -483,8 +497,9 @@ export class MatchFlowArcadeOverlayController {
         const arenaUpgrade = runtimeState?.runType === 'arena_waves' && runtimeState?.phase === 'upgrade';
         const arenaFinished = runtimeState?.runType === 'arena_waves' && !!runtimeState?.postRunSummary;
         const fivePortalsFinished = runtimeState?.runType === 'five_portals' && !!runtimeState?.postRunSummary;
-        if (arenaUpgrade || arenaFinished || fivePortalsFinished) game?.ui?.messageOverlay?.classList?.remove?.('hidden');
-        if (!arcadeActive || (!overlayVisible && !arenaUpgrade && !arenaFinished && !fivePortalsFinished)) {
+        const demolitionFinished = runtimeState?.runType === 'demolition' && !!runtimeState?.postRunSummary;
+        if (arenaUpgrade || arenaFinished || fivePortalsFinished || demolitionFinished) game?.ui?.messageOverlay?.classList?.remove?.('hidden');
+        if (!arcadeActive || (!overlayVisible && !arenaUpgrade && !arenaFinished && !fivePortalsFinished && !demolitionFinished)) {
             this.clearArcadeOverlayPanel();
             return;
         }
@@ -501,6 +516,7 @@ export class MatchFlowArcadeOverlayController {
         if (key === this._renderKey) return;
         const focusedId = this._arcadeOverlayPanel?.ownerDocument?.activeElement?.id;
         this._renderKey = key;
+        if (this._renderDemolitionPostRunPanel(runtimeState)) return;
         if (this._renderFivePortalsPostRunPanel(runtimeState)) return;
         if (this._renderArenaWavesPostRunPanel(runtimeState)) return;
         if (this._renderArcadeVictoryPanel(runtimeState)) return;

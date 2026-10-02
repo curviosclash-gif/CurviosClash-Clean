@@ -5,7 +5,8 @@ import { resolveArcadeSizedPartStyle } from '../../shared/contracts/ArcadeVehicl
 import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
 import { listPlayerShipPartDonors } from '../../shared/vehicle-lab/player-ships/index.js';
-import { createArcadeVehicleUpgradeBonusMap } from './ArcadeRunVehicleRewardOps.js';
+import { createArcadePlayerUpgradeBonusMap, createArcadeVehicleUpgradeBonusMap } from './ArcadeRunVehicleRewardOps.js';
+import { isDemolitionConfig } from '../../shared/contracts/DemolitionContract.js';
 
 // Five portals and arena waves have no run runtime that hands the size build to the strategy
 // (gauntlet: ArcadeRunRuntime.setStrategy, endless: setEndlessRunProfile). The profile that sizes
@@ -44,13 +45,33 @@ export function applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig
     const fallbackVehicleId = support?._resolveActiveVehicleId?.(runtimeConfig) || 'ship5';
     const recordStore = support?.game?.settingsManager?.getPlayerRecordStorePort?.() || null;
     const profiles = loadVehicleProfiles(recordStore);
-    applyArcadeRunSizeBuild(entityManager?.gameModeStrategy, profiles, entityManager?.humanPlayers, runtimeConfig);
+    const demolitionProfiles = Object.create(null);
+    if (isDemolitionConfig(runtimeConfig)) {
+        const profileIds = runtimeConfig?.arcade?.demolitionProfileIds || [];
+        for (const player of entityManager?.humanPlayers || []) {
+            const index = Number(player?.index);
+            const profileId = String(profileIds?.[index] || '').trim();
+            const store = support?.game?.playerProfileManager?.getProfiles?.().some((entry) => entry.id === profileId)
+                ? support.game.playerProfileManager.getRecordStorePort(profileId)
+                : null;
+            if (store) demolitionProfiles[index] = loadVehicleProfiles(store);
+        }
+    }
+    if (isDemolitionConfig(runtimeConfig)) {
+        entityManager?.gameModeStrategy?.applyVehicleUpgrades?.(
+            createArcadePlayerUpgradeBonusMap(demolitionProfiles, entityManager?.humanPlayers, { buildOnly: true }),
+        );
+    } else {
+        applyArcadeRunSizeBuild(entityManager?.gameModeStrategy, profiles, entityManager?.humanPlayers, runtimeConfig);
+    }
     const arcadeEnabled = runtimeConfig?.arcade?.enabled === true;
     // Visible size = functional size: Daily and weapon race fly at factory size.
     const useSizes = entityManager?.gameModeStrategy?.isNormalArcadeRun?.() === true;
     for (const player of players) {
         const vehicleId = String(player?.vehicleId || fallbackVehicleId).trim() || fallbackVehicleId;
-        const profile = profiles[vehicleId] || null;
+        const playerIndex = Number(player?.index);
+        const sourceProfiles = isDemolitionConfig(runtimeConfig) ? demolitionProfiles[playerIndex] : profiles;
+        const profile = sourceProfiles?.[vehicleId] || null;
         applyArcadeCosmeticLoadoutToPlayer(player, profile, arcadeEnabled);
         applyArcadePartStyle(player, arcadeEnabled ? profile : null, vehicleId, useSizes);
     }

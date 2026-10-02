@@ -71,7 +71,7 @@ export function buildArcadeSurface(level3Body, ui) {
     dailyCard.classList.add('arcade-daily-start-card');
     startGroup.appendChild(dailyCard);
     const alternateModes = createElement('details', 'arcade-start-mode-options');
-    const alternateModesSummary = createElement('summary', 'arcade-start-mode-options-summary', 'Weitere Arcade-Modi (5)');
+    const alternateModesSummary = createElement('summary', 'arcade-start-mode-options-summary', 'Weitere Arcade-Modi (6)');
     alternateModes.appendChild(alternateModesSummary);
     const alternateModesBody = createElement('div', 'arcade-start-mode-options-body');
     const startEndlessButton = createStartOption(alternateModesBody, 'btn-arcade-endless-start-inline', 'Endlosjagd starten',
@@ -84,6 +84,19 @@ export function buildArcadeSurface(level3Body, ui) {
         'Vier Stufen vom Meeresgrund zu den Sternen – durchs Portal geht es eine Etage höher.');
     const startWeaponRaceButton = createStartOption(alternateModesBody, 'btn-arcade-weapon-race-start-inline', 'Waffenrennen',
         'Fünf Fahrer jagen durch den Angriffsparcours und wechseln ihre Waffe an festen Checkpoints.');
+    const startDemolitionButton = createStartOption(alternateModesBody, 'btn-arcade-demolition-start-inline', 'Abrisskommando',
+        'Drei Belagerungskarten auf Zeit: schnell versiegeln oder für mehr Punkte sauber abtragen.');
+    const demolitionProfileControls = createElement('div', 'arcade-demolition-profile-controls');
+    demolitionProfileControls.appendChild(createElement('p', 'menu-hint', 'Spielerprofile für Abriss-XP und Hangar-Boni'));
+    const demolitionProfileSelects = [0, 1, 2].map((playerIndex) => {
+        const label = createElement('label', 'arcade-demolition-profile-slot', `Spieler ${playerIndex + 1}`);
+        const select = createElement('select', 'menu-select');
+        select.setAttribute('aria-label', `Abrisskommando-Profil Spieler ${playerIndex + 1}`);
+        label.appendChild(select);
+        demolitionProfileControls.appendChild(label);
+        return select;
+    });
+    alternateModesBody.appendChild(demolitionProfileControls);
     alternateModes.appendChild(alternateModesBody);
     startGroup.appendChild(alternateModes);
     body.appendChild(startGroup);
@@ -193,6 +206,7 @@ export function buildArcadeSurface(level3Body, ui) {
     ui.arcadeFivePortalsStartInlineButton = startFivePortalsButton;
     ui.arcadeSkyLadderStartInlineButton = startSkyLadderButton;
     ui.arcadeWeaponRaceStartInlineButton = startWeaponRaceButton;
+    ui.arcadeDemolitionStartInlineButton = startDemolitionButton;
     ui.arcadeSeedRerollButton = rerollSeedButton;
     ui.arcadeSeedCopyButton = copySeedButton;
     ui.arcadeSeedInput = seedInput;
@@ -227,6 +241,8 @@ export function buildArcadeSurface(level3Body, ui) {
         startFivePortalsButton,
         startSkyLadderButton,
         startWeaponRaceButton,
+        startDemolitionButton,
+        demolitionProfileSelects,
         rerollSeedButton,
         copySeedButton,
         seedInput,

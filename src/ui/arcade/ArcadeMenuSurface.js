@@ -22,13 +22,15 @@ import {
     ENDLESS_PARCOURS_RECORDS_STORAGE_KEY,
     summarizeEndlessRecordsLine,
 } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
-import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
 import { getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
+import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
 import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 import { renderArcadeLeaderboardMenu } from './ArcadeLeaderboardMenuView.js';
 import { observeMenuReturn } from './MenuReturnObserver.js';
 import { bindArcadeNightmareToggle, syncArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
+import { setupArcadeDemolitionProfileSelection } from './ArcadeDemolitionProfileSelection.js';
+import { bindArcadeSpecialStartButtons } from './ArcadeMenuSpecialStartOps.js';
 
 const BOT_DIFFICULTY_LABELS = Object.freeze({ EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' });
 // Only phases worth showing; unknown or idle phases stay out of the line.
@@ -220,6 +222,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     }
 
     const refs = buildArcadeSurface(level3Body, ui);
+    const demolitionProfiles = setupArcadeDemolitionProfileSelection(refs, runtimeAccess, settings, bind);
     refs.hangarLaunchCard.classList.toggle('hidden', !hangarWindow.isAvailable());
     let activeProfileId = runtimeAccess?.getActivePlayerProfile?.()?.id || '';
     let activeSeed = loadSeed(runtimeAccess?.getSettingsStore?.());
@@ -288,11 +291,14 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const tierLabel = settings.arcade?.nightmare === true && !settings.arcade?.dailyChallenge ? ' · Albtraum' : '';
         syncArcadeNightmareToggle(refs.nightmareInput, settings);
         const fivePortalsSelected = settings.arcade?.runType === 'five_portals';
+        const demolitionSelected = settings.arcade?.runType === 'demolition';
         const activePortalChain = fivePortalsSelected ? resolvePortalChain(settings.arcade?.portalChainId) : null;
         const fivePortalsRecord = fivePortalsSelected
             ? runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(activePortalChain.recordKey, null) || null
             : null;
-        refs.runLine.textContent = fivePortalsSelected
+        refs.runLine.textContent = demolitionSelected
+            ? 'Abrisskommando: drei Belagerungskarten. Zerstöre die Bauwerke vor Ablauf der Zeit; Punkte und verdiente Fahrzeug-XP bleiben erhalten.'
+            : fivePortalsSelected
             ? (activePortalChain.id === 'five_portals'
                 ? 'Fünf Portale: fünf Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.'
                 : `${activePortalChain.label}: ${activePortalChain.maps.length} Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.`)
@@ -410,11 +416,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         emit(eventTypes.START_MATCH, { borrowedSettings });
     };
 
-    bind(refs.startEndlessButton, 'click', () => startRunWithOwnMap('endless_parcours', { mapKey: 'standard', numBots: 0 }));
-    bind(refs.startFiveFrontsButton, 'click', () => startRunWithOwnMap('arena_waves', { mapKey: 'notre_dame_arena', numBots: 12 }));
-    bind(refs.startFivePortalsButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: 'micro_maw', numBots: 0 }, 'five_portals'));
-    bind(refs.startSkyLadderButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: resolvePortalChain('sky_ladder').maps[0], numBots: 0 }, 'sky_ladder'));
-    bind(refs.startWeaponRaceButton, 'click', () => startRunWithOwnMap('weapon_race', { mapKey: 'parcours_assault', numBots: 4 }));
+    bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, activeSeed, demolitionProfiles, runtimeAccess);
 
     bind(refs.openHangarButton, 'click', async () => {
         const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });

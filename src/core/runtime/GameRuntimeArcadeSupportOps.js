@@ -2,6 +2,8 @@ import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../../shared/cont
 import { isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { resolveObjectiveTargetIndex } from '../../entities/systems/ObjectiveTargetMarkerOps.js';
 import { doesArcadeObjectiveHoldRound } from '../../state/arcade/ArcadeObjectiveState.js';
+import { buildArcadeSectorPlan } from '../../entities/directors/ArcadeEncounterCatalog.js';
+import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 
 /**
  * Hands the live arcade objective to the entity layer, which must not read arcade state itself:
@@ -24,6 +26,21 @@ export function configureArcadeRunRuntime(runtime, runtimeConfig) {
 /** Plane of a local human by player index; bots have no PLAYER_n slot and get null. */
 export function resolveLocalPlayerVehicleId(runtimeState, playerIndex) {
     return runtimeState?.runtimeConfig?.player?.vehicles?.[`PLAYER_${(Number(playerIndex) || 0) + 1}`] || null;
+}
+
+export function resolveActiveArcadeVehicleId(runtimeConfig, settings) {
+    return String(runtimeConfig?.player?.vehicles?.PLAYER_1 || settings?.vehicles?.PLAYER_1 || 'ship5').trim() || 'ship5';
+}
+
+export function buildArcadeEncounterPlan(runtimeConfig) {
+    const plan = buildArcadeSectorPlan({
+        seed: runtimeConfig?.arcade?.seed,
+        sectorCount: runtimeConfig?.arcade?.sectorCount,
+        difficulty: runtimeConfig?.arcade?.nightmare === true
+            ? 'nightmare'
+            : (runtimeConfig?.bot?.activeDifficulty || runtimeConfig?.bot?.difficulty || 'normal'),
+    });
+    return lockSelectedMapToFirstSector(plan, runtimeConfig, getRuntimeMapCatalog());
 }
 
 export function handleWeaponRaceLeaderboard(support, runtimeState, data) {

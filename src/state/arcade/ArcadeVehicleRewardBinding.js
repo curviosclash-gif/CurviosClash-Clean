@@ -11,6 +11,7 @@ export const ARCADE_VEHICLE_XP_RUN_TYPES = Object.freeze([
     'five_portals',
     'arena_waves',
     'weapon_race',
+    'demolition',
 ]);
 
 const ARCADE_VEHICLE_XP_RUN_TYPE_SET = new Set(ARCADE_VEHICLE_XP_RUN_TYPES);

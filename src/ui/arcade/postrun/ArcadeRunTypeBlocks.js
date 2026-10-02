@@ -9,6 +9,7 @@ import {
     createArcadeBlock,
     durationRow,
     resolveArcadeMapLabel,
+    textRow,
 } from './ArcadePostRunBlocks.js';
 
 const MILLISECONDS_PER_SECOND = 1000;
@@ -60,4 +61,20 @@ export function createFivePortalsBlocks(summary = {}) {
             durationRow('record', 'Persönlicher Rekord', toSeconds(summary.bestTotalMs), PORTAL_TIME_PRECISION),
         ]),
     ].filter(Boolean);
+}
+
+export function createDemolitionMapBlocks(summary = {}) {
+    const maps = Array.isArray(summary.maps) ? summary.maps : [];
+    return maps.map((map, index) => createArcadeBlock(
+        `demolition-map-${index}`,
+        `Karte ${index + 1} — ${resolveArcadeMapLabel(map?.mapKey, map?.mapLabel)}`,
+        [
+            countRow('score', 'Punkte', map?.score?.total),
+            countRow('hp-score', 'Bauwerk', map?.score?.hpPoints),
+            countRow('break-score', 'Brüche', map?.score?.breakPoints),
+            countRow('time-score', 'Zeitbonus', map?.score?.timePoints),
+            countRow('break-events', 'Bruch-Ereignisse', map?.breakEvents),
+            textRow('medal', 'Medaille', ({ bronze: 'Bronze', silver: 'Silber', gold: 'Gold' })[map?.medal] || 'Keine'),
+        ]
+    )).filter(Boolean);
 }

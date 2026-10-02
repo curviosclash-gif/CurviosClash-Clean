@@ -1,5 +1,15 @@
 import { createArcadeVehicleProfileWorkshopPort } from '../../state/arcade/ArcadeVehicleProfileWorkshopPort.js';
 
+export function resolvePlayerRecordStorePortForIndex(manager, playerIndex, profileId) {
+    const id = String(profileId || '').trim();
+    const valid = manager?.getProfiles?.().some((profile) => profile.id === id);
+    return Number.isInteger(playerIndex) && valid ? manager.getRecordStorePort(id) : null;
+}
+
+export function createPlayerRecordStorePortResolver(getManager) {
+    return (playerIndex, profileId) => resolvePlayerRecordStorePortForIndex(getManager?.(), playerIndex, profileId);
+}
+
 export function createPlayerProfileMenuRuntimeAccess(game) {
     const getSettingsStore = () => game?.settingsManager?.getPlayerRecordStorePort?.()
         || game?.settingsManager?.getSettingsRecordStorePort?.()
@@ -13,6 +23,7 @@ export function createPlayerProfileMenuRuntimeAccess(game) {
     return Object.freeze({
         getSettingsStore,
         getActivePlayerProfile: () => game?.playerProfileManager?.getActiveProfile?.() || null,
+        getPlayerProfiles: () => game?.playerProfileManager?.getProfiles?.() || [],
         arcadeVehicleProfileWorkshop: createArcadeVehicleProfileWorkshopPort(dynamicStore),
     });
 }

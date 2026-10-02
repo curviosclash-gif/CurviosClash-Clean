@@ -3,6 +3,7 @@ import { isEndlessParcoursConfig } from '../shared/contracts/EndlessParcoursCont
 import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
 import { HUNT_LAST_ALIVE_LIVES } from '../shared/contracts/HuntLivesContract.js';
 import { resolveTeamLabel, TEAM_IDS } from '../shared/contracts/TeamCombatContract.js';
+import { isDemolitionConfig } from '../shared/contracts/DemolitionContract.js';
 
 export function formatHuntClock(seconds) {
     const whole = Math.max(0, Math.ceil(Number(seconds) || 0));
@@ -73,6 +74,7 @@ export function formatFlagObjectiveSummary(flags = []) {
 
 /** Header line: arcade hunt runs are no elimination match, even though they use the fight HUD. */
 export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLimit, timeText, matchPointText }) {
+    if (isDemolitionConfig(runtimeConfig)) return 'Abrisskommando · zerstöre das Bauwerk';
     if (isArenaWavesConfig(runtimeConfig)) return 'Fünf Fronten · halte jede Welle auf';
     if (isEndlessParcoursConfig(runtimeConfig)) return 'Endlosjagd · überlebe so lange wie möglich';
     if (huntProjection?.escortMode === true) return `Eskorte · ${resolveTeamLabel(TEAM_IDS.ALPHA)} schützt den Panzer${timeText}`;
