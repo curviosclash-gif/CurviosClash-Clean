@@ -4,6 +4,7 @@ artifactName: CurviosClash-Setup-${version}-${arch}.${ext}
 files:
   - entry.cjs
   - main.cjs
+  - automation-hint.cjs
   - preload.cjs
   - ipc-sender-guard.cjs
   - window-security-options.cjs
