@@ -515,9 +515,8 @@ export class GameRuntimeArcadeSupport {
         return this.arcadeRunRuntime.selectReward?.(rewardId);
     }
 
-    requestReplayPlayback() {
-        return this.arcadeRunRuntime.requestReplayPlayback?.();
-    }
+    requestReplayPlayback() { return this.requestReplayExport(); }
+    requestReplayExport() { return this.arcadeRunRuntime.requestReplayExport?.() ?? this.arcadeRunRuntime.requestReplayPlayback?.(); }
 
     applyParcoursEvent(data = null) {
         return this.arcadeRunRuntime.applyParcoursLeaderboardEvent(data);

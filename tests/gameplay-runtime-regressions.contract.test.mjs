@@ -629,11 +629,12 @@ test('Arcade replay fallback exports the captured run instead of reporting no pl
         actions: [{ type: 'boost', timestamp: 12 }],
     };
 
-    const result = runtime.requestReplayPlayback();
+    const result = runtime.requestReplayExport();
 
     assert.equal(result.ok, true);
     assert.equal(result.code, 'replay_export_ready');
     assert.deepEqual(JSON.parse(result.replayJson), runtime._latestReplaySnapshot);
+    assert.deepEqual(runtime.requestReplayPlayback(), result, 'legacy retrieval remains compatible');
 });
 
 test('Arcade records retain kill score totals and isolate each daily seed', () => {
