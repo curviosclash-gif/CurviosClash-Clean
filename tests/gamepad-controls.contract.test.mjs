@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createGamepadInputSource, GamepadPauseInput } from '../src/shared/input/GamepadInputSource.js';
+import {
+    createGamepadInputSource,
+    GamepadPauseInput,
+} from '../src/shared/input/GamepadInputSource.js';
+import { EntityTickPipeline } from '../src/entities/runtime/EntityTickPipeline.js';
 import { normalizeGamepadControls } from '../src/shared/contracts/GamepadControlsContract.js';
 import { createPreferredMatchInputSource } from '../src/ui/MatchInputSourceResolver.js';
 import { createFourPlayerPlanarInputSource } from '../src/four-player-planar/FourPlayerPlanarInputSource.js';
@@ -18,11 +22,67 @@ const stickAxis = (value) => applyAxisDeadzone(value, 0.15);
 function hardware(t) {
     const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
     const pad = { axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
-    const state = { pads: [pad], pad };
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => state.pads, maxTouchPoints: 0 } });
+    const state = { pads: [pad], pad, getGamepadsCalls: 0 };
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => { state.getGamepadsCalls += 1; return state.pads; }, maxTouchPoints: 0 } });
     t.after(() => { if (original) Object.defineProperty(globalThis, 'navigator', original); else delete globalThis.navigator; });
     return state;
 }
+
+test('gameplay input sources share only the active frame gamepad snapshot', (t) => {
+    const state = hardware(t);
+    const secondPad = { axes: [0.8, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
+    state.pad.axes[0] = -0.8;
+    state.pads = [state.pad, secondPad];
+    const firstSource = createGamepadInputSource(0);
+    const secondSource = createGamepadInputSource(1);
+    const observed = [];
+    const owner = {
+        _simulationClockMs: 0,
+        _lockOnCache: new Map(),
+        _projectileSystem: { update() {} },
+        _overheatGunSystem: { update() {} },
+        _respawnSystem: { update() {} },
+        _playerInputSystem: {
+            beginFrame() {},
+            endFrame() {},
+            resolvePlayerInput(player) {
+                const input = (player.index === 0 ? firstSource : secondSource).poll();
+                observed.push(input);
+                if (player.index === 0) state.pads = [];
+                return input;
+            },
+        },
+        _playerLifecycleSystem: { updateShootCooldown() {}, updatePlayer() {} },
+        players: [{ index: 0, alive: true }, { index: 1, alive: true }],
+        _roundEnded: true,
+    };
+    const pipeline = new EntityTickPipeline(owner);
+
+    const beforeFrame = state.getGamepadsCalls;
+    pipeline.update(1 / 60, {}, 1);
+    assert.equal(state.getGamepadsCalls, beforeFrame + 1, 'all player polls share one frame snapshot');
+    assert.equal(observed[0].yawAxis, -stickAxis(-0.8));
+    assert.equal(observed[1].yawAxis, -stickAxis(0.8), 'each slot reads its own stable index');
+
+    const beforeNextFrame = state.getGamepadsCalls;
+    pipeline.update(1 / 60, {}, 2);
+    assert.equal(state.getGamepadsCalls, beforeNextFrame + 1, 'a new frame observes disconnection once');
+    assert.equal(observed[2], null);
+    assert.equal(observed[3], null);
+
+    state.pads = [state.pad];
+    owner._playerLifecycleSystem.updatePlayer = () => { throw new Error('input frame failure'); };
+    const beforeFailure = state.getGamepadsCalls;
+    assert.throws(() => pipeline.update(1 / 60, {}, 3), /input frame failure/);
+    state.pads = [];
+    assert.equal(firstSource.poll(), null, 'finally closes the snapshot after an input failure');
+    assert.equal(state.getGamepadsCalls, beforeFailure + 2);
+
+    const beforeStandalonePolls = state.getGamepadsCalls;
+    firstSource.poll();
+    firstSource.poll();
+    assert.equal(state.getGamepadsCalls, beforeStandalonePolls + 2, 'standalone polls never retain snapshots');
+});
 
 function createStubElement(ownerDocument, tagName = 'div') {
     const element = new EventTarget();
