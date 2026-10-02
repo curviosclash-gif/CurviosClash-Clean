@@ -129,16 +129,17 @@ export async function attachReactorSmoke(root, action, { loadTexture = (url) => 
             throw error;
         }));
     const textureResults = await Promise.allSettled(textureLoads);
+    const fulfilledTextures = textureResults.flatMap((result) => (
+        result.status === 'fulfilled' ? [result.value] : []
+    ));
     if (hasTextureError) {
-        const loadedTextures = new Set(textureResults
-            .filter((result) => result.status === 'fulfilled' && result.value)
-            .map((result) => result.value));
+        const loadedTextures = new Set(fulfilledTextures.filter((texture) => !!texture));
         for (const texture of loadedTextures) {
             try { texture.dispose?.(); } catch { /* Preserve the original load error. */ }
         }
         throw firstTextureError;
     }
-    const [lightA, lightB] = textureResults.map((result) => result.value);
+    const [lightA, lightB] = fulfilledTextures;
     for (const texture of new Set([lightA, lightB])) texture.colorSpace = THREE.SRGBColorSpace;
     return createReactorSmoke(root, action, lightA, lightB, { volume });
 }

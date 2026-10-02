@@ -19,6 +19,8 @@ import {
 import { GpuFrameTimer } from './GpuFrameTimer.js';
 import { readGpuCapabilities } from './GpuCapabilityProbe.js';
 
+/** @typedef {import('../../shared/contracts/GraphicsQualityContract.js').GraphicsQualityLevel} GraphicsQualityLevel */
+
 const { LOW, MEDIUM, HIGH, ULTRA } = GRAPHICS_QUALITY_LEVELS;
 // One shadow map covers the whole arena, so its texels are spread thin; doubling the edge is the
 // most visible gain of ULTRA. It only replaces the player's highest shadow setting.
@@ -31,9 +33,12 @@ export class RenderQualityController {
     constructor(renderer, scene, postProcessingPipeline = null) {
         this.renderer = renderer;
         this.scene = scene;
+        /** @type {GraphicsQualityLevel} */
         this.requestedQuality = HIGH;
+        /** @type {GraphicsQualityLevel} */
         this.quality = HIGH;
         this.ultraSupersample = false;
+        /** @type {number} */
         this.shadowQuality = DEFAULT_SHADOW_QUALITY;
         this.bloomQuality = DEFAULT_BLOOM_QUALITY;
         this.bloomAutoFloor = false;
@@ -82,6 +87,7 @@ export class RenderQualityController {
         });
     }
 
+    /** @returns {GraphicsQualityLevel} */
     _normalizeQuality(quality) {
         return normalizeGraphicsQualityLevel(quality, HIGH);
     }

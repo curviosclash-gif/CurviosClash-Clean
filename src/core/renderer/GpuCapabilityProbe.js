@@ -13,13 +13,16 @@ const INTEGRATED_RENDERER = /intel.*\b(?:u?hd|iris)\b|radeon(?:\(tm\))?\s+(?:gra
 // Browsers that mask the unmasked name report a vendor placeholder instead.
 const MASKED_RENDERER = /^(?:webkit webgl|mozilla|generic renderer|angle)$/i;
 
+/** @typedef {'discrete' | 'integrated' | 'software' | 'unknown'} GpuTier */
+
 /**
  * @param {unknown} renderer the UNMASKED_RENDERER_WEBGL string
  * @param {{timerQuery?: boolean}} [options]
- * @returns {{gpuKey: string, tier: string, timerQuery: boolean}}
+ * @returns {{gpuKey: string, tier: GpuTier, timerQuery: boolean}}
  */
 export function classifyGpuRenderer(renderer, { timerQuery = false } = {}) {
     const gpuKey = String(renderer ?? '').trim().slice(0, 200);
+    /** @type {GpuTier} */
     let tier = GPU_TIERS.DISCRETE;
     if (!gpuKey || MASKED_RENDERER.test(gpuKey)) tier = GPU_TIERS.UNKNOWN;
     else if (SOFTWARE_RENDERER.test(gpuKey)) tier = GPU_TIERS.SOFTWARE;

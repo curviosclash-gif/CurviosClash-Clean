@@ -5,11 +5,18 @@ export const GRAPHICS_QUALITY_LEVELS = Object.freeze({
     ULTRA: 'ULTRA',
 });
 
+/** @typedef {'LOW' | 'MEDIUM' | 'HIGH' | 'ULTRA'} GraphicsQualityLevel */
+
 export const GRAPHICS_QUALITY_AUTO = 'auto';
 export const DEFAULT_GRAPHICS_QUALITY_SETTING = GRAPHICS_QUALITY_AUTO;
 
 /** @type {Set<string>} */
 const LEVEL_SET = new Set(Object.values(GRAPHICS_QUALITY_LEVELS));
+
+/** @param {string} value @returns {value is GraphicsQualityLevel} */
+function isGraphicsQualityLevel(value) {
+    return LEVEL_SET.has(value);
+}
 
 const SETTING_LABELS = Object.freeze({
     [GRAPHICS_QUALITY_AUTO]: 'Automatisch',
@@ -33,12 +40,14 @@ const VERDICT_SET = new Set(Object.values(GRAPHICS_AUTO_VERDICTS));
 /**
  * @param {unknown} value
  * @param {string} [fallback]
- * @returns {string}
+ * @returns {GraphicsQualityLevel}
  */
 export function normalizeGraphicsQualityLevel(value, fallback = GRAPHICS_QUALITY_LEVELS.HIGH) {
     const normalized = String(value ?? '').trim().toUpperCase();
-    if (LEVEL_SET.has(normalized)) return normalized;
-    return LEVEL_SET.has(fallback) ? fallback : GRAPHICS_QUALITY_LEVELS.HIGH;
+    if (isGraphicsQualityLevel(normalized)) return normalized;
+    return isGraphicsQualityLevel(fallback)
+        ? fallback
+        : GRAPHICS_QUALITY_LEVELS.HIGH;
 }
 
 /**
