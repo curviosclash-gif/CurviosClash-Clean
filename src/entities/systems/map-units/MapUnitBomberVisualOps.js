@@ -125,7 +125,12 @@ export function createBomberVisual(renderer, assets, scale = 1) {
     if (assets.jet) attachJet(root, assets.jet);
     else loadJetTemplate(assets).then((jet) => attachJet(root, jet));
 
-    renderer.addToScene(root);
+    try {
+        renderer.addToScene(root);
+    } catch (error) {
+        renderer.removeFromScene?.(root);
+        throw error;
+    }
     return root;
 }
 

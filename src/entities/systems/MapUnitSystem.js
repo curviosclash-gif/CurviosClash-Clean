@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { isMapUnitCombatActive, normalizeMapUnit, resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
+import { isMapUnitCombatActive, resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import {
     advanceUnitOnPath,
@@ -57,6 +57,7 @@ import {
 } from './map-units/MapUnitBomberVisualOps.js';
 import { updateBomberBombs } from './map-units/MapUnitBombOps.js';
 import { updateBomberCrash } from './map-units/MapUnitBomberCrashOps.js';
+import { callBomberStrike as callBomberStrikeFormation } from './map-units/BomberStrikeOps.js';
 import {
     createCreatureAssets,
     createCreatureVisual,
@@ -100,6 +101,7 @@ export class MapUnitSystem {
         this._tmpAim = new THREE.Vector3();
         this._tmpPoint = new THREE.Vector3();
         this._tmpBombPoint = new THREE.Vector3();
+        this._tmpBombVelocity = new THREE.Vector3();
         this._trailQueryStamp = 0;
         this._targets = [];
         this._dueRespawns = [];
@@ -214,7 +216,15 @@ export class MapUnitSystem {
             );
         }
         if (definition.kind === 'tank' || definition.kind === 'boss') requestMapUnitLibrary(this, unit);
-        this._updateVisual(unit);
+        try {
+            this._updateVisual(unit);
+        } catch (error) {
+            if (unit.kind === 'bomber' && unit.root) {
+                this.entityManager?.renderer?.removeFromScene?.(unit.root);
+                unit.root = null;
+            }
+            throw error;
+        }
         unit.source = createUnitSource(unit);
         if (unit.hydra) unit.source.combatLabel = 'Hydra';
         // Its own shots must not hit it: the weapons skip targets owned by the shooter.
@@ -424,30 +434,7 @@ export class MapUnitSystem {
     }
 
     callBomberStrike(player) {
-        if (this.networkReplica || !player || this.entityManager?.isFightOutcomeAuthority === false) return false;
-        const bounds = this.entityManager?.arena?.bounds;
-        const minX = Number(bounds?.minX ?? bounds?.min?.x);
-        const maxX = Number(bounds?.maxX ?? bounds?.max?.x);
-        const groundY = Number(bounds?.minY ?? bounds?.min?.y) || 0;
-        if (!Number.isFinite(minX) || !Number.isFinite(maxX) || maxX <= minX) return false;
-        const minZ = Number(bounds?.minZ ?? bounds?.min?.z);
-        const maxZ = Number(bounds?.maxZ ?? bounds?.max?.z);
-        const z = Math.max(Number.isFinite(minZ) ? minZ : -100, Math.min(Number.isFinite(maxZ) ? maxZ : 100, Number(player.position?.z) || 0));
-        const ceilingY = Number(bounds?.maxY ?? bounds?.max?.y);
-        const height = Number.isFinite(ceilingY) ? Math.min(groundY + 30, ceilingY - 1) : groundY + 30;
-        const definition = normalizeMapUnit({
-            id: `called_bomber_${++this._summonCounter}`,
-            kind: 'bomber', path: [[minX, height, z], [maxX, height, z]], loop: false,
-            speed: 30, respawnSeconds: 0,
-        }, 0, undefined, { preserveSpatial: true });
-        if (!definition) return false;
-        const unit = this._createUnit(definition, 1);
-        unit.summoned = true;
-        unit.calledByIndex = Number.isInteger(player.index) ? player.index : -1;
-        unit.attackSourcePlayer = player;
-        unit.summonRemaining = (maxX - minX) / unit.speed;
-        this.units.push(unit);
-        return true;
+        return callBomberStrikeFormation(this, player);
     }
 
     /** What weapons may hit: the tanks that are still standing. The list is reused per call. */

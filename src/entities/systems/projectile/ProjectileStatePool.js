@@ -33,6 +33,9 @@ export class ProjectileStatePool {
             poolKey: '',
             owner: null,
             type: null,
+            blastDamage: 0,
+            blastRadius: 0,
+            gravity: 0,
             cosmeticStyleId: 'standard',
             cosmeticColor: null,
             position: new THREE.Vector3(),
@@ -99,6 +102,9 @@ export class ProjectileStatePool {
         projectile.poolKey = '';
         projectile.owner = null;
         projectile.type = null;
+        projectile.blastDamage = 0;
+        projectile.blastRadius = 0;
+        projectile.gravity = 0;
         projectile.cosmeticStyleId = 'standard';
         projectile.cosmeticColor = null;
         projectile.position.set(0, 0, 0);

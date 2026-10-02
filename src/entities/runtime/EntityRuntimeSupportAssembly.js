@@ -86,6 +86,13 @@ export function createEntityRuntimeSupport(owner) {
         },
         onProjectileHit: (position, color, projectileOwner, projectile) => {
             if (projectile?.suppressExplosionPresentation === true) return;
+            if (projectile?.type === 'BOMBER_BOMB') {
+                owner.particles?.spawnExplosion?.(position, color, {
+                    cause: 'PROJECTILE', projectileType: 'BOMBER_BOMB', kind: 'bomb',
+                });
+                owner.audio?.play?.('HIT', resolveWorldAudioOptions(owner, position));
+                return;
+            }
             if (isRocketTierType(projectile?.type)) {
                 if (owner.particles) {
                     if (projectile.explosionKind === 'trail') owner.particles.spawnTrailImpact(position, color, { destroyed: true });

@@ -8,7 +8,7 @@ export const BOMBER_STRIKE_SPAWN_WEIGHTS = Object.freeze({
 export const BOMBER_STRIKE_PICKUP_DEFINITIONS = Object.freeze({
     BOMBER_STRIKE: {
         name: 'Bomber-Angriff',
-        description: 'Ruft einen Bomber, der einmal über das Feld fliegt und nur deine Gegner angreift.',
+        description: 'Ruft fünf Bomber in Formation, die über das Feld fliegen und nur deine Gegner angreifen.',
         color: 0xff9b42, icon: '✈', duration: 0,
         selfUsable: true, shootable: false, offensive: true, projectileOnly: false,
         allowedModes: COMBAT_MODES,

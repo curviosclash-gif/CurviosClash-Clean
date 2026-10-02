@@ -266,9 +266,22 @@ export class HuntCombatSystem {
 
         const inventoryBefore = isGlobalFog ? player.inventory.slice() : null;
         const selectedItemIndexBefore = player.selectedItemIndex;
+        const bomberInventoryBefore = itemPreview.type === 'BOMBER_STRIKE' ? player.inventory.slice() : null;
         const itemResult = this.takeInventoryItem(player, preferredIndex, 'use');
         if (!itemResult.ok) return itemResult;
-        if (isGlobalFog) {
+        if (itemResult.type === 'BOMBER_STRIKE') {
+            if (this.runtime?.combat?.mapUnitSystem?.callBomberStrike?.(player) !== true) {
+                player.inventory.length = 0;
+                player.inventory.push(...bomberInventoryBefore);
+                player.selectedItemIndex = selectedItemIndexBefore;
+                return buildGameplayActionResult({
+                    ok: false,
+                    code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_FORBIDDEN,
+                    message: 'Bomber-Angriff konnte nicht ausgelöst werden',
+                    type: itemResult.type,
+                });
+            }
+        } else if (isGlobalFog) {
             if (activateGlobalFog() !== true) {
                 player.inventory.length = 0;
                 player.inventory.push(...inventoryBefore);

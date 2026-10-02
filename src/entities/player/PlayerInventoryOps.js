@@ -97,11 +97,20 @@ export function usePlayerInventoryItem(player, modeType = null) {
             type: normalizedType,
         });
     }
+    if (normalizedType === 'BOMBER_STRIKE'
+        && player.entityManager?._mapUnitSystem?.callBomberStrike?.(player) !== true) {
+        return buildGameplayActionResult({
+            ok: false,
+            code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_FORBIDDEN,
+            message: 'Bomber-Angriff konnte nicht ausgelöst werden',
+            type: normalizedType,
+        });
+    }
     player.inventory.splice(player.selectedItemIndex, 1);
     if (player.selectedItemIndex >= player.inventory.length && player.inventory.length > 0) {
         player.selectedItemIndex = 0;
     }
-    player.applyPowerup(normalizedType);
+    if (normalizedType !== 'BOMBER_STRIKE') player.applyPowerup(normalizedType);
     return buildGameplayActionResult({
         ok: true,
         code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_SUCCESS,
