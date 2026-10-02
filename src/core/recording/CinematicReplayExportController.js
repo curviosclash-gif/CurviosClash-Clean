@@ -47,18 +47,37 @@ function yieldToRenderer() {
     return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+// Only these reasons mean FFmpeg/libx264 is absent; every other encoder reason
+// means it started and then gave up.
+const ENCODER_MISSING_REASONS = new Set([
+    'ffmpeg_encoder_unavailable',
+    'libx264_encoder_unavailable',
+    'ffmpeg_spawn_failed',
+]);
+
 function resolveExportErrorMessage(result) {
-    const code = String(result?.code || result?.reason || '').trim();
-    if (code === 'cancelled' || code === 'RECORDING_SAVE_CANCELLED') {
+    const reason = String(result?.reason || '').trim();
+    const code = String(result?.code || reason).trim();
+    if (reason === 'cancelled' || code === 'RECORDING_SAVE_CANCELLED') {
         return 'Speicherdialog wurde abgebrochen.';
     }
-    if (code.includes('encoder') || code.includes('ffmpeg')) {
+    if (ENCODER_MISSING_REASONS.has(reason)) {
         return 'H.264-Encoder (FFmpeg/libx264) ist nicht verfügbar.';
+    }
+    if (reason === 'ffmpeg_output_access_denied') {
+        return 'FFmpeg durfte die Videodatei nicht anlegen (Zugriff verweigert).';
+    }
+    if (/encoder|ffmpeg|EPIPE|EOF/i.test(code)) {
+        return 'H.264-Encoder (FFmpeg) hat das Encodieren abgebrochen.';
     }
     if (code.includes('validation')) {
         return 'Die erzeugte MP4-Datei hat die Abschlussprüfung nicht bestanden.';
     }
     return result?.message || 'Cinematic Replay Render wurde abgebrochen.';
+}
+
+function createExportFailure(result, fallbackReason) {
+    return Object.assign(new Error(result?.reason || result?.code || fallbackReason), { exportResult: result });
 }
 
 function createReplayValidationFailure(replay) {
@@ -263,7 +282,7 @@ export class CinematicReplayExportController {
                     frameBytes,
                 });
                 if (appendResult?.accepted !== true) {
-                    throw new Error(appendResult?.reason || 'offline_frame_rejected');
+                    throw createExportFailure(appendResult, 'offline_frame_rejected');
                 }
                 const percent = Math.min(99, Math.floor(((frameIndex + 1) / totalFrames) * 100));
                 if (percent !== lastReportedPercent) {
@@ -284,7 +303,7 @@ export class CinematicReplayExportController {
                 expectedDurationMs: durationMs,
             });
             if (finishResult?.saved !== true) {
-                throw new Error(finishResult?.reason || finishResult?.code || 'export_validation_failed');
+                throw createExportFailure(finishResult, 'export_validation_failed');
             }
             const warnings = [
                 ...(Array.isArray(finishResult.warnings) ? finishResult.warnings : []),
@@ -316,9 +335,14 @@ export class CinematicReplayExportController {
                 exportId: abortState.exportId,
                 reason: cancelled ? 'user_cancelled' : 'render_failed',
             }).catch?.(() => {});
+            const failure = error?.exportResult || { reason: error?.message, message: error?.message };
+            const diagnostics = failure.diagnostics || null;
+            if (diagnostics) {
+                this.logger?.warn?.('[CinematicReplayExport] encoder failed', failure.reason, diagnostics);
+            }
             const message = cancelled
                 ? 'Cinematic Replay Render wurde kontrolliert abgebrochen.'
-                : resolveExportErrorMessage({ reason: error?.message, message: error?.message });
+                : resolveExportErrorMessage(failure);
             await this.renderFrame({ reset: true }).catch(() => {});
             this._emitStatus(cancelled ? 'cancelled' : 'failed', {
                 message,
@@ -329,6 +353,7 @@ export class CinematicReplayExportController {
                 cancelled,
                 reason: error?.message || 'render_failed',
                 message,
+                diagnostics,
                 partial: replay.partial === true,
                 partialReason: replay.partialReason || null,
             };

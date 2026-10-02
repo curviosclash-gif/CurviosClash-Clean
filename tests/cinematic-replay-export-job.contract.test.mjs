@@ -177,7 +177,8 @@ test('cinematic exporter reports an early encoder pipe close without an unhandle
             frameBytes: new Uint8Array(1920 * 1080 * 4),
         });
         assert.equal(appendResult.accepted, false);
-        assert.match(appendResult.reason, /EPIPE/);
+        assert.equal(appendResult.reason, 'ffmpeg_encode_aborted');
+        assert.match(appendResult.writeError, /EPIPE/);
         await job.cancel({ exportId: started.exportId });
     } finally {
         await rm(root, { recursive: true });
