@@ -2,6 +2,10 @@ import { isGamepadInputEnabled, normalizeGamepadControls } from '../contracts/Ga
 import { applyAxisDeadzone, applyRadialDeadzone } from '../utils/InputAxisOps.js';
 const MAPPING_KEYS = Object.keys(normalizeGamepadControls());
 const GAMEPAD_DEADZONE = 0.15;
+// Module-local to the synchronous gameplay input loop; outside it each read is fresh.
+let gamepadInputFrameDepth = 0;
+let gamepadInputFrameSnapshot = null;
+let gamepadInputFrameCaptured = false;
 
 const INPUT_BOOLEAN_KEYS = Object.freeze([
     'pitchUp', 'pitchDown', 'yawLeft', 'yawRight', 'rollLeft', 'rollRight', 'boost', 'boostPressed',
@@ -24,8 +28,33 @@ export function mergeGamepadWithKeyboard(gamepadInput, keyboardInput, output = {
     return output;
 }
 
+function readGamepadSnapshot() {
+    if (gamepadInputFrameDepth === 0) return globalThis.navigator?.getGamepads?.();
+    if (!gamepadInputFrameCaptured) {
+        gamepadInputFrameSnapshot = globalThis.navigator?.getGamepads?.() || null;
+        gamepadInputFrameCaptured = true;
+    }
+    return gamepadInputFrameSnapshot;
+}
+
+export function beginGamepadInputFrame() {
+    if (gamepadInputFrameDepth === 0) {
+        gamepadInputFrameSnapshot = null;
+        gamepadInputFrameCaptured = false;
+    }
+    gamepadInputFrameDepth += 1;
+}
+
+export function endGamepadInputFrame() {
+    if (gamepadInputFrameDepth === 0) return;
+    gamepadInputFrameDepth -= 1;
+    if (gamepadInputFrameDepth > 0) return;
+    gamepadInputFrameSnapshot = null;
+    gamepadInputFrameCaptured = false;
+}
+
 export function readGamepad(slot) {
-    const pads = globalThis.navigator?.getGamepads?.();
+    const pads = readGamepadSnapshot();
     // Keep hardware indices stable when another controller is unplugged.
     return pads?.[slot] || null;
 }
@@ -105,14 +134,14 @@ export class GamepadPauseInput {
         this.clearInputState();
     }
     clearInputState() {
-        const pads = globalThis.navigator?.getGamepads?.();
+        const pads = readGamepadSnapshot();
         for (let slot = 0; slot < 4; slot++) this.previous[slot] = pads?.[slot]?.buttons?.[this.bindings[slot]]?.pressed ? 1 : 0;
     }
     wasPressed() {
         if (!this.enabled) return false;
         if (globalThis.document?.hidden === true || globalThis.document?.hasFocus?.() === false) { this.clearInputState(); return false; }
         let pressed = false;
-        const pads = globalThis.navigator?.getGamepads?.();
+        const pads = readGamepadSnapshot();
         for (let slot = 0; slot < 4; slot++) {
             const held = !!pads?.[slot]?.buttons?.[this.bindings[slot]]?.pressed;
             pressed ||= held && !this.previous[slot];
