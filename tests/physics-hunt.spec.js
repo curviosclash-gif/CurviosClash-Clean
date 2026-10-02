@@ -1498,6 +1498,37 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         expect(result.selectedItemIndex).toBe(0);
     });
 
+    test('T89j2: Bomber-Angriff per Item-Taste ruft fuenf Bomber und verbraucht das Item', async ({ page }) => {
+        await startHuntGame(page);
+        const result = await page.evaluate(() => {
+            const entityManager = window.GAME_INSTANCE?.entityManager;
+            const player = entityManager?.players?.[0];
+            if (!entityManager || !player) return { error: 'missing-state' };
+
+            // Same entry point as the G key and bot item decisions (PlayerActionPhase).
+            player.inventory = ['BOMBER_STRIKE'];
+            player.selectedItemIndex = 0;
+            player.itemUseCooldownRemaining = 0;
+            const use = entityManager._useInventoryItem(player, 0);
+            const summoned = (entityManager._mapUnitSystem?.units || []).filter((unit) => unit.summoned);
+            return {
+                error: null,
+                ok: !!use?.ok,
+                reason: String(use?.reason || ''),
+                inventory: player.inventory.slice(),
+                summoned: summoned.length,
+                calledByPlayer: summoned.every((unit) => unit.calledByIndex === player.index),
+            };
+        });
+
+        expect(result.error).toBeNull();
+        expect(result.reason).toBe('');
+        expect(result.ok).toBeTruthy();
+        expect(result.inventory).toEqual([]);
+        expect(result.summoned).toBe(5);
+        expect(result.calledByPlayer).toBeTruthy();
+    });
+
     test('T89k: Shield-Treffer setzen Regen-Timestamp und blocken fruehe HP-Regeneration', async ({ page }) => {
         await startHuntGameWithBots(page, 1);
         const result = await page.evaluate(async () => {
