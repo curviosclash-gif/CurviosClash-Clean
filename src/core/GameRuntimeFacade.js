@@ -264,6 +264,7 @@ export class GameRuntimeFacade {
         const getMediaRecorder = () => this.getRuntimeHandle('mediaRecorderSystem');
         return Object.freeze({
             getArcadeMenuSurfaceState: () => this.getArcadeMenuSurfaceState(),
+            saveSettings: (nextSettings) => game?.settingsManager?.saveSettings?.(nextSettings),
             requestArcadeReplayPlayback: () => this.requestArcadeReplayPlayback(),
             showStatusToast: (message, duration, tone) => game?._showStatusToast?.(message, duration, tone),
             ...playerProfileAccess,

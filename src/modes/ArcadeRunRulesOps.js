@@ -6,6 +6,7 @@ import {
 import { isArenaWavesRunType, normalizeArenaWavesCombatProfile } from '../shared/contracts/ArenaWavesContract.js';
 import { FIVE_PORTALS_COMBAT_PROFILE, isFivePortalsRunType } from '../shared/contracts/FivePortalsContract.js';
 import { WEAPON_RACE_RESPAWN_DELAY_SECONDS, isWeaponRaceRunType } from '../shared/contracts/WeaponRaceContract.js';
+import { DEMOLITION_COMBAT_PROFILE, isDemolitionRunType } from '../shared/contracts/DemolitionContract.js';
 
 // A parcours sector on a map without authored respawns forgives three deaths at the last
 // checkpoint; the fourth ends the run. Maps that author their own respawn keep it.
@@ -24,6 +25,7 @@ const WEAPON_RACE_RESPAWN_RULES = Object.freeze({
 });
 
 export function resolveArcadeRunCombatProfile(runType, combatProfile) {
+    if (isDemolitionRunType(runType)) return DEMOLITION_COMBAT_PROFILE;
     if (isWeaponRaceRunType(runType)) return 'hunt';
     if (isFivePortalsRunType(runType)) return FIVE_PORTALS_COMBAT_PROFILE;
     if (isArenaWavesRunType(runType)) return normalizeArenaWavesCombatProfile(combatProfile, runType);

@@ -7,6 +7,7 @@ import {
 import { ARENA_WAVES_COMBAT_PROFILE, ARENA_WAVES_RUN_TYPE, isArenaWavesRunType, normalizeArenaWavesCombatProfile } from './ArenaWavesContract.js';
 import { FIVE_PORTALS_COMBAT_PROFILE, FIVE_PORTALS_RUN_TYPE, isFivePortalsRunType } from './FivePortalsContract.js';
 import { WEAPON_RACE_RUN_TYPE, isWeaponRaceRunType } from './WeaponRaceContract.js';
+import { DEMOLITION_COMBAT_PROFILE, DEMOLITION_RUN_TYPE, isDemolitionRunType, normalizeDemolitionProfileIds } from './DemolitionContract.js';
 import { DEFAULT_PORTAL_CHAIN_ID, normalizePortalChainId } from './PortalChainContract.js';
 
 // Persisted arcade run settings: the single source for the shape and the ranges.
@@ -83,9 +84,11 @@ export function createDefaultArcadeRunSettings() {
  * @param {any} source persisted `settings.arcade` block, in any state
  * @returns {ReturnType<typeof createDefaultArcadeRunSettings>}
  */
-export function normalizeArcadeRunSettings(source) {
+export function normalizeArcadeRunSettings(source, demolitionProfileIds = source?.demolitionProfileIds) {
     const input = source && typeof source === 'object' && !Array.isArray(source) ? source : {};
-    const runType = isFivePortalsRunType(input.runType)
+    const runType = isDemolitionRunType(input.runType)
+        ? DEMOLITION_RUN_TYPE
+        : isFivePortalsRunType(input.runType)
         ? FIVE_PORTALS_RUN_TYPE
         : (isArenaWavesRunType(input.runType)
             ? ARENA_WAVES_RUN_TYPE
@@ -95,7 +98,9 @@ export function normalizeArcadeRunSettings(source) {
     return {
         profileId: normalizeText(input.profileId, DEFAULTS.profileId),
         runType,
-        combatProfile: runType === ENDLESS_PARCOURS_RUN_TYPE
+        combatProfile: runType === DEMOLITION_RUN_TYPE
+            ? DEMOLITION_COMBAT_PROFILE
+            : runType === ENDLESS_PARCOURS_RUN_TYPE
             && normalizeArcadeCombatProfile(input.combatProfile, runType) === ENDLESS_PARCOURS_COMBAT_PROFILE
             ? ENDLESS_PARCOURS_COMBAT_PROFILE
             : (runType === WEAPON_RACE_RUN_TYPE
@@ -124,6 +129,7 @@ export function normalizeArcadeRunSettings(source) {
         dailyChallenge: input.dailyChallenge === true,
         nightmare: input.nightmare === true,
         portalChainId: normalizePortalChainId(input.portalChainId),
+        demolitionProfileIds: normalizeDemolitionProfileIds(demolitionProfileIds),
     };
 }
 

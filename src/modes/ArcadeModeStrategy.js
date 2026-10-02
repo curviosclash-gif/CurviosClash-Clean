@@ -17,8 +17,10 @@ import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE } from '../s
 import { ARENA_WAVES_COMBAT_PROFILE } from '../shared/contracts/ArenaWavesContract.js';
 import { resolveArcadeParcoursRespawnFallback, resolveArcadeRunCombatProfile } from './ArcadeRunRulesOps.js';
 import { applyArcadeEndlessSpawnBonuses, resetArcadeEndlessPlayerHealth } from './ArcadeEndlessVehicleBonusOps.js';
-import { applyArcadeBuildToPlayer, applyArcadeGauntletHealthReset, applyArcadeVehicleSpawnCapacities, capArcadeVehicleSpeedMultiplier, isNormalArcadeRunType, normalizeArcadeUpgradeBonusMap, normalizeArcadeUpgradeBonuses, resolveArcadePlayerUpgradeBonuses, resolveArcadeVehicleStatPct } from './ArcadeVehicleStatOps.js';
+import { applyArcadeBuildToPlayer, applyArcadeGauntletHealthReset, applyArcadeVehicleSpawnCapacities, capArcadeVehicleSpeedMultiplier, isNormalArcadeRunType, resolveArcadeVehicleStatPct } from './ArcadeVehicleStatOps.js';
 import { resolveArcadeSimulationSeconds, stampArcadeHitOnSimulationClock, updateArcadeBaseRegen } from './ArcadeBaseRegenOps.js';
+import { resolveArcadeHuntSpawnType } from './ArcadeDemolitionCombatOps.js';
+import { applyArcadeModeUpgradeBonuses, resolveArcadeModePlayerUpgradeBonuses } from './ArcadeModeUpgradeOps.js';
 
 const DEFAULT_MAX_HP = 100;
 const DEFAULT_SHIELD_HP = 40;
@@ -172,19 +174,12 @@ export class ArcadeModeStrategy extends GameModeContract {
     // sonst fliegen die Gegner mit derselben Aufruestung. Ohne bekannten Spieler
     // bleibt es beim alten Verhalten, damit vorhandene Aufrufer weiter funktionieren.
     _upgradeBonusesFor(player) {
-        if (player?.isBot === true) return NULL_SLOT_BONUSES;
-        return this._slotBonusesByVehicle ? (this._slotBonusesByVehicle[String(player?.vehicleId || '').trim()] || NULL_SLOT_BONUSES) : resolveArcadePlayerUpgradeBonuses(player, this._slotBonuses);
+        return resolveArcadeModePlayerUpgradeBonuses(this, player, NULL_SLOT_BONUSES);
     }
 
     // Paket 2a: bonuses.build (Größenfelder des Profils) rechnet nur in normalen Runs mit.
     applyVehicleUpgrades(bonuses) {
-        const byVehicleId = bonuses?.byVehicleId;
-        if (byVehicleId && typeof byVehicleId === 'object' && !Array.isArray(byVehicleId)) {
-            this._slotBonusesByVehicle = normalizeArcadeUpgradeBonusMap(byVehicleId, this.isNormalArcadeRun());
-            this._slotBonuses = NULL_SLOT_BONUSES; return;
-        }
-        this._slotBonusesByVehicle = null;
-        this._slotBonuses = normalizeArcadeUpgradeBonuses(bonuses, NULL_SLOT_BONUSES, this.isNormalArcadeRun());
+        applyArcadeModeUpgradeBonuses(this, bonuses, NULL_SLOT_BONUSES);
     }
 
     applyRunRewardEffects(effects) {
@@ -623,7 +618,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     resolveSpawnType(spawnableTypes, config, context = {}) {
-        if (this._huntCombat) return this._huntCombat.resolveSpawnType(spawnableTypes, config, context);
+        if (this._huntCombat) return resolveArcadeHuntSpawnType(this._huntCombat, this._runType, spawnableTypes, config, context);
         const candidates = context?.excludeType && spawnableTypes.length > 1
             ? spawnableTypes.filter((type) => type !== context.excludeType)
             : spawnableTypes;

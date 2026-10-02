@@ -18,6 +18,7 @@ import { GlobalFogEffectSystem } from '../systems/GlobalFogEffectSystem.js';
 import { MapSandstormSystem } from '../systems/MapSandstormSystem.js';
 import { ExclusionZoneSystem } from '../systems/ExclusionZoneSystem.js';
 import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
+import { isDemolitionConfig } from '../../shared/contracts/DemolitionContract.js';
 import { ObjectiveTargetMarkerSystem } from '../systems/ObjectiveTargetMarkerSystem.js';
 import { SecretRoomSystem } from '../systems/SecretRoomSystem.js';
 import { TargetableRegistry } from '../systems/TargetableRegistry.js';
@@ -62,7 +63,8 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
             getScoreboard: () => owner.getHuntScoreboard(),
             isRespawnEnabled: () => owner.gameModeStrategy?.isRespawnEnabled?.() === true,
             isEliminationSuppressed: () => owner._parcoursProgressSystem?.isRespawnEnabled?.() === true
-                || isArenaWavesConfig(owner.runtimeConfig),
+                || isArenaWavesConfig(owner.runtimeConfig)
+                || isDemolitionConfig(owner.runtimeConfig),
             isRespawnPending: (player) => owner._respawnSystem?.isRespawnPending?.(player) === true,
             isOutcomeAuthority: () => owner.isFightOutcomeAuthority !== false,
             getDeathmatchKillLimit: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,

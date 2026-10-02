@@ -533,6 +533,28 @@ test('a map destructible in one mode only stays whole in every other', () => {
     }
 });
 
+test('demolition alone enables hunt-authored destructibles in arcade', () => {
+    const huntOnly = {
+        gameModes: ['HUNT'],
+        segments: [{ id: 'shaft', label: 'Schaft', kind: 'shaft', hp: 40, meshPrefixes: ['Tower_Shaft'] }],
+    };
+    const createSystem = (runType) => new MapDestructibleSystem({
+        runtimeConfig: { arcade: { enabled: true, runType } },
+        gameModeStrategy: { modeType: 'ARCADE' },
+        arena: { currentMapDefinition: { destructibles: huntOnly }, glbAnimationElapsedSeconds: 0 },
+    });
+
+    const demolition = createSystem('demolition');
+    assert.equal(demolition.startRound(), 1);
+    assert.equal(demolition.isActive(), true);
+
+    for (const runType of ['gauntlet', 'five_portals', 'arena_waves', 'weapon_race', 'endless_parcours']) {
+        const regularArcade = createSystem(runType);
+        assert.equal(regularArcade.startRound(), 0, `${runType} keeps hunt-authored geometry intact`);
+        assert.equal(regularArcade.isActive(), false, runType);
+    }
+});
+
 test('a map without destructibles keeps the hunt state and every weapon path quiet', () => {
     const system = new MapDestructibleSystem({ arena: { currentMapDefinition: {} } });
     assert.equal(system.startRound(), 0);

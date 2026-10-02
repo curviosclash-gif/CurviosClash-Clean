@@ -375,14 +375,16 @@ export function createRuntimeProjectionPort(game) {
             const runtimeState = getRuntimeState(game);
             const projection = buildMatchRuntimeProjectionSnapshot({ game, runtimeState, facade, sessionRuntime: getSessionRuntime(game) });
             if (runtimeState?.runtimeConfig?.arcade?.runType === 'five_portals'
-                || runtimeState?.runtimeConfig?.arcade?.runType === 'weapon_race') {
+                || runtimeState?.runtimeConfig?.arcade?.runType === 'weapon_race'
+                || runtimeState?.runtimeConfig?.arcade?.runType === 'demolition') {
                 return { ...projection, arcade: facade?.getArcadeRunState?.() || null };
             }
             if (projection?.arcade || typeof facade?.getArcadeRunState !== 'function') {
                 return projection;
             }
             const arcade = facade.getArcadeRunState() || null;
-            if (arcade?.runType !== 'arena_waves' && arcade?.runType !== 'five_portals' && arcade?.runType !== 'weapon_race') return projection;
+            if (arcade?.runType !== 'arena_waves' && arcade?.runType !== 'five_portals'
+                && arcade?.runType !== 'weapon_race' && arcade?.runType !== 'demolition') return projection;
             return { ...projection, arcade };
         },
         getMatchRenderProjection(options = undefined) {
