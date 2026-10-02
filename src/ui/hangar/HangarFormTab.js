@@ -31,7 +31,7 @@ function showTab(tabButton, panel, active) {
 /**
  * @param {{ bind: Function, enabled: boolean, viewport: { setPartStyle: Function, setHitboxOverlay: Function },
  *   panel: HTMLElement, tabButton: HTMLElement, upgradePanel?: HTMLElement|null, upgradeTabButton?: HTMLElement|null,
- *   getProfile: () => any, saveProfile: (profile: any) => void,
+ *   getProfile: () => any, saveProfile: (profile: any) => boolean|void,
  *   toast: (message: string, tone?: string) => void, onChange: () => void }} options
  *   enabled: arcade hangar; upgradePanel/upgradeTabButton: the shell's "Ausbau" tab (arcade only).
  */

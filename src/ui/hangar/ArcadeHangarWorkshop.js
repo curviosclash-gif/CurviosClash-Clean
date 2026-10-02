@@ -106,6 +106,19 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         if (emit && eventTypes.SHOW_STATUS_TOAST) emit(eventTypes.SHOW_STATUS_TOAST, { message, tone, duration: 1600 });
     }
 
+    function persistProfiles() {
+        try {
+            const result = profilePort.save(profiles);
+            return result === true || result?.success === true || result?.ok === true;
+        } catch {
+            return false;
+        }
+    }
+
+    function reportProfileSaveFailure(message = 'Profil konnte nicht gespeichert werden. Änderungen bleiben nur bis zum Schließen dieses Hangars verfügbar.') {
+        toast(message, 'error');
+    }
+
     function entryFor(vehicleId) {
         return byVehicleId.get(String(vehicleId || '').toLowerCase()) || resolveVehicleManagerCatalogEntry(vehicleId);
     }
@@ -170,8 +183,10 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         upgradePanel: upgradeViewPanel, upgradeTabButton: upgradeViewButton, getProfile: () => profileFor(draft.vehicleId),
         saveProfile(next) {
             profiles[draft.vehicleId] = { ...next, updatedAt: new Date().toISOString() };
-            profilePort.save(profiles);
+            const saved = persistProfiles();
+            if (!saved) reportProfileSaveFailure();
             syncDisplay({ preserveCatalog: true });
+            return saved;
         },
         onChange: () => syncDisplay({ preserveCatalog: true }),
     });
@@ -346,7 +361,11 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             return false;
         }
         profiles[vehicleId] = result.profile;
-        profilePort.save(profiles);
+        if (!persistProfiles()) {
+            reportProfileSaveFailure('Kauf bleibt im offenen Hangar erhalten, wurde aber nicht gespeichert.');
+            syncDisplay();
+            return false;
+        }
         audio.play('pickup');
         toast(`${result.stone.label} gekauft · ${result.remainingXrp} XRP übrig`, 'success');
         syncDisplay();
@@ -363,7 +382,11 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             return false;
         }
         profiles[vehicleId] = result.profile;
-        profilePort.save(profiles);
+        if (!persistProfiles()) {
+            reportProfileSaveFailure();
+            syncDisplay();
+            return false;
+        }
         toast('Spurstil gespeichert', 'success');
         syncDisplay();
         return true;
@@ -379,7 +402,11 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             return false;
         }
         profiles[vehicleId] = result.profile;
-        profilePort.save(profiles);
+        if (!persistProfiles()) {
+            reportProfileSaveFailure();
+            syncDisplay();
+            return false;
+        }
         toast('Waffenstil gespeichert', 'success');
         syncDisplay();
         return true;
@@ -411,8 +438,51 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             hangarBonuses: hangarBuildToProfileBonuses(build),
             updatedAt: new Date().toISOString(),
         };
-        profilePort.save(profiles);
-        return true;
+        return persistProfiles();
+    }
+
+    function restoreProfileMapInMemory(previousProfiles) {
+        for (const vehicleId of Object.keys(profiles)) {
+            if (!Object.prototype.hasOwnProperty.call(previousProfiles, vehicleId)) delete profiles[vehicleId];
+        }
+        Object.assign(profiles, previousProfiles);
+    }
+
+    function restoreProfileMap(previousProfiles) {
+        restoreProfileMapInMemory(previousProfiles);
+        return persistProfiles();
+    }
+
+    async function saveArcadeBuildAndProfile(build, saveOptions) {
+        const previousProfiles = { ...profiles };
+        if (!commitProfileForRun(build)) {
+            restoreProfileMapInMemory(previousProfiles);
+            return { ok: false, code: 'profile_save_failed' };
+        }
+
+        let buildResult;
+        try {
+            buildResult = await persistence.saveBuild(build, saveOptions);
+        } catch (error) {
+            buildResult = { ok: false, code: 'build_save_failed', error };
+        }
+        if (buildResult?.ok === true) return { ok: true, buildResult };
+
+        const profileRestored = restoreProfileMap(previousProfiles);
+        return {
+            ok: false,
+            code: profileRestored ? 'build_save_failed' : 'build_save_failed_profile_rollback_failed',
+            buildResult,
+            profileRestored,
+        };
+    }
+
+    function reportArcadeBuildSaveFailure(result) {
+        if (result.code === 'build_save_failed_profile_rollback_failed') {
+            toast('Build konnte nicht gespeichert werden; die Profiländerung konnte nicht zurückgesetzt werden.', 'error');
+        } else {
+            toast('Build konnte nicht gespeichert werden; die Profiländerung wurde zurückgesetzt.', 'error');
+        }
     }
 
     async function saveCurrent(options = {}) {
@@ -429,11 +499,26 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             favorite: selectedPreset?.buildId === draft.buildId ? selectedPreset.favorite : draft.favorite,
             tags: presetTags.value.split(','),
         });
-        const result = await persistence.saveBuild(buildToSave, {
+        const saveOptions = {
             asNew: options.asNew === true || !savedBuild,
             activate: options.activate === true,
             name,
-        });
+        };
+        let result;
+        if (options.activate === true && hangarMode === 'arcade') {
+            const activation = await saveArcadeBuildAndProfile(buildToSave, saveOptions);
+            if (!activation.ok) {
+                if (activation.code === 'profile_save_failed') {
+                    reportProfileSaveFailure('Profil konnte nicht gespeichert werden. Der Build bleibt ein Entwurf und wird nicht aktiviert.');
+                } else {
+                    reportArcadeBuildSaveFailure(activation);
+                }
+                return activation;
+            }
+            result = activation.buildResult;
+        } else {
+            result = await persistence.saveBuild(buildToSave, saveOptions);
+        }
         if (!result.ok) {
             toast('Build konnte nicht gespeichert werden.', 'error');
             return result;
@@ -443,32 +528,55 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         baselineBuild = normalizeHangarBuild(result.build);
         history = new HangarBuildHistory(draft);
         presetName.value = '';
-        if (options.activate) commitProfileForRun(draft);
+        if (options.activate && hangarMode === 'fight') commitProfileForRun(draft);
         draftPersistence.clear(draft.vehicleId);
         toast(options.activate ? (hangarMode === 'fight' ? 'Build gespeichert und für den nächsten Kampf aktiviert.' : 'Build gespeichert und für den nächsten Run aktiviert.') : `Build gespeichert: ${draft.name}`, 'success');
         syncDisplay();
         return result;
     }
 
-    function prepareRunStart() {
+    async function prepareRunStart() {
         const profile = profileFor(draft.vehicleId);
         const validation = validateForMode(draft, profile.level, profile);
         if (!validation.ok) {
             toast('Run-Start blockiert: Der angezeigte Build ist ungültig.', 'warning');
             return { ok: false, code: 'invalid_build', validation };
         }
-        syncVehicleWriteback(draft.vehicleId);
-        commitProfileForRun(draft);
         const needsSave = isDirty() || !savedBuild;
-        void persistence.saveBuild(draft, { asNew: !savedBuild, activate: true, name: savedBuild?.name || draft.name }).then((result) => {
-            if (!result.ok || disposed) return;
-            draft = normalizeHangarBuild(result.build);
-            savedBuild = normalizeHangarBuild(result.build);
-            baselineBuild = normalizeHangarBuild(result.build);
+        if (hangarMode === 'arcade') {
+            const activation = await saveArcadeBuildAndProfile(draft, {
+                asNew: !savedBuild,
+                activate: true,
+                name: savedBuild?.name || draft.name,
+            });
+            if (!activation.ok) {
+                if (activation.code === 'profile_save_failed') {
+                    reportProfileSaveFailure('Profil konnte nicht gespeichert werden. Der Run wurde nicht gestartet; Änderungen bleiben im offenen Hangar.');
+                } else {
+                    reportArcadeBuildSaveFailure(activation);
+                }
+                return activation;
+            }
+            draft = normalizeHangarBuild(activation.buildResult.build);
+            savedBuild = normalizeHangarBuild(activation.buildResult.build);
+            baselineBuild = normalizeHangarBuild(activation.buildResult.build);
             history = new HangarBuildHistory(draft);
-            syncDisplay();
-        });
-        toast(needsSave ? 'Angezeigter Build wird gespeichert und für den Run aktiviert.' : 'Aktiver Build ist für den Run synchronisiert.', 'success');
+        } else {
+            if (!commitProfileForRun(draft)) {
+                reportProfileSaveFailure('Profil konnte nicht gespeichert werden. Der Run wurde nicht gestartet; Änderungen bleiben im offenen Hangar.');
+                return { ok: false, code: 'profile_save_failed' };
+            }
+            void persistence.saveBuild(draft, { asNew: !savedBuild, activate: true, name: savedBuild?.name || draft.name }).then((result) => {
+                if (!result.ok || disposed) return;
+                draft = normalizeHangarBuild(result.build);
+                savedBuild = normalizeHangarBuild(result.build);
+                baselineBuild = normalizeHangarBuild(result.build);
+                history = new HangarBuildHistory(draft);
+                syncDisplay();
+            });
+        }
+        syncVehicleWriteback(draft.vehicleId);
+        toast(needsSave ? 'Angezeigter Build wurde gespeichert und für den Run aktiviert.' : 'Aktiver Build ist für den Run synchronisiert.', 'success');
         container.dataset.activeRunVehicleId = draft.vehicleId;
         container.dataset.activeRunBuildId = draft.buildId;
         return { ok: true, vehicleId: draft.vehicleId, build: normalizeHangarBuild(draft), validation };
