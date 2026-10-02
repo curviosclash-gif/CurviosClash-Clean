@@ -42,30 +42,11 @@ if not exist "%ROOT%node_modules\vite\bin\vite.js" (
 )
 
 echo.
-echo Installiere Electron-Abhaengigkeiten aus electron\package-lock.json...
-call npm --prefix electron ci
+echo Installiere Electron-Abhaengigkeiten und Desktop-Laufzeit...
+call npm run app:setup
 set "EXIT_CODE=%errorlevel%"
 if not "%EXIT_CODE%"=="0" goto :fail_electron
 
-if exist "%ROOT%electron\node_modules\electron\dist\electron.exe" goto :electron_runtime_ready
-echo Lade die gesperrte Electron-Laufzeit...
-call node "%ROOT%electron\node_modules\electron\install.js"
-set "EXIT_CODE=%errorlevel%"
-if not "%EXIT_CODE%"=="0" goto :fail_electron
-
-:electron_runtime_ready
-echo Setze die normale Integritaetsstufe fuer die Electron-Laufzeit...
-icacls "%ROOT%electron\node_modules\electron\dist" /setintegritylevel "(OI)(CI)M" /T /Q
-set "EXIT_CODE=%errorlevel%"
-if not "%EXIT_CODE%"=="0" goto :fail_electron
-
-if exist "%ROOT%electron\node_modules\ffmpeg-static\ffmpeg.exe" goto :ffmpeg_runtime_ready
-echo Lade die gesperrte FFmpeg-Laufzeit...
-call node "%ROOT%electron\node_modules\ffmpeg-static\install.js"
-set "EXIT_CODE=%errorlevel%"
-if not "%EXIT_CODE%"=="0" goto :fail_electron
-
-:ffmpeg_runtime_ready
 if not exist "%ROOT%electron\node_modules\electron\dist\electron.exe" (
     set "EXIT_CODE=1"
     goto :fail_electron
