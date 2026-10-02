@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as THREE from 'three';
 
+import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
 import { loadGLBMapCollection } from '../src/entities/GLBMapLoader.js';
 import { sphereIntersectsStaticMeshCollider } from '../src/entities/arena/StaticMeshCollider.js';
@@ -9,9 +11,19 @@ import {
     createPlayerProgressState,
     resolveExpectedCheckpointEntries,
 } from '../src/entities/systems/ParcoursProgressUtils.js';
+import { getVehicleModularConfig } from '../src/entities/vehicle-registry.js';
+import {
+    ARCADE_FACTORY_VEHICLE_IDS,
+    resolveArcadeWallHitboxScale,
+} from '../src/shared/contracts/ArcadeVehicleBalanceContract.js';
+import {
+    ARCADE_HITBOX_MIN_THICKNESS,
+    buildArcadeHitboxShape,
+} from '../src/shared/contracts/ArcadeVehicleHitboxContract.js';
 import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
 
 const MAP = NOTRE_DAME_MAPS.notre_dame;
+const MAP_SCALE = CONFIG_SECTIONS.ARENA.MAP_SCALE;
 const FABRIC_MODEL_IDS = new Set([
     'notre-dame-parvis',
     'notre-dame-west-facade',
@@ -43,6 +55,54 @@ function firstSweepHit(colliders, from, to) {
         if (blocker) return { point, modelId: blocker.modelId, sourceName: blocker.sourceName };
     }
     return null;
+}
+
+// Arcade walls see the part boxes, not hitboxRadius (PlayerCollisionPhase ->
+// resolveArcadeArenaCollision): a ship is as wide as its wings. The 02.10.2026 playtest lost
+// ship5 and the manta on the south apse flyer while the drone passed, so every factory ship
+// is swept with its real wall shape, in world units against the GLB fabric.
+const WALL_SHAPES = ARCADE_FACTORY_VEHICLE_IDS.map((vehicleId) => ({
+    vehicleId,
+    shape: buildArcadeHitboxShape(getVehicleModularConfig(vehicleId)?.parts, {}, {
+        originScale: resolveArcadeWallHitboxScale(vehicleId),
+    }),
+}));
+// A line only the exact centre threads is not a flyable route: each shape must also clear the
+// path shifted this far sideways (world units).
+const LATERAL_SLACK_WORLD = 1;
+const FORWARD_LOCAL = new THREE.Vector3(0, 0, -1);
+
+function firstShapeHit(colliders, shape, fromAuthored, toAuthored) {
+    const from = new THREE.Vector3(...fromAuthored).multiplyScalar(MAP_SCALE);
+    const to = new THREE.Vector3(...toAuthored).multiplyScalar(MAP_SCALE);
+    const heading = to.clone().sub(from).normalize();
+    const quaternion = new THREE.Quaternion().setFromUnitVectors(FORWARD_LOCAL, heading);
+    const steps = Math.max(1, Math.ceil(from.distanceTo(to) / ARCADE_HITBOX_MIN_THICKNESS));
+    const pose = new THREE.Vector3();
+    const probe = new THREE.Vector3();
+    const hits = (point, radius) => colliders.find((entry) => sphereIntersectsStaticMeshCollider(
+        entry.meshCollider,
+        { x: point.x / MAP_SCALE, y: point.y / MAP_SCALE, z: point.z / MAP_SCALE },
+        radius / MAP_SCALE,
+    ));
+    for (let step = 0; step <= steps; step += 1) {
+        pose.lerpVectors(from, to, step / steps);
+        if (!hits(pose, shape.boundRadius)) continue;
+        for (let k = 0; k < shape.probes.length / 4; k += 1) {
+            probe.set(shape.probes[k * 4], shape.probes[k * 4 + 1], shape.probes[k * 4 + 2])
+                .applyQuaternion(quaternion).add(pose);
+            const blocker = hits(probe, shape.probes[k * 4 + 3]);
+            if (blocker) return { world: pose.toArray().map((value) => +value.toFixed(2)), sourceName: blocker.sourceName };
+        }
+    }
+    return null;
+}
+
+function lateralOffsets(from, to) {
+    const side = new THREE.Vector3(to[0] - from[0], 0, to[2] - from[2]).cross(new THREE.Vector3(0, 1, 0));
+    if (side.lengthSq() < 1e-9) return [[0, 0, 0]];
+    side.normalize().multiplyScalar(LATERAL_SLACK_WORLD / MAP_SCALE);
+    return [[0, 0, 0], side.toArray(), side.clone().negate().toArray()];
 }
 
 test('both choir branches clear the CP12 ring approach and pass through the east apse opening', async () => {
@@ -118,6 +178,17 @@ test('both choir branches clear the CP12 ring approach and pass through the east
             assert.equal(hit, null,
                 `${path.id} has a ${MAX_SWEEP_STEP.toFixed(3)} authored-unit full-ship-clear sweep `
                 + `from ${from.join(',')} to ${to.join(',')}; hit ${JSON.stringify(hit)}`);
+            for (const offset of lateralOffsets(from, to)) {
+                const shiftedFrom = from.map((value, axis) => value + offset[axis]);
+                const shiftedTo = to.map((value, axis) => value + offset[axis]);
+                for (const { vehicleId, shape } of WALL_SHAPES) {
+                    const shapeHit = firstShapeHit(loaded.colliders, shape, shiftedFrom, shiftedTo);
+                    assert.equal(shapeHit, null,
+                        `${path.id}: ${vehicleId} wall shape (cross radius ${shape.crossRadius.toFixed(2)}) `
+                        + `flies from ${from.join(',')} to ${to.join(',')} shifted ${offset.map((value) => +(value * MAP_SCALE).toFixed(2)).join(',')} `
+                        + `world units; hit ${JSON.stringify(shapeHit)}`);
+                }
+            }
         }
     }
 });
