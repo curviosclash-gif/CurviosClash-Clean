@@ -18,6 +18,7 @@ import { createArcadeReplayActions } from './arcade/ArcadeReplayActions.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
 import {
     getArcadeMenuSurfaceState,
+    requestArcadeReplayExport,
     requestArcadeReplayPlayback,
     selectArcadeIntermissionChoice,
     selectArcadeReward,
@@ -429,7 +430,7 @@ export class MatchFlowArcadeOverlayController {
             payloadAvailable: replay.payloadAvailable === true,
             overlay: this.game?.ui?.messageOverlay || null,
             requestPlayback: () => requestArcadeReplayPlayback(this.runtimePort, this.game),
-            requestExport: () => this.runtimePort?.requestArcadeReplayPlayback?.(),
+            requestExport: () => requestArcadeReplayExport(this.runtimePort, this.game),
             copyText: (text) => (typeof navigator !== 'undefined' && typeof navigator.clipboard?.writeText === 'function'
                 ? Promise.resolve(navigator.clipboard.writeText(text)).then(() => true).catch(() => false)
                 : false),
