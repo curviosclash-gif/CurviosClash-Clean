@@ -282,6 +282,69 @@ test('LAN signaling enforces maxPlayers on join requests', async () => {
     }
 });
 
+test('LAN CREATE/JOIN bound stored actor IDs and sanitize visible player names', async () => {
+    const lanServer = await startLanServer();
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', {
+            maxPlayers: 3,
+            actorId: { invalid: true },
+            name: 'h'.repeat(16_000),
+        });
+        assert.equal(created.status, 200);
+        assert.equal(created.payload.sessionState.hostActorId, 'h'.repeat(128));
+        assert.equal(created.payload.sessionState.hostName, 'h'.repeat(16));
+
+        const createdWithLongActor = await postJson(lanServer.baseUrl, '/lobby/create', {
+            maxPlayers: 3,
+            actorId: 'c'.repeat(500),
+            name: 'A\u0000B\u001fC\u007fD\u009fE'.repeat(4),
+        });
+        assert.equal(createdWithLongActor.status, 200);
+        assert.equal(createdWithLongActor.payload.sessionState.hostActorId, 'c'.repeat(128));
+        assert.equal(createdWithLongActor.payload.sessionState.hostName, 'ABCDEABCDEABCDEA');
+
+        const hostStatus = await (await fetch(statusUrl(
+            lanServer.baseUrl,
+            'host',
+            createdWithLongActor.payload.hostToken,
+        ))).json();
+        assert.equal(hostStatus.sessionState.hostActorId, 'c'.repeat(128));
+        assert.equal(hostStatus.sessionState.hostName, 'ABCDEABCDEABCDEA');
+
+        const joined = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: createdWithLongActor.payload.lobbyCode,
+            actorId: 'a'.repeat(500),
+            name: 'A\u0000B\u001fC\u007fD\u009fE'.repeat(4),
+        });
+        assert.equal(joined.status, 200);
+        const member = joined.payload.sessionState.players[0];
+        assert.equal(member.actorId, 'a'.repeat(128));
+        assert.equal(member.name, 'ABCDEABCDEABCDEA');
+        assert.ok(member.name.length <= 16);
+        assert.doesNotMatch(member.name, /[\u0000-\u001f\u007f-\u009f]/);
+
+        const playerStatus = await (await fetch(statusUrl(
+            lanServer.baseUrl,
+            joined.payload.playerId,
+            joined.payload.playerToken,
+        ))).json();
+        assert.equal(playerStatus.sessionState.players[0].actorId, 'a'.repeat(128));
+        assert.equal(playerStatus.sessionState.players[0].name, 'ABCDEABCDEABCDEA');
+
+        const invalidIdentity = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: createdWithLongActor.payload.lobbyCode,
+            actorId: { invalid: true },
+            name: 42,
+        });
+        assert.equal(invalidIdentity.status, 200);
+        const fallbackMember = invalidIdentity.payload.sessionState.players[1];
+        assert.equal(fallbackMember.actorId, fallbackMember.peerId);
+        assert.equal(fallbackMember.name, fallbackMember.actorId);
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
 test('LAN signaling counts host split-screen seats for capacity, state, discovery, and match start', async () => {
     const lanServer = await startLanServer();
     const lobby = new LANMatchLobby({

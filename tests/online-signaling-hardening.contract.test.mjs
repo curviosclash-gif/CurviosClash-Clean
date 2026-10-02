@@ -180,6 +180,26 @@ test('online signaling bounds joined player identity before storing and broadcas
     }
 });
 
+test('online CREATE uses the shared actor-ID bound and visible-name sanitizer', async () => {
+    const { wss, url } = await startServer();
+    try {
+        const host = await openClient(url);
+        const created = await sendAndReceive(host, SIGNALING_COMMAND_TYPES.CREATE_LOBBY, {
+            actorId: 'h'.repeat(500),
+            name: 'A\u0000B\u001fC\u007fD\u009fE'.repeat(4),
+        });
+
+        assert.equal(created.type, SIGNALING_EVENT_TYPES.LOBBY_CREATED);
+        const member = created.sessionState.members[0];
+        assert.equal(member.actorId, 'h'.repeat(128));
+        assert.equal(member.name, 'ABCDEABCDEABCDEA');
+        assert.ok(member.name.length <= 16);
+        assert.doesNotMatch(member.name, /[\u0000-\u001f\u007f-\u009f]/);
+    } finally {
+        await stopServer(wss);
+    }
+});
+
 test('online signaling normalizes invalid maxPlayers and enforces the ten-player cap', async () => {
     const { wss, url } = await startServer();
     try {
