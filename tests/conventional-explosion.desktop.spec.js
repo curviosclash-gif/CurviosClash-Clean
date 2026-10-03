@@ -344,3 +344,28 @@ test('Bomber Strike shows five independent aircraft and real falling bombs throu
     expect(proof.explosion).toBe('ground-tnt');
     expect(errors).toEqual([]);
 });
+
+// Playtest 02.10.2026: the strike worked when called directly but the G key refused it in HUNT
+// ("Bomber-Angriff konnte nicht ausgelöst werden"). This drives the path a player uses.
+test('the Bomber Strike item is triggered through the real item key', async ({ page }) => {
+    test.setTimeout(120_000);
+    const errors = collectErrors(page);
+    await startHuntGameWithBots(page, 1, { mapKey: 'standard' });
+    await page.evaluate(() => {
+        const human = window.GAME_INSTANCE.entityManager.humanPlayers[0];
+        human.inventory.length = 0;
+        human.addToInventory('BOMBER_STRIKE');
+        human.selectedItemIndex = 0;
+    });
+    const useKey = await page.evaluate(() => window.GAME_INSTANCE.settings.controls.PLAYER_1.USE_ITEM || 'KeyG');
+    await page.keyboard.press(useKey);
+    await page.waitForFunction(() => window.GAME_INSTANCE.entityManager._mapUnitSystem.units
+        .filter((unit) => unit.summoned).length === 5, null, { timeout: 5000 });
+    const state = await page.evaluate(() => ({
+        inventory: [...window.GAME_INSTANCE.entityManager.humanPlayers[0].inventory],
+        toast: document.getElementById('status-toast')?.textContent || '',
+    }));
+    expect(state.inventory).toEqual([]);
+    expect(state.toast).not.toContain('konnte nicht ausgelöst werden');
+    expect(errors).toEqual([]);
+});
