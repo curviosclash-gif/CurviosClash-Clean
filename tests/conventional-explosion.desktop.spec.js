@@ -214,12 +214,12 @@ test('all ten profiles appear at their real game event entry points', async ({ p
         const bomber = units.units.find((unit) => unit.summoned);
         bomber.bombCooldownRemaining = 0;
         bomber.groundPosition.x = 0; bomber.position.x = 0;
-        // A hunting strike only releases over an enemy: put the bot 15 units beside the point where
-        // this bomb would land, inside the aim tolerance but clear of a direct hit, so it hits ground.
+        // A hunting strike only releases over an enemy: park the bot 10 units beside the point where
+        // this bomb would land, inside the blast radius but clear of a direct hit, so it hits ground.
         const fall = Math.sqrt((2 * (bomber.position.y - 1 - floorY)) / 24);
-        bot.alive = true; bot.spawnProtectionTimer = 0;
-        bot.position.set(bomber.position.x + Math.sin(bomber.yaw) * bomber.speed * fall - Math.cos(bomber.yaw) * 15,
-            floorY + 0.5, bomber.position.z + Math.cos(bomber.yaw) * bomber.speed * fall + Math.sin(bomber.yaw) * 15);
+        bot.alive = true; bot.spawnProtectionTimer = 0; bot.velocity.set(0, 0, 0);
+        bot.position.set(bomber.position.x + Math.sin(bomber.yaw) * bomber.speed * fall - Math.cos(bomber.yaw) * 10,
+            floorY + 0.5, bomber.position.z + Math.cos(bomber.yaw) * bomber.speed * fall + Math.sin(bomber.yaw) * 10);
         units.update(.01);
         const droppedBomb = system.projectiles.find((projectile) => projectile.type === 'BOMBER_BOMB');
         for (let frame = 0; droppedBomb && system.projectiles.includes(droppedBomb) && frame < 300; frame += 1) system.update(1 / 60);
@@ -283,6 +283,8 @@ test('Bomber Strike shows five independent aircraft and real falling bombs throu
         const fall = Math.sqrt((2 * (leader.position.y - 1 - minY)) / 24);
         enemy.position.set(leader.position.x + Math.sin(leader.yaw) * leader.speed * (fall + 0.75), minY + 0.5,
             leader.position.z + Math.cos(leader.yaw) * leader.speed * (fall + 0.75));
+        // Parked: a hunting bomb leads a moving enemy, so the bot must not keep its flight speed.
+        enemy.velocity.set(0, 0, 0);
         const enemyHp = enemy.hp;
         units.update(0.75);
         if (leader.bombsFired !== 1) throw new Error('The leader must release its aimed bomb at 0.75s');

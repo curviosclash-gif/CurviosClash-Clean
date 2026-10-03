@@ -32,6 +32,7 @@ export function updateBomberBombs(system, unit, dt, canFire) {
     if (!projectileSystem.spawnBomberBomb(sourcePlayer, position, velocity, {
         damage: bomb.damage,
         blastRadius: bomb.radius * unit.scale,
+        proximityFuse: !!unit.bomberHunt,
     })) {
         unit.bombCooldownRemaining = 0;
         return;

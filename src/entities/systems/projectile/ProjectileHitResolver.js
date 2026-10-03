@@ -7,6 +7,7 @@ import { applyExplosionKnockback } from '../ExplosionKnockbackOps.js';
 import { resolveInterceptHit } from './RocketInterceptOps.js';
 import { segmentHitsArcadePartBoxes, sphereHitsArcadePartBoxes } from '../../player/ArcadePartHitboxOps.js';
 import { canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamCombatContract.js';
+import { isBomberBombFuseTriggered } from './BomberBombOps.js';
 
 // Der Spawnschutz aus dem RespawnSystem (INVULNERABILITY_SECONDS) macht einen frisch
 // eingesetzten Spieler unangreifbar - Spur, Wand, Crash, Hazard und Turret halten sich
@@ -275,9 +276,11 @@ export class ProjectileHitResolver {
 
         if (projectile.type === 'BOMBER_BOMB') {
             let contactFraction = Infinity;
+            let fused = false;
             for (const target of players || []) {
                 if (!target?.alive || target === projectile.owner || isSpawnProtected(target)
                     || !canDamage(projectile.owner, target, TEAM_WEAPON_KINDS.ITEM_PROJECTILE)) continue;
+                if (projectile.proximityFuse && !fused) fused = isBomberBombFuseTriggered(projectile, target);
                 const candidateFraction = this._resolveBomberBombPlayerContact(projectile, target);
                 if (candidateFraction < 0 || candidateFraction >= contactFraction) continue;
                 contactFraction = candidateFraction;
@@ -287,7 +290,7 @@ export class ProjectileHitResolver {
                 projectile.mesh?.position.copy(projectile.position);
                 return this._detonateBomberBomb(projectile, players);
             }
-            if (simulationResult.projectileHitArena) {
+            if (fused || simulationResult.projectileHitArena) {
                 return this._detonateBomberBomb(projectile, players);
             }
             if (simulationResult.projectileExpired) return true;

@@ -3,8 +3,9 @@ import { canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamComb
 
 // Bombs fall with this acceleration (BomberBombOps sets projectile.gravity = -24).
 const BOMB_GRAVITY = 24;
-// How far from the predicted impact an enemy may be for a release to count as aimed.
-const DROP_TOLERANCE = 1.5;
+// How far from the predicted impact an enemy may be for a release to count as aimed. Hunting bombs
+// burst next to an enemy inside the blast radius, so a release aims within that radius.
+const DROP_TOLERANCE = 1;
 
 /**
  * A called strike hunts for its whole lifetime (user decision 03.10.2026): every aircraft picks an
@@ -50,6 +51,25 @@ export function turnYawTowards(current, desired, maxStep) {
     return current + Math.max(-maxStep, Math.min(maxStep, delta));
 }
 
+/**
+ * Where `target` will be when a bomb released at `fromY` reaches its height, written into `out`.
+ * Returns the fall time in seconds, or -1 when the target is not below the release point. The
+ * enemy keeps its current velocity; two refinements cover its climb or dive during the fall.
+ */
+export function predictHuntTarget(fromY, target, out) {
+    const velocity = target.velocity;
+    const vx = Number(velocity?.x) || 0; const vy = Number(velocity?.y) || 0; const vz = Number(velocity?.z) || 0;
+    let fallSeconds = 0;
+    for (let pass = 0; pass < 3; pass += 1) {
+        const drop = fromY - (target.position.y + vy * fallSeconds);
+        if (drop <= 0) return -1;
+        fallSeconds = Math.sqrt((2 * drop) / BOMB_GRAVITY);
+    }
+    out.x = target.position.x + vx * fallSeconds;
+    out.z = target.position.z + vz * fallSeconds;
+    return fallSeconds;
+}
+
 function collectTargets(system, unit, out) {
     out.length = 0;
     for (const player of system.entityManager?.players || []) {
@@ -90,7 +110,12 @@ export function steerHuntingBomber(system, unit, dt) {
             const claimed = claimedByOthers(system, unit, system._bomberHuntClaims || (system._bomberHuntClaims = new Set()));
             hunt.target = chooseBomberTarget(pos, targets, claimed, hunt.last);
         }
-        if (hunt.target) desired = Math.atan2(hunt.target.position.x - pos.x, hunt.target.position.z - pos.z);
+        if (hunt.target) {
+            // Fly towards where the enemy will be when a bomb from here reaches it.
+            const aim = system._bomberHuntAim || (system._bomberHuntAim = { x: 0, z: 0 });
+            if (predictHuntTarget(pos.y - 1, hunt.target, aim) < 0) { aim.x = hunt.target.position.x; aim.z = hunt.target.position.z; }
+            desired = Math.atan2(aim.x - pos.x, aim.z - pos.z);
+        }
         const margin = BOMBER_STRIKE_FORMATION.edgeMargin;
         const minX = Number(bounds.minX ?? bounds.min?.x); const maxX = Number(bounds.maxX ?? bounds.max?.x);
         const minZ = Number(bounds.minZ ?? bounds.min?.z); const maxZ = Number(bounds.maxZ ?? bounds.max?.z);
@@ -109,20 +134,20 @@ export function steerHuntingBomber(system, unit, dt) {
 
 /**
  * Whether a hunting aircraft should release now: the bomb, falling from here with the aircraft's
- * own speed, would land within reach of an enemy. A strike that breaks off drops nothing.
+ * own speed, would reach an enemy's height within reach of where that enemy will then be. A strike that breaks off drops nothing.
  */
 export function shouldDropHuntingBomb(system, unit, blastRadius) {
     if (unit.bomberHunt?.exiting) return false;
     const targets = collectTargets(system, unit, system._bomberHuntTargets || (system._bomberHuntTargets = []));
     const speed = Number(unit.speed) || 0;
     const reach = blastRadius * DROP_TOLERANCE;
+    const aim = system._bomberHuntAim || (system._bomberHuntAim = { x: 0, z: 0 });
     for (const target of targets) {
-        const drop = unit.position.y - 1 - target.position.y;
-        if (drop <= 0) continue;
-        const fallSeconds = Math.sqrt((2 * drop) / BOMB_GRAVITY);
+        const fallSeconds = predictHuntTarget(unit.position.y - 1, target, aim);
+        if (fallSeconds < 0) continue;
         const impactX = unit.position.x + Math.sin(unit.yaw) * speed * fallSeconds;
         const impactZ = unit.position.z + Math.cos(unit.yaw) * speed * fallSeconds;
-        if (Math.hypot(target.position.x - impactX, target.position.z - impactZ) <= reach) return true;
+        if (Math.hypot(aim.x - impactX, aim.z - impactZ) <= reach) return true;
     }
     return false;
 }

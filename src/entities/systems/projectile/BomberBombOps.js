@@ -15,7 +15,7 @@ export function createBomberBombMesh() {
     return root;
 }
 
-export function spawnBomberBomb(system, owner, position, velocity, { damage = 50, blastRadius = 15 } = {}) {
+export function spawnBomberBomb(system, owner, position, velocity, { damage = 50, blastRadius = 15, proximityFuse = false } = {}) {
     if (system.networkReplica || !owner || !position || !velocity) return null;
     const mesh = system._acquireProjectileMesh('BOMBER_BOMB', 0x30343b);
     mesh.position.copy(position);
@@ -31,6 +31,8 @@ export function spawnBomberBomb(system, owner, position, velocity, { damage = 50
     projectile.gravity = -24;
     projectile.blastDamage = Math.max(1, Number(damage) || 50);
     projectile.blastRadius = Math.max(1, Number(blastRadius) || 15);
+    // Pooled projectiles keep old fields, so the fuse is set on every spawn.
+    projectile.proximityFuse = proximityFuse === true;
     projectile.ttl = 30;
     projectile.maxDistance = Infinity;
     system.projectiles.push(projectile);
@@ -51,4 +53,15 @@ export function simulateBomberBomb(system, projectile, index, dt, arena, players
         if (shouldRemove) break;
     }
     return shouldRemove;
+}
+
+/**
+ * Proximity fuse of a hunting bomb: it bursts once an enemy is inside the blast radius and the bomb
+ * has fallen to that enemy's height, or as soon as it is within half the radius. Enemies fly, so a
+ * bomb that only burst on the floor would pass every one of them.
+ */
+export function isBomberBombFuseTriggered(projectile, target) {
+    const radius = Math.max(0.1, Number(projectile.blastRadius) || 15);
+    const distance = projectile.position.distanceTo(target.position);
+    return distance <= radius && (projectile.position.y <= target.position.y || distance <= radius * 0.5);
 }

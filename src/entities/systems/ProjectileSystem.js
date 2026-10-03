@@ -259,8 +259,8 @@ export class ProjectileSystem {
         return acquireProjectileMesh(this, type, color, visualColor);
     }
 
-    spawnBomberBomb(owner, position, velocity, { damage = 50, blastRadius = 15 } = {}) {
-        return spawnBomberBomb(this, owner, position, velocity, { damage, blastRadius });
+    spawnBomberBomb(owner, position, velocity, { damage = 50, blastRadius = 15, proximityFuse = false } = {}) {
+        return spawnBomberBomb(this, owner, position, velocity, { damage, blastRadius, proximityFuse });
     }
 
     _getProjectilePool(type) {
