@@ -17,6 +17,11 @@ import {
     CROSSING_CENTRE,
 } from './NotreDameStructure.js';
 
+// Middle of the slot between the south apse flyer and the central buttress (z -5.75 .. -2.75
+// at route height). Arcade walls see the wings, and the widest factory ship spans 2.7 world
+// units to each side, so only the middle clears; z = -5 lost ship5 and the manta on the flyer.
+const APSE_SLOT_Z = -4.125;
+
 const NOTRE_DAME_CHECKPOINTS = [
     { id: 'CP01', type: 'entry', pos: [-196, GROUND + 14, 0], radius: 7.2, forward: [1, 0, 0] },
     // The open island approach leads into the square and the west facade.
@@ -121,7 +126,10 @@ const NOTRE_DAME_CHECKPOINTS = [
         id: 'CP11_APSE_EXIT_AMBULATORY',
         aliasOf: 'CP11_APSE_EXIT',
         type: 'apse_exit_ambulatory',
-        pos: [74, GROUND + 24, -22],
+        // Kept 2 units west of the south choir flyer (x 75 at this height): at x = 74 every
+        // factory ship clipped it while crossing the ring centre. Lower would sit in the
+        // ambulatory roof box (top y 31.1).
+        pos: [73, GROUND + 24, -21],
         radius: 4.2,
         forward: [1, 0, 0],
     },
@@ -129,14 +137,14 @@ const NOTRE_DAME_CHECKPOINTS = [
     {
         id: 'CP11_APSE_APPROACH',
         type: 'apse_approach',
-        pos: [80.6, GROUND + 22, -5],
+        pos: [80.6, GROUND + 22, APSE_SLOT_Z],
         radius: 2.4,
         forward: [1, 0, 0],
         nextIds: ['CP12'],
     },
     // The ring sits in the east-end bore, offset beside the central apse buttress. Its full
     // approach crosses the actual opening instead of cutting through the buttress or vault.
-    { id: 'CP12', type: 'apse_merge', pos: [86, GROUND + 22, -5], radius: 5.4, forward: [1, 0, 0] },
+    { id: 'CP12', type: 'apse_merge', pos: [86, GROUND + 22, APSE_SLOT_Z], radius: 5.4, forward: [1, 0, 0] },
     // Both rings stay in the requested 46-61 m height band and above the hanging bells.
     { id: 'CP13', type: 'south_belfry', pos: [-83, GROUND + 57 * 1.4, 20.3], radius: 3.4, forward: [-0.67, 0.34, -0.62] },
     { id: 'CP14', type: 'north_belfry', pos: [-83, GROUND + 61 * 1.4, -20.3], radius: 3.4, forward: [0.78, 0.22, -0.61] },
