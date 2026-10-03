@@ -6,9 +6,11 @@ export function createPlayerProgressSnapshot(route, state, now) {
     const segmentElapsedMs = state.completed || segmentAnchor <= 0
         ? 0
         : Math.max(0, now - segmentAnchor);
-    const expectedEntries = !state.completed
-        ? resolveExpectedCheckpointEntries(route, state)
-        : [];
+    // Once every ring is passed only the finish is left to fly through.
+    const onlyFinishLeft = route.finish && state.nextCheckpointIndex >= route.totalCheckpoints;
+    const expectedEntries = state.completed
+        ? []
+        : (onlyFinishLeft ? [route.finish] : resolveExpectedCheckpointEntries(route, state));
     const passedCheckpointIds = state.stageCheckpointIds.filter((checkpointId) => (
         typeof checkpointId === 'string' && checkpointId.trim().length > 0
     ));

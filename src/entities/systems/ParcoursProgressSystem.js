@@ -488,7 +488,9 @@ export class ParcoursProgressSystem {
             }
         }
 
-        for (const entry of this._route.checkpoints) {
+        // With every ring passed only the finish counts: crossing a ring again on the way there is
+        // no wrong order and must not cost penalty time.
+        for (const entry of (expectedIndex < this._route.totalCheckpoints ? this._route.checkpoints : NO_EXPECTED_ENTRIES)) {
             if (expectedEntries.includes(entry)) continue;
             if (!this._isCheckpointTriggered(entry, player, previousPosition, now, state)) continue;
             this._registerWrongOrder(player, state, entry, now);
