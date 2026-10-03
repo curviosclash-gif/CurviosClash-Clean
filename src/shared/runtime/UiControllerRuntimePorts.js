@@ -236,7 +236,7 @@ export function createMatchFlowUiControllerPort(ports = null) {
         controllerPort.showPlayerFeedback = (player, message) => uiFeedbackPort.showPlayerFeedback(player, message);
     }
     if (typeof uiFeedbackPort?.getDeathMessage === 'function') {
-        controllerPort.getDeathMessage = (cause) => uiFeedbackPort.getDeathMessage(cause);
+        controllerPort.getDeathMessage = (cause, player = null) => uiFeedbackPort.getDeathMessage(cause, player);
     }
 
     return Object.freeze(controllerPort);

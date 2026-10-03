@@ -23,7 +23,9 @@ test('the status toast is not nested in the hidden in-match HUD', () => {
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     const ancestors = openElementIdsAt(html, 'status-toast');
     assert.ok(!ancestors.includes('hud'), `ancestors: ${ancestors.filter(Boolean).join(' > ')}`);
-    assert.deepEqual(openElementIdsAt(html, 'hud'), ancestors, 'the toast stays next to #hud');
+    // It shares the notice column below the round board with the sandstorm banner; that column is
+    // the sibling of #hud, so the toast still shows in the menu.
+    assert.deepEqual([...openElementIdsAt(html, 'hud'), 'hud-notice-stack'], ancestors, 'the toast stays next to #hud');
 });
 
 test('the status toast stacks above the hunt and player HUD it overlaps at the top', () => {

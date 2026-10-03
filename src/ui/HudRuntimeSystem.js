@@ -489,7 +489,7 @@ export class HudRuntimeSystem {
         const game = this.game;
         if (!game.entityManager) return;
         const projection = runtimeProjection || this._getMatchRuntimeProjection();
-        if (!this._sandstormHud) this._sandstormHud = new MapSandstormHud(document.body);
+        if (!this._sandstormHud) this._sandstormHud = new MapSandstormHud(document.getElementById('hud-notice-stack') || document.body);
         this._sandstormHud.update(projection?.sandstorm, game.entityManager, {
             localHumanCount: projection?.localHumanCount || game.numHumans || 1,
             localPlayerIndex: this._getLocalPlayerIndex(projection),
