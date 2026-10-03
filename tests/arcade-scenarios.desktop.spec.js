@@ -1,10 +1,10 @@
 import { test, expect } from './helpers.desktop.js';
 import { waitForLoadedGame, openCustomSubmenu } from './helpers.js';
 
-// Seeds whose five-sector plan carries the scenarios under test (see ArcadeScenarioCatalog):
-// seed 4 = sector 3 "worm_hunt" + finale "hydra_finale", seed 6 = sector 3 "storm_flood".
-const WORM_AND_HYDRA_SEED = 4;
-const STORM_FLOOD_SEED = 6;
+// Seeds whose five-sector plan carries the scenarios under test (see ArcadeScenarioCatalog).
+const WORM_AND_HYDRA_SEED = 8;
+const STORM_FLOOD_SEED = 7;
+const BOMBER_ALARM_SEED = 5;
 
 async function startArcadeRun(page, seed) {
     await waitForLoadedGame(page);
@@ -50,6 +50,7 @@ function readSector(page) {
         return {
             state: game.state,
             mapKey: game.runtimeConfig.session.mapKey,
+            scenarioId: game.runtimeConfig.arcade.scenarioId || '',
             combatProfile: game.runtimeConfig.arcade.combatProfile || '',
             modeType: entityManager.gameModeStrategy.modeType,
             pickupMode: entityManager.gameModeStrategy.getPickupModeType(),
@@ -156,6 +157,25 @@ test('Arcade scenarios: worm hunt wakes the worm, outlives the bots and hands ba
         objectiveTimeLimited: false,
     });
     await page.screenshot({ path: testInfo.outputPath('hydra-finale.png') });
+});
+
+test('Arcade scenarios: Bomberalarm replaces the standard map unit', async ({ page }) => {
+    test.setTimeout(180_000);
+    await startArcadeRun(page, BOMBER_ALARM_SEED);
+    await advanceToSector(page, 2);
+    await advanceToSector(page, 3);
+    await keepPilotAlive(page, true);
+    await expect.poll(() => readSector(page), { timeout: 15_000 }).toMatchObject({
+        mapKey: 'standard',
+        scenarioId: 'bomber_alarm',
+        combatProfile: 'hunt',
+        pickupMode: 'HUNT',
+        creatures: 0,
+        objectiveId: 'destroy_units',
+        objectiveStatus: 'active',
+        objectiveDuration: 120,
+    });
+    await keepPilotAlive(page, false);
 });
 
 test('Arcade scenarios: storm flood stays an arcade sector on the dam map', async ({ page }, testInfo) => {

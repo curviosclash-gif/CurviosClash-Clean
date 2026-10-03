@@ -9,7 +9,7 @@ const BOMBER = {
     weapons: { bomb: false }, crash: { damage: 50, radius: 20 }, respawnSeconds: 90,
 };
 
-function createWorld() {
+function createWorld({ scenarioId = null } = {}) {
     const player = {
         index: 0, alive: true, hp: 100, spawnProtectionTimer: 0,
         position: new THREE.Vector3(0, 0, 0),
@@ -23,7 +23,9 @@ function createWorld() {
     const explosions = [];
     const damageEvents = [];
     const killEvents = [];
+    const arcadeEvents = [];
     const manager = {
+        runtimeConfig: { arcade: { scenarioId } },
         isFightOutcomeAuthority: true,
         gameModeStrategy: { modeType: 'HUNT', getPickupModeType: () => 'HUNT' },
         arena: { bounds: { min: { y: 0 } }, currentMapDefinition: { mapUnits: [BOMBER] } },
@@ -34,16 +36,17 @@ function createWorld() {
         _emitHuntDamageEvent: (event) => damageEvents.push(event),
         _killPlayer: (target, cause, options) => killEvents.push({ target, cause, options }),
         _notifyPlayerFeedback() {},
+        onArcadeGameplayEvent: (event) => arcadeEvents.push(event),
         _projectileSystem: { spawnBomberBomb: () => ({}) },
     };
     const system = new MapUnitSystem(manager);
     manager._mapUnitSystem = system;
     system.startRound();
-    return { system, bomber: system.units[0], player, loot, scored, explosions, damageEvents, killEvents };
+    return { system, bomber: system.units[0], player, loot, scored, explosions, damageEvents, killEvents, arcadeEvents };
 }
 
-test('a destroyed bomber falls before impact damage, loot and credit', () => {
-    const { system, bomber, player, loot, scored, explosions } = createWorld();
+test('a destroyed bomber completes objectives at lethal damage and falls before impact damage, loot and credit', () => {
+    const { system, bomber, player, loot, scored, explosions, arcadeEvents } = createWorld({ scenarioId: 'bomber_alarm' });
     const shooter = { index: 3, isBot: false };
 
     bomber.takeDamage(999, { sourcePlayer: shooter, cause: 'ROCKET_HEAVY' });
@@ -52,6 +55,7 @@ test('a destroyed bomber falls before impact damage, loot and credit', () => {
     assert.equal(loot.length, 0);
     assert.equal(scored.length, 0);
     assert.equal(explosions.length, 0);
+    assert.deepEqual(arcadeEvents, [{ type: 'unit_disabled', playerIndex: 3, count: 1, unitKind: 'bomber' }]);
 
     system.update(0.5);
     assert.equal(bomber.position.y > 0, true);
@@ -65,6 +69,7 @@ test('a destroyed bomber falls before impact damage, loot and credit', () => {
     assert.equal(loot.length, 1);
     assert.equal(loot[0].y, 0, 'loot stays at the impact point');
     assert.deepEqual(scored, [{ index: 3, kind: 'bomber' }]);
+    assert.equal(arcadeEvents.length, 1, 'impact rewards do not count the same objective twice');
 });
 
 test('round restart cancels a falling bomber and restores it in the air', () => {
@@ -75,6 +80,15 @@ test('round restart cancels a falling bomber and restores it in the air', () => 
     assert.equal(fresh.crashing, false);
     assert.equal(fresh.alive, true);
     assert.equal(fresh.position.y, 30);
+});
+
+test('bomber crashes outside Bomberalarm keep the normal destruction event until impact', () => {
+    const { system, bomber, arcadeEvents } = createWorld();
+    bomber.takeDamage(999, { sourcePlayer: { index: 3, isBot: false }, cause: 'ROCKET_HEAVY' });
+    assert.deepEqual(arcadeEvents, []);
+    system.update(2);
+    assert.deepEqual(arcadeEvents, [{ type: 'unit_destroyed', playerIndex: 3, count: 1, unitKind: 'bomber' }]);
+    system.dispose();
 });
 
 test('clients render the authoritative fall without simulating impact damage', () => {

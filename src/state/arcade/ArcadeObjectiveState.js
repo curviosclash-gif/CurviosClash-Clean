@@ -129,7 +129,8 @@ export function updateArcadeObjectiveState(objectiveState = null, event = null) 
         return completeObjective(next, true);
     }
     if (next.objectiveId === 'destroy_units') {
-        if (event.type === 'unit_destroyed' && String(event.unitKind || '') === next.unitKind) {
+        if ((event.type === 'unit_destroyed' || event.type === 'unit_disabled')
+            && String(event.unitKind || '') === next.unitKind) {
             next.unitsDestroyed = Math.min(next.unitTarget, next.unitsDestroyed + Math.max(1, Math.trunc(toSafeNumber(event.count, 1))));
             if (next.unitsDestroyed >= next.unitTarget) return completeObjective(next, true);
         }

@@ -82,6 +82,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._sdDamageMultiplier = 1.0;
         // 82.1.1: Current sector type (null = default arena)
         this._sectorType = null;
+        this._scenarioId = null;
         this._runType = String(options.runType || 'gauntlet').trim().toLowerCase();
         this._isDailyChallenge = options.isDailyChallenge === true;
         this._combatProfile = resolveArcadeRunCombatProfile(this._runType, options.combatProfile);
@@ -115,6 +116,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         this.exitSuddenDeath();
         this.setActiveModifier(null);
         this.setSectorType(null);
+        this.setScenarioId(null);
         this.applyVehicleUpgrades(null);
         this.applyRunRewardEffects(null);
     }
@@ -250,6 +252,9 @@ export class ArcadeModeStrategy extends GameModeContract {
     setSectorType(sectorType) {
         this._sectorType = typeof sectorType === 'string' ? sectorType : null;
     }
+
+    setScenarioId(scenarioId) { this._scenarioId = typeof scenarioId === 'string' ? scenarioId : null; }
+    allowsParcoursScenarioTurrets() { return this._scenarioId === 'spiessrutenlauf'; }
 
     getSectorType() {
         return this._sectorType;

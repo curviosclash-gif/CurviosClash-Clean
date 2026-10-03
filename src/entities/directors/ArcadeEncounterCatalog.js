@@ -194,6 +194,8 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
         isBoss: entry.isBoss === true,
         scenarioId: String(entry.scenarioId || '').trim() || null,
         combatProfile: entry.combatProfile === 'hunt' ? 'hunt' : '',
+        ...(Array.isArray(entry.mapUnits) ? { mapUnits: entry.mapUnits } : {}),
+        ...(typeof entry.mapUnitsMode === 'string' ? { mapUnitsMode: entry.mapUnitsMode === 'replace' ? 'replace' : 'overlay' } : {}),
         waterZoneTriggerSec: Math.max(0, Number(entry.waterZoneTriggerSec) || 0),
     };
 }
@@ -212,7 +214,11 @@ export function buildArcadeSectorPlan(options = {}) {
         Math.min(MAX_SECTOR_COUNT, Math.floor(Number(options.sectorCount) || 8))
     );
     const randomFn = createSeededRandom(options.seed);
-    const scenarioRandomFn = createSeededRandom(`${String(options.seed ?? 'arcade-default')}-scenario`);
+    const seedKey = String(options.seed ?? 'arcade-default');
+    const legacyDailyScenarioRandom = createSeededRandom(`${seedKey}-scenario`);
+    const dailyScenarioIds = options.dailyChallenge === true
+        ? new Set(['worm_hunt', 'storm_flood', 'hydra_finale'])
+        : null;
     const difficultyScale = resolveDifficultyScale(options.difficulty);
     const parcoursTemplate = ARCADE_SECTOR_CATALOG.find((t) => t.id === 'sector_parcours');
     const sequence = [];
@@ -226,7 +232,13 @@ export function buildArcadeSectorPlan(options = {}) {
         if (isParcours && parcoursTemplate) {
             const mapKey = pickFromPool(parcoursTemplate.mapPool, randomFn);
             const rewardChoices = pickDistinctFromPool(parcoursTemplate.rewardPool, 2, randomFn);
-            sequence.push({
+            const scenarioRandomFn = options.dailyChallenge === true
+                ? null
+                : createSeededRandom(`${seedKey}-scenario-${sectorNumber}`);
+            const scenario = scenarioRandomFn
+                ? resolveArcadeScenarioForSector({ sectorNumber, sectorCount, isBoss: false, isParcours: true }, scenarioRandomFn)
+                : null;
+            sequence.push(applyArcadeScenarioToSectorEntry({
                 sectorNumber,
                 templateId: 'sector_parcours',
                 squadId: null,
@@ -239,7 +251,7 @@ export function buildArcadeSectorPlan(options = {}) {
                 isBoss: false,
                 bossMultiplier: 1,
                 parcoursEnabled: true,
-            });
+            }, scenario));
             continue;
         }
 
@@ -261,7 +273,12 @@ export function buildArcadeSectorPlan(options = {}) {
             ? Math.min(1.0, (ARCADE_SQUAD_PROFILES.elite_lance?.pressure || 0.85) * 1.2 * difficultyScale)
             : pressure;
 
-        const scenario = resolveArcadeScenarioForSector({ sectorNumber, sectorCount, isBoss, isParcours: false }, scenarioRandomFn);
+        const scenarioRandomFn = options.dailyChallenge === true
+            ? legacyDailyScenarioRandom
+            : createSeededRandom(`${seedKey}-scenario-${sectorNumber}`);
+        const scenario = resolveArcadeScenarioForSector({
+            sectorNumber, sectorCount, isBoss, isParcours: false, allowedScenarioIds: dailyScenarioIds,
+        }, scenarioRandomFn);
         sequence.push(applyArcadeScenarioToSectorEntry({
             sectorNumber,
             templateId: template.id,

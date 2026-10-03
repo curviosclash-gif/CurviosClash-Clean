@@ -71,7 +71,7 @@ export function applyMapUnitDamage(system, unit, amount, options = {}) {
         owner?._huntScoring?.registerEscortTankDown?.(options.sourcePlayer?.index, false);
         return { applied: requested, hpApplied, absorbedByShield: 0, remainingHp: 0, isDead: false, isDowned: true };
     }
-    if (isDead && unit.kind === 'bomber') beginBomberCrash(unit, options.sourcePlayer || null);
+    if (isDead && unit.kind === 'bomber') beginBomberCrash(system, unit, options.sourcePlayer || null);
     else if (isDead) destroyMapUnit(system, unit, options.sourcePlayer || null);
     return { applied: requested, hpApplied, absorbedByShield: 0, remainingHp: unit.hp, isDead };
 }

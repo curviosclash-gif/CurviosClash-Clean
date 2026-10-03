@@ -6,10 +6,11 @@
  */
 
 import { normalizeString } from './ContractNormalizeUtils.js';
+import { normalizeMapUnits } from './MapUnitContract.js';
 
 export const ARCADE_SCENARIO_CONTRACT_VERSION = 'arcade-scenario.v1';
 
-const VALID_SLOTS = new Set(['sector', 'finale']);
+const VALID_SLOTS = new Set(['sector', 'parcours', 'finale']);
 const VALID_UNIT_KINDS = new Set(['tank', 'swarm', 'boss', 'bomber', 'creature']);
 const OBJECTIVE_LABELS = Object.freeze({
     destroy_units: 'Einheiten zerstören',
@@ -56,6 +57,7 @@ export function normalizeArcadeScenario(source) {
     const botCount = source?.botCount === null || source?.botCount === undefined ? NaN : Number(source.botCount);
     const minSector = Math.trunc(finiteNumber(source?.minSector, 1, 1, 99));
     const slot = normalizeId(source?.slot);
+    const mapUnits = normalizeMapUnits(source?.mapUnits, { preserveSpatial: true });
     return Object.freeze({
         id,
         label: normalizeString(source?.label, id).trim() || id,
@@ -63,6 +65,9 @@ export function normalizeArcadeScenario(source) {
         slot: VALID_SLOTS.has(slot) ? slot : 'sector',
         mapKey,
         combatProfile: source?.combatProfile === 'hunt' ? 'hunt' : '',
+        preserveObjective: source?.preserveObjective === true,
+        mapUnits,
+        mapUnitsMode: source?.mapUnitsMode === 'replace' ? 'replace' : 'overlay',
         // Seconds after the sector start at which the map's water zone floods; 0 leaves it to the map.
         waterZoneTriggerSec: finiteNumber(source?.waterZoneTriggerSec, 0, 0, 600),
         squadId: normalizeString(source?.squadId, '').trim() || null,

@@ -28,6 +28,36 @@ const RAW_ARCADE_SCENARIOS = [
         minSector: 3,
     },
     {
+        id: 'spiessrutenlauf',
+        label: 'Spießrutenlauf',
+        briefing: 'Durchquere die Spiegelwerft, während ihre Geschütze auf dich feuern.',
+        slot: 'parcours',
+        mapKey: 'mirror_docks',
+        combatProfile: 'hunt',
+        preserveObjective: true,
+        minSector: 4,
+        mapUnits: [],
+    },
+    {
+        id: 'bomber_alarm',
+        label: 'Bomberalarm',
+        briefing: 'Ein Bomber kreist über dem Sektor. Weiche seinen Angriffen aus.',
+        slot: 'sector',
+        mapKey: 'standard',
+        combatProfile: 'hunt',
+        minSector: 3,
+        maxSector: 6,
+        mapUnits: [{
+            id: 'arcade_bomber_alarm',
+            kind: 'bomber',
+            path: [[-34, 24, 0], [34, 24, 0]],
+            speed: 30,
+            allowedModes: ['ARCADE'],
+        }],
+        mapUnitsMode: 'replace',
+        objective: { id: 'destroy_units', label: 'Bomberalarm', unitKind: 'bomber', count: 1, durationSec: 120, scoreWeight: 1.3 },
+    },
+    {
         id: 'hydra_finale',
         label: 'Hydra-Tempel',
         briefing: 'Im Tempel wartet die Hydra. Besiege sie, um den Lauf zu gewinnen.',
@@ -40,13 +70,27 @@ const RAW_ARCADE_SCENARIOS = [
     },
 ];
 
-export const ARCADE_SCENARIOS = Object.freeze(RAW_ARCADE_SCENARIOS.map(normalizeArcadeScenario).filter(Boolean));
+export function normalizeArcadeScenarioCatalog(rawScenarios = []) {
+    const scenarioIds = new Set();
+    const normalized = [];
+    for (const rawScenario of Array.isArray(rawScenarios) ? rawScenarios : []) {
+        const scenario = normalizeArcadeScenario(rawScenario);
+        if (!scenario) continue;
+        if (scenarioIds.has(scenario.id)) throw new Error(`Duplicate Arcade scenario id: ${scenario.id}`);
+        scenarioIds.add(scenario.id);
+        normalized.push(scenario);
+    }
+    return normalized;
+}
+
+export const ARCADE_SCENARIOS = Object.freeze(normalizeArcadeScenarioCatalog(RAW_ARCADE_SCENARIOS));
 
 // Scenario sectors sit one before every parcours slot (3, 7, 11 ...), so a default run of five
 // sectors reads: two warm-up sectors, a scenario, a parcours, the finale.
 const SCENARIO_SECTOR_INTERVAL = 4;
 const SCENARIO_SECTOR_OFFSET = 3;
 const FINALE_SCENARIO_CHANCE = 0.5;
+const PARCOURS_SCENARIO_CHANCE = 0.5;
 const MIN_SECTORS_FOR_SCENARIOS = 3;
 
 function pick(pool, randomFn) {
@@ -59,9 +103,15 @@ function pick(pool, randomFn) {
  * `randomFn` must be a stream of its own: drawing from the plan stream would reshuffle every
  * sector after the first scenario.
  */
-export function resolveArcadeScenarioForSector({ sectorNumber, sectorCount, isBoss, isParcours }, randomFn) {
-    if (isParcours || sectorCount < MIN_SECTORS_FOR_SCENARIOS || sectorNumber < MIN_SECTORS_FOR_SCENARIOS) return null;
-    const inRange = (scenario) => sectorNumber >= scenario.minSector && sectorNumber <= scenario.maxSector;
+export function resolveArcadeScenarioForSector({ sectorNumber, sectorCount, isBoss, isParcours, allowedScenarioIds }, randomFn) {
+    if (sectorCount < MIN_SECTORS_FOR_SCENARIOS || sectorNumber < MIN_SECTORS_FOR_SCENARIOS) return null;
+    const allowedIds = allowedScenarioIds instanceof Set ? allowedScenarioIds : null;
+    const inRange = (scenario) => sectorNumber >= scenario.minSector && sectorNumber <= scenario.maxSector
+        && (!allowedIds || allowedIds.has(scenario.id));
+    if (isParcours) {
+        if (randomFn() >= PARCOURS_SCENARIO_CHANCE) return null;
+        return pick(ARCADE_SCENARIOS.filter((scenario) => scenario.slot === 'parcours' && inRange(scenario)), randomFn);
+    }
     if (isBoss) {
         if (randomFn() >= FINALE_SCENARIO_CHANCE) return null;
         return pick(ARCADE_SCENARIOS.filter((scenario) => scenario.slot === 'finale' && inRange(scenario)), randomFn);
@@ -84,8 +134,12 @@ export function applyArcadeScenarioToSectorEntry(entry, scenario) {
         waterZoneTriggerSec: scenario.waterZoneTriggerSec,
         squadId: scenario.squadId || entry.squadId,
         ...(scenario.botCount === null ? {} : { botCount: scenario.botCount }),
-        objectiveId: scenario.objective.id,
-        objective: scenario.objective,
+        ...(scenario.preserveObjective ? {} : {
+            objectiveId: scenario.objective.id,
+            objective: scenario.objective,
+        }),
+        mapUnits: scenario.mapUnits,
+        mapUnitsMode: scenario.mapUnitsMode,
         modifierId: null,
         scoreBonus: 0,
     };
@@ -93,6 +147,7 @@ export function applyArcadeScenarioToSectorEntry(entry, scenario) {
 
 export default {
     ARCADE_SCENARIOS,
+    normalizeArcadeScenarioCatalog,
     applyArcadeScenarioToSectorEntry,
     resolveArcadeScenarioForSector,
 };

@@ -75,6 +75,7 @@ export function buildArcadeEncounterPlan(runtimeConfig) {
         difficulty: runtimeConfig?.arcade?.nightmare === true
             ? 'nightmare'
             : (runtimeConfig?.bot?.activeDifficulty || runtimeConfig?.bot?.difficulty || 'normal'),
+        dailyChallenge: runtimeConfig?.arcade?.dailyChallenge === true,
     });
     return lockSelectedMapToFirstSector(plan, runtimeConfig, getRuntimeMapCatalog());
 }

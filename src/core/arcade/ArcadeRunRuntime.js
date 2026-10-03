@@ -383,6 +383,7 @@ export class ArcadeRunRuntime {
         if (!this._strategy) return;
         try { this._strategy.setActiveModifier?.(this._activeModifierId); } catch { /* no-op */ }
         try { this._strategy.setSectorType?.(this._currentSectorType); } catch { /* no-op */ }
+        try { this._strategy.setScenarioId?.(this._getEncounterSectorEntry(this._state?.sectorIndex)?.scenarioId || null); } catch { /* no-op */ }
         const profile = this.getVehicleProfile();
         try { this._strategy.applyVehicleUpgrades?.(resolveArcadeRunStrategyUpgradeBonuses(this,
             humanPlayers, this._getVehicleBonuses(profile), this._config.dailyChallenge)); } catch { /* no-op */ }
@@ -398,6 +399,7 @@ export class ArcadeRunRuntime {
         try { strategy.exitSuddenDeath?.(); } catch { /* no-op */ }
         try { strategy.setActiveModifier?.(null); } catch { /* no-op */ }
         try { strategy.setSectorType?.(null); } catch { /* no-op */ }
+        try { strategy.setScenarioId?.(null); } catch { /* no-op */ }
         try { strategy.applyVehicleUpgrades?.(null); } catch { /* no-op */ }
         syncArcadeRunRewardEffects(null, strategy);
     }
@@ -437,10 +439,12 @@ export class ArcadeRunRuntime {
 
     _applySectorType(sectorIndex) {
         const sectorType = this._resolveSectorType(sectorIndex);
+        const scenarioId = this._getEncounterSectorEntry(sectorIndex)?.scenarioId || null;
         this._currentSectorType = sectorType;
         if (this._strategy && typeof this._strategy.setSectorType === 'function') {
             try { this._strategy.setSectorType(sectorType); } catch { /* no-op */ }
         }
+        try { this._strategy?.setScenarioId?.(scenarioId); } catch { /* no-op */ }
     }
 
     // 61.4.1: Active modifier for the current sector

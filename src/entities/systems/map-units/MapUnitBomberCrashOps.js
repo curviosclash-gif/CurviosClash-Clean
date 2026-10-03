@@ -4,13 +4,22 @@ import { canDamage, TEAM_WEAPON_KINDS } from '../../../shared/contracts/TeamComb
 const CRASH_FALL_SPEED = 24;
 const CRASH_COLOR = 0xff6a24;
 
-export function beginBomberCrash(unit, sourcePlayer = null) {
+export function beginBomberCrash(system, unit, sourcePlayer = null) {
     unit.alive = false;
     unit.crashing = true;
     unit.crashSourcePlayer = sourcePlayer;
     unit.respawnRemaining = Infinity;
     if (unit.source) unit.source.alive = false;
     if (unit.root) unit.root.visible = true;
+    const playerIndex = sourcePlayer?.index;
+    const arcadeScenarioId = system.entityManager?.runtimeConfig?.arcade?.scenarioId;
+    if (arcadeScenarioId === 'bomber_alarm'
+        && Number.isInteger(playerIndex) && playerIndex >= 0 && sourcePlayer.isBot !== true) {
+        unit.objectiveDestructionReported = true;
+        system.entityManager?.onArcadeGameplayEvent?.({
+            type: 'unit_disabled', playerIndex, count: 1, unitKind: unit.definition.kind,
+        });
+    }
 }
 
 function applyCrashDamage(system, unit) {

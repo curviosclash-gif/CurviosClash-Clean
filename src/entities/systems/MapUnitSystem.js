@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { isMapUnitCombatActive, resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
+import { isMapUnitCombatActive, MAP_UNIT_LIMITS, normalizeMapUnits, resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
 import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfigContract.js';
 import {
     advanceUnitOnPath,
@@ -123,7 +123,14 @@ export class MapUnitSystem {
         const mapDefinition = owner.arena?.currentMapDefinition;
         // Same rule as static turrets: maps authored in map units get the map scale applied.
         const scale = resolveAuthoredAnchorScale(mapDefinition, owner);
-        const definitions = resolveMapUnitDefinitions(mapDefinition, { preserveSpatial: mapDefinition?.scaleAuthoredAnchors === true });
+        const mapDefinitions = resolveMapUnitDefinitions(mapDefinition, { preserveSpatial: mapDefinition?.scaleAuthoredAnchors === true });
+        const scenarioDefinitions = normalizeMapUnits(owner.runtimeConfig?.arcade?.scenarioMapUnits, { preserveSpatial: true });
+        const scenarioUnitIds = new Set(scenarioDefinitions.map((definition) => definition.id));
+        const scenarioMapUnitsMode = owner.runtimeConfig?.arcade?.scenarioMapUnitsMode === 'replace' ? 'replace' : 'overlay';
+        const sourceDefinitions = scenarioMapUnitsMode === 'replace'
+            ? scenarioDefinitions
+            : [...scenarioDefinitions, ...mapDefinitions.filter((definition) => !scenarioUnitIds.has(definition.id))];
+        const definitions = sourceDefinitions.slice(0, MAP_UNIT_LIMITS.maxUnits);
         for (const definition of definitions) {
             if (definition.escortObjective) continue;
             if (!isMapUnitCombatActive(owner.gameModeStrategy, [...definition.allowedModes], mapDefinition)) continue;
@@ -170,6 +177,7 @@ export class MapUnitSystem {
             bombCooldownRemaining: definition.weapons?.bomb?.cooldown || 0,
             bombsFired: 0,
             crashing: false,
+            objectiveDestructionReported: false,
             crashSourcePlayer: null,
             summoned: false,
             calledByIndex: -1,
@@ -290,6 +298,7 @@ export class MapUnitSystem {
         unit.bombCooldownRemaining = unit.definition.weapons?.bomb?.cooldown || 0;
         unit.bombsFired = 0;
         unit.crashing = false;
+        unit.objectiveDestructionReported = false;
         unit.crashSourcePlayer = null;
         unit.attackCooldownRemaining = unit.definition.attack?.cooldown || 0;
         unit.attacksFired = 0;

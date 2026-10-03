@@ -7,13 +7,15 @@ export function isDestructibleTurret(turret) {
 }
 
 /**
- * @param {{ modeType?: unknown, isSectorParcours?: () => boolean, getPickupModeType?: () => unknown } | null | undefined} strategy
+ * @param {{ modeType?: unknown, isSectorParcours?: () => boolean, allowsParcoursScenarioTurrets?: () => boolean, getPickupModeType?: () => unknown } | null | undefined} strategy
  * @param {readonly string[]} [allowedModes]
  * @returns {boolean}
  */
 export function isTurretCombatActive(strategy, allowedModes = ['HUNT']) {
     const mode = String(strategy?.modeType || '').toUpperCase();
-    if (!allowedModes.includes(mode) || strategy?.isSectorParcours?.()) return false;
+    const parcoursBlocksTurrets = strategy?.isSectorParcours?.()
+        && strategy?.allowsParcoursScenarioTurrets?.() !== true;
+    if (!allowedModes.includes(mode) || parcoursBlocksTurrets) return false;
     return mode === 'HUNT' || mode === 'ESCORT' || (mode === 'ARCADE' && strategy?.getPickupModeType?.() === 'HUNT');
 }
 

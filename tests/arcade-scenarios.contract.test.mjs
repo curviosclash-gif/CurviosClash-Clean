@@ -5,7 +5,7 @@ import {
     normalizeArcadeScenario,
     resolveArcadeSectorObjectiveDefinition,
 } from '../src/shared/contracts/ArcadeScenarioContract.js';
-import { ARCADE_SCENARIOS } from '../src/entities/directors/ArcadeScenarioCatalog.js';
+import { ARCADE_SCENARIOS, normalizeArcadeScenarioCatalog } from '../src/entities/directors/ArcadeScenarioCatalog.js';
 import {
     buildArcadeSectorPlan,
     resolveArcadeSectorRuntimeProfile,
@@ -17,7 +17,10 @@ import {
     updateArcadeObjectiveState,
 } from '../src/state/arcade/ArcadeObjectiveState.js';
 import { updateArcadeObjectiveRuntimeState } from '../src/core/arcade/ArcadeObjectiveRuntimeOps.js';
-import { requestObjectiveRoundEnd, syncArcadeObjectiveIntoEntities } from '../src/core/runtime/GameRuntimeArcadeSupportOps.js';
+import { buildArcadeEncounterPlan, requestObjectiveRoundEnd, syncArcadeObjectiveIntoEntities } from '../src/core/runtime/GameRuntimeArcadeSupportOps.js';
+import { GameRuntimeFacade } from '../src/core/GameRuntimeFacade.js';
+import { createGameRuntimeBundle } from '../src/core/runtime/GameRuntimeBundle.js';
+import { createRuntimeConfigSnapshot } from '../src/core/RuntimeConfig.js';
 import {
     buildArcadeIntermissionChoices,
     prepareArcadeIntermissionState,
@@ -31,6 +34,9 @@ import { rewardMapUnitDestruction } from '../src/entities/systems/map-units/MapU
 import { RoundOutcomeSystem } from '../src/entities/systems/RoundOutcomeSystem.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { WaterZoneSystem } from '../src/entities/systems/WaterZoneSystem.js';
+import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
+import { isTurretCombatActive } from '../src/shared/contracts/TurretCombatContract.js';
+import { MAP_UNIT_LIMITS } from '../src/shared/contracts/MapUnitContract.js';
 import { WATER_PHASES } from '../src/shared/contracts/WaterZoneContract.js';
 
 const scenarioById = (id) => ARCADE_SCENARIOS.find((entry) => entry.id === id);
@@ -40,13 +46,18 @@ function planFor(seed, sectorCount = 5) {
 }
 
 test('every catalog scenario survives normalization and names a real map', () => {
-    assert.ok(ARCADE_SCENARIOS.length >= 3);
+    assert.ok(ARCADE_SCENARIOS.length >= 5);
     for (const scenario of ARCADE_SCENARIOS) {
         assert.deepEqual(normalizeArcadeScenario(scenario), scenario, `${scenario.id} is already normalized`);
         assert.ok(scenario.mapKey in MAP_PRESET_CATALOG, `${scenario.id} map ${scenario.mapKey} exists`);
     }
     assert.equal(normalizeArcadeScenario({ id: 'x' }), null, 'a scenario without map is dropped');
     assert.equal(normalizeArcadeScenario({ id: 'x', mapKey: 'standard', objective: { id: 'teleport' } }), null);
+    assert.equal(new Set(ARCADE_SCENARIOS.map((scenario) => scenario.id)).size, ARCADE_SCENARIOS.length);
+    assert.throws(() => normalizeArcadeScenarioCatalog([
+        { id: 'Same Id', mapKey: 'standard' },
+        { id: 'same-id', mapKey: 'standard' },
+    ]), /Duplicate Arcade scenario id: same_id/);
     const clamped = normalizeArcadeScenario({
         id: 'Clamp Me', mapKey: 'standard', combatProfile: 'laser', botCount: 99,
         objective: { id: 'destroy_units', unitKind: 'dragon', count: -3, durationSec: -1, scoreWeight: 0.2 },
@@ -60,15 +71,34 @@ test('every catalog scenario survives normalization and names a real map', () =>
     );
 });
 
-test('sector 3 of a run becomes a scenario with its own locked map, the rest keeps its rhythm', () => {
-    for (const seed of ['alpha', 'beta', 'gamma', 'delta']) {
-        const plan = planFor(seed);
-        const [first, second, third, fourth, fifth] = plan.sequence;
+test('sector scenarios use their own map; parcours scenarios keep the course objective and leave normal maps in the pool', () => {
+    let scenarioParcours = 0;
+    let regularParcours = 0;
+    const laterSlotCounts = new Map([[4, { scenario: 0, regular: 0 }], [8, { scenario: 0, regular: 0 }], [12, { scenario: 0, regular: 0 }]]);
+    for (const seed of Array.from({ length: 48 }, (_, index) => `scenario-cadence-${index}`)) {
+        const plan = buildArcadeSectorPlan({ seed, sectorCount: 13, difficulty: 'normal' });
+        const [first, second, third, fourth] = plan.sequence;
+        const finale = plan.sequence.at(-1);
         assert.equal(first.scenarioId, undefined);
         assert.equal(second.scenarioId, undefined);
         assert.equal(fourth.parcoursEnabled, true, 'sector 4 stays a parcours');
-        assert.equal(fifth.isBoss, true);
-        assert.equal(fifth.bossMultiplier, 2);
+        assert.equal(fourth.objectiveId, 'parcours_run', 'the course completion objective is preserved');
+        if (fourth.scenarioId) {
+            scenarioParcours += 1;
+            assert.equal(fourth.scenarioId, 'spiessrutenlauf');
+            assert.equal(fourth.mapKey, 'mirror_docks');
+            assert.equal(fourth.combatProfile, 'hunt');
+        } else {
+            regularParcours += 1;
+            assert.equal(fourth.combatProfile, undefined);
+        }
+        assert.equal(finale.isBoss, true);
+        assert.equal(finale.bossMultiplier, 2);
+        for (const sectorNumber of laterSlotCounts.keys()) {
+            const entry = plan.sequence[sectorNumber - 1];
+            const counts = laterSlotCounts.get(sectorNumber);
+            counts[entry.scenarioId ? 'scenario' : 'regular'] += 1;
+        }
 
         const scenario = scenarioById(third.scenarioId);
         assert.ok(scenario && scenario.slot === 'sector', `${seed}: sector 3 is a sector scenario`);
@@ -79,6 +109,31 @@ test('sector 3 of a run becomes a scenario with its own locked map, the rest kee
         assert.equal(third.templateId, 'sector_pressure', 'score base and missions follow the slot');
         assert.equal(resolveMapSequence(plan, seed, MAP_PRESET_CATALOG)[2], scenario.mapKey);
     }
+    assert.ok(scenarioParcours > 0 && regularParcours > 0, 'the scenario is occasional and leaves the map pool reachable');
+    for (const [sectorNumber, counts] of laterSlotCounts) {
+        assert.ok(counts.scenario > 0 && counts.regular > 0, `sector ${sectorNumber} keeps an independent occasional scenario cadence`);
+    }
+});
+
+test('daily plans keep the v1 scenario pool and do not consume new slot randomness', () => {
+    const plan = buildArcadeSectorPlan({ seed: 'daily-compatibility', sectorCount: 12, dailyChallenge: true });
+    assert.equal(plan.sequence.some((entry) => ['spiessrutenlauf', 'bomber_alarm'].includes(entry.scenarioId)), false);
+    assert.equal(plan.sequence.some((entry) => entry.parcoursEnabled && entry.scenarioId), false);
+    assert.deepEqual(plan, buildArcadeSectorPlan({ seed: 'daily-compatibility', sectorCount: 12, dailyChallenge: true }));
+    const legacySeeds = [
+        { seed: 4, scenarios: [null, null, 'worm_hunt', null, 'hydra_finale'], maps: ['crossfire', 'standard', 'standard', 'chrono_spillway', 'hydra_temple'] },
+        { seed: 6, scenarios: [null, null, 'storm_flood', null, null], maps: ['crossfire', 'foam_forest', 'storm_dam_siege', 'parcours_rift_sprint', 'neon_abyss'] },
+    ];
+    for (const expected of legacySeeds) {
+        const actual = buildArcadeSectorPlan({ seed: expected.seed, sectorCount: 5, dailyChallenge: true }).sequence;
+        assert.deepEqual(actual.map((entry) => entry.scenarioId || null), expected.scenarios);
+        assert.deepEqual(actual.map((entry) => entry.mapKey), expected.maps);
+    }
+    const runtimePlan = buildArcadeEncounterPlan({
+        arcade: { seed: 'daily-compatibility', sectorCount: 12, dailyChallenge: true },
+        session: { mapKey: 'standard' },
+    });
+    assert.equal(runtimePlan.sequence.some((entry) => ['spiessrutenlauf', 'bomber_alarm'].includes(entry.scenarioId)), false);
 });
 
 test('the finale is sometimes a boss scenario, decided by the seed alone', () => {
@@ -117,6 +172,105 @@ test('a scenario sector flies with hunt weapons and its own bot count', () => {
     assert.equal(resolveArcadeRunCombatProfile('gauntlet', 'rockets'), '');
 });
 
+test('parcours turrets activate only for the Spießrutenlauf scenario', () => {
+    const strategy = {
+        modeType: 'ARCADE',
+        getPickupModeType: () => 'HUNT',
+        isSectorParcours: () => true,
+        allowsParcoursScenarioTurrets: () => false,
+    };
+    assert.equal(isTurretCombatActive(strategy, ['ARCADE']), false, 'ordinary time trials remain combat-free');
+    strategy.allowsParcoursScenarioTurrets = () => true;
+    assert.equal(isTurretCombatActive(strategy, ['ARCADE']), true, 'the selected scenario can activate its map turrets');
+    assert.equal(isTurretCombatActive({ ...strategy, modeType: 'CLASSIC' }, ['ARCADE']), false, 'the exception does not bypass allowed modes');
+});
+
+test('the turret exception clears when an Arcade strategy is reused', () => {
+    const strategy = new ArcadeModeStrategy();
+    strategy.setScenarioId('spiessrutenlauf');
+    assert.equal(strategy.allowsParcoursScenarioTurrets(), true);
+    strategy.cleanup();
+    assert.equal(strategy.allowsParcoursScenarioTurrets(), false);
+});
+
+test('Bomberalarm carries one bomber through the sector profile into map-unit startup', () => {
+    const scenario = scenarioById('bomber_alarm');
+    const profile = resolveArcadeSectorRuntimeProfile({
+        sectorNumber: 3,
+        scenarioId: scenario.id,
+        mapUnits: scenario.mapUnits,
+        mapUnitsMode: scenario.mapUnitsMode,
+        combatProfile: scenario.combatProfile,
+        objectiveId: scenario.objective.id,
+        objective: scenario.objective,
+    }, { mapKey: scenario.mapKey, fallbackBotCount: 2 });
+    assert.equal(profile.scenarioId, 'bomber_alarm');
+    assert.equal(profile.mapUnits.length, 1);
+    assert.equal(profile.mapUnits[0].kind, 'bomber');
+
+    const runtimeConfig = createRuntimeConfigSnapshot({ mapKey: 'standard', numBots: 2, winsNeeded: 1 });
+    const bundle = createGameRuntimeBundle({ state: { runtimeConfig, entityManager: {} } });
+    const facadeContext = {
+        getRuntimeState: () => bundle.state,
+        getRuntimeBundle: () => bundle,
+    };
+    GameRuntimeFacade.prototype._applyArcadeSectorRuntimeProfile.call(facadeContext, profile);
+    assert.equal(bundle.state.runtimeConfig.arcade.scenarioId, 'bomber_alarm');
+    assert.equal(bundle.state.runtimeConfig.arcade.scenarioMapUnitsMode, 'replace');
+
+    const manager = {
+        runtimeConfig: { arcade: { scenarioMapUnits: profile.mapUnits, scenarioMapUnitsMode: profile.mapUnitsMode } },
+        gameModeStrategy: { modeType: 'ARCADE', getPickupModeType: () => 'HUNT' },
+        arena: { bounds: { min: { y: 0 } }, currentMapDefinition: MAP_PRESET_CATALOG.standard },
+        players: [],
+    };
+    const system = new MapUnitSystem(manager);
+    try {
+    assert.equal(system.startRound(), 1);
+        assert.equal(system.units[0].kind, 'bomber');
+        assert.equal(system.units[0].id, 'arcade_bomber_alarm');
+    } finally {
+        system.dispose();
+    }
+});
+
+test('scenario units take precedence and an overlay remains within the map-unit cap', () => {
+    const mapUnits = Array.from({ length: MAP_UNIT_LIMITS.maxUnits }, (_, index) => ({
+        id: `authored_${index}`, kind: 'tank', path: [[index * 3, 20, 0], [index * 3 + 1, 20, 0]],
+    }));
+    const scenarioUnit = { id: 'scenario_unit', kind: 'bomber', path: [[0, 24, 0], [20, 24, 0]] };
+    const manager = {
+        runtimeConfig: { arcade: { scenarioMapUnits: [scenarioUnit], scenarioMapUnitsMode: 'overlay' } },
+        gameModeStrategy: { modeType: 'ARCADE', getPickupModeType: () => 'HUNT' },
+        arena: { bounds: { min: { y: 0 } }, currentMapDefinition: { mapUnits } },
+        players: [],
+    };
+    const system = new MapUnitSystem(manager);
+    try {
+        assert.equal(system.startRound(), MAP_UNIT_LIMITS.maxUnits);
+        assert.equal(system.units[0].id, 'scenario_unit', 'scenario targets retain priority at the shared cap');
+    } finally {
+        system.dispose();
+    }
+});
+
+test('an empty replace scenario does not reactivate authored map units', () => {
+    const manager = {
+        runtimeConfig: { arcade: { scenarioMapUnits: [{}], scenarioMapUnitsMode: 'replace' } },
+        gameModeStrategy: { modeType: 'ARCADE', getPickupModeType: () => 'HUNT' },
+        arena: { bounds: { min: { y: 0 } }, currentMapDefinition: { mapUnits: [{
+            id: 'authored_enemy', kind: 'tank', path: [[0, 20, 0], [10, 20, 0]],
+        }] } },
+        players: [],
+    };
+    const system = new MapUnitSystem(manager);
+    try {
+        assert.equal(system.startRound(), 0);
+    } finally {
+        system.dispose();
+    }
+});
+
 test('destroy_units counts only the named kind, holds the round and ends it on success', () => {
     const entry = { objectiveId: 'destroy_units', objective: { unitKind: 'creature', count: 2, durationSec: 60, scoreWeight: 1.4 } };
     const definition = resolveArcadeSectorObjectiveDefinition(null, entry);
@@ -132,6 +286,8 @@ test('destroy_units counts only the named kind, holds the round and ends it on s
     assert.equal(done.completed, true);
     assert.equal(done.shouldEnd, true);
     assert.equal(done.scoreWeight, 1.4);
+    const bomberHit = updateArcadeObjectiveState({ ...initial, elapsedSec: 59.9 }, { type: 'unit_disabled', unitKind: 'creature', count: 2 });
+    assert.equal(bomberHit.completed, true, 'a lethal bomber hit satisfies the target before its crash animation finishes');
     assert.equal(doesArcadeObjectiveHoldRound(done), false);
 });
 

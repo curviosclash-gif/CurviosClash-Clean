@@ -53,7 +53,9 @@ export function rewardMapUnitDestruction(system, unit, sourcePlayer) {
     owner?._huntScoring?.registerUnitDestroyed?.(index, unit.definition.kind);
     if (sourcePlayer.isBot !== true) {
         // Every arcade run hears it: the weapon race pays XP, a scenario sector counts its targets.
-        owner?.onArcadeGameplayEvent?.({ type: 'unit_destroyed', playerIndex: index, count: 1, unitKind: unit.definition.kind });
+        if (unit.objectiveDestructionReported !== true) {
+            owner?.onArcadeGameplayEvent?.({ type: 'unit_destroyed', playerIndex: index, count: 1, unitKind: unit.definition.kind });
+        }
         const message = unit.definition.kind === 'boss' ? 'Boss besiegt'
             : (unit.definition.kind === 'creature' ? 'Kreatur besiegt' : 'Panzer zerstört');
         owner?._notifyPlayerFeedback?.(sourcePlayer, message);
