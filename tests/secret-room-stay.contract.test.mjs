@@ -152,6 +152,28 @@ test('the clock counts down from dt, not from a frame count', () => {
     );
 });
 
+test('starting a round without portals clears the previous room clock and counters', () => {
+    const harness = createHarness();
+    harness.system.startRound();
+    openRoom(harness);
+    moveTo(harness.players[0], INSIDE);
+    harness.system.update(1);
+    assert.equal(harness.system.getOpenedRoomCount(), 1);
+    assert.equal(harness.system.getHudStateForPlayer(0).inside, true);
+
+    harness.arena.portals = null;
+    assert.equal(harness.system.startRound(), 0);
+    assert.equal(harness.system.getOpenedRoomCount(), 0);
+    assert.equal(harness.system._closedCount, 0);
+    assert.equal(harness.system._stayRoomIndex[0], -1);
+    assert.equal(harness.system.getRooms().length, 0);
+    assert.deepEqual(harness.system.getHudStateForPlayer(0), {
+        inside: false,
+        remainingSeconds: 0,
+        roomId: '',
+    });
+});
+
 test('every visitor carries his own clock', () => {
     const harness = createHarness({ playerCount: 2 });
     harness.system.startRound();

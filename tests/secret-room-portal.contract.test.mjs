@@ -145,6 +145,37 @@ test('a break plus the authored delay opens the pair for good', () => {
     assert.equal(portal.active, true, 'an open portal stays open until the round ends');
 });
 
+test('a fast new round clears secret-pair cooldowns but preserves other portal cooldowns', () => {
+    const harness = createHarness();
+    harness.system.startRound();
+    const [portal] = secretPortals(harness.arena);
+    harness.destructible.state.events.push({ segmentId: 'leg_a', kind: 'leg_low', atSeconds: 10, yaw: 0 });
+    tick(harness, 14);
+    assert.equal(portal.active, true);
+
+    const entityId = 0;
+    const firstTravel = harness.arena.checkPortal(portal.posA.clone(), 0.8, entityId);
+    assert.equal(firstTravel?.ok, true);
+    assert.ok(portal.cooldowns.get(entityId) > 0);
+
+    const regularPortal = {
+        secret: false,
+        posA: new THREE.Vector3(1000, 0, 0),
+        posB: new THREE.Vector3(1000, 0, 40),
+        cooldowns: new Map([[entityId, 1.25]]),
+    };
+    harness.arena.portals.push(regularPortal);
+
+    harness.system.startRound();
+
+    assert.equal(portal.cooldowns.size, 0, 'a reused secret pair drops its previous round cooldown');
+    assert.equal(portal.visualPulseRemaining, 0);
+    assert.equal(portal.visualPulseDestination, null);
+    assert.equal(regularPortal.cooldowns.get(entityId), 1.25, 'ordinary portal cooldowns are untouched');
+    const nextRoundTravel = harness.arena.checkPortal(portal.posA.clone(), 0.8, entityId);
+    assert.equal(nextRoundTravel?.ok, true, 'the same local player can use the new round portal immediately');
+});
+
 test('a named segment and a sealed structure each drive their own second', () => {
     const named = createHarness({
         rooms: [{ ...ROOM, unlock: { destructible: 'reactor', when: { segmentId: 'leg_b' }, delaySeconds: 2 } }],
