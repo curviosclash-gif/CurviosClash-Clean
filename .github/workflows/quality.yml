@@ -53,8 +53,8 @@ jobs:
           if ($versionExitCode -ne 0 -or $versionLines.Count -eq 0) {
             throw "Blender $version --version failed: $($versionLines -join [Environment]::NewLine)"
           }
-          $firstVersionLine = [string]$versionLines[0]
-          if ($firstVersionLine -notmatch '^Blender 4\.2\.23(?:\s|$)') {
+          $reportedVersions = @($versionLines | Where-Object { [string]$_ -match '^Blender \d+\.\d+\.\d+(?:\s|$)' })
+          if ($reportedVersions.Count -ne 1 -or [string]$reportedVersions[0] -notmatch '^Blender 4\.2\.23(?:\s|$)') {
             throw "Expected Blender $version; got: $($versionLines -join [Environment]::NewLine)"
           }
           "BLENDER_EXE=$blender" | Add-Content -LiteralPath $env:GITHUB_ENV
