@@ -204,7 +204,7 @@ export class MatchKernel {
      * The continue intent polls the gamepads, so it must be asked exactly once;
      * on the frame the board opens a pending intent is dropped first.
      */
-    _readRoundStateInputs(dt, inputAdapter) {
+    _readRoundStateInputs(dt, inputAdapter, inputLockDt = dt) {
         if (consumeRoundEndInputLockClear(this._inputLock)) {
             inputAdapter?.clearContinueIntent?.();
         }
@@ -216,6 +216,7 @@ export class MatchKernel {
             && !this._roundStateContinueBlocked;
         return {
             dt,
+            inputLockDt,
             roundPause: this._roundPause,
             continuePressed: boardPress,
             enterPressed: enterRead && boardPress,
@@ -267,8 +268,8 @@ export class MatchKernel {
         });
     }
 
-    _tickMatchEnd(dt, inputAdapter, emitResult = true) {
-        const tickStep = deriveMatchEndTickStep(this._readRoundStateInputs(dt, inputAdapter));
+    _tickMatchEnd(dt, inputAdapter, emitResult = true, inputLockDt = dt) {
+        const tickStep = deriveMatchEndTickStep(this._readRoundStateInputs(dt, inputAdapter, inputLockDt));
         this._applyRoundStateInputLock(tickStep);
         if (!emitResult) {
             this._createTickResult(dt, null, false);
@@ -299,6 +300,9 @@ export class MatchKernel {
         const dt = (tickEnvelope && Number.isFinite(tickEnvelope.fixedStepSeconds))
             ? tickEnvelope.fixedStepSeconds
             : 1 / 60;
+        const inputLockDt = (tickEnvelope && Number.isFinite(tickEnvelope.inputLockDeltaSeconds))
+            ? Math.max(0, tickEnvelope.inputLockDeltaSeconds)
+            : dt;
         const frameId = (tickEnvelope && Number.isFinite(tickEnvelope.frameId))
             ? tickEnvelope.frameId
             : this._tickIndex;
@@ -306,7 +310,7 @@ export class MatchKernel {
             return this._tickRoundEnd(dt, inputAdapter, emitResult);
         }
         if (this._lifecycle === 'match_end') {
-            return this._tickMatchEnd(dt, inputAdapter, emitResult);
+            return this._tickMatchEnd(dt, inputAdapter, emitResult, inputLockDt);
         }
         return this._tickRunning(dt, inputAdapter, frameId, emitResult);
     }

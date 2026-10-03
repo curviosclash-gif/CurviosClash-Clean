@@ -49,7 +49,7 @@ async function assignDemolitionProfiles(page, profileIds) {
     await page.locator('#submenu-game [data-start-section-target="arcade"]').click();
     await page.locator('.arcade-start-mode-options-summary').click();
     for (let index = 0; index < profileIds.length; index += 1) {
-        const select = page.getByLabel(`Abrisskommando-Profil Spieler ${index + 1}`);
+        const select = page.getByLabel(`Arcade-Spielerprofil Spieler ${index + 1}`);
         await select.focus();
         await expect(select.locator(`option[value="${profileIds[index]}"]`)).toHaveCount(1);
         await select.selectOption(profileIds[index]);

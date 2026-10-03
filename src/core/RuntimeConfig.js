@@ -13,7 +13,7 @@ import {
 } from '../shared/contracts/ArcadeGhostDuelContract.js';
 import {
     hasExplicitArcadeSeed,
-    normalizeArcadeRunSettings,
+    normalizeArcadeRunSettingsFromSetup,
 } from '../shared/contracts/ArcadeRunSettingsContract.js';
 import { ARCADE_RUN_KINDS, resolveArcadeInitialMapKey, resolveArcadeRunKind } from '../shared/contracts/ArcadeRunTypeDispatchContract.js';
 import {
@@ -461,7 +461,7 @@ export function createRuntimeConfigSnapshot(settings, {
         arcade: {
             // Same normalizer the settings sanitizer uses, so persisted values and the
             // values a match runs with can never drift apart.
-            ...normalizeArcadeRunSettings(arcadeSource, source?.localSettings?.startSetup?.demolitionProfileIds),
+            ...normalizeArcadeRunSettingsFromSetup(arcadeSource, source?.localSettings?.startSetup),
             enabled: arcadeEnabled,
             dailyRulesVersion: arcadeSource.dailyChallenge === true ? ARCADE_DAILY_RULES_VERSION : null,
             seed: arcadeSeed,

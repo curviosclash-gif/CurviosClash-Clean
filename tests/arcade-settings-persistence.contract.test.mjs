@@ -26,6 +26,16 @@ test('the default settings carry an arcade block', () => {
     assert.equal(defaults.arcade.dailyChallenge, false);
 });
 
+test('the default demolition profile slots match normalization and are fresh per snapshot', () => {
+    const first = createDefaultArcadeRunSettings();
+    const second = createDefaultArcadeRunSettings();
+
+    assert.deepEqual(first.demolitionProfileIds, ['', '', '']);
+    assert.equal(first.demolitionProfileIds.length, 3);
+    assert.deepEqual(normalizeArcadeRunSettings(null), first);
+    assert.notStrictEqual(first.demolitionProfileIds, second.demolitionProfileIds);
+});
+
 test('a saved arcade block survives sanitizing instead of being dropped', () => {
     const sanitized = sanitize(savedWithArcade({
         sectorCount: 8,

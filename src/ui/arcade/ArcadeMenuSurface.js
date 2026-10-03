@@ -29,7 +29,7 @@ import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCat
 import { renderArcadeLeaderboardMenu } from './ArcadeLeaderboardMenuView.js';
 import { observeMenuReturn } from './MenuReturnObserver.js';
 import { bindArcadeNightmareToggle, syncArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
-import { setupArcadeDemolitionProfileSelection } from './ArcadeDemolitionProfileSelection.js';
+import { bindValidatedArcadeStartCapture, shouldShowArcadePlayerProfileControls, setupArcadePlayerProfileSelection, validateLocalArcadeProfileStart } from './ArcadeDemolitionProfileSelection.js';
 import { bindArcadeSpecialStartButtons } from './ArcadeMenuSpecialStartOps.js';
 
 const BOT_DIFFICULTY_LABELS = Object.freeze({ EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' });
@@ -222,7 +222,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     }
 
     const refs = buildArcadeSurface(level3Body, ui);
-    const demolitionProfiles = setupArcadeDemolitionProfileSelection(refs, runtimeAccess, settings, bind);
+    const arcadeProfiles = setupArcadePlayerProfileSelection(refs, runtimeAccess, settings, bind);
     refs.hangarLaunchCard.classList.toggle('hidden', !hangarWindow.isAvailable());
     let activeProfileId = runtimeAccess?.getActivePlayerProfile?.()?.id || '';
     let activeSeed = loadSeed(runtimeAccess?.getSettingsStore?.());
@@ -291,12 +291,12 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const tierLabel = settings.arcade?.nightmare === true && !settings.arcade?.dailyChallenge ? ' · Albtraum' : '';
         syncArcadeNightmareToggle(refs.nightmareInput, settings);
         const fivePortalsSelected = settings.arcade?.runType === 'five_portals';
-        const demolitionSelected = settings.arcade?.runType === 'demolition';
+        refs.arcadePlayerProfileControls.classList.toggle('hidden', !shouldShowArcadePlayerProfileControls(settings));
         const activePortalChain = fivePortalsSelected ? resolvePortalChain(settings.arcade?.portalChainId) : null;
         const fivePortalsRecord = fivePortalsSelected
             ? runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(activePortalChain.recordKey, null) || null
             : null;
-        refs.runLine.textContent = demolitionSelected
+        refs.runLine.textContent = settings.arcade?.runType === 'demolition'
             ? 'Abrisskommando: drei Belagerungskarten. Zerstöre die Bauwerke vor Ablauf der Zeit; Punkte und verdiente Fahrzeug-XP bleiben erhalten.'
             : fivePortalsSelected
             ? (activePortalChain.id === 'five_portals'
@@ -381,6 +381,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     };
 
     bind(refs.startRunButton, 'click', () => {
+        if (!validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess)) return;
         applySeedToSettings(activeSeed, { dailyChallenge: false });
         settings.arcade.runType = 'gauntlet';
         settings.arcade.combatProfile = '';
@@ -393,6 +394,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
     // These runs play on their own map and bot count. Both only ride along with the start
     // (borrowedSettings), so the menu keeps the player's map and bots afterwards.
     const startRunWithOwnMap = (runType, borrowedSettings, portalChainId) => {
+        const playerCount = runType === 'weapon_race' ? 1 : null;
+        if (runType !== 'demolition' && !validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess, { playerCount })) return;
         applySeedToSettings(activeSeed, { dailyChallenge: false });
         settings.arcade.runType = runType;
         settings.arcade.combatProfile = 'hunt';
@@ -416,7 +419,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         emit(eventTypes.START_MATCH, { borrowedSettings });
     };
 
-    bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, activeSeed, demolitionProfiles, runtimeAccess);
+    bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, activeSeed, arcadeProfiles, runtimeAccess);
 
     bind(refs.openHangarButton, 'click', async () => {
         const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });
@@ -496,31 +499,27 @@ export function setupArcadeMenuSurface(ctx = {}) {
         showToast(runtimeAccess, t('menu.arcade.postrun.replay.toast.empty', 'Kein Replay verfügbar.'), 'info', 1200);
     });
 
-    bind(refs.dailyButton, 'click', () => {
-        if (!settings.arcade) settings.arcade = {};
-        settings.arcade.dailyChallenge = true;
-        recordRunStart(null);
-        emit(eventTypes.START_MATCH);
-    });
+    bindValidatedArcadeStartCapture(bind, refs.dailyButton, () => true,
+        () => validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess, { playerCount: 1 }), () => {
+            if (!settings.arcade) settings.arcade = {};
+            settings.arcade.dailyChallenge = true;
+            recordRunStart(null);
+            emit(eventTypes.START_MATCH);
+        });
 
     bind(refs.leaderboardToggle, 'click', () => {
         leaderboardExpanded = !leaderboardExpanded;
         sync();
     });
 
-    if (ui.startButton) {
-        bind(ui.startButton, 'click', (event) => {
-            if (!shouldShowArcade(settings)) return;
-            releaseButtonOnlyArcadeRun(settings); applySeedToSettings(activeSeed, { dailyChallenge: false });
+    bindValidatedArcadeStartCapture(bind, ui.startButton, () => shouldShowArcade(settings),
+        () => validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess), (event) => {
+            releaseButtonOnlyArcadeRun(settings);
+            applySeedToSettings(activeSeed, { dailyChallenge: false });
             const prepared = prepareHangarRunStart();
-            if (prepared?.ok === false) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                return;
-            }
+            if (prepared?.ok === false) { event.preventDefault(); event.stopImmediatePropagation(); return; }
             recordRunStart(prepared?.build);
-        }, true);
-    }
+        });
 
     const syncOnInteraction = () => {
         if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {

@@ -247,8 +247,8 @@ test('Bomber Strike shows five independent aircraft and real falling bombs throu
     const proof = await page.evaluate(async () => {
         const game = window.GAME_INSTANCE;
         const manager = game.entityManager;
-        const units = manager._mapUnitSystem;
-        const projectiles = manager._projectileSystem;
+        const units = manager.runtime.systems.mapUnitSystem;
+        const projectiles = manager.runtime.systems.projectileSystem;
         const human = manager.humanPlayers[0];
         const enemy = manager.players.find((player) => player.isBot && player.alive);
         const bounds = manager.arena.bounds;

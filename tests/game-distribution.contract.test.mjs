@@ -29,6 +29,22 @@ test('game Electron main strips authoring-only capabilities and denies popups', 
     );
 });
 
+test('game Electron startup transform fails loudly when neutral startup code is added', async () => {
+    if (isExportedRepository) return;
+    const source = readFileSync('electron/main.cjs', 'utf8');
+    const driftedSource = source.replace(
+        'async function startDesktopShell() {\n    registerTuningBridgeIpc();',
+        'async function startDesktopShell() {\n    await neutralStartupSentinel();\n    registerTuningBridgeIpc();'
+    );
+    assert.notEqual(driftedSource, source, 'the sentinel must be inserted into the source block');
+
+    const { transformElectronMain } = await import('../scripts/export-game-repo.mjs');
+    assert.throws(
+        () => transformElectronMain(driftedSource),
+        /Game export transform drifted: tuning startup and local-map authoring refresh/
+    );
+});
+
 test('game Electron preload drops the saved-map reader together with its main channel', async () => {
     const source = readFileSync('electron/preload.cjs', 'utf8');
     const gamePreload = isExportedRepository

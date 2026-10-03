@@ -1635,10 +1635,12 @@ test('interactive MatchKernel adapter reuses a minimal envelope and skips unused
     const adapter = new MatchKernelInteractiveAdapter({ game: { input }, kernel });
     const tickEnvelope = adapter._tickEnvelope;
 
-    assert.equal(adapter.tick(1 / 60, 7), null);
-    assert.equal(adapter.tick(1 / 30, 8), null);
+    assert.equal(adapter.tick(1 / 60, 7, 0.2), null);
+    assert.equal(tickEnvelope.inputLockDeltaSeconds, 0.2, 'the wall-clock lock delta is kept separately from fixed simulation dt');
+    assert.equal(adapter.tick(1 / 30, 8, 0.4), null);
+    assert.equal(tickEnvelope.inputLockDeltaSeconds, 0.4, 'the reused envelope refreshes the input-lock delta on every tick');
     assert.equal(adapter._tickEnvelope, tickEnvelope);
-    assert.deepEqual(Object.keys(tickEnvelope).sort(), ['fixedStepSeconds', 'frameId']);
+    assert.deepEqual(Object.keys(tickEnvelope).sort(), ['fixedStepSeconds', 'frameId', 'inputLockDeltaSeconds']);
     assert.equal(kernel.tickIndex, 2);
     assert.deepEqual(updates, [
         { dt: 1 / 60, receivedInput: input, frameId: 7 },

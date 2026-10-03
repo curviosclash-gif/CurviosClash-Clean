@@ -62,6 +62,7 @@ import { createArcadePlayerUpgradeBonusMap } from '../src/core/arcade/ArcadeRunV
 import { normalizeArcadeUpgradeBonuses } from '../src/modes/ArcadeVehicleStatOps.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
+import { prepareArcadePlayerProfileBindings } from '../src/core/arcade/ArcadePlayerProfileBindings.js';
 import { applyArcadeRuntimeCosmetics } from '../src/core/arcade/ArcadeRuntimeCosmeticOps.js';
 import { DemolitionRuntime } from '../src/core/arcade/DemolitionRuntime.js';
 import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeSupport.js';
@@ -861,6 +862,164 @@ test('ArcadeRunRuntime: startRun und Strategie-Rebuild übergeben den Pool-Snaps
     runtime.setStrategy(strategy, players);
     assert.equal(strategy._upgradeBonusesFor(players[0]).build.maxHpPct, 104, 'Snapshot bleibt nach Map-/Strategie-Rebuild erhalten');
     assert.equal(strategy._upgradeBonusesFor(players[1]).build.maxHpPct, 104);
+});
+
+test('Gauntlet-Splitscreen bindet gleiche Fahrzeug-IDs an getrennte UUID-Cosmetics und Steinpools', () => {
+    const profileIds = [
+        '00000000-0000-4000-8000-000000000011',
+        '00000000-0000-4000-8000-000000000012',
+        '00000000-0000-4000-8000-000000000013',
+    ];
+    const styles = ['ion', 'ember', 'violet'];
+    const slots = ['core', 'nose', 'wing_left'];
+    const stores = profileIds.map((_, index) => {
+        const store = createStore({
+            [ARCADE_STONE_WORKSHOP_STORAGE_KEY]: poolOf([stone(index + 1, 1, at('ship5', slots[index]))]),
+        });
+        saveVehicleProfiles(store, {
+            ship5: profileOf('ship5', {
+                level: [4, 7, 13][index],
+                trailStyleId: styles[index],
+                packages: index === 2 ? ['wings'] : [],
+            }),
+        });
+        return store;
+    });
+    const playerProfileManager = {
+        getProfiles: () => profileIds.map((id) => ({ id })),
+        getRecordStorePort: (id) => stores[profileIds.indexOf(id)] || null,
+    };
+    const players = profileIds.map((_, index) => makePlayer('ship5', { index, isBot: false }));
+    const strategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    const runtimeConfig = {
+        arcade: { enabled: true, runType: 'gauntlet', seed: 4711, playerProfileIds: profileIds },
+        session: { sessionType: 'splitscreen', numHumans: 3 },
+        player: { vehicles: { PLAYER_1: 'ship5', PLAYER_2: 'ship5', PLAYER_3: 'ship5' } },
+    };
+    const runtimeState = {
+        runtimeConfig,
+        entityManager: { players, humanPlayers: players, bots: [], gameModeStrategy: strategy },
+    };
+    const support = new GameRuntimeArcadeSupport({
+        getRuntimeState: () => runtimeState,
+        getGame: () => ({
+            settingsManager: { getPlayerRecordStorePort: () => stores[0] },
+            playerProfileManager,
+        }),
+    });
+    support.arcadeRunRuntime.configure(runtimeConfig);
+    support.startRunIfEnabled();
+
+    assert.deepEqual(players.map((player) => player.arcadeCosmeticLoadout.trailStyleId), styles,
+        'Cosmetics laden je Index aus dem UUID-Store, obwohl alle dasselbe Fahrzeug fliegen');
+    const readBuilds = (activeStrategy) => players.map((player) => activeStrategy._upgradeBonusesFor(player).build);
+    const initialBuilds = readBuilds(strategy);
+    assert.ok(initialBuilds.every(Boolean), 'alle validierten UUID-Bindings liefern einen Build');
+    assert.notDeepEqual(initialBuilds[0], initialBuilds[1], 'P1-Kernstein ersetzt nicht den Profilbuild von P2');
+    assert.notDeepEqual(initialBuilds[1], initialBuilds[2], 'gleiche Fahrzeug-ID teilt keine Spieler-Boni');
+
+    for (const store of stores) store.records.set(ARCADE_STONE_WORKSHOP_STORAGE_KEY, JSON.stringify(poolOf([])));
+    runtimeConfig.arcade.playerProfileIds = ['next-1', 'next-2', 'next-3'];
+    const rebuiltStrategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    runtimeState.entityManager.gameModeStrategy = rebuiltStrategy;
+    support.startRunIfEnabled();
+    assert.deepEqual(players.map((player) => player.arcadeCosmeticLoadout.trailStyleId), styles,
+        'Session-Rebuilds behalten Cosmetics aus den laufenden UUID-Bindings');
+    assert.deepEqual(readBuilds(rebuiltStrategy), initialBuilds,
+        'Session-Rebuilds behalten Stein-Snapshots und lesen nicht aus geänderten Pools');
+});
+
+test('Solo-Gauntlet friert das aktive Profil über Run-Rebuilds ein', () => {
+    const profileIds = [
+        '00000000-0000-4000-8000-000000000031',
+        '00000000-0000-4000-8000-000000000032',
+    ];
+    const stores = profileIds.map((_, index) => {
+        const store = createStore({
+            [ARCADE_STONE_WORKSHOP_STORAGE_KEY]: poolOf([stone(1, index + 1, at('ship5', 'core'))]),
+        });
+        saveVehicleProfiles(store, {
+            ship5: profileOf('ship5', {
+                level: 20,
+                partSizes: { hull: 125 },
+                trailStyleId: index ? 'ember' : 'ion',
+            }),
+        });
+        return store;
+    });
+    const manager = {
+        activeId: profileIds[0],
+        getProfiles: () => profileIds.map((id) => ({ id })),
+        getActiveProfile() { return { id: this.activeId }; },
+        getRecordStorePort: (id) => stores[profileIds.indexOf(id)] || null,
+    };
+    const player = makePlayer('ship5', { index: 0, isBot: false });
+    const strategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    const runtimeConfig = {
+        arcade: { enabled: true, runType: 'gauntlet', seed: 4711, playerProfileIds: [manager.getActiveProfile().id] },
+        session: { sessionType: 'single', numHumans: 1 },
+    };
+    const runtimeState = {
+        runtimeConfig,
+        entityManager: { players: [player], humanPlayers: [player], bots: [], gameModeStrategy: strategy },
+    };
+    const support = new GameRuntimeArcadeSupport({
+        getRuntimeState: () => runtimeState,
+        getGame: () => ({ settingsManager: {}, playerProfileManager: manager }),
+    });
+    support.arcadeRunRuntime.configure(runtimeConfig);
+    support.startRunIfEnabled();
+    assert.equal(player.arcadeCosmeticLoadout.trailStyleId, 'ion');
+    const initialBuild = strategy._upgradeBonusesFor(player).build;
+
+    manager.activeId = profileIds[1];
+    runtimeConfig.arcade.playerProfileIds = [manager.getActiveProfile().id];
+    const rebuiltStrategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    runtimeState.entityManager.gameModeStrategy = rebuiltStrategy;
+    support.startRunIfEnabled();
+    assert.equal(player.arcadeCosmeticLoadout.trailStyleId, 'ion', 'laufende Cosmetics bleiben an der Start-UUID');
+    assert.deepEqual(rebuiltStrategy._upgradeBonusesFor(player).build, initialBuild,
+        'aktiver Profilwechsel ändert die laufenden Boni und den Pool-Snapshot nicht');
+
+    support.arcadeRunRuntime.resetRunState({ preserveRecords: true });
+    const nextStrategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    runtimeState.entityManager.gameModeStrategy = nextStrategy;
+    support.startRunIfEnabled();
+    assert.equal(player.arcadeCosmeticLoadout.trailStyleId, 'ember', 'der folgende echte Run startet mit dem nun aktiven Profil');
+    assert.notDeepEqual(nextStrategy._upgradeBonusesFor(player).build, initialBuild,
+        'der neue Run liest den Steinpool der aktuellen Profil-UUID');
+});
+
+test('Arcade-Profilresolver: ungültige explizite UUID fällt nicht auf den aktiven Store zurück', () => {
+    const validId = '00000000-0000-4000-8000-000000000021';
+    const store = createStore({
+        [ARCADE_STONE_WORKSHOP_STORAGE_KEY]: poolOf([stone(1, 1, at('ship5', 'core'))]),
+    });
+    saveVehicleProfiles(store, { ship5: profileOf('ship5') });
+    const playerProfileManager = {
+        getProfiles: () => [{ id: validId }],
+        getRecordStorePort: (id) => id === validId ? store : null,
+    };
+    const players = [
+        makePlayer('ship5', { index: 0, isBot: false }),
+        makePlayer('ship5', { index: 1, isBot: false }),
+    ];
+    const runtime = new ArcadeRunRuntime({
+        getRecordStoreForPlayerIndex: (index, profileId) =>
+            playerProfileManager.getProfiles().some((profile) => profile.id === profileId)
+                ? playerProfileManager.getRecordStorePort(profileId)
+                : null,
+    });
+    prepareArcadePlayerProfileBindings(runtime, players, ['deleted-profile', validId], true);
+    assert.equal(runtime._playerBindings.has(0), false);
+    assert.equal(runtime._playerBindings.get(1).store, store);
+    const bonuses = runtime._playerProfileBindingsActive
+        ? createArcadePlayerUpgradeBonusMap(runtime._playerProfilesByIndex, players, {
+            storesByPlayerIndex: runtime._playerStoresByIndex,
+        })
+        : null;
+    assert.equal(bonuses.byPlayerIndex[0].build, null, 'P1 bekommt keine stillen P1-Store-Boni für seine ungültige ID');
+    assert.ok(bonuses.byPlayerIndex[1].build, 'eine gültige UUID bleibt für P2 gebunden');
 });
 
 test('HUD und Run-Laufzeit: Stein-Schritte kommen aus dem Pool, der Cache hängt am selben Objekt', () => {

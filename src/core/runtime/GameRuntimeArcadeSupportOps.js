@@ -4,6 +4,10 @@ import { resolveObjectiveTargetIndex } from '../../entities/systems/ObjectiveTar
 import { doesArcadeObjectiveHoldRound } from '../../state/arcade/ArcadeObjectiveState.js';
 import { buildArcadeSectorPlan } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
+import { prepareArcadePlayerProfileBindings } from '../arcade/ArcadePlayerProfileBindings.js';
+import { applyArcadeRuntimeCosmetics } from '../arcade/ArcadeRuntimeCosmeticOps.js';
+import { shouldBindLocalArcadePlayerProfiles } from './GameRuntimeArcadeRunDispatch.js';
+import { ARCADE_RUN_KINDS, resolveArcadeRuntimeKind } from '../../shared/contracts/ArcadeRunTypeDispatchContract.js';
 
 /**
  * Hands the live arcade objective to the entity layer, which must not read arcade state itself:
@@ -21,6 +25,38 @@ export function configureArcadeRunRuntime(runtime, runtimeConfig) {
         ...runtimeConfig,
         arcade: { ...runtimeConfig.arcade, ghostDuelMode: 'self_best_time_ghost', ghostTrailCollisionEnabled: false },
     });
+}
+
+export function bindLocalArcadeProfilesAndApplyCosmetics(support, runtimeState, runtimeConfig) {
+    const kind = resolveArcadeRuntimeKind(runtimeConfig);
+    const arcadeRuntime = support.arcadeRunRuntime;
+    const endlessRuntime = kind === ARCADE_RUN_KINDS.ENDLESS_PARCOURS
+        ? support._getEndlessRuntime?.(runtimeState)
+        : null;
+    const runtimeForKind = kind === ARCADE_RUN_KINDS.FIVE_PORTALS
+        ? support.fivePortalsRuntime
+        : kind === ARCADE_RUN_KINDS.ARENA_WAVES
+            ? support.arenaWavesRuntime
+            : kind === ARCADE_RUN_KINDS.WEAPON_RACE
+                ? support.weaponRaceRuntime
+                : null;
+    const runActive = kind === ARCADE_RUN_KINDS.GAUNTLET
+        ? Boolean(arcadeRuntime?._state && !arcadeRuntime._state.finishedAtIso)
+        : kind === ARCADE_RUN_KINDS.ENDLESS_PARCOURS
+            ? Boolean(endlessRuntime?.startProfile && endlessRuntime?._finalized !== true)
+            : Boolean(runtimeForKind
+                && runtimeForKind.phase !== 'idle'
+                && runtimeForKind.phase !== 'finished');
+    prepareArcadePlayerProfileBindings(
+        arcadeRuntime,
+        runtimeState?.entityManager?.humanPlayers,
+        runtimeConfig?.arcade?.playerProfileIds,
+        shouldBindLocalArcadePlayerProfiles(runtimeConfig),
+        runActive,
+    );
+    return {
+        playerBuildBonuses: applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig),
+    };
 }
 
 /** Plane of a local human by player index; bots have no PLAYER_n slot and get null. */

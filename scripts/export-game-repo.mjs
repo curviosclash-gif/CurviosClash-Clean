@@ -138,7 +138,12 @@ export function transformElectronMain(source) {
     result = result.replace(/\nfunction resolveTuningConsoleCapabilityState\(\) \{[\s\S]*?\n\}\n\nfunction resolveSharedMenuDefaults/, '\nfunction resolveSharedMenuDefaults');
     result = result.replace(/\nconst tuningWindowShellCapability = createTuningWindowController\([\s\S]*?\n\}\);\nconst recordingVideoExportJob/, '\nconst recordingVideoExportJob');
     result = result.replace(/\n\/\/ The tuning hotkey is a system-wide accelerator[\s\S]*?\n\}\);\n\nfunction registerTuningShortcut/, '\nfunction registerTuningShortcut');
-    result = result.replace(/\nfunction registerTuningShortcut\(\) \{[\s\S]*?\nasync function startDesktopShell\(\) \{\n    registerTuningBridgeIpc\(\);\n    await desktopWindowShellCapability\.start\(\);\n    createTray\(\);\n    registerTuningShortcut\(\);\n\}/, '\nasync function startDesktopShell() {\n    await desktopWindowShellCapability.start();\n    createTray();\n}');
+    result = replaceRequired(
+        result,
+        "\nfunction registerTuningShortcut() {\n    tuningShortcut.start();\n    return tuningShortcut.isRegistered();\n}\n\nfunction unregisterTuningShortcut() {\n    tuningShortcut.stop();\n}\n\nfunction registerTuningBridgeIpc() {\n    if (disposeTuningIpc) {\n        return;\n    }\n    disposeTuningIpc = registerTuningIpc({\n        ipcMain,\n        dialog,\n        resolveGameWindow: () => desktopWindowShellCapability.getWindow(),\n        resolveTuningWindow: () => tuningWindowShellCapability.getWindow(),\n        resolveCapabilityState: () => resolveTuningConsoleCapabilityState(),\n    });\n}\n\nfunction disposeTuningBridgeIpc() {\n    if (!disposeTuningIpc) {\n        return;\n    }\n    disposeTuningIpc();\n    disposeTuningIpc = null;\n}\n\nasync function startDesktopShell() {\n    registerTuningBridgeIpc();\n    try {\n        const localMaps = await refreshAndCacheLocalMaps();\n        if (!localMaps.ok) {\n            console.warn('[local-maps] Initial catalog read failed:', localMaps.error);\n        }\n    } catch (error) {\n        console.warn('[local-maps] Initial catalog read failed:', String(error?.message || error));\n    }\n    await desktopWindowShellCapability.start();\n    createTray();\n    registerTuningShortcut();\n}",
+        "\nasync function startDesktopShell() {\n    await desktopWindowShellCapability.start();\n    createTray();\n}",
+        'tuning startup and local-map authoring refresh'
+    );
     result = result.replace(/\n    unregisterTuningShortcut\(\);\n    tuningWindowShellCapability\.closeTuningWindow\(\);/g, '');
     result = result.replace(/\n    disposeTuningBridgeIpc\(\);/g, '');
     result = replacePatternRequired(

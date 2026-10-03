@@ -37,6 +37,8 @@ import { createArcadePlayerUpgradeBonusMap } from '../src/core/arcade/ArcadeRunV
 import {
     resolveDemolitionLocalPlayerCount,
     setupArcadeDemolitionProfileSelection,
+    validateArcadePlayerProfileSelection,
+    validateLocalArcadeProfileStart,
 } from '../src/ui/arcade/ArcadeDemolitionProfileSelection.js';
 import { bindArcadeSpecialStartButtons } from '../src/ui/arcade/ArcadeMenuSpecialStartOps.js';
 import { getDemolitionComboMultiplier } from '../src/core/arcade/DemolitionComboOps.js';
@@ -218,6 +220,25 @@ test('runtime config carries the three selected demolition profile IDs', () => {
     settings.arcade.runType = 'demolition';
     const runtimeConfig = createRuntimeConfigSnapshot(settings);
     assert.deepEqual(runtimeConfig.arcade.demolitionProfileIds, ['profile-a', 'profile-b', 'profile-c']);
+    assert.deepEqual(runtimeConfig.arcade.playerProfileIds, ['profile-a', 'profile-b', 'profile-c']);
+});
+
+test('runtime config prefers general local profile IDs and keeps the demolition IDs unchanged', () => {
+    const settings = createDefaultSettingsSnapshot();
+    settings.localSettings.modePath = 'arcade';
+    settings.localSettings.startSetup.demolitionProfileIds = ['legacy-1', 'legacy-2', 'legacy-3'];
+    settings.localSettings.startSetup.arcadePlayerProfileIds = ['new-1', 'new-2', 'new-3'];
+    const runtimeConfig = createRuntimeConfigSnapshot(settings);
+    assert.deepEqual(runtimeConfig.arcade.playerProfileIds, ['new-1', 'new-2', 'new-3']);
+    assert.deepEqual(runtimeConfig.arcade.demolitionProfileIds, ['legacy-1', 'legacy-2', 'legacy-3']);
+});
+
+test('runtime config keeps legacy local profile IDs when the new selector field is empty', () => {
+    const settings = createDefaultSettingsSnapshot();
+    settings.localSettings.startSetup.demolitionProfileIds = ['legacy-player-one', 'legacy-player-two'];
+    settings.localSettings.startSetup.arcadePlayerProfileIds = [];
+    const runtimeConfig = createRuntimeConfigSnapshot(settings);
+    assert.deepEqual(runtimeConfig.arcade.playerProfileIds, ['legacy-player-one', 'legacy-player-two', '']);
 });
 
 test('demolition profile selectors refresh on focus and preserve or report saved IDs', () => {
@@ -261,6 +282,7 @@ test('demolition profile selectors refresh on focus and preserve or report saved
         selects[0].value = 'uuid-other';
         listeners.get('0:change')();
         assert.deepEqual(settings.localSettings.startSetup.demolitionProfileIds, ['uuid-other', 'uuid-deleted', '']);
+        assert.deepEqual(settings.localSettings.startSetup.arcadePlayerProfileIds, ['uuid-other', 'uuid-deleted', '']);
         const startIds = selection.save();
         assert.deepEqual(startIds, ['uuid-other', '', '']);
         assert.equal(selection.hasMissingActiveProfile(startIds), true);
@@ -271,11 +293,69 @@ test('demolition profile selectors refresh on focus and preserve or report saved
         const reassignedIds = selection.save();
         assert.deepEqual(reassignedIds, ['uuid-other', 'uuid-created-after-setup', '']);
         assert.equal(selection.hasMissingActiveProfile(reassignedIds), true);
+        selects[2].value = 'uuid-current';
+        assert.equal(validateArcadePlayerProfileSelection(selection).ok, true,
+            'drei verschiedene vorhandene UUIDs sind eine gültige lokale Zuordnung');
         profiles.splice(1, 1);
         listeners.get('0:focus')();
         assert.equal(selects[0].value, '');
         assert.equal(selects[0].options[0].textContent, 'Profil fehlt – neu zuordnen');
         assert.equal(settings.localSettings.startSetup.demolitionProfileIds[0], 'uuid-other');
+        selects[0].value = 'uuid-current';
+        selects[1].value = 'uuid-current';
+        selects[2].value = 'uuid-current';
+        listeners.get('0:change')();
+        listeners.get('1:change')();
+        listeners.get('2:change')();
+        assert.equal(validateArcadePlayerProfileSelection(selection).reason, 'duplicate_profile');
+        assert.deepEqual(settings.localSettings.startSetup.arcadePlayerProfileIds,
+            ['uuid-current', 'uuid-current', 'uuid-current'],
+            'doppelte UUIDs bleiben zur sichtbaren Fehlerkorrektur erhalten');
+        const startMessages = [];
+        assert.equal(validateLocalArcadeProfileStart(settings, selection, {
+            showStatusToast: (message) => startMessages.push(message),
+        }), false);
+        assert.match(startMessages[0], /eigenes Profil/);
+        const demoButton = {};
+        const demoHandlers = new Map();
+        const demoMessages = [];
+        let demoStarts = 0;
+        bindArcadeSpecialStartButtons(
+            { startDemolitionButton: demoButton },
+            (node, _event, handler) => { if (node) demoHandlers.set(node, handler); },
+            () => { demoStarts += 1; },
+            4711,
+            selection,
+            { showStatusToast: (message) => demoMessages.push(message) },
+        );
+        demoHandlers.get(demoButton)();
+        assert.equal(demoStarts, 0, 'Demo-START wird bei doppelter UUID vor dem Dispatch blockiert');
+        assert.match(demoMessages[0], /eigenes Profil/);
+
+        let activeProfile = profiles[0];
+        const soloSettings = {
+            mode: '3p',
+            localSettings: {
+                sessionType: 'single',
+                threePlayerSplit: { enabled: true },
+                humanEntityCount: 4,
+                splitScreenVariant: 'four_player_planar',
+                startSetup: { arcadePlayerProfileIds: [] },
+            },
+        };
+        assert.equal(resolveDemolitionLocalPlayerCount(soloSettings), 1,
+            'the authoritative single session ignores stale three/four-player settings');
+        const soloSelection = setupArcadeDemolitionProfileSelection(
+            { demolitionProfileSelects: [new Select(), new Select(), new Select()] },
+            { getPlayerProfiles: () => profiles, getActivePlayerProfile: () => activeProfile, saveSettings: () => {} },
+            soloSettings,
+            () => {},
+        );
+        soloSelection.save();
+        activeProfile = profiles[1];
+        soloSelection.refreshForSoloStart();
+        assert.deepEqual(soloSelection.save()[0], activeProfile.id,
+            'jeder Solo-Start übernimmt trotz früherer Speicherung das aktuelle aktive Profil');
     } finally {
         if (oldDocument === undefined) delete globalThis.document;
         else globalThis.document = oldDocument;
@@ -284,10 +364,38 @@ test('demolition profile selectors refresh on focus and preserve or report saved
 
 test('demolition menu summary uses its own three-map instructions', () => {
     const source = readFileSync(new URL('../src/ui/arcade/ArcadeMenuSurface.js', import.meta.url), 'utf8');
-    assert.match(source, /demolitionSelected[\s\S]{0,250}Abrisskommando: drei Belagerungskarten/);
+    assert.match(source, /settings\.arcade\?\.runType === 'demolition'[\s\S]{0,250}Abrisskommando: drei Belagerungskarten/);
 });
 
-test('demolition start explicitly blocks four-player planar and missing profile assignments', () => {
+test('explicit network sessions count local slots, while splitscreen keeps its selected count', () => {
+    assert.equal(resolveDemolitionLocalPlayerCount({
+        mode: '3p',
+        localSettings: {
+            sessionType: 'multiplayer',
+            multiplayerTransport: 'lan',
+            humanEntityCount: 4,
+            localHumanCount: 1,
+            threePlayerSplit: { enabled: true },
+        },
+    }), 1, 'network entity totals and stale splits do not count as local profiles');
+    assert.equal(resolveDemolitionLocalPlayerCount({
+        mode: '3p',
+        localSettings: {
+            sessionType: 'lan',
+            humanEntityCount: 4,
+            localHumanCount: 2,
+            threePlayerSplit: { enabled: true },
+        },
+    }), 2, 'a LAN host may own two local slots');
+    assert.equal(resolveDemolitionLocalPlayerCount({
+        localSettings: { sessionType: 'splitscreen', threePlayerSplit: { enabled: true } },
+    }), 3);
+    assert.equal(resolveDemolitionLocalPlayerCount({
+        localSettings: { sessionType: 'splitscreen', splitScreenVariant: 'four_player_planar' },
+    }), 4);
+});
+
+test('demolition start explicitly blocks four-player planar and invalid profile assignments', () => {
     const fourPlayerSettings = {
         localSettings: { sessionType: 'splitscreen', splitScreenVariant: 'four_player_planar' },
     };
@@ -296,6 +404,12 @@ test('demolition start explicitly blocks four-player planar and missing profile 
     for (const profiles of [
         { hasUnsupportedPlayerCount: () => true, save: () => ['a', 'b', 'c'], hasMissingActiveProfile: () => false },
         { hasUnsupportedPlayerCount: () => false, save: () => ['a', '', 'c'], hasMissingActiveProfile: () => true },
+        {
+            hasUnsupportedPlayerCount: () => false,
+            save: () => ['a', 'a', 'c'],
+            hasMissingActiveProfile: () => false,
+            hasDuplicateActiveProfiles: () => true,
+        },
     ]) {
         const button = {};
         const handlers = new Map();
@@ -313,6 +427,25 @@ test('demolition start explicitly blocks four-player planar and missing profile 
         assert.equal(starts, 0);
         assert.equal(toasts.length, 1);
     }
+});
+
+test('normal local Arcade start validates read-only and persists only a valid selection', () => {
+    let saves = 0;
+    const makeSelection = (ids, unsupported = false) => ({
+        hasUnsupportedPlayerCount: () => unsupported,
+        readSelectedProfileIds: () => ids,
+        save: () => { saves += 1; },
+        hasMissingActiveProfile: (profileIds) => profileIds.length < 3 || profileIds.some((id) => !id),
+    });
+    assert.deepEqual(validateArcadePlayerProfileSelection(makeSelection(['uuid-1', 'uuid-2', 'uuid-3'])),
+        { ok: true, profileIds: ['uuid-1', 'uuid-2', 'uuid-3'] });
+    assert.equal(saves, 1);
+    assert.deepEqual(validateArcadePlayerProfileSelection(makeSelection(['uuid-1', '', 'uuid-3'])),
+        { ok: false, reason: 'missing_profile' });
+    assert.equal(saves, 1, 'invalid selection is not written back as a side effect of a failed start');
+    assert.deepEqual(validateArcadePlayerProfileSelection(makeSelection([], true)),
+        { ok: false, reason: 'unsupported_player_count' });
+    assert.equal(saves, 1);
 });
 
 test('score counts collapsed HP at half value and applies correct-order bonus once', () => {
@@ -644,15 +777,38 @@ test('integrated demolition events grow the shared combo, cap XP at x3, reset on
     ]);
 });
 
-test('demolition hangar bonuses remain distinct for players using the same vehicle ID', () => {
+test('UUID bonus maps keep stone snapshots by player and omit legacy hangar values', () => {
     const players = [
         { index: 0, isBot: false, vehicleId: 'ship1' },
         { index: 1, isBot: false, vehicleId: 'ship1' },
     ];
-    const bonusMap = createArcadePlayerUpgradeBonusMap({
+    const firstStoneSteps = Object.freeze({ hull: 1, engines: 0 });
+    const secondStoneSteps = Object.freeze({ hull: 2, engines: 1 });
+    const snapshots = {
+        stoneStepsByPlayerIndex: {
+            0: { vehicleId: 'ship1', stoneSteps: firstStoneSteps },
+            1: { vehicleId: 'ship1', stoneSteps: secondStoneSteps },
+        },
+    };
+    const profiles = {
         0: { ship1: { vehicleId: 'ship1', hangarBonuses: { speedBonusPct: 8 } } },
         1: { ship1: { vehicleId: 'ship1', hangarBonuses: { speedBonusPct: 24 } } },
-    }, players);
-    assert.equal(bonusMap.byPlayerIndex[0].speedBonusPct, 8);
-    assert.equal(bonusMap.byPlayerIndex[1].speedBonusPct, 24);
+    };
+    const bonusMap = createArcadePlayerUpgradeBonusMap(profiles, players, snapshots);
+    assert.deepEqual(bonusMap.byPlayerIndex[0].build.stoneSteps, firstStoneSteps);
+    assert.deepEqual(bonusMap.byPlayerIndex[1].build.stoneSteps, secondStoneSteps);
+    assert.equal(bonusMap.byPlayerIndex[0].speedBonusPct, undefined);
+    assert.equal(bonusMap.byPlayerIndex[1].speedBonusPct, undefined);
+    const strategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    strategy.applyVehicleUpgrades(bonusMap);
+    const withoutLegacyValues = createArcadePlayerUpgradeBonusMap({
+        0: { ship1: { vehicleId: 'ship1' } },
+        1: { ship1: { vehicleId: 'ship1' } },
+    }, players, snapshots);
+    const baselineStrategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    baselineStrategy.applyVehicleUpgrades(withoutLegacyValues);
+    for (const player of players) {
+        assert.deepEqual(strategy._upgradeBonusesFor(player), baselineStrategy._upgradeBonusesFor(player),
+            'Legacy-Hangarwerte ändern den aus UUID-Build und eingefrorenem Pool berechneten Runbonus nicht');
+    }
 });
