@@ -509,6 +509,11 @@ export class MatchFlowArcadeOverlayController {
         const countdown = this._arcadeOverlayPanel?.querySelector('#arcade-intermission-countdown');
         if (countdown) countdown.textContent = runtimeState?.intermissionPaused
             ? 'Countdown angehalten.' : `Automatischer Start in ${Math.max(0, Math.ceil(game.roundPause))}s.`;
+        // The results reuse the overlay the last map load wrote "Lade <map>..." into; clear it.
+        if (fivePortalsFinished) {
+            if (game.ui.messageText) game.ui.messageText.textContent = '';
+            if (game.ui.messageSub) game.ui.messageSub.textContent = '';
+        }
         const arenaBoard = resolveArenaWavesBoardTexts(runtimeState);
         if (arenaBoard && game.ui.messageText) game.ui.messageText.textContent = arenaBoard.title;
         if (arenaBoard && game.ui.messageSub) game.ui.messageSub.textContent = arenaBoard.sub;

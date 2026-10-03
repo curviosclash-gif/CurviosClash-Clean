@@ -10,7 +10,7 @@ import { SIGNALING_HTTP_ROUTES } from '../src/shared/contracts/SignalingSessionC
 
 test('the network search names the host by its lobby name, else "<profile> 1"', () => {
     assert.equal(resolveLanLobbyPublicHostName({ hostLobbyName: 'Kapitän', metadata: { hostName: 'Spieler 1' } }), 'Kapitän');
-    assert.equal(resolveLanLobbyPublicHostName({ hostLobbyName: '', metadata: { hostName: 'Spieler 1' } }), 'Spieler 1 1');
+    assert.equal(resolveLanLobbyPublicHostName({ hostLobbyName: '', metadata: { hostName: 'Spieler 1' } }), 'Spieler 1');
     assert.equal(resolveLanLobbyPublicHostName({ hostName: 'Nova' }), 'Nova 1');
     assert.equal(resolveLanLobbyPublicHostName(null), 'Spieler 1');
 });
