@@ -3201,11 +3201,33 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     display: none !important;
 }
 
-#status-toast {
+/* One column right below the round board (14px top, about 62px tall): the status toast and the
+   sandstorm banner stack here instead of covering the score line (playtest 02.10.2026). */
+#hud-notice-stack {
     position: absolute;
-    top: 18px;
+    top: calc(14px + 66px * var(--hud-scale, 1));
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: max-content;
+    max-width: 90vw;
+    pointer-events: none;
+    z-index: 130;
+}
+
+#hud-notice-stack > .map-sandstorm-status {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    order: -1;
+}
+
+#status-toast {
+    position: relative;
     padding: 8px 12px;
     border-radius: 9px;
     font-size: 0.9rem;
@@ -3244,22 +3266,22 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
 @keyframes toastFade {
     0% {
         opacity: 0;
-        transform: translateX(-50%) translateY(-6px);
+        transform: translateY(-6px);
     }
 
     12% {
         opacity: 1;
-        transform: translateX(-50%) translateY(0);
+        transform: translateY(0);
     }
 
     78% {
         opacity: 1;
-        transform: translateX(-50%) translateY(0);
+        transform: translateY(0);
     }
 
     100% {
         opacity: 0;
-        transform: translateX(-50%) translateY(-4px);
+        transform: translateY(-4px);
     }
 }
 

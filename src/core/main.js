@@ -16,7 +16,7 @@ import { PlayingStateSystem } from './PlayingStateSystem.js';
 import { RoundStateTickSystem } from '../state/RoundStateTickSystem.js';
 import { GameDebugApi } from './GameDebugApi.js';
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
-import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
+import { formatPlayerDisplayLabel, formatPlayerScopedMessage } from '../shared/contracts/PlayerDisplayLabelContract.js';
 import {
     MATCH_LIFECYCLE_CONTRACT_VERSION,
 } from '../shared/contracts/MatchLifecycleContract.js';
@@ -425,7 +425,7 @@ export class Game {
         this._showStatusToast(`${prefix}: ${message}`);
     }
 
-    _getDeathMessage(cause) {
+    _getDeathMessage(cause, player = null) {
         const messages = {
             'WALL': 'Kollision mit der Wand!',
             'TRAIL_SELF': 'Eigener Schweif getroffen!',
@@ -434,7 +434,8 @@ export class Game {
             'OUT_OF_BOUNDS': 'Arena verlassen!',
             'UNKNOWN': 'Unbekannte Todesursache'
         };
-        return messages[cause] || messages['UNKNOWN'];
+        const message = messages[cause] || messages['UNKNOWN'];
+        return formatPlayerScopedMessage(player, message, this.entityManager?.humanPlayers?.length || 0);
     }
 
     /**

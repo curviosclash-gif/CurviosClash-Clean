@@ -20,3 +20,17 @@ export function formatPlayerDisplayLabel(player, options = {}) {
     if (name) return name;
     return options?.style === PLAYER_LABEL_STYLES.LONG ? `Spieler ${seat}` : `P${seat}`;
 }
+
+/**
+ * A message about one player for the one shared toast: with several local players on one screen it
+ * has to say whose ship it was ("P2: Kollision mit der Wand!"); alone the short text is enough.
+ * @param {{ name?: unknown, isBot?: unknown, index?: unknown, playerIndex?: unknown } | null | undefined} player
+ * @param {string} message
+ * @param {number} localHumanCount
+ * @returns {string}
+ */
+export function formatPlayerScopedMessage(player, message, localHumanCount) {
+    const text = String(message || '');
+    if (!player || !(Number(localHumanCount) > 1)) return text;
+    return `${formatPlayerDisplayLabel(player)}: ${text}`;
+}

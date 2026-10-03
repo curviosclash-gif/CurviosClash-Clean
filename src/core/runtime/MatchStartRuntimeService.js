@@ -32,7 +32,7 @@ export class MatchStartRuntimeService {
             },
             onPlayerDied: (player, cause) => {
                 if (player?.isBot) return;
-                const message = ports?.uiFeedbackPort?.getDeathMessage?.(cause) || '';
+                const message = ports?.uiFeedbackPort?.getDeathMessage?.(cause, player) || '';
                 ports?.uiFeedbackPort?.showStatusToast?.(message, 2500, 'error');
             },
             // On a network client only the host's round end gets here: RoundOutcomeSystem
