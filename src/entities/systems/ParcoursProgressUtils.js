@@ -371,6 +371,71 @@ export function buildRouteFromParcours(parcoursRaw, options = {}) {
         params: isObject(finishRaw.params) ? { ...finishRaw.params } : {},
     } : null;
 
+    if (Array.isArray(parcoursRaw.guidancePaths)
+        && parcoursRaw.guidancePaths.length > MAP_SCHEMA_COLLECTION_LIMITS.parcoursGuidancePaths) {
+        throw new Error(`Map collection "parcoursGuidancePaths" exceeds the limit of ${MAP_SCHEMA_COLLECTION_LIMITS.parcoursGuidancePaths}.`);
+    }
+    const rawGuidancePaths = Array.isArray(parcoursRaw.guidancePaths) ? parcoursRaw.guidancePaths : [];
+    const guidanceBranchCheckpointIds = [...new Set([
+        ...rawGuidancePaths
+            .filter((path) => isObject(path))
+            .map((path) => toCheckpointId(path.branchCheckpointId, ''))
+            .filter((id) => checkpoints.some((checkpoint) => checkpoint.id === id)),
+        ...(Array.isArray(parcoursRaw.guidanceBranchCheckpointIds)
+            ? parcoursRaw.guidanceBranchCheckpointIds.slice(0, MAP_SCHEMA_COLLECTION_LIMITS.parcoursGuidancePaths)
+            : []),
+    ].filter((id) => checkpoints.some((checkpoint) => checkpoint.id === id)))];
+    const guidancePathWindows = [...rawGuidancePaths.flatMap((path) => {
+            if (!isObject(path)) return [];
+            const branchCheckpointId = toCheckpointId(path.branchCheckpointId, '');
+            const endCheckpointId = toCheckpointId(path.endCheckpointId, '');
+            const branch = checkpoints.find((checkpoint) => checkpoint.id === branchCheckpointId);
+            const end = checkpoints.find((checkpoint) => checkpoint.id === endCheckpointId);
+            return branch && end && end.routeIndex > branch.routeIndex ? [{ branchCheckpointId, endCheckpointId }] : [];
+        }), ...(Array.isArray(parcoursRaw.guidancePathWindows)
+            ? parcoursRaw.guidancePathWindows.slice(0, MAP_SCHEMA_COLLECTION_LIMITS.parcoursGuidancePaths)
+            : [])]
+        .filter((window) => {
+            const branch = checkpoints.find((checkpoint) => checkpoint.id === window?.branchCheckpointId);
+            const end = checkpoints.find((checkpoint) => checkpoint.id === window?.endCheckpointId);
+            const branchIndex = branch ? branch.routeIndex : -1;
+            const endIndex = end ? end.routeIndex : -1;
+            return branch && end && endIndex > branchIndex;
+        });
+    const uniqueGuidancePathWindows = [...new Map(guidancePathWindows
+        .map((window) => [`${window.branchCheckpointId}:${window.endCheckpointId}`, window])).values()]
+        .slice(0, MAP_SCHEMA_COLLECTION_LIMITS.parcoursGuidancePaths);
+    const guidancePaths = rawGuidancePaths.length > 0
+        ? rawGuidancePaths.flatMap((path) => {
+            if (!isObject(path)) return [];
+            const branchCheckpointId = toCheckpointId(path.branchCheckpointId, '');
+            const endCheckpointId = toCheckpointId(path.endCheckpointId, '');
+            const branch = checkpoints.find((checkpoint) => checkpoint.id === branchCheckpointId);
+            const end = checkpoints.find((checkpoint) => checkpoint.id === endCheckpointId);
+            if (!branch || !end || end.routeIndex <= branch.routeIndex) return [];
+            if (!Array.isArray(path.points) || path.points.length < 2
+                || path.points.length > MAP_SCHEMA_COLLECTION_LIMITS.parcoursGuidancePoints) return [];
+            const validPoints = path.points.every((point) => Array.isArray(point)
+                && point.length === 3
+                && point.every((value) => typeof value === 'number' && Number.isFinite(value)));
+            if (!validPoints) return [];
+            const coversCheckpoint = (checkpoint) => path.points.some((point) =>
+                point.every((value, axis) => Math.abs(value - checkpoint.pos[axis] / positionScale) <= 1e-6));
+            if (!coversCheckpoint(branch) || !coversCheckpoint(end)) return [];
+            const points = path.points.map((point) => scaleVec3(point, positionScale));
+            return [{ branchCheckpointId, endCheckpointId, points }];
+        })
+        : [];
+    for (const path of guidancePaths) {
+        for (const point of path.points) Object.freeze(point);
+        Object.freeze(path.points);
+        Object.freeze(path);
+    }
+    Object.freeze(guidancePaths);
+    Object.freeze(guidanceBranchCheckpointIds);
+    for (const window of uniqueGuidancePathWindows) Object.freeze(window);
+    Object.freeze(uniqueGuidancePathWindows);
+
     return {
         routeId: normalizeString(parcoursRaw.routeId, 'custom_route_v1'),
         totalCheckpoints,
@@ -378,6 +443,10 @@ export function buildRouteFromParcours(parcoursRaw, options = {}) {
         checkpoints,
         entriesByCheckpointIndex,
         branches,
+        guidanceBranchCheckpointIds,
+        guidancePathWindows: uniqueGuidancePathWindows,
+        guidancePaths,
+        guidanceRequired: parcoursRaw.guidanceRequired === true || (Array.isArray(parcoursRaw.guidancePaths) && parcoursRaw.guidancePaths.length > 0),
         finish,
         rules,
     };
@@ -434,3 +503,4 @@ export function createPlayerProgressState(totalCheckpoints) {
         segmentSplitsMs: [],
     };
 }
+import { MAP_SCHEMA_COLLECTION_LIMITS } from '../mapSchema/MapSchemaConstants.js';

@@ -1,3 +1,5 @@
+import { findParcoursGuidanceWaypoint, isParcoursGuidanceRequiredAfterBranch, resolveActiveParcoursGuidance } from '../../shared/utils/ParcoursGuidance.js';
+
 // Der Minimap-Hotkey hoert global mit. Wer gerade in ein Eingabefeld tippt, meint den
 // Buchstaben und nicht den Schalter - solche Tastendruecke gehoeren dem Feld.
 function isTextEntryEventTarget(target) {
@@ -154,9 +156,24 @@ export class ParcoursMinimapRenderer {
                 if (normalizedId) passedCheckpointIdSet.add(normalizedId);
             }
         }
+        const guidanceProgress = { nextCheckpointIndex: nextIdx, passedCheckpointIds: passedCheckpointIdSet };
+        const guidance = resolveActiveParcoursGuidance(routeSnapshot, guidanceProgress);
+        const unsafeMissingGuidance = !guidance && isParcoursGuidanceRequiredAfterBranch(routeSnapshot, guidanceProgress);
+        const guidedBranchIds = routeSnapshot.guidanceBranchCheckpointIds;
 
         // Connection lines between checkpoints
         for (const cp of routeSnapshot.checkpoints) {
+            if (guidance || unsafeMissingGuidance) {
+                let guidedBranch = Array.isArray(guidedBranchIds) && guidedBranchIds.includes(cp.id);
+                if (!guidedBranch && !Array.isArray(guidedBranchIds)) {
+                    for (const path of routeSnapshot.guidancePaths || []) {
+                        if (path.branchCheckpointId !== cp.id) continue;
+                        guidedBranch = true;
+                        break;
+                    }
+                }
+                if (guidedBranch) continue;
+            }
             const x1 = this._toCanvasX(cp.pos[0]);
             const z1 = this._toCanvasZ(cp.pos[2]);
             const isBranchLine = cp.isBranchOption === true;
@@ -165,6 +182,21 @@ export class ParcoursMinimapRenderer {
             for (const nextId of (cp.nextCheckpointIds || [])) {
                 const next = this._cpById?.get(nextId);
                 if (!next) continue;
+                if (guidance || unsafeMissingGuidance) {
+                    let inGuidedWindow = false;
+                    for (const window of routeSnapshot.guidancePathWindows || []) {
+                        const branch = this._cpById?.get(window.branchCheckpointId);
+                        const end = this._cpById?.get(window.endCheckpointId);
+                        if (!branch || !end || nextIdx <= branch.routeIndex || nextIdx > end.routeIndex) continue;
+                        const sourceInWindow = cp.routeIndex >= branch.routeIndex && cp.routeIndex < end.routeIndex;
+                        const targetInWindow = next.routeIndex > branch.routeIndex && next.routeIndex <= end.routeIndex;
+                        if (sourceInWindow || targetInWindow) {
+                            inGuidedWindow = true;
+                            break;
+                        }
+                    }
+                    if (inGuidedWindow) continue;
+                }
                 const x2 = this._toCanvasX(next.pos[0]);
                 const z2 = this._toCanvasZ(next.pos[2]);
                 ctx.beginPath();
@@ -174,8 +206,33 @@ export class ParcoursMinimapRenderer {
             }
         }
 
+        if (guidance?.points?.length > 1) {
+            ctx.beginPath();
+            guidance.points.forEach((point, index) => {
+                const x = this._toCanvasX(point[0]);
+                const z = this._toCanvasZ(point[2]);
+                if (index === 0) ctx.moveTo(x, z);
+                else ctx.lineTo(x, z);
+            });
+            ctx.strokeStyle = '#ffe45c';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 3]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            if (playerPos) {
+                const waypointIndex = findParcoursGuidanceWaypoint(guidance.points, playerPos);
+                const target = guidance.points[waypointIndex];
+                const heightDelta = target ? target[1] - playerPos.y : 0;
+                const heightCue = heightDelta > 3 ? '↑' : (heightDelta < -3 ? '↓' : '→');
+                ctx.fillStyle = '#ffe45c';
+                ctx.font = 'bold 15px sans-serif';
+                ctx.fillText(`Route ${heightCue}`, PAD, H - 7);
+            }
+        }
+
         // Line from last checkpoint to finish
-        if (routeSnapshot.finish && routeSnapshot.checkpoints.length > 0) {
+        if (!unsafeMissingGuidance && routeSnapshot.finish && routeSnapshot.checkpoints.length > 0) {
             const lastCp = routeSnapshot.checkpoints[routeSnapshot.checkpoints.length - 1];
             const x1 = this._toCanvasX(lastCp.pos[0]);
             const z1 = this._toCanvasZ(lastCp.pos[2]);
@@ -194,7 +251,7 @@ export class ParcoursMinimapRenderer {
             const cx = this._toCanvasX(cp.pos[0]);
             const cz = this._toCanvasZ(cp.pos[2]);
             const isPassed = passedCheckpointIdSet.has(cp.id);
-            const isNext = cp.routeIndex === nextIdx;
+            const isNext = !guidance && !unsafeMissingGuidance && cp.routeIndex === nextIdx;
             const isBranch = cp.isBranchOption === true;
 
             let color;
@@ -267,7 +324,7 @@ export class ParcoursMinimapRenderer {
 
         const nextTarget = this._cpByRouteIndex?.get(nextIdx)
             || (nextIdx >= routeSnapshot.totalCheckpoints ? routeSnapshot.finish : null);
-        if (playerPos && nextTarget?.pos) {
+        if (!guidance && !unsafeMissingGuidance && playerPos && nextTarget?.pos) {
             const heightDelta = Math.round((Number(nextTarget.pos[1]) || 0) - (Number(playerPos.y) || 0));
             if (Math.abs(heightDelta) >= 1) {
                 ctx.font = '12px sans-serif';

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { toArenaMapDefinition } from '../src/entities/mapSchema/MapSchemaRuntimeOps.js';
+import { normalizeMapSchemaDocument } from '../src/entities/mapSchema/MapSchemaSanitizeOps.js';
 
 function createMapDocument(parcoursRules = undefined) {
     return {
@@ -50,6 +51,39 @@ test('MapSchema runtime preserves custom parcours ghost and animation flags', ()
     );
     assert.equal(runtime?.map?.parcours?.rules?.showGhost, false);
     assert.equal(runtime?.map?.parcours?.rules?.animateCheckpoints, false);
+});
+
+test('MapSchema preserves and scales guided parcours paths', () => {
+    const document = createMapDocument();
+    document.parcours.guidancePaths = [{
+        branchCheckpointId: 'CP01',
+        endCheckpointId: 'CP02',
+        points: [[-8, 10, 0], [8, 10, 0]],
+    }];
+    const runtime = toArenaMapDefinition(document, { mapScale: 2, name: 'Guided Schema Route' });
+    assert.equal(runtime?.map?.parcours?.guidanceRequired, true);
+    assert.deepEqual(runtime?.map?.parcours?.guidancePaths, [{
+        branchCheckpointId: 'CP01',
+        endCheckpointId: 'CP02',
+        points: [[-4, 5, 0], [4, 5, 0]],
+    }]);
+    const oversized = createMapDocument();
+    oversized.parcours.guidancePaths = [{
+        branchCheckpointId: 'CP01',
+        endCheckpointId: 'CP02',
+        points: Array.from({ length: 129 }, (_, index) => [index, 0, 0]),
+    }];
+    const bounded = toArenaMapDefinition(oversized, { mapScale: 1, name: 'Bounded Guided Route' });
+    assert.deepEqual(bounded?.map?.parcours?.guidancePaths, [], 'oversized point paths are dropped before runtime use');
+    const serializedAgain = normalizeMapSchemaDocument(JSON.parse(JSON.stringify(normalizeMapSchemaDocument(oversized))));
+    assert.deepEqual(serializedAgain.parcours.guidanceBranchCheckpointIds, ['CP01']);
+    assert.deepEqual(serializedAgain.parcours.guidancePathWindows, [{ branchCheckpointId: 'CP01', endCheckpointId: 'CP02' }],
+        'invalid geometry safety metadata survives save and reload');
+    const tooManyPaths = createMapDocument();
+    tooManyPaths.parcours.guidancePaths = Array.from({ length: 17 }, () => ({
+        branchCheckpointId: 'CP01', endCheckpointId: 'CP02', points: [[0, 0, 0], [1, 0, 0]],
+    }));
+    assert.throws(() => normalizeMapSchemaDocument(tooManyPaths), /parcoursGuidancePaths.*limit of 16/);
 });
 
 test('MapSchema runtime preserves checkpoint respawn policy', () => {

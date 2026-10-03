@@ -5,6 +5,7 @@ import { normalizeAllowedGLBUrl, sanitizeGLBModels } from './MapSchemaGlbOps.js'
 import { cloneJsonCompatibleValue } from '../../shared/utils/JsonClone.js';
 import { deriveItemSpawnModeDefault, derivePortalModeDefault } from './MapSchemaAuthoringModeDefaults.js';
 import { sanitizeMapExtendedContent } from './MapSchemaExtendedContentOps.js';
+import { sanitizeParcoursGuidanceMetadata, sanitizeParcoursGuidancePaths } from './MapSchemaParcoursOps.js';
 
 export function asFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -242,6 +243,9 @@ function sanitizeParcours(raw) {
         enabled: true,
         routeId: sanitizeOptionalId(source.routeId) || 'custom_route_v1',
         checkpoints,
+        guidancePaths: sanitizeParcoursGuidancePaths(source.guidancePaths),
+        ...sanitizeParcoursGuidanceMetadata(source.guidancePaths, checkpoints, source.guidanceBranchCheckpointIds, source.guidancePathWindows),
+        guidanceRequired: source.guidanceRequired === true || (Array.isArray(source.guidancePaths) && source.guidancePaths.length > 0),
         rules: sanitizeParcoursRules(source.rules),
         finish,
     };

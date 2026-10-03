@@ -174,6 +174,84 @@ test('CheckpointRingRuntime guides all equal branch targets, then the finish, an
     assert.ok(finish.mesh.userData.guidanceMotifs.every((motif) => !motif.visible));
 });
 
+test('CheckpointRingRuntime points along the selected authored guidance waypoint', () => {
+    const choirExit = createRingEntry({ checkpointId: 'CP11_APSE_EXIT', routeIndex: 10 });
+    const ambulatoryExit = createRingEntry({ checkpointId: 'CP11_APSE_EXIT_AMBULATORY', routeIndex: 10 });
+    const cp12 = createRingEntry({ checkpointId: 'CP12', routeIndex: 11 });
+    for (const entry of [choirExit, ambulatoryExit]) {
+        entry.mesh.userData.guidanceMotifs = Array.from({ length: 1 }, createGuidanceMotif);
+        entry.mesh.userData.guidanceMotifs[0].visible = true;
+    }
+    cp12.pos = { x: 30, y: 5, z: 4 };
+    cp12.mesh.userData.guidanceMotifs = Array.from({ length: 6 }, createGuidanceMotif);
+    const arena = {
+        checkpointRings: [choirExit, ambulatoryExit, cp12],
+        runtimeConfig: { gameplay: { nextCheckpointGlowIntensity: 1.35 } },
+    };
+    const route = {
+        totalCheckpoints: 16,
+        guidancePaths: [{
+            branchCheckpointId: 'CP11_AMBULATORY',
+            endCheckpointId: 'CP12',
+            points: [[0, 0, 0], [10, 2, -3], [20, 4, 2], [30, 5, 4]],
+        }],
+        checkpoints: [
+            { id: 'CP11_AMBULATORY', routeIndex: 10, isBranchOption: true },
+            { id: 'CP12', routeIndex: 11 },
+        ],
+    };
+    const runtime = new CheckpointRingRuntime(arena);
+    runtime.setGuidanceProvider(() => ({
+        active: true,
+        player: { position: { x: 1, y: 0, z: 0 } },
+        totalCheckpoints: 16,
+        route,
+    }));
+    runtime._animateGuidance(arena.checkpointRings, 0, {
+        nextCheckpointIndex: 11,
+        passedCheckpointIds: ['CP11_AMBULATORY'],
+        completed: false,
+    });
+
+    const targets = runtime.getGuidanceView().targets;
+    assert.equal(targets.length, 1, 'the alternate same-stage ring is not shown as a second guidance target');
+    assert.equal(targets[0].mesh, cp12.mesh);
+    assert.deepEqual(targets[0].pos, { x: 10, y: 2, z: -3 }, 'world trail and edge arrow target the next safe waypoint');
+    assert.ok([choirExit, ambulatoryExit].every((entry) => !entry.mesh.userData.guidanceMotifs[0].visible));
+});
+
+test('CheckpointRingRuntime fails closed when a required branch path is invalid', () => {
+    const branch = createRingEntry({ checkpointId: 'CP11_AMBULATORY', routeIndex: 10 });
+    const cp12 = createRingEntry({ checkpointId: 'CP12', routeIndex: 11 });
+    for (const entry of [branch, cp12]) {
+        entry.mesh.userData.ringState = 'next';
+        entry.mesh.userData.guidanceMotifs = Array.from({ length: 1 }, createGuidanceMotif);
+        entry.mesh.userData.guidanceMotifs[0].visible = true;
+    }
+    const arena = { checkpointRings: [branch, cp12], runtimeConfig: { gameplay: { nextCheckpointGlowIntensity: 1.35 } } };
+    const runtime = new CheckpointRingRuntime(arena);
+    runtime.setGuidanceProvider(() => ({
+        active: true,
+        player: { position: { x: 1, y: 0, z: 0 } },
+        totalCheckpoints: 16,
+        route: {
+            guidanceRequired: true,
+            guidancePaths: [],
+            guidanceBranchCheckpointIds: [branch.checkpointId],
+            checkpoints: [{ id: branch.checkpointId, routeIndex: 10, isBranchOption: true }],
+        },
+    }));
+    runtime._animateGuidance(arena.checkpointRings, 0, {
+        nextCheckpointIndex: 11,
+        passedCheckpointIds: [branch.checkpointId],
+        completed: false,
+    });
+
+    assert.equal(runtime.getGuidanceView().active, false);
+    assert.deepEqual(runtime.getGuidanceView().targets, []);
+    assert.ok([branch, cp12].every((entry) => entry.mesh.userData.guidanceMotifs.every((motif) => !motif.visible)));
+});
+
 test('One glow slider scales the guidance trail continuously over its whole range', () => {
     const coreOpacityAt = (intensity) => {
         const scene = createGuidanceScene(intensity);

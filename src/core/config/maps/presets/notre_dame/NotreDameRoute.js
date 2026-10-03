@@ -17,10 +17,11 @@ import {
     CROSSING_CENTRE,
 } from './NotreDameStructure.js';
 
-// Middle of the slot between the south apse flyer and the central buttress (z -5.75 .. -2.75
-// at route height). Arcade walls see the wings, and the widest factory ship spans 2.7 world
-// units to each side, so only the middle clears; z = -5 lost ship5 and the manta on the flyer.
-const APSE_SLOT_Z = -4.125;
+// The existing east apse bore is centred on the nave axis; guidance keeps both selected lanes
+// inside it while the checkpoint graph remains compact.
+const APSE_BORE_Y = GROUND + 27;
+const APSE_BORE_Z = 4;
+const APSE_ROUTE_Z = 4;
 
 const NOTRE_DAME_CHECKPOINTS = [
     { id: 'CP01', type: 'entry', pos: [-196, GROUND + 14, 0], radius: 7.2, forward: [1, 0, 0] },
@@ -112,39 +113,32 @@ const NOTRE_DAME_CHECKPOINTS = [
         nextIds: ['CP11_APSE_EXIT'],
         params: { label: 'Umgang niedrig', height: 'low', color: 0x4da6ff },
     },
-    // Both branch choices rejoin at an authored exit ring. The alias lets the ambulatory branch
-    // meet the nave flight line at its lower east-end opening without asking it to cross the apse.
     {
         id: 'CP11_APSE_EXIT',
         type: 'apse_exit',
-        pos: [72, GROUND + 22, -3],
+        pos: [68, GROUND + 26, APSE_ROUTE_Z],
         radius: 4.8,
         forward: [1, 0, 0],
         nextIds: ['CP11_APSE_APPROACH'],
     },
     {
         id: 'CP11_APSE_EXIT_AMBULATORY',
-        aliasOf: 'CP11_APSE_EXIT',
         type: 'apse_exit_ambulatory',
-        // Kept 2 units west of the south choir flyer (x 75 at this height): at x = 74 every
-        // factory ship clipped it while crossing the ring centre. Lower would sit in the
-        // ambulatory roof box (top y 31.1).
-        pos: [73, GROUND + 24, -21],
+        aliasOf: 'CP11_APSE_EXIT',
+        pos: [60, GROUND + 8, 0],
         radius: 4.2,
         forward: [1, 0, 0],
     },
-    // This common turn point lines the aircraft up with the east bore before the CP12 plane.
     {
         id: 'CP11_APSE_APPROACH',
         type: 'apse_approach',
-        pos: [80.6, GROUND + 22, APSE_SLOT_Z],
+        pos: [80, GROUND + 26, APSE_ROUTE_Z],
         radius: 2.4,
         forward: [1, 0, 0],
         nextIds: ['CP12'],
     },
-    // The ring sits in the east-end bore, offset beside the central apse buttress. Its full
-    // approach crosses the actual opening instead of cutting through the buttress or vault.
-    { id: 'CP12', type: 'apse_merge', pos: [86, GROUND + 22, APSE_SLOT_Z], radius: 5.4, forward: [1, 0, 0] },
+    // CP12's forward plane crosses the existing east bore, whose opening is centred on the nave axis.
+    { id: 'CP12', type: 'apse_merge', pos: [86, APSE_BORE_Y, APSE_BORE_Z], radius: 5.4, forward: [1, 0, 0] },
     // Both rings stay in the requested 46-61 m height band and above the hanging bells.
     { id: 'CP13', type: 'south_belfry', pos: [-83, GROUND + 57 * 1.4, 20.3], radius: 3.4, forward: [-0.67, 0.34, -0.62] },
     { id: 'CP14', type: 'north_belfry', pos: [-83, GROUND + 61 * 1.4, -20.3], radius: 3.4, forward: [0.78, 0.22, -0.61] },
@@ -179,4 +173,17 @@ const NOTRE_DAME_PARCOURS_RULES = {
     showGhost: true,
 };
 
-export { NOTRE_DAME_CHECKPOINTS, NOTRE_DAME_FINISH, NOTRE_DAME_PARCOURS_RULES };
+const NOTRE_DAME_GUIDANCE_PATHS = [
+    {
+        branchCheckpointId: 'CP11_CHOIR',
+        endCheckpointId: 'CP12',
+        points: [[52, GROUND + 30, 0], [60, GROUND + 30, 0], [64, GROUND + 28, 2], [68, GROUND + 26, APSE_ROUTE_Z], [72, GROUND + 26, APSE_ROUTE_Z], [76, GROUND + 26, APSE_ROUTE_Z], [80, GROUND + 26, APSE_ROUTE_Z], [82, GROUND + 26, APSE_ROUTE_Z], [84, GROUND + 27, APSE_BORE_Z], [86, GROUND + 27, APSE_BORE_Z], [94, GROUND + 27, APSE_BORE_Z]],
+    },
+    {
+        branchCheckpointId: 'CP11_AMBULATORY',
+        endCheckpointId: 'CP12',
+        points: [[52, AISLE_RUN, -19.6], [53, 17, -8.6], [54, 18, 2.4], [57, 18, 3], [60, AISLE_RUN, 0], [62, 20, 0], [64, 24, 0], [68, 26, 0], [72, 28, 0], [76, 32, 2], [80, GROUND + 26, APSE_ROUTE_Z], [82, GROUND + 26, APSE_ROUTE_Z], [84, GROUND + 27, APSE_BORE_Z], [86, GROUND + 27, APSE_BORE_Z], [94, GROUND + 27, APSE_BORE_Z]],
+    },
+];
+
+export { NOTRE_DAME_CHECKPOINTS, NOTRE_DAME_FINISH, NOTRE_DAME_PARCOURS_RULES, NOTRE_DAME_GUIDANCE_PATHS };

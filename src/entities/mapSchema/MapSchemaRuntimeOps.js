@@ -67,11 +67,24 @@ function mapParcoursToRuntime(parcours, invScale) {
     if (finish) {
         finish.type = 'finish';
     }
+    const guidancePaths = Array.isArray(parcours.guidancePaths)
+        ? parcours.guidancePaths.map((path) => ({
+            branchCheckpointId: path.branchCheckpointId,
+            endCheckpointId: path.endCheckpointId,
+            points: path.points.map((point) => scalePosArray(point, invScale)),
+        }))
+        : [];
 
     return {
         enabled: true,
         routeId: typeof parcours.routeId === 'string' ? parcours.routeId : 'custom_route_v1',
         checkpoints,
+        guidancePaths,
+        guidanceBranchCheckpointIds: Array.isArray(parcours.guidanceBranchCheckpointIds)
+            ? [...parcours.guidanceBranchCheckpointIds]
+            : [],
+        guidancePathWindows: Array.isArray(parcours.guidancePathWindows) ? parcours.guidancePathWindows.map((window) => ({ ...window })) : [],
+        guidanceRequired: parcours.guidanceRequired === true,
         rules: {
             ordered: parcours.rules?.ordered !== false,
             bidirectionalCheckpoints: parcours.rules?.bidirectionalCheckpoints !== false,

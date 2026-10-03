@@ -5,6 +5,7 @@ import {
     RING_STATE_PASSED,
 } from '../CheckpointRingMeshFactory.js';
 import { SETTINGS_LIMITS } from '../../../shared/contracts/SettingsRuntimeContract.js';
+import { findParcoursGuidanceWaypoint, isParcoursGuidanceRequiredAfterBranch, resolveActiveParcoursGuidance } from '../../../shared/utils/ParcoursGuidance.js';
 
 const TRIGGER_PULSE_DURATION_MS = 300;
 const TRIGGER_FLASH_ATTACK_MS = 65;
@@ -58,6 +59,13 @@ export class CheckpointRingRuntime {
         this._guidanceTargetChangedAtMs = 0;
         this._guidanceBestDistance = Infinity;
         this._guidanceLastProgressMs = 0;
+        this._guidancePathKey = '';
+        this._guidanceWaypointIndex = -1;
+        this._guidanceWaypointTarget = {
+            checkpointId: 'guidance-waypoint',
+            pos: { x: 0, y: 0, z: 0 },
+            mesh: null,
+        };
     }
 
     setProgressProvider(fn) {
@@ -101,6 +109,8 @@ export class CheckpointRingRuntime {
         this._prevNextIndex = -1;
         this._prevCompleted = false;
         this._clockMs = 0;
+        this._guidancePathKey = '';
+        this._guidanceWaypointIndex = -1;
         this._resetGuidance();
     }
 
@@ -222,6 +232,8 @@ export class CheckpointRingRuntime {
         this._guidanceTargetChangedAtMs = 0;
         this._guidanceBestDistance = Infinity;
         this._guidanceLastProgressMs = 0;
+        this._guidancePathKey = '';
+        this._guidanceWaypointIndex = -1;
         const rings = Array.isArray(this.arena?.checkpointRings) ? this.arena.checkpointRings : [];
         for (const entry of rings) this._hideGuidanceMotifs(entry);
     }
@@ -245,6 +257,7 @@ export class CheckpointRingRuntime {
         const targets = this._guidanceTargets;
         targets.length = 0;
         view.pulse = 0;
+        let guidanceChanged = false;
         if (!player?.position || factor <= 0 || source?.active !== true) {
             view.active = false;
             view.intensity = factor;
@@ -252,21 +265,54 @@ export class CheckpointRingRuntime {
             this._previousGuidanceTargets.length = 0;
             this._guidanceTargetChangedAtMs = 0;
             this._guidanceBestDistance = Infinity;
+            this._guidancePathKey = '';
+            this._guidanceWaypointIndex = -1;
             for (const entry of rings) this._hideGuidanceMotifs(entry);
             return;
         }
 
-        for (const entry of rings) {
-            const isTarget = entry?.isFinish
-                ? guidanceSnapshot?.completed !== true && guidanceSnapshot?.nextCheckpointIndex >= source.totalCheckpoints
-                : entry?.mesh?.userData?.ringState === RING_STATE_NEXT;
-            if (!isTarget || !entry?.pos) {
-                this._hideGuidanceMotifs(entry);
-                continue;
+        const guidance = resolveActiveParcoursGuidance(source?.route, guidanceSnapshot);
+        if (guidance) {
+            const waypointIndex = findParcoursGuidanceWaypoint(guidance.points, player.position);
+            const waypoint = guidance.points[waypointIndex];
+            if (waypoint) {
+                const target = this._guidanceWaypointTarget;
+                target.checkpointId = `${guidance.endCheckpointId}:guidance`;
+                target.pos.x = waypoint[0];
+                target.pos.y = waypoint[1];
+                target.pos.z = waypoint[2];
+                const endRing = rings.find((entry) => entry.checkpointId === guidance.endCheckpointId) || null;
+                target.mesh = endRing?.mesh || null;
+                for (const entry of rings) {
+                    if (entry !== endRing) this._hideGuidanceMotifs(entry);
+                }
+                targets.push(target);
+                const pathKey = `${guidance.branchCheckpointId}:${guidance.endCheckpointId}`;
+                guidanceChanged = pathKey !== this._guidancePathKey || waypointIndex !== this._guidanceWaypointIndex;
+                this._guidancePathKey = pathKey;
+                this._guidanceWaypointIndex = waypointIndex;
             }
-            targets.push(entry);
+        } else if (isParcoursGuidanceRequiredAfterBranch(source?.route, guidanceSnapshot)) {
+            if (this._guidancePathKey) guidanceChanged = true;
+            this._guidancePathKey = '';
+            this._guidanceWaypointIndex = -1;
+            for (const entry of rings) this._hideGuidanceMotifs(entry);
+        } else {
+            if (this._guidancePathKey) guidanceChanged = true;
+            this._guidancePathKey = '';
+            this._guidanceWaypointIndex = -1;
+            for (const entry of rings) {
+                const isTarget = entry?.isFinish
+                    ? guidanceSnapshot?.completed !== true && guidanceSnapshot?.nextCheckpointIndex >= source.totalCheckpoints
+                    : entry?.mesh?.userData?.ringState === RING_STATE_NEXT;
+                if (!isTarget || !entry?.pos) {
+                    this._hideGuidanceMotifs(entry);
+                    continue;
+                }
+                targets.push(entry);
+            }
         }
-        let targetChanged = targets.length !== this._previousGuidanceTargets.length;
+        let targetChanged = guidanceChanged || targets.length !== this._previousGuidanceTargets.length;
         for (let i = 0; i < targets.length; i += 1) {
             if (targets[i] !== this._previousGuidanceTargets[i]) targetChanged = true;
             this._previousGuidanceTargets[i] = targets[i];
