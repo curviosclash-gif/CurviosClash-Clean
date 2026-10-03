@@ -78,6 +78,7 @@ function createHarness({
     sessionSnapshot = null,
     arcadeSurface = null,
     withoutKernel = false,
+    now,
 } = {}) {
     const input = createContinueInput();
     const calls = { returnToMenu: 0, restartRound: 0, startMatch: 0 };
@@ -112,6 +113,7 @@ function createHarness({
             startMatch() { calls.startMatch += 1; },
         },
         getSessionSnapshot: () => state.sessionSnapshot,
+        now: typeof now === 'function' ? now : () => null,
     });
 
     const harness = {
@@ -548,4 +550,58 @@ test('the tick system reports the lock for the result board', () => {
     assert.equal(lockState.total, MATCH_END_INPUT_LOCK_SECONDS, 'the board needs the full duration');
     assert.ok(lockState.remaining > 0 && lockState.remaining < MATCH_END_INPUT_LOCK_SECONDS,
         'the board needs the remaining lock time');
+});
+
+test('the match-end lock uses monotonic elapsed time without changing simulation dt', () => {
+    let now = 10;
+    const harness = createHarness({ now: () => now });
+    harness.kernel.signalMatchEnd();
+    const observedDeltas = [];
+    const tick = harness.adapter.tick.bind(harness.adapter);
+    harness.adapter.tick = (dt, frameId, inputLockDt) => {
+        observedDeltas.push([dt, inputLockDt]);
+        return tick(dt, frameId, inputLockDt);
+    };
+
+    harness.system.updateMatchEnd(0);
+    assert.deepEqual(observedDeltas.at(-1), [0, 0]);
+    assert.equal(harness.kernel.getInputLockState().remaining, MATCH_END_INPUT_LOCK_SECONDS);
+    assert.equal(harness.system.getRoundEndInputLockState().remaining, MATCH_END_INPUT_LOCK_SECONDS);
+
+    now += 1.4;
+    harness.system.updateMatchEnd(0);
+    assert.equal(observedDeltas.at(-1)[0], 0, 'monotonic time must not change simulation dt');
+    assert.ok(Math.abs(observedDeltas.at(-1)[1] - 1.4) < 1e-9,
+        'the kernel receives only the elapsed lock delta');
+    assert.ok(harness.kernel.getInputLockState().remaining > 0
+        && harness.kernel.getInputLockState().remaining < 0.11);
+    assert.ok(harness.system.getRoundEndInputLockState().remaining > 0
+        && harness.system.getRoundEndInputLockState().remaining < 0.11);
+
+    now += 0.11;
+    harness.system.updateMatchEnd(0);
+    harness.input.press('Continue');
+    harness.system.updateMatchEnd(0);
+    assert.equal(harness.calls.startMatch, 1, 'the kernel must accept the press after elapsed lock time');
+});
+
+test('the controller match-end lock uses monotonic elapsed time too', () => {
+    let now = 3;
+    const harness = createHarness({ withoutKernel: true, now: () => now });
+    harness.system.updateMatchEnd(0);
+    now += MATCH_END_INPUT_LOCK_SECONDS;
+    harness.system.updateMatchEnd(0);
+    harness.input.press('Continue');
+    harness.system.updateMatchEnd(0);
+
+    assert.equal(harness.calls.startMatch, 1, 'controller fallback must share the same elapsed-time lock');
+});
+
+test('a missing monotonic clock falls back to match-end dt', () => {
+    const harness = createHarness({ now: () => null });
+    harness.kernel.signalMatchEnd();
+    harness.system.updateMatchEnd(0.5);
+
+    assert.equal(harness.kernel.getInputLockState().remaining, 1);
+    assert.equal(harness.system.getRoundEndInputLockState().remaining, 1);
 });

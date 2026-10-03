@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 
 import { FIVE_PORTALS_MAPS, FIVE_PORTALS_RECORD_KEY, FIVE_PORTALS_RECORD_VERSION } from '../src/shared/contracts/FivePortalsContract.js';
 import {
@@ -11,6 +10,7 @@ import {
 } from '../src/shared/contracts/PortalChainContract.js';
 import { normalizeArcadeRunSettings } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 import { FivePortalsRuntime } from '../src/core/arcade/FivePortalsRuntime.js';
+import { bindArcadeSpecialStartButtons } from '../src/ui/arcade/ArcadeMenuSpecialStartOps.js';
 
 const SKY_LADDER_MAP_KEYS = ['sky_ladder_abyss', 'sky_ladder_foundry', 'sky_ladder_storm', 'sky_ladder_star'];
 
@@ -107,12 +107,24 @@ test('running Himmelsleiter never touches the Fünf-Portale record key', () => {
     assert.ok(seenKeys.every((key) => key !== FIVE_PORTALS_RECORD_KEY), 'sky_ladder must never read or write the five_portals record key');
 });
 
-test('the arcade menu wires a Himmelsleiter start button alongside Fünf Portale', () => {
-    const domSource = readFileSync(new URL('../src/ui/arcade/ArcadeMenuSurfaceDom.js', import.meta.url), 'utf8');
-    assert.match(domSource, /Himmelsleiter/, 'the DOM builder creates a Himmelsleiter start option');
-    assert.match(domSource, /startSkyLadderButton/);
+test('the registered Himmelsleiter start button launches its first chain map', () => {
+    const button = {};
+    const listeners = new Map();
+    let started = null;
+    bindArcadeSpecialStartButtons(
+        { startSkyLadderButton: button },
+        (node, type, listener) => { if (node === button && type === 'click') listeners.set(node, listener); },
+        (...args) => { started = args; },
+        0,
+        { hasUnsupportedPlayerCount: () => false, save: () => [], hasMissingActiveProfile: () => false },
+        {},
+    );
 
-    const surfaceSource = readFileSync(new URL('../src/ui/arcade/ArcadeMenuSurface.js', import.meta.url), 'utf8');
-    assert.match(surfaceSource, /startSkyLadderButton/, 'the surface binds a click handler for the Himmelsleiter button');
-    assert.match(surfaceSource, /sky_ladder/);
+    assert.ok(listeners.has(button), 'the Himmelsleiter button receives its click handler');
+    listeners.get(button)();
+    assert.deepEqual(started, [
+        'five_portals',
+        { mapKey: SKY_LADDER_MAP_KEYS[0], numBots: 0 },
+        'sky_ladder',
+    ]);
 });
