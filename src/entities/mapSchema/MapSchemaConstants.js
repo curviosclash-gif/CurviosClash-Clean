@@ -19,6 +19,8 @@ export const MAP_SCHEMA_COLLECTION_LIMITS = Object.freeze({
     botSpawns: 128,
     flagObjectives: 6,
     parcoursCheckpoints: 1024,
+    parcoursGuidancePaths: 16,
+    parcoursGuidancePoints: 128,
     checkpointNextIds: 64,
     // One truth: the contract caps how many rooms a map may hold, the schema refuses the rest.
     secretRooms: SECRET_ROOM_LIMITS.maxRooms,

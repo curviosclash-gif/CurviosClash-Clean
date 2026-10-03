@@ -21,6 +21,7 @@ import {
     NOTRE_DAME_CHECKPOINTS,
     NOTRE_DAME_FINISH,
     NOTRE_DAME_PARCOURS_RULES,
+    NOTRE_DAME_GUIDANCE_PATHS,
 } from './NotreDameRoute.js';
 
 const MAP_SIZE = [460, 150, 320];
@@ -169,6 +170,7 @@ export const NOTRE_DAME_MAPS = {
             rules: NOTRE_DAME_PARCOURS_RULES,
             checkpoints: NOTRE_DAME_CHECKPOINTS,
             finish: NOTRE_DAME_FINISH,
+            guidancePaths: NOTRE_DAME_GUIDANCE_PATHS,
         },
     },
 

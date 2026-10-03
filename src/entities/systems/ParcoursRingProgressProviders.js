@@ -1,5 +1,5 @@
 export function configureParcoursRingProgressProviders(runtime, system, players) {
-    const view = { active: false, player: null, totalCheckpoints: 0 };
+    const view = { active: false, player: null, totalCheckpoints: 0, route: null };
     runtime?.setProgressProvider?.(() => {
         const playerIndex = system._resolveProgressPlayerIndex(system.entityManager?.players || players);
         return system.getPlayerProgressSnapshot(playerIndex);
@@ -9,6 +9,7 @@ export function configureParcoursRingProgressProviders(runtime, system, players)
         view.active = system.entityManager?.activeGameMode === 'ARCADE';
         view.player = (system.entityManager?.players || players)?.[playerIndex] || null;
         view.totalCheckpoints = system._route?.totalCheckpoints ?? 0;
+        view.route = system._route;
         return view;
     });
 }

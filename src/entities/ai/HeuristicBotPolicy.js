@@ -15,6 +15,7 @@ import { clamp } from '../../shared/utils/MathOps.js';
 import { applyHeuristicClassicBehavior } from './HeuristicClassicTacticsOps.js';
 import { applyHeuristicHuntBehavior } from './HeuristicHuntTacticsOps.js';
 import { HEURISTIC_DIFFICULTIES, hasYaw, normalizeDifficultyName, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveEffectiveHeuristicProfile, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex } from './HeuristicBotPolicyOps.js';
+import { findParcoursGuidanceWaypoint, isParcoursGuidanceRequiredAfterBranch, resolveActiveParcoursGuidance } from '../../shared/utils/ParcoursGuidance.js';
 import {
     applyHeuristicObstacleAvoidance,
     applyHeuristicSafetyArbiter,
@@ -182,12 +183,20 @@ export class HeuristicBotPolicy {
         const progress = this._resolveParcoursProgressSnapshot(runtimeContext, player);
         const route = this._resolveParcoursRouteSnapshot(runtimeContext, player);
         if (route?.enabled) {
+            const guidance = resolveActiveParcoursGuidance(route, progress);
+            if (guidance && player?.position) {
+                const waypointIndex = findParcoursGuidanceWaypoint(guidance.points, player.position);
+                if (waypointIndex >= 0 && readVectorLikePosition(guidance.points[waypointIndex], out)) return true;
+            }
+            if (isParcoursGuidanceRequiredAfterBranch(route, progress)) return false;
             const nextIndex = Math.max(0, Math.trunc(Number(progress?.nextCheckpointIndex) || 0));
             if (nextIndex < Number(route.totalCheckpoints || 0)) {
                 const checkpoints = Array.isArray(route.checkpoints) ? route.checkpoints : [];
-                for (let i = 0; i < checkpoints.length; i += 1) {
-                    const checkpoint = checkpoints[i];
-                    if (Number(checkpoint?.routeIndex) !== nextIndex) continue;
+                for (const checkpoint of checkpoints) {
+                    const isExpected = Array.isArray(progress?.expectedCheckpointIds)
+                        ? progress.expectedCheckpointIds.includes(checkpoint?.id)
+                        : Number(checkpoint?.routeIndex) === nextIndex;
+                    if (!isExpected) continue;
                     if (readVectorLikePosition(checkpoint.pos, out)) return true;
                 }
             }

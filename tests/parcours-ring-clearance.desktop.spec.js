@@ -12,6 +12,7 @@ import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { resolveGLBColliderMode } from '../src/entities/mapSchema/MapSchemaGlbOps.js';
+import { buildRouteFromParcours } from '../src/entities/systems/ParcoursProgressUtils.js';
 
 // Up to 15 s: a travelling gap (Notre-Dame hoarding) frees its ring only ~10 % of the time.
 const SAMPLE_COUNT = 30;
@@ -83,7 +84,7 @@ test('notre_dame: both CP11 branches reach CP12 through the east apse opening', 
     await startMap(page, 'notre_dame');
 
     const map = MAP_PRESET_CATALOG.notre_dame;
-    const route = map.parcours;
+    const route = buildRouteFromParcours(map.parcours);
     const cp12 = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP12');
     const choir = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP11_CHOIR');
     const ambulatory = route.checkpoints.find((checkpoint) => checkpoint.id === 'CP11_AMBULATORY');
@@ -97,22 +98,10 @@ test('notre_dame: both CP11 branches reach CP12 through the east apse opening', 
     expect(ambulatoryExit).toBeTruthy();
     expect(apseApproach).toBeTruthy();
 
-    const approach = cp12.pos.map((value, axis) => value - cp12.forward[axis] * cp12.radius);
-    const exit = cp12.pos.map((value, axis) => value + cp12.forward[axis] * cp12.radius);
-    const apseWallFace = [86.5, cp12.pos[1], cp12.pos[2]];
-    const outside = [94, cp12.pos[1], cp12.pos[2]];
-    const routes = [
-        {
-            id: 'CP11_CHOIR',
-            points: [choir.pos, choirExit.pos, apseApproach.pos, approach, cp12.pos,
-                apseWallFace, exit, outside],
-        },
-        {
-            id: 'CP11_AMBULATORY',
-            points: [ambulatory.pos, ambulatoryExit.pos, apseApproach.pos, approach,
-                cp12.pos, apseWallFace, exit, outside],
-        },
-    ];
+    const routes = route.guidancePaths.map((guidance) => ({
+        id: guidance.branchCheckpointId,
+        points: guidance.points,
+    }));
 
     const collisions = await page.evaluate(({ routePaths, scale, shipRadius }) => {
         const arena = window.GAME_INSTANCE?.arena;

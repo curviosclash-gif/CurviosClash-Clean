@@ -105,6 +105,10 @@ export function buildRouteSnapshot(route) {
                 validMerge: entry.validMerge === true,
             }))
             : [],
+        guidancePaths: Array.isArray(route.guidancePaths) ? route.guidancePaths : [],
+        guidanceBranchCheckpointIds: Array.isArray(route.guidanceBranchCheckpointIds) ? route.guidanceBranchCheckpointIds : [],
+        guidancePathWindows: Array.isArray(route.guidancePathWindows) ? route.guidancePathWindows : [],
+        guidanceRequired: route.guidanceRequired === true,
         finish: route.finish ? {
             id: route.finish.id,
             type: route.finish.type,
