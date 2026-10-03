@@ -5,7 +5,9 @@ import { arcadeShipsTouch, resolveArcadeArenaCollision, resolveArcadeTrailCollis
 // Broadphase slack for vehicle-vs-vehicle checks: the hitbox sphere is much smaller than
 // the vehicle body, so the sphere test only preselects and the oriented box decides.
 const CRASH_BROADPHASE_SCALE = 3;
-const CRASH_SWEEP_MAX_STEPS = 16;
+// Maximum boost, speed pickup, 50% dive bonus and map pushes need 34 samples
+// for the smallest scaled vehicle (radius 0.48). Ordinary moves use fewer.
+const CRASH_SWEEP_MAX_STEPS = 48;
 const DANDELION_SEED_DAMAGE = 1;
 const DANDELION_SEED_BUMP = Object.freeze({
     duration: 0.35,

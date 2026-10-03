@@ -19,7 +19,7 @@ const FORWARD = new THREE.Vector3(0, 0, -1);
 
 function makePlayer(overrides = {}) {
     return {
-        entityRuntimeConfig: DEFAULT_ENTITY_RUNTIME_CONFIG,
+        entityRuntimeConfig: { ...DEFAULT_ENTITY_RUNTIME_CONFIG, PLAYER: { ...DEFAULT_ENTITY_RUNTIME_CONFIG.PLAYER, GRAVITY_STRENGTH: 10 } },
         turnSpeed: 2,
         rollSpeed: 2,
         baseSpeed: 10,
@@ -76,6 +76,23 @@ test('altitude speed reaches the ±10% endpoints and stays at normal speed horiz
     assert.ok(Math.abs(climb.speed - 9) < 1e-5, `climb speed ${climb.speed}`);
     assert.ok(dive.altitudeSpeedFactor <= 1.1 && dive.altitudeSpeedFactor >= 0.9);
     assert.ok(climb.altitudeSpeedFactor <= 1.1 && climb.altitudeSpeedFactor >= 0.9);
+});
+
+test('gravity strength supports off, default 20%, and maximum 50% without changing steering', () => {
+    for (const [strength, change] of [[0, 0], [20, 0.2], [50, 0.5]]) {
+        for (const vertical of [-1, 1]) {
+            const player = makePlayer({
+                entityRuntimeConfig: { ...DEFAULT_ENTITY_RUNTIME_CONFIG, PLAYER: { ...DEFAULT_ENTITY_RUNTIME_CONFIG.PLAYER, GRAVITY_STRENGTH: strength } },
+                altitudeSpeedFactor: 1.1,
+            });
+            pointForward(player, new THREE.Vector3(0, vertical, 0));
+            const orientation = player.quaternion.clone();
+            for (let frame = 0; frame < 240; frame += 1) step(player, 1 / 60);
+            assert.ok(Math.abs(player.speed / player.baseSpeed - (1 - vertical * change)) < 1e-5);
+            assert.ok(player.quaternion.angleTo(orientation) < 1e-7);
+            if (strength === 0) assert.equal(player.altitudeSpeedFactor, 1);
+        }
+    }
 });
 
 test('a 30 degree climb applies a 5% target and smoothly returns to level speed', () => {
@@ -201,7 +218,7 @@ test('network snapshots preserve and clamp altitude speed state while accepting 
     };
     const snapshot = serializePlayer(host);
     assert.equal(snapshot.altitudeSpeedFactor, 1.075);
-    assert.equal(serializePlayer({ ...host, altitudeSpeedFactor: 3 }).altitudeSpeedFactor, 1.1);
+    assert.equal(serializePlayer({ ...host, altitudeSpeedFactor: 3 }).altitudeSpeedFactor, 1.5);
     for (const invalid of [null, '', undefined, Number.NaN, Number.POSITIVE_INFINITY]) {
         assert.equal(normalizeAltitudeSpeedFactor(invalid), 1);
     }

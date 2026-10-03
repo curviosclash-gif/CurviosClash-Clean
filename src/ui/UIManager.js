@@ -507,6 +507,8 @@ export class UIManager {
         ui.speedLabel.textContent = `${gp.speed} m/s`;
         syncRangeInput(ui.turnSlider, gp.turnSensitivity, runtimeLimits.gameplay.turnSensitivity, gp.turnSensitivity);
         ui.turnLabel.textContent = gp.turnSensitivity.toFixed(1);
+        syncRangeInput(ui.gravitySlider, gp.gravityStrength, runtimeLimits.gameplay.gravityStrength, gp.gravityStrength);
+        if (ui.gravityLabel) ui.gravityLabel.textContent = `${gp.gravityStrength} %`;
         syncRangeInput(ui.planeSizeSlider, gp.planeScale, runtimeLimits.gameplay.planeScale, gp.planeScale);
         ui.planeSizeLabel.textContent = gp.planeScale.toFixed(1);
         syncRangeInput(ui.trailWidthSlider, gp.trailWidth, runtimeLimits.gameplay.trailWidth, gp.trailWidth);

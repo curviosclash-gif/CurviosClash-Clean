@@ -3,6 +3,7 @@
 // ============================================
 
 import { HUNT_CONFIG } from '../../hunt/HuntConfig.js';
+import { DEFAULT_GRAVITY_STRENGTH } from '../../shared/contracts/AltitudeSpeedContract.js';
 import { createPickupTypeConfigMap } from '../../shared/contracts/PickupTypeConfigContract.js';
 import { TEAM_COLORS, TEAM_IDS } from '../../shared/contracts/TeamCombatContract.js';
 
@@ -30,6 +31,7 @@ export const CONFIG_SECTIONS = {
     PLAYER: {
         SPEED: 45,
         TURN_SPEED: 3.4,
+        GRAVITY_STRENGTH: DEFAULT_GRAVITY_STRENGTH,
         ROLL_SPEED: 3.0,
         BOOST_MULTIPLIER: 2.3,
         BOOST_DURATION: 4.0,

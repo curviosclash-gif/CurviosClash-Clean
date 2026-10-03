@@ -1,15 +1,14 @@
 import { resolveArcadeDailySettings, ARCADE_DAILY_RULES_VERSION } from '../shared/contracts/ArcadeDailyRulesContract.js';
 import { normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
 import { CONFIG, CONFIG_BASE } from './Config.js';
+import { DEFAULT_GRAVITY_STRENGTH } from '../shared/contracts/AltitudeSpeedContract.js';
 import { GAME_MODE_TYPES, isHuntMode, resolveActiveGameMode } from '../hunt/HuntMode.js';
 import { BOT_POLICY_TYPES, resolveMatchBotPolicyType } from '../entities/ai/BotPolicyTypes.js';
 import { clampSettingValue, createControlBindingsSnapshot } from '../shared/contracts/SettingsRuntimeContract.js';
 import { normalizeSessionType } from '../composition/core-ui/CoreSettingsPorts.js';
 import {
-    ARCADE_GHOST_DUEL_MODES,
-    isArcadeGhostDuelPlaybackEnabled,
-    normalizeArcadeGhostDuelMode,
-    normalizeArcadeGhostTrailCollisionEnabled,
+    ARCADE_GHOST_DUEL_MODES, isArcadeGhostDuelPlaybackEnabled,
+    normalizeArcadeGhostDuelMode, normalizeArcadeGhostTrailCollisionEnabled,
 } from '../shared/contracts/ArcadeGhostDuelContract.js';
 import {
     hasExplicitArcadeSeed,
@@ -347,6 +346,7 @@ export function createRuntimeConfigSnapshot(settings, {
         player: {
             speed: clampSettingValue(gameplaySource.speed, runtimeLimits.gameplay.speed, playerDefaults.SPEED),
             turnSpeed: clampSettingValue(gameplaySource.turnSensitivity, runtimeLimits.gameplay.turnSensitivity, playerDefaults.TURN_SPEED),
+            gravityStrength: clampSettingValue(gameplaySource.gravityStrength, runtimeLimits.gameplay.gravityStrength, DEFAULT_GRAVITY_STRENGTH),
             modelScale: clampSettingValue(gameplaySource.planeScale, runtimeLimits.gameplay.planeScale, playerDefaults.MODEL_SCALE),
             autoRoll: typeof source.autoRoll === 'boolean' ? source.autoRoll : !!playerDefaults.AUTO_ROLL,
             invertPitch: {
@@ -487,6 +487,7 @@ export function applyRuntimeConfigCompatibility(runtimeConfig, targetConfig = CO
 
     nextConfig.PLAYER.SPEED = runtimeConfig.player.speed;
     nextConfig.PLAYER.TURN_SPEED = runtimeConfig.player.turnSpeed;
+    nextConfig.PLAYER.GRAVITY_STRENGTH = runtimeConfig.player.gravityStrength;
     nextConfig.PLAYER.MODEL_SCALE = runtimeConfig.player.modelScale;
     nextConfig.PLAYER.AUTO_ROLL = runtimeConfig.player.autoRoll;
     nextConfig.PLAYER.VEHICLES = {

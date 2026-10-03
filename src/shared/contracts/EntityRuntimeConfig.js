@@ -1,5 +1,6 @@
 import { normalizeHuntWinCondition } from './HuntWinConditionContract.js';
 import { normalizeTeamObjectiveType } from './FlagObjectiveContract.js';
+import { DEFAULT_GRAVITY_STRENGTH } from './AltitudeSpeedContract.js';
 
 function cloneObject(value, fallback = {}) {
     if (!value || typeof value !== 'object') return { ...fallback };
@@ -23,6 +24,7 @@ export const DEFAULT_ENTITY_RUNTIME_CONFIG = Object.freeze({
     PLAYER: Object.freeze({
         SPEED: 18,
         TURN_SPEED: 2.2,
+        GRAVITY_STRENGTH: DEFAULT_GRAVITY_STRENGTH,
         ROLL_SPEED: 2.0,
         BOOST_DURATION: 1,
         BOOST_COOLDOWN: 1,
@@ -153,6 +155,7 @@ export function createEntityRuntimeConfig(runtimeConfig = null, baseConfig = nul
     if (runtimeConfig?.player) {
         contract.PLAYER.SPEED = toFiniteNumber(runtimeConfig.player.speed, contract.PLAYER.SPEED);
         contract.PLAYER.TURN_SPEED = toFiniteNumber(runtimeConfig.player.turnSpeed, contract.PLAYER.TURN_SPEED);
+        contract.PLAYER.GRAVITY_STRENGTH = toFiniteNumber(runtimeConfig.player.gravityStrength, contract.PLAYER.GRAVITY_STRENGTH);
         contract.PLAYER.MODEL_SCALE = toFiniteNumber(runtimeConfig.player.modelScale, contract.PLAYER.MODEL_SCALE);
         contract.PLAYER.AUTO_ROLL = runtimeConfig.player.autoRoll === true;
         const defaultVehicleId = String(

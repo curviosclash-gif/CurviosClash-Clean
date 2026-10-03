@@ -145,6 +145,8 @@ export function createGameUiRefs(doc = document) {
         speedLabel: doc.getElementById('speed-label'),
         turnSlider: doc.getElementById('turn-slider'),
         turnLabel: doc.getElementById('turn-label'),
+        gravitySlider: doc.getElementById('gravity-slider'),
+        gravityLabel: doc.getElementById('gravity-label'),
         planeSizeSlider: doc.getElementById('plane-size-slider'),
         planeSizeLabel: doc.getElementById('plane-size-label'),
         trailWidthSlider: doc.getElementById('trail-width-slider'),

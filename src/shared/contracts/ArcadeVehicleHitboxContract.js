@@ -16,8 +16,8 @@ export const ARCADE_HITBOX_SCALE = 0.9;
 export const ARCADE_HITBOX_MIN_THICKNESS = 0.25;
 export const ARCADE_HITBOX_MAX_BOXES = 24;
 export const ARCADE_PROBES_PER_BOX_MAX = 6;
-/** 192 covers the measured 167-sample worst case with the 1.1 dive speed bound. */
-export const ARCADE_SWEEP_MAX_STEPS = 192;
+/** Covers the maximum 50% dive bonus; the collision matrix verifies the required samples. */
+export const ARCADE_SWEEP_MAX_STEPS = 256;
 /**
  * Largest authored map push in u/s: a boost portal (forwardImpulse) overlapping a slingshot
  * (forwardImpulse + liftImpulse). The safety test scans every preset against it.

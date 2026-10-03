@@ -6,8 +6,7 @@ import {
 import { SETTINGS_LIMITS, clampSettingValue } from '../../shared/contracts/SettingsRuntimeContract.js';
 import { BOT_HEURISTIC_FIELD_HELP_METADATA, BOT_HEURISTIC_FIELD_LIMITS } from './BotHeuristicSettingsStudioContract.js';
 import {
-    collectPrimitiveLeafPaths,
-    deepCloneJson,
+    collectPrimitiveLeafPaths, deepCloneJson,
     deepMergeKnownShape,
     isPlainObject,
     readPathValue,
@@ -98,6 +97,7 @@ const DEFAULT_FIELD_LIMITS = Object.freeze({
     'baseSettings.hunt.deathmatchKillLimit': Object.freeze({ ...SETTINGS_LIMITS.hunt.deathmatchKillLimit, step: 1 }),
     'baseSettings.gameplay.speed': Object.freeze({ min: 0, max: 50, step: 0.1 }),
     'baseSettings.gameplay.turnSensitivity': Object.freeze({ ...SETTINGS_LIMITS.gameplay.turnSensitivity, step: 0.1 }),
+    'baseSettings.gameplay.gravityStrength': Object.freeze({ ...SETTINGS_LIMITS.gameplay.gravityStrength, step: 1 }),
     'baseSettings.gameplay.planeScale': Object.freeze({ ...SETTINGS_LIMITS.gameplay.planeScale, step: 0.05 }),
     'baseSettings.gameplay.trailWidth': Object.freeze({ ...SETTINGS_LIMITS.gameplay.trailWidth, step: 0.05 }),
     'baseSettings.gameplay.gapSize': Object.freeze({ ...SETTINGS_LIMITS.gameplay.gapSize, step: 0.01 }),
@@ -119,6 +119,7 @@ const DEFAULT_FIELD_LIMITS = Object.freeze({
     'configShare.winsNeeded': Object.freeze({ ...SETTINGS_LIMITS.session.winsNeeded, step: 1 }),
     'configShare.gameplay.speed': Object.freeze({ min: 0, max: 50, step: 0.1 }),
     'configShare.gameplay.turnSensitivity': Object.freeze({ ...SETTINGS_LIMITS.gameplay.turnSensitivity, step: 0.1 }),
+    'configShare.gameplay.gravityStrength': Object.freeze({ ...SETTINGS_LIMITS.gameplay.gravityStrength, step: 1 }),
     'configShare.gameplay.planeScale': Object.freeze({ ...SETTINGS_LIMITS.gameplay.planeScale, step: 0.05 }),
     'configShare.gameplay.trailWidth': Object.freeze({ ...SETTINGS_LIMITS.gameplay.trailWidth, step: 0.05 }),
     'configShare.gameplay.gapSize': Object.freeze({ ...SETTINGS_LIMITS.gameplay.gapSize, step: 0.01 }),

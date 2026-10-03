@@ -1,6 +1,6 @@
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import {
-    ALTITUDE_SPEED_CHANGE,
+    resolveAltitudeSpeedChange,
     ALTITUDE_SPEED_REMAINING_FRACTION,
     ALTITUDE_SPEED_SETTLE_SECONDS,
     normalizeAltitudeSpeedFactor,
@@ -102,10 +102,10 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
     // `motionDt` is the clock this vehicle steers and travels on. They differ only for
     // the player holding the slow-motion key; otherwise motionDt === dt.
     //
-    // Collision headroom includes the 1.1 dive multiplier: boost 45 * 2.3 * 1.1 =
-    // 113.85 u/s at motionDt (1/60)/0.4 = 4.74375 units per step, smallest radius 0.8:
-    //   wall sweep  ceil(4.74375 / 0.8)  = 6 steps, within CRASH_SWEEP_MAX_STEPS 16
-    //   trail sweep ceil(4.74375 / 1.36) = 4 steps, within the 12 step cap and below
+    // Collision headroom includes the maximum 1.5 dive multiplier: boost 45 * 2.3 * 1.5 =
+    // 155.25 u/s at motionDt (1/60)/0.4 = 6.46875 units per step, smallest radius 0.8:
+    //   wall sweep  ceil(6.46875 / 0.8)  = 9 steps, within CRASH_SWEEP_MAX_STEPS 16
+    //   trail sweep ceil(6.46875 / 1.36) = 5 steps, within the 12 step cap and below
     //               the 2 * 1.6 u search diameter.
     // Both sweeps therefore stay gap-free; no substepping and no raised cap needed.
     // Arcade part hitbox (player.arcadeHitbox) sweeps on its own proof instead, from the
@@ -147,16 +147,17 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
     }
 
     player._tmpVec.set(0, 0, -1).applyQuaternion(player.quaternion);
-    const altitudeSpeedDisabled = config.GAMEPLAY.PLANAR_MODE
+    const altitudeSpeedChange = resolveAltitudeSpeedChange(config.PLAYER.GRAVITY_STRENGTH);
+    const altitudeSpeedDisabled = altitudeSpeedChange === 0 || config.GAMEPLAY.PLANAR_MODE
         || isFourPlayerPlanarRuntime(player?.entityManager?.runtimeConfig)
         || player.waterSubmerged === true;
     if (altitudeSpeedDisabled) {
         player.altitudeSpeedFactor = 1;
     } else {
-        const currentFactor = normalizeAltitudeSpeedFactor(player.altitudeSpeedFactor);
+        const currentFactor = Math.max(1 - altitudeSpeedChange, Math.min(1 + altitudeSpeedChange, normalizeAltitudeSpeedFactor(player.altitudeSpeedFactor)));
         const targetFactor = Math.max(
-            1 - ALTITUDE_SPEED_CHANGE,
-            Math.min(1 + ALTITUDE_SPEED_CHANGE, 1 - player._tmpVec.y * ALTITUDE_SPEED_CHANGE),
+            1 - altitudeSpeedChange,
+            Math.min(1 + altitudeSpeedChange, 1 - player._tmpVec.y * altitudeSpeedChange),
         );
         const safeMotionDt = Number.isFinite(resolvedMotionDt) ? Math.max(0, resolvedMotionDt) : 0;
         const remainingFraction = Math.pow(ALTITUDE_SPEED_REMAINING_FRACTION, safeMotionDt / ALTITUDE_SPEED_SETTLE_SECONDS);

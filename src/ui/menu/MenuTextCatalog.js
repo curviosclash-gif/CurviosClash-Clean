@@ -126,6 +126,8 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level4.mobile.sensor_hz.label': 'Sensor-Hz anzeigen',
     'menu.level4.gameplay.speed.label': 'Geschwindigkeit:',
     'menu.level4.gameplay.turn.label': 'Lenkempfindlichkeit:',
+    'menu.level4.gameplay.gravity.label': 'Gravitationswirkung:',
+    'menu.level4.gameplay.gravity.help': 'Tempoeffekt beim Steigen und Sinken. 0 % schaltet ihn aus; 20 % ist Standard.',
     'menu.level4.gameplay.plane_size.label': 'Flugzeuggröße:',
     'menu.level4.gameplay.trail_width.label': 'Strahldicke:',
     'menu.level4.gameplay.gap_size.label': 'Lückengröße:',

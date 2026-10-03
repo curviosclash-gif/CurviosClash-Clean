@@ -99,8 +99,8 @@ test('arcade safety: worst case numbers from the real limits', () => {
     assert.equal(env.turnCapPct, 230);
     const worst = resolveArcadeMotionWorstCase(env);
     assert.ok(Math.abs(worst.stepDt - 1 / 24) < 1e-12, 'slow motion owner: 1/60 s at clock 0.4');
-    assert.ok(Math.abs(worst.specStepDistance - (45 * 2.2 * 2.3 * 1.1) / 24) < 1e-9, 'dive multiplier applies to capped speed');
-    assert.ok(Math.abs(worst.stepDistance - (45 * 2.2 * 2.3 * 1.1 * 1.6 + ARCADE_EXTERNAL_IMPULSE_MAX) / 24) < 1e-9, 'with dive speed, SPEED_UP, and map pushes');
+    assert.ok(Math.abs(worst.specStepDistance - (45 * 2.2 * 2.3 * 1.5) / 24) < 1e-9, 'maximum dive multiplier applies to capped speed');
+    assert.ok(Math.abs(worst.stepDistance - (45 * 2.2 * 2.3 * 1.5 * 1.6 + ARCADE_EXTERNAL_IMPULSE_MAX) / 24) < 1e-9, 'with maximum dive speed, SPEED_UP, and map pushes');
     assert.equal(env.rollCapPct, 200, 'roll: its own base 100 % + 100 points');
     assert.ok(Math.abs(worst.stepAngle - (Math.SQRT2 * 5 * 2.3 + 3 * 2.0) / 24) < 1e-9);
 });

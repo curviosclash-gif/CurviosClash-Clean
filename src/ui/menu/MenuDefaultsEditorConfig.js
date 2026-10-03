@@ -1,4 +1,5 @@
 import { HUNT_CONFIG } from '../../hunt/HuntConfig.js';
+import { DEFAULT_GRAVITY_STRENGTH } from '../../shared/contracts/AltitudeSpeedContract.js';
 import { DEFAULT_SHADOW_QUALITY } from '../../shared/contracts/ShadowQualityContract.js';
 import { DEFAULT_BLOOM_QUALITY } from '../../shared/contracts/BloomQualityContract.js';
 import { DEFAULT_GRAPHICS_QUALITY_SETTING } from '../../shared/contracts/GraphicsQualityContract.js';
@@ -81,6 +82,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         gameplay: {
             speed: 30,
             turnSensitivity: 3,
+            gravityStrength: DEFAULT_GRAVITY_STRENGTH,
             planeScale: 1.0,
             trailWidth: 0.6,
             trailLength: 5000,

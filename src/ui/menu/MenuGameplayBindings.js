@@ -315,6 +315,13 @@ export function setupMenuGameplayBindings(ctx) {
         queueInputSettingsChanged([keys.GAMEPLAY_TURN_SENSITIVITY]);
     });
 
+    bind(ui.gravitySlider, 'input', () => {
+        settings.gameplay.gravityStrength = clamp(
+            Math.round(Number(ui.gravitySlider.value)), gameplayLimits.gravityStrength.min, gameplayLimits.gravityStrength.max
+        );
+        queueInputSettingsChanged([keys.GAMEPLAY_GRAVITY_STRENGTH]);
+    });
+
     bind(ui.planeSizeSlider, 'input', () => {
         settings.gameplay.planeScale = clamp(
             parseFloat(ui.planeSizeSlider.value),
