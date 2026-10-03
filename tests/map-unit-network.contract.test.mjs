@@ -136,7 +136,8 @@ test('a snapshot retires only missing called bombers and preserves normal map un
     client.tank.root = normalUnitRoot;
     client.manager.renderer = { removeFromScene: (root) => removedRoots.push(root) };
 
-    host.system.update(2);
+    // A called strike hunts for 30 seconds before it leaves the map.
+    for (let second = 0; second < 31; second += 1) host.system.update(1);
     const afterFlight = createHuntNetworkState(host.manager);
     assert.equal(host.system.units.some((unit) => unit.summoned), false);
     assert.deepEqual(afterFlight.mapUnits.map((entry) => entry.id), ['tank_a']);

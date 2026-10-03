@@ -41,7 +41,7 @@ export function serializeMapUnits(units) {
         progress: round(unit.progress),
         yaw: round(unit.yaw),
         // A steering unit leaves its segment, so a path index alone cannot rebuild it.
-        ...(unit.definition?.drive?.steering === true
+        ...(unit.definition?.drive?.steering === true || unit.bomberHunt
             ? { gpos: [round(unit.groundPosition.x), round(unit.groundPosition.y), round(unit.groundPosition.z)] }
             : {}),
         ...(unit.escortTank ? {
@@ -61,6 +61,7 @@ export function serializeMapUnits(units) {
             bombs: unit.bombsFired,
             ...(unit.summoned ? {
                 summoned: true,
+                ...(unit.bomberHunt ? { hunt: true } : {}),
                 calledBy: unit.calledByIndex,
                 remaining: round(unit.summonRemaining),
                 path: unit.path.map((point) => point.map((value) => round(value))),
@@ -129,6 +130,8 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         unit.calledByIndex = Math.trunc(Number(entry.calledBy));
         unit.attackSourcePlayer = system.entityManager?.players?.find?.((player) => player?.index === unit.calledByIndex) || null;
         unit.summonRemaining = Math.max(0, Number(entry.remaining) || 0);
+        // A hunting strike is steered by the host only; the replica just follows its pose.
+        if (entry.hunt === true) unit.bomberHunt = { strikeId: null, target: null, last: null, exiting: false };
         system.units.push(unit);
         knownIds.add(unit.id);
     }

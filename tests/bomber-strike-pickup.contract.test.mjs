@@ -344,8 +344,10 @@ test('a low-frame-rate update still catches a fast bomb crossing a player', () =
     assert.ok(enemy.hp < 100, 'swept collision catches the player despite a 250-unit frame displacement');
 });
 
-test('using the item calls five bombers and drops synchronized pooled bombs after 0.75 seconds', () => {
+test('using the item calls five bombers that drop pooled bombs aimed at the enemy after 0.75 seconds', () => {
     const { manager, system, caller, enemy } = createWorld();
+    // Straight ahead of the formation, where the leader's first bomb lands (hunting strikes only aim).
+    enemy.position.set(61, 0, 0);
     const result = usePlayerInventoryItem(caller, 'HUNT');
     assert.equal(result.ok, true);
     assert.deepEqual(caller.inventory, [], 'one use consumes the item');
@@ -362,12 +364,13 @@ test('using the item calls five bombers and drops synchronized pooled bombs afte
     system.update(0.74);
     assert.equal(manager._projectileSystem.projectiles.length, 0);
     system.update(0.01);
-    assert.equal(manager._projectileSystem.projectiles.length, 5, 'all aircraft release a real projectile together');
+    const released = manager._projectileSystem.projectiles.length;
+    assert.ok(released >= 1, 'the leader releases its first real projectile once its cadence is up');
+    assert.equal(leader.bombsFired, 1);
     assert.ok(manager._projectileSystem.projectiles.every((projectile) => projectile.type === 'BOMBER_BOMB'
         && projectile.mesh?.visible && projectile.gravity < 0 && projectile.blastDamage === 50
         && projectile.blastRadius === 15));
-    assert.deepEqual(system.units.map((unit) => unit.bombsFired), [1, 1, 1, 1, 1]);
-    enemy.position.set(61, 0, 0);
+    assert.equal(system.units.reduce((sum, unit) => sum + unit.bombsFired, 0), released);
     manager._projectileSystem.update(2);
     assert.equal(caller.hp, 100);
     assert.ok(enemy.hp < 100, 'the leading bomb damages only when it reaches the target after falling');
@@ -407,16 +410,19 @@ test('a late client creates all five summoned bombers and never drops authoritat
 test('late projectile snapshots restore visible bombs and preserve host-only damage', () => {
     const host = createWorld();
     const client = createWorld();
+    host.enemy.position.set(61, 0, 0);
     assert.equal(host.system.callBomberStrike(host.caller), true);
     host.system.update(0.75);
     host.manager.projectiles = host.manager._projectileSystem.projectiles;
     const snapshot = createGameStateSnapshot(host.manager, { frame: 1 });
-    assert.equal(snapshot.projectiles.length, 5);
+    const released = host.manager._projectileSystem.projectiles.length;
+    assert.ok(released >= 1);
+    assert.equal(snapshot.projectiles.length, released);
     assert.ok(snapshot.projectiles.every((entry) => entry.type === 'BOMBER_BOMB'
         && entry.blastDamage === 50 && entry.blastRadius === 15 && entry.gravity < 0));
 
     client.manager._projectileSystem.applyNetworkSnapshot(snapshot.projectiles, client.manager.players);
-    assert.equal(client.manager._projectileSystem.projectiles.length, 5);
+    assert.equal(client.manager._projectileSystem.projectiles.length, released);
     assert.ok(client.manager._projectileSystem.projectiles.every((entry) => entry.mesh.visible));
     const enemyHp = client.enemy.hp;
     client.manager._projectileSystem.update(3);

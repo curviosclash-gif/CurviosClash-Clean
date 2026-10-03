@@ -4,6 +4,16 @@ export const BOMBER_STRIKE_FORMATION = Object.freeze({
     hitPoints: 120,
     hitboxRadius: 6.75,
     bombCooldown: 0.75,
+    // A called strike hunts enemies for this long, then breaks off upwards (user decision 03.10.2026).
+    durationSeconds: 30,
+    exitSeconds: 4,
+    exitClimbSpeed: 18,
+    // Radians per second an aircraft may turn towards its next target.
+    turnRate: 1.2,
+    // Horizontal distance at which a target counts as overflown and the next one is picked.
+    passRadius: 12,
+    // Without a target an aircraft turns back towards the middle this far from the arena edge.
+    edgeMargin: 20,
     offsets: Object.freeze([
         Object.freeze([0, 0]),
         Object.freeze([-10, -12]),
