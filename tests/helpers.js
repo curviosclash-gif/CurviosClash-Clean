@@ -371,7 +371,17 @@ export async function openStartSetupSection(page, sectionId) {
     const section = page.locator(`#submenu-game details[data-start-section="${normalizedSectionId}"]`).first();
     await section.waitFor({ state: 'attached', timeout: 4000 });
     const isOpen = await section.evaluate((element) => element instanceof HTMLDetailsElement && element.open);
-    if (isOpen) return;
+    const waitForVehiclePreview = async () => {
+        if (normalizedSectionId === 'vehicle') {
+            await page.waitForFunction(() => (
+                document.getElementById('start-vehicle-preview-mount')?.dataset?.previewActive === 'true'
+            ), null, { timeout: 5000 });
+        }
+    };
+    if (isOpen) {
+        await waitForVehiclePreview();
+        return;
+    }
     let openedViaUi = false;
     try {
         await section.locator('summary').click({ force: true });
@@ -383,18 +393,24 @@ export async function openStartSetupSection(page, sectionId) {
     } catch {
         openedViaUi = false;
     }
-    if (openedViaUi) return;
+    if (openedViaUi) {
+        await waitForVehiclePreview();
+        return;
+    }
 
     const openedViaFallback = await page.evaluate((id) => {
         const element = document.querySelector(`#submenu-game details[data-start-section="${id}"]`);
         if (!(element instanceof HTMLDetailsElement)) return false;
         element.classList.remove('hidden');
-        element.open = true;
+        const summary = element.querySelector('summary');
+        if (!summary) return false;
+        if (!element.open) summary.click();
         return element.open === true;
     }, normalizedSectionId);
     if (!openedViaFallback) {
         throw new Error(`Start-Setup-Sektion konnte nicht geoeffnet werden: ${normalizedSectionId}`);
     }
+    await waitForVehiclePreview();
 }
 
 export async function openCustomSubmenu(page) {

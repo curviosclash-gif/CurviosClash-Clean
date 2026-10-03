@@ -7,6 +7,7 @@ import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.
 import { listPlayerShipPartDonors } from '../../shared/vehicle-lab/player-ships/index.js';
 import { createArcadePlayerUpgradeBonusMap, createArcadeVehicleUpgradeBonusMap } from './ArcadeRunVehicleRewardOps.js';
 import { isDemolitionConfig } from '../../shared/contracts/DemolitionContract.js';
+import { ARCADE_RUN_KINDS, resolveArcadeRuntimeKind } from '../../shared/contracts/ArcadeRunTypeDispatchContract.js';
 
 // Five portals and arena waves have no run runtime that hands the size build to the strategy
 // (gauntlet: ArcadeRunRuntime.setStrategy, endless: setEndlessRunProfile). The profile that sizes
@@ -93,12 +94,16 @@ function applyArcadePartStyle(player, profile, vehicleId, useSizes) {
 export function applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig) {
     const entityManager = runtimeState?.entityManager;
     const players = Array.isArray(entityManager?.players) ? entityManager.players : [];
-    if (!players.length) return;
+    if (!players.length) return null;
     const fallbackVehicleId = support?._resolveActiveVehicleId?.(runtimeConfig) || 'ship5';
     const recordStore = support?.game?.settingsManager?.getPlayerRecordStorePort?.() || null;
     const profiles = loadVehicleProfiles(recordStore);
     const demolitionProfiles = Object.create(null);
     const demolitionStores = Object.create(null);
+    const localArcadeProfiles = support?.arcadeRunRuntime?._playerProfileBindingsActive === true;
+    const localArcadeRuntime = localArcadeProfiles ? support.arcadeRunRuntime : null;
+    const localRunKind = localArcadeProfiles ? resolveArcadeRuntimeKind(runtimeConfig) : null;
+    const dailyChallenge = runtimeConfig?.arcade?.dailyChallenge === true;
     const demolitionRuntime = support?.demolitionSupport?.runtime || null;
     if (isDemolitionConfig(runtimeConfig)) {
         const profileIds = runtimeConfig?.arcade?.demolitionProfileIds || [];
@@ -127,8 +132,26 @@ export function applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig
                 demolitionStores,
             ),
         );
-    } else {
-        applyArcadeRunSizeBuild(support, entityManager?.gameModeStrategy, profiles, entityManager?.humanPlayers, runtimeConfig, recordStore);
+    }
+    let playerBuildBonuses = null;
+    if (!isDemolitionConfig(runtimeConfig)) {
+        if (localArcadeRuntime) {
+            const supportsProfileBuild = !dailyChallenge && localRunKind !== ARCADE_RUN_KINDS.WEAPON_RACE;
+            if (supportsProfileBuild) {
+                playerBuildBonuses = createArcadePlayerUpgradeBonusMap(
+                    localArcadeRuntime._playerProfilesByIndex,
+                    entityManager?.humanPlayers,
+                    {
+                        buildOnly: true,
+                        storesByPlayerIndex: localArcadeRuntime._playerStoresByIndex,
+                        stoneStepsByPlayerIndex: localArcadeRuntime._runStoneStepsByPlayerIndex,
+                    },
+                );
+                entityManager?.gameModeStrategy?.applyVehicleUpgrades?.(playerBuildBonuses);
+            }
+        } else {
+            applyArcadeRunSizeBuild(support, entityManager?.gameModeStrategy, profiles, entityManager?.humanPlayers, runtimeConfig, recordStore);
+        }
     }
     const arcadeEnabled = runtimeConfig?.arcade?.enabled === true;
     // Visible size = functional size: Daily and weapon race fly at factory size.
@@ -136,9 +159,12 @@ export function applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig
     for (const player of players) {
         const vehicleId = String(player?.vehicleId || fallbackVehicleId).trim() || fallbackVehicleId;
         const playerIndex = Number(player?.index);
-        const sourceProfiles = isDemolitionConfig(runtimeConfig) ? demolitionProfiles[playerIndex] : profiles;
+        const sourceProfiles = isDemolitionConfig(runtimeConfig)
+            ? demolitionProfiles[playerIndex]
+            : (localArcadeRuntime ? localArcadeRuntime._playerProfilesByIndex[playerIndex] : profiles);
         const profile = sourceProfiles?.[vehicleId] || null;
         applyArcadeCosmeticLoadoutToPlayer(player, profile, arcadeEnabled);
         applyArcadePartStyle(player, arcadeEnabled ? profile : null, vehicleId, useSizes);
     }
+    return playerBuildBonuses;
 }

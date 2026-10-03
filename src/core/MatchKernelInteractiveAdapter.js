@@ -36,6 +36,7 @@ export class MatchKernelInteractiveAdapter {
         this._kernel = kernel;
         this._tickEnvelope = {
             fixedStepSeconds: 1 / 60,
+            inputLockDeltaSeconds: 1 / 60,
             frameId: 0,
         };
         this._runtimeAdapter = createMatchKernelConsumerAdapter({
@@ -69,7 +70,7 @@ export class MatchKernelInteractiveAdapter {
      *          returned: it consumed the Enter/Escape presses, so the caller must use this
      *          step instead of reading the same keys again.
      */
-    tick(dt, renderFrameId = 0) {
+    tick(dt, renderFrameId = 0, inputLockDeltaSeconds = dt) {
         if (!this._kernel) return null;
         if (this._kernel.lifecycle === 'idle' || this._kernel.lifecycle === 'disposed') {
             return null;
@@ -77,6 +78,7 @@ export class MatchKernelInteractiveAdapter {
 
         const tickEnvelope = this._tickEnvelope;
         tickEnvelope.fixedStepSeconds = dt;
+        tickEnvelope.inputLockDeltaSeconds = inputLockDeltaSeconds;
         tickEnvelope.frameId = renderFrameId;
 
         // Pass game.input directly: it provides getPlayerInput(playerIndex, options).

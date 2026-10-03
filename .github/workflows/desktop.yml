@@ -77,7 +77,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build-test-renderer:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - name: Build test renderer once
+        run: npm run build:app:test
+      - name: Upload test renderer
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-test-renderer
+          path: dist-app-test
+          if-no-files-found: error
+          retention-days: 1
+
   smoke:
+    needs: build-test-renderer
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -91,12 +113,16 @@ jobs:
             electron/package-lock.json
       - run: npm ci
       - run: npm run app:setup
-      - name: Install Playwright browser
-        run: npx playwright install chromium
+      - name: Download test renderer
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-test-renderer
+          path: dist-app-test
       - name: Desktop smoke
-        run: npm run test:desktop:smoke
+        run: node scripts/run-playwright-smoke.mjs tests/core.spec.js --timeout=180000
 
   e2e:
+    needs: build-test-renderer
     runs-on: windows-latest
     timeout-minutes: 30
     strategy:
@@ -123,13 +149,21 @@ jobs:
             electron/package-lock.json
       - run: npm ci
       - run: npm run app:setup
+      - name: Download test renderer
+        if: ${{ matrix.cluster != 'network' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-test-renderer
+          path: dist-app-test
       - name: Install Playwright browser
+        if: ${{ matrix.cluster == 'network' }}
         run: npx playwright install chromium
       - name: Run ${{ matrix.cluster }} cluster
-        run: npm run test:desktop:e2e -- ${{ matrix.cluster }} --timeout=180000
+        run: node scripts/run-playwright-targeted-clusters.mjs ${{ matrix.cluster }} --timeout=180000
 
   heavy-e2e:
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    needs: build-test-renderer
     runs-on: windows-latest
     timeout-minutes: 60
     strategy:
@@ -152,10 +186,13 @@ jobs:
             electron/package-lock.json
       - run: npm ci
       - run: npm run app:setup
-      - name: Install Playwright browser
-        run: npx playwright install chromium
+      - name: Download test renderer
+        uses: actions/download-artifact@v8
+        with:
+          name: desktop-test-renderer
+          path: dist-app-test
       - name: Run ${{ matrix.cluster }} cluster
-        run: npm run test:desktop:e2e -- ${{ matrix.cluster }} --timeout=240000
+        run: node scripts/run-playwright-targeted-clusters.mjs ${{ matrix.cluster }} --timeout=240000
 
   browser-compat:
     needs: smoke

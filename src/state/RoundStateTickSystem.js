@@ -36,6 +36,12 @@ export class RoundStateTickSystem {
         // a new round raises its roundIndex - both mean "a different board".
         this._lockKernel = null;
         this._lockRoundIndex = -1;
+        this._readMonotonicTime = typeof deps.now === 'function'
+            ? deps.now
+            : () => (typeof performance !== 'undefined' && typeof performance.now === 'function'
+                ? performance.now() / 1000
+                : null);
+        this._matchEndLockTimestamp = null;
     }
 
     /**
@@ -52,6 +58,9 @@ export class RoundStateTickSystem {
         armRoundEndInputLock(this._inputLock, phase);
         this._lockKernel = kernel;
         this._lockRoundIndex = roundIndex;
+        this._matchEndLockTimestamp = phase === ROUND_END_INPUT_LOCK_PHASES.MATCH_END
+            ? this._readValidMonotonicTime()
+            : null;
         this._continueBlocked = this._isRemoteSessionClient();
         this.game?.input?.clearContinueIntent?.();
         return true;
@@ -68,6 +77,31 @@ export class RoundStateTickSystem {
         this._lockKernel = null;
         this._lockRoundIndex = -1;
         this._continueBlocked = false;
+        this._matchEndLockTimestamp = null;
+    }
+
+    _readValidMonotonicTime() {
+        try {
+            const value = this._readMonotonicTime();
+            return Number.isFinite(value) ? value : null;
+        } catch {
+            return null;
+        }
+    }
+
+    _readMatchEndInputLockDelta(dt) {
+        const now = this._readValidMonotonicTime();
+        if (now === null) {
+            this._matchEndLockTimestamp = null;
+            return dt;
+        }
+        if (this._matchEndLockTimestamp === null || now < this._matchEndLockTimestamp) {
+            this._matchEndLockTimestamp = now;
+            return dt;
+        }
+        const elapsed = now - this._matchEndLockTimestamp;
+        this._matchEndLockTimestamp = now;
+        return elapsed;
     }
 
     /** Replicas never own the match: a client must not start a round or a match. */
@@ -93,9 +127,9 @@ export class RoundStateTickSystem {
      * The kernel reads the board keys itself, so a replica's veto has to reach it
      * before the tick: it then still consumes the keys, but acts on neither.
      */
-    _tickKernelRoundStateWithInputPolicy(dt, expectedLifecycle) {
+    _tickKernelRoundStateWithInputPolicy(dt, expectedLifecycle, inputLockDt = dt) {
         this._getKernelAdapter()?.kernel?.setRoundStateContinueBlocked?.(this._continueBlocked);
-        const kernelStep = this._tickKernelRoundState(dt, expectedLifecycle);
+        const kernelStep = this._tickKernelRoundState(dt, expectedLifecycle, inputLockDt);
         if (kernelStep) {
             this._inputLock.remaining = Math.max(0, Number(kernelStep.inputLockRemaining) || 0);
             if (Number(kernelStep.inputLockTotal) > 0) {
@@ -134,7 +168,7 @@ export class RoundStateTickSystem {
         kernel.signalMatchEnd?.();
     }
 
-    _tickKernelRoundState(dt, expectedLifecycle) {
+    _tickKernelRoundState(dt, expectedLifecycle, inputLockDt = dt) {
         const kernelAdapter = this._getKernelAdapter();
         const kernel = kernelAdapter?.kernel || null;
         if (!kernelAdapter || !kernel) return null;
@@ -144,7 +178,7 @@ export class RoundStateTickSystem {
             if (kernel.lifecycle !== expectedLifecycle) return null;
         }
         const renderFrameId = this.game?.gameLoop?.renderFrameId || 0;
-        return kernelAdapter.tick(dt, renderFrameId);
+        return kernelAdapter.tick(dt, renderFrameId, inputLockDt);
     }
 
     _executeRoundStateTickAction(action) {
@@ -185,9 +219,10 @@ export class RoundStateTickSystem {
         };
     }
 
-    _readMatchEndTickInputs(dt = 0) {
+    _readMatchEndTickInputs(dt = 0, inputLockDt = dt) {
         return {
             dt,
+            inputLockDt,
             ...this._readBoardPress(),
             escapePressed: this.game.input.wasKeyboardEscapePressed?.() ?? this.game.input.wasPressed('Escape'),
             inputLockRemaining: this._inputLock.remaining,
@@ -245,9 +280,9 @@ export class RoundStateTickSystem {
         return tickStep;
     }
 
-    _deriveControllerMatchEndTickStep(dt) {
+    _deriveControllerMatchEndTickStep(dt, inputLockDt = dt) {
         const tickStep = this.game.roundStateController.deriveMatchEndTick(
-            this._readMatchEndTickInputs(dt)
+            this._readMatchEndTickInputs(dt, inputLockDt)
         );
         this._applyStepInputLock(tickStep);
         return tickStep;
@@ -255,11 +290,12 @@ export class RoundStateTickSystem {
 
     _deriveMatchEndTickStep(dt) {
         this._syncInputLockPhase(ROUND_END_INPUT_LOCK_PHASES.MATCH_END);
+        const inputLockDt = this._readMatchEndInputLockDelta(dt);
         if (this.game.roundStateController?.isArcadeRoundStateController) {
-            return this._deriveControllerMatchEndTickStep(dt);
+            return this._deriveControllerMatchEndTickStep(dt, inputLockDt);
         }
-        return this._tickKernelRoundStateWithInputPolicy(dt, 'match_end')
-            || this._deriveControllerMatchEndTickStep(dt);
+        return this._tickKernelRoundStateWithInputPolicy(dt, 'match_end', inputLockDt)
+            || this._deriveControllerMatchEndTickStep(dt, inputLockDt);
     }
 
     /**

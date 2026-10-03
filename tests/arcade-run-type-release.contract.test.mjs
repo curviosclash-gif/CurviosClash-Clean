@@ -22,12 +22,18 @@ test('preset driven and normal run types stay untouched', () => {
     assert.equal(releaseButtonOnlyArcadeRun(null), false);
 });
 
-test('the arcade start button handler releases a leftover button-only run before it starts', () => {
+test('the generic arcade capture guard releases button-only runs before preparing a run', () => {
     const source = readFileSync(new URL('../src/ui/arcade/ArcadeMenuSurface.js', import.meta.url), 'utf8');
-    const handler = source.slice(source.indexOf('bind(ui.startButton'));
-    assert.ok(handler.indexOf('releaseButtonOnlyArcadeRun(settings)') > 0, 'generic start must release the run type');
-    assert.ok(
-        handler.indexOf('releaseButtonOnlyArcadeRun(settings)') < handler.indexOf('prepareHangarRunStart()'),
-        'the release happens before the run is prepared'
-    );
+    const binding = source.match(/bindValidatedArcadeStartCapture\s*\(\s*bind\s*,\s*ui\.startButton\s*,[\s\S]*?\n\s*\}\);/);
+    assert.ok(binding, 'generic start remains registered through the capture guard');
+    const handler = binding[0];
+    assert.match(handler, /\(\) => shouldShowArcade\(settings\)/, 'non-Arcade starts bypass the Arcade-only guard');
+    assert.match(handler, /\(\) => validateLocalArcadeProfileStart\(settings, arcadeProfiles, runtimeAccess\)/,
+        'Arcade profile validation remains the capture-phase gate');
+
+    const validate = handler.indexOf('validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess)');
+    const release = handler.indexOf('releaseButtonOnlyArcadeRun(settings)');
+    const prepare = handler.indexOf('prepareHangarRunStart()');
+    assert.ok(validate >= 0 && release > validate && prepare > release,
+        'the actual guarded callback validates, releases the leftover run type, then prepares');
 });

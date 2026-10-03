@@ -781,7 +781,11 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         await expect(page.locator('#btn-profile-set-default')).toBeEnabled();
         await page.click('#btn-profile-export');
 
-        const exportPayload = await page.inputValue('#profile-transfer-input');
+        const transferInput = page.locator('#profile-transfer-input');
+        await expect(page.locator('#profile-transfer-status')).toContainText('Einstellungen exportiert');
+        await expect(transferInput).toBeVisible();
+        await expect(transferInput).not.toHaveValue('');
+        const exportPayload = await transferInput.inputValue();
         const exportedProfile = JSON.parse(exportPayload);
         expect(exportedProfile.contractVersion).toBe('profile-export.v1');
         expect(exportedProfile.profile.name).toBe('QA Profil Kopie');

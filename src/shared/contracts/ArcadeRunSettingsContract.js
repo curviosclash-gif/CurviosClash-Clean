@@ -47,13 +47,15 @@ const DEFAULTS = Object.freeze({
     // Which fixed map chain a "five_portals" run plays (Fünf Portale, Himmelsleiter, ...).
     // Only meaningful when runType is FIVE_PORTALS_RUN_TYPE; ignored otherwise.
     portalChainId: DEFAULT_PORTAL_CHAIN_ID,
+    demolitionProfileIds: Object.freeze(['', '', '']),
+    playerProfileIds: Object.freeze(['', '', '']),
 });
 
 /** @typedef {{ profileId: string, runType: string, combatProfile: string, scoreModel: string,
  * seed: number, sectorCount: number, intermissionSeconds: number, comboWindowMs: number,
  * comboDecayPerSecond: number, maxMultiplier: number, replayHooksEnabled: boolean,
  * dailyChallenge: boolean, nightmare: boolean, portalChainId: string,
- * demolitionProfileIds?: readonly string[] }} ArcadeRunSettings */
+ * demolitionProfileIds?: readonly string[], playerProfileIds?: readonly string[] }} ArcadeRunSettings */
 
 function clampNumber(value, range, fallback) {
     const parsed = Number(value);
@@ -78,14 +80,22 @@ export function normalizeArcadeScoreModel(_value) {
 
 /** @returns {ArcadeRunSettings} */
 export function createDefaultArcadeRunSettings() {
-    return { ...DEFAULTS };
+    return {
+        ...DEFAULTS,
+        demolitionProfileIds: normalizeDemolitionProfileIds(DEFAULTS.demolitionProfileIds),
+        playerProfileIds: normalizeDemolitionProfileIds(DEFAULTS.playerProfileIds),
+    };
 }
 
 /**
  * @param {any} source persisted `settings.arcade` block, in any state
  * @returns {ReturnType<typeof createDefaultArcadeRunSettings>}
  */
-export function normalizeArcadeRunSettings(source, demolitionProfileIds = source?.demolitionProfileIds) {
+export function normalizeArcadeRunSettings(
+    source,
+    demolitionProfileIds = source?.demolitionProfileIds,
+    playerProfileIds = source?.playerProfileIds ?? demolitionProfileIds,
+) {
     const input = source && typeof source === 'object' && !Array.isArray(source) ? source : {};
     const runType = isDemolitionRunType(input.runType)
         ? DEMOLITION_RUN_TYPE
@@ -131,7 +141,21 @@ export function normalizeArcadeRunSettings(source, demolitionProfileIds = source
         nightmare: input.nightmare === true,
         portalChainId: normalizePortalChainId(input.portalChainId),
         demolitionProfileIds: normalizeDemolitionProfileIds(demolitionProfileIds),
+        playerProfileIds: normalizeDemolitionProfileIds(playerProfileIds),
     };
+}
+
+/** Normalize saved arcade player profile selections alongside the legacy demolition field. */
+export function normalizeArcadeRunSettingsFromSetup(source, startSetup) {
+    const legacyIds = startSetup?.demolitionProfileIds;
+    const selectedIds = startSetup?.arcadePlayerProfileIds;
+    const hasSelectedIds = Array.isArray(selectedIds)
+        && selectedIds.some((id) => typeof id === 'string' && id.trim());
+    return normalizeArcadeRunSettings(
+        source,
+        legacyIds,
+        hasSelectedIds ? selectedIds : legacyIds,
+    );
 }
 
 /** True when the block carries an explicit seed the runtime must not overwrite. */

@@ -7,7 +7,7 @@ import test from 'node:test';
 
 import { normalizeArcadeRunSettings } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 import { resolveArcadeDailySettings } from '../src/shared/contracts/ArcadeDailyRulesContract.js';
-import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeSupport.js';
+import { buildArcadeEncounterPlan } from '../src/core/runtime/GameRuntimeArcadeSupportOps.js';
 import { buildArcadeSectorPlan } from '../src/entities/directors/ArcadeEncounterCatalog.js';
 
 test('the run tier survives saving and loading and defaults to off', () => {
@@ -25,15 +25,14 @@ test('the Daily ignores the run tier', () => {
 });
 
 test('a nightmare run builds its sectors with the nightmare scale', () => {
-    const support = Object.create(GameRuntimeArcadeSupport.prototype);
     const config = (nightmare) => ({
         arcade: { enabled: true, seed: 7, sectorCount: 5, nightmare },
         bot: { activeDifficulty: 'HARD' },
         session: { mapKey: 'standard' },
     });
     const pressures = (plan) => plan.sequence.map((entry) => entry.pressure);
-    const nightmarePlan = support._buildEncounterPlan(config(true));
-    const hardPlan = support._buildEncounterPlan(config(false));
+    const nightmarePlan = buildArcadeEncounterPlan(config(true));
+    const hardPlan = buildArcadeEncounterPlan(config(false));
     assert.deepEqual(
         pressures(nightmarePlan),
         pressures(buildArcadeSectorPlan({ seed: 7, sectorCount: 5, difficulty: 'nightmare' })),

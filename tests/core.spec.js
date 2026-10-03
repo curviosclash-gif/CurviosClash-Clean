@@ -345,6 +345,83 @@ test.describe('Desktop Smoke', () => {
         await page.setViewportSize({ width: 1920, height: 1080 });
         await page.screenshot({ path: testInfo.outputPath('endless-wave11-rest-1920.png') });
 
+        await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const tickSystem = game?.roundStateTickSystem;
+            if (!tickSystem) throw new Error('Endless continue diagnostic could not find RoundStateTickSystem');
+
+            const probe = {
+                samples: [],
+                rearms: [],
+                rearmCount: 0,
+                kernelIds: new WeakMap(),
+                nextKernelId: 1,
+            };
+            const kernelId = (kernel) => {
+                if (!kernel || typeof kernel !== 'object') return null;
+                if (!probe.kernelIds.has(kernel)) probe.kernelIds.set(kernel, probe.nextKernelId++);
+                return probe.kernelIds.get(kernel);
+            };
+            const currentKernel = () => tickSystem._getKernelAdapter?.()?.kernel || null;
+            const record = (sample) => {
+                probe.samples.push(sample);
+                if (probe.samples.length > 12) probe.samples.shift();
+            };
+
+            const syncInputLockPhase = tickSystem._syncInputLockPhase;
+            tickSystem._syncInputLockPhase = function (phase) {
+                const before = {
+                    remaining: this._inputLock?.remaining ?? null,
+                    kernel: this._lockKernel,
+                    roundIndex: this._lockRoundIndex,
+                };
+                const changed = syncInputLockPhase.call(this, phase);
+                if (changed) {
+                    probe.rearmCount += 1;
+                    probe.rearms.push({
+                        phase,
+                        beforeRemaining: before.remaining,
+                        kernelIdBefore: kernelId(before.kernel),
+                        roundIndexBefore: before.roundIndex,
+                        kernelIdAfter: kernelId(this._lockKernel),
+                        roundIndexAfter: this._lockRoundIndex,
+                        state: game.state,
+                    });
+                    if (probe.rearms.length > 8) probe.rearms.shift();
+                }
+                return changed;
+            };
+
+            const deriveMatchEndTickStep = tickSystem._deriveMatchEndTickStep;
+            tickSystem._deriveMatchEndTickStep = function (dt) {
+                const kernel = currentKernel();
+                const beforeRemaining = this._inputLock?.remaining ?? null;
+                const kernelLockBefore = kernel?.getRoundEndInputLockState?.() || null;
+                const beforeRearmCount = probe.rearmCount;
+                const step = deriveMatchEndTickStep.call(this, dt);
+                record({
+                    dt: Number(dt),
+                    renderDelta: Number(game.gameLoop?.renderDelta),
+                    timeScale: Number(game.gameLoop?.timeScale),
+                    state: game.state,
+                    lockPhase: this._inputLock?.phase || '',
+                    lockRemainingBefore: beforeRemaining,
+                    lockRemainingAfter: this._inputLock?.remaining ?? null,
+                    lockTotal: this._inputLock?.total ?? null,
+                    kernelLockBefore,
+                    kernelLockAfter: kernel?.getRoundEndInputLockState?.() || null,
+                    kernelId: kernelId(kernel),
+                    kernelLifecycle: kernel?.lifecycle || null,
+                    kernelRoundIndex: kernel?.roundIndex ?? null,
+                    lockKernelId: kernelId(this._lockKernel),
+                    lockRoundIndex: this._lockRoundIndex,
+                    rearmed: probe.rearmCount !== beforeRearmCount,
+                });
+                return step;
+            };
+            window.__endlessContinueInputLockProbe = probe;
+        });
+
         const completedRunId = await page.evaluate(() => {
             const endless = window.GAME_INSTANCE.entityManager.endlessParcoursRuntime;
             endless.finalize('ENDLESS_PLAYER_DEATH');
@@ -354,7 +431,44 @@ test.describe('Desktop Smoke', () => {
         await expect(page.locator('#message-stats')).toContainText('Speicherung');
         // The result board drops every key for 1.5 s after a match end; continue only once
         // its button says the lock is over.
-        await expect(page.locator('[data-postmatch-action="continue"]')).not.toHaveAttribute('aria-disabled', 'true');
+        try {
+            await expect(page.locator('[data-postmatch-action="continue"]')).not.toHaveAttribute('aria-disabled', 'true');
+        } catch (error) {
+            const diagnostic = await page.evaluate(() => {
+                const game = window.GAME_INSTANCE;
+                const tickSystem = game?.roundStateTickSystem;
+                const kernel = tickSystem?._getKernelAdapter?.()?.kernel || null;
+                const button = document.querySelector('[data-postmatch-action="continue"]');
+                return {
+                    state: game?.state || null,
+                    button: button ? {
+                        text: button.textContent,
+                        disabled: button.disabled,
+                        ariaDisabled: button.getAttribute('aria-disabled'),
+                        visible: !!(button.offsetWidth || button.offsetHeight || button.getClientRects().length),
+                    } : null,
+                    gameLoopTimeScale: game?.gameLoop?.timeScale ?? null,
+                    lock: tickSystem?.getRoundEndInputLockState?.() || null,
+                    lockKernelId: window.__endlessContinueInputLockProbe?.kernelIds?.get(tickSystem?._lockKernel) ?? null,
+                    kernel: kernel ? {
+                        identity: window.__endlessContinueInputLockProbe?.kernelIds?.get(kernel) ?? null,
+                        lifecycle: kernel.lifecycle,
+                        roundIndex: kernel.roundIndex,
+                        lock: kernel.getRoundEndInputLockState?.() || null,
+                    } : null,
+                    probe: window.__endlessContinueInputLockProbe ? {
+                        rearmCount: window.__endlessContinueInputLockProbe.rearmCount,
+                        rearms: window.__endlessContinueInputLockProbe.rearms,
+                        samples: window.__endlessContinueInputLockProbe.samples,
+                    } : null,
+                };
+            });
+            await testInfo.attach('endless-continue-input-lock-diagnostic.json', {
+                body: JSON.stringify(diagnostic, null, 2),
+                contentType: 'application/json',
+            });
+            throw new Error(`${error.message}\nEndless continue input-lock diagnostic: ${JSON.stringify(diagnostic)}`);
+        }
         await page.keyboard.press('Enter');
         await page.waitForFunction((previousRunId) => {
             const game = window.GAME_INSTANCE;

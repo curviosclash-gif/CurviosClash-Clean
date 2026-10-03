@@ -11,6 +11,7 @@ export class EntitySpawnOps {
     spawnAll() {
         const owner = this.entityManager;
         if (!owner) return;
+        owner._railgunSystem?.clear?.();
         owner._roundEnded = false;
         owner._simulationClockMs = 0;
         owner.arena?.setGlbAnimationElapsedSeconds?.(0);

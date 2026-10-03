@@ -77,10 +77,21 @@ export class RailgunSystem {
         this.entityManager?.audio?.play?.('SLINGSHOT', { intensity: 0.4 + 0.6 * Math.min(1, (Number(beam.damage) || 0) / 70) });
     }
 
-    dispose() {
+    clear() {
         this._effect?.dispose();
         this._effect = null;
+        this.lastBeam = null;
         this._recentBeams.length = 0;
+        this._hits.length = 0;
+        this._aim.set(0, 0, 0);
+        this._scratch.set(0, 0, 0);
+        for (const player of this.entityManager?.players || []) {
+            if (player) player.railCharge = 0;
+        }
+    }
+
+    dispose() {
+        this.clear();
         this._appliedBeamId = 0;
         this._stateInitialized = false;
     }

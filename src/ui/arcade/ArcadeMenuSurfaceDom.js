@@ -86,17 +86,17 @@ export function buildArcadeSurface(level3Body, ui) {
         'Fünf Fahrer jagen durch den Angriffsparcours und wechseln ihre Waffe an festen Checkpoints.');
     const startDemolitionButton = createStartOption(alternateModesBody, 'btn-arcade-demolition-start-inline', 'Abrisskommando',
         'Drei Belagerungskarten auf Zeit: schnell versiegeln oder für mehr Punkte sauber abtragen.');
-    const demolitionProfileControls = createElement('div', 'arcade-demolition-profile-controls');
-    demolitionProfileControls.appendChild(createElement('p', 'menu-hint', 'Spielerprofile für Abriss-XP und Hangar-Boni'));
-    const demolitionProfileSelects = [0, 1, 2].map((playerIndex) => {
+    const arcadePlayerProfileControls = createElement('div', 'arcade-demolition-profile-controls hidden');
+    arcadePlayerProfileControls.appendChild(createElement('p', 'menu-hint', 'Arcade-Spielerprofile: eigene Fahrzeuge und Hangar-Ausbauten pro lokalem Spieler'));
+    const arcadePlayerProfileSelects = [0, 1, 2].map((playerIndex) => {
         const label = createElement('label', 'arcade-demolition-profile-slot', `Spieler ${playerIndex + 1}`);
         const select = createElement('select', 'menu-select');
-        select.setAttribute('aria-label', `Abrisskommando-Profil Spieler ${playerIndex + 1}`);
+        select.setAttribute('aria-label', `Arcade-Spielerprofil Spieler ${playerIndex + 1}`);
         label.appendChild(select);
-        demolitionProfileControls.appendChild(label);
+        arcadePlayerProfileControls.appendChild(label);
         return select;
     });
-    alternateModesBody.appendChild(demolitionProfileControls);
+    startGroup.appendChild(arcadePlayerProfileControls);
     alternateModes.appendChild(alternateModesBody);
     startGroup.appendChild(alternateModes);
     body.appendChild(startGroup);
@@ -242,7 +242,8 @@ export function buildArcadeSurface(level3Body, ui) {
         startSkyLadderButton,
         startWeaponRaceButton,
         startDemolitionButton,
-        demolitionProfileSelects,
+        demolitionProfileSelects: arcadePlayerProfileSelects,
+        arcadePlayerProfileControls,
         rerollSeedButton,
         copySeedButton,
         seedInput,
