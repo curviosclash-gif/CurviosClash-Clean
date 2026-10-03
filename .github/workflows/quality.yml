@@ -26,7 +26,38 @@ jobs:
             electron/package-lock.json
       - name: Install root dependencies
         run: npm ci
-      - name: Install Electron dependencies
-        run: npm --prefix electron ci
+      - name: Install Electron dependencies and desktop runtime
+        run: npm run app:setup
+      - name: Install Blender for asset contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '4.2.23'
+          $uri = 'https://download.blender.org/release/Blender4.2/blender-4.2.23-windows-x64.zip'
+          $expectedSha256 = '82e791475779a7342424a480bdde9a20b43710da9264c60346125aa16cd910cb'
+          $archive = Join-Path $env:RUNNER_TEMP "blender-$version-windows-x64.zip"
+          $destination = Join-Path $env:RUNNER_TEMP "blender-$version"
+          Invoke-WebRequest -Uri $uri -OutFile $archive
+          $actualSha256 = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualSha256 -ne $expectedSha256) {
+            throw "Blender archive SHA-256 mismatch: $actualSha256"
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath $destination -Force
+          $executables = @(Get-ChildItem -LiteralPath $destination -Filter 'blender.exe' -File -Recurse)
+          if ($executables.Count -ne 1) {
+            throw "Expected one Blender executable after extraction, found $($executables.Count)"
+          }
+          $blender = $executables[0].FullName
+          $versionLines = @(& $blender --version 2>&1)
+          $versionExitCode = $LASTEXITCODE
+          if ($versionExitCode -ne 0 -or $versionLines.Count -eq 0) {
+            throw "Blender $version --version failed: $($versionLines -join [Environment]::NewLine)"
+          }
+          $reportedVersions = @($versionLines | Where-Object { [string]$_ -match '^Blender \d+\.\d+\.\d+(?:\s|$)' })
+          if ($reportedVersions.Count -ne 1 -or [string]$reportedVersions[0] -notmatch '^Blender 4\.2\.23(?:\s|$)') {
+            throw "Expected Blender $version; got: $($versionLines -join [Environment]::NewLine)"
+          }
+          "BLENDER_EXE=$blender" | Add-Content -LiteralPath $env:GITHUB_ENV
+          "BLENDER_EXECUTABLE=$blender" | Add-Content -LiteralPath $env:GITHUB_ENV
       - name: Quality
         run: npm run quality

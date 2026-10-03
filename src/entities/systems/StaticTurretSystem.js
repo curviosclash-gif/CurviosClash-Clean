@@ -1,7 +1,7 @@
 import { isDestructibleTurret, isTurretCombatActive } from '../../shared/contracts/TurretCombatContract.js';
 import { createTrailTargetDescriptor } from '../../hunt/HuntTargetingOps.js';
 import * as THREE from 'three';
-import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfigContract.js';
 import { areTeammates, normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
 import { addObjectiveGuard, setTurretTeam } from './static-turret/StaticTurretObjectiveOps.js';
 import { resolveMapStaticTurretDefinitions } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
@@ -84,9 +84,7 @@ export class StaticTurretSystem {
         const owner = this.entityManager;
         if (!owner) return 0;
         const mapDefinition = owner.arena?.currentMapDefinition;
-        const authoredScale = mapDefinition?.scaleAuthoredAnchors === true
-            ? Math.max(0.001, Number(resolveGameplayConfig(owner).ARENA?.MAP_SCALE) || 1)
-            : 1;
+        const authoredScale = resolveAuthoredAnchorScale(mapDefinition, owner);
         const definitions = resolveMapStaticTurretDefinitions(mapDefinition, { preserveSpatialRange: mapDefinition?.scaleAuthoredAnchors === true });
         for (let i = 0; i < definitions.length; i += 1) {
             if (!isTurretCombatActive(owner.gameModeStrategy, definitions[i].allowedModes)) continue;

@@ -1,4 +1,4 @@
-import { resolveArcadeHangarProgressionSnapshot } from '../../shared/contracts/ArcadeHangarRulesContract.js';
+import { listArcadeStoneUnlocksBetween } from '../../shared/contracts/ArcadeStoneWorkshopContract.js';
 import {
     ARCADE_TRAIL_STYLE_LABELS,
     ARCADE_TRAIL_STYLE_UNLOCKS,
@@ -7,11 +7,6 @@ import {
 } from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
 import { arcadeVehicleLevelForXp as levelForXp } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import { getOrCreateProfile, loadVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
-
-function difference(next, previous) {
-    const oldValues = new Set(previous || []);
-    return (next || []).filter((value) => !oldValues.has(value));
-}
 
 function cosmeticUnlocks(priorLevel, newLevel) {
     const unlocked = [];
@@ -31,17 +26,16 @@ export function resolveArcadePostMatchProgression(store, runState = null) {
     const profile = getOrCreateProfile(loadVehicleProfiles(store), vehicleId);
     const newLevel = Math.max(1, Number(profile.level) || 1);
     const priorLevel = levelForXp(Math.max(0, Number(profile.xp) - xpEarned));
-    const before = resolveArcadeHangarProgressionSnapshot(priorLevel);
-    const after = resolveArcadeHangarProgressionSnapshot(newLevel);
+    // Paket 3: the level-up opens stone slot packages for purchase and makes stone tiers usable.
+    const stoneUnlocks = listArcadeStoneUnlocksBetween(priorLevel, newLevel);
     return {
         vehicleId,
         xpEarned,
         priorLevel,
         newLevel,
         xpBank: Math.max(0, Number(profile.xpBank) || 0),
-        unlockedSlots: difference(after.unlockedSlots, before.unlockedSlots),
-        unlockedTiers: difference(after.allowedTiers, before.allowedTiers),
-        unlockedFamilies: difference(after.allowedPartFamilies, before.allowedPartFamilies),
+        unlockedStonePackages: stoneUnlocks.packages,
+        unlockedStoneTiers: stoneUnlocks.tiers,
         unlockedCosmetics: cosmeticUnlocks(priorLevel, newLevel),
     };
 }

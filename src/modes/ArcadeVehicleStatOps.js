@@ -11,7 +11,8 @@ import {
     resolveArcadeStatCapPct,
     resolveArcadeVehicleBaseStats,
 } from '../shared/contracts/ArcadeVehicleBalanceContract.js';
-import { normalizeArcadeSizeProfileFields, resolveArcadeVehicleBuildStats } from '../shared/contracts/ArcadeVehicleBuildContract.js';
+import { normalizeArcadeSizeProfileFields } from '../shared/contracts/ArcadeVehicleBuildContract.js';
+import { resolveArcadeVehicleActiveStats } from '../shared/contracts/ArcadeVehicleActiveStatsContract.js';
 import { normalizeArcadePartSizes } from '../shared/contracts/ArcadeVehicleSizeContract.js';
 
 const NORMAL_ARCADE_RUN_TYPES = Object.freeze(['gauntlet', 'endless_parcours', 'five_portals', 'arena_waves']);
@@ -52,7 +53,8 @@ export function normalizeArcadeUpgradeBonuses(bonuses, fallback, isNormalRun) {
     if (!bonuses || typeof bonuses !== 'object') return fallback;
     const source = isNormalRun && bonuses.build && typeof bonuses.build === 'object' ? bonuses.build : null;
     const vehicleId = String(source?.vehicleId || '');
-    const build = source ? resolveArcadeVehicleBuildStats(vehicleId, source) : null;
+    // Paket 3: the stones of the pool join as extra steps; the hitbox below keeps the profile sizes.
+    const build = source ? resolveArcadeVehicleActiveStats(vehicleId, source, source.stoneSteps) : null;
     const base = build ? resolveArcadeVehicleBaseStats(vehicleId) : null;
     const slots = {
         turningBonusPct: finiteOrZero(bonuses.turningBonusPct),

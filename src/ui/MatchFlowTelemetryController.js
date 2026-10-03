@@ -273,7 +273,7 @@ export class MatchFlowTelemetryController {
         const context = buildTelemetryContext(game);
 
         return {
-            telemetrySchemaVersion: 'round-telemetry.v2',
+            telemetrySchemaVersion: 'round-telemetry.v3',
             context,
             performance: buildPerformanceTelemetry(game),
             control: buildControlTelemetry(game, context.humanCount),
@@ -304,6 +304,7 @@ export class MatchFlowTelemetryController {
             botCount: Math.max(0, Number(roundMetrics.botCount) || 0),
             botSurvivalAverage: Math.max(0, Number(roundMetrics.botSurvivalAverage) || 0),
             heatmap: normalizeHeatmapCells(roundMetrics.heatmap),
+            players: Array.isArray(roundMetrics.playerStats) ? roundMetrics.playerStats : [],
             spawnDeaths,
             kills,
             intercepts,

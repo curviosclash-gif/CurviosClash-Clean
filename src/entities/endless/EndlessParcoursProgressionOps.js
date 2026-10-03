@@ -47,6 +47,7 @@ export function setEndlessRunProfile(runtime, {
     recordStore = runtime._recordStore,
     vehicleId = 'ship1',
     strategy = null,
+    playerBuildBonuses = null,
 } = {}) {
     if (runtime.startProfile) return { vehicleId: runtime.startVehicleId, bonuses: { ...runtime.startBonuses } };
     runtime._recordStore = recordStore || runtime._recordStore;
@@ -55,11 +56,18 @@ export function setEndlessRunProfile(runtime, {
     runtime.startVehicleId = runtime.rewardBinding.vehicleId;
     const profile = getOrCreateProfile(profiles, runtime.startVehicleId);
     runtime.startProfile = Object.freeze(JSON.parse(JSON.stringify(profile)));
-    runtime.startBonuses = Object.freeze({ ...getArcadeRunVehicleBonuses(profile) });
-    try { strategy?.applyVehicleUpgrades?.(runtime.startBonuses); } catch { /* no-op */ }
+    runtime.startBonuses = Object.freeze({ ...getArcadeRunVehicleBonuses(profile, runtime._recordStore) });
+    if (!playerBuildBonuses) {
+        try { strategy?.applyVehicleUpgrades?.(runtime.startBonuses); } catch { /* no-op */ }
+    }
+    const humans = playerBuildBonuses
+        ? (Array.isArray(runtime.entityManager?.humanPlayers) ? runtime.entityManager.humanPlayers : [])
+        : [runtime.entityManager?.humanPlayers?.[0] || null];
+    for (const human of humans) {
+        try { strategy?.resetPlayerHealth?.(human); } catch { /* no-op */ }
+        try { strategy?.applySpawnStatBonuses?.(human); } catch { /* no-op */ }
+    }
     const human = runtime.entityManager?.humanPlayers?.[0] || null;
-    try { strategy?.resetPlayerHealth?.(human); } catch { /* no-op */ }
-    try { strategy?.applySpawnStatBonuses?.(human); } catch { /* no-op */ }
     runtime._startSpeed = resolveEndlessStartSpeed(human, runtime._startSpeed);
     return { vehicleId: runtime.startVehicleId, bonuses: { ...runtime.startBonuses } };
 }

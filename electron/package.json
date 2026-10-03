@@ -84,6 +84,7 @@
           "shared/storage/*.js",
           "shared/telemetry/TelemetryPreferencesStore.js",
           "shared/utils/CanonicalJson.js",
+          "shared/utils/ArcadeUtils.js",
           "shared/utils/JsonClone.js",
           "shared/utils/MathOps.js",
           "state/storage/*.js",

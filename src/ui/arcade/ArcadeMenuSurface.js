@@ -22,13 +22,15 @@ import {
     ENDLESS_PARCOURS_RECORDS_STORAGE_KEY,
     summarizeEndlessRecordsLine,
 } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
-import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
 import { getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
+import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
 import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 import { renderArcadeLeaderboardMenu } from './ArcadeLeaderboardMenuView.js';
 import { observeMenuReturn } from './MenuReturnObserver.js';
 import { bindArcadeNightmareToggle, syncArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
+import { bindValidatedArcadeStartCapture, shouldShowArcadePlayerProfileControls, setupArcadePlayerProfileSelection, validateLocalArcadeProfileStart } from './ArcadeDemolitionProfileSelection.js';
+import { bindArcadeSpecialStartButtons } from './ArcadeMenuSpecialStartOps.js';
 
 const BOT_DIFFICULTY_LABELS = Object.freeze({ EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' });
 // Only phases worth showing; unknown or idle phases stay out of the line.
@@ -220,6 +222,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     }
 
     const refs = buildArcadeSurface(level3Body, ui);
+    const arcadeProfiles = setupArcadePlayerProfileSelection(refs, runtimeAccess, settings, bind);
     refs.hangarLaunchCard.classList.toggle('hidden', !hangarWindow.isAvailable());
     let activeProfileId = runtimeAccess?.getActivePlayerProfile?.()?.id || '';
     let activeSeed = loadSeed(runtimeAccess?.getSettingsStore?.());
@@ -288,11 +291,14 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const tierLabel = settings.arcade?.nightmare === true && !settings.arcade?.dailyChallenge ? ' · Albtraum' : '';
         syncArcadeNightmareToggle(refs.nightmareInput, settings);
         const fivePortalsSelected = settings.arcade?.runType === 'five_portals';
+        refs.arcadePlayerProfileControls.classList.toggle('hidden', !shouldShowArcadePlayerProfileControls(settings));
         const activePortalChain = fivePortalsSelected ? resolvePortalChain(settings.arcade?.portalChainId) : null;
         const fivePortalsRecord = fivePortalsSelected
             ? runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(activePortalChain.recordKey, null) || null
             : null;
-        refs.runLine.textContent = fivePortalsSelected
+        refs.runLine.textContent = settings.arcade?.runType === 'demolition'
+            ? 'Abrisskommando: drei Belagerungskarten. Zerstöre die Bauwerke vor Ablauf der Zeit; Punkte und verdiente Fahrzeug-XP bleiben erhalten.'
+            : fivePortalsSelected
             ? (activePortalChain.id === 'five_portals'
                 ? 'Fünf Portale: fünf Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.'
                 : `${activePortalChain.label}: ${activePortalChain.maps.length} Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.`)
@@ -375,6 +381,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     };
 
     bind(refs.startRunButton, 'click', () => {
+        if (!validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess)) return;
         applySeedToSettings(activeSeed, { dailyChallenge: false });
         settings.arcade.runType = 'gauntlet';
         settings.arcade.combatProfile = '';
@@ -387,6 +394,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
     // These runs play on their own map and bot count. Both only ride along with the start
     // (borrowedSettings), so the menu keeps the player's map and bots afterwards.
     const startRunWithOwnMap = (runType, borrowedSettings, portalChainId) => {
+        const playerCount = runType === 'weapon_race' ? 1 : null;
+        if (runType !== 'demolition' && !validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess, { playerCount })) return;
         applySeedToSettings(activeSeed, { dailyChallenge: false });
         settings.arcade.runType = runType;
         settings.arcade.combatProfile = 'hunt';
@@ -410,11 +419,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         emit(eventTypes.START_MATCH, { borrowedSettings });
     };
 
-    bind(refs.startEndlessButton, 'click', () => startRunWithOwnMap('endless_parcours', { mapKey: 'standard', numBots: 0 }));
-    bind(refs.startFiveFrontsButton, 'click', () => startRunWithOwnMap('arena_waves', { mapKey: 'notre_dame_arena', numBots: 12 }));
-    bind(refs.startFivePortalsButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: 'micro_maw', numBots: 0 }, 'five_portals'));
-    bind(refs.startSkyLadderButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: resolvePortalChain('sky_ladder').maps[0], numBots: 0 }, 'sky_ladder'));
-    bind(refs.startWeaponRaceButton, 'click', () => startRunWithOwnMap('weapon_race', { mapKey: 'parcours_assault', numBots: 4 }));
+    bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, activeSeed, arcadeProfiles, runtimeAccess);
 
     bind(refs.openHangarButton, 'click', async () => {
         const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });
@@ -466,7 +471,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     });
 
     bind(refs.replayButton, 'click', () => {
-        const result = runtimeAccess?.requestArcadeReplayPlayback?.();
+        const result = runtimeAccess?.requestArcadeReplayExport?.();
         const code = String(result?.code || 'replay_unavailable');
         if (code === 'ghost_fallback_started') {
             showToast(runtimeAccess, t('menu.arcade.postrun.replay.toast.started', 'Ghost-Fallback wird abgespielt.'), 'info', 1300);
@@ -494,31 +499,27 @@ export function setupArcadeMenuSurface(ctx = {}) {
         showToast(runtimeAccess, t('menu.arcade.postrun.replay.toast.empty', 'Kein Replay verfügbar.'), 'info', 1200);
     });
 
-    bind(refs.dailyButton, 'click', () => {
-        if (!settings.arcade) settings.arcade = {};
-        settings.arcade.dailyChallenge = true;
-        recordRunStart(null);
-        emit(eventTypes.START_MATCH);
-    });
+    bindValidatedArcadeStartCapture(bind, refs.dailyButton, () => true,
+        () => validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess, { playerCount: 1 }), () => {
+            if (!settings.arcade) settings.arcade = {};
+            settings.arcade.dailyChallenge = true;
+            recordRunStart(null);
+            emit(eventTypes.START_MATCH);
+        });
 
     bind(refs.leaderboardToggle, 'click', () => {
         leaderboardExpanded = !leaderboardExpanded;
         sync();
     });
 
-    if (ui.startButton) {
-        bind(ui.startButton, 'click', (event) => {
-            if (!shouldShowArcade(settings)) return;
-            releaseButtonOnlyArcadeRun(settings); applySeedToSettings(activeSeed, { dailyChallenge: false });
+    bindValidatedArcadeStartCapture(bind, ui.startButton, () => shouldShowArcade(settings),
+        () => validateLocalArcadeProfileStart(settings, arcadeProfiles, runtimeAccess), (event) => {
+            releaseButtonOnlyArcadeRun(settings);
+            applySeedToSettings(activeSeed, { dailyChallenge: false });
             const prepared = prepareHangarRunStart();
-            if (prepared?.ok === false) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                return;
-            }
+            if (prepared?.ok === false) { event.preventDefault(); event.stopImmediatePropagation(); return; }
             recordRunStart(prepared?.build);
-        }, true);
-    }
+        });
 
     const syncOnInteraction = () => {
         if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {

@@ -15,6 +15,9 @@ import {
 } from '../src/shared/contracts/BomberStrikePickupDefinitionsContract.js';
 import { getPickupDefinition } from '../src/entities/PickupRegistry.js';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
+import { CONFIG_BASE } from '../src/core/Config.js';
+import { createEntityRuntimeSupport } from '../src/entities/runtime/EntityRuntimeSupportAssembly.js';
+import { createEntityRuntimeSystems } from '../src/entities/runtime/EntityRuntimeSystemAssembly.js';
 
 function createPlayer(index, x = 0) {
     return {
@@ -174,7 +177,7 @@ test('the HUNT action consumes the pickup only after its formation activates', (
     const combat = new HuntCombatSystem({
         entityRuntimeConfig: { POWERUP: { TYPES: { BOMBER_STRIKE: {} } }, PLAYER: {} },
         callbacks: { getStrategy: () => manager.gameModeStrategy },
-        combat: { mapUnitSystem: { callBomberStrike: () => { attempts += 1; return false; } } },
+        combat: { callBomberStrike: () => { attempts += 1; return false; } },
         players: [caller],
     });
     const failed = combat.useInventoryItem(caller);
@@ -182,11 +185,49 @@ test('the HUNT action consumes the pickup only after its formation activates', (
     assert.deepEqual(caller.inventory, ['BOMBER_STRIKE']);
     assert.equal(attempts, 1);
 
-    combat.runtime.combat.mapUnitSystem.callBomberStrike = () => { attempts += 1; return true; };
+    combat.runtime.combat.callBomberStrike = () => { attempts += 1; return true; };
     const used = combat.useInventoryItem(caller);
     assert.equal(used.ok, true);
     assert.deepEqual(caller.inventory, []);
     assert.equal(attempts, 2, 'the HUNT path activates exactly once');
+});
+
+/**
+ * Builds the entity runtime exactly as EntityRuntimeAssembler does, so the HUNT item action
+ * reaches the bomber through the same runtime context the game hands to HuntCombatSystem â€”
+ * a hand-made context would hide a callback that the real assembly never provides.
+ */
+function createAssembledHuntWorld() {
+    const { manager, caller } = createWorld();
+    manager.entityRuntimeConfig = {
+        ...CONFIG_BASE,
+        HUNT: { ...CONFIG_BASE.HUNT, ENABLED: true, ACTIVE_MODE: 'HUNT', DEFAULT_MODE: 'HUNT' },
+    };
+    const support = createEntityRuntimeSupport(manager);
+    manager._projectileSystem = support.projectileSystem;
+    const systems = createEntityRuntimeSystems(manager, support.runtimeContext, support);
+    systems.mapUnitSystem.startRound();
+    return { manager, caller, combat: systems.huntCombatSystem, mapUnits: systems.mapUnitSystem };
+}
+
+test('using the bomber item through the assembled HUNT runtime calls five bombers', () => {
+    const { caller, combat, mapUnits } = createAssembledHuntWorld();
+    const result = combat.useInventoryItem(caller);
+    assert.equal(result.ok, true, `the HUNT item key triggers the strike, got: ${result.reason}`);
+    assert.deepEqual(caller.inventory, [], 'a successful strike consumes the item');
+    assert.equal(mapUnits.units.filter((unit) => unit.summoned).length, 5, 'five bombers take off');
+});
+
+test('a refused bomber strike through the assembled HUNT runtime keeps the item', () => {
+    const { manager, caller, combat, mapUnits } = createAssembledHuntWorld();
+    caller.inventory = ['SHIELD', 'BOMBER_STRIKE'];
+    caller.selectedItemIndex = 1;
+    manager.isFightOutcomeAuthority = false;
+    const result = combat.useInventoryItem(caller);
+    assert.equal(result.ok, false);
+    assert.deepEqual(caller.inventory, ['SHIELD', 'BOMBER_STRIKE'], 'the inventory is restored in order');
+    assert.equal(caller.selectedItemIndex, 1, 'the selection stays on the bomber');
+    assert.equal(mapUnits.units.length, 0);
 });
 
 test('bomber blast checks 3D distance, solid cover, allies, source and spawn protection', () => {

@@ -22,17 +22,20 @@ test('match-end Escape reaches the kernel lifecycle and is consumed exactly once
 });
 
 test('match-end Enter restarts the match and is consumed exactly once', () => {
-    const harness = createRoundStateHarness({ roundPause: 3 });
+    let now = 10;
+    const harness = createRoundStateHarness({ roundPause: 3, now: () => now });
     harness.kernel.signalRoundEnd({ roundPause: 3 });
     harness.game.state = 'MATCH_END';
-    // The match-end board opens with an input lock; Enter counts once it has run out.
-    harness.system.updateMatchEnd(MATCH_END_INPUT_LOCK_SECONDS);
+    // The first tick opens the match-end board and starts its monotonic lock.
+    harness.system.updateMatchEnd(0);
+    now += MATCH_END_INPUT_LOCK_SECONDS;
+    harness.system.updateMatchEnd(0);
     harness.input.press('Enter');
 
     harness.system.updateMatchEnd(0);
 
     assert.equal(harness.kernel.lifecycle, 'match_end');
-    assert.equal(harness.input.callCount('Enter'), 2, 'Enter must be read by exactly one owner per frame');
+    assert.equal(harness.input.callCount('Enter'), 3, 'Enter must be read by exactly one owner per frame');
     assert.equal(harness.calls.startMatch, 1, 'Enter must restart the match');
 });
 

@@ -348,9 +348,12 @@ test('every local module a packaged electron file requires is packaged as well',
 });
 
 test('the game export carries the module that its main process requires', async () => {
-    const { GAME_EXPORT_ELECTRON_FILES } = await import('../scripts/game-export-contract.mjs');
+    const { GAME_EXPORT_ELECTRON_FILES, isGameExportSourcePath } = await import('../scripts/game-export-contract.mjs');
     assert.ok(GAME_EXPORT_ELECTRON_FILES.has('electron/test-render-window.cjs'));
+    assert.ok(GAME_EXPORT_ELECTRON_FILES.has('electron/automation-hint.cjs'));
+    assert.equal(isGameExportSourcePath('electron/automation-hint.cjs'), true);
 
     const builderConfig = readFileSync(path.join(repoRoot, 'game-export', 'electron-builder.yml'), 'utf8');
     assert.match(builderConfig, /^\s+- test-render-window\.cjs$/m);
+    assert.match(builderConfig, /^\s+- automation-hint\.cjs$/m);
 });

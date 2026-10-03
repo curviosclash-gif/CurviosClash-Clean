@@ -178,6 +178,9 @@ export function createMatchFlowUiControllerPort(ports = null) {
     if (typeof arcadePort?.requestReplayPlayback === 'function') {
         controllerPort.requestArcadeReplayPlayback = () => arcadePort.requestReplayPlayback();
     }
+    if (typeof arcadePort?.requestReplayExport === 'function') {
+        controllerPort.requestArcadeReplayExport = () => arcadePort.requestReplayExport();
+    }
     if (typeof arcadePort?.applyParcoursEvent === 'function') {
         controllerPort.applyArcadeParcoursEvent = (data = null) => arcadePort.applyParcoursEvent(data);
     }

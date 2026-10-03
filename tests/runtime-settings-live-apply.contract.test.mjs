@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
+import { initializeArcadePlayerProfileBindings } from '../src/core/arcade/ArcadePlayerProfileBindings.js';
 import { collectUnseenParcoursHudEvents } from '../src/ui/arcade/ParcoursOverlayController.js';
 import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeSupport.js';
 import { LEADERBOARD_STORAGE_KEY } from '../src/state/arcade/ArcadeLeaderboard.js';
@@ -655,6 +656,7 @@ test('GameRuntimeArcadeSupport binds ghost seams outside arcade runs', () => {
         },
     };
 
+    initializeArcadePlayerProfileBindings(support.arcadeRunRuntime);
     const runState = support.startRunIfEnabled();
     const ghostClip = { frames: [{ t: 0 }] };
     ghostPlaybackHandler(ghostClip);
@@ -936,11 +938,12 @@ test('Arcade HUD reads the canonical cached profile without normalizing it per s
 
     const hud = runtime.getHudState();
 
+    // Paket 3: stored legacy hangarBonuses no longer reach the run; only size build and pool stones do.
     assert.deepEqual(hud.vehicleStats, {
         level: 7,
-        speedBonusPct: 9,
-        turningBonusPct: 4,
-        maxHpBonus: 12,
+        speedBonusPct: 0,
+        turningBonusPct: 0,
+        maxHpBonus: 0,
     });
 });
 

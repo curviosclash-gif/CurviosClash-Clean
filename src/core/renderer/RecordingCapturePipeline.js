@@ -24,6 +24,7 @@ import {
     shouldAttemptCinematicRenderer,
 } from './RecordingCaptureRendererLifecycle.js';
 import { configurePlayerHealthAuraCaptureCamera } from '../../shared/rendering/PlayerHealthAuraLayers.js';
+import { sortPlayersByIndexWhenNeeded } from './RecordingCapturePlayerOrder.js';
 
 export { createCaptureCameraHooks } from './RecordingCaptureViewOps.js';
 
@@ -151,8 +152,7 @@ export class RecordingCapturePipeline {
         const players = Array.isArray(renderProjection?.players)
             ? renderProjection.players.filter(Boolean)
             : [];
-        players.sort((left, right) => (left.playerIndex || 0) - (right.playerIndex || 0));
-        return players;
+        return sortPlayersByIndexWhenNeeded(players);
     }
 
     setBloomQuality(level) {
@@ -164,8 +164,7 @@ export class RecordingCapturePipeline {
         const players = Array.isArray(renderProjection?.players)
             ? renderProjection.players.filter((player) => player && player.isBot !== true)
             : [];
-        players.sort((left, right) => (left.playerIndex || 0) - (right.playerIndex || 0));
-        return players;
+        return sortPlayersByIndexWhenNeeded(players);
     }
 
     _ensureCaptureCanvas(width, height) {

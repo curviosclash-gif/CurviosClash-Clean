@@ -65,8 +65,10 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const layout = el('div', 'arcade-vehicle-layout hangar-workshop-layout');
     container.appendChild(layout);
     const leftPanel = el('section', 'arcade-vehicle-panel arcade-vehicle-panel-list hangar-catalog-panel');
-    leftPanel.setAttribute('aria-label', 'Fahrzeug- und Steinkatalog');
-    const viewSwitch = el('div', 'hangar-catalog-view-switch');
+    leftPanel.setAttribute('aria-label', mode === 'arcade' ? 'Fahrzeugkatalog' : 'Fahrzeug- und Steinkatalog');
+    // Arcade (Paket 3): the five colour stones stay in the Fight hangar; the workshop stones live
+    // in the tab "Ausbau", so the catalog only lists vehicles.
+    const viewSwitch = el('div', `hangar-catalog-view-switch${mode === 'arcade' ? ' hidden' : ''}`);
     viewSwitch.setAttribute('role', 'tablist');
     viewSwitch.setAttribute('aria-label', 'Katalogansicht');
     const vehiclesViewButton = button('hangar-catalog-view is-active', 'Fahrzeuge');
@@ -185,7 +187,8 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
         'Ziehen: drehen · Rad: zoomen · Rechtszug: verschieben · Esc: Drag abbrechen',
         'arcade-vehicle-preview-hint'
     ));
-    const pairLabel = el('label', 'hangar-pair-toggle');
+    // Arcade has no pair switch: every stone is placed on its own slot (Paket 3).
+    const pairLabel = el('label', `hangar-pair-toggle${mode === 'arcade' ? ' hidden' : ''}`);
     const pairToggle = document.createElement('input');
     pairToggle.type = 'checkbox';
     pairToggle.checked = true;
@@ -236,11 +239,12 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const buildViewSwitch = el('div', 'hangar-build-view-switch');
     buildViewSwitch.setAttribute('role', 'tablist');
     buildViewSwitch.setAttribute('aria-label', 'Werkstattbereich');
-    const workshopViewButton = button('hangar-build-view-tab is-active', 'Umbau');
+    // Arcade: the sockets of "Umbau" moved with the stones into "Ausbau", which opens first.
+    const workshopViewButton = button(`hangar-build-view-tab${mode === 'arcade' ? ' hidden' : ' is-active'}`, 'Umbau');
     workshopViewButton.id = 'hangar-build-view-workshop';
     workshopViewButton.dataset.buildView = 'workshop';
     workshopViewButton.setAttribute('role', 'tab');
-    workshopViewButton.setAttribute('aria-selected', 'true');
+    workshopViewButton.setAttribute('aria-selected', String(mode !== 'arcade'));
     workshopViewButton.setAttribute('aria-controls', 'hangar-build-panel-workshop');
     const statsViewButton = button('hangar-build-view-tab', 'Werte');
     statsViewButton.id = 'hangar-build-view-stats';
@@ -260,7 +264,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     formViewButton.setAttribute('role', 'tab');
     formViewButton.setAttribute('aria-selected', 'false');
     formViewButton.setAttribute('aria-controls', 'hangar-build-panel-form');
-    // Tab "Ausbau" (arcade only): size build now, stones and weapon tiers later (HangarUpgradeTab).
+    // Tab "Ausbau" (arcade only): size build and stones, weapon tiers later (HangarUpgradeTab).
     const upgradeViewButton = mode === 'arcade' ? button('hangar-build-view-tab', 'Ausbau') : null;
     if (upgradeViewButton) {
         upgradeViewButton.id = 'hangar-build-view-upgrade';
@@ -296,12 +300,13 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     buildCompareSelect.setAttribute('aria-label', 'Gespeicherten Build vergleichen');
     compareHeader.appendChild(buildCompareSelect);
     const statRows = el('div', 'arcade-vehicle-compare-rows hangar-stat-rows');
-    const budgetRows = el('div', 'hangar-budget-rows');
+    // Arcade stones cost no budget (Plan: "Steine im Arcade-Hangar kosten kein Budget").
+    const budgetRows = el('div', `hangar-budget-rows${mode === 'arcade' ? ' hidden' : ''}`);
     const partPreviewBox = el('div', 'hangar-part-preview hidden');
     partPreviewBox.setAttribute('aria-live', 'polite');
     comparePanel.append(compareHeader, statRows, budgetRows);
     const slotsPanel = el('section', 'hangar-slot-panel');
-    slotsPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Fassungen'));
+    slotsPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', mode === 'arcade' ? 'Steinplätze' : 'Fassungen'));
     const slotGrid = el('div', 'arcade-vehicle-slots hangar-slot-grid');
     slotsPanel.appendChild(slotGrid);
     const validationBox = el('div', 'hangar-validation-box');
@@ -312,7 +317,8 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const revertButton = button('secondary-btn hangar-revert', 'Zurücksetzen', 'Letzten gespeicherten Stand laden');
     const defaultButton = button('secondary-btn hangar-default', 'Standard', 'Standardkonfiguration wiederherstellen');
     historyBar.append(undoButton, redoButton, revertButton, defaultButton);
-    const starterPanel = el('section', 'hangar-starter-panel');
+    // Starter builds use the colour stones of the Fight hangar; Arcade has none.
+    const starterPanel = el('section', `hangar-starter-panel${mode === 'arcade' ? ' hidden' : ''}`);
     starterPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Starter-Builds'));
     const starterBuilds = el('div', 'hangar-starter-builds');
     HANGAR_STARTER_BUILDS.forEach((starterBuild) => {
@@ -374,12 +380,13 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     presetActions.append(presetPrimaryActions, presetMore);
     const activateButton = button('start-btn hangar-activate-build', mode === 'fight' ? 'Für nächsten Kampf aktivieren' : 'Für nächsten Run aktivieren');
     loadoutPanel.append(presetName, presetTags, presetSort, presetSelect, presetActions);
-    const workshopViewPanel = el('div', 'hangar-build-view-panel');
+    const workshopViewPanel = el('div', `hangar-build-view-panel${mode === 'arcade' ? ' hidden' : ''}`);
     workshopViewPanel.id = 'hangar-build-panel-workshop';
     workshopViewPanel.dataset.buildViewPanel = 'workshop';
     workshopViewPanel.setAttribute('role', 'tabpanel');
     workshopViewPanel.setAttribute('aria-labelledby', workshopViewButton.id);
-    workshopViewPanel.append(machineGunPanel, partPreviewBox, slotsPanel, validationBox, historyBar);
+    // Arcade: the stone panel in "Ausbau" takes slots, validation and history (ArcadeStonePanel).
+    workshopViewPanel.append(machineGunPanel, partPreviewBox, ...(mode === 'arcade' ? [] : [slotsPanel, validationBox, historyBar]));
     const statsViewPanel = el('div', 'hangar-build-view-panel hidden');
     statsViewPanel.id = 'hangar-build-panel-stats';
     statsViewPanel.dataset.buildViewPanel = 'stats';
@@ -431,7 +438,8 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
         vehiclePreviousButton, vehicleNextButton,
         previewOverlay, pairToggle, removeZone, detailTitle, detailMeta, detailDescription, favoriteBtn, levelLine,
         levelDetail, xpFill, cosmeticsBox, trailStyleSelect, weaponStyleSelects, cosmeticUnlockDetail,
-        machineGunPanel, machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton,
+        machineGunPanel, machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox,
+        slotsPanel, slotGrid, validationBox, historyBar, undoButton,
         redoButton, revertButton, defaultButton, starterBuilds, presetName, presetSelect, presetSave,
         presetSaveAs, presetLoad, presetRename, presetDuplicate, presetDelete, presetSort, presetTags,
         presetFavorite, presetExport, presetImport, buildScroll, buildViewSwitch,

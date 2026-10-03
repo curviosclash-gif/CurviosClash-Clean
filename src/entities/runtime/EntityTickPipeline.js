@@ -3,6 +3,7 @@ import {
     resolveLocalHumanCount,
     updateRocketWarningAudio,
 } from '../systems/projectile/RocketWarningAudioOps.js';
+import { beginGamepadInputFrame, endGamepadInputFrame } from '../../shared/input/GamepadInputSource.js';
 
 export class EntityTickPipeline {
     constructor(entityManager) {
@@ -47,6 +48,8 @@ export class EntityTickPipeline {
         owner._overheatGunSystem.update(dt);
         owner._respawnSystem.update(dt);
         owner._playerInputSystem.beginFrame?.();
+        // All local slots share one lazy hardware snapshot; standalone reads remain fresh.
+        beginGamepadInputFrame();
         try {
             for (const player of owner.players) {
                 if (!player.alive) continue;
@@ -95,7 +98,11 @@ export class EntityTickPipeline {
                 owner._eventBus.emitRoundEnd(outcome.winner, outcome);
             }
         } finally {
-            owner._playerInputSystem.endFrame?.();
+            try {
+                owner._playerInputSystem.endFrame?.();
+            } finally {
+                endGamepadInputFrame();
+            }
         }
     }
 }

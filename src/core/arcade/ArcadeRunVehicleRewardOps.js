@@ -41,23 +41,109 @@ export function getArcadeRunVehicleProfile(runtime) {
     return getOrCreateProfile(runtime._vehicleProfiles, vehicleId);
 }
 
-/** Build a deduplicated bonus map for the vehicle profiles flown by local humans. */
-export function createArcadeVehicleUpgradeBonusMap(profiles, players, { buildOnly = false } = {}) {
+/** Resolve one vehicle's build against its settings store and freeze the stone pool for this run. */
+export function getArcadeRunVehicleBonusesForRun(runtime, profile) {
+    const state = runtime?._state;
+    const runId = state && !state.finishedAtIso ? String(state.runId || '') : '';
+    const kept = runtime?._runStoneSteps;
+    const sameRun = !!runId && kept?.runId === runId && kept.vehicleId === String(profile?.vehicleId || '');
+    const bonuses = getArcadeRunVehicleBonuses(
+        profile,
+        runtime?._resolveSettingsRecordStore?.() || null,
+        sameRun ? kept.stoneSteps : null,
+    );
+    if (runId && bonuses.build) {
+        runtime._runStoneSteps = {
+            runId,
+            vehicleId: bonuses.build.vehicleId,
+            stoneSteps: bonuses.build.stoneSteps,
+        };
+    }
+    return bonuses;
+}
+
+/**
+ * Build a deduplicated bonus map for the vehicle profiles flown by local humans.
+ * @param {Record<string, any>} profiles
+ * @param {any[]} players
+ * @param {{ buildOnly?: boolean, store?: any, stoneStepsByVehicleId?: Record<string, any> }} [options]
+ */
+export function createArcadeVehicleUpgradeBonusMap(profiles, players, {
+    buildOnly = false,
+    store = null,
+    stoneStepsByVehicleId = null,
+} = {}) {
     const byVehicleId = Object.create(null);
     for (const player of Array.isArray(players) ? players : []) {
         if (!player || player.isBot === true) continue;
         const vehicleId = String(player.vehicleId || '').trim();
         if (!vehicleId || Object.prototype.hasOwnProperty.call(byVehicleId, vehicleId)) continue;
-        const bonuses = getArcadeRunVehicleBonuses(profiles?.[vehicleId] || null);
+        const profile = profiles ? (profiles[vehicleId] || getOrCreateProfile(profiles, vehicleId)) : null;
+        const bonuses = getArcadeRunVehicleBonuses(
+            profile,
+            store,
+            stoneStepsByVehicleId?.[vehicleId] || null,
+        );
+        if (bonuses.build && stoneStepsByVehicleId && !stoneStepsByVehicleId[vehicleId]) {
+            stoneStepsByVehicleId[vehicleId] = bonuses.build.stoneSteps;
+        }
         byVehicleId[vehicleId] = buildOnly ? { build: bonuses.build } : bonuses;
     }
     return { byVehicleId };
 }
 
-export function resolveArcadeRunStrategyUpgradeBonuses(profiles, players, fallbackBonuses, disabled = false) {
-    if (disabled || !profiles || !Array.isArray(players)
+/**
+ * Build bonuses independently for each local player, even when profiles share a vehicle ID.
+ * @param {Record<number, Record<string, any>>} profilesByPlayerIndex
+ * @param {any[]} players
+ * @param {{ buildOnly?: boolean, storesByPlayerIndex?: Record<number, any>, stoneStepsByPlayerIndex?: Record<number, {vehicleId: string, stoneSteps: any}> }} [options]
+ */
+export function createArcadePlayerUpgradeBonusMap(profilesByPlayerIndex, players, {
+    buildOnly = false,
+    storesByPlayerIndex = null,
+    stoneStepsByPlayerIndex = null,
+} = {}) {
+    const byPlayerIndex = Object.create(null);
+    for (const player of Array.isArray(players) ? players : []) {
+        if (!player || player.isBot === true) continue;
+        const playerIndex = Number(player.index);
+        if (!Number.isInteger(playerIndex)) continue;
+        const vehicleId = String(player.vehicleId || '').trim();
+        const profiles = profilesByPlayerIndex?.[playerIndex];
+        const bonuses = getArcadeRunVehicleBonuses(
+            profiles?.[vehicleId] || null,
+            storesByPlayerIndex?.[playerIndex] || null,
+            stoneStepsByPlayerIndex?.[playerIndex]?.vehicleId === vehicleId
+                ? stoneStepsByPlayerIndex[playerIndex].stoneSteps
+                : null,
+        );
+        if (bonuses.build && stoneStepsByPlayerIndex
+            && !stoneStepsByPlayerIndex[playerIndex]) {
+            stoneStepsByPlayerIndex[playerIndex] = {
+                vehicleId: bonuses.build.vehicleId,
+                stoneSteps: bonuses.build.stoneSteps,
+            };
+        }
+        byPlayerIndex[playerIndex] = buildOnly ? { build: bonuses.build } : bonuses;
+    }
+    return { byPlayerIndex };
+}
+
+export function resolveArcadeRunStrategyUpgradeBonuses(runtime, players, fallbackBonuses, disabled = false) {
+    if (disabled) return fallbackBonuses;
+    if (runtime?._playerProfileBindingsActive) {
+        return createArcadePlayerUpgradeBonusMap(runtime._playerProfilesByIndex, players, {
+            storesByPlayerIndex: runtime._playerStoresByIndex,
+            stoneStepsByPlayerIndex: runtime._runStoneStepsByPlayerIndex,
+        });
+    }
+    const profiles = runtime?._vehicleProfiles;
+    if (!profiles || !Array.isArray(players)
         || !players.some((player) => player && player.isBot !== true && String(player.vehicleId || '').trim())) {
         return fallbackBonuses;
     }
-    return createArcadeVehicleUpgradeBonusMap(profiles, players);
+    return createArcadeVehicleUpgradeBonusMap(profiles, players, {
+        store: runtime?._resolveSettingsRecordStore?.() || null,
+        stoneStepsByVehicleId: runtime?._runVehicleStoneStepsById || null,
+    });
 }

@@ -8,6 +8,7 @@ import { StateReconciler } from '../src/network/StateReconciler.js';
 import { RailgunSystem } from '../src/hunt/RailgunSystem.js';
 import { applyPlayerPowerup, recomputePlayerEffectState } from '../src/entities/player/PlayerEffectOps.js';
 import { applyHuntNetworkState, createHuntNetworkState } from '../src/hunt/HuntNetworkState.js';
+import { EntitySpawnOps } from '../src/entities/runtime/EntitySpawnOps.js';
 
 const HUNT_MODE_CONFIG = {
     ...CONFIG_BASE,
@@ -101,4 +102,67 @@ test('review fix: two beams between two snapshots are both drawn', () => {
     }
     applyHuntNetworkState(client.manager, createHuntNetworkState(host.manager));
     assert.deepEqual(client.beams, [1, 2]);
+});
+
+test('round clear removes beam effects and preserves replica deduplication for the next shot', () => {
+    const host = createSide(true);
+    const client = createSide(false);
+    applyPlayerPowerup(host.shooter, 'RAILGUN');
+    applyPlayerPowerup(client.shooter, 'RAILGUN');
+    applyHuntNetworkState(client.manager, createHuntNetworkState(host.manager));
+
+    host.system.fire(host.shooter, 0.3, true);
+    host.system.fire(host.shooter, 0.016, false);
+    applyHuntNetworkState(client.manager, createHuntNetworkState(host.manager));
+    assert.deepEqual(client.beams, [1]);
+
+    let disposedEffects = 0;
+    host.system._effect = { dispose() { disposedEffects += 1; } };
+    client.system._effect = { dispose() { disposedEffects += 1; } };
+    host.shooter.railCharge = 0.4;
+    client.shooter.railCharge = 0.4;
+    host.system.clear();
+    client.system.clear();
+    applyHuntNetworkState(client.manager, createHuntNetworkState(host.manager));
+    assert.equal(disposedEffects, 2, 'round reset disposes both local effect pools');
+    assert.equal(host.shooter.railCharge, 0, 'round reset drops a partially charged shot');
+    assert.equal(host.system.lastBeam, null, 'round reset forgets the previous beam');
+    assert.equal(host.system._hits.length, 0, 'round reset clears reusable hit scratch');
+    assert.equal(host.system.serializeNetworkState(), null, 'old beams leave the next round snapshot');
+    assert.equal(client.system._appliedBeamId, 1, 'the replica retains the last applied network id');
+
+    host.system.fire(host.shooter, 0.3, true);
+    host.system.fire(host.shooter, 0.016, false);
+    applyHuntNetworkState(client.manager, createHuntNetworkState(host.manager));
+    assert.deepEqual(client.beams, [1, 2], 'the next round beam is drawn once after reset');
+
+    let finalDisposeCount = 0;
+    client.system._effect = { dispose() { finalDisposeCount += 1; } };
+    client.system.dispose();
+    assert.equal(finalDisposeCount, 1, 'final dispose reuses round cleanup');
+    assert.equal(client.system._stateInitialized, false, 'final dispose resets replica initialization');
+    assert.equal(client.system._appliedBeamId, 0);
+});
+
+test('round spawn clears the railgun before spawning the next round players', () => {
+    const order = [];
+    const player = {
+        index: 0,
+        isBot: false,
+        spawn() { order.push('spawn'); },
+    };
+    const owner = {
+        players: [player],
+        _railgunSystem: { clear() { order.push('railgun-clear'); } },
+        _respawnSystem: { reset() {} },
+        _huntScoring: { reset() {} },
+        _roundOutcomeSystem: { reset() {} },
+        _simulationClockMs: 0,
+        _findSpawnPosition: () => new THREE.Vector3(),
+        _findSafeSpawnDirection: () => new THREE.Vector3(0, 0, -1),
+    };
+
+    new EntitySpawnOps(owner).spawnAll();
+
+    assert.deepEqual(order, ['railgun-clear', 'spawn']);
 });

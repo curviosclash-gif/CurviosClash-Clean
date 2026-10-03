@@ -7,6 +7,7 @@ import {
 import { ARENA_WAVES_COMBAT_PROFILE, ARENA_WAVES_RUN_TYPE, isArenaWavesRunType, normalizeArenaWavesCombatProfile } from './ArenaWavesContract.js';
 import { FIVE_PORTALS_COMBAT_PROFILE, FIVE_PORTALS_RUN_TYPE, isFivePortalsRunType } from './FivePortalsContract.js';
 import { WEAPON_RACE_RUN_TYPE, isWeaponRaceRunType } from './WeaponRaceContract.js';
+import { DEMOLITION_COMBAT_PROFILE, DEMOLITION_RUN_TYPE, isDemolitionRunType, normalizeDemolitionProfileIds } from './DemolitionContract.js';
 import { DEFAULT_PORTAL_CHAIN_ID, normalizePortalChainId } from './PortalChainContract.js';
 
 // Persisted arcade run settings: the single source for the shape and the ranges.
@@ -46,12 +47,15 @@ const DEFAULTS = Object.freeze({
     // Which fixed map chain a "five_portals" run plays (Fünf Portale, Himmelsleiter, ...).
     // Only meaningful when runType is FIVE_PORTALS_RUN_TYPE; ignored otherwise.
     portalChainId: DEFAULT_PORTAL_CHAIN_ID,
+    demolitionProfileIds: Object.freeze(['', '', '']),
+    playerProfileIds: Object.freeze(['', '', '']),
 });
 
 /** @typedef {{ profileId: string, runType: string, combatProfile: string, scoreModel: string,
  * seed: number, sectorCount: number, intermissionSeconds: number, comboWindowMs: number,
  * comboDecayPerSecond: number, maxMultiplier: number, replayHooksEnabled: boolean,
- * dailyChallenge: boolean, nightmare: boolean, portalChainId: string }} ArcadeRunSettings */
+ * dailyChallenge: boolean, nightmare: boolean, portalChainId: string,
+ * demolitionProfileIds?: readonly string[], playerProfileIds?: readonly string[] }} ArcadeRunSettings */
 
 function clampNumber(value, range, fallback) {
     const parsed = Number(value);
@@ -76,16 +80,26 @@ export function normalizeArcadeScoreModel(_value) {
 
 /** @returns {ArcadeRunSettings} */
 export function createDefaultArcadeRunSettings() {
-    return { ...DEFAULTS };
+    return {
+        ...DEFAULTS,
+        demolitionProfileIds: normalizeDemolitionProfileIds(DEFAULTS.demolitionProfileIds),
+        playerProfileIds: normalizeDemolitionProfileIds(DEFAULTS.playerProfileIds),
+    };
 }
 
 /**
  * @param {any} source persisted `settings.arcade` block, in any state
  * @returns {ReturnType<typeof createDefaultArcadeRunSettings>}
  */
-export function normalizeArcadeRunSettings(source) {
+export function normalizeArcadeRunSettings(
+    source,
+    demolitionProfileIds = source?.demolitionProfileIds,
+    playerProfileIds = source?.playerProfileIds ?? demolitionProfileIds,
+) {
     const input = source && typeof source === 'object' && !Array.isArray(source) ? source : {};
-    const runType = isFivePortalsRunType(input.runType)
+    const runType = isDemolitionRunType(input.runType)
+        ? DEMOLITION_RUN_TYPE
+        : isFivePortalsRunType(input.runType)
         ? FIVE_PORTALS_RUN_TYPE
         : (isArenaWavesRunType(input.runType)
             ? ARENA_WAVES_RUN_TYPE
@@ -95,7 +109,9 @@ export function normalizeArcadeRunSettings(source) {
     return {
         profileId: normalizeText(input.profileId, DEFAULTS.profileId),
         runType,
-        combatProfile: runType === ENDLESS_PARCOURS_RUN_TYPE
+        combatProfile: runType === DEMOLITION_RUN_TYPE
+            ? DEMOLITION_COMBAT_PROFILE
+            : runType === ENDLESS_PARCOURS_RUN_TYPE
             && normalizeArcadeCombatProfile(input.combatProfile, runType) === ENDLESS_PARCOURS_COMBAT_PROFILE
             ? ENDLESS_PARCOURS_COMBAT_PROFILE
             : (runType === WEAPON_RACE_RUN_TYPE
@@ -124,7 +140,22 @@ export function normalizeArcadeRunSettings(source) {
         dailyChallenge: input.dailyChallenge === true,
         nightmare: input.nightmare === true,
         portalChainId: normalizePortalChainId(input.portalChainId),
+        demolitionProfileIds: normalizeDemolitionProfileIds(demolitionProfileIds),
+        playerProfileIds: normalizeDemolitionProfileIds(playerProfileIds),
     };
+}
+
+/** Normalize saved arcade player profile selections alongside the legacy demolition field. */
+export function normalizeArcadeRunSettingsFromSetup(source, startSetup) {
+    const legacyIds = startSetup?.demolitionProfileIds;
+    const selectedIds = startSetup?.arcadePlayerProfileIds;
+    const hasSelectedIds = Array.isArray(selectedIds)
+        && selectedIds.some((id) => typeof id === 'string' && id.trim());
+    return normalizeArcadeRunSettings(
+        source,
+        legacyIds,
+        hasSelectedIds ? selectedIds : legacyIds,
+    );
 }
 
 /** True when the block carries an explicit seed the runtime must not overwrite. */

@@ -67,6 +67,7 @@ import { MatchFlowTelemetryController } from '../src/ui/MatchFlowTelemetryContro
 import { MatchFlowArcadeOverlayController } from '../src/ui/MatchFlowArcadeOverlayController.js';
 import { HudRuntimeSystem } from '../src/ui/HudRuntimeSystem.js';
 import { requestArcadeReplayPlayback } from '../src/ui/MatchFlowTransitionHotspots.js';
+import { requestArcadeReplayExport } from '../src/ui/MatchFlowTransitionHotspots.js';
 import { SETTINGS_CHANGE_KEYS } from '../src/shared/settings/SettingsChangeKeys.js';
 import { UIManager } from '../src/ui/UIManager.js';
 import { resolveSyncMethodNamesForChangeKeys } from '../src/ui/UISettingsSyncMap.js';
@@ -1634,10 +1635,12 @@ test('interactive MatchKernel adapter reuses a minimal envelope and skips unused
     const adapter = new MatchKernelInteractiveAdapter({ game: { input }, kernel });
     const tickEnvelope = adapter._tickEnvelope;
 
-    assert.equal(adapter.tick(1 / 60, 7), null);
-    assert.equal(adapter.tick(1 / 30, 8), null);
+    assert.equal(adapter.tick(1 / 60, 7, 0.2), null);
+    assert.equal(tickEnvelope.inputLockDeltaSeconds, 0.2, 'the wall-clock lock delta is kept separately from fixed simulation dt');
+    assert.equal(adapter.tick(1 / 30, 8, 0.4), null);
+    assert.equal(tickEnvelope.inputLockDeltaSeconds, 0.4, 'the reused envelope refreshes the input-lock delta on every tick');
     assert.equal(adapter._tickEnvelope, tickEnvelope);
-    assert.deepEqual(Object.keys(tickEnvelope).sort(), ['fixedStepSeconds', 'frameId']);
+    assert.deepEqual(Object.keys(tickEnvelope).sort(), ['fixedStepSeconds', 'frameId', 'inputLockDeltaSeconds']);
     assert.equal(kernel.tickIndex, 2);
     assert.deepEqual(updates, [
         { dt: 1 / 60, receivedInput: input, frameId: 7 },
@@ -1686,6 +1689,77 @@ test('arcadePort.applyParcoursEvent delegates to coordinator before facade', () 
     const result = port.applyParcoursEvent(payload);
     assert.equal(result, 'coordinator');
     assert.deepEqual(calls, [['coordinator', payload]]);
+});
+
+test('arcade replay export is exposed by the UI controller port and delegates through the coordinator', () => {
+    const calls = [];
+    const payload = { code: 'replay_export_ready', replayJson: '{"matchId":"port"}' };
+    const arcadePort = createArcadePort({
+        getRuntimeCoordinator: () => ({
+            requestArcadeReplayExport() { calls.push('coordinator-export'); return payload; },
+            requestArcadeReplayPlayback() { calls.push('coordinator-playback'); return { code: 'playback' }; },
+        }),
+        getRuntimeFacade: () => ({
+            requestArcadeReplayExport() { calls.push('facade-export'); return null; },
+        }),
+    });
+    const controllerPort = createMatchFlowUiControllerPort({ arcadePort });
+
+    assert.equal(controllerPort.requestArcadeReplayExport(), payload);
+    assert.deepEqual(calls, ['coordinator-export']);
+});
+
+test('legacy coordinator replay playback command retrieves data through the export facade command', () => {
+    const payload = { code: 'replay_export_ready', replayJson: '{"matchId":"compat"}' };
+    const calls = [];
+    const result = GameRuntimeCoordinator.prototype.requestArcadeReplayPlayback.call({
+        getRuntimeFacade() {
+            return {
+                requestArcadeReplayExport() { calls.push('facade-export'); return payload; },
+            };
+        },
+    });
+
+    assert.equal(result, payload);
+    assert.deepEqual(calls, ['facade-export']);
+});
+
+test('replay playback uses the export payload to start a ghost without using the legacy alias', () => {
+    const calls = [];
+    const result = requestArcadeReplayPlayback({
+        requestArcadeReplayExport() {
+            calls.push('export-payload');
+            return { ok: true, code: 'replay_export_ready' };
+        },
+        requestArcadeReplayPlayback() {
+            calls.push('legacy-playback-alias');
+            assert.fail('the distinct export command should supply the replay payload');
+        },
+        getLastRoundGhostClip() {
+            calls.push('get-ghost-clip');
+            return { frames: [{ time: 0 }], sourceDuration: 1, displayDuration: 1 };
+        },
+    }, {
+        entityManager: { playLastRoundGhost() { calls.push('play-ghost'); return true; } },
+    });
+
+    assert.equal(result.code, 'replay_playback_started');
+    assert.deepEqual(calls, ['export-payload', 'get-ghost-clip', 'play-ghost']);
+});
+
+test('replay export helper only returns the export command payload', () => {
+    const calls = [];
+    const payload = { ok: true, code: 'replay_export_ready', replayJson: '{"matchId":"export"}' };
+    const result = requestArcadeReplayExport({
+        requestArcadeReplayExport() { calls.push('export'); return payload; },
+        requestArcadeReplayPlayback() { calls.push('legacy'); return null; },
+        getLastRoundGhostClip() { calls.push('ghost-clip'); return null; },
+    }, {
+        entityManager: { playLastRoundGhost() { calls.push('playback'); return true; } },
+    });
+
+    assert.equal(result, payload);
+    assert.deepEqual(calls, ['export']);
 });
 
 test('arcadePort.tickSuddenDeath delegates to coordinator before facade (91.3.2)', () => {
@@ -2628,9 +2702,9 @@ test('GameRuntimeFacade arcade helpers delegate to arcade support seam (92.4.2)'
                 calls.push(['menu-state']);
                 return { phase: 'intermission' };
             },
-            requestReplayPlayback() {
-                calls.push(['replay']);
-                return { code: 'ok' };
+            requestReplayExport() {
+                calls.push(['replay-export']);
+                return { code: 'export' };
             },
         },
     };
@@ -2643,21 +2717,21 @@ test('GameRuntimeFacade arcade helpers delegate to arcade support seam (92.4.2)'
         { type: 'ghost_start', routeId: 'route_1' }
     );
     const menuStateResult = GameRuntimeFacade.prototype.getArcadeMenuSurfaceState.call(runtimeFacadeContext);
-    const replayResult = GameRuntimeFacade.prototype.requestArcadeReplayPlayback.call(runtimeFacadeContext);
+    const replayExportResult = GameRuntimeFacade.prototype.requestArcadeReplayExport.call(runtimeFacadeContext);
 
     assert.equal(startResult, 'start-result');
     assert.equal(prepareResult, 'prepare-result');
     assert.deepEqual(transitionResult, { requiresSessionRebuild: true });
     assert.deepEqual(parcoursResult, { ok: true });
     assert.deepEqual(menuStateResult, { phase: 'intermission' });
-    assert.deepEqual(replayResult, { code: 'ok' });
+    assert.deepEqual(replayExportResult, { code: 'export' });
     assert.deepEqual(calls, [
         ['start'],
         ['prepare'],
         ['transition'],
         ['parcours', { type: 'ghost_start', routeId: 'route_1' }],
         ['menu-state'],
-        ['replay'],
+        ['replay-export'],
     ]);
 });
 

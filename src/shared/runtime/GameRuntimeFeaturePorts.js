@@ -23,7 +23,11 @@ export function createArcadePort({ getRuntimeCoordinator, getRuntimeFacade }) {
         },
         requestReplayPlayback() {
             return getRuntimeCoordinator()?.requestArcadeReplayPlayback?.()
-                ?? getRuntimeFacade()?.requestArcadeReplayPlayback?.();
+                ?? getRuntimeFacade()?.requestArcadeReplayExport?.();
+        },
+        requestReplayExport() {
+            return getRuntimeCoordinator()?.requestArcadeReplayExport?.()
+                ?? getRuntimeFacade()?.requestArcadeReplayExport?.();
         },
         applyParcoursEvent(data = null) {
             return getRuntimeCoordinator()?.applyArcadeParcoursEvent?.(data)

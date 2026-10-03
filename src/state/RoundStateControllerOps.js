@@ -77,7 +77,8 @@ export function deriveMatchEndTickStep(inputs = {}) {
     const continueRequested = readContinueRequest(inputs);
     const nextInputLockRemaining = Math.max(
         0,
-        normalizeDt(inputs.inputLockRemaining) - normalizeDt(inputs.dt)
+        normalizeDt(inputs.inputLockRemaining)
+            - normalizeDt(inputs.inputLockDt ?? inputs.dt)
     );
 
     if (escapePressed) {

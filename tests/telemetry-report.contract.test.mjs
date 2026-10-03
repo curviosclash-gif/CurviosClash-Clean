@@ -29,6 +29,37 @@ test('the report separates real play from machine rounds', () => {
     assert.match(report.markdown, /pillar_hall/);
 });
 
+function humanRound(overrides) {
+    return {
+        at: '2026-09-30T10:00:00.000Z', mode: 'hunt', mapKey: 'pyramid', duration: 120,
+        humanCount: 1, botCount: 3, botDifficulty: 'normal', control: { source: 'human' }, ...overrides,
+    };
+}
+
+test('real play is split by bot difficulty and lineup, each rate with its uncertainty', () => {
+    const rows = [
+        ...Array.from({ length: 12 }, (_, index) => humanRound({ winnerType: index < 9 ? 'human' : 'bot' })),
+        humanRound({ botDifficulty: 'hard', winnerType: 'bot' }),
+        humanRound({ botDifficulty: 'hard', botCount: 1, winnerType: 'human' }),
+        // Testlaeufe zaehlen fuer die Balance nicht mit.
+        humanRound({ botDifficulty: 'hard', winnerType: 'human', control: { source: 'automation' } }),
+    ];
+    const { data, markdown } = buildTelemetryReport(rows);
+    const cells = data.realPlay.balance;
+    assert.equal(cells.length, 3, 'normal 1v3, hard 1v3, hard 1v1');
+    const normal = cells.find((cell) => cell.botDifficulty === 'normal');
+    assert.equal(normal.rounds, 12);
+    assert.equal(normal.humanWinRate, 75);
+    // Wilson-Intervall fuer 9 von 12: 47 bis 91 Prozent.
+    assert.deepEqual(normal.humanWinInterval, [47, 91]);
+    assert.equal(normal.enough, false, '12 Runden reichen fuer keine belastbare Quote');
+    const hardFull = cells.find((cell) => cell.botDifficulty === 'hard' && cell.botCount === 3);
+    assert.equal(hardFull.rounds, 1, 'die automatische Runde fehlt');
+    assert.match(markdown, /Bot-Stufe/);
+    assert.match(markdown, /75 % \(47–91\)/);
+    assert.match(markdown, /1 Mensch gegen 3 Bots/);
+});
+
 test('an empty history yields a readable report instead of NaN', () => {
     const report = buildTelemetryReport([], { source: 'Port 38765' });
     assert.equal(report.data.total.rounds, 0);

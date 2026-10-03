@@ -1,4 +1,4 @@
-import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfigContract.js';
 
 /**
  * Owns the small set of authored pickups whose lifetime is tied to a map event.
@@ -18,9 +18,7 @@ export class MapOwnedPickupSystem {
         const map = owner?.arena?.currentMapDefinition;
         const authored = Array.isArray(map?.mapOwnedPickups) ? map.mapOwnedPickups : [];
         if (authored.length === 0) return 0;
-        const scale = map?.scaleAuthoredAnchors === true
-            ? Math.max(0.001, Number(resolveGameplayConfig(owner).ARENA?.MAP_SCALE) || 1)
-            : 1;
+        const scale = resolveAuthoredAnchorScale(map, owner);
         this.pickups = authored.map((entry, index) => {
             const id = String(entry?.id || `map_pickup_${index}`).trim();
             const ownerId = `map-owned:${id}`;

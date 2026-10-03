@@ -1,8 +1,9 @@
 // Hangar tab "Form": part colours, and the 3D preview that shows the ship's look. In the arcade
 // hangar it also runs its sibling tab "Ausbau" (HangarUpgradeTab: size workshop, storage tiers,
-// hit zone), because the preview combines both: the colours from here, the functional size from
-// there - the unapplied size draft while "Ausbau" is open, the part boxes of "Trefferzone
-// zeigen" only there. Size slider and shape choice are gone from "Form" (Plan, Aussehen).
+// hit zone and the docked stone panel), because the preview combines both: the colours from
+// here, the functional size from there - the unapplied size draft while "Ausbau" is open, the
+// part boxes of "Trefferzone zeigen" only there. Size slider and shape choice are gone from
+// "Form" (Plan, Aussehen).
 // The Fight hangar keeps "Form" with the colour panel only and has no "Ausbau".
 // Lives outside ArcadeHangarWorkshop.js, which is over the max-lines cap and must not grow.
 import { createHangarPartStylePanel } from './HangarPartStylePanel.js';
@@ -32,12 +33,14 @@ function showTab(tabButton, panel, active) {
  * @param {{ bind: Function, enabled: boolean, viewport: { setPartStyle: Function, setHitboxOverlay: Function },
  *   panel: HTMLElement, tabButton: HTMLElement, upgradePanel?: HTMLElement|null, upgradeTabButton?: HTMLElement|null,
  *   getProfile: () => any, saveProfile: (profile: any) => boolean|void,
- *   toast: (message: string, tone?: string) => void, onChange: () => void }} options
- *   enabled: arcade hangar; upgradePanel/upgradeTabButton: the shell's "Ausbau" tab (arcade only).
+ *   toast: (message: string, tone?: string) => void, onChange: () => void,
+ *   upgradeSections?: ReadonlyArray<HTMLElement>, getPool?: () => any }} options
+ *   enabled: arcade hangar; upgradePanel/upgradeTabButton: the shell's "Ausbau" tab (arcade only);
+ *   upgradeSections/getPool: the stone panel docked in "Ausbau" and its pool for the size preview.
  */
 export function createHangarFormTab({
     bind, enabled, viewport, panel, tabButton, upgradePanel = null, upgradeTabButton = null,
-    getProfile, saveProfile, toast, onChange,
+    getProfile, saveProfile, toast, onChange, upgradeSections = [], getPool,
 }) {
     const donors = listPlayerShipPartDonors();
     const partsOf = (vehicleId) => donors.find((donor) => donor.id === vehicleId)?.parts || [];
@@ -48,7 +51,7 @@ export function createHangarFormTab({
     });
     panel.appendChild(partStylePanel.root);
     const upgradeTab = enabled && upgradePanel && upgradeTabButton
-        ? createHangarUpgradeTab({ bind, panel: upgradePanel, getProfile, saveProfile, toast, onChange, partsOf })
+        ? createHangarUpgradeTab({ bind, panel: upgradePanel, getProfile, saveProfile, toast, onChange, partsOf, getPool, sections: upgradeSections })
         : null;
 
     return Object.freeze({

@@ -53,16 +53,22 @@ test('the main run stays visible while five specialist modes are grouped one lev
     const visibleOptions = group.children.filter((child) => child.classList.contains('arcade-start-option'));
     assert.deepEqual(visibleOptions.map((option) => option.children[0].id), ['btn-arcade-start-inline']);
     assert.equal(visibleOptions[0].classList.contains('is-primary'), true);
+    const profileControls = byClass(group, 'arcade-demolition-profile-controls');
+    assert.ok(profileControls, 'local Arcade profile selectors sit beside the main start');
+    assert.equal(profileControls.classList.contains('hidden'), true, 'solo runs do not expose unused extra slots');
+    assert.equal(profileControls.children.filter((child) => child.tagName === 'LABEL').length, 3);
     const specialistModes = byClass(group, 'arcade-start-mode-options');
     assert.equal(specialistModes.tagName, 'DETAILS');
-    assert.equal(specialistModes.children[0].textContent, 'Weitere Arcade-Modi (5)');
-    const options = specialistModes.children[1].children;
+    assert.equal(specialistModes.children[0].textContent, 'Weitere Arcade-Modi (6)');
+    const options = specialistModes.children[1].children
+        .filter((option) => option.classList.contains('arcade-start-option'));
     assert.deepEqual(options.map((option) => option.children[0].id), [
         'btn-arcade-endless-start-inline',
         'btn-arcade-five-fronts-start-inline',
         'btn-arcade-five-portals-start-inline',
         'btn-arcade-sky-ladder-start-inline',
         'btn-arcade-weapon-race-start-inline',
+        'btn-arcade-demolition-start-inline',
     ]);
     for (const option of options) {
         const copy = option.children[1];

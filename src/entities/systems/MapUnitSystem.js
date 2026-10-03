@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { isMapUnitCombatActive, resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
-import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfigContract.js';
 import {
     advanceUnitOnPath,
     resetUnitOnPath,
@@ -121,9 +121,7 @@ export class MapUnitSystem {
         if (!owner) return 0;
         const mapDefinition = owner.arena?.currentMapDefinition;
         // Same rule as static turrets: maps authored in map units get the map scale applied.
-        const scale = mapDefinition?.scaleAuthoredAnchors === true
-            ? Math.max(0.001, Number(resolveGameplayConfig(owner).ARENA?.MAP_SCALE) || 1)
-            : 1;
+        const scale = resolveAuthoredAnchorScale(mapDefinition, owner);
         const definitions = resolveMapUnitDefinitions(mapDefinition, { preserveSpatial: mapDefinition?.scaleAuthoredAnchors === true });
         for (const definition of definitions) {
             if (definition.escortObjective) continue;

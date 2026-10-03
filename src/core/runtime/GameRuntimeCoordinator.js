@@ -164,7 +164,11 @@ export class GameRuntimeCoordinator {
     }
 
     requestArcadeReplayPlayback() {
-        return this.getRuntimeFacade()?.requestArcadeReplayPlayback?.();
+        return this.getRuntimeFacade()?.requestArcadeReplayExport?.();
+    }
+
+    requestArcadeReplayExport() {
+        return this.getRuntimeFacade()?.requestArcadeReplayExport?.();
     }
 
     toggleCinematicRecordingFromHotkey(command = 'toggle') {

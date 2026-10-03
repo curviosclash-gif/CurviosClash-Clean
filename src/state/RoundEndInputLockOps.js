@@ -4,8 +4,9 @@
 //
 // The boards continue on any key, so the steering or firing key of the last
 // second must not dismiss them right away. Entering a board therefore drops the
-// pending "continue" intent and starts a short lock that is counted down from dt
-// (deterministic, no wall clock). A press during the lock is swallowed for good:
+// pending "continue" intent and starts a short lock. Round-end and headless ticks
+// count down from dt; the live match-end board supplies a monotonic lock delta.
+// A press during the lock is swallowed for good:
 // it is read every frame and thrown away, so it cannot act once the lock ends.
 //
 // The result board (P7c) reads `remaining` and `total` to draw its progress bar.

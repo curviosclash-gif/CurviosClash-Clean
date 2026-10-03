@@ -13,12 +13,11 @@ import { createArcadeDailyProjection } from '../../state/arcade/ArcadeDailyState
 import { resolveMapSequence, getMapKeyForSector } from '../../state/arcade/ArcadeMapProgression.js';
 import {
     calculateSectorXp,
-    loadVehicleProfiles,
-    getArcadeRunVehicleBonuses, resolveArcadeRunHudVehicleStats,
+    resolveArcadeRunHudVehicleStats,
     XP_REWARD_TABLE,
 } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { awardBoundArcadeVehicleXp } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
-import { bindArcadeRunVehicleRewards, ensureArcadeRunVehicleRewards, getArcadeRunVehicleId, getArcadeRunVehicleProfile, resolveArcadePlayerRewardBinding, resolveArcadeRunStrategyUpgradeBonuses } from './ArcadeRunVehicleRewardOps.js';
+import { bindArcadeRunVehicleRewards, ensureArcadeRunVehicleRewards, getArcadeRunVehicleBonusesForRun, getArcadeRunVehicleId, getArcadeRunVehicleProfile, resolveArcadePlayerRewardBinding, resolveArcadeRunStrategyUpgradeBonuses } from './ArcadeRunVehicleRewardOps.js';
 import { createLeaderboardProjection, loadLeaderboard } from '../../state/arcade/ArcadeLeaderboard.js';
 import {
     ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET,
@@ -36,6 +35,7 @@ import {
 } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { ArcadeRunPersistenceScheduler } from './ArcadeRunPersistenceScheduler.js';
+import { clearArcadePlayerProfileBindings, initializeArcadePlayerProfileBindings, loadArcadeRunVehicleProfiles } from './ArcadePlayerProfileBindings.js';
 import { createArcadeTelemetrySnapshot } from './ArcadeTelemetrySnapshot.js';
 import { applyArcadeIntermissionEffects, captureArcadeHumanVitals, syncArcadeRunRewardEffects } from './ArcadeIntermissionEffects.js';
 import { applyArcadeMasteryScoreBonus, syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
@@ -90,6 +90,7 @@ function toSafeBudgetLimit(value, fallback = 0) {
 export class ArcadeRunRuntime {
     constructor(options = {}) {
         this.settingsManager = options.settingsManager || null;
+        initializeArcadePlayerProfileBindings(this, options.getRecordStoreForPlayerIndex);
         this.replayRecorder = options.replayRecorder || null;
         this.now = typeof options.now === 'function' ? options.now : () => Date.now();
         this.logger = resolveLogger(options.logger);
@@ -374,7 +375,7 @@ export class ArcadeRunRuntime {
     }
 
     _getVehicleBonuses(profile = this.getVehicleProfile()) {
-        return this._config.dailyChallenge ? null : getArcadeRunVehicleBonuses(profile);
+        return this._config.dailyChallenge ? null : (this._runBonuses = getArcadeRunVehicleBonusesForRun(this, profile));
     }
 
     setStrategy(strategy, humanPlayers = null) {
@@ -383,7 +384,8 @@ export class ArcadeRunRuntime {
         try { this._strategy.setActiveModifier?.(this._activeModifierId); } catch { /* no-op */ }
         try { this._strategy.setSectorType?.(this._currentSectorType); } catch { /* no-op */ }
         const profile = this.getVehicleProfile();
-        try { this._strategy.applyVehicleUpgrades?.(resolveArcadeRunStrategyUpgradeBonuses(this._vehicleProfiles, humanPlayers, this._getVehicleBonuses(profile), this._config.dailyChallenge)); } catch { /* no-op */ }
+        try { this._strategy.applyVehicleUpgrades?.(resolveArcadeRunStrategyUpgradeBonuses(this,
+            humanPlayers, this._getVehicleBonuses(profile), this._config.dailyChallenge)); } catch { /* no-op */ }
         syncArcadeRunRewardEffects(this._state, this._strategy);
         if (this._state?.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH) {
             this._restoreSuddenDeath();
@@ -648,7 +650,7 @@ export class ArcadeRunRuntime {
         return result;
     }
 
-    requestReplayPlayback() {
+    requestReplayExport() {
         const replayState = this.getReplayState();
         if (!replayState.payloadAvailable) {
             return { ok: false, code: 'replay_unavailable', replayState };
@@ -669,6 +671,9 @@ export class ArcadeRunRuntime {
         };
     }
 
+    // Keep the legacy method for callers that still retrieve the raw replay payload here.
+    requestReplayPlayback() { return this.requestReplayExport(); }
+
     getHudState() {
         if (!this._enabled || !this._state) return null;
         const nowMs = this._state.gameplayTimeMs;
@@ -681,10 +686,10 @@ export class ArcadeRunRuntime {
         const parcoursXpGain = this._peekHudEvent('parcours_xp') || this._state.lastParcoursXpGain || null;
         const parcoursSegmentSplit = this._peekHudEvent('parcours_split') || this._state.lastParcoursSegmentSplit || null;
         const parcoursPenalty = this._peekHudEvent('parcours_penalty') || this._state.lastParcoursPenalty || null;
-        // 82.8.3: Vehicle stats for sector-start HUD flash, incl. the size build (Paket 2a).
-        // Profiles are canonicalized when loaded or changed, so the stats are cached per profile.
+        // 82.8.3: Vehicle stats for sector-start HUD flash, incl. size build (2a) and the run's stones (3).
+        // Profiles are canonicalized when loaded or changed; cached per profile and frozen stone steps.
         const runVehicleId = this._getRunVehicleId();
-        const vehicleStats = resolveArcadeRunHudVehicleStats(this._vehicleProfiles?.[runVehicleId] || null, runVehicleId, this._config.dailyChallenge);
+        const vehicleStats = resolveArcadeRunHudVehicleStats(this._vehicleProfiles?.[runVehicleId] || null, runVehicleId, this._config.dailyChallenge, this._runBonuses?.build?.stoneSteps);
         return {
             nowMs,
             parcoursXpGain,
@@ -828,6 +833,7 @@ export class ArcadeRunRuntime {
             runId,
         });
         bindArcadeRunVehicleRewards(this, runConfig.runType);
+        this._runVehicleStoneStepsById = Object.create(null);
         if (options.dailyChallenge || runConfig.dailyChallenge === true) {
             this._state.isDailyChallenge = true;
         }
@@ -844,18 +850,7 @@ export class ArcadeRunRuntime {
             payloadAvailable: false,
         };
 
-        // Load vehicle profiles and notify slot bonuses
-        const store = this._resolveSettingsRecordStore();
-        this._vehicleProfiles = loadVehicleProfiles(store);
-        const activeProfile = this.getVehicleProfile();
-        syncArcadeMasteryPerks(this._state, activeProfile);
-        this._notifyVehicleUpgradesChanged(resolveArcadeRunStrategyUpgradeBonuses(
-            this._vehicleProfiles,
-            options.entityManager?.humanPlayers,
-            options.dailyChallenge || runConfig.dailyChallenge === true ? null : this._getVehicleBonuses(activeProfile),
-            options.dailyChallenge === true || runConfig.dailyChallenge === true,
-        ));
-
+        loadArcadeRunVehicleProfiles(this, runConfig, options);
         // Resolve map sequence from encounter plan if available
         if (options.encounterPlan) {
             const runtimeMapCatalog = getRuntimeMapCatalog();
@@ -1353,6 +1348,7 @@ export class ArcadeRunRuntime {
         this._resetStrategyRuntimeState();
         this._state = null;
         this._rewardBinding = null;
+        clearArcadePlayerProfileBindings(this);
         if (!preserveRecords) {
             this._records = this._readRecordsFromStorage();
         }

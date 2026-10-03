@@ -19,6 +19,21 @@ test('runtime projection uses the arcade run state only when the builder has no 
     assert.equal(projection.arcade, arcade);
 });
 
+test('runtime projection exposes the dedicated demolition state', () => {
+    const arcade = { runType: 'demolition', phase: 'active', remainingSeconds: 42 };
+    const game = {
+        state: 'PLAYING',
+        runtimeBundle: {
+            state: {
+                runtimeConfig: { arcade: { runType: 'demolition' } },
+                entityManager: { players: [] },
+            },
+            components: { runtimeFacade: { getArcadeRunState: () => arcade } },
+        },
+    };
+    assert.equal(createRuntimeProjectionPort(game).getMatchRuntimeProjection().arcade, arcade);
+});
+
 test('runtime projection keeps a builder-provided arcade state ahead of the fallback', () => {
     const builtArcade = { runType: 'endless_parcours' };
     let fallbackCalls = 0;
@@ -65,6 +80,23 @@ test('arena-waves upgrade pauses simulation while keeping HUD and changed overla
     assert.deepEqual(calls.slice(-5), ['overlay', 'entity', 'arcade', 'hud', 'effects']);
 });
 
+test('demolition completion synchronizes its result overlay once', () => {
+    const calls = [];
+    const state = { runType: 'demolition', phase: 'finished', postRunSummary: { maps: [] } };
+    const system = new PlayingStateSystem({
+        getEntityManager: () => ({ update() { calls.push('entity'); } }),
+        getArcadeMenuSurfaceState: () => state,
+        actionSyncArcadeOverlay() { calls.push('overlay'); },
+        actionTickSuddenDeath() {},
+        actionUpdatePlayingHudTick() {},
+        getRuntimeProjectionPort: () => ({ getMatchRuntimeProjection: () => ({}) }),
+        actionApplyPlayingTimeScaleFromEffects() {},
+    });
+    system.update(1 / 60);
+    system.update(1 / 60);
+    assert.equal(calls.filter((entry) => entry === 'overlay').length, 1);
+});
+
 test('intermission selection immediately synchronizes the overlay', () => {
     let syncs = 0;
     const result = selectArcadeIntermissionChoice({ selectArcadeIntermissionChoice: () => ({ ok: true }) }, {
@@ -84,6 +116,19 @@ test('only arena-waves emits a neutral bot elimination without a human killer', 
     assert.deepEqual(events, [{ type: 'kill', victimIndex: 7, count: 0, runId: '', botSlot: null, activationGeneration: null }]);
     emitArcadeEliminationEvents({ ...arenaOwner, runtimeConfig: { arcade: { enabled: true, runType: 'gauntlet' } } }, { index: 8, isBot: true }, 'TRAIL_SELF');
     assert.equal(events.length, 1);
+});
+
+test('demolition keeps the round open after the last defender falls', () => {
+    const human = { index: 0, isBot: false, alive: true };
+    const bot = { index: 1, isBot: true, alive: false };
+    const owner = {
+        players: [human, bot], humanPlayers: [human], bots: [{ player: bot }],
+        runtimeConfig: { arcade: { enabled: true, runType: 'demolition' } },
+    };
+    const outcome = createEntityRuntimeSystems(owner, {}).roundOutcomeSystem;
+    assert.equal(outcome.resolve().shouldEnd, false);
+    human.alive = false;
+    assert.equal(outcome.resolve().shouldEnd, true);
 });
 
 test('arena-waves suppresses round elimination between waves but still ends on human death', () => {

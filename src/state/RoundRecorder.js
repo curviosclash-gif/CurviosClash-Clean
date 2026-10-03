@@ -13,6 +13,7 @@ import { RoundEventStore } from './recorder/RoundEventStore.js';
 const logger = createLogger('RoundRecorder');
 import { RoundHeatmapStore } from './recorder/RoundHeatmapStore.js';
 import { RoundMetricsStore } from './recorder/RoundMetricsStore.js';
+import { RoundPlayerStatsStore } from './recorder/RoundPlayerStatsStore.js';
 import { RoundSnapshotStore } from './recorder/RoundSnapshotStore.js';
 
 const MAX_EVENTS = 800;
@@ -54,6 +55,7 @@ export class RoundRecorder {
             timeProvider: () => this._elapsedSeconds(),
         });
         this._heatmapStore = new RoundHeatmapStore();
+        this._playerStatsStore = new RoundPlayerStatsStore();
         this._roundFinalizedListeners = new Set();
 
         this._bindCompatibilityAliases();
@@ -136,6 +138,7 @@ export class RoundRecorder {
         this._eventStore.reset();
         this._snapshotStore.reset();
         this._heatmapStore.reset();
+        this._playerStatsStore.reset();
         this._frameCounter = 0;
         this.roundStartTime = performance.now();
         this._metricsStore.startRound(players);
@@ -153,6 +156,7 @@ export class RoundRecorder {
         if (!this._enabled) return;
         this._eventStore.append(type, playerIndex, data);
         this._metricsStore.registerEventType(type, data);
+        if (type === 'KILL') this._playerStatsStore.registerKill(playerIndex, data);
         if (position) this._heatmapStore.addEventSample(type, position);
     }
 
@@ -176,12 +180,16 @@ export class RoundRecorder {
     recordDamageEvent(event = null) {
         if (!this._enabled) return;
         this._metricsStore.registerDamageEvent(event);
+        this._playerStatsStore.registerDamage(event);
     }
 
     finalizeRound(winner, players = [], options = {}) {
         if (!this._enabled) return null;
         const roundSummary = this._metricsStore.finalizeRound(winner, players, options);
-        if (roundSummary) roundSummary.heatmap = this._heatmapStore.toCells();
+        if (roundSummary) {
+            roundSummary.heatmap = this._heatmapStore.toCells();
+            roundSummary.playerStats = this._playerStatsStore.snapshot(players, winner);
+        }
         const duration = Math.round(roundSummary.duration * 100) / 100;
         const reason = typeof roundSummary.reason === 'string' && roundSummary.reason.trim()
             ? roundSummary.reason.trim()

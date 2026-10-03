@@ -82,6 +82,7 @@ export class PlayingStateSystem {
         this._arenaWavesOverlayMapIndex = -1;
         this._arenaWavesOverlayChoiceCount = -1;
         this._fivePortalsFinishedShown = false;
+        this._demolitionFinishedShown = false;
         // V84: optional MatchKernelInteractiveAdapter; when set, simulation tick
         // is driven through the kernel instead of direct game.* calls.
         this._kernelAdapter = null;
@@ -188,6 +189,12 @@ export class PlayingStateSystem {
                 this._fivePortalsFinishedShown = true;
             } else {
                 this._fivePortalsFinishedShown = false;
+            }
+            if (arcadeState?.runType === 'demolition' && arcadeState?.phase === 'finished') {
+                if (!this._demolitionFinishedShown) this.runtimeAccess.actionSyncArcadeOverlay?.();
+                this._demolitionFinishedShown = true;
+            } else {
+                this._demolitionFinishedShown = false;
             }
         }
 

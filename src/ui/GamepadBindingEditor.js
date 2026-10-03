@@ -3,6 +3,7 @@ import {
     isGamepadInputEnabled, normalizeGamepadControls,
     SPLITSCREEN_INPUT_LAYOUTS, normalizeSplitscreenInputLayout,
 } from '../shared/contracts/GamepadControlsContract.js';
+import { armConfirmButton } from './ConfirmButtonArming.js';
 
 export function renderGamepadBindingEditor(container, runtimeAccess) {
     if (!container) return;
@@ -104,6 +105,11 @@ export function renderGamepadBindingEditor(container, runtimeAccess) {
     player.addEventListener('change', () => { container.dataset.gamepadPlayer = player.value; status.textContent = ''; renderRows(); });
     const reset = doc.createElement('button'); reset.type = 'button'; reset.className = 'secondary-btn';
     reset.textContent = 'Controller-Standard wiederherstellen';
-    reset.addEventListener('click', () => { save(normalizeGamepadControls()); renderRows(); });
+    armConfirmButton(reset, {
+        label: reset.textContent,
+        confirmLabel: 'Zum Bestätigen erneut klicken',
+        armedAttribute: 'data-reset-armed',
+        onConfirm: () => { save(normalizeGamepadControls()); renderRows(); },
+    });
     section.append(reset); container.append(section); renderRows();
 }

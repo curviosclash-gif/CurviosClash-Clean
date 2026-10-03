@@ -34,7 +34,7 @@ test('all disk work travels over a single named channel', () => {
 test('the main process accepts exactly the actions the contract names', () => {
     const main = readSource('../electron/main.cjs');
     const handlerBlock = main.slice(main.indexOf('EDITOR_DISK_HANDLERS'), main.indexOf('ipcMain.handle(\'editor-disk:request\''));
-    const handled = [...handlerBlock.matchAll(/'([a-z-]+)':\s*\(/g)].map((match) => match[1]);
+    const handled = [...handlerBlock.matchAll(/'([a-z-]+)':\s*(?:async\s*)?\(/g)].map((match) => match[1]);
 
     assert.deepEqual(handled.sort(), Object.values(EDITOR_DISK_ACTIONS).sort());
 });

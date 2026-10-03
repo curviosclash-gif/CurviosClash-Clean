@@ -1,20 +1,23 @@
 import { createArcadeRoundStateController } from '../../state/arcade/ArcadeRoundStateController.js';
-import { buildArcadeSectorPlan, resolveArcadeSectorRuntimeProfile } from '../../entities/directors/ArcadeEncounterCatalog.js';
+import { resolveArcadeSectorRuntimeProfile } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { resolveMapSequence } from '../../state/arcade/ArcadeMapProgression.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { ArcadeRunRuntime } from '../arcade/ArcadeRunRuntime.js';
 import { ReplayRecorder } from '../replay/ReplayRecorder.js';
 import { isEndlessParcoursConfig } from '../../shared/contracts/EndlessParcoursContract.js';
-import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
+import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { ArenaWavesRuntime } from '../arcade/ArenaWavesRuntime.js';
 import { getArcadeObjectiveRuntimeState } from '../arcade/ArcadeObjectiveRuntimeOps.js';
-import { isFivePortalsConfig, resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
+import { isFivePortalsConfig } from '../../shared/contracts/PortalChainContract.js';
 import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
-import { applyArcadeRuntimeCosmetics } from '../arcade/ArcadeRuntimeCosmeticOps.js';
-import { WEAPON_RACE_BOT_COUNT, WEAPON_RACE_MAP_KEY, isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
+import { isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { WeaponRaceRuntime } from '../arcade/WeaponRaceRuntime.js';
-import { buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, lockSelectedMapToFirstSector, requestObjectiveRoundEnd, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities } from './GameRuntimeArcadeSupportOps.js';
+import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveActiveArcadeVehicleId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities } from './GameRuntimeArcadeSupportOps.js';
 import { resolveArcadePostMatchProgression } from '../arcade/ArcadePostMatchProgression.js';
+import { resolveDedicatedArcadeMatchStart } from './GameRuntimeArcadeRunDispatch.js';
+import { GameRuntimeDemolitionSupport } from './GameRuntimeDemolitionSupport.js';
+import { createPlayerRecordStorePortResolver } from './PlayerProfileRuntimeAccess.js';
+import { clearArcadePlayerProfileBindings } from '../arcade/ArcadePlayerProfileBindings.js';
 
 export class GameRuntimeArcadeSupport {
     constructor({
@@ -46,6 +49,7 @@ export class GameRuntimeArcadeSupport {
         this._sectorRebuildInFlight = false;
         this.arcadeRunRuntime = new ArcadeRunRuntime({
             settingsManager: this.game?.settingsManager || null,
+            getRecordStoreForPlayerIndex: createPlayerRecordStorePortResolver(() => this.game?.playerProfileManager),
             replayRecorder: this._arcadeReplayRecorder,
             now: this._nowMs,
             logger,
@@ -63,7 +67,6 @@ export class GameRuntimeArcadeSupport {
         });
         this.arenaWavesRuntime = new ArenaWavesRuntime({
             now: this._nowMs,
-            getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
             requestMapTransition: (transition) => { this._pendingSectorTransition = transition; },
         });
         this.fivePortalsRuntime = new FivePortalsRuntime({
@@ -75,7 +78,18 @@ export class GameRuntimeArcadeSupport {
             now: this._nowMs,
             getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
         });
+
+        this.demolitionSupport = new GameRuntimeDemolitionSupport({
+            getRuntimeConfig: () => this.getRuntimeState()?.runtimeConfig,
+            getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
+            getRecordStoreForPlayerIndex: createPlayerRecordStorePortResolver(() => this.game?.playerProfileManager),
+            comboRuntime: this.arcadeRunRuntime,
+            bindGameplayCallback: (runtimeState) => this._bindGameplayCallback(runtimeState),
+            requestMapTransition: (transition) => { this._pendingSectorTransition = transition; },
+            requestAdvance: () => this._requestRunAdvance(),
+        });
         this._arcadeGameplayEventHandler = (event) => {
+            if (this.demolitionSupport.isActive()) return this.demolitionSupport.handleGameplayEvent(event);
             if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) return this.weaponRaceRuntime.handleGameplayEvent(event);
             if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.handleGameplayEvent(event);
             if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.handleGameplayEvent(event);
@@ -103,13 +117,9 @@ export class GameRuntimeArcadeSupport {
         });
     }
 
-    get game() {
-        return this._getGame();
-    }
+    get game() { return this._getGame(); }
 
-    getRuntimeState() {
-        return this._getRuntimeState();
-    }
+    getRuntimeState() { return this._getRuntimeState(); }
 
     _getEndlessRuntime(runtimeState = this.getRuntimeState()) {
         return runtimeState?.endlessParcoursRuntime
@@ -147,7 +157,7 @@ export class GameRuntimeArcadeSupport {
         if (!runtimeConfig) {
             return;
         }
-        if (isFivePortalsConfig(runtimeConfig)) {
+        if (isFivePortalsConfig(runtimeConfig) || this.demolitionSupport.isActive()) {
             this._deactivateRoundController();
             return;
         }
@@ -215,25 +225,6 @@ export class GameRuntimeArcadeSupport {
         }
     }
 
-    _resolveActiveVehicleId(runtimeConfig = null) {
-        return String(
-            runtimeConfig?.player?.vehicles?.PLAYER_1
-            || this.game?.settings?.vehicles?.PLAYER_1
-            || 'ship5'
-        ).trim() || 'ship5';
-    }
-
-    _buildEncounterPlan(runtimeConfig) {
-        const plan = buildArcadeSectorPlan({
-            seed: runtimeConfig?.arcade?.seed,
-            sectorCount: runtimeConfig?.arcade?.sectorCount,
-            difficulty: runtimeConfig?.arcade?.nightmare === true
-                ? 'nightmare'
-                : (runtimeConfig?.bot?.activeDifficulty || runtimeConfig?.bot?.difficulty || 'normal'),
-        });
-        return lockSelectedMapToFirstSector(plan, runtimeConfig, getRuntimeMapCatalog());
-    }
-
     prepareMatchStartRuntime() {
         const runtimeState = this.getRuntimeState();
         const runtimeConfig = runtimeState?.runtimeConfig || null;
@@ -242,29 +233,23 @@ export class GameRuntimeArcadeSupport {
             this._pendingSectorTransition = null;
             return null;
         }
-        if (isFivePortalsConfig(runtimeConfig)) {
+        const fivePortalsState = isFivePortalsConfig(runtimeConfig)
+            ? this.fivePortalsRuntime.getHudState()
+            : null;
+        const demolitionState = this.demolitionSupport.getPreparedState();
+        const dedicatedStart = resolveDedicatedArcadeMatchStart(runtimeConfig, fivePortalsState, demolitionState);
+        if (dedicatedStart.handled) {
             this._preparedEncounterPlan = null;
             this._pendingSectorTransition = null;
-            const state = this.fivePortalsRuntime.getHudState();
-            return { mapKey: resolvePortalChain(runtimeConfig?.arcade?.portalChainId).maps[state.phase === 'idle' || state.phase === 'finished' ? 0 : state.mapIndex], botCount: 0, fivePortals: true };
+            if (dedicatedStart.profile?.demolition === true) {
+                this._applySectorRuntimeProfile?.(dedicatedStart.profile);
+            }
+            if (dedicatedStart.profile?.weaponRace === true) {
+                this.arcadeRunRuntime.setActiveVehicle(resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings));
+            }
+            return dedicatedStart.profile;
         }
-        if (isArenaWavesConfig(runtimeConfig)) {
-            this._preparedEncounterPlan = null;
-            this._pendingSectorTransition = null;
-            return { mapKey: 'notre_dame_arena', botCount: ARENA_WAVES_BOT_CAPACITY, arenaWaves: true };
-        }
-        if (isWeaponRaceConfig(runtimeConfig)) {
-            this._preparedEncounterPlan = null;
-            this._pendingSectorTransition = null;
-            this.arcadeRunRuntime.setActiveVehicle(this._resolveActiveVehicleId(runtimeConfig));
-            return { mapKey: WEAPON_RACE_MAP_KEY, botCount: WEAPON_RACE_BOT_COUNT, weaponRace: true };
-        }
-        if (isEndlessParcoursConfig(runtimeConfig)) {
-            this._preparedEncounterPlan = null;
-            this._pendingSectorTransition = null;
-            return null;
-        }
-        this.arcadeRunRuntime.setActiveVehicle(this._resolveActiveVehicleId(runtimeConfig));
+        this.arcadeRunRuntime.setActiveVehicle(resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings));
         const existing = this.arcadeRunRuntime.getStateSnapshot?.();
         let profile = null;
         if (existing && String(existing.phase || '').toLowerCase() !== 'finished') {
@@ -273,7 +258,7 @@ export class GameRuntimeArcadeSupport {
                 fallbackDifficulty: runtimeConfig?.bot?.activeDifficulty,
             }) || null;
         } else {
-            const encounterPlan = this._buildEncounterPlan(runtimeConfig);
+            const encounterPlan = buildArcadeEncounterPlan(runtimeConfig);
             this._preparedEncounterPlan = encounterPlan;
             const mapSequence = resolveMapSequence(
                 encounterPlan,
@@ -324,14 +309,23 @@ export class GameRuntimeArcadeSupport {
         const runtimeState = this.getRuntimeState();
         const runtimeConfig = runtimeState?.runtimeConfig || null;
         this._bindParcoursCallbacks(runtimeState);
-        applyArcadeRuntimeCosmetics(this, runtimeState, runtimeConfig);
+        const localProfileContext = bindLocalArcadeProfilesAndApplyCosmetics(this, runtimeState, runtimeConfig);
         if (!runtimeConfig?.arcade?.enabled) {
             return null;
+        }
+        const demolitionStart = this.demolitionSupport.startIfActive({
+            runtimeState,
+            seed: runtimeConfig?.arcade?.seed,
+            vehicleId: resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings),
+        });
+        if (demolitionStart.handled) {
+            this._sectorRebuildInFlight = false;
+            return demolitionStart.state;
         }
         if (isFivePortalsConfig(runtimeConfig)) {
             this._bindGameplayCallback(runtimeState);
             const started = this.fivePortalsRuntime.start(runtimeState?.entityManager || null,
-                { vehicleId: this._resolveActiveVehicleId(runtimeConfig), chainId: runtimeConfig?.arcade?.portalChainId });
+                { vehicleId: resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings), chainId: runtimeConfig?.arcade?.portalChainId });
             this._sectorRebuildInFlight = false;
             return started;
         }
@@ -350,7 +344,7 @@ export class GameRuntimeArcadeSupport {
                 entityManager: runtimeState?.entityManager || null,
                 strategy: runtimeState?.entityManager?.gameModeStrategy || null,
                 seed: runtimeConfig?.arcade?.seed,
-                vehicleId: this._resolveActiveVehicleId(runtimeConfig),
+                vehicleId: resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings),
                 selectedMachineGunId: runtimeState?.entityManager?.humanPlayers?.[0]?.fightLoadout?.machineGunId,
             });
             this._sectorRebuildInFlight = false;
@@ -360,7 +354,7 @@ export class GameRuntimeArcadeSupport {
             this._bindGameplayCallback(runtimeState);
             const started = this.weaponRaceRuntime.start({
                 entityManager: runtimeState?.entityManager || null,
-                vehicleId: this._resolveActiveVehicleId(runtimeConfig),
+                vehicleId: resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings),
             });
             this._sectorRebuildInFlight = false;
             return started;
@@ -372,13 +366,14 @@ export class GameRuntimeArcadeSupport {
             runtime?.setRecordStore?.(recordStore);
             runtime?.setRunProfile?.({
                 recordStore,
-                vehicleId: this._resolveActiveVehicleId(runtimeConfig),
+                vehicleId: resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings),
                 strategy: runtimeState?.entityManager?.gameModeStrategy || null,
+                playerBuildBonuses: localProfileContext?.playerBuildBonuses || null,
             });
             return runtime?.getHudState?.() || null;
         }
         this._bindGameplayCallback(runtimeState);
-        this.arcadeRunRuntime.setActiveVehicle(this._resolveActiveVehicleId(runtimeConfig));
+        this.arcadeRunRuntime.setActiveVehicle(resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings));
         const strategy = runtimeState?.entityManager?.gameModeStrategy || null;
         this.arcadeRunRuntime.setStrategy(strategy, runtimeState?.entityManager?.humanPlayers);
         // Die neue Sitzung steht; ab hier darf ein Reset den Run wieder verwerfen.
@@ -387,7 +382,7 @@ export class GameRuntimeArcadeSupport {
         if (existing && String(existing.phase || '').toLowerCase() !== 'finished') {
             return existing;
         }
-        const encounterPlan = this._preparedEncounterPlan || this._buildEncounterPlan(runtimeConfig);
+        const encounterPlan = this._preparedEncounterPlan || buildArcadeEncounterPlan(runtimeConfig);
         this._preparedEncounterPlan = null;
 
         const startOptions = {
@@ -407,15 +402,20 @@ export class GameRuntimeArcadeSupport {
         // neu aufgebaut wird. Nur ein ausdrueckliches force (Matchende, Rueckkehr ins
         // Menue, abgeschalteter Arcade-Modus) verwirft ihn.
         if (this._sectorRebuildInFlight && options?.force !== true) {
-            return isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)
+            return this.demolitionSupport.isActive()
+                ? this.demolitionSupport.getState()
+                : (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)
                 ? this.fivePortalsRuntime.getHudState()
                 : (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)
                 ? this.arenaWavesRuntime.getHudState()
-                : (this.arcadeRunRuntime.getStateSnapshot?.() || null));
+                : (this.arcadeRunRuntime.getStateSnapshot?.() || null)));
         }
-        this._sectorRebuildInFlight = false;
-        this._preparedEncounterPlan = null;
-        this._pendingSectorTransition = null;
+        this._sectorRebuildInFlight = false; clearArcadePlayerProfileBindings(this.arcadeRunRuntime);
+        this._preparedEncounterPlan = null; this._pendingSectorTransition = null;
+        const demolitionReset = this.demolitionSupport.resetIfUsed(
+            () => this.arcadeRunRuntime.resetRunState({ preserveRecords: true })
+        );
+        if (demolitionReset.handled) return demolitionReset.state;
         const fivePortalsState = this.fivePortalsRuntime.getHudState();
         if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)
             || fivePortalsState.phase !== 'idle') {
@@ -443,6 +443,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     getRunState() {
+        if (this.demolitionSupport.isActive()) return this.demolitionSupport.getState();
         if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) return this.weaponRaceRuntime.getHudState();
         if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.getHudState();
         if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.getHudState();
@@ -459,6 +460,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     getMenuSurfaceState() {
+        if (this.demolitionSupport.isActive()) return this.demolitionSupport.getState();
         if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) return this.weaponRaceRuntime.getHudState();
         if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.getHudState();
         if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.getHudState();
@@ -479,6 +481,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     tickSuddenDeath(dt = 0) {
+        if (this.demolitionSupport.updateIfActive(dt)) return null;
         if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) {
             this.weaponRaceRuntime.update(this._nowMs());
             return null;
@@ -513,9 +516,8 @@ export class GameRuntimeArcadeSupport {
         return this.arcadeRunRuntime.selectReward?.(rewardId);
     }
 
-    requestReplayPlayback() {
-        return this.arcadeRunRuntime.requestReplayPlayback?.();
-    }
+    requestReplayPlayback() { return this.requestReplayExport(); }
+    requestReplayExport() { return this.arcadeRunRuntime.requestReplayExport?.() ?? this.arcadeRunRuntime.requestReplayPlayback?.(); }
 
     applyParcoursEvent(data = null) {
         return this.arcadeRunRuntime.applyParcoursLeaderboardEvent(data);

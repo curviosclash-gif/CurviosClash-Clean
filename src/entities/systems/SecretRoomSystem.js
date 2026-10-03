@@ -73,6 +73,8 @@ export class SecretRoomSystem {
         const arena = this.entityManager?.arena;
         this._rooms.length = 0;
         this._closedCount = 0;
+        this._openedCount = 0;
+        this._resetStayClocks();
         const portals = Array.isArray(arena?.portals) ? arena.portals : null;
         if (!portals) return 0;
 
@@ -85,6 +87,9 @@ export class SecretRoomSystem {
         const modeType = strategy?.getPickupModeType?.() || strategy?.modeType || '';
         for (const portal of portals) {
             if (portal?.secret !== true) continue;
+            portal.cooldowns?.clear?.();
+            portal.visualPulseRemaining = 0;
+            portal.visualPulseDestination = null;
             setSecretRoomPortalOpen(portal, false);
             const room = authored.find((entry) => entry.id === portal.roomId) || null;
             // Not part of this mode: the pair stays shut and hidden for the round. It is not
@@ -93,7 +98,6 @@ export class SecretRoomSystem {
             this._rooms.push(createRoomEntry(room, portal, mapScale));
         }
         this._closedCount = this._rooms.length;
-        this._resetStayClocks();
         // A room that needs no break is open in the first second, without waiting for a tick.
         this.update();
         // Everything open by now was open from the start, and that is no news worth announcing.

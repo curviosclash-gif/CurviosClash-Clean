@@ -270,7 +270,7 @@ export class HuntCombatSystem {
         const itemResult = this.takeInventoryItem(player, preferredIndex, 'use');
         if (!itemResult.ok) return itemResult;
         if (itemResult.type === 'BOMBER_STRIKE') {
-            if (this.runtime?.combat?.mapUnitSystem?.callBomberStrike?.(player) !== true) {
+            if (this.runtime?.combat?.callBomberStrike?.(player) !== true) {
                 player.inventory.length = 0;
                 player.inventory.push(...bomberInventoryBefore);
                 player.selectedItemIndex = selectedItemIndexBefore;

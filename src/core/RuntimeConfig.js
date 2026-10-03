@@ -13,9 +13,9 @@ import {
 } from '../shared/contracts/ArcadeGhostDuelContract.js';
 import {
     hasExplicitArcadeSeed,
-    normalizeArcadeRunSettings,
+    normalizeArcadeRunSettingsFromSetup,
 } from '../shared/contracts/ArcadeRunSettingsContract.js';
-import { isFivePortalsRunType, resolvePortalChain } from '../shared/contracts/PortalChainContract.js';
+import { ARCADE_RUN_KINDS, resolveArcadeInitialMapKey, resolveArcadeRunKind } from '../shared/contracts/ArcadeRunTypeDispatchContract.js';
 import {
     createDefaultRecordingCaptureSettings,
     normalizeRecordingCaptureSettings,
@@ -264,7 +264,8 @@ export function createRuntimeConfigSnapshot(settings, {
         ? GAME_MODE_TYPES.ESCORT
         : requestedGameMode;
     const activeGameMode = resolveActiveGameMode(objectiveGameMode, huntFeatureEnabled);
-    const fivePortalsActive = arcadeEnabled && isFivePortalsRunType(arcadeSource.runType);
+    const arcadeSeed = resolveArcadeSeed(source, activeGameMode);
+    const fivePortalsActive = arcadeEnabled && resolveArcadeRunKind(arcadeSource.runType) === ARCADE_RUN_KINDS.FIVE_PORTALS;
     const huntModeActive = isHuntMode(activeGameMode, huntFeatureEnabled);
 
     const playerDefaults = baseConfig.PLAYER || CONFIG.PLAYER;
@@ -295,9 +296,8 @@ export function createRuntimeConfigSnapshot(settings, {
         ghostDuelMode: arcadeGhostDuelMode,
     });
 
-    const sessionMapKey = fivePortalsActive ? resolvePortalChain(arcadeSource.portalChainId).maps[0] : fourPlayerPlanarActive
-        ? fourPlayerPlanarSelection.mapKey
-        : String(source.mapKey || 'standard');
+    const selectedMapKey = fourPlayerPlanarActive ? fourPlayerPlanarSelection.mapKey : String(source.mapKey || 'standard');
+    const sessionMapKey = resolveArcadeInitialMapKey({ arcadeEnabled, arcade: { ...arcadeSource, seed: arcadeSeed }, fallbackMapKey: selectedMapKey });
 
     const teamHunt = normalizeTeamHuntSettings({ ...huntSource, teamMode: teamModeRequested });
     const humanVehicleId = (slot) => resolveHumanVehicleId(
@@ -461,10 +461,10 @@ export function createRuntimeConfigSnapshot(settings, {
         arcade: {
             // Same normalizer the settings sanitizer uses, so persisted values and the
             // values a match runs with can never drift apart.
-            ...normalizeArcadeRunSettings(arcadeSource),
+            ...normalizeArcadeRunSettingsFromSetup(arcadeSource, source?.localSettings?.startSetup),
             enabled: arcadeEnabled,
             dailyRulesVersion: arcadeSource.dailyChallenge === true ? ARCADE_DAILY_RULES_VERSION : null,
-            seed: resolveArcadeSeed(source, activeGameMode),
+            seed: arcadeSeed,
             ghostDuelMode: arcadeGhostDuelMode,
             ghostTrailCollisionEnabled: arcadeGhostTrailCollisionEnabled,
         },

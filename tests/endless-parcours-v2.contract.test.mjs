@@ -19,6 +19,10 @@ import {
     ENDLESS_PARCOURS_RECORDS_STORAGE_KEY,
 } from '../src/shared/contracts/EndlessParcoursRecordsContract.js';
 import { ARCADE_VEHICLE_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
+import {
+    ARCADE_STONE_WORKSHOP_STORAGE_KEY,
+    normalizeArcadeStoneWorkshopRecord,
+} from '../src/shared/contracts/ArcadeStoneWorkshopContract.js';
 import { createArcadeVehicleProfile } from '../src/state/arcade/ArcadeVehicleProfile.js';
 import { generateEndlessParcoursSequence } from '../src/entities/endless/EndlessParcoursGenerator.js';
 import {
@@ -62,6 +66,11 @@ function createStore(failAtWrites = []) {
         records,
         get writes() { return writes; },
         loadJsonRecord(key, fallback) { return records.has(key) ? structuredClone(records.get(key)) : fallback; },
+        readJsonRecordResult(key) {
+            return records.has(key)
+                ? { ok: true, status: 'found', value: structuredClone(records.get(key)) }
+                : { ok: true, status: 'missing', value: null };
+        },
         saveJsonRecord(key, value) {
             writes += 1;
             if (failures.has(writes)) return { success: false, reason: `write-${writes}` };
@@ -70,6 +79,20 @@ function createStore(failAtWrites = []) {
         },
         clearFailures() { failures.clear(); },
     };
+}
+
+/** Paket 3: stone pool with one T1 stone per [vehicleId, slotId] placement. */
+function stonePool(placements) {
+    return normalizeArcadeStoneWorkshopRecord({
+        schemaVersion: 'arcade-stone-workshop.v1',
+        stones: placements.map(([vehicleId, slotId], index) => ({
+            stoneId: `stone-${String(index + 1).padStart(4, '0')}`, level: 1, placement: { vehicleId, slotId },
+        })),
+    }, 0);
+}
+
+function near(actual, expected, message) {
+    assert.ok(Math.abs(actual - expected) < 1e-9, `${message || ''} (${actual} vs ${expected})`);
 }
 
 test('settlement retries before the first target and never credits XP twice', () => {
@@ -286,30 +309,31 @@ test('a blocked wave-11 elite expires at wave end and is never caught up later',
 
 test('start vehicle bonuses are frozen, revive does not stack them, and abort grants no XP', () => {
     const store = createStore();
-    const ship1 = createArcadeVehicleProfile('ship1');
-    ship1.upgrades.engine_left = 'T2';
-    ship1.upgrades.core = 'T2';
-    const ship2 = createArcadeVehicleProfile('ship2');
-    ship2.upgrades.engine_left = 'T3';
-    ship2.upgrades.core = 'T3';
+    // Paket 3: the stones of the workshop pool replace the old per-slot upgrade tiers.
+    const ship1 = { ...createArcadeVehicleProfile('ship1'), stoneSlotPackages: ['engines'] };
+    const ship2 = { ...createArcadeVehicleProfile('ship2'), stoneSlotPackages: ['engines'] };
     store.records.set(ARCADE_VEHICLE_PROFILE_STORAGE_KEY, { ship1, ship2 });
+    const ship2Stones = [['ship2', 'engine_left'], ['ship2', 'engine_right'], ['ship2', 'core']];
+    store.records.set(ARCADE_STONE_WORKSHOP_STORAGE_KEY, stonePool([['ship1', 'engine_left'], ['ship1', 'core'], ...ship2Stones]));
 
     const first = createRuntime();
+    first.human.vehicleId = 'ship1';
     const strategy = new ArcadeModeStrategy({ runType: 'endless_parcours', combatProfile: 'hunt' });
     first.runtime.setRecordStore(store);
     first.runtime.setRunProfile({ recordStore: store, vehicleId: 'ship1', strategy });
-    // Paket 2a: the frozen start bonuses also carry the size build of the start vehicle.
-    const { build: startBuild, ...slotBonuses } = first.runtime.startBonuses;
-    assert.deepEqual(slotBonuses, { turningBonusPct: 0, speedBonusPct: 8, maxHpBonus: 15 });
+    // The frozen start bonuses carry the build of the start vehicle: sizes plus pool stones.
+    const { build: startBuild } = first.runtime.startBonuses;
+    assert.deepEqual(Object.keys(first.runtime.startBonuses), ['build']);
+    assert.deepEqual(startBuild.stoneSteps, { hull: 1, nose: 0, wings: 0, engines: 1, utility: 0 });
     assert.equal(startBuild.purchasedSizeSteps, 0);
-    assert.equal(first.human.baseSpeed, 21.6);
-    assert.equal(first.human.maxHp, 115);
+    near(first.human.baseSpeed, 20 * 1.1275, 'ship1 110 % plus one engine stone');
+    assert.equal(first.human.maxHp, 94, 'ship1 90 % plus one core stone');
 
-    store.records.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship1.upgrades.engine_left = 'T3';
-    store.records.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship1.upgrades.core = 'T3';
+    store.records.set(ARCADE_STONE_WORKSHOP_STORAGE_KEY,
+        stonePool([['ship1', 'engine_left'], ['ship1', 'core'], ...ship2Stones, ['ship1', 'engine_right']]));
     first.runtime.setRunProfile({ recordStore: store, vehicleId: 'ship2', strategy });
     assert.equal(first.runtime.startVehicleId, 'ship1', 'vehicle and bonuses stay bound for the running run');
-    assert.equal(first.runtime.startBonuses.speedBonusPct, 8);
+    assert.equal(first.runtime.startBonuses.build.stoneSteps.engines, 1);
 
     first.runtime.entityManager._spawnOps = {
         spawnPlayerAt(player) {
@@ -328,8 +352,8 @@ test('start vehicle bonuses are frozen, revive does not stack them, and abort gr
     });
     first.human.alive = false;
     first.runtime.handlePlayerDeath(first.human, 'PROJECTILE');
-    assert.equal(first.human.baseSpeed, 21.6);
-    assert.equal(first.human.maxHp, 115);
+    near(first.human.baseSpeed, 20 * 1.1275, 'revive does not stack the build');
+    assert.equal(first.human.maxHp, 94);
     assert.equal(first.runtime.flightObjective.progress, 0, 'revive resets the clean-checkpoint sequence');
     first.runtime.collectRunXp('checkpoint', 3);
     first.runtime.finalize(ENDLESS_PARCOURS_END_REASONS.ABORT, { persist: false, requestRoundEnd: false });
@@ -337,11 +361,12 @@ test('start vehicle bonuses are frozen, revive does not stack them, and abort gr
     first.runtime.dispose();
 
     const second = createRuntime();
+    second.human.vehicleId = 'ship2';
     const secondStrategy = new ArcadeModeStrategy({ runType: 'endless_parcours', combatProfile: 'hunt' });
     second.runtime.setRunProfile({ recordStore: store, vehicleId: 'ship2', strategy: secondStrategy });
     assert.equal(second.runtime.startVehicleId, 'ship2');
-    assert.equal(second.human.baseSpeed, 23.2);
-    assert.equal(second.human.maxHp, 130);
+    near(second.human.baseSpeed, 20 * 1.05, 'ship2 (Star-Cruiser values) plus two engine stones');
+    assert.equal(second.human.maxHp, 104);
     second.runtime.dispose();
 });
 
@@ -464,20 +489,21 @@ test('one thousand module switches and ten restarts keep runtime and renderer re
 
 test('a vehicle speed upgrade counts once per module, not squared', () => {
     const store = createStore();
-    const ship1 = createArcadeVehicleProfile('ship1');
-    ship1.upgrades.engine_left = 'T2';
-    ship1.upgrades.core = 'T2';
+    const ship1 = { ...createArcadeVehicleProfile('ship1'), stoneSlotPackages: ['engines'] };
     store.records.set(ARCADE_VEHICLE_PROFILE_STORAGE_KEY, { ship1 });
+    store.records.set(ARCADE_STONE_WORKSHOP_STORAGE_KEY, stonePool([['ship1', 'engine_left'], ['ship1', 'engine_right']]));
 
     const { runtime, human } = createRuntime();
+    human.vehicleId = 'ship1';
     // Die echte Spielerlogik: sie rechnet den Strategiefaktor selbst wieder ein.
     human.setControlOptions = (options) => Player.prototype.setControlOptions.call(human, options);
     const strategy = new ArcadeModeStrategy({ runType: 'endless_parcours', combatProfile: 'hunt' });
     runtime.setRecordStore(store);
     runtime.setRunProfile({ recordStore: store, vehicleId: 'ship1', strategy });
 
-    const upgradeFactor = 1 + runtime.startBonuses.speedBonusPct / 100;
-    assert.equal(runtime.startBonuses.speedBonusPct, 8);
+    // Paket 3: two engine stones on top of the ship1 table value (110 % -> 115,5 %).
+    const upgradeFactor = strategy.getSpeedMultiplier(human);
+    near(upgradeFactor, 1.155);
     assert.equal(human.baseSpeed, 20 * upgradeFactor, 'the run starts with the upgrade applied once');
 
     // Erster Baustein geschafft: das Tempo der Strecke kommt dazu.

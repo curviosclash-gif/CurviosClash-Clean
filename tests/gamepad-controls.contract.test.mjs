@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createGamepadInputSource, GamepadPauseInput } from '../src/shared/input/GamepadInputSource.js';
+import {
+    createGamepadInputSource,
+    GamepadPauseInput,
+} from '../src/shared/input/GamepadInputSource.js';
+import { EntityTickPipeline } from '../src/entities/runtime/EntityTickPipeline.js';
 import { normalizeGamepadControls } from '../src/shared/contracts/GamepadControlsContract.js';
 import { createPreferredMatchInputSource } from '../src/ui/MatchInputSourceResolver.js';
 import { createFourPlayerPlanarInputSource } from '../src/four-player-planar/FourPlayerPlanarInputSource.js';
@@ -10,6 +14,7 @@ import { SettingsManager } from '../src/core/SettingsManager.js';
 import { createControlBindingsSnapshot } from '../src/shared/contracts/SettingsRuntimeContract.js';
 import { createMemoryStoragePlatform } from './helpers/settings-manager-contract-test-utils.mjs';
 import { applyAxisDeadzone } from '../src/shared/utils/InputAxisOps.js';
+import { renderGamepadBindingEditor } from '../src/ui/GamepadBindingEditor.js';
 
 // Controller axes grow from 0 at the 0.15 deadzone edge instead of passing the raw value on.
 const stickAxis = (value) => applyAxisDeadzone(value, 0.15);
@@ -17,10 +22,94 @@ const stickAxis = (value) => applyAxisDeadzone(value, 0.15);
 function hardware(t) {
     const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
     const pad = { axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
-    const state = { pads: [pad], pad };
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => state.pads, maxTouchPoints: 0 } });
+    const state = { pads: [pad], pad, getGamepadsCalls: 0 };
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => { state.getGamepadsCalls += 1; return state.pads; }, maxTouchPoints: 0 } });
     t.after(() => { if (original) Object.defineProperty(globalThis, 'navigator', original); else delete globalThis.navigator; });
     return state;
+}
+
+test('gameplay input sources share only the active frame gamepad snapshot', (t) => {
+    const state = hardware(t);
+    const secondPad = { axes: [0.8, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
+    state.pad.axes[0] = -0.8;
+    state.pads = [state.pad, secondPad];
+    const firstSource = createGamepadInputSource(0);
+    const secondSource = createGamepadInputSource(1);
+    const observed = [];
+    const owner = {
+        _simulationClockMs: 0,
+        _lockOnCache: new Map(),
+        _projectileSystem: { update() {} },
+        _overheatGunSystem: { update() {} },
+        _respawnSystem: { update() {} },
+        _playerInputSystem: {
+            beginFrame() {},
+            endFrame() {},
+            resolvePlayerInput(player) {
+                const input = (player.index === 0 ? firstSource : secondSource).poll();
+                observed.push(input);
+                if (player.index === 0) state.pads = [];
+                return input;
+            },
+        },
+        _playerLifecycleSystem: { updateShootCooldown() {}, updatePlayer() {} },
+        players: [{ index: 0, alive: true }, { index: 1, alive: true }],
+        _roundEnded: true,
+    };
+    const pipeline = new EntityTickPipeline(owner);
+
+    const beforeFrame = state.getGamepadsCalls;
+    pipeline.update(1 / 60, {}, 1);
+    assert.equal(state.getGamepadsCalls, beforeFrame + 1, 'all player polls share one frame snapshot');
+    assert.equal(observed[0].yawAxis, -stickAxis(-0.8));
+    assert.equal(observed[1].yawAxis, -stickAxis(0.8), 'each slot reads its own stable index');
+
+    const beforeNextFrame = state.getGamepadsCalls;
+    pipeline.update(1 / 60, {}, 2);
+    assert.equal(state.getGamepadsCalls, beforeNextFrame + 1, 'a new frame observes disconnection once');
+    assert.equal(observed[2], null);
+    assert.equal(observed[3], null);
+
+    state.pads = [state.pad];
+    owner._playerLifecycleSystem.updatePlayer = () => { throw new Error('input frame failure'); };
+    const beforeFailure = state.getGamepadsCalls;
+    assert.throws(() => pipeline.update(1 / 60, {}, 3), /input frame failure/);
+    state.pads = [];
+    assert.equal(firstSource.poll(), null, 'finally closes the snapshot after an input failure');
+    assert.equal(state.getGamepadsCalls, beforeFailure + 2);
+
+    const beforeStandalonePolls = state.getGamepadsCalls;
+    firstSource.poll();
+    firstSource.poll();
+    assert.equal(state.getGamepadsCalls, beforeStandalonePolls + 2, 'standalone polls never retain snapshots');
+});
+
+function createStubElement(ownerDocument, tagName = 'div') {
+    const element = new EventTarget();
+    Object.assign(element, {
+        ownerDocument,
+        tagName: tagName.toUpperCase(),
+        children: [],
+        dataset: {},
+        style: {},
+        attributes: new Map(),
+        append(...children) { this.children.push(...children); },
+        appendChild(child) { this.children.push(child); return child; },
+        replaceChildren(...children) { this.children = [...children]; },
+        setAttribute(name, value) { this.attributes.set(name, String(value)); },
+        removeAttribute(name) { this.attributes.delete(name); },
+        getAttribute(name) { return this.attributes.get(name) ?? null; },
+    });
+    return element;
+}
+
+function findStubElement(root, predicate) {
+    if (predicate(root)) return root;
+    for (const child of root.children || []) {
+        const found = findStubElement(child, predicate);
+        if (found) return found;
+    }
+    return null;
 }
 
 test('controller axes reach PlayerController with keyboard-equivalent signs and deadzone', (t) => {
@@ -179,4 +268,41 @@ test('custom mappings for all four controllers survive save, reload and runtime 
         assert.deepEqual(loaded.controls[`GAMEPAD_${i}`], settings.controls[`GAMEPAD_${i}`]);
         assert.deepEqual(createControlBindingsSnapshot(loaded.controls)[`GAMEPAD_${i}`], settings.controls[`GAMEPAD_${i}`]);
     }
+});
+
+test('gamepad reset waits for confirmation before persisting controller defaults', () => {
+    const ownerDocument = { createElement: (tagName) => createStubElement(ownerDocument, tagName) };
+    const container = createStubElement(ownerDocument);
+    container.dataset.gamepadPlayer = 'GAMEPAD_1';
+    const controls = {
+        GAMEPAD: { enabled: true },
+        SPLITSCREEN: { layout: 'auto' },
+        GAMEPAD_1: { ...normalizeGamepadControls(), BOOST: 5, PAUSE: 8 },
+    };
+    let settingsSaves = 0;
+    let bindingApplies = 0;
+    const runtimeAccess = {
+        getControls: () => controls,
+        actionEnsurePlayerControls: (key) => controls[key],
+        actionOnSettingsChanged: () => { settingsSaves += 1; },
+        actionApplyPauseBindings: () => { bindingApplies += 1; },
+    };
+
+    renderGamepadBindingEditor(container, runtimeAccess);
+    const reset = findStubElement(container, (element) => element.tagName === 'BUTTON'
+        && element.textContent === 'Controller-Standard wiederherstellen');
+    assert.ok(reset);
+
+    reset.dispatchEvent(new Event('click'));
+    assert.equal(controls.GAMEPAD_1.BOOST, 5);
+    assert.equal(controls.GAMEPAD_1.PAUSE, 8);
+    assert.equal(settingsSaves, 0);
+    assert.equal(bindingApplies, 0);
+    assert.equal(reset.getAttribute('data-reset-armed'), 'true');
+
+    reset.dispatchEvent(new Event('click'));
+    assert.deepEqual(controls.GAMEPAD_1, normalizeGamepadControls());
+    assert.equal(settingsSaves, 1);
+    assert.equal(bindingApplies, 1);
+    assert.equal(reset.getAttribute('data-reset-armed'), null);
 });

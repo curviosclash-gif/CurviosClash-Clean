@@ -26,6 +26,7 @@ test('core radiation ramps from 2 HP/s at the rods to 0.5 HP/s at the authored r
 test('the host applies time-based mode damage, while spawn protection and replicas remain protected', () => {
     const map = { ...MAP_PRESET_CATALOG.reactor_site, scaleAuthoredAnchors: false,
         mapProximityDamage: [{ ...MAP_PRESET_CATALOG.reactor_site.mapProximityDamage[0], modes: [] }] };
+    const [radiation] = map.mapProximityDamage;
     let applied = 0;
     const owner = {
         arena: { currentMapDefinition: map },
@@ -39,7 +40,12 @@ test('the host applies time-based mode damage, while spawn protection and replic
     };
     const system = new MapHazardSystem(owner);
     assert.equal(system.startRound(), 0, 'radiation does not become a pulsing warning hazard');
-    const player = { index: 0, alive: true, spawnProtectionTimer: 0, position: { x: 0, y: 12.86, z: 0 } };
+    const player = {
+        index: 0,
+        alive: true,
+        spawnProtectionTimer: 0,
+        position: { x: radiation.position[0], y: radiation.position[1], z: radiation.position[2] },
+    };
     assert.equal(system.updatePlayer(player, null, 4, 0.5), true);
     assert.equal(applied, 1, 'the source maximum is multiplied by elapsed seconds');
 
@@ -54,7 +60,7 @@ test('the host applies time-based mode damage, while spawn protection and replic
 
 test('reactor radiation is authored at the centered fuel-rod height and remains mild', () => {
     const [core] = MAP_PRESET_CATALOG.reactor_site.mapProximityDamage;
-    assert.deepEqual(core.position, [0, 12.86, 0]);
+    assert.deepEqual(core.position, [0, -48.04, 0]);
     assert.equal(core.radius, 12);
     assert.equal(core.nearDamagePerSecond, 2);
     assert.equal(core.farDamagePerSecond, 0.5);

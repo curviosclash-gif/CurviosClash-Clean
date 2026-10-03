@@ -6171,6 +6171,143 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     opacity: 1;
 }
 
+/* Arcade stones (Paket 3): section "Steine" in the tab "Ausbau" (ArcadeStonePanel, ArcadeStoneSlotRows). */
+.hangar-stone-panel,
+.hangar-stone-confirm,
+.hangar-stone-transfer-confirm {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.hangar-stone-confirm,
+.hangar-stone-transfer-confirm {
+    padding: 0.6rem;
+    border: 1px solid #f6c453;
+    border-radius: 6px;
+}
+
+.hangar-stone-transfer-confirm {
+    margin-top: 8px;
+    background: rgba(6, 12, 22, 0.96);
+}
+
+.hangar-stone-status {
+    margin: 0;
+    color: #f6c453;
+    font-size: 0.8rem;
+}
+
+.hangar-stone-count,
+.hangar-stone-location {
+    margin: 0;
+    color: #a9c6dc;
+    font-size: 0.75rem;
+}
+
+.hangar-stone-pool-title {
+    margin: 0.4rem 0 0;
+}
+
+.hangar-stone-pool {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.hangar-stone-item {
+    display: grid;
+    grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
+    align-items: center;
+    gap: 4px 8px;
+    padding: 4px;
+    border: 1px solid rgba(98, 184, 255, 0.16);
+    border-radius: 7px;
+}
+
+.hangar-stone-item.is-selected {
+    border-color: rgba(168, 117, 255, 0.72);
+    background: rgba(168, 117, 255, 0.12);
+}
+
+.hangar-stone-item > .hangar-stone-upgrade-lock {
+    grid-column: 1 / -1;
+}
+
+.hangar-stone-select {
+    min-height: 28px;
+    border: 1px solid rgba(168, 117, 255, 0.45);
+    border-radius: 6px;
+    padding: 4px 8px;
+    background: rgba(168, 117, 255, 0.1);
+    color: #efe6ff;
+    text-align: left;
+    cursor: pointer;
+}
+
+.hangar-stone-select[aria-pressed="true"] {
+    border-color: #c9a8ff;
+    background: rgba(168, 117, 255, 0.28);
+}
+
+.hangar-stone-upgrade,
+.hangar-stone-buy,
+.hangar-stone-package-buy {
+    width: auto;
+}
+
+/* Explicit columns keep the remove button aligned when a row has no warning symbol. */
+.hangar-slot-grid .hangar-stone-slot-row > .hangar-stone-warning {
+    grid-column: 4;
+}
+
+.hangar-slot-grid .hangar-stone-slot-row > .hangar-slot-remove {
+    grid-column: 5;
+}
+
+.hangar-stone-warning {
+    color: #f6c453;
+    cursor: help;
+    text-align: center;
+}
+
+.hangar-stone-warning:focus-visible {
+    outline: 2px solid #f6c453;
+    outline-offset: 2px;
+}
+
+/* The reason shows on hover and keyboard focus; a tap or Enter keeps it open (is-open). */
+.hangar-stone-warning-text {
+    display: none;
+    grid-column: 1 / -1;
+    order: 10;
+    color: #ffd184;
+    font-size: 0.75rem;
+}
+
+.hangar-stone-warning:hover + .hangar-stone-warning-text,
+.hangar-stone-warning:focus-visible + .hangar-stone-warning-text,
+.hangar-stone-warning-text.is-open {
+    display: block;
+}
+
+.hangar-stone-slot-note {
+    grid-column: 1 / -1;
+    order: 11;
+    margin: 0;
+    color: #96aabd;
+    font-size: 0.72rem;
+}
+
+/* A stone that sits in another vehicle or is missing from the pool is shown grey. */
+.hangar-stone-slot-row.is-foreign .hangar-installed-part,
+.hangar-stone-slot-row.is-missing .hangar-installed-part {
+    border-style: dashed;
+    color: #8193a6;
+    filter: grayscale(1);
+}
+
 .hangar-stat-row {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 5px 8px;
@@ -6421,6 +6558,14 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
         white-space: normal;
     }
 
+    .hangar-slot-grid .hangar-stone-slot-row > .hangar-stone-warning {
+        grid-column: 3;
+    }
+
+    .hangar-slot-grid .hangar-stone-slot-row > .hangar-slot-remove {
+        grid-column: 4;
+    }
+
     .hangar-history-bar .secondary-btn {
         flex: 1 1 calc(50% - 6px);
     }
@@ -6480,6 +6625,11 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     .hangar-slot-grid .arcade-vehicle-upgrade-btn,
     .hangar-slot-grid .hangar-slot-remove {
         grid-column: span 1;
+    }
+
+    .hangar-slot-grid .hangar-stone-slot-row > .hangar-stone-warning,
+    .hangar-slot-grid .hangar-stone-slot-row > .hangar-slot-remove {
+        grid-column: auto;
     }
 }
 

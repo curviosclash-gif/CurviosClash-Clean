@@ -280,7 +280,28 @@ export class ArcadeScoreHUD {
         const isArenaWaves = String(hudState.runType || '') === 'arena_waves';
         const isFivePortals = String(hudState.runType || '') === 'five_portals';
         const isWeaponRace = String(hudState.runType || '') === 'weapon_race';
+        const isDemolition = String(hudState.runType || '') === 'demolition';
         setNodeText(this._scoreLabel, isFivePortals ? 'Map-Zeit' : (isWeaponRace ? 'Waffenrennen' : 'Punkte'));
+        if (isDemolition) {
+            if (this._metricLine) this._metricLine.style.display = 'none';
+            this._endlessSection?.hide();
+            if (this._breakdownWrap) this._breakdownWrap.style.display = 'none';
+            if (this._modifierWrap) this._modifierWrap.style.display = 'none';
+            this._suddenDeathBanner?.classList?.add('hidden');
+            this._transitionBanner?.classList?.add('hidden');
+            this._arenaWavesSection.style.display = 'block';
+            setNodeText(this._scoreValue, formatRounded(score.total));
+            const mapCount = Math.max(1, Number(hudState.mapCount) || 3);
+            const mapNumber = Math.min(mapCount, Math.max(1, Number(hudState.mapIndex || 0) + 1));
+            const remaining = Math.max(0, Math.ceil(Number(hudState.remainingSeconds) || 0));
+            const focus = hudState.destructible?.focusSegment;
+            const target = focus ? `\nZiel ${focus.label}: ${Math.round(Math.max(0, Math.min(1, Number(focus.ratio) || 0)) * 100)} %` : '';
+            const briefing = hudState.briefing ? `\nAuftrag: ${hudState.briefing}` : '';
+            const warning = hudState.warning ? `\n⚠ ${hudState.warning}` : '';
+            const expired = hudState.timeExpired ? '\nZeit abgelaufen' : '';
+            this._arenaWavesSection.textContent = `Karte ${mapNumber}/${mapCount}: ${resolveArcadeMapLabel(hudState.currentMapKey, hudState.currentMapLabel)}\nZeit ${remaining} s | Kartenpunkte ${formatRounded(score.currentMap?.total)}\nBrüche ${hudState.breakEvents || 0} | Einheiten ${hudState.unitsDestroyed || 0} | Kills ${hudState.kills || 0}${briefing}${target}${warning}${expired}`;
+            return;
+        }
         if (isWeaponRace) {
             if (this._metricLine) this._metricLine.style.display = 'none';
             this._endlessSection?.hide();
