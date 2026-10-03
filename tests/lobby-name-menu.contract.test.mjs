@@ -55,7 +55,7 @@ test('the lobby service carries the remembered name into the lobby and renames l
         assert.equal(hosted.ok, true);
         const joined = await guest.join({ actorId: 'profile-guest', name: 'Spieler 1', lobbyCode: hosted.lobbyCode });
         assert.equal(joined.ok, true);
-        assert.deepEqual(guest.getSessionState().members.map((member) => member.name), ['Kapitän', 'Spieler 1 2']);
+        assert.deepEqual(guest.getSessionState().members.map((member) => member.name), ['Kapitän', 'Spieler 2']);
 
         const renamed = await guest.setLobbyName('Blitz');
         assert.equal(renamed.ok, true);
@@ -111,10 +111,10 @@ function fakeElement(doc) {
 test('the own name field shows the chosen name, the default as hint, and keeps typing intact', () => {
     const doc = { activeElement: null };
     const ui = { lobbyNameRow: fakeElement(doc), lobbyNameInput: fakeElement(doc), lobbyNameDefaultButton: fakeElement(doc) };
-    const state = { members: [{ isLocal: true, name: 'Spieler 1 2', lobbyName: '' }] };
+    const state = { members: [{ isLocal: true, name: 'Spieler 2', lobbyName: '' }] };
     syncLobbyNameField(ui, state, true);
     assert.equal(ui.lobbyNameRow.classList.contains('hidden'), false);
-    assert.equal(ui.lobbyNameInput.placeholder, 'Spieler 1 2');
+    assert.equal(ui.lobbyNameInput.placeholder, 'Spieler 2');
     assert.equal(ui.lobbyNameDefaultButton.disabled, true);
 
     doc.activeElement = ui.lobbyNameInput;

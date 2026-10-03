@@ -36,8 +36,8 @@ async function withLobbies(run) {
 test('without a chosen name each player shows the profile name plus the seat', async () => {
     await withLobbies(async ({ host, guest }) => {
         host._processServerStatus(await host._pollStatusOnce());
-        assert.deepEqual(namesOf(host), ['Spieler 1 1', 'Spieler 1 2']);
-        assert.deepEqual(namesOf(guest), ['Spieler 1 1', 'Spieler 1 2']);
+        assert.deepEqual(namesOf(host), ['Spieler 1', 'Spieler 2']);
+        assert.deepEqual(namesOf(guest), ['Spieler 1', 'Spieler 2']);
     });
 });
 
@@ -45,12 +45,12 @@ test('a guest renames itself and the host sees the new name', async () => {
     await withLobbies(async ({ host, guest }) => {
         await guest.setLobbyName('  Blitz  ');
         host._processServerStatus(await host._pollStatusOnce());
-        assert.deepEqual(namesOf(host), ['Spieler 1 1', 'Blitz']);
+        assert.deepEqual(namesOf(host), ['Spieler 1', 'Blitz']);
         await host.setLobbyName('x'.repeat(30));
         guest._processServerStatus(await guest._pollStatusOnce());
         assert.deepEqual(namesOf(guest), ['x'.repeat(16), 'Blitz']);
         await guest.setLobbyName('   ');
-        assert.deepEqual(namesOf(guest), ['x'.repeat(16), 'Spieler 1 2'], 'an empty name falls back to the default');
+        assert.deepEqual(namesOf(guest), ['x'.repeat(16), 'Spieler 2'], 'an empty name falls back to the default');
     });
 });
 
@@ -63,7 +63,7 @@ test('nobody can rename another player', async () => {
         });
         assert.equal(response.status, 403);
         host._processServerStatus(await host._pollStatusOnce());
-        assert.equal(namesOf(host)[0], 'Spieler 1 1');
+        assert.equal(namesOf(host)[0], 'Spieler 1');
     });
 });
 
