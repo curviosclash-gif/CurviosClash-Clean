@@ -54,6 +54,19 @@ test('after the last ring the finish is the expected goal and re-crossing a ring
     assert.deepEqual(afterLast.expectedCheckpointIds, [route.finish.id], 'the finish is next, not the last ring');
 
     const lastRing = route.checkpoints.find((entry) => entry.id === afterLast.passedCheckpointIds.at(-1));
+    const length = Math.hypot(...lastRing.forward) || 1;
+    const forward = lastRing.forward.map((value) => value / length);
+    const outsideDistance = lastRing.radius + player.hitboxRadius + 0.5;
+    const outside = {
+        x: lastRing.pos[0] + forward[0] * outsideDistance,
+        y: lastRing.pos[1] + forward[1] * outsideDistance,
+        z: lastRing.pos[2] + forward[2] * outsideDistance,
+    };
+    player.position.set(outside.x, outside.y, outside.z);
+    const progressState = system._playerStates.get(player.index);
+    assert.equal(system._isCheckpointTriggered(lastRing, player, outside, now + 400, progressState), false);
+    assert.equal(progressState.insideCheckpointById.get(lastRing.id), false, 'leaving the trigger rearms its inside latch');
+
     const again = cross(system, player, lastRing, now + 500);
     assert.notEqual(again?.type, 'wrong-order', 're-crossing a passed ring on the way to the finish is harmless');
     const state = system.getPlayerProgressSnapshot(0, now + 600);
