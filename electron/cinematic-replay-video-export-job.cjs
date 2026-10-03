@@ -1,6 +1,7 @@
 const path = require('node:path');
 const { existsSync, promises: fsPromises } = require('node:fs');
 const { spawn } = require('node:child_process');
+const { publishStagedFile, resolveEncoderStagingDirectory } = require('./encoder-staging-dir.cjs');
 const {
     executeProcess,
     probeNativeTranscodeCapability,
@@ -441,8 +442,9 @@ function createCinematicReplayVideoExportJob({
             exportId,
             matchId,
             targetPath,
+            // FFmpeg may run with low integrity and then cannot write next to the target.
             tempVideoPath: path.join(
-                path.dirname(targetPath),
+                resolveEncoderStagingDirectory(app, { fallback: path.dirname(targetPath) }),
                 `.curvios-recording-export-${exportId}.tmp.mp4`
             ),
             audioPath: audioBytes.byteLength > 0 ? path.join(tempRoot, `${exportId}.audio${audioExtension}`) : null,
@@ -478,6 +480,7 @@ function createCinematicReplayVideoExportJob({
                 audioBytes.byteLength
             ));
         }
+        await fsPromises.mkdir(path.dirname(job.tempVideoPath), { recursive: true });
         await writeManifest(job);
         try {
             job.child = spawnProcess(job.ffmpegCommand, buildFfmpegArgs(job), {
@@ -601,8 +604,7 @@ function createCinematicReplayVideoExportJob({
             return { saved: false, reason: validation.reason, validation };
         }
         try {
-            await fsPromises.mkdir(path.dirname(job.targetPath), { recursive: true });
-            await fsPromises.rename(job.tempVideoPath, job.targetPath);
+            await publishStagedFile(job.tempVideoPath, job.targetPath);
         } catch (error) {
             await cleanupJobFiles(job);
             releaseJob(exportId, job);
@@ -745,7 +747,7 @@ function createCinematicReplayVideoExportJob({
                 continue;
             }
             try {
-                await fsPromises.rename(orphan.tempVideoPath, orphan.targetPath);
+                await publishStagedFile(orphan.tempVideoPath, orphan.targetPath);
                 await Promise.allSettled([
                     orphan.audioPath ? fsPromises.rm(orphan.audioPath, { force: true }) : null,
                     orphan.manifestPath ? fsPromises.rm(orphan.manifestPath, { force: true }) : null,
