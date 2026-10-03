@@ -308,6 +308,16 @@ test('environment kill credit: an uncredited wall death stays uncredited', () =>
     assert.equal(entityManager.events[0].details, 'cause=WALL killer=-1');
 });
 
+test('a projectile kill names its weapon in the kill event for balance telemetry', () => {
+    const shooter = makePlayer(0);
+    const victim = makePlayer(1, { isBot: true });
+    const entityManager = makeEntityManager([shooter, victim], new HuntScoring(), 20000);
+
+    killPlayer(entityManager, victim, 'PROJECTILE', { killer: shooter, projectileType: 'rocket_strong' });
+
+    assert.equal(entityManager.events[0].details, 'cause=PROJECTILE killer=0 weapon=ROCKET_STRONG');
+});
+
 test('environment kill credit: a dodged threat credits through the death path', () => {
     const threatOwner = makePlayer(0);
     const victim = makePlayer(1, {

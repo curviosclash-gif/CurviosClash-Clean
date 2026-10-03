@@ -211,7 +211,7 @@ test('round payload includes versioned context and compact performance telemetry
         } },
     });
 
-    assert.equal(payload.telemetrySchemaVersion, 'round-telemetry.v2');
+    assert.equal(payload.telemetrySchemaVersion, 'round-telemetry.v3');
     assert.equal(payload.context.buildId, 'desktop-88');
     assert.equal(payload.context.mapRevision, 'map-r4');
     assert.equal(payload.context.botCount, 1);

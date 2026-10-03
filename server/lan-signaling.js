@@ -14,6 +14,7 @@ import {
     SIGNALING_HTTP_ROUTES,
     SIGNALING_SESSION_CONTRACT_VERSION,
     isMobileLanParticipantMetadata,
+    normalizeSignalingActorId,
     normalizeSignalingParticipantMetadata,
     normalizePublicLobbyMetadata,
     validateMobileLanLobbyMetadata,
@@ -428,8 +429,9 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             lobby.code = generateLobbyCode();
             lobby.hostToken = generateAccessToken('host');
             lobby.hostReady = true;
-            lobby.hostActorId = String(body.actorId || body.name || 'Host').trim() || 'Host';
-            lobby.hostName = String(body.name || body.actorId || 'Host').trim() || 'Host';
+            const hostActorFallback = normalizeSignalingActorId(body.name, 'Host');
+            lobby.hostActorId = normalizeSignalingActorId(body.actorId, hostActorFallback);
+            lobby.hostName = normalizeMultiplayerPlayerName(body.name || body.actorId, lobby.hostActorId);
             lobby.hostLobbyName = normalizeOptionalMultiplayerPlayerName(body.lobbyName);
             lobby.localPlayerCount = normalizeLocalPlayerCount(body.localPlayerCount);
             lobby.maxPlayers = Number.isFinite(requestedMaxPlayers)
@@ -485,12 +487,16 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             const playerId = `player-${nextPlayerId++}`;
             const playerToken = generateAccessToken('player');
             const timestamp = now();
+            const actorId = normalizeSignalingActorId(
+                body.actorId,
+                normalizeSignalingActorId(body.name, playerId),
+            );
             lobby.players.push({
                 playerId,
                 token: playerToken,
                 ready: false,
-                actorId: String(body.actorId || body.name || playerId).trim() || playerId,
-                name: String(body.name || body.actorId || playerId).trim() || playerId,
+                actorId,
+                name: normalizeMultiplayerPlayerName(body.name || body.actorId, actorId || playerId),
                 lobbyName: normalizeOptionalMultiplayerPlayerName(body.lobbyName),
                 participantMetadata: normalizeSignalingParticipantMetadata(body.participantMetadata),
                 joinedAt: timestamp,

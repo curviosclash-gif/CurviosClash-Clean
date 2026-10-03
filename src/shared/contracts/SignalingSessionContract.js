@@ -4,6 +4,7 @@ import { normalizeLobbyMatchSummary } from './LobbyMatchSummaryContract.js';
 export { MULTIPLAYER_SESSION_ROLES } from './RuntimeSessionContract.js';
 
 export const SIGNALING_SESSION_CONTRACT_VERSION = 'signaling-session.v1';
+export const SIGNALING_ACTOR_ID_MAX_LENGTH = 128;
 // v2: lobbies end matches via END_MATCH/MATCH_ENDED; v1 phones would miss the return to the lobby.
 export const MULTIPLAYER_PROTOCOL_VERSION = 'curvios-multiplayer.v2';
 export const MOBILE_LAN_PARTICIPANT_SURFACE_ID = 'mobile-app';
@@ -60,6 +61,11 @@ export const SIGNALING_HTTP_ROUTES = Object.freeze({
     SIGNALING_ICE: '/signaling/ice',
     DISCOVERY_INFO: '/discovery/info',
 });
+
+/** Normalize a persistent signaling actor ID using the shared 128-character bound. */
+export function normalizeSignalingActorId(value, fallback = '') {
+    return normalizeString(value, normalizeString(fallback, '')).slice(0, SIGNALING_ACTOR_ID_MAX_LENGTH);
+}
 
 export function normalizePublicLobbyMetadata(value = null, fallbackHostName = 'Host') {
     const source = value && typeof value === 'object' ? value : {};

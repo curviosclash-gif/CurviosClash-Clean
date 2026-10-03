@@ -1,14 +1,11 @@
-import { validateArcadeHangarBlueprintForLevel } from '../../shared/contracts/ArcadeHangarRulesContract.js';
+// Shared blueprint projection and drop failure text of the hangar workshop. The Fight hangar
+// validates with FightHangarValidation, the Arcade hangar with the stone panel (Paket 3:
+// ArcadeStonePanel); the old Arcade level/budget validation of the colour stones is gone.
 import { HANGAR_SLOT_DEFINITIONS, resolveHangarPart } from './HangarPartCatalog.js';
 import { normalizeHangarBuild } from './HangarBuildDraftState.js';
-import { countEquippedHangarStones, normalizeHangarStoneInventory } from './HangarStoneInventory.js';
 
 function round1(value) {
     return Math.round((Number(value) || 0) * 10) / 10;
-}
-
-function pushUnique(items, item) {
-    if (!items.some((entry) => entry.code === item.code && entry.slotId === item.slotId)) items.push(item);
 }
 
 export function projectHangarBuildBlueprint(build) {
@@ -38,21 +35,6 @@ export function projectHangarBuildBlueprint(build) {
     };
 }
 
-function mapContractMessage(message) {
-    const text = String(message || 'Ungültiger Build');
-    if (text.includes('editorBudget')) return { code: 'editor_budget', message: text };
-    if (text.includes('massBudget')) return { code: 'mass_budget', message: text };
-    if (text.includes('powerBudget')) return { code: 'energy_budget', message: text };
-    if (text.includes('heatBudget')) return { code: 'heat_budget', message: text };
-    if (text.includes('partCount')) return { code: 'part_count_budget', message: text };
-    if (text.includes('missing required slot')) return { code: 'required_slot', message: text };
-    if (text.includes('not unlocked')) return { code: 'slot_locked', message: text };
-    if (text.includes('part family')) return { code: 'part_family_locked', message: text };
-    if (text.includes('tier')) return { code: 'tier_locked', message: text };
-    if (text.includes('chassis')) return { code: 'chassis_locked', message: text };
-    return { code: 'contract_rejected', message: text };
-}
-
 export function describeHangarDropFailure(result) {
     if (result?.message) return result.message;
     return {
@@ -63,114 +45,4 @@ export function describeHangarDropFailure(result) {
         part_family_locked: 'Diese Teilefamilie ist noch gesperrt.',
         level_locked: 'Dein Fahrzeuglevel ist für dieses Bauteil zu niedrig.',
     }[String(result?.code || '')] || 'Der Umbau wurde abgelehnt; der Entwurf blieb unverändert.';
-}
-
-export function validateHangarBuild(build, level = 1, profile = null) {
-    const normalized = normalizeHangarBuild(build);
-    const blueprint = projectHangarBuildBlueprint(normalized);
-    const contractValidation = validateArcadeHangarBlueprintForLevel(blueprint, level);
-    const errors = contractValidation.errors.map(mapContractMessage);
-    const warnings = contractValidation.warnings.map((message) => ({ code: 'contract_warning', message }));
-    const allowedTiers = new Set(contractValidation.allowedTiers);
-    const allowedFamilies = new Set(contractValidation.allowedPartFamilies);
-    const unlockedSlots = new Set(contractValidation.unlockedSlots);
-
-    for (const slot of HANGAR_SLOT_DEFINITIONS) {
-        const part = resolveHangarPart(normalized.slots[slot.id]);
-        if (!part) {
-            if (slot.required) pushUnique(errors, { code: 'required_slot', slotId: slot.id, message: `${slot.label} ist ein Pflichtslot` });
-            continue;
-        }
-        if (!part.compatibleSlots.includes(slot.id)) {
-            pushUnique(errors, { code: 'incompatible_slot', slotId: slot.id, partId: part.id, message: `${part.label} passt nicht auf ${slot.label}` });
-        }
-        if (Number(level) < part.minLevel) {
-            pushUnique(errors, { code: 'level_locked', slotId: slot.id, partId: part.id, message: `${part.label} benötigt Level ${part.minLevel}` });
-        }
-        if (part.kind !== 'stone' && !allowedFamilies.has(part.family)) {
-            pushUnique(errors, { code: 'part_family_locked', slotId: slot.id, partId: part.id, message: `Teilefamilie ${part.family} ist gesperrt` });
-        }
-        if (!allowedTiers.has(part.tier)) {
-            pushUnique(errors, { code: 'tier_locked', slotId: slot.id, partId: part.id, message: `${part.tier} ist noch gesperrt` });
-        }
-        const tierSlot = `${slot.id}_${part.tier.toLowerCase()}`;
-        const slotUnlocked = part.kind === 'stone' ? unlockedSlots.has(slot.id) : (unlockedSlots.has(slot.id) || unlockedSlots.has(tierSlot));
-        if (!slotUnlocked) {
-            pushUnique(errors, { code: 'slot_locked', slotId: slot.id, partId: part.id, message: `${slot.label} ist gesperrt` });
-        }
-    }
-
-    if (profile) {
-        const owned = normalizeHangarStoneInventory(profile).counts;
-        const equipped = countEquippedHangarStones(normalized);
-        Object.entries(equipped).forEach(([stoneId, count]) => {
-            if (count <= (owned[stoneId] || 0)) return;
-            const slotId = HANGAR_SLOT_DEFINITIONS.find((slot) => normalized.slots[slot.id] === stoneId)?.id || '';
-            const stone = resolveHangarPart(stoneId);
-            pushUnique(errors, {
-                code: 'stone_inventory', slotId, partId: stoneId,
-                message: `${stone?.label || stoneId}: ${count} eingesetzt, aber nur ${owned[stoneId] || 0} im Inventar`,
-            });
-        });
-    }
-
-    return {
-        ok: errors.length === 0,
-        build: normalized,
-        blueprint,
-        stats: { ...blueprint.stats },
-        limits: { ...contractValidation.limits },
-        errors,
-        warnings,
-        level: contractValidation.level,
-        allowedTiers: [...contractValidation.allowedTiers],
-        allowedPartFamilies: [...contractValidation.allowedPartFamilies],
-        unlockedSlots: [...contractValidation.unlockedSlots],
-    };
-}
-
-export function validateHangarDrop(build, partId, slotId, level, install, profile = null) {
-    const installResult = install(build, partId, slotId);
-    if (!installResult?.ok) {
-        return { ok: false, code: installResult?.code || 'drop_rejected', build: normalizeHangarBuild(build), errors: [] };
-    }
-    const validation = validateHangarBuild(installResult.build, level, profile);
-    if (!validation.ok) {
-        const relevant = validation.errors.find((error) => error.slotId === slotId)
-            || validation.errors.find((error) => String(error.code).includes('budget'))
-            || validation.errors[0];
-        return {
-            ...validation,
-            ok: false,
-            code: relevant?.code || 'drop_rejected',
-            message: relevant?.message || 'Bauteil kann hier nicht montiert werden',
-            build: normalizeHangarBuild(build),
-            rejectedBuild: installResult.build,
-        };
-    }
-    return { ...validation, ok: true, code: 'drop_accepted', build: installResult.build, changedSlots: installResult.changedSlots };
-}
-
-export function hangarBuildToProfileUpgrades(build) {
-    const normalized = normalizeHangarBuild(build);
-    const upgrades = {};
-    for (const slot of HANGAR_SLOT_DEFINITIONS) {
-        const part = resolveHangarPart(normalized.slots[slot.id]);
-        if (!part || part.tier === 'T1') continue;
-        upgrades[`${slot.id}_t2`] = part.tier;
-    }
-    return upgrades;
-}
-
-export function hangarBuildToProfileBonuses(build) {
-    const normalized = normalizeHangarBuild(build);
-    const bonuses = { speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0 };
-    for (const slot of HANGAR_SLOT_DEFINITIONS) {
-        const part = resolveHangarPart(normalized.slots[slot.id]);
-        if (!part) continue;
-        bonuses.speedBonusPct += Number(part.bonuses?.speedBonusPct) || 0;
-        bonuses.turningBonusPct += Number(part.bonuses?.turningBonusPct) || 0;
-        bonuses.maxHpBonus += Number(part.bonuses?.maxHpBonus) || 0;
-    }
-    return Object.fromEntries(Object.entries(bonuses).map(([key, value]) => [key, round1(value)]));
 }

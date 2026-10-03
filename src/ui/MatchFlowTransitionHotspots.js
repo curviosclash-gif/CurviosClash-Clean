@@ -82,6 +82,9 @@ function createTransitionArcadeAdapter(game) {
         requestReplayPlayback() {
             return arcadePort?.requestReplayPlayback?.();
         },
+        requestReplayExport() {
+            return arcadePort?.requestReplayExport?.();
+        },
     };
 }
 
@@ -173,8 +176,11 @@ export function selectArcadeReward(runtimePort, game, rewardId) {
 }
 
 export function requestArcadeReplayPlayback(runtimePort, game) {
-    const replayResult = runtimePort?.requestArcadeReplayPlayback?.()
-        ?? createTransitionArcadeAdapter(game).requestReplayPlayback();
+    const arcadeAdapter = createTransitionArcadeAdapter(game);
+    const replayResult = runtimePort?.requestArcadeReplayExport?.()
+        ?? runtimePort?.requestArcadeReplayPlayback?.()
+        ?? arcadeAdapter.requestReplayExport()
+        ?? arcadeAdapter.requestReplayPlayback();
     const replayCode = String(replayResult?.code || '').trim();
     if (replayCode === 'replay_export_ready') {
         const clip = getLastRoundGhostClip(runtimePort, game, {
@@ -232,6 +238,14 @@ export function requestArcadeReplayPlayback(runtimePort, game) {
         replayResult,
         ghostResult,
     };
+}
+
+export function requestArcadeReplayExport(runtimePort, game) {
+    const arcadeAdapter = createTransitionArcadeAdapter(game);
+    return runtimePort?.requestArcadeReplayExport?.()
+        ?? arcadeAdapter.requestReplayExport()
+        ?? runtimePort?.requestArcadeReplayPlayback?.()
+        ?? arcadeAdapter.requestReplayPlayback();
 }
 
 export function getLastRoundRecordingMetrics(runtimePort, game, roundEndPlan) {

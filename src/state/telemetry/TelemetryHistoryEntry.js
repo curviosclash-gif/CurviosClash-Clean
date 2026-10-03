@@ -69,6 +69,45 @@ function normalizeStringArray(source, maxEntries = 8) {
         .slice(0, maxEntries);
 }
 
+const MAX_PLAYER_ROWS = 16;
+const MAX_TYPES_PER_PLAYER = 16;
+
+function normalizeTypeAmounts(source, toAmount) {
+    if (!source || typeof source !== 'object') return {};
+    const normalized = {};
+    Object.entries(source).slice(0, MAX_TYPES_PER_PLAYER).forEach(([key, value]) => {
+        const type = sanitizeString(String(key || '').toUpperCase(), '');
+        if (type) normalized[type] = toAmount(value);
+    });
+    return normalized;
+}
+
+function toTenth(value) {
+    return Math.round(toNonNegativeNumber(value, 0) * 10) / 10;
+}
+
+// Eine Zeile je Spieler verbindet Fahrzeug, Waffe und Rundenausgang; aeltere
+// Runden kennen sie nicht und bleiben leer, statt Werte zu erfinden.
+function normalizePlayerRows(source) {
+    if (!Array.isArray(source)) return [];
+    return source
+        .filter((row) => row && typeof row === 'object')
+        .slice(0, MAX_PLAYER_ROWS)
+        .map((row) => ({
+            index: toNonNegativeInt(row.index, 0),
+            isBot: row.isBot === true,
+            vehicleId: sanitizeString(row.vehicleId, 'unknown'),
+            teamId: sanitizeString(row.teamId, ''),
+            won: row.won === true,
+            kills: toNonNegativeInt(row.kills, 0),
+            deaths: toNonNegativeInt(row.deaths, 0),
+            damageDealt: toTenth(row.damageDealt),
+            damageTaken: toTenth(row.damageTaken),
+            killsByType: normalizeTypeAmounts(row.killsByType, (value) => toNonNegativeInt(value, 0)),
+            damageByType: normalizeTypeAmounts(row.damageByType, toTenth),
+        }));
+}
+
 function normalizePerformance(source = null) {
     const value = source && typeof source === 'object' ? source : {};
     return {
@@ -190,6 +229,7 @@ export function normalizeTelemetryHistoryEntry(source) {
         // menschlich - auch das offen stehende Fenster und der Werkzeuglauf.
         // Aeltere Eintraege kennen ihn nicht und bleiben bewusst "unknown".
         control: normalizeRoundControl(s.control),
+        players: normalizePlayerRows(s.players),
     };
 }
 

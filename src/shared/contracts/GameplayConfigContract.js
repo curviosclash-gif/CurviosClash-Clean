@@ -215,6 +215,19 @@ export function resolveGameplayConfig(source) {
 }
 
 /**
+ * Resolves the runtime scale for anchors authored in a map's coordinate space.
+ * Maps opt in explicitly; unscaled maps keep their existing world-space anchors.
+ *
+ * @param {object|null} mapDefinition - Runtime map definition.
+ * @param {object|null} configSource - Gameplay config carrier for the active runtime.
+ * @returns {number} The anchor scale, or 1 when the map does not opt in.
+ */
+export function resolveAuthoredAnchorScale(mapDefinition, configSource) {
+    if (mapDefinition?.scaleAuthoredAnchors !== true) return 1;
+    return Math.max(0.001, Number(resolveGameplayConfig(configSource).ARENA?.MAP_SCALE) || 1);
+}
+
+/**
  * Returns the MAPS catalog from a config-like source, or an empty object.
  *
  * @param {object|null} source - Config object or runtime context carrying MAPS.

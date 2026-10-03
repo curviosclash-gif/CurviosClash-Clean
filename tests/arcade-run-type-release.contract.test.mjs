@@ -5,7 +5,7 @@ import test from 'node:test';
 import { releaseButtonOnlyArcadeRun } from '../src/ui/arcade/ArcadeRunTypeOps.js';
 
 test('the generic arcade start releases runs that only their own button may start', () => {
-    for (const runType of ['five_portals', 'arena_waves']) {
+    for (const runType of ['five_portals', 'arena_waves', 'weapon_race', 'demolition']) {
         const settings = { arcade: { runType, combatProfile: 'hunt' } };
         assert.equal(releaseButtonOnlyArcadeRun(settings), true, runType);
         assert.deepEqual(settings.arcade, { runType: 'gauntlet', combatProfile: '' }, runType);

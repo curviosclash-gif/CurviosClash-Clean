@@ -1,23 +1,26 @@
-// Hangar tab "Ausbau" (arcade only): what the vehicle's XP buys for its build. Today the size
-// workshop with its value preview, storage tiers and the hit zone boxes; stones and weapon tiers
-// (Pakete 3 and 4) append their sections to the same panel. Locked sections stay visible, dimmed
-// and name their condition (HangarLockedSection).
+// Hangar tab "Ausbau" (arcade only): what the vehicle's XP buys for its build - the size workshop
+// with its value preview, storage tiers and the hit zone boxes, then the stones (Paket 3: slots,
+// pool, purchases; ArcadeStonePanel docks its section here); weapon tiers (Paket 4) follow the same
+// way. Locked sections stay visible, dimmed and name their condition (HangarLockedSection).
 import { createUiNode as el } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { createHangarSizePanel } from './HangarSizePanel.js';
 
 /**
  * @param {{ bind: Function, panel: HTMLElement, getProfile: () => any,
  *   saveProfile: (profile: any) => boolean|void, toast: (message: string, tone?: string) => void,
- *   onChange: () => void, partsOf: (vehicleId: string) => ReadonlyArray<any> }} options
+ *   onChange: () => void, partsOf: (vehicleId: string) => ReadonlyArray<any>,
+ *   getPool?: () => any, sections?: ReadonlyArray<HTMLElement> }} options
+ *   getPool: the workshop stone pool for the size preview; sections: further sections of the tab
+ *   (the stone panel), appended after the size workshop.
  */
-export function createHangarUpgradeTab({ bind, panel, getProfile, saveProfile, toast, onChange, partsOf }) {
-    const sizePanel = createHangarSizePanel({ bind, getProfile, saveProfile, toast, onDraftChange: onChange, partsOf });
+export function createHangarUpgradeTab({ bind, panel, getProfile, saveProfile, toast, onChange, partsOf, getPool, sections = [] }) {
+    const sizePanel = createHangarSizePanel({ bind, getProfile, saveProfile, toast, onDraftChange: onChange, partsOf, getPool });
     const hitboxToggle = el('label', 'hangar-hitbox-toggle');
     const hitboxInput = el('input', 'hangar-hitbox-toggle-input');
     hitboxInput.type = 'checkbox';
     hitboxToggle.append(hitboxInput, ' Trefferzone zeigen');
     bind(hitboxInput, 'change', onChange);
-    panel.append(sizePanel.root, hitboxToggle);
+    panel.append(sizePanel.root, hitboxToggle, ...sections);
     let open = false;
 
     return Object.freeze({

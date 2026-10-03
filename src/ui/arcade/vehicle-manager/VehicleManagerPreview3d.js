@@ -64,7 +64,23 @@ function findRenderSize(element) {
     return { width, height };
 }
 
-export function createVehicleManagerPreview3d({ mount, overlay }) {
+/**
+ * @typedef {Object} VehicleManagerPreview3dOptions
+ * @property {HTMLElement | null} [mount]
+ * @property {HTMLElement | null} [overlay]
+ * @property {(options: import('three').WebGLRendererParameters) => THREE.WebGLRenderer} [rendererFactory]
+ * @property {(camera: THREE.PerspectiveCamera, element: HTMLElement) => OrbitControls} [controlsFactory]
+ * @property {(vehicleId: string, color: number) => THREE.Object3D} [vehicleFactory]
+ */
+
+/** @param {VehicleManagerPreview3dOptions} [options] */
+export function createVehicleManagerPreview3d({
+    mount,
+    overlay,
+    rendererFactory = (options) => new THREE.WebGLRenderer(options),
+    controlsFactory = (camera, element) => new OrbitControls(camera, element),
+    vehicleFactory = createVehicleMesh,
+} = {}) {
     const slotOverlayRoot = overlay || null;
     const targetMount = mount || null;
     if (!targetMount) {
@@ -93,13 +109,15 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
     let lastFrameMs = 0;
     let vehicleNode = null;
     let activeVehicleId = '';
+    let activeVehicleColor = 0x66b6ff;
     let slotStates = [];
     let slotClickHandler = null;
     let anchorScale = 1;
     let renderWidth = 0;
     let renderHeight = 0;
-    let active = true;
+    let active = false;
     let disposed = false;
+    let rendererInitializationAttempted = false;
     let controlsTargetY = 0.3;
     let cameraDistance = 4.6;
     let cameraHeight = 1.8;
@@ -118,11 +136,6 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
         if (controls) controls.autoRotate = true;
         markIdleRotation();
     };
-
-    targetMount.addEventListener('pointerdown', beginManualRotation, true);
-    window.addEventListener('pointerup', resumeIdleRotation);
-    window.addEventListener('pointercancel', resumeIdleRotation);
-    window.addEventListener('blur', resumeIdleRotation);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f1524);
@@ -275,8 +288,10 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
     }
 
     function initializeRenderer() {
+        if (rendererInitializationAttempted || disposed) return;
+        rendererInitializationAttempted = true;
         try {
-            renderer = new THREE.WebGLRenderer({
+            renderer = rendererFactory({
                 antialias: true,
                 alpha: false,
                 powerPreference: 'high-performance',
@@ -286,7 +301,7 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
             renderer.domElement.className = 'arcade-vehicle-preview-canvas-node';
             renderer.domElement.setAttribute('aria-label', 'Interaktive 3D-Fahrzeugansicht');
             previewCanvasHost.appendChild(renderer.domElement);
-            controls = new OrbitControls(camera, renderer.domElement);
+            controls = controlsFactory(camera, renderer.domElement);
             controls.enablePan = false;
             controls.enableDamping = true;
             controls.dampingFactor = 0.075;
@@ -302,12 +317,30 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
 
             syncRendererSize(true);
             setStatus('ready', '3D-Preview aktiv. Maus: drehen / zoomen.');
+            targetMount.addEventListener('pointerdown', beginManualRotation, true);
+            window.addEventListener('pointerup', resumeIdleRotation);
+            window.addEventListener('pointercancel', resumeIdleRotation);
+            window.addEventListener('blur', resumeIdleRotation);
             window.addEventListener('resize', syncRendererSize);
 
+            if (activeVehicleId) setVehicle(activeVehicleId, activeVehicleColor);
             scheduleFrame();
         } catch {
-            renderer = null;
+            window.removeEventListener('resize', syncRendererSize);
+            targetMount.removeEventListener('pointerdown', beginManualRotation, true);
+            window.removeEventListener('pointerup', resumeIdleRotation);
+            window.removeEventListener('pointercancel', resumeIdleRotation);
+            window.removeEventListener('blur', resumeIdleRotation);
+            controls?.dispose?.();
             controls = null;
+            if (renderer) {
+                renderer.forceContextLoss?.();
+                renderer.dispose?.();
+                if (renderer.domElement?.parentElement) {
+                    renderer.domElement.parentElement.removeChild(renderer.domElement);
+                }
+            }
+            renderer = null;
             setStatus('fallback', '3D-Preview aktuell nicht verfügbar.');
         }
     }
@@ -316,17 +349,17 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
         const normalizedVehicleId = String(vehicleId || '').trim().toLowerCase();
         if (!normalizedVehicleId) return;
         activeVehicleId = normalizedVehicleId;
+        activeVehicleColor = normalizeColor(colorValue);
 
         removeVehicleNode(previewRoot, vehicleNode);
         vehicleNode = null;
 
         if (!renderer) {
-            setStatus('fallback', '3D-Ansicht nicht verfügbar. Auswahl bleibt bedienbar.');
             return;
         }
 
         try {
-            vehicleNode = createVehicleMesh(normalizedVehicleId, normalizeColor(colorValue));
+            vehicleNode = vehicleFactory(normalizedVehicleId, activeVehicleColor);
             previewRoot.add(vehicleNode);
             vehicleNode.rotation.y = Math.PI * 1.16;
 
@@ -366,6 +399,7 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
         if (disposed) return;
         active = value === true;
         targetMount.dataset.previewActive = String(active);
+        if (active && !rendererInitializationAttempted) initializeRenderer();
         if (!active && rafId) {
             window.cancelAnimationFrame(rafId);
             rafId = 0;
@@ -435,8 +469,6 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
         }
         setStatus('disposed', `Preview beendet (${activeVehicleId || '-'})`);
     }
-
-    initializeRenderer();
 
     return {
         getStatus: () => status,

@@ -55,7 +55,7 @@ export function setEndlessRunProfile(runtime, {
     runtime.startVehicleId = runtime.rewardBinding.vehicleId;
     const profile = getOrCreateProfile(profiles, runtime.startVehicleId);
     runtime.startProfile = Object.freeze(JSON.parse(JSON.stringify(profile)));
-    runtime.startBonuses = Object.freeze({ ...getArcadeRunVehicleBonuses(profile) });
+    runtime.startBonuses = Object.freeze({ ...getArcadeRunVehicleBonuses(profile, runtime._recordStore) });
     try { strategy?.applyVehicleUpgrades?.(runtime.startBonuses); } catch { /* no-op */ }
     const human = runtime.entityManager?.humanPlayers?.[0] || null;
     try { strategy?.resetPlayerHealth?.(human); } catch { /* no-op */ }
