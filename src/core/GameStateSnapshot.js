@@ -5,6 +5,7 @@ import { createRoundOutcomeNetworkState } from '../entities/systems/RoundOutcome
 import { isRocketTierType } from '../hunt/RocketPickupSystem.js';
 import { ROCKET_THREAT_SOURCES, resolveRocketThreatSource } from '../entities/systems/projectile/RocketThreatTracker.js';
 import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
+import { normalizeAltitudeSpeedFactor } from '../shared/contracts/AltitudeSpeedContract.js';
 // GameStateSnapshot.js - serializable game state for network transport
 // ============================================
 
@@ -149,6 +150,7 @@ export function serializePlayer(player) {
         hasShield: player.hasShield === true,
         shieldHP: toFiniteNumber(player.shieldHP, 0),
         speed: toFiniteNumber(player.speed, 0),
+        altitudeSpeedFactor: normalizeAltitudeSpeedFactor(player.altitudeSpeedFactor),
         exclusionZone: serializeExclusionZoneState(player.exclusionZoneState),
     };
 }

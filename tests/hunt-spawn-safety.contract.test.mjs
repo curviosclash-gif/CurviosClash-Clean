@@ -9,6 +9,7 @@ import { PlayerCollisionPhase } from '../src/entities/systems/lifecycle/PlayerCo
 import { SpawnPlacementSystem, resolveSpawnLookaheadDistance } from '../src/entities/systems/SpawnPlacementSystem.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
+import { ALTITUDE_SPEED_MAX_MULTIPLIER } from '../src/shared/contracts/AltitudeSpeedContract.js';
 
 // Distance a vehicle covers while the spawn protection is still running. The heading
 // picked at spawn has to stay clear for at least this far, because nothing resolves an
@@ -16,7 +17,7 @@ import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntime
 const PROTECTED_TRAVEL = CONFIG_BASE.PLAYER.SPEED * CONFIG_BASE.PLAYER.BOOST_MULTIPLIER * Math.max(
     CONFIG_BASE.PLAYER.SPAWN_PROTECTION,
     CONFIG_BASE.HUNT.RESPAWN.INVULNERABILITY_SECONDS
-);
+) * ALTITUDE_SPEED_MAX_MULTIPLIER;
 
 // Seeded roll so a distribution assertion cannot flake on an unlucky run.
 function mulberry32(seed) {
@@ -227,11 +228,10 @@ function createEntityManagerStub({ players = [], solidBox = null } = {}) {
     return manager;
 }
 
-test('spawn lookahead accounts for the immediately available boost speed', () => {
-    assert.equal(
-        resolveSpawnLookaheadDistance(createEntityRuntimeConfig(null, CONFIG_BASE)),
-        PROTECTED_TRAVEL
-    );
+test('spawn lookahead accounts for immediately available boost and dive speed', () => {
+    assert.ok(Math.abs(
+        resolveSpawnLookaheadDistance(createEntityRuntimeConfig(null, CONFIG_BASE)) - PROTECTED_TRAVEL
+    ) < 1e-9);
 });
 
 test('a spawn protected vehicle is stopped at the wall instead of passing through it', () => {

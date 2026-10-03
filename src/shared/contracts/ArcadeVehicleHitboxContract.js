@@ -9,14 +9,15 @@
 
 import { measureVehiclePartBounds, resolveHullMountedPivot, resolveVehiclePartMirrorAxis } from './VehiclePartStyleContract.js';
 import { resolveArcadePartSizeFactors } from './ArcadeVehicleSizeContract.js';
+import { ALTITUDE_SPEED_MAX_MULTIPLIER } from './AltitudeSpeedContract.js';
 
 export const ARCADE_HITBOX_SCALE = 0.9;
 /** Edge length of the core anchor cube around the vehicle origin (vehicle space). */
 export const ARCADE_HITBOX_MIN_THICKNESS = 0.25;
 export const ARCADE_HITBOX_MAX_BOXES = 24;
 export const ARCADE_PROBES_PER_BOX_MAX = 6;
-/** Upper bound for sweep samples per frame; the safety test proves the worst case stays below. */
-export const ARCADE_SWEEP_MAX_STEPS = 160;
+/** 192 covers the measured 167-sample worst case with the 1.1 dive speed bound. */
+export const ARCADE_SWEEP_MAX_STEPS = 192;
 /**
  * Largest authored map push in u/s: a boost portal (forwardImpulse) overlapping a slingshot
  * (forwardImpulse + liftImpulse). The safety test scans every preset against it.
@@ -326,7 +327,8 @@ export function computeArcadeSweepSteps(travelled, angle, boundRadiusWorld, minT
  */
 export function resolveArcadeMotionWorstCase(env) {
     const stepDt = env.frameDt / env.minClockScale;
-    const cappedSpeed = env.baseSpeed * (env.speedCapPct / 100) * env.boostMultiplier;
+    const cappedSpeed = env.baseSpeed * (env.speedCapPct / 100) * env.boostMultiplier
+        * ALTITUDE_SPEED_MAX_MULTIPLIER;
     return {
         stepDt,
         specStepDistance: cappedSpeed * stepDt,

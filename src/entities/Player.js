@@ -54,8 +54,8 @@ export class Player {
         this.position = new THREE.Vector3();
         this.velocity = new THREE.Vector3(0, 0, -1);
         this.quaternion = new THREE.Quaternion();
-        this.speed = playerConfig.SPEED;
-        this.baseSpeed = playerConfig.SPEED;
+        this.speed = this.baseSpeed = playerConfig.SPEED;
+        this.altitudeSpeedFactor = 1;
         this.turnSpeed = playerConfig.TURN_SPEED;
         this.rollSpeed = playerConfig.ROLL_SPEED;
 
@@ -187,7 +187,7 @@ export class Player {
             this.baseSpeed = this._speedEffectBaseSpeed;
         }
         this._speedEffectBaseSpeed = null;
-        this.speed = this.baseSpeed;
+        this.speed = this.baseSpeed; this.altitudeSpeedFactor = 1;
         resetPlayerCharges(this, playerConfig);
         this.activeEffects = [];
         this._pickupShieldOwned = false;

@@ -8,6 +8,7 @@ import { replayPlayerDeathPresentation } from '../entities/EntityPlayerDeathOps.
 import { spawnFlameJet } from '../hunt/FlamethrowerFlameEffect.js';
 import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
 import { resolveWorldAudioOptions } from '../entities/audio/WorldAudioOptions.js';
+import { normalizeAltitudeSpeedFactor } from '../shared/contracts/AltitudeSpeedContract.js';
 
 const MIN_POSITION_DISTANCE = 0.01;
 const MIN_VECTOR_DISTANCE = 0.001;
@@ -289,6 +290,9 @@ export class StateReconciler {
         }
         if (typeof serverPlayer.speed === 'number') {
             localPlayer.speed = serverPlayer.speed;
+        }
+        if (typeof serverPlayer.altitudeSpeedFactor === 'number') {
+            localPlayer.altitudeSpeedFactor = normalizeAltitudeSpeedFactor(serverPlayer.altitudeSpeedFactor);
         }
         if (serverPlayer.exclusionZone && typeof serverPlayer.exclusionZone === 'object') {
             const zoneSystem = entityManager?._exclusionZoneSystem;

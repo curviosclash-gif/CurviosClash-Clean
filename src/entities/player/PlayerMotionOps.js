@@ -1,11 +1,17 @@
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
+import {
+    ALTITUDE_SPEED_CHANGE,
+    ALTITUDE_SPEED_REMAINING_FRACTION,
+    ALTITUDE_SPEED_SETTLE_SECONDS,
+    normalizeAltitudeSpeedFactor,
+} from '../../shared/contracts/AltitudeSpeedContract.js';
 import { applyFourPlayerPlanarPhysicsConstraint } from '../../four-player-planar/FourPlayerPlanarPhysics.js';
+import { isFourPlayerPlanarRuntime } from '../../four-player-planar/FourPlayerPlanarContract.js';
 import { updatePlayerCharges } from './PlayerChargeOps.js';
 import { sphereHitsArcadePartBoxes } from './ArcadePartHitboxOps.js';
 
 const MIN_HITBOX_RADIUS = 0.2;
 const HITBOX_HEIGHT_FACTOR = 0.7;
-
 function applyFallbackHitbox(player, fallbackRadius) {
     player.hitboxBox.set(
         player._tmpVec.set(-fallbackRadius, -fallbackRadius * HITBOX_HEIGHT_FACTOR, -fallbackRadius),
@@ -96,11 +102,11 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
     // `motionDt` is the clock this vehicle steers and travels on. They differ only for
     // the player holding the slow-motion key; otherwise motionDt === dt.
     //
-    // Collision headroom for the worst case (boost 45 * 2.3 = 103.5 u/s at motionDt
-    // (1/60)/0.4 = 4.3125 units per step, smallest vehicle hitbox radius 0.8):
-    //   wall sweep  ceil(4.3125 / 0.8)  =  6 steps of 0.72 u  <= CRASH_SWEEP_MAX_STEPS 16
-    //   trail sweep ceil(4.3125 / 1.36) =  4 steps of 1.08 u  <= the 12 step cap, and
-    //               1.08 u stays inside the 2 * 1.6 u search diameter.
+    // Collision headroom includes the 1.1 dive multiplier: boost 45 * 2.3 * 1.1 =
+    // 113.85 u/s at motionDt (1/60)/0.4 = 4.74375 units per step, smallest radius 0.8:
+    //   wall sweep  ceil(4.74375 / 0.8)  = 6 steps, within CRASH_SWEEP_MAX_STEPS 16
+    //   trail sweep ceil(4.74375 / 1.36) = 4 steps, within the 12 step cap and below
+    //               the 2 * 1.6 u search diameter.
     // Both sweeps therefore stay gap-free; no substepping and no raised cap needed.
     // Arcade part hitbox (player.arcadeHitbox) sweeps on its own proof instead, from the
     // capped vehicle stats, SPEED_UP, map pushes, roll and slow motion:
@@ -140,12 +146,27 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
         player.quaternion.setFromEuler(player._tmpEuler2);
     }
 
+    player._tmpVec.set(0, 0, -1).applyQuaternion(player.quaternion);
+    const altitudeSpeedDisabled = config.GAMEPLAY.PLANAR_MODE
+        || isFourPlayerPlanarRuntime(player?.entityManager?.runtimeConfig)
+        || player.waterSubmerged === true;
+    if (altitudeSpeedDisabled) {
+        player.altitudeSpeedFactor = 1;
+    } else {
+        const currentFactor = normalizeAltitudeSpeedFactor(player.altitudeSpeedFactor);
+        const targetFactor = Math.max(
+            1 - ALTITUDE_SPEED_CHANGE,
+            Math.min(1 + ALTITUDE_SPEED_CHANGE, 1 - player._tmpVec.y * ALTITUDE_SPEED_CHANGE),
+        );
+        const safeMotionDt = Number.isFinite(resolvedMotionDt) ? Math.max(0, resolvedMotionDt) : 0;
+        const remainingFraction = Math.pow(ALTITUDE_SPEED_REMAINING_FRACTION, safeMotionDt / ALTITUDE_SPEED_SETTLE_SECONDS);
+        player.altitudeSpeedFactor = targetFactor + (currentFactor - targetFactor) * remainingFraction;
+    }
+
     player.speed = boostEffectActive
         ? player.baseSpeed * config.PLAYER.BOOST_MULTIPLIER
         : player.baseSpeed;
-    player.speed *= waterSpeedMultiplier;
-
-    player._tmpVec.set(0, 0, -1).applyQuaternion(player.quaternion);
+    player.speed *= waterSpeedMultiplier * player.altitudeSpeedFactor;
     player.velocity.copy(player._tmpVec).multiplyScalar(player.speed);
 
     if (player.boostPortalTimer > 0) {

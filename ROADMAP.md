@@ -5,6 +5,7 @@ Diese Datei ist das schlanke Produktgedächtnis für zukünftige Ideen. Neue Ged
 ## Ideen-Eingang
 
 - Neue Ideen hier kurz und ungeordnet ergänzen.
+- **Kurvenbelastung / G-Kräfte prüfen** – Ziel: nach dem separaten Tempoeffekt beim Steigen und Sinken untersuchen, ob eine aus Geschwindigkeit und tatsächlicher Flugrichtungsänderung abgeleitete Belastung das Fluggefühl verbessert. Nutzen: schnelle, enge Kurven verständlich spürbar machen. Erfolg: Desktop-Flugvergleich bewertet Anzeige/Kamerafeedback und optionalen Tempoverlust sowie Auswirkungen auf Bots, Zeitlupe und Mehrspieler; reine Rollen erzeugen keine Kurvenbelastung. Zurückgestellt, keine Umsetzung im Auftrag für den Höhen-Tempoeffekt von ±10 %; eine Begrenzung der Kurvenrate ist nicht beschlossen.
 - Modvertrieb: fremde Karten und Fahrzeuge im Spiel anbieten. Offen: nur Karten oder auch Fahrzeuge, bloßer Dateiaustausch oder Katalog im Spiel, wer fremde Inhalte auf Absturz, Anstößigkeit und Urheberrecht prüft, und ob Läufe auf Modkarten in Ranglisten zählen.
 - Bezahlinhalte: ob es sie überhaupt gibt und in welcher Form; heute nicht entschieden.
 - Fight-Lab: ein frei nutzbares Lab für den Kampfmodus mit eigenen Regeln und eigenem Speicherbereich, getrennt vom freizuschaltenden Arcade-Lab (gleiche Lab-Oberfläche, zweiter Modus). Schiffe daraus sind nur im Kampfmodus wählbar. Offen: Regeln, Budgets und ob Fight-Schiffe an Ranglisten teilnehmen; eigener Plan nach der Arcade-Werkstatt.

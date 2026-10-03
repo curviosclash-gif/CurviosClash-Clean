@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
+import { ALTITUDE_SPEED_MAX_MULTIPLIER } from '../../shared/contracts/AltitudeSpeedContract.js';
 
 // ============================================
 // SpawnPlacementSystem.js - spawn and safe reposition helpers
@@ -37,7 +38,7 @@ export function resolveSpawnLookaheadDistance(config) {
         Number(config?.HUNT?.RESPAWN?.INVULNERABILITY_SECONDS) || 0
     );
     if (!Number.isFinite(speed) || speed <= 0 || protection <= 0) return DEFAULT_SPAWN_LOOKAHEAD;
-    return Math.max(DEFAULT_SPAWN_LOOKAHEAD, speed * boostMultiplier * protection);
+    return Math.max(DEFAULT_SPAWN_LOOKAHEAD, speed * boostMultiplier * ALTITUDE_SPEED_MAX_MULTIPLIER * protection);
 }
 
 // Fallbacks match HUNT_CONFIG.MG for owners whose runtime config carries no gun block.
