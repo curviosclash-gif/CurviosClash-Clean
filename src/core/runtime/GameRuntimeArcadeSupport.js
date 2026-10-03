@@ -10,14 +10,14 @@ import { ArenaWavesRuntime } from '../arcade/ArenaWavesRuntime.js';
 import { getArcadeObjectiveRuntimeState } from '../arcade/ArcadeObjectiveRuntimeOps.js';
 import { isFivePortalsConfig } from '../../shared/contracts/PortalChainContract.js';
 import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
-import { applyArcadeRuntimeCosmetics } from '../arcade/ArcadeRuntimeCosmeticOps.js';
 import { isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { WeaponRaceRuntime } from '../arcade/WeaponRaceRuntime.js';
-import { buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveActiveArcadeVehicleId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities } from './GameRuntimeArcadeSupportOps.js';
+import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveActiveArcadeVehicleId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities } from './GameRuntimeArcadeSupportOps.js';
 import { resolveArcadePostMatchProgression } from '../arcade/ArcadePostMatchProgression.js';
 import { resolveDedicatedArcadeMatchStart } from './GameRuntimeArcadeRunDispatch.js';
 import { GameRuntimeDemolitionSupport } from './GameRuntimeDemolitionSupport.js';
 import { createPlayerRecordStorePortResolver } from './PlayerProfileRuntimeAccess.js';
+import { clearArcadePlayerProfileBindings } from '../arcade/ArcadePlayerProfileBindings.js';
 
 export class GameRuntimeArcadeSupport {
     constructor({
@@ -49,6 +49,7 @@ export class GameRuntimeArcadeSupport {
         this._sectorRebuildInFlight = false;
         this.arcadeRunRuntime = new ArcadeRunRuntime({
             settingsManager: this.game?.settingsManager || null,
+            getRecordStoreForPlayerIndex: createPlayerRecordStorePortResolver(() => this.game?.playerProfileManager),
             replayRecorder: this._arcadeReplayRecorder,
             now: this._nowMs,
             logger,
@@ -308,7 +309,7 @@ export class GameRuntimeArcadeSupport {
         const runtimeState = this.getRuntimeState();
         const runtimeConfig = runtimeState?.runtimeConfig || null;
         this._bindParcoursCallbacks(runtimeState);
-        applyArcadeRuntimeCosmetics(this, runtimeState, runtimeConfig);
+        const localProfileContext = bindLocalArcadeProfilesAndApplyCosmetics(this, runtimeState, runtimeConfig);
         if (!runtimeConfig?.arcade?.enabled) {
             return null;
         }
@@ -367,6 +368,7 @@ export class GameRuntimeArcadeSupport {
                 recordStore,
                 vehicleId: resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings),
                 strategy: runtimeState?.entityManager?.gameModeStrategy || null,
+                playerBuildBonuses: localProfileContext?.playerBuildBonuses || null,
             });
             return runtime?.getHudState?.() || null;
         }
@@ -408,9 +410,8 @@ export class GameRuntimeArcadeSupport {
                 ? this.arenaWavesRuntime.getHudState()
                 : (this.arcadeRunRuntime.getStateSnapshot?.() || null)));
         }
-        this._sectorRebuildInFlight = false;
-        this._preparedEncounterPlan = null;
-        this._pendingSectorTransition = null;
+        this._sectorRebuildInFlight = false; clearArcadePlayerProfileBindings(this.arcadeRunRuntime);
+        this._preparedEncounterPlan = null; this._pendingSectorTransition = null;
         const demolitionReset = this.demolitionSupport.resetIfUsed(
             () => this.arcadeRunRuntime.resetRunState({ preserveRecords: true })
         );

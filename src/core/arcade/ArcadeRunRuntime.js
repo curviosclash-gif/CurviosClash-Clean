@@ -13,7 +13,6 @@ import { createArcadeDailyProjection } from '../../state/arcade/ArcadeDailyState
 import { resolveMapSequence, getMapKeyForSector } from '../../state/arcade/ArcadeMapProgression.js';
 import {
     calculateSectorXp,
-    loadVehicleProfiles,
     resolveArcadeRunHudVehicleStats,
     XP_REWARD_TABLE,
 } from '../../state/arcade/ArcadeVehicleProfile.js';
@@ -36,6 +35,7 @@ import {
 } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { ArcadeRunPersistenceScheduler } from './ArcadeRunPersistenceScheduler.js';
+import { clearArcadePlayerProfileBindings, initializeArcadePlayerProfileBindings, loadArcadeRunVehicleProfiles } from './ArcadePlayerProfileBindings.js';
 import { createArcadeTelemetrySnapshot } from './ArcadeTelemetrySnapshot.js';
 import { applyArcadeIntermissionEffects, captureArcadeHumanVitals, syncArcadeRunRewardEffects } from './ArcadeIntermissionEffects.js';
 import { applyArcadeMasteryScoreBonus, syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
@@ -90,6 +90,7 @@ function toSafeBudgetLimit(value, fallback = 0) {
 export class ArcadeRunRuntime {
     constructor(options = {}) {
         this.settingsManager = options.settingsManager || null;
+        initializeArcadePlayerProfileBindings(this, options.getRecordStoreForPlayerIndex);
         this.replayRecorder = options.replayRecorder || null;
         this.now = typeof options.now === 'function' ? options.now : () => Date.now();
         this.logger = resolveLogger(options.logger);
@@ -849,15 +850,7 @@ export class ArcadeRunRuntime {
             payloadAvailable: false,
         };
 
-        // Load vehicle profiles and notify slot bonuses
-        const store = this._resolveSettingsRecordStore();
-        this._vehicleProfiles = loadVehicleProfiles(store);
-        const activeProfile = this.getVehicleProfile();
-        syncArcadeMasteryPerks(this._state, activeProfile);
-        this._notifyVehicleUpgradesChanged(resolveArcadeRunStrategyUpgradeBonuses(this,
-            options.entityManager?.humanPlayers,
-            options.dailyChallenge || runConfig.dailyChallenge === true ? null : this._getVehicleBonuses(activeProfile),
-            options.dailyChallenge === true || runConfig.dailyChallenge === true));
+        loadArcadeRunVehicleProfiles(this, runConfig, options);
         // Resolve map sequence from encounter plan if available
         if (options.encounterPlan) {
             const runtimeMapCatalog = getRuntimeMapCatalog();
@@ -1355,6 +1348,7 @@ export class ArcadeRunRuntime {
         this._resetStrategyRuntimeState();
         this._state = null;
         this._rewardBinding = null;
+        clearArcadePlayerProfileBindings(this);
         if (!preserveRecords) {
             this._records = this._readRecordsFromStorage();
         }

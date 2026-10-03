@@ -54,3 +54,13 @@ export function resolveDedicatedArcadeMatchStart(runtimeConfig, fivePortalsState
     }
     return UNHANDLED;
 }
+
+export function shouldBindLocalArcadePlayerProfiles(runtimeConfig) {
+    const sessionType = runtimeConfig?.session?.sessionType;
+    const localSession = sessionType === 'single' || sessionType === 'splitscreen';
+    return runtimeConfig?.arcade?.enabled === true
+        && localSession
+        && Number(runtimeConfig?.session?.numHumans) >= 1
+        && Number(runtimeConfig?.session?.numHumans) <= 3
+        && resolveArcadeRuntimeKind(runtimeConfig) !== ARCADE_RUN_KINDS.DEMOLITION;
+}

@@ -117,14 +117,28 @@ export function createArcadePlayerUpgradeBonusMap(profilesByPlayerIndex, players
                 ? stoneStepsByPlayerIndex[playerIndex].stoneSteps
                 : null,
         );
+        if (bonuses.build && stoneStepsByPlayerIndex
+            && !stoneStepsByPlayerIndex[playerIndex]) {
+            stoneStepsByPlayerIndex[playerIndex] = {
+                vehicleId: bonuses.build.vehicleId,
+                stoneSteps: bonuses.build.stoneSteps,
+            };
+        }
         byPlayerIndex[playerIndex] = buildOnly ? { build: bonuses.build } : bonuses;
     }
     return { byPlayerIndex };
 }
 
 export function resolveArcadeRunStrategyUpgradeBonuses(runtime, players, fallbackBonuses, disabled = false) {
+    if (disabled) return fallbackBonuses;
+    if (runtime?._playerProfileBindingsActive) {
+        return createArcadePlayerUpgradeBonusMap(runtime._playerProfilesByIndex, players, {
+            storesByPlayerIndex: runtime._playerStoresByIndex,
+            stoneStepsByPlayerIndex: runtime._runStoneStepsByPlayerIndex,
+        });
+    }
     const profiles = runtime?._vehicleProfiles;
-    if (disabled || !profiles || !Array.isArray(players)
+    if (!profiles || !Array.isArray(players)
         || !players.some((player) => player && player.isBot !== true && String(player.vehicleId || '').trim())) {
         return fallbackBonuses;
     }
