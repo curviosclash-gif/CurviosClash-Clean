@@ -48,6 +48,8 @@ export class SecretRoomSystem {
         this._stayRoomIndex = [];
         /** @type {{ inside: boolean, remainingSeconds: number, roomId: string }[]} */
         this._hudStates = [];
+        // Reused view of a plant whose room needs only a share of its parts (see _resolveShareState).
+        this._shareState = { total: 0, released: 0, remaining: 0, allReleased: false, completedAtSeconds: 0 };
         this._seedObjective = {
             source: '',
             total: 0,
@@ -299,13 +301,36 @@ export class SecretRoomSystem {
 
     _resolveUnlockState(room) {
         const source = room?.unlock?.source;
+        const arena = this.entityManager?.arena;
         if (source === 'dandelionSeeds') {
-            return this.entityManager?.arena?.getDandelionSeedProgress?.() || null;
+            return this._resolveShareState(room, arena?.getDandelionSeedProgress?.() || null,
+                (count) => arena?.getDandelionSeedReleaseSecondsAt?.(count) ?? Infinity);
         }
         if (source === 'sunflowerKernels') {
-            return this.entityManager?.arena?.getSunflowerKernelProgress?.() || null;
+            return this._resolveShareState(room, arena?.getSunflowerKernelProgress?.() || null,
+                (count) => arena?.getSunflowerKernelReleaseSecondsAt?.(count) ?? Infinity);
         }
         return this._resolveDestructibleState();
+    }
+
+    /**
+     * A room that needs only a share of the plant sees the plant as if the share were all of it:
+     * the goal is the share, the count stops there, and "complete" is the second the last part of
+     * the share fell. Both machines read that second from the same ordered release list.
+     */
+    _resolveShareState(room, progress, releaseSecondsAt) {
+        const required = Number(room?.unlock?.requiredReleases);
+        if (!progress || !Number.isInteger(required) || required <= 0) return progress;
+        const goal = Math.min(required, Math.max(0, Math.trunc(Number(progress.total) || 0)));
+        const share = this._shareState;
+        share.total = goal;
+        share.released = Math.min(goal, Math.max(0, Math.trunc(Number(progress.released) || 0)));
+        share.remaining = goal - share.released;
+        share.allReleased = goal > 0 && share.released >= goal;
+        const reachedAt = share.allReleased ? releaseSecondsAt(goal) : Infinity;
+        share.completedAtSeconds = Number.isFinite(reachedAt) ? reachedAt : 0;
+        if (share.allReleased && !Number.isFinite(reachedAt)) share.allReleased = false;
+        return share;
     }
 }
 

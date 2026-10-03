@@ -99,6 +99,7 @@ const DEGREES_PER_TURN = 360;
  * @property {string} [destructible] Id of the destructible structure whose state is watched.
  * @property {'anyBreak'|'sealed'|'segment'|'allReleased'} when
  * @property {string} [segmentId] Segment that has to break; empty unless `when` is `segment`.
+ * @property {number} [requiredReleases] Release sources only: parts that have to fall; all when absent.
  * @property {number} delaySeconds Seconds between the break and the portal appearing.
  */
 
@@ -282,11 +283,14 @@ function readUnlock(value) {
         if (readText(value.when, SECRET_ROOM_LIMITS.idMaxLength) !== 'allReleased') {
             return { ok: false, unlock: null };
         }
+        const required = Number(value.requiredReleases);
         return {
             ok: true,
             unlock: Object.freeze({
                 source: /** @type {'dandelionSeeds'|'sunflowerKernels'} */ (source),
                 when: 'allReleased',
+                // A share of the plant opens the room; without it every part has to fall.
+                ...(Number.isInteger(required) && required > 0 ? { requiredReleases: required } : {}),
                 delaySeconds: clampNumber(value.delaySeconds, SECRET_ROOM_LIMITS.unlockDelaySeconds),
             }),
         };

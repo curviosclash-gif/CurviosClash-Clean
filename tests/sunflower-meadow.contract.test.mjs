@@ -54,7 +54,7 @@ test('the sunflower meadow is a listed adventure map with a kernel-locked honey 
     assert.equal(MAP_PRESETS_BASE.sunflower_meadow, MAP);
     assert.equal(resolveMapPickerCollection('sunflower_meadow').id, 'adventure');
     assert.equal(ROOM.id, 'honey_chamber');
-    assert.deepEqual(ROOM.unlock, { source: 'sunflowerKernels', when: 'allReleased', delaySeconds: 0 });
+    assert.deepEqual(ROOM.unlock, { source: 'sunflowerKernels', when: 'allReleased', requiredReleases: 88, delaySeconds: 0 });
     assert.deepEqual(ROOM.modes, ['HUNT', 'ARCADE']);
     assert.equal(MAP.singlePlayerScenario.gameMode, 'HUNT');
     assert.deepEqual(MAP.size, [420, 360, 420]);

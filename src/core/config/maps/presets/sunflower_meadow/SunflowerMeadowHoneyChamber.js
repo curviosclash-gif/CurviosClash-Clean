@@ -128,6 +128,9 @@ export const SUNFLOWER_MEADOW_HONEY_CHAMBER = Object.freeze({
     unlock: Object.freeze({
         source: 'sunflowerKernels',
         when: 'allReleased',
+        // 40 % of the 220 kernels (user decision 03.10.2026): about four minutes of fire alone
+        // instead of ten, so the chamber fits into a normal round.
+        requiredReleases: 88,
         delaySeconds: 0,
     }),
     stayLimitSeconds: 20,
