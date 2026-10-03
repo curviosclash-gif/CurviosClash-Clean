@@ -36,6 +36,7 @@ export const GAME_EXPORT_TEST_FILES = new Set([
 export const GAME_EXPORT_ELECTRON_FILES = new Set([
     'electron/automation-hint.cjs',
     'electron/cinematic-replay-video-export-job.cjs',
+    'electron/encoder-staging-dir.cjs',
     'electron/entry.cjs',
     'electron/hangar-preload.cjs',
     'electron/hangar-window.cjs',

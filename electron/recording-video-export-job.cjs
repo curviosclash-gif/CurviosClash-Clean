@@ -1,6 +1,7 @@
 const path = require('node:path');
 const { existsSync, promises: fsPromises } = require('node:fs');
 const { spawn } = require('node:child_process');
+const { resolveEncoderStagingDirectory } = require('./encoder-staging-dir.cjs');
 
 const RECORDING_TEMP_FILE_PREFIX = '.recording-export';
 const FFMPEG_COMMAND_NAME = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
@@ -835,11 +836,18 @@ function createRecordingVideoExportJob({
         }
 
         const masterTempPath = buildRecordingVideoTempPath(targetDeliveryPath, 'master-webm');
-        const deliveryTempPath = buildRecordingVideoTempPath(targetDeliveryPath, 'delivery-mp4');
+        // FFmpeg may run with low integrity and then cannot write next to the target; it
+        // transcodes into the staging folder and the main process copies the result over.
+        const stagingDirectory = resolveEncoderStagingDirectory(app, { fallback: path.dirname(targetDeliveryPath) });
+        const deliveryTempPath = buildRecordingVideoTempPath(
+            path.join(stagingDirectory, path.basename(targetDeliveryPath)),
+            'delivery-mp4',
+        );
         let transcodeFailureCode = null;
         let transcodeFailureMessage = null;
         try {
             await fsPromises.mkdir(path.dirname(targetDeliveryPath), { recursive: true });
+            await fsPromises.mkdir(stagingDirectory, { recursive: true });
             await fsPromises.writeFile(masterTempPath, Buffer.from(request.videoBytes));
             const transcodeResult = await executeNativeTranscode({
                 capability: nativeCapability,

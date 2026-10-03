@@ -15,6 +15,7 @@ files:
   - settings-studio/**/*
   - recording-video-export-job.cjs
   - cinematic-replay-video-export-job.cjs
+  - encoder-staging-dir.cjs
   - static-server.cjs
   - node_modules/ffmpeg-static/**/*
 extraResources:
