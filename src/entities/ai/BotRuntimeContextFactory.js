@@ -361,6 +361,7 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
             projectiles,
             mode,
             planarMode: rules.planarMode,
+            simulationNowMs: entityManager?._simulationClockMs,
         }, runtimeContext.observationContext)
         : null;
     if (!runtimeContext.observationBuffer || runtimeContext.observationBuffer.length !== OBSERVATION_LENGTH_V1) {

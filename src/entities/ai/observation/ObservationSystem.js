@@ -110,13 +110,6 @@ function sampleWallDistanceRatio(arena, origin, direction, radius, maxDistance, 
     return normalizeDistanceRatio(distance, safeMaxDistance, 0);
 }
 
-function resolveNowMs() {
-    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-        return performance.now();
-    }
-    return Date.now();
-}
-
 function createWallProbeState() {
     const ratios = new Float32Array(WALL_SAMPLE_COUNT);
     for (let i = 0; i < WALL_SAMPLE_COUNT; i++) {
@@ -127,6 +120,11 @@ function createWallProbeState() {
         forward: new THREE.Vector3(),
         ratios,
         sampledAtMs: 0,
+        arena: null,
+        wallProbeDistance: 0,
+        radius: 0,
+        wallProbeMinSteps: 0,
+        wallProbeMaxSteps: 0,
         valid: false,
     };
 }
@@ -140,10 +138,18 @@ function getWallProbeState(player) {
     return state;
 }
 
-function canReuseWallProbeState(state, player, forward, runtimeContext, nowMs) {
-    if (!state?.valid) return false;
+function canReuseWallProbeState(state, player, forward, runtimeContext, nowMs, radius) {
+    if (!state?.valid || !Number.isFinite(nowMs)) return false;
     const cacheWindowMs = Math.max(0, Number(runtimeContext?.wallProbeCacheWindowMs) || 0);
-    if (cacheWindowMs <= 0 || nowMs - state.sampledAtMs > cacheWindowMs) {
+    // A match clock that moved backwards marks a new simulation baseline.
+    if (cacheWindowMs <= 0 || nowMs < state.sampledAtMs || nowMs - state.sampledAtMs > cacheWindowMs) {
+        return false;
+    }
+    if (state.arena !== runtimeContext?.arena
+        || state.wallProbeDistance !== runtimeContext?.wallProbeDistance
+        || state.radius !== radius
+        || state.wallProbeMinSteps !== runtimeContext?.wallProbeMinSteps
+        || state.wallProbeMaxSteps !== runtimeContext?.wallProbeMaxSteps) {
         return false;
     }
 
@@ -171,8 +177,8 @@ function resolveWallProbeSteps(runtimeContext, previousRatio) {
 
 function sampleWallRatios(player, runtimeContext, radius) {
     const state = getWallProbeState(player);
-    const nowMs = resolveNowMs();
-    if (canReuseWallProbeState(state, player, TMP_FORWARD, runtimeContext, nowMs)) {
+    const nowMs = runtimeContext.simulationNowMs;
+    if (canReuseWallProbeState(state, player, TMP_FORWARD, runtimeContext, nowMs, radius)) {
         return state.ratios;
     }
 
@@ -228,8 +234,13 @@ function sampleWallRatios(player, runtimeContext, radius) {
 
     state.position.copy(player.position);
     state.forward.copy(TMP_FORWARD);
-    state.sampledAtMs = nowMs;
-    state.valid = true;
+    state.sampledAtMs = Number.isFinite(nowMs) ? nowMs : 0;
+    state.arena = arena;
+    state.wallProbeDistance = wallProbeDistance;
+    state.radius = radius;
+    state.wallProbeMinSteps = runtimeContext.wallProbeMinSteps;
+    state.wallProbeMaxSteps = runtimeContext.wallProbeMaxSteps;
+    state.valid = Number.isFinite(nowMs);
     return ratios;
 }
 
@@ -262,6 +273,7 @@ export function createObservationContext(input = {}, target = null) {
     context.projectiles = Array.isArray(input.projectiles) ? input.projectiles : DEFAULT_CONTEXT.projectiles;
     context.mode = input.mode || DEFAULT_CONTEXT.mode;
     context.planarMode = !!input.planarMode;
+    context.simulationNowMs = Number.isFinite(input.simulationNowMs) ? input.simulationNowMs : null;
     context.wallProbeDistance = Math.max(1, Number(input.wallProbeDistance) || DEFAULT_CONTEXT.wallProbeDistance);
     context.wallProbeMinSteps = wallProbeMinSteps;
     context.wallProbeMaxSteps = wallProbeMaxSteps;

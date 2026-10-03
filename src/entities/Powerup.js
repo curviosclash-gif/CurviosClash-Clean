@@ -122,6 +122,7 @@ export class PowerupManager {
         this._sharedWireGeo = new THREE.BoxGeometry(size * 1.15, size * 1.15, size * 1.15);
         this._occupiedAnchorKeys = new Set();
         this._authoredRespawnClock = createAuthoredRespawnClock();
+        this._animationSeconds = 0;
         this._nextNetworkId = 1;
         this._lastRandomType = '';
         this.networkReplica = false;
@@ -161,8 +162,8 @@ export class PowerupManager {
             this._spawnRandom();
         }
 
-        // Animation
-        const time = performance.now() * 0.001;
+        // Animation follows simulation time because the bobbing mesh also carries its pickup box.
+        const time = this._animationSeconds += Math.max(0, Number(dt) || 0);
         const pickupSize = config.POWERUP.PICKUP_RADIUS * 2;
         this._pickupBoxSize.set(pickupSize, pickupSize, pickupSize);
         for (const item of this.items) {
@@ -389,6 +390,7 @@ export class PowerupManager {
         }
         this.items = [];
         this.spawnTimer = 0;
+        this._animationSeconds = 0;
         this._lastRandomType = '';
         this._occupiedAnchorKeys.clear();
         resetAuthoredRespawnClock(this._authoredRespawnClock);
