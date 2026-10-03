@@ -214,6 +214,12 @@ test('all ten profiles appear at their real game event entry points', async ({ p
         const bomber = units.units.find((unit) => unit.summoned);
         bomber.bombCooldownRemaining = 0;
         bomber.groundPosition.x = 0; bomber.position.x = 0;
+        // A hunting strike only releases over an enemy: put the bot 15 units beside the point where
+        // this bomb would land, inside the aim tolerance but clear of a direct hit, so it hits ground.
+        const fall = Math.sqrt((2 * (bomber.position.y - 1 - floorY)) / 24);
+        bot.alive = true; bot.spawnProtectionTimer = 0;
+        bot.position.set(bomber.position.x + Math.sin(bomber.yaw) * bomber.speed * fall - Math.cos(bomber.yaw) * 15,
+            floorY + 0.5, bomber.position.z + Math.cos(bomber.yaw) * bomber.speed * fall + Math.sin(bomber.yaw) * 15);
         units.update(.01);
         const droppedBomb = system.projectiles.find((projectile) => projectile.type === 'BOMBER_BOMB');
         for (let frame = 0; droppedBomb && system.projectiles.includes(droppedBomb) && frame < 300; frame += 1) system.update(1 / 60);
@@ -271,11 +277,18 @@ test('Bomber Strike shows five independent aircraft and real falling bombs throu
         if (formation[0].hp !== 119 || formation.slice(1).some((plane) => plane.hp !== 120)) {
             throw new Error('A bomber hit changed another bomber or failed to damage its target');
         }
+        // A hunting strike releases only where a bomb reaches an enemy: park the bot straight ahead
+        // of the leader, where its first bomb lands once the 0.75 s cadence is up.
+        const leader = formation[0];
+        const fall = Math.sqrt((2 * (leader.position.y - 1 - minY)) / 24);
+        enemy.position.set(leader.position.x + Math.sin(leader.yaw) * leader.speed * (fall + 0.75), minY + 0.5,
+            leader.position.z + Math.cos(leader.yaw) * leader.speed * (fall + 0.75));
         const enemyHp = enemy.hp;
         units.update(0.75);
-        if (formation.some((plane) => plane.bombsFired !== 1)) throw new Error('All five bombers must release together at 0.75s');
-        if (projectiles.projectiles.length !== 5 || projectiles.projectiles.some((bomb) => !bomb.mesh?.visible)) {
-            throw new Error('Five visible bomb projectiles were not created');
+        if (leader.bombsFired !== 1) throw new Error('The leader must release its aimed bomb at 0.75s');
+        const released = formation.reduce((sum, plane) => sum + plane.bombsFired, 0);
+        if (projectiles.projectiles.length !== released || projectiles.projectiles.some((bomb) => !bomb.mesh?.visible)) {
+            throw new Error('Every release must create one visible bomb projectile');
         }
         projectiles.update(0.25);
         if (enemy.hp !== enemyHp) throw new Error('A falling bomb damaged a player before contact');
@@ -321,7 +334,7 @@ test('Bomber Strike shows five independent aircraft and real falling bombs throu
         manager.particles.conventionalExplosionEffect.update(0.2);
         capture('bomber-bomb-contact.png', explosion.position);
         return { shots, formation: formation.map((plane) => ({ id: plane.id, hp: plane.hp, y: plane.position.y })),
-            bombCount: 5, targetHpBefore: enemyHp, targetHpAfter: enemy.hp, explosion: explosion.profile.id };
+            bombCount: projectiles.projectiles.length, targetHpBefore: enemyHp, targetHpAfter: enemy.hp, explosion: explosion.profile.id };
     });
     await mkdir(OUT, { recursive: true });
     for (const shot of proof.shots) await writeFile(path.join(OUT, shot.name), Buffer.from(shot.data, 'base64'));

@@ -1,5 +1,6 @@
 import { normalizeMapUnit } from '../../../shared/contracts/MapUnitContract.js';
 import { BOMBER_STRIKE_FORMATION, resolveBomberStrikeFormation } from '../../../shared/contracts/BomberStrikeFormationContract.js';
+import { startBomberHunt } from './BomberHuntOps.js';
 
 export function callBomberStrike(system, player) {
     const projectileSystem = system.entityManager?._projectileSystem;
@@ -27,8 +28,7 @@ export function callBomberStrike(system, player) {
             unit.calledByIndex = Number.isInteger(player.index) ? player.index : -1;
             unit.attackSourcePlayer = player;
             unit.bombCooldownRemaining = BOMBER_STRIKE_FORMATION.bombCooldown;
-            const [from, to] = unit.path;
-            unit.summonRemaining = Math.hypot(to[0] - from[0], to[1] - from[1], to[2] - from[2]) / unit.speed;
+            startBomberHunt(unit, sequence);
             created.push(unit);
         }
     } catch {

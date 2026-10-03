@@ -1,3 +1,5 @@
+import { shouldDropHuntingBomb } from './BomberHuntOps.js';
+
 export function updateBomberBombs(system, unit, dt, canFire) {
     const bomb = unit.definition?.weapons?.bomb;
     if (!bomb) return;
@@ -5,14 +7,20 @@ export function updateBomberBombs(system, unit, dt, canFire) {
     if (!canFire || unit.bombCooldownRemaining > 0.000001) return;
     const projectileSystem = system.entityManager?._projectileSystem;
     if (typeof projectileSystem?.spawnBomberBomb !== 'function') return;
+    // A hunting strike only releases when the bomb would land on an enemy.
+    if (unit.bomberHunt && !shouldDropHuntingBomb(system, unit, bomb.radius * unit.scale)) return;
 
     unit.bombCooldownRemaining = bomb.cooldown;
-    const from = unit.path[unit.fromIndex];
-    const to = unit.path[unit.toIndex];
-    const dx = Number(to?.[0]) - Number(from?.[0]);
-    const dz = Number(to?.[2]) - Number(from?.[2]);
-    const horizontalLength = Math.hypot(dx, dz);
     const speed = Number(unit.speed) || 0;
+    let dx = Math.sin(unit.yaw);
+    let dz = Math.cos(unit.yaw);
+    if (!unit.bomberHunt) {
+        const from = unit.path[unit.fromIndex];
+        const to = unit.path[unit.toIndex];
+        dx = Number(to?.[0]) - Number(from?.[0]);
+        dz = Number(to?.[2]) - Number(from?.[2]);
+    }
+    const horizontalLength = Math.hypot(dx, dz);
     const velocity = system._tmpBombVelocity.set(
         horizontalLength > 0.000001 ? (dx / horizontalLength) * speed : 0,
         0,

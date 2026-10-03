@@ -85,8 +85,22 @@ test('a called bomber spares its caller team but still bombs a nearby enemy', ()
     };
 
     assert.equal(system.callBomberStrike(caller), true);
-    system.update(0.75);
-    assert.equal(system.entityManager._projectileSystem.spawned.length, 5);
+    for (let step = 0; step < 300 && system.entityManager._projectileSystem.spawned.length === 0; step += 1) {
+        system.update(1 / 30);
+    }
+    const spawned = system.entityManager._projectileSystem.spawned;
+    assert.ok(spawned.length > 0, 'the strike bombs the enemy within ten seconds');
+    // Everyone outside the caller's team is fair game: the enemy and the two teamless players.
+    const opponents = system.entityManager.players.filter((player) => player !== caller && player.teamId !== 'ALPHA');
+    for (const bomb of spawned) {
+        const fall = Math.sqrt((2 * bomb.position.y) / 24);
+        const impact = [bomb.position.x + bomb.velocity.x * fall, bomb.position.z + bomb.velocity.z * fall];
+        assert.ok(opponents.some((player) => Math.hypot(impact[0] - player.position.x, impact[1] - player.position.z) <= 22.5),
+            'every release is aimed at an opponent');
+    }
+    for (const unit of system.units.filter((entry) => entry.summoned)) {
+        assert.notEqual(unit.bomberHunt.target, ally, 'no aircraft hunts the teammate');
+    }
     assert.equal(ally.hp, 100, 'dropping a bomb does not instantly affect teammates');
     assert.equal(enemy.hp, 100, 'the projectile has not contacted the enemy yet');
 });

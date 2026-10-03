@@ -58,6 +58,7 @@ import {
 import { updateBomberBombs } from './map-units/MapUnitBombOps.js';
 import { updateBomberCrash } from './map-units/MapUnitBomberCrashOps.js';
 import { callBomberStrike as callBomberStrikeFormation } from './map-units/BomberStrikeOps.js';
+import { steerHuntingBomber } from './map-units/BomberHuntOps.js';
 import {
     createCreatureAssets,
     createCreatureVisual,
@@ -368,7 +369,10 @@ export class MapUnitSystem {
             if (unit.hydra) updateHydra(this, unit, unitDt, authority);
             const previousPose = captureUnitPose(unit, this._poseScratch);
             if (!unit.hydra || unit.hydra.moving) {
-                if (unit.definition.drive?.steering === true) {
+                if (unit.bomberHunt) {
+                    // A hunting strike leaves its path; a replica takes its pose from the snapshot.
+                    if (!this.networkReplica) steerHuntingBomber(this, unit, unitDt);
+                } else if (unit.definition.drive?.steering === true) {
                     // Only the host decides where a unit leaves its path; a client follows the snapshot.
                     if (unit.definition.drive.chase === true && !this.networkReplica) {
                         driveChasingUnit(this.entityManager?.arena, unit, this.entityManager?.players || [], unitDt);
