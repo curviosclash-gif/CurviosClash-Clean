@@ -155,6 +155,12 @@ export class SunflowerKernelController {
     /** Match-wide release progress. The returned object is owned and reused by this controller. */
     getProgress() { return this._progress; }
 
+    /** Second of the count-th release in release order (host and replica share it), Infinity before. */
+    getReleaseSecondsAt(count) {
+        const event = this.events[Math.trunc(Number(count)) - 1];
+        return event ? event[1] / 1000 : Infinity;
+    }
+
     getRenderBatchMetrics() {
         return this._renderBatch?.getMetrics()
             || { enabled: false, batches: 0, instances: 0, estimatedDrawCalls: 0 };

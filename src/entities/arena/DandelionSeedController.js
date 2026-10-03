@@ -132,6 +132,12 @@ export class DandelionSeedController {
     /** Match-wide release progress. The returned object is owned and reused by this controller. */
     getProgress() { return this._progress; }
 
+    /** Second of the count-th release in release order (host and replica share it), Infinity before. */
+    getReleaseSecondsAt(count) {
+        const event = this.events[Math.trunc(Number(count)) - 1];
+        return event ? event[1] : Infinity;
+    }
+
     /** Nearest still-attached seed body, shaft, or pappus along a normalized shot ray. */
     raycast(origin, direction, maxDistance, padding = 0) {
         if (!origin || !direction || !(maxDistance > 0)) return null;
