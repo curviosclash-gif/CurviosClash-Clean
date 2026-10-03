@@ -101,8 +101,8 @@ globalThis.window = { setTimeout, clearTimeout, addEventListener() {}, removeEve
 
 const { ARCADE_FACTORY_VEHICLE_IDS } = await import('../src/shared/contracts/ArcadeVehicleBalanceContract.js');
 const { ARCADE_VEHICLE_PROFILE_STORAGE_KEY } = await import('../src/shared/contracts/ArcadeVehicleProfileContract.js');
+const { ARCADE_STONE_WORKSHOP_STORAGE_KEY, createArcadeStoneWorkshopRecord } = await import('../src/shared/contracts/ArcadeStoneWorkshopContract.js');
 const { HANGAR_BUILD_STORAGE_KEYS } = await import('../src/shared/contracts/HangarModeContract.js');
-const { createArcadeVehicleProfile } = await import('../src/state/arcade/ArcadeVehicleProfile.js');
 const { createArcadeVehicleProfileWorkshopPort } = await import('../src/state/arcade/ArcadeVehicleProfileWorkshopPort.js');
 const { setupArcadeHangarWorkshop } = await import('../src/ui/hangar/ArcadeHangarWorkshop.js');
 const { syncStartSetupSelectionState } = await import('../src/ui/start-setup/StartSetupSelectionSync.js');
@@ -112,16 +112,29 @@ const { createRuntimeConfigSnapshot } = await import('../src/core/RuntimeConfig.
 const { SettingsManager } = await import('../src/core/SettingsManager.js');
 const { createMemoryStoragePlatform } = await import('./helpers/settings-manager-contract-test-utils.mjs');
 
-function openHangar({ mode, playerOne = LAB_ID, recentVehicles = [LAB_ID, 'manta'], favoriteVehicles = [LAB_ID], ui = {}, profilePort = null, failBuildSave = false }) {
+function openHangar({ mode, playerOne = LAB_ID, recentVehicles = [LAB_ID, 'manta'], favoriteVehicles = [LAB_ID], ui = {}, profilePort = null, failBuildSaveOnCall = 0, failStonePoolSaveOnCall = 0, initialStonePool = null }) {
     const settings = {
         vehicles: { PLAYER_1: playerOne, PLAYER_2: 'ship5' },
         localSettings: { modePath: mode === 'fight' ? 'fight' : 'arcade', startSetup: { recentVehicles: [...recentVehicles], favoriteVehicles: [...favoriteVehicles] } },
     };
     const records = new Map();
+    if (initialStonePool) records.set(ARCADE_STONE_WORKSHOP_STORAGE_KEY, structuredClone(initialStonePool));
+    let buildSaveCalls = 0;
+    let stonePoolSaveCalls = 0;
     const store = {
         loadJsonRecord: (key, fallback) => (records.has(key) ? records.get(key) : fallback),
+        readJsonRecordResult: (key) => records.has(key)
+            ? { status: 'found', value: records.get(key) }
+            : { status: 'missing' },
         saveJsonRecord(key, value) {
-            if (failBuildSave && key === HANGAR_BUILD_STORAGE_KEYS[mode]) return { success: false, reason: 'quota_exceeded' };
+            if (key === HANGAR_BUILD_STORAGE_KEYS[mode]) {
+                buildSaveCalls += 1;
+                if (failBuildSaveOnCall === buildSaveCalls) return { success: false, reason: 'quota_exceeded' };
+            }
+            if (key === ARCADE_STONE_WORKSHOP_STORAGE_KEY) {
+                stonePoolSaveCalls += 1;
+                if (failStonePoolSaveOnCall === stonePoolSaveCalls) return { success: false, reason: 'quota_exceeded' };
+            }
             records.set(key, value);
             return true;
         },
@@ -173,7 +186,9 @@ function findClass(root, className) {
 function createFailingProfilePort() {
     const persistence = {
         loadJsonRecord: (_key, fallback) => fallback,
-        saveJsonRecord: () => ({ success: false, reason: 'quota_exceeded' }),
+        saveJsonRecord: (key) => key === ARCADE_VEHICLE_PROFILE_STORAGE_KEY
+            ? ({ success: false, reason: 'quota_exceeded' })
+            : true,
     };
     const basePort = createArcadeVehicleProfileWorkshopPort(persistence);
     let lastProfileMap = null;
@@ -189,42 +204,15 @@ function createFailingProfilePort() {
     };
 }
 
-function createSuccessfulProfilePort({ failOnSaveCall = 0 } = {}) {
+function createSuccessfulProfilePort() {
     const records = new Map();
-    let saveCalls = 0;
-    const persistence = {
-        loadJsonRecord: (key, fallback) => (records.has(key) ? records.get(key) : fallback),
-        saveJsonRecord(key, value) {
-            saveCalls += 1;
-            if (saveCalls === failOnSaveCall) return { success: false, reason: 'quota_exceeded' };
-            records.set(key, structuredClone(value));
-            return true;
-        },
-    };
-    return {
-        port: createArcadeVehicleProfileWorkshopPort(persistence),
-        getRecord: (key) => records.get(key),
-    };
-}
-
-function createProfilePortFailingFirstSave(initialProfiles) {
-    const records = new Map([[ARCADE_VEHICLE_PROFILE_STORAGE_KEY, structuredClone(initialProfiles)]]);
     const persistence = {
         loadJsonRecord: (key, fallback) => (records.has(key) ? records.get(key) : fallback),
         saveJsonRecord(key, value) { records.set(key, structuredClone(value)); return true; },
     };
-    const basePort = createArcadeVehicleProfileWorkshopPort(persistence);
-    let saveCalls = 0;
     return {
-        port: Object.freeze({
-            ...basePort,
-            save(profiles) {
-                saveCalls += 1;
-                if (saveCalls === 1) return false;
-                return basePort.save(profiles);
-            },
-        }),
-        getRecord: (vehicleId) => records.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY)?.[vehicleId],
+        port: createArcadeVehicleProfileWorkshopPort(persistence),
+        getRecord: (key) => records.get(key),
     };
 }
 
@@ -248,95 +236,96 @@ test('Arcade-Hangar öffnen mit einem Werksschiff schreibt es wie bisher zurück
     hangar.workshop.dispose();
 });
 
-test('a profile save failure blocks run start and restores the in-memory run-bonus projection', async () => {
-    const failingPort = createFailingProfilePort();
-    const hangar = openHangar({ mode: 'arcade', profilePort: failingPort.port });
+test('a stone-pool save failure blocks run start and leaves the active-build pointer unchanged', async () => {
+    const previousPool = createArcadeStoneWorkshopRecord(1000);
+    const hangar = openHangar({ mode: 'arcade', initialStonePool: previousPool, failStonePoolSaveOnCall: 1 });
 
     const result = await hangar.workshop.prepareRunStart();
 
-    assert.deepEqual(result, { ok: false, code: 'profile_save_failed' });
-    assert.equal(hangar.workshop.container.dataset.activeRunVehicleId, undefined);
-    assert.equal(hangar.workshop.getActiveBuild(), null, 'a failed required profile save does not activate a run build');
-    assert.deepEqual(hangar.saved, [], 'the failed profile save stops the run before selection writeback');
-    assert.ok(failingPort.getLastProfileMap()?.ship5, 'the prior runtime profile remains available in the open workshop');
-    assert.equal(Object.hasOwn(failingPort.getLastProfileMap().ship5, 'hangarBonuses'), false,
-        'the unactivated draft bonuses are removed from the profile projection');
-    assert.ok(hangar.statusMessages.some(({ tone, message }) => tone === 'error' && /Run wurde nicht gestartet/.test(message)));
-    assert.ok(!hangar.statusMessages.some(({ tone, message }) => tone === 'success' && /Run|aktiviert/.test(message)));
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'stone_activation_failed');
+    assert.equal(hangar.workshop.getActiveBuild(), null);
+    assert.deepEqual(hangar.records.get(ARCADE_STONE_WORKSHOP_STORAGE_KEY), previousPool);
+    assert.equal(hangar.records.get(HANGAR_BUILD_STORAGE_KEYS.arcade).activeBuildByVehicle.ship5, undefined);
+    assert.deepEqual(hangar.saved, [], 'a failed pool commit blocks vehicle-selection writeback');
+    assert.ok(hangar.statusMessages.some(({ tone, message }) => tone === 'error' && /Steinpool konnte nicht aktiviert werden/.test(message)));
     hangar.workshop.dispose();
 });
 
-test('a later cosmetic save cannot persist bonuses from a run whose profile save failed', async () => {
-    const activeBonuses = { speedBonusPct: 11, turningBonusPct: 22, maxHpBonus: 33 };
-    const profileStore = createProfilePortFailingFirstSave({
-        ship5: { ...createArcadeVehicleProfile('ship5', 0), hangarBonuses: activeBonuses },
+test('a draft-build save failure writes no active pointer or stone pool', async () => {
+    const previousPool = createArcadeStoneWorkshopRecord(1000);
+    const hangar = openHangar({ mode: 'arcade', initialStonePool: previousPool, failBuildSaveOnCall: 1 });
+
+    const result = await hangar.workshop.prepareRunStart();
+
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'build_save_failed');
+    assert.equal(hangar.workshop.getActiveBuild(), null);
+    assert.equal(hangar.records.has(HANGAR_BUILD_STORAGE_KEYS.arcade), false);
+    assert.deepEqual(hangar.records.get(ARCADE_STONE_WORKSHOP_STORAGE_KEY), previousPool);
+    assert.deepEqual(hangar.saved, []);
+    hangar.workshop.dispose();
+});
+
+test('an active-build save failure restores the previous stone pool', async () => {
+    const previousPool = createArcadeStoneWorkshopRecord(1000);
+    const hangar = openHangar({ mode: 'arcade', initialStonePool: previousPool, failBuildSaveOnCall: 2 });
+
+    const result = await hangar.workshop.prepareRunStart();
+
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'build_activation_failed');
+    assert.equal(result.poolRestored, true);
+    assert.deepEqual(hangar.records.get(ARCADE_STONE_WORKSHOP_STORAGE_KEY), previousPool);
+    assert.equal(hangar.records.get(HANGAR_BUILD_STORAGE_KEYS.arcade).activeBuildByVehicle.ship5, undefined);
+    assert.equal(hangar.workshop.getActiveBuild(), null);
+    assert.deepEqual(hangar.saved, []);
+    assert.ok(hangar.statusMessages.some(({ tone, message }) => tone === 'error' && /Steinpool wurde zurückgesetzt/.test(message)));
+    hangar.workshop.dispose();
+});
+
+test('a failed stone-pool rollback reports the persisted partial state', async () => {
+    const previousPool = createArcadeStoneWorkshopRecord(1000);
+    const hangar = openHangar({
+        mode: 'arcade',
+        initialStonePool: previousPool,
+        failBuildSaveOnCall: 2,
+        failStonePoolSaveOnCall: 2,
     });
-    const hangar = openHangar({ mode: 'arcade', profilePort: profileStore.port });
+
+    const result = await hangar.workshop.prepareRunStart();
+
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'build_activation_failed_pool_rollback_failed');
+    assert.equal(result.poolRestored, false);
+    assert.notDeepEqual(hangar.records.get(ARCADE_STONE_WORKSHOP_STORAGE_KEY), previousPool,
+        'the failed compensation leaves the committed pool visible for diagnosis');
+    assert.equal(hangar.records.get(HANGAR_BUILD_STORAGE_KEYS.arcade).activeBuildByVehicle.ship5, undefined);
+    assert.equal(hangar.workshop.getActiveBuild(), null);
+    assert.deepEqual(hangar.saved, []);
+    assert.ok(hangar.statusMessages.some(({ tone, message }) => tone === 'error' && /Steinpool ließ sich nicht zurücksetzen/.test(message)));
+    hangar.workshop.dispose();
+});
+
+test('a later cosmetic profile save preserves the independently persisted stone pool', async () => {
+    const previousPool = createArcadeStoneWorkshopRecord(1000);
+    const profileStore = createSuccessfulProfilePort();
+    const hangar = openHangar({ mode: 'arcade', initialStonePool: previousPool, profilePort: profileStore.port });
 
     const startResult = await hangar.workshop.prepareRunStart();
-    assert.equal(startResult.code, 'profile_save_failed');
-    assert.equal(Object.hasOwn(profileStore.getRecord('ship5') || {}, 'hangarBonuses'), true);
+    assert.equal(startResult.ok, true);
+    const poolAfterRunStart = structuredClone(hangar.records.get(ARCADE_STONE_WORKSHOP_STORAGE_KEY));
 
     const trailStyle = findClass(hangar.workshop.container, 'hangar-cosmetic-select');
     assert.ok(trailStyle);
     trailStyle.value = 'standard';
     hangar.fire(trailStyle, 'change');
 
-    assert.deepEqual(profileStore.getRecord('ship5')?.hangarBonuses, activeBonuses,
-        'the later whole-profile cosmetic save retains the previously active bonuses');
-    assert.ok(!hangar.statusMessages.some(({ tone, message }) => tone === 'success' && /Run|aktiviert/.test(message)));
+    assert.ok(profileStore.getRecord(ARCADE_VEHICLE_PROFILE_STORAGE_KEY), 'cosmetic state uses the profile port');
+    assert.deepEqual(hangar.records.get(ARCADE_STONE_WORKSHOP_STORAGE_KEY), poolAfterRunStart,
+        'saving a profile cosmetic never rewrites the separate stone pool');
     hangar.workshop.dispose();
 });
-
-test('a profile save failure prevents an Arcade build from being stored or activated', async () => {
-    const failingPort = createFailingProfilePort();
-    const hangar = openHangar({ mode: 'arcade', profilePort: failingPort.port });
-    const activateButton = findClass(hangar.workshop.container, 'hangar-activate-build');
-    assert.ok(activateButton);
-
-    hangar.fire(activateButton, 'click');
-    await new Promise((resolve) => setImmediate(resolve));
-
-    assert.equal(hangar.records.has(HANGAR_BUILD_STORAGE_KEYS.arcade), false, 'profile persistence fails before build write/activation');
-    assert.equal(hangar.workshop.getActiveBuild(), null);
-    assert.ok(hangar.statusMessages.some(({ tone, message }) => tone === 'error' && /Build bleibt ein Entwurf/.test(message)));
-    assert.ok(!hangar.statusMessages.some(({ tone, message }) => tone === 'success' && /aktiviert/.test(message)));
-    hangar.workshop.dispose();
-});
-
-test('a build activation failure rolls back persisted run bonuses and blocks run start', async () => {
-    const profileStore = createSuccessfulProfilePort();
-    const hangar = openHangar({ mode: 'arcade', profilePort: profileStore.port, failBuildSave: true });
-
-    const result = await hangar.workshop.prepareRunStart();
-
-    assert.equal(result.ok, false);
-    assert.equal(result.code, 'build_save_failed');
-    assert.equal(hangar.workshop.container.dataset.activeRunVehicleId, undefined);
-    assert.equal(hangar.workshop.getActiveBuild(), null, 'a failed build write never activates the run build');
-    assert.deepEqual(hangar.saved, [], 'vehicle selection is written only after both required saves succeed');
-    assert.equal(Object.hasOwn(profileStore.getRecord(ARCADE_VEHICLE_PROFILE_STORAGE_KEY)?.ship5 || {}, 'hangarBonuses'), false,
-        'a successful profile write is compensated when the build activation fails');
-    assert.ok(hangar.statusMessages.some(({ tone, message }) => tone === 'error' && /Profiländerung wurde zurückgesetzt/.test(message)));
-    assert.ok(!hangar.statusMessages.some(({ tone, message }) => tone === 'success' && /Run|aktiviert/.test(message)));
-    hangar.workshop.dispose();
-});
-
-test('a failed profile rollback after build failure is reported as a partial persistence failure', async () => {
-    const profileStore = createSuccessfulProfilePort({ failOnSaveCall: 2 });
-    const hangar = openHangar({ mode: 'arcade', profilePort: profileStore.port, failBuildSave: true });
-
-    const result = await hangar.workshop.prepareRunStart();
-
-    assert.equal(result.ok, false);
-    assert.equal(result.code, 'build_save_failed_profile_rollback_failed');
-    assert.equal(hangar.workshop.container.dataset.activeRunVehicleId, undefined);
-    assert.equal(hangar.workshop.getActiveBuild(), null);
-    assert.ok(hangar.statusMessages.some(({ tone, message }) => tone === 'error' && /Profiländerung konnte nicht zurückgesetzt werden/.test(message)));
-    assert.ok(!hangar.statusMessages.some(({ tone, message }) => tone === 'success' && /Run|aktiviert/.test(message)));
-    hangar.workshop.dispose();
-});
-
 test('a cosmetic profile save failure reports an error instead of a saved success', () => {
     const failingPort = createFailingProfilePort();
     const hangar = openHangar({ mode: 'arcade', profilePort: failingPort.port });

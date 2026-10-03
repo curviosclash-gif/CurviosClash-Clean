@@ -47,6 +47,7 @@ const DEFAULTS = Object.freeze({
     // Which fixed map chain a "five_portals" run plays (Fünf Portale, Himmelsleiter, ...).
     // Only meaningful when runType is FIVE_PORTALS_RUN_TYPE; ignored otherwise.
     portalChainId: DEFAULT_PORTAL_CHAIN_ID,
+    demolitionProfileIds: Object.freeze(['', '', '']),
 });
 
 /** @typedef {{ profileId: string, runType: string, combatProfile: string, scoreModel: string,
@@ -78,7 +79,7 @@ export function normalizeArcadeScoreModel(_value) {
 
 /** @returns {ArcadeRunSettings} */
 export function createDefaultArcadeRunSettings() {
-    return { ...DEFAULTS };
+    return { ...DEFAULTS, demolitionProfileIds: normalizeDemolitionProfileIds(DEFAULTS.demolitionProfileIds) };
 }
 
 /**

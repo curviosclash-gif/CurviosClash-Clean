@@ -644,15 +644,38 @@ test('integrated demolition events grow the shared combo, cap XP at x3, reset on
     ]);
 });
 
-test('demolition hangar bonuses remain distinct for players using the same vehicle ID', () => {
+test('UUID bonus maps keep stone snapshots by player and omit legacy hangar values', () => {
     const players = [
         { index: 0, isBot: false, vehicleId: 'ship1' },
         { index: 1, isBot: false, vehicleId: 'ship1' },
     ];
-    const bonusMap = createArcadePlayerUpgradeBonusMap({
+    const firstStoneSteps = Object.freeze({ hull: 1, engines: 0 });
+    const secondStoneSteps = Object.freeze({ hull: 2, engines: 1 });
+    const snapshots = {
+        stoneStepsByPlayerIndex: {
+            0: { vehicleId: 'ship1', stoneSteps: firstStoneSteps },
+            1: { vehicleId: 'ship1', stoneSteps: secondStoneSteps },
+        },
+    };
+    const profiles = {
         0: { ship1: { vehicleId: 'ship1', hangarBonuses: { speedBonusPct: 8 } } },
         1: { ship1: { vehicleId: 'ship1', hangarBonuses: { speedBonusPct: 24 } } },
-    }, players);
-    assert.equal(bonusMap.byPlayerIndex[0].speedBonusPct, 8);
-    assert.equal(bonusMap.byPlayerIndex[1].speedBonusPct, 24);
+    };
+    const bonusMap = createArcadePlayerUpgradeBonusMap(profiles, players, snapshots);
+    assert.deepEqual(bonusMap.byPlayerIndex[0].build.stoneSteps, firstStoneSteps);
+    assert.deepEqual(bonusMap.byPlayerIndex[1].build.stoneSteps, secondStoneSteps);
+    assert.equal(bonusMap.byPlayerIndex[0].speedBonusPct, undefined);
+    assert.equal(bonusMap.byPlayerIndex[1].speedBonusPct, undefined);
+    const strategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    strategy.applyVehicleUpgrades(bonusMap);
+    const withoutLegacyValues = createArcadePlayerUpgradeBonusMap({
+        0: { ship1: { vehicleId: 'ship1' } },
+        1: { ship1: { vehicleId: 'ship1' } },
+    }, players, snapshots);
+    const baselineStrategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    baselineStrategy.applyVehicleUpgrades(withoutLegacyValues);
+    for (const player of players) {
+        assert.deepEqual(strategy._upgradeBonusesFor(player), baselineStrategy._upgradeBonusesFor(player),
+            'Legacy-Hangarwerte ändern den aus UUID-Build und eingefrorenem Pool berechneten Runbonus nicht');
+    }
 });

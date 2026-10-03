@@ -47,6 +47,8 @@ function createDerivedLeafExpectations(defaults) {
  * it either gets a valid alternative below or an entry here.
  */
 const UNCHANGED_LEAF_PATHS = Object.freeze([
+    // The three profile selections are validated by the demolition profile contract.
+    'arcade.demolitionProfileIds',
     // The arcade contract always rewrites the score model to the current one.
     'arcade.scoreModel',
     // An empty container for per-session drafts. Filling it adds leaf paths instead of
