@@ -38,7 +38,7 @@ export function createCountingInput() {
  * createRoundStateHarness – interactive round-state tick wiring with a real MatchKernel,
  * a real interactive adapter and a real round state controller.
  */
-export function createRoundStateHarness({ roundPause = 3 } = {}) {
+export function createRoundStateHarness({ roundPause = 3, now = () => null } = {}) {
     const input = createCountingInput();
     const kernel = createInteractiveMatchKernel({ simPorts: {} });
     kernel.boot({ roundIndex: 0 });
@@ -80,6 +80,7 @@ export function createRoundStateHarness({ roundPause = 3 } = {}) {
                 calls.startMatch += 1;
             },
         },
+        now,
     });
 
     return { input, kernel, adapter, game, system, calls };
