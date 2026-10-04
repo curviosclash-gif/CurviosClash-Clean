@@ -1,4 +1,5 @@
-import { isPlayerSelectableVehicleId, VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
+import { isPlayerSelectableVehicleId, VEHICLE_DEFINITIONS, getVehicleDefinition } from '../../entities/vehicle-registry.js';
+import { listRegisteredArcadeLabShips } from '../../shared/contracts/ArcadeLabRegistryContract.js';
 import { hasGLBMapSource, resolveGLBMapSourceFootprint } from '../../entities/GLBMapLoader.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import {
@@ -16,7 +17,7 @@ function resolvePreviewPortalPairCount(mapDefinition, authoredPairs) {
 }
 import { compareMapPickerEntries, resolveMapPickerCollection } from './MenuMapCollectionCatalog.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
-import { resolveArcadeRunVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
+import { resolveArcadeRunVehicleId, isArcadeSelectableVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 
 function toNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -144,9 +145,12 @@ function toVehiclePreviewEntry(vehicle) {
 }
 
 // Lists what the player may pick; lookups below still know bot-only vehicles.
-export function listVehiclePreviewEntries() {
-    return VEHICLE_DEFINITIONS
-        .filter((vehicle) => isPlayerSelectableVehicleId(vehicle?.id))
+export function listVehiclePreviewEntries(modePath = 'normal') {
+    const definitions = modePath === 'arcade'
+        ? [...VEHICLE_DEFINITIONS, ...listRegisteredArcadeLabShips().map((entry) => getVehicleDefinition(entry.id))]
+        : VEHICLE_DEFINITIONS;
+    return definitions
+        .filter((vehicle) => modePath === 'arcade' ? isArcadeSelectableVehicleId(vehicle?.id) : isPlayerSelectableVehicleId(vehicle?.id))
         .map((vehicle) => toVehiclePreviewEntry(vehicle));
 }
 
@@ -154,7 +158,7 @@ export function listVehiclePreviewEntries() {
 // shows as the Star-Cruiser there while the shared choice stays saved for Classic.
 export function resolveVehiclePreview(vehicleId, modePath = '') {
     const normalizedVehicleId = normalizeString(modePath === 'arcade' ? resolveArcadeRunVehicleId(vehicleId) : vehicleId);
-    const vehicle = VEHICLE_DEFINITIONS.find((candidate) => normalizeString(candidate?.id) === normalizedVehicleId);
+    const vehicle = getVehicleDefinition(normalizedVehicleId);
     if (vehicle) return toVehiclePreviewEntry(vehicle);
     return {
         id: normalizedVehicleId,

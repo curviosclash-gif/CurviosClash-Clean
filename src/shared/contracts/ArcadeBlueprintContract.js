@@ -174,9 +174,7 @@ function derivePartCosts(flatParts) {
     let powerUsed = 0;
     let heatUsed = 0;
     for (let i = 0; i < flatParts.length; i += 1) {
-        const geo = String(flatParts[i]?.geo || '').trim().toLowerCase();
-        const costs = PART_COSTS[geo] || DEFAULT_PART_COST;
-        const size = inferPartSizeVector(flatParts[i]);
+        const { rates: costs, size } = resolveArcadePartCostBasis(flatParts[i]);
         const volumeFactor = Math.max(0.5, Math.min(2.6, (size.x * size.y * size.z) / 2.8));
         budgetUsed += costs.budget * volumeFactor;
         massUsed += costs.mass * volumeFactor;
@@ -189,6 +187,12 @@ function derivePartCosts(flatParts) {
         powerUsed: round3(powerUsed),
         heatUsed: round3(heatUsed),
     };
+}
+
+/** Shared geometry cost basis; the Arcade Lab applies its own scale and mirror factors. */
+export function resolveArcadePartCostBasis(part) {
+    const geo = String(part?.geo || '').trim().toLowerCase();
+    return { rates: PART_COSTS[geo] || DEFAULT_PART_COST, size: inferPartSizeVector(part) };
 }
 
 function resolveHitboxLimits(hitboxClass) {

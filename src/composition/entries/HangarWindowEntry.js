@@ -2,6 +2,7 @@ import { PlayerProfileManager } from '../../application/player-profile/PlayerPro
 import { createArcadeVehicleProfileWorkshopPort } from '../../state/arcade/ArcadeVehicleProfileWorkshopPort.js';
 import { SettingsStore } from '../../shared/settings/SettingsStore.js';
 import { startHangarWindowApp } from '../../ui/hangar/HangarWindowApp.js';
+import { registerArcadeLabShipsFromStore } from '../../shared/contracts/ArcadeLabStoreContract.js';
 
 const store = new SettingsStore();
 const playerProfileManager = new PlayerProfileManager({ recordStore: Object.freeze({
@@ -12,6 +13,7 @@ const playerProfileManager = new PlayerProfileManager({ recordStore: Object.free
 }) });
 playerProfileManager.bootstrap();
 const playerStore = playerProfileManager.getActiveRecordStorePort();
+registerArcadeLabShipsFromStore(playerStore);
 const runtimeAccess = Object.freeze({
     getSettingsStore: () => playerStore,
     getActivePlayerProfile: () => playerProfileManager.getActiveProfile(),

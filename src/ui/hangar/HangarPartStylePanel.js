@@ -1,6 +1,6 @@
 import { createUiNode as el } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { normalizeVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
-import { listPlayerShipPartDonors } from '../../shared/vehicle-lab/player-ships/index.js';
+import { resolveHangarPartSource } from './HangarPartSource.js';
 
 const ROLE_LABELS = Object.freeze({
     core: 'Rumpf', nose: 'Nase', wing_left: 'Flügel L', wing_right: 'Flügel R',
@@ -46,7 +46,6 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
     editor.append(title, field('Farbe', colorInput), resetPart);
     root.append(hint, empty, list, editor, resetAll);
 
-    const donors = listPlayerShipPartDonors();
     let factory = null;
     let vehicleId = '';
     let style = {};
@@ -119,7 +118,7 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
             const nextVehicleId = String(next.vehicleId || '');
             if (nextVehicleId !== vehicleId) {
                 vehicleId = nextVehicleId;
-                factory = donors.find((donor) => donor.id === vehicleId) || null;
+                factory = resolveHangarPartSource(vehicleId);
                 selected = factory?.parts?.[0]?.name || '';
                 empty.classList.toggle('hidden', !!factory);
                 renderList();

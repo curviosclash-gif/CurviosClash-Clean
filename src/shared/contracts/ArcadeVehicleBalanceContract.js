@@ -1,4 +1,5 @@
 // ============================================
+import { getRegisteredArcadeLabShip } from './ArcadeLabRegistryContract.js';
 // ArcadeVehicleBalanceContract.js - central Arcade vehicle balance table (Paket 1)
 // Grundwerte je Werksschiff: Leben, Lager, Tempo/Wendigkeit in Prozent des
 // Basiswerts, Start-MG-Paar. Rein datenhaltig - keine Importe aus core/ui/state.
@@ -46,7 +47,9 @@ const FALLBACK_VEHICLE_STATS = ARCADE_VEHICLE_BALANCE_TABLE.ship5;
  */
 export function resolveArcadeVehicleBaseStats(vehicleId) {
     const key = String(vehicleId || '').trim();
-    return ARCADE_VEHICLE_BALANCE_TABLE[key] || FALLBACK_VEHICLE_STATS;
+    return ARCADE_VEHICLE_BALANCE_TABLE[key]
+        || ARCADE_VEHICLE_ROLE_TEMPLATES[getRegisteredArcadeLabShip(key)?.role]
+        || FALLBACK_VEHICLE_STATS;
 }
 
 /**
@@ -73,7 +76,8 @@ export const ARCADE_ROLL_BASE_PCT = Math.max(
  * @param {unknown} vehicleId
  */
 export function isArcadeSelectableVehicleId(vehicleId) {
-    return typeof vehicleId === 'string' && ARCADE_FACTORY_VEHICLE_IDS.includes(vehicleId);
+    return typeof vehicleId === 'string' && (ARCADE_FACTORY_VEHICLE_IDS.includes(vehicleId)
+        || getRegisteredArcadeLabShip(vehicleId) !== null);
 }
 
 /**

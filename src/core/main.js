@@ -215,6 +215,7 @@ export class Game {
         if (flush.ok !== true) return { ok: false, reason: 'persistence_failed', failures: flush.failures };
         const changed = this.playerProfileManager.setActiveProfile(profileId);
         if (!changed.ok) return changed;
+        this.settingsManager.setPlayerProfileManager(this.playerProfileManager);
         const preferredSettingsProfileName = changed.profile.preferredSettingsProfileName;
         if (preferredSettingsProfileName && this.profileManager.findProfileByName(preferredSettingsProfileName)) {
             this._loadProfile(preferredSettingsProfileName);

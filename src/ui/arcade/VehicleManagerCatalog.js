@@ -1,8 +1,8 @@
-import { isPlayerSelectableVehicleId, VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
+import { isPlayerSelectableVehicleId, VEHICLE_DEFINITIONS, getVehicleDefinition } from '../../entities/vehicle-registry.js';
+import { listRegisteredArcadeLabShips } from '../../shared/contracts/ArcadeLabRegistryContract.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 import {
     ARCADE_VEHICLE_ROLE_TEMPLATES,
-    hasArcadeVehicleBalanceEntry,
     isArcadeSelectableVehicleId,
     resolveArcadeVehicleBaseStats,
 } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
@@ -114,7 +114,7 @@ function resolveStatsSummary({ radius, category, hitboxClass }) {
 // Arcade-only table values for the factory ships (null otherwise). Classic and the Fight
 // hangar keep reading statsSummary, so their display stays unchanged.
 function resolveArcadeBalance(vehicleId) {
-    if (!hasArcadeVehicleBalanceEntry(vehicleId)) return null;
+    if (!isArcadeSelectableVehicleId(vehicleId)) return null;
     const { role, maxHpPct, speedPct, turnPct, itemCapacity, rocketCapacity } = resolveArcadeVehicleBaseStats(vehicleId);
     return Object.freeze({ role, maxHpPct, speedPct, turnPct, itemCapacity, rocketCapacity });
 }
@@ -209,14 +209,16 @@ function toArcadeCatalogEntry(entry) {
 
 // Arcade vehicle selection (hangar and run start): only the factory ships, each with its fixed role.
 export function listArcadeVehicleManagerCatalogEntries() {
-    return VEHICLE_MANAGER_CATALOG_ENTRIES
+    return [...VEHICLE_MANAGER_CATALOG_ENTRIES,
+        ...listRegisteredArcadeLabShips().map((ship, index) => buildCatalogEntry(getVehicleDefinition(ship.id), VEHICLE_MANAGER_CATALOG_ENTRIES.length + index))]
         .filter((entry) => isArcadeSelectableVehicleId(entry.vehicleId))
         .map((entry) => toArcadeCatalogEntry(entry));
 }
 
 export function resolveVehicleManagerCatalogEntry(vehicleId) {
     const key = normalizeString(vehicleId).toLowerCase();
-    const knownEntry = VEHICLE_MANAGER_CATALOG_BY_ID.get(key);
+    const knownEntry = VEHICLE_MANAGER_CATALOG_BY_ID.get(key)
+        || (getVehicleDefinition(key)?.labScope === 'arcade' ? buildCatalogEntry(getVehicleDefinition(key), VEHICLE_MANAGER_CATALOG_ENTRIES.length) : null);
     if (knownEntry) return cloneCatalogEntry(knownEntry);
 
     const fallbackEntry = {

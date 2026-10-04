@@ -112,17 +112,37 @@ function collectOrientedBounds(part, parentMatrix, parentOffset, bounds, options
     const offset = [0, 1, 2].map((axis) => parentOffset[axis] + pos[axis]);
     const matrix = multiply(parentMatrix, multiply(rotationMatrix(part.rot), [[scale[0], 0, 0], [0, scale[1], 0], [0, 0, scale[2]]]));
     const half = halfExtents(part);
+    const primitive = options.collectPrimitive ? { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] } : null;
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
         const corner = apply(matrix, [sx * half[0], sy * half[1], sz * half[2]]);
         for (const axis of [0, 1, 2]) {
             bounds.min[axis] = Math.min(bounds.min[axis], offset[axis] + corner[axis]);
             bounds.max[axis] = Math.max(bounds.max[axis], offset[axis] + corner[axis]);
+            if (primitive) {
+                primitive.min[axis] = Math.min(primitive.min[axis], offset[axis] + corner[axis]);
+                primitive.max[axis] = Math.max(primitive.max[axis], offset[axis] + corner[axis]);
+            }
         }
     }
+    if (primitive) options.collectPrimitive(primitive, part, { matrix, offset, half });
     for (const child of Array.isArray(part.children) ? part.children : []) {
         if (child && typeof child === 'object') collectOrientedBounds(child, matrix, offset, bounds, options);
     }
     return bounds;
+}
+
+/** Bounds of every visible primitive in vehicle space, with parent transforms and mirrors. */
+export function listVehiclePrimitiveBounds(parts, options = {}) {
+    const result = [];
+    for (const part of Array.isArray(parts) ? parts : []) {
+        if (!part || typeof part !== 'object') continue;
+        collectOrientedBounds(part, IDENTITY, [0, 0, 0], {
+            min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity],
+        }, { ...options, includeMirrors: true, collectPrimitive: (bounds, source, frame) => result.push(
+            options.includeFrames ? { ...bounds, ...frame, geo: source.geo, size: source.size } : bounds
+        ) });
+    }
+    return result;
 }
 
 /**

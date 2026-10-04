@@ -3,7 +3,7 @@ import { computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import { getArcadeVehicleProfileRecord, loadArcadeVehicleProfileRecord } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import { resolveArcadeRunVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
-import { applyHangarWindowStorageEvent, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
+import { applyArcadeLabWindowStorageEvent, applyHangarWindowStorageEvent, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 import { readActiveHangarBuildFromStore } from '../hangar/HangarBuildPersistence.js';
 import {
     ARCADE_LAST_RUN_STORAGE_KEY,
@@ -429,7 +429,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         if (result?.ok !== true) showToast(runtimeAccess, 'Hangar-Fenster konnte nicht geöffnet werden.', 'warning', 1600);
     });
 
-    bind(globalThis, 'storage', (event) => { if (applyHangarWindowStorageEvent(event, settings, ui)) sync(); });
+    bind(globalThis, 'storage', (event) => { if (applyArcadeLabWindowStorageEvent(event, runtimeAccess, ui) || applyHangarWindowStorageEvent(event, settings, ui)) sync(); });
     const testFlightMenu = bindArcadeTestFlightMenu({ bind, settings, runtimeAccess, emit, eventTypes, hangarWindow });
 
     bind(refs.rerollSeedButton, 'click', () => {

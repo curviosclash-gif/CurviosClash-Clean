@@ -4,7 +4,7 @@
 // Extrahiert aus UIManager.js (V38 Phase 38.3.1)
 // ============================================
 
-import { isPlayerSelectableVehicleId, VEHICLE_DEFINITIONS } from '../entities/vehicle-registry.js';
+import { getArcadeLabRegistryVersion } from '../shared/contracts/ArcadeLabRegistryContract.js';
 import { MENU_SESSION_TYPES } from './menu/MenuStateContracts.js';
 import {
     listMapPreviewEntries,
@@ -61,6 +61,7 @@ export class UIStartSyncController {
         this.port = port;
         this._mapPreviewEntries = listMapPreviewEntries();
         this._vehiclePreviewEntries = listVehiclePreviewEntries();
+        this._vehicleCatalogSignature = '';
         this._startSetupDisposers = [];
         this._startValidationIssue = null;
         this._activeSyncSnapshot = null;
@@ -104,11 +105,13 @@ export class UIStartSyncController {
     // Setup: Vehicle- und Map-Selects, Start-Setup-Controls
     // ------------------------------------------------------------------
 
-    setupVehicleSelects() {
+    setupVehicleSelects(requestedModePath = this._getSettings()?.localSettings?.modePath) {
+        const modePath = requestedModePath === 'arcade' ? 'arcade' : 'normal';
+        const entries = listVehiclePreviewEntries(modePath);
         const populate = (select) => {
             if (!select) return;
             select.replaceChildren();
-            VEHICLE_DEFINITIONS.filter((v) => isPlayerSelectableVehicleId(v.id)).forEach(v => {
+            entries.forEach(v => {
                 const opt = document.createElement('option');
                 opt.value = v.id;
                 opt.textContent = v.label;
@@ -118,6 +121,8 @@ export class UIStartSyncController {
         populate(this.ui.vehicleSelectP1);
         populate(this.ui.vehicleSelectP2);
         populate(this.ui.vehicleSelectP3);
+        this._vehiclePreviewEntries = entries;
+        this._vehicleCatalogSignature = `${modePath}:${getArcadeLabRegistryVersion()}`;
     }
 
     setupMapSelect() {
@@ -349,6 +354,7 @@ export class UIStartSyncController {
             const startSetup = ensureStartSetupLocalState(settings);
             const resolvedMultiplayerSessionState = this._getMultiplayerSessionState();
             const modePath = surfaceMenuState.modePath;
+            if (this._vehicleCatalogSignature !== `${modePath === 'arcade' ? 'arcade' : 'normal'}:${getArcadeLabRegistryVersion()}`) this.setupVehicleSelects(modePath);
             const hangarSelectionModePath = this._resolveHangarSelectionModePath(settings);
             const sessionType = surfaceMenuState.sessionType;
             const multiplayerTransportUiState = this._resolveMultiplayerTransportUiState(settings);

@@ -14,7 +14,7 @@ import {
     resolveArcadeSizedPartStyle,
 } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
 import { listArcadeHitboxBoxes } from '../../shared/contracts/ArcadeVehicleHitboxContract.js';
-import { listPlayerShipPartDonors } from '../../shared/vehicle-lab/player-ships/index.js';
+import { resolveHangarPartSource } from './HangarPartSource.js';
 
 /**
  * Tab state as the workshop renderer sets it for its other tabs.
@@ -42,8 +42,7 @@ export function createHangarFormTab({
     bind, enabled, viewport, panel, tabButton, upgradePanel = null, upgradeTabButton = null,
     getProfile, saveProfile, toast, onChange, upgradeSections = [], getPool,
 }) {
-    const donors = listPlayerShipPartDonors();
-    const partsOf = (vehicleId) => donors.find((donor) => donor.id === vehicleId)?.parts || [];
+    const partsOf = (vehicleId) => resolveHangarPartSource(vehicleId)?.parts || [];
     const partStylePanel = createHangarPartStylePanel({
         bind,
         onStyleChange: (style) => saveProfile({ ...getProfile(), partStyle: normalizeVehiclePartStyle(style) }),

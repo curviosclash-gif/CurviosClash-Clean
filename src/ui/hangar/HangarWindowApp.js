@@ -2,6 +2,7 @@ import { createElectronPreloadHangarAdapter } from '../../platform/electron/Elec
 import { setupArcadeHangarWorkshop } from './ArcadeHangarWorkshop.js';
 import { createHangarAudioPort } from '../../composition/core-ui/CoreHangarAudioPort.js';
 import { ARCADE_TEST_FLIGHT_REQUEST_KEY, createArcadeTestFlightRequest } from '../../shared/contracts/ArcadeTestFlightContract.js';
+import { createArcadeLabSurface } from '../lab/LabSurface.js';
 
 export function startHangarWindowApp({ settings = {}, runtimeAccess, mode, hangarWindow } = {}) {
     const audio = createHangarAudioPort(settings?.localSettings?.audio);
@@ -60,6 +61,22 @@ export function startHangarWindowApp({ settings = {}, runtimeAccess, mode, hanga
             if (closed?.ok !== true) store?.removeJsonRecord?.(ARCADE_TEST_FLIGHT_REQUEST_KEY);
         });
     }
+    const lab = hangarMode === 'arcade' ? createArcadeLabSurface({
+        store: runtimeAccess?.getSettingsStore?.(),
+        profilePort: runtimeAccess?.arcadeVehicleProfileWorkshop,
+        onReturn() { globalThis.location.reload(); },
+        onDirtyChange(dirty) { Promise.resolve(activeHangarWindow.setUnsavedChanges?.(dirty)).catch(() => {}); },
+    }) : null;
+    if (lab) {
+        mount?.appendChild(lab.root);
+        const labButton = document.createElement('button');
+        labButton.type = 'button';
+        labButton.id = 'hangar-window-open-lab';
+        labButton.className = 'secondary-btn';
+        labButton.textContent = 'Arcade-Lab';
+        closeButton?.parentElement?.insertBefore(labButton, closeButton);
+        bind(labButton, 'click', () => { workshop?.flushDraft?.(); workshop?.container?.classList.add('hidden'); lab.show(true); });
+    }
 
     bind(closeButton, 'click', async () => {
         if (activeHangarWindow.isAvailable() && typeof activeHangarWindow.closeWindow === 'function') {
@@ -92,6 +109,8 @@ export function startHangarWindowApp({ settings = {}, runtimeAccess, mode, hanga
 
     bind(globalThis, 'unload', () => {
         workshop?.flushDraft?.();
+        lab?.flushDraft?.();
+        lab?.dispose?.();
         workshop?.dispose?.();
         audio.dispose();
         cleanups.splice(0).forEach((cleanup) => cleanup());

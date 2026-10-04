@@ -61,6 +61,8 @@
     box-sizing: border-box;
 }
 
+.hangar-window-mount .hangar-workshop-shell.hidden { display: none; }
+
 .hangar-window-mount .hangar-workshop-layout {
     min-height: 0;
     height: 100%;
@@ -176,3 +178,27 @@
 .hangar-arcade-weapon-role { font-weight: 600; }
 .hangar-arcade-weapon-levels { display: grid; gap: 0.5rem; margin-top: 1rem; }
 .hangar-arcade-weapon-level { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; align-items: center; }
+
+.arcade-lab-surface { display: grid; grid-template-rows: auto minmax(0,1fr); height: 100%; min-height: 0; background: #08111f; }
+.arcade-lab-surface.hidden { display: none; }
+.arcade-lab-header { display: flex; align-items: center; gap: 1rem; padding: .7rem 1rem; border-bottom: 1px solid #294562; }
+.arcade-lab-header h2 { margin: 0; font-size: 1.2rem; }
+.arcade-lab-status { margin-left: auto; color: #b8d7ef; }
+.arcade-lab-layout { display: grid; grid-template-columns: minmax(190px, 22%) minmax(320px, 1fr) minmax(260px, 28%); min-height: 0; }
+.arcade-lab-fleet,.arcade-lab-editor { overflow: auto; padding: 1rem; border-right: 1px solid #294562; }
+.arcade-lab-editor { border-right: 0; border-left: 1px solid #294562; }
+.arcade-lab-fleet button,.arcade-lab-tree button { display: block; width: 100%; margin: .25rem 0; text-align: left; }
+.arcade-lab-create,.arcade-lab-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.arcade-lab-create button,.arcade-lab-actions button { width: auto; }
+.arcade-lab-center { display: grid; grid-template-rows: minmax(220px, 1fr) auto; min-height: 0; }
+.arcade-lab-preview { min-height: 0; }
+.arcade-lab-preview canvas { width: 100%; height: 100%; display: block; }
+.arcade-lab-metrics { max-height: 36vh; overflow: auto; padding: .75rem 1rem; border-top: 1px solid #294562; }
+.arcade-lab-metrics h3 { margin: 0 0 .4rem; }
+.arcade-lab-meter { display: flex; justify-content: space-between; gap: .7rem; font-size: .82rem; }
+.arcade-lab-meter progress { width: 48%; }
+.arcade-lab-field { display: grid; grid-template-columns: 7rem 1fr; gap: .5rem; align-items: center; margin: .35rem 0; font-size: .8rem; }
+.arcade-lab-field input,.arcade-lab-field select { min-width: 0; color: #eaf5ff; background: #15283e; border: 1px solid #416282; padding: .3rem; }
+.arcade-lab-invalid { color: #ffb3a9; }
+.arcade-lab-valid { color: #9fdfb1; }
+.arcade-lab-tree { max-height: 12rem; overflow: auto; margin: .7rem 0; }

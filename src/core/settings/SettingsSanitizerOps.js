@@ -44,12 +44,14 @@ import {
     normalizeThreePlayerSplitSettings,
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
 import { getPlayerVehicleIds, isPlayerSelectableVehicleId } from '../../entities/vehicle-registry.js';
+import { isArcadeSelectableVehicleId } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { createBotHeuristicTuningSnapshot } from '../../shared/contracts/BotHeuristicTuningContract.js';
 import { normalizeTeamHuntSettings } from '../../shared/contracts/TeamHuntContract.js';
 import { normalizeTeamObjectiveType } from '../../shared/contracts/FlagObjectiveContract.js';
 
 /** @param {unknown} savedVehicleId @param {unknown} defaultVehicleId @returns {string} */
-function resolvePlayerVehicleId(savedVehicleId, defaultVehicleId) {
+function resolvePlayerVehicleId(savedVehicleId, defaultVehicleId, modePath = 'normal') {
+    if (modePath === 'arcade' && isArcadeSelectableVehicleId(savedVehicleId)) return String(savedVehicleId);
     if (isPlayerSelectableVehicleId(savedVehicleId)) return String(savedVehicleId);
     if (isPlayerSelectableVehicleId(defaultVehicleId)) return String(defaultVehicleId);
     return DEFAULT_VEHICLE_ID;
@@ -95,12 +97,14 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
     if (!merged.vehicles) {
         merged.vehicles = { PLAYER_1: DEFAULT_VEHICLE_ID, PLAYER_2: DEFAULT_VEHICLE_ID };
     }
-    merged.vehicles.PLAYER_1 = resolvePlayerVehicleId(src?.vehicles?.PLAYER_1, defaults?.vehicles?.PLAYER_1);
-    merged.vehicles.PLAYER_2 = resolvePlayerVehicleId(src?.vehicles?.PLAYER_2, defaults?.vehicles?.PLAYER_2);
+    const vehicleModePath = normalizeModePath(src?.localSettings?.modePath, 'normal');
+    merged.vehicles.PLAYER_1 = resolvePlayerVehicleId(src?.vehicles?.PLAYER_1, defaults?.vehicles?.PLAYER_1, vehicleModePath);
+    merged.vehicles.PLAYER_2 = resolvePlayerVehicleId(src?.vehicles?.PLAYER_2, defaults?.vehicles?.PLAYER_2, vehicleModePath);
     // Older saves kept the third pilot's plane in the former three-player setup block.
     merged.vehicles.PLAYER_3 = resolvePlayerVehicleId(
         src?.vehicles?.PLAYER_3 ?? src?.localSettings?.threePlayerSplit?.vehicleId,
-        defaults?.vehicles?.PLAYER_3 ?? defaults?.vehicles?.PLAYER_1
+        defaults?.vehicles?.PLAYER_3 ?? defaults?.vehicles?.PLAYER_1,
+        vehicleModePath
     );
 
     merged.portalsEnabled = src?.portalsEnabled !== undefined ? !!src.portalsEnabled : defaults.portalsEnabled;

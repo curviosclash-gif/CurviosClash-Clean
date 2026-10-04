@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { Trail } from './Trail.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { createGameplayCameraState } from '../shared/contracts/CameraModeContract.js';
-import { isValidVehicleId, VEHICLE_DEFINITIONS } from './vehicle-registry.js';
+import { isValidVehicleId, VEHICLE_DEFINITIONS, getVehicleDefinition } from './vehicle-registry.js';
 import {
     applyDamage,
     applyHealing,
@@ -136,7 +136,7 @@ export class Player {
             ? requestedVehicleId
             : String(playerConfig.DEFAULT_VEHICLE_ID || 'ship5');
 
-        const vehicleDef = VEHICLE_DEFINITIONS.find((v) => v.id === this.vehicleId) || VEHICLE_DEFINITIONS[0];
+        const vehicleDef = getVehicleDefinition(this.vehicleId) || VEHICLE_DEFINITIONS[0];
         const vehicleHitboxRadius = vehicleDef.hitbox?.radius || playerConfig.HITBOX_RADIUS || 0.8;
         this.hitboxRadius = vehicleHitboxRadius * this.modelScale;
         this._trailVisualRearOffsetBase = Math.max(0.6, vehicleHitboxRadius * 1.05);

@@ -13,6 +13,7 @@ import {
     BUILT_IN_COMPLEX_VEHICLE_IDS,
 } from '../shared/vehicle-lab/VehiclePresetCatalogBridge.js';
 import { PLAYER_SHIP_PART_CATALOG } from '../shared/vehicle-lab/player-ships/index.js';
+import { getRegisteredArcadeLabShip } from '../shared/contracts/ArcadeLabRegistryContract.js';
 import {
     CONTENT_DESCRIPTOR_TYPES,
     createContentRegistryDescriptor,
@@ -82,13 +83,30 @@ export const VEHICLE_DEFINITIONS = [
 
 /** @type {Map<string, any>} */
 const VEHICLE_BY_ID = new Map(VEHICLE_DEFINITIONS.map((entry) => [entry.id, entry]));
+const LAB_DEFINITION_CACHE = new WeakMap();
+
+export function getVehicleDefinition(vehicleId) {
+    const key = String(vehicleId || '').trim();
+    const builtIn = VEHICLE_BY_ID.get(key);
+    if (builtIn) return builtIn;
+    const lab = getRegisteredArcadeLabShip(key);
+    if (!lab) return null;
+    let definition = LAB_DEFINITION_CACHE.get(lab);
+    if (!definition) {
+        definition = Object.freeze({ id: lab.id, label: lab.label, MeshClass: RuntimeModularVehicleMesh,
+            isGeneratedModular: true, isBuiltIn: false, labScope: 'arcade',
+            modularConfig: { ...lab.config, id: lab.id }, hitbox: { radius: 1.2 } });
+        LAB_DEFINITION_CACHE.set(lab, definition);
+    }
+    return definition;
+}
 
 export function getVehicleIds() {
     return getVehicleRegistryDescriptor().entries.map((entry) => entry.id);
 }
 
 export function isValidVehicleId(vehicleId) {
-    return VEHICLE_BY_ID.has(String(vehicleId || '').trim());
+    return getVehicleDefinition(vehicleId) !== null;
 }
 
 /** @param {unknown} vehicleId @returns {boolean} */
@@ -105,7 +123,7 @@ export function getPlayerVehicleIds() {
 
 /** Vehicle Lab part config behind a vehicle id, or null for mesh-only vehicles. */
 export function getVehicleModularConfig(vehicleId) {
-    const entry = VEHICLE_BY_ID.get(String(vehicleId || '').trim());
+    const entry = getVehicleDefinition(vehicleId);
     return entry?.isGeneratedModular ? entry.modularConfig || null : null;
 }
 
@@ -117,7 +135,7 @@ export function createBaseVehicleMesh(vehicleId, color) {
 
 export function createVehicleMesh(vehicleId, color) {
     const key = String(vehicleId || '').trim();
-    const selected = VEHICLE_BY_ID.get(key) || VEHICLE_DEFINITIONS[0];
+    const selected = getVehicleDefinition(key) || VEHICLE_DEFINITIONS[0];
     if (selected.isGeneratedModular) {
         const baseVehicleId = String(selected.modularConfig?.baseVehicleId || '').trim();
         const baseMesh = BASE_VEHICLE_BY_ID.has(baseVehicleId) && !isVehicleLabBaseMeshReferenceOnly(selected.modularConfig)
@@ -129,6 +147,10 @@ export function createVehicleMesh(vehicleId, color) {
         return new selected.MeshClass(color, selected.id);
     }
     return new selected.MeshClass(color);
+}
+
+export function createVehicleMeshFromConfig(config, color) {
+    return new RuntimeModularVehicleMesh(color, config, { baseMesh: null });
 }
 
 export function listBaseVehicleDescriptors() {

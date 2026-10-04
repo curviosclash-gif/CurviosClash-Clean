@@ -3,6 +3,8 @@ import { createElectronPreloadHangarAdapter } from '../../platform/electron/Elec
 import { createBrowserPageHangarAdapter } from '../../platform/browser/BrowserPlatformAdapters.js';
 import { STORAGE_KEYS } from '../../shared/storage/StorageKeys.js';
 import { createInfoHintButton } from '../menu/InfoHintToggle.js';
+import { isArcadeLabShipsStorageKey, registerArcadeLabShipsFromStore } from '../../shared/contracts/ArcadeLabStoreContract.js';
+import { listRegisteredArcadeLabShips } from '../../shared/contracts/ArcadeLabRegistryContract.js';
 
 export function createHangarWindowLauncher(createElement) {
     const card = createElement('section', 'arcade-surface-card hangar-window-launch-card');
@@ -48,4 +50,20 @@ export function applyHangarWindowStorageEvent(event, settings, ui) {
         if (ui?.vehicleSelectP1 && vehicleId) ui.vehicleSelectP1.value = vehicleId;
         return true;
     } catch { return false; }
+}
+
+export function applyArcadeLabWindowStorageEvent(event, runtimeAccess, ui) {
+    if (!isArcadeLabShipsStorageKey(event?.key)) return false;
+    registerArcadeLabShipsFromStore(runtimeAccess?.getSettingsStore?.());
+    const select = ui?.vehicleSelectP1;
+    if (select) {
+        for (const option of [...select.options]) if (option.value.startsWith('arcade_lab_')) option.remove();
+        for (const ship of listRegisteredArcadeLabShips()) {
+            const option = document.createElement('option');
+            option.value = ship.id;
+            option.textContent = ship.label;
+            select.append(option);
+        }
+    }
+    return true;
 }

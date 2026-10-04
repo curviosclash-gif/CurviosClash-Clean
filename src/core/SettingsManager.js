@@ -33,6 +33,7 @@ import { createSettingsBotPolicyFacade } from './settings/SettingsBotPolicyFacad
 import { createSettingsDiagnosticsFacade } from './settings/SettingsDiagnosticsFacade.js';
 import { reconcileSettingsSnapshot } from './settings/SettingsDomainUtils.js';
 import { seedFreshProfileStylePreset } from './settings/FreshProfileSettingsOps.js';
+import { registerArcadeLabShipsFromStore } from '../shared/contracts/ArcadeLabStoreContract.js';
 
 /**
  * @typedef {object} SettingsManagerOptions
@@ -353,7 +354,9 @@ export class SettingsManager {
 
     setPlayerProfileManager(playerProfileManager = null) {
         this.playerProfileManager = playerProfileManager;
-        return this.getPlayerRecordStorePort();
+        const store = this.getPlayerRecordStorePort();
+        registerArcadeLabShipsFromStore(store);
+        return store;
     }
 
     getPlayerRecordStorePort() {
