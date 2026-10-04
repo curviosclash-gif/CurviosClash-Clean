@@ -6,7 +6,9 @@ function toSafeNumber(value, fallback) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function getNowSeconds() {
+export function resolveHealthClockSeconds(player) {
+    const simulationClockMs = player?.entityManager?._simulationClockMs;
+    if (Number.isFinite(simulationClockMs)) return Math.max(0, simulationClockMs) * 0.001;
     if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
         return performance.now() * 0.001;
     }
@@ -97,7 +99,7 @@ export function applyDamage(player, amount, options = {}, config = null) {
         player.hp = 0;
         player.shieldHP = 0;
         player.hasShield = false;
-        player.lastDamageTimestamp = toSafeNumber(options.nowSeconds, getNowSeconds());
+        player.lastDamageTimestamp = toSafeNumber(options.nowSeconds, resolveHealthClockSeconds(player));
         return {
             applied: requestedDamage,
             absorbedByShield: 0,
@@ -128,7 +130,7 @@ export function applyDamage(player, amount, options = {}, config = null) {
         player.hp = Math.max(0, toSafeNumber(player.hp, player.maxHp) - remainingDamage);
     }
     if (damageContact) {
-        player.lastDamageTimestamp = toSafeNumber(options.nowSeconds, getNowSeconds());
+        player.lastDamageTimestamp = toSafeNumber(options.nowSeconds, resolveHealthClockSeconds(player));
     }
 
     const hpApplied = Math.max(0, hpBefore - Math.max(0, toSafeNumber(player.hp, 0)));
@@ -161,7 +163,7 @@ export function applyHealing(player, amount, config = null) {
     return { healed: player.hp - before, hp: player.hp };
 }
 
-export function updatePlayerHealthRegen(player, dt, config = null, nowSeconds = getNowSeconds()) {
+export function updatePlayerHealthRegen(player, dt, config = null, nowSeconds = resolveHealthClockSeconds(player)) {
     const activeConfig = resolveConfig(config, player);
     if (!player || !isHuntHealthActive(activeConfig)) return;
     if (player.hp <= 0) return;

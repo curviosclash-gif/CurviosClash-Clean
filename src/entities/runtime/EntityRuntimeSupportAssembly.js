@@ -172,7 +172,9 @@ export function createEntityRuntimeSupport(owner) {
         runtimeProfiler: owner.runtimeProfiler || null,
     });
 
-    const huntScoring = new HuntScoring();
+    const huntScoring = new HuntScoring(() => (
+        Number.isFinite(owner._simulationClockMs) ? Math.max(0, owner._simulationClockMs) * 0.001 : 0
+    ));
     eventBus = new EntityEventBus({
         onPlayerFeedback: (player, message) => {
             if (typeof owner.onPlayerFeedback === 'function') owner.onPlayerFeedback(player, message);

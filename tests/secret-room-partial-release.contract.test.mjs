@@ -57,7 +57,7 @@ function createSystem(room, controller, elapsedSeconds) {
 test('a release unlock keeps a positive whole number of required releases and drops anything else', () => {
     const [room] = normalizeSecretRooms([ROOM]);
     assert.deepEqual(room.unlock, { source: 'sunflowerKernels', when: 'allReleased', requiredReleases: 2, delaySeconds: 0 });
-    for (const invalid of [0, -3, 'many', null, 2.5]) {
+    for (const invalid of [0, -3, 'many', '2', true, [], {}, null, undefined, NaN, Infinity, 2.5, Number.MAX_SAFE_INTEGER + 1]) {
         const [plain] = normalizeSecretRooms([{ ...ROOM, unlock: { ...ROOM.unlock, requiredReleases: invalid } }]);
         assert.equal('requiredReleases' in plain.unlock, false, `${invalid} means: every release`);
     }
@@ -103,4 +103,55 @@ test('the room opens once the required share is released and the HUD counts to t
 test('the honey chamber opens at 40 percent of the 220 kernels', () => {
     const [room] = normalizeSecretRooms([SUNFLOWER_MEADOW_HONEY_CHAMBER]);
     assert.equal(room.unlock.requiredReleases, 88);
+});
+
+test('host and replica open the room together on the 88th serialized kernel release and reset next round', () => {
+    const [room] = normalizeSecretRooms([{
+        ...ROOM,
+        unlock: { ...ROOM.unlock, requiredReleases: 88 },
+    }]);
+    const hostController = new SunflowerKernelController(kernelScene(88));
+    const replicaController = new SunflowerKernelController(kernelScene(88));
+    const host = createSystem(room, hostController, 5);
+    const replica = createSystem(room, replicaController, 5);
+    host.system.startRound();
+    replica.system.startRound();
+
+    for (let index = 1; index <= 87; index += 1) {
+        hostController.releaseByName(`SunflowerKernel_00${index}_SHOOTABLE_nocol`, 5);
+    }
+    replicaController.applyNetworkState(hostController.serialize());
+    host.system.update(0);
+    replica.system.update(0);
+    assert.equal(host.system.getSeedObjective().released, 87);
+    assert.equal(replica.system.getSeedObjective().released, 87);
+    assert.equal(host.system.isRoomOpen(room.id), false);
+    assert.equal(replica.system.isRoomOpen(room.id), false);
+
+    hostController.releaseByName('SunflowerKernel_0088_SHOOTABLE_nocol', 12);
+    replicaController.applyNetworkState(hostController.serialize());
+    host.arena.glbAnimationElapsedSeconds = 12;
+    replica.arena.glbAnimationElapsedSeconds = 12;
+    host.system.update(0);
+    replica.system.update(0);
+
+    assert.equal(host.system.getSeedObjective().completedAtSeconds, 12);
+    assert.equal(replica.system.getSeedObjective().completedAtSeconds, 12);
+    assert.equal(host.system.isRoomOpen(room.id), true);
+    assert.equal(replica.system.isRoomOpen(room.id), true);
+    assert.equal(host.system.getRooms()[0].unlockSeconds, 12);
+    assert.equal(replica.system.getRooms()[0].unlockSeconds, 12);
+
+    hostController.reset();
+    replicaController.reset();
+    hostController.applyNetworkState(hostController.serialize());
+    replicaController.applyNetworkState(hostController.serialize());
+    host.system.startRound();
+    replica.system.startRound();
+    host.system.update(0);
+    replica.system.update(0);
+    assert.equal(host.system.getSeedObjective().released, 0);
+    assert.equal(replica.system.getSeedObjective().released, 0);
+    assert.equal(host.system.isRoomOpen(room.id), false);
+    assert.equal(replica.system.isRoomOpen(room.id), false);
 });

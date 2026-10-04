@@ -8,6 +8,7 @@ import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import { recoverPlayerFromCollision, resolveWallCollisionDamage } from './HuntCollisionOps.js';
+import { resolveHealthClockSeconds } from '../hunt/HealthSystem.js';
 
 function toSafeNumber(value, fallback) {
     const parsed = Number(value);
@@ -18,15 +19,6 @@ function toSafeNumber(value, fallback) {
 function arcadeFactor(value) {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-}
-
-function getNowSeconds(player = null) {
-    const simulationClockMs = player?.entityManager?._simulationClockMs;
-    if (Number.isFinite(simulationClockMs)) return Math.max(0, simulationClockMs) * 0.001;
-    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-        return performance.now() * 0.001;
-    }
-    return Date.now() * 0.001;
 }
 
 const ENTITY_RUNTIME_CONFIG_SECTION_KEYS = Object.freeze([
@@ -209,7 +201,7 @@ export class HuntModeStrategy extends GameModeContract {
             player.hp = Math.max(0, toSafeNumber(player.hp, player.maxHp) - remainingDamage);
         }
         if (damageContact) {
-            player.lastDamageTimestamp = toSafeNumber(options?.nowSeconds, getNowSeconds(player));
+            player.lastDamageTimestamp = toSafeNumber(options?.nowSeconds, resolveHealthClockSeconds(player));
         }
 
         return { applied: requestedDamage, absorbedByShield, remainingHp: player.hp, isDead: player.hp <= 0 };
@@ -270,7 +262,7 @@ export class HuntModeStrategy extends GameModeContract {
             toSafeNumber(activeConfig?.HUNT?.PLAYER_REGEN_DELAY, 3.0)));
         const simulationClockMs = config?._simulationClockMs;
         const now = toSafeNumber(nowSeconds, Number.isFinite(simulationClockMs)
-            ? Math.max(0, simulationClockMs) * 0.001 : getNowSeconds());
+            ? Math.max(0, simulationClockMs) * 0.001 : resolveHealthClockSeconds(player));
         const lastDamageTimestamp = toSafeNumber(player.lastDamageTimestamp, -Infinity);
         if ((now - lastDamageTimestamp) < regenDelay) return;
         const regenPerSecond = Math.max(0, toSafeNumber(activeConfig?.HUNT?.PLAYER_REGEN_PER_SECOND, 2.5));
