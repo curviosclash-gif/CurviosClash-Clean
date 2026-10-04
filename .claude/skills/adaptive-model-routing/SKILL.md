@@ -17,3 +17,5 @@ Assess complexity after a short inspection; never ask the user to classify it.
 - Keep integration and final verification in the main conversation.
 - Do not delegate a short lookup or duplicate work merely to use a cheaper model.
 - Respect explicit user model or no-delegation instructions.
+
+For worktree removal, archival, or archive cleanup, apply [Worktree Cleanup](../worktree-cleanup/SKILL.md). Preserve unsaved work with the minimum required recovery data; do not make an additional full checkout copy when Git or the managed app already preserves it.

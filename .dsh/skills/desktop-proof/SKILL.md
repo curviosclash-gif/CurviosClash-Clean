@@ -120,7 +120,7 @@ Beschreibe dem Nutzer **genau** und in wenigen Schritten, was er tun und worauf 
 Ein Beleg ohne Vergleichswert ist halb so viel wert. Zwei Wege dorthin:
 
 - Den Zustand **vor** der Änderung aufnehmen, solange du ihn noch hast.
-- Oder die Messung in einem getrennten, detached Baseline-Worktree am Ausgangscommit der Aufgabe wiederholen. Prüfe vorher Worktree-Liste und Playwright-Schloss und hole bei erreichter Sitzungsgrenze die nach `AGENTS.md` nötige Zustimmung ein. Benutze keinen Stash: sein Stack wird von allen Worktrees des Repositorys geteilt. Starte Nachher- und Vorher-Anwendung nie gleichzeitig, und entferne den Baseline-Worktree erst nach gesicherter Auswertung gemäß den aktuellen Bereinigungsregeln.
+- Oder die Messung in einem getrennten, detached Baseline-Worktree am Ausgangscommit der Aufgabe wiederholen. Prüfe vorher Worktree-Liste und Playwright-Schloss und hole bei erreichter Sitzungsgrenze die nach `AGENTS.md` nötige Zustimmung ein. Benutze keinen Stash: sein Stack wird von allen Worktrees des Repositorys geteilt. Starte Nachher- und Vorher-Anwendung nie gleichzeitig, und entferne den Baseline-Worktree erst nach gesicherter Auswertung gemäß [Worktree Cleanup](../worktree-cleanup/SKILL.md) und den aktuellen Bereinigungsregeln. Bewahre nötige Messbelege und einzigartige Dateien gezielt statt einer zusätzlichen Vollkopie.
 
 ## Schritt 3 — den Satz formulieren
 

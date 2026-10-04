@@ -101,7 +101,7 @@ try {
 }
 ```
 
-Entferne den Baseline-Worktree erst nach gesichertem Rot-Beleg und nach den aktuellen Bereinigungsregeln. Löse vorhandene `node_modules`-Junctions vorher.
+Entferne den Baseline-Worktree erst nach gesichertem Rot-Beleg und nach [Worktree Cleanup](../worktree-cleanup/SKILL.md) sowie den aktuellen Bereinigungsregeln. Bewahre nötige Belege und einzigartige Testdateien gezielt; eine zusätzliche Vollkopie der Baseline ist nicht erforderlich. Löse vorhandene `node_modules`-Junctions vorher.
 
 ## Schritt 4 — die kleinste tragfähige Korrektur
 

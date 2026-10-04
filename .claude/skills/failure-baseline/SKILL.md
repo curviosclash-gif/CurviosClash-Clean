@@ -63,7 +63,7 @@ try {
 }
 ```
 
-Der Aufgaben-Worktree bleibt währenddessen unverändert. Entferne den Baseline-Worktree erst nach gesicherter Auswertung und nach den aktuellen Regeln für Worktree- und Testartefakt-Bereinigung; löse dabei vorhandene `node_modules`-Junctions zuerst.
+Der Aufgaben-Worktree bleibt währenddessen unverändert. Entferne den Baseline-Worktree erst nach gesicherter Auswertung und nach [Worktree Cleanup](../worktree-cleanup/SKILL.md) sowie den aktuellen Regeln für Worktree- und Testartefakt-Bereinigung. Bewahre nötige Belege und einzigartige Dateien gezielt statt einer zusätzlichen Vollkopie; löse vorhandene `node_modules`-Junctions zuerst.
 
 ## Vergleichen
 

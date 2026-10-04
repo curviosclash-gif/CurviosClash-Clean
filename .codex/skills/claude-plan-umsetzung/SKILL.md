@@ -61,4 +61,4 @@ Verify the ID against the first result before calling the helper. Review again w
 
 ## Integrate and finish
 
-Codex independently inspects the worktree diff, verifies only owned files changed, and runs the repository-required tests and build. Integrate without overwriting foreign main-tree changes. Follow repository commit rules; Claude never creates the final commit. Do not remove the worktree or temporary artifacts without the authorization required by repository rules. Report models used, changed files, checks, review verdict, and any remaining risks.
+Codex independently inspects the worktree diff, verifies only owned files changed, and runs the repository-required tests and build. Integrate without overwriting foreign main-tree changes. Follow repository commit rules; Claude never creates the final commit. For authorized worktree removal, apply [Worktree Cleanup](../worktree-cleanup/SKILL.md), retaining only recovery data still needed instead of a full checkout copy. Do not remove the worktree or temporary artifacts without the authorization required by repository rules. Report models used, changed files, checks, review verdict, and any remaining risks.

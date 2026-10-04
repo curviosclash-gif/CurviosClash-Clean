@@ -43,6 +43,10 @@ This shared baseline is not the persistent `$ponytail` mode and does not inherit
 - Choose the lowest reasoning effort that has met the quality bar on comparable work; raise it for a concrete gap, then reuse the evidence already gathered. API prices and effort options can differ from Codex usage and runtime availability; do not promise numerical token savings from a model name.
 - Prefer event or cursor waits to polling. On failure, inspect only the relevant output and choose the next evidence-producing step; avoid duplicated exploration.
 
+## Worktree cleanup
+
+For worktree removal, archival, or archive cleanup, apply [Worktree Cleanup](../worktree-cleanup/SKILL.md). Preserve unsaved work with the minimum required recovery data; do not make an additional full checkout copy when Git or the managed app already preserves it.
+
 ## Optional existing loops
 
 For an existing repeated workflow, select one concrete next candidate, finish the open iteration, then exit before heavy work if there is no work or the blocker is unchanged. Do not reactivate paused automations without the user and do not create schedulers automatically. This guidance does not create a loop where none exists.
