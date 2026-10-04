@@ -40,6 +40,7 @@ import { SKYLINE_SIEGE_MAPS } from './presets/skyline_siege/Map.js';
 import { HYDRA_TEMPLE_MAP } from './presets/hydra_temple.js';
 import { TOYBOX_TITAN_MAP } from './presets/toybox_titan.js';
 import { SKY_LADDER_MAPS } from './presets/sky_ladder/index.js';
+import { CHERRY_GROVE_MAPS } from './presets/cherry_grove.js';
 
 export const MAP_PRESET_CATALOG = {
     ...(STANDARD_MAPS || {}),
@@ -84,4 +85,5 @@ export const MAP_PRESET_CATALOG = {
     ...HYDRA_TEMPLE_MAP,
     ...TOYBOX_TITAN_MAP,
     ...SKY_LADDER_MAPS,
+    ...CHERRY_GROVE_MAPS,
 };

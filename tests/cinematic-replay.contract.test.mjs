@@ -587,6 +587,7 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
         projection,
         leftSnapshot: {
             mapElapsedSeconds: 10,
+            cherryLeaves: [[1, 10.5, 0.25, 0.8, -0.4]],
             projectiles: [{
                 id: 'rocket-1',
                 type: 'rocket',
@@ -606,6 +607,7 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
         },
         rightSnapshot: {
             mapElapsedSeconds: 14,
+            cherryLeaves: [[1, 10.5, 0.25, 0.8, -0.4], [2, 13, -0.2, 0.7, 0.5]],
             projectiles: [{
                 id: 'rocket-1',
                 type: 'rocket',
@@ -645,6 +647,8 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
     assert.equal(networkSnapshots[0].projectiles[0].pos[0], 2);
     assert.equal(networkSnapshots[0].powerups[0].pos[0], 4);
     assert.equal(networkSnapshots[0].mapElapsedSeconds, 12);
+    assert.deepEqual(networkSnapshots[0].cherryLeaves, [[1, 10.5, 0.25, 0.8, -0.4]],
+        'replay keeps past leaf releases and defers the event beyond the interpolated match clock');
     assert.deepEqual(arenaTimes.slice(0, 2), [['update', 1 / 60], ['set', 12]]);
     assert.deepEqual(visibility, [true, false]);
     assert.deepEqual(visualOptions, { dt: 1 / 60, emitParticles: false });

@@ -1,0 +1,71 @@
+{
+  "seed": 314159,
+  "species": "Prunus serrulata 'Kanzan'",
+  "flower_count": 14524,
+  "flowering_sites": 3820,
+  "young_leaf_count": 398,
+  "lenticel_count": 430,
+  "branch_counts_by_order": {
+    "1": 6,
+    "2": 48,
+    "3": 162,
+    "4": 955
+  },
+  "evaluated_mesh_triangles": 755397,
+  "material_count": 8,
+  "render_asset": "sakura_kanzan_grove.glb",
+  "render_file_bytes": 36324688,
+  "decimate_ratio": 0.24,
+  "source_seed": 314159,
+  "bounds_m": "refer to exact GLB reimport report",
+  "source_hero_triangles": 3390000,
+  "branch_geometry": "seeded primary/secondary/tertiary/fine hierarchy; profile mesh decimated after generation",
+  "reimport": {
+    "render": {
+      "objects": 49,
+      "triangles": 755493,
+      "materials": [
+        "Bark | warm reddish brown",
+        "Calyx | muted rose",
+        "Lenticels | pale warm gray",
+        "Petals | blush",
+        "Petals | pale pink",
+        "Petals | warm pink",
+        "Stamens | golden ivory",
+        "Young leaves | bronze green"
+      ],
+      "wind_leaf_nodes": 48,
+      "bounds_m": [
+        7.9356,
+        8.0934,
+        6.4899
+      ],
+      "center": [
+        0.33999133110046387,
+        0.05407571792602539,
+        3.113581970334053
+      ],
+      "wind_leaf_extras": 48,
+      "bytes": 36324688
+    },
+    "collision": {
+      "objects": 1,
+      "triangles": 44,
+      "materials": [
+        "Bark | warm reddish brown"
+      ],
+      "wind_leaf_nodes": 0,
+      "bounds_m": [
+        0.6,
+        0.6,
+        2.75
+      ],
+      "center": [
+        0.0,
+        0.0,
+        1.2799999713897705
+      ],
+      "bytes": 3808
+    }
+  }
+}

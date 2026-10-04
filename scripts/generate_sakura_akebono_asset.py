@@ -21,10 +21,11 @@ from mathutils import Vector
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSET = ROOT / "assets" / "models" / "sakura_akebono"
+SOURCE_ASSET = ROOT / "assets" / "models" / "sakura_akebono"
+ASSET = Path(os.environ.get("SAKURA_AKEBONO_OUTPUT_DIR", str(SOURCE_ASSET))).resolve()
 PREVIEWS = ASSET / "previews"
-SEED = 270425
-BLOOM_SEED = 811907
+SEED = int(os.environ.get("SAKURA_AKEBONO_SEED", "270425"))
+BLOOM_SEED = int(os.environ.get("SAKURA_AKEBONO_BLOOM_SEED", str(SEED + 541637)))
 GOLDEN = pi * (3.0 - sqrt(5.0))
 HEIGHT_TARGET = 9.8
 WIDTH_TARGET = 10.2
@@ -144,14 +145,14 @@ def blossom_geometry(rng, sites, scale, mats, collection, profile):
         # Most terminal groups have 3-5 flowers; a few unopened buds and young leaves
         # reflect full bloom's short overlap with early foliage.
         if dense_cluster:
-            bloom_count = rng.randint(10, 13) if profile == "hero" else rng.randint(7, 9) if profile == "lod1" else rng.randint(5, 7)
+            bloom_count = rng.randint(10, 13) if profile == "hero" else rng.randint(9, 11) if profile == "grove" else rng.randint(7, 9) if profile == "lod1" else rng.randint(5, 7)
         else:
             bloom_count = rng.randint(3, 5) if profile == "hero" else rng.randint(3, 4) if profile == "lod1" else 3
         u, v, n = basis(direction)
         # Keep added flowers close to the twig-borne anchor: longer pedicels read as
         # straight green spokes in the macro view. Hero retains the fullest spray;
         # lower LODs keep its volume while reducing the number of flower heads.
-        spread = (rng.uniform(.12, .16) if profile == "hero" else
+        spread = (rng.uniform(.12, .16) if profile in ("hero", "grove") else
                   rng.uniform(.11, .145) if profile == "lod1" else
                   rng.uniform(.095, .13)) if dense_cluster else .048
         center = Vector(pos)
@@ -228,7 +229,8 @@ def blossom_geometry(rng, sites, scale, mats, collection, profile):
                     faces.extend(((15, 3, 16), (15, 16, 11)))
                     faces.extend((16, idx, idx + 1) for idx in range(3, 11))
                 else:
-                    sample_ids = ((0, 2, 4, 6, 7, 8, 10, 12, 14) if profile == "lod1"
+                    sample_ids = ((0, 5, 10, 14) if profile == "grove"
+                                  else (0, 2, 4, 6, 7, 8, 10, 12, 14) if profile == "lod1"
                                   else (0, 3, 6, 7, 9, 12, 14))
                     low_outline = [outline[idx] for idx in sample_ids]
                     low_height = [rim_height[idx] for idx in sample_ids]
@@ -259,7 +261,7 @@ def blossom_geometry(rng, sites, scale, mats, collection, profile):
                 centers_f.append((center_base, center_base + 1 + s, center_base + 1 + (s + 1) % 6))
                 centers_i.append(0)
             # Stamens as fine crossed triangles radiating over the petal cup.
-            stamen_count = 8 if profile == "hero" else 4 if profile == "lod1" else 3
+            stamen_count = 8 if profile == "hero" else 1 if profile == "grove" else 4 if profile == "lod1" else 3
             for s in range(stamen_count):
                 a = 2 * pi * s / stamen_count
                 axis2 = bu * cos(a) + bv * sin(a)
@@ -358,12 +360,14 @@ def make_tree(profile="hero"):
     extra_flower_sites = []
     dense_flower_sites = []
     branch_counts = [0, 0, 0, 0, 0]
-    radius_scale = {"hero": 1.0, "lod1": 0.95, "lod2": 0.90, "collision": 1.0}[profile]
-    child_factor = {"hero": 1.0, "lod1": 1.0, "lod2": 1.0, "collision": 0.0}[profile]
+    radius_scale = {"hero": 1.0, "lod1": 0.95, "lod2": 0.90, "collision": 1.0, "grove": 0.95}[profile]
+    child_factor = {"hero": 1.0, "lod1": 1.0, "lod2": 1.0, "collision": 0.0, "grove": 1.0}[profile]
     # LODs thin the bloom footprint before mesh consolidation; geometry density is
     # intentionally budgeted per profile instead of carrying nearly all Hero flowers.
-    flower_scale = {"hero": 1.0, "lod1": 0.13, "lod2": 0.07, "collision": 0.0}[profile]
-    dense_site_count = {"hero": (2, 4), "lod1": (1, 2), "lod2": (0, 1), "collision": (0, 0)}[profile]
+    flower_scale = {"hero": 1.0, "lod1": 0.13, "lod2": 0.07, "collision": 0.0, "grove": 1.0}[profile]
+    if profile == "grove":
+        flower_scale *= float(os.environ.get("SAKURA_AKEBONO_FLOWER_SCALE", "1"))
+    dense_site_count = {"hero": (2, 4), "lod1": (1, 2), "lod2": (0, 1), "collision": (0, 0), "grove": (2, 4)}[profile]
 
     def spline(points, radii, order):
         branch_counts[order] += 1
@@ -523,7 +527,7 @@ def make_tree(profile="hero"):
             continue
         if profile == "collision" and order >= 2:
             continue
-        bevel = 0 if order <= 1 or profile in ("lod1", "lod2", "collision") else 1
+        bevel = 0 if order <= 1 or profile in ("lod1", "lod2", "collision", "grove") else 1
         name = ("Trunk_and_Scaffolds" if order <= 1 else f"Branch_Order_{order}")
         obj = curve_mesh("Akebono_" + name, group, mats["bark"], tree, bevel_res=bevel)
         wood.append(obj)
@@ -656,11 +660,40 @@ def export_glb(objects, path):
         if obj.type == "MESH": obj.select_set(True)
     bpy.context.view_layer.objects.active = next((o for o in objects if o.type == "MESH"), None)
     bpy.ops.export_scene.gltf(filepath=str(path), export_format="GLB", use_selection=True,
-                              export_apply=True, export_yup=True)
+                              export_apply=True, export_yup=True, export_extras=True)
+
+
+def add_wind_leaf_instances(tree, seed):
+    """Add shared-mesh leaf nodes with GLTF extras for the runtime wind controller."""
+    rng = random.Random(seed ^ 0x5A17)
+    material_leaf = bpy.data.materials.get("Akebono | sparse spring leaves")
+    if material_leaf is None:
+        return
+    mesh = bpy.data.meshes.new("Cherry_WindLeaf_SharedMesh")
+    mesh.from_pydata(
+        [(-0.18, 0, 0), (-0.10, 0.035, 0.018), (0, 0.05, 0.025), (0.17, 0.025, 0.01),
+         (0.20, 0, 0), (0.17, -0.025, -0.01), (0, -0.05, -0.025), (-0.10, -0.035, -0.018)],
+        [], [(0, 1, 2, 3, 4, 5, 6, 7)],
+    )
+    mesh.materials.append(material_leaf)
+    for index in range(1, 49):
+        azimuth = rng.uniform(0, 2 * pi)
+        radius = sqrt(rng.uniform(0.12, 1.0)) * rng.uniform(2.1, 4.7)
+        z = rng.uniform(3.4, 8.7)
+        leaf = bpy.data.objects.new(f"Akebono_WindLeaf_{index:03d}_nocol", mesh)
+        tree.objects.link(leaf)
+        leaf.location = (cos(azimuth) * radius, sin(azimuth) * radius, z)
+        leaf.rotation_euler = (rng.uniform(-0.5, 0.5), rng.uniform(-0.6, 0.6), azimuth + rng.uniform(-0.8, 0.8))
+        scale = rng.uniform(0.72, 1.24)
+        leaf.scale = (scale, scale, scale)
+        leaf["role"] = "wind_leaf"
+        leaf["leaf_index"] = index
 
 
 def build_scene(profile, save_blend=False, render=False):
     scene, tree, collision, presentation, mats, branches, flowers = make_tree(profile)
+    if profile != "collision":
+        add_wind_leaf_instances(tree, SEED + (0 if profile == "hero" else 1))
     tree_objects = list(tree.objects)
     collision_objects = list(collision.objects)
     metrics = stats(tree_objects if profile != "collision" else collision_objects)
@@ -692,30 +725,76 @@ def build_scene(profile, save_blend=False, render=False):
             scene.camera = bpy.data.objects.get("Camera_Azimuth_000")
             bpy.ops.wm.save_as_mainfile(filepath=str(ASSET / "sakura_akebono.blend"), check_existing=False)
     out = ASSET / ({"hero": "sakura_akebono.glb", "lod1": "sakura_akebono_lod1.glb",
-                    "lod2": "sakura_akebono_lod2.glb", "collision": "sakura_akebono_collision.glb"}[profile])
+                    "lod2": "sakura_akebono_lod2.glb", "collision": "sakura_akebono_collision.glb",
+                    "grove": "sakura_akebono_grove.glb"}[profile])
+    variant_name = os.environ.get("SAKURA_AKEBONO_EXPORT_NAME")
+    if profile == "grove" and variant_name:
+        out = ASSET / variant_name
     if not PREVIEW_ONLY:
+        decimate_ratio = float(os.environ.get("SAKURA_AKEBONO_DECIMATE_RATIO", "1"))
+        if profile == "grove" and 0 < decimate_ratio < 1:
+            for obj in tree_objects:
+                if obj.get("role") == "wind_leaf" or obj.type != "MESH" or len(obj.data.polygons) < 4:
+                    continue
+                modifier = obj.modifiers.new("Cherry Grove distance LOD", "DECIMATE")
+                modifier.ratio = decimate_ratio
+                bpy.context.view_layer.objects.active = obj
+                obj.select_set(True)
+                bpy.ops.object.modifier_apply(modifier=modifier.name)
+                obj.select_set(False)
+        metrics.update(stats(tree_objects if profile != "collision" else collision_objects))
         export_glb(collision_objects if profile == "collision" else tree_objects, out)
         metrics["file_bytes"] = out.stat().st_size
     return metrics
 
 
 def main():
+    global SEED, BLOOM_SEED
     ASSET.mkdir(parents=True, exist_ok=True)
     PREVIEWS.mkdir(parents=True, exist_ok=True)
-    report = {"species": "Prunus × yedoensis 'Akebono'", "generator": "scripts/generate_sakura_akebono_asset.py",
-              "blender": bpy.app.version_string, "seed": SEED, "target_dimensions_m": [WIDTH_TARGET, WIDTH_TARGET, HEIGHT_TARGET],
-              "profiles": {}}
-    profiles = ("hero",) if PREVIEW_ONLY else ("hero", "lod1", "lod2", "collision")
+    report_path = ASSET / "qa_metrics.json"
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        report = {}
+    report.update({"species": "Prunus × yedoensis 'Akebono'", "generator": "scripts/generate_sakura_akebono_asset.py",
+                   "blender": bpy.app.version_string, "seed": SEED,
+                   "target_dimensions_m": [WIDTH_TARGET, WIDTH_TARGET, HEIGHT_TARGET]})
+    report.setdefault("profiles", {})
+    report.setdefault("files", {})
+    profiles = ("hero",) if PREVIEW_ONLY else tuple(filter(None, os.environ.get("SAKURA_AKEBONO_PROFILES", "hero,lod1,lod2,collision").split(",")))
     for profile in profiles:
         print(f"[sakura] building {profile}", flush=True)
         report["profiles"][profile] = build_scene(
             profile, save_blend=(profile == "hero" and not PREVIEW_ONLY), render=(profile == "hero"))
+    variant_seeds = tuple(int(value) for value in filter(None, os.environ.get("SAKURA_AKEBONO_VARIANT_SEEDS", "").split(",")))
+    if variant_seeds:
+        report.setdefault("variant_profiles", {})
+        for variant_index, seed in enumerate(variant_seeds, 1):
+            SEED = seed
+            BLOOM_SEED = seed + 541637
+            variant_name = f"akebono_{variant_index:02d}.glb"
+            os.environ["SAKURA_AKEBONO_EXPORT_NAME"] = variant_name
+            os.environ["SAKURA_AKEBONO_DECIMATE_RATIO"] = "1" if variant_index == 1 else "0.22"
+            os.environ["SAKURA_AKEBONO_FLOWER_SCALE"] = "1" if variant_index == 1 else "0.22"
+            print(f"[sakura] building stable variant {variant_name} seed={seed}", flush=True)
+            report["variant_profiles"][variant_name] = build_scene("grove")
     if PREVIEW_ONLY:
         print("[sakura] preview-only complete; existing blend and GLBs were preserved", flush=True)
         return
-    report["files"] = {p.name: p.stat().st_size for p in sorted(ASSET.iterdir())
-                       if p.is_file() and p.name != "qa_metrics.json"}
-    (ASSET / "qa_metrics.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    output_names = {"hero": "sakura_akebono.glb", "lod1": "sakura_akebono_lod1.glb",
+                    "lod2": "sakura_akebono_lod2.glb", "collision": "sakura_akebono_collision.glb",
+                    "grove": "sakura_akebono_grove.glb"}
+    for profile in profiles:
+        output = ASSET / output_names[profile]
+        if output.is_file() and output.stat().st_size > 256:
+            report["files"][output.name] = output.stat().st_size
+    report["checkout_availability"] = {
+        name: ("available" if (SOURCE_ASSET / name).is_file() and (SOURCE_ASSET / name).stat().st_size > 256 else "lfs_pointer_or_missing")
+        for name in ("sakura_akebono.blend", "sakura_akebono.glb", "sakura_akebono_lod1.glb",
+                     "sakura_akebono_lod2.glb", "sakura_akebono_collision.glb", "sakura_akebono_grove.glb")
+    }
+    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2), flush=True)
 
 

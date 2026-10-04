@@ -89,6 +89,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
         mapElapsedSeconds: toFiniteNumber(entityManager?.arena?.glbAnimationElapsedSeconds, 0),
         mapFireDestructibles: entityManager?._mapDestructibleSystem?.fireState ? entityManager._mapDestructibleSystem.serializeNetworkState() : null,
         dandelionSeeds: entityManager?.arena?.serializeDandelionSeeds?.() || null,
+        cherryLeaves: entityManager?.arena?.serializeCherryLeaves?.() || null,
         sunflowerKernels: entityManager?.arena?.serializeSunflowerKernels?.() || null,
         fight: createHuntNetworkState(entityManager),
         // Host round result for every mode; null while the round runs (see RoundOutcomeNetworkState).

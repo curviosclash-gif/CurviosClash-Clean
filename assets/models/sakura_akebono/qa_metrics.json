@@ -1,5 +1,5 @@
 {
-  "species": "Prunus × yedoensis 'Akebono'",
+  "species": "Prunus \u00d7 yedoensis 'Akebono'",
   "generator": "scripts/generate_sakura_akebono_asset.py",
   "blender": "4.2.16 LTS",
   "seed": 270425,
@@ -52,24 +52,24 @@
       "file_bytes": 116916936
     },
     "lod1": {
-      "objects": 9,
-      "vertices": 200722,
-      "triangles": 176402,
+      "objects": 57,
+      "vertices": 200524,
+      "triangles": 176252,
       "bounds_m": {
         "min": [
           -4.5332,
           -4.6456,
-          -0.0031
+          -0.025
         ],
         "max": [
-          5.1949,
-          5.0012,
-          9.8428
+          5.1989,
+          5.0121,
+          9.8744
         ],
         "size": [
-          9.7281,
-          9.6468,
-          9.846
+          9.7322,
+          9.6578,
+          9.8994
         ]
       },
       "materials": [
@@ -90,8 +90,34 @@
         207,
         442
       ],
-      "flower_count": 1726,
-      "file_bytes": 6354416
+      "flower_count": 1720,
+      "file_bytes": 6355208,
+      "reimport": {
+        "objects": 56,
+        "triangles": 176252,
+        "materials": [
+          "Akebono | calyx and young growth",
+          "Akebono | lenticels",
+          "Akebono | petal highlights",
+          "Akebono | petals, blush to ivory",
+          "Akebono | silver-grey bark",
+          "Akebono | sparse spring leaves",
+          "Akebono | stamens"
+        ],
+        "wind_leaf_nodes": 48,
+        "bounds_m": [
+          9.7322,
+          9.6578,
+          9.8775
+        ],
+        "center": [
+          0.33284878730773926,
+          0.18326020240783691,
+          4.9356121541932225
+        ],
+        "wind_leaf_extras": 48,
+        "bytes": 6355208
+      }
     },
     "lod2": {
       "objects": 8,
@@ -168,16 +194,104 @@
         0
       ],
       "flower_count": 0,
-      "file_bytes": 18116
+      "file_bytes": 18364,
+      "reimport": {
+        "objects": 2,
+        "triangles": 524,
+        "materials": [
+          "Akebono | silver-grey bark"
+        ],
+        "wind_leaf_nodes": 0,
+        "bounds_m": [
+          6.6098,
+          6.4231,
+          9.7847
+        ],
+        "center": [
+          0.4740413427352905,
+          -0.03286337852478027,
+          4.887963607907295
+        ],
+        "bytes": 18364
+      }
+    },
+    "grove": {
+      "objects": 57,
+      "vertices": 1256010,
+      "triangles": 923782,
+      "bounds_m": {
+        "min": [
+          -4.6547,
+          -4.7568,
+          -0.025
+        ],
+        "max": [
+          5.3058,
+          5.1255,
+          9.9373
+        ],
+        "size": [
+          9.9604,
+          9.8822,
+          9.9623
+        ]
+      },
+      "materials": [
+        "Akebono | calyx and young growth",
+        "Akebono | lenticels",
+        "Akebono | petal highlights",
+        "Akebono | petals, blush to ivory",
+        "Akebono | silver-grey bark",
+        "Akebono | sparse spring leaves",
+        "Akebono | stamens"
+      ],
+      "profile": "grove",
+      "seed": 270425,
+      "branch_counts_by_order": [
+        1,
+        14,
+        69,
+        207,
+        442
+      ],
+      "flower_count": 19402,
+      "file_bytes": 41294208,
+      "reimport": {
+        "objects": 56,
+        "triangles": 923782,
+        "materials": [
+          "Akebono | calyx and young growth",
+          "Akebono | lenticels",
+          "Akebono | petal highlights",
+          "Akebono | petals, blush to ivory",
+          "Akebono | silver-grey bark",
+          "Akebono | sparse spring leaves",
+          "Akebono | stamens"
+        ],
+        "wind_leaf_nodes": 48,
+        "bounds_m": [
+          9.9604,
+          9.8822,
+          9.9405
+        ],
+        "center": [
+          0.3255486488342285,
+          0.18434691429138184,
+          4.967094850726426
+        ],
+        "wind_leaf_extras": 48,
+        "bytes": 41294208
+      }
     }
   },
   "files": {
     "README.md": 4373,
     "sakura_akebono.blend": 186888472,
     "sakura_akebono.glb": 116916936,
-    "sakura_akebono_collision.glb": 18116,
-    "sakura_akebono_lod1.glb": 6354416,
-    "sakura_akebono_lod2.glb": 2920036
+    "sakura_akebono_collision.glb": 18364,
+    "sakura_akebono_lod1.glb": 6355208,
+    "sakura_akebono_lod2.glb": 2920036,
+    "sakura_akebono_grove.glb": 41294208
   },
   "preview_bloom_mask": {
     "angles_degrees": [
@@ -286,5 +400,13 @@
         ]
       }
     }
+  },
+  "checkout_availability": {
+    "sakura_akebono.blend": "lfs_pointer_or_missing",
+    "sakura_akebono.glb": "lfs_pointer_or_missing",
+    "sakura_akebono_lod1.glb": "available",
+    "sakura_akebono_lod2.glb": "lfs_pointer_or_missing",
+    "sakura_akebono_collision.glb": "available",
+    "sakura_akebono_grove.glb": "available"
   }
 }
