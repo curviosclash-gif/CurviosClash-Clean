@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
-import { AnimationMixer, Vector3 } from 'three';
+import { AnimationMixer, Box3, Vector3 } from 'three';
 
 import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
 
@@ -10,12 +11,63 @@ import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
 // clips, one per moving system, because gear, canopy, airbrake, control surfaces, nozzles, burner
 // and wheels move on independent systems. The game does not load this file yet, so the reference
 // loader is three's GLTFLoader with the materials stripped - the same seam the other authored
-// models are probed through. This test reads the checked-in GLB, needs no Blender, and pins the
-// numbers the model was measured with at 30 fps.
+// models are probed through. Runtime contracts read the checked-in GLB without Blender and pin
+// its measured values at 30 fps. An additional source roundtrip runs when Blender is installed.
 const ASSET_ROOT = path.resolve('assets/models/scifi_fighter');
-const BLEND_PATH = path.join(ASSET_ROOT, 'blender', '01_scifi_fighter.blend');
+const BLEND_PATH = path.join(ASSET_ROOT, 'blender', 'nova_lance.blend');
 const GLB_PATH = path.join(ASSET_ROOT, 'glb', '01_scifi_fighter.glb');
 const MODEL_URL = 'assets/models/scifi_fighter/glb/01_scifi_fighter.glb';
+
+const BLENDER = process.env.BLENDER_EXECUTABLE
+    || 'C:/Program Files/Blender Foundation/Blender 4.2/blender.exe';
+test('Nova Lance source and runtime have the same evaluated world geometry', {
+    skip: !existsSync(BLENDER),
+}, () => {
+    const inspect = String.raw`
+import bpy, os
+from pathlib import Path
+from mathutils.kdtree import KDTree
+root = Path(os.environ['NOVA_ASSET_ROOT'])
+bpy.ops.wm.open_mainfile(filepath=str(root / 'blender/nova_lance.blend'))
+bpy.context.scene.frame_set(0)
+def geometry():
+    rows = {}
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    for obj in bpy.context.scene.objects:
+        if obj.type != 'MESH': continue
+        evaluated = obj.evaluated_get(depsgraph)
+        mesh = evaluated.to_mesh()
+        rows[obj.name] = ([evaluated.matrix_world @ v.co for v in mesh.vertices],
+                         sum(len(p.vertices)-2 for p in mesh.polygons),
+                         {m.name for m in mesh.materials})
+        evaluated.to_mesh_clear()
+    return rows
+source = geometry()
+for image in bpy.data.images:
+    assert image.source != 'FILE' or image.packed_file, 'source texture must be portable'
+bpy.ops.wm.read_factory_settings(use_empty=True)
+bpy.ops.import_scene.gltf(filepath=str(root / 'glb/01_scifi_fighter.glb'))
+bpy.context.scene.frame_set(0)
+runtime = geometry()
+assert source.keys() == runtime.keys(), (source.keys(),runtime.keys())
+for name, (points, triangles, materials) in source.items():
+    imported, imported_triangles, imported_materials = runtime[name]
+    assert triangles == imported_triangles and materials == imported_materials, (name, triangles, imported_triangles, materials, imported_materials)
+    # UV seams split exported vertices; compare actual positions in both directions.
+    for a,b in ((points,imported),(imported,points)):
+        tree = KDTree(len(a))
+        for i,p in enumerate(a): tree.insert(p,i)
+        tree.balance()
+        distance = max(tree.find(p)[2] for p in b)
+        assert distance < .0001, (name, distance)
+print('NOVA_SOURCE_ROUNDTRIP_PASS', len(source), sum(row[1] for row in source.values()))
+`;
+    const result = spawnSync(BLENDER, ['--background', '--factory-startup', '--python-exit-code', '1',
+        '--python-expr', inspect], { encoding: 'utf8', windowsHide: true, timeout: 120_000,
+        env: { ...process.env, NOVA_ASSET_ROOT: ASSET_ROOT } });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /NOVA_SOURCE_ROUNDTRIP_PASS/);
+});
 
 // Clip name -> authored length in seconds (30 fps, the exporter bakes per frame).
 const EXPECTED_CLIPS = Object.freeze({
@@ -46,16 +98,19 @@ const MOVING_PARTS = Object.freeze([
 const DECORATION_ONLY = Object.freeze([
     'nova_details_noshadow_nocol',
     'nova_cockpit_interior_noshadow_nocol',
+    'nova_paint_noshadow_nocol',
     'afterburner_left_noshadow_nocol',
     'afterburner_right_noshadow_nocol',
 ]);
 
 // Measured through the loader with no clip playing: the parked fighter on its wheels (ground line
-// -1.95), the spine antenna as its highest point, the canted fin tips as its widest and the pitot
-// as its longest reach. Nose towards -z, the game's forward axis for player vehicles.
+// -1.95), the canted fin tips as its highest and widest points and the pitot as its longest reach.
+// Nose towards -z, the game's forward axis for player vehicles. The span reads a little narrower
+// here than in Blender's own report, because the loader adds up the boxes of the single-material
+// primitives while Blender boxes the whole part.
 const PARKED_BOUNDS = Object.freeze({
-    min: [-5.815, -1.95, -7.861],
-    max: [5.815, 2.175, 6.35],
+    min: [-5.97, -1.95, -7.861],
+    max: [5.97, 2.289, 6.35],
 });
 
 function readGlbJson(filePath) {
@@ -148,6 +203,7 @@ test('the sci-fi fighter keeps an editable source and eight timed clips inside t
 test('the sci-fi fighter names its moving parts and keeps trim out of collision and shadows', () => {
     const document = readGlbJson(GLB_PATH);
     const names = (document.nodes || []).map((node) => String(node.name || ''));
+    assert.ok(!names.includes('tail_plate_noshadow_nocol'), 'the approved Nova Lance has no tail plate');
     // three.js sanitises node names; a dot or a space would break a lookup by name.
     for (const name of names) {
         assert.equal(name.replace(/\s/g, '_').replace(/[^\w-]/g, ''), name,
@@ -163,6 +219,28 @@ test('the sci-fi fighter names its moving parts and keeps trim out of collision 
     const solidTrim = names.filter((name) => /^nova_(details|cockpit_interior)/.test(name)
         && !/_noshadow_nocol/.test(name));
     assert.deepEqual(solidTrim, [], 'trim meshes never become collision surfaces');
+});
+
+test('iris, glow and burner geometry are centred on their actual nozzle hinges', () => {
+    const document = readGlbJson(GLB_PATH);
+    for (const side of ['left', 'right']) {
+        for (const name of [`nozzle_petals_${side}`, `nozzle_glow_${side}`,
+            `afterburner_${side}_noshadow_nocol`]) {
+            const node = document.nodes.find((entry) => entry.name === name);
+            assert.ok(node && Number.isInteger(node.mesh), `${name} has actual mesh geometry`);
+            const bounds = document.meshes[node.mesh].primitives.map((primitive) => (
+                document.accessors[primitive.attributes.POSITION]
+            ));
+            for (const accessor of bounds) {
+                for (const axis of [0, 1]) {
+                    assert.ok(Math.abs(accessor.min[axis] + accessor.max[axis]) < .001,
+                        `${name} stays radially centred on its nozzle hinge`);
+                }
+                assert.ok(accessor.min[2] >= -.061 && accessor.max[2] <= 1.551,
+                    `${name} extends aft from its nozzle instead of reaching into the fuselage`);
+            }
+        }
+    }
 });
 
 test('the parked fighter sits on its wheels with the nose towards the game forward axis', async () => {
@@ -200,10 +278,10 @@ test('the parked fighter sits on its wheels with the nose towards the game forwa
     assert.equal(round(highest), PARKED_BOUNDS.max[1], 'the fins define the top');
     // The model stands on the game's forward axis -z: the nose is further forward than the tail.
     const nose = scene.getObjectByName('nose_tip_noshadow_nocol');
-    const tail = scene.getObjectByName('tail_plate_noshadow_nocol');
-    assert.ok(nose && tail, 'nose and tail markers exist');
+    const tail = scene.getObjectByName('engine_pods');
+    assert.ok(nose && tail, 'nose and rear engine geometry exist');
     assert.ok(worldPosition(nose).z < -0.35, `the nose points towards -z, got ${round(worldPosition(nose).z)}`);
-    assert.ok(worldPosition(tail).z > 0.35, `the tail sits behind, got ${round(worldPosition(tail).z)}`);
+    assert.ok(new Box3().setFromObject(tail).max.z > 0.35, 'the actual engine geometry reaches aft');
     assert.ok(Math.abs(round(widest) - PARKED_BOUNDS.max[0]) <= 0.05,
         `the span is symmetric, got ${round(widest)}`);
     assert.ok(Math.abs(round(longest) - Math.abs(PARKED_BOUNDS.min[2])) <= 0.6,

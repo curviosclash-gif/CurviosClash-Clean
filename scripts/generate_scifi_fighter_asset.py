@@ -6,11 +6,13 @@ Run with Blender 4.2:
         --python scripts/generate_scifi_fighter_asset.py
     ... -- --no-animation          # static model, no clips
 
-The model is a single-seat space-superiority fighter: a faceted chined hull, a cranked delta wing
-with elevons, foreplanes, two canted wingtip fins with rudders, two side engine pods with an iris
-nozzle and an afterburner plume, retractable tricycle gear and a pair of wing-root cannons. The
-hull is lofted from one twelve-point section profile per station, so every edge of the chine stays
-where the profile puts it - that faceted look is geometry, not a normal map.
+The model is a single-seat space-superiority fighter: a faceted chined hull under a dark dorsal
+deck, a cranked delta wing with root fillets and elevons, foreplanes, two canted wingtip fins with
+rudders and tip pods, two side engine pods on fairings with grille slats, stiffener ribs, an iris
+nozzle over a glowing throat and an afterburner plume, retractable tricycle gear, wing-root
+cannons, tip launch rails with stores, and a cyan chine stripe over the two-tone paint. The hull is
+lofted from one twelve-point section profile per station, so every edge of the chine stays where
+the profile puts it - that faceted look is geometry, not a normal map.
 
 Axes. The game's player vehicles face -Z (`src/entities/obj-vehicle-mesh.js` puts the muzzle at
 -size.z). Blender exports its +Y as glTF -Z, so the nose points along +Y here. Blender x stays the
@@ -54,6 +56,7 @@ from mathutils import Euler, Vector
 
 FPS = 30
 PART_NAME = "01_scifi_fighter"
+SOURCE_NAME = "nova_lance"
 SEED = 20261004
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,18 +78,22 @@ RIVET_PIXELS = 8
 
 # (station y, half width, half height, centre z) from the nose back to the tail.
 FUSELAGE = (
-    (7.30, 0.09, 0.11, 0.05),
-    (6.75, 0.30, 0.30, 0.03),
-    (5.90, 0.58, 0.46, 0.01),
-    (4.70, 0.82, 0.60, 0.00),
-    (3.40, 1.00, 0.70, 0.02),
-    (2.10, 1.14, 0.77, 0.04),
-    (0.60, 1.22, 0.80, 0.04),
-    (-0.90, 1.20, 0.78, 0.02),
-    (-2.30, 1.12, 0.73, 0.00),
-    (-3.70, 1.00, 0.65, -0.02),
-    (-5.00, 0.86, 0.55, -0.03),
-    (-6.10, 0.62, 0.40, -0.04),
+    (7.40, 0.07, 0.09, 0.06),
+    (6.95, 0.24, 0.24, 0.04),
+    (6.30, 0.46, 0.38, 0.02),
+    (5.55, 0.68, 0.50, 0.01),
+    (4.70, 0.86, 0.62, 0.00),
+    (3.90, 1.00, 0.70, 0.01),
+    (3.10, 1.10, 0.76, 0.03),
+    (2.20, 1.18, 0.80, 0.04),
+    (1.20, 1.24, 0.82, 0.05),
+    (0.10, 1.26, 0.82, 0.04),
+    (-1.00, 1.22, 0.80, 0.02),
+    (-2.10, 1.16, 0.75, 0.00),
+    (-3.20, 1.08, 0.69, -0.02),
+    (-4.30, 0.98, 0.62, -0.03),
+    (-5.30, 0.84, 0.53, -0.04),
+    (-6.20, 0.62, 0.40, -0.05),
 )
 
 # Half section, top to bottom on the right side: a flat top deck, a hard chine at the widest point
@@ -98,23 +105,34 @@ SECTION_PROFILE = (
 CHINE_INDEX = 3
 DECK_INDEX = 1
 
-# (y, half width, half height, centre z) of the raised dorsal deck.
-SPINE = (
-    (2.70, 0.30, 0.20, 0.88),
-    (0.60, 0.42, 0.22, 0.86),
-    (-1.40, 0.40, 0.20, 0.82),
-    (-3.10, 0.32, 0.16, 0.78),
-    (-4.40, 0.20, 0.10, 0.72),
+# The dorsal deck in two runs, because the cockpit sits between them. Its upper half is a dark
+# plate on a light hull, which is what carries the two-tone paint when seen from above.
+SPINE_FORWARD = (
+    (7.00, 0.05, 0.04, 0.22),
+    (6.40, 0.14, 0.09, 0.30),
+    (5.70, 0.26, 0.14, 0.40),
+    (4.95, 0.34, 0.17, 0.49),
+    (4.40, 0.38, 0.18, 0.55),
+)
+SPINE_AFT = (
+    (2.30, 0.50, 0.24, 0.76),
+    (1.00, 0.54, 0.26, 0.80),
+    (-0.60, 0.52, 0.25, 0.78),
+    (-2.20, 0.46, 0.22, 0.74),
+    (-3.50, 0.36, 0.17, 0.66),
+    (-4.70, 0.22, 0.11, 0.56),
 )
 
 # (span, leading edge y, full trailing edge y, thickness, centre z). The wing is cranked: a 38
 # degree inner panel and a 53 degree outer panel that carries the elevons.
 WING_SECTIONS = (
-    (0.55, 4.45, -2.30, 0.40, 0.02),
-    (1.80, 3.95, -2.05, 0.34, -0.04),
-    (2.95, 2.60, -1.72, 0.26, -0.16),
-    (4.30, 0.85, -1.35, 0.18, -0.34),
-    (5.50, -0.75, -1.05, 0.12, -0.52),
+    (0.55, 4.55, -2.40, 0.44, 0.04),
+    (1.25, 4.30, -2.22, 0.40, 0.00),
+    (2.10, 3.75, -1.98, 0.34, -0.08),
+    (2.95, 2.75, -1.78, 0.28, -0.18),
+    (3.80, 1.55, -1.55, 0.22, -0.30),
+    (4.70, 0.20, -1.28, 0.16, -0.42),
+    (5.50, -0.80, -1.05, 0.12, -0.52),
 )
 ELEVON_START_X = 2.95
 ELEVON_CHORD_FRACTION = 0.34
@@ -128,11 +146,20 @@ CANARD_SECTIONS = (
 )
 CANARD_DEFLECTION = 20.0
 
+# (span, leading edge y, trailing edge y, thickness, centre z) of the wing root fillet. It rides on
+# the wing's upper skin and reaches a little ahead of the wing leading edge, the way a strake does.
+LEX_SECTIONS = (
+    (0.60, 4.80, 3.10, 0.18, 0.30),
+    (1.40, 4.40, 2.80, 0.14, 0.22),
+    (2.20, 3.95, 2.55, 0.10, 0.10),
+)
+
 # (height z, leading edge y, trailing edge y, thickness) - a vertical plate, lofted along z.
 FIN_SECTIONS = (
-    (-0.30, 0.70, -1.60, 0.15),
-    (0.75, 0.10, -1.40, 0.13),
-    (1.70, -0.85, -1.30, 0.08),
+    (-0.35, 0.90, -1.85, 0.19),
+    (0.55, 0.45, -1.70, 0.16),
+    (1.35, -0.15, -1.55, 0.12),
+    (2.05, -0.95, -1.45, 0.07),
 )
 FIN_X = 5.05
 FIN_CANT_DEGREES = 22.0
@@ -143,11 +170,11 @@ RUDDER_DEFLECTION = 26.0
 ENGINE_X = 0.92
 ENGINE_PATH = ((ENGINE_X, -2.30, 0.02), (ENGINE_X, -3.60, 0.00),
                (ENGINE_X, -5.10, -0.02), (ENGINE_X, -5.95, -0.02))
-ENGINE_RADII = (0.54, 0.60, 0.58, 0.52)
+ENGINE_RADII = (0.56, 0.64, 0.62, 0.56)
 NOZZLE_Y = -5.95
 NOZZLE_PETALS = 8
 NOZZLE_INNER_RADIUS = 0.34
-NOZZLE_OUTER_RADIUS = 0.52
+NOZZLE_OUTER_RADIUS = 0.56
 BURNER_STUB_SCALE = 0.05
 BURNER_RADIAL_SCALE = 0.24 + 0.76 * BURNER_STUB_SCALE
 
@@ -457,7 +484,7 @@ def build_skin_texture():
     panels = size // PANEL_PIXELS
     cell = 16
     cells = size // cell
-    mottle = [[generator.uniform(-0.030, 0.030) for _ in range(cells)] for _ in range(cells)]
+    mottle = [[generator.uniform(-0.045, 0.045) for _ in range(cells)] for _ in range(cells)]
     jitter = [generator.randrange(-3, 4) for _ in range(panels)]
     columns = [index * PANEL_PIXELS + jitter[index] for index in range(panels)]
     rows = [index * PANEL_PIXELS + jitter[(index * 5) % panels] for index in range(panels)]
@@ -492,21 +519,25 @@ def build_skin_texture():
         row_cell = (y // cell) % cells
         row_line = on_row[y]
         for x in range(size):
-            value = 0.545 + mottle[row_cell][(x // cell) % cells]
+            value = 0.455 + mottle[row_cell][(x // cell) % cells]
             if row_line or on_column[x]:
-                value = 0.442
+                value = 0.360
                 if x % RIVET_PIXELS < 1 and y % RIVET_PIXELS < 1:
-                    value = 0.418
+                    value = 0.336
             index = base + x
             if index in edge:
-                value = 0.468
+                value = 0.388
             elif index in inner:
-                value += 0.012
+                value += 0.018
+            # Faint airflow staining down the tile, periodic like every other pattern.
+            if ((x * 7 + 13) % 113) < 3:
+                value -= 0.016
             value = min(1.0, max(0.0, value))
             offset = index * 4
-            pixels[offset] = value
+            # A cool cast, so the hull reads as painted metal rather than white plastic.
+            pixels[offset] = value * 0.980
             pixels[offset + 1] = min(1.0, value * 1.004)
-            pixels[offset + 2] = min(1.0, value * 1.014)
+            pixels[offset + 2] = min(1.0, value * 1.026)
             pixels[offset + 3] = 1.0
     image = bpy.data.images.new(TEXTURE_NAME, size, size, alpha=False)
     image.colorspace_settings.name = "sRGB"
@@ -517,21 +548,28 @@ def build_skin_texture():
 
 
 def make_materials(texture):
-    # Dark base colours on purpose: the renderer tone maps the scene, and a bright hull washes the
-    # shape out. Emission stays well under 2 or the tone mapping turns the glow white.
-    material("NovaSkin", (1.0, 1.0, 1.0), 0.440, 0.220, texture=texture)
-    material("NovaHull", (0.068, 0.076, 0.094), 0.400, 0.550)
-    material("NovaPanel", (0.300, 0.322, 0.360), 0.320, 0.880)
-    material("NovaFrame", (0.048, 0.052, 0.060), 0.540, 0.420)
-    material("NovaAccent", (0.020, 0.088, 0.140), 0.420, 0.620)
-    material("NovaAccentWarm", (0.300, 0.140, 0.030), 0.460, 0.500)
-    material("NovaDuct", (0.014, 0.015, 0.018), 0.800, 0.160)
-    material("NovaGlass", (0.024, 0.032, 0.048), 0.080, 0.000, alpha=0.420)
-    material("NovaCockpit", (0.030, 0.033, 0.038), 0.760, 0.100)
+    # Two-tone livery: a dark deck and dark fins on a light textured hull, with a cyan stripe along
+    # the chine, amber hazard patches around the intakes and pale markings on the fin edges. Base
+    # colours stay dark because the renderer tone maps the scene and a bright hull washes the shape
+    # out; emissions stay under 2 or the tone mapping turns the glow white.
+    material("NovaSkin", (0.960, 0.980, 1.000), 0.420, 0.300, texture=texture)
+    material("NovaDeck", (0.036, 0.040, 0.050), 0.360, 0.680)
+    material("NovaHull", (0.086, 0.094, 0.110), 0.400, 0.560)
+    material("NovaPanel", (0.320, 0.344, 0.380), 0.300, 0.900)
+    material("NovaFrame", (0.040, 0.044, 0.052), 0.520, 0.440)
+    material("NovaAccent", (0.018, 0.150, 0.235), 0.360, 0.620)
+    material("NovaAccentWarm", (0.360, 0.150, 0.022), 0.420, 0.520)
+    material("NovaInsigniaLight", (0.520, 0.540, 0.560), 0.480, 0.100)
+    material("NovaInsigniaDark", (0.028, 0.030, 0.034), 0.560, 0.200)
+    material("NovaDuct", (0.012, 0.013, 0.016), 0.820, 0.160)
+    material("NovaGlass", (0.020, 0.028, 0.042), 0.070, 0.000, alpha=0.400)
+    material("NovaCockpit", (0.028, 0.031, 0.036), 0.760, 0.100)
     material("NovaTire", (0.020, 0.020, 0.021), 0.930, 0.050)
-    material("NovaMetal", (0.310, 0.330, 0.360), 0.280, 0.900)
+    material("NovaMetal", (0.300, 0.320, 0.350), 0.260, 0.920)
     material("NovaBurner", (0.046, 0.030, 0.088), 0.480, 0.000,
-             emission=(0.300, 0.420, 1.000), emission_strength=1.700)
+             emission=(0.340, 0.460, 1.000), emission_strength=1.800)
+    material("NovaNozzleGlow", (0.040, 0.030, 0.080), 0.420, 0.000,
+             emission=(0.260, 0.620, 1.000), emission_strength=1.500)
     material("NovaDisplay", (0.016, 0.048, 0.058), 0.400, 0.000,
              emission=(0.150, 0.850, 0.950), emission_strength=1.200)
     material("NovaMuzzle", (0.040, 0.024, 0.014), 0.400, 0.000,
@@ -542,6 +580,8 @@ def make_materials(texture):
              emission=(0.090, 0.900, 0.160), emission_strength=0.900)
     material("NovaLightWhite", (0.050, 0.050, 0.050), 0.400, 0.000,
              emission=(0.900, 0.870, 0.760), emission_strength=0.700)
+    material("NovaLightAmber", (0.060, 0.034, 0.010), 0.400, 0.000,
+             emission=(0.950, 0.480, 0.090), emission_strength=0.800)
 
 
 # ---------------------------------------------------------------- part builder
@@ -572,6 +612,12 @@ class Part:
     def add_loft(self, rings, material_name, cap_start=True, cap_end=True):
         vertices, faces = loft_rings(rings, cap_start=cap_start, cap_end=cap_end)
         self.add(vertices, faces, material_name)
+
+    def add_local_loft(self, rings, material_name):
+        """Place rings authored about this part's hinge in the world-space builder."""
+        rotation = self.rotation.to_matrix()
+        self.add_loft([[self.pivot + rotation @ Vector(point) for point in ring]
+                       for ring in rings], material_name)
 
     def add_box(self, centre, size, material_name, axis="y"):
         self.add_loft(box_rings(centre, size, axis=axis), material_name)
@@ -661,47 +707,73 @@ def finalize_mesh(mesh, sharp_degrees=34.0):
 
 
 def build_hull(root):
-    """Chined fuselage, dorsal spine, chine strakes, ventral keel and the cockpit sill."""
+    """Chined fuselage, dark dorsal deck, chine strakes, armour plates and the ventral keel."""
     part = Part("hull")
     part.add_loft([profile_ring(*station) for station in FUSELAGE], "NovaSkin")
-    part.add_loft([profile_ring(*station) for station in SPINE], "NovaPanel")
+    # The deck is the dark half of the two-tone livery; the cockpit opening sits between its runs.
+    part.add_loft([profile_ring(*station) for station in SPINE_FORWARD], "NovaDeck")
+    part.add_loft([profile_ring(*station) for station in SPINE_AFT], "NovaDeck")
     # Chine strakes along the widest line: the edge that makes the hull read as faceted.
     for sign in (-1.0, 1.0):
-        stations = (5.40, 3.60, 1.60, -0.60, -2.80)
+        stations = (6.10, 4.60, 3.20, 1.60, -0.20, -1.90, -3.40)
         path = []
         radii = []
         for y in stations:
             half_width, chine_z = fuselage_chine(y)
             path.append((sign * (half_width - 0.02), y, chine_z))
-            radii.append(0.055 + 0.02 * (y / 5.40) ** 2)
+            radii.append(0.050 + 0.022 * (y / 6.10) ** 2)
         part.add_tube(path, tuple(radii), "NovaPanel", sides=4, flatten=0.45)
     # Ventral strake: a real fin rather than a box, so the silhouette from below stays sharp.
-    part.add_loft(fin_rings(((-0.74, 0.70, -2.70, 0.18), (-1.18, 0.10, -2.30, 0.13),
-                             (-1.42, -0.40, -1.90, 0.08)), 0.0), "NovaFrame")
+    part.add_loft(fin_rings(((-0.76, 0.80, -2.90, 0.20), (-1.22, 0.10, -2.40, 0.14),
+                             (-1.48, -0.50, -1.90, 0.08)), 0.0), "NovaPanel")
+    # Armour plates on the flanks: flush, a shade darker than the skin, deterministic.
+    generator = random.Random(SEED + 11)
+    for _ in range(12):
+        y = generator.uniform(-5.20, 2.60)
+        half_width, chine_z = fuselage_chine(y)
+        sign = generator.choice((-1.0, 1.0))
+        part.add_box((sign * (half_width - 0.02), y, chine_z + generator.uniform(0.08, 0.32)),
+                     (0.05, generator.uniform(0.60, 1.40), generator.uniform(0.16, 0.34)),
+                     "NovaHull", axis="x")
     return part.build(root)
 
 
 def build_cockpit_sill(root):
-    """Static frame around the canopy opening, so the glass sits in something."""
+    """Static frame around the canopy opening: sill rails, two hoops and the headrest fairing."""
     part = Part("cockpit_sill")
     for sign in (-1.0, 1.0):
-        part.add_tube([(sign * 0.56, 4.30, fuselage_top(4.30) + 0.06),
-                       (sign * 0.62, 3.40, fuselage_top(3.40) + 0.10),
-                       (sign * 0.62, 2.40, fuselage_top(2.40) + 0.10)],
-                      (0.075, 0.085, 0.085), "NovaFrame", sides=5, flatten=0.7)
-    part.add_box((0.0, 2.32, fuselage_top(2.32) + 0.10), (1.40, 0.16, 0.26), "NovaFrame", axis="y")
-    part.add_box((0.0, 4.32, fuselage_top(4.32) + 0.04), (1.10, 0.14, 0.18), "NovaFrame", axis="y")
+        part.add_tube([(sign * 0.60, 4.46, fuselage_top(4.46) + 0.16),
+                       (sign * 0.72, 3.90, fuselage_top(3.90) + 0.24),
+                       (sign * 0.76, 3.20, fuselage_top(3.20) + 0.24),
+                       (sign * 0.62, 2.28, fuselage_top(2.28) + 0.14)],
+                      (0.070, 0.085, 0.085, 0.070), "NovaFrame", sides=5, flatten=0.7)
+    part.add_box((0.0, 2.30, fuselage_top(2.30) + 0.18), (1.52, 0.16, 0.30), "NovaFrame", axis="y")
+    part.add_box((0.0, 4.46, fuselage_top(4.46) + 0.12), (1.24, 0.14, 0.22), "NovaFrame", axis="y")
+    # Headrest fairing: the dark hump behind the canopy that every fighter carries.
+    part.add_loft([profile_ring(2.28, 0.46, 0.20, fuselage_top(2.28) + 0.18),
+                   profile_ring(1.85, 0.44, 0.18, fuselage_top(1.85) + 0.16),
+                   profile_ring(1.30, 0.34, 0.13, fuselage_top(1.30) + 0.11)], "NovaDeck")
     return part.build(root)
 
 
 def build_wings(root, objects):
-    """Cranked delta panels, their elevons and the foreplanes."""
+    """Cranked delta panels, root fillets, elevons, foreplanes and the tip launch rails."""
     part = Part("wings")
     for sign in (-1.0, 1.0):
         part.add_loft(wing_rings(wing_cut_sections(), sign), "NovaSkin")
         part.add_loft(wing_rings(CANARD_SECTIONS, sign), "NovaSkin")
-        # Wing fence between the inner and the outer panel.
+        part.add_loft(wing_rings(LEX_SECTIONS, sign), "NovaSkin")
+        # Wing fence between the inner and the outer panel, and the dark walkway beside it.
         part.add_box((sign * 3.90, 0.10, -0.30), (0.07, 1.70, 0.30), "NovaHull", axis="x")
+        part.add_box((sign * 2.10, 0.35, 0.07), (1.10, 1.60, 0.05), "NovaInsigniaDark", axis="y")
+        # Tip launch rail with a store slung under it.
+        part.add_tube([(sign * 5.32, 0.05, -0.56), (sign * 5.32, -1.95, -0.58)],
+                      (0.055, 0.055), "NovaMetal", sides=6)
+        part.add_tube([(sign * 5.32, -0.25, -0.74), (sign * 5.32, -1.85, -0.76)],
+                      (0.085, 0.075), "NovaHull", sides=8)
+        part.add_box((sign * 5.32, -1.90, -0.76), (0.07, 0.18, 0.07), "NovaAccent", axis="y")
+        # Cannon fairing at the wing root.
+        part.add_box((sign * 1.46, 1.30, -0.06), (0.34, 2.20, 0.28), "NovaHull", axis="y")
     part.build(root)
 
     for sign, label in ((-1.0, "left"), (1.0, "right")):
@@ -720,52 +792,74 @@ def build_wings(root, objects):
 
 
 def build_fins(root, objects):
-    """Two canted wingtip fins, each with its rudder as the aft moving panel."""
+    """Two canted wingtip fins with a tip pod, each carrying its rudder as the aft panel."""
     for sign, label in ((-1.0, "left"), (1.0, "right")):
         cant = sign * FIN_CANT_DEGREES
-        fin = Part(f"fin_{label}", pivot=(sign * FIN_X, RUDDER_HINGE_Y, -0.30),
+        fin = Part(f"fin_{label}", pivot=(sign * FIN_X, RUDDER_HINGE_Y, -0.35),
                    rotation_degrees=(0.0, cant, 0.0))
-        fin.add_loft(fin_rings(FIN_SECTIONS, sign * FIN_X), "NovaSkin")
+        fin.add_loft(fin_rings(FIN_SECTIONS, sign * FIN_X), "NovaDeck")
+        # Pale band along the leading edge, and the sensor pod on the tip.
+        fin.add_loft(fin_rings(tuple((height, y_le - 0.05, y_le - 0.26, thickness * 0.5)
+                                     for (height, y_le, _y_te, thickness) in FIN_SECTIONS),
+                               sign * FIN_X), "NovaInsigniaLight")
+        fin.add_loft([[(sign * FIN_X + offset, y, 2.00) for (y, offset) in plate_ring(-1.00, -1.70, 0.30)],
+                      [(sign * FIN_X + offset, y, 2.22) for (y, offset) in plate_ring(-1.10, -1.62, 0.20)]],
+                     "NovaAccent")
         fin.build(root)
 
-        rudder = Part(f"rudder_{label}", pivot=(sign * FIN_X, RUDDER_HINGE_Y, -0.30),
+        rudder = Part(f"rudder_{label}", pivot=(sign * FIN_X, RUDDER_HINGE_Y, -0.35),
                       rotation_degrees=(0.0, cant, 0.0))
         rudder_sections = tuple((height, RUDDER_HINGE_Y, y_te, thickness * 0.6)
                                 for (height, _y_le, y_te, thickness) in FIN_SECTIONS)
         rudder.add_loft(fin_rings(rudder_sections, sign * FIN_X), "NovaHull")
         objects[f"rudder_{label}"] = rudder.build(root)
 
-
 def build_engines(root, objects):
-    """Two side pods, their iris nozzles and the afterburner plumes."""
+    """Two side pods on fairings, with grilles, ribs, iris nozzles and afterburner plumes."""
     pods = Part("engine_pods")
     for sign in (-1.0, 1.0):
         path = [(sign * point[0], point[1], point[2]) for point in ENGINE_PATH]
-        pods.add_tube(path, ENGINE_RADII, "NovaHull", sides=14)
-        # Intake lip: a dark ring that sticks out just ahead of the pod.
+        pods.add_tube(path, ENGINE_RADII, "NovaHull", sides=16)
+        # Fairing that ties the pod to the hull, so it does not float next to it.
+        pods.add_box((sign * (ENGINE_X - 0.34), -3.30, 0.06), (0.66, 2.10, 0.52),
+                     "NovaHull", axis="y")
+        # Intake lip, with three grille slats across the duct behind it.
         pods.add_tube([(sign * ENGINE_X, -2.46, 0.02), (sign * ENGINE_X, -2.06, 0.04)],
-                      (0.62, 0.50), "NovaDuct", sides=14)
+                      (0.64, 0.52), "NovaDuct", sides=16)
+        for grille_y in (-2.36, -2.24, -2.12):
+            pods.add_box((sign * ENGINE_X, grille_y, 0.02), (1.04, 0.05, 0.10),
+                         "NovaMetal", axis="y")
         # Stiffener ribs along the pod, and the metal ring the iris petals sit in.
-        for rib_y in (-3.05, -4.25, -5.25):
+        for rib_y in (-3.05, -3.75, -4.35, -4.95, -5.45):
             radius, rib_z = engine_station(rib_y)
-            pods.add_tube([(sign * ENGINE_X, rib_y - 0.06, rib_z), (sign * ENGINE_X, rib_y + 0.06, rib_z)],
-                          (radius + 0.035, radius + 0.035), "NovaPanel", sides=14)
+            pods.add_tube([(sign * ENGINE_X, rib_y - 0.05, rib_z), (sign * ENGINE_X, rib_y + 0.05, rib_z)],
+                          (radius + 0.030, radius + 0.030), "NovaPanel", sides=16)
         pods.add_tube([(sign * ENGINE_X, -5.88, -0.02), (sign * ENGINE_X, -6.04, -0.02)],
-                      (0.56, 0.53), "NovaMetal", sides=14)
+                      (0.60, 0.57), "NovaMetal", sides=16)
     pods.build(root)
 
     for sign, label in ((-1.0, "left"), (1.0, "right")):
+        # The glowing iris behind the petals, seen through the gaps between them.
+        glow = Part(f"nozzle_glow_{label}", pivot=(sign * ENGINE_X, NOZZLE_Y, 0.0))
+        glow.add_local_loft([
+            [(math.cos(2.0 * math.pi * i / 14) * 0.36, 0.06, math.sin(2.0 * math.pi * i / 14) * 0.36)
+             for i in range(14)],
+            [(math.cos(2.0 * math.pi * i / 14) * 0.30, -0.34, math.sin(2.0 * math.pi * i / 14) * 0.30)
+             for i in range(14)],
+        ], "NovaNozzleGlow")
+        glow.build(root)
+
         petals = Part(f"nozzle_petals_{label}", pivot=(sign * ENGINE_X, NOZZLE_Y, 0.0))
         for index in range(NOZZLE_PETALS):
             angle = 2.0 * math.pi * index / NOZZLE_PETALS
             profile = ((0.00, NOZZLE_INNER_RADIUS), (0.00, NOZZLE_OUTER_RADIUS),
                        (-0.44, NOZZLE_OUTER_RADIUS + 0.05), (-0.44, NOZZLE_INNER_RADIUS + 0.04))
-            petals.add_loft(petal_rings(angle, 2.0 * math.pi / NOZZLE_PETALS, profile), "NovaMetal")
+            petals.add_local_loft(petal_rings(angle, 2.0 * math.pi / NOZZLE_PETALS, profile), "NovaMetal")
         objects[f"nozzle_petals_{label}"] = petals.build(root)
 
         burner = Part(f"afterburner_{label}_noshadow_nocol",
                       pivot=(sign * ENGINE_X, NOZZLE_Y, 0.0))
-        burner.add_loft([
+        burner.add_local_loft([
             [(math.cos(2.0 * math.pi * i / 12) * 0.30, 0.00, math.sin(2.0 * math.pi * i / 12) * 0.30)
              for i in range(12)],
             [(math.cos(2.0 * math.pi * i / 12) * 0.22, -0.55, math.sin(2.0 * math.pi * i / 12) * 0.22)
@@ -782,12 +876,12 @@ def build_engines(root, objects):
 def build_canopy(root, objects):
     """Tinted canopy, hinged at its rear frame."""
     canopy = Part("canopy", pivot=CANOPY_PIVOT)
-    stations = ((4.32, 0.34, 0.18), (3.80, 0.54, 0.32), (3.10, 0.62, 0.40),
-                (2.60, 0.56, 0.34), (2.30, 0.40, 0.22))
-    profile = ((0.00, 1.00), (0.52, 0.86), (0.92, 0.36), (0.88, -0.34), (0.00, -1.00))
+    stations = ((4.44, 0.32, 0.18), (3.95, 0.56, 0.34), (3.30, 0.70, 0.46),
+                (2.75, 0.66, 0.44), (2.30, 0.46, 0.26))
+    profile = ((0.00, 1.00), (0.46, 0.92), (0.84, 0.48), (0.94, -0.18), (0.00, -1.00))
     rings = []
     for y, half_width, half_height in stations:
-        centre = fuselage_top(y) + 0.14
+        centre = fuselage_top(y) + 0.20
         right = [(u * half_width, y, centre + v * half_height) for (u, v) in profile]
         left = [(-u * half_width, y, centre + v * half_height) for (u, v) in reversed(profile[1:-1])]
         rings.append(right + left)
@@ -849,7 +943,7 @@ def build_weapons(root):
                            (sign * 3.10, pylon_y - 1.90, z_centre - 0.32)],
                           (0.12, 0.10), "NovaHull", sides=8)
             part.add_box((sign * 3.10, pylon_y - 1.95, z_centre - 0.32), (0.10, 0.22, 0.10),
-                         "NovaAccentWarm", axis="y")
+                         "NovaMuzzle", axis="y")
     return part.build(root)
 
 
@@ -867,7 +961,7 @@ def build_details(root):
         for y in (1.20, -0.40, -2.00):
             half_width, chine_z = fuselage_chine(y)
             part.add_loft(blister_rings((sign * (half_width - 0.03), y, chine_z + 0.16), 0.10),
-                          "NovaDuct")
+                          "NovaFrame")
             part.add_box((sign * (half_width - 0.10), y - 0.55, chine_z - 0.30),
                          (0.14, 0.34, 0.10), "NovaFrame", axis="y")
         # Cooling vent on the flank, just ahead of the pod it feeds.
@@ -878,13 +972,17 @@ def build_details(root):
         part.add_loft(fin_rings(((0.10, 6.62, 5.66, 0.07), (0.46, 6.42, 5.76, 0.05)),
                                 sign * 0.40), "NovaPanel")
     # Greebles on the dorsal deck, where a texture cannot show a raised box.
-    for _ in range(22):
-        y = generator.uniform(-5.20, 2.40)
+    for _ in range(34):
+        y = generator.uniform(-5.40, 2.20)
         deck = max(0.18, fuselage_deck_half_width(y) - 0.12)
         part.add_box((generator.uniform(-deck, deck), y,
                       fuselage_top(y) + generator.uniform(-0.02, 0.06)),
                      (generator.uniform(0.16, 0.42), generator.uniform(0.30, 0.90),
                       generator.uniform(0.06, 0.16)), "NovaFrame", axis="y")
+    # Blade antenna behind the canopy and the landing light under the nose.
+    part.add_loft(fin_rings(((0.95, 1.80, 1.20, 0.05), (1.35, 1.74, 1.26, 0.04)), 0.0), "NovaFrame")
+    part.add_box((0.0, 4.70, fuselage_bottom(4.70) + 0.03), (0.34, 0.26, 0.06),
+                 "NovaLightWhite", axis="y")
     part.build(root)
 
     lights = Part("nova_nav_lights_noshadow_nocol")
@@ -897,10 +995,6 @@ def build_details(root):
     nose.add_tube([(0.0, 7.28, 0.05), (0.0, 7.86, 0.03)], (0.045, 0.020), "NovaMetal", sides=6)
     nose.build(root)
 
-    tail = Part("tail_plate_noshadow_nocol", pivot=(0.0, -6.28, 0.10))
-    tail.add_box((0.0, -6.28, 0.10), (1.30, 0.14, 0.90), "NovaFrame", axis="y")
-    tail.build(root)
-
 
 def build_airbrakes(root, objects):
     """Two plates on the dorsal spine, hinged along their inboard edge."""
@@ -909,6 +1003,33 @@ def build_airbrakes(root, objects):
         plate = Part(f"airbrake_{label}", pivot=pivot)
         plate.add_box((sign * 0.62, -3.30, 0.84), (0.86, 1.50, 0.07), "NovaPanel", axis="x")
         objects[f"airbrake_{label}"] = plate.build(root)
+
+
+def build_paint(root):
+    """Flush paint: the chine stripe, nose flashes, tail band and intake hazard patches."""
+    part = Part("nova_paint_noshadow_nocol")
+    for sign in (-1.0, 1.0):
+        # Cyan stripe along the chine, just outboard of the strake.
+        stations = (6.10, 4.60, 3.20, 1.60, -0.20, -1.90, -3.40)
+        path = []
+        for y in stations:
+            half_width, chine_z = fuselage_chine(y)
+            path.append((sign * (half_width + 0.02), y, chine_z - 0.12))
+        part.add_tube(path, (0.030,) * len(stations), "NovaAccent", sides=4, flatten=0.35)
+        # Nose flash: one pale plate per side, ahead of the foreplanes.
+        nose_half = fuselage_station(5.70)[0]
+        part.add_box((sign * (nose_half + 0.02), 5.70, 0.06), (0.08, 1.20, 0.30),
+                     "NovaAccent", axis="x")
+        # Hazard patch on the intake shoulder, on the dark deck paint.
+        part.add_box((sign * (ENGINE_X + 0.04), -2.62, 0.44), (0.66, 0.34, 0.04),
+                     "NovaAccentWarm", axis="y")
+    # Tail band wrapped around the aft fuselage, so the two-tone closes at the back.
+    band = []
+    for y in (-5.15, -5.50):
+        half_width, half_height, z_centre = fuselage_station(y)
+        band.append(profile_ring(y, half_width + 0.02, half_height + 0.02, z_centre))
+    part.add_loft(band, "NovaAccentWarm")
+    return part.build(root)
 
 
 def build_all():
@@ -926,6 +1047,7 @@ def build_all():
     build_gear(root, objects)
     build_weapons(root)
     build_details(root)
+    build_paint(root)
     build_airbrakes(root, objects)
     return root, objects
 
@@ -1161,7 +1283,8 @@ def summarize_glb(path):
 def parse_args():
     parser = argparse.ArgumentParser()
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    parser.add_argument("--output-blend", type=Path, default=SOURCE_DIR / f"{PART_NAME}.blend")
+    # The original source remains an independently authored legacy variant.
+    parser.add_argument("--output-blend", type=Path, default=SOURCE_DIR / f"{SOURCE_NAME}.blend")
     parser.add_argument("--output-glb", type=Path, default=GLB_DIR / f"{PART_NAME}.glb")
     parser.add_argument("--no-animation", action="store_true")
     return parser.parse_args(argv)
