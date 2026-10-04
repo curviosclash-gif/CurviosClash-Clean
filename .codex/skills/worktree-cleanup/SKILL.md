@@ -27,8 +27,19 @@ Erhalte wiederherstellbare Arbeit mit der kleinsten nötigen Sicherung. Reposito
 - Prüfe vorhandene Sicherungen vor einer neuen Kopie anhand von Pfad, Inhalt beziehungsweise Hash und benötigtem Versionsstand. Verweise auf eine erhaltene identische Sicherung. Erfasse Basiscommit, gesicherte Dateien und Gesamtgröße knapp neben der Sicherung außerhalb des Produktrepositorys; prüfe Lesbarkeit und Wiederherstellbarkeit vor einer erlaubten Entfernung des Originals.
 - Kann die nötige Sicherung nicht erstellt oder geprüft werden, bleibt das Original erhalten. Ein kleineres Archiv rechtfertigt keinen Verlust ungesicherter Arbeit.
 
+## Nur wichtige Nachweise archivieren
+
+- Wähle vor dem Archivieren gezielt aus, was für Wiederherstellung, eine offene Fehleranalyse oder die abschließende Abnahme benötigt wird. Einzigartigkeit, ein fehlender Git-Eintrag oder ein anderer Zeitstempel machen generierte Ausgaben allein noch nicht aufbewahrungswürdig.
+- Bewahre ungesicherte Quelländerungen, originale Assets und Eingaben, benötigte Spielstände sowie notwendige Basiscommits, Patches und Referenzen. Kopiere bereits erhaltene Daten nicht erneut. Archivierungswerkzeuge können eigene Sicherungen erzeugen; keine zusätzliche manuelle Vollkopie dazu.
+- Für abgeschlossene erfolgreiche Tests genügt normalerweise eine kleine Zusammenfassung mit Commit, Testaufruf, Ergebnis und gegebenenfalls Umgebung. Übernimm keine vollständigen `test-results`, Browserprofile, Rohlogs, Videos, Traces oder Serien automatisch erzeugter Screenshots. Behalte nur gezielt benötigte finale Abnahmebilder oder Messwerte.
+- Bei offenen oder unklaren Fehlern bewahre den konkreten Fehlerkontext und die zugehörigen Diagnoseartefakte. Beurteile jeden einzelnen Lauf; ein erfolgreicher `.last-run.json` in einem Unterordner bescheinigt nicht den Erfolg benachbarter Läufe. Entferne Fehlernachweise erst, wenn deren Erledigung oder eine erhaltene gleichwertige Sicherung belegt ist.
+- Schließe `node_modules`, heruntergeladene Laufzeiten, Caches, `tmp/playwright`, `dist`, `dist-app` und `dist-app-test` aus, wenn Quellen und nötige Erzeugungsparameter erhalten sind. Bewahre ein Build nur bei einem konkreten Bedarf, etwa einer benötigten Release-Datei, schwer reproduzierbaren Umgebung oder offenen Fehleranalyse.
+- Halte das Archiv klein: sichere die ausgewählten Dateien und eine knappe Wiederherstellungsbeschreibung, statt später ungeprüfte Verzeichnisbäume zu sammeln. Keine automatischen neuen Sicherungskopien der ausgeschlossenen Ausgaben.
+
 ## Bestehende Archive
 
 Vergleiche die relevanten Dateien und Verzeichnisstände mit erhaltenen Branches, Commits und anderen Sicherungen, bevor du etwas als redundant einstufst. Größe, Alter, fehlende `.git`-Metadaten oder eine frühere Integration allein beweisen das nicht. Ungeklärte Unterschiede bleiben erhalten. Lösche nur aktuell geprüfte, ausdrücklich genehmigte Ziele gemäß den geltenden Regeln für untracked Dateien und Wiederherstellungsablagen; keine automatische Löschung nach Frist und keine zusätzliche Vollkopie vor der Bereinigung.
+
+Eine ausdrückliche Bereinigungserlaubnis gilt innerhalb des vereinbarten Umfangs auch für geprüfte entbehrliche Testausgaben und Builds. Prüfe dabei ihren Zweck: unterschiedliche generierte Dateien brauchen nicht allein wegen unterschiedlicher Hashes dauerhaft erhalten zu bleiben. Lasse Quellen, relevante Abnahmebelege und ungeklärte Fehlernachweise unangetastet. Nach genehmigter Teilbereinigung passe betroffene Dateilisten beziehungsweise Prüfsummenmanifeste an die erhaltenen Dateien an und dokumentiere die absichtlichen Ausschlüsse knapp; alte Manifest-Einträge sind kein generelles Löschverbot.
 
 Berichte kurz, welche einzigartigen Daten erhalten wurden, welche zusätzliche Sicherung dadurch entfiel und wie viel Speicher tatsächlich frei wurde. Ohne ausgeführte Bereinigung keine Speicherersparnis behaupten.
