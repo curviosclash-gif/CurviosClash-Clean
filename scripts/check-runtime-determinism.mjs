@@ -57,7 +57,7 @@ const EXCEPTIONS = {
     },
     // Der Wuerfel-Rueckfall bei der Pickup-Gewichtung ist noch offen.
     'src/modes/HuntModeStrategy.js': {
-        reason: 'nowSeconds helper plus seeded-roll fallbacks for pickup weighting',
+        reason: 'seeded-roll fallbacks for pickup weighting',
         todo: true,
     },
 
