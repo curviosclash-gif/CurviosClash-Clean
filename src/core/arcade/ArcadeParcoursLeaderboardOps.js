@@ -1,3 +1,4 @@
+import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import { createLeaderboardEntry, getBestEntry, insertLeaderboardEntry } from '../../state/arcade/ArcadeLeaderboard.js';
 import {
     getLongestGhostByRoute,
@@ -208,6 +209,7 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
                 : (isBestTime ? 'new_best' : (rank === null ? 'not_ranked' : 'ranked')),
         };
         runtime._lastParcoursResult = { ...presentationResult };
+        trackArcadeColorEvent(runtime._colorProgress, { type: 'best_time', playerIndex: data.playerIndex || 0, previousBestTimeMs, totalTimeMs: entry.totalTimeMs });
     }
 
     const upsert = upsertLongestGhostByRoute(

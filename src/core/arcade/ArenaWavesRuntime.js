@@ -1,3 +1,4 @@
+import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import {
     ARENA_WAVES_BOT_CAPACITY,
     ARENA_WAVES_INTERVAL_SECONDS,
@@ -169,6 +170,7 @@ export class ArenaWavesRuntime {
         }
         if (status.alive === count) {
             this.wave = this._pendingWave;
+            trackArcadeColorEvent(this._colorProgress, { type: 'wave_reached', wave: this.wave });
             this._nextWaveIn = ARENA_WAVES_INTERVAL_SECONDS;
             this._plannedSlots.length = 0; this.phase = 'combat';
             this._spawnPendingSupply();
@@ -196,6 +198,7 @@ export class ArenaWavesRuntime {
         if (!this._activeSlots.has(slot)) return null;
         const creditedHuman = this.entityManager?.humanPlayers?.some((player) => player?.index === event.playerIndex);
         if (creditedHuman) {
+            trackArcadeColorEvent(this._colorProgress, event);
             if (this._eliteSlots.has(slot)) this.eliteKills += 1; else this.regularKills += 1;
             const result = awardBoundArcadeVehicleXpInStore(
                 this._getRecordStore?.(),
@@ -208,7 +211,7 @@ export class ArenaWavesRuntime {
         this._deactivateSlot(slot, 'killed');
         return this.getHudState();
     }
-    _completeWave(wave) { this.completedWaves.push(wave); }
+    _completeWave(wave) { this.completedWaves.push(wave); trackArcadeColorEvent(this._colorProgress, { type: 'wave_complete', completedWaves: this.completedWaves.length }); }
     _openChoices(reason) {
         this.phase = 'upgrade'; this._intermission += 1;
         this._choices = resolveArenaWavesChoices(this.upgrades, this.upgrades.machineGunId, this.seed, this._intermission);

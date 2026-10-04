@@ -1,15 +1,13 @@
 import { createUiNode as el } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { normalizeVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
 import { resolveHangarPartSource } from './HangarPartSource.js';
+import { ARCADE_COLOR_IDS, ARCADE_COLOR_PALETTE, ARCADE_COLOR_REQUIREMENTS, listUnlockedArcadeColors, filterArcadePartColors } from '../../shared/contracts/ArcadeColorProgressContract.js';
+import { ARCADE_TRAIL_STYLE_LABELS } from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
 
 const ROLE_LABELS = Object.freeze({
     core: 'Rumpf', nose: 'Nase', wing_left: 'Flügel L', wing_right: 'Flügel R',
     engine_left: 'Antrieb L', engine_right: 'Antrieb R', utility: 'Utility',
 });
-
-function hex(color) {
-    return `#${(Number(color) >>> 0).toString(16).padStart(6, '0').slice(-6)}`;
-}
 
 function button(className, text) {
     const node = el('button', className, text);
@@ -21,9 +19,9 @@ function button(className, text) {
  * Hangar tab "Form": pick a part of a part-built ship and change its color. Size lives in the
  * size workshop (HangarSizePanel); every ship keeps its factory shape, so stored scale and
  * shape entries are ignored (Paket 2a).
- * @param {{bind: Function, onStyleChange: (style: object) => void, onSelectPart: (name: string) => void}} options
+ * @param {{bind: Function, onStyleChange: (style: object) => void, onSelectPart: (name: string) => void, getColors?: (() => any)}} options
  */
-export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }) {
+export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart, getColors }) {
     const root = el('div', 'hangar-part-style');
     const hint = el('p', 'field-hint', 'Teil wählen, dann die Farbe ändern. Gilt im Arcade-Modus.');
     const empty = el('p', 'field-hint hidden', 'Dieses Fahrzeug besteht nicht aus Einzelteilen.');
@@ -32,8 +30,8 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
     list.setAttribute('aria-label', 'Bauteile');
     const editor = el('div', 'hangar-part-style-editor');
     const title = el('h4', 'arcade-vehicle-subtitle', '');
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
+    const colorInput = getColors ? document.createElement('select') : document.createElement('input');
+    if (!getColors) /** @type {HTMLInputElement} */(colorInput).type = 'color';
     colorInput.className = 'hangar-part-style-color';
     colorInput.setAttribute('aria-label', 'Farbe des Teils');
     const resetPart = button('secondary-btn hangar-part-style-reset', 'Teil zurücksetzen');
@@ -92,7 +90,15 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
         if (!part) return;
         const entry = style[selected] || {};
         title.textContent = part.role ? `${part.name} · ${ROLE_LABELS[part.role] || part.role}` : part.name;
-        colorInput.value = hex(entry.color ?? part.color ?? 0x8aa4c8);
+        if (!getColors) { colorInput.value = `#${(Number(entry.color ?? part.color ?? 0x8aa4c8) >>> 0).toString(16).padStart(6,'0').slice(-6)}`; resetPart.disabled = !style[selected]; return; }
+        const unlocked = listUnlockedArcadeColors(getColors());
+        colorInput.replaceChildren(...ARCADE_COLOR_IDS.map(id => {
+            const option = document.createElement('option'); option.value = id;
+            option.disabled = !unlocked.includes(id);
+            option.textContent = id === 'standard' ? 'Werkfarbe' : `${ARCADE_TRAIL_STYLE_LABELS[id]}${option.disabled ? ' · ' + ARCADE_COLOR_REQUIREMENTS[id] : ''}`;
+            return option;
+        }));
+        colorInput.value = ARCADE_COLOR_IDS.find(id => ARCADE_COLOR_PALETTE[id] === entry.color) || 'standard';
         resetPart.disabled = !style[selected];
     }
 
@@ -103,7 +109,10 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
         renderEditor();
         onSelectPart(name);
     });
-    bind(colorInput, 'input', () => patchSelected({ color: colorInput.value }));
+    bind(colorInput, 'change', () => {
+        if (getColors && listUnlockedArcadeColors(getColors()).includes(colorInput.value)) patchSelected({ color: ARCADE_COLOR_PALETTE[colorInput.value] ?? null });
+    });
+    if (!getColors) bind(colorInput, 'input', () => patchSelected({ color: colorInput.value }));
     bind(resetPart, 'click', () => {
         const next = { ...style };
         delete next[selected];
@@ -123,7 +132,7 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart }
                 empty.classList.toggle('hidden', !!factory);
                 renderList();
             }
-            style = colorsOnly(next.style);
+            style = colorsOnly(getColors ? filterArcadePartColors(next.style, getColors()) : next.style);
             renderEditor();
         },
     });

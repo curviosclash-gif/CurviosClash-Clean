@@ -15,6 +15,7 @@ import {
 } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
 import { listArcadeHitboxBoxes } from '../../shared/contracts/ArcadeVehicleHitboxContract.js';
 import { resolveHangarPartSource } from './HangarPartSource.js';
+import { createArcadeMilestonePanel } from './ArcadeMilestonePanel.js';
 
 /**
  * Tab state as the workshop renderer sets it for its other tabs.
@@ -30,25 +31,27 @@ function showTab(tabButton, panel, active) {
 }
 
 /**
- * @param {{ bind: Function, enabled: boolean, viewport: { setPartStyle: Function, setHitboxOverlay: Function },
+ * @param {{ bind: Function, enabled: boolean, viewport: { setPartStyle: Function, setHitboxOverlay: Function, setMilestoneAppearance?: Function },
  *   panel: HTMLElement, tabButton: HTMLElement, upgradePanel?: HTMLElement|null, upgradeTabButton?: HTMLElement|null,
  *   getProfile: () => any, saveProfile: (profile: any) => boolean|void,
  *   toast: (message: string, tone?: string) => void, onChange: () => void,
- *   upgradeSections?: ReadonlyArray<HTMLElement>, getPool?: () => any }} options
+ *   upgradeSections?: ReadonlyArray<HTMLElement>, getPool?: () => any, getColors?: () => any }} options
  *   enabled: arcade hangar; upgradePanel/upgradeTabButton: the shell's "Ausbau" tab (arcade only);
  *   upgradeSections/getPool: the stone panel docked in "Ausbau" and its pool for the size preview.
  */
 export function createHangarFormTab({
     bind, enabled, viewport, panel, tabButton, upgradePanel = null, upgradeTabButton = null,
-    getProfile, saveProfile, toast, onChange, upgradeSections = [], getPool,
+    getProfile, saveProfile, toast, onChange, upgradeSections = [], getPool, getColors,
 }) {
     const partsOf = (vehicleId) => resolveHangarPartSource(vehicleId)?.parts || [];
     const partStylePanel = createHangarPartStylePanel({
-        bind,
+        bind, getColors: enabled ? (getColors || (() => null)) : undefined,
         onStyleChange: (style) => saveProfile({ ...getProfile(), partStyle: normalizeVehiclePartStyle(style) }),
         onSelectPart: onChange,
     });
     panel.appendChild(partStylePanel.root);
+    const milestones = enabled ? createArcadeMilestonePanel({bind,getProfile,saveProfile,toast}) : null;
+    if (milestones) panel.appendChild(milestones.root);
     const upgradeTab = enabled && upgradePanel && upgradeTabButton
         ? createHangarUpgradeTab({ bind, panel: upgradePanel, getProfile, saveProfile, toast, onChange, partsOf, getPool, sections: upgradeSections })
         : null;
@@ -63,6 +66,7 @@ export function createHangarFormTab({
             const profile = enabled ? getProfile() : {};
             const partStyle = normalizeVehiclePartStyle(profile.partStyle);
             partStylePanel.render({ vehicleId, style: partStyle });
+            milestones?.render(profile);
             if (upgradeTab) {
                 upgradeTab.render(vehicleId, profile, view === 'upgrade');
                 showTab(upgradeTabButton, upgradePanel, view === 'upgrade');
@@ -71,6 +75,7 @@ export function createHangarFormTab({
             const sizes = upgradeTab ? upgradeTab.getDraftSizes() : normalizeArcadeSizeProfileFields(profile).partSizes;
             const style = enabled ? resolveArcadeSizedPartStyle(parts, partStyle, sizes) : {};
             viewport.setPartStyle(style, formOpen ? partStylePanel.getSelectedPart() : '');
+            viewport.setMilestoneAppearance?.(profile);
             const showHitbox = upgradeTab?.showsHitbox() === true && parts.length > 0;
             viewport.setHitboxOverlay(showHitbox ? listArcadeHitboxBoxes({ parts }, sizes) : null);
             showTab(tabButton, panel, formOpen);

@@ -1,3 +1,4 @@
+import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import * as THREE from 'three';
 import {
     calculateEndlessScore,
@@ -170,6 +171,7 @@ export class EndlessParcoursRuntime {
 
     handleGameplayEvent(event = null) {
         if (!event || this._disposed || this._finalized) return;
+        if (!event.runId || event.runId === this.runId) trackArcadeColorEvent(this._colorProgress, event);
         if (String(event.type || '').toLowerCase() === 'damage') {
             registerEndlessPlayerDamage(this);
             breakEndlessStreak(this);

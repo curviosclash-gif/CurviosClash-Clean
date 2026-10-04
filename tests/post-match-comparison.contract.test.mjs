@@ -151,7 +151,8 @@ test('W7.6 arcade progression is derived from the bound vehicle profile without 
     assert.equal(summary.priorLevel, 3);
     assert.equal(summary.newLevel, 5);
     assert.equal(summary.xpBank, after.xpBank);
-    assert.ok(summary.unlockedCosmetics.includes('Spur Ion'));
-    assert.ok(summary.unlockedCosmetics.includes('Waffenstil Ion'));
+    assert.deepEqual(summary.unlockedCosmetics, [], 'Level 3 auf 5 schaltet keine Farbe und keinen Zehner-Meilenstein frei');
+    const earnedColor = resolveArcadePostMatchProgression(store, { vehicleId: 'ship2', xpEarned: gain, postRunSummary: { colorsUnlocked: ['ion', 'ion'] } });
+    assert.deepEqual(earnedColor.unlockedCosmetics, ['Farbe Ion']);
     assert.equal(Object.hasOwn(summary, 'weaponMastery'), false);
 });

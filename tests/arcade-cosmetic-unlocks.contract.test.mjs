@@ -3,8 +3,6 @@ import test from 'node:test';
 
 import {
     ARCADE_COSMETIC_COLORS,
-    ARCADE_TRAIL_STYLE_UNLOCKS,
-    ARCADE_WEAPON_STYLE_UNLOCKS,
     applyArcadeCosmeticLoadoutToPlayer,
     listUnlockedArcadeTrailStyles,
     listUnlockedArcadeWeaponStyles,
@@ -14,37 +12,16 @@ import {
     selectArcadeTrailStyle,
     selectArcadeWeaponStyle,
 } from '../src/shared/contracts/ArcadeVehicleCosmeticContract.js';
+import { ARCADE_COLOR_IDS } from '../src/shared/contracts/ArcadeColorProgressContract.js';
+const allColors={schemaVersion:'arcade-colors.v1',unlockedColorIds:[...ARCADE_COLOR_IDS]};
 import { createArcadeVehicleProfile, getMasteryPerks } from '../src/state/arcade/ArcadeVehicleProfile.js';
 
-test('W7.3 unlocks every trail style at the specified vehicle level', () => {
-    assert.deepEqual(ARCADE_TRAIL_STYLE_UNLOCKS, Object.freeze({
-        standard: 1,
-        ion: 4,
-        ember: 7,
-        acid: 10,
-        violet: 13,
-        frost: 17,
-        solar: 22,
-        prism: 28,
-    }));
-    assert.deepEqual(listUnlockedArcadeTrailStyles(27), [
-        'standard', 'ion', 'ember', 'acid', 'violet', 'frost', 'solar',
-    ]);
-    assert.deepEqual(listUnlockedArcadeTrailStyles(28), [
-        'standard', 'ion', 'ember', 'acid', 'violet', 'frost', 'solar', 'prism',
-    ]);
-});
-
-test('W7.3 unlocks identical weapon styles for all five weapon families', () => {
-    assert.deepEqual(ARCADE_WEAPON_STYLE_UNLOCKS, Object.freeze({
-        standard: 1,
-        ion: 5,
-        ember: 12,
-        nova: 20,
-    }));
-    for (const family of ['mg', 'rockets', 'flamethrower', 'railgun', 'lightning']) {
-        assert.deepEqual(listUnlockedArcadeWeaponStyles(19, family), ['standard', 'ion', 'ember']);
-        assert.deepEqual(listUnlockedArcadeWeaponStyles(20, family), ['standard', 'ion', 'ember', 'nova']);
+test('P7 colors are global achievements and high vehicle level alone unlocks nothing', () => {
+    assert.deepEqual(listUnlockedArcadeTrailStyles(10000),['standard']);
+    assert.deepEqual(listUnlockedArcadeTrailStyles(1,allColors),ARCADE_COLOR_IDS);
+    for(const family of ['mg','rockets','flamethrower','railgun','lightning']) {
+        assert.deepEqual(listUnlockedArcadeWeaponStyles(10000,family),['standard']);
+        assert.deepEqual(listUnlockedArcadeWeaponStyles(1,family,allColors),ARCADE_COLOR_IDS);
     }
 });
 
@@ -55,16 +32,16 @@ test('W7.3 rejects locked selections and changes neither XP bank nor another veh
     const lockedWeapon = selectArcadeWeaponStyle(ship1, 'mg', 'ember', 10);
 
     assert.equal(lockedTrail.ok, false);
-    assert.equal(lockedTrail.code, 'level_locked');
+    assert.equal(lockedTrail.code, 'color_locked');
     assert.equal(lockedTrail.profile.trailStyleId, 'standard');
     assert.equal(lockedWeapon.ok, false);
-    assert.equal(lockedWeapon.code, 'level_locked');
+    assert.equal(lockedWeapon.code, 'color_locked');
     assert.equal(lockedWeapon.profile.weaponStyleIds.mg, 'standard');
 
-    const selected = selectArcadeTrailStyle(ship1, 'acid', 20);
-    const armed = selectArcadeWeaponStyle(selected.profile, 'mg', 'ion', 30);
+    const selected = selectArcadeTrailStyle(ship1, 'frost', 20, allColors);
+    const armed = selectArcadeWeaponStyle(selected.profile, 'mg', 'ion', 30, allColors);
     assert.equal(armed.ok, true);
-    assert.equal(armed.profile.trailStyleId, 'acid');
+    assert.equal(armed.profile.trailStyleId, 'frost');
     assert.equal(armed.profile.weaponStyleIds.mg, 'ion');
     assert.equal(armed.profile.xp, ship1.xp);
     assert.equal(armed.profile.xpBank, ship1.xpBank);
@@ -101,7 +78,7 @@ test('W7.3 applies only presentation fields and leaves trail gameplay properties
         },
     };
     const profile = { ...createArcadeVehicleProfile('ship3', 0), level: 30, trailStyleId: 'prism' };
-    applyArcadeCosmeticLoadoutToPlayer(player, profile, true);
+    applyArcadeCosmeticLoadoutToPlayer(player, profile, true, allColors);
     assert.deepEqual(appliedStyles, ['prism']);
     assert.equal(player.hp, 100);
     assert.equal(player.damage, 25);
@@ -110,7 +87,7 @@ test('W7.3 applies only presentation fields and leaves trail gameplay properties
     assert.equal(player.trail.ownerIndex, 3);
 });
 
-test('W7.3 prism and nova use deterministic allocation-free color sequences', () => {
+test('P7 prism uses deterministic allocation-free color sequences', () => {
     assert.deepEqual(
         Array.from({ length: 8 }, (_, index) => resolveArcadeTrailColor('prism', 0xffffff, index)),
         [
@@ -120,10 +97,8 @@ test('W7.3 prism and nova use deterministic allocation-free color sequences', ()
             ARCADE_COSMETIC_COLORS.ion, ARCADE_COSMETIC_COLORS.violet,
         ],
     );
-    assert.deepEqual(resolveArcadeWeaponColors('nova'), [
-        ARCADE_COSMETIC_COLORS.violet,
-        ARCADE_COSMETIC_COLORS.solar,
-    ]);
+    assert.deepEqual(resolveArcadeWeaponColors('prism'), [ARCADE_COSMETIC_COLORS.ion, ARCADE_COSMETIC_COLORS.violet]);
+    assert.deepEqual(resolveArcadeWeaponColors('nova'), []);
 });
 
 test('W7.3 vehicle levels grant no passive score, combo, XP or vehicle-stat bonus', () => {

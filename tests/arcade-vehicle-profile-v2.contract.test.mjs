@@ -61,7 +61,7 @@ test('W7.1 keeps supported progress usable with cosmetic fallbacks and preserves
         mg: 'ion',
         rockets: 'standard',
         flamethrower: 'ember',
-        railgun: 'nova',
+        railgun: 'standard',
         lightning: 'standard',
     });
 
@@ -85,12 +85,12 @@ test('W7.1 keeps supported progress usable with cosmetic fallbacks and preserves
     const explicitCosmeticEdit = {
         ...reloaded,
         trailStyleId: 'ion',
-        weaponStyleIds: { ...reloaded.weaponStyleIds, rockets: 'nova' },
+        weaponStyleIds: { ...reloaded.weaponStyleIds, rockets: 'prism' },
     };
     assert.equal(saveVehicleProfiles(store, { ship5: explicitCosmeticEdit }), true);
     const editedRawProfile = store.data.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship5;
     assert.equal(editedRawProfile.trailStyleId, 'ion');
-    assert.equal(editedRawProfile.weaponStyleIds.rockets, 'nova');
+    assert.equal(editedRawProfile.weaponStyleIds.rockets, 'prism');
     assert.equal(editedRawProfile.weaponStyleIds.lightning, null);
     assert.equal(editedRawProfile.trailStyleId, 'ion');
 });

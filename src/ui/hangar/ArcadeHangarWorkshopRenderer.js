@@ -376,6 +376,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         const favorites = new Set(selection.getFavorites());
         detailTitle.textContent = entry.label;
         detailMeta.textContent = `${VEHICLE_CATEGORY_LABELS[entry.kategorie] || entry.kategorie} · ${resolveVehicleClassLabel(entry)} · ${resolveVehicleLevelLabel(profile.level, mode)}`;
+        if (mode === 'arcade') { const cosmetic = resolveArcadeMilestoneCosmetics(profile); detailMeta.textContent += `${cosmetic.title ? ' · ' + cosmetic.title : ''}${cosmetic.badge ? ' · ' + cosmetic.badge : ''}`; }
         detailDescription.textContent = entry.kurzbeschreibung;
         const xp = state.xpToNextLevel(profile);
         const progression = projectHangarProgression(profile, state.draft, xp);
@@ -384,7 +385,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
             : progressionSummaryText(progression);
         levelDetail.textContent = mode === 'fight' ? FIGHT_BALANCE_HINT : progressionDetailText(progression);
         xpFill.style.width = mode === 'fight' ? '100%' : `${(xp.progress * 100).toFixed(1)}%`;
-        renderHangarCosmetics({ shell, profile, mode });
+        renderHangarCosmetics({ shell, profile, mode, colorRecord: state.colorRecord });
         if (mode === 'fight') {
             const machineGun = resolveFightMachineGunModel(state.draft.machineGunId);
             machineGunSelect.value = machineGun.id;
@@ -505,3 +506,4 @@ export function createArcadeHangarWorkshopRenderer(options) {
 
     return Object.freeze({ sync });
 }
+import { resolveArcadeMilestoneCosmetics } from '../../shared/contracts/ArcadeMilestoneCosmeticContract.js';

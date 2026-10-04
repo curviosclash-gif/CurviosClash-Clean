@@ -2,6 +2,7 @@ import { resolveFightMachineGunConfig } from '../../shared/contracts/FightMachin
 import { applyArenaWavesMachineGunTuning } from '../../shared/contracts/ArenaWavesContract.js';
 import { resolveArcadeNoseRange } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
 import { resolveArcadeMachineGunConfig } from '../../shared/contracts/ArcadeMachineGunContract.js';
+import { isArcadeMachineGunMastered } from '../../shared/contracts/ArcadeMilestoneCosmeticContract.js';
 
 function positiveFactor(value) {
     const factor = Number(value);
@@ -36,6 +37,9 @@ export function resolvePlayerMachineGunConfig(baseMg, player) {
         config.DAMAGE *= damage;
     }
     config.FALLOFF_RANGE = Math.max(10, Number(config.FALLOFF_RANGE || config.RANGE || 95));
+    if (isArcadeMachineGunMastered(config.MACHINE_GUN_ID, loadout?.masterCount)) {
+        config.TRACER_BEAM_RADIUS *= 1.2; config.TRACER_BULLET_RADIUS *= 1.15; config.TRACER_MUZZLE_SCALE *= 1.25;
+    }
     config.RANGE = resolveArcadeNoseRange(config.FALLOFF_RANGE, player);
     if (player) player._arcadeMgCache = { base, loadout, arena, fightId, damage, config };
     return config;

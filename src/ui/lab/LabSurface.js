@@ -55,7 +55,8 @@ export function createArcadeLabSurface({ store, profilePort, onReturn, onDirtyCh
         if (!persist(next.record)) return;
         const latest = profilePort?.load?.() || {};
         const initial = profilePort?.getOrCreate?.(latest, next.ship.id);
-        if (initial && !profilePort.save({ ...latest, [next.ship.id]: initial })) {
+        const saved = initial ? profilePort.save({ ...latest, [next.ship.id]: initial }) : null;
+        if (initial && saved !== true && saved?.success !== true && saved?.ok !== true) {
             status.textContent = 'Schiff erstellt. Fortschritt wird beim ersten verdienten XP gespeichert.';
         }
         select(next.ship.id);

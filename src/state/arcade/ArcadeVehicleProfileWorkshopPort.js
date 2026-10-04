@@ -15,7 +15,7 @@ export function createArcadeVehicleProfileWorkshopPort(store) {
             const result = saveVehicleProfiles(store, profiles);
             const saved = result === true || result?.success === true || result?.ok === true;
             if (saved) syncArcadeLabUnlock(store, profiles);
-            return saved;
+            return result;
         },
         getOrCreate: (profiles, vehicleId) => getOrCreateProfile(profiles, vehicleId),
         getSpendableUpgradeXp,

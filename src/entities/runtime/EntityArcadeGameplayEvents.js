@@ -17,6 +17,9 @@ export function emitArcadeGameplayEvent(owner, event) {
 export function emitArcadeDamageEvent(owner, event) {
     const target = event?.target || null;
     const applied = Math.max(0, Number(event?.damageResult?.applied) || 0);
+    if (target?.isBot !== true && Number(event?.damageResult?.absorbedByShield) > 0) {
+        emitArcadeGameplayEvent(owner, { type: 'shield_hit', playerIndex: target?.index });
+    }
     if (target?.isBot === true || applied <= 0) return;
     emitArcadeGameplayEvent(owner, {
         type: 'damage',

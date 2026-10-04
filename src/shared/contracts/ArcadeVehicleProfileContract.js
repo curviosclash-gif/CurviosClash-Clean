@@ -1,3 +1,4 @@
+import { ARCADE_COLOR_IDS } from './ArcadeColorProgressContract.js';
 import { resolveArtifactVersionState } from './ArtifactVersionMigrationContract.js';
 import { normalizeVehiclePartStyle } from './VehiclePartStyleContract.js';
 import { normalizeArcadeSizeProfileFields } from './ArcadeVehicleBuildContract.js';
@@ -14,10 +15,8 @@ export const ARCADE_VEHICLE_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-vehicle-pr
 export const ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY = 'cuviosclash.arcade-vehicle-profile.v1';
 const XP_BASE = 100;
 const XP_EXPONENT = 1.5;
-export const ARCADE_TRAIL_STYLE_IDS = Object.freeze([
-    'standard', 'ion', 'ember', 'acid', 'violet', 'frost', 'solar', 'prism',
-]);
-export const ARCADE_WEAPON_STYLE_IDS = Object.freeze(['standard', 'ion', 'ember', 'nova']);
+export const ARCADE_TRAIL_STYLE_IDS = ARCADE_COLOR_IDS;
+export const ARCADE_WEAPON_STYLE_IDS = ARCADE_COLOR_IDS;
 export const ARCADE_WEAPON_STYLE_FAMILIES = Object.freeze([
     'mg', 'rockets', 'flamethrower', 'railgun', 'lightning',
 ]);
@@ -188,14 +187,14 @@ function hasValidStoredProfileFieldTypes(entry) {
 function hasValidStoredCosmeticFields(entry) {
     if (Object.prototype.hasOwnProperty.call(entry, 'trailStyleId')
         && (typeof entry.trailStyleId !== 'string'
-            || !ARCADE_TRAIL_STYLE_IDS.includes(entry.trailStyleId.trim().toLowerCase()))) return false;
+            || ![...ARCADE_TRAIL_STYLE_IDS, 'acid'].includes(entry.trailStyleId.trim().toLowerCase()))) return false;
     if (Object.prototype.hasOwnProperty.call(entry, 'weaponStyleIds')
         && (!entry.weaponStyleIds || typeof entry.weaponStyleIds !== 'object' || Array.isArray(entry.weaponStyleIds))) return false;
     if (entry.weaponStyleIds && typeof entry.weaponStyleIds === 'object' && !Array.isArray(entry.weaponStyleIds)) {
         for (const [family, styleId] of Object.entries(entry.weaponStyleIds)) {
             if (!ARCADE_WEAPON_STYLE_FAMILIES.includes(family)
                 || typeof styleId !== 'string'
-                || !ARCADE_WEAPON_STYLE_IDS.includes(styleId.trim().toLowerCase())) return false;
+                || ![...ARCADE_WEAPON_STYLE_IDS, 'nova'].includes(styleId.trim().toLowerCase())) return false;
         }
     }
     if (Object.prototype.hasOwnProperty.call(entry, 'partStyle')

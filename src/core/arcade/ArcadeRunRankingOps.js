@@ -2,6 +2,7 @@ import { loadVehicleProfiles, getArcadeRunVehicleBonuses } from '../../state/arc
 import { createArcadeRankContext, loadArcadeDifficultyProgress, resolveArcadeRunTier } from '../../shared/contracts/ArcadeDifficultyContract.js';
 import { ARCADE_RUN_KINDS, resolveArcadeRuntimeKind } from '../../shared/contracts/ArcadeRunTypeDispatchContract.js';
 import { createArcadeVehicleUpgradeBonusMap } from './ArcadeRunVehicleRewardOps.js';
+import { createArcadeColorProgress } from '../../shared/contracts/ArcadeColorProgressContract.js';
 
 function runFor(support, state, kind) {
     if (kind === ARCADE_RUN_KINDS.ENDLESS_PARCOURS) return support._getEndlessRuntime?.(state);
@@ -33,6 +34,10 @@ export function prepareArcadeRunRanking(support, state, config, runActive, playe
             vehicleId, profile, stoneSteps: playerBonuses?.byPlayerIndex?.[0]?.build?.stoneSteps || getArcadeRunVehicleBonuses(profile, store)?.build?.stoneSteps,
             tierId, dailyChallenge: config.arcade.dailyChallenge });
         runtime._rankingStore = store;
+        const humans = state?.entityManager?.humanPlayers || [];
+        runtime._colorProgress = createArcadeColorProgress({ runType, tierId, dailyChallenge: config.arcade.dailyChallenge,
+            humanIndices: humans.filter(player => !player.isBot).map(player => player.index),
+            storesByIndex: Object.fromEntries(humans.map(player => [player.index, bindings._playerStoresByIndex?.[player.index] || store])) });
         runtime._frozenPlayerBuildBonuses = effectiveBonuses ? structuredClone(effectiveBonuses) : null;
     }
     if (runtime.rankContext.ranked || runtime.rankContext.runType === 'hangar_test') {

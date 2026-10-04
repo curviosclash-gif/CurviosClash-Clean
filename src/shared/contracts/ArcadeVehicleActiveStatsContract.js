@@ -7,6 +7,7 @@
 
 import { resolveArcadeVehicleBuildStats } from './ArcadeVehicleBuildContract.js';
 import { normalizeArcadeWeaponProfileFields } from './ArcadeMachineGunContract.js';
+import { resolveArcadeMilestoneCosmetics } from './ArcadeMilestoneCosmeticContract.js';
 import {
     ARCADE_MG_DAMAGE_PER_LEVEL,
     ARCADE_ROCKET_DAMAGE_PER_LEVEL,
@@ -42,7 +43,7 @@ export function resolveArcadeVehicleActiveStats(vehicleId, profile, stoneSteps =
             machineGunId: weapons.selectedMachineGunId,
             mgLevel: weapons.mgLevel,
             mgDamagePct,
-            masterCount: 0,
+            masterCount: resolveArcadeMilestoneCosmetics(profile).masterCount,
         }),
     };
 }

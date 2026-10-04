@@ -37,12 +37,14 @@ export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
     ARCADE_RANKED_LEADERBOARD: 'arcadeRankedLeaderboard',
     ARCADE_LAB_SHIPS: 'arcadeLabShips',
     ARCADE_LAB_UNLOCK: 'arcadeLabUnlock',
+    ARCADE_COLORS: 'arcadeColors',
 });
 
 // The name a player last used in a multiplayer lobby; each player profile keeps its own.
 export { LOBBY_NAME_STORAGE_KEY };
 
 const RECORD_DEFINITIONS = Object.freeze([
+    {kind:PLAYER_PROFILE_RECORD_KINDS.ARCADE_COLORS,legacyKey:'cuviosclash.arcade-colors.v1',suffix:'arcade-colors.v1'},
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_DIFFICULTY, legacyKey: 'cuviosclash.arcade-difficulty-progress.v1', suffix: 'arcade-difficulty-progress.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_RANKED_LEADERBOARD, legacyKey: 'cuviosclash.arcade-ranked-leaderboard.v1', suffix: 'arcade-ranked-leaderboard.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.LEGACY_ARCADE_RUN_PROFILE, legacyKey: LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY, suffix: 'arcade-run-profile.v1' },

@@ -1,3 +1,4 @@
+import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import { recordArcadeDailyResult, finalizeArcadeRun } from './ArcadeRunCompletionOps.js';
 import {
     ARCADE_RUN_PHASES,
@@ -459,9 +460,7 @@ export class ArcadeRunRuntime {
         return (entry && typeof entry.modifierId === 'string') ? entry.modifierId : null;
     }
 
-    getMissionState() {
-        return this._missionState ? { ...this._missionState } : null;
-    }
+    getMissionState() { return this._missionState ? { ...this._missionState } : null; }
 
     _getEncounterSectorEntry(sectorIndex) {
         const sequence = this._state?.encounterSequence;
@@ -773,6 +772,7 @@ export class ArcadeRunRuntime {
      */
     applyGameplayEvent(event) {
         if (!this._enabled || !this._state) return null;
+        trackArcadeColorEvent(this._colorProgress, event);
         const nowMs = this._state.gameplayTimeMs;
         const eventWithTime = { ...event, nowMs };
 

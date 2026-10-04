@@ -327,6 +327,7 @@ export class HangarVehicleAssembly {
     }
 
     // Shows the arcade part style on a part-built vehicle and moves the stones with it.
+    setMilestoneAppearance(profile) { applyArcadeMilestonePattern(this.vehicleNode, profile); }
     setPartStyle(style, selectedPartName = '') {
         const node = this.vehicleNode;
         if (!node?.isModularVehicle || !this.factoryConfig) return false;
@@ -476,3 +477,4 @@ export class HangarVehicleAssembly {
         this.group.removeFromParent();
     }
 }
+import { applyArcadeMilestonePattern } from '../../shared/vehicle-lab/ArcadeMilestoneAppearance.js';

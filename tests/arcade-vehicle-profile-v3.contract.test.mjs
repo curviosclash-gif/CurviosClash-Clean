@@ -126,7 +126,7 @@ test('v3: v2 and v1 profiles migrate to v3 with progress, parts, styles and new 
     assert.deepEqual(profiles.ship1.upgrades, { core: 'T3', utility: 'T2' });
     assert.deepEqual(profiles.ship1.hangarStoneInventory, { counts: { stone_gold_t1: 7 } });
     assert.equal(profiles.ship1.trailStyleId, 'prism');
-    assert.equal(profiles.ship1.weaponStyleIds.mg, 'nova');
+    assert.equal(profiles.ship1.weaponStyleIds.mg, 'standard');
     assert.equal(profiles.ship1.weaponStyleIds.rockets, 'ember');
     assert.deepEqual(profiles.ship1.partStyle, { Utility: { color: 0x123456, scale: 1.1, variant: 'manta' } });
     assert.deepEqual(profiles.ship1.customProgress, { cleanSectors: 9 });
@@ -265,7 +265,7 @@ test('v3: damaged cosmetics use runtime fallbacks while raw cosmetic and version
     assert.equal(profiles.ship3.xp, 360);
     assert.deepEqual(profiles.ship3.partStyle, { Utility: { color: 0x123456 } });
     assert.equal(profiles.manta.schemaVersion, 'arcade-vehicle-profile.v3');
-    assert.deepEqual(profiles.manta.weaponStyleIds.mg, 'nova');
+    assert.deepEqual(profiles.manta.weaponStyleIds.mg, 'standard');
     assert.deepEqual(profiles.manta.partStyle, validSibling.partStyle);
     assert.deepEqual(profiles.manta.customField, { keep: true });
     assert.equal(saveVehicleProfiles(store, profiles), true);
@@ -429,16 +429,16 @@ test('v3: hangar workshop port adds explicit cosmetic edits beside preserved unk
     profiles.ship5 = {
         ...profiles.ship5,
         trailStyleId: 'ion',
-        weaponStyleIds: { ...profiles.ship5.weaponStyleIds, rockets: 'nova' },
+        weaponStyleIds: { ...profiles.ship5.weaponStyleIds, rockets: 'prism' },
         partStyle: { Utility: { color: 0xabcdef } },
     };
     assert.equal(port.save(profiles), true);
 
     const saved = store.data.get(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship5;
     assert.equal(saved.trailStyleId, 'ion');
-    assert.deepEqual(saved.weaponStyleIds, { mg: 'newer-style', rockets: 'nova' });
+    assert.deepEqual(saved.weaponStyleIds, { mg: 'newer-style', rockets: 'prism' });
     assert.deepEqual(saved.partStyle, { Utility: { color: 0xabcdef } });
     assert.deepEqual(saved.customProgress, rawProfile.customProgress);
     assert.equal(port.load().ship5.trailStyleId, 'ion');
-    assert.equal(port.load().ship5.weaponStyleIds.rockets, 'nova');
+    assert.equal(port.load().ship5.weaponStyleIds.rockets, 'prism');
 });

@@ -1,3 +1,4 @@
+import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
 import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { settleArcadeRunRanking } from '../../state/arcade/ArcadeRunRanking.js';
@@ -93,6 +94,7 @@ export class FivePortalsRuntime {
         if (this.mapIndex === this.chain.maps.length - 1) {
             this.phase = 'finished';
             const total = this.mapTimesMs.reduce((sum, time) => sum + safeMs(time), 0);
+            trackArcadeColorEvent(this._colorProgress, { type: 'best_time', playerIndex: 0, previousBestTimeMs: this.records.bestTotalMs, totalTimeMs: total });
             this.records = {
                 version: this.chain.recordVersion,
                 lastTotalMs: total,

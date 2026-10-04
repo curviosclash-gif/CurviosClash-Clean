@@ -5,6 +5,7 @@
 // ============================================
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { ARCADE_COLORS_STORAGE_KEY, ARCADE_COLORS_SCHEMA_VERSION } from '../src/shared/contracts/ArcadeColorProgressContract.js';
 
 import {
     ARCADE_STONE_WORKSHOP_SCHEMA_VERSION,
@@ -875,6 +876,7 @@ test('Gauntlet-Splitscreen bindet gleiche Fahrzeug-IDs an getrennte UUID-Cosmeti
     const stores = profileIds.map((_, index) => {
         const store = createStore({
             [ARCADE_STONE_WORKSHOP_STORAGE_KEY]: poolOf([stone(index + 1, 1, at('ship5', slots[index]))]),
+            [ARCADE_COLORS_STORAGE_KEY]: { schemaVersion: ARCADE_COLORS_SCHEMA_VERSION, unlockedColorIds: ['standard', styles[index]] },
         });
         saveVehicleProfiles(store, {
             ship5: profileOf('ship5', {
@@ -937,6 +939,7 @@ test('Solo-Gauntlet friert das aktive Profil über Run-Rebuilds ein', () => {
     const stores = profileIds.map((_, index) => {
         const store = createStore({
             [ARCADE_STONE_WORKSHOP_STORAGE_KEY]: poolOf([stone(1, index + 1, at('ship5', 'core'))]),
+            [ARCADE_COLORS_STORAGE_KEY]: { schemaVersion: ARCADE_COLORS_SCHEMA_VERSION, unlockedColorIds: ['standard', index ? 'ember' : 'ion'] },
         });
         saveVehicleProfiles(store, {
             ship5: profileOf('ship5', {

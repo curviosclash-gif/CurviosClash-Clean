@@ -1,3 +1,4 @@
+import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import { buildArcadeRunSummary } from '../../state/arcade/ArcadeScoreOps.js';
 import { mergeArcadeDailyRunRecords } from '../../state/arcade/ArcadeDailyState.js';
 import { ARCADE_RUN_PHASES, createArcadeRunRecords } from '../../state/arcade/ArcadeRunState.js';
@@ -39,6 +40,7 @@ export function finalizeArcadeRun(runtime, nowMs = Date.now()) {
         replayId,
     });
     if (!summary) return runtime.getStateSnapshot();
+    trackArcadeColorEvent(runtime._colorProgress, { type: 'run_complete', succeeded: summary.succeeded });
 
     runtime._recordDailyResult(nowMs);
     const { records } = mergeArcadeDailyRunRecords(runtime._records, { ...summary, isDailyChallenge: false });
@@ -59,6 +61,7 @@ export function finalizeArcadeRun(runtime, nowMs = Date.now()) {
         comboAtSectorEnd: Math.max(0, toSafeInt(entry?.comboAtSectorEnd, 0)),
     }));
     const postRunSummary = {
+        colorsUnlocked: Object.values(runtime._colorProgress?.players || {}).flatMap(player => player.newly),
         generatedAtIso: new Date(Math.max(0, toSafeNumber(nowMs, Date.now()))).toISOString(),
         runId: String(summary.runId || ''),
         succeeded: summary.succeeded === true,

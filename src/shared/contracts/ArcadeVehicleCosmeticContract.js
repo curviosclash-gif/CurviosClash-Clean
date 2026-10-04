@@ -1,7 +1,6 @@
+import { ARCADE_COLOR_PALETTE, ARCADE_COLOR_REQUIREMENTS, listUnlockedArcadeColors } from './ArcadeColorProgressContract.js';
 import {
-    ARCADE_TRAIL_STYLE_IDS,
     ARCADE_WEAPON_STYLE_FAMILIES,
-    ARCADE_WEAPON_STYLE_IDS,
     normalizeArcadeTrailStyleId,
     normalizeArcadeWeaponStyleId,
     normalizeArcadeWeaponStyleIds,
@@ -9,41 +8,15 @@ import {
 
 export { ARCADE_WEAPON_STYLE_FAMILIES };
 
-export const ARCADE_COSMETIC_COLORS = Object.freeze({
-    ion: 0x48d7ff,
-    ember: 0xff7a3d,
-    acid: 0x8cff4d,
-    violet: 0xc678ff,
-    frost: 0xbfefff,
-    solar: 0xffd45a,
-});
+export const ARCADE_COSMETIC_COLORS = ARCADE_COLOR_PALETTE;
 
-export const ARCADE_TRAIL_STYLE_UNLOCKS = Object.freeze({
-    standard: 1,
-    ion: 4,
-    ember: 7,
-    acid: 10,
-    violet: 13,
-    frost: 17,
-    solar: 22,
-    prism: 28,
-});
+export const ARCADE_TRAIL_STYLE_UNLOCKS = ARCADE_COLOR_REQUIREMENTS;
 
-export const ARCADE_WEAPON_STYLE_UNLOCKS = Object.freeze({
-    standard: 1,
-    ion: 5,
-    ember: 12,
-    nova: 20,
-});
+export const ARCADE_WEAPON_STYLE_UNLOCKS = ARCADE_COLOR_REQUIREMENTS;
 
-export const ARCADE_TRAIL_STYLE_LABELS = Object.freeze({
-    standard: 'Standard', ion: 'Ion', ember: 'Ember', acid: 'Acid',
-    violet: 'Violet', frost: 'Frost', solar: 'Solar', prism: 'Prism',
-});
+export const ARCADE_TRAIL_STYLE_LABELS = Object.freeze({standard:'Standard',frost:'Frost',ember:'Ember',ion:'Ion',solar:'Solar',violet:'Violet',prism:'Prism'});
 
-export const ARCADE_WEAPON_STYLE_LABELS = Object.freeze({
-    standard: 'Standard', ion: 'Ion', ember: 'Ember', nova: 'Nova',
-});
+export const ARCADE_WEAPON_STYLE_LABELS = ARCADE_TRAIL_STYLE_LABELS;
 
 export const ARCADE_WEAPON_FAMILY_LABELS = Object.freeze({
     mg: 'Maschinengewehr', rockets: 'Raketen', flamethrower: 'Flammenwerfer',
@@ -52,64 +25,50 @@ export const ARCADE_WEAPON_FAMILY_LABELS = Object.freeze({
 
 const STANDARD_WEAPON_STYLES = Object.freeze(normalizeArcadeWeaponStyleIds());
 const STANDARD_WEAPON_COLORS = Object.freeze([]);
-const NOVA_WEAPON_COLORS = Object.freeze([
-    ARCADE_COSMETIC_COLORS.violet,
-    ARCADE_COSMETIC_COLORS.solar,
-]);
 const WEAPON_COLOR_SEQUENCES = Object.freeze({
-    ion: Object.freeze([ARCADE_COSMETIC_COLORS.ion]),
-    ember: Object.freeze([ARCADE_COSMETIC_COLORS.ember]),
-    nova: NOVA_WEAPON_COLORS,
+    ...Object.fromEntries(Object.entries(ARCADE_COLOR_PALETTE).map(([id,color])=>[id,Object.freeze([color])])),
+    prism: Object.freeze([ARCADE_COSMETIC_COLORS.ion,ARCADE_COSMETIC_COLORS.violet]),
 });
-
-function resolveLevel(profileOrLevel) {
-    const value = typeof profileOrLevel === 'object' ? profileOrLevel?.level : profileOrLevel;
-    return Math.max(1, Math.min(30, Math.floor(Number(value) || 1)));
-}
 
 function updatedAt(nowMs) {
     return new Date(Math.max(0, Number(nowMs) || Date.now())).toISOString();
 }
 
-export function listUnlockedArcadeTrailStyles(profileOrLevel) {
-    const level = resolveLevel(profileOrLevel);
-    return ARCADE_TRAIL_STYLE_IDS.filter((styleId) => level >= ARCADE_TRAIL_STYLE_UNLOCKS[styleId]);
+export function listUnlockedArcadeTrailStyles(profileOrLevel, colorRecord = null) {
+    return listUnlockedArcadeColors(colorRecord);
+}
+export function listUnlockedArcadeWeaponStyles(profileOrLevel, familyId, colorRecord = null) {
+    return ARCADE_WEAPON_STYLE_FAMILIES.includes(String(familyId || '').toLowerCase()) ? listUnlockedArcadeColors(colorRecord) : [];
 }
 
-export function listUnlockedArcadeWeaponStyles(profileOrLevel, familyId) {
-    if (!ARCADE_WEAPON_STYLE_FAMILIES.includes(String(familyId || '').toLowerCase())) return [];
-    const level = resolveLevel(profileOrLevel);
-    return ARCADE_WEAPON_STYLE_IDS.filter((styleId) => level >= ARCADE_WEAPON_STYLE_UNLOCKS[styleId]);
-}
-
-export function selectArcadeTrailStyle(profile, requestedStyleId, nowMs = Date.now()) {
+export function selectArcadeTrailStyle(profile, requestedStyleId, nowMs = Date.now(), colorRecord = null) {
     const styleId = normalizeArcadeTrailStyleId(requestedStyleId);
     const current = profile && typeof profile === 'object' ? profile : {};
-    if (resolveLevel(current) < ARCADE_TRAIL_STYLE_UNLOCKS[styleId]) {
-        return { ok: false, code: 'level_locked', requiredLevel: ARCADE_TRAIL_STYLE_UNLOCKS[styleId], profile: current };
+    if (!listUnlockedArcadeColors(colorRecord).includes(styleId)) {
+        return { ok: false, code: 'color_locked', requirement: ARCADE_TRAIL_STYLE_UNLOCKS[styleId], profile: current };
     }
     return {
         ok: true,
         code: 'selected',
-        requiredLevel: ARCADE_TRAIL_STYLE_UNLOCKS[styleId],
+        requirement: ARCADE_TRAIL_STYLE_UNLOCKS[styleId],
         profile: { ...current, trailStyleId: styleId, updatedAt: updatedAt(nowMs) },
     };
 }
 
-export function selectArcadeWeaponStyle(profile, requestedFamilyId, requestedStyleId, nowMs = Date.now()) {
+export function selectArcadeWeaponStyle(profile, requestedFamilyId, requestedStyleId, nowMs = Date.now(), colorRecord = null) {
     const familyId = String(requestedFamilyId || '').trim().toLowerCase();
     const current = profile && typeof profile === 'object' ? profile : {};
     if (!ARCADE_WEAPON_STYLE_FAMILIES.includes(familyId)) {
         return { ok: false, code: 'invalid_family', profile: current };
     }
     const styleId = normalizeArcadeWeaponStyleId(requestedStyleId);
-    if (resolveLevel(current) < ARCADE_WEAPON_STYLE_UNLOCKS[styleId]) {
-        return { ok: false, code: 'level_locked', requiredLevel: ARCADE_WEAPON_STYLE_UNLOCKS[styleId], profile: current };
+    if (!listUnlockedArcadeColors(colorRecord).includes(styleId)) {
+        return { ok: false, code: 'color_locked', requirement: ARCADE_WEAPON_STYLE_UNLOCKS[styleId], profile: current };
     }
     return {
         ok: true,
         code: 'selected',
-        requiredLevel: ARCADE_WEAPON_STYLE_UNLOCKS[styleId],
+        requirement: ARCADE_WEAPON_STYLE_UNLOCKS[styleId],
         profile: {
             ...current,
             weaponStyleIds: { ...normalizeArcadeWeaponStyleIds(current.weaponStyleIds), [familyId]: styleId },
@@ -118,15 +77,15 @@ export function selectArcadeWeaponStyle(profile, requestedFamilyId, requestedSty
     };
 }
 
-export function resolveArcadeCosmeticLoadout({ arcadeEnabled = false, isBot = false, profile = null } = {}) {
+export function resolveArcadeCosmeticLoadout({ arcadeEnabled = false, isBot = false, profile = null, colorRecord = null } = {}) {
     if (!arcadeEnabled || isBot || !profile || typeof profile !== 'object') {
         return { trailStyleId: 'standard', weaponStyleIds: { ...STANDARD_WEAPON_STYLES } };
     }
-    const unlockedTrails = listUnlockedArcadeTrailStyles(profile);
+    const unlockedTrails = listUnlockedArcadeTrailStyles(profile, colorRecord);
     const requestedTrail = normalizeArcadeTrailStyleId(profile.trailStyleId);
     const weaponStyleIds = normalizeArcadeWeaponStyleIds(profile.weaponStyleIds);
     for (const familyId of ARCADE_WEAPON_STYLE_FAMILIES) {
-        if (!listUnlockedArcadeWeaponStyles(profile, familyId).includes(weaponStyleIds[familyId])) {
+        if (!listUnlockedArcadeWeaponStyles(profile, familyId, colorRecord).includes(weaponStyleIds[familyId])) {
             weaponStyleIds[familyId] = 'standard';
         }
     }
@@ -167,12 +126,12 @@ export function nextPlayerArcadeWeaponColor(player, familyId, fallbackColor = 0x
     return resolveArcadeWeaponColor(styleId, sequence, fallbackColor);
 }
 
-export function applyArcadeCosmeticLoadoutToPlayer(player, profile, arcadeEnabled = false) {
+export function applyArcadeCosmeticLoadoutToPlayer(player, profile, arcadeEnabled = false, colorRecord = null) {
     if (!player || typeof player !== 'object') return null;
     const loadout = resolveArcadeCosmeticLoadout({
         arcadeEnabled,
         isBot: player.isBot === true,
-        profile,
+        profile, colorRecord,
     });
     player.arcadeCosmeticLoadout = loadout;
     player.trail?.setCosmeticStyle?.(loadout.trailStyleId);

@@ -40,6 +40,7 @@ import { validateFightHangarBuild, validateFightHangarDrop } from './FightHangar
 import { normalizeFightMachineGunId, resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
 import { armConfirmButton } from '../ConfirmButtonArming.js';
 import { createHangarFormTab } from './HangarFormTab.js';
+import { loadArcadeColors } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import {
     selectArcadeTrailStyle,
     selectArcadeWeaponStyle,
@@ -172,7 +173,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
 
     function state() {
         return {
-            draft, savedBuild, baselineBuild, history, hydrated, profiles, catalogView, buildView, partFamily, partTier,
+            draft, savedBuild, baselineBuild, history, hydrated, profiles, catalogView, buildView, partFamily, partTier, colorRecord: loadArcadeColors(store),
             partTrait, partAvailability, selectedSlotId, selectedPartId, previewPartId, buildFromProfile,
             xpToNextLevel: profilePort.xpToNextLevel,
             xpForLevel: profilePort.xpForLevel,
@@ -207,7 +208,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     // Tabs "Form" (colours) and, arcade only, "Ausbau" (size build and stones), stored per vehicle in the arcade profile.
     const formTab = createHangarFormTab({
         bind, toast, viewport, enabled: hangarMode === 'arcade', panel: formViewPanel, tabButton: formViewButton,
-        getProfile, saveProfile,
+        getProfile, saveProfile, getColors: () => loadArcadeColors(store),
         upgradePanel: upgradeViewPanel, upgradeTabButton: upgradeViewButton,
         upgradeSections: stonePanel ? [stonePanel.root, weaponPanel.root] : [], getPool: stonePanel?.getPool,
         onChange: () => syncDisplay({ preserveCatalog: true }),
@@ -374,9 +375,9 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     function selectTrailStyle(styleId) {
         if (hangarMode !== 'arcade') return false;
         const vehicleId = draft.vehicleId;
-        const result = selectArcadeTrailStyle(profileFor(vehicleId), styleId);
+        const result = selectArcadeTrailStyle(profileFor(vehicleId), styleId, Date.now(), loadArcadeColors(store));
         if (!result.ok) {
-            toast(`Spurstil erst ab Level ${result.requiredLevel}`, 'warning');
+            toast(result.requirement || 'Farbe noch gesperrt', 'warning');
             syncDisplay();
             return false;
         }
@@ -394,9 +395,9 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     function selectWeaponStyle(familyId, styleId) {
         if (hangarMode !== 'arcade') return false;
         const vehicleId = draft.vehicleId;
-        const result = selectArcadeWeaponStyle(profileFor(vehicleId), familyId, styleId);
+        const result = selectArcadeWeaponStyle(profileFor(vehicleId), familyId, styleId, Date.now(), loadArcadeColors(store));
         if (!result.ok) {
-            toast(`Waffenstil erst ab Level ${result.requiredLevel}`, 'warning');
+            toast(result.requirement || 'Farbe noch gesperrt', 'warning');
             syncDisplay();
             return false;
         }

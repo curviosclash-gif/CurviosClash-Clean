@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { ARCADE_COLORS_STORAGE_KEY, ARCADE_COLORS_SCHEMA_VERSION } from '../src/shared/contracts/ArcadeColorProgressContract.js';
 
 import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeSupport.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
@@ -41,6 +42,7 @@ function createStore(index) {
         upgrades: index === 0 ? { core: 'T2' } : index === 1 ? { nose: 'T2' } : { wing_left: 'T2' },
     };
     saveVehicleProfiles(store, { ship5: profile });
+    store.saveJsonRecord(ARCADE_COLORS_STORAGE_KEY, { schemaVersion: ARCADE_COLORS_SCHEMA_VERSION, unlockedColorIds: ['standard', ['ion', 'ember', 'violet'][index]] });
     store.saveJsonRecord(ARCADE_STONE_WORKSHOP_STORAGE_KEY, {
         schemaVersion: ARCADE_STONE_WORKSHOP_SCHEMA_VERSION,
         nextSerial: 2,

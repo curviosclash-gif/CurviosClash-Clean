@@ -1,4 +1,7 @@
 import { loadVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
+import { loadArcadeColors, filterArcadePartColors } from '../../shared/contracts/ArcadeColorProgressContract.js';
+import { applyArcadeMilestonePattern } from '../../shared/vehicle-lab/ArcadeMilestoneAppearance.js';
+import { resolveArcadeMilestoneCosmetics } from '../../shared/contracts/ArcadeMilestoneCosmeticContract.js';
 import { applyArcadeCosmeticLoadoutToPlayer } from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
 import { applyVehiclePartStyle } from '../../shared/contracts/VehiclePartStyleContract.js';
 import { resolveArcadeSizedPartStyle } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
@@ -178,8 +181,12 @@ export function applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig
             ? demolitionProfiles[playerIndex]
             : (localArcadeRuntime ? localArcadeRuntime._playerProfilesByIndex[playerIndex] : profiles);
         const profile = sourceProfiles?.[vehicleId] || null;
-        applyArcadeCosmeticLoadoutToPlayer(player, profile, arcadeEnabled);
-        applyArcadePartStyle(player, arcadeEnabled ? profile : null, vehicleId, useSizes);
+        const colorStore = demolitionStores[playerIndex] || localArcadeRuntime?._playerStoresByIndex?.[playerIndex] || recordStore;
+        const colors = loadArcadeColors(colorStore);
+        applyArcadeCosmeticLoadoutToPlayer(player, profile, arcadeEnabled, colors);
+        applyArcadePartStyle(player, arcadeEnabled && profile ? { ...profile, partStyle: filterArcadePartColors(profile.partStyle, colors) } : null, vehicleId, useSizes);
+        player.arcadeMilestoneCosmetics = resolveArcadeMilestoneCosmetics(arcadeEnabled && !player.isBot ? profile : null);
+        applyArcadeMilestonePattern(player.vehicleMesh, arcadeEnabled && !player.isBot ? profile : null);
     }
     return playerBuildBonuses;
 }

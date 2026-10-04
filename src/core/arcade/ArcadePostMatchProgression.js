@@ -1,21 +1,11 @@
 import { listArcadeStoneUnlocksBetween } from '../../shared/contracts/ArcadeStoneWorkshopContract.js';
-import {
-    ARCADE_TRAIL_STYLE_LABELS,
-    ARCADE_TRAIL_STYLE_UNLOCKS,
-    ARCADE_WEAPON_STYLE_LABELS,
-    ARCADE_WEAPON_STYLE_UNLOCKS,
-} from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
+import { ARCADE_TRAIL_STYLE_LABELS } from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
 import { arcadeVehicleLevelForXp as levelForXp } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import { getOrCreateProfile, loadVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
 
 function cosmeticUnlocks(priorLevel, newLevel) {
     const unlocked = [];
-    for (const [styleId, level] of Object.entries(ARCADE_TRAIL_STYLE_UNLOCKS)) {
-        if (level > priorLevel && level <= newLevel) unlocked.push(`Spur ${ARCADE_TRAIL_STYLE_LABELS[styleId]}`);
-    }
-    for (const [styleId, level] of Object.entries(ARCADE_WEAPON_STYLE_UNLOCKS)) {
-        if (level > priorLevel && level <= newLevel) unlocked.push(`Waffenstil ${ARCADE_WEAPON_STYLE_LABELS[styleId]}`);
-    }
+    for (let level = (Math.floor(priorLevel / 10) + 1) * 10; level <= newLevel && unlocked.length < 10; level += 10) unlocked.push(`Meilenstein Level ${level}: Titel und Abzeichen`);
     return unlocked;
 }
 
@@ -36,6 +26,6 @@ export function resolveArcadePostMatchProgression(store, runState = null) {
         xpBank: Math.max(0, Number(profile.xpBank) || 0),
         unlockedStonePackages: stoneUnlocks.packages,
         unlockedStoneTiers: stoneUnlocks.tiers,
-        unlockedCosmetics: cosmeticUnlocks(priorLevel, newLevel),
+        unlockedCosmetics: [...new Set(runState?.postRunSummary?.colorsUnlocked || [])].map(id => `Farbe ${ARCADE_TRAIL_STYLE_LABELS[id] || id}`).concat(cosmeticUnlocks(priorLevel, newLevel)),
     };
 }

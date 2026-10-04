@@ -448,6 +448,7 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff', life
             syncMarkerVisuals();
             projectOverlay();
         },
+        setMilestoneAppearance(profile) { assembly.setMilestoneAppearance(profile); },
         /** Hit zone boxes ({center, halfSize} in vehicle space) over the ship, or null to hide them. */
         setHitboxOverlay(boxes) {
             mount.dataset.hitboxBoxes = String(assembly.setHitboxBoxes(boxes));

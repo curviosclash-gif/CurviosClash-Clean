@@ -1,3 +1,4 @@
+import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import {
     ENDLESS_PARCOURS_WAVE_PHASES,
     ENDLESS_PARCOURS_WAVE_TIMING,
@@ -144,6 +145,7 @@ function beginWaveRetreat(runtime) {
 
 export function beginEndlessAttackWave(runtime, waveNumber = runtime.waveNumber + 1) {
     runtime.waveNumber = Math.max(1, Math.floor(Number(waveNumber) || 1));
+    trackArcadeColorEvent(runtime._colorProgress, { type: 'wave_reached', wave: runtime.waveNumber });
     runtime.wavePhase = ENDLESS_PARCOURS_WAVE_PHASES.ATTACK;
     runtime.wavePhaseElapsedSeconds = 0;
     runtime._eliteExchangeSlot = null;
@@ -158,6 +160,7 @@ export function advanceEndlessWave(runtime, dt) {
     if (runtime.wavePhase === ENDLESS_PARCOURS_WAVE_PHASES.ATTACK
         && runtime.wavePhaseElapsedSeconds >= ENDLESS_PARCOURS_WAVE_TIMING.attackSeconds) {
         runtime.lastCompletedWave = runtime.waveNumber;
+        trackArcadeColorEvent(runtime._colorProgress, { type: 'wave_complete', completedWaves: runtime.lastCompletedWave });
         expireWaveReservations(runtime);
         if (resolveEndlessPauseAfterWave(runtime.waveNumber) === ENDLESS_PARCOURS_WAVE_PHASES.RETREAT) {
             beginWaveRetreat(runtime);

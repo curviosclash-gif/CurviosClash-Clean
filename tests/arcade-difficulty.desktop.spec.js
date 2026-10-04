@@ -54,7 +54,7 @@ test('T-ARC-D2: native Hangar test flight closes the window, grants no records a
     const returned = await reopened;
     await expect(returned.locator('#arcade-vehicle-manager')).toBeVisible();
     const after = await page.evaluate(() => ({ ...localStorage }));
-    for (const key of Object.keys(after).filter((key) => /arcade-(vehicle-profile|records|ranked|leaderboard|difficulty)/.test(key))) {
+    for (const key of Object.keys(after).filter((key) => /arcade-(vehicle-profile|records|ranked|leaderboard|difficulty|colors)/.test(key))) {
         expect(after[key], key).toBe(before[key]);
     }
     await returned.locator('#hangar-window-close').click();

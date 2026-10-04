@@ -1,53 +1,17 @@
-import {
-    ARCADE_TRAIL_STYLE_IDS,
-    ARCADE_WEAPON_STYLE_FAMILIES,
-    ARCADE_WEAPON_STYLE_IDS,
-} from '../../shared/contracts/ArcadeVehicleProfileContract.js';
-import {
-    ARCADE_TRAIL_STYLE_LABELS,
-    ARCADE_TRAIL_STYLE_UNLOCKS,
-    ARCADE_WEAPON_STYLE_LABELS,
-    ARCADE_WEAPON_STYLE_UNLOCKS,
-} from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
-
-function renderOptions(select, styleIds, labels, unlocks, selectedStyleId, level) {
+import { ARCADE_COLOR_IDS, ARCADE_COLOR_REQUIREMENTS, listUnlockedArcadeColors } from '../../shared/contracts/ArcadeColorProgressContract.js';
+import { ARCADE_WEAPON_STYLE_FAMILIES } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
+import { ARCADE_TRAIL_STYLE_LABELS } from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
+function renderOptions(select,selected,unlocked) {
     select.replaceChildren();
-    styleIds.forEach((styleId) => {
-        const option = document.createElement('option');
-        const requiredLevel = unlocks[styleId];
-        option.value = styleId;
-        option.disabled = level < requiredLevel;
-        option.textContent = `${labels[styleId]} · Level ${requiredLevel}${option.disabled ? ' (gesperrt)' : ''}`;
-        select.appendChild(option);
-    });
-    select.value = selectedStyleId;
+    for(const id of ARCADE_COLOR_IDS){const option=document.createElement('option');option.value=id;option.disabled=!unlocked.includes(id);option.textContent=ARCADE_TRAIL_STYLE_LABELS[id]+(option.disabled?' · '+ARCADE_COLOR_REQUIREMENTS[id]:'');select.append(option);}
+    select.value=unlocked.includes(selected)?selected:'standard';
 }
-
-export function renderHangarCosmetics({ shell, profile, mode }) {
-    const { cosmeticsBox, trailStyleSelect, weaponStyleSelects, cosmeticUnlockDetail } = shell;
-    cosmeticsBox?.classList.toggle('hidden', mode !== 'arcade');
-    if (mode !== 'arcade' || !trailStyleSelect) return;
-    const level = Math.max(1, Math.floor(Number(profile?.level) || 1));
-    renderOptions(trailStyleSelect, ARCADE_TRAIL_STYLE_IDS, ARCADE_TRAIL_STYLE_LABELS,
-        ARCADE_TRAIL_STYLE_UNLOCKS, profile.trailStyleId || 'standard', level);
-    for (const familyId of ARCADE_WEAPON_STYLE_FAMILIES) {
-        renderOptions(weaponStyleSelects[familyId], ARCADE_WEAPON_STYLE_IDS, ARCADE_WEAPON_STYLE_LABELS,
-            ARCADE_WEAPON_STYLE_UNLOCKS, profile.weaponStyleIds?.[familyId] || 'standard', level);
-    }
-    const cosmeticUnlocks = [
-        ...Object.entries(ARCADE_TRAIL_STYLE_UNLOCKS).map(([styleId, requiredLevel]) => ({
-            requiredLevel, label: `Spur ${ARCADE_TRAIL_STYLE_LABELS[styleId]}`,
-        })),
-        ...Object.entries(ARCADE_WEAPON_STYLE_UNLOCKS).map(([styleId, requiredLevel]) => ({
-            requiredLevel, label: `Waffenstil ${ARCADE_WEAPON_STYLE_LABELS[styleId]}`,
-        })),
-    ];
-    const newlyUnlocked = cosmeticUnlocks.filter((entry) => entry.requiredLevel === level && level > 1);
-    const upcoming = cosmeticUnlocks.filter((entry) => entry.requiredLevel > level)
-        .sort((a, b) => a.requiredLevel - b.requiredLevel);
-    cosmeticUnlockDetail.textContent = newlyUnlocked.length
-        ? `Neu freigeschaltet: ${newlyUnlocked.map((entry) => entry.label).join(', ')}. Käufe senken dein Level nicht.`
-        : (upcoming.length
-            ? `Nächste Kosmetik: ${upcoming[0].label} ab Level ${upcoming[0].requiredLevel}. Käufe senken dein Level nicht.`
-            : 'Alle Kosmetiken freigeschaltet. Käufe senken dein Level nicht.');
+export function renderHangarCosmetics({shell,profile,mode,colorRecord=null}) {
+    const {cosmeticsBox,trailStyleSelect,weaponStyleSelects,cosmeticUnlockDetail}=shell;
+    cosmeticsBox?.classList.toggle('hidden',mode!=='arcade');
+    if(mode!=='arcade'||!trailStyleSelect)return;
+    const unlocked=listUnlockedArcadeColors(colorRecord);
+    renderOptions(trailStyleSelect,profile.trailStyleId,unlocked);
+    for(const family of ARCADE_WEAPON_STYLE_FAMILIES)renderOptions(weaponStyleSelects[family],profile.weaponStyleIds?.[family],unlocked);
+    cosmeticUnlockDetail.textContent='Freigeschaltete Farben gelten für alle deine Schiffe. Teilfarben, Spur und jede Waffenfamilie wählst du getrennt.';
 }
