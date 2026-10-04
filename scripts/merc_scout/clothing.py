@@ -1,38 +1,16 @@
-"""Modular clothing for the mercenary scout.
+"""Modular clothing with body-guided quad surfaces and retained kit details.
 
-Every garment is its own mesh with its own atlas region, so buyers can swap pieces
-(jacket, sleeves, trousers, boots, gloves, belt, pouches, straps) without touching
-the others.
-
-The realism comes from four layers that all work on the same ring loft:
-
-1. **Anatomical cut** - the cross sections are measured from the built body, not
-   guessed at. ``measure_radius`` walks outwards from the limb axis until
-   ``find_nearest`` says the probe has left the skin; the ring tables below are the
-   result of running that over the arms, legs, torso and feet of the pc variant.
-   ``build_clothing`` then runs two passes over every shell: ``repair_penetration``
-   pushes anything that ended up under the skin back out to cloth thickness, and
-   ``pad_ease`` lifts the whole shell by its comfort ease (2-4 cm, not the 8 cm of
-   the first pass) *radially*, away from the ring centre it was lofted around,
-   which keeps the cut intact where the skin normal points the wrong way.
-2. **Fold pattern** - ``_fold`` is a deterministic sum of smooth ridges (no
-   randomness): tension folds off the armpit, creases at the elbow, compression
-   folds at the waist, behind the knee, over the boot and at the cuff. Amplitudes
-   stay in the 2-5 mm range; deeper reads as damage, not as fabric.
-3. **Seams and edges** - raised decorative seams on the centre front, the side
-   seam, the sleeve underside and the trouser outseams; plus a stand collar, a
-   shoulder yoke, a jacket hem, a sleeve cuff and leather boots with a treaded sole
-   and laced eyelets as separate geometry.
-4. **Density** - the same silhouettes serve all three variants. ``_segments`` and
-   ``_thin`` cut the ring subdivision and the number of bands for mobile, and the
-   fingers, zip teeth and laces are only built when ``variant.detail`` is set.
-
-Material thickness is 6-10 mm for cloth and 4-6 mm for leather; the shells are open
-at both ends (solidify closes them).
+The jacket, sleeves, trousers and boots follow the actual body topology with
+bounded ease, shallow folds and thick edge rims. Their exact vertex correspondence
+also keeps the skin weights aligned. The soles follow the actual foot outline.
+Original pockets, seams, gloves, laces, straps, pouches and buckles keep their
+ring geometry and atlas regions. Body subdivision and detail density provide
+the three saleable variants without changing the head or anatomical proportions.
 """
 
 from __future__ import annotations
 
+import json
 import math
 
 import bpy
@@ -354,6 +332,62 @@ def repair_penetration(objects: list[bpy.types.Object], margin: float) -> int:
     return repairs
 
 
+#: Air every garment has to leave between the skin and its own inner surface, per kind.
+#: This is not comfort ease (that is ``PAD_*``); it is the smallest distance at which the
+#: two surfaces stop fighting for the same pixels.
+CLEARANCE = {"cloth": 0.006, "sleeve": 0.006, "leg": 0.006, "boot": 0.004,
+             "glove": 0.0025, "cuff": 0.004}
+
+
+def enforce_clearance(objects: list[bpy.types.Object], clearance_of) -> int:
+    """Guarantee that no cloth vertex lies on or inside the skin.
+
+    The body is a subdivided *box* skeleton: the corner of every box reaches roughly
+    1.4x the node radius, while a sleeve is a smooth ellipse of about the same nominal
+    radius. An ellipse of radius r therefore cuts the corners off a box of radius r, and
+    the skin shows through exactly there. Solving that by enlarging the profile works
+    everywhere at once but costs the silhouette; measuring it per vertex cannot fail.
+
+    The distance to the closest skin point is not enough on its own: a vertex *inside*
+    the leg still reports a positive distance. The outward normal at its closest
+    surface point gives the signed distance, so interior vertices reach the outer
+    surface plus clearance instead of being accepted as already far enough away.
+
+    The pass only ever moves a vertex outwards, and only the ones that need it, so the
+    cut, the folds and the seams survive. Cloth thickness plus this clearance is what
+    keeps the solidified shell clear of the body.
+    """
+    tree = body_tree()
+    if tree is None:
+        return 0
+    moved = 0
+    for obj in objects:
+        required = clearance_of(obj) + CLOTH
+        touched = 0
+        smallest_before = 1e9
+        smallest_after = 1e9
+        for vertex in obj.data.vertices:
+            point, normal, _index, distance = tree.find_nearest(vertex.co, 0.45)
+            if point is None or distance is None:
+                continue
+            smallest_before = min(smallest_before, distance)
+            signed_distance = (vertex.co - point).dot(normal)
+            if signed_distance >= required:
+                continue
+            # The nearest surface normal identifies the outside even when a ray
+            # fired from an interior vertex misses the opposite wall. Unsigned
+            # distance alone accepted vertices several centimetres inside boots.
+            target = point + normal * required
+            vertex.co = target
+            moved += 1
+            touched += 1
+            smallest_after = min(smallest_after, tree.find_nearest(vertex.co, 0.45)[3])
+        if touched:
+            obj.data.update()
+        print(f"    clearance {obj.name}: verts={len(obj.data.vertices)} moved={touched} "
+              f"min_before={smallest_before * 1000:.3f}mm min_after="
+              f"{smallest_after * 1000 if smallest_after < 1e8 else float('nan'):.3f}mm")
+    return moved
 
 
 # --------------------------------------------------------------------------- #
@@ -556,6 +590,23 @@ def _jacket(materials: dict[str, bpy.types.Material], detail: bool) -> list[bpy.
             parts.append(_loft_shell(f"{JACKET}_zip{step:02d}", tooth,
                                      materials["Metal"], "metal", 0.0, segments=_segments(8, detail),
                                      smooth=False))
+    # The character faces -Y. The legacy ring table placed these details on +Y,
+    # so the jacket's zipper and chest pockets appeared on its back. Preserve the
+    # details but place them on the measured front of the fitted torso surface.
+    tree = body_tree()
+    if tree is not None:
+        for obj in parts:
+            if not obj.name.startswith((JACKET + '_pocket', JACKET + '_zip')):
+                continue
+            low, high = mu.bounds([obj])
+            center = (low + high) * .5
+            hit, _, _, _ = tree.ray_cast(Vector((center.x, -1.0, center.z)), Vector((0, 1, 0)))
+            if hit is None:
+                raise RuntimeError(f'jacket detail has no torso attachment: {obj.name}')
+            proud = .008 if '_pocket' in obj.name else .003
+            offset = hit.y - PAD_CLOTH - proud - center.y
+            for vertex in obj.data.vertices:
+                vertex.co.y += offset
     return parts
 
 
@@ -595,28 +646,29 @@ def _jacket_folds(co: Vector, index: int = 0) -> float:
 
 
 #: Sleeve stations: position along the arm (fractions of shoulder->elbow and
-#: elbow->wrist, negative values run past the shoulder towards the neck), base
-#: radius, how much the section grows towards the top of the ring (local +y, which
-#: is the inboard/up side), and how far the ring centre is pushed that same way.
+#: elbow->wrist, negative values run past the shoulder towards the neck), base radius,
+#: how much the section grows towards the top of the ring (local +y, which is the
+#: inboard/up side), and how far the ring centre is pushed that same way.
 #:
-#: The offset is the part that matters. The chord from the shoulder joint to the
-#: wrist does not run through the middle of the visible arm: the deltoid and the
-#: biceps bulge about 5 cm above and outboard of it. Without the offset the sleeve
-#: is a tube that sits inside the arm, which is what left the red oval on the
-#: shoulder in the isolated renders.
+#: The offset is measured from the built body and its sign is the whole story. Local +y
+#: on this arm points *inboard and down* (``(-0.766, 0, -0.643)``), while the visible arm
+#: sits outboard of the shoulder-to-wrist chord: the measured centre of the upper-arm
+#: slice is 3 cm outboard at the deltoid and 7 cm at mid-upper-arm. A positive offset
+#: therefore slides the sleeve off the arm and onto the chest, which is exactly what left
+#: the outer half of the upper arm bare; the offsets below pull it back onto the arm.
 _SLEEVE_STATIONS = (
     # station, base, rise, offset
-    (-0.26, 0.044, 0.014, 0.008),   # cap top, over the trapezius
-    (-0.12, 0.050, 0.022, 0.016),
-    (0.00, 0.056, 0.038, 0.028),    # deltoid
-    (0.14, 0.052, 0.064, 0.038),
-    (0.32, 0.048, 0.088, 0.046),
-    (0.50, 0.046, 0.092, 0.048),    # biceps, the widest part of the arm
-    (0.68, 0.044, 0.060, 0.042),
-    (0.82, 0.050, 0.032, 0.026),
-    (1.00, 0.070, 0.014, 0.012),    # elbow
-    (1.28, 0.058, 0.008, 0.008),
-    (1.58, 0.046, 0.004, 0.004),
+    (-0.26, 0.052, 0.012, -0.014),   # cap top, over the trapezius
+    (-0.12, 0.062, 0.018, -0.028),
+    (0.00, 0.078, 0.030, -0.033),    # deltoid
+    (0.14, 0.086, 0.046, -0.055),
+    (0.32, 0.090, 0.062, -0.068),
+    (0.50, 0.092, 0.060, -0.070),    # biceps, the widest part of the arm
+    (0.68, 0.086, 0.048, -0.060),
+    (0.82, 0.080, 0.030, -0.048),
+    (1.00, 0.078, 0.014, -0.030),    # elbow
+    (1.28, 0.062, 0.008, -0.018),
+    (1.58, 0.048, 0.004, -0.006),
     (1.84, 0.034, 0.000, 0.000),
     (2.00, 0.029, 0.000, 0.000),    # wrist
     (2.12, 0.029, 0.000, 0.000),
@@ -1143,6 +1195,114 @@ def clothing_group(name: str) -> str:
     return name
 
 
+def _body_shell(name, material, region, predicate, ease, thickness):
+    """Reuse the body's continuous quad surface with open, thick garment edges.
+
+    Each outer face follows a skin face, so a coarse ellipse cannot cut across an
+    elbow or instep. Adjacent garments include a shared band of faces. Only the
+    exposed boundary needs an inner rim; hidden duplicate faces waste the LOD budget.
+    """
+    body = bpy.data.objects[BODY_NAME]
+    source = body.data
+    selected = [p for p in source.polygons
+                if any(predicate(source.vertices[i].co) for i in p.vertices)]
+    indices = sorted({i for p in selected for i in p.vertices})
+    remap = {old: new for new, old in enumerate(indices)}
+    verts = []
+    for i in indices:
+        vertex = source.vertices[i]
+        fold = 0.002 * math.sin(vertex.co.z * 95.0) if not material.name.endswith('_Leather') else 0.0
+        verts.append(vertex.co + vertex.normal * (ease + fold))
+    faces = [tuple(remap[i] for i in p.vertices) for p in selected]
+    edges = {}
+    for face in faces:
+        for a, b in zip(face, face[1:] + face[:1]):
+            key = tuple(sorted((a, b)))
+            edges.setdefault(key, []).append((a, b))
+    inner = {}
+    for uses in edges.values():
+        if len(uses) != 1:
+            continue
+        a, b = uses[0]
+        for i in (a, b):
+            if i not in inner:
+                inner[i] = len(verts)
+                verts.append(verts[i] - source.vertices[indices[i]].normal * thickness)
+        faces.append((b, a, inner[a], inner[b]))
+    obj = mu.make_object(name, verts, faces)
+    correspondence = indices + [indices[i] for i in inner]
+    attribute = obj.data.attributes.new('body_vertex_index', 'INT', 'POINT')
+    for item, i in zip(attribute.data, correspondence):
+        item.value = i + 1
+    obj.data.materials.append(material)
+    mu.smart_unwrap(obj)
+    mu.fit_uv_region(obj, spec.region_uv(region))
+    obj['body_guided_shell'] = True
+    return obj
+
+
+def _fitted_shells(materials):
+    shells = [_body_shell(JACKET, materials['Jacket'], 'jacket',
+                         lambda p: .99 <= p.z <= 1.495 and abs(p.x) <= .205,
+                         PAD_CLOTH, CLOTH),
+              _body_shell(TROUSERS, materials['Trousers'], 'trousers',
+                          lambda p: .25 <= p.z <= 1.18 and abs(p.x) < .27,
+                          PAD_LEG, CLOTH)]
+    for side, suffix in ((1, '_L'), (-1, '_R')):
+        shoulder = Vector(spec.mirror_x(spec.SHOULDER, side))
+        wrist = Vector(spec.mirror_x(spec.WRIST, side))
+        axis = (wrist - shoulder).normalized()
+        length = (wrist - shoulder).length
+        shells.append(_body_shell('merc_scout_sleeve' + suffix, materials['Jacket'],
+                                 'sleeve' + suffix,
+                                 lambda p, s=side, a=axis, origin=shoulder, end=length:
+                                     p.x * s >= .155 and -.06 <= (p - origin).dot(a) <= end + .018,
+                                 PAD_SLEEVE, CLOTH))
+        shells.append(_body_shell('merc_scout_boot' + suffix, materials['Leather'], 'boots',
+                                 lambda p, s=side: p.x * s > .025 and p.z <= .38,
+                                 PAD_BOOT, LEATHER))
+    return shells
+
+
+def _fitted_soles(materials):
+    """Fit the existing boot sole style to the actual foot rather than its joint."""
+    parts = []
+    for side, suffix in ((1, '_L'), (-1, '_R')):
+        boot = bpy.data.objects['merc_scout_boot' + suffix]
+        points = sorted({(round(v.co.x, 6), round(v.co.y, 6))
+                         for v in boot.data.vertices if v.co.z < .11})
+        def cross(a, b, c):
+            return (b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0])
+        halves = []
+        for ordered in (points, reversed(points)):
+            half = []
+            for p in ordered:
+                while len(half) > 1 and cross(half[-2], half[-1], p) <= 0:
+                    half.pop()
+                half.append(p)
+            halves.append(half[:-1])
+        hull = halves[0] + halves[1]
+        center = Vector((sum(p[0] for p in hull)/len(hull), sum(p[1] for p in hull)/len(hull), 0))
+        vertices = []
+        for z, pad in ((.002, .006), (.014, .009), (.032, .004)):
+            for x, y in hull:
+                p = Vector((x, y, z))
+                radial = Vector((x-center.x, y-center.y, 0)).normalized()
+                vertices.append(p + radial * pad)
+        count = len(hull)
+        faces = [tuple(reversed(range(count))), tuple(range(2*count, 3*count))]
+        for band in range(2):
+            for i in range(count):
+                j = (i + 1) % count
+                faces.append((band*count+i, band*count+j, (band+1)*count+j, (band+1)*count+i))
+        obj = mu.make_object('merc_scout_sole' + suffix, vertices, faces, smooth=False)
+        obj.data.materials.append(materials['Leather'])
+        mu.smart_unwrap(obj)
+        mu.fit_uv_region(obj, spec.region_uv('boot_sole'))
+        parts.append(obj)
+    return parts
+
+
 def build_clothing(variant: spec.Variant,
                    materials: dict[str, bpy.types.Material]) -> list[bpy.types.Object]:
     global _VARIANT_KEY, _DETAIL
@@ -1150,10 +1310,23 @@ def build_clothing(variant: spec.Variant,
     _DETAIL = variant.detail
     detail = variant.detail
     parts: list[bpy.types.Object] = []
-    parts.extend(_jacket(materials, detail))
-    parts.extend(_sleeves(materials, detail))
-    parts.extend(_trousers(materials, detail))
-    parts.extend(_boots(materials, detail))
+    # Retain the authored kit, pockets, seams, soles and laces; replace only the
+    # disconnected garment lofts with the approved body-guided topology.
+    old_parts = (_jacket(materials, detail) + _sleeves(materials, detail)
+                 + _trousers(materials, detail) + _boots(materials, detail))
+    for obj in old_parts:
+        replace = (obj.name in (JACKET, TROUSERS + '_seat',
+                               'merc_scout_sleeve_L', 'merc_scout_sleeve_R',
+                               'merc_scout_leg_L', 'merc_scout_leg_R',
+                               'merc_scout_boot_L', 'merc_scout_boot_R',
+                               'merc_scout_sole_L', 'merc_scout_sole_R')
+                   or obj.name.startswith(JACKET + '_yoke'))
+        if replace:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        else:
+            parts.append(obj)
+    parts.extend(_fitted_shells(materials))
+    parts.extend(_fitted_soles(materials))
     parts.extend(_gloves(materials, detail))
     parts.append(_belt(materials))
     parts.extend(_pouches(materials, detail))
@@ -1162,16 +1335,9 @@ def build_clothing(variant: spec.Variant,
         parts.extend(_patches(materials))
         parts.append(_holster(materials))
 
-    # Fitting pass, in two steps. The shells were lofted *inside* the intended
-    # garment so that neither step ever has to pull cloth towards the body:
-    #   1. push anything that ended up under the skin back out to thickness + 1 mm,
-    #   2. lift the whole shell by its comfort ease, measured from the skin normal.
-    # Because step 2 works on the repaired mesh and only moves outwards, the red
-    # test cannot regress: the sum of the two is monotonically non-decreasing.
-    deformable = [obj for obj in parts if obj.name.startswith(
-        ("merc_scout_jacket", "merc_scout_sleeve", "merc_scout_leg", "merc_scout_trousers",
-         "merc_scout_boot", "merc_scout_glove", "merc_scout_cuff"))]
-    repair_penetration(deformable, CLOTH + 0.001)
+    # Preserve the original glove fit; body-guided garment faces need no repair.
+    deformable = [obj for obj in parts if obj.name.startswith('merc_scout_glove')]
+    repairs = repair_penetration(deformable, CLOTH + 0.001)
 
     def pad_of(obj: bpy.types.Object) -> float:
         if obj.name.startswith("merc_scout_sleeve"):
@@ -1185,7 +1351,41 @@ def build_clothing(variant: spec.Variant,
     for obj in deformable:
         pad_ease(obj, ring_centres(obj), pad_of(obj))
 
+    def clearance_of(obj: bpy.types.Object) -> float:
+        if obj.name.startswith(("merc_scout_boot", "merc_scout_sole")):
+            return CLEARANCE["boot"]
+        if obj.name.startswith(("merc_scout_glove",)):
+            return CLEARANCE["glove"]
+        if obj.name.startswith(("merc_scout_cuff",)):
+            return CLEARANCE["cuff"]
+        return CLEARANCE["cloth"]
+
+    report = {"clearance_moves": enforce_clearance(deformable, clearance_of),
+              "penetration_repairs": repairs}
+
     grouped: dict[str, list[bpy.types.Object]] = {}
     for obj in parts:
         grouped.setdefault(clothing_group(obj.name), []).append(obj)
-    return [mu.join(objects, name) for name, objects in grouped.items()]
+    garments = []
+    for name, objects in grouped.items():
+        garment = mu.join(objects, name)
+        orphan = bpy.data.meshes.get(name)
+        if orphan is not None and orphan is not garment.data and orphan.users == 0:
+            bpy.data.meshes.remove(orphan)
+        garment.data.name = name
+        garments.append(garment)
+
+    report["body_guided_shells"] = 6
+    worst = []
+    tree = body_tree()
+    if tree is not None:
+        for obj in garments:
+            if obj.name.startswith(("merc_scout_body", "merc_scout_head", "merc_scout_hair")):
+                continue
+            smallest = min((tree.find_nearest(vertex.co, 0.45)[3]
+                            for vertex in obj.data.vertices), default=None)
+            if smallest is not None:
+                worst.append((round(smallest * 1000.0, 2), obj.name))
+    report["min_clearance_mm"] = sorted(worst)[:6]
+    print("CLOTHING " + json.dumps(report))
+    return garments

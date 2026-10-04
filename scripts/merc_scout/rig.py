@@ -75,6 +75,36 @@ def bind_auto(rig: bpy.types.Object, meshes: list[bpy.types.Object]) -> None:
     bpy.ops.object.parent_set(type="ARMATURE_AUTO")
 
 
+def match_clothing_weights(meshes: list[bpy.types.Object]) -> None:
+    """Keep fitted garments on the same skin surface throughout animation."""
+    body = next(obj for obj in meshes if obj.name == "merc_scout_body")
+    garments = [obj for obj in meshes if obj.name.startswith(
+        ("merc_scout_jacket", "merc_scout_sleeve", "merc_scout_trousers",
+         "merc_scout_boot", "merc_scout_glove", "merc_scout_kit"))]
+    mu.select_only(garments + [body], body)
+    bpy.ops.object.data_transfer(data_type="VGROUP_WEIGHTS", use_create=True,
+                                 vert_mapping="POLYINTERP_NEAREST",
+                                 layers_select_src="ALL", layers_select_dst="NAME",
+                                 mix_mode="REPLACE")
+    # Fitted shell vertices and their edge rims have an exact body counterpart.
+    # Copy those weights directly so nearby fingers or a second limb cannot steal
+    # their influence during nearest-surface interpolation.
+    for garment in garments:
+        mapping = garment.data.attributes.get('body_vertex_index')
+        if mapping is None:
+            continue
+        for vertex, item in zip(garment.data.vertices, mapping.data):
+            if item.value == 0:
+                continue
+            source = body.data.vertices[item.value - 1]
+            for membership in list(vertex.groups):
+                garment.vertex_groups[membership.group].remove([vertex.index])
+            for membership in source.groups:
+                name = body.vertex_groups[membership.group].name
+                group = garment.vertex_groups.get(name) or garment.vertex_groups.new(name=name)
+                group.add([vertex.index], membership.weight, 'REPLACE')
+
+
 def bind_rigid(rig: bpy.types.Object, obj: bpy.types.Object, bone_name: str) -> None:
     """Weight a prop to exactly one bone: correct for eyeballs and badges."""
     obj.parent = rig

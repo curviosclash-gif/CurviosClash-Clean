@@ -95,6 +95,7 @@ def build_character(variant_key: str, *, do_actions: bool = True) -> dict:
     report["normalisation"] = body.normalise_to_contract(meshes, rig)
     rigging.limit_influences(meshes)
     report["weight_repairs"] = {obj.name: rigging.repair_unweighted(rig, obj) for obj in meshes}
+    rigging.match_clothing_weights(meshes)
     rigging.limit_influences(meshes)
 
     report["triangles"] = mu.triangles(meshes)
@@ -131,7 +132,7 @@ def export_fbx(path: Path) -> Path:
         bake_anim=True,
         bake_anim_use_all_actions=True,
         bake_anim_force_startend_keying=True,
-        path_mode="AUTO",
+        path_mode="COPY",
         embed_textures=True,
         mesh_smooth_type="FACE",
         use_mesh_modifiers=False,
@@ -197,6 +198,16 @@ def export_glb(path: Path, *, animations: bool = False) -> Path:
     return path
 
 
+def pack_source_textures(blend: Path) -> None:
+    """Keep editable sources usable after the generator worktree is removed."""
+    for image in bpy.data.images:
+        if image.source != 'FILE' or not image.filepath:
+            continue
+        source = bpy.path.abspath(image.filepath)
+        image.pack()
+        image.filepath = bpy.path.relpath(source, start=str(blend.parent))
+
+
 def run(variant_key: str, *, preview_dir: Path | None = None, blend_path: Path | None = None,
         glb_path: Path | None = None, do_preview: bool = True,
         resolution: tuple[int, int] = (520, 700), samples: int = 16,
@@ -216,7 +227,8 @@ def run(variant_key: str, *, preview_dir: Path | None = None, blend_path: Path |
             for stale in texture_dir.glob("*.png"):
                 stale.unlink()
         report["textures"] = painting.paint_and_wire(variant, result["materials"],
-                                                     texture_dir=texture_dir)
+                                                     texture_dir=texture_dir,
+                                                     slot_usage=material_lib.slot_usage(meshes))
         report["unpainted_slots"] = audit.unpainted_slots(meshes, result["materials"])
         if report["unpainted_slots"]:
             report["warnings"] = report.get("warnings", []) + [
@@ -229,6 +241,7 @@ def run(variant_key: str, *, preview_dir: Path | None = None, blend_path: Path |
 
     blend = Path(blend_path) if blend_path else MODEL_DIR / f"blender/merc_scout_{variant_key}.blend"
     blend.parent.mkdir(parents=True, exist_ok=True)
+    pack_source_textures(blend)
     bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.wm.save_as_mainfile(filepath=str(blend), check_existing=False)
     report["files"] = {"blend": str(blend), "blend_bytes": blend.stat().st_size}

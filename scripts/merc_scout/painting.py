@@ -20,13 +20,17 @@ Two things are easy to get wrong and are handled explicitly here:
 
 Relief is measured in millimetres
 ---------------------------------
-A tile coordinate spans one atlas slot, and a slot covers about 0.35 m of the
-garment, so one height unit is 437 mm of surface. Painting a "0.3 deep" crease in
-tile units therefore carved a 13 cm canyon, and the previous pass did exactly
-that: its normal maps ran to 90 degrees on every cloth texel and to 0.3 degrees on
-the skin, because the amplitudes were guessed per painter instead of measured. All
-relief in this module is now written in millimetres and converted by
-:func:`_relief`, so a value can be checked against the real object.
+A tile coordinate spans one atlas slot, and a slot covers ``SLOT_SPAN_METRES`` -
+about 0.35 m - of surface, so one height unit is 350 mm. Painting a "0.3 deep"
+crease in tile units therefore carves a 10 cm canyon. All relief in this module is
+written in millimetres and converted by :func:`_relief`, so a value can be checked
+against the real object.
+
+One factor was missing for a long time and made every millimetre of it invisible:
+the height field is in tile units while :func:`_normal_map` takes its gradient per
+*texel*, so the slope needs the tile's pixel count. Measured on the maps of the
+first pass, the whole Leather atlas varied by 0.0019 around the flat 0.5 - a normal
+map that changed nothing. See :func:`_normal_map` and :data:`RELIEF_GAIN`.
 
 Texel budget, and why there is no 1 mm weave
 --------------------------------------------
@@ -92,11 +96,11 @@ NORMAL_RELIEF = 2.0
 #: ``.scratch/face/measure_relief.py``; the numbers are in the generator report.
 RELIEF_GAIN = {
     "Skin": 1.0,
-    "Hair": 0.10,
-    "Eye": 1.0,
+    "Hair": 0.03,
+    "Eye": 4.0,
     "Jacket": 0.20,
     "Trousers": 0.20,
-    "Leather": 0.20,
+    "Leather": 0.10,
     "Accent": 0.20,
     "Metal": 0.20,
 }
@@ -135,7 +139,7 @@ PAINTED_REGIONS: dict[str, tuple[str, ...]] = {
         # and only one ``nostril``. Left out of this table they would ship black.
         "spare_a", "spare_b", "spare_c",
     ),
-    "Hair": ("hair", "fringe"),
+    "Hair": ("hair", "fringe", "brow_L", "brow_R"),
     "Eye": ("eye_L", "eye_R"),
     "Jacket": ("jacket", "sleeve_L", "sleeve_R", "hood", "collar", "quilt", "zip",
                "patch", "grime"),
@@ -642,9 +646,7 @@ def _skin_tile(rng: np.random.Generator, size: int, region: str) -> tuple[np.nda
         # width, not a hairline scratch - and the depth is 0.4 to 0.9 mm.
         forehead = np.exp(-(_wrap_distance(np.float32(0.0), tu) / 0.16) ** 2)
         folds = np.zeros_like(tu, dtype=np.float32)
-        for index, (z, depth, width) in enumerate(((1.7360, 0.90, 0.0170),
-                                                   (1.7530, 0.75, 0.0155),
-                                                   (1.7690, 0.55, 0.0140))):
+        for index, (z, width) in enumerate(((1.7360, 0.0170), (1.7530, 0.0155), (1.7690, 0.0140))):
             wave = 0.006 * np.sin(np.pi * (_wrap_distance(np.float32(0.0), tu) / 0.14 * 3.0 + index))
             line = np.exp(-((tv - (_head_v(z) + wave)) / width) ** 2)
             folds = np.maximum(folds, line * forehead * (1.0 - index * 0.18))
@@ -656,9 +658,9 @@ def _skin_tile(rng: np.random.Generator, size: int, region: str) -> tuple[np.nda
                                               side * 0.30, 0.048, 0.0062))
         crows = np.zeros_like(tu, dtype=np.float32)
         for side in (1.0, -1.0):
-            for index, (dz, angle, length, depth) in enumerate(((0.0010, 0.55, 0.024, 0.30),
-                                                               (-0.0016, 0.15, 0.028, 0.34),
-                                                               (-0.0042, -0.20, 0.022, 0.28))):
+            for index, (dz, angle, length) in enumerate(((0.0010, 0.55, 0.024),
+                                                         (-0.0016, 0.15, 0.028),
+                                                         (-0.0042, -0.20, 0.022))):
                 crows = np.maximum(crows, _stroke(
                     tu, tv, side * (FACE_EYE_U + 0.024), _head_v(1.6720) + dz,
                     angle if side > 0 else math.pi - angle, length, 0.0062) * (1.0 - index * 0.1))
@@ -780,10 +782,10 @@ def _skin_tile(rng: np.random.Generator, size: int, region: str) -> tuple[np.nda
         # it stays in the painted list so the atlas carries no black hole. It is
         # painted as a plain lip so a stray island would still read as a mouth.
         lip = np.exp(-((tv - 0.5) / 0.32) ** 2)
-        colour = colour + lip[..., None] * np.array((0.215, -0.075, -0.060), dtype=np.float32)
-        creases = _lines(tv + 0.16 * np.sin(6.0 * np.pi * tu), 1.0 / 22.0, 0.0022)
+        colour = colour + lip[..., None] * np.array((0.160, -0.060, -0.048), dtype=np.float32)
+        creases = _lines(tv + 0.16 * np.sin(6.0 * np.pi * tu), 1.0 / 18.0, 0.0050)
         colour = _shade(colour, creases * lip * 0.055)
-        height = height - creases * lip * _relief(0.15)
+        height = height - creases * lip * _relief(0.10)
     elif region in ("ear_L", "ear_R"):
         red = np.exp(-((tv - 0.45) / 0.40) ** 2)
         colour = colour + np.stack([red * 0.115, red * 0.010, red * 0.005], axis=-1)
@@ -1810,7 +1812,8 @@ def _wire(material: bpy.types.Material, base_colour: bpy.types.Image,
 
 
 def paint_and_wire(variant: spec.Variant, materials: dict[str, bpy.types.Material], *,
-                   texture_dir, seed: int = 20260930) -> dict[str, str]:
+                   texture_dir, seed: int = 20260930,
+                   slot_usage: dict[str, set[str]] | None = None) -> dict[str, str]:
     """Paint one BaseColor and one Normal PNG per painted material and wire them.
 
     ``texture_dir`` is created if missing. The returned mapping is
@@ -1848,7 +1851,8 @@ def paint_and_wire(variant: spec.Variant, materials: dict[str, bpy.types.Materia
         base = np.zeros((size, size, 4), dtype=np.float32)
         base[..., 3] = 1.0
         height = np.zeros((size, size), dtype=np.float32)
-        for region in _material_regions(name):
+        regions = set(_material_regions(name)) | (slot_usage or {}).get(name, set())
+        for region in sorted(regions):
             rng = np.random.default_rng(_tile_seed(seed, name, region, "paint"))
             colour, relief = painter(rng, size, region)
             _fill(base, colour, region)

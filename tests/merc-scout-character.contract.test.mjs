@@ -10,13 +10,82 @@
  */
 
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MODEL_DIR = path.join(ROOT, 'assets', 'models', 'characters', 'merc_scout');
+
+const BLENDER = process.env.BLENDER_EXECUTABLE
+  || 'C:/Program Files/Blender Foundation/Blender 4.2/blender.exe';
+test('fitted source garments keep their body correspondence through every clip', {
+  skip: !existsSync(BLENDER),
+}, () => {
+  const inspect = String.raw`
+import bpy, os, json
+from pathlib import Path
+rows = []
+for variant in ('mobile', 'pc', 'high'):
+    bpy.ops.wm.open_mainfile(filepath=str(Path(os.environ['MERC_MODEL_DIR']) / f'blender/merc_scout_{variant}.blend'))
+    body = bpy.data.objects['merc_scout_body']
+    rig = bpy.data.objects['merc_scout_rig']
+    for image in bpy.data.images:
+        if image.source == 'FILE':
+            assert image.packed_file is not None and image.filepath.startswith('//'), (
+                f'{variant}: texture depends on the deleted worktree: {image.name}')
+    garments = [bpy.data.objects[name] for name in ('merc_scout_jacket', 'merc_scout_trousers',
+        'merc_scout_sleeve_L', 'merc_scout_sleeve_R', 'merc_scout_boot_L', 'merc_scout_boot_R')]
+    for obj in garments:
+        mapping = obj.data.attributes.get('body_vertex_index')
+        assert mapping is not None, f'{variant} {obj.name}: missing fitted surface'
+        assert sum(item.value > 0 for item in mapping.data) > 40
+        for v, item in zip(obj.data.vertices, mapping.data):
+            if not item.value:
+                continue
+            source = body.data.vertices[item.value - 1]
+            expected = {body.vertex_groups[g.group].name: g.weight for g in source.groups if g.weight > 1e-6}
+            actual = {obj.vertex_groups[g.group].name: g.weight for g in v.groups if g.weight > 1e-6}
+            assert expected.keys() == actual.keys(), f'{variant} {obj.name}: detached skin influence'
+            assert max(abs(actual[k]-expected[k]) for k in expected) < 1e-5
+    actions = list(bpy.data.actions)
+    assert len(actions) == 11
+    minimum = 1.0
+    for action in actions:
+        rig.animation_data.action = action
+        first, last = action.frame_range
+        for frame in (first, (first+last)/2, last):
+            bpy.context.scene.frame_set(int(frame), subframe=frame-int(frame))
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            skin = body.evaluated_get(depsgraph).to_mesh()
+            for obj in garments:
+                evaluated = obj.evaluated_get(depsgraph)
+                mesh = evaluated.to_mesh()
+                mapping = obj.data.attributes['body_vertex_index']
+                for vertex, item in zip(mesh.vertices, mapping.data):
+                    if item.value:
+                        # Nearest points can belong to the opposite thigh, and
+                        # averaged normals reverse at bent joints. Follow the
+                        # actual skin counterpart; rendered coverage is a separate gate.
+                        source = skin.vertices[item.value-1]
+                        gap = (vertex.co-source.co).length
+                        rest_gap = (obj.data.vertices[vertex.index].co-body.data.vertices[item.value-1].co).length
+                        minimum = min(minimum, gap/max(rest_gap, 1e-6))
+                        assert gap >= rest_gap*.05 and gap <= rest_gap*2+1e-5, (
+                            f'{variant} {action.name} {obj.name}: collapsed or detached surface offset {gap}/{rest_gap}')
+                evaluated.to_mesh_clear()
+            body.evaluated_get(depsgraph).to_mesh_clear()
+    rows.append({'variant':variant, 'clips':len(actions), 'minimum_offset_ratio':minimum})
+print('MERC_FITTED_SOURCE_PASS', json.dumps(rows))
+`;
+  const result = spawnSync(BLENDER, ['--background', '--factory-startup', '--python-exit-code', '1',
+    '--python-expr', inspect], { encoding: 'utf8', windowsHide: true, timeout: 180_000,
+    env: { ...process.env, MERC_MODEL_DIR: MODEL_DIR } });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stdout, /MERC_FITTED_SOURCE_PASS/);
+});
 
 /** What each variant promises. Mirrors scripts/merc_scout/spec.py. */
 const VARIANTS = {
@@ -200,6 +269,11 @@ for (const [variant, expected] of Object.entries(VARIANTS)) {
     assert.ok(glbBytes <= expected.maxGlbBytes,
       `${variant} GLB is ${(glbBytes / 1024 / 1024).toFixed(2)} MiB, budget is ${expected.maxGlbBytes / 1024 / 1024} MiB`);
     assert.ok(statSync(fbxFile).size > 100_000, `${variant} FBX is too small`);
+    const fbx = readFileSync(fbxFile);
+    const pngMagic = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    let embeddedMaps = 0;
+    for (let offset = fbx.indexOf(pngMagic); offset >= 0; offset = fbx.indexOf(pngMagic, offset + 8)) embeddedMaps++;
+    assert.ok(embeddedMaps >= 12, `${variant} FBX must carry its PBR maps (${embeddedMaps} embedded)`);
   });
 
   test(`merc-scout ${variant}: geometry, rig and materials are complete`, () => {

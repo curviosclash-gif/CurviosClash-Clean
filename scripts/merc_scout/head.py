@@ -24,15 +24,19 @@ How the realism is produced
 
 Eyelids and gaze
     The palpebral fissure is an ellipse *on the eyeball*, so what each lid covers
-    can be stated exactly: the upper lid reaches 25 % down the visible eye, the
-    lower one 10 %. The lid is a shell that starts on that fissure ellipse,
-    travels outwards along straight rays from the eye centre to a rim ellipse
-    that hides behind the skull surface, and rounds off with thickness -- the
-    supraorbital fold is the resulting crease edge, not a painted stripe. The
-    eyeball is a spheroid whose forward pole is Blender -Y, which puts the iris
-    centre on ``u = 0.5`` of the ``eye_L``/``eye_R`` atlas slot after
+    can be stated exactly: the upper lid reaches 30 % down the visible eye, the
+    lower one 14 %. The lid is a shell that starts on that fissure ellipse, travels
+    outwards along straight rays from the eye centre to a rim ellipse that hides
+    behind the skull surface, and rounds off with thickness -- the supraorbital fold
+    is the resulting crease edge, not a painted stripe. The eyeball is a spheroid
+    whose forward pole is Blender -Y, which puts the iris centre on ``u = 0.5``,
+    ``v = 0.5`` of the ``eye_L``/``eye_R`` atlas slot after
     ``mesh_utils.fit_uv_region``; no Z rotation is used, so no texture resolution
-    is thrown away.
+    is thrown away. That was measured, not assumed: the vertex closest to the gaze
+    direction carries exactly (0.5, 0.5) on both eyeballs
+    (``.scratch/face/probe_faces.py``). The shell reaches 1.30 of the eyeball radius
+    and the eyeball is 11.5 mm: those two numbers together decide how much sclera
+    stays visible at the canthi, where the lid cannot wrap past the socket.
 
 Determinism
     No randomness anywhere. :func:`_hash01` (SHA-256 over rounded coordinates)
