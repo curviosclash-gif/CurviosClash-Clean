@@ -21,6 +21,24 @@ import { ARCADE_STONE_WORKSHOP_STORAGE_KEY } from '../src/shared/contracts/Arcad
 const HANGAR_BUILD_STORAGE_KEY = 'curviosclash.hangar.arcade-builds.v2';
 const BUILD_NAME = 'Desktop E2E Build';
 
+test('T-ARC-C1: Arcade statistics compare the active draft with factory values and the fleet average', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await loadGame(page);
+    await openArcadeHangar(page);
+    await selectHangarVehicle(page, 'manta');
+    await page.locator('#hangar-build-view-stats').click();
+    const health = page.locator('[data-metric="maxHpPct"]');
+    await expect(health).toContainText('Werkszustand: 150');
+    await expect(health).toContainText('Flottendurchschnitt: 96.88');
+    await expect(health.locator('meter')).toHaveCount(3);
+    const item = page.locator('[data-metric="itemCapacity"]');
+    await expect(item).toContainText('Werkszustand: 7');
+    await expect(item).toContainText('Flottendurchschnitt: 4.5');
+    await health.scrollIntoViewIfNeeded();
+    await expect(health).toBeVisible();
+    await health.screenshot({ path: testInfo.outputPath('arcade-factory-fleet-comparison.png') });
+});
+
 // Records are written through the active player profile, which stores them under a key scoped to
 // that profile rather than the legacy one. Reading the legacy key straight from localStorage only
 // works until a profile exists -- after that it is empty and every assertion on it reads "". The

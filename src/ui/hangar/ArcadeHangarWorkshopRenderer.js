@@ -6,6 +6,7 @@ import { compareHangarStats, projectHangarStats } from './HangarStatProjection.j
 import { prependFightEffectRows } from './FightHangarEffectView.js';
 import { projectHangarProgression } from './HangarProgressionProjection.js';
 import { renderHangarCosmetics } from './HangarCosmeticRenderer.js';
+import { renderArcadeHangarStatComparison } from './ArcadeHangarStatComparison.js';
 import {
     STAT_VALUE_HINTS,
     VEHICLE_CATEGORY_LABELS,
@@ -213,6 +214,11 @@ export function createArcadeHangarWorkshopRenderer(options) {
         const compareMetrics = compare(current, project(compareBuild));
         const baselineLabel = state.savedBuild?.name || 'Standard';
         const comparisonLabel = savedComparison?.name || compareEntry.label;
+        if (arcade) {
+            renderArcadeHangarStatComparison(statRows, { vehicleId: state.draft.vehicleId, current, saved, reference: project(compareBuild), baselineLabel, comparisonLabel, compare });
+            budgetRows.replaceChildren();
+            return;
+        }
         statRows.replaceChildren();
         savedMetrics.forEach((metric, index) => {
             const versus = compareMetrics[index];
@@ -234,7 +240,6 @@ export function createArcadeHangarWorkshopRenderer(options) {
         });
         if (mode === 'fight') prependFightEffectRows(statRows, { draft: state.draft, baselineBuild: state.baselineBuild || state.savedBuild, baselineLabel }, validateBuild);
         budgetRows.replaceChildren();
-        if (arcade) return; // Arcade stones cost no budget.
         [
             ['Editorbudget', validation.stats.budgetUsed, validation.limits.editorBudget],
             ['Massebudget', validation.stats.massUsed, validation.limits.massBudget],

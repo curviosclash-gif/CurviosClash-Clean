@@ -6343,6 +6343,17 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     text-align: right;
 }
 
+.hangar-stat-reference {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(60px, 1fr);
+    gap: 8px;
+    align-items: center;
+}
+
+.hangar-stat-meter {
+    width: 100%;
+}
+
 .level4-section-panel .menu-section[inert] {
     opacity: 0.55;
 }
