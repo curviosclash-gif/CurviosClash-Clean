@@ -167,6 +167,18 @@ export const ARCADE_STONE_SLOT_PACKAGES = Object.freeze({
     utility: Object.freeze({ slots: Object.freeze(['utility']), requiredLevel: 10, costXp: 900 }),
 });
 
+// Paket 4: weapon levels belong to one vehicle. The damage bonuses add to the
+// nose/utility percentages; the rate curve is shared by every Arcade MG.
+export const ARCADE_WEAPON_LEVEL_COST_BASE_XP = 150;
+export const ARCADE_WEAPON_LEVEL_COST_EXPONENT = 1.3;
+export const ARCADE_MG_DAMAGE_PER_LEVEL = 8;
+export const ARCADE_ROCKET_DAMAGE_PER_LEVEL = 10;
+export const ARCADE_SHIELD_PER_LEVEL = 10;
+export const ARCADE_MG_LEVEL_CURVE_BASE = 0.95;
+export const ARCADE_MG_RATE_MAX_BONUS = 1;
+export const ARCADE_MG_AIM_MAX_BONUS = 0.5;
+export const ARCADE_MG_UNLOCK_LEVEL_INTERVAL = 10;
+
 export default {
     ARCADE_STORAGE_MAX_SLOTS,
     ARCADE_ROLL_BASE_PCT,

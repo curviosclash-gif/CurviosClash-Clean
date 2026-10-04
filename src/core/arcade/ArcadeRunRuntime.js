@@ -838,6 +838,7 @@ export class ArcadeRunRuntime {
         });
         bindArcadeRunVehicleRewards(this, runConfig.runType);
         this._runVehicleStoneStepsById = Object.create(null);
+        this._runVehicleWeaponsById = Object.create(null);
         if (options.dailyChallenge || runConfig.dailyChallenge === true) {
             this._state.isDailyChallenge = true;
         }

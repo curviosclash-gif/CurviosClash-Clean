@@ -2,6 +2,7 @@
 import { disposeObject3DResources } from '../../shared/rendering/ThreeDisposal.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { createVehicleMesh } from '../vehicle-registry.js';
+import { resolvePlayerMachineGunId } from '../../shared/contracts/ArcadeMachineGunContract.js';
 import { syncPlayerHitboxFromVehicleMesh } from './PlayerMotionOps.js';
 import { spawnBurningFlames } from '../../hunt/FlamethrowerFlameEffect.js';
 import {
@@ -292,7 +293,7 @@ export class PlayerView {
 
     _syncWeaponVisuals() {
         if (!this.vehicleMesh) return;
-        this.vehicleMesh.setMachineGunModel?.(this.player?.fightLoadout?.machineGunId || 'vector_m7');
+        this.vehicleMesh.setMachineGunModel?.(resolvePlayerMachineGunId(this.player));
         this.vehicleMesh.syncRocketInventory?.(this.player?.rocketInventory);
     }
 

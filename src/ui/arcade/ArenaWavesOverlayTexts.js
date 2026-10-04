@@ -2,7 +2,7 @@
 // board, whose own title ("Bot 2 gewinnt die Runde", "Nächste Runde in 3…") does not fit a death
 // that only moves the run on to the next map.
 
-import { resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
+import { resolveAnyMachineGunModel } from '../../shared/contracts/ArcadeMachineGunContract.js';
 
 const CHOICE_LABELS = Object.freeze({
     speed: 'Antrieb: +4 % Tempo',
@@ -18,8 +18,12 @@ const CHOICE_LABELS = Object.freeze({
 export function formatArenaWavesChoiceLabel(choiceId) {
     const id = String(choiceId || '');
     if (CHOICE_LABELS[id]) return CHOICE_LABELS[id];
-    if (id.startsWith('machine_gun:')) return `MG wechseln: ${resolveFightMachineGunModel(id.slice(12))?.label || id.slice(12)}`;
+    if (id.startsWith('machine_gun:')) return `MG wechseln: ${resolveAnyMachineGunModel(id.slice(12))?.label || id.slice(12)}`;
     return id.replace(/_/g, ' ');
+}
+
+export function formatArenaWavesMachineGunLabel(id) {
+    return resolveAnyMachineGunModel(id).label;
 }
 
 /** Title and subline for the round end board while a Five Fronts screen owns it, else null. */

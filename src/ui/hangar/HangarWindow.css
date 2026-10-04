@@ -157,3 +157,22 @@
     color: #f6c453;
     font-weight: 800;
 }
+.hangar-arcade-weapons-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 0.6rem;
+}
+
+.hangar-arcade-weapon-card {
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.65rem;
+    border: 1px solid rgba(160, 200, 235, 0.35);
+    border-radius: 0.55rem;
+}
+
+.hangar-arcade-weapon-card.is-selected { border-color: #7de9ff; }
+.hangar-arcade-weapon-card.is-locked { opacity: 0.5; }
+.hangar-arcade-weapon-role { font-weight: 600; }
+.hangar-arcade-weapon-levels { display: grid; gap: 0.5rem; margin-top: 1rem; }
+.hangar-arcade-weapon-level { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; align-items: center; }

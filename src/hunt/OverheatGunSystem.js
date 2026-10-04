@@ -8,15 +8,13 @@ import {
     GAMEPLAY_ACTION_RESULT_CODES,
     buildGameplayActionResult,
 } from '../shared/contracts/GameplayActionResultContract.js';
-import { resolveFightMachineGunConfig } from '../shared/contracts/FightMachineGunContract.js';
-import { applyArenaWavesMachineGunTuning } from '../shared/contracts/ArenaWavesContract.js';
+import { resolvePlayerMachineGunConfig, resolvePlayerMachineGunCooling } from './mg/MGConfigResolver.js';
 import { MAP_DESTRUCTIBLE_DAMAGE } from '../shared/contracts/MapDestructibleContract.js';
 import {
     applyWeaponFanDirection,
     resolveWeaponFanProjectileCount,
 } from './WeaponFanOps.js';
 import { nextPlayerArcadeWeaponColor } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
-import { applyArcadeBuildToMachineGunConfig } from '../shared/contracts/ArcadeVehicleBuildContract.js';
 
 function getMgConfig(source = null) {
     return resolveEntityRuntimeConfig(source)?.HUNT?.MG || {};
@@ -84,10 +82,7 @@ export class OverheatGunSystem {
     update(dt) {
         const mg = getMgConfig(this.runtimeContext || this.entityManager);
         const players = this.entityManager?.players || [];
-        this._state.update(players, dt, (player) => applyArenaWavesMachineGunTuning(
-            mg,
-            player?.isBot === true ? 0 : player?.fightLoadout?.arenaWavesMgTuning
-        ));
+        this._state.update(players, dt, (player) => resolvePlayerMachineGunCooling(mg, player));
         this._tracerFx.update(dt);
     }
 
@@ -160,10 +155,7 @@ export class OverheatGunSystem {
             });
         }
 
-        const mg = applyArcadeBuildToMachineGunConfig(resolveFightMachineGunConfig(
-            getMgConfig(this.runtimeContext || this.entityManager),
-            player?.fightLoadout?.machineGunId
-        ), player);
+        const mg = resolvePlayerMachineGunConfig(getMgConfig(this.runtimeContext || this.entityManager), player);
         const shotCooldown = Math.max(0.01, Number(mg.COOLDOWN || 0.08));
         if ((player.shootCooldown || 0) > 0) {
             return buildGameplayActionResult({
@@ -187,8 +179,17 @@ export class OverheatGunSystem {
             });
         }
 
-        player.shootCooldown = resolveWaterWeaponCooldown(player, shotCooldown);
+        const burst = mg.FIRE_MODE === 'burst';
+        const burstShots = burst ? Math.max(0, Number(player.arcadeBurstShots) || 0) : 0;
+        const nextPause = burst
+            ? (burstShots + 1 >= mg.BURST_SIZE ? mg.BURST_PAUSE : mg.BURST_INTERVAL)
+            : shotCooldown;
+        player.shootCooldown = Math.max(0, resolveWaterWeaponCooldown(player, nextPause)
+            - (mg.FIRE_MODE ? Math.max(0, Number(player.shootCooldownCarry) || 0) : 0));
+        if (burst) player.arcadeBurstShots = burstShots + 1 >= mg.BURST_SIZE ? 0 : burstShots + 1;
+        else if (player.arcadeBurstShots) player.arcadeBurstShots = 0;
         this._state.increaseOverheat(idx, mg);
+        if (burst && this._lockoutByPlayer[idx] > 0) player.arcadeBurstShots = 0;
 
         const resolvesAimDirection = typeof this._hitResolver.resolveAimDirection === 'function';
         if (resolvesAimDirection) this._hitResolver.resolveAimDirection(player, this._tmpAim, mg);

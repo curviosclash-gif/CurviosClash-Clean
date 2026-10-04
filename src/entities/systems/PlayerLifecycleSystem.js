@@ -8,6 +8,7 @@ import { PlayerInteractionPhase } from './lifecycle/PlayerInteractionPhase.js';
 import { applyFourPlayerPlanarPhysicsConstraint } from '../../four-player-planar/FourPlayerPlanarPhysics.js';
 import { resolveOwnerTimeCompensation } from '../player/PlayerTimeScaleOps.js';
 import { applyWaterGameplayState } from './WaterGameplayOps.js';
+import { advanceShootCooldown } from '../player/PlayerShootCooldownOps.js';
 
 export class PlayerLifecycleSystem {
     constructor(entityManager) {
@@ -20,7 +21,7 @@ export class PlayerLifecycleSystem {
     updateShootCooldown(player, dt) {
         // A slow-time owner is exempt from the slowed loop, so their cooldown runs in real time.
         const ownerDt = dt * resolveOwnerTimeCompensation(player);
-        player.shootCooldown = Math.max(0, (player.shootCooldown || 0) - ownerDt);
+        advanceShootCooldown(player, ownerDt);
     }
 
     updatePlayer(player, dt, input, renderFrameId = 0, simulationNowMs = undefined) {

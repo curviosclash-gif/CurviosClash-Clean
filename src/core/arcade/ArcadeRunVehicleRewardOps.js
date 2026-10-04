@@ -1,6 +1,16 @@
 import { getArcadeRunVehicleBonuses, getOrCreateProfile } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { bindArcadeVehicleRewards } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
 
+function weaponFieldsFromBuild(build) {
+    return Object.freeze({
+        vehicleLevel: build.level,
+        mgLevel: build.mgLevel,
+        rocketLevel: build.rocketLevel,
+        shieldLevel: build.shieldLevel,
+        selectedMachineGunId: build.selectedMachineGunId,
+    });
+}
+
 export function bindArcadeRunVehicleRewards(runtime, runType = runtime?._config?.runType) {
     runtime._rewardBinding = bindArcadeVehicleRewards({
         runType,
@@ -51,12 +61,14 @@ export function getArcadeRunVehicleBonusesForRun(runtime, profile) {
         profile,
         runtime?._resolveSettingsRecordStore?.() || null,
         sameRun ? kept.stoneSteps : null,
+        sameRun ? kept.weapons : null,
     );
     if (runId && bonuses.build) {
         runtime._runStoneSteps = {
             runId,
             vehicleId: bonuses.build.vehicleId,
             stoneSteps: bonuses.build.stoneSteps,
+            weapons: weaponFieldsFromBuild(bonuses.build),
         };
     }
     return bonuses;
@@ -66,12 +78,13 @@ export function getArcadeRunVehicleBonusesForRun(runtime, profile) {
  * Build a deduplicated bonus map for the vehicle profiles flown by local humans.
  * @param {Record<string, any>} profiles
  * @param {any[]} players
- * @param {{ buildOnly?: boolean, store?: any, stoneStepsByVehicleId?: Record<string, any> }} [options]
+ * @param {{ buildOnly?: boolean, store?: any, stoneStepsByVehicleId?: Record<string, any>, weaponFieldsByVehicleId?: Record<string, any> }} [options]
  */
 export function createArcadeVehicleUpgradeBonusMap(profiles, players, {
     buildOnly = false,
     store = null,
     stoneStepsByVehicleId = null,
+    weaponFieldsByVehicleId = null,
 } = {}) {
     const byVehicleId = Object.create(null);
     for (const player of Array.isArray(players) ? players : []) {
@@ -83,9 +96,13 @@ export function createArcadeVehicleUpgradeBonusMap(profiles, players, {
             profile,
             store,
             stoneStepsByVehicleId?.[vehicleId] || null,
+            weaponFieldsByVehicleId?.[vehicleId] || null,
         );
         if (bonuses.build && stoneStepsByVehicleId && !stoneStepsByVehicleId[vehicleId]) {
             stoneStepsByVehicleId[vehicleId] = bonuses.build.stoneSteps;
+        }
+        if (bonuses.build && weaponFieldsByVehicleId && !weaponFieldsByVehicleId[vehicleId]) {
+            weaponFieldsByVehicleId[vehicleId] = weaponFieldsFromBuild(bonuses.build);
         }
         byVehicleId[vehicleId] = buildOnly ? { build: bonuses.build } : bonuses;
     }
@@ -96,7 +113,7 @@ export function createArcadeVehicleUpgradeBonusMap(profiles, players, {
  * Build bonuses independently for each local player, even when profiles share a vehicle ID.
  * @param {Record<number, Record<string, any>>} profilesByPlayerIndex
  * @param {any[]} players
- * @param {{ buildOnly?: boolean, storesByPlayerIndex?: Record<number, any>, stoneStepsByPlayerIndex?: Record<number, {vehicleId: string, stoneSteps: any}> }} [options]
+ * @param {{ buildOnly?: boolean, storesByPlayerIndex?: Record<number, any>, stoneStepsByPlayerIndex?: Record<number, {vehicleId: string, stoneSteps: any, weapons?: any}> }} [options]
  */
 export function createArcadePlayerUpgradeBonusMap(profilesByPlayerIndex, players, {
     buildOnly = false,
@@ -116,12 +133,16 @@ export function createArcadePlayerUpgradeBonusMap(profilesByPlayerIndex, players
             stoneStepsByPlayerIndex?.[playerIndex]?.vehicleId === vehicleId
                 ? stoneStepsByPlayerIndex[playerIndex].stoneSteps
                 : null,
+            stoneStepsByPlayerIndex?.[playerIndex]?.vehicleId === vehicleId
+                ? stoneStepsByPlayerIndex[playerIndex].weapons
+                : null,
         );
         if (bonuses.build && stoneStepsByPlayerIndex
             && !stoneStepsByPlayerIndex[playerIndex]) {
             stoneStepsByPlayerIndex[playerIndex] = {
                 vehicleId: bonuses.build.vehicleId,
                 stoneSteps: bonuses.build.stoneSteps,
+                weapons: weaponFieldsFromBuild(bonuses.build),
             };
         }
         byPlayerIndex[playerIndex] = buildOnly ? { build: bonuses.build } : bonuses;
@@ -145,5 +166,6 @@ export function resolveArcadeRunStrategyUpgradeBonuses(runtime, players, fallbac
     return createArcadeVehicleUpgradeBonusMap(profiles, players, {
         store: runtime?._resolveSettingsRecordStore?.() || null,
         stoneStepsByVehicleId: runtime?._runVehicleStoneStepsById || null,
+        weaponFieldsByVehicleId: runtime?._runVehicleWeaponsById || null,
     });
 }

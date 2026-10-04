@@ -132,7 +132,7 @@ test('dispose deactivates bots, clears transient supply/projectiles and cannot r
     f.manager.powerupManager.removeByOwnerId = (ownerId) => { removed = ownerId; };
     const runtime = new ArenaWavesRuntime(); runtime.start({ entityManager: f.manager, strategy: f.strategy }); enterCombat(runtime);
     runtime.dispose(); assert.equal(runtime.phase, 'idle'); assert.equal(f.active.size, 0); assert.deepEqual(cleared, Array.from({ length: ARENA_WAVES_BOT_CAPACITY + 1 }, (_, index) => index));
-    assert.equal(removed, 'arena-waves-supply'); assert.equal(f.human.fightLoadout.arenaWavesMgTuning, 0); assert.equal(f.strategyEffects.at(-1), null);
+    assert.equal(removed, 'arena-waves-supply'); assert.equal(f.human.arenaWavesLoadout, undefined); assert.equal(f.strategyEffects.at(-1), null);
 });
 
 test('forced reset disposes an active arena run after config removal, but preserves an in-flight rebuild', () => {

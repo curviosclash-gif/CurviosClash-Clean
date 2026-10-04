@@ -38,7 +38,9 @@ function resolveEndlessProjectileDamage(owner, damage) {
 // Paket 2a: the Arcade nose size raises the rocket damage of its owner (direct hit, blast,
 // turret, map). The field is only set in normal Arcade runs and is 1 for bots there.
 function resolveRocketDamage(projectile, system) {
-    const factor = Number(projectile?.owner?.arcadeDamageMultiplier);
+    const rocketFactor = Number(projectile?.owner?.arcadeRocketDamageMultiplier);
+    const factor = Number.isFinite(rocketFactor) && rocketFactor > 0
+        ? rocketFactor : Number(projectile?.owner?.arcadeDamageMultiplier);
     return resolveRocketTierDamage(projectile.type, system) * (Number.isFinite(factor) && factor > 0 ? factor : 1);
 }
 import { resolveEntityRuntimeConfig } from '../../../shared/contracts/EntityRuntimeConfig.js';

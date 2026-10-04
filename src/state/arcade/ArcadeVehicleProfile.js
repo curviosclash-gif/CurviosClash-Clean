@@ -18,6 +18,7 @@ import {
 } from '../../shared/contracts/ArcadeHangarRulesContract.js';
 import { normalizeArcadeSizeProfileFields } from '../../shared/contracts/ArcadeVehicleBuildContract.js';
 import { resolveArcadeVehicleActiveStats } from '../../shared/contracts/ArcadeVehicleActiveStatsContract.js';
+import { normalizeArcadeWeaponProfileFields } from '../../shared/contracts/ArcadeMachineGunContract.js';
 import { resolveArcadeVehicleBaseStats } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import {
     listArcadeStoneUnlocksBetween,
@@ -192,16 +193,20 @@ export function xpToNextLevel(profile) {
  * @param {any} [runStoneSteps] schon eingefrorene Stein-Schritte dieses Runs: Hangar-Änderungen und
  *   Level-Aufstiege während eines Runs wirken erst im nächsten Run; der Pool wird dann nicht gelesen
  */
-export function getArcadeRunVehicleBonuses(profile, store = null, runStoneSteps = null) {
+export function getArcadeRunVehicleBonuses(profile, store = null, runStoneSteps = null, runWeaponFields = null) {
     if (!profile || typeof profile !== 'object') return { build: null };
     const vehicleId = String(profile.vehicleId || '');
     const pool = store && !runStoneSteps ? readArcadeStoneWorkshopRecord(store).pool : null;
+    const level = runWeaponFields?.vehicleLevel ?? profile.level;
+    const weapons = normalizeArcadeWeaponProfileFields({ ...profile, ...runWeaponFields, level });
     return {
         build: {
             vehicleId,
+            level,
             ...normalizeArcadeSizeProfileFields(profile),
             stoneSlotPackages: normalizeArcadeStoneSlotPackages(profile.stoneSlotPackages),
             stoneSteps: runStoneSteps || resolveArcadeStoneExtraSteps(pool, vehicleId, profile),
+            ...weapons,
         },
     };
 }

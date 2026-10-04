@@ -122,6 +122,8 @@ export function applyArcadeBuildToPlayer(player, bonuses, isNormalRun) {
     // Without a build the mode's own regen delay stays in charge (bots, like before).
     player.arcadeRegenDelay = build ? build.regenDelay : undefined;
     player.arcadeDamageMultiplier = factor(build?.damagePct);
+    player.arcadeRocketDamageMultiplier = build ? build.rocketDamagePct / 100 : undefined;
+    player.arcadeWeaponLoadout = build?.weaponLoadout || null;
     player.arcadeRangeMultiplier = factor(build?.rangePct);
     player.arcadeRollMultiplier = factor(build?.rollPct);
     // The engine size resizes the boost tank; keep its fill level so a fresh spawn starts full.

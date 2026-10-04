@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { normalizeFightMachineGunId, resolveFightMachineGunModel } from '../shared/contracts/FightMachineGunContract.js';
+import { normalizeArcadeMachineGunId, resolveAnyMachineGunModel } from '../shared/contracts/ArcadeMachineGunContract.js';
 import { ROCKET_PICKUP_DEFINITIONS } from '../shared/contracts/RocketPickupDefinitionsContract.js';
 
 const MAX_ROCKETS = 5;
@@ -9,6 +9,9 @@ const GUN_PROFILES = Object.freeze({
     raptor_r9: { length: 0.82, radius: 0.67, barrels: 2, muzzle: 0.9 },
     bastion_h3: { length: 0.88, radius: 1.55, barrels: 1, muzzle: 1.35 },
     lance_p4: { length: 1.28, radius: 0.62, barrels: 1, muzzle: 0.72 },
+    swarm_s2: { length: 0.78, radius: 0.55, barrels: 3, muzzle: 0.78 },
+    ember_g5: { length: 0.94, radius: 1.2, barrels: 1, muzzle: 1.5 },
+    pulse_p3: { length: 1.02, radius: 0.82, barrels: 3, muzzle: 1.1 },
 });
 const _position = new THREE.Vector3();
 const _scale = new THREE.Vector3();
@@ -92,7 +95,7 @@ function buildRackGeometry(layout) {
 }
 
 function buildGunGeometry(layout, modelId) {
-    const profile = GUN_PROFILES[modelId];
+    const profile = GUN_PROFILES[modelId] || GUN_PROFILES.vector_m7;
     const length = layout.gunLength * profile.length;
     const radius = layout.gunRadius * profile.radius;
     const geometries = [];
@@ -141,7 +144,7 @@ export function attachPlayerVehicleWeaponVisuals(vehicle) {
 
     const rackMaterial = new THREE.MeshStandardMaterial({ color: 0x526170, metalness: 0.86, roughness: 0.32 });
     const gunMaterial = new THREE.MeshStandardMaterial({
-        color: resolveFightMachineGunModel('vector_m7').tracerColor, metalness: 0.86, roughness: 0.32,
+        color: resolveAnyMachineGunModel('vector_m7').tracerColor, metalness: 0.86, roughness: 0.32,
     });
     const hardpoints = new THREE.Mesh(buildHardpointGeometry(layout, 'vector_m7'),
         [rackMaterial, gunMaterial, gunMaterial]);
@@ -194,10 +197,10 @@ export function attachPlayerVehicleWeaponVisuals(vehicle) {
         _machineGunId: '',
         setMachineGunModel(value) {
             if (value === this._machineGunId) return;
-            const id = normalizeFightMachineGunId(value);
+            const id = normalizeArcadeMachineGunId(value);
             if (id === this._machineGunId) return;
             this._machineGunId = id;
-            gunMaterial.color.setHex(resolveFightMachineGunModel(id).tracerColor);
+            gunMaterial.color.setHex(resolveAnyMachineGunModel(id).tracerColor);
             hardpoints.geometry.dispose();
             hardpoints.geometry = buildHardpointGeometry(layout, id);
         },

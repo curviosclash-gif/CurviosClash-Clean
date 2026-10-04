@@ -39,6 +39,45 @@ test('T-ARC-C1: Arcade statistics compare the active draft with factory values a
     await health.screenshot({ path: testInfo.outputPath('arcade-factory-fleet-comparison.png') });
 });
 
+test('T-ARC-W1: start pair is selectable, later guns stay visible and locked, selected MG enters the run', async ({ page }) => {
+    test.setTimeout(180_000);
+    await loadGame(page);
+    await openArcadeHangar(page);
+    await selectHangarVehicle(page, 'arrow');
+    const raptor = page.locator('.hangar-arcade-weapon-card', { has: page.locator('[data-arcade-machine-gun-id="raptor_r9"]') });
+    const bastion = page.locator('.hangar-arcade-weapon-card', { has: page.locator('[data-arcade-machine-gun-id="bastion_h3"]') });
+    await expect(raptor.locator('button')).toBeEnabled();
+    await expect(bastion).toContainText('Ab Level 10');
+    await expect(bastion.locator('button')).toBeDisabled();
+    await raptor.locator('button').click();
+    await expect(raptor.locator('button')).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(async () => (await readStoredProfile(page, 'arrow'))?.selectedMachineGunId).toBe('raptor_r9');
+    await page.goto(new URL('/', page.url()).href);
+    await loadGameWithRetry(page);
+    await startArcadeRun(page);
+    await expect.poll(() => page.evaluate(() => (
+        window.GAME_INSTANCE?.entityManager?.humanPlayers?.[0]?.arcadeWeaponLoadout?.machineGunId
+    ))).toBe('raptor_r9');
+});
+
+test('T-ARC-W2: MG level spends the selected vehicle XP only after confirmation', async ({ page }) => {
+    test.setTimeout(180_000);
+    await openStoneWorkshop(page, 'ship5');
+    const buy = page.locator('[data-arcade-weapon-upgrade="mg"]');
+    await expect(page.locator('.hangar-arcade-weapon-levels')).toContainText('Stufe 1');
+    await buy.click();
+    const dialog = page.locator('.hangar-arcade-weapon-confirm');
+    await expect(dialog).toContainText('Kosten: 150 XP');
+    await expect(dialog).toContainText('MG-Schaden: 100 % → 108 %');
+    await expect(dialog).toContainText('XP: 999.999 → 999.849');
+    await dialog.locator('.hangar-arcade-weapon-confirm-cancel').click();
+    expect((await readStoredProfile(page, 'ship5')).mgLevel || 1).toBe(1);
+    await buy.click();
+    await dialog.locator('.hangar-arcade-weapon-confirm-accept').click();
+    await expect.poll(async () => (await readStoredProfile(page, 'ship5'))?.mgLevel).toBe(2);
+    expect((await readStoredProfile(page, 'ship5')).xpBank).toBe(999849);
+});
+
 // Records are written through the active player profile, which stores them under a key scoped to
 // that profile rather than the legacy one. Reading the legacy key straight from localStorage only
 // works until a profile exists -- after that it is empty and every assertion on it reads "". The

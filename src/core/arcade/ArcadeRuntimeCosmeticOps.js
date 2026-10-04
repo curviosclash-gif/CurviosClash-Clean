@@ -15,25 +15,40 @@ import { ARCADE_RUN_KINDS, resolveArcadeRuntimeKind } from '../../shared/contrac
 // matches the drawn size. The build also captures the workshop pool once per run, so a session
 // rebuild between maps cannot apply a purchase or level-up made after the run started.
 const RUN_STONE_STEPS = new WeakMap();
+const RUN_WEAPON_FIELDS = new WeakMap();
 const DEMOLITION_STONE_STEPS = new WeakMap();
 
 function applyArcadeRunSizeBuild(support, strategy, profiles, players, runtimeConfig, recordStore) {
     if (!isFivePortalsConfig(runtimeConfig) && !isArenaWavesConfig(runtimeConfig)) return;
     const run = (isFivePortalsConfig(runtimeConfig) ? support?.fivePortalsRuntime : support?.arenaWavesRuntime) || null;
     const kept = run && run.phase !== 'idle' && run.phase !== 'finished' ? RUN_STONE_STEPS.get(run) : null;
+    const keptWeapons = run && run.phase !== 'idle' && run.phase !== 'finished' ? RUN_WEAPON_FIELDS.get(run) : null;
     const bonuses = createArcadeVehicleUpgradeBonusMap(profiles, players, {
         buildOnly: true,
         store: recordStore,
         stoneStepsByVehicleId: kept,
+        weaponFieldsByVehicleId: keptWeapons,
     });
     if (run) {
         const snapshot = Object.create(null);
+        const weaponSnapshot = Object.create(null);
         for (const [vehicleId, value] of Object.entries(bonuses.byVehicleId)) {
-            if (value?.build) snapshot[vehicleId] = value.build.stoneSteps;
+            if (value?.build) {
+                snapshot[vehicleId] = value.build.stoneSteps;
+                weaponSnapshot[vehicleId] = Object.freeze({
+                    vehicleLevel: value.build.level,
+                    mgLevel: value.build.mgLevel,
+                    rocketLevel: value.build.rocketLevel,
+                    shieldLevel: value.build.shieldLevel,
+                    selectedMachineGunId: value.build.selectedMachineGunId,
+                });
+            }
         }
         RUN_STONE_STEPS.set(run, snapshot);
+        RUN_WEAPON_FIELDS.set(run, weaponSnapshot);
     }
     strategy?.applyVehicleUpgrades?.(bonuses);
+    return bonuses;
 }
 
 function getDemolitionRunStoneSteps(runtime, profileIds, humanPlayers, profilesByPlayerIndex, storesByPlayerIndex) {
@@ -150,7 +165,7 @@ export function applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig
                 entityManager?.gameModeStrategy?.applyVehicleUpgrades?.(playerBuildBonuses);
             }
         } else {
-            applyArcadeRunSizeBuild(support, entityManager?.gameModeStrategy, profiles, entityManager?.humanPlayers, runtimeConfig, recordStore);
+            playerBuildBonuses = applyArcadeRunSizeBuild(support, entityManager?.gameModeStrategy, profiles, entityManager?.humanPlayers, runtimeConfig, recordStore);
         }
     }
     const arcadeEnabled = runtimeConfig?.arcade?.enabled === true;

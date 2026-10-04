@@ -68,6 +68,13 @@ export function resolveActiveArcadeVehicleId(runtimeConfig, settings) {
     return String(runtimeConfig?.player?.vehicles?.PLAYER_1 || settings?.vehicles?.PLAYER_1 || 'ship5').trim() || 'ship5';
 }
 
+export function resolveArenaStartMachineGunId(context, runtimeState) {
+    const human = runtimeState?.entityManager?.humanPlayers?.[0];
+    return context?.playerBuildBonuses?.byPlayerIndex?.[human?.index]?.build?.selectedMachineGunId
+        || context?.playerBuildBonuses?.byVehicleId?.[human?.vehicleId]?.build?.selectedMachineGunId
+        || human?.fightLoadout?.machineGunId;
+}
+
 export function buildArcadeEncounterPlan(runtimeConfig) {
     const plan = buildArcadeSectorPlan({
         seed: runtimeConfig?.arcade?.seed,

@@ -12,7 +12,7 @@ import { isFivePortalsConfig } from '../../shared/contracts/PortalChainContract.
 import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
 import { isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { WeaponRaceRuntime } from '../arcade/WeaponRaceRuntime.js';
-import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveActiveArcadeVehicleId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities } from './GameRuntimeArcadeSupportOps.js';
+import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveActiveArcadeVehicleId, resolveArenaStartMachineGunId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities } from './GameRuntimeArcadeSupportOps.js';
 import { resolveArcadePostMatchProgression } from '../arcade/ArcadePostMatchProgression.js';
 import { resolveDedicatedArcadeMatchStart } from './GameRuntimeArcadeRunDispatch.js';
 import { GameRuntimeDemolitionSupport } from './GameRuntimeDemolitionSupport.js';
@@ -345,7 +345,7 @@ export class GameRuntimeArcadeSupport {
                 strategy: runtimeState?.entityManager?.gameModeStrategy || null,
                 seed: runtimeConfig?.arcade?.seed,
                 vehicleId: resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings),
-                selectedMachineGunId: runtimeState?.entityManager?.humanPlayers?.[0]?.fightLoadout?.machineGunId,
+                selectedMachineGunId: resolveArenaStartMachineGunId(localProfileContext, runtimeState),
             });
             this._sectorRebuildInFlight = false;
             return started;

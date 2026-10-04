@@ -47,6 +47,11 @@ function resolvePlaywrightWarmupClientFiles(env = process.env) {
 function resolveRendererManualChunk(id, env = process.env) {
     if (!id) return undefined;
     const normalizedId = id.replace(/\\/g, '/');
+    // Presets evaluate lighting at module initialization. Keep its defaults in
+    // their chunk rather than pulling them into the mutually dependent runtime.
+    if (normalizedId.endsWith('/shared/contracts/MapLightingContract.js')) {
+        return 'map-presets';
+    }
     if (normalizedId.includes('/node_modules/mp4-muxer/') ||
         normalizedId.endsWith('/core/recording/engines/WebCodecsRecorderEngine.js')) {
         return 'recording-webcodecs';

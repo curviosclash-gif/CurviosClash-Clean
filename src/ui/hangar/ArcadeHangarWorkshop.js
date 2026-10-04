@@ -33,6 +33,7 @@ import { createHangarDraftPersistence } from './HangarDraftPersistence.js';
 import { createHangarWorkshopAudio } from './HangarWorkshopAudio.js';
 import { createHangarStarterBuild } from './HangarStarterBuildCatalog.js';
 import { createArcadeStonePanel } from './ArcadeStonePanel.js';
+import { createArcadeWeaponPanel } from './ArcadeWeaponPanel.js';
 import { createFallbackProfilePort, createHangarBuildFromProfile as buildFromProfile, mapHangarHitboxClass } from './HangarWorkshopProfileSupport.js';
 import { validateFightHangarBuild, validateFightHangarDrop } from './FightHangarValidation.js';
 import { normalizeFightMachineGunId, resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
@@ -198,16 +199,22 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         bind, toast, store, shell, getProfile, saveProfile, profileFor, getDraft: () => draft, vehicleLabel: (id) => entryFor(id).label,
         onSelectStone: selectPart, onChange: () => syncDisplay({ preserveCatalog: true }),
     }) : null;
+    const weaponPanel = hangarMode === 'arcade' ? createArcadeWeaponPanel({
+        bind, toast, getProfile, saveProfile, getPool: stonePanel?.getPool,
+    }) : null;
     const withActive = (build) => stonePanel?.withActivePlacement(build) || build; // saved build + stones that fly
     // Tabs "Form" (colours) and, arcade only, "Ausbau" (size build and stones), stored per vehicle in the arcade profile.
     const formTab = createHangarFormTab({
         bind, toast, viewport, enabled: hangarMode === 'arcade', panel: formViewPanel, tabButton: formViewButton,
         getProfile, saveProfile,
         upgradePanel: upgradeViewPanel, upgradeTabButton: upgradeViewButton,
-        upgradeSections: stonePanel ? [stonePanel.root] : [], getPool: stonePanel?.getPool,
+        upgradeSections: stonePanel ? [stonePanel.root, weaponPanel.root] : [], getPool: stonePanel?.getPool,
         onChange: () => syncDisplay({ preserveCatalog: true }),
     });
-    function syncPartStyle() { formTab.sync(draft.vehicleId, buildView); }
+    function syncPartStyle() {
+        formTab.sync(draft.vehicleId, buildView);
+        weaponPanel?.render(draft.vehicleId, getProfile());
+    }
 
     function syncDisplay(options = {}) {
         if (disposed) return;

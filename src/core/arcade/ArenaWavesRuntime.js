@@ -72,8 +72,10 @@ export class ArenaWavesRuntime {
     _human() { return this.entityManager?.humanPlayers?.find((player) => player && player.isBot !== true) || null; }
     _applyHumanUpgrades(fullHeal = false) {
         const player = this._human(); if (!player) return;
-        if (!Object.prototype.hasOwnProperty.call(player, '_arenaWavesBaseMachineGunId')) player._arenaWavesBaseMachineGunId = player.fightLoadout?.machineGunId;
-        player.fightLoadout = { ...(player.fightLoadout || {}), machineGunId: this.upgrades.machineGunId, arenaWavesMgTuning: this.upgrades.mgTuning };
+        player.arenaWavesLoadout = Object.freeze({
+            machineGunId: this.upgrades.machineGunId,
+            mgTuning: this.upgrades.mgTuning,
+        });
         if (!Number.isFinite(player._arenaWavesBaseSpeed)) player._arenaWavesBaseSpeed = player.baseSpeed;
         // The run starts before the spawn: the base life is the spawn's (table/build) value, not the pre-spawn one.
         if (Number.isFinite(player._arcadeSpawnMaxHp)) { player._arenaWavesBaseMaxHp = player._arcadeSpawnMaxHp; player._arcadeSpawnMaxHp = undefined; }
@@ -274,10 +276,7 @@ export class ArenaWavesRuntime {
         if (human) {
             if (Number.isFinite(human._arenaWavesBaseSpeed)) { human.baseSpeed = human._arenaWavesBaseSpeed; human.speed = human.baseSpeed; }
             if (Number.isFinite(human._arenaWavesBaseMaxHp)) human.maxHp = human._arenaWavesBaseMaxHp;
-            if (human.fightLoadout) {
-                human.fightLoadout.arenaWavesMgTuning = 0;
-                human.fightLoadout.machineGunId = human._arenaWavesBaseMachineGunId || human.fightLoadout.machineGunId;
-            }
+            human.arenaWavesLoadout = undefined;
         }
         this.strategy?.applyRunRewardEffects?.(null); this.reset();
     }

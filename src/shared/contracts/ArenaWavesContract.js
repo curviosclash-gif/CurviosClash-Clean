@@ -1,8 +1,8 @@
 import {
     DEFAULT_FIGHT_MACHINE_GUN_ID,
     FIGHT_MACHINE_GUN_MODELS,
-    normalizeFightMachineGunId,
 } from './FightMachineGunContract.js';
+import { normalizeArcadeMachineGunId } from './ArcadeMachineGunContract.js';
 import { normalizeArcadeBotAggressiveness } from './ArcadeBotAggressionContract.js';
 
 export const ARENA_WAVES_RUN_TYPE = 'arena_waves';
@@ -61,7 +61,7 @@ export function resolveArenaWavesAggression(mapIndex, wave) {
 }
 export function createArenaWavesUpgrades(source = null) {
     const input = source && typeof source === 'object' ? source : {};
-    return { speed: clamp(number(input.speed), 0, 20), maxHp: clamp(number(input.maxHp), 0, 48), pickup: clamp(number(input.pickup, 1), 1, 1.75), mgTuning: clamp(number(input.mgTuning), 0, 5), machineGunId: normalizeFightMachineGunId(input.machineGunId) };
+    return { speed: clamp(number(input.speed), 0, 20), maxHp: clamp(number(input.maxHp), 0, 48), pickup: clamp(number(input.pickup, 1), 1, 1.75), mgTuning: clamp(number(input.mgTuning), 0, 5), machineGunId: normalizeArcadeMachineGunId(input.machineGunId) };
 }
 export function effectiveArenaWavesChoices(upgrades, activeModel = DEFAULT_FIGHT_MACHINE_GUN_ID) {
     const u = createArenaWavesUpgrades(upgrades);
@@ -70,7 +70,7 @@ export function effectiveArenaWavesChoices(upgrades, activeModel = DEFAULT_FIGHT
     if (u.maxHp < 48) choices.push('max_hp');
     if (u.pickup < 1.75) choices.push('pickup');
     if (u.mgTuning < 5) choices.push('mg_tuning');
-    for (const model of FIGHT_MACHINE_GUN_MODELS) if (model.id !== normalizeFightMachineGunId(activeModel)) choices.push(`machine_gun:${model.id}`);
+    for (const model of FIGHT_MACHINE_GUN_MODELS) if (model.id !== normalizeArcadeMachineGunId(activeModel)) choices.push(`machine_gun:${model.id}`);
     return choices;
 }
 function seedStep(value) { return (Math.imul(value ^ (value >>> 16), 0x45d9f3b) >>> 0); }
@@ -95,7 +95,7 @@ export function applyArenaWavesChoice(upgrades, choiceId) {
     else if (choice === 'max_hp') next.maxHp = clamp(next.maxHp + 12, 0, 48);
     else if (choice === 'pickup') next.pickup = clamp(Math.round(next.pickup * 1.15 * 100) / 100, 1, 1.75);
     else if (choice === 'mg_tuning') next.mgTuning = clamp(next.mgTuning + 1, 0, 5);
-    else if (choice.startsWith('machine_gun:')) next.machineGunId = normalizeFightMachineGunId(choice.slice(12));
+    else if (choice.startsWith('machine_gun:')) next.machineGunId = normalizeArcadeMachineGunId(choice.slice(12));
     return next;
 }
 export function calculateArenaWavesScore({ survivalSeconds = 0, regularKills = 0, eliteKills = 0, completedWaves = [] } = {}) {

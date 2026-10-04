@@ -2,6 +2,67 @@ import { expect, test } from './helpers.desktop.js';
 import { waitForLoadedGame } from './helpers.js';
 import { applyArenaWavesChoice } from '../src/shared/contracts/ArenaWavesContract.js';
 import { EIFFEL_TOWER_SIEGE_MODELS } from '../src/core/config/maps/presets/eiffel_tower_siege/EiffelTowerSiegeModels.js';
+import { ARCADE_VEHICLE_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
+
+test('T-ARC-W3: Five Fronts starts with the selected Hangar MG and tuning changes real shot damage', async ({ page }) => {
+    test.setTimeout(120_000);
+    await waitForLoadedGame(page);
+    const seeded = await page.evaluate((profileKey) => {
+        const game = window.GAME_INSTANCE;
+        const store = game?.settingsManager?.getPlayerRecordStorePort?.();
+        const vehicleId = String(game?.settings?.vehicles?.PLAYER_1 || 'ship5');
+        const selectedMachineGunId = ['manta', 'spaceship'].includes(vehicleId) ? 'bastion_h3' : 'raptor_r9';
+        const record = { schemaVersion: 'arcade-vehicle-profile.v3', vehicleId, level: 10,
+            xp: 10000, xpBank: 10000, mgLevel: 2, rocketLevel: 1, shieldLevel: 1,
+            selectedMachineGunId };
+        const result = store?.saveJsonRecord?.(profileKey, { [vehicleId]: record });
+        return { ok: result?.success === true, vehicleId, selectedMachineGunId };
+    }, ARCADE_VEHICLE_PROFILE_STORAGE_KEY);
+    expect(seeded.ok).toBe(true);
+    await page.locator('#menu-nav [data-session-type="single"]').click({ force: true });
+    await page.locator('#submenu-custom:not(.hidden) [data-mode-path="arcade"]').click({ force: true });
+    await page.locator('#submenu-game:not(.hidden) [data-start-section-target="arcade"]').evaluate((button) => button.click());
+    await page.locator('.arcade-start-mode-options-summary').click();
+    await page.locator('#btn-arcade-five-fronts-start-inline').click({ force: true });
+    await page.waitForFunction((gunId) => {
+        const game = window.GAME_INSTANCE;
+        const runtime = game?.runtimeFacade?._arcadeSupport?.arenaWavesRuntime;
+        const human = game?.entityManager?.humanPlayers?.[0];
+        return runtime?.upgrades?.machineGunId === gunId
+            && human?.arcadeWeaponLoadout?.machineGunId === gunId
+            && human?.arcadeWeaponLoadout?.mgLevel === 2;
+    }, seeded.selectedMachineGunId, { timeout: 60_000 });
+    const shots = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const gun = game.entityManager._overheatGunSystem;
+        const human = game.entityManager.humanPlayers[0];
+        const runtime = game.runtimeFacade._arcadeSupport.arenaWavesRuntime;
+        const resolver = gun._hitResolver;
+        const original = resolver.resolveHit;
+        let damage = 0;
+        resolver.resolveHit = function capture(player, config, ...args) {
+            damage = config.DAMAGE;
+            return original.call(this, player, config, ...args);
+        };
+        try {
+            human.shootCooldown = 0;
+            gun._lockoutByPlayer[human.index] = 0;
+            gun.tryFire(human);
+            const before = damage;
+            runtime.upgrades.mgTuning = 1;
+            runtime._applyHumanUpgrades();
+            human.shootCooldown = 0;
+            gun._lockoutByPlayer[human.index] = 0;
+            gun.tryFire(human);
+            return { before, after: damage, tuning: human.arenaWavesLoadout?.mgTuning };
+        } finally {
+            resolver.resolveHit = original;
+        }
+    });
+    expect(shots.before).toBeGreaterThan(0);
+    expect(shots.after / shots.before).toBeCloseTo(1.06, 5);
+    expect(shots.tuning).toBe(1);
+});
 
 // This intentionally uses the runtime's test-visible arcade seam to avoid waiting
 // for combat AI. It still exercises the production menu button and overlay clicks.
