@@ -283,14 +283,16 @@ function readUnlock(value) {
         if (readText(value.when, SECRET_ROOM_LIMITS.idMaxLength) !== 'allReleased') {
             return { ok: false, unlock: null };
         }
-        const required = Number(value.requiredReleases);
+        const required = value.requiredReleases;
         return {
             ok: true,
             unlock: Object.freeze({
                 source: /** @type {'dandelionSeeds'|'sunflowerKernels'} */ (source),
                 when: 'allReleased',
                 // A share of the plant opens the room; without it every part has to fall.
-                ...(Number.isInteger(required) && required > 0 ? { requiredReleases: required } : {}),
+                ...(typeof required === 'number' && Number.isSafeInteger(required) && required > 0
+                    ? { requiredReleases: required }
+                    : {}),
                 delaySeconds: clampNumber(value.delaySeconds, SECRET_ROOM_LIMITS.unlockDelaySeconds),
             }),
         };

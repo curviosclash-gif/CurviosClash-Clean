@@ -307,12 +307,10 @@ export class SecretRoomSystem {
         const source = room?.unlock?.source;
         const arena = this.entityManager?.arena;
         if (source === 'dandelionSeeds') {
-            return this._resolveShareState(room, arena?.getDandelionSeedProgress?.() || null,
-                (count) => arena?.getDandelionSeedReleaseSecondsAt?.(count) ?? Infinity);
+            return this._resolveShareState(room, arena?.getDandelionSeedProgress?.() || null, arena, source);
         }
         if (source === 'sunflowerKernels') {
-            return this._resolveShareState(room, arena?.getSunflowerKernelProgress?.() || null,
-                (count) => arena?.getSunflowerKernelReleaseSecondsAt?.(count) ?? Infinity);
+            return this._resolveShareState(room, arena?.getSunflowerKernelProgress?.() || null, arena, source);
         }
         return this._resolveDestructibleState();
     }
@@ -322,7 +320,7 @@ export class SecretRoomSystem {
      * the goal is the share, the count stops there, and "complete" is the second the last part of
      * the share fell. Both machines read that second from the same ordered release list.
      */
-    _resolveShareState(room, progress, releaseSecondsAt) {
+    _resolveShareState(room, progress, arena, source) {
         const required = Number(room?.unlock?.requiredReleases);
         if (!progress || !Number.isInteger(required) || required <= 0) return progress;
         const goal = Math.min(required, Math.max(0, Math.trunc(Number(progress.total) || 0)));
@@ -331,7 +329,12 @@ export class SecretRoomSystem {
         share.released = Math.min(goal, Math.max(0, Math.trunc(Number(progress.released) || 0)));
         share.remaining = goal - share.released;
         share.allReleased = goal > 0 && share.released >= goal;
-        const reachedAt = share.allReleased ? releaseSecondsAt(goal) : Infinity;
+        let reachedAt = Infinity;
+        if (share.allReleased) {
+            reachedAt = source === 'dandelionSeeds'
+                ? arena?.getDandelionSeedReleaseSecondsAt?.(goal) ?? Infinity
+                : arena?.getSunflowerKernelReleaseSecondsAt?.(goal) ?? Infinity;
+        }
         share.completedAtSeconds = Number.isFinite(reachedAt) ? reachedAt : 0;
         if (share.allReleased && !Number.isFinite(reachedAt)) share.allReleased = false;
         return share;
