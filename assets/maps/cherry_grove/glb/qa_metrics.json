@@ -1,0 +1,233 @@
+{
+  "species": "Prunus \u00d7 yedoensis 'Akebono'",
+  "generator": "scripts/generate_sakura_akebono_asset.py",
+  "blender": "4.2.16 LTS",
+  "seed": 270425,
+  "target_dimensions_m": [
+    10.2,
+    10.2,
+    9.8
+  ],
+  "profiles": {},
+  "files": {},
+  "variant_profiles": {
+    "akebono_01.glb": {
+      "objects": 57,
+      "vertices": 1256010,
+      "triangles": 923782,
+      "bounds_m": {
+        "min": [
+          -4.6547,
+          -4.7568,
+          -0.025
+        ],
+        "max": [
+          5.3058,
+          5.1255,
+          9.9373
+        ],
+        "size": [
+          9.9604,
+          9.8822,
+          9.9623
+        ]
+      },
+      "materials": [
+        "Akebono | calyx and young growth",
+        "Akebono | lenticels",
+        "Akebono | petal highlights",
+        "Akebono | petals, blush to ivory",
+        "Akebono | silver-grey bark",
+        "Akebono | sparse spring leaves",
+        "Akebono | stamens"
+      ],
+      "profile": "grove",
+      "seed": 270425,
+      "branch_counts_by_order": [
+        1,
+        14,
+        69,
+        207,
+        442
+      ],
+      "flower_count": 19402,
+      "file_bytes": 41294208
+    },
+    "akebono_02.glb": {
+      "objects": 57,
+      "vertices": 145710,
+      "triangles": 49436,
+      "bounds_m": {
+        "min": [
+          -4.6688,
+          -4.933,
+          -0.0031
+        ],
+        "max": [
+          5.1563,
+          4.691,
+          9.915
+        ],
+        "size": [
+          9.8251,
+          9.624,
+          9.9181
+        ]
+      },
+      "materials": [
+        "Akebono | calyx and young growth",
+        "Akebono | lenticels",
+        "Akebono | petal highlights",
+        "Akebono | petals, blush to ivory",
+        "Akebono | silver-grey bark",
+        "Akebono | sparse spring leaves",
+        "Akebono | stamens"
+      ],
+      "profile": "grove",
+      "seed": 270426,
+      "branch_counts_by_order": [
+        1,
+        14,
+        69,
+        207,
+        399
+      ],
+      "flower_count": 3909,
+      "file_bytes": 2388424
+    },
+    "akebono_03.glb": {
+      "objects": 57,
+      "vertices": 158235,
+      "triangles": 53211,
+      "bounds_m": {
+        "min": [
+          -4.5383,
+          -4.6121,
+          -0.0031
+        ],
+        "max": [
+          5.1839,
+          5.253,
+          9.7896
+        ],
+        "size": [
+          9.7222,
+          9.8651,
+          9.7928
+        ]
+      },
+      "materials": [
+        "Akebono | calyx and young growth",
+        "Akebono | lenticels",
+        "Akebono | petal highlights",
+        "Akebono | petals, blush to ivory",
+        "Akebono | silver-grey bark",
+        "Akebono | sparse spring leaves",
+        "Akebono | stamens"
+      ],
+      "profile": "grove",
+      "seed": 270427,
+      "branch_counts_by_order": [
+        1,
+        14,
+        69,
+        207,
+        412
+      ],
+      "flower_count": 4272,
+      "file_bytes": 2565164
+    },
+    "akebono_04.glb": {
+      "objects": 57,
+      "vertices": 162682,
+      "triangles": 53856,
+      "bounds_m": {
+        "min": [
+          -4.3042,
+          -4.911,
+          -0.0031
+        ],
+        "max": [
+          5.1758,
+          5.1965,
+          9.8717
+        ],
+        "size": [
+          9.48,
+          10.1075,
+          9.8748
+        ]
+      },
+      "materials": [
+        "Akebono | calyx and young growth",
+        "Akebono | lenticels",
+        "Akebono | petal highlights",
+        "Akebono | petals, blush to ivory",
+        "Akebono | silver-grey bark",
+        "Akebono | sparse spring leaves",
+        "Akebono | stamens"
+      ],
+      "profile": "grove",
+      "seed": 270428,
+      "branch_counts_by_order": [
+        1,
+        14,
+        69,
+        207,
+        350
+      ],
+      "flower_count": 4430,
+      "file_bytes": 2599464
+    },
+    "akebono_05.glb": {
+      "objects": 57,
+      "vertices": 162624,
+      "triangles": 54315,
+      "bounds_m": {
+        "min": [
+          -4.7921,
+          -4.7514,
+          -0.0031
+        ],
+        "max": [
+          5.2027,
+          5.2278,
+          9.8452
+        ],
+        "size": [
+          9.9948,
+          9.9792,
+          9.8484
+        ]
+      },
+      "materials": [
+        "Akebono | calyx and young growth",
+        "Akebono | lenticels",
+        "Akebono | petal highlights",
+        "Akebono | petals, blush to ivory",
+        "Akebono | silver-grey bark",
+        "Akebono | sparse spring leaves",
+        "Akebono | stamens"
+      ],
+      "profile": "grove",
+      "seed": 270429,
+      "branch_counts_by_order": [
+        1,
+        14,
+        69,
+        207,
+        396
+      ],
+      "flower_count": 4407,
+      "file_bytes": 2615944
+    }
+  },
+  "checkout_availability": {
+    "sakura_akebono.blend": "lfs_pointer_or_missing",
+    "sakura_akebono.glb": "lfs_pointer_or_missing",
+    "sakura_akebono_lod1.glb": "available",
+    "sakura_akebono_lod2.glb": "lfs_pointer_or_missing",
+    "sakura_akebono_collision.glb": "available",
+    "sakura_akebono_grove.glb": "available"
+  }
+}

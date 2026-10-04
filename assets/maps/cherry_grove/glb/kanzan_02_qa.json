@@ -1,0 +1,25 @@
+{
+  "seed": 314160,
+  "variant": "02",
+  "species": "Prunus serrulata 'Kanzan'",
+  "flower_count": 3374,
+  "flower_factor": 0.22,
+  "flowering_sites": 4152,
+  "young_leaf_count": 443,
+  "lenticel_count": 430,
+  "branch_counts_by_order": {
+    "1": 6,
+    "2": 49,
+    "3": 171,
+    "4": 1038
+  },
+  "evaluated_mesh_triangles": 262818,
+  "material_count": 8,
+  "render_asset": "kanzan_02.glb",
+  "render_file_bytes": 11045688,
+  "decimate_ratio": 0.035,
+  "source_seed": 314159,
+  "bounds_m": "refer to exact GLB reimport report",
+  "source_hero_triangles": 3390000,
+  "branch_geometry": "seeded primary/secondary/tertiary/fine hierarchy; distance profile has distributed flower thinning plus mesh decimation"
+}

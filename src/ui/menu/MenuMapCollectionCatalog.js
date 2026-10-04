@@ -55,7 +55,7 @@ const COLLECTION_DEFINITIONS = [
             'storm_bridge_siege',
             'storm_lighthouse_siege',
             'storm_dam_siege',
-            'skyline_siege',
+            'skyline_siege', 'cherry_grove',
         ],
     },
     {

@@ -261,6 +261,17 @@ function buildReplayNetworkSnapshot(target, leftSnapshot, rightSnapshot, alpha) 
         toFiniteNumber(rightSnapshot?.mapElapsedSeconds, toFiniteNumber(rightSnapshot?.timeMs, 0) * 0.001),
         alpha
     );
+    const cherryLeafEvents = Array.isArray(rightSnapshot?.cherryLeaves)
+        ? rightSnapshot.cherryLeaves
+        : leftSnapshot?.cherryLeaves;
+    target.cherryLeaves.length = 0;
+    if (Array.isArray(cherryLeafEvents)) {
+        for (const event of cherryLeafEvents) {
+            if (Number.isFinite(Number(event?.[1])) && Number(event[1]) <= target.mapElapsedSeconds) {
+                target.cherryLeaves.push(event);
+            }
+        }
+    }
     interpolateSceneEntries(
         target.projectiles,
         leftSnapshot?.projectiles,
@@ -337,7 +348,7 @@ export function createCinematicReplayFrameRenderer({
     prepareReplaySession = prepareDefaultReplaySession,
     disposeReplaySession = disposeDefaultReplaySession,
 } = {}) {
-    const networkSnapshot = { projectiles: [], powerups: [], turrets: [], globalFog: null, sandstorm: null };
+    const networkSnapshot = { projectiles: [], powerups: [], turrets: [], cherryLeaves: [], globalFog: null, sandstorm: null };
     const replayAliveState = new Map();
     let activeReplay = null;
     let activeReplaySession = null;
