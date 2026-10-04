@@ -1,5 +1,6 @@
 import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
 import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
+import { settleArcadeRunRanking } from '../../state/arcade/ArcadeRunRanking.js';
 import {
     awardBoundArcadeVehicleXpInStore,
     bindArcadeVehicleRewards,
@@ -99,6 +100,7 @@ export class FivePortalsRuntime {
                 lastMapsMs: [...this.mapTimesMs],
             };
             this._getRecordStore()?.saveJsonRecord?.(this.chain.recordKey, this.records);
+            this.ranking = settleArcadeRunRanking(this, { succeeded: true, totalMs: total });
             return this.getHudState();
         }
         this.mapIndex += 1;
@@ -150,7 +152,7 @@ export class FivePortalsRuntime {
             mapTimesMs: [...this.mapTimesMs],
             records: { ...this.records },
             postRunSummary: this.phase === 'finished'
-                ? { maps: this.chain.maps.map((mapKey, index) => ({ mapKey, timeMs: this.mapTimesMs[index] })), totalMs: completedTotalMs, bestTotalMs: this.records.bestTotalMs }
+                ? { ranking: this.ranking, maps: this.chain.maps.map((mapKey, index) => ({ mapKey, timeMs: this.mapTimesMs[index] })), totalMs: completedTotalMs, bestTotalMs: this.records.bestTotalMs }
                 : null,
         };
     }

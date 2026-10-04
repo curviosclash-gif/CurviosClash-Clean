@@ -15,7 +15,7 @@ import { normalizeArcadeSizeProfileFields } from '../shared/contracts/ArcadeVehi
 import { resolveArcadeVehicleActiveStats } from '../shared/contracts/ArcadeVehicleActiveStatsContract.js';
 import { normalizeArcadePartSizes } from '../shared/contracts/ArcadeVehicleSizeContract.js';
 
-const NORMAL_ARCADE_RUN_TYPES = Object.freeze(['gauntlet', 'endless_parcours', 'five_portals', 'arena_waves']);
+const NORMAL_ARCADE_RUN_TYPES = Object.freeze(['gauntlet', 'endless_parcours', 'five_portals', 'arena_waves', 'hangar_test']);
 
 // Tägliche Challenge und Waffenrennen behalten ihre heutigen festen Startbedingungen:
 // gleicher Deckel wie vor Paket 1 (Grundwert 100 % + 50 Prozentpunkte Hangar-Bonus).
@@ -121,7 +121,7 @@ export function applyArcadeBuildToPlayer(player, bonuses, isNormalRun) {
     player.arcadePartSizes = normalizeArcadePartSizes(build ? bonuses.partSizes : null);
     // Without a build the mode's own regen delay stays in charge (bots, like before).
     player.arcadeRegenDelay = build ? build.regenDelay : undefined;
-    player.arcadeDamageMultiplier = factor(build?.damagePct);
+    player.arcadeDamageMultiplier = player.isBot === true ? (bonuses?.botStrength?.damageFactor || 1) : factor(build?.damagePct);
     player.arcadeRocketDamageMultiplier = build ? build.rocketDamagePct / 100 : undefined;
     player.arcadeWeaponLoadout = build?.weaponLoadout || null;
     player.arcadeRangeMultiplier = factor(build?.rangePct);
@@ -201,7 +201,7 @@ export function applyArcadeGauntletHealthReset(
     if (!player) return null;
     const baseMaxHp = resolveArcadeVehicleMaxHp(vehicleId, modeBaseMaxHp, isNormalRun, resolveArcadePlayerBuild(player, bonuses)?.maxHpPct);
     const hpBonus = Math.min(baseMaxHp * (hpBonusCapPct / 100), Math.max(0, finiteOrZero(bonuses?.maxHpBonus)));
-    player.maxHp = baseMaxHp + hpBonus + runRewardMaxHpBonus;
+    player.maxHp = (baseMaxHp + hpBonus + runRewardMaxHpBonus) * (player.isBot === true ? bonuses?.botStrength?.hpFactor || 1 : 1);
     player.hp = player.maxHp;
     player.maxShieldHp = defaultShieldHp * (Number(player.arcadeShieldMultiplier) || 1);
     player.shieldHP = player.hasShield ? player.maxShieldHp : 0;

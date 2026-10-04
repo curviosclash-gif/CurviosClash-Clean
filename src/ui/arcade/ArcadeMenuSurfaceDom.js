@@ -106,6 +106,9 @@ export function buildArcadeSurface(level3Body, ui) {
     const recordsLine = createElement('p', 'menu-hint');
     recordsLine.id = 'arcade-records-line';
     statusBlock.appendChild(recordsLine);
+    const rankedLine = createElement('p', 'menu-hint');
+    rankedLine.id = 'arcade-ranked-line';
+    statusBlock.appendChild(rankedLine);
 
     const seedCard = createElement('section', 'arcade-surface-card');
     seedCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.seed.title', 'Seed und Challenge')));
@@ -218,6 +221,7 @@ export function buildArcadeSurface(level3Body, ui) {
         details,
         runLine,
         recordsLine,
+        rankedLine,
         endlessRecordsLine,
         seedLine,
         postRunLine,

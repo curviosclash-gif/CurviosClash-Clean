@@ -1,4 +1,5 @@
 import { persistHangarVehicleSelection } from './HangarWindowSettingsSync.js';
+import { isArcadeTestFlightBuildActive } from '../../shared/contracts/ArcadeTestFlightContract.js';
 import { saveBlobAsUserFile } from '../../platform/browser/BrowserFileExport.js';
 /* eslint-disable max-lines -- Hangar lifecycle wiring stays in one controller. */
 import {
@@ -875,6 +876,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         getDraftBuild: () => normalizeHangarBuild(draft),
         getActiveBuild: () => persistence.getActiveBuild(draft.vehicleId),
         hasUnsavedChanges: isDirty,
+        hasInactiveDraft: () => !isArcadeTestFlightBuildActive(draft, withActive(persistence.getActiveBuild(draft.vehicleId) || initialBuild(draft.vehicleId))),
         flushDraft,
         prepareRunStart,
         dispose() {

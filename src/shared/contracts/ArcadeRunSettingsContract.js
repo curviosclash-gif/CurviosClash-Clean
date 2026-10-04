@@ -44,6 +44,7 @@ const DEFAULTS = Object.freeze({
     dailyChallenge: false,
     // Arcade-only run tier "Albtraum": the sector plan uses the nightmare scale.
     nightmare: false,
+    difficultyTierId: 'normal',
     // Which fixed map chain a "five_portals" run plays (Fünf Portale, Himmelsleiter, ...).
     // Only meaningful when runType is FIVE_PORTALS_RUN_TYPE; ignored otherwise.
     portalChainId: DEFAULT_PORTAL_CHAIN_ID,
@@ -54,7 +55,7 @@ const DEFAULTS = Object.freeze({
 /** @typedef {{ profileId: string, runType: string, combatProfile: string, scoreModel: string,
  * seed: number, sectorCount: number, intermissionSeconds: number, comboWindowMs: number,
  * comboDecayPerSecond: number, maxMultiplier: number, replayHooksEnabled: boolean,
- * dailyChallenge: boolean, nightmare: boolean, portalChainId: string,
+ * dailyChallenge: boolean, nightmare: boolean, difficultyTierId: string, portalChainId: string,
  * demolitionProfileIds?: readonly string[], playerProfileIds?: readonly string[] }} ArcadeRunSettings */
 
 function clampNumber(value, range, fallback) {
@@ -97,7 +98,7 @@ export function normalizeArcadeRunSettings(
     playerProfileIds = source?.playerProfileIds ?? demolitionProfileIds,
 ) {
     const input = source && typeof source === 'object' && !Array.isArray(source) ? source : {};
-    const runType = isDemolitionRunType(input.runType)
+    const runType = input.runType === 'hangar_test' ? 'hangar_test' : isDemolitionRunType(input.runType)
         ? DEMOLITION_RUN_TYPE
         : isFivePortalsRunType(input.runType)
         ? FIVE_PORTALS_RUN_TYPE
@@ -139,6 +140,7 @@ export function normalizeArcadeRunSettings(
         replayHooksEnabled: input.replayHooksEnabled !== false,
         dailyChallenge: input.dailyChallenge === true,
         nightmare: input.nightmare === true,
+        difficultyTierId: ['normal', 'hard', 'nightmare'].includes(input.difficultyTierId) ? input.difficultyTierId : 'normal',
         portalChainId: normalizePortalChainId(input.portalChainId),
         demolitionProfileIds: normalizeDemolitionProfileIds(demolitionProfileIds),
         playerProfileIds: normalizeDemolitionProfileIds(playerProfileIds),

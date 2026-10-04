@@ -12,7 +12,7 @@ import { isFivePortalsConfig } from '../../shared/contracts/PortalChainContract.
 import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
 import { isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { WeaponRaceRuntime } from '../arcade/WeaponRaceRuntime.js';
-import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveActiveArcadeVehicleId, resolveArenaStartMachineGunId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities } from './GameRuntimeArcadeSupportOps.js';
+import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveArcadeP1RecordStore, resolveActiveArcadeVehicleId, resolveArenaStartMachineGunId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities } from './GameRuntimeArcadeSupportOps.js';
 import { resolveArcadePostMatchProgression } from '../arcade/ArcadePostMatchProgression.js';
 import { resolveDedicatedArcadeMatchStart } from './GameRuntimeArcadeRunDispatch.js';
 import { GameRuntimeDemolitionSupport } from './GameRuntimeDemolitionSupport.js';
@@ -66,7 +66,7 @@ export class GameRuntimeArcadeSupport {
             ),
         });
         this.arenaWavesRuntime = new ArenaWavesRuntime({
-            now: this._nowMs,
+            now: this._nowMs, getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
             requestMapTransition: (transition) => { this._pendingSectorTransition = transition; },
         });
         this.fivePortalsRuntime = new FivePortalsRuntime({
@@ -255,10 +255,10 @@ export class GameRuntimeArcadeSupport {
         if (existing && String(existing.phase || '').toLowerCase() !== 'finished') {
             profile = this.arcadeRunRuntime.getSectorRuntimeProfile?.(existing.sectorIndex, {
                 fallbackBotCount: runtimeConfig?.session?.numBots,
-                fallbackDifficulty: runtimeConfig?.bot?.activeDifficulty,
+                fallbackDifficulty: existing.encounterDifficulty === 'normal' ? 'NORMAL' : 'HARD',
             }) || null;
         } else {
-            const encounterPlan = buildArcadeEncounterPlan(runtimeConfig);
+            const encounterPlan = buildArcadeEncounterPlan(runtimeConfig, resolveArcadeP1RecordStore(this, runtimeConfig));
             this._preparedEncounterPlan = encounterPlan;
             const mapSequence = resolveMapSequence(
                 encounterPlan,
@@ -269,7 +269,7 @@ export class GameRuntimeArcadeSupport {
                 sectorIndex: 1,
                 mapKey: mapSequence[0],
                 fallbackBotCount: runtimeConfig?.session?.numBots,
-                fallbackDifficulty: runtimeConfig?.bot?.activeDifficulty,
+                fallbackDifficulty: encounterPlan.tierId === 'normal' ? 'NORMAL' : 'HARD',
             });
         }
 
@@ -382,7 +382,7 @@ export class GameRuntimeArcadeSupport {
         if (existing && String(existing.phase || '').toLowerCase() !== 'finished') {
             return existing;
         }
-        const encounterPlan = this._preparedEncounterPlan || buildArcadeEncounterPlan(runtimeConfig);
+        const encounterPlan = this._preparedEncounterPlan || buildArcadeEncounterPlan(runtimeConfig, resolveArcadeP1RecordStore(this, runtimeConfig));
         this._preparedEncounterPlan = null;
 
         const startOptions = {

@@ -7,6 +7,7 @@
 import {
     countRow,
     createArcadeBlock,
+    createArcadeRankingBlock,
     durationRow,
     resolveArcadeMapLabel,
     textRow,
@@ -30,7 +31,7 @@ function toSeconds(milliseconds) {
  */
 export function createArenaWavesMapBlocks(summary = {}) {
     const maps = Array.isArray(summary.maps) ? summary.maps : [];
-    return maps.map((map, index) => {
+    return [createArcadeRankingBlock(summary.ranking), ...maps.map((map, index) => {
         const waves = Array.isArray(map?.completedWaves) ? map.completedWaves : [];
         return createArcadeBlock(`arena-map-${index}`, `Karte ${index + 1} — ${resolveArcadeMapLabel(map?.mapKey, map?.mapLabel)}`, [
             durationRow('survival', 'Überlebenszeit', Math.max(0, Number(map?.survivalSeconds) || 0)),
@@ -39,7 +40,7 @@ export function createArenaWavesMapBlocks(summary = {}) {
             countRow('elite-kills', 'Anführer', map?.eliteKills),
             countRow('score', 'Punkte', map?.score),
         ]);
-    }).filter(Boolean);
+    })].filter(Boolean);
 }
 
 /**
@@ -55,6 +56,7 @@ export function createFivePortalsBlocks(summary = {}) {
         PORTAL_TIME_PRECISION
     ));
     return [
+        createArcadeRankingBlock(summary.ranking),
         createArcadeBlock('five-portals-maps', 'Zeiten je Karte', mapRows),
         createArcadeBlock('five-portals-total', 'Gesamt', [
             durationRow('total', 'Gesamtzeit', toSeconds(summary.totalMs), PORTAL_TIME_PRECISION),

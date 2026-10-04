@@ -14,6 +14,7 @@ playerProfileManager.bootstrap();
 const playerStore = playerProfileManager.getActiveRecordStorePort();
 const runtimeAccess = Object.freeze({
     getSettingsStore: () => playerStore,
+    getActivePlayerProfile: () => playerProfileManager.getActiveProfile(),
     loadSettings: () => store.loadSettings(),
     saveSettings: (nextSettings) => store.saveSettings(nextSettings),
     arcadeVehicleProfileWorkshop: createArcadeVehicleProfileWorkshopPort(playerStore),

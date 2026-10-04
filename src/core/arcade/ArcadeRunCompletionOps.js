@@ -2,6 +2,7 @@ import { buildArcadeRunSummary } from '../../state/arcade/ArcadeScoreOps.js';
 import { mergeArcadeDailyRunRecords } from '../../state/arcade/ArcadeDailyState.js';
 import { ARCADE_RUN_PHASES, createArcadeRunRecords } from '../../state/arcade/ArcadeRunState.js';
 import { toSafeInt, toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
+import { settleArcadeRunRanking } from '../../state/arcade/ArcadeRunRanking.js';
 
 export function recordArcadeDailyResult(runtime, nowMs = Date.now()) {
     if (!runtime._state?.isDailyChallenge || runtime._state.dailyResult) return;
@@ -15,6 +16,11 @@ export function recordArcadeDailyResult(runtime, nowMs = Date.now()) {
 
 export function finalizeArcadeRun(runtime, nowMs = Date.now()) {
     if (!runtime._state) return null;
+    if (runtime._config?.runType === 'hangar_test') {
+        runtime._state.phase = ARCADE_RUN_PHASES.FINISHED;
+        runtime._state.finishedAtIso ||= new Date(nowMs).toISOString();
+        return runtime.getStateSnapshot();
+    }
     if (runtime._state.persistedAtIso) {
         return runtime.getStateSnapshot();
     }
@@ -96,6 +102,7 @@ export function finalizeArcadeRun(runtime, nowMs = Date.now()) {
         },
     };
     const finalizedRunId = String(summary.runId || '');
+    postRunSummary.ranking = settleArcadeRunRanking(runtime, summary, nowMs);
     runtime._scheduleRecordsSave(runtime._records, () => {
         if (String(runtime._state?.runId || '') !== finalizedRunId) return;
         runtime._state.persistedAtIso = summary.finishedAtIso;

@@ -12,7 +12,7 @@ export function resetArcadeEndlessPlayerHealth(huntCombat, player, bonuses, isNo
     const baseMaxHp = resolveArcadeVehicleMaxHp(player?.vehicleId, modeBaseMaxHp, isNormalRun, resolveArcadePlayerBuild(player, bonuses)?.maxHpPct);
     if (player?.isBot === true) {
         if (!isNormalRun) return reset;
-        player.maxHp = baseMaxHp;
+        player.maxHp = baseMaxHp * (bonuses?.botStrength?.hpFactor || 1);
         player.hp = player.maxHp;
         return player;
     }

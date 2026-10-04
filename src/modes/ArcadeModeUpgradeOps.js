@@ -5,7 +5,7 @@ import {
 } from './ArcadeVehicleStatOps.js';
 
 export function resolveArcadeModePlayerUpgradeBonuses(strategy, player, fallback) {
-    if (player?.isBot === true) return fallback;
+    if (player?.isBot === true) return strategy.isNormalArcadeRun() ? strategy._botRankBonuses || fallback : fallback;
     const byPlayerIndex = strategy._slotBonusesByPlayerIndex;
     if (byPlayerIndex) return byPlayerIndex[String(player?.index)] || fallback;
     return strategy._slotBonusesByVehicle
@@ -15,6 +15,7 @@ export function resolveArcadeModePlayerUpgradeBonuses(strategy, player, fallback
 
 export function applyArcadeModeUpgradeBonuses(strategy, bonuses, fallback) {
     const isNormalRun = strategy.isNormalArcadeRun();
+    if (bonuses && isNormalRun && strategy._frozenArcadeBuildBonuses) bonuses = strategy._frozenArcadeBuildBonuses;
     const byPlayerIndex = bonuses?.byPlayerIndex;
     if (byPlayerIndex && typeof byPlayerIndex === 'object' && !Array.isArray(byPlayerIndex)) {
         strategy._slotBonusesByPlayerIndex = Object.fromEntries(Object.entries(byPlayerIndex)

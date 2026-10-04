@@ -507,7 +507,7 @@ export class ArcadeRunRuntime {
             fallbackBotCount: options.fallbackBotCount,
             // Ohne Vorgabe gilt die im Menue gewaehlte Stufe des laufenden Runs. Der
             // Sektordruck darf sie anheben, ein fester Ersatzwert darf sie nicht ersetzen.
-            fallbackDifficulty: options.fallbackDifficulty || this._state?.encounterDifficulty,
+            fallbackDifficulty: options.fallbackDifficulty || this.rankContext?.botStrength?.ai || (this._state?.encounterDifficulty === 'nightmare' ? 'HARD' : this._state?.encounterDifficulty),
         });
     }
 

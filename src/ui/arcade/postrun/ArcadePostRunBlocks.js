@@ -67,6 +67,17 @@ export function textRow(key, label, value) {
     return { key, label, value, type: 'text' };
 }
 
+export function createArcadeRankingBlock(ranking) {
+    if (!ranking?.levelRange) return null;
+    const tier = ({ normal: 'Normal', hard: 'Hart', nightmare: 'Albtraum', any: 'Alle Stufen' })[ranking.tierId] || ranking.tierId;
+    return createArcadeBlock('arcade-ranking', 'Wertung dieses Runs', [
+        textRow('tier', 'Run-Stufe', tier),
+        countRow('level', 'Fahrzeuglevel beim Start', ranking.vehicleLevel),
+        textRow('range', 'Levelgruppe', ranking.levelRange.label),
+        textRow('rank', 'Platz', ranking.rank ? String(ranking.rank) : 'Außerhalb der Top 10'),
+    ]);
+}
+
 /** @returns {{key: string, label: string, value: unknown, type: string, precision: number}} */
 export function durationRow(key, label, seconds, precision = 1) {
     return { key, label, value: seconds, type: 'duration', precision };
@@ -126,6 +137,7 @@ export function createArcadeBreakdownBlock(breakdown, id = 'arcade-breakdown', a
  */
 export function createArcadeRunBlocks(summary = {}) {
     const blocks = [
+        createArcadeRankingBlock(summary.ranking),
         createArcadeBlock('arcade-run', 'Ergebnis', [
             countRow('score', 'Gesamtpunkte', summary.score),
             countRow('best-combo', 'Beste Kombo', summary.bestCombo),

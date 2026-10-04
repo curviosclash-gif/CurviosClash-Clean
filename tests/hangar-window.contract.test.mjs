@@ -24,6 +24,16 @@ class FakeBrowserWindow {
     }
 }
 
+test('an accepted close remains accepted while Electron is still releasing its renderer', async () => {
+    class DeferredWindow extends FakeBrowserWindow {
+        close() { this.events.get('close')?.({ preventDefault() {} }); }
+    }
+    const controller = createHangarWindowController({ BrowserWindow: DeferredWindow, resolveWindowUrl: () => 'http://127.0.0.1/hangar.html' });
+    await controller.openHangarWindow();
+    assert.equal(controller.closeHangarWindow(), true);
+    assert.equal(controller.getStatus().open, true);
+});
+
 test('desktop hangar opens once in a maximized secure window', async () => {
     const controller = createHangarWindowController({
         BrowserWindow: FakeBrowserWindow,

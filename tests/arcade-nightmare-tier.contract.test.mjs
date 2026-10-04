@@ -25,14 +25,16 @@ test('the Daily ignores the run tier', () => {
 });
 
 test('a nightmare run builds its sectors with the nightmare scale', () => {
-    const config = (nightmare) => ({
-        arcade: { enabled: true, seed: 7, sectorCount: 5, nightmare },
+    const config = (difficultyTierId) => ({
+        arcade: { enabled: true, seed: 7, sectorCount: 5, difficultyTierId },
         bot: { activeDifficulty: 'HARD' },
         session: { mapKey: 'standard' },
     });
     const pressures = (plan) => plan.sequence.map((entry) => entry.pressure);
-    const nightmarePlan = buildArcadeEncounterPlan(config(true));
-    const hardPlan = buildArcadeEncounterPlan(config(false));
+    const store = { readJsonRecordResult: () => ({ status: 'found', value: { schemaVersion: 'arcade-difficulty-progress.v1', unlockedTierIds: ['normal', 'hard', 'nightmare'] } }) };
+    const nightmarePlan = buildArcadeEncounterPlan(config('nightmare'), store);
+    const hardPlan = buildArcadeEncounterPlan(config('hard'), store);
+    assert.equal(buildArcadeEncounterPlan(config('nightmare')).tierId, 'normal', 'locked nightmare is normal');
     assert.deepEqual(
         pressures(nightmarePlan),
         pressures(buildArcadeSectorPlan({ seed: 7, sectorCount: 5, difficulty: 'nightmare' })),
@@ -42,15 +44,16 @@ test('a nightmare run builds its sectors with the nightmare scale', () => {
 
 test('the arcade menu switch writes and mirrors the run tier', async () => {
     const { bindArcadeNightmareToggle, syncArcadeNightmareToggle } = await import('../src/ui/arcade/ArcadeNightmareToggle.js');
-    const input = { checked: false };
+    const input = { value: 'normal', options: ['normal', 'hard', 'nightmare'].map(value => ({ value })) };
     const settings = { arcade: { sectorCount: 5 } };
     let handler = null;
     let changes = 0;
     bindArcadeNightmareToggle(input, settings, (_el, type, fn) => { if (type === 'change') handler = fn; }, () => { changes += 1; });
-    input.checked = true; handler();
-    assert.equal(settings.arcade.nightmare, true);
+    input.value = 'hard'; handler();
+    assert.equal(settings.arcade.difficultyTierId, 'hard');
     assert.equal(changes, 1);
-    settings.arcade.nightmare = false;
+    settings.arcade.difficultyTierId = 'normal';
     syncArcadeNightmareToggle(input, settings);
-    assert.equal(input.checked, false);
+    assert.equal(input.value, 'normal');
+    assert.equal(input.options[1].disabled, true);
 });

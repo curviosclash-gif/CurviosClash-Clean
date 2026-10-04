@@ -5,6 +5,7 @@
 // and every row that is exactly zero is dropped — a run without side routes says nothing about them.
 
 import { dropZeroRows, normalizeArray, normalizeNumber, toCount } from './PostMatchLabels.js';
+import { createArcadeRankingBlock } from '../arcade/postrun/ArcadePostRunBlocks.js';
 
 const MILLISECONDS_PER_SECOND = 1000;
 
@@ -96,6 +97,8 @@ export function buildEndlessParcoursBlocks(outcome) {
     if (!summary || typeof summary !== 'object') return [];
     const title = summary.isNewRecord === true ? 'Endlosjagd – Neuer Rekord' : 'Endlosjagd';
     const blocks = [];
+    const ranking = createArcadeRankingBlock(summary.ranking);
+    if (ranking) blocks.push(ranking);
     const primaryRows = buildEndlessPrimaryRows(summary);
     if (primaryRows.length > 0) {
         blocks.push({ id: 'endless-parcours', title, kind: 'values', tier: 'primary', rows: primaryRows });

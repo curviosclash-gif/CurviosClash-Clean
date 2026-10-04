@@ -8,6 +8,15 @@ import { prepareArcadePlayerProfileBindings } from '../arcade/ArcadePlayerProfil
 import { applyArcadeRuntimeCosmetics } from '../arcade/ArcadeRuntimeCosmeticOps.js';
 import { shouldBindLocalArcadePlayerProfiles } from './GameRuntimeArcadeRunDispatch.js';
 import { ARCADE_RUN_KINDS, resolveArcadeRuntimeKind } from '../../shared/contracts/ArcadeRunTypeDispatchContract.js';
+import { prepareArcadeRunRanking } from '../arcade/ArcadeRunRankingOps.js';
+import { loadArcadeDifficultyProgress, resolveArcadeRunTier } from '../../shared/contracts/ArcadeDifficultyContract.js';
+import { resolvePlayerRecordStorePortForIndex } from './PlayerProfileRuntimeAccess.js';
+
+export function resolveArcadeP1RecordStore(support, config) {
+    const id = String(config?.arcade?.playerProfileIds?.[0] || '').trim();
+    return id ? resolvePlayerRecordStorePortForIndex(support.game?.playerProfileManager, 0, id)
+        : support.game?.settingsManager?.getPlayerRecordStorePort?.() || null;
+}
 
 /**
  * Hands the live arcade objective to the entity layer, which must not read arcade state itself:
@@ -20,6 +29,7 @@ export function syncArcadeObjectiveIntoEntities(entityManager, objectiveState) {
 }
 
 export function configureArcadeRunRuntime(runtime, runtimeConfig) {
+    if (runtimeConfig?.arcade?.runType === 'hangar_test') return runtime.configure({ ...runtimeConfig, arcade: { ...runtimeConfig.arcade, replayHooksEnabled: false, ghostDuelMode: 'off' } });
     if (!isWeaponRaceConfig(runtimeConfig)) return runtime.configure(runtimeConfig);
     return runtime.configure({
         ...runtimeConfig,
@@ -54,9 +64,9 @@ export function bindLocalArcadeProfilesAndApplyCosmetics(support, runtimeState, 
         shouldBindLocalArcadePlayerProfiles(runtimeConfig),
         runActive,
     );
-    return {
-        playerBuildBonuses: applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig),
-    };
+    const playerBuildBonuses = applyArcadeRuntimeCosmetics(support, runtimeState, runtimeConfig);
+    prepareArcadeRunRanking(support, runtimeState, runtimeConfig, runActive, playerBuildBonuses);
+    return { playerBuildBonuses };
 }
 
 /** Plane of a local human by player index; bots have no PLAYER_n slot and get null. */
@@ -75,16 +85,17 @@ export function resolveArenaStartMachineGunId(context, runtimeState) {
         || human?.fightLoadout?.machineGunId;
 }
 
-export function buildArcadeEncounterPlan(runtimeConfig) {
+export function buildArcadeEncounterPlan(runtimeConfig, store = null) {
+    const tierId = resolveArcadeRunTier(runtimeConfig?.arcade?.difficultyTierId, loadArcadeDifficultyProgress(store).progress, {
+        runType: runtimeConfig?.arcade?.runType || 'gauntlet', dailyChallenge: runtimeConfig?.arcade?.dailyChallenge === true,
+    });
     const plan = buildArcadeSectorPlan({
         seed: runtimeConfig?.arcade?.seed,
         sectorCount: runtimeConfig?.arcade?.sectorCount,
-        difficulty: runtimeConfig?.arcade?.nightmare === true
-            ? 'nightmare'
-            : (runtimeConfig?.bot?.activeDifficulty || runtimeConfig?.bot?.difficulty || 'normal'),
+        difficulty: tierId === 'any' ? 'normal' : tierId,
         dailyChallenge: runtimeConfig?.arcade?.dailyChallenge === true,
     });
-    return lockSelectedMapToFirstSector(plan, runtimeConfig, getRuntimeMapCatalog());
+    return { ...lockSelectedMapToFirstSector(plan, runtimeConfig, getRuntimeMapCatalog()), tierId };
 }
 
 export function handleWeaponRaceLeaderboard(support, runtimeState, data) {
@@ -101,6 +112,7 @@ export function handleWeaponRaceLeaderboard(support, runtimeState, data) {
 export function lockSelectedMapToFirstSector(plan, runtimeConfig, mapCatalog) {
     if (!plan || !Array.isArray(plan.sequence) || plan.sequence.length === 0) return plan;
     if (runtimeConfig?.arcade?.dailyChallenge === true) return plan;
+    if (runtimeConfig?.arcade?.runType === 'hangar_test') return { ...plan, sequence: [{ ...plan.sequence[0], templateId: 'sector_intro', squadId: 'hunter_pack', objectiveId: 'clean_sector', modifierId: null, mapKey: 'parcours_assault', mapKeyLocked: true, isBoss: false, bossMultiplier: 1, parcoursEnabled: false }] };
     const selectedMapKey = String(runtimeConfig?.session?.mapKey || '').trim();
     const selectedMap = selectedMapKey ? mapCatalog?.[selectedMapKey] : null;
     if (!selectedMap) return plan;

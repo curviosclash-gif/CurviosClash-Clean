@@ -25,6 +25,7 @@ export class ArcadeRoundStateController {
             throw new Error('ArcadeRoundStateController requires deriveRoundEndTick on base controller');
         }
         const phase = this.arcadeRuntime?.getPhase();
+        if (this.arcadeRuntime?._config?.runType === 'hangar_test' && ['victory', 'finished'].includes(phase)) return { action: 'RETURN_TO_MENU', nextRoundPause: 0, shouldUpdateCameras: false, countdownMessageSub: null };
         // The victory buttons own Enter; Escape stays the menu key as on every other board.
         if (phase === 'victory' && inputs.escapePressed) {
             return { action: 'RETURN_TO_MENU', nextRoundPause: inputs.roundPause,
@@ -46,6 +47,7 @@ export class ArcadeRoundStateController {
     }
 
     deriveMatchEndTick(inputs = {}) {
+        if (this.arcadeRuntime?._config?.runType === 'hangar_test') return { action: 'RETURN_TO_MENU', shouldUpdateCameras: false };
         if (!this.baseController || typeof this.baseController.deriveMatchEndTick !== 'function') {
             throw new Error('ArcadeRoundStateController requires deriveMatchEndTick on base controller');
         }

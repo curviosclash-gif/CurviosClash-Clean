@@ -234,6 +234,7 @@ test('I1/I5: a new run with other sizes rebuilds the boxes of a reused player', 
     const first = run.startSession();
     assertBoxes(first.human, sizes({ wings: 125 }), 'first run');
     run.holder.profiles = { ship5: sizedProfile('ship5', { wings: 80, hull: 110 }) };
+    run.support.resetRunState({ force: true });
     const second = run.startSession({ players: [first.human, first.bot] });
     assert.equal(second.human, first.human, 'same player object');
     assertBoxes(first.human, sizes({ wings: 80, hull: 110 }), 'second run');
@@ -379,7 +380,7 @@ test('I4: a nose-built rocket hits the part boxes and deals its multiplied damag
     assert.equal(bigWings.hit, true, 'the 125 % wing reaches the old miss');
     assert.ok(Math.abs(bigWings.damage[0] - bigWings.base * 1.09) < 1e-9);
 
-    const botShot = fireRocketDown(ON_WING, { ...owner, arcadeDamageMultiplier: 1 }, null);
+    const botShot = fireRocketDown(ON_WING, { ...owner, arcadeDamageMultiplier: 1, arcadeRocketDamageMultiplier: 1 }, null);
     assert.equal(botShot.damage[0], botShot.base, 'factor 1 (bots, other modes) as before');
 });
 

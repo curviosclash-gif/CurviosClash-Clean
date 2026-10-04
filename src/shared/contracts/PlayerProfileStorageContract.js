@@ -31,12 +31,16 @@ export const PLAYER_PROFILE_RECORD_KINDS = Object.freeze({
     ARCADE_LOADOUT_PRESETS: 'arcadeLoadoutPresets',
     LOBBY_NAME: 'lobbyName',
     ARCADE_STONE_WORKSHOP: 'arcadeStoneWorkshop',
+    ARCADE_DIFFICULTY: 'arcadeDifficulty',
+    ARCADE_RANKED_LEADERBOARD: 'arcadeRankedLeaderboard',
 });
 
 // The name a player last used in a multiplayer lobby; each player profile keeps its own.
 export { LOBBY_NAME_STORAGE_KEY };
 
 const RECORD_DEFINITIONS = Object.freeze([
+    { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_DIFFICULTY, legacyKey: 'cuviosclash.arcade-difficulty-progress.v1', suffix: 'arcade-difficulty-progress.v1' },
+    { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_RANKED_LEADERBOARD, legacyKey: 'cuviosclash.arcade-ranked-leaderboard.v1', suffix: 'arcade-ranked-leaderboard.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.LEGACY_ARCADE_RUN_PROFILE, legacyKey: LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY, suffix: 'arcade-run-profile.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.LEGACY_ARCADE_VEHICLE_PROFILE, legacyKey: ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY, suffix: 'arcade-vehicle-profile.v1' },
     { kind: PLAYER_PROFILE_RECORD_KINDS.ARCADE_VEHICLE_PROFILE, legacyKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY, suffix: 'arcade-vehicle-profile.v2' },

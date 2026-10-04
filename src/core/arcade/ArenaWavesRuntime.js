@@ -15,6 +15,7 @@ import {
 import { applyArcadeBotAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 import { clampArcadeVehicleSpeedMultiplier } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
+import { settleArcadeRunRanking } from '../../state/arcade/ArcadeRunRanking.js';
 import {
     awardBoundArcadeVehicleXpInStore,
     bindArcadeVehicleRewards,
@@ -151,7 +152,7 @@ export class ArenaWavesRuntime {
         const status = this._waveStatus.get(this._pendingWave);
         for (const [index, { slot, position }] of this._plannedSlots.entries()) {
             if (this._slotWave.get(slot) === this._pendingWave) continue;
-            if (em.activateBotSlot?.({ slot, position, difficulty: profile.difficulty }) !== true) continue;
+            if (em.activateBotSlot?.({ slot, position, difficulty: this.rankContext?.botStrength?.ai || profile.difficulty }) !== true) continue;
             const player = em.bots?.[slot]?.player; const ai = em.bots?.[slot]?.ai;
             if (!player) continue;
             if (!Number.isFinite(player._arenaWavesBaseMaxHp)) player._arenaWavesBaseMaxHp = safe(player.maxHp, 100);
@@ -235,7 +236,7 @@ export class ArenaWavesRuntime {
         this._openChoices('death');
     }
     _closeMapStats() { this.mapStats[this.mapIndex] = { mapKey: resolveArenaWavesMap(this.mapIndex), score: this.score, survivalSeconds: this.survivalSeconds, regularKills: this.regularKills, eliteKills: this.eliteKills, completedWaves: [...this.completedWaves] }; }
-    _finalize() { this._closeMapStats(); this.phase = 'finished'; const total = this.totalScore; this._records = { version: RECORD_VERSION, lastTotal: total, bestTotal: Math.max(total, safe(this._records.bestTotal)) }; saveRecords(this._getRecordStore?.(), this._records); }
+    _finalize() { this._closeMapStats(); this.phase = 'finished'; const total = this.totalScore; this._records = { version: RECORD_VERSION, lastTotal: total, bestTotal: Math.max(total, safe(this._records.bestTotal)) }; saveRecords(this._getRecordStore?.(), this._records); this.ranking = settleArcadeRunRanking(this, { total, lastCompletedWave: Math.max(0, ...this.completedWaves, ...this.mapStats.flatMap((stat) => stat.completedWaves || [])) }); }
     update(dt) {
         if (this.phase === 'idle' || this.phase === 'finished') return;
         const human = this._human();
@@ -280,5 +281,5 @@ export class ArenaWavesRuntime {
         }
         this.strategy?.applyRunRewardEffects?.(null); this.reset();
     }
-    getHudState() { return { runType: 'arena_waves', vehicleId: this.rewardBinding?.vehicleId || '', xpEarned: this.xpEarned, phase: this.phase, mapIndex: this.mapIndex, mapCount: ARENA_WAVES_MAPS.length, currentMapKey: resolveArenaWavesMap(this.mapIndex), wave: this.wave, countdown: this.countdown, nextWaveInSeconds: this.phase === 'upgrade' || this.phase === 'finished' ? null : (this.phase === 'combat' ? this._nextWaveIn : (this.phase === 'countdown' ? this.countdown + 1 : this.countdown)), alive: this._activeSlots.size, plannedSpawnCount: this.phase === 'telegraph' ? resolveArenaWavesProfile(this._pendingWave).count : 0, spawnWarning: this.phase === 'telegraph' ? { remaining: this.countdown, count: resolveArenaWavesProfile(this._pendingWave).count } : null, aggression: resolveArenaWavesAggression(this.mapIndex, this.wave), kills: { regular: this.regularKills, elite: this.eliteKills }, survivalSeconds: this.survivalSeconds, upgrades: { ...this.upgrades }, choices: [...this._choices], choiceReason: this._choiceReason, score: { total: this.totalScore, currentMap: this.score }, mapStats: this.mapStats.map((stat) => ({ ...stat })), postRunSummary: this.phase === 'finished' ? { total: this.totalScore, maps: this.mapStats.map((stat) => ({ ...stat })) } : null, records: { ...this._records } }; }
+    getHudState() { return { runType: 'arena_waves', vehicleId: this.rewardBinding?.vehicleId || '', xpEarned: this.xpEarned, phase: this.phase, mapIndex: this.mapIndex, mapCount: ARENA_WAVES_MAPS.length, currentMapKey: resolveArenaWavesMap(this.mapIndex), wave: this.wave, countdown: this.countdown, nextWaveInSeconds: this.phase === 'upgrade' || this.phase === 'finished' ? null : (this.phase === 'combat' ? this._nextWaveIn : (this.phase === 'countdown' ? this.countdown + 1 : this.countdown)), alive: this._activeSlots.size, plannedSpawnCount: this.phase === 'telegraph' ? resolveArenaWavesProfile(this._pendingWave).count : 0, spawnWarning: this.phase === 'telegraph' ? { remaining: this.countdown, count: resolveArenaWavesProfile(this._pendingWave).count } : null, aggression: resolveArenaWavesAggression(this.mapIndex, this.wave), kills: { regular: this.regularKills, elite: this.eliteKills }, survivalSeconds: this.survivalSeconds, upgrades: { ...this.upgrades }, choices: [...this._choices], choiceReason: this._choiceReason, score: { total: this.totalScore, currentMap: this.score }, mapStats: this.mapStats.map((stat) => ({ ...stat })), postRunSummary: this.phase === 'finished' ? { ranking: this.ranking, total: this.totalScore, maps: this.mapStats.map((stat) => ({ ...stat })) } : null, records: { ...this._records } }; }
 }

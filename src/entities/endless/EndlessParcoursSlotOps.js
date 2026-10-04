@@ -72,7 +72,7 @@ export function tryActivateEndlessSlot(runtime, slotState) {
         position: slotState.plannedAnchor,
         direction: runtime._tmpSpawnDirection,
         role: resolveEndlessBotRole(runtime, slotState, { elite }),
-        difficulty: elite ? 'HARD' : profile.difficulty,
+        difficulty: elite || runtime.rankContext?.botStrength?.ai === 'HARD' ? 'HARD' : (runtime.rankContext ? 'NORMAL' : profile.difficulty),
         life: slotState.life,
         endlessProfile: profile,
     }) === true;

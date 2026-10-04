@@ -63,6 +63,7 @@ export function createLeaderboardEntry(source = {}, { fallbackDate = true } = {}
             ? segmentSplitsMs.slice(0, MAX_SEGMENT_SPLITS).map(toNonNegativeMs)
             : [],
         vehicleId: String(vehicleId || ''),
+        ...(Number.isFinite(source.vehicleLevel) ? { vehicleLevel: Math.max(1, Math.floor(source.vehicleLevel)) } : {}),
         date: normalizeDate(date, fallbackDate),
         ghostClip: ghostClip && typeof ghostClip === 'object' ? ghostClip : null,
     };

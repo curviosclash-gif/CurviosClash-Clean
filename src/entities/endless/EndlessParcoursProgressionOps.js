@@ -18,6 +18,7 @@ import {
     retryEndlessSettlements,
 } from '../../state/arcade/EndlessParcoursSettlementStore.js';
 import { buildEndlessSummary } from './EndlessParcoursProjection.js';
+import { settleArcadeRunRanking } from '../../state/arcade/ArcadeRunRanking.js';
 
 /**
  * Grundtempo ohne die Fahrzeug-Aufwertung. Player.setControlOptions rechnet den
@@ -138,6 +139,7 @@ export function finalizeEndlessRun(runtime, reason, options = {}) {
         runtime._summary.isNewRecord = runtime._isNewRecord;
         runtime._summary.newMilestones = runtime._newMilestones;
         runtime._summary.persistence = { ...runtime._lastPersistenceResult };
+        runtime._summary.ranking = settleArcadeRunRanking(runtime, runtime._summary);
     }
     if (options.requestRoundEnd !== false) {
         runtime.entityManager?.requestRoundEnd?.({

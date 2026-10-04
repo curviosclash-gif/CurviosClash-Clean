@@ -31,6 +31,7 @@ function createHangarWindowController({
     let activeMode = null;
     let hasUnsavedChanges = false;
     let allowWindowClose = false;
+    let closeRefused = false;
 
     function getWindow() {
         return isWindowAlive(hangarWindow) ? hangarWindow : null;
@@ -47,8 +48,11 @@ function createHangarWindowController({
     function closeHangarWindow() {
         if (!isWindowAlive(hangarWindow)) { hangarWindow = null; return false; }
         const current = hangarWindow;
+        closeRefused = false;
         current.close();
-        return !isWindowAlive(current);
+        // Electron may destroy the renderer asynchronously after accepting close.
+        // Report acceptance here; getStatus reports the eventual window state.
+        return !closeRefused;
     }
 
     function setUnsavedChanges(value) {
@@ -106,6 +110,7 @@ function createHangarWindowController({
                 response = 1;
             }
             if (response !== 0) {
+                closeRefused = true;
                 event?.preventDefault?.();
                 return;
             }

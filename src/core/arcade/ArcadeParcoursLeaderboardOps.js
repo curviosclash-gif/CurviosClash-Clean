@@ -4,6 +4,7 @@ import {
     upsertLongestGhostByRoute,
 } from '../../state/arcade/ArcadeGhostLibrary.js';
 import { isArcadeGhostDuelPlaybackEnabled } from '../../shared/contracts/ArcadeGhostDuelContract.js';
+import { resolveArcadeParcoursRankKey } from '../../shared/contracts/ArcadeRankedLeaderboardContract.js';
 
 function normalizeRouteCandidates(routeId, routeAliases = null) {
     const candidates = [];
@@ -149,6 +150,7 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
             penaltyTimeMs: data.penaltyTimeMs,
             segmentSplitsMs: data.segmentSplitsMs,
             vehicleId,
+            vehicleLevel: runtime.rankContext?.vehicleLevel,
             date: recordedAtIso,
         });
         if (!entry) {
@@ -241,7 +243,9 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
 
 export function applyParcoursLeaderboardEvent(runtime, data) {
     if (!data || typeof data !== 'object') return null;
-    const routeCandidates = normalizeRouteCandidates(data.routeId, data.routeAliases);
+    if (runtime._config?.runType === 'hangar_test') return null;
+    const routeCandidates = normalizeRouteCandidates(data.routeId, data.routeAliases)
+        .map((routeId) => resolveArcadeParcoursRankKey(routeId, runtime.rankContext));
     const primaryRouteId = routeCandidates[0] || '';
     const ghostLibraryBudget = runtime._resolveGhostLibraryBudgetOptions();
 

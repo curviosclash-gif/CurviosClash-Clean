@@ -134,7 +134,7 @@ test('leaving the match clears the arcade run even mid-transition', () => {
     assert.equal(restarted.completedSectors, 0, 'a forced reset drops the completed sectors');
 });
 
-test('the bot difficulty chosen in the menu survives the sector 1 to 2 transition', () => {
+test('normal Arcade ignores global HARD through the sector transition', () => {
     const { support, runtimeState } = createSupport('HARD');
     support.syncRuntimeConfig();
     // Der Matchstart schreibt das Profil von Sektor 1 in die Laufzeit-Konfiguration.
@@ -142,8 +142,8 @@ test('the bot difficulty chosen in the menu survives the sector 1 to 2 transitio
     support.startRunIfEnabled();
     assert.equal(
         runtimeState.runtimeConfig.bot.activeDifficulty,
-        'HARD',
-        'sector 1 keeps the difficulty chosen in the menu'
+        'NORMAL',
+        'sector 1 uses the normal run tier independently of global HARD'
     );
 
     support.arcadeRunRuntime.deriveRoundEndPlan({
@@ -156,17 +156,17 @@ test('the bot difficulty chosen in the menu survives the sector 1 to 2 transitio
 
     assert.equal(
         transition.botDifficulty,
-        'HARD',
-        'the sector transition must not fall back to NORMAL for a HARD run'
+        'NORMAL',
+        'the normal run tier survives the sector transition'
     );
     assert.equal(
         runtimeState.runtimeConfig.bot.activeDifficulty,
-        'HARD',
-        'sector 2 keeps the difficulty chosen in the menu'
+        'NORMAL',
+        'sector 2 is independent of global HARD'
     );
 });
 
-test('an easy run only rises with the sector pressure, never with a fixed fallback', () => {
+test('normal Arcade also ignores global EASY through the sector transition', () => {
     const { support, runtimeState } = createSupport('EASY');
     // Seed 2 fuehrt auf einen Sektor 2 mit niedrigem Druck (0.405): dort darf EASY bleiben.
     runtimeState.runtimeConfig.arcade.seed = 2;
@@ -184,10 +184,10 @@ test('an easy run only rises with the sector pressure, never with a fixed fallba
 
     // Der Sektordruck darf die Stufe anheben, ein fester Ersatzwert darf sie nicht ersetzen.
     const pressure = Number(transition.pressure) || 0;
-    assert.ok(pressure <= 0.42, 'the chosen seed keeps the sector 2 pressure low');
+    assert.ok(pressure <= 0.72, 'the chosen seed stays below HARD pressure');
     assert.equal(
         transition.botDifficulty,
-        'EASY',
-        'only the sector pressure may raise the difficulty of an EASY run'
+        'NORMAL',
+        'the normal run tier is independent of global EASY'
     );
 });

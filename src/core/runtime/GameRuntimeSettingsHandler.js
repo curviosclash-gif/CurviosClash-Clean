@@ -166,7 +166,7 @@ export class GameRuntimeSettingsHandler {
         // Arcade button deliberately borrows that map for Weapon Race, so its scenario
         // defaults must not replace the selected Arcade runtime with Hunt.
         if (settings.localSettings?.modePath === 'arcade'
-            && isWeaponRaceRunType(settings.arcade?.runType)) {
+            && (isWeaponRaceRunType(settings.arcade?.runType) || settings.arcade?.runType === 'hangar_test')) {
             return { changed: false, changedKeys: [] };
         }
 

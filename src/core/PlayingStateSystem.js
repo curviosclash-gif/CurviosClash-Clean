@@ -8,6 +8,10 @@ import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 export function createPlayingStateRuntimeAccess(runtime) {
     return createRuntimeAccess(runtime, (game) => {
         const actionPauseMatch = () => {
+            if (game?.settings?.localSettings?.modePath === 'arcade' && game.settings?.arcade?.runType === 'hangar_test') {
+                game?.runtimePorts?.lifecyclePort?.returnToMenu?.({ reason: 'hangar_test_escape' });
+                return;
+            }
             game?.matchFlowUiController?.pause?.();
         };
         const actionUpdatePlanarAimAssist = (dt) => {
