@@ -4,6 +4,7 @@
 
 import { PERCEPTION_THRESHOLDS } from './perception/EnvironmentSamplingOps.js';
 import { clamp01 } from '../../shared/utils/MathOps.js';
+import { canTargetEnemy } from '../../shared/contracts/TeamCombatContract.js';
 
 const TARGET_RETAIN_BONUS = 0.08;
 const TARGET_SWITCH_MARGIN = 0.015;
@@ -26,6 +27,15 @@ export function isTargetVisibleToPlayer(player, target) {
         player?.position,
         target?.position
     ) !== false;
+}
+
+/**
+ * Map units a bot may chase when `player.botTargetsMapUnits` is set: alive, not the escort it
+ * protects and not on its own team. The list is MapUnitSystem's reused target array.
+ */
+function isHuntableMapUnit(player, unit) {
+    if (!unit?.position || unit.alive === false || !(Number(unit.hp) > 0) || unit.escortTank === true) return false;
+    return !unit.teamId || canTargetEnemy(player, unit);
 }
 
 export function selectTarget(bot, player, allPlayers) {
@@ -81,6 +91,31 @@ export function selectTarget(bot, player, allPlayers) {
             bestScore = score;
             bestTarget = other;
             bestDistSq = distSq;
+        }
+    }
+
+    const mapUnits = player.botTargetsMapUnits === true ? player.entityManager?._mapUnitSystem?.getTargets?.() : null;
+    if (Array.isArray(mapUnits)) {
+        for (let i = 0; i < mapUnits.length; i++) {
+            const unit = mapUnits[i];
+            if (!isHuntableMapUnit(player, unit) || !isTargetVisibleToPlayer(player, unit)) continue;
+            bot._tmpVec.subVectors(unit.position, player.position);
+            const distSq = bot._tmpVec.lengthSq();
+            if (distSq < 0.0001) continue;
+            // Same weights as for players, minus the threat term: a map unit does not aim like a driver.
+            const score = (1 / Math.max(4, Math.sqrt(distSq))) * 0.9
+                + bot._tmpVec.normalize().dot(bot._tmpForward) * 0.55
+                + resolveTargetVulnerability(unit) * TARGET_VULNERABILITY_WEIGHT
+                + (unit === previousTarget ? retainBonus : 0);
+            if (unit === previousTarget) {
+                previousScore = score;
+                previousDistSq = distSq;
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                bestTarget = unit;
+                bestDistSq = distSq;
+            }
         }
     }
 
