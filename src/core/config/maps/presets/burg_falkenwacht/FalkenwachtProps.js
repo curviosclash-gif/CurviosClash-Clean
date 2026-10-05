@@ -36,7 +36,9 @@ export const FALKENWACHT_PROP_MODELS = [
     prop('wall-shield', 10, [0, 48, 127], [0, 0, 0], 6),
 
     // Climbing growth follows masonry faces and leaves openings clear.
-    prop('wall-ivy', 1, [45, 12, 117], [0, 0, 0], 14),
+    // The south curtain's courtyard face is Z=115; turn leaves inward and
+    // clear the adjoining gatehouse balcony rather than burying them in masonry.
+    prop('wall-ivy', 1, [52, 12, 114.8], [0, Math.PI, 0], 14),
     prop('wall-ivy', 4, [-141.8, 18, 65], [0, Math.PI / 2, 0], 14),
     prop('wall-ivy', 6, [30, 18, -4], [0, 0, 0], 13),
 ];
