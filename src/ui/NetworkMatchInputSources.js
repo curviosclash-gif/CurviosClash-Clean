@@ -143,12 +143,32 @@ function createGuestSteeringRamp({ attackRate, releaseRate } = {}) {
     };
 }
 
+/**
+ * Inverts the pitch of one local input in place: the swapped keys for keyboard input,
+ * the negated axis for a stick or a ramped guest axis.
+ */
+function invertNetworkInputPitch(input) {
+    const pitchUp = input.pitchUp;
+    input.pitchUp = input.pitchDown;
+    input.pitchDown = pitchUp;
+    if (typeof input.pitchAxis === 'number') input.pitchAxis = input.pitchAxis === 0 ? 0 : -input.pitchAxis;
+    return input;
+}
+
+/**
+ * In a network match the pitch inversion of a local player lives in its input, not in
+ * the plane: the host simulates a guest plane without knowing the guest's settings, so
+ * a guest ships the already inverted pitch and both simulations read the same number.
+ * The host's own slots take the same path, and no network plane inverts a second time
+ * (MatchSessionSetupOps.buildHumanConfigs, EntityManagerLiveConfigOps).
+ */
 export function createNetworkLocalInputSource({
     source = null,
     session = null,
     playerId = '',
     sendToSession = false,
     steeringRamp = null,
+    resolveInvertPitch = null,
 } = {}) {
     const rampInput = steeringRamp?.enabled === true ? createGuestSteeringRamp(steeringRamp) : null;
     return {
@@ -172,6 +192,9 @@ export function createNetworkLocalInputSource({
             // permanent offset between the two simulations.
             const ramped = rampInput ? rampInput(polled, resolveSteeringStepSeconds(context?.dt)) : polled;
             const input = normalizeNetworkInputState(ramped);
+            if (typeof resolveInvertPitch === 'function' && resolveInvertPitch() === true) {
+                invertNetworkInputPitch(input);
+            }
             if (sendToSession && typeof session?.sendInput === 'function') {
                 session.sendInput({
                     ...input,
