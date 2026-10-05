@@ -1,4 +1,5 @@
 import { resolveBloomEscapeOpenSeconds } from '../../../../shared/contracts/ArcadeScenarioContract.js';
+import { normalizeMapLighting } from '../../../../shared/contracts/MapLightingContract.js';
 
 // The whole floor is built at the final size. Only the collision walls move as each ring opens.
 export const BLOOM_CORE_FINAL_OPEN_SECONDS = resolveBloomEscapeOpenSeconds();
@@ -35,7 +36,7 @@ export const BLOOM_CORE_MAP = Object.freeze({
             { pos: [0, 14, -12] }, { pos: [0, 14, 12] },
             { pos: [-47, 16, -47] }, { pos: [47, 16, 47] },
         ]),
-        lighting: Object.freeze({
+        lighting: normalizeMapLighting({
             key: { direction: [30, 55, -20], color: 0xffd9a8, intensity: 1.2 },
             fill: { direction: [-25, 25, 35], color: 0x8debc7, intensity: 0.48 },
             rim: { direction: [0, 35, -40], color: 0xf485bf, intensity: 0.55 },

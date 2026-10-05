@@ -155,6 +155,7 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
     assert.deepEqual(collisionOnlyMaps, [
         'burg_falkenwacht',
         'burg_falkenwacht_arena',
+        'cherry_grove',
         'chrono_forge_nexus',
         'complex',
         'eiffel_tower',
