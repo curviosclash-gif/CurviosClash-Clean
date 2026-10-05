@@ -60,8 +60,9 @@ export function createArcadeDailyRunResult({
         completedSectors: toNonNegativeInteger(summary.completedSectors),
         previousBestScore,
         bestScore: completedForSeed ? completedDaily.bestScore : Math.max(previousBestScore, score),
-        isNewBest: !hadPreviousAttempt || score > previousBestScore,
-        tiedBest: hadPreviousAttempt && score === previousBestScore,
+        // A run without a single point is no best to celebrate, not even the first of the day.
+        isNewBest: score > 0 && (!hadPreviousAttempt || score > previousBestScore),
+        tiedBest: hadPreviousAttempt && score > 0 && score === previousBestScore,
     };
 }
 
