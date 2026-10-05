@@ -6,6 +6,10 @@ import { emitArcadeDamageEvent } from '../src/entities/runtime/EntityArcadeGamep
 import { resolveArcadeMilestoneCosmetics, selectArcadeMilestoneCosmetic } from '../src/shared/contracts/ArcadeMilestoneCosmeticContract.js';
 import { resolveArcadeVehicleActiveStats } from '../src/shared/contracts/ArcadeVehicleActiveStatsContract.js';
 import { resolvePlayerMachineGunConfig } from '../src/hunt/mg/MGConfigResolver.js';
+import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
+import { arcadeMachineGunSelectionLabel, progressionDetailText } from '../src/ui/hangar/HangarWorkshopRenderText.js';
+import { MGTracerFx } from '../src/hunt/mg/MGTracerFx.js';
+import { ARCADE_MACHINE_GUN_IDS } from '../src/shared/contracts/ArcadeMachineGunContract.js';
 import { applyArcadeMilestonePattern } from '../src/shared/vehicle-lab/ArcadeMilestoneAppearance.js';
 import { readArcadeVehicleProfileRecord } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 
@@ -75,14 +79,47 @@ test('milestone cosmetics remain freely selectable, have no level cap and never 
     assert.equal(selectArcadeMilestoneCosmetic({...profile,level:10},'milestonePatternId','grid').ok,false);
 });
 
-test('seven MG masteries change only shot presentation, starting at level sixty',()=>{
-    assert.equal(resolveArcadeMilestoneCosmetics({level:59}).masterCount,0);assert.equal(resolveArcadeMilestoneCosmetics({level:60}).masterCount,1);assert.equal(resolveArcadeMilestoneCosmetics({level:120}).masterCount,7);
+test('seven MG masteries change only shot presentation at levels sixty through one hundred twenty',()=>{
+    assert.equal(resolveArcadeMilestoneCosmetics({level:59}).masterCount,0);
+    assert.deepEqual([60,70,80,90,100,110,120].map(level=>resolveArcadeVehicleActiveStats(
+        'ship5',{level,selectedMachineGunId:'vector_m7'},
+    ).weaponLoadout.masterCount),[1,2,3,4,5,6,7]);
     const profile={level:59,selectedMachineGunId:'vector_m7',mgLevel:5};
-    const before=resolveArcadeVehicleActiveStats('ship5',profile),after=resolveArcadeVehicleActiveStats('ship5',{...profile,level:60});
-    const base={DAMAGE:10,FIRE_INTERVAL:0.1,RANGE:90};
-    const ordinary=resolvePlayerMachineGunConfig(base,{arcadeWeaponLoadout:before.weaponLoadout});const mastered=resolvePlayerMachineGunConfig(base,{arcadeWeaponLoadout:after.weaponLoadout});
-    for(const key of Object.keys(ordinary).filter(key=>!key.startsWith('TRACER_')))assert.deepEqual(mastered[key],ordinary[key],key);
-    assert.ok(mastered.TRACER_MUZZLE_SCALE>ordinary.TRACER_MUZZLE_SCALE);
+    const ordinaryLoadout=resolveArcadeVehicleActiveStats('ship5',profile).weaponLoadout;
+    const ordinary=resolvePlayerMachineGunConfig(HUNT_CONFIG.MG,{arcadeWeaponLoadout:ordinaryLoadout});
+    const level60Loadout=resolveArcadeVehicleActiveStats('ship5',{...profile,level:60}).weaponLoadout;
+    const level60=resolvePlayerMachineGunConfig(HUNT_CONFIG.MG,{arcadeWeaponLoadout:level60Loadout});
+    assert.equal(ordinaryLoadout.masterCount,0);
+    assert.equal(level60Loadout.masterCount,1);
+    assert.notEqual(ordinary.TRACER_STYLE,'master-sunflare');
+    assert.equal(level60.TRACER_STYLE,'master-sunflare');
+    const configs=ARCADE_MACHINE_GUN_IDS.map(machineGunId=>({
+        ordinary:resolvePlayerMachineGunConfig(HUNT_CONFIG.MG,{arcadeWeaponLoadout:{...ordinaryLoadout,machineGunId,masterCount:0}}),
+        mastered:resolvePlayerMachineGunConfig(HUNT_CONFIG.MG,{arcadeWeaponLoadout:{...ordinaryLoadout,machineGunId,masterCount:7}}),
+    }));
+    const masterConfigs=configs.map(({mastered})=>mastered);
+    for(const {ordinary:base,mastered} of configs){
+        for(const key of Object.keys(base).filter(key=>!key.startsWith('TRACER_')))assert.deepEqual(mastered[key],base[key],key);
+    }
+    assert.equal(new Set(masterConfigs.map(config=>config.TRACER_STYLE)).size,7);
+    assert.equal(new Set(masterConfigs.map(config=>config.TRACER_MUZZLE_COLOR)).size,7);
+    assert.equal(arcadeMachineGunSelectionLabel('Vektor M7',true,false),'Vektor M7 · ausgewählt');
+    assert.equal(arcadeMachineGunSelectionLabel('Vektor M7',false,true),'Vektor M7');
+    assert.equal(arcadeMachineGunSelectionLabel('Vektor M7',true,true),'Vektor M7 · ausgewählt · Meister');
+    assert.match(progressionDetailText({level:59,xpForNextLevel:100,xpRemaining:1}),/MG-Meisterung.*60/);
+    for (const [level, next] of [[9,10],[59,60],[120,130]]) assert.match(progressionDetailText({level,xpForNextLevel:100,xpRemaining:1}),new RegExp(`Nächster Meilenstein: Level ${next}`));
+    assert.match(progressionDetailText({level:120,xpForNextLevel:100,xpRemaining:1}),/Alle 7 MG-Meisterungen erreicht/);
+
+    const meshes=[];
+    const tracerFx=new MGTracerFx({renderer:{addToScene:mesh=>meshes.push(mesh)}});
+    const start=new THREE.Vector3(),end=new THREE.Vector3(0,0,-20),override=0x123456;
+    tracerFx.spawnTracer(start,end,false,ordinary,override);
+    tracerFx.spawnTracer(start,end,false,masterConfigs[0],override);
+    assert.equal(meshes[0].children[0].material.color.getHex(),override);
+    assert.equal(meshes[0].children[4].material.color.getHex(),override);
+    assert.equal(meshes[1].children[0].material.color.getHex(),override);
+    assert.equal(meshes[1].children[4].material.color.getHex(),masterConfigs[0].TRACER_MUZZLE_COLOR);
+    tracerFx.clear();
 });
 
 test('Lab patterns decorate materials without changing geometry and release owned textures',()=>{

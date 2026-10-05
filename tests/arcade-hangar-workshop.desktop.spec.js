@@ -78,6 +78,73 @@ test('T-ARC-W2: MG level spends the selected vehicle XP only after confirmation'
     expect((await readStoredProfile(page, 'ship5')).xpBank).toBe(999849);
 });
 
+test('T-ARC-W3: rocket and shield purchases preserve XP on cancel and charge exactly on confirmation', async ({ page }) => {
+    await openStoneWorkshop(page, 'ship5');
+    for (const [kind, field, label, cost] of [['rocket', 'rocketLevel', 'Raketenschaden', 150], ['shield', 'shieldLevel', 'Schildstärke', 150]]) {
+        const before = await readStoredProfile(page, 'ship5');
+        const buy = page.locator(`[data-arcade-weapon-upgrade="${kind}"]`);
+        const dialog = page.locator('.hangar-arcade-weapon-confirm');
+        await buy.click(); await expect(dialog).toContainText(label); await expect(dialog).toContainText(`Kosten: ${cost} XP`);
+        await dialog.locator('.hangar-arcade-weapon-confirm-cancel').click();
+        expect(await readStoredProfile(page, 'ship5')).toEqual(before);
+        await buy.click(); await dialog.locator('.hangar-arcade-weapon-confirm-accept').click();
+        await expect.poll(async () => (await readStoredProfile(page, 'ship5'))[field]).toBe(2);
+        expect((await readStoredProfile(page, 'ship5')).xpBank).toBe(before.xpBank - cost);
+    }
+});
+
+test('T-ARC-W4: all seven mastered guns have selectable names and the selected master effect reaches native combat', async ({ page }, testInfo) => {
+    await openStoneWorkshop(page, 'ship5');
+    const key = await resolveProfileScopedKey(page, ARCADE_VEHICLE_PROFILE_STORAGE_KEY);
+    await page.evaluate(storageKey => { const profiles=JSON.parse(localStorage.getItem(storageKey)); profiles.ship5.level=120; localStorage.setItem(storageKey,JSON.stringify(profiles)); }, key);
+    await page.reload(); await expect(page.locator('#arcade-vehicle-manager')).toBeVisible(); await selectHangarVehicle(page,'ship5');
+    for (const id of ['vector_m7','raptor_r9','bastion_h3','lance_p4','swarm_s2','ember_g5','pulse_p3']) {
+        const button=page.locator(`[data-arcade-machine-gun-id="${id}"]`);
+        await button.click(); await expect(button).toContainText('Meister'); await expect(button).toHaveAttribute('aria-pressed','true');
+    }
+    await page.screenshot({path:testInfo.outputPath('master-gun-selection.png')});
+    await page.goto(new URL('/',page.url()).href); await loadGameWithRetry(page);
+    await openCustomSubmenu(page); await page.locator('#submenu-custom:not(.hidden) [data-mode-path="arcade"]').click();
+    await openStartSetupSection(page,'arcade'); await page.locator('.arcade-start-mode-options-summary').click();
+    await page.locator('#btn-arcade-five-fronts-start-inline').click();
+    await page.waitForFunction(()=>window.GAME_INSTANCE?.state==='PLAYING' && window.GAME_INSTANCE.entityManager.gameModeStrategy.hasMachineGun());
+    const effect=await page.evaluate(()=>{
+        const manager=window.GAME_INSTANCE.entityManager, player=manager.humanPlayers[0]; player.shootCooldown=0;
+        const result=manager._shootHuntGun(player);
+        const tracer=manager._overheatGunSystem._tracerFx.tracers.at(-1);
+        return {gun:player.arcadeWeaponLoadout.machineGunId,masterCount:player.arcadeWeaponLoadout.masterCount,fired:result.ok,
+            style:tracer?.style,muzzle:tracer?.muzzleMaterial.color.getHex(),segments:tracer?.segmentCount,muzzleScale:tracer?.muzzleScale};
+    });
+    expect(effect).toMatchObject({gun:'pulse_p3',masterCount:7,fired:true,style:'master-crown',muzzle:0xff9e42,segments:2,muzzleScale:1.95});
+});
+
+test('T-ARC-ST6: a stone preset survives save, different draft, load, activation and reload', async ({ page }) => {
+    await openStoneWorkshop(page, 'ship5');
+    await page.locator('[data-stone-select="stone-0001"]').click();
+    await page.locator('[data-select-slot="nose"]').click();
+    await page.locator('[data-build-view="presets"]').click();
+    await page.locator('.arcade-vehicle-preset-input').fill('Stone roundtrip');
+    await page.locator('.arcade-vehicle-preset-save').click();
+    const saved = page.locator('.arcade-vehicle-preset-select option', { hasText: 'Stone roundtrip' });
+    await expect(saved).toHaveCount(1); const id = await saved.getAttribute('value');
+    await page.locator('[data-build-view="upgrade"]').click();
+    await page.locator('[data-stone-select="stone-0002"]').click();
+    await page.locator('[data-select-slot="nose"]').click();
+    await expect(page.locator('[data-installed-slot="nose"]')).toHaveText('Stein 2 · T1');
+    await page.locator('[data-build-view="presets"]').click();
+    await page.locator('.arcade-vehicle-preset-select').selectOption(id);
+    await page.locator('.arcade-vehicle-preset-load').click();
+    await page.locator('[data-build-view="upgrade"]').click();
+    await expect(page.locator('[data-installed-slot="nose"]')).toHaveText('Stein 1 · T1');
+    await page.locator('.hangar-activate-build').click();
+    await expect(page.locator('.hangar-status-message')).toContainText('aktiviert');
+    expect(await stonePlacement(page, 'stone-0001')).toEqual({ vehicleId: 'ship5', slotId: 'nose' });
+    await page.reload(); await expect(page.locator('#arcade-vehicle-manager')).toBeVisible();
+    await selectHangarVehicle(page, 'ship5');
+    await expect(page.locator('[data-installed-slot="nose"]')).toHaveText('Stein 1 · T1');
+    expect(await stonePlacement(page, 'stone-0002')).toBeNull();
+});
+
 // Records are written through the active player profile, which stores them under a key scoped to
 // that profile rather than the legacy one. Reading the legacy key straight from localStorage only
 // works until a profile exists -- after that it is empty and every assertion on it reads "". The
@@ -214,7 +281,7 @@ async function seedUnlockedProfiles(page) {
 }
 
 function readMetric(page, metric) {
-    return page.locator(`[data-metric="${metric}"] .hangar-stat-value`).evaluate((node) => Number(node.textContent));
+    return page.locator(`[data-metric="${metric}"] .hangar-stat-value`).evaluate((node) => Number.parseFloat(node.textContent.replace(/[−–]/g, '-').replace(',', '.')));
 }
 
 test('Desktop-Hangar: Fahrzeugschalter wechseln sichtbar vor und zurück', async ({ page }) => {
@@ -418,7 +485,7 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await page.locator('[data-build-view="stats"]').click();
     await expect(page.locator('[data-metric="turnPct"] .hangar-stat-comparisons')).toContainText('Seit Standard:');
     await expect(page.locator('[data-metric="turnPct"] .hangar-stat-comparisons')).toContainText('Gegen ');
-    await expect(page.locator('[data-metric="turnPct"] .hangar-stat-value')).toHaveAttribute('title', /Wendigkeit/);
+    await expect(page.locator('[data-metric="turnPct"] .arcade-vehicle-compare-label')).toContainText('Wendigkeit');
     await expect(page.locator('.hangar-budget-rows')).toBeHidden();
 
     await page.locator('[data-build-view="presets"]').click();
@@ -493,7 +560,8 @@ test('Desktop-Hangar (Fight): Farbstein-Katalog, Starter-Builds und Ziehen auf d
     await expect(page.locator('[data-build-view="workshop"]')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('.hangar-stone-panel')).toHaveCount(0);
 
-    const agilityBefore = await readMetric(page, 'agility');
+    const agilityBefore = await readMetric(page, 'turningBonusPct');
+    expect(Number.isFinite(agilityBefore)).toBe(true);
     await page.locator('[data-build-view="presets"]').click();
     await page.locator('[data-catalog-view="parts"]').click();
     await expect(page.locator('.hangar-part-card')).toHaveCount(15);
@@ -593,7 +661,7 @@ test('Desktop-Hangar (Fight): Farbstein-Katalog, Starter-Builds und Ziehen auf d
 
     await expect(page.locator('[data-hangar-slot-row="wing_left"] .arcade-vehicle-slot-tier')).toHaveText('T2');
     await expect(page.locator('[data-hangar-slot-row="wing_right"] .arcade-vehicle-slot-tier')).toHaveText('T2');
-    await expect.poll(() => readMetric(page, 'agility')).toBeGreaterThan(agilityBefore);
+    await expect.poll(() => readMetric(page, 'turningBonusPct')).toBeGreaterThan(agilityBefore);
 });
 
 // --- Paket 2a: Größenumbau im Reiter "Ausbau" ("Form" behält nur die Farbe) ---

@@ -110,7 +110,7 @@ export function normalizeArcadeRunSettings(
     return {
         profileId: normalizeText(input.profileId, DEFAULTS.profileId),
         runType,
-        combatProfile: runType === DEMOLITION_RUN_TYPE
+        combatProfile: runType === 'hangar_test' ? ENDLESS_PARCOURS_COMBAT_PROFILE : runType === DEMOLITION_RUN_TYPE
             ? DEMOLITION_COMBAT_PROFILE
             : runType === ENDLESS_PARCOURS_RUN_TYPE
             && normalizeArcadeCombatProfile(input.combatProfile, runType) === ENDLESS_PARCOURS_COMBAT_PROFILE

@@ -2,12 +2,36 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ARCADE_HANGAR_GUIDE_STORAGE_KEY, ARCADE_HANGAR_GUIDE_SCHEMA_VERSION, createArcadeHangarGuideRecord, loadArcadeHangarGuideRecord, saveArcadeHangarGuideRecord, finishArcadeHangarTutorial, resolveArcadeHangarNextGoal, toArcadeGuideTimeMs } from '../src/shared/contracts/ArcadeHangarGuideContract.js';
 import { createHangarGuideSnapshot } from '../src/ui/hangar/HangarGuideSnapshot.js';
-import { ARCADE_STONE_WORKSHOP_STORAGE_KEY } from '../src/shared/contracts/ArcadeStoneWorkshopContract.js';
+import { ARCADE_STONE_WORKSHOP_STORAGE_KEY, ARCADE_STONE_SLOT_IDS, createArcadeStoneWorkshopRecord } from '../src/shared/contracts/ArcadeStoneWorkshopContract.js';
+import { arcadeVehicleXpForLevel } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 import { ARCADE_COLORS_STORAGE_KEY } from '../src/shared/contracts/ArcadeColorProgressContract.js';
 import { PLAYER_PROFILE_RECORD_KINDS, getPlayerProfileRecordDefinitionByKind, resolvePlayerScopedStorageKey } from '../src/shared/contracts/PlayerProfileStorageContract.js';
 
 function store() { const values=new Map();let writes=0;return { values, get writes(){return writes;}, loadJsonRecord:(key,fallback)=>values.get(key)??fallback, readJsonRecordResult:key=>values.has(key)?{status:'found',value:values.get(key)}:{status:'missing'}, saveJsonRecord:(key,value)=>{writes++;values.set(key,structuredClone(value));return true;} }; }
 const profile={vehicleId:'ship5',xp:0,level:1,xpBank:0};
+
+test('actual mature workshop offers a missing color before recurring stone and milestone goals',()=>{
+    const s=store(); const pool=createArcadeStoneWorkshopRecord(0); pool.nextSerial=22;
+    pool.stones=['ship5','arrow','manta'].flatMap((vehicleId,index)=>ARCADE_STONE_SLOT_IDS.map((slotId,slot)=>({stoneId:`stone-${index*7+slot+1}`,level:7,placement:{vehicleId,slotId}})));
+    s.values.set(ARCADE_STONE_WORKSHOP_STORAGE_KEY,pool);
+    const p={...profile,level:60,xp:arcadeVehicleXpForLevel(60),xpBank:100000,sizeWorkshopUnlocked:true,purchasedSizeSteps:25,
+        purchasedItemSlots:3,purchasedRocketSlots:3,stoneSlotPackages:['wings','engines','utility'],partSizes:{hull:125,nose:125,wings:125,engines:125,utility:125}};
+    const draft={stoneSlots:Object.fromEntries(ARCADE_STONE_SLOT_IDS.map((slot,index)=>[slot,`stone-${index+1}`]))};
+    const snapshot=createHangarGuideSnapshot({store:s,profile:p,profiles:{ship5:p},draft,previousVisitAt:0});
+    assert.equal(snapshot.stones.unplacedCount,0);
+    assert.equal(snapshot.offers.filter(offer=>offer.finite!==false).length,0);
+    assert.ok(snapshot.levelGates.some(gate=>gate.id==='next-milestone'));
+    assert.ok(snapshot.levelGates.some(gate=>gate.id.startsWith('stone-')));
+    assert.equal(resolveArcadeHangarNextGoal(snapshot).id,'frost');
+    pool.stones.forEach(stone=>{stone.level=6;});
+    const affordableStone=createHangarGuideSnapshot({store:s,profile:p,profiles:{ship5:p},draft,previousVisitAt:0});
+    assert.ok(affordableStone.offers.some(offer=>offer.system==='stones'&&offer.finite===false));
+    assert.equal(resolveArcadeHangarNextGoal(affordableStone).id,'frost');
+    s.values.set(ARCADE_COLORS_STORAGE_KEY,{schemaVersion:'arcade-colors.v1',unlockedColorIds:['standard','frost','ember','ion','solar','violet','prism'],unlockedAt:{}});
+    const complete=createHangarGuideSnapshot({store:s,profile:p,profiles:{ship5:p},draft,previousVisitAt:0});
+    assert.equal(resolveArcadeHangarNextGoal(complete).group,'purchase');
+    assert.equal(resolveArcadeHangarNextGoal({...complete,xpBank:0}).group,'save'); assert.equal(s.writes,0);
+});
 
 test('one next goal prioritizes actual free resources and finite purchases over endless weapons',()=>{
     const base={xpBank:500,offers:[{id:'mg',system:'weapons',areaId:'weapons',label:'MG',costXp:50,finite:false},{id:'size',system:'size',areaId:'size',label:'Größe',costXp:100}]};

@@ -59,3 +59,52 @@ test('T-ARC-D2: native Hangar test flight closes the window, grants no records a
     }
     await returned.locator('#hangar-window-close').click();
 });
+
+test('T-ARC-D3: native test-flight deadline returns to Hangar without persistent rewards', async ({ page, electronApp }) => {
+    await openArcade(page);
+    const before = await page.evaluate(() => ({ ...localStorage }));
+    const opening = electronApp.waitForEvent('window');
+    await page.locator('.hangar-window-open').click();
+    const hangar = await opening;
+    await expect(hangar.locator('#arcade-vehicle-manager')).toBeVisible();
+    await hangar.locator('#hangar-test-flight').click();
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING' && window.GAME_INSTANCE.settings.arcade.runType === 'hangar_test');
+    expect(await page.evaluate(()=>window.GAME_INSTANCE.entityManager.gameModeStrategy.hasMachineGun())).toBe(true);
+    const reopened = electronApp.waitForEvent('window');
+    // Advance only the flight clock near its deadline. Actual playing ticks and the native lifecycle finish it.
+    await page.evaluate(() => { window.GAME_INSTANCE.runtimeFacade._arcadeSupport.arcadeRunRuntime._state.gameplayTimeMs = 29900; });
+    const returned = await reopened;
+    await expect(returned.locator('#arcade-vehicle-manager')).toBeVisible();
+    const after = await page.evaluate(() => ({ ...localStorage }));
+    for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+        if (/arcade-(vehicle-profile|records|ranked|leaderboard|difficulty|colors)/.test(key)) expect(after[key], key).toBe(before[key]);
+    }
+    await returned.locator('#hangar-window-close').click();
+});
+
+test('T-ARC-D4: spawned opponents depend on the Run tier and build rather than global difficulty', async ({ page }) => {
+    test.setTimeout(180000);
+    await openArcade(page);
+    const observed = [];
+    for (const difficulty of ['EASY', 'NORMAL', 'HARD']) {
+        await page.evaluate(value => { const settings=window.GAME_INSTANCE.settings; settings.botDifficulty=value; settings.mapKey='cube'; settings.numBots=2; }, difficulty);
+        await page.locator('#input-arcade-seed').fill('4321');
+        await page.locator('#btn-arcade-seed-apply').click();
+        await page.locator('#arcade-difficulty-tier').selectOption('normal');
+        await page.locator('#btn-arcade-start-inline').click();
+        await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING' && window.GAME_INSTANCE.entityManager.players.some(player => player.isBot));
+        observed.push(await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            return { strength: game.runtimeFacade._arcadeSupport.arcadeRunRuntime.rankContext.botStrength,
+                bots: game.entityManager.players.filter(player => player.isBot).map(player => ({ vehicleId: player.vehicleId, maxHp: player.maxHp,
+                    speed: player.baseSpeed, turning: player.turnSpeed, damage: player.arcadeDamageMultiplier })) };
+        }));
+        await page.evaluate(() => window.GAME_INSTANCE.runtimeFacade.returnToMenu({ reason: 'qa_difficulty_comparison' }));
+        await openCustomSubmenu(page);
+        await page.locator('#submenu-custom:not(.hidden) [data-mode-path="arcade"]').click();
+        await openStartSetupSection(page, 'arcade');
+        if (!(await page.locator('#arcade-difficulty-tier').isVisible())) await page.locator('.arcade-advanced-options-summary').click();
+    }
+    expect(observed[0].bots.length).toBeGreaterThan(0);
+    expect(observed[1]).toEqual(observed[0]); expect(observed[2]).toEqual(observed[0]);
+});

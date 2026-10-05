@@ -1,5 +1,5 @@
 import { trackArcadeColorEvent } from '../../shared/contracts/ArcadeColorProgressContract.js';
-import { recordArcadeDailyResult, finalizeArcadeRun } from './ArcadeRunCompletionOps.js';
+import { recordArcadeDailyResult, finalizeArcadeRun, finalizeExpiredArcadeTestFlight } from './ArcadeRunCompletionOps.js';
 import {
     ARCADE_RUN_PHASES,
     beginArcadeSector,
@@ -553,7 +553,7 @@ export class ArcadeRunRuntime {
 
     getMenuSurfaceState() {
         return {
-            phase: String(this._state?.phase || ''),
+            runType: this._config.runType, phase: String(this._state?.phase || ''),
             isDailyChallenge: this._state?.isDailyChallenge === true,
             records: this.getRecordsSnapshot(),
             leaderboard: createLeaderboardProjection(this._leaderboard),
@@ -761,9 +761,9 @@ export class ArcadeRunRuntime {
         this._state.gameplayTimeMs += Math.max(0, toSafeNumber(dt, 0)) * 1000;
         this._sectorElapsedSeconds += Math.max(0, toSafeNumber(dt, 0));
         const elapsedSecond = Math.floor(this._sectorElapsedSeconds);
-        if (elapsedSecond <= this._lastMissionTickSecond) return null;
+        if (elapsedSecond <= this._lastMissionTickSecond) return finalizeExpiredArcadeTestFlight(this);
         this._lastMissionTickSecond = elapsedSecond;
-        return this.applyGameplayEvent({ type: 'tick', elapsed: this._sectorElapsedSeconds });
+        return finalizeExpiredArcadeTestFlight(this) || this.applyGameplayEvent({ type: 'tick', elapsed: this._sectorElapsedSeconds });
     }
 
     /**

@@ -18,6 +18,13 @@ function normalizeTracerStyle(value) {
         case 'pulse-train':
         case 'heavy-slug':
         case 'precision-needle':
+        case 'master-sunflare':
+        case 'master-aurora':
+        case 'master-void':
+        case 'master-comet':
+        case 'master-tide':
+        case 'master-ion':
+        case 'master-crown':
             return value;
         default:
             return 'bolt';
@@ -142,7 +149,7 @@ export class MGTracerFx {
         const progress = clamp(entry.elapsed / Math.max(0.001, entry.maxTtl), 0, 1);
         const fade = 1 - progress;
         const needle = entry.style === 'precision-needle';
-        const pulseTrain = entry.style === 'pulse-train';
+        const pulseTrain = entry.style === 'pulse-train' || entry.style.startsWith('master-');
         const heavy = entry.style === 'heavy-slug';
         const travelProgress = needle
             ? Math.min(1, progress * 4)
@@ -208,13 +215,15 @@ export class MGTracerFx {
         const tracerColor = colorOverride !== null && colorOverride !== undefined && Number.isFinite(Number(colorOverride))
             ? Number(colorOverride)
             : (Number(mg?.TRACER_COLOR) || 0x8ad5ff);
+        const muzzleColor = Number.isFinite(Number(mg?.TRACER_MUZZLE_COLOR))
+            ? Number(mg.TRACER_MUZZLE_COLOR) : tracerColor;
         const tracerEntry = this._acquireTracerEntry();
         const tracerRoot = tracerEntry.mesh;
         tracerRoot.quaternion.setFromUnitVectors(MG_TRACER_UP_AXIS, this._tmpTracerDir);
         tracerRoot.position.copy(start);
         tracerEntry.beamMaterial.color.setHex(tracerColor);
         tracerEntry.bulletMaterial.color.setHex(tracerColor);
-        tracerEntry.muzzleMaterial.color.setHex(tracerColor);
+        tracerEntry.muzzleMaterial.color.setHex(muzzleColor);
         tracerEntry.impactMaterial.color.setHex(tracerColor).lerp(MG_TRACER_WHITE, 0.45);
 
         tracerEntry.style = normalizeTracerStyle(mg?.TRACER_STYLE);

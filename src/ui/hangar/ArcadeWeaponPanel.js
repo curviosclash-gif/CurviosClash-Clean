@@ -12,6 +12,8 @@ import {
 import { resolveArcadeVehicleActiveStats } from '../../shared/contracts/ArcadeVehicleActiveStatsContract.js';
 import { resolveArcadeStoneExtraSteps } from '../../shared/contracts/ArcadeStonePlacementContract.js';
 import { createHangarPurchaseConfirm, formatHangarNumber, formatHangarPurchaseLines } from './HangarPurchaseConfirm.js';
+import { isArcadeMachineGunMastered, resolveArcadeMilestoneCosmetics } from '../../shared/contracts/ArcadeMilestoneCosmeticContract.js';
+import { arcadeMachineGunSelectionLabel } from './HangarWorkshopRenderText.js';
 
 const PURCHASES = Object.freeze([
     { kind: 'mg', label: 'MG-Stufe', field: 'mgLevel' },
@@ -114,6 +116,7 @@ export function createArcadeWeaponPanel({ bind, toast, getProfile, saveProfile, 
         render(_vehicleId, profile) {
             const fields = normalizeArcadeWeaponProfileFields(profile);
             const owned = resolveArcadeOwnedMachineGuns(profile.vehicleId, profile.level);
+            const masterCount = resolveArcadeMilestoneCosmetics(profile).masterCount;
             for (const { gun, card, select, text, lock } of cards) {
                 const unlocked = owned.includes(gun.id);
                 const selected = fields.selectedMachineGunId === gun.id;
@@ -121,7 +124,9 @@ export function createArcadeWeaponPanel({ bind, toast, getProfile, saveProfile, 
                 card.classList.toggle('is-locked', !unlocked);
                 card.classList.toggle('is-selected', selected);
                 select.disabled = !unlocked;
-                select.textContent = selected ? `${gun.label} · ausgewählt` : gun.label;
+                select.textContent = arcadeMachineGunSelectionLabel(
+                    gun.label, selected, isArcadeMachineGunMastered(gun.id, masterCount),
+                );
                 select.setAttribute('aria-pressed', String(selected));
                 text.textContent = `${gun.role}: ${gun.strength}. ${gun.weakness}. `
                     + `Schaden ${pct(relative.damagePct)}, Feuerrate ${pct(relative.ratePct)}, `

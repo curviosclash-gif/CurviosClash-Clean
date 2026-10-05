@@ -1,6 +1,7 @@
 // Pure label helpers for the hangar workshop renderer: no DOM, no state.
 
 import { resolveFightPartTradeoff } from '../../shared/contracts/FightHangarBalanceContract.js';
+import { resolveArcadeMilestoneCosmetics } from '../../shared/contracts/ArcadeMilestoneCosmeticContract.js';
 
 export const VEHICLE_CATEGORY_LABELS = Object.freeze({
     jaeger: 'Jäger',
@@ -83,8 +84,18 @@ export function progressionSummaryText(progression) {
 /** Second line: how far the next level still is, in plain words. */
 export function progressionDetailText(progression) {
     const base = 'Käufe nutzen nur die XP-Bank und senken dein Fahrzeuglevel nicht';
-    if (progression.xpForNextLevel <= 0) return `Höchstes Level erreicht · ${base}`;
-    return `Noch ${progression.xpRemaining} XP bis Level ${progression.level + 1} · ${base}`;
+    const level = Math.max(1, Math.floor(Number(progression?.level) || 1));
+    const masterCount = resolveArcadeMilestoneCosmetics({ level }).masterCount;
+    const mastery = masterCount < 7 ? `MG-Meisterung in Level ${60 + masterCount * 10}` : 'Alle 7 MG-Meisterungen erreicht';
+    const milestone = Math.min(Number.MAX_SAFE_INTEGER, (Math.floor(level / 10) + 1) * 10);
+    const progress = progression.xpForNextLevel <= 0
+        ? `Höchstes Level erreicht · ${base}`
+        : `Noch ${progression.xpRemaining} XP bis Level ${level + 1} · ${base}`;
+    return `${progress}${milestone > level ? ` · Nächster Meilenstein: Level ${milestone}` : ''} · ${mastery}`;
+}
+
+export function arcadeMachineGunSelectionLabel(label, selected, mastered = false) {
+    return `${label}${selected ? ` · ausgewählt${mastered ? ' · Meister' : ''}` : ''}`;
 }
 
 /**

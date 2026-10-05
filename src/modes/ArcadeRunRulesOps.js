@@ -25,6 +25,7 @@ const WEAPON_RACE_RESPAWN_RULES = Object.freeze({
 });
 
 export function resolveArcadeRunCombatProfile(runType, combatProfile) {
+    if (runType === 'hangar_test') return ENDLESS_PARCOURS_COMBAT_PROFILE;
     if (isDemolitionRunType(runType)) return DEMOLITION_COMBAT_PROFILE;
     if (isWeaponRaceRunType(runType)) return 'hunt';
     if (isFivePortalsRunType(runType)) return FIVE_PORTALS_COMBAT_PROFILE;

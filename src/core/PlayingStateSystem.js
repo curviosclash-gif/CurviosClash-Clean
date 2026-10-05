@@ -41,6 +41,7 @@ export function createPlayingStateRuntimeAccess(runtime) {
         getRenderFrameId: () => game?.gameLoop?.renderFrameId || 0,
         getPausePressed: () => game?.input?.wasPressed?.('Escape') === true,
         actionPauseMatch,
+        actionReturnToMenu: (options) => game?.runtimePorts?.lifecyclePort?.returnToMenu?.(options),
         actionUpdatePlanarAimAssist,
         getEntityManager: () => game?.entityManager || null,
         getInput: () => game?.input || null,
@@ -76,6 +77,7 @@ export function createPlayingStateRuntimeAccess(runtime) {
 
 export class PlayingStateSystem {
     constructor(runtimeAccess = {}) {
+        /** @type {object & { actionReturnToMenu?: (options: { reason: string }) => unknown }} */
         this.runtimeAccess = runtimeAccess && typeof runtimeAccess === 'object'
             ? runtimeAccess
             : {};
@@ -187,6 +189,10 @@ export class PlayingStateSystem {
 
             this.runtimeAccess.actionTickSuddenDeath?.(dt);
             arcadeState = this.runtimeAccess.getArcadeMenuSurfaceState?.() || arcadeState;
+            if (arcadeState?.runType === 'hangar_test' && arcadeState.phase === 'finished') {
+                this.runtimeAccess.actionReturnToMenu?.({ reason: 'hangar_test_complete' });
+                return;
+            }
             this._syncArenaWavesOverlay(arcadeState);
             if (arcadeState?.runType === 'five_portals' && arcadeState?.phase === 'finished') {
                 if (!this._fivePortalsFinishedShown) this.runtimeAccess.actionSyncArcadeOverlay?.();

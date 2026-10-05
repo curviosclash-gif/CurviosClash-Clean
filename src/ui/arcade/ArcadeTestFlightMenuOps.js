@@ -21,7 +21,7 @@ export function bindArcadeTestFlightMenu({ bind, settings, runtimeAccess, emit, 
             previous = { arcade: { ...settings.arcade }, mode: settings.mode, gameMode: settings.gameMode,
                 modePath: settings.localSettings?.modePath, sessionType: settings.localSettings?.sessionType, multiplayerTransport: settings.localSettings?.multiplayerTransport };
             settings.vehicles ||= {}; settings.vehicles.PLAYER_1 = request.vehicleId;
-            settings.arcade ||= {}; Object.assign(settings.arcade, { runType: 'hangar_test', playerProfileIds: [request.profileId], sectorCount: 1, combatProfile: '', difficultyTierId: 'normal', dailyChallenge: false, replayHooksEnabled: false });
+            settings.arcade ||= {}; Object.assign(settings.arcade, { runType: 'hangar_test', playerProfileIds: [request.profileId], sectorCount: 1, combatProfile: 'hunt', difficultyTierId: 'normal', dailyChallenge: false, replayHooksEnabled: false });
             settings.mode = '1p'; settings.gameMode = 'ARCADE';
             settings.localSettings ||= {}; Object.assign(settings.localSettings, { modePath: 'arcade', sessionType: 'single', multiplayerTransport: '' });
             emit(eventTypes.START_MATCH, { borrowedSettings: { mapKey: 'parcours_assault', numBots: 4 } });

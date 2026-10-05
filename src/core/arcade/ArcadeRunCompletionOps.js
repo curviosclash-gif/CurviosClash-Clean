@@ -4,6 +4,12 @@ import { mergeArcadeDailyRunRecords } from '../../state/arcade/ArcadeDailyState.
 import { ARCADE_RUN_PHASES, createArcadeRunRecords } from '../../state/arcade/ArcadeRunState.js';
 import { toSafeInt, toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 import { settleArcadeRunRanking } from '../../state/arcade/ArcadeRunRanking.js';
+import { ARCADE_TEST_FLIGHT_DURATION_MS, ARCADE_TEST_FLIGHT_RUN_TYPE } from '../../shared/contracts/ArcadeTestFlightContract.js';
+
+export function finalizeExpiredArcadeTestFlight(runtime) {
+    if (runtime._config?.runType !== ARCADE_TEST_FLIGHT_RUN_TYPE || runtime._state?.gameplayTimeMs < ARCADE_TEST_FLIGHT_DURATION_MS) return null;
+    return finalizeArcadeRun(runtime, runtime.now());
+}
 
 export function recordArcadeDailyResult(runtime, nowMs = Date.now()) {
     if (!runtime._state?.isDailyChallenge || runtime._state.dailyResult) return;

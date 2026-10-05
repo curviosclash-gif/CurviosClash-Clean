@@ -22,7 +22,7 @@ export function createHangarGuideSnapshot({ store, profile, profiles, draft, pre
     const unplacedCount = stones.filter(stone => !stone.placement && !draftStoneIds.has(stone.stoneId)).length;
     const freeSlots = ARCADE_STONE_SLOT_IDS.filter(id => resolveArcadeStoneSlotStatus(profile, id).unlocked && !draft?.stoneSlots?.[id]);
     const offers = [], levelGates = [];
-    const offer = (id, system, areaId, label, result) => { if (result.cost > 0 && ['ok','insufficient_xp'].includes(result.reason)) offers.push({ id, system, areaId, label, costXp: result.cost }); };
+    const offer = (id, system, areaId, label, result, finite = true) => { if (result.cost > 0 && ['ok','insufficient_xp'].includes(result.reason)) offers.push({ id, system, areaId, label, costXp: result.cost, finite }); };
     if (!sizes.sizeWorkshopUnlocked) offer('size-unlock', 'size', 'size', 'Größenumbau freischalten', evaluateArcadeSizeUnlock(profile));
     else {
         offer('size-step', 'size', 'size', 'Einen Größenschritt kaufen', evaluateArcadeSizeStepPurchase(profile));
@@ -31,9 +31,9 @@ export function createHangarGuideSnapshot({ store, profile, profiles, draft, pre
             if (next?.utilityReached) offers.push({ id: storage, system: 'storage', areaId: 'storage', label: `${storage === 'items' ? 'Item' : 'Raketen'}-Lager erweitern`, costXp: next.cost });
         }
     }
-    const gate = (id, system, areaId, label, level) => { if (level > profile.level) levelGates.push({ id, system, areaId, label, xpNeeded: Math.max(0, arcadeVehicleXpForLevel(level) - profile.xp) }); };
+    const gate = (id, system, areaId, label, level, finite = true) => { if (level > profile.level) levelGates.push({ id, system, areaId, label, finite, xpNeeded: Math.max(0, arcadeVehicleXpForLevel(level) - profile.xp) }); };
     const milestoneLevel = Math.min(Number.MAX_SAFE_INTEGER, (Math.floor(profile.level / 10) + 1) * 10);
-    gate('next-milestone', 'cosmetics', 'colors', `Nächsten Meilenstein auf Level ${milestoneLevel} erreichen`, milestoneLevel);
+    gate('next-milestone', 'cosmetics', 'colors', `Nächsten Meilenstein auf Level ${milestoneLevel} erreichen`, milestoneLevel, false);
     for (const gun of ARCADE_MACHINE_GUN_MODELS) gate(`unlock-${gun.id}`, 'weapons', 'weapons', `${gun.label} freischalten`, resolveArcadeMachineGunUnlockLevel(profile.vehicleId, gun.id));
     if (available) {
         if (unplacedCount === 0 && freeSlots.length) offer('buy-stone', 'stones', 'stones', 'Einen Stein für eine freie Fassung kaufen', evaluateArcadeStonePurchase(read.pool, profile));
@@ -44,8 +44,8 @@ export function createHangarGuideSnapshot({ store, profile, profiles, draft, pre
         }
         for (const stone of stones.filter(stone => stone.placement?.vehicleId === profile.vehicleId || draftStoneIds.has(stone.stoneId))) {
             const result = evaluateArcadeStoneUpgrade(read.pool, profile, stone.stoneId);
-            offer(`stone-${stone.stoneId}`, 'stones', 'stones', 'Einen eingebauten Stein aufwerten', result);
-            if (result.reason === 'stone_level_locked') gate(`stone-${stone.stoneId}`, 'stones', 'stones', `Steine aufwerten ab Level ${result.requiredLevel}`, result.requiredLevel);
+            offer(`stone-${stone.stoneId}`, 'stones', 'stones', 'Einen eingebauten Stein aufwerten', result, false);
+            if (result.reason === 'stone_level_locked') gate(`stone-${stone.stoneId}`, 'stones', 'stones', `Steine aufwerten ab Level ${result.requiredLevel}`, result.requiredLevel, false);
         }
     }
     for (const [kind, label] of [['mg', 'MG'], ['rocket', 'Raketen'], ['shield', 'Schild']]) {

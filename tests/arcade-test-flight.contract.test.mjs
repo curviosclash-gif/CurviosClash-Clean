@@ -6,7 +6,7 @@ import { configureArcadeRunRuntime, buildArcadeEncounterPlan } from '../src/core
 import { finalizeArcadeRun } from '../src/core/arcade/ArcadeRunCompletionOps.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { ArcadeRoundStateController } from '../src/state/arcade/ArcadeRoundStateController.js';
-import { createPlayingStateRuntimeAccess } from '../src/core/PlayingStateSystem.js';
+import { createPlayingStateRuntimeAccess, PlayingStateSystem } from '../src/core/PlayingStateSystem.js';
 
 test('test flight refuses unactivated drafts, stale requests and another player profile', () => {
     const active = { vehicleId: 'ship5', slots: { core: 'standard' }, stoneSlots: { nose: 'damage' } };
@@ -29,6 +29,7 @@ test('actual test-flight runtime grants no XP, records, ghosts, replay or diffic
     configureArcadeRunRuntime(runtime, config);
     runtime.setActiveVehicle('ship5');
     const strategy = new ArcadeModeStrategy({ runType: 'hangar_test' });
+    assert.equal(strategy.hasMachineGun(), true, 'the active-build combat flight can fire its selected MG');
     assert.equal(strategy.isNormalArcadeRun(), true, 'normal stats and base regeneration');
     const plan = buildArcadeEncounterPlan(config, store);
     assert.equal(plan.sequence[0].squadId, 'hunter_pack');
@@ -56,4 +57,33 @@ test('Escape in a test flight takes the existing return-to-menu lifecycle, ordin
     assert.equal(returned, 1); assert.equal(paused, 0);
     game.settings.arcade.runType = 'gauntlet'; access.actionPauseMatch();
     assert.equal(returned, 1); assert.equal(paused, 1);
+});
+
+test('test flight ends once at thirty active seconds and returns through the playing lifecycle without rewards', () => {
+    let nowMs = 1000; let writes = 0; let returned = 0;
+    const store = { readJsonRecordResult: () => ({ status: 'missing' }), loadJsonRecord: (_key, fallback) => fallback,
+        saveJsonRecord: () => { writes++; return true; } };
+    const runtime = new ArcadeRunRuntime({ settingsManager: { getPlayerRecordStorePort: () => store }, now: () => nowMs });
+    const config = { arcade: { enabled: true, runType: 'hangar_test', seed: 2, sectorCount: 1 }, session: { mapKey: 'parcours_assault' } };
+    configureArcadeRunRuntime(runtime, config); runtime.setActiveVehicle('ship5');
+    const start = () => runtime.startRun({ encounterPlan: buildArcadeEncounterPlan(config, store), strategy: new ArcadeModeStrategy({ runType: 'hangar_test' }) });
+    start(); const before = writes;
+    runtime.tickGameplay(29.9);
+    assert.equal(runtime.getPhase(), 'sector_active');
+    nowMs += 120000; // Wall-clock time without simulation ticks is not flight time.
+    runtime.tickGameplay(0);
+    assert.equal(runtime.getPhase(), 'sector_active');
+    const game = { state: 'PLAYING', entityManager: { update() {} }, runtimePorts: {
+        arcadePort: { tickSuddenDeath: dt => runtime.tickGameplay(dt), getMenuSurfaceState: () => runtime.getMenuSurfaceState() },
+        lifecyclePort: { returnToMenu: options => { assert.equal(options.reason, 'hangar_test_complete'); returned++; game.state = 'MENU'; } },
+    } };
+    new PlayingStateSystem(createPlayingStateRuntimeAccess(game)).update(0.1);
+    assert.equal(runtime.getPhase(), 'finished'); assert.equal(returned, 1);
+    const finishedAt = runtime.getStateSnapshot().finishedAtIso;
+    runtime.tickGameplay(10); runtime.flushPersistenceSaves();
+    assert.equal(runtime.getStateSnapshot().finishedAtIso, finishedAt);
+    assert.equal(writes, before); assert.equal(runtime.getRecordsSnapshot().runsPlayed, 0);
+    start(); runtime.tickGameplay(0.1); assert.equal(runtime.getPhase(), 'sector_active');
+    config.arcade.runType = 'gauntlet'; configureArcadeRunRuntime(runtime, config); start();
+    runtime.tickGameplay(31); assert.equal(runtime.getPhase(), 'sector_active', 'ordinary runs have no flight deadline');
 });

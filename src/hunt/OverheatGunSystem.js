@@ -76,6 +76,9 @@ export class OverheatGunSystem {
 
     reset() {
         this._state.reset();
+        for (const player of this.entityManager?.players || this.runtimeContext?.players || []) {
+            if (player?.arcadeBurstShots) player.arcadeBurstShots = 0;
+        }
         this._tracerFx.clear();
     }
 
@@ -92,6 +95,9 @@ export class OverheatGunSystem {
 
     resetPlayer(playerIndex) {
         this._state.resetPlayer(playerIndex);
+        const players = this.entityManager?.players || this.runtimeContext?.players || [];
+        const player = players.find((entry) => entry?.index === playerIndex);
+        if (player?.arcadeBurstShots) player.arcadeBurstShots = 0;
     }
 
     getOverheatSnapshot() {

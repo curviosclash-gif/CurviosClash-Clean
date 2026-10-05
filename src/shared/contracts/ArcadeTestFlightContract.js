@@ -1,5 +1,6 @@
 export const ARCADE_TEST_FLIGHT_REQUEST_KEY = 'cuviosclash.arcade-test-flight-request';
 export const ARCADE_TEST_FLIGHT_RUN_TYPE = 'hangar_test';
+export const ARCADE_TEST_FLIGHT_DURATION_MS = 30000;
 
 export function isArcadeTestFlightBuildActive(draft, active) {
     if (!draft || !active || draft.vehicleId !== active.vehicleId) return false;

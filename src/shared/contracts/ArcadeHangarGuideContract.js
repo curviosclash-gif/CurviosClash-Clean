@@ -62,10 +62,13 @@ export function resolveArcadeHangarNextGoal(snapshot = {}) {
     if (affordable.length) return goal(affordable[0], 'purchase', `${affordable[0].costXp} XP · verfügbar: ${bank} XP`);
     const savings = finite.filter(item => item.costXp > bank).map(item => ({ ...item, gap: item.costXp - bank, group: 'save' }));
     const gates = (snapshot.levelGates || []).filter(item => item.xpNeeded > 0).map(item => ({ ...item, gap: item.xpNeeded, group: 'level' }));
-    const pending = [...savings, ...gates].sort((a, b) => a.gap - b.gap || (a.group === b.group ? tie(a, b) : a.group === 'save' ? -1 : 1));
+    const byGap = (a, b) => a.gap - b.gap || (a.group === b.group ? tie(a, b) : a.group === 'save' ? -1 : 1);
+    const pending = [...savings, ...gates.filter(item => item.finite !== false)].sort(byGap);
     if (pending.length) return goal(pending[0], pending[0].group, `Noch ${Math.ceil(pending[0].gap)} XP im nächsten Run verdienen.`);
     if (snapshot.achievement) return goal(snapshot.achievement, 'run', snapshot.achievement.detail);
-    const weapon = offers.filter(item => item.costXp <= bank).sort((a, b) => a.costXp - b.costXp || tie(a, b))[0];
-    if (weapon) return goal(weapon, 'purchase', `${weapon.costXp} XP · verfügbar: ${bank} XP`);
+    const upgrade = offers.filter(item => item.finite === false && item.costXp <= bank).sort((a, b) => a.costXp - b.costXp || tie(a, b))[0];
+    if (upgrade) return goal(upgrade, 'purchase', `${upgrade.costXp} XP · verfügbar: ${bank} XP`);
+    const recurring = [...gates.filter(item => item.finite === false), ...offers.filter(item => item.finite === false && item.costXp > bank).map(item => ({ ...item, gap: item.costXp - bank, group: 'save' }))].sort(byGap);
+    if (recurring.length) return goal(recurring[0], recurring[0].group, `Noch ${Math.ceil(recurring[0].gap)} XP im nächsten Run verdienen.`);
     return goal({ id: 'start-run', system: 'run', areaId: 'run', label: 'Starte einen Arcade-Run' }, 'fallback', 'Fliege deinen aktiven Build und sammle XP.');
 }
