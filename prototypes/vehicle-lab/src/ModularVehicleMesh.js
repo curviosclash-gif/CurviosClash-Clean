@@ -16,6 +16,7 @@ export class ModularVehicleMesh extends THREE.Group {
         this.selectedIndex = null;
         this.selectedPath = [];
         this.activeGeometryKeys = new Set();
+        this._animationTime = 0;
 
         this.initMaterials(config);
         this.build();
@@ -290,7 +291,15 @@ export class ModularVehicleMesh extends THREE.Group {
         return mesh;
     }
 
-    tick(dt, time) {
+    tick(dt, elapsedTime) {
+        // Game and hangar call tick(dt) like every other vehicle mesh; only the Vehicle Lab passes elapsed time.
+        if (Number.isFinite(elapsedTime)) {
+            this._animationTime = elapsedTime;
+        } else {
+            const step = Number(dt);
+            if (Number.isFinite(step) && step > 0) this._animationTime += step;
+        }
+        const time = this._animationTime;
         this.traverse(child => {
             const config = child.userData.config;
             if (!config) return;
