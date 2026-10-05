@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 
+// A boosting part flame grows this much longer and turns this far toward white-hot, so it keeps
+// the length, width and colour the part was built with instead of the built-in jets' fixed look.
+const THRUSTER_BOOST_LENGTH = 1.8;
+const THRUSTER_BOOST_WHITEN = 0.45;
+const THRUSTER_WHITE = new THREE.Color(0xffffff);
+
 /**
  * ModularVehicleMesh builds a 3D vehicle from a configuration object.
  */
@@ -17,6 +23,7 @@ export class ModularVehicleMesh extends THREE.Group {
         this.selectedPath = [];
         this.activeGeometryKeys = new Set();
         this._animationTime = 0;
+        this._thrusterState = null;
 
         this.initMaterials(config);
         this.build();
@@ -291,7 +298,39 @@ export class ModularVehicleMesh extends THREE.Group {
 
         const mesh = new THREE.Mesh(geo, mat);
         this.applyTransforms(mesh, data);
+        mesh.userData.isThrusterFlame = true;
+        mesh.userData.flameBaseColor = mat.color.getHex();
+        mesh.userData.flameBaseOpacity = mat.opacity;
         return mesh;
+    }
+
+    /**
+     * The game tells the vehicle whether it boosts or sits under water; the part flames follow
+     * on the next tick. The Vehicle Lab never calls this, so its flames keep the authored look.
+     * @param {{ boosting?: boolean, submerged?: boolean }} state
+     */
+    setThrusterState({ boosting = false, submerged = false } = {}) {
+        if (!this._thrusterState) this._thrusterState = { boosting: false, submerged: false };
+        this._thrusterState.boosting = boosting === true;
+        this._thrusterState.submerged = submerged === true;
+    }
+
+    applyThrusterFlame(flame, config, scaleFactor) {
+        const state = this._thrusterState;
+        flame.visible = !state.submerged;
+        if (state.submerged) return;
+        const baseScale = config.scale || [1, 1, 1];
+        const length = state.boosting ? THRUSTER_BOOST_LENGTH : 1;
+        flame.scale.set(
+            baseScale[0] * scaleFactor,
+            baseScale[1] * scaleFactor,
+            baseScale[2] * scaleFactor * length
+        );
+        const material = flame.material;
+        if (!material?.color) return;
+        material.color.setHex(flame.userData.flameBaseColor);
+        if (state.boosting) material.color.lerp(THRUSTER_WHITE, THRUSTER_BOOST_WHITEN);
+        material.opacity = state.boosting ? 1 : flame.userData.flameBaseOpacity;
     }
 
     tick(dt, elapsedTime) {
@@ -353,6 +392,13 @@ export class ModularVehicleMesh extends THREE.Group {
                     }
                 }
                 child.userData.vehicleLabAnimationState = animationState;
+            }
+
+            if (this._thrusterState && child.userData.isThrusterFlame) {
+                const scaleFactor = config.anim?.type === 'pulse'
+                    ? child.userData.vehicleLabAnimationState?.scaleFactor ?? 1
+                    : 1;
+                this.applyThrusterFlame(child, config, scaleFactor);
             }
         });
         this.baseMesh?.tick?.(dt);
