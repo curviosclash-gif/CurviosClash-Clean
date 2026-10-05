@@ -13,8 +13,18 @@ export const ICE_POLL_MAX_RETRIES = 20;
 export const ICE_QUIET_WINDOW_POLLS = 3;
 export const ICE_POLL_DELAY_MS = 200;
 
+export const SIGNALING_REQUEST_TIMEOUT_MS = 5_000;
+
 export function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** fetch() with a deadline, so an unreachable LAN host cannot stall a handshake loop. */
+export function fetchSignaling(url, init = {}, timeoutMs = SIGNALING_REQUEST_TIMEOUT_MS) {
+    if (init.signal || typeof AbortSignal === 'undefined' || typeof AbortSignal.timeout !== 'function') {
+        return fetch(url, init);
+    }
+    return fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
 }
 
 /**
@@ -27,7 +37,7 @@ export async function waitForHostOffer({ signalingUrl, playerId, token, now = ()
     const offerParams = new URLSearchParams({ playerId, token: String(token || '') });
     while ((Number(now()) || 0) - offerPollingStartedAt < JOIN_OFFER_MAX_WAIT_MS) {
         try {
-            const offerRes = await fetch(`${signalingUrl}/signaling/offer?${offerParams.toString()}`);
+            const offerRes = await fetchSignaling(`${signalingUrl}/signaling/offer?${offerParams.toString()}`);
             if (offerRes?.ok === false) {
                 throw new Error(`Offer poll failed (${offerRes.status || 'unknown'})`);
             }
@@ -47,7 +57,7 @@ export async function waitForHostOffer({ signalingUrl, playerId, token, now = ()
 export async function sendIceCandidate({ signalingUrl, sourcePlayerId, token, targetPlayerId, candidate }) {
     if (!signalingUrl) return;
     try {
-        await fetch(`${signalingUrl}/signaling/ice`, {
+        await fetchSignaling(`${signalingUrl}/signaling/ice`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -76,6 +86,7 @@ export async function pollIceCandidates({
     maxRetries = ICE_POLL_MAX_RETRIES,
     quietWindowPolls = ICE_QUIET_WINDOW_POLLS,
     pollDelayMs = ICE_POLL_DELAY_MS,
+    requestTimeoutMs = SIGNALING_REQUEST_TIMEOUT_MS,
 }) {
     const params = new URLSearchParams({ playerId, token: String(token || '') });
     if (fromPeerId) {
@@ -87,7 +98,7 @@ export async function pollIceCandidates({
     let quietCount = 0;
     for (let i = 0; i < maxRetries; i += 1) {
         try {
-            const res = await fetch(pollUrl);
+            const res = await fetchSignaling(pollUrl, {}, requestTimeoutMs);
             const data = await res.json();
             if (Array.isArray(data.candidates) && data.candidates.length > 0) {
                 for (const candidate of data.candidates) {
@@ -120,7 +131,7 @@ export function waitForStateChannelOpen({
     if (existingChannel?.readyState === 'open') {
         return Promise.resolve();
     }
-    return new Promise((resolve, reject) => {
+    const channelOpen = new Promise((resolve, reject) => {
         let settled = false;
         const onOpen = ({ peerId: openPeerId, channel }) => {
             if (settled || openPeerId !== peerId || channel !== 'state') return;
@@ -137,4 +148,8 @@ export function waitForStateChannelOpen({
         }, timeoutMs);
         dataChannelManager.on('channelOpen', onOpen);
     });
+    // Callers create this before the answer and ICE steps and await it last. If one of those
+    // steps throws first, the later timeout must not surface as an unhandled rejection.
+    channelOpen.catch(() => {});
+    return channelOpen;
 }
