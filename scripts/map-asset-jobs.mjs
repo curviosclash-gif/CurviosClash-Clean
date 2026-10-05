@@ -30,6 +30,9 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     pyramid: 'generate_pyramid_map_assets.py',
     vertical_maze: 'generate_map_world.py',
     trench: 'generate_map_world.py',
+    magma_maze: 'generate_map_world.py',
+    frozen_helix: 'generate_map_world.py',
+    neon_circuit: 'generate_map_world.py',
 });
 
 export function parseMapAssetArgs(args) {

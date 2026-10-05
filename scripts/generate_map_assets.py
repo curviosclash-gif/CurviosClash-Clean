@@ -35,6 +35,9 @@ GENERATORS = {
     'pyramid': 'generate_pyramid_map_assets',
     'vertical_maze': 'generate_map_world',
     'trench': 'generate_map_world',
+    'magma_maze': 'generate_map_world',
+    'frozen_helix': 'generate_map_world',
+    'neon_circuit': 'generate_map_world',
 }
 
 

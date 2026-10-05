@@ -51,8 +51,8 @@ test('all includes each built-in map and deduplicates shared Blender packs', () 
     const plan = resolveMapAssetJobs({ all: true });
     assert.equal(plan.selectedMaps.length, 77);
     assert.equal(plan.selectedMaps.includes('custom'), false);
-    assert.equal(plan.jobs.length, 27);
-    assert.equal(new Set(plan.jobs.map((job) => job.pack)).size, 27);
+    assert.equal(plan.jobs.length, 30);
+    assert.equal(new Set(plan.jobs.map((job) => job.pack)).size, 30);
     for (const job of plan.jobs) assert.equal(job.parts.length, new Set(job.parts).size);
     assert.equal(plan.nativeMaps.includes('maze'), false);
     assert.equal(plan.nativeMaps.includes('standard'), false);
@@ -86,7 +86,7 @@ test('the actual dry-run command needs no Blender executable and writes no asset
     assert.equal(result.status, 0, result.stderr);
     const plan = JSON.parse(result.stdout);
     assert.equal(plan.selectedMaps.length, 77);
-    assert.equal(plan.jobs.length, 27);
+    assert.equal(plan.jobs.length, 30);
 });
 
 test('mixed generation resolves converted reference worlds before invoking Blender', () => {

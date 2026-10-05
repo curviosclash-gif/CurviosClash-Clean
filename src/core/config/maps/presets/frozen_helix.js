@@ -4,8 +4,11 @@
 // Spiralfoermiger Abstieg mit Foam-Eisflaechen
 // ============================================================
 
+import { authoredWorld } from './world_appearance.js';
+
 export const FROZEN_HELIX_MAP = {
     frozen_helix: {
+        ...authoredWorld('frozen_helix'),
         name: 'Frozen Helix',
         // Snow throws most of the light back up, so the ground of the hemisphere is barely darker
         // than its sky and the fog stays bright and far -- cold air is clear air.
