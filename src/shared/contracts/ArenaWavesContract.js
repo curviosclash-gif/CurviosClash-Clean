@@ -56,6 +56,12 @@ export function resolveArenaWavesProfile(wave) {
     const base = WAVE_ROWS[ordinal] || { count: 12, difficulty: 'HARD', hp: 1.8, damage: Math.min(1.8, 1 + 0.05 * (ordinal - 1)), elite: ordinal >= 5 && (ordinal - 5) % 3 === 0 };
     return Object.freeze({ wave: ordinal, ...base, elite: base.elite === true, eliteSlot: base.elite === true ? Math.max(0, base.count - 1) : -1 });
 }
+// Regular wave bots rotate through these roles; the elite slot of an elite wave drives as 'elite'.
+export const ARENA_WAVES_BOT_ROLES = Object.freeze(['pursuer', 'flanker', 'interceptor']);
+export function resolveArenaWavesBotRole(index, eliteSlot) {
+    if (Number.isInteger(eliteSlot) && index === eliteSlot) return 'elite';
+    return ARENA_WAVES_BOT_ROLES[Math.max(0, Math.trunc(Number(index) || 0)) % ARENA_WAVES_BOT_ROLES.length];
+}
 export function resolveArenaWavesAggression(mapIndex, wave) {
     return normalizeArcadeBotAggressiveness(0.50 + 0.08 * Math.max(0, Math.trunc(number(mapIndex))) + 0.05 * (Math.max(1, Math.trunc(number(wave, 1))) - 1));
 }

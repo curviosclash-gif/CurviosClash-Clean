@@ -1,5 +1,6 @@
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import { resolveArcadeRoleAggressiveness } from '../shared/contracts/ArcadeBotAggressionContract.js';
 
 export function applyLiveRuntimeConfig(em, entityRuntimeConfig, runtimeConfig) {
     const nextErc = resolveEntityRuntimeConfig(entityRuntimeConfig || em.entityRuntimeConfig || null);
@@ -68,7 +69,10 @@ export function applyLiveRuntimeConfig(em, entityRuntimeConfig, runtimeConfig) {
     const arcadeAggressiveness = runtimeConfig?.bot?.arcadeAggressiveness;
     if (Number.isFinite(Number(arcadeAggressiveness))) {
         for (const bot of em.bots || []) {
-            bot?.ai?.setArcadeBotAggressiveness?.(arcadeAggressiveness);
+            const value = runtimeConfig?.arcade?.enabled === true
+                ? resolveArcadeRoleAggressiveness(arcadeAggressiveness, bot?.player?.scenarioRole)
+                : arcadeAggressiveness;
+            bot?.ai?.setArcadeBotAggressiveness?.(value);
         }
     }
     const playerSection = nextErc.PLAYER || {};

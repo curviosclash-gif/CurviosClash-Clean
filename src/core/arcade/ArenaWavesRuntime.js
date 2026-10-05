@@ -9,10 +9,12 @@ import {
     resolveArenaWavesChoices,
     resolveArenaWavesSupplyPickup,
     resolveArenaWavesAggression,
+    resolveArenaWavesBotRole,
     resolveArenaWavesMap,
     resolveArenaWavesMapMultipliers,
     resolveArenaWavesProfile,
 } from '../../shared/contracts/ArenaWavesContract.js';
+import { resolveArcadeRoleAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 import { clampArcadeVehicleSpeedMultiplier } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { settleArcadeRunRanking } from '../../state/arcade/ArcadeRunRanking.js';
@@ -152,7 +154,8 @@ export class ArenaWavesRuntime {
         const status = this._waveStatus.get(this._pendingWave);
         for (const [index, { slot, position }] of this._plannedSlots.entries()) {
             if (this._slotWave.get(slot) === this._pendingWave) continue;
-            if (em.activateBotSlot?.({ slot, position, difficulty: this.rankContext?.botStrength?.ai || profile.difficulty }) !== true) continue;
+            const role = resolveArenaWavesBotRole(index, profile.eliteSlot);
+            if (em.activateBotSlot?.({ slot, position, role, difficulty: this.rankContext?.botStrength?.ai || profile.difficulty }) !== true) continue;
             const player = em.bots?.[slot]?.player; const ai = em.bots?.[slot]?.ai;
             if (!player) continue;
             if (!Number.isFinite(player._arenaWavesBaseMaxHp)) player._arenaWavesBaseMaxHp = safe(player.maxHp, 100);
@@ -162,7 +165,7 @@ export class ArenaWavesRuntime {
             player.endlessDamageMultiplier = profile.damage * map.damage;
             player.arenaWavesDamageMultiplier = profile.damage * map.damage;
             // Every policy chain forwards this to its rule-based core, which rebuilds the profile from the difficulty.
-            ai?.setArcadeBotAggressiveness?.(aggression);
+            ai?.setArcadeBotAggressiveness?.(resolveArcadeRoleAggressiveness(aggression, role));
             this._activeSlots.add(slot); this._waveSlots.add(slot); this._slotWave.set(slot, this._pendingWave);
             this._spawnOrder.push(slot); status.alive += 1;
             if (player.arenaWavesElite) this._eliteSlots.add(slot);

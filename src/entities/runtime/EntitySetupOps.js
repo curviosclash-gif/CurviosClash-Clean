@@ -13,6 +13,7 @@ import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntime
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
+import { resolveArcadeRoleAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 import { normalizeTeamId, resolveTeamColor } from '../../shared/contracts/TeamCombatContract.js';
 
 function normalizeActiveMode(mode) {
@@ -227,7 +228,11 @@ export class EntitySetupOps {
             ? owner.entityRuntimeConfig.COLORS.BOT_COLORS
             : [0xff8a65];
         const scenario = resolveMapSinglePlayerScenario(owner.arena?.currentMapDefinition);
-        const scenarioRoles = Array.isArray(scenario?.botRoles) ? scenario.botRoles : [];
+        const authoredRoles = Array.isArray(scenario?.botRoles) ? scenario.botRoles : [];
+        // An arcade sector without authored map roles hands out its squad's role mix.
+        const arcadeEnabled = owner.runtimeConfig?.arcade?.enabled === true;
+        const arcadeRoles = arcadeEnabled && Array.isArray(owner.runtimeConfig?.bot?.arcadeBotRoles) ? owner.runtimeConfig.bot.arcadeBotRoles : [];
+        const scenarioRoles = authoredRoles.length > 0 ? authoredRoles : arcadeRoles;
         for (let i = 0; i < numBots; i++) {
             const teamId = normalizeTeamId(setupContext.botTeamIds?.[i]);
             const color = resolveTeamColor(teamId, botColors[i % botColors.length]);
@@ -257,6 +262,9 @@ export class EntitySetupOps {
                 isDesktopRuntime: owner.botIsDesktopRuntime,
                 runtimeRng: owner.runtimeRng,
             });
+            if (arcadeEnabled && player.scenarioRole) {
+                ai?.setArcadeBotAggressiveness?.(resolveArcadeRoleAggressiveness(owner.runtimeConfig?.bot?.arcadeAggressiveness, player.scenarioRole));
+            }
             const sensePhase = i % 4;
             if (typeof ai?.setSensePhase === 'function') {
                 ai.setSensePhase(sensePhase); // Time-slicing for batched bot scans
