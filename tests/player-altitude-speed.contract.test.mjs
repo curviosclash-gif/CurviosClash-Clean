@@ -3,9 +3,11 @@ import test from 'node:test';
 
 import * as THREE from 'three';
 
+import { CONFIG_BASE } from '../src/core/Config.js';
+import { Player } from '../src/entities/Player.js';
 import { applyPlayerPowerup, recomputePlayerEffectState } from '../src/entities/player/PlayerEffectOps.js';
 import { updatePlayerMotion } from '../src/entities/player/PlayerMotionOps.js';
-import { resolveEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
+import { createEntityRuntimeConfig, resolveEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { normalizeAltitudeSpeedFactor } from '../src/shared/contracts/AltitudeSpeedContract.js';
 import { serializePlayer } from '../src/core/GameStateSnapshot.js';
@@ -246,4 +248,63 @@ test('network snapshots preserve and clamp altitude speed state while accepting 
     reconciler.receiveServerState({ state: { players: [legacySnapshot] } });
     reconciler.reconcile([replica]);
     assert.equal(replica.altitudeSpeedFactor, 1.04, 'older hosts leave client altitude state intact');
+});
+
+// A real vehicle (same construction as player-spawn-gate-impulse-reset): these cases run the
+// full Player.spawn / Player.update path that the desktop window used to exercise.
+function createRealPlayer() {
+    const entityManager = {
+        entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_BASE),
+        _simulationClockMs: 0,
+        getTrailSpatialIndex() { return null; },
+    };
+    return new Player({ addToScene() {}, removeFromScene() {} }, 0, 0x33aaff, false, { entityManager });
+}
+
+function flyRealPlayer(player, direction, frames = 180) {
+    const dt = 1 / 60;
+    player.spawn(player.position, new THREE.Vector3(...direction));
+    player.waterSubmerged = false;
+    player.waterSpeedMultiplier = 1;
+    player.position.set(0, 0, 0);
+    const start = player.position.clone();
+    for (let i = 0; i < frames; i += 1) player.update(dt, {}, i, null, 1);
+    return { distance: player.position.distanceTo(start), factor: player.altitudeSpeedFactor };
+}
+
+function realTurnAngle(player, direction) {
+    player.spawn(player.position, new THREE.Vector3(...direction));
+    player.waterSubmerged = false;
+    player.waterSpeedMultiplier = 1;
+    const startingRotation = player.quaternion.clone();
+    player.update(1 / 60, { yawRight: true }, 0, null, 1);
+    return startingRotation.angleTo(player.quaternion);
+}
+
+test('Player.update changes dive and climb travel while preserving horizontal speed and steering', () => {
+    const player = createRealPlayer();
+    const horizontal = flyRealPlayer(player, [0, 0, -1]);
+    const dive = flyRealPlayer(player, [0, -1, 0]);
+    const climb = flyRealPlayer(player, [0, 1, 0]);
+    const levelTurnAngle = realTurnAngle(player, [0, 0, -1]);
+    const diveTurnAngle = realTurnAngle(player, [0, -1, 0]);
+
+    assert.ok(horizontal.distance > 0);
+    assert.ok(dive.distance > horizontal.distance * 1.08, `dive ${dive.distance} vs level ${horizontal.distance}`);
+    assert.ok(climb.distance < horizontal.distance * 0.92, `climb ${climb.distance} vs level ${horizontal.distance}`);
+    assert.ok(Math.abs(horizontal.factor - 1) < 1e-8);
+    assert.ok(dive.factor > 1.09, `dive factor ${dive.factor}`);
+    assert.ok(climb.factor < 0.91, `climb factor ${climb.factor}`);
+    assert.ok(Math.abs(diveTurnAngle - levelTurnAngle) < 1e-8, 'diving does not change the steering rate');
+});
+
+test('Player.spawn clears a leftover altitude speed factor', () => {
+    const player = createRealPlayer();
+    player.spawn(new THREE.Vector3(0, 20, 0), new THREE.Vector3(0, 0, -1));
+    player.altitudeSpeedFactor = 1.08;
+
+    player.spawn(player.position, new THREE.Vector3(0, 0, -1));
+
+    assert.equal(player.altitudeSpeedFactor, 1);
+    assert.equal(player.speed, player.baseSpeed);
 });

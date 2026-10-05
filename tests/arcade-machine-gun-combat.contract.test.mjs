@@ -174,3 +174,32 @@ test('Glut overheat rises more slowly than Vector in actual player firing', () =
     assert.ok(Number.isFinite(emberResult.overheat));
     assert.ok(emberResult.overheat < vectorResult.overheat);
 });
+
+test('Arena Waves machine-gun tuning changes the real shot damage of the selected gun', () => {
+    const { player, target, system } = createCombat('raptor_r9', 20, 0);
+    player.arcadeWeaponLoadout.mgLevel = 2;
+    player.arenaWavesLoadout = Object.freeze({ machineGunId: 'raptor_r9', mgTuning: 0 });
+    assert.equal(fireReady(system, player).ok, true);
+    const before = target.damage.at(-1);
+
+    player.arenaWavesLoadout = Object.freeze({ machineGunId: 'raptor_r9', mgTuning: 1 });
+    system._lockoutByPlayer[player.index] = 0;
+    assert.equal(fireReady(system, player).ok, true);
+    const after = target.damage.at(-1);
+
+    assert.ok(before > 0);
+    assert.ok(Math.abs(after / before - 1.06) < 1e-5, `damage ratio ${after / before}`);
+});
+
+test('a seven-gun master fires the crown tracer from the real gun system', () => {
+    const { player, system, manager } = createCombat('pulse_p3', 20, 0);
+    manager.renderer = { addToScene() {}, removeFromScene() {} };
+    player.arcadeWeaponLoadout.masterCount = 7;
+    const result = fireReady(system, player);
+    assert.equal(result.ok, true);
+    const tracer = system._tracerFx.tracers.at(-1);
+    assert.equal(tracer?.style, 'master-crown');
+    assert.equal(tracer.muzzleMaterial.color.getHex(), 0xff9e42);
+    assert.equal(tracer.segmentCount, 2);
+    assert.equal(tracer.muzzleScale, 1.95);
+});
