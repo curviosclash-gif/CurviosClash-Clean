@@ -15,12 +15,24 @@ import {
 import {
     distanceTravelled,
     countDeaths,
+    describeMatchStartProblems,
     filterPlaytestErrors,
     resolvePlaytestOutDir,
     sanitizeShotName,
 } from './playtest-support.mjs';
+import { enableAutopilot, installControl, resetControl, setPaused } from './playtest-control.mjs';
 
 export { distanceTravelled, countDeaths };
+export {
+    act,
+    disableAutopilot,
+    enableAutopilot,
+    installControl,
+    observe,
+    readEvents,
+    setPaused,
+    step,
+} from './playtest-control.mjs';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const OUT_DIR = resolvePlaytestOutDir();
@@ -33,8 +45,8 @@ const { _electron } = requireRepo('@playwright/test');
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Holds the machine-wide Playwright lock for the whole session; released on exit. */
-export async function acquireLock(label = 'playtest') {
-    const lock = await acquirePlaywrightRunLock({ label, kind: 'long' });
+export async function acquireLock(label = 'playtest', options = {}) {
+    const lock = await acquirePlaywrightRunLock({ label, kind: 'long', ...options });
     releasePlaywrightRunLockOnExit(lock.release);
     return lock;
 }
@@ -70,15 +82,26 @@ export async function launchApp({ visible = false, tag = 'claude' } = {}) {
         env,
         timeout: 90_000,
     });
+    const session = { app, page: null, profile, errors: [], visible, tag, closed: false };
+    // A crashed or closed app is noticed here, so callers can relaunch instead of
+    // failing every later step with "Target closed".
+    app.on('close', () => { session.closed = true; });
     const page = await app.firstWindow({ timeout: 90_000 });
-    const errors = [];
+    session.page = page;
+    const { errors } = session;
     page.on('pageerror', (error) => errors.push({ kind: 'pageerror', text: String(error?.message || error), at: Date.now() }));
     page.on('console', (message) => {
         if (message.type() === 'error') errors.push({ kind: 'console', text: message.text().slice(0, 500), at: Date.now() });
     });
     await page.waitForFunction(() => Boolean(window.GAME_INSTANCE?.settings), null, { timeout: 90_000 });
     await page.waitForSelector('#main-menu[data-shell-ready="true"]', { timeout: 60_000 }).catch(() => {});
-    return { app, page, profile, errors };
+    return session;
+}
+
+/** Closes the session and starts a fresh app with the same visibility and tag. */
+export async function relaunchApp(session) {
+    await closeApp(session);
+    return launchApp({ visible: session?.visible === true, tag: session?.tag || 'claude' });
 }
 
 export async function closeApp(session) {
@@ -108,21 +131,35 @@ export function errorsSince(session, sinceMs) {
 }
 
 /**
- * Starts a match through the runtime facade, skipping the menu. Team mode is reset on
- * every start because settings persist between matches of one session.
- * @param {{ map: string, mode?: 'CLASSIC'|'HUNT'|'ARCADE'|'ESCORT', bots?: number, vehicle?: string,
- *   hunt?: object, arcade?: object, session?: 'single'|'splitscreen', modePath?: string,
- *   difficulty?: string, winsNeeded?: number, timeoutMs?: number }} options
+ * Starts a match through the runtime facade, skipping the menu. Vehicle, arcade and hunt
+ * settings go back to the profile's first state before each start, because settings
+ * persist between matches of one session and would leak from one step into the next.
+ * `seed` fixes the arcade seed and replaces Math.random in the renderer with a seeded
+ * generator: fewer random differences between runs, not a determinism guarantee (frame
+ * timing still varies unless the run is paused and advanced with step/act).
+ * `problems` lists every difference from the request (map fallback, wrong mode, ...).
+ * @param {{ map: string, mode?: 'CLASSIC'|'HUNT'|'ARCADE'|'ESCORT', bots?: number, humans?: number,
+ *   vehicle?: string, hunt?: object, arcade?: object, session?: 'single'|'splitscreen', modePath?: string,
+ *   difficulty?: string, winsNeeded?: number, seed?: number, paused?: boolean, timeoutMs?: number }} options
  */
 export async function startMatch(session, options) {
-    return session.page.evaluate(async (opts) => {
+    const result = await session.page.evaluate(async (opts) => {
         const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         const game = window.GAME_INSTANCE;
+        if (window.__playtest) Object.assign(window.__playtest, { paused: false, budget: 0, action: null, actionFrames: 0 });
         if (game.state !== 'MENU') {
             await Promise.resolve(game._returnToMenu?.());
             for (let index = 0; index < 100 && game.state !== 'MENU'; index += 1) await wait(50);
         }
+        if (game.state !== 'MENU') return { ok: false, menuReached: false, state: game.state };
         const settings = game.settings;
+        const clone = (value) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
+        const base = window.__playtestBaseSettings || (window.__playtestBaseSettings = {
+            vehicles: clone(settings.vehicles), arcade: clone(settings.arcade), hunt: clone(settings.hunt),
+        });
+        settings.vehicles = clone(base.vehicles);
+        settings.arcade = clone(base.arcade);
+        settings.hunt = clone(base.hunt);
         Object.assign(settings, {
             mode: opts.session === 'splitscreen' ? '2p' : '1p',
             numHumans: opts.humans || 1,
@@ -134,7 +171,22 @@ export async function startMatch(session, options) {
         });
         if (opts.vehicle) settings.vehicles = { ...(settings.vehicles || {}), PLAYER_1: opts.vehicle };
         settings.hunt = { ...(settings.hunt || {}), teamMode: false, teamObjective: 'HUNT', ...(opts.hunt || {}) };
-        if (opts.arcade) settings.arcade = { ...(settings.arcade || {}), ...opts.arcade };
+        if (opts.arcade || Number.isInteger(opts.seed)) {
+            settings.arcade = { ...(settings.arcade || {}), ...(opts.arcade || {}) };
+            if (Number.isInteger(opts.seed)) settings.arcade.seed = opts.seed;
+        }
+        window.__playtestNativeRandom = window.__playtestNativeRandom || Math.random;
+        if (Number.isInteger(opts.seed)) {
+            let state = opts.seed >>> 0;
+            Math.random = () => {
+                state = (state + 0x6D2B79F5) | 0;
+                let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+                mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+                return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+            };
+        } else {
+            Math.random = window.__playtestNativeRandom;
+        }
         settings.localSettings = settings.localSettings || {};
         settings.localSettings.sessionType = opts.session || 'single';
         settings.localSettings.modePath = opts.modePath
@@ -150,93 +202,83 @@ export async function startMatch(session, options) {
         const loadError = game.arena?._glbLoadError;
         return {
             ok,
+            menuReached: true,
             state: game.state,
             loadMs: Math.round(performance.now() - startedAt),
-            // A map that a mode excludes falls back silently; compare this with the request.
             mapKey: game.arena?.currentMapKey || null,
             gameMode: game.settings.gameMode,
             glbError: loadError ? String(loadError?.message || loadError) : null,
             players: game.entityManager?.players?.length || 0,
             humanVehicle: game.entityManager?.humanPlayers?.[0]?.vehicleId || null,
+            seed: Number.isInteger(opts.seed) ? opts.seed : null,
         };
     }, options);
+    result.problems = describeMatchStartProblems(options, result);
+    if (!result.ok) return result;
+    // New match, new entity manager: hooks go on again, the autopilot choice carries over.
+    await resetControl(session);
+    result.control = await installControl(session);
+    const pilot = await session.page.evaluate(() => ({ on: window.__playtest?.pilot === true, type: window.__playtest?.pilotType ?? null }));
+    result.autopilot = pilot.on;
+    if (pilot.on) await enableAutopilot(session, pilot.type);
+    if (options?.paused) result.paused = (await setPaused(session, true)).paused;
+    return result;
 }
 
-/**
- * Lets the game's own bot policy fly the human ship. Setting autopilotActive is not
- * enough: the guided-rocket input routing clears it every frame when no rocket flies.
- * So the human counts as a bot only while its input is resolved.
- */
-export async function enableAutopilot(session, policyType = null) {
-    return session.page.evaluate((requestedType) => {
-        const manager = window.GAME_INSTANCE.entityManager;
-        const human = manager.humanPlayers[0];
-        if (!human) return false;
-        const pilot = manager.botPolicyRegistry.create(requestedType || manager.botPolicyType, {
-            difficulty: manager.botDifficulty, recorder: manager.recorder, runtimeConfig: manager.runtimeConfig,
-            runtimeProfiler: manager.runtimeProfiler, entityRuntimeConfig: manager.entityRuntimeConfig,
-            bridgeEnabled: manager.botBridgeEnabled, activeGameMode: manager.combatModeType,
-            isDesktopRuntime: manager.botIsDesktopRuntime, runtimeRng: manager.runtimeRng,
-        });
-        manager.botByPlayer.set(human, pilot);
-        const inputSystem = manager._playerInputSystem;
-        if (!inputSystem.__playtestWrapped) {
-            const resolve = inputSystem.resolvePlayerInput.bind(inputSystem);
-            inputSystem.resolvePlayerInput = (player, dt, inputManager) => {
-                if (!player.__playtestPilot) return resolve(player, dt, inputManager);
-                const wasBot = player.isBot;
-                player.isBot = true;
-                try { return resolve(player, dt, inputManager); } finally { player.isBot = wasBot; }
-            };
-            inputSystem.__playtestWrapped = true;
-        }
-        human.__playtestPilot = true;
-        return true;
-    }, policyType);
-}
-
-export async function disableAutopilot(session) {
-    return session.page.evaluate(() => {
-        const manager = window.GAME_INSTANCE.entityManager;
-        const human = manager?.humanPlayers?.[0];
-        if (!human) return;
-        human.__playtestPilot = false;
-        manager.botByPlayer.delete(human);
-    });
+// Runs in the renderer; passed as source so sample() can call it in a loop there.
+function readSnapshotInPage() {
+    const game = window.GAME_INSTANCE;
+    const manager = game.entityManager;
+    const human = manager?.humanPlayers?.[0];
+    const position = human?.position;
+    return {
+        t: Math.round(performance.now()),
+        frame: window.__playtest?.simFrame ?? null,
+        state: game.state,
+        hp: human ? Math.round(human.hp * 10) / 10 : null,
+        maxHp: human?.maxHp ?? null,
+        shield: human?.shieldHP ?? null,
+        alive: human?.alive ?? null,
+        pos: position ? [Math.round(position.x), Math.round(position.y), Math.round(position.z)] : null,
+        speed: human?.speed != null ? Math.round(human.speed * 10) / 10 : null,
+        inventory: human?.inventory ? [...human.inventory] : null,
+        score: human?.score ?? null,
+        aliveBots: manager?.bots?.filter((entry) => entry.player.alive).length ?? null,
+    };
 }
 
 /** The numbers most checks need, read once. */
 export async function snapshot(session) {
-    return session.page.evaluate(() => {
-        const game = window.GAME_INSTANCE;
-        const manager = game.entityManager;
-        const human = manager?.humanPlayers?.[0];
-        const position = human?.position;
-        return {
-            t: Math.round(performance.now()),
-            state: game.state,
-            hp: human ? Math.round(human.hp * 10) / 10 : null,
-            maxHp: human?.maxHp ?? null,
-            shield: human?.shieldHP ?? null,
-            alive: human?.alive ?? null,
-            pos: position ? [Math.round(position.x), Math.round(position.y), Math.round(position.z)] : null,
-            speed: human?.speed != null ? Math.round(human.speed * 10) / 10 : null,
-            inventory: human?.inventory ? [...human.inventory] : null,
-            score: human?.score ?? null,
-            aliveBots: manager?.bots?.filter((entry) => entry.player.alive).length ?? null,
-        };
-    });
+    return session.page.evaluate(`(${readSnapshotInPage})()`);
 }
 
-/** Snapshots every intervalMs for durationMs; `extra` is an optional page function per sample. */
+/**
+ * Snapshots every intervalMs for durationMs. Sampling runs inside the renderer, so the
+ * interval is not stretched by a round trip per sample. `extra` is an optional page
+ * function per sample; with it, sampling falls back to one round trip per sample.
+ */
 export async function sample(session, durationMs, intervalMs = 1000, extra = null) {
+    const duration = Math.max(0, Number(durationMs) || 0);
+    const interval = Math.max(16, Number(intervalMs) || 1000);
+    if (!extra) {
+        return session.page.evaluate(`(async () => {
+            const read = ${readSnapshotInPage};
+            const samples = [];
+            const end = performance.now() + ${duration};
+            do {
+                samples.push(read());
+                await new Promise((resolve) => setTimeout(resolve, ${interval}));
+            } while (performance.now() < end);
+            return samples;
+        })()`);
+    }
     const samples = [];
-    const end = Date.now() + durationMs;
+    const end = Date.now() + duration;
     while (Date.now() < end) {
         const entry = await snapshot(session);
-        if (extra) entry.extra = await session.page.evaluate(extra).catch((error) => `ERR ${error.message}`);
+        entry.extra = await session.page.evaluate(extra).catch((error) => `ERR ${error.message}`);
         samples.push(entry);
-        await sleep(intervalMs);
+        await sleep(interval);
     }
     return samples;
 }
@@ -274,6 +316,7 @@ export async function giveItem(session, type) {
 export async function returnToMenu(session) {
     return session.page.evaluate(async () => {
         const game = window.GAME_INSTANCE;
+        if (window.__playtest) Object.assign(window.__playtest, { paused: false, budget: 0, action: null, actionFrames: 0 });
         await Promise.resolve(game._returnToMenu?.());
         for (let index = 0; index < 100 && game.state !== 'MENU'; index += 1) {
             await new Promise((resolve) => setTimeout(resolve, 50));
@@ -284,8 +327,11 @@ export async function returnToMenu(session) {
 
 export async function press(session, key, holdMs = 80) {
     await session.page.keyboard.down(key);
-    await sleep(holdMs);
-    await session.page.keyboard.up(key);
+    try {
+        await sleep(holdMs);
+    } finally {
+        await session.page.keyboard.up(key);
+    }
 }
 
 /**
@@ -297,11 +343,15 @@ export async function press(session, key, holdMs = 80) {
 export async function holdAim(session, { pos, target, ms = 4000, keys = ['KeyX'], tapKeys = [], sweep = 0, god = true }) {
     await session.page.evaluate((args) => {
         const human = window.GAME_INSTANCE.entityManager.humanPlayers[0];
+        // A newer holdAim or the cleanup below bumps the token and ends this loop.
+        window.__playtestHoldToken = (window.__playtestHoldToken || 0) + 1;
+        const token = window.__playtestHoldToken;
         const Vector = human.position.constructor;
         const startedAt = performance.now();
         const forward = new Vector(0, 0, -1);
         const direction = new Vector();
         const tick = () => {
+            if (window.__playtestHoldToken !== token) return;
             const seconds = (performance.now() - startedAt) / 1000;
             const radius = args.sweep * (0.15 + 0.85 * ((seconds * 0.37) % 1));
             const offsetX = args.sweep > 0 ? Math.cos(seconds * 5.1) * radius : 0;
@@ -319,13 +369,18 @@ export async function holdAim(session, { pos, target, ms = 4000, keys = ['KeyX']
         };
         tick();
     }, { pos, target, ms, sweep, god });
-    for (const key of keys) await session.page.keyboard.down(key);
-    const end = Date.now() + ms;
-    while (Date.now() < end) {
-        for (const key of tapKeys) await press(session, key, 60);
-        await sleep(tapKeys.length ? 350 : 200);
+    try {
+        for (const key of keys) await session.page.keyboard.down(key);
+        const end = Date.now() + ms;
+        while (Date.now() < end) {
+            for (const key of tapKeys) await press(session, key, 60);
+            await sleep(tapKeys.length ? 350 : 200);
+        }
+    } finally {
+        // Keys stuck down or a ship still pinned would spoil every later step.
+        for (const key of keys) await session.page.keyboard.up(key).catch(() => {});
+        await session.page.evaluate(() => { window.__playtestHoldToken = (window.__playtestHoldToken || 0) + 1; }).catch(() => {});
     }
-    for (const key of keys) await session.page.keyboard.up(key);
 }
 
 /** Moves the human once, optionally facing `target`; physics takes over again right after. */
