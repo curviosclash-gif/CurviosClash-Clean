@@ -209,7 +209,7 @@ export class GameRuntimeFacade {
         const nextRuntimeConfig = {
             ...currentRuntimeConfig,
             session: { ...currentRuntimeConfig.session, mapKey, numBots },
-            bot: { ...currentRuntimeConfig.bot, activeDifficulty, arcadeAggressiveness: Math.max(0, Math.min(1, Number(profile.aggressiveness) || 0)) },
+            bot: { ...currentRuntimeConfig.bot, activeDifficulty, arcadeAggressiveness: Math.max(0, Math.min(1, Number(profile.aggressiveness) || 0)), arcadeBotRoles: Array.isArray(profile.botRoles) ? profile.botRoles : [] },
             ...(typeof profile.combatProfile === 'string' ? { arcade: { ...currentRuntimeConfig.arcade, combatProfile: profile.combatProfile, scenarioId: profile.scenarioId || null, scenarioMapUnits: Array.isArray(profile.mapUnits) ? profile.mapUnits : [], scenarioMapUnitsMode: profile.mapUnitsMode === 'replace' ? 'replace' : 'overlay', waterZoneTriggerSec: profile.waterZoneTriggerSec || 0 } } : {}),
         };
         const nextCompatibilityConfig = applyRuntimeConfigCompatibility(nextRuntimeConfig, CONFIG_BASE);
