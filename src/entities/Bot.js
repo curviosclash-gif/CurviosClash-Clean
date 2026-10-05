@@ -230,6 +230,19 @@ export class BotAI {
         input.useItem = -1;
     }
 
+    // Item, rocket and inventory actions fire on the decision frame only. Between decisions the
+    // held input would otherwise use one item per frame, because outside Hunt there is no item cooldown.
+    _releaseActionImpulses() {
+        const input = this.currentInput;
+        input.useItem = -1;
+        input.shootItem = false;
+        input.shootItemIndex = -1;
+        input.shootRocket = false;
+        input.nextItem = false;
+        input.dropItem = false;
+        return input;
+    }
+
     _resetDecision() {
         this._decision.yaw = 0;
         this._decision.pitch = 0;
@@ -360,12 +373,12 @@ export class BotAI {
 
         if (this.state.recoveryActive) {
             if (updateRecovery(this, dt, player, arena, allPlayers)) {
-                return this.currentInput;
+                return this._releaseActionImpulses();
             }
         }
 
         if (this.reactionTimer > 0) {
-            return this.currentInput;
+            return this._releaseActionImpulses();
         }
 
         const jitter = 1 + (this._random() * 2 - 1) * this.profile.errorRate * 0.2;
