@@ -33,5 +33,8 @@ export function resolveArenaWavesBoardTexts(runtimeState) {
     if (runtimeState.phase !== 'upgrade') return null;
     const mapCount = Math.max(1, Number(runtimeState.mapCount) || 5);
     const nextMap = Math.min(mapCount, Math.max(1, (Number(runtimeState.mapIndex) || 0) + 1));
+    if (runtimeState.choiceReason === 'wave') {
+        return { title: 'Welle geschafft', sub: 'Wähle einen Vorteil für die nächste Welle.' };
+    }
     return { title: 'Abgeschossen', sub: `Wähle einen Vorteil für Karte ${nextMap}/${mapCount}.` };
 }

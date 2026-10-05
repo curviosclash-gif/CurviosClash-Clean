@@ -78,6 +78,19 @@ test('the upgrade choice after a death names the next map instead of a round win
     }
 });
 
+test('a survived wave offers an upgrade without claiming the player was shot down', () => {
+    const { ui, restore } = setup({
+        runType: 'arena_waves', phase: 'upgrade', choiceReason: 'wave', mapIndex: 0, mapCount: 5,
+        choices: ['speed'],
+    });
+    try {
+        assert.equal(ui.messageText.textContent, 'Welle geschafft');
+        assert.equal(ui.messageSub.textContent, 'Wähle einen Vorteil für die nächste Welle.');
+    } finally {
+        restore();
+    }
+});
+
 test('the final Five Fronts list leads back to the menu', () => {
     const { ui, controller, calls, restore } = setup({
         runType: 'arena_waves', phase: 'finished',

@@ -443,7 +443,7 @@ export class ArcadeScoreHUD {
         if (sectorIndex > 0 && sectorIndex !== this._lastSectorIndex) {
             this._transitionVisibleUntilMs = nowMs + 1400;
             const mapKey = String(hudState.currentMapKey || '').trim() || 'unknown';
-            setNodeText(this._transitionBanner, `Sektor ${sectorIndex} | ${mapKey}`);
+            setNodeText(this._transitionBanner, `Sektor ${sectorIndex} | ${resolveArcadeMapLabel(mapKey)}`);
         }
         this._lastSectorIndex = sectorIndex;
         const transitionVisible = nowMs < this._transitionVisibleUntilMs;

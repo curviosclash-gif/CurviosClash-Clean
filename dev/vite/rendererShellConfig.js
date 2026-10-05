@@ -52,6 +52,13 @@ function resolveRendererManualChunk(id, env = process.env) {
     if (normalizedId.endsWith('/shared/contracts/MapLightingContract.js')) {
         return 'map-presets';
     }
+    // The pickup registry evaluates these definitions at module initialization.
+    // Keep them with their runtime consumer instead of the developer dashboard's
+    // implicit dependencies, which otherwise creates a cross-chunk TDZ.
+    if (normalizedId.endsWith('/shared/contracts/RocketPickupDefinitionsContract.js')
+        || normalizedId.endsWith('/entities/vehicle-registry.js')) {
+        return 'game-runtime';
+    }
     if (normalizedId.includes('/node_modules/mp4-muxer/') ||
         normalizedId.endsWith('/core/recording/engines/WebCodecsRecorderEngine.js')) {
         return 'recording-webcodecs';

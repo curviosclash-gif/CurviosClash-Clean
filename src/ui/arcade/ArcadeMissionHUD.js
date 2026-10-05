@@ -1,6 +1,8 @@
 // ─── Arcade Mission HUD: In-Game Mission Display Overlay ───
 
 import { formatMissionProgress, MISSION_TYPES } from '../../shared/contracts/ArcadeMissionContract.js';
+import { resolveArcadeScenarioObjectiveLabel } from '../../shared/contracts/ArcadeScenarioContract.js';
+import { ARCADE_SECTOR_OBJECTIVES } from '../../entities/directors/ArcadeEncounterCatalog.js';
 
 const MISSION_ICON_MAP = {
     crosshair: '\u2316',
@@ -27,6 +29,14 @@ function resolveProgressFraction(entry, isObjective = false) {
     if (entry?.type === 'REACH_PORTAL') return progress.reached ? 1 : 0;
     if (entry?.type === 'TIME_TRIAL') return progress.elapsed > 0 ? Math.min(1, progress.elapsed / (progress.target || 1)) : 0;
     return 0;
+}
+
+export function resolveArcadeMissionObjectiveLabel(objective) {
+    const id = String(objective?.objectiveId || '').trim().toLowerCase();
+    const label = String(objective?.label || '').trim();
+    const catalogLabel = ARCADE_SECTOR_OBJECTIVES.find((entry) => entry.id === id)?.label;
+    if (label && label !== catalogLabel) return label;
+    return resolveArcadeScenarioObjectiveLabel(id) || label || id.replace(/_/g, ' ');
 }
 
 export class ArcadeMissionHUD {
@@ -132,7 +142,7 @@ export class ArcadeMissionHUD {
             const typeDef = MISSION_TYPES[mission.type];
             const objectiveTarget = isObjective && mission.targetLabel ? `: ${mission.targetLabel}` : '';
             el.icon.textContent = isObjective ? '\u2316' : (MISSION_ICON_MAP[typeDef?.icon] || '\u2022');
-            el.label.textContent = isObjective ? `Hauptziel: ${mission.label}${objectiveTarget}` : `Optional: ${typeDef?.label || mission.type}`;
+            el.label.textContent = isObjective ? `Hauptziel: ${resolveArcadeMissionObjectiveLabel(mission)}${objectiveTarget}` : `Optional: ${typeDef?.label || mission.type}`;
             el.progressText.textContent = isObjective ? mission.progressText : formatMissionProgress(mission);
             const fraction = resolveProgressFraction(mission, isObjective);
             el.progressBar.style.width = `${(fraction * 100).toFixed(1)}%`;

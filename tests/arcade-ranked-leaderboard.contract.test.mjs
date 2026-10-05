@@ -5,8 +5,89 @@ import { insertArcadeRankedResult, resolveArcadeParcoursRankKey, ARCADE_RANKED_S
 import { settleArcadeRunRanking } from '../src/state/arcade/ArcadeRunRanking.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { prepareArcadeRunRanking } from '../src/core/arcade/ArcadeRunRankingOps.js';
+import '../src/core/Config.js';
+import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
+import { buildArcadeSectorPlan } from '../src/entities/directors/ArcadeEncounterCatalog.js';
 
 const context = (id, level = 1, tierId = 'normal', runType = 'gauntlet') => createArcadeRankContext({ runId: id, vehicleId: 'ship5', profile: { level }, tierId, runType });
+
+function rankedRunFixture() {
+    const records = new Map();
+    const store = {
+        loadJsonRecord: (key, fallback) => records.has(key) ? structuredClone(records.get(key)) : fallback,
+        readJsonRecordResult: key => records.has(key) ? { status: 'found', value: records.get(key) } : { status: 'missing' },
+        saveJsonRecord: (key, value) => { records.set(key, structuredClone(value)); return true; },
+    };
+    const strategy = new ArcadeModeStrategy();
+    const runtime = new ArcadeRunRuntime({ settingsManager: { getPlayerRecordStorePort: () => store },
+        now: () => 100000, strategy, arcadePersistenceSaveThrottleMs: 0, ghostLibrarySaveThrottleMs: 0 });
+    runtime.configure({ arcade: { enabled: true, seed: 5, sectorCount: 2 } });
+    runtime.setActiveVehicle('ship5');
+    runtime.startRun({ strategy, encounterPlan: buildArcadeSectorPlan({ seed: 5, sectorCount: 2 }) });
+    runtime.rankContext = context(runtime.getStateSnapshot().runId);
+    runtime._rankingStore = store;
+    const players = [{ index: 0, isBot: false, alive: true, hp: 60, maxHp: 100 }];
+    const finish = (reason = '') => {
+        const plan = runtime.deriveRoundEndPlan({ players, inputs: { reason }, baseController: {} });
+        if (plan) runtime.handleRoundEndTelemetry({ state: plan.outcome.state, reason, duration: 20, kills: 1 });
+        return plan;
+    };
+    return { runtime, records, players, finish };
+}
+
+test('menu aborts never rank, preserve earned progress and leave existing results intact', () => {
+    for (const earned of [false, true]) {
+        const f = rankedRunFixture();
+        settleArcadeRunRanking({ rankContext: context('existing'), _rankingStore: f.runtime._rankingStore }, { score: 123 });
+        const board = structuredClone(f.records.get(ARCADE_RANKED_STORAGE_KEY));
+        if (earned) {
+            f.finish();
+            f.runtime.beginNextSector();
+        }
+        const xp = f.runtime.getStateSnapshot().xpEarned;
+        const readProgress = () => {
+            const { xp, level, xpBank, totalXpEarned, upgrades } = f.runtime.getVehicleProfile();
+            return structuredClone({ xp, level, xpBank, totalXpEarned, upgrades });
+        };
+        const profile = readProgress();
+        f.runtime.resetRunState({ preserveRecords: true });
+        assert.deepEqual(readProgress(), profile, 'earned vehicle progress survives an unranked abort');
+        assert.deepEqual(f.records.get(ARCADE_RANKED_STORAGE_KEY), board);
+        assert.equal(f.records.has(ARCADE_DIFFICULTY_STORAGE_KEY), false);
+        assert.equal(f.runtime.getRecordsSnapshot().runsPlayed, 1);
+        if (earned) assert.ok(xp > 0);
+    }
+});
+
+test('explicit abort telemetry is excluded, while natural zero-point defeat remains eligible', () => {
+    const aborted = rankedRunFixture();
+    aborted.finish('ABORT');
+    assert.equal(aborted.runtime.getPostRunSummary()?.aborted, true);
+    assert.equal(aborted.records.has(ARCADE_RANKED_STORAGE_KEY), false);
+    const defeated = rankedRunFixture();
+    defeated.players[0].alive = false;
+    defeated.players[0].hp = 0;
+    defeated.finish('ELIMINATION');
+    assert.equal(defeated.runtime.getPostRunSummary().aborted, false);
+    assert.equal(defeated.records.get(ARCADE_RANKED_STORAGE_KEY).boards['gauntlet:normal:1-5'].length, 1);
+    const zero = { rankContext: context('zero'), _rankingStore: defeated.runtime._rankingStore };
+    assert.ok(settleArcadeRunRanking(zero, { score: 0, aborted: false }));
+});
+
+test('sector rebuilds keep one run and a victory cannot be reclassified by later menu reset', () => {
+    const f = rankedRunFixture();
+    f.finish();
+    assert.equal(f.records.has(ARCADE_RANKED_STORAGE_KEY), false);
+    f.runtime.beginNextSector();
+    f.finish();
+    f.runtime.resolveVictoryChoice('finish');
+    assert.equal(f.runtime.getPostRunSummary().aborted, false);
+    const board = structuredClone(f.records.get(ARCADE_RANKED_STORAGE_KEY));
+    assert.equal(board.boards['gauntlet:normal:1-5'].length, 1);
+    f.runtime.handleMatchEndTelemetry({ state: 'MATCH_END' });
+    f.runtime.resetRunState({ preserveRecords: true });
+    assert.deepEqual(f.records.get(ARCADE_RANKED_STORAGE_KEY), board);
+});
 
 test('a ranked run keeps the original actual build after profile purchases and a session rebuild', () => {
     const store = { readJsonRecordResult: () => ({ status: 'missing' }) };

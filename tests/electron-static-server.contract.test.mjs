@@ -42,6 +42,7 @@ test('desktop static server CSP allows LAN HTTP lobby requests', async () => {
         assert.doesNotMatch(csp, /script-src[^;]*'unsafe-inline'/);
         assert.match(csp, /style-src 'self' 'unsafe-inline'/);
         assert.match(csp, /frame-src 'none'/);
+        assert.match(csp, /frame-ancestors 'none'/);
         assert.match(csp, /form-action 'none'/);
     } finally {
         await server?.close?.();

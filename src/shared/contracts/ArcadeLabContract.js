@@ -1,5 +1,5 @@
 import { ARCADE_FACTORY_VEHICLE_IDS } from './ArcadeVehicleBalanceContract.js';
-import { normalizeVehicleLabConfig } from './VehicleLabConfigContract.js';
+import { normalizeVehicleLabConfig, VEHICLE_LAB_CONFIG_LIMITS } from './VehicleLabConfigContract.js';
 import { buildArcadeHitboxShape, ARCADE_HITBOX_MAX_BOXES } from './ArcadeVehicleHitboxContract.js';
 import { ARCADE_PART_SIZE_GROUPS } from './ArcadeVehicleSizeContract.js';
 import { resolveArcadePartCostBasis } from './ArcadeBlueprintContract.js';
@@ -66,6 +66,7 @@ export function readArcadeLabRecord(raw) {
 export function validateArcadeLabShip(entry) {
     const errors = [];
     if (!/^arcade_lab_[1-9][0-9]*$/.test(String(entry?.id || ''))) errors.push('Ungültige Arcade-Lab-ID.');
+    const dimensionsValid = validateRawDimensions(entry?.config?.parts, errors);
     const normalized = normalizeVehicleLabConfig(entry?.config, { requireParts: true });
     if (!normalized.ok) errors.push(...normalized.errors);
     const config = normalized.config ? {
@@ -103,7 +104,37 @@ export function validateArcadeLabShip(entry) {
         if (sweep.boundRadius > ARCADE_LAB_MAX_SWEEP_RADIUS) errors.push('Kollisionsform bei 125 % zu groß.');
         if (shape.count === 0) errors.push('Keine Kollisionsform vorhanden.');
     }
-    return { ok: errors.length === 0, errors, config, role: config ? resolveArcadeLabRole(config.parts) : null, usage: config ? evaluateArcadeLabBudgets(config) : null };
+    return { ok: errors.length === 0, errors, config, dimensionsValid, role: config ? resolveArcadeLabRole(config.parts) : null, usage: config ? evaluateArcadeLabBudgets(config) : null };
+}
+
+function validateRawDimensions(parts, errors) {
+    let valid = true;
+    const inspect = (items) => {
+        if (!Array.isArray(items)) return;
+        for (const part of items) {
+            if (!part || typeof part !== 'object' || Array.isArray(part)) continue;
+            for (const property of ['size', 'scale']) {
+                if (part[property] === undefined) continue;
+                const values = part[property];
+                // Some authored factory parts use a zero size axis; the existing sanitizer
+                // accepts those and raises them to its 0.01 renderable minimum.
+                const min = property === 'size' ? 0 : 0.01;
+                const max = property === 'size' ? VEHICLE_LAB_CONFIG_LIMITS.maxSize : VEHICLE_LAB_CONFIG_LIMITS.maxScale;
+                const label = property === 'size' ? 'Größe' : 'Skalierung';
+                const axes = ['X', 'Y', 'Z'];
+                for (let axis = 0; axis < 3; axis++) {
+                    const value = Array.isArray(values) ? values[axis] : undefined;
+                    if (value === undefined) continue;
+                    if (typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max) continue;
+                    errors.push(`Bauteil ${label} ${axes[axis]} muss zwischen ${min} und ${max} liegen.`);
+                    valid = false;
+                }
+            }
+            inspect(part.children);
+        }
+    };
+    inspect(parts);
+    return valid;
 }
 
 function cleanPart(part) {

@@ -362,8 +362,9 @@ export function syncStartSetupSelectionState({
             || preview.label.toLowerCase().includes(startSetupFilters.vehicleSearch))
             && (startSetupFilters.vehicleFilter === 'all' || preview.category === startSetupFilters.vehicleFilter);
     };
-    renderQuickList(ui.vehicleFavoritesList, startSetup.favoriteVehicles.filter(matchesVehicleFilters), 'vehicleId');
-    renderQuickList(ui.vehicleRecentList, startSetup.recentVehicles.filter(matchesVehicleFilters), 'vehicleId');
+    const resolveVehicleQuickLabel = (vehicleId) => resolveVehiclePreview(vehicleId).label;
+    renderQuickList(ui.vehicleFavoritesList, startSetup.favoriteVehicles.filter(matchesVehicleFilters), 'vehicleId', resolveVehicleQuickLabel);
+    renderQuickList(ui.vehicleRecentList, startSetup.recentVehicles.filter(matchesVehicleFilters), 'vehicleId', resolveVehicleQuickLabel);
 
     if (ui.mapFavoriteToggleButton) {
         const isFavorite = startSetup.favoriteMaps.includes(effectiveMapKey);

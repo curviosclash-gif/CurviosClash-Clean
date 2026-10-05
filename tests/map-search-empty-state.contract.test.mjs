@@ -69,6 +69,8 @@ test('map and vehicle searches hide unrelated recent entries and show empty feed
         sync();
         assert.equal(ui.mapRecentList.children.length, 1);
         assert.equal(ui.vehicleRecentList.children.length, 1);
+        assert.equal(ui.vehicleRecentList.children[0].textContent, 'Star-Cruiser (Ship 5)');
+        assert.equal(ui.vehicleRecentList.children[0].dataset.vehicleId, 'ship5');
         assert.equal(ui.mapSearchEmpty.classList.contains('hidden'), true);
         assert.equal(ui.vehicleSearchEmpty.classList.contains('hidden'), true);
     } finally {

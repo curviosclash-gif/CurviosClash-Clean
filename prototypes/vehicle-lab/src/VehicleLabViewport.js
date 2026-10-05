@@ -48,7 +48,8 @@ export class VehicleLabViewport {
             this.controls.enabled = !e.value;
             if (!e.value && this.onChanged) this.onChanged();
         });
-        core.scene.add(this.gizmo);
+        this.gizmoHelper = this.gizmo.getHelper();
+        core.scene.add(this.gizmoHelper);
 
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
@@ -234,7 +235,7 @@ export class VehicleLabViewport {
         this.core.canvas.removeEventListener('pointerup', this.onPointerUp);
         this.core.canvas.removeEventListener('pointercancel', this.onPointerUp);
         window.removeEventListener('keydown', this.onShortcutKeyDown);
-        this.core.scene.remove(this.gizmo);
+        this.core.scene.remove(this.gizmoHelper);
         this.core.scene.remove(this.hitboxPreview);
     }
 }

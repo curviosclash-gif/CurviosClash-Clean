@@ -225,6 +225,10 @@ export function applyArcadeSectorScore(runState, payload = null, {
         return runState;
     }
 
+    if (/^(ABORT|ABORTED|MATCH_ABORT|QUIT|RUN_ABORT)$/.test(String(payload?.reason || '').trim().toUpperCase())) {
+        return { ...runState, aborted: true };
+    }
+
     const sectorResult = runState.lastCompletedSectorResult && typeof runState.lastCompletedSectorResult === 'object'
         ? runState.lastCompletedSectorResult
         : null;
@@ -349,6 +353,8 @@ export function buildArcadeRunSummary(runState, { endedAtMs = Date.now(), replay
     const summary = {
         scoreModel: CURRENT_ARCADE_SCORE_MODEL,
         succeeded: runState.completedSectors >= runState.config?.sectorCount,
+        aborted: runState.aborted === true
+            || ![ARCADE_RUN_PHASES.FINISHED, ARCADE_RUN_PHASES.VICTORY].includes(runState.phase),
         runId: String(runState.runId || ''),
         score: Math.max(0, toSafeNumber(safeScore.total, 0)),
         peakMultiplier: Math.max(1, toSafeNumber(safeScore.peakMultiplier, safeScore.multiplier || 1)),

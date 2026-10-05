@@ -64,7 +64,7 @@ function formatInteger(value) {
 
 function formatCompletedRuns(value) {
     const count = Math.max(0, Math.trunc(Number(value) || 0));
-    return count === 1 ? '1 abgeschlossener Lauf' : `${formatInteger(count)} abgeschlossene Läufe`;
+    return `${formatInteger(count)} ${count === 1 ? 'Lauf' : 'Läufe'} gespielt`;
 }
 
 function safeReadLocalStorage(key) {
@@ -344,7 +344,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
             refs.postRunLine.textContent = `Punkte ${Math.max(0, Math.round(Number(postRunSummary.score) || 0))} · Beste Kombo ${Math.max(0, Number(postRunSummary.bestCombo) || 0)} · Missionen ${Math.round(Math.max(0, Math.min(1, Number(postRunSummary.missionCompletionRate) || 0)) * 100)} %`;
         } else if (lastRunSnapshot) {
             const timeLabel = formatRunTime(lastRunSnapshot.at);
-            refs.postRunLine.textContent = `${t('menu.arcade.postrun.last.label', 'Letzter Start')}: ${timeLabel} | ${lastRunSnapshot.mapKey} | ${lastRunSnapshot.vehicleId} | Seed ${lastRunSnapshot.seed}`;
+            refs.postRunLine.textContent = `${t('menu.arcade.postrun.last.label', 'Letzter Start')}: ${timeLabel} | ${resolveMapPreview(lastRunSnapshot.mapKey).name} | ${resolveVehiclePreview(lastRunSnapshot.vehicleId).label} | Seed ${lastRunSnapshot.seed}`;
         } else {
             refs.postRunLine.textContent = t('menu.arcade.postrun.empty', 'Noch kein Arcade-Run gestartet.');
         }
@@ -361,7 +361,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
         const lvl = Math.max(1, Math.floor(Number(profile.level) || 1));
         const masteryLabel = `${t('menu.arcade.mastery.progress.label', 'Level')} ${lvl}`;
-        refs.masteryLine.textContent = `${t('menu.arcade.mastery.current.label', 'Fahrzeug')}: ${vehicleId} | ${masteryLabel}`;
+        refs.masteryLine.textContent = `${t('menu.arcade.mastery.current.label', 'Fahrzeug')}: ${resolveVehiclePreview(vehicleId).label} | ${masteryLabel}`;
     };
 
     const prepareHangarRunStart = () => {

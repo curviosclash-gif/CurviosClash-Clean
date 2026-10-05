@@ -5,7 +5,7 @@ import { ARCADE_RANKED_STORAGE_KEY, ARCADE_RANKED_VERSION, insertArcadeRankedRes
 export function settleArcadeRunRanking(runtime, result, nowMs = Date.now()) {
     const context = runtime?.rankContext;
     const store = runtime?._rankingStore;
-    if (!context?.ranked || !store) return null;
+    if (!context?.ranked || !store || result?.aborted === true) return null;
     try {
         const progress = loadArcadeDifficultyProgress(store);
         if (progress.status !== 'unavailable') {

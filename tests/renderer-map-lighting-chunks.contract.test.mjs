@@ -8,5 +8,7 @@ test('desktop and game presets initialize their lighting defaults in the same ch
         const chunk = config.rollupOptions.output.manualChunks;
         assert.equal(chunk('F:/repo/src/shared/contracts/MapLightingContract.js'), 'map-presets');
         assert.equal(chunk('F:/repo/src/core/config/maps/MapPresetCatalogBaseData.js'), 'map-presets');
+        assert.equal(chunk('F:/repo/src/shared/contracts/RocketPickupDefinitionsContract.js'), 'game-runtime');
+        assert.equal(chunk('F:/repo/src/entities/vehicle-registry.js'), 'game-runtime');
     }
 });

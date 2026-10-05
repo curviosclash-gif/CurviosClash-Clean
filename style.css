@@ -3189,6 +3189,10 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
 }
 
 /* The pause title and buttons stay readable in the space left of the drawer. */
+body:has(#pause-overlay:not(.hidden)) :is(#arcade-score-hud, #arcade-mission-hud, #arcade-sector-transition-overlay, #arcade-sudden-death-overlay, #parcours-minimap, #hud-notice-stack) {
+    visibility: hidden;
+}
+
 #hud.pause-settings-open #pause-overlay {
     padding-right: min(560px, 100%);
 }

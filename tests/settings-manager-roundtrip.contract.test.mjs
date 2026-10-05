@@ -111,6 +111,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['arcade.profileId', 'arcade-alt'],
     ['arcade.runType', 'endless_parcours'],
     ['arcade.combatProfile', 'hunt'],
+    ['arcade.difficultyTierId', 'hard'],
     ['arcade.portalChainId', 'sky_ladder'],
     ['botBridge.url', 'ws://127.0.0.1:9100'],
     ['botBridge.resumeCheckpoint', 'checkpoint-7'],

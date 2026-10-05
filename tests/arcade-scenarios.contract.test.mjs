@@ -3,8 +3,10 @@ import test from 'node:test';
 
 import {
     normalizeArcadeScenario,
+    resolveArcadeScenarioObjectiveLabel,
     resolveArcadeSectorObjectiveDefinition,
 } from '../src/shared/contracts/ArcadeScenarioContract.js';
+import { resolveArcadeMissionObjectiveLabel } from '../src/ui/arcade/ArcadeMissionHUD.js';
 import { ARCADE_SCENARIOS, normalizeArcadeScenarioCatalog } from '../src/entities/directors/ArcadeScenarioCatalog.js';
 import {
     buildArcadeSectorPlan,
@@ -317,6 +319,12 @@ test('scenario parameters override the shared objective definition', () => {
     assert.deepEqual({ ...merged }, { id: 'survive_window', label: 'Survive Window', durationSec: 90, scoreWeight: 1.3 });
     assert.equal(resolveArcadeSectorObjectiveDefinition(base, { objectiveId: 'survive_window' }), base);
     assert.equal(resolveArcadeSectorObjectiveDefinition(null, { objectiveId: 'bounty_hunt' }), null);
+});
+
+test('mission HUD localizes catalog objective labels and preserves authored labels', () => {
+    assert.equal(resolveArcadeScenarioObjectiveLabel('survive_window'), 'Überleben');
+    assert.equal(resolveArcadeMissionObjectiveLabel({ objectiveId: 'survive_window', label: 'Survive Window' }), 'Überleben');
+    assert.equal(resolveArcadeMissionObjectiveLabel({ objectiveId: 'survive_window', label: 'Sturmflut' }), 'Sturmflut');
 });
 
 test('the intermission offers no alternative route into a scenario sector', () => {

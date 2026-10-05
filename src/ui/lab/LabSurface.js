@@ -13,6 +13,13 @@ const ROLES = ['', 'core', 'nose', 'wing_left', 'wing_right', 'engine_left', 'en
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const el = (tag, cls = '', text = '') => { const node = document.createElement(tag); node.className = cls; node.textContent = text; return node; };
 const button = (text, action) => { const node = el('button', 'secondary-btn', text); node.type = 'button'; node.addEventListener('click', action); return node; };
+function translateLabReason(reason) {
+    return String(reason || '')
+        .replace(/\bcost überschritten\./g, 'Baukosten überschritten.')
+        .replace(/\bmass überschritten\./g, 'Masse überschritten.')
+        .replace(/\benergy überschritten\./g, 'Energie überschritten.')
+        .replace(/\bheat überschritten\./g, 'Hitze überschritten.');
+}
 
 export function createArcadeLabSurface({ store, profilePort, onReturn, onDirtyChange } = {}) {
     let record = loadArcadeLabShips(store);
@@ -51,7 +58,7 @@ export function createArcadeLabSurface({ store, profilePort, onReturn, onDirtyCh
     function createShip(source) {
         if (!flushDraft()) return;
         const next = createArcadeLabShip(record, source);
-        if (!next.ok) { status.textContent = next.reason; return; }
+        if (!next.ok) { status.textContent = translateLabReason(next.reason); return; }
         if (!persist(next.record)) return;
         const latest = profilePort?.load?.() || {};
         const initial = profilePort?.getOrCreate?.(latest, next.ship.id);
@@ -60,6 +67,7 @@ export function createArcadeLabSurface({ store, profilePort, onReturn, onDirtyCh
             status.textContent = 'Schiff erstellt. Fortschritt wird beim ersten verdienten XP gespeichert.';
         }
         select(next.ship.id);
+        status.textContent = 'Neuer Entwurf geöffnet.';
     }
     function persist(next) {
         if (!next || !saveArcadeLabShips(store, next)) { status.textContent = 'Speichern fehlgeschlagen – Entwurf bleibt geöffnet.'; return false; }
@@ -85,6 +93,7 @@ export function createArcadeLabSurface({ store, profilePort, onReturn, onDirtyCh
         historyIndex = config ? 0 : -1;
         selectedPath = [0];
         setDirty(Boolean(ship?.draft));
+        if (ship) status.textContent = ship.draft ? 'Gesicherter Entwurf geöffnet.' : 'Schiff geladen.';
         render();
     }
     function flushDraft() {
@@ -98,8 +107,11 @@ export function createArcadeLabSurface({ store, profilePort, onReturn, onDirtyCh
         history.push(clone(config));
         historyIndex = history.length - 1;
         setDirty(true);
-        flushDraft();
+        saveDraftChange();
         render();
+    }
+    function saveDraftChange() {
+        if (flushDraft()) status.textContent = 'Entwurf geändert; Entwurfsstand gesichert.';
     }
     function selectedPart() {
         let parts = config?.parts;
@@ -163,16 +175,20 @@ export function createArcadeLabSurface({ store, profilePort, onReturn, onDirtyCh
         const prior = record?.ships.find((entry) => entry.id === selectedId)?.role;
         metrics.append(el('h3', '', `Rolle: ${roleName}`));
         if (prior && prior !== result.role) metrics.append(el('p', 'arcade-lab-role-change', `Rollenwechsel: ${prior} → ${result.role}. Grundwerte und MG-Besitz werden angepasst; Fortschritt bleibt.`));
-        metrics.append(el('p', '', `Rumpfsubstanz ${measureArcadeLabHullVolume(config.parts).toFixed(2)} · Vergleich Arrow ${ARCADE_LAB_REFERENCE_VOLUMES.arrow.toFixed(2)}, Star-Cruiser ${ARCADE_LAB_REFERENCE_VOLUMES.ship5.toFixed(2)}, Raumschiff ${ARCADE_LAB_REFERENCE_VOLUMES.spaceship.toFixed(2)}`));
+        metrics.append(el('p', '', result.dimensionsValid
+            ? `Rumpfsubstanz ${measureArcadeLabHullVolume(config.parts).toFixed(2)} · Vergleich Arrow ${ARCADE_LAB_REFERENCE_VOLUMES.arrow.toFixed(2)}, Star-Cruiser ${ARCADE_LAB_REFERENCE_VOLUMES.ship5.toFixed(2)}, Raumschiff ${ARCADE_LAB_REFERENCE_VOLUMES.spaceship.toFixed(2)}`
+            : 'Rumpfsubstanz und Budgetwerte werden bei ungültigen Maßen nicht berechnet.'));
         for (const key of ['cost', 'mass', 'energy', 'heat', 'parts']) {
             const used = result.usage?.[key] || 0;
             const name = { cost: 'Baukosten', mass: 'Masse', energy: 'Energie', heat: 'Hitze', parts: 'Bauteile' }[key];
-            const line = el('label', 'arcade-lab-meter', `${name}: ${used.toFixed(1)} / ${ARCADE_LAB_BUDGET[key]}`);
+            const line = el('label', 'arcade-lab-meter', result.dimensionsValid
+                ? `${name}: ${used.toFixed(1)} / ${ARCADE_LAB_BUDGET[key]}` : `${name}: —`);
             const bar = el('progress'); bar.max = ARCADE_LAB_BUDGET[key]; bar.value = Math.min(used, bar.max);
+            bar.hidden = !result.dimensionsValid;
             line.append(bar); metrics.append(line);
         }
         metrics.append(el('p', result.ok ? 'arcade-lab-valid' : 'arcade-lab-invalid',
-            result.ok ? 'Bau ist flugbereit.' : result.errors.join(' · ')));
+            result.ok ? 'Bau ist flugbereit.' : translateLabReason(result.errors.join(' · '))));
     }
     function field(label, value, onChange, type = 'text') {
         const row = el('label', 'arcade-lab-field'); row.append(el('span', '', label));
@@ -196,7 +212,7 @@ export function createArcadeLabSurface({ store, profilePort, onReturn, onDirtyCh
         const save = button('Schiff speichern', () => {
             if (!flushDraft()) return;
             const result = commitArcadeLabDraft(record, selectedId);
-            if (!result.ok) { status.textContent = result.reason; return; }
+            if (!result.ok) { status.textContent = translateLabReason(result.reason); return; }
             if (persist(result.record)) { setDirty(false); status.textContent = 'Schiff gespeichert. Im Hangar auswählbar.'; render(); }
         });
         save.disabled = !validateArcadeLabShip({ id: selectedId, config }).ok;
@@ -204,8 +220,8 @@ export function createArcadeLabSurface({ store, profilePort, onReturn, onDirtyCh
             const next = renameArcadeLabShip(record, selectedId, config.label);
             if (next && persist(next)) { status.textContent = 'Name gespeichert; Schiff-ID bleibt gleich.'; render(); }
         }));
-        const undo = button('↶', () => { if (historyIndex > 0) { historyIndex--; config = clone(history[historyIndex]); setDirty(true); flushDraft(); render(); } });
-        const redo = button('↷', () => { if (historyIndex < history.length - 1) { historyIndex++; config = clone(history[historyIndex]); setDirty(true); flushDraft(); render(); } });
+        const undo = button('↶', () => { if (historyIndex > 0) { historyIndex--; config = clone(history[historyIndex]); setDirty(true); saveDraftChange(); render(); } });
+        const redo = button('↷', () => { if (historyIndex < history.length - 1) { historyIndex++; config = clone(history[historyIndex]); setDirty(true); saveDraftChange(); render(); } });
         undo.disabled = historyIndex <= 0; redo.disabled = historyIndex >= history.length - 1;
         actions.append(undo, redo);
         const remove = button('Schiff löschen', () => {});
@@ -249,7 +265,11 @@ export function createArcadeLabSurface({ store, profilePort, onReturn, onDirtyCh
         });
         editor.append(removePart);
     }
-    function render() { renderFleet(); renderMetrics(); renderEditor(); preview.setConfig(config); }
+    function render() {
+        renderFleet(); renderMetrics(); renderEditor();
+        const validation = config ? validateArcadeLabShip({ id: selectedId, config }) : null;
+        preview.setConfig(validation?.dimensionsValid ? config : null);
+    }
     select(selectedId);
     return { root, show(value) { showing = value === true; if (showing) refreshUnlock(); root.classList.toggle('hidden', !showing); preview.show(showing); },
         flushDraft, dispose() { flushDraft(); preview.dispose(); }, getSelectedId: () => selectedId };

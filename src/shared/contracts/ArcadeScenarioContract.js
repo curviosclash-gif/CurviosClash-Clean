@@ -27,6 +27,10 @@ function normalizeId(value) {
     return normalizeString(value, '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
+export function resolveArcadeScenarioObjectiveLabel(objectiveId) {
+    return OBJECTIVE_LABELS[normalizeId(objectiveId)] || '';
+}
+
 function normalizeObjective(source) {
     const id = normalizeId(source?.id);
     if (!Object.prototype.hasOwnProperty.call(OBJECTIVE_LABELS, id)) return null;

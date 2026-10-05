@@ -71,6 +71,7 @@ export function finalizeArcadeRun(runtime, nowMs = Date.now()) {
         generatedAtIso: new Date(Math.max(0, toSafeNumber(nowMs, Date.now()))).toISOString(),
         runId: String(summary.runId || ''),
         succeeded: summary.succeeded === true,
+        aborted: summary.aborted === true,
         isDailyChallenge: summary.isDailyChallenge === true,
         seed: Math.max(0, toSafeInt(summary.seed, 0)),
         score: Math.max(0, toSafeNumber(summary.score, 0)),

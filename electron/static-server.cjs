@@ -74,6 +74,7 @@ function createCspHeader(connectSources, html = '') {
         "object-src 'none'",
         "base-uri 'self'",
         "frame-src 'none'",
+        "frame-ancestors 'none'",
         "form-action 'none'",
     ].join('; ');
 }

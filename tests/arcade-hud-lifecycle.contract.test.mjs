@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import '../src/core/Config.js';
 
 import { HudRuntimeSystem } from '../src/ui/HudRuntimeSystem.js';
 import { MatchFlowLifecycleController } from '../src/ui/MatchFlowLifecycleController.js';
@@ -88,6 +89,22 @@ test('returning to the menu hides the parcours minimap along with the rest of th
     runtime.clearNetworkScoreboard();
 
     assert.equal(minimap.hidden, true, 'the minimap canvas does not stay on top of the menu');
+});
+
+test('both sector banners resolve the map name instead of showing its stored key', () => {
+    const documentStub = installDocumentStub();
+    try {
+        const runtime = new HudRuntimeSystem({ game: { ui: { hud: createStubElement('hud') } } });
+        runtime._updateArcadeHud({ arcade: {
+            phase: 'playing', nowMs: 100, sectorIndex: 1, currentMapKey: 'parcours_assault',
+            score: { total: 0, breakdown: {} },
+        } });
+        assert.match(runtime._arcadeSectorTransitionOverlay.textContent, /Sektor 1/);
+        assert.doesNotMatch(runtime._arcadeSectorTransitionOverlay.textContent, /parcours_assault/i);
+        assert.doesNotMatch(runtime._arcadeScoreHud._transitionBanner.textContent, /parcours_assault/i);
+    } finally {
+        documentStub.restore();
+    }
 });
 
 test('the arcade HUD shows the settled sector score right after the round ends', () => {

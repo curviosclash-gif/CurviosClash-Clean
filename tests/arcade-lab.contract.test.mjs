@@ -62,6 +62,29 @@ test('three neutral frames are valid, obey the 256-step sweep envelope, and have
     }
 });
 
+test('raw Lab dimensions outside bounds cannot validate or replace the saved ship config', () => {
+    const s = store();
+    const original = createArcadeLabStarterConfig('fighter');
+    const created = createArcadeLabShip({ schemaVersion: 'arcade-lab.v1', unlocked: true, nextSerial: 1, ships: [] }, original);
+    assert.equal(created.ok, true);
+    assert.equal(saveArcadeLabShips(s, created.record), true);
+
+    for (const [property, value] of [['size', -5], ['scale', -0.5], ['size', Number.NaN], ['scale', 21]]) {
+        const draft = structuredClone(original);
+        draft.parts[0][property][0] = value;
+        const result = validateArcadeLabShip({ id: created.ship.id, config: draft });
+        assert.equal(result.ok, false, `${property}=${value} must be rejected`);
+        assert.equal(result.dimensionsValid, false);
+        assert.ok(result.errors.some((error) => error.includes(property === 'size' ? 'Größe X' : 'Skalierung X')));
+
+        const pending = saveArcadeLabDraft(created.record, created.ship.id, draft);
+        assert.equal(saveArcadeLabShips(s, pending), true);
+        const commit = commitArcadeLabDraft(pending, created.ship.id, 25);
+        assert.equal(commit.ok, false);
+        assert.deepEqual(loadArcadeLabShips(s).ships[0].config, created.ship.config);
+    }
+});
+
 test('Lab size ceiling follows current capped motion including altitude at minimum plane scale', () => {
     const player = CONFIG_SECTIONS.PLAYER;
     const stats = ['ship5', 'spaceship', 'arrow', 'manta', 'drone', 'ship1', 'ship9', 'lab_helix_interceptor']

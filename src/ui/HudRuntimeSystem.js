@@ -5,6 +5,7 @@
 import { ArcadeMissionHUD } from './arcade/ArcadeMissionHUD.js';
 import { resolveLocalHudTile } from './LocalHudPlayers.js';
 import { ArcadeScoreHUD } from './arcade/ArcadeScoreHUD.js';
+import { resolveArcadeMapLabel } from './arcade/postrun/ArcadePostRunBlocks.js';
 import { ParcoursOverlayController } from './arcade/ParcoursOverlayController.js';
 import { updateActiveEffectBar, updateItemBar, updateRocketBar } from './ItemBarPresenter.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
@@ -283,7 +284,7 @@ export class HudRuntimeSystem {
             this._arcadeTransitionVisibleUntilMs = nowMs + 1200;
             if (this._arcadeSectorTransitionOverlay) {
                 const mapKey = String(hudState.currentMapKey || '').trim() || 'unknown';
-                this._arcadeSectorTransitionOverlay.textContent = `Sektor ${sectorIndex}  |  ${mapKey}`;
+                this._arcadeSectorTransitionOverlay.textContent = `Sektor ${sectorIndex}  |  ${resolveArcadeMapLabel(mapKey)}`;
                 this._arcadeSectorTransitionOverlay.classList.remove('hidden');
             }
         }

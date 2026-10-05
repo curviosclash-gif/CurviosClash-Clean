@@ -10,7 +10,7 @@
 
 .hangar-window-app {
     display: grid;
-    grid-template-rows: 54px minmax(0, 1fr);
+    grid-template-rows: minmax(54px, auto) minmax(0, 1fr);
     width: 100vw;
     height: 100vh;
 }
