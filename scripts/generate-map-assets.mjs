@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseMapAssetArgs, resolveMapAssetJobs } from './map-asset-jobs.mjs';
+import { WHOLE_PACK_GENERATORS, parseMapAssetArgs, resolveMapAssetJobs } from './map-asset-jobs.mjs';
 import { createMapWorldSource } from './map-world-source.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -38,7 +38,7 @@ try {
             const result = spawnSync(blender, ['--background', '--factory-startup', '--python-exit-code', '1',
                 '--python', path.join(root, 'scripts', 'generate_map_assets.py'), '--', '--pack', job.pack,
                 ...(options.outputDir ? ['--output-dir', path.resolve(options.outputDir)] : []),
-                ...(job.pack === 'burg_falkenwacht' ? [] : job.parts.flatMap((part) => ['--part', part])),
+                ...(WHOLE_PACK_GENERATORS.includes(job.pack) ? [] : job.parts.flatMap((part) => ['--part', part])),
             ], { cwd: root, windowsHide: true, stdio: [world ? 'pipe' : 'ignore', 'inherit', 'inherit'],
                 input: world ? JSON.stringify(createMapWorldSource(job.pack)) : undefined, shell: false });
             if (result.error || result.status !== 0) {
