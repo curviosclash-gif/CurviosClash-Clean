@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { createLogger } from '../shared/logging/Logger.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
+import { VehicleMeshGroup } from './VehicleMeshGroup.js';
 
 const logger = createLogger('OBJVehicleMesh');
 let OBJ_MTL_LOADER_PROMISE = null;
@@ -40,7 +41,7 @@ function loadObjAndMtlModules() {
     return OBJ_MTL_LOADER_PROMISE;
 }
 
-export class OBJVehicleMesh extends THREE.Group {
+export class OBJVehicleMesh extends VehicleMeshGroup {
     constructor(color, shipId = 'ship5') {
         super();
         this.playerColor = color;
@@ -79,6 +80,11 @@ export class OBJVehicleMesh extends THREE.Group {
     cancelPendingLoad() {
         this._disposed = true;
         this._disposeTemplateMaterials();
+    }
+
+    dispose() {
+        this.cancelPendingLoad();
+        super.dispose();
     }
 
     _disposeTemplateMaterials() {

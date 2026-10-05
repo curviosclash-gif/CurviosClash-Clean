@@ -4,8 +4,9 @@
  */
 
 import * as THREE from 'three';
+import { VehicleMeshGroup } from './VehicleMeshGroup.js';
 
-export class SpaceshipMesh extends THREE.Group {
+export class SpaceshipMesh extends VehicleMeshGroup {
     constructor(color) {
         super();
         this.playerColor = color;
