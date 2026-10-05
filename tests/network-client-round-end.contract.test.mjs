@@ -133,34 +133,84 @@ test('a HUNT network client enters ROUND_END exactly once, not once per carrier'
     wired.kernel.dispose();
 });
 
-test('the client counts down on its own and starts the next round', async () => {
+/**
+ * The client board after the host round end: the round state tick system runs on the
+ * client's real kernel, and its entity manager is the one the reconciler writes to, so
+ * a later host snapshot reaches the board the same way it does in the game.
+ */
+async function openClientBoard(hostSnapshot = createHostSnapshot()) {
     const client = startClientMatch();
     const wired = await client.start();
-    deliver(new StateReconciler(), client.entityManager, createHostSnapshot());
+    const reconciler = new StateReconciler();
+    deliver(reconciler, client.entityManager, hostSnapshot);
     assert.equal(client.game.state, 'ROUND_END');
 
-    // The client has no round start signal from the host; its own board countdown
-    // (the same three seconds as on the host) restarts the round.
-    let restarts = 0;
+    const calls = { restarts: 0 };
+    client.entityManager.updateCameras = () => {};
+    client.entityManager.updateLastRoundGhostPlayback = () => {};
     const game = {
         state: client.game.state,
         input: createCountingInput(),
         roundPause: client.game.roundPause,
         roundStateController: createRoundStateController({ defaultRoundPause: 3 }),
         gameLoop: { renderFrameId: 1 },
-        entityManager: { updateCameras() {}, updateLastRoundGhostPlayback() {} },
+        entityManager: client.entityManager,
         matchFlowUiController: { applyMatchUiState() {} },
     };
     const adapter = createMatchKernelInteractiveAdapter({ game, kernel: wired.kernel });
     game.playingStateSystem = { getKernelAdapter: () => adapter };
     const system = new RoundStateTickSystem({
         game,
-        lifecyclePort: { restartRound: () => { restarts += 1; }, returnToMenu() {} },
+        lifecyclePort: { restartRound: () => { calls.restarts += 1; }, returnToMenu() {} },
         getSessionSnapshot: () => ({ isNetworkSession: true, isHost: false }),
     });
-    for (let i = 0; i < 4 && restarts === 0; i++) system.updateRoundEnd(1);
+    return { client, wired, reconciler, system, calls };
+}
 
-    assert.equal(restarts, 1, 'the client must reach the next round after the countdown');
+/** The host snapshot of a running round: no outcome, the host's new round serial. */
+function createHostRunningSnapshot(round) {
+    return createGameStateSnapshot({
+        players: [{ index: 0, alive: true }, { index: 1, alive: true }],
+        _networkRoundSerial: round,
+        _lastRoundOutcome: null,
+    }, null);
+}
+
+test('the client keeps its board after its own countdown until the host starts the next round', async () => {
+    const { client, wired, reconciler, system, calls } = await openClientBoard();
+
+    for (let i = 0; i < 5; i++) system.updateRoundEnd(1);
+    assert.equal(calls.restarts, 0, 'the client countdown alone must not start the next round');
+
+    // The host still sits on its board of round 1 and repeats its result.
+    deliver(reconciler, client.entityManager, createHostSnapshot({ round: 1 }));
+    system.updateRoundEnd(1 / 60);
+    assert.equal(calls.restarts, 0, 'the host board of the same round is no round start');
+
+    deliver(reconciler, client.entityManager, createHostRunningSnapshot(2));
+    system.updateRoundEnd(1 / 60);
+    assert.equal(calls.restarts, 1, 'the host round start must start the client round');
+    wired.kernel.dispose();
+});
+
+test('the host round start ends the client board before its own countdown ran out', async () => {
+    const { client, wired, reconciler, system, calls } = await openClientBoard();
+
+    system.updateRoundEnd(0.5);
+    deliver(reconciler, client.entityManager, createHostRunningSnapshot(2));
+    system.updateRoundEnd(1 / 60);
+
+    assert.equal(calls.restarts, 1, 'the client must follow the host, not its own three seconds');
+    wired.kernel.dispose();
+});
+
+test('a host without a round serial leaves the client its own countdown', async () => {
+    const { roundSerial: _omitted, ...olderHostSnapshot } = createHostSnapshot();
+    const { wired, system, calls } = await openClientBoard(olderHostSnapshot);
+
+    for (let i = 0; i < 4 && calls.restarts === 0; i++) system.updateRoundEnd(1);
+
+    assert.equal(calls.restarts, 1, 'without the host signal the client must still reach the next round');
     wired.kernel.dispose();
 });
 
