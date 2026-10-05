@@ -31,6 +31,14 @@ const ARENA_LOADED_BASE_TIMEOUT_MS = 10_000;
 const ARENA_LOADED_TIMEOUT_PER_REMOTE_PLAYER_MS = 5_000;
 const ARENA_LOADED_NOTIFY_RETRY_MS = 500;
 const ARENA_LOADED_NOTIFY_WINDOW_MS = 5_000;
+// The host keeps broadcasting on its result boards: the snapshot carries the round
+// result until the next round starts, so one lost snapshot no longer costs a client
+// its board, and the host round serial in it is the client's round start signal.
+const STATE_BROADCAST_GAME_STATES = new Set([
+    GAME_STATE_IDS.PLAYING,
+    GAME_STATE_IDS.ROUND_END,
+    GAME_STATE_IDS.MATCH_END,
+]);
 
 function resolveSessionContract(sessionSource = null) {
     if (typeof sessionSource === 'string') {
@@ -146,7 +154,7 @@ export function startRuntimeStateBroadcast(facade) {
     facade._stateSnapshotMetrics = null;
     facade._stateBroadcastTimer = setInterval(() => {
         const game = facade?.game;
-        if (!game?.entityManager || game.state !== GAME_STATE_IDS.PLAYING) return;
+        if (!game?.entityManager || !STATE_BROADCAST_GAME_STATES.has(game.state)) return;
         const snapshot = createMeasuredGameStateSnapshot(facade, game.entityManager, game.roundStateController);
         facade.session?.broadcastState?.(snapshot);
     }, STATE_BROADCAST_INTERVAL_MS);
