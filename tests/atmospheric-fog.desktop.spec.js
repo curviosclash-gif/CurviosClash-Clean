@@ -84,6 +84,12 @@ const MEASURE_SEAM = `
             for (let x = minX; x <= maxX; x += 2) {
                 const pair = pairAt(visibleFrame, skyFrame, x, y);
                 if (pair.delta < 0.3) continue;
+                // An antialiased silhouette pixel is only partly geometry and blends fog with sky.
+                // Probe only pixels whose neighbours are geometry too, so thin trim never counts.
+                const covered = [[-2, 0], [2, 0], [0, -2], [0, 2]].every(([dx, dy]) => (
+                    pairAt(visibleFrame, skyFrame, x + dx, y + dy).delta >= 0.3
+                ));
+                if (!covered) continue;
                 const distanceToHorizon = Math.abs(y / height - 0.5);
                 if (!best || distanceToHorizon < best.distanceToHorizon) {
                     best = { x, y, distanceToHorizon, ...pair };
