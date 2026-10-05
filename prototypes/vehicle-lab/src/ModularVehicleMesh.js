@@ -415,7 +415,15 @@ export class ModularVehicleMesh extends THREE.Group {
     }
 
     dispose() {
-        this.baseMesh?.cancelPendingLoad?.();
+        // Every caller builds the base model for this vehicle alone (createBaseVehicleMesh), so it
+        // is freed here. Its own dispose() knows which resources are shared and also cancels a
+        // pending OBJ load; detaching it first keeps the part sweep below off its materials.
+        const baseMesh = this.baseMesh;
+        if (baseMesh) {
+            if (baseMesh.parent === this) this.remove(baseMesh);
+            baseMesh.cancelPendingLoad?.();
+            baseMesh.dispose?.();
+        }
         this.disposeDynamicGeometries();
         this.traverse(child => {
             if (child instanceof THREE.Mesh) {
