@@ -141,11 +141,16 @@ test('electron main processes resolve the shared data root through the override'
 
 test('the desktop harness pins the Electron profile to a per-run directory', () => {
     const source = readFileSync(new URL('./helpers.desktop.js', import.meta.url), 'utf8');
+    const resolver = readFileSync(new URL('./desktop-user-data-root.mjs', import.meta.url), 'utf8');
     assert.ok(source.includes('CURVIOS_USER_DATA_ROOT'), 'helpers.desktop.js must set CURVIOS_USER_DATA_ROOT');
-    assert.ok(source.includes('PW_FRESH_PROFILE'), 'helpers.desktop.js must support PW_FRESH_PROFILE');
     assert.ok(
-        source.includes("'tmp', 'playwright'") || source.includes('tmp/playwright'),
-        'helpers.desktop.js must place the profile under tmp/playwright'
+        source.includes('resolveDesktopUserDataRoot') && source.includes('desktop-user-data-root.mjs'),
+        'helpers.desktop.js must take its profile folder from desktop-user-data-root.mjs'
+    );
+    assert.ok(resolver.includes('PW_FRESH_PROFILE'), 'desktop-user-data-root.mjs must support PW_FRESH_PROFILE');
+    assert.ok(
+        resolver.includes("'tmp', 'playwright'") || resolver.includes('tmp/playwright'),
+        'desktop-user-data-root.mjs must place the profile under tmp/playwright'
     );
 });
 
