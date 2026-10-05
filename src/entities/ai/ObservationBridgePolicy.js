@@ -379,6 +379,16 @@ export class ObservationBridgePolicy {
         }
     }
 
+    // Round restart: keep the inference connection, only the fallback bot starts over.
+    resetRound() {
+        this._warningStateByKey.clear();
+        if (typeof this._fallbackPolicy?.resetRound === 'function') {
+            this._fallbackPolicy.resetRound();
+        } else if (typeof this._fallbackPolicy?.reset === 'function') {
+            this._fallbackPolicy.reset();
+        }
+    }
+
     setDifficulty(profileName) {
         if (typeof this._fallbackPolicy?.setDifficulty === 'function') {
             this._fallbackPolicy.setDifficulty(profileName);

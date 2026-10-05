@@ -26,6 +26,7 @@ import {
 } from './HeuristicBotSafetyOps.js';
 
 const FIGHT_BURST_COMMIT_SECONDS = 0.24;
+const HUNT_OPENING_SECONDS = 1.35;
 
 export class HeuristicBotPolicy {
     constructor(options = {}) {
@@ -78,7 +79,7 @@ export class HeuristicBotPolicy {
         this._huntState = {
             movementIntent: 'search',
             commitTimer: 0,
-            openingTimer: 1.35,
+            openingTimer: HUNT_OPENING_SECONDS,
         };
         this._decisionCounters = {
             updates: 0,
@@ -352,7 +353,8 @@ export class HeuristicBotPolicy {
         this.sensePhase = Number.isFinite(Number(phase)) ? Math.max(0, Math.trunc(Number(phase))) : 0;
     }
 
-    reset() {
+    // Round restart: behaviour starts over, the match-long decision counters stay.
+    resetRound() {
         resetInput(this._input);
         resetHeuristicSafetyState(this._safetyState);
         this._classicState.intent = 'space-seek';
@@ -360,6 +362,11 @@ export class HeuristicBotPolicy {
         this._classicState.targetIndex = -1;
         this._huntState.movementIntent = 'search';
         this._huntState.commitTimer = 0;
+        this._huntState.openingTimer = HUNT_OPENING_SECONDS;
+    }
+
+    reset() {
+        this.resetRound();
         this._decisionCounters.updates = 0;
         this._decisionCounters.intentChanges = 0;
         this._decisionCounters.safetyTransitions = 0;

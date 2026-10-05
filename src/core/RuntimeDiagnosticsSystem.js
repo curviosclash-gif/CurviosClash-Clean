@@ -126,6 +126,7 @@ export function createRuntimeDiagnosticsRuntimeAccess(runtime) {
         getGraphicsQualitySetting: () => game?.settings?.localSettings?.graphicsQuality,
         getBloomQualityUserSet: () => game?.settings?.localSettings?.bloomQualityUserSet === true,
         getSettingsRecordStore: () => game?.settingsManager?.settingsRecordStorePort || null,
+        getPlayerKeyBindings: () => game?.input?.getBindings?.() || null,
     };
     });
 }
@@ -154,9 +155,24 @@ export class RuntimeDiagnosticsSystem {
         window.addEventListener('keydown', this._onKeyDown);
     }
 
+    _isBoundToActivePlayer(code) {
+        if (this.runtimeAccess.getState?.() === GAME_STATE_IDS.MENU) return false;
+        const humans = this.runtimeAccess.getEntityManager?.()?.humanPlayers;
+        const humanCount = Array.isArray(humans) ? humans.length : 0;
+        const bindings = humanCount > 0 ? this.runtimeAccess.getPlayerKeyBindings?.() : null;
+        for (let index = 1; index <= humanCount; index++) {
+            const playerBindings = bindings?.[`PLAYER_${index}`];
+            if (playerBindings && Object.values(playerBindings).includes(code)) return true;
+        }
+        return false;
+    }
+
     _handleKeyDown(event) {
         if (this.runtimeAccess.getKeyCaptureActive?.()) return;
         if (isTextEntryEventTarget(event?.target)) return;
+        if (event?.code !== 'KeyP' && event?.code !== 'KeyO') return;
+        // Key repeat would flip the toggle on and off; a player's own binding wins over diagnostics.
+        if (event.repeat === true || this._isBoundToActivePlayer(event.code)) return;
 
         const renderer = this.runtimeAccess.getRenderer?.() || null;
         const recorder = this.runtimeAccess.getMediaRecorderSystem?.() || null;

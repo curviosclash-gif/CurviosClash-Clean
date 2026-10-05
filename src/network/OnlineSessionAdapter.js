@@ -24,6 +24,7 @@ import {
     resolveOnlineSignalingUrl,
     buildSocketCloseDetails,
     createSocketLifecycleError,
+    createOnlineSignalingError,
     createServerSignalingError,
     createInvalidSignalingPayloadError,
     isRetryableSignalingError,
@@ -134,6 +135,10 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
         let lastError = null;
 
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+            // disconnect() during a retry delay must not open a new socket or lobby afterwards.
+            if (this._isDisconnecting) {
+                throw createOnlineSignalingError('connect_cancelled', 'Verbindungsaufbau abgebrochen.');
+            }
             try {
                 await singleAttemptFn();
                 return;

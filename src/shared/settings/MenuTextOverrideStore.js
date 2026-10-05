@@ -46,6 +46,7 @@ export class MenuTextOverrideStore extends PersistentStore {
             () => this.readJsonRecord(null),
             {
                 artifactType: 'menu-text-overrides',
+                onReject: (record) => this.preserveRejectedRecord(record),
                 schemaVersion: MENU_TEXT_OVERRIDE_STORAGE_SCHEMA_VERSION,
                 createDefault: () => ({}),
                 transform: (parsed, versionState) => {

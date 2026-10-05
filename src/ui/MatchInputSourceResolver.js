@@ -25,6 +25,12 @@ function isMobileArcadeTarget(game = null) {
         || doc?.documentElement?.dataset?.appTarget === 'mobile-arcade';
 }
 
+function isCoarsePrimaryPointer() {
+    return typeof window !== 'undefined'
+        && typeof window.matchMedia === 'function'
+        && window.matchMedia('(pointer: coarse)').matches === true;
+}
+
 function isMobileArcadeMode(game = null) {
     const modePath = String(game?.settings?.localSettings?.modePath || '').trim().toLowerCase();
     const doc = typeof document !== 'undefined' ? document : null;
@@ -293,9 +299,11 @@ export function createPreferredMatchInputSource({
         source.poll = () => poll() || (threePlayerAssignment || gamepadEnabled() ? DISCONNECTED_CONTROLLER_INPUT : null);
         return source;
     }
-    const touchAvailable = resolvedInputDeviceIndex === 0 && TouchInputSource.isAvailable();
-    const mobileClassic = touchAvailable && isMobileClassicTarget(game);
-    const mobileArcade = touchAvailable && isMobileArcadeTarget(game);
+    const touchCapable = resolvedInputDeviceIndex === 0 && TouchInputSource.isAvailable();
+    const mobileClassic = touchCapable && isMobileClassicTarget(game);
+    const mobileArcade = touchCapable && isMobileArcadeTarget(game);
+    // Touch laptops and touch monitors report touch points too; they keep keyboard and mouse.
+    const touchAvailable = touchCapable && (mobileClassic || mobileArcade || isCoarsePrimaryPointer());
     const mobileArcadeMode = mobileArcade || (mobileClassic && isMobileArcadeMode(game));
     const createTouchSource = () => new TouchInputSource({
         game,

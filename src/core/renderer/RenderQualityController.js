@@ -44,7 +44,6 @@ export class RenderQualityController {
         this.bloomAutoFloor = false;
         this.postProcessingPipeline = postProcessingPipeline;
         this.qualityLockReason = null;
-        this.highQualityEnvironment = scene?.environment || null;
         const gl = renderer?.getContext?.() || null;
         this.gpuFrameTimer = new GpuFrameTimer(gl);
         this.gpuCapabilities = readGpuCapabilities(gl, this.gpuFrameTimer.available);
@@ -109,9 +108,9 @@ export class RenderQualityController {
         this._publishQuality();
         // Qualitaetsstufen regeln nur Aufloesung und Schatten. Tone-Mapping, Environment-IBL
         // und Fog bleiben konstant, sonst kippt die Szenenhelligkeit bei jedem Stufenwechsel
-        // sichtbar zwischen hell und dunkel. Fog gehoert dem Grafikstil (Renderer.setGraphicsStyle).
+        // sichtbar zwischen hell und dunkel. Fog gehoert dem Grafikstil (Renderer.setGraphicsStyle),
+        // das Environment dem SceneEnvironmentController: er tauscht es beim Kartenwechsel aus.
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.scene.environment = this.highQualityEnvironment;
         this.renderer.setPixelRatio(this._resolvePixelRatio(window.devicePixelRatio));
 
         this._applyShadowQuality();

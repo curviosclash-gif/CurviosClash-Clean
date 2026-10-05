@@ -37,6 +37,17 @@ export class PersistentStore {
         return this.storagePlatform.readJson(this.storageKey, this.storageLegacyKeys, fallbackValue);
     }
 
+    // A record in a schema this build cannot read (for example written by a newer app version) is
+    // copied to a side key before defaults take over, so the next save cannot destroy it.
+    preserveRejectedRecord(record) {
+        if (!this.storageKey || !this.storagePlatform) return;
+        const backupKey = `${this.storageKey}.rejected`;
+        let serialized = null;
+        try { serialized = JSON.stringify(record); } catch { return; }
+        if (typeof serialized !== 'string' || this.storagePlatform.readRaw(backupKey)?.raw === serialized) return;
+        this.storagePlatform.writeRaw(backupKey, serialized);
+    }
+
     writeJsonRecord(value) {
         if (!this.storageKey) {
             return this._recordPersistenceResult({ ok: false, reason: 'missing_storage_key', quotaExceeded: false });
