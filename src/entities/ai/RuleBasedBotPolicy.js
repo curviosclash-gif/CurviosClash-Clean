@@ -16,6 +16,14 @@ export class RuleBasedBotPolicy {
         return this._botAI.update(dt, player, arena, allPlayers, projectiles);
     }
 
+    reset() {
+        this._botAI.reset();
+    }
+
+    resetRound() {
+        this._botAI.reset();
+    }
+
     setDifficulty(profileName) {
         if (typeof this._botAI.setDifficulty === 'function') {
             this._botAI.setDifficulty(profileName);

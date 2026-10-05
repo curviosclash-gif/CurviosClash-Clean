@@ -19,6 +19,31 @@ import {
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
+function createBotState() {
+    return {
+        turnCommitTimer: 0,
+        committedYaw: 0,
+        committedPitch: 0,
+
+        recoveryActive: false,
+        recoveryTimer: 0,
+        recoveryCooldown: 0,
+        recoveryYaw: 0,
+        recoveryPitch: 0,
+        recoverySwitchUsed: false,
+
+        targetPlayer: null,
+        targetRefreshTimer: 0,
+        itemUseCooldown: 0,
+        itemShootCooldown: 0,
+
+        portalIntentActive: false,
+        portalIntentTimer: 0,
+        portalIntentScore: 0,
+        portalEntryDistanceSq: Infinity,
+    };
+}
+
 export class BotAI {
     constructor(options = {}) {
         this.recorder = options.recorder || null;
@@ -66,28 +91,7 @@ export class BotAI {
             shootItemIndex: -1,
         };
 
-        this.state = {
-            turnCommitTimer: 0,
-            committedYaw: 0,
-            committedPitch: 0,
-
-            recoveryActive: false,
-            recoveryTimer: 0,
-            recoveryCooldown: 0,
-            recoveryYaw: 0,
-            recoveryPitch: 0,
-            recoverySwitchUsed: false,
-
-            targetPlayer: null,
-            targetRefreshTimer: 0,
-            itemUseCooldown: 0,
-            itemShootCooldown: 0,
-
-            portalIntentActive: false,
-            portalIntentTimer: 0,
-            portalIntentScore: 0,
-            portalEntryDistanceSq: Infinity,
-        };
+        this.state = createBotState();
 
         this._checkStuckTimer = 0;
         this._stuckScore = 0;
@@ -156,6 +160,27 @@ export class BotAI {
         this.state.turnCommitTimer = 0;
         this.state.recoveryActive = false;
         // A new round means new rockets: old defence answers must not linger.
+        resetRocketDefenseMemory(this._rocketDefenseMemory);
+    }
+
+    // A respawned bot starts clean: no steering, recovery, target or rocket answer carries over.
+    reset() {
+        this.reactionTimer = 0;
+        this._resetInput(this.currentInput);
+        this._resetDecision();
+        Object.assign(this.state, createBotState());
+        this._checkStuckTimer = (this.profile || BOT_FALLBACK_DIFFICULTY_PROFILE).stuckCheckInterval;
+        this._stuckScore = 0;
+        this._recentBouncePressure = 0;
+        this._bounceStreak = 0;
+        this._bounceStreakTimer = 0;
+        this._recoveryChainCount = 0;
+        this._recoveryChainTimer = 0;
+        this._lastRecoveryReason = '';
+        this._lastRecoveryYaw = 0;
+        this._hasPositionSample = false;
+        this._hasCollisionNormal = false;
+        this._portalTarget = null;
         resetRocketDefenseMemory(this._rocketDefenseMemory);
     }
 
