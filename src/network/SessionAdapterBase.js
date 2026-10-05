@@ -2,6 +2,9 @@ import { SessionAdapter } from '../core/session/SessionAdapter.js';
 import {
     MULTIPLAYER_MESSAGE_TYPES,
     buildMultiplayerSessionMessage,
+    buildMultiplayerStateUpdateEvent,
+    isMultiplayerMessageAllowedForSender,
+    normalizeMultiplayerSessionMessage,
 } from '../shared/contracts/MultiplayerSessionContract.js';
 import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
 
@@ -348,5 +351,100 @@ export class SessionAdapterBase extends SessionAdapter {
         this._clientDisconnectedPeers.clear();
         this._lastInputSequenceByPeer.clear();
         this._lastSnapshotSequence = 0;
+    }
+    /**
+     * Shared data-channel message handling for LAN and Online. The only transport difference,
+     * who the host peer is, comes from _resolveHostPeerId().
+     */
+    _dispatchDataMessage(peerId, channel, data) {
+        this._peerManager.recordPeerActivity?.(peerId);
+        const message = normalizeMultiplayerSessionMessage(data);
+        const hostPeerId = normalizePeerId(this._resolveHostPeerId());
+        const senderIsHost = !!hostPeerId && normalizePeerId(peerId) === hostPeerId;
+        if (!isMultiplayerMessageAllowedForSender(message.type, senderIsHost)) return;
+        switch (message.type) {
+        case MULTIPLAYER_MESSAGE_TYPES.INPUT:
+            if (!this._acceptInputSequence(peerId, data.inputSeq)) break;
+            this._emit('remoteInput', { peerId, input: data.inputs, playerId: peerId });
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.PLAYER_ARENA_LOADED:
+            // Client signals that its arena is fully loaded.  Host collects these
+            // and fires broadcastRoundStartGate() once all players have reported in.
+            this._emit('playerLoaded', { playerId: normalizePeerId(peerId) });
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.ROUND_START_GATE:
+            // Host signals all clients that every player is loaded and the round may start.
+            this._emit('roundStartGate', {
+                expectedPeerIds: Array.isArray(data.expectedPeerIds) ? data.expectedPeerIds : [],
+                timestamp: typeof data.timestamp === 'number' ? data.timestamp : 0,
+            });
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT:
+            if (!this._acceptSnapshotSequence(data.snapshotSeq)) break;
+            this._emit('stateUpdate', buildMultiplayerStateUpdateEvent(data, {
+                messageType: MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT,
+            }));
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.FULL_STATE_SYNC:
+            this._emit('fullStateSync', { state: data });
+            this._emit('stateUpdate', buildMultiplayerStateUpdateEvent(data, {
+                messageType: MULTIPLAYER_MESSAGE_TYPES.FULL_STATE_SYNC,
+            }));
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.PING:
+            // Answer input pings on the input channel; everything else on the reliable state
+            // channel, never on the lossy snapshot channel.
+            this._dataChannelManager.send(
+                peerId,
+                channel === 'inputs' ? 'inputs' : 'state',
+                this._createStateMessage(MULTIPLAYER_MESSAGE_TYPES.PONG, { pingId: data.pingId })
+            );
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.PONG:
+            this._latencyMonitor.recordPongReceived(peerId, data.pingId);
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.HEARTBEAT:
+            this._sendStateToPeer(peerId, this._createStateMessage(MULTIPLAYER_MESSAGE_TYPES.HEARTBEAT_ACK));
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.HEARTBEAT_ACK:
+            this._peerManager.recordHeartbeatAck(peerId);
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.LEAVE:
+            this._closePeerConnection(peerId);
+            this._removePeerLatency(peerId);
+            this._emit('playerDisconnected', { peerId, reason: 'graceful-leave' });
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.HOST_LEAVING: {
+            const leavingHostPeerId = normalizePeerId(peerId) || hostPeerId;
+            this._clientDisconnectedPeers.add(leavingHostPeerId);
+            this._closePeerConnection(leavingHostPeerId);
+            this._removePeerLatency(leavingHostPeerId);
+            this._emit('hostDisconnected', { reason: 'graceful-leave' });
+            this._emit('playerDisconnected', { peerId, reason: 'host-leaving', isHost: true });
+            break;
+        }
+        case MULTIPLAYER_MESSAGE_TYPES.PLAYER_DISCONNECTED:
+            this._emit('playerDisconnected', {
+                peerId: data.peerId,
+                reason: data.reason,
+                canReconnect: true,
+                reconnectWindowMs: data.reconnectWindowMs,
+            });
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.PLAYER_RECONNECTED:
+            this._emit('playerReconnected', { peerId: data.peerId });
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.PLAYER_REMOVED:
+            this._emit('playerRemoved', { peerId: data.peerId });
+            break;
+        case MULTIPLAYER_MESSAGE_TYPES.MATCH_LIFECYCLE_SIGNAL:
+            this._emit('matchLifecycleSignal', {
+                signal: String(data.signal || '').trim(),
+                reason: String(data.reason || '').trim(),
+            });
+            break;
+        default:
+            break;
+        }
     }
 }

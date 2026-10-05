@@ -16,7 +16,8 @@ export const HUNT_CONFIG = Object.freeze({
     TEAM_SIZE: 4,
     TEAM_BOT_DIFFICULTY: Object.freeze({ ALPHA: 'NORMAL', BRAVO: 'NORMAL' }),
     PLAYER_MAX_HP: 100,
-    PLAYER_REGEN_PER_SECOND: 2.0,
+    // 2.5 is what matches actually used: the regen path read a built-in fallback until 2026-10.
+    PLAYER_REGEN_PER_SECOND: 2.5,
     PLAYER_REGEN_DELAY: 3.0,
     SHIELD_MAX_HP: 40,
     ITEM_USE_COOLDOWN_SECONDS: 0.15,

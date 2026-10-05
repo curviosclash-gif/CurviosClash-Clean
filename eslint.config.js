@@ -236,6 +236,25 @@ export default [
             ]
         },
     },
+    {
+        // Bot training must never reach a product bundle. The post-build scan only knows a few
+        // training class names; this rule stops the import itself.
+        files: [
+            'src/**/*.js',
+            'electron/**/*.{js,cjs,mjs}',
+            'server/**/*.{js,cjs,mjs}',
+            'editor/**/*.{js,cjs,mjs}',
+            'prototypes/vehicle-lab/**/*.{js,cjs,mjs}',
+        ],
+        rules: {
+            'no-restricted-imports': ['error', {
+                patterns: [{
+                    group: ['**/dev/training', '**/dev/training/**'],
+                    message: 'Product code must not import dev/training. Inject a runtime option from the training wiring instead.',
+                }],
+            }],
+        },
+    },
     ...Object.entries(legacyFileCeilings).map(([file, max]) => ({
         files: [file],
         rules: {
