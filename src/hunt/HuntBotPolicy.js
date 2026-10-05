@@ -518,6 +518,10 @@ export class HuntBotPolicy {
         }
     }
 
+    setArcadeBotAggressiveness(value) { this._fallbackPolicy.setArcadeBotAggressiveness(value); }
+
+    getArcadeAggressivenessSnapshot() { return this._fallbackPolicy.getArcadeAggressivenessSnapshot(); }
+
     onBounce(type, normal = null) {
         if (typeof this._fallbackPolicy.onBounce === 'function') {
             this._fallbackPolicy.onBounce(type, normal);
