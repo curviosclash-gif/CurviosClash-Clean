@@ -24,6 +24,24 @@ test('the status toast lives in a notice column below the round board, outside t
     assert.doesNotMatch(ruleOf('#status-toast'), /top:\s*18px/, 'the toast no longer pins itself onto the board');
 });
 
+test('in a deathmatch the notice column also clears the kill-target row under the board', () => {
+    // Playtest: "Blitz! Tief fliegen!" covered the bottom of the Fight header in a deathmatch. The
+    // 62px board the column was measured against has no target row; a deathmatch adds one
+    // (#hunt-target-progress: margin plus height), so the board grows by that much and the toast,
+    // which only cleared 66px, sat on the score line and the progress pips.
+    const progressRule = ruleOf('.hunt-target-progress');
+    const marginTop = Number(/margin:\s*(\d+)px/.exec(progressRule)?.[1]);
+    const height = Number(/height:\s*(\d+)px/.exec(progressRule)?.[1]);
+    assert.ok(marginTop > 0 && height > 0, `the target row has a size (${progressRule.trim()})`);
+
+    const start = css.search(/\nbody:has\([^{]*#hunt-target-progress:not\(\.hidden\)\)\s+#hud-notice-stack\s*\{/);
+    assert.ok(start >= 0, 'a visible kill-target row moves the notice column down');
+    const rule = css.slice(start, css.indexOf('}', start));
+    const offset = Number(/top:\s*calc\(14px\s*\+\s*(\d+)px\s*\*\s*var\(--hud-scale/.exec(rule)?.[1]);
+    assert.ok(offset >= 62 + marginTop + height,
+        `the column starts below the 62px board plus the ${marginTop + height}px target row (${rule.trim()})`);
+});
+
 test('the toast fades in place inside the column instead of sliding half its width aside', () => {
     const keyframes = /@keyframes toastFade\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] || '';
     assert.ok(keyframes.length > 0);
