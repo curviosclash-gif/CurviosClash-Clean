@@ -3,6 +3,7 @@ import {
     deriveResumeTransition,
 } from '../shared/contracts/MatchFlowTransitionContract.js';
 import { createPauseOverlayControllerPort } from '../shared/runtime/UiControllerRuntimePorts.js';
+import { armConfirmButton } from './ConfirmButtonArming.js';
 import {
     applyResumeProjectionIntent,
     isPauseOverlayActive,
@@ -19,6 +20,7 @@ export class PauseOverlayController {
         this._hostPausedOverlay = null;
         this._managedListeners = [];
         this._boundHandlers = null;
+        this._menuConfirmation = null;
     }
 
     get game() {
@@ -75,15 +77,18 @@ export class PauseOverlayController {
                         this._showSettings();
                     }
                 },
-                onPauseMenuClick: () => {
-                    this.returnToMenuFromPause();
-                },
             };
         }
 
         this._addManagedListener(game.ui.pauseResumeButton, 'click', this._boundHandlers.onPauseResumeClick);
         this._addManagedListener(game.ui.pauseSettingsButton, 'click', this._boundHandlers.onPauseSettingsClick);
-        this._addManagedListener(game.ui.pauseMenuButton, 'click', this._boundHandlers.onPauseMenuClick);
+        // Leaving ends the running match: same two-step button as the other destructive actions.
+        if (typeof game.ui.pauseMenuButton?.addEventListener === 'function') {
+            this._menuConfirmation = armConfirmButton(game.ui.pauseMenuButton, {
+                confirmLabel: 'Erneut klicken: Match verlassen',
+                onConfirm: () => this.returnToMenuFromPause(),
+            });
+        }
     }
 
     pause() {
@@ -144,6 +149,7 @@ export class PauseOverlayController {
         this.matchFlowUiController.applyMatchUiState(pauseTransition.uiState);
 
         // Replace pause overlay content with disconnect prompt
+        this._menuConfirmation?.disarm();
         if (game.ui.pauseMenuButton) {
             game.ui.pauseMenuButton.textContent = 'Verbindung trennen';
         }
@@ -175,6 +181,7 @@ export class PauseOverlayController {
     }
 
     _restorePauseButtonLabels() {
+        this._menuConfirmation?.disarm();
         const game = this.game;
         if (game?.ui?.pauseMenuButton) {
             game.ui.pauseMenuButton.textContent = 'Hauptmenü';
@@ -204,6 +211,8 @@ export class PauseOverlayController {
 
     dispose() {
         this._removeManagedListeners();
+        this._menuConfirmation?.dispose();
+        this._menuConfirmation = null;
         this._listenersInitialized = false;
         this._hideSettings();
         this.hideHostPausedOverlay();
