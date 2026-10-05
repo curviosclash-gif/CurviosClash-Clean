@@ -4,8 +4,11 @@
 // resetToLastValid statt resetOnDeath (weniger Frust)
 // ============================================================
 
+import { authoredWorld } from './world_appearance.js';
+
 export const MAGMA_MAZE_MAP = {
     magma_maze: {
+        ...authoredWorld('magma_maze'),
         name: 'Magma Maze',
         // The only map lit from below: the fill light points down-up out of the lava, which is
         // what puts the glow on the underside of the walls. Smoke keeps the fog close and the stars out.

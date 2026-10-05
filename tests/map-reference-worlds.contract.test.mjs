@@ -20,6 +20,9 @@ const KEYS = [
     'complex',
     'vertical_maze',
     'trench',
+    'magma_maze',
+    'frozen_helix',
+    'neon_circuit',
 ];
 const PYRAMID_MODULES = [
     '01_terrain',

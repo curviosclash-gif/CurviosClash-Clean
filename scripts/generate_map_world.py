@@ -57,6 +57,25 @@ STYLES = {
         'signal': (0.95, 0.47, 0.12), 'foam': (0.12, 0.50, 0.47),
         'tile': 10, 'roughness': 0.82,
     },
+    # Basalt walls over the lava layer; the preset's up-light paints their undersides.
+    'magma_maze': {
+        'floor': (0.09, 0.06, 0.05), 'body': (0.27, 0.21, 0.19),
+        'panel': (0.12, 0.08, 0.07), 'trim': (0.52, 0.22, 0.09),
+        'signal': (1.0, 0.32, 0.04), 'foam': (0.78, 0.26, 0.06),
+        'tile': 10, 'roughness': 0.86,
+    },
+    'frozen_helix': {
+        'floor': (0.74, 0.83, 0.90), 'body': (0.60, 0.76, 0.87),
+        'panel': (0.27, 0.45, 0.60), 'trim': (0.82, 0.88, 0.93),
+        'signal': (0.28, 0.82, 1.0), 'foam': (0.69, 0.86, 0.95),
+        'tile': 12, 'roughness': 0.45,
+    },
+    'neon_circuit': {
+        'floor': (0.05, 0.05, 0.08), 'body': (0.15, 0.15, 0.21),
+        'panel': (0.06, 0.06, 0.10), 'trim': (0.82, 0.10, 0.62),
+        'signal': (0.05, 0.82, 1.0), 'foam': (0.38, 0.12, 0.55),
+        'tile': 8, 'roughness': 0.40,
+    },
 }
 
 

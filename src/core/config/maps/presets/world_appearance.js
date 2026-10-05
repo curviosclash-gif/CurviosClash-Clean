@@ -24,14 +24,18 @@ export const WIND_CATHEDRAL_WORLD_LIGHTS = [
     { id: 'wind_crown', x: 25, y: 90, z: 6, color: 0xc3edff, intensity: 3600, distance: 75 },
 ];
 
-function classicWorld(key, floorY, lighting) {
+// The Blender world is only a visual skin; the authored obstacles stay the collision.
+export function authoredWorld(key, floorY = -.12) {
     return {
         glbModels: [{ id: `${key}-world`, url: `assets/maps/${key}/glb/01_world.glb`,
             position: [0, floorY, 0], scale: 1 }],
         glbColliderMode: 'dynamic',
         glbAuthoredObstaclesCollisionOnly: true,
-        lighting: normalizeMapLighting(lighting),
     };
+}
+
+function classicWorld(key, floorY, lighting) {
+    return { ...authoredWorld(key, floorY), lighting: normalizeMapLighting(lighting) };
 }
 
 export const CLASSIC_WORLD_APPEARANCE = {
