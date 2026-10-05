@@ -41,6 +41,7 @@ import { normalizeFightMachineGunId, resolveFightMachineGunModel } from '../../s
 import { armConfirmButton } from '../ConfirmButtonArming.js';
 import { createHangarFormTab } from './HangarFormTab.js';
 import { loadArcadeColors } from '../../shared/contracts/ArcadeColorProgressContract.js';
+import { createHangarGuideCard } from './HangarGuideCard.js';
 import {
     selectArcadeTrailStyle,
     selectArcadeWeaponStyle,
@@ -196,6 +197,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         return saved;
     }
     const getProfile = () => profileFor(draft.vehicleId);
+    const guide = hangarMode === 'arcade' ? createHangarGuideCard({ shell, bind, store, getState: state, getProfile }) : null;
     // Arcade: stones of the workshop pool (Paket 3) with their slots, docked in "Ausbau" beside the size build.
     const stonePanel = hangarMode === 'arcade' ? createArcadeStonePanel({
         bind, toast, store, shell, getProfile, saveProfile, profileFor, getDraft: () => draft, vehicleLabel: (id) => entryFor(id).label,
@@ -216,6 +218,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     function syncPartStyle() {
         formTab.sync(draft.vehicleId, buildView);
         weaponPanel?.render(draft.vehicleId, getProfile());
+        guide?.render();
     }
 
     function syncDisplay(options = {}) {
@@ -889,6 +892,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             catalogPreview.dispose();
             viewport.dispose();
             audio.dispose();
+            guide?.dispose();
             container.dataset.lifecycle = 'disposed';
         },
     });

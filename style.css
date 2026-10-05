@@ -6054,6 +6054,21 @@ body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-m
     width: 100%;
 }
 
+.hangar-workshop-header:has(.hangar-guide-card) { display: grid; grid-template-columns: 1fr auto; }
+.hangar-guide-card { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .35rem .75rem; padding: .55rem .75rem; border: 1px solid #36516f; border-radius: .5rem; background: #101f32; }
+.hangar-guide-goal { display: grid; gap: .2rem; }
+.hangar-guide-title { color: #f3bd61; font-size: .86rem; }
+.hangar-guide-detail, .hangar-guide-locks, .hangar-guide-tutorial-text { color: #bdd3e8; font-size: .75rem; margin: 0; }
+.hangar-guide-actions { display: flex; gap: .35rem; align-items: start; }
+.hangar-guide-locks, .hangar-guide-tutorial { grid-column: 1 / -1; }
+.hangar-guide-tutorial { display: flex; align-items: center; gap: .5rem; padding-top: .4rem; border-top: 1px solid #36516f; }
+.hangar-guide-tutorial.hidden { display: none; }
+.hangar-guide-tutorial-text { flex: 1; }
+.hangar-guide-card button { width: auto; flex: none; padding: .35rem .6rem; font-size: .75rem; }
+.is-guide-highlight { outline: 2px solid #f3bd61; outline-offset: -2px; }
+.hangar-milestone-panel input { color: #eaf5ff; background: #15283e; border: 1px solid #416282; padding: .3rem; }
+@media (max-width: 700px) { .hangar-guide-card { grid-template-columns: 1fr; } .hangar-guide-tutorial { flex-wrap: wrap; } }
+
 .hangar-cosmetic-field {
     display: grid;
     gap: 0.25rem;
