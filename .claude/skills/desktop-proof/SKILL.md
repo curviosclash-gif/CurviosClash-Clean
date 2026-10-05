@@ -24,7 +24,7 @@ Nimm die erste Zeile, auf die dein Fall zutrifft. Jede Stufe kostet spürbar meh
 | --- | --- |
 | Zahlen aus Runtime, Kernel, Rundenlogik, Fortschritt | Headless-Smoke in Node |
 | Verhalten im echten Fenster, mehrere Fenster, IPC, Persistenz über Neustart | Playwright-Desktop-Spec |
-| Eine Neuerung selbst anspielen und Schritt für Schritt erkunden (Karte, Waffe, Menüweg) | Fahrskript (Weg B2) |
+| Eine Neuerung selbst anspielen und Schritt für Schritt erkunden (Karte, Waffe, Menüweg) | MCP-Werkzeuge oder Fahrskript (Weg B2) |
 | Menü, HUD, Einstellungen, Layout — schnell und plattformunkritisch | Browser-Vorschau |
 | Alles, was nur ein Mensch beurteilen kann (Gefühl, Kamera, Optik) | Manueller Lauf, Nutzer berichtet |
 
@@ -68,9 +68,9 @@ node scripts/run-playwright-targeted.mjs tests/hangar-window.desktop.spec.js
 
 Wenn der Beleg bleiben soll, wird der Spec ein regulärer Test — und muss dann in `scripts/playwright-test-clusters.mjs` in einem Cluster registriert werden, sonst läuft er in CI nie. Ein Spec, der nur für diesen einen Beleg existiert, gehört nicht dauerhaft ins Repo; frage den Nutzer, ob er ihn behalten will, bevor du ihn wieder entfernst.
 
-## Weg B2 — selbst spielen mit dem Fahrskript
+## Weg B2 — selbst spielen (MCP-Werkzeuge oder Fahrskript)
 
-`scripts/playtest/` startet die echte Desktop-App (aus `dist-app-test`, Fenster außerhalb des Bildschirms, eigenes Wegwerf-Profil, Runden als Automation markiert) und hält sie offen, während du einzelne Schritte schickst. Das passt, wenn du erst herausfinden musst, was du messen willst.
+`scripts/playtest/` startet die echte Desktop-App (aus `dist-app-test`, Fenster außerhalb des Bildschirms, eigenes Wegwerf-Profil, Runden als Automation markiert) und hält sie offen, während du Schritt für Schritt spielst. Das passt, wenn du erst herausfinden musst, was du messen willst.
 
 ```bash
 npm run build:app:test
@@ -80,20 +80,37 @@ npm run build:app:test
 npm run playtest:selftest
 ```
 
+**Bevorzugt: der MCP-Server `curvios-playtest`.** `.mcp.json` meldet ihn für Claude Code an (einmal freigeben). Die Werkzeuge starten die App beim ersten Aufruf selbst. Eine typische Entscheidungsschleife:
+
+1. `start_match` mit `{ map, mode, bots, paused: true }` — `problems` prüfen (stiller Kartenrückfall).
+2. `observe` — eigenes Schiff, alle Gegner relativ zur eigenen Nase (`ahead`/`right`/`up`, `offNoseDeg`) und der benannte Beobachtungsvektor der Bots (`WALL_DISTANCE_FRONT` …).
+3. `act` mit `{ yawAxis, pitchAxis, boost, shootMG, ms }` — im Pausenzustand läuft das Spiel genau `ms` Spielzeit weiter und hält wieder an.
+4. `events` mit `since` aus dem letzten Aufruf — Tode, Rundenende, Treffer.
+5. `screenshot` liefert das Bild direkt zurück.
+
+Alternativ `autopilot { enabled: true }` plus `sample`. Zum Schluss `close` aufrufen, damit andere Playwright-Läufe weiterkommen; nach 10 Minuten ohne Aufruf schließt der Server von selbst.
+
+**Für Agenten ohne MCP: der Daemon.**
+
 ```bash
 npm run playtest:daemon
 ```
 
-Danach schickst du Schritte als Datei mit `npm run playtest:send -- schritt.mjs` und beendest mit `npm run playtest:send -- --quit`. Die Datei ist der Rumpf einer async-Funktion mit `D` (Bausteine aus `playtest-driver.mjs`), `S` (App und Seite) und `state`:
+Danach schickst du Schritte als Datei mit `npm run playtest:send -- schritt.mjs` und beendest mit `npm run playtest:send -- --quit`. Die Datei ist der Rumpf einer async-Funktion mit `D` (Bausteine aus `playtest-driver.mjs`, dieselben wie hinter den MCP-Werkzeugen), `S` (App und Seite), `state` und `relaunch`:
 
 ```js
-const start = await D.startMatch(S, { map: 'sunflower_meadow', mode: 'HUNT', bots: 4 });
-await D.enableAutopilot(S);               // die Bot-KI fliegt das Spielerschiff
-const samples = await D.sample(S, 20000); // Leben, Position, Zustand je Sekunde
-return { start, flown: D.distanceTravelled(samples), shot: await D.shot(S, 'wiese') };
+const start = await D.startMatch(S, { map: 'sunflower_meadow', mode: 'HUNT', bots: 4, paused: true });
+const before = await D.observe(S);
+await D.act(S, { yawAxis: 0.6, shootMG: true }, 500); // eine halbe Sekunde Spielzeit
+await D.enableAutopilot(S);                          // ab jetzt fliegt die Bot-KI
+await D.setPaused(S, false);
+const samples = await D.sample(S, 20000);            // Leben, Position, Zustand je Sekunde
+return { start, before, flown: D.distanceTravelled(samples), events: await D.readEvents(S), shot: await D.shot(S, 'wiese') };
 ```
 
-Der Dienst hält das Playwright-Schloss bis zum Beenden und nimmt nur Anfragen mit dem Schlüssel aus `daemon.json` an. Schritte, Fotos und Profile liegen außerhalb des Repos im Ausgabeordner (`%TEMP%curvios-playtest-<Datum>`). Was du dabei nicht echt gespielt, sondern direkt über eine Spielfunktion ausgelöst hast, nennst du im Beleg ausdrücklich so.
+Ein Schritt, der länger als 5 Minuten läuft, wird durch einen Neustart der App beendet (`CURVIOS_PLAYTEST_STEP_TIMEOUT_MS`), eine abgestürzte App vor dem nächsten Schritt neu gestartet.
+
+Beide Wege halten das Playwright-Schloss, solange die App offen ist. Fotos und Profile liegen außerhalb des Repos im Ausgabeordner (`%TEMP%\curvios-playtest-<Datum>`). `seed` macht Läufe ähnlicher, aber nicht deterministisch. `give_item`, `teleport`, `hold_aim` und `eval` sind Abkürzungen über Spielfunktionen: Was du so ausgelöst statt echt gespielt hast, nennst du im Beleg ausdrücklich so. Der Contract-Test `tests/playtest-support.contract.test.mjs` meldet, wenn eine Spielinterna umbenannt wurde, auf die der Treiber zugreift.
 
 ## Weg C — Browser-Vorschau
 

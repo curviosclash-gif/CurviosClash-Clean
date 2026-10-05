@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "curvios-playtest": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "scripts/playtest/playtest-mcp.mjs"
+      ]
+    }
+  }
+}
