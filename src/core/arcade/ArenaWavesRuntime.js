@@ -13,7 +13,6 @@ import {
     resolveArenaWavesMapMultipliers,
     resolveArenaWavesProfile,
 } from '../../shared/contracts/ArenaWavesContract.js';
-import { applyArcadeBotAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 import { clampArcadeVehicleSpeedMultiplier } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { settleArcadeRunRanking } from '../../state/arcade/ArcadeRunRanking.js';
@@ -162,8 +161,8 @@ export class ArenaWavesRuntime {
             // MG and projectile resolvers already consume this field for bot damage.
             player.endlessDamageMultiplier = profile.damage * map.damage;
             player.arenaWavesDamageMultiplier = profile.damage * map.damage;
-            if (!ai?._arenaWavesBaseProfile) ai._arenaWavesBaseProfile = Object.freeze({ ...(ai?.profile || {}) });
-            ai?.setProfile?.(applyArcadeBotAggressiveness(ai._arenaWavesBaseProfile, aggression));
+            // Every policy chain forwards this to its rule-based core, which rebuilds the profile from the difficulty.
+            ai?.setArcadeBotAggressiveness?.(aggression);
             this._activeSlots.add(slot); this._waveSlots.add(slot); this._slotWave.set(slot, this._pendingWave);
             this._spawnOrder.push(slot); status.alive += 1;
             if (player.arenaWavesElite) this._eliteSlots.add(slot);

@@ -7,7 +7,7 @@ import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeS
 
 function fixture() {
     const human = { index: 0, isBot: false, alive: true, maxHp: 100, hp: 40, baseSpeed: 10, speed: 10, fightLoadout: {}, position: { x: 2, y: 3, z: 4 } };
-    const bots = Array.from({ length: ARENA_WAVES_BOT_CAPACITY }, (_, slot) => ({ player: { index: slot + 1, isBot: true, alive: false, maxHp: 100, hp: 100, endlessDamageMultiplier: 1 }, ai: { setProfile() {}, reset() {} }, slot }));
+    const bots = Array.from({ length: ARENA_WAVES_BOT_CAPACITY }, (_, slot) => ({ player: { index: slot + 1, isBot: true, alive: false, maxHp: 100, hp: 100, endlessDamageMultiplier: 1 }, ai: { setArcadeBotAggressiveness() {}, reset() {} }, slot }));
     const active = new Set(); const supplies = []; const strategyEffects = [];
     const manager = {
         humanPlayers: [human], players: [human, ...bots.map((entry) => entry.player)], bots,
