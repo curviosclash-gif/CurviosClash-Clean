@@ -78,6 +78,7 @@ export class MenuPresetStore extends PersistentStore {
             () => this.readJsonRecord(null),
             {
                 artifactType: 'menu-preset-store',
+                onReject: (record) => this.preserveRejectedRecord(record),
                 schemaVersion: MENU_PRESET_STORAGE_SCHEMA_VERSION,
                 createDefault: () => [],
                 transform: (parsed, versionState) => {

@@ -202,6 +202,7 @@ export class MenuDraftStore extends PersistentStore {
             () => this.readJsonRecord(null),
             {
                 artifactType: 'menu-draft-store',
+                onReject: (record) => this.preserveRejectedRecord(record),
                 schemaVersion: MENU_DRAFT_STORAGE_SCHEMA_VERSION,
                 createDefault: () => ({ schemaVersion: MENU_DRAFT_STORAGE_SCHEMA_VERSION, drafts: {} }),
                 transform: (parsed, versionState) => {
