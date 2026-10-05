@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 
+import { CONFIG_BASE } from '../src/core/Config.js';
 import { DANDELION_SKY_MAP } from '../src/core/config/maps/presets/dandelion_sky.js';
 import {
     DANDELION_SKY_ROOT_CHAMBER_MODELS,
@@ -185,6 +186,61 @@ test('root chamber guards stay hidden and untargetable until the room opens', ()
     assert.equal(system.getDestructibleTargets().length, 3);
     assert.ok(system.createNetworkSnapshot().every((entry) => entry.secretRoomId === ROOM.id));
     system.dispose();
+});
+
+test('the last released seed opens the room and its guards together, then ejects a visitor at the authored point', () => {
+    const progress = { total: 220, released: 219, remaining: 1, allReleased: false, completedAtSeconds: 0 };
+    const portal = {
+        secret: true, roomId: ROOM.id, active: false,
+        meshA: { visible: false }, meshB: { visible: false }, cooldowns: new Map(),
+    };
+    const visitor = {
+        index: 0, alive: true, position: new THREE.Vector3(0, 100, 0),
+        quaternion: new THREE.Quaternion(),
+    };
+    const roots = [];
+    const manager = {
+        renderer: { addToScene(root) { roots.push(root); }, removeFromScene() {} },
+        arena: {
+            currentMapDefinition: MAP,
+            portals: [portal],
+            glbAnimationElapsedSeconds: 40,
+            getDandelionSeedProgress: () => progress,
+            checkCollisionFast: () => false,
+        },
+        players: [visitor],
+        humanPlayers: [visitor],
+        gameModeStrategy: { modeType: 'HUNT', getPickupModeType: () => 'HUNT' },
+    };
+    manager._secretRoomSystem = new SecretRoomSystem(manager);
+    manager._staticTurretSystem = new StaticTurretSystem(manager);
+    const rooms = manager._secretRoomSystem;
+    const turrets = manager._staticTurretSystem;
+    rooms.startRound();
+    assert.equal(turrets.startRound(), 3);
+    const visibleGuards = () => roots.filter((root) => root.visible).length;
+
+    rooms.update(0);
+    turrets.update(0);
+    assert.equal(portal.active, false, 'one seed short keeps the chamber shut');
+    assert.equal(visibleGuards(), 0);
+
+    Object.assign(progress, { released: 220, remaining: 0, allReleased: true, completedAtSeconds: 41 });
+    manager.arena.glbAnimationElapsedSeconds = 41.1;
+    rooms.update(0);
+    turrets.update(0);
+    assert.equal(portal.active, true);
+    assert.equal(visibleGuards(), 3);
+
+    visitor.position.set(0, (ROOM.bounds.min[1] + ROOM.bounds.max[1]) / 2, 0);
+    rooms.update(0);
+    const entered = { ...rooms.getHudStateForPlayer(visitor.index) };
+    assert.equal(entered.inside, true);
+    assert.equal(entered.roomId, ROOM.id);
+    rooms.update(ROOM.stayLimitSeconds);
+    const mapScale = CONFIG_BASE.ARENA.MAP_SCALE;
+    assert.deepEqual(visitor.position.toArray(), ROOM.ejectPoint.pos.map((value) => value * mapScale));
+    turrets.dispose();
 });
 
 test('new routes, pickups and the crown portal are clear of hard flower geometry', async () => {

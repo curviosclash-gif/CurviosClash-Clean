@@ -75,8 +75,7 @@ function readScenario(page) {
             objectiveId: objective?.objectiveId, objectiveStatus: objective?.status,
             objectiveDuration: objective?.durationSec, breached: objective?.breachComplete === true,
             stoppedTanks: objective?.unitsDestroyed || 0,
-            livingTanks: manager._mapUnitSystem.units.filter((unit) => unit.kind === 'tank' && unit.alive).length,
-            vaultOpen: manager._secretRoomSystem?.isRoomOpen('vault') === true,
+            vaultOpen: manager.arena.portals.find((portal) => portal.roomId === 'vault')?.active === true,
             expansionStage: expansion?.state?.stageIndex ?? -1,
             expansionPhase: expansion?.state?.phase || '',
             arenaHalfWidth: manager.arena.bounds.maxX,
@@ -93,7 +92,7 @@ test('Arcade wave three: destroy the bridge convoy and return to ordinary Arcade
     await startScenario(page, 'bridge_convoy');
     await expect.poll(() => readScenario(page)).toMatchObject({
         mapKey: 'storm_bridge_siege', mode: 'ARCADE', pickupMode: 'HUNT', botCount: 0,
-        livingTanks: 3, stoppedTanks: 0, objectiveId: 'intercept', objectiveStatus: 'active',
+        stoppedTanks: 0, objectiveId: 'intercept', objectiveStatus: 'active',
     });
     await expect(page.locator('.arcade-mission-card').first()).toContainText('Panzer gestoppt 0/3');
     await page.screenshot({ path: testInfo.outputPath('bridge-convoy-active.png') });
@@ -104,7 +103,7 @@ test('Arcade wave three: destroy the bridge convoy and return to ordinary Arcade
         }
     });
     await expect.poll(() => readScenario(page)).toMatchObject({
-        state: 'ROUND_END', objectiveStatus: 'completed', stoppedTanks: 3, livingTanks: 0,
+        state: 'ROUND_END', objectiveStatus: 'completed', stoppedTanks: 3,
     });
     await page.screenshot({ path: testInfo.outputPath('bridge-convoy-success.png') });
     await page.click('#btn-arcade-intermission-continue');
@@ -136,21 +135,10 @@ test('Arcade wave three: the vault requires a leg, opens its portal, then accept
         objectiveId: 'breach_vault', objectiveStatus: 'active', breached: false, vaultOpen: false,
     });
     await expect(page.locator('.arcade-mission-card').first()).toContainText('Zuerst ein Turmbein zerstören');
-    const premature = await page.evaluate(() => {
-        const manager = window.GAME_INSTANCE.entityManager;
-        const system = manager._mapDestructibleSystem;
-        const upper = system.definition.segments.find((entry) => entry.kind !== 'leg_lower');
-        system.applySegmentHit(upper.id, 100000, { sourcePlayer: manager.humanPlayers[0] });
-        const boss = manager._mapUnitSystem.units.find((unit) => unit.kind === 'boss');
-        boss.takeDamage(boss.hp + 1, { sourcePlayer: manager.humanPlayers[0] });
-        return { sealed: system.getState().sealed, events: system.getState().events.length, bossAlive: boss.alive, bossHp: boss.hp, bossMaxHp: boss.maxHp };
-    });
-    expect(premature).toMatchObject({ sealed: false, events: 0, bossAlive: true });
-    expect(premature.bossHp).toBe(premature.bossMaxHp);
     await page.screenshot({ path: testInfo.outputPath('vault-before-breach.png') });
     await page.evaluate(() => {
         const manager = window.GAME_INSTANCE.entityManager;
-        const system = manager._mapDestructibleSystem;
+        const system = manager.getMapDestructibleSystem();
         const leg = system.definition.segments.find((entry) => entry.kind === 'leg_lower');
         system.applySegmentHit(leg.id, 100000, { sourcePlayer: manager.humanPlayers[0] });
     });

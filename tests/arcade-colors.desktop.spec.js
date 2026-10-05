@@ -63,11 +63,8 @@ test('T-ARC-C2: global colors stay separate for parts, trails and weapon familie
         const game = window.GAME_INSTANCE;
         const human = game.entityManager?.humanPlayers?.[0] || game.runtimeFacade.entityManager?.humanPlayers?.[0];
         const profile = game.settingsManager.getPlayerRecordStorePort().loadJsonRecord('cuviosclash.arcade-vehicle-profile.v2', {}).ship5;
-        const runtime = game.runtimeFacade._arcadeSupport.arcadeRunRuntime;
         return { cosmetics: human.arcadeCosmeticLoadout, profile, vehicleId: human.vehicleId,
-            colors: game.settingsManager.getPlayerRecordStorePort().loadJsonRecord('cuviosclash.arcade-colors.v1', null),
-            boundProfile: runtime._playerProfilesByIndex?.[0]?.ship5,
-            boundColors: runtime._playerStoresByIndex?.[0]?.loadJsonRecord('cuviosclash.arcade-colors.v1', null) };
+            colors: game.settingsManager.getPlayerRecordStorePort().loadJsonRecord('cuviosclash.arcade-colors.v1', null) };
     });
     expect(actual.cosmetics.trailStyleId, JSON.stringify(actual)).toBe('frost');
     expect(actual.cosmetics.weaponStyleIds.mg).toBe('standard');

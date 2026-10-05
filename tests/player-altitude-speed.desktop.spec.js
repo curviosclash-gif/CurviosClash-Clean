@@ -11,7 +11,7 @@ test('altitude speed changes dive and climb travel while preserving horizontal s
         const neutral = {};
 
         const fly = (direction, frames = 180) => {
-            player.spawn(player.position, player._tmpDir.set(...direction));
+            player.spawn(player.position, new player.position.constructor(...direction));
             player.waterSubmerged = false;
             player.waterSpeedMultiplier = 1;
             player.position.set(0, 0, 0);
@@ -25,7 +25,7 @@ test('altitude speed changes dive and climb travel while preserving horizontal s
         };
 
         const turnAngle = (direction) => {
-            player.spawn(player.position, player._tmpDir.set(...direction));
+            player.spawn(player.position, new player.position.constructor(...direction));
             player.waterSubmerged = false;
             player.waterSpeedMultiplier = 1;
             const startingRotation = player.quaternion.clone();
@@ -40,7 +40,7 @@ test('altitude speed changes dive and climb travel while preserving horizontal s
         const diveTurnAngle = turnAngle([0, -1, 0]);
 
         player.altitudeSpeedFactor = 1.08;
-        player.spawn(player.position, player._tmpDir.set(0, 0, -1));
+        player.spawn(player.position, new player.position.constructor(0, 0, -1));
 
         return {
             horizontal,
