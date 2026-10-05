@@ -3,6 +3,7 @@ import { normalizeVehiclePartStyle } from '../../shared/contracts/VehiclePartSty
 import { resolveHangarPartSource } from './HangarPartSource.js';
 import { ARCADE_COLOR_IDS, ARCADE_COLOR_PALETTE, ARCADE_COLOR_REQUIREMENTS, listUnlockedArcadeColors, filterArcadePartColors } from '../../shared/contracts/ArcadeColorProgressContract.js';
 import { ARCADE_TRAIL_STYLE_LABELS } from '../../shared/contracts/ArcadeVehicleCosmeticContract.js';
+import { armConfirmButton } from '../ConfirmButtonArming.js';
 
 const ROLE_LABELS = Object.freeze({
     core: 'Rumpf', nose: 'Nase', wing_left: 'Flügel L', wing_right: 'Flügel R',
@@ -118,7 +119,8 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart, 
         delete next[selected];
         emit(next);
     });
-    bind(resetAll, 'click', () => emit({}));
+    // Wipes every part colour at once: same two-step button as the other destructive actions.
+    const resetAllConfirmation = armConfirmButton(resetAll, { label: 'Alles zurücksetzen', onConfirm: () => emit({}) });
 
     return Object.freeze({
         root,
@@ -127,6 +129,7 @@ export function createHangarPartStylePanel({ bind, onStyleChange, onSelectPart, 
             const nextVehicleId = String(next.vehicleId || '');
             if (nextVehicleId !== vehicleId) {
                 vehicleId = nextVehicleId;
+                resetAllConfirmation.disarm();
                 factory = resolveHangarPartSource(vehicleId);
                 selected = factory?.parts?.[0]?.name || '';
                 empty.classList.toggle('hidden', !!factory);
