@@ -31,7 +31,12 @@ test('Wave 7: getrennte Fahrzeugprofile und Kosmetik sind im Desktop-Hangar sich
             createdAt: now,
             updatedAt: now,
         };
-        return store.saveJsonRecord(storageKey, {
+        // Farben sind seit e7dd330d über den Freischalt-Record gesperrt; ohne ihn fällt "prism" auf "standard".
+        const colorsSaved = store.saveJsonRecord('cuviosclash.arcade-colors.v1', {
+            schemaVersion: 'arcade-colors.v1',
+            unlockedColorIds: ['standard', 'frost', 'ember', 'ion', 'solar', 'violet', 'prism'],
+        })?.success === true;
+        return colorsSaved && store.saveJsonRecord(storageKey, {
             ship1: {
                 ...common,
                 vehicleId: 'ship1', xp: 20000, xpBank: 4321, totalXpEarned: 20000, level: 30,
