@@ -29,7 +29,10 @@ export class ModularVehicleMesh extends THREE.Group {
 
         this.materials.set('primary', new THREE.MeshStandardMaterial({ color: config.primaryColor ?? 0x60a5fa, roughness: 0.3, metalness: 0.6 }));
         this.materials.set('secondary', new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7, metalness: 0.2 }));
-        this.materials.set('glass', new THREE.MeshPhysicalMaterial({ color: 0x1e293b, transmission: 0.5, opacity: 0.7, roughness: 0.2, metalness: 0.1, clearcoat: 1.0 }));
+        // Alpha glass instead of transmission, like the aircraft canopy: three keeps one offscreen
+        // render target per camera for a transmissive material and renders the opaque scene into it
+        // a second time. Matches build new cameras, so that target leaked one texture per match.
+        this.materials.set('glass', new THREE.MeshPhysicalMaterial({ color: 0x1e293b, transparent: true, opacity: 0.62, envMapIntensity: 1.5, roughness: 0.18, metalness: 0.1, clearcoat: 1.0 }));
         this.materials.set('glow', new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 }));
     }
 
