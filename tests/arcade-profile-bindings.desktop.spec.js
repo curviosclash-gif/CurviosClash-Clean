@@ -6,6 +6,7 @@ import {
     ARCADE_STONE_WORKSHOP_STORAGE_KEY,
 } from '../src/shared/contracts/ArcadeStoneWorkshopContract.js';
 import { applyArcadeStonePlacement, resolveArcadeStoneExtraSteps } from '../src/shared/contracts/ArcadeStonePlacementContract.js';
+import { ARCADE_COLORS_STORAGE_KEY } from '../src/shared/contracts/ArcadeColorProgressContract.js';
 import { arcadeVehicleXpForLevel, createArcadeVehicleProfileRecord, ARCADE_VEHICLE_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 import {
     evaluateArcadeSizeResize,
@@ -157,7 +158,7 @@ async function seedProfileBuilds(page, profileIds, vehicleId) {
             .toBe(index + 1);
         return { profile, pool: seededPool, hullSteps };
     });
-    const seeded = await page.evaluate(({ ids, seeds, profileKey, poolKey, vehicle }) => {
+    const seeded = await page.evaluate(({ ids, seeds, profileKey, poolKey, colorsKey, trails, vehicle }) => {
         const manager = window.GAME_INSTANCE?.playerProfileManager;
         if (!manager?.getRecordStorePort) return false;
         return ids.every((id, index) => {
@@ -167,13 +168,20 @@ async function seedProfileBuilds(page, profileIds, vehicleId) {
             const current = store.loadJsonRecord(profileKey, {});
             const savedProfile = store.saveJsonRecord(profileKey, { ...current, [vehicle]: profile });
             const savedPool = store.saveJsonRecord(poolKey, pool);
-            return savedProfile?.success === true && savedPool?.success === true;
+            // Trail colors sit behind an unlock record; without it the loadout falls back to "standard".
+            const savedColors = store.saveJsonRecord(colorsKey, {
+                schemaVersion: 'arcade-colors.v1',
+                unlockedColorIds: ['standard', trails[index]],
+            });
+            return savedProfile?.success === true && savedPool?.success === true && savedColors?.success === true;
         });
     }, {
         ids: profileIds,
         seeds,
         profileKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
         poolKey: ARCADE_STONE_WORKSHOP_STORAGE_KEY,
+        colorsKey: ARCADE_COLORS_STORAGE_KEY,
+        trails: TRAIL_STYLES,
         vehicle: vehicleId,
     });
     expect(seeded).toBe(true);
