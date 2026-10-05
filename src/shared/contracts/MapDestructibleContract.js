@@ -140,6 +140,8 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * @property {readonly string[]} pieces Every tower piece; each exists exactly once in the world.
  * @property {readonly Readonly<MapDestructibleBreakScene>[]} breakScenes
  * @property {readonly string[]} gameModes Modes this map is destructible in; empty means every one.
+ * @property {string} hudNoun What the HUD calls the whole structure ("Turm", "Kraftwerk"); empty
+ * when the preset names nothing, so the HUD picks a neutral word instead of another map's landmark.
  */
 
 /**
@@ -204,6 +206,7 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * @typedef {object} MapDestructibleHudState
  * @property {boolean} active Whether the HUD has anything to say about the tower right now.
  * @property {boolean} sealed
+ * @property {string} hudNoun What the map calls the structure; empty when the preset names nothing.
  * @property {MapDestructibleHudSegment | null} focusSegment Standing segment under fire, or the
  * last segment that broke while its announcement is active.
  * @property {number} breakingSecondsRemaining Rest of the announcement of the last break.
@@ -448,11 +451,8 @@ export function normalizeMapDestructibles(source) {
     }
     if (segments.length === 0) return null;
 
-    const pieces = readIdList(
-        isRecord(source) ? source.pieces : null,
-        MAP_DESTRUCTIBLE_LIMITS.maxPieces,
-        MAP_DESTRUCTIBLE_LIMITS.idMaxLength,
-    );
+    const pieces = readIdList(isRecord(source) ? source.pieces : null,
+        MAP_DESTRUCTIBLE_LIMITS.maxPieces, MAP_DESTRUCTIBLE_LIMITS.idMaxLength);
     const sceneEntries = isRecord(source) && Array.isArray(source.breakScenes) ? source.breakScenes : [];
     /** @type {Readonly<MapDestructibleBreakScene>[]} */
     const breakScenes = [];
@@ -471,6 +471,7 @@ export function normalizeMapDestructibles(source) {
         pieces: Object.freeze(pieces),
         breakScenes: Object.freeze(breakScenes),
         gameModes: Object.freeze(readGameModes(isRecord(source) ? source.gameModes : null)),
+        hudNoun: readText(isRecord(source) ? source.hudNoun : null, '', MAP_DESTRUCTIBLE_LIMITS.labelMaxLength),
     });
 }
 
@@ -932,7 +933,7 @@ function resolveBreakingSecondsRemaining(state, elapsedSeconds) {
  * one would send a player shooting at geometry that is lying on the esplanade. Pure and
  * deterministic: the same state and the same map time always give the same HUD.
  * @param {MapDestructibleState | null | undefined} state
- * @param {{ segments?: readonly Readonly<MapDestructibleSegment>[] } | null | undefined} definition
+ * @param {{ segments?: readonly Readonly<MapDestructibleSegment>[], hudNoun?: string } | null | undefined} definition
  * @param {unknown} [elapsedSeconds] Match time the map clock stands at.
  * @returns {MapDestructibleHudState}
  */
@@ -972,6 +973,7 @@ export function resolveMapDestructibleHudState(state, definition, elapsedSeconds
     return {
         active: focusSegment !== null || breakingSecondsRemaining > 0,
         sealed,
+        hudNoun: typeof definition?.hudNoun === 'string' ? definition.hudNoun : '',
         focusSegment,
         breakingSecondsRemaining,
         segments,

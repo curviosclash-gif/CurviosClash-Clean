@@ -72,7 +72,9 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
     for (let index = 0; index < configuredHumanCount; index += 1) {
         const slot = `PLAYER_${index + 1}`;
         configs.push(withName(index, {
-            invertPitch: !!settings?.invertPitch?.[slot],
+            // A network match inverts the pitch in the local input source instead
+            // (NetworkMatchInputSources), so the guest and the host read the same input.
+            invertPitch: session?.networkEnabled !== true && !!settings?.invertPitch?.[slot],
             smoothSteering: isLocalSlot(index) && smoothSteering,
             cockpitCamera: true,
             vehicleId: runtimeVehicles?.[slot] || settings?.vehicles?.[slot] || fallbackVehicleId,

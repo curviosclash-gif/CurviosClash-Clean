@@ -9,11 +9,13 @@
  */
 
 /**
- * A fresh break names the segment that caused it. The rest of the time the line shows how much
- * is left of the segment currently under fire.
+ * A fresh break names the segment that caused it, or - when no segment is known - the structure
+ * the map calls itself by. The rest of the time the line shows how much is left of the segment
+ * currently under fire.
  * @param {{
  *   active?: boolean,
  *   sealed?: boolean,
+ *   hudNoun?: string,
  *   focusSegment?: MapDestructibleStatusSegment | null,
  *   breakingSecondsRemaining?: number,
  * } | null | undefined} state
@@ -25,7 +27,10 @@ export function formatMapDestructibleStatus(state) {
     const label = typeof focus?.label === 'string' ? focus.label.trim() : '';
     const name = label || (typeof focus?.id === 'string' ? focus.id.trim() : '') || 'SEGMENT';
     if (Number(state.breakingSecondsRemaining) > 0) {
-        if (!focus) return state.sealed === true ? 'TURM STÜRZT' : 'TURM BRICHT';
+        if (!focus) {
+            const noun = (typeof state.hudNoun === 'string' ? state.hudNoun.trim() : '') || 'BAUWERK';
+            return `${noun.toUpperCase()} ${state.sealed === true ? 'STÜRZT' : 'BRICHT'}`;
+        }
         return `${name.toUpperCase()} ${state.sealed === true ? 'ZERSTÖRT' : 'BRICHT'}`;
     }
 

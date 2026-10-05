@@ -1,7 +1,7 @@
 // ============================================
 
 import { createHuntNetworkState } from '../hunt/HuntNetworkState.js';
-import { createRoundOutcomeNetworkState } from '../entities/systems/RoundOutcomeNetworkState.js';
+import { createRoundOutcomeNetworkState, createRoundSerialNetworkState } from '../entities/systems/RoundOutcomeNetworkState.js';
 import { isRocketTierType } from '../hunt/RocketPickupSystem.js';
 import { ROCKET_THREAT_SOURCES, resolveRocketThreatSource } from '../entities/systems/projectile/RocketThreatTracker.js';
 import { normalizeTeamId } from '../shared/contracts/TeamCombatContract.js';
@@ -94,6 +94,9 @@ export function createGameStateSnapshot(entityManager, roundState) {
         fight: createHuntNetworkState(entityManager),
         // Host round result for every mode; null while the round runs (see RoundOutcomeNetworkState).
         roundOutcome: createRoundOutcomeNetworkState(entityManager),
+        // Host round serial in every snapshot: a client on its result board starts the next
+        // round once this passes the round it shows (the host's round start signal).
+        roundSerial: createRoundSerialNetworkState(entityManager),
         roundState: roundState ? {
             round: roundState.round ?? 0,
             timeRemaining: roundState.timeRemaining ?? 0,

@@ -109,6 +109,8 @@ export async function initEditor() {
         const templateImportCapability = resolveEditorTemplateImportCapability();
 
         ui.setMapManager(mapManager);
+        // Checkpoint rings are drawn in the scale the export will convert this arena with.
+        mapManager.setArenaSizeProvider(() => ui.getArenaSizeForExport());
         mapManager.setCallbacks({
             onTunnelVisualsChanged: () => ui.updateTunnelVisuals(),
             onHudCountChanged: () => ui.updateHudCount(),

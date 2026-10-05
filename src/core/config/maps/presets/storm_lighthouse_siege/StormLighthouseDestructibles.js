@@ -1,5 +1,6 @@
 export const STORM_LIGHTHOUSE_DESTRUCTIBLES = Object.freeze({
     gameModes: Object.freeze(['HUNT']),
+    hudNoun: 'Leuchtturm',
     segments: Object.freeze([Object.freeze({
         id: 'lighthouse_tower',
         label: 'Leuchtturm',

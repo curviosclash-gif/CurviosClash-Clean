@@ -97,3 +97,46 @@ test('the assault scenario does not replace a dedicated weapon race start', () =
     assert.equal(facade.synced.length, 0);
     handler.dispose();
 });
+
+// Aetherion carries a Hunt scenario next to a time-trial route that only runs in Arcade.
+// Turning an Arcade pick into the Hunt scenario left the route reachable from no menu at all.
+test('an arcade pick keeps arcade when the scenario would hide the map route', () => {
+    const facade = createFacade('aetherion_orrery');
+    Object.assign(facade.game.settings, { gameMode: 'ARCADE', numBots: 0 });
+    facade.game.settings.localSettings.modePath = 'arcade';
+    const handler = new GameRuntimeSettingsHandler({ facade });
+
+    const result = handler.applyMapScenarioStartDefaults();
+
+    assert.equal(facade.game.settings.localSettings.modePath, 'arcade', 'the arcade pick stays an arcade run');
+    assert.equal(facade.game.settings.gameMode, 'ARCADE', 'the route runs only in arcade on this map');
+    assert.equal(facade.game.settings.numBots, 0);
+    assert.equal(result?.changed, false);
+    handler.dispose();
+});
+
+test('the fight pick on the route map still starts its hunt scenario', () => {
+    const facade = createFacade('aetherion_orrery');
+    const handler = new GameRuntimeSettingsHandler({ facade });
+
+    handler.applyMapScenarioStartDefaults();
+
+    assert.equal(facade.game.settings.gameMode, 'HUNT');
+    assert.equal(facade.game.settings.numBots, 5);
+    handler.dispose();
+});
+
+test('an arcade pick of the assault course still starts its fight scenario', () => {
+    // Its route is authored for Hunt too, so the scenario hides nothing there.
+    const facade = createFacade('parcours_assault');
+    Object.assign(facade.game.settings, { gameMode: 'ARCADE', numBots: 0 });
+    facade.game.settings.localSettings.modePath = 'arcade';
+    const handler = new GameRuntimeSettingsHandler({ facade });
+
+    handler.applyMapScenarioStartDefaults();
+
+    assert.equal(facade.game.settings.localSettings.modePath, 'fight');
+    assert.equal(facade.game.settings.gameMode, 'HUNT');
+    assert.equal(facade.game.settings.numBots, 4);
+    handler.dispose();
+});

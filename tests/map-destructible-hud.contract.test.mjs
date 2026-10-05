@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { EIFFEL_TOWER_SIEGE_DESTRUCTIBLES } from '../src/core/config/maps/presets/eiffel_tower_siege/EiffelTowerSiegeDestructibles.js';
+import { REACTOR_SITE_DESTRUCTIBLES } from '../src/core/config/maps/presets/reactor_site/ReactorSiteDestructibles.js';
+import { SKYLINE_SIEGE_DESTRUCTIBLES } from '../src/core/config/maps/presets/skyline_siege/Map.js';
+import { STORM_BRIDGE_DESTRUCTIBLES } from '../src/core/config/maps/presets/storm_bridge_siege/StormBridgeDestructibles.js';
+import { STORM_DAM_DESTRUCTIBLES } from '../src/core/config/maps/presets/storm_dam_siege/StormDamDestructibles.js';
+import { STORM_LIGHTHOUSE_DESTRUCTIBLES } from '../src/core/config/maps/presets/storm_lighthouse_siege/StormLighthouseDestructibles.js';
 import { MapDestructibleSystem } from '../src/entities/systems/MapDestructibleSystem.js';
 import {
     applyMapDestructibleDamage,
@@ -32,7 +38,16 @@ const DESTRUCTIBLES_WITH_SCENES = {
     ],
 };
 
-const INACTIVE = { active: false, sealed: false, focusSegment: null, breakingSecondsRemaining: 0 };
+const DESTRUCTIBLE_PRESETS = Object.freeze({
+    eiffel_tower_siege: EIFFEL_TOWER_SIEGE_DESTRUCTIBLES,
+    reactor_site: REACTOR_SITE_DESTRUCTIBLES,
+    skyline_siege: SKYLINE_SIEGE_DESTRUCTIBLES,
+    storm_bridge_siege: STORM_BRIDGE_DESTRUCTIBLES,
+    storm_dam_siege: STORM_DAM_DESTRUCTIBLES,
+    storm_lighthouse_siege: STORM_LIGHTHOUSE_DESTRUCTIBLES,
+});
+
+const INACTIVE = { active: false, sealed: false, hudNoun: '', focusSegment: null, breakingSecondsRemaining: 0 };
 
 // ---------------------------------------------------------------------------
 // Wording
@@ -44,12 +59,12 @@ test('the status line reports a break first and the segment under fire afterward
     assert.equal(formatMapDestructibleStatus({ active: true }), '');
 
     assert.equal(
-        formatMapDestructibleStatus({ active: true, breakingSecondsRemaining: 3 }),
+        formatMapDestructibleStatus({ active: true, breakingSecondsRemaining: 3, hudNoun: 'Turm' }),
         'TURM BRICHT',
     );
     // A lower leg takes the whole tower with it, which the wording says out loud.
     assert.equal(
-        formatMapDestructibleStatus({ active: true, sealed: true, breakingSecondsRemaining: 0.2 }),
+        formatMapDestructibleStatus({ active: true, sealed: true, breakingSecondsRemaining: 0.2, hudNoun: 'Turm' }),
         'TURM STÜRZT',
     );
     assert.equal(
@@ -79,6 +94,43 @@ test('the status line reports a break first and the segment under fire afterward
         formatMapDestructibleStatus({ active: true, focusSegment: { ratio: 'viel' } }),
         'STRUKTUR · SEGMENT 0 %',
     );
+});
+
+test('a break without a named segment speaks of the map\'s own structure, not of a tower', () => {
+    // The fallback line used to say "TURM" on every map, so the reactor site announced a tower
+    // that does not exist there. The noun comes from the preset and travels through the HUD state
+    // and the per-player projection to the line.
+    const reactor = normalizeMapDestructibles(REACTOR_SITE_DESTRUCTIBLES);
+    const tower = normalizeMapDestructibles(EIFFEL_TOWER_SIEGE_DESTRUCTIBLES);
+    assert.equal(reactor.hudNoun, 'Kraftwerk');
+    assert.equal(tower.hudNoun, 'Turm');
+
+    const reactorHud = resolveMapDestructibleHudState(createMapDestructibleState(reactor), reactor, 0);
+    assert.equal(reactorHud.hudNoun, 'Kraftwerk', 'the HUD state names the structure');
+
+    const projected = createMatchRuntimePlayerProjection({
+        playerIndex: 0,
+        mapDestructible: { ...reactorHud, active: true, breakingSecondsRemaining: 3 },
+    }).mapDestructible;
+    assert.equal(formatMapDestructibleStatus(projected), 'KRAFTWERK BRICHT');
+    assert.equal(
+        formatMapDestructibleStatus({ ...projected, sealed: true }),
+        'KRAFTWERK STÜRZT',
+    );
+    assert.equal(
+        formatMapDestructibleStatus({ active: true, breakingSecondsRemaining: 3, hudNoun: 'Turm' }),
+        'TURM BRICHT',
+    );
+    // A map that names nothing gets a neutral word rather than somebody else's landmark.
+    assert.equal(normalizeMapDestructibles(DESTRUCTIBLES).hudNoun, '');
+    assert.equal(formatMapDestructibleStatus({ active: true, breakingSecondsRemaining: 3 }), 'BAUWERK BRICHT');
+});
+
+test('every destructible preset names its structure for the HUD', () => {
+    for (const [name, source] of Object.entries(DESTRUCTIBLE_PRESETS)) {
+        const definition = normalizeMapDestructibles(source);
+        assert.ok(definition?.hudNoun, `${name} names the structure its HUD line talks about`);
+    }
 });
 
 // ---------------------------------------------------------------------------
@@ -121,7 +173,7 @@ test('the player projection normalizes the tower state and drops it when nothing
     assert.equal(projected.focusSegment.ratio, 1);
     // The per-segment list stays out of the per-frame projection; the HUD only needs the focus.
     assert.deepEqual(Object.keys(projected).sort(), [
-        'active', 'breakingSecondsRemaining', 'focusSegment', 'sealed',
+        'active', 'breakingSecondsRemaining', 'focusSegment', 'hudNoun', 'sealed',
     ]);
 
     const negative = createMatchRuntimePlayerProjection({

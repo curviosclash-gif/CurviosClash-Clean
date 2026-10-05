@@ -393,6 +393,12 @@ export class PlayerView {
         const safeDt = Math.max(0, Math.min(0.05, Number(dt) || 0));
         this._visualTime += safeDt;
 
+        // Vehicle Lab flames are named after their part and keep their own size and colour, so
+        // the mesh scales them itself instead of joining the fixed 'flame' look below.
+        this.vehicleMesh?.setThrusterState?.({
+            boosting: this.player.isBoosting === true,
+            submerged: this.player.waterSubmerged === true,
+        });
         if (safeDt > 0 && this.vehicleMesh && typeof this.vehicleMesh.tick === 'function') {
             this.vehicleMesh.tick(safeDt);
         }

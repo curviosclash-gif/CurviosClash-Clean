@@ -345,6 +345,8 @@ export class MatchFlowUiController {
                     steeringRamp: {
                         enabled: isGuest && game?.settings?.localSettings?.smoothSteering === true,
                     },
+                    // Pitch inversion travels inside the input as well (read live for the pause menu).
+                    resolveInvertPitch: () => game?.settings?.invertPitch?.[`PLAYER_${Math.max(0, localInputIndex) + 1}`] === true,
                 }));
                 continue;
             }

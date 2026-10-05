@@ -125,6 +125,9 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
         await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PAUSED');
         await expect(page.locator('#pause-overlay')).toBeVisible();
         await expect(page.locator('#btn-pause-menu')).toBeVisible();
+        // Leaving ends the match: the first click arms, the second confirms.
+        await page.locator('#btn-pause-menu').click();
+        await expect(page.locator('#btn-pause-menu')).toHaveAttribute('data-confirm-armed', 'true');
         await page.locator('#btn-pause-menu').click();
         await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'MENU');
         await expect(page.locator('#submenu-custom')).toBeVisible();

@@ -565,6 +565,7 @@ test('a map without destructibles keeps the hunt state and every weapon path qui
     assert.deepEqual(system.getHudState(), {
         active: false,
         sealed: false,
+        hudNoun: '',
         focusSegment: null,
         breakingSecondsRemaining: 0,
         segments: [],
