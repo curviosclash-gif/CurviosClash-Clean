@@ -28,6 +28,13 @@ function resolveNetworkPlayerSlots(game) {
     return Array.isArray(slots) ? slots : [];
 }
 
+// -1 means "no round trip measured yet"; clamping it to 0 made the scoreboard show 0ms.
+function normalizePingMs(value) {
+    if (value === null || value === undefined || value === '') return -1;
+    const ping = Number(value);
+    return Number.isFinite(ping) && ping >= 0 ? Math.round(ping) : -1;
+}
+
 function resolveSessionPlayers(facade, game = null) {
     const slots = resolveNetworkPlayerSlots(game);
     if (slots.length > 0) {
@@ -35,7 +42,7 @@ function resolveSessionPlayers(facade, game = null) {
             id: String(slot?.peerId || slot?.playerId || slot?.id || ''),
             peerId: String(slot?.peerId || slot?.playerId || slot?.id || ''),
             index: Number.isInteger(slot?.playerIndex) ? slot.playerIndex : 0,
-            ping: Number(slot?.ping) || -1,
+            ping: normalizePingMs(slot?.ping),
             isLocal: slot?.isLocal === true,
         }));
     }
@@ -62,7 +69,7 @@ function buildSessionPlayersProjection(facade, sessionPlayers = resolveSessionPl
     return sessionPlayers.map((player, index) => createMatchRuntimeSessionPlayerProjection({
         playerIndex: Number.isInteger(player?.index) ? player.index : index,
         playerId: String(player?.id || ''),
-        pingMs: Number.isFinite(Number(player?.ping)) ? Math.max(0, Math.round(Number(player.ping))) : -1,
+        pingMs: normalizePingMs(player?.ping),
         isLocal: player?.isLocal === true || (!!localPlayerId && player?.id === localPlayerId),
     }));
 }
