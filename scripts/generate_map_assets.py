@@ -22,6 +22,7 @@ GENERATORS = {
     'giant_forest': 'generate_giant_forest_assets',
     'hydra_temple': 'generate_hydra_temple_assets',
     'toybox_titan': 'generate_toybox_titan_assets',
+    'cherry_grove': 'generate_cherry_grove_assets',
     'burg_falkenwacht': 'generate_falkenwacht_assets',
     'storm_bridge_siege': 'generate_wave6_landmark_assets',
     'storm_lighthouse_siege': 'generate_wave6_landmark_assets',
@@ -50,6 +51,11 @@ def main():
     module = importlib.import_module(GENERATORS[args.pack])
     if args.pack == 'notre_dame_evolution':
         module.main(args.part, args.output_dir)
+        return
+    if args.pack == 'cherry_grove':
+        if args.part:
+            parser.error('Kirschhain seeded variants and shared trunk collisions require a complete pack export.')
+        module.main(args.output_dir)
         return
     if args.pack == 'skyline_siege':
         if args.output_dir:

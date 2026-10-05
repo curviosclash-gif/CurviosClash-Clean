@@ -44,15 +44,17 @@ test('map asset selection rejects ambiguous and unsafe requests before generatio
     }
     assert.throws(() => resolveMapAssetJobs({ mapKeys: ['chrono_forge_nexus'], part: '../outside' }));
     assert.throws(() => resolveMapAssetJobs({ mapKeys: ['burg_falkenwacht'], part: '01_terrain' }),
-        /placement and collision together/);
+        /collision together; select the whole map/);
+    assert.throws(() => resolveMapAssetJobs({ mapKeys: ['cherry_grove'], part: 'kanzan_02' }),
+        /collision together; select the whole map/);
 });
 
 test('all includes each built-in map and deduplicates shared Blender packs', () => {
     const plan = resolveMapAssetJobs({ all: true });
-    assert.equal(plan.selectedMaps.length, 77);
+    assert.equal(plan.selectedMaps.length, 79);
     assert.equal(plan.selectedMaps.includes('custom'), false);
-    assert.equal(plan.jobs.length, 30);
-    assert.equal(new Set(plan.jobs.map((job) => job.pack)).size, 30);
+    assert.equal(plan.jobs.length, 31);
+    assert.equal(new Set(plan.jobs.map((job) => job.pack)).size, 31);
     for (const job of plan.jobs) assert.equal(job.parts.length, new Set(job.parts).size);
     assert.equal(plan.nativeMaps.includes('maze'), false);
     assert.equal(plan.nativeMaps.includes('standard'), false);
@@ -85,8 +87,8 @@ test('the actual dry-run command needs no Blender executable and writes no asset
         '--blender', 'this-executable-must-not-run'], { encoding: 'utf8', windowsHide: true });
     assert.equal(result.status, 0, result.stderr);
     const plan = JSON.parse(result.stdout);
-    assert.equal(plan.selectedMaps.length, 77);
-    assert.equal(plan.jobs.length, 30);
+    assert.equal(plan.selectedMaps.length, 79);
+    assert.equal(plan.jobs.length, 31);
 });
 
 test('mixed generation resolves converted reference worlds before invoking Blender', () => {
