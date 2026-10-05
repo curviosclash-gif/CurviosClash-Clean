@@ -88,6 +88,7 @@ export const EIFFEL_TOWER_SIEGE_DESTRUCTIBLES = Object.freeze({
     // the very same map is flown as intact iron, which is why the restriction sits on the map data
     // rather than on the map's eligibility for a mode.
     gameModes: Object.freeze(['HUNT']),
+    hudNoun: 'Turm',
     segments: Object.freeze([
         ...LOWER_LEGS,
         ...MID_LEGS,
