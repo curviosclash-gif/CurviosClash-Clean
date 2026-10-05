@@ -3,8 +3,8 @@ import { waitForLoadedGame, openCustomSubmenu } from './helpers.js';
 
 // Seeds whose five-sector plan carries the scenarios under test (see ArcadeScenarioCatalog).
 const WORM_AND_HYDRA_SEED = 8;
-const STORM_FLOOD_SEED = 7;
-const BOMBER_ALARM_SEED = 5;
+const STORM_FLOOD_SEED = 3;
+const BOMBER_ALARM_SEED = 7;
 
 async function startArcadeRun(page, seed) {
     await waitForLoadedGame(page);

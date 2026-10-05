@@ -4,6 +4,8 @@ const OBJECTIVE_TYPES = new Set([
     'clean_sector',
     'hazard_lane',
     'destroy_units',
+    'intercept',
+    'breach_vault',
 ]);
 
 const UNIT_KIND_LABELS = Object.freeze({
@@ -30,6 +32,16 @@ function resolveBountyTarget(participants) {
 
 function withHudProgress(state) {
     const durationSec = Math.max(1, state.durationSec);
+    if (state.objectiveId === 'intercept') {
+        const counter = `Panzer gestoppt ${state.unitsDestroyed}/${state.unitTarget}`;
+        return { ...state, progressFraction: state.completed ? 1 : state.unitsDestroyed / state.unitTarget,
+            progressText: state.failed ? `${counter} · Ein Panzer ist durchgebrochen` : counter };
+    }
+    if (state.objectiveId === 'breach_vault') {
+        return { ...state, progressFraction: state.completed ? 1 : state.breachComplete ? 0.5 : 0,
+            progressText: state.completed ? 'Turmbein zerstört · Tresor-Boss besiegt'
+                : state.breachComplete ? 'Turmbein zerstört · Tresor-Boss besiegen' : 'Zuerst ein Turmbein zerstören' };
+    }
     if (state.objectiveId === 'destroy_units') {
         const counter = `${UNIT_KIND_LABELS[state.unitKind] || 'Einheit'} ${state.unitsDestroyed}/${state.unitTarget}`;
         const remainingSec = Math.ceil(Math.max(0, state.durationSec - state.elapsedSec));
@@ -86,7 +98,8 @@ export function createArcadeObjectiveState(definition = null, options = {}) {
     const objectiveId = String(definition?.id || '').trim().toLowerCase();
     if (!OBJECTIVE_TYPES.has(objectiveId)) return null;
     // destroy_units may run without a clock (a boss fight); every other objective needs one.
-    const timeLimited = objectiveId !== 'destroy_units' || toSafeNumber(definition?.durationSec, 0) > 0;
+    const timeLimited = !['destroy_units', 'intercept', 'breach_vault'].includes(objectiveId)
+        || toSafeNumber(definition?.durationSec, 0) > 0;
     const durationSec = Math.max(1, toSafeNumber(definition?.durationSec, 1));
     const target = objectiveId === 'bounty_hunt' ? resolveBountyTarget(options.participants) : null;
     return withHudProgress({
@@ -95,9 +108,11 @@ export function createArcadeObjectiveState(definition = null, options = {}) {
         label: String(definition?.label || objectiveId.replace(/_/g, ' ')),
         durationSec,
         timeLimited,
-        unitKind: objectiveId === 'destroy_units' ? String(definition?.unitKind || 'creature') : '',
+        unitKind: ['destroy_units', 'intercept', 'breach_vault'].includes(objectiveId)
+            ? String(definition?.unitKind || 'creature') : '',
         unitTarget: Math.max(1, Math.trunc(toSafeNumber(definition?.count, 1))),
         unitsDestroyed: 0,
+        breachComplete: false,
         scoreWeight: Math.max(1, toSafeNumber(definition?.scoreWeight, 1)),
         elapsedSec: 0,
         safeElapsedSec: 0,
@@ -139,6 +154,24 @@ export function updateArcadeObjectiveState(objectiveState = null, event = null) 
             return { ...failObjective(next), shouldEnd: true };
         }
     }
+    if (next.objectiveId === 'intercept') {
+        if (event.type === 'unit_goal_reached' && event.unitKind === next.unitKind) {
+            return { ...failObjective(next), shouldEnd: true };
+        }
+        if (event.type === 'unit_destroyed' && event.unitKind === next.unitKind) {
+            next.unitsDestroyed = Math.min(next.unitTarget, next.unitsDestroyed + Math.max(1, Math.trunc(toSafeNumber(event.count, 1))));
+            if (next.unitsDestroyed >= next.unitTarget) return completeObjective(next, true);
+        }
+    }
+    if (next.objectiveId === 'breach_vault') {
+        if (event.type === 'structure_destroyed' && event.segmentKind === 'leg_lower') {
+            next.breachComplete = true;
+        }
+        if (next.breachComplete && event.type === 'unit_destroyed' && event.unitKind === next.unitKind) {
+            next.unitsDestroyed = Math.min(next.unitTarget, next.unitsDestroyed + Math.max(1, Math.trunc(toSafeNumber(event.count, 1))));
+            if (next.unitsDestroyed >= next.unitTarget) return completeObjective(next, true);
+        }
+    }
     if (next.objectiveId === 'bounty_hunt') {
         if (event.type === 'kill' && Number(event.victimIndex) === next.targetPlayerIndex) {
             return completeObjective(next, true);
@@ -170,5 +203,5 @@ export function updateArcadeObjectiveState(objectiveState = null, event = null) 
  */
 export function doesArcadeObjectiveHoldRound(objectiveState = null) {
     return objectiveState?.status === 'active'
-        && (objectiveState.objectiveId === 'destroy_units' || objectiveState.objectiveId === 'survive_window');
+        && ['destroy_units', 'survive_window', 'intercept', 'breach_vault'].includes(objectiveState.objectiveId);
 }

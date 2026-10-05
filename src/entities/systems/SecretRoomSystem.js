@@ -184,7 +184,10 @@ export class SecretRoomSystem {
             if (entry.open) continue;
             const state = this._resolveUnlockState(entry.room);
             if (!captureUnlockState(entry, state)) continue;
-            entry.unlockSeconds = resolveRoomUnlockSeconds(entry.room, state);
+            entry.unlockSeconds = resolveRoomUnlockSeconds(
+                entry.room, state, this.entityManager?.gameModeStrategy?.modeType === 'ARCADE'
+                    ? this.entityManager?.runtimeConfig?.arcade?.scenarioId : '',
+            );
         }
 
         // Seed release timestamps are stored to milliseconds; compare in the same precision.
@@ -408,7 +411,12 @@ function clearHudState(hud) {
  * @param {{ segments?: { id: string }[] } | null} state
  * @returns {number}
  */
-function resolveRoomUnlockSeconds(room, state) {
+function resolveRoomUnlockSeconds(room, state, scenarioId = '') {
+    if (scenarioId === 'vault_breaker' && room?.id === 'vault') {
+        const legBreak = state?.events?.find?.((event) => event?.kind === 'leg_lower');
+        return legBreak ? Math.max(0, Number(legBreak.atSeconds) || 0)
+            + (Number(room?.unlock?.delaySeconds) || 0) : Infinity;
+    }
     const unlock = /** @type {{ source?: string, when?: string, segmentId?: string } | null} */ (room?.unlock || null);
     if (!unlock) return 0;
     if (!state) return 0;

@@ -9,6 +9,11 @@
 
 const MAX_SEGMENT_HOPS_PER_STEP = 256;
 
+export function reportUnitGoalReached(system, unit) {
+    if (!unit.goalReached || system.networkReplica || system.entityManager?.isFightOutcomeAuthority === false) return;
+    system.entityManager?.onArcadeGameplayEvent?.({ type: 'unit_goal_reached', unitId: unit.id, unitKind: unit.kind });
+}
+
 /**
  * @param {number[][]} path
  * @param {number} fromIndex
@@ -32,13 +37,14 @@ export function resetUnitOnPath(unit) {
     unit.fromIndex = 0;
     unit.toIndex = 1;
     unit.progress = 0;
+    unit.goalReached = false;
 }
 
 /**
  * Drives `distance` world units further. Segments of zero length are skipped; the hop limit keeps a
  * path made only of identical points from spinning forever.
  */
-export function advanceUnitOnPath(unit, path, distance, loop) {
+export function advanceUnitOnPath(unit, path, distance, loop, stopAtEnd = false) {
     if (!Array.isArray(path) || path.length < 2) return;
     let remaining = Math.max(0, Number(distance) || 0);
     for (let hops = 0; hops < MAX_SEGMENT_HOPS_PER_STEP; hops += 1) {
@@ -50,6 +56,11 @@ export function advanceUnitOnPath(unit, path, distance, loop) {
         }
         remaining -= Math.max(0, left);
         const reachedIndex = unit.toIndex;
+        if (stopAtEnd && reachedIndex === path.length - 1) {
+            unit.progress = length;
+            unit.goalReached = true;
+            return;
+        }
         unit.toIndex = nextToIndex(path.length, unit.fromIndex, unit.toIndex, loop);
         unit.fromIndex = reachedIndex;
         unit.progress = 0;

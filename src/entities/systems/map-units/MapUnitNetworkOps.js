@@ -39,6 +39,7 @@ export function serializeMapUnits(units) {
         from: unit.fromIndex,
         to: unit.toIndex,
         progress: round(unit.progress),
+        ...(unit.definition?.stopAtEnd ? { goalReached: unit.goalReached === true } : {}),
         yaw: round(unit.yaw),
         // A steering unit leaves its segment, so a path index alone cannot rebuild it.
         ...(unit.definition?.drive?.steering === true || unit.bomberHunt
@@ -152,6 +153,7 @@ export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
         unit.yaw = Number.isFinite(Number(entry.yaw)) ? Number(entry.yaw) : unit.yaw;
         unit.hp = Math.max(0, Number(entry.hp) || 0);
         unit.alive = entry.alive === true;
+        if (unit.definition?.stopAtEnd) unit.goalReached = entry.goalReached === true;
         if (unit.escortTank) {
             unit.escortReachedGoal = entry.escortReachedGoal === true;
             unit.speed = Number.isFinite(Number(entry.escortSpeed))

@@ -5,6 +5,11 @@ import { HUNT_LAST_ALIVE_LIVES } from '../shared/contracts/HuntLivesContract.js'
 import { resolveTeamLabel, TEAM_IDS } from '../shared/contracts/TeamCombatContract.js';
 import { isDemolitionConfig } from '../shared/contracts/DemolitionContract.js';
 
+const ARCADE_SCENARIO_OBJECTIVES = Object.freeze({
+    bridge_convoy: 'Konvoi · stoppe alle drei Panzer vor dem Ziel',
+    vault_breaker: 'Tresorknacker · Turmbein zerstören, dann Tresor-Boss besiegen',
+});
+
 export function formatHuntClock(seconds) {
     const whole = Math.max(0, Math.ceil(Number(seconds) || 0));
     return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
@@ -77,6 +82,9 @@ export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLi
     if (isDemolitionConfig(runtimeConfig)) return 'Abrisskommando · zerstöre das Bauwerk';
     if (isArenaWavesConfig(runtimeConfig)) return 'Fünf Fronten · halte jede Welle auf';
     if (isEndlessParcoursConfig(runtimeConfig)) return 'Endlosjagd · überlebe so lange wie möglich';
+    const scenarioObjective = runtimeConfig?.session?.activeGameMode === 'ARCADE'
+        ? ARCADE_SCENARIO_OBJECTIVES[runtimeConfig?.arcade?.scenarioId] : '';
+    if (scenarioObjective) return scenarioObjective;
     if (huntProjection?.escortMode === true) return `Eskorte · ${resolveTeamLabel(TEAM_IDS.ALPHA)} schützt den Panzer${timeText}`;
     if (huntProjection?.teamObjective === 'FLAGS') {
         const counts = huntProjection?.flagCounts || {};

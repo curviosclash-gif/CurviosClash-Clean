@@ -12,6 +12,12 @@ import { resolveArcadeSectorObjectiveDefinition } from '../../shared/contracts/A
 
 const ARCADE_MISSION_GENERATOR_VERSION = 'arcade-missions.v2';
 
+export function resolveArcadeObjectiveFailureReason(objectiveState, outcomeReason) {
+    return outcomeReason === 'ARCADE_OBJECTIVE_FAILED'
+        && objectiveState?.objectiveId === 'intercept' && objectiveState.failed === true
+        ? outcomeReason : '';
+}
+
 export function buildArcadeMissionSeed({
     scoreModel = 'arcade-score.v3',
     activeSeed = 0,
@@ -102,7 +108,8 @@ export function updateArcadeObjectiveRuntimeState(runtime, event) {
     if (!next?.shouldEnd || next.roundEndRequested) return next;
     next.roundEndRequested = true;
     const accepted = runtime._requestRoundEnd?.({
-        reason: 'ARCADE_OBJECTIVE',
+        reason: next.objectiveId === 'intercept' && next.failed ? 'ARCADE_OBJECTIVE_FAILED' : 'ARCADE_OBJECTIVE',
+        allowNoWinner: next.objectiveId === 'intercept' && next.failed,
         objectiveId: next.objectiveId,
         objective: { ...next },
     }) === true;

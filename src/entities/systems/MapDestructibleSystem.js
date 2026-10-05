@@ -46,6 +46,7 @@ export class MapDestructibleSystem {
         this.fireDefinition = null;
         this.fireState = null;
         this._reactorBurnUpdatedAtSeconds = -1;
+        this._vaultScenarioActive = false;
     }
 
     /**
@@ -61,7 +62,11 @@ export class MapDestructibleSystem {
         const authored = normalizeMapDestructibles(map?.destructibles);
         const mode = String(this.entityManager?.gameModeStrategy?.modeType || '').toUpperCase();
         const demolitionAllowed = mode === 'ARCADE' && isDemolitionConfig(this.entityManager?.runtimeConfig);
-        this.definition = isMapDestructibleModeAllowed(authored, mode) || demolitionAllowed ? authored : null;
+        const scenarioId = this.entityManager?.runtimeConfig?.arcade?.scenarioId;
+        const scenarioAllowed = mode === 'ARCADE' && scenarioId === 'vault_breaker'
+            && this.entityManager?.runtimeConfig?.session?.mapKey === 'eiffel_tower_siege';
+        this._vaultScenarioActive = scenarioAllowed;
+        this.definition = isMapDestructibleModeAllowed(authored, mode) || demolitionAllowed || scenarioAllowed ? authored : null;
         // Authored anchors are given in the map's own units; a scaled map builds its tower that
         // much larger, so the anchors a hit is measured against have to grow with it.
         this.anchorScale = resolveAuthoredAnchorScale(map, this.entityManager);
@@ -75,6 +80,7 @@ export class MapDestructibleSystem {
         this._targetsBySegmentId.clear();
         for (let index = 0; index < (this.definition?.segments?.length || 0); index += 1) {
             const segment = this.definition.segments[index];
+            if (this._vaultScenarioActive && segment.kind !== 'leg_lower') continue;
             const target = {
                 id: `map_structure:${segment.id}`,
                 segmentId: segment.id,
@@ -207,6 +213,10 @@ export class MapDestructibleSystem {
 
     applySegmentHit(segmentId, damage, options = {}) {
         if (this.networkReplica || !this.definition || this.state.sealed) return null;
+        // This mission opens the vault through a lower-leg break only.
+        if (this._vaultScenarioActive && !this.definition.segments.some(
+            (segment) => segment.id === segmentId && segment.kind === 'leg_lower',
+        )) return null;
         if (this.fireState) {
             this.updateFeedback();
             if (!damageMapFireSegment(this.fireDefinition, this.fireState, segmentId, damage)) return null;
@@ -333,6 +343,10 @@ export class MapDestructibleSystem {
         const owner = this.entityManager;
         if (typeof owner?.onMapDestructibleBreak === 'function') {
             owner.onMapDestructibleBreak(event, context);
+        }
+        if (!context.replicated && this._vaultScenarioActive
+            && event.kind === 'leg_lower') {
+            owner?.onArcadeGameplayEvent?.({ type: 'structure_destroyed', segmentKind: event.kind, segmentId: event.segmentId });
         }
         return true;
     }

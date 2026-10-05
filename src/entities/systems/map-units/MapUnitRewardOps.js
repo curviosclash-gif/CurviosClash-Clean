@@ -49,11 +49,18 @@ export function rewardMapUnitDestruction(system, unit, sourcePlayer) {
         });
     }
     const index = sourcePlayer?.index;
+    const convoyTarget = owner?.runtimeConfig?.arcade?.scenarioId === 'bridge_convoy'
+        && unit.definition.kind === 'tank' && String(unit.id || '').startsWith('arcade_convoy_tank_');
+    if (convoyTarget && unit.objectiveDestructionReported !== true) {
+        // Stopping the convoy counts even when a wreck or another map hazard destroys its tank.
+        owner?.onArcadeGameplayEvent?.({ type: 'unit_destroyed', unitKind: 'tank', unitId: unit.id, count: 1 });
+        unit.objectiveDestructionReported = true;
+    }
     if (!Number.isInteger(index) || index < 0) return;
     owner?._huntScoring?.registerUnitDestroyed?.(index, unit.definition.kind);
     if (sourcePlayer.isBot !== true) {
         // Every arcade run hears it: the weapon race pays XP, a scenario sector counts its targets.
-        if (unit.objectiveDestructionReported !== true) {
+        if (!convoyTarget && unit.objectiveDestructionReported !== true) {
             owner?.onArcadeGameplayEvent?.({ type: 'unit_destroyed', playerIndex: index, count: 1, unitKind: unit.definition.kind });
         }
         const message = unit.definition.kind === 'boss' ? 'Boss besiegt'

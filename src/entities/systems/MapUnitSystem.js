@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { isMapUnitCombatActive, MAP_UNIT_LIMITS, normalizeMapUnits, resolveMapUnitDefinitions } from '../../shared/contracts/MapUnitContract.js';
 import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfigContract.js';
 import {
-    advanceUnitOnPath,
+    advanceUnitOnPath, reportUnitGoalReached,
     resetUnitOnPath,
     resolveUnitPathPose,
     turnYawTowards,
@@ -218,7 +218,7 @@ export class MapUnitSystem {
             unit.root = createMapUnitVisual(
                 this.entityManager?.renderer,
                 this._resolveAssets(),
-                scale * (definition.kind === 'boss' ? definition.modelScale : 1),
+                scale * (definition.modelScale || 1),
                 definition.id === 'escort_tank' ? resolveTeamColor(TEAM_IDS.ALPHA) : null,
             );
         }
@@ -272,7 +272,7 @@ export class MapUnitSystem {
     _placeCentre(unit) {
         unit.position.copy(unit.groundPosition);
         if (unit.kind === 'tank' || unit.kind === 'boss') {
-            const modelScale = unit.kind === 'boss' ? unit.definition.modelScale : 1;
+            const modelScale = unit.definition.modelScale || 1;
             unit.position.y += TANK_TURRET_HEIGHT * unit.scale * modelScale;
         }
         if (unit.kind === 'creature') unit.position.y += (unit.hydra ? 2.6 : 1.35) * unit.scale;
@@ -338,6 +338,7 @@ export class MapUnitSystem {
                 if (unit.summoned && !this.networkReplica) this._summonedRetireScratch.push(unit);
                 continue;
             }
+            if (unit.goalReached) continue;
             const unitDt = unit.summoned ? Math.min(safeDt, unit.summonRemaining) : safeDt;
             if (unit.escortTank) {
                 if (unit.escortReachedGoal) continue;
@@ -389,13 +390,17 @@ export class MapUnitSystem {
                         steerUnitAlongPath(unit, unitDt);
                     }
                 } else {
-                    advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop);
+                    advanceUnitOnPath(unit, unit.path, unit.speed * unitDt, unit.definition.loop, unit.definition.stopAtEnd);
                     const heading = resolveUnitPathPose(unit, unit.path, unit.groundPosition);
                     unit.yaw = turnYawTowards(unit.yaw, heading, HULL_TURN_RATE * safeDt);
                 }
             }
             applyGroundClamp(this.entityManager?.arena, unit, safeDt);
-            if (shouldRollBackDriveStep(this.entityManager?.arena, unit, safeDt)) restoreUnitPose(unit, previousPose);
+            if (shouldRollBackDriveStep(this.entityManager?.arena, unit, safeDt)) {
+                restoreUnitPose(unit, previousPose);
+                unit.goalReached = false;
+            }
+            reportUnitGoalReached(this, unit);
             if (unit.escortTank && !this.networkReplica) {
                 const checkpoint = updateEscortCheckpoints(unit);
                 if (checkpoint !== null) {

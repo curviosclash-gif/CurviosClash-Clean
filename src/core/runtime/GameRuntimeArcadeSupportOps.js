@@ -146,6 +146,9 @@ export function buildObjectiveParticipants(entityManager) {
 }
 
 export function requestObjectiveRoundEnd(entityManager, request) {
+    if (request?.allowNoWinner === true) {
+        return entityManager?.requestRoundEnd?.({ ...request, winner: null, allowNoWinner: true }) === true;
+    }
     const winner = (Array.isArray(entityManager?.humanPlayers) ? entityManager.humanPlayers : [])
         .find((player) => player && player.alive !== false) || null;
     return winner ? entityManager.requestRoundEnd?.({ ...request, winner }) === true : false;

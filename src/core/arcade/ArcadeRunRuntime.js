@@ -40,7 +40,7 @@ import { clearArcadePlayerProfileBindings, initializeArcadePlayerProfileBindings
 import { createArcadeTelemetrySnapshot } from './ArcadeTelemetrySnapshot.js';
 import { applyArcadeIntermissionEffects, captureArcadeHumanVitals, syncArcadeRunRewardEffects } from './ArcadeIntermissionEffects.js';
 import { applyArcadeMasteryScoreBonus, syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
-import { assignArcadeSectorRuntimeState, updateArcadeObjectiveRuntimeState } from './ArcadeObjectiveRuntimeOps.js';
+import { assignArcadeSectorRuntimeState, resolveArcadeObjectiveFailureReason, updateArcadeObjectiveRuntimeState } from './ArcadeObjectiveRuntimeOps.js';
 import { applyParcoursLeaderboardEvent } from './ArcadeParcoursLeaderboardOps.js';
 import {
     prepareArcadeIntermissionState,
@@ -1077,9 +1077,9 @@ export class ArcadeRunRuntime {
         const allHumansDead = humans.length > 0
             ? !hasAliveHuman
             : outcomeReason !== 'PARCOURS_COMPLETE';
-        const terminalReason = allHumansDead
-            ? 'ELIMINATION'
-            : (ARCADE_RUN_ABORT_REASONS.has(outcomeReason) ? outcomeReason : '');
+        const terminalReason = allHumansDead ? 'ELIMINATION'
+            : resolveArcadeObjectiveFailureReason(this._state.objectiveState, outcomeReason)
+                || (ARCADE_RUN_ABORT_REASONS.has(outcomeReason) ? outcomeReason : '');
 
         if (!terminalReason && outcomeReason === 'PARCOURS_COMPLETE') {
             const parcoursPlan = this.completeParcoursSector(
@@ -1112,7 +1112,7 @@ export class ArcadeRunRuntime {
         const multiplier = Math.max(1, toSafeNumber(this._state?.score?.multiplier, 1));
         const sectorLabel = `${this._state.completedSectors}/${this._state.config.sectorCount}`;
         const messageText = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run geschafft!' : finished
-            ? `Arcade Run beendet - Score ${Math.round(scoreTotal)}`
+            ? `${terminalReason === 'ARCADE_OBJECTIVE_FAILED' ? 'Konvoi durchgebrochen - Run beendet ·' : 'Arcade Run beendet -'} Score ${Math.round(scoreTotal)}`
             : `Sektor ${sectorLabel} abgeschlossen`;
         const messageSub = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run abschließen oder freiwillig weiterspielen' : finished
             ? 'ENTER für neuen Run oder ESC für Menü'

@@ -246,10 +246,14 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined, options
     return Object.freeze({
         id,
         kind,
+        ...(kind === 'tank' && source?.modelScale != null
+            ? { modelScale: clampNumber(source.modelScale, 1, 0.1, 3) } : {}),
         ...(kind === 'creature' && source?.species === 'hydra_v3' ? { species: 'hydra_v3' } : {}),
         path: Object.freeze(/** @type {readonly number[][]} */ (path)),
         // true drives the path as a closed circuit, false turns around at both ends.
         loop: source?.loop == null ? kind !== 'bomber' : source.loop !== false,
+        // A convoy can have a destination; ordinary non-looping patrols still turn around.
+        stopAtEnd: source?.stopAtEnd === true && source?.loop === false,
         speed: spatial(source?.speed, defaults.speed, 1, 60),
         maxHp: clampNumber(source?.maxHp, defaults.maxHp, 1, 2000),
         hitboxRadius: spatial(source?.hitboxRadius, defaults.hitboxRadius, 0.5, 12),

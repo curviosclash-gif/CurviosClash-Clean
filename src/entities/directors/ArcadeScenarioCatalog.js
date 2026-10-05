@@ -1,4 +1,4 @@
-import { normalizeArcadeScenario } from '../../shared/contracts/ArcadeScenarioContract.js';
+import { resolveBloomEscapeOpenSeconds, normalizeArcadeScenario } from '../../shared/contracts/ArcadeScenarioContract.js';
 
 // Arcade scenarios ("Einsätze"): sectors that bring content the template pools never reach -
 // map units, hunt weapons, water. `slot: 'sector'` scenarios replace a regular sector inside
@@ -56,6 +56,40 @@ const RAW_ARCADE_SCENARIOS = [
         }],
         mapUnitsMode: 'replace',
         objective: { id: 'destroy_units', label: 'Bomberalarm', unitKind: 'bomber', count: 1, durationSec: 120, scoreWeight: 1.3 },
+    },
+    {
+        id: 'bridge_convoy',
+        label: 'Konvoi auf der Brücke',
+        briefing: 'Drei Panzer rollen zum Brückenausgang. Stoppe alle drei, bevor einer das Ziel erreicht.',
+        slot: 'sector', mapKey: 'storm_bridge_siege', combatProfile: 'hunt', botCount: 0,
+        minSector: 3, maxSector: 6,
+        mapUnitsMode: 'replace',
+        mapUnits: [9, 3, -3].map((x, index) => ({
+            id: `arcade_convoy_tank_${index + 1}`, kind: 'tank',
+            // The authored deck runs along X, with its top at Y=7.2 and width 3.6.
+            path: [[x, 7.2, 0], [-9, 7.2, 0]],
+            loop: false, stopAtEnd: true, speed: [0.46, 0.285, 0.133][index],
+            modelScale: 0.45, hitboxRadius: 1.575,
+            drive: { steering: false, obstacleStop: false, chase: false },
+            maxHp: 170, respawnSeconds: 0, targetPlayers: 'humans', allowedModes: ['ARCADE'],
+        })),
+        objective: { id: 'intercept', label: 'Alle Panzer stoppen', unitKind: 'tank', count: 3, durationSec: 0, scoreWeight: 1.5 },
+    },
+    {
+        id: 'vault_breaker',
+        label: 'Tresorknacker',
+        briefing: 'Schieße zuerst ein Turmbein weg. Das Portal zum Tresor öffnet sich danach; besiege den Boss darin.',
+        slot: 'sector', mapKey: 'eiffel_tower_siege', combatProfile: 'hunt', botCount: 0,
+        minSector: 3, maxSector: 6,
+        objective: { id: 'breach_vault', label: 'Bein brechen · Boss besiegen', unitKind: 'boss', count: 1, durationSec: 0, scoreWeight: 1.6 },
+    },
+    {
+        id: 'bloom_escape',
+        label: 'Ausbruch',
+        briefing: 'Halte durch, bis sich die wachsende Blütenarena vollständig geöffnet hat.',
+        slot: 'sector', mapKey: 'bloom_core', squadId: 'hunter_pack',
+        minSector: 3, maxSector: 6,
+        objective: { id: 'survive_window', label: 'Arena vollständig öffnen', durationSec: resolveBloomEscapeOpenSeconds(), scoreWeight: 1.4 },
     },
     {
         id: 'hydra_finale',

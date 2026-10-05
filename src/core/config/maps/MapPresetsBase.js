@@ -55,6 +55,7 @@ const BASE_MAP_KEYS = [
     'dandelion_sky',
     'sunflower_meadow',
     'cherry_grove',
+    'bloom_core',
     'aetherion_orrery',
     'notre_dame',
     'notre_dame_arena',

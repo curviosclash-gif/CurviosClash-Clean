@@ -32,6 +32,11 @@ function emptyResult(unit) {
 
 export function applyMapUnitDamage(system, unit, amount, options = {}) {
     if (!unit?.alive || system.networkReplica) return emptyResult(unit);
+    const owner = system.entityManager;
+    if (owner?.gameModeStrategy?.modeType === 'ARCADE'
+        && owner?.runtimeConfig?.arcade?.scenarioId === 'vault_breaker'
+        && unit.kind === 'boss' && unit.definition?.secretRoomId === 'vault'
+        && owner?._secretRoomSystem?.isRoomOpen?.('vault') !== true) return emptyResult(unit);
     if (unit.escortTank === true && areTeammates(unit, options.sourcePlayer)) return emptyResult(unit);
     if (unit.escortTank === true && (
         unit.escortPhase === ESCORT_PHASES.DOWNED
@@ -42,7 +47,6 @@ export function applyMapUnitDamage(system, unit, amount, options = {}) {
     const hpBefore = unit.hp;
     unit.hp = Math.max(0, hpBefore - requested);
     const hpApplied = hpBefore - unit.hp;
-    const owner = system.entityManager;
     if (hpApplied > 0) {
         if (unit.escortTank === true && Number.isInteger(options.sourcePlayer?.index)) {
             owner?._huntScoring?.registerEscortTankDamage?.(options.sourcePlayer.index, hpApplied);

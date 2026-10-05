@@ -27,7 +27,7 @@ function createMount(unit, weapon, settings, source, proxyRoot, position = unit.
         damage: Number(settings.damage) || 0,
         cooldown: settings.cooldown,
         range: settings.range * unit.scale,
-        authoredScale: unit.scale,
+        authoredScale: unit.scale * (unit.kind === 'tank' ? unit.definition.modelScale || 1 : 1),
         position,
         aimDirection,
         root: proxyRoot,

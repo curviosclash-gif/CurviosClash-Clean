@@ -9,12 +9,16 @@ import { normalizeString } from './ContractNormalizeUtils.js';
 import { normalizeMapUnits } from './MapUnitContract.js';
 
 export const ARCADE_SCENARIO_CONTRACT_VERSION = 'arcade-scenario.v1';
+// A hoisted function keeps map-preset initialization safe across desktop chunks.
+export function resolveBloomEscapeOpenSeconds() { return 105; }
 
 const VALID_SLOTS = new Set(['sector', 'parcours', 'finale']);
 const VALID_UNIT_KINDS = new Set(['tank', 'swarm', 'boss', 'bomber', 'creature']);
 const OBJECTIVE_LABELS = Object.freeze({
     destroy_units: 'Einheiten zerstören',
     survive_window: 'Überleben',
+    intercept: 'Konvoi aufhalten',
+    breach_vault: 'Tresor knacken',
 });
 const MAX_BOTS = 12;
 
@@ -40,9 +44,9 @@ function normalizeObjective(source) {
         durationSec: finiteNumber(source?.durationSec, 0, 0, 600),
         scoreWeight: finiteNumber(source?.scoreWeight, 1, 1, 3),
     };
-    if (id === 'destroy_units') {
+    if (id === 'destroy_units' || id === 'intercept' || id === 'breach_vault') {
         const kind = normalizeId(source?.unitKind);
-        objective.unitKind = VALID_UNIT_KINDS.has(kind) ? kind : 'creature';
+        objective.unitKind = VALID_UNIT_KINDS.has(kind) ? kind : (id === 'breach_vault' ? 'boss' : id === 'intercept' ? 'tank' : 'creature');
         objective.count = Math.trunc(finiteNumber(source?.count, 1, 1, 16));
     }
     return Object.freeze(objective);
