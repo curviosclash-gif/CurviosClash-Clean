@@ -94,14 +94,14 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     maze: {
         ...CLASSIC_WORLD_APPEARANCE.maze,
         name: 'Labyrinth',
-        size: [80, 25, 80],
+        size: [80, 10, 80],
         // Start points in world units (the map does not scale its anchors): the player and nine bots
         // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: -25, y: 25, z: 86 },
+        playerSpawn: { x: -16, y: 15, z: 88 },
         botSpawns: [
-            { x: 31, y: 25, z: 32 }, { x: 87, y: 25, z: 22 }, { x: 87, y: 25, z: -22 },
-            { x: 31, y: 25, z: -32 }, { x: 25, y: 25, z: -86 }, { x: -31, y: 25, z: -32 },
-            { x: -87, y: 25, z: -22 }, { x: -87, y: 25, z: 22 }, { x: -31, y: 25, z: 32 },
+            { x: 31, y: 15, z: 42 }, { x: 78, y: 15, z: 25 }, { x: 78, y: 15, z: -25 },
+            { x: 31, y: 15, z: -42 }, { x: 16, y: 15, z: -88 }, { x: -31, y: 15, z: -42 },
+            { x: -78, y: 15, z: -25 }, { x: -78, y: 15, z: 25 }, { x: -31, y: 15, z: 42 },
         ],
         obstacles: [
             { pos: [-20, 5, -20], size: [20, 10, 2] },
@@ -115,21 +115,21 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { pos: [0, 5, 20], size: [2, 10, 15] },
         ],
         portals: [
-            { a: [-30, 10, -30], b: [30, 10, 30], color: 0xff66ff },
-            { a: [30, 10, -30], b: [-30, 10, 30], color: 0x66ccff },
+            { a: [-30, 6, -30], b: [30, 6, 30], color: 0xff66ff },
+            { a: [30, 6, -30], b: [-30, 6, 30], color: 0x66ccff },
         ]
     },
     complex: {
         ...CLASSIC_WORLD_APPEARANCE.complex,
         name: 'Komplex',
-        size: [90, 30, 90],
+        size: [90, 12.5, 90],
         // Start points in world units (the map does not scale its anchors): the player and nine bots
         // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 25, z: 84 },
+        playerSpawn: { x: 0, y: 20, z: 84 },
         botSpawns: [
-            { x: 44, y: 25, z: 56 }, { x: 90, y: 25, z: 33 }, { x: 90, y: 25, z: -33 },
-            { x: 47, y: 25, z: -64 }, { x: 0, y: 25, z: -84 }, { x: -44, y: 25, z: -56 },
-            { x: -90, y: 25, z: -33 }, { x: -90, y: 25, z: 33 }, { x: -47, y: 25, z: 64 },
+            { x: 44, y: 20, z: 61 }, { x: 80, y: 20, z: 26 }, { x: 80, y: 20, z: -26 },
+            { x: 49, y: 20, z: -68 }, { x: 0, y: 20, z: -84 }, { x: -44, y: 20, z: -61 },
+            { x: -80, y: 20, z: -26 }, { x: -80, y: 20, z: 26 }, { x: -49, y: 20, z: 68 },
         ],
         obstacles: [
             { pos: [0, 5, 0], size: [6, 12, 6] },
@@ -145,8 +145,8 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { pos: [30, 3, 0], size: [5, 6, 5] },
         ],
         portals: [
-            { a: [-35, 12, -35], b: [35, 12, 35], color: 0xffaa00 },
-            { a: [35, 12, -35], b: [-35, 12, 35], color: 0x00aaff },
+            { a: [-35, 6, -35], b: [35, 6, 35], color: 0xffaa00 },
+            { a: [35, 6, -35], b: [-35, 6, 35], color: 0x00aaff },
         ]
     },
     pyramid: {
