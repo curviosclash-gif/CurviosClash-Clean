@@ -9,6 +9,14 @@ export const MAP_PRESET_CATALOG_LARGE_DATA = {
         name: 'Expert Gauntlet',
         hiddenFromMapPicker: false,
         size: [300, 80, 300],
+        // Start points in world units (the map does not scale its anchors): the player and nine bots
+        // spread around the arena, so ten ships start apart instead of at random spots.
+        playerSpawn: { x: 0, y: 60, z: 248 },
+        botSpawns: [
+            { x: 138, y: 60, z: 220 }, { x: 235, y: 60, z: 76 }, { x: 221, y: 60, z: -80 },
+            { x: 138, y: 60, z: -220 }, { x: 0, y: 60, z: -248 }, { x: -167, y: 60, z: -230 },
+            { x: -235, y: 60, z: -76 }, { x: -235, y: 60, z: 76 }, { x: -167, y: 60, z: 230 },
+        ],
         obstacles: [
             { pos: [0, 40, 0], size: [16, 80, 16], tunnel: { radius: 5.5, axis: 'y' } },
             { pos: [22, 10, 0], size: [14, 3, 10] },
@@ -160,6 +168,14 @@ export const MAP_PRESET_CATALOG_LARGE_DATA = {
         ...authoredWorld('mega_maze_xl'),
         name: 'Mega-Labyrinth XL',
         size: [200, 45, 200],
+        // Start points in world units (the map does not scale its anchors): the player and nine bots
+        // spread around the arena, so ten ships start apart instead of at random spots.
+        playerSpawn: { x: 0, y: 30, z: 214 },
+        botSpawns: [
+            { x: 131, y: 30, z: 181 }, { x: 186, y: 30, z: 60 }, { x: 142, y: 30, z: -46 },
+            { x: 115, y: 30, z: -158 }, { x: 0, y: 30, z: -214 }, { x: -109, y: 30, z: -150 },
+            { x: -177, y: 30, z: -57 }, { x: -177, y: 30, z: 57 }, { x: -109, y: 30, z: 150 },
+        ],
         obstacles: [
             { pos: [-60, 11, -80], size: [60, 22, 3], tunnel: { radius: 4.5, axis: 'z' } },
             { pos: [20, 34, -80], size: [60, 22, 3], tunnel: { radius: 4.2, axis: 'z' } },

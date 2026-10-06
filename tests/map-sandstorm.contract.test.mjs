@@ -521,7 +521,7 @@ test('pyramid preset and network projections expose the authored storm', () => {
     assert.equal(map.name, 'Krone des Sonnengottes');
     assert.deepEqual(map.size, [260, 160, 260]);
     assert.equal(map.glbModels.length, 7);
-    assert.equal(map.botSpawns.length, 7);
+    assert.equal(map.botSpawns.length, 9);
     assert.equal(map.items.length, 8);
     assert.equal(map.sandstorm.warningSeconds, 20);
     assert.equal(map.sandstorm.activeSeconds, 70);
