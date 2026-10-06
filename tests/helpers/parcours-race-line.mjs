@@ -29,23 +29,28 @@ export function compileArenaCollision(map, scale) {
     return new ArenaCollision(arena);
 }
 
-// Every checkpoint of a stage to every checkpoint of the next (branch options and lane aliases
-// share a stage), then finish to exit portal when the map has one: the racing lines a player flies.
+// The racing lines a player flies: every ring to each ring it links to (nextCheckpointIds, so a
+// branch only connects to its own continuation), a lane alias flies like its main ring and can be
+// entered wherever its main ring can, rings without a successor fly to the finish, then finish to
+// exit portal when the map has one. The checkpoint list is in authored order, not stage order.
 export function collectLegs(map, scale) {
     const route = buildRouteFromParcours(map.parcours, { positionScale: scale });
     const toPoint = (id, pos) => ({ id, pos: new THREE.Vector3(pos[0], pos[1], pos[2]) });
-    const stages = [];
-    for (const checkpoint of route.checkpoints) {
-        const last = stages[stages.length - 1];
-        const point = { ...toPoint(checkpoint.id, checkpoint.pos), routeIndex: checkpoint.routeIndex };
-        if (last && last[0].routeIndex === point.routeIndex) last.push(point);
-        else stages.push([point]);
-    }
+    const byId = new Map(route.checkpoints.map((checkpoint) => [checkpoint.id, checkpoint]));
+    const aliasesOf = (id) => route.checkpoints.filter((checkpoint) => checkpoint.aliasOf === id);
+    const successors = (checkpoint) => {
+        const main = checkpoint.aliasOf ? byId.get(checkpoint.aliasOf) : null;
+        const ids = [...(checkpoint.nextCheckpointIds || []), ...(main?.nextCheckpointIds || [])];
+        const targets = ids.map((id) => byId.get(id)).filter(Boolean);
+        return [...new Set([...targets, ...targets.flatMap((target) => aliasesOf(target.id))])];
+    };
     const finish = toPoint(route.finish.id, route.finish.pos);
-    stages.push([finish]);
     const legs = [];
-    for (let stage = 0; stage < stages.length - 1; stage += 1) {
-        for (const from of stages[stage]) for (const to of stages[stage + 1]) legs.push([from, to]);
+    for (const checkpoint of route.checkpoints) {
+        const from = toPoint(checkpoint.id, checkpoint.pos);
+        const next = successors(checkpoint);
+        if (next.length === 0) legs.push([from, finish]);
+        for (const target of next) legs.push([from, toPoint(target.id, target.pos)]);
     }
     if (Array.isArray(map.fivePortalsExit?.pos)) {
         legs.push([finish, toPoint('EXIT', map.fivePortalsExit.pos.map((value) => value * scale))]);

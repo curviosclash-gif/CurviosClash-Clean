@@ -5,7 +5,7 @@ import test from 'node:test';
 import { CONFIG } from '../src/core/Config.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { SKY_LADDER_MAP_KEYS } from '../src/core/config/maps/presets/sky_ladder/index.js';
-import { findBlockedLegs } from './helpers/parcours-race-line.mjs';
+import { collectLegs, findBlockedLegs } from './helpers/parcours-race-line.mjs';
 
 // Racing-line probe (the ideal straight line ring to ring, ship-sized) for the parcours maps whose
 // collision is their authored obstacles. The sky ladder stages have their own strict test
@@ -87,4 +87,21 @@ test('the probe can fail: a wall dropped on a ring-to-ring line blocks it', () =
     const middle = from.map((value, axis) => (value + to[axis]) / 2);
     const copy = { ...base, obstacles: [...base.obstacles, { pos: middle, size: [6, 30, 30] }] };
     assert.ok(findBlockedLegs(copy, SCALE).length >= 1);
+});
+
+test('legs follow nextIds, so branch rings authored out of stage order connect only to their own way', () => {
+    const cp = (id, x, z, nextIds) => ({ id, type: 'gate', pos: [x, 10, z], radius: 4, forward: [1, 0, 0], ...(nextIds ? { nextIds } : {}) });
+    const parcours = {
+        enabled: true,
+        routeId: 'probe',
+        checkpoints: [
+            cp('START', 0, 0, ['A1', 'B1']),
+            cp('A1', 10, -10, ['A2']), cp('A2', 20, -10, ['M']),
+            cp('B1', 10, 10, ['B2']), cp('B2', 20, 10, ['M']),
+            cp('M', 30, 0),
+        ],
+        finish: { id: 'FINISH', type: 'finish', pos: [40, 10, 0], radius: 5, forward: [1, 0, 0] },
+    };
+    const legs = collectLegs({ parcours }, 1).map(([from, to]) => `${from.id}->${to.id}`).sort();
+    assert.deepEqual(legs, ['A1->A2', 'A2->M', 'B1->B2', 'B2->M', 'M->FINISH', 'START->A1', 'START->B1']);
 });
