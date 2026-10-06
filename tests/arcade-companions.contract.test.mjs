@@ -34,11 +34,13 @@ test('companions fly only in a normal gauntlet next to one human and only agains
     });
 });
 
-test('the saved companion choice survives normalization for gauntlet runs only', () => {
+test('the saved companion choice survives normalization for every run type, only gauntlet uses it', () => {
     assert.equal(normalizeArcadeRunSettings({}).companionCount, 0, 'no companions by default');
     assert.equal(normalizeArcadeRunSettings({ companionCount: 2 }).companionCount, 2);
     assert.equal(normalizeArcadeRunSettings({ companionCount: '7' }).companionCount, 2);
-    assert.equal(normalizeArcadeRunSettings({ runType: 'arena_waves', companionCount: 2 }).companionCount, 0);
+    const waves = normalizeArcadeRunSettings({ runType: 'arena_waves', companionCount: 2 });
+    assert.equal(waves.companionCount, 2, 'a detour into a special run keeps the choice');
+    assert.equal(resolveActiveArcadeCompanionCount({ ...waves, enabled: true }, { humanCount: 1, enemyCount: 3 }), 0, 'but no companion flies there');
 });
 
 test('a sector with companions puts the human and the companions on one team, the squad on the other', () => {

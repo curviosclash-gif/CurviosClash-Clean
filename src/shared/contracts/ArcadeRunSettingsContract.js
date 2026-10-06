@@ -147,7 +147,9 @@ export function normalizeArcadeRunSettings(
         portalChainId: normalizePortalChainId(input.portalChainId),
         demolitionProfileIds: normalizeDemolitionProfileIds(demolitionProfileIds),
         playerProfileIds: normalizeDemolitionProfileIds(playerProfileIds),
-        companionCount: runType === DEFAULTS.runType ? normalizeArcadeCompanionCount(input.companionCount) : 0,
+        // Kept for every run type so a detour into a special run never loses the choice; only a
+        // gauntlet run uses it (resolveActiveArcadeCompanionCount).
+        companionCount: normalizeArcadeCompanionCount(input.companionCount),
     };
 }
 
