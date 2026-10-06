@@ -112,17 +112,22 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     let unsavedProfileEdits = false;
+    let bankConflict = false;
     function persistProfiles() {
         let saved = false;
+        let reason = '';
         try {
             const result = profilePort.save(profiles);
             saved = result === true || result?.success === true || result?.ok === true;
+            reason = String(result?.reason || '');
         } catch {
             saved = false;
         }
-        unsavedProfileEdits = !saved;
+        // Another window spent the same bank XP: our copy is stale, so take the stored state.
+        bankConflict = !saved && reason === 'bank_conflict';
+        unsavedProfileEdits = !saved && !bankConflict;
         // The save merged onto the stored record; reload so XP a run earned meanwhile shows here.
-        if (saved) profiles = profilePort.load();
+        if (saved || bankConflict) profiles = profilePort.load();
         return saved;
     }
 
@@ -135,7 +140,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     });
 
     function reportProfileSaveFailure(message = 'Profil konnte nicht gespeichert werden. Änderungen bleiben nur bis zum Schließen dieses Hangars verfügbar.') {
-        toast(message, 'error');
+        toast(bankConflict ? 'Bank reicht nicht mehr – Stand neu geladen.' : message, 'error');
     }
 
     function entryFor(vehicleId) {
@@ -202,9 +207,10 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         const previous = profiles[vehicleId];
         profiles[vehicleId] = { ...next, updatedAt: new Date().toISOString() };
         const saved = persistProfiles();
+        // After a bank conflict the profiles were reloaded, so there is nothing to roll back.
         if (!saved) {
-            if (hadPrevious) profiles[vehicleId] = previous;
-            else delete profiles[vehicleId];
+            if (!bankConflict && hadPrevious) profiles[vehicleId] = previous;
+            else if (!bankConflict) delete profiles[vehicleId];
             reportProfileSaveFailure();
         }
         syncDisplay({ preserveCatalog: true });

@@ -353,6 +353,24 @@ test('an open hangar reloads profiles a run wrote and keeps that XP when it save
     hangar.workshop.dispose();
 });
 
+test('a bank conflict reloads the profiles and says the bank no longer covers the change', () => {
+    const profileStore = createSuccessfulProfilePort();
+    let loads = 0;
+    const port = Object.freeze({
+        ...profileStore.port,
+        load: () => { loads += 1; return profileStore.port.load(); },
+        save: () => ({ success: false, reason: 'bank_conflict' }),
+    });
+    const hangar = openHangar({ mode: 'arcade', profilePort: port });
+    const loadsAfterOpen = loads;
+    const trailStyle = findClass(hangar.workshop.container, 'hangar-cosmetic-select');
+    trailStyle.value = 'standard';
+    hangar.fire(trailStyle, 'change');
+    assert.equal(loads, loadsAfterOpen + 1, 'the stored state is reloaded');
+    assert.ok(hangar.statusMessages.some(({ tone, message }) => tone === 'error' && /Bank reicht nicht mehr – Stand neu geladen/.test(message)));
+    hangar.workshop.dispose();
+});
+
 test('a cosmetic profile save failure reports an error instead of a saved success', () => {
     const failingPort = createFailingProfilePort();
     const hangar = openHangar({ mode: 'arcade', profilePort: failingPort.port });

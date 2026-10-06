@@ -10,8 +10,7 @@ import {
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 
 const COUNTER_FIELDS = new Set(['xp', 'xpBank', 'totalXpEarned', 'spentUpgradeXp', 'upgradesApplied']);
-const SKIPPED_FIELDS = new Set(['createdAt', 'updatedAt', 'level']);
-const PROFILE_BASES = new WeakMap();
+const SKIPPED_FIELDS = new Set(['createdAt', 'updatedAt', 'level']);const PROFILE_BASES = new WeakMap();
 
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 
@@ -38,6 +37,7 @@ export function shareArcadeVehicleProfileBase(copy, original) {
  * @param {Record<string, any>} fresh profile as stored right now
  * @param {Record<string, any>} ours profile of the writer
  * @param {Record<string, any>} base profile of the writer at its last load or save
+ * @returns {Record<string, any>|null} null when both sides spent more bank XP than there is
  */
 export function mergeArcadeVehicleProfileChanges(fresh, ours, base) {
     const merged = { ...fresh };
@@ -48,7 +48,10 @@ export function mergeArcadeVehicleProfileChanges(fresh, ours, base) {
         if (!Object.prototype.hasOwnProperty.call(ours, key)) {
             delete merged[key];
         } else if (COUNTER_FIELDS.has(key) && [fresh[key], ours[key], base[key]].every(Number.isFinite)) {
-            merged[key] = clampArcadeProfileCount(fresh[key] + ours[key] - base[key]);
+            const value = fresh[key] + ours[key] - base[key];
+            // Two writers spent the same bank XP: clamping to 0 would hand out uncovered upgrades.
+            if (key === 'xpBank' && value < 0) return null;
+            merged[key] = clampArcadeProfileCount(value);
         } else {
             merged[key] = ours[key];
         }
@@ -65,6 +68,13 @@ export function mergeArcadeVehicleProfileChanges(fresh, ours, base) {
     return merged;
 }
 
+/** The save result for vehicles whose bank XP both sides spent; null when there is no conflict. */
+export function refuseArcadeBankConflict(conflicts) {
+    return Array.isArray(conflicts) && conflicts.length > 0
+        ? { success: false, reason: 'bank_conflict', metadata: { vehicleIds: conflicts.slice() } }
+        : null;
+}
+
 /**
  * Applies a writer's profile map onto the stored profiles. Vehicles the writer does not carry stay
  * as stored. Without a base (a map that was never loaded or saved) the writer's profiles win.
@@ -76,6 +86,7 @@ export function mergeArcadeVehicleProfileChanges(fresh, ours, base) {
 export function mergeArcadeVehicleProfileMaps(storedProfiles, sourceProfiles, base, normalize) {
     const merged = {};
     const own = {};
+    const conflicts = [];
     Object.entries(storedProfiles || {}).forEach(([vehicleId, profile]) => { merged[vehicleId] = normalize(profile); });
     const source = sourceProfiles && typeof sourceProfiles === 'object' ? sourceProfiles : {};
     Object.entries(source).forEach(([vehicleId, profile]) => {
@@ -87,7 +98,9 @@ export function mergeArcadeVehicleProfileMaps(storedProfiles, sourceProfiles, ba
             return;
         }
         const ownBase = normalize(base[vehicleId] || createArcadeVehicleProfileRecord(vehicleId, 0));
-        merged[vehicleId] = normalize(mergeArcadeVehicleProfileChanges(fresh, ours, ownBase));
+        const result = mergeArcadeVehicleProfileChanges(fresh, ours, ownBase);
+        if (!result) conflicts.push(vehicleId);
+        else merged[vehicleId] = normalize(result);
     });
-    return { merged, own };
+    return { merged, own, conflicts };
 }

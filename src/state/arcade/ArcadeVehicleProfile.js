@@ -44,11 +44,7 @@ import {
     toObject,
     warnPersistenceFailure,
 } from './ArcadeVehicleProfileInternals.js';
-import {
-    getArcadeVehicleProfileBase,
-    mergeArcadeVehicleProfileMaps,
-    rememberArcadeVehicleProfileBase,
-} from './ArcadeVehicleProfileMerge.js';
+import * as ProfileMerge from './ArcadeVehicleProfileMerge.js';
 
 const VEHICLE_PROFILE_SCHEMA_VERSION = ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION;
 const STORAGE_KEY = ARCADE_VEHICLE_PROFILE_STORAGE_KEY;
@@ -534,7 +530,7 @@ export function loadVehicleProfiles(store) {
         })));
         warnPersistenceFailure('canonical write-back', saveResult);
     }
-    rememberArcadeVehicleProfileBase(normalizedProfiles, normalizedProfiles);
+    ProfileMerge.rememberArcadeVehicleProfileBase(normalizedProfiles, normalizedProfiles);
     return normalizedProfiles;
 }
 
@@ -553,8 +549,11 @@ export function saveVehicleProfiles(store, profiles) {
     } = loadArcadeVehicleProfileRecord(store);
     // A malformed top-level record cannot be safely merged with writable profiles.
     if (!canPersist) return false;
-    const { merged: normalizedProfiles, own: ownProfiles } = mergeArcadeVehicleProfileMaps(
-        storedProfiles, profiles, getArcadeVehicleProfileBase(profiles), normalizeVehicleProfileSafe);
+    const { merged: normalizedProfiles, own: ownProfiles, conflicts } = ProfileMerge.mergeArcadeVehicleProfileMaps(
+        storedProfiles, profiles, ProfileMerge.getArcadeVehicleProfileBase(profiles), normalizeVehicleProfileSafe);
+    // Nothing is written and the base stays: the writer must reload before it may spend again.
+    const refused = ProfileMerge.refuseArcadeBankConflict(conflicts);
+    if (refused) { warnPersistenceFailure('saveVehicleProfiles', refused); return refused; }
     // Rejected or malformed per-vehicle records stay byte-for-byte equivalent at the
     // JSON value level, including when a fresh runtime profile has the same vehicle ID.
     const saveResult = store.saveJsonRecord(STORAGE_KEY, {
@@ -562,7 +561,7 @@ export function saveVehicleProfiles(store, profiles) {
         ...preservedProfiles,
     });
     warnPersistenceFailure('saveVehicleProfiles', saveResult);
-    if (isPersistenceSuccess(saveResult)) rememberArcadeVehicleProfileBase(profiles, ownProfiles);
+    if (isPersistenceSuccess(saveResult)) ProfileMerge.rememberArcadeVehicleProfileBase(profiles, ownProfiles);
     return saveResult;
 }
 

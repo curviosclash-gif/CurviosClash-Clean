@@ -87,3 +87,45 @@ test('vehicles a writer never loaded stay untouched in storage', () => {
     assert.equal(stored(store, 'ship1').xp, 200);
     assert.equal(stored(store, 'ship5').trailStyleId, STYLE);
 });
+
+test('two writers spending the same bank XP: the second save is refused and writes nothing', () => {
+    const store = createStore();
+    store.data.set(KEY, { ...store.data.get(KEY), ship5: { ...stored(store, 'ship5'), xpBank: 100 } });
+    const first = loadVehicleProfiles(store);
+    const second = loadVehicleProfiles(store);
+    const spend = (profiles, slot) => ({ ...profiles.ship5, xpBank: profiles.ship5.xpBank - 80,
+        spentUpgradeXp: profiles.ship5.spentUpgradeXp + 80, upgrades: { ...profiles.ship5.upgrades, [slot]: 'T2' } });
+
+    first.ship5 = spend(first, 'core');
+    assert.notEqual(saveVehicleProfiles(store, first), false);
+    const afterFirst = structuredClone(store.data.get(KEY));
+
+    second.ship5 = spend(second, 'nose');
+    const quiet = console.warn;
+    console.warn = () => {};
+    let refused;
+    let retried;
+    try {
+        refused = saveVehicleProfiles(store, second);
+        retried = saveVehicleProfiles(store, second);
+    } finally {
+        console.warn = quiet;
+    }
+    assert.equal(refused?.success, false);
+    assert.equal(refused?.reason, 'bank_conflict');
+    assert.deepEqual(store.data.get(KEY), afterFirst, 'nothing is written');
+    assert.equal(retried?.reason, 'bank_conflict', 'the base is not advanced, a retry is refused again');
+    assert.equal(stored(store, 'ship5').xpBank, 20);
+    assert.deepEqual(stored(store, 'ship5').upgrades, { core: 'T2' });
+});
+
+test('earned XP keeps the bank positive, so spending beside a run is merged normally', () => {
+    const store = createStore();
+    const hangar = loadVehicleProfiles(store);
+    const run = loadVehicleProfiles(store);
+    awardBoundArcadeVehicleXp(run, binding, 50, 1);
+    assert.notEqual(saveVehicleProfiles(store, run), false);
+    hangar.ship5 = { ...hangar.ship5, xpBank: hangar.ship5.xpBank - 900, spentUpgradeXp: 900 };
+    assert.equal(saveVehicleProfiles(store, hangar), true);
+    assert.equal(stored(store, 'ship5').xpBank, 150);
+});
