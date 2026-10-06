@@ -47,6 +47,10 @@ GENERATORS = {
     'the_loop': 'generate_map_world',
     'mega_maze': 'generate_map_world',
     'mirror_docks': 'generate_map_world',
+    'parcours_assault': 'generate_map_world',
+    'spiral_tower': 'generate_map_world',
+    'storm_switchyard': 'generate_map_world',
+    'mega_maze_xl': 'generate_map_world',
 }
 
 

@@ -305,6 +305,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
         },
     },
     storm_switchyard: {
+        ...authoredWorld('storm_switchyard'),
         name: 'Sturmweiche',
         size: [280, 70, 210],
         scaleAuthoredAnchors: true,
