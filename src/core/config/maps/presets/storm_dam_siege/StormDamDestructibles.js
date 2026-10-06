@@ -1,5 +1,6 @@
 export const STORM_DAM_DESTRUCTIBLES = Object.freeze({
     gameModes: Object.freeze(['HUNT']),
+    hudNoun: 'Staudamm',
     segments: Object.freeze([Object.freeze({
         id: 'dam_wall',
         label: 'Staudamm',

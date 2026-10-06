@@ -21,7 +21,7 @@ function towerAnchor(key) {
 }
 
 export const SKYLINE_SIEGE_DESTRUCTIBLES = Object.freeze({
-    gameModes: Object.freeze(['HUNT']),
+    gameModes: Object.freeze(['HUNT']), hudNoun: 'Hochhaus',
     segments: Object.freeze([
         Object.freeze({ id: 'spire', label: 'Spire Tower', kind: 'masonry', piece: 'spire_tower', hp: 420,
             meshPrefixes: Object.freeze(['skyline_spire']), anchor: towerAnchor('spire') }),

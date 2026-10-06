@@ -40,6 +40,7 @@ export function resolveStorePlatformOptions(options, defaultStorageKey, defaultL
  * @param {Function} [opts.createCanonicalRecord] - Wraps the normalized value in its persisted record shape.
  * @param {Function} [opts.onCanonicalize] - Persists normalized current-version or invalid records.
  * @param {Function} [opts.onLoadError] - Called with (error, artifactType) on parse/transform failure.
+ * @param {Function} [opts.onReject] - Receives a record in an unsupported schema before the default replaces it.
  * @returns {*} Normalized value or the default on parse failure.
  */
 export function loadVersionedRecord(readRecord, {
@@ -51,6 +52,7 @@ export function loadVersionedRecord(readRecord, {
     createCanonicalRecord,
     onCanonicalize,
     onLoadError,
+    onReject,
 }) {
     try {
         const parsed = readRecord();
@@ -67,7 +69,10 @@ export function loadVersionedRecord(readRecord, {
             currentVersion: schemaVersion,
             allowMissingVersion: true,
         });
-        if (versionState.shouldReject) return createDefault();
+        if (versionState.shouldReject) {
+            if (typeof onReject === 'function') onReject(parsed, versionState);
+            return createDefault();
+        }
         const normalized = transform(parsed, versionState);
         const canonicalRecord = typeof createCanonicalRecord === 'function'
             ? createCanonicalRecord(normalized)

@@ -7,15 +7,17 @@ export function armConfirmButton(button, {
     timeoutMs = 4000,
     armedAttribute = 'data-confirm-armed',
 } = {}) {
-    const originalLabel = String(label ?? button?.textContent ?? '');
+    // Without a fixed label the button's current text is restored, so a button that relabels
+    // itself (pause: "Hauptmenü" / "Verbindung trennen") keeps the label it showed when armed.
+    let originalLabel = String(label ?? button?.textContent ?? '');
     let armed = false;
     let timer = null;
 
     const disarm = () => {
         if (timer !== null) clearTimeout(timer);
         timer = null;
+        if (armed) button.textContent = originalLabel;
         armed = false;
-        button.textContent = originalLabel;
         button.removeAttribute(armedAttribute);
     };
     const onClick = () => {
@@ -24,6 +26,7 @@ export function armConfirmButton(button, {
             onConfirm?.();
             return;
         }
+        if (label == null) originalLabel = String(button.textContent ?? '');
         armed = true;
         button.textContent = String(confirmLabel);
         button.setAttribute(armedAttribute, 'true');

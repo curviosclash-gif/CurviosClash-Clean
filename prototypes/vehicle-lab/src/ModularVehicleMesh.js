@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 
+// A boosting part flame grows this much longer and turns this far toward white-hot, so it keeps
+// the length, width and colour the part was built with instead of the built-in jets' fixed look.
+const THRUSTER_BOOST_LENGTH = 1.8;
+const THRUSTER_BOOST_WHITEN = 0.45;
+const THRUSTER_WHITE = new THREE.Color(0xffffff);
+
 /**
  * ModularVehicleMesh builds a 3D vehicle from a configuration object.
  */
@@ -16,6 +22,8 @@ export class ModularVehicleMesh extends THREE.Group {
         this.selectedIndex = null;
         this.selectedPath = [];
         this.activeGeometryKeys = new Set();
+        this._animationTime = 0;
+        this._thrusterState = null;
 
         this.initMaterials(config);
         this.build();
@@ -28,7 +36,10 @@ export class ModularVehicleMesh extends THREE.Group {
 
         this.materials.set('primary', new THREE.MeshStandardMaterial({ color: config.primaryColor ?? 0x60a5fa, roughness: 0.3, metalness: 0.6 }));
         this.materials.set('secondary', new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7, metalness: 0.2 }));
-        this.materials.set('glass', new THREE.MeshPhysicalMaterial({ color: 0x1e293b, transmission: 0.5, opacity: 0.7, roughness: 0.2, metalness: 0.1, clearcoat: 1.0 }));
+        // Alpha glass instead of transmission, like the aircraft canopy: three keeps one offscreen
+        // render target per camera for a transmissive material and renders the opaque scene into it
+        // a second time. Matches build new cameras, so that target leaked one texture per match.
+        this.materials.set('glass', new THREE.MeshPhysicalMaterial({ color: 0x1e293b, transparent: true, opacity: 0.62, envMapIntensity: 1.5, roughness: 0.18, metalness: 0.1, clearcoat: 1.0 }));
         this.materials.set('glow', new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 }));
     }
 
@@ -287,10 +298,50 @@ export class ModularVehicleMesh extends THREE.Group {
 
         const mesh = new THREE.Mesh(geo, mat);
         this.applyTransforms(mesh, data);
+        mesh.userData.isThrusterFlame = true;
+        mesh.userData.flameBaseColor = mat.color.getHex();
+        mesh.userData.flameBaseOpacity = mat.opacity;
         return mesh;
     }
 
-    tick(dt, time) {
+    /**
+     * The game tells the vehicle whether it boosts or sits under water; the part flames follow
+     * on the next tick. The Vehicle Lab never calls this, so its flames keep the authored look.
+     * @param {{ boosting?: boolean, submerged?: boolean }} state
+     */
+    setThrusterState({ boosting = false, submerged = false } = {}) {
+        if (!this._thrusterState) this._thrusterState = { boosting: false, submerged: false };
+        this._thrusterState.boosting = boosting === true;
+        this._thrusterState.submerged = submerged === true;
+    }
+
+    applyThrusterFlame(flame, config, scaleFactor) {
+        const state = this._thrusterState;
+        flame.visible = !state.submerged;
+        if (state.submerged) return;
+        const baseScale = config.scale || [1, 1, 1];
+        const length = state.boosting ? THRUSTER_BOOST_LENGTH : 1;
+        flame.scale.set(
+            baseScale[0] * scaleFactor,
+            baseScale[1] * scaleFactor,
+            baseScale[2] * scaleFactor * length
+        );
+        const material = flame.material;
+        if (!material?.color) return;
+        material.color.setHex(flame.userData.flameBaseColor);
+        if (state.boosting) material.color.lerp(THRUSTER_WHITE, THRUSTER_BOOST_WHITEN);
+        material.opacity = state.boosting ? 1 : flame.userData.flameBaseOpacity;
+    }
+
+    tick(dt, elapsedTime) {
+        // Game and hangar call tick(dt) like every other vehicle mesh; only the Vehicle Lab passes elapsed time.
+        if (Number.isFinite(elapsedTime)) {
+            this._animationTime = elapsedTime;
+        } else {
+            const step = Number(dt);
+            if (Number.isFinite(step) && step > 0) this._animationTime += step;
+        }
+        const time = this._animationTime;
         this.traverse(child => {
             const config = child.userData.config;
             if (!config) return;
@@ -341,6 +392,13 @@ export class ModularVehicleMesh extends THREE.Group {
                     }
                 }
                 child.userData.vehicleLabAnimationState = animationState;
+            }
+
+            if (this._thrusterState && child.userData.isThrusterFlame) {
+                const scaleFactor = config.anim?.type === 'pulse'
+                    ? child.userData.vehicleLabAnimationState?.scaleFactor ?? 1
+                    : 1;
+                this.applyThrusterFlame(child, config, scaleFactor);
             }
         });
         this.baseMesh?.tick?.(dt);
@@ -403,7 +461,15 @@ export class ModularVehicleMesh extends THREE.Group {
     }
 
     dispose() {
-        this.baseMesh?.cancelPendingLoad?.();
+        // Every caller builds the base model for this vehicle alone (createBaseVehicleMesh), so it
+        // is freed here. Its own dispose() knows which resources are shared and also cancels a
+        // pending OBJ load; detaching it first keeps the part sweep below off its materials.
+        const baseMesh = this.baseMesh;
+        if (baseMesh) {
+            if (baseMesh.parent === this) this.remove(baseMesh);
+            baseMesh.cancelPendingLoad?.();
+            baseMesh.dispose?.();
+        }
         this.disposeDynamicGeometries();
         this.traverse(child => {
             if (child instanceof THREE.Mesh) {

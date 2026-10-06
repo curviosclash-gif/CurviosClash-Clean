@@ -358,6 +358,7 @@ test('hud projection reports labels and remaining ratios', () => {
     assert.deepEqual(empty, {
         active: false,
         sealed: false,
+        hudNoun: '',
         focusSegment: null,
         breakingSecondsRemaining: 0,
         segments: [],

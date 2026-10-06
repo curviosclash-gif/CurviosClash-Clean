@@ -27,6 +27,30 @@ export const HANGAR_SELECTION_MODES = Object.freeze({
     FIGHT: HANGAR_MODES.FIGHT,
 });
 
+/**
+ * Map keys that are only hidden doubles of another map since that map absorbed them (the
+ * Notre-Dame evolution plays sunshine, fire and ruins in one round). Stored recents and
+ * favourites from before keep the old key and would list the same map twice.
+ */
+export const START_SETUP_RETIRED_MAP_KEYS = Object.freeze({
+    notre_dame_fire: 'notre_dame',
+    notre_dame_fire_arena: 'notre_dame_arena',
+});
+
+/**
+ * Rewrites retired map keys to their successor and keeps the first entry of each map. Edits the
+ * stored array in place, so callers holding it (pushRecentEntry) keep writing the stored list.
+ */
+function normalizeStoredMapKeyList(list) {
+    if (!Array.isArray(list)) return [];
+    const keys = list.map((entry) => START_SETUP_RETIRED_MAP_KEYS[entry] || entry);
+    const unique = keys.filter((entry, index) => keys.indexOf(entry) === index);
+    if (unique.length !== list.length || unique.some((entry, index) => entry !== list[index])) {
+        list.splice(0, list.length, ...unique);
+    }
+    return list;
+}
+
 /** @type {Set<string>} */
 const VALID_PLAYER_SLOT_SET = new Set(Object.values(HANGAR_SELECTION_PLAYER_SLOTS));
 
@@ -144,8 +168,8 @@ export function ensureHangarSelectionWritebackState(settings) {
         settings.localSettings.startSetup = {};
     }
     const startSetup = settings.localSettings.startSetup;
-    if (!Array.isArray(startSetup.favoriteMaps)) startSetup.favoriteMaps = [];
-    if (!Array.isArray(startSetup.recentMaps)) startSetup.recentMaps = [];
+    startSetup.favoriteMaps = normalizeStoredMapKeyList(startSetup.favoriteMaps);
+    startSetup.recentMaps = normalizeStoredMapKeyList(startSetup.recentMaps);
     if (!Array.isArray(startSetup.favoriteVehicles)) startSetup.favoriteVehicles = [];
     if (!Array.isArray(startSetup.recentVehicles)) startSetup.recentVehicles = [];
     if (typeof startSetup.mapSearch !== 'string') startSetup.mapSearch = '';

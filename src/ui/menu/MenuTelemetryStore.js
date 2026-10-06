@@ -276,6 +276,7 @@ export class MenuTelemetryStore extends PersistentStore {
             () => this.readJsonRecord(null),
             {
                 artifactType: 'menu-telemetry',
+                onReject: (record) => this.preserveRejectedRecord(record),
                 schemaVersion: MENU_TELEMETRY_STORAGE_SCHEMA_VERSION,
                 createDefault: createDefaultState,
                 transform: (parsed, versionState) => {

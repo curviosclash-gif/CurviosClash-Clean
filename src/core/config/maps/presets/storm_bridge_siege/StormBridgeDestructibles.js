@@ -1,5 +1,6 @@
 export const STORM_BRIDGE_DESTRUCTIBLES = Object.freeze({
     gameModes: Object.freeze(['HUNT']),
+    hudNoun: 'Brücke',
     segments: Object.freeze([Object.freeze({
         id: 'bridge_span',
         label: 'Brücke',

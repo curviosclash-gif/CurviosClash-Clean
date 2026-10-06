@@ -13,12 +13,43 @@ export function createRoundOutcomeNetworkState(entityManager) {
     const outcome = entityManager?._lastRoundOutcome;
     if (!outcome?.shouldEnd) return null;
     return {
-        round: Math.max(0, Math.trunc(Number(entityManager._networkRoundSerial) || 0)),
+        round: createRoundSerialNetworkState(entityManager),
         winnerIndex: Number.isInteger(outcome.winner?.index) ? outcome.winner.index : -1,
         winnerTeamId: normalizeTeamId(outcome.winnerTeamId || outcome.winner?.teamId),
         reason: String(outcome.reason || ''),
         parcours: cloneWireObject(outcome.parcours),
     };
+}
+
+/** The host's current round serial; every snapshot carries it, also while a round runs. */
+export function createRoundSerialNetworkState(entityManager) {
+    return Math.max(0, Math.trunc(Number(entityManager?._networkRoundSerial) || 0));
+}
+
+/**
+ * Remembers the newest host round serial on the client. Snapshots may arrive out of
+ * order, so the serial only grows; a snapshot without the field (older host) keeps none.
+ */
+export function applyRoundSerialNetworkState(entityManager, serial) {
+    if (!entityManager) return;
+    const round = Number(serial);
+    if (!Number.isInteger(round) || round < 0) return;
+    const known = Number(entityManager._hostRoundSerial);
+    if (Number.isInteger(known) && known >= round) return;
+    entityManager._hostRoundSerial = round;
+}
+
+/**
+ * The host's round start signal for a client on its result board: true once the host
+ * runs a round after the one whose result the client shows, false while it does not,
+ * and null when the host never sent a serial (older host: the client keeps counting
+ * down on its own).
+ */
+export function hasHostStartedNextRound(entityManager) {
+    const hostRound = Number(entityManager?._hostRoundSerial);
+    if (!Number.isInteger(hostRound)) return null;
+    const shownRound = Number(entityManager?._appliedHostRoundOutcome);
+    return hostRound > (Number.isInteger(shownRound) ? shownRound : 0);
 }
 
 /**

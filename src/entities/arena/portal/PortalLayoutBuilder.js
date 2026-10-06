@@ -10,6 +10,7 @@ import {
     createCheckpointRingMesh,
     createFinishRingMesh,
 } from '../CheckpointRingMeshFactory.js';
+import { resolveCheckpointRingVisualRadius } from '../CheckpointRingVisualRadius.js';
 import { buildRouteFromParcours } from '../../systems/ParcoursProgressUtils.js';
 import {
     getMapPlanarAnchors,
@@ -207,7 +208,7 @@ export class PortalLayoutBuilder {
             }
 
             const number = cp.routeIndex + 1;
-            const visualRadius = Math.max(3.2, asPositiveNumber(cp.radius, 4.2) * 0.75) * scale;
+            const visualRadius = resolveCheckpointRingVisualRadius(cp.radius) * scale;
             const branchColor = Number(cp.params?.color);
             const mesh = createCheckpointRingMesh(pos, rotation, number, this.arena.renderer, visualRadius, {
                 color: cp.isBranchOption
@@ -247,7 +248,7 @@ export class PortalLayoutBuilder {
                 fRotation = new THREE.Euler().setFromQuaternion(quat);
             }
 
-            const finishVisualRadius = Math.max(4.2, asPositiveNumber(route.finish.radius, 5.5) * 0.75) * scale;
+            const finishVisualRadius = resolveCheckpointRingVisualRadius(route.finish.radius, { finish: true }) * scale;
             const mesh = createFinishRingMesh(fPos, fRotation, this.arena.renderer, finishVisualRadius);
             if (mesh) {
                 this.arena.checkpointRings.push({

@@ -109,6 +109,7 @@ export const REACTOR_SITE_PIECES = Object.freeze([
 
 export const REACTOR_SITE_DESTRUCTIBLES = Object.freeze({
     gameModes: Object.freeze(['HUNT']),
+    hudNoun: 'Kraftwerk',
     segments: Object.freeze([
         {
             id: 'cooling_tower_w',

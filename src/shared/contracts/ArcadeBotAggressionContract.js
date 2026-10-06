@@ -44,3 +44,20 @@ export function resolveArcadeBridgeAggressionThresholds(value) {
         boostPressureCeiling: 0.55 + (offset * 0.16),
     };
 }
+
+// A role nudges its bot around the squad value: an elite presses harder, a guard holds back.
+const ARCADE_ROLE_AGGRESSIVENESS_OFFSETS = Object.freeze({
+    guard: -0.08,
+    flanker: -0.03,
+    pursuer: 0.04,
+    interceptor: 0,
+    elite: 0.1,
+});
+
+export function resolveArcadeRoleAggressiveness(value, role) {
+    const key = String(role || '').trim().toLowerCase();
+    const offset = Object.prototype.hasOwnProperty.call(ARCADE_ROLE_AGGRESSIVENESS_OFFSETS, key)
+        ? ARCADE_ROLE_AGGRESSIVENESS_OFFSETS[key]
+        : 0;
+    return normalizeArcadeBotAggressiveness(normalizeArcadeBotAggressiveness(value) + offset);
+}

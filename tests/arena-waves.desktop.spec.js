@@ -4,7 +4,7 @@ import { applyArenaWavesChoice } from '../src/shared/contracts/ArenaWavesContrac
 import { EIFFEL_TOWER_SIEGE_MODELS } from '../src/core/config/maps/presets/eiffel_tower_siege/EiffelTowerSiegeModels.js';
 import { ARCADE_VEHICLE_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 
-test('T-ARC-W3: Five Fronts starts with the selected Hangar MG and tuning changes real shot damage', async ({ page }) => {
+test('T-ARC-W3: Five Fronts starts with the selected Hangar MG', async ({ page }) => {
     test.setTimeout(120_000);
     await waitForLoadedGame(page);
     const seeded = await page.evaluate((profileKey) => {
@@ -32,36 +32,10 @@ test('T-ARC-W3: Five Fronts starts with the selected Hangar MG and tuning change
             && human?.arcadeWeaponLoadout?.machineGunId === gunId
             && human?.arcadeWeaponLoadout?.mgLevel === 2;
     }, seeded.selectedMachineGunId, { timeout: 60_000 });
-    const shots = await page.evaluate(() => {
-        const game = window.GAME_INSTANCE;
-        const gun = game.entityManager._overheatGunSystem;
-        const human = game.entityManager.humanPlayers[0];
-        const runtime = game.runtimeFacade._arcadeSupport.arenaWavesRuntime;
-        const resolver = gun._hitResolver;
-        const original = resolver.resolveHit;
-        let damage = 0;
-        resolver.resolveHit = function capture(player, config, ...args) {
-            damage = config.DAMAGE;
-            return original.call(this, player, config, ...args);
-        };
-        try {
-            human.shootCooldown = 0;
-            gun._lockoutByPlayer[human.index] = 0;
-            gun.tryFire(human);
-            const before = damage;
-            runtime.upgrades.mgTuning = 1;
-            runtime._applyHumanUpgrades();
-            human.shootCooldown = 0;
-            gun._lockoutByPlayer[human.index] = 0;
-            gun.tryFire(human);
-            return { before, after: damage, tuning: human.arenaWavesLoadout?.mgTuning };
-        } finally {
-            resolver.resolveHit = original;
-        }
-    });
-    expect(shots.before).toBeGreaterThan(0);
-    expect(shots.after / shots.before).toBeCloseTo(1.06, 5);
-    expect(shots.tuning).toBe(1);
+    // The tuning-to-damage factor is covered by tests/arcade-machine-gun-combat.contract.test.mjs.
+    const loadout = await page.evaluate(() => window.GAME_INSTANCE.entityManager.humanPlayers[0].arenaWavesLoadout);
+    expect(loadout?.machineGunId).toBe(seeded.selectedMachineGunId);
+    expect(loadout?.mgTuning).toBe(0);
 });
 
 // This intentionally uses the runtime's test-visible arcade seam to avoid waiting

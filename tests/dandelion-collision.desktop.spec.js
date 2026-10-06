@@ -24,117 +24,55 @@ async function startDandelionFight(page) {
     }, MAP_KEY, { timeout: 90_000 });
 }
 
-test('attached dandelion seeds damage and visibly deflect a vehicle in the desktop runtime', async ({ page }) => {
+test('attached dandelion seeds render in a few instanced batches in the desktop runtime', async ({ page }) => {
     test.setTimeout(180_000);
     await startDandelionFight(page);
 
-    const contact = await page.evaluate(() => {
-        const game = window.GAME_INSTANCE;
-        const manager = game.entityManager;
-        const player = manager.humanPlayers[0];
-        const seed = game.arena._dandelionSeeds.seeds[0];
-        const previous = seed.tip.clone().addScaledVector(seed.normal, 30);
-        player.position.copy(seed.tip);
-        player.spawnProtectionTimer = 0;
-        player.arenaCollisionGraceTimer = 0;
-        const hpBefore = player.hp;
-        const aborted = manager._playerLifecycleSystem._collisionPhase.run(
-            player, previous, manager.gameModeStrategy,
-        );
-        const timer = Math.max(0, Number(player.slingshotTimer) || 0);
-        const forwardImpulse = Math.max(0, Number(player.slingshotParams?.forwardImpulse) || 0);
-        return {
-            aborted,
-            seedCount: game.arena._dandelionSeeds.count,
-            renderBatch: game.arena._dandelionSeeds.getRenderBatchMetrics(),
-            hpBefore,
-            hpAfter: player.hp,
-            timer,
-            forwardImpulse,
-            initialDeflection: forwardImpulse * Math.min(1, timer),
-        };
+    // The contact damage and deflection run in tests/dandelion-seed-hits.contract.test.mjs.
+    const batch = await page.evaluate(() => {
+        const seeds = window.GAME_INSTANCE.arena._dandelionSeeds;
+        return { seedCount: seeds.count, renderBatch: seeds.getRenderBatchMetrics() };
     });
 
-    expect(contact.seedCount).toBeGreaterThanOrEqual(180);
-    expect(contact.renderBatch.enabled).toBe(true);
-    expect(contact.renderBatch.instances).toBe(contact.seedCount);
-    expect(contact.renderBatch.batches).toBeLessThanOrEqual(12);
-    expect(contact.renderBatch.estimatedDrawCalls).toBeLessThanOrEqual(12);
-    expect(contact.aborted).toBe(false);
-    expect(contact.hpAfter).toBe(contact.hpBefore - 1);
-    expect(contact.timer).toBeGreaterThan(0);
-    expect(contact.initialDeflection).toBeGreaterThanOrEqual(2);
+    expect(batch.seedCount).toBeGreaterThanOrEqual(180);
+    expect(batch.renderBatch.enabled).toBe(true);
+    expect(batch.renderBatch.instances).toBe(batch.seedCount);
+    expect(batch.renderBatch.batches).toBeLessThanOrEqual(12);
+    expect(batch.renderBatch.estimatedDrawCalls).toBeLessThanOrEqual(12);
 });
 
-test('the last dandelion seed opens the guarded root chamber and keeps its interior safe', async ({ page }) => {
+test('the last dandelion seed opens the root chamber portal', async ({ page }) => {
     test.setTimeout(180_000);
     await startDandelionFight(page);
 
-    const result = await page.evaluate(() => {
-        const game = window.GAME_INSTANCE;
-        const arena = game.arena;
-        const manager = game.entityManager;
+    // Guards, stay clock and eject point are covered by tests/dandelion-sky-secret-room.contract.test.mjs.
+    const readState = () => page.evaluate(() => {
+        const arena = window.GAME_INSTANCE.arena;
+        return {
+            progress: { ...arena.getDandelionSeedProgress() },
+            portalOpen: arena.portals.find((portal) => portal.roomId === 'root_chamber')?.active === true,
+        };
+    });
+    const seedTotal = await page.evaluate(() => {
+        const arena = window.GAME_INSTANCE.arena;
         const seeds = arena._dandelionSeeds.seeds;
-        const roomSystem = manager._secretRoomSystem;
-        const turretSystem = manager._staticTurretSystem;
-        const roomPortal = arena.portals.find((portal) => portal.roomId === 'root_chamber');
-
         for (let index = 0; index < seeds.length - 1; index += 1) {
             arena.releaseDandelionSeed(seeds[index].node.name);
         }
-        roomSystem.update(0);
-        turretSystem.update(0);
-        const before = {
-            progress: { ...arena.getDandelionSeedProgress() },
-            portalOpen: roomPortal?.active === true,
-            visibleGuards: turretSystem.turrets.filter((turret) => turret.root?.visible).length,
-        };
-
-        arena.releaseDandelionSeed(seeds.at(-1).node.name);
-        roomSystem.update(0);
-        turretSystem.update(0);
-        const entry = roomSystem.getRooms().find((candidate) => candidate.room.id === 'root_chamber');
-        const insideTurrets = turretSystem.turrets.filter((turret) => {
-            const bounds = entry.scaledRoom.bounds;
-            return turret.position.x >= bounds.min[0] && turret.position.x <= bounds.max[0]
-                && turret.position.y >= bounds.min[1] && turret.position.y <= bounds.max[1]
-                && turret.position.z >= bounds.min[2] && turret.position.z <= bounds.max[2];
-        }).length;
-
-        const player = manager.humanPlayers[0];
-        player.position.set(0, -33, 0);
-        roomSystem.update(0);
-        const entered = { ...roomSystem.getHudStateForPlayer(player.index) };
-        roomSystem.update(20);
-
-        return {
-            seedTotal: seeds.length,
-            before,
-            after: {
-                progress: { ...arena.getDandelionSeedProgress() },
-                portalOpen: roomPortal?.active === true,
-                roomOpen: entry.open === true,
-                unlockSeconds: entry.unlockSeconds,
-                elapsedSeconds: arena.glbAnimationElapsedSeconds,
-                visibleGuards: turretSystem.turrets.filter((turret) => turret.root?.visible).length,
-                insideTurrets,
-            },
-            entered,
-            ejectPosition: player.position.toArray(),
-        };
+        return seeds.length;
     });
+    const before = await readState();
+    expect(before.progress.released).toBe(seedTotal - 1);
+    expect(before.portalOpen).toBe(false);
 
-    expect(result.before.progress.released).toBe(result.seedTotal - 1);
-    expect(result.before.portalOpen).toBe(false);
-    expect(result.before.visibleGuards).toBe(0);
-    expect(result.after.progress.released).toBe(result.seedTotal);
-    expect(result.after.progress.allReleased).toBe(true);
-    expect(result.after.portalOpen, JSON.stringify(result.after)).toBe(true);
-    expect(result.after.visibleGuards).toBe(3);
-    expect(result.after.insideTurrets).toBe(0);
-    expect(result.entered.inside).toBe(true);
-    expect(result.entered.roomId).toBe('root_chamber');
-    expect(result.ejectPosition).toEqual([0, 360, 510]);
+    await page.evaluate(() => {
+        const arena = window.GAME_INSTANCE.arena;
+        arena.releaseDandelionSeed(arena._dandelionSeeds.seeds.at(-1).node.name);
+    });
+    await expect.poll(async () => (await readState()).portalOpen).toBe(true);
+    const after = await readState();
+    expect(after.progress.released).toBe(seedTotal);
+    expect(after.progress.allReleased).toBe(true);
 
     await expect(page.locator('.map-destructible-status').first()).toContainText(
         'PORTAL OFFEN · WURZELKAMMER',

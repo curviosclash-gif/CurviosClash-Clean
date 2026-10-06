@@ -8,6 +8,7 @@ export const ARCADE_SQUAD_PROFILES = Object.freeze({
         botCount: 2,
         aggressiveness: 0.45,
         pressure: 0.35,
+        botRoles: Object.freeze(['flanker', 'pursuer']),
     }),
     striker_tri: Object.freeze({
         id: 'striker_tri',
@@ -15,6 +16,7 @@ export const ARCADE_SQUAD_PROFILES = Object.freeze({
         botCount: 3,
         aggressiveness: 0.58,
         pressure: 0.5,
+        botRoles: Object.freeze(['pursuer', 'flanker', 'interceptor']),
     }),
     hunter_pack: Object.freeze({
         id: 'hunter_pack',
@@ -22,6 +24,7 @@ export const ARCADE_SQUAD_PROFILES = Object.freeze({
         botCount: 4,
         aggressiveness: 0.72,
         pressure: 0.7,
+        botRoles: Object.freeze(['guard', 'flanker', 'pursuer', 'interceptor']),
     }),
     elite_lance: Object.freeze({
         id: 'elite_lance',
@@ -29,6 +32,7 @@ export const ARCADE_SQUAD_PROFILES = Object.freeze({
         botCount: 5,
         aggressiveness: 0.85,
         pressure: 0.88,
+        botRoles: Object.freeze(['elite', 'interceptor', 'flanker', 'pursuer', 'guard']),
     }),
 });
 
@@ -168,6 +172,12 @@ function normalizeArcadeDifficulty(value, fallback = 'NORMAL') {
         : 'NORMAL';
 }
 
+/** One role per bot: the squad's mix repeats when a scenario asks for more bots than it lists. */
+function resolveSquadBotRoles(squad, botCount) {
+    const roles = Array.isArray(squad?.botRoles) && squad.botRoles.length > 0 ? squad.botRoles : ['pursuer', 'flanker'];
+    return Array.from({ length: Math.max(0, botCount) }, (_, index) => roles[index % roles.length]);
+}
+
 export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = {}) {
     const entry = sectorEntry && typeof sectorEntry === 'object' ? sectorEntry : {};
     const squadId = String(entry.squadId || '').trim();
@@ -180,13 +190,15 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
         ? pressureDifficulty
         : baseDifficulty;
     const parcoursEnabled = entry.parcoursEnabled === true;
+    const botCount = parcoursEnabled ? 0 : (Number.isInteger(entry.botCount) ? entry.botCount : (squad?.botCount ?? fallbackBotCount));
 
     return {
         sectorIndex: Math.max(1, Math.trunc(Number(entry.sectorNumber) || Number(options.sectorIndex) || 1)),
         mapKey: String(options.mapKey || entry.mapKey || 'standard').trim() || 'standard',
         templateId: String(entry.templateId || 'sector_intro').trim() || 'sector_intro',
         squadId: parcoursEnabled ? null : (squadId || null),
-        botCount: parcoursEnabled ? 0 : (Number.isInteger(entry.botCount) ? entry.botCount : (squad?.botCount ?? fallbackBotCount)),
+        botCount,
+        botRoles: resolveSquadBotRoles(squad, botCount),
         botDifficulty,
         pressure,
         aggressiveness: parcoursEnabled ? 0 : Math.max(0, Math.min(1, Number(squad?.aggressiveness) || 0)),

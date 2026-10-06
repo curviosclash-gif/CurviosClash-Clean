@@ -8,6 +8,9 @@ import { ProjectileSimulationOps } from '../src/entities/systems/projectile/Proj
 import { ProjectileHitResolver } from '../src/entities/systems/projectile/ProjectileHitResolver.js';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
+import { CONFIG_BASE } from '../src/core/Config.js';
+import { Player } from '../src/entities/Player.js';
+import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { PlayerCollisionPhase } from '../src/entities/systems/lifecycle/PlayerCollisionPhase.js';
 
 function seedArena() {
@@ -132,4 +135,38 @@ test('classic mode keeps the soft deflection without inventing a fractional heal
     });
     assert.equal(phase._resolveDandelionSeedCollision(player, 0.4), true);
     assert.equal(slingshotCalls, 1);
+});
+
+test('a real vehicle touching an attached seed loses one point and is visibly deflected through the full collision phase', () => {
+    const arena = seedArena();
+    const manager = {
+        arena: { ...arena, consumeDandelionSeedCollision: (...args) => arena.controller.consumeCollision(...args) },
+        players: [],
+        constructor: { deriveSelfTrailSkipRecentSegments: () => 0 },
+        gameModeStrategy: { hasDamageEvents: () => true },
+        checkGlobalCollision: () => null,
+        _applyModeDamage: (target, amount) => { target.hp -= amount; return { applied: amount, isDead: target.hp <= 0 }; },
+    };
+    const phase = new PlayerCollisionPhase(manager);
+    manager.entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
+    manager._simulationClockMs = 0;
+    manager._tmpVec = new THREE.Vector3();
+    manager._tmpVec2 = new THREE.Vector3();
+    manager._tmpDir = new THREE.Vector3();
+    manager.getTrailSpatialIndex = () => null;
+    const player = new Player({ addToScene() {}, removeFromScene() {} }, 0, 0x33aaff, false, { entityManager: manager });
+    player.spawn(new THREE.Vector3(0, 20, 0), new THREE.Vector3(0, 0, -1));
+    player.spawnProtectionTimer = 0;
+    player.arenaCollisionGraceTimer = 0;
+    const hpBefore = player.hp;
+    const seed = arena.controller.seeds[0];
+    const previous = seed.tip.clone().addScaledVector(seed.normal, 30);
+    player.position.copy(seed.tip);
+
+    const aborted = phase.run(player, previous, manager.gameModeStrategy);
+
+    assert.equal(aborted, false, 'a seed is a soft hazard, it never aborts the tick');
+    assert.equal(player.hp, hpBefore - 1);
+    assert.ok(player.slingshotTimer > 0);
+    assert.ok(player.slingshotParams.forwardImpulse * Math.min(1, player.slingshotTimer) >= 2, 'the deflection is visible');
 });

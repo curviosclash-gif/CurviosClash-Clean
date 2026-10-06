@@ -23,6 +23,7 @@ import {
 import { filterKnownSettingsChangeKeys } from './RuntimeSettingsChangeKeys.js';
 import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
 import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
+import { isParcoursActiveForGameMode } from '../../shared/contracts/MapModeContract.js';
 import { RUNTIME_SESSION_TYPES, resolveRuntimeSessionContract } from '../../shared/contracts/RuntimeSessionContract.js';
 import { isWeaponRaceRunType } from '../../shared/contracts/WeaponRaceContract.js';
 
@@ -173,6 +174,13 @@ export class GameRuntimeSettingsHandler {
         const mapDefinition = CONFIG?.MAPS?.[settings.mapKey];
         const scenario = resolveMapSinglePlayerScenario(mapDefinition);
         if (!scenario) {
+            return { changed: false, changedKeys: [] };
+        }
+        // An Arcade pick is the only way into a route authored for Arcade alone (Aetherion);
+        // a scenario that switches the run to a mode without that route would hide it.
+        if (settings.localSettings?.modePath === 'arcade'
+            && isParcoursActiveForGameMode(mapDefinition, 'ARCADE')
+            && !isParcoursActiveForGameMode(mapDefinition, scenario.gameMode)) {
             return { changed: false, changedKeys: [] };
         }
 

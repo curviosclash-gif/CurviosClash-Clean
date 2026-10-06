@@ -125,11 +125,22 @@ test('Desktop Abrisskommando binds three UUID profiles across timeout and card r
 
     await page.evaluate(() => {
         const runtime = window.GAME_INSTANCE.runtimeFacade._arcadeSupport.demolitionSupport.runtime;
+        // runtime.update() moves mapIndex to 1 at once, but the match session is rebuilt
+        // afterwards: until then GAME_INSTANCE keeps the old entity manager, and during the
+        // rebuild it is null. Remember the old one to wait for the rebuilt map.
+        window.__demolitionStaleEntityManager = window.GAME_INSTANCE.entityManager;
         runtime.update(runtime.remainingSeconds + 1);
     });
-    await page.waitForFunction(() => window.GAME_INSTANCE?.runtimeFacade?._arcadeSupport?.demolitionSupport?.runtime?.mapIndex === 1
-        && window.GAME_INSTANCE?.state === 'PLAYING'
-        && window.GAME_INSTANCE?.entityManager?.humanPlayers?.length === 3);
+    await page.waitForFunction(() => {
+        const game = window.GAME_INSTANCE;
+        const runtime = game?.runtimeFacade?._arcadeSupport?.demolitionSupport?.runtime;
+        return runtime?.mapIndex === 1
+            && runtime.phase === 'active'
+            && game.state === 'PLAYING'
+            && Boolean(game.entityManager)
+            && game.entityManager !== window.__demolitionStaleEntityManager
+            && game.entityManager.humanPlayers?.length === 3;
+    });
     const rebuilt = await page.evaluate(({ ids, profileKey, vehicleId }) => {
         const game = window.GAME_INSTANCE;
         const runtime = game.runtimeFacade._arcadeSupport.demolitionSupport.runtime;

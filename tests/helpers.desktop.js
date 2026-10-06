@@ -11,6 +11,7 @@ import {
     shouldForceDesktopWindowTeardown,
 } from './desktop-process-teardown.mjs';
 import { installFreshBootGuards, markFreshBoot } from './fresh-boot-mark.mjs';
+import { resolveDesktopUserDataRoot } from './desktop-user-data-root.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -31,24 +32,6 @@ const DESKTOP_SCREENSHOT_TIMEOUT_MS = 15000;
 // Kurz gehalten: Beide Schritte sind reine Abfragen im Abbau. Antwortet die Seite
 // oder der Hauptprozess nicht sofort, bleibt der bisherige Weg mit seiner Frist.
 const DESKTOP_WINDOW_TEARDOWN_TIMEOUT_MS = 5000;
-
-// Ohne eigenen Profilpfad schreiben alle Desktop-Tests in %APPDATA%\curviosclash-app,
-// also in dasselbe Verzeichnis wie die echte App des Nutzers. Ein Lauf bekommt hier
-// einen eigenen Unterordner; PW_FRESH_PROFILE=1 gibt zusaetzlich jedem Test einen.
-function resolveDesktopUserDataRoot(testInfo) {
-    const configuredRoot = String(process.env.CURVIOS_USER_DATA_ROOT || '').trim();
-    // Same slug rule as the cluster runner, so a hand-set tag can never leave tmp/playwright.
-    const runTag = String(process.env.PW_RUN_TAG || '')
-        .trim()
-        .replace(/[^a-zA-Z0-9-_]+/g, '-')
-        .replace(/^-+|-+$/g, '') || 'local';
-    const baseRoot = configuredRoot
-        ? path.resolve(configuredRoot)
-        : path.resolve(process.cwd(), 'tmp', 'playwright', runTag, 'user-data');
-    return String(process.env.PW_FRESH_PROFILE || '').trim() === '1'
-        ? path.join(baseRoot, String(testInfo?.testId || 'test'))
-        : baseRoot;
-}
 
 function toIsoNow(timestamp = Date.now()) {
     return new Date(timestamp).toISOString();
@@ -465,7 +448,7 @@ const desktopTest = base.extend({
             pushChunk(mainProcessEntries, stream, chunk);
         };
 
-        const userDataRoot = resolveDesktopUserDataRoot(testInfo);
+        const userDataRoot = resolveDesktopUserDataRoot({ testInfo });
         // Ein verstecktes Fenster rendert mit rund einem Bild pro Sekunde; Tests, die auf
         // gezeichnete Bilder warten (@render), sind damit strukturell unerfuellbar.
         // Der Render-Modus (siehe resolveTestRenderMode) ersetzt das versteckte Fenster

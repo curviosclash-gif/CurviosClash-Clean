@@ -253,7 +253,8 @@ export class HuntModeStrategy extends GameModeContract {
 
     updateHealthRegen(player, dt, config, nowSeconds) {
         if (!player) return;
-        const activeConfig = resolveConfig(config || player, this.entityRuntimeConfig);
+        // Player.update passes its EntityManager; its resolved config holds the HUNT values.
+        const activeConfig = resolveConfig(config?.entityRuntimeConfig || config || player, this.entityRuntimeConfig);
         if (player.hp <= 0) return;
         const maxHp = Math.max(1, toSafeNumber(player.maxHp, toSafeNumber(activeConfig?.HUNT?.PLAYER_MAX_HP, 100)));
         if (player.hp >= maxHp) return;

@@ -1,5 +1,6 @@
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import { resolveArcadeRoleAggressiveness } from '../shared/contracts/ArcadeBotAggressionContract.js';
 
 export function applyLiveRuntimeConfig(em, entityRuntimeConfig, runtimeConfig) {
     const nextErc = resolveEntityRuntimeConfig(entityRuntimeConfig || em.entityRuntimeConfig || null);
@@ -68,13 +69,19 @@ export function applyLiveRuntimeConfig(em, entityRuntimeConfig, runtimeConfig) {
     const arcadeAggressiveness = runtimeConfig?.bot?.arcadeAggressiveness;
     if (Number.isFinite(Number(arcadeAggressiveness))) {
         for (const bot of em.bots || []) {
-            bot?.ai?.setArcadeBotAggressiveness?.(arcadeAggressiveness);
+            const value = runtimeConfig?.arcade?.enabled === true
+                ? resolveArcadeRoleAggressiveness(arcadeAggressiveness, bot?.player?.scenarioRole)
+                : arcadeAggressiveness;
+            bot?.ai?.setArcadeBotAggressiveness?.(value);
         }
     }
     const playerSection = nextErc.PLAYER || {};
     const nextMaxHp = Number(nextErc?.HUNT?.PLAYER_MAX_HP);
     const humanPlayers = Array.isArray(em.humanPlayers) ? em.humanPlayers : [];
     const invertPitchBySlot = runtimeConfig?.player?.invertPitch;
+    // A network seat number is no local controller slot: there the pitch inversion lives
+    // in the local input source, so no network plane is inverted here.
+    const networkMatch = runtimeConfig?.session?.networkEnabled === true;
     for (const player of em.players) {
         if (!player) continue;
         player.entityRuntimeConfig = nextErc;
@@ -88,7 +95,7 @@ export function applyLiveRuntimeConfig(em, entityRuntimeConfig, runtimeConfig) {
             const humanIndex = humanPlayers.indexOf(player);
             const pitchSlot = humanIndex >= 0 ? `PLAYER_${humanIndex + 1}` : '';
             if (pitchSlot && Object.hasOwn(invertPitchBySlot || {}, pitchSlot)) {
-                controlOptions.invertPitch = invertPitchBySlot[pitchSlot] === true;
+                controlOptions.invertPitch = !networkMatch && invertPitchBySlot[pitchSlot] === true;
             }
             player.setControlOptions(controlOptions);
         }

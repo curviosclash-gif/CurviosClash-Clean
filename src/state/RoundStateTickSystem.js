@@ -15,6 +15,7 @@ import {
     readRoundEndInputLockState,
     releaseRoundEndInputLock,
 } from './RoundEndInputLockOps.js';
+import { hasHostStartedNextRound } from '../entities/systems/RoundOutcomeNetworkState.js';
 
 export class RoundStateTickSystem {
     constructor(deps = {}) {
@@ -366,11 +367,24 @@ export class RoundStateTickSystem {
         return false;
     }
 
+    /**
+     * A network client starts the next round when the host does, not when its own
+     * countdown runs out: the host round serial in the snapshots is the start signal.
+     * Only an older host without that serial leaves the client its own countdown.
+     */
+    _resolveRoundEndAction(action) {
+        if (action !== 'START_ROUND' && action !== 'WAIT') return action;
+        if (!this._isRemoteSessionClient()) return action;
+        const hostStarted = hasHostStartedNextRound(this.game?.entityManager);
+        if (hostStarted === null) return action;
+        return hostStarted ? 'START_ROUND' : 'WAIT';
+    }
+
     _applyRoundEndTickStep(roundEndTick, dt) {
         this._applyRoundEndTickMutableState(roundEndTick);
         return this._runRoundStateTickStepCore(roundEndTick, dt, {
             afterBase: (tickStep) => {
-                this._executeRoundStateTickAction(tickStep.action);
+                this._executeRoundStateTickAction(this._resolveRoundEndAction(tickStep.action));
                 return false;
             },
         });

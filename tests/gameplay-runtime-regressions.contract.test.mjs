@@ -529,6 +529,7 @@ test('Arcade sector profiles apply authored squad pressure and request session r
         templateId: 'sector_hazard',
         squadId: 'elite_lance',
         botCount: 5,
+        botRoles: ['elite', 'interceptor', 'flanker', 'pursuer', 'guard'],
         botDifficulty: 'HARD',
         pressure: 0.9,
         aggressiveness: 0.85,

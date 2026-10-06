@@ -4,6 +4,14 @@ import { getHuntScoreValue } from './HuntMatchStatusHelpers.js';
 import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contracts/HuntWinConditionContract.js';
 import { normalizeTeamId, TEAM_IDS } from '../shared/contracts/TeamCombatContract.js';
 
+// Bots and the own seats have no network round trip, so their cell stays empty. A remote
+// player without a measurement shows a dash instead of a made-up 0ms.
+function formatPingCell(value, withoutNetworkPing) {
+    const pingMs = value === null || value === undefined || value === '' ? -1 : Number(value);
+    if (Number.isFinite(pingMs) && pingMs >= 0) return `${Math.round(pingMs)}ms`;
+    return withoutNetworkPing ? '' : '–';
+}
+
 export class MatchScoreHudPresenter {
     constructor(hud) {
         this.hud = hud;
@@ -90,16 +98,13 @@ export class MatchScoreHudPresenter {
             const score = String(scoreOf(player));
             const peer = sessionPlayers.find((entry) =>
                 (entry?.playerIndex ?? entry?.index) === playerIndex);
-            const pingMs = peer?.pingMs ?? peer?.ping ?? (player.isBot ? 0 : -1);
-            const ping = pingMs >= 0 ? `${pingMs}ms` : '';
+            const isLocalRow = playerIndex >= localIndex && playerIndex < localIndex + Math.max(1, localHumanCount);
+            const ping = formatPingCell(peer?.pingMs ?? peer?.ping, player?.isBot === true || isLocalRow || peer?.isLocal === true);
             const teamId = normalizeTeamId(player?.teamId);
             if (row.children[0].textContent !== name) row.children[0].textContent = name;
             if (row.children[1].textContent !== score) row.children[1].textContent = score;
             if (row.children[2].textContent !== ping) row.children[2].textContent = ping;
-            row.classList.toggle(
-                'is-local',
-                playerIndex >= localIndex && playerIndex < localIndex + Math.max(1, localHumanCount)
-            );
+            row.classList.toggle('is-local', isLocalRow);
             row.classList.toggle('is-leading', uniqueLeader && index === 0);
             row.classList.toggle('is-team-blue', teamId === TEAM_IDS.ALPHA);
             row.classList.toggle('is-team-orange', teamId === TEAM_IDS.BRAVO);

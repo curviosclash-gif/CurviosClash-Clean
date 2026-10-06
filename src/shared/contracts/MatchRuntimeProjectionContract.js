@@ -183,6 +183,8 @@ function createMapDestructibleProjection(value = null) {
     return {
         active,
         sealed: source.sealed === true,
+        // What the map calls the structure, so the HUD never announces another map's landmark.
+        hudNoun: active ? normalizeString(source.hudNoun, '').slice(0, 40) : '',
         focusSegment: active && focus ? {
             id: normalizeString(focus.id, '').slice(0, 80),
             label: normalizeString(focus.label, '').slice(0, 40),

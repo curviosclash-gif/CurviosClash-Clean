@@ -20,7 +20,7 @@ import { applyBotFlamethrowerInput } from './HuntBotFlamethrowerOps.js';
 import { applyBotMapUnitFire } from './HuntBotMapUnitOps.js';
 import { applyBotLightningInput } from './HuntBotLightningOps.js';
 import { applyBotRailgunInput, holdsRailgunCharge } from './HuntBotRailgunOps.js';
-import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
+import { applyRetreatSteeringFallback, applyRetreatSteeringFromSensors, applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 import { areTeammates } from '../shared/contracts/TeamCombatContract.js';
 import { applyFlagObjectiveMovement } from './HuntBotFlagObjectiveOps.js';
 import { applyHuntBotObjectiveMovement } from './HuntBotObjectiveOps.js';
@@ -195,53 +195,6 @@ function resolveSensorSnapshot(policy) {
     return null;
 }
 
-function resolveSensorYawPitch(snapshot) {
-    const yaw = Number.isFinite(snapshot?.targetYaw) ? snapshot.targetYaw : 0;
-    const pitch = Number.isFinite(snapshot?.targetPitch) ? snapshot.targetPitch : 0;
-    return { yaw, pitch };
-}
-
-function applyRetreatSteeringFallback(policy, input, player, enemy) {
-    if (!player?.position) return;
-    const retreatDistance = 24;
-    if (enemy?.position) {
-        policy._tmpGate.subVectors(player.position, enemy.position);
-        if (policy._tmpGate.lengthSq() > 0.000001) {
-            policy._tmpGate.normalize().multiplyScalar(retreatDistance).add(player.position);
-            applySteeringTowardPosition(policy, input, player, policy._tmpGate);
-            return;
-        }
-    }
-    if (typeof player.getDirection === 'function') {
-        player.getDirection(policy._tmpForward);
-    } else {
-        policy._tmpForward.set(0, 0, 1);
-    }
-    if (policy._tmpForward.lengthSq() <= 0.000001) {
-        policy._tmpForward.set(0, 0, 1);
-    } else {
-        policy._tmpForward.normalize();
-    }
-    policy._tmpGate.copy(player.position).addScaledVector(policy._tmpForward, retreatDistance);
-    applySteeringTowardPosition(policy, input, player, policy._tmpGate);
-}
-
-function applyRetreatSteeringFromSensors(input, snapshot, player) {
-    const planarMode = !!resolveGameplayConfig(player).GAMEPLAY.PLANAR_MODE;
-    const steering = resolveSensorYawPitch(snapshot);
-    // snapshot.targetYaw traegt dieselbe Zuordnung wie applySteeringTowardPosition, also
-    // "zum Gegner hin". Der Rueckzug braucht das Gegenteil: Vorzeichen umdrehen. Beim Pitch
-    // steht die umgedrehte Zuordnung schon unten.
-    if (Math.abs(steering.yaw) > 0.01) {
-        input.yawLeft = steering.yaw < 0;
-        input.yawRight = steering.yaw > 0;
-    }
-    if (!planarMode && Math.abs(steering.pitch) > 0.01) {
-        input.pitchUp = steering.pitch < 0;
-        input.pitchDown = steering.pitch > 0;
-    }
-}
-
 export function resolvePlayerCooldownKey(player) {
     if (typeof player?.id === 'string' && player.id.trim()) return player.id;
     if (Number.isFinite(player?.id)) return player.id;
@@ -349,6 +302,14 @@ export class HuntBotPolicy {
         this._tmpRoleForward = new THREE.Vector3();
         this._tmpFlameAim = new THREE.Vector3();
         this._tmpFlameOffset = new THREE.Vector3();
+    }
+
+    reset() {
+        this._fallbackPolicy.reset();
+    }
+
+    resetRound() {
+        this._fallbackPolicy.resetRound();
     }
 
     update(dt, player, runtimeContext = null) {

@@ -3222,6 +3222,12 @@ body:has(#pause-overlay:not(.hidden)) :is(#arcade-score-hud, #arcade-mission-hud
     z-index: 130;
 }
 
+/* A deathmatch adds the kill-target row (6px margin + 4px pips) under the board; without this
+   the lightning warning and every other toast sat on the score line. */
+body:has(#hunt-hud:not(.hidden) #hunt-target-progress:not(.hidden)) #hud-notice-stack {
+    top: calc(14px + 76px * var(--hud-scale, 1));
+}
+
 #hud-notice-stack > .map-sandstorm-status {
     position: relative;
     top: auto;

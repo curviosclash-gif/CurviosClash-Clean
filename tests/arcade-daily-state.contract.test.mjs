@@ -136,3 +136,24 @@ test('Arcade runtime projects current Daily records and attaches the completed a
     assert.equal(menuState.daily.runsPlayed, 2);
     assert.equal(menuState.daily.bestScore, 4500);
 });
+
+test('a first Daily attempt without a single point is no new best', () => {
+    // The first run of the day used to count as a best whatever it scored, so a run that
+    // ended before the player flew at all was celebrated as "Neuer Tagesbestwert".
+    const result = createArcadeDailyRunResult({
+        previousRecords: null,
+        completedRecords: { daily: { seed: 20260929, runsPlayed: 1, bestScore: 0 } },
+        summary: { isDailyChallenge: true, seed: 20260929, score: 0 },
+    });
+
+    assert.equal(result?.attempt, 1);
+    assert.equal(result?.isNewBest, false, 'zero points are no daily best');
+    assert.equal(result?.tiedBest, false);
+
+    const firstScoringRun = createArcadeDailyRunResult({
+        previousRecords: null,
+        completedRecords: { daily: { seed: 20260929, runsPlayed: 1, bestScore: 150 } },
+        summary: { isDailyChallenge: true, seed: 20260929, score: 150 },
+    });
+    assert.equal(firstScoringRun?.isNewBest, true, 'the first run that scores sets the daily best');
+});

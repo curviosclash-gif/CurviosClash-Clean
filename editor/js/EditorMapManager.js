@@ -2,9 +2,13 @@ import * as THREE from 'three';
 import { createEditorMesh, alignTunnelSegment as alignTunnelSegmentMesh } from './EditorMeshFactory.js';
 import { EditorObjectRegistry } from './EditorObjectRegistry.js';
 import { generateJSONExport, importFromJSON } from './EditorMapSerializer.js';
+import { getCustomMapConversionScale } from '../../src/entities/CustomMapLoader.js';
+import {
+    CHECKPOINT_RING_RADIUS_FACTOR,
+    resolveCheckpointRingVisualRadius,
+} from '../../src/entities/arena/CheckpointRingVisualRadius.js';
 
 const SCALABLE_OBJECT_TYPES = new Set(['hard', 'foam', 'tunnel', 'portal', 'aircraft', 'glb', 'checkpoint', 'escort_waypoint']);
-const CHECKPOINT_SCALE_FACTOR = 14;
 
 /**
  * @typedef {{
@@ -41,6 +45,7 @@ export class EditorMapManager {
         this.lastSchemaWarnings = [];
         this.lastImportWarnings = [];
         this.authoringMetadataProvider = null;
+        this.arenaSizeProvider = null;
         this._orientationForward = new THREE.Vector3();
 
         this.setCallbacks(options?.callbacks || options);
@@ -159,6 +164,23 @@ export class EditorMapManager {
 
     setAuthoringMetadataProvider(provider) {
         this.authoringMetadataProvider = typeof provider === 'function' ? provider : null;
+    }
+
+    setArenaSizeProvider(provider) {
+        this.arenaSizeProvider = typeof provider === 'function' ? provider : null;
+    }
+
+    /**
+     * Mesh scale that draws a checkpoint ring as large as the match does: the shared ring rule in
+     * map units, converted with the same factor the export applies to this arena.
+     * @param {number} cpRadius Authored radius in editor units.
+     * @param {boolean} [finish]
+     * @returns {number}
+     */
+    getCheckpointRingScale(cpRadius, finish = false) {
+        const conversion = getCustomMapConversionScale({ arenaSize: this.arenaSizeProvider?.() }).scale;
+        const ringRadius = resolveCheckpointRingVisualRadius(Number(cpRadius) / conversion, { finish }) * conversion;
+        return ringRadius / this.torusGeo.parameters.radius;
     }
 
     hasObjectId(id) {
@@ -421,7 +443,10 @@ export class EditorMapManager {
                 if (Number(userData.targetSize) > 0) userData.targetSize = scalar;
                 else userData.glbScale = scalar;
             } else if (userData.type === 'checkpoint') {
-                userData.cpRadius = scalar / CHECKPOINT_SCALE_FACTOR;
+                // The ring is a fixed share of the radius, so the dragged ring names the radius;
+                // below the minimum ring the match keeps it at that size, and so does the editor.
+                userData.cpRadius = scalar * this.torusGeo.parameters.radius / CHECKPOINT_RING_RADIUS_FACTOR;
+                rootObject.scale.setScalar(this.getCheckpointRingScale(userData.cpRadius, userData.subType === 'finish'));
             } else if (userData.type === 'escort_waypoint') {
                 userData.routeRadius = scalar / 10;
             }

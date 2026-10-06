@@ -104,17 +104,20 @@ export class DataChannelManager {
     _setupChannel(peerId, name, channel) {
         const key = `${peerId}:${name}`;
         this._channels.set(key, channel);
+        // A replaced or locally closed channel can still fire late events; only the live one may report.
+        const isLive = () => this._channels.get(key) === channel;
 
         channel.onopen = () => {
-            this._emit('channelOpen', { peerId, channel: name });
+            if (isLive()) this._emit('channelOpen', { peerId, channel: name });
         };
         channel.onclose = () => {
-            this._emit('channelClose', { peerId, channel: name });
+            if (isLive()) this._emit('channelClose', { peerId, channel: name });
         };
         channel.onerror = (err) => {
-            this._emit('channelError', { peerId, channel: name, error: err });
+            if (isLive()) this._emit('channelError', { peerId, channel: name, error: err });
         };
         channel.onmessage = (event) => {
+            if (!isLive()) return;
             if (typeof event.data !== 'string' || event.data.length > MAX_DATA_CHANNEL_MESSAGE_CHARS) {
                 this._emit('protocolError', { peerId, channel: name, reason: 'invalid_message_size' });
                 return;

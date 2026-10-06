@@ -9,16 +9,12 @@ const logger = createLogger('LANSessionAdapter');
 import { PeerConnectionManager } from './PeerConnectionManager.js';
 import { DataChannelManager } from './DataChannelManager.js';
 import { LatencyMonitor } from './LatencyMonitor.js';
-import {
-    buildMultiplayerStateUpdateEvent,
-    isMultiplayerMessageAllowedForSender,
-    MULTIPLAYER_MESSAGE_TYPES,
-    normalizeMultiplayerSessionMessage,
-} from '../shared/contracts/MultiplayerSessionContract.js';
+import { MULTIPLAYER_MESSAGE_TYPES } from '../shared/contracts/MultiplayerSessionContract.js';
 import {
     delay,
     pollIceCandidates,
     sendIceCandidate,
+    fetchSignaling,
     waitForHostOffer,
     waitForStateChannelOpen,
 } from './LANSignalingClient.js';
@@ -134,7 +130,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
         if (!playerId) {
             throw new Error('LAN reconnect failed: playerId missing');
         }
-        const rejoinRes = await fetch(`${this._signalingUrl}/lobby/rejoin`, {
+        const rejoinRes = await fetchSignaling(`${this._signalingUrl}/lobby/rejoin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ playerId, playerToken: this._peerToken }),
@@ -147,7 +143,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
 
     async _joinAsClient(lobbyCode) {
         try {
-            const joinRes = await fetch(`${this._signalingUrl}/lobby/join`, {
+            const joinRes = await fetchSignaling(`${this._signalingUrl}/lobby/join`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ lobbyCode }),
@@ -183,7 +179,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
         });
         const answer = await this._peerManager.handleOffer('host', offer);
 
-        const answerRes = await fetch(`${this._signalingUrl}/signaling/answer`, {
+        const answerRes = await fetchSignaling(`${this._signalingUrl}/signaling/answer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -274,7 +270,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
                             playerId: 'host',
                             token: this._peerToken,
                         });
-                        const res = await fetch(`${this._signalingUrl}/lobby/status?${statusParams}`, {
+                        const res = await fetchSignaling(`${this._signalingUrl}/lobby/status?${statusParams}`, {
                             signal: this._pollAbortController.signal,
                         });
                         if (res?.ok === false) {
@@ -325,7 +321,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
             const offer = await this._peerManager.createOffer(targetPeerId);
             if (this._isSignalingAborted()) return;
 
-            await fetch(`${this._signalingUrl}/signaling/offer`, {
+            await fetchSignaling(`${this._signalingUrl}/signaling/offer`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ targetPlayerId: targetPeerId, offer, hostToken: this._peerToken }),
@@ -335,7 +331,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
                 // Poll for ICE candidates from client while waiting for answer
                 try {
                     const iceParams = new URLSearchParams({ playerId: 'host', token: this._peerToken, fromPlayerId: targetPeerId });
-                    const iceRes = await fetch(`${this._signalingUrl}/signaling/ice?${iceParams.toString()}`);
+                    const iceRes = await fetchSignaling(`${this._signalingUrl}/signaling/ice?${iceParams.toString()}`);
                     const iceData = await iceRes.json();
                     if (Array.isArray(iceData.candidates)) {
                         for (const candidate of iceData.candidates) {
@@ -348,7 +344,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
 
                 try {
                     const answerParams = new URLSearchParams({ playerId: targetPeerId, token: this._peerToken });
-                    const res = await fetch(`${this._signalingUrl}/signaling/answer?${answerParams.toString()}`);
+                    const res = await fetchSignaling(`${this._signalingUrl}/signaling/answer?${answerParams.toString()}`);
                     const data = await res.json();
                     if (!data.answer) {
                         await delay(200);
@@ -363,7 +359,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
                     // Keep this connection attempt in-flight until the server has
                     // removed the pending entry. Otherwise the next status poll can
                     // create a second offer and close the fresh peer connection.
-                    await fetch(`${this._signalingUrl}/lobby/ack-pending`, {
+                    await fetchSignaling(`${this._signalingUrl}/lobby/ack-pending`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ playerId: targetPeerId, hostToken: this._peerToken }),
@@ -455,83 +451,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
     }
 
     _handleMessage(peerId, channel, data) {
-        this._peerManager.recordPeerActivity?.(peerId);
-        const message = normalizeMultiplayerSessionMessage(data);
-        if (!isMultiplayerMessageAllowedForSender(message.type, peerId === 'host')) return;
-        switch (message.type) {
-        case MULTIPLAYER_MESSAGE_TYPES.INPUT:
-            if (this._acceptInputSequence(peerId, data.inputSeq)) this._emit('remoteInput', { peerId, input: data.inputs, playerId: peerId });
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.PLAYER_ARENA_LOADED:
-            // Client signals that its arena is fully loaded.  Host collects these
-            // and fires broadcastRoundStartGate() once all players have reported in.
-            this._emit('playerLoaded', { playerId: String(peerId || '').trim() });
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.ROUND_START_GATE:
-            // Host signals all clients that every player is loaded and the round may start.
-            this._emit('roundStartGate', {
-                expectedPeerIds: Array.isArray(data.expectedPeerIds) ? data.expectedPeerIds : [],
-                timestamp: typeof data.timestamp === 'number' ? data.timestamp : 0,
-            });
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT:
-            if (this._acceptSnapshotSequence(data.snapshotSeq)) this._emit('stateUpdate', buildMultiplayerStateUpdateEvent(data, { messageType: MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT }));
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.FULL_STATE_SYNC:
-            this._emit('fullStateSync', { state: data });
-            this._emit('stateUpdate', buildMultiplayerStateUpdateEvent(data, { messageType: MULTIPLAYER_MESSAGE_TYPES.FULL_STATE_SYNC }));
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.PING:
-            this._dataChannelManager.send(
-                peerId,
-                channel === 'inputs' ? 'inputs' : 'state',
-                this._createStateMessage(MULTIPLAYER_MESSAGE_TYPES.PONG, { pingId: data.pingId })
-            );
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.PONG:
-            this._latencyMonitor.recordPongReceived(peerId, data.pingId);
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.HEARTBEAT:
-            this._sendStateToPeer(peerId, this._createStateMessage(MULTIPLAYER_MESSAGE_TYPES.HEARTBEAT_ACK));
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.HEARTBEAT_ACK:
-            this._peerManager.recordHeartbeatAck(peerId);
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.LEAVE:
-            this._closePeerConnection(peerId);
-            this._removePeerLatency(peerId);
-            this._emit('playerDisconnected', { peerId, reason: 'graceful-leave' });
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.HOST_LEAVING:
-            this._clientDisconnectedPeers.add(String(peerId || 'host').trim());
-            this._closePeerConnection(peerId || 'host');
-            this._removePeerLatency(peerId || 'host');
-            this._emit('hostDisconnected', { reason: 'graceful-leave' });
-            this._emit('playerDisconnected', { peerId, reason: 'host-leaving', isHost: true });
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.PLAYER_DISCONNECTED:
-            this._emit('playerDisconnected', {
-                peerId: data.peerId,
-                reason: data.reason,
-                canReconnect: true,
-                reconnectWindowMs: data.reconnectWindowMs,
-            });
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.PLAYER_RECONNECTED:
-            this._emit('playerReconnected', { peerId: data.peerId });
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.PLAYER_REMOVED:
-            this._emit('playerRemoved', { peerId: data.peerId });
-            break;
-        case MULTIPLAYER_MESSAGE_TYPES.MATCH_LIFECYCLE_SIGNAL:
-            this._emit('matchLifecycleSignal', {
-                signal: String(data.signal || '').trim(),
-                reason: String(data.reason || '').trim(),
-            });
-            break;
-        default:
-            break;
-        }
+        this._dispatchDataMessage(peerId, channel, data);
     }
 
     getPlayers() {

@@ -3,8 +3,11 @@
 // Kreisfoermige Route, Boosts an Geraden, Kurven mit Leitplanken
 // ============================================================
 
+import { authoredWorld } from './world_appearance.js';
+
 export const NEON_CIRCUIT_MAP = {
     neon_circuit: {
+        ...authoredWorld('neon_circuit'),
         name: 'Neon Circuit',
         size: [200, 60, 160],
         scaleAuthoredAnchors: true,
