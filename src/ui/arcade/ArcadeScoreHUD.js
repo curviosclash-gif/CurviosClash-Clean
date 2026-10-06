@@ -4,6 +4,7 @@ import {
     createArcadeSectorScorePresentation,
 } from '../../shared/contracts/ArcadeScorePresentationContract.js';
 import { resolveArcadeModifierMeta } from '../../shared/contracts/ArcadeModifierContract.js';
+import { formatPlayerDisplayLabel, PLAYER_LABEL_STYLES } from '../../shared/contracts/PlayerDisplayLabelContract.js';
 import { ArcadeEndlessHudSection } from './ArcadeEndlessHudSection.js';
 import { resolveArcadeMapLabel } from './postrun/ArcadePostRunBlocks.js';
 import { formatArenaWavesMachineGunLabel } from './ArenaWavesOverlayTexts.js';
@@ -72,6 +73,12 @@ function setNodeText(node, text) {
     if (node.textContent !== text) {
         node.textContent = text;
     }
+}
+
+// Weapon race rows carry only the seat index; the human is the row on the HUD's own place.
+function formatRacerLabel(row, humanPlace) {
+    const isBot = Number(row?.place) !== Number(humanPlace);
+    return formatPlayerDisplayLabel({ index: Number(row?.playerId), isBot }, { style: PLAYER_LABEL_STYLES.LONG });
 }
 
 function formatTimerMs(value) {
@@ -148,7 +155,7 @@ export class ArcadeScoreHUD {
         const metricLine = createElement('div', 'arcade-score-hud-metrics');
         this._metricLine = metricLine;
         metricLine.style.cssText = 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;font-size:11px;';
-        const comboMetric = this._createMetric(metricLine, 'Combo', '0');
+        const comboMetric = this._createMetric(metricLine, 'Kombo', '0');
         this._comboMetricWrap = comboMetric.wrap;
         this._comboValue = comboMetric.value;
         this._comboDecayValue = createElement('span', 'arcade-score-hud-combo-decay');
@@ -210,7 +217,7 @@ export class ArcadeScoreHUD {
         ].join(';');
         const modifierText = createElement('div', 'arcade-score-hud-modifier-text');
         modifierText.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
-        this._modifierLabel = createElement('strong', 'arcade-score-hud-modifier-label', 'Kein Modifier aktiv');
+        this._modifierLabel = createElement('strong', 'arcade-score-hud-modifier-label', 'Kein Modifikator aktiv');
         this._modifierLabel.style.cssText = 'font-size:12px;';
         this._modifierEffect = createElement('span', 'arcade-score-hud-modifier-effect', 'Standard-Sektor ohne Zusatz-Effekt');
         this._modifierEffect.style.cssText = 'font-size:11px;color:#9eb8cf;';
@@ -282,7 +289,7 @@ export class ArcadeScoreHUD {
         const isFivePortals = String(hudState.runType || '') === 'five_portals';
         const isWeaponRace = String(hudState.runType || '') === 'weapon_race';
         const isDemolition = String(hudState.runType || '') === 'demolition';
-        setNodeText(this._scoreLabel, isFivePortals ? 'Map-Zeit' : (isWeaponRace ? 'Waffenrennen' : 'Punkte'));
+        setNodeText(this._scoreLabel, isFivePortals ? 'Kartenzeit' : (isWeaponRace ? 'Waffenrennen' : 'Punkte'));
         if (isDemolition) {
             if (this._metricLine) this._metricLine.style.display = 'none';
             this._endlessSection?.hide();
@@ -314,7 +321,7 @@ export class ArcadeScoreHUD {
                 ? `\nZielphase ${Math.ceil(Math.max(0, Number(hudState.graceRemainingMs) || 0) / 1000)} s`
                 : '';
             const leaders = (hudState.standings || []).slice(0, 5)
-                .map((row) => `${row.place}. Fahrer ${row.playerId}${row.result === 'DNF' ? ` · CP ${row.checkpointIndex}` : ` · ${formatTimerMs(row.finishTimeMs)}`}`)
+                .map((row) => `${row.place}. ${formatRacerLabel(row, hudState.place)}${row.result === 'DNF' ? ` · CP ${row.checkpointIndex}` : ` · ${formatTimerMs(row.finishTimeMs)}`}`)
                 .join('\n');
             this._arenaWavesSection.textContent = `Checkpoint ${hudState.checkpoint || 0}/${hudState.checkpointCount || 9}\nWaffe ${hudState.weaponId || 'MG'}${grace}${leaders ? `\n${leaders}` : ''}`;
             return;
@@ -330,7 +337,7 @@ export class ArcadeScoreHUD {
             const mapCount = Math.max(1, Number(hudState.mapCount) || 5);
             const mapNumber = Math.min(mapCount, Math.max(1, Number(hudState.mapIndex || 0) + 1));
             const status = hudState.phase === 'portal' ? '\nZiel erreicht · Goldenes Portal durchfliegen' : '';
-            this._arenaWavesSection.textContent = `Map ${mapNumber}/${mapCount}: ${resolveArcadeMapLabel(hudState.currentMapKey, hudState.currentMapLabel)}\nCheckpoints ${hudState.checkpoint || 0}/${hudState.checkpointCount || 0} | Respawns ${hudState.respawnsRemaining ?? 3}\nGesamt bisher ${formatTimerMs(hudState.completedTotalMs)}${status}`;
+            this._arenaWavesSection.textContent = `Karte ${mapNumber}/${mapCount}: ${resolveArcadeMapLabel(hudState.currentMapKey, hudState.currentMapLabel)}\nCheckpoints ${hudState.checkpoint || 0}/${hudState.checkpointCount || 0} | Respawns ${hudState.respawnsRemaining ?? 3}\nGesamt bisher ${formatTimerMs(hudState.completedTotalMs)}${status}`;
             return;
         }
         if (isArenaWaves) {
@@ -421,7 +428,7 @@ export class ArcadeScoreHUD {
             this._modifierWrap.style.borderTopColor = 'rgba(120,190,255,0.24)';
         } else {
             setNodeText(this._modifierIcon, '--');
-            setNodeText(this._modifierLabel, 'Kein Modifier aktiv');
+            setNodeText(this._modifierLabel, 'Kein Modifikator aktiv');
             setNodeText(this._modifierEffect, 'Standard-Sektor ohne Zusatz-Effekt');
             this._modifierWrap.style.borderTopColor = 'rgba(255,255,255,0.14)';
         }

@@ -211,11 +211,11 @@ export class MatchFlowArcadeOverlayController {
         appendArcadeCards(sect1, [createArcadeNextSectorBlock(preview)]);
         bodyDiv.appendChild(sect1);
 
-        // Section 2: Map-/Modifier-Wahl
+        // Section 2: map and modifier choice
         const sect2 = document.createElement('section');
         sect2.className = 'arcade-overlay-section';
         const s2h4 = document.createElement('h4');
-        s2h4.textContent = 'Map-/Modifier-Wahl';
+        s2h4.textContent = 'Karten- und Modifikator-Wahl';
         sect2.appendChild(s2h4);
 
         const choiceGrid = document.createElement('div');
@@ -241,7 +241,7 @@ export class MatchFlowArcadeOverlayController {
                 btn.appendChild(strong);
 
                 const span = document.createElement('span');
-                span.textContent = String(entry?.modifierLabel || 'Kein Modifier');
+                span.textContent = String(entry?.modifierLabel || 'Kein Modifikator');
                 btn.appendChild(span);
 
                 const small = document.createElement('small');
@@ -349,7 +349,7 @@ export class MatchFlowArcadeOverlayController {
         const title = document.createElement('h2');
         title.textContent = 'Fünf Fronten – Vorteil wählen';
         const copy = document.createElement('p');
-        copy.textContent = 'Wähle einen dauerhaften Vorteil. Enter aktiviert die fokussierte Wahl.';
+        copy.textContent = 'Wähle einen Vorteil für diesen Run. Enter oder A am Controller aktiviert die markierte Wahl.';
         const grid = document.createElement('div'); grid.className = 'arcade-overlay-choice-grid';
         for (const choiceId of runtimeState.choices || []) {
             const button = document.createElement('button'); button.type = 'button'; button.className = 'arcade-overlay-choice-btn';

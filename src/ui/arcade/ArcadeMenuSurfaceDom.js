@@ -40,7 +40,7 @@ export function buildArcadeSurface(level3Body, ui) {
 
     // The main run and Daily stay visible; specialist modes are one level deeper.
     const startGroup = createElement('section', 'arcade-start-group');
-    startGroup.appendChild(createElement('h3', 'arcade-surface-card-title', 'Lauf starten'));
+    startGroup.appendChild(createElement('h3', 'arcade-surface-card-title', 'Run starten'));
     startGroup.appendChild(createElement(
         'p', 'menu-hint arcade-start-group-intro',
         'Starte den empfohlenen Arcade Run oder wähle eine tägliche beziehungsweise spezielle Herausforderung.'
@@ -62,7 +62,7 @@ export function buildArcadeSurface(level3Body, ui) {
         return button;
     };
     const startRunButton = createStartOption(startGroup, 'btn-arcade-start-inline', t('menu.arcade.start.label', 'Arcade Run starten'),
-        'Sektoren nacheinander meistern und Punkte sammeln – derselbe Lauf wie „Spiel starten“.');
+        'Sektoren nacheinander meistern und Punkte sammeln – derselbe Run wie „Spiel starten“.');
     startRunButton.parentElement.classList.add('is-primary');
     const { card: dailyCard, line: dailyLine, button: dailyButton } = createArcadeDailyMenuCard(
         createElement,
