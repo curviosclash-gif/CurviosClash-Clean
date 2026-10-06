@@ -29,6 +29,7 @@ import { resolveArcadeStoneExtraSteps } from '../../shared/contracts/ArcadeStone
 import { toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 import { XP_REWARD_TABLE, calculateSectorXp } from './ArcadeXpRewards.js';
 import {
+    backupUnreadableProfileRecord,
     buildUpgradeState,
     ensureProfile,
     isPersistenceSuccess,
@@ -512,7 +513,9 @@ export function loadVehicleProfiles(store) {
         shouldPersist,
         canPersist = true,
         usedLegacyFallback,
+        unreadableRecord,
     } = loadArcadeVehicleProfileRecord(store);
+    if (!canPersist) backupUnreadableProfileRecord(store, unreadableRecord);
     const normalizedProfiles = {};
     let shouldRewrite = shouldPersist;
 

@@ -13,6 +13,10 @@ export const ARCADE_VEHICLE_PROFILE_V2_SCHEMA_VERSION = 'arcade-vehicle-profile.
 export const ARCADE_VEHICLE_PROFILE_LEGACY_SCHEMA_VERSION = 'arcade-vehicle-profile.v1';
 export const ARCADE_VEHICLE_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-vehicle-profile.v2';
 export const ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY = 'cuviosclash.arcade-vehicle-profile.v1';
+// An unreadable stored record keeps blocking saves; its raw text is copied once to
+// `<stored key><suffix>` as { schemaVersion, sourceKey, reason, savedAt, raw }.
+export const ARCADE_VEHICLE_PROFILE_UNREADABLE_BACKUP_SUFFIX = '.unreadable-backup.v1';
+export const ARCADE_VEHICLE_PROFILE_BACKUP_SCHEMA_VERSION = 'arcade-vehicle-profile-backup.v1';
 const XP_BASE = 100;
 const XP_EXPONENT = 1.5;
 export const ARCADE_TRAIL_STYLE_IDS = ARCADE_COLOR_IDS;
@@ -303,28 +307,41 @@ export function loadArcadeVehicleProfileRecord(store) {
             const result = store.readJsonRecordResult(key);
             if (result?.status === 'found') return { status: 'found', value: result.value };
             if (result?.status === 'missing') return { status: 'missing', value: fallback };
-            return { status: result?.status || 'read_failed', value: undefined };
+            return { status: result?.status || 'read_failed', value: undefined, raw: result?.raw };
         }
         const value = store.loadJsonRecord(key, fallback);
         return value === null || value === undefined
             ? { status: 'missing', value: fallback }
             : { status: 'found', value };
     };
+    // Raw text of a record that blocks saving, so the caller can back it up untouched.
+    const unreadable = (storageKey, record, status = record.status) => (typeof record.raw === 'string'
+        ? { unreadableRecord: { storageKey, status, raw: record.raw } }
+        : {});
+    const blocked = (usedLegacyFallback, storageKey, record) => ({
+        profiles: {}, preservedProfiles: {}, preservedCosmeticProfiles: {}, shouldPersist: false, canPersist: false,
+        usedLegacyFallback, ...unreadable(storageKey, record),
+    });
     const current = readRecord(ARCADE_VEHICLE_PROFILE_STORAGE_KEY, null);
     if (!['found', 'missing'].includes(current.status)) {
-        return { profiles: {}, preservedProfiles: {}, preservedCosmeticProfiles: {}, shouldPersist: false, canPersist: false, usedLegacyFallback: false };
+        return blocked(false, ARCADE_VEHICLE_PROFILE_STORAGE_KEY, current);
     }
     const usedLegacyFallback = current.status === 'missing';
     const legacy = usedLegacyFallback
         ? readRecord(ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY, {})
         : null;
     if (legacy && !['found', 'missing'].includes(legacy.status)) {
-        return { profiles: {}, preservedProfiles: {}, preservedCosmeticProfiles: {}, shouldPersist: false, canPersist: false, usedLegacyFallback: true };
+        return blocked(true, ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY, legacy);
     }
-    const rawProfiles = usedLegacyFallback ? legacy.value : current.value;
+    const source = usedLegacyFallback ? legacy : current;
+    const record = readArcadeVehicleProfileRecord(source.value);
+    const storageKey = usedLegacyFallback ? ARCADE_VEHICLE_PROFILE_LEGACY_STORAGE_KEY : ARCADE_VEHICLE_PROFILE_STORAGE_KEY;
     return {
-        ...readArcadeVehicleProfileRecord(rawProfiles),
+        ...record,
         usedLegacyFallback,
+        ...(record.canPersist || source.status !== 'found'
+            ? {}
+            : unreadable(storageKey, { raw: JSON.stringify(source.value) ?? String(source.value) }, 'not_object')),
     };
 }
 

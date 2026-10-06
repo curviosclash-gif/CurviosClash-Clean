@@ -10,7 +10,11 @@ import {
     canUpgrade,
     getUpgradeCost,
 } from '../../shared/contracts/ArcadeBlueprintContract.js';
-import { clampArcadeProfileCount as clampCount } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
+import {
+    ARCADE_VEHICLE_PROFILE_BACKUP_SCHEMA_VERSION,
+    ARCADE_VEHICLE_PROFILE_UNREADABLE_BACKUP_SUFFIX,
+    clampArcadeProfileCount as clampCount,
+} from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import { toSafeNumber, clampInteger as clampInt } from '../../shared/utils/ArcadeUtils.js';
 
 export function isPersistenceSuccess(result) {
@@ -26,6 +30,38 @@ export function warnPersistenceFailure(contextLabel, result) {
             ? { ...result.metadata }
             : null,
     });
+}
+
+const WARNED_BACKUP_KEYS = new Set();
+
+/**
+ * Copies the raw text of an unreadable profile record once to a backup key and warns once per
+ * session. The original record and an existing backup are never touched; saves stay blocked.
+ * @param {any} store record store port
+ * @param {{ storageKey: string, status: string, raw: string }|undefined} record
+ */
+export function backupUnreadableProfileRecord(store, record, nowMs = Date.now()) {
+    if (!record || typeof record.raw !== 'string' || typeof store?.saveJsonRecord !== 'function') return false;
+    const sourceKey = String(store.resolveStorageKey?.(record.storageKey) || record.storageKey);
+    const backupKey = `${sourceKey}${ARCADE_VEHICLE_PROFILE_UNREADABLE_BACKUP_SUFFIX}`;
+    if (WARNED_BACKUP_KEYS.has(backupKey)) return false;
+    WARNED_BACKUP_KEYS.add(backupKey);
+    const existing = typeof store.readJsonRecordResult === 'function'
+        ? store.readJsonRecordResult(backupKey)?.status !== 'missing'
+        : store.loadJsonRecord?.(backupKey, null) != null;
+    const saved = !existing && isPersistenceSuccess(store.saveJsonRecord(backupKey, {
+        schemaVersion: ARCADE_VEHICLE_PROFILE_BACKUP_SCHEMA_VERSION,
+        sourceKey,
+        reason: String(record.status || ''),
+        savedAt: toIsoString(nowMs),
+        raw: record.raw,
+    }));
+    if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+        const where = existing ? 'an earlier backup is kept at' : (saved ? 'a copy was saved to' : 'the backup failed; the original stays at');
+        console.warn(`[ArcadeVehicleProfile] vehicle profiles in ${sourceKey} are unreadable (${record.status}); `
+            + `XP and upgrades are not saved until they are repaired; ${where} ${existing || saved ? backupKey : sourceKey}`);
+    }
+    return saved;
 }
 
 export function toIsoString(nowMs) {
