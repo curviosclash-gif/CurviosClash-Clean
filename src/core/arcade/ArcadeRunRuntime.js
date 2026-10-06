@@ -17,8 +17,7 @@ import {
     resolveArcadeRunHudVehicleStats,
     XP_REWARD_TABLE,
 } from '../../state/arcade/ArcadeVehicleProfile.js';
-import { awardBoundArcadeVehicleXp } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
-import { bindArcadeRunVehicleRewards, ensureArcadeRunVehicleRewards, getArcadeRunVehicleBonusesForRun, getArcadeRunVehicleId, getArcadeRunVehicleProfile, resolveArcadePlayerRewardBinding, resolveArcadeRunStrategyUpgradeBonuses } from './ArcadeRunVehicleRewardOps.js';
+import { awardArcadeRunPartnersXp, awardArcadeRunPlayerXp, bindArcadeRunVehicleRewards, getArcadeRunVehicleBonusesForRun, getArcadeRunVehicleId, getArcadeRunVehicleProfile, resolveArcadeRunStrategyUpgradeBonuses } from './ArcadeRunVehicleRewardOps.js';
 import { createLeaderboardProjection, loadLeaderboard } from '../../state/arcade/ArcadeLeaderboard.js';
 import {
     ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET,
@@ -1232,8 +1231,7 @@ export class ArcadeRunRuntime {
 
     // playerVehicleId: plane of that local pilot, so split-screen XP levels the plane that earned it.
     applyParcoursXpEvent(eventType, playerIndex = 0, playerVehicleId = null) {
-        const { binding: rewardBinding, ownsRunPerks } = resolveArcadePlayerRewardBinding(this, playerVehicleId);
-        if (!this._enabled || !rewardBinding || !this._vehicleProfiles) return null;
+        if (!this._enabled) return null;
         const xpByEvent = {
             checkpoint: XP_REWARD_TABLE.parcoursCheckpoint,
             finish: XP_REWARD_TABLE.parcoursFinish,
@@ -1242,12 +1240,11 @@ export class ArcadeRunRuntime {
         const baseXp = xpByEvent[String(eventType)] || 0;
         if (baseXp <= 0) return null;
 
-        const result = awardBoundArcadeVehicleXp(this._vehicleProfiles, rewardBinding, baseXp);
+        const { result, ownsRunPerks } = awardArcadeRunPlayerXp(this, baseXp, playerIndex, playerVehicleId) || {};
         if (!result) return null;
         const xpEarned = result.earned;
         if (this._state) this._state.xpEarned += xpEarned;
         if (ownsRunPerks) syncArcadeMasteryPerks(this._state, result.profile);
-        this._scheduleVehicleProfilesSave();
 
         if (this._state) {
             this._state.lastParcoursXpGain = this._enqueueHudEvent('parcours_xp', {
@@ -1265,9 +1262,6 @@ export class ArcadeRunRuntime {
     }
 
     _applySectorXpReward(telemetryPayload) {
-        const rewardBinding = ensureArcadeRunVehicleRewards(this);
-        if (!rewardBinding || !this._vehicleProfiles) return;
-
         const missionsCompleted = this._missionState?.completedCount || 0;
         const totalMissions = this._missionState?.missions?.length || 0;
         const telemetry = {
@@ -1282,12 +1276,12 @@ export class ArcadeRunRuntime {
         };
 
         const baseXp = calculateSectorXp(telemetry);
-        const result = awardBoundArcadeVehicleXp(this._vehicleProfiles, rewardBinding, baseXp);
+        // Player one's plane keeps the run perks; split-screen partners level their own planes.
+        const result = awardArcadeRunPlayerXp(this, baseXp)?.result;
         if (!result) return;
         const xpEarned = result.earned;
-        if (this._state) this._state.xpEarned += xpEarned;
+        if (this._state) this._state.xpEarned += xpEarned + awardArcadeRunPartnersXp(this, baseXp);
         syncArcadeMasteryPerks(this._state, result.profile);
-        this._scheduleVehicleProfilesSave();
 
         // Attach XP info to state for UI consumption
         if (this._state) {
