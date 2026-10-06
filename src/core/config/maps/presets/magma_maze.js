@@ -6,9 +6,28 @@
 
 import { authoredWorld } from './world_appearance.js';
 
+const MAGMA_WORLD = authoredWorld('magma_maze');
+// The lava layer's top face; outcrops stand on it, clear of walls and every route anchor.
+const LAVA_TOP = 4;
+
+// [variant, x, z, targetSize, rotateY]
+const OUTCROP_SITES = [
+    [1, -81.5, -47.5, 5, 0.4], [2, 81, 57.5, 4.5, 1.6], [3, 61, -77.5, 5.5, 2.2],
+    [4, -49, 77.5, 4, 0.9], [5, -1.5, -15, 4.5, 2.8], [6, 71, -10, 4, 1.2],
+    [7, 13.5, 50, 5, 0.1], [8, -81.5, 20, 4.5, 3.4], [9, -19, -77.5, 5, 1.9],
+    [10, -34, 20, 5.5, 0.6], [2, 36, -40, 4.5, 2.5], [7, -39, -37.5, 5, 4.1],
+];
+
+export const MAGMA_BASALT_OUTCROPS = Object.freeze(OUTCROP_SITES.map(([variant, x, z, targetSize, rotateY], index) => ({
+    id: `magma-outcrop-${String(index + 1).padStart(2, '0')}`,
+    url: `assets/maps/magma_maze/props/basalt-outcrops/magma-basalt-outcrop-v${String(variant).padStart(2, '0')}/runtime.glb`,
+    position: [x, LAVA_TOP, z], rotation: [0, rotateY, 0], targetSize, collision: false,
+})));
+
 export const MAGMA_MAZE_MAP = {
     magma_maze: {
-        ...authoredWorld('magma_maze'),
+        ...MAGMA_WORLD,
+        glbModels: [...MAGMA_WORLD.glbModels, ...MAGMA_BASALT_OUTCROPS],
         name: 'Magma Maze',
         // The only map lit from below: the fill light points down-up out of the lava, which is
         // what puts the glow on the underside of the walls. Smoke keeps the fog close and the stars out.
