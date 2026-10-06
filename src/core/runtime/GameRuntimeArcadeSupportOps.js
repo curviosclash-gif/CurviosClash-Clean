@@ -142,6 +142,7 @@ export function buildObjectiveParticipants(entityManager) {
         playerIndex: Math.max(0, Number(player?.index) || 0),
         label: formatPlayerDisplayLabel(player, { style: PLAYER_LABEL_STYLES.LONG }),
         isBot: player?.isBot === true,
+        isCompanion: player?.isArcadeCompanion === true,
         alive: player?.alive !== false,
     }));
 }

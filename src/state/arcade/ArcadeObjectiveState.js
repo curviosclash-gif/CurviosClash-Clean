@@ -20,7 +20,7 @@ function toSafeNumber(value, fallback = 0) {
 function resolveBountyTarget(participants) {
     const roster = Array.isArray(participants) ? participants : [];
     const bots = roster
-        .filter((entry) => entry?.isBot === true && entry.alive !== false)
+        .filter((entry) => entry?.isBot === true && entry.isCompanion !== true && entry.alive !== false)
         .sort((left, right) => Number(left?.playerIndex) - Number(right?.playerIndex));
     if (bots[0]) return bots[0];
     const humanIndices = roster

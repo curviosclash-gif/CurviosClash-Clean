@@ -42,7 +42,8 @@ export function createArcadeColorProgress({runType='',tierId='normal',dailyChall
 }
 /** Only meaningful gameplay/completion events reach this function; no per-frame storage. */
 export function trackArcadeColorEvent(progress,event) {
-    if (!progress || !event || !PROGRESS_EVENTS.has(event.type)) return EMPTY;
+    // Colours reward what a player did; a companion's kill is help, not progress.
+    if (!progress || !event || event.companion === true || !PROGRESS_EVENTS.has(event.type)) return EMPTY;
     const players=progress.players;
     const player=players[Number(event.playerIndex)];
     if (event.type==='damage'||event.type==='shield_hit') {if(player)player.sectorHit=true;return EMPTY;}
