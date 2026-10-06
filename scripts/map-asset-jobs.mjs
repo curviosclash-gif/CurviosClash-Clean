@@ -42,6 +42,10 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     the_loop: 'generate_map_world.py',
     mega_maze: 'generate_map_world.py',
     mirror_docks: 'generate_map_world.py',
+    parcours_assault: 'generate_map_world.py',
+    spiral_tower: 'generate_map_world.py',
+    storm_switchyard: 'generate_map_world.py',
+    mega_maze_xl: 'generate_map_world.py',
 });
 
 // These authors write every part in one pass (placement, seeded variants, shared collision),

@@ -2,6 +2,8 @@
 // MapPresetCatalogLarge.js - Grosse Experten-Map-Presets
 // ============================================
 
+import { authoredWorld } from './presets/world_appearance.js';
+
 export const MAP_PRESET_CATALOG_LARGE_DATA = {
     die_festung: {
         name: 'Die Festung',
@@ -155,6 +157,7 @@ export const MAP_PRESET_CATALOG_LARGE_DATA = {
         ]
     },
     mega_maze_xl: {
+        ...authoredWorld('mega_maze_xl'),
         name: 'Mega-Labyrinth XL',
         size: [200, 45, 200],
         obstacles: [

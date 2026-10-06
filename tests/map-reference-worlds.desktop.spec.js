@@ -38,6 +38,10 @@ for (const mapKey of [
     'the_loop',
     'mega_maze',
     'mirror_docks',
+    'storm_switchyard',
+    'parcours_assault',
+    'spiral_tower',
+    'mega_maze_xl',
 ]) {
     test(`${mapKey}: Blender world renders without duplicate fallback surfaces on desktop`, async ({ page }, testInfo) => {
         test.setTimeout(180000);
