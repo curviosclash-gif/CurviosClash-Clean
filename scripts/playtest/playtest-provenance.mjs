@@ -1,18 +1,14 @@
 // Where a playtest result comes from: build, source revision, local changes, pilot
 // version. Before a run the test build is compared with the sources it is made from, so
-// a result never silently describes an older game than the one in the working tree.
+// a result never silently describes an older game than the one in the working tree. A
+// source newer than the build only counts when its content changed: git rewrites
+// unchanged files on checkout or merge, and the build stores a content fingerprint.
 import { execFile } from 'node:child_process';
 import { statSync } from 'node:fs';
 import path from 'node:path';
 import { checkReleasePackageFresh } from '../check-release-package-fresh.mjs';
+import { computeSourceFingerprint, readBuildFingerprint, TEST_BUILD_INPUTS } from '../test-build-fingerprint.mjs';
 import { PILOT_VERSION } from './playtest-pilot-runtime.mjs';
-
-/** Source inputs of dist-app-test; a newer file in any of them means the build is stale. */
-export const TEST_BUILD_INPUTS = Object.freeze([
-    'src', 'electron', 'editor', 'prototypes', 'dev/vite', 'index.html', 'hangar.html',
-    'style.css', 'app-shell.css', 'vite.config.js', 'package.json',
-]);
-const IGNORED_INPUT_DIRS = new Set(['node_modules', 'vendor', 'release', 'tuning-console-dist']);
 
 function git(repoRoot, args) {
     return new Promise((resolve) => {
@@ -24,15 +20,30 @@ function git(repoRoot, args) {
 }
 
 /**
+ * Timestamps first (cheap); when a source is newer than the build, the stored content
+ * fingerprint decides. Builds without a fingerprint keep the timestamp verdict.
+ */
+export function checkTestBuildFresh(repoRoot) {
+    const buildDir = path.join(repoRoot, 'dist-app-test');
+    const marker = path.join(buildDir, 'index.html');
+    if (!statSync(marker, { throwIfNoEntry: false })) return { fresh: false, reason: 'dist-app-test is missing', checkedBy: 'timestamp' };
+    const byTime = checkReleasePackageFresh(marker, TEST_BUILD_INPUTS.map((entry) => path.join(repoRoot, entry)));
+    if (byTime.fresh) return { ...byTime, checkedBy: 'timestamp' };
+    const stored = readBuildFingerprint(buildDir);
+    if (!stored) return { ...byTime, checkedBy: 'timestamp' };
+    if (stored.fingerprint === computeSourceFingerprint(repoRoot).fingerprint) {
+        return { fresh: true, reason: 'Quellen inhaltlich unverändert seit dem Build; nur Zeitstempel sind neuer.', checkedBy: 'content' };
+    }
+    return { fresh: false, reason: `${byTime.reason} Inhalt geändert seit dem Build.`, checkedBy: 'content' };
+}
+
+/**
  * Build marker, revision and freshness of dist-app-test. `fresh: false` with a reason
- * when a source file is newer than the build (or the build is missing).
+ * when a source changed after the build (or the build is missing).
  */
 export async function describeProvenance(repoRoot) {
-    const marker = path.join(repoRoot, 'dist-app-test', 'index.html');
-    const markerStat = statSync(marker, { throwIfNoEntry: false });
-    const inputs = TEST_BUILD_INPUTS.map((entry) => path.join(repoRoot, entry))
-        .filter((entry) => !IGNORED_INPUT_DIRS.has(path.basename(entry)));
-    const freshness = markerStat ? checkReleasePackageFresh(marker, inputs) : { fresh: false, reason: 'dist-app-test is missing' };
+    const markerStat = statSync(path.join(repoRoot, 'dist-app-test', 'index.html'), { throwIfNoEntry: false });
+    const freshness = checkTestBuildFresh(repoRoot);
     const [revision, branch, status] = await Promise.all([
         git(repoRoot, ['rev-parse', 'HEAD']),
         git(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD']),
@@ -45,6 +56,7 @@ export async function describeProvenance(repoRoot) {
             builtAt: markerStat ? new Date(markerStat.mtimeMs).toISOString() : null,
             fresh: freshness.fresh === true,
             reason: freshness.reason,
+            checkedBy: freshness.checkedBy,
         },
         revision,
         branch,
