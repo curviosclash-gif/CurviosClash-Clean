@@ -269,6 +269,7 @@ async function opPilot(args) {
     const spec = {
         mode, player, points: args.points, arriveRadius: args.arriveRadius, target: args.target,
         tactic: args.tactic, branch: args.branch, policy: args.policy, type: args.pickupType,
+        huntMapUnits: args.huntMapUnits === true,
     };
     await configurePilot(session, spec);
     const limitMs = Math.min(Number(args.timeoutMs) || 5 * 60 * 1000, 30 * 60 * 1000);
@@ -391,6 +392,7 @@ const inputShape = {
     tactic: z.enum(['aggressive', 'balanced', 'evasive']).optional(),
     branch: z.string().optional().describe('pilot parcours: preferred branch checkpoint id part, e.g. TUNNEL'),
     policy: z.string().optional().describe('pilot bot: bot policy type'),
+    huntMapUnits: z.boolean().optional().describe('pilot bot: also chase map units (tanks, swarms, bosses)'),
     pickupType: z.string().optional(),
     update: z.boolean().optional().describe('pilot: change the running goal with `changes` instead of starting a new one'),
     changes: z.record(z.string(), z.any()).optional(),

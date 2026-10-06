@@ -227,3 +227,32 @@ test('after a checkpoint inside a tunnel the ship flies out of the tunnel before
     assert.equal(world.progress.completed, true, `stopped at checkpoint ${world.progress.index}`);
     assert.ok(world.pilot.describe().decisions.some((entry) => entry.kind === 'checkpoint-target' && entry.id === 'CP01:exit'), 'flew the tunnel to its end');
 });
+
+/**
+ * Stands for the input system and policy registry the bot mode borrows: the policy only
+ * reports what the pilot handed it, so the test sees which flags the pilot set.
+ */
+function attachBotPolicy(world) {
+    const seen = [];
+    const em = globalThis.window.GAME_INSTANCE.entityManager;
+    em.botPolicyRegistry = { create: () => ({ update: (_dt, player) => { seen.push(player.botTargetsMapUnits === true); return { shootMG: false }; } }) };
+    em._playerInputSystem = { _resolveRuntimeContext: () => ({}), _buildBotObservation: () => null };
+    return seen;
+}
+
+test('the bot pilot hunts map units only when asked and hands the flag back when it stops', () => {
+    const world = createWorld();
+    const seen = attachBotPolicy(world);
+    world.pilot.configure({ mode: 'bot' });
+    world.step();
+    assert.equal(seen.at(-1), false, 'a plain bot pilot leaves map units alone');
+    world.pilot.configure({ mode: 'bot', huntMapUnits: true });
+    world.step();
+    assert.equal(seen.at(-1), true, 'the asked-for bot pilot chases map units');
+    world.pilot.stop('done');
+    assert.equal(world.player.botTargetsMapUnits, false, 'stopping hands the ship back without the flag');
+    world.pilot.configure({ mode: 'bot', huntMapUnits: true });
+    world.step();
+    world.pilot.configure({ mode: 'waypoints', points: [[0, 0, -200]] });
+    assert.equal(world.player.botTargetsMapUnits, false, 'another goal also clears the flag');
+});
