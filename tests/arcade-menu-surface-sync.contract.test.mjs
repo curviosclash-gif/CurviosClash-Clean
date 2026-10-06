@@ -189,3 +189,13 @@ test('the ranked line says when the chosen settings keep a run off the board', (
     const helped = mountSurface({ storeRecords, arcade: { companionCount: 1 } }).byId('arcade-ranked-line').textContent;
     assert.match(helped, /nicht gewertet \(mit Mitstreitern\)/);
 });
+
+test('the ranked line of a portal chain reads that chain\'s board, Fünf Portale its saved one', () => {
+    const entry = { runId: 'old', vehicleId: 'ship5', vehicleLevel: 1, tierId: 'any', score: 61_500, date: '2026-09-01T10:00:00.000Z' };
+    const storeRecords = { [ARCADE_RANKED_STORAGE_KEY]: { schemaVersion: ARCADE_RANKED_VERSION, boards: { 'five_portals:any:1-5': [entry] } } };
+    const five = mountSurface({ storeRecords, arcade: { runType: 'five_portals', portalChainId: 'five_portals' } }).byId('arcade-ranked-line').textContent;
+    assert.match(five, /61\.50 s/);
+    const sky = mountSurface({ storeRecords, arcade: { runType: 'five_portals', portalChainId: 'sky_ladder' } }).byId('arcade-ranked-line').textContent;
+    assert.doesNotMatch(sky, /61\.50 s/);
+    assert.match(sky, /Noch kein gewerteter Lauf/);
+});

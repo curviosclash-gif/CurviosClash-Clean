@@ -9,7 +9,7 @@ export function createArcadeMenuRankContext(settings, { tierId, vehicleId, profi
     const humanCount = Math.max(1, Number.parseInt(String(settings?.mode || '1p'), 10) || 1);
     return createArcadeRankContext({
         runType: arcade.runType || 'gauntlet', vehicleId, profile, tierId, dailyChallenge: arcade.dailyChallenge === true,
-        runSettings: arcade,
+        runSettings: arcade, portalChainId: arcade.portalChainId,
         companionCount: resolveActiveArcadeCompanionCount({ ...arcade, enabled: true }, { humanCount, enemyCount: 1 }),
     });
 }
