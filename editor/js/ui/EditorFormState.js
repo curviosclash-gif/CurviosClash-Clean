@@ -26,10 +26,6 @@ export function writeArenaSizeInputs(editor, arenaSize) {
     }
 }
 
-export function isFlyModeChecked(editor) {
-    return !!editor?.dom?.chkFly?.checked;
-}
-
 export function isYLayerEnabled(editor) {
     return !!editor?.dom?.chkYLayer?.checked;
 }

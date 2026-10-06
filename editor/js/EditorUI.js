@@ -11,7 +11,9 @@ import { bindEditorLayoutControls } from './ui/EditorLayoutControls.js';
 import { bindEditorWorkspaceControls } from './ui/EditorWorkspaceControls.js';
 import { bindEditorLayerControls } from './ui/EditorLayerControls.js';
 import { bindEditorRelationshipControls } from './ui/EditorRelationshipControls.js';
-import { isFlyModeChecked, readArenaSizeInputs, writeArenaSizeInputs } from './ui/EditorFormState.js';
+import { bindEditorShipFlightControls } from './ui/EditorShipFlightControls.js';
+import { bindEditorFlightPlacementControls } from './ui/EditorFlightPlacementControls.js';
+import { readArenaSizeInputs, writeArenaSizeInputs } from './ui/EditorFormState.js';
 import {
     setupEditorSceneVisuals,
     updateArenaBoundsVisual,
@@ -65,7 +67,6 @@ export class EditorUI {
         this.snapSize = 50;
         this.rotationSnap = 15;
         this.scaleSnap = 1;
-        this.flyModeEnabled = false;
         this.ARENA_W = 2800;
         this.ARENA_D = 2400;
         this.ARENA_H = 950;
@@ -84,11 +85,6 @@ export class EditorUI {
         this.historySuspendDepth = 0;
         this.pendingHistoryGestures = new Map();
         this.dom = createEditorDomRefs(document);
-
-        this.core.setRuntimeStateAccessors?.({
-            isFlyModeEnabled: () => this.flyModeEnabled,
-            getArenaHeight: () => this.ARENA_H
-        });
 
         this.setupVisuals();
         this.setupEventListeners();
@@ -256,14 +252,16 @@ export class EditorUI {
     }
 
     setupEventListeners() {
-        this.flyModeEnabled = isFlyModeChecked(this);
-
         bindEditorLayoutControls(this);
         bindEditorWorkspaceControls(this);
 
         bindEditorToolPaletteControls(this);
 
         bindEditorCanvasInteractionControls(this);
+
+        // Before the shortcuts: its keydown listener must see G and the flight keys first.
+        const shipFlight = bindEditorShipFlightControls(this);
+        bindEditorFlightPlacementControls(this, shipFlight);
 
         bindEditorShortcutControls(this);
 

@@ -95,6 +95,7 @@ export function bindEditorCanvasInteractionControls(editor) {
     editor.core.container.addEventListener('pointerdown', (e) => {
         if (isDraggingTransform) return;
         if (editor.isDrawing) return;
+        if (editor.core.shipFlightActive) return;
         if (e.button !== 0) return;
 
         const rect = editor.core.container.getBoundingClientRect();

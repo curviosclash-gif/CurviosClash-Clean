@@ -1,26 +1,27 @@
 import * as THREE from 'three';
 import { getYLayerValue, isYLayerEnabled } from './EditorFormState.js';
 
+/** Keys typed into a field or a dialog belong to that field, not to an editor shortcut. */
+export function shouldIgnoreGlobalShortcut(target) {
+    if (!(target instanceof Element)) return false;
+    if (target.closest('#editorModalBackdrop, dialog[open]')) return true;
+    const tagName = target.tagName.toLowerCase();
+    return tagName === 'input'
+        || tagName === 'textarea'
+        || tagName === 'select'
+        || target.isContentEditable;
+}
+
 export function bindEditorShortcutControls(editor) {
     if (!editor) return;
     const dom = editor.dom;
 
     editor.core.container.addEventListener('keyup', (e) => {
-        if (e.ctrlKey) return; // handled by document keydown shortcuts
+        if (e.ctrlKey || editor.core.shipFlightActive) return; // handled by document keydown shortcuts
         if (e.key === 'Delete' || e.key === 'Backspace') {
             dom.btnDelSelected?.click();
         }
     });
-
-    const shouldIgnoreGlobalShortcut = (target) => {
-        if (!(target instanceof Element)) return false;
-        if (target.closest('#editorModalBackdrop, dialog[open]')) return true;
-        const tagName = target.tagName.toLowerCase();
-        return tagName === 'input'
-            || tagName === 'textarea'
-            || tagName === 'select'
-            || target.isContentEditable;
-    };
 
     const transformButtons = Array.from(document.querySelectorAll('[data-transform-mode]'));
     const syncTransformModeUi = () => {
@@ -62,6 +63,8 @@ export function bindEditorShortcutControls(editor) {
     syncTransformModeUi();
 
     document.addEventListener('keydown', (e) => {
+        // In flight W/A/S/D steer the ship; S must not switch the gizmo to scale.
+        if (editor.core.shipFlightActive) return;
         if (shouldIgnoreGlobalShortcut(e.target)) return;
 
         const lowerKey = e.key.toLowerCase();
