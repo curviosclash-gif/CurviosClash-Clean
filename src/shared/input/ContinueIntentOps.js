@@ -1,3 +1,4 @@
+import { isPageInactive } from '../runtime/PageVisibility.js';
 // ============================================
 // ContinueIntentOps.js - the "Continue" input intent (any key means continue)
 // ============================================
@@ -133,7 +134,7 @@ export class GamepadContinueInput {
 
     wasPressed() {
         if (this._pauseInput?.enabled === false) return false;
-        if (globalThis.document?.hidden === true || globalThis.document?.hasFocus?.() === false) {
+        if (isPageInactive()) {
             this.clearInputState();
             return false;
         }
