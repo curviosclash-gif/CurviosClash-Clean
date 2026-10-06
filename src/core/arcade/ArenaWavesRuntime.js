@@ -36,7 +36,7 @@ function saveRecords(store, records) { store?.saveJsonRecord?.(RECORD_KEY, recor
 /** Dedicated single-player Hunt run. It intentionally owns no parcours state. */
 export class ArenaWavesRuntime {
     /** getPlayerRewardTarget(playerIndex): own store and plane of a split-screen partner, null for player one. */
-    constructor({ now = () => Date.now(), getRecordStore = () => null, getPlayerRewardTarget = () => null, requestMapTransition = null } = {}) {
+    constructor({ now = () => Date.now(), getRecordStore = () => null, getPlayerRewardTarget = (_playerIndex) => null, requestMapTransition = null } = {}) {
         this._now = now;
         this._getRecordStore = getRecordStore;
         this._getPlayerRewardTarget = getPlayerRewardTarget;
