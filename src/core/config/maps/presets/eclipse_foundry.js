@@ -155,7 +155,8 @@ const ECLIPSE_FOUNDRY_OBSTACLES = [
 ];
 
 const ECLIPSE_FOUNDRY_PORTALS = [
-    { a: [-102, 22, -29], b: [-78, 40, 27], color: 0x22aaff },
+    // Lifted clear of the platforms the portal mouths used to sit inside.
+    { a: [-102, 25, -29], b: [-78, 43, 27], color: 0x22aaff },
     { a: [80, 76, -47], b: [80, 87, 41], color: 0xff8811 },
     { a: [104, 101, 96], b: [61, 116, 108], color: 0xaa66ff },
     { a: [-58, 93, 22], b: [-34, 72, -38], color: 0x44ffbb },
@@ -163,14 +164,14 @@ const ECLIPSE_FOUNDRY_PORTALS = [
 
 const ECLIPSE_FOUNDRY_GATES = [
     { id: 'eclipse_launch_boost', type: 'boost', pos: [-190, 12, 0], forward: [1, 0, 0], params: { duration: 1.2, forwardImpulse: 42, bonusSpeed: 50, cooldown: 0.9 } },
-    { id: 'eclipse_furnace_sling', type: 'slingshot', pos: [-112, 18, 10], forward: [0.72, 0.55, 0.42], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 31, liftImpulse: 13, cooldown: 1.2 } },
+    { id: 'eclipse_furnace_sling', type: 'slingshot', pos: [-112, 21.5, 10], forward: [0.72, 0.55, 0.42], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 31, liftImpulse: 13, cooldown: 1.2 } },
     { id: 'eclipse_lens_boost', type: 'boost', pos: [-20, 54, -16], forward: [0.85, 0.25, -0.4], params: { duration: 1.0, forwardImpulse: 37, bonusSpeed: 46, cooldown: 0.8 } },
     { id: 'eclipse_orbit_blue', type: 'boost', pos: [68, 75, -30], forward: [0.62, 0.1, -0.78], params: { duration: 0.9, forwardImpulse: 35, bonusSpeed: 44, cooldown: 0.7 } },
     { id: 'eclipse_orbit_orange', type: 'slingshot', pos: [67, 82, 25], forward: [0.62, 0.35, 0.68], up: [0, 1, 0], params: { duration: 1.4, forwardImpulse: 32, liftImpulse: 11, cooldown: 1.0 } },
     { id: 'eclipse_temple_boost', type: 'boost', pos: [143, 92, 30], forward: [0.1, 0.15, 0.98], params: { duration: 0.9, forwardImpulse: 39, bonusSpeed: 48, cooldown: 0.8 } },
     { id: 'eclipse_shipyard_sling', type: 'slingshot', pos: [101, 100, 95], forward: [-0.75, 0.38, 0.38], up: [0, 1, 0], params: { duration: 1.6, forwardImpulse: 33, liftImpulse: 14, cooldown: 1.1 } },
     { id: 'eclipse_crown_boost', type: 'boost', pos: [28, 115, 92], forward: [-0.82, -0.15, -0.46], params: { duration: 0.8, forwardImpulse: 36, bonusSpeed: 45, cooldown: 0.7 } },
-    { id: 'eclipse_descent_boost', type: 'boost', pos: [-58, 91, 20], forward: [-0.18, -0.38, -0.9], params: { duration: 0.8, forwardImpulse: 34, bonusSpeed: 42, cooldown: 0.7 } },
+    { id: 'eclipse_descent_boost', type: 'boost', pos: [-58, 94, 20], forward: [-0.18, -0.38, -0.9], params: { duration: 0.8, forwardImpulse: 34, bonusSpeed: 42, cooldown: 0.7 } },
 ];
 
 const ECLIPSE_FOUNDRY_CHECKPOINTS = [
@@ -211,12 +212,18 @@ export const ECLIPSE_FOUNDRY_MAP = {
         obstacles: ECLIPSE_FOUNDRY_OBSTACLES,
         portals: ECLIPSE_FOUNDRY_PORTALS,
         gates: ECLIPSE_FOUNDRY_GATES,
-        glbModels: ECLIPSE_FOUNDRY_LANDMARKS,
+        glbModels: [
+            ...ECLIPSE_FOUNDRY_LANDMARKS,
+            { id: 'eclipse-foundry-world', url: 'assets/maps/eclipse_foundry/glb/01_world.glb',
+                position: [0, -0.12, 0], scale: 1 },
+        ],
         // The animatedLandmark() setpieces collide via their animated mesh colliders; fixed
         // setpiece parts and static CC0 landmarks stay on the authored box obstacles. The shared
         // 10-second gate clip leaves each tunnel centre blocked for roughly 19% of its loop; that
         // short timed closure is intentional.
         glbColliderMode: 'dynamic',
+        // The Blender world draws the authored boxes; they stay as collision and are hidden once it loads.
+        glbAuthoredObstaclesCollisionOnly: true,
         glbLoadConcurrency: 3,
         playerSpawn: { x: -210, y: 12, z: 0 },
         botSpawns: [
@@ -246,9 +253,11 @@ export const ECLIPSE_FOUNDRY_MAP = {
             { id: 'eclipse_crown_scout', jetId: 'ship3', x: -24, y: 125, z: 70, scale: 0.75, rotateY: -0.6 },
         ],
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 275 }, weight: 1.8 },
-            { type: 'NO_DAMAGE', params: {}, weight: 0.7 },
-            { type: 'ITEM_CHAIN', params: { target: 6 }, weight: 0.8 },
+            // Eclipse flies its own set: a time limit, a long clean line through the machinery and a
+            // sweep of the lane pickups (Chrono-Forge asks for no damage and an item chain instead).
+            { type: 'TIME_TRIAL', params: { target: 265 }, weight: 1.6 },
+            { type: 'TRAIL_MASTER', params: { target: 320 }, weight: 1.0 },
+            { type: 'COLLECT_ITEMS', params: { target: 8 }, weight: 0.9 },
         ],
         parcours: {
             enabled: true,
