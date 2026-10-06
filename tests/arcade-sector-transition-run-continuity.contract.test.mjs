@@ -136,6 +136,9 @@ test('leaving the match clears the arcade run even mid-transition', () => {
 
 test('normal Arcade ignores global HARD through the sector transition', () => {
     const { support, runtimeState } = createSupport('HARD');
+    // Since the templates follow the run progress, sector 2 of seed 1 is a HARD-pressure
+    // sector; seed 2 stays below the HARD pressure (0.6), so only a leak of global HARD could raise it.
+    runtimeState.runtimeConfig.arcade.seed = 2;
     support.syncRuntimeConfig();
     // Der Matchstart schreibt das Profil von Sektor 1 in die Laufzeit-Konfiguration.
     support.prepareMatchStartRuntime();
@@ -154,6 +157,7 @@ test('normal Arcade ignores global HARD through the sector transition', () => {
     support.arcadeRunRuntime.beginNextSector();
     const transition = support.consumePendingSectorTransition();
 
+    assert.ok((Number(transition.pressure) || 0) <= 0.72, 'the chosen seed stays below HARD pressure');
     assert.equal(
         transition.botDifficulty,
         'NORMAL',
@@ -168,7 +172,7 @@ test('normal Arcade ignores global HARD through the sector transition', () => {
 
 test('normal Arcade also ignores global EASY through the sector transition', () => {
     const { support, runtimeState } = createSupport('EASY');
-    // Seed 2 fuehrt auf einen Sektor 2 mit niedrigem Druck (0.405): dort darf EASY bleiben.
+    // Seed 2 fuehrt auf einen Sektor 2 mit Druck unter HARD (0.6): dort entscheidet die Stufe.
     runtimeState.runtimeConfig.arcade.seed = 2;
     support.syncRuntimeConfig();
     support.prepareMatchStartRuntime();

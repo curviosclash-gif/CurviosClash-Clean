@@ -152,6 +152,17 @@ function getSectorTemplate(sectorNumber) {
     )) || ARCADE_SECTOR_CATALOG[ARCADE_SECTOR_CATALOG.length - 1];
 }
 
+// The template ranges are authored as sector numbers of a 20-sector run. A planned run picks its
+// template by progress instead: the first sector is always the intro, the last one reaches the
+// endurance template, and a 20-sector run keeps exactly the authored numbers.
+const TEMPLATE_REFERENCE_SECTOR_COUNT = 20;
+
+function resolveTemplateSectorNumber(sectorNumber, sectorCount) {
+    if (sectorCount <= 1) return 1;
+    const progress = (sectorNumber - 1) / (sectorCount - 1);
+    return 1 + Math.floor(progress * (TEMPLATE_REFERENCE_SECTOR_COUNT - 1) + 1e-9);
+}
+
 // 82.1.4: Parcours sectors appear every PARCOURS_SECTOR_INTERVAL positions (e.g. sector 4, 8, 12…).
 // The final sector is always a boss sector regardless of interval alignment.
 const PARCOURS_SECTOR_INTERVAL = 4;
@@ -279,7 +290,10 @@ export function buildArcadeSectorPlan(options = {}) {
             continue;
         }
 
-        const template = getSectorTemplate(sectorNumber);
+        // The Daily is the same fixed run for everyone and keeps the authored sector numbers.
+        const template = getSectorTemplate(options.dailyChallenge === true
+            ? sectorNumber
+            : resolveTemplateSectorNumber(sectorNumber, sectorCount));
         const squadId = pickFromPool(template.squadPool, randomFn);
         const objectiveId = pickFromPool(template.objectivePool, randomFn);
         const modifierId = pickFromPool(template.modifierPool, randomFn);
