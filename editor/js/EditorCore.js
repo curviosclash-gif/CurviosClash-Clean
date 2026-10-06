@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { EDITOR_OUTLINE_LAYER } from './EditorLayers.js';
 
 export class EditorCore {
     constructor(containerId) {
@@ -32,6 +33,8 @@ export class EditorCore {
         this.orthographicCamera = new THREE.OrthographicCamera(-1000, 1000, 1000, -1000, 1, 20000);
         this.orthographicCamera.position.set(0, 4000, 0);
         this.orthographicCamera.up.set(0, 0, -1);
+        this.perspectiveCamera.layers.enable(EDITOR_OUTLINE_LAYER);
+        this.orthographicCamera.layers.enable(EDITOR_OUTLINE_LAYER);
         this.camera = this.perspectiveCamera;
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });

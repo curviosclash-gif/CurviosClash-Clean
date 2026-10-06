@@ -14,6 +14,7 @@ import {
     resolveEditorGameFogRange,
 } from '../EditorGameView.js';
 import { resolveEditorUnitsPerWorldUnit } from '../EditorShipFlight.js';
+import { EDITOR_OUTLINE_LAYER } from '../EditorLayers.js';
 
 function forEachMaterial(root, callback) {
     root.traverse((node) => {
@@ -60,7 +61,7 @@ export function bindEditorGameViewControls(editor) {
         const arenaSize = editor.getArenaSizeForExport();
         rig.setShadowCoverage(resolveEditorArenaShadowBounds(arenaSize));
         const lighting = applyEditorGameLighting(rig, core.scene, {
-            mapLighting: editor.mapManager?.mapDocumentMeta?.lighting,
+            mapLighting: editor.getBackdropLighting?.() ?? editor.mapManager?.mapDocumentMeta?.lighting,
             unitsPerWorldUnit: resolveEditorUnitsPerWorldUnit(arenaSize),
         });
         gameFog.near = core.scene.fog.near;
@@ -107,6 +108,8 @@ export function bindEditorGameViewControls(editor) {
         environment = new SceneEnvironmentController(core.renderer, core.scene);
         core.editorLights?.forEach((light) => { light.visible = false; });
         if (core.gridHelper) core.gridHelper.visible = false;
+        core.perspectiveCamera.layers.disable(EDITOR_OUTLINE_LAYER);
+        core.orthographicCamera.layers.disable(EDITOR_OUTLINE_LAYER);
         core.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         setSolidParts(true);
         applyLook();
@@ -132,6 +135,8 @@ export function bindEditorGameViewControls(editor) {
         core.renderer.toneMappingExposure = editorLook.exposure;
         core.editorLights?.forEach((light) => { light.visible = true; });
         if (core.gridHelper) core.gridHelper.visible = editorLook.gridVisible;
+        core.perspectiveCamera.layers.enable(EDITOR_OUTLINE_LAYER);
+        core.orthographicCamera.layers.enable(EDITOR_OUTLINE_LAYER);
         setSolidParts(false);
         if (fogInstalledHere) {
             uninstallAtmosphericFog();

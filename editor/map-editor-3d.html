@@ -1725,7 +1725,24 @@
                     </div>
                 </div>
 
-                <details class="panelSection jsonSection">
+                <div class="panelSection">
+                    <strong class="sectionTitle">Spielkarte als Grundlage</strong>
+                    <p class="sectionHint">Lädt Welt, Spawns und Licht einer eingebauten Karte. Die Welt bleibt gesperrt.
+                        Was du darauf baust, speicherst du als neue Karte oder kopierst es im Kartenformat.
+                        Das Licht der Spielkarte nimmt eine gespeicherte Editor-Karte noch nicht mit.</p>
+                    <div class="row">
+                        <label for="selBackdropMap">Karte</label>
+                        <select id="selBackdropMap" disabled>
+                            <option value="">Liste lädt …</option>
+                        </select>
+                    </div>
+                    <div class="outlinerActions">
+                        <button id="btnLoadBackdrop" class="small" disabled>Als Grundlage laden</button>
+                        <button id="btnCopyPresetPlacements" class="small">Im Kartenformat kopieren</button>
+                    </div>
+                </div>
+
+                <details class="panelSection jsonSection" id="jsonSection">
                     <summary>Map JSON</summary>
                     <textarea id="jsonOutput" spellcheck="false" aria-label="Map JSON"></textarea>
                 </details>
