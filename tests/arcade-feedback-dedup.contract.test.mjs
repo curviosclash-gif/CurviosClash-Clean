@@ -2,7 +2,7 @@
 // score box, which grew for 1.4 s and pushed the player bars (they follow --arcade-score-hud-bottom)
 // down and back up. Only the centred banner stays. In sudden death the score box, its banner and
 // the screen edge pulsed at the same time; only the screen edge pulses now, and not at all while
-// "Bewegung reduzieren" or prefers-reduced-motion is on.
+// prefers-reduced-motion is on. The camera option cameraPerspective.reduceMotion does not count.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import '../src/core/Config.js';
@@ -75,12 +75,12 @@ function suddenDeathOverlay(runtimeConfig, options) {
     return overlay;
 }
 
-test('the sudden death edge pulse stops while motion is reduced', () => {
-    const calm = suddenDeathOverlay({ cameraPerspective: { reduceMotion: true } });
+test('the sudden death edge pulse stops while prefers-reduced-motion is on', () => {
+    const calm = suddenDeathOverlay({ cameraPerspective: { reduceMotion: false } }, { systemReduced: true });
     assert.equal(calm.classList.contains('hidden'), false, 'the edge still marks sudden death');
     assert.equal(calm.classList.contains('reduced-motion'), true);
-    assert.equal(suddenDeathOverlay({ cameraPerspective: { reduceMotion: false } }, { systemReduced: true })
-        .classList.contains('reduced-motion'), true);
-    assert.equal(suddenDeathOverlay({ cameraPerspective: { reduceMotion: false } })
-        .classList.contains('reduced-motion'), false);
+    for (const reduceMotion of [true, false]) {
+        assert.equal(suddenDeathOverlay({ cameraPerspective: { reduceMotion } })
+            .classList.contains('reduced-motion'), false, `the camera option (${reduceMotion}) alone keeps the pulse`);
+    }
 });

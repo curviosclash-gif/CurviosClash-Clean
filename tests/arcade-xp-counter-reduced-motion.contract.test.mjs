@@ -1,7 +1,7 @@
 // The XP counter on the Arcade result panel counts up with requestAnimationFrame. The CSS rule for
-// prefers-reduced-motion cannot stop a JS animation, and the game's own "Bewegung reduzieren"
-// (cameraPerspective.reduceMotion, on by default) was ignored. With either one on, the panel shows
-// the final XP at once.
+// prefers-reduced-motion cannot stop a JS animation, so with that system wish the panel shows the
+// final XP at once. The camera option cameraPerspective.reduceMotion (on by default) only calms
+// the camera and must not take the count-up away from every player.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -58,18 +58,18 @@ function renderXp({ reduceMotion, systemReduced = false }) {
     }
 }
 
-test('the game setting "Bewegung reduzieren" shows the final XP at once', () => {
-    const { text, frames } = renderXp({ reduceMotion: true });
-    assert.equal(text, '1.420 XP');
-    assert.equal(frames, 0, 'no animation frame is requested');
+test('prefers-reduced-motion shows the final XP at once', () => {
+    for (const reduceMotion of [true, false]) {
+        const { text, frames } = renderXp({ reduceMotion, systemReduced: true });
+        assert.equal(text, '1.420 XP');
+        assert.equal(frames, 0, 'no animation frame is requested');
+    }
 });
 
-test('prefers-reduced-motion alone also shows the final XP at once', () => {
-    assert.equal(renderXp({ reduceMotion: false, systemReduced: true }).text, '1.420 XP');
-});
-
-test('with both off the counter still counts up from zero', () => {
-    const { text, frames } = renderXp({ reduceMotion: false });
-    assert.equal(text, '0 XP');
-    assert.equal(frames, 1);
+test('the camera option alone keeps the count-up, on or off', () => {
+    for (const reduceMotion of [true, false, undefined]) {
+        const { text, frames } = renderXp({ reduceMotion });
+        assert.equal(text, '0 XP', `reduceMotion=${reduceMotion}`);
+        assert.equal(frames, 1);
+    }
 });
