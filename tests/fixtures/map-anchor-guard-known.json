@@ -1,5 +1,5 @@
 {
-  "count": 37,
+  "count": 32,
   "entries": [
     {
       "map": "showcase_nexus",
@@ -102,36 +102,6 @@
       "check": "in-solid",
       "point": "items[cr_speed_tower]",
       "reason": "item (55, 44, 55) sits inside obstacles[30] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
-    },
-    {
-      "map": "vulkan_odyssey",
-      "check": "in-solid",
-      "point": "portals[3].b",
-      "reason": "portal (-420, 30, 0) sits inside obstacles[0] (foam); the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
-    {
-      "map": "vulkan_odyssey",
-      "check": "in-solid",
-      "point": "gates[vod_boost_start]",
-      "reason": "gate (-420, 30, 0) sits inside obstacles[0] (foam)"
-    },
-    {
-      "map": "frozen_helix",
-      "check": "in-solid",
-      "point": "portals[0].a",
-      "reason": "portal (75, 150, -60) sits inside obstacles[15] (foam); the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
-    {
-      "map": "magma_maze",
-      "check": "in-solid",
-      "point": "portals[0].a",
-      "reason": "portal (0, 30, 0) sits inside obstacles[31] (foam); the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
-    {
-      "map": "magma_maze",
-      "check": "in-solid",
-      "point": "gates[mm_boost_mid]",
-      "reason": "gate (0, 30, 0) sits inside obstacles[31] (foam)"
     },
     {
       "map": "verdant_aperture",
