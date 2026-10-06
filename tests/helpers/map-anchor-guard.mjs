@@ -22,6 +22,7 @@ import { getPickupDefinition, normalizePickupType } from '../../src/shared/contr
 export const CHECKS = Object.freeze([
     'anchor-format',
     'bounds',
+    'obstacle-bounds',
     'in-solid',
     'free-directions',
     'item-type',
@@ -115,6 +116,44 @@ function outsideDescription(point, worldSize) {
     if (point[1] < 0 || point[1] > worldSize[1]) axes.push(`y outside 0..${worldSize[1]}`);
     if (Math.abs(point[2]) > worldSize[2] / 2) axes.push(`z beyond ±${worldSize[2] / 2}`);
     return axes.join(', ');
+}
+
+// Outer extent of an authored obstacle in world units: boxes (rotated about Y, tunnel walls
+// included) and tubes/beams (start/end plus radius). Null for entries without either shape.
+function obstacleExtent(obstacle, mapScale) {
+    if (Array.isArray(obstacle?.pos) && Array.isArray(obstacle?.size)) {
+        const rotateY = Number(obstacle.rotateY) || 0;
+        const hx = (obstacle.size[0] * mapScale) / 2;
+        const hz = (obstacle.size[2] * mapScale) / 2;
+        const reach = [
+            Math.abs(Math.cos(rotateY)) * hx + Math.abs(Math.sin(rotateY)) * hz,
+            (obstacle.size[1] * mapScale) / 2,
+            Math.abs(Math.sin(rotateY)) * hx + Math.abs(Math.cos(rotateY)) * hz,
+        ];
+        const center = obstacle.pos.map((value) => value * mapScale);
+        return { min: center.map((value, axis) => value - reach[axis]), max: center.map((value, axis) => value + reach[axis]) };
+    }
+    if (Array.isArray(obstacle?.start) && Array.isArray(obstacle?.end)) {
+        const radius = (Number(obstacle.radius) || 0) * mapScale;
+        const start = obstacle.start.map((value) => value * mapScale);
+        const end = obstacle.end.map((value) => value * mapScale);
+        return { min: start.map((value, axis) => Math.min(value, end[axis]) - radius), max: start.map((value, axis) => Math.max(value, end[axis]) + radius) };
+    }
+    return null;
+}
+
+// Sideways and upwards only: a base that sinks below the floor (y < 0) is a foundation on purpose.
+export const OBSTACLE_BOUNDS_TOLERANCE = 0.01;
+function obstacleOvershoot(extent, worldSize) {
+    const over = [];
+    const round = (value) => Math.round(value * 10) / 10;
+    for (const [axis, name] of [[0, 'x'], [2, 'z']]) {
+        const half = worldSize[axis] / 2;
+        if (extent.min[axis] < -half - OBSTACLE_BOUNDS_TOLERANCE) over.push(`${name} down to ${round(extent.min[axis])} beyond -${half}`);
+        if (extent.max[axis] > half + OBSTACLE_BOUNDS_TOLERANCE) over.push(`${name} up to ${round(extent.max[axis])} beyond +${half}`);
+    }
+    if (extent.max[1] > worldSize[1] + OBSTACLE_BOUNDS_TOLERANCE) over.push(`y up to ${round(extent.max[1])} beyond ${worldSize[1]}`);
+    return over;
 }
 
 function countFreeDirections(point, boxes, worldSize) {
@@ -223,6 +262,12 @@ export function analyzeMapAnchors(mapKey, map, mapScale) {
             add('free-directions', point, `only ${free.length}/6 axis directions free for ${FREE_DISTANCE} units at ${fmt(world)}; blocked: ${blocked.join(', ')}`);
         }
     };
+
+    (Array.isArray(map?.obstacles) ? map.obstacles : []).forEach((obstacle, index) => {
+        const extent = obstacleExtent(obstacle, mapScale);
+        const over = extent ? obstacleOvershoot(extent, worldSize) : [];
+        if (over.length) add('obstacle-bounds', `obstacles[${obstacle.id || index}]`, `obstacle reaches through the arena wall: ${over.join(', ')}`);
+    });
 
     if (map?.playerSpawn) checkSpawn(map.playerSpawn, 'playerSpawn');
     (Array.isArray(map?.botSpawns) ? map.botSpawns : []).forEach((entry, index) => checkSpawn(entry, `botSpawns[${index}]`));

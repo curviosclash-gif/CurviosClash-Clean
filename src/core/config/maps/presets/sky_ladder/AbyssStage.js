@@ -47,8 +47,9 @@ export const SKY_LADDER_ABYSS_MAP = {
         { pos: [76, 75, -4], size: [2, 40, 2], kind: 'foam' },
         { pos: [76, 75, 12], size: [2, 40, 2], kind: 'foam' },
 
-        // Final gate before surfacing (CP12), a thin arch for the same reason as the porthole.
-        { pos: [100, 98, -14], size: [3, 20, 26], tunnel: { radius: 4.4, axis: 'x' } },
+        // Final gate before surfacing (CP12), a thin arch for the same reason as the porthole. The last
+        // four rings are 18-22 apart (they were 9-18) so the finish does not arrive as one blur.
+        { pos: [108, 101, -22], size: [3, 20, 26], tunnel: { radius: 4.4, axis: 'x' } },
     ],
     // Whirlpool shortcut: an optional current that sweeps a diver from the ribs straight up near
     // the surface, skipping the bubble column. The route stays fully flyable with portals off.
@@ -83,7 +84,7 @@ export const SKY_LADDER_ABYSS_MAP = {
         { id: 'sl_rocket_wreck', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -6, y: 31, z: -20, weight: 1.0 },
         { id: 'sl_ghost_ribs', type: 'item_coin', pickupType: 'GHOST', x: 44, y: 41, z: 2, weight: 0.9 },
         { id: 'sl_speed_bubble', type: 'item_battery', pickupType: 'SPEED_UP', x: 76, y: 70, z: 4, weight: 1.3 },
-        { id: 'sl_shield_final', type: 'item_shield', pickupType: 'SHIELD', x: 106, y: 103, z: -9, weight: 1.0 },
+        { id: 'sl_shield_final', type: 'item_shield', pickupType: 'SHIELD', x: 122, y: 111, z: -12, weight: 1.0 },
     ],
     missions: [
         { type: 'TIME_TRIAL', params: { target: 65 }, weight: 1.6 },
@@ -132,10 +133,10 @@ export const SKY_LADDER_ABYSS_MAP = {
             { id: 'CP08', type: 'precision', pos: [60, 42, 0], radius: 4.2, forward: [1, 0.15, 0] },
             { id: 'CP09', type: 'gate', pos: [74, 50, 6], radius: 5.5, forward: [0.4, 1, 0.2] },
             { id: 'CP10', type: 'gate', pos: [78, 82, 2], radius: 5.5, forward: [0.2, 1, -0.2] },
-            { id: 'CP11', type: 'gate', pos: [90, 92, -6], radius: 5.2, forward: [0.8, 0.4, -0.6] },
-            { id: 'CP12', type: 'tunnel', pos: [100, 98, -14], radius: 4.6, forward: [0.8, 0.3, -0.5] },
-            { id: 'CP13', type: 'finish_pre', pos: [108, 104, -8], radius: 5.4, forward: [0.7, 0.5, 0.5] },
+            { id: 'CP11', type: 'gate', pos: [92, 93, -10], radius: 5.2, forward: [0.8, 0.4, -0.6] },
+            { id: 'CP12', type: 'tunnel', pos: [108, 101, -22], radius: 4.6, forward: [0.8, 0.5, 0.4] },
+            { id: 'CP13', type: 'finish_pre', pos: [123, 110, -14], radius: 5.4, forward: [0.4, 0.6, 0.7] },
         ],
-        finish: { id: 'FINISH', type: 'finish', pos: [114, 108, -2], radius: 7.0, forward: [0.6, 0.5, 0.6] },
+        finish: { id: 'FINISH', type: 'finish', pos: [130, 121, -2], radius: 7.0, forward: [0.4, 0.6, 0.7] },
     },
 };

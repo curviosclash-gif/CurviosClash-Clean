@@ -139,3 +139,17 @@ test('the map scale applies to anchors only when the map says so', () => {
     assert.deepEqual(analyzeMapAnchors('probe', { ...base, scaleAuthoredAnchors: true }, MAP_SCALE).map((v) => v.check), ['bounds']);
     assert.deepEqual(analyzeMapAnchors('probe', base, MAP_SCALE).map((v) => v.check), []);
 });
+
+test('obstacle bounds: boxes (rotated), tubes and tall boxes must stay inside the arena, a sunk base may not', () => {
+    const room = (obstacles) => ({ size: [60, 40, 60], obstacles });
+    const pointsOf = (obstacles) => analyzeMapAnchors('probe', room(obstacles), MAP_SCALE)
+        .filter((violation) => violation.check === 'obstacle-bounds').map((violation) => violation.point);
+    assert.deepEqual(pointsOf([
+        { id: 'flush', pos: [20, 10, 0], size: [20, 4, 10] },
+        { id: 'sunk', pos: [0, 0, 0], size: [10, 6, 10] },
+        { id: 'through_x', pos: [26, 10, 0], size: [10, 4, 10] },
+        { id: 'through_z_rotated', pos: [0, 10, -22], size: [30, 4, 4], rotateY: Math.PI / 2 },
+        { id: 'beam', shape: 'tube', start: [0, 10, 0], end: [0, 10, 31], radius: 1 },
+        { id: 'too_tall', pos: [0, 38, 0], size: [4, 8, 4] },
+    ]), ['obstacles[through_x]', 'obstacles[through_z_rotated]', 'obstacles[beam]', 'obstacles[too_tall]']);
+});
