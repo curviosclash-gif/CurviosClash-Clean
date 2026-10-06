@@ -122,6 +122,10 @@ export const ARCADE_SECTOR_CATALOG = Object.freeze([
             'chrono_spillway',
             'aether_relay',
             'neon_carnival',
+            'frozen_helix',
+            'neon_circuit',
+            'magma_maze',
+            'sky_islands',
         ],
     }),
 ]);
