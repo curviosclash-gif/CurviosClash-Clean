@@ -1,66 +1,89 @@
 // Gamepad control for the Arcade choice panels in the message overlay (intermission route, reward
 // and confirm, the victory choice, the Five Fronts advantage, the result screens). The menu's
-// gamepad poll only ran while the main menu was open, so these panels needed mouse or keyboard.
-// MenuNavigationRuntime keeps its single poll loop and hands the pad to this module while such a
-// panel is on screen.
+// gamepad poller only answers while the main menu is shown, so these panels get their own poller.
+// MatchFlowArcadeOverlayController starts it while a panel is on screen and stops it with the panel.
 
+import { createGamepadMenuPoller, GAMEPAD_MENU_BUTTONS } from '../menu/GamepadMenuPoller.js';
 import { getFocusableElements, moveMainMenuFocus } from '../menu/MenuNavigationFocusOps.js';
 
 const ARCADE_OVERLAY_PANEL_ID = 'arcade-overlay-panel';
-const STICK_THRESHOLD = 0.6;
-const DIRECTION_BUTTONS = Object.freeze([[12, 'up'], [13, 'down'], [14, 'left'], [15, 'right'], [4, 'left'], [5, 'right']]);
-// Read every frame so a press held over the switch back to the menu does not fire there again.
-const CONSUMED_BUTTONS = Object.freeze([1]);
-const STICK_STATE_KEY = 'arcadeOverlayStick';
+const ACTION_BUTTONS = Object.freeze([GAMEPAD_MENU_BUTTONS.A, GAMEPAD_MENU_BUTTONS.LB, GAMEPAD_MENU_BUTTONS.RB]);
 
 function listArcadeOverlayButtons(panel) {
     return getFocusableElements(panel).filter((element) => String(element.tagName).toUpperCase() === 'BUTTON');
 }
 
+/** Same rule as MenuNavigationRuntime._isMenuInteractive: the menu poller answers exactly then. */
+function isMainMenuInteractive(doc) {
+    const menuRoot = doc.getElementById('main-menu');
+    return !!menuRoot && !menuRoot.classList?.contains?.('hidden') && menuRoot.getAttribute?.('aria-hidden') !== 'true';
+}
+
 /**
- * The visible Arcade overlay panel with at least one usable button, otherwise null. While the
- * result board's continue prompt (#message-actions) is shown, every pad button already means
- * "continue" there, so the panel stays out of the way instead of pressing a button at the same time.
+ * The visible Arcade overlay panel with at least one enabled button, otherwise null. Runs every
+ * frame, so it only reads the DOM and builds no lists. While the result board's continue prompt
+ * (#message-actions) is shown, every pad button already means "continue" there, and while the main
+ * menu is interactive the menu poller owns the pad; in both cases the panel stays out of the way.
  */
 export function findArcadeOverlayChoicePanel(doc = globalThis.document) {
     const panel = doc?.getElementById?.(ARCADE_OVERLAY_PANEL_ID);
     if (!panel || panel.classList?.contains?.('hidden')) return null;
     const continuePrompt = doc.getElementById('message-actions');
     if (continuePrompt && !continuePrompt.classList?.contains?.('hidden')) return null;
-    return listArcadeOverlayButtons(panel).length > 0 ? panel : null;
+    if (isMainMenuInteractive(doc)) return null;
+    return panel.querySelector?.('button:not([disabled])') ? panel : null;
 }
 
-function moveArcadeOverlayFocus(panel, direction) {
-    moveMainMenuFocus(listArcadeOverlayButtons(panel), direction, panel.ownerDocument?.activeElement);
-}
-
-function readStickDirection(gamepad) {
-    const x = Number(gamepad?.axes?.[0]) || 0;
-    const y = Number(gamepad?.axes?.[1]) || 0;
-    if (Math.max(Math.abs(x), Math.abs(y)) < STICK_THRESHOLD) return '';
-    if (Math.abs(x) >= Math.abs(y)) return x < 0 ? 'left' : 'right';
-    return y < 0 ? 'up' : 'down';
+function firstConnectedPad(pads) {
+    for (let index = 0; index < (pads?.length || 0); index += 1) {
+        if (pads[index]) return pads[index];
+    }
+    return null;
 }
 
 /**
- * One frame of gamepad input for an open Arcade panel: D-pad, shoulder buttons and the left stick
- * move the focus, A presses the focused button. Without a focused button A only focuses the first
- * one, so a stray press never confirms a choice the player has not seen highlighted.
- * @param {object} panel
- * @param {Gamepad} gamepad
- * @param {(index: number) => boolean} consumePress edge-detected press of a button index
- * @param {Map<unknown, unknown>} state per-pad memory, cleared on disconnect
+ * D-pad, shoulder buttons and the left stick move the focus between the panel's buttons, A presses
+ * the focused one. Without a focused button A only focuses the first one, so a stray press never
+ * confirms a choice the player has not seen highlighted. A button already held when the panel takes
+ * the pad (the press that closed the continue prompt, say) does not count as a new press.
+ * @param {{ doc?: Document, getGamepads?: () => any, requestFrame?: Function, cancelFrame?: Function, now?: () => number }} [options]
  */
-export function handleArcadeOverlayGamepad(panel, gamepad, consumePress, state) {
-    for (const [index, direction] of DIRECTION_BUTTONS) {
-        if (consumePress(index)) moveArcadeOverlayFocus(panel, direction);
-    }
-    const stick = readStickDirection(gamepad);
-    if (stick && stick !== state.get(STICK_STATE_KEY)) moveArcadeOverlayFocus(panel, stick);
-    state.set(STICK_STATE_KEY, stick);
-    CONSUMED_BUTTONS.forEach(consumePress);
-    if (!consumePress(0)) return;
-    const active = panel.ownerDocument?.activeElement;
-    if (listArcadeOverlayButtons(panel).includes(active)) active.click();
-    else moveArcadeOverlayFocus(panel, 'down');
+export function createArcadeOverlayGamepadNav(options = {}) {
+    const resolveDoc = () => options.doc || globalThis.document;
+    const readPads = options.getGamepads || (() => globalThis.navigator?.getGamepads?.());
+    const withPanel = (run) => {
+        const panel = findArcadeOverlayChoicePanel(resolveDoc());
+        if (panel) run(panel, listArcadeOverlayButtons(panel), panel.ownerDocument?.activeElement);
+    };
+    const move = (direction) => withPanel((panel, buttons, active) => moveMainMenuFocus(buttons, direction, active));
+    let wasActive = false;
+    const poller = createGamepadMenuPoller({
+        ...options,
+        repeat: false, leftStick: true, requireDocumentFocus: false, stickThreshold: 0.6,
+        isActive: () => {
+            const active = !!findArcadeOverlayChoicePanel(resolveDoc());
+            if (active && !wasActive) {
+                const pad = firstConnectedPad(readPads());
+                for (const index of ACTION_BUTTONS) poller.buttonState.set(index, !!pad?.buttons?.[index]?.pressed);
+            }
+            wasActive = active;
+            return active;
+        },
+        onDirection: move,
+        onPreviousTab: () => move('left'),
+        onNextTab: () => move('right'),
+        onConfirm: () => withPanel((panel, buttons, active) => {
+            if (buttons.includes(active)) active.click();
+            else moveMainMenuFocus(buttons, 'down', active);
+        }),
+    });
+    return Object.freeze({
+        poll: (time) => poller.poll(time),
+        start: () => poller.start(),
+        stop() {
+            wasActive = false;
+            poller.stop();
+        },
+        isRunning: () => poller.isRunning(),
+    });
 }

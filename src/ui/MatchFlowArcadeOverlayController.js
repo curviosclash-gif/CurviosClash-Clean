@@ -15,6 +15,7 @@ import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/Ar
 import { createArenaWavesMapBlocks, createDemolitionMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
 import { formatArenaWavesChoiceLabel, resolveArenaWavesBoardTexts } from './arcade/ArenaWavesOverlayTexts.js';
 import { createArcadeReplayActions } from './arcade/ArcadeReplayActions.js';
+import { createArcadeOverlayGamepadNav } from './arcade/ArcadeOverlayGamepadNav.js';
 import { isArcadeMotionReduced } from './arcade/ArcadeReducedMotion.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
 import {
@@ -42,6 +43,7 @@ export class MatchFlowArcadeOverlayController {
         this._arcadeOverlayPanel = null;
         this._arcadeXpAnimFrame = 0;
         this._arcadeXpAnimToken = 0;
+        this._gamepadNav = createArcadeOverlayGamepadNav();
     }
 
     get game() {
@@ -86,6 +88,7 @@ export class MatchFlowArcadeOverlayController {
         this.game?.ui?.messageOverlay?.classList?.remove?.('has-arcade-results');
         this._renderKey = null;
         this._cancelArcadeXpAnimation();
+        this._gamepadNav.stop();
         const panel = this._arcadeOverlayPanel;
         if (!panel) return;
         panel.classList.add('hidden');
@@ -537,26 +540,30 @@ export class MatchFlowArcadeOverlayController {
         if (runtimeState?.intermission && game.ui.messageSub) game.ui.messageSub.textContent = runtimeState.intermissionPaused
             ? 'Countdown angehalten – wähle Route und Belohnung.' : 'Wähle Route und Belohnung oder halte den Countdown an.';
         if (key === this._renderKey) return;
-        const focusedId = this._arcadeOverlayPanel?.ownerDocument?.activeElement?.id;
         this._renderKey = key;
-        if (this._renderDemolitionPostRunPanel(runtimeState)) return;
-        if (this._renderFivePortalsPostRunPanel(runtimeState)) return;
-        if (this._renderArenaWavesPostRunPanel(runtimeState)) return;
-        if (this._renderArcadeVictoryPanel(runtimeState)) return;
+        // The pad poller runs only while a panel is on screen; clearing the panel stops it again.
+        if (this._renderArcadePanelForState(runtimeState)) this._gamepadNav.start();
+        else this.clearArcadeOverlayPanel();
+    }
+
+    _renderArcadePanelForState(runtimeState) {
+        const game = this.game;
+        const focusedId = this._arcadeOverlayPanel?.ownerDocument?.activeElement?.id;
+        if (this._renderDemolitionPostRunPanel(runtimeState)) return true;
+        if (this._renderFivePortalsPostRunPanel(runtimeState)) return true;
+        if (this._renderArenaWavesPostRunPanel(runtimeState)) return true;
+        if (this._renderArcadeVictoryPanel(runtimeState)) return true;
         const state = normalizeGameStateId(game?.state, GAME_STATE_IDS.MENU);
         if (this._renderArenaWavesUpgradePanel(runtimeState)) {
             this._arcadeOverlayPanel?.querySelector('button')?.focus({ preventScroll: true });
-            return;
+            return true;
         }
         if (state === GAME_STATE_IDS.ROUND_END && this._renderArcadeIntermissionPanel(runtimeState)) {
             const focus = focusedId && document.getElementById(focusedId);
             (focus || this._arcadeOverlayPanel?.querySelector('button'))?.focus({ preventScroll: true });
-            return;
+            return true;
         }
-        if (state === GAME_STATE_IDS.MATCH_END && this._renderArcadePostRunPanel(runtimeState)) {
-            return;
-        }
-        this.clearArcadeOverlayPanel();
+        return state === GAME_STATE_IDS.MATCH_END && this._renderArcadePostRunPanel(runtimeState);
     }
 
     dispose() {
