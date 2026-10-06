@@ -84,6 +84,78 @@ test('Schiffsflug: G startet, das Schiff fliegt vorwaerts, Leertaste schwebt, Es
     await expect.poll(async () => (await readFlight(page)).transformMode).toBe('scale');
 });
 
+async function activateDockEntry(page, categoryId, entryId, tool) {
+    await page.locator(`#dockCategoryTabs [data-category-id="${categoryId}"]`).click();
+    await page.locator(`#dockCards [data-entry-id="${entryId}"]`).click();
+    await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.getState().currentTool)).toBe(tool);
+}
+
+async function takeOffAndHover(page) {
+    await page.locator('#threeCanvas').hover();
+    await page.keyboard.press('KeyG');
+    await page.keyboard.down('Space');
+    await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.ui.getFlightPlacementTarget()?.point || null))
+        .not.toBeNull();
+}
+
+test('Schiffsflug: Checkpoint aus dem Cockpit sitzt am Fadenkreuz und zeigt in Flugrichtung', async ({ page }) => {
+    await openEditorWithSelectedBlock(page);
+    await activateDockEntry(page, 'parcours', 'parcours-checkpoint-gate', 'checkpoint');
+    await takeOffAndHover(page);
+    await expect.poll(() => page.evaluate(() => !!window.CURVIOS_EDITOR.ui.getFlightPlacementTarget()?.ghostPosition))
+        .toBe(true);
+    const before = await page.evaluate(() => window.CURVIOS_EDITOR.getState().objectCount);
+    // Read before setting: afterwards the crosshair aims at the new ring and the copy moves on.
+    const ghost = await page.evaluate(() => window.CURVIOS_EDITOR.ui.getFlightPlacementTarget().ghostPosition);
+
+    await page.keyboard.press('Enter');
+    await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.getState().objectCount)).toBe(before + 1);
+    const placed = await page.evaluate((ghost) => {
+        const editor = window.CURVIOS_EDITOR;
+        const object = editor.ui.selectedObject;
+        const forward = editor.core.camera.getWorldDirection(object.position.clone());
+        return {
+            type: object.userData.type,
+            facing: forward.dot({ x: object.userData.cpForward[0], y: object.userData.cpForward[1], z: object.userData.cpForward[2] }),
+            offGhost: object.position.distanceTo({ x: ghost[0], y: ghost[1], z: ghost[2] }),
+        };
+    }, ghost);
+    expect(placed.type).toBe('checkpoint');
+    expect(placed.facing).toBeGreaterThan(0.99);
+    expect(placed.offGhost).toBeLessThan(1);
+    await page.keyboard.up('Space');
+});
+
+test('Schiffsflug: Block entsteht aus zwei Zielpunkten und ist ein Undo-Schritt', async ({ page }) => {
+    await openEditorWithSelectedBlock(page);
+    await activateDockEntry(page, 'build', 'build-hard', 'hard');
+    await takeOffAndHover(page);
+    const before = await page.evaluate(() => window.CURVIOS_EDITOR.getState().objectCount);
+
+    await page.keyboard.press('Enter');
+    await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.ui.getFlightPlacementTarget()?.drafting)).toBe(true);
+    // Turn on the spot while hovering, so the second corner lies elsewhere.
+    await page.keyboard.down('KeyD');
+    await waitForFrames(page, 20);
+    await page.keyboard.up('KeyD');
+    await page.keyboard.press('Enter');
+    await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.ui.getFlightPlacementTarget()?.drafting)).toBe(false);
+
+    const block = await page.evaluate(() => {
+        const object = window.CURVIOS_EDITOR.ui.selectedObject;
+        return { type: object.userData.type, sizeX: object.userData.sizeX, sizeZ: object.userData.sizeZ };
+    });
+    expect(block.type).toBe('hard');
+    expect(Math.max(block.sizeX, block.sizeZ)).toBeGreaterThan(50);
+    expect(await page.evaluate(() => window.CURVIOS_EDITOR.getState().objectCount)).toBe(before + 1);
+
+    await page.keyboard.up('Space');
+    await page.keyboard.press('Escape');
+    await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.ui.isShipFlightActive())).toBe(false);
+    await page.keyboard.press('Control+KeyZ');
+    await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.getState().objectCount)).toBe(before);
+});
+
 test('Schiffsflug: G in einem Eingabefeld startet keinen Flug', async ({ page }) => {
     await openEditorWithSelectedBlock(page);
     await page.locator('[data-editor-tab="map"]').click();

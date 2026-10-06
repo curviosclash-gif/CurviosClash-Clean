@@ -12,6 +12,7 @@ import { bindEditorWorkspaceControls } from './ui/EditorWorkspaceControls.js';
 import { bindEditorLayerControls } from './ui/EditorLayerControls.js';
 import { bindEditorRelationshipControls } from './ui/EditorRelationshipControls.js';
 import { bindEditorShipFlightControls } from './ui/EditorShipFlightControls.js';
+import { bindEditorFlightPlacementControls } from './ui/EditorFlightPlacementControls.js';
 import { readArenaSizeInputs, writeArenaSizeInputs } from './ui/EditorFormState.js';
 import {
     setupEditorSceneVisuals,
@@ -259,7 +260,8 @@ export class EditorUI {
         bindEditorCanvasInteractionControls(this);
 
         // Before the shortcuts: its keydown listener must see G and the flight keys first.
-        bindEditorShipFlightControls(this);
+        const shipFlight = bindEditorShipFlightControls(this);
+        bindEditorFlightPlacementControls(this, shipFlight);
 
         bindEditorShortcutControls(this);
 

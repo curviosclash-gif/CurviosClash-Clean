@@ -50,6 +50,8 @@ export function bindEditorShipFlightControls(editor) {
     const marker = createShipMarker();
     core.scene.add(marker);
 
+    const frameListeners = new Set();
+    const stopListeners = new Set();
     let state = null;
     let params = null;
     let chaseView = false;
@@ -83,6 +85,7 @@ export function bindEditorShipFlightControls(editor) {
 
     const stopShipFlight = () => {
         if (!isActive()) return false;
+        stopListeners.forEach((listener) => listener());
         core.shipFlightActive = false;
         pressedCodes.clear();
         lookX = 0;
@@ -164,6 +167,8 @@ export function bindEditorShipFlightControls(editor) {
         lookY = 0;
         stepShipFlight(state, pose, input, params, dt);
         placeCamera();
+        core.camera.updateMatrixWorld();
+        frameListeners.forEach((listener) => listener(dt));
         return true;
     });
 
@@ -219,6 +224,7 @@ export function bindEditorShipFlightControls(editor) {
     core.container.addEventListener('wheel', (e) => {
         if (!isActive()) return;
         e.preventDefault();
+        if (e.ctrlKey) return; // Ctrl + wheel sets the build distance.
         const step = e.deltaY < 0 ? 1 : -1;
         speedIndex = Math.max(0, Math.min(SHIP_FLIGHT_SPEED_FACTORS.length - 1, speedIndex + step));
         syncSpeedLabel();
@@ -239,4 +245,13 @@ export function bindEditorShipFlightControls(editor) {
         speedFactor: SHIP_FLIGHT_SPEED_FACTORS[speedIndex],
     });
     syncSpeedLabel();
+
+    return {
+        canvas,
+        isActive,
+        isMouseLocked: () => document.pointerLockElement === canvas,
+        getParams: () => params,
+        onFrame: (listener) => frameListeners.add(listener),
+        onStop: (listener) => stopListeners.add(listener),
+    };
 }
