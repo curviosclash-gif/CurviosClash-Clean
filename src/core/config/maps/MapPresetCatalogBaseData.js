@@ -95,7 +95,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     maze: {
         ...CLASSIC_WORLD_APPEARANCE.maze,
         name: 'Labyrinth',
-        size: [80, 10, 80],
+        size: [80, 25, 80],
         ...startPoints('maze'),
         obstacles: [
             { pos: [-20, 5, -20], size: [20, 10, 2] },
@@ -109,14 +109,14 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { pos: [0, 5, 20], size: [2, 10, 15] },
         ],
         portals: [
-            { a: [-30, 6, -30], b: [30, 6, 30], color: 0xff66ff },
-            { a: [30, 6, -30], b: [-30, 6, 30], color: 0x66ccff },
+            { a: [-30, 10, -30], b: [30, 10, 30], color: 0xff66ff },
+            { a: [30, 10, -30], b: [-30, 10, 30], color: 0x66ccff },
         ]
     },
     complex: {
         ...CLASSIC_WORLD_APPEARANCE.complex,
         name: 'Komplex',
-        size: [90, 12.5, 90],
+        size: [90, 30, 90],
         ...startPoints('complex'),
         obstacles: [
             { pos: [0, 5, 0], size: [6, 12, 6] },
@@ -132,8 +132,8 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { pos: [30, 3, 0], size: [5, 6, 5] },
         ],
         portals: [
-            { a: [-35, 6, -35], b: [35, 6, 35], color: 0xffaa00 },
-            { a: [35, 6, -35], b: [-35, 6, 35], color: 0x00aaff },
+            { a: [-35, 12, -35], b: [35, 12, 35], color: 0xffaa00 },
+            { a: [35, 12, -35], b: [-35, 12, 35], color: 0x00aaff },
         ]
     },
     pyramid: {
