@@ -5,9 +5,9 @@
 import { authoredWorld } from './presets/world_appearance.js';
 
 export const MAP_PRESET_CATALOG_LARGE_DATA = {
-    die_festung: {
-        name: 'Die Festung',
-        hiddenFromMapPicker: true,
+    expert_gauntlet: {
+        name: 'Expert Gauntlet',
+        hiddenFromMapPicker: false,
         size: [300, 80, 300],
         obstacles: [
             { pos: [0, 40, 0], size: [16, 80, 16], tunnel: { radius: 5.5, axis: 'y' } },
