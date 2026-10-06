@@ -66,6 +66,14 @@ export const ORBITAL_SHIPYARD_MAPS = {
             { x: -162, y: 42, z: 114 },
             { x: -143, y: 38, z: 106 },
         ],
+        // Two rescue pairs, each mouth eight units down the lane from a gate (the ring clearance
+        // guard keeps that lane open): the scaffold yard drops back to the launch bay, the piston
+        // canyon loops back to its entrance. Neither skips a checkpoint of the ordered route.
+        preferAuthoredPortals: true,
+        portals: [
+            { a: [-87, 28, 92], b: [-124, 40, 110], color: 0x4fa8ff },
+            { a: [120, 30, 115], b: [155, 31, 121], color: 0xffa040 },
+        ],
         missions: [
             { type: 'TIME_TRIAL', params: { target: 150 }, weight: 1.8 },
             { type: 'NO_DAMAGE', params: {}, weight: 0.7 },
