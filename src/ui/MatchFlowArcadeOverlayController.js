@@ -8,7 +8,6 @@ import {
     createArcadeRunBlocks,
     createArcadeSectorBlock,
     createArcadeVictoryBlocks,
-    resolveArcadeMapLabel,
 } from './arcade/postrun/ArcadePostRunBlocks.js';
 import { formatCount } from './postmatch/PostMatchFormat.js';
 import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/ArcadePostRunCards.js';
@@ -17,6 +16,7 @@ import { formatArenaWavesChoiceLabel, resolveArenaWavesBoardTexts } from './arca
 import { createArcadeReplayActions } from './arcade/ArcadeReplayActions.js';
 import { createArcadeOverlayGamepadNav } from './arcade/ArcadeOverlayGamepadNav.js';
 import { isArcadeMotionReduced } from './arcade/ArcadeReducedMotion.js';
+import { createArcadeRouteChoiceButton } from './arcade/ArcadeRouteChoiceButton.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
 import {
     getArcadeMenuSurfaceState,
@@ -230,34 +230,10 @@ export class MatchFlowArcadeOverlayController {
             choiceGrid.appendChild(emptyP);
         } else {
             choices.forEach((entry) => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                const active = entry?.id === intermission.selectedChoiceId;
-                btn.className = `arcade-overlay-choice-btn${active ? ' is-active' : ''}`;
-                const choiceId = String(entry?.id || '');
-                btn.setAttribute('data-arcade-choice-id', choiceId);
-                btn.id = `arcade-choice-${choiceId}`;
-                btn.setAttribute('aria-pressed', String(active));
-
-                const strong = document.createElement('strong');
-                strong.textContent = resolveArcadeMapLabel(entry?.mapKey, entry?.mapLabel);
-                btn.appendChild(strong);
-
-                const span = document.createElement('span');
-                span.textContent = String(entry?.modifierLabel || 'Kein Modifikator');
-                btn.appendChild(span);
-
-                const small = document.createElement('small');
-                small.textContent = String(entry?.modifierEffect || '').trim() || 'Standardsektor';
-                btn.appendChild(small);
-
-                btn.addEventListener('click', () => {
-                    if (!choiceId) return;
+                choiceGrid.appendChild(createArcadeRouteChoiceButton(entry, entry?.id === intermission.selectedChoiceId, (choiceId) => {
                     selectArcadeIntermissionChoice(this.runtimePort, this.game, choiceId);
                     this.syncArcadeOverlayPanel();
-                });
-
-                choiceGrid.appendChild(btn);
+                }));
             });
         }
         sect2.appendChild(choiceGrid);
