@@ -26,6 +26,21 @@ const destructibles = {
     })),
 };
 
+// The map may hold eight point lights, so the six nave lamps and the fire lights share slots: each
+// fire light is the same slot as the intact lamp named here, and the two fire lights without a lamp
+// start dark. fireFx.dayLights is the intact look; the light entry itself is the full-fire look.
+const DAY_LAMP_OF_FIRE_LIGHT = {
+    ndf_west_front: 'nd_west_front', ndf_apse: 'nd_apse', ndf_attic_west: 'nd_nave_west',
+    ndf_attic_east: 'nd_choir', ndf_crossing_breach: 'nd_crossing', ndf_aisle_breach: 'nd_nave_mid',
+};
+function dayLights(intact, burnt) {
+    return burnt.lights.map((fire) => {
+        const lamp = intact.lights.find((entry) => entry.id === DAY_LAMP_OF_FIRE_LIGHT[fire.id]);
+        const { x, y, z, color, intensity, distance } = lamp || { ...fire, intensity: 0 };
+        return { lightId: fire.id, x, y, z, color, intensity, distance };
+    });
+}
+
 function evolve(intact, burnt, arena) {
     const profile = {
         segments: fireSegments,
@@ -35,7 +50,7 @@ function evolve(intact, burnt, arena) {
     return {
         ...intact,
         lights: burnt.lights,
-        fireFx: burnt.fireFx,
+        fireFx: { ...burnt.fireFx, dayLights: dayLights(intact, burnt) },
         fireAudioProfile: burnt.audioProfile,
         fireProgression: profile,
         destructibles,
