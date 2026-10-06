@@ -8,9 +8,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SERVER = path.join(ROOT, 'scripts', 'playtest', 'playtest-mcp.mjs');
 
-async function connect() {
+async function connect(nodeArgs = []) {
     const env = { ...process.env, CURVIOS_PLAYTEST_TRAY: '0' };
-    const transport = new StdioClientTransport({ command: process.execPath, args: [SERVER], cwd: ROOT, env, stderr: 'pipe' });
+    const transport = new StdioClientTransport({ command: process.execPath, args: [...nodeArgs, SERVER], cwd: ROOT, env, stderr: 'pipe' });
     const client = new Client({ name: 'contract-test', version: '0' });
     await client.connect(transport);
     return client;
@@ -44,6 +44,19 @@ test('a real MCP client discovers exactly one tool and can call it without a ses
 
         const invalid = await client.callTool({ name: 'curvios_playtest', arguments: { operation: 'pilot', turn: 3 } });
         assert.equal(invalid.isError, true, 'schema bounds are enforced');
+    } finally {
+        await client.close();
+    }
+});
+
+test('a stray rejected promise does not end the server', { timeout: 60_000 }, async () => {
+    // Like a scenario that leaves a popup wait behind: it rejects after the server is up.
+    const stray = 'data:text/javascript,setTimeout(() => Promise.reject(new Error("stray scenario promise")), 300)';
+    const client = await connect(['--import', stray]);
+    try {
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        const jobs = parse(await client.callTool({ name: 'curvios_playtest', arguments: { operation: 'job' } }));
+        assert.deepEqual(jobs, { active: null, jobs: [] });
     } finally {
         await client.close();
     }

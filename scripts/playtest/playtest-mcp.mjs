@@ -445,6 +445,11 @@ async function shutdown(code = 0) {
     process.exit(code);
 }
 
+// A stray promise in one scenario must not end the server (and with it the agent's session):
+// Node exits on an unhandled rejection by default.
+process.on('unhandledRejection', (reason) => {
+    console.error(`[curvios-playtest] unhandled rejection, server keeps running: ${reason?.stack || reason}`);
+});
 process.stdin.on('end', () => { shutdown(0); });
 for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { shutdown(0); });
 

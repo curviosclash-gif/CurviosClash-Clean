@@ -237,6 +237,9 @@ export function scenarioEditorRoundTrip(run, session, context) {
             await editor.locator('#exportResultView').waitFor({ state: 'visible', timeout: 30_000 });
             const file = path.join(session.profile, 'curviosclash-app', 'maps', `${mapKey}.runtime.json`);
             await fs.access(file);
+            // The result dialog stays open over the top bar (and its Playtest button) until closed.
+            await editor.locator('#btnExportClose').click({ timeout: 10_000 });
+            await editor.locator('#exportResultView').waitFor({ state: 'hidden', timeout: 10_000 });
             return { mapKey, file };
         });
         await steps.run('the game lists the map after reopening the map selection', async () => {
@@ -257,6 +260,8 @@ export function scenarioEditorRoundTrip(run, session, context) {
         });
         await steps.run('start the editor playtest', async () => {
             const popup = editor.waitForEvent('popup', { timeout: 30_000 });
+            // A failed click must not leave the wait unobserved: it rejects later, when the run closes.
+            popup.catch(() => {});
             await editor.locator('#btnPlaytest').click({ timeout: 10_000 });
             const playtest = await popup;
             await playtest.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING', null, { timeout: 60_000 });
