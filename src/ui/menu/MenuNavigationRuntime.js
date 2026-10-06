@@ -66,9 +66,9 @@ export class MenuNavigationRuntime {
         this._panelById = new Map();
         this._navButtons = [];
         this._submenuPanels = [];
-        // Main menu feel stays as before: d-pad only, no hold-repeat, and it also answers an unfocused window.
+        // Main menu feel stays as before: d-pad only, no hold-repeat. Window focus: see MenuGamepadOps.
         this._gamepadPoller = createMenuGamepadPoller({
-            repeat: false, leftStick: false, requireDocumentFocus: false,
+            repeat: false, leftStick: false, getControls: options.getControls,
             ui: this.ui,
             isMenuInteractive: () => this._isMenuInteractive(),
             onDirection: (direction) => this._moveFocusByDirection(direction, { gamepad: true }),
