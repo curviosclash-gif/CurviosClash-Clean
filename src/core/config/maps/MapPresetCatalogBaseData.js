@@ -5,6 +5,7 @@
 import { TEST_HANGAR_GLB_DATA_URI } from './EmbeddedGlbMapAssets.js';
 import { startPoints } from './MapPresetStartPoints.js';
 import { authoredWorld, CLASSIC_WORLD_APPEARANCE, STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
+import { BATTLEFIELD_SUNSET_LIGHTING, CLEAR_DAY_LIGHTING, FLOODLIT_PIT_LIGHTING, FOREST_DAY_LIGHTING, GOLDEN_HOUR_LIGHTING, HALL_TORCHLIGHT_LIGHTING, PORTAL_PSYCHEDELIC_LIGHTING, REACTOR_GLOW_LIGHTING, TWILIGHT_BEACON_LIGHTING } from './presets/map_lighting_profiles.js';
 
 // Storm and ambience share one shelter list; the volumes are the interiors built by
 // scripts/generate_pyramid_map_assets.py (tests/pyramid-blender-assets.contract.test.mjs).
@@ -251,6 +252,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     foam_forest: {
         ...authoredWorld('foam_forest'),
         name: 'Schaumwald',
+        lighting: FOREST_DAY_LIGHTING,
         size: [100, 30, 100],
         ...startPoints('foam_forest'),
         obstacles: [
@@ -268,6 +270,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     crossfire: {
         name: 'Kreuzfeuer',
+        lighting: BATTLEFIELD_SUNSET_LIGHTING,
         size: [120, 40, 120],
         ...startPoints('crossfire'),
         obstacles: [
@@ -281,6 +284,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     checkerboard: {
         name: 'Schachbrett',
+        lighting: CLEAR_DAY_LIGHTING,
         size: [100, 40, 100],
         ...startPoints('checkerboard'),
         obstacles: [
@@ -293,6 +297,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     the_pit: {
         name: 'Die Arena',
+        lighting: FLOODLIT_PIT_LIGHTING,
         size: [120, 30, 120],
         ...startPoints('the_pit'),
         obstacles: [
@@ -305,6 +310,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     core_fusion: {
         name: 'Kern-Fusion',
+        lighting: REACTOR_GLOW_LIGHTING,
         size: [100, 40, 100],
         ...startPoints('core_fusion'),
         obstacles: [
@@ -317,6 +323,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     pillar_hall: {
         name: 'Säulen-Halle',
+        lighting: HALL_TORCHLIGHT_LIGHTING,
         size: [100, 30, 100],
         ...startPoints('pillar_hall'),
         obstacles: [
@@ -329,6 +336,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     spiral_tower: {
         ...authoredWorld('spiral_tower'),
         name: 'Spiralen-Turm',
+        lighting: TWILIGHT_BEACON_LIGHTING,
         size: [80, 70, 80],
         ...startPoints('spiral_tower'),
         obstacles: [
@@ -343,6 +351,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     },
     portal_madness: {
         name: 'Portal-Wahnsinn',
+        lighting: PORTAL_PSYCHEDELIC_LIGHTING,
         size: [100, 40, 100],
         ...startPoints('portal_madness'),
         obstacles: [
@@ -360,6 +369,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     the_loop: {
         ...authoredWorld('the_loop'),
         name: 'Die Schleife',
+        lighting: GOLDEN_HOUR_LIGHTING,
         size: [120, 30, 120],
         ...startPoints('the_loop'),
         obstacles: [

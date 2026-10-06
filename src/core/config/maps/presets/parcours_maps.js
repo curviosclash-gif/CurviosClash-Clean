@@ -1,4 +1,5 @@
 import { authoredWorld } from './world_appearance.js';
+import { DESERT_AFTERNOON_LIGHTING, SUNRISE_LIGHTING, deriveMapLighting } from './map_lighting_profiles.js';
 
 const RIFT_OBSTACLES = Object.freeze([
     // The entry wall leaves a gap on the line from CP01 to CP02: a ship that follows the first
@@ -212,6 +213,7 @@ export const PARCOURS_MAPS = Object.freeze({
     parcours_assault: {
         ...authoredWorld('parcours_assault'),
         name: 'Angriffsparcours: MG & Raketen',
+        lighting: deriveMapLighting(DESERT_AFTERNOON_LIGHTING, { fog: { near: 140, far: 340, height: 2.5 } }),
         size: [340, 90, 190],
         scaleAuthoredAnchors: true,
         singlePlayerScenario: {
@@ -345,6 +347,7 @@ export const PARCOURS_MAPS = Object.freeze({
     },
     parcours_rift_sprint: {
         name: 'Parcours Rift Sprint',
+        lighting: SUNRISE_LIGHTING,
         size: [260, 84, 180],
         scaleAuthoredAnchors: true,
         obstacles: RIFT_OBSTACLES,

@@ -8,11 +8,14 @@
 // ============================================================
 
 import { authoredWorld } from './world_appearance.js';
+import { deriveMapLighting } from './map_lighting_profiles.js';
+import { MAGMA_MAZE_MAP } from './magma_maze.js';
 
 export const VULKAN_ODYSSEY_MAP = {
     vulkan_odyssey: {
         ...authoredWorld('vulkan_odyssey'),
         name: 'Vulkan Odyssey',
+        lighting: deriveMapLighting(MAGMA_MAZE_MAP.magma_maze.lighting, { fog: { near: 90, far: 360 } }),
         size: [380, 114, 200],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,

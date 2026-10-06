@@ -1,6 +1,7 @@
 import { authoredWorld, WIND_CATHEDRAL_WORLD_LIGHTING, WIND_CATHEDRAL_WORLD_LIGHTS } from './world_appearance.js';
 import { parcoursRules, V130_BOT_SPAWNS } from './parcours_pack_v130_shared.js';
 import { CHRONO_SPILLWAY_MAP } from './parcours_pack_v130_chrono_spillway.js';
+import { HARBOUR_OVERCAST_LIGHTING, STORM_OVERCAST_LIGHTING } from './map_lighting_profiles.js';
 
 
 export const PARCOURS_PACK_V130_MAPS = Object.freeze({
@@ -85,6 +86,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     mirror_docks: {
         ...authoredWorld('mirror_docks'),
         name: 'Spiegelwerft',
+        lighting: HARBOUR_OVERCAST_LIGHTING,
         size: [240, 65, 170],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
@@ -307,6 +309,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     storm_switchyard: {
         ...authoredWorld('storm_switchyard'),
         name: 'Sturmweiche',
+        lighting: STORM_OVERCAST_LIGHTING,
         size: [280, 70, 210],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,

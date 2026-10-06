@@ -4,11 +4,13 @@
 // ============================================================
 
 import { authoredWorld } from './world_appearance.js';
+import { NEON_CITY_NIGHT_LIGHTING } from './map_lighting_profiles.js';
 
 export const NEON_CIRCUIT_MAP = {
     neon_circuit: {
         ...authoredWorld('neon_circuit'),
         name: 'Neon Circuit',
+        lighting: NEON_CITY_NIGHT_LIGHTING,
         size: [200, 60, 160],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,

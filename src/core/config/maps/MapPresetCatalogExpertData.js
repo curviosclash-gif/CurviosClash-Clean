@@ -5,11 +5,13 @@
 import { MAP_PRESET_CATALOG_LARGE_DATA } from './MapPresetCatalogLarge.js';
 import { startPoints } from './MapPresetStartPoints.js';
 import { authoredWorld } from './presets/world_appearance.js';
+import { HEDGE_MAZE_SUN_LIGHTING } from './presets/map_lighting_profiles.js';
 
 export const MAP_PRESET_CATALOG_EXPERT_DATA = {
     mega_maze: {
         ...authoredWorld('mega_maze'),
         name: 'Mega-Labyrinth',
+        lighting: HEDGE_MAZE_SUN_LIGHTING,
         size: [100, 35, 100],
         ...startPoints('mega_maze'),
         obstacles: [

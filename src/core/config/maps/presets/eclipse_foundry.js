@@ -1,3 +1,4 @@
+import { ECLIPSE_LIGHTING } from './map_lighting_profiles.js';
 function landmark(id, pack, model, position, targetSize, rotateY = 0) {
     return {
         id: `eclipse-foundry-${id}`,
@@ -202,6 +203,7 @@ const ECLIPSE_FOUNDRY_CHECKPOINTS = [
 export const ECLIPSE_FOUNDRY_MAP = {
     eclipse_foundry: {
         name: 'Eclipse Foundry',
+        lighting: ECLIPSE_LIGHTING,
         size: [440, 140, 300],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
