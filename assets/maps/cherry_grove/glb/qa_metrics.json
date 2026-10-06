@@ -12,34 +12,32 @@
   "files": {},
   "variant_profiles": {
     "akebono_01.glb": {
-      "objects": 57,
-      "vertices": 1256010,
-      "triangles": 923782,
+      "objects": 56,
+      "vertices": 160646,
+      "triangles": 166112,
       "bounds_m": {
         "min": [
-          -4.6547,
-          -4.7568,
+          -4.6463,
+          -4.7284,
           -0.025
         ],
         "max": [
-          5.3058,
-          5.1255,
-          9.9373
+          5.2619,
+          5.1377,
+          9.9463
         ],
         "size": [
-          9.9604,
-          9.8822,
-          9.9623
+          9.9082,
+          9.8661,
+          9.9713
         ]
       },
       "materials": [
-        "Akebono | calyx and young growth",
         "Akebono | lenticels",
         "Akebono | petal highlights",
         "Akebono | petals, blush to ivory",
         "Akebono | silver-grey bark",
-        "Akebono | sparse spring leaves",
-        "Akebono | stamens"
+        "Akebono | sparse spring leaves"
       ],
       "profile": "grove",
       "seed": 270425,
@@ -50,8 +48,8 @@
         207,
         442
       ],
-      "flower_count": 19402,
-      "file_bytes": 41294208
+      "flower_count": 11542,
+      "file_bytes": 6654704
     },
     "akebono_02.glb": {
       "objects": 57,
@@ -223,10 +221,10 @@
     }
   },
   "checkout_availability": {
-    "sakura_akebono.blend": "lfs_pointer_or_missing",
-    "sakura_akebono.glb": "lfs_pointer_or_missing",
+    "sakura_akebono.blend": "available",
+    "sakura_akebono.glb": "available",
     "sakura_akebono_lod1.glb": "available",
-    "sakura_akebono_lod2.glb": "lfs_pointer_or_missing",
+    "sakura_akebono_lod2.glb": "available",
     "sakura_akebono_collision.glb": "available",
     "sakura_akebono_grove.glb": "available"
   }

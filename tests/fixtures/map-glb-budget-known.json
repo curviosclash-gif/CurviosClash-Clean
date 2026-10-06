@@ -1,17 +1,10 @@
 {
-  "count": 10,
+  "count": 3,
   "files": [
-    { "path": "assets/maps/cherry_grove/glb/kanzan_01.glb", "mb": 45.2, "reason": "cherry_grove: kanzan variant 01 is by far the heaviest tree; needs a lower-poly bake (K12)" },
-    { "path": "assets/maps/cherry_grove/glb/akebono_01.glb", "mb": 39.4, "reason": "cherry_grove: akebono variant 01 is the second heaviest tree; needs a lower-poly bake (K12)" },
-    { "path": "assets/maps/cherry_grove/glb/kanzan_05.glb", "mb": 11.9, "reason": "cherry_grove: kanzan tree variant, over the per-file budget" },
-    { "path": "assets/maps/cherry_grove/glb/kanzan_02.glb", "mb": 10.6, "reason": "cherry_grove: kanzan tree variant, over the per-file budget" },
-    { "path": "assets/maps/cherry_grove/glb/kanzan_03.glb", "mb": 10.4, "reason": "cherry_grove: kanzan tree variant, over the per-file budget" },
-    { "path": "assets/maps/cherry_grove/glb/kanzan_04.glb", "mb": 9.9, "reason": "cherry_grove: kanzan tree variant, over the per-file budget" },
     { "path": "assets/models/downloaded_cc0/pm-avatar-show/Arm_Chair.glb", "mb": 8.9, "reason": "glb_gallery showcase model, third-party CC0; gallery only, never in a match" },
     { "path": "assets/models/downloaded_cc0/pm-avatar-show/Camera.glb", "mb": 8.4, "reason": "glb_gallery showcase model, third-party CC0; gallery only, never in a match" }
   ],
   "maps": [
-    { "map": "glb_gallery", "mb": 128.9, "reason": "gallery of 120 third-party CC0 models by design; the editor reads the same models, so the map stays a viewing room" },
-    { "map": "cherry_grove", "mb": 136.9, "reason": "twelve tree GLBs, two of them over 39 MB; target is the 40 MB budget after the K12 bake" }
+    { "map": "glb_gallery", "mb": 128.9, "reason": "gallery of 120 third-party CC0 models by design; the editor reads the same models, so the map stays a viewing room" }
   ]
 }
