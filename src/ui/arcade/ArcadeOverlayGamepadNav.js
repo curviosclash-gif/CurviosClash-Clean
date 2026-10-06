@@ -71,6 +71,9 @@ export function createArcadeOverlayGamepadNav(options = {}) {
     let wasActive = false;
     /** Directions held when the panel took the pad; ignored until released. */
     const heldOnEntry = new Set();
+    // requireDocumentFocus: false, the same as the main menu poller (MenuNavigationRuntime): the pad
+    // has to answer even when the window lacks keyboard focus, e.g. the desktop test window in render
+    // mode is shown without focus, and a pad player may have clicked another window.
     const poller = createGamepadMenuPoller({
         ...options,
         repeat: false, leftStick: true, requireDocumentFocus: false, stickThreshold: STICK_THRESHOLD,
