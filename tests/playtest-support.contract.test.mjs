@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PassThrough } from 'node:stream';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { createMcpDispatcher, serveMcpOverStdio, toolResult } from '../scripts/playtest/playtest-mcp-protocol.mjs';
 import {
     PLAYTEST_RUNTIME_HOOKS,
+    classifyPlaytestWindow,
     PLAYTEST_TOKEN_HEADER,
     countDeaths,
     describeMatchStartProblems,
+    evaluateAcceptance,
     distanceTravelled,
     filterPlaytestErrors,
     framesForMs,
@@ -17,7 +17,7 @@ import {
     nameObservation,
     resolveDaemonStateFile,
     resolvePlaytestOutDir,
-    sanitizePlaytestAction,
+    sanitizePilotManeuver,
     sanitizeShotName,
     withTimeout,
 } from '../scripts/playtest/playtest-support.mjs';
@@ -78,16 +78,16 @@ test('the daemon state file does not move at midnight', () => {
     );
 });
 
-test('held control input uses the bot action fields and rejects typos', () => {
-    const action = sanitizePlaytestAction({ yawAxis: 3, pitchAxis: -0.5, shootMG: true, boost: 'yes', useItem: 2 });
-    assert.equal(action.yawAxis, 1, 'axes are clamped');
-    assert.equal(action.pitchAxis, -0.5);
-    assert.equal('rollAxis' in action, false, 'an axis not given stays untouched');
-    assert.equal(action.shootMG, true);
-    assert.equal(action.boost, false, 'only true counts as pressed');
-    assert.equal(action.useItem, 2);
-    assert.equal(action.shootItemIndex, -1);
-    assert.throws(() => sanitizePlaytestAction({ shootMg: true }), /unknown action field\(s\): shootMg/);
+test('a direct maneuver speaks turn/climb/roll and rejects typos', () => {
+    const maneuver = sanitizePilotManeuver({ turn: 3, climb: -0.5, fireMG: true, boost: 'yes' });
+    assert.equal(maneuver.turn, 1, 'axes are clamped');
+    assert.equal(maneuver.climb, -0.5);
+    assert.equal(maneuver.roll, 0, 'an axis not given is neutral');
+    assert.equal(maneuver.fireMG, true);
+    assert.equal(maneuver.boost, false, 'only true counts as pressed');
+    assert.equal(maneuver.fireRocket, false);
+    assert.throws(() => sanitizePilotManeuver({ fireMg: true }), /unknown maneuver field\(s\): fireMg/);
+    assert.throws(() => sanitizePilotManeuver({ yawAxis: 1 }), /allowed: turn, climb, roll/, 'raw device fields are not part of a maneuver');
     assert.equal(framesForMs(1000), 60);
     assert.equal(framesForMs(1), 1, 'at least one simulation step');
     assert.equal(framesForMs(undefined), 1);
@@ -134,66 +134,37 @@ test('every game internal the playtest driver reaches into still exists in src',
     assert.deepEqual(missing, [], 'update scripts/playtest/playtest-control.mjs or playtest-driver.mjs together with the game');
 });
 
-test('the MCP dispatcher answers the handshake, lists tools and turns failures into tool errors', async () => {
-    const dispatch = createMcpDispatcher({
-        name: 'test',
-        version: '0',
-        tools: [
-            { name: 'echo', description: 'echo', inputSchema: { type: 'object' }, run: async (args) => ({ got: args.value }) },
-            { name: 'boom', description: 'fails', run: async () => { throw new Error('kaputt'); } },
-            { name: 'picture', description: 'image', run: async () => toolResult('ok', { images: [{ data: 'AAAA' }] }) },
-        ],
-    });
-    const call = (id, method, params) => dispatch({ jsonrpc: '2.0', id, method, params });
-    const init = await call(1, 'initialize', { protocolVersion: '2025-03-26' });
-    assert.equal(init.result.protocolVersion, '2025-03-26', 'the client version is echoed');
-    assert.deepEqual(init.result.capabilities, { tools: {} });
-    assert.equal(await dispatch({ jsonrpc: '2.0', method: 'notifications/initialized' }), null, 'notifications get no answer');
-    const listing = await call(2, 'tools/list');
-    assert.deepEqual(listing.result.tools.map((tool) => tool.name), ['echo', 'boom', 'picture']);
-    assert.deepEqual(listing.result.tools[1].inputSchema, { type: 'object', properties: {} });
-    const echo = await call(3, 'tools/call', { name: 'echo', arguments: { value: 5 } });
-    assert.deepEqual(JSON.parse(echo.result.content[0].text), { got: 5 });
-    const boom = await call(4, 'tools/call', { name: 'boom' });
-    assert.equal(boom.result.isError, true, 'a failing tool is a tool error the agent can read, not a protocol error');
-    assert.match(boom.result.content[0].text, /kaputt/);
-    const picture = await call(5, 'tools/call', { name: 'picture' });
-    assert.deepEqual(picture.result.content[1], { type: 'image', data: 'AAAA', mimeType: 'image/png' });
-    assert.equal((await call(6, 'tools/call', { name: 'nope' })).error.code, -32602);
-    assert.equal((await call(7, 'resources/list')).error.code, -32601);
-    assert.deepEqual((await call(8, 'ping')).result, {});
+test('the flight acceptance counts every attempt and never lowers the bar', () => {
+    const attempt = (ok, extra = {}) => ({ seed: 101, completed: ok, ...extra });
+    const nineOfTen = [...Array(9)].map(() => attempt(true)).concat(attempt(false, { errors: [{ kind: 'console', text: 'boom' }] }));
+    const passed = evaluateAcceptance({ kind: 'parcours', map: 'micro_maw', attempts: nineOfTen, required: 9, successKey: 'completed' });
+    assert.equal(passed.status, 'passed');
+    assert.equal(passed.result, '9/10');
+    assert.deepEqual(passed.gameBugs, [{ attempt: 10, seed: 101, map: 'micro_maw', kind: 'console', text: 'boom' }], 'errors are reported as game bugs with seed');
+    const eight = [...Array(8)].map(() => attempt(true)).concat([attempt(false), attempt(false)]);
+    assert.equal(evaluateAcceptance({ attempts: eight, required: 9, successKey: 'completed' }).status, 'failed');
+    const blockedRun = [...Array(8)].map(() => attempt(true)).concat([attempt(false, { blocked: true }), attempt(false)]);
+    assert.equal(evaluateAcceptance({ attempts: blockedRun, required: 9, successKey: 'completed' }).status, 'blocked', 'a blocked attempt is a miss that explains the gap');
+    assert.equal(evaluateAcceptance({ attempts: nineOfTen.slice(0, 9), required: 9, successKey: 'completed' }).status, 'unclear', 'fewer than ten attempts prove nothing');
+    assert.equal(evaluateAcceptance({ attempts: [...Array(10)].map(() => ({ won: true })), required: 8, successKey: 'won' }).status, 'passed');
 });
 
-test('the stdio transport answers line by line and runs tool calls one after another', async () => {
-    const input = new PassThrough();
-    const output = new PassThrough();
-    const order = [];
-    const dispatch = createMcpDispatcher({
-        name: 'test',
-        version: '0',
-        tools: [{
-            name: 'slow',
-            description: 'slow',
-            run: async ({ id }) => {
-                order.push(`start ${id}`);
-                await new Promise((resolve) => setTimeout(resolve, 20));
-                order.push(`end ${id}`);
-                return id;
-            },
-        }],
-    });
-    let closed = false;
-    serveMcpOverStdio(dispatch, { input, output, onClose: () => { closed = true; } });
-    const lines = [];
-    output.setEncoding('utf8');
-    output.on('data', (chunk) => lines.push(...chunk.split('\n').filter(Boolean)));
-    const callLine = (id) => JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'slow', arguments: { id } } });
-    input.write(`${callLine(1)}\n${callLine(2)}\nnot json\n`);
-    input.end();
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    assert.deepEqual(order, ['start 1', 'end 1', 'start 2', 'end 2'], 'calls drive one game window, so they never overlap');
-    const responses = lines.map((line) => JSON.parse(line));
-    assert.equal(responses.find((entry) => entry.id === null).error.code, -32700);
-    assert.deepEqual(responses.filter((entry) => entry.id).map((entry) => entry.id), [1, 2]);
-    assert.equal(closed, true, 'the server shuts down when the client closes stdin');
+test('window kinds come from the URL, the editor playtest included', () => {
+    assert.equal(classifyPlaytestWindow('http://127.0.0.1:39001/'), 'main');
+    assert.equal(classifyPlaytestWindow('http://127.0.0.1:39001/index.html'), 'main');
+    assert.equal(classifyPlaytestWindow('http://127.0.0.1:39001/index.html?playtest=1&planar=0'), 'editor-playtest');
+    assert.equal(classifyPlaytestWindow('http://127.0.0.1:39001/hangar.html?mode=arcade'), 'hangar');
+    assert.equal(classifyPlaytestWindow('http://127.0.0.1:39001/editor/map-editor-3d.html'), 'editor');
+    assert.equal(classifyPlaytestWindow('http://127.0.0.1:39001/prototypes/vehicle-lab/index.html'), 'vehicle-lab');
+    assert.equal(classifyPlaytestWindow('file:///F:/repo/electron/tuning-console/tuning.html'), 'tuning');
+    assert.equal(classifyPlaytestWindow('file:///F:/repo/electron/settings-studio/ui/settings-studio.html'), 'settings-studio');
+    assert.equal(classifyPlaytestWindow('not a url'), 'unknown');
+});
+
+test('silently clamped bots, wins and seeds show up as problems', () => {
+    const problems = describeMatchStartProblems(
+        { map: 'standard', mode: 'ARCADE', bots: 12, winsNeeded: 99, seed: 101 },
+        { ok: true, mapKey: 'standard', gameMode: 'ARCADE', bots: 8, winsNeeded: 15, seedActual: 7 },
+    );
+    assert.deepEqual(problems, ['bots are 8, not 12', 'winsNeeded is 15, not 99', 'arcade seed is 7, not 101']);
 });

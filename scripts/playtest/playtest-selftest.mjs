@@ -22,7 +22,7 @@ try {
         hp: samples.map((entry) => entry.hp),
         fps,
         screenshot,
-        errors: D.errorsSince(session, startedAt),
+        errors: await D.errorsSince(session, startedAt),
     };
     failures = [
         !start.ok && 'match did not start',
