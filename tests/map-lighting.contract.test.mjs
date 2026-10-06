@@ -133,8 +133,10 @@ test('only the selected presets define lighting and all others resolve to defaul
         .map(([mapKey]) => mapKey)
         .sort();
     assert.deepEqual(litMapKeys, [
+        'bloom_core',
         'burg_falkenwacht',
         'burg_falkenwacht_arena',
+        'cherry_grove',
         'clockwork_canyon',
         'complex',
         'dandelion_sky',

@@ -17,6 +17,7 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     giant_forest: 'generate_giant_forest_assets.py',
     hydra_temple: 'generate_hydra_temple_assets.py',
     toybox_titan: 'generate_toybox_titan_assets.py',
+    cherry_grove: 'generate_cherry_grove_assets.py',
     burg_falkenwacht: 'generate_falkenwacht_assets.py',
     storm_bridge_siege: 'generate_wave6_landmark_assets.py',
     storm_lighthouse_siege: 'generate_wave6_landmark_assets.py',
@@ -31,6 +32,10 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     vertical_maze: 'generate_map_world.py',
     trench: 'generate_map_world.py',
 });
+
+// These authors write every part in one pass (placement, seeded variants, shared collision),
+// so they are never asked for single parts.
+export const WHOLE_PACK_GENERATORS = Object.freeze(['burg_falkenwacht', 'cherry_grove']);
 
 export function parseMapAssetArgs(args) {
     const { values } = parseArgs({ args, options: {
@@ -68,9 +73,8 @@ export function resolveMapAssetJobs(options, catalog = MAP_PRESET_CATALOG) {
         if (!found) nativeMaps.push(key);
     }
     if (options.part && jobs.size === 0) throw new Error(`Part ${options.part} is not used by the selected maps.`);
-    if (options.part && jobs.has('burg_falkenwacht')) {
-        throw new Error('Falkenwacht generates placement and collision together; select the whole map.');
-    }
+    const wholePack = options.part && WHOLE_PACK_GENERATORS.find((pack) => jobs.has(pack));
+    if (wholePack) throw new Error(`${wholePack} generates all parts and collision together; select the whole map.`);
     return {
         selectedMaps: [...new Set(selected || [])], nativeMaps,
         jobs: [...jobs.values()].map((job) => ({
