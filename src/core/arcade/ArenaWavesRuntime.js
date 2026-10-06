@@ -111,7 +111,7 @@ export class ArenaWavesRuntime {
         this._pendingWave = wave;
         this.phase = 'telegraph'; this.countdown = Math.max(0, warningSeconds);
     }
-    _deactivateSlot(slot, reason) {
+    _deactivateSlot(slot, reason, { creditedHuman = false } = {}) {
         const wave = this._slotWave.get(slot);
         const status = this._waveStatus.get(wave);
         if (status) {
@@ -129,14 +129,14 @@ export class ArenaWavesRuntime {
         const player = this.entityManager?.bots?.[slot]?.player;
         if (player) { player.endlessDamageMultiplier = 1; player.arenaWavesDamageMultiplier = 1; player.arenaWavesElite = false; }
         this.entityManager?.deactivateBotSlot?.(slot, reason);
-        if (reason === 'killed' && this.phase === 'combat' && this._activeSlots.size === 0) this._rewardFastClear();
+        if (reason === 'killed' && this.phase === 'combat' && this._activeSlots.size === 0) this._rewardFastClear(creditedHuman);
     }
-    // The arena is empty: skip to the short warning window and score the skipped seconds.
-    _rewardFastClear() {
+    // The arena is empty: skip to the short warning window; only a human's last kill scores the skipped seconds.
+    _rewardFastClear(creditedHuman) {
         const skipped = safe(this._nextWaveIn) - ARENA_WAVES_CLEAR_REMAINDER_SECONDS;
         if (skipped <= 0) return;
         this._nextWaveIn = ARENA_WAVES_CLEAR_REMAINDER_SECONDS;
-        this.fastClearSeconds += skipped;
+        if (creditedHuman) this.fastClearSeconds += skipped;
     }
     _activatePlannedWave() {
         const em = this.entityManager; if (!em) return;
@@ -225,7 +225,7 @@ export class ArenaWavesRuntime {
             if (result) this.xpEarned += result.earned;
             if (result && !partner) this.vehicleXpEarned += result.earned;
         }
-        this._deactivateSlot(slot, 'killed');
+        this._deactivateSlot(slot, 'killed', { creditedHuman });
         return this.getHudState();
     }
     _completeWave(wave) { this.completedWaves.push(wave); trackArcadeColorEvent(this._colorProgress, { type: 'wave_complete', completedWaves: this.completedWaves.length }); }

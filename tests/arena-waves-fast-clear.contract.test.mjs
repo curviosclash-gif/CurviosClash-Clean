@@ -52,6 +52,18 @@ test('clearing the arena cuts the wave timer and scores the skipped seconds', ()
     runtime.update(1); assert.equal(runtime.wave, 2);
 });
 
+test('a last bot that dies without a human kill still shortens the wait but scores no bonus', () => {
+    const f = fixture();
+    const runtime = new ArenaWavesRuntime();
+    runtime.start({ entityManager: f.manager });
+    runtime.update(5); runtime.update(1); runtime.update(10);
+    kill(runtime, f, 0);
+    // Bot slot 0's pilot is credited with the last kill (a bot-on-bot hit or a hazard attributed to it).
+    runtime.handleGameplayEvent({ type: 'kill', playerIndex: f.bots[0].player.index, victimIndex: f.bots[1].player.index });
+    assert.equal(runtime.getHudState().nextWaveInSeconds, ARENA_WAVES_CLEAR_REMAINDER_SECONDS, 'the empty arena still moves on');
+    assert.equal(runtime.fastClearSeconds, 0, 'no human cleared it, so no bonus');
+});
+
 test('a late clear inside the window and a capacity eviction give no bonus', () => {
     const f = fixture();
     const runtime = new ArenaWavesRuntime();
