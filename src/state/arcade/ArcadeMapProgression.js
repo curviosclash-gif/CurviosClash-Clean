@@ -20,10 +20,6 @@ export const SECTOR_MAP_POOLS = Object.freeze({
         'chrono_spillway',
         'aether_relay',
         'neon_carnival',
-        'frozen_helix',
-        'neon_circuit',
-        'magma_maze',
-        'sky_islands',
     ]),
 });
 
