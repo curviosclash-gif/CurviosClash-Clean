@@ -139,12 +139,14 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
         mesh = manager.assetLoader.getClone(subType) || new THREE.Mesh(manager.blockGeo, manager.mats.aircraft_fallback);
         const hasAuthoredScale = Number.isFinite(Number(props.glbScale));
         const targetSize = hasAuthoredScale ? null : (Number(props.targetSize) > 0 ? Number(props.targetSize) : (Number(sizeInfo) || 14));
-        const scale = targetSize || Number(props.glbScale);
-        mesh.scale.setScalar(scale);
+        // The loaded asset is normalized to size 1, while a raw scale multiplies the file's own
+        // size in the match; a model still loading is corrected when it hydrates.
+        const sourceSize = Number(mesh.userData?.glbSourceMaxDimension) || 1;
+        mesh.scale.setScalar(targetSize || Number(props.glbScale) * sourceSize);
         userData.subType = subType;
         userData.glbUrl = props.glbUrl || manager.assetLoader.getAssetUrl?.(subType) || '';
         if (targetSize) userData.targetSize = targetSize;
-        else userData.glbScale = scale;
+        else userData.glbScale = Number(props.glbScale);
     }
     else if (type === 'checkpoint') {
         const isFinish = subType === 'finish';

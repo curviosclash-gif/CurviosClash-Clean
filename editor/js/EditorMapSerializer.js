@@ -558,6 +558,8 @@ export function importFromJSON(manager, jsonString, options = {}) {
             if (data.glbModels) {
                 data.glbModels.forEach((model) => {
                     const [assetId, placementId] = String(model.id || '').split('#');
+                    // A map's own model (its world, for instance) is not in the gallery.
+                    manager.assetLoader?.registerGlbModel?.(assetId, model.url);
                     const targetSize = Number(model.targetSize) > 0 ? Number(model.targetSize) : null;
                     const scale = Number.isFinite(Number(model.scale)) ? Number(model.scale) : 1;
                     manager.createMesh('glb', assetId, ...model.position, targetSize || scale, {

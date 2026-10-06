@@ -227,6 +227,8 @@ export class EditorAssetLoader {
         normalizer.add(offset);
         root.add(normalizer);
         this._prepareLoadedObject(id, root, { preserveMaterials: true });
+        // The root is normalized to size 1; a raw map scale multiplies the file's own size.
+        root.userData.glbSourceMaxDimension = maxDimension;
         return root;
     }
 
@@ -366,6 +368,27 @@ export class EditorAssetLoader {
                 }
             );
         });
+    }
+
+    /**
+     * Makes a map's own model (for example the world of an imported map) loadable like a
+     * gallery model. The URL must come out of parseMapJSON, which keeps only the paths the
+     * match itself would load. Importing MapSchemaGlbOps here instead reorders the build
+     * chunks into a TDZ that stops the editor from booting.
+     */
+    registerGlbModel(id, url) {
+        const modelId = String(id || '').trim();
+        const allowedUrl = typeof url === 'string' ? url : '';
+        const isModel = allowedUrl.toLowerCase().endsWith('.glb') || allowedUrl.startsWith('data:');
+        if (!modelId || !isModel) return false;
+        if (this.glbModelById.has(modelId)) return true;
+        this.glbModelById.set(modelId, {
+            id: modelId,
+            url: allowedUrl,
+            loadUrl: allowedUrl.startsWith('data:') ? allowedUrl : `../${allowedUrl}`,
+        });
+        this.loadStatus.set(modelId, { state: 'idle', url: allowedUrl });
+        return true;
     }
 
     loadAsset(id) {

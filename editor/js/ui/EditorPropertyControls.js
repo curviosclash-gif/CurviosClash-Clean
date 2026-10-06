@@ -107,7 +107,9 @@ export function bindEditorPropertyControls(editor) {
             const s = readPositivePropertyFieldNumber(editor, 'scale', selected.userData[scaleField] || 1);
             if (s > 0) {
                 selected.userData[scaleField] = s;
-                selected.scale.set(s, s, s);
+                // A raw model scale multiplies the file's own size; the loaded model is normalized to 1.
+                const shownScale = scaleField === 'glbScale' ? s * (Number(selected.userData.glbSourceMaxDimension) || 1) : s;
+                selected.scale.setScalar(shownScale);
                 editor.mapManager?.notifyObjectMutated?.(selected);
             }
         });

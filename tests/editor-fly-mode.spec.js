@@ -3,8 +3,16 @@ import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js
 import { resolveAppUrl } from './helpers.js';
 
 async function openEditorWithSelectedBlock(page) {
+    const pageErrors = [];
+    page.on('pageerror', (error) => pageErrors.push(String(error?.message || error)));
     await page.goto(resolveAppUrl(page, EDITOR_VIEW_PATHS.MAP_EDITOR));
-    await page.waitForFunction(() => !!window.CURVIOS_EDITOR?.mapManager);
+    try {
+        await page.waitForFunction(() => !!window.CURVIOS_EDITOR?.mapManager || !!window.CURVIOS_EDITOR_INIT_ERROR);
+    } catch (error) {
+        throw new Error(`Editor did not boot; page errors: ${pageErrors.join(' | ') || 'none'}`, { cause: error });
+    }
+    const initError = await page.evaluate(() => window.CURVIOS_EDITOR_INIT_ERROR || null);
+    expect(initError, `editor init failed; page errors: ${pageErrors.join(' | ')}`).toBeNull();
     return page.evaluate(() => {
         const editor = window.CURVIOS_EDITOR;
         const object = editor.mapManager.createMesh('hard', null, 0, 100, 0, 100, {
@@ -209,6 +217,53 @@ test('Spielansicht: Licht, Himmel und Nebel wie im Spiel, danach wieder die Baua
     const restored = await readLook(page);
     expect({ ...restored, drawCalls: 0, cameraDistance: 0 }).toEqual({ ...before, drawCalls: 0, cameraDistance: 0 });
     expect(shaderErrors).toEqual([]);
+});
+
+test('Kartenwelt: das Welt-Modell einer Karte erscheint in Spielgroesse statt als Ersatzkasten', async ({ page }, testInfo) => {
+    await openEditorWithSelectedBlock(page);
+    // Riesen-Kinderzimmer: 120 map units wide, the editor converts maps of this size with 35.
+    await page.evaluate(() => {
+        window.CURVIOS_EDITOR.mapManager.importFromJSON(JSON.stringify({
+            arenaSize: { width: 4200, height: 1400, depth: 4200 },
+            glbModels: [{
+                id: 'toybox-titan-world#world',
+                url: 'assets/maps/toybox_titan/glb/toybox_titan.glb',
+                position: [0, 0, 0],
+                rotation: [0, 0, 0],
+                scale: 35,
+            }],
+        }), {
+            onArenaSize: (size) => {
+                window.CURVIOS_EDITOR.ui.setArenaSizeInputs(size);
+                window.CURVIOS_EDITOR.ui.syncArenaValues();
+            },
+        });
+    });
+    await expect.poll(() => page.evaluate(() => (
+        window.CURVIOS_EDITOR.assetLoader.getLoadStatus('toybox-titan-world')?.state
+    )), { timeout: 30_000 }).toBe('loaded');
+
+    const world = await page.evaluate(() => {
+        const editor = window.CURVIOS_EDITOR;
+        const object = editor.core.objectsContainer.children.find((child) => child.userData.type === 'glb');
+        // The loaded model is normalized to size 1, so its scale is its largest extent.
+        return {
+            placeholder: object.userData.isEditorPlaceholder === true,
+            sourceSize: object.userData.glbSourceMaxDimension,
+            extent: object.scale.x,
+        };
+    });
+    expect(world.placeholder).toBe(false);
+    expect(world.extent).toBeCloseTo(35 * world.sourceSize, 3);
+    expect(world.extent).toBeGreaterThan(3000);
+    expect(world.extent).toBeLessThan(6000);
+
+    await page.locator('#btnGameView').click();
+    await page.locator('#threeCanvas').hover();
+    await page.keyboard.press('KeyG');
+    await waitForFrames(page, 30);
+    await testInfo.attach('editor-world-flight.png', { body: await page.screenshot(), contentType: 'image/png' });
+    await page.keyboard.press('Escape');
 });
 
 test('Schiffsflug: G in einem Eingabefeld startet keinen Flug', async ({ page }) => {
