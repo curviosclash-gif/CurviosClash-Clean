@@ -202,7 +202,7 @@ export const NEON_CARNIVAL_MAP = {
             { id: 'carnival_finale_guard', jetId: 'ship6', x: -60, y: 76, z: 110, scale: 1.0, rotateY: 2.2 },
         ],
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 210 }, weight: 1.8 },
+            { type: 'TIME_TRIAL', params: { target: 75 }, weight: 1.8 },
             { type: 'NO_DAMAGE', params: {}, weight: 0.7 },
             { type: 'ITEM_CHAIN', params: { target: 5 }, weight: 0.8 },
         ],

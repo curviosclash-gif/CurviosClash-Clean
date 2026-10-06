@@ -204,7 +204,7 @@ export const GLB_ADVENTURE_MAPS = Object.freeze({
             { id: 'relay_rocket_finish', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -14, y: 15, z: 35, weight: 0.8 },
         ]),
         missions: Object.freeze([
-            { type: 'TIME_TRIAL', params: { target: 52 }, weight: 1.7 },
+            { type: 'TIME_TRIAL', params: { target: 49 }, weight: 1.7 },
             { type: 'NO_DAMAGE', params: {}, weight: 1.0 },
             { type: 'ITEM_CHAIN', params: { target: 4 }, weight: 0.8 },
         ]),
