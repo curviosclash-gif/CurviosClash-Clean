@@ -29,7 +29,8 @@ import { bindArcadeRunOptionToggles, syncArcadeRunOptionToggles } from './Arcade
 import { bindValidatedArcadeStartCapture, shouldShowArcadePlayerProfileControls, setupArcadePlayerProfileSelection, validateLocalArcadeProfileStart } from './ArcadeDemolitionProfileSelection.js';
 import { bindArcadeSpecialStartButtons } from './ArcadeMenuSpecialStartOps.js';
 import { loadArcadeDifficultyProgress, resolveArcadeRunTier, ARCADE_DIFFICULTY_TIERS } from '../../shared/contracts/ArcadeDifficultyContract.js';
-import { resolveArcadeParcoursRankKey, resolveArcadeRankKey, normalizeArcadeRankedLeaderboard, ARCADE_RANKED_STORAGE_KEY } from '../../shared/contracts/ArcadeRankedLeaderboardContract.js';
+import { resolveArcadeParcoursRankKey } from '../../shared/contracts/ArcadeRankedLeaderboardContract.js';
+import { createArcadeMenuRankContext, formatArcadeMenuRankedLine } from './ArcadeMenuRankedLine.js';
 import { bindArcadeTestFlightMenu } from './ArcadeTestFlightMenuOps.js';
 
 // Only phases worth showing; unknown or idle phases stay out of the line.
@@ -288,7 +289,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const profile = resolveVehicleMasteryProfile(runtimeAccess, vehicleId);
         const difficultyProgress = loadArcadeDifficultyProgress(store).progress;
         const tierId = resolveArcadeRunTier(settings.arcade?.difficultyTierId, difficultyProgress, { runType: settings.arcade?.runType || 'gauntlet', dailyChallenge: settings.arcade?.dailyChallenge });
-        const rankContext = { runType: settings.arcade?.runType || 'gauntlet', tierId, vehicleLevel: profile.level, ranked: !settings.arcade?.dailyChallenge && !['weapon_race', 'demolition', 'hangar_test'].includes(settings.arcade?.runType) };
+        const rankContext = createArcadeMenuRankContext(settings, { tierId, vehicleId, profile });
         const leaderboardRouteId = resolveArcadeParcoursRankKey(normalizeString(mapDefinition?.parcours?.routeId, mapKey), rankContext);
         const leaderboardEntries = runtimeState?.leaderboard?.[leaderboardRouteId];
 
@@ -315,8 +316,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         refs.endlessRecordsLine.textContent = summarizeEndlessRecordsLine(
             runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, null) || null
         );
-        const rankedRows = normalizeArcadeRankedLeaderboard(store?.loadJsonRecord?.(ARCADE_RANKED_STORAGE_KEY, null)).boards[resolveArcadeRankKey(rankContext)] || [];
-        refs.rankedLine.textContent = `Bestenliste · ${difficultyLabel} · Level ${Math.floor((profile.level - 1) / 5) * 5 + 1}–${Math.floor((profile.level - 1) / 5) * 5 + 5}: ` + (rankedRows.length ? rankedRows.map((row, index) => `${index + 1}. ${resolveVehiclePreview(row.vehicleId).label} (Lv. ${row.vehicleLevel}) ${rankContext.runType === 'five_portals' ? (row.score / 1000).toFixed(2) + ' s' : formatInteger(row.score) + ' Punkte'}`).join(' · ') : 'Noch kein gewerteter Lauf.');
+        refs.rankedLine.textContent = formatArcadeMenuRankedLine(rankContext, store, { tierLabel: difficultyLabel, formatInteger });
         refs.seedLine.textContent = `${t('menu.arcade.seed.current.label', 'Run-Seed')}: ${activeSeed} | ${t('menu.arcade.seed.daily.label', 'Daily')}: ${dailySeed}`;
         renderArcadeDailyMenuState(refs.dailyLine, daily, dailySeed);
         renderArcadeLeaderboardMenu(leaderboardRefs, {

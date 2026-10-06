@@ -9,6 +9,7 @@ import { createArcadeSeedRecord, ARCADE_SEED_STORAGE_KEY } from '../src/shared/c
 import { createDemolitionMapPlan } from '../src/shared/contracts/DemolitionContract.js';
 import { resolveMapPreview } from '../src/ui/menu/MenuPreviewCatalog.js';
 import { setupArcadeMenuSurface } from '../src/ui/arcade/ArcadeMenuSurface.js';
+import { ARCADE_RANKED_STORAGE_KEY, ARCADE_RANKED_VERSION } from '../src/shared/contracts/ArcadeRankedLeaderboardContract.js';
 
 const originalDocument = globalThis.document;
 after(() => {
@@ -74,7 +75,7 @@ function createStore(records = {}) {
     };
 }
 
-function mountSurface({ storeRecords = {}, runtimeState = null } = {}) {
+function mountSurface({ storeRecords = {}, runtimeState = null, arcade = {} } = {}) {
     const fake = createFakeDocument();
     // Clicks render option lists as well, so the fake document stays until the file is done.
     globalThis.document = fake.document;
@@ -84,7 +85,7 @@ function mountSurface({ storeRecords = {}, runtimeState = null } = {}) {
         mapKey: 'standard', numBots: 3, botDifficulty: 'NORMAL', mode: '1p', gameMode: 'ARCADE',
         vehicles: { PLAYER_1: 'ship5' },
         localSettings: { modePath: 'arcade', sessionType: 'single' },
-        arcade: { seed: 1, runType: 'gauntlet', sectorCount: 5 },
+        arcade: { seed: 1, runType: 'gauntlet', sectorCount: 5, ...arcade },
     };
     const store = createStore(storeRecords);
     const profile = { id: 'p1', displayName: 'Pilot' };
@@ -171,4 +172,20 @@ test('a profile without any run still says so', () => {
         runtimeState: { runType: 'gauntlet', phase: '', records: { runsPlayed: 0, lastScore: 0, lastSector: 0 }, postRunSummary: null },
     });
     assert.equal(menu.byId('arcade-post-run-line').textContent, 'Noch kein Arcade-Run gestartet.');
+});
+
+test('the ranked line says when the chosen settings keep a run off the board', () => {
+    const entry = { runId: 'old', vehicleId: 'ship5', vehicleLevel: 1, tierId: 'normal', score: 4321, date: '2026-10-01T10:00:00.000Z' };
+    const storeRecords = { [ARCADE_RANKED_STORAGE_KEY]: { schemaVersion: ARCADE_RANKED_VERSION, boards: { 'gauntlet:normal:1-5': [entry] } } };
+    const standard = mountSurface({ storeRecords }).byId('arcade-ranked-line').textContent;
+    assert.match(standard, /4\.321 Punkte/);
+    assert.doesNotMatch(standard, /nicht gewertet/);
+
+    for (const arcade of [{ maxMultiplier: 25 }, { sectorCount: 20 }, { comboDecayPerSecond: 0 }]) {
+        const line = mountSurface({ storeRecords, arcade }).byId('arcade-ranked-line').textContent;
+        assert.match(line, /nicht gewertet \(eigene Einstellungen\)/, JSON.stringify(arcade));
+        assert.match(line, /4\.321 Punkte/, 'the standard board stays visible');
+    }
+    const helped = mountSurface({ storeRecords, arcade: { companionCount: 1 } }).byId('arcade-ranked-line').textContent;
+    assert.match(helped, /nicht gewertet \(mit Mitstreitern\)/);
 });

@@ -1,5 +1,6 @@
 import { resolveArcadeVehicleActiveStats } from './ArcadeVehicleActiveStatsContract.js';
 import { resolveArcadeLevelRange } from './ArcadeHangarRulesContract.js';
+import { hasCustomArcadeScoreSettings } from './ArcadeRunSettingsContract.js';
 
 export const ARCADE_DIFFICULTY_STORAGE_KEY = 'cuviosclash.arcade-difficulty-progress.v1';
 export const ARCADE_DIFFICULTY_SCHEMA_VERSION = 'arcade-difficulty-progress.v1';
@@ -64,17 +65,22 @@ export function resolveArcadeBotStrength(stats, tierId = 'normal') {
     return Object.freeze({ combatValue, follow, hpFactor: follow * tier.hp, damageFactor: follow * tier.damage, ai: tier.ai, tierId: tier.id });
 }
 
-export function createArcadeRankContext({ runId, runType, vehicleId, profile, stoneSteps, tierId = 'normal', dailyChallenge = false, companionCount = 0 }) {
+export function createArcadeRankContext({ runId, runType, vehicleId, profile, stoneSteps, tierId = 'normal', dailyChallenge = false, companionCount = 0, runSettings = null }) {
     const vehicleLevel = Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(Number(profile?.level) || 1)));
     const stats = resolveArcadeVehicleActiveStats(vehicleId, profile, stoneSteps);
     // strengthScaled: the squad follows the player vehicle. ranked additionally lets the run into
-    // the leaderboard and tier unlocks - not with companions, whose help would skew the boards.
+    // the leaderboard and tier unlocks - not with companions, whose help would skew the boards,
+    // and not with score settings away from the defaults (more sectors, a higher multiplier cap).
     const strengthScaled = BUILD_RUNS.has(runType) && runType !== 'hangar_test' && !dailyChallenge;
+    const companions = Number(companionCount) > 0;
+    const customSettings = hasCustomArcadeScoreSettings(runType, runSettings);
     return Object.freeze({
         runId: String(runId || ''), runType, vehicleId, vehicleLevel, levelRange: resolveArcadeLevelRange(vehicleLevel),
         tierId: runType === 'five_portals' ? 'any' : tierId,
         strengthScaled,
-        ranked: strengthScaled && !(Number(companionCount) > 0),
+        companions,
+        customSettings,
+        ranked: strengthScaled && !companions && !customSettings,
         botStrength: resolveArcadeBotStrength(stats, tierId),
     });
 }

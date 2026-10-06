@@ -33,7 +33,7 @@ export function prepareArcadeRunRanking(support, state, config, runActive, playe
         const tierId = resolveArcadeRunTier(config.arcade.difficultyTierId, progress.progress, { runType, dailyChallenge: config.arcade.dailyChallenge });
         runtime.rankContext = createArcadeRankContext({ runId: `${Date.now()}-${config.arcade.seed || 0}`, runType,
             vehicleId, profile, stoneSteps: playerBonuses?.byPlayerIndex?.[0]?.build?.stoneSteps || getArcadeRunVehicleBonuses(profile, store)?.build?.stoneSteps,
-            tierId, dailyChallenge: config.arcade.dailyChallenge,
+            tierId, dailyChallenge: config.arcade.dailyChallenge, runSettings: config.arcade,
             companionCount: resolveActiveArcadeCompanionCount(config.arcade, { humanCount: state?.entityManager?.humanPlayers?.length ?? 1, enemyCount: 1 }) });
         runtime._rankingStore = store;
         const humans = state?.entityManager?.humanPlayers || [];
