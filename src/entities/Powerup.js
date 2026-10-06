@@ -84,7 +84,8 @@ function resolveAuthoredPickupType(anchor, modeType, entityRuntimeConfig) {
 function resolveItemSpawnAuthoringContract(mapDefinition) {
     const rawMode = String(mapDefinition?.itemSpawnMode || '').trim().toLowerCase();
     const contract = mapDefinition?.itemSpawnAuthoring;
-    const mode = String(contract?.mode || rawMode || 'fallback-random').trim().toLowerCase();
+    // Without an explicit mode, authored items fill free anchors first and then spawn randomly (catalog maps).
+    const mode = String(contract?.mode || rawMode || (mapDefinition?.items?.length > 0 ? 'hybrid' : 'fallback-random')).trim().toLowerCase();
     const isKnownMode = mode === 'anchor-only' || mode === 'hybrid' || mode === 'fallback-random';
     const normalizedMode = isKnownMode ? mode : 'fallback-random';
     const requiresAuthoredAnchor = contract?.requiresAuthoredAnchor === true || normalizedMode === 'anchor-only';

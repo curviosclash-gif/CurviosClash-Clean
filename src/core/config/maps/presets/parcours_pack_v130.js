@@ -379,6 +379,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             routeId: 'storm_switchyard_v1',
             rules: parcoursRules({
                 resetToLastValid: true,
+                resetOnDeath: false,
                 wrongOrderPenaltyMs: 2200,
             }),
             checkpoints: [
