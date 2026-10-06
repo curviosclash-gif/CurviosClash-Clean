@@ -451,6 +451,12 @@ export class MatchFlowArcadeOverlayController {
 
         panel.appendChild(bodyDiv);
         panel.classList.remove('hidden');
+        // Main action is the board's continue button (a press on it still means "continue"); while
+        // it is locked or hidden the heading holds the focus without catching any key.
+        const continueButton = this.game?.ui?.messageActions?.querySelector?.('[data-postmatch-action="continue"]');
+        h3.tabIndex = -1;
+        (continueButton && !continueButton.disabled && !continueButton.closest?.('.hidden') ? continueButton : h3)
+            .focus({ preventScroll: true });
 
         const xpCounter = panel.querySelector('#arcade-overlay-xp-counter');
         this._animateArcadeXpCounter(
@@ -481,8 +487,8 @@ export class MatchFlowArcadeOverlayController {
         while (panel.firstChild) panel.removeChild(panel.firstChild);
         const title = document.createElement('h2'); title.textContent = `${runtimeState?.chainLabel || 'Fünf Portale'} abgeschlossen`;
         const list = createArcadeCardScroller(createFivePortalsBlocks(summary), 'Zeiten', 'Keine Zeiten.');
-        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Schließen';
-        close.addEventListener('click', () => { panel.classList.add('hidden'); this.game?.ui?.messageOverlay?.classList?.add?.('hidden'); });
+        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Zum Menü';
+        close.addEventListener('click', () => this.runtimePort?.returnToMenu?.({ reason: 'five_portals_finished' }));
         panel.append(title, list, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
     }
 
