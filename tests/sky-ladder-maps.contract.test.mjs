@@ -1,56 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import * as THREE from 'three';
 
 import { CONFIG } from '../src/core/Config.js';
 import { SKY_LADDER_MAP_KEYS } from '../src/core/config/maps/presets/sky_ladder/index.js';
-import { ArenaCollision } from '../src/entities/arena/ArenaCollision.js';
-import { ArenaGeometryCompilePipeline } from '../src/entities/arena/ArenaGeometryCompilePipeline.js';
 import { buildRouteFromParcours } from '../src/entities/systems/ParcoursProgressUtils.js';
-
-// A ship-sized probe in world units, sampled every STEP along each straight leg.
-const PROBE_RADIUS = 1.2;
-const STEP = 1.5;
-
-function compileArenaCollision(map, scale) {
-    const [sx, sy, sz] = map.size.map((value) => value * scale);
-    const arena = {
-        renderer: { addToScene() {}, removeFromScene() {} },
-        obstacles: [],
-        bounds: { minX: -sx / 2, maxX: sx / 2, minY: 0, maxY: sy, minZ: -sz / 2, maxZ: sz / 2 },
-        _pendingWallGeos: [],
-        _pendingObstacleGeos: [],
-        _pendingFoamGeos: [],
-        _pendingObstacleEdgeGeos: [],
-        _pendingFoamEdgeGeos: [],
-    };
-    const pipeline = new ArenaGeometryCompilePipeline(arena);
-    pipeline.compileWallStage({ sx, sy, sz, scale });
-    pipeline.compileObstacleStage({ obstacleDefs: map.obstacles || [], scale });
-    return new ArenaCollision(arena);
-}
-
-// Every checkpoint of a stage to every checkpoint of the next (branch options and lane aliases
-// share a stage), then finish to exit portal: the racing lines a player actually flies.
-function collectLegs(map, scale) {
-    const route = buildRouteFromParcours(map.parcours, { positionScale: scale });
-    const toPoint = (id, pos) => ({ id, pos: new THREE.Vector3(pos[0], pos[1], pos[2]) });
-    const stages = [];
-    for (const checkpoint of route.checkpoints) {
-        const last = stages[stages.length - 1];
-        const point = { ...toPoint(checkpoint.id, checkpoint.pos), routeIndex: checkpoint.routeIndex };
-        if (last && last[0].routeIndex === point.routeIndex) last.push(point);
-        else stages.push([point]);
-    }
-    const finish = toPoint(route.finish.id, route.finish.pos);
-    stages.push([finish]);
-    const legs = [];
-    for (let stage = 0; stage < stages.length - 1; stage += 1) {
-        for (const from of stages[stage]) for (const to of stages[stage + 1]) legs.push([from, to]);
-    }
-    legs.push([finish, toPoint('EXIT', map.fivePortalsExit.pos.map((value) => value * scale))]);
-    return legs;
-}
+import { findBlockedLegs } from './helpers/parcours-race-line.mjs';
 
 function distance(a, b) {
     return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -112,25 +66,10 @@ test('every sky ladder stage is a full course with a branch and a portal shortcu
 
 test('every sky ladder racing line flies straight through open air, hard walls and foam alike', () => {
     const scale = CONFIG.ARENA.MAP_SCALE;
-    const sample = new THREE.Vector3();
-    const blockedByMap = {};
-    for (const mapKey of SKY_LADDER_MAP_KEYS) {
-        const map = CONFIG.MAPS[mapKey];
-        const collision = compileArenaCollision(map, scale);
-        const blocked = [];
-        blockedByMap[mapKey] = blocked;
-        for (const [from, to] of collectLegs(map, scale)) {
-            const steps = Math.ceil(from.pos.distanceTo(to.pos) / STEP);
-            for (let step = 1; step < steps; step += 1) {
-                sample.lerpVectors(from.pos, to.pos, step / steps);
-                if (collision.checkCollisionFast(sample, PROBE_RADIUS)) {
-                    const authored = sample.toArray().map((value) => Math.round(value / scale));
-                    blocked.push(`${from.id}->${to.id} at [${authored.join(', ')}]`);
-                    break;
-                }
-            }
-        }
-    }
+    const blockedByMap = Object.fromEntries(SKY_LADDER_MAP_KEYS.map((mapKey) => [
+        mapKey,
+        findBlockedLegs(CONFIG.MAPS[mapKey], scale).map(({ leg, at }) => `${leg} at [${at.join(', ')}]`),
+    ]));
     assert.deepEqual(blockedByMap, Object.fromEntries(SKY_LADDER_MAP_KEYS.map((mapKey) => [mapKey, []])));
 });
 
