@@ -99,6 +99,22 @@ export const ECLIPSE_LIGHTING = normalizeMapLighting({
     exposureOffset: -0.1,
 });
 
+// Smoky forge: brass-amber haze, warm key from a low furnace glow, teal signal light stays visible.
+export const FORGE_AMBER_LIGHTING = normalizeMapLighting({
+    key: { direction: [30, 38, -20], color: 0xffc27a, intensity: 1.5 },
+    fill: { direction: [-26, 22, 18], color: 0x3a90a8, intensity: 0.45 },
+    rim: { direction: [-34, 14, -42], color: 0xffa050, intensity: 0.6 },
+    hemisphere: { skyColor: 0xb89868, groundColor: 0x3a2a1c },
+    fog: {
+        color: 0x84603c, colorHigh: 0x5a4640, colorLow: 0x4a3220,
+        near: 150, far: 500, height: 6, heightFalloff: 0.03, turbulence: 0.2, skyBlend: 1,
+        clipClosureStart: 0.8,
+    },
+    skyDome: { zenithColor: 0x4a3a40, horizonColor: 0xb8803f, nadirColor: 0x2a1e14 },
+    starsVisible: false,
+    exposureOffset: -0.02,
+});
+
 // Coastal morning: low bright sun, teal water haze, cyan edge light on the moving parts.
 export const TIDE_MORNING_LIGHTING = normalizeMapLighting({
     key: { direction: [36, 40, 24], color: 0xfff0d8, intensity: 1.6 },
@@ -305,4 +321,84 @@ export const HEDGE_MAZE_SUN_LIGHTING = normalizeMapLighting({
     skyDome: { zenithColor: 0x3f90d8, horizonColor: 0xd6ecd8, nadirColor: 0x546a3a },
     starsVisible: false,
     exposureOffset: 0.03,
+});
+
+// Overgrown ruin in the afternoon haze: warm key, green shadows, dusty gold distance.
+export const RUIN_HAZE_LIGHTING = normalizeMapLighting({
+    key: { direction: [30, 44, 20], color: 0xffe0a8, intensity: 1.55 },
+    fill: { direction: [-26, 22, -18], color: 0x9ac890, intensity: 0.55 },
+    rim: { direction: [-30, 16, -42], color: 0xffd890, intensity: 0.4 },
+    hemisphere: { skyColor: 0xe0d8b0, groundColor: 0x5a4a30 },
+    fog: {
+        color: 0xdccc9c, colorHigh: 0xc8c8a8, colorLow: 0x8a7a54,
+        near: 150, far: 350, height: 4, heightFalloff: 0.04, turbulence: 0.14, skyBlend: 1,
+        clipClosureStart: 0.8,
+    },
+    skyDome: { zenithColor: 0x4a86b8, horizonColor: 0xe8d4a0, nadirColor: 0x584830 },
+    starsVisible: false,
+    exposureOffset: 0.03,
+});
+
+// Harbour on an overcast morning: cool white key, blue-teal haze, yellow safety light on the edges.
+export const HARBOUR_OVERCAST_LIGHTING = normalizeMapLighting({
+    key: { direction: [-25, 40, 30], color: 0xe8f0ff, intensity: 1.4 },
+    fill: { direction: [28, 22, -20], color: 0x6aa8c8, intensity: 0.6 },
+    rim: { direction: [-20, 18, -44], color: 0xffd870, intensity: 0.35 },
+    hemisphere: { skyColor: 0xb8d4e0, groundColor: 0x3a5560 },
+    fog: {
+        color: 0xb2ccd6, colorHigh: 0x9ab8c8, colorLow: 0x5a7884,
+        near: 100, far: 310, height: 4, heightFalloff: 0.04, turbulence: 0.14, skyBlend: 1,
+        clipClosureStart: 0.8,
+    },
+    skyDome: { zenithColor: 0x4a7a9a, horizonColor: 0xc4dce4, nadirColor: 0x2a4450 },
+    starsVisible: false,
+    exposureOffset: 0,
+});
+
+// Storm over a rail yard: grey sky, cold dim key, turbulent slate haze, signal yellow stays bright.
+export const STORM_OVERCAST_LIGHTING = normalizeMapLighting({
+    key: { direction: [24, 44, 20], color: 0xcfd8e0, intensity: 1.1 },
+    fill: { direction: [-26, 22, -18], color: 0x607890, intensity: 0.5 },
+    rim: { direction: [-30, 14, -42], color: 0xffd040, intensity: 0.3 },
+    hemisphere: { skyColor: 0x8090a0, groundColor: 0x2c3238 },
+    fog: {
+        color: 0x6a7884, colorHigh: 0x4a5662, colorLow: 0x3a4248,
+        near: 80, far: 330, height: 4, heightFalloff: 0.04, turbulence: 0.3, skyBlend: 1,
+        clipClosureStart: 0.8,
+    },
+    skyDome: { zenithColor: 0x1c242c, horizonColor: 0x6a7a88, nadirColor: 0x181c20 },
+    starsVisible: false,
+    exposureOffset: -0.08,
+});
+
+// Spice bazaar at dusk: amber low sun, violet shadow, rose-brown haze.
+export const BAZAAR_DUSK_LIGHTING = normalizeMapLighting({
+    key: { direction: [35, 30, -25], color: 0xffbf80, intensity: 1.5 },
+    fill: { direction: [-26, 22, 20], color: 0x8a6ab0, intensity: 0.45 },
+    rim: { direction: [-34, 14, -42], color: 0xff8a50, intensity: 0.5 },
+    hemisphere: { skyColor: 0xe8b890, groundColor: 0x5a4030 },
+    fog: {
+        color: 0xcc9474, colorHigh: 0x8a6a80, colorLow: 0x6a4a3a,
+        near: 110, far: 300, height: 4, heightFalloff: 0.05, turbulence: 0.14, skyBlend: 1,
+        clipClosureStart: 0.8,
+    },
+    skyDome: { zenithColor: 0x3a2a5a, horizonColor: 0xf0a068, nadirColor: 0x4a3028 },
+    starsVisible: false,
+    exposureOffset: 0,
+});
+
+// Sunrise: low pink-gold sun, warm haze. The time of day Rift Sprint has and Rift (night) does not.
+export const SUNRISE_LIGHTING = normalizeMapLighting({
+    key: { direction: [45, 25, 10], color: 0xffd0a0, intensity: 1.6 },
+    fill: { direction: [-28, 22, -18], color: 0x88a8e0, intensity: 0.6 },
+    rim: { direction: [-34, 14, -42], color: 0xffc890, intensity: 0.5 },
+    hemisphere: { skyColor: 0xffd8b8, groundColor: 0x6a5a58 },
+    fog: {
+        color: 0xeac4a4, colorHigh: 0xc8b4c8, colorLow: 0x8a7468,
+        near: 170, far: 450, height: 4, heightFalloff: 0.04, turbulence: 0.12, skyBlend: 1,
+        clipClosureStart: 0.8,
+    },
+    skyDome: { zenithColor: 0x3a68b0, horizonColor: 0xffc89a, nadirColor: 0x5a4a50 },
+    starsVisible: false,
+    exposureOffset: 0.05,
 });

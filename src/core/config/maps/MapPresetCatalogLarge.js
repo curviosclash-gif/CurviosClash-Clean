@@ -3,6 +3,7 @@
 // ============================================
 
 import { authoredWorld } from './presets/world_appearance.js';
+import { RUIN_HAZE_LIGHTING } from './presets/map_lighting_profiles.js';
 
 export const MAP_PRESET_CATALOG_LARGE_DATA = {
     die_festung: {
@@ -159,6 +160,7 @@ export const MAP_PRESET_CATALOG_LARGE_DATA = {
     mega_maze_xl: {
         ...authoredWorld('mega_maze_xl'),
         name: 'Mega-Labyrinth XL',
+        lighting: RUIN_HAZE_LIGHTING,
         size: [200, 45, 200],
         obstacles: [
             { pos: [-60, 11, -80], size: [60, 22, 3], tunnel: { radius: 4.5, axis: 'z' } },
