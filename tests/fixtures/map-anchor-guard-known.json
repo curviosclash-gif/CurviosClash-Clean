@@ -1,24 +1,6 @@
 {
-  "count": 4,
+  "count": 1,
   "entries": [
-    {
-      "map": "parcours_assault",
-      "check": "free-directions",
-      "point": "botSpawns[2]",
-      "reason": "only 0/6 axis directions free for 8 units at (132, 54, 90); blocked: +x obstacles[8] (foam), -x obstacles[8] (foam), +y obstacles[8] (foam), -y obstacles[8] (foam), +z obstacles[8] (foam), -z obstacles[8] (foam)"
-    },
-    {
-      "map": "parcours_assault",
-      "check": "in-solid",
-      "point": "botSpawns[4]",
-      "reason": "spawn (306, 72, 72) sits inside obstacles[12]"
-    },
-    {
-      "map": "storm_switchyard",
-      "check": "in-solid",
-      "point": "portals[0].a",
-      "reason": "portal (93, 57, -183) sits inside obstacles[11] (foam); the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
     {
       "map": "skyline_siege",
       "check": "light-reach",
