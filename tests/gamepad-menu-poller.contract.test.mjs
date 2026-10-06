@@ -85,17 +85,91 @@ test('the main menu mode keeps the old feel: d-pad only, no repeat, no stick', (
     assert.deepEqual(calls, ['left']);
 });
 
-test('"Controller-Steuerung aus" silences every button and forgets held state', () => {
+test('"Controller-Steuerung aus" silences every button; a press held through the switch never fires late', () => {
     let enabled = false;
     const { pad, calls, poller } = createHarness({ isEnabled: () => enabled });
     pad.press(GAMEPAD_MENU_BUTTONS.A);
     pad.press(GAMEPAD_MENU_BUTTONS.RIGHT);
     poller.poll(0);
     assert.deepEqual(calls, [], 'a disabled controller does nothing');
-    assert.equal(poller.buttonState.size, 0);
     enabled = true;
     poller.poll(16);
-    assert.deepEqual(calls, ['right', 'A'], 'switching it back on works with the next frame');
+    poller.poll(600);
+    assert.deepEqual(calls, [], 'buttons still held from the disabled time do not fire when it is switched back on');
+    pad.press(GAMEPAD_MENU_BUTTONS.A, false);
+    pad.press(GAMEPAD_MENU_BUTTONS.RIGHT, false);
+    poller.poll(632);
+    pad.press(GAMEPAD_MENU_BUTTONS.A);
+    pad.press(GAMEPAD_MENU_BUTTONS.RIGHT);
+    poller.poll(648);
+    assert.deepEqual(calls, ['right', 'A'], 'a fresh press after the switch works with the next frame');
+});
+
+/**
+ * Stands in for the two Electron windows: the main menu document loses focus while the hangar
+ * window is in front, and gets it back when the player returns. Both read the same physical pad.
+ */
+function withDocumentFocus(run) {
+    const previous = globalThis.document;
+    const doc = { hidden: false, focused: false, hasFocus() { return this.focused; } };
+    globalThis.document = doc;
+    try {
+        run(doc);
+    } finally {
+        globalThis.document = previous;
+    }
+}
+
+test('a press made while another window has the focus does not fire when the focus comes back', () => {
+    withDocumentFocus((doc) => {
+        const { pad, calls, poller } = createHarness({ repeat: false, leftStick: false });
+        pad.press(GAMEPAD_MENU_BUTTONS.A);
+        pad.press(GAMEPAD_MENU_BUTTONS.DOWN);
+        poller.poll(0);
+        assert.deepEqual(calls, [], 'A pressed for the hangar does nothing in the menu behind it');
+        doc.focused = true;
+        poller.poll(16);
+        poller.poll(32);
+        assert.deepEqual(calls, [], 'A and down still held when the menu regains focus stay silent');
+        pad.press(GAMEPAD_MENU_BUTTONS.A, false);
+        pad.press(GAMEPAD_MENU_BUTTONS.DOWN, false);
+        poller.poll(48);
+        pad.press(GAMEPAD_MENU_BUTTONS.A);
+        poller.poll(64);
+        assert.deepEqual(calls, ['A'], 'the next real press reacts at once');
+    });
+});
+
+test('a stick held through a focus change does not start moving or repeating on return', () => {
+    withDocumentFocus((doc) => {
+        const { pad, calls, poller } = createHarness({ repeatDelayMs: 300, repeatIntervalMs: 100 });
+        pad.axes[1] = 0.9;
+        poller.poll(0);
+        doc.focused = true;
+        for (let time = 16; time <= 1000; time += 16) poller.poll(time);
+        assert.deepEqual(calls, [], 'a tilt kept from the other window neither moves nor repeats');
+        pad.axes[1] = 0;
+        poller.poll(1016);
+        pad.axes[1] = 0.9;
+        poller.poll(1032);
+        assert.deepEqual(calls, ['down'], 'a fresh tilt moves');
+    });
+});
+
+test('a press released while the window had no focus leaves nothing behind', () => {
+    withDocumentFocus((doc) => {
+        const { pad, calls, poller } = createHarness();
+        pad.press(GAMEPAD_MENU_BUTTONS.B);
+        poller.poll(0);
+        pad.press(GAMEPAD_MENU_BUTTONS.B, false);
+        poller.poll(16);
+        doc.focused = true;
+        poller.poll(32);
+        assert.deepEqual(calls, []);
+        pad.press(GAMEPAD_MENU_BUTTONS.B);
+        poller.poll(48);
+        assert.deepEqual(calls, ['B'], 'the first press after the return counts');
+    });
 });
 
 test('an inactive surface does not read the hardware and keeps its state', () => {

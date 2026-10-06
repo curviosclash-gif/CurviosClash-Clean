@@ -80,15 +80,32 @@ export function createGamepadMenuPoller(options = {}) {
         return isPressed && !wasPressed;
     }
 
+    function isDirectionHeld(pad, direction) {
+        const axisValue = leftStick ? Number(pad.axes?.[direction.axis]) * direction.sign : 0;
+        return !!buttonState.get(direction.button) || axisValue > stickThreshold;
+    }
+
+    /**
+     * A blocked frame (no window focus, controller switched off) records what is held instead of
+     * forgetting it: a press meant for another window must not fire once this one is back.
+     */
+    function swallowHeld(pad) {
+        reset();
+        pad.buttons?.forEach((button, index) => buttonState.set(index, !!button?.pressed));
+        for (const direction of DIRECTIONS) {
+            if (!isDirectionHeld(pad, direction)) continue;
+            heldSince.set(direction.id, Number.NEGATIVE_INFINITY);
+            nextRepeatAt.set(direction.id, Number.POSITIVE_INFINITY);
+        }
+    }
+
     function pollDirection(pad, direction, time) {
         const buttonPressed = consumePress(pad, direction.button);
         if (!repeat && !leftStick) {
             if (buttonPressed) onDirection?.(direction.id);
             return;
         }
-        const axisValue = leftStick ? Number(pad.axes?.[direction.axis]) * direction.sign : 0;
-        const held = !!buttonState.get(direction.button) || axisValue > stickThreshold;
-        if (!held) {
+        if (!isDirectionHeld(pad, direction)) {
             heldSince.delete(direction.id);
             return;
         }
@@ -108,13 +125,14 @@ export function createGamepadMenuPoller(options = {}) {
         // Skip the hardware poll while the surface is hidden: the loop runs for the whole page
         // lifetime, and a getGamepads() call per frame costs an array allocation.
         if (!isActive()) return;
-        if (!isEnabled() || (requireDocumentFocus && documentLacksFocus())) {
-            reset();
-            return;
-        }
+        const blocked = !isEnabled() || (requireDocumentFocus && documentLacksFocus());
         const pad = firstConnectedPad(getGamepads());
         if (!pad) {
             reset();
+            return;
+        }
+        if (blocked) {
+            swallowHeld(pad);
             return;
         }
         for (const direction of DIRECTIONS) pollDirection(pad, direction, time);
