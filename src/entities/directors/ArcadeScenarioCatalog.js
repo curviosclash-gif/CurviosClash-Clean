@@ -1,4 +1,5 @@
-import { resolveBloomEscapeOpenSeconds, normalizeArcadeScenario } from '../../shared/contracts/ArcadeScenarioContract.js';
+import { normalizeArcadeScenario } from '../../shared/contracts/ArcadeScenarioContract.js';
+import { BLOOM_CORE_FINAL_OPEN_SECONDS } from '../../shared/contracts/BloomCoreTimingContract.js';
 
 // Arcade scenarios ("Einsätze"): sectors that bring content the template pools never reach -
 // map units, hunt weapons, water. `slot: 'sector'` scenarios replace a regular sector inside
@@ -89,7 +90,7 @@ const RAW_ARCADE_SCENARIOS = [
         briefing: 'Halte durch, bis sich die wachsende Blütenarena vollständig geöffnet hat.',
         slot: 'sector', mapKey: 'bloom_core', squadId: 'hunter_pack',
         minSector: 3, maxSector: 6,
-        objective: { id: 'survive_window', label: 'Arena vollständig öffnen', durationSec: resolveBloomEscapeOpenSeconds(), scoreWeight: 1.4 },
+        objective: { id: 'survive_window', label: 'Arena vollständig öffnen', durationSec: BLOOM_CORE_FINAL_OPEN_SECONDS, scoreWeight: 1.4 },
     },
     {
         id: 'hydra_finale',
