@@ -66,6 +66,8 @@ export function createGamepadMenuPoller(options = {}) {
     const heldSince = new Map();
     const nextRepeatAt = new Map();
     let frameHandle = null;
+    /** Set while the surface is hidden: its first visible frame only records what is held. */
+    let needsSeed = false;
 
     function reset() {
         buttonState.clear();
@@ -124,14 +126,19 @@ export function createGamepadMenuPoller(options = {}) {
         if (!callback(globalThis.navigator?.getGamepads) && !options.getGamepads) return;
         // Skip the hardware poll while the surface is hidden: the loop runs for the whole page
         // lifetime, and a getGamepads() call per frame costs an array allocation.
-        if (!isActive()) return;
+        if (!isActive()) {
+            needsSeed = true;
+            return;
+        }
         const blocked = !isEnabled() || (requireDocumentFocus && documentLacksFocus());
         const pad = firstConnectedPad(getGamepads());
         if (!pad) {
             reset();
             return;
         }
-        if (blocked) {
+        // A button still held from the match or from another window is not a fresh press.
+        if (blocked || needsSeed) {
+            needsSeed = false;
             swallowHeld(pad);
             return;
         }

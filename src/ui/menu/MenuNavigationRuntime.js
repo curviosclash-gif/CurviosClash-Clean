@@ -2,7 +2,7 @@ import { evaluateMenuAccessPolicy, resolveDebugAccessPolicy, resolveDeveloperAcc
 import { isLevel4PauseHosted } from './Level4PauseHost.js';
 import { isAvailable, getFocusableElements, focusWithoutScroll, moveMainMenuFocus, adjustGamepadControl } from './MenuNavigationFocusOps.js';
 import { MENU_STATE_IDS } from './MenuStateMachine.js';
-import { createGamepadMenuPoller } from './GamepadMenuPoller.js';
+import { createMenuGamepadPoller } from './MenuGamepadOps.js';
 
 function normalizeId(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -67,9 +67,10 @@ export class MenuNavigationRuntime {
         this._navButtons = [];
         this._submenuPanels = [];
         // Main menu feel stays as before: d-pad only, no hold-repeat, and it also answers an unfocused window.
-        this._gamepadPoller = createGamepadMenuPoller({
+        this._gamepadPoller = createMenuGamepadPoller({
             repeat: false, leftStick: false, requireDocumentFocus: false,
-            isActive: () => this._isMenuInteractive(),
+            ui: this.ui,
+            isMenuInteractive: () => this._isMenuInteractive(),
             onDirection: (direction) => this._moveFocusByDirection(direction, { gamepad: true }),
             onConfirm: () => this._activateFocusedElement(),
             onBack: () => {
