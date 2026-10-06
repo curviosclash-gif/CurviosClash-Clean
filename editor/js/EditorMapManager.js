@@ -6,7 +6,9 @@ import { readEditorMapPresentationMetadata } from './EditorMapPresentationMetada
 import { getCustomMapConversionScale } from '../../src/entities/CustomMapLoader.js';
 import { parseMapJSON } from '../../src/entities/MapSchema.js';
 import {
+    CHECKPOINT_RING_MIN_RADIUS,
     CHECKPOINT_RING_RADIUS_FACTOR,
+    FINISH_RING_MIN_RADIUS,
     resolveCheckpointRingVisualRadius,
 } from '../../src/entities/arena/CheckpointRingVisualRadius.js';
 
@@ -183,6 +185,25 @@ export class EditorMapManager {
         const conversion = getCustomMapConversionScale({ arenaSize: this.arenaSizeProvider?.() }).scale;
         const ringRadius = resolveCheckpointRingVisualRadius(Number(cpRadius) / conversion, { finish }) * conversion;
         return ringRadius / this.torusGeo.parameters.radius;
+    }
+
+    /**
+     * Inverse of getCheckpointRingScale: the authored radius behind a ring the gizmo scaled.
+     * Every radius up to a threshold draws the same minimum ring, so a radius already inside it
+     * is kept, and a larger one shrunk into it settles on the smallest radius of the minimum ring.
+     * @param {number} scale Mesh scale of the ring.
+     * @param {boolean} [finish]
+     * @param {number} [currentRadius] Radius in editor units before the drag.
+     * @returns {number} Radius in editor units.
+     */
+    resolveCheckpointRadiusFromRingScale(scale, finish = false, currentRadius = Number.NaN) {
+        const conversion = getCustomMapConversionScale({ arenaSize: this.arenaSizeProvider?.() }).scale;
+        const ringRadius = Number(scale) * this.torusGeo.parameters.radius / conversion;
+        const minimumRing = finish ? FINISH_RING_MIN_RADIUS : CHECKPOINT_RING_MIN_RADIUS;
+        if (ringRadius > minimumRing) return ringRadius / CHECKPOINT_RING_RADIUS_FACTOR * conversion;
+        const smallestRadiusOfMinimumRing = minimumRing / CHECKPOINT_RING_RADIUS_FACTOR * conversion;
+        const current = Number(currentRadius);
+        return current > 0 && current <= smallestRadiusOfMinimumRing ? current : smallestRadiusOfMinimumRing;
     }
 
     hasObjectId(id) {
@@ -450,10 +471,15 @@ export class EditorMapManager {
                 if (Number(userData.targetSize) > 0) userData.targetSize = scalar;
                 else userData.glbScale = scalar / (Number(userData.glbSourceMaxDimension) || 1);
             } else if (userData.type === 'checkpoint') {
-                // The ring is a fixed share of the radius, so the dragged ring names the radius;
-                // below the minimum ring the match keeps it at that size, and so does the editor.
-                userData.cpRadius = scalar * this.torusGeo.parameters.radius / CHECKPOINT_RING_RADIUS_FACTOR;
-                rootObject.scale.setScalar(this.getCheckpointRingScale(userData.cpRadius, userData.subType === 'finish'));
+                // cpRadius is the authored truth. Moves, turns and the size field leave the ring at
+                // the radius's own size; only a ring the gizmo actually resized names a new radius.
+                const finish = userData.subType === 'finish';
+                const authored = Number(userData.cpRadius);
+                const shownScale = this.getCheckpointRingScale(authored, finish);
+                if (!(authored > 0) || Math.abs(scalar - shownScale) > shownScale * 1e-6) {
+                    userData.cpRadius = this.resolveCheckpointRadiusFromRingScale(scalar, finish, authored);
+                }
+                rootObject.scale.setScalar(this.getCheckpointRingScale(userData.cpRadius, finish));
             } else if (userData.type === 'escort_waypoint') {
                 userData.routeRadius = scalar / 10;
             }
