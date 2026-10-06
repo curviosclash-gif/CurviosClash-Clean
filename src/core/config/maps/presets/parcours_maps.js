@@ -175,9 +175,9 @@ const ASSAULT_BOT_SPAWNS = Object.freeze([
     // Bots are assigned in this order as the configured bot count increases.
     { x: -72, y: 20, z: 24 },
     { x: -12, y: 18, z: -30 },
-    { x: 44, y: 18, z: 30 },
+    { x: 36, y: 18, z: 30 },
     { x: 68, y: 22, z: -26 },
-    { x: 102, y: 24, z: 24 },
+    { x: 92, y: 24, z: 24 },
     { x: 124, y: 26, z: -22 },
 ]);
 

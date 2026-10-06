@@ -342,7 +342,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { pos: [118, 18, 73], size: [28, 4, 22], kind: 'foam' },
         ],
         portals: [
-            { a: [31, 19, -61], b: [44, 28, -13], color: 0x33ddff },
+            { a: [31, 19, -55], b: [44, 28, -13], color: 0x33ddff },
             { a: [29, 36, 53], b: [44, 30, 13], color: 0xcc88ff },
         ],
         gates: [
