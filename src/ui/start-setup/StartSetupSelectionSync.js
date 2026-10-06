@@ -25,6 +25,7 @@ const MAP_FILTER_OPTIONS = Object.freeze([
     ['large', 'Größe: Groß'],
     ['parcours', 'Merkmal: Parcours'],
     ['glb', 'Merkmal: 3D-Art'],
+    ['destructible', 'Merkmal: Zerstörbar'],
 ]);
 
 export function resolveArcadeGhostDuelModeLabel(mode) {
