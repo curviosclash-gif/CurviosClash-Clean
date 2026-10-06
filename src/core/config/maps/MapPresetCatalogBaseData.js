@@ -120,7 +120,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         size: [90, 30, 90],
         ...startPoints('complex'),
         obstacles: [
-            { pos: [0, 14.45, 0], size: [6, 30.9, 6] },
+            { pos: [0, 5, 0], size: [6, 12, 6] },
             { pos: [-25, 15.45, -25], size: [10, 28.9, 2] },
             { pos: [25, 15.45, -25], size: [2, 28.9, 10] },
             { pos: [-25, 15.45, 25], size: [2, 28.9, 10] },
@@ -129,8 +129,8 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { pos: [15, 13.7, 0], size: [2, 32.4, 15] },
             { pos: [0, 13.7, -15], size: [15, 32.4, 2] },
             { pos: [0, 13.7, 15], size: [15, 32.4, 2] },
-            { pos: [-30, 14.95, 0], size: [5, 29.9, 5] },
-            { pos: [30, 14.95, 0], size: [5, 29.9, 5] },
+            { pos: [-30, 3, 0], size: [5, 6, 5] },
+            { pos: [30, 3, 0], size: [5, 6, 5] },
         ],
         portals: [
             { a: [-35, 12, -35], b: [35, 12, 35], color: 0xffaa00 },
