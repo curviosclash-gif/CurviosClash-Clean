@@ -56,7 +56,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { id: 'mm_ghost_finish', type: 'item_coin', pickupType: 'GHOST', x: 48, y: 17, z: -40, weight: 0.8 },
         ],
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 30 }, weight: 1.8 },
+            { type: 'TIME_TRIAL', params: { target: 36 }, weight: 1.8 },
             { type: 'NO_DAMAGE', params: {}, weight: 0.9 },
         ],
         parcours: {
@@ -138,7 +138,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { id: 'md_rocket_merge', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 14, y: 25, z: -4, weight: 1.0 },
         ],
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 46 }, weight: 1.5 },
+            { type: 'TIME_TRIAL', params: { target: 41 }, weight: 1.5 },
             { type: 'TRAIL_MASTER', params: { target: 100 }, weight: 0.9 },
         ],
         parcours: {
@@ -257,7 +257,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { id: 'gs_shield_merge', type: 'item_shield', pickupType: 'SHIELD', x: 98, y: 42, z: -4, weight: 1.0 },
         ],
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 56 }, weight: 1.5 },
+            { type: 'TIME_TRIAL', params: { target: 59 }, weight: 1.5 },
             { type: 'ITEM_CHAIN', params: { target: 3 }, weight: 0.8 },
         ],
         parcours: {
@@ -375,7 +375,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { id: 'ss_shield_finish', type: 'item_shield', pickupType: 'SHIELD', x: 107, y: 26, z: 39, weight: 1.0 },
         ],
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 62 }, weight: 1.4 },
+            { type: 'TIME_TRIAL', params: { target: 58 }, weight: 1.4 },
             { type: 'CLOSE_CALL', params: { target: 2 }, weight: 0.8 },
         ],
         parcours: {
@@ -508,7 +508,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { id: 'wc_shield_descent', type: 'item_shield', pickupType: 'SHIELD', x: -39, y: 76, z: -3, weight: 1.0 },
         ],
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 65 }, weight: 1.4 },
+            { type: 'TIME_TRIAL', params: { target: 56 }, weight: 1.4 },
             { type: 'NO_DAMAGE', params: {}, weight: 0.8 },
         ],
         parcours: {

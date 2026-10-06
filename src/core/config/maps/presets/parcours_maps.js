@@ -282,7 +282,7 @@ export const PARCOURS_MAPS = Object.freeze({
         missions: [
             { type: 'KILL_COUNT', params: { target: 4 }, weight: 1.5 },
             { type: 'MULTI_KILL', params: { target: 2, windowSec: 12 }, weight: 1.0 },
-            { type: 'TIME_TRIAL', params: { target: 70 }, weight: 0.8 },
+            { type: 'TIME_TRIAL', params: { target: 52 }, weight: 0.8 },
         ],
         parcours: {
             enabled: true,
@@ -332,7 +332,7 @@ export const PARCOURS_MAPS = Object.freeze({
         glbColliderMode: 'fallbackOnly',
         glbLoadConcurrency: 3,
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 52 }, weight: 1.5 },
+            { type: 'TIME_TRIAL', params: { target: 64 }, weight: 1.5 },
             { type: 'NO_DAMAGE', params: {}, weight: 1.0 },
             { type: 'ITEM_CHAIN', params: { target: 3 }, weight: 0.8 },
         ],
@@ -370,7 +370,7 @@ export const PARCOURS_MAPS = Object.freeze({
         glbColliderMode: 'fallbackOnly',
         glbLoadConcurrency: 3,
         missions: [
-            { type: 'TIME_TRIAL', params: { target: 38 }, weight: 2.0 },
+            { type: 'TIME_TRIAL', params: { target: 48 }, weight: 2.0 },
             { type: 'TRAIL_MASTER', params: { target: 90 }, weight: 0.9 },
         ],
         parcours: {
@@ -414,7 +414,7 @@ export const PARCOURS_MAPS = Object.freeze({
         missions: [
             { type: 'NO_DAMAGE', params: {}, weight: 1.5 },
             { type: 'CLOSE_CALL', params: { target: 2 }, weight: 0.8 },
-            { type: 'TIME_TRIAL', params: { target: 46 }, weight: 1.2 },
+            { type: 'TIME_TRIAL', params: { target: 53 }, weight: 1.2 },
         ],
         parcours: {
             enabled: true,

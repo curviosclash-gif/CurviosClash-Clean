@@ -134,7 +134,7 @@ export const SKY_LADDER_STAR_MAP = {
     ],
     items: ITEMS,
     missions: [
-        { type: 'TIME_TRIAL', params: { target: 82 }, weight: 1.5 },
+        { type: 'TIME_TRIAL', params: { target: 55 }, weight: 1.5 },
         { type: 'NO_DAMAGE', params: {}, weight: 0.8 },
     ],
     parcours: {

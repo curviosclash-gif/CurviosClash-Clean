@@ -61,7 +61,7 @@ export const CHRONO_SPILLWAY_MAP = {
         { id: 'cs_ghost_finale', type: 'item_coin', pickupType: 'GHOST', x: 126, y: 22, z: 38, weight: 1.0 },
     ],
     missions: [
-        { type: 'TIME_TRIAL', params: { target: 78 }, weight: 1.4 },
+        { type: 'TIME_TRIAL', params: { target: 57 }, weight: 1.4 },
         { type: 'TRAIL_MASTER', params: { target: 160 }, weight: 0.9 },
     ],
     parcours: {

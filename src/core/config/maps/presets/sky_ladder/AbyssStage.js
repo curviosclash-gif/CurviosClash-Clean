@@ -87,7 +87,7 @@ export const SKY_LADDER_ABYSS_MAP = {
         { id: 'sl_shield_final', type: 'item_shield', pickupType: 'SHIELD', x: 122, y: 111, z: -12, weight: 1.0 },
     ],
     missions: [
-        { type: 'TIME_TRIAL', params: { target: 65 }, weight: 1.6 },
+        { type: 'TIME_TRIAL', params: { target: 41 }, weight: 1.6 },
         { type: 'TRAIL_MASTER', params: { target: 140 }, weight: 0.9 },
     ],
     parcours: {

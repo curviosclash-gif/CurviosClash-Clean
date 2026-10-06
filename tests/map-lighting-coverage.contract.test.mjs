@@ -57,6 +57,20 @@ const K8A_LIT_MAPS = Object.freeze([
     'mega_maze_xl',
 ]);
 
+// Older profiles that were tuned for their own sight lines before K8a. Only the course side of the
+// rule is measured here (the next ring has to stay visible), the half-arena reach is not: the
+// moods stay as they are. The arena variants without a route are not part of it.
+const K17_ROUTE_FOG_MAPS = Object.freeze([
+    'wind_cathedral',
+    'neon_carnival',
+]);
+// Notre-Dame and Falkenwacht fly a few very long legs (533 and 947 units: nave to apse, wall walk
+// to keep). Fogging only those in would push the fog out to the edge of the lighting contract and
+// make the camera draw 700-1000 units on every ring, so for these two the rule counts the typical
+// leg (the median); the guidance arrow at the screen edge carries the long legs.
+const K17_MEDIAN_LEG_FOG_MAPS = Object.freeze(['notre_dame', 'burg_falkenwacht']);
+const MAX_FOG_SHARE_AT_NEXT_RING = 0.75;
+
 function isPublicLitCandidate(mapKey, map) {
     return MAP_PICKER_META[mapKey]?.tier === 'public' && map?.hiddenFromMapPicker !== true;
 }
@@ -67,22 +81,39 @@ function publicMaps() {
 
 // World-unit distance between each checkpoint and the ones that can follow it. Branching routes
 // list their successors in nextIds; otherwise the next array entry follows.
-function longestRingLeg(map) {
+function ringLegs(map) {
     const checkpoints = map.parcours?.checkpoints;
-    if (!Array.isArray(checkpoints)) return 0;
+    if (!Array.isArray(checkpoints)) return [];
     const byId = new Map(checkpoints.map((checkpoint) => [checkpoint.id, checkpoint]));
     const scale = map.scaleAuthoredAnchors === true ? MAP_SCALE : 1;
-    let longest = 0;
+    const legs = [];
     checkpoints.forEach((checkpoint, index) => {
         const successors = Array.isArray(checkpoint.nextIds)
             ? checkpoint.nextIds.map((id) => byId.get(id)).filter(Boolean)
             : [checkpoints[index + 1]].filter(Boolean);
         for (const next of successors) {
             const leg = Math.hypot(...checkpoint.pos.map((value, axis) => (value - next.pos[axis]) * scale));
-            longest = Math.max(longest, leg);
+            legs.push(leg);
         }
     });
-    return longest;
+    return legs;
+}
+
+function longestRingLeg(map) {
+    return Math.max(0, ...ringLegs(map));
+}
+
+function medianRingLeg(map) {
+    const legs = ringLegs(map).sort((a, b) => a - b);
+    if (legs.length === 0) return 0;
+    return (legs[Math.floor((legs.length - 1) / 2)] + legs[Math.ceil((legs.length - 1) / 2)]) / 2;
+}
+
+// Share of the fog that has eaten the ring colour at the longest leg, same formula as the shader.
+function fogShareAtLongestLeg(map, pickLeg = longestRingLeg) {
+    const { fog } = resolveMapLighting(map.lighting);
+    const leg = pickLeg(map);
+    return { leg, fog, share: Math.max(0, (leg - fog.near) / (fog.far - fog.near)) };
 }
 
 test('every public map states its own lighting unless it keeps the default look by design', () => {
@@ -116,13 +147,49 @@ test('fog reaches at least half the shorter arena side, and past the longest rin
         const leg = longestRingLeg(map);
         if (leg > 0) {
             if (fog.far < leg) failures.push(`${mapKey}: far ${fog.far} < ring leg ${Math.round(leg)}`);
-            const fogAtRing = Math.max(0, (leg - fog.near) / (fog.far - fog.near));
-            if (fogAtRing > 0.75) {
-                failures.push(`${mapKey}: ${Math.round(fogAtRing * 100)}% fog at the next ring (leg ${Math.round(leg)})`);
+            const { share } = fogShareAtLongestLeg(map);
+            if (share > MAX_FOG_SHARE_AT_NEXT_RING) {
+                failures.push(`${mapKey}: ${Math.round(share * 100)}% fog at the next ring (leg ${Math.round(leg)})`);
             }
         }
     }
     assert.deepEqual(failures, []);
+});
+
+test('the older course maps keep their next ring visible in the fog', () => {
+    const failures = [];
+    for (const mapKey of K17_ROUTE_FOG_MAPS) {
+        const map = MAP_PRESET_CATALOG[mapKey];
+        assert.ok(map?.lighting && map.parcours?.enabled, `${mapKey} needs lighting and a route`);
+        const { leg, fog, share } = fogShareAtLongestLeg(map);
+        if (fog.far < leg) failures.push(`${mapKey}: far ${fog.far} < ring leg ${Math.round(leg)}`);
+        if (share > MAX_FOG_SHARE_AT_NEXT_RING) {
+            failures.push(`${mapKey}: ${Math.round(share * 100)}% fog at the next ring (leg ${Math.round(leg)})`);
+        }
+    }
+    assert.deepEqual(failures, []);
+});
+
+test('the long-leg course maps keep the next ring of a typical leg visible in the fog', () => {
+    const failures = [];
+    for (const mapKey of K17_MEDIAN_LEG_FOG_MAPS) {
+        const map = MAP_PRESET_CATALOG[mapKey];
+        assert.ok(map?.lighting && map.parcours?.enabled, `${mapKey} needs lighting and a route`);
+        const { leg, fog, share } = fogShareAtLongestLeg(map, medianRingLeg);
+        if (fog.far < leg) failures.push(`${mapKey}: far ${fog.far} < median ring leg ${Math.round(leg)}`);
+        if (share > MAX_FOG_SHARE_AT_NEXT_RING) {
+            failures.push(`${mapKey}: ${Math.round(share * 100)}% fog at the median ring leg (${Math.round(leg)})`);
+        }
+    }
+    assert.deepEqual(failures, []);
+});
+
+test('the arena variants without a route keep their own fog', () => {
+    const fogOf = (mapKey) => MAP_PRESET_CATALOG[mapKey].lighting.fog;
+    assert.deepEqual([fogOf('notre_dame_arena').near, fogOf('notre_dame_arena').far], [78, 190]);
+    assert.deepEqual([fogOf('burg_falkenwacht_arena').near, fogOf('burg_falkenwacht_arena').far], [450, 600]);
+    // The route maps share the original fog of their arena variants.
+    assert.deepEqual(MAP_PRESET_CATALOG.burg_falkenwacht.lighting.fog, fogOf('burg_falkenwacht_arena'));
 });
 
 test('maps of one theme family are told apart by their sky and fog colour', () => {
