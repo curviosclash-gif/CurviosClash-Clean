@@ -227,7 +227,7 @@ export function createArcadeIntermissionBlocks(intermission = {}) {
     return [
         createArcadeBlock('arcade-intermission', 'Letzter Sektor', [
             countRow('sector-score', 'Punkte', intermission.lastSectorPoints),
-            countRow('sector-xp', 'XP', intermission.lastSectorXp),
+            countRow('sector-xp', intermission.xpForAllPilots === true ? 'XP gesamt (alle Spieler)' : 'XP', intermission.lastSectorXp),
             textRow('missions', 'Missionen', `${completed}/${total}`),
         ]),
         createArcadeBreakdownBlock(

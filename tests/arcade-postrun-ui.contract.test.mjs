@@ -71,11 +71,11 @@ function textOf(node) {
     return text;
 }
 
-function renderIntermission(intermission, runtimeState = {}) {
+function renderIntermission(intermission, runtimeExtras = {}) {
     return withDocument(() => {
         const overlay = createStubElement('div');
-        const controller = new MatchFlowArcadeOverlayController({ runtime: { ui: { messageOverlay: overlay } }, runtimePort: {} });
-        assert.equal(controller._renderArcadeIntermissionPanel({ ...runtimeState, intermission }), true);
+        const controller = new MatchFlowArcadeOverlayController({ runtime: { ...runtimeExtras, ui: { messageOverlay: overlay } }, runtimePort: {} });
+        assert.equal(controller._renderArcadeIntermissionPanel({ intermission }), true);
         return overlay.children[0];
     });
 }
@@ -104,4 +104,18 @@ test('a route without bonus or pressure values shows no risk line', () => {
     const plain = findFirst(panel, (node) => node.id === 'arcade-choice-plain');
     assert.ok(plain, 'the route button is still drawn');
     assert.doesNotMatch(textOf(plain), /Punkte|Druck/);
+});
+
+// Since the split-screen XP fix the run's xpEarned adds up every local pilot, and the sector XP is
+// a difference of that sum. Without a per-ship sector start value the share of one ship is not
+// known here, so with two or more pilots the row says that it is the total.
+test('split screen labels the sector XP as the total of all pilots', () => {
+    const panel = renderIntermission({ ...BASE_INTERMISSION, choices: [] }, { numHumans: 2 });
+    assert.match(textOf(panel), /XP gesamt \(alle Spieler\)/);
+});
+
+test('a single pilot keeps the plain sector XP label', () => {
+    const panel = renderIntermission({ ...BASE_INTERMISSION, choices: [] }, { numHumans: 1 });
+    assert.doesNotMatch(textOf(panel), /alle Spieler/);
+    assert.match(textOf(panel), /\nXP\n/);
 });

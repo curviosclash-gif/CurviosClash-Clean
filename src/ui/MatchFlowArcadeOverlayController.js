@@ -195,6 +195,8 @@ export class MatchFlowArcadeOverlayController {
             lastSectorXp,
             missionsCompleted,
             missionsTotal,
+            // The sector XP is the sum of every local pilot; a per-ship share has no sector start value.
+            xpForAllPilots: (Number(this.runtimePort?.getMatchRuntimeProjection?.()?.localHumanCount || this.game?.numHumans) || 1) > 1,
         }));
         if (missionsCompleted < missionsTotal) {
             const missed = document.createElement('p');
