@@ -125,6 +125,9 @@ export function bindEditorGameViewControls(editor) {
         if (!rig) return false;
         core.beforeRenderCallbacks.delete(followCameraWithFog);
         rig.dispose();
+        // rig.dispose only takes the lights out of the scene; the key light's shadow map stays in
+        // GPU memory until the light itself is disposed.
+        [rig.keyLight, rig.fillLight, rig.rimLight].forEach((light) => light.dispose?.());
         environment.dispose();
         rig = null;
         environment = null;

@@ -270,6 +270,11 @@ export function bindEditorShipFlightControls(editor) {
     });
     document.addEventListener('pointerlockchange', () => {
         if (document.pointerLockElement === canvas) {
+            // A lock granted after the ship already landed (G, then Escape at once) is let go.
+            if (!isActive()) {
+                document.exitPointerLock?.();
+                return;
+            }
             lockAcquired = true;
             return;
         }

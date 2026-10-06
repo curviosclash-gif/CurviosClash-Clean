@@ -11,6 +11,7 @@ import {
 import { createEditorMesh } from '../EditorMeshFactory.js';
 import { getEditorTurretAuthoringScale } from './EditorTurretProperties.js';
 import { getCurrentToolSubtype, isYLayerEnabled } from './EditorFormState.js';
+import { shouldIgnoreGlobalShortcut } from './EditorShortcutControls.js';
 
 const GHOST_OPACITY = 0.42;
 // Same radius the ground drawing gives a new tunnel.
@@ -248,8 +249,9 @@ export function bindEditorFlightPlacementControls(editor, flight) {
     const primaryAction = () => {
         if (!flight.isActive() || !target || !editor.mapManager) return;
         const tool = editor.currentTool;
-        if (tool === 'select') selectUnderCrosshair();
-        else if (draft) finishDraft();
+        // A started span is finished first, so its history gesture never stays open.
+        if (draft) finishDraft();
+        else if (tool === 'select') selectUnderCrosshair();
         else if (isTwoPointFlightTool(tool)) startDraft(tool);
         else placeSingle(tool);
     };
@@ -290,12 +292,16 @@ export function bindEditorFlightPlacementControls(editor, flight) {
     });
     core.container.addEventListener('wheel', (e) => {
         if (!flight.isActive() || !e.ctrlKey) return;
+        // Chromium zooms the whole page on Ctrl + wheel unless the event is taken.
+        e.preventDefault();
         const step = e.deltaY < 0 ? 1 : -1;
         distanceIndex = Math.max(0, Math.min(FLIGHT_PLACEMENT_DISTANCE_RADII.length - 1, distanceIndex + step));
     }, { passive: false });
     // Enter sets without the mouse, also when the browser refused the pointer lock.
     document.addEventListener('keydown', (e) => {
         if (!flight.isActive() || e.repeat || (e.code !== 'Enter' && e.code !== 'NumpadEnter')) return;
+        // Enter in a field or dialog belongs to that field.
+        if (shouldIgnoreGlobalShortcut(e.target)) return;
         e.preventDefault();
         primaryAction();
     });

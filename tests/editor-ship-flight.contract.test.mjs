@@ -155,6 +155,30 @@ test('flight keys come from the stored game settings, including inverted pitch',
     assert.equal(resolveShipFlightInput(new Set(['Space']), controls).boost, true);
 });
 
+test('bound keys never double as boost or hover', () => {
+    const shiftRoll = resolveShipFlightControls(
+        { controls: { PLAYER_1: { ROLL_LEFT: 'ShiftLeft', BOOST: 'KeyB' } } },
+        normalizeControlBindings,
+    );
+    const rolling = resolveShipFlightInput(new Set(['ShiftLeft']), shiftRoll);
+    assert.equal(rolling.rollLeft, true);
+    assert.equal(rolling.boost, false, 'ShiftLeft is the roll key here, not a second boost');
+
+    const crowded = resolveShipFlightControls(
+        { controls: { PLAYER_1: { BOOST: 'Space', ROLL_LEFT: 'KeyH', SHOOT: 'KeyB' } } },
+        normalizeControlBindings,
+    );
+    assert.ok(!Object.values(crowded.keyMap).includes(crowded.hoverCode), `hover ${crowded.hoverCode} is bound`);
+});
+
+test('stored bindings go through the same combat-conflict guard as the match', () => {
+    const settings = { controls: { PLAYER_1: { SHOOT: 'KeyF', SHOOT_MG: 'KeyF' } } };
+    const editor = resolveShipFlightControls(settings, normalizeControlBindings);
+    const match = normalizeControlBindings(settings.controls.PLAYER_1, CONFIG_SECTIONS.KEYS.PLAYER_1, { guardCombatConflicts: true });
+    assert.equal(editor.keyMap.SHOOT_MG, match.SHOOT_MG);
+    assert.notEqual(editor.keyMap.SHOOT_MG, 'KeyF');
+});
+
 test('without stored settings the game defaults apply', () => {
     for (const settings of [null, undefined, 'x', { controls: 7 }]) {
         const controls = resolveShipFlightControls(settings, normalizeControlBindings);

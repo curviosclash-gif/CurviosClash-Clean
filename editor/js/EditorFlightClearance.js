@@ -17,7 +17,9 @@ export function evaluateFlightClearance({ position, arenaSize, hitboxRadiusWorld
     const halfWidth = (Number(arenaSize?.width) || 0) / 2;
     const halfDepth = (Number(arenaSize?.depth) || 0) / 2;
     const height = Number(arenaSize?.height) || 0;
-    if (Math.abs(position.x) > halfWidth || Math.abs(position.z) > halfDepth || position.y > height) {
+    // Walls and ceiling meet the hitbox, not the ship's centre, just like the floor below.
+    if (Math.abs(position.x) > halfWidth - radius || Math.abs(position.z) > halfDepth - radius
+        || position.y > height - radius) {
         return { colliding: true, reason: 'outside' };
     }
     if (position.y < radius) return { colliding: true, reason: 'floor' };

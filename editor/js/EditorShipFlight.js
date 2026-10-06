@@ -63,7 +63,7 @@ export function createShipFlightState() {
 
 // Hovering is an editor action, so it takes the first of these keys the player's game
 // bindings leave free.
-const HOVER_CANDIDATES = Object.freeze(['Space', 'KeyH', 'KeyB']);
+const HOVER_CANDIDATES = Object.freeze(['Space', 'KeyH', 'KeyB', 'KeyJ', 'KeyK', 'KeyL', 'KeyN', 'KeyM']);
 const KEY_LABELS = Object.freeze({
     Space: 'Leertaste', ShiftLeft: 'Shift', ShiftRight: 'Shift', ControlLeft: 'Strg', ControlRight: 'Strg',
     AltLeft: 'Alt', AltRight: 'Alt', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
@@ -74,11 +74,12 @@ const KEY_LABELS = Object.freeze({
  * Flight controls from the stored game settings: player one's key map and inverted pitch,
  * read through the game's own normalizer, so unset keys keep the game defaults.
  * @param {unknown} settings stored settings object (any shape)
- * @param {(source: unknown, fallback: Record<string, string>) => Record<string, string>} normalizeBindings
+ * @param {(source: unknown, fallback: Record<string, string>, options?: {guardCombatConflicts?: boolean}) => Record<string, string>} normalizeBindings
  */
 export function resolveShipFlightControls(settings, normalizeBindings) {
     const source = settings && typeof settings === 'object' ? /** @type {Record<string, any>} */ (settings) : {};
-    const keyMap = normalizeBindings(source.controls?.PLAYER_1, CONFIG_SECTIONS.KEYS.PLAYER_1);
+    // Same options as the settings sanitizer, so a stored combat-key clash resolves like in a match.
+    const keyMap = normalizeBindings(source.controls?.PLAYER_1, CONFIG_SECTIONS.KEYS.PLAYER_1, { guardCombatConflicts: true });
     const usedCodes = new Set(Object.values(keyMap));
     return {
         keyMap,
@@ -122,7 +123,10 @@ export function resolveShipFlightInput(pressedCodes, controls = DEFAULT_SHIP_FLI
         yawRight: has(keyMap.RIGHT),
         rollLeft: has(keyMap.ROLL_LEFT),
         rollRight: has(keyMap.ROLL_RIGHT),
-        boost: has(keyMap.BOOST) || BOOST_CODES.some((code) => code !== controls.hoverCode && has(code)),
+        // Either Shift boosts as an extra only while the player has not bound it to anything else.
+        boost: has(keyMap.BOOST) || BOOST_CODES.some((code) => (
+            code !== controls.hoverCode && !Object.values(keyMap).includes(code) && has(code)
+        )),
         hover: has(controls.hoverCode || HOVER_CODES[0]),
         lookX: 0,
         lookY: 0,

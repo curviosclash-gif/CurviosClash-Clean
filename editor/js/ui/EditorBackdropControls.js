@@ -66,7 +66,8 @@ export function bindEditorBackdropControls(editor) {
                 confirmLabel: 'Laden',
                 danger: true,
             });
-            if (confirmed === false) return false;
+            // The editor dialog resolves null on Cancel, Escape or a click beside it.
+            if (!confirmed) return false;
         }
         const { document: mapDocument } = convertPresetToEditorDocument(key, preset, { mapScale: getRuntimeMapScale(1) });
         editor.executeHistoryMutation('Load map backdrop', () => {

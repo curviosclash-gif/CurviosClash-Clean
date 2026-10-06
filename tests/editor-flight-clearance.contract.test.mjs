@@ -54,3 +54,12 @@ test('the floor and the arena walls warn as well', () => {
     assert.deepEqual(clearance(editor, [0, 950 + 1, 0]), { colliding: true, reason: 'outside' });
     assert.deepEqual(clearance(editor, [800, 300, 800]), { colliding: false, reason: null });
 });
+
+test('walls and ceiling count the hitbox like the floor does', () => {
+    const editor = createEditorWithBlock();
+    const halfHitbox = HITBOX * UNITS * 0.5;
+    assert.deepEqual(clearance(editor, [1400 - halfHitbox, 300, 0]), { colliding: true, reason: 'outside' });
+    assert.deepEqual(clearance(editor, [0, 300, -1200 + halfHitbox]), { colliding: true, reason: 'outside' });
+    assert.deepEqual(clearance(editor, [800, 950 - halfHitbox, 0]), { colliding: true, reason: 'outside' });
+    assert.equal(clearance(editor, [1400 - HITBOX * UNITS * 1.5, 300, 0]).colliding, false);
+});
