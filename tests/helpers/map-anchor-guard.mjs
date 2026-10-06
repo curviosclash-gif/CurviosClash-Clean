@@ -16,6 +16,11 @@
 // vertically out of a wall: the nudge is a rescue, not a placement.
 
 import { listCompiledBoxObstacles, RING_CLEARANCE_WORLD_RADIUS } from '../../scripts/parcours-ring-clearance.mjs';
+import {
+    PLAYABLE_VOLUME_OUTSIDE,
+    probeArenaPlayableVolumes,
+    resolveArenaPlayableVolumes,
+} from '../../src/entities/arena/ArenaPlayableVolumes.js';
 import { normalizeMapLightSources } from '../../src/shared/contracts/MapLightSourcesContract.js';
 import { getPickupDefinition, normalizePickupType } from '../../src/shared/contracts/PickupRegistryContract.js';
 
@@ -233,11 +238,15 @@ export function analyzeMapAnchors(mapKey, map, mapScale) {
     const worldSize = resolveWorldSize(map, mapScale);
     const spawnWorldSize = resolveWorldSize(map, mapScale, { initial: true });
     const boxes = listSolidBoxes(map, mapScale);
+    const playableVolumes = resolveArenaPlayableVolumes(map, mapScale);
     const label = (entry, index, fallback) => (typeof entry?.id === 'string' && entry.id ? entry.id : `${fallback}${index}`);
 
     // Shared by every kind of placed point: bounds, then solid geometry.
     const checkPlacement = (point, world, size, name, { solid = true } = {}) => {
-        if (!insideWorld(world, size)) {
+        // A shaft or secret room below the floor is part of the arena (the reactor basin).
+        const inPlayableVolume = playableVolumes.length > 0
+            && probeArenaPlayableVolumes(playableVolumes, { x: world[0], y: world[1], z: world[2] }) !== PLAYABLE_VOLUME_OUTSIDE;
+        if (!inPlayableVolume && !insideWorld(world, size)) {
             add('bounds', point, `${fmt(world)} lies outside the arena: ${outsideDescription(world, size)}`);
             return false;
         }

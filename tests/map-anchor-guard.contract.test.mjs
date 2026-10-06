@@ -153,3 +153,18 @@ test('obstacle bounds: boxes (rotated), tubes and tall boxes must stay inside th
         { id: 'too_tall', pos: [0, 38, 0], size: [4, 8, 4] },
     ]), ['obstacles[through_x]', 'obstacles[through_z_rotated]', 'obstacles[beam]', 'obstacles[too_tall]']);
 });
+
+test('a placed point inside a playable volume below the floor is inside the arena', () => {
+    const map = {
+        size: [60, 40, 60],
+        scaleAuthoredAnchors: true,
+        obstacles: [],
+        playableVolumes: [{ shape: 'cylinder', center: [0, 0], radius: 5, minY: -20, maxY: 2 }],
+        lights: [
+            { id: 'shaft_light', x: 0, y: -10, z: 0, distance: 30 },
+            { id: 'rock_light', x: 30, y: -10, z: 0, distance: 30 },
+        ],
+    };
+    const bounds = analyzeMapAnchors('probe', map, MAP_SCALE).filter((violation) => violation.check === 'bounds');
+    assert.deepEqual(bounds.map((violation) => violation.point), ['lights[rock_light]']);
+});

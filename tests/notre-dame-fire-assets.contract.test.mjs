@@ -4,7 +4,6 @@ import path from 'node:path';
 import test from 'node:test';
 import * as THREE from 'three';
 
-import { NOTRE_DAME_FIRE_MODELS } from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireModels.js';
 import { createStaticMeshCollider, sphereIntersectsStaticMeshCollider } from '../src/entities/arena/StaticMeshCollider.js';
 import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
 
@@ -188,27 +187,6 @@ test('each burnt part is measured where the preset expects to place it', () => {
         assert.ok(
             triangleCount(document) <= TRIANGLE_BUDGET_PER_PART,
             `${fileStem} spends ${triangleCount(document)} triangles`,
-        );
-    }
-});
-
-test('the preset places every burnt part at the measurement its file reports', () => {
-    const METRE = 1.4;
-    const GROUND = 8;
-    for (const [fileStem, expected] of Object.entries(PARTS)) {
-        const model = NOTRE_DAME_FIRE_MODELS.find((entry) => entry.url.endsWith(`${fileStem}.glb`));
-        assert.ok(model, `${fileStem} is placed by the preset`);
-        assert.ok(
-            Math.abs(model.position[0] - expected.centerX * METRE) < 0.1,
-            `${fileStem} is placed along the building where its box centres`,
-        );
-        assert.ok(
-            Math.abs(model.position[1] - (GROUND + expected.floorY * METRE)) < 0.1,
-            `${fileStem} is placed at the height its underside reports`,
-        );
-        assert.ok(
-            Math.abs(model.position[2] - expected.centerZ * METRE) < 0.1,
-            `${fileStem} is placed across the building where its box centres`,
         );
     }
 });

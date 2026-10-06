@@ -80,6 +80,8 @@ export class MapFireFxController {
         this.scale = 1;
         this.layers = null;
         this.lightTracks = [];
+        this.dayTracks = [];
+        this.dayColor = new THREE.Color();
         this.elapsedSeconds = 0;
         this.intensity = 1;
     }
@@ -112,6 +114,22 @@ export class MapFireFxController {
             const light = lightsById.get(entry.lightId) || null;
             return light ? { ...entry, light, baseIntensity: light.intensity } : null;
         }).filter(Boolean);
+        // The light as authored is the full-fire look; remember it so the blend can be undone.
+        this.dayTracks = profile.dayLights.map((day) => {
+            const light = lightsById.get(day.id) || null;
+            if (!light) return null;
+            return {
+                light, day, current: light.intensity,
+                dayColor: new THREE.Color(day.color),
+                fire: {
+                    position: light.position.clone(), color: light.color.clone(),
+                    intensity: light.intensity, distance: light.distance,
+                },
+            };
+        }).filter(Boolean);
+        for (const track of this.lightTracks) {
+            track.blended = this.dayTracks.find((entry) => entry.light === track.light) || null;
+        }
 
         this.update(0);
         return this.group;
@@ -201,13 +219,36 @@ export class MapFireFxController {
         markLayerDirty(layer);
     }
 
+    // Blends every light that has an intact-state look between that look (progress 0) and the look it
+    // was authored with (progress 1). Position and range are in authored units times the map scale.
+    _blendDayLights() {
+        const k = this.intensity;
+        const scale = this.scale;
+        for (const track of this.dayTracks) {
+            const { light, day, fire } = track;
+            light.position.set(
+                day.x * scale + (fire.position.x - day.x * scale) * k,
+                day.y * scale + (fire.position.y - day.y * scale) * k,
+                day.z * scale + (fire.position.z - day.z * scale) * k
+            );
+            light.distance = day.distance * scale + (fire.distance - day.distance * scale) * k;
+            light.color.copy(track.dayColor).lerp(fire.color, k);
+            track.current = day.intensity + (fire.intensity - day.intensity) * k;
+            light.intensity = track.current;
+        }
+    }
+
     _updateLights() {
         const time = this.elapsedSeconds;
+        this._blendDayLights();
         for (const track of this.lightTracks) {
             const primary = Math.sin(time * track.frequency * TAU + track.phase);
             const secondary = Math.sin(time * track.frequency * 2.37 + track.phase * 0.61);
             const wave = primary * 0.68 + secondary * 0.32;
-            track.light.intensity = track.baseIntensity * this.intensity * (1 + wave * track.amplitude);
+            const blended = track.blended;
+            track.light.intensity = blended
+                ? blended.current * (1 + wave * track.amplitude * this.intensity)
+                : track.baseIntensity * this.intensity * (1 + wave * track.amplitude);
         }
     }
 
@@ -216,6 +257,13 @@ export class MapFireFxController {
             if (track?.light) track.light.intensity = track.baseIntensity;
         }
         this.lightTracks = [];
+        for (const { light, fire } of this.dayTracks) {
+            light.position.copy(fire.position);
+            light.color.copy(fire.color);
+            light.intensity = fire.intensity;
+            light.distance = fire.distance;
+        }
+        this.dayTracks = [];
         if (this.group) {
             this.renderer?.removeFromScene?.(this.group);
             disposeObject3DResources(this.group);

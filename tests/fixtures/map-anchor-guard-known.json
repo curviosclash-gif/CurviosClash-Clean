@@ -1,5 +1,5 @@
 {
-  "count": 38,
+  "count": 36,
   "entries": [
     {
       "map": "parcours_assault",
@@ -170,12 +170,6 @@
       "reason": "portal (-216, 60, 0) sits inside obstacles[48]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
     },
     {
-      "map": "reactor_site",
-      "check": "bounds",
-      "point": "lights[reactor_fire]",
-      "reason": "(0, -144.1, 0) lies outside the arena: y outside 0..858"
-    },
-    {
       "map": "clockwork_canyon",
       "check": "in-solid",
       "point": "botSpawns[5]",
@@ -204,12 +198,6 @@
       "check": "in-solid",
       "point": "items[cc_rocket_se]",
       "reason": "item (40, 27, 40) sits inside obstacles[56]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
-    },
-    {
-      "map": "storm_lighthouse_siege",
-      "check": "bounds",
-      "point": "lights[lighthouse_lantern]",
-      "reason": "(0, 522, 0) lies outside the arena: y outside 0..300"
     },
     {
       "map": "bloom_core",
