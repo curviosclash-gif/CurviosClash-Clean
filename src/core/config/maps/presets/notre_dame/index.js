@@ -119,8 +119,8 @@ export const NOTRE_DAME_MAPS = {
         ...NOTRE_DAME_COMMON,
         name: 'Notre-Dame',
         // Late afternoon from the west, which is the side the facade was built to be seen from and
-        // the side the route flies in on. The fog far is 685 so that the next ring stays visible on the
-        // longest leg (CP12 to CP13, 533 units, at most 75% fog); the colours are unchanged.
+        // the side the route flies in on. The fog is pushed out as far as the contract allows: this
+        // is the longest map in the pack, and the spire has to stay readable from the river.
         // Only the route map carries this. The arena variant is deliberately left on the default
         // for now, so the two can be compared side by side before the profile is shared.
         lighting: {
@@ -144,7 +144,7 @@ export const NOTRE_DAME_MAPS = {
             // height falloff lets the towers separate from the ground layer without exposing a hard
             // clip silhouette, and the sky blend keeps distant masonry inside the dusk palette.
             fog: {
-                color: 0x3a0a04, near: 90, far: 685,
+                color: 0x3a0a04, near: 90, far: 200,
                 height: 7.3, heightFalloff: 0.012, turbulence: 0.2, skyBlend: 0.45,
                 colorHigh: 0x1b0c0e, colorLow: 0x260e0f, clipClosureStart: 0.8,
             },
