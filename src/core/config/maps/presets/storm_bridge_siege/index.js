@@ -42,6 +42,12 @@ export const STORM_BRIDGE_SIEGE_MAPS = Object.freeze({
         items: Object.freeze([
             Object.freeze({ pos: [-38, 12, 0] }),
             Object.freeze({ pos: [38, 12, 0] }),
+            // The span is 70 world units long in a 540 unit field, and the two anchors above stand at
+            // its ends. Both sides of the deck (z) and the two far corners were empty.
+            Object.freeze({ pos: [0, 12, -40] }),
+            Object.freeze({ pos: [0, 12, 40] }),
+            Object.freeze({ pos: [-65, 16, -42] }),
+            Object.freeze({ pos: [65, 16, 42] }),
         ]),
         singlePlayerScenario: Object.freeze({
             enabled: true,

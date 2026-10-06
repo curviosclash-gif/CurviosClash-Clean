@@ -58,6 +58,12 @@ export const STORM_DAM_SIEGE_MAPS = Object.freeze({
         items: Object.freeze([
             Object.freeze({ pos: [-38, 12, -8] }),
             Object.freeze({ pos: [38, 12, 8] }),
+            // The start side, the two flanks, and one high above the basin that stays out of the
+            // flood (the water rises to 75).
+            Object.freeze({ pos: [0, 12, -45] }),
+            Object.freeze({ pos: [-72, 14, -30] }),
+            Object.freeze({ pos: [72, 14, 30] }),
+            Object.freeze({ pos: [-30, 88, 30] }),
         ]),
         singlePlayerScenario: Object.freeze({
             enabled: true,

@@ -73,6 +73,30 @@ const LOW_SPREAD = 68;
 const DECK_SPREAD = 44;
 const HIGH_SPREAD = 26;
 
+// The arena's seven items all hang within 22 units of the tower axis, which was the whole 200 unit
+// field there. On the 310 field that leaves everything outside empty, so six more stand on a ring at
+// 125 units: past the legs and the tanks' lane, inside the 155 half size with 30 units to spare,
+// and just short of where a toppled shaft lands (130.9). Heights alternate so the ring is flown at
+// two levels.
+const OUTER_RING_RADIUS = 125;
+const OUTER_ITEMS = [
+    ['rocket_ne', 'item_rocket', 'ROCKET_WEAK', 30, 24],
+    ['shield_n', 'item_shield', 'SHIELD', 90, 40],
+    ['speed_nw', 'item_battery', 'SPEED_UP', 150, 24],
+    ['ghost_sw', 'item_coin', 'GHOST', 210, 40],
+    ['shield_s', 'item_shield', 'SHIELD', 270, 24],
+    ['speed_se', 'item_battery', 'SPEED_UP', 330, 40],
+].map(([id, type, pickupType, degrees, y]) => ({
+    id: `et_siege_${id}`,
+    type,
+    pickupType,
+    x: Math.round(Math.cos((degrees * Math.PI) / 180) * OUTER_RING_RADIUS),
+    y,
+    z: Math.round(Math.sin((degrees * Math.PI) / 180) * OUTER_RING_RADIUS),
+    weight: 1.0,
+}));
+const EIFFEL_SIEGE_ITEMS = [...EIFFEL_TOWER_ARENA_ITEMS, ...OUTER_ITEMS];
+
 export const EIFFEL_TOWER_SIEGE_MAPS = {
     eiffel_tower_siege: {
         ...EIFFEL_TOWER_COMMON,
@@ -109,7 +133,7 @@ export const EIFFEL_TOWER_SIEGE_MAPS = {
             exposureOffset: 0.04,
         },
         gates: EIFFEL_TOWER_ARENA_GATES,
-        items: EIFFEL_TOWER_ARENA_ITEMS,
+        items: EIFFEL_SIEGE_ITEMS,
         // West of the tower, with the whole silhouette in view: this is the map where looking at
         // the building is the point.
         playerSpawn: { x: -96, y: GROUND + 26, z: 0 },
