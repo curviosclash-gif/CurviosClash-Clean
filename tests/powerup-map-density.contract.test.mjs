@@ -68,9 +68,12 @@ test('density follows actual dimensions relative to the built standard arena', (
 });
 
 test('real catalog maps measure against their built size', () => {
-    // empty is 150 x 75 x 150 authored: about a third of the standard volume.
-    assert.equal(fieldLimit(10, mapBounds('empty')), 33);
-    assert.equal(fieldLimit(1, mapBounds('empty')), 3);
+    // glb_hangar is built 180 x 75 x 180: about half the standard volume, so it gets fewer items.
+    assert.equal(fieldLimit(10, mapBounds('glb_hangar')), 47);
+    assert.equal(fieldLimit(1, mapBounds('glb_hangar')), 5);
+    // empty now has the room of the standard arena (built 240 x 90 x 240) and gets the full count.
+    assert.equal(fieldLimit(10, mapBounds('empty')), 100);
+    assert.equal(fieldLimit(1, mapBounds('empty')), 10);
     // Larger maps reach the cap earlier but the low end of the slider still separates them.
     assert.equal(fieldLimit(1, mapBounds('mega_maze')), 18);
     assert.equal(fieldLimit(10, mapBounds('mega_maze')), 100);
