@@ -92,9 +92,17 @@ export function loadLeaderboard(store) {
     return normalizeLeaderboard(raw);
 }
 
+// Only the best entry's ghost is ever played back; a clip on every top-10 entry filled the
+// storage. Loading still accepts older boards with more clips and leaves them untouched.
+function keepBestGhostClipOnly(entries) {
+    return entries.map((entry, index) => (index === 0 || !entry.ghostClip ? entry : { ...entry, ghostClip: null }));
+}
+
 export function saveLeaderboard(store, lb) {
     if (!store || typeof store.saveJsonRecord !== 'function') return false;
-    const saveResult = store.saveJsonRecord(LEADERBOARD_STORAGE_KEY, normalizeLeaderboard(lb));
+    const normalized = normalizeLeaderboard(lb);
+    for (const routeId of Object.keys(normalized)) normalized[routeId] = keepBestGhostClipOnly(normalized[routeId]);
+    const saveResult = store.saveJsonRecord(LEADERBOARD_STORAGE_KEY, normalized);
     warnPersistenceFailure('saveLeaderboard', saveResult);
     return saveResult;
 }
@@ -111,7 +119,7 @@ export function insertLeaderboardEntry(lb, routeId, entry) {
     existing.sort(compareLeaderboardEntries);
     return {
         ...(lb || {}),
-        [normalizedRouteId]: existing.slice(0, MAX_ENTRIES_PER_ROUTE),
+        [normalizedRouteId]: keepBestGhostClipOnly(existing.slice(0, MAX_ENTRIES_PER_ROUTE)),
     };
 }
 

@@ -38,6 +38,8 @@ export class ArcadeRunPersistenceScheduler {
         this._clearTimeout = typeof options.clearTimeout === 'function' ? options.clearTimeout : clearTimeout.bind(globalThis);
         this._pendingSaves = new Map();
         this._timers = new Map();
+        this._failedKinds = new Set();
+        this._onFlushResult = typeof options.onFlushResult === 'function' ? options.onFlushResult : null;
     }
 
     _clearTimer(kind) {
@@ -45,6 +47,16 @@ export class ArcadeRunPersistenceScheduler {
         if (timer == null) return;
         this._clearTimeout(timer);
         this._timers.delete(kind);
+    }
+
+    /** Kinds whose last save the store rejected; they stay pending and retry on the next flush. */
+    getFailedKinds() {
+        return Array.from(this._failedKinds);
+    }
+
+    /** Called after every flush attempt with { kind, ok }, also for throttled timer flushes. */
+    setFlushResultListener(listener) {
+        this._onFlushResult = typeof listener === 'function' ? listener : null;
     }
 
     _schedule(kind, task) {
@@ -68,18 +80,21 @@ export class ArcadeRunPersistenceScheduler {
         this._clearTimer(kind);
         const task = this._pendingSaves.get(kind);
         if (typeof task !== 'function') return false;
+        let saved = false;
         try {
-            const saveResult = task();
-            if (!isPersisted(saveResult)) {
-                this.logger?.warn?.('[ArcadeRunPersistenceScheduler] save was not acknowledged', { kind });
-                return false;
-            }
-            this._pendingSaves.delete(kind);
-            return true;
+            saved = isPersisted(task());
+            if (!saved) this.logger?.warn?.('[ArcadeRunPersistenceScheduler] save was not acknowledged', { kind });
         } catch (error) {
             this.logger?.warn?.('[ArcadeRunPersistenceScheduler] save failed:', error);
-            return false;
         }
+        if (saved) {
+            this._pendingSaves.delete(kind);
+            this._failedKinds.delete(kind);
+        } else {
+            this._failedKinds.add(kind);
+        }
+        this._onFlushResult?.({ kind, ok: saved });
+        return saved;
     }
 
     flushAll() {
