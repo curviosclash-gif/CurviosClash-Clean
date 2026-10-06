@@ -110,8 +110,9 @@ export class ArcadeRunPersistenceScheduler {
     scheduleVehicleProfiles(store, profiles) {
         if (!store || typeof store.saveJsonRecord !== 'function') return false;
         const snapshot = clonePlainSnapshot(profiles);
+        // The snapshot shares the live map's base, so a save only applies this run's own changes.
         return this._schedule(SAVE_KINDS.VEHICLE_PROFILES, () => {
-            return saveVehicleProfiles(store, snapshot);
+            return saveVehicleProfiles(store, snapshot, { baseOwner: profiles });
         });
     }
 

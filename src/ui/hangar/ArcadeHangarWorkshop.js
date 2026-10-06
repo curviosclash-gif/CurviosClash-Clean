@@ -111,14 +111,28 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         if (emit && eventTypes.SHOW_STATUS_TOAST) emit(eventTypes.SHOW_STATUS_TOAST, { message, tone, duration: 1600 });
     }
 
+    let unsavedProfileEdits = false;
     function persistProfiles() {
+        let saved = false;
         try {
             const result = profilePort.save(profiles);
-            return result === true || result?.success === true || result?.ok === true;
+            saved = result === true || result?.success === true || result?.ok === true;
         } catch {
-            return false;
+            saved = false;
         }
+        unsavedProfileEdits = !saved;
+        // The save merged onto the stored record; reload so XP a run earned meanwhile shows here.
+        if (saved) profiles = profilePort.load();
+        return saved;
     }
+
+    // The hangar window stays open beside a run: pick up profile writes from the other window.
+    if (hangarMode === 'arcade') bind(globalThis, 'storage', (event) => {
+        if (disposed || unsavedProfileEdits) return;
+        if (event?.key && !/arcade-vehicle-profile\.v\d+$/.test(String(event.key))) return;
+        profiles = profilePort.load();
+        syncDisplay({ preserveCatalog: true });
+    });
 
     function reportProfileSaveFailure(message = 'Profil konnte nicht gespeichert werden. Änderungen bleiben nur bis zum Schließen dieses Hangars verfügbar.') {
         toast(message, 'error');

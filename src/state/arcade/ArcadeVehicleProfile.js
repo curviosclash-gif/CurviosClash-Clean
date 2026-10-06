@@ -31,6 +31,7 @@ import { XP_REWARD_TABLE, calculateSectorXp } from './ArcadeXpRewards.js';
 import {
     buildUpgradeState,
     ensureProfile,
+    isPersistenceSuccess,
     isValidTier,
     normalizeSlotName,
     normalizeTier,
@@ -42,6 +43,11 @@ import {
     toObject,
     warnPersistenceFailure,
 } from './ArcadeVehicleProfileInternals.js';
+import {
+    getArcadeVehicleProfileBase,
+    mergeArcadeVehicleProfileMaps,
+    rememberArcadeVehicleProfileBase,
+} from './ArcadeVehicleProfileMerge.js';
 
 const VEHICLE_PROFILE_SCHEMA_VERSION = ARCADE_VEHICLE_PROFILE_SCHEMA_VERSION;
 const STORAGE_KEY = ARCADE_VEHICLE_PROFILE_STORAGE_KEY;
@@ -517,29 +523,36 @@ export function loadVehicleProfiles(store) {
     });
 
     if (shouldRewrite && canPersist && !usedLegacyFallback && typeof store.saveJsonRecord === 'function') {
-        const saveResult = store.saveJsonRecord(STORAGE_KEY, {
+        // A copy: the caller edits the returned profiles, and an in-memory store must not see those
+        // edits as already stored (the save merge would count them twice).
+        const saveResult = store.saveJsonRecord(STORAGE_KEY, JSON.parse(JSON.stringify({
             ...mergeStoredCosmeticRecords(normalizedProfiles, preservedCosmeticProfiles),
             ...preservedProfiles,
-        });
+        })));
         warnPersistenceFailure('canonical write-back', saveResult);
     }
+    rememberArcadeVehicleProfileBase(normalizedProfiles, normalizedProfiles);
     return normalizedProfiles;
 }
 
-export function saveVehicleProfiles(store, profiles) {
+/**
+ * Saves a profile map onto the freshly stored record. Vehicles the map does not carry stay as
+ * stored; for a map that came from loadVehicleProfiles (or was saved before) only the fields it
+ * changed since then are applied, so a stale hangar or run copy never rolls back the other's work.
+ * @param {{ baseOwner?: object }} [options] baseOwner: the live map whose base a snapshot shares
+ */
+export function saveVehicleProfiles(store, profiles, { baseOwner = profiles } = {}) {
     if (!store || typeof store.saveJsonRecord !== 'function') return false;
     const {
+        profiles: storedProfiles = {},
         preservedProfiles = {},
         preservedCosmeticProfiles = {},
         canPersist = true,
     } = loadArcadeVehicleProfileRecord(store);
     // A malformed top-level record cannot be safely merged with writable profiles.
     if (!canPersist) return false;
-    const sourceProfiles = profiles && typeof profiles === 'object' ? profiles : {};
-    const normalizedProfiles = {};
-    Object.entries(sourceProfiles).forEach(([vehicleId, profile]) => {
-        normalizedProfiles[vehicleId] = normalizeVehicleProfileSafe(profile);
-    });
+    const { merged: normalizedProfiles, own: ownProfiles } = mergeArcadeVehicleProfileMaps(
+        storedProfiles, profiles, getArcadeVehicleProfileBase(baseOwner), normalizeVehicleProfileSafe);
     // Rejected or malformed per-vehicle records stay byte-for-byte equivalent at the
     // JSON value level, including when a fresh runtime profile has the same vehicle ID.
     const saveResult = store.saveJsonRecord(STORAGE_KEY, {
@@ -547,6 +560,7 @@ export function saveVehicleProfiles(store, profiles) {
         ...preservedProfiles,
     });
     warnPersistenceFailure('saveVehicleProfiles', saveResult);
+    if (isPersistenceSuccess(saveResult)) rememberArcadeVehicleProfileBase(baseOwner, ownProfiles);
     return saveResult;
 }
 

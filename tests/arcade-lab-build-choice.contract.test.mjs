@@ -104,6 +104,8 @@ const { ARCADE_VEHICLE_PROFILE_STORAGE_KEY } = await import('../src/shared/contr
 const { ARCADE_STONE_WORKSHOP_STORAGE_KEY, createArcadeStoneWorkshopRecord } = await import('../src/shared/contracts/ArcadeStoneWorkshopContract.js');
 const { HANGAR_BUILD_STORAGE_KEYS } = await import('../src/shared/contracts/HangarModeContract.js');
 const { createArcadeVehicleProfileWorkshopPort } = await import('../src/state/arcade/ArcadeVehicleProfileWorkshopPort.js');
+const { loadVehicleProfiles, saveVehicleProfiles } = await import('../src/state/arcade/ArcadeVehicleProfile.js');
+const { awardBoundArcadeVehicleXp, bindArcadeVehicleRewards } = await import('../src/state/arcade/ArcadeVehicleRewardBinding.js');
 const { setupArcadeHangarWorkshop } = await import('../src/ui/hangar/ArcadeHangarWorkshop.js');
 const { syncStartSetupSelectionState } = await import('../src/ui/start-setup/StartSetupSelectionSync.js');
 const { listVehiclePreviewEntries, resolveVehiclePreview } = await import('../src/ui/menu/MenuPreviewCatalog.js');
@@ -171,7 +173,7 @@ function openHangar({ mode, playerOne = LAB_ID, recentVehicles = [LAB_ID, 'manta
     };
     const quickIds = () => workshop.container.querySelectorAll('[data-quick-vehicle-id]').map((node) => node.dataset.quickVehicleId);
     const card = (vehicleId) => workshop.container.querySelectorAll('[data-vehicle-id]').find((node) => node.dataset.vehicleId === vehicleId);
-    return { workshop, settings, saved, statusMessages, records, fire, quickIds, card };
+    return { workshop, settings, saved, statusMessages, records, fire, quickIds, card, binds };
 }
 
 function findClass(root, className) {
@@ -212,6 +214,7 @@ function createSuccessfulProfilePort() {
     };
     return {
         port: createArcadeVehicleProfileWorkshopPort(persistence),
+        persistence,
         getRecord: (key) => records.get(key),
     };
 }
@@ -326,6 +329,30 @@ test('a later cosmetic profile save preserves the independently persisted stone 
         'saving a profile cosmetic never rewrites the separate stone pool');
     hangar.workshop.dispose();
 });
+test('an open hangar reloads profiles a run wrote and keeps that XP when it saves a style', () => {
+    const profileStore = createSuccessfulProfilePort();
+    let loads = 0;
+    const port = Object.freeze({ ...profileStore.port, load: () => { loads += 1; return profileStore.port.load(); } });
+    const hangar = openHangar({ mode: 'arcade', profilePort: port });
+    const loadsAfterOpen = loads;
+
+    const run = loadVehicleProfiles(profileStore.persistence);
+    awardBoundArcadeVehicleXp(run, bindArcadeVehicleRewards({ runType: 'gauntlet', vehicleId: 'ship5' }), 500, 1);
+    saveVehicleProfiles(profileStore.persistence, run);
+    const storage = hangar.binds.find((entry) => entry.node === globalThis && entry.type === 'storage');
+    assert.ok(storage, 'the hangar listens for profile writes from the other window');
+    storage.listener({ key: 'cuviosclash.player.p1.hangar.arcade-drafts.v1' });
+    assert.equal(loads, loadsAfterOpen, 'unrelated keys do not reload profiles');
+    storage.listener({ key: `cuviosclash.player.p1.${'arcade-vehicle-profile.v2'}` });
+    assert.equal(loads, loadsAfterOpen + 1, 'a profile write reloads the profiles');
+
+    const trailStyle = findClass(hangar.workshop.container, 'hangar-cosmetic-select');
+    trailStyle.value = 'standard';
+    hangar.fire(trailStyle, 'change');
+    assert.equal(profileStore.getRecord(ARCADE_VEHICLE_PROFILE_STORAGE_KEY).ship5.xp, 500, 'run XP survives the hangar save');
+    hangar.workshop.dispose();
+});
+
 test('a cosmetic profile save failure reports an error instead of a saved success', () => {
     const failingPort = createFailingProfilePort();
     const hangar = openHangar({ mode: 'arcade', profilePort: failingPort.port });
