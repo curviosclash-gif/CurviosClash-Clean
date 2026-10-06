@@ -127,10 +127,12 @@ export class ArcadeRunPersistenceScheduler {
         this._pendingSaves.clear();
     }
 
-    scheduleVehicleProfiles(store, profiles) {
+    // slot: own pending save per store, so a split-screen partner's profiles never replace player one's.
+    scheduleVehicleProfiles(store, profiles, slot = '') {
         if (!store || typeof store.saveJsonRecord !== 'function') return false;
         const snapshot = clonePlainSnapshot(profiles);
-        return this._schedule(SAVE_KINDS.VEHICLE_PROFILES, () => {
+        const kind = slot ? `${SAVE_KINDS.VEHICLE_PROFILES}:${slot}` : SAVE_KINDS.VEHICLE_PROFILES;
+        return this._schedule(kind, () => {
             return saveVehicleProfiles(store, snapshot);
         });
     }

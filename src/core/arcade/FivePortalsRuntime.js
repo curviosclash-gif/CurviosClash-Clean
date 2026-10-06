@@ -25,10 +25,11 @@ function loadRecords(store, chain) {
 /** One solo parcours run. The match session may be rebuilt between maps; this object survives it. */
 export class FivePortalsRuntime {
     /**
-     * @param {{ getRecordStore?: () => *, requestMapTransition?: (transition: { mapKey: string, botCount: number, fivePortals: boolean }) => void, requestAdvance?: () => void }} [options]
+     * @param {{ getRecordStore?: () => *, getPlayerRewardTarget?: (playerIndex: number) => ({ store: *, vehicleId: string }|null), requestMapTransition?: (transition: { mapKey: string, botCount: number, fivePortals: boolean }) => void, requestAdvance?: () => void }} [options]
      */
-    constructor({ getRecordStore = () => null, requestMapTransition = () => {}, requestAdvance = () => {} } = {}) {
+    constructor({ getRecordStore = () => null, getPlayerRewardTarget = () => null, requestMapTransition = () => {}, requestAdvance = () => {} } = {}) {
         this._getRecordStore = getRecordStore;
+        this._getPlayerRewardTarget = getPlayerRewardTarget;
         this._requestMapTransition = requestMapTransition;
         this._requestAdvance = requestAdvance;
         this.reset();
@@ -45,6 +46,7 @@ export class FivePortalsRuntime {
         this._transitionRequested = false;
         this.rewardBinding = null;
         this.xpEarned = 0;
+        this.vehicleXpEarned = 0;
         this.records = loadRecords(this._getRecordStore(), this.chain);
     }
 
@@ -64,18 +66,21 @@ export class FivePortalsRuntime {
     }
 
     handleXpEvent(eventType, playerIndex = 0) {
-        if (this.phase !== 'racing' || !this.rewardBinding || Number(playerIndex) !== 0) return null;
+        // Player one drives the run; a split-screen partner with an own profile still earns XP for his plane.
+        const partner = Number(playerIndex) === 0 ? null : this._getPlayerRewardTarget?.(Number(playerIndex));
+        if (this.phase !== 'racing' || !this.rewardBinding || (Number(playerIndex) !== 0 && !partner)) return null;
         const amount = {
             checkpoint: XP_REWARD_TABLE.parcoursCheckpoint,
             finish: XP_REWARD_TABLE.parcoursFinish,
             new_best_time: XP_REWARD_TABLE.parcoursNewBestTime,
         }[String(eventType)] || 0;
         const result = awardBoundArcadeVehicleXpInStore(
-            this._getRecordStore(),
-            this.rewardBinding,
+            partner ? partner.store : this._getRecordStore(),
+            partner ? { ...this.rewardBinding, vehicleId: partner.vehicleId } : this.rewardBinding,
             amount
         );
         if (result) this.xpEarned += result.earned;
+        if (result && !partner) this.vehicleXpEarned += result.earned;
         return result;
     }
 
@@ -142,6 +147,7 @@ export class FivePortalsRuntime {
             chainLabel: this.chain.label,
             vehicleId: this.rewardBinding?.vehicleId || '',
             xpEarned: this.xpEarned,
+            vehicleXpEarned: this.vehicleXpEarned,
             phase: this.phase,
             mapIndex: this.mapIndex,
             mapCount: this.chain.maps.length,
