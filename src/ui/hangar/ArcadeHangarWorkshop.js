@@ -211,6 +211,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         if (!saved) {
             if (!bankConflict && hadPrevious) profiles[vehicleId] = previous;
             else if (!bankConflict) delete profiles[vehicleId];
+            unsavedProfileEdits = false; // rolled back: the copy matches the stored state again
             reportProfileSaveFailure();
         }
         syncDisplay({ preserveCatalog: true });

@@ -371,6 +371,24 @@ test('a bank conflict reloads the profiles and says the bank no longer covers th
     hangar.workshop.dispose();
 });
 
+test('a rolled-back profile save still lets the hangar pick up later profile writes', () => {
+    const failing = createFailingProfilePort();
+    let loads = 0;
+    const port = Object.freeze({ ...failing.port, load: () => { loads += 1; return failing.port.load(); } });
+    const hangar = openHangar({ mode: 'arcade', profilePort: port });
+    const gunCard = hangar.workshop.container.querySelectorAll('[data-arcade-machine-gun-id]')[0];
+    assert.ok(gunCard, 'the weapon panel offers a machine gun');
+    hangar.fire(gunCard, 'click');
+    assert.ok(failing.getLastProfileMap(), 'the machine gun choice went through saveProfile');
+    assert.ok(hangar.statusMessages.some(({ tone }) => tone === 'error'));
+
+    const loadsBefore = loads;
+    const storage = hangar.binds.find((entry) => entry.node === globalThis && entry.type === 'storage');
+    storage.listener({ key: 'cuviosclash.player.p1.arcade-vehicle-profile.v2' });
+    assert.equal(loads, loadsBefore + 1, 'saveProfile rolled the edit back, so nothing unsaved blocks the reload');
+    hangar.workshop.dispose();
+});
+
 test('a cosmetic profile save failure reports an error instead of a saved success', () => {
     const failingPort = createFailingProfilePort();
     const hangar = openHangar({ mode: 'arcade', profilePort: failingPort.port });
