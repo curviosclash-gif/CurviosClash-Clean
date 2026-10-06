@@ -16,6 +16,7 @@ const KEYS = [
     'standard',
     'wind_cathedral',
     'chrono_forge_nexus',
+    'eclipse_foundry',
     'maze',
     'complex',
     'vertical_maze',

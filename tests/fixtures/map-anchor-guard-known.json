@@ -1,5 +1,5 @@
 {
-  "count": 41,
+  "count": 37,
   "entries": [
     {
       "map": "showcase_nexus",
@@ -132,30 +132,6 @@
       "check": "in-solid",
       "point": "gates[mm_boost_mid]",
       "reason": "gate (0, 30, 0) sits inside obstacles[31] (foam)"
-    },
-    {
-      "map": "eclipse_foundry",
-      "check": "in-solid",
-      "point": "portals[0].a",
-      "reason": "portal (-306, 66, -87) sits inside obstacles[10]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
-    {
-      "map": "eclipse_foundry",
-      "check": "in-solid",
-      "point": "portals[0].b",
-      "reason": "portal (-234, 120, 81) sits inside obstacles[14]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
-    {
-      "map": "eclipse_foundry",
-      "check": "in-solid",
-      "point": "gates[eclipse_furnace_sling]",
-      "reason": "gate (-336, 54, 30) sits inside obstacles[9]"
-    },
-    {
-      "map": "eclipse_foundry",
-      "check": "in-solid",
-      "point": "gates[eclipse_descent_boost]",
-      "reason": "gate (-174, 273, 60) sits inside obstacles[61]"
     },
     {
       "map": "verdant_aperture",
