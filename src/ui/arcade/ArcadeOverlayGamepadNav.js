@@ -8,6 +8,13 @@ import { getFocusableElements, moveMainMenuFocus } from '../menu/MenuNavigationF
 
 const ARCADE_OVERLAY_PANEL_ID = 'arcade-overlay-panel';
 const ACTION_BUTTONS = Object.freeze([GAMEPAD_MENU_BUTTONS.A, GAMEPAD_MENU_BUTTONS.LB, GAMEPAD_MENU_BUTTONS.RB]);
+const STICK_THRESHOLD = 0.6;
+const DIRECTIONS = Object.freeze([
+    Object.freeze({ id: 'left', button: GAMEPAD_MENU_BUTTONS.LEFT, axis: 0, sign: -1 }),
+    Object.freeze({ id: 'right', button: GAMEPAD_MENU_BUTTONS.RIGHT, axis: 0, sign: 1 }),
+    Object.freeze({ id: 'up', button: GAMEPAD_MENU_BUTTONS.UP, axis: 1, sign: -1 }),
+    Object.freeze({ id: 'down', button: GAMEPAD_MENU_BUTTONS.DOWN, axis: 1, sign: 1 }),
+]);
 
 function listArcadeOverlayButtons(panel) {
     return getFocusableElements(panel).filter((element) => String(element.tagName).toUpperCase() === 'BUTTON');
@@ -41,11 +48,16 @@ function firstConnectedPad(pads) {
     return null;
 }
 
+function isDirectionHeld(pad, direction) {
+    return !!pad?.buttons?.[direction.button]?.pressed || Number(pad?.axes?.[direction.axis]) * direction.sign > STICK_THRESHOLD;
+}
+
 /**
  * D-pad, shoulder buttons and the left stick move the focus between the panel's buttons, A presses
  * the focused one. Without a focused button A only focuses the first one, so a stray press never
- * confirms a choice the player has not seen highlighted. A button already held when the panel takes
- * the pad (the press that closed the continue prompt, say) does not count as a new press.
+ * confirms a choice the player has not seen highlighted. A button, D-pad direction or stick push
+ * already held when the panel takes the pad (the press that closed the continue prompt, say) does
+ * not count as a new press; it counts again only after it was released.
  * @param {{ doc?: Document, getGamepads?: () => any, requestFrame?: Function, cancelFrame?: Function, now?: () => number }} [options]
  */
 export function createArcadeOverlayGamepadNav(options = {}) {
@@ -57,19 +69,28 @@ export function createArcadeOverlayGamepadNav(options = {}) {
     };
     const move = (direction) => withPanel((panel, buttons, active) => moveMainMenuFocus(buttons, direction, active));
     let wasActive = false;
+    /** Directions held when the panel took the pad; ignored until released. */
+    const heldOnEntry = new Set();
     const poller = createGamepadMenuPoller({
         ...options,
-        repeat: false, leftStick: true, requireDocumentFocus: false, stickThreshold: 0.6,
+        repeat: false, leftStick: true, requireDocumentFocus: false, stickThreshold: STICK_THRESHOLD,
         isActive: () => {
             const active = !!findArcadeOverlayChoicePanel(resolveDoc());
             if (active && !wasActive) {
                 const pad = firstConnectedPad(readPads());
                 for (const index of ACTION_BUTTONS) poller.buttonState.set(index, !!pad?.buttons?.[index]?.pressed);
+                heldOnEntry.clear();
+                for (const direction of DIRECTIONS) if (isDirectionHeld(pad, direction)) heldOnEntry.add(direction.id);
+            } else if (active && heldOnEntry.size > 0) {
+                const pad = firstConnectedPad(readPads());
+                for (const direction of DIRECTIONS) if (!isDirectionHeld(pad, direction)) heldOnEntry.delete(direction.id);
             }
             wasActive = active;
             return active;
         },
-        onDirection: move,
+        onDirection: (direction) => {
+            if (!heldOnEntry.has(direction)) move(direction);
+        },
         onPreviousTab: () => move('left'),
         onNextTab: () => move('right'),
         onConfirm: () => withPanel((panel, buttons, active) => {
@@ -82,6 +103,7 @@ export function createArcadeOverlayGamepadNav(options = {}) {
         start: () => poller.start(),
         stop() {
             wasActive = false;
+            heldOnEntry.clear();
             poller.stop();
         },
         isRunning: () => poller.isRunning(),

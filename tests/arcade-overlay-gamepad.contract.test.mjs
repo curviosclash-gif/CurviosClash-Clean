@@ -68,6 +68,7 @@ function tap(pollers, pad, index) {
 test('D-pad and A pick a button of the visible arcade choice panel', () => {
     const { doc, buttons, pad, nav } = createScene();
     buttons[0].focus();
+    nav.poll(); // the panel is on screen for a frame before the press
     tap([nav.poll], pad, 15);
     assert.equal(doc.activeElement?.id, 'route-b', 'D-pad right moves to the next route');
     tap([nav.poll], pad, 0);
@@ -82,6 +83,7 @@ test('D-pad and A pick a button of the visible arcade choice panel', () => {
 test('the left stick moves the focus once per push, not once per frame', () => {
     const { doc, buttons, pad, nav } = createScene();
     buttons[0].focus();
+    nav.poll(); // the panel is on screen for a frame before the push
     pad.axes = [0.9, 0.1];
     nav.poll();
     nav.poll();
@@ -143,6 +145,26 @@ test('an A still held when the continue prompt goes away is not a new press on t
     assert.equal(buttons[0].clicks, 1, 'the next real press counts');
 });
 
+test('a D-pad direction or stick already held when the panel appears does not move the focus', () => {
+    const { doc, buttons, pad, nav } = createScene({ continuePromptVisible: true });
+    buttons[0].focus();
+    pad.buttons[15].pressed = true;
+    pad.axes = [0, 0.9];
+    nav.poll();
+    doc.getElementById('message-actions').classList.add('hidden');
+    nav.poll();
+    nav.poll();
+    assert.equal(doc.activeElement?.id, 'route-a', 'the held direction belonged to the moment before the panel');
+    pad.buttons[15].pressed = false;
+    pad.axes = [0, 0];
+    nav.poll();
+    tap([nav.poll], pad, 15);
+    assert.equal(doc.activeElement?.id, 'route-b', 'after release the next D-pad press moves');
+    pad.axes = [0, 0.9];
+    nav.poll();
+    assert.equal(doc.activeElement?.id, 'confirm', 'after release the next stick push moves');
+});
+
 function withNavigatorPad(pad, run) {
     const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => [pad] } });
@@ -168,6 +190,7 @@ test('the menu poller stays silent while an arcade choice panel is open during a
     withNavigatorPad(pad, () => {
         buttons[0].focus();
         const both = [nav.poll, () => menu._pollGamepadButtons()];
+        for (const poll of both) poll(); // the panel is on screen for a frame before the press
         tap(both, pad, 15);
         tap(both, pad, 0);
     });
