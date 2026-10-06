@@ -1,5 +1,5 @@
 {
-  "count": 41,
+  "count": 32,
   "entries": [
     {
       "map": "showcase_nexus",
@@ -164,64 +164,10 @@
       "reason": "gate (-135, 300, 135) sits inside obstacles[221]"
     },
     {
-      "map": "eiffel_tower",
-      "check": "in-solid",
-      "point": "portals[0].a",
-      "reason": "portal (-216, 56.4, 0) sits inside obstacles[48]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
-    {
-      "map": "eiffel_tower",
-      "check": "in-solid",
-      "point": "portals[2].b",
-      "reason": "portal (-216, 60, 0) sits inside obstacles[48]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
-    {
-      "map": "eiffel_tower_arena",
-      "check": "in-solid",
-      "point": "portals[0].a",
-      "reason": "portal (-216, 56.4, 0) sits inside obstacles[48]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
-    {
-      "map": "eiffel_tower_arena",
-      "check": "in-solid",
-      "point": "portals[2].b",
-      "reason": "portal (-216, 60, 0) sits inside obstacles[48]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
-    {
       "map": "reactor_site",
       "check": "bounds",
       "point": "lights[reactor_fire]",
       "reason": "(0, -144.1, 0) lies outside the arena: y outside 0..858"
-    },
-    {
-      "map": "clockwork_canyon",
-      "check": "in-solid",
-      "point": "botSpawns[5]",
-      "reason": "spawn (0, 58, 0) sits inside obstacles[62]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
-    },
-    {
-      "map": "clockwork_canyon",
-      "check": "in-solid",
-      "point": "items[cc_thick_ne]",
-      "reason": "item (40, 27, -40) sits inside obstacles[58]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
-    },
-    {
-      "map": "clockwork_canyon",
-      "check": "in-solid",
-      "point": "items[cc_shield_sw]",
-      "reason": "item (-40, 27, 40) sits inside obstacles[57]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
-    },
-    {
-      "map": "clockwork_canyon",
-      "check": "in-solid",
-      "point": "items[cc_speed_nw]",
-      "reason": "item (-40, 27, -40) sits inside obstacles[59]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
-    },
-    {
-      "map": "clockwork_canyon",
-      "check": "in-solid",
-      "point": "items[cc_rocket_se]",
-      "reason": "item (40, 27, 40) sits inside obstacles[56]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
     },
     {
       "map": "storm_lighthouse_siege",
