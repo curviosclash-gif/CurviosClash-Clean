@@ -29,6 +29,10 @@ test('every pure parcours time goal is the ideal time times the factor of its di
         assert.ok(factor, `${mapKey} has no factor for its difficulty`);
         const expected = idealTimeSeconds(map) * factor;
         for (const goal of parcoursTimeGoals(map)) {
+            if (!Number.isFinite(goal)) {
+                failures.push(`${mapKey}: TIME_TRIAL without a numeric target`);
+                continue;
+            }
             if (Math.abs(goal - expected) > expected * TOLERANCE) {
                 failures.push(`${mapKey}: goal ${goal}s, expected ${expected.toFixed(1)}s (ideal ${idealTimeSeconds(map).toFixed(1)}s x ${factor})`);
             }
