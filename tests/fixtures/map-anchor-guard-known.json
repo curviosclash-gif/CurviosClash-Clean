@@ -1,0 +1,407 @@
+{
+  "count": 67,
+  "entries": [
+    {
+      "map": "pyramid",
+      "check": "anchor-format",
+      "point": "items[#0]",
+      "reason": "item has no numeric x/y/z pos [0,7,16]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "pyramid",
+      "check": "anchor-format",
+      "point": "items[#1]",
+      "reason": "item has no numeric x/y/z pos [0,40,-88]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "pyramid",
+      "check": "anchor-format",
+      "point": "items[#2]",
+      "reason": "item has no numeric x/y/z pos [-104,18,-18]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "pyramid",
+      "check": "anchor-format",
+      "point": "items[#3]",
+      "reason": "item has no numeric x/y/z pos [104,18,-18]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "pyramid",
+      "check": "anchor-format",
+      "point": "items[#4]",
+      "reason": "item has no numeric x/y/z pos [-78,16,38]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "pyramid",
+      "check": "anchor-format",
+      "point": "items[#5]",
+      "reason": "item has no numeric x/y/z pos [78,16,38]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "pyramid",
+      "check": "anchor-format",
+      "point": "items[#6]",
+      "reason": "item has no numeric x/y/z pos [-40,12,60]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "pyramid",
+      "check": "anchor-format",
+      "point": "items[#7]",
+      "reason": "item has no numeric x/y/z pos [40,12,60]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "showcase_nexus",
+      "check": "in-solid",
+      "point": "items[showcase_speed_lane]",
+      "reason": "item (0, 12, -12) sits inside obstacles[0] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "showcase_nexus",
+      "check": "item-type",
+      "point": "items[showcase_random_lane]",
+      "reason": "no known pickup type in pickupType=undefined type=\"item_coin\"; deliberate random lane? the game rolls a random type for an unknown one; set pickupType or decide it is intended"
+    },
+    {
+      "map": "parcours_assault",
+      "check": "free-directions",
+      "point": "botSpawns[2]",
+      "reason": "only 0/6 axis directions free for 8 units at (132, 54, 90); blocked: +x obstacles[8] (foam), -x obstacles[8] (foam), +y obstacles[8] (foam), -y obstacles[8] (foam), +z obstacles[8] (foam), -z obstacles[8] (foam)"
+    },
+    {
+      "map": "parcours_assault",
+      "check": "in-solid",
+      "point": "botSpawns[4]",
+      "reason": "spawn (306, 72, 72) sits inside obstacles[12]"
+    },
+    {
+      "map": "storm_switchyard",
+      "check": "in-solid",
+      "point": "portals[0].a",
+      "reason": "portal (93, 57, -183) sits inside obstacles[11] (foam); the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "mega_maze_xl",
+      "check": "in-solid",
+      "point": "portals[3].b",
+      "reason": "portal (0, 120, 255) sits inside obstacles[41]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "neon_abyss",
+      "check": "in-solid",
+      "point": "botSpawns[2]",
+      "reason": "spawn (0, 7, 30) sits inside obstacles[0] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "neon_abyss",
+      "check": "free-directions",
+      "point": "botSpawns[5]",
+      "reason": "only 1/6 axis directions free for 8 units at (0, 67, 0); blocked: +x obstacles[11], -x obstacles[11], -y obstacles[11], +z obstacles[11], -z obstacles[11]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "neon_abyss",
+      "check": "in-solid",
+      "point": "items[abyss_rocket_pit]",
+      "reason": "item (0, 5, 0) sits inside obstacles[0] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "neon_abyss",
+      "check": "in-solid",
+      "point": "items[abyss_shield_pit]",
+      "reason": "item (-20, 5, 20) sits inside obstacles[0] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "neon_abyss",
+      "check": "in-solid",
+      "point": "portals[6].a",
+      "reason": "portal (0, 15, 0) sits inside obstacles[0] (foam); the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "crystal_ruins",
+      "check": "in-solid",
+      "point": "botSpawns[3]",
+      "reason": "spawn (-55, 42, -55) sits inside obstacles[31] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "crystal_ruins",
+      "check": "in-solid",
+      "point": "botSpawns[4]",
+      "reason": "spawn (55, 42, 55) sits inside obstacles[30] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "crystal_ruins",
+      "check": "in-solid",
+      "point": "items[cr_rocket_center]",
+      "reason": "item (0, 5, 0) sits inside obstacles[0] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "crystal_ruins",
+      "check": "in-solid",
+      "point": "items[cr_shield_north]",
+      "reason": "item (0, 5, -25) sits inside obstacles[0] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "crystal_ruins",
+      "check": "in-solid",
+      "point": "items[cr_speed_south]",
+      "reason": "item (0, 5, 25) sits inside obstacles[0] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "crystal_ruins",
+      "check": "in-solid",
+      "point": "items[cr_speed_tower]",
+      "reason": "item (55, 44, 55) sits inside obstacles[30] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "vulkan_odyssey",
+      "check": "in-solid",
+      "point": "portals[3].b",
+      "reason": "portal (-420, 30, 0) sits inside obstacles[0] (foam); the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "vulkan_odyssey",
+      "check": "in-solid",
+      "point": "gates[vod_boost_start]",
+      "reason": "gate (-420, 30, 0) sits inside obstacles[0] (foam)"
+    },
+    {
+      "map": "frozen_helix",
+      "check": "in-solid",
+      "point": "portals[0].a",
+      "reason": "portal (75, 150, -60) sits inside obstacles[15] (foam); the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "magma_maze",
+      "check": "in-solid",
+      "point": "portals[0].a",
+      "reason": "portal (0, 30, 0) sits inside obstacles[31] (foam); the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "magma_maze",
+      "check": "in-solid",
+      "point": "gates[mm_boost_mid]",
+      "reason": "gate (0, 30, 0) sits inside obstacles[31] (foam)"
+    },
+    {
+      "map": "eclipse_foundry",
+      "check": "in-solid",
+      "point": "portals[0].a",
+      "reason": "portal (-306, 66, -87) sits inside obstacles[10]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "eclipse_foundry",
+      "check": "in-solid",
+      "point": "portals[0].b",
+      "reason": "portal (-234, 120, 81) sits inside obstacles[14]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "eclipse_foundry",
+      "check": "in-solid",
+      "point": "gates[eclipse_furnace_sling]",
+      "reason": "gate (-336, 54, 30) sits inside obstacles[9]"
+    },
+    {
+      "map": "eclipse_foundry",
+      "check": "in-solid",
+      "point": "gates[eclipse_descent_boost]",
+      "reason": "gate (-174, 273, 60) sits inside obstacles[61]"
+    },
+    {
+      "map": "verdant_aperture",
+      "check": "in-solid",
+      "point": "gates[verdant_bloom_lift]",
+      "reason": "gate (-135, 300, 135) sits inside obstacles[221]"
+    },
+    {
+      "map": "eiffel_tower",
+      "check": "in-solid",
+      "point": "portals[0].a",
+      "reason": "portal (-216, 56.4, 0) sits inside obstacles[48]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "eiffel_tower",
+      "check": "in-solid",
+      "point": "portals[2].b",
+      "reason": "portal (-216, 60, 0) sits inside obstacles[48]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "eiffel_tower_arena",
+      "check": "in-solid",
+      "point": "portals[0].a",
+      "reason": "portal (-216, 56.4, 0) sits inside obstacles[48]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "eiffel_tower_arena",
+      "check": "in-solid",
+      "point": "portals[2].b",
+      "reason": "portal (-216, 60, 0) sits inside obstacles[48]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
+    },
+    {
+      "map": "reactor_site",
+      "check": "bounds",
+      "point": "lights[reactor_fire]",
+      "reason": "(0, -144.1, 0) lies outside the arena: y outside 0..858"
+    },
+    {
+      "map": "clockwork_canyon",
+      "check": "in-solid",
+      "point": "botSpawns[5]",
+      "reason": "spawn (0, 58, 0) sits inside obstacles[62]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "clockwork_canyon",
+      "check": "in-solid",
+      "point": "items[cc_thick_ne]",
+      "reason": "item (40, 27, -40) sits inside obstacles[58]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "clockwork_canyon",
+      "check": "in-solid",
+      "point": "items[cc_shield_sw]",
+      "reason": "item (-40, 27, 40) sits inside obstacles[57]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "clockwork_canyon",
+      "check": "in-solid",
+      "point": "items[cc_speed_nw]",
+      "reason": "item (-40, 27, -40) sits inside obstacles[59]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "clockwork_canyon",
+      "check": "in-solid",
+      "point": "items[cc_rocket_se]",
+      "reason": "item (40, 27, 40) sits inside obstacles[56]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
+    },
+    {
+      "map": "storm_bridge_siege",
+      "check": "anchor-format",
+      "point": "items[#0]",
+      "reason": "item has no numeric x/y/z pos [-38,12,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "storm_bridge_siege",
+      "check": "anchor-format",
+      "point": "items[#1]",
+      "reason": "item has no numeric x/y/z pos [38,12,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "storm_lighthouse_siege",
+      "check": "bounds",
+      "point": "lights[lighthouse_lantern]",
+      "reason": "(0, 522, 0) lies outside the arena: y outside 0..300"
+    },
+    {
+      "map": "storm_dam_siege",
+      "check": "anchor-format",
+      "point": "items[#0]",
+      "reason": "item has no numeric x/y/z pos [-38,12,-8]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "storm_dam_siege",
+      "check": "anchor-format",
+      "point": "items[#1]",
+      "reason": "item has no numeric x/y/z pos [38,12,8]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "skyline_siege",
+      "check": "anchor-format",
+      "point": "items[#0]",
+      "reason": "item has no numeric x/y/z pos [-42,12,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "skyline_siege",
+      "check": "anchor-format",
+      "point": "items[#1]",
+      "reason": "item has no numeric x/y/z pos [42,12,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "skyline_siege",
+      "check": "anchor-format",
+      "point": "items[#2]",
+      "reason": "item has no numeric x/y/z pos [0,25,40]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "skyline_siege",
+      "check": "bounds",
+      "point": "lights[skyline_spire_beacon]",
+      "reason": "(-288, 318, 0) lies outside the arena: x beyond ±270, y outside 0..300; lights authored in world units on a map that scales anchors, 3x too large"
+    },
+    {
+      "map": "skyline_siege",
+      "check": "light-reach",
+      "point": "lights[skyline_spire_beacon]",
+      "reason": "nothing within its distance 270 at (-288, 318, 0); nearest obstacle or model is 307 away; lights authored in world units on a map that scales anchors, 3x too large"
+    },
+    {
+      "map": "skyline_siege",
+      "check": "light-reach",
+      "point": "lights[skyline_crown_beacon]",
+      "reason": "nothing within its distance 255 at (0, 288, 162); nearest obstacle or model is 276 away; lights authored in world units on a map that scales anchors, 3x too large"
+    },
+    {
+      "map": "skyline_siege",
+      "check": "bounds",
+      "point": "lights[skyline_arcology_beacon]",
+      "reason": "(288, 273, -144) lies outside the arena: x beyond ±270; lights authored in world units on a map that scales anchors, 3x too large"
+    },
+    {
+      "map": "skyline_siege",
+      "check": "light-reach",
+      "point": "lights[skyline_arcology_beacon]",
+      "reason": "nothing within its distance 255 at (288, 273, -144); nearest obstacle or model is 262 away; lights authored in world units on a map that scales anchors, 3x too large"
+    },
+    {
+      "map": "cherry_grove",
+      "check": "anchor-format",
+      "point": "items[#0]",
+      "reason": "item has no numeric x/y/z pos [-34,6,-5]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "cherry_grove",
+      "check": "anchor-format",
+      "point": "items[#1]",
+      "reason": "item has no numeric x/y/z pos [34,6,12]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "cherry_grove",
+      "check": "anchor-format",
+      "point": "items[#2]",
+      "reason": "item has no numeric x/y/z pos [0,8,48]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "bloom_core",
+      "check": "anchor-format",
+      "point": "items[#0]",
+      "reason": "item has no numeric x/y/z pos [-12,14,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "bloom_core",
+      "check": "anchor-format",
+      "point": "items[#1]",
+      "reason": "item has no numeric x/y/z pos [12,14,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "bloom_core",
+      "check": "anchor-format",
+      "point": "items[#2]",
+      "reason": "item has no numeric x/y/z pos [0,14,-12]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "bloom_core",
+      "check": "anchor-format",
+      "point": "items[#3]",
+      "reason": "item has no numeric x/y/z pos [0,14,12]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "bloom_core",
+      "check": "anchor-format",
+      "point": "items[#4]",
+      "reason": "item has no numeric x/y/z pos [-47,16,-47]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    },
+    {
+      "map": "bloom_core",
+      "check": "anchor-format",
+      "point": "items[#5]",
+      "reason": "item has no numeric x/y/z pos [47,16,47]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+    }
+  ]
+}
