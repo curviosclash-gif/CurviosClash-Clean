@@ -1,5 +1,5 @@
 import { NOTRE_DAME_MAPS } from './index.js';
-import { NOTRE_DAME_FIRE_MAPS } from '../notre_dame_fire/index.js';
+import { NOTRE_DAME_FIRE_LOOK } from '../notre_dame_fire/index.js';
 import { NOTRE_DAME_EVOLUTION_MODELS } from './NotreDameEvolutionModels.js';
 
 const specs = [
@@ -42,10 +42,11 @@ function dayLights(intact, burnt) {
 }
 
 function evolve(intact, burnt, arena) {
+    const fireLighting = arena ? burnt.arenaLighting : burnt.lighting;
     const profile = {
         segments: fireSegments,
-        lighting: { ...burnt.lighting, fog: { ...burnt.lighting.fog, colorLow: 0x62352b },
-            skyDome: { ...burnt.lighting.skyDome, nadirColor: 0x62352b } },
+        lighting: { ...fireLighting, fog: { ...fireLighting.fog, colorLow: 0x62352b },
+            skyDome: { ...fireLighting.skyDome, nadirColor: 0x62352b } },
     };
     return {
         ...intact,
@@ -59,8 +60,10 @@ function evolve(intact, burnt, arena) {
         ...(arena ? {} : { parcours: { ...intact.parcours, routeId: 'notre_dame_evolution_v1' } }),
     };
 }
-const parcours = evolve(NOTRE_DAME_MAPS.notre_dame, NOTRE_DAME_FIRE_MAPS.notre_dame_fire, false);
-const arena = evolve(NOTRE_DAME_MAPS.notre_dame_arena, NOTRE_DAME_FIRE_MAPS.notre_dame_fire_arena, true);
+const parcours = evolve(NOTRE_DAME_MAPS.notre_dame, NOTRE_DAME_FIRE_LOOK, false);
+const arena = evolve(NOTRE_DAME_MAPS.notre_dame_arena, NOTRE_DAME_FIRE_LOOK, true);
+// notre_dame_fire / notre_dame_fire_arena no longer have maps of their own: they stay as hidden keys
+// so saved settings, recents and running sessions that still name them load the evolution.
 export const NOTRE_DAME_EVOLUTION_MAPS = {
     notre_dame: parcours, notre_dame_arena: arena,
     notre_dame_fire: { ...parcours, hiddenFromMapPicker: true },
