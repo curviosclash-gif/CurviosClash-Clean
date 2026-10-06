@@ -402,3 +402,26 @@ export const SUNRISE_LIGHTING = normalizeMapLighting({
     starsVisible: false,
     exposureOffset: 0.05,
 });
+
+// Pyramid (Krone des Sonnengottes): kept verbatim, not normalized, so the runtime resolves it as before.
+export const PYRAMID_SUN_LIGHTING = {
+    key: { direction: [42, 70, 28], color: 0xffd08a, intensity: 1.95 },
+    fill: { direction: [-34, 32, -30], color: 0x8fc7e8, intensity: 0.58 },
+    rim: { direction: [0, 40, 48], color: 0xffb85c, intensity: 0.38 },
+    hemisphere: { skyColor: 0xf0d49d, groundColor: 0x765234 },
+    skyDome: { zenithColor: 0x356d99, horizonColor: 0xd6ad73, nadirColor: 0x6b432a },
+    fog: {
+        color: 0xd3a56b,
+        near: 360,
+        far: 560,
+        height: 3,
+        heightFalloff: 0.04,
+        turbulence: 0.05,
+        skyBlend: 1,
+        colorHigh: 0xc7a476,
+        colorLow: 0x8c6844,
+        clipClosureStart: 0.8,
+    },
+    starsVisible: false,
+    exposureOffset: 0,
+};

@@ -5,7 +5,7 @@
 import { TEST_HANGAR_GLB_DATA_URI } from './EmbeddedGlbMapAssets.js';
 import { startPoints } from './MapPresetStartPoints.js';
 import { authoredWorld, CLASSIC_WORLD_APPEARANCE, STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
-import { BATTLEFIELD_SUNSET_LIGHTING, CLEAR_DAY_LIGHTING, FLOODLIT_PIT_LIGHTING, FOREST_DAY_LIGHTING, GOLDEN_HOUR_LIGHTING, HALL_TORCHLIGHT_LIGHTING, PORTAL_PSYCHEDELIC_LIGHTING, REACTOR_GLOW_LIGHTING, TWILIGHT_BEACON_LIGHTING } from './presets/map_lighting_profiles.js';
+import { BATTLEFIELD_SUNSET_LIGHTING, PYRAMID_SUN_LIGHTING, CLEAR_DAY_LIGHTING, FLOODLIT_PIT_LIGHTING, FOREST_DAY_LIGHTING, GOLDEN_HOUR_LIGHTING, HALL_TORCHLIGHT_LIGHTING, PORTAL_PSYCHEDELIC_LIGHTING, REACTOR_GLOW_LIGHTING, TWILIGHT_BEACON_LIGHTING } from './presets/map_lighting_profiles.js';
 
 // Storm and ambience share one shelter list; the volumes are the interiors built by
 // scripts/generate_pyramid_map_assets.py (tests/pyramid-blender-assets.contract.test.mjs).
@@ -153,27 +153,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ],
         glbColliderMode: 'scene',
         glbAuthoredObstaclesCollisionOnly: true,
-        lighting: {
-            key: { direction: [42, 70, 28], color: 0xffd08a, intensity: 1.95 },
-            fill: { direction: [-34, 32, -30], color: 0x8fc7e8, intensity: 0.58 },
-            rim: { direction: [0, 40, 48], color: 0xffb85c, intensity: 0.38 },
-            hemisphere: { skyColor: 0xf0d49d, groundColor: 0x765234 },
-            skyDome: { zenithColor: 0x356d99, horizonColor: 0xd6ad73, nadirColor: 0x6b432a },
-            fog: {
-                color: 0xd3a56b,
-                near: 360,
-                far: 560,
-                height: 3,
-                heightFalloff: 0.04,
-                turbulence: 0.05,
-                skyBlend: 1,
-                colorHigh: 0xc7a476,
-                colorLow: 0x8c6844,
-                clipClosureStart: 0.8,
-            },
-            starsVisible: false,
-            exposureOffset: 0,
-        },
+        lighting: PYRAMID_SUN_LIGHTING,
         obstacles: [
             { pos: [0, -1, 0], size: [260, 2, 260], kind: 'foam', compileWithGlb: true },
             { pos: [0, 18, -60], size: [100, 36, 100] },
