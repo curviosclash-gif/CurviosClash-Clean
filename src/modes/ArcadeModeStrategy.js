@@ -13,9 +13,10 @@ import {
 } from '../shared/contracts/ArcadeRunRewardEffectsContract.js';
 import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
 import { HuntModeStrategy } from './HuntModeStrategy.js';
+import { applyPlayerCrashDamage } from './HuntCollisionOps.js';
 import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE } from '../shared/contracts/EndlessParcoursContract.js';
 import { ARENA_WAVES_COMBAT_PROFILE } from '../shared/contracts/ArenaWavesContract.js';
-import { resolveArcadeParcoursRespawnFallback, resolveArcadeRunCombatProfile } from './ArcadeRunRulesOps.js';
+import { ARCADE_COLLISION_COOLDOWN, ARCADE_COLLISION_DAMAGE, resolveArcadeParcoursRespawnFallback, resolveArcadeRunCombatProfile } from './ArcadeRunRulesOps.js';
 import { applyArcadeEndlessSpawnBonuses, resetArcadeEndlessPlayerHealth } from './ArcadeEndlessVehicleBonusOps.js';
 import { applyArcadeBuildToPlayer, applyArcadeGauntletHealthReset, applyArcadeVehicleSpawnCapacities, capArcadeVehicleSpeedMultiplier, isNormalArcadeRunType, resolveArcadeVehicleStatPct } from './ArcadeVehicleStatOps.js';
 import { resolveArcadeSimulationSeconds, stampArcadeHitOnSimulationClock, updateArcadeBaseRegen } from './ArcadeBaseRegenOps.js';
@@ -406,16 +407,16 @@ export class ArcadeModeStrategy extends GameModeContract {
     resolveCollisionDamage(cause) {
         if (this._huntCombat) return this._huntCombat.resolveCollisionDamage(cause);
         const key = String(cause || '').toUpperCase();
-        if (key === 'TRAIL' || key === 'TRAIL_SELF' || key === 'TRAIL_OTHER') return 34;
-        if (key === 'PLAYER_CRASH') return 40;
-        return 22;
+        if (key === 'TRAIL' || key === 'TRAIL_SELF' || key === 'TRAIL_OTHER') return ARCADE_COLLISION_DAMAGE.TRAIL;
+        if (key === 'PLAYER_CRASH') return ARCADE_COLLISION_DAMAGE.PLAYER_CRASH;
+        return ARCADE_COLLISION_DAMAGE.WALL;
     }
 
     resolveCollisionCooldown(cause) {
         if (this._huntCombat) return this._huntCombat.resolveCollisionCooldown(cause);
         const key = String(cause || '').toUpperCase();
-        if (key === 'PLAYER_CRASH') return 0.5;
-        return 0.6;
+        if (key === 'PLAYER_CRASH') return ARCADE_COLLISION_COOLDOWN.PLAYER_CRASH;
+        return ARCADE_COLLISION_COOLDOWN.WALL;
     }
 
     grantShield(player) {
@@ -535,38 +536,11 @@ export class ArcadeModeStrategy extends GameModeContract {
 
     handlePlayerCrash(player, otherPlayer, crashNormal, entityManager) {
         if (this._huntCombat) return this._huntCombat.handlePlayerCrash(player, otherPlayer, crashNormal, entityManager);
-        const crashDamage = this.resolveCollisionDamage('PLAYER_CRASH');
-        const cooldown = this.resolveCollisionCooldown('PLAYER_CRASH');
-        player.crashDamageCooldown = cooldown;
-        otherPlayer.crashDamageCooldown = cooldown;
-
-        const damageResult = this.applyDamage(player, crashDamage);
-        entityManager._emitHuntDamageEvent({
-            target: player,
-            sourcePlayer: otherPlayer,
-            cause: 'PLAYER_CRASH',
-            hitNormal: crashNormal || null,
-            damageResult,
-            impactPoint: player.position,
+        return applyPlayerCrashDamage(player, otherPlayer, crashNormal, entityManager, {
+            damage: this.resolveCollisionDamage('PLAYER_CRASH'),
+            cooldown: this.resolveCollisionCooldown('PLAYER_CRASH'),
+            dealDamage: (target, amount) => this.applyDamage(target, amount),
         });
-        const otherDamageResult = this.applyDamage(otherPlayer, crashDamage);
-        entityManager._emitHuntDamageEvent({
-            target: otherPlayer,
-            sourcePlayer: player,
-            cause: 'PLAYER_CRASH',
-            hitNormal: crashNormal || null,
-            damageResult: otherDamageResult,
-            impactPoint: otherPlayer.position,
-        });
-
-        if (otherDamageResult.isDead) {
-            entityManager._killPlayer(otherPlayer, 'PLAYER_CRASH', { killer: player });
-        }
-        if (damageResult.isDead) {
-            entityManager._killPlayer(player, 'PLAYER_CRASH', { killer: otherPlayer });
-            return true;
-        }
-        return false;
     }
 
     handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager) {
