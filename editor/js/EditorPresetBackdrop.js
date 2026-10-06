@@ -1,7 +1,8 @@
 import { getCustomMapConversionScale } from '../../src/entities/CustomMapLoader.js';
 import { parseMapJSON, toArenaMapDefinition } from '../../src/entities/MapSchema.js';
 
-// A built-in map as backdrop: its world model, spawns and lighting become an editor map, and
+// A built-in map as backdrop: its world model, spawns and lighting become an editor map (saved
+// with it, so the match lights it the same), and
 // what the author places on top is handed back in the preset's own coordinates. Pure: the
 // caller passes the preset catalog in, so the editor can load it lazily.
 
@@ -36,6 +37,27 @@ export function listBackdropPresets(catalog) {
 }
 
 /**
+ * An editor map always scales its anchors, so the match multiplies its fog height by MAP_SCALE
+ * and divides the falloff by it. A preset without scaleAuthoredAnchors states both in world
+ * units; converted here they end up at the same world height. Fog distances are world units
+ * either way and stay.
+ */
+function adaptLightingToScaledAnchors(lighting, preset, mapScale) {
+    if (!lighting || typeof lighting !== 'object' || preset?.scaleAuthoredAnchors === true) return lighting;
+    const fog = lighting.fog;
+    if (!fog || typeof fog !== 'object') return lighting;
+    const scale = Math.max(0.001, finiteOr(mapScale, 3));
+    return {
+        ...lighting,
+        fog: {
+            ...fog,
+            ...(fog.height !== undefined ? { height: finiteOr(fog.height, 0) / scale } : {}),
+            ...(fog.heightFalloff !== undefined ? { heightFalloff: finiteOr(fog.heightFalloff, 0) * scale } : {}),
+        },
+    };
+}
+
+/**
  * Editor map document of a built-in map. Spawns follow the preset's own convention: map units
  * with scaleAuthoredAnchors, match world units without.
  */
@@ -59,15 +81,16 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
             ...(targetSize > 0 ? { targetSize: targetSize * units } : { scale: finiteOr(model.scale, 1) * units }),
         };
     });
+    const lighting = adaptLightingToScaledAnchors(preset.lighting, preset, mapScale);
     return {
         document: {
             arenaSize: { width, height, depth },
             glbModels,
+            ...(lighting ? { lighting } : {}),
             ...(preset.glbColliderMode ? { glbColliderMode: preset.glbColliderMode } : {}),
             ...(preset.playerSpawn ? { playerSpawn: toAnchor(preset.playerSpawn, 'spawn_player') } : {}),
             botSpawns: (preset.botSpawns || []).map((spawn, index) => toAnchor(spawn, `spawn_bot_${index + 1}`)),
         },
-        lighting: preset.lighting,
     };
 }
 

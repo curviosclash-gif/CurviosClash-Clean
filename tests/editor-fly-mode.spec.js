@@ -305,6 +305,13 @@ test('Spielkarte als Grundlage: Kinderzimmer gesperrt mit Spiel-Licht, Platzieru
         cameraAtSpawn: true,
     });
 
+    // Saved as a new map, the toybox lighting goes along into the match.
+    const savedLighting = await page.evaluate(() => {
+        const editor = window.CURVIOS_EDITOR;
+        return JSON.parse(editor.mapManager.generateJSONExport(editor.ui.getArenaSizeForExport())).lighting || null;
+    });
+    expect(savedLighting?.hemisphere).toEqual({ skyColor: 0xdfefff, groundColor: 0xcbb89a });
+
     await page.evaluate(() => {
         window.CURVIOS_EDITOR.mapManager.createMesh('item', 'item_star', 350, 700, -1050, 0, { id: 'star_1' });
     });

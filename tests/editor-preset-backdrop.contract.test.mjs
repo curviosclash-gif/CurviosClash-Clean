@@ -9,6 +9,8 @@ import * as THREE from 'three';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { getCustomMapConversionScale } from '../src/entities/CustomMapLoader.js';
+import { parseMapJSON, toArenaMapDefinition } from '../src/entities/MapSchema.js';
+import { resolveMapLighting } from '../src/shared/contracts/MapLightingContract.js';
 import { EditorMapManager } from '../editor/js/EditorMapManager.js';
 import {
     BACKDROP_ID_PREFIX,
@@ -56,8 +58,9 @@ test('the backdrop list holds the built-in maps with a world model, all converte
 
 test('the toybox backdrop round-trips its world and spawns through the editor export', () => {
     const preset = MAP_PRESET_CATALOG.toybox_titan;
-    const { document, lighting } = convertPresetToEditorDocument('toybox_titan', preset, { mapScale: MAP_SCALE });
-    assert.equal(lighting, preset.lighting);
+    const { document } = convertPresetToEditorDocument('toybox_titan', preset, { mapScale: MAP_SCALE });
+    // The toybox scales its anchors, so its lighting is taken over as it is.
+    assert.deepEqual(document.lighting, preset.lighting);
     assert.deepEqual(
         [document.arenaSize.width, document.arenaSize.height, document.arenaSize.depth],
         preset.size.map((value) => value * PRESET_EDITOR_UNITS_PER_MAP_UNIT),
@@ -93,6 +96,40 @@ test('a map without scaled anchors keeps its spawns in world units both ways', (
     near(exported.playerSpawn.x, 30, 'spawn x back in world units');
     near(exported.botSpawns[0].z, 60, 'bot z back in world units');
     assert.equal(exported.scaleAuthoredAnchors, undefined);
+});
+
+/** Lighting of the map the match builds from an editor export. */
+function exportedMatchLighting(mapManager, arenaSize) {
+    const parsed = parseMapJSON(mapManager.generateJSONExport(arenaSize));
+    const conversion = getCustomMapConversionScale(parsed.map).scale;
+    return toArenaMapDefinition(parsed.map, { mapScale: conversion }).map;
+}
+
+test('a map saved on a backdrop keeps the backdrop lighting in the match', () => {
+    const preset = MAP_PRESET_CATALOG.toybox_titan;
+    const { document } = convertPresetToEditorDocument('toybox_titan', preset, { mapScale: MAP_SCALE });
+    const { mapManager, load } = createEditor();
+    const arenaSize = load(document);
+    const matchMap = exportedMatchLighting(mapManager, arenaSize);
+    assert.deepEqual(resolveMapLighting(matchMap.lighting), resolveMapLighting(preset.lighting));
+});
+
+test('fog heights of a map without scaled anchors stay at the same world height', () => {
+    const preset = {
+        size: [100, 40, 100],
+        glbModels: [{ id: 'w', url: 'assets/maps/w/glb/w.glb', position: [0, 0, 0] }],
+        playerSpawn: { x: 0, y: 9, z: 0 },
+        lighting: { fog: { height: 30, heightFalloff: 0.02, near: 60, far: 220 } },
+    };
+    const { document } = convertPresetToEditorDocument('plain', preset, { mapScale: MAP_SCALE });
+    const { mapManager, load } = createEditor();
+    const matchMap = exportedMatchLighting(mapManager, load(document));
+    // The editor map scales its anchors, so the match multiplies its fog height by MAP_SCALE
+    // and divides the falloff by it; the preset did neither.
+    const fog = resolveMapLighting(matchMap.lighting).fog;
+    near(fog.height * MAP_SCALE, 30, 'world fog height');
+    near(fog.heightFalloff / MAP_SCALE, 0.02, 'world fog falloff');
+    near(fog.far, 220, 'fog distance stays in world units');
 });
 
 test('objects placed on the backdrop are handed out without the backdrop itself', () => {

@@ -40,8 +40,6 @@ export function bindEditorBackdropControls(editor) {
         });
 
     const hasBackdrop = () => editor.core.objectsContainer.children.some(isBackdropObject);
-    // The game view reads this; a later "Neu" or import without a backdrop drops the lighting.
-    editor.getBackdropLighting = () => (editor.backdrop && hasBackdrop() ? editor.backdrop.lighting : undefined);
 
     // Like a pilot at the start: in the player spawn, looking level towards the map centre.
     const lookFromPlayerSpawn = () => {
@@ -70,7 +68,7 @@ export function bindEditorBackdropControls(editor) {
             });
             if (confirmed === false) return false;
         }
-        const { document: mapDocument, lighting } = convertPresetToEditorDocument(key, preset, { mapScale: getRuntimeMapScale(1) });
+        const { document: mapDocument } = convertPresetToEditorDocument(key, preset, { mapScale: getRuntimeMapScale(1) });
         editor.executeHistoryMutation('Load map backdrop', () => {
             editor.mapManager.importFromJSON(JSON.stringify(mapDocument), {
                 onArenaSize: (arenaSize) => {
@@ -83,7 +81,7 @@ export function bindEditorBackdropControls(editor) {
             }
             editor.refreshLayerState?.();
         });
-        editor.backdrop = { key, preset, lighting };
+        editor.backdrop = { key, preset };
         editor.enableGameView?.();
         editor.refreshGameView?.();
         editor.selectObject(null);

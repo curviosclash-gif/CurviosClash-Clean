@@ -61,7 +61,8 @@ export function bindEditorGameViewControls(editor) {
         const arenaSize = editor.getArenaSizeForExport();
         rig.setShadowCoverage(resolveEditorArenaShadowBounds(arenaSize));
         const lighting = applyEditorGameLighting(rig, core.scene, {
-            mapLighting: editor.getBackdropLighting?.() ?? editor.mapManager?.mapDocumentMeta?.lighting,
+            // The map's own lighting, as the match will apply it; undefined keeps the style base.
+            mapLighting: editor.mapManager?.mapDocumentMeta?.lighting,
             unitsPerWorldUnit: resolveEditorUnitsPerWorldUnit(arenaSize),
         });
         gameFog.near = core.scene.fog.near;
@@ -156,6 +157,16 @@ export function bindEditorGameViewControls(editor) {
     editor.enableGameView = enableGameView;
     editor.disableGameView = disableGameView;
     editor.isGameViewActive = () => !!rig;
-    // Arena size or map lighting changed: the fog distances and the shadow box follow.
-    editor.refreshGameView = applyLook;
+    // Arena size or map lighting changed: the fog distances and the shadow box follow. An import
+    // reports the arena size before it stores the map's lighting, so the refresh waits until the
+    // import has finished.
+    let refreshQueued = false;
+    editor.refreshGameView = () => {
+        if (!rig || refreshQueued) return;
+        refreshQueued = true;
+        queueMicrotask(() => {
+            refreshQueued = false;
+            applyLook();
+        });
+    };
 }
