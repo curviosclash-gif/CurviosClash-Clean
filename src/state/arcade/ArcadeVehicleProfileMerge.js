@@ -10,7 +10,10 @@ import {
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 
 const COUNTER_FIELDS = new Set(['xp', 'xpBank', 'totalXpEarned', 'spentUpgradeXp', 'upgradesApplied']);
-const SKIPPED_FIELDS = new Set(['createdAt', 'updatedAt', 'level']);const PROFILE_BASES = new WeakMap();
+const SKIPPED_FIELDS = new Set(['createdAt', 'updatedAt', 'level']);
+// Sets of IDs that only grow (milestones that addXp sets on a level-up, endless run receipts):
+// merged as a union, so a slower writer never drops what the other one reached.
+const ID_LIST_FIELDS = new Set(['masteryMilestones', 'endlessSettlementIds']);const PROFILE_BASES = new WeakMap();
 
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 
@@ -52,6 +55,8 @@ export function mergeArcadeVehicleProfileChanges(fresh, ours, base) {
             // Two writers spent the same bank XP: clamping to 0 would hand out uncovered upgrades.
             if (key === 'xpBank' && value < 0) return null;
             merged[key] = clampArcadeProfileCount(value);
+        } else if (ID_LIST_FIELDS.has(key) && Array.isArray(fresh[key]) && Array.isArray(ours[key])) {
+            merged[key] = [...new Set([...fresh[key], ...ours[key]])];
         } else {
             merged[key] = ours[key];
         }

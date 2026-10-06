@@ -129,3 +129,22 @@ test('earned XP keeps the bank positive, so spending beside a run is merged norm
     assert.equal(saveVehicleProfiles(store, hangar), true);
     assert.equal(stored(store, 'ship5').xpBank, 150);
 });
+
+test('milestones and endless receipts from two writers are merged as a union', () => {
+    const store = createStore();
+    const a = loadVehicleProfiles(store);
+    const b = loadVehicleProfiles(store);
+    const ship1Binding = bindArcadeVehicleRewards({ runType: 'gauntlet', vehicleId: 'ship1' });
+
+    awardBoundArcadeVehicleXp(a, ship1Binding, 10_000, 1);
+    a.ship1 = { ...a.ship1, endlessSettlementIds: ['run-a'] };
+    assert.notEqual(saveVehicleProfiles(store, a), false);
+    awardBoundArcadeVehicleXp(b, ship1Binding, 1_200, 2);
+    b.ship1 = { ...b.ship1, endlessSettlementIds: ['run-b'] };
+    assert.notEqual(saveVehicleProfiles(store, b), false);
+
+    const ship1 = stored(store, 'ship1');
+    assert.ok(ship1.level >= 10);
+    assert.ok(ship1.masteryMilestones.includes('tactician'), 'the slower writer keeps the higher milestones');
+    assert.deepEqual([...ship1.endlessSettlementIds].sort(), ['run-a', 'run-b']);
+});
