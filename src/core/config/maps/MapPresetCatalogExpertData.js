@@ -3,6 +3,7 @@
 // ============================================
 
 import { MAP_PRESET_CATALOG_LARGE_DATA } from './MapPresetCatalogLarge.js';
+import { startPoints } from './MapPresetStartPoints.js';
 import { authoredWorld } from './presets/world_appearance.js';
 
 export const MAP_PRESET_CATALOG_EXPERT_DATA = {
@@ -10,14 +11,7 @@ export const MAP_PRESET_CATALOG_EXPERT_DATA = {
         ...authoredWorld('mega_maze'),
         name: 'Mega-Labyrinth',
         size: [100, 35, 100],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 30, z: 60 },
-        botSpawns: [
-            { x: 52, y: 30, z: 66 }, { x: 108, y: 22, z: 27 }, { x: 60, y: 30, z: -2 },
-            { x: 52, y: 30, z: -66 }, { x: 4, y: 30, z: -56 }, { x: -65, y: 30, z: -67 },
-            { x: -100, y: 22, z: -49 }, { x: -58, y: 30, z: 17 }, { x: -60, y: 30, z: 58 },
-        ],
+        ...startPoints('mega_maze'),
         obstacles: [
             { pos: [-40, 12, -30], size: [20, 24, 3], tunnel: { radius: 4.0, axis: 'z' } },
             { pos: [0, 23, -30], size: [20, 24, 3], tunnel: { radius: 3.8, axis: 'z' } },

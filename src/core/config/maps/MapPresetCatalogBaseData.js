@@ -3,6 +3,7 @@
 // ============================================
 
 import { TEST_HANGAR_GLB_DATA_URI } from './EmbeddedGlbMapAssets.js';
+import { startPoints } from './MapPresetStartPoints.js';
 import { authoredWorld, CLASSIC_WORLD_APPEARANCE, STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
 
 // Storm and ambience share one shelter list; the volumes are the interiors built by
@@ -95,14 +96,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ...CLASSIC_WORLD_APPEARANCE.maze,
         name: 'Labyrinth',
         size: [80, 10, 80],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: -16, y: 15, z: 88 },
-        botSpawns: [
-            { x: 31, y: 15, z: 42 }, { x: 78, y: 15, z: 25 }, { x: 78, y: 15, z: -25 },
-            { x: 31, y: 15, z: -42 }, { x: 16, y: 15, z: -88 }, { x: -31, y: 15, z: -42 },
-            { x: -78, y: 15, z: -25 }, { x: -78, y: 15, z: 25 }, { x: -31, y: 15, z: 42 },
-        ],
+        ...startPoints('maze'),
         obstacles: [
             { pos: [-20, 5, -20], size: [20, 10, 2] },
             { pos: [20, 5, -20], size: [20, 10, 2] },
@@ -123,14 +117,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ...CLASSIC_WORLD_APPEARANCE.complex,
         name: 'Komplex',
         size: [90, 12.5, 90],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 20, z: 84 },
-        botSpawns: [
-            { x: 44, y: 20, z: 61 }, { x: 80, y: 20, z: 26 }, { x: 80, y: 20, z: -26 },
-            { x: 49, y: 20, z: -68 }, { x: 0, y: 20, z: -84 }, { x: -44, y: 20, z: -61 },
-            { x: -80, y: 20, z: -26 }, { x: -80, y: 20, z: 26 }, { x: -49, y: 20, z: 68 },
-        ],
+        ...startPoints('complex'),
         obstacles: [
             { pos: [0, 5, 0], size: [6, 12, 6] },
             { pos: [-25, 5, -25], size: [10, 8, 2] },
@@ -230,14 +217,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ...CLASSIC_WORLD_APPEARANCE.vertical_maze,
         name: 'Vertikales Labyrinth',
         size: [100, 45, 100],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 45, z: 90 },
-        botSpawns: [
-            { x: 50, y: 45, z: 69 }, { x: 81, y: 45, z: 26 }, { x: 81, y: 45, z: -26 },
-            { x: 50, y: 45, z: -69 }, { x: 0, y: 45, z: -81 }, { x: -50, y: 45, z: -69 },
-            { x: -86, y: 45, z: -28 }, { x: -86, y: 45, z: 28 }, { x: -50, y: 45, z: 69 },
-        ],
+        ...startPoints('vertical_maze'),
         obstacles: [
             { pos: [30, 15, 30], size: [8, 30, 8] },
             { pos: [-30, 15, -30], size: [8, 30, 8] },
@@ -258,14 +238,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ...CLASSIC_WORLD_APPEARANCE.trench,
         name: 'Der Graben',
         size: [54, 40, 160],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 40, z: 187 },
-        botSpawns: [
-            { x: 23, y: 48, z: 155 }, { x: 39, y: 40, z: 58 }, { x: 39, y: 40, z: -58 },
-            { x: 25, y: 40, z: -159 }, { x: 0, y: 40, z: -197 }, { x: -25, y: 40, z: -159 },
-            { x: -39, y: 40, z: -58 }, { x: -39, y: 40, z: 58 }, { x: -23, y: 48, z: 155 },
-        ],
+        ...startPoints('trench'),
         obstacles: [
             { pos: [-25, 20, 0], size: [4, 40, 160] },
             { pos: [25, 20, 0], size: [4, 40, 160] },
@@ -279,14 +252,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ...authoredWorld('foam_forest'),
         name: 'Schaumwald',
         size: [100, 30, 100],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 30, z: 56 },
-        botSpawns: [
-            { x: 57, y: 30, z: 79 }, { x: 96, y: 30, z: 35 }, { x: 96, y: 30, z: -35 },
-            { x: 57, y: 30, z: -79 }, { x: 0, y: 30, z: -56 }, { x: -57, y: 30, z: -79 },
-            { x: -96, y: 30, z: -35 }, { x: -96, y: 30, z: 35 }, { x: -57, y: 30, z: 79 },
-        ],
+        ...startPoints('foam_forest'),
         obstacles: [
             { pos: [15, 15, 15], size: [3, 30, 3], kind: 'foam' },
             { pos: [-15, 15, 15], size: [3, 30, 3], kind: 'foam' },
@@ -303,14 +269,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     crossfire: {
         name: 'Kreuzfeuer',
         size: [120, 40, 120],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: -36, y: 40, z: 125 },
-        botSpawns: [
-            { x: 63, y: 40, z: 87 }, { x: 101, y: 40, z: 37 }, { x: 101, y: 40, z: -37 },
-            { x: 63, y: 40, z: -87 }, { x: 36, y: 40, z: -125 }, { x: -63, y: 40, z: -87 },
-            { x: -101, y: 40, z: -37 }, { x: -101, y: 40, z: 37 }, { x: -63, y: 40, z: 87 },
-        ],
+        ...startPoints('crossfire'),
         obstacles: [
             { pos: [0, 20, 0], size: [120, 20, 4] },
             { pos: [0, 20, 0], size: [4, 20, 120] },
@@ -323,14 +282,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     checkerboard: {
         name: 'Schachbrett',
         size: [100, 40, 100],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 60, z: 93 },
-        botSpawns: [
-            { x: 55, y: 90, z: 75 }, { x: 85, y: 70, z: 24 }, { x: 85, y: 50, z: -24 },
-            { x: 55, y: 30, z: -75 }, { x: 0, y: 60, z: -93 }, { x: -55, y: 90, z: -75 },
-            { x: -85, y: 70, z: -24 }, { x: -85, y: 50, z: 24 }, { x: -55, y: 30, z: 75 },
-        ],
+        ...startPoints('checkerboard'),
         obstacles: [
             { pos: [-25, 10, -25], size: [15, 20, 15] },
             { pos: [25, 10, 25], size: [15, 20, 15] },
@@ -342,14 +294,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     the_pit: {
         name: 'Die Arena',
         size: [120, 30, 120],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 30, z: 112 },
-        botSpawns: [
-            { x: 66, y: 30, z: 90 }, { x: 106, y: 30, z: 34 }, { x: 106, y: 30, z: -34 },
-            { x: 66, y: 30, z: -90 }, { x: 0, y: 30, z: -112 }, { x: -66, y: 30, z: -90 },
-            { x: -106, y: 30, z: -34 }, { x: -106, y: 30, z: 34 }, { x: -66, y: 30, z: 90 },
-        ],
+        ...startPoints('the_pit'),
         obstacles: [
             { pos: [0, 4, 0], size: [40, 8, 40], kind: 'foam' }
         ],
@@ -361,14 +306,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     core_fusion: {
         name: 'Kern-Fusion',
         size: [100, 40, 100],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 60, z: 105 },
-        botSpawns: [
-            { x: 67, y: 60, z: 107 }, { x: 105, y: 60, z: 34 }, { x: 105, y: 60, z: -34 },
-            { x: 67, y: 60, z: -107 }, { x: 0, y: 60, z: -105 }, { x: -67, y: 60, z: -107 },
-            { x: -105, y: 60, z: -34 }, { x: -105, y: 60, z: 34 }, { x: -67, y: 60, z: 107 },
-        ],
+        ...startPoints('core_fusion'),
         obstacles: [
             { pos: [0, 20, 0], size: [50, 20, 50], kind: 'foam' }
         ],
@@ -380,14 +318,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     pillar_hall: {
         name: 'Säulen-Halle',
         size: [100, 30, 100],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 30, z: 54 },
-        botSpawns: [
-            { x: 53, y: 30, z: 73 }, { x: 92, y: 30, z: 37 }, { x: 92, y: 30, z: -37 },
-            { x: 53, y: 30, z: -73 }, { x: 0, y: 30, z: -54 }, { x: -53, y: 30, z: -73 },
-            { x: -92, y: 30, z: -37 }, { x: -92, y: 30, z: 37 }, { x: -53, y: 30, z: 73 },
-        ],
+        ...startPoints('pillar_hall'),
         obstacles: [
             { pos: [-30, 15, -30], size: [4, 30, 4] }, { pos: [-30, 15, 0], size: [4, 30, 4] }, { pos: [-30, 15, 30], size: [4, 30, 4] },
             { pos: [0, 15, -30], size: [4, 30, 4] }, { pos: [0, 15, 0], size: [4, 30, 4] }, { pos: [0, 15, 30], size: [4, 30, 4] },
@@ -399,14 +330,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ...authoredWorld('spiral_tower'),
         name: 'Spiralen-Turm',
         size: [80, 70, 80],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 73, z: 72 },
-        botSpawns: [
-            { x: 49, y: 60, z: 62 }, { x: 68, y: 33, z: 22 }, { x: 68, y: 33, z: -22 },
-            { x: 42, y: 60, z: -58 }, { x: 0, y: 60, z: -72 }, { x: -42, y: 60, z: -58 },
-            { x: -68, y: 60, z: -22 }, { x: -68, y: 60, z: 22 }, { x: -49, y: 60, z: 62 },
-        ],
+        ...startPoints('spiral_tower'),
         obstacles: [
             { pos: [0, 10, 20], size: [20, 4, 10] },
             { pos: [20, 25, 0], size: [10, 4, 20] },
@@ -420,14 +344,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     portal_madness: {
         name: 'Portal-Wahnsinn',
         size: [100, 40, 100],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 45, z: 93 },
-        botSpawns: [
-            { x: 55, y: 45, z: 75 }, { x: 88, y: 45, z: 29 }, { x: 88, y: 45, z: -29 },
-            { x: 55, y: 45, z: -75 }, { x: 0, y: 45, z: -93 }, { x: -55, y: 45, z: -75 },
-            { x: -88, y: 45, z: -29 }, { x: -88, y: 45, z: 29 }, { x: -55, y: 45, z: 75 },
-        ],
+        ...startPoints('portal_madness'),
         obstacles: [
             { pos: [0, 20, 0], size: [10, 10, 10] }
         ],
@@ -444,14 +361,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ...authoredWorld('the_loop'),
         name: 'Die Schleife',
         size: [120, 30, 120],
-        // Start points in world units (the map does not scale its anchors): the player and nine bots
-        // spread around the arena, so ten ships start apart instead of at random spots.
-        playerSpawn: { x: 0, y: 30, z: 126 },
-        botSpawns: [
-            { x: 81, y: 30, z: 120 }, { x: 120, y: 30, z: 39 }, { x: 120, y: 30, z: -39 },
-            { x: 81, y: 30, z: -120 }, { x: 0, y: 30, z: -126 }, { x: -81, y: 30, z: -120 },
-            { x: -120, y: 30, z: -39 }, { x: -120, y: 30, z: 39 }, { x: -81, y: 30, z: 120 },
-        ],
+        ...startPoints('the_loop'),
         obstacles: [
             { pos: [0, 15, 0], size: [60, 30, 60] },
             { pos: [0, 25, 55], size: [120, 10, 4] },
