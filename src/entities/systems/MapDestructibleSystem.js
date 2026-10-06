@@ -15,6 +15,7 @@ import {
 } from '../../shared/contracts/MapDestructibleContract.js';
 import { resolveAuthoredAnchorScale } from '../../shared/contracts/GameplayConfigContract.js';
 import { isDemolitionConfig } from '../../shared/contracts/DemolitionContract.js';
+import { allowsBotMapDestructibleFire } from '../../shared/contracts/MapDestructibleBotTargetContract.js';
 import * as THREE from 'three';
 
 const WIND_STEPS = 3600;
@@ -47,6 +48,7 @@ export class MapDestructibleSystem {
         this.fireState = null;
         this._reactorBurnUpdatedAtSeconds = -1;
         this._vaultScenarioActive = false;
+        this.botFireAllowed = false;
     }
 
     /**
@@ -66,6 +68,7 @@ export class MapDestructibleSystem {
         const scenarioAllowed = mode === 'ARCADE' && scenarioId === 'vault_breaker'
             && this.entityManager?.runtimeConfig?.session?.mapKey === 'eiffel_tower_siege';
         this._vaultScenarioActive = scenarioAllowed;
+        this.botFireAllowed = allowsBotMapDestructibleFire(mode);
         this.definition = isMapDestructibleModeAllowed(authored, mode) || demolitionAllowed || scenarioAllowed ? authored : null;
         // Authored anchors are given in the map's own units; a scaled map builds its tower that
         // much larger, so the anchors a hit is measured against have to grow with it.
@@ -86,6 +89,8 @@ export class MapDestructibleSystem {
                 segmentId: segment.id,
                 mapStructure: true,
                 destructible: true,
+                // Bots pick this segment in the hunt only; demolition keeps it the player's target.
+                botTarget: this.botFireAllowed,
                 alive: true,
                 hp: this.state.segments[index]?.hp || 0,
                 maxHp: this.state.segments[index]?.maxHp || segment.hp,
@@ -166,6 +171,7 @@ export class MapDestructibleSystem {
         this.fireState = null;
         this.entityManager?.arena?.setMapFireState?.(null);
         this.definition = null;
+        this.botFireAllowed = false;
         this.state = createMapDestructibleState(null);
         this._reactorBurnUpdatedAtSeconds = -1;
         this.entityManager?.arena?.setMapDestructibleFireState?.(this.state);
@@ -213,6 +219,8 @@ export class MapDestructibleSystem {
 
     applySegmentHit(segmentId, damage, options = {}) {
         if (this.networkReplica || !this.definition || this.state.sealed) return null;
+        // Where bots may not shoot the structure, a stray bot bullet or rocket does not count either.
+        if (!this.botFireAllowed && options?.sourcePlayer?.isBot === true) return null;
         // This mission opens the vault through a lower-leg break only.
         if (this._vaultScenarioActive && !this.definition.segments.some(
             (segment) => segment.id === segmentId && segment.kind === 'leg_lower',
