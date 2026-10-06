@@ -100,8 +100,7 @@ test('the intermission route choice says Karte and Modifikator', () => {
         const text = textOf(controller._arcadeOverlayPanel);
         assert.match(text, /Karten- und Modifikator-Wahl/);
         assert.match(text, /Kein Modifikator/);
-        // The "Nächster Sektor" card (postrun/ArcadePostRunBlocks.js) still says "Modifier"; it is
-        // outside this change, so only the choice itself is checked here.
+        // The "Nächster Sektor" card is checked in arcade-postrun-ui.contract.test.mjs.
         assert.doesNotMatch(text, /Map-\/Modifier-Wahl|Kein Modifier\nStandardsektor/);
     });
 });

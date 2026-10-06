@@ -254,7 +254,7 @@ export function createArcadeNextSectorBlock(preview = {}) {
     }
     return createArcadeBlock('arcade-next-sector', 'Nächster Sektor', [
         textRow('map', 'Karte', resolveArcadeMapLabel(preview.mapKey, preview.mapLabel)),
-        textRow('modifier', 'Modifier', String(preview.modifierLabel || 'Kein Modifier')),
+        textRow('modifier', 'Modifikator', String(preview.modifierLabel || 'Kein Modifikator')),
         textRow('effect', 'Wirkung', String(preview.modifierEffect || '').trim() || 'Keine zusätzliche Wirkung.'),
     ]);
 }

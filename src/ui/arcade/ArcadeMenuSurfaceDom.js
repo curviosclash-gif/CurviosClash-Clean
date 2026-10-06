@@ -144,7 +144,7 @@ export function buildArcadeSurface(level3Body, ui) {
     const metricScore = createMetric(t('menu.arcade.hud.score.label', 'Punkte'), '0');
     const metricMultiplier = createMetric(t('menu.arcade.hud.multiplier.label', 'Max. Multiplikator'), 'x1.0');
     const metricSector = createMetric(t('menu.arcade.hud.sector.label', 'Sektoren geschafft'), '0');
-    const metricChain = createMetric(t('menu.arcade.hud.chain.label', 'Beste Combo'), '0');
+    const metricChain = createMetric(t('menu.arcade.hud.chain.label', 'Beste Kombo'), '0');
     hudGrid.appendChild(metricScore.metric);
     hudGrid.appendChild(metricMultiplier.metric);
     hudGrid.appendChild(metricSector.metric);

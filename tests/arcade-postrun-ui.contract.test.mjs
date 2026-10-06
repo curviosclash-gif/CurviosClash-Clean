@@ -119,3 +119,15 @@ test('a single pilot keeps the plain sector XP label', () => {
     assert.doesNotMatch(textOf(panel), /alle Spieler/);
     assert.match(textOf(panel), /\nXP\n/);
 });
+test('the next sector card says Modifikator, not Modifier', () => {
+    const panel = renderIntermission({ ...BASE_INTERMISSION, choices: [], nextSectorPreview: { mapKey: 'burg' } });
+    const text = textOf(panel);
+    assert.match(text, /\nModifikator\n/);
+    assert.match(text, /Kein Modifikator/);
+    assert.doesNotMatch(text, /Modifier/);
+});
+
+test('the arcade best chain metric is called Beste Kombo', async () => {
+    const { MENU_TEXT_CATALOG } = await import('../src/ui/menu/MenuTextCatalog.js');
+    assert.equal(MENU_TEXT_CATALOG['menu.arcade.hud.chain.label'], 'Beste Kombo');
+});

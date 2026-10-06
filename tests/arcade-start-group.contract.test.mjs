@@ -105,7 +105,7 @@ test('current status and standalone leaderboard follow the starts before advance
     const metricLabels = stats.children
         .find((child) => child.classList.contains('arcade-hud-shell-grid'))
         .children.map((metric) => metric.children[0].textContent);
-    assert.deepEqual(metricLabels, ['Punkte', 'Max. Multiplikator', 'Sektoren geschafft', 'Beste Combo']);
+    assert.deepEqual(metricLabels, ['Punkte', 'Max. Multiplikator', 'Sektoren geschafft', 'Beste Kombo']);
 });
 
 test('leaderboard keeps accessible table and top-ten toggle hooks', () => {

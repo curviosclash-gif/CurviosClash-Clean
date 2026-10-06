@@ -252,7 +252,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.arcade.hud.score.label': 'Punkte',
     'menu.arcade.hud.multiplier.label': 'Max. Multiplikator',
     'menu.arcade.hud.sector.label': 'Sektoren geschafft',
-    'menu.arcade.hud.chain.label': 'Beste Combo',
+    'menu.arcade.hud.chain.label': 'Beste Kombo',
     'menu.arcade.postrun.title': 'Post-Run Feedback',
     'menu.arcade.postrun.last.label': 'Letzter Start',
     'menu.arcade.postrun.empty': 'Noch kein Arcade-Run gestartet.',

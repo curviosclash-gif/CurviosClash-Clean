@@ -190,7 +190,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             .toContainText('Gesamtzeit inklusive Strafen');
         await expect(page.locator('#btn-arcade-local-leaderboard-toggle')).toHaveAttribute('aria-expanded', 'false');
         await expect(page.locator('.arcade-current-status .arcade-hud-metric-label'))
-            .toHaveText(['Punkte', 'Max. Multiplikator', 'Sektoren geschafft', 'Beste Combo']);
+            .toHaveText(['Punkte', 'Max. Multiplikator', 'Sektoren geschafft', 'Beste Kombo']);
         await expect(page.locator('#btn-arcade-start-inline')).toBeVisible();
         await expect(page.locator('#btn-arcade-endless-start-inline')).not.toBeVisible();
         await page.locator('.arcade-start-mode-options-summary').click();
