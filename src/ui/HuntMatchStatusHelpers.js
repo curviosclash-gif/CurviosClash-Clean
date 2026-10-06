@@ -4,10 +4,18 @@ import { HUNT_WIN_CONDITIONS, normalizeHuntWinCondition } from '../shared/contra
 import { HUNT_LAST_ALIVE_LIVES } from '../shared/contracts/HuntLivesContract.js';
 import { resolveTeamLabel, TEAM_IDS } from '../shared/contracts/TeamCombatContract.js';
 import { isDemolitionConfig } from '../shared/contracts/DemolitionContract.js';
+import { isFivePortalsConfig, resolvePortalChain } from '../shared/contracts/PortalChainContract.js';
 
+// One line per entry of ArcadeScenarioCatalog; a scenario without one would read "Elimination".
 const ARCADE_SCENARIO_OBJECTIVES = Object.freeze({
+    worm_hunt: 'Wurmjagd · erlege die Kreatur, bevor die Zeit abläuft',
+    storm_flood: 'Sturmflut · halte durch, bis die Zeit abläuft',
+    spiessrutenlauf: 'Spießrutenlauf · flieg die Route durch das Geschützfeuer',
+    bomber_alarm: 'Bomberalarm · schieß den Bomber ab, bevor die Zeit abläuft',
     bridge_convoy: 'Konvoi · stoppe alle drei Panzer vor dem Ziel',
     vault_breaker: 'Tresorknacker · Turmbein zerstören, dann Tresor-Boss besiegen',
+    bloom_escape: 'Ausbruch · halte durch, bis sich die Arena ganz öffnet',
+    hydra_finale: 'Hydra-Tempel · besiege die Hydra',
 });
 
 export function formatHuntClock(seconds) {
@@ -82,6 +90,9 @@ export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLi
     if (isDemolitionConfig(runtimeConfig)) return 'Abrisskommando · zerstöre das Bauwerk';
     if (isArenaWavesConfig(runtimeConfig)) return 'Fünf Fronten · halte jede Welle auf';
     if (isEndlessParcoursConfig(runtimeConfig)) return 'Endlosjagd · überlebe so lange wie möglich';
+    if (isFivePortalsConfig(runtimeConfig)) {
+        return `${resolvePortalChain(runtimeConfig?.arcade?.portalChainId).label} · durchs Ausgangsportal zur nächsten Karte`;
+    }
     const scenarioObjective = runtimeConfig?.session?.activeGameMode === 'ARCADE'
         ? ARCADE_SCENARIO_OBJECTIVES[runtimeConfig?.arcade?.scenarioId] : '';
     if (scenarioObjective) return scenarioObjective;
