@@ -146,33 +146,34 @@ export const VEHICLE_PRESETS = [
         id: 'lab_helix_interceptor',
         label: 'Lab-Vorlage: Helix Interceptor',
         primaryColor: 0x2563eb,
+        // Each part names its mount (VehiclePartMountContract), see the player ships.
         parts: [
             { name: 'Forward Spine', geo: 'capsule', size: [0.42, 1.8], pos: [0, 0, -1.15], rot: [90, 0, 0], material: 'primary', role: 'core' },
-            { name: 'Reactor Spine', geo: 'cylinder', size: [0.46, 0.55, 2.2], pos: [0, 0, 0.75], rot: [90, 0, 0], material: 'secondary' },
-            { name: 'Needle Nose', geo: 'cone', size: [0.38, 1.5], pos: [0, 0, -3.15], rot: [-90, 0, 0], material: 'primary', role: 'nose' },
-            { name: 'Canopy', geo: 'capsule', size: [0.25, 0.72], pos: [0, 0.35, -1.35], rot: [90, 0, 0], material: 'glass', opacity: 0.72 },
-            { name: 'Helix Core', geo: 'sphere', size: [0.38], pos: [0, 0.05, 0.55], material: 'glow', emissive: 0x38bdf8, emissiveIntensity: 1.8, anim: { type: 'pulse', speed: 3.2, amount: 0.8 } },
-            { name: 'Helix Ring A', geo: 'torus', size: [0.7, 0.1], pos: [0, 0, 0.25], rot: [90, 0, 0], material: 'secondary', anim: { type: 'rotate', axis: 'z', speed: 1.4, amount: 1 } },
-            { name: 'Helix Ring B', geo: 'torus', size: [0.82, 0.1], pos: [0, 0, 0.8], rot: [70, 0, 0], material: 'secondary', anim: { type: 'rotate', axis: 'z', speed: -1.1, amount: 1 } },
-            { name: 'L-Main Wing', geo: 'box', size: [2.1, 0.12, 1.25], pos: [-1.25, -0.04, 0.35], rot: [0, -14, 10], material: 'primary', role: 'wing_left' },
-            { name: 'R-Main Wing', geo: 'box', size: [2.1, 0.12, 1.25], pos: [1.25, -0.04, 0.35], rot: [0, 14, -10], material: 'primary', role: 'wing_right' },
-            { name: 'L-Canard', geo: 'box', size: [0.95, 0.1, 0.42], pos: [-0.7, 0, -1.85], rot: [0, -18, -8], material: 'secondary' },
-            { name: 'R-Canard', geo: 'box', size: [0.95, 0.1, 0.42], pos: [0.7, 0, -1.85], rot: [0, 18, 8], material: 'secondary' },
-            { name: 'L-Ventral Blade', geo: 'box', size: [0.12, 0.65, 0.9], pos: [-0.48, -0.45, 1.25], rot: [8, 0, -12], material: 'secondary' },
-            { name: 'R-Ventral Blade', geo: 'box', size: [0.12, 0.65, 0.9], pos: [0.48, -0.45, 1.25], rot: [8, 0, 12], material: 'secondary' },
-            { name: 'Dorsal Fin', geo: 'box', size: [0.12, 0.72, 0.95], pos: [0, 0.52, 1.25], rot: [-8, 0, 0], material: 'primary', role: 'utility' },
-            { name: 'L-Outer Thruster', geo: 'engine', size: [0.24, 0.2, 0.72], pos: [-1.82, -0.04, 1.2], material: 'secondary' },
-            { name: 'R-Outer Thruster', geo: 'engine', size: [0.24, 0.2, 0.72], pos: [1.82, -0.04, 1.2], material: 'secondary' },
-            { name: 'L-Main Engine', geo: 'engine', size: [0.34, 0.28, 1.0], pos: [-0.52, 0, 2.1], role: 'engine_left', children: [
+            { name: 'Reactor Spine', geo: 'cylinder', size: [0.46, 0.55, 2.2], pos: [0, 0, 0.75], rot: [90, 0, 0], material: 'secondary', mount: { anchor: [0, 0, 0.17], carrier: 'hull' } },
+            { name: 'Needle Nose', geo: 'cone', size: [0.38, 1.5], pos: [0, 0, -3.15], rot: [-90, 0, 0], material: 'primary', role: 'nose', mount: { anchor: [0, 0, -2.47], carrier: 'hull' } },
+            { name: 'Canopy', geo: 'capsule', size: [0.25, 0.72], pos: [0, 0.35, -1.35], rot: [90, 0, 0], material: 'glass', opacity: 0.72, mount: { anchor: [0, 0.35, -1.35], carrier: 'hull' } },
+            { name: 'Helix Core', geo: 'sphere', size: [0.38], pos: [0, 0.05, 0.55], material: 'glow', emissive: 0x38bdf8, emissiveIntensity: 1.8, anim: { type: 'pulse', speed: 3.2, amount: 0.8 }, mount: { anchor: [0, 0.05, 0.55], carrier: 'Reactor Spine' } },
+            { name: 'Helix Ring A', geo: 'torus', size: [0.7, 0.1], pos: [0, 0, 0.25], rot: [90, 0, 0], material: 'secondary', anim: { type: 'rotate', axis: 'z', speed: 1.4, amount: 1 }, mount: { anchor: [0, 0, 0.25], carrier: 'Reactor Spine' } },
+            { name: 'Helix Ring B', geo: 'torus', size: [0.82, 0.1], pos: [0, 0, 0.8], rot: [70, 0, 0], material: 'secondary', anim: { type: 'rotate', axis: 'z', speed: -1.1, amount: 1 }, mount: { anchor: [0, 0, 0.8], carrier: 'Reactor Spine' } },
+            { name: 'L-Main Wing', geo: 'box', size: [2.1, 0.12, 1.25], pos: [-1.25, -0.04, 0.35], rot: [0, -14, 10], material: 'primary', role: 'wing_left', mount: { anchor: [-0.3, -0.04, 0], carrier: 'hull' } },
+            { name: 'R-Main Wing', geo: 'box', size: [2.1, 0.12, 1.25], pos: [1.25, -0.04, 0.35], rot: [0, 14, -10], material: 'primary', role: 'wing_right', mount: { anchor: [0.3, -0.04, 0], carrier: 'hull' } },
+            { name: 'L-Canard', geo: 'box', size: [0.95, 0.1, 0.42], pos: [-0.7, 0, -1.85], rot: [0, -18, -8], material: 'secondary', mount: { anchor: [-0.3, 0, -1.85], carrier: 'hull' } },
+            { name: 'R-Canard', geo: 'box', size: [0.95, 0.1, 0.42], pos: [0.7, 0, -1.85], rot: [0, 18, 8], material: 'secondary', mount: { anchor: [0.3, 0, -1.85], carrier: 'hull' } },
+            { name: 'L-Ventral Blade', geo: 'box', size: [0.12, 0.65, 0.9], pos: [-0.48, -0.45, 1.25], rot: [8, 0, -12], material: 'secondary', mount: { anchor: [-0.452, -0.305, 1.25], carrier: 'Reactor Spine' } },
+            { name: 'R-Ventral Blade', geo: 'box', size: [0.12, 0.65, 0.9], pos: [0.48, -0.45, 1.25], rot: [8, 0, 12], material: 'secondary', mount: { anchor: [0.452, -0.305, 1.25], carrier: 'Reactor Spine' } },
+            { name: 'Dorsal Fin', geo: 'box', size: [0.12, 0.72, 0.95], pos: [0, 0.52, 1.25], rot: [-8, 0, 0], material: 'primary', role: 'utility', mount: { anchor: [0, 0.45, 1.25], carrier: 'Reactor Spine' } },
+            { name: 'L-Outer Thruster', geo: 'engine', size: [0.24, 0.2, 0.72], pos: [-1.82, -0.04, 1.2], material: 'secondary', mount: { anchor: [-1.82, -0.04, 0.971], carrier: 'L-Main Wing' } },
+            { name: 'R-Outer Thruster', geo: 'engine', size: [0.24, 0.2, 0.72], pos: [1.82, -0.04, 1.2], material: 'secondary', mount: { anchor: [1.82, -0.04, 0.971], carrier: 'R-Main Wing' } },
+            { name: 'L-Main Engine', geo: 'engine', size: [0.34, 0.28, 1.0], pos: [-0.52, 0, 2.1], role: 'engine_left', mount: { anchor: [-0.365, 0, 1.65], carrier: 'Reactor Spine' }, children: [
                 { name: 'L-Ion Flame', geo: 'flame', size: [0.19, 0.1, 0.85], pos: [0, 0, 0.86], color: 0x22d3ee, material: 'glow', anim: { type: 'pulse', speed: 6, amount: 0.6 } }
             ] },
-            { name: 'R-Main Engine', geo: 'engine', size: [0.34, 0.28, 1.0], pos: [0.52, 0, 2.1], role: 'engine_right', children: [
+            { name: 'R-Main Engine', geo: 'engine', size: [0.34, 0.28, 1.0], pos: [0.52, 0, 2.1], role: 'engine_right', mount: { anchor: [0.365, 0, 1.65], carrier: 'Reactor Spine' }, children: [
                 { name: 'R-Ion Flame', geo: 'flame', size: [0.19, 0.1, 0.85], pos: [0, 0, 0.86], color: 0x22d3ee, material: 'glow', anim: { type: 'pulse', speed: 6, amount: 0.6 } }
             ] },
-            { name: 'L-Sensor Pylon', geo: 'pylon', size: [0.12, 0.18, 0.8], pos: [-1.05, 0.2, -0.3], rot: [90, 0, 0], material: 'secondary' },
-            { name: 'R-Sensor Pylon', geo: 'pylon', size: [0.12, 0.18, 0.8], pos: [1.05, 0.2, -0.3], rot: [90, 0, 0], material: 'secondary' },
-            { name: 'L-Wing Beacon', geo: 'sphere', size: [0.12], pos: [-2.2, 0.02, 0.15], material: 'glow', emissive: 0x7dd3fc, emissiveIntensity: 1.4 },
-            { name: 'R-Wing Beacon', geo: 'sphere', size: [0.12], pos: [2.2, 0.02, 0.15], material: 'glow', emissive: 0x7dd3fc, emissiveIntensity: 1.4 }
+            { name: 'L-Sensor Pylon', geo: 'pylon', size: [0.12, 0.18, 0.8], pos: [-1.05, 0.2, -0.3], rot: [90, 0, 0], material: 'secondary', mount: { anchor: [-1.05, 0.111, -0.205], carrier: 'L-Main Wing' } },
+            { name: 'R-Sensor Pylon', geo: 'pylon', size: [0.12, 0.18, 0.8], pos: [1.05, 0.2, -0.3], rot: [90, 0, 0], material: 'secondary', mount: { anchor: [1.05, 0.111, -0.205], carrier: 'R-Main Wing' } },
+            { name: 'L-Wing Beacon', geo: 'sphere', size: [0.12], pos: [-2.2, 0.02, 0.15], material: 'glow', emissive: 0x7dd3fc, emissiveIntensity: 1.4, mount: { anchor: [-2.2, 0.02, 0.15], carrier: 'L-Main Wing' } },
+            { name: 'R-Wing Beacon', geo: 'sphere', size: [0.12], pos: [2.2, 0.02, 0.15], material: 'glow', emissive: 0x7dd3fc, emissiveIntensity: 1.4, mount: { anchor: [2.2, 0.02, 0.15], carrier: 'R-Main Wing' } }
         ]
     },
 

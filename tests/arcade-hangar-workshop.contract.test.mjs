@@ -200,7 +200,8 @@ test('hit zone overlay: the part boxes sit on the drawn ship at every size draft
     for (const config of PLAYER_SHIP_PART_CONFIGS) {
         assembly.setVehicle(config.id);
         let factorySpan = 0;
-        for (const sizes of [null, { wings: 125, hull: 80, engines: 125 }]) {
+        // A smaller hull pulls the wings in with it (fixed mounts), so only the draft on the factory hull must widen.
+        for (const sizes of [null, { wings: 125, engines: 125 }, { wings: 125, hull: 80, engines: 125 }]) {
             const label = `${config.id} ${JSON.stringify(sizes)}`;
             // The Form tab order: sized model first, then the boxes of the same sizes.
             assembly.setPartStyle(resolveArcadeSizedPartStyle(config.parts, null, sizes));
@@ -215,7 +216,7 @@ test('hit zone overlay: the part boxes sit on the drawn ship at every size draft
             assert.ok(Math.abs(zone.getCenter(centre).x - model.getCenter(size).x) < slack, `${label}: centred on the ship`);
             // In vehicle units: the Hangar shrinks a grown ship back to its display size.
             const span = zone.getSize(size).x / assembly.baseVehicleRoot.scale.x;
-            if (sizes) assert.ok(span > factorySpan, `${label}: bigger wings widen the zone (${factorySpan} -> ${span})`);
+            if (sizes && !sizes.hull) assert.ok(span > factorySpan, `${label}: bigger wings widen the zone (${factorySpan} -> ${span})`);
             else factorySpan = span;
         }
     }
