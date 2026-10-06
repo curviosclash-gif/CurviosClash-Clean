@@ -2,7 +2,7 @@ import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import { createHangarWindowLauncher } from '../hangar/HangarWindowMenuBridge.js';
 import { createArcadeDailyMenuCard } from './ArcadeDailyMenuView.js';
 import { createArcadeLeaderboardMenuCard } from './ArcadeLeaderboardMenuView.js';
-import { createArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
+import { createArcadeRunOptionToggles } from './ArcadeRunOptionToggles.js';
 
 function t(textId, fallback) {
     return resolveMenuCatalogText(textId, fallback);
@@ -48,9 +48,9 @@ export function buildArcadeSurface(level3Body, ui) {
     const runLine = createElement('p', 'menu-hint arcade-run-line');
     runLine.id = 'arcade-run-line';
     startGroup.appendChild(runLine);
-    // "Albtraum" only hardens the arcade sector plan, so it sits with the starts it affects.
-    const nightmareToggle = createArcadeNightmareToggle();
-    startGroup.appendChild(nightmareToggle.label);
+    // "Albtraum" and the companions only shape the arcade run, so they sit with the starts they affect.
+    const runOptions = createArcadeRunOptionToggles();
+    startGroup.append(...runOptions.labels);
     const createStartOption = (parent, id, label, copy, extraClass = '') => {
         const option = createElement('div', `arcade-start-option${extraClass ? ` ${extraClass}` : ''}`);
         const button = createElement('button', 'start-btn', label);
@@ -256,6 +256,7 @@ export function buildArcadeSurface(level3Body, ui) {
         dailyButton,
         hangarLaunchCard,
         openHangarButton,
-        nightmareInput: nightmareToggle.input,
+        nightmareInput: runOptions.nightmareInput,
+        companionInput: runOptions.companionInput,
     };
 }

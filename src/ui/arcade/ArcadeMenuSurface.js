@@ -25,7 +25,7 @@ import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 import { renderArcadeLeaderboardMenu } from './ArcadeLeaderboardMenuView.js';
 import { observeMenuReturn } from './MenuReturnObserver.js';
-import { bindArcadeNightmareToggle, syncArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
+import { bindArcadeRunOptionToggles, syncArcadeRunOptionToggles } from './ArcadeRunOptionToggles.js';
 import { bindValidatedArcadeStartCapture, shouldShowArcadePlayerProfileControls, setupArcadePlayerProfileSelection, validateLocalArcadeProfileStart } from './ArcadeDemolitionProfileSelection.js';
 import { bindArcadeSpecialStartButtons } from './ArcadeMenuSpecialStartOps.js';
 import { loadArcadeDifficultyProgress, resolveArcadeRunTier, ARCADE_DIFFICULTY_TIERS } from '../../shared/contracts/ArcadeDifficultyContract.js';
@@ -291,7 +291,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const phaseLabel = phaseText ? ` · ${phaseText}` : '';
         const dailyLabel = runtimeState?.isDailyChallenge === true ? ' · Daily' : '';
         const difficultyLabel = ARCADE_DIFFICULTY_TIERS.find((tier) => tier.id === tierId)?.label || 'ohne Run-Stufe';
-        syncArcadeNightmareToggle(refs.nightmareInput, settings, store);
+        syncArcadeRunOptionToggles(refs, settings, store);
         const fivePortalsSelected = settings.arcade?.runType === 'five_portals';
         refs.arcadePlayerProfileControls.classList.toggle('hidden', !shouldShowArcadePlayerProfileControls(settings));
         const activePortalChain = fivePortalsSelected ? resolvePortalChain(settings.arcade?.portalChainId) : null;
@@ -549,7 +549,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         bind(element, 'click', syncOnInteraction);
     });
 
-    bindArcadeNightmareToggle(refs.nightmareInput, settings, bind, sync);
+    bindArcadeRunOptionToggles(refs, settings, bind, sync);
     const syncOnMenuReturn = () => { testFlightMenu.onMenuReturn(); syncOnInteraction(); };
     observeMenuReturn(level3Body.closest?.('#main-menu'), syncOnMenuReturn);
     sync();
