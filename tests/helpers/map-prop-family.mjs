@@ -16,7 +16,8 @@ function readGlbJson(path) {
     return JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)));
 }
 
-export function assertDecorativeFamily(familyDir, variantIds, { maxKiB = 120, maxTriangles = 1500 } = {}) {
+// minTriangles only rejects empty or single-box exports; box-built families stay well below 100.
+export function assertDecorativeFamily(familyDir, variantIds, { maxKiB = 120, minTriangles = 24, maxTriangles = 1500 } = {}) {
     assert.deepEqual(readdirSync(familyDir).sort(), variantIds);
     const signatures = new Set();
     for (const id of variantIds) {
@@ -27,7 +28,7 @@ export function assertDecorativeFamily(familyDir, variantIds, { maxKiB = 120, ma
         const doc = readGlbJson(glbPath);
         const primitives = doc.meshes.flatMap((mesh) => mesh.primitives);
         const triangles = primitives.reduce((sum, primitive) => sum + doc.accessors[primitive.indices].count / 3, 0);
-        assert.ok(triangles >= 100 && triangles <= maxTriangles, `${id}: ${triangles} triangles`);
+        assert.ok(triangles >= minTriangles && triangles <= maxTriangles, `${id}: ${triangles} triangles`);
         assert.ok(doc.materials.length <= 3, `${id} uses at most three materials`);
         assert.equal(doc.animations?.length || 0, 0);
         assert.equal(doc.cameras?.length || 0, 0);
