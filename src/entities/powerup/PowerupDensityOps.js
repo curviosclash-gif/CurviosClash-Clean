@@ -38,3 +38,12 @@ export function resolvePowerupSpawnInterval(powerupConfig, fieldLimit, spawnRate
     const modeRate = spawnRateMultiplier > 0 ? spawnRateMultiplier : 1;
     return powerupConfig.SPAWN_INTERVAL / modeRate / densityRate;
 }
+
+// A growing map holds back the anchors of rings that are still sealed: an item there would take a
+// field slot while nobody can reach it. Maps that do not grow, and arenas that state no bounds,
+// keep every anchor.
+export function isAnchorInSealedRing(arena, anchor) {
+    const bounds = arena?.currentMapDefinition?.expansion ? arena.bounds : null;
+    if (!bounds) return false;
+    return anchor.x < bounds.minX || anchor.x > bounds.maxX || anchor.z < bounds.minZ || anchor.z > bounds.maxZ;
+}

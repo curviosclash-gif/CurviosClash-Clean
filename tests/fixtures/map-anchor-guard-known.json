@@ -1,5 +1,5 @@
 {
-  "count": 41,
+  "count": 39,
   "entries": [
     {
       "map": "showcase_nexus",
@@ -228,18 +228,6 @@
       "check": "bounds",
       "point": "lights[lighthouse_lantern]",
       "reason": "(0, 522, 0) lies outside the arena: y outside 0..300"
-    },
-    {
-      "map": "bloom_core",
-      "check": "in-solid",
-      "point": "items[#4]",
-      "reason": "item (-47, 16, -47) sits inside obstacles[0]; became visible once Arena reads pos[] anchors (K1); bloom_core item layout is reworked in K11"
-    },
-    {
-      "map": "bloom_core",
-      "check": "in-solid",
-      "point": "items[#5]",
-      "reason": "item (47, 16, 47) sits inside obstacles[2]; became visible once Arena reads pos[] anchors (K1); bloom_core item layout is reworked in K11"
     },
     {
       "map": "skyline_siege",

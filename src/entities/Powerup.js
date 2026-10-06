@@ -7,7 +7,7 @@ import { PowerupModelFactory } from './PowerupModelFactory.js';
 import { PowerupAuthoredModelCache, resolveAuthoredItemModelUrl } from './PowerupAuthoredModelCache.js';
 import { applyBlenderPickupModel } from './powerup/PowerupVisualCatalog.js';
 import { findSafePowerupPosition } from './powerup/PowerupSpawnSafetyOps.js';
-import { resolvePowerupFieldLimit, resolvePowerupSpawnInterval } from './powerup/PowerupDensityOps.js';
+import { isAnchorInSealedRing, resolvePowerupFieldLimit, resolvePowerupSpawnInterval } from './powerup/PowerupDensityOps.js';
 import { isSharedPowerupMaterial } from './powerup/PowerupSharedMaterials.js';
 import {
     isPickupTypeAllowedForMode,
@@ -438,7 +438,7 @@ export class PowerupManager {
         const availableAnchors = [];
         for (let i = 0; i < anchors.length; i += 1) {
             const anchor = anchors[i];
-            if (!anchor || !Number.isFinite(Number(anchor.x)) || !Number.isFinite(Number(anchor.z))) continue;
+            if (!anchor || !Number.isFinite(Number(anchor.x)) || !Number.isFinite(Number(anchor.z)) || isAnchorInSealedRing(this.arena, anchor)) continue;
             const key = buildAnchorKey(anchor, i);
             if (this._occupiedAnchorKeys.has(key)) continue;
             availableAnchors.push({
