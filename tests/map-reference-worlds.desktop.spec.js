@@ -30,6 +30,10 @@ for (const mapKey of [
     'magma_maze',
     'frozen_helix',
     'neon_circuit',
+    'sky_islands',
+    'vulkan_odyssey',
+    'neon_abyss',
+    'abyssal_descent',
 ]) {
     test(`${mapKey}: Blender world renders without duplicate fallback surfaces on desktop`, async ({ page }, testInfo) => {
         test.setTimeout(180000);

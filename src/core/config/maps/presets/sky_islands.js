@@ -4,8 +4,11 @@
 // Foam-Rettungsfelder als einziger Schutz
 // ============================================================
 
+import { authoredWorld } from './world_appearance.js';
+
 export const SKY_ISLANDS_MAP = {
     sky_islands: {
+        ...authoredWorld('sky_islands'),
         name: 'Sky Islands',
         exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
         size: [200, 110, 200],

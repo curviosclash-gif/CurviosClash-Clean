@@ -34,6 +34,10 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     magma_maze: 'generate_map_world.py',
     frozen_helix: 'generate_map_world.py',
     neon_circuit: 'generate_map_world.py',
+    sky_islands: 'generate_map_world.py',
+    vulkan_odyssey: 'generate_map_world.py',
+    neon_abyss: 'generate_map_world.py',
+    abyssal_descent: 'generate_map_world.py',
 });
 
 // These authors write every part in one pass (placement, seeded variants, shared collision),

@@ -7,8 +7,11 @@
 // P5: Gipfel-Sprint (Boost-Finale)
 // ============================================================
 
+import { authoredWorld } from './world_appearance.js';
+
 export const VULKAN_ODYSSEY_MAP = {
     vulkan_odyssey: {
+        ...authoredWorld('vulkan_odyssey'),
         name: 'Vulkan Odyssey',
         size: [380, 114, 200],
         scaleAuthoredAnchors: true,

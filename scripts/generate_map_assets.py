@@ -39,6 +39,10 @@ GENERATORS = {
     'magma_maze': 'generate_map_world',
     'frozen_helix': 'generate_map_world',
     'neon_circuit': 'generate_map_world',
+    'sky_islands': 'generate_map_world',
+    'vulkan_odyssey': 'generate_map_world',
+    'neon_abyss': 'generate_map_world',
+    'abyssal_descent': 'generate_map_world',
 }
 
 
