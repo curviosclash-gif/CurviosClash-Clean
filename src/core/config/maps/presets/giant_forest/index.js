@@ -50,6 +50,10 @@ const GIANT_FOREST_FOG_LAYER = Object.freeze({
 export const GIANT_FOREST_MAPS = {
     giant_forest: {
         name: 'Riesenwald',
+        // The fog arc and the two storeys of the canopy are written for HUNT and ARCADE fights;
+        // in CLASSIC the forest is a vast open field where trails never close anything off, the
+        // same reason dandelion_sky is barred there (user decision 06.10.2026).
+        excludedModes: ['CLASSIC'],
         size: FOREST_MAP_SIZE,
         // Spawns, pickups and the fog's heights are authored in the same units as the trees and
         // the decks. Without this they would stay put while the world around them grew threefold,

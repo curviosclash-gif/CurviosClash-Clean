@@ -29,7 +29,6 @@ const COLLECTION_DEFINITIONS = [
         label: 'Abenteuer',
         mapKeys: [
             'rift_bazaar',
-            'aether_relay',
             'neon_abyss',
             'crystal_ruins',
             'vulkan_odyssey',
@@ -73,12 +72,12 @@ const COLLECTION_DEFINITIONS = [
             'storm_switchyard',
             'wind_cathedral',
             'chrono_spillway',
+            'aether_relay',
             'neon_carnival',
             'sky_ladder_abyss',
             'sky_ladder_foundry',
             'sky_ladder_storm',
             'sky_ladder_star',
-            'neon_carnival',
         ],
     },
     {
