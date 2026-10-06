@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { syncArcadePartHitbox } from '../../player/ArcadePartHitboxOps.js';
 import { arcadeShipsTouch, resolveArcadeArenaCollision, resolveArcadeTrailCollision } from './ArcadePartCollisionOps.js';
+import { isArcadeCompanionTeamPair } from '../../../shared/contracts/ArcadeCompanionContract.js';
 
 // Broadphase slack for vehicle-vs-vehicle checks: the hitbox sphere is much smaller than
 // the vehicle body, so the sphere test only preselects and the oriented box decides.
@@ -102,7 +103,9 @@ export class PlayerCollisionPhase {
                 const sourcePlayer = collision.playerIndex >= 0 && collision.playerIndex !== player.index
                     ? entityManager.players[collision.playerIndex]
                     : null;
-                const died = strategy.handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager);
+                // Arcade companions and their human fly through each other's trails unharmed.
+                const died = !isArcadeCompanionTeamPair(player, sourcePlayer)
+                    && strategy.handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager);
                 if (died) return true;
             }
         }
@@ -251,6 +254,7 @@ export class PlayerCollisionPhase {
             if (!other || other === player || !other.alive || other.isGhost) continue;
             if ((other.spawnProtectionTimer || 0) > 0) continue;
             if ((other.crashDamageCooldown || 0) > 0) continue;
+            if (isArcadeCompanionTeamPair(player, other)) continue;
 
             if (player.arcadeHitbox && other.arcadeHitbox) {
                 if (!arcadeShipsTouch(player, other)) continue;

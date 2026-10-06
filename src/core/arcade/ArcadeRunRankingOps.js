@@ -3,6 +3,7 @@ import { createArcadeRankContext, loadArcadeDifficultyProgress, resolveArcadeRun
 import { ARCADE_RUN_KINDS, resolveArcadeRuntimeKind } from '../../shared/contracts/ArcadeRunTypeDispatchContract.js';
 import { createArcadeVehicleUpgradeBonusMap } from './ArcadeRunVehicleRewardOps.js';
 import { createArcadeColorProgress } from '../../shared/contracts/ArcadeColorProgressContract.js';
+import { resolveActiveArcadeCompanionCount } from '../../shared/contracts/ArcadeCompanionContract.js';
 
 function runFor(support, state, kind) {
     if (kind === ARCADE_RUN_KINDS.ENDLESS_PARCOURS) return support._getEndlessRuntime?.(state);
@@ -32,7 +33,8 @@ export function prepareArcadeRunRanking(support, state, config, runActive, playe
         const tierId = resolveArcadeRunTier(config.arcade.difficultyTierId, progress.progress, { runType, dailyChallenge: config.arcade.dailyChallenge });
         runtime.rankContext = createArcadeRankContext({ runId: `${Date.now()}-${config.arcade.seed || 0}`, runType,
             vehicleId, profile, stoneSteps: playerBonuses?.byPlayerIndex?.[0]?.build?.stoneSteps || getArcadeRunVehicleBonuses(profile, store)?.build?.stoneSteps,
-            tierId, dailyChallenge: config.arcade.dailyChallenge });
+            tierId, dailyChallenge: config.arcade.dailyChallenge,
+            companionCount: resolveActiveArcadeCompanionCount(config.arcade, { humanCount: state?.entityManager?.humanPlayers?.length ?? 1, enemyCount: 1 }) });
         runtime._rankingStore = store;
         const humans = state?.entityManager?.humanPlayers || [];
         runtime._colorProgress = createArcadeColorProgress({ runType, tierId, dailyChallenge: config.arcade.dailyChallenge,
@@ -40,7 +42,7 @@ export function prepareArcadeRunRanking(support, state, config, runActive, playe
             storesByIndex: Object.fromEntries(humans.map(player => [player.index, bindings._playerStoresByIndex?.[player.index] || store])) });
         runtime._frozenPlayerBuildBonuses = effectiveBonuses ? structuredClone(effectiveBonuses) : null;
     }
-    if (runtime.rankContext.ranked || runtime.rankContext.runType === 'hangar_test') {
+    if (runtime.rankContext.strengthScaled || runtime.rankContext.runType === 'hangar_test') {
         if (strategy) strategy._botRankBonuses = Object.freeze({ turningBonusPct: 0, speedBonusPct: 0, maxHpBonus: 0, botStrength: runtime.rankContext.botStrength });
         if (strategy) strategy._frozenArcadeBuildBonuses = runtime._frozenPlayerBuildBonuses;
         if (runtime._frozenPlayerBuildBonuses) strategy?.applyVehicleUpgrades?.(runtime._frozenPlayerBuildBonuses);

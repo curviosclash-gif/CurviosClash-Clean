@@ -8,6 +8,7 @@ import { isWeaponRaceRunType } from '../../shared/contracts/WeaponRaceContract.j
 import { invalidatePrewarmedArenaSession } from './MatchSessionPrewarmStore.js';
 import { normalizeTeamHuntSettings, resolveTeamRoster } from '../../shared/contracts/TeamHuntContract.js';
 import { normalizeTeamId } from '../../shared/contracts/TeamCombatContract.js';
+import { buildArcadeCompanionTeamPlan, normalizeArcadeCompanionCount } from '../../shared/contracts/ArcadeCompanionContract.js';
 
 function resolveLocalSplitScreenPlayerColor(splitScreenVariant, index) {
     if (splitScreenVariant === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR) return FOUR_PLAYER_PLANAR_PLAYER_COLORS[index];
@@ -97,7 +98,16 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
 export function buildEntityManagerSetupOptions(settings, runtimeConfig = null, entityRuntimeConfig = null, setupOptions = null) {
     const runtimeBotConfig = runtimeConfig?.bot || null;
     const setupPlanarMode = runtimeConfig?.gameplay?.planarMode ?? settings?.gameplay?.planarMode;
-    const humanConfigs = buildHumanConfigs(settings, runtimeConfig);
+    let humanConfigs = buildHumanConfigs(settings, runtimeConfig);
+    // The arcade sector profile decided how many of the session's bots fly as companions.
+    const companionCount = runtimeConfig?.arcade?.enabled === true
+        ? normalizeArcadeCompanionCount(runtimeConfig.arcade.activeCompanionCount) : 0;
+    const companionPlan = companionCount > 0 ? buildArcadeCompanionTeamPlan({
+        humanCount: humanConfigs.length,
+        enemyCount: Math.max(0, Math.trunc(Number(runtimeConfig?.session?.numBots) || 0) - companionCount),
+        companionCount,
+    }) : null;
+    if (companionPlan) humanConfigs = humanConfigs.map((config, index) => ({ ...config, teamId: companionPlan.humanTeamIds[index] }));
     const teamSettings = normalizeTeamHuntSettings(runtimeConfig?.hunt || settings?.hunt);
     const teamRoster = teamSettings.enabled
         ? resolveTeamRoster({
@@ -116,7 +126,9 @@ export function buildEntityManagerSetupOptions(settings, runtimeConfig = null, e
         entityRuntimeConfig,
         isDesktopRuntime: setupOptions?.isDesktopRuntime,
         humanConfigs,
-        botTeamIds: teamRoster?.teamIds.slice(humanConfigs.length) || [],
-        teamBotDifficulty: teamSettings.botDifficulty,
+        botTeamIds: companionPlan?.botTeamIds || teamRoster?.teamIds.slice(humanConfigs.length) || [],
+        // Companions and their squad fly at the arcade difficulty, not at the Team Hunt one.
+        teamBotDifficulty: companionPlan ? null : teamSettings.botDifficulty,
+        arcadeCompanionCount: companionCount,
     };
 }

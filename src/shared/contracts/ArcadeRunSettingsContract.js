@@ -1,3 +1,4 @@
+import { normalizeArcadeCompanionCount } from './ArcadeCompanionContract.js';
 import {
     ENDLESS_PARCOURS_COMBAT_PROFILE,
     ENDLESS_PARCOURS_RUN_TYPE,
@@ -50,13 +51,15 @@ const DEFAULTS = Object.freeze({
     portalChainId: DEFAULT_PORTAL_CHAIN_ID,
     demolitionProfileIds: Object.freeze(['', '', '']),
     playerProfileIds: Object.freeze(['', '', '']),
+    // Allied bots next to a lone human in a normal gauntlet run (0-2).
+    companionCount: 0,
 });
 
 /** @typedef {{ profileId: string, runType: string, combatProfile: string, scoreModel: string,
  * seed: number, sectorCount: number, intermissionSeconds: number, comboWindowMs: number,
  * comboDecayPerSecond: number, maxMultiplier: number, replayHooksEnabled: boolean,
  * dailyChallenge: boolean, nightmare: boolean, difficultyTierId: string, portalChainId: string,
- * demolitionProfileIds?: readonly string[], playerProfileIds?: readonly string[] }} ArcadeRunSettings */
+ * demolitionProfileIds?: readonly string[], playerProfileIds?: readonly string[], companionCount: number }} ArcadeRunSettings */
 
 function clampNumber(value, range, fallback) {
     const parsed = Number(value);
@@ -144,6 +147,9 @@ export function normalizeArcadeRunSettings(
         portalChainId: normalizePortalChainId(input.portalChainId),
         demolitionProfileIds: normalizeDemolitionProfileIds(demolitionProfileIds),
         playerProfileIds: normalizeDemolitionProfileIds(playerProfileIds),
+        // Kept for every run type so a detour into a special run never loses the choice; only a
+        // gauntlet run uses it (resolveActiveArcadeCompanionCount).
+        companionCount: normalizeArcadeCompanionCount(input.companionCount),
     };
 }
 

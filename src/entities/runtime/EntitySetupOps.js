@@ -14,6 +14,11 @@ import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { resolveArcadeRoleAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
+import {
+    ARCADE_COMPANION_AGGRESSIVENESS,
+    ARCADE_COMPANION_TEAM_ID,
+    normalizeArcadeCompanionCount,
+} from '../../shared/contracts/ArcadeCompanionContract.js';
 import { normalizeTeamId, resolveTeamColor } from '../../shared/contracts/TeamCombatContract.js';
 
 function normalizeActiveMode(mode) {
@@ -169,6 +174,7 @@ export class EntitySetupOps {
             botTeamIds: Array.isArray(options.botTeamIds) ? options.botTeamIds : [],
             teamBotDifficulty: options.teamBotDifficulty && typeof options.teamBotDifficulty === 'object'
                 ? options.teamBotDifficulty : null,
+            arcadeCompanionCount: normalizeArcadeCompanionCount(options.arcadeCompanionCount),
             modelScale: typeof options.modelScale === 'number'
                 ? options.modelScale
                 : (entityRuntimeConfig.PLAYER?.MODEL_SCALE || 1),
@@ -198,7 +204,8 @@ export class EntitySetupOps {
             const configuredColor = Number.isFinite(Number(setupContext.humanConfigs[i]?.color))
                 ? Number(setupContext.humanConfigs[i].color)
                 : (humanColors[i] ?? humanColors[i % humanColors.length]);
-            const playerColor = resolveTeamColor(teamId, configuredColor);
+            // With arcade companions the human keeps its own (arcade) colour; only the bots wear team colours.
+            const playerColor = setupContext.arcadeCompanionCount > 0 ? configuredColor : resolveTeamColor(teamId, configuredColor);
             const player = new Player(owner.renderer, i, playerColor, false, {
                 vehicleId: playerVehicleId,
                 entityManager: owner,
@@ -246,7 +253,11 @@ export class EntitySetupOps {
             });
             player.teamId = teamId;
             player.setControlOptions({ modelScale: setupContext.modelScale, invertPitch: false });
-            player.scenarioRole = scenarioRoles.length > 0
+            const companion = setupContext.arcadeCompanionCount > 0 && teamId === ARCADE_COMPANION_TEAM_ID;
+            player.isArcadeCompanion = companion;
+            // Companions help against map units and take no squad role.
+            if (companion) player.botTargetsMapUnits = true;
+            player.scenarioRole = !companion && scenarioRoles.length > 0
                 ? scenarioRoles[i % scenarioRoles.length]
                 : '';
             player.scenarioAnchor = null;
@@ -262,7 +273,9 @@ export class EntitySetupOps {
                 isDesktopRuntime: owner.botIsDesktopRuntime,
                 runtimeRng: owner.runtimeRng,
             });
-            if (arcadeEnabled && player.scenarioRole) {
+            if (companion) {
+                ai?.setArcadeBotAggressiveness?.(ARCADE_COMPANION_AGGRESSIVENESS);
+            } else if (arcadeEnabled && player.scenarioRole) {
                 ai?.setArcadeBotAggressiveness?.(resolveArcadeRoleAggressiveness(owner.runtimeConfig?.bot?.arcadeAggressiveness, player.scenarioRole));
             }
             const sensePhase = i % 4;

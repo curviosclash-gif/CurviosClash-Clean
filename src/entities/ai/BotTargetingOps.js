@@ -4,7 +4,7 @@
 
 import { PERCEPTION_THRESHOLDS } from './perception/EnvironmentSamplingOps.js';
 import { clamp01 } from '../../shared/utils/MathOps.js';
-import { canTargetEnemy } from '../../shared/contracts/TeamCombatContract.js';
+import { areTeammates, canTargetEnemy } from '../../shared/contracts/TeamCombatContract.js';
 
 const TARGET_RETAIN_BONUS = 0.08;
 const TARGET_SWITCH_MARGIN = 0.015;
@@ -61,7 +61,8 @@ export function selectTarget(bot, player, allPlayers) {
 
     for (let i = 0; i < allPlayers.length; i++) {
         const other = allPlayers[i];
-        if (!other || other === player || !other.alive || !isTargetVisibleToPlayer(player, other)) continue;
+        // A teammate (an arcade companion's human, a Team Hunt ally) is never the target.
+        if (!other || other === player || !other.alive || areTeammates(player, other) || !isTargetVisibleToPlayer(player, other)) continue;
 
         bot._tmpVec.subVectors(other.position, player.position);
         const distSq = bot._tmpVec.lengthSq();
@@ -144,7 +145,7 @@ export function estimateEnemyPressure(bot, position, owner, allPlayers) {
     let nearestDistSq = Infinity;
     for (let i = 0; i < allPlayers.length; i++) {
         const other = allPlayers[i];
-        if (!other || other === owner || !other.alive || !isTargetVisibleToPlayer(owner, other)) continue;
+        if (!other || other === owner || !other.alive || areTeammates(owner, other) || !isTargetVisibleToPlayer(owner, other)) continue;
         const d = other.position.distanceToSquared(position);
         if (d < nearestDistSq) nearestDistSq = d;
     }

@@ -64,13 +64,17 @@ export function resolveArcadeBotStrength(stats, tierId = 'normal') {
     return Object.freeze({ combatValue, follow, hpFactor: follow * tier.hp, damageFactor: follow * tier.damage, ai: tier.ai, tierId: tier.id });
 }
 
-export function createArcadeRankContext({ runId, runType, vehicleId, profile, stoneSteps, tierId = 'normal', dailyChallenge = false }) {
+export function createArcadeRankContext({ runId, runType, vehicleId, profile, stoneSteps, tierId = 'normal', dailyChallenge = false, companionCount = 0 }) {
     const vehicleLevel = Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(Number(profile?.level) || 1)));
     const stats = resolveArcadeVehicleActiveStats(vehicleId, profile, stoneSteps);
+    // strengthScaled: the squad follows the player vehicle. ranked additionally lets the run into
+    // the leaderboard and tier unlocks - not with companions, whose help would skew the boards.
+    const strengthScaled = BUILD_RUNS.has(runType) && runType !== 'hangar_test' && !dailyChallenge;
     return Object.freeze({
         runId: String(runId || ''), runType, vehicleId, vehicleLevel, levelRange: resolveArcadeLevelRange(vehicleLevel),
         tierId: runType === 'five_portals' ? 'any' : tierId,
-        ranked: BUILD_RUNS.has(runType) && runType !== 'hangar_test' && !dailyChallenge,
+        strengthScaled,
+        ranked: strengthScaled && !(Number(companionCount) > 0),
         botStrength: resolveArcadeBotStrength(stats, tierId),
     });
 }

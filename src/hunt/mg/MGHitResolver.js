@@ -13,6 +13,7 @@ import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigCont
 import { clamp } from '../../shared/utils/MathOps.js';
 import { applyFightHumanAimAssist } from '../FightAimAssist.js';
 import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
+import { isArcadeCompanionTeamPair } from '../../shared/contracts/ArcadeCompanionContract.js';
 
 function canHitTargetable(target, attacker) {
     return isDestructibleTurret(target)
@@ -274,6 +275,8 @@ export class MGHitResolver {
     applyHit(attacker, targetDescriptor, distance, mg, impactPoint = null) {
         const target = resolveHuntTargetOwnerPlayer(targetDescriptor, this.runtime?.players || []);
         if (!target?.alive || target === attacker) return;
+        // A burst between an arcade companion and its human stays harmless.
+        if (isArcadeCompanionTeamPair(attacker, target)) return;
 
         // FALLOFF_RANGE: Arcade nose range lengthens the flight only (unset elsewhere -> RANGE).
         const maxRange = Math.max(10, Number(mg.FALLOFF_RANGE || mg.RANGE || 95));
