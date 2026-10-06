@@ -151,6 +151,7 @@ export function getBotValidationMatrix() {
             mode: '1p',
             bots: 1,
             expectedRuntimeBotCount: 3,
+            expectedRuntimeBotCountFromArcadeSeed: true,
             mapKey: 'standard',
             gameMode: 'ARCADE',
             botPolicyStrategy: 'heuristic',

@@ -16,6 +16,11 @@ import {
     captureBotRuntimeSample,
     isTeamObjectiveFirstTickScenario,
 } from '../scripts/bot-validation-first-tick.mjs';
+import {
+    buildArcadeSectorPlan,
+    resolveArcadeSectorRuntimeProfile,
+} from '../../../src/entities/directors/ArcadeEncounterCatalog.js';
+import { ARCADE_DIFFICULTY_TIERS } from '../../../src/shared/contracts/ArcadeDifficultyContract.js';
 
 function firstTickRuntime() {
     const player = { index: 0, isBot: true, teamId: 'ALPHA' };
@@ -584,4 +589,48 @@ test('runner applies selected ids, records real bot deaths, and analysis default
         packageSource,
         /"bot:validate:flight".*H-FIGHT-DUEL,H-CLASSIC-3D-HARD,H-ARCADE-VERTICAL.*--policy heuristic.*--rounds 2.*--headless true/
     );
+});
+
+// Arcade runs replace the menu bot count and difficulty with the seeded first sector of the
+// arcade tier (dadc10fc). The runner seeds round N with seedBase + N.
+function arcadeSectorProfile(seed, tierId = 'normal') {
+    const tier = ARCADE_DIFFICULTY_TIERS.find((entry) => entry.id === tierId);
+    return resolveArcadeSectorRuntimeProfile(buildArcadeSectorPlan({ seed, difficulty: tierId }).sequence[0], {
+        fallbackBotCount: 1,
+        fallbackDifficulty: tier.ai,
+    });
+}
+
+function arcadeSample(seed, botCount, difficulty) {
+    return {
+        runtimePolicyType: 'heuristic',
+        entityPolicyType: 'heuristic',
+        botPolicyTypes: new Array(botCount).fill('heuristic'),
+        botCount,
+        botDecisions: new Array(botCount).fill(null).map(() => ({
+            policyType: 'heuristic',
+            snapshot: { profile: 'balanced', difficulty: difficulty.toLowerCase() },
+        })),
+        runtimeGameMode: 'ARCADE',
+        entityGameMode: 'ARCADE',
+        semanticGameMode: 'ARCADE',
+        modePath: 'arcade',
+        arcadeEnabled: true,
+        arcadeSeed: seed,
+    };
+}
+
+test('Arcade scenarios expect the seeded squad size of every round', () => {
+    const arcadeScenarios = getBotValidationMatrix().filter((entry) => entry.gameMode === 'ARCADE');
+    assert.deepEqual(arcadeScenarios.map((entry) => entry.id), ['H-ARCADE', 'H-ARCADE-VERTICAL']);
+    for (const scenario of arcadeScenarios) {
+        const samples = [0, 1, 2, 3].map((round) => {
+            const seed = scenario.seedBase + round;
+            const profile = arcadeSectorProfile(seed);
+            return arcadeSample(seed, profile.botCount, scenario.botDifficulty);
+        });
+        const verification = buildBotValidationRuntimeVerification(scenario, samples).botCount;
+        assert.deepEqual(verification.expectedBySample, samples.map((sample) => sample.botCount), scenario.id);
+        assert.equal(verification.ok, true, scenario.id);
+    }
 });
