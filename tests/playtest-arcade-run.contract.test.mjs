@@ -7,6 +7,7 @@ import test from 'node:test';
 import {
     buildArcadeSectorRows,
     createArcadeRunTally,
+    diffPilotCounters,
     recordArcadeEvents,
     summarizeArcadeRunAttempts,
 } from '../scripts/playtest/playtest-scenarios-arcade.mjs';
@@ -65,6 +66,11 @@ test('the summary counts every run, including blocked and timed-out ones, and av
         { sectorIndex: 1, reached: 3, cleared: 2, meanSeconds: 45, meanDamageTaken: 12 },
         { sectorIndex: 2, reached: 2, cleared: 1, meanSeconds: 60, meanDamageTaken: 60 },
     ]);
+});
+
+test('pilot counters of a run start at zero although the pilot keeps counting across runs', () => {
+    assert.deepEqual(diffPilotCounters({ frames: 832, mgFrames: 4 }, { frames: 1656, mgFrames: 4 }), { frames: 824, mgFrames: 0 });
+    assert.equal(diffPilotCounters({ frames: 1 }, null), null);
 });
 
 test('the arcade run is offered in the scenario catalog', () => {

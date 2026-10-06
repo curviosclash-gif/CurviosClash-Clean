@@ -73,6 +73,12 @@ export function buildArcadeSectorRows(tally, sectorHistory = []) {
     });
 }
 
+/** The pilot's counters run on across goals; a run reports only what happened during it. */
+export function diffPilotCounters(before, after) {
+    if (!after) return null;
+    return Object.fromEntries(Object.entries(after).map(([key, value]) => [key, (Number(value) || 0) - (Number(before?.[key]) || 0)]));
+}
+
 /**
  * Sums all runs: how many were won, how far they got, and per sector how often it was
  * reached and cleared with mean time and damage. A run that timed out stays in the count.
@@ -148,7 +154,7 @@ async function runOneArcadeRun(run, session, context, { seed, sectorCount, tier,
     });
     run.interventions.push({ at: new Date().toISOString(), role: session.role, helper: 'start_match', args: { seed, sectorCount, tier, vehicle }, note: 'menu bypassed' });
     if (!start.ok) return { seed, blocked: true, reason: 'run did not start', problems: start.problems };
-    await D.configurePilot(session, { mode: 'bot', huntMapUnits });
+    const pilotAtStart = await D.configurePilot(session, { mode: 'bot', huntMapUnits });
     const tally = createArcadeRunTally();
     let tick = null;
     let continued = 0;
@@ -178,7 +184,7 @@ async function runOneArcadeRun(run, session, context, { seed, sectorCount, tier,
         intermissionsContinued: continued,
         seconds: Math.round((Date.now() - startedAt) / 1000),
         sectors: buildArcadeSectorRows(tally, summary?.sectorHistory),
-        pilotCounters: pilot?.counters || null,
+        pilotCounters: diffPilotCounters(pilotAtStart?.counters, pilot?.counters),
         errors: (await D.errorsSince(session, startedAt)).map((entry) => ({ kind: entry.kind, window: entry.window, text: entry.text })),
     };
     if (!attempt.succeeded) attempt.screenshot = await D.shot(session, `arcade-run-seed${seed}-end`).catch(() => null);
