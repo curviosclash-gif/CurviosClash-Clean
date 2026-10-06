@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { isFlyModeChecked } from './EditorFormState.js';
 
 export function bindEditorViewportControls(editor, { syncArenaValues } = {}) {
     if (!editor || typeof syncArenaValues !== 'function') return;
@@ -24,21 +23,6 @@ export function bindEditorViewportControls(editor, { syncArenaValues } = {}) {
         e.target.value = String(y);
         editor.core.yGridHelper.position.y = y;
         editor.core.yGroundMesh.position.y = y;
-    });
-
-    const flyCheckbox = dom.chkFly;
-    editor.flyModeEnabled = isFlyModeChecked(editor);
-    flyCheckbox?.addEventListener('change', (e) => {
-        const isFly = e.target.checked;
-        editor.flyModeEnabled = isFly;
-        const rightClickRotate = {
-            LEFT: THREE.MOUSE.NONE,
-            MIDDLE: THREE.MOUSE.PAN,
-            RIGHT: THREE.MOUSE.ROTATE
-        };
-
-        editor.core.orbit.mouseButtons = rightClickRotate;
-        if (editor.selectedObject) editor.syncTransformControlAttachment();
     });
 
     const syncTransformSnapping = () => {

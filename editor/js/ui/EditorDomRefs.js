@@ -40,7 +40,9 @@ export function createEditorDomRefs(doc = document) {
         selItemType: doc.getElementById("selItemType"),
         selAircraftType: doc.getElementById("selAircraftType"),
 
-        chkFly: doc.getElementById("chkFly"),
+        btnShipFlight: doc.getElementById("btnShipFlight"),
+        shipFlightHud: doc.getElementById("shipFlightHud"),
+        shipFlightSpeed: doc.getElementById("shipFlightSpeed"),
         chkYLayer: doc.getElementById("chkYLayer"),
         numYLayer: doc.getElementById("numYLayer"),
         chkSnap: doc.getElementById("chkSnap"),

@@ -533,6 +533,8 @@ export function bindEditorToolPaletteControls(editor) {
     });
 
     document.addEventListener('keydown', (event) => {
+        // Escape in flight lands the ship and keeps the chosen build tool.
+        if (editor.core.shipFlightActive) return;
         if (editor.dom?.editorModalBackdrop?.classList.contains('is-open') || editor.dom?.exportDialog?.open) return;
         if (event.target instanceof HTMLElement) {
             const tagName = event.target.tagName.toLowerCase();

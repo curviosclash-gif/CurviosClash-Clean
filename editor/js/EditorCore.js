@@ -5,42 +5,19 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js';
 export class EditorCore {
     constructor(containerId) {
         this.container = document.getElementById(containerId);
-        this.runtimeStateAccessors = {
-            isFlyModeEnabled: () => false,
-            getArenaHeight: () => 950
-        };
         this.viewMode = 'perspective';
-        this._scratchCenter = new THREE.Vector3();
-        this._scratchOffset = new THREE.Vector3();
+        // Set by the ship flight controls; while it returns true it owns the camera for that frame.
+        this.cameraFrameHook = null;
+        this.shipFlightActive = false;
         this._scratchDirection = new THREE.Vector3();
-        this._scratchRight = new THREE.Vector3();
-        this._scratchMove = new THREE.Vector3();
-        this._scratchSpherical = new THREE.Spherical();
         this._focusBox = new THREE.Box3();
         this._focusSphere = new THREE.Sphere();
-
-        this.keys = { w: false, a: false, s: false, d: false, q: false, e: false, x: false, y: false, shift: false };
-        document.addEventListener('keydown', (e) => {
-            const key = e.key.toLowerCase();
-            if (this.keys.hasOwnProperty(key)) this.keys[key] = true;
-            if (e.key === 'Shift') this.keys.shift = true;
-        });
-        document.addEventListener('keyup', (e) => {
-            const key = e.key.toLowerCase();
-            if (this.keys.hasOwnProperty(key)) this.keys[key] = false;
-            if (e.key === 'Shift') this.keys.shift = false;
-        });
 
         this.setupScene();
     }
 
-    setRuntimeStateAccessors(accessors = {}) {
-        if (typeof accessors.isFlyModeEnabled === 'function') {
-            this.runtimeStateAccessors.isFlyModeEnabled = accessors.isFlyModeEnabled;
-        }
-        if (typeof accessors.getArenaHeight === 'function') {
-            this.runtimeStateAccessors.getArenaHeight = accessors.getArenaHeight;
-        }
+    setCameraFrameHook(hook) {
+        this.cameraFrameHook = typeof hook === 'function' ? hook : null;
     }
 
     setupScene() {
@@ -72,13 +49,11 @@ export class EditorCore {
             RIGHT: THREE.MOUSE.ROTATE
         };
 
-        // Im Fly-Mode wollen wir nur umherblicken (Mouselook), nicht pannen
         this.orbit.listenToKeyEvents(window);
 
         this.transformControl = new TransformControls(this.camera, this.renderer.domElement);
         this.transformControl.addEventListener('dragging-changed', (event) => {
-            const flyMode = !!this.runtimeStateAccessors.isFlyModeEnabled?.();
-            if (!flyMode) this.orbit.enabled = !event.value;
+            if (!this.shipFlightActive) this.orbit.enabled = !event.value;
         });
 
         this.scene.add(this.transformControl.getHelper());
@@ -233,63 +208,14 @@ export class EditorCore {
     animate(time) {
         requestAnimationFrame((t) => this.animate(t));
 
-        const dt = (time - this.lastTime) / 1000 || 0.016;
+        const elapsed = (time - this.lastTime) / 1000;
         this.lastTime = time;
+        // A hidden tab pauses requestAnimationFrame; the first frame back must not jump.
+        const dt = Number.isFinite(elapsed) && elapsed > 0 ? Math.min(elapsed, 0.1) : 0.016;
 
-        const flyMode = !!this.runtimeStateAccessors.isFlyModeEnabled?.();
-        if (flyMode) {
-            const speed = (this.keys.shift ? 600 : 250) * dt;
-            const orbitSpeed = (this.keys.shift ? 1.4 : 0.8) * dt;
-            const arenaHeight = Number(this.runtimeStateAccessors.getArenaHeight?.()) || 950;
-            const mapCenter = this._scratchCenter.set(0, arenaHeight * 0.5, 0);
-
-            // W/S = vertical orbit (pitch), Q/E = horizontal orbit (yaw) around map center.
-            const pitchInput = (this.keys.w ? 1 : 0) - (this.keys.s ? 1 : 0);
-            const yawInput = (this.keys.e ? 1 : 0) - (this.keys.q ? 1 : 0);
-            if (pitchInput !== 0 || yawInput !== 0) {
-                const offset = this._scratchOffset.copy(this.camera.position).sub(mapCenter);
-                if (offset.lengthSq() > 1e-6) {
-                    const spherical = this._scratchSpherical.setFromVector3(offset);
-
-                    if (yawInput !== 0) {
-                        spherical.theta -= yawInput * orbitSpeed;
-                    }
-
-                    if (pitchInput !== 0) {
-                        spherical.phi = THREE.MathUtils.clamp(
-                            spherical.phi - (pitchInput * orbitSpeed),
-                            0.05,
-                            Math.PI - 0.05
-                        );
-                    }
-
-                    offset.setFromSpherical(spherical);
-                    this.camera.position.copy(mapCenter).add(offset);
-                    this.orbit.target.copy(mapCenter);
-                    this.camera.lookAt(mapCenter);
-                }
-            }
-
-            const dir = this._scratchDirection;
-            this.camera.getWorldDirection(dir);
-            dir.normalize();
-
-            const right = this._scratchRight;
-            right.crossVectors(dir, this.camera.up).normalize();
-
-            const move = this._scratchMove.set(0, 0, 0);
-            if (this.keys.d) move.add(right);
-            if (this.keys.a) move.sub(right);
-            if (this.keys.y) move.y += 1;
-            if (this.keys.x) move.y -= 1;
-            if (move.lengthSq() > 0) {
-                move.normalize().multiplyScalar(speed);
-                this.camera.position.add(move);
-                this.orbit.target.add(move);
-            }
-        }
-
-        this.orbit.update();
+        // OrbitControls.update() re-aims the camera at its target, so it must not run
+        // while the ship flight owns the camera.
+        if (this.cameraFrameHook?.(dt) !== true) this.orbit.update();
         this.renderer.render(this.scene, this.camera);
     }
 }
