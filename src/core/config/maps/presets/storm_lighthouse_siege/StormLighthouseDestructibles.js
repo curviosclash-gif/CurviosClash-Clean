@@ -1,27 +1,13 @@
-export const STORM_LIGHTHOUSE_DESTRUCTIBLES = Object.freeze({
-    gameModes: Object.freeze(['HUNT']),
-    hudNoun: 'Leuchtturm',
-    segments: Object.freeze([Object.freeze({
-        id: 'lighthouse_tower',
-        label: 'Leuchtturm',
-        kind: 'landmark',
-        hp: 520,
-        meshPrefixes: Object.freeze(['lighthouse_tower']),
-        anchor: Object.freeze([0, 4, 0]),
-    })]),
-    pieces: Object.freeze(['landmark']),
-    breakScenes: Object.freeze([Object.freeze({
-        id: 'collapse_lighthouse',
-        trigger: Object.freeze({ segmentId: 'lighthouse_tower' }),
-        modelId: 'storm-lighthouse-collapse',
-        pieces: Object.freeze(['landmark']),
-        hideModelIds: Object.freeze([
-            'storm-lighthouse-intact',
-            'storm-lighthouse-lift',
-            'storm-lighthouse-beacon',
-        ]),
-        // The wreck is a new traversal ramp, so it must always land in its authored clear corridor.
-        yawFromEvent: false,
-        blast: Object.freeze({ radius: 24, damage: 40, delaySeconds: 4.6 }),
-    })]),
+import { createLandmarkDestructibles } from '../siege_shared/LandmarkSiege.js';
+
+// The wreck is a new traversal ramp, so it always lands in its authored clear corridor.
+export const STORM_LIGHTHOUSE_DESTRUCTIBLES = createLandmarkDestructibles({
+    segmentId: 'lighthouse_tower',
+    label: 'Leuchtturm',
+    hp: 520,
+    anchor: [0, 4, 0],
+    sceneId: 'collapse_lighthouse',
+    collapseModelId: 'storm-lighthouse-collapse',
+    hideModelIds: ['storm-lighthouse-intact', 'storm-lighthouse-lift', 'storm-lighthouse-beacon'],
+    blast: { radius: 24, damage: 40, delaySeconds: 4.6 },
 });
