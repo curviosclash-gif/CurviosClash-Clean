@@ -47,9 +47,11 @@ function resolvePlaywrightWarmupClientFiles(env = process.env) {
 function resolveRendererManualChunk(id, env = process.env) {
     if (!id) return undefined;
     const normalizedId = id.replace(/\\/g, '/');
-    // Presets evaluate lighting at module initialization. Keep its defaults in
-    // their chunk rather than pulling them into the mutually dependent runtime.
-    if (normalizedId.endsWith('/shared/contracts/MapLightingContract.js')) {
+    // Presets evaluate lighting and timing at module initialization. Keep those
+    // contracts in their chunk rather than pulling them into the mutually
+    // dependent runtime: map-presets must never import from game-runtime.
+    if (normalizedId.endsWith('/shared/contracts/MapLightingContract.js')
+        || normalizedId.endsWith('/shared/contracts/BloomCoreTimingContract.js')) {
         return 'map-presets';
     }
     // The pickup registry evaluates these definitions at module initialization.

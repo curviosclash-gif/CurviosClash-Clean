@@ -1,8 +1,9 @@
-import { resolveBloomEscapeOpenSeconds } from '../../../../shared/contracts/ArcadeScenarioContract.js';
+import { BLOOM_CORE_FINAL_OPEN_SECONDS } from '../../../../shared/contracts/BloomCoreTimingContract.js';
 import { normalizeMapLighting } from '../../../../shared/contracts/MapLightingContract.js';
 
+export { BLOOM_CORE_FINAL_OPEN_SECONDS };
+
 // The whole floor is built at the final size. Only the collision walls move as each ring opens.
-export const BLOOM_CORE_FINAL_OPEN_SECONDS = resolveBloomEscapeOpenSeconds();
 
 const STAGES = Object.freeze([
     { id: 'bud', label: 'Kern', atSeconds: 0, size: [68, 80, 68] },
