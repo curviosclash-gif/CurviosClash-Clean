@@ -412,6 +412,8 @@ export class ProjectileHitResolver {
                 this._applyRocketExplosion(projectile, players, target);
             } else if (target.hasShield) {
                 target.hasShield = false;
+            } else if (projectile.type === 'SWAP' && projectile.owner?.alive === false) {
+                // A shooter who died in flight has nothing to swap with; the target must not be teleported to the corpse.
             } else if (projectile.type === 'SWAP' && projectile.owner?.position) {
                 this._tmpVec.copy(target.position);
                 target.position.copy(projectile.owner.position);
