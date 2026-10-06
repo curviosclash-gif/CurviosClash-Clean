@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const EXCLUDED_DIR_NAMES = new Set([
+export const EXCLUDED_DIR_NAMES = new Set([
     'node_modules',
     '.git',
     'release',
@@ -29,7 +29,8 @@ function findNewest(target) {
     }
     let newest = null;
     for (const entry of fs.readdirSync(target, { withFileTypes: true })) {
-        if (entry.isDirectory() && EXCLUDED_DIR_NAMES.has(entry.name)) continue;
+        // A worktree links node_modules as a junction, which is a symlink entry, not a directory.
+        if ((entry.isDirectory() || entry.isSymbolicLink()) && EXCLUDED_DIR_NAMES.has(entry.name)) continue;
         const candidate = findNewest(path.join(target, entry.name));
         if (candidate && (!newest || candidate.mtimeMs > newest.mtimeMs)) {
             newest = candidate;

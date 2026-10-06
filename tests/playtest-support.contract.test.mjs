@@ -22,6 +22,7 @@ import {
     withTimeout,
 } from '../scripts/playtest/playtest-support.mjs';
 import { OBSERVATION_SEMANTICS_V1 } from '../src/entities/ai/observation/ObservationSemantics.js';
+import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 
 const TOKEN = 'a'.repeat(48);
 
@@ -154,8 +155,8 @@ test('window kinds come from the URL, the editor playtest included', () => {
     assert.equal(classifyPlaytestWindow('http://127.0.0.1:39001/index.html'), 'main');
     assert.equal(classifyPlaytestWindow('http://127.0.0.1:39001/index.html?playtest=1&planar=0'), 'editor-playtest');
     assert.equal(classifyPlaytestWindow('http://127.0.0.1:39001/hangar.html?mode=arcade'), 'hangar');
-    assert.equal(classifyPlaytestWindow('http://127.0.0.1:39001/editor/map-editor-3d.html'), 'editor');
-    assert.equal(classifyPlaytestWindow('http://127.0.0.1:39001/prototypes/vehicle-lab/index.html'), 'vehicle-lab');
+    assert.equal(classifyPlaytestWindow(`http://127.0.0.1:39001${EDITOR_VIEW_PATHS.MAP_EDITOR}`), 'editor');
+    assert.equal(classifyPlaytestWindow(`http://127.0.0.1:39001${EDITOR_VIEW_PATHS.VEHICLE_LAB}`), 'vehicle-lab');
     assert.equal(classifyPlaytestWindow('file:///F:/repo/electron/tuning-console/tuning.html'), 'tuning');
     assert.equal(classifyPlaytestWindow('file:///F:/repo/electron/settings-studio/ui/settings-studio.html'), 'settings-studio');
     assert.equal(classifyPlaytestWindow('not a url'), 'unknown');
