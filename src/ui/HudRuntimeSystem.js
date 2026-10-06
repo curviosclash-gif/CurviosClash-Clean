@@ -6,6 +6,7 @@ import { ArcadeMissionHUD } from './arcade/ArcadeMissionHUD.js';
 import { resolveLocalHudTile } from './LocalHudPlayers.js';
 import { ArcadeScoreHUD } from './arcade/ArcadeScoreHUD.js';
 import { ArcadeCompanionHUD } from './arcade/ArcadeCompanionHUD.js';
+import { isArcadeMotionReduced } from './arcade/ArcadeReducedMotion.js';
 import { resolveArcadeMapLabel } from './arcade/postrun/ArcadePostRunBlocks.js';
 import { ParcoursOverlayController } from './arcade/ParcoursOverlayController.js';
 import { updateActiveEffectBar, updateItemBar, updateRocketBar } from './ItemBarPresenter.js';
@@ -243,12 +244,8 @@ export class HudRuntimeSystem {
     }
 
     _hideArcadeFeedbackOverlays() {
-        if (this._arcadeSuddenDeathOverlay) {
-            this._arcadeSuddenDeathOverlay.classList.add('hidden');
-        }
-        if (this._arcadeSectorTransitionOverlay) {
-            this._arcadeSectorTransitionOverlay.classList.add('hidden');
-        }
+        this._arcadeSuddenDeathOverlay?.classList.add('hidden');
+        this._arcadeSectorTransitionOverlay?.classList.add('hidden');
         this._arcadeTransitionVisibleUntilMs = 0;
         this._lastArcadeSectorIndex = 0;
     }
@@ -278,7 +275,9 @@ export class HudRuntimeSystem {
         overlay.tickSplitDelta(hudState, nowMs);
         overlay.tickPenalty(hudState, nowMs);
         const suddenDeathActive = String(hudState.phase || '') === 'sudden_death';
+        // The screen edge is the one sudden death pulse (score box and its banner stay still).
         this._arcadeSuddenDeathOverlay?.classList?.toggle('hidden', !suddenDeathActive);
+        this._arcadeSuddenDeathOverlay?.classList?.toggle('reduced-motion', suddenDeathActive && isArcadeMotionReduced(this.game));
 
         const sectorIndex = Math.max(0, Math.floor(Number(hudState.sectorIndex) || 0));
         const sectorChanged = sectorIndex > 0 && sectorIndex !== this._lastArcadeSectorIndex;
