@@ -131,3 +131,12 @@ test('the arcade best chain metric is called Beste Kombo', async () => {
     const { MENU_TEXT_CATALOG } = await import('../src/ui/menu/MenuTextCatalog.js');
     assert.equal(MENU_TEXT_CATALOG['menu.arcade.hud.chain.label'], 'Beste Kombo');
 });
+// The review of the last sector sits at the end of the panel; a second <header> there tells a
+// screen reader it is the panel's introduction. It is a labelled section instead.
+test('the intermission review is a labelled section, not a second header', () => {
+    const panel = renderIntermission({ ...BASE_INTERMISSION, choices: [] });
+    const review = findFirst(panel, (node) => String(node.className).includes('arcade-overlay-review'));
+    assert.ok(review, 'the review is shown');
+    assert.equal(review.tagName, 'section');
+    assert.equal(review.getAttribute('aria-label'), 'Rückschau');
+});

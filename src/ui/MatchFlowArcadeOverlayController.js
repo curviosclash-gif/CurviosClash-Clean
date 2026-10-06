@@ -187,8 +187,9 @@ export class MatchFlowArcadeOverlayController {
 
         // The countdown runs while the panel is open: route, reward and confirm come first, the
         // review of the last sector after them, so a short window never scrolls the choice away.
-        const review = document.createElement('header');
+        const review = document.createElement('section');
         review.className = 'arcade-overlay-header arcade-overlay-review';
+        review.setAttribute('aria-label', 'Rückschau');
         appendArcadeCards(review, createArcadeIntermissionBlocks({
             ...intermission,
             lastSectorPoints,
