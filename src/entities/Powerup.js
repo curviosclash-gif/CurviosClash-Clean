@@ -139,7 +139,7 @@ export class PowerupManager {
         const strategy = typeof this.getStrategy === 'function' ? this.getStrategy() : null;
         const spawnRateMul = (strategy && typeof strategy.getSpawnRateMultiplier === 'function')
             ? strategy.getSpawnRateMultiplier() : 1.0;
-        const fieldLimit = resolvePowerupFieldLimit(config.POWERUP.MAX_ON_FIELD, this.arena?.bounds, config.GAMEPLAY.PLANAR_MODE);
+        const fieldLimit = resolvePowerupFieldLimit(config.POWERUP.MAX_ON_FIELD, this.arena?.bounds, config.GAMEPLAY.PLANAR_MODE, config.ARENA?.MAP_SCALE);
         const effectiveInterval = resolvePowerupSpawnInterval(config.POWERUP, fieldLimit, spawnRateMul);
         const authoredItemTarget = this.arena?.currentMapDefinition?.keepAuthoredItemsAvailable === true
             ? (this.arena?.getAuthoredItemAnchors?.().length || 0)
