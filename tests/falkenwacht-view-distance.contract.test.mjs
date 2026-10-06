@@ -35,23 +35,25 @@ test('Falkenwacht triples fog and camera range and restores it on settings and m
         const first = runtime.createCamera(0);
         assert.equal(first.far, 200);
         for (const map of Object.values(FALKENWACHT_MAPS)) {
+            const { near, far } = map.lighting.fog;
+            assert.ok(far === 600 || far === 1000, 'the route fog ends at the contract limit, the arena at 600');
             runtime.setMapLighting(map.lighting);
-            assert.equal(runtime.scene.fog.near, 450);
-            assert.equal(runtime.scene.fog.far, 600);
-            assert.equal(first.far, 600);
-            assert.equal(getAtmosphericFogUniforms().fogClipDistance.value, 600);
+            assert.equal(runtime.scene.fog.near, near);
+            assert.equal(runtime.scene.fog.far, far);
+            assert.equal(first.far, far);
+            assert.equal(getAtmosphericFogUniforms().fogClipDistance.value, far);
             const second = runtime.createCamera(1);
-            assert.equal(second.far, 600);
+            assert.equal(second.far, far);
             const frustum = new THREE.Frustum().setFromProjectionMatrix(first.projectionMatrix);
-            assert.ok(frustum.containsPoint(new THREE.Vector3(0, 0, -500)));
-            assert.ok(!frustum.containsPoint(new THREE.Vector3(0, 0, -601)));
+            assert.ok(frustum.containsPoint(new THREE.Vector3(0, 0, -(far - 100))));
+            assert.ok(!frustum.containsPoint(new THREE.Vector3(0, 0, -(far + 1))));
 
             runtime.setViewDistance(100);
             assert.equal(runtime.scene.fog.far, 100);
             assert.ok(runtime.cameras.every(camera => camera.far === 200));
             assert.equal(getAtmosphericFogUniforms().fogClipDistance.value, 200);
             runtime.setViewDistance(0);
-            assert.ok(runtime.cameras.every(camera => camera.far === 600));
+            assert.ok(runtime.cameras.every(camera => camera.far === far));
 
             runtime.setMapLighting(undefined);
             assert.equal(runtime.scene.fog.far, 190);

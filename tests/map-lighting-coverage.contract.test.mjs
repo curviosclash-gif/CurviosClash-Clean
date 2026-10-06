@@ -57,6 +57,17 @@ const K8A_LIT_MAPS = Object.freeze([
     'mega_maze_xl',
 ]);
 
+// Older profiles that were tuned for their own sight lines before K8a. Only the course side of the
+// rule is measured here (the next ring has to stay visible), the half-arena reach is not: the
+// moods stay as they are. The arena variants without a route are not part of it.
+const K17_ROUTE_FOG_MAPS = Object.freeze([
+    'wind_cathedral',
+    'neon_carnival',
+    'notre_dame',
+    'burg_falkenwacht',
+]);
+const MAX_FOG_SHARE_AT_NEXT_RING = 0.75;
+
 function isPublicLitCandidate(mapKey, map) {
     return MAP_PICKER_META[mapKey]?.tier === 'public' && map?.hiddenFromMapPicker !== true;
 }
@@ -83,6 +94,13 @@ function longestRingLeg(map) {
         }
     });
     return longest;
+}
+
+// Share of the fog that has eaten the ring colour at the longest leg, same formula as the shader.
+function fogShareAtLongestLeg(map) {
+    const { fog } = resolveMapLighting(map.lighting);
+    const leg = longestRingLeg(map);
+    return { leg, fog, share: Math.max(0, (leg - fog.near) / (fog.far - fog.near)) };
 }
 
 test('every public map states its own lighting unless it keeps the default look by design', () => {
@@ -116,13 +134,33 @@ test('fog reaches at least half the shorter arena side, and past the longest rin
         const leg = longestRingLeg(map);
         if (leg > 0) {
             if (fog.far < leg) failures.push(`${mapKey}: far ${fog.far} < ring leg ${Math.round(leg)}`);
-            const fogAtRing = Math.max(0, (leg - fog.near) / (fog.far - fog.near));
-            if (fogAtRing > 0.75) {
-                failures.push(`${mapKey}: ${Math.round(fogAtRing * 100)}% fog at the next ring (leg ${Math.round(leg)})`);
+            const { share } = fogShareAtLongestLeg(map);
+            if (share > MAX_FOG_SHARE_AT_NEXT_RING) {
+                failures.push(`${mapKey}: ${Math.round(share * 100)}% fog at the next ring (leg ${Math.round(leg)})`);
             }
         }
     }
     assert.deepEqual(failures, []);
+});
+
+test('the older course maps keep their next ring visible in the fog', () => {
+    const failures = [];
+    for (const mapKey of K17_ROUTE_FOG_MAPS) {
+        const map = MAP_PRESET_CATALOG[mapKey];
+        assert.ok(map?.lighting && map.parcours?.enabled, `${mapKey} needs lighting and a route`);
+        const { leg, fog, share } = fogShareAtLongestLeg(map);
+        if (fog.far < leg) failures.push(`${mapKey}: far ${fog.far} < ring leg ${Math.round(leg)}`);
+        if (share > MAX_FOG_SHARE_AT_NEXT_RING) {
+            failures.push(`${mapKey}: ${Math.round(share * 100)}% fog at the next ring (leg ${Math.round(leg)})`);
+        }
+    }
+    assert.deepEqual(failures, []);
+});
+
+test('the arena variants without a route keep their own fog', () => {
+    const fogOf = (mapKey) => MAP_PRESET_CATALOG[mapKey].lighting.fog;
+    assert.deepEqual([fogOf('notre_dame_arena').near, fogOf('notre_dame_arena').far], [78, 190]);
+    assert.deepEqual([fogOf('burg_falkenwacht_arena').near, fogOf('burg_falkenwacht_arena').far], [450, 600]);
 });
 
 test('maps of one theme family are told apart by their sky and fog colour', () => {

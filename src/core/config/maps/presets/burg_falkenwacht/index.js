@@ -89,6 +89,9 @@ export const FALKENWACHT_MAPS = {
     burg_falkenwacht: {
         ...common,
         name: 'Burg Falkenwacht – Parcours',
+        // The longest leg (CP13 to CP14) is 947 units; the fog contract ends at 1000, so the fog
+        // starts later to keep the next ring below 75% fog. Colours as on the arena.
+        lighting: { ...lighting, fog: { ...lighting.fog, near: 790, far: 1000 } },
         playerSpawn: { x: 0, y: 26, z: 174 },
         botSpawns: spawns,
         missions: [{ type: 'TIME_TRIAL', params: { target: 180 }, weight: 1.8 }],

@@ -65,7 +65,10 @@ test('both castle variants register shared geometry, light, items and independen
         assert.equal(MAP_PRESETS_BASE[key], value);
         for (const model of value.glbModels) assert.ok(existsSync(model.url), model.url);
     }
-    for (const field of ['glbModels', 'obstacles', 'lighting', 'lights', 'items']) assert.equal(map[field], arenaMap[field]);
+    for (const field of ['glbModels', 'obstacles', 'lights', 'items']) assert.equal(map[field], arenaMap[field]);
+    // The route map only opens the fog (its longest leg is 947 units); every colour is shared.
+    assert.deepEqual({ ...map.lighting, fog: { ...map.lighting.fog, near: 0, far: 0 } },
+        { ...arenaMap.lighting, fog: { ...arenaMap.lighting.fog, near: 0, far: 0 } });
     assert.equal(arenaMap.parcours, undefined);
     assert.equal(arenaMap.botSpawns.length + 1, 8);
     assert.equal(castle.failedCount, 0);
