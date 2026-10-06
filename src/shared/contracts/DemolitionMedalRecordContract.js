@@ -38,6 +38,12 @@ export function normalizeDemolitionMedalRecord(value) {
     return { version: DEMOLITION_MEDAL_RECORD_VERSION, maps };
 }
 
+/** Only an absent record or one of this version may be saved over; a newer or foreign shape is left alone. */
+export function isWritableDemolitionMedalRecord(value) {
+    if (value === null || value === undefined) return true;
+    return typeof value === 'object' && !Array.isArray(value) && value.version === DEMOLITION_MEDAL_RECORD_VERSION;
+}
+
 /** Medal and score each keep their best value: a weaker result never replaces a stronger one. */
 export function mergeDemolitionMedalResult(record, { mapKey = '', medal = '', score = 0 } = {}) {
     const normalized = normalizeDemolitionMedalRecord(record);

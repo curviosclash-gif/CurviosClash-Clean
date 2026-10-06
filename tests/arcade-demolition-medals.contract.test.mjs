@@ -144,3 +144,17 @@ test('an unreadable or missing store neither saves over the record nor breaks th
     const withoutProfile = new DemolitionRuntime({ getRecordStoreForPlayerIndex: () => null });
     playRun(withoutProfile, { humans: [humans[0]], profileIds: [] });
 });
+
+test('readable foreign data and a store without a read result are never saved over', () => {
+    const newer = { version: 2, maps: { reactor_site: { medal: 'gold', bestScore: 7 } } };
+    const foreign = createStore({ [KEY]: newer });
+    const legacy = createStore({ [KEY]: { version: 1, maps: { reactor_site: { medal: 'gold', bestScore: 1 } } } });
+    delete legacy.readJsonRecordResult;
+    const human = { index: 0, isBot: false, vehicleId: 'ship1', rocketInventory: [] };
+    for (const store of [foreign, legacy]) {
+        const before = structuredClone(store.data.get(KEY));
+        playRun(new DemolitionRuntime({ getRecordStoreForPlayerIndex: () => store }), { humans: [human], profileIds: ['a'] });
+        assert.equal(store.saves.length, 0);
+        assert.deepEqual(store.data.get(KEY), before);
+    }
+});

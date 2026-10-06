@@ -9,6 +9,7 @@ import {
 } from '../../shared/contracts/DemolitionContract.js';
 import {
     DEMOLITION_MEDAL_RECORD_STORAGE_KEY,
+    isWritableDemolitionMedalRecord,
     mergeDemolitionMedalResult,
 } from '../../shared/contracts/DemolitionMedalRecordContract.js';
 import { MAP_DESTRUCTIBLE_KINDS } from '../../shared/contracts/MapDestructibleContract.js';
@@ -184,14 +185,15 @@ export class DemolitionRuntime {
     _saveBestMedal(mapKey, medal, score) {
         const saved = new Set();
         for (const { profileId, store } of this.playerBindings.values()) {
-            if (saved.has(profileId) || typeof store?.saveJsonRecord !== 'function') continue;
+            if (saved.has(profileId) || typeof store?.saveJsonRecord !== 'function'
+                || typeof store.readJsonRecordResult !== 'function') continue;
             saved.add(profileId);
             try {
-                // An unreadable record is left alone instead of being replaced by a fresh one.
-                const read = store.readJsonRecordResult?.(DEMOLITION_MEDAL_RECORD_STORAGE_KEY)
-                    ?? { status: 'found', value: store.loadJsonRecord?.(DEMOLITION_MEDAL_RECORD_STORAGE_KEY, null) };
+                // An unreadable, newer or foreign record is left alone instead of being replaced by a fresh one.
+                const read = store.readJsonRecordResult(DEMOLITION_MEDAL_RECORD_STORAGE_KEY);
                 if (read?.status !== 'found' && read?.status !== 'missing') continue;
                 const previous = read.status === 'found' ? read.value : null;
+                if (!isWritableDemolitionMedalRecord(previous)) continue;
                 const merged = mergeDemolitionMedalResult(previous, { mapKey, medal, score });
                 if (merged.changed) store.saveJsonRecord(DEMOLITION_MEDAL_RECORD_STORAGE_KEY, merged.record);
             } catch {
