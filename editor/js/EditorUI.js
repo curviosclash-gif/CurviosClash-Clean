@@ -13,6 +13,7 @@ import { bindEditorLayerControls } from './ui/EditorLayerControls.js';
 import { bindEditorRelationshipControls } from './ui/EditorRelationshipControls.js';
 import { bindEditorShipFlightControls } from './ui/EditorShipFlightControls.js';
 import { bindEditorFlightPlacementControls } from './ui/EditorFlightPlacementControls.js';
+import { bindEditorGameViewControls } from './ui/EditorGameViewControls.js';
 import { readArenaSizeInputs, writeArenaSizeInputs } from './ui/EditorFormState.js';
 import {
     setupEditorSceneVisuals,
@@ -262,6 +263,7 @@ export class EditorUI {
         // Before the shortcuts: its keydown listener must see G and the flight keys first.
         const shipFlight = bindEditorShipFlightControls(this);
         bindEditorFlightPlacementControls(this, shipFlight);
+        bindEditorGameViewControls(this);
 
         bindEditorShortcutControls(this);
 
@@ -285,6 +287,7 @@ export class EditorUI {
                 this.core.yGroundMesh.position.y = yLayer;
             }
             this.updateArenaVisual();
+            this.refreshGameView?.();
         };
         this.syncArenaValues = syncArenaValues;
 
