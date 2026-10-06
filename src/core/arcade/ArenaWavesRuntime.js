@@ -15,7 +15,7 @@ import {
     resolveArenaWavesMapMultipliers,
     resolveArenaWavesProfile,
 } from '../../shared/contracts/ArenaWavesContract.js';
-import { resolveArcadeRoleAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
+import { resolveArcadeRoleAggressiveness, resolveArcadeTierAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 import { resolveHigherArcadeBotDifficulty } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { clampArcadeVehicleSpeedMultiplier } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
@@ -162,7 +162,7 @@ export class ArenaWavesRuntime {
             for (let index = 0; index < excess; index += 1) this._deactivateSlot(this._spawnOrder[0], 'wave_capacity');
             this._waveStatus.set(this._pendingWave, { alive: 0, evicted: false });
         }
-        const aggression = resolveArenaWavesAggression(this.mapIndex, this._pendingWave);
+        const aggression = resolveArcadeTierAggressiveness(resolveArenaWavesAggression(this.mapIndex, this._pendingWave), this.rankContext?.tierId);
         const status = this._waveStatus.get(this._pendingWave);
         for (const [index, { slot, position }] of this._plannedSlots.entries()) {
             if (this._slotWave.get(slot) === this._pendingWave) continue;

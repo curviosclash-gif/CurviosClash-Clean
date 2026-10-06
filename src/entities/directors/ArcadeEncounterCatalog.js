@@ -128,6 +128,7 @@ export const ARCADE_SECTOR_CATALOG = Object.freeze([
 ]);
 
 import { createSeededRandom } from '../../shared/utils/ArcadeUtils.js';
+import { resolveArcadeTierAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 import { applyArcadeScenarioToSectorEntry, resolveArcadeScenarioForSector } from './ArcadeScenarioCatalog.js';
 
 function pickFromPool(pool, randomFn) {
@@ -242,7 +243,7 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
         botRoles: parcoursRacer ? [] : resolveSquadBotRoles(squad, botCount),
         botDifficulty,
         pressure,
-        aggressiveness: parcoursEnabled ? 0 : Math.max(0, Math.min(1, Number(squad?.aggressiveness) || 0)),
+        aggressiveness: parcoursEnabled || !squad ? 0 : resolveArcadeTierAggressiveness(squad.aggressiveness, entry.difficultyTierId),
         parcoursEnabled,
         parcoursRacer,
         isBoss: entry.isBoss === true,
@@ -274,6 +275,8 @@ export function buildArcadeSectorPlan(options = {}) {
         ? new Set(['worm_hunt', 'storm_flood', 'hydra_finale'])
         : null;
     const difficultyScale = resolveDifficultyScale(options.difficulty);
+    // The run tier's bot properties (aggressionBonus) reach the sector profile through the entry.
+    const difficultyTierId = String(options.difficulty ?? 'normal').trim().toLowerCase();
     const parcoursTemplate = ARCADE_SECTOR_CATALOG.find((t) => t.id === 'sector_parcours');
     const sequence = [];
 
@@ -348,6 +351,7 @@ export function buildArcadeSectorPlan(options = {}) {
             pressure: Number(bossPressure.toFixed(3)),
             // Boss pressure ignores the modifier; a scenario brings its own rules.
             ...(isBoss || scenario ? {} : { pressureBasis: createPressureBasis(basePressure, difficultyScale, modifierId) }),
+            difficultyTierId,
             mapKey,
             isBoss,
             bossMultiplier: isBoss ? 2 : 1,
@@ -386,6 +390,7 @@ export function resolveArcadeEndlessSectorDescriptor(options = {}) {
         rewardChoices,
         pressure: Number(pressure.toFixed(3)),
         pressureBasis: Object.freeze(createPressureBasis(basePressure, difficultyScale, modifierId)),
+        difficultyTierId: String(options.difficulty ?? 'normal').trim().toLowerCase(),
         mapKey: pickFromPool(template.mapPool || ['standard'], randomFn) || 'standard',
         isBoss: false,
         bossMultiplier: 1,
