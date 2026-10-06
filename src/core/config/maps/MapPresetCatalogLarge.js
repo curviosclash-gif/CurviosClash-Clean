@@ -224,7 +224,8 @@ export const MAP_PRESET_CATALOG_LARGE_DATA = {
             { a: [-85, 5, -85], b: [85, 40, 85], color: 0x00ffcc },
             { a: [85, 5, -85], b: [-85, 40, 85], color: 0xff66ff },
             { a: [-85, 40, 0], b: [85, 5, 0], color: 0xffaa00 },
-            { a: [0, 5, -85], b: [0, 40, 85], color: 0x44ff88 },
+            // Drawn clear of the z 70 wall (x 0, y 23..45): a portal at x 0 sat inside it.
+            { a: [0, 5, -85], b: [-10, 40, 88], color: 0x44ff88 },
             { a: [-45, 5, -45], b: [45, 40, 45], color: 0xff4444 },
             { a: [45, 5, -45], b: [-45, 40, 45], color: 0x4488ff },
         ]

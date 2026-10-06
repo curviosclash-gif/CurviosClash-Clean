@@ -481,10 +481,10 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { x: 0, y: 12, z: 56 },
         ],
         items: [
-            { id: 'showcase_speed_lane', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: 12, z: -12, weight: 2 },
+            { id: 'showcase_speed_lane', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: 30, z: -12, weight: 2 },
             { id: 'showcase_rocket_cross', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 20, y: 26, z: 18, weight: 1 },
             { id: 'showcase_shield_upper', type: 'item_shield', pickupType: 'SHIELD', x: -20, y: 40, z: 22, weight: 1.5 },
-            { id: 'showcase_random_lane', type: 'item_coin', x: 40, y: 12, z: -28, weight: 0.8 },
+            { id: 'showcase_random_lane', x: 40, y: 12, z: -28, weight: 0.8 },
         ],
         aircraft: [
             { id: 'showcase_air_1', jetId: 'ship3', x: -28, y: 34, z: -46, scale: 1.2, rotateY: 0.6 },
