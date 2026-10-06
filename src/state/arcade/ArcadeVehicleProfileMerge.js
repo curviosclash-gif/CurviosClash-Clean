@@ -2,6 +2,11 @@
 // Every writer keeps the state it last loaded or saved as its base. On save, only the fields the
 // writer changed since that base are applied to the freshly loaded record; XP counters are applied
 // as deltas, so concurrent run XP and hangar spending add up instead of overwriting each other.
+//
+// The merge only ever moves progress forward: the stored level never sinks, ID lists only grow,
+// and a vehicle a writer leaves out of its map stays as stored. A future reset or delete of
+// progress therefore cannot go through saveVehicleProfiles; it needs its own explicit write path
+// around this merge.
 
 import {
     arcadeVehicleLevelForXp,
