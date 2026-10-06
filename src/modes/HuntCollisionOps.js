@@ -65,3 +65,39 @@ export function resolveWallCollisionDamage(player, normal, activeConfig, tickDam
     if (resolveWallImpactSpeed(player, normal) < speedRatio * baseSpeed) return tickDamage;
     return Math.max(tickDamage, toSafeNumber(table.WALL_DAMAGE, DEFAULT_WALL_IMPACT_DAMAGE));
 }
+
+// A head-on crash in Hunt and Arcade: both vehicles take the hit and both get the cooldown, so
+// the mirrored check on the other player later in the same frame does not double-apply it.
+// dealDamage is the mode's own damage rule. Returns true when `player` died.
+export function applyPlayerCrashDamage(player, otherPlayer, crashNormal, entityManager, { damage, cooldown, dealDamage }) {
+    player.crashDamageCooldown = cooldown;
+    otherPlayer.crashDamageCooldown = cooldown;
+
+    const damageResult = dealDamage(player, damage);
+    entityManager._emitHuntDamageEvent({
+        target: player,
+        sourcePlayer: otherPlayer,
+        cause: 'PLAYER_CRASH',
+        hitNormal: crashNormal || null,
+        damageResult,
+        impactPoint: player.position,
+    });
+    const otherDamageResult = dealDamage(otherPlayer, damage);
+    entityManager._emitHuntDamageEvent({
+        target: otherPlayer,
+        sourcePlayer: player,
+        cause: 'PLAYER_CRASH',
+        hitNormal: crashNormal || null,
+        damageResult: otherDamageResult,
+        impactPoint: otherPlayer.position,
+    });
+
+    if (otherDamageResult.isDead) {
+        entityManager._killPlayer(otherPlayer, 'PLAYER_CRASH', { killer: player });
+    }
+    if (damageResult.isDead) {
+        entityManager._killPlayer(player, 'PLAYER_CRASH', { killer: otherPlayer });
+        return true;
+    }
+    return false;
+}

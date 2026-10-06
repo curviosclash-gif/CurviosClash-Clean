@@ -15,13 +15,18 @@ export const LEGACY_CONSTRUCTOR_GAME_ALLOWLIST = new Map([]);
 
 export const LEGACY_DOM_ACCESS_ALLOWLIST = new Map([
     ['src/core/AppInitializerLifecycle.js', 'Bootstrap readiness check remains infrastructure after the AppInitializer lifecycle split.'],
-    ['src/core/BuildInfoController.js', 'Clipboard fallback still needs temporary DOM helpers.'],
     ['src/core/GameBootstrap.js', 'Canvas bootstrap is allowed infrastructure DOM access.'],
     ['src/core/GameLoop.js', 'Loop visibility handling and emergency overlay remain infrastructure concerns.'],
     ['src/core/MediaRecorderSystem.js', 'Recorder downloads and capture canvas creation are infrastructure DOM paths.'],
     ['src/core/RuntimeDiagnosticsSystem.js', 'Diagnostics overlay is an infrastructure DOM exception.'],
     ['src/core/RuntimeErrorOverlay.js', 'Fatal runtime overlay is intentionally outside src/ui.'],
     ['src/entities/arena/ArenaBuildResourceCache.js', 'Offscreen canvas generation is a rendering infrastructure exception.'],
+    // Found once the guard learned the documentRef/_document aliases (2026-10). Owner-approved
+    // budget raise; each entry is debt to move behind a ui port, not a licence to grow.
+    ['src/core/InputManager.js', 'Keyboard input reads the focused element and page visibility; move to a ui focus port.'],
+    ['src/core/PlaytestReturnControl.js', 'Editor playtest return button; move into src/ui behind a playtest port.'],
+    ['src/core/recording/KillcamPixelReplayBuffer.js', 'Killcam replay overlay canvas; move the overlay behind a ui killcam port.'],
+    ['src/shared/runtime/PageVisibility.js', 'Single page-visibility reader shared by input, lobby and telemetry code.'],
 ]);
 
 /** @type {[string, string][]} */

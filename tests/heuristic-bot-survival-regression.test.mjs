@@ -6,6 +6,7 @@ import { applyDecisionToInput } from '../src/entities/ai/BotActionOps.js';
 import { HeuristicBotPolicy } from '../src/entities/ai/HeuristicBotPolicy.js';
 import { buildObservation } from '../src/entities/ai/observation/ObservationSystem.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
+import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
 import {
     WALL_DISTANCE_LEFT,
     WALL_DISTANCE_RIGHT,
@@ -135,7 +136,8 @@ test('surviving Fight collisions bounce heuristic bots into recovery', () => {
     const wallCollision = { normal: new THREE.Vector3(1, 0, 0) };
 
     assert.equal(strategy.handleWallCollision(player, wallCollision, entityManager), false);
-    assert.equal(player.hp, 78);
+    // Contact damage comes from the shipped hunt table, the same one matches load.
+    assert.equal(player.hp, 100 - HUNT_CONFIG.COLLISION_DAMAGE.WALL);
     assert.equal(bounces[0].source, 'WALL');
     // Bounce recovery uses a dedicated arena-collision grace, not the spawn protection
     // that would also make the bot untargetable for turrets.
@@ -144,7 +146,7 @@ test('surviving Fight collisions bounce heuristic bots into recovery', () => {
 
     player.hp = 100;
     assert.equal(strategy.handleTrailCollision(player, {}, 'TRAIL_SELF', player, entityManager), false);
-    assert.equal(player.hp, 66);
+    assert.equal(player.hp, 100 - HUNT_CONFIG.COLLISION_DAMAGE.TRAIL);
     assert.equal(bounces[1].source, 'TRAIL');
     assert.equal(policy._safetyState.recoveryRequested, true);
 });
