@@ -72,7 +72,7 @@ const RAW_META = {
     storm_bridge_siege: entry('adventure', 3, SMALL, ['destructible', 'secretRoom'], 'Sturmbrücke: eine Brücke, die in HUNT zerstört werden kann, mit Geheimraum.'),
     storm_lighthouse_siege: entry('adventure', 3, MID, ['destructible', 'secretRoom'], 'Sturmleuchtturm: ein Leuchtturm, der in HUNT einstürzt, mit Geheimraum.'),
     storm_dam_siege: entry('adventure', 3, SMALL, ['destructible', 'secretRoom'], 'Sturmdamm: ein Staudamm, der in HUNT bricht, mit Geheimraum.'),
-    skyline_siege: entry('adventure', 3, MID, ['destructible'], 'Skyline Siege: ein Hochhaus aus drei Segmenten, das in HUNT zerstört werden kann.'),
+    skyline_siege: entry('adventure', 3, MID, ['destructible'], 'Skyline Belagerung: ein Hochhaus aus drei Segmenten, das in HUNT zerstört werden kann.'),
     cherry_grove: entry('adventure', 2, MID, [], 'Kirschhain: 210 mal 210 Einheiten mit 20 Modellen und zwei Portalen; Szenario für HUNT.'),
 
     // Parcours
