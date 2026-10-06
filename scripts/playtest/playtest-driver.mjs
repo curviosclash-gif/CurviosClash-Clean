@@ -1,13 +1,10 @@
 /* global window, requestAnimationFrame */
-// Building blocks for letting an agent play the real desktop app on its own: launch
-// Electron with a throwaway profile, start matches, fly with the game's bot pilot or
-// by hand, read numbers and take screenshots. Callbacks passed to page.evaluate run
-// in the renderer, hence the browser globals above.
-import { createRequire } from 'node:module';
+// Building blocks for letting an agent play the real desktop app on its own: launch an
+// isolated app session, start matches, fly with the test pilot, read numbers and take
+// screenshots. Callbacks passed to page.evaluate run in the renderer, hence the browser
+// globals above.
 import fs from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
     acquirePlaywrightRunLock,
     releasePlaywrightRunLockOnExit,
@@ -16,31 +13,48 @@ import {
     distanceTravelled,
     countDeaths,
     describeMatchStartProblems,
-    filterPlaytestErrors,
     resolvePlaytestOutDir,
     sanitizeShotName,
 } from './playtest-support.mjs';
-import { enableAutopilot, installControl, resetControl, setPaused } from './playtest-control.mjs';
+import { installControl, resetControl, setPaused } from './playtest-control.mjs';
+import {
+    closeSession,
+    collectErrors,
+    createRunDir,
+    findWindowPage,
+    launchSession,
+    REPO_ROOT,
+} from './playtest-session.mjs';
 
-export { distanceTravelled, countDeaths };
+export { distanceTravelled, countDeaths, REPO_ROOT };
 export {
-    act,
+    configurePilot,
     disableAutopilot,
     enableAutopilot,
     installControl,
+    maneuver,
     observe,
+    pilotStatus,
     readEvents,
     setPaused,
     step,
+    stopPilot,
+    updatePilot,
 } from './playtest-control.mjs';
+export {
+    collectErrors,
+    createRunDir,
+    findWindowPage,
+    launchSession,
+    listWindows,
+    queueOpenDialog,
+    readMainProcessRecords,
+    setMessageBoxResponse,
+    setWindowsOnScreen,
+    triggerFocusShortcut,
+} from './playtest-session.mjs';
 
-export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const OUT_DIR = resolvePlaytestOutDir();
-export const SHOTS_DIR = path.join(OUT_DIR, 'shots');
-
-const requireRepo = createRequire(path.join(REPO_ROOT, 'package.json'));
-const requireElectron = createRequire(path.join(REPO_ROOT, 'electron', 'package.json'));
-const { _electron } = requireRepo('@playwright/test');
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -52,82 +66,50 @@ export async function acquireLock(label = 'playtest', options = {}) {
 }
 
 /**
- * Launches the desktop app from dist-app-test (the build with the test bridge) in an
- * off-screen window that renders at full frame rate. Rounds are tagged as automation
- * in telemetry, so they never count as human play.
+ * Launches the desktop app from dist-app-test (the build with the test bridge) in its own
+ * run folder, off screen at full frame rate. Rounds are tagged as automation in
+ * telemetry, so they never count as human play.
  */
-export async function launchApp({ visible = false, tag = 'claude' } = {}) {
-    if (!existsSync(path.join(REPO_ROOT, 'dist-app-test', 'index.html'))) {
-        throw new Error('dist-app-test is missing: run "npm run build:app:test" first.');
-    }
-    await fs.mkdir(SHOTS_DIR, { recursive: true });
-    const profile = await fs.mkdtemp(path.join(OUT_DIR, 'profile-'));
-    const boot = path.join(profile, 'boot.cjs');
-    const main = path.join(REPO_ROOT, 'electron', 'main.cjs');
-    await fs.writeFile(boot, `const {app}=require('electron');app.setPath('appData',${JSON.stringify(profile)});require(${JSON.stringify(main)});\n`);
-    const env = {
-        ...process.env,
-        PW_RUN_TAG: `playtest-${Date.now()}`,
-        CURVIOS_E2E_RENDERER: '1',
-        CURVIOS_AUTOMATION: tag,
-        CURVIOS_ELECTRON_SHOW_WINDOW: '1',
-        CURVIOS_DESKTOP_STATIC_PORT: process.env.CURVIOS_DESKTOP_STATIC_PORT || String(39600 + (process.pid % 300)),
-    };
-    if (!visible) env.CURVIOS_ELECTRON_TEST_RENDER = 'inactive';
-    delete env.ELECTRON_RUN_AS_NODE;
-    const app = await _electron.launch({
-        executablePath: requireElectron('electron'),
-        cwd: path.join(REPO_ROOT, 'electron'),
-        args: [boot],
-        env,
-        timeout: 90_000,
-    });
-    const session = { app, page: null, profile, errors: [], visible, tag, closed: false };
-    // A crashed or closed app is noticed here, so callers can relaunch instead of
-    // failing every later step with "Target closed".
-    app.on('close', () => { session.closed = true; });
-    const page = await app.firstWindow({ timeout: 90_000 });
-    session.page = page;
-    const { errors } = session;
-    page.on('pageerror', (error) => errors.push({ kind: 'pageerror', text: String(error?.message || error), at: Date.now() }));
-    page.on('console', (message) => {
-        if (message.type() === 'error') errors.push({ kind: 'console', text: message.text().slice(0, 500), at: Date.now() });
-    });
-    await page.waitForFunction(() => Boolean(window.GAME_INSTANCE?.settings), null, { timeout: 90_000 });
-    await page.waitForSelector('#main-menu[data-shell-ready="true"]', { timeout: 60_000 }).catch(() => {});
-    return session;
+export async function launchApp({ visible = false, tag = 'claude', runDir = null, role = 'main' } = {}) {
+    const run = runDir ? { runDir } : await createRunDir(role);
+    return launchSession({ runDir: run.runDir, role, visible, tag });
 }
 
-/** Closes the session and starts a fresh app with the same visibility and tag. */
+/** Closes the session and starts a fresh app in the same run folder. */
 export async function relaunchApp(session) {
     await closeApp(session);
-    return launchApp({ visible: session?.visible === true, tag: session?.tag || 'claude' });
+    return launchSession({
+        runDir: session.runDir, role: `${session.role}-relaunch-${Date.now()}`,
+        visible: session?.visible === true, tag: session?.tag || 'claude',
+    });
 }
 
 export async function closeApp(session) {
-    if (!session?.app) return;
-    const closed = await Promise.race([
-        session.app.close().then(() => true, () => false),
-        sleep(15_000).then(() => false),
-    ]);
-    if (!closed && session.app.process()?.exitCode == null) session.app.process().kill();
+    await closeSession(session);
 }
 
-/** Screenshot of the main window; falls back to capturePage when Playwright times out. */
-export async function shot(session, name) {
-    const file = path.join(SHOTS_DIR, `${sanitizeShotName(name)}.png`);
-    await session.page.screenshot({ path: file, timeout: 20_000 }).catch(async () => {
-        const png = await session.app.evaluate(async ({ BrowserWindow }) => {
-            const image = await BrowserWindow.getAllWindows()[0].webContents.capturePage();
+/** Screenshot of a window (default the main game window) into the session's shot folder. */
+export async function shot(session, name, kind = 'main') {
+    const file = path.join(session.paths?.shots || path.join(OUT_DIR, 'shots'), `${sanitizeShotName(name)}.png`);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    const page = await findWindowPage(session, kind);
+    if (!page) throw new Error(`no ${kind} window is open`);
+    await page.screenshot({ path: file, timeout: 20_000 }).catch(async () => {
+        const url = page.url();
+        const png = await session.app.evaluate(async ({ BrowserWindow }, wanted) => {
+            const window = BrowserWindow.getAllWindows().find((entry) => entry.webContents.getURL() === wanted)
+                || BrowserWindow.getAllWindows()[0];
+            const image = await window.webContents.capturePage();
             return image.toPNG().toString('base64');
-        });
+        }, url);
         await fs.writeFile(file, Buffer.from(png, 'base64'));
     });
     return file;
 }
 
-export function errorsSince(session, sinceMs) {
-    return filterPlaytestErrors(session.errors, sinceMs);
+/** Errors of every window and the main process since sinceMs. */
+export async function errorsSince(session, sinceMs) {
+    return collectErrors(session, sinceMs);
 }
 
 /**
@@ -164,7 +146,7 @@ export async function startMatch(session, options) {
             mode: opts.session === 'splitscreen' ? '2p' : '1p',
             numHumans: opts.humans || 1,
             numBots: opts.bots ?? 2,
-            winsNeeded: opts.winsNeeded ?? 99,
+            winsNeeded: opts.winsNeeded ?? 15,
             botDifficulty: opts.difficulty || 'NORMAL',
             gameMode: opts.mode || 'CLASSIC',
             mapKey: opts.map,
@@ -211,6 +193,10 @@ export async function startMatch(session, options) {
             players: game.entityManager?.players?.length || 0,
             humanVehicle: game.entityManager?.humanPlayers?.[0]?.vehicleId || null,
             seed: Number.isInteger(opts.seed) ? opts.seed : null,
+            // What the runtime actually uses; it clamps bots and wins without telling.
+            bots: game.runtimeConfig?.session?.numBots ?? game.entityManager?.bots?.length ?? null,
+            winsNeeded: game.runtimeConfig?.session?.winsNeeded ?? game.winsNeeded ?? null,
+            seedActual: game.runtimeConfig?.session?.seed ?? game.runtimeConfig?.seed ?? game.settings?.arcade?.seed ?? null,
         };
     }, options);
     result.problems = describeMatchStartProblems(options, result);
@@ -218,9 +204,7 @@ export async function startMatch(session, options) {
     // New match, new entity manager: hooks go on again, the autopilot choice carries over.
     await resetControl(session);
     result.control = await installControl(session);
-    const pilot = await session.page.evaluate(() => ({ on: window.__playtest?.pilot === true, type: window.__playtest?.pilotType ?? null }));
-    result.autopilot = pilot.on;
-    if (pilot.on) await enableAutopilot(session, pilot.type);
+    result.pilot = await session.page.evaluate(() => window.__playtestPilotRuntime?.describe?.() ?? null);
     if (options?.paused) result.paused = (await setPaused(session, true)).paused;
     return result;
 }

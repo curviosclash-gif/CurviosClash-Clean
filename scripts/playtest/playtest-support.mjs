@@ -30,6 +30,24 @@ export function resolveDaemonStateFile(env = process.env, tmpDir = os.tmpdir()) 
     return path.join(tmpDir, 'curvios-playtest-daemon.json');
 }
 
+/**
+ * Which app window a URL belongs to. The editor playtest shares the main window's title,
+ * so the URL is the only reliable mark.
+ */
+export function classifyPlaytestWindow(url) {
+    let parsed = null;
+    try { parsed = new URL(String(url || '')); } catch { return 'unknown'; }
+    const pathname = decodeURIComponent(parsed.pathname).replace(/\\/g, '/');
+    if (parsed.searchParams.get('playtest') === '1') return 'editor-playtest';
+    if (pathname.endsWith('/hangar.html')) return 'hangar';
+    if (pathname.endsWith('/editor/map-editor-3d.html')) return 'editor';
+    if (pathname.includes('/prototypes/vehicle-lab/')) return 'vehicle-lab';
+    if (pathname.endsWith('/tuning-console/tuning.html') || (parsed.protocol === 'data:' && /tuning/i.test(pathname))) return 'tuning';
+    if (pathname.endsWith('/settings-studio.html')) return 'settings-studio';
+    if (parsed.protocol.startsWith('http') && (pathname === '/' || pathname.endsWith('/index.html'))) return 'main';
+    return 'unknown';
+}
+
 /** A file name that is safe on Windows and still readable in a report. */
 export function sanitizeShotName(name) {
     const cleaned = String(name || '').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '');
@@ -71,32 +89,28 @@ export function framesForMs(ms) {
     return Math.max(1, Math.round(value / 1000 / SIM_STEP_SECONDS));
 }
 
-const ACTION_AXES = ['pitchAxis', 'yawAxis', 'rollAxis'];
-const ACTION_FLAGS = [
-    'pitchUp', 'pitchDown', 'yawLeft', 'yawRight', 'rollLeft', 'rollRight',
-    'boost', 'shootMG', 'shootRocket', 'shootItem', 'nextItem', 'dropItem',
-];
+const MANEUVER_AXES = ['turn', 'climb', 'roll'];
+const MANEUVER_TAPS = ['boost', 'fireRocket', 'useItem', 'nextItem'];
+const MANEUVER_HOLDS = ['fireMG'];
 
 /**
- * The control input an agent may hold for a while, in the field names of the bot action
- * contract (src/entities/ai/actions/BotActionContract.js). Axes are clamped to -1..1,
- * unknown fields are dropped, so a typo cannot reach the game as a silent no-op.
+ * A direct maneuver in the pilot's words: turn (+ right), climb (+ nose up), roll
+ * (+ right) from -1 to 1, fireMG held, boost / fireRocket / useItem / nextItem tapped
+ * once. The pilot turns this into device input and compensates the player's own invert
+ * settings, as a person at the controls would. Unknown fields are refused, so a typo
+ * cannot reach the game as a silent no-op.
  */
-export function sanitizePlaytestAction(action = {}) {
-    const source = action && typeof action === 'object' ? action : {};
-    const unknown = Object.keys(source).filter((key) => (
-        !ACTION_AXES.includes(key) && !ACTION_FLAGS.includes(key) && key !== 'useItem' && key !== 'shootItemIndex'
-    ));
-    if (unknown.length) throw new Error(`unknown action field(s): ${unknown.join(', ')}`);
+export function sanitizePilotManeuver(input = {}) {
+    const source = input && typeof input === 'object' ? input : {};
+    const known = [...MANEUVER_AXES, ...MANEUVER_TAPS, ...MANEUVER_HOLDS];
+    const unknown = Object.keys(source).filter((key) => !known.includes(key));
+    if (unknown.length) throw new Error(`unknown maneuver field(s): ${unknown.join(', ')}; allowed: ${known.join(', ')}`);
     const sanitized = {};
-    for (const key of ACTION_AXES) {
-        const value = Number(source[key]);
-        if (source[key] != null && Number.isFinite(value)) sanitized[key] = Math.max(-1, Math.min(1, value));
+    for (const key of MANEUVER_AXES) {
+        const value = Number(source[key] ?? 0);
+        sanitized[key] = Number.isFinite(value) ? Math.max(-1, Math.min(1, value)) : 0;
     }
-    for (const key of ACTION_FLAGS) sanitized[key] = source[key] === true;
-    for (const key of ['useItem', 'shootItemIndex']) {
-        sanitized[key] = Number.isInteger(source[key]) && source[key] >= 0 ? source[key] : -1;
-    }
+    for (const key of [...MANEUVER_TAPS, ...MANEUVER_HOLDS]) sanitized[key] = source[key] === true;
     return sanitized;
 }
 
@@ -123,7 +137,41 @@ export function describeMatchStartProblems(request = {}, result = {}) {
         problems.push(`mode is ${result.gameMode}, not ${request.mode}`);
     }
     if (result.glbError) problems.push(`map model failed to load: ${result.glbError}`);
+    if (Number.isInteger(request.bots) && Number.isInteger(result.bots) && result.bots !== request.bots) {
+        problems.push(`bots are ${result.bots}, not ${request.bots}`);
+    }
+    if (Number.isInteger(request.winsNeeded) && Number.isInteger(result.winsNeeded) && result.winsNeeded !== request.winsNeeded) {
+        problems.push(`winsNeeded is ${result.winsNeeded}, not ${request.winsNeeded}`);
+    }
+    if (Number.isInteger(request.seed) && request.mode === 'ARCADE' && Number.isInteger(result.seedActual) && result.seedActual !== request.seed) {
+        problems.push(`arcade seed is ${result.seedActual}, not ${request.seed}`);
+    }
     return problems;
+}
+
+export const ACCEPTANCE_ATTEMPTS = 10;
+
+/**
+ * The flight acceptance verdict. Every attempt counts, a blocked one as a miss; the
+ * threshold is never lowered. passed: at least `required` successes out of ten.
+ * blocked: blocked attempts alone made the threshold unreachable. unclear: fewer than
+ * ten attempts were run. failed: otherwise. Errors seen during attempts are listed
+ * separately as game bugs with the seed that reproduces them.
+ */
+export function evaluateAcceptance({ kind, map, attempts = [], required, successKey }) {
+    const successes = attempts.filter((attempt) => attempt?.[successKey] === true).length;
+    const blocked = attempts.filter((attempt) => attempt?.blocked === true).length;
+    let status = 'failed';
+    if (attempts.length < ACCEPTANCE_ATTEMPTS) status = 'unclear';
+    else if (successes >= required) status = 'passed';
+    else if (successes + blocked >= required) status = 'blocked';
+    const gameBugs = attempts.flatMap((attempt, index) => (attempt?.errors || []).map((error) => ({
+        attempt: index + 1, seed: attempt.seed ?? null, map, ...error,
+    })));
+    return {
+        status, kind, map, required: `${required}/${ACCEPTANCE_ATTEMPTS}`, result: `${successes}/${attempts.length}`,
+        successes, blocked, attempts, gameBugs,
+    };
 }
 
 /** Rejects with a timeout error if the promise is not settled within ms. */
@@ -163,6 +211,17 @@ export const PLAYTEST_RUNTIME_HOOKS = Object.freeze([
     { file: 'src/entities/runtime/EntityEventBus.js', needle: 'emitHuntFeed(message) {' },
     { file: 'src/entities/Player.js', needle: 'markRenderDiscontinuity(' },
     { file: 'src/entities/Player.js', needle: 'addToInventory(' },
+    { file: 'src/core/InputManager.js', needle: 'getKeyboardInput(playerIndex, options = {}) {' },
+    { file: 'src/core/GameRuntimeFacade.js', needle: 'get arcadeRunRuntime()' },
+    { file: 'src/core/arcade/ArcadeRunRuntime.js', needle: 'getStateSnapshot() {' },
+    { file: 'src/entities/EntityManager.js', needle: 'getParcoursRouteSnapshot' },
+    { file: 'src/entities/EntityManager.js', needle: 'getHuntScoreboard()' },
+    { file: 'src/entities/EntityManager.js', needle: 'getHuntOverheatSnapshot()' },
+    { file: 'src/entities/systems/ParcoursProgressSystem.js', needle: 'getPlayerProgressSnapshot(' },
+    { file: 'src/entities/systems/MapUnitSystem.js', needle: 'this.units = []' },
+    { file: 'src/entities/Powerup.js', needle: 'this.items = []' },
+    { file: 'src/entities/arena/ArenaCollision.js', needle: 'checkCollisionFast(position, radius = 0) {' },
+    { file: 'src/entities/arena/ArenaGeometryCompilePipeline.js', needle: 'innerRadius: solid ? 0 : safeInnerRadius' },
 ]);
 
 /**

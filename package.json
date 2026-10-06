@@ -121,6 +121,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.2",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@playwright/test": "^1.63.0",
     "@types/node": "^25.9.7",
     "@types/three": "^0.186.0",
@@ -128,6 +129,7 @@
     "eslint-plugin-boundaries": "^6.0.2",
     "typescript": "^5.9.3",
     "vite": "^6.4.2",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "zod": "^4.6.5"
   }
 }

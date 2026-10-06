@@ -4,7 +4,7 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        "scripts/playtest/playtest-mcp.mjs"
+        "F:\\Users\\gunda\\Desktop\\CurviosClash-Clean\\scripts\\playtest\\playtest-mcp.mjs"
       ]
     }
   }

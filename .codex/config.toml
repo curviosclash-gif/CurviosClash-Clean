@@ -1,0 +1,10 @@
+# Project-scoped Codex configuration (read only when this project is trusted).
+# The playtest MCP server always runs from the permanent main checkout, so every
+# worktree and every client drives the same, integrated tool.
+[mcp_servers.curvios-playtest]
+command = "node"
+args = ["F:\\Users\\gunda\\Desktop\\CurviosClash-Clean\\scripts\\playtest\\playtest-mcp.mjs"]
+cwd = "F:\\Users\\gunda\\Desktop\\CurviosClash-Clean"
+# Opening a session starts Electron (and for LAN two of them); allow for it.
+startup_timeout_sec = 30
+tool_timeout_sec = 180
