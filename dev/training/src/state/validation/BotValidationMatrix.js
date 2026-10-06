@@ -222,7 +222,8 @@ export function getBotValidationMatrix() {
             portalCount: 0,
             rounds: 4,
             expectedPolicyType: 'heuristic',
-            botDifficulty: 'HARD',
+            // Arcade bots follow the pinned base tier (NORMAL); botDifficulty no longer reaches them.
+            botDifficulty: 'NORMAL',
             heuristicProfile: 'balanced',
         },
         {

@@ -364,6 +364,9 @@ export class BotValidationService {
         game.settings.botDifficulty = scenario.botDifficulty || 'NORMAL';
         game.settings.botHeuristicProfile = scenario.heuristicProfile || 'balanced';
         game.settings.arcade.seed = scenario.seedBase;
+        // Arcade bots take their difficulty from the run tier, not from botDifficulty (dadc10fc).
+        // Pin the tier every profile has unlocked so the expectation never depends on a saved profile.
+        game.settings.arcade.difficultyTierId = 'normal';
         game.settings.gameplay.planarMode = !!scenario.planarMode;
         // The map owns its portal count; the scenario only decides whether portals are on.
         game.settings.portalsEnabled = scenario.portalCount > 0;

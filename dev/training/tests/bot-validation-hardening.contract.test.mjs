@@ -634,3 +634,20 @@ test('Arcade scenarios expect the seeded squad size of every round', () => {
         assert.equal(verification.ok, true, scenario.id);
     }
 });
+
+test('Arcade scenarios expect the bot difficulty of the arcade tier they pin', () => {
+    const service = new BotValidationService();
+    for (const scenario of getBotValidationMatrix().filter((entry) => entry.gameMode === 'ARCADE')) {
+        const game = { settings: { localSettings: {}, gameplay: {}, hunt: {}, winsNeeded: 1 }, _onSettingsChanged() {} };
+        service.applyScenario(game, scenario.id);
+        const tierId = game.settings.arcade.difficultyTierId;
+        assert.equal(tierId, 'normal', `${scenario.id} must pin the tier every profile has unlocked`);
+        const samples = [0, 1, 2, 3].map((round) => {
+            const seed = scenario.seedBase + round;
+            const profile = arcadeSectorProfile(seed, tierId);
+            return arcadeSample(seed, profile.botCount, profile.botDifficulty);
+        });
+        const policy = buildBotValidationRuntimeVerification(scenario, samples).policy;
+        assert.equal(policy.ok, true, `${scenario.id} expects ${policy.expectedDifficulty}, arcade plays ${policy.difficultyNames}`);
+    }
+});
