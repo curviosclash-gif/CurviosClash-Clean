@@ -12,11 +12,13 @@ import {
     scenarioAllMaps, scenarioEditorRoundTrip, scenarioFailureCases, scenarioHangarTestFlight, scenarioInputPaths,
     scenarioLan, scenarioMenuPauseReturn, scenarioRecordingExport, scenarioSplitscreen,
 } from './playtest-scenarios-desktop.mjs';
+import { scenarioArcadeRun } from './playtest-scenarios-arcade.mjs';
 
 export const SCENARIOS = Object.freeze({
     flight_maneuvers: { description: 'Direct maneuvers (turn, climb, dive, roll, combined) with measured effect.', run: scenarioFlightManeuvers },
     reaction: { description: 'The pilot changes its commands when the goal moves or a wall is ahead.', run: scenarioReaction },
     parcours_acceptance: { description: 'Flight acceptance: 10 parcours attempts (params.map, default parcours_rift), seeds 101-110, ship1, NORMAL, max 5 min each; passed at 9/10.', run: scenarioParcoursAcceptance },
+    arcade_run: { description: 'Arcade test driver: the game bot flies params.seeds (default 101-103) gauntlet runs of params.sectorCount (default 4) on params.tier, hunting map units; per sector time, damage taken, deaths, points, missions.', run: scenarioArcadeRun },
     duel_acceptance: { description: 'Flight acceptance: 10 HUNT duels vs one NORMAL bot (params.map, default standard), seeds 101-110, ship1; passed at 8/10 real wins.', run: scenarioDuelAcceptance },
     menu_pause_return: { description: 'Menu -> match -> pause -> back to the menu with clicks and keys.', run: scenarioMenuPauseReturn },
     hangar_testflight: { description: 'Hangar window: change the trail style, activate, test-fly, find the style on the ship.', run: scenarioHangarTestFlight },
