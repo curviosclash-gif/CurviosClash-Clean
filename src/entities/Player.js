@@ -32,6 +32,7 @@ import {
     updatePlayerMotion,
 } from './player/PlayerMotionOps.js';
 import { resetPlayerCharges, resolveMotionClockFactor } from './player/PlayerChargeOps.js';
+import { clearDeadPlayerEffects } from './player/PlayerCombatResetOps.js';
 import { PlayerController } from './player/PlayerController.js';
 import { createPlayerView } from './player/createPlayerView.js';
 import { applyFourPlayerPlanarPhysicsConstraint } from '../four-player-planar/FourPlayerPlanarPhysics.js';
@@ -396,12 +397,7 @@ export class Player {
     kill() {
         this.alive = false;
         this.hp = 0;
-        // A dead player stops updating, so any clock effect it still carries would
-        // freeze the whole match in slow motion until the next spawn.
-        this.manualSlowMoActive = false;
-        this.isSlowMoActive = false;
-        this.hasSlowTime = false;
-        this.slowTimeScale = 1; this.flameActive = false; // FlamethrowerSystem skips dead players, so only the kill can clear it
+        clearDeadPlayerEffects(this);
         this.trail?.hideVisualHead?.();
         this.view?.setVisible(false);
     }
