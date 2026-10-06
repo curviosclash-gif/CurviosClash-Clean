@@ -422,7 +422,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         emit(eventTypes.START_MATCH, { borrowedSettings });
     };
 
-    bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, activeSeed, arcadeProfiles, runtimeAccess);
+    bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, () => activeSeed, arcadeProfiles, runtimeAccess);
 
     bind(refs.openHangarButton, 'click', async () => {
         const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });
