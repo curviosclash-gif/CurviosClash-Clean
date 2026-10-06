@@ -3,18 +3,15 @@
 // ============================================
 
 import { MAP_PRESET_CATALOG_LARGE_DATA } from './MapPresetCatalogLarge.js';
+import { startPoints } from './MapPresetStartPoints.js';
 import { authoredWorld } from './presets/world_appearance.js';
 
 export const MAP_PRESET_CATALOG_EXPERT_DATA = {
-    expert_gauntlet: {
-        ...MAP_PRESET_CATALOG_LARGE_DATA.die_festung,
-        name: 'Expert Gauntlet',
-        hiddenFromMapPicker: false,
-    },
     mega_maze: {
         ...authoredWorld('mega_maze'),
         name: 'Mega-Labyrinth',
         size: [100, 35, 100],
+        ...startPoints('mega_maze'),
         obstacles: [
             { pos: [-40, 12, -30], size: [20, 24, 3], tunnel: { radius: 4.0, axis: 'z' } },
             { pos: [0, 23, -30], size: [20, 24, 3], tunnel: { radius: 3.8, axis: 'z' } },
@@ -50,4 +47,8 @@ export const MAP_PRESET_CATALOG_EXPERT_DATA = {
         ]
     },
     ...MAP_PRESET_CATALOG_LARGE_DATA,
+    // "Die Festung" is the old name of the Expert Gauntlet. The key stays loadable for a stored
+    // selection, hidden from the picker; recents and favourites are rewritten to expert_gauntlet
+    // (START_SETUP_RETIRED_MAP_KEYS).
+    die_festung: { ...MAP_PRESET_CATALOG_LARGE_DATA.expert_gauntlet, hiddenFromMapPicker: true },
 };

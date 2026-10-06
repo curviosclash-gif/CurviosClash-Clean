@@ -1,18 +1,6 @@
 {
-  "count": 41,
+  "count": 38,
   "entries": [
-    {
-      "map": "showcase_nexus",
-      "check": "in-solid",
-      "point": "items[showcase_speed_lane]",
-      "reason": "item (0, 12, -12) sits inside obstacles[0] (foam); map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
-    },
-    {
-      "map": "showcase_nexus",
-      "check": "item-type",
-      "point": "items[showcase_random_lane]",
-      "reason": "no known pickup type in pickupType=undefined type=\"item_coin\"; deliberate random lane? the game rolls a random type for an unknown one; set pickupType or decide it is intended"
-    },
     {
       "map": "parcours_assault",
       "check": "free-directions",
@@ -30,12 +18,6 @@
       "check": "in-solid",
       "point": "portals[0].a",
       "reason": "portal (93, 57, -183) sits inside obstacles[11] (foam); the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
-    },
-    {
-      "map": "mega_maze_xl",
-      "check": "in-solid",
-      "point": "portals[3].b",
-      "reason": "portal (0, 120, 255) sits inside obstacles[41]; the arena only nudges an authored portal up to 12 units vertically, else it skips the pair"
     },
     {
       "map": "neon_abyss",

@@ -2,13 +2,15 @@
 // MapPresetCatalogLarge.js - Grosse Experten-Map-Presets
 // ============================================
 
+import { startPoints } from './MapPresetStartPoints.js';
 import { authoredWorld } from './presets/world_appearance.js';
 
 export const MAP_PRESET_CATALOG_LARGE_DATA = {
-    die_festung: {
-        name: 'Die Festung',
-        hiddenFromMapPicker: true,
+    expert_gauntlet: {
+        name: 'Expert Gauntlet',
+        hiddenFromMapPicker: false,
         size: [300, 80, 300],
+        ...startPoints('expert_gauntlet'),
         obstacles: [
             { pos: [0, 40, 0], size: [16, 80, 16], tunnel: { radius: 5.5, axis: 'y' } },
             { pos: [22, 10, 0], size: [14, 3, 10] },
@@ -160,6 +162,7 @@ export const MAP_PRESET_CATALOG_LARGE_DATA = {
         ...authoredWorld('mega_maze_xl'),
         name: 'Mega-Labyrinth XL',
         size: [200, 45, 200],
+        ...startPoints('mega_maze_xl'),
         obstacles: [
             { pos: [-60, 11, -80], size: [60, 22, 3], tunnel: { radius: 4.5, axis: 'z' } },
             { pos: [20, 34, -80], size: [60, 22, 3], tunnel: { radius: 4.2, axis: 'z' } },
@@ -224,7 +227,8 @@ export const MAP_PRESET_CATALOG_LARGE_DATA = {
             { a: [-85, 5, -85], b: [85, 40, 85], color: 0x00ffcc },
             { a: [85, 5, -85], b: [-85, 40, 85], color: 0xff66ff },
             { a: [-85, 40, 0], b: [85, 5, 0], color: 0xffaa00 },
-            { a: [0, 5, -85], b: [0, 40, 85], color: 0x44ff88 },
+            // Drawn clear of the z 70 wall (x 0, y 23..45): a portal at x 0 sat inside it.
+            { a: [0, 5, -85], b: [-10, 40, 88], color: 0x44ff88 },
             { a: [-45, 5, -45], b: [45, 40, 45], color: 0xff4444 },
             { a: [45, 5, -45], b: [-45, 40, 45], color: 0x4488ff },
         ]
