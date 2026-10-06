@@ -15,6 +15,7 @@ import {
     resolveArenaWavesProfile,
 } from '../../shared/contracts/ArenaWavesContract.js';
 import { resolveArcadeRoleAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
+import { resolveHigherArcadeBotDifficulty } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { clampArcadeVehicleSpeedMultiplier } from '../../shared/contracts/ArcadeVehicleBalanceContract.js';
 import { XP_REWARD_TABLE } from '../../state/arcade/ArcadeVehicleProfile.js';
 import { settleArcadeRunRanking } from '../../state/arcade/ArcadeRunRanking.js';
@@ -157,7 +158,7 @@ export class ArenaWavesRuntime {
         for (const [index, { slot, position }] of this._plannedSlots.entries()) {
             if (this._slotWave.get(slot) === this._pendingWave) continue;
             const role = resolveArenaWavesBotRole(index, profile.eliteSlot);
-            if (em.activateBotSlot?.({ slot, position, role, difficulty: this.rankContext?.botStrength?.ai || profile.difficulty }) !== true) continue;
+            if (em.activateBotSlot?.({ slot, position, role, difficulty: resolveHigherArcadeBotDifficulty(this.rankContext?.botStrength?.ai, profile.difficulty) }) !== true) continue;
             const player = em.bots?.[slot]?.player; const ai = em.bots?.[slot]?.ai;
             if (!player) continue;
             if (!Number.isFinite(player._arenaWavesBaseMaxHp)) player._arenaWavesBaseMaxHp = safe(player.maxHp, 100);

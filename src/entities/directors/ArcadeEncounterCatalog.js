@@ -173,6 +173,16 @@ function normalizeArcadeDifficulty(value, fallback = 'NORMAL') {
         : 'NORMAL';
 }
 
+/**
+ * The run tier is the floor, a sector's pressure or a wave row may only raise it.
+ * A missing floor leaves the candidate as it is.
+ */
+export function resolveHigherArcadeBotDifficulty(floor, candidate) {
+    const raised = normalizeArcadeDifficulty(candidate, floor);
+    const base = normalizeArcadeDifficulty(floor, raised);
+    return ARCADE_DIFFICULTY_RANK[raised] > ARCADE_DIFFICULTY_RANK[base] ? raised : base;
+}
+
 /** One role per bot: the squad's mix repeats when a scenario asks for more bots than it lists. */
 function resolveSquadBotRoles(squad, botCount) {
     const roles = Array.isArray(squad?.botRoles) && squad.botRoles.length > 0 ? squad.botRoles : ['pursuer', 'flanker'];
@@ -187,9 +197,7 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
     const pressure = Math.max(0, Math.min(1, Number(entry.pressure) || 0));
     const baseDifficulty = normalizeArcadeDifficulty(options.fallbackDifficulty, 'NORMAL');
     const pressureDifficulty = pressure > 0.72 ? 'HARD' : (pressure > 0.42 ? 'NORMAL' : 'EASY');
-    const botDifficulty = ARCADE_DIFFICULTY_RANK[pressureDifficulty] > ARCADE_DIFFICULTY_RANK[baseDifficulty]
-        ? pressureDifficulty
-        : baseDifficulty;
+    const botDifficulty = resolveHigherArcadeBotDifficulty(baseDifficulty, pressureDifficulty);
     const parcoursEnabled = entry.parcoursEnabled === true;
     const parcoursRacer = parcoursEnabled && (entry.parcoursRacer === true || entry.templateId === 'sector_parcours');
     const botCount = parcoursEnabled ? (parcoursRacer ? 1 : 0) : (Number.isInteger(entry.botCount) ? entry.botCount : (squad?.botCount ?? fallbackBotCount));
