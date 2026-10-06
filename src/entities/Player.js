@@ -401,7 +401,7 @@ export class Player {
         this.manualSlowMoActive = false;
         this.isSlowMoActive = false;
         this.hasSlowTime = false;
-        this.slowTimeScale = 1;
+        this.slowTimeScale = 1; this.flameActive = false; // FlamethrowerSystem skips dead players, so only the kill can clear it
         this.trail?.hideVisualHead?.();
         this.view?.setVisible(false);
     }

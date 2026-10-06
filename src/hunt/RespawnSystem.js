@@ -1,4 +1,5 @@
 import { grantShield } from './HealthSystem.js';
+import { resetPlayerFightTracking } from '../entities/player/PlayerCombatResetOps.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
 import { HUNT_WIN_CONDITIONS } from '../shared/contracts/HuntWinConditionContract.js';
@@ -179,12 +180,7 @@ export class RespawnSystem {
             // loadout bonuses, so they are applied again on top of it.
             strategy?.resetPlayerHealth?.(player);
             strategy?.applySpawnStatBonuses?.(player);
-            player.fightLastAttackerIndex = -1;
-            player.fightLastThreatSourceIndex = -1;
-            player.fightLastThreatAtSeconds = -Infinity;
-            player.fightTargetPlayerIndex = -1;
-            player.fightTargetLockRemaining = 0;
-            player.fightSpawnedAtSeconds = Math.max(0, Number(this.runtime?.callbacks?.getSimulationNowMs?.()) || 0) * 0.001;
+            resetPlayerFightTracking(player, (Number(this.runtime?.callbacks?.getSimulationNowMs?.()) || 0) * 0.001);
             this.runtime?.callbacks?.parcours?.onPlayerSpawn?.(player, {
                 reason: parcoursPlan ? 'parcours_respawn' : 'respawn',
             });
@@ -196,7 +192,6 @@ export class RespawnSystem {
 
             const invulnerability = Math.max(0, Number(respawnConfig?.INVULNERABILITY_SECONDS || 1));
             player.spawnProtectionTimer = Math.max(player.spawnProtectionTimer || 0, invulnerability);
-            player.shootCooldown = 0;
             this.runtime?.combat?.resetRespawnCombatState?.(player);
 
             const recorder = this.runtime?.services?.recorder;
