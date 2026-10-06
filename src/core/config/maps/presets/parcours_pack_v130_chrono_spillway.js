@@ -14,7 +14,7 @@ export const CHRONO_SPILLWAY_MAP = {
         { pos: [-8, 41.6, 20], size: [34, 4, 18] },
         { pos: [22, 35.8, -6], size: [34, 4, 18], kind: 'foam' },
         { pos: [50, 30, -28], size: [24, 4, 24] },
-        { shape: 'tube', kind: 'hard', start: [50, 38, -28], end: [78, 30, -44], radius: 4.2 },
+        { shape: 'tube', kind: 'hard', start: [50, 38, -28], end: [76, 30, -34], radius: 4.2 },
         { pos: [76, 27, 8], size: [48, 4, 22], kind: 'foam' },
         { pos: [104, 19.6, -16], size: [30, 4, 28], kind: 'foam' },
         { pos: [122, 24, 18], size: [12, 32, 24], tunnel: { radius: 4.8, axis: 'z' } },
@@ -39,7 +39,7 @@ export const CHRONO_SPILLWAY_MAP = {
         {
             id: 'cs_sluice_boost',
             type: 'boost',
-            pos: [78, 30, -44],
+            pos: [76, 30, -34],
             forward: [1, -0.2, 0.7],
             params: { duration: 0.9, forwardImpulse: 42, bonusSpeed: 50, cooldown: 0.9 },
         },
@@ -94,7 +94,7 @@ export const CHRONO_SPILLWAY_MAP = {
             {
                 id: 'CP08_SLUICE',
                 type: 'branch_precision',
-                pos: [78, 30, -44],
+                pos: [76, 30, -34],
                 radius: 4.2,
                 forward: [1, -0.2, 0.6],
                 nextIds: ['CP09'],
