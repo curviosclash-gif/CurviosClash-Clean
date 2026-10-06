@@ -5,6 +5,7 @@
 import crypto from 'node:crypto';
 import { isLobbySettingsRevisionCurrent } from '../src/shared/contracts/LobbyMatchSummaryContract.js';
 import { normalizeMultiplayerPlayerName } from '../src/shared/contracts/MultiplayerSessionContract.js';
+import { normalizeLobbyVehicleId } from '../src/shared/contracts/LobbyVehicleContract.js';
 import { WebSocketServer } from 'ws';
 import {
     SIGNALING_COMMAND_TYPES,
@@ -182,6 +183,7 @@ function createLobbyPlayer({
     ready = false,
     actorId = '',
     name = '',
+    vehicleId = '',
     joinedAt = Date.now(),
     lastSeenAt = Date.now(),
     sessionToken = generateSessionToken(),
@@ -196,6 +198,7 @@ function createLobbyPlayer({
         ready: ready === true,
         actorId: normalizedActorId,
         name: normalizeMultiplayerPlayerName(name, normalizedActorId || fallbackName),
+        vehicleId: normalizeLobbyVehicleId(vehicleId),
         sessionToken: normalizeString(sessionToken, ''),
         joinedAt: Number.isFinite(Number(joinedAt)) ? Math.max(0, Math.floor(Number(joinedAt))) : Date.now(),
         lastSeenAt: Number.isFinite(Number(lastSeenAt)) ? Math.max(0, Math.floor(Number(lastSeenAt))) : Date.now(),
@@ -219,6 +222,7 @@ function buildLobbyState(lobby) {
         playerId: player.peerId,
         actorId: player.actorId,
         name: player.name,
+        vehicleId: normalizeLobbyVehicleId(player.vehicleId),
         role: player.isHost === true ? 'host' : 'client',
         isHost: player.isHost === true,
         ready: player.ready === true,
@@ -278,6 +282,7 @@ function setReconnectLease(lobby, player) {
         settingsRevision: lobby.settingsRevision,
         actorId: normalizeString(player.actorId, ''),
         name: normalizeString(player.name, ''),
+        vehicleId: normalizeLobbyVehicleId(player.vehicleId),
         sessionToken: normalizeString(player.sessionToken, ''),
         joinedAt: Number(player.joinedAt || Date.now()),
         expiresAt: Date.now() + RECONNECT_WINDOW_MS,
@@ -585,6 +590,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                         ready: true,
                         actorId: normalizeString(msg.actorId, 'Host'),
                         name: normalizeString(msg.name || msg.actorId, 'Host'),
+                        vehicleId: msg.vehicleId,
                         joinedAt: createdAt,
                         lastSeenAt: createdAt,
                     })],
@@ -635,6 +641,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                     ready: false,
                     actorId: normalizeString(msg.actorId, peerId),
                     name: normalizeString(msg.name || msg.actorId, peerId),
+                    vehicleId: msg.vehicleId,
                 });
                 lobby.players.push(player);
                 bumpLobbyState(lobby);
@@ -691,6 +698,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                     ready: lease.ready === true && lease.settingsRevision === lobby.settingsRevision,
                     actorId: lease.actorId,
                     name: lease.name,
+                    vehicleId: lease.vehicleId,
                     sessionToken: lease.sessionToken,
                     joinedAt: lease.joinedAt,
                     lastSeenAt: resumedAt,
@@ -842,6 +850,27 @@ export function createSignalingServer(port = 9090, options = {}) {
                         });
                     }
                 }
+                break;
+            }
+
+            case SIGNALING_COMMAND_TYPES.SET_VEHICLE: {
+                // Each member announces only its own ship; the socket decides whose seat it is.
+                const lobbyCode = peerToLobby.get(ws);
+                const lobby = lobbyCode ? lobbies.get(lobbyCode) : null;
+                const player = lobby?.players.find((entry) => entry.peerId === peerId);
+                if (!lobby || !player) break;
+                if (lobby.pendingMatchStart) {
+                    sendSignalingError(ws, 'match_start_pending', 'Das Match wird bereits gestartet.');
+                    break;
+                }
+                player.vehicleId = normalizeLobbyVehicleId(msg.vehicleId);
+                player.lastSeenAt = Date.now();
+                bumpLobbyState(lobby);
+                broadcastToLobby(lobby, SIGNALING_EVENT_TYPES.PLAYER_VEHICLE_CHANGED, {
+                    peerId,
+                    vehicleId: player.vehicleId,
+                    sessionState: buildLobbyState(lobby),
+                });
                 break;
             }
 

@@ -1,6 +1,7 @@
 import { normalizeTeamId, resolveBalancedTeamId } from '../../shared/contracts/TeamCombatContract.js';
 import { normalizeLanHostLocalPlayerCount } from '../../shared/contracts/RuntimeSessionContract.js';
 import { VIEWPORT_LAYOUTS } from '../../shared/contracts/ViewportLayoutContract.js';
+import { resolveMemberNetworkVehicleId } from './NetworkVehicleSelectionOps.js';
 
 function normalizePeerId(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -94,11 +95,14 @@ export function resolveRuntimeNetworkPlayerSlots({
         const existing = entriesByPeerId.get(normalized.peerId);
         // Only the lobby knows the name a player chose; session entries carry transport ids.
         const displayName = existing?.displayName || (fromLobby ? normalizePeerId(entry?.name) : '');
+        // Likewise only the lobby knows the ship each member announced for itself.
+        const vehicleId = existing?.vehicleId || (fromLobby ? resolveMemberNetworkVehicleId(entry?.vehicleId) : '');
         entriesByPeerId.set(normalized.peerId, {
             ...(existing || {}),
             ...normalized,
             name: existing?.name || normalized.name,
             displayName,
+            vehicleId,
             isHost: normalized.isHost || existing?.isHost === true,
             isLocal: normalized.isLocal || existing?.isLocal === true,
             connected: normalized.connected || existing?.connected === true,

@@ -9,6 +9,7 @@ import {
     normalizeOptionalMultiplayerPlayerName,
     resolveDefaultMultiplayerPlayerName,
 } from '../src/shared/contracts/MultiplayerSessionContract.js';
+import { normalizeLobbyVehicleId } from '../src/shared/contracts/LobbyVehicleContract.js';
 import crypto from 'node:crypto';
 import {
     SIGNALING_HTTP_ROUTES,
@@ -159,6 +160,7 @@ function buildLobbyState(lobby) {
         hostActorId: String(lobby.hostActorId || 'Host').trim() || 'Host',
         hostName: String(lobby.hostName || lobby.hostActorId || 'Host').trim() || 'Host',
         hostLobbyName: normalizeOptionalMultiplayerPlayerName(lobby.hostLobbyName),
+        hostVehicleId: normalizeLobbyVehicleId(lobby.hostVehicleId),
         memberCount: countLobbyMembers(lobby),
         localPlayerCount: normalizeLocalPlayerCount(lobby.localPlayerCount),
         playerCount: countLobbyPlayers(lobby),
@@ -174,6 +176,7 @@ function buildLobbyState(lobby) {
             actorId: String(player.actorId || player.playerId).trim(),
             name: String(player.name || player.actorId || player.playerId).trim(),
             lobbyName: normalizeOptionalMultiplayerPlayerName(player.lobbyName),
+            vehicleId: normalizeLobbyVehicleId(player.vehicleId),
             participantMetadata: { ...player.participantMetadata },
         })),
         pendingPlayers: lobby.pendingPlayers.map((entry) => ({ playerId: entry.playerId })),
@@ -340,6 +343,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                     settingsRevision: lobby.settingsRevision,
                     actorId: stalePlayer.actorId,
                     name: stalePlayer.name,
+                    vehicleId: stalePlayer.vehicleId,
                     participantMetadata: stalePlayer.participantMetadata,
                     expiresAt: timestamp + reconnectLeaseMs,
                 });
@@ -433,6 +437,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             lobby.hostActorId = normalizeSignalingActorId(body.actorId, hostActorFallback);
             lobby.hostName = normalizeMultiplayerPlayerName(body.name || body.actorId, lobby.hostActorId);
             lobby.hostLobbyName = normalizeOptionalMultiplayerPlayerName(body.lobbyName);
+            lobby.hostVehicleId = normalizeLobbyVehicleId(body.vehicleId);
             lobby.localPlayerCount = normalizeLocalPlayerCount(body.localPlayerCount);
             lobby.maxPlayers = Number.isFinite(requestedMaxPlayers)
                 ? Math.max(2, Math.min(DEFAULT_MAX_PLAYERS, Math.floor(requestedMaxPlayers)))
@@ -498,6 +503,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 actorId,
                 name: normalizeMultiplayerPlayerName(body.name || body.actorId, actorId || playerId),
                 lobbyName: normalizeOptionalMultiplayerPlayerName(body.lobbyName),
+                vehicleId: normalizeLobbyVehicleId(body.vehicleId),
                 participantMetadata: normalizeSignalingParticipantMetadata(body.participantMetadata),
                 joinedAt: timestamp,
                 lastActivityAt: timestamp,
@@ -544,6 +550,48 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 return;
             }
             player.lobbyName = lobbyName;
+            touchPlayerActivity(playerId);
+            jsonResponse(res, { ok: true, sessionState: buildLobbyState(lobby) });
+            return;
+        }
+
+        if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_VEHICLE) {
+            const body = await readBody(req);
+            if (body?.__tooLarge === true) {
+                rejectOversizedRequest(req, res);
+                return;
+            }
+            if (body?.__badJson === true) {
+                jsonResponse(res, { ok: false, message: 'bad_json' }, 400);
+                return;
+            }
+            // A running match start already handed out the seats; a late pick would split them.
+            if (lobby.pendingMatchStart) {
+                jsonResponse(res, { ok: false, message: 'match_start_pending' }, 409);
+                return;
+            }
+            // Each player changes only its own ship: the token must belong to the named seat.
+            const playerId = toPlayerId(body.playerId);
+            const vehicleId = normalizeLobbyVehicleId(body.vehicleId);
+            if (isHostPeerId(playerId)) {
+                if (String(body.hostToken || '') !== String(lobby.hostToken || '')) {
+                    jsonResponse(res, { ok: false, message: 'host_auth_failed' }, 403);
+                    return;
+                }
+                lobby.hostVehicleId = vehicleId;
+                jsonResponse(res, { ok: true, sessionState: buildLobbyState(lobby) });
+                return;
+            }
+            const player = lobby.players.find((entry) => entry.playerId === playerId);
+            if (!player) {
+                jsonResponse(res, { ok: false, message: 'player_not_found' }, 404);
+                return;
+            }
+            if (String(body.playerToken || '') !== String(player.token || '')) {
+                jsonResponse(res, { ok: false, message: 'player_auth_failed' }, 403);
+                return;
+            }
+            player.vehicleId = vehicleId;
             touchPlayerActivity(playerId);
             jsonResponse(res, { ok: true, sessionState: buildLobbyState(lobby) });
             return;
@@ -802,6 +850,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                     ready: lease.ready === true && lease.settingsRevision === lobby.settingsRevision,
                     actorId: lease.actorId || playerId,
                     name: lease.name || lease.actorId || playerId,
+                    vehicleId: normalizeLobbyVehicleId(lease.vehicleId),
                     participantMetadata: lease.participantMetadata,
                     joinedAt: timestamp,
                     lastActivityAt: timestamp,

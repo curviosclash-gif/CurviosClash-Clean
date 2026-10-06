@@ -27,6 +27,7 @@ import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
 import { createLobbyPlatformBindings } from '../../platform/LobbyPlatformBindings.js';
 import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 import { loadRememberedLobbyName } from './MultiplayerLobbyNameOps.js';
+import { resolveAnnouncedNetworkVehicleId } from './NetworkVehicleSelectionOps.js';
 import {
     beginMultiplayerAction,
     clearMultiplayerFieldError,
@@ -222,9 +223,6 @@ export function applyMultiplayerMatchSettingsSnapshot(targetSettings, snapshot =
     if (!targetSettings.gameplay || typeof targetSettings.gameplay !== 'object') {
         targetSettings.gameplay = {};
     }
-    if (!targetSettings.vehicles || typeof targetSettings.vehicles !== 'object') {
-        targetSettings.vehicles = {};
-    }
     if (!targetSettings.matchSettings || typeof targetSettings.matchSettings !== 'object') {
         targetSettings.matchSettings = {};
     }
@@ -243,10 +241,8 @@ export function applyMultiplayerMatchSettingsSnapshot(targetSettings, snapshot =
         ...targetSettings.gameplay,
         ...(snapshot.gameplay && typeof snapshot.gameplay === 'object' ? snapshot.gameplay : {}),
     };
-    targetSettings.vehicles = {
-        ...targetSettings.vehicles,
-        ...(snapshot.vehicles && typeof snapshot.vehicles === 'object' ? snapshot.vehicles : {}),
-    };
+    // snapshot.vehicles is the host's own pick: every member flies its own ship, announced in
+    // the lobby member list (vehicleId), so the guest keeps its vehicle and hangar selection.
     targetSettings.matchSettings = {
         ...targetSettings.matchSettings,
         ...(snapshot.matchSettings && typeof snapshot.matchSettings === 'object' ? snapshot.matchSettings : {}),
@@ -390,6 +386,7 @@ export async function handleMultiplayerHostAction({
         result = await Promise.resolve(menuMultiplayerBridge?.host({
             actorId: profile?.id || accessContext?.actorId, name: String(profile?.displayName || accessContext?.actorId || 'Host'),
             lobbyCode: String(event?.lobbyCode || '').trim(), lobbyName: loadRememberedLobbyName(game),
+            vehicleId: resolveAnnouncedNetworkVehicleId(game?.settings?.vehicles?.PLAYER_1),
             localPlayerCount: Number(event?.localPlayerCount) === 2 ? 2 : 1,
             settingsSnapshot,
         }));
@@ -452,6 +449,7 @@ export async function handleMultiplayerJoinAction({
         result = await Promise.resolve(menuMultiplayerBridge?.join({
             actorId: profile?.id || accessContext?.actorId, name: String(profile?.displayName || accessContext?.actorId || 'Spieler'),
             lobbyCode: String(event?.lobbyCode || '').trim(), lobbyName: loadRememberedLobbyName(game),
+            vehicleId: resolveAnnouncedNetworkVehicleId(game?.settings?.vehicles?.PLAYER_1),
             signalingUrl: manualSignalingUrl,
         }));
     } catch (error) {

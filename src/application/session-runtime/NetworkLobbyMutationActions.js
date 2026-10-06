@@ -1,4 +1,5 @@
 import { LOBBY_SERVICE_EVENT_TYPES } from '../../shared/contracts/LobbyServiceContract.js';
+import { normalizeLobbyVehicleId } from '../../shared/contracts/LobbyVehicleContract.js';
 import { deepClone, normalizeString } from './NetworkLobbyServiceSupport.js';
 
 export async function toggleNetworkLobbyReady(service, options = {}) {
@@ -49,6 +50,21 @@ export async function setNetworkLobbyName(service, lobbyName) {
     }
     service.onStateChanged?.(service.getSessionState());
     return { ok: true, sessionState: service.getSessionState(), snapshot: service.getSnapshot() };
+}
+
+// Announces the local ship. Quiet on failure: an older signaling server has no vehicle route,
+// and the match then simply flies the default ship for this seat, as before.
+export async function setNetworkLobbyVehicle(service, vehicleId) {
+    if (!service._transportSession.hasLobby() || !service.getSessionState().joined) {
+        return { ok: false, code: 'not_in_lobby', sessionState: service.getSessionState() };
+    }
+    try {
+        await service._transportSession.setVehicle(normalizeLobbyVehicleId(vehicleId));
+    } catch (error) {
+        return { ok: false, code: normalizeString(error?.code, 'lobby_vehicle_failed'), sessionState: service.getSessionState() };
+    }
+    service.onStateChanged?.(service.getSessionState());
+    return { ok: true, sessionState: service.getSessionState() };
 }
 
 export function requestNetworkLobbyMatchStart(service, options = {}) {
