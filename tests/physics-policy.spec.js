@@ -1,6 +1,10 @@
 import { test, expect } from './helpers.desktop.js';
 import { loadGame, startGameWithBots, startHuntGameWithBots, returnToMenu } from './helpers.js';
 
+// The teleport scenarios below assume open air around the origin. The fight preset loads maze,
+// whose walls reach up to the ceiling, so these tests run on the open standard arena.
+const OPEN_ARENA = { mapKey: 'standard' };
+
 test.describe('Physics Policy (Tests 65-82)', () => {
     test.describe.configure({ timeout: 120000 });
 
@@ -252,7 +256,7 @@ test.describe('Physics Policy (Tests 65-82)', () => {
     });
 
     test('T77: HuntBridgePolicy setzt MG-Druck auf Basis von Observation + Gegnernaehe', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(async () => {
             const { HuntBridgePolicy } = window.CURVIOS_TEST_API || {};
             const schema = window.CURVIOS_TEST_API?.ObservationSchemaV1;
@@ -298,7 +302,7 @@ test.describe('Physics Policy (Tests 65-82)', () => {
     });
 
     test('T78: HuntBridgePolicy priorisiert Rocket + Boost bei niedrigem HP-Druck', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(async () => {
             const { HuntBridgePolicy } = window.CURVIOS_TEST_API || {};
             const schema = window.CURVIOS_TEST_API?.ObservationSchemaV1;
@@ -346,7 +350,7 @@ test.describe('Physics Policy (Tests 65-82)', () => {
     });
 
     test('T78b: HuntBotPolicy behandelt gueltige Trail-Ziele als MG-/Rocket-Freigabe auch bei negativem Sensor-Frontflag', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(async () => {
             const { HuntBotPolicy } = window.CURVIOS_TEST_API || {};
             const game = window.GAME_INSTANCE;
@@ -446,7 +450,7 @@ test.describe('Physics Policy (Tests 65-82)', () => {
     });
 
     test('T78c: HuntBridgePolicy priorisiert gueltige Trail-Ziele auch wenn Observation kein Frontziel meldet', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(async () => {
             const { HuntBridgePolicy } = window.CURVIOS_TEST_API || {};
             const schema = window.CURVIOS_TEST_API?.ObservationSchemaV1;
@@ -542,7 +546,7 @@ test.describe('Physics Policy (Tests 65-82)', () => {
     });
 
     test('T78d: HuntBotPolicy haelt MG-Druck bei niedrigem HP mit stabilem Shield aufrecht', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(async () => {
             const { HuntBotPolicy } = window.CURVIOS_TEST_API || {};
             const game = window.GAME_INSTANCE;
@@ -603,7 +607,7 @@ test.describe('Physics Policy (Tests 65-82)', () => {
     });
 
     test('T78e: HuntBridgePolicy priorisiert Retreat bei kritischer Vitalitaet und behaelt Rocket-Shot bei', async ({ page }) => {
-        await startHuntGameWithBots(page, 1);
+        await startHuntGameWithBots(page, 1, OPEN_ARENA);
         const result = await page.evaluate(async () => {
             const { HuntBridgePolicy } = window.CURVIOS_TEST_API || {};
             const schema = window.CURVIOS_TEST_API?.ObservationSchemaV1;
