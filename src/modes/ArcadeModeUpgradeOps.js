@@ -5,7 +5,10 @@ import {
 } from './ArcadeVehicleStatOps.js';
 
 export function resolveArcadeModePlayerUpgradeBonuses(strategy, player, fallback) {
-    if (player?.isBot === true) return strategy.isNormalArcadeRun() ? strategy._botRankBonuses || fallback : fallback;
+    // Rank bonuses strengthen the enemy squad; an allied companion flies without them.
+    if (player?.isBot === true) {
+        return strategy.isNormalArcadeRun() && player.isArcadeCompanion !== true ? strategy._botRankBonuses || fallback : fallback;
+    }
     const byPlayerIndex = strategy._slotBonusesByPlayerIndex;
     if (byPlayerIndex) return byPlayerIndex[String(player?.index)] || fallback;
     return strategy._slotBonusesByVehicle

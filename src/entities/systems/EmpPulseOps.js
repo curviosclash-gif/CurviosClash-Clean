@@ -1,4 +1,5 @@
 import { getPickupDefinition } from '../PickupRegistry.js';
+import { isArcadeCompanionTeamPair } from '../../shared/contracts/ArcadeCompanionContract.js';
 
 export const EMP_PULSE_DEFAULT_RADIUS = 20;
 const EMP_PULSE_DISTANCE_EPSILON = 0.000001;
@@ -24,6 +25,7 @@ export function applyEmpPulse({
     for (let i = 0; i < players.length; i += 1) {
         const target = players[i];
         if (!target || target === owner || target.alive === false || !target.position) continue;
+        if (isArcadeCompanionTeamPair(owner, target)) continue;
         const dx = target.position.x - owner.position.x;
         const dy = planar ? 0 : target.position.y - owner.position.y;
         const dz = target.position.z - owner.position.z;

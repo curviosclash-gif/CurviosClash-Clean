@@ -187,6 +187,14 @@ export class RoundOutcomeSystem {
         }
 
         const alive = combatants.filter((player) => player?.alive);
+        // With arcade companions the human's team fights as one side: the sector is over once
+        // only that team stands, and the run is over once the human is out, companions or not.
+        if (combatants.some((player) => player?.isArcadeCompanion === true)) {
+            const aliveSides = new Set(alive.map((player) => normalizeTeamId(player?.teamId) || `solo:${player?.index}`));
+            const shouldEnd = humansOut || aliveSides.size <= 1;
+            const winner = shouldEnd ? (alive.find((player) => player.isBot !== true) || alive[0] || null) : null;
+            return { shouldEnd, winner, reason: shouldEnd ? 'ELIMINATION' : '', parcours: null };
+        }
         const shouldEnd = (combatants.length > 1 && alive.length <= 1)
             || (humansOut && (alive.length === 0 || eliminationSuppressed));
         return {
