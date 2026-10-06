@@ -4,7 +4,13 @@ from mathutils import Vector
 # Reproducible mature Prunus serrulata 'Kanzan' spring hero asset.
 SEED = int(os.environ.get('SAKURA_KANZAN_SEED', '314159'))
 VARIANT = os.environ.get('SAKURA_KANZAN_VARIANT', '01')
-FLOWER_FACTOR = float(os.environ.get('SAKURA_KANZAN_FLOWER_FACTOR', '1' if VARIANT == '01' else '0.22'))
+# 'full' keeps every organ of every blossom (the studio hero). 'grove' is the game build: a blossom is
+# one eight-petal rosette (a fan of 16 triangles) and the grove trees are thinned, because a blossom is a
+# few pixels wide at any distance the game flies at and the organs inside it (stamens, calyx, pedicel)
+# are far below a pixel. Only the grove build is small enough for the 8 MB per file load budget.
+DETAIL = os.environ.get('SAKURA_KANZAN_DETAIL', 'full')
+GROVE = DETAIL == 'grove'
+FLOWER_FACTOR = float(os.environ.get('SAKURA_KANZAN_FLOWER_FACTOR', ('.5' if VARIANT == '01' else '.27') if GROVE else '1' if VARIANT == '01' else '0.22'))
 random.seed(SEED)
 OUT = os.path.abspath(os.environ.get('SAKURA_KANZAN_OUTPUT_DIR', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'assets', 'models', 'sakura_kanzan')))
 os.makedirs(OUT, exist_ok=True)
@@ -128,8 +134,22 @@ for i in range(15):
 flower_count=0; leaf_count=0
 def basis(normal):
     n=norm(normal); ref=Vector((0,0,1)) if abs(n.z)<.90 else Vector((1,0,0)); u=norm(n.cross(ref)); w=norm(n.cross(u)); return u,w,n
+GROVE_PETALS=8; GROVE_VALLEY=.66
+def grove_blossom(center, normal, scale, petal_mat):
+    """One rosette: a centre vertex raised a little (cupped look) and a ring of tips and valleys."""
+    global flower_count
+    c=v(center); u,w,n=basis(normal); phase=random.uniform(0,2*math.pi); s=scale*1.25
+    base=len(verts); ring=2*GROVE_PETALS
+    verts.append(tuple(c+n*.004*s))
+    for k in range(ring):
+        a=phase+math.pi*k/GROVE_PETALS; tip=k%2==0; r=(.033 if tip else .033*GROVE_VALLEY)*s
+        verts.append(tuple(c+(u*math.cos(a)+w*math.sin(a))*r+n*(.0012*s if tip else 0)))
+    for k in range(ring): add_face((base,base+1+k,base+1+(k+1)%ring),petal_mat)
+    flower_count+=1
+
 def blossom(origin, center, normal, scale, petal_mat):
     global flower_count
+    if GROVE: return grove_blossom(center, normal, scale, petal_mat)
     c=v(center); u,w,n=basis(normal); phase=random.uniform(0,2*math.pi)
     # Every rose pedicel grows from its fine twig; no detached golden stalks.
     start=v(origin); add_tube([start,start+(c-start)*.53,c],[.0015,.0012,.0010],5,5,False)
@@ -236,7 +256,9 @@ for part in tree_parts:
     material=part.data.materials[0]
     part.name='Kanzan '+material.name
     part['role']='tree_structure' if material == bark else 'tree_organs'
-    if material in petals or material in (calyxmat, stamenmat, lentmat):
+    if GROVE:
+        pass  # the rosettes are already budgeted and the wood stays whole (the grove contract limits bark faces to 1.25 m)
+    elif material in petals or material in (calyxmat, stamenmat, lentmat):
         dec=part.modifiers.new('Grove organ LOD budget','DECIMATE')
         dec.ratio=max(ratio, 0.18) if material in petals else max(ratio, 0.12)
         bpy.context.view_layer.objects.active=part
@@ -259,6 +281,6 @@ if VARIANT == '01':
     bpy.ops.export_scene.gltf(filepath=os.path.join(OUT,'kanzan_collision.glb'), export_format='GLB', export_apply=True, export_extras=True, export_yup=True, use_selection=True)
 
 triangles=sum(len(p.vertices)-2 for part in tree_parts for p in part.data.polygons)
-qa={'seed':SEED,'variant':VARIANT,'species':"Prunus serrulata 'Kanzan'",'flower_count':flower_count,'flower_factor':FLOWER_FACTOR,'flowering_sites':len(terminals),'young_leaf_count':leaf_count,'lenticel_count':lent_count,'branch_counts_by_order':branch_counts,'evaluated_mesh_triangles':triangles,'material_count':len(MATS),'render_asset':os.path.basename(render_path),'render_file_bytes':os.path.getsize(render_path),'decimate_ratio':ratio,'source_seed':314159,'bounds_m':'refer to exact GLB reimport report','source_hero_triangles':3390000,'branch_geometry':'seeded primary/secondary/tertiary/fine hierarchy; distance profile has distributed flower thinning plus mesh decimation'}
+qa={'seed':SEED,'variant':VARIANT,'species':"Prunus serrulata 'Kanzan'",'flower_count':flower_count,'flower_factor':FLOWER_FACTOR,'flowering_sites':len(terminals),'young_leaf_count':leaf_count,'lenticel_count':lent_count,'branch_counts_by_order':branch_counts,'evaluated_mesh_triangles':triangles,'material_count':len(MATS),'render_asset':os.path.basename(render_path),'render_file_bytes':os.path.getsize(render_path),'detail':DETAIL,'decimate_ratio':ratio,'source_seed':314159,'bounds_m':'refer to exact GLB reimport report','source_hero_triangles':3390000,'branch_geometry':'seeded primary/secondary/tertiary/fine hierarchy; distance profile has distributed flower thinning plus mesh decimation'}
 with open(os.path.join(OUT,'kanzan_%s_qa.json'%VARIANT),'w',encoding='utf-8') as f: json.dump(qa,f,indent=2)
 print('SAKURA_KANZAN_GROVE_QA '+json.dumps(qa))
