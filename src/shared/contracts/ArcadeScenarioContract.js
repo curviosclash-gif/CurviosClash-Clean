@@ -9,8 +9,6 @@ import { normalizeString } from './ContractNormalizeUtils.js';
 import { normalizeMapUnits } from './MapUnitContract.js';
 
 export const ARCADE_SCENARIO_CONTRACT_VERSION = 'arcade-scenario.v1';
-// A hoisted function keeps map-preset initialization safe across desktop chunks.
-export function resolveBloomEscapeOpenSeconds() { return 105; }
 
 const VALID_SLOTS = new Set(['sector', 'parcours', 'finale']);
 const VALID_UNIT_KINDS = new Set(['tank', 'swarm', 'boss', 'bomber', 'creature']);
