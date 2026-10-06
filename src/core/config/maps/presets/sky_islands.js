@@ -5,11 +5,13 @@
 // ============================================================
 
 import { authoredWorld } from './world_appearance.js';
+import { CLOUD_SEA_LIGHTING } from './map_lighting_profiles.js';
 
 export const SKY_ISLANDS_MAP = {
     sky_islands: {
         ...authoredWorld('sky_islands'),
         name: 'Sky Islands',
+        lighting: CLOUD_SEA_LIGHTING,
         exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
         size: [200, 110, 200],
         scaleAuthoredAnchors: true,

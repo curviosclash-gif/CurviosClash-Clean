@@ -4,11 +4,13 @@
 // ============================================================
 
 import { authoredWorld } from './world_appearance.js';
+import { DEEP_SEA_LIGHTING } from './map_lighting_profiles.js';
 
 export const ABYSSAL_DESCENT_MAP = {
     abyssal_descent: {
         ...authoredWorld('abyssal_descent'),
         name: 'Abyssal Descent',
+        lighting: DEEP_SEA_LIGHTING,
         size: [80, 200, 80],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,

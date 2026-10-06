@@ -17,6 +17,7 @@
 // slightly tighter than the setpiece that fills them. Deck and setpiece together form the barrier.
 
 import { mushroomPatch } from './glowing_mushrooms.js';
+import { GARDEN_MIDDAY_LIGHTING } from './map_lighting_profiles.js';
 
 const BEAT_SECONDS = 6;
 
@@ -385,6 +386,7 @@ const VERDANT_APERTURE_GATES = [
 export const VERDANT_APERTURE_MAP = {
     verdant_aperture: {
         name: 'Verdant Aperture',
+        lighting: GARDEN_MIDDAY_LIGHTING,
         exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
         size: [300, 200, 300],
         scaleAuthoredAnchors: true,

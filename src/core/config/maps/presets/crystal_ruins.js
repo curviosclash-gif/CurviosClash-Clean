@@ -4,6 +4,7 @@
 // ============================================
 
 import { mushroomPatch } from './glowing_mushrooms.js';
+import { DESERT_AFTERNOON_LIGHTING, deriveMapLighting } from './map_lighting_profiles.js';
 
 const CRYSTAL_RUINS_PROP_ROOT = 'assets/maps/crystal_ruins/props';
 // The arena is 140 across, so nothing here is ever far enough away to be worth culling by
@@ -97,6 +98,10 @@ const CRYSTAL_RUINS_PROP_MODELS = [
 export const CRYSTAL_RUINS_MAP = {
     crystal_ruins: {
         name: 'Crystal Ruins',
+        lighting: deriveMapLighting(DESERT_AFTERNOON_LIGHTING, {
+            rim: { color: 0x7fdcff, intensity: 0.55 },
+            fog: { near: 120, far: 300 },
+        }),
         size: [140, 60, 140],
         preferAuthoredPortals: true,
         portalLevels: [10, 25, 42],
