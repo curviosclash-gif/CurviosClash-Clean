@@ -9219,6 +9219,7 @@ body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
     padding: 9px 16px;
 }
 
+#arcade-overlay-panel .arcade-overlay-review { margin-top: 12px; }
 #hud[data-hud-mode="normal"] .player-hud-summary::before {
     clip-path: polygon(0 0, 93% 0, 100% 50%, 93% 100%, 0 100%);
 }

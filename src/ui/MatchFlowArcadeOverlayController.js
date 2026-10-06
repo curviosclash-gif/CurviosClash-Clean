@@ -174,8 +174,13 @@ export class MatchFlowArcadeOverlayController {
         const h3 = document.createElement('h3');
         h3.textContent = formatIntermissionTitle(nextSectorIndex);
         header.appendChild(h3);
+        panel.appendChild(header);
 
-        appendArcadeCards(header, createArcadeIntermissionBlocks({
+        // The countdown runs while the panel is open: route, reward and confirm come first, the
+        // review of the last sector after them, so a short window never scrolls the choice away.
+        const review = document.createElement('header');
+        review.className = 'arcade-overlay-header arcade-overlay-review';
+        appendArcadeCards(review, createArcadeIntermissionBlocks({
             ...intermission,
             lastSectorPoints,
             lastSectorXp,
@@ -185,9 +190,8 @@ export class MatchFlowArcadeOverlayController {
         if (missionsCompleted < missionsTotal) {
             const missed = document.createElement('p');
             missed.textContent = 'Bonus für alle Missionen verpasst.';
-            header.appendChild(missed);
+            review.appendChild(missed);
         }
-        panel.appendChild(header);
 
         const bodyDiv = document.createElement('div');
         bodyDiv.className = 'arcade-overlay-body';
@@ -326,6 +330,7 @@ export class MatchFlowArcadeOverlayController {
         bodyDiv.appendChild(continueSection);
 
         panel.appendChild(bodyDiv);
+        panel.appendChild(review);
         panel.classList.remove('hidden');
         return true;
     }
