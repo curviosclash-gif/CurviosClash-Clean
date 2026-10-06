@@ -20,7 +20,6 @@ blender-object-batches scripts:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import math
 import random
@@ -96,21 +95,6 @@ def contract():
     }
 
 
-def _materials(bpy):
-    result = {}
-    for key, (color, metallic, roughness, emission, strength) in PALETTE.items():
-        mat = bpy.data.materials.new(f"MagmaOutcrop_{key.title()}")
-        mat.diffuse_color = color
-        mat.use_nodes = True
-        shader = mat.node_tree.nodes.get("Principled BSDF")
-        shader.inputs["Base Color"].default_value = color
-        shader.inputs["Metallic"].default_value = metallic
-        shader.inputs["Roughness"].default_value = roughness
-        shader.inputs["Emission Color"].default_value = (*emission, 1.0)
-        shader.inputs["Emission Strength"].default_value = strength
-        result[key] = mat
-    return result
-
 
 def _column_sites(params, rng):
     count, spread, layout = params["column_count"], params["spread"], params["layout"]
@@ -170,108 +154,25 @@ def _build(bpy, params, rng):
     return parts
 
 
-def _join(bpy, objects, name, material):
-    bpy.ops.object.select_all(action="DESELECT")
-    for obj in objects:
-        obj.select_set(True)
-    bpy.context.view_layer.objects.active = objects[0]
-    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-    if len(objects) > 1:
-        bpy.ops.object.join()
-    joined = bpy.context.view_layer.objects.active
-    joined.name = name
-    joined.data.name = f"{name}_mesh"
-    joined.data.materials.clear()
-    joined.data.materials.append(material)
-    for layer in list(joined.data.uv_layers):
-        joined.data.uv_layers.remove(layer)
-    return joined
 
-
-def _place_bottom_center(meshes):
-    from mathutils import Matrix, Vector
-    corners = [obj.matrix_world @ Vector(c) for obj in meshes for c in obj.bound_box]
-    lows = [min(v[i] for v in corners) for i in range(3)]
-    highs = [max(v[i] for v in corners) for i in range(3)]
-    offset = Vector(((lows[0] + highs[0]) / -2, (lows[1] + highs[1]) / -2, -lows[2]))
-    for obj in meshes:
-        obj.data.transform(Matrix.Translation(offset))
-    return [highs[i] - lows[i] for i in range(3)]
-
-
-def _metrics(bpy):
-    meshes = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
-    depsgraph = bpy.context.evaluated_depsgraph_get()
-    triangles = 0
-    for obj in meshes:
-        data = obj.evaluated_get(depsgraph).to_mesh()
-        data.calc_loop_triangles()
-        triangles += len(data.loop_triangles)
-        obj.evaluated_get(depsgraph).to_mesh_clear()
-    from mathutils import Vector
-    corners = [obj.matrix_world @ Vector(c) for obj in meshes for c in obj.bound_box]
-    return {
-        "mesh_names": sorted(obj.name for obj in meshes),
-        "triangles": triangles,
-        "materials": sorted({slot.material.name for obj in meshes for slot in obj.material_slots}),
-        "dimensions": [round(max(v[i] for v in corners) - min(v[i] for v in corners), 4) for i in range(3)],
-        "bottom": round(min(v[2] for v in corners), 4),
-        "colliding": [obj.name for obj in meshes if "_nocol" not in obj.name],
-        "extras": len([obj for obj in bpy.context.scene.objects if obj.type in {"CAMERA", "LIGHT"}]),
-    }
 
 
 def build_variant(context):
+    import sys
+
     import bpy
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import map_prop_family_common as common
 
     if context["invariants"].get("collision") != "decorative-only":
         raise ValueError("basalt outcrops are decorative-only")
-    bpy.ops.wm.read_factory_settings(use_empty=True)
-    scene = bpy.context.scene
-    scene.name = context["id"]
-    scene["variant_id"] = context["id"]
-    scene["variant_seed"] = context["seed"]
-    scene["contract_hash"] = context["contract_hash"]
-    bpy.context.preferences.filepaths.save_version = 0
+    common.reset_scene(context)
     rng = random.Random(context["seed"])
-    mats = _materials(bpy)
+    mats = common.make_materials("MagmaOutcrop", PALETTE)
     parts = _build(bpy, context["parameters"], rng)
-    meshes = [_join(bpy, parts[key], MESH_NAMES[key], mats[key]) for key in ("basalt", "cap", "lava") if parts[key]]
-    _place_bottom_center(meshes)
-    bpy.context.view_layer.update()
-    source = _metrics(bpy)
-    if source["colliding"] or source["extras"]:
-        raise RuntimeError(f"outcrop must be decorative and static: {source}")
-
-    output_dir = Path(context["output_dir"])
-    output_dir.mkdir(parents=True, exist_ok=True)
-    blend_path, glb_path = output_dir / "source.blend", output_dir / "runtime.glb"
-    bpy.ops.wm.save_as_mainfile(filepath=str(blend_path), check_existing=False)
-    bpy.ops.export_scene.gltf(filepath=str(glb_path), export_format="GLB", export_animations=False,
-                              export_yup=True, export_cameras=False, export_lights=False,
-                              export_extras=True, export_apply=True)
-    bpy.ops.wm.read_factory_settings(use_empty=True)
-    bpy.ops.import_scene.gltf(filepath=str(glb_path))
-    imported = _metrics(bpy)
-    checks = {key: imported[key] == source[key] for key in ("mesh_names", "triangles", "materials", "colliding")}
-    checks["dimensions"] = all(abs(a - b) <= 0.004 for a, b in zip(imported["dimensions"], source["dimensions"]))
-    checks["bottom"] = abs(imported["bottom"] - source["bottom"]) <= 0.004
-    if not all(checks.values()):
-        raise RuntimeError(f"GLB roundtrip failed: {[k for k, ok in checks.items() if not ok]}")
-    return {
-        "outputs": [{"role": "editable", "path": f"{context['id']}/source.blend"},
-                    {"role": "runtime", "path": f"{context['id']}/runtime.glb"}],
-        "metrics": {
-            "triangles": source["triangles"],
-            "materials": len(source["materials"]),
-            "file_size_bytes": glb_path.stat().st_size,
-            "width": source["dimensions"][0], "depth": source["dimensions"][1],
-            "height": source["dimensions"][2],
-            "roundtrip_import": True,
-            "fingerprint": hashlib.sha256(glb_path.read_bytes()).hexdigest()[:20],
-        },
-        "metadata": {"layout": context["parameters"]["layout"], "roundtrip_checks": checks},
-    }
+    return common.finish_variant(context, parts, MESH_NAMES, mats,
+                                 {"layout": context["parameters"]["layout"]})
 
 
 if __name__ == "__main__":
