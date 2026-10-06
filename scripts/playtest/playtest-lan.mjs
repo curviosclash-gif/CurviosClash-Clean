@@ -6,6 +6,7 @@
 // guest's regular input path and the host must see the guest ship turn.
 import { configurePilot, installControl, stopPilot } from './playtest-control.mjs';
 import { launchSession } from './playtest-session.mjs';
+import { leaveMatchFromPauseMenu } from './playtest-ui.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -149,7 +150,7 @@ export async function leaveAsGuest(run) {
     const guest = run.sessions.get('guest');
     await guest.page.keyboard.press('Escape');
     await guest.page.locator('#pause-overlay').waitFor({ state: 'visible', timeout: 10_000 });
-    await guest.page.locator('#btn-pause-menu').click({ timeout: 10_000 });
+    await leaveMatchFromPauseMenu(guest.page);
     await waitInPage(guest.page, () => window.GAME_INSTANCE?.state === 'MENU', null, 30_000, 'guest did not return to the menu');
     await guest.page.locator('#btn-multiplayer-leave').click({ timeout: 10_000 }).catch(() => {});
     await sleep(2500);

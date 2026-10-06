@@ -14,6 +14,7 @@ import * as D from './playtest-driver.mjs';
 import { cancellableSleep, throwIfCancelled } from './playtest-jobs.mjs';
 import { leaveAsGuest, openLanMatch, proveGuestInput, proveRemoteTurn } from './playtest-lan.mjs';
 import { closeSession, findWindowPage, launchSession, REPO_ROOT } from './playtest-session.mjs';
+import { leaveMatchFromPauseMenu } from './playtest-ui.mjs';
 
 const requireElectron = createRequire(path.join(REPO_ROOT, 'electron', 'package.json'));
 
@@ -102,7 +103,7 @@ export function scenarioMenuPauseReturn(run, session, context) {
             await session.page.locator('#pause-overlay').waitFor({ state: 'visible', timeout: 5000 });
         });
         await steps.run('back to the menu from the pause menu', async () => {
-            await session.page.locator('#btn-pause-menu').click({ timeout: 5000 });
+            await leaveMatchFromPauseMenu(session.page, { timeoutMs: 5000 });
             await waitState(session.page, 'MENU', 30_000);
             await session.page.locator('#main-menu').waitFor({ state: 'visible', timeout: 10_000 });
         });
@@ -359,7 +360,7 @@ export function scenarioSplitscreen(run, session, context) {
         await steps.run('back to the menu', async () => {
             await session.page.keyboard.press('Escape');
             await waitState(session.page, 'PAUSED', 10_000);
-            await session.page.locator('#btn-pause-menu').click({ timeout: 5000 });
+            await leaveMatchFromPauseMenu(session.page, { timeoutMs: 5000 });
             await waitState(session.page, 'MENU', 30_000);
         });
     });
