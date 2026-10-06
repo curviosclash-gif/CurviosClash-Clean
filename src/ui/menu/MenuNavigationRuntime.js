@@ -2,6 +2,7 @@ import { evaluateMenuAccessPolicy, resolveDebugAccessPolicy, resolveDeveloperAcc
 import { isLevel4PauseHosted } from './Level4PauseHost.js';
 import { isAvailable, getFocusableElements, focusWithoutScroll, moveMainMenuFocus, adjustGamepadControl } from './MenuNavigationFocusOps.js';
 import { MENU_STATE_IDS } from './MenuStateMachine.js';
+import { createGamepadMenuPoller } from './GamepadMenuPoller.js';
 
 function normalizeId(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -65,8 +66,19 @@ export class MenuNavigationRuntime {
         this._panelById = new Map();
         this._navButtons = [];
         this._submenuPanels = [];
-        this._gamepadLoopHandle = null;
-        this._gamepadButtonStateByIndex = new Map();
+        // Main menu feel stays as before: d-pad only, no hold-repeat, and it also answers an unfocused window.
+        this._gamepadPoller = createGamepadMenuPoller({
+            repeat: false, leftStick: false, requireDocumentFocus: false,
+            isActive: () => this._isMenuInteractive(),
+            onDirection: (direction) => this._moveFocusByDirection(direction, { gamepad: true }),
+            onConfirm: () => this._activateFocusedElement(),
+            onBack: () => {
+                if (this._isLevel4Open() || this.stateMachine?.getState?.() !== MENU_STATE_IDS.MAIN) this._goBackFromCurrent('controller_back');
+            },
+            onPreviousTab: () => this._moveFocusByDirection('left'),
+            onNextTab: () => this._moveFocusByDirection('right'),
+        });
+        this._gamepadButtonStateByIndex = this._gamepadPoller.buttonState;
         this._activeSessionType = '';
         this._returnFocusByPanel = new Map();
     }
@@ -160,7 +172,7 @@ export class MenuNavigationRuntime {
 
         this.applyAccessPolicy();
         this.showMainNav({ trigger: 'init' });
-        this._startGamepadLoop();
+        this._gamepadPoller.start();
     }
 
     dispose() {
@@ -172,7 +184,7 @@ export class MenuNavigationRuntime {
                 // Ignore dispose errors to keep menu runtime robust.
             }
         }
-        this._stopGamepadLoop();
+        this._gamepadPoller.stop();
         this._returnFocusByPanel.clear();
         this._initialized = false;
     }
@@ -491,60 +503,7 @@ export class MenuNavigationRuntime {
     }
 
     _pollGamepadButtons() {
-        if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return;
-        // Skip the hardware poll while the menu is hidden: the rAF loop runs for the
-        // whole app lifetime, so polling gamepads during gameplay would waste one
-        // getGamepads() call plus an array allocation per frame.
-        if (!this._isMenuInteractive()) return;
-        const gamepads = navigator.getGamepads();
-        let gamepad = null;
-        for (let index = 0; index < (gamepads?.length || 0); index += 1) {
-            if (gamepads[index]) {
-                gamepad = gamepads[index];
-                break;
-            }
-        }
-        if (!gamepad) {
-            this._gamepadButtonStateByIndex.clear();
-            return;
-        }
-
-        const consumePress = (index) => {
-            const isPressed = !!gamepad.buttons?.[index]?.pressed;
-            const wasPressed = !!this._gamepadButtonStateByIndex.get(index);
-            this._gamepadButtonStateByIndex.set(index, isPressed);
-            return isPressed && !wasPressed;
-        };
-
-        if (consumePress(14)) this._moveFocusByDirection('left', { gamepad: true });
-        if (consumePress(15)) this._moveFocusByDirection('right', { gamepad: true });
-        if (consumePress(12)) this._moveFocusByDirection('up', { gamepad: true });
-        if (consumePress(13)) this._moveFocusByDirection('down', { gamepad: true });
-        if (consumePress(0)) this._activateFocusedElement();
-        if (consumePress(1) && (this._isLevel4Open() || this.stateMachine?.getState?.() !== MENU_STATE_IDS.MAIN)) {
-            this._goBackFromCurrent('controller_back');
-        }
-        if (consumePress(4)) this._moveFocusByDirection('left');
-        if (consumePress(5)) this._moveFocusByDirection('right');
-    }
-
-    _startGamepadLoop() {
-        if (this._gamepadLoopHandle !== null) return;
-        if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return;
-        const tick = () => {
-            this._pollGamepadButtons();
-            this._gamepadLoopHandle = window.requestAnimationFrame(tick);
-        };
-        this._gamepadLoopHandle = window.requestAnimationFrame(tick);
-    }
-
-    _stopGamepadLoop() {
-        if (this._gamepadLoopHandle === null) return;
-        if (typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
-            window.cancelAnimationFrame(this._gamepadLoopHandle);
-        }
-        this._gamepadLoopHandle = null;
-        this._gamepadButtonStateByIndex.clear();
+        this._gamepadPoller.poll();
     }
 
     _resolvePanelPolicy(panelConfig) {
