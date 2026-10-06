@@ -443,11 +443,9 @@ export class Arena {
         this._mapDestructibleState = state || null;
         const map = this.currentMapDefinition;
         const id = map?.fireFxActivationSegmentId;
-        if (id) {
-            const segment = state?.segments?.find((entry) => entry.id === id);
-            this._builder.fireFxController.setIntensity(segment?.burnStartedAtSeconds >= 0 ? 1 : 0);
-        }
+        if (id) this._builder.fireFxController.setIntensity(state?.segments?.find((entry) => entry.id === id)?.burnStartedAtSeconds >= 0 ? 1 : 0);
         this._mapDestructibleGlow?.update?.(this._glbScene, map?.mapDestructibleGlow, state);
+        this._builder?.mapLightRig?.applyDestructibleState?.(state);
     }
 
     resetMapDestructibleScenes() {

@@ -361,6 +361,8 @@ test('hud projection reports labels and remaining ratios', () => {
         hudNoun: '',
         focusSegment: null,
         breakingSecondsRemaining: 0,
+        destroyedSegments: 0,
+        totalSegments: 0,
         segments: [],
     });
 
