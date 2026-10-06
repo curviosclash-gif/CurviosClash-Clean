@@ -153,6 +153,7 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         .map(([mapKey]) => mapKey)
         .sort();
     assert.deepEqual(collisionOnlyMaps, [
+        'abyssal_descent',
         'burg_falkenwacht',
         'burg_falkenwacht_arena',
         'cherry_grove',
@@ -161,11 +162,15 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         'eiffel_tower',
         'eiffel_tower_arena',
         'eiffel_tower_siege',
+        'foam_forest',
         'frozen_helix',
         // Only its setpiece frame colliders; the authored platforms keep renderWithGlb.
         'kinetic_tide',
         'magma_maze',
         'maze',
+        'mega_maze',
+        'mirror_docks',
+        'neon_abyss',
         'neon_circuit',
         'notre_dame',
         'notre_dame_arena',
@@ -174,13 +179,16 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         'orbital_shipyard',
         'pyramid',
         'reactor_site',
+        'sky_islands',
         'skyline_siege',
         'standard',
         'storm_bridge_siege',
         'storm_dam_siege',
         'storm_lighthouse_siege',
+        'the_loop',
         'trench',
         'vertical_maze',
+        'vulkan_odyssey',
         'wind_cathedral',
     ]);
 });

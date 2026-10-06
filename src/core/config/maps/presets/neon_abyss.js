@@ -1,5 +1,9 @@
+import { authoredWorld } from './world_appearance.js';
+
 export const NEON_ABYSS_MAP = {
     neon_abyss: {
+        // The corner pillars reach half a unit below the ground; the GLB placement follows them.
+        ...authoredWorld('neon_abyss', -.5),
         name: 'Neon Abyss',
         // Held dark on purpose. The key is turned down and the exposure with it, so the neon in the
         // map reads as the light source it is drawn as instead of competing with a bright sun.

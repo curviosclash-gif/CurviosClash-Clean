@@ -3,7 +3,7 @@
 // ============================================
 
 import { TEST_HANGAR_GLB_DATA_URI } from './EmbeddedGlbMapAssets.js';
-import { CLASSIC_WORLD_APPEARANCE, STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
+import { authoredWorld, CLASSIC_WORLD_APPEARANCE, STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
 
 // Storm and ambience share one shelter list; the volumes are the interiors built by
 // scripts/generate_pyramid_map_assets.py (tests/pyramid-blender-assets.contract.test.mjs).
@@ -242,6 +242,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         portals: []
     },
     foam_forest: {
+        ...authoredWorld('foam_forest'),
         name: 'Schaumwald',
         size: [100, 30, 100],
         obstacles: [
@@ -341,6 +342,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ]
     },
     the_loop: {
+        ...authoredWorld('the_loop'),
         name: 'Die Schleife',
         size: [120, 30, 120],
         obstacles: [
