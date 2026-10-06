@@ -9415,7 +9415,8 @@ body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
     font-size: 1.25rem !important;
     color: var(--hud-text, #f6fbff) !important;
 }
-#hud[data-hud-mode="arcade"] #p1-hud .player-hud-summary { top: 104px; }
+/* Under the score box: ArcadeScoreHUD reports its real lower edge, which grows with the modifier. */
+#hud[data-hud-mode="arcade"] #p1-hud .player-hud-summary { top: max(104px, calc(var(--arcade-score-hud-bottom, 0px) + 8px)); }
 
 @media (max-width: 900px) {
     .classic-match-score-label { max-width: 28vw; padding-inline: 12px; }

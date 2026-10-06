@@ -237,6 +237,12 @@ export class ArcadeScoreHUD {
         this._container.appendChild(this._suddenDeathBanner);
         this._container.appendChild(this._transitionBanner);
         this._parent.appendChild(this._container);
+        // The player bars sit under this box, which grows with modifier, waves and banners.
+        if (typeof ResizeObserver === 'function') {
+            this._resizeObserver = new ResizeObserver(() => this._parent.style?.setProperty?.(
+                '--arcade-score-hud-bottom', `${Math.ceil(this._container?.getBoundingClientRect().bottom || 0)}px`));
+            this._resizeObserver.observe(this._container);
+        }
     }
 
     _createMetric(parent, labelText, valueText) {
@@ -458,6 +464,9 @@ export class ArcadeScoreHUD {
     }
 
     dispose() {
+        this._resizeObserver?.disconnect();
+        this._resizeObserver = null;
+        this._parent.style?.removeProperty?.('--arcade-score-hud-bottom');
         if (this._container?.parentElement) {
             this._container.parentElement.removeChild(this._container);
         }
