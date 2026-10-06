@@ -1,5 +1,6 @@
 import { saveLeaderboard } from '../../state/arcade/ArcadeLeaderboard.js';
 import { saveVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
+import { shareArcadeVehicleProfileBase } from '../../state/arcade/ArcadeVehicleProfileMerge.js';
 
 const SAVE_KINDS = Object.freeze({
     LEADERBOARD: 'leaderboard',
@@ -15,7 +16,11 @@ function normalizeThrottleMs(value, fallback = 0) {
 function clonePlainSnapshot(value) {
     if (!value || typeof value !== 'object') return value;
     try {
-        return JSON.parse(JSON.stringify(value));
+        const snapshot = JSON.parse(JSON.stringify(value));
+        // A vehicle profile snapshot shares the live map's merge base, so a deferred save applies
+        // only this run's own changes and advances the base the live map sees.
+        shareArcadeVehicleProfileBase(snapshot, value);
+        return snapshot;
     } catch {
         return value;
     }
@@ -110,9 +115,8 @@ export class ArcadeRunPersistenceScheduler {
     scheduleVehicleProfiles(store, profiles) {
         if (!store || typeof store.saveJsonRecord !== 'function') return false;
         const snapshot = clonePlainSnapshot(profiles);
-        // The snapshot shares the live map's base, so a save only applies this run's own changes.
         return this._schedule(SAVE_KINDS.VEHICLE_PROFILES, () => {
-            return saveVehicleProfiles(store, snapshot, { baseOwner: profiles });
+            return saveVehicleProfiles(store, snapshot);
         });
     }
 

@@ -18,11 +18,20 @@ const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 /** Remembers what `owner` (a profile map) looked like when it was last loaded or saved. */
 export function rememberArcadeVehicleProfileBase(owner, profiles) {
     if (!owner || typeof owner !== 'object') return;
-    PROFILE_BASES.set(owner, JSON.parse(JSON.stringify(profiles || {})));
+    const base = JSON.parse(JSON.stringify(profiles || {}));
+    const holder = PROFILE_BASES.get(owner);
+    if (holder) holder.base = base;
+    else PROFILE_BASES.set(owner, { base });
 }
 
 export function getArcadeVehicleProfileBase(owner) {
-    return owner && typeof owner === 'object' ? PROFILE_BASES.get(owner) || null : null;
+    return owner && typeof owner === 'object' ? PROFILE_BASES.get(owner)?.base || null : null;
+}
+
+/** A copy of a profile map (e.g. a deferred save snapshot) shares and advances the original's base. */
+export function shareArcadeVehicleProfileBase(copy, original) {
+    const holder = original && typeof original === 'object' ? PROFILE_BASES.get(original) : null;
+    if (holder && copy && typeof copy === 'object') PROFILE_BASES.set(copy, holder);
 }
 
 /**

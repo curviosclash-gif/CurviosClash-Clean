@@ -539,9 +539,8 @@ export function loadVehicleProfiles(store) {
  * Saves a profile map onto the freshly stored record. Vehicles the map does not carry stay as
  * stored; for a map that came from loadVehicleProfiles (or was saved before) only the fields it
  * changed since then are applied, so a stale hangar or run copy never rolls back the other's work.
- * @param {{ baseOwner?: object }} [options] baseOwner: the live map whose base a snapshot shares
  */
-export function saveVehicleProfiles(store, profiles, { baseOwner = profiles } = {}) {
+export function saveVehicleProfiles(store, profiles) {
     if (!store || typeof store.saveJsonRecord !== 'function') return false;
     const {
         profiles: storedProfiles = {},
@@ -552,7 +551,7 @@ export function saveVehicleProfiles(store, profiles, { baseOwner = profiles } = 
     // A malformed top-level record cannot be safely merged with writable profiles.
     if (!canPersist) return false;
     const { merged: normalizedProfiles, own: ownProfiles } = mergeArcadeVehicleProfileMaps(
-        storedProfiles, profiles, getArcadeVehicleProfileBase(baseOwner), normalizeVehicleProfileSafe);
+        storedProfiles, profiles, getArcadeVehicleProfileBase(profiles), normalizeVehicleProfileSafe);
     // Rejected or malformed per-vehicle records stay byte-for-byte equivalent at the
     // JSON value level, including when a fresh runtime profile has the same vehicle ID.
     const saveResult = store.saveJsonRecord(STORAGE_KEY, {
@@ -560,7 +559,7 @@ export function saveVehicleProfiles(store, profiles, { baseOwner = profiles } = 
         ...preservedProfiles,
     });
     warnPersistenceFailure('saveVehicleProfiles', saveResult);
-    if (isPersistenceSuccess(saveResult)) rememberArcadeVehicleProfileBase(baseOwner, ownProfiles);
+    if (isPersistenceSuccess(saveResult)) rememberArcadeVehicleProfileBase(profiles, ownProfiles);
     return saveResult;
 }
 
