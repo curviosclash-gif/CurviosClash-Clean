@@ -18,6 +18,7 @@ import {
     playwrightTestRuntimeBridgePlugin,
 } from './dev/vite/playwrightVitePlugins.js';
 import { desktopNetworkPolicyPlugin } from './dev/vite/desktopNetworkPolicyPlugin.js';
+import { rendererChunkRingGuardPlugin } from './dev/vite/rendererChunkRingGuard.js';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf8'));
 const buildTime = new Date().toISOString();
@@ -50,6 +51,7 @@ export default defineConfig(({ mode }) => {
             copyObjVehicleAssetsPlugin(),
             copyGlbGalleryAssetsPlugin(),
             desktopNetworkPolicyPlugin(resolvedEnv),
+            rendererChunkRingGuardPlugin({ rootDir: __dirname }),
         ],
         server: createRendererShellServerConfig(resolvedEnv),
         resolve: isGameDistribution ? {

@@ -55,8 +55,9 @@ function resolveRendererManualChunk(id, env = process.env) {
         return 'map-presets';
     }
     // The pickup registry evaluates these definitions at module initialization.
-    // Keep them with their runtime consumer instead of the developer dashboard's
-    // implicit dependencies, which otherwise creates a cross-chunk TDZ.
+    // Keep them with their runtime consumer. A chunk that pulled them in as an
+    // implicit dependency would import back into game-runtime; the chunk ring
+    // guard (rendererChunkRingGuard.js) fails any build that does that.
     if (normalizedId.endsWith('/shared/contracts/RocketPickupDefinitionsContract.js')
         || normalizedId.endsWith('/entities/vehicle-registry.js')) {
         return 'game-runtime';
@@ -98,12 +99,6 @@ function resolveRendererManualChunk(id, env = process.env) {
         normalizedId.includes('/config/maps/MapPresetCatalogLarge') ||
         normalizedId.includes('/config/maps/presets/')) {
         return 'map-presets';
-    }
-    if (
-        resolveRendererAppTarget(env) !== RENDERER_APP_TARGETS.GAME
-        && normalizedId.includes('/menu/MenuTelemetryDashboard')
-    ) {
-        return 'developer-ui';
     }
 
     return undefined;
