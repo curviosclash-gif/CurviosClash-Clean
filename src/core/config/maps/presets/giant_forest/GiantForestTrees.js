@@ -1,4 +1,5 @@
 import {
+    FOREST_FOG_FAR,
     FOREST_GROUND,
     FOREST_HALF_SIZE,
     isInsideClearing,
@@ -46,11 +47,19 @@ const TREE_ALIGNMENT = Object.freeze([
  */
 export const TREE_SCALE = 3.8;
 
+/** CONFIG.ARENA.MAP_SCALE: the fog is in world units, draw distances in authored ones. */
+const WORLD_PER_UNIT = 3;
+const FOG_FAR_UNITS = FOREST_FOG_FAR / WORLD_PER_UNIT;
+
 /**
- * Beyond this a crown is not drawn at all. It has to sit outside the map's fog range, or trees
- * would wink out inside the visible distance; the fog is what hides the edge of the forest.
+ * Beyond this a crown is not drawn at all. The fog (and the camera's far plane) close at
+ * FOREST_FOG_FAR, and the cull test measures to the foot of the tree, so the crown has to stay
+ * until its nearest leaf is out of range: the fog's far plus the farthest point of the crown from
+ * its foot. That point is 102.5 units out (measured over the ten lod2 files at TREE_SCALE; the
+ * widest reaches 93 up and 51 across). It used to be 320, the whole half-field, which kept every
+ * crown on the list more than twice as far as anything can be seen.
  */
-const TREE_RENDER_DISTANCE = 320;
+const TREE_RENDER_DISTANCE = Math.ceil(FOG_FAR_UNITS + 102.5);
 
 /**
  * Grid pitch. A crown is about 80 wide at this scale, so at 70 the crowns overlap into a closed
@@ -163,7 +172,7 @@ function undergrowth(family, variant, id, x, z, targetSize, rotationY) {
         position: Object.freeze([x, FOREST_GROUND, z]),
         rotation: Object.freeze([0, rotationY, 0]),
         targetSize,
-        maxRenderDistance: 220,
+        maxRenderDistance: Math.ceil(FOG_FAR_UNITS + targetSize * 1.225),
         collision: false,
     });
 }
