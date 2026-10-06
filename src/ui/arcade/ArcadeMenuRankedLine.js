@@ -7,7 +7,9 @@ import { resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
 export function createArcadeMenuRankContext(settings, { tierId, vehicleId, profile }) {
     const arcade = settings?.arcade || {};
     const humanCount = Math.max(1, Number.parseInt(String(settings?.mode || '1p'), 10) || 1);
+    // runId and stoneSteps only feed botStrength, which the menu line does not read.
     return createArcadeRankContext({
+        runId: '', stoneSteps: undefined,
         runType: arcade.runType || 'gauntlet', vehicleId, profile, tierId, dailyChallenge: arcade.dailyChallenge === true,
         runSettings: arcade, portalChainId: arcade.portalChainId,
         companionCount: resolveActiveArcadeCompanionCount({ ...arcade, enabled: true }, { humanCount, enemyCount: 1 }),
