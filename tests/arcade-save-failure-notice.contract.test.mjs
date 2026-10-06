@@ -60,7 +60,23 @@ test('loading an old board with clips on every entry keeps all entries intact', 
     assert.equal(board.route.length, 2);
     assert.deepEqual(board.route.map((entry) => entry.totalTimeMs), [1000, 2000]);
     assert.equal(board.route[0].ghostClip.id, 'best');
+    assert.equal(board.route[1].ghostClip?.id, 'old', 'an old entry on place 2 keeps its clip when loaded');
     assert.deepEqual(store.data.get(LEADERBOARD_STORAGE_KEY), stored, 'loading never rewrites the stored board');
+});
+
+test('an entry pushed off place 1 keeps its times and only drops the clip', () => {
+    const first = { totalTimeMs: 2000, penaltyTimeMs: 300, segmentSplitsMs: [700, 1400], vehicleId: 'ship5',
+        date: '2026-01-01T00:00:00.000Z', ghostClip: clip('first') };
+    let board = insertLeaderboardEntry({}, 'route', first);
+    board = insertLeaderboardEntry(board, 'route', { totalTimeMs: 1500, vehicleId: 'ship1', ghostClip: clip('faster') });
+    assert.equal(board.route[0].ghostClip.id, 'faster');
+    const pushed = board.route[1];
+    assert.deepEqual(
+        { totalTimeMs: pushed.totalTimeMs, penaltyTimeMs: pushed.penaltyTimeMs, segmentSplitsMs: pushed.segmentSplitsMs,
+            vehicleId: pushed.vehicleId, date: pushed.date },
+        { totalTimeMs: 2000, penaltyTimeMs: 300, segmentSplitsMs: [700, 1400], vehicleId: 'ship5', date: first.date },
+    );
+    assert.equal(pushed.ghostClip, null);
 });
 
 test('a rejected save marks the post-run summary until a retry succeeds', () => {
