@@ -145,3 +145,14 @@ test('every sky ladder exit portal waits near the finish in open air', () => {
         assert.equal(insideHardBox(exit, map.obstacles || []), false, `${mapKey} exit portal is not buried in a wall`);
     }
 });
+
+test('sky ladder abyss spaces its last rings: no gap from CP10 to the finish under 16 units', () => {
+    const map = CONFIG.MAPS.sky_ladder_abyss;
+    const rings = [...map.parcours.checkpoints, map.parcours.finish];
+    const from = rings.findIndex((ring) => ring.id === 'CP10');
+    assert.ok(from > 0, 'CP10 exists');
+    for (let index = from + 1; index < rings.length; index += 1) {
+        const gap = distance(rings[index - 1].pos, rings[index].pos);
+        assert.ok(gap >= 16, `${rings[index - 1].id} -> ${rings[index].id} is only ${gap.toFixed(1)} apart`);
+    }
+});
