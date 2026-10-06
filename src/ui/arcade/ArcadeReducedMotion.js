@@ -6,10 +6,21 @@
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
+// The sudden death HUD asks every frame. A MediaQueryList updates its `matches` live, so it is
+// built once per matchMedia function and only read afterwards.
+let cachedMatchMedia = null;
+let cachedQueryList = null;
+
 /** @returns {boolean} */
 export function isArcadeMotionReduced() {
     try {
-        return globalThis.matchMedia?.(REDUCED_MOTION_QUERY)?.matches === true;
+        const matchMedia = globalThis.matchMedia;
+        if (typeof matchMedia !== 'function') return false;
+        if (matchMedia !== cachedMatchMedia) {
+            cachedQueryList = matchMedia.call(globalThis, REDUCED_MOTION_QUERY);
+            cachedMatchMedia = matchMedia;
+        }
+        return cachedQueryList?.matches === true;
     } catch {
         return false;
     }

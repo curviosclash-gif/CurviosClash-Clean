@@ -73,3 +73,22 @@ test('the camera option alone keeps the count-up, on or off', () => {
         assert.equal(frames, 1);
     }
 });
+
+test('the media query is built once and only its matches flag is read per call', async () => {
+    const { isArcadeMotionReduced } = await import('../src/ui/arcade/ArcadeReducedMotion.js');
+    const saved = globalThis.matchMedia;
+    let calls = 0;
+    const list = { matches: false };
+    globalThis.matchMedia = () => { calls += 1; return list; };
+    try {
+        assert.equal(isArcadeMotionReduced(), false);
+        list.matches = true;
+        assert.equal(isArcadeMotionReduced(), true, 'a changed system wish is seen without a new query');
+        assert.equal(calls, 1, 'matchMedia runs once, not every sudden death frame');
+        delete globalThis.matchMedia;
+        assert.equal(isArcadeMotionReduced(), false, 'without window.matchMedia nothing is reduced');
+    } finally {
+        if (saved === undefined) delete globalThis.matchMedia;
+        else globalThis.matchMedia = saved;
+    }
+});
