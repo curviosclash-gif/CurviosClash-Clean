@@ -194,6 +194,26 @@ export function resolveHigherArcadeBotDifficulty(floor, candidate) {
     return ARCADE_DIFFICULTY_RANK[raised] > ARCADE_DIFFICULTY_RANK[base] ? raised : base;
 }
 
+/**
+ * Pressure of a sector entry flown with `modifierId`. A planned entry keeps the parts its pressure
+ * was built from (`pressureBasis`), so a route modifier swapped in the intermission re-derives it
+ * instead of keeping the planned modifier's share. Entries without a basis keep their pressure.
+ */
+export function resolveArcadeSectorPressure(entry, modifierId = entry?.modifierId) {
+    const stored = Math.max(0, Number(entry?.pressure) || 0);
+    const basis = entry?.pressureBasis;
+    if (!basis || typeof basis !== 'object' || entry.parcoursEnabled === true) return stored;
+    const nextModifierId = String(modifierId || '').trim();
+    if (nextModifierId === String(basis.modifierId || '').trim()) return stored;
+    const delta = ARCADE_SECTOR_MODIFIERS.find((item) => item.id === nextModifierId)?.difficultyDelta || 0;
+    const scale = Number.isFinite(Number(basis.scale)) ? Number(basis.scale) : 1;
+    return Number(Math.min(1, Math.max(0, ((Number(basis.squadPressure) || 0) + delta) * scale)).toFixed(3));
+}
+
+function createPressureBasis(squadPressure, scale, modifierId) {
+    return { squadPressure, scale, modifierId: modifierId || null };
+}
+
 /** One role per bot: the squad's mix repeats when a scenario asks for more bots than it lists. */
 function resolveSquadBotRoles(squad, botCount) {
     const roles = Array.isArray(squad?.botRoles) && squad.botRoles.length > 0 ? squad.botRoles : ['pursuer', 'flanker'];
@@ -205,7 +225,7 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
     const squadId = String(entry.squadId || '').trim();
     const squad = ARCADE_SQUAD_PROFILES[squadId] || null;
     const fallbackBotCount = Math.max(0, Math.trunc(Number(options.fallbackBotCount) || 0));
-    const pressure = Math.max(0, Math.min(1, Number(entry.pressure) || 0));
+    const pressure = Math.max(0, Math.min(1, resolveArcadeSectorPressure(entry)));
     const baseDifficulty = normalizeArcadeDifficulty(options.fallbackDifficulty, 'NORMAL');
     const pressureDifficulty = pressure > 0.72 ? 'HARD' : (pressure > 0.42 ? 'NORMAL' : 'EASY');
     const botDifficulty = resolveHigherArcadeBotDifficulty(baseDifficulty, pressureDifficulty);
@@ -326,6 +346,8 @@ export function buildArcadeSectorPlan(options = {}) {
             scoreBonus: Number((modifierDef?.scoreBonus || 0).toFixed(3)),
             rewardChoices,
             pressure: Number(bossPressure.toFixed(3)),
+            // Boss pressure ignores the modifier; a scenario brings its own rules.
+            ...(isBoss || scenario ? {} : { pressureBasis: createPressureBasis(basePressure, difficultyScale, modifierId) }),
             mapKey,
             isBoss,
             bossMultiplier: isBoss ? 2 : 1,
@@ -363,6 +385,7 @@ export function resolveArcadeEndlessSectorDescriptor(options = {}) {
         scoreBonus: Number((modifierDef?.scoreBonus || 0).toFixed(3)),
         rewardChoices,
         pressure: Number(pressure.toFixed(3)),
+        pressureBasis: Object.freeze(createPressureBasis(basePressure, difficultyScale, modifierId)),
         mapKey: pickFromPool(template.mapPool || ['standard'], randomFn) || 'standard',
         isBoss: false,
         bossMultiplier: 1,
