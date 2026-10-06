@@ -120,3 +120,10 @@ test('the prewarmed arena key tells the modes apart only where the models differ
     assert.equal(key('eiffel_tower_siege', 'CLASSIC'), key('eiffel_tower_siege', 'ARCADE'));
     assert.equal(key('standard', 'CLASSIC'), key('standard', 'HUNT'));
 });
+
+test('an unknown session mode counts as CLASSIC, like createGameModeStrategy, so the arena keeps the scenes the round arms', () => {
+    const siege = MAP_PRESET_CATALOG.eiffel_tower_siege;
+    const classicOnly = { ...siege, destructibles: { ...siege.destructibles, gameModes: ['CLASSIC'] } };
+    assert.equal(listSkippedBreakSceneModelIds(classicOnly, session('SANDBOX')).size, 0);
+    assert.ok(listSkippedBreakSceneModelIds(classicOnly, session('HUNT')).size > 0, 'HUNT is not in gameModes, scenes stay out');
+});

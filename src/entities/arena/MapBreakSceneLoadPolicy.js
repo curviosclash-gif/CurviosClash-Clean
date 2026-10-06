@@ -1,3 +1,4 @@
+import { normalizeGameMode } from '../../hunt/HuntMode.js';
 import { isDemolitionConfig } from '../../shared/contracts/DemolitionContract.js';
 import {
     isMapDestructibleModeAllowed,
@@ -36,7 +37,10 @@ export function resolveMapDestructibleEligibility(authored, mode, runtimeConfig)
  * @returns {string}
  */
 function readSessionGameMode(runtimeConfig) {
-    return String(runtimeConfig?.session?.activeGameMode || '').trim().toUpperCase();
+    const raw = String(runtimeConfig?.session?.activeGameMode || '').trim();
+    // Same mapping as createGameModeStrategy, which turns an unknown mode into CLASSIC: the round
+    // must not arm segments whose break scenes the arena left out.
+    return raw === '' ? '' : normalizeGameMode(raw);
 }
 
 /**
