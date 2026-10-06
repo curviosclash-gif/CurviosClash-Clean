@@ -7,7 +7,10 @@ import {
 } from './helpers/map-prop-family.mjs';
 
 test('signal pylons ship ten decorative variants whose glow survives tone mapping', () => {
-    assertDecorativeFamily('assets/maps/neon_circuit/props/signal-pylons', familyVariantIds('neon-signal-pylon'));
+    // Pylons are built from boxes, so a single post legitimately stays below the default
+    // 100-triangle floor; 24 still rejects an empty or single-box export.
+    assertDecorativeFamily('assets/maps/neon_circuit/props/signal-pylons', familyVariantIds('neon-signal-pylon'),
+        { minTriangles: 24 });
 });
 
 test('neon circuit places the pylons in the infield and on the verges, clear of the route', () => {

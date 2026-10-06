@@ -16,8 +16,7 @@ function readGlbJson(path) {
     return JSON.parse(bytes.subarray(20, 20 + bytes.readUInt32LE(12)));
 }
 
-// minTriangles only rejects empty or single-box exports; box-built families stay well below 100.
-export function assertDecorativeFamily(familyDir, variantIds, { maxKiB = 120, minTriangles = 24, maxTriangles = 1500 } = {}) {
+export function assertDecorativeFamily(familyDir, variantIds, { maxKiB = 120, minTriangles = 100, maxTriangles = 1500 } = {}) {
     assert.deepEqual(readdirSync(familyDir).sort(), variantIds);
     const signatures = new Set();
     for (const id of variantIds) {
