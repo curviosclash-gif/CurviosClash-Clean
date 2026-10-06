@@ -2,12 +2,18 @@ import { MAP_PICKER_COLLECTION_DEFS, MAP_PICKER_FALLBACK_COLLECTION } from '../.
 import { MAP_PICKER_META } from '../../shared/maps/MapPickerMeta.js';
 
 // Collections and their order come from the shared map metadata table; the picker order of a map
-// is its position among the table entries of the same collection.
-const COLLECTION_DEFINITIONS = MAP_PICKER_COLLECTION_DEFS.map((collection) => ({
-    id: collection.id,
-    label: collection.label,
-    mapKeys: Object.keys(MAP_PICKER_META).filter((mapKey) => MAP_PICKER_META[mapKey].collection === collection.id),
-}));
+// is its position among the table entries of the same collection. The parcours collection is a
+// campaign: it runs from easy to hard (teaching 1-2, craft 3, mastery 4-5), and maps of equal
+// difficulty keep their table order.
+const SORTED_BY_DIFFICULTY = new Set(['parcours']);
+
+const COLLECTION_DEFINITIONS = MAP_PICKER_COLLECTION_DEFS.map((collection) => {
+    const mapKeys = Object.keys(MAP_PICKER_META).filter((mapKey) => MAP_PICKER_META[mapKey].collection === collection.id);
+    if (SORTED_BY_DIFFICULTY.has(collection.id)) {
+        mapKeys.sort((left, right) => MAP_PICKER_META[left].difficulty - MAP_PICKER_META[right].difficulty);
+    }
+    return { id: collection.id, label: collection.label, mapKeys };
+});
 
 const FALLBACK_COLLECTION = Object.freeze({
     id: MAP_PICKER_FALLBACK_COLLECTION.id,

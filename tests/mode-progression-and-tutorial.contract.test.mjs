@@ -123,3 +123,11 @@ test('Classic tutorial is a bot-free Classic parcours with versioned completion'
     assert.equal(map.hiddenFromMapPicker, true);
     assert.equal(map.scaleAuthoredAnchors, true);
 });
+
+test('Classic tutorial hints teach the ring order and what a crash costs, one hint per ring', () => {
+    const map = PARCOURS_MAPS.tutorial_classic;
+    assert.equal(CLASSIC_TUTORIAL_HINTS.length, map.parcours.checkpoints.length);
+    assert.match(CLASSIC_TUTORIAL_HINTS[0], /der Reihe nach/, 'the first hint names the ring order');
+    assert.match(CLASSIC_TUTORIAL_HINTS[4], /Absturz.*letzte/, 'the obstacle hint says a crash only costs the last ring');
+    for (const hint of CLASSIC_TUTORIAL_HINTS) assert.ok(hint.length <= 100, `short enough for the HUD line: ${hint}`);
+});
