@@ -1,54 +1,6 @@
 {
-  "count": 67,
+  "count": 41,
   "entries": [
-    {
-      "map": "pyramid",
-      "check": "anchor-format",
-      "point": "items[#0]",
-      "reason": "item has no numeric x/y/z pos [0,7,16]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "pyramid",
-      "check": "anchor-format",
-      "point": "items[#1]",
-      "reason": "item has no numeric x/y/z pos [0,40,-88]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "pyramid",
-      "check": "anchor-format",
-      "point": "items[#2]",
-      "reason": "item has no numeric x/y/z pos [-104,18,-18]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "pyramid",
-      "check": "anchor-format",
-      "point": "items[#3]",
-      "reason": "item has no numeric x/y/z pos [104,18,-18]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "pyramid",
-      "check": "anchor-format",
-      "point": "items[#4]",
-      "reason": "item has no numeric x/y/z pos [-78,16,38]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "pyramid",
-      "check": "anchor-format",
-      "point": "items[#5]",
-      "reason": "item has no numeric x/y/z pos [78,16,38]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "pyramid",
-      "check": "anchor-format",
-      "point": "items[#6]",
-      "reason": "item has no numeric x/y/z pos [-40,12,60]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "pyramid",
-      "check": "anchor-format",
-      "point": "items[#7]",
-      "reason": "item has no numeric x/y/z pos [40,12,60]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
     {
       "map": "showcase_nexus",
       "check": "in-solid",
@@ -272,136 +224,28 @@
       "reason": "item (40, 27, 40) sits inside obstacles[56]; map has no scaleAuthoredAnchors, so this anchor counts in world units while its obstacles are x3"
     },
     {
-      "map": "storm_bridge_siege",
-      "check": "anchor-format",
-      "point": "items[#0]",
-      "reason": "item has no numeric x/y/z pos [-38,12,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "storm_bridge_siege",
-      "check": "anchor-format",
-      "point": "items[#1]",
-      "reason": "item has no numeric x/y/z pos [38,12,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
       "map": "storm_lighthouse_siege",
       "check": "bounds",
       "point": "lights[lighthouse_lantern]",
       "reason": "(0, 522, 0) lies outside the arena: y outside 0..300"
     },
     {
-      "map": "storm_dam_siege",
-      "check": "anchor-format",
-      "point": "items[#0]",
-      "reason": "item has no numeric x/y/z pos [-38,12,-8]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "storm_dam_siege",
-      "check": "anchor-format",
-      "point": "items[#1]",
-      "reason": "item has no numeric x/y/z pos [38,12,8]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "skyline_siege",
-      "check": "anchor-format",
-      "point": "items[#0]",
-      "reason": "item has no numeric x/y/z pos [-42,12,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "skyline_siege",
-      "check": "anchor-format",
-      "point": "items[#1]",
-      "reason": "item has no numeric x/y/z pos [42,12,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "skyline_siege",
-      "check": "anchor-format",
-      "point": "items[#2]",
-      "reason": "item has no numeric x/y/z pos [0,25,40]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "skyline_siege",
-      "check": "bounds",
-      "point": "lights[skyline_spire_beacon]",
-      "reason": "(-288, 318, 0) lies outside the arena: x beyond ±270, y outside 0..300; lights authored in world units on a map that scales anchors, 3x too large"
-    },
-    {
-      "map": "skyline_siege",
-      "check": "light-reach",
-      "point": "lights[skyline_spire_beacon]",
-      "reason": "nothing within its distance 270 at (-288, 318, 0); nearest obstacle or model is 307 away; lights authored in world units on a map that scales anchors, 3x too large"
-    },
-    {
-      "map": "skyline_siege",
-      "check": "light-reach",
-      "point": "lights[skyline_crown_beacon]",
-      "reason": "nothing within its distance 255 at (0, 288, 162); nearest obstacle or model is 276 away; lights authored in world units on a map that scales anchors, 3x too large"
-    },
-    {
-      "map": "skyline_siege",
-      "check": "bounds",
-      "point": "lights[skyline_arcology_beacon]",
-      "reason": "(288, 273, -144) lies outside the arena: x beyond ±270; lights authored in world units on a map that scales anchors, 3x too large"
-    },
-    {
-      "map": "skyline_siege",
-      "check": "light-reach",
-      "point": "lights[skyline_arcology_beacon]",
-      "reason": "nothing within its distance 255 at (288, 273, -144); nearest obstacle or model is 262 away; lights authored in world units on a map that scales anchors, 3x too large"
-    },
-    {
-      "map": "cherry_grove",
-      "check": "anchor-format",
-      "point": "items[#0]",
-      "reason": "item has no numeric x/y/z pos [-34,6,-5]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "cherry_grove",
-      "check": "anchor-format",
-      "point": "items[#1]",
-      "reason": "item has no numeric x/y/z pos [34,6,12]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "cherry_grove",
-      "check": "anchor-format",
-      "point": "items[#2]",
-      "reason": "item has no numeric x/y/z pos [0,8,48]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
       "map": "bloom_core",
-      "check": "anchor-format",
-      "point": "items[#0]",
-      "reason": "item has no numeric x/y/z pos [-12,14,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "bloom_core",
-      "check": "anchor-format",
-      "point": "items[#1]",
-      "reason": "item has no numeric x/y/z pos [12,14,0]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "bloom_core",
-      "check": "anchor-format",
-      "point": "items[#2]",
-      "reason": "item has no numeric x/y/z pos [0,14,-12]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "bloom_core",
-      "check": "anchor-format",
-      "point": "items[#3]",
-      "reason": "item has no numeric x/y/z pos [0,14,12]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
-    },
-    {
-      "map": "bloom_core",
-      "check": "anchor-format",
+      "check": "in-solid",
       "point": "items[#4]",
-      "reason": "item has no numeric x/y/z pos [-47,16,-47]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+      "reason": "item (-47, 16, -47) sits inside obstacles[0]; became visible once Arena reads pos[] anchors (K1); bloom_core item layout is reworked in K11"
     },
     {
       "map": "bloom_core",
-      "check": "anchor-format",
+      "check": "in-solid",
       "point": "items[#5]",
-      "reason": "item has no numeric x/y/z pos [47,16,47]; the game reads it at the origin without a pickup type; written as pos[] but Arena/Powerup read x/y/z"
+      "reason": "item (47, 16, 47) sits inside obstacles[2]; became visible once Arena reads pos[] anchors (K1); bloom_core item layout is reworked in K11"
+    },
+    {
+      "map": "skyline_siege",
+      "check": "light-reach",
+      "point": "lights[skyline_spire_beacon]",
+      "reason": "guard approximates the GLB tower as a sphere around its base position (93 vs reach 90); tests/skyline-siege-lights.contract.test.mjs measures the beam against the tower tip and passes"
     }
   ]
 }

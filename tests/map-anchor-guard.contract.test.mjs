@@ -77,8 +77,8 @@ test('a displaced copy of a real preset is caught on every check', () => {
     const twin = copy.items[0];
     copy.items.push({ ...twin, id: 'moved_twin' });
     copy.items.push({ ...copy.items[1], id: 'moved_out', x: copy.size[0] * 40 });
-    copy.items.push({ id: 'moved_untyped', x: twin.x + 9, y: twin.y, z: twin.z });
-    copy.items.push({ id: 'moved_pos_form', pos: [0, 10, 0] });
+    copy.items.push({ id: 'moved_badtype', type: 'NOT_A_PICKUP', x: twin.x + 9, y: twin.y, z: twin.z });
+    copy.items.push({ id: 'moved_no_coords', pos: [0, 10] });
     copy.portals = [{ a: [...box.pos], b: [0, copy.size[1] * 5, 0] }];
     copy.lights = [{ id: 'moved_light', x: 0, y: copy.size[1] * 20, z: 0, distance: 10 }];
 
@@ -88,8 +88,8 @@ test('a displaced copy of a real preset is caught on every check', () => {
     assert.deepEqual(byCheck('in-solid').sort(), ['playerSpawn', 'portals[0].a'].sort());
     assert.deepEqual(byCheck('bounds').sort(), ['items[moved_out]', 'lights[moved_light]', 'portals[0].b'].sort());
     assert.deepEqual(byCheck('item-duplicate'), ['items[moved_twin]']);
-    assert.deepEqual(byCheck('item-type'), ['items[moved_untyped]']);
-    assert.deepEqual(byCheck('anchor-format'), ['items[moved_pos_form]']);
+    assert.deepEqual(byCheck('item-type'), ['items[moved_badtype]']);
+    assert.deepEqual(byCheck('anchor-format'), ['items[moved_no_coords]']);
     assert.deepEqual(byCheck('light-reach'), ['lights[moved_light]']);
     assert.ok(byCheck('free-directions').length <= 1, 'a spawn inside a box is reported once as in-solid');
 });

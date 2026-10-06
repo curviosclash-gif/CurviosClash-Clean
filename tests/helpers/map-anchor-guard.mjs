@@ -174,8 +174,11 @@ function listLightTargets(map, mapScale) {
 
 function readAnchorPoint(entry, requireY) {
     if (!entry || typeof entry !== 'object') return null;
+    // Same reading as Arena._cacheAuthoredMapAnchors: x/y/z first, pos: [x, y, z] as the fallback.
+    const pos = Array.isArray(entry.pos) ? entry.pos : [];
+    const point = { x: entry.x ?? pos[0], y: entry.y ?? pos[1], z: entry.z ?? pos[2] };
     const keys = requireY ? ['x', 'y', 'z'] : ['x', 'z'];
-    return keys.every((key) => isNumber(entry[key])) ? [entry.x, entry.y ?? 0, entry.z] : null;
+    return keys.every((key) => isNumber(point[key])) ? [point.x, point.y ?? 0, point.z] : null;
 }
 
 /**
@@ -230,14 +233,16 @@ export function analyzeMapAnchors(mapKey, map, mapScale) {
         const local = readAnchorPoint(entry, true);
         if (!local) {
             const written = Array.isArray(entry?.pos) ? ` pos ${JSON.stringify(entry.pos)}` : '';
-            add('anchor-format', point, `item has no numeric x/y/z${written}; the game reads it at the origin without a pickup type`);
+            add('anchor-format', point, `item has no numeric x/y/z or pos[3]${written}; the game reads it at the origin`);
             return;
         }
-        // The same three keys, in the same order, as Powerup.resolveAuthoredPickupType.
-        const known = [entry.pickupType, entry.type, entry.model]
+        // The same three keys, in the same order, as Powerup.resolveAuthoredPickupType. An anchor
+        // without any of them is a fixed place for a random type; only a named unknown type is wrong.
+        const named = [entry.pickupType, entry.type, entry.model].filter((candidate) => candidate !== undefined);
+        const known = named
             .map((candidate) => normalizePickupType(candidate))
             .some((type) => type && getPickupDefinition(type));
-        if (!known) add('item-type', point, `no known pickup type in pickupType=${JSON.stringify(entry.pickupType)} type=${JSON.stringify(entry.type)}`);
+        if (named.length > 0 && !known) add('item-type', point, `no known pickup type in pickupType=${JSON.stringify(entry.pickupType)} type=${JSON.stringify(entry.type)}`);
         const world = local.map((value) => value * anchorScale);
         checkPlacement(point, world, worldSize, 'item');
         const twin = itemWorlds.find((other) => Math.hypot(...other.world.map((value, axis) => value - world[axis])) < ITEM_DUPLICATE_DISTANCE);
