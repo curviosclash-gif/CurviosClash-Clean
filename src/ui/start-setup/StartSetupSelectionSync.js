@@ -102,6 +102,7 @@ function assignMapOptionCollection(option, entry = {}) {
     if (!option?.dataset) return;
     option.dataset.mapCollection = String(entry.collection || 'other');
     option.dataset.mapCollectionLabel = String(entry.collectionLabel || 'Weitere Karten');
+    if (Number.isFinite(entry.difficulty)) option.dataset.mapDifficulty = String(entry.difficulty);
 }
 
 function syncSearchEmptyMessage(node, isEmpty, message) {

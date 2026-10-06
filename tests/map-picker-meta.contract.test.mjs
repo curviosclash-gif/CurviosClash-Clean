@@ -6,6 +6,7 @@ import {
     MAP_PICKER_META_LIMITS,
     MAP_PICKER_TAGS,
     MAP_PICKER_TIERS,
+    describeMapDifficulty,
     normalizeMapPickerMeta,
 } from '../src/shared/contracts/MapPickerMetaContract.js';
 import { MAP_PICKER_META, getMapPickerMeta } from '../src/shared/maps/MapPickerMeta.js';
@@ -106,4 +107,13 @@ test('the picker collections come from the table', () => {
     assert.equal(resolveMapPickerCollection('neon_carnival').id, 'parcours');
     assert.equal(resolveMapPickerCollection('aether_relay').id, 'parcours');
     assert.equal(resolveMapPickerCollection('not_a_map').id, 'other');
+});
+
+test('difficulty is described in the three campaign stages', () => {
+    assert.equal(describeMapDifficulty(1), 'Schwierigkeit 1 von 5 (Lehre)');
+    assert.equal(describeMapDifficulty(2), 'Schwierigkeit 2 von 5 (Lehre)');
+    assert.equal(describeMapDifficulty(3), 'Schwierigkeit 3 von 5 (Handwerk)');
+    assert.equal(describeMapDifficulty(4), 'Schwierigkeit 4 von 5 (Meisterschaft)');
+    assert.equal(describeMapDifficulty(5), 'Schwierigkeit 5 von 5 (Meisterschaft)');
+    assert.equal(describeMapDifficulty('junk'), 'Schwierigkeit 2 von 5 (Lehre)');
 });

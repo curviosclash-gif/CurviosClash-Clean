@@ -74,3 +74,28 @@ export function normalizeMapPickerMeta(source) {
         description: normalizeText(input.description).slice(0, MAP_PICKER_META_LIMITS.descriptionLength).trim(),
     };
 }
+
+/** Three campaign stages over the 1-5 difficulty: teaching (1-2), craft (3), mastery (4-5). */
+export const MAP_DIFFICULTY_STAGES = Object.freeze([
+    Object.freeze({ id: 'lehre', label: 'Lehre', min: 1, max: 2 }),
+    Object.freeze({ id: 'handwerk', label: 'Handwerk', min: 3, max: 3 }),
+    Object.freeze({ id: 'meisterschaft', label: 'Meisterschaft', min: 4, max: 5 }),
+]);
+
+/**
+ * @param {unknown} difficulty Difficulty 1-5; anything else is read as the default difficulty.
+ * @returns {{ id: string, label: string, min: number, max: number }}
+ */
+export function resolveMapDifficultyStage(difficulty) {
+    const value = clampInteger(difficulty, MAP_PICKER_META_LIMITS.difficulty, DEFAULTS.difficulty);
+    return MAP_DIFFICULTY_STAGES.find((stage) => value >= stage.min && value <= stage.max) || MAP_DIFFICULTY_STAGES[0];
+}
+
+/**
+ * @param {unknown} difficulty
+ * @returns {string} Short German text for tooltips, e.g. "Schwierigkeit 3 von 5 (Handwerk)".
+ */
+export function describeMapDifficulty(difficulty) {
+    const value = clampInteger(difficulty, MAP_PICKER_META_LIMITS.difficulty, DEFAULTS.difficulty);
+    return `Schwierigkeit ${value} von ${MAP_PICKER_META_LIMITS.difficulty.max} (${resolveMapDifficultyStage(value).label})`;
+}
