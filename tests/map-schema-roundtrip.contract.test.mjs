@@ -238,6 +238,7 @@ test('content the editor format cannot carry is listed with counts, never droppe
             { pos: [1, 2] },
         ],
         portals: [{ a: [0, 1, 2], b: [3, 4, 5], color: 0x123456 }],
+        gates: [{ pos: [0, 2, 0], type: 'boost' }, { pos: [1, 2] }],
         mapUnits: [{ id: 'worm' }],
         parcours: { checkpoints: [{ pos: [0, 0, 0] }] },
         staticTurrets: [{ pos: [0, 0, 0] }],
@@ -254,6 +255,7 @@ test('content the editor format cannot carry is listed with counts, never droppe
         'obstacles.invalid': 1,
         'obstacles.glbFlags': 1,
         'portals.color': 1,
+        'gates.invalid': 1,
     });
     assert.equal(document.glbModels.length, 0);
     assert.equal(document.hardBlocks.length, 2, 'the plain boxes still convert');

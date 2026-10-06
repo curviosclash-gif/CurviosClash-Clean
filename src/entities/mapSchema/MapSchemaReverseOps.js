@@ -156,10 +156,13 @@ function convertItems(items, anchorUnits) {
     });
 }
 
-function convertGates(gates, units) {
+function convertGates(gates, units, report) {
     const result = [];
     for (const entry of asArray(gates)) {
-        if (!isVector3(entry?.pos)) continue;
+        if (!isVector3(entry?.pos)) {
+            report('gates.invalid');
+            continue;
+        }
         const type = entry.type === 'slingshot' ? 'slingshot' : 'boost';
         // The match falls back to 3.25 / 2.9 map units; the document default is in editor units.
         const radius = asPositiveNumber(entry.radius, type === 'boost' ? 3.25 : 2.9, 0.1);
@@ -219,7 +222,7 @@ export function fromArenaMapDefinition(mapDefinition, options = {}) {
         tunnels,
         portals: convertPortals(mapDefinition.portals, units, report),
         portalLevels: asArray(mapDefinition.portalLevels).map((level) => toEditorUnits(level, units)),
-        gates: convertGates(mapDefinition.gates, units),
+        gates: convertGates(mapDefinition.gates, units, report),
         items,
         botSpawns: asArray(mapDefinition.botSpawns).map((spawn, index) => toEditorAnchor(spawn, anchorUnits, `spawn_bot_${index + 1}`)),
     };
