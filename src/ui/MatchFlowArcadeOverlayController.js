@@ -15,6 +15,7 @@ import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/Ar
 import { createArenaWavesMapBlocks, createDemolitionMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
 import { formatArenaWavesChoiceLabel, resolveArenaWavesBoardTexts } from './arcade/ArenaWavesOverlayTexts.js';
 import { createArcadeReplayActions } from './arcade/ArcadeReplayActions.js';
+import { isArcadeMotionReduced } from './arcade/ArcadeReducedMotion.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
 import {
     getArcadeMenuSurfaceState,
@@ -98,6 +99,11 @@ export class MatchFlowArcadeOverlayController {
         this._cancelArcadeXpAnimation();
         const token = this._arcadeXpAnimToken;
         const target = Math.max(0, Math.round(toSafeNumber(toValue, 0)));
+        // A JS count-up ignores the CSS reduced-motion rule, so both motion wishes are asked here.
+        if (isArcadeMotionReduced(this.game)) {
+            node.textContent = `${formatCount(target)} XP`;
+            return;
+        }
         const duration = Math.max(180, Math.round(toSafeNumber(durationMs, 900)));
         const start = performance.now();
         const step = (now) => {
