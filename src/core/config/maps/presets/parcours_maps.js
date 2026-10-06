@@ -187,7 +187,7 @@ export const PARCOURS_MAPS = Object.freeze({
             routeId: 'classic_tutorial_v1',
             rules: {
                 ordered: true,
-                resetOnDeath: true,
+                resetOnDeath: false,
                 resetToLastValid: true,
                 maxSegmentTimeMs: 0,
                 cooldownMs: 400,
