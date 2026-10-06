@@ -7,7 +7,7 @@ export const CHRONO_SPILLWAY_MAP = {
     preferAuthoredPortals: true,
     portalLevels: [16, 32, 52, 72],
     obstacles: [
-        { pos: [-128, 62, -28], size: [26, 4, 28], kind: 'foam' },
+        { pos: [-127.5, 62, -28], size: [25, 4, 28], kind: 'foam' },
         { pos: [-104, 59.2, -8], size: [38, 4, 18] },
         { pos: [-78, 53.4, 24], size: [38, 4, 18], kind: 'foam' },
         { pos: [-42, 56, 34], size: [12, 34, 24], tunnel: { radius: 5.0, axis: 'x' } },
@@ -18,12 +18,12 @@ export const CHRONO_SPILLWAY_MAP = {
         { pos: [76, 27, 8], size: [48, 4, 22], kind: 'foam' },
         { pos: [104, 19.6, -16], size: [30, 4, 28], kind: 'foam' },
         { pos: [122, 24, 18], size: [12, 32, 24], tunnel: { radius: 4.8, axis: 'z' } },
-        { pos: [132, 11.8, 42], size: [24, 4, 18] },
+        { pos: [130, 11.8, 42], size: [20, 4, 18] },
         { pos: [118, 7.6, 62], size: [32, 4, 18], kind: 'foam' },
         { pos: [-30, 40, -58], size: [170, 5, 5], kind: 'foam' },
         { pos: [-20, 46, 54], size: [150, 5, 5], kind: 'foam' },
         { pos: [80, 26, -58], size: [74, 5, 5], kind: 'foam' },
-        { pos: [116, 20, 58], size: [54, 5, 5], kind: 'foam' },
+        { pos: [114.5, 20, 58], size: [51, 5, 5], kind: 'foam' },
     ],
     portals: [
         { a: [100, 18, -60], b: [100, 28, -16], color: 0x2288ff },

@@ -31,7 +31,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { pos: [36, 15, -38], size: [4, 18, 4] },
             { pos: [-36, 12, -7], size: [7, 15, 9], kind: 'foam' },
             { pos: [14, 14, -12], size: [9, 16, 10], kind: 'foam' },
-            { pos: [51, 12, -65], size: [24, 4, 22], kind: 'foam' },
+            { pos: [51, 12, -64.5], size: [24, 4, 21], kind: 'foam' },
         ],
         portals: [],
         gates: [
@@ -206,7 +206,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { pos: [98, 31.6, -6], size: [26, 4, 34], kind: 'foam' },
             { shape: 'tube', kind: 'hard', start: [98, 40, -6], end: [116, 38, 28], radius: 4.6 },
             { pos: [116, 30.6, 28], size: [12, 4, 12] },
-            { pos: [116, 25.6, 52], size: [34, 4, 20], kind: 'foam' },
+            { pos: [114.5, 25.6, 52], size: [31, 4, 20], kind: 'foam' },
             { pos: [-52, 18, 42], size: [90, 4, 5], kind: 'foam' },
             { pos: [62, 28, -58], size: [70, 4, 5], kind: 'foam' },
             { pos: [16, 27, 15], size: [24, 4, 18], kind: 'foam' },
