@@ -44,7 +44,11 @@ export class EditorCore {
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.container.appendChild(this.renderer.domElement);
 
-        this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
+        // setViewMode hands the orbit either camera, so it is typed for both from the start.
+        this.orbit = new OrbitControls(
+            /** @type {THREE.PerspectiveCamera | THREE.OrthographicCamera} */ (this.camera),
+            this.renderer.domElement
+        );
         this.orbit.enableDamping = true;
         this.orbit.dampingFactor = 0.05;
         this.orbit.maxDistance = 6000;
