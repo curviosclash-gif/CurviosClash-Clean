@@ -148,3 +148,27 @@ test('the line above "Arcade Run starten" keeps describing the standard run afte
         assert.equal(menu.byId('arcade-run-line').textContent, standardLine, `after ${buttonId}`);
     }
 });
+
+test('the "Letzter Arcade-Run" box does not claim "no run yet" next to the numbers of a finished run', () => {
+    const menu = mountSurface({
+        runtimeState: {
+            runType: 'gauntlet', phase: '',
+            records: { runsPlayed: 1, lastScore: 1268, lastSector: 2, lastCombo: 4, lastMultiplier: 1.5, bestScore: 1268, lastRunAt: '2026-10-05T18:30:00.000Z' },
+            postRunSummary: null,
+        },
+    });
+    const line = menu.byId('arcade-post-run-line').textContent;
+    assert.doesNotMatch(line, /Noch kein Arcade-Run/);
+    assert.match(line, /1\.268 Punkte/);
+
+    // Fünf Fronten keeps only a last total (mapped to lastScore), no run counter.
+    const arenaMenu = mountSurface({ runtimeState: { runType: 'arena_waves', phase: '', records: { lastScore: 900, bestScore: 900 }, postRunSummary: null } });
+    assert.match(arenaMenu.byId('arcade-post-run-line').textContent, /900 Punkte/);
+});
+
+test('a profile without any run still says so', () => {
+    const menu = mountSurface({
+        runtimeState: { runType: 'gauntlet', phase: '', records: { runsPlayed: 0, lastScore: 0, lastSector: 0 }, postRunSummary: null },
+    });
+    assert.equal(menu.byId('arcade-post-run-line').textContent, 'Noch kein Arcade-Run gestartet.');
+});

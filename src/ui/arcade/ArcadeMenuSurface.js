@@ -345,6 +345,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
         } else if (lastRunSnapshot) {
             const timeLabel = formatRunTime(lastRunSnapshot.at);
             refs.postRunLine.textContent = `${t('menu.arcade.postrun.last.label', 'Letzter Start')}: ${timeLabel} | ${resolveMapPreview(lastRunSnapshot.mapKey).name} | ${resolveVehiclePreview(lastRunSnapshot.vehicleId).label} | Seed ${lastRunSnapshot.seed}`;
+        } else if (records && (Number(records.runsPlayed) > 0 || Number(records.lastScore) > 0)) {
+            // The metrics above read the finished-run records; a run started outside this menu leaves no start snapshot.
+            refs.postRunLine.textContent = `Letzter Lauf: ${formatInteger(records.lastScore)} Punkte${records.lastRunAt ? ` · ${formatRunTime(records.lastRunAt)}` : ''}`;
         } else {
             refs.postRunLine.textContent = t('menu.arcade.postrun.empty', 'Noch kein Arcade-Run gestartet.');
         }
