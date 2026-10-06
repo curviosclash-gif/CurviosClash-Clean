@@ -135,3 +135,16 @@ test('Abrisskommando plans its maps from the seed the player set last, not the s
     assert.match(lastStart, new RegExp(`Seed ${newSeed}$`));
     assert.ok(lastStart.includes(resolveMapPreview(firstMapOf(newSeed)).name), lastStart);
 });
+
+test('the line above "Arcade Run starten" keeps describing the standard run after a special run or the Daily', () => {
+    for (const buttonId of ['btn-arcade-five-portals-start-inline', 'btn-arcade-demolition-start-inline', 'btn-arcade-daily']) {
+        const menu = mountSurface();
+        const standardLine = menu.byId('arcade-run-line').textContent;
+        assert.match(standardLine, /Sektoren meistern/);
+        menu.click(buttonId);
+        assert.ok(menu.emitted.some((entry) => entry.type === 'start_match'), `${buttonId} starts a run`);
+        // Back in the menu: any refresh (here the leaderboard toggle) re-renders the surface.
+        menu.click('btn-arcade-local-leaderboard-toggle');
+        assert.equal(menu.byId('arcade-run-line').textContent, standardLine, `after ${buttonId}`);
+    }
+});

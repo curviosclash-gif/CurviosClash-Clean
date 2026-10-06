@@ -48,6 +48,10 @@ function resolveArcadeMenuVehicleId(settings) {
     return resolveArcadeRunVehicleId(settings?.vehicles?.PLAYER_1);
 }
 
+function resolveTierLabel(tierId) {
+    return ARCADE_DIFFICULTY_TIERS.find((tier) => tier.id === tierId)?.label || 'ohne Run-Stufe';
+}
+
 function t(textId, fallback) {
     return resolveMenuCatalogText(textId, fallback);
 }
@@ -282,7 +286,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const mapDefinition = getRuntimeMapDefinition(mapKey);
         const store = runtimeAccess?.getSettingsStore?.();
         const profile = resolveVehicleMasteryProfile(runtimeAccess, vehicleId);
-        const tierId = resolveArcadeRunTier(settings.arcade?.difficultyTierId, loadArcadeDifficultyProgress(store).progress, { runType: settings.arcade?.runType || 'gauntlet', dailyChallenge: settings.arcade?.dailyChallenge });
+        const difficultyProgress = loadArcadeDifficultyProgress(store).progress;
+        const tierId = resolveArcadeRunTier(settings.arcade?.difficultyTierId, difficultyProgress, { runType: settings.arcade?.runType || 'gauntlet', dailyChallenge: settings.arcade?.dailyChallenge });
         const rankContext = { runType: settings.arcade?.runType || 'gauntlet', tierId, vehicleLevel: profile.level, ranked: !settings.arcade?.dailyChallenge && !['weapon_race', 'demolition', 'hangar_test'].includes(settings.arcade?.runType) };
         const leaderboardRouteId = resolveArcadeParcoursRankKey(normalizeString(mapDefinition?.parcours?.routeId, mapKey), rankContext);
         const leaderboardEntries = runtimeState?.leaderboard?.[leaderboardRouteId];
@@ -290,7 +295,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const phaseText = ARCADE_PHASE_LABELS[String(runtimeState?.phase || '')] || '';
         const phaseLabel = phaseText ? ` · ${phaseText}` : '';
         const dailyLabel = runtimeState?.isDailyChallenge === true ? ' · Daily' : '';
-        const difficultyLabel = ARCADE_DIFFICULTY_TIERS.find((tier) => tier.id === tierId)?.label || 'ohne Run-Stufe';
+        const difficultyLabel = resolveTierLabel(tierId);
         syncArcadeRunOptionToggles(refs, settings, store);
         const fivePortalsSelected = settings.arcade?.runType === 'five_portals';
         refs.arcadePlayerProfileControls.classList.toggle('hidden', !shouldShowArcadePlayerProfileControls(settings));
@@ -298,15 +303,10 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const fivePortalsRecord = fivePortalsSelected
             ? runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(activePortalChain.recordKey, null) || null
             : null;
-        refs.runLine.textContent = settings.arcade?.runType === 'demolition'
-            ? 'Abrisskommando: drei Belagerungskarten. Zerstöre die Bauwerke vor Ablauf der Zeit; Punkte und verdiente Fahrzeug-XP bleiben erhalten.'
-            : fivePortalsSelected
-            ? (activePortalChain.id === 'five_portals'
-                ? 'Fünf Portale: fünf Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.'
-                : `${activePortalChain.label}: ${activePortalChain.maps.length} Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.`)
-            : settings.arcade?.dailyChallenge
-            ? `Daily: Solo · ${resolveVehiclePreview('ship5').label} ohne Leistungsboni · 5 Sektoren · Normal. Ergebnis bis zum Boss zählt.`
-            : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${resolveMapPreview(mapKey).name} · ${botCount} Bots · ${difficultyLabel}${dailyLabel}${phaseLabel}`;
+        // This line sits above "Arcade Run starten": both start buttons launch the standard run, so the run
+        // type and Daily flag a special run leaves in the settings must not describe it.
+        const standardTierId = resolveArcadeRunTier(settings.arcade?.difficultyTierId, difficultyProgress);
+        refs.runLine.textContent = `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${resolveMapPreview(mapKey).name} · ${botCount} Bots · ${resolveTierLabel(standardTierId)}${dailyLabel}${phaseLabel}`;
         refs.recordsLine.textContent = fivePortalsSelected
             ? `Persönliche Bestzeit: ${fivePortalsRecord?.bestTotalMs > 0 ? `${(fivePortalsRecord.bestTotalMs / 1000).toFixed(2)} s` : '–'}`
             : `Persönlicher Rekord: ${formatInteger(runtimeState?.records?.bestScore)} Punkte`
