@@ -1,4 +1,4 @@
-import { WIND_CATHEDRAL_WORLD_LIGHTING, WIND_CATHEDRAL_WORLD_LIGHTS } from './world_appearance.js';
+import { authoredWorld, WIND_CATHEDRAL_WORLD_LIGHTING, WIND_CATHEDRAL_WORLD_LIGHTS } from './world_appearance.js';
 import { parcoursRules, V130_BOT_SPAWNS } from './parcours_pack_v130_shared.js';
 import { CHRONO_SPILLWAY_MAP } from './parcours_pack_v130_chrono_spillway.js';
 
@@ -83,6 +83,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
         },
     },
     mirror_docks: {
+        ...authoredWorld('mirror_docks'),
         name: 'Spiegelwerft',
         size: [240, 65, 170],
         scaleAuthoredAnchors: true,

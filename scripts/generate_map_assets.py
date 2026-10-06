@@ -43,6 +43,10 @@ GENERATORS = {
     'vulkan_odyssey': 'generate_map_world',
     'neon_abyss': 'generate_map_world',
     'abyssal_descent': 'generate_map_world',
+    'foam_forest': 'generate_map_world',
+    'the_loop': 'generate_map_world',
+    'mega_maze': 'generate_map_world',
+    'mirror_docks': 'generate_map_world',
 }
 
 

@@ -102,6 +102,34 @@ STYLES = {
         'signal': (0.20, 1.0, 0.70), 'foam': (0.15, 0.45, 0.50),
         'tile': 8, 'roughness': 0.80,
     },
+    # Bark-brown trunks on a forest floor; the soft foam trunks read as moss.
+    'foam_forest': {
+        'floor': (0.16, 0.21, 0.12), 'body': (0.40, 0.29, 0.20),
+        'panel': (0.22, 0.16, 0.11), 'trim': (0.63, 0.52, 0.30),
+        'signal': (0.55, 0.95, 0.30), 'foam': (0.30, 0.55, 0.26),
+        'tile': 10, 'roughness': 0.88,
+    },
+    # Speedway concrete with racing-red kerbs.
+    'the_loop': {
+        'floor': (0.20, 0.21, 0.23), 'body': (0.62, 0.63, 0.64),
+        'panel': (0.26, 0.28, 0.31), 'trim': (0.86, 0.16, 0.12),
+        'signal': (1.0, 0.78, 0.10), 'foam': (0.16, 0.46, 0.62),
+        'tile': 12, 'roughness': 0.66,
+    },
+    # Hedge maze: clipped green walls on gravel paths.
+    'mega_maze': {
+        'floor': (0.48, 0.44, 0.36), 'body': (0.20, 0.38, 0.17),
+        'panel': (0.13, 0.26, 0.11), 'trim': (0.70, 0.62, 0.44),
+        'signal': (1.0, 0.70, 0.20), 'foam': (0.28, 0.50, 0.24),
+        'tile': 6, 'roughness': 0.92,
+    },
+    # Harbour docks: wet planks, weathered steel and safety-yellow edges.
+    'mirror_docks': {
+        'floor': (0.10, 0.20, 0.26), 'body': (0.42, 0.45, 0.47),
+        'panel': (0.33, 0.24, 0.17), 'trim': (0.92, 0.72, 0.12),
+        'signal': (0.20, 0.85, 1.0), 'foam': (0.18, 0.44, 0.52),
+        'tile': 14, 'roughness': 0.60,
+    },
 }
 
 

@@ -34,6 +34,10 @@ for (const mapKey of [
     'vulkan_odyssey',
     'neon_abyss',
     'abyssal_descent',
+    'foam_forest',
+    'the_loop',
+    'mega_maze',
+    'mirror_docks',
 ]) {
     test(`${mapKey}: Blender world renders without duplicate fallback surfaces on desktop`, async ({ page }, testInfo) => {
         test.setTimeout(180000);
@@ -104,7 +108,8 @@ for (const mapKey of [
             && window.GAME_INSTANCE.arena._glbLoadError, null, { timeout: 45000 });
         const degraded = await page.evaluate(() => {
             const arena = window.GAME_INSTANCE.arena;
-            return { scene: !!arena._glbScene, native: !!arena._mergedObstacleMesh,
+            // Foam-only maps such as foam_forest fall back to the merged foam mesh alone.
+            return { scene: !!arena._glbScene, native: !!(arena._mergedObstacleMesh || arena._mergedFoamMesh),
                 staticCount: arena.obstacles.filter((entry) => !entry.dynamic).length,
                 animations: arena._glbAnimation.trackCount, warnings: arena._glbLoadWarnings.length };
         });
@@ -122,7 +127,7 @@ for (const mapKey of [
         await page.waitForFunction(() => window.GAME_INSTANCE.arena._glbScene, null, { timeout: 45000 });
         const restored = await page.evaluate(() => {
             const arena = window.GAME_INSTANCE.arena;
-            return { error: arena._glbLoadError, native: !!arena._mergedObstacleMesh,
+            return { error: arena._glbLoadError, native: !!(arena._mergedObstacleMesh || arena._mergedFoamMesh),
                 staticCount: arena.obstacles.filter((entry) => !entry.dynamic).length };
         });
         expect(restored.error).toBeNull();
