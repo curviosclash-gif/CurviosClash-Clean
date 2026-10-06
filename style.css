@@ -8860,6 +8860,22 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     background: var(--hud-color, #2ce5ff) !important;
 }
 
+/* The cards carry no backing in this theme, so light skies (storm bridge fog) need the shadow. */
+#hud[data-hud-mode="arcade"] #arcade-mission-hud .arcade-mission-label,
+#hud[data-hud-mode="arcade"] #arcade-mission-hud .arcade-mission-progress-text {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.65);
+}
+
+#hud[data-hud-mode="arcade"] #arcade-mission-hud .arcade-mission-progress-text {
+    font-size: 12px !important;
+    color: var(--hud-text, #e0e0e0) !important;
+}
+
+/* The fight HUD's rocket column holds the right edge (right 20px, 112px wide). */
+#hud[data-hud-mode="arcade"]:has(#hunt-hud:not(.hidden)) #arcade-mission-hud {
+    right: 148px !important;
+}
+
 #parcours-minimap {
     border: 1px solid var(--hud-line-soft, rgba(0, 229, 255, 0.5)) !important;
     border-radius: 0 !important;
@@ -9203,6 +9219,7 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     gap: 10px;
 }
 #arcade-overlay-panel .arcade-overlay-section { align-content: start; }
+#arcade-overlay-panel .arcade-overlay-review { margin-top: 12px; }
 
 body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
     #arcade-score-hud, #arcade-mission-hud, #arcade-sector-transition-overlay, #arcade-sudden-death-overlay,
@@ -9219,7 +9236,6 @@ body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
     padding: 9px 16px;
 }
 
-#arcade-overlay-panel .arcade-overlay-review { margin-top: 12px; }
 #hud[data-hud-mode="normal"] .player-hud-summary::before {
     clip-path: polygon(0 0, 93% 0, 100% 50%, 93% 100%, 0 100%);
 }
