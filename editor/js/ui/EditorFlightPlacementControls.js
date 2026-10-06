@@ -222,6 +222,7 @@ export function bindEditorFlightPlacementControls(editor, flight) {
         editor.setSelectionOutline(mesh, 0x000000, 0.2);
         editor.selectObject(mesh);
         editor.commitHistoryGesture('draw');
+        editor.invalidateFlightClearance?.();
     };
 
     const placeSingle = (tool) => {
@@ -235,6 +236,7 @@ export function bindEditorFlightPlacementControls(editor, flight) {
             );
         });
         if (created) editor.selectObject(created);
+        editor.invalidateFlightClearance?.();
     };
 
     const selectUnderCrosshair = () => {

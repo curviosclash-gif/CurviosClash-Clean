@@ -1,34 +1,59 @@
 import * as THREE from 'three';
-import { CONFIG_SECTIONS } from '../../../src/core/config/ConfigSections.js';
 import {
+    DEFAULT_SHIP_FLIGHT_CONTROLS,
     SHIP_FLIGHT_SPEED_FACTORS,
     createShipFlightParams,
     createShipFlightState,
+    describeFlightKey,
     resolveEditorUnitsPerWorldUnit,
+    resolveShipFlightControls,
     resolveShipFlightInput,
     stepShipFlight,
 } from '../EditorShipFlight.js';
 import { shouldIgnoreGlobalShortcut } from './EditorShortcutControls.js';
 
 const START_FLIGHT_CODE = 'KeyG';
-const CHASE_VIEW_CODE = CONFIG_SECTIONS.KEYS.PLAYER_1.CAMERA || 'KeyC';
 const DEFAULT_SPEED_INDEX = SHIP_FLIGHT_SPEED_FACTORS.indexOf(1);
 // Chase camera offset in hitbox radii: behind and slightly above the ship.
 const CHASE_BACK_RADII = 9;
 const CHASE_UP_RADII = 2.5;
 // After landing the orbit target sits one second of flight ahead of the nose.
 const LANDING_TARGET_SECONDS = 1;
-const FLIGHT_CODES = new Set([
-    ...Object.values(CONFIG_SECTIONS.KEYS.PLAYER_1),
-    'ShiftLeft', 'ShiftRight', 'Space',
-]);
+const HULL_COLOR = 0x38bdf8;
+const HULL_WARNING_COLOR = 0xef4444;
+
+/**
+ * Player one's bindings from the stored game settings. Loaded on demand: a static import of the
+ * settings modules would join the editor's chunk start-up order, which has broken the desktop
+ * boot before (cross-chunk TDZ).
+ */
+async function loadStoredFlightControls() {
+    const [{ normalizeControlBindings }, { STORAGE_KEYS }] = await Promise.all([
+        import('../../../src/shared/contracts/SettingsRuntimeContract.js'),
+        import('../../../src/shared/storage/StorageKeys.js'),
+    ]);
+    let stored = null;
+    try {
+        stored = JSON.parse(globalThis.localStorage?.getItem(STORAGE_KEYS.settings) || 'null');
+    } catch {
+        stored = null;
+    }
+    return resolveShipFlightControls(stored, normalizeControlBindings);
+}
+
+function appendKeyHint(parent, keys, label) {
+    const kbd = document.createElement('span');
+    kbd.className = 'kbd';
+    kbd.textContent = keys;
+    parent.append(kbd, ` ${label} `);
+}
 
 function createShipMarker() {
     const marker = new THREE.Group();
     marker.name = 'editorShipFlightMarker';
     const hull = new THREE.ConeGeometry(0.55, 2.2, 12);
     hull.rotateX(-Math.PI / 2);
-    marker.add(new THREE.Mesh(hull, new THREE.MeshBasicMaterial({ color: 0x38bdf8 })));
+    marker.add(new THREE.Mesh(hull, new THREE.MeshBasicMaterial({ color: HULL_COLOR })));
     // The hitbox the match collides with, so a gap can be judged against the real size.
     marker.add(new THREE.Mesh(
         new THREE.SphereGeometry(1, 16, 12),
@@ -59,8 +84,41 @@ export function bindEditorShipFlightControls(editor) {
     let lookX = 0;
     let lookY = 0;
     let speedIndex = DEFAULT_SPEED_INDEX;
+    let controls = DEFAULT_SHIP_FLIGHT_CONTROLS;
+    let flightCodes = new Set();
 
     const isActive = () => core.shipFlightActive === true;
+
+    // The hints name the keys the player actually set in the game.
+    const applyControls = (nextControls) => {
+        controls = nextControls;
+        const keys = controls.keyMap;
+        flightCodes = new Set([...Object.values(keys), controls.hoverCode, 'ShiftLeft', 'ShiftRight']);
+        if (!dom.shipFlightKeyHints) return;
+        const hints = document.createDocumentFragment();
+        appendKeyHint(hints, `${describeFlightKey(keys.UP)}/${describeFlightKey(keys.DOWN)}`,
+            controls.invertPitch ? 'nicken (umgekehrt)' : 'nicken');
+        appendKeyHint(hints, `${describeFlightKey(keys.LEFT)}/${describeFlightKey(keys.RIGHT)}`, 'drehen');
+        appendKeyHint(hints, `${describeFlightKey(keys.ROLL_LEFT)}/${describeFlightKey(keys.ROLL_RIGHT)}`, 'rollen');
+        appendKeyHint(hints, describeFlightKey(keys.BOOST), 'Boost');
+        appendKeyHint(hints, describeFlightKey(controls.hoverCode), 'schweben');
+        appendKeyHint(hints, 'Maus', 'umsehen');
+        appendKeyHint(hints, 'Mausrad', 'Tempo');
+        appendKeyHint(hints, describeFlightKey(keys.CAMERA), 'Ansicht');
+        appendKeyHint(hints, 'Esc', 'landen');
+        dom.shipFlightKeyHints.replaceChildren(hints);
+    };
+    const reloadControls = () => loadStoredFlightControls()
+        .then((loaded) => {
+            applyControls(loaded);
+            return loaded;
+        })
+        .catch((error) => {
+            console.warn('[EditorShipFlight] Stored key bindings unavailable, using the defaults:', error);
+            return controls;
+        });
+    applyControls(DEFAULT_SHIP_FLIGHT_CONTROLS);
+    void reloadControls();
 
     const syncSpeedLabel = () => {
         if (state) state.speedFactor = SHIP_FLIGHT_SPEED_FACTORS[speedIndex];
@@ -152,6 +210,8 @@ export function bindEditorShipFlightControls(editor) {
         dom.btnShipFlight?.setAttribute('aria-pressed', 'true');
         document.body.dataset.editorShipFlight = '1';
         requestMouseLock();
+        // The game settings may have changed in another window since the editor opened.
+        void reloadControls();
         return true;
     };
 
@@ -162,7 +222,7 @@ export function bindEditorShipFlightControls(editor) {
             stopShipFlight();
             return false;
         }
-        const input = resolveShipFlightInput(pressedCodes);
+        const input = resolveShipFlightInput(pressedCodes, controls);
         input.lookX = lookX;
         input.lookY = lookY;
         lookX = 0;
@@ -190,11 +250,11 @@ export function bindEditorShipFlightControls(editor) {
             stopShipFlight();
             return;
         }
-        if (e.code === CHASE_VIEW_CODE && !e.repeat) {
+        if (e.code === controls.keyMap.CAMERA && !e.repeat) {
             chaseView = !chaseView;
             marker.visible = chaseView;
         }
-        if (FLIGHT_CODES.has(e.code)) e.preventDefault();
+        if (flightCodes.has(e.code)) e.preventDefault();
         pressedCodes.add(e.code);
     });
     document.addEventListener('keyup', (e) => {
@@ -249,6 +309,8 @@ export function bindEditorShipFlightControls(editor) {
         chaseView,
         speedFactor: SHIP_FLIGHT_SPEED_FACTORS[speedIndex],
     });
+    editor.getShipFlightControls = () => controls;
+    editor.reloadShipFlightControls = reloadControls;
     syncSpeedLabel();
 
     return {
@@ -256,6 +318,11 @@ export function bindEditorShipFlightControls(editor) {
         isActive,
         isMouseLocked: () => document.pointerLockElement === canvas,
         getParams: () => params,
+        getPosition: () => pose.position,
+        // Flight test: the hull turns red while the match would crash the ship here.
+        setCollisionWarning: (colliding) => {
+            marker.children[0].material.color.setHex(colliding ? HULL_WARNING_COLOR : HULL_COLOR);
+        },
         onFrame: (listener) => frameListeners.add(listener),
         onStop: (listener) => stopListeners.add(listener),
     };

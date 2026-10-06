@@ -1,6 +1,7 @@
 import { test, expect } from './helpers.desktop.js';
 import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 import { resolveAppUrl } from './helpers.js';
+import { STORAGE_KEYS } from '../src/shared/storage/StorageKeys.js';
 
 async function openEditorWithSelectedBlock(page) {
     const pageErrors = [];
@@ -327,6 +328,64 @@ test('Spielkarte als Grundlage: Kinderzimmer gesperrt mit Spiel-Licht, Platzieru
     await waitForFrames(page, 30);
     await testInfo.attach('editor-backdrop-flight.png', { body: await page.screenshot(), contentType: 'image/png' });
     await page.keyboard.press('Escape');
+});
+
+test('Durchflugtest: im Block warnt das Schiff wie bei einem Absturz im Spiel', async ({ page }) => {
+    await openEditorWithSelectedBlock(page);
+    // A block far larger than the few frames of flight before the hover key lands.
+    await page.evaluate(() => {
+        const editor = window.CURVIOS_EDITOR;
+        editor.mapManager.createMesh('hard', null, 0, 400, 0, 500, { sizeX: 1000, sizeY: 600, sizeZ: 1000 });
+        const core = editor.core;
+        core.camera.position.set(0, 400, 0);
+        core.orbit.target.set(0, 400, -500);
+        core.camera.lookAt(core.orbit.target);
+        core.orbit.update();
+    });
+    await page.locator('#threeCanvas').hover();
+    await page.keyboard.press('KeyG');
+    await page.keyboard.down('Space');
+    await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.ui.getFlightClearance())).toBe('geometry');
+    await expect(page.locator('#shipFlightWarning')).toHaveText('Kollision!');
+    await expect(page.locator('#shipFlightHud')).toHaveClass(/is-colliding/);
+
+    await page.keyboard.up('Space');
+    await page.keyboard.press('Escape');
+    await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.ui.getFlightClearance())).toBeNull();
+    await expect(page.locator('#shipFlightWarning')).toBeHidden();
+});
+
+test('Schiffsflug: die Tastenbelegung kommt aus den Spieleinstellungen', async ({ page }) => {
+    await openEditorWithSelectedBlock(page);
+    const settingsKey = STORAGE_KEYS.settings;
+    const previous = await page.evaluate((key) => localStorage.getItem(key), settingsKey);
+    try {
+        await page.evaluate((key) => {
+            const stored = JSON.parse(localStorage.getItem(key) || '{}');
+            stored.controls = { ...(stored.controls || {}), PLAYER_1: { ...(stored.controls?.PLAYER_1 || {}), UP: 'KeyI' } };
+            stored.invertPitch = { ...(stored.invertPitch || {}), PLAYER_1: false };
+            localStorage.setItem(key, JSON.stringify(stored));
+        }, settingsKey);
+        await page.evaluate(() => window.CURVIOS_EDITOR.ui.reloadShipFlightControls());
+        await expect(page.locator('#shipFlightKeyHints')).toContainText('I/');
+
+        await page.locator('#threeCanvas').hover();
+        await page.keyboard.press('KeyG');
+        await page.keyboard.down('Space');
+        await waitForFrames(page, 3);
+        const before = (await readFlight(page)).forward[1];
+        await page.keyboard.down('KeyI');
+        await waitForFrames(page, 20);
+        await page.keyboard.up('KeyI');
+        expect((await readFlight(page)).forward[1]).toBeGreaterThan(before + 0.1);
+        await page.keyboard.up('Space');
+        await page.keyboard.press('Escape');
+    } finally {
+        await page.evaluate(({ key, value }) => {
+            if (value === null) localStorage.removeItem(key);
+            else localStorage.setItem(key, value);
+        }, { key: settingsKey, value: previous });
+    }
 });
 
 test('Schiffsflug: G in einem Eingabefeld startet keinen Flug', async ({ page }) => {
