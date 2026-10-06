@@ -113,3 +113,21 @@ test('readable profiles never create a backup', () => {
     assert.equal(warnings.length, 0);
     assert.equal([...store.raw.keys()].some((key) => key.endsWith(SUFFIX)), false);
 });
+
+test('a store that throws while backing up does not break loading', () => {
+    for (const failOn of ['save', 'read']) {
+        const store = createRawStore({ [KEY]: '{broken' });
+        const backupKey = `${store.prefix}${KEY}${SUFFIX}`;
+        const read = store.readJsonRecordResult.bind(store);
+        store.readJsonRecordResult = (key) => {
+            if (failOn === 'read' && key === backupKey) throw new Error('read blew up');
+            return read(key);
+        };
+        store.saveJsonRecord = () => { throw new Error('quota'); };
+        const { value, warnings } = quietly(() => loadVehicleProfiles(store));
+        assert.deepEqual(value, {}, `loading continues when the backup ${failOn} throws`);
+        assert.equal(warnings.length, 1);
+        assert.match(warnings[0], /backup failed/);
+        assert.equal(store.raw.get(`${store.prefix}${KEY}`), '{broken');
+    }
+});

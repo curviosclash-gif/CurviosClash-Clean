@@ -46,16 +46,25 @@ export function backupUnreadableProfileRecord(store, record, nowMs = Date.now())
     const backupKey = `${sourceKey}${ARCADE_VEHICLE_PROFILE_UNREADABLE_BACKUP_SUFFIX}`;
     if (WARNED_BACKUP_KEYS.has(backupKey)) return false;
     WARNED_BACKUP_KEYS.add(backupKey);
-    const existing = typeof store.readJsonRecordResult === 'function'
-        ? store.readJsonRecordResult(backupKey)?.status !== 'missing'
-        : store.loadJsonRecord?.(backupKey, null) != null;
-    const saved = !existing && isPersistenceSuccess(store.saveJsonRecord(backupKey, {
-        schemaVersion: ARCADE_VEHICLE_PROFILE_BACKUP_SCHEMA_VERSION,
-        sourceKey,
-        reason: String(record.status || ''),
-        savedAt: toIsoString(nowMs),
-        raw: record.raw,
-    }));
+    let existing = false;
+    let saved = false;
+    // A throwing store counts as a failed backup: loading must go on. If the existence check itself
+    // throws, nothing is written, because an unknown backup must not be overwritten.
+    try {
+        existing = typeof store.readJsonRecordResult === 'function'
+            ? store.readJsonRecordResult(backupKey)?.status !== 'missing'
+            : store.loadJsonRecord?.(backupKey, null) != null;
+        saved = !existing && isPersistenceSuccess(store.saveJsonRecord(backupKey, {
+            schemaVersion: ARCADE_VEHICLE_PROFILE_BACKUP_SCHEMA_VERSION,
+            sourceKey,
+            reason: String(record.status || ''),
+            savedAt: toIsoString(nowMs),
+            raw: record.raw,
+        }));
+    } catch {
+        existing = false;
+        saved = false;
+    }
     if (typeof console !== 'undefined' && typeof console.warn === 'function') {
         const where = existing ? 'an earlier backup is kept at' : (saved ? 'a copy was saved to' : 'the backup failed; the original stays at');
         console.warn(`[ArcadeVehicleProfile] vehicle profiles in ${sourceKey} are unreadable (${record.status}); `
