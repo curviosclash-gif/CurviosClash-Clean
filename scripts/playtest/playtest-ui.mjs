@@ -110,3 +110,14 @@ export async function performUiAction(session, spec) {
     }
     return { action, window: kind, selector, ok: true };
 }
+
+/**
+ * Leaves a running match through the pause menu like a player: "Hauptmenü" (or
+ * "Verbindung trennen") only arms on the first click and ends the match on the second.
+ */
+export async function leaveMatchFromPauseMenu(page, { timeoutMs = 10_000 } = {}) {
+    const button = page.locator('#btn-pause-menu');
+    await button.click({ timeout: timeoutMs });
+    await page.locator('#btn-pause-menu[data-confirm-armed="true"]').waitFor({ state: 'attached', timeout: timeoutMs });
+    await button.click({ timeout: timeoutMs });
+}
