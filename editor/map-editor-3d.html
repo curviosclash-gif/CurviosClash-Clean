@@ -369,15 +369,15 @@
 
         .shipFlightBar {
             position: absolute;
-            left: 50%;
-            top: 64px;
-            transform: translateX(-50%);
+            left: 14px;
+            /* Stays clear of the build dock on the right, like the help panel. */
+            right: calc(var(--dock-width) + 26px);
+            bottom: 52px;
             display: flex;
             flex-wrap: wrap;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            max-width: calc(100% - 28px);
             padding: 6px 10px;
             border-radius: 12px;
             background: rgba(2, 6, 23, 0.78);
@@ -1882,6 +1882,7 @@
                 <button class="small" data-transform-mode="rotate" aria-pressed="false" title="Um Y drehen (R)" disabled>Drehen</button>
                 <button class="small" data-transform-mode="scale" aria-pressed="false" title="Blöcke achsenweise; Portale, Modelle und Checkpoints gleichmäßig skalieren (S)" disabled>Skalieren</button>
                 <button id="btnShipFlight" class="small" aria-pressed="false" title="Im Schiff durch die Karte fliegen (G), Esc landet">Abflug</button>
+                <button id="btnGameView" class="small" aria-pressed="false" title="Licht, Himmel, Nebel und Sichtweite wie im Spiel">Spielansicht</button>
                 <button id="btnToggleHelp" class="small" aria-pressed="true">? Hilfe</button>
                 <button id="btnToggleDockFromScene" class="small" aria-pressed="true">Baukarten ausblenden</button>
             </div>

@@ -322,6 +322,11 @@ export class EditorMapManager {
             ...replacement.userData,
             isEditorPlaceholder: false,
         };
+        // Created while loading, a raw-scale model was sized as if the file measured 1.
+        const glbScale = Number(target.userData.glbScale);
+        if (target.userData.type === 'glb' && !(Number(target.userData.targetSize) > 0) && Number.isFinite(glbScale)) {
+            target.scale.setScalar(glbScale * (Number(target.userData.glbSourceMaxDimension) || 1));
+        }
         this.attachSelectionOutlines(target);
         this.markManagedHierarchy(target, target.userData.id);
         this.notifyObjectMutated(target);
@@ -441,7 +446,7 @@ export class EditorMapManager {
                 userData.modelScale = scalar;
             } else if (userData.type === 'glb') {
                 if (Number(userData.targetSize) > 0) userData.targetSize = scalar;
-                else userData.glbScale = scalar;
+                else userData.glbScale = scalar / (Number(userData.glbSourceMaxDimension) || 1);
             } else if (userData.type === 'checkpoint') {
                 // The ring is a fixed share of the radius, so the dragged ring names the radius;
                 // below the minimum ring the match keeps it at that size, and so does the editor.

@@ -8,6 +8,8 @@ export class EditorCore {
         this.viewMode = 'perspective';
         // Set by the ship flight controls; while it returns true it owns the camera for that frame.
         this.cameraFrameHook = null;
+        // Run after the camera moved, right before the frame is drawn.
+        this.beforeRenderCallbacks = new Set();
         this.shipFlightActive = false;
         this._scratchDirection = new THREE.Vector3();
         this._focusBox = new THREE.Box3();
@@ -63,6 +65,8 @@ export class EditorCore {
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         this.scene.add(ambientLight);
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        // The game view swaps these for the match lighting rig.
+        this.editorLights = [ambientLight, dirLight];
         dirLight.position.set(1000, 2000, 500);
         dirLight.castShadow = true;
         dirLight.shadow.camera.top = 2000;
@@ -75,6 +79,7 @@ export class EditorCore {
         const gridHelper = new THREE.GridHelper(4000, 40, 0x1f2937, 0x111827);
         gridHelper.position.y = 0;
         this.scene.add(gridHelper);
+        this.gridHelper = gridHelper;
 
         const groundGeo = new THREE.PlaneGeometry(10000, 10000);
         groundGeo.rotateX(-Math.PI / 2);
@@ -216,6 +221,7 @@ export class EditorCore {
         // OrbitControls.update() re-aims the camera at its target, so it must not run
         // while the ship flight owns the camera.
         if (this.cameraFrameHook?.(dt) !== true) this.orbit.update();
+        this.beforeRenderCallbacks.forEach((callback) => callback(dt));
         this.renderer.render(this.scene, this.camera);
     }
 }

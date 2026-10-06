@@ -103,6 +103,7 @@ export function bindEditorShipFlightControls(editor) {
         core.orbit.target.copy(landingTarget);
         core.orbit.enabled = true;
         core.transformControl.enabled = true;
+        core.transformControl.getHelper().visible = !!core.transformControl.object;
         core.orbit.update();
 
         if (dom.shipFlightHud) dom.shipFlightHud.hidden = true;
@@ -145,6 +146,7 @@ export function bindEditorShipFlightControls(editor) {
         core.shipFlightActive = true;
         core.orbit.enabled = false;
         core.transformControl.enabled = false;
+        core.transformControl.axis = null;
         marker.visible = chaseView;
         if (dom.shipFlightHud) dom.shipFlightHud.hidden = false;
         dom.btnShipFlight?.setAttribute('aria-pressed', 'true');
@@ -167,6 +169,9 @@ export function bindEditorShipFlightControls(editor) {
         lookY = 0;
         stepShipFlight(state, pose, input, params, dt);
         placeCamera();
+        // The gizmo cannot be dragged in flight and its axis lines would cross the cockpit view;
+        // selecting a part in flight attaches it again, so it is hidden every frame.
+        core.transformControl.getHelper().visible = false;
         core.camera.updateMatrixWorld();
         frameListeners.forEach((listener) => listener(dt));
         return true;

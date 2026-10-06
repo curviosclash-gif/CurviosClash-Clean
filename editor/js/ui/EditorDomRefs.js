@@ -41,6 +41,7 @@ export function createEditorDomRefs(doc = document) {
         selAircraftType: doc.getElementById("selAircraftType"),
 
         btnShipFlight: doc.getElementById("btnShipFlight"),
+        btnGameView: doc.getElementById("btnGameView"),
         shipFlightHud: doc.getElementById("shipFlightHud"),
         shipFlightSpeed: doc.getElementById("shipFlightSpeed"),
         shipFlightTarget: doc.getElementById("shipFlightTarget"),
