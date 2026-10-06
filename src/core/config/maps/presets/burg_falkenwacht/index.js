@@ -15,6 +15,14 @@ const lighting = {
     exposureOffset: 0.08,
 };
 
+// The portcullis bars (11_portcullis, y 18 to 42.6 when down) stop short of the arch of the inner
+// gate (05_inner_wall, up to y 66), and the GLB has no surface in between: with the bars down the
+// upper arch was a free corridor through the wall. This box fills it. It stays active next to the
+// scene collision (compileWithGlb), sits inside the wall's own 13 units of thickness, starts at the
+// bar tops and ends under the roof beam, and leaves the passage below y 42.4 untouched. When the
+// portcullis is raised its iron stands in the same space, so nothing visible changes.
+const GATE_ARCH_FILL = { pos: [0, 55.2, 0], size: [42, 25.6, 4], compileWithGlb: true };
+
 function item(id, pickupType, type, x, y, z) {
     return { id: `falkenwacht_${id}`, pickupType, type, x, y, z, weight: 1 };
 }
@@ -65,7 +73,7 @@ const common = {
     glbAuthoredObstaclesCollisionOnly: true,
     glbAnimationClock: { beatSeconds: 4 },
     glbLoadConcurrency: 3,
-    obstacles: FALKENWACHT_OBSTACLES,
+    obstacles: [...FALKENWACHT_OBSTACLES, GATE_ARCH_FILL],
     lighting,
     lights: [
         { id: 'fw_stable', x: -85, y: 39, z: 45, color: 0xffba67, intensity: 2600, distance: 35 },
