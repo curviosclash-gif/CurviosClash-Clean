@@ -1,6 +1,7 @@
 import { resolvePortalChain } from '../../shared/contracts/PortalChainContract.js';
 import { createDemolitionMapPlan } from '../../shared/contracts/DemolitionContract.js';
 import { validateArcadePlayerProfileSelection } from './ArcadeDemolitionProfileSelection.js';
+import { bindArcadeDemolitionMedalLine } from './ArcadeDemolitionMedalLine.js';
 
 // getSeed is read on click: "Seed neu rollen" and "Seed setzen" change the seed after binding.
 export function bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, getSeed, demolitionProfiles, runtimeAccess) {
@@ -23,4 +24,5 @@ export function bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, ge
         const firstMap = createDemolitionMapPlan(getSeed()).maps[0];
         startRunWithOwnMap('demolition', { mapKey: firstMap.mapKey, numBots: firstMap.botCount });
     });
+    bindArcadeDemolitionMedalLine(refs.startDemolitionButton, bind, () => runtimeAccess?.getSettingsStore?.() || null);
 }
