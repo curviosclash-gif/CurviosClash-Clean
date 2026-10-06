@@ -237,10 +237,11 @@ export class ArcadeScoreHUD {
         this._container.appendChild(this._suddenDeathBanner);
         this._container.appendChild(this._transitionBanner);
         this._parent.appendChild(this._container);
-        // The player bars sit under this box, which grows with modifier, waves and banners.
+        // The player bars sit under this box, which grows with modifier, waves and banners. The
+        // height is reported unscaled: the CSS applies --hud-scale, which no resize reports.
         if (typeof ResizeObserver === 'function') {
             this._resizeObserver = new ResizeObserver(() => this._parent.style?.setProperty?.(
-                '--arcade-score-hud-bottom', `${Math.ceil(this._container?.getBoundingClientRect().bottom || 0)}px`));
+                '--arcade-score-hud-height', `${Math.ceil(this._container?.offsetHeight || 0)}px`));
             this._resizeObserver.observe(this._container);
         }
     }
@@ -466,7 +467,7 @@ export class ArcadeScoreHUD {
     dispose() {
         this._resizeObserver?.disconnect();
         this._resizeObserver = null;
-        this._parent.style?.removeProperty?.('--arcade-score-hud-bottom');
+        this._parent.style?.removeProperty?.('--arcade-score-hud-height');
         if (this._container?.parentElement) {
             this._container.parentElement.removeChild(this._container);
         }

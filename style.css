@@ -8871,9 +8871,9 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     color: var(--hud-text, #e0e0e0) !important;
 }
 
-/* The fight HUD's rocket column holds the right edge (right 20px, 112px wide). */
+/* The fight HUD's rocket column holds the right edge (right 20px, 112px wide, scaled from the right). */
 #hud[data-hud-mode="arcade"]:has(#hunt-hud:not(.hidden)) #arcade-mission-hud {
-    right: 148px !important;
+    right: calc(20px + 112px * var(--hud-scale, 1) + 16px) !important;
 }
 
 #parcours-minimap {
@@ -9432,8 +9432,9 @@ body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
     font-size: 1.25rem !important;
     color: var(--hud-text, #f6fbff) !important;
 }
-/* Under the score box: ArcadeScoreHUD reports its real lower edge, which grows with the modifier. */
-#hud[data-hud-mode="arcade"] #p1-hud .player-hud-summary { top: max(104px, calc(var(--arcade-score-hud-bottom, 0px) + 8px)); }
+/* Under the score box (top 20px, scaled by --hud-scale): ArcadeScoreHUD reports its unscaled
+   height, which grows with the modifier; the scale is applied here so a scale change needs no resize. */
+#hud[data-hud-mode="arcade"] #p1-hud .player-hud-summary { top: max(104px, calc(20px + var(--arcade-score-hud-height, 0px) * var(--hud-scale, 1) + 8px)); }
 
 @media (max-width: 900px) {
     .classic-match-score-label { max-width: 28vw; padding-inline: 12px; }

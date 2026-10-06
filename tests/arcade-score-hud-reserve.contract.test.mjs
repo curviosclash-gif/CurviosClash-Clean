@@ -45,28 +45,31 @@ function withDom(run) {
     }
 }
 
-test('Der Punktekasten meldet seine Unterkante, sobald er seine Groesse aendert', () => {
+// The box is drawn with `scale: var(--hud-scale)`, which a ResizeObserver does not see. It therefore
+// reports its unscaled height, and the CSS applies the HUD scale itself, so a scale change in the
+// middle of a match moves the bars along without a new resize.
+test('Der Punktekasten meldet seine unskalierte Hoehe, sobald er seine Groesse aendert', () => {
     withDom((observers) => {
         const parent = createStubElement();
         const hud = new ArcadeScoreHUD(parent);
         const observer = observers.find((entry) => entry.targets.includes(hud._container));
         assert.ok(observer, 'the score box is observed for size changes');
 
-        hud._container.rectBottom = 171.4;
+        hud._container.offsetHeight = 151;
         observer.callback([]);
-        assert.equal(parent.properties.get('--arcade-score-hud-bottom'), '172px');
+        assert.equal(parent.properties.get('--arcade-score-hud-height'), '151px');
 
         hud.dispose();
         assert.equal(observer.connected, false);
-        assert.equal(parent.properties.has('--arcade-score-hud-bottom'), false);
+        assert.equal(parent.properties.has('--arcade-score-hud-height'), false);
     });
 });
 
-test('Die Arcade-Balken stehen unter der gemeldeten Unterkante statt auf festen 104px', () => {
+test('Die Arcade-Balken folgen Hoehe und HUD-Skalierung des Kastens statt festen 104px', () => {
     const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
     const tops = [...css.matchAll(/#hud\[data-hud-mode="arcade"\] #p1-hud \.player-hud-summary \{([^}]*)\}/g)]
         .map((match) => match[1].match(/(?:^|;|\s)top:\s*([^;]+);/)?.[1])
         .filter(Boolean);
     assert.ok(tops.length > 0, 'an arcade summary rule sets top');
-    assert.match(tops.at(-1), /var\(--arcade-score-hud-bottom/, 'the rule that wins the cascade follows the box');
+    assert.match(tops.at(-1), /var\(--arcade-score-hud-height[^)]*\)\s*\*\s*var\(--hud-scale/, 'the rule that wins the cascade scales the box height');
 });

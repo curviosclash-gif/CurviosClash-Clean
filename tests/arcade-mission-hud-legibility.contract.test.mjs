@@ -19,8 +19,10 @@ test('Missionsfortschritt ist mindestens 12px, hell und vom Hintergrund abgesetz
     assert.match(rules, /text-shadow:/);
 });
 
-test('Im Kampf-HUD steht die Missionsliste links neben der Raketenspalte', () => {
+// The rocket column grows with `scale: var(--hud-scale)` from the right edge, so a fixed offset
+// is overrun above a scale of about 1.14.
+test('Im Kampf-HUD steht die Missionsliste links neben der skalierten Raketenspalte', () => {
     const rules = declarations('#hud\\[data-hud-mode="arcade"\\]:has\\(#hunt-hud:not\\(\\.hidden\\)\\) #arcade-mission-hud').join(';');
-    const right = Number(rules.match(/right:\s*(\d+)px/)?.[1]);
-    assert.ok(right >= 20 + 112 + 8, `mission list right edge is ${right}px from the window edge`);
+    const right = rules.match(/right:\s*([^;!]+)/)?.[1] || '';
+    assert.match(right, /calc\(\s*20px\s*\+\s*112px\s*\*\s*var\(--hud-scale/, `mission list right edge is "${right}"`);
 });
