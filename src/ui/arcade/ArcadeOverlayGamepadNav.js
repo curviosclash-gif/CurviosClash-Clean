@@ -17,10 +17,16 @@ function listArcadeOverlayButtons(panel) {
     return getFocusableElements(panel).filter((element) => String(element.tagName).toUpperCase() === 'BUTTON');
 }
 
-/** The visible Arcade overlay panel with at least one usable button, otherwise null. */
+/**
+ * The visible Arcade overlay panel with at least one usable button, otherwise null. While the
+ * result board's continue prompt (#message-actions) is shown, every pad button already means
+ * "continue" there, so the panel stays out of the way instead of pressing a button at the same time.
+ */
 export function findArcadeOverlayChoicePanel(doc = globalThis.document) {
     const panel = doc?.getElementById?.(ARCADE_OVERLAY_PANEL_ID);
     if (!panel || panel.classList?.contains?.('hidden')) return null;
+    const continuePrompt = doc.getElementById('message-actions');
+    if (continuePrompt && !continuePrompt.classList?.contains?.('hidden')) return null;
     return listArcadeOverlayButtons(panel).length > 0 ? panel : null;
 }
 

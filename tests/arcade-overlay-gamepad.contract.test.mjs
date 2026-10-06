@@ -32,7 +32,7 @@ function createButton(doc, id, x, y) {
     };
 }
 
-function createScene({ panelHidden = false } = {}) {
+function createScene({ panelHidden = false, continuePromptVisible = false } = {}) {
     const doc = { activeElement: null };
     const buttons = [createButton(doc, 'route-a', 0, 0), createButton(doc, 'route-b', 200, 0), createButton(doc, 'route-c', 400, 0), createButton(doc, 'confirm', 0, 200)];
     const panel = {
@@ -41,7 +41,8 @@ function createScene({ panelHidden = false } = {}) {
         classList: classList(panelHidden ? ['hidden'] : []),
         querySelectorAll: () => buttons,
     };
-    doc.getElementById = (id) => (id === 'arcade-overlay-panel' ? panel : null);
+    const continuePrompt = { id: 'message-actions', classList: classList(continuePromptVisible ? [] : ['hidden']) };
+    doc.getElementById = (id) => ({ 'arcade-overlay-panel': panel, 'message-actions': continuePrompt }[id] || null);
     const menuRoot = { classList: classList(['hidden']), getAttribute: (name) => (name === 'aria-hidden' ? 'true' : null) };
     return { doc, buttons, runtime: new MenuNavigationRuntime({ ui: { mainMenu: menuRoot } }) };
 }
@@ -129,5 +130,19 @@ test('a hidden arcade panel leaves the gamepad alone during play', () => {
         tap(runtime, pad, 15);
         assert.equal(polls, 0, 'no hardware poll while neither menu nor arcade panel is shown');
         assert.equal(doc.activeElement?.id, 'route-a');
+    });
+});
+
+// At the match end every pad button already means "continue" on the result board; pressing a
+// panel button with the same A would start a replay and leave for the menu in one press.
+test('the visible continue prompt keeps the pad, so A does not also press a panel button', () => {
+    const { doc, buttons, runtime } = createScene({ continuePromptVisible: true });
+    const pad = createPad();
+    withPad(doc, pad, () => {
+        buttons[0].focus();
+        tap(runtime, pad, 15);
+        tap(runtime, pad, 0);
+        assert.equal(doc.activeElement?.id, 'route-a');
+        assert.equal(buttons[0].clicks, 0);
     });
 });
