@@ -257,7 +257,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
     trench: {
         ...CLASSIC_WORLD_APPEARANCE.trench,
         name: 'Der Graben',
-        size: [60, 40, 160],
+        size: [54, 40, 160],
         // Start points in world units (the map does not scale its anchors): the player and nine bots
         // spread around the arena, so ten ships start apart instead of at random spots.
         playerSpawn: { x: 0, y: 40, z: 187 },
