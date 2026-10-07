@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
 import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { ARCADE_COLLISION_COOLDOWN, ARCADE_COLLISION_DAMAGE } from '../src/modes/ArcadeRunRulesOps.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { applyPlayerCrashDamage } from '../src/modes/HuntCollisionOps.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 
 test('the entity fallback hunt table matches the shipped hunt defaults', () => {
     const fallback = DEFAULT_ENTITY_RUNTIME_CONFIG.HUNT;
@@ -30,24 +32,30 @@ test('the arcade gauntlet keeps its own named collision values', () => {
 test('a crash bills both vehicles once, reports both hits and names the killer', () => {
     const events = [];
     const kills = [];
+    const strategy = new HuntModeStrategy();
     const entityManager = {
+        gameModeStrategy: strategy,
         _emitHuntDamageEvent: (event) => events.push([event.target.id, event.sourcePlayer.id, event.cause, event.hitNormal]),
-        _killPlayer: (target, cause, options) => kills.push([target.id, cause, options.killer.id]),
+        _applyModeDamage(target, amount, cause, options = {}) {
+            return applyHit(this, { ...options, target, amount, cause });
+        },
+        _killPlayer(target, cause, options) {
+            kills.push([target.id, cause, options?.killer?.id ?? null]);
+            target.alive = false;
+        },
     };
-    const makePlayer = (id, hp) => ({ id, hp, position: { id } });
+    const makePlayer = (id, hp) => ({
+        id, index: id === 'a' ? 0 : 1, hp, maxHp: 100, shieldHP: 0, maxShieldHp: 40,
+        alive: true, position: { id },
+    });
     const player = makePlayer('a', 100);
     const other = makePlayer('b', 30);
     const normal = { x: 1 };
-    const dealDamage = (target, amount) => {
-        target.hp -= amount;
-        return { isDead: target.hp <= 0 };
-    };
-
-    const playerDied = applyPlayerCrashDamage(player, other, normal, entityManager, { damage: 40, cooldown: 0.5, dealDamage });
+    const playerDied = applyPlayerCrashDamage(player, other, normal, entityManager, { damage: 40, cooldown: 0.5 });
 
     assert.equal(playerDied, false);
     assert.equal(player.hp, 60);
-    assert.equal(other.hp, -10);
+    assert.equal(other.hp, 0);
     assert.equal(player.crashDamageCooldown, 0.5);
     assert.equal(other.crashDamageCooldown, 0.5);
     assert.deepEqual(events, [['a', 'b', 'PLAYER_CRASH', normal], ['b', 'a', 'PLAYER_CRASH', normal]]);

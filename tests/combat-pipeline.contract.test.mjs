@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { applyHeal, applyHit } from '../src/entities/combat/CombatPipeline.js';
+import { applyHeal, applyHit, finalizeHitDeath } from '../src/entities/combat/CombatPipeline.js';
 import { Player } from '../src/entities/Player.js';
 import { HuntScoring } from '../src/hunt/HuntScoring.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
@@ -199,6 +199,41 @@ test('team crash damage is applied but teammate death has no killer credit', () 
     assert.equal(rows.find((row) => row.playerIndex === teammate.index).kills, 0);
     assert.equal(rows.find((row) => row.playerIndex === teammate.index).points, 0);
     assert.equal(rows.find((row) => row.playerIndex === target.index).deaths, 1);
+});
+
+test('deferred hit deaths reuse pipeline credit rules and finalize at most once', () => {
+    const teammate = createPlayer({ index: 0, teamId: TEAM_IDS.ALPHA });
+    const target = createPlayer({ index: 1, teamId: TEAM_IDS.ALPHA, hp: 5 });
+    const harness = createWorld(new HuntModeStrategy(), [teammate, target]);
+    const hit = { target, amount: 10, cause: 'PLAYER_CRASH', sourcePlayer: teammate };
+
+    const result = applyHit(harness.world, { ...hit, killOnDeath: false });
+    assert.equal(result.hpApplied, 5);
+    assert.equal(harness.events.length, 1);
+    assert.equal(harness.kills.length, 0, 'the caller can finish the second crash hit first');
+    assert.equal(finalizeHitDeath(harness.world, hit, result), true);
+    assert.equal(finalizeHitDeath(harness.world, hit, result), false);
+    assert.equal(harness.kills.length, 1);
+    assert.equal(harness.kills[0].options.killer, null);
+    assert.equal(finalizeHitDeath(harness.world, { ...hit, amount: -1 }, result), false);
+    assert.equal(finalizeHitDeath(harness.world, hit, {
+        blocked: null, isDead: true, hpApplied: 0, absorbedByShield: 0,
+    }), false);
+
+    const enemy = createPlayer({ index: 2, teamId: TEAM_IDS.BRAVO, hp: 5 });
+    const enemyHarness = createWorld(new HuntModeStrategy(), [teammate, enemy]);
+    const enemyHit = { target: enemy, amount: 10, cause: 'PROJECTILE', sourcePlayer: teammate };
+    const enemyResult = applyHit(enemyHarness.world, { ...enemyHit, killOnDeath: false });
+    assert.equal(finalizeHitDeath(enemyHarness.world, enemyHit, enemyResult), true);
+    assert.equal(enemyHarness.kills[0].options.killer, teammate);
+
+    const blockedTarget = createPlayer({ index: 3, teamId: TEAM_IDS.ALPHA, hp: 5 });
+    const blockedHarness = createWorld(new HuntModeStrategy(), [teammate, blockedTarget]);
+    const blockedHit = { target: blockedTarget, amount: 10, cause: 'PROJECTILE', sourcePlayer: teammate };
+    const blockedResult = applyHit(blockedHarness.world, { ...blockedHit, killOnDeath: false });
+    assert.equal(blockedResult.blocked, 'TEAM');
+    assert.equal(finalizeHitDeath(blockedHarness.world, blockedHit, blockedResult), false);
+    assert.equal(blockedHarness.kills.length, 0);
 });
 
 test('self blast policy applies only to the source and separates event from death cause', () => {

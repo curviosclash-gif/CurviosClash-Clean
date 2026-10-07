@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
 import { applyDamage as healthSystemApplyDamage } from '../src/hunt/HealthSystem.js';
 
 /**
@@ -30,14 +31,18 @@ function createPlayer(strategy, overrides = {}) {
     return player;
 }
 
-function createEntityManager() {
+function createEntityManager(strategy) {
     const events = [];
     const kills = [];
     return {
         events,
         kills,
+        gameModeStrategy: strategy,
         _emitHuntDamageEvent(event) { events.push(event); },
-        _killPlayer(player, cause) { kills.push({ index: player.index, cause }); player.alive = false; },
+        _applyModeDamage(player, amount, cause, options = {}) {
+            return applyHit(this, { ...options, target: player, amount, cause });
+        },
+        _killPlayer(player, cause, options) { kills.push({ index: player.index, cause, killer: options?.killer || null }); player.alive = false; },
         _pushPlayerOutOfCollision() {},
         audio: null,
         particles: null,
@@ -52,7 +57,7 @@ function createStrategy() {
 test('a wall hit costs health instead of ending the run at once', () => {
     const strategy = createStrategy();
     const player = createPlayer(strategy);
-    const entityManager = createEntityManager();
+    const entityManager = createEntityManager(strategy);
     const maxHp = player.maxHp;
     assert.equal(maxHp, 100, 'the arcade player starts on the arcade health pool');
 
@@ -67,7 +72,7 @@ test('a wall hit costs health instead of ending the run at once', () => {
 test('repeated wall hits do end the run once the pool is empty', () => {
     const strategy = createStrategy();
     const player = createPlayer(strategy);
-    const entityManager = createEntityManager();
+    const entityManager = createEntityManager(strategy);
     const damage = strategy.resolveCollisionDamage('WALL');
     const expectedHits = Math.ceil(player.maxHp / damage);
 
@@ -87,7 +92,7 @@ test('repeated wall hits do end the run once the pool is empty', () => {
 test('a trail hit costs its own damage value from the pool', () => {
     const strategy = createStrategy();
     const player = createPlayer(strategy);
-    const entityManager = createEntityManager();
+    const entityManager = createEntityManager(strategy);
 
     const died = strategy.handleTrailCollision(player, null, 'TRAIL_OTHER', null, entityManager);
 
@@ -97,7 +102,7 @@ test('a trail hit costs its own damage value from the pool', () => {
 
 test('a head-on crash costs both pilots health without killing either outright', () => {
     const strategy = createStrategy();
-    const entityManager = createEntityManager();
+    const entityManager = createEntityManager(strategy);
     const player = createPlayer(strategy, { index: 0, playerIndex: 0 });
     const other = createPlayer(strategy, { index: 1, playerIndex: 1 });
 
@@ -114,7 +119,7 @@ test('the shield absorbs a hit before the health pool is touched', () => {
     const strategy = createStrategy();
     const player = createPlayer(strategy, { hasShield: true });
     strategy.grantShield(player);
-    const entityManager = createEntityManager();
+    const entityManager = createEntityManager(strategy);
     const hpBefore = player.hp;
 
     strategy.handleWallCollision(player, { normal: null }, entityManager);

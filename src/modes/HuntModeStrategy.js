@@ -8,6 +8,7 @@ import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import { applyPlayerCrashDamage, recoverPlayerFromCollision, resolveWallCollisionDamage } from './HuntCollisionOps.js';
+import { TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
 import {
     applyCappedHealing,
     applyShieldAndHpDamage,
@@ -278,18 +279,12 @@ export class HuntModeStrategy extends GameModeContract {
             resolveConfig(null, this.entityRuntimeConfig),
             this.resolveCollisionDamage('WALL')
         );
-        const damageResult = player.takeDamage(wallDamage);
         player.wallDamageCooldown = this.resolveCollisionCooldown('WALL');
-        entityManager._emitHuntDamageEvent({
-            target: player,
-            sourcePlayer: null,
-            cause: 'WALL',
-            hitNormal: arenaCollision.normal || null,
-            damageResult,
+        const damageResult = entityManager._applyModeDamage(player, wallDamage, 'WALL', {
+            hitNormal: arenaCollision?.normal || null,
             impactPoint: player.position,
         });
         if (damageResult.isDead) {
-            entityManager._killPlayer(player, 'WALL');
             return true;
         }
         recoverPlayerFromCollision(player, arenaCollision, 'WALL', entityManager);
@@ -300,7 +295,6 @@ export class HuntModeStrategy extends GameModeContract {
         return applyPlayerCrashDamage(player, otherPlayer, crashNormal, entityManager, {
             damage: this.resolveCollisionDamage('PLAYER_CRASH'),
             cooldown: this.resolveCollisionCooldown('PLAYER_CRASH'),
-            dealDamage: (target, amount) => target.takeDamage(amount),
         });
     }
 
@@ -309,16 +303,12 @@ export class HuntModeStrategy extends GameModeContract {
         const damage = sourcePlayer && sourcePlayer !== player
             ? Math.max(collisionDamage, toSafeNumber(player.hp, 0) + toSafeNumber(player.shieldHP, 0))
             : collisionDamage;
-        const damageResult = player.takeDamage(damage);
-        entityManager._emitHuntDamageEvent({
-            target: player,
+        const damageResult = entityManager._applyModeDamage(player, damage, trailCause, {
             sourcePlayer,
-            cause: trailCause,
-            damageResult,
+            weaponKind: TEAM_WEAPON_KINDS.TRAIL,
             impactPoint: player.position,
         });
         if (damageResult.isDead) {
-            entityManager._killPlayer(player, trailCause, { killer: sourcePlayer || null });
             return true;
         }
         recoverPlayerFromCollision(player, collision, 'TRAIL', entityManager);

@@ -151,18 +151,19 @@ test('Fight enemy trail collisions kill and credit the trail owner', () => {
         shieldHitFeedback: 0,
         lastDamageTimestamp: 0,
         position: {},
-        takeDamage(amount) {
-            return hunt.applyDamage(this, amount, {});
-        },
+        alive: true,
     };
     const kills = [];
     const damageEvents = [];
     const entityManager = {
+        gameModeStrategy: hunt,
         _emitHuntDamageEvent(event) {
             damageEvents.push(event);
         },
+        _applyModeDamage: EntityManager.prototype._applyModeDamage,
         _killPlayer(player, cause, options) {
             kills.push({ player, cause, killer: options?.killer || null });
+            player.alive = false;
         },
     };
 

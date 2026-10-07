@@ -15,6 +15,7 @@ import {
 import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
 import { HuntModeStrategy } from './HuntModeStrategy.js';
 import { applyPlayerCrashDamage } from './HuntCollisionOps.js';
+import { TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
 import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE } from '../shared/contracts/EndlessParcoursContract.js';
 import { ARENA_WAVES_COMBAT_PROFILE } from '../shared/contracts/ArenaWavesContract.js';
 import { ARCADE_COLLISION_COOLDOWN, ARCADE_COLLISION_DAMAGE, resolveArcadeParcoursRespawnFallback, resolveArcadeRunCombatProfile } from './ArcadeRunRulesOps.js';
@@ -509,18 +510,12 @@ export class ArcadeModeStrategy extends GameModeContract {
         const wallDamage = this.resolveCollisionDamage('WALL');
         // Keep collision damage on the active mode strategy so modifiers and shields
         // use the same Arcade health rules as every other damage source.
-        const damageResult = this.applyDamage(player, wallDamage);
         player.wallDamageCooldown = this.resolveCollisionCooldown('WALL');
-        entityManager._emitHuntDamageEvent({
-            target: player,
-            sourcePlayer: null,
-            cause: 'WALL',
-            hitNormal: arenaCollision.normal || null,
-            damageResult,
+        const damageResult = entityManager._applyModeDamage(player, wallDamage, 'WALL', {
+            hitNormal: arenaCollision?.normal || null,
             impactPoint: player.position,
         });
         if (damageResult.isDead) {
-            entityManager._killPlayer(player, 'WALL');
             return true;
         }
         entityManager._pushPlayerOutOfCollision?.(
@@ -534,7 +529,6 @@ export class ArcadeModeStrategy extends GameModeContract {
         return applyPlayerCrashDamage(player, otherPlayer, crashNormal, entityManager, {
             damage: this.resolveCollisionDamage('PLAYER_CRASH'),
             cooldown: this.resolveCollisionCooldown('PLAYER_CRASH'),
-            dealDamage: (target, amount) => this.applyDamage(target, amount),
         });
     }
 
@@ -542,16 +536,17 @@ export class ArcadeModeStrategy extends GameModeContract {
         if (this._huntCombat) {
             return this._huntCombat.handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager);
         }
-        const damageResult = this.applyDamage(player, this.resolveCollisionDamage('TRAIL'));
-        entityManager._emitHuntDamageEvent({
-            target: player,
-            sourcePlayer,
-            cause: trailCause,
-            damageResult,
-            impactPoint: player.position,
-        });
+        const damageResult = entityManager._applyModeDamage(
+            player,
+            this.resolveCollisionDamage('TRAIL'),
+            trailCause,
+            {
+                sourcePlayer,
+                weaponKind: TEAM_WEAPON_KINDS.TRAIL,
+                impactPoint: player.position,
+            }
+        );
         if (damageResult.isDead) {
-            entityManager._killPlayer(player, trailCause, { killer: sourcePlayer || null });
             return true;
         }
         return false;

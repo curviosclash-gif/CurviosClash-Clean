@@ -36,6 +36,47 @@ function resolveStrategy(world, entityManager) {
     return entityManager?.gameModeStrategy || world?.gameModeStrategy || world?.strategy || null;
 }
 
+function finalizeHitDeathNormalized(entityManager, hit, damageResult) {
+    if (
+        !hit.killOnDeath
+        || damageResult?.blocked !== null
+        || damageResult?.isDead !== true
+        || hit.target?.alive === false
+    ) return false;
+    const effectiveDamage = Math.max(0, Number(damageResult.hpApplied) || 0)
+        + Math.max(0, Number(damageResult.absorbedByShield) || 0);
+    if (effectiveDamage <= 0) return false;
+
+    const causeKey = hit.cause.toUpperCase();
+    const teamCrash = causeKey === PLAYER_CRASH_CAUSE
+        && areTeammates(hit.sourcePlayer, hit.target);
+    if (typeof entityManager?._killPlayer !== 'function') return false;
+    const selfDamageWithoutCredit = hit.selfDamagePolicy === 'ALLOW_WITHOUT_KILL_CREDIT'
+        && hit.sourcePlayer === hit.target;
+    entityManager._killPlayer(hit.target, hit.deathCause || hit.cause, {
+        killer: teamCrash || selfDamageWithoutCredit ? null : hit.sourcePlayer,
+        impactPoint: hit.impactPoint || hit.target.position || null,
+        projectileType: hit.projectileType,
+    });
+    return true;
+}
+
+/**
+ * Complete a previously applied hit after callers have finished a required multi-hit phase.
+ * Damage events are emitted by applyHit; this function only shares its normal death policy.
+ *
+ * @param {object} world
+ * @param {unknown} input
+ * @param {unknown} damageResult
+ * @returns {boolean} true when the hit caused the death to be finalized
+ */
+export function finalizeHitDeath(world, input, damageResult) {
+    const hit = normalizeCombatHitInput(input);
+    if (!hit || !damageResult || typeof damageResult !== 'object') return false;
+    const entityManager = resolveEntityManager(world);
+    return finalizeHitDeathNormalized(entityManager, hit, damageResult);
+}
+
 /**
  * Apply one hit through the mode's existing damage rule, then publish its damage and death once.
  * `world` is normally the EntityManager; an owning context with `entityManager` is also accepted.
@@ -114,17 +155,12 @@ export function applyHit(world, input) {
         });
     }
 
+    const result = { ...damageResult, blocked: null };
     if (hit.killOnDeath && deadAfterHit && effectiveDamage > 0) {
-        const teamCrash = causeKey === PLAYER_CRASH_CAUSE
-            && areTeammates(sourcePlayer, target);
-        entityManager?._killPlayer?.(target, hit.deathCause || cause, {
-            killer: teamCrash || selfDamageWithoutCredit ? null : sourcePlayer,
-            impactPoint: hit.impactPoint || target.position || null,
-            projectileType: hit.projectileType,
-        });
+        finalizeHitDeathNormalized(entityManager, hit, result);
     }
 
-    return { ...damageResult, blocked: null };
+    return result;
 }
 
 /**
