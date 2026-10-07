@@ -311,6 +311,34 @@ test('destroy_units ends the sector without its bonus when time runs out, unless
     assert.equal(doesArcadeObjectiveHoldRound(createArcadeObjectiveState({ id: 'survive_window', durationSec: 55 })), true);
 });
 
+test('Vault and Hydra objectives keep untimed scoring and carry a separate bounded safety clock', () => {
+    for (const id of ['vault_breaker', 'hydra_finale']) {
+        const entry = ARCADE_SCENARIOS.find((scenario) => scenario.id === id);
+        assert.equal(entry.objective.durationSec, 0, `${id} retains its authored untimed score reference`);
+        assert.equal(entry.objective.safetyTimeoutSec, 120, `${id} has the bounded safety limit`);
+        const legacyEntry = {
+            scenarioId: id,
+            objectiveId: entry.objective.id,
+            objective: {
+                id: entry.objective.id,
+                label: entry.objective.label,
+                unitKind: entry.objective.unitKind,
+                count: entry.objective.count,
+                durationSec: 0,
+                scoreWeight: entry.objective.scoreWeight,
+            },
+        };
+        const resolved = resolveArcadeSectorObjectiveDefinition(entry.objective, legacyEntry);
+        assert.equal(resolved.durationSec, 0);
+        assert.equal(resolved.safetyTimeoutSec, 120, 'a previously materialized plan inherits the new safety policy without rerolling');
+    }
+
+    const normalized = normalizeArcadeScenario({
+        id: 'bounded_test', mapKey: 'standard', objective: { id: 'destroy_units', safetyTimeoutSec: 900 },
+    });
+    assert.equal(normalized.objective.safetyTimeoutSec, 600, 'the contract clamps safety values to its bounded range');
+});
+
 test('scenario parameters override the shared objective definition', () => {
     const base = { id: 'survive_window', label: 'Survive Window', durationSec: 55, scoreWeight: 1 };
     const merged = resolveArcadeSectorObjectiveDefinition(base, {

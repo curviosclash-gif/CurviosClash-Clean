@@ -38,17 +38,23 @@ function withHudProgress(state) {
             progressText: state.failed ? `${counter} · Ein Panzer ist durchgebrochen` : counter };
     }
     if (state.objectiveId === 'breach_vault') {
+        const remainingSec = Math.ceil(Math.max(0, state.safetyTimeoutSec - state.elapsedSec));
+        const safetyLimit = state.safetyTimeoutSec > 0 && !state.completed && !state.failed
+            ? ` · Zielzeit ${remainingSec}s` : '';
         return { ...state, progressFraction: state.completed ? 1 : state.breachComplete ? 0.5 : 0,
-            progressText: state.completed ? 'Turmbein zerstört · Tresor-Boss besiegt'
-                : state.breachComplete ? 'Turmbein zerstört · Tresor-Boss besiegen' : 'Zuerst ein Turmbein zerstören' };
+            progressText: `${state.completed ? 'Turmbein zerstört · Tresor-Boss besiegt'
+                : state.breachComplete ? 'Turmbein zerstört · Tresor-Boss besiegen' : 'Zuerst ein Turmbein zerstören'}${safetyLimit}` };
     }
     if (state.objectiveId === 'destroy_units') {
         const counter = `${UNIT_KIND_LABELS[state.unitKind] || 'Einheit'} ${state.unitsDestroyed}/${state.unitTarget}`;
-        const remainingSec = Math.ceil(Math.max(0, state.durationSec - state.elapsedSec));
+        const deadlineSec = state.timeLimited ? state.durationSec : state.safetyTimeoutSec;
+        const remainingSec = Math.ceil(Math.max(0, deadlineSec - state.elapsedSec));
+        const showTimer = deadlineSec > 0 && !state.completed && !state.failed;
+        const timerLabel = state.timeLimited ? `${remainingSec} s` : `${remainingSec} s Sicherheitslimit`;
         return {
             ...state,
             progressFraction: state.completed ? 1 : state.unitsDestroyed / state.unitTarget,
-            progressText: state.timeLimited && !state.completed && !state.failed ? `${counter} · ${remainingSec} s` : counter,
+            progressText: showTimer ? `${counter} · ${timerLabel}` : counter,
         };
     }
     if (state.objectiveId === 'bounty_hunt') {
@@ -84,9 +90,10 @@ function completeObjective(state, shouldEnd) {
     });
 }
 
-function failObjective(state) {
+function failObjective(state, failureReason = '') {
     return withHudProgress({
         ...state,
+        ...(failureReason ? { failureReason } : {}),
         completed: false,
         failed: true,
         status: 'failed',
@@ -108,6 +115,7 @@ export function createArcadeObjectiveState(definition = null, options = {}) {
         label: String(definition?.label || objectiveId.replace(/_/g, ' ')),
         durationSec,
         timeLimited,
+        safetyTimeoutSec: Math.max(0, Math.min(600, toSafeNumber(definition?.safetyTimeoutSec, 0))),
         unitKind: ['destroy_units', 'intercept', 'breach_vault'].includes(objectiveId)
             ? String(definition?.unitKind || 'creature') : '',
         unitTarget: Math.max(1, Math.trunc(toSafeNumber(definition?.count, 1))),
@@ -150,8 +158,10 @@ export function updateArcadeObjectiveState(objectiveState = null, event = null) 
             if (next.unitsDestroyed >= next.unitTarget) return completeObjective(next, true);
         }
         // Out of time ends the sector without the bonus: a scenario without bots has no other end.
-        if (event.type === 'tick' && next.timeLimited && next.elapsedSec >= next.durationSec) {
-            return { ...failObjective(next), shouldEnd: true };
+        const deadlineReached = (next.timeLimited && next.elapsedSec >= next.durationSec)
+            || (next.safetyTimeoutSec > 0 && next.elapsedSec >= next.safetyTimeoutSec);
+        if (event.type === 'tick' && deadlineReached) {
+            return { ...failObjective(next, 'time_limit'), shouldEnd: true };
         }
     }
     if (next.objectiveId === 'intercept') {
@@ -170,6 +180,9 @@ export function updateArcadeObjectiveState(objectiveState = null, event = null) 
         if (next.breachComplete && event.type === 'unit_destroyed' && event.unitKind === next.unitKind) {
             next.unitsDestroyed = Math.min(next.unitTarget, next.unitsDestroyed + Math.max(1, Math.trunc(toSafeNumber(event.count, 1))));
             if (next.unitsDestroyed >= next.unitTarget) return completeObjective(next, true);
+        }
+        if (event.type === 'tick' && next.safetyTimeoutSec > 0 && next.elapsedSec >= next.safetyTimeoutSec) {
+            return { ...failObjective(next, 'time_limit'), shouldEnd: true };
         }
     }
     if (next.objectiveId === 'bounty_hunt') {

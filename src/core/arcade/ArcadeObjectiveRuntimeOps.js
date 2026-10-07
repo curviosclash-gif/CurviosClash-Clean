@@ -7,6 +7,7 @@ import {
     updateArcadeObjectiveState,
 } from '../../state/arcade/ArcadeObjectiveState.js';
 import { ARCADE_SECTOR_OBJECTIVES } from '../../entities/directors/ArcadeEncounterCatalog.js';
+import { ARCADE_SCENARIOS } from '../../entities/directors/ArcadeScenarioCatalog.js';
 import { getRuntimeMapCatalog, getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { resolveArcadeSectorObjectiveDefinition } from '../../shared/contracts/ArcadeScenarioContract.js';
 import { CURRENT_ARCADE_SCORE_MODEL } from '../../shared/contracts/ArcadeRunSettingsContract.js';
@@ -35,7 +36,11 @@ export function buildArcadeMissionSeed({
 function resolveObjectiveDefinition(encounterEntry) {
     const normalized = String(encounterEntry?.objectiveId || '').trim().toLowerCase();
     const shared = ARCADE_SECTOR_OBJECTIVES.find((entry) => entry.id === normalized) || null;
-    return resolveArcadeSectorObjectiveDefinition(shared, encounterEntry);
+    const scenario = ARCADE_SCENARIOS.find((entry) => entry.id === encounterEntry?.scenarioId) || null;
+    const scenarioObjective = scenario?.preserveObjective !== true && scenario?.objective?.id === normalized
+        ? scenario.objective
+        : null;
+    return resolveArcadeSectorObjectiveDefinition(scenarioObjective || shared, encounterEntry);
 }
 
 export function assignArcadeSectorRuntimeState(runtime) {
@@ -103,9 +108,10 @@ export function updateArcadeObjectiveRuntimeState(runtime, event) {
     runtime._state.objectiveState = next;
     if (!next?.shouldEnd || next.roundEndRequested) return next;
     next.roundEndRequested = true;
+    const objectiveFailed = next.failed === true;
     const accepted = runtime._requestRoundEnd?.({
-        reason: next.objectiveId === 'intercept' && next.failed ? 'ARCADE_OBJECTIVE_FAILED' : 'ARCADE_OBJECTIVE',
-        allowNoWinner: next.objectiveId === 'intercept' && next.failed,
+        reason: objectiveFailed ? 'ARCADE_OBJECTIVE_FAILED' : 'ARCADE_OBJECTIVE',
+        allowNoWinner: objectiveFailed,
         objectiveId: next.objectiveId,
         objective: { ...next },
     }) === true;

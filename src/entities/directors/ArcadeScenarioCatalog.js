@@ -82,7 +82,7 @@ const RAW_ARCADE_SCENARIOS = [
         briefing: 'Schieße zuerst ein Turmbein weg. Das Portal zum Tresor öffnet sich danach; besiege den Boss darin.',
         slot: 'sector', mapKey: 'eiffel_tower_siege', combatProfile: 'hunt', botCount: 0,
         minSector: 3, maxSector: 6,
-        objective: { id: 'breach_vault', label: 'Bein brechen · Boss besiegen', unitKind: 'boss', count: 1, durationSec: 0, scoreWeight: 1.6 },
+        objective: { id: 'breach_vault', label: 'Bein brechen · Boss besiegen', unitKind: 'boss', count: 1, durationSec: 0, safetyTimeoutSec: 120, scoreWeight: 1.6 },
     },
     {
         id: 'bloom_escape',
@@ -100,7 +100,7 @@ const RAW_ARCADE_SCENARIOS = [
         mapKey: 'hydra_temple',
         combatProfile: 'hunt',
         squadId: 'striker_tri',
-        objective: { id: 'destroy_units', label: 'Hydra besiegen', unitKind: 'creature', count: 1, durationSec: 0, scoreWeight: 1.5 },
+        objective: { id: 'destroy_units', label: 'Hydra besiegen', unitKind: 'creature', count: 1, durationSec: 0, safetyTimeoutSec: 120, scoreWeight: 1.5 },
         minSector: 3,
     },
 ];

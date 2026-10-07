@@ -11,6 +11,8 @@ import { requestObjectiveRoundEnd, syncArcadeObjectiveIntoEntities } from '../sr
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
 import { ArcadeRoundStateController } from '../src/state/arcade/ArcadeRoundStateController.js';
 import { RoundStateController } from '../src/state/RoundStateController.js';
+import { resetPlayerHealth } from '../src/hunt/HealthSystem.js';
+import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { MapUnitSystem } from '../src/entities/systems/MapUnitSystem.js';
 import { MapDestructibleSystem } from '../src/entities/systems/MapDestructibleSystem.js';
@@ -80,6 +82,42 @@ test('wave three scenarios reach sector three through their deterministic normal
     }
 });
 
+test('preserved Parcours scenarios keep their real objective through runtime assignment and completion', () => {
+    const strategy = new ArcadeModeStrategy();
+    const run = new ArcadeRunRuntime({ strategy, now: () => 100000 });
+    run.configure({ arcade: { enabled: true, seed: 9, sectorCount: 5 } });
+    const plan = buildArcadeSectorPlan({ seed: 9, sectorCount: 5 });
+    run.startRun({ strategy, encounterPlan: plan });
+    const pilot = { index: 0, isBot: false, alive: true, hp: 100, maxHp: 100 };
+
+    for (let sector = 1; sector < 4; sector += 1) {
+        const result = run.deriveRoundEndPlan({
+            players: [pilot],
+            inputs: { reason: 'ARCADE_OBJECTIVE' },
+            baseController: new RoundStateController(),
+        });
+        assert.equal(result?.outcome?.state, 'ROUND_END');
+        run.handleRoundEndTelemetry({ state: 'ROUND_END', duration: 1, kills: 1 });
+        run.beginNextSector();
+    }
+
+    const snapshot = run.getStateSnapshot();
+    const entry = snapshot.encounterSequence[3];
+    const profile = run.getSectorRuntimeProfile(4);
+    assert.equal(snapshot.sectorIndex, 4);
+    assert.equal(entry.scenarioId, 'spiessrutenlauf');
+    assert.equal(entry.objectiveId, 'parcours_run');
+    assert.equal(profile.parcoursEnabled, true);
+    assert.equal(run.isCurrentSectorParcours(), true);
+    assert.equal(snapshot.objectiveState, null, 'Parcours completion remains owned by its real progress system');
+
+    run.tickGameplay(120);
+    assert.equal(run.getStateSnapshot().objectiveState, null, 'there is no fallback survival deadline holding this sector');
+    const completion = run.completeParcoursSector({ parcours: { completionTimeMs: 1200, success: true } });
+    assert.equal(completion?.outcome?.reason, 'PARCOURS_COMPLETE');
+    assert.equal(run.getPhase(), 'intermission');
+    assert.equal(run.getStateSnapshot().completedSectors, 4);
+});
 test('new Hunt-weapon scenarios show their mission rule while normal Hunt keeps elimination', () => {
     const details = { killLimit: 10, timeText: '', matchPointText: '' };
     for (const [id, label] of [['bridge_convoy', 'Konvoi'], ['vault_breaker', 'Tresorknacker']]) {
@@ -168,6 +206,80 @@ test('environmental convoy destruction counts once while uncredited kills do not
     } finally { h.units.dispose(); }
 });
 
+test('Vault and Hydra safety timeouts follow the objective failure path without awarding success', () => {
+    const makeRun = (id, sectorCount) => {
+        const h = createHarness(id);
+        const strategy = new ArcadeModeStrategy();
+        const run = new ArcadeRunRuntime({ strategy, now: () => 100000 });
+        run.configure({ arcade: { enabled: true, seed: SEEDS[id] || 7, sectorCount } });
+        const plan = buildArcadeSectorPlan({ seed: SEEDS[id] || 7, sectorCount });
+        plan.sequence[0] = { ...plan.sequence[0], scenarioId: id, objectiveId: h.entry.objective.id,
+            objective: h.entry.objective, slot: h.entry.slot, mapKey: h.entry.mapKey };
+        run.startRun({ strategy, encounterPlan: plan });
+        run._requestRoundEnd = (request) => requestObjectiveRoundEnd(h.manager, request);
+        syncArcadeObjectiveIntoEntities(h.manager, run.getStateSnapshot().objectiveState);
+        const controller = new ArcadeRoundStateController({ arcadeRuntime: run, baseController: new RoundStateController() });
+        return { ...h, run, controller };
+    };
+
+    const vault = makeRun('vault_breaker', 5);
+    try {
+        vault.run.tickGameplay(119);
+        assert.equal(vault.round.resolve().shouldEnd, false, 'the clock does not fail before its safety deadline');
+        vault.run.tickGameplay(1);
+        const timeout = vault.round.resolve();
+        assert.equal(timeout.reason, 'ARCADE_OBJECTIVE_FAILED');
+        assert.equal(timeout.winner, null);
+        const result = vault.controller.deriveOnRoundEndPlan([vault.human], { reason: timeout.reason });
+        const objective = vault.run.getStateSnapshot().objectiveState;
+        assert.equal(result.outcome.state, 'ROUND_END');
+        assert.equal(vault.run.getPhase(), 'intermission');
+        assert.equal(vault.run.getStateSnapshot().completedSectors, 1);
+        assert.equal(objective.failed, true);
+        assert.equal(objective.completed, false);
+        assert.match(result.outcome.messageText, /Sektor 1\/5 verloren.*Zielzeit abgelaufen/);
+        vault.run.handleRoundEndTelemetry({ state: 'ROUND_END', duration: 120, kills: 0 });
+        assert.equal(vault.run.getStateSnapshot().lastCompletedSectorResult.objectiveSnapshot.failed, true);
+        assert.equal(vault.run.getStateSnapshot().lastSectorSummary.breakdown.time, 0);
+        assert.equal(vault.run.getIntermissionState().breakdown.time, 0);
+        assert.equal(vault.controller.deriveRoundEndTick({ dt: 0, roundPause: 0 }).action, 'START_ROUND');
+        assert.equal(vault.run.getStateSnapshot().sectorIndex, 2);
+    } finally {
+        vault.units.dispose();
+    }
+
+    const hydra = makeRun('hydra_finale', 1);
+    try {
+        hydra.run.tickGameplay(120);
+        const timeout = hydra.round.resolve();
+        assert.equal(timeout.reason, 'ARCADE_OBJECTIVE_FAILED');
+        const result = hydra.controller.deriveOnRoundEndPlan([hydra.human], { reason: timeout.reason });
+        assert.equal(result.outcome.state, 'MATCH_END');
+        assert.equal(hydra.run.getPhase(), 'finished');
+        assert.equal(hydra.run.getStateSnapshot().victory, null);
+        assert.equal(hydra.run.getIntermissionState(), null);
+        assert.match(result.outcome.messageText, /Run beendet.*Zielzeit abgelaufen/);
+    } finally {
+        hydra.units.dispose();
+    }
+
+    const success = makeRun('vault_breaker', 5);
+    try {
+        success.run.tickGameplay(119);
+        success.run.applyGameplayEvent({ type: 'structure_destroyed', segmentKind: 'leg_lower' });
+        success.run.applyGameplayEvent({ type: 'unit_destroyed', unitKind: 'boss', count: 1 });
+        const outcome = success.round.resolve();
+        assert.equal(outcome.reason, 'ARCADE_OBJECTIVE');
+        const result = success.controller.deriveOnRoundEndPlan([success.human], { reason: outcome.reason });
+        assert.equal(success.run.getStateSnapshot().objectiveState.completed, true);
+        assert.equal(success.run.getStateSnapshot().objectiveState.failed, false);
+        assert.equal(success.run.getPhase(), 'intermission');
+        assert.match(result.outcome.messageText, /Sektor 1\/5 abgeschlossen/);
+    } finally {
+        success.units.dispose();
+    }
+});
+
 test('convoy arrival loses one sector, advances through intermission, and leaves death and abort terminal', () => {
     const h = createHarness('bridge_convoy');
     const strategy = new ArcadeModeStrategy();
@@ -205,6 +317,7 @@ test('convoy arrival loses one sector, advances through intermission, and leaves
 
         const baseController = new RoundStateController();
         const controller = new ArcadeRoundStateController({ arcadeRuntime: run, baseController });
+        Object.assign(h.human, { hp: 62, maxHp: 100, shieldHP: 12, maxShieldHp: 40, hasShield: true });
         const result = controller.deriveOnRoundEndPlan([h.human], { reason: h.round.resolve().reason });
         assert.equal(result.outcome.state, 'ROUND_END');
         assert.equal(result.outcome.reason, 'ARCADE_OBJECTIVE_FAILED');
@@ -223,6 +336,17 @@ test('convoy arrival loses one sector, advances through intermission, and leaves
         assert.equal(controller.deriveRoundEndTick({ dt: 0, roundPause: 0 }).action, 'START_ROUND');
         assert.equal(run.getPhase(), 'sector_active');
         assert.equal(run.getStateSnapshot().sectorIndex, 2);
+        h.human.hasShield = false;
+        resetPlayerHealth(h.human, { ...DEFAULT_ENTITY_RUNTIME_CONFIG, HUNT: { ...DEFAULT_ENTITY_RUNTIME_CONFIG.HUNT, ENABLED: true, ACTIVE_MODE: 'ARCADE', DEFAULT_MODE: 'ARCADE' } });
+        assert.equal(h.human.hp, 100, 'spawn resets to base HP before the intermission carry is applied');
+        assert.equal(h.human.shieldHP, 0);
+        const intermissionEffects = run.applyPendingIntermissionEffects({ players: [h.human] });
+        assert.equal(intermissionEffects.playersRestored, 1, 'failed convoy sectors preserve captured pilot vitals across the real round restart');
+        assert.ok(intermissionEffects.healedTotal > 0, 'the existing normal Arcade intermission heal still applies after restoring vitals');
+        assert.equal(h.human.hp, 62 + intermissionEffects.healedTotal);
+        assert.ok(h.human.hp < h.human.maxHp, 'the failure transition does not silently full-heal the pilot');
+        assert.equal(h.human.shieldHP, 12, 'the captured shield survives the failed-sector transition');
+        assert.equal(h.human.hasShield, true);
 
         const dead = makeRun();
         const death = dead.deriveRoundEndPlan({ players: [{ ...h.human, alive: false, hp: 0 }], inputs: { reason: 'ARCADE_OBJECTIVE_FAILED' }, baseController });

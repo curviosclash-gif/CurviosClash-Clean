@@ -992,15 +992,12 @@ export class ArcadeRunRuntime {
      * @returns {Object|null} Round end plan with intermission prepared, or null if not enabled.
      */
     completeParcoursSector(parcoursResult = {}, options = {}) { return completeArcadeParcoursSector(this, parcoursResult, options); }
-
     deriveRoundEndPlan({ players, inputs = {}, baseController } = {}) {
         if (!this._enabled || !this._state || !baseController) {
             return baseController?.deriveOnRoundEndPlan?.(players, inputs) || null;
         }
-
         if (![ARCADE_RUN_PHASES.SECTOR_ACTIVE, ARCADE_RUN_PHASES.SUDDEN_DEATH].includes(this._state.phase)) return null;
         this._pendingHumanVitals = captureArcadeHumanVitals(players);
-
         const outcomeReason = String(inputs?.reason || '').trim().toUpperCase();
         const parcoursInput = inputs?.parcours && typeof inputs.parcours === 'object'
             ? inputs.parcours
@@ -1018,8 +1015,8 @@ export class ArcadeRunRuntime {
             : weaponRaceHumanWon ? ''
             : allHumansDead ? 'ELIMINATION'
             : (ARCADE_RUN_ABORT_REASONS.has(outcomeReason) ? outcomeReason : '');
-        const convoyFailed = outcomeReason === 'ARCADE_OBJECTIVE_FAILED' && this._state.objectiveState?.objectiveId === 'intercept' && this._state.objectiveState.failed === true;
-
+        const objectiveState = this._state.objectiveState, objectiveFailed = outcomeReason === 'ARCADE_OBJECTIVE_FAILED' && objectiveState?.failed === true;
+        const objectiveTimedOut = objectiveFailed && objectiveState.failureReason === 'time_limit', convoyFailed = objectiveFailed && objectiveState.objectiveId === 'intercept';
         if (!terminalReason && (outcomeReason === 'PARCOURS_COMPLETE' || weaponRaceHumanWon)) {
             const parcoursPlan = this.completeParcoursSector(
                 {
@@ -1034,7 +1031,6 @@ export class ArcadeRunRuntime {
                 return parcoursPlan;
             }
         }
-
         const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));
         if (terminalReason.length > 0) {
             this._pendingHumanVitals = null;
@@ -1045,7 +1041,7 @@ export class ArcadeRunRuntime {
             this._state = completeArcadeSector(this._state, nowMs, {
                 simulatedDurationSec: this._sectorElapsedSeconds,
             });
-            if (convoyFailed && this._state.phase === ARCADE_RUN_PHASES.VICTORY) this._state = { ...this._state, phase: ARCADE_RUN_PHASES.FINISHED, victory: null, intermission: null };
+            if (objectiveFailed && this._state.phase === ARCADE_RUN_PHASES.VICTORY) this._state = { ...this._state, phase: ARCADE_RUN_PHASES.FINISHED, victory: null, intermission: null };
             else this._prepareIntermission(nowMs);
         }
         const runFinished = this._state.phase === ARCADE_RUN_PHASES.FINISHED;
@@ -1054,12 +1050,11 @@ export class ArcadeRunRuntime {
         const multiplier = Math.max(1, toSafeNumber(this._state?.score?.multiplier, 1));
         const sectorLabel = `${this._state.completedSectors}/${this._state.config.sectorCount}`;
         const messageText = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run geschafft!' : runFinished
-            ? convoyFailed ? `Sektor ${sectorLabel} verloren · Konvoi durchgebrochen · Run beendet · Score ${Math.round(scoreTotal)}` : `Arcade Run beendet - Score ${Math.round(scoreTotal)}`
-            : convoyFailed ? `Sektor ${sectorLabel} verloren · Konvoi durchgebrochen` : `Sektor ${sectorLabel} abgeschlossen`;
+            ? (convoyFailed ? `Sektor ${sectorLabel} verloren · Konvoi durchgebrochen · Run beendet · Score ${Math.round(scoreTotal)}` : objectiveTimedOut ? `Arcade Run beendet · Zielzeit abgelaufen · Score ${Math.round(scoreTotal)}` : `Arcade Run beendet - Score ${Math.round(scoreTotal)}`)
+            : (convoyFailed ? `Sektor ${sectorLabel} verloren · Konvoi durchgebrochen` : objectiveTimedOut ? `Sektor ${sectorLabel} verloren · Zielzeit abgelaufen` : `Sektor ${sectorLabel} abgeschlossen`);
         const messageSub = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run abschließen oder freiwillig weiterspielen' : runFinished
             ? 'ENTER für neuen Run oder ESC für Menü'
             : `Intermission: Combo ${combo} / x${multiplier}`;
-
         return {
             outcome: {
                 state: runFinished ? 'MATCH_END' : 'ROUND_END',

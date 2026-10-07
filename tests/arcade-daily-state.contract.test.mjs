@@ -9,6 +9,7 @@ import {
 import { createArcadeRunState } from '../src/state/arcade/ArcadeRunState.js';
 import { mergeArcadeRunRecords } from '../src/state/arcade/ArcadeScoreOps.js';
 import { computeDailySeed } from '../src/shared/utils/ArcadeUtils.js';
+import { buildArcadeSectorPlan } from '../src/entities/directors/ArcadeEncounterCatalog.js';
 
 test('Arcade Daily projection hides the previous day and exposes only the current German seed', () => {
     const records = {
@@ -43,6 +44,28 @@ test('Arcade Daily projection hides the previous day and exposes only the curren
         lastScore: 0,
         lastRunAt: '',
     });
+});
+
+test('a legacy materialized Daily plan keeps its sequence and inherits the Vault safety clock', () => {
+    const runtime = new ArcadeRunRuntime({ now: () => Date.parse('2026-10-07T12:00:00Z') });
+    runtime.configure({ arcade: { enabled: true, dailyChallenge: true, seed: 9, sectorCount: 5 } });
+    const basePlan = buildArcadeSectorPlan({ seed: 9, sectorCount: 5 });
+    const legacyEntry = {
+        ...basePlan.sequence[0],
+        scenarioId: 'vault_breaker',
+        objectiveId: 'breach_vault',
+        objective: { id: 'breach_vault', label: 'Bein brechen · Boss besiegen', unitKind: 'boss', count: 1, durationSec: 0, scoreWeight: 1.6 },
+    };
+    const legacyPlan = { ...basePlan, sequence: [legacyEntry, ...basePlan.sequence.slice(1)] };
+
+    runtime.startDailyChallenge({ date: '2026-10-07', encounterPlan: legacyPlan });
+
+    const state = runtime.getStateSnapshot();
+    assert.deepEqual(state.encounterSequence[0], legacyEntry, 'Daily materialization is kept as authored');
+    assert.equal(state.objectiveState.objectiveId, 'breach_vault');
+    assert.equal(state.objectiveState.durationSec, 1, 'the runtime keeps its legacy zero-duration score state');
+    assert.equal(state.objectiveState.timeLimited, false);
+    assert.equal(state.objectiveState.safetyTimeoutSec, 120);
 });
 
 test('Arcade Daily result distinguishes a new best from a tied best', () => {
