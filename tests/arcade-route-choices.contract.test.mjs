@@ -69,6 +69,22 @@ test('a swapped modifier re-derives the sector pressure for the bots', () => {
     assert.equal(resolveArcadeSectorRuntimeProfile(entry, {}).pressure, entry.pressure, 'the planned modifier keeps the planned pressure');
 });
 
+test('unmodified intermission choices use the current German fallback label', async () => {
+    const parcoursEntry = { ...plainEntry, parcoursEnabled: true };
+    const choices = buildArcadeIntermissionChoices(runtimeFor(7, parcoursEntry), 2);
+    assert.equal(choices[0].modifierLabel, 'Kein Modifikator');
+
+    const { ArcadeRunRuntime } = await import('../src/core/arcade/ArcadeRunRuntime.js');
+    const runtime = new ArcadeRunRuntime();
+    runtime._state = {
+        mapSequence: ['standard', 'standard'],
+        completedSectors: 0,
+        intermission: { nextSectorIndex: 1, choices: [{ id: 'plain', mapKey: 'standard' }] },
+    };
+    runtime.selectIntermissionChoice('plain');
+    assert.equal(runtime._state.intermission.nextSectorPreview.modifierLabel, 'Kein Modifikator');
+});
+
 test('the run runtime swap reaches the sector profile with the new pressure', async () => {
     const { ArcadeRunRuntime } = await import('../src/core/arcade/ArcadeRunRuntime.js');
     const plan = buildArcadeSectorPlan({ seed: 5, sectorCount: 8, difficulty: 'normal' });

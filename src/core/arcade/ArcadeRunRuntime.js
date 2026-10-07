@@ -590,7 +590,7 @@ export class ArcadeRunRuntime {
             mapKey: selectedChoice.mapKey,
             mapLabel: selectedChoice.mapLabel,
             modifierId: selectedChoice.modifierId || null,
-            modifierLabel: selectedChoice.modifierLabel || 'Kein Modifier',
+            modifierLabel: selectedChoice.modifierLabel || 'Kein Modifikator',
             modifierEffect: selectedChoice.modifierEffect || '',
         };
         const nextSectorIndex = Math.max(1, toSafeInt(intermission.nextSectorIndex, this._state.completedSectors + 1));
