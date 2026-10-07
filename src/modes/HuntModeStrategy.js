@@ -2,7 +2,7 @@
 // HuntModeStrategy.js - Hunt mode (HP system, MG, rockets, respawn)
 // ============================================
 
-import { isRocketTierType, pickWeightedRocketTierType, resolveRocketTierDamage } from '../hunt/RocketPickupSystem.js';
+import { isRocketTierType, pickWeightedRocketTierType } from '../hunt/RocketPickupSystem.js';
 import { isPickupTypeAllowedForMode, normalizePickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
@@ -108,44 +108,6 @@ export class HuntModeStrategy extends GameModeContract {
     // --- Lifecycle (V84 / 84.3.2) ---
     bootstrap(_context) { /* no mode-specific init required */ }
     cleanup(_context) { /* no mode-specific teardown required */ }
-
-    computeRoundResult(players, context) {
-        const alivePlayers = (players || []).filter((p) => p && p.alive);
-        // Hunt: last alive wins; if multiple alive, pick by highest HP.
-        let winner = null;
-        if (alivePlayers.length === 1) {
-            winner = alivePlayers[0].playerIndex ?? null;
-        } else if (alivePlayers.length > 1) {
-            let maxHp = -Infinity;
-            for (const p of alivePlayers) {
-                const hp = toSafeNumber(p.hp, 0);
-                if (hp > maxHp) { maxHp = hp; winner = p.playerIndex ?? null; }
-            }
-        }
-        const scores = {};
-        for (const p of (players || [])) {
-            if (p && p.playerIndex != null) {
-                scores[p.playerIndex] = { kills: p.kills ?? 0, hp: toSafeNumber(p.hp, 0) };
-            }
-        }
-        return { modeType: this.modeType, winner, scores, roundIndex: context?.roundIndex ?? 0 };
-    }
-
-    computeMatchResult(players, roundResults, context) {
-        void players; void context;
-        const wins = {};
-        for (const r of (roundResults || [])) {
-            if (r?.winner != null) {
-                wins[r.winner] = (wins[r.winner] || 0) + 1;
-            }
-        }
-        let winnerIndex = null;
-        let maxWins = 0;
-        for (const [idx, count] of Object.entries(wins)) {
-            if (count > maxWins) { maxWins = count; winnerIndex = Number(idx); }
-        }
-        return { modeType: this.modeType, winnerIndex, roundResults: roundResults || [] };
-    }
 
     // --- Health & Damage ---
     resetPlayerHealth(player, config) {
@@ -349,32 +311,6 @@ export class HuntModeStrategy extends GameModeContract {
             homingRange: Math.max(10, Number(rocketConfig.HOMING_RANGE || 140)),
             homingReacquireInterval: Math.max(0.04, Number(rocketConfig.HOMING_REACQUIRE_INTERVAL || 0.08)),
         };
-    }
-
-    resolveProjectileHitOnPlayer(target, projectile, players, system) {
-        const damage = resolveRocketTierDamage(projectile.type, this.entityRuntimeConfig);
-        const damageResult = target.takeDamage(damage);
-        system?.onProjectilePowerup?.(target, projectile);
-        system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
-        this._applyRocketExplosion(projectile, players, target, system);
-    }
-
-    _applyRocketExplosion(projectile, players, directHitTarget, system) {
-        const rocketConfig = resolveConfig(null, this.entityRuntimeConfig)?.HUNT?.ROCKET || {};
-        const explosionRadius = Math.max(1, Number(rocketConfig.EXPLOSION_RADIUS || 25));
-        const explosionDamageFalloff = Math.max(0, Math.min(1, Number(rocketConfig.EXPLOSION_DAMAGE_FALLOFF || 0.5)));
-        const baseDamage = resolveRocketTierDamage(projectile.type, this.entityRuntimeConfig);
-        const damageAtCenter = baseDamage * (1 + explosionDamageFalloff);
-
-        for (const target of players || []) {
-            if (!target.alive || target === projectile.owner || target === directHitTarget) continue;
-            const distanceToTarget = target.position.distanceTo(projectile.position);
-            if (distanceToTarget > explosionRadius) continue;
-            const damageFalloff = 1 - (distanceToTarget / explosionRadius) * explosionDamageFalloff;
-            const explosionDamage = Math.max(1, Math.floor(damageAtCenter * damageFalloff));
-            const damageResult = target.takeDamage(explosionDamage);
-            system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
-        }
     }
 
     // --- Spawning ---

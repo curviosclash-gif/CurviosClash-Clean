@@ -78,7 +78,6 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._slotBonusesByVehicle = null;
         /** @type {any} */
         this._runRewardEffects = createDefaultArcadeRunRewardEffects();
-        this._roundScores = {};
         // 61.6.2: Sudden Death state
         this._sdActive = false;
         this._sdAccumulatedSeconds = 0;
@@ -117,62 +116,12 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     _resetRunTransientState() {
-        this._roundScores = {};
         this.exitSuddenDeath();
         this.setActiveModifier(null);
         this.setSectorType(null);
         this.setScenarioId(null);
         this.applyVehicleUpgrades(null);
         this.applyRunRewardEffects(null);
-    }
-
-    /**
-     * recordScore – accumulate a score delta for a player index during the run.
-     * Called by Arcade-specific game logic (sectors, kills, survival ticks).
-     */
-    recordScore(playerIndex, delta) {
-        const idx = Number(playerIndex);
-        if (!Number.isFinite(idx)) return;
-        this._roundScores[idx] = (this._roundScores[idx] || 0) + (Number.isFinite(delta) ? delta : 0);
-    }
-
-    computeRoundResult(players, context) {
-        const scores = {};
-        for (const p of (players || [])) {
-            if (p && p.playerIndex != null) {
-                const idx = p.playerIndex;
-                scores[idx] = {
-                    accumulatedScore: this._roundScores[idx] ?? 0,
-                    alive: !!p.alive,
-                    hp: toSafe(p.hp, 0),
-                };
-            }
-        }
-        // Arcade: highest accumulated score wins the round; ties prefer alive player.
-        let winner = null;
-        let best = -Infinity;
-        for (const [idx, s] of Object.entries(scores)) {
-            const effective = s.accumulatedScore + (s.alive ? 1000 : 0);
-            if (effective > best) { best = effective; winner = Number(idx); }
-        }
-        return { modeType: this.modeType, winner, scores, roundIndex: context?.roundIndex ?? 0 };
-    }
-
-    computeMatchResult(players, roundResults, _context) {
-        void players;
-        // Arcade typically has a single run (no multi-round), aggregate total scores.
-        const totalScores = {};
-        for (const r of (roundResults || [])) {
-            for (const [idx, s] of Object.entries(r?.scores || {})) {
-                totalScores[idx] = (totalScores[idx] || 0) + (s?.accumulatedScore ?? 0);
-            }
-        }
-        let winnerIndex = null;
-        let maxScore = -Infinity;
-        for (const [idx, score] of Object.entries(totalScores)) {
-            if (score > maxScore) { maxScore = score; winnerIndex = Number(idx); }
-        }
-        return { modeType: this.modeType, winnerIndex, totalScores, roundResults: roundResults || [] };
     }
 
     // 61.8.1: Apply vehicle upgrade slot bonuses (turning, speed, max HP)
@@ -571,18 +520,6 @@ export class ArcadeModeStrategy extends GameModeContract {
     resolveRocketProjectileParams(type, config) {
         return (this._huntCombat || (type === 'ROCKET_GUIDED' ? new HuntModeStrategy({ entityRuntimeConfig: config }) : null))?.resolveRocketProjectileParams(type, config) || null;
     }
-    resolveProjectileHitOnPlayer(target, projectile, players, system) {
-        if (this._huntCombat) {
-            return this._huntCombat.resolveProjectileHitOnPlayer(target, projectile, players, system);
-        }
-        if (target.hasShield) {
-            target.hasShield = false;
-        } else {
-            target.applyPowerup(projectile.type, { sourcePlayerIndex: projectile.owner?.index });
-            system?.onProjectilePowerup?.(target, projectile);
-        }
-    }
-
     // --- Spawning ---
     isRespawnEnabled() { return false; }
 

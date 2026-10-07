@@ -119,7 +119,6 @@ test('T20am1: Arcade-Map- und Missionsfolge folgen dem aktiven Run-Seed', () => 
 
 test('T20am2: Arcade-Strategy-Cleanup resettet Sudden-Death-Runstate', () => {
     const strategy = new ArcadeModeStrategy();
-    strategy.recordScore(0, 42);
     strategy.setActiveModifier('tight_turns');
     strategy.setSectorType(ARCADE_SECTOR_TYPES.PARCOURS);
     strategy.applyVehicleUpgrades({ turningBonusPct: 25, speedBonusPct: 20, maxHpBonus: 20 });
@@ -132,7 +131,6 @@ test('T20am2: Arcade-Strategy-Cleanup resettet Sudden-Death-Runstate', () => {
         turnRate: Number(strategy.getTurnRateMultiplier().toFixed(3)),
         speed: Number(strategy.getSpeedMultiplier().toFixed(3)),
         sectorType: strategy.getSectorType(),
-        score: strategy.computeRoundResult([{ playerIndex: 0, alive: true, hp: 100 }], {})?.scores?.[0]?.accumulatedScore,
     };
 
     strategy.cleanup();
@@ -145,7 +143,6 @@ test('T20am2: Arcade-Strategy-Cleanup resettet Sudden-Death-Runstate', () => {
         speed: strategy.getSpeedMultiplier(),
         activeModifier: strategy.getActiveModifier(),
         sectorType: strategy.getSectorType(),
-        score: strategy.computeRoundResult([{ playerIndex: 0, alive: true, hp: 100 }], {})?.scores?.[0]?.accumulatedScore,
     };
 
     assert.ok(before.suddenDeathActive);
@@ -153,7 +150,6 @@ test('T20am2: Arcade-Strategy-Cleanup resettet Sudden-Death-Runstate', () => {
     assert.notStrictEqual(before.turnRate, 1);
     assert.notStrictEqual(before.speed, 1);
     assert.strictEqual(before.sectorType, 'sector_parcours');
-    assert.strictEqual(before.score, 42);
     assert.ok(!after.suddenDeathActive);
     assert.strictEqual(after.stackedModifiers, 0);
     assert.strictEqual(after.damageMultiplier, 1);
@@ -161,5 +157,4 @@ test('T20am2: Arcade-Strategy-Cleanup resettet Sudden-Death-Runstate', () => {
     assert.strictEqual(after.speed, 1);
     assert.strictEqual(after.activeModifier, null);
     assert.strictEqual(after.sectorType, null);
-    assert.strictEqual(after.score, 0);
 });
