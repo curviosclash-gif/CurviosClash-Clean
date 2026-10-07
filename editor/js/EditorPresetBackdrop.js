@@ -1,5 +1,5 @@
 import { getCustomMapConversionScale } from '../../src/entities/CustomMapLoader.js';
-import { parseMapJSON, toArenaMapDefinition } from '../../src/entities/MapSchema.js';
+import { fromArenaMapDefinition, parseMapJSON, toArenaMapDefinition } from '../../src/entities/MapSchema.js';
 
 // A built-in map as backdrop: its world model, spawns and lighting become an editor map (saved
 // with it, so the match lights it the same), and
@@ -28,10 +28,16 @@ function hasWorldModel(preset) {
         && Array.isArray(preset?.size) && preset.size.length === 3;
 }
 
-/** Built-in maps with a world model, sorted by name. */
+function hasBlockLayout(preset) {
+    return Array.isArray(preset?.size) && preset.size.length === 3
+        && preset.size.every((value) => Number.isFinite(Number(value)))
+        && Array.isArray(preset?.obstacles) && preset.obstacles.length > 0;
+}
+
+/** Built-in maps with a world model or block layout, sorted by name. */
 export function listBackdropPresets(catalog) {
     return Object.entries(catalog || {})
-        .filter(([, preset]) => hasWorldModel(preset))
+        .filter(([, preset]) => hasWorldModel(preset) || hasBlockLayout(preset))
         .map(([key, preset]) => ({ key, name: String(preset.name || key) }))
         .sort((left, right) => left.name.localeCompare(right.name, 'de'));
 }
@@ -62,6 +68,13 @@ function adaptLightingToScaledAnchors(lighting, preset, mapScale) {
  * with scaleAuthoredAnchors, match world units without.
  */
 export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}) {
+    if (!Array.isArray(preset?.size) || preset.size.length !== 3) {
+        throw new Error('Preset needs a size of three numbers.');
+    }
+    if ((!Array.isArray(preset?.glbModels) || preset.glbModels.length === 0)
+        && Array.isArray(preset?.obstacles) && preset.obstacles.length > 0) {
+        return { document: fromArenaMapDefinition(preset, { mapScale }).document };
+    }
     const units = PRESET_EDITOR_UNITS_PER_MAP_UNIT;
     const anchorUnits = preset?.scaleAuthoredAnchors === true ? units : units / Math.max(0.001, finiteOr(mapScale, 3));
     const toAnchor = (entry, id) => (entry ? {
@@ -71,7 +84,7 @@ export function convertPresetToEditorDocument(key, preset, { mapScale = 3 } = {}
         z: finiteOr(entry.z, 0) * anchorUnits,
     } : undefined);
     const [width, height, depth] = preset.size.map((value) => finiteOr(value, 1) * units);
-    const glbModels = preset.glbModels.map((model, index) => {
+    const glbModels = (Array.isArray(preset.glbModels) ? preset.glbModels : []).map((model, index) => {
         const targetSize = finiteOr(model.targetSize, 0);
         return {
             id: `${model.id || key}#${BACKDROP_ID_PREFIX}${index + 1}`,

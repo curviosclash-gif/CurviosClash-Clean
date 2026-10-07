@@ -56,6 +56,66 @@ test('the backdrop list holds the built-in maps with a world model, all converte
     }
 });
 
+test('a block-only catalog map is offered and round-trips authored geometry through the editor', () => {
+    const preset = MAP_PRESET_CATALOG.glass_serpent;
+    assert.ok(preset);
+    assert.equal(preset.glbModels?.length || 0, 0);
+    assert.ok(preset.obstacles.length > 0);
+
+    const entries = listBackdropPresets(MAP_PRESET_CATALOG);
+    assert.ok(entries.some((entry) => entry.key === 'glass_serpent'));
+
+    const { document } = convertPresetToEditorDocument('glass_serpent', preset, { mapScale: MAP_SCALE });
+    assert.equal(getCustomMapConversionScale(document).scale, PRESET_EDITOR_UNITS_PER_MAP_UNIT);
+    assert.deepEqual(
+        [document.arenaSize.width, document.arenaSize.height, document.arenaSize.depth],
+        preset.size.map((value) => value * PRESET_EDITOR_UNITS_PER_MAP_UNIT),
+    );
+    assert.equal(document.glbModels.length, 0);
+    assert.ok(document.hardBlocks.length + document.foamBlocks.length + document.tunnels.length > 0);
+    const firstHardBlock = preset.obstacles.find((obstacle) => !obstacle.shape && obstacle.kind !== 'foam');
+    assert.equal(document.hardBlocks[0].width, firstHardBlock.size[0] * PRESET_EDITOR_UNITS_PER_MAP_UNIT);
+    assert.ok(document.portals.length > 0);
+    assert.equal(document.items.length, preset.items.length);
+    assert.equal(document.botSpawns.length, preset.botSpawns.length);
+
+    const { mapManager, load } = createEditor();
+    const arenaSize = load(document);
+    assert.ok(mapManager.getObjectCount() > 0);
+    const exported = exportPlacementsInPresetFormat(mapManager, arenaSize, { preset, mapScale: MAP_SCALE });
+    const signature = (obstacle) => JSON.stringify({
+        kind: obstacle.kind || 'hard',
+        shape: obstacle.shape || '',
+        pos: obstacle.pos?.map((value) => Math.round(value * 1e6) / 1e6) || [],
+        size: obstacle.size?.map((value) => Math.round(value * 1e6) / 1e6) || [],
+        start: obstacle.start?.map((value) => Math.round(value * 1e6) / 1e6) || [],
+        end: obstacle.end?.map((value) => Math.round(value * 1e6) / 1e6) || [],
+        radius: Number.isFinite(Number(obstacle.radius)) ? Math.round(Number(obstacle.radius) * 1e6) / 1e6 : null,
+    });
+    assert.deepEqual(exported.obstacles.map(signature).sort(), preset.obstacles.map(signature).sort());
+    assert.equal(exported.portals.length, preset.portals.length);
+    assert.equal(exported.items.length, preset.items.length);
+    assert.equal(exported.botSpawns.length, preset.botSpawns.length);
+    assert.equal(exported.glbModels, undefined);
+    near(exported.playerSpawn.x, preset.playerSpawn.x, 'player spawn x');
+    near(exported.playerSpawn.y, preset.playerSpawn.y, 'player spawn y');
+    near(exported.playerSpawn.z, preset.playerSpawn.z, 'player spawn z');
+});
+test('invalid block-only sizes are rejected without dereferencing a missing GLB list', () => {
+    assert.throws(
+        () => convertPresetToEditorDocument('invalid-block-map', { obstacles: [{ pos: [0, 0, 0], size: [1, 1, 1] }] }),
+        /size of three numbers/,
+    );
+    assert.throws(
+        () => convertPresetToEditorDocument('invalid-block-map', {
+            size: [Number.NaN, 10, 10],
+            obstacles: [{ pos: [0, 0, 0], size: [1, 1, 1] }],
+        }),
+        /size of three numbers/,
+    );
+    assert.equal(listBackdropPresets({ invalid: { size: [Number.NaN, 10, 10], obstacles: [{}] } }).length, 0);
+});
+
 test('the toybox backdrop round-trips its world and spawns through the editor export', () => {
     const preset = MAP_PRESET_CATALOG.toybox_titan;
     const { document } = convertPresetToEditorDocument('toybox_titan', preset, { mapScale: MAP_SCALE });
