@@ -1,4 +1,5 @@
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
+import { createMatchStatePort } from '../shared/runtime/MatchStatePort.js';
 
 function getMissingInteractiveMatchRuntimeKeys(game) {
     const missing = [];
@@ -41,7 +42,7 @@ export function ensureInteractiveMatchRuntime(game) {
             trigger: 'missing_match_runtime',
         });
     } else if (game) {
-        game.state = GAME_STATE_IDS.MENU;
+        createMatchStatePort(game).applyLifecycleTransition({ state: GAME_STATE_IDS.MENU });
     }
     return false;
 }
