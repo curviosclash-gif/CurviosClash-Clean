@@ -13,11 +13,6 @@ import { CURRENT_ARCADE_SCORE_MODEL } from '../../shared/contracts/ArcadeRunSett
 
 const ARCADE_MISSION_GENERATOR_VERSION = 'arcade-missions.v2';
 
-export function resolveArcadeObjectiveFailureReason(objectiveState, outcomeReason) {
-    return outcomeReason === 'ARCADE_OBJECTIVE_FAILED'
-        && objectiveState?.objectiveId === 'intercept' && objectiveState.failed === true
-        ? outcomeReason : '';
-}
 
 export function buildArcadeMissionSeed({
     scoreModel = CURRENT_ARCADE_SCORE_MODEL,

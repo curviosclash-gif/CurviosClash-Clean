@@ -92,6 +92,9 @@ function readScenario(page) {
             mode: manager.gameModeStrategy.modeType, pickupMode: manager.gameModeStrategy.getPickupModeType(),
             botCount: manager.bots.length,
             objectiveId: objective?.objectiveId, objectiveStatus: objective?.status,
+            objectiveFailed: objective?.failed === true, objectiveCompleted: objective?.completed === true,
+            lastSectorTimeBonus: run.lastSectorSummary?.breakdown?.time ?? null,
+            hasIntermission: Boolean(run.intermission),
             objectiveDuration: objective?.durationSec, breached: objective?.breachComplete === true,
             stoppedTanks: objective?.unitsDestroyed || 0,
             vaultOpen: manager.arena.portals.find((portal) => portal.roomId === 'vault')?.active === true,
@@ -131,21 +134,27 @@ test('Arcade wave three: destroy the bridge convoy and return to ordinary Arcade
     await expect.poll(() => readScenario(page)).toMatchObject({ scenarioId: '', pickupMode: 'ARCADE' });
 });
 
-test('Arcade wave three: first convoy arrival terminates the run despite a living pilot', async ({ page }, testInfo) => {
+test('Arcade wave three: a convoy breakthrough loses one sector and continues with a living pilot', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await startScenario(page, 'bridge_convoy');
-    // Advance the actual map-unit movement, with its authored routes and speeds. The fastest
-    // tank arrives first; the objective uses the resulting runtime event to fail the run.
+    // Advance the actual map-unit movement; the authored fastest tank triggers the failed objective.
     await page.evaluate(() => window.GAME_INSTANCE.entityManager._mapUnitSystem.update(40));
     await expect.poll(() => readScenario(page)).toMatchObject({
-        state: 'MATCH_END', phase: 'finished', objectiveStatus: 'failed', completedSectors: 2,
+        state: 'ROUND_END', phase: 'intermission', objectiveStatus: 'failed',
+        objectiveFailed: true, objectiveCompleted: false, completedSectors: 3,
+        lastSectorTimeBonus: 0, hasIntermission: true,
     });
     expect(await page.evaluate(() => window.GAME_INSTANCE.entityManager.humanPlayers[0].alive)).toBe(true);
-    await expect(page.locator('#message-text')).toContainText('Konvoi durchgebrochen');
-    await expect(page.locator('#btn-arcade-intermission-continue')).not.toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath('bridge-convoy-failure.png') });
+    await expect(page.locator('#message-text')).toContainText('Sektor 3/5 verloren');
+    await expect(page.locator('#btn-arcade-intermission-continue')).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('bridge-convoy-failure-intermission.png') });
+    await page.click('#btn-arcade-intermission-continue');
+    await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
+        && window.GAME_INSTANCE.runtimeFacade.arcadeRunRuntime.getStateSnapshot().sectorIndex === 4);
+    await expect.poll(() => readScenario(page)).toMatchObject({
+        sectorIndex: 4, completedSectors: 3, scenarioId: '', pickupMode: 'ARCADE',
+    });
 });
-
 test('Arcade wave three: the vault requires a leg, opens its portal, then accepts the boss kill', async ({ page }, testInfo) => {
     test.setTimeout(240_000);
     await startScenario(page, 'vault_breaker');
