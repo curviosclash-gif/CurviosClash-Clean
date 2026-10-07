@@ -1,4 +1,5 @@
-import { applyHealing, grantShield } from '../../hunt/HealthSystem.js';
+import { applyHeal } from '../combat/CombatPipeline.js';
+import { grantShield } from '../../hunt/HealthSystem.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { isPickupTypeAllowedForMode, getPickupDefinition } from '../PickupRegistry.js';
@@ -386,12 +387,8 @@ export function applyPlayerPowerup(player, type, options = {}) {
     }
 
     if (type === 'HEALTH') {
-        const runtimeConfig = resolveEntityRuntimeConfig(player);
-        const strategy = player.entityManager?.gameModeStrategy || null;
         const healing = Number(definition.healing) || 0;
-        const healResult = typeof strategy?.applyHealing === 'function'
-            ? strategy.applyHealing(player, healing, runtimeConfig)
-            : applyHealing(player, healing, runtimeConfig);
+        const healResult = applyHeal(player.entityManager || player, { target: player, amount: healing });
         if (healResult.healed > 0) {
             player.entityManager?._emitArcadeGameplayEvent?.({
                 type: 'health_update',
