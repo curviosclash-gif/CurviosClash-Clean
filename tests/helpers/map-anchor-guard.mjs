@@ -32,6 +32,7 @@ export const CHECKS = Object.freeze([
     'free-directions',
     'item-type',
     'item-duplicate',
+    'checkpoint-duplicate-id',
     'light-reach',
 ]);
 
@@ -280,6 +281,24 @@ export function analyzeMapAnchors(mapKey, map, mapScale) {
 
     if (map?.playerSpawn) checkSpawn(map.playerSpawn, 'playerSpawn');
     (Array.isArray(map?.botSpawns) ? map.botSpawns : []).forEach((entry, index) => checkSpawn(entry, `botSpawns[${index}]`));
+
+    // Match the runtime's enabled-route ID normalization and per-array-index fallback. Duplicate
+    // IDs share canonical, inside and cooldown maps; aliases remain valid when their IDs differ.
+    if (map?.parcours?.enabled === true && Array.isArray(map.parcours.checkpoints)) {
+        const checkpointIndicesById = new Map();
+        map.parcours.checkpoints.forEach((checkpoint, index) => {
+            if (!checkpoint || typeof checkpoint !== 'object' || Array.isArray(checkpoint)) return;
+            const authoredId = typeof checkpoint?.id === 'string' ? checkpoint.id.trim() : '';
+            const checkpointId = authoredId || `CP${String(index + 1).padStart(2, '0')}`;
+            const firstIndex = checkpointIndicesById.get(checkpointId);
+            if (firstIndex !== undefined) {
+                add('checkpoint-duplicate-id', `parcours.checkpoints[${index}]`,
+                    `checkpoint ID ${checkpointId} duplicates parcours.checkpoints[${firstIndex}]`);
+            } else {
+                checkpointIndicesById.set(checkpointId, index);
+            }
+        });
+    }
 
     const itemWorlds = [];
     (Array.isArray(map?.items) ? map.items : []).forEach((entry, index) => {
