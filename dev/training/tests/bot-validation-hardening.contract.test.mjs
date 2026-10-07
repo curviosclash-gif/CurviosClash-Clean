@@ -11,6 +11,7 @@ import {
     buildBotValidationRuntimeVerification,
 } from '../src/state/validation/BotValidationService.js';
 import { buildBotValidationOutcomeSemantics } from '../src/state/validation/BotValidationOutcomeSemantics.js';
+import { createRuntimeConfigSnapshot } from '../../../src/core/RuntimeConfig.js';
 import {
     captureBotRuntimeSample,
     isTeamObjectiveFirstTickScenario,
@@ -281,6 +282,75 @@ test('heuristic validation selection filters before limiting and rejects unknown
     );
 });
 
+test('validation matrix matches the current runtime policy contract for every scenario', () => {
+    // Keep this expected list independent of the runtime resolver and training benchmark source.
+    const expectedPolicyById = new Map([
+        // Auto in 3D Classic flies the Classic bridge; switching it to the heuristic awaits a decision.
+        ['V1', 'classic-3d'],
+        ['V2', 'classic-2d'],
+        ['V3', 'hunt-2d'],
+        ['V4', 'hunt-3d'],
+        ['H-CLASSIC', 'heuristic'],
+        ['H-FIGHT', 'heuristic'],
+        ['H-FIGHT-DUEL', 'heuristic'],
+        ['H-FIGHT-SURVIVAL', 'heuristic'],
+        ['H-ARCADE', 'heuristic'],
+        ['H-CLASSIC-2D-EASY', 'heuristic'],
+        ['H-CLASSIC-3D-HARD', 'heuristic'],
+        ['H-FIGHT-2D-HARD', 'heuristic'],
+        ['H-ARCADE-VERTICAL', 'heuristic'],
+        ['H-TEAM-FLAGS', 'heuristic'],
+        ['H-TEAM-ESCORT', 'heuristic'],
+    ]);
+    const matrix = getBotValidationMatrix();
+    assert.deepEqual(matrix.map(({ id }) => id), [...expectedPolicyById.keys()]);
+
+    for (const scenario of matrix) {
+        const expectedPolicyType = expectedPolicyById.get(scenario.id);
+        assert.equal(scenario.expectedPolicyType, expectedPolicyType, `${scenario.id} matrix policy`);
+        const runtimeConfig = createRuntimeConfigSnapshot({
+            mode: scenario.mode,
+            gameMode: scenario.gameMode,
+            botPolicyStrategy: scenario.botPolicyStrategy,
+            gameplay: { planarMode: scenario.planarMode },
+            localSettings: { modePath: scenario.gameMode === 'ARCADE' ? 'arcade' : 'normal' },
+            hunt: { teamMode: scenario.teamMode, teamObjective: scenario.teamObjective },
+        });
+        assert.equal(runtimeConfig.bot.policyType, expectedPolicyType, `${scenario.id} runtime policy`);
+        const botCount = scenario.expectedRuntimeBotCount;
+        const verification = buildBotValidationRuntimeVerification(scenario, [{
+            runtimePolicyType: expectedPolicyType,
+            entityPolicyType: expectedPolicyType,
+            botPolicyTypes: new Array(botCount).fill(expectedPolicyType),
+            botCount,
+            botDecisions: new Array(botCount).fill(null).map(() => ({
+                policyType: expectedPolicyType,
+                snapshot: { profile: scenario.heuristicProfile, difficulty: scenario.botDifficulty.toLowerCase() },
+            })),
+            runtimeGameMode: scenario.gameMode,
+            entityGameMode: scenario.gameMode,
+            semanticGameMode: scenario.gameMode,
+            modePath: scenario.gameMode.toLowerCase(),
+            arcadeEnabled: scenario.gameMode === 'ARCADE',
+            arcadeSeed: scenario.gameMode === 'ARCADE' ? scenario.seedBase : null,
+        }]);
+        assert.equal(verification.policy.ok, true, `${scenario.id} valid policy sample`);
+        assert.equal(buildBotValidationRuntimeVerification(scenario, [{
+            runtimePolicyType: 'rule-based',
+            entityPolicyType: 'rule-based',
+            botPolicyTypes: new Array(botCount).fill('rule-based'),
+            botCount,
+            botDecisions: new Array(botCount).fill(null).map(() => ({ policyType: 'rule-based' })),
+            runtimeGameMode: scenario.gameMode,
+            entityGameMode: scenario.gameMode,
+            semanticGameMode: scenario.gameMode,
+            modePath: scenario.gameMode.toLowerCase(),
+            arcadeEnabled: scenario.gameMode === 'ARCADE',
+            arcadeSeed: scenario.gameMode === 'ARCADE' ? scenario.seedBase : null,
+        }]).policy.ok, false, `${scenario.id} incorrect policy sample`);
+    }
+});
+
 test('Arcade validation preserves the ARCADE runtime contract and mode-specific setup state', () => {
     const service = new BotValidationService();
     let settingsChanged = 0;
@@ -468,6 +538,7 @@ test('runner applies selected ids, records real bot deaths, and analysis default
         readFile(new URL('../scripts/bot-validation-first-tick.mjs', import.meta.url), 'utf8'),
     ]);
     assert.match(runnerSource, /applyBotValidationScenario\(scenarioId\)/);
+    assert.match(runnerSource, /chromium\.launch\(\{\s+headless: HEADLESS,\s+\.\.\.\(HEADLESS \? \{ channel: 'chromium' \} : \{\}\),\s+args:/);
     assert.match(runnerSource, /acquirePlaywrightRunLock\(\{ label: 'bot validation' \}\)/);
     assert.match(runnerSource, /execSync\('npm run build:app'/);
     assert.match(runnerSource, /await g\.runtimeCoordinator\.startMatch\(\{ source: 'bot_validation' \}\)/);

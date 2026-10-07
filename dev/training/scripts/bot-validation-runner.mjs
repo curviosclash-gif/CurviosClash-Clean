@@ -1374,7 +1374,11 @@ async function run() {
 
             const browserLaunchStartedAt = Date.now();
             browser = await withTimeout(
-                () => chromium.launch({ headless: HEADLESS, args: ['--no-proxy-server'] }),
+                () => chromium.launch({
+                    headless: HEADLESS,
+                    ...(HEADLESS ? { channel: 'chromium' } : {}),
+                    args: ['--no-proxy-server'],
+                }),
                 resolveTimeout(APP_READY_TIMEOUT_MS, 'browser:launch', [runDeadline]),
                 'browser:launch'
             );
