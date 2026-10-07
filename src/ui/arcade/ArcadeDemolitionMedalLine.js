@@ -43,4 +43,5 @@ export function bindArcadeDemolitionMedalLine(startButton, bind, getStore) {
     // The option, not the button: the button's own click binding stays the only one on it.
     bind(option, 'pointerenter', refresh);
     bind(option, 'focusin', refresh);
+    return refresh;
 }

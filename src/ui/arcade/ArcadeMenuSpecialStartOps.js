@@ -24,5 +24,5 @@ export function bindArcadeSpecialStartButtons(refs, bind, startRunWithOwnMap, ge
         const firstMap = createDemolitionMapPlan(getSeed()).maps[0];
         startRunWithOwnMap('demolition', { mapKey: firstMap.mapKey, numBots: firstMap.botCount });
     });
-    bindArcadeDemolitionMedalLine(refs.startDemolitionButton, bind, () => runtimeAccess?.getSettingsStore?.() || null);
+    return bindArcadeDemolitionMedalLine(refs.startDemolitionButton, bind, () => runtimeAccess?.getSettingsStore?.() || null);
 }
