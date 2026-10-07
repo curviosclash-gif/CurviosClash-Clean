@@ -210,7 +210,7 @@ export class ArenaWavesRuntime {
         if (!victim?.isBot) return null;
         const slot = this.entityManager?.bots?.findIndex((entry) => entry?.player === victim);
         if (!this._activeSlots.has(slot)) return null;
-        const creditedHuman = this.entityManager?.humanPlayers?.some((player) => player?.index === event.playerIndex);
+        const creditedHuman = this.entityManager?.humanPlayers?.find((player) => player?.index === event.playerIndex) || null;
         if (creditedHuman) {
             trackArcadeColorEvent(this._colorProgress, event);
             if (this._eliteSlots.has(slot)) this.eliteKills += 1; else this.regularKills += 1;
@@ -225,7 +225,7 @@ export class ArenaWavesRuntime {
             if (result) this.xpEarned += result.earned;
             if (result && !partner) this.vehicleXpEarned += result.earned;
         }
-        this._deactivateSlot(slot, 'killed', { creditedHuman });
+        this._deactivateSlot(slot, 'killed', { creditedHuman: creditedHuman?.alive === true });
         return this.getHudState();
     }
     _completeWave(wave) { this.completedWaves.push(wave); trackArcadeColorEvent(this._colorProgress, { type: 'wave_complete', completedWaves: this.completedWaves.length }); }
