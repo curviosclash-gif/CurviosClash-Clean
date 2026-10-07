@@ -1043,7 +1043,9 @@ export class ArcadeRunRuntime {
             this._state.intermission = null;
         } else {
             this.applyGameplayEvent({ type: 'sector_complete', elapsed: this._sectorElapsedSeconds });
-            this._state = completeArcadeSector(this._state, nowMs);
+            this._state = completeArcadeSector(this._state, nowMs, {
+                simulatedDurationSec: this._sectorElapsedSeconds,
+            });
             this._prepareIntermission(nowMs);
         }
         const scoreTotal = Math.max(0, toSafeNumber(this._state?.score?.total, 0));

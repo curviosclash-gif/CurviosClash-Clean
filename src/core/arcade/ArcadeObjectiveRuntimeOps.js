@@ -9,6 +9,7 @@ import {
 import { ARCADE_SECTOR_OBJECTIVES } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { getRuntimeMapCatalog, getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { resolveArcadeSectorObjectiveDefinition } from '../../shared/contracts/ArcadeScenarioContract.js';
+import { CURRENT_ARCADE_SCORE_MODEL } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 
 const ARCADE_MISSION_GENERATOR_VERSION = 'arcade-missions.v2';
 
@@ -19,7 +20,7 @@ export function resolveArcadeObjectiveFailureReason(objectiveState, outcomeReaso
 }
 
 export function buildArcadeMissionSeed({
-    scoreModel = 'arcade-score.v3',
+    scoreModel = CURRENT_ARCADE_SCORE_MODEL,
     activeSeed = 0,
     sectorIndex = 1,
     encounterId = '',
@@ -28,7 +29,7 @@ export function buildArcadeMissionSeed({
 } = {}) {
     return [
         ARCADE_MISSION_GENERATOR_VERSION,
-        String(scoreModel || 'arcade-score.v3'),
+        String(scoreModel || CURRENT_ARCADE_SCORE_MODEL),
         Math.max(0, Number(activeSeed) || 0),
         Math.max(1, Number(sectorIndex) || 1),
         String(encounterId || templateId || 'sector_intro'),

@@ -213,7 +213,7 @@ export const SOURCE_EXCEPTIONS = {
         exception('    nowMs = Date.now(),', 'Date.now', 1, 'persisted run epoch default'),
         exception('export function setArcadeRunPhase(state, nextPhase, nowMs = Date.now()) {', 'Date.now', 1, 'persisted run epoch default'),
         exception('export function beginArcadeSector(state, nowMs = Date.now()) {', 'Date.now', 1, 'persisted run epoch default'),
-        exception('export function completeArcadeSector(state, nowMs = Date.now()) {', 'Date.now', 1, 'persisted run epoch default'),
+        exception('export function completeArcadeSector(state, nowMs = Date.now(), { simulatedDurationSec = undefined } = {}) {', 'Date.now', 1, 'persisted run epoch default'),
     ],
     'src/state/arcade/ArcadeRunRanking.js': [
         exception('export function settleArcadeRunRanking(runtime, result, nowMs = Date.now()) {', 'Date.now', 1, 'persisted ranking epoch default'),
