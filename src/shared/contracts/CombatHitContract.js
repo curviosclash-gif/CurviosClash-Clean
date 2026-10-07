@@ -8,6 +8,8 @@
  * @property {object | null} [impactPoint]
  * @property {object | null} [hitNormal]
  * @property {string | null} [projectileType]
+ * @property {'ALLOW_WITHOUT_KILL_CREDIT' | null} [selfDamagePolicy]
+ * @property {string | null} [deathCause]
  * @property {boolean} [emitDamageEvent]
  */
 
@@ -28,6 +30,8 @@ export function normalizeCombatHitInput(input) {
     if (hit.weaponKind != null && typeof hit.weaponKind !== 'string') return null;
     if (hit.sourcePlayer != null && typeof hit.sourcePlayer !== 'object') return null;
     if (hit.emitDamageEvent != null && typeof hit.emitDamageEvent !== 'boolean') return null;
+    if (hit.selfDamagePolicy != null && hit.selfDamagePolicy !== 'ALLOW_WITHOUT_KILL_CREDIT') return null;
+    if (hit.deathCause != null && (typeof hit.deathCause !== 'string' || !hit.deathCause.trim())) return null;
 
     return {
         ...hit,
@@ -39,6 +43,8 @@ export function normalizeCombatHitInput(input) {
         impactPoint: hit.impactPoint && typeof hit.impactPoint === 'object' ? hit.impactPoint : null,
         hitNormal: hit.hitNormal && typeof hit.hitNormal === 'object' ? hit.hitNormal : null,
         projectileType: typeof hit.projectileType === 'string' ? hit.projectileType : null,
+        selfDamagePolicy: hit.selfDamagePolicy === 'ALLOW_WITHOUT_KILL_CREDIT' ? hit.selfDamagePolicy : null,
+        deathCause: typeof hit.deathCause === 'string' ? hit.deathCause.trim() : null,
         emitDamageEvent: hit.emitDamageEvent !== false,
     };
 }

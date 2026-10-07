@@ -97,23 +97,14 @@ function applyBlast(system, unit, sourcePlayer) {
     for (const player of owner?.players || []) {
         if (!player?.alive || !player.position || isSpawnProtected(player)) continue;
         const damage = blastDamageAt(player.position.distanceTo(centre), radius);
-        if (damage <= 0 || typeof player.takeDamage !== 'function') continue;
-        const damageResult = player.takeDamage(damage);
-        owner?._emitHuntDamageEvent?.({
-            target: player,
+        if (damage <= 0 || typeof owner?._applyModeDamage !== 'function') continue;
+        owner._applyModeDamage(player, damage, MAP_UNIT_BLAST.cause, {
             sourcePlayer,
-            cause: MAP_UNIT_BLAST.cause,
-            damageResult,
             impactPoint: centre,
+            projectileType: MAP_UNIT_BLAST.cause,
+            selfDamagePolicy: 'ALLOW_WITHOUT_KILL_CREDIT',
+            deathCause: 'PROJECTILE',
         });
-        if (damageResult?.isDead) {
-            owner?._killPlayer?.(player, 'PROJECTILE', {
-                // Caught in the blast of your own kill is no kill for anyone.
-                killer: sourcePlayer === player ? null : sourcePlayer,
-                impactPoint: centre,
-                projectileType: MAP_UNIT_BLAST.cause,
-            });
-        }
     }
     // Other tanks and turrets take the blast too, so a column of tanks can go up in a chain.
     const targets = [...(owner?._targetableRegistry?.collect?.() || [])];

@@ -57,10 +57,16 @@ test('combat input contracts normalize optional metadata and reject invalid hits
         impactPoint: null,
         hitNormal: null,
         projectileType: null,
+        selfDamagePolicy: null,
+        deathCause: null,
         emitDamageEvent: true,
     });
     assert.equal(normalizeCombatHitInput({ target, amount: -1 }), null);
     assert.equal(normalizeCombatHitInput({ target, amount: Infinity }), null);
+    assert.equal(normalizeCombatHitInput({ target, amount: 1, selfDamagePolicy: 'ALLOW_TEAM_DAMAGE' }), null);
+    assert.equal(normalizeCombatHitInput({ target, amount: 1, selfDamagePolicy: true }), null);
+    assert.equal(normalizeCombatHitInput({ target, amount: 1, deathCause: false }), null);
+    assert.equal(normalizeCombatHitInput({ target, amount: 1, deathCause: ' ' }), null);
     assert.equal(normalizeCombatHitInput({ amount: 1 }), null);
     assert.equal(normalizeCombatHealInput({ target, amount: 4 }).amount, 4);
     assert.equal(normalizeCombatHealInput({ target, amount: NaN }), null);
@@ -179,6 +185,35 @@ test('team crash damage is applied but teammate death has no killer credit', () 
     assert.equal(rows.find((row) => row.playerIndex === teammate.index).kills, 0);
     assert.equal(rows.find((row) => row.playerIndex === teammate.index).points, 0);
     assert.equal(rows.find((row) => row.playerIndex === target.index).deaths, 1);
+});
+
+test('self blast policy applies only to the source and separates event from death cause', () => {
+    const source = createPlayer({ index: 0, teamId: TEAM_IDS.ALPHA, hp: 5 });
+    const teammate = createPlayer({ index: 1, teamId: TEAM_IDS.ALPHA, hp: 5 });
+    const harness = createWorld(new HuntModeStrategy(), [source, teammate]);
+    const hit = {
+        amount: 10,
+        cause: 'TANK_EXPLOSION',
+        projectileType: 'TANK_EXPLOSION',
+        sourcePlayer: source,
+        selfDamagePolicy: 'ALLOW_WITHOUT_KILL_CREDIT',
+        deathCause: 'PROJECTILE',
+    };
+
+    const selfResult = applyHit(harness.world, { ...hit, target: source });
+    assert.equal(selfResult.isDead, true);
+    assert.equal(harness.events.length, 1);
+    assert.equal(harness.events[0].cause, 'TANK_EXPLOSION');
+    assert.equal(harness.events[0].projectileType, 'TANK_EXPLOSION');
+    assert.equal(harness.kills.length, 1);
+    assert.equal(harness.kills[0].cause, 'PROJECTILE');
+    assert.equal(harness.kills[0].options.killer, null);
+    assert.equal(harness.kills[0].options.projectileType, 'TANK_EXPLOSION');
+
+    const teammateResult = applyHit(harness.world, { ...hit, target: teammate });
+    assert.equal(teammateResult.blocked, 'TEAM');
+    assert.equal(harness.events.length, 1, 'blocked teammate damage emits nothing');
+    assert.equal(harness.kills.length, 1, 'blocked teammate damage creates no death');
 });
 
 test('healing caps at the active mode maximum, allows spawn-protected targets, and blocks dead targets', () => {
