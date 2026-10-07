@@ -11,10 +11,14 @@ import { buildBotValidationRuntimeVerification } from '../src/state/validation/B
 import {
     BOT_VALIDATION_TARGETS,
     buildBotValidationOutcomeSemantics,
+    isObjectiveObservationScenario,
     isSurvivalObservationScenario,
 } from '../src/state/validation/BotValidationOutcomeSemantics.js';
 import { buildBotValidationSurvivalMetrics } from '../src/state/validation/BotValidationSurvivalMetrics.js';
-import { buildBotValidationRuntimeMetrics } from '../src/state/validation/BotValidationRuntimeMetrics.js';
+import {
+    buildBotValidationObjectiveMetrics,
+    buildBotValidationRuntimeMetrics,
+} from '../src/state/validation/BotValidationRuntimeMetrics.js';
 import { buildBotValidationCombatMetrics } from '../src/state/validation/BotValidationCombatMetrics.js';
 import {
     captureBotRuntimeSample,
@@ -731,6 +735,83 @@ async function waitForGameState(page, expectedStates, timeoutMs, phase) {
     }
 }
 
+async function captureBotObjectiveSnapshot(page, phasePrefix, deadlines) {
+    return evaluatePhase(
+        page,
+        `${phasePrefix}:objective-observation`,
+        resolveTimeout(EVAL_TIMEOUT_MS, `${phasePrefix}:objective-observation`, deadlines),
+        () => {
+            const game = window.GAME_INSTANCE;
+            const entityManager = game?.entityManager;
+            if (!game || !entityManager) throw new Error('GAME_INSTANCE runtime missing');
+            const finitePosition = (position) => position && [position.x, position.y, position.z].every(Number.isFinite)
+                ? { x: position.x, y: position.y, z: position.z }
+                : null;
+            const bots = (Array.isArray(entityManager.players) ? entityManager.players : [])
+                .filter((player) => player?.isBot === true)
+                .map((player) => {
+                    const objectiveType = String(player.botObjectiveType || '').trim().toUpperCase();
+                    const objectiveRole = objectiveType === 'FLAGS'
+                        ? player.flagBotRole
+                        : objectiveType === 'ESCORT' ? player.escortBotRole : '';
+                    return {
+                        playerIndex: Number(player.index ?? -1),
+                        teamId: String(player.teamId || '').trim().toUpperCase(),
+                        objectiveType,
+                        objectiveRole: String(objectiveRole || '').trim().toUpperCase(),
+                        objectiveTargetId: objectiveType === 'FLAGS'
+                            ? String(player.flagBotTargetId || '').trim()
+                            : '',
+                        position: finitePosition(player.position),
+                        nearEscortTank: entityManager._mapUnitSystem?.isPositionNearEscortTank?.(player.position) === true,
+                    };
+                });
+            const flags = Array.isArray(entityManager._flagObjectiveSystem?.flags)
+                ? entityManager._flagObjectiveSystem.flags.map((flag) => ({
+                    id: String(flag.id || ''),
+                    teamId: String(flag.teamId || '').trim().toUpperCase(),
+                    hp: Number(flag.hp),
+                    maxHp: Number(flag.maxHp),
+                    position: finitePosition(flag.position),
+                }))
+                : [];
+            const escort = entityManager._mapUnitSystem?.getEscortObjectiveState?.() || null;
+            const scoreboard = entityManager.getHuntScoreboard?.() || [];
+            return {
+                gameState: String(game.state || ''),
+                simulationSeconds: Math.max(0, Number(entityManager._simulationClockMs) || 0) * 0.001,
+                bots,
+                flags,
+                flagCaptureEvent: entityManager._flagObjectiveSystem?.captureEvent
+                    ? { ...entityManager._flagObjectiveSystem.captureEvent }
+                    : null,
+                escort: escort ? {
+                    phase: String(escort.phase || ''),
+                    progress: Number(escort.progress),
+                    checkpointsReached: Number(escort.checkpointsReached),
+                    checkpointCount: Number(escort.checkpointCount),
+                    hp: Number(escort.hp),
+                    maxHp: Number(escort.maxHp),
+                    position: finitePosition(escort.position),
+                } : null,
+                scoreboard: scoreboard.map((row) => ({
+                    playerIndex: Number(row.playerIndex),
+                    flagCaptures: Number(row.flagCaptures) || 0,
+                    escortSeconds: Number(row.escortSeconds) || 0,
+                    escortTankDamage: Number(row.escortTankDamage) || 0,
+                    escortGuardKills: Number(row.escortGuardKills) || 0,
+                    escortAttackKills: Number(row.escortAttackKills) || 0,
+                    escortCheckpointContributions: Number(row.escortCheckpointContributions) || 0,
+                    escortRepairHp: Number(row.escortRepairHp) || 0,
+                    escortRecoveries: Number(row.escortRecoveries) || 0,
+                    escortTankDowns: Number(row.escortTankDowns) || 0,
+                    escortFinalDestructions: Number(row.escortFinalDestructions) || 0,
+                })),
+            };
+        }
+    );
+}
+
 async function evaluatePhase(page, phase, timeoutMs, pageFunction, arg) {
     try {
         return await withTimeout(() => page.evaluate(pageFunction, arg), timeoutMs, phase);
@@ -945,21 +1026,50 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
 
     let forced = false;
     let observationCompleted = false;
-    if (isSurvivalObservationScenario(scenario)) {
+    const objectiveObservation = isObjectiveObservationScenario(scenario);
+    const survivalObservation = isSurvivalObservationScenario(scenario);
+    let objectiveSnapshots = [];
+    let naturalObjectiveOutcomeObserved = false;
+    if (survivalObservation || objectiveObservation) {
         stats.observationRuns += 1;
         const observationMs = Math.max(1000, Number(scenario.observationSeconds) * 1000);
-        await withTimeout(
-            () => sleep(observationMs),
-            resolveTimeout(observationMs + 1000, `${roundLabel}:observe-survival`, deadlines),
-            `${roundLabel}:observe-survival`
-        );
-        const stateAtObservationEnd = await evaluatePhase(
-            page,
-            `${roundLabel}:read-observation-end-state`,
-            resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:read-observation-end-state`, deadlines),
-            () => window.GAME_INSTANCE?.state || null
-        );
-        observationCompleted = stateAtObservationEnd === 'PLAYING';
+        if (objectiveObservation) {
+            let stateAtObservationEnd = stateAfterStart;
+            objectiveSnapshots.push(await captureBotObjectiveSnapshot(page, `${roundLabel}:objective-start`, deadlines));
+            let observedMs = 0;
+            while (observedMs < observationMs && !['ROUND_END', 'MATCH_END'].includes(stateAtObservationEnd)) {
+                const intervalMs = Math.min(5000, observationMs - observedMs);
+                await withTimeout(
+                    () => sleep(intervalMs),
+                    resolveTimeout(intervalMs + 1000, `${roundLabel}:observe-objective`, deadlines),
+                    `${roundLabel}:observe-objective`
+                );
+                observedMs += intervalMs;
+                const sample = await captureBotObjectiveSnapshot(
+                    page,
+                    `${roundLabel}:objective-sample-${objectiveSnapshots.length + 1}`,
+                    deadlines,
+                );
+                objectiveSnapshots.push(sample);
+                stateAtObservationEnd = sample.gameState;
+            }
+            naturalObjectiveOutcomeObserved = ['ROUND_END', 'MATCH_END'].includes(stateAtObservationEnd);
+            if (naturalObjectiveOutcomeObserved) stats.naturalObjectiveOutcomeObserved = true;
+            observationCompleted = naturalObjectiveOutcomeObserved || observedMs >= observationMs;
+        } else {
+            await withTimeout(
+                () => sleep(observationMs),
+                resolveTimeout(observationMs + 1000, `${roundLabel}:observe-survival`, deadlines),
+                `${roundLabel}:observe-survival`
+            );
+            const stateAtObservationEnd = await evaluatePhase(
+                page,
+                `${roundLabel}:read-observation-end-state`,
+                resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:read-observation-end-state`, deadlines),
+                () => window.GAME_INSTANCE?.state || null
+            );
+            observationCompleted = stateAtObservationEnd === 'PLAYING';
+        }
         if (observationCompleted) stats.completedObservations += 1;
     } else if (stateAfterStart !== 'ROUND_END' && stateAfterStart !== 'MATCH_END') {
         try {
@@ -993,7 +1103,7 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
             if (game?.__botValidationCombatTraceTimer) clearInterval(game.__botValidationCombatTraceTimer);
             if (game) game.__botValidationCombatTraceTimer = null;
         });
-    if (isSurvivalObservationScenario(scenario)) {
+    if (survivalObservation || objectiveObservation) {
         const observation = await evaluatePhase(
             page,
             `${roundLabel}:capture-survival-observation`,
@@ -1012,6 +1122,10 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
             scenarioId: scenario.id,
             round: roundNumber,
             observationCompleted,
+            ...(objectiveObservation ? {
+                objectiveSnapshots,
+                naturalObjectiveOutcomeObserved,
+            } : {}),
         });
     }
 
@@ -1067,7 +1181,7 @@ function quantile(sortedValues, ratio) {
     return sortedValues[lowerIndex] * (1 - weight) + sortedValues[upperIndex] * weight;
 }
 
-function buildScenarioMetrics(rounds, runtimeSamples = [], survivalObservations = []) {
+function buildScenarioMetrics(scenario, rounds, runtimeSamples = [], survivalObservations = []) {
     const played = rounds.length;
     const outcomeRounds = rounds.filter((round) => round?.forced !== true);
     const outcomePlayed = outcomeRounds.length;
@@ -1092,6 +1206,7 @@ function buildScenarioMetrics(rounds, runtimeSamples = [], survivalObservations 
     const parcoursCompletions = rounds.filter((round) => round?.parcoursCompleted === true).length;
     const parcoursCheckpointCount = sumBy(rounds, (round) => round.parcoursCheckpointCount);
     const runtimeMetrics = buildBotValidationRuntimeMetrics(runtimeSamples, totalDuration);
+    const objectiveProgress = buildBotValidationObjectiveMetrics(scenario, survivalObservations);
     return {
         rounds: played,
         outcomeRounds: outcomePlayed,
@@ -1121,6 +1236,7 @@ function buildScenarioMetrics(rounds, runtimeSamples = [], survivalObservations 
         projectileHitRate: projectileShots > 0 ? rocketHits / projectileShots : 0,
         parcoursCompletionRate: played > 0 ? parcoursCompletions / played : 0,
         parcoursCheckpointsPerRound: played > 0 ? parcoursCheckpointCount / played : 0,
+        objectiveProgress,
         ...runtimeMetrics,
     };
 }
@@ -1163,6 +1279,19 @@ function formatSeconds(value) {
 
 function formatNumber(value) {
     return Number(value || 0).toFixed(2);
+}
+
+function formatObjectiveObservationSummary(scenario, metrics) {
+    if (scenario?.teamMode !== true) return '-';
+    const progress = metrics?.objectiveProgress;
+    if (!progress) return 'not observed';
+    const evidence = progress.evidence || {};
+    const assignments = `${metrics.objectiveBotSampleCount}/${metrics.objectiveBotExpectedSampleCount} assignments`;
+    const outcome = progress.naturalOutcomeObserved === true ? 'natural outcome' : 'ongoing';
+    if (progress.objectiveType === 'FLAGS') {
+        return `${assignments}; A att/def/cap=${evidence.alphaAttackerApproachPairs || 0}/${evidence.alphaDefenderApproachPairs || 0}/${evidence.alphaCaptures || 0}; B att/def/cap=${evidence.bravoAttackerApproachPairs || 0}/${evidence.bravoDefenderApproachPairs || 0}/${evidence.bravoCaptures || 0}; flag HPΔ=${formatNumber(evidence.enemyFlagHpDamage)}; missed capture events=${evidence.unattributedCaptureEvents || 0}; activity=${progress.progressStatus}; ${outcome}`;
+    }
+    return `${assignments}; A escort=${formatNumber(evidence.alphaEscortSeconds)}s/checkpoints=${evidence.alphaCheckpointContributions || 0}/repairs=${formatNumber(evidence.alphaRepairs)}/recoveries=${evidence.alphaRecoveries || 0}/guardKills=${evidence.alphaGuardKills || 0}; B tankDamage=${formatNumber(evidence.bravoTankDamage)}/attackKills=${evidence.bravoAttackKills || 0}/tankDowns=${evidence.bravoTankDowns || 0}/finalDestructions=${evidence.bravoFinalDestructions || 0}; tankProgress=${formatNumber(evidence.progressDelta)}/checkpoints=${evidence.checkpointsReached || 0}; activity=${progress.progressStatus}; ${outcome}`;
 }
 
 function formatCountMap(value) {
@@ -1211,6 +1340,9 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
     lines.push(`- MG-Anforderungen: ${overall.mgShotRequests}; Cooldown: ${overall.mgCooldownBlocks}; Ueberhitzung: ${overall.mgOverheatBlocks}; andere Blockaden: ${overall.mgOtherBlocks}`);
     lines.push(`- Projektil-Trefferquote: ${formatPercent(overall.projectileHitRate)}`);
     lines.push(`- Parcours-Abschlussrate: ${formatPercent(overall.parcoursCompletionRate)}`);
+    if (runner) {
+        lines.push(`- Objective-Observationen: unvollständig=${runner.incompleteObjectiveObservations || 0}; ohne Rollenaktion=${runner.insufficientObjectiveObservations || 0}; Aktionsbelege sind Beobachtungsdaten, kein Win-/Erfolgskriterium`);
+    }
     lines.push(`- Failure-Codes: player-dead=${failureTaxonomy?.['player-dead'] ?? 0}, match-loss=${failureTaxonomy?.['match-loss'] ?? 0}, forced-round=${failureTaxonomy?.['forced-round'] ?? 0}, timeout-round=${failureTaxonomy?.['timeout-round'] ?? 0}, runtime-error=${failureTaxonomy?.['runtime-error'] ?? 0}`);
     if (runner) {
         lines.push(`- Laufzeit: ${runner.runtimeSurface || 'chromium'}; Runner-Modus: ${runner.serverMode || 'unbekannt'}; Publish-Evidence: ${runner.publishEvidence === true ? 'ja' : 'nein'}`);
@@ -1232,7 +1364,7 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
         }
     }
     lines.push('');
-    lines.push('| Szenario | Runden | Vertrag | Teamziel/Rollen | Bot-Winrate | Stuck | Wand/Trail | Survival Avg/Median/P10 | Items/Fehler | MG/Rakete | Safety/Lenken | Parcours |');
+    lines.push('| Szenario | Runden | Vertrag | Objective Evidence | Bot-Winrate | Stuck | Wand/Trail | Survival Avg/Median/P10 | Items/Fehler | MG/Rakete | Safety/Lenken | Parcours |');
     lines.push('|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|');
     for (const result of scenarioResults) {
         const m = result.metrics;
@@ -1240,9 +1372,7 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
             && result.runtimeVerification?.mode?.ok === true
             && result.runtimeVerification?.team?.ok === true
             && result.runtimeVerification?.botCount?.ok === true;
-        const objectiveSummary = result.scenario.teamMode === true
-            ? `${formatPercent(m.objectiveParticipationRate)} · ${formatCountMap(m.objectiveRoleCounts)}`
-            : '-';
+        const objectiveSummary = formatObjectiveObservationSummary(result.scenario, m);
         lines.push(`| ${result.scenario.id} (${result.scenario.mapKey}) | ${m.rounds} | ${contractOk ? 'ok' : 'FEHLER'} | ${objectiveSummary} | ${formatPercent(m.botWinRate)} | ${m.stuckEvents} | ${m.wallHits}/${m.trailHits} | ${formatSeconds(m.averageBotSurvival)} / ${formatSeconds(m.botSurvivalMedian)} / ${formatSeconds(m.botSurvivalP10)} | ${formatNumber(m.itemUsePerRound)} / ${formatPercent(m.itemUseFailureRate)} | ${formatPercent(m.mgHitRate)} / ${formatPercent(m.projectileHitRate)} | ${formatPercent(m.averageSafetyActiveRatio)} / ${formatNumber(m.steeringChangesPerSecond)} | ${formatPercent(m.parcoursCompletionRate)} |`);
     }
     lines.push('');
@@ -1512,6 +1642,8 @@ async function run() {
             missingNaturalDuelOutcomes: 0,
             incompleteSurvivalObservations: 0,
             unexpectedSurvivalOutcomeRounds: 0,
+            incompleteObjectiveObservations: 0,
+            insufficientObjectiveObservations: 0,
         };
         const scenarioEvalStartedAt = Date.now();
 
@@ -1524,6 +1656,7 @@ async function run() {
                 timeoutRounds: 0,
                 observationRuns: 0,
                 completedObservations: 0,
+                naturalObjectiveOutcomeObserved: false,
                 survivalObservations: [],
             };
             const runtimeSamples = [];
@@ -1599,6 +1732,7 @@ async function run() {
                 localStats
             );
             const scenarioRounds = outcomeSemantics.rounds;
+            const metrics = buildScenarioMetrics(scenario, scenarioRounds, runtimeSamples, localStats.survivalObservations);
             validationRounds.push(...scenarioRounds);
             validationRuntimeSamples.push(...runtimeSamples);
             validationSurvivalObservations.push(...localStats.survivalObservations);
@@ -1617,9 +1751,13 @@ async function run() {
             if (outcomeSemantics.target === BOT_VALIDATION_TARGETS.SURVIVAL) {
                 if (!outcomeSemantics.observationCompleted) runnerStats.incompleteSurvivalObservations += 1;
                 runnerStats.unexpectedSurvivalOutcomeRounds += outcomeSemantics.unexpectedOutcomeRounds;
+            } else if (outcomeSemantics.target === BOT_VALIDATION_TARGETS.OBJECTIVE) {
+                if (!outcomeSemantics.observationCompleted) runnerStats.incompleteObjectiveObservations += 1;
+                if (metrics.objectiveProgress?.progressStatus === 'insufficient') {
+                    runnerStats.insufficientObjectiveObservations += 1;
+                }
             }
 
-            const metrics = buildScenarioMetrics(scenarioRounds, runtimeSamples, localStats.survivalObservations);
             const runtimeVerification = buildBotValidationRuntimeVerification(scenario, runtimeSamples);
             if (!runtimeVerification.policy.ok) runnerStats.policyMismatches += 1;
             if (!runtimeVerification.mode.ok) runnerStats.modeMismatches += 1;
@@ -1670,7 +1808,7 @@ async function run() {
         diagnostics.stageTimingsMs.scenarioEvalMs = Math.max(0, Date.now() - scenarioEvalStartedAt);
 
         const allRounds = validationRounds;
-        const overall = buildScenarioMetrics(allRounds, validationRuntimeSamples, validationSurvivalObservations);
+        const overall = buildScenarioMetrics(null, allRounds, validationRuntimeSamples, validationSurvivalObservations);
         const generatedAt = new Date().toISOString().slice(0, 10);
         const report = {
             generatedAt,
@@ -1703,6 +1841,8 @@ async function run() {
                 missingNaturalDuelOutcomes: runnerStats.missingNaturalDuelOutcomes,
                 incompleteSurvivalObservations: runnerStats.incompleteSurvivalObservations,
                 unexpectedSurvivalOutcomeRounds: runnerStats.unexpectedSurvivalOutcomeRounds,
+                incompleteObjectiveObservations: runnerStats.incompleteObjectiveObservations,
+                insufficientObjectiveObservations: runnerStats.insufficientObjectiveObservations,
                 failOnForcedRound: FAIL_ON_FORCED_ROUND,
                 maxForcedRounds: MAX_FORCED_ROUNDS,
                 serverMode: RUNTIME_SURFACE === 'electron' ? 'electron' : SERVER_MODE,
@@ -1833,6 +1973,9 @@ async function run() {
         }
         if (runnerStats.unexpectedSurvivalOutcomeRounds > 0) {
             policyErrors.push(`survival observations produced outcomes (${runnerStats.unexpectedSurvivalOutcomeRounds})`);
+        }
+        if (runnerStats.incompleteObjectiveObservations > 0) {
+            policyErrors.push(`incomplete objective observations (${runnerStats.incompleteObjectiveObservations})`);
         }
         if (policyErrors.length > 0) {
             throw new Error(`[bot-validation-policy] ${policyErrors.join('; ')}`);

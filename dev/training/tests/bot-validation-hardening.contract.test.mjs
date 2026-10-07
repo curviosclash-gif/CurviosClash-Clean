@@ -556,10 +556,19 @@ test('runner applies selected ids, records real bot deaths, and analysis default
     assert.match(analysisSource, /outcomeRounds > 0 \? toNumber\(metrics\.botWinRate, 0\) : null/);
     assert.match(runnerSource, /round\?\.botDeathCauseCounts/);
     assert.match(runnerSource, /isSurvivalObservationScenario\(scenario\)/);
+    assert.match(runnerSource, /isObjectiveObservationScenario\(scenario\)/);
+    assert.match(runnerSource, /captureBotObjectiveSnapshot\(/);
+    assert.match(runnerSource, /Math\.min\(5000, observationMs - observedMs\)/);
+    // The runtime sample lives in bot-validation-first-tick.mjs; the runner keeps only the objective snapshot.
+    assert.equal((runnerSource.match(/const objectiveRole = objectiveType === 'FLAGS'/g) || []).length, 1);
+    assert.equal((runnerSource.match(/objectiveTargetId: objectiveType === 'FLAGS'/g) || []).length, 1);
+    assert.match(runnerSource, /A att\/def\/cap=/);
+    assert.match(runnerSource, /B tankDamage=/);
+    assert.match(runnerSource, /Aktionsbelege sind Beobachtungsdaten, kein Win-\/Erfolgskriterium/);
     assert.match(runnerSource, /if \(typeof g\._returnToMenu !== 'function'\) throw new Error\('_returnToMenu missing'\)/);
     assert.match(runnerSource, /survival observations produced outcomes/);
     assert.match(runnerSource, /bot count contract mismatched/);
-    assert.match(runnerSource, /buildScenarioMetrics\(allRounds, validationRuntimeSamples, validationSurvivalObservations\)/);
+    assert.match(runnerSource, /buildScenarioMetrics\(null, allRounds, validationRuntimeSamples, validationSurvivalObservations\)/);
     assert.match(runnerSource, /browser runtime errors encountered/);
     assert.match(runnerSource, /huntRespawnEnabled: entityManager\?\._roundOutcomeSystem\?\.isRespawnEnabled\?\.\(\) \?\? null/);
     assert.match(runnerSource, /renderFrameId: Number\(game\?\.gameLoop\?\.renderFrameId \?\? 0\)/);
