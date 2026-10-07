@@ -63,7 +63,9 @@ test('the runtime ranks with the run settings the match started with and writes 
 
     const standard = prepare(createDefaultArcadeRunSettings());
     assert.equal(standard.rankContext.ranked, true);
+    assert.equal(standard.rankContext.scoreModel, 'arcade-score.v4', 'the runtime passes the exact model from its frozen run settings');
     assert.equal(settleArcadeRunRanking(standard, { succeeded: true, score: 500, completedSectors: 5 }).rank, 1);
+    assert.ok(records.get(ARCADE_RANKED_STORAGE_KEY).boards['gauntlet:arcade-score.v4:normal:1-5']);
 });
 
 test('custom score settings keep parcours times on the level board; companions and Daily do not', () => {

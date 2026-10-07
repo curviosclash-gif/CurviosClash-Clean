@@ -85,7 +85,7 @@ function mountSurface({ storeRecords = {}, runtimeState = null, arcade = {} } = 
         mapKey: 'standard', numBots: 3, botDifficulty: 'NORMAL', mode: '1p', gameMode: 'ARCADE',
         vehicles: { PLAYER_1: 'ship5' },
         localSettings: { modePath: 'arcade', sessionType: 'single' },
-        arcade: { seed: 1, runType: 'gauntlet', sectorCount: 5, ...arcade },
+        arcade: { seed: 1, runType: 'gauntlet', scoreModel: 'arcade-score.v4', sectorCount: 5, ...arcade },
     };
     const store = createStore(storeRecords);
     const profile = { id: 'p1', displayName: 'Pilot' };
@@ -175,10 +175,15 @@ test('a profile without any run still says so', () => {
 });
 
 test('the ranked line says when the chosen settings keep a run off the board', () => {
-    const entry = { runId: 'old', vehicleId: 'ship5', vehicleLevel: 1, tierId: 'normal', score: 4321, date: '2026-10-01T10:00:00.000Z' };
-    const storeRecords = { [ARCADE_RANKED_STORAGE_KEY]: { schemaVersion: ARCADE_RANKED_VERSION, boards: { 'gauntlet:normal:1-5': [entry] } } };
+    const entry = { runId: 'old', vehicleId: 'ship5', vehicleLevel: 1, tierId: 'normal', score: 4321, scoreModel: 'arcade-score.v4', date: '2026-10-01T10:00:00.000Z' };
+    const legacyEntry = { ...entry, runId: 'legacy', score: 9999 };
+    const storeRecords = { [ARCADE_RANKED_STORAGE_KEY]: { schemaVersion: ARCADE_RANKED_VERSION, boards: {
+        'gauntlet:normal:1-5': [legacyEntry],
+        'gauntlet:arcade-score.v4:normal:1-5': [entry],
+    } } };
     const standard = mountSurface({ storeRecords }).byId('arcade-ranked-line').textContent;
     assert.match(standard, /4\.321 Punkte/);
+    assert.doesNotMatch(standard, /9\.999 Punkte/, 'legacy scores are retained but not presented as v4');
     assert.doesNotMatch(standard, /nicht gewertet/);
 
     for (const arcade of [{ maxMultiplier: 25 }, { sectorCount: 20 }, { comboDecayPerSecond: 0 }]) {

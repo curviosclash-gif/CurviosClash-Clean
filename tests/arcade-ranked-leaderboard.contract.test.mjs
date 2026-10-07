@@ -9,7 +9,7 @@ import '../src/core/Config.js';
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
 import { buildArcadeSectorPlan } from '../src/entities/directors/ArcadeEncounterCatalog.js';
 
-const context = (id, level = 1, tierId = 'normal', runType = 'gauntlet') => createArcadeRankContext({ runId: id, vehicleId: 'ship5', profile: { level }, tierId, runType });
+const context = (id, level = 1, tierId = 'normal', runType = 'gauntlet', scoreModel = 'arcade-score.v4') => createArcadeRankContext({ runId: id, vehicleId: 'ship5', profile: { level }, tierId, runType, runSettings: scoreModel ? { scoreModel } : null });
 
 function rankedRunFixture() {
     const records = new Map();
@@ -69,7 +69,7 @@ test('explicit abort telemetry is excluded, while natural zero-point defeat rema
     defeated.players[0].hp = 0;
     defeated.finish('ELIMINATION');
     assert.equal(defeated.runtime.getPostRunSummary().aborted, false);
-    assert.equal(defeated.records.get(ARCADE_RANKED_STORAGE_KEY).boards['gauntlet:normal:1-5'].length, 1);
+    assert.equal(defeated.records.get(ARCADE_RANKED_STORAGE_KEY).boards['gauntlet:arcade-score.v4:normal:1-5'].length, 1);
     const zero = { rankContext: context('zero'), _rankingStore: defeated.runtime._rankingStore };
     assert.ok(settleArcadeRunRanking(zero, { score: 0, aborted: false }));
 });
@@ -83,7 +83,7 @@ test('sector rebuilds keep one run and a victory cannot be reclassified by later
     f.runtime.resolveVictoryChoice('finish');
     assert.equal(f.runtime.getPostRunSummary().aborted, false);
     const board = structuredClone(f.records.get(ARCADE_RANKED_STORAGE_KEY));
-    assert.equal(board.boards['gauntlet:normal:1-5'].length, 1);
+    assert.equal(board.boards['gauntlet:arcade-score.v4:normal:1-5'].length, 1);
     f.runtime.handleMatchEndTelemetry({ state: 'MATCH_END' });
     f.runtime.resetRunState({ preserveRecords: true });
     assert.deepEqual(f.records.get(ARCADE_RANKED_STORAGE_KEY), board);
@@ -107,13 +107,13 @@ test('a ranked run keeps the original actual build after profile purchases and a
 test('ranked boards isolate tiers and five-level ranges, freeze level and retain best ten once per run', () => {
     let lb;
     for (let i = 1; i <= 12; i++) lb = insertArcadeRankedResult(lb, context(`r${i}`), { score: i }, i).leaderboard;
-    assert.equal(lb.boards['gauntlet:normal:1-5'].length, 10);
-    assert.equal(lb.boards['gauntlet:normal:1-5'][0].score, 12);
+    assert.equal(lb.boards['gauntlet:arcade-score.v4:normal:1-5'].length, 10);
+    assert.equal(lb.boards['gauntlet:arcade-score.v4:normal:1-5'][0].score, 12);
     lb = insertArcadeRankedResult(lb, context('r12'), { score: 12 }, 12).leaderboard;
-    assert.equal(lb.boards['gauntlet:normal:1-5'].length, 10);
+    assert.equal(lb.boards['gauntlet:arcade-score.v4:normal:1-5'].length, 10);
     lb = insertArcadeRankedResult(lb, context('hard', 6, 'hard'), { score: 90 }).leaderboard;
-    assert.equal(lb.boards['gauntlet:hard:6-10'][0].vehicleLevel, 6);
-    assert.equal(lb.boards['gauntlet:normal:1-5'][0].score, 12);
+    assert.equal(lb.boards['gauntlet:arcade-score.v4:hard:6-10'][0].vehicleLevel, 6);
+    assert.equal(lb.boards['gauntlet:arcade-score.v4:normal:1-5'][0].score, 12);
     assert.equal(resolveArcadeParcoursRankKey('route', context('a', 5)), 'route:level:1-5');
     assert.equal(resolveArcadeParcoursRankKey('route', context('a', 6)), 'route:level:6-10');
     assert.equal(resolveArcadeParcoursRankKey('route', context('a', 6, 'normal', 'weapon_race')), 'route');
@@ -121,6 +121,38 @@ test('ranked boards isolate tiers and five-level ranges, freeze level and retain
     lb = insertArcadeRankedResult(lb, portal, { succeeded: true, totalMs: 2000 }).leaderboard;
     lb = insertArcadeRankedResult(lb, { ...portal, runId: 'p2' }, { succeeded: true, totalMs: 1000 }).leaderboard;
     assert.equal(lb.boards['five_portals:any:1-5'][0].score, 1000);
+});
+
+test('score boards isolate their explicit score model while preserving old and time-based boards', () => {
+    const oldRow = { runId: 'old', vehicleId: 'ship5', vehicleLevel: 1, tierId: 'normal', score: 900, date: '2025-01-01T00:00:00.000Z' };
+    const v3Row = { ...oldRow, runId: 'v3', score: 800, scoreModel: 'arcade-score.v3' };
+    const v4Pollution = { ...oldRow, runId: 'wrong-version', score: 1000, scoreModel: 'arcade-score.v3' };
+    const saved = { schemaVersion: 'arcade-ranked-leaderboard.v1', boards: {
+        'gauntlet:normal:1-5': [oldRow],
+        'gauntlet:arcade-score.v3:normal:1-5': [v3Row],
+        'gauntlet:arcade-score.v4:normal:1-5': [v4Pollution],
+        'five_portals:any:1-5': [{ ...oldRow, runId: 'time', score: 60_000 }],
+    } };
+    const inserted = insertArcadeRankedResult(saved, context('v4', 1, 'normal', 'gauntlet', 'arcade-score.v4'), { score: 700 }, Date.parse('2026-01-01T00:00:00.000Z'));
+    assert.equal(inserted.key, 'gauntlet:arcade-score.v4:normal:1-5');
+    assert.equal(inserted.rank, 1, 'v3 or unversioned scores cannot outrank the v4 run');
+    assert.deepEqual(inserted.leaderboard.boards['gauntlet:normal:1-5'], [oldRow], 'legacy data remains stored without entering the v4 board');
+    assert.deepEqual(inserted.leaderboard.boards['gauntlet:arcade-score.v3:normal:1-5'], [v3Row]);
+    assert.deepEqual(inserted.leaderboard.boards['five_portals:any:1-5'].map((row) => row.runId), ['time']);
+    assert.deepEqual(inserted.leaderboard.boards[inserted.key].map((row) => [row.runId, row.scoreModel]), [['v4', 'arcade-score.v4']]);
+
+    const v3Context = context('new-v3', 1, 'normal', 'gauntlet', 'arcade-score.v3');
+    assert.equal(insertArcadeRankedResult(saved, v3Context, { score: 500 }).key, '', 'this runtime only ranks the current scoring model');
+    const missing = context('missing-model', 1, 'normal', 'gauntlet', '');
+    assert.equal(missing.scoreModel, '');
+    assert.equal(insertArcadeRankedResult(saved, missing, { score: 500 }).key, '');
+    const records = new Map();
+    const runtime = { rankContext: missing, _rankingStore: {
+        readJsonRecordResult: () => ({ status: 'missing' }),
+        saveJsonRecord: (key, value) => { records.set(key, value); return true; },
+    } };
+    assert.equal(settleArcadeRunRanking(runtime, { score: 500, succeeded: true, completedSectors: 5 }), null);
+    assert.equal(records.size, 0, 'an obsolete or missing model cannot rank or unlock a tier');
 });
 
 test('ranked persistence cannot replace inaccessible data or discard already settled legacy rewards', () => {
