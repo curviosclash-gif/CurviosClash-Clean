@@ -28,6 +28,7 @@ import {
     resolveFixedItemRespawnSeconds, scheduleCollectedAnchorRespawn, spawnDueAuthoredAnchors,
 } from './powerup/PowerupAuthoredRespawnOps.js';
 import { countArenaPowerups } from './powerup/SecretRoomRefillOps.js';
+import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
 const SPAWN_TELEGRAPH_SECONDS = 0.75;
 const PICKUP_PREDICTION_GRACE_SECONDS = 0.35;
@@ -39,10 +40,11 @@ function isTypeAllowedForMode(type, modeType, entityRuntimeConfig) {
     return isPickupTypeAllowedForMode(normalizedType, modeType);
 }
 
-function nextRuntimeRandom(strategy = null) {
+function nextRuntimeRandom(strategy = null, fallbackRuntimeRng = null) {
     const random = typeof strategy?.runtimeRng?.next === 'function'
         ? strategy.runtimeRng.next
-        : Math.random;
+        : fallbackRuntimeRng?.next;
+    if (typeof random !== 'function') return 0;
     const value = Number(random());
     if (!Number.isFinite(value) || value <= 0) return 0;
     if (value >= 1) return 0.999999999;
@@ -109,6 +111,7 @@ export class PowerupManager {
         this.runtimeConfig = config?.runtimeConfig || null;
         this.getStrategy = null;
         this.getSafetyContext = null;
+        this._fallbackRuntimeRng = createRuntimeRng({});
         this.items = []; // { mesh, type, box }
         this.spawnTimer = 0;
         this.typeKeys = Object.keys(config.POWERUP.TYPES);
@@ -200,7 +203,7 @@ export class PowerupManager {
     _spawnRandom() {
         const config = this.entityRuntimeConfig;
         const strategy = typeof this.getStrategy === 'function' ? this.getStrategy() : null;
-        const random = () => nextRuntimeRandom(strategy);
+        const random = () => nextRuntimeRandom(strategy, this._fallbackRuntimeRng);
         const modeType = String(strategy?.getPickupModeType?.() || strategy?.modeType || 'CLASSIC').trim().toUpperCase();
         const itemSpawnAuthoring = resolveItemSpawnAuthoringContract(this.arena?.currentMapDefinition);
         const spawnableTypes = strategy
@@ -450,13 +453,16 @@ export class PowerupManager {
         return availableAnchors;
     }
 
-    _pickAuthoredAnchor(availableAnchors = [], random = Math.random) {
+    _pickAuthoredAnchor(availableAnchors = [], random = null) {
         if (!Array.isArray(availableAnchors) || availableAnchors.length === 0) return null;
+        const resolveRandom = typeof random === 'function'
+            ? random
+            : () => nextRuntimeRandom(typeof this.getStrategy === 'function' ? this.getStrategy() : null, this._fallbackRuntimeRng);
         let totalWeight = 0;
         for (const entry of availableAnchors) {
             totalWeight += Math.max(0.01, Number(entry.weight) || 1);
         }
-        let roll = random() * totalWeight;
+        let roll = resolveRandom() * totalWeight;
         for (const entry of availableAnchors) {
             roll -= Math.max(0.01, Number(entry.weight) || 1);
             if (roll <= 0) {

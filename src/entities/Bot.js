@@ -16,6 +16,7 @@ import {
     applyArcadeBotAggressiveness,
     normalizeArcadeBotAggressiveness,
 } from '../shared/contracts/ArcadeBotAggressionContract.js';
+import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -54,7 +55,7 @@ export class BotAI {
         // gebunden werden. Ohne gesetzten Wuerfel bleibt der globale Zufall.
         this._random = typeof options.runtimeRng?.next === 'function'
             ? options.runtimeRng.next
-            : Math.random;
+            : createRuntimeRng({}).next;
 
         this.currentInput = {
             pitchUp: false,

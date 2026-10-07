@@ -20,10 +20,12 @@ import { DandelionSeedController } from './arena/DandelionSeedController.js';
 import { SunflowerKernelController } from './arena/SunflowerKernelController.js';
 import { MapDestructibleGlowController } from './arena/MapDestructibleGlowController.js';
 import { CherryLeafController } from './arena/CherryLeafController.js';
+import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
 export class Arena {
     constructor(renderer) {
         this.renderer = renderer;
+        this._runtimeRng = createRuntimeRng({});
         this.obstacles = [];
         this.portals = [];
         this.specialGates = [];
@@ -467,7 +469,7 @@ export class Arena {
         return this.checkCollisionFast(position, radius);
     }
 
-    getRandomPosition(margin = 5, random = Math.random) {
+    getRandomPosition(margin = 5, random = this._runtimeRng.next) {
         const b = this.bounds;
         for (let attempts = 0; attempts < 50; attempts++) {
             const x = b.minX + margin + random() * (b.maxX - b.minX - 2 * margin);
@@ -484,7 +486,7 @@ export class Arena {
         return new THREE.Vector3(x, y, z);
     }
 
-    getRandomPositionOnLevel(level, margin = 5, random = Math.random) {
+    getRandomPositionOnLevel(level, margin = 5, random = this._runtimeRng.next) {
         const b = this.bounds;
         const y = Number.isFinite(level) ? level : (b.minY + b.maxY) * 0.5;
         for (let attempts = 0; attempts < 50; attempts++) {
