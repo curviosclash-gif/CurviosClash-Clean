@@ -3,7 +3,13 @@ import test from 'node:test';
 
 import { CONFIG_BASE } from '../src/core/Config.js';
 import { createEntityRuntimeSupport } from '../src/entities/runtime/EntityRuntimeSupportAssembly.js';
-import { applyDamage, updatePlayerHealthRegen } from '../src/hunt/HealthSystem.js';
+import {
+    applyDamage,
+    applyHealing,
+    applyShieldAndHpDamage,
+    updatePlayerHealthRegen,
+} from '../src/hunt/HealthSystem.js';
+import { HuntScoring } from '../src/hunt/HuntScoring.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
@@ -49,6 +55,18 @@ test('strategy regeneration without a manager config waits for match time, even 
     assert.equal(player.hp, 72.5);
 });
 
+test('a clockless Hunt strategy uses zero for damage and regeneration time', (t) => {
+    const wall = useWallClock(t, 100_000);
+    const config = createHuntConfig();
+    const strategy = new HuntModeStrategy({ entityRuntimeConfig: config });
+    const player = createPlayer(undefined);
+    strategy.applyDamage(player, 30, undefined, config);
+    assert.equal(player.lastDamageTimestamp, 0);
+    wall.ms += 60_000;
+    strategy.updateHealthRegen(player, 1, config);
+    assert.equal(player.hp, 70, 'wall time cannot expire the delay without a match clock');
+});
+
 test('health fallback stamps implicit damage and regeneration on the same match clock', (t) => {
     const wall = useWallClock(t, 1_000_000);
     const config = createHuntConfig();
@@ -62,6 +80,82 @@ test('health fallback stamps implicit damage and regeneration on the same match 
     player.entityManager._simulationClockMs += 3000;
     updatePlayerHealthRegen(player, 1, config);
     assert.equal(player.hp, 72.5);
+});
+
+test('HealthSystem shares shield overflow, ignoreShield, zero-hit and capped-heal arithmetic', () => {
+    const config = createHuntConfig();
+    const shielded = {
+        ...createPlayer(30_000),
+        shieldHP: 20, maxShieldHp: 20, hasShield: true, shieldHitFeedback: 0,
+    };
+    const overflow = applyDamage(shielded, 25, {}, config);
+    assert.equal(overflow.applied, 25);
+    assert.equal(overflow.absorbedByShield, 20);
+    assert.equal(overflow.hpApplied, 5);
+    assert.equal(overflow.remainingHp, 95);
+    assert.equal(shielded.shieldHP, 0);
+    assert.equal(shielded.hasShield, false);
+    assert.equal(shielded.shieldHitFeedback, 1);
+    assert.equal(shielded.lastDamageTimestamp, 30);
+
+    const bypassed = {
+        ...createPlayer(30_000),
+        hp: 80, shieldHP: 20, maxShieldHp: 20, hasShield: true, shieldHitFeedback: 0,
+    };
+    const ignoredShield = applyDamage(bypassed, 12, { ignoreShield: true }, config);
+    assert.equal(ignoredShield.absorbedByShield, 0);
+    assert.equal(ignoredShield.hpApplied, 12);
+    assert.equal(bypassed.hp, 68);
+    assert.equal(bypassed.shieldHP, 20);
+
+    const timestamp = bypassed.lastDamageTimestamp;
+    const zeroHit = applyDamage(bypassed, 0, {}, config);
+    assert.equal(zeroHit.applied, 0);
+    assert.equal(bypassed.lastDamageTimestamp, timestamp);
+    assert.deepEqual(applyHealing(bypassed, 0, config), { healed: 0, hp: 68 });
+    assert.deepEqual(applyHealing(bypassed, 20, config), { healed: 20, hp: 88 });
+    assert.deepEqual(applyHealing({ hp: 95, maxHp: 100 }, 20, config), { healed: 5, hp: 100 });
+});
+
+test('shared damage helper has safe defaults when called without options or player max HP', () => {
+    const shielded = { hp: 10, shieldHP: 5, hasShield: true, shieldHitFeedback: 0 };
+    const shieldResult = applyShieldAndHpDamage(shielded, 1);
+    assert.equal(shieldResult.absorbedByShield, 1);
+    assert.equal(shieldResult.hpApplied, 0);
+    assert.equal(shielded.shieldHP, 4);
+    assert.equal(shielded.shieldHitFeedback, 0.2);
+    assert.equal(Number.isFinite(shielded.shieldHitFeedback), true);
+
+    const missingHp = { hp: undefined, shieldHP: 0, shieldHitFeedback: 0 };
+    const hpResult = applyShieldAndHpDamage(missingHp, 1);
+    assert.equal(hpResult.remainingHp, 0);
+    assert.equal(hpResult.isDead, true);
+    assert.equal(Number.isFinite(missingHp.hp), true);
+});
+
+test('shared damage helper replaces explicitly non-finite fallbacks and preserves finite zero', () => {
+    for (const invalid of [NaN, Infinity, -Infinity]) {
+        const shielded = {
+            hp: 10, maxHp: 100, shieldHP: 4, maxShieldHp: 8,
+            hasShield: true, shieldHitFeedback: 0,
+        };
+        applyShieldAndHpDamage(shielded, 2, { shieldMaxHp: invalid });
+        assert.equal(shielded.shieldHitFeedback, 0.25, `shield fallback ${String(invalid)} uses player maxShieldHp`);
+        assert.equal(Number.isFinite(shielded.hp), true);
+
+        const missingHp = { hp: undefined, maxHp: 100, shieldHP: 0, shieldHitFeedback: 0 };
+        applyShieldAndHpDamage(missingHp, 1, { hpFallback: invalid });
+        assert.equal(missingHp.hp, 99, `HP fallback ${String(invalid)} uses player maxHp`);
+        assert.equal(Number.isFinite(missingHp.hp), true);
+    }
+
+    const zeroShieldMax = { hp: 10, shieldHP: 1, maxShieldHp: 8, shieldHitFeedback: 0 };
+    applyShieldAndHpDamage(zeroShieldMax, 1, { shieldMaxHp: 0 });
+    assert.equal(zeroShieldMax.shieldHitFeedback, 1, 'finite explicit shield maximum zero is retained');
+
+    const zeroHpFallback = { hp: NaN, maxHp: 100, shieldHP: 0, shieldHitFeedback: 0 };
+    applyShieldAndHpDamage(zeroHpFallback, 1, { hpFallback: 0 });
+    assert.equal(zeroHpFallback.hp, 0, 'finite explicit HP fallback zero is retained');
 });
 
 test('health fallback preserves explicit timestamps and supports callers without a match clock', (t) => {

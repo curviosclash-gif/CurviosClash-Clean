@@ -100,6 +100,44 @@ test('Projectile, collision and shield contracts stay stable across strategies',
     assert.equal(huntShieldPlayer.shieldHP, 40);
 });
 
+test('Hunt damage shares shield overflow and bypass arithmetic without changing contact timestamps', () => {
+    const strategy = new HuntModeStrategy();
+    const shielded = {
+        hp: 100, maxHp: 100, shieldHP: 20, maxShieldHp: 20, hasShield: true,
+        shieldHitFeedback: 0, lastDamageTimestamp: 2, entityManager: { _simulationClockMs: 42_000 },
+    };
+    const overflow = strategy.applyDamage(shielded, 25);
+    assert.equal(overflow.applied, 25);
+    assert.equal(overflow.absorbedByShield, 20);
+    assert.equal(overflow.remainingHp, 95);
+    assert.equal(shielded.shieldHP, 0);
+    assert.equal(shielded.hasShield, false);
+    assert.equal(shielded.shieldHitFeedback, 1);
+    assert.equal(shielded.lastDamageTimestamp, 42);
+
+    const bypassed = {
+        hp: 80, maxHp: 100, shieldHP: 20, maxShieldHp: 20, hasShield: true,
+        shieldHitFeedback: 0, lastDamageTimestamp: 7,
+    };
+    const ignoredShield = strategy.applyDamage(bypassed, 12, { ignoreShield: true, nowSeconds: 9 });
+    assert.equal(ignoredShield.applied, 12);
+    assert.equal(ignoredShield.absorbedByShield, 0);
+    assert.equal(ignoredShield.remainingHp, 68);
+    assert.equal(bypassed.shieldHP, 20);
+    assert.equal(bypassed.lastDamageTimestamp, 9);
+
+    const zero = strategy.applyDamage(bypassed, 0);
+    assert.equal(zero.applied, 0);
+    assert.equal(bypassed.hp, 68);
+    assert.equal(bypassed.shieldHP, 20);
+    assert.equal(bypassed.lastDamageTimestamp, 9, 'a zero hit is not contact');
+    assert.equal(strategy.applyDamage(bypassed, null).applied, 0, 'null damage normalizes to a no-op');
+    assert.equal(bypassed.lastDamageTimestamp, 9);
+    assert.deepEqual(strategy.applyHealing(bypassed, 0), { healed: 0, hp: 68 });
+    assert.deepEqual(strategy.applyHealing(bypassed, null), { healed: 0, hp: 68 });
+    assert.deepEqual(strategy.applyHealing({ hp: 95, maxHp: 100 }, 20), { healed: 5, hp: 100 });
+});
+
 test('Fight enemy trail collisions kill and credit the trail owner', () => {
     const hunt = new HuntModeStrategy();
     const trailOwner = { index: 1 };

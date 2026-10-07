@@ -8,7 +8,11 @@ import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import { applyPlayerCrashDamage, recoverPlayerFromCollision, resolveWallCollisionDamage } from './HuntCollisionOps.js';
-import { resolveHealthClockSeconds } from '../hunt/HealthSystem.js';
+import {
+    applyCappedHealing,
+    applyShieldAndHpDamage,
+    resolveHealthClockSeconds,
+} from '../hunt/HealthSystem.js';
 
 function toSafeNumber(value, fallback) {
     const parsed = Number(value);
@@ -178,32 +182,21 @@ export class HuntModeStrategy extends GameModeContract {
             return { applied: 0, absorbedByShield: 0, remainingHp: Math.max(0, toSafeNumber(player.hp, 0)), isDead: toSafeNumber(player.hp, 0) <= 0 };
         }
 
-        let remainingDamage = requestedDamage;
-        let absorbedByShield = 0;
-        const ignoreShield = !!options?.ignoreShield;
-        if (!ignoreShield && player.shieldHP > 0) {
-            absorbedByShield = Math.min(player.shieldHP, remainingDamage);
-            player.shieldHP = Math.max(0, player.shieldHP - absorbedByShield);
-            remainingDamage -= absorbedByShield;
-            if (absorbedByShield > 0) {
-                const shieldMax = Math.max(1, player.maxShieldHp || toSafeNumber(activeConfig?.HUNT?.SHIELD_MAX_HP, 40));
-                const feedbackValue = Math.min(1, Math.max(0.2, absorbedByShield / shieldMax));
-                player.shieldHitFeedback = Math.max(player.shieldHitFeedback || 0, feedbackValue);
-            }
-            if (player.shieldHP <= 0) {
-                player.hasShield = false;
-            }
-        }
-
-        const damageContact = absorbedByShield > 0 || remainingDamage > 0;
-        if (remainingDamage > 0) {
-            player.hp = Math.max(0, toSafeNumber(player.hp, player.maxHp) - remainingDamage);
-        }
-        if (damageContact) {
+        const damageResult = applyShieldAndHpDamage(player, requestedDamage, {
+            ignoreShield: !!options?.ignoreShield,
+            shieldMaxHp: player.maxShieldHp || toSafeNumber(activeConfig?.HUNT?.SHIELD_MAX_HP, 40),
+            hpFallback: player.maxHp,
+        });
+        if (damageResult.damageContact) {
             player.lastDamageTimestamp = toSafeNumber(options?.nowSeconds, resolveHealthClockSeconds(player));
         }
 
-        return { applied: requestedDamage, absorbedByShield, remainingHp: player.hp, isDead: player.hp <= 0 };
+        return {
+            applied: requestedDamage,
+            absorbedByShield: damageResult.absorbedByShield,
+            remainingHp: damageResult.remainingHp,
+            isDead: damageResult.isDead,
+        };
     }
 
     applyHealing(player, amount, config) {
@@ -212,9 +205,7 @@ export class HuntModeStrategy extends GameModeContract {
         const healing = Math.max(0, toSafeNumber(amount, 0));
         if (healing <= 0) return { healed: 0, hp: toSafeNumber(player.hp, 0) };
         const maxHp = Math.max(1, toSafeNumber(player.maxHp, toSafeNumber(activeConfig?.HUNT?.PLAYER_MAX_HP, 100)));
-        const before = Math.max(0, toSafeNumber(player.hp, maxHp));
-        player.hp = Math.min(maxHp, before + healing);
-        return { healed: player.hp - before, hp: player.hp };
+        return applyCappedHealing(player, healing, maxHp);
     }
 
     resolveCollisionDamage(cause, config) {

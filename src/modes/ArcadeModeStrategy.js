@@ -5,6 +5,7 @@
 // ============================================
 
 import { GameModeContract } from './GameModeContract.js';
+import { applyCappedHealing, applyShieldAndHpDamage } from '../hunt/HealthSystem.js';
 import { isPickupTypeAllowedForMode, pickWeightedPickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import {
@@ -326,24 +327,20 @@ export class ArcadeModeStrategy extends GameModeContract {
             return { applied: 0, absorbedByShield: 0, remainingHp: Math.max(0, toSafe(player.hp, 0)), isDead: toSafe(player.hp, 0) <= 0 };
         }
 
-        let remaining = dmg;
-        let absorbed = 0;
-        if (!options?.ignoreShield && player.shieldHP > 0) {
-            absorbed = Math.min(player.shieldHP, remaining);
-            player.shieldHP = Math.max(0, player.shieldHP - absorbed);
-            remaining -= absorbed;
-            if (absorbed > 0) {
-                const shieldMax = Math.max(1, player.maxShieldHp || DEFAULT_SHIELD_HP);
-                player.shieldHitFeedback = Math.max(player.shieldHitFeedback || 0, Math.min(1, Math.max(0.2, absorbed / shieldMax)));
-            }
-            if (player.shieldHP <= 0) player.hasShield = false;
-        }
-
-        if (remaining > 0) player.hp = Math.max(0, toSafe(player.hp, player.maxHp) - remaining);
+        const damageResult = applyShieldAndHpDamage(player, dmg, {
+            ignoreShield: !!options?.ignoreShield,
+            shieldMaxHp: player.maxShieldHp || DEFAULT_SHIELD_HP,
+            hpFallback: player.maxHp,
+        });
         // Every hit pauses the regen, also one the shield absorbs completely (as in the Hunt profile).
         player.lastDamageTimestamp = toSafe(options?.nowSeconds, resolveArcadeSimulationSeconds(this.isNormalArcadeRun() ? player.entityManager : null, this._nowSeconds()));
 
-        return { applied: dmg, absorbedByShield: absorbed, remainingHp: player.hp, isDead: player.hp <= 0 };
+        return {
+            applied: dmg,
+            absorbedByShield: damageResult.absorbedByShield,
+            remainingHp: damageResult.remainingHp,
+            isDead: damageResult.isDead,
+        };
     }
 
     applyHealing(player, amount) {
@@ -354,9 +351,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         const heal = Math.max(0, toSafe(amount, 0));
         if (heal <= 0) return { healed: 0, hp: toSafe(player.hp, 0) };
         const maxHp = Math.max(1, toSafe(player.maxHp, DEFAULT_MAX_HP));
-        const before = Math.max(0, toSafe(player.hp, maxHp));
-        player.hp = Math.min(maxHp, before + heal);
-        return { healed: player.hp - before, hp: player.hp };
+        return applyCappedHealing(player, heal, maxHp);
     }
 
     // 68.3.3: Intermission healing with mission/reward scaling.

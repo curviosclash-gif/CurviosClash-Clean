@@ -95,6 +95,42 @@ test('Treffer im Gauntlet stempeln die Simulationsuhr, nicht die Wanduhr', () =>
     close(player.hp, 43, 'nach 4 s Simulationszeit heilt der Spieler wieder');
 });
 
+test('Arcade keeps Sudden-Death scaling and healing policy around shared health math', () => {
+    const strategy = new ArcadeModeStrategy({ runType: 'gauntlet', nowMs: () => WALL_CLOCK_MS });
+    strategy._sdActive = true;
+    strategy._sdDamageMultiplier = 2;
+    const em = makeEntityManager(15);
+    const player = makePlayer(em, {
+        hp: 50, maxHp: 100, shieldHP: 5, maxShieldHp: 5, hasShield: true, shieldHitFeedback: 0,
+    });
+
+    const scaled = strategy.applyDamage(player, 10);
+    assert.equal(scaled.applied, 20);
+    assert.equal(scaled.absorbedByShield, 5);
+    assert.equal(scaled.remainingHp, 35);
+    assert.equal(player.shieldHP, 0);
+    assert.equal(player.shieldHitFeedback, 1);
+    assert.equal(player.lastDamageTimestamp, 15);
+    assert.deepEqual(strategy.applyHealing(player, 20), { healed: 0, hp: 35 }, 'Sudden Death still denies healing');
+
+    strategy._sdActive = false;
+    const normal = makePlayer(em, {
+        hp: 95, maxHp: 100, shieldHP: 10, maxShieldHp: 10, hasShield: true,
+    });
+    const ignoredShield = strategy.applyDamage(normal, 6, { ignoreShield: true, nowSeconds: 16 });
+    assert.equal(ignoredShield.applied, 6);
+    assert.equal(ignoredShield.absorbedByShield, 0);
+    assert.equal(normal.hp, 89);
+    assert.equal(normal.shieldHP, 10);
+    assert.equal(normal.lastDamageTimestamp, 16);
+    assert.deepEqual(strategy.applyHealing(normal, 20), { healed: 11, hp: 100 });
+    assert.deepEqual(strategy.applyHealing(normal, null), { healed: 0, hp: 100 });
+
+    const timestamp = normal.lastDamageTimestamp;
+    assert.equal(strategy.applyDamage(normal, null).applied, 0);
+    assert.equal(normal.lastDamageTimestamp, timestamp, 'null damage is not a positive hit');
+});
+
 test('Ein Treffer, den der Schild ganz abfängt, hält die Grund-Regeneration an (Gauntlet wie Kampfprofil)', () => {
     for (const options of [{ runType: 'gauntlet' }, { runType: 'endless_parcours', combatProfile: 'hunt' }]) {
         const strategy = new ArcadeModeStrategy({ ...options, nowMs: () => WALL_CLOCK_MS });
