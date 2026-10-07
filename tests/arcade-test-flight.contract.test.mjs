@@ -7,6 +7,8 @@ import { finalizeArcadeRun } from '../src/core/arcade/ArcadeRunCompletionOps.js'
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { ArcadeRoundStateController } from '../src/state/arcade/ArcadeRoundStateController.js';
 import { createPlayingStateRuntimeAccess, PlayingStateSystem } from '../src/core/PlayingStateSystem.js';
+import { createInteractiveMatchKernel } from '../src/state/MatchKernel.js';
+import { createMatchKernelInteractiveAdapter } from '../src/core/MatchKernelInteractiveAdapter.js';
 
 test('test flight refuses unactivated drafts, stale requests and another player profile', () => {
     const active = { vehicleId: 'ship5', slots: { core: 'standard' }, stoneSlots: { nose: 'damage' } };
@@ -77,7 +79,17 @@ test('test flight ends once at thirty active seconds and returns through the pla
         arcadePort: { tickSuddenDeath: dt => runtime.tickGameplay(dt), getMenuSurfaceState: () => runtime.getMenuSurfaceState() },
         lifecyclePort: { returnToMenu: options => { assert.equal(options.reason, 'hangar_test_complete'); returned++; game.state = 'MENU'; } },
     } };
-    new PlayingStateSystem(createPlayingStateRuntimeAccess(game)).update(0.1);
+    const system = new PlayingStateSystem(createPlayingStateRuntimeAccess(game));
+    const kernel = createInteractiveMatchKernel({ simPorts: { entityManager: game.entityManager } });
+    kernel.boot();
+    const adapter = createMatchKernelInteractiveAdapter({ game, kernel });
+    game.matchSessionRuntimeBridge = {
+        getCurrentMatchKernel: () => kernel,
+        getCurrentMatchKernelAdapter: () => adapter,
+    };
+    system.setKernelAdapter(adapter);
+    system.update(0.1);
+    assert.equal(kernel.tickIndex, 1);
     assert.equal(runtime.getPhase(), 'finished'); assert.equal(returned, 1);
     const finishedAt = runtime.getStateSnapshot().finishedAtIso;
     runtime.tickGameplay(10); runtime.flushPersistenceSaves();

@@ -8,6 +8,10 @@ import {
 } from '../src/core/AppInitializerTestHooks.js';
 import { SessionRuntimeCommandExecutor } from '../src/application/session-runtime/SessionRuntimeCommandExecutor.js';
 import { GameRuntimeFacade } from '../src/core/GameRuntimeFacade.js';
+import { ensureInteractiveMatchRuntime } from '../src/core/InteractiveMatchRuntimeGuard.js';
+import { PlayingStateSystem } from '../src/core/PlayingStateSystem.js';
+import { createInteractiveMatchKernel } from '../src/state/MatchKernel.js';
+import { createMatchKernelInteractiveAdapter } from '../src/core/MatchKernelInteractiveAdapter.js';
 import { GameRuntimeCoordinator } from '../src/core/runtime/GameRuntimeCoordinator.js';
 import { clearGameRuntimeState, createGameRuntimeBundle } from '../src/core/runtime/GameRuntimeBundle.js';
 import { InputManager } from '../src/core/InputManager.js';
@@ -3432,4 +3436,46 @@ test('GameRuntimeSessionHandler queues a synchronous authoritative lobby start b
     assert.equal(game.state, 'PLAYING');
     assert.equal(game.settings.mapKey, 'maze');
     assert.deepEqual(calls, ['requestMatchStart', 'applyStart']);
+});
+
+
+test('Interactive runtime guard rejects a stale adapter through the existing menu return path', () => {
+    const returned = [];
+    const entityManager = { update() {} };
+    const kernel = createInteractiveMatchKernel({ simPorts: { entityManager } });
+    kernel.boot();
+    const adapter = createMatchKernelInteractiveAdapter({ game: {}, kernel });
+    const playingStateSystem = new PlayingStateSystem({});
+    playingStateSystem.setKernelAdapter(adapter);
+    const game = {
+        state: 'PLAYING',
+        entityManager,
+        powerupManager: { update() {} },
+        particles: { update() {} },
+        arena: { update() {} },
+        hudRuntimeSystem: { updatePlayingHudTick() {} },
+        playingStateSystem,
+        matchSessionRuntimeBridge: {
+            getCurrentMatchKernel: () => kernel,
+            getCurrentMatchKernelAdapter: () => null,
+        },
+        matchFlowUiController: { applyReturnToMenuUi(options) { returned.push(options); } },
+    };
+
+    assert.equal(ensureInteractiveMatchRuntime(game), false);
+    assert.deepEqual(returned, [{ panelId: 'submenu-game', reason: 'missing_match_runtime', trigger: 'missing_match_runtime' }]);
+    assert.equal(kernel.tickIndex, 0);
+});
+
+test('Interactive runtime guard defers missing adapter during session initialization or finalization', () => {
+    let returned = 0;
+    const game = {
+        runtimeBundle: { components: { matchSessionOrchestrator: { _pendingSessionInit: true } } },
+        matchFlowUiController: { applyReturnToMenuUi() { returned += 1; } },
+    };
+    assert.equal(ensureInteractiveMatchRuntime(game), false);
+    game.runtimeBundle.components.matchSessionOrchestrator._pendingSessionInit = false;
+    game.runtimeBundle.components.matchSessionOrchestrator._pendingFinalize = true;
+    assert.equal(ensureInteractiveMatchRuntime(game), false);
+    assert.equal(returned, 0);
 });

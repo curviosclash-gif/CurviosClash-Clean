@@ -3,6 +3,18 @@ import test from 'node:test';
 
 import { GameRuntimeFacade } from '../src/core/GameRuntimeFacade.js';
 import { PlayingStateSystem } from '../src/core/PlayingStateSystem.js';
+import { createInteractiveMatchKernel } from '../src/state/MatchKernel.js';
+import { createMatchKernelInteractiveAdapter } from '../src/core/MatchKernelInteractiveAdapter.js';
+
+function attachKernel(system, runtimeAccess, entityManager) {
+    const kernel = createInteractiveMatchKernel({ simPorts: { entityManager } });
+    kernel.boot();
+    const adapter = createMatchKernelInteractiveAdapter({ game: {}, kernel });
+    system.setKernelAdapter(adapter);
+    runtimeAccess.getCurrentMatchKernel = () => kernel;
+    runtimeAccess.getCurrentMatchKernelAdapter = () => adapter;
+    return kernel;
+}
 import { emitArcadeEliminationEvents } from '../src/entities/runtime/EntityArcadeGameplayEvents.js';
 import { createEntityRuntimeSystems } from '../src/entities/runtime/EntityRuntimeSystemAssembly.js';
 import { createRuntimeProjectionPort } from '../src/shared/runtime/GameRuntimePorts.js';
@@ -62,38 +74,47 @@ test('runtime projection ignores non-arena fallback state', () => {
 test('arena-waves upgrade pauses simulation while keeping HUD and changed overlay state synchronized', () => {
     const calls = [];
     const arenaState = { runType: 'arena_waves', phase: 'upgrade', mapIndex: 2, choices: ['a', 'b', 'c', 'd'] };
-    const system = new PlayingStateSystem({
-        getEntityManager: () => ({ update() { calls.push('entity'); } }),
+    const entityManager = { update() { calls.push('entity'); } };
+    const runtimeAccess = {
+        getEntityManager: () => entityManager,
         getArcadeMenuSurfaceState: () => arenaState,
         actionSyncArcadeOverlay() { calls.push('overlay'); },
         actionTickSuddenDeath() { calls.push('arcade'); },
         actionUpdatePlayingHudTick() { calls.push('hud'); },
         getRuntimeProjectionPort: () => ({ getMatchRuntimeProjection: () => ({}) }),
         actionApplyPlayingTimeScaleFromEffects() { calls.push('effects'); },
-    });
+    };
+    const system = new PlayingStateSystem(runtimeAccess);
+    const kernel = attachKernel(system, runtimeAccess, entityManager);
     system.update(1 / 60);
     system.update(1 / 60);
+    assert.equal(kernel.tickIndex, 0, 'upgrade phase must pause the kernel');
     assert.deepEqual(calls, ['overlay', 'hud', 'hud']);
     arenaState.phase = 'countdown';
     arenaState.choices = [];
     system.update(1 / 60);
+    assert.equal(kernel.tickIndex, 1);
     assert.deepEqual(calls.slice(-5), ['overlay', 'entity', 'arcade', 'hud', 'effects']);
 });
 
 test('demolition completion synchronizes its result overlay once', () => {
     const calls = [];
     const state = { runType: 'demolition', phase: 'finished', postRunSummary: { maps: [] } };
-    const system = new PlayingStateSystem({
-        getEntityManager: () => ({ update() { calls.push('entity'); } }),
+    const entityManager = { update() { calls.push('entity'); } };
+    const runtimeAccess = {
+        getEntityManager: () => entityManager,
         getArcadeMenuSurfaceState: () => state,
         actionSyncArcadeOverlay() { calls.push('overlay'); },
         actionTickSuddenDeath() {},
         actionUpdatePlayingHudTick() {},
         getRuntimeProjectionPort: () => ({ getMatchRuntimeProjection: () => ({}) }),
         actionApplyPlayingTimeScaleFromEffects() {},
-    });
+    };
+    const system = new PlayingStateSystem(runtimeAccess);
+    const kernel = attachKernel(system, runtimeAccess, entityManager);
     system.update(1 / 60);
     system.update(1 / 60);
+    assert.equal(kernel.tickIndex, 2);
     assert.equal(calls.filter((entry) => entry === 'overlay').length, 1);
 });
 
