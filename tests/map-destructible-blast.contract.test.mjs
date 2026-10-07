@@ -6,6 +6,9 @@ import { normalizeMapDestructibles } from '../src/shared/contracts/MapDestructib
 import { resolveMapDestructibleFireballSphere } from '../src/shared/contracts/MapDestructibleHazardContract.js';
 import { MapDestructibleSystem } from '../src/entities/systems/MapDestructibleSystem.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
+import { HuntScoring } from '../src/hunt/HuntScoring.js';
+import { TEAM_IDS } from '../src/shared/contracts/TeamCombatContract.js';
 
 /**
  * Stands in for EntityManager: only the two seams MapDestructibleBlastSystem actually touches
@@ -148,6 +151,85 @@ test('EntityManager preserves reactor feedback while its break callback schedule
     manager._mapDestructibleBlastSystem.update();
 
     assert.deepEqual(damage, [{ player: target, amount: 64, cause: 'BLAST' }]);
+});
+
+test('a real environmental BLAST damages its source and teammates without changing weapon team rules', () => {
+    const definition = createDefinitionWithBlast();
+    const elapsed = { value: 10 };
+    const config = { HUNT: { PLAYER_MAX_HP: 100, SHIELD_MAX_HP: 40 } };
+    const sourcePlayer = {
+        index: 0, teamId: TEAM_IDS.ALPHA, alive: true, hp: 100, maxHp: 100,
+        shieldHP: 0, maxShieldHp: 40, hasShield: false, position: { x: 0, y: 0, z: 0 },
+    };
+    const teammate = {
+        index: 1, teamId: TEAM_IDS.ALPHA, alive: true, hp: 100, maxHp: 100,
+        shieldHP: 0, maxShieldHp: 40, hasShield: false, position: { x: 10, y: 0, z: 0 },
+    };
+    const enemy = {
+        index: 2, teamId: TEAM_IDS.BRAVO, alive: true, hp: 10, maxHp: 100,
+        shieldHP: 0, maxShieldHp: 40, hasShield: false, position: { x: 20, y: 0, z: 0 },
+    };
+    const protectedTeammate = {
+        index: 3, teamId: TEAM_IDS.ALPHA, alive: true, hp: 100, maxHp: 100,
+        shieldHP: 0, maxShieldHp: 40, hasShield: false, spawnProtectionTimer: 1,
+        position: { x: 5, y: 0, z: 0 },
+    };
+    const events = [];
+    const deaths = [];
+    const entityManager = Object.assign(Object.create(EntityManager.prototype), {
+        players: [sourcePlayer, teammate, enemy, protectedTeammate],
+        entityRuntimeConfig: config,
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: config }),
+        _huntScoring: new HuntScoring(() => 0),
+        isFightOutcomeAuthority: true,
+        _eventBus: { emitHuntDamageEvent: (event) => events.push(event) },
+        _mapDestructibleSystem: {
+            anchorScale: 1,
+            getDefinition: () => definition,
+            getElapsedSeconds: () => elapsed.value,
+        },
+        recorder: null,
+        particles: null,
+        audio: null,
+        _killPlayer(target, cause, options) {
+            deaths.push({ target, cause, options });
+            target.alive = false;
+            target.hp = 0;
+            this._huntScoring.registerElimination(target, { killer: options.killer, spawnAgeSeconds: 100 });
+        },
+    });
+    const blastSystem = new MapDestructibleBlastSystem(entityManager);
+    blastSystem.schedulePendingBlast(
+        { segmentId: 'reactor_dome', kind: 'leg_lower', atSeconds: 10, yaw: 0 },
+        { sourcePlayer },
+    );
+    elapsed.value = 13;
+    blastSystem.update();
+
+    assert.equal(sourcePlayer.hp, 20, 'the authored collapse can hit its ALPHA source');
+    assert.equal(teammate.hp, 52, 'the authored collapse can also hit an ALPHA teammate');
+    assert.equal(enemy.hp, 0, 'the BRAVO control target receives ordinary blast damage and dies');
+    assert.equal(events.length, 3, 'source, teammate, and enemy each emit one blast event');
+    assert.ok(events.every((event) => event.cause === 'BLAST' && event.sourcePlayer === sourcePlayer));
+    assert.equal(deaths.length, 1);
+    assert.equal(deaths[0].target, enemy);
+    assert.equal(deaths[0].cause, 'BLAST');
+    assert.equal(deaths[0].options.killer, sourcePlayer);
+    assert.equal(entityManager._huntScoring.getScoreboard(entityManager.players).find((row) => row.playerIndex === 0).kills, 1);
+
+    const protectedResult = EntityManager.prototype._applyModeDamage.call(
+        entityManager, protectedTeammate, 10, 'BLAST', { sourcePlayer },
+    );
+    assert.equal(protectedResult.blocked, 'SPAWN_PROTECTION');
+    assert.equal(protectedTeammate.hp, 100);
+
+    protectedTeammate.spawnProtectionTimer = 0;
+    const weaponResult = EntityManager.prototype._applyModeDamage.call(
+        entityManager, protectedTeammate, 10, 'PROJECTILE', { sourcePlayer, weaponKind: 'ROCKET' },
+    );
+    assert.equal(weaponResult.blocked, 'TEAM', 'the environmental exception does not bypass weapon team rules');
+    assert.equal(protectedTeammate.hp, 100);
+    assert.equal(events.length, 3, 'blocked controls emit no extra damage event');
 });
 
 test('a break scene without an authored blast schedules nothing', () => {

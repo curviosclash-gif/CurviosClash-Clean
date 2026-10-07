@@ -50,8 +50,15 @@ export function applyHit(world, input) {
     const { target, amount, cause, weaponKind, sourcePlayer } = hit;
     const entityManager = resolveEntityManager(world);
     const strategy = resolveStrategy(world, entityManager);
+    const causeKey = cause.toUpperCase();
 
-    if (sourcePlayer && cause.toUpperCase() !== PLAYER_CRASH_CAUSE && !canDamage(sourcePlayer, target, weaponKind)) {
+    // Authored map-collapse blasts are environmental hazards and can hit their source or teammates.
+    if (
+        sourcePlayer
+        && causeKey !== PLAYER_CRASH_CAUSE
+        && causeKey !== 'BLAST'
+        && !canDamage(sourcePlayer, target, weaponKind)
+    ) {
         return makeBlockedResult(target, 'TEAM');
     }
     if ((Number(target.spawnProtectionTimer) || 0) > 0) {
@@ -104,7 +111,7 @@ export function applyHit(world, input) {
     }
 
     if (deadAfterHit && effectiveDamage > 0) {
-        const teamCrash = cause.toUpperCase() === PLAYER_CRASH_CAUSE
+        const teamCrash = causeKey === PLAYER_CRASH_CAUSE
             && areTeammates(sourcePlayer, target);
         entityManager?._killPlayer?.(target, cause, {
             killer: teamCrash ? null : sourcePlayer,

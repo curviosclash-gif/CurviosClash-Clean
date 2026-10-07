@@ -7,6 +7,7 @@ import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { createGameModeStrategy, registerGameModeStrategy } from '../src/modes/GameModeRegistry.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
+import { HuntScoring } from '../src/hunt/HuntScoring.js';
 import {
     getPickupTypes,
     isPickupTypeAllowedForMode,
@@ -22,6 +23,7 @@ import {
 import { createRuntimeRng } from '../src/shared/contracts/RuntimeRngContract.js';
 import { CONFIG_BASE } from '../src/core/Config.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
+import { Player } from '../src/entities/Player.js';
 
 test('GameModeRegistry resolves classic fallback and hunt mode deterministically', () => {
     assert.equal(createGameModeStrategy('UNKNOWN_MODE').modeType, 'CLASSIC');
@@ -522,4 +524,158 @@ test('direct Hunt damage uses match time for regen delay and resets it on a late
         nowSeconds: 7,
     });
     assert.equal(player.lastDamageTimestamp, 7, 'an explicit damage timestamp still takes precedence');
+});
+
+test('EntityManager mode damage shares spawn protection and scores actual HP loss once', () => {
+    const config = {
+        HUNT: {
+            PLAYER_MAX_HP: 100,
+            PLAYER_REGEN_DELAY: 3,
+            PLAYER_REGEN_PER_SECOND: 2,
+            SHIELD_MAX_HP: 40,
+        },
+    };
+    const sourcePlayer = { index: 0, teamId: null };
+    const protectedTarget = {
+        index: 1,
+        alive: true,
+        hp: 100,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 40,
+        hasShield: false,
+        shieldHitFeedback: 0,
+        spawnProtectionTimer: 1,
+        position: { x: 1, y: 2, z: 3 },
+    };
+    const overkillTarget = {
+        index: 2,
+        alive: true,
+        hp: 10,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 40,
+        hasShield: false,
+        shieldHitFeedback: 0,
+        spawnProtectionTimer: 0,
+        position: { x: 4, y: 5, z: 6 },
+    };
+    const events = [];
+    const deaths = [];
+    const scoring = new HuntScoring(() => 0);
+    const entityManager = Object.assign(Object.create(EntityManager.prototype), {
+        players: [sourcePlayer, protectedTarget, overkillTarget],
+        entityRuntimeConfig: config,
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: config }),
+        _huntScoring: scoring,
+        isFightOutcomeAuthority: true,
+        recorder: null,
+        particles: null,
+        audio: null,
+        _eventBus: { emitHuntDamageEvent: (event) => events.push(event) },
+        _killPlayer(target, cause, options) {
+            deaths.push({ target, cause, options });
+            target.alive = false;
+            target.hp = 0;
+        },
+    });
+    entityManager._emitHuntDamageEvent = (event) => (
+        EntityManager.prototype._emitHuntDamageEvent.call(entityManager, event)
+    );
+    protectedTarget.entityManager = entityManager;
+
+    const playerTakeDamage = Player.prototype.takeDamage.call(protectedTarget, 30);
+    assert.equal(playerTakeDamage.applied, 0);
+    assert.equal(protectedTarget.hp, 100);
+
+    const blocked = EntityManager.prototype._applyModeDamage.call(
+        entityManager,
+        protectedTarget,
+        30,
+        'BLAST',
+        { sourcePlayer },
+    );
+    assert.equal(blocked.blocked, 'SPAWN_PROTECTION');
+    assert.equal(protectedTarget.hp, 100);
+    assert.equal(events.length, 0);
+    assert.equal(deaths.length, 0);
+
+    protectedTarget.spawnProtectionTimer = 0;
+    const impactPoint = { x: 7, y: 8, z: 9 };
+    const restored = EntityManager.prototype._applyModeDamage.call(
+        entityManager,
+        protectedTarget,
+        30,
+        'BLAST',
+        { sourcePlayer, impactPoint },
+    );
+    assert.equal(restored.blocked, null);
+    assert.equal(restored.hpApplied, 30);
+    assert.equal(protectedTarget.hp, 70);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].impactPoint, impactPoint);
+    assert.equal(events[0].sourcePlayer, sourcePlayer);
+
+    const overkill = EntityManager.prototype._applyModeDamage.call(
+        entityManager,
+        overkillTarget,
+        50,
+        'BLAST',
+        { sourcePlayer },
+    );
+    assert.equal(overkill.applied, 50);
+    assert.equal(overkill.hpApplied, 10);
+    assert.equal(events.length, 2);
+    assert.equal(deaths.length, 1);
+    assert.equal(deaths[0].target, overkillTarget);
+    assert.equal(deaths[0].cause, 'BLAST');
+    assert.equal(scoring.getScoreboard(entityManager.players).find((row) => row.playerIndex === 0).damage, 40);
+
+    const optionTarget = {
+        index: 3,
+        alive: true,
+        hp: 100,
+        maxHp: 100,
+        shieldHP: 20,
+        maxShieldHp: 40,
+        hasShield: true,
+        shieldHitFeedback: 0,
+        spawnProtectionTimer: 0,
+        lastDamageTimestamp: -Infinity,
+        position: { x: 0, y: 0, z: 0 },
+    };
+    entityManager.players.push(optionTarget);
+    const suppressed = EntityManager.prototype._applyModeDamage.call(
+        entityManager,
+        optionTarget,
+        5,
+        'DIRECT',
+        { sourcePlayer, emitDamageEvent: false, ignoreShield: true, nowSeconds: 7 },
+    );
+    assert.equal(suppressed.hpApplied, 5);
+    assert.equal(optionTarget.hp, 95);
+    assert.equal(optionTarget.shieldHP, 20);
+    assert.equal(optionTarget.lastDamageTimestamp, 7);
+    assert.equal(events.length, 2);
+
+});
+
+test('HuntScoring uses finite explicit hpApplied and falls back only for null, missing, or invalid values', () => {
+    const scoring = new HuntScoring(() => 0);
+    const sourcePlayer = { index: 0 };
+    const cases = [
+        { label: 'numeric zero', damageResult: { applied: 50, absorbedByShield: 0, hpApplied: 0 }, expected: 0 },
+        { label: 'null', damageResult: { applied: 50, absorbedByShield: 0, hpApplied: null }, expected: 50 },
+        { label: 'missing', damageResult: { applied: 50, absorbedByShield: 0 }, expected: 50 },
+        { label: 'non-finite', damageResult: { applied: 50, absorbedByShield: 0, hpApplied: Infinity }, expected: 50 },
+        { label: 'numeric string', damageResult: { applied: 50, absorbedByShield: 0, hpApplied: '12' }, expected: 12 },
+    ];
+    let expectedTotalDamage = 0;
+    for (const [offset, entry] of cases.entries()) {
+        const target = { index: offset + 1, maxHp: 100, maxShieldHp: 0 };
+        scoring.registerDamage(sourcePlayer, target, entry.damageResult, 0);
+        expectedTotalDamage += entry.expected;
+        const sourceRow = scoring.getScoreboard([sourcePlayer, target]).find((row) => row.playerIndex === sourcePlayer.index);
+        assert.equal(sourceRow.damage, expectedTotalDamage, entry.label);
+    }
 });
