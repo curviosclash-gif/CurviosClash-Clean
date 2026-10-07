@@ -42,7 +42,7 @@ const WARNED_BACKUP_KEYS = new Set();
  */
 export function backupUnreadableProfileRecord(store, record, nowMs = Date.now()) {
     if (!record || typeof record.raw !== 'string' || typeof store?.saveJsonRecord !== 'function') return false;
-    const sourceKey = String(store.resolveStorageKey?.(record.storageKey) || record.storageKey);
+    const sourceKey = String(record.sourceKey || store.resolveStorageKey?.(record.storageKey) || record.storageKey);
     const backupKey = `${sourceKey}${ARCADE_VEHICLE_PROFILE_UNREADABLE_BACKUP_SUFFIX}`;
     if (WARNED_BACKUP_KEYS.has(backupKey)) return false;
     WARNED_BACKUP_KEYS.add(backupKey);

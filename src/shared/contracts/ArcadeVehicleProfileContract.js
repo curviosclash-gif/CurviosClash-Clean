@@ -305,9 +305,10 @@ export function loadArcadeVehicleProfileRecord(store) {
     const readRecord = (key, fallback) => {
         if (typeof store.readJsonRecordResult === 'function') {
             const result = store.readJsonRecordResult(key);
-            if (result?.status === 'found') return { status: 'found', value: result.value };
-            if (result?.status === 'missing') return { status: 'missing', value: fallback };
-            return { status: result?.status || 'read_failed', value: undefined, raw: result?.raw };
+            const sourceMetadata = result?.sourceKey ? { sourceKey: String(result.sourceKey) } : {};
+            if (result?.status === 'found') return { status: 'found', value: result.value, ...sourceMetadata, raw: result.raw };
+            if (result?.status === 'missing') return { status: 'missing', value: fallback, ...sourceMetadata };
+            return { status: result?.status || 'read_failed', value: undefined, raw: result?.raw, ...sourceMetadata };
         }
         const value = store.loadJsonRecord(key, fallback);
         return value === null || value === undefined
@@ -315,9 +316,17 @@ export function loadArcadeVehicleProfileRecord(store) {
             : { status: 'found', value };
     };
     // Raw text of a record that blocks saving, so the caller can back it up untouched.
-    const unreadable = (storageKey, record, status = record.status) => (typeof record.raw === 'string'
-        ? { unreadableRecord: { storageKey, status, raw: record.raw } }
-        : {});
+    const unreadable = (storageKey, record, status = record.status) => {
+        if (typeof record.raw !== 'string') return {};
+        return {
+            unreadableRecord: {
+                storageKey,
+                ...(record.sourceKey ? { sourceKey: String(record.sourceKey) } : {}),
+                status,
+                raw: record.raw,
+            },
+        };
+    };
     const blocked = (usedLegacyFallback, storageKey, record) => ({
         profiles: {}, preservedProfiles: {}, preservedCosmeticProfiles: {}, shouldPersist: false, canPersist: false,
         usedLegacyFallback, ...unreadable(storageKey, record),
@@ -341,7 +350,10 @@ export function loadArcadeVehicleProfileRecord(store) {
         usedLegacyFallback,
         ...(record.canPersist || source.status !== 'found'
             ? {}
-            : unreadable(storageKey, { raw: JSON.stringify(source.value) ?? String(source.value) }, 'not_object')),
+            : unreadable(storageKey, {
+                raw: JSON.stringify(source.value) ?? String(source.value),
+                sourceKey: source.sourceKey,
+            }, 'not_object')),
     };
 }
 
