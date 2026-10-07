@@ -21,7 +21,7 @@ const OUTCROP_SITES = [
 export const MAGMA_BASALT_OUTCROPS = Object.freeze(OUTCROP_SITES.map(([variant, x, z, targetSize, rotateY], index) => ({
     id: `magma-outcrop-${String(index + 1).padStart(2, '0')}`,
     url: `assets/maps/magma_maze/props/basalt-outcrops/magma-basalt-outcrop-v${String(variant).padStart(2, '0')}/runtime.glb`,
-    position: [x, LAVA_TOP, z], rotation: [0, rotateY, 0], targetSize, collision: false,
+    position: [x, LAVA_TOP, z], rotation: [0, rotateY, 0], targetSize, collision: false, role: 'optionalProp',
 })));
 
 export const MAGMA_MAZE_MAP = {

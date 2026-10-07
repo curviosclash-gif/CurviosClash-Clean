@@ -300,6 +300,8 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
         rotation: [...entry.rotation],
         scale: asPositiveNumber(entry.scale, 1, 0.0001) * invScale,
         targetSize: Number(entry.targetSize) > 0 ? entry.targetSize * invScale : 0,
+        ...(entry.collision === false ? { collision: false } : {}),
+        ...(entry.role === undefined ? {} : { role: entry.role }),
     }));
 
     const playerSpawn = normalized.playerSpawn

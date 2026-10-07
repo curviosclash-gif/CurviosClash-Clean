@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { normalizeMapAnimationClock } from '../shared/contracts/MapAnimationClockContract.js';
 import { createGlbAnimationTrack } from './arena/GlbAnimationDriver.js';
 import { createDynamicMeshCollider, createStaticMeshCollider } from './arena/StaticMeshCollider.js';
-import { normalizeAllowedGLBUrl, resolveGLBColliderMode } from './mapSchema/MapSchemaGlbOps.js';
+import { normalizeAllowedGLBUrl, normalizeGLBModelRole, resolveGLBColliderMode } from './mapSchema/MapSchemaGlbOps.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { computeCollectionPlacement } from './GLBCollectionPlacement.js';
 
@@ -52,6 +52,7 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
         normalized.push({
             id: normalizeUrl(source?.id) || `model-${index + 1}`,
             url,
+            role: normalizeGLBModelRole(source?.role),
             position: normalizeVector3(source?.position),
             rotation: normalizeVector3(source?.rotation),
             scale: normalizePositiveNumber(source?.scale, 1),
@@ -86,12 +87,11 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
 }
 
 /**
- * @param {{usedGlbModel?: boolean, loadWarnings?: unknown[], map?: {glbAuthoredObstaclesCollisionOnly?: boolean}}} [options]
+ * @param {{usedGlbModel?: boolean, requiredWorldComplete?: boolean, map?: {glbAuthoredObstaclesCollisionOnly?: boolean}}} [options]
  */
-export function shouldDiscardAuthoredObstacleVisuals({ usedGlbModel, loadWarnings, map } = {}) {
+export function shouldDiscardAuthoredObstacleVisuals({ usedGlbModel, requiredWorldComplete, map } = {}) {
     return usedGlbModel === true
-        && Array.isArray(loadWarnings)
-        && loadWarnings.length === 0
+        && requiredWorldComplete === true
         && map?.glbAuthoredObstaclesCollisionOnly === true;
 }
 
@@ -436,6 +436,7 @@ export async function loadGLBMap(glbModel, options = {}) {
         animatedNodes,
         colliders,
         bounds,
+        requiredWorldComplete: true,
     };
 }
 
@@ -530,10 +531,12 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
 
     await Promise.all(Array.from({ length: concurrency }, () => loadNext()));
 
-    // A gameplay collection owns one collision layout. Mixing surviving meshes with
-    // its full fallback would block real openings; return the whole map to fallback.
-    // Editors can still preview partial collections by leaving requireComplete unset.
-    if (options.requireComplete === true && warnings.some(Boolean)) {
+    // Required architecture is one gameplay layout: a missing required part must use the
+    // complete map fallback. Explicit decorative props may fail independently.
+    const requiredModelFailed = models.some((model, index) => (
+        !loadedModels[index] && model.role !== 'optionalProp'
+    ));
+    if (options.requireComplete === true && requiredModelFailed) {
         for (const loaded of loadedModels) {
             if (!loaded) continue;
             for (const mixer of loaded.result.animationMixers) {
@@ -595,5 +598,10 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
         warnings: resolvedWarnings,
         loadedCount,
         failedCount: models.length - loadedCount,
+        requiredWorldComplete: loadedCount > 0
+            && models.some((model) => model.role !== 'optionalProp')
+            && !requiredModelFailed
+            && (!models.some((model) => model.role === 'primaryWorld')
+                || models.some((model, index) => model.role === 'primaryWorld' && loadedModels[index])),
     };
 }

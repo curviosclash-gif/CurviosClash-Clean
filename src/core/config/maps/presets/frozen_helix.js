@@ -20,7 +20,7 @@ const CRYSTAL_SITES = [
 export const FROZEN_ICE_CRYSTALS = Object.freeze(CRYSTAL_SITES.map(([variant, x, z, targetSize, rotateY], index) => ({
     id: `frozen-crystal-${String(index + 1).padStart(2, '0')}`,
     url: `assets/maps/frozen_helix/props/ice-crystals/frozen-ice-crystal-v${String(variant).padStart(2, '0')}/runtime.glb`,
-    position: [x, 0, z], rotation: [0, rotateY, 0], targetSize, collision: false,
+    position: [x, 0, z], rotation: [0, rotateY, 0], targetSize, collision: false, role: 'optionalProp',
 })));
 
 export const FROZEN_HELIX_MAP = {
