@@ -12,7 +12,7 @@ import {
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { clamp } from '../../shared/utils/MathOps.js';
 import { applyFightHumanAimAssist } from '../FightAimAssist.js';
-import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
+import { areTeammates, TEAM_WEAPON_KINDS } from '../../shared/contracts/TeamCombatContract.js';
 import { isArcadeCompanionTeamPair } from '../../shared/contracts/ArcadeCompanionContract.js';
 
 function canHitTargetable(target, attacker) {
@@ -290,21 +290,21 @@ export class MGHitResolver {
             : 1;
         const damage = baseDamage * (1 - (1 - minFalloff) * distRatio) * endlessMultiplier;
 
-        const damageResult = target.takeDamage(damage);
-        this.runtime?.events?.emitHuntDamageEvent({
+        const nowMs = Number(this.runtime?.callbacks?.getSimulationNowMs?.()
+            ?? attacker?.entityManager?._simulationClockMs);
+        const hit = {
             target,
+            amount: damage,
             sourcePlayer: attacker,
             cause: 'MG_BULLET',
-            damageResult,
+            weaponKind: TEAM_WEAPON_KINDS.MACHINE_GUN,
+            projectileType: 'MG_BULLET',
             impactPoint: impactPoint || target.position,
-        });
-        if (damageResult.isDead) {
-            this.runtime?.lifecycle?.killPlayer?.(target, 'PROJECTILE', {
-                killer: attacker,
-                impactPoint: impactPoint || target.position,
-                projectileType: 'MG_BULLET',
-            });
-        }
+            deathCause: 'PROJECTILE',
+            nowSeconds: Number.isFinite(nowMs) ? Math.max(0, nowMs) * 0.001 : 0,
+        };
+        const applyPlayerHit = this.runtime?.combat?.applyPlayerHit;
+        return typeof applyPlayerHit === 'function' ? applyPlayerHit(hit) : null;
     }
 
     applyTurretHit(attacker, turret, distance, mg) {

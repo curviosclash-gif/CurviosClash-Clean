@@ -3,6 +3,19 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 
 import { StaticTurretSystem } from '../src/entities/systems/StaticTurretSystem.js';
+import { CONFIG_BASE } from '../src/core/Config.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
+import { EntityManager } from '../src/entities/EntityManager.js';
+import { Player } from '../src/entities/Player.js';
+import { resetPlayerHealth } from '../src/hunt/HealthSystem.js';
+import { MGHitResolver } from '../src/hunt/mg/MGHitResolver.js';
+import { TEAM_IDS } from '../src/shared/contracts/TeamCombatContract.js';
+import { applyStaticTurretMgHit } from '../src/entities/systems/static-turret/StaticTurretCombatOps.js';
+
+const HUNT_CONFIG = {
+    ...CONFIG_BASE,
+    HUNT: { ...CONFIG_BASE.HUNT, ENABLED: true, ACTIVE_MODE: 'HUNT', DEFAULT_MODE: 'HUNT' },
+};
 
 function createTarget() {
     return {
@@ -10,6 +23,8 @@ function createTarget() {
         isBot: false,
         alive: true,
         hp: 100,
+        maxHp: 100,
+        entityRuntimeConfig: HUNT_CONFIG,
         position: new THREE.Vector3(12, 0, 0),
         takeDamage(amount) {
             this.hp -= amount;
@@ -24,7 +39,7 @@ test('StaticTurretSystem fires authored MG and rocket emplacements only in Hunt'
     const damageEvents = [];
     const manager = {
         renderer: null,
-        gameModeStrategy: { modeType: 'HUNT' },
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: HUNT_CONFIG }),
         arena: {
             currentMapDefinition: {
                 staticTurrets: [
@@ -61,6 +76,95 @@ test('StaticTurretSystem fires authored MG and rocket emplacements only in Hunt'
     assert.equal(system.turrets.length, 0);
 });
 
+test('the assembled MG runtime sends a real Player hit through the shared combat boundary once', () => {
+    const renderer = { addToScene() {}, removeFromScene() {} };
+    const owner = new EntityManager(renderer, null, null, null, null, null, null, {
+        entityRuntimeConfig: HUNT_CONFIG,
+    });
+    owner._simulationClockMs = 17_000;
+    const shooter = new Player(renderer, 0, 0x33aaff, false, { entityManager: owner });
+    const target = new Player(renderer, 1, 0xff8844, false, { entityManager: owner });
+    shooter.spawn(new THREE.Vector3(0, 10, 0), new THREE.Vector3(0, 0, -1));
+    target.spawn(new THREE.Vector3(0, 10, -20), new THREE.Vector3(0, 0, -1));
+    shooter.teamId = TEAM_IDS.ALPHA;
+    target.teamId = TEAM_IDS.BRAVO;
+    resetPlayerHealth(shooter, HUNT_CONFIG);
+    resetPlayerHealth(target, HUNT_CONFIG);
+    owner.players = [shooter, target];
+    owner.humanPlayers = owner.players;
+    const emitted = [];
+    const emitDamage = owner._emitHuntDamageEvent.bind(owner);
+    owner._emitHuntDamageEvent = (event) => {
+        emitted.push(event);
+        emitDamage(event);
+    };
+    const runtime = owner.getRuntimeContext();
+    const resolver = new MGHitResolver(runtime);
+
+    target.spawnProtectionTimer = 1;
+    resolver.applyHit(shooter, target, 5, HUNT_CONFIG.HUNT.MG);
+    assert.equal(target.hp, 100);
+    assert.equal(emitted.length, 0, 'spawn protection publishes no hit event');
+
+    target.spawnProtectionTimer = 0;
+    const result = resolver.applyHit(shooter, target, 5, HUNT_CONFIG.HUNT.MG);
+    assert.ok(result.hpApplied > 0);
+    assert.equal(target.hp < 100, true);
+    assert.equal(target.lastDamageTimestamp, 17, 'the assembled runtime forwards simulation time');
+    assert.equal(emitted.length, 1);
+    assert.equal(emitted[0].cause, 'MG_BULLET');
+    assert.equal(emitted[0].projectileType, 'MG_BULLET');
+
+    owner.clear();
+});
+
+test('a static turret records only an accepted lethal Player hit and the pipeline kills once', () => {
+    const renderer = { addToScene() {}, removeFromScene() {} };
+    const owner = new EntityManager(renderer, null, null, null, null, null, null, {
+        entityRuntimeConfig: HUNT_CONFIG,
+    });
+    const source = new Player(renderer, 0, 0x33aaff, false, { entityManager: owner });
+    const target = new Player(renderer, 1, 0xff8844, false, { entityManager: owner });
+    source.spawn(new THREE.Vector3(0, 10, 0), new THREE.Vector3(0, 0, -1));
+    target.spawn(new THREE.Vector3(0, 10, -20), new THREE.Vector3(0, 0, -1));
+    source.teamId = TEAM_IDS.ALPHA;
+    target.teamId = TEAM_IDS.BRAVO;
+    resetPlayerHealth(source, HUNT_CONFIG);
+    resetPlayerHealth(target, HUNT_CONFIG);
+    owner.players = [source, target];
+    owner.humanPlayers = owner.players;
+    const damageEvents = [];
+    const deathEvents = [];
+    const recorderEvents = [];
+    const emitDamage = owner._emitHuntDamageEvent.bind(owner);
+    owner._emitHuntDamageEvent = (event) => {
+        damageEvents.push(event);
+        emitDamage(event);
+    };
+    owner._killPlayer = (player, cause, options) => {
+        player.alive = false;
+        deathEvents.push({ player, cause, options });
+    };
+    owner.recorder = { logEvent: (...event) => recorderEvents.push(event) };
+    const turret = { id: 'test-turret', ownerIndex: 0, source, damage: 10 };
+    const system = { entityManager: owner };
+
+    target.spawnProtectionTimer = 1;
+    applyStaticTurretMgHit(system, turret, target);
+    assert.equal(damageEvents.length, 0);
+    assert.equal(recorderEvents.length, 0, 'blocked hits are not recorded');
+
+    target.spawnProtectionTimer = 0;
+    target.hp = 5;
+    applyStaticTurretMgHit(system, turret, target);
+    assert.equal(target.alive, false);
+    assert.equal(damageEvents.length, 1);
+    assert.equal(deathEvents.length, 1);
+    assert.deepEqual(recorderEvents.map(([type]) => type), ['TURRET_PLAYER_HIT', 'TURRET_KILL']);
+
+    owner.clear();
+});
+
 test('StaticTurretSystem stays inactive outside Hunt', () => {
     const system = new StaticTurretSystem({
         gameModeStrategy: { modeType: 'CLASSIC' },
@@ -78,7 +182,7 @@ test('StaticTurretSystem skips a blocked near target and attacks the nearest vis
     visible.index = 1;
     visible.position.set(20, 0, 10);
     const system = new StaticTurretSystem({
-        gameModeStrategy: { modeType: 'HUNT' },
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: HUNT_CONFIG }),
         arena: {
             currentMapDefinition: {
                 staticTurrets: [{ id: 'mg', weapon: 'mg', pos: [0, 0, 0], range: 40, cooldown: 1, damage: 5 }],
@@ -103,7 +207,7 @@ test('StaticTurretSystem line-of-sight sampling detects thin walls at long range
     const target = createTarget();
     target.position.set(58, 0, 0);
     const system = new StaticTurretSystem({
-        gameModeStrategy: { modeType: 'HUNT' },
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: HUNT_CONFIG }),
         arena: {
             currentMapDefinition: {
                 staticTurrets: [{ id: 'mg', weapon: 'mg', pos: [0, 0, 0], range: 60, cooldown: 1, damage: 5 }],
@@ -127,7 +231,7 @@ test('StaticTurretSystem line-of-sight sampling also blocks targets closer than 
     const target = createTarget();
     target.position.set(3, 0, 0);
     const system = new StaticTurretSystem({
-        gameModeStrategy: { modeType: 'HUNT' },
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: HUNT_CONFIG }),
         arena: {
             currentMapDefinition: {
                 staticTurrets: [{ id: 'close', weapon: 'mg', pos: [0, 0, 0], range: 10, cooldown: 1, damage: 5 }],
@@ -161,7 +265,7 @@ test('StaticTurretSystem does not deploy through a wall and throttles idle trail
         getAimDirection: (out) => out.set(-1, 0, 0),
     };
     const system = new StaticTurretSystem({
-        gameModeStrategy: { modeType: 'HUNT' },
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: HUNT_CONFIG }),
         arena: { checkCollisionFast: (point) => point.x > 1.2 && point.x < 2 },
         players: [player],
         _trailSpatialIndex: { gridSize: 10, spatialGrid },
@@ -178,7 +282,7 @@ test('StaticTurretSystem does not deploy through a wall and throttles idle trail
 test('StaticTurretSystem round-trips authoritative deployed turret state', () => {
     const player = { index: 0, alive: true, position: new THREE.Vector3(), color: 0x44aaff };
     const host = new StaticTurretSystem({
-        gameModeStrategy: { modeType: 'HUNT' },
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: HUNT_CONFIG }),
         entityRuntimeConfig: { HUNT: { MG_TURRET: {} } },
         arena: { checkCollisionFast: () => false },
         players: [player],
@@ -206,7 +310,7 @@ test('StaticTurretSystem publishes smoothly turning aim before its acquisition d
     const target = createTarget();
     target.position.set(0, 0, 20);
     const system = new StaticTurretSystem({
-        gameModeStrategy: { modeType: 'HUNT' },
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: HUNT_CONFIG }),
         arena: {
             currentMapDefinition: {
                 staticTurrets: [{ id: 'turning', weapon: 'mg', pos: [0, 0, 0], range: 40, cooldown: 1, damage: 5 }],
@@ -228,7 +332,7 @@ test('StaticTurretSystem publishes smoothly turning aim before its acquisition d
 test('StaticTurretSystem preserves rocket types and emits replica shot feedback once per counter advance', () => {
     const target = createTarget();
     const host = new StaticTurretSystem({
-        gameModeStrategy: { modeType: 'HUNT' },
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: HUNT_CONFIG }),
         arena: {
             currentMapDefinition: {
                 staticTurrets: [{ id: 'rocket', weapon: 'rocket', rocketType: 'ROCKET_MEDIUM', pos: [0, 0, 0], range: 40 }],

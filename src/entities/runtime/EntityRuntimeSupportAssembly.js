@@ -5,6 +5,7 @@ import { SpawnPlacementSystem } from '../systems/SpawnPlacementSystem.js';
 import { CollisionResponseSystem } from '../systems/CollisionResponseSystem.js';
 import { EntityRuntimeContext } from './EntityRuntimeContext.js';
 import { EntityEventBus } from './EntityEventBus.js';
+import { applyHit } from '../combat/CombatPipeline.js';
 import { resolveWorldAudioOptions } from '../audio/WorldAudioOptions.js';
 import { HuntScoring } from '../../hunt/HuntScoring.js';
 import { isRocketTierType, resolveRocketTierDamage } from '../../hunt/RocketPickupSystem.js';
@@ -244,6 +245,12 @@ export function createEntityRuntimeSupport(owner) {
             getStrategy: () => owner.gameModeStrategy || null,
             getSimulationNowMs: () => Math.max(0, Number(owner._simulationClockMs) || 0),
             combat: {
+                applyPlayerHit: (hit) => applyHit(owner, {
+                    ...hit,
+                    nowSeconds: Number.isFinite(hit?.nowSeconds)
+                        ? hit.nowSeconds
+                        : Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
+                }),
                 shootItemProjectile: (player, preferredIndex = -1, rocketOnly = false) => projectileSystem.shootItemProjectile(player, preferredIndex, rocketOnly),
                 shootHuntGun: (player) => owner._overheatGunSystem.tryFire(player),
                 deployRocketTurret: (player) => owner._staticTurretSystem?.deployForPlayer?.(player, 'rocket') || null,

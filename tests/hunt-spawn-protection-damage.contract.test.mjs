@@ -8,6 +8,8 @@ import { ProjectileHitResolver } from '../src/entities/systems/projectile/Projec
 import { MGHitResolver } from '../src/hunt/mg/MGHitResolver.js';
 import { resetPlayerHealth } from '../src/hunt/HealthSystem.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 
 const HUNT_RUNTIME_CONFIG = createEntityRuntimeConfig(null, CONFIG_BASE);
 
@@ -29,11 +31,16 @@ function createFightPlayer(index, position) {
 }
 
 function createMgRuntime(players, kills) {
-    return {
+    const world = {
         players,
-        events: { emitHuntDamageEvent() {} },
-        lifecycle: { killPlayer(target, cause) { kills.push({ target, cause }); } },
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: HUNT_RUNTIME_CONFIG }),
+        _emitHuntDamageEvent() {},
+        _killPlayer(target, cause, options) {
+            target.alive = false;
+            kills.push({ target, cause, options });
+        },
     };
+    return { players, combat: { applyPlayerHit: (hit) => applyHit(world, hit) } };
 }
 
 test('the respawn protection swallows machine gun hits', () => {

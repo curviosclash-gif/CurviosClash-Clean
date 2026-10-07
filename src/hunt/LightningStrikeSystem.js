@@ -4,6 +4,7 @@ import { isHuntHealthActive } from './HealthSystem.js';
 import { LightningStrikeEffect } from '../entities/effects/LightningStrikeEffect.js';
 import { nextPlayerArcadeWeaponColor } from '../shared/contracts/ArcadeVehicleCosmeticContract.js';
 import { canDamage, TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
+import { applyHit } from '../entities/combat/CombatPipeline.js';
 
 export const LIGHTNING_CAUSE = 'LIGHTNING';
 // Strikes kept for the network: bots may cast together, so several can land between two snapshots.
@@ -138,22 +139,19 @@ export class LightningStrikeSystem {
         for (const target of targets) {
             const amount = resolveLightningDamage(target, damage, lethalBelow);
             if (amount <= 0 || typeof target.takeDamage !== 'function') continue;
-            const damageResult = target.takeDamage(amount);
-            hit.push(target.index);
-            owner?._emitHuntDamageEvent?.({
+            const damageResult = applyHit(owner, {
                 target,
+                amount,
                 sourcePlayer: strike.caster,
                 cause: LIGHTNING_CAUSE,
-                damageResult,
+                weaponKind: TEAM_WEAPON_KINDS.ITEM_PROJECTILE,
+                projectileType: LIGHTNING_CAUSE,
                 impactPoint: target.position,
+                deathCause: 'PROJECTILE',
+                nowSeconds: Math.max(0, Number(owner?._simulationClockMs) || 0) * 0.001,
             });
-            if (damageResult?.isDead) {
-                owner?._killPlayer?.(target, 'PROJECTILE', {
-                    killer: strike.caster,
-                    impactPoint: target.position,
-                    projectileType: LIGHTNING_CAUSE,
-                });
-            }
+            if (!damageResult || damageResult.blocked) continue;
+            hit.push(target.index);
         }
         this.lastStrike = { id: strike.id, casterIndex: strike.caster?.index ?? -1, targetIndices: hit };
         this._recentStrikes.push(this.lastStrike);

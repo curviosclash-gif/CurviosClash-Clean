@@ -16,6 +16,19 @@ import {
     selectArcadeMachineGun,
 } from '../src/shared/contracts/ArcadeMachineGunContract.js';
 import { resolveArcadeVehicleActiveStats } from '../src/shared/contracts/ArcadeVehicleActiveStatsContract.js';
+import { CONFIG_BASE } from '../src/core/Config.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
+import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
+
+const ENTITY_RUNTIME_CONFIG = createEntityRuntimeConfig(null, CONFIG_BASE);
+ENTITY_RUNTIME_CONFIG.HUNT = {
+    ...ENTITY_RUNTIME_CONFIG.HUNT,
+    ...HUNT_CONFIG,
+    ENABLED: true,
+    ACTIVE_MODE: 'HUNT',
+    DEFAULT_MODE: 'HUNT',
+};
 
 test('the seven guns unlock by role and every tenth vehicle level', () => {
     assert.deepEqual(ARCADE_MACHINE_GUN_IDS, [
@@ -76,13 +89,20 @@ test('nose damage counts once and dynamic visibility changes cached range', () =
 
 /** Actual gun state, cooldown and hit falloff. Only the spatial query is fixed to 60 units. */
 export function fiveSecondDamage(id, level, hz, adjust = null) {
-    let damage = 0;
     const player = { index: 0, alive: true, isBot: false, shootCooldown: 0, position: new THREE.Vector3(),
         arcadeWeaponLoadout: Object.freeze({ machineGunId: id, mgLevel: level, mgDamagePct: 100 + 8 * (level - 1), masterCount: 0 }) };
-    const target = { index: 1, alive: true, position: new THREE.Vector3(0, 0, -60),
-        takeDamage(amount) { damage += amount; return { isDead: false }; } };
-    const entityManager = { players: [player], gameModeStrategy: { hasMachineGun: () => true } };
-    const runtime = { players: [player, target], services: { entityRuntimeConfig: { HUNT: { MG: HUNT_CONFIG.MG } } } };
+    const target = { index: 1, alive: true, hp: 1000, maxHp: 1000, position: new THREE.Vector3(0, 0, -60) };
+    const entityManager = {
+        players: [player, target],
+        entityRuntimeConfig: ENTITY_RUNTIME_CONFIG,
+        gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: ENTITY_RUNTIME_CONFIG }),
+        _emitHuntDamageEvent() {},
+    };
+    const runtime = {
+        players: [player, target],
+        services: { entityRuntimeConfig: ENTITY_RUNTIME_CONFIG },
+        combat: { applyPlayerHit: (hit) => applyHit(entityManager, hit) },
+    };
     const system = new OverheatGunSystem(entityManager, runtime);
     if (adjust) adjust(resolvePlayerMachineGunConfig(HUNT_CONFIG.MG, player));
     system._hitResolver.resolveAimDirection = (_player, out) => out.set(0, 0, -1);
@@ -97,7 +117,7 @@ export function fiveSecondDamage(id, level, hz, adjust = null) {
         advanceShootCooldown(player, dt);
         system.tryFire(player);
     }
-    return damage;
+    return 1000 - target.hp;
 }
 
 test('each gun stays within five percent of Vector over five real combat seconds', () => {
