@@ -6,6 +6,7 @@
 
 import { GameModeContract } from './GameModeContract.js';
 import { applyCappedHealing, applyShieldAndHpDamage } from '../hunt/HealthSystem.js';
+import { applyHeal } from '../entities/combat/CombatPipeline.js';
 import { isPickupTypeAllowedForMode, pickWeightedPickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import {
@@ -345,11 +346,13 @@ export class ArcadeModeStrategy extends GameModeContract {
         };
     }
 
-    applyHealing(player, amount) {
+    applyHealing(player, amount, _config = null, cause = null) {
         if (this._huntCombat) return this._huntCombat.applyHealing(player, amount);
         if (!player) return { healed: 0, hp: 0 };
         // 61.6.2: No healing in Sudden Death
-        if (this._sdActive) return { healed: 0, hp: Math.max(0, toSafe(player.hp, 0)) };
+        if (this._sdActive && cause !== 'ARCADE_INTERMISSION') {
+            return { healed: 0, hp: Math.max(0, toSafe(player.hp, 0)) };
+        }
         const heal = Math.max(0, toSafe(amount, 0));
         if (heal <= 0) return { healed: 0, hp: toSafe(player.hp, 0) };
         const maxHp = Math.max(1, toSafe(player.maxHp, DEFAULT_MAX_HP));
@@ -371,15 +374,12 @@ export class ArcadeModeStrategy extends GameModeContract {
         healPct = Math.max(0, Math.min(0.4, healPct));
 
         const requestedHeal = Math.max(0, Math.round(maxHp * healPct));
-        const hpBefore = Math.max(0, toSafe(player.hp, maxHp));
-        let healed = 0;
-        if (this._sdActive) {
-            player.hp = Math.min(maxHp, hpBefore + requestedHeal);
-            healed = Math.max(0, player.hp - hpBefore);
-        } else {
-            const healResult = this.applyHealing(player, requestedHeal);
-            healed = Math.max(0, toSafe(healResult.healed, 0));
-        }
+        const healResult = applyHeal({ strategy: this }, {
+            target: player,
+            amount: requestedHeal,
+            cause: 'ARCADE_INTERMISSION',
+        });
+        const healed = Math.max(0, toSafe(healResult?.healed, 0));
 
         let shieldGranted = 0;
         const spill = Math.max(0, requestedHeal - healed);

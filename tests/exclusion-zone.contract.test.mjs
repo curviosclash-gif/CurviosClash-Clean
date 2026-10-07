@@ -19,7 +19,8 @@ import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js'
 import { createMatchRuntimePlayerProjection } from '../src/shared/contracts/MatchRuntimeProjectionContract.js';
 import { applyEnvironmentProjectileDamage } from '../src/entities/runtime/EntityRuntimeSupportAssembly.js';
 import { ClassicModeStrategy } from '../src/modes/ClassicModeStrategy.js';
-import { EntityManager } from '../src/entities/EntityManager.js';
+import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { StateReconciler } from '../src/network/StateReconciler.js';
 import { ProjectileSimulationOps } from '../src/entities/systems/projectile/ProjectileSimulationOps.js';
 import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
@@ -312,25 +313,59 @@ test('environment damage consumes one shield hit and then delegates lethal Class
     target.hasShield = true;
     target.shieldHP = 1;
     const strategy = new ClassicModeStrategy();
+    const damageEvents = [];
+    const deaths = [];
     const owner = {
         gameModeStrategy: strategy,
         _simulationClockMs: 2500,
-        _emitHuntDamageEvent() {},
-        _killPlayer(player, cause) { player.alive = false; player.deathCause = cause; },
+        _emitHuntDamageEvent(event) { damageEvents.push(event); },
+        _killPlayer(player, cause, options) {
+            deaths.push({ player, cause, options });
+            player.alive = false;
+            player.deathCause = cause;
+        },
     };
-    owner._applyModeDamage = EntityManager.prototype._applyModeDamage;
     const projectile = { type: 'ROCKET_HEAVY', position: new THREE.Vector3(1, 2, 3) };
 
     const shielded = applyEnvironmentProjectileDamage(owner, target, projectile);
     assert.equal(shielded.absorbedByShield, 1);
     assert.equal(target.alive, true);
     assert.equal(target.hasShield, false);
+    assert.equal(damageEvents.length, 0, 'a shield-only contact publishes no zero-damage event');
+    assert.equal(deaths.length, 0);
 
     strategy.resetPlayerHealth(target);
     const unshielded = applyEnvironmentProjectileDamage(owner, target, projectile);
     assert.equal(unshielded.isDead, true);
     assert.equal(target.alive, false);
     assert.equal(target.deathCause, 'EXCLUSION_ZONE');
+    assert.equal(damageEvents.length, 1);
+    assert.equal(deaths.length, 1);
+    assert.equal(deaths[0].cause, 'EXCLUSION_ZONE');
+    assert.equal(target.lastDamageTimestamp, 2.5);
+});
+
+test('environment damage delegates living Hunt and Arcade targets through their active strategies', () => {
+    for (const strategy of [new HuntModeStrategy(), new ArcadeModeStrategy()]) {
+        const target = createPlayer(1);
+        const events = [];
+        let deaths = 0;
+        const owner = {
+            gameModeStrategy: strategy,
+            _simulationClockMs: 1250,
+            _emitHuntDamageEvent(event) { events.push(event); },
+            _killPlayer() { deaths += 1; },
+        };
+
+        const result = applyEnvironmentProjectileDamage(owner, target, { type: 'ROCKET_HEAVY' });
+
+        assert.equal(result.blocked, null);
+        assert.ok(result.hpApplied > 0);
+        assert.equal(target.hp, 100 - result.hpApplied);
+        assert.equal(events.length, 1);
+        assert.equal(events[0].cause, 'EXCLUSION_ZONE');
+        assert.equal(deaths, 0);
+    }
 });
 
 test('snapshots add zone state and target binding without changing the established player schema', () => {

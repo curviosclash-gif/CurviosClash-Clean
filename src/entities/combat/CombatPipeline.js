@@ -111,6 +111,22 @@ export function applyHit(world, input) {
     ) {
         return makeBlockedResult(target, 'TEAM');
     }
+    // Exclusion-zone rockets consume one complete shield contact, matching the
+    // authored hazard rule while keeping damage/death effects inside this pipeline.
+    if (causeKey === 'EXCLUSION_ZONE'
+        && target?.alive !== false
+        && (target?.hasShield === true || Number(target?.shieldHP) > 0)) {
+        target.hasShield = false;
+        target.shieldHP = 0;
+        return {
+            blocked: null,
+            applied: 0,
+            absorbedByShield: 1,
+            hpApplied: 0,
+            remainingHp: Math.max(0, Number(target.hp) || 0),
+            isDead: false,
+        };
+    }
     if ((Number(target.spawnProtectionTimer) || 0) > 0) {
         return makeBlockedResult(target, 'SPAWN_PROTECTION');
     }
@@ -179,7 +195,7 @@ export function applyHit(world, input) {
 export function applyHeal(world, input) {
     const heal = normalizeCombatHealInput(input);
     if (!heal) return null;
-    const { target, amount } = heal;
+    const { target, amount, cause } = heal;
     if (isDead(target)) return { healed: 0, hp: Math.max(0, Number(target.hp) || 0), blocked: 'DEAD' };
     if (isInvulnerable(target)) return { healed: 0, hp: Math.max(0, Number(target.hp) || 0), blocked: 'INVULNERABLE' };
     if (amount <= 0) return { healed: 0, hp: Math.max(0, Number(target.hp) || 0), blocked: null };
@@ -187,7 +203,7 @@ export function applyHeal(world, input) {
     const entityManager = resolveEntityManager(world);
     const strategy = resolveStrategy(world, entityManager);
     const result = typeof strategy?.applyHealing === 'function'
-        ? strategy.applyHealing(target, amount, target.entityRuntimeConfig)
+        ? strategy.applyHealing(target, amount, target.entityRuntimeConfig, cause)
         : applyHealthHealing(target, amount);
     if (!result || typeof result !== 'object') return null;
     return {

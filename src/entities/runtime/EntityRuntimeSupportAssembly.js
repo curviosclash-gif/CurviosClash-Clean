@@ -17,18 +17,25 @@ import {
 
 export function applyEnvironmentProjectileDamage(owner, target, projectile) {
     if (!target?.alive) return null;
-    if (target.hasShield === true || Number(target.shieldHP) > 0) {
-        target.hasShield = false;
-        target.shieldHP = 0;
-        owner.audio?.play?.('SHIELD_HIT', { intensity: 0.75, depleted: true });
-        owner.particles?.spawnHit?.(target.position, target.color);
-        return { applied: 0, absorbedByShield: 1, remainingHp: target.hp, isDead: false };
-    }
     const damage = resolveRocketTierDamage(projectile?.type, owner);
-    return owner._applyModeDamage(target, damage, 'EXCLUSION_ZONE', {
+    const result = applyHit(owner, {
+        target,
+        amount: damage,
+        cause: 'EXCLUSION_ZONE',
         impactPoint: projectile?.position || target.position,
         nowSeconds: Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
     });
+    if (result?.absorbedByShield === 1 && result.hpApplied === 0) {
+        owner.audio?.play?.('SHIELD_HIT', { intensity: 0.75, depleted: true });
+        owner.particles?.spawnHit?.(target.position, target.color);
+        return {
+            applied: 0,
+            absorbedByShield: 1,
+            remainingHp: result.remainingHp,
+            isDead: false,
+        };
+    }
+    return result;
 }
 
 /**
