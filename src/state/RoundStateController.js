@@ -3,13 +3,14 @@
 // ============================================
 
 import {
+    DEFAULT_ROUND_PAUSE_SECONDS,
     deriveMatchEndTickStep,
     deriveRoundEndControllerTransition,
     deriveRoundEndTickStep,
 } from './RoundStateControllerOps.js';
 import { deriveRoundEndOutcome } from './RoundStateOps.js';
 
-function normalizePause(value, fallback = 3) {
+function normalizePause(value, fallback = DEFAULT_ROUND_PAUSE_SECONDS) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
 }

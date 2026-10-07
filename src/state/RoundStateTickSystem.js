@@ -159,6 +159,13 @@ export class RoundStateTickSystem {
             || null;
     }
 
+    _getMatchKernel() {
+        return this._getKernelAdapter()?.kernel
+            || this.game?.runtimeCoordinator?.getRuntimeHandle?.('matchKernel')
+            || this.game?.matchSessionRuntimeBridge?.getCurrentMatchKernel?.()
+            || null;
+    }
+
     /**
      * _syncKernelMatchEndLifecycle – the session factory can only signal round end: the
      * match-end decision is derived afterwards by the round state controller. This state
@@ -341,7 +348,7 @@ export class RoundStateTickSystem {
     }
 
     _applyRoundEndTickMutableState(roundEndTick) {
-        this.game.roundPause = roundEndTick.nextRoundPause;
+        this._getMatchKernel()?.setRoundPause?.(roundEndTick.nextRoundPause);
         this._applyRoundEndTickUi(roundEndTick);
     }
 

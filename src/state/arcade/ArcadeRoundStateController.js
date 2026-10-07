@@ -1,8 +1,14 @@
+import { DEFAULT_ROUND_PAUSE_SECONDS } from '../RoundStateControllerOps.js';
+
 export class ArcadeRoundStateController {
     constructor(options = {}) {
         this.baseController = options.baseController || null;
         this.arcadeRuntime = options.arcadeRuntime || null;
-        this.defaultRoundPause = Number(this.baseController?.defaultRoundPause) || 3;
+        const configuredPause = this.baseController?.defaultRoundPause;
+        const basePause = Number(configuredPause);
+        this.defaultRoundPause = configuredPause != null && Number.isFinite(basePause)
+            ? Math.max(0, basePause)
+            : DEFAULT_ROUND_PAUSE_SECONDS;
         this.isArcadeRoundStateController = true;
     }
 

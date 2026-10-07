@@ -6,12 +6,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { RoundStateTickSystem } from '../src/state/RoundStateTickSystem.js';
+import { createInteractiveMatchKernel } from '../src/state/MatchKernel.js';
+import { createMatchKernelInteractiveAdapter } from '../src/core/MatchKernelInteractiveAdapter.js';
 
 function createStubGame({ surfaceState = null, roundPause = 3, pressed = {},
     roundStateController = null } = {}) {
     const calls = { restartRound: 0, returnToMenu: 0, updateCameras: 0, controllerTick: 0 };
+    const kernel = createInteractiveMatchKernel({ simPorts: {} });
+    kernel.boot({ roundIndex: 0 });
+    kernel.signalRoundEnd({ roundPause });
     const game = {
-        roundPause,
         input: { wasPressed: (key) => !!pressed[key] },
         entityManager: {
             updateCameras: () => { calls.updateCameras += 1; },
@@ -20,8 +24,10 @@ function createStubGame({ surfaceState = null, roundPause = 3, pressed = {},
         matchFlowUiController: { applyMatchUiState: () => {} },
         runtimeCoordinator: {
             getArcadeMenuSurfaceState: () => surfaceState,
+            getRuntimeHandle: (key) => key === 'matchKernel' ? kernel : null,
         },
         roundStateController: roundStateController || {
+            isArcadeRoundStateController: true,
             deriveRoundEndTick: (inputs) => {
                 calls.controllerTick += 1;
                 return { action: 'WAIT', nextRoundPause: inputs.roundPause,
@@ -29,6 +35,12 @@ function createStubGame({ surfaceState = null, roundPause = 3, pressed = {},
             },
         },
     };
+    Object.defineProperty(game, 'roundPause', {
+        enumerable: true,
+        get: () => game.runtimeCoordinator.getRuntimeHandle('matchKernel')?.roundPause ?? 0,
+    });
+    const adapter = createMatchKernelInteractiveAdapter({ game, kernel });
+    game.playingStateSystem = { getKernelAdapter: () => adapter };
     const lifecyclePort = {
         restartRound: () => { calls.restartRound += 1; },
         returnToMenu: () => { calls.returnToMenu += 1; },

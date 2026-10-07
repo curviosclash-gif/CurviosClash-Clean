@@ -5,11 +5,17 @@ import { ensureInteractiveMatchRuntime } from '../src/core/InteractiveMatchRunti
 import { RoundStateTickSystem } from '../src/state/RoundStateTickSystem.js';
 import { GAME_STATE_IDS } from '../src/shared/contracts/GameStateIds.js';
 import { createRuntimePorts } from '../src/shared/runtime/GameRuntimePorts.js';
+import { createInteractiveMatchKernel } from '../src/state/MatchKernel.js';
 
 function createGame(state, events = []) {
-    return {
+    const kernel = createInteractiveMatchKernel({ simPorts: {} });
+    kernel.boot({ roundIndex: 0, roundPause: 6 });
+    if (state === GAME_STATE_IDS.MATCH_END) {
+        kernel.signalMatchEnd();
+        kernel.setRoundPause(6);
+    }
+    const game = {
         state,
-        roundPause: 6,
         _hudTimer: 12,
         huntState: { killFeed: ['kept'], overheatByPlayer: { 0: 0.6 } },
         input: { clearInputState(reason) { events.push(`input:${reason}`); } },
@@ -18,7 +24,15 @@ function createGame(state, events = []) {
             setMusicState(value) { events.push(`audio-music:${value}`); },
         },
         settings: { localSettings: { modePath: 'normal' } },
+        runtimeCoordinator: {
+            getRuntimeHandle: (key) => key === 'matchKernel' ? kernel : null,
+        },
     };
+    Object.defineProperty(game, 'roundPause', {
+        enumerable: true,
+        get: () => game.runtimeCoordinator.getRuntimeHandle('matchKernel')?.roundPause ?? 0,
+    });
+    return game;
 }
 
 test('the match-state port rejects forbidden match-end transitions before any side effect', () => {

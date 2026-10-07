@@ -181,7 +181,7 @@ export class MatchFlowLifecycleController {
         // The plan already contains the final ROUND_END or MATCH_END state. Apply that decision
         // once; only use the legacy round-end entry when no transition could be derived.
         if (!roundEndPlan?.transition) {
-            this.runtimePort?.enterRoundEnd?.(3.0);
+            this.runtimePort?.enterRoundEnd?.();
         }
         this.applyRoundEndCoordinatorPlan(roundEndPlan);
         this.telemetryController?.recordRoundEndTelemetry?.(roundEndPlan);

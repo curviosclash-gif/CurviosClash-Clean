@@ -289,7 +289,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             game.recorder.roundStartTime = now - simulatedDurationMs;
 
             game.matchFlowUiController.onRoundEnd(players[0]);
-            game.roundPause = 2.6;
+            game.runtimeCoordinator.getRuntimeHandle('matchKernel')?.setRoundPause(2.6);
             game.roundStateTickSystem.updateRoundEnd(0.3);
             const recordedDuration = Number(game.recorder.getLastRoundMetrics?.()?.duration || 0);
 

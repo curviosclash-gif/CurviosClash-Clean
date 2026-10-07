@@ -5,6 +5,24 @@ import {
     SESSION_RUNTIME_STATES,
 } from '../contracts/SessionRuntimeStateMachine.js';
 
+function getCurrentMatchKernel(game) {
+    return game?.runtimeCoordinator?.getRuntimeHandle?.('matchKernel')
+        || game?.matchSessionRuntimeBridge?.getCurrentMatchKernel?.()
+        || game?.playingStateSystem?.getKernelAdapter?.()?.kernel
+        || null;
+}
+
+function applyRoundPause(game, value, beginRoundEnd = false) {
+    const kernel = getCurrentMatchKernel(game);
+    if (!kernel) return false;
+    if (beginRoundEnd && kernel.lifecycle === 'running') {
+        const options = Number.isFinite(Number(value)) ? { roundPause: Number(value) } : undefined;
+        return kernel.signalRoundEnd?.(options) === true;
+    }
+    if (!Number.isFinite(Number(value))) return false;
+    return kernel.setRoundPause?.(value) === true;
+}
+
 function syncAudioLifecycle(game, state) {
     const audio = game?.audio;
     if (!audio) return;
@@ -108,7 +126,9 @@ export function createMatchStatePort(game) {
                     options?.allowAuthorizedMatchRestart !== false
                 )) return false;
             }
-            if (typeof transition.roundPause === 'number') game.roundPause = transition.roundPause;
+            if (typeof transition.roundPause === 'number') {
+                applyRoundPause(game, transition.roundPause, transition.state === GAME_STATE_IDS.ROUND_END);
+            }
             if (typeof transition.hudTimer === 'number') game._hudTimer = transition.hudTimer;
             if (transition.huntStatePatch && game.huntState) {
                 Object.assign(game.huntState, { ...transition.huntStatePatch });
@@ -116,12 +136,14 @@ export function createMatchStatePort(game) {
             syncAudioLifecycle(game, game.state);
             return true;
         },
-        enterRoundEnd(roundPause = 3) {
+        enterRoundEnd(roundPause = undefined) {
             if (!game) return false;
+            const alreadyRoundEnd = game.state === GAME_STATE_IDS.ROUND_END;
             if (!applyStateTransition(GAME_STATE_IDS.ROUND_END, GAME_STATE_IDS.ROUND_END, 'round-end')) {
                 return false;
             }
-            game.roundPause = Number.isFinite(Number(roundPause)) ? Number(roundPause) : 3;
+            if (alreadyRoundEnd) return true;
+            applyRoundPause(game, roundPause, true);
             syncAudioLifecycle(game, game.state);
             return true;
         },
@@ -132,16 +154,15 @@ export function createMatchStatePort(game) {
                 GAME_STATE_IDS.ROUND_END,
                 'round-transition'
             )) return false;
-            game.roundPause = Number.isFinite(Number(transition.roundPause))
-                ? Number(transition.roundPause)
-                : game.roundPause;
+            if (Number.isFinite(Number(transition.roundPause))) {
+                applyRoundPause(game, Number(transition.roundPause), transition.nextState === GAME_STATE_IDS.ROUND_END);
+            }
             syncAudioLifecycle(game, game.state);
             return true;
         },
         setRoundPause(value) {
             if (!game || !Number.isFinite(Number(value))) return false;
-            game.roundPause = Number(value);
-            return true;
+            return applyRoundPause(game, Number(value));
         },
     };
 }
