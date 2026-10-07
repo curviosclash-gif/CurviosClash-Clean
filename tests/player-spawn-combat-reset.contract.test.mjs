@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { CONFIG_BASE } from '../src/core/Config.js';
 import { Player } from '../src/entities/Player.js';
 import { EntitySpawnOps } from '../src/entities/runtime/EntitySpawnOps.js';
+import { createEntityRuntimeSupport } from '../src/entities/runtime/EntityRuntimeSupportAssembly.js';
+import { EXCLUSION_ZONE_PHASES, ExclusionZoneSystem } from '../src/entities/systems/ExclusionZoneSystem.js';
 import { OverheatGunSystem } from '../src/hunt/OverheatGunSystem.js';
 import { RespawnSystem } from '../src/hunt/RespawnSystem.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
@@ -15,31 +17,63 @@ const HUNT_RUNTIME_CONFIG = createEntityRuntimeConfig(null, {
     HUNT: { ...CONFIG_BASE.HUNT, RESPAWN_ENABLED: true, WIN_CONDITION: 'score' },
 });
 
-function createMatch() {
+function createMatch({ respawnKind = 'hunt', includeExclusionLifecycle = true } = {}) {
     const strategy = new HuntModeStrategy({ entityRuntimeConfig: HUNT_RUNTIME_CONFIG, random: () => 0.5 });
+    const runtimeStrategy = Object.create(strategy);
+    runtimeStrategy.isRespawnEnabled = () => respawnKind === 'hunt';
     const players = [];
     const entityManager = {
         entityRuntimeConfig: HUNT_RUNTIME_CONFIG,
-        gameModeStrategy: strategy,
+        gameModeStrategy: runtimeStrategy,
         players,
+        arena: {
+            bounds: { minX: -10, maxX: 10, minY: 0, maxY: 40, minZ: -10, maxZ: 10 },
+            openFaces: ['maxX'],
+            checkWorldGeometryCollision: () => false,
+        },
         _simulationClockMs: 0,
         getTrailSpatialIndex() { return null; },
     };
     entityManager._overheatGunSystem = new OverheatGunSystem(entityManager);
     const player = new Player({ addToScene() {}, removeFromScene() {} }, 0, 0x33aaff, false, { entityManager });
     players.push(player);
+    const zoneProjectiles = [];
+    const exclusionZoneSystem = new ExclusionZoneSystem(entityManager, {
+        projectileSystem: {
+            spawnExternalProjectile(projectile) {
+                zoneProjectiles.push(projectile);
+                return projectile;
+            },
+            trimZoneProjectiles() {},
+        },
+    });
+    entityManager._exclusionZoneSystem = exclusionZoneSystem;
+    const runtimeSupport = createEntityRuntimeSupport(entityManager);
     const spawnOps = new EntitySpawnOps(entityManager);
     const respawns = new RespawnSystem({
         entityRuntimeConfig: HUNT_RUNTIME_CONFIG,
-        callbacks: { getStrategy: () => strategy, getSimulationNowMs: () => 0 },
+        callbacks: {
+            getStrategy: () => runtimeStrategy,
+            getSimulationNowMs: () => 0,
+            ...(includeExclusionLifecycle ? { lifecycle: runtimeSupport.runtimeContext.callbacks.lifecycle } : {}),
+            parcours: respawnKind === 'parcours' ? {
+                isRespawnEnabled: () => true,
+                takeRespawnPlan: () => ({
+                    delaySeconds: 0.1,
+                    position: [0, 20, 0],
+                    forward: [0, 0, -1],
+                }),
+                onPlayerSpawn() {},
+            } : {},
+        },
         spawn: {
-            findSpawnPosition: () => new THREE.Vector3(30, 20, 0),
+            findSpawnPosition: () => SPAWN_POS.clone(),
             findSafeSpawnDirection: () => new THREE.Vector3(0, 0, 1),
         },
         combat: { resetRespawnCombatState: (target) => entityManager._overheatGunSystem.resetPlayer(target.index) },
         events: { emitHuntFeed() {} },
     });
-    return { player, spawnOps, respawns, entityManager };
+    return { player, spawnOps, respawns, entityManager, exclusionZoneSystem, zoneProjectiles };
 }
 
 const SPAWN_POS = new THREE.Vector3(0, 20, 0);
@@ -76,8 +110,18 @@ const COMBAT_FIELDS = [
     'steeringLockTimer',
 ];
 // Left out on purpose: hasShield (a respawn grants the configured recovery shield, a round
-// start does not), spawnProtectionTimer (respawn invulnerability is its own setting) and the
-// exclusion zone state (ExclusionZoneSystem.resetPlayer is only wired on the round start).
+// start does not) and spawnProtectionTimer (respawn invulnerability is its own setting).
+
+function enterExclusionPhase(exclusionZoneSystem, player, phase) {
+    player.position.set(20, 20, 0);
+    player.alive = true;
+    player.spawnProtectionTimer = 0;
+    exclusionZoneSystem.update(1);
+    assert.equal(player.exclusionZoneState.phase, EXCLUSION_ZONE_PHASES.GRACE);
+    if (phase === EXCLUSION_ZONE_PHASES.SALVO) exclusionZoneSystem.update(4);
+    assert.equal(player.exclusionZoneState.phase, phase);
+    assert.equal(exclusionZoneSystem.states.has(player.index), true);
+}
 
 function captureCombatState(player, entityManager) {
     const state = {};
@@ -144,4 +188,55 @@ test('inventory is the one deliberate difference: respawn empties it, round star
     respawn.respawns.onPlayerDied(respawn.player);
     respawn.respawns.update(60);
     assert.ok(!respawn.player.inventory.includes('EMP'), 'a respawn drops the carried items');
+});
+
+for (const respawnKind of ['hunt', 'parcours']) {
+    for (const phase of [EXCLUSION_ZONE_PHASES.GRACE, EXCLUSION_ZONE_PHASES.SALVO]) {
+        test(`${respawnKind} respawn clears real exclusion-zone ${phase} state`, () => {
+            const match = createMatch({ respawnKind });
+            enterExclusionPhase(match.exclusionZoneSystem, match.player, phase);
+            const projectilesBeforeRespawn = match.zoneProjectiles.length;
+
+            match.player.alive = false;
+            assert.equal(match.respawns.onPlayerDied(match.player), true);
+            match.respawns.update(60);
+            assert.equal(match.player.alive, true);
+            assert.deepEqual(match.player.exclusionZoneState, {
+                phase: EXCLUSION_ZONE_PHASES.SAFE,
+                elapsedSeconds: 0,
+                countdownSeconds: 0,
+                stage: '',
+            });
+            assert.equal(match.exclusionZoneSystem.states.has(match.player.index), false);
+
+            match.exclusionZoneSystem.update(1);
+            assert.equal(match.zoneProjectiles.length, projectilesBeforeRespawn,
+                'spawn protection must keep the reset player from launching another salvo');
+        });
+    }
+}
+
+test('round-start spawn remains an exclusion-zone reset control path', () => {
+    const match = createMatch();
+    enterExclusionPhase(match.exclusionZoneSystem, match.player, EXCLUSION_ZONE_PHASES.SALVO);
+
+    match.spawnOps.spawnPlayerAt(match.player, SPAWN_POS, SPAWN_DIR);
+
+    assert.deepEqual(match.player.exclusionZoneState, {
+        phase: EXCLUSION_ZONE_PHASES.SAFE,
+        elapsedSeconds: 0,
+        countdownSeconds: 0,
+        stage: '',
+    });
+    assert.equal(match.exclusionZoneSystem.states.has(match.player.index), false);
+});
+
+test('respawn contexts without the optional exclusion lifecycle callback remain compatible', () => {
+    const match = createMatch({ includeExclusionLifecycle: false });
+    match.player.alive = false;
+    assert.equal(match.respawns.onPlayerDied(match.player), true);
+
+    match.respawns.update(60);
+
+    assert.equal(match.player.alive, true);
 });
