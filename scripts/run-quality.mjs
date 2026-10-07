@@ -19,6 +19,7 @@ export const QUALITY_TASKS = [
     { name: 'council:check', script: 'council:check', phase: 1 },
     { name: 'typecheck:contracts', script: 'typecheck:contracts', phase: 1 },
     { name: 'check:architecture', script: 'check:architecture', phase: 1 },
+    { name: 'check:player-health-boundary', script: 'check:player-health-boundary', phase: 1 },
     { name: 'check:parcours', script: 'check:parcours', phase: 1 },
     { name: 'test:contract:coverage', script: 'test:contract:coverage', phase: 2 },
     { name: 'test:dev:training', script: 'test:dev:training', phase: 2 },
