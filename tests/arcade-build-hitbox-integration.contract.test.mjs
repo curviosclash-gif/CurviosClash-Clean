@@ -19,6 +19,7 @@ import { setEndlessRunProfile } from '../src/entities/endless/EndlessParcoursPro
 import { getVehicleModularConfig } from '../src/entities/vehicle-registry.js';
 import { RuntimeModularVehicleMesh } from '../src/entities/runtime-modular-vehicle-mesh.js';
 import { ProjectileHitResolver } from '../src/entities/systems/projectile/ProjectileHitResolver.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
 import { RespawnSystem } from '../src/hunt/RespawnSystem.js';
 import { resolveRocketTierDamage } from '../src/hunt/RocketPickupSystem.js';
 import { ARENA_WAVES_COMBAT_PROFILE } from '../src/shared/contracts/ArenaWavesContract.js';
@@ -337,15 +338,23 @@ const ON_WING = 1.8;
 const WING_Z = -0.5;
 
 function fireRocketDown(x, owner, targetSizes) {
+    const damageEvents = [];
+    const world = {
+        gameModeStrategy: new ArcadeModeStrategy({ runType: 'gauntlet' }),
+        _emitHuntDamageEvent(event) { damageEvents.push(event); },
+    };
     const system = {
         entityRuntimeConfig: ARCADE_CONFIG, _tmpVec: new THREE.Vector3(),
         getTurrets: () => [], onProjectileHit() {}, onProjectilePowerup() {}, onProjectileDamage() {},
     };
+    system.runtimeContext = { combat: { applyPlayerHit: (hit) => applyHit(world, hit) } };
     const target = {
-        index: 1, vehicleId: 'ship5', alive: true, isBot: true, modelScale: 1, hitboxRadius: 1.2,
+        index: 1, vehicleId: 'ship5', alive: true, hp: 100, maxHp: 100, isBot: true, modelScale: 1, hitboxRadius: 1.2,
         arcadePartSizes: targetSizes, position: new THREE.Vector3(), quaternion: new THREE.Quaternion(),
         damage: [],
-        takeDamage(amount) { this.damage.push(amount); return { isDead: false }; },
+    };
+    system.onProjectileDamage = (_target, _owner, _type, result) => {
+        target.damage.push(result.hpApplied + result.absorbedByShield);
     };
     applyArcadePartHitbox(target);
     const projectile = {
@@ -354,7 +363,7 @@ function fireRocketDown(x, owner, targetSizes) {
         velocity: new THREE.Vector3(0, -1, 0),
     };
     const hit = new ProjectileHitResolver(system).resolveProjectileOutcome(projectile, [owner, target], null, {});
-    return { hit, damage: target.damage, projectile, base: resolveRocketTierDamage('ROCKET_MEDIUM', system) };
+    return { hit, damage: target.damage, damageEvents, target, projectile, base: resolveRocketTierDamage('ROCKET_MEDIUM', system) };
 }
 
 test('I4: a nose-built rocket hits the part boxes and deals its multiplied damage', () => {
@@ -368,11 +377,14 @@ test('I4: a nose-built rocket hits the part boxes and deals its multiplied damag
     const miss = fireRocketDown(BESIDE_TIP, owner, null);
     assert.equal(miss.hit, false, 'beside the wing tip at 100 %');
     assert.deepEqual(miss.damage, []);
+    assert.equal(miss.damageEvents.length, 0, 'misses do not publish damage events');
     assert.equal(miss.projectile.detonated, undefined, 'no detonation');
 
     const onWing = fireRocketDown(ON_WING, owner, null);
     assert.equal(onWing.hit, true);
     assert.equal(onWing.damage.length, 1);
+    assert.equal(onWing.damageEvents.length, 1, 'the real combat port emits one event for the hit');
+    assert.equal(onWing.target.hp, 100 - onWing.damage[0]);
     assert.ok(Math.abs(onWing.damage[0] - onWing.base * 1.09) < 1e-9, `direct hit ${onWing.damage[0]} = ${onWing.base} x 1.09`);
     assert.ok(onWing.projectile.position.y > -0.5 && onWing.projectile.position.y < 0, 'stops on the wing box');
 

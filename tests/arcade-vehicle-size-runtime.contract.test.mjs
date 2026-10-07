@@ -27,6 +27,7 @@ import { applyPlayerPowerup } from '../src/entities/player/PlayerEffectOps.js';
 import { resetPlayerCharges } from '../src/entities/player/PlayerChargeOps.js';
 import { grantShield } from '../src/hunt/HealthSystem.js';
 import { ProjectileHitResolver } from '../src/entities/systems/projectile/ProjectileHitResolver.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
 import { NEON_ABYSS_MAP } from '../src/core/config/maps/presets/neon_abyss.js';
 import { MAP_PRESET_CATALOG_BASE_DATA } from '../src/core/config/maps/MapPresetCatalogBaseData.js';
 
@@ -193,6 +194,11 @@ test('Arcade profile builds and visible part sizes stay keyed to each human pilo
 // --- C: Nasen-Raketenschaden über den echten Trefferweg ---
 
 function rocketHit(ownerExtra) {
+    const damageEvents = [];
+    const world = {
+        gameModeStrategy: new ArcadeModeStrategy({ runType: 'gauntlet' }),
+        _emitHuntDamageEvent(event) { damageEvents.push(event); },
+    };
     const system = {
         entityRuntimeConfig: ARCADE_CONFIG,
         getTurrets: () => [],
@@ -200,13 +206,18 @@ function rocketHit(ownerExtra) {
         onProjectilePowerup() {},
         onProjectileDamage() {},
     };
+    system.runtimeContext = { combat: { applyPlayerHit: (hit) => applyHit(world, hit) } };
     const resolver = new ProjectileHitResolver(system);
     const hits = { direct: [], blast: [] };
     const target = (list, x) => ({
         alive: true, index: list === hits.direct ? 1 : 2, hitboxRadius: 1.5,
+        hp: 100, maxHp: 100,
         position: new THREE.Vector3(x, 0, 0),
-        takeDamage: (amount) => { list.push(amount); return { isDead: false }; },
     });
+    system.onProjectileDamage = (victim, _owner, _type, result) => {
+        const list = victim.index === 1 ? hits.direct : hits.blast;
+        list.push(result.hpApplied + result.absorbedByShield);
+    };
     const owner = { index: 0, isBot: false, alive: true, position: new THREE.Vector3(-50, 0, 0), ...ownerExtra };
     const projectile = {
         type: 'ROCKET_MEDIUM', owner, radius: 0.5, ignoresTrails: true,
@@ -214,7 +225,7 @@ function rocketHit(ownerExtra) {
     };
     const players = [owner, target(hits.direct, 0), target(hits.blast, 5)];
     resolver.resolveProjectileOutcome(projectile, players, null, {});
-    return hits;
+    return { ...hits, damageEvents, players };
 }
 
 test('C: der Nasen-Raketenschaden wirkt im echten Treffer- und Explosionsweg', () => {
@@ -223,7 +234,12 @@ test('C: der Nasen-Raketenschaden wirkt im echten Treffer- und Explosionsweg', (
     assert.equal(plain.direct.length, 1);
     assert.ok(Math.abs(built.direct[0] - plain.direct[0] * 1.15) < 1e-9, 'Direkttreffer * 1,15');
     assert.ok(built.blast[0] > plain.blast[0], 'Druckwelle wächst mit');
-    assert.deepEqual(rocketHit({ arcadeDamageMultiplier: 1 }), plain, 'Faktor 1 (Bots, andere Modi) wie bisher');
+    assert.equal(plain.damageEvents.length, 2, 'direct hit and splash each emit one pipeline damage event');
+    assert.equal(plain.players[1].hp, 100 - plain.direct[0]);
+    assert.equal(plain.players[2].hp, 100 - plain.blast[0]);
+    const neutral = rocketHit({ arcadeDamageMultiplier: 1 });
+    assert.deepEqual(neutral.direct, plain.direct, 'Faktor 1 (Bots, andere Modi) wie bisher');
+    assert.deepEqual(neutral.blast, plain.blast);
 });
 
 // --- E: Boost-Tank ist nach Spawn und Respawn voll ---
