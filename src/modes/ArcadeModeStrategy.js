@@ -89,6 +89,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._runType = String(options.runType || 'gauntlet').trim().toLowerCase();
         this._isDailyChallenge = options.isDailyChallenge === true;
         this._combatProfile = resolveArcadeRunCombatProfile(this._runType, options.combatProfile);
+        this._regenHealWorld = { strategy: this };
         this._huntCombat = this._combatProfile === ENDLESS_PARCOURS_COMBAT_PROFILE || this._combatProfile === ARENA_WAVES_COMBAT_PROFILE
             ? new HuntModeStrategy({
                 entityRuntimeConfig: options.entityRuntimeConfig,
@@ -443,7 +444,17 @@ export class ArcadeModeStrategy extends GameModeContract {
         const drain = ((this._huntCombat ? null : this._getAggregatedModifierEffects())?.hpDrainPerSecond || 0) * Math.max(0, dt);
         if (drain > 0) return this._applyModifierDamage(player, drain, 'HEAT_STRESS', entityManager);
         if (!this.isNormalArcadeRun()) return null;
-        return updateArcadeBaseRegen(player, dt, resolveArcadeSimulationSeconds(entityManager || player.entityManager, this._nowSeconds()), this._sdActive);
+        const activeManager = entityManager || player.entityManager;
+        const healWorld = activeManager?.gameModeStrategy || activeManager?.strategy
+            ? activeManager
+            : this._regenHealWorld;
+        return updateArcadeBaseRegen(
+            player,
+            dt,
+            resolveArcadeSimulationSeconds(activeManager, this._nowSeconds()),
+            this._sdActive,
+            healWorld,
+        );
     }
 
     // 61.4.1: boost_tax — drains HP while boosting

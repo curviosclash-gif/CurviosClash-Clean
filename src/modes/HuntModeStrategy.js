@@ -6,6 +6,7 @@ import { isRocketTierType, pickWeightedRocketTierType, resolveRocketTierDamage }
 import { isPickupTypeAllowedForMode, normalizePickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
+import { applyHeal } from '../entities/combat/CombatPipeline.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import { applyPlayerCrashDamage, recoverPlayerFromCollision, resolveWallCollisionDamage } from './HuntCollisionOps.js';
 import { TEAM_WEAPON_KINDS } from '../shared/contracts/TeamCombatContract.js';
@@ -92,6 +93,7 @@ export class HuntModeStrategy extends GameModeContract {
     constructor(options = {}) {
         super();
         this.entityRuntimeConfig = resolveEntityRuntimeConfig(options?.entityRuntimeConfig || null);
+        this._regenHealWorld = { strategy: this };
         // The match hands in its seeded runtimeRng; a standalone strategy lets the contract decide
         // its fallback, so this file never rolls its own dice.
         const runtimeRng = options?.runtimeRng && typeof options.runtimeRng.next === 'function'
@@ -259,7 +261,12 @@ export class HuntModeStrategy extends GameModeContract {
         if ((now - lastDamageTimestamp) < regenDelay) return;
         const regenPerSecond = Math.max(0, toSafeNumber(activeConfig?.HUNT?.PLAYER_REGEN_PER_SECOND, 2.5));
         if (regenPerSecond <= 0) return;
-        player.hp = Math.min(maxHp, player.hp + regenPerSecond * Math.max(0, dt));
+        const healAmount = Math.min(maxHp - player.hp, regenPerSecond * Math.max(0, dt));
+        if (healAmount <= 0) return;
+        const world = config?.gameModeStrategy || config?.strategy
+            ? config
+            : this._regenHealWorld;
+        applyHeal(world, { target: player, amount: healAmount });
     }
 
     // --- Collision Response ---
