@@ -175,6 +175,7 @@ export class RespawnSystem {
                 spawnDir = this.runtime.spawn.findSafeSpawnDirection(spawnPos, player.hitboxRadius, player);
             }
             player.spawn(spawnPos, spawnDir);
+            this.runtime?.callbacks?.lifecycle?.resetExclusionZoneForSpawn?.(player);
             const strategy = this.runtime?.callbacks?.getStrategy?.() || null;
             // Same order as the round start in EntitySpawnOps: the health reset drops the
             // loadout bonuses, so they are applied again on top of it.
