@@ -16,6 +16,13 @@ function isSpawnProtected(player) {
     return (Number(player?.spawnProtectionTimer) || 0) > 0;
 }
 
+function isSwapOwnerLifeCurrent(projectile) {
+    const owner = projectile?.owner;
+    if (owner?.alive === false) return false;
+    const firedAt = projectile?.ownerLifeSpawnedAtSeconds;
+    return !Number.isFinite(firedAt) || firedAt === owner?.fightSpawnedAtSeconds;
+}
+
 function damagesOnContact(projectile) {
     return isRocketTierType(projectile?.type) || projectile?.type === 'MINE';
 }
@@ -394,6 +401,10 @@ export class ProjectileHitResolver {
             if (!hit) continue;
             this.detonateProjectile(projectile);
 
+            // A SWAP stays with the life that fired it, even if the same player object has respawned.
+            // Missing stamps remain supported for callers that construct legacy projectiles directly.
+            if (projectile.type === 'SWAP' && !isSwapOwnerLifeCurrent(projectile)) break;
+
             if (projectile.environmentProjectile) {
                 this.system?.applyEnvironmentDamage?.(target, projectile);
                 break;
@@ -412,8 +423,6 @@ export class ProjectileHitResolver {
                 this._applyRocketExplosion(projectile, players, target);
             } else if (target.hasShield) {
                 target.hasShield = false;
-            } else if (projectile.type === 'SWAP' && projectile.owner?.alive === false) {
-                // A shooter who died in flight has nothing to swap with; the target must not be teleported to the corpse.
             } else if (projectile.type === 'SWAP' && projectile.owner?.position) {
                 this._tmpVec.copy(target.position);
                 target.position.copy(projectile.owner.position);

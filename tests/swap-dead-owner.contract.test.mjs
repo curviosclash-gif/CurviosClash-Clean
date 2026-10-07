@@ -42,6 +42,7 @@ function createSwapScene() {
 
 test('a swap shot whose owner died in flight does not pull the target to the corpse', () => {
     const { owner, target, system } = createSwapScene();
+    target.hasShield = true;
     assert.equal(system.shootItemProjectile(owner, 0).ok, true);
     owner.alive = false;
 
@@ -49,7 +50,96 @@ test('a swap shot whose owner died in flight does not pull the target to the cor
 
     assert.deepEqual(target.position.toArray(), [3, 0, 0], 'the target stays where it was');
     assert.deepEqual(owner.position.toArray(), [0, 0, 0]);
+    assert.equal(target.hasShield, true, 'a stale shot does not consume the target shield');
     assert.deepEqual(target.powerups, [], 'a swap without a living owner is not applied as a plain powerup either');
     assert.equal(system.projectiles.length, 0, 'the shot is spent');
+    system.dispose();
+});
+
+test('a swap shot from an earlier life cannot pull a target to its respawned owner', () => {
+    const { owner, target, system } = createSwapScene();
+    target.hasShield = true;
+    owner.fightSpawnedAtSeconds = 0;
+    assert.equal(system.shootItemProjectile(owner, 0).ok, true);
+
+    owner.alive = false;
+    owner.position.set(20, 0, 0);
+    owner.fightSpawnedAtSeconds = 5;
+    owner.alive = true;
+    system.update(1 / 60);
+
+    assert.deepEqual(target.position.toArray(), [3, 0, 0], 'the target keeps its position from the old life');
+    assert.deepEqual(owner.position.toArray(), [20, 0, 0], 'the new life is not pulled back to the old target');
+    assert.equal(target.hasShield, true, 'a prior-life shot does not consume the target shield');
+    assert.deepEqual(target.powerups, [], 'an old-life SWAP is not applied as another powerup');
+    assert.equal(system.projectiles.length, 0, 'the stale shot is spent on contact');
+    system.dispose();
+});
+
+test('zero is a valid owner life marker and a same-life swap still works', () => {
+    const { owner, target, system } = createSwapScene();
+    owner.fightSpawnedAtSeconds = 0;
+
+    assert.equal(system.shootItemProjectile(owner, 0).ok, true);
+    const projectile = system.projectiles[0];
+    assert.equal(projectile.ownerLifeSpawnedAtSeconds, 0, 'zero is captured at fire time');
+    system.update(1 / 60);
+
+    assert.deepEqual(owner.position.toArray(), [3, 0, 0]);
+    assert.deepEqual(target.position.toArray(), [0, 0, 0]);
+    system.dispose();
+});
+
+test('a current-life swap still consumes a target shield without exchanging positions', () => {
+    const { owner, target, system } = createSwapScene();
+    owner.fightSpawnedAtSeconds = 0;
+    target.hasShield = true;
+
+    assert.equal(system.shootItemProjectile(owner, 0).ok, true);
+    system.update(1 / 60);
+
+    assert.deepEqual(owner.position.toArray(), [0, 0, 0]);
+    assert.deepEqual(target.position.toArray(), [3, 0, 0]);
+    assert.equal(target.hasShield, false, 'a valid SWAP retains existing shield-hit behavior');
+    assert.deepEqual(target.powerups, []);
+    assert.equal(system.projectiles.length, 0, 'the shot is spent');
+    system.dispose();
+});
+
+test('a recycled projectile captures the new life marker and legacy owners without one still swap', () => {
+    const { owner, target, system } = createSwapScene();
+    owner.fightSpawnedAtSeconds = 0;
+    assert.equal(system.shootItemProjectile(owner, 0).ok, true);
+    const firstProjectile = system.projectiles[0];
+
+    owner.alive = false;
+    owner.position.set(20, 0, 0);
+    owner.fightSpawnedAtSeconds = 5;
+    owner.alive = true;
+    system.update(1 / 60);
+
+    assert.ok(system._projectileStatePool.includes(firstProjectile), 'the hit shot is returned to the state pool');
+    assert.equal(firstProjectile.ownerLifeSpawnedAtSeconds, null, 'release clears the previous life marker');
+
+    target.position.set(23, 0, 0);
+    owner.shootCooldown = 0;
+    assert.equal(system.shootItemProjectile(owner, 0).ok, true);
+    const recycledProjectile = system.projectiles[0];
+    assert.equal(recycledProjectile, firstProjectile, 'the released state is reused');
+    assert.equal(recycledProjectile.ownerLifeSpawnedAtSeconds, 5, 'the new shot captures the respawn life');
+    system.update(1 / 60);
+    assert.deepEqual(owner.position.toArray(), [23, 0, 0], 'a new-life swap remains effective');
+    assert.deepEqual(target.position.toArray(), [20, 0, 0]);
+
+    delete owner.fightSpawnedAtSeconds;
+    owner.position.set(30, 0, 0);
+    target.position.set(33, 0, 0);
+    owner.shootCooldown = 0;
+    assert.equal(system.shootItemProjectile(owner, 0).ok, true);
+    const legacyProjectile = system.projectiles[0];
+    assert.equal(legacyProjectile.ownerLifeSpawnedAtSeconds, null, 'legacy callers have no life marker');
+    system.update(1 / 60);
+    assert.deepEqual(owner.position.toArray(), [33, 0, 0], 'legacy callers retain their prior swap behavior');
+    assert.deepEqual(target.position.toArray(), [30, 0, 0]);
     system.dispose();
 });
