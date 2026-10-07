@@ -162,7 +162,6 @@ export class MatchFlowLifecycleController {
         // A killcam ends with its respawn countdown, which stands still on the result
         // board; left running it covers the board and freezes the round-end replay.
         game.entityManager?.resetKillcamFrameCapture?.();
-        this.runtimePort?.enterRoundEnd?.(3.0);
 
         const roundEndPlan = this.coordinateRoundEnd
             ? this.coordinateRoundEnd(this.buildRoundEndCoordinatorRequest(winner, outcome))
@@ -179,6 +178,11 @@ export class MatchFlowLifecycleController {
         // The hunt kills/deaths/assists used to hang below the headline as one long line; since
         // the result board's standings table carries those columns itself, the headline stays
         // the winner alone.
+        // The plan already contains the final ROUND_END or MATCH_END state. Apply that decision
+        // once; only use the legacy round-end entry when no transition could be derived.
+        if (!roundEndPlan?.transition) {
+            this.runtimePort?.enterRoundEnd?.(3.0);
+        }
         this.applyRoundEndCoordinatorPlan(roundEndPlan);
         this.telemetryController?.recordRoundEndTelemetry?.(roundEndPlan);
         game.hudRuntimeSystem?.refreshArcadeHud?.();
