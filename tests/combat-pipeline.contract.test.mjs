@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { applyHeal, applyHit } from '../src/entities/combat/CombatPipeline.js';
+import { Player } from '../src/entities/Player.js';
 import { HuntScoring } from '../src/hunt/HuntScoring.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { ClassicModeStrategy } from '../src/modes/ClassicModeStrategy.js';
@@ -46,6 +47,16 @@ function createWorld(strategy, players) {
     return { world, events, kills, scoring };
 }
 
+function createPlayerFacade(entityManager = null, options = {}) {
+    const player = Object.assign(Object.create(Player.prototype), createPlayer(options), {
+        entityManager,
+        entityRuntimeConfig: null,
+        lastDamageTimestamp: -Infinity,
+        kill() { this.alive = false; this.hp = 0; },
+    });
+    return player;
+}
+
 test('combat input contracts normalize optional metadata and reject invalid hits/heals', () => {
     const target = createPlayer({ index: 1 });
     assert.deepEqual(normalizeCombatHitInput({ target, amount: '3', cause: 'PROJECTILE' }), {
@@ -60,6 +71,7 @@ test('combat input contracts normalize optional metadata and reject invalid hits
         selfDamagePolicy: null,
         deathCause: null,
         emitDamageEvent: true,
+        killOnDeath: true,
     });
     assert.equal(normalizeCombatHitInput({ target, amount: -1 }), null);
     assert.equal(normalizeCombatHitInput({ target, amount: Infinity }), null);
@@ -67,6 +79,8 @@ test('combat input contracts normalize optional metadata and reject invalid hits
     assert.equal(normalizeCombatHitInput({ target, amount: 1, selfDamagePolicy: true }), null);
     assert.equal(normalizeCombatHitInput({ target, amount: 1, deathCause: false }), null);
     assert.equal(normalizeCombatHitInput({ target, amount: 1, deathCause: ' ' }), null);
+    assert.equal(normalizeCombatHitInput({ target, amount: 1, killOnDeath: 'false' }), null);
+    assert.equal(normalizeCombatHitInput({ target, amount: 1, killOnDeath: null }), null);
     assert.equal(normalizeCombatHitInput({ amount: 1 }), null);
     assert.equal(normalizeCombatHealInput({ target, amount: 4 }).amount, 4);
     assert.equal(normalizeCombatHealInput({ target, amount: NaN }), null);
@@ -314,4 +328,165 @@ test('damage-event suppression keeps the hit and its death but emits no damage e
     assert.equal(result.isDead, true);
     assert.equal(harness.events.length, 0);
     assert.equal(harness.kills.length, 1);
+});
+
+test('legacy Player damage delegates mode math once and leaves event/death publication to its caller', () => {
+    const huntStrategy = new HuntModeStrategy();
+    const hunt = createWorld(huntStrategy, []);
+    hunt.world._simulationClockMs = 8_000;
+    const target = createPlayerFacade(hunt.world, { index: 1, hp: 100, shieldHP: 10 });
+    hunt.world.players.push(target);
+    const result = target.takeDamage(15, { cause: 'PROJECTILE', weaponKind: 'ROCKET' });
+    assert.equal(result.applied, 15);
+    assert.equal(result.absorbedByShield, 10);
+    assert.equal(result.hpApplied, 5);
+    assert.equal(target.hp, 95);
+    assert.equal(target.lastDamageTimestamp, 8);
+    assert.equal(hunt.events.length, 0);
+    assert.equal(hunt.kills.length, 0);
+
+    const lethalTarget = createPlayerFacade(hunt.world, { index: 2, hp: 5 });
+    hunt.world.players.push(lethalTarget);
+    const lethal = lethalTarget.takeDamage(10, { cause: 'PROJECTILE' });
+    assert.equal(lethal.isDead, true);
+    assert.equal(lethalTarget.alive, true, 'the legacy owner still performs the death transition');
+    assert.equal(hunt.events.length, 0);
+    assert.equal(hunt.kills.length, 0);
+    hunt.world._emitHuntDamageEvent({ target: lethalTarget, sourcePlayer: null, cause: 'PROJECTILE', damageResult: lethal });
+    hunt.world._killPlayer(lethalTarget, 'PROJECTILE', { killer: null });
+    assert.equal(hunt.events.length, 1);
+    assert.equal(hunt.kills.length, 1);
+
+    const classic = createWorld(new ClassicModeStrategy(), []);
+    const classicPlayer = createPlayerFacade(classic.world, { index: 3, hp: 1, shieldHP: 1 });
+    const classicResult = classicPlayer.takeDamage(1);
+    assert.equal(classicResult.isDead, true);
+    assert.equal(classicPlayer.hp, 0);
+    assert.equal(classicPlayer.shieldHP, 0);
+    assert.equal(classicPlayer.alive, true);
+    assert.equal(classic.events.length, 0);
+    assert.equal(classic.kills.length, 0);
+
+    const arcadeStrategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    arcadeStrategy._sdActive = true;
+    arcadeStrategy._sdDamageMultiplier = 2;
+    const arcade = createWorld(arcadeStrategy, []);
+    const arcadePlayer = createPlayerFacade(arcade.world, { index: 4, hp: 100, shieldHP: 5 });
+    const arcadeResult = arcadePlayer.takeDamage(10);
+    assert.equal(arcadeResult.applied, 20, 'Sudden Death scales the raw hit exactly once');
+    assert.equal(arcadeResult.absorbedByShield, 5);
+    assert.equal(arcadeResult.hpApplied, 15);
+    assert.equal(arcadePlayer.hp, 85);
+    assert.equal(arcadePlayer.lastDamageTimestamp, 0, 'clockless legacy damage uses the deterministic zero fallback');
+    assert.equal(arcade.events.length, 0);
+    assert.equal(arcade.kills.length, 0);
+});
+
+test('legacy Player damage preserves guards, team/self exceptions, safe amounts, and simulation time', () => {
+    const teammate = createPlayer({ index: 0, teamId: TEAM_IDS.ALPHA });
+    const hunt = createWorld(new HuntModeStrategy(), [teammate]);
+    hunt.world._simulationClockMs = 12_000;
+    const protectedPlayer = createPlayerFacade(hunt.world, { index: 1, hp: 100, spawnProtectionTimer: 2 });
+    assert.equal(protectedPlayer.takeDamage(20).blocked, 'SPAWN_PROTECTION');
+    assert.equal(protectedPlayer.hp, 100);
+    const invulnerablePlayer = createPlayerFacade(hunt.world, { index: 2, hp: 100 });
+    invulnerablePlayer.invulnerable = true;
+    assert.equal(invulnerablePlayer.takeDamage(20).blocked, 'INVULNERABLE');
+    assert.equal(invulnerablePlayer.hp, 100);
+    const deadPlayer = createPlayerFacade(hunt.world, { index: 6, hp: 0, alive: false });
+    assert.equal(deadPlayer.takeDamage(20).blocked, 'DEAD');
+    assert.equal(deadPlayer.hp, 0);
+
+    const teamPlayer = createPlayerFacade(hunt.world, { index: 3, teamId: TEAM_IDS.ALPHA });
+    const teamBlocked = teamPlayer.takeDamage(20, {
+        sourcePlayer: teammate,
+        weaponKind: 'ROCKET',
+        cause: 'PROJECTILE',
+    });
+    assert.equal(teamBlocked.blocked, 'TEAM');
+    assert.equal(teamPlayer.hp, 100);
+    const blastPlayer = createPlayerFacade(hunt.world, { index: 7, teamId: TEAM_IDS.ALPHA });
+    assert.equal(blastPlayer.takeDamage(10, { sourcePlayer: teammate, cause: 'BLAST' }).blocked, null);
+    assert.equal(blastPlayer.hp, 90, 'authored BLAST remains an environmental team-damage exception');
+
+    const selfPlayer = createPlayerFacade(hunt.world, { index: 4, teamId: TEAM_IDS.ALPHA, hp: 5 });
+    const selfHit = selfPlayer.takeDamage(10, {
+        sourcePlayer: selfPlayer,
+        cause: 'TANK_EXPLOSION',
+        selfDamagePolicy: 'ALLOW_WITHOUT_KILL_CREDIT',
+    });
+    assert.equal(selfHit.isDead, true);
+    assert.equal(selfPlayer.hp, 0);
+    assert.equal(selfPlayer.alive, true);
+
+    const timedPlayer = createPlayerFacade(hunt.world, { index: 5, hp: 100 });
+    assert.equal(timedPlayer.takeDamage(10, { nowSeconds: 7 }).applied, 10);
+    assert.equal(timedPlayer.lastDamageTimestamp, 7, 'explicit time wins over the injected simulation clock');
+    timedPlayer.takeDamage(10);
+    assert.equal(timedPlayer.lastDamageTimestamp, 12);
+    timedPlayer.takeDamage(1, { nowSeconds: '9' });
+    assert.equal(timedPlayer.lastDamageTimestamp, 9, 'numeric legacy timestamps remain normalized');
+    timedPlayer.takeDamage(1, { nowSeconds: NaN });
+    assert.equal(timedPlayer.lastDamageTimestamp, 12, 'invalid legacy timestamps fall back to simulation time');
+    const beforeInvalid = timedPlayer.hp;
+    assert.equal(timedPlayer.takeDamage(0).applied, 0);
+    assert.equal(timedPlayer.takeDamage(NaN).applied, 0);
+    assert.equal(timedPlayer.takeDamage('not damage').applied, 0);
+    assert.equal(timedPlayer.hp, beforeInvalid);
+    assert.equal(hunt.events.length, 0);
+    assert.equal(hunt.kills.length, 0);
+});
+
+test('legacy Player healing delegates active mode rules and standalone HealthSystem fallback without recursion', () => {
+    const huntStrategy = new HuntModeStrategy();
+    let healingCalls = 0;
+    const applyHealing = huntStrategy.applyHealing.bind(huntStrategy);
+    huntStrategy.applyHealing = (...args) => {
+        healingCalls += 1;
+        return applyHealing(...args);
+    };
+    const hunt = createWorld(huntStrategy, []);
+    const protectedPlayer = createPlayerFacade(hunt.world, { index: 1, hp: 95, spawnProtectionTimer: 3 });
+    assert.deepEqual(protectedPlayer.heal(20), { healed: 5, hp: 100, blocked: null });
+    assert.equal(healingCalls, 1);
+    const beforeZero = protectedPlayer.hp;
+    assert.deepEqual(protectedPlayer.heal(0), { healed: 0, hp: beforeZero, blocked: null });
+    assert.deepEqual(protectedPlayer.heal(null), { healed: 0, hp: beforeZero, blocked: null });
+    assert.deepEqual(protectedPlayer.heal(NaN), { healed: 0, hp: beforeZero, blocked: null });
+    assert.equal(healingCalls, 1, 'zero and invalid heals are stopped before strategy delegation');
+
+    const deadPlayer = createPlayerFacade(hunt.world, { index: 2, hp: 0, alive: false });
+    assert.deepEqual(deadPlayer.heal(20), { healed: 0, hp: 0, blocked: 'DEAD' });
+
+    const classic = createWorld(new ClassicModeStrategy(), []);
+    const classicPlayer = createPlayerFacade(classic.world, { index: 3, hp: 0.5 });
+    assert.deepEqual(classicPlayer.heal(5), { healed: 1, hp: 1, blocked: null });
+
+    const arcadeStrategy = new ArcadeModeStrategy({ runType: 'gauntlet' });
+    arcadeStrategy._sdActive = true;
+    const arcade = createWorld(arcadeStrategy, []);
+    const arcadePlayer = createPlayerFacade(arcade.world, { index: 4, hp: 50 });
+    assert.deepEqual(arcadePlayer.heal(20), { healed: 0, hp: 50, blocked: null });
+
+    const standalone = createPlayerFacade(null, { index: 5, hp: 90, shieldHP: 10 });
+    standalone.entityRuntimeConfig = {
+        PLAYER: {},
+        POWERUP: {},
+        HUNT: { ENABLED: true, ACTIVE_MODE: 'HUNT', DEFAULT_MODE: 'HUNT' },
+    };
+    assert.equal(standalone.takeDamage(5).hpApplied, 0);
+    assert.equal(standalone.hp, 90);
+    assert.equal(standalone.lastDamageTimestamp, 0);
+    assert.deepEqual(standalone.heal(20), { healed: 10, hp: 100, blocked: null });
+
+    const standaloneClassic = createPlayerFacade(null, { index: 6, hp: 1, shieldHP: 1 });
+    standaloneClassic.entityRuntimeConfig = {
+        PLAYER: {}, POWERUP: {},
+        HUNT: { ENABLED: false, ACTIVE_MODE: 'CLASSIC', DEFAULT_MODE: 'CLASSIC' },
+    };
+    assert.equal(standaloneClassic.takeDamage(1).hpApplied, 1);
+    assert.equal(standaloneClassic.hp, 0, 'the direct HealthSystem fallback retains Classic instant kill');
+    const standaloneClassicHealer = createPlayerFacade(null, { index: 7, hp: 0.5 });
+    standaloneClassicHealer.entityRuntimeConfig = standaloneClassic.entityRuntimeConfig;
+    assert.deepEqual(standaloneClassicHealer.heal(5), { healed: 1, hp: 1, blocked: null });
 });

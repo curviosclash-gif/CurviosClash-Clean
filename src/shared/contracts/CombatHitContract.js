@@ -11,6 +11,7 @@
  * @property {'ALLOW_WITHOUT_KILL_CREDIT' | null} [selfDamagePolicy]
  * @property {string | null} [deathCause]
  * @property {boolean} [emitDamageEvent]
+ * @property {boolean} [killOnDeath]
  */
 
 /**
@@ -30,6 +31,7 @@ export function normalizeCombatHitInput(input) {
     if (hit.weaponKind != null && typeof hit.weaponKind !== 'string') return null;
     if (hit.sourcePlayer != null && typeof hit.sourcePlayer !== 'object') return null;
     if (hit.emitDamageEvent != null && typeof hit.emitDamageEvent !== 'boolean') return null;
+    if (hit.killOnDeath !== undefined && typeof hit.killOnDeath !== 'boolean') return null;
     if (hit.selfDamagePolicy != null && hit.selfDamagePolicy !== 'ALLOW_WITHOUT_KILL_CREDIT') return null;
     if (hit.deathCause != null && (typeof hit.deathCause !== 'string' || !hit.deathCause.trim())) return null;
 
@@ -46,6 +48,7 @@ export function normalizeCombatHitInput(input) {
         selfDamagePolicy: hit.selfDamagePolicy === 'ALLOW_WITHOUT_KILL_CREDIT' ? hit.selfDamagePolicy : null,
         deathCause: typeof hit.deathCause === 'string' ? hit.deathCause.trim() : null,
         emitDamageEvent: hit.emitDamageEvent !== false,
+        killOnDeath: hit.killOnDeath !== false,
     };
 }
 

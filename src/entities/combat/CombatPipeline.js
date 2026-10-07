@@ -1,5 +1,6 @@
 import { areTeammates, canDamage } from '../../shared/contracts/TeamCombatContract.js';
 import { normalizeCombatHealInput, normalizeCombatHitInput } from '../../shared/contracts/CombatHitContract.js';
+import { applyDamage as applyHealthDamage, applyHealing as applyHealthHealing } from '../../hunt/HealthSystem.js';
 
 const PLAYER_CRASH_CAUSE = 'PLAYER_CRASH';
 
@@ -81,7 +82,7 @@ export function applyHit(world, input) {
     };
     const modeResult = typeof strategy?.applyDamage === 'function'
         ? strategy.applyDamage(target, amount, strategyOptions, target.entityRuntimeConfig)
-        : target.takeDamage?.(amount, strategyOptions);
+        : applyHealthDamage(target, amount, strategyOptions);
     if (!modeResult || typeof modeResult !== 'object') return null;
 
     const hpAfter = Math.max(0, Number(target.hp) || 0);
@@ -113,7 +114,7 @@ export function applyHit(world, input) {
         });
     }
 
-    if (deadAfterHit && effectiveDamage > 0) {
+    if (hit.killOnDeath && deadAfterHit && effectiveDamage > 0) {
         const teamCrash = causeKey === PLAYER_CRASH_CAUSE
             && areTeammates(sourcePlayer, target);
         entityManager?._killPlayer?.(target, hit.deathCause || cause, {
@@ -146,7 +147,7 @@ export function applyHeal(world, input) {
     const strategy = resolveStrategy(world, entityManager);
     const result = typeof strategy?.applyHealing === 'function'
         ? strategy.applyHealing(target, amount, target.entityRuntimeConfig)
-        : target.heal?.(amount);
+        : applyHealthHealing(target, amount);
     if (!result || typeof result !== 'object') return null;
     return {
         ...result,
