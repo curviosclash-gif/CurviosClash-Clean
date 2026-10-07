@@ -141,7 +141,7 @@ export function createEntityRuntimeSupport(owner) {
             if (owner.particles) owner.particles.spawnExplosion(target.position, 0xff0000, { blast: 'ITEM_BURST' });
             if (owner.audio) owner.audio.play('POWERUP');
         },
-        onProjectileDamage: (target, projectileOwner, type, damageResult, projectile) => {
+        onProjectileDamage: (_target, projectileOwner, type) => {
             owner.recorder?.logEvent?.('ITEM_HIT', projectileOwner?.index ?? -1, encodeGameplayActionResultForLog(
                 buildGameplayActionResult({
                     ok: true,
@@ -150,21 +150,6 @@ export function createEntityRuntimeSupport(owner) {
                     type,
                 })
             ));
-            owner._emitHuntDamageEvent({
-                target,
-                sourcePlayer: projectileOwner || null,
-                cause: type || 'PROJECTILE',
-                damageResult,
-                projectileType: type || null,
-                impactPoint: projectile?.position || target?.position || null,
-            });
-            if (damageResult?.isDead) {
-                owner._killPlayer(target, 'PROJECTILE', {
-                    killer: projectileOwner?.staticTurret ? null : projectileOwner || null,
-                    impactPoint: projectile?.position || target?.position || null,
-                    projectileType: type || projectile?.type || null,
-                });
-            }
         },
         applyEnvironmentDamage: (target, projectile) => applyEnvironmentProjectileDamage(owner, target, projectile),
         onRocketIntercepted: (event) => handleRocketIntercept(owner, event),
@@ -290,6 +275,7 @@ export function createEntityRuntimeSupport(owner) {
             emitHuntFeed: (message) => eventBus?.emitHuntFeed(message),
         },
     });
+    projectileSystem.setRuntimeContext(runtimeContext);
 
     return {
         projectileSystem,

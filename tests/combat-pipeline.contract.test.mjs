@@ -201,6 +201,29 @@ test('team crash damage is applied but teammate death has no killer credit', () 
     assert.equal(rows.find((row) => row.playerIndex === target.index).deaths, 1);
 });
 
+test('static turret hits keep their event source and projectile death has no killer credit', () => {
+    const turret = { index: -1, staticTurret: true };
+    const target = createPlayer({ index: 1, hp: 5 });
+    const harness = createWorld(new HuntModeStrategy(), [target]);
+    const result = applyHit(harness.world, {
+        target,
+        amount: 10,
+        sourcePlayer: turret,
+        cause: 'ROCKET_HEAVY',
+        weaponKind: 'ROCKET',
+        projectileType: 'ROCKET_HEAVY',
+        deathCause: 'PROJECTILE',
+    });
+
+    assert.equal(result.isDead, true);
+    assert.equal(harness.events.length, 1);
+    assert.equal(harness.events[0].sourcePlayer, turret);
+    assert.equal(harness.events[0].cause, 'ROCKET_HEAVY');
+    assert.equal(harness.kills.length, 1);
+    assert.equal(harness.kills[0].cause, 'PROJECTILE');
+    assert.equal(harness.kills[0].options.killer, null);
+});
+
 test('deferred hit deaths reuse pipeline credit rules and finalize at most once', () => {
     const teammate = createPlayer({ index: 0, teamId: TEAM_IDS.ALPHA });
     const target = createPlayer({ index: 1, teamId: TEAM_IDS.ALPHA, hp: 5 });

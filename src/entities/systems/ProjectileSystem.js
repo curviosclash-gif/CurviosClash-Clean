@@ -76,6 +76,7 @@ export class ProjectileSystem {
         this.onGuidedRocketImpact = typeof options.onGuidedRocketImpact === 'function' ? options.onGuidedRocketImpact : (() => false);
         this.runtimeProfiler = options.runtimeProfiler || null;
         this.entityRuntimeConfig = resolveEntityRuntimeConfig(options.entityRuntimeConfig || null);
+        this.runtimeContext = options.runtimeContext || null;
 
         this.projectiles = [];
         // Removals requested from inside a hit callback are collected here and applied after
@@ -100,6 +101,7 @@ export class ProjectileSystem {
         this._rocketTrailSystem = RocketTrailSystem.forProjectileSystem(this);
         this._rocketThreatTracker = new RocketThreatTracker(this);
     }
+    setRuntimeContext(runtimeContext) { this.runtimeContext = runtimeContext || null; }
     getRocketThreat(playerIndex) { return this._rocketThreatTracker.getThreat(playerIndex); }
 
     interceptRocket(target, defender, interceptor = null) { return interceptRocket(this, target, defender, interceptor); }

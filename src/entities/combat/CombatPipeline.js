@@ -1,4 +1,4 @@
-import { areTeammates, canDamage } from '../../shared/contracts/TeamCombatContract.js';
+import { areTeammates, canDamage, TEAM_WEAPON_KINDS } from '../../shared/contracts/TeamCombatContract.js';
 import { normalizeCombatHealInput, normalizeCombatHitInput } from '../../shared/contracts/CombatHitContract.js';
 import { applyDamage as applyHealthDamage, applyHealing as applyHealthHealing } from '../../hunt/HealthSystem.js';
 
@@ -50,11 +50,16 @@ function finalizeHitDeathNormalized(entityManager, hit, damageResult) {
     const causeKey = hit.cause.toUpperCase();
     const teamCrash = causeKey === PLAYER_CRASH_CAUSE
         && areTeammates(hit.sourcePlayer, hit.target);
+    const staticTurretProjectile = hit.sourcePlayer?.staticTurret === true
+        && (hit.weaponKind === TEAM_WEAPON_KINDS.ROCKET
+            || hit.weaponKind === TEAM_WEAPON_KINDS.ITEM_PROJECTILE);
     if (typeof entityManager?._killPlayer !== 'function') return false;
     const selfDamageWithoutCredit = hit.selfDamagePolicy === 'ALLOW_WITHOUT_KILL_CREDIT'
         && hit.sourcePlayer === hit.target;
     entityManager._killPlayer(hit.target, hit.deathCause || hit.cause, {
-        killer: teamCrash || selfDamageWithoutCredit ? null : hit.sourcePlayer,
+        killer: staticTurretProjectile || teamCrash || selfDamageWithoutCredit
+            ? null
+            : hit.sourcePlayer,
         impactPoint: hit.impactPoint || hit.target.position || null,
         projectileType: hit.projectileType,
     });

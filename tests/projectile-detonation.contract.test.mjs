@@ -3,6 +3,7 @@ import test from 'node:test';
 import * as THREE from 'three';
 
 import { CONFIG_BASE } from '../src/core/Config.js';
+import { applyHit } from '../src/entities/combat/CombatPipeline.js';
 import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
@@ -26,6 +27,9 @@ function createProjectileSystem({ type = 'ROCKET_MEDIUM', onProjectileHit = () =
     const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
     const owner = createShooter();
     const players = [owner];
+    const strategy = new HuntModeStrategy({ entityRuntimeConfig });
+    const damageEvents = [];
+    const kills = [];
     const system = new ProjectileSystem({
         entityRuntimeConfig,
         players,
@@ -36,10 +40,24 @@ function createProjectileSystem({ type = 'ROCKET_MEDIUM', onProjectileHit = () =
         resolveLockOn: (_player, profile) => (profile === 'item'
             ? players.find((player) => player !== owner && player.alive) || null
             : null),
-        getStrategy: () => new HuntModeStrategy({ entityRuntimeConfig }),
+        getStrategy: () => strategy,
         onProjectileHit,
     });
-    return { entityRuntimeConfig, owner, players, system };
+    const world = {
+        players,
+        gameModeStrategy: strategy,
+        _emitHuntDamageEvent(event) { damageEvents.push(event); },
+        _killPlayer(target, cause, options) {
+            target.alive = false;
+            target.hp = 0;
+            kills.push({ target, cause, options });
+        },
+    };
+    system.setRuntimeContext({
+        callbacks: { getSimulationNowMs: () => 1250 },
+        combat: { applyPlayerHit: (hit) => applyHit(world, hit) },
+    });
+    return { entityRuntimeConfig, owner, players, system, damageEvents, kills };
 }
 
 test('hunt rockets receive three times the projectile lifetime and distance', () => {
@@ -106,21 +124,53 @@ test('player impacts detonate before applying their hit outcome', () => {
     players.push({
         index: 1,
         alive: true,
+        hp: 100,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 40,
         position: new THREE.Vector3(3, 0, 0),
         hitboxRadius: 1,
         isSphereInOBB() {
             return true;
         },
-        takeDamage() {
-            events.push('hit-outcome');
-            return { isDead: false };
-        },
     });
+    system.onProjectileDamage = () => events.push('hit-outcome');
 
     system.shootItemProjectile(owner, 0);
     system.update(1 / 60);
 
     assert.deepEqual(events, ['detonation', 'hit-outcome']);
+    system.dispose();
+});
+
+test('lethal rocket direct and splash hits each publish one event and one credited death', () => {
+    const { owner, players, system, damageEvents, kills } = createProjectileSystem();
+    const directTarget = {
+        index: 1, alive: true, hp: 1, maxHp: 100, shieldHP: 0, maxShieldHp: 40,
+        position: new THREE.Vector3(3, 0, 0), hitboxRadius: 1,
+        isSphereInOBB: () => true,
+    };
+    const splashTarget = {
+        index: 2, alive: true, hp: 1, maxHp: 100, shieldHP: 0, maxShieldHp: 40,
+        position: new THREE.Vector3(6, 0, 0), hitboxRadius: 1,
+        isSphereInOBB: () => false,
+        slingshotCount: 0,
+        activateSlingshot() { this.slingshotCount += 1; },
+    };
+    players.push(directTarget, splashTarget);
+
+    assert.equal(system.shootItemProjectile(owner, 0).ok, true);
+    system.update(1 / 60);
+
+    assert.equal(directTarget.alive, false);
+    assert.equal(splashTarget.alive, false);
+    assert.equal(splashTarget.slingshotCount, 1, 'lethal splash retains its pre-death knockback');
+    assert.equal(damageEvents.length, 2, 'direct and splash each emit once through applyHit');
+    assert.equal(kills.length, 2, 'direct and splash each finalize death once');
+    assert.ok(kills.every(({ cause, options }) => cause === 'PROJECTILE' && options.killer === owner));
+    assert.ok(damageEvents.every(({ sourcePlayer, projectileType }) => (
+        sourcePlayer === owner && projectileType === 'ROCKET_MEDIUM'
+    )));
     system.dispose();
 });
 
@@ -187,20 +237,25 @@ test('deployed mines remain stationary and damage the first enemy entering their
         assert.equal(type, 'MINE');
         appliedDamage = result.applied;
     };
-    players.push({
+    const target = {
         index: 1,
         alive: true,
+        hp: 100,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 40,
         position: new THREE.Vector3(-2, 0, 0),
         hitboxRadius: 1,
         isSphereInOBB: () => true,
-        takeDamage(amount) { return { applied: amount, isDead: false }; },
-    });
+    };
+    players.push(target);
 
     assert.equal(system.deployMine(owner), true);
     assert.equal(system.projectiles[0].velocity.lengthSq(), 0);
     assert.equal(system.projectiles[0].ttl, 10);
     system.update(1 / 60);
     assert.equal(appliedDamage, 25);
+    assert.equal(target.hp, 75, 'mine damage goes through the real combat port');
     assert.equal(system.projectiles.length, 0);
     system.dispose();
 });
@@ -240,13 +295,13 @@ test('an owner cleared during update never simulates a surviving projectile twic
     const target = {
         index: 1,
         alive: true,
+        hp: 1,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 40,
         position: new THREE.Vector3(3, 0, 0),
         hitboxRadius: 1,
         isSphereInOBB: () => true,
-        takeDamage() {
-            target.alive = false;
-            return { applied: 50, isDead: true };
-        },
     };
     players.push(target, bot);
 

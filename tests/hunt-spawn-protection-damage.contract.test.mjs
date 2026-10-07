@@ -31,16 +31,22 @@ function createFightPlayer(index, position) {
 }
 
 function createMgRuntime(players, kills) {
+    const events = [];
     const world = {
         players,
         gameModeStrategy: new HuntModeStrategy({ entityRuntimeConfig: HUNT_RUNTIME_CONFIG }),
-        _emitHuntDamageEvent() {},
+        _emitHuntDamageEvent(event) { events.push(event); },
         _killPlayer(target, cause, options) {
             target.alive = false;
             kills.push({ target, cause, options });
         },
     };
-    return { players, combat: { applyPlayerHit: (hit) => applyHit(world, hit) } };
+    return {
+        players,
+        callbacks: { getSimulationNowMs: () => 5000 },
+        combat: { applyPlayerHit: (hit) => applyHit(world, hit) },
+        events,
+    };
 }
 
 test('the respawn protection swallows machine gun hits', () => {
@@ -75,6 +81,8 @@ test('the respawn protection swallows rocket blasts', () => {
     const target = createFightPlayer(1, new THREE.Vector3(0, 20, 0));
     target.spawnProtectionTimer = HUNT_RUNTIME_CONFIG.HUNT.RESPAWN.INVULNERABILITY_SECONDS;
     const resolver = new ProjectileHitResolver({ entityRuntimeConfig: HUNT_RUNTIME_CONFIG });
+    const runtime = createMgRuntime([shooter, target], []);
+    resolver.system.runtimeContext = runtime;
     const projectile = {
         type: 'ROCKET_MEGA',
         owner: shooter,
@@ -85,4 +93,5 @@ test('the respawn protection swallows rocket blasts', () => {
 
     assert.equal(target.hp, target.maxHp, 'a mega rocket next to a protected vehicle must not hurt it');
     assert.equal(target.alive, true);
+    assert.equal(runtime.events.length, 0, 'blocked splash produces no damage event');
 });
