@@ -5,6 +5,7 @@
   },
   "files": [
     "src/shared/contracts/ContractNormalizeUtils.js",
+    "src/shared/contracts/CombatHitContract.js",
     "src/shared/contracts/EditorPathContract.js",
     "src/shared/contracts/GameStateIds.js",
     "src/shared/contracts/HuntWinConditionContract.js",
