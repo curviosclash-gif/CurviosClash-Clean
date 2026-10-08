@@ -16,6 +16,19 @@ import { CONVENTIONAL_EXPLOSION_PROFILES, rocketVisualScale, selectConventionalE
 const MAX_PARTICLES = EXPLOSION_BUDGET.sharedParticles;
 const DUMMY = new THREE.Object3D();
 
+function clearUploadedRanges() {
+    this.clearUpdateRanges();
+}
+
+function markActivePrefix(attribute, count) {
+    if (!attribute || count <= 0) return;
+    const range = attribute.updateRanges[0];
+    if (range) range.count = Math.max(range.count, count);
+    else attribute.addUpdateRange(0, count);
+    attribute.onUpload(clearUploadedRanges);
+    attribute.needsUpdate = true;
+}
+
 export class ParticleSystem {
     constructor(renderer, configSource = null) {
         this.renderer = renderer;
@@ -183,8 +196,8 @@ export class ParticleSystem {
             this.mesh.setMatrixAt(idx, DUMMY.matrix);
         }
 
-        this.mesh.instanceMatrix.needsUpdate = true;
-        if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+        markActivePrefix(this.mesh.instanceMatrix, this.count * 16);
+        markActivePrefix(this.mesh.instanceColor, this.count * 3);
     }
 
     spawnDirectional(position, direction, count, color, speed = 1.0, size = 0.5, life = 1.0, options = {}) {
@@ -255,8 +268,8 @@ export class ParticleSystem {
             this.mesh.setMatrixAt(idx, DUMMY.matrix);
         }
 
-        this.mesh.instanceMatrix.needsUpdate = true;
-        if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+        markActivePrefix(this.mesh.instanceMatrix, this.count * 16);
+        markActivePrefix(this.mesh.instanceColor, this.count * 3);
     }
 
     spawnExplosion(position, color, options = {}) {
@@ -520,10 +533,8 @@ export class ParticleSystem {
 
         this.count = aliveCount;
         this.mesh.count = aliveCount;
-        this.mesh.instanceMatrix.needsUpdate = true;
-        if (this.mesh.instanceColor) {
-            this.mesh.instanceColor.needsUpdate = true;
-        }
+        markActivePrefix(this.mesh.instanceMatrix, aliveCount * 16);
+        markActivePrefix(this.mesh.instanceColor, aliveCount * 3);
     }
 
     clear() {
@@ -535,6 +546,8 @@ export class ParticleSystem {
         this._networkExplosionAuthority = false;
         if (this.mesh) {
             this.mesh.count = 0;
+            this.mesh.instanceMatrix.clearUpdateRanges();
+            this.mesh.instanceColor?.clearUpdateRanges();
         }
     }
 

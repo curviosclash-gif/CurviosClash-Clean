@@ -116,12 +116,20 @@ export class CherryLeafController {
                     batch.frustumCulled = false;
                     batch.count = group.leaves.length;
                     batch.userData.role = 'wind_leaf_batch';
+                    batch.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+                    group.uploadGeneration = 0;
+                    batch.instanceMatrix.onUpload(function () {
+                        this.clearUpdateRanges();
+                        group.uploadGeneration += 1;
+                    });
                     batchParent.add(batch);
                     group.batch = batch;
                     this.batches.push(batch);
                     for (let i = 0; i < group.leaves.length; i += 1) {
                         const leaf = group.leaves[i];
                         leaf.instance = i;
+                        leaf.uploadGeneration = -1;
+                        leaf.uploadRange = { start: i * 16, count: 16 };
                         this._matrix.compose(leaf.restPosition, leaf.restQuaternion, leaf.restScale);
                         batch.setMatrixAt(i, this._matrix);
                     }
@@ -133,6 +141,21 @@ export class CherryLeafController {
     }
 
     get count() { return this.leaves.length; }
+
+    _writeLeafMatrix(leaf) {
+        const group = leaf.batchGroup;
+        const attribute = group.batch.instanceMatrix;
+        group.batch.setMatrixAt(leaf.instance, this._matrix);
+        // Keep pending slots until an actual upload, including invisible batches.
+        // Reuse each slot's range; Three merges these objects in place on upload.
+        if (leaf.uploadGeneration !== group.uploadGeneration) {
+            leaf.uploadRange.start = leaf.instance * 16;
+            leaf.uploadRange.count = 16;
+            attribute.updateRanges.push(leaf.uploadRange);
+            leaf.uploadGeneration = group.uploadGeneration;
+        }
+        attribute.needsUpdate = true;
+    }
 
     /** Called for each authoritative vehicle tick; segment distance prevents tunnelling. */
     releaseNearPass(previousPosition, position, playerRadius = 0, seconds = 0) {
@@ -171,7 +194,6 @@ export class CherryLeafController {
         const now = Math.max(0, Number(seconds) || 0);
         const heading = now * 0.027 + Math.sin(now * 0.009) * 0.65;
         this._wind.set(Math.cos(heading), 0, Math.sin(heading));
-        let changed = false;
         for (const leaf of this.leaves) {
             if (leaf.releasedAt === null) continue;
             const age = now - leaf.releasedAt;
@@ -191,11 +213,7 @@ export class CherryLeafController {
                 this._rotation.copy(leaf.restQuaternion).multiply(this._tumble);
                 this._matrix.compose(this._position, this._rotation, this._scale);
             }
-            leaf.batchGroup.batch.setMatrixAt(leaf.instance, this._matrix);
-            changed = true;
-        }
-        if (changed) {
-            for (const batch of this.batches) batch.instanceMatrix.needsUpdate = true;
+            this._writeLeafMatrix(leaf);
         }
     }
 
@@ -205,10 +223,9 @@ export class CherryLeafController {
                 leaf.releasedAt = null;
                 leaf.expired = false;
                 this._matrix.compose(leaf.restPosition, leaf.restQuaternion, leaf.restScale);
-                leaf.batchGroup.batch.setMatrixAt(leaf.instance, this._matrix);
+                this._writeLeafMatrix(leaf);
                 leaf.source.visible = false;
             }
-            for (const batch of this.batches) batch.instanceMatrix.needsUpdate = true;
         }
         this.events.length = 0;
     }
