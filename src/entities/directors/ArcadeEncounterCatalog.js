@@ -279,6 +279,7 @@ export function buildArcadeSectorPlan(options = {}) {
     const difficultyTierId = String(options.difficulty ?? 'normal').trim().toLowerCase();
     const parcoursTemplate = ARCADE_SECTOR_CATALOG.find((t) => t.id === 'sector_parcours');
     const sequence = [];
+    const generatedScenarioIds = new Set();
 
     for (let sectorIndex = 0; sectorIndex < sectorCount; sectorIndex += 1) {
         const sectorNumber = sectorIndex + 1;
@@ -338,8 +339,17 @@ export function buildArcadeSectorPlan(options = {}) {
             ? legacyDailyScenarioRandom
             : createSeededRandom(`${seedKey}-scenario-${sectorNumber}`);
         const scenario = resolveArcadeScenarioForSector({
-            sectorNumber, sectorCount, isBoss, isParcours: false, allowedScenarioIds: dailyScenarioIds,
+            sectorNumber,
+            sectorCount,
+            isBoss,
+            isParcours: false,
+            allowedScenarioIds: dailyScenarioIds,
+            excludedScenarioIds: options.dailyChallenge === true || !generatedScenarioIds.has('storm_flood')
+                ? null
+                : new Set(['storm_flood']),
+            allowLateSectorScenarios: options.dailyChallenge !== true && sectorNumber >= 7,
         }, scenarioRandomFn);
+        if (scenario) generatedScenarioIds.add(scenario.id);
         sequence.push(applyArcadeScenarioToSectorEntry({
             sectorNumber,
             templateId: template.id,

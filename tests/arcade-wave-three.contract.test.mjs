@@ -7,7 +7,7 @@ import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js'
 import { BLOOM_CORE_FINAL_OPEN_SECONDS } from '../src/core/config/maps/presets/bloom_core.js';
 import { createArcadeObjectiveState, updateArcadeObjectiveState } from '../src/state/arcade/ArcadeObjectiveState.js';
 import { updateArcadeObjectiveRuntimeState } from '../src/core/arcade/ArcadeObjectiveRuntimeOps.js';
-import { requestObjectiveRoundEnd, syncArcadeObjectiveIntoEntities } from '../src/core/runtime/GameRuntimeArcadeSupportOps.js';
+import { buildObjectiveParticipants, requestObjectiveRoundEnd, syncArcadeObjectiveIntoEntities } from '../src/core/runtime/GameRuntimeArcadeSupportOps.js';
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
 import { ArcadeRoundStateController } from '../src/state/arcade/ArcadeRoundStateController.js';
 import { RoundStateController } from '../src/state/RoundStateController.js';
@@ -24,6 +24,8 @@ import { ArenaExpansionController } from '../src/entities/arena/ArenaExpansionCo
 import { normalizeMapUnit } from '../src/shared/contracts/MapUnitContract.js';
 import { placeMapGlbModel, worldMeshBounds } from './helpers/placed-glb-model.mjs';
 import { resolveHuntObjectiveText } from '../src/ui/HuntMatchStatusHelpers.js';
+import { killPlayer } from '../src/entities/EntityPlayerDeathOps.js';
+import { ObjectiveTargetMarkerSystem } from '../src/entities/systems/ObjectiveTargetMarkerSystem.js';
 
 const scenario = (id) => ARCADE_SCENARIOS.find((entry) => entry.id === id);
 const SEEDS = { bridge_convoy: 16, vault_breaker: 9, bloom_escape: 5 };
@@ -80,6 +82,106 @@ test('wave three scenarios reach sector three through their deterministic normal
         assert.equal(profile.combatProfile, id === 'bloom_escape' ? '' : 'hunt');
         assert.equal(profile.botCount, id === 'bloom_escape' ? 4 : 0);
     }
+});
+
+test('an uncredited bounty target death retargets through the live runtime and marker seam', () => {
+    const human = { index: 0, alive: true, isBot: false, hp: 100, maxHp: 100, kill() { this.alive = false; } };
+    const bots = [1, 2, 3].map((index) => ({
+        index, alive: true, isBot: true, isArcadeCompanion: false, hp: 100, maxHp: 100,
+        kill() { this.alive = false; },
+    }));
+    const players = [human, ...bots];
+    const events = [];
+    const manager = {
+        players,
+        humanPlayers: [human],
+        runtimeConfig: { arcade: { enabled: true, runType: 'gauntlet' } },
+        gameModeStrategy: { hasScoring: () => false },
+        _respawnSystem: { onPlayerDied() {} },
+        _eventBus: { emitPlayerDied() {} },
+        _objectiveTargetMarkerSystem: null,
+    };
+    manager._objectiveTargetMarkerSystem = new ObjectiveTargetMarkerSystem(manager);
+    const strategy = new ArcadeModeStrategy();
+    const run = new ArcadeRunRuntime({
+        strategy,
+        getObjectiveParticipants: () => buildObjectiveParticipants(manager),
+    });
+    run.configure({ arcade: { enabled: true, seed: 42, sectorCount: 5 } });
+    const plan = buildArcadeSectorPlan({ seed: 42, sectorCount: 5 });
+    plan.sequence[0] = { ...plan.sequence[0], objectiveId: 'bounty_hunt' };
+    run.startRun({ strategy, encounterPlan: plan });
+    const initialScore = run.getStateSnapshot().score.total;
+    const sync = () => syncArcadeObjectiveIntoEntities(manager, run.getStateSnapshot().objectiveState);
+    manager.onArcadeGameplayEvent = (event) => {
+        events.push(event);
+        run.applyGameplayEvent(event);
+        sync();
+    };
+    sync();
+    assert.equal(run.getStateSnapshot().objectiveState.targetPlayerIndex, 1);
+    assert.equal(manager._objectiveTargetMarkerSystem.getTargetIndex(), 1);
+
+    killPlayer(manager, bots[0], 'SCRIPTED');
+    let objectiveState = run.getStateSnapshot().objectiveState;
+    assert.equal(objectiveState.targetPlayerIndex, 2);
+    assert.equal(objectiveState.completed, false);
+    assert.equal(manager._objectiveTargetMarkerSystem.getTargetIndex(), 2);
+    assert.equal(events.at(-1).type, 'uncredited_bot_eliminated');
+    assert.equal(events.at(-1).victimIndex, 1);
+    assert.equal(Object.hasOwn(events.at(-1), 'playerIndex'), false);
+    assert.equal(Object.hasOwn(events.at(-1), 'count'), false);
+    assert.equal(events.filter((event) => event.type === 'kill').length, 0);
+    assert.equal(run.getStateSnapshot().score.total, initialScore);
+
+    killPlayer(manager, bots[2], 'SCRIPTED');
+    assert.equal(run.getStateSnapshot().objectiveState.targetPlayerIndex, 2, 'a different uncredited death cannot retarget the active mark');
+
+    killPlayer(manager, bots[1], 'PROJECTILE', { killer: human });
+    objectiveState = run.getStateSnapshot().objectiveState;
+    assert.equal(objectiveState.completed, true);
+    assert.equal(objectiveState.targetPlayerIndex, 2, 'completion records the credited target');
+    assert.equal(manager._objectiveTargetMarkerSystem.getTargetIndex(), null);
+    assert.equal(events.filter((event) => event.type === 'kill').length, 1);
+    assert.equal(events.at(-1).playerIndex, human.index);
+});
+
+test('a bounty remains active with no target when every eligible bot dies uncredited', () => {
+    const human = { index: 0, alive: true, isBot: false, hp: 100, maxHp: 100, kill() { this.alive = false; } };
+    const bot = { index: 1, alive: true, isBot: true, hp: 100, maxHp: 100, kill() { this.alive = false; } };
+    const manager = {
+        players: [human, bot],
+        humanPlayers: [human],
+        runtimeConfig: { arcade: { enabled: true, runType: 'gauntlet' } },
+        gameModeStrategy: { hasScoring: () => false },
+        _respawnSystem: { onPlayerDied() {} },
+        _eventBus: { emitPlayerDied() {} },
+        _objectiveTargetMarkerSystem: null,
+    };
+    manager._objectiveTargetMarkerSystem = new ObjectiveTargetMarkerSystem(manager);
+    const strategy = new ArcadeModeStrategy();
+    const run = new ArcadeRunRuntime({
+        strategy,
+        getObjectiveParticipants: () => buildObjectiveParticipants(manager),
+    });
+    run.configure({ arcade: { enabled: true, seed: 42, sectorCount: 5 } });
+    const plan = buildArcadeSectorPlan({ seed: 42, sectorCount: 5 });
+    plan.sequence[0] = { ...plan.sequence[0], objectiveId: 'bounty_hunt' };
+    run.startRun({ strategy, encounterPlan: plan });
+    manager.onArcadeGameplayEvent = (event) => {
+        run.applyGameplayEvent(event);
+        syncArcadeObjectiveIntoEntities(manager, run.getStateSnapshot().objectiveState);
+    };
+    syncArcadeObjectiveIntoEntities(manager, run.getStateSnapshot().objectiveState);
+    killPlayer(manager, bot, 'SCRIPTED');
+
+    const objectiveState = run.getStateSnapshot().objectiveState;
+    assert.equal(objectiveState.targetPlayerIndex, null);
+    assert.equal(objectiveState.targetLabel, '');
+    assert.equal(objectiveState.completed, false);
+    assert.equal(objectiveState.failed, false);
+    assert.equal(manager._objectiveTargetMarkerSystem.getTargetIndex(), null);
+    assert.equal(run.getPhase(), 'sector_active');
 });
 
 test('preserved Parcours scenarios keep their real objective through runtime assignment and completion', () => {

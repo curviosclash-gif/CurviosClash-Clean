@@ -104,7 +104,13 @@ export function getArcadeObjectiveRuntimeState(runtime) {
 
 export function updateArcadeObjectiveRuntimeState(runtime, event) {
     if (!runtime?._state?.objectiveState) return null;
-    const next = updateArcadeObjectiveState(runtime._state.objectiveState, event);
+    const current = runtime._state.objectiveState;
+    const objectiveEvent = event?.type === 'uncredited_bot_eliminated'
+        && current.objectiveId === 'bounty_hunt'
+        && Number(event.victimIndex) === current.targetPlayerIndex
+        ? { ...event, participants: runtime._getObjectiveParticipants?.() || [] }
+        : event;
+    const next = updateArcadeObjectiveState(current, objectiveEvent);
     runtime._state.objectiveState = next;
     if (!next?.shouldEnd || next.roundEndRequested) return next;
     next.roundEndRequested = true;

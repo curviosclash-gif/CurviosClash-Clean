@@ -17,12 +17,16 @@ function toSafeNumber(value, fallback = 0) {
     return Number.isFinite(numeric) ? numeric : fallback;
 }
 
-function resolveBountyTarget(participants) {
+function resolveBountyTarget(participants, { excludePlayerIndex = null, allowFallback = true } = {}) {
     const roster = Array.isArray(participants) ? participants : [];
     const bots = roster
-        .filter((entry) => entry?.isBot === true && entry.isCompanion !== true && entry.alive !== false)
+        .filter((entry) => entry?.isBot === true
+            && entry.isCompanion !== true
+            && entry.alive !== false
+            && (excludePlayerIndex == null || Number(entry.playerIndex) !== Number(excludePlayerIndex)))
         .sort((left, right) => Number(left?.playerIndex) - Number(right?.playerIndex));
     if (bots[0]) return bots[0];
+    if (!allowFallback) return null;
     const humanIndices = roster
         .filter((entry) => entry?.isBot !== true)
         .map((entry) => Math.max(0, Math.trunc(toSafeNumber(entry?.playerIndex, 0))));
@@ -61,7 +65,9 @@ function withHudProgress(state) {
         return {
             ...state,
             progressFraction: state.completed ? 1 : 0,
-            progressText: state.completed ? `${state.targetLabel} ausgeschaltet` : `Ziel: ${state.targetLabel}`,
+            progressText: state.completed
+                ? `${state.targetLabel} ausgeschaltet`
+                : state.targetPlayerIndex == null ? 'Kein Ziel verfügbar' : `Ziel: ${state.targetLabel}`,
         };
     }
     if (state.objectiveId === 'clean_sector') {
@@ -186,6 +192,17 @@ export function updateArcadeObjectiveState(objectiveState = null, event = null) 
         }
     }
     if (next.objectiveId === 'bounty_hunt') {
+        if (event.type === 'uncredited_bot_eliminated' && Number(event.victimIndex) === next.targetPlayerIndex) {
+            const target = resolveBountyTarget(event.participants, {
+                excludePlayerIndex: next.targetPlayerIndex,
+                allowFallback: false,
+            });
+            return withHudProgress({
+                ...next,
+                targetPlayerIndex: target ? Math.max(0, Math.trunc(toSafeNumber(target.playerIndex, 0))) : null,
+                targetLabel: target ? String(target.label || `Bot ${Number(target.playerIndex) + 1}`) : '',
+            });
+        }
         if (event.type === 'kill' && Number(event.victimIndex) === next.targetPlayerIndex) {
             return completeObjective(next, true);
         }

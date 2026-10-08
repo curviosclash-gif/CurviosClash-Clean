@@ -117,6 +117,37 @@ test('sector scenarios use their own map; parcours scenarios keep the course obj
     }
 });
 
+test('non-daily long plans cap Storm once and keep late scenarios varied across every difficulty tier', () => {
+    const lateScenarioIds = new Set(['worm_hunt', 'bomber_alarm', 'bridge_convoy']);
+    const allowedLateIds = new Set([...lateScenarioIds, 'storm_flood']);
+    const tiers = ['easy', 'normal', 'hard', 'nightmare'];
+    const baselineScenariosBySeed = new Map();
+    for (const difficulty of tiers) {
+        const observedLateIds = new Set();
+        let stormRuns = 0;
+        for (let index = 0; index < 48; index += 1) {
+            const seed = 'scenario-cadence-' + index;
+            const options = { seed, sectorCount: 13, difficulty };
+            const plan = buildArcadeSectorPlan(options);
+            assert.deepEqual(plan, buildArcadeSectorPlan(options), `${difficulty}/${seed}: same seed stays deterministic`);
+            assert.ok(plan.sequence.filter((entry) => entry.scenarioId === 'storm_flood').length <= 1, `${difficulty}/${seed}: Storm appears at most once`);
+            if (plan.sequence.some((entry) => entry.scenarioId === 'storm_flood')) stormRuns += 1;
+            const scenarioIds = plan.sequence.map((entry) => entry.scenarioId || null);
+            if (difficulty === tiers[0]) baselineScenariosBySeed.set(seed, scenarioIds);
+            else assert.deepEqual(scenarioIds, baselineScenariosBySeed.get(seed), `${difficulty}/${seed}: tier preserves the seeded scenario draw`);
+            for (const sectorNumber of [7, 11]) {
+                const entry = plan.sequence[sectorNumber - 1];
+                if (!entry.scenarioId) continue;
+                assert.ok(allowedLateIds.has(entry.scenarioId), entry.scenarioId + ' is an authored late-sector scenario');
+                assert.equal(entry.mapKeyLocked, true);
+                if (lateScenarioIds.has(entry.scenarioId)) observedLateIds.add(entry.scenarioId);
+            }
+        }
+        assert.ok(stormRuns > 0, `${difficulty}: the established Storm scenario remains available`);
+        assert.ok(observedLateIds.size >= 2, `${difficulty}: later slots offer variety beyond Storm-only`);
+    }
+});
+
 test('daily plans keep the v1 scenario pool and do not consume new slot randomness', () => {
     const plan = buildArcadeSectorPlan({ seed: 'daily-compatibility', sectorCount: 12, dailyChallenge: true });
     assert.equal(plan.sequence.some((entry) => ['spiessrutenlauf', 'bomber_alarm'].includes(entry.scenarioId)), false);

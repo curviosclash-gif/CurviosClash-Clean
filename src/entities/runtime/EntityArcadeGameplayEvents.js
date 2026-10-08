@@ -69,5 +69,13 @@ export function emitArcadeEliminationEvents(owner, player, cause, options = {}) 
                 ? options.activationGeneration
                 : null,
         });
+    } else if (
+        player?.isBot === true
+        && owner?.runtimeConfig?.arcade?.enabled === true
+        && String(owner.runtimeConfig.arcade.runType || 'gauntlet').trim().toLowerCase() === 'gauntlet'
+    ) {
+        // This carries no player index or score count: objectives may react to an uncredited
+        // bot death without turning it into a kill-credit event.
+        emitArcadeGameplayEvent(owner, { type: 'uncredited_bot_eliminated', victimIndex: player.index });
     }
 }
