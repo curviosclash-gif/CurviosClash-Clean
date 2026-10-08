@@ -127,15 +127,34 @@ test('daily plans keep the v1 scenario pool and do not consume new slot randomne
         { seed: 6, scenarios: [null, null, 'storm_flood', null, null], maps: ['crossfire', 'foam_forest', 'storm_dam_siege', 'parcours_rift_sprint', 'neon_abyss'] },
     ];
     for (const expected of legacySeeds) {
-        const actual = buildArcadeSectorPlan({ seed: expected.seed, sectorCount: 5, dailyChallenge: true }).sequence;
-        assert.deepEqual(actual.map((entry) => entry.scenarioId || null), expected.scenarios);
-        assert.deepEqual(actual.map((entry) => entry.mapKey), expected.maps);
+        for (const difficulty of ['easy', 'normal', 'hard', 'nightmare']) {
+            const actual = buildArcadeSectorPlan({ seed: expected.seed, sectorCount: 5, dailyChallenge: true, difficulty }).sequence;
+            assert.deepEqual(actual.map((entry) => entry.scenarioId || null), expected.scenarios, `${difficulty}: legacy Daily scenario sequence stays fixed for seed ${expected.seed}`);
+            assert.deepEqual(actual.map((entry) => entry.mapKey), expected.maps, `${difficulty}: legacy Daily map sequence stays fixed for seed ${expected.seed}`);
+        }
     }
     const runtimePlan = buildArcadeEncounterPlan({
         arcade: { seed: 'daily-compatibility', sectorCount: 12, dailyChallenge: true },
         session: { mapKey: 'standard' },
     });
     assert.equal(runtimePlan.sequence.some((entry) => ['spiessrutenlauf', 'bomber_alarm'].includes(entry.scenarioId)), false);
+});
+
+test('daily runtime maps retain their historical seed selection across difficulty tiers', () => {
+    const legacySeeds = [
+        { seed: 4, runtimeMaps: ['crossfire', 'foam_forest', 'standard', 'parcours_rift_sprint', 'hydra_temple'] },
+        { seed: 6, runtimeMaps: ['foam_forest', 'crossfire', 'storm_dam_siege', 'micro_maw', 'maze'] },
+    ];
+    for (const expected of legacySeeds) {
+        for (const difficulty of ['easy', 'normal', 'hard', 'nightmare']) {
+            const plan = buildArcadeSectorPlan({ seed: expected.seed, sectorCount: 5, dailyChallenge: true, difficulty });
+            assert.deepEqual(
+                resolveMapSequence(plan, expected.seed, MAP_PRESET_CATALOG),
+                expected.runtimeMaps,
+                `${difficulty}: legacy Daily runtime maps stay fixed for seed ${expected.seed}`,
+            );
+        }
+    }
 });
 
 test('the finale is sometimes a boss scenario, decided by the seed alone', () => {
