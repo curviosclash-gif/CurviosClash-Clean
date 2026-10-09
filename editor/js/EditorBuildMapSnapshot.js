@@ -17,6 +17,11 @@ export function createEditorBuildMapSnapshot(jsonText, { omitEditorId = null } =
     }
     const conversion = getCustomMapConversionScale(parsed.map);
     const converted = toArenaMapDefinition(parsed.map, { mapScale: conversion.scale, name: 'Editor-Bauflug' });
+    // Transient identity ports survive rescued or skipped runtime portal placement.
+    converted.map.portals.forEach((pair, index) => {
+        pair.sourceIdA = converted.mapDocument.portals[index * 2]?.id;
+        pair.sourceIdB = converted.mapDocument.portals[index * 2 + 1]?.id;
+    });
     Object.assign(converted.map, readEditorMapPresentationMetadata(JSON.parse(jsonText)));
     return {
         mapDocument: converted.mapDocument,

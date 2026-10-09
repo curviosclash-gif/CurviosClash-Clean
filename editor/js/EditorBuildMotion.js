@@ -1,6 +1,17 @@
 import * as THREE from 'three';
 
 export const BUILD_SPEED_FACTORS = Object.freeze([0.25, 0.5, 1, 2, 4]);
+export const BUILD_PRECISION_KEYS = Object.freeze({ ArrowLeft: ['x', -1], ArrowRight: ['x', 1],
+    ArrowUp: ['z', -1], ArrowDown: ['z', 1], PageUp: ['y', 1], PageDown: ['y', -1] });
+
+export function nudgeBuildPosition(position, code, step = 1, snapSize = 0) {
+    const axis = BUILD_PRECISION_KEYS[code];
+    if (!axis) return false;
+    resolveBuildPosition(position, snapSize, position);
+    position[axis[0]] = Number((position[axis[0]] + axis[1] * (snapSize > 0 ? snapSize : step)).toFixed(10));
+    resolveBuildPosition(position, snapSize, position);
+    return true;
+}
 
 export function createBuildPose(position = new THREE.Vector3(), quaternion = new THREE.Quaternion()) {
     const angles = new THREE.Euler().setFromQuaternion(quaternion, 'YXZ');
@@ -28,8 +39,8 @@ export function stepBuildPose(pose, codes, { dt, speed, lookX = 0, lookY = 0, en
 export function resolveBuildPosition(position, snapSize = 0, target = new THREE.Vector3()) {
     target.copy(position);
     if (Number.isFinite(snapSize) && snapSize > 0) {
-        target.set(Math.round(position.x / snapSize) * snapSize,
-            Math.round(position.y / snapSize) * snapSize, Math.round(position.z / snapSize) * snapSize);
+        target.set(Math.round(position.x / snapSize) * snapSize || 0,
+            Math.round(position.y / snapSize) * snapSize || 0, Math.round(position.z / snapSize) * snapSize || 0);
     }
     return target;
 }

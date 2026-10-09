@@ -1,4 +1,5 @@
 import { createEditorBuildHotbar, EDITOR_BUILD_HOTBAR_SLOT_COUNT } from '../EditorBuildHotbar.js';
+import { findEditorBuildEntryByToolAndSubtype } from './EditorBuildCatalog.js';
 
 const STYLE_TEXT = `
 .editor-build-flight { --ebf-bg:#111923; --ebf-panel:#1b2734; --ebf-border:#3a4b5d; --ebf-text:#edf4fb; --ebf-muted:#b6c5d4; color:var(--ebf-text); font:600 14px/1.35 system-ui,sans-serif; }
@@ -25,6 +26,9 @@ const STYLE_TEXT = `
 .editor-build-flight-menu .editor-build-flight-dock-host { min-height:0; flex:1; overflow:auto; }
 .editor-build-flight-properties-host { flex:0 0 min(360px, 32vw); min-width:240px; overflow:auto; padding:12px; border:1px solid var(--ebf-border); border-radius:10px; background:#ffffff08; }
 .editor-build-flight-menu .editor-build-flight-dock-host > #buildDock { position:static !important; inset:auto !important; width:100% !important; max-height:none !important; transform:none !important; }
+.editor-build-flight-position { margin:12px 0; border:1px solid var(--ebf-border); border-radius:8px; }
+.editor-build-flight-position input[type="number"] { color:var(--ebf-text); background:var(--ebf-panel); border:1px solid var(--ebf-border); border-radius:4px; padding:6px; }
+.editor-build-flight-position p { color:var(--ebf-muted); margin:8px 0 0; }
 @media(max-width:800px) { .editor-build-flight-hotbar { max-width:96vw; overflow-x:auto; } .editor-build-flight-slot { flex:0 0 62px; width:62px; } .editor-build-flight-menu { inset:2vh 2vw; } }
 `;
 
@@ -105,6 +109,45 @@ export function createEditorBuildMenu(editor, callbacks = {}) {
     const content = doc.createElement('div');
     content.className = 'editor-build-flight-content';
     content.append(dockHost, propertiesHost);
+    const precision = doc.createElement('fieldset');
+    precision.className = 'editor-build-flight-position';
+    const legend = doc.createElement('legend');
+    legend.textContent = 'Bauposition (Karteneinheiten)';
+    precision.append(legend);
+    const positionInputs = {};
+    for (const axis of ['x', 'y', 'z']) {
+        const label = doc.createElement('label');
+        label.textContent = `${axis.toUpperCase()} `;
+        const input = doc.createElement('input');
+        input.type = 'number'; input.step = 'any'; input.style.width = '110px';
+        input.setAttribute('aria-label', `Bauposition ${axis.toUpperCase()}`);
+        const commit = () => {
+            if (input.value.trim() && Number.isFinite(Number(input.value))) callbacks.onPosition?.(axis, Number(input.value));
+            else callbacks.onPosition?.();
+        };
+        input.addEventListener('change', commit);
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); commit(); }
+        });
+        label.append(input); precision.append(label); positionInputs[axis] = input;
+    }
+    const stepLabel = doc.createElement('label'); stepLabel.textContent = ' Schrittweite ';
+    const stepSelect = doc.createElement('select'); stepSelect.setAttribute('aria-label', 'Bau-Schrittweite');
+    for (const value of [0.1, 1, 10]) {
+        const option = doc.createElement('option'); option.value = String(value); option.textContent = String(value); stepSelect.append(option);
+    }
+    stepSelect.value = '1'; stepSelect.addEventListener('change', () => callbacks.onStep?.(Number(stepSelect.value)));
+    stepLabel.append(stepSelect); precision.append(stepLabel);
+    const snapLabel = doc.createElement('label'); const snapInput = doc.createElement('input');
+    snapInput.type = 'checkbox'; snapInput.setAttribute('aria-label', 'Bauposition am Raster ausrichten');
+    snapInput.addEventListener('change', () => callbacks.onSnap?.(snapInput.checked));
+    snapLabel.append(snapInput, ' Raster'); precision.append(snapLabel);
+    const precisionHint = doc.createElement('p');
+    precisionHint.textContent = 'Pfeile: X/Z · Bild ↑/↓: Y · Enter außerhalb des Menüs: bestätigen · Esc: verwerfen';
+    precision.append(precisionHint);
+    const targetLabel = doc.createElement('div');
+    targetLabel.className = 'editor-build-flight-target'; targetLabel.hidden = true;
+    targetLabel.style.cssText = 'position:fixed;z-index:1100;top:55%;left:50%;transform:translateX(-50%);padding:6px 12px;background:#0c121bea;border-radius:8px;pointer-events:none';
     let dockPlaceholder = null;
     let previousFocus = null;
     let menuOpen = false;
@@ -152,6 +195,7 @@ export function createEditorBuildMenu(editor, callbacks = {}) {
         assignButton.disabled = testMode;
         assignSelect.disabled = testMode;
         moveButton.disabled = testMode;
+        precision.disabled = testMode || !!externalStatus.loading;
     };
     const restoreDock = () => {
         if (dock && dockPlaceholder?.parentNode) dockPlaceholder.parentNode.insertBefore(dock, dockPlaceholder);
@@ -238,8 +282,8 @@ export function createEditorBuildMenu(editor, callbacks = {}) {
     menu.addEventListener('keydown', onMenuKeydown);
     dock?.addEventListener('click', onDockSelectionEvent, true);
     dock?.addEventListener('change', onDockSelectionEvent, true);
-    menu.append(header, menuActions, assignRow, content);
-    root.append(style, toolbar, hotbarEl, menu);
+    menu.append(header, menuActions, precision, assignRow, content);
+    root.append(style, toolbar, hotbarEl, targetLabel, menu);
     doc.body.append(root);
     render();
 
@@ -268,6 +312,28 @@ export function createEditorBuildMenu(editor, callbacks = {}) {
             render();
         },
         refresh,
+        setPosition(position, snap, snapSize, force = false) {
+            for (const axis of ['x', 'y', 'z']) {
+                const input = positionInputs[axis];
+                if (force || doc.activeElement !== input) input.value = String(Number(position[axis].toFixed(6)));
+            }
+            snapInput.checked = snap;
+            stepSelect.disabled = snap;
+            stepSelect.title = snap ? `Raster-Schritt: ${snapSize}` : 'Freie Schrittweite';
+        },
+        setTarget(target) {
+            targetLabel.hidden = !target || menuOpen || isTestMode();
+            const object = target?.object;
+            const label = object && (findEditorBuildEntryByToolAndSubtype(object.userData.type, object.userData.subType)?.label || object.userData.type);
+            targetLabel.textContent = target ? `${object ? `${label} · ${object.userData.id}` : 'Kulisse'} · ${target.status}` : '';
+            if (target) {
+                const bounds = callbacks.getViewportBounds?.();
+                if (bounds) {
+                    targetLabel.style.left = `${bounds.left + bounds.width / 2}px`;
+                    targetLabel.style.top = `${bounds.top + bounds.height / 2 + 40}px`;
+                }
+            }
+        },
         dispose() {
             setMenuOpen(false);
             restoreDock();
