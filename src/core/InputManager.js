@@ -449,11 +449,16 @@ export class InputManager {
             // Options carry the fixed step of the caller: a source that integrates over
             // time (the network guest ramp) must never read a clock of its own.
             const polled = source.poll(options);
-            if (polled) return this._trackInputActivity(playerIndex, polled);
+            if (polled) {
+                this.recordingInputObserver?.(playerIndex, source.type || 'unknown', polled);
+                return this._trackInputActivity(playerIndex, polled);
+            }
         }
 
         // Fallback: keyboard bindings (original behavior)
-        return this._trackInputActivity(playerIndex, this.getKeyboardInput(playerIndex, options));
+        const input = this.getKeyboardInput(playerIndex, options);
+        this.recordingInputObserver?.(playerIndex, 'keyboard', input);
+        return this._trackInputActivity(playerIndex, input);
     }
 
     _trackInputActivity(playerIndex, inputState) {

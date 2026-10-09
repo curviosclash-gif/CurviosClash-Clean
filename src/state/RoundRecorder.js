@@ -153,6 +153,7 @@ export class RoundRecorder {
      *        relevant (STUCK, BOUNCE_*, KILL) - alles andere ignoriert sie.
      */
     logEvent(type, playerIndex, data = '', position = null) {
+        this.marketingObserver?.({ type, player: playerIndex, data });
         if (!this._enabled) return;
         this._eventStore.append(type, playerIndex, data);
         this._metricsStore.registerEventType(type, data);
@@ -178,6 +179,11 @@ export class RoundRecorder {
     }
 
     recordDamageEvent(event = null) {
+        this.marketingObserver?.({ type: 'DAMAGE', player: event?.sourcePlayer?.index ?? -1,
+            target: event?.target?.index ?? -1, weapon: event?.projectile?.type || event?.type || '',
+            applied: Number(event?.damageResult?.applied) || 0,
+            hpApplied: Number(event?.damageResult?.hpApplied) || 0,
+            shieldApplied: Number(event?.damageResult?.absorbedByShield) || 0 });
         if (!this._enabled) return;
         this._metricsStore.registerDamageEvent(event);
         this._playerStatsStore.registerDamage(event);

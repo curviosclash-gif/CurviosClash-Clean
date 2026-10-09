@@ -305,6 +305,16 @@ function createTuningRuntimeContract() {
 
 const discoveryContract = createDiscoveryContract();
 const hostContract = createHostContract();
+if (process.argv.includes('--curvios-marketing')) {
+    contextBridge.exposeInMainWorld('curviosMarketing', Object.freeze({
+        config: () => ipcRenderer.invoke('marketing:config'),
+        begin: (setup) => ipcRenderer.invoke('marketing:begin', setup),
+        append: (payload) => ipcRenderer.invoke('marketing:append', payload),
+        finish: (details) => ipcRenderer.invoke('marketing:finish', details),
+        renderResult: (result) => ipcRenderer.invoke('marketing:render-result', result),
+        replayBatch: () => ipcRenderer.invoke('marketing:replay-batch'),
+    }));
+}
 const saveContract = createSaveContract();
 const recordingContract = createRecordingContract();
 const lifecycleContract = createLifecycleContract();

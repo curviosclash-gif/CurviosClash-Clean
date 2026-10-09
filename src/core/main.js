@@ -3,6 +3,7 @@
 // ============================================
 
 import { RoundRecorder } from '../state/RoundRecorder.js';
+import { MarketingSession } from './recording/MarketingSession.js';
 import { CUSTOM_MAP_KEY } from '../entities/MapSchema.js';
 import { PlayerProfileUiController, ProfileUiController } from '../composition/core-ui/CoreUiAppPorts.js';
 import { createCoreRuntimeAccess } from '../composition/core-ui/CoreRuntimeAccessFactory.js';
@@ -122,6 +123,8 @@ export class Game {
 
         // Debug Recorder
         this.recorder = new RoundRecorder();
+        this.marketingSession = new MarketingSession(this, window.curviosMarketing);
+        queueMicrotask(() => this.marketingSession.initialize());
         this._recorderFrameCaptureEnabled = this.debugApi.resolveRecorderFrameCaptureEnabledDefault();
         this.recorder.setFrameCaptureEnabled(this._recorderFrameCaptureEnabled);
 
@@ -522,6 +525,7 @@ export class Game {
         }
 
         dispatchGameStateUpdate(this, dt, hasInteractiveMatchRuntime);
+        this.marketingSession?.tick(dt);
 
         if (this.huntHud) {
             const runtimeProjection = this.state === GAME_STATE_IDS.PLAYING || this.state === GAME_STATE_IDS.PAUSED
@@ -624,6 +628,7 @@ export class Game {
         const runtimeFacade = runtimeCoordinator?.getRuntimeFacade?.();
 
         this._disposePromise = Promise.resolve()
+            .then(() => this.marketingSession?.finish())
             .then(() => runtimeCoordinator?.disposeRuntime?.())
             .finally(() => {
                 this.fourPlayerPlanar?.dispose?.();

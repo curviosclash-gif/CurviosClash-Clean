@@ -2,13 +2,7 @@
 import * as THREE from 'three';
 import { RECORDING_CAPTURE_PROFILE, RECORDING_EXPORT_PRESET } from '../../shared/contracts/RecordingCaptureContract.js';
 import { buildReplayNetworkSnapshot, toFiniteNumber } from './CinematicReplaySnapshotOps.js';
-
-function clearReplayTrails(entityManager) {
-    const players = Array.isArray(entityManager?.players) ? entityManager.players : [];
-    for (let index = 0; index < players.length; index++) {
-        players[index]?.trail?.clear?.();
-    }
-}
+import { applyRecordedTrailState, clearReplayTrails } from './MarketingTrailState.js';
 
 function resolveReplaySessionConfig(game, replay) {
     const metadata = replay?.metadata && typeof replay.metadata === 'object' ? replay.metadata : {};
@@ -87,7 +81,7 @@ async function prepareDefaultReplaySession({ game, renderer, replay }) {
 
 function disposeDefaultReplaySession() {}
 
-function applyProjectionToPlayers(entityManager, projection, dt, replayAliveState, replayRestarted) {
+function applyProjectionToPlayers(entityManager, projection, dt, replayAliveState, replayRestarted, recordedTrails) {
     const livePlayers = Array.isArray(entityManager?.players) ? entityManager.players : [];
     const projectedPlayers = Array.isArray(projection?.players) ? projection.players : [];
     const safeDt = Math.max(1 / 240, Math.min(0.05, toFiniteNumber(dt, 1 / 60)));
@@ -146,7 +140,7 @@ function applyProjectionToPlayers(entityManager, projection, dt, replayAliveStat
         }
         const previousAlive = replayAliveState.get(player.index);
         player.trail?.setWidth?.(Math.max(0.01, toFiniteNumber(projected.trailWidth, player.trail?.width || 0.6)));
-        player.trail?.updateReplayVisual?.(
+        if (!recordedTrails) player.trail?.updateReplayVisual?.(
             safeDt,
             player.position,
             projected.direction,
@@ -161,6 +155,7 @@ function applyProjectionToPlayers(entityManager, projection, dt, replayAliveStat
         player.view?.updateVisuals?.(safeDt, { emitParticles: false });
     }
 }
+
 
 function applySnapshotToParticles(particles, leftSnapshot, timeOffsetSeconds = 0) {
     const state = leftSnapshot?.particles;
@@ -339,7 +334,7 @@ export function createCinematicReplayFrameRenderer({
         frameIndex = 0,
         timeMs = 0,
         dt = 1 / 60,
-        reset = false,
+        reset = false, warmup = false, inspectScene = null,
     } = {}) => {
         if (reset) {
             const entityManager = activeReplaySession?.entityManager || null;
@@ -363,7 +358,8 @@ export function createCinematicReplayFrameRenderer({
             clearReplayTrails(entityManager);
             replayAliveState.clear();
         }
-        applyProjectionToPlayers(entityManager, projection, dt, replayAliveState, replayRestarted);
+        applyProjectionToPlayers(entityManager, projection, dt, replayAliveState, replayRestarted, leftSnapshot?.trails);
+        applyRecordedTrailState(entityManager, leftSnapshot?.trails);
         entityManager.applyNetworkSnapshot?.(
             buildReplayNetworkSnapshot(
                 networkSnapshot,
@@ -380,6 +376,8 @@ export function createCinematicReplayFrameRenderer({
         );
         replaySession?.arena?.update?.(Math.max(0, toFiniteNumber(dt, 1 / 60)));
         replaySession?.arena?.setGlbAnimationElapsedSeconds?.(networkSnapshot.mapElapsedSeconds);
+        if (warmup) return null;
+        inspectScene?.(replaySession);
         renderer.setRecordingActive?.(true);
         renderer.setRecordingQualityLock?.(true, 'cinematic-replay-render');
         renderer.prepareRecordingCaptureFrame?.({

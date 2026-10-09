@@ -69,6 +69,24 @@ for (const entry of listTestRenderCommandLineSwitches(testRenderMode)) {
 if (String(process.env.PW_RUN_TAG || '').trim()) app.commandLine.appendSwitch('mute-audio');
 
 let mainWindow = null;
+const marketingConfigPath = process.env.CURVIOS_MARKETING_CONFIG || '';
+const marketingSession = require('./marketing-session-ipc.cjs').installMarketingSessionIpc({
+    ipcMain, getWindow: () => mainWindow, isTrusted: (event) => isTrustedMainWindowSender(event),
+    configPath: marketingConfigPath, ffmpeg: process.env.FFMPEG_PATH || require('ffmpeg-static') || 'ffmpeg',
+});
+let marketingQuitReady = false;
+app.on('before-quit', (event) => {
+    if (!marketingConfigPath || marketingQuitReady) return;
+    event.preventDefault();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.close();
+        return;
+    }
+    marketingSession.finish().catch((error) => console.error('[marketing]', error)).finally(() => {
+        marketingQuitReady = true;
+        app.quit();
+    });
+});
 let tray = null;
 let signalingRuntime = null;
 let staticAppServer = null;
@@ -574,10 +592,10 @@ async function createWindow() {
             title: 'CurviosClash',
             backgroundColor: '#050510',
             show: shouldShowWindow,
-            webPreferences: createSecureWindowWebPreferences({
+            webPreferences: { ...createSecureWindowWebPreferences({
                 preload: path.join(__dirname, 'preload.cjs'),
                 backgroundThrottling: false,
-            }),
+            }), additionalArguments: marketingConfigPath ? ['--curvios-marketing'] : [] },
         },
     }));
     if (shouldShowInactive(testRenderMode)) {
@@ -627,6 +645,7 @@ async function createWindow() {
             ));
         });
     });
+    marketingSession.attach();
     await mainWindow.loadURL(appServer.url);
     mainWindow.on('closed', () => {
         mainWindow = null;
@@ -878,7 +897,14 @@ const recordingVideoExportJob = createRecordingVideoExportJob({
 });
 const cinematicReplayVideoExportJob = createCinematicReplayVideoExportJob({
     app,
-    dialog,
+    dialog: marketingConfigPath ? { ...dialog, showSaveDialog: async (...args) => {
+        const config = JSON.parse(readFileSync(marketingConfigPath, 'utf8'));
+        if (config.action === 'render') {
+            if (existsSync(config.output)) throw new Error('marketing_export_already_exists');
+            return { canceled: false, filePath: config.output };
+        }
+        return dialog.showSaveDialog(...args);
+    } } : dialog,
     resolveWindow: () => desktopWindowShellCapability.getWindow(),
 });
 
