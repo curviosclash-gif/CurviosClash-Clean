@@ -26,6 +26,7 @@ import {
 } from '../../hunt/HuntBotPolicy.js';
 import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
 import { applyHuntBotObjectiveMovement } from '../../hunt/HuntBotObjectiveOps.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
@@ -35,6 +36,7 @@ const TMP_RIGHT = new THREE.Vector3();
 const TMP_UP = new THREE.Vector3();
 const TMP_ROLE_TARGET = new THREE.Vector3();
 const TMP_ROLE_FORWARD = new THREE.Vector3();
+const TMP_MG_AIM = new THREE.Vector3();
 const HUNT_BRIDGE_STEERING_SCRATCH = {
     _tmpGate: TMP_TO_ENEMY,
     _tmpForward: TMP_FORWARD,
@@ -65,6 +67,29 @@ function resolveSurvivalPressure(priorities) {
 function shouldRetreatFromPriorities(priorities, survivalPressure = resolveSurvivalPressure(priorities)) {
     return priorities.vitalityRatio <= 0.34
         || (priorities.vitalityRatio < 0.52 && survivalPressure > 0.76);
+}
+
+function isInMgAimCone(player, position, rangeSq, minDot) {
+    const dx = position.x - player.position.x;
+    const dy = position.y - player.position.y;
+    const dz = position.z - player.position.z;
+    const distanceSq = dx * dx + dy * dy + dz * dz;
+    return distanceSq > 0.000001 && distanceSq <= rangeSq
+        && (TMP_MG_AIM.x * dx + TMP_MG_AIM.y * dy + TMP_MG_AIM.z * dz)
+            >= minDot * Math.sqrt(distanceSq);
+}
+
+function hasMgTargetInAimCone(player, runtimeContext, range, minDot) {
+    if (!player?.position || typeof player.getAimDirection !== 'function') return true;
+    player.getAimDirection(TMP_MG_AIM).normalize();
+    const rangeSq = range * range;
+    for (const target of runtimeContext?.visiblePlayers || runtimeContext?.players || []) {
+        if (target?.alive && target !== player && target.position
+            && !areTeammates(player, target) && isInMgAimCone(player, target.position, rangeSq, minDot)) return true;
+    }
+    const sharedTarget = runtimeContext?.huntTarget;
+    return sharedTarget?.kind === 'trail' && sharedTarget.position
+        && isInMgAimCone(player, sharedTarget.position, rangeSq, minDot);
 }
 
 function resolveHuntBridgePriorities(player, runtimeContext) {
@@ -174,6 +199,9 @@ function resolveHuntBridgeAction(runtimeContext, player) {
         && (priorities.shieldRatio > 0.08 || priorities.healthRatio > 0.32)
         && priorities.aggression >= 0.4
         && survivalPressure < 0.85
+        // Match the bot aim-assist cone used when the MG shot resolves.
+        && hasMgTargetInAimCone(player, runtimeContext, mgRange,
+            clamp(Number(huntConfig?.MG?.AIM_DOT_MIN) || 0.965, -1, 1))
     ) {
         action.shootMG = true;
     }

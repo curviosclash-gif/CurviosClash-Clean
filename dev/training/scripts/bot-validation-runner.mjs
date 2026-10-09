@@ -784,6 +784,7 @@ async function captureBotRuntimeSample(page, phasePrefix, deadlines) {
                 performance: game.runtimePerfProfiler?.getTelemetryIntervalSnapshot?.() || null,
                 huntKillCount: (entityManager?.getHuntScoreboard?.() || [])
                     .reduce((total, row) => total + Math.max(0, Number(row?.kills) || 0), 0),
+                mgAimBins: entityManager?._overheatGunSystem?.__botValidationMgAimBins || null,
             };
         }
     );
@@ -863,6 +864,53 @@ async function forceRoundEnd(page, phasePrefix, deadlines) {
     log(`${phasePrefix} forced round-end applied`, forceResult);
 }
 
+async function installMgAimProbe(page, phasePrefix, deadlines) {
+    await evaluatePhase(page, `${phasePrefix}:mg-aim-probe`,
+        resolveTimeout(EVAL_TIMEOUT_MS, `${phasePrefix}:mg-aim-probe`, deadlines), () => {
+            const system = window.GAME_INSTANCE?.entityManager?._overheatGunSystem;
+            if (!system || typeof system.tryFire !== 'function') return false;
+            const prior = system.__botValidationMgAimOriginalTryFire || system.tryFire;
+            system.__botValidationMgAimOriginalTryFire = prior;
+            const aim = system._tmpAim;
+            const bins = [
+                { minDot: -1, shots: 0, hits: 0 },
+                { minDot: 0.5, shots: 0, hits: 0 },
+                { minDot: 0.8, shots: 0, hits: 0 },
+                { minDot: 0.9, shots: 0, hits: 0 },
+                { minDot: 0.965, shots: 0, hits: 0 },
+            ];
+            system.__botValidationMgAimBins = bins;
+            system.tryFire = function (player) {
+                const result = prior.call(this, player);
+                if (result?.ok !== true || player?.isBot !== true || !player?.position) return result;
+                player.getAimDirection(aim).normalize();
+                let bestDot = -1;
+                for (const target of this.entityManager?.players || []) {
+                    if (!target?.alive || target === player || !target.position) continue;
+                    if (player.teamId && target.teamId && player.teamId === target.teamId) continue;
+                    const dx = target.position.x - player.position.x;
+                    const dy = target.position.y - player.position.y;
+                    const dz = target.position.z - player.position.z;
+                    const distance = Math.hypot(dx, dy, dz);
+                    if (distance > 0 && distance <= 152) {
+                        bestDot = Math.max(bestDot, (aim.x * dx + aim.y * dy + aim.z * dz) / distance);
+                    }
+                }
+                let bin = bins[0];
+                for (let index = bins.length - 1; index > 0; index -= 1) {
+                    if (bestDot >= bins[index].minDot) {
+                        bin = bins[index];
+                        break;
+                    }
+                }
+                bin.shots += 1;
+                if (result.hit === true) bin.hits += 1;
+                return result;
+            };
+            return true;
+        });
+}
+
 async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex, deadlines, stats) {
     const roundNumber = roundIndex + 1;
     const roundLabel = `scenario=${scenario.id}(${scenarioIndex + 1}/${scenarioCount}) round=${roundNumber}/${ROUNDS_PER_SCENARIO}`;
@@ -915,6 +963,9 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
         resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:read-state-after-start`, deadlines),
         () => window.GAME_INSTANCE?.state || null
     );
+    if (scenario.id === 'V3' || scenario.id === 'V4') {
+        await installMgAimProbe(page, roundLabel, deadlines);
+    }
     const startRuntimeSample = await captureBotRuntimeSample(page, roundLabel, deadlines);
 
     let forced = false;
@@ -1279,7 +1330,8 @@ async function run() {
                 'utf8');
             const electronEnv = {
                 ...RUNNER_VITE_ENV,
-                CURVIOS_ELECTRON_SHOW_WINDOW: '1',
+                CURVIOS_ELECTRON_SHOW_WINDOW: '0',
+                CURVIOS_ELECTRON_TEST_RENDER: 'inactive',
                 CURVIOS_DESKTOP_STATIC_PORT: String(PORT),
             };
             delete electronEnv.ELECTRON_RUN_AS_NODE;
@@ -1597,6 +1649,7 @@ async function run() {
                     pageVisibility: sample.pageVisibility,
                     renderFrameId: sample.renderFrameId,
                     performance: sample.performance,
+                    mgAimBins: sample.mgAimBins,
                 })),
                 runner: {
                     forcedRounds: localStats.forcedRounds,
@@ -1657,6 +1710,7 @@ async function run() {
                 serverMode: RUNTIME_SURFACE === 'electron' ? 'electron' : SERVER_MODE,
                 runtimeSurface: RUNTIME_SURFACE,
                 headless: RUNTIME_SURFACE === 'chromium' ? HEADLESS : null,
+                renderMode: RUNTIME_SURFACE === 'electron' ? 'inactive' : null,
                 publishEvidence: PUBLISH_EVIDENCE,
                 previewBuildBeforeStart: PREVIEW_BUILD_BEFORE_START,
                 diagnostics,
