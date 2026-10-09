@@ -1,0 +1,23 @@
+1
+00:00:00,400 --> 00:00:03,300
+Welcome to CurviosClash!
+
+2
+00:00:05,900 --> 00:00:09,300
+Explore the Pyramid arena.
+
+3
+00:00:10,200 --> 00:00:13,200
+Leave glowing trails in every turn.
+
+4
+00:00:14,200 --> 00:00:17,500
+Chase your rivals through the action.
+
+5
+00:00:19,000 --> 00:00:21,600
+Rockets bring the big moment.
+
+6
+00:00:23,100 --> 00:00:25,400
+Follow CurviosClash in development.
