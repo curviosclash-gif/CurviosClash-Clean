@@ -47,3 +47,51 @@ test('Hunt bridge fires MG only toward an aligned enemy or trail target', () => 
     context.huntTarget = { kind: 'trail', playerIndex: 1, distance: 20, position: new THREE.Vector3(0, 0, 20) };
     assert.equal(policy.update(1 / 60, player, context).shootMG, true);
 });
+
+test('3D Hunt bridge pursues a clear enemy corridor and keeps fallback steering near danger', () => {
+    const player = {
+        index: 0, isBot: true, alive: true, hp: 100, maxHp: 100,
+        shieldHP: 40, maxShieldHp: 40, inventory: [],
+        entityRuntimeConfig: { HUNT: HUNT_CONFIG },
+        position: new THREE.Vector3(),
+        getAimDirection(out) { return out.set(0, 0, 1); },
+        getDirection(out) { return out.set(0, 0, 1); },
+    };
+    const enemy = {
+        index: 1, alive: true, hp: 100, maxHp: 100,
+        shieldHP: 40, maxShieldHp: 40,
+        position: new THREE.Vector3(35, 0, 50),
+    };
+    let blocked = false;
+    let danger = false;
+    const context = {
+        mode: 'HUNT', rules: { planarMode: false },
+        arena: { specialGates: [], raycast() { return { hit: blocked }; } },
+        players: [player, enemy], visiblePlayers: [player, enemy], projectiles: [],
+        observation: new Array(40).fill(0),
+    };
+    const policy = new HuntBridgePolicy({
+        autoLoadCheckpoint: false,
+        fallbackPolicy: {
+            usesRuntimeContext: true,
+            update() { return { yawLeft: true, boost: true }; },
+            getSensorSnapshot() { return { immediateDanger: danger, forwardRisk: 0 }; },
+        },
+    });
+
+    const pursuit = policy.update(1 / 60, player, context);
+    assert.ok(pursuit.yawAxis > 0);
+    assert.equal(pursuit.boost, false);
+
+    blocked = true;
+    assert.equal(policy.update(1 / 60, player, context).yawLeft, true);
+    blocked = false;
+    danger = true;
+    assert.equal(policy.update(1 / 60, player, context).yawLeft, true);
+    danger = false;
+    context.rules.planarMode = true;
+    assert.equal(policy.update(1 / 60, player, context).yawLeft, true);
+    context.rules.planarMode = false;
+    context.arena.raycast = null;
+    assert.equal(policy.update(1 / 60, player, context).yawLeft, true);
+});

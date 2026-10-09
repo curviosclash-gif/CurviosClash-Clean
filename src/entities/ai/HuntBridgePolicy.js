@@ -167,6 +167,25 @@ function applyRetreatManeuver(action, player, enemy) {
     }
 }
 
+function applyClearFightPursuit(action, player, runtimeContext, fallbackPolicy) {
+    if (runtimeContext?.mode !== 'HUNT' || runtimeContext?.rules?.planarMode !== false) return;
+    const sensor = fallbackPolicy?.getSensorSnapshot?.();
+    const forwardRisk = Number(sensor?.forwardRisk);
+    if (!sensor || sensor.immediateDanger || !Number.isFinite(forwardRisk) || forwardRisk > 0.5
+        || typeof runtimeContext.arena?.raycast !== 'function') return;
+    const players = runtimeContext.visiblePlayers || runtimeContext.players || [];
+    const { enemy, distSq } = getNearestEnemy(player, players, TMP_TO_ENEMY);
+    if (!enemy?.position || distSq < 18 * 18 || distSq > 160 * 160) return;
+    const distance = Math.sqrt(distSq);
+    TMP_MG_AIM.subVectors(enemy.position, player.position).multiplyScalar(1 / distance);
+    const obstacle = runtimeContext.arena.raycast(player.position, TMP_MG_AIM, distance - 5);
+    if (obstacle?.hit) return;
+    clearSteeringInput(action);
+    applySteeringTowardPosition(HUNT_BRIDGE_STEERING_SCRATCH, action, player, enemy.position,
+        { precision: true });
+    action.boost = false;
+}
+
 function resolveHuntBridgeAction(runtimeContext, player) {
     const priorities = resolveHuntBridgePriorities(player, runtimeContext);
     const action = {};
@@ -294,7 +313,7 @@ export class HuntBridgePolicy extends ObservationBridgePolicy {
         const runtimeContext = this._asRuntimeContext(dt, player, runtimeContextOrArena, allPlayers, projectiles);
         const action = super.update(dt, player, runtimeContext);
         const priorities = resolveHuntBridgePriorities(player, runtimeContext);
-        applyHuntBotObjectiveMovement({
+        const objectiveRole = applyHuntBotObjectiveMovement({
             policy: HUNT_BRIDGE_STEERING_SCRATCH,
             input: action,
             player,
@@ -303,6 +322,9 @@ export class HuntBridgePolicy extends ObservationBridgePolicy {
             clearSteering: clearSteeringInput,
             steerToward: applySteeringTowardPosition,
         });
+        if (!objectiveRole && !shouldRetreatFromPriorities(priorities)) {
+            applyClearFightPursuit(action, player, runtimeContext, this._fallbackPolicy);
+        }
         return action;
     }
 }

@@ -45,6 +45,8 @@ const POLICY_FILTER = normalizePolicyFilter(
     resolveFirstValue(CLI_ARGS, ['policy', 'policy-type'], process.env.BOT_RUNNER_POLICY)
 );
 const ROUNDS_PER_SCENARIO = parseIntegerOption(CLI_ARGS, ['rounds'], 'BOT_RUNNER_ROUNDS', 4, 1);
+const SEED_BASE_OVERRIDE = resolveFirstValue(CLI_ARGS, ['seed-base'], process.env.BOT_RUNNER_SEED_BASE);
+const TRACE_COMBAT = parseBoolRunnerOption(CLI_ARGS, ['trace-combat'], 'BOT_RUNNER_TRACE_COMBAT', false);
 const FAIL_ON_FORCED_ROUND = parseBoolRunnerOption(
     CLI_ARGS,
     ['fail-on-forced-round'],
@@ -785,6 +787,7 @@ async function captureBotRuntimeSample(page, phasePrefix, deadlines) {
                 huntKillCount: (entityManager?.getHuntScoreboard?.() || [])
                     .reduce((total, row) => total + Math.max(0, Number(row?.kills) || 0), 0),
                 mgAimBins: entityManager?._overheatGunSystem?.__botValidationMgAimBins || null,
+                combatTrace: game.__botValidationCombatTrace || null,
             };
         }
     );
@@ -866,7 +869,7 @@ async function forceRoundEnd(page, phasePrefix, deadlines) {
 
 async function installMgAimProbe(page, phasePrefix, deadlines) {
     await evaluatePhase(page, `${phasePrefix}:mg-aim-probe`,
-        resolveTimeout(EVAL_TIMEOUT_MS, `${phasePrefix}:mg-aim-probe`, deadlines), () => {
+        resolveTimeout(EVAL_TIMEOUT_MS, `${phasePrefix}:mg-aim-probe`, deadlines), (traceCombat) => {
             const system = window.GAME_INSTANCE?.entityManager?._overheatGunSystem;
             if (!system || typeof system.tryFire !== 'function') return false;
             const prior = system.__botValidationMgAimOriginalTryFire || system.tryFire;
@@ -880,6 +883,30 @@ async function installMgAimProbe(page, phasePrefix, deadlines) {
                 { minDot: 0.965, shots: 0, hits: 0 },
             ];
             system.__botValidationMgAimBins = bins;
+            const game = window.GAME_INSTANCE;
+            if (traceCombat) {
+                if (game.__botValidationCombatTraceTimer) clearInterval(game.__botValidationCombatTraceTimer);
+                game.__botValidationCombatTrace = [];
+                const sampleCombat = () => {
+                    const manager = game.entityManager;
+                    const players = manager?.players || [];
+                    game.__botValidationCombatTrace.push({
+                        simulationSeconds: Number(manager?._simulationClockMs || 0) * 0.001,
+                        scoreboard: manager?.getHuntScoreboard?.() || [],
+                        players: players.map((entry) => ({
+                            index: entry?.index ?? -1,
+                            isBot: entry?.isBot === true,
+                            alive: entry?.alive === true,
+                            hp: Number(entry?.hp || 0),
+                            shield: Number(entry?.shieldHP || 0),
+                            position: entry?.position?.toArray?.() || null,
+                            targetIndex: Number(entry?.fightTargetPlayerIndex ?? -1),
+                        })),
+                    });
+                };
+                sampleCombat();
+                game.__botValidationCombatTraceTimer = setInterval(sampleCombat, 5000);
+            }
             system.tryFire = function (player) {
                 const result = prior.call(this, player);
                 if (result?.ok !== true || player?.isBot !== true || !player?.position) return result;
@@ -908,7 +935,7 @@ async function installMgAimProbe(page, phasePrefix, deadlines) {
                 return result;
             };
             return true;
-        });
+        }, TRACE_COMBAT);
 }
 
 async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex, deadlines, stats) {
@@ -1005,6 +1032,12 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
     }
 
     const endRuntimeSample = await captureBotRuntimeSample(page, `${roundLabel}:end`, deadlines);
+    await evaluatePhase(page, `${roundLabel}:stop-combat-trace`,
+        resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:stop-combat-trace`, deadlines), () => {
+            const game = window.GAME_INSTANCE;
+            if (game?.__botValidationCombatTraceTimer) clearInterval(game.__botValidationCombatTraceTimer);
+            if (game) game.__botValidationCombatTraceTimer = null;
+        });
     if (isSurvivalObservationScenario(scenario)) {
         const observation = await evaluatePhase(
             page,
@@ -1489,6 +1522,11 @@ async function run() {
             policy: POLICY_FILTER,
             limit: SCENARIO_LIMIT,
         });
+        if (SEED_BASE_OVERRIDE !== undefined && SEED_BASE_OVERRIDE !== null && SEED_BASE_OVERRIDE !== '') {
+            const seedBase = Number(SEED_BASE_OVERRIDE);
+            if (!Number.isSafeInteger(seedBase) || seedBase < 0) throw new Error(`Invalid seed base: ${SEED_BASE_OVERRIDE}`);
+            for (const scenario of scenarios) scenario.seedBase = seedBase;
+        }
         if (scenarios.length === 0) {
             throw new Error('Bot validation scenario selection is empty');
         }
@@ -1650,6 +1688,7 @@ async function run() {
                     renderFrameId: sample.renderFrameId,
                     performance: sample.performance,
                     mgAimBins: sample.mgAimBins,
+                    combatTrace: sample.combatTrace,
                 })),
                 runner: {
                     forcedRounds: localStats.forcedRounds,
