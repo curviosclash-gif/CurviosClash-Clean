@@ -16,6 +16,16 @@ Was diesen Satz brauchbar macht, sind vier Dinge: ein benanntes Szenario, konkre
 
 Desktop (Electron) ist die Leitplattform. Ein Beleg aus dem Browser ist etwas wert, aber er heißt dann auch „Browser proof".
 
+## Lernschleife
+
+Prüfe vor jeder Schlussantwort die vorhandenen Belege auf eine wiederverwendbare Verbesserung, auch nach erfolgreicher QA oder abgebrochener Arbeit. Signale sind ein ungeeigneter Beweisweg, irreführende Messwerte, fehlende Vorher-Werte oder eine Nutzerkorrektur trotz grüner Tests.
+
+- Übernimm nur eine verstandene Ursache mit am betroffenen Fall verifizierter Abhilfe, die künftige Aufgaben betrifft. Einzelfälle, Vermutungen und bereits ausreichend geregelte Fälle erzeugen keine neue Regel.
+- Verbessere die Auswahl oder Belegkriterien hier; wiederverwendbare Runtime-Prüfungen gehören in den zuständigen Contract- oder Desktop-Test, Werkzeugfehler in den bestehenden Treiber mit Test. Subjektive Vorlieben ändern das aktuelle Briefing, solange kein wiederverwendbarer Defekt belegt ist.
+- Prüfe die Abhilfe am ursprünglichen Szenario und einem benachbarten gültigen Fall mit vergleichbaren Startbedingungen und ohne Fremdlast. Ein schnellerer Weg muss dieselbe Aussage belegen; Browser, Headless-Werte und Eingriffe bleiben ausdrücklich benannt. Sichtbare oder subjektive Aussagen brauchen passende Ansichten beziehungsweise Nutzerbeobachtungen. Validiere geänderte Helfer mit den betroffenen Tests und Skill-Änderungen auf Format und Referenzlinks.
+
+Verifizierte aufgabenbezogene Pflege gehört zu diesem Ablauf. Nutzerumfang, Nur-Lese-Aufträge, Dateibesitz und Repository-Gates gelten weiterhin; ist die Pflege dadurch gesperrt, melde sie als ausstehend. Bewahre Auslöser, Geltungsbereich, Abhilfe und Prüfkriterium in der bestehenden zuständigen Regel oder Prüfung; keine Fehlerchronik oder neuen Prozessberichte. Nenne abschließend knapp das Ergebnis der Lernprüfung: keine neue Lehre, bereits abgedeckt, verbessert mit Prüfergebnis oder ausstehend.
+
 ## Schritt 1 — den günstigsten Weg wählen
 
 Nimm die erste Zeile, auf die dein Fall zutrifft. Jede Stufe kostet spürbar mehr Zeit als die darüber.

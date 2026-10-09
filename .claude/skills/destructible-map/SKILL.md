@@ -1,6 +1,6 @@
 ---
 name: destructible-map
-description: Baut in diesem Repo eine neue Karte mit einem Bauwerk, das im Match zerschossen werden kann und dann einstürzt oder einen Ereignis-Effekt zündet — nach dem Muster der Eiffelturm-Belagerung (eiffel_tower_siege). Führt in zehn Phasen vom Bruchplan über das intakte Bauwerk, die in Blender vorberechneten Bruchszenen, das Preset und die Contract-Tests bis zum Desktop-Beleg, deckt die Erweiterungsfälle ab (mehrere Bauwerke pro Karte, Kettenreaktionen, neue Segmentarten, anderes HUD-Wort, Druckwelle) und die Sonderfälle Atompilz (nicht fallende Effektszene) und Tyrannosaurus rex (bewegliches, treffbares Ziel). Nutze diesen Skill bei Formulierungen wie "einstürzende Struktur", "zerstörbare Karte", "Turm umkippen", "Brücke/Burg/Staudamm einstürzen lassen", "Atompilz", "Explosion auf der Karte", "T-Rex", "Dinosaurier auf der Karte", "Monster das man abschießen kann", "Bruchszene", "wie der Eiffelturm", "destructible", "Kollaps in Blender backen", und immer wenn ein Preset einen destructibles-Block bekommen soll oder MapDestructibleContract erweitert werden müsste.
+description: Baut CurviosClash-Karten mit zerstörbaren Bauwerken und in Blender vorberechneten Bruchszenen vom Bruchplan bis zum Desktop-Beleg. Nutze für einstürzende Türme, Brücken, Burgen oder Staudämme, mehrere Bauwerke, Kettenreaktionen, Druckwellen sowie Atompilz-Effekte und bewegliche treffbare Ziele wie T-Rex. Gilt beim Anlegen eines destructibles-Blocks in einem Preset oder beim Erweitern von MapDestructibleContract. Allgemeine Blender- und Exportregeln liefert blender-assets.
 ---
 
 # Eine Karte mit einstürzendem Bauwerk bauen
@@ -45,6 +45,16 @@ Vier Lehren aus dem Reaktor, die Blender nicht sagt:
 - **Gedrungene Körper kippen nicht.** Ein Kühlturm (so breit wie hoch) sackt 14° auf seine zerquetschte Seite und bleibt liegen; ein abgescherter oberer Ring landet stehend auf seinem Fuß. Was kippt, ist der Rest, nachdem der Treffer eine ganze Flanke herausgerissen hat (das Stück `debris`, per Kurve zerbröselt) — als Verbund zweier Hüllen (`COMPOUND`), damit der Hohlraum echt ist und der Körper nicht auf einer Fläche zur Ruhe kommt, die er nicht hat.
 - **Sektoren einer Schale können nicht nach innen falten.** Vier starre Viertel verkeilen ihre Nahtflächen nach 0,5°; echte Schalen zerbröseln. Dünne Netzformen (`MESH`, GImpact) explodieren im Löser.
 - **Ein Dach ist ein Deckel.** Liegt es auf allen Kronen, bindet es die Wände zu einer Kiste (40 s ohne Bewegung); liegt es auf zwei Giebeln, klemmt es sie als starrer Balken. Die Dach-Hülle endet einen Meter vor jeder Wand: Es stürzt zuerst, die Wände kippen danach frei nach außen.
+
+## Lernschleife
+
+Prüfe vor jeder Schlussantwort die vorhandenen Belege auf eine wiederverwendbare Verbesserung, auch nach erfolgreicher QA oder abgebrochener Arbeit. Berücksichtige fehlgeschlagene Simulationen, verworfene Versuche, Unterschiede zwischen GLB und Runtime, Netzwerkabweichungen und Nutzerkorrekturen.
+
+- Übernimm nur eine verstandene Ursache mit am betroffenen Fall verifizierter Abhilfe, die künftige Aufgaben betrifft. Einzelfälle, Vermutungen und bereits ausreichend geregelte Fälle erzeugen keine neue Regel.
+- Gemeinsame Simulation oder Exportmechanik gehört in den bestehenden Blender-Helfer beziehungsweise `blender-assets`; Segment-, Szenen-, Kollisions- und Netzentscheidungen hier oder in deren bestehende Verhaltenstests. Massenmodell, Schnitte, Budgets und künstlerische Vorgaben bleiben bauwerksspezifisch, solange ihre Allgemeingültigkeit nicht belegt ist. Verbessere bestehende Regeln statt Warnungen anzuhängen.
+- Prüfe die Abhilfe mit stabilem Seed, gleicher Kamera, gleichem Maßstab und einem gültigen anderen Bauwerk oder Segmentfall. Bei betroffenen Grenzen prüfe Blender, GLB, Loader und Runtime; bei Netzwerkänderungen zusätzlich den Host/Replikat-Rundweg. Ein grüner Generator ersetzt keinen sichtbaren Sturz- oder Kollisionsbeleg. Validiere geänderte Helfer mit den betroffenen Tests und Skill-Änderungen auf Format und Referenzlinks; schwäche keine Grenzwerte.
+
+Verifizierte aufgabenbezogene Pflege gehört zu diesem Ablauf. Nutzerumfang, Nur-Lese-Aufträge, Dateibesitz und Repository-Gates gelten weiterhin; ist die Pflege dadurch gesperrt, melde sie als ausstehend. Bewahre Auslöser, Geltungsbereich, Abhilfe und Prüfkriterium in der bestehenden zuständigen Regel oder Prüfung; keine Fehlerchronik oder neuen Prozessberichte. Nenne abschließend knapp das Ergebnis der Lernprüfung: keine neue Lehre, bereits abgedeckt, verbessert mit Prüfergebnis oder ausstehend.
 
 ## Phase 0 — der Bruchplan, bevor irgendetwas gebaut wird
 

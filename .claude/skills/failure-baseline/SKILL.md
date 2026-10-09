@@ -9,13 +9,23 @@ Mehrere Playwright-Cluster in diesem Projekt sind seit längerem teilweise rot. 
 
 Das ist wichtiger, als es klingt. „War schon vorher kaputt" ist die bequemste Erklärung für jeden roten Test und deshalb genau die, die eine echte Regression durchlässt. Ein Mengenvergleich kann sich nicht selbst belügen.
 
+## Lernschleife
+
+Prüfe vor jeder Schlussantwort die vorhandenen Belege auf eine wiederverwendbare Verbesserung, auch nach erfolgreicher QA oder abgebrochener Arbeit. Signale sind falsch zugeordnete Fehler, unvollständige Läufe, übersehene Fremdlast oder ein irreführender Logvergleich.
+
+- Übernimm nur eine verstandene Ursache mit am betroffenen Fall verifizierter Abhilfe, die künftige Aufgaben betrifft. Einzelfälle, Vermutungen und bereits ausreichend geregelte Fälle erzeugen keine neue Regel.
+- Parserfehler gehören in `scripts/compare-failures.mjs` und einen Verhaltenstest mit passenden Logs; fehlende Vergleichsentscheidungen hier. Ein Katalogtreffer nach Testtitel belegt keine unveränderte Ursache: gleiche aktuelle Fehlermeldung und relevante Ausgangsbedingungen ab. Erweitere den Fehlerkatalog nicht, um einen Lauf grün erscheinen zu lassen.
+- Prüfe eine geänderte Klassifizierung am ursprünglichen Fehlerpaar und einem Gegenfall, etwa demselben Testtitel mit anderer Ursache oder einem nicht ausgeführten Test. Fehlende Ausführung gilt weder als Reparatur noch als unveränderte Baseline. Validiere geänderte Helfer mit den betroffenen Tests und Skill-Änderungen auf Format und Referenzlinks.
+
+Verifizierte aufgabenbezogene Pflege gehört zu diesem Ablauf. Nutzerumfang, Nur-Lese-Aufträge, Dateibesitz und Repository-Gates gelten weiterhin; ist die Pflege dadurch gesperrt, melde sie als ausstehend. Bewahre Auslöser, Geltungsbereich, Abhilfe und Prüfkriterium in der bestehenden zuständigen Regel oder Prüfung; keine Fehlerchronik oder neuen Prozessberichte. Nenne abschließend knapp das Ergebnis der Lernprüfung: keine neue Lehre, bereits abgedeckt, verbessert mit Prüfergebnis oder ausstehend.
+
 ## Schritt 0 — erst in die eingecheckte Liste schauen
 
-Seit `scripts/architecture/playwright-known-failures.json` im Repo liegt, ist der erste Schritt kein Testlauf, sondern ein Blick in diese Datei. Sie nennt je Eintrag Spec-Datei, Testtitel, das Datum seit wann er rot ist, die Ursache und die Art (`stale-test`, `regression`, `env`, `flaky`). Steht dein roter Test dort, ist der Beleg damit erbracht — nenne im Ergebnisbericht Datum und Grund aus dem Eintrag.
+Seit `scripts/architecture/playwright-known-failures.json` im Repo liegt, ist der erste Schritt kein Testlauf, sondern ein Blick in diese Datei. Sie nennt je Eintrag Spec-Datei, Testtitel, das Datum seit wann er rot ist, die Ursache und die Art (`stale-test`, `regression`, `env`, `flaky`). Steht dein roter Test dort, gleiche die aktuelle Fehlermeldung und Ursache mit dem Eintrag ab; der Titel allein genügt nicht. Nenne im Ergebnisbericht Datum, Grund und Ergebnis dieses Abgleichs.
 
-Noch schneller geht es über die Zusammenfassung: `scripts/summarize-playwright-results.mjs` liest dieselbe Datei und klassifiziert jeden roten Test eines Laufs selbst als `known`, `env` oder `new`. Steht in der letzten Zeile `new=0`, hat dein Lauf keinen neuen Fehler erzeugt.
+Noch schneller geht es über die Zusammenfassung: `scripts/summarize-playwright-results.mjs` liest dieselbe Datei und klassifiziert jeden roten Test eines Laufs anhand von Testkennung und Fehlermeldung als `known`, `env` oder `new`. `new=0` bedeutet, dass kein Fehlschlag als neu klassifiziert wurde; Umgebungsfehler und fehlende Ausführung können trotzdem offen sein. Prüfe die Klassifizierungen, übersprungene Tests und `didNotRun` vor der Einordnung als unveränderte Baseline.
 
-Erst wenn ein roter Test **nicht** in der Liste steht, geht es mit dem Artefakt-Datum weiter (siehe unten) und danach mit einer Gegenprobe. Und umgekehrt: Wird ein Eintrag der Liste wieder grün, nimm ihn heraus und senke `count` — der Contract-Test `tests/playwright-known-failures.contract.test.mjs` erzwingt, dass jeder Eintrag auf einen existierenden Test zeigt.
+Ist ein roter Test **nicht** eingetragen oder weicht seine aktuelle Ursache vom Eintrag ab, prüfe das Artefakt-Datum und danach den unveränderten Ausgangsstand mit einer Gegenprobe. Und umgekehrt: Wird ein eingetragener Test tatsächlich ausgeführt und wieder grün, nimm ihn heraus und senke `count` — der Contract-Test `tests/playwright-known-failures.contract.test.mjs` erzwingt, dass jeder Eintrag auf einen existierenden Test zeigt. Überspringen oder Nichtausführung belegen keine Reparatur.
 
 ## Der günstige Weg: Baseline vor der Änderung
 
