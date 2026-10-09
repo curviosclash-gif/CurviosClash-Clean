@@ -4,6 +4,8 @@ import { test as baseTest, expect } from './helpers.desktop.js';
 import { collectErrors, resolveAppUrl } from './helpers.js';
 import { EDITOR_API_ROUTES, EDITOR_DATA_PATHS, EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 import { EDITOR_BUILD_CATEGORIES } from '../editor/js/ui/EditorBuildCatalog.js';
+import { getCustomMapConversionScale } from '../src/entities/CustomMapLoader.js';
+import { CHECKPOINT_RING_RADIUS_FACTOR, resolveCheckpointRingVisualRadius } from '../src/entities/arena/CheckpointRingVisualRadius.js';
 
 const IS_BROWSER_COMPAT = process.env.PW_RUN_PROFILE === 'browser-compat';
 
@@ -15,7 +17,7 @@ let currentElectronApp = null;
 // Exercise the real editor window and leave the game window available for its
 // desktop shutdown handshake. Navigating the game window breaks that handshake.
 const test = IS_BROWSER_COMPAT ? baseTest : baseTest.extend({
-    page: async ({ page, electronApp }, use, testInfo) => {
+    page: async ({ page, electronApp, viewport }, use, testInfo) => {
         currentElectronApp = electronApp;
         const downloads = testInfo.outputPath('downloads');
         await mkdir(downloads, { recursive: true });
@@ -23,6 +25,13 @@ const test = IS_BROWSER_COMPAT ? baseTest : baseTest.extend({
         const popupPromise = page.waitForEvent('popup');
         await page.evaluate((editorPath) => window.open(editorPath, '_blank'), EDITOR_VIEW_PATHS.MAP_EDITOR);
         const editorPage = await popupPromise;
+        if (viewport) {
+            await editorPage.waitForURL(`**${EDITOR_VIEW_PATHS.MAP_EDITOR}`);
+            await electronApp.evaluate(({ BrowserWindow }, { url, size }) => {
+                const window = BrowserWindow.getAllWindows().find((entry) => entry.webContents.getURL() === url);
+                window?.setContentSize(size.width, size.height);
+            }, { url: editorPage.url(), size: viewport });
+        }
         try { await use(editorPage); }
         finally {
             if (!editorPage.isClosed()) {
@@ -898,10 +907,14 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
             return {
                 radius: exported.parcours.checkpoints.find((entry) => entry.id === id)?.radius,
                 scale: object.scale.toArray(),
+                torusRadius: editor.mapManager.torusGeo.parameters.radius,
             };
         }, ids.checkpoint);
-        expect(checkpoint.radius).toBe(9);
-        expect(checkpoint.scale).toEqual([126, 126, 126]);
+        // The shared match visual contract clamps a ring that would otherwise be too small.
+        const mapScale = getCustomMapConversionScale({ arenaSize: { width: 2800, depth: 2400, height: 950 } }).scale;
+        const ringRadius = resolveCheckpointRingVisualRadius(9 / mapScale) * mapScale;
+        expect(checkpoint.radius).toBeCloseTo(ringRadius / CHECKPOINT_RING_RADIUS_FACTOR, 8);
+        expect(checkpoint.scale).toEqual(Array(3).fill(ringRadius / checkpoint.torusRadius));
 
         await page.evaluate((id) => {
             const editor = window.CURVIOS_EDITOR;

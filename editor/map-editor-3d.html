@@ -1715,7 +1715,7 @@
 
                 <div class="panelSection">
                     <strong class="sectionTitle">Kamera</strong>
-                    <p class="sectionHint">Schiffsflug: Taste <span class="kbd">G</span> oder „Abflug“ in der Werkzeugleiste.</p>
+                    <p class="sectionHint">Bauflug: Taste <span class="kbd">G</span> oder „Bauflug“ in der Werkzeugleiste.</p>
                     <div class="outlinerActions">
                         <button id="btnViewPerspective" class="small">Perspektive</button>
                         <button id="btnViewTop" class="small">Oben</button>
@@ -1881,7 +1881,7 @@
                 <button class="small" data-transform-mode="translate" aria-pressed="false" title="Bewegen (T)" disabled>Bewegen</button>
                 <button class="small" data-transform-mode="rotate" aria-pressed="false" title="Um Y drehen (R)" disabled>Drehen</button>
                 <button class="small" data-transform-mode="scale" aria-pressed="false" title="Blöcke achsenweise; Portale, Modelle und Checkpoints gleichmäßig skalieren (S)" disabled>Skalieren</button>
-                <button id="btnShipFlight" class="small" aria-pressed="false" title="Im Schiff durch die Karte fliegen (G), Esc landet">Abflug</button>
+                <button id="btnShipFlight" class="small" aria-pressed="false" title="Bauflug starten (G), B öffnet das Build-Menü">Bauflug</button>
                 <button id="btnGameView" class="small" aria-pressed="false" title="Licht, Himmel, Nebel und Sichtweite wie im Spiel">Spielansicht</button>
                 <button id="btnToggleHelp" class="small" aria-pressed="true">? Hilfe</button>
                 <button id="btnToggleDockFromScene" class="small" aria-pressed="true">Baukarten ausblenden</button>
@@ -1894,7 +1894,7 @@
                 <span class="kbd">Mausrad</span> = Zoom<br>
                 <span class="kbd">T</span> = Bewegen | <span class="kbd">R</span> = Rotieren | <span class="kbd">S</span> = Skalieren<br>
                 <span class="kbd">F</span> = Auswahl fokussieren<br>
-                <span class="kbd">G</span> = Abflug: im Schiff durch die Karte fliegen<br>
+                <span class="kbd">G</span> = Bauflug: mit dem Bauteil durch die Karte fliegen<br>
                 <span class="kbd">Strg+C / Strg+V</span> = Duplizieren<br>
                 <span class="kbd">Strg+Z / Strg+Y</span> = Undo / Redo<br>
                 <span class="kbd">Entf</span> = Löschen<br><br>
@@ -1910,13 +1910,13 @@
                 <div class="shipFlightBar" role="status">
                     <span class="badge" id="shipFlightSpeed">Tempo ×1</span>
                     <span class="badge" id="shipFlightTarget">Ziel: frei</span>
-                    <span><span class="kbd">W/S</span> nicken <span class="kbd">A/D</span> drehen <span class="kbd">Q/E</span> rollen
-                        <span class="kbd">Shift</span> Boost <span class="kbd">Leertaste</span> schweben
+                    <span><span class="kbd">W/S</span> vor/zurück <span class="kbd">A/D</span> seitwärts
+                        <span class="kbd">Shift</span> abwärts <span class="kbd">Leertaste</span> aufwärts
                         <span class="kbd">Maus</span> umsehen <span class="kbd">Mausrad</span> Tempo
-                        <span class="kbd">C</span> Ansicht <span class="kbd">Esc</span> landen</span>
-                    <span><span class="kbd">Klick/Enter</span> setzen (Block, Tunnel: Start und Ende)
-                        <span class="kbd">Rechtsklick</span> auswählen / abbrechen
-                        <span class="kbd">Strg+Mausrad</span> Abstand</span>
+                        <span class="kbd">C</span> Ansicht <span class="kbd">Esc</span> abbrechen / Maus frei</span>
+                    <span><span class="kbd">Enter</span> platzieren <span class="kbd">B</span> Build-Menü
+                        <span class="kbd">Rechtsklick</span> auswählen → im Menü bewegen
+                        <span class="kbd">P</span> Weltpause <span class="kbd">F6</span> Schiffs-Test</span>
                 </div>
             </div>
 

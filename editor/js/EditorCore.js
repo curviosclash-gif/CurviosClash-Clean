@@ -217,6 +217,7 @@ export class EditorCore {
         this.lastTime = time;
         // A hidden tab pauses requestAnimationFrame; the first frame back must not jump.
         const dt = Number.isFinite(elapsed) && elapsed > 0 ? Math.min(elapsed, 0.1) : 0.016;
+        if (this.externalRenderHook?.(dt) === true) return;
 
         // OrbitControls.update() re-aims the camera at its target, so it must not run
         // while the ship flight owns the camera.
