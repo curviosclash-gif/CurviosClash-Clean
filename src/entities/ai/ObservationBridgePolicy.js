@@ -61,6 +61,8 @@ export class ObservationBridgePolicy {
         this._observationTracker = new RuntimeNearObservationTracker();
         this._inferenceBridge = null;
         this._inferenceBridgeOptions = null;
+        this._actionSourceCounts = { checkpoint: 0, bridge: 0, local: 0, fallback: 0 };
+        this._lastActionSource = null;
 
         const inferenceBridgeOptions = resolveInferenceBridgeOptions(options);
         if (inferenceBridgeOptions.enabled) {
@@ -271,6 +273,15 @@ export class ObservationBridgePolicy {
         }
     }
 
+    _recordActionSource(source) {
+        this._lastActionSource = source;
+        this._actionSourceCounts[source] += 1;
+    }
+
+    getActionSourceSnapshot() {
+        return { last: this._lastActionSource, counts: { ...this._actionSourceCounts } };
+    }
+
     getObservation(player, runtimeContext) {
         if (typeof this._resolveObservation === 'function') {
             try {
@@ -307,6 +318,7 @@ export class ObservationBridgePolicy {
             if (!inferenceResult.usedBridge) {
                 action = this._injectFallbackSteeringIfNeeded(action, dt, player, runtimeContext);
             }
+            this._recordActionSource(inferenceResult.usedBridge ? 'bridge' : 'checkpoint');
             return action;
         }
         if (inferenceResult.usedBridge) {
@@ -322,6 +334,7 @@ export class ObservationBridgePolicy {
                 const action = this._resolveAction(runtimeContext, player, dt);
                 if (action && typeof action === 'object') {
                     const sanitizedAction = this._sanitizeAction(action, player);
+                    this._recordActionSource('local');
                     return this._injectFallbackSteeringIfNeeded(
                         sanitizedAction,
                         dt,
@@ -336,6 +349,7 @@ export class ObservationBridgePolicy {
         }
 
         const fallbackAction = this._delegateFallbackUpdate(dt, player, runtimeContext);
+        this._recordActionSource('fallback');
         return this._sanitizeAction(fallbackAction, player);
     }
 
@@ -367,6 +381,8 @@ export class ObservationBridgePolicy {
     }
 
     reset() {
+        this._actionSourceCounts = { checkpoint: 0, bridge: 0, local: 0, fallback: 0 };
+        this._lastActionSource = null;
         this._warningStateByKey.clear();
         this._bridgeFailureState.reason = null;
         this._bridgeFailureState.updatedAt = Date.now();
@@ -381,6 +397,8 @@ export class ObservationBridgePolicy {
 
     // Round restart: keep the inference connection, only the fallback bot starts over.
     resetRound() {
+        this._actionSourceCounts = { checkpoint: 0, bridge: 0, local: 0, fallback: 0 };
+        this._lastActionSource = null;
         this._warningStateByKey.clear();
         if (typeof this._fallbackPolicy?.resetRound === 'function') {
             this._fallbackPolicy.resetRound();

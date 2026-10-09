@@ -1,9 +1,11 @@
 ﻿import { spawn, execSync } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { setTimeout as delay } from 'node:timers/promises';
-import { chromium } from '@playwright/test';
+import { _electron as electron, chromium } from '@playwright/test';
 import { selectBotValidationScenarios } from '../src/state/validation/BotValidationMatrix.js';
 import { buildBotValidationRuntimeVerification } from '../src/state/validation/BotValidationService.js';
 import {
@@ -13,12 +15,14 @@ import {
 } from '../src/state/validation/BotValidationOutcomeSemantics.js';
 import { buildBotValidationSurvivalMetrics } from '../src/state/validation/BotValidationSurvivalMetrics.js';
 import { buildBotValidationRuntimeMetrics } from '../src/state/validation/BotValidationRuntimeMetrics.js';
+import { buildBotValidationCombatMetrics } from '../src/state/validation/BotValidationCombatMetrics.js';
 import {
     acquirePlaywrightRunLock,
     releasePlaywrightRunLockOnExit,
 } from '../../../scripts/playwright-run-lock.mjs';
 
 const CLI_ARGS = parseArgMap(process.argv.slice(2));
+const requireElectron = createRequire(new URL('../../../electron/package.json', import.meta.url));
 const HOST = '127.0.0.1';
 const PORT = parseIntegerOption(CLI_ARGS, ['port'], 'BOT_RUNNER_PORT', 4273, 1024);
 const BASE_URL = `http://${HOST}:${PORT}`;
@@ -58,6 +62,7 @@ const SERVER_MODE = resolveServerMode(
     resolveFirstValue(CLI_ARGS, ['server-mode'], process.env.BOT_RUNNER_SERVER_MODE)
 );
 const HEADLESS = parseBoolRunnerOption(CLI_ARGS, ['headless'], 'BOT_RUNNER_HEADLESS', false);
+const RUNTIME_SURFACE = resolveRuntimeSurface(resolveFirstValue(CLI_ARGS, ['runtime'], process.env.BOT_RUNNER_RUNTIME));
 const PREVIEW_BUILD_BEFORE_START = parseBoolRunnerOption(
     CLI_ARGS,
     ['preview-build'],
@@ -237,6 +242,10 @@ function parseListOption(argMap, keys = [], envKey = '') {
 function normalizePolicyFilter(value) {
     const normalized = String(value || '').trim().toLowerCase();
     return normalized === '*' || normalized === 'all' ? '' : normalized;
+}
+
+function resolveRuntimeSurface(value) {
+    return String(value || '').trim().toLowerCase() === 'electron' ? 'electron' : 'chromium';
 }
 
 function parseBoolOption(value, fallback = false) {
@@ -739,6 +748,7 @@ async function captureBotRuntimeSample(page, phasePrefix, deadlines) {
                 return {
                     playerIndex: Number(player?.index ?? -1),
                     policyType: String(policy?.type || '').trim().toLowerCase(),
+                    actionSource: policy?.getActionSourceSnapshot?.() || null,
                     snapshot: snapshot && typeof snapshot === 'object' ? { ...snapshot } : null,
                 };
             });
@@ -769,6 +779,11 @@ async function captureBotRuntimeSample(page, phasePrefix, deadlines) {
                 arcadeSeed: Number.isFinite(arcadeSeed) ? arcadeSeed : null,
                 runtimeTeamMode: game.runtimeConfig?.hunt?.teamMode === true,
                 runtimeTeamObjective: String(game.runtimeConfig?.hunt?.teamObjective || 'HUNT').trim().toUpperCase(),
+                pageVisibility: document.visibilityState,
+                renderFrameId: Number(game.gameLoop?.renderFrameId || 0),
+                performance: game.runtimePerfProfiler?.getTelemetryIntervalSnapshot?.() || null,
+                huntKillCount: (entityManager?.getHuntScoreboard?.() || [])
+                    .reduce((total, row) => total + Math.max(0, Number(row?.kills) || 0), 0),
             };
         }
     );
@@ -991,7 +1006,7 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
     });
     return [
         { ...startRuntimeSample, scenarioId: scenario.id, round: roundNumber, checkpoint: 'start' },
-        { ...endRuntimeSample, scenarioId: scenario.id, round: roundNumber, checkpoint: 'end' },
+        { ...endRuntimeSample, scenarioId: scenario.id, round: roundNumber, checkpoint: 'end', forced, wallElapsedMs: Date.now() - roundStartedAt },
     ];
 }
 
@@ -1032,9 +1047,8 @@ function buildScenarioMetrics(rounds, runtimeSamples = [], survivalObservations 
     const stuckPerMinute = totalDuration > 0 ? stuckEvents / (totalDuration / 60) : 0;
     const itemUseEvents = sumBy(rounds, (round) => round.itemUseEvents);
     const failedItemActions = sumBy(rounds, (round) => round.failedItemActions);
-    const mgHits = sumBy(rounds, (round) => round.mgHits);
+    const combatMetrics = buildBotValidationCombatMetrics(rounds);
     const rocketHits = sumBy(rounds, (round) => round.rocketHits);
-    const mgShots = sumBy(rounds, (round) => round?.itemUseModeCounts?.mg);
     const projectileShots = sumBy(rounds, (round) => round?.itemUseModeCounts?.shoot);
     const parcoursCompletions = rounds.filter((round) => round?.parcoursCompleted === true).length;
     const parcoursCheckpointCount = sumBy(rounds, (round) => round.parcoursCheckpointCount);
@@ -1062,9 +1076,9 @@ function buildScenarioMetrics(rounds, runtimeSamples = [], survivalObservations 
         totalDuration,
         itemUsePerRound: played > 0 ? itemUseEvents / played : 0,
         itemUseFailureRate: itemUseEvents > 0 ? failedItemActions / itemUseEvents : 0,
-        mgHitsPerRound: played > 0 ? mgHits / played : 0,
+        mgHitsPerRound: played > 0 ? combatMetrics.mgHits / played : 0,
         rocketHitsPerRound: played > 0 ? rocketHits / played : 0,
-        mgHitRate: mgShots > 0 ? mgHits / mgShots : 0,
+        ...combatMetrics,
         projectileHitRate: projectileShots > 0 ? rocketHits / projectileShots : 0,
         parcoursCompletionRate: played > 0 ? parcoursCompletions / played : 0,
         parcoursCheckpointsPerRound: played > 0 ? parcoursCheckpointCount / played : 0,
@@ -1154,11 +1168,13 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
     lines.push(`- Survival Median/P10/IQR: ${formatSeconds(overall.botSurvivalMedian)} / ${formatSeconds(overall.botSurvivalP10)} / ${formatSeconds(overall.botSurvivalIqr)}`);
     lines.push(`- Gesamt-Stuck/Minute: ${formatNumber(overall.stuckPerMinute)}`);
     lines.push(`- Items/Runde und Fehlerrate: ${formatNumber(overall.itemUsePerRound)} / ${formatPercent(overall.itemUseFailureRate)}`);
-    lines.push(`- MG-/Projektil-Trefferquote: ${formatPercent(overall.mgHitRate)} / ${formatPercent(overall.projectileHitRate)}`);
+    lines.push(`- MG-Trefferquote (Treffer/erfolgreiche Schuesse): ${formatPercent(overall.mgHitRate)} (${overall.mgHits}/${overall.mgShots})`);
+    lines.push(`- MG-Anforderungen: ${overall.mgShotRequests}; Cooldown: ${overall.mgCooldownBlocks}; Ueberhitzung: ${overall.mgOverheatBlocks}; andere Blockaden: ${overall.mgOtherBlocks}`);
+    lines.push(`- Projektil-Trefferquote: ${formatPercent(overall.projectileHitRate)}`);
     lines.push(`- Parcours-Abschlussrate: ${formatPercent(overall.parcoursCompletionRate)}`);
     lines.push(`- Failure-Codes: player-dead=${failureTaxonomy?.['player-dead'] ?? 0}, match-loss=${failureTaxonomy?.['match-loss'] ?? 0}, forced-round=${failureTaxonomy?.['forced-round'] ?? 0}, timeout-round=${failureTaxonomy?.['timeout-round'] ?? 0}, runtime-error=${failureTaxonomy?.['runtime-error'] ?? 0}`);
     if (runner) {
-        lines.push(`- Runner-Modus: ${runner.serverMode || 'unbekannt'}; Publish-Evidence: ${runner.publishEvidence === true ? 'ja' : 'nein'}`);
+        lines.push(`- Laufzeit: ${runner.runtimeSurface || 'chromium'}; Runner-Modus: ${runner.serverMode || 'unbekannt'}; Publish-Evidence: ${runner.publishEvidence === true ? 'ja' : 'nein'}`);
         lines.push(`- Runtime-Vertrag: Policy-Mismatches=${runner.policyMismatches || 0}; Mode-Mismatches=${runner.modeMismatches || 0}; Teamziel-Mismatches=${runner.teamObjectiveMismatches || 0}; Botanzahl-Mismatches=${runner.botCountMismatches || 0}`);
     }
     const diagnostics = runner?.diagnostics && typeof runner.diagnostics === 'object'
@@ -1210,14 +1226,22 @@ async function run() {
     }
     let serverHandle = null;
     let browser = null;
+    let electronApp = null;
+    let electronProcess = null;
+    let electronProfilePath = null;
     let context = null;
     let page = null;
     const diagnostics = createRunnerDiagnostics();
+    if (RUNTIME_SURFACE === 'electron') {
+        diagnostics.serverMode = 'electron';
+        diagnostics.preview.requested = false;
+    }
     try {
         log('Runner config', {
             baseUrl: BASE_URL,
             forceKillPort: FORCE_KILL_PORT,
             serverMode: SERVER_MODE,
+            runtimeSurface: RUNTIME_SURFACE,
             headless: HEADLESS,
             previewBuildBeforeStart: PREVIEW_BUILD_BEFORE_START,
             roundsPerScenario: ROUNDS_PER_SCENARIO,
@@ -1240,70 +1264,100 @@ async function run() {
             gotoWaitUntil: GOTO_WAIT_UNTIL,
         });
 
-        const serverProbe = await measureAsyncOperation(() => isServerReady(BASE_URL));
-        diagnostics.stageTimingsMs.serverProbeMs = serverProbe.elapsedMs;
-        const serverAlreadyRunning = serverProbe.result;
-        diagnostics.serverAlreadyRunning = serverAlreadyRunning === true;
-        diagnostics.preview.serverReused = serverAlreadyRunning === true;
-        if (!serverAlreadyRunning) {
-            if (SERVER_MODE === 'preview' && PREVIEW_BUILD_BEFORE_START) {
-                log('Building app before preview server start');
-                const previewBuild = measureSyncOperation(() => execSync('npm run build:app', {
-                    stdio: 'inherit',
-                    env: RUNNER_VITE_ENV,
-                }));
-                diagnostics.preview.buildPerformed = true;
-                diagnostics.preview.buildElapsedMs = previewBuild.elapsedMs;
-                diagnostics.stageTimingsMs.previewBuildMs = previewBuild.elapsedMs;
-            }
-            log(`Starting Vite ${SERVER_MODE} server`, { baseUrl: BASE_URL });
-            const serverStartStartedAt = Date.now();
-            serverHandle = startViteServer(SERVER_MODE);
-            await waitForServer(
-                BASE_URL,
-                serverHandle,
-                resolveTimeout(SERVER_READY_TIMEOUT_MS, 'server:start', [runDeadline])
+        if (RUNTIME_SURFACE === 'electron') {
+            log('Building desktop app before Electron launch');
+            const appBuild = measureSyncOperation(() => execSync('npm run build:app', {
+                stdio: 'inherit', env: RUNNER_VITE_ENV,
+            }));
+            diagnostics.preview.buildPerformed = true;
+            diagnostics.preview.buildElapsedMs = appBuild.elapsedMs;
+            diagnostics.stageTimingsMs.previewBuildMs = appBuild.elapsedMs;
+            electronProfilePath = await mkdtemp(join(tmpdir(), 'curvios-bot-validation-'));
+            const bootPath = join(electronProfilePath, 'boot.cjs');
+            await writeFile(bootPath,
+                `const { app } = require('electron'); app.setPath('appData', ${JSON.stringify(electronProfilePath)}); require(${JSON.stringify(resolve('electron/main.cjs'))});\n`,
+                'utf8');
+            const electronEnv = {
+                ...RUNNER_VITE_ENV,
+                CURVIOS_ELECTRON_SHOW_WINDOW: '1',
+                CURVIOS_DESKTOP_STATIC_PORT: String(PORT),
+            };
+            delete electronEnv.ELECTRON_RUN_AS_NODE;
+            delete electronEnv.CURVIOS_USER_DATA_ROOT;
+            const launchStartedAt = Date.now();
+            electronApp = await withTimeout(
+                () => electron.launch({
+                    executablePath: process.env.CURVIOS_TEST_ELECTRON_EXECUTABLE || requireElectron('electron'),
+                    cwd: resolve('electron'), args: [bootPath], env: electronEnv,
+                    timeout: APP_READY_TIMEOUT_MS,
+                }),
+                resolveTimeout(APP_READY_TIMEOUT_MS, 'electron:launch', [runDeadline]),
+                'electron:launch'
             );
-            const serverStartElapsedMs = Math.max(0, Date.now() - serverStartStartedAt);
-            diagnostics.stageTimingsMs.serverStartMs = serverStartElapsedMs;
-            if (SERVER_MODE === 'preview') {
-                diagnostics.preview.serverStartElapsedMs = serverStartElapsedMs;
-            }
-            log(`${SERVER_MODE} server ready`);
+            electronProcess = electronApp.process();
+            diagnostics.stageTimingsMs.browserLaunchMs = Math.max(0, Date.now() - launchStartedAt);
+            page = await withTimeout(
+                () => electronApp.firstWindow({ timeout: APP_READY_TIMEOUT_MS }),
+                resolveTimeout(APP_READY_TIMEOUT_MS, 'electron:first-window', [runDeadline]),
+                'electron:first-window'
+            );
         } else {
-            diagnostics.stageTimingsMs.serverStartMs = 0;
-            if (SERVER_MODE === 'preview') {
-                diagnostics.preview.serverStartElapsedMs = 0;
+            const serverProbe = await measureAsyncOperation(() => isServerReady(BASE_URL));
+            diagnostics.stageTimingsMs.serverProbeMs = serverProbe.elapsedMs;
+            const serverAlreadyRunning = serverProbe.result;
+            diagnostics.serverAlreadyRunning = serverAlreadyRunning === true;
+            diagnostics.preview.serverReused = serverAlreadyRunning === true;
+            if (!serverAlreadyRunning) {
+                if (SERVER_MODE === 'preview' && PREVIEW_BUILD_BEFORE_START) {
+                    log('Building app before preview server start');
+                    const previewBuild = measureSyncOperation(() => execSync('npm run build:app', {
+                        stdio: 'inherit', env: RUNNER_VITE_ENV,
+                    }));
+                    diagnostics.preview.buildPerformed = true;
+                    diagnostics.preview.buildElapsedMs = previewBuild.elapsedMs;
+                    diagnostics.stageTimingsMs.previewBuildMs = previewBuild.elapsedMs;
+                }
+                log(`Starting Vite ${SERVER_MODE} server`, { baseUrl: BASE_URL });
+                const serverStartStartedAt = Date.now();
+                serverHandle = startViteServer(SERVER_MODE);
+                await waitForServer(BASE_URL, serverHandle,
+                    resolveTimeout(SERVER_READY_TIMEOUT_MS, 'server:start', [runDeadline]));
+                const serverStartElapsedMs = Math.max(0, Date.now() - serverStartStartedAt);
+                diagnostics.stageTimingsMs.serverStartMs = serverStartElapsedMs;
+                if (SERVER_MODE === 'preview') diagnostics.preview.serverStartElapsedMs = serverStartElapsedMs;
+                log(`${SERVER_MODE} server ready`);
+            } else {
+                diagnostics.stageTimingsMs.serverStartMs = 0;
+                if (SERVER_MODE === 'preview') diagnostics.preview.serverStartElapsedMs = 0;
+                log('Reusing existing server', { baseUrl: BASE_URL, requestedServerMode: SERVER_MODE });
             }
-            log('Reusing existing server', { baseUrl: BASE_URL, requestedServerMode: SERVER_MODE });
-        }
 
-        const browserLaunchStartedAt = Date.now();
-        browser = await withTimeout(
-            () => chromium.launch({ headless: HEADLESS, args: ['--no-proxy-server'] }),
-            resolveTimeout(APP_READY_TIMEOUT_MS, 'browser:launch', [runDeadline]),
-            'browser:launch'
-        );
-        diagnostics.stageTimingsMs.browserLaunchMs = Math.max(0, Date.now() - browserLaunchStartedAt);
-        const browserContextStartedAt = Date.now();
-        context = await withTimeout(
-            () => browser.newContext(),
-            resolveTimeout(APP_READY_TIMEOUT_MS, 'browser:new-context', [runDeadline]),
-            'browser:new-context'
-        );
-        await context.addInitScript(() => {
-            window.__CURVIOS_E2E__ = true;
-        });
-        diagnostics.stageTimingsMs.browserContextMs = Math.max(0, Date.now() - browserContextStartedAt);
-        const browserPageStartedAt = Date.now();
-        page = await withTimeout(
-            () => context.newPage(),
-            resolveTimeout(APP_READY_TIMEOUT_MS, 'browser:new-page', [runDeadline]),
-            'browser:new-page'
-        );
+            const browserLaunchStartedAt = Date.now();
+            browser = await withTimeout(
+                () => chromium.launch({ headless: HEADLESS, args: ['--no-proxy-server'] }),
+                resolveTimeout(APP_READY_TIMEOUT_MS, 'browser:launch', [runDeadline]),
+                'browser:launch'
+            );
+            diagnostics.stageTimingsMs.browserLaunchMs = Math.max(0, Date.now() - browserLaunchStartedAt);
+            const browserContextStartedAt = Date.now();
+            context = await withTimeout(
+                () => browser.newContext(),
+                resolveTimeout(APP_READY_TIMEOUT_MS, 'browser:new-context', [runDeadline]),
+                'browser:new-context'
+            );
+            await context.addInitScript(() => { window.__CURVIOS_E2E__ = true; });
+            diagnostics.stageTimingsMs.browserContextMs = Math.max(0, Date.now() - browserContextStartedAt);
+            const browserPageStartedAt = Date.now();
+            page = await withTimeout(
+                () => context.newPage(),
+                resolveTimeout(APP_READY_TIMEOUT_MS, 'browser:new-page', [runDeadline]),
+                'browser:new-page'
+            );
+            diagnostics.stageTimingsMs.browserPageMs = Math.max(0, Date.now() - browserPageStartedAt);
+        }
         page.on('console', (message) => {
             if (message.type() !== 'error') return;
-            const detail = message.text();
+            const detail = `${message.text()} ${message.location()?.url || ''}`.trim();
             appendBrowserDiagnostic(diagnostics.browser.consoleErrors, detail);
             log('Browser console error', { detail });
         });
@@ -1317,18 +1371,22 @@ async function run() {
             appendBrowserDiagnostic(diagnostics.browser.requestFailures, detail);
             log('Browser request failed', { detail });
         });
-        diagnostics.stageTimingsMs.browserPageMs = Math.max(0, Date.now() - browserPageStartedAt);
+        page.on('response', (response) => {
+            if (response.status() >= 400) log('HTTP error response', { status: response.status(), url: response.url() });
+        });
         const appReadyTimeoutMs = resolveTimeout(APP_READY_TIMEOUT_MS, 'app:bootstrap', [runDeadline]);
         const navigationTimeoutMs = resolveTimeout(NAVIGATION_TIMEOUT_MS, 'page:navigation', [runDeadline]);
         page.setDefaultTimeout(appReadyTimeoutMs);
         page.setDefaultNavigationTimeout(navigationTimeoutMs);
 
         const appBootstrapStartedAt = Date.now();
-        await withTimeout(
-            () => page.goto(BASE_URL, { waitUntil: GOTO_WAIT_UNTIL, timeout: navigationTimeoutMs }),
-            navigationTimeoutMs,
-            'page:goto'
-        );
+        if (RUNTIME_SURFACE !== 'electron') {
+            await withTimeout(
+                () => page.goto(BASE_URL, { waitUntil: GOTO_WAIT_UNTIL, timeout: navigationTimeoutMs }),
+                navigationTimeoutMs,
+                'page:goto'
+            );
+        }
         await waitForGameInstance(
             page,
             resolveTimeout(APP_READY_TIMEOUT_MS, 'app:game-instance', [runDeadline]),
@@ -1530,6 +1588,16 @@ async function run() {
                     checkpoint: sample.checkpoint,
                     bots: sample.botDecisions,
                 })),
+                performanceEvidence: runtimeSamples.filter((sample) => sample.checkpoint === 'end').map((sample) => ({
+                    round: sample.round,
+                    forced: sample.forced === true,
+                    forcedReason: sample.forced === true ? 'match-timeout' : null,
+                    wallElapsedMs: sample.wallElapsedMs,
+                    huntKillCount: sample.huntKillCount,
+                    pageVisibility: sample.pageVisibility,
+                    renderFrameId: sample.renderFrameId,
+                    performance: sample.performance,
+                })),
                 runner: {
                     forcedRounds: localStats.forcedRounds,
                     timeoutRounds: localStats.timeoutRounds,
@@ -1586,7 +1654,9 @@ async function run() {
                 unexpectedSurvivalOutcomeRounds: runnerStats.unexpectedSurvivalOutcomeRounds,
                 failOnForcedRound: FAIL_ON_FORCED_ROUND,
                 maxForcedRounds: MAX_FORCED_ROUNDS,
-                serverMode: SERVER_MODE,
+                serverMode: RUNTIME_SURFACE === 'electron' ? 'electron' : SERVER_MODE,
+                runtimeSurface: RUNTIME_SURFACE,
+                headless: RUNTIME_SURFACE === 'chromium' ? HEADLESS : null,
                 publishEvidence: PUBLISH_EVIDENCE,
                 previewBuildBeforeStart: PREVIEW_BUILD_BEFORE_START,
                 diagnostics,
@@ -1734,7 +1804,10 @@ async function run() {
         await safeClose('page', () => page?.close());
         await safeClose('context', () => context?.close());
         await safeClose('browser', () => browser?.close());
+        await safeClose('electron', () => electronApp?.close());
+        if (electronProcess && electronProcess.exitCode == null) electronProcess.kill();
         await stopServer(serverHandle);
+        if (electronProfilePath) await rm(electronProfilePath, { recursive: true, force: true, maxRetries: 5 });
         if (FORCE_KILL_PORT) {
             forceKillPort(PORT);
         }
