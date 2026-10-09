@@ -32,6 +32,9 @@ Quellen schließen den Kandidaten aus. Deshalb liefern kurze Probeläufe keine S
 
 `original.webm` enthält Fensterbild und Spielton. `journal.ndjson` enthält
 Spielzustände, Spuränderungen, Ereignisse, spielbezogene Eingaben und Zeitbezüge.
+Die Aufnahme speichert die Zustände jedes festen Simulationsschritts mit Zielrate
+60 pro Sekunde. Unter Last kann die tatsächliche Rate niedriger sein; das
+Originalvideo wird davon unabhängig erfasst.
 Prüfsummen sichern beide Quellen. Vollständige Trailzustände werden alle fünf
 Sekunden gespeichert, Änderungen dazwischen fortlaufend. Die Replay-Wiedergabe
 beginnt vor dem Clip, damit frühere Zustände bereits aufgebaut sind.

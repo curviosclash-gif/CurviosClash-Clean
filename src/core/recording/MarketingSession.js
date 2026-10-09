@@ -202,9 +202,8 @@ export class MarketingSession {
         }
     }
 
-    record(record) {
+    record(record, timeMs = performance.now() - this.epoch) {
         if (!this.running || this.error) return;
-        const timeMs = performance.now() - this.epoch;
         const kernel = this.game.matchSessionRuntimeBridge?.getCurrentMatchKernel?.();
         this.records.push({ ...record, timeMs, activeMs: this.activeMs, match: this.match,
             round: kernel?.roundIndex ?? 0, frame: kernel?.tickIndex ?? 0,
@@ -257,10 +256,17 @@ export class MarketingSession {
         if (!this.running || this.error) return;
         const now = performance.now();
         const game = this.game;
+        const loop = game.gameLoop;
+        const step = loop?.fixedStep;
+        const remaining = step > 0 && Number.isFinite(loop.accumulator)
+            ? Math.max(1, Math.floor(loop.accumulator / step + 1e-6)) : 1;
+        // A slow render frame can run multiple distinct fixed simulation steps.
+        // Give each step its place on the media timeline instead of sampling only once per render.
+        const sampleNow = Math.max(now - (remaining - 1) * (step > 0 ? step * 1000 : 0), this.lastSample + 1);
         const kernel = game.matchSessionRuntimeBridge?.getCurrentMatchKernel?.();
         const round = kernel?.roundIndex ?? 0;
-        if (game.state === 'PLAYING' && this.previousState === 'PLAYING') this.activeMs += now - this.lastTick;
-        this.lastTick = now;
+        if (game.state === 'PLAYING' && this.previousState === 'PLAYING') this.activeMs += Math.max(0, sampleNow - this.lastTick);
+        this.lastTick = sampleNow;
         if (game.state === 'MENU') this.currentMatch = false;
         if (game.state === 'PLAYING' && game.entityManager
             && (!this.currentMatch || this.manager !== game.entityManager || this.kernel !== kernel || this.previousState === 'MATCH_END')) {
@@ -278,15 +284,16 @@ export class MarketingSession {
             this.record({ type: 'state', state: game.state });
             this.previousState = game.state; this.previousRound = round;
         }
-        if (game.entityManager && ['PLAYING', 'PAUSED', 'ROUND_END', 'MATCH_END'].includes(game.state) && now - this.lastSample >= 1000 / 30) {
-            this.lastSample = now - ((now - this.lastSample) % (1000 / 30));
+        if (game.entityManager && ['PLAYING', 'PAUSED', 'ROUND_END', 'MATCH_END'].includes(game.state)
+            && sampleNow > this.lastSample) {
+            this.lastSample = sampleNow;
             try {
                 const snapshot = createReplaySnapshot({ entityManager: game.entityManager,
                     roundState: { round, frame: kernel?.tickIndex ?? 0, scores: game.entityManager.players.map((p) => p.score) },
                     particles: game.particles, cameras: game.renderer?.cameras,
-                    elapsedMs: now - this.epoch, gameStateId: game.state });
-                snapshot.trails = this.captureTrails(game.entityManager.players, now - this.epoch);
-                this.record({ type: 'snapshot', snapshot });
+                    elapsedMs: sampleNow - this.epoch, gameStateId: game.state });
+                snapshot.trails = this.captureTrails(game.entityManager.players, sampleNow - this.epoch);
+                this.record({ type: 'snapshot', snapshot }, sampleNow - this.epoch);
             } catch (error) { this.fail(error); }
         }
         if (now - this.lastFlush > 500) {

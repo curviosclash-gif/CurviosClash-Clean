@@ -170,6 +170,28 @@ test('preroll resets from the actual kernel round and records real simulation an
     assert.equal(session.records[0].activeMs, 0);
 });
 
+test('two fixed simulation steps in one render frame produce distinct ordered snapshots', () => {
+    const kernel = { roundIndex: 1, tickIndex: 1 };
+    const game = { state: 'PLAYING', entityManager: { players: [] }, settings: {}, runtimeConfig: {},
+        gameLoop: { fixedStep: 1 / 60, accumulator: 2 / 60, renderFrameId: 7 },
+        matchSessionRuntimeBridge: { getCurrentMatchKernel: () => kernel } };
+    const session = new MarketingSession(game, {}), now = performance.now();
+    Object.assign(session, { running: true, epoch: now - 1000, lastTick: now - 1000,
+        previousState: 'PLAYING', previousRound: 1, currentMatch: true,
+        manager: game.entityManager, kernel, lastFlush: now });
+    session.captureTick();
+    kernel.tickIndex = 2;
+    game.gameLoop.accumulator = 1 / 60;
+    session.captureTick();
+    const snapshots = session.records.filter((record) => record.type === 'snapshot');
+    assert.equal(snapshots.length, 2);
+    assert.deepEqual(snapshots.map((record) => record.frame), [1, 2]);
+    assert.deepEqual(snapshots.map((record) => record.renderFrame), [7, 7]);
+    assert.ok(snapshots[1].timeMs - snapshots[0].timeMs >= 15);
+    assert.ok(snapshots[1].timeMs - snapshots[0].timeMs < 30);
+    assert.ok(snapshots.every((record) => Math.abs(record.timeMs - record.snapshot.timeMs) < 1));
+});
+
 test('session flush persists ordered records and exact media bytes before successful close', async () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), 'curvios-store-test-'));
     const directory = path.join(parent, 'session');

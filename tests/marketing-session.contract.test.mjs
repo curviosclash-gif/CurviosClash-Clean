@@ -89,14 +89,15 @@ test('warmup loading gaps are allowed, but missing frames inside or across the c
     const directory = await mkdtemp(path.join(os.tmpdir(), 'curvios-replay-gap-'));
     const file = path.join(directory, 'journal.ndjson');
     const candidate = { match: 1, round: 0, startMs: 5000, endMs: 5100, subjects: [0, 1], metadata: {} };
-    async function load(times) {
+    async function load(times, snapshotTargetFps) {
         const records = times.map((timeMs) => ({ type: 'snapshot', match: 1, round: 0, timeMs,
             snapshot: { timeMs, gameStateId: 'PLAYING' } }));
         const hash = createHash('sha256').update(JSON.stringify(records)).digest('hex');
         await writeFile(file, JSON.stringify({ sequence: 0, previous: '', hash, records }) + '\n');
-        return loadCandidateReplay({ journalSha256: hash }, file, candidate);
+        return loadCandidateReplay({ journalSha256: hash, snapshotTargetFps }, file, candidate);
     }
-    assert.equal((await load([500, 4000, 4900, 5000, 5050, 5100])).exportStartMs, 5000);
+    assert.equal((await load([500, 4000, 4900, 5000, 5050, 5100])).sampleFps, 30);
+    assert.equal((await load([500, 4000, 4900, 5000, 5050, 5100], 60)).sampleFps, 60);
     await assert.rejects(load([500, 4000, 5000, 5050, 5100]), /replay_sample_gap/);
     await assert.rejects(load([500, 4900, 5000, 5200]), /replay_sample_gap/);
 });

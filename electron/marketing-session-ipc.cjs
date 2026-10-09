@@ -57,6 +57,7 @@ function installMarketingSessionIpc({ ipcMain, getWindow, isTrusted, configPath,
         if (Number(space.bavail) * Number(space.bsize) < 10 * 1024 ** 3) throw new Error('At least 10 GB free storage required');
         store = await createMarketingSessionStore({ directory: config.directory, ffmpeg,
             metadata: { setup, build: config.build, assets: config.assets,
+                snapshotTargetFps: 60,
                 provenance: config.testOnly ? 'technical-test' : 'local-game-session' } });
         return { ready: true };
     });

@@ -142,7 +142,8 @@ export async function loadCandidateReplay(manifest, journalPath, candidate) {
         if (snapshots.length < 2) snapshots.push(record.snapshot);
     }
     if (snapshots.length < 2 || lastTime < candidate.endMs) throw new Error('replay_resolution_missing');
-    return { contractVersion: 'cinematic-replay.v2', matchId: `marketing-${candidate.match}`, sampleFps: 30,
+    return { contractVersion: 'cinematic-replay.v2', matchId: `marketing-${candidate.match}`,
+        sampleFps: manifest.snapshotTargetFps === 60 ? 60 : 30,
         durationMs: candidate.endMs, exportStartMs: candidate.startMs, snapshots, subjects: candidate.subjects,
         metadata: { ...candidate.metadata, localPlayerIndex: candidate.subjects[0], hudMode: 'clean',
             settings: { ...candidate.metadata.settings, recording: { profile: 'cinematic', orientation: 'portrait', hudMode: 'clean' } } } };

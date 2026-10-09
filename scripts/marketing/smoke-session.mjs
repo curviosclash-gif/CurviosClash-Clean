@@ -95,6 +95,7 @@ try {
         await closed; app = null;
         const manifest = JSON.parse(await readFile(path.join(directory, 'session.json'), 'utf8'));
         assert.equal(manifest.status, 'complete', JSON.stringify(manifest));
+        assert.equal(manifest.snapshotTargetFps, 60);
         assert.ok(manifest.bytes > 10000); assert.ok(manifest.records > 30);
         const metadata = JSON.parse((await run(ffprobe, ['-v', 'error', '-show_streams', '-of', 'json', path.join(directory, 'original.webm')])).stdout);
         assert.ok(metadata.streams.some((s) => s.codec_type === 'video'));
@@ -121,7 +122,7 @@ try {
             assert.equal(hasSimulationFrames, true, 'Snapshot and journal must identify actual simulation ticks');
             // Initial GPU/arena loading can stall the first few snapshots.
             const selection = { match: match.match, round: first.round, startMs: first.timeMs + 5000, endMs: first.timeMs + 6000 };
-            const replay = { contractVersion: 'cinematic-replay.v2', matchId: 'technical-smoke', sampleFps: 30,
+            const replay = { contractVersion: 'cinematic-replay.v2', matchId: 'technical-smoke', sampleFps: manifest.snapshotTargetFps,
                 durationMs: selection.endMs, exportStartMs: selection.startMs, snapshots: [first.snapshot], subjects: [0, 1],
                 metadata: { ...match.metadata, localPlayerIndex: 0, hudMode: 'clean',
                     settings: { ...match.metadata.settings, recording: { profile: 'cinematic', orientation: 'portrait', hudMode: 'clean' } } } };
