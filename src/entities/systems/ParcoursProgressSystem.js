@@ -316,6 +316,7 @@ export class ParcoursProgressSystem {
         const splitMs = state.startedAtMs > 0 ? Math.max(0, now - state.startedAtMs) : 0;
         state.segmentSplitsMs.push(splitMs);
         const checkpointIndex = state.segmentSplitsMs.length - 1;
+        if (player?.isArcadeParcoursCompetitor === true) return;
 
         const cpXpResult = this._xpEventCallback?.('checkpoint', player.index, { checkpointId: entry.id, atMs: now });
         if (cpXpResult?.earned > 0) {
@@ -340,17 +341,19 @@ export class ParcoursProgressSystem {
             state.penaltyTimeMs = Math.max(0, Math.trunc(Number(state.penaltyTimeMs) || 0)) + penaltyMs;
         }
         this._setErrorState(state, 'Falsche Reihenfolge', now);
-        if (penaltyMs > 0) {
-            this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id} (+${(penaltyMs / 1000).toFixed(1)}s Penalty)`);
-            this._leaderboardCallback?.({
-                type: 'wrong_order',
-                playerIndex: player.index,
-                routeId: this._route.routeId,
-                penaltyMs,
-                totalPenaltyMs: state.penaltyTimeMs,
-            });
-        } else {
-            this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id}`);
+        if (player?.isArcadeParcoursCompetitor !== true) {
+            if (penaltyMs > 0) {
+                this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id} (+${(penaltyMs / 1000).toFixed(1)}s Penalty)`);
+                this._leaderboardCallback?.({
+                    type: 'wrong_order',
+                    playerIndex: player.index,
+                    routeId: this._route.routeId,
+                    penaltyMs,
+                    totalPenaltyMs: state.penaltyTimeMs,
+                });
+            } else {
+                this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id}`);
+            }
         }
         this._logRecorderEvent(
             'PARCOURS_WRONG_ORDER',
@@ -398,7 +401,8 @@ export class ParcoursProgressSystem {
         state.lastError = '';
         state.errorUntilMs = 0;
 
-        if (!this._completionOrder.some((entry) => entry.playerIndex === player.index)) {
+        const arcadeRacer = player?.isArcadeParcoursCompetitor === true;
+        if (!arcadeRacer && !this._completionOrder.some((entry) => entry.playerIndex === player.index)) {
             this._completionOrder.push({
                 playerIndex: player.index,
                 completedAtMs: state.completedAtMs,
@@ -420,6 +424,7 @@ export class ParcoursProgressSystem {
             `route=${this._route.routeId} timeMs=${Math.round(state.completionTimeMs)} penaltyMs=${penaltyTimeMs}`
         );
         this._playProgressAudio('PARCOURS_FINISH', player, { intensity: 1.15 });
+        if (arcadeRacer) return;
         const finishXpResult = this._xpEventCallback?.('finish', player.index, { finishedAtMs: now });
         if (finishXpResult?.earned > 0) {
             this._notifyPlayer(player, `+${finishXpResult.earned} XP (Parcours)`);

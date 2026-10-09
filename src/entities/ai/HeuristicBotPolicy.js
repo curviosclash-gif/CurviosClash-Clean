@@ -268,7 +268,7 @@ export class HeuristicBotPolicy {
         const observation = runtimeContext?.observation || null;
         applyHeuristicObstacleAvoidance(this, input, player, observation);
 
-        const mode = resolveMode(runtimeContext, observation);
+        const mode = player.isArcadeParcoursCompetitor === true ? 'ARCADE' : resolveMode(runtimeContext, observation);
         const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
         let decision = {
             intent: 'avoid',

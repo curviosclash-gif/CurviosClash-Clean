@@ -4,6 +4,7 @@ import {
     DEFAULT_AXIS_RELEASE_RATE,
 } from '../player/PlayerController.js';
 import {
+    BOT_POLICY_TYPES,
     normalizeBotPolicyType,
     resolveMatchBotPolicyType,
 } from '../ai/BotPolicyTypes.js';
@@ -255,6 +256,16 @@ export class EntitySetupOps {
             player.setControlOptions({ modelScale: setupContext.modelScale, invertPitch: false });
             const companion = setupContext.arcadeCompanionCount > 0 && teamId === ARCADE_COMPANION_TEAM_ID;
             player.isArcadeCompanion = companion;
+            const parcoursRacer = !companion
+                && owner.runtimeConfig?.arcade?.enabled === true
+                && owner.gameModeStrategy?.isSectorParcours?.() === true;
+            player.isArcadeParcoursCompetitor = parcoursRacer;
+            const scenarioHuntBot = !companion
+                && !parcoursRacer
+                && arcadeEnabled
+                && owner.runtimeConfig?.bot?.policyStrategy === 'auto'
+                && owner.runtimeConfig?.arcade?.combatProfile === 'hunt'
+                && Boolean(owner.runtimeConfig?.arcade?.scenarioId);
             // Companions help against map units and take no squad role.
             if (companion) player.botTargetsMapUnits = true;
             player.scenarioRole = !companion && scenarioRoles.length > 0
@@ -262,7 +273,10 @@ export class EntitySetupOps {
                 : '';
             player.scenarioAnchor = null;
             const botDifficulty = setupContext.teamBotDifficulty?.[player.teamId] || owner.botDifficulty;
-            const ai = owner.botPolicyRegistry.create(owner.botPolicyType, {
+            const policyType = parcoursRacer
+                ? BOT_POLICY_TYPES.HEURISTIC
+                : (scenarioHuntBot ? BOT_POLICY_TYPES.HUNT : owner.botPolicyType);
+            const ai = owner.botPolicyRegistry.create(policyType, {
                 difficulty: botDifficulty,
                 recorder: owner.recorder,
                 runtimeConfig: owner.runtimeConfig,

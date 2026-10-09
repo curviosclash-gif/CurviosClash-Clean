@@ -106,6 +106,7 @@ export const ARCADE_SECTOR_CATALOG = Object.freeze([
         minSector: -1, // not selected by range lookup; inserted explicitly in buildArcadeSectorPlan
         maxSector: -1,
         parcoursEnabled: true,
+        parcoursRacer: true,
         squadPool: [],
         objectivePool: ['parcours_run'],
         modifierPool: [],
@@ -190,7 +191,8 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
         ? pressureDifficulty
         : baseDifficulty;
     const parcoursEnabled = entry.parcoursEnabled === true;
-    const botCount = parcoursEnabled ? 0 : (Number.isInteger(entry.botCount) ? entry.botCount : (squad?.botCount ?? fallbackBotCount));
+    const parcoursRacer = parcoursEnabled && (entry.parcoursRacer === true || entry.templateId === 'sector_parcours');
+    const botCount = parcoursEnabled ? (parcoursRacer ? 1 : 0) : (Number.isInteger(entry.botCount) ? entry.botCount : (squad?.botCount ?? fallbackBotCount));
 
     return {
         sectorIndex: Math.max(1, Math.trunc(Number(entry.sectorNumber) || Number(options.sectorIndex) || 1)),
@@ -198,11 +200,12 @@ export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = 
         templateId: String(entry.templateId || 'sector_intro').trim() || 'sector_intro',
         squadId: parcoursEnabled ? null : (squadId || null),
         botCount,
-        botRoles: resolveSquadBotRoles(squad, botCount),
+        botRoles: parcoursRacer ? [] : resolveSquadBotRoles(squad, botCount),
         botDifficulty,
         pressure,
         aggressiveness: parcoursEnabled ? 0 : Math.max(0, Math.min(1, Number(squad?.aggressiveness) || 0)),
         parcoursEnabled,
+        parcoursRacer,
         isBoss: entry.isBoss === true,
         scenarioId: String(entry.scenarioId || '').trim() || null,
         combatProfile: entry.combatProfile === 'hunt' ? 'hunt' : '',
@@ -263,6 +266,7 @@ export function buildArcadeSectorPlan(options = {}) {
                 isBoss: false,
                 bossMultiplier: 1,
                 parcoursEnabled: true,
+                parcoursRacer: true,
             }, scenario));
             continue;
         }
