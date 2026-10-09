@@ -39,6 +39,9 @@ beginnt vor dem Clip, damit frühere Zustände bereits aufgebaut sind.
 Nach einem Absturz bleiben `original.webm.partial` und abgeschlossene
 `segment-*.mkv` erhalten. Solche Sitzungen sind keine automatisch freigegebene
 Quelle. Originale werden niemals überschrieben oder automatisch gelöscht.
+Scheitert der Aufnahmestart nach dem Öffnen des Sitzungsordners, wird die Sitzung
+als unvollständig geschlossen. Für einen neuen Versuch den Starter neu öffnen;
+der fehlgeschlagene Ordner bleibt zur Diagnose erhalten.
 Mindestens 10 GiB freier Platz sind zum Start erforderlich. Bei weniger als
 1 GiB Reserve oder einer zu großen Schreibwarteschlange wird die Aufnahme als
 unvollständig behandelt; die Partie kann weitergespielt werden.

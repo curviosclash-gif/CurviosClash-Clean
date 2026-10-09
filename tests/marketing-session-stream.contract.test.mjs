@@ -19,6 +19,93 @@ function fakeEncoder() {
     return child;
 }
 
+test('start and runtime failures close an opened store, release capture resources and retain a partial session', async () => {
+    const originals = Object.fromEntries(['navigator', 'MediaStream', 'MediaRecorder', 'window']
+        .map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+    const tracks = [0, 1].map(() => ({ stopped: false, stop() { this.stopped = true; },
+        addEventListener() {}, getSettings() { return {}; } }));
+    let released = 0;
+    let failure;
+    class FakeMediaRecorder {
+        constructor() { if (failure === 'constructor') throw new Error('recorder_constructor_failed'); this.state = 'inactive'; this.listeners = {}; }
+        addEventListener(name, listener) { this.listeners[name] = listener; }
+        start() { if (failure === 'start') throw new Error('recorder_start_failed'); this.state = 'recording'; }
+        stop() {
+            this.state = 'inactive';
+            this.listeners.dataavailable?.({ data: { size: 2, arrayBuffer: async () => Uint8Array.of(1, 2).buffer } });
+            this.listeners.stop?.();
+        }
+    }
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: {
+        getDisplayMedia: async () => ({ getTracks: () => [tracks[0]], getVideoTracks: () => [tracks[0]] }),
+    } } });
+    Object.defineProperty(globalThis, 'MediaStream', { configurable: true, value: class {
+        constructor(streamTracks) { this.tracks = streamTracks; }
+        getTracks() { return this.tracks; }
+    } });
+    Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: FakeMediaRecorder });
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: { addEventListener() {}, removeEventListener() {} } });
+    try {
+        for (failure of ['begin', 'constructor', 'start', 'match', 'runtime']) {
+            tracks.forEach((track) => { track.stopped = false; });
+            const calls = { begin: 0, finish: [], appended: [] };
+            const bridge = {
+                begin: async () => { calls.begin++; if (failure === 'begin') throw new Error('store_begin_failed'); },
+                append: async (batch) => { calls.appended.push(batch); return { accepted: true }; },
+                finish: async (details) => { calls.finish.push(details); return { status: 'partial' }; },
+            };
+            const game = { state: 'MENU', settings: { localSettings: {}, audio: {} }, recorder: {},
+                input: { getPlayerSource: () => null },
+                audio: { ctx: { resume: async () => {} }, acquireRecordingStream: () => ({
+                    stream: { getAudioTracks: () => [tracks[1]] }, release: () => { released++; },
+                }), applySettings() {} },
+                _applySettingsToRuntime() {},
+                startMatch: async () => { if (failure === 'match') throw new Error('match_start_failed'); },
+            };
+            const session = new MarketingSession(game, bridge);
+            if (failure === 'runtime') {
+                await session.start({ humans: 1, bots: 3 });
+                session.fail('runtime_failed');
+                await session.finish();
+            } else {
+                await assert.rejects(session.start({ humans: 1, bots: 3 }),
+                    new RegExp(failure === 'match' ? 'match_start_failed'
+                        : failure === 'begin' ? 'store_begin_failed' : `recorder_${failure}_failed`));
+            }
+            assert.equal(calls.begin, 1);
+            assert.equal(calls.finish.length, failure === 'begin' ? 0 : 1);
+            if (failure !== 'begin') assert.match(calls.finish[0].error, /failed/);
+            assert.equal(session.running, false);
+            assert.ok(tracks.every((track) => track.stopped));
+            assert.equal(released, ['begin', 'constructor', 'start', 'match', 'runtime'].indexOf(failure) + 1);
+            if (failure === 'begin') assert.equal(session.error, null);
+            else assert.equal(game.input.recordingInputObserver, null);
+            await session.finish();
+            assert.equal(calls.finish.length, failure === 'begin' ? 0 : 1);
+            if (failure === 'match') assert.ok(calls.appended.some((batch) => batch.kind === 'media'));
+            if (failure === 'runtime') {
+                assert.ok(calls.appended.some((batch) => batch.kind === 'media'));
+                assert.ok(calls.appended.some((batch) => batch.kind === 'records'));
+            }
+            if (failure === 'begin') {
+                const video = { stopped: false, stop() { this.stopped = true; } };
+                const originalDisplay = navigator.mediaDevices.getDisplayMedia;
+                navigator.mediaDevices.getDisplayMedia = async () => ({ getTracks: () => [video], getVideoTracks: () => [video] });
+                game.audio.acquireRecordingStream = () => null;
+                try { await assert.rejects(session.start({ humans: 1, bots: 3 }), /Kein Spielton/); }
+                finally { navigator.mediaDevices.getDisplayMedia = originalDisplay; }
+                assert.equal(video.stopped, true);
+                assert.equal(released, 1);
+            }
+        }
+    } finally {
+        for (const [name, descriptor] of Object.entries(originals)) {
+            if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+            else delete globalThis[name];
+        }
+    }
+});
+
 test('large checkpoint batches preserve every ordered record while respecting the soft packet budget', async () => {
     const batches = [];
     const session = new MarketingSession({}, { append: async (payload) => { batches.push(payload); return { accepted: true }; } });

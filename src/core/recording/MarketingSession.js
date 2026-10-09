@@ -85,58 +85,84 @@ export class MarketingSession {
                     color: '#fff', background: '#111c', padding: '5px', font: '12px system-ui', pointerEvents: 'none' });
                 document.body.append(status); this.status = status;
             } catch (error) {
-                if (this.media) this.fail(error);
-                else this.status.textContent = error?.message || String(error);
-                button.disabled = false;
+                if (this.storeOpened) this.fail(error);
+                else {
+                    this.status.textContent = error?.message || String(error);
+                    button.disabled = false;
+                }
             }
         });
         document.body.append(panel);
     }
 
     fail(error) {
+        const firstFailure = !this.error;
         this.error ||= error?.message || String(error);
         if (this.status) this.status.textContent = `Aufnahmefehler: ${this.error}. Rohdaten bleiben erhalten.`;
+        if (firstFailure && this.storeOpened && this.running) {
+            this.finish().catch((closeError) => {
+                this.error += `; session_cleanup_failed: ${closeError?.message || String(closeError)}`;
+                if (this.status) this.status.textContent = `Aufnahmefehler: ${this.error}. Rohdaten bleiben erhalten.`;
+            });
+        }
     }
 
     async start(setup) {
-        if (this.running || this.media) throw new Error('Für einen neuen Versuch den Aufnahmestarter neu öffnen.');
+        if (this.running || this.storeOpened) throw new Error('Für einen neuen Versuch den Aufnahmestarter neu öffnen.');
         this.setup = setup;
-        const display = await navigator.mediaDevices.getDisplayMedia({
-            video: { frameRate: { ideal: 60 }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false,
-        });
-        const audio = this.game.audio?.acquireRecordingStream?.();
-        if (!audio?.stream?.getAudioTracks().length) {
-            display.getTracks().forEach((track) => track.stop());
-            throw new Error('Kein Spielton verfügbar. Die Partie wurde nicht gestartet.');
+        this.stream = null; this.releaseAudio = null;
+        let display;
+        try {
+            display = await navigator.mediaDevices.getDisplayMedia({
+                video: { frameRate: { ideal: 60 }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false,
+            });
+            const audio = this.game.audio?.acquireRecordingStream?.();
+            if (!audio?.stream?.getAudioTracks().length) {
+                throw new Error('Kein Spielton verfügbar. Die Partie wurde nicht gestartet.');
+            }
+            this.releaseAudio = audio.release;
+            this.stream = new MediaStream([...display.getVideoTracks(), ...audio.stream.getAudioTracks()]);
+            await this.game.audio.ctx?.resume?.();
+            await this.bridge.begin(setup);
+            this.storeOpened = true;
+            this.epoch = performance.now(); this.lastTick = this.epoch;
+            this.media = new MediaRecorder(this.stream, { mimeType: 'video/webm;codecs=vp8,opus',
+                videoBitsPerSecond: 18_000_000, audioBitsPerSecond: 192_000, videoKeyFrameIntervalDuration: 2000 });
+            this.media.addEventListener('dataavailable', ({ data }) => {
+                if (data.size) this.send('media', data.size, async () => ({ bytes: new Uint8Array(await data.arrayBuffer()) }));
+            });
+            this.media.addEventListener('error', (event) => this.fail(event.error || 'media_recorder_error'));
+            this.stream.getTracks().forEach((track) => track.addEventListener('ended', () => {
+                if (this.running) this.fail('capture_track_ended');
+            }));
+            this.running = true;
+            this.media.start(500);
+            this.record({ type: 'session-start', setup, mediaSettings: this.stream.getTracks().map((t) => t.getSettings()) });
+            this.recordClock();
+            this.installObservers();
+            const game = this.game;
+            game.settings.mode = setup.humans === 1 ? '1p' : '2p';
+            game.settings.numBots = setup.bots;
+            game.settings.gameMode = 'HUNT';
+            Object.assign(game.settings.localSettings, { sessionType: setup.humans === 1 ? 'single' : 'splitscreen', modePath: 'fight' });
+            game.settings.audio = { ...game.settings.audio, enabled: true };
+            game._applySettingsToRuntime({ schedulePrewarm: false });
+            game.audio?.applySettings?.(game.settings.audio);
+            await game.startMatch();
+            if (this.error) throw new Error(this.error);
+        } catch (error) {
+            if (this.storeOpened) {
+                try { await this.finish(error); }
+                catch (closeError) {
+                    this.error = `${error?.message || String(error)}; session_cleanup_failed: ${closeError?.message || String(closeError)}`;
+                }
+            } else {
+                (this.stream?.getTracks() || display?.getTracks() || []).forEach((track) => track.stop());
+                this.releaseAudio?.();
+                this.stream = null; this.releaseAudio = null;
+            }
+            throw error;
         }
-        this.releaseAudio = audio.release;
-        this.stream = new MediaStream([...display.getVideoTracks(), ...audio.stream.getAudioTracks()]);
-        try { await this.game.audio.ctx?.resume?.(); await this.bridge.begin(setup); }
-        catch (error) { this.stream.getTracks().forEach((track) => track.stop()); this.releaseAudio?.(); throw error; }
-        this.epoch = performance.now(); this.lastTick = this.epoch;
-        this.media = new MediaRecorder(this.stream, { mimeType: 'video/webm;codecs=vp8,opus',
-            videoBitsPerSecond: 18_000_000, audioBitsPerSecond: 192_000, videoKeyFrameIntervalDuration: 2000 });
-        this.media.addEventListener('dataavailable', ({ data }) => {
-            if (data.size) this.send('media', data.size, async () => ({ bytes: new Uint8Array(await data.arrayBuffer()) }));
-        });
-        this.media.addEventListener('error', (event) => this.fail(event.error || 'media_recorder_error'));
-        this.stream.getTracks().forEach((track) => track.addEventListener('ended', () => {
-            if (this.running) this.fail('capture_track_ended');
-        }));
-        this.running = true;
-        this.media.start(500);
-        this.record({ type: 'session-start', setup, mediaSettings: this.stream.getTracks().map((t) => t.getSettings()) });
-        this.recordClock();
-        this.installObservers();
-        const game = this.game;
-        game.settings.mode = setup.humans === 1 ? '1p' : '2p';
-        game.settings.numBots = setup.bots;
-        game.settings.gameMode = 'HUNT';
-        Object.assign(game.settings.localSettings, { sessionType: setup.humans === 1 ? 'single' : 'splitscreen', modePath: 'fight' });
-        game.settings.audio = { ...game.settings.audio, enabled: true };
-        game._applySettingsToRuntime({ schedulePrewarm: false });
-        game.audio?.applySettings?.(game.settings.audio);
-        await game.startMatch();
     }
 
     installObservers() {
@@ -187,7 +213,6 @@ export class MarketingSession {
     }
 
     send(kind, size, payload) {
-        if (this.error) return;
         if (this.pendingBytes + size > MAX_PENDING_BYTES) { this.fail('disk_backpressure_limit'); return; }
         this.pendingBytes += size;
         this.pending = this.pending.then(async () => {
@@ -270,24 +295,31 @@ export class MarketingSession {
         }
     }
 
-    async finish() {
-        if (!this.media || !this.running) return;
-        this.record({ type: 'session-end' });
+    finish(startError) {
+        if (!this.storeOpened) return Promise.resolve();
+        this.finishPromise ||= this.finishSession(startError);
+        return this.finishPromise;
+    }
+
+    async finishSession(startError) {
+        if (this.running) this.record({ type: 'session-end' });
         this.running = false;
-        this.cleanups.forEach((cleanup) => cleanup());
-        this.game.input.recordingInputObserver = null;
-        this.game.recorder.marketingObserver = null;
+        this.cleanups.splice(0).forEach((cleanup) => cleanup());
+        if (this.game.input) this.game.input.recordingInputObserver = null;
+        if (this.game.recorder) this.game.recorder.marketingObserver = null;
         this.flush();
-        if (this.media.state !== 'inactive') {
+        if (this.media && this.media.state !== 'inactive') {
             await new Promise((resolve) => {
                 const timeout = setTimeout(() => { this.fail('media_stop_timeout'); resolve(); }, 8000);
                 this.media.addEventListener('stop', () => { clearTimeout(timeout); resolve(); }, { once: true });
-                this.media.stop();
+                try { this.media.stop(); }
+                catch (error) { clearTimeout(timeout); this.fail(error); resolve(); }
             });
         }
-        this.stream.getTracks().forEach((track) => track.stop());
+        this.stream?.getTracks().forEach((track) => track.stop());
         this.releaseAudio?.();
         await this.pending;
+        if (startError) this.fail(startError);
         await this.bridge.finish({ error: this.error, durationMs: performance.now() - this.epoch,
             provenanceLimit: 'Input channels and participant declaration; not proof of individual identity.' });
     }

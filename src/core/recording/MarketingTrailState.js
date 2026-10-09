@@ -28,8 +28,20 @@ export function createTrailStateRecorder() {
                     changes.push([slot, ...matrix]); old.set(matrix, offset);
                 }
             }
-            state.channels[name] = { count: mesh.count, changes,
-                colors: mesh.instanceColor ? Array.from(mesh.instanceColor.array.subarray(0, trail.segmentCount * 3)) : null };
+            const colors = mesh.instanceColor?.array;
+            const colorChanges = [];
+            if (colors) {
+                const oldColors = cache[`${name}Colors`] ||= new Float32Array(colors.length).fill(NaN);
+                for (let slot = 0; slot < trail.segmentCount; slot++) {
+                    const offset = slot * 3;
+                    if (full || oldColors[offset] !== colors[offset] || oldColors[offset + 1] !== colors[offset + 1]
+                        || oldColors[offset + 2] !== colors[offset + 2]) {
+                        const color = Array.from(colors.subarray(offset, offset + 3));
+                        colorChanges.push([slot, ...color]); oldColors.set(color, offset);
+                    }
+                }
+            }
+            state.channels[name] = { count: mesh.count, changes, colorChanges };
         }
         state.heads = ['headMesh', 'glowHeadMesh'].flatMap((name) => trail[name]
             ? [{ name, visible: trail[name].visible, matrix: trail[name].matrix.toArray() }] : []);
@@ -51,6 +63,10 @@ export function applyRecordedTrailState(entityManager, states) {
             mesh.instanceMatrix.needsUpdate = true; mesh.count = data.count;
             if (data.colors && mesh.instanceColor) {
                 mesh.instanceColor.array.set(data.colors); mesh.instanceColor.needsUpdate = true;
+            }
+            if (data.colorChanges?.length && mesh.instanceColor) {
+                for (const [slot, ...color] of data.colorChanges) mesh.instanceColor.array.set(color, slot * 3);
+                mesh.instanceColor.needsUpdate = true;
             }
         }
         for (const head of state.heads) {
