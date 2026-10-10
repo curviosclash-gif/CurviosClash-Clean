@@ -31,6 +31,7 @@ import {
 const TRAIL_AWARE_FALLBACK_MAPS = new Set([
     'core_fusion',
     'eiffel_tower_arena',
+    'standard',
 ]);
 const SOLO_PLANAR_LOOK_AHEAD = 32;
 

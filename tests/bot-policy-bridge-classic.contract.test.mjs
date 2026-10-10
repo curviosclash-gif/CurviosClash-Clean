@@ -122,7 +122,7 @@ test('T77: ClassicBridgePolicy leaves movement to its trail-aware fallback on de
     observation[schema.TARGET_IN_FRONT] = 1;
     observation[schema.LOCAL_OPENNESS_RATIO] = 1;
 
-    for (const mapKey of ['core_fusion', 'eiffel_tower_arena']) {
+    for (const mapKey of ['core_fusion', 'eiffel_tower_arena', 'standard']) {
         const action = resolveClassicBridgeAction({
             observation,
             arena: { currentMapKey: mapKey },
@@ -144,7 +144,7 @@ test('T78: ClassicBridgePolicy preserves legacy movement on reference maps', () 
     observation[schema.TARGET_DISTANCE_RATIO] = 0.9;
     observation[schema.LOCAL_OPENNESS_RATIO] = 1;
 
-    for (const mapKey of ['standard', 'maze', 'complex']) {
+    for (const mapKey of ['maze', 'complex']) {
         const action = resolveClassicBridgeAction({
             observation,
             arena: { currentMapKey: mapKey },
@@ -184,7 +184,7 @@ test('Classic 2D solo steering uses the trail-aware fallback with a longer probe
     assert.equal(fallbackPolicy._botAI.profile.lookAhead, 13);
 });
 
-test('Classic bridge keeps local steering when an opponent is alive or the match is 3D', () => {
+test('Classic bridge keeps local steering on maps without fallback delegation', () => {
     const player = { index: 0, alive: true, inventory: [] };
     const opponent = { index: 1, alive: true };
     const observation = new Array(schema.OBSERVATION_LENGTH_V1).fill(0);
@@ -193,7 +193,7 @@ test('Classic bridge keeps local steering when an opponent is alive or the match
     observation[schema.WALL_DISTANCE_LEFT] = 0.1;
     observation[schema.WALL_DISTANCE_RIGHT] = 0.9;
     const context = {
-        mode: 'CLASSIC', arena: { currentMapKey: 'standard' },
+        mode: 'CLASSIC', arena: { currentMapKey: 'maze' },
         navigationPlayers: [player, opponent], observation,
     };
 
@@ -204,4 +204,26 @@ test('Classic bridge keeps local steering when an opponent is alive or the match
     observation[schema.PLANAR_MODE_ACTIVE] = 1;
     context.mode = 'HUNT';
     assert.equal(resolveClassicBridgeAction(context, { player }).yawRight, true);
+});
+
+test('Classic standard map keeps bridge combat while fallback steers away from trails', () => {
+    const observation = new Array(schema.OBSERVATION_LENGTH_V1).fill(0);
+    observation[schema.WALL_DISTANCE_FRONT] = 0.12;
+    observation[schema.WALL_DISTANCE_LEFT] = 0.1;
+    observation[schema.WALL_DISTANCE_RIGHT] = 0.9;
+    observation[schema.TARGET_IN_FRONT] = 1;
+    observation[schema.TARGET_ALIGNMENT] = 1;
+    observation[schema.TARGET_DISTANCE_RATIO] = 0.1;
+    const policy = new ClassicBridgePolicy({
+        autoLoadCheckpoint: false,
+        fallbackPolicy: { type: 'rule-based', update: () => ({ yawLeft: true }) },
+    });
+
+    const action = policy.update(1 / 60, { inventory: [] }, {
+        arena: { currentMapKey: 'standard' }, players: [], projectiles: [], observation,
+    });
+
+    assert.equal(action.yawLeft, true);
+    assert.equal(action.yawRight, false);
+    assert.equal(action.shootMG, true);
 });
