@@ -175,7 +175,8 @@ function applyClearFightPursuit(action, player, runtimeContext, fallbackPolicy) 
         || typeof runtimeContext.arena?.raycast !== 'function') return;
     const players = runtimeContext.visiblePlayers || runtimeContext.players || [];
     const { enemy, distSq } = getNearestEnemy(player, players, TMP_TO_ENEMY);
-    if (!enemy?.position || distSq < 18 * 18 || distSq > 160 * 160) return;
+    // Give the fallback avoidance time to turn before reaching a moving enemy trail.
+    if (!enemy?.position || distSq < 25 * 25 || distSq > 160 * 160) return;
     const distance = Math.sqrt(distSq);
     TMP_MG_AIM.subVectors(enemy.position, player.position).multiplyScalar(1 / distance);
     const obstacle = runtimeContext.arena.raycast(player.position, TMP_MG_AIM, distance - 5);

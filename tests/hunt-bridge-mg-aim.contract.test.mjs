@@ -86,6 +86,9 @@ test('3D Hunt bridge pursues a clear enemy corridor and keeps fallback steering 
     blocked = true;
     assert.equal(policy.update(1 / 60, player, context).yawLeft, true);
     blocked = false;
+    enemy.position.set(0, 0, 20);
+    assert.equal(policy.update(1 / 60, player, context).yawLeft, true);
+    enemy.position.set(35, 0, 50);
     danger = true;
     assert.equal(policy.update(1 / 60, player, context).yawLeft, true);
     danger = false;
