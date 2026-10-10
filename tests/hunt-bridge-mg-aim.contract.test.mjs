@@ -115,3 +115,40 @@ test('3D Hunt bridge pursues a clear enemy corridor and keeps fallback steering 
     context.arena.raycast = null;
     assert.equal(policy.update(1 / 60, player, context).yawLeft, true);
 });
+
+test('3D Hunt bridge flies away once retreat is aligned', () => {
+    const player = {
+        index: 1, isBot: true, alive: true, hp: 20, maxHp: 100,
+        shieldHP: 0, maxShieldHp: 40, inventory: [], speed: 20,
+        entityRuntimeConfig: { HUNT: HUNT_CONFIG },
+        position: new THREE.Vector3(0, 45, 0),
+        getAimDirection(out) { return out.set(0, 0, -1); },
+        getDirection(out) { return out.set(0, 0, -1); },
+    };
+    const enemy = {
+        index: 2, alive: true, hp: 100, maxHp: 100,
+        shieldHP: 0, maxShieldHp: 40,
+        position: new THREE.Vector3(0, 45, 30),
+    };
+    const context = {
+        mode: 'HUNT', rules: { planarMode: false },
+        arena: {
+            bounds: { minX: -120, maxX: 120, minY: 0, maxY: 90, minZ: -120, maxZ: 120 },
+            specialGates: [], raycast() { return { hit: false }; },
+        },
+        players: [player, enemy], visiblePlayers: [player, enemy], projectiles: [],
+        observation: new Array(40).fill(0),
+    };
+    const policy = new HuntBridgePolicy({
+        autoLoadCheckpoint: false,
+        fallbackPolicy: {
+            usesRuntimeContext: true,
+            update() { return { yawLeft: true, boost: true }; },
+            getSensorSnapshot() { return { immediateDanger: false, forwardRisk: 0 }; },
+        },
+    });
+
+    const retreat = policy.update(1 / 60, player, context);
+    assert.equal(retreat.yawLeft, false, 'an enemy behind the bot does not force another turn');
+    assert.equal(retreat.yawRight, false);
+});

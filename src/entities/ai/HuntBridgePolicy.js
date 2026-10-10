@@ -333,17 +333,28 @@ export class HuntBridgePolicy extends ObservationBridgePolicy {
         const runtimeContext = this._asRuntimeContext(dt, player, runtimeContextOrArena, allPlayers, projectiles);
         const action = super.update(dt, player, runtimeContext);
         const priorities = resolveHuntBridgePriorities(player, runtimeContext);
+        const retreating = shouldRetreatFromPriorities(priorities);
         const objectiveRole = applyHuntBotObjectiveMovement({
             policy: HUNT_BRIDGE_STEERING_SCRATCH,
             input: action,
             player,
             runtimeContext,
-            shouldRetreat: shouldRetreatFromPriorities(priorities),
+            shouldRetreat: retreating,
             clearSteering: clearSteeringInput,
             steerToward: applySteeringTowardPosition,
         });
-        if (!objectiveRole && !shouldRetreatFromPriorities(priorities)) {
+        if (!objectiveRole && !retreating) {
             applyClearFightPursuit(action, player, runtimeContext, this._fallbackPolicy);
+        }
+        if (runtimeContext?.mode === 'HUNT' && runtimeContext?.rules?.planarMode === false
+            && retreating && priorities.enemy?.position && typeof player.getDirection === 'function') {
+            player.getDirection(TMP_FORWARD).normalize();
+            TMP_TO_ENEMY.subVectors(priorities.enemy.position, player.position).normalize();
+            if (TMP_FORWARD.dot(TMP_TO_ENEMY) < -0.55) {
+                action.yawLeft = false;
+                action.yawRight = false;
+                action.yawAxis = 0;
+            }
         }
         return action;
     }
