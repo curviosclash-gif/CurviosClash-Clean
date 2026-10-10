@@ -26,6 +26,8 @@ import {
 } from '../../hunt/HuntBotPolicy.js';
 import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
+import { resolvePlayerMachineGunConfig } from '../../hunt/mg/MGConfigResolver.js';
 import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
 import { applyHuntBotObjectiveMovement } from '../../hunt/HuntBotObjectiveOps.js';
 
@@ -90,6 +92,22 @@ function hasMgTargetInAimCone(player, runtimeContext, range, minDot) {
     const sharedTarget = runtimeContext?.huntTarget;
     return sharedTarget?.kind === 'trail' && sharedTarget.position
         && isInMgAimCone(player, sharedTarget.position, rangeSq, minDot);
+}
+
+function canRequestMachineGunShot(player, runtimeContext, baseMg) {
+    if (player?.hasFlamethrower || player?.hasRailgun) return true;
+    if ((Number(player?.shootCooldown) || 0) > 0) return false;
+    const heat = runtimeContext?.entityManager?.getHuntOverheatSnapshot?.()?.[player.index];
+    if (!Number.isFinite(heat)) return true;
+    const specialLoadout = player?.arcadeWeaponLoadout || (!player?.isBot && player?.arenaWavesLoadout);
+    const specialMg = specialLoadout ? resolvePlayerMachineGunConfig(baseMg, player) : null;
+    const perShot = specialLoadout
+        ? specialMg.OVERHEAT_PER_SHOT
+        : Math.round(Number(baseMg?.OVERHEAT_PER_SHOT || 6.5)
+            * Number(resolveFightMachineGunModel(player?.fightLoadout?.machineGunId).modifiers.overheat || 1)
+            * 10_000) / 10_000;
+    return heat + Math.max(0.01, Number(perShot) || 6.5)
+        < Math.max(1, Number((specialMg || baseMg)?.LOCKOUT_THRESHOLD || 100));
 }
 
 function resolveHuntBridgePriorities(player, runtimeContext) {
@@ -219,6 +237,7 @@ function resolveHuntBridgeAction(runtimeContext, player) {
         && (priorities.shieldRatio > 0.08 || priorities.healthRatio > 0.32)
         && priorities.aggression >= 0.4
         && survivalPressure < 0.85
+        && canRequestMachineGunShot(player, runtimeContext, huntConfig?.MG)
         // Match the bot aim-assist cone used when the MG shot resolves.
         && hasMgTargetInAimCone(player, runtimeContext, mgRange,
             clamp(Number(huntConfig?.MG?.AIM_DOT_MIN) || 0.965, -1, 1))

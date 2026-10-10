@@ -33,6 +33,23 @@ test('Hunt bridge fires MG only toward an aligned enemy or trail target', () => 
     });
 
     assert.equal(policy.update(1 / 60, player, context).shootMG, true);
+    player.shootCooldown = 0.04;
+    assert.equal(policy.update(1 / 60, player, context).shootMG, false);
+    player.shootCooldown = 0;
+    let heat = 90;
+    context.entityManager = { getHuntOverheatSnapshot: () => ({ [player.index]: heat }) };
+    assert.equal(policy.update(1 / 60, player, context).shootMG, false);
+    player.hasRailgun = true;
+    assert.equal(policy.update(1 / 60, player, context).shootMG, true);
+    player.hasRailgun = false;
+    heat = 70;
+    assert.equal(policy.update(1 / 60, player, context).shootMG, true);
+    heat = 86;
+    assert.equal(policy.update(1 / 60, player, context).shootMG, true);
+    player.fightLoadout = { machineGunId: 'raptor_r9' };
+    assert.equal(policy.update(1 / 60, player, context).shootMG, false);
+    player.fightLoadout = null;
+    delete context.entityManager;
     enemy.position.set(5, 0, 20);
     assert.equal(policy.update(1 / 60, player, context).shootMG, true);
     enemy.position.set(6, 0, 20);
