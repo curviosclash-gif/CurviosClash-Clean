@@ -48,6 +48,16 @@ function readJson(filePath) {
     return JSON.parse(readUtf8(filePath));
 }
 
+function readRuntimeAssetScripts(directory) {
+    return readdirSync(directory, { withFileTypes: true })
+        .flatMap((entry) => {
+            const assetPath = path.join(directory, entry.name);
+            if (entry.isDirectory()) return readRuntimeAssetScripts(assetPath);
+            return entry.isFile() && entry.name.endsWith('.js') ? [readUtf8(assetPath)] : [];
+        })
+        .join('\n');
+}
+
 function extractIds(html) {
     return new Set([...html.matchAll(/\bid=["']([^"']+)["']/g)].map((match) => match[1]));
 }
@@ -96,13 +106,12 @@ test('Electron renderer dist-app contains critical UI and settings runtime marke
     const distHtml = readUtf8(DIST_HTML_PATH);
     const appBundlePath = resolveDistAppBundlePath(distHtml);
     assert.ok(existsSync(appBundlePath), `dist app bundle is missing: ${appBundlePath}`);
-    const appBundle = readUtf8(appBundlePath);
-    const assetFiles = readdirSync(path.join(DIST_APP_DIR, 'assets')).join('\n');
+    const runtimeAssetScripts = readRuntimeAssetScripts(path.join(DIST_APP_DIR, 'assets'));
 
     for (const marker of CRITICAL_RENDERER_MARKERS) {
         const presentInSourceHtml = sourceHtml.includes(marker);
         const presentInDistHtml = distHtml.includes(marker);
-        const presentInDistRuntime = appBundle.includes(marker) || assetFiles.includes(marker);
+        const presentInDistRuntime = runtimeAssetScripts.includes(marker);
         assert.equal(
             presentInDistHtml || presentInDistRuntime,
             true,
