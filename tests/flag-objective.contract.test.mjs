@@ -16,6 +16,7 @@ import { StaticTurretSystem } from '../src/entities/systems/StaticTurretSystem.j
 import { buildMatchRuntimeProjection } from '../src/shared/runtime/MatchRuntimeProjectionBuilder.js';
 import {
     FLAG_BOT_ROLES,
+    applyFlagObjectiveMovement,
     resolveFlagBotRole,
     resolveFlagObjectiveTarget,
 } from '../src/hunt/HuntBotFlagObjectiveOps.js';
@@ -344,4 +345,79 @@ test('flag bots split into stable defender, attacker and flex assignments', () =
     assert.equal(resolveFlagObjectiveTarget(defender, context).id, 'a1');
     assert.equal(resolveFlagObjectiveTarget(attacker, context).id, 'b1');
     assert.equal(resolveFlagObjectiveTarget(flex, context).id, 'b1', 'flex attacks while its team is not ahead');
+});
+
+test('flag objective movement records the selected target and preserves its steering behavior', () => {
+    const target = { id: 'bravo-flag-2', teamId: TEAM_IDS.BRAVO, hp: 180, maxHp: 300, position: new THREE.Vector3(20, 0, 0) };
+    const player = {
+        index: 1,
+        teamId: TEAM_IDS.ALPHA,
+        position: new THREE.Vector3(),
+        getDirection(direction) { return direction.set(0, 0, 1); },
+    };
+    const context = {
+        runtimeConfig: { hunt: { teamObjective: 'FLAGS' } },
+        entityManager: { _flagObjectiveSystem: { flags: [
+            { id: 'alpha-home', teamId: TEAM_IDS.ALPHA, hp: 300, maxHp: 300, position: new THREE.Vector3(10, 0, 0) },
+            target,
+        ] } },
+    };
+    const policy = {
+        _tmpGate: new THREE.Vector3(),
+        _tmpForward: new THREE.Vector3(),
+        _tmpRight: new THREE.Vector3(),
+        _tmpUp: new THREE.Vector3(),
+    };
+    const input = {};
+
+    const assignment = applyFlagObjectiveMovement(policy, input, player, context);
+
+    assert.deepEqual(assignment, {
+        role: FLAG_BOT_ROLES.ATTACKER,
+        target,
+        distanceSq: 400,
+        isEnemyObjective: true,
+    });
+    assert.equal(player.botObjectiveType, 'FLAGS');
+    assert.equal(player.flagBotRole, FLAG_BOT_ROLES.ATTACKER);
+    assert.equal(player.flagBotTargetId, target.id);
+    assert.equal(input.yawLeft, true);
+    assert.equal(input.boost, false);
+    assert.equal(input.shootMG, true);
+});
+
+test('flag objective retreat and no-target paths clear stale assignment metadata', () => {
+    const player = {
+        index: 1,
+        teamId: TEAM_IDS.ALPHA,
+        position: new THREE.Vector3(),
+        botObjectiveType: 'FLAGS',
+        flagBotRole: FLAG_BOT_ROLES.ATTACKER,
+        flagBotTargetId: 'stale-flag',
+    };
+    const policy = {
+        _tmpGate: new THREE.Vector3(),
+        _tmpForward: new THREE.Vector3(),
+        _tmpRight: new THREE.Vector3(),
+        _tmpUp: new THREE.Vector3(),
+    };
+    const input = {};
+    const flagContext = {
+        runtimeConfig: { hunt: { teamObjective: 'FLAGS' } },
+        entityManager: { _flagObjectiveSystem: { flags: [
+            { id: 'enemy-flag', teamId: TEAM_IDS.BRAVO, hp: 300, maxHp: 300, position: new THREE.Vector3(20, 0, 0) },
+        ] } },
+    };
+
+    assert.equal(applyFlagObjectiveMovement(policy, input, player, flagContext, true), null);
+    assert.deepEqual([player.botObjectiveType, player.flagBotRole, player.flagBotTargetId], ['', '', '']);
+
+    player.botObjectiveType = 'FLAGS';
+    player.flagBotRole = FLAG_BOT_ROLES.ATTACKER;
+    player.flagBotTargetId = 'stale-flag';
+    assert.equal(applyFlagObjectiveMovement(policy, input, player, {
+        runtimeConfig: { hunt: { teamObjective: 'ESCORT' } },
+        entityManager: flagContext.entityManager,
+    }), null);
+    assert.deepEqual([player.botObjectiveType, player.flagBotRole, player.flagBotTargetId], ['', '', '']);
 });

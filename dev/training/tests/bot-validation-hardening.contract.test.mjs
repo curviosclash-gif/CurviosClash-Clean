@@ -11,6 +11,258 @@ import {
     buildBotValidationRuntimeVerification,
 } from '../src/state/validation/BotValidationService.js';
 import { buildBotValidationOutcomeSemantics } from '../src/state/validation/BotValidationOutcomeSemantics.js';
+import {
+    captureBotRuntimeSample,
+    isTeamObjectiveFirstTickScenario,
+} from '../scripts/bot-validation-first-tick.mjs';
+
+function firstTickRuntime() {
+    const player = { index: 0, isBot: true, teamId: 'ALPHA' };
+    const policy = { type: 'heuristic', getDecisionSnapshot: () => ({ profile: 'balanced' }) };
+    const entityManager = {
+        _networkRoundSerial: 7,
+        _simulationClockMs: 0,
+        players: [player],
+        botByPlayer: new Map([[player, policy]]),
+        botPolicyType: 'heuristic',
+        activeGameMode: 'HUNT',
+    };
+    const game = {
+        state: 'PLAYING',
+        entityManager,
+        runtimeConfig: {
+            bot: { policyType: 'heuristic' },
+            session: { activeGameMode: 'HUNT' },
+            arcade: { enabled: false, seed: 1 },
+            hunt: { teamMode: true, teamObjective: 'FLAGS' },
+        },
+        settings: { localSettings: { modePath: 'fight' } },
+    };
+    return { game, entityManager, player, policy };
+}
+
+function createControlledScheduler() {
+    const frames = new Map();
+    const timers = new Map();
+    let nextId = 0;
+    const cancelledFrames = [];
+    const cancelledTimers = [];
+    return {
+        frames,
+        timers,
+        cancelledFrames,
+        cancelledTimers,
+        performance: { now: () => 0 },
+        requestAnimationFrame(callback) {
+            const id = ++nextId;
+            frames.set(id, callback);
+            return id;
+        },
+        cancelAnimationFrame(id) {
+            cancelledFrames.push(id);
+            frames.delete(id);
+        },
+        setTimeout(callback, delayMs) {
+            const id = ++nextId;
+            timers.set(id, { callback, delayMs });
+            return id;
+        },
+        clearTimeout(id) {
+            cancelledTimers.push(id);
+            timers.delete(id);
+        },
+        runFrame(beforeFrame = () => {}) {
+            const entry = frames.entries().next().value;
+            assert.ok(entry, 'a RAF callback is pending');
+            beforeFrame();
+            entry[1]();
+        },
+        fireTimer() {
+            const entry = timers.entries().next().value;
+            assert.ok(entry, 'a timeout callback is pending');
+            entry[1].callback();
+        },
+    };
+}
+
+function startSample(runtime, scheduler, { waitForFirstTick = true, timeoutMs = 100 } = {}) {
+    const previousWindow = globalThis.window;
+    globalThis.window = {
+        GAME_INSTANCE: runtime.game,
+        performance: scheduler.performance,
+        requestAnimationFrame: scheduler.requestAnimationFrame,
+        cancelAnimationFrame: scheduler.cancelAnimationFrame,
+        setTimeout: scheduler.setTimeout,
+        clearTimeout: scheduler.clearTimeout,
+    };
+    return {
+        promise: captureBotRuntimeSample({ waitForFirstTick, timeoutMs }),
+        restore() {
+            if (previousWindow === undefined) delete globalThis.window;
+            else globalThis.window = previousWindow;
+        },
+    };
+}
+
+test('only normalized team objective scenario IDs request a first-tick sample', () => {
+    assert.equal(isTeamObjectiveFirstTickScenario({ id: 'h-team-flags' }), true);
+    assert.equal(isTeamObjectiveFirstTickScenario({ id: ' H-TEAM-ESCORT ' }), true);
+    assert.equal(isTeamObjectiveFirstTickScenario({ id: 'H-TEAM-FLAGS-EXTRA', teamMode: true, teamObjective: 'FLAGS' }), false);
+    assert.equal(isTeamObjectiveFirstTickScenario({ id: 'H-OTHER', teamMode: true, teamObjective: 'ESCORT' }), false);
+});
+
+test('first-tick sample sees objective assignments added on the advancing frame and cleans callbacks', async () => {
+    const runtime = firstTickRuntime();
+    const scheduler = createControlledScheduler();
+    assert.equal(runtime.player.botObjectiveType, undefined);
+    assert.equal(runtime.player.flagBotRole, undefined);
+    const pending = startSample(runtime, scheduler);
+    try {
+        assert.equal(scheduler.frames.size, 1);
+        assert.equal(scheduler.timers.size, 1);
+        scheduler.runFrame();
+        await new Promise(setImmediate);
+        assert.equal(scheduler.frames.size, 1, 'a second RAF is requested while simulation time remains unchanged');
+        assert.equal(scheduler.timers.size, 1, 'the per-wait timer is renewed');
+        scheduler.runFrame(() => {
+            runtime.player.botObjectiveType = 'FLAGS';
+            runtime.player.flagBotRole = 'ATTACKER';
+            runtime.player.flagBotTargetId = 'flag-alpha-2';
+            runtime.entityManager._simulationClockMs = 16.667;
+        });
+        const sample = await pending.promise;
+        assert.deepEqual(sample.botObjectiveAssignments, [{
+            playerIndex: 0,
+            teamId: 'ALPHA',
+            objectiveType: 'FLAGS',
+            objectiveRole: 'ATTACKER',
+            objectiveTargetId: 'flag-alpha-2',
+        }]);
+        assert.equal(scheduler.frames.size, 0);
+        assert.equal(scheduler.timers.size, 0);
+        assert.equal(scheduler.cancelledFrames.length, 2);
+        assert.equal(scheduler.cancelledTimers.length, 2);
+    } finally {
+        pending.restore();
+    }
+});
+
+test('team objective terminal states keep the immediate sample path', async (t) => {
+    for (const state of ['ROUND_END', 'MATCH_END']) {
+        await t.test(state, async () => {
+            const runtime = firstTickRuntime();
+            runtime.game.state = state;
+            const scheduler = createControlledScheduler();
+            const pending = startSample(runtime, scheduler);
+            try {
+                const sample = await pending.promise;
+                assert.equal(sample.botCount, 1);
+                assert.equal(scheduler.frames.size, 0);
+                assert.equal(scheduler.timers.size, 0);
+            } finally {
+                pending.restore();
+            }
+        });
+    }
+});
+
+test('non-objective scenarios use the shared sampler immediately', async () => {
+    const runtime = firstTickRuntime();
+    const scheduler = createControlledScheduler();
+    const pending = startSample(runtime, scheduler, { waitForFirstTick: false });
+    try {
+        const sample = await pending.promise;
+        assert.equal(sample.botCount, 1);
+        assert.equal(scheduler.frames.size, 0);
+        assert.equal(scheduler.timers.size, 0);
+    } finally {
+        pending.restore();
+    }
+});
+
+test('first-tick sampler rejects changed identity and cleans pending callbacks', async () => {
+    const runtime = firstTickRuntime();
+    const scheduler = createControlledScheduler();
+    const pending = startSample(runtime, scheduler);
+    try {
+        scheduler.runFrame(() => {
+            globalThis.window.GAME_INSTANCE = { ...runtime.game };
+            runtime.entityManager._simulationClockMs = 16;
+        });
+        await assert.rejects(pending.promise, /game or entityManager replacement/);
+        assert.equal(scheduler.frames.size, 0);
+        assert.equal(scheduler.timers.size, 0);
+        assert.equal(scheduler.cancelledFrames.length, 1);
+        assert.equal(scheduler.cancelledTimers.length, 1);
+    } finally {
+        pending.restore();
+    }
+});
+
+test('first-tick sampler timeout cleans pending RAF and timer callbacks', async () => {
+    const runtime = firstTickRuntime();
+    const scheduler = createControlledScheduler();
+    const pending = startSample(runtime, scheduler, { timeoutMs: 5 });
+    try {
+        scheduler.fireTimer();
+        await assert.rejects(pending.promise, /timed out without simulation advance \(5 ms\)/);
+        assert.equal(scheduler.frames.size, 0);
+        assert.equal(scheduler.timers.size, 0);
+        assert.equal(scheduler.cancelledFrames.length, 1);
+        assert.equal(scheduler.cancelledTimers.length, 1);
+    } finally {
+        pending.restore();
+    }
+});
+
+test('the timer wins a same-turn RAF race and both callbacks are cleaned', async () => {
+    const runtime = firstTickRuntime();
+    const scheduler = createControlledScheduler();
+    const pending = startSample(runtime, scheduler, { timeoutMs: 5 });
+    try {
+        const frame = scheduler.frames.values().next().value;
+        assert.ok(frame);
+        frame();
+        scheduler.fireTimer();
+        await assert.rejects(pending.promise, /timed out without simulation advance \(5 ms\)/);
+        assert.equal(scheduler.frames.size, 0);
+        assert.equal(scheduler.timers.size, 0);
+        assert.equal(scheduler.cancelledFrames.length, 1);
+        assert.equal(scheduler.cancelledTimers.length, 1);
+    } finally {
+        pending.restore();
+    }
+});
+
+test('first-tick sampler fails closed if state leaves PLAYING', async () => {
+    const runtime = firstTickRuntime();
+    const scheduler = createControlledScheduler();
+    const pending = startSample(runtime, scheduler);
+    try {
+        scheduler.runFrame(() => { runtime.game.state = 'ROUND_END'; });
+        await assert.rejects(pending.promise, /stopped before a tick/);
+        assert.equal(scheduler.frames.size, 0);
+        assert.equal(scheduler.timers.size, 0);
+    } finally {
+        pending.restore();
+    }
+});
+
+test('shared sampler keeps the existing runtime sample shape', async () => {
+    const runtime = firstTickRuntime();
+    const scheduler = createControlledScheduler();
+    const pending = startSample(runtime, scheduler, { waitForFirstTick: false });
+    try {
+        const sample = await pending.promise;
+        assert.deepEqual(Object.keys(sample), [
+            'runtimePolicyType', 'entityPolicyType', 'botPolicyTypes', 'botDecisions', 'botTeamIds',
+            'botObjectiveAssignments', 'botCount', 'runtimeGameMode', 'entityGameMode', 'semanticGameMode',
+            'modePath', 'arcadeEnabled', 'arcadeSeed', 'runtimeTeamMode', 'runtimeTeamObjective',
+        ]);
+    } finally {
+        pending.restore();
+    }
+});
 
 test('heuristic validation selection filters before limiting and rejects unknown ids', () => {
     const matrix = getBotValidationMatrix();
@@ -208,15 +460,19 @@ test('runtime verification reports missing, additional, policyless, and botless 
 });
 
 test('runner applies selected ids, records real bot deaths, and analysis defaults to heuristic policy', async () => {
-    const [runnerSource, analysisSource, packageSource] = await Promise.all([
+    const [runnerSource, analysisSource, packageSource, samplerSource] = await Promise.all([
         readFile(new URL('../scripts/bot-validation-runner.mjs', import.meta.url), 'utf8'),
         readFile(new URL('../scripts/bot-play-analysis.mjs', import.meta.url), 'utf8'),
         readFile(new URL('../../../package.json', import.meta.url), 'utf8'),
+        readFile(new URL('../scripts/bot-validation-first-tick.mjs', import.meta.url), 'utf8'),
     ]);
     assert.match(runnerSource, /applyBotValidationScenario\(scenarioId\)/);
     assert.match(runnerSource, /acquirePlaywrightRunLock\(\{ label: 'bot validation' \}\)/);
     assert.match(runnerSource, /execSync\('npm run build:app'/);
     assert.match(runnerSource, /await g\.runtimeCoordinator\.startMatch\(\{ source: 'bot_validation' \}\)/);
+    assert.match(samplerSource, /id === 'H-TEAM-FLAGS' \|\| id === 'H-TEAM-ESCORT'/);
+    assert.match(runnerSource, /waitForFirstTick: isTeamObjectiveFirstTickScenario\(scenario\)/);
+    assert.equal((runnerSource.match(/captureBotRuntimeSample,/g) || []).length, 3, 'the one sampler is imported and used for start and end samples');
     assert.match(
         runnerSource,
         /waitForFunction\(\(\) => \{\s+const game = window\.GAME_INSTANCE;\s+return typeof game\?\.getBotValidationMatrix === 'function'\s+&& typeof game\?\.applyBotValidationScenario === 'function';/

@@ -14,6 +14,10 @@ import {
 import { buildBotValidationSurvivalMetrics } from '../src/state/validation/BotValidationSurvivalMetrics.js';
 import { buildBotValidationRuntimeMetrics } from '../src/state/validation/BotValidationRuntimeMetrics.js';
 import {
+    captureBotRuntimeSample,
+    isTeamObjectiveFirstTickScenario,
+} from './bot-validation-first-tick.mjs';
+import {
     acquirePlaywrightRunLock,
     releasePlaywrightRunLockOnExit,
 } from '../../../scripts/playwright-run-lock.mjs';
@@ -716,64 +720,6 @@ async function waitForGameState(page, expectedStates, timeoutMs, phase) {
     }
 }
 
-async function captureBotRuntimeSample(page, phasePrefix, deadlines) {
-    return evaluatePhase(
-        page,
-        `${phasePrefix}:runtime-contract`,
-        resolveTimeout(EVAL_TIMEOUT_MS, `${phasePrefix}:runtime-contract`, deadlines),
-        () => {
-            const game = window.GAME_INSTANCE;
-            if (!game) throw new Error('GAME_INSTANCE missing');
-            const entityManager = game.entityManager;
-            const botPlayers = Array.isArray(entityManager?.players)
-                ? entityManager.players.filter((player) => !!player?.isBot)
-                : [];
-            const botPolicyTypes = botPlayers.map((player) => (
-                String(entityManager?.botByPlayer?.get?.(player)?.type || '').trim().toLowerCase()
-            ));
-            const botDecisions = botPlayers.map((player) => {
-                const policy = entityManager?.botByPlayer?.get?.(player) || null;
-                const snapshot = typeof policy?.getDecisionSnapshot === 'function'
-                    ? policy.getDecisionSnapshot()
-                    : null;
-                return {
-                    playerIndex: Number(player?.index ?? -1),
-                    policyType: String(policy?.type || '').trim().toLowerCase(),
-                    snapshot: snapshot && typeof snapshot === 'object' ? { ...snapshot } : null,
-                };
-            });
-            const botTeamIds = botPlayers.map((player) => String(player?.teamId || '').trim().toUpperCase());
-            const botObjectiveAssignments = botPlayers.map((player) => ({
-                playerIndex: Number(player?.index ?? -1),
-                teamId: String(player?.teamId || '').trim().toUpperCase(),
-                objectiveType: String(player?.botObjectiveType || '').trim().toUpperCase(),
-                objectiveRole: String(player?.flagBotRole || player?.escortBotRole || '').trim().toUpperCase(),
-                objectiveTargetId: String(player?.flagBotTargetId || '').trim(),
-            })).filter((entry) => !!entry.objectiveType);
-            const arcadeSeed = Number(game.runtimeConfig?.arcade?.seed);
-            const arcadeEnabled = game.runtimeConfig?.arcade?.enabled === true;
-            const runtimeGameMode = String(game.runtimeConfig?.session?.activeGameMode || '').trim().toUpperCase();
-            return {
-                runtimePolicyType: String(game.runtimeConfig?.bot?.policyType || '').trim().toLowerCase(),
-                entityPolicyType: String(entityManager?.botPolicyType || '').trim().toLowerCase(),
-                botPolicyTypes,
-                botDecisions,
-                botTeamIds,
-                botObjectiveAssignments,
-                botCount: botPlayers.length,
-                runtimeGameMode,
-                entityGameMode: String(entityManager?.activeGameMode || '').trim().toUpperCase(),
-                semanticGameMode: arcadeEnabled ? 'ARCADE' : runtimeGameMode,
-                modePath: String(game.settings?.localSettings?.modePath || '').trim().toLowerCase(),
-                arcadeEnabled,
-                arcadeSeed: Number.isFinite(arcadeSeed) ? arcadeSeed : null,
-                runtimeTeamMode: game.runtimeConfig?.hunt?.teamMode === true,
-                runtimeTeamObjective: String(game.runtimeConfig?.hunt?.teamObjective || 'HUNT').trim().toUpperCase(),
-            };
-        }
-    );
-}
-
 async function evaluatePhase(page, phase, timeoutMs, pageFunction, arg) {
     try {
         return await withTimeout(() => page.evaluate(pageFunction, arg), timeoutMs, phase);
@@ -900,7 +846,17 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
         resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:read-state-after-start`, deadlines),
         () => window.GAME_INSTANCE?.state || null
     );
-    const startRuntimeSample = await captureBotRuntimeSample(page, roundLabel, deadlines);
+    const sampleTimeoutMs = resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:runtime-contract`, deadlines);
+    const startRuntimeSample = await evaluatePhase(
+        page,
+        `${roundLabel}:runtime-contract`,
+        sampleTimeoutMs,
+        captureBotRuntimeSample,
+        {
+            waitForFirstTick: isTeamObjectiveFirstTickScenario(scenario),
+            timeoutMs: sampleTimeoutMs,
+        }
+    );
 
     let forced = false;
     let observationCompleted = false;
@@ -938,7 +894,14 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
         log(`${roundLabel} finished before active wait`, { stateAfterStart });
     }
 
-    const endRuntimeSample = await captureBotRuntimeSample(page, `${roundLabel}:end`, deadlines);
+    const endSampleTimeoutMs = resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:end:runtime-contract`, deadlines);
+    const endRuntimeSample = await evaluatePhase(
+        page,
+        `${roundLabel}:end:runtime-contract`,
+        endSampleTimeoutMs,
+        captureBotRuntimeSample,
+        { waitForFirstTick: false, timeoutMs: endSampleTimeoutMs }
+    );
     if (isSurvivalObservationScenario(scenario)) {
         const observation = await evaluatePhase(
             page,
