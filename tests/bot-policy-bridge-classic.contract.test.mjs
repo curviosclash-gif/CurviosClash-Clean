@@ -155,3 +155,53 @@ test('T78: ClassicBridgePolicy preserves legacy movement on reference maps', () 
         assert.equal(action.boost, false, `${mapKey}: an imminent wall still blocks boost`);
     }
 });
+
+test('Classic 2D solo steering uses the trail-aware fallback with a longer probe range', () => {
+    const player = { index: 0, alive: true, inventory: [] };
+    const observation = new Array(schema.OBSERVATION_LENGTH_V1).fill(0);
+    observation[schema.PLANAR_MODE_ACTIVE] = 1;
+    observation[schema.WALL_DISTANCE_FRONT] = 0.12;
+    observation[schema.WALL_DISTANCE_LEFT] = 0.1;
+    observation[schema.WALL_DISTANCE_RIGHT] = 0.9;
+    const fallbackPolicy = {
+        _botAI: { profile: { lookAhead: 13 } },
+        update() {
+            assert.equal(this._botAI.profile.lookAhead, 32);
+            return { yawLeft: true };
+        },
+    };
+    const policy = new ClassicBridgePolicy({ fallbackPolicy });
+    const context = {
+        mode: 'CLASSIC', rules: { planarMode: true }, arena: { currentMapKey: 'standard' },
+        navigationPlayers: [player, { alive: false }], players: [player], projectiles: [], observation,
+    };
+
+    const action = policy.update(1 / 60, player, context);
+
+    assert.equal(action.yawLeft, true);
+    assert.equal(action.yawRight, false);
+    assert.equal(action.boost, false);
+    assert.equal(fallbackPolicy._botAI.profile.lookAhead, 13);
+});
+
+test('Classic bridge keeps local steering when an opponent is alive or the match is 3D', () => {
+    const player = { index: 0, alive: true, inventory: [] };
+    const opponent = { index: 1, alive: true };
+    const observation = new Array(schema.OBSERVATION_LENGTH_V1).fill(0);
+    observation[schema.PLANAR_MODE_ACTIVE] = 1;
+    observation[schema.WALL_DISTANCE_FRONT] = 0.12;
+    observation[schema.WALL_DISTANCE_LEFT] = 0.1;
+    observation[schema.WALL_DISTANCE_RIGHT] = 0.9;
+    const context = {
+        mode: 'CLASSIC', arena: { currentMapKey: 'standard' },
+        navigationPlayers: [player, opponent], observation,
+    };
+
+    assert.equal(resolveClassicBridgeAction(context, { player }).yawRight, true);
+    opponent.alive = false;
+    observation[schema.PLANAR_MODE_ACTIVE] = 0;
+    assert.equal(resolveClassicBridgeAction(context, { player }).yawRight, true);
+    observation[schema.PLANAR_MODE_ACTIVE] = 1;
+    context.mode = 'HUNT';
+    assert.equal(resolveClassicBridgeAction(context, { player }).yawRight, true);
+});
