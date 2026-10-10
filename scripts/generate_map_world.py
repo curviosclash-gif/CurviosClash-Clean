@@ -130,6 +130,34 @@ STYLES = {
         'signal': (0.20, 0.85, 1.0), 'foam': (0.18, 0.44, 0.52),
         'tile': 14, 'roughness': 0.60,
     },
+    # Railway yard in a storm: slate ballast, rusted steel and signal yellow.
+    'storm_switchyard': {
+        'floor': (0.20, 0.21, 0.22), 'body': (0.40, 0.42, 0.45),
+        'panel': (0.38, 0.22, 0.13), 'trim': (0.95, 0.76, 0.12),
+        'signal': (0.40, 0.80, 1.0), 'foam': (0.18, 0.40, 0.48),
+        'tile': 14, 'roughness': 0.78,
+    },
+    # Military test range: olive concrete, sand floor and target-orange markings.
+    'parcours_assault': {
+        'floor': (0.42, 0.37, 0.27), 'body': (0.42, 0.44, 0.36),
+        'panel': (0.26, 0.29, 0.22), 'trim': (0.95, 0.48, 0.10),
+        'signal': (1.0, 0.36, 0.08), 'foam': (0.22, 0.42, 0.40),
+        'tile': 16, 'roughness': 0.80,
+    },
+    # Lighthouse-like spiral: whitewashed stone with navy bands and a warm beacon.
+    'spiral_tower': {
+        'floor': (0.26, 0.30, 0.34), 'body': (0.78, 0.76, 0.70),
+        'panel': (0.16, 0.24, 0.40), 'trim': (0.70, 0.18, 0.14),
+        'signal': (1.0, 0.72, 0.22), 'foam': (0.22, 0.46, 0.58),
+        'tile': 8, 'roughness': 0.72,
+    },
+    # Overgrown ruin maze: mossy sandstone walls on packed earth.
+    'mega_maze_xl': {
+        'floor': (0.30, 0.25, 0.18), 'body': (0.60, 0.52, 0.38),
+        'panel': (0.26, 0.34, 0.20), 'trim': (0.42, 0.56, 0.30),
+        'signal': (0.95, 0.80, 0.30), 'foam': (0.30, 0.48, 0.30),
+        'tile': 10, 'roughness': 0.90,
+    },
 }
 
 

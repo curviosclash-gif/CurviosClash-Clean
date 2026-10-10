@@ -314,6 +314,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         portals: []
     },
     spiral_tower: {
+        ...authoredWorld('spiral_tower'),
         name: 'Spiralen-Turm',
         size: [80, 70, 80],
         obstacles: [

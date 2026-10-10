@@ -7,6 +7,16 @@ description: Behebt Fehler in diesem Repo mit Rot-Beweis — erst den vollständ
 
 Die Commit-Historie dieses Projekts besteht zu zwei Dritteln aus `fix`. Die guten dieser Commits haben eine Eigenschaft gemeinsam: sie können belegen, dass der Test vor der Korrektur fehlgeschlagen ist. Diese Reihenfolge ist der ganze Punkt. Ein Test, der nach der Korrektur geschrieben wird, prüft meistens genau das, was der Code jetzt tut — er hätte den Fehler nie gefunden und wird ihn auch beim nächsten Mal nicht finden.
 
+## Lernschleife
+
+Prüfe vor jeder Schlussantwort die vorhandenen Belege auf eine wiederverwendbare Verbesserung, auch nach erfolgreicher QA oder abgebrochener Arbeit. Berücksichtige verworfene Reproduktionen, irreführende Stellvertreter, Symptomkorrekturen und Nutzerkorrekturen.
+
+- Übernimm nur eine verstandene Ursache mit am betroffenen Fall verifizierter Abhilfe, die künftige Aufgaben betrifft. Einzelfälle, Vermutungen und bereits ausreichend geregelte Fälle erzeugen keine neue Regel.
+- Ein Produktfehler bleibt durch einen Verhaltenstest an seiner Ursache abgesichert. Ändere diesen Skill nur, wenn eine fehlende oder missverständliche Entscheidung den falschen Reparaturweg begünstigt hat; ergänze keine Anleitung für jeden einzelnen Spielfehler. War eine ausreichende Regel übersehen worden, verbessere ihren Aufrufpunkt statt sie zu duplizieren.
+- Prüfe die Abhilfe mit dem nachweislichen Rot/Grün-Fall und einem benachbarten gültigen Verhalten. Ein Fehler im Import oder Stellvertreter ist kein Rot-Beweis des Produktfehlers. Validiere geänderte Helfer mit den betroffenen Tests und Skill-Änderungen auf Format und Referenzlinks; reduziere keine Abnahmekriterien.
+
+Verifizierte aufgabenbezogene Pflege gehört zu diesem Ablauf. Nutzerumfang, Nur-Lese-Aufträge, Dateibesitz und Repository-Gates gelten weiterhin; ist die Pflege dadurch gesperrt, melde sie als ausstehend. Bewahre Auslöser, Geltungsbereich, Abhilfe und Prüfkriterium in der bestehenden zuständigen Regel oder Prüfung; keine Fehlerchronik oder neuen Prozessberichte. Nenne abschließend knapp das Ergebnis der Lernprüfung: keine neue Lehre, bereits abgedeckt, verbessert mit Prüfergebnis oder ausstehend.
+
 ## Schritt 0 — prüfen, ob es den Fehler überhaupt noch gibt
 
 Bevor du irgendetwas verstehst, kläre, ob der Fehler im aktuellen Stand noch auftritt. Fehlermeldungen sind oft älter als der Code: eine Beobachtung aus der letzten Woche, ein anderer Branch, ein schon behobener Fall.

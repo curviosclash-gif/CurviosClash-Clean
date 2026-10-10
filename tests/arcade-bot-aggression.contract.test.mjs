@@ -124,10 +124,12 @@ test('Game runtime stores authored sector aggressiveness before live-applying it
 
     const nextConfig = GameRuntimeFacade.prototype._applyArcadeSectorRuntimeProfile.call(
         facadeContext,
-        { mapKey: 'complex', botCount: 5, botDifficulty: 'HARD', aggressiveness: 0.85 }
+        { mapKey: 'complex', botCount: 5, botDifficulty: 'HARD', aggressiveness: 0.85, parcoursRacer: true }
     );
 
     assert.equal(nextConfig.bot.arcadeAggressiveness, 0.85);
+    assert.equal(nextConfig.arcade.parcoursRacer, true);
     assert.equal(bundle.state.runtimeConfig.bot.arcadeAggressiveness, 0.85);
+    assert.equal(appliedConfigs[0].arcade.parcoursRacer, true);
     assert.equal(appliedConfigs[0].bot.arcadeAggressiveness, 0.85);
 });

@@ -6,9 +6,27 @@
 
 import { authoredWorld } from './world_appearance.js';
 
+const FROZEN_WORLD = authoredWorld('frozen_helix');
+
+// Crystal clusters on the ice floor, clear of pillars, tubes and every route anchor.
+// [variant, x, z, targetSize, rotateY]
+const CRYSTAL_SITES = [
+    [1, -72, -30, 5, 0.3], [2, 84, 84, 4.5, 2.1], [3, 84, -84, 5.5, 1.1],
+    [4, -36, 84, 4, 2.7], [5, 15, -6, 4.5, 0.8], [6, -9, -84, 4, 1.9],
+    [7, 84, 12, 5, 3.3], [8, -84, 36, 4.5, 0.4], [9, 24, 60, 5, 2.4],
+    [10, -84, -84, 5.5, 1.5], [3, 39, -54, 4.5, 4.0], [1, -24, -36, 4, 2.9],
+];
+
+export const FROZEN_ICE_CRYSTALS = Object.freeze(CRYSTAL_SITES.map(([variant, x, z, targetSize, rotateY], index) => ({
+    id: `frozen-crystal-${String(index + 1).padStart(2, '0')}`,
+    url: `assets/maps/frozen_helix/props/ice-crystals/frozen-ice-crystal-v${String(variant).padStart(2, '0')}/runtime.glb`,
+    position: [x, 0, z], rotation: [0, rotateY, 0], targetSize, collision: false,
+})));
+
 export const FROZEN_HELIX_MAP = {
     frozen_helix: {
-        ...authoredWorld('frozen_helix'),
+        ...FROZEN_WORLD,
+        glbModels: [...FROZEN_WORLD.glbModels, ...FROZEN_ICE_CRYSTALS],
         name: 'Frozen Helix',
         // Snow throws most of the light back up, so the ground of the hemisphere is barely darker
         // than its sky and the fog stays bright and far -- cold air is clear air.

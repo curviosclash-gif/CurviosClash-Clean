@@ -1,6 +1,6 @@
 ---
 name: blender-assets
-description: Baut, ändert und prüft in diesem Repo Blender-Assets für CurviosClash — Kartenpacks unter assets/maps/<pack>/{blender,glb}, abgeleitete Packs, Kartenwelten, Prop-Familien, Pickups, Map-Units, Bäume und Pflanzen — mit deterministischem bpy-Generator, dem Dispatcher `npm run maps:generate`, den Namensmarkern des GLB-Loaders (_nocol, _colonly, _dyn, _foam, _noshadow), der Platzierung über Bounding Box und targetSize, Leucht- und Vertex-Farben gegen das Tone Mapping, Mehrfachansichten und einem Contract-Test, der die GLB-Dateien direkt liest. Nutze diesen Skill bei Formulierungen wie "in Blender bauen", "neues Modell", "GLB exportieren", "Karte aus Blender", "Prop", "Asset-Pack", "Generator-Skript", "bpy", "Modell neu backen", "Kollision im Modell", "leuchtet nicht", "Modell sitzt falsch auf der Karte", "Animation im GLB fehlt", "Dreiecke/Dateigröße zu hoch", und immer wenn eine Datei unter scripts/generate_*.py, scripts/*_common.py, assets/maps/**/blender, assets/maps/**/glb oder assets/models/** entsteht oder geändert wird. Für einstürzende Bauwerke, Bruchszenen, Atompilz oder T-Rex zusätzlich den Skill destructible-map laden; dieser Skill liefert dort die allgemeinen Blender- und Exportregeln.
+description: Baut, ändert und prüft Blender-Assets für CurviosClash mit deterministischen bpy-Generatoren, GLB-Export, Mehrfachansichten, Contract-Tests und Runtime-Belegen. Nutze für Kartenpacks, Kartenwelten, Props, Pickups, Map-Units, Bäume und Pflanzen sowie für fehlerhafte Platzierung, Kollision, Animation, Farben oder Asset-Budgets. Gilt für Arbeit an scripts/generate_*.py, scripts/*_common.py, assets/maps/**/blender, assets/maps/**/glb und assets/models/**. Für zerstörbare Bauwerke, Bruchszenen, Atompilz oder T-Rex zusätzlich destructible-map laden.
 ---
 
 # Blender-Assets für CurviosClash
@@ -13,6 +13,16 @@ Zwei Begriffe vorab:
 
 - **Generator** — ein Python-Skript (`scripts/generate_<name>_assets.py`), das Blender ohne Fenster startet, die Szene aus Code baut (`bpy` ist Blenders Python-Schnittstelle), eine `.blend`-Quelle speichert und das GLB exportiert. *Das Skript ist die Wahrheit, nicht die `.blend`.* Wer in der `.blend` von Hand nachbessert, verliert das beim nächsten Lauf.
 - **GLB** — die binäre Form von glTF 2.0, dem Austauschformat, das three.js (die 3D-Bibliothek des Spiels, Version r186) lädt. Die `.blend` ist die Werkstatt, das GLB die Lieferung.
+
+## Lernschleife
+
+Prüfe vor jeder Schlussantwort die vorhandenen Belege auf eine wiederverwendbare Verbesserung, auch nach erfolgreicher QA oder abgebrochener Arbeit. Berücksichtige fehlgeschlagene Exporte, verworfene Versuche, Unterschiede zwischen Blender, GLB und Spiel, Nutzerkorrekturen und bewährte Vereinfachungen.
+
+- Übernimm nur eine verstandene Ursache mit am betroffenen Fall verifizierter Abhilfe, die künftige Aufgaben betrifft. Einzelfälle, Vermutungen, künstlerische Vorlieben und bereits ausreichend geregelte Fälle erzeugen keine neue Regel. Beschränke Exporter-Workarounds auf die belegte Version.
+- Verbessere die kleinste zuständige Stelle: allgemeine Blender-Regeln im vorhandenen Blender-Skill, Repo-Pipeline hier oder in einer bestehenden Referenz, mechanische Prüfungen im zuständigen Helfer mit Verhaltenstest. War eine ausreichende Regel übersehen worden, verbessere ihren Aufrufpunkt statt sie zu duplizieren.
+- Prüfe die Abhilfe am ursprünglichen Asset und einem gültigen Gegenfall, bei Zufall zusätzlich mit einem repräsentativen anderen Seed. Halte Kamera, Licht und Maßstab für Vergleiche stabil; prüfe bei betroffenen Grenzen Export, Import und Runtime sowie echte Ansichten für visuelle Aussagen. Validiere geänderte Helfer mit den betroffenen Tests und Skill-Änderungen auf Format und Referenzlinks; reduziere keine QA oder Budgets zur Herstellung eines Erfolgs.
+
+Verifizierte aufgabenbezogene Pflege gehört zu diesem Ablauf. Nutzerumfang, Nur-Lese-Aufträge, Dateibesitz und Repository-Gates gelten weiterhin; ist die Pflege dadurch gesperrt, melde sie als ausstehend. Bewahre Auslöser, Geltungsbereich, Abhilfe, Prüfkriterium und nötige Versionsgrenzen in der bestehenden zuständigen Regel oder Prüfung; keine Fehlerchronik oder neuen Prozessberichte. Nenne abschließend knapp das Ergebnis der Lernprüfung: keine neue Lehre, bereits abgedeckt, verbessert mit Prüfergebnis oder ausstehend.
 
 ## Die Regeln, die nicht verhandelbar sind
 
@@ -171,7 +181,3 @@ Danach die Pflichtprüfung aus `CLAUDE.md` (Skill **verify-scope**): mindestens 
 ## Schritt 7 — Bericht an den Nutzer
 
 Kurz und in Zahlen: welche Dateien entstanden, Dreiecke und Größe je GLB, Clips mit Dauer, welche Meshes kollidieren, welche Prüfungen liefen (mit Ergebnis), eine Vorschau. Offene Grenzen ausdrücklich nennen („leuchtet in der Datei, im Spiel noch nicht belegt").
-
-## Lernschleife
-
-Vor der Schlussantwort eine Frage: *Gab es in dieser Aufgabe eine belegte, wiederverwendbare Lehre, die hier fehlt?* (Beispiel: ein Exporter-Argument, das in einer neuen Blender-Version anders heißt.) Wenn ja, die kleinste zuständige Stelle ergänzen — eine Zeile hier, in einer Referenz oder eine Prüfung im Skript — und das dem Nutzer sagen. Wenn nein, nichts ändern. Vermutungen gehören nicht in den Skill.

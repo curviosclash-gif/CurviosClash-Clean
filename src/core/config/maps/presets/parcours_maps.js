@@ -1,3 +1,5 @@
+import { authoredWorld } from './world_appearance.js';
+
 const RIFT_OBSTACLES = Object.freeze([
     // The entry wall leaves a gap on the line from CP01 to CP02: a ship that follows the first
     // ring of an arcade run must not crash straight into foam. Sprint shifts both rings by 4.
@@ -208,6 +210,7 @@ export const PARCOURS_MAPS = Object.freeze({
         },
     },
     parcours_assault: {
+        ...authoredWorld('parcours_assault'),
         name: 'Angriffsparcours: MG & Raketen',
         size: [340, 90, 190],
         scaleAuthoredAnchors: true,

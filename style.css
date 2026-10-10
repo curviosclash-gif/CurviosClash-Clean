@@ -8467,8 +8467,9 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 #hud:has(#hunt-hud:not(.hidden)) .hunt-meter-heading .hunt-value {
     margin: 3px 0 0;
     color: var(--hud-text, #f6fbff);
-    font-size: 0.62rem;
-    opacity: 0.72;
+    /* Health and shield numbers are read mid-fight: at least 12px, barely dimmed. */
+    font-size: 0.75rem;
+    opacity: 0.92;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) .hunt-vital-icon {

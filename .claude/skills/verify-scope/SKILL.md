@@ -9,6 +9,16 @@ description: Bestimmt für geänderte Dateien in diesem Repo die verpflichtenden
 
 Zwei Fehlerrichtungen sind gleichermaßen teuer. Zu wenig prüfen lässt Regressionen durch. Ersatzweise `npm run quality` laufen zu lassen kostet viele Minuten und trainiert an, das Gate zu überspringen, wenn es eilt.
 
+## Lernschleife
+
+Prüfe vor jeder Schlussantwort die vorhandenen Belege auf eine wiederverwendbare Verbesserung, auch nach erfolgreicher QA oder abgebrochener Arbeit. Signale sind eine übersehene Prüfung, falsche Zuordnung, unnötige Wiederholung oder Nutzerkorrektur. Starte dafür keinen zusätzlichen Volltest.
+
+- Übernimm nur eine verstandene Ursache mit am betroffenen Fall verifizierter Abhilfe, die künftige Aufgaben betrifft. Einzelfälle, Vermutungen und bereits ausreichend geregelte Fälle erzeugen keine neue Regel.
+- Verbessere die kleinste zuständige Stelle: Auswahlmechanik in `scripts/select-verification.mjs`, Verhalten in `tests/verify-scope.contract.test.mjs`, Kartenbindung in `tests/desktop-flows-map-bindings.contract.test.mjs`; Entscheidungsgrenzen hier. War eine ausreichende Regel übersehen worden, verbessere ihren Aufrufpunkt statt sie zu duplizieren.
+- Prüfe die geänderte Auswahl am ursprünglichen Pfadsatz und einem benachbarten gültigen Fall. Eine schnellere Auswahl muss denselben notwendigen Prüfumfang erhalten; keine Cluster, IDs oder Builds zur Beschleunigung weglassen. Validiere geänderte Helfer mit den betroffenen Tests und Skill-Änderungen auf Format und Referenzlinks.
+
+Verifizierte aufgabenbezogene Pflege gehört zu diesem Ablauf. Nutzerumfang, Nur-Lese-Aufträge, Dateibesitz und Repository-Gates gelten weiterhin; ist die Pflege dadurch gesperrt, melde sie als ausstehend. Bewahre Auslöser, Geltungsbereich, Abhilfe und Prüfkriterium in der bestehenden zuständigen Regel oder Prüfung; keine Fehlerchronik oder neuen Prozessberichte. Nenne abschließend knapp das Ergebnis der Lernprüfung: keine neue Lehre, bereits abgedeckt, verbessert mit Prüfergebnis oder ausstehend.
+
 ## Schritt 1 — nur die eigenen Pfade sammeln
 
 Der Arbeitsbaum trägt fast immer parallele Änderungen des Nutzers. `git status` ist deshalb eine Obergrenze, keine Antwort. Zähle die Dateien auf, die **du** in dieser Aufgabe angefasst hast, und übergib sie ausdrücklich:
