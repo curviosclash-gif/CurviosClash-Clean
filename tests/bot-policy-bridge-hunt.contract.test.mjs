@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import * as THREE from 'three';
 
 import { HuntBotPolicy } from '../src/hunt/HuntBotPolicy.js';
+import { HuntBridgePolicy } from '../src/entities/ai/HuntBridgePolicy.js';
 
 // Moved from tests/physics-policy.spec.js (P3): the players, the special gate and
 // the sensor snapshot are all hand-built. In Node `three` resolves from
@@ -82,4 +83,34 @@ test('T82c: Hunt-Bot nutzt nahe Special Gates als Retreat-Anker', () => {
     assert.ok(!result.yawLeft);
     assert.ok(result.yawRight);
     assert.strictEqual(result.shootItemIndex, -1);
+});
+
+test('Solo Hunt 2D uses a shorter fallback probe range without changing other modes', () => {
+    const player = { alive: true };
+    const enemy = { alive: true };
+    const profile = { lookAhead: 13 };
+    const seen = [];
+    const fallbackPolicy = {
+        usesRuntimeContext: true,
+        _fallbackPolicy: { _botAI: { profile } },
+        update() { seen.push(profile.lookAhead); return { yawLeft: true }; },
+    };
+    const policy = new HuntBridgePolicy({ autoLoadCheckpoint: false, fallbackPolicy });
+    const context = {
+        mode: 'HUNT', rules: { planarMode: true }, players: [player],
+        navigationPlayers: [player, { alive: false }],
+    };
+
+    policy._delegateFallbackUpdate(1 / 60, player, context);
+    assert.equal(profile.lookAhead, 13, 'the normal profile must be restored after sensing');
+    context.navigationPlayers = [player, enemy];
+    policy._delegateFallbackUpdate(1 / 60, player, context);
+    context.navigationPlayers = [player];
+    context.rules.planarMode = false;
+    policy._delegateFallbackUpdate(1 / 60, player, context);
+    context.rules.planarMode = true;
+    context.mode = 'CLASSIC';
+    policy._delegateFallbackUpdate(1 / 60, player, context);
+
+    assert.deepEqual(seen, [11, 13, 13, 13]);
 });

@@ -28,7 +28,7 @@ import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
 import { resolvePlayerMachineGunConfig } from '../../hunt/mg/MGConfigResolver.js';
-import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
+import { areTeammates, canTargetEnemy } from '../../shared/contracts/TeamCombatContract.js';
 import { applyHuntBotObjectiveMovement } from '../../hunt/HuntBotObjectiveOps.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
@@ -47,6 +47,17 @@ const HUNT_BRIDGE_STEERING_SCRATCH = {
     _tmpRoleTarget: TMP_ROLE_TARGET,
     _tmpRoleForward: TMP_ROLE_FORWARD,
 };
+const SOLO_PLANAR_LOOK_AHEAD = 11;
+
+function isSoloPlanarHunt(runtimeContext, player) {
+    if (!player || runtimeContext?.mode !== 'HUNT' || runtimeContext?.rules?.planarMode !== true) return false;
+    const players = runtimeContext.navigationPlayers || runtimeContext.players;
+    if (!Array.isArray(players)) return false;
+    for (const other of players) {
+        if (other?.alive && canTargetEnemy(player, other)) return false;
+    }
+    return true;
+}
 
 function resolveObservationValue(observation, index, fallback = 0) {
     if (!observation || typeof observation.length !== 'number') return fallback;
@@ -327,6 +338,21 @@ export class HuntBridgePolicy extends ObservationBridgePolicy {
         });
 
         this.type = policyType;
+    }
+
+    _delegateFallbackUpdate(dt, player, runtimeContext) {
+        const profile = this._fallbackPolicy?._fallbackPolicy?._botAI?.profile;
+        if (!profile || !isSoloPlanarHunt(runtimeContext, player)) {
+            return super._delegateFallbackUpdate(dt, player, runtimeContext);
+        }
+
+        const lookAhead = profile.lookAhead;
+        profile.lookAhead = SOLO_PLANAR_LOOK_AHEAD;
+        try {
+            return super._delegateFallbackUpdate(dt, player, runtimeContext);
+        } finally {
+            profile.lookAhead = lookAhead;
+        }
     }
 
     update(dt, player, runtimeContextOrArena, allPlayers = null, projectiles = null) {
