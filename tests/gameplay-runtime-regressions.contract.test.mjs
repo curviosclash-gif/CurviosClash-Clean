@@ -534,6 +534,7 @@ test('Arcade sector profiles apply authored squad pressure and request session r
         pressure: 0.9,
         aggressiveness: 0.85,
         parcoursEnabled: false,
+        parcoursRacer: false,
         isBoss: true,
         scenarioId: null,
         combatProfile: '',

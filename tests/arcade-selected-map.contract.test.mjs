@@ -56,14 +56,15 @@ test('locked map entries bypass the seeded sector pool', () => {
     assert.ok(sequence[1]);
 });
 
-test('selected Aether Relay starts sector one as a bot-free parcours', () => {
+test('selected Aether Relay starts sector one with one parcours racer', () => {
     const { appliedProfiles, support } = createArcadeSupport('aether_relay');
     const profile = support.prepareMatchStartRuntime();
 
     assert.equal(profile.mapKey, 'aether_relay');
     assert.equal(profile.templateId, 'sector_parcours');
     assert.equal(profile.parcoursEnabled, true);
-    assert.equal(profile.botCount, 0);
+    assert.equal(profile.botCount, 1);
+    assert.equal(profile.parcoursRacer, true);
     assert.equal(appliedProfiles[0], profile);
 
     const state = support.startRunIfEnabled();
