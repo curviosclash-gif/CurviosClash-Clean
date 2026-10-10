@@ -50,21 +50,8 @@ function flagAttackProgress(flags, teamId) {
 
 function resolveFlagTarget(player, flags) {
     const targetId = String(player?.flagBotTargetId || '');
-    if (targetId) {
-        const assigned = flags.find((flag) => String(flag?.id || '') === targetId);
-        if (assigned?.position) return assigned.position;
-    }
-    let best = null;
-    let bestDistance = Infinity;
-    for (const flag of flags) {
-        if (!flag?.position) continue;
-        const candidateDistance = distance(player?.position, flag.position);
-        if (candidateDistance < bestDistance) {
-            best = flag.position;
-            bestDistance = candidateDistance;
-        }
-    }
-    return best;
+    const assigned = flags.find((flag) => String(flag?.id || '') === targetId);
+    return assigned?.alive !== false && Number(assigned?.hp) > 0 ? assigned?.position || null : null;
 }
 
 export function createTeamObjectiveMatchTracker({ teamId, objective }) {

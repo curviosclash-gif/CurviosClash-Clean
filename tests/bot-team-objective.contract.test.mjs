@@ -161,6 +161,8 @@ test('objective dispatcher preserves escort roles and retreat vetoes flag steeri
         steerToward() { throw new Error('retreat must keep steering ownership'); },
     });
     assert.equal(flagRole, null);
+    assert.equal(player.flagBotRole, '');
+    assert.equal(player.flagBotTargetId, '');
 });
 
 test('Hunt bridge applies flag intent after external inference', () => {

@@ -74,6 +74,24 @@ test('team objective match tracker scores assigned flag pressure', () => {
     assert.equal(result.score, 100);
 });
 
+test('team objective match tracker does not credit a stale flag target', () => {
+    const player = {
+        index: 2, isBot: true, alive: true, teamId: 'ALPHA',
+        flagBotRole: 'attacker', flagBotTargetId: 'removed', position: position(10),
+    };
+    const entityManager = {
+        arena: { bounds: { minX: -100, maxX: 100, minY: 0, maxY: 80, minZ: -100, maxZ: 100 } },
+        bots: [{ player }], players: [player],
+        _flagObjectiveSystem: { flags: [{ id: 'bravo_1', teamId: 'BRAVO', hp: 300,
+            maxHp: 300, position: position(10) }] },
+        getHuntScoreboard: () => [],
+    };
+    const tracker = createTeamObjectiveMatchTracker({ teamId: 'ALPHA', objective: 'FLAGS' });
+    tracker.sample(entityManager);
+
+    assert.equal(tracker.summarize(entityManager, 10).assignmentRate, 0);
+});
+
 test('combined gate requires aggregate gain without sacrificing either objective', () => {
     const current = combineTeamObjectiveResults([
         { objective: 'FLAGS', score: 10, assignmentRate: 1, proximityRate: 0.5 },
