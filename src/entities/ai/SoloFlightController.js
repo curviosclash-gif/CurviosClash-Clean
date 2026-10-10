@@ -1,17 +1,35 @@
 import * as THREE from 'three';
 import { canTargetEnemy } from '../../shared/contracts/TeamCombatContract.js';
+import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 
 const DIRECTIONS = [-1, 0, 1];
-const STEP_SECONDS = 0.06;
+const STEP_SECONDS = 0.03;
 const TURN_SECONDS = 0.3;
+const GUARD_TURN_SECONDS = 0.5;
 const HORIZON_SECONDS = 1.5;
 const NOSE_OFFSET = 4;
 const HISTORY_SAMPLES = 48;
 const FULL_PATH_BONUS = 10;
+const SAFETY_IMPROVEMENT_SECONDS = 0.12;
+
+function resolveTurnSpeed(player, manager) {
+    const modeMultiplier = Number(manager?.gameModeStrategy?.getTurnRateMultiplier?.(player));
+    const waterMultiplier = Number(player.waterTurnMultiplier);
+    return Math.max(0.1, Number(player.turnSpeed) || 3.4)
+        * (Number.isFinite(modeMultiplier) ? Math.max(0.1, modeMultiplier) : 1)
+        * (Number.isFinite(waterMultiplier) ? Math.max(0.1, waterMultiplier) : 1);
+}
+
+function readSteering(action, axisKey, positiveKey, negativeKey) {
+    const axis = Number(action?.[axisKey]);
+    if (action?.[axisKey] != null && Number.isFinite(axis)) return Math.max(-1, Math.min(1, axis));
+    return Number(action?.[positiveKey] === true) - Number(action?.[negativeKey] === true);
+}
 
 export function isSoloVolumeFlight(runtimeContext, player) {
     if (!player || runtimeContext?.rules?.planarMode !== false) return false;
     if (runtimeContext.mode !== 'CLASSIC' && runtimeContext.mode !== 'HUNT') return false;
+    if (runtimeContext.flagObjectives?.length || runtimeContext.escortObjective) return false;
     const players = runtimeContext.navigationPlayers || runtimeContext.players;
     if (!Array.isArray(players)) return false;
     for (const other of players) {
@@ -39,6 +57,9 @@ export class SoloFlightController {
         this.historyCount = 0;
         this.historyWrite = 0;
         this.nextSampleAt = 0;
+        this.clearTime = HORIZON_SECONDS;
+        this.lastSimulationMs = null;
+        this.lastSpawnAt = null;
     }
 
     reset() {
@@ -49,10 +70,12 @@ export class SoloFlightController {
         this.historyCount = 0;
         this.historyWrite = 0;
         this.nextSampleAt = 0;
+        this.lastSimulationMs = null;
+        this.lastSpawnAt = null;
     }
 
     _clear(player, arena, manager, wallRadius, trailRadius, skipRecent) {
-        const wallCheck = arena?.checkBotCollisionFast || arena?.checkCollisionFast;
+        const wallCheck = arena?.checkBotCollisionFast || arena?.checkCollisionFast || arena?.checkCollision;
         if (typeof wallCheck === 'function') {
             if (wallCheck.call(arena, this.position, wallRadius)) return false;
             this.probe.copy(this.position).addScaledVector(this.forward, NOSE_OFFSET);
@@ -63,23 +86,32 @@ export class SoloFlightController {
         )?.hit;
     }
 
-    _score(player, arena, manager, yaw, pitch, speed, turnSpeed, wallRadius, trailRadius, skipRecent) {
+    _score(player, arena, manager, yaw, pitch, speed, turnSpeed, wallRadius, trailRadius, skipRecent,
+        planarMode = false, turnSeconds = TURN_SECONDS) {
         this.position.copy(player.position);
         this.orientation.copy(player.quaternion);
         let clearTime = HORIZON_SECONDS;
-        for (let elapsed = STEP_SECONDS; elapsed <= HORIZON_SECONDS + 0.00001; elapsed += STEP_SECONDS) {
-            const steering = elapsed <= TURN_SECONDS + 0.00001;
-            this.euler.set(steering ? pitch * turnSpeed * STEP_SECONDS : 0,
-                steering ? yaw * turnSpeed * STEP_SECONDS : 0, 0, 'YXZ');
+        const stepSeconds = Math.min(STEP_SECONDS, Math.max(0.012, trailRadius * 1.2 / speed));
+        for (let elapsed = stepSeconds; elapsed <= HORIZON_SECONDS + 0.00001; elapsed += stepSeconds) {
+            const steering = elapsed <= turnSeconds + 0.00001;
+            this.euler.set(steering && !planarMode ? pitch * turnSpeed * stepSeconds : 0,
+                steering ? yaw * turnSpeed * stepSeconds : 0, 0, 'YXZ');
             this.turn.setFromEuler(this.euler);
             this.orientation.multiply(this.turn);
+            if (planarMode) {
+                this.euler.setFromQuaternion(this.orientation, 'YXZ');
+                this.euler.x = 0;
+                this.orientation.setFromEuler(this.euler);
+            }
             this.forward.set(0, 0, -1).applyQuaternion(this.orientation);
-            this.position.addScaledVector(this.forward, speed * STEP_SECONDS);
+            this.position.addScaledVector(this.forward, speed * stepSeconds);
+            if (planarMode) this.position.y = player.currentPlanarY ?? player.position.y;
             if (!this._clear(player, arena, manager, wallRadius, trailRadius, skipRecent)) {
-                clearTime = elapsed - STEP_SECONDS;
+                clearTime = elapsed - stepSeconds;
                 break;
             }
         }
+        this.clearTime = clearTime;
         // Prefer useful forward motion in clear space, and retain a chosen escape long
         // enough to avoid left/right chatter. Neither term can outweigh a real collision.
         let novelty = 0;
@@ -97,12 +129,24 @@ export class SoloFlightController {
     }
 
     update(action, dt, player, runtimeContext) {
+        const simulationMs = Number(runtimeContext?.entityManager?._simulationClockMs);
+        const spawnAt = Number(player?.fightSpawnedAtSeconds);
+        if ((Number.isFinite(simulationMs) && this.lastSimulationMs !== null
+                && simulationMs < this.lastSimulationMs)
+            || (Number.isFinite(spawnAt) && this.lastSpawnAt !== null && spawnAt !== this.lastSpawnAt)) {
+            this.reset();
+        }
+        if (Number.isFinite(simulationMs)) this.lastSimulationMs = simulationMs;
+        if (Number.isFinite(spawnAt)) this.lastSpawnAt = spawnAt;
         this.clock += Math.max(0, Number(dt) || 0);
-        const arena = runtimeContext.arena;
-        const manager = player.trail?.entityManager;
+        const arena = runtimeContext?.arena;
+        const manager = runtimeContext?.entityManager || player?.trail?.entityManager;
         if (!arena || !manager || !player.quaternion) return action;
+        if (!isSoloVolumeFlight(runtimeContext, player)) {
+            return this._guardAction(action, player, runtimeContext, arena, manager);
+        }
         const speed = Math.max(1, Number(player.speed) || Number(player.baseSpeed) || 45);
-        const turnSpeed = Math.max(0.1, Number(player.turnSpeed) || 3.4);
+        const turnSpeed = resolveTurnSpeed(player, manager);
         const wallRadius = Math.max(0.2, Number(player.arcadeAvoidRadius || player.hitboxRadius) || 0.8);
         const trailRadius = wallRadius * 2;
         const skipRecent = manager.constructor?.deriveSelfTrailSkipRecentSegments?.(player) ?? 20;
@@ -143,6 +187,79 @@ export class SoloFlightController {
         action.yawRight = bestYaw < 0;
         action.pitchUp = bestPitch > 0;
         action.pitchDown = bestPitch < 0;
+        action.yawAxis = undefined;
+        action.pitchAxis = undefined;
+        action.boost = false;
+        return action;
+    }
+
+    _guardAction(action, player, runtimeContext, arena, manager) {
+        const planarMode = runtimeContext?.rules?.planarMode === true;
+        const minimumImprovement = planarMode ? STEP_SECONDS : SAFETY_IMPROVEMENT_SECONDS;
+        const guardTurnSeconds = planarMode ? GUARD_TURN_SECONDS : TURN_SECONDS;
+        const baseSpeed = Math.max(1, Number(player.baseSpeed) || Number(player.speed) || 45);
+        const normalSpeed = Math.max(1, baseSpeed * (Number(player.waterSpeedMultiplier) || 1)
+            * (Number(player.altitudeSpeedFactor) || 1));
+        const currentSpeed = Math.max(normalSpeed, Number(player.speed) || 0);
+        const boostMultiplier = Number(resolveEntityRuntimeConfig(player).PLAYER.BOOST_MULTIPLIER) || 2;
+        const requestedBoost = action.boost === true;
+        const plannedSpeed = requestedBoost ? Math.max(currentSpeed, normalSpeed * boostMultiplier) : currentSpeed;
+        const candidateSpeed = requestedBoost ? normalSpeed : currentSpeed;
+        const turnSpeed = resolveTurnSpeed(player, manager);
+        const wallRadius = Math.max(0.2, Number(player.arcadeAvoidRadius || player.hitboxRadius) || 0.8);
+        const trailRadius = wallRadius * 2;
+        const skipRecent = manager.constructor?.deriveSelfTrailSkipRecentSegments?.(player) ?? 20;
+        const invertYaw = player.invertControls ? -1 : 1;
+        const invertPitch = (player.invertControls ? -1 : 1) * (player.invertPitchBase ? -1 : 1);
+        const yaw = readSteering(action, 'yawAxis', 'yawLeft', 'yawRight') * invertYaw;
+        const pitch = planarMode ? 0 : readSteering(action, 'pitchAxis', 'pitchUp', 'pitchDown') * invertPitch;
+        this._score(player, arena, manager, yaw, pitch, plannedSpeed, turnSpeed,
+            wallRadius, trailRadius, skipRecent, planarMode, guardTurnSeconds);
+        let plannedClearTime = this.clearTime;
+        if (plannedClearTime === HORIZON_SECONDS) return action;
+
+        // A speed change alone often makes the policy's intended turn safe again.
+        if (action.boost) {
+            this._score(player, arena, manager, yaw, pitch, normalSpeed, turnSpeed,
+                wallRadius, trailRadius, skipRecent, planarMode, guardTurnSeconds);
+            if (this.clearTime === HORIZON_SECONDS) {
+                action.boost = false;
+                return action;
+            }
+            if (this.clearTime > plannedClearTime + minimumImprovement) {
+                action.boost = false;
+                plannedClearTime = this.clearTime;
+            }
+        }
+
+        let bestYaw = yaw;
+        let bestPitch = pitch;
+        let bestClearTime = plannedClearTime;
+        let bestScore = -Infinity;
+        for (const candidatePitch of DIRECTIONS) {
+            if (planarMode && candidatePitch !== 0) continue;
+            for (const candidateYaw of DIRECTIONS) {
+                const score = this._score(player, arena, manager, candidateYaw, candidatePitch,
+                    candidateSpeed, turnSpeed, wallRadius, trailRadius, skipRecent,
+                    planarMode, guardTurnSeconds);
+                if (this.clearTime > bestClearTime + 0.00001
+                    || (this.clearTime >= bestClearTime - 0.00001 && score > bestScore)) {
+                    bestClearTime = this.clearTime;
+                    bestScore = score;
+                    bestYaw = candidateYaw;
+                    bestPitch = candidatePitch;
+                }
+            }
+        }
+        if (bestClearTime < plannedClearTime + minimumImprovement) return action;
+        this.lastYaw = bestYaw;
+        this.lastPitch = bestPitch;
+        const inputYaw = bestYaw * invertYaw;
+        const inputPitch = bestPitch * invertPitch;
+        action.yawLeft = inputYaw > 0;
+        action.yawRight = inputYaw < 0;
+        action.pitchUp = !planarMode && inputPitch > 0;
+        action.pitchDown = !planarMode && inputPitch < 0;
         action.yawAxis = undefined;
         action.pitchAxis = undefined;
         action.boost = false;

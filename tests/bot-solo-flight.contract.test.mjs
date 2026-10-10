@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 import { isSoloVolumeFlight, SoloFlightController } from '../src/entities/ai/SoloFlightController.js';
+import { PlayerInputSystem } from '../src/entities/systems/PlayerInputSystem.js';
 
 function fixture(blocked = () => false) {
     const manager = {
@@ -27,6 +28,7 @@ test('3D solo navigation applies only when no living enemy remains', () => {
     assert.equal(isSoloVolumeFlight({ ...context, mode: 'HUNT' }, player), true);
     assert.equal(isSoloVolumeFlight({ ...context, rules: { planarMode: true } }, player), false);
     assert.equal(isSoloVolumeFlight({ ...context, players: [player, { alive: true, index: 2 }] }, player), false);
+    assert.equal(isSoloVolumeFlight({ ...context, flagObjectives: [{}] }, player), false);
 });
 
 test('rollout flies straight in clear space and turns before a reachable wall', () => {
@@ -80,4 +82,70 @@ test('a safe unvisited route breaks a repeated straight route and reset clears m
     control.reset();
     assert.equal(control.historyCount, 0);
     assert.equal(control.clock, 0);
+});
+
+test('a respawn starts a fresh route history for the reused bot', () => {
+    const { player, manager, context } = fixture();
+    context.entityManager = manager;
+    manager._simulationClockMs = 1000;
+    player.fightSpawnedAtSeconds = 0;
+    const control = new SoloFlightController();
+    control.update({}, 1 / 60, player, context);
+    control.historyCount = 20;
+    manager._simulationClockMs = 2000;
+    player.fightSpawnedAtSeconds = 2;
+    control.update({}, 1 / 60, player, context);
+    assert.equal(control.historyCount, 1);
+});
+
+test('the shared input path protects a 2D combat bot while preserving its weapons', () => {
+    const { player, manager, arena, context } = fixture((position) => position.z < -25);
+    player.isBot = true;
+    player.alive = true;
+    const enemy = { index: 2, alive: true, position: new THREE.Vector3(0, 0, -60) };
+    context.mode = 'HUNT';
+    context.rules.planarMode = true;
+    context.navigationPlayers = [player, enemy];
+    context.entityManager = manager;
+    manager.arena = arena;
+    manager.botByPlayer = new Map([[player, {
+        requiresObservation: false,
+        update: () => ({ boost: true, shootMG: true, yawLeft: false, yawRight: false }),
+    }]]);
+    const system = new PlayerInputSystem(manager);
+    system._resolveRuntimeContext = () => context;
+    const input = system.resolvePlayerInput(player, 1 / 60, null);
+    assert.equal(input.shootMG, true);
+    assert.equal(input.boost, false);
+    assert.equal(input.yawLeft || input.yawRight, true);
+    assert.equal(input.pitchUp || input.pitchDown, false);
+    assert.equal(system._flightSafety.byPlayer.size, 1);
+    system.resetBotState();
+    assert.equal(system._flightSafety.byPlayer.size, 0);
+});
+
+test('all modes use the safety guard, while a clear course keeps the policy action', () => {
+    const { player, manager, context } = fixture();
+    const controller = new SoloFlightController();
+    for (const mode of ['CLASSIC', 'HUNT', 'ARCADE', 'ESCORT']) {
+        const action = { yawLeft: true, shootRocket: true, boost: false };
+        context.mode = mode;
+        context.players = [player, { index: 2, alive: true }];
+        context.entityManager = manager;
+        assert.equal(controller.update(action, 1 / 60, player, context), action);
+        assert.equal(action.yawLeft, true, mode);
+        assert.equal(action.shootRocket, true, mode);
+    }
+});
+
+test('the safety guard steers away from a wall in 3D without removing combat actions', () => {
+    const { player, manager, context } = fixture((position) => position.z < -25);
+    context.mode = 'ARCADE';
+    context.players = [player, { index: 2, alive: true }];
+    context.entityManager = manager;
+    const action = { shootMG: true, shootItem: true, yawLeft: false, yawRight: false, boost: false };
+    new SoloFlightController().update(action, 1 / 60, player, context);
+    assert.equal(action.shootMG, true);
+    assert.equal(action.shootItem, true);
+    assert.equal(action.yawLeft || action.yawRight || action.pitchUp || action.pitchDown, true);
 });

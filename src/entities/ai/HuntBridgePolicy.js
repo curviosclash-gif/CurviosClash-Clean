@@ -30,7 +30,6 @@ import { resolveFightMachineGunModel } from '../../shared/contracts/FightMachine
 import { resolvePlayerMachineGunConfig } from '../../hunt/mg/MGConfigResolver.js';
 import { areTeammates, canTargetEnemy } from '../../shared/contracts/TeamCombatContract.js';
 import { applyHuntBotObjectiveMovement } from '../../hunt/HuntBotObjectiveOps.js';
-import { isSoloVolumeFlight, SoloFlightController } from './SoloFlightController.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const TMP_TO_ENEMY = new THREE.Vector3();
@@ -339,17 +338,6 @@ export class HuntBridgePolicy extends ObservationBridgePolicy {
         });
 
         this.type = policyType;
-        this._soloFlight = new SoloFlightController();
-    }
-
-    reset() {
-        super.reset();
-        this._soloFlight.reset();
-    }
-
-    resetRound() {
-        super.resetRound();
-        this._soloFlight.reset();
     }
 
     _delegateFallbackUpdate(dt, player, runtimeContext) {
@@ -394,8 +382,6 @@ export class HuntBridgePolicy extends ObservationBridgePolicy {
                 action.yawAxis = 0;
             }
         }
-        return isSoloVolumeFlight(runtimeContext, player)
-            ? this._soloFlight.update(action, dt, player, runtimeContext)
-            : action;
+        return action;
     }
 }

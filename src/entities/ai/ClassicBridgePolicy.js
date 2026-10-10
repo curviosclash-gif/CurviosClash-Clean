@@ -23,7 +23,6 @@ import {
 } from './observation/ObservationSchemaV1.js';
 import { clamp } from '../../shared/utils/MathOps.js';
 import { canTargetEnemy } from '../../shared/contracts/TeamCombatContract.js';
-import { isSoloVolumeFlight, SoloFlightController } from './SoloFlightController.js';
 import {
     normalizeArcadeBotAggressiveness,
     resolveArcadeBridgeAggressionThresholds,
@@ -163,25 +162,6 @@ export class ClassicBridgePolicy extends ObservationBridgePolicy {
 
         this.type = policyType;
         this._arcadeAggressionState = aggressionState;
-        this._soloFlight = new SoloFlightController();
-    }
-
-    update(dt, player, runtimeContextOrArena, allPlayers = null, projectiles = null) {
-        const context = this._asRuntimeContext(dt, player, runtimeContextOrArena, allPlayers, projectiles);
-        const action = super.update(dt, player, context);
-        return isSoloVolumeFlight(context, player)
-            ? this._soloFlight.update(action, dt, player, context)
-            : action;
-    }
-
-    reset() {
-        super.reset();
-        this._soloFlight.reset();
-    }
-
-    resetRound() {
-        super.resetRound();
-        this._soloFlight.reset();
     }
 
     setArcadeBotAggressiveness(value) {
