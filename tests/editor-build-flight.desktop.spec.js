@@ -27,26 +27,36 @@ test('Bauflug: Enter, Bewegen, Undo, Weltpause und echter Solo-Test bleiben isol
         expect(initial.firstPerson).toBe(false);
         expect(initial.trail).toBeNull();
         expect(initial.radius).toBeGreaterThan(0);
-        const flight = await editorPage.evaluate(async () => {
-            const f = window.CURVIOS_EDITOR.ui.buildFlight;
-            f.paused = true;
-            f.frame(1 / 60);
-            const before = f.pose.position.clone();
-            const geometries = f.runtime.renderer.renderer.info.memory.geometries;
-            f.codes.add('KeyW');
-            for (let index = 0; index < 600; index += 1) f.frame(1 / 60);
-            const distance = before.distanceTo(f.pose.position);
-            const trails = [];
-            f.runtime.renderer.matchRoot.traverse((object) => { if (/trail/i.test(object.name)) trails.push(object.name); });
-            window.dispatchEvent(new Event('blur'));
-            const stopped = f.pose.position.clone();
-            f.frame(1 / 60);
-            const stayedStill = stopped.distanceTo(f.pose.position) === 0;
-            const afterGeometries = f.runtime.renderer.renderer.info.memory.geometries;
-            f.pose.position.copy(before); f.paused = false;
-            return { distance, trails, geometries, afterGeometries, held: f.codes.size,
-                stopped: stayedStill };
-        });
+        await editorPage.locator('#editor-build-runtime').click();
+        await editorPage.waitForFunction(() => document.pointerLockElement === document.getElementById('editor-build-runtime'));
+        const movementStart = await editorPage.evaluate(() => window.CURVIOS_EDITOR.ui.buildFlight.pose.position.toArray());
+        await editorPage.keyboard.down('KeyW');
+        let flight;
+        try {
+            await editorPage.waitForFunction((start) => {
+                const position = window.CURVIOS_EDITOR.ui.buildFlight.pose.position;
+                return position.distanceTo({ x: start[0], y: start[1], z: start[2] }) > 1000;
+            }, movementStart);
+            flight = await editorPage.evaluate((start) => {
+                const f = window.CURVIOS_EDITOR.ui.buildFlight;
+                f.paused = true;
+                const distance = f.pose.position.distanceTo({ x: start[0], y: start[1], z: start[2] });
+                const geometries = f.runtime.renderer.renderer.info.memory.geometries;
+                const trails = [];
+                f.runtime.renderer.matchRoot.traverse((object) => { if (/trail/i.test(object.name)) trails.push(object.name); });
+                window.dispatchEvent(new Event('blur'));
+                const held = f.codes.size;
+                const stopped = f.pose.position.clone();
+                f.frame(1 / 60);
+                const stayedStill = stopped.distanceTo(f.pose.position) === 0;
+                const afterGeometries = f.runtime.renderer.renderer.info.memory.geometries;
+                f.pose.position.fromArray(start);
+                f.paused = false;
+                return { distance, trails, geometries, afterGeometries, held, stopped: stayedStill };
+            }, movementStart);
+        } finally {
+            await editorPage.keyboard.up('KeyW');
+        }
         expect(flight.distance).toBeGreaterThan(1000);
         expect(flight.trails).toEqual([]);
         expect(flight.afterGeometries).toBe(flight.geometries);
@@ -114,8 +124,13 @@ test('Bauflug: Enter, Bewegen, Undo, Weltpause und echter Solo-Test bleiben isol
         expect(await editorPage.evaluate((id) => window.CURVIOS_EDITOR.mapManager.getObjectById(id).position.toArray(), move.id)).toEqual(move.before);
         await editorPage.keyboard.press('KeyP');
         const time = await editorPage.evaluate(() => window.CURVIOS_EDITOR.ui.buildFlight.runtime.worldTime);
-        await editorPage.waitForTimeout(250);
-        expect(await editorPage.evaluate(() => window.CURVIOS_EDITOR.ui.buildFlight.runtime.worldTime)).toBe(time);
+        await editorPage.waitForFunction(async (before) => {
+            const f = window.CURVIOS_EDITOR.ui.buildFlight;
+            await new Promise(requestAnimationFrame);
+            const first = f.runtime.worldTime;
+            await new Promise(requestAnimationFrame);
+            return f.paused && first === before && f.runtime.worldTime === first;
+        }, time);
         const beforeTest = await editorPage.evaluate(() => {
             const { ui, mapManager } = window.CURVIOS_EDITOR;
             return { json: mapManager.generateJSONExport(ui.getArenaSizeForExport()), position: ui.buildFlight.pose.position.toArray() };
@@ -125,7 +140,12 @@ test('Bauflug: Enter, Bewegen, Undo, Weltpause und echter Solo-Test bleiben isol
         await editorPage.keyboard.press('F6');
         await editorPage.waitForFunction(() => { const f = window.CURVIOS_EDITOR.ui.buildFlight; return f.mode === 'test' && !f.loading; });
         await expect(editorPage.getByRole('button', { name: 'Zum Bauflug', exact: true })).toBeVisible();
-        await editorPage.waitForTimeout(500);
+        const testFrame = await editorPage.evaluate(() => window.CURVIOS_EDITOR.ui.buildFlight.runtime.frameId);
+        await editorPage.waitForFunction((previousFrame) => {
+            const f = window.CURVIOS_EDITOR.ui.buildFlight;
+            return f.mode === 'test' && !f.loading && f.runtime?.session?.entityManager?.players.length === 1
+                && f.runtime.frameId > previousFrame;
+        }, testFrame);
         const testState = await editorPage.evaluate(() => {
             const f = window.CURVIOS_EDITOR.ui.buildFlight;
             return { players: f.runtime.session.entityManager.players.length, camera: f.runtime.renderer.cameras[0].position.length() };

@@ -54,6 +54,28 @@ test('Arcade Parcours profile creates one explicitly marked racer and selects he
     }
 });
 
+test('Arcade Parcours profile marks the racer before the strategy sector type is activated', () => {
+    const createdTypes = [];
+    const owner = {
+        renderer: { addToScene() {}, removeFromScene() {}, getGraphicsStyle: () => 'modern' },
+        entityRuntimeConfig: resolveEntityRuntimeConfig({}),
+        runtimeConfig: { arcade: { enabled: true, parcoursRacer: true } },
+        arena: { currentMapDefinition: null }, players: [], humanPlayers: [], bots: [], botByPlayer: new Map(),
+        botDifficulty: 'NORMAL', botPolicyType: 'rule-based',
+        botPolicyRegistry: { create(type) { createdTypes.push(type); return { setSensePhase() {} }; } },
+        gameModeStrategy: { isSectorParcours: () => false, isEndlessParcours: () => false },
+        combatModeType: 'ARCADE',
+    };
+    const setup = new EntitySetupOps(owner);
+    try {
+        setup.setupBotPlayers(1, 1, { botTeamIds: [], botVehicleIds: ['ship5'], defaultVehicleId: 'ship5', modelScale: 1 });
+        assert.deepEqual(createdTypes, ['heuristic']);
+        assert.equal(owner.bots[0].player.isArcadeParcoursCompetitor, true);
+    } finally {
+        for (const player of owner.players) player.dispose?.();
+    }
+});
+
 test('Arcade Parcours racer progress is tracked without XP, leaderboard entries, or round victory', () => {
     const racer = {
         index: 1, isBot: true, isArcadeParcoursCompetitor: true, alive: true, hitboxRadius: 1,

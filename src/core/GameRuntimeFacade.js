@@ -211,7 +211,7 @@ export class GameRuntimeFacade {
             ...currentRuntimeConfig,
             session: { ...currentRuntimeConfig.session, mapKey, numBots },
             bot: { ...currentRuntimeConfig.bot, activeDifficulty, arcadeAggressiveness: Math.max(0, Math.min(1, Number(profile.aggressiveness) || 0)), arcadeBotRoles: Array.isArray(profile.botRoles) ? profile.botRoles : [] },
-            arcade: { ...currentRuntimeConfig.arcade, activeCompanionCount: Math.max(0, Math.trunc(Number(profile.companionCount) || 0)), ...(typeof profile.combatProfile === 'string' ? { combatProfile: profile.combatProfile, scenarioId: profile.scenarioId || null, scenarioMapUnits: Array.isArray(profile.mapUnits) ? profile.mapUnits : [], scenarioMapUnitsMode: profile.mapUnitsMode === 'replace' ? 'replace' : 'overlay', waterZoneTriggerSec: profile.waterZoneTriggerSec || 0 } : {}) },
+            arcade: { ...currentRuntimeConfig.arcade, activeCompanionCount: Math.max(0, Math.trunc(Number(profile.companionCount) || 0)), parcoursRacer: profile.parcoursRacer === true, ...(typeof profile.combatProfile === 'string' ? { combatProfile: profile.combatProfile, scenarioId: profile.scenarioId || null, scenarioMapUnits: Array.isArray(profile.mapUnits) ? profile.mapUnits : [], scenarioMapUnitsMode: profile.mapUnitsMode === 'replace' ? 'replace' : 'overlay', waterZoneTriggerSec: profile.waterZoneTriggerSec || 0 } : {}) },
         };
         const nextCompatibilityConfig = applyRuntimeConfigCompatibility(nextRuntimeConfig, CONFIG_BASE);
         applyRuntimeSettingsState(this.getRuntimeBundle(), {

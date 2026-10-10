@@ -62,6 +62,11 @@ export function resolveFlagObjectiveTarget(player, runtimeContext) {
 export function applyFlagObjectiveMovement(
     policy, input, player, runtimeContext, retreating = false, survivalPressure = 0, mgRange = 95,
 ) {
+    if (player) {
+        player.botObjectiveType = '';
+        player.flagBotRole = '';
+        player.flagBotTargetId = '';
+    }
     if (retreating || survivalPressure >= 0.86) return null;
     const target = resolveFlagObjectiveTarget(player, runtimeContext);
     if (!target?.position || !player?.position) return null;
@@ -76,6 +81,9 @@ export function applyFlagObjectiveMovement(
     if (isEnemyObjective && distanceSq <= Math.max(12, Number(mgRange) || 95) ** 2) {
         input.shootMG = true;
     }
+    player.botObjectiveType = TEAM_OBJECTIVE_TYPES.FLAGS;
+    player.flagBotRole = role;
+    player.flagBotTargetId = String(target.id || '');
     return { role, target, distanceSq, isEnemyObjective };
 }
 

@@ -362,7 +362,8 @@ test.describe('Physics Policy (Tests 65-82)', () => {
             bot.position.set(0, 50, 0);
             bot.setLookAtWorld?.(0, 50, -120);
             bot.hp = Math.max(1, Number(bot.maxHp) || 100);
-            bot.inventory = ['ROCKET_HEAVY'];
+            bot.inventory = [];
+            bot.rocketInventory = ['ROCKET_HEAVY'];
             bot.selectedItemIndex = 0;
 
             enemy.position.set(8, 50, -24);
@@ -391,37 +392,33 @@ test.describe('Physics Policy (Tests 65-82)', () => {
                 maxHp: 3,
                 ownerTrail: null,
             });
+            const trailRegistered = !!trailRef?.entry && !trailRef.entry.destroyed;
 
-            const policy = new HuntBotPolicy();
-            policy._fallbackPolicy.getSensorSnapshot = () => ({
-                targetInFront: false,
-                targetDistanceSq: 999999,
-                pressure: 0,
-                projectileThreat: false,
-                targetYaw: 0,
-                targetPitch: 0,
-                targetPlayer: null,
-            });
-
-            const context = entityManager.createBotRuntimeContext(bot, 1 / 60);
-            context.huntTarget = {
-                kind: 'trail',
-                playerIndex: enemy.index,
-                segmentIdx,
-                distance: bot.position.distanceTo(from),
-                point: {
-                    x: (from.x + to.x) * 0.5,
-                    y: (from.y + to.y) * 0.5,
-                    z: (from.z + to.z) * 0.5,
-                },
-                position: {
-                    x: (from.x + to.x) * 0.5,
-                    y: (from.y + to.y) * 0.5,
-                    z: (from.z + to.z) * 0.5,
-                },
-                alive: true,
+            const getAction = () => {
+                const policy = new HuntBotPolicy();
+                policy._fallbackPolicy.getSensorSnapshot = () => ({
+                    targetInFront: false,
+                    targetDistanceSq: 999999,
+                    pressure: 0,
+                    projectileThreat: false,
+                    targetYaw: 0,
+                    targetPitch: 0,
+                    targetPlayer: null,
+                });
+                entityManager._lockOnCache?.clear?.();
+                const context = entityManager.createBotRuntimeContext(bot, 1 / 60);
+                const huntTarget = context?.huntTarget;
+                const targetSnapshot = {
+                    kind: String(huntTarget?.kind || ''),
+                    playerIndex: Number(huntTarget?.playerIndex ?? -1),
+                    segmentIdx: Number(huntTarget?.segmentIdx ?? -1),
+                };
+                return { action: policy.update(1 / 60, bot, context), targetSnapshot };
             };
-            const action = policy.update(1 / 60, bot, context);
+
+            const queuedRocket = getAction();
+            bot.rocketInventory = [];
+            const noQueuedRocket = getAction();
 
             if (trailRef?.key && trailRef?.entry && !trailRef.entry.destroyed) {
                 entityManager.unregisterTrailSegment(trailRef.key, trailRef.entry);
@@ -429,20 +426,34 @@ test.describe('Physics Policy (Tests 65-82)', () => {
 
             return {
                 error: null,
-                huntTargetKind: String(context?.huntTarget?.kind || ''),
-                huntTargetPlayerIndex: Number(context?.huntTarget?.playerIndex ?? -1),
-                shootMG: !!action?.shootMG,
-                shootItem: !!action?.shootItem,
-                shootItemIndex: Number(action?.shootItemIndex),
+                huntTargetKind: queuedRocket.targetSnapshot.kind,
+                huntTargetPlayerIndex: queuedRocket.targetSnapshot.playerIndex,
+                huntTargetSegmentIdx: queuedRocket.targetSnapshot.segmentIdx,
+                noRocketTargetKind: noQueuedRocket.targetSnapshot.kind,
+                noRocketTargetPlayerIndex: noQueuedRocket.targetSnapshot.playerIndex,
+                noRocketTargetSegmentIdx: noQueuedRocket.targetSnapshot.segmentIdx,
+                registeredSegmentIdx: segmentIdx,
+                registeredTrailPlayerIndex: enemy.index,
+                trailRegistered,
+                queuedRocketShootMG: !!queuedRocket.action?.shootMG,
+                queuedRocketShootRocket: !!queuedRocket.action?.shootRocket,
+                noRocketShootMG: !!noQueuedRocket.action?.shootMG,
+                noRocketShootRocket: !!noQueuedRocket.action?.shootRocket,
             };
         });
 
         expect(result.error).toBeNull();
+        expect(result.trailRegistered).toBeTruthy();
         expect(result.huntTargetKind).toBe('trail');
-        expect(result.huntTargetPlayerIndex).toBeGreaterThanOrEqual(0);
-        expect(result.shootMG).toBeTruthy();
-        expect(result.shootItem).toBeTruthy();
-        expect(result.shootItemIndex).toBe(0);
+        expect(result.huntTargetPlayerIndex).toBe(result.registeredTrailPlayerIndex);
+        expect(result.huntTargetSegmentIdx).toBe(result.registeredSegmentIdx);
+        expect(result.noRocketTargetKind).toBe('trail');
+        expect(result.noRocketTargetPlayerIndex).toBe(result.registeredTrailPlayerIndex);
+        expect(result.noRocketTargetSegmentIdx).toBe(result.registeredSegmentIdx);
+        expect(result.queuedRocketShootMG).toBeTruthy();
+        expect(result.queuedRocketShootRocket).toBeTruthy();
+        expect(result.noRocketShootMG).toBeTruthy();
+        expect(result.noRocketShootRocket).toBeFalsy();
     });
 
     test('T78c: HuntBridgePolicy priorisiert gueltige Trail-Ziele auch wenn Observation kein Frontziel meldet', async ({ page }) => {

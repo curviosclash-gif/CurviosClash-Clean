@@ -1,10 +1,10 @@
 import { createParcoursOutcomeCounters } from './ParcoursProgressSnapshot.js';
 import {
     createPlayerProgressState,
-    formatDurationMs,
     normalizeString,
     resolveExpectedCheckpointEntries,
 } from './ParcoursProgressUtils.js';
+import { completeParcours } from './ParcoursProgressCompletionOps.js';
 import { resetParcoursProgressState, rewindParcoursProgressState } from './ParcoursProgressStateOps.js';
 import {
     buildRouteSnapshot,
@@ -390,61 +390,7 @@ export class ParcoursProgressSystem {
     }
 
     _completeParcours(player, state, now) {
-        if (!this._route || !state || state.completed) return;
-        state.completed = true;
-        state.completedAtMs = now;
-        const baseTimeMs = Math.max(0, now - (state.startedAtMs || now));
-        const penaltyTimeMs = Math.max(0, Math.trunc(Number(state.penaltyTimeMs) || 0));
-        state.completionTimeMs = baseTimeMs + penaltyTimeMs;
-        state.nextCheckpointIndex = this._route.totalCheckpoints;
-        state.lastCheckpointAtMs = now;
-        state.lastError = '';
-        state.errorUntilMs = 0;
-
-        const arcadeRacer = player?.isArcadeParcoursCompetitor === true;
-        if (!arcadeRacer && !this._completionOrder.some((entry) => entry.playerIndex === player.index)) {
-            this._completionOrder.push({
-                playerIndex: player.index,
-                completedAtMs: state.completedAtMs,
-                completionTimeMs: state.completionTimeMs,
-                penaltyTimeMs,
-            });
-            this._completionOrder.sort((left, right) => {
-                if (left.completedAtMs !== right.completedAtMs) {
-                    return left.completedAtMs - right.completedAtMs;
-                }
-                return left.playerIndex - right.playerIndex;
-            });
-        }
-
-        this._notifyPlayer(player, `Parcours abgeschlossen (${formatDurationMs(state.completionTimeMs)})`);
-        this._logRecorderEvent(
-            'PARCOURS_COMPLETE',
-            player,
-            `route=${this._route.routeId} timeMs=${Math.round(state.completionTimeMs)} penaltyMs=${penaltyTimeMs}`
-        );
-        this._playProgressAudio('PARCOURS_FINISH', player, { intensity: 1.15 });
-        if (arcadeRacer) return;
-        const finishXpResult = this._xpEventCallback?.('finish', player.index, { finishedAtMs: now });
-        if (finishXpResult?.earned > 0) {
-            this._notifyPlayer(player, `+${finishXpResult.earned} XP (Parcours)`);
-        }
-        const shouldFinalizeGhost = this._route.rules.showGhost && player?.isBot !== true;
-        const recorderOwnedByPlayer = this._playerOwnsGhostRecording(player);
-        const ghostClip = shouldFinalizeGhost && recorderOwnedByPlayer
-            ? (this._ghostRecorder?.stopRecording?.(player.index) || null)
-            : null;
-        const ghostDurationMsFromClip = Math.max(0, Math.round(Number(ghostClip?.sourceDuration) * 1000));
-        this._leaderboardCallback?.({
-            type: 'finish',
-            playerIndex: player.index,
-            routeId: this._route.routeId,
-            totalTimeMs: state.completionTimeMs,
-            penaltyTimeMs,
-            segmentSplitsMs: [...state.segmentSplitsMs],
-            ghostDurationMs: ghostDurationMsFromClip > 0 ? ghostDurationMsFromClip : baseTimeMs,
-            ghostClip,
-        });
+        completeParcours(this, player, state, now);
     }
 
     _findTriggeredEntry(entries, player, previousPosition, now, state) {

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { CONFIG_SECTIONS } from '../../src/core/config/ConfigSections.js';
 import { createEditorBuildMapSnapshot } from './EditorBuildMapSnapshot.js';
-import { BUILD_SPEED_FACTORS, createBuildPose, stepBuildPose, resolveBuildPosition } from './EditorBuildMotion.js';
+import { BUILD_SPEED_FACTORS, BUILD_PRECISION_KEYS, nudgeBuildPosition, createBuildPose, stepBuildPose, resolveBuildPosition } from './EditorBuildMotion.js';
+import { pickBuildTarget, EditorBuildSelectionVisuals } from './EditorBuildPicking.js';
 import { EditorBuildRuntime } from './EditorBuildRuntime.js';
 import { EditorBuildPreview } from './EditorBuildPreview.js';
 import { createEditorBuildMenu } from './ui/EditorBuildMenuControls.js';
@@ -23,6 +24,11 @@ export class EditorBuildModeController {
         this.direction = new THREE.Vector3();
         this.offset = new THREE.Vector3();
         this.raycaster = new THREE.Raycaster();
+        this.authoredRaycaster = new THREE.Raycaster();
+        this.precisionStep = 1;
+        this.selectionVisuals = new EditorBuildSelectionVisuals();
+        this.target = null;
+        this.pickElapsed = 1;
         this.lookX = 0; this.lookY = 0;
         this.units = 1;
         this.generation = 0;
@@ -40,6 +46,17 @@ export class EditorBuildModeController {
             onMenuChange: (open) => { this.clearInput(); if (open) this.unlock(); else if (this.mode === 'build') this.lock(); },
             onPause: () => this.togglePause(), onTest: () => this.toggleTest(), onExit: () => this.stop(),
             onMove: () => this.moveSelection(), onCatalogChange: () => this.chooseCatalog(),
+            getViewportBounds: () => this.canvas.getBoundingClientRect(),
+            onPosition: (axis, value) => this.setBuildPosition(axis, value),
+            onStep: (value) => { this.precisionStep = value; },
+            onSnap: (value) => {
+                this.editor.useSnap = value;
+                if (this.editor.dom.chkSnap) {
+                    this.editor.dom.chkSnap.checked = value;
+                    this.editor.dom.chkSnap.dispatchEvent(new Event('change'));
+                }
+                this.setBuildPosition();
+            },
         });
         this.preview = new EditorBuildPreview(editor, this.ui.getPropertiesHost());
         this.abort = new AbortController();
@@ -135,6 +152,7 @@ export class EditorBuildModeController {
         this.lastError = null;
         this.clearInput();
         this.preview.root.removeFromParent();
+        this.selectionVisuals.clear(); this.target = null; this.ui.setTarget(null);
         const generation = ++this.generation;
         this.syncStatus();
         this.pending = this.pending.then(async () => {
@@ -145,7 +163,9 @@ export class EditorBuildModeController {
             this.runtime ||= new EditorBuildRuntime(this.canvas, this.core.container);
             await this.runtime.load(snapshot, test);
             if (generation !== this.generation) return;
-            if (!test) this.runtime.renderer.matchRoot.add(this.preview.root);
+            this.selectionVisuals.bindWorld(this.runtime.renderer.matchRoot, this.editor.mapManager);
+            this.selectionVisuals.bindRuntime(this.runtime, this.editor.mapManager);
+            if (!test) this.runtime.renderer.matchRoot.add(this.preview.root, this.selectionVisuals.root);
             this.loading = false;
             this.syncStatus();
         }).catch((error) => {
@@ -173,20 +193,28 @@ export class EditorBuildModeController {
     }
     selectCrosshair() {
         if (this.loading) return;
+        const target = this.pickCrosshair();
+        if (target?.object && !target.locked) {
+            this.editor.selectObject(target.object);
+            this.editor.notify('Objekt ausgewählt. B → Auswahl bewegen.', 'info');
+        }
+    }
+    pickCrosshair() {
+        this.selectionVisuals.bindItems(this.runtime.powerups?.items || [], this.editor.mapManager);
         const camera = this.runtime.renderer.cameras[0];
         camera.updateMatrixWorld();
         this.raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-        this.raycaster.ray.origin.multiplyScalar(this.units);
-        this.core.objectsContainer.updateMatrixWorld(true);
-        const hits = this.raycaster.intersectObjects(this.core.objectsContainer.children, true);
-        for (const hit of hits) {
-            if (hit.object.userData?.isSelectionOutline) continue;
-            const object = this.editor.mapManager.resolveManagedObject(hit.object);
-            if (!object || object.visible === false || object.userData.editorLocked || object.userData.editorLayerLocked) continue;
-            this.editor.selectObject(object);
-            this.editor.notify('Objekt ausgewählt. B → Auswahl bewegen.', 'info');
-            return;
-        }
+        return pickBuildTarget(this.raycaster, this.runtime.renderer.matchRoot, this.core.objectsContainer,
+            this.editor.mapManager, this.units, this.preview.root, this.authoredRaycaster, this.selectionVisuals);
+    }
+    setBuildPosition(axis, value) {
+        if (this.mode !== 'build' || this.loading) return;
+        if (axis && Number.isFinite(value)) this.pose.position[axis] = value;
+        resolveBuildPosition(this.pose.position, this.editor.useSnap ? this.editor.snapSize : 0, this.position);
+        if (axis && Number.isFinite(value)) this.pose.position.copy(this.position);
+        this.clearInput();
+        this.preview.update(this.position, this.units);
+        this.ui.setPosition(this.position, this.editor.useSnap, this.editor.snapSize, true);
     }
     togglePause() { if (this.mode === 'build') { this.paused = !this.paused; this.syncStatus(); } }
     toggleTest() {
@@ -215,7 +243,7 @@ export class EditorBuildModeController {
             return;
         }
         const actionCodes = ['KeyB', 'KeyC', 'KeyP', 'Enter', 'Escape', 'Delete', 'KeyZ', 'KeyY'];
-        if (!MOVEMENT_CODES.has(event.code) && !actionCodes.includes(event.code) && !/^Digit[1-9]$/.test(event.code)) return;
+        if (!MOVEMENT_CODES.has(event.code) && !BUILD_PRECISION_KEYS[event.code] && !actionCodes.includes(event.code) && !/^Digit[1-9]$/.test(event.code)) return;
         event.preventDefault(); event.stopImmediatePropagation();
         if (event.repeat) return;
         if (event.code === 'Escape') { this.chooseCatalog(); this.ui.setMenuOpen(false); this.unlock(); this.clearInput(); return; }
@@ -227,6 +255,11 @@ export class EditorBuildModeController {
             return;
         }
         if (event.code === 'KeyC') this.firstPerson = !this.firstPerson;
+        else if (BUILD_PRECISION_KEYS[event.code]) {
+            this.clearInput();
+            nudgeBuildPosition(this.pose.position, event.code, this.precisionStep, this.editor.useSnap ? this.editor.snapSize : 0);
+            this.setBuildPosition();
+        }
         else if (event.code === 'KeyP') this.togglePause();
         else if (event.code === 'Enter' && !this.loading) {
             resolveBuildPosition(this.pose.position, this.editor.useSnap ? this.editor.snapSize : 0, this.position);
@@ -247,6 +280,7 @@ export class EditorBuildModeController {
             this.lookX = 0; this.lookY = 0;
             resolveBuildPosition(this.pose.position, this.editor.useSnap ? this.editor.snapSize : 0, this.position);
             this.preview.update(this.position, this.units);
+            this.ui.setPosition(this.position, this.editor.useSnap, this.editor.snapSize);
             const renderer = this.runtime.renderer;
             renderer.cameraModes[0] = this.firstPerson ? 1 : 0;
             this.direction.set(0, 0, -1).applyQuaternion(this.pose.quaternion);
@@ -268,6 +302,15 @@ export class EditorBuildModeController {
                 }
             }
             this.preview.root.visible = !this.firstPerson;
+            this.pickElapsed += dt;
+            if (this.ui.isMenuOpen()) this.target = null;
+            else if (this.pickElapsed >= 1 / 12) { this.target = this.pickCrosshair(); this.pickElapsed = 0; }
+            this.ui.setTarget(this.target);
+            this.selectionVisuals.show(this.selectionVisuals.hover, this.target, this.units);
+            const selected = this.editor.selectedObject;
+            this.selectionVisuals.show(this.selectionVisuals.selected,
+                selected && selected.userData.id !== this.preview.movingId ? { object: selected,
+                    visual: this.selectionVisuals.models.get(selected.userData.id) } : null, this.units);
         }
         this.runtime.renderer.render();
     }
@@ -277,6 +320,7 @@ export class EditorBuildModeController {
         this.mode = 'edit'; ++this.generation;
         this.unlock(); this.clearInput();
         this.preview.root.removeFromParent();
+        this.selectionVisuals.clear(); this.target = null; this.ui.setTarget(null);
         this.ui.setActive(false);
         this.canvas.style.display = 'none';
         this.editor.dom.shipFlightHud.hidden = true;
@@ -310,7 +354,7 @@ export class EditorBuildModeController {
     dispose() {
         if (this.disposed) return;
         this.disposed = true;
-        this.stop(); this.abort.abort(); this.preview.dispose(); this.ui.dispose(); this.canvas.remove();
+        this.stop(); this.abort.abort(); this.preview.dispose(); this.selectionVisuals.dispose(); this.ui.dispose(); this.canvas.remove();
         this.editor.activateBuildCatalogEntry = this.originalActivate;
     }
 }
