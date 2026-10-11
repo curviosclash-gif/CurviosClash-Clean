@@ -421,3 +421,38 @@ test('flag objective retreat and no-target paths clear stale assignment metadata
     }), null);
     assert.deepEqual([player.botObjectiveType, player.flagBotRole, player.flagBotTargetId], ['', '', '']);
 });
+
+test('flag movement records the current assignment even when a defender is already in position', () => {
+    const flag = { id: 'home', teamId: TEAM_IDS.ALPHA, hp: 300, maxHp: 300,
+        position: new THREE.Vector3(5, 0, 0) };
+    const player = { index: 0, teamId: TEAM_IDS.ALPHA, position: new THREE.Vector3(),
+        flagBotRole: 'old', flagBotTargetId: 'old' };
+    const assignment = applyFlagObjectiveMovement({}, {}, player, {
+        runtimeConfig: { hunt: { teamObjective: 'FLAGS' } },
+        entityManager: { _flagObjectiveSystem: { flags: [flag] } },
+    });
+
+    assert.equal(assignment.target, flag);
+    assert.equal(player.flagBotRole, FLAG_BOT_ROLES.DEFENDER);
+    assert.equal(player.flagBotTargetId, 'home');
+    assert.equal(player.botObjectiveType, 'FLAGS');
+});
+
+test('first flag routine skips destroyed objectives before taking movement ownership', () => {
+    const player = { index: 1, teamId: TEAM_IDS.ALPHA, position: new THREE.Vector3() };
+    const destroyed = { id: 'destroyed', teamId: TEAM_IDS.BRAVO, hp: 0, maxHp: 300,
+        position: new THREE.Vector3(2, 0, 0) };
+    const active = { id: 'active', teamId: TEAM_IDS.BRAVO, hp: 300, maxHp: 300,
+        position: new THREE.Vector3(20, 0, 0) };
+    const runtimeContext = {
+        runtimeConfig: { hunt: { teamObjective: 'FLAGS' } },
+        entityManager: { _flagObjectiveSystem: { flags: [destroyed, active] } },
+    };
+
+    assert.equal(resolveFlagObjectiveTarget(player, runtimeContext), active);
+    runtimeContext.entityManager._flagObjectiveSystem.flags = [destroyed];
+    const assignment = applyFlagObjectiveMovement({}, {}, player, runtimeContext);
+
+    assert.equal(assignment, null);
+    assert.equal(player.flagBotTargetId, '');
+});

@@ -20,6 +20,7 @@ export async function captureBotRuntimeSample({ waitForFirstTick = false, timeou
             return {
                 playerIndex: Number(player?.index ?? -1),
                 policyType: String(policy?.type || '').trim().toLowerCase(),
+                actionSource: policy?.getActionSourceSnapshot?.() || null,
                 snapshot: snapshot && typeof snapshot === 'object' ? { ...snapshot } : null,
             };
         });
@@ -50,6 +51,13 @@ export async function captureBotRuntimeSample({ waitForFirstTick = false, timeou
             arcadeSeed: Number.isFinite(arcadeSeed) ? arcadeSeed : null,
             runtimeTeamMode: game.runtimeConfig?.hunt?.teamMode === true,
             runtimeTeamObjective: String(game.runtimeConfig?.hunt?.teamObjective || 'HUNT').trim().toUpperCase(),
+            pageVisibility: globalThis.document?.visibilityState || '',
+            renderFrameId: Number(game.gameLoop?.renderFrameId || 0),
+            performance: game.runtimePerfProfiler?.getTelemetryIntervalSnapshot?.() || null,
+            huntKillCount: (entityManager?.getHuntScoreboard?.() || [])
+                .reduce((total, row) => total + Math.max(0, Number(row?.kills) || 0), 0),
+            mgAimBins: entityManager?._overheatGunSystem?.__botValidationMgAimBins || null,
+            combatTrace: game.__botValidationCombatTrace || null,
         };
     };
 

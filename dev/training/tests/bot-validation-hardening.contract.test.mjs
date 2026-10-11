@@ -248,7 +248,7 @@ test('first-tick sampler fails closed if state leaves PLAYING', async () => {
     }
 });
 
-test('shared sampler keeps the existing runtime sample shape', async () => {
+test('shared sampler keeps the runtime and combat sample fields', async () => {
     const runtime = firstTickRuntime();
     const scheduler = createControlledScheduler();
     const pending = startSample(runtime, scheduler, { waitForFirstTick: false });
@@ -258,6 +258,7 @@ test('shared sampler keeps the existing runtime sample shape', async () => {
             'runtimePolicyType', 'entityPolicyType', 'botPolicyTypes', 'botDecisions', 'botTeamIds',
             'botObjectiveAssignments', 'botCount', 'runtimeGameMode', 'entityGameMode', 'semanticGameMode',
             'modePath', 'arcadeEnabled', 'arcadeSeed', 'runtimeTeamMode', 'runtimeTeamObjective',
+            'pageVisibility', 'renderFrameId', 'performance', 'huntKillCount', 'mgAimBins', 'combatTrace',
         ]);
     } finally {
         pending.restore();
