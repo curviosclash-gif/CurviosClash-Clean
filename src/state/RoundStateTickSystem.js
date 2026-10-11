@@ -234,6 +234,10 @@ export class RoundStateTickSystem {
         return this.game?.runtimeCoordinator?.getArcadeMenuSurfaceState?.() || null;
     }
 
+    _tickPendingArcadeRewards() {
+        this.game?.runtimeCoordinator?.getRuntimeFacade?.()?.tickPendingArcadeRewards?.();
+    }
+
     _deriveArenaWavesRoundEndStep(inputs) {
         const surface = this._readArcadeSurfaceState();
         if (surface?.runType !== 'arena_waves') return null;
@@ -428,11 +432,13 @@ export class RoundStateTickSystem {
     }
 
     updateRoundEnd(dt) {
+        this._tickPendingArcadeRewards();
         const descriptor = this._buildRoundEndStateTickDescriptor();
         this._runRoundStateTickDescriptor(dt, descriptor);
     }
 
     updateMatchEnd(dt) {
+        this._tickPendingArcadeRewards();
         const descriptor = this._buildMatchEndStateTickDescriptor();
         this._runRoundStateTickDescriptor(dt, descriptor);
     }

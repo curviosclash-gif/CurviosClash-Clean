@@ -452,7 +452,9 @@ export class ParcoursProgressSystem {
     }
 
     getRoundOutcome() {
-        const modeOutcome = this._leaderboardCallback?.({ type: 'round_outcome', now: this.nowProvider() }); if (modeOutcome?.shouldEnd === true) return modeOutcome; if (!this._route || this._route.rules.winnerByParcoursComplete !== true) return null;
+        const modeOutcome = this._leaderboardCallback?.({ type: 'round_outcome', now: this.nowProvider() });
+        if (modeOutcome?.shouldEnd === true || modeOutcome?.settling === true) return modeOutcome;
+        if (!this._route || this._route.rules.winnerByParcoursComplete !== true) return null;
         const completion = this._completionOrder[0];
         if (!completion) return null;
         const graceMs = Math.max(0, Number(this._route.rules.finishGraceMs) || 0); if (graceMs > 0 && this.nowProvider() < completion.completedAtMs + graceMs) return null;

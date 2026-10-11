@@ -36,6 +36,7 @@ function createRacer(playerId, humanPlayerId) {
         checkpointXp: 0,
         weaponCheckpointId: '',
         finishXp: 0,
+        finishXpAwarded: false,
         finishedAtMs: null,
         finishTimeMs: null,
     };

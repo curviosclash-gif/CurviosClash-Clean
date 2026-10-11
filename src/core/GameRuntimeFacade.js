@@ -254,6 +254,8 @@ export class GameRuntimeFacade {
         return { ...state, records, postRunSummary };
     }
     tickArcadeSuddenDeath(dt = 0) { return this._arcadeSupport.tickSuddenDeath(dt); }
+    tickPendingArcadeRewards() { return this._arcadeSupport.tickPendingArcadeRewards(); }
+    tickWeaponRaceRewardMaintenance() { return this._arcadeSupport.tickWeaponRaceRewardMaintenance(); }
     selectArcadeIntermissionChoice(choiceId) { return this._arcadeSupport.selectIntermissionChoice(choiceId); }
     resolveArcadeVictoryChoice(choice) { return this.arcadeRunRuntime?.resolveVictoryChoice(choice); }
     setArcadeIntermissionPaused(paused) { return this.arcadeRunRuntime?.setIntermissionPaused(paused); }

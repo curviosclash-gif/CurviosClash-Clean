@@ -1,5 +1,5 @@
 import { saveLeaderboard } from '../../state/arcade/ArcadeLeaderboard.js';
-import { saveVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
+import { addXp, loadVehicleProfiles, saveVehicleProfiles } from '../../state/arcade/ArcadeVehicleProfile.js';
 
 const SAVE_KINDS = Object.freeze({
     LEADERBOARD: 'leaderboard',
@@ -22,7 +22,7 @@ function clonePlainSnapshot(value) {
 }
 
 function isPersisted(saveResult) {
-    return saveResult === undefined || saveResult === true || saveResult?.success === true;
+    return saveResult === undefined || saveResult === true || saveResult?.success === true || saveResult?.ok === true;
 }
 
 export class ArcadeRunPersistenceScheduler {
@@ -110,8 +110,23 @@ export class ArcadeRunPersistenceScheduler {
     scheduleVehicleProfiles(store, profiles) {
         if (!store || typeof store.saveJsonRecord !== 'function') return false;
         const snapshot = clonePlainSnapshot(profiles);
+        const baseline = typeof store.loadJsonRecord === 'function'
+            ? clonePlainSnapshot(loadVehicleProfiles(store))
+            : {};
         return this._schedule(SAVE_KINDS.VEHICLE_PROFILES, () => {
-            return saveVehicleProfiles(store, snapshot);
+            const profilesToPersist = clonePlainSnapshot(snapshot) || {};
+            if (typeof store.loadJsonRecord === 'function') {
+                const latest = loadVehicleProfiles(store);
+                for (const [vehicleId, profile] of Object.entries(profilesToPersist)) {
+                    const baselineXp = Math.max(0, Number(baseline?.[vehicleId]?.totalXpEarned) || 0);
+                    const latestXp = Math.max(0, Number(latest?.[vehicleId]?.totalXpEarned) || 0);
+                    const concurrentXp = Math.max(0, latestXp - baselineXp);
+                    if (concurrentXp > 0) {
+                        profilesToPersist[vehicleId] = addXp(profile, concurrentXp).profile;
+                    }
+                }
+            }
+            return saveVehicleProfiles(store, profilesToPersist);
         });
     }
 
