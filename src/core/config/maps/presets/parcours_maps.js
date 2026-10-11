@@ -128,12 +128,12 @@ const ASSAULT_GATES = Object.freeze([
 ]);
 
 const ASSAULT_BOT_SPAWNS = Object.freeze([
-    // Bots are assigned in this order as the configured bot count increases.
+    // Split the pressure across the course; every authored point clears nearby cover.
     { x: -72, y: 20, z: 24 },
-    { x: -12, y: 18, z: -30 },
-    { x: 44, y: 18, z: 30 },
-    { x: 68, y: 22, z: -26 },
-    { x: 102, y: 24, z: 24 },
+    { x: -18, y: 18, z: -30 },
+    { x: 34, y: 18, z: 42 },
+    { x: 64, y: 22, z: -38 },
+    { x: 96, y: 18, z: -12 },
     { x: 124, y: 26, z: -22 },
 ]);
 
@@ -220,7 +220,7 @@ export const PARCOURS_MAPS = Object.freeze({
             modePath: 'fight',
             gameMode: 'HUNT',
             minBots: 4,
-            botRoles: ['guard', 'flanker', 'pursuer', 'interceptor'],
+            botRoles: ['pursuer', 'interceptor', 'flanker', 'pursuer', 'interceptor', 'flanker'],
         },
         obstacles: ASSAULT_OBSTACLES,
         portals: [],
@@ -230,8 +230,10 @@ export const PARCOURS_MAPS = Object.freeze({
         staticTurrets: [
             { id: 'turret_mg_approach', weapon: 'mg', pos: [-116, 22, -48], range: 76, cooldown: 0.85, damage: 4, phase: 0.8 },
             { id: 'turret_mg_crossfire', weapon: 'mg', pos: [38, 24, -52], range: 68, cooldown: 0.72, damage: 4, phase: 0.55 },
+            { id: 'turret_rocket_crossfire', weapon: 'rocket', pos: [32, 30, 58], range: 82, cooldown: 3.4, rocketType: 'ROCKET_MEDIUM', phase: 1.5 },
             { id: 'turret_rocket_heavy', weapon: 'rocket', pos: [82, 30, 50], range: 92, cooldown: 3.6, rocketType: 'ROCKET_MEDIUM', phase: 1.2 },
             { id: 'turret_mg_final', weapon: 'mg', pos: [120, 30, -50], range: 64, cooldown: 0.68, damage: 5, phase: 0.8 },
+            { id: 'turret_mg_escape', weapon: 'mg', pos: [142, 30, 42], range: 68, cooldown: 0.76, damage: 4, phase: 0.35 },
         ],
         items: ASSAULT_ITEMS,
         missions: [

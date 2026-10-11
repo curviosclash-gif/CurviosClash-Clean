@@ -96,17 +96,34 @@ test('Angriffsparcours declares the required single-player combat setup', () => 
         modePath: 'fight',
         gameMode: 'HUNT',
         minBots: 4,
-        botRoles: ['guard', 'flanker', 'pursuer', 'interceptor'],
+        botRoles: ['pursuer', 'interceptor', 'flanker', 'pursuer', 'interceptor', 'flanker'],
     });
 });
 
-test('Angriffsparcours declares mobile bot roles and four static defences', () => {
+test('Angriffsparcours declares aggressive mobile bot roles and six static defences', () => {
     const map = PARCOURS_MAPS.parcours_assault;
     const turrets = resolveMapStaticTurretDefinitions(map);
 
-    assert.deepEqual(map.singlePlayerScenario.botRoles, ['guard', 'flanker', 'pursuer', 'interceptor']);
-    assert.deepEqual(turrets.map((entry) => entry.weapon), ['mg', 'mg', 'rocket', 'mg']);
+    assert.deepEqual(map.singlePlayerScenario.botRoles, ['pursuer', 'interceptor', 'flanker', 'pursuer', 'interceptor', 'flanker']);
+    assert.deepEqual(turrets.map((entry) => entry.weapon), ['mg', 'mg', 'rocket', 'rocket', 'mg', 'mg']);
     assert.equal(resolveScenarioBotTuning({ scenarioRole: 'guard' }).anchorRadius, 24);
     assert.equal(resolveScenarioBotTuning({ scenarioRole: 'pursuer' }).aggressionBonus, 0.3);
     assert.equal(resolveScenarioBotTuning({ scenarioRole: 'interceptor' }).prefersRocket, true);
+});
+
+test('Angriffsparcours bot spawn points clear the authored box obstacles', () => {
+    const map = PARCOURS_MAPS.parcours_assault;
+    const clearance = 4;
+    for (const spawn of map.botSpawns) {
+        for (const obstacle of map.obstacles) {
+            if (!obstacle.pos || !obstacle.size) continue;
+            const distanceX = Math.max(0, Math.abs(spawn.x - obstacle.pos[0]) - obstacle.size[0] / 2);
+            const distanceY = Math.max(0, Math.abs(spawn.y - obstacle.pos[1]) - obstacle.size[1] / 2);
+            const distanceZ = Math.max(0, Math.abs(spawn.z - obstacle.pos[2]) - obstacle.size[2] / 2);
+            assert.ok(
+                distanceX ** 2 + distanceY ** 2 + distanceZ ** 2 >= clearance ** 2,
+                `spawn (${spawn.x}, ${spawn.y}, ${spawn.z}) overlaps obstacle at (${obstacle.pos})`
+            );
+        }
+    }
 });
