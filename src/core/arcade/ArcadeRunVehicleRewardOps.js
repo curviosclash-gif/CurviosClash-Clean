@@ -1,5 +1,5 @@
 import { getArcadeRunVehicleBonuses, getOrCreateProfile } from '../../state/arcade/ArcadeVehicleProfile.js';
-import { bindArcadeVehicleRewards } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
+import { awardBoundArcadeVehicleXp, bindArcadeVehicleRewards } from '../../state/arcade/ArcadeVehicleRewardBinding.js';
 
 function weaponFieldsFromBuild(build) {
     return Object.freeze({
@@ -39,6 +39,65 @@ export function resolveArcadePlayerRewardBinding(runtime, playerVehicleId = null
         return { binding: runBinding, ownsRunPerks: true };
     }
     return { binding: { ...runBinding, vehicleId: ownVehicleId }, ownsRunPerks: false };
+}
+
+/** Own profile of a split-screen partner (player 2 or 3): its store, its profiles and the plane it flies. */
+function resolvePartnerProfileTarget(runtime, playerIndex) {
+    const index = Number(playerIndex);
+    if (runtime?._playerProfileBindingsActive !== true || !Number.isInteger(index) || index === 0) return null;
+    const bound = runtime._playerBindings?.get(index);
+    const profiles = runtime._playerProfilesByIndex?.[index];
+    return bound?.store && profiles ? { index, store: bound.store, profiles, vehicleId: bound.vehicleId } : null;
+}
+
+/** Store and plane for the XP of a partner with an own profile; null for player one and unbound pilots. */
+export function resolveArcadePartnerRewardTarget(runtime, playerIndex) {
+    const target = resolvePartnerProfileTarget(runtime, playerIndex);
+    return target ? { store: target.store, vehicleId: target.vehicleId } : null;
+}
+
+// Always set, so a run in which only a partner earned XP reports 0 for the run vehicle, not the total.
+function countRunVehicleXp(state, earned) {
+    if (state) state.vehicleXpEarned = (Number(state.vehicleXpEarned) || 0) + earned;
+}
+
+function awardPartnerXp(runtime, runBinding, partner, amount) {
+    const result = awardBoundArcadeVehicleXp(partner.profiles, { ...runBinding, vehicleId: partner.vehicleId }, amount);
+    if (result) runtime._persistenceScheduler?.scheduleVehicleProfiles?.(partner.store, partner.profiles, `player${partner.index}`);
+    countRunVehicleXp(runtime._state, 0);
+    return result;
+}
+
+/**
+ * Credits XP to the pilot who earned it: a partner with an own profile levels the plane in that
+ * profile; everyone else the run's profiles. Only XP of the run's own plane count as vehicleXpEarned.
+ * @returns {{ result: object, ownsRunPerks: boolean }|null}
+ */
+export function awardArcadeRunPlayerXp(runtime, amount, playerIndex = 0, playerVehicleId = null) {
+    const runBinding = ensureArcadeRunVehicleRewards(runtime);
+    const partner = runBinding ? resolvePartnerProfileTarget(runtime, playerIndex) : null;
+    if (partner) {
+        const result = awardPartnerXp(runtime, runBinding, partner, amount);
+        return result ? { result, ownsRunPerks: false } : null;
+    }
+    const { binding, ownsRunPerks } = resolveArcadePlayerRewardBinding(runtime, playerVehicleId);
+    if (!binding || !runtime?._vehicleProfiles) return null;
+    const result = awardBoundArcadeVehicleXp(runtime._vehicleProfiles, binding, amount);
+    if (!result) return null;
+    runtime._scheduleVehicleProfilesSave();
+    countRunVehicleXp(runtime._state, ownsRunPerks ? result.earned : 0);
+    return { result, ownsRunPerks };
+}
+
+/** Shared XP (a cleared sector) for every partner with an own profile; returns the XP handed out. */
+export function awardArcadeRunPartnersXp(runtime, amount) {
+    const runBinding = ensureArcadeRunVehicleRewards(runtime);
+    let earned = 0;
+    for (const playerIndex of runBinding ? runtime._playerBindings?.keys?.() || [] : []) {
+        const partner = resolvePartnerProfileTarget(runtime, playerIndex);
+        if (partner) earned += awardPartnerXp(runtime, runBinding, partner, amount)?.earned || 0;
+    }
+    return earned;
 }
 
 export function getArcadeRunVehicleId(runtime) {

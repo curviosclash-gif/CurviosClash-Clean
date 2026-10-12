@@ -31,6 +31,7 @@ import { resolvePlayerMachineGunConfig } from '../../hunt/mg/MGConfigResolver.js
 import { ensurePlayerInventoryCollections } from '../player/PlayerInventoryOps.js';
 import { isDestructibleTurret } from '../../shared/contracts/TurretCombatContract.js';
 import { areTeammates } from '../../shared/contracts/TeamCombatContract.js';
+import { isMapStructureClosedToBots } from '../../shared/contracts/MapDestructibleBotTargetContract.js';
 
 function canAimAtTargetable(target, attacker) {
     return isDestructibleTurret(target)
@@ -39,6 +40,7 @@ function canAimAtTargetable(target, attacker) {
         && target.ownerPlayer !== attacker
         && target.ownerIndex !== attacker?.index
         && !areTeammates(attacker, target)
+        && !(attacker?.isBot === true && isMapStructureClosedToBots(target))
         && !!target.position;
 }
 

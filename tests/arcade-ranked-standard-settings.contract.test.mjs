@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createArcadeRankContext } from '../src/shared/contracts/ArcadeDifficultyContract.js';
 import { createDefaultArcadeRunSettings } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
-import { ARCADE_RANKED_STORAGE_KEY, ARCADE_RANKED_VERSION, resolveArcadeRankKey } from '../src/shared/contracts/ArcadeRankedLeaderboardContract.js';
+import { ARCADE_RANKED_STORAGE_KEY, ARCADE_RANKED_VERSION, resolveArcadeParcoursRankKey, resolveArcadeRankKey } from '../src/shared/contracts/ArcadeRankedLeaderboardContract.js';
 import { settleArcadeRunRanking } from '../src/state/arcade/ArcadeRunRanking.js';
 import { prepareArcadeRunRanking } from '../src/core/arcade/ArcadeRunRankingOps.js';
 import '../src/core/Config.js';
@@ -64,6 +64,20 @@ test('the runtime ranks with the run settings the match started with and writes 
     const standard = prepare(createDefaultArcadeRunSettings());
     assert.equal(standard.rankContext.ranked, true);
     assert.equal(settleArcadeRunRanking(standard, { succeeded: true, score: 500, completedSectors: 5 }).rank, 1);
+});
+
+test('custom score settings keep parcours times on the level board; companions and Daily do not', () => {
+    // Sector count, combo and multiplier change points, not the flight time on a course (user decision 2026-10-12).
+    const settings = (patch) => ({ ...createDefaultArcadeRunSettings(), ...patch });
+    const custom = createArcadeRankContext({ ...base, runType: 'gauntlet', runSettings: settings({ sectorCount: 20, maxMultiplier: 25 }) });
+    assert.equal(custom.ranked, false, 'the run itself stays off the score board');
+    assert.equal(resolveArcadeParcoursRankKey('route_a', custom), 'route_a:level:1-5');
+    const helped = createArcadeRankContext({ ...base, runType: 'gauntlet', runSettings: settings({}), companionCount: 1 });
+    assert.equal(resolveArcadeParcoursRankKey('route_a', helped), 'route_a', 'companions fly the course with help');
+    const daily = createArcadeRankContext({ ...base, runType: 'gauntlet', runSettings: settings({}), dailyChallenge: true });
+    assert.equal(resolveArcadeParcoursRankKey('route_a', daily), 'route_a', 'the Daily keeps its shared route board');
+    const standard = createArcadeRankContext({ ...base, runType: 'gauntlet', runSettings: settings({}) });
+    assert.equal(resolveArcadeParcoursRankKey('route_a', standard), 'route_a:level:1-5');
 });
 
 test('entries saved before the standard-settings rule stay on their board untouched', () => {

@@ -11,10 +11,16 @@ import {
     buildBotValidationRuntimeVerification,
 } from '../src/state/validation/BotValidationService.js';
 import { buildBotValidationOutcomeSemantics } from '../src/state/validation/BotValidationOutcomeSemantics.js';
+import { createRuntimeConfigSnapshot } from '../../../src/core/RuntimeConfig.js';
 import {
     captureBotRuntimeSample,
     isTeamObjectiveFirstTickScenario,
 } from '../scripts/bot-validation-first-tick.mjs';
+import {
+    buildArcadeSectorPlan,
+    resolveArcadeSectorRuntimeProfile,
+} from '../../../src/entities/directors/ArcadeEncounterCatalog.js';
+import { ARCADE_DIFFICULTY_TIERS } from '../../../src/shared/contracts/ArcadeDifficultyContract.js';
 
 function firstTickRuntime() {
     const player = { index: 0, isBot: true, teamId: 'ALPHA' };
@@ -281,6 +287,75 @@ test('heuristic validation selection filters before limiting and rejects unknown
     );
 });
 
+test('validation matrix matches the current runtime policy contract for every scenario', () => {
+    // Keep this expected list independent of the runtime resolver and training benchmark source.
+    const expectedPolicyById = new Map([
+        // Auto in 3D Classic flies the Classic bridge; switching it to the heuristic awaits a decision.
+        ['V1', 'classic-3d'],
+        ['V2', 'classic-2d'],
+        ['V3', 'hunt-2d'],
+        ['V4', 'hunt-3d'],
+        ['H-CLASSIC', 'heuristic'],
+        ['H-FIGHT', 'heuristic'],
+        ['H-FIGHT-DUEL', 'heuristic'],
+        ['H-FIGHT-SURVIVAL', 'heuristic'],
+        ['H-ARCADE', 'heuristic'],
+        ['H-CLASSIC-2D-EASY', 'heuristic'],
+        ['H-CLASSIC-3D-HARD', 'heuristic'],
+        ['H-FIGHT-2D-HARD', 'heuristic'],
+        ['H-ARCADE-VERTICAL', 'heuristic'],
+        ['H-TEAM-FLAGS', 'heuristic'],
+        ['H-TEAM-ESCORT', 'heuristic'],
+    ]);
+    const matrix = getBotValidationMatrix();
+    assert.deepEqual(matrix.map(({ id }) => id), [...expectedPolicyById.keys()]);
+
+    for (const scenario of matrix) {
+        const expectedPolicyType = expectedPolicyById.get(scenario.id);
+        assert.equal(scenario.expectedPolicyType, expectedPolicyType, `${scenario.id} matrix policy`);
+        const runtimeConfig = createRuntimeConfigSnapshot({
+            mode: scenario.mode,
+            gameMode: scenario.gameMode,
+            botPolicyStrategy: scenario.botPolicyStrategy,
+            gameplay: { planarMode: scenario.planarMode },
+            localSettings: { modePath: scenario.gameMode === 'ARCADE' ? 'arcade' : 'normal' },
+            hunt: { teamMode: scenario.teamMode, teamObjective: scenario.teamObjective },
+        });
+        assert.equal(runtimeConfig.bot.policyType, expectedPolicyType, `${scenario.id} runtime policy`);
+        const botCount = scenario.expectedRuntimeBotCount;
+        const verification = buildBotValidationRuntimeVerification(scenario, [{
+            runtimePolicyType: expectedPolicyType,
+            entityPolicyType: expectedPolicyType,
+            botPolicyTypes: new Array(botCount).fill(expectedPolicyType),
+            botCount,
+            botDecisions: new Array(botCount).fill(null).map(() => ({
+                policyType: expectedPolicyType,
+                snapshot: { profile: scenario.heuristicProfile, difficulty: scenario.botDifficulty.toLowerCase() },
+            })),
+            runtimeGameMode: scenario.gameMode,
+            entityGameMode: scenario.gameMode,
+            semanticGameMode: scenario.gameMode,
+            modePath: scenario.gameMode.toLowerCase(),
+            arcadeEnabled: scenario.gameMode === 'ARCADE',
+            arcadeSeed: scenario.gameMode === 'ARCADE' ? scenario.seedBase : null,
+        }]);
+        assert.equal(verification.policy.ok, true, `${scenario.id} valid policy sample`);
+        assert.equal(buildBotValidationRuntimeVerification(scenario, [{
+            runtimePolicyType: 'rule-based',
+            entityPolicyType: 'rule-based',
+            botPolicyTypes: new Array(botCount).fill('rule-based'),
+            botCount,
+            botDecisions: new Array(botCount).fill(null).map(() => ({ policyType: 'rule-based' })),
+            runtimeGameMode: scenario.gameMode,
+            entityGameMode: scenario.gameMode,
+            semanticGameMode: scenario.gameMode,
+            modePath: scenario.gameMode.toLowerCase(),
+            arcadeEnabled: scenario.gameMode === 'ARCADE',
+            arcadeSeed: scenario.gameMode === 'ARCADE' ? scenario.seedBase : null,
+        }]).policy.ok, false, `${scenario.id} incorrect policy sample`);
+    }
+});
+
 test('Arcade validation preserves the ARCADE runtime contract and mode-specific setup state', () => {
     const service = new BotValidationService();
     let settingsChanged = 0;
@@ -468,6 +543,7 @@ test('runner applies selected ids, records real bot deaths, and analysis default
         readFile(new URL('../scripts/bot-validation-first-tick.mjs', import.meta.url), 'utf8'),
     ]);
     assert.match(runnerSource, /applyBotValidationScenario\(scenarioId\)/);
+    assert.match(runnerSource, /chromium\.launch\(\{\s+headless: HEADLESS,\s+\.\.\.\(HEADLESS \? \{ channel: 'chromium' \} : \{\}\),\s+args:/);
     assert.match(runnerSource, /acquirePlaywrightRunLock\(\{ label: 'bot validation' \}\)/);
     assert.match(runnerSource, /execSync\('npm run build:app'/);
     assert.match(runnerSource, /await g\.runtimeCoordinator\.startMatch\(\{ source: 'bot_validation' \}\)/);
@@ -485,10 +561,19 @@ test('runner applies selected ids, records real bot deaths, and analysis default
     assert.match(analysisSource, /outcomeRounds > 0 \? toNumber\(metrics\.botWinRate, 0\) : null/);
     assert.match(runnerSource, /round\?\.botDeathCauseCounts/);
     assert.match(runnerSource, /isSurvivalObservationScenario\(scenario\)/);
+    assert.match(runnerSource, /isObjectiveObservationScenario\(scenario\)/);
+    assert.match(runnerSource, /captureBotObjectiveSnapshot\(/);
+    assert.match(runnerSource, /Math\.min\(5000, observationMs - observedMs\)/);
+    // The runtime sample lives in bot-validation-first-tick.mjs; the runner keeps only the objective snapshot.
+    assert.equal((runnerSource.match(/const objectiveRole = objectiveType === 'FLAGS'/g) || []).length, 1);
+    assert.equal((runnerSource.match(/objectiveTargetId: objectiveType === 'FLAGS'/g) || []).length, 1);
+    assert.match(runnerSource, /A att\/def\/cap=/);
+    assert.match(runnerSource, /B tankDamage=/);
+    assert.match(runnerSource, /Aktionsbelege sind Beobachtungsdaten, kein Win-\/Erfolgskriterium/);
     assert.match(runnerSource, /if \(typeof g\._returnToMenu !== 'function'\) throw new Error\('_returnToMenu missing'\)/);
     assert.match(runnerSource, /survival observations produced outcomes/);
     assert.match(runnerSource, /bot count contract mismatched/);
-    assert.match(runnerSource, /buildScenarioMetrics\(allRounds, validationRuntimeSamples, validationSurvivalObservations\)/);
+    assert.match(runnerSource, /buildScenarioMetrics\(null, allRounds, validationRuntimeSamples, validationSurvivalObservations\)/);
     assert.match(runnerSource, /browser runtime errors encountered/);
     assert.match(runnerSource, /huntRespawnEnabled: entityManager\?\._roundOutcomeSystem\?\.isRespawnEnabled\?\.\(\) \?\? null/);
     assert.match(runnerSource, /renderFrameId: Number\(game\?\.gameLoop\?\.renderFrameId \?\? 0\)/);
@@ -504,4 +589,65 @@ test('runner applies selected ids, records real bot deaths, and analysis default
         packageSource,
         /"bot:validate:flight".*H-FIGHT-DUEL,H-CLASSIC-3D-HARD,H-ARCADE-VERTICAL.*--policy heuristic.*--rounds 2.*--headless true/
     );
+});
+
+// Arcade runs replace the menu bot count and difficulty with the seeded first sector of the
+// arcade tier (dadc10fc). The runner seeds round N with seedBase + N.
+function arcadeSectorProfile(seed, tierId = 'normal') {
+    const tier = ARCADE_DIFFICULTY_TIERS.find((entry) => entry.id === tierId);
+    return resolveArcadeSectorRuntimeProfile(buildArcadeSectorPlan({ seed, difficulty: tierId }).sequence[0], {
+        fallbackBotCount: 1,
+        fallbackDifficulty: tier.ai,
+    });
+}
+
+function arcadeSample(seed, botCount, difficulty) {
+    return {
+        runtimePolicyType: 'heuristic',
+        entityPolicyType: 'heuristic',
+        botPolicyTypes: new Array(botCount).fill('heuristic'),
+        botCount,
+        botDecisions: new Array(botCount).fill(null).map(() => ({
+            policyType: 'heuristic',
+            snapshot: { profile: 'balanced', difficulty: difficulty.toLowerCase() },
+        })),
+        runtimeGameMode: 'ARCADE',
+        entityGameMode: 'ARCADE',
+        semanticGameMode: 'ARCADE',
+        modePath: 'arcade',
+        arcadeEnabled: true,
+        arcadeSeed: seed,
+    };
+}
+
+test('Arcade scenarios expect the seeded squad size of every round', () => {
+    const arcadeScenarios = getBotValidationMatrix().filter((entry) => entry.gameMode === 'ARCADE');
+    assert.deepEqual(arcadeScenarios.map((entry) => entry.id), ['H-ARCADE', 'H-ARCADE-VERTICAL']);
+    for (const scenario of arcadeScenarios) {
+        const samples = [0, 1, 2, 3].map((round) => {
+            const seed = scenario.seedBase + round;
+            const profile = arcadeSectorProfile(seed);
+            return arcadeSample(seed, profile.botCount, scenario.botDifficulty);
+        });
+        const verification = buildBotValidationRuntimeVerification(scenario, samples).botCount;
+        assert.deepEqual(verification.expectedBySample, samples.map((sample) => sample.botCount), scenario.id);
+        assert.equal(verification.ok, true, scenario.id);
+    }
+});
+
+test('Arcade scenarios expect the bot difficulty of the arcade tier they pin', () => {
+    const service = new BotValidationService();
+    for (const scenario of getBotValidationMatrix().filter((entry) => entry.gameMode === 'ARCADE')) {
+        const game = { settings: { localSettings: {}, gameplay: {}, hunt: {}, winsNeeded: 1 }, _onSettingsChanged() {} };
+        service.applyScenario(game, scenario.id);
+        const tierId = game.settings.arcade.difficultyTierId;
+        assert.equal(tierId, 'normal', `${scenario.id} must pin the tier every profile has unlocked`);
+        const samples = [0, 1, 2, 3].map((round) => {
+            const seed = scenario.seedBase + round;
+            const profile = arcadeSectorProfile(seed, tierId);
+            return arcadeSample(seed, profile.botCount, profile.botDifficulty);
+        });
+        const policy = buildBotValidationRuntimeVerification(scenario, samples).policy;
+        assert.equal(policy.ok, true, `${scenario.id} expects ${policy.expectedDifficulty}, arcade plays ${policy.difficultyNames}`);
+    }
 });

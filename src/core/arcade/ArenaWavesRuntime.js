@@ -35,9 +35,11 @@ function saveRecords(store, records) { store?.saveJsonRecord?.(RECORD_KEY, recor
 
 /** Dedicated single-player Hunt run. It intentionally owns no parcours state. */
 export class ArenaWavesRuntime {
-    constructor({ now = () => Date.now(), getRecordStore = () => null, requestMapTransition = null } = {}) {
+    /** getPlayerRewardTarget(playerIndex): own store and plane of a split-screen partner, null for player one. */
+    constructor({ now = () => Date.now(), getRecordStore = () => null, getPlayerRewardTarget = (_playerIndex) => null, requestMapTransition = null } = {}) {
         this._now = now;
         this._getRecordStore = getRecordStore;
+        this._getPlayerRewardTarget = getPlayerRewardTarget;
         this._requestMapTransition = requestMapTransition;
         this.reset();
     }
@@ -51,7 +53,7 @@ export class ArenaWavesRuntime {
         this._pendingWave = 1; this._nextWaveIn = null;
         this._plannedSlots = []; this._choices = []; this._choiceReason = ''; this._intermission = 0;
         this._pendingSupplyPickup = null; this._transitionRequested = false; this.seed = 1;
-        this.rewardBinding = null; this.xpEarned = 0;
+        this.rewardBinding = null; this.xpEarned = 0; this.vehicleXpEarned = 0;
         this.mapStats = []; this._records = loadRecords(this._getRecordStore?.());
     }
 
@@ -202,13 +204,16 @@ export class ArenaWavesRuntime {
         if (creditedHuman) {
             trackArcadeColorEvent(this._colorProgress, event);
             if (this._eliteSlots.has(slot)) this.eliteKills += 1; else this.regularKills += 1;
+            // A split-screen partner with an own profile levels the plane he flies, in his own store.
+            const partner = Number(event.playerIndex) === Number(this._human()?.index) ? null : this._getPlayerRewardTarget?.(event.playerIndex);
             const result = awardBoundArcadeVehicleXpInStore(
-                this._getRecordStore?.(),
-                this.rewardBinding,
+                partner ? partner.store : this._getRecordStore?.(),
+                partner ? bindArcadeVehicleRewards({ runType: 'arena_waves', vehicleId: partner.vehicleId }) : this.rewardBinding,
                 XP_REWARD_TABLE.killBase,
                 this._now()
             );
             if (result) this.xpEarned += result.earned;
+            if (result && !partner) this.vehicleXpEarned += result.earned;
         }
         this._deactivateSlot(slot, 'killed');
         return this.getHudState();
@@ -286,5 +291,5 @@ export class ArenaWavesRuntime {
         }
         this.strategy?.applyRunRewardEffects?.(null); this.reset();
     }
-    getHudState() { return { runType: 'arena_waves', vehicleId: this.rewardBinding?.vehicleId || '', xpEarned: this.xpEarned, phase: this.phase, mapIndex: this.mapIndex, mapCount: ARENA_WAVES_MAPS.length, currentMapKey: resolveArenaWavesMap(this.mapIndex), wave: this.wave, countdown: this.countdown, nextWaveInSeconds: this.phase === 'upgrade' || this.phase === 'finished' ? null : (this.phase === 'combat' ? this._nextWaveIn : (this.phase === 'countdown' ? this.countdown + 1 : this.countdown)), alive: this._activeSlots.size, plannedSpawnCount: this.phase === 'telegraph' ? resolveArenaWavesProfile(this._pendingWave).count : 0, spawnWarning: this.phase === 'telegraph' ? { remaining: this.countdown, count: resolveArenaWavesProfile(this._pendingWave).count } : null, aggression: resolveArenaWavesAggression(this.mapIndex, this.wave), kills: { regular: this.regularKills, elite: this.eliteKills }, survivalSeconds: this.survivalSeconds, upgrades: { ...this.upgrades }, choices: [...this._choices], choiceReason: this._choiceReason, score: { total: this.totalScore, currentMap: this.score }, mapStats: this.mapStats.map((stat) => ({ ...stat })), postRunSummary: this.phase === 'finished' ? { ranking: this.ranking, total: this.totalScore, maps: this.mapStats.map((stat) => ({ ...stat })) } : null, records: { ...this._records } }; }
+    getHudState() { return { runType: 'arena_waves', vehicleId: this.rewardBinding?.vehicleId || '', xpEarned: this.xpEarned, vehicleXpEarned: this.vehicleXpEarned, phase: this.phase, mapIndex: this.mapIndex, mapCount: ARENA_WAVES_MAPS.length, currentMapKey: resolveArenaWavesMap(this.mapIndex), wave: this.wave, countdown: this.countdown, nextWaveInSeconds: this.phase === 'upgrade' || this.phase === 'finished' ? null : (this.phase === 'combat' ? this._nextWaveIn : (this.phase === 'countdown' ? this.countdown + 1 : this.countdown)), alive: this._activeSlots.size, plannedSpawnCount: this.phase === 'telegraph' ? resolveArenaWavesProfile(this._pendingWave).count : 0, spawnWarning: this.phase === 'telegraph' ? { remaining: this.countdown, count: resolveArenaWavesProfile(this._pendingWave).count } : null, aggression: resolveArenaWavesAggression(this.mapIndex, this.wave), kills: { regular: this.regularKills, elite: this.eliteKills }, survivalSeconds: this.survivalSeconds, upgrades: { ...this.upgrades }, choices: [...this._choices], choiceReason: this._choiceReason, score: { total: this.totalScore, currentMap: this.score }, mapStats: this.mapStats.map((stat) => ({ ...stat })), postRunSummary: this.phase === 'finished' ? { ranking: this.ranking, total: this.totalScore, maps: this.mapStats.map((stat) => ({ ...stat })) } : null, records: { ...this._records } }; }
 }

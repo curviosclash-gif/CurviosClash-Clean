@@ -69,6 +69,17 @@ test('the installer pins a verified runner, stays unelevated and never installs 
     assert.match(installer, new RegExp(`\\$RepoUrl = 'https://github\\.com/${REMOTE_REPO}'`));
 });
 
+test('the readiness check only reads, stays ASCII and refuses nothing silently', () => {
+    const check = readRepoFile('scripts/remote-runner/check-remote-machine.ps1');
+    assert.ok(/^[\x09\x0a\x0d\x20-\x7e]*$/.test(check), 'Windows PowerShell 5.1 reads BOM-less UTF-8 as ANSI; keep it ASCII');
+    for (const writer of ['Remove-Item', 'Set-ItemProperty', 'powercfg /change', 'icacls', 'config.cmd', 'Start-Process']) {
+        assert.ok(!check.includes(writer), `the check must not change the machine (${writer})`);
+    }
+    assert.match(check, /IsInRole\(\[Security\.Principal\.WindowsBuiltInRole\]::Administrator\)/);
+    assert.match(check, /SessionId -eq 0/);
+    assert.match(check, /exit 1/);
+});
+
 test('the CLI accepts cluster ids and spec paths but rejects anything a shell could misread', () => {
     const specExists = (spec) => spec === 'tests/core.spec.js';
     assert.deepEqual(parseRemoteArgs(['core-surface', 'tests\\core.spec.js', '--grep', 'T20kb:|T20kc:'], { specExists }).targets,

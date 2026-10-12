@@ -130,6 +130,27 @@ export function createArcadeBreakdownBlock(breakdown, id = 'arcade-breakdown', a
     return createArcadeBlock(id, 'Punkteberechnung', rows);
 }
 
+const SAVE_FAILURE_LABELS = Object.freeze({
+    vehicleProfiles: 'Fahrzeug-XP',
+    leaderboard: 'Bestenliste',
+    runRecords: 'Rekorde',
+    ghostLibrary: 'Ghosts',
+});
+
+/**
+ * A save the store rejected (usually full storage) gets its own card instead of a console line.
+ * @param {unknown} saveFailures kinds from the persistence scheduler, e.g. 'vehicleProfiles:p2'
+ */
+export function createArcadeSaveFailureBlock(saveFailures) {
+    const kinds = Array.isArray(saveFailures) ? saveFailures.map((kind) => String(kind || '').split(':')[0]) : [];
+    if (kinds.length === 0) return null;
+    const labels = [...new Set(kinds.map((kind) => SAVE_FAILURE_LABELS[kind] || kind))];
+    return createArcadeBlock('arcade-save-failure', 'Speichern fehlgeschlagen', [
+        textRow('notice', 'Hinweis', 'Fortschritt konnte nicht gespeichert werden. Der Speicher ist vermutlich voll.'),
+        textRow('affected', 'Betroffen', labels.join(', ')),
+    ]);
+}
+
 /**
  * Headline values of a finished run: the four numbers a player looks for first.
  * @param {object} summary
@@ -137,6 +158,7 @@ export function createArcadeBreakdownBlock(breakdown, id = 'arcade-breakdown', a
  */
 export function createArcadeRunBlocks(summary = {}) {
     const blocks = [
+        createArcadeSaveFailureBlock(summary.saveFailures),
         createArcadeRankingBlock(summary.ranking),
         createArcadeBlock('arcade-run', 'Ergebnis', [
             countRow('score', 'Gesamtpunkte', summary.score),
