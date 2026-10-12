@@ -38,8 +38,6 @@ import { observeLobbySessionStateChange } from './runtime/RuntimeLobbySessionObs
 import { syncRuntimeMultiplayerContext } from './runtime/RuntimeMultiplayerFlowService.js';
 import {
     setupRuntimeClientStateReceiver,
-    startRuntimeStateBroadcast,
-    stopRuntimeStateBroadcast,
     teardownRuntimeSession as teardownRuntimeSessionState,
 } from './runtime/RuntimeSessionLifecycleService.js';
 import { resolveRuntimeNetworkPlayerSlotContext } from './runtime/RuntimeNetworkPlayerSlots.js';
@@ -255,7 +253,6 @@ export class GameRuntimeFacade {
     }
     tickArcadeSuddenDeath(dt = 0) { return this._arcadeSupport.tickSuddenDeath(dt); }
     tickPendingArcadeRewards() { return this._arcadeSupport.tickPendingArcadeRewards(); }
-    tickWeaponRaceRewardMaintenance() { return this._arcadeSupport.tickWeaponRaceRewardMaintenance(); }
     selectArcadeIntermissionChoice(choiceId) { return this._arcadeSupport.selectIntermissionChoice(choiceId); }
     resolveArcadeVictoryChoice(choice) { return this.arcadeRunRuntime?.resolveVictoryChoice(choice); }
     setArcadeIntermissionPaused(paused) { return this.arcadeRunRuntime?.setIntermissionPaused(paused); }
@@ -504,8 +501,6 @@ export class GameRuntimeFacade {
     updateSaveButtonState() { return this.settingsHandler.updateSaveButtonState(); }
     async _initSession(options = undefined) { return this.executeSessionRuntimeCommand(createInitializeSessionCommand(options)); }
     initializeSession(options = undefined) { return this._initSession(options); }
-    _startStateBroadcast() { startRuntimeStateBroadcast(this); }
-    _stopStateBroadcast() { stopRuntimeStateBroadcast(this); }
     _setupClientStateReceiver() { setupRuntimeClientStateReceiver(this); }
     async _waitForAllPlayersLoaded() { return this.sessionHandler.waitForAllPlayersLoaded(); }
     waitForAllPlayersLoaded() { return this._waitForAllPlayersLoaded(); }
