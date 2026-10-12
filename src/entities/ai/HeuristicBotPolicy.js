@@ -14,7 +14,8 @@ import { FIGHT_TARGET_LOCK_SECONDS } from '../../hunt/FightTargetSelector.js';
 import { clamp } from '../../shared/utils/MathOps.js';
 import { applyHeuristicClassicBehavior } from './HeuristicClassicTacticsOps.js';
 import { applyHeuristicHuntBehavior } from './HeuristicHuntTacticsOps.js';
-import { HEURISTIC_DIFFICULTIES, hasYaw, normalizeDifficultyName, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveEffectiveHeuristicProfile, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex } from './HeuristicBotPolicyOps.js';
+import { applyArcadeAggressionToHeuristicTuning, HEURISTIC_DIFFICULTIES, hasYaw, normalizeDifficultyName, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveEffectiveHeuristicProfile, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex } from './HeuristicBotPolicyOps.js';
+import { normalizeArcadeBotAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 import { findParcoursGuidanceWaypoint, isParcoursGuidanceRequiredAfterBranch, resolveActiveParcoursGuidance } from '../../shared/utils/ParcoursGuidance.js';
 import {
     applyHeuristicObstacleAvoidance,
@@ -44,7 +45,10 @@ export class HeuristicBotPolicy {
         this.profileTuning = options.heuristicTuning
             || options.runtimeConfig?.bot?.heuristicTuning?.[this.profileName]
             || null;
-        this.profile = resolveEffectiveHeuristicProfile(this.profileName, this.profileTuning);
+        this.arcadeAggressiveness = normalizeArcadeBotAggressiveness(
+            options.arcadeAggressiveness ?? options.runtimeConfig?.bot?.arcadeAggressiveness
+        );
+        this.profile = this._resolveProfile();
         this._runtimeBotSettings = options.runtimeConfig?.bot || null;
         this.difficultyName = normalizeDifficultyName(
             options.difficulty
@@ -213,14 +217,15 @@ export class HeuristicBotPolicy {
         return false;
     }
 
-    _applyArcadeBehavior(input, player, runtimeContext, observation) {
+    _applyArcadeBehavior(input, dt, player, runtimeContext, observation) {
         const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
         const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
         const openness = clamp(readObservationValue(observation, LOCAL_OPENNESS_RATIO, 0), 0, 1);
         const hasTarget = this._resolveParcoursTarget(runtimeContext, player, this._tmpTarget);
         if (!hasTarget || !player?.position) {
-            input.shootMG = false;
-            return { intent: 'avoid', targetDistanceRatio: 1, selectedItemReason: '', retreatReason: '' };
+            // No gate to fly: an Arcade combat sector fights by the Classic rules it runs on, with
+            // the sector's stage and squad aggressiveness, like the rule bot does.
+            return applyHeuristicClassicBehavior(this, input, dt, player, runtimeContext, observation);
         }
         clearSteeringInput(input);
         this._tmpGate.subVectors(this._tmpTarget, player.position);
@@ -268,7 +273,7 @@ export class HeuristicBotPolicy {
         const observation = runtimeContext?.observation || null;
         applyHeuristicObstacleAvoidance(this, input, player, observation);
 
-        const mode = resolveMode(runtimeContext, observation);
+        const mode = player.isArcadeParcoursCompetitor === true ? 'ARCADE' : resolveMode(runtimeContext, observation);
         const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
         let decision = {
             intent: 'avoid',
@@ -281,7 +286,7 @@ export class HeuristicBotPolicy {
         if (mode === 'HUNT') {
             decision = applyHeuristicHuntBehavior(this, input, dt, player, runtimeContext, observation);
         } else if (mode === 'ARCADE') {
-            decision = this._applyArcadeBehavior(input, player, runtimeContext, observation);
+            decision = this._applyArcadeBehavior(input, dt, player, runtimeContext, observation);
         } else {
             decision = applyHeuristicClassicBehavior(this, input, dt, player, runtimeContext, observation);
         }
@@ -332,11 +337,23 @@ export class HeuristicBotPolicy {
         return this._decisionSnapshot;
     }
 
+    _resolveProfile() {
+        return resolveEffectiveHeuristicProfile(
+            this.profileName,
+            applyArcadeAggressionToHeuristicTuning(this.profileTuning, this.arcadeAggressiveness)
+        );
+    }
+
     setProfile(profileName, tuning = null) {
         this.profileName = normalizeProfileName(profileName);
         this.profileTuning = tuning;
-        this.profile = resolveEffectiveHeuristicProfile(this.profileName, tuning);
+        this.profile = this._resolveProfile();
         this._decisionSnapshot.profile = this.profileName;
+    }
+
+    setArcadeBotAggressiveness(value) {
+        this.arcadeAggressiveness = normalizeArcadeBotAggressiveness(value);
+        this.profile = this._resolveProfile();
     }
 
     setDifficulty(profileName) {

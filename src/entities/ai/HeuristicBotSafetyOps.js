@@ -10,8 +10,8 @@ import {
     resolvePredictiveDangerThreshold, resolvePredictiveSafetyLookAhead,
     resolvePredictiveSafetySampleCount, resolvePredictiveSafetyScale, samplePredictivePath,
 } from './HeuristicPredictiveSafetyOps.js';
-import { refreshHeuristicPlannedPathClearance } from './HeuristicTrailSafetyOps.js';
-import { resolveHeuristicSelfTrailSkipRecentSegments } from './HeuristicTrailSafetyOps.js';
+import { refreshHeuristicPlannedPathClearance, resolveHeuristicSelfTrailSkipRecentSegments } from './HeuristicTrailSafetyOps.js';
+import { resolveVehicleEvadeTurn } from './HeuristicTrafficAvoidanceOps.js';
 export { applyHeuristicObstacleAvoidance, resolveBoostPressureCeiling } from './HeuristicObstacleAvoidanceOps.js';
 export { checkTrailCollision, resolveHeuristicSelfTrailSkipRecentSegments } from './HeuristicTrailSafetyOps.js';
 export { checkArenaCollision } from './HeuristicPredictiveSafetyOps.js';
@@ -117,6 +117,8 @@ export function createHeuristicSafetyState() {
         projectileYaw: 0,
         projectilePitch: 0,
         projectileTimeToImpact: Infinity,
+        vehicleYaw: 0,
+        vehiclePitch: 0,
     };
 }
 
@@ -168,6 +170,8 @@ export function resetHeuristicSafetyState(state) {
     state.projectileYaw = 0;
     state.projectilePitch = 0;
     state.projectileTimeToImpact = Infinity;
+    state.vehicleYaw = 0;
+    state.vehiclePitch = 0;
 }
 
 export function recordHeuristicBounce(state, type, normal = null) {
@@ -416,10 +420,11 @@ function resolvePreferredTurn(policy, state, player, dangerThreshold) {
     const right = state.rightClearance;
     const up = state.upClearance;
     const down = state.downClearance;
-    const leftScore = left + (state.projectileYaw > 0 ? 0.18 : 0);
-    const rightScore = right + (state.projectileYaw < 0 ? 0.18 : 0);
-    const upScore = up + (state.projectilePitch > 0 ? 0.18 : 0);
-    const downScore = down + (state.projectilePitch < 0 ? 0.18 : 0);
+    // Projectiles and (Classic only, where a crash kills both) an oncoming vehicle tip the turn away.
+    const leftScore = left + (state.projectileYaw > 0 ? 0.18 : 0) + (state.vehicleYaw > 0 ? 0.18 : 0);
+    const rightScore = right + (state.projectileYaw < 0 ? 0.18 : 0) + (state.vehicleYaw < 0 ? 0.18 : 0);
+    const upScore = up + (state.projectilePitch > 0 ? 0.18 : 0) + (state.vehiclePitch > 0 ? 0.18 : 0);
+    const downScore = down + (state.projectilePitch < 0 ? 0.18 : 0) + (state.vehiclePitch < 0 ? 0.18 : 0);
     let preferredAxis = 'yaw';
     let preferred = leftScore > rightScore ? 1 : -1;
     let preferredScore = Math.max(leftScore, rightScore);
@@ -502,6 +507,7 @@ export function applyHeuristicSafetyArbiter(policy, input, dt, player, runtimeCo
         || state.state === HEURISTIC_SAFETY_STATES.RECOVER;
     if (!safetyActive) return state;
 
+    resolveVehicleEvadeTurn(policy, state, player, decision?.crashThreat || null);
     resolvePreferredTurn(policy, state, player, dangerThreshold);
     input.pitchAxis = undefined;
     input.yawAxis = undefined;

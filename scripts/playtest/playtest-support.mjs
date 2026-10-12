@@ -222,6 +222,15 @@ export const PLAYTEST_RUNTIME_HOOKS = Object.freeze([
     { file: 'src/entities/Powerup.js', needle: 'this.items = []' },
     { file: 'src/entities/arena/ArenaCollision.js', needle: 'checkCollisionFast(position, radius = 0) {' },
     { file: 'src/entities/arena/ArenaGeometryCompilePipeline.js', needle: 'innerRadius: solid ? 0 : safeInnerRadius' },
+    // Arcade test driver: continue intermissions, finish a won run, read the summary, hunt map units.
+    { file: 'src/core/main.js', needle: 'this.matchFlowUiController' },
+    { file: 'src/ui/MatchFlowUiController.js', needle: 'this.runtimePort = ' },
+    { file: 'src/shared/runtime/UiControllerRuntimePorts.js', needle: 'controllerPort.setArcadeIntermissionPaused = ' },
+    { file: 'src/shared/runtime/UiControllerRuntimePorts.js', needle: 'controllerPort.setRoundPause = ' },
+    { file: 'src/shared/runtime/UiControllerRuntimePorts.js', needle: 'controllerPort.resolveArcadeVictoryChoice = ' },
+    { file: 'src/shared/runtime/UiControllerRuntimePorts.js', needle: 'controllerPort.applyRoundEndTransition = ' },
+    { file: 'src/core/arcade/ArcadeRunRuntime.js', needle: 'getPostRunSummary() {' },
+    { file: 'src/entities/ai/BotTargetingOps.js', needle: 'player.botTargetsMapUnits === true' },
 ]);
 
 /**

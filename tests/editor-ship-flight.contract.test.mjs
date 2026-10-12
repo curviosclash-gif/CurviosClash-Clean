@@ -10,13 +10,10 @@ import {
     SHIP_FLIGHT_MAX_STEP_SECONDS,
     createShipFlightParams,
     createShipFlightState,
-    describeFlightKey,
     resolveEditorUnitsPerWorldUnit,
-    resolveShipFlightControls,
     resolveShipFlightInput,
     stepShipFlight,
 } from '../editor/js/EditorShipFlight.js';
-import { normalizeControlBindings } from '../src/shared/contracts/SettingsRuntimeContract.js';
 
 const STEP = 1 / 60;
 
@@ -135,66 +132,6 @@ test('the default editor arena converts with the playtest normalisation, small a
     const mapScale = CONFIG_SECTIONS.ARENA.MAP_SCALE;
     assert.ok(Math.abs(resolveEditorUnitsPerWorldUnit({ width: 2800, height: 950, depth: 2400 }) - 35 / mapScale) < 1e-9);
     assert.equal(resolveEditorUnitsPerWorldUnit({ width: 120, height: 40, depth: 120 }), 1);
-});
-
-test('flight keys come from the stored game settings, including inverted pitch', () => {
-    const settings = {
-        controls: { PLAYER_1: { UP: 'KeyI', DOWN: 'KeyK', BOOST: 'Space' } },
-        invertPitch: { PLAYER_1: true },
-    };
-    const controls = resolveShipFlightControls(settings, normalizeControlBindings);
-    assert.equal(controls.keyMap.UP, 'KeyI');
-    assert.equal(controls.keyMap.LEFT, CONFIG_SECTIONS.KEYS.PLAYER_1.LEFT, 'unset keys keep the game default');
-    // Space is taken by boost here, so hovering moves to its own key.
-    assert.notEqual(controls.hoverCode, 'Space');
-
-    const input = resolveShipFlightInput(new Set(['KeyI', controls.hoverCode]), controls);
-    assert.equal(input.pitchDown, true, 'inverted: the up key pitches down, as in a match');
-    assert.equal(input.pitchUp, false);
-    assert.equal(input.hover, true);
-    assert.equal(resolveShipFlightInput(new Set(['Space']), controls).boost, true);
-});
-
-test('bound keys never double as boost or hover', () => {
-    const shiftRoll = resolveShipFlightControls(
-        { controls: { PLAYER_1: { ROLL_LEFT: 'ShiftLeft', BOOST: 'KeyB' } } },
-        normalizeControlBindings,
-    );
-    const rolling = resolveShipFlightInput(new Set(['ShiftLeft']), shiftRoll);
-    assert.equal(rolling.rollLeft, true);
-    assert.equal(rolling.boost, false, 'ShiftLeft is the roll key here, not a second boost');
-
-    const crowded = resolveShipFlightControls(
-        { controls: { PLAYER_1: { BOOST: 'Space', ROLL_LEFT: 'KeyH', SHOOT: 'KeyB' } } },
-        normalizeControlBindings,
-    );
-    assert.ok(!Object.values(crowded.keyMap).includes(crowded.hoverCode), `hover ${crowded.hoverCode} is bound`);
-});
-
-test('stored bindings go through the same combat-conflict guard as the match', () => {
-    const settings = { controls: { PLAYER_1: { SHOOT: 'KeyF', SHOOT_MG: 'KeyF' } } };
-    const editor = resolveShipFlightControls(settings, normalizeControlBindings);
-    const match = normalizeControlBindings(settings.controls.PLAYER_1, CONFIG_SECTIONS.KEYS.PLAYER_1, { guardCombatConflicts: true });
-    assert.equal(editor.keyMap.SHOOT_MG, match.SHOOT_MG);
-    assert.notEqual(editor.keyMap.SHOOT_MG, 'KeyF');
-});
-
-test('without stored settings the game defaults apply', () => {
-    for (const settings of [null, undefined, 'x', { controls: 7 }]) {
-        const controls = resolveShipFlightControls(settings, normalizeControlBindings);
-        assert.deepEqual(controls.keyMap.UP, CONFIG_SECTIONS.KEYS.PLAYER_1.UP);
-        assert.equal(controls.invertPitch, false);
-        assert.equal(controls.hoverCode, 'Space');
-    }
-});
-
-test('key labels for the flight hints read like the keyboard', () => {
-    assert.equal(describeFlightKey('KeyW'), 'W');
-    assert.equal(describeFlightKey('ShiftLeft'), 'Shift');
-    assert.equal(describeFlightKey('ArrowUp'), '↑');
-    assert.equal(describeFlightKey('Numpad8'), 'Num 8');
-    assert.equal(describeFlightKey('Digit3'), '3');
-    assert.equal(describeFlightKey('Space'), 'Leertaste');
 });
 
 test('flight keys follow the match key map of player one, independent of the keyboard layout', () => {

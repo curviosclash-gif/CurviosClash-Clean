@@ -4,6 +4,7 @@ import { applyFlagBotMovement } from './HuntBotFlagOps.js';
 export function applyHuntBotObjectiveMovement(options = {}) {
     if (options.player) {
         options.player.botObjectiveType = '';
+        options.player.flagBotRole = '';
         options.player.flagBotTargetId = '';
     }
     const flagRole = applyFlagBotMovement(options);

@@ -94,9 +94,10 @@ export const DEFAULT_ENTITY_RUNTIME_CONFIG = Object.freeze({
         PLAYER_REGEN_DELAY: 3,
         PLAYER_REGEN_PER_SECOND: 2.5,
         TRAIL_SEGMENT_HP: 3,
+        // Same values as HUNT_CONFIG (src/hunt/HuntConfig.js), which is what matches load.
         COLLISION_DAMAGE: Object.freeze({
-            WALL: 22,
-            TRAIL: 34,
+            WALL: 20,
+            TRAIL: 28,
             PLAYER_CRASH: 40,
         }),
         COLLISION_COOLDOWN: Object.freeze({

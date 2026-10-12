@@ -5,6 +5,7 @@
 import { ArcadeMissionHUD } from './arcade/ArcadeMissionHUD.js';
 import { resolveLocalHudTile } from './LocalHudPlayers.js';
 import { ArcadeScoreHUD } from './arcade/ArcadeScoreHUD.js';
+import { ArcadeCompanionHUD } from './arcade/ArcadeCompanionHUD.js';
 import { resolveArcadeMapLabel } from './arcade/postrun/ArcadePostRunBlocks.js';
 import { ParcoursOverlayController } from './arcade/ParcoursOverlayController.js';
 import { updateActiveEffectBar, updateItemBar, updateRocketBar } from './ItemBarPresenter.js';
@@ -209,11 +210,13 @@ export class HudRuntimeSystem {
         if (!this._arcadeScoreHud) {
             this._arcadeScoreHud = new ArcadeScoreHUD(parent);
         }
+        if (!this._arcadeCompanionHud) this._arcadeCompanionHud = new ArcadeCompanionHUD(parent);
     }
 
     _hideArcadeHud() {
         this._arcadeMissionHud?.hide?.();
         this._arcadeScoreHud?.hide?.();
+        this._arcadeCompanionHud?.hide?.();
         this._hideArcadeFeedbackOverlays();
     }
 
@@ -265,6 +268,7 @@ export class HudRuntimeSystem {
 
         this._ensureArcadeHud();
         this._arcadeScoreHud?.update?.(hudState);
+        this._arcadeCompanionHud?.update?.(projection?.players);
         this._arcadeMissionHud?.update?.(hudState.missionState, hudState.objectiveState);
         this._ensureArcadeFeedbackOverlays();
 
@@ -558,8 +562,10 @@ export class HudRuntimeSystem {
         this._scorePresenter = null;
         this._arcadeMissionHud?.dispose?.();
         this._arcadeScoreHud?.dispose?.();
+        this._arcadeCompanionHud?.dispose?.();
         this._arcadeMissionHud = null;
         this._arcadeScoreHud = null;
+        this._arcadeCompanionHud = null;
         if (this._arcadeSuddenDeathOverlay?.parentElement) {
             this._arcadeSuddenDeathOverlay.parentElement.removeChild(this._arcadeSuddenDeathOverlay);
         }

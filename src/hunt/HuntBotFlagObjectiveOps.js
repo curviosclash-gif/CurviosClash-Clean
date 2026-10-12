@@ -39,7 +39,7 @@ export function resolveFlagObjectiveTarget(player, runtimeContext) {
     let target = null;
     let bestScore = Infinity;
     for (const flag of flags) {
-        if (!flag?.position) continue;
+        if (!flag?.position || flag.alive === false || !(Number(flag.hp) > 0)) continue;
         const isOwn = normalizeTeamId(flag.teamId) === teamId;
         if (seekEnemy === isOwn) continue;
         const dx = Number(flag.position.x) - Number(player.position.x);
@@ -62,12 +62,20 @@ export function resolveFlagObjectiveTarget(player, runtimeContext) {
 export function applyFlagObjectiveMovement(
     policy, input, player, runtimeContext, retreating = false, survivalPressure = 0, mgRange = 95,
 ) {
+    if (player) {
+        player.botObjectiveType = '';
+        player.flagBotRole = '';
+        player.flagBotTargetId = '';
+    }
     if (retreating || survivalPressure >= 0.86) return null;
     const target = resolveFlagObjectiveTarget(player, runtimeContext);
     if (!target?.position || !player?.position) return null;
     const distanceSq = player.position.distanceToSquared(target.position);
     const role = resolveFlagBotRole(player);
     const isEnemyObjective = normalizeTeamId(target.teamId) !== normalizeTeamId(player.teamId);
+    player.flagBotRole = role;
+    player.flagBotTargetId = String(target.id || '');
+    player.botObjectiveType = 'FLAGS';
     if (isEnemyObjective || distanceSq > 18 * 18) {
         clearSteeringInput(input);
         applySteeringTowardPosition(policy, input, player, target.position);
@@ -76,6 +84,9 @@ export function applyFlagObjectiveMovement(
     if (isEnemyObjective && distanceSq <= Math.max(12, Number(mgRange) || 95) ** 2) {
         input.shootMG = true;
     }
+    player.botObjectiveType = TEAM_OBJECTIVE_TYPES.FLAGS;
+    player.flagBotRole = role;
+    player.flagBotTargetId = String(target.id || '');
     return { role, target, distanceSq, isEnemyObjective };
 }
 

@@ -1,10 +1,10 @@
 import { createParcoursOutcomeCounters } from './ParcoursProgressSnapshot.js';
 import {
     createPlayerProgressState,
-    formatDurationMs,
     normalizeString,
     resolveExpectedCheckpointEntries,
 } from './ParcoursProgressUtils.js';
+import { completeParcours } from './ParcoursProgressCompletionOps.js';
 import { resetParcoursProgressState, rewindParcoursProgressState } from './ParcoursProgressStateOps.js';
 import {
     buildRouteSnapshot,
@@ -316,6 +316,7 @@ export class ParcoursProgressSystem {
         const splitMs = state.startedAtMs > 0 ? Math.max(0, now - state.startedAtMs) : 0;
         state.segmentSplitsMs.push(splitMs);
         const checkpointIndex = state.segmentSplitsMs.length - 1;
+        if (player?.isArcadeParcoursCompetitor === true) return;
 
         const cpXpResult = this._xpEventCallback?.('checkpoint', player.index, { checkpointId: entry.id, atMs: now });
         if (cpXpResult?.earned > 0) {
@@ -340,17 +341,19 @@ export class ParcoursProgressSystem {
             state.penaltyTimeMs = Math.max(0, Math.trunc(Number(state.penaltyTimeMs) || 0)) + penaltyMs;
         }
         this._setErrorState(state, 'Falsche Reihenfolge', now);
-        if (penaltyMs > 0) {
-            this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id} (+${(penaltyMs / 1000).toFixed(1)}s Penalty)`);
-            this._leaderboardCallback?.({
-                type: 'wrong_order',
-                playerIndex: player.index,
-                routeId: this._route.routeId,
-                penaltyMs,
-                totalPenaltyMs: state.penaltyTimeMs,
-            });
-        } else {
-            this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id}`);
+        if (player?.isArcadeParcoursCompetitor !== true) {
+            if (penaltyMs > 0) {
+                this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id} (+${(penaltyMs / 1000).toFixed(1)}s Penalty)`);
+                this._leaderboardCallback?.({
+                    type: 'wrong_order',
+                    playerIndex: player.index,
+                    routeId: this._route.routeId,
+                    penaltyMs,
+                    totalPenaltyMs: state.penaltyTimeMs,
+                });
+            } else {
+                this._notifyPlayer(player, `Falsche Reihenfolge: ${entry.id}`);
+            }
         }
         this._logRecorderEvent(
             'PARCOURS_WRONG_ORDER',
@@ -387,59 +390,7 @@ export class ParcoursProgressSystem {
     }
 
     _completeParcours(player, state, now) {
-        if (!this._route || !state || state.completed) return;
-        state.completed = true;
-        state.completedAtMs = now;
-        const baseTimeMs = Math.max(0, now - (state.startedAtMs || now));
-        const penaltyTimeMs = Math.max(0, Math.trunc(Number(state.penaltyTimeMs) || 0));
-        state.completionTimeMs = baseTimeMs + penaltyTimeMs;
-        state.nextCheckpointIndex = this._route.totalCheckpoints;
-        state.lastCheckpointAtMs = now;
-        state.lastError = '';
-        state.errorUntilMs = 0;
-
-        if (!this._completionOrder.some((entry) => entry.playerIndex === player.index)) {
-            this._completionOrder.push({
-                playerIndex: player.index,
-                completedAtMs: state.completedAtMs,
-                completionTimeMs: state.completionTimeMs,
-                penaltyTimeMs,
-            });
-            this._completionOrder.sort((left, right) => {
-                if (left.completedAtMs !== right.completedAtMs) {
-                    return left.completedAtMs - right.completedAtMs;
-                }
-                return left.playerIndex - right.playerIndex;
-            });
-        }
-
-        this._notifyPlayer(player, `Parcours abgeschlossen (${formatDurationMs(state.completionTimeMs)})`);
-        this._logRecorderEvent(
-            'PARCOURS_COMPLETE',
-            player,
-            `route=${this._route.routeId} timeMs=${Math.round(state.completionTimeMs)} penaltyMs=${penaltyTimeMs}`
-        );
-        this._playProgressAudio('PARCOURS_FINISH', player, { intensity: 1.15 });
-        const finishXpResult = this._xpEventCallback?.('finish', player.index, { finishedAtMs: now });
-        if (finishXpResult?.earned > 0) {
-            this._notifyPlayer(player, `+${finishXpResult.earned} XP (Parcours)`);
-        }
-        const shouldFinalizeGhost = this._route.rules.showGhost && player?.isBot !== true;
-        const recorderOwnedByPlayer = this._playerOwnsGhostRecording(player);
-        const ghostClip = shouldFinalizeGhost && recorderOwnedByPlayer
-            ? (this._ghostRecorder?.stopRecording?.(player.index) || null)
-            : null;
-        const ghostDurationMsFromClip = Math.max(0, Math.round(Number(ghostClip?.sourceDuration) * 1000));
-        this._leaderboardCallback?.({
-            type: 'finish',
-            playerIndex: player.index,
-            routeId: this._route.routeId,
-            totalTimeMs: state.completionTimeMs,
-            penaltyTimeMs,
-            segmentSplitsMs: [...state.segmentSplitsMs],
-            ghostDurationMs: ghostDurationMsFromClip > 0 ? ghostDurationMsFromClip : baseTimeMs,
-            ghostClip,
-        });
+        completeParcours(this, player, state, now);
     }
 
     _findTriggeredEntry(entries, player, previousPosition, now, state) {
@@ -501,7 +452,9 @@ export class ParcoursProgressSystem {
     }
 
     getRoundOutcome() {
-        const modeOutcome = this._leaderboardCallback?.({ type: 'round_outcome', now: this.nowProvider() }); if (modeOutcome?.shouldEnd === true) return modeOutcome; if (!this._route || this._route.rules.winnerByParcoursComplete !== true) return null;
+        const modeOutcome = this._leaderboardCallback?.({ type: 'round_outcome', now: this.nowProvider() });
+        if (modeOutcome?.shouldEnd === true || modeOutcome?.settling === true) return modeOutcome;
+        if (!this._route || this._route.rules.winnerByParcoursComplete !== true) return null;
         const completion = this._completionOrder[0];
         if (!completion) return null;
         const graceMs = Math.max(0, Number(this._route.rules.finishGraceMs) || 0); if (graceMs > 0 && this.nowProvider() < completion.completedAtMs + graceMs) return null;

@@ -30,6 +30,7 @@ import {
     readSnapshotFromStorage,
     toTimestamp,
 } from './StorageLobbyServiceSupport.js';
+import { addPageVisibilityListener, removePageVisibilityListener } from '../../shared/runtime/PageVisibility.js';
 
 const MULTIPLAYER_CHANNEL_NAME = 'cuviosclash.multiplayer.v1';
 const MATCH_START_CLEAR_DELAY_MS = 2500;
@@ -86,7 +87,7 @@ export class StorageLobbyTransportRuntime {
         this._eventTarget?.addEventListener?.('focus', this._boundResumeHandler);
         this._eventTarget?.addEventListener?.('pageshow', this._boundResumeHandler);
         this._channel?.addEventListener?.('message', this._boundChannelHandler);
-        this._document?.addEventListener?.('visibilitychange', this._boundVisibilityHandler);
+        addPageVisibilityListener(this._document, this._boundVisibilityHandler);
     }
 
     getSnapshot(lobbyCode = this._getActiveLobbyCode()) {
@@ -325,7 +326,7 @@ export class StorageLobbyTransportRuntime {
         this._eventTarget?.removeEventListener?.('focus', this._boundResumeHandler);
         this._eventTarget?.removeEventListener?.('pageshow', this._boundResumeHandler);
         this._channel?.removeEventListener?.('message', this._boundChannelHandler);
-        this._document?.removeEventListener?.('visibilitychange', this._boundVisibilityHandler);
+        removePageVisibilityListener(this._document, this._boundVisibilityHandler);
         this._channel?.close?.();
     }
 }

@@ -107,6 +107,9 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
     {
         id: 'editor',
         specs: [
+            'tests/editor-build-animated-picking.desktop.spec.js',
+            'tests/editor-build-flight.desktop.spec.js',
+            'tests/editor-build-precision-selection.desktop.spec.js',
             'tests/editor-fixes.desktop.spec.js',
             'tests/editor-fly-mode.spec.js',
             'tests/editor-glb-preview.spec.js',
@@ -174,6 +177,9 @@ export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([
         specs: [
             'tests/gpu.spec.js',
             'tests/map-performance.desktop.spec.js',
+            'tests/perf-match-ab.desktop.spec.js',
+            'tests/perf-quality-audit.desktop.spec.js',
+            'tests/perf-quality-implementation.desktop.spec.js',
             'tests/stress.spec.js',
             'tests/v28-regression.spec.js',
         ],

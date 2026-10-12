@@ -254,7 +254,9 @@ export class BotSensors {
     ) {
         const entityManager = player?.trail?.entityManager;
         if (!entityManager) return false;
-        return this._getCollisionMemoized(entityManager, position, radius, player.index, skipRecent, player);
+        // No player reference: with one the query only reports segments touching the ship's hull
+        // at its current position, which left every probe point ahead of the ship blind to trails.
+        return this._getCollisionMemoized(entityManager, position, radius, player.index, skipRecent, null);
     }
 
     checkTrailHit(

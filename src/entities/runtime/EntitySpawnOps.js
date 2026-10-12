@@ -38,6 +38,7 @@ export class EntitySpawnOps {
         owner._repairDroneSystem?.clear?.();
         // Bots live for the whole match; their steering and recovery state must not leak into the next round.
         for (const entry of owner.bots || []) entry?.ai?.resetRound?.();
+        owner._playerInputSystem?.resetBotState?.();
         const spawnContext = this.createSpawnContext();
         for (const player of owner.players) {
             if (player?.entitySlotActive === false) continue;

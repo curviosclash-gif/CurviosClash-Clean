@@ -752,7 +752,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         await page.evaluate((settingsStorageKey) => localStorage.removeItem(settingsStorageKey), SETTINGS_STORAGE_KEY);
     });
 
-    test('T20ka: Profil-UX aktualisiert Action-State und unterstuetzt Duplicate, Import/Export und Standardprofil', async ({ page }) => {
+    test('T20ka: Profil-UX aktualisiert Action-State und unterstuetzt Duplicate, Import/Export und Standardprofil', async ({ page }, testInfo) => {
         await page.goto(resolveAppUrl(page, '/'));
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), SETTINGS_PROFILES_STORAGE_KEY);
         await page.reload();
@@ -779,11 +779,116 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
 
         await page.selectOption('#profile-select', 'QA Profil Kopie');
         await expect(page.locator('#btn-profile-set-default')).toBeEnabled();
+
+        try {
+        await page.evaluate(() => {
+            const input = document.querySelector('#profile-transfer-input');
+            const drawer = document.querySelector('#submenu-level4');
+            const history = [];
+            const snapshot = (label, mutation = null) => {
+                const ancestry = [];
+                for (let node = input; node; node = node.parentElement) {
+                    const style = getComputedStyle(node);
+                    const rect = node.getBoundingClientRect();
+                    ancestry.push({
+                        tag: node.tagName,
+                        id: node.id,
+                        className: typeof node.className === 'string' ? node.className : '',
+                        hidden: node.hidden,
+                        ariaHidden: node.getAttribute('aria-hidden'),
+                        style: node.getAttribute('style'),
+                        display: style.display,
+                        visibility: style.visibility,
+                        opacity: style.opacity,
+                        rects: node.getClientRects().length,
+                        bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+                    });
+                }
+                history.push({
+                    at: { epochMs: Date.now(), elapsedMs: performance.now() },
+                    label,
+                    mutation,
+                    activeElement: document.activeElement && {
+                        tag: document.activeElement.tagName,
+                        id: document.activeElement.id,
+                        className: typeof document.activeElement.className === 'string' ? document.activeElement.className : '',
+                    },
+                    level4: {
+                        drawerClass: drawer?.className || '',
+                        sections: [...document.querySelectorAll('#submenu-level4 [data-level4-section]')]
+                            .map((panel) => ({
+                                id: panel.dataset.level4Section,
+                                active: panel.classList.contains('is-active'),
+                                ariaHidden: panel.getAttribute('aria-hidden'),
+                            })),
+                        activeTabs: [...document.querySelectorAll('[data-level4-section-target]')]
+                            .filter((tab) => tab.getAttribute('aria-selected') === 'true' || tab.classList.contains('active'))
+                            .map((tab) => tab.dataset.level4SectionTarget),
+                    },
+                    input: { connected: !!input?.isConnected, valueLength: input?.value?.length ?? null, ancestry },
+                });
+                if (history.length > 80) history.shift();
+            };
+            const observer = new MutationObserver((records) => {
+                for (const record of records) {
+                    const node = record.target.nodeType === Node.ELEMENT_NODE ? record.target : record.target.parentElement;
+                    if (!node || !(node === input || node.contains(input) || node.matches('[data-level4-section], [data-level4-section-target], #submenu-level4'))) continue;
+                    snapshot('attribute-mutation', { target: node.id || node.dataset?.level4Section || node.dataset?.level4SectionTarget || node.tagName, attribute: record.attributeName });
+                }
+            });
+            const focusListener = (event) => snapshot(event.type, {
+                target: event.target?.id || event.target?.tagName || '',
+                relatedTarget: event.relatedTarget?.id || event.relatedTarget?.tagName || '',
+            });
+            window.__profileTransferVisibilityProbe = {
+                history,
+                snapshot,
+                cleanup: () => {
+                    try {
+                        observer.disconnect();
+                    } finally {
+                        try {
+                            document.removeEventListener('focusin', focusListener, true);
+                        } finally {
+                            try {
+                                document.removeEventListener('focusout', focusListener, true);
+                            } finally {
+                                delete window.__profileTransferVisibilityProbe;
+                            }
+                        }
+                    }
+                },
+            };
+            snapshot('observer-installed');
+            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'aria-selected'], subtree: true });
+            document.addEventListener('focusin', focusListener, true);
+            document.addEventListener('focusout', focusListener, true);
+        });
         await page.click('#btn-profile-export');
 
         const transferInput = page.locator('#profile-transfer-input');
         await expect(page.locator('#profile-transfer-status')).toContainText('Einstellungen exportiert');
-        await expect(transferInput).toBeVisible();
+        await page.evaluate(() => window.__profileTransferVisibilityProbe?.snapshot('export-status-visible'));
+        const attachVisibilityDiagnostics = async (step) => {
+            try {
+                const diagnostics = await page.evaluate((label) => {
+                    window.__profileTransferVisibilityProbe?.snapshot(`failure:${label}`);
+                    return window.__profileTransferVisibilityProbe?.history || [];
+                }, step);
+                await testInfo.attach(`T20ka-profile-transfer-${step}.json`, {
+                    body: JSON.stringify(diagnostics, null, 2),
+                    contentType: 'application/json',
+                });
+            } catch {
+                // Diagnostics are best effort and must not replace the test failure.
+            }
+        };
+        try {
+            await expect(transferInput).toBeVisible();
+        } catch (error) {
+            await attachVisibilityDiagnostics('visible');
+            throw error;
+        }
         await expect(transferInput).not.toHaveValue('');
         const exportPayload = await transferInput.inputValue();
         const exportedProfile = JSON.parse(exportPayload);
@@ -791,7 +896,13 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         expect(exportedProfile.profile.name).toBe('QA Profil Kopie');
 
         exportedProfile.profile.name = 'QA Import';
-        await page.fill('#profile-transfer-input', JSON.stringify(exportedProfile, null, 2));
+        await page.evaluate(() => window.__profileTransferVisibilityProbe?.snapshot('before-import-fill'));
+        try {
+            await page.fill('#profile-transfer-input', JSON.stringify(exportedProfile, null, 2));
+        } catch (error) {
+            await attachVisibilityDiagnostics('fill');
+            throw error;
+        }
         await expect(page.locator('#btn-profile-import')).toBeEnabled();
         await page.fill('#profile-name', '');
         await page.click('#btn-profile-import');
@@ -807,5 +918,18 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         expect(profileState.profiles.find((profile) => profile?.isDefault)?.name).toBe('QA Profil');
 
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), SETTINGS_PROFILES_STORAGE_KEY);
+        } finally {
+            try {
+                await page.evaluate(() => {
+                    try {
+                        window.__profileTransferVisibilityProbe?.cleanup();
+                    } finally {
+                        delete window.__profileTransferVisibilityProbe;
+                    }
+                });
+            } catch {
+                // Cleanup is best effort if the page is no longer available.
+            }
+        }
     });
 });

@@ -23,6 +23,10 @@ function ringItem(id, type, pickupType, angleDeg, radius, y) {
 export const SUNFLOWER_MEADOW_MAP = {
     sunflower_meadow: {
         name: 'Sonnenblumen-Wiese',
+        // Like dandelion_sky, the map is built around its honey chamber and guns, which CLASSIC
+        // does not have; there it is only a vast empty meadow where trails never close anything
+        // off (user decision 06.10.2026).
+        excludedModes: ['CLASSIC'],
         size: [420, 360, 420],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,

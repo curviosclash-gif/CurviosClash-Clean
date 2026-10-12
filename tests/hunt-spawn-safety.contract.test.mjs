@@ -290,8 +290,9 @@ test('a protected vehicle that cannot leave geometry receives no grace and is ch
 
 test('every mega_maze wall in the row at z -30 offers a way through', () => {
     const megaMaze = MAP_PRESET_CATALOG_EXPERT_DATA.mega_maze;
-    // The three wide walls of that row span the map across X. Two of them carry a tunnel;
-    // a segment without one turns its corridor into a dead end for anything flying -Z.
+    // The three wide walls of that row sit in 20-unit slots across X with 20-unit gaps between them,
+    // so the row is never closed. A segment without a tunnel is still a solid slab: the spawn
+    // checks assume each slab offers its own opening instead of leaving only the gaps.
     const row = megaMaze.obstacles.filter(
         (obstacle) => obstacle.pos[2] === -30 && obstacle.size[0] > obstacle.size[2]
     );

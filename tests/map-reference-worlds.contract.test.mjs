@@ -23,6 +23,18 @@ const KEYS = [
     'magma_maze',
     'frozen_helix',
     'neon_circuit',
+    'sky_islands',
+    'vulkan_odyssey',
+    'neon_abyss',
+    'abyssal_descent',
+    'foam_forest',
+    'the_loop',
+    'mega_maze',
+    'mirror_docks',
+    'parcours_assault',
+    'spiral_tower',
+    'storm_switchyard',
+    'mega_maze_xl',
 ];
 const PYRAMID_MODULES = [
     '01_terrain',

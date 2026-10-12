@@ -24,7 +24,7 @@ test('Angriffsparcours starts on desktop with checkpoints, bots, MG and rockets'
         window.GAME_INSTANCE?.arena?.currentMapKey === 'parcours_assault'
         && window.GAME_INSTANCE?.arena?.checkpointRings?.length === 10
         && window.GAME_INSTANCE?.entityManager?.bots?.length === 4
-        && window.GAME_INSTANCE?.entityManager?._staticTurretSystem?.turrets?.length === 4
+        && window.GAME_INSTANCE?.entityManager?._staticTurretSystem?.turrets?.length === 6
     ), null, { timeout: 20000 });
 
     const turretExercise = await page.evaluate(() => {
@@ -108,8 +108,8 @@ test('Angriffsparcours starts on desktop with checkpoints, bots, MG and rockets'
     expect(state.checkpointRingCount).toBe(10);
     expect(state.botCount).toBe(4);
     expect(state.aliveBotCount).toBe(4);
-    expect(state.botRoles).toEqual(['guard', 'flanker', 'pursuer', 'interceptor']);
-    expect(state.turretCount).toBe(4);
+    expect(state.botRoles).toEqual(['pursuer', 'interceptor', 'flanker', 'pursuer']);
+    expect(state.turretCount).toBe(6);
     expect(state.turretShots).toBeGreaterThan(0);
     expect(state.modeType).toBe('HUNT');
     expect(state.hasMachineGun).toBeTruthy();

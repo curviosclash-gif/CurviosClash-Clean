@@ -8,6 +8,7 @@ import {
 } from '../shared/contracts/AuthoringTelemetryContract.js';
 import { AuthoringTelemetryStore } from './AuthoringTelemetryStore.js';
 import { TelemetryPreferencesStore } from '../shared/telemetry/TelemetryPreferencesStore.js';
+import { addPageVisibilityListener, removePageVisibilityListener } from '../shared/runtime/PageVisibility.js';
 
 const COUNTERS = new Set(AUTHORING_TELEMETRY_COUNTERS);
 const OUTCOMES = new Set(AUTHORING_TELEMETRY_OUTCOMES);
@@ -99,7 +100,7 @@ export class AuthoringTelemetrySession {
             : createLocalLifecycleSink(this.runtimeGlobal);
         this._onVisibilityChange = () => this._handleVisibilityChange();
         this._onPageHide = () => this.end({ completed: this.outcomes.completed === true });
-        this.documentRef?.addEventListener?.('visibilitychange', this._onVisibilityChange);
+        addPageVisibilityListener(this.documentRef, this._onVisibilityChange);
         this.runtimeGlobal?.addEventListener?.('pagehide', this._onPageHide, { once: true });
         if (this._isCollectionEnabled()) {
             this._emitLifecycle('started', {
@@ -203,7 +204,7 @@ export class AuthoringTelemetrySession {
         if (this.ended || !this.tool) return false;
         if (!this._isCollectionEnabled()) {
             this.ended = true;
-            this.documentRef?.removeEventListener?.('visibilitychange', this._onVisibilityChange);
+            removePageVisibilityListener(this.documentRef, this._onVisibilityChange);
             this.runtimeGlobal?.removeEventListener?.('pagehide', this._onPageHide);
             return false;
         }
@@ -211,7 +212,7 @@ export class AuthoringTelemetrySession {
         this._captureActiveDuration();
         this.flush();
         this.ended = true;
-        this.documentRef?.removeEventListener?.('visibilitychange', this._onVisibilityChange);
+        removePageVisibilityListener(this.documentRef, this._onVisibilityChange);
         this.runtimeGlobal?.removeEventListener?.('pagehide', this._onPageHide);
         const summary = normalizeAuthoringTelemetrySession({
             tool: this.tool,

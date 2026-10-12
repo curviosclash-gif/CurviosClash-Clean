@@ -69,6 +69,7 @@ export const CHRONO_SPILLWAY_MAP = {
         routeId: 'chrono_spillway_v1',
         rules: parcoursRules({
             resetToLastValid: true,
+            resetOnDeath: false,
             maxSegmentTimeMs: 17000,
             cooldownMs: 450,
             wrongOrderCooldownMs: 700,

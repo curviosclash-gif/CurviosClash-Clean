@@ -22,9 +22,10 @@ import {
 } from '../PickupRegistry.js';
 import { clamp } from '../../shared/utils/MathOps.js';
 import { BOT_ITEM_RULES } from './BotTuningConfig.js';
-import { hasYaw, readObservationValue, resolveSelectedItemIndex } from './HeuristicBotPolicyOps.js';
+import { hasYaw, readObservationValue, resolveMode, resolveSelectedItemIndex } from './HeuristicBotPolicyOps.js';
 import { resolveBoostPressureCeiling } from './HeuristicBotSafetyOps.js';
 import { findPreferredPickupTarget } from './BotPickupTargetingOps.js';
+import { applyTrafficAvoidanceSteering, findVehicleCollisionCourse } from './HeuristicTrafficAvoidanceOps.js';
 
 export function applyHeuristicClassicItemUse(policy, input, player, observation) {
     const targetDistanceRatio = clamp(readObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1);
@@ -142,10 +143,20 @@ export function applyHeuristicClassicBehavior(policy, input, dt, player, runtime
     }
 
     const selectedItemReason = applyHeuristicClassicItemUse(policy, input, player, observation);
-    const pickupTarget = !unsafe && (!selectedItemReason || selectedItemReason === 'held')
+    // A Classic crash kills both vehicles. The nearest pair picks each other as target and
+    // the intercept point lies between them, so this check outranks pursuit and pickups.
+    // Other modes that borrow this tactic (Arcade) only lose health in a crash and keep pursuing.
+    const crashThreat = resolveMode(runtimeContext, observation) === 'CLASSIC'
+        ? findVehicleCollisionCourse(player, players)
+        : null;
+    const pickupTarget = !crashThreat && !unsafe && (!selectedItemReason || selectedItemReason === 'held')
         ? findPreferredPickupTarget(player, runtimeContext, { pressure: pressureLevel })
         : null;
-    if (pickupTarget?.mesh?.position) {
+    if (crashThreat) {
+        clearSteeringInput(input);
+        applyTrafficAvoidanceSteering(policy, input, player, crashThreat);
+        input.boost = false;
+    } else if (pickupTarget?.mesh?.position) {
         clearSteeringInput(input);
         applySteeringTowardPosition(policy, input, player, pickupTarget.mesh.position);
         input.boost = wallFront > 0.55 && pressureLevel < 0.45;
@@ -155,8 +166,10 @@ export function applyHeuristicClassicBehavior(policy, input, dt, player, runtime
     input.shootMG = false;
     applyBotFlamethrowerInput(policy, input, player, target, nearest.distSq);
     return {
-        intent: pickupTarget ? 'pickup-seek' : (selectedItemReason && selectedItemReason !== 'held' ? 'classic-item' : state.intent),
+        intent: crashThreat ? 'traffic-avoid'
+            : (pickupTarget ? 'pickup-seek' : (selectedItemReason && selectedItemReason !== 'held' ? 'classic-item' : state.intent)),
         retreatReason: unsafe ? 'space-pressure' : '',
+        crashThreat,
         selectedItemReason,
         targetDistanceRatio: Number.isFinite(targetDistance) ? clamp(targetDistance / 120, 0, 1) : 1,
     };

@@ -12,7 +12,7 @@ import { isFivePortalsConfig } from '../../shared/contracts/PortalChainContract.
 import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
 import { isWeaponRaceConfig } from '../../shared/contracts/WeaponRaceContract.js';
 import { WeaponRaceRuntime } from '../arcade/WeaponRaceRuntime.js';
-import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveArcadeP1RecordStore, resolveActiveArcadeVehicleId, resolveArenaStartMachineGunId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities } from './GameRuntimeArcadeSupportOps.js';
+import { bindLocalArcadeProfilesAndApplyCosmetics, buildArcadeEncounterPlan, buildObjectiveParticipants, configureArcadeRunRuntime, handleWeaponRaceLeaderboard, requestObjectiveRoundEnd, resolveArcadeP1RecordStore, resolveArcadeSectorTransition, resolveActiveArcadeVehicleId, resolveArenaStartMachineGunId, resolveLocalPlayerVehicleId, syncArcadeObjectiveIntoEntities, withArcadeCompanions } from './GameRuntimeArcadeSupportOps.js';
 import { resolveArcadePostMatchProgression } from '../arcade/ArcadePostMatchProgression.js';
 import { resolveDedicatedArcadeMatchStart } from './GameRuntimeArcadeRunDispatch.js';
 import { GameRuntimeDemolitionSupport } from './GameRuntimeDemolitionSupport.js';
@@ -274,6 +274,7 @@ export class GameRuntimeArcadeSupport {
         }
 
         if (profile) {
+            profile = withArcadeCompanions(profile, runtimeConfig);
             this._applySectorRuntimeProfile?.(profile);
         }
         return profile;
@@ -287,20 +288,8 @@ export class GameRuntimeArcadeSupport {
         const runtimeState = this.getRuntimeState();
         const runtimeConfig = runtimeState?.runtimeConfig || null;
         const currentMapKey = String(runtimeConfig?.session?.mapKey || runtimeState?.mapKey || '').trim();
-        const currentBotCount = Math.max(0, Math.trunc(Number(runtimeConfig?.session?.numBots) || 0));
-        const nextMapKey = String(transition.toMap || transition.mapKey || currentMapKey).trim() || currentMapKey;
-        const nextBotCount = Math.max(0, Math.trunc(Number(transition.botCount) || 0));
-        // The weapons profile is read once, when the session builds its mode strategy.
-        const requiresSessionRebuild = currentMapKey !== nextMapKey || currentBotCount !== nextBotCount
-            || String(runtimeConfig?.arcade?.combatProfile || '') !== String(transition.combatProfile || '');
-        const resolvedTransition = {
-            ...transition,
-            mapKey: nextMapKey,
-            toMap: nextMapKey,
-            botCount: nextBotCount,
-            requiresSessionRebuild,
-        };
-        this._sectorRebuildInFlight = requiresSessionRebuild;
+        const resolvedTransition = resolveArcadeSectorTransition(transition, runtimeConfig, currentMapKey);
+        this._sectorRebuildInFlight = resolvedTransition.requiresSessionRebuild;
         this._applySectorRuntimeProfile?.(resolvedTransition);
         return resolvedTransition;
     }
@@ -352,12 +341,34 @@ export class GameRuntimeArcadeSupport {
         }
         if (isWeaponRaceConfig(runtimeConfig)) {
             this._bindGameplayCallback(runtimeState);
-            const started = this.weaponRaceRuntime.start({
+            this.arcadeRunRuntime.setActiveVehicle(resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings));
+            const strategy = runtimeState?.entityManager?.gameModeStrategy || null;
+            this.arcadeRunRuntime.setStrategy(strategy, runtimeState?.entityManager?.humanPlayers);
+            this._sectorRebuildInFlight = false;
+            const existing = this.arcadeRunRuntime.getStateSnapshot?.();
+            if (!existing || String(existing.phase || '').toLowerCase() === 'finished') {
+                const encounterPlan = this._preparedEncounterPlan || buildArcadeEncounterPlan(
+                    runtimeConfig,
+                    resolveArcadeP1RecordStore(this, runtimeConfig),
+                );
+                this._preparedEncounterPlan = null;
+                const startOptions = {
+                    entityManager: runtimeState?.entityManager || null,
+                    roundStateController: runtimeState?.roundStateController || null,
+                    playerCount: Math.max(1, Number(runtimeState?.numHumans) || 1),
+                    encounterPlan,
+                    strategy,
+                };
+                if (runtimeConfig?.arcade?.dailyChallenge === true) this.arcadeRunRuntime.startDailyChallenge(startOptions);
+                else this.arcadeRunRuntime.startRun(startOptions);
+            }
+            const raceStartOptions = {
                 entityManager: runtimeState?.entityManager || null,
                 vehicleId: resolveActiveArcadeVehicleId(runtimeConfig, this.game?.settings),
-            });
-            this._sectorRebuildInFlight = false;
-            return started;
+            };
+            return this.weaponRaceRuntime.phase === 'idle' || this.weaponRaceRuntime.phase === 'finished'
+                ? this.weaponRaceRuntime.start(raceStartOptions)
+                : this.weaponRaceRuntime.rebind(raceStartOptions);
         }
         if (isEndlessParcoursConfig(runtimeConfig)) {
             this._bindGameplayCallback(runtimeState);
@@ -481,6 +492,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     tickSuddenDeath(dt = 0) {
+        this.tickPendingArcadeRewards();
         if (this.demolitionSupport.updateIfActive(dt)) return null;
         if (isWeaponRaceConfig(this.getRuntimeState()?.runtimeConfig)) {
             this.weaponRaceRuntime.update(this._nowMs());
@@ -505,6 +517,15 @@ export class GameRuntimeArcadeSupport {
             return null;
         }
         return strategy.tickSuddenDeath(Math.max(0, Number(dt) || 0));
+    }
+
+    tickPendingArcadeRewards() {
+        if (!this.weaponRaceRuntime.hasPendingSettlement?.()) return false;
+        return this.weaponRaceRuntime.maintainPendingSettlements?.() || false;
+    }
+
+    tickWeaponRaceRewardMaintenance() {
+        return this.tickPendingArcadeRewards();
     }
 
     selectIntermissionChoice(choiceId) {

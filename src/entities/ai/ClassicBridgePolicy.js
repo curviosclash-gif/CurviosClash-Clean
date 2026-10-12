@@ -22,6 +22,7 @@ import {
     WALL_DISTANCE_UP,
 } from './observation/ObservationSchemaV1.js';
 import { clamp } from '../../shared/utils/MathOps.js';
+import { canTargetEnemy } from '../../shared/contracts/TeamCombatContract.js';
 import {
     normalizeArcadeBotAggressiveness,
     resolveArcadeBridgeAggressionThresholds,
@@ -30,7 +31,19 @@ import {
 const TRAIL_AWARE_FALLBACK_MAPS = new Set([
     'core_fusion',
     'eiffel_tower_arena',
+    'standard',
 ]);
+const SOLO_PLANAR_LOOK_AHEAD = 32;
+
+function isSoloPlanarClassic(runtimeContext, player, planarMode) {
+    if (!player || !planarMode || runtimeContext?.mode !== 'CLASSIC') return false;
+    const players = runtimeContext.navigationPlayers || runtimeContext.players;
+    if (!Array.isArray(players)) return false;
+    for (const other of players) {
+        if (other?.alive && canTargetEnemy(player, other)) return false;
+    }
+    return true;
+}
 
 function resolveObservationValue(observation, index, fallback = 0) {
     if (!observation || typeof observation.length !== 'number') return fallback;
@@ -62,7 +75,8 @@ export function resolveClassicBridgeAction(runtimeContext, options = {}) {
 
     const action = {};
     const mapKey = String(runtimeContext?.arena?.currentMapKey || '').trim();
-    const delegateMovement = TRAIL_AWARE_FALLBACK_MAPS.has(mapKey);
+    const delegateMovement = TRAIL_AWARE_FALLBACK_MAPS.has(mapKey)
+        || isSoloPlanarClassic(runtimeContext, options.player, planarMode);
 
     if (!delegateMovement) {
         const obstaclePressure = wallFront < 0.24 || pressureLevel > 0.78;
@@ -135,8 +149,9 @@ export class ClassicBridgePolicy extends ObservationBridgePolicy {
         };
         const resolveAction = typeof options.resolveAction === 'function'
             ? options.resolveAction
-            : (runtimeContext) => resolveClassicBridgeAction(runtimeContext, {
+            : (runtimeContext, player) => resolveClassicBridgeAction(runtimeContext, {
                 aggressiveness: aggressionState.value,
+                player,
             });
 
         super({
@@ -153,5 +168,20 @@ export class ClassicBridgePolicy extends ObservationBridgePolicy {
     setArcadeBotAggressiveness(value) {
         this._arcadeAggressionState.value = normalizeArcadeBotAggressiveness(value);
         super.setArcadeBotAggressiveness(this._arcadeAggressionState.value);
+    }
+
+    _delegateFallbackUpdate(dt, player, runtimeContext) {
+        const profile = this._fallbackPolicy?._botAI?.profile;
+        if (!profile || !isSoloPlanarClassic(runtimeContext, player, runtimeContext?.rules?.planarMode)) {
+            return super._delegateFallbackUpdate(dt, player, runtimeContext);
+        }
+
+        const lookAhead = profile.lookAhead;
+        profile.lookAhead = SOLO_PLANAR_LOOK_AHEAD;
+        try {
+            return super._delegateFallbackUpdate(dt, player, runtimeContext);
+        } finally {
+            profile.lookAhead = lookAhead;
+        }
     }
 }

@@ -168,11 +168,13 @@ export class Arena {
             : 1;
         const scaleAnchor = (entry) => {
             if (!entry || typeof entry !== 'object') return null;
+            // Some catalog anchors are written as pos: [x, y, z]; without this they all sat at the origin.
+            const pos = Array.isArray(entry.pos) ? entry.pos : [];
             return {
                 ...entry,
-                x: (Number(entry.x) || 0) * scale,
-                y: (Number(entry.y) || 0) * scale,
-                z: (Number(entry.z) || 0) * scale,
+                x: (Number(entry.x ?? pos[0]) || 0) * scale,
+                y: (Number(entry.y ?? pos[1]) || 0) * scale,
+                z: (Number(entry.z ?? pos[2]) || 0) * scale,
             };
         };
 

@@ -14,6 +14,7 @@ import { createArcadeDailyProjection } from '../../state/arcade/ArcadeDailyState
 import { resolveMapSequence, getMapKeyForSector } from '../../state/arcade/ArcadeMapProgression.js';
 import {
     calculateSectorXp,
+    loadVehicleProfiles,
     resolveArcadeRunHudVehicleStats,
     XP_REWARD_TABLE,
 } from '../../state/arcade/ArcadeVehicleProfile.js';
@@ -1010,7 +1011,11 @@ export class ArcadeRunRuntime {
         if (!['sector_active', 'sudden_death'].includes(this._state.phase)) return null;
 
         const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));
-        const completionMs = Math.max(0, toSafeNumber(parcoursResult?.parcours?.completionTimeMs, 0));
+        const completionMs = Math.max(0, toSafeNumber(
+            parcoursResult?.parcours?.completionTimeMs,
+            toSafeNumber(parcoursResult?.parcours?.standings?.[0]?.finishTimeMs, 0)
+        ));
+        const completionReason = String(parcoursResult?.reason || 'PARCOURS_COMPLETE');
         this.applyGameplayEvent({
             type: 'sector_complete',
             elapsed: completionMs > 0 ? completionMs / 1000 : this._sectorElapsedSeconds,
@@ -1028,7 +1033,10 @@ export class ArcadeRunRuntime {
         const sectorLabel = `${this._state.completedSectors}/${this._state.config.sectorCount}`;
         const completionSec = completionMs > 0 ? (completionMs / 1000).toFixed(2) : '?';
         const requiredWins = Math.max(1, Number(options?.winsNeeded) || 1);
-        const messageText = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run geschafft!' : `Parcours abgeschlossen — ${completionSec}s | Sektor ${sectorLabel}`;
+        const messageText = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run geschafft!'
+            : completionReason === 'WEAPON_RACE_COMPLETE'
+                ? `Weapon Race gewonnen — ${completionSec}s | Sektor ${sectorLabel}`
+                : `Parcours abgeschlossen — ${completionSec}s | Sektor ${sectorLabel}`;
         const messageSub = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run abschließen oder freiwillig weiterspielen' : 'Intermission: nächster Sektor';
 
         return {
@@ -1037,7 +1045,7 @@ export class ArcadeRunRuntime {
                 canWinMatch: true,
                 requiredWins,
                 matchWinner: null,
-                reason: 'PARCOURS_COMPLETE',
+                reason: completionReason,
                 parcours: parcoursResult?.parcours || null,
                 messageText,
                 messageSub,
@@ -1071,17 +1079,22 @@ export class ArcadeRunRuntime {
         const parcoursInput = inputs?.parcours && typeof inputs.parcours === 'object'
             ? inputs.parcours
             : null;
+        const weaponRaceOutcome = outcomeReason === 'WEAPON_RACE_COMPLETE';
+        const weaponRaceBotWon = weaponRaceOutcome && inputs?.winner?.isBot === true;
+        const weaponRaceHumanWon = weaponRaceOutcome && inputs?.winner && inputs.winner.isBot !== true;
         const roster = Array.isArray(players) ? players : [];
         const humans = roster.filter((entry) => entry && entry.isBot !== true);
         const hasAliveHuman = humans.some((entry) => entry.alive !== false && toSafeNumber(entry.hp, 1) > 0);
         const allHumansDead = humans.length > 0
             ? !hasAliveHuman
             : outcomeReason !== 'PARCOURS_COMPLETE';
-        const terminalReason = allHumansDead ? 'ELIMINATION'
+        const terminalReason = weaponRaceBotWon ? 'WEAPON_RACE_LOST'
+            : weaponRaceHumanWon ? ''
+            : allHumansDead ? 'ELIMINATION'
             : resolveArcadeObjectiveFailureReason(this._state.objectiveState, outcomeReason)
                 || (ARCADE_RUN_ABORT_REASONS.has(outcomeReason) ? outcomeReason : '');
 
-        if (!terminalReason && outcomeReason === 'PARCOURS_COMPLETE') {
+        if (!terminalReason && (outcomeReason === 'PARCOURS_COMPLETE' || weaponRaceHumanWon)) {
             const parcoursPlan = this.completeParcoursSector(
                 {
                     reason: outcomeReason,
@@ -1267,6 +1280,20 @@ export class ArcadeRunRuntime {
     _applySectorXpReward(telemetryPayload) {
         const rewardBinding = ensureArcadeRunVehicleRewards(this);
         if (!rewardBinding || !this._vehicleProfiles) return;
+
+        // Weapon-race finish/checkpoint prizes are written through their runtime while the
+        // Arcade run keeps its start-time profile snapshot. Rebase this vehicle before the
+        // sector award so the scheduled whole-profile save cannot erase those prizes.
+        if (this._config.runType === 'weapon_race') {
+            const store = this._resolveSettingsRecordStore();
+            if (typeof store?.loadJsonRecord === 'function') {
+                const latestProfiles = loadVehicleProfiles(store);
+                const latestProfile = latestProfiles[rewardBinding.vehicleId];
+                if (latestProfile) {
+                    this._vehicleProfiles = { ...this._vehicleProfiles, [rewardBinding.vehicleId]: latestProfile };
+                }
+            }
+        }
 
         const missionsCompleted = this._missionState?.completedCount || 0;
         const totalMissions = this._missionState?.missions?.length || 0;

@@ -11,6 +11,7 @@ import { ARCADE_RUN_KINDS, resolveArcadeRuntimeKind } from '../../shared/contrac
 import { prepareArcadeRunRanking } from '../arcade/ArcadeRunRankingOps.js';
 import { loadArcadeDifficultyProgress, resolveArcadeRunTier } from '../../shared/contracts/ArcadeDifficultyContract.js';
 import { resolvePlayerRecordStorePortForIndex } from './PlayerProfileRuntimeAccess.js';
+import { resolveActiveArcadeCompanionCount } from '../../shared/contracts/ArcadeCompanionContract.js';
 
 export function resolveArcadeP1RecordStore(support, config) {
     const id = String(config?.arcade?.playerProfileIds?.[0] || '').trim();
@@ -141,6 +142,7 @@ export function buildObjectiveParticipants(entityManager) {
         playerIndex: Math.max(0, Number(player?.index) || 0),
         label: formatPlayerDisplayLabel(player, { style: PLAYER_LABEL_STYLES.LONG }),
         isBot: player?.isBot === true,
+        isCompanion: player?.isArcadeCompanion === true,
         alive: player?.alive !== false,
     }));
 }
@@ -152,4 +154,32 @@ export function requestObjectiveRoundEnd(entityManager, request) {
     const winner = (Array.isArray(entityManager?.humanPlayers) ? entityManager.humanPlayers : [])
         .find((player) => player && player.alive !== false) || null;
     return winner ? entityManager.requestRoundEnd?.({ ...request, winner }) === true : false;
+}
+
+/**
+ * Adds the companions flying in this sector; botCount stays the squad size and
+ * sessionBotCount is what the match session spawns (squad plus companions).
+ */
+export function withArcadeCompanions(profile, runtimeConfig) {
+    const botCount = Math.max(0, Math.trunc(Number(profile?.botCount) || 0));
+    const companionCount = resolveActiveArcadeCompanionCount(runtimeConfig?.arcade, {
+        humanCount: runtimeConfig?.session?.numHumans ?? 1,
+        enemyCount: botCount,
+    });
+    return { ...profile, botCount, companionCount, sessionBotCount: botCount + companionCount };
+}
+
+/**
+ * The next sector rebuilds the match when its map, bot total or weapons profile (read once,
+ * when the session builds its mode strategy) differ - and always with companions, so a
+ * companion lost in the last sector flies again.
+ */
+export function resolveArcadeSectorTransition(transition, runtimeConfig, currentMapKey) {
+    const currentBotCount = Math.max(0, Math.trunc(Number(runtimeConfig?.session?.numBots) || 0));
+    const nextMapKey = String(transition.toMap || transition.mapKey || currentMapKey).trim() || currentMapKey;
+    const next = withArcadeCompanions(transition, runtimeConfig);
+    const requiresSessionRebuild = currentMapKey !== nextMapKey || currentBotCount !== next.sessionBotCount
+        || next.companionCount > 0
+        || String(runtimeConfig?.arcade?.combatProfile || '') !== String(transition.combatProfile || '');
+    return { ...next, mapKey: nextMapKey, toMap: nextMapKey, requiresSessionRebuild };
 }

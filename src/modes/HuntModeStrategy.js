@@ -7,7 +7,7 @@ import { isPickupTypeAllowedForMode, normalizePickupType } from '../shared/contr
 import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
-import { recoverPlayerFromCollision, resolveWallCollisionDamage } from './HuntCollisionOps.js';
+import { applyPlayerCrashDamage, recoverPlayerFromCollision, resolveWallCollisionDamage } from './HuntCollisionOps.js';
 import { resolveHealthClockSeconds } from '../hunt/HealthSystem.js';
 
 function toSafeNumber(value, fallback) {
@@ -307,40 +307,11 @@ export class HuntModeStrategy extends GameModeContract {
     }
 
     handlePlayerCrash(player, otherPlayer, crashNormal, entityManager) {
-        const crashDamage = this.resolveCollisionDamage('PLAYER_CRASH');
-        const cooldown = this.resolveCollisionCooldown('PLAYER_CRASH');
-        // Both vehicles take the hit and both get the cooldown, so the mirrored check on
-        // the other player later in the same frame does not double-apply the crash.
-        player.crashDamageCooldown = cooldown;
-        otherPlayer.crashDamageCooldown = cooldown;
-
-        const damageResult = player.takeDamage(crashDamage);
-        entityManager._emitHuntDamageEvent({
-            target: player,
-            sourcePlayer: otherPlayer,
-            cause: 'PLAYER_CRASH',
-            hitNormal: crashNormal || null,
-            damageResult,
-            impactPoint: player.position,
+        return applyPlayerCrashDamage(player, otherPlayer, crashNormal, entityManager, {
+            damage: this.resolveCollisionDamage('PLAYER_CRASH'),
+            cooldown: this.resolveCollisionCooldown('PLAYER_CRASH'),
+            dealDamage: (target, amount) => target.takeDamage(amount),
         });
-        const otherDamageResult = otherPlayer.takeDamage(crashDamage);
-        entityManager._emitHuntDamageEvent({
-            target: otherPlayer,
-            sourcePlayer: player,
-            cause: 'PLAYER_CRASH',
-            hitNormal: crashNormal || null,
-            damageResult: otherDamageResult,
-            impactPoint: otherPlayer.position,
-        });
-
-        if (otherDamageResult.isDead) {
-            entityManager._killPlayer(otherPlayer, 'PLAYER_CRASH', { killer: player });
-        }
-        if (damageResult.isDead) {
-            entityManager._killPlayer(player, 'PLAYER_CRASH', { killer: otherPlayer });
-            return true;
-        }
-        return false;
     }
 
     handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager) {

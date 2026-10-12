@@ -4,6 +4,7 @@
  * scoreboard rows like intercepts do, so arcade XP and the post-match statistics can read it
  * without a second channel. A destroyed tank is not a kill: it stays out of the kill count.
  */
+import { isArcadeCompanion } from '../../../shared/contracts/ArcadeCompanionContract.js';
 
 /**
  * Picks one entry of `loot` ({ type: chance }) with `roll` in [0, 1). Chances are relative, so a
@@ -58,6 +59,11 @@ export function rewardMapUnitDestruction(system, unit, sourcePlayer) {
     }
     if (!Number.isInteger(index) || index < 0) return;
     owner?._huntScoring?.registerUnitDestroyed?.(index, unit.definition.kind);
+    const companion = isArcadeCompanion(sourcePlayer);
+    if (companion && !convoyTarget && unit.objectiveDestructionReported !== true) {
+        // A companion's kill counts for the sector targets of its human, without the feedback.
+        owner?.onArcadeGameplayEvent?.({ type: 'unit_destroyed', playerIndex: index, count: 1, unitKind: unit.definition.kind, companion: true });
+    }
     if (sourcePlayer.isBot !== true) {
         // Every arcade run hears it: the weapon race pays XP, a scenario sector counts its targets.
         if (!convoyTarget && unit.objectiveDestructionReported !== true) {

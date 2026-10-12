@@ -490,6 +490,11 @@ export function bindEditorToolPaletteControls(editor) {
     editor.refreshToolDock = () => {
         renderAll(toolDockState.getSnapshot());
     };
+    editor.activateBuildCatalogEntry = (entryId) => {
+        const snapshot = toolDockState.activateEntry(entryId);
+        applySnapshotToEditor(snapshot);
+        renderAll(snapshot);
+    };
     editor.setBuildPreviewController = (controller) => {
         editor.clearBuildPreviewTargets?.();
         editor.buildPreviewController = controller?.available ? controller : null;

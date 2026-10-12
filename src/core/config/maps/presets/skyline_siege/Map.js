@@ -78,10 +78,11 @@ export const SKYLINE_SIEGE_MAPS = Object.freeze({
             skyDome: { zenithColor: 0x080c1c, horizonColor: 0x445b8a, nadirColor: 0x060910 },
             starsVisible: false, exposureOffset: 0.08,
         }),
+        // Authored units like the towers above: scaleAuthoredAnchors grows position and range with the map.
         lights: Object.freeze([
-            Object.freeze({ id: 'skyline_spire_beacon', x: -96, y: 106, z: 0, color: 0x35e6ff, intensity: 1800, distance: 90 }),
-            Object.freeze({ id: 'skyline_crown_beacon', x: 0, y: 96, z: 54, color: 0xff426c, intensity: 1700, distance: 85 }),
-            Object.freeze({ id: 'skyline_arcology_beacon', x: 96, y: 91, z: -48, color: 0x8a6cff, intensity: 1700, distance: 85 }),
+            Object.freeze({ id: 'skyline_spire_beacon', x: -32, y: 35, z: 0, color: 0x35e6ff, intensity: 1800, distance: 30 }),
+            Object.freeze({ id: 'skyline_crown_beacon', x: 0, y: 32, z: 18, color: 0xff426c, intensity: 1700, distance: 28 }),
+            Object.freeze({ id: 'skyline_arcology_beacon', x: 32, y: 30, z: -16, color: 0x8a6cff, intensity: 1700, distance: 28 }),
         ]),
         playerSpawn: Object.freeze({ x: 0, y: 20, z: -68 }),
         botSpawns: Object.freeze([

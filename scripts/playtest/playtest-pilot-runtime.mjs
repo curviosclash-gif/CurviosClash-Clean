@@ -10,7 +10,7 @@
 // installPilotRuntime is serialised into the page with page.evaluate, so it must not
 // reference anything outside its own body.
 
-export const PILOT_VERSION = '1.0.0';
+export const PILOT_VERSION = '1.1.0';
 
 export function installPilotRuntime(version) {
     if (window.__playtestPilotRuntime?.version === version) return window.__playtestPilotRuntime.describe();
@@ -43,6 +43,7 @@ export function installPilotRuntime(version) {
         lastAhead: Infinity,
         mouthChoice: new Map(),
         passageExit: null,
+        mapUnitHunter: null,
     };
 
     const note = (kind, data = {}) => {
@@ -545,6 +546,17 @@ export function installPilotRuntime(version) {
         return { target: positionOf(target), key: `pickup-${target.id ?? target.type}`, type: target.type || target.itemType };
     };
 
+    // The game's bot target selection also scores map units for a ship with this flag.
+    const releaseMapUnitHunter = () => {
+        if (runtime.mapUnitHunter) runtime.mapUnitHunter.botTargetsMapUnits = false;
+        runtime.mapUnitHunter = null;
+    };
+    const setMapUnitHunting = (player, enabled) => {
+        if (runtime.mapUnitHunter && runtime.mapUnitHunter !== player) releaseMapUnitHunter();
+        player.botTargetsMapUnits = enabled;
+        runtime.mapUnitHunter = enabled ? player : null;
+    };
+
     const botCommand = (player) => {
         const em = manager();
         const inputSystem = em?._playerInputSystem;
@@ -682,6 +694,7 @@ export function installPilotRuntime(version) {
                 break;
             }
             case 'bot': {
+                setMapUnitHunting(player, spec.huntMapUnits === true);
                 raw = fromBotAction(player, botCommand(player).action);
                 break;
             }
@@ -708,6 +721,7 @@ export function installPilotRuntime(version) {
         version,
         tick,
         configure(spec) {
+            releaseMapUnitHunter();
             runtime.spec = spec && spec.mode !== 'off' ? spec : null;
             runtime.playerIndex = Number.isInteger(spec?.player) ? spec.player : 0;
             runtime.status = runtime.spec ? 'active' : 'idle';
@@ -733,6 +747,7 @@ export function installPilotRuntime(version) {
         },
         stop(reason = 'stopped') {
             if (runtime.status === 'active') finish('stopped', reason);
+            releaseMapUnitHunter();
             runtime.spec = null;
             runtime.deviceInputs.clear();
             return api.describe();

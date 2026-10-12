@@ -26,6 +26,9 @@ import {
 } from '../../hunt/HuntBotPolicy.js';
 import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
+import { resolvePlayerMachineGunConfig } from '../../hunt/mg/MGConfigResolver.js';
+import { areTeammates, canTargetEnemy } from '../../shared/contracts/TeamCombatContract.js';
 import { applyHuntBotObjectiveMovement } from '../../hunt/HuntBotObjectiveOps.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
@@ -35,6 +38,7 @@ const TMP_RIGHT = new THREE.Vector3();
 const TMP_UP = new THREE.Vector3();
 const TMP_ROLE_TARGET = new THREE.Vector3();
 const TMP_ROLE_FORWARD = new THREE.Vector3();
+const TMP_MG_AIM = new THREE.Vector3();
 const HUNT_BRIDGE_STEERING_SCRATCH = {
     _tmpGate: TMP_TO_ENEMY,
     _tmpForward: TMP_FORWARD,
@@ -43,6 +47,17 @@ const HUNT_BRIDGE_STEERING_SCRATCH = {
     _tmpRoleTarget: TMP_ROLE_TARGET,
     _tmpRoleForward: TMP_ROLE_FORWARD,
 };
+const SOLO_PLANAR_LOOK_AHEAD = 11;
+
+function isSoloPlanarHunt(runtimeContext, player) {
+    if (!player || runtimeContext?.mode !== 'HUNT' || runtimeContext?.rules?.planarMode !== true) return false;
+    const players = runtimeContext.navigationPlayers || runtimeContext.players;
+    if (!Array.isArray(players)) return false;
+    for (const other of players) {
+        if (other?.alive && canTargetEnemy(player, other)) return false;
+    }
+    return true;
+}
 
 function resolveObservationValue(observation, index, fallback = 0) {
     if (!observation || typeof observation.length !== 'number') return fallback;
@@ -65,6 +80,45 @@ function resolveSurvivalPressure(priorities) {
 function shouldRetreatFromPriorities(priorities, survivalPressure = resolveSurvivalPressure(priorities)) {
     return priorities.vitalityRatio <= 0.34
         || (priorities.vitalityRatio < 0.52 && survivalPressure > 0.76);
+}
+
+function isInMgAimCone(player, position, rangeSq, minDot) {
+    const dx = position.x - player.position.x;
+    const dy = position.y - player.position.y;
+    const dz = position.z - player.position.z;
+    const distanceSq = dx * dx + dy * dy + dz * dz;
+    return distanceSq > 0.000001 && distanceSq <= rangeSq
+        && (TMP_MG_AIM.x * dx + TMP_MG_AIM.y * dy + TMP_MG_AIM.z * dz)
+            >= minDot * Math.sqrt(distanceSq);
+}
+
+function hasMgTargetInAimCone(player, runtimeContext, range, minDot) {
+    if (!player?.position || typeof player.getAimDirection !== 'function') return true;
+    player.getAimDirection(TMP_MG_AIM).normalize();
+    const rangeSq = range * range;
+    for (const target of runtimeContext?.visiblePlayers || runtimeContext?.players || []) {
+        if (target?.alive && target !== player && target.position
+            && !areTeammates(player, target) && isInMgAimCone(player, target.position, rangeSq, minDot)) return true;
+    }
+    const sharedTarget = runtimeContext?.huntTarget;
+    return sharedTarget?.kind === 'trail' && sharedTarget.position
+        && isInMgAimCone(player, sharedTarget.position, rangeSq, minDot);
+}
+
+function canRequestMachineGunShot(player, runtimeContext, baseMg) {
+    if (player?.hasFlamethrower || player?.hasRailgun) return true;
+    if ((Number(player?.shootCooldown) || 0) > 0) return false;
+    const heat = runtimeContext?.entityManager?.getHuntOverheatSnapshot?.()?.[player.index];
+    if (!Number.isFinite(heat)) return true;
+    const specialLoadout = player?.arcadeWeaponLoadout || (!player?.isBot && player?.arenaWavesLoadout);
+    const specialMg = specialLoadout ? resolvePlayerMachineGunConfig(baseMg, player) : null;
+    const perShot = specialLoadout
+        ? specialMg.OVERHEAT_PER_SHOT
+        : Math.round(Number(baseMg?.OVERHEAT_PER_SHOT || 6.5)
+            * Number(resolveFightMachineGunModel(player?.fightLoadout?.machineGunId).modifiers.overheat || 1)
+            * 10_000) / 10_000;
+    return heat + Math.max(0.01, Number(perShot) || 6.5)
+        < Math.max(1, Number((specialMg || baseMg)?.LOCKOUT_THRESHOLD || 100));
 }
 
 function resolveHuntBridgePriorities(player, runtimeContext) {
@@ -142,6 +196,26 @@ function applyRetreatManeuver(action, player, enemy) {
     }
 }
 
+function applyClearFightPursuit(action, player, runtimeContext, fallbackPolicy) {
+    if (runtimeContext?.mode !== 'HUNT' || runtimeContext?.rules?.planarMode !== false) return;
+    const sensor = fallbackPolicy?.getSensorSnapshot?.();
+    const forwardRisk = Number(sensor?.forwardRisk);
+    if (!sensor || sensor.immediateDanger || !Number.isFinite(forwardRisk) || forwardRisk > 0.5
+        || typeof runtimeContext.arena?.raycast !== 'function') return;
+    const players = runtimeContext.visiblePlayers || runtimeContext.players || [];
+    const { enemy, distSq } = getNearestEnemy(player, players, TMP_TO_ENEMY);
+    // Give the fallback avoidance time to turn before reaching a moving enemy trail.
+    if (!enemy?.position || distSq < 25 * 25 || distSq > 160 * 160) return;
+    const distance = Math.sqrt(distSq);
+    TMP_MG_AIM.subVectors(enemy.position, player.position).multiplyScalar(1 / distance);
+    const obstacle = runtimeContext.arena.raycast(player.position, TMP_MG_AIM, distance - 5);
+    if (obstacle?.hit) return;
+    clearSteeringInput(action);
+    applySteeringTowardPosition(HUNT_BRIDGE_STEERING_SCRATCH, action, player, enemy.position,
+        { precision: true });
+    action.boost = false;
+}
+
 function resolveHuntBridgeAction(runtimeContext, player) {
     const priorities = resolveHuntBridgePriorities(player, runtimeContext);
     const action = {};
@@ -174,6 +248,10 @@ function resolveHuntBridgeAction(runtimeContext, player) {
         && (priorities.shieldRatio > 0.08 || priorities.healthRatio > 0.32)
         && priorities.aggression >= 0.4
         && survivalPressure < 0.85
+        && canRequestMachineGunShot(player, runtimeContext, huntConfig?.MG)
+        // Match the bot aim-assist cone used when the MG shot resolves.
+        && hasMgTargetInAimCone(player, runtimeContext, mgRange,
+            clamp(Number(huntConfig?.MG?.AIM_DOT_MIN) || 0.965, -1, 1))
     ) {
         action.shootMG = true;
     }
@@ -262,19 +340,48 @@ export class HuntBridgePolicy extends ObservationBridgePolicy {
         this.type = policyType;
     }
 
+    _delegateFallbackUpdate(dt, player, runtimeContext) {
+        const profile = this._fallbackPolicy?._fallbackPolicy?._botAI?.profile;
+        if (!profile || !isSoloPlanarHunt(runtimeContext, player)) {
+            return super._delegateFallbackUpdate(dt, player, runtimeContext);
+        }
+
+        const lookAhead = profile.lookAhead;
+        profile.lookAhead = SOLO_PLANAR_LOOK_AHEAD;
+        try {
+            return super._delegateFallbackUpdate(dt, player, runtimeContext);
+        } finally {
+            profile.lookAhead = lookAhead;
+        }
+    }
+
     update(dt, player, runtimeContextOrArena, allPlayers = null, projectiles = null) {
         const runtimeContext = this._asRuntimeContext(dt, player, runtimeContextOrArena, allPlayers, projectiles);
         const action = super.update(dt, player, runtimeContext);
         const priorities = resolveHuntBridgePriorities(player, runtimeContext);
-        applyHuntBotObjectiveMovement({
+        const retreating = shouldRetreatFromPriorities(priorities);
+        const objectiveRole = applyHuntBotObjectiveMovement({
             policy: HUNT_BRIDGE_STEERING_SCRATCH,
             input: action,
             player,
             runtimeContext,
-            shouldRetreat: shouldRetreatFromPriorities(priorities),
+            shouldRetreat: retreating,
             clearSteering: clearSteeringInput,
             steerToward: applySteeringTowardPosition,
         });
+        if (!objectiveRole && !retreating) {
+            applyClearFightPursuit(action, player, runtimeContext, this._fallbackPolicy);
+        }
+        if (runtimeContext?.mode === 'HUNT' && runtimeContext?.rules?.planarMode === false
+            && retreating && priorities.enemy?.position && typeof player.getDirection === 'function') {
+            player.getDirection(TMP_FORWARD).normalize();
+            TMP_TO_ENEMY.subVectors(priorities.enemy.position, player.position).normalize();
+            if (TMP_FORWARD.dot(TMP_TO_ENEMY) < -0.55) {
+                action.yawLeft = false;
+                action.yawRight = false;
+                action.yawAxis = 0;
+            }
+        }
         return action;
     }
 }

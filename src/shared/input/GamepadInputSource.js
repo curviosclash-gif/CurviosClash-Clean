@@ -1,5 +1,6 @@
 import { isGamepadInputEnabled, normalizeGamepadControls } from '../contracts/GamepadControlsContract.js';
 import { applyAxisDeadzone, applyRadialDeadzone } from '../utils/InputAxisOps.js';
+import { isPageInactive } from '../runtime/PageVisibility.js';
 const MAPPING_KEYS = Object.keys(normalizeGamepadControls());
 const GAMEPAD_DEADZONE = 0.15;
 // Module-local to the synchronous gameplay input loop; outside it each read is fresh.
@@ -97,7 +98,7 @@ export function createGamepadInputSource(gamepadIndex = 0, getSettings = () => n
             updateMapping();
             const pad = isEnabled() ? readGamepad(gamepadIndex) : null;
             if (!pad) { previous.fill(0); return null; }
-            if (globalThis.document?.hidden === true || globalThis.document?.hasFocus?.() === false) {
+            if (isPageInactive()) {
                 this.clearInputState();
                 return null;
             }
@@ -139,7 +140,7 @@ export class GamepadPauseInput {
     }
     wasPressed() {
         if (!this.enabled) return false;
-        if (globalThis.document?.hidden === true || globalThis.document?.hasFocus?.() === false) { this.clearInputState(); return false; }
+        if (isPageInactive()) { this.clearInputState(); return false; }
         let pressed = false;
         const pads = readGamepadSnapshot();
         for (let slot = 0; slot < 4; slot++) {

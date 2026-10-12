@@ -39,6 +39,18 @@ GENERATORS = {
     'magma_maze': 'generate_map_world',
     'frozen_helix': 'generate_map_world',
     'neon_circuit': 'generate_map_world',
+    'sky_islands': 'generate_map_world',
+    'vulkan_odyssey': 'generate_map_world',
+    'neon_abyss': 'generate_map_world',
+    'abyssal_descent': 'generate_map_world',
+    'foam_forest': 'generate_map_world',
+    'the_loop': 'generate_map_world',
+    'mega_maze': 'generate_map_world',
+    'mirror_docks': 'generate_map_world',
+    'parcours_assault': 'generate_map_world',
+    'spiral_tower': 'generate_map_world',
+    'storm_switchyard': 'generate_map_world',
+    'mega_maze_xl': 'generate_map_world',
 }
 
 

@@ -5,9 +5,27 @@
 
 import { authoredWorld } from './world_appearance.js';
 
+const NEON_WORLD = authoredWorld('neon_circuit');
+
+// Signal pylons in the infield and on the verges, clear of rails, tunnels and the route.
+// [variant, x, z, targetSize, rotateY]
+const PYLON_SITES = [
+    [1, -34, -26, 7, 0.0], [2, 92, 73, 7.5, 1.57], [3, 92, -74, 8, 1.57],
+    [4, -94, 73, 8.5, 0.0], [5, -1, 67, 8, 0.0], [6, 44, -11, 7, 0.8],
+    [7, -94, -74, 7.5, 0.0], [8, 17, -74, 8, 0.0], [9, -94, 4, 7.5, 1.57],
+    [10, -46, 34, 7, 2.4], [4, 92, 13, 8.5, 1.57], [1, 2, 16, 7, 0.0],
+];
+
+export const NEON_SIGNAL_PYLONS = Object.freeze(PYLON_SITES.map(([variant, x, z, targetSize, rotateY], index) => ({
+    id: `neon-pylon-${String(index + 1).padStart(2, '0')}`,
+    url: `assets/maps/neon_circuit/props/signal-pylons/neon-signal-pylon-v${String(variant).padStart(2, '0')}/runtime.glb`,
+    position: [x, 0, z], rotation: [0, rotateY, 0], targetSize, collision: false,
+})));
+
 export const NEON_CIRCUIT_MAP = {
     neon_circuit: {
-        ...authoredWorld('neon_circuit'),
+        ...NEON_WORLD,
+        glbModels: [...NEON_WORLD.glbModels, ...NEON_SIGNAL_PYLONS],
         name: 'Neon Circuit',
         size: [200, 60, 160],
         scaleAuthoredAnchors: true,

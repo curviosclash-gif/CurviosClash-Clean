@@ -24,6 +24,11 @@ const WEAPON_RACE_RESPAWN_RULES = Object.freeze({
     respawnDelaySeconds: WEAPON_RACE_RESPAWN_DELAY_SECONDS,
 });
 
+// The normal Arcade gauntlet bills contact damage harder than Hunt on purpose. Named here so
+// the balance lives in one place instead of literals inside the strategy.
+export const ARCADE_COLLISION_DAMAGE = Object.freeze({ WALL: 22, TRAIL: 34, PLAYER_CRASH: 40 });
+export const ARCADE_COLLISION_COOLDOWN = Object.freeze({ WALL: 0.6, PLAYER_CRASH: 0.5 });
+
 export function resolveArcadeRunCombatProfile(runType, combatProfile) {
     if (runType === 'hangar_test') return ENDLESS_PARCOURS_COMBAT_PROFILE;
     if (isDemolitionRunType(runType)) return DEMOLITION_COMBAT_PROFILE;

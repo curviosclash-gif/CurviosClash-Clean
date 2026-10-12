@@ -202,7 +202,8 @@ export class GameRuntimeFacade {
         if (!runtimeState || !currentRuntimeConfig) return null;
         const fallbackMapKey = currentRuntimeConfig?.session?.mapKey || 'standard';
         const mapKey = String(profile.mapKey || profile.toMap || fallbackMapKey).trim() || 'standard';
-        const numBots = Math.max(0, Math.trunc(Number(profile.botCount) || 0));
+        // sessionBotCount adds the sector's companions to the squad (botCount).
+        const numBots = Math.max(0, Math.trunc(Number(profile.sessionBotCount ?? profile.botCount) || 0));
         const activeDifficulty = String(profile.botDifficulty
             || currentRuntimeConfig?.bot?.activeDifficulty
             || 'NORMAL').trim().toUpperCase() || 'NORMAL';
@@ -210,7 +211,7 @@ export class GameRuntimeFacade {
             ...currentRuntimeConfig,
             session: { ...currentRuntimeConfig.session, mapKey, numBots },
             bot: { ...currentRuntimeConfig.bot, activeDifficulty, arcadeAggressiveness: Math.max(0, Math.min(1, Number(profile.aggressiveness) || 0)), arcadeBotRoles: Array.isArray(profile.botRoles) ? profile.botRoles : [] },
-            ...(typeof profile.combatProfile === 'string' ? { arcade: { ...currentRuntimeConfig.arcade, combatProfile: profile.combatProfile, scenarioId: profile.scenarioId || null, scenarioMapUnits: Array.isArray(profile.mapUnits) ? profile.mapUnits : [], scenarioMapUnitsMode: profile.mapUnitsMode === 'replace' ? 'replace' : 'overlay', waterZoneTriggerSec: profile.waterZoneTriggerSec || 0 } } : {}),
+            arcade: { ...currentRuntimeConfig.arcade, activeCompanionCount: Math.max(0, Math.trunc(Number(profile.companionCount) || 0)), parcoursRacer: profile.parcoursRacer === true, ...(typeof profile.combatProfile === 'string' ? { combatProfile: profile.combatProfile, scenarioId: profile.scenarioId || null, scenarioMapUnits: Array.isArray(profile.mapUnits) ? profile.mapUnits : [], scenarioMapUnitsMode: profile.mapUnitsMode === 'replace' ? 'replace' : 'overlay', waterZoneTriggerSec: profile.waterZoneTriggerSec || 0 } : {}) },
         };
         const nextCompatibilityConfig = applyRuntimeConfigCompatibility(nextRuntimeConfig, CONFIG_BASE);
         applyRuntimeSettingsState(this.getRuntimeBundle(), {
@@ -253,6 +254,8 @@ export class GameRuntimeFacade {
         return { ...state, records, postRunSummary };
     }
     tickArcadeSuddenDeath(dt = 0) { return this._arcadeSupport.tickSuddenDeath(dt); }
+    tickPendingArcadeRewards() { return this._arcadeSupport.tickPendingArcadeRewards(); }
+    tickWeaponRaceRewardMaintenance() { return this._arcadeSupport.tickWeaponRaceRewardMaintenance(); }
     selectArcadeIntermissionChoice(choiceId) { return this._arcadeSupport.selectIntermissionChoice(choiceId); }
     resolveArcadeVictoryChoice(choice) { return this.arcadeRunRuntime?.resolveVictoryChoice(choice); }
     setArcadeIntermissionPaused(paused) { return this.arcadeRunRuntime?.setIntermissionPaused(paused); }

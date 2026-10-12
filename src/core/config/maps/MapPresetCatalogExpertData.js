@@ -3,6 +3,7 @@
 // ============================================
 
 import { MAP_PRESET_CATALOG_LARGE_DATA } from './MapPresetCatalogLarge.js';
+import { authoredWorld } from './presets/world_appearance.js';
 
 export const MAP_PRESET_CATALOG_EXPERT_DATA = {
     expert_gauntlet: {
@@ -11,6 +12,7 @@ export const MAP_PRESET_CATALOG_EXPERT_DATA = {
         hiddenFromMapPicker: false,
     },
     mega_maze: {
+        ...authoredWorld('mega_maze'),
         name: 'Mega-Labyrinth',
         size: [100, 35, 100],
         obstacles: [

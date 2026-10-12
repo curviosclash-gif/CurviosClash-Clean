@@ -61,6 +61,18 @@ test('a stored dandelion_sky falls back to the standard map when CLASSIC starts'
     assert.equal(resolveModePathFallbackMapKey(MAPS, 'fight', 'dandelion_sky'), 'dandelion_sky');
 });
 
+test('sunflower_meadow and giant_forest are not selectable in CLASSIC but in HUNT and ARCADE', () => {
+    for (const mapKey of ['sunflower_meadow', 'giant_forest']) {
+        const definition = MAPS[mapKey];
+        assert.ok(definition, `${mapKey} must be part of CONFIG.MAPS`);
+        assert.deepEqual(listMapExcludedGameModes(definition), ['CLASSIC'], mapKey);
+        assert.equal(isMapEligibleForModePath(definition, 'normal'), false, mapKey);
+        assert.equal(isMapEligibleForModePath(definition, 'fight'), true, mapKey);
+        assert.equal(isMapEligibleForModePath(definition, 'arcade'), true, mapKey);
+        assert.equal(resolveStartMapKey(mapKey, 'normal', 'CLASSIC'), 'standard', mapKey);
+        assert.equal(resolveStartMapKey(mapKey, 'fight', 'HUNT'), mapKey, mapKey);
+    }
+});
 test('maps without excludedModes stay selectable in every mode', () => {
     const modePaths = ['normal', 'fight', 'arcade', 'quick_action'];
     for (const [mapKey, definition] of Object.entries(MAPS)) {

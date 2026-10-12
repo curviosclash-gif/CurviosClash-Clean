@@ -76,6 +76,88 @@ STYLES = {
         'signal': (0.05, 0.82, 1.0), 'foam': (0.38, 0.12, 0.55),
         'tile': 8, 'roughness': 0.40,
     },
+    # Weathered sandstone islands over a pale cloud sea; foam rescue pads read as moss.
+    'sky_islands': {
+        'floor': (0.55, 0.65, 0.76), 'body': (0.62, 0.57, 0.47),
+        'panel': (0.31, 0.40, 0.28), 'trim': (0.84, 0.75, 0.52),
+        'signal': (0.30, 0.80, 1.0), 'foam': (0.38, 0.62, 0.40),
+        'tile': 16, 'roughness': 0.82,
+    },
+    'vulkan_odyssey': {
+        'floor': (0.07, 0.05, 0.05), 'body': (0.17, 0.14, 0.15),
+        'panel': (0.30, 0.12, 0.06), 'trim': (0.60, 0.30, 0.10),
+        'signal': (1.0, 0.42, 0.05), 'foam': (0.80, 0.33, 0.07),
+        'tile': 14, 'roughness': 0.70,
+    },
+    # Matches the preset's magenta fill and teal rim; the map is held dark on purpose.
+    'neon_abyss': {
+        'floor': (0.03, 0.05, 0.09), 'body': (0.11, 0.16, 0.25),
+        'panel': (0.05, 0.08, 0.14), 'trim': (0.10, 0.74, 0.68),
+        'signal': (0.88, 0.16, 0.94), 'foam': (0.13, 0.42, 0.55),
+        'tile': 10, 'roughness': 0.35,
+    },
+    'abyssal_descent': {
+        'floor': (0.06, 0.08, 0.10), 'body': (0.30, 0.32, 0.36),
+        'panel': (0.14, 0.17, 0.21), 'trim': (0.45, 0.55, 0.62),
+        'signal': (0.20, 1.0, 0.70), 'foam': (0.15, 0.45, 0.50),
+        'tile': 8, 'roughness': 0.80,
+    },
+    # Bark-brown trunks on a forest floor; the soft foam trunks read as moss.
+    'foam_forest': {
+        'floor': (0.16, 0.21, 0.12), 'body': (0.40, 0.29, 0.20),
+        'panel': (0.22, 0.16, 0.11), 'trim': (0.63, 0.52, 0.30),
+        'signal': (0.55, 0.95, 0.30), 'foam': (0.30, 0.55, 0.26),
+        'tile': 10, 'roughness': 0.88,
+    },
+    # Speedway concrete with racing-red kerbs.
+    'the_loop': {
+        'floor': (0.20, 0.21, 0.23), 'body': (0.62, 0.63, 0.64),
+        'panel': (0.26, 0.28, 0.31), 'trim': (0.86, 0.16, 0.12),
+        'signal': (1.0, 0.78, 0.10), 'foam': (0.16, 0.46, 0.62),
+        'tile': 12, 'roughness': 0.66,
+    },
+    # Hedge maze: clipped green walls on gravel paths.
+    'mega_maze': {
+        'floor': (0.48, 0.44, 0.36), 'body': (0.20, 0.38, 0.17),
+        'panel': (0.13, 0.26, 0.11), 'trim': (0.70, 0.62, 0.44),
+        'signal': (1.0, 0.70, 0.20), 'foam': (0.28, 0.50, 0.24),
+        'tile': 6, 'roughness': 0.92,
+    },
+    # Harbour docks: wet planks, weathered steel and safety-yellow edges.
+    'mirror_docks': {
+        'floor': (0.10, 0.20, 0.26), 'body': (0.42, 0.45, 0.47),
+        'panel': (0.33, 0.24, 0.17), 'trim': (0.92, 0.72, 0.12),
+        'signal': (0.20, 0.85, 1.0), 'foam': (0.18, 0.44, 0.52),
+        'tile': 14, 'roughness': 0.60,
+    },
+    # Railway yard in a storm: slate ballast, rusted steel and signal yellow.
+    'storm_switchyard': {
+        'floor': (0.20, 0.21, 0.22), 'body': (0.40, 0.42, 0.45),
+        'panel': (0.38, 0.22, 0.13), 'trim': (0.95, 0.76, 0.12),
+        'signal': (0.40, 0.80, 1.0), 'foam': (0.18, 0.40, 0.48),
+        'tile': 14, 'roughness': 0.78,
+    },
+    # Military test range: olive concrete, sand floor and target-orange markings.
+    'parcours_assault': {
+        'floor': (0.42, 0.37, 0.27), 'body': (0.42, 0.44, 0.36),
+        'panel': (0.26, 0.29, 0.22), 'trim': (0.95, 0.48, 0.10),
+        'signal': (1.0, 0.36, 0.08), 'foam': (0.22, 0.42, 0.40),
+        'tile': 16, 'roughness': 0.80,
+    },
+    # Lighthouse-like spiral: whitewashed stone with navy bands and a warm beacon.
+    'spiral_tower': {
+        'floor': (0.26, 0.30, 0.34), 'body': (0.78, 0.76, 0.70),
+        'panel': (0.16, 0.24, 0.40), 'trim': (0.70, 0.18, 0.14),
+        'signal': (1.0, 0.72, 0.22), 'foam': (0.22, 0.46, 0.58),
+        'tile': 8, 'roughness': 0.72,
+    },
+    # Overgrown ruin maze: mossy sandstone walls on packed earth.
+    'mega_maze_xl': {
+        'floor': (0.30, 0.25, 0.18), 'body': (0.60, 0.52, 0.38),
+        'panel': (0.26, 0.34, 0.20), 'trim': (0.42, 0.56, 0.30),
+        'signal': (0.95, 0.80, 0.30), 'foam': (0.30, 0.48, 0.30),
+        'tile': 10, 'roughness': 0.90,
+    },
 }
 
 

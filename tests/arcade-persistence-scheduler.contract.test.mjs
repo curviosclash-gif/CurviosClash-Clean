@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ArcadeRunPersistenceScheduler } from '../src/core/arcade/ArcadeRunPersistenceScheduler.js';
+import { addXp, createArcadeVehicleProfile, loadVehicleProfiles, saveVehicleProfiles } from '../src/state/arcade/ArcadeVehicleProfile.js';
+import { awardBoundArcadeVehicleXpInStore, bindArcadeVehicleRewards } from '../src/state/arcade/ArcadeVehicleRewardBinding.js';
 
 test('Arcade persistence uses browser-safe bound default timers', () => {
     const scheduler = new ArcadeRunPersistenceScheduler({ saveThrottleMs: 100 });
@@ -49,4 +51,35 @@ test('Arcade profile and leaderboard adapters propagate rejected storage results
         new Set(scheduler._pendingSaves.keys()),
         new Set(['vehicleProfiles', 'leaderboard'])
     );
+});
+
+test('a delayed Arcade profile snapshot merges XP acknowledged after the snapshot was queued', () => {
+    const records = new Map();
+    const store = {
+        loadJsonRecord: (key, fallback) => records.has(key) ? structuredClone(records.get(key)) : fallback,
+        saveJsonRecord: (key, value) => { records.set(key, structuredClone(value)); return true; },
+    };
+    const baseline = { ship1: addXp(createArcadeVehicleProfile('ship1', 1), 100, 2).profile };
+    assert.equal(saveVehicleProfiles(store, baseline), true);
+    const staleArcadeSnapshot = {
+        ship1: addXp(baseline.ship1, 10, 3).profile,
+    };
+    let timerCallback = null;
+    const scheduler = new ArcadeRunPersistenceScheduler({
+        saveThrottleMs: 100,
+        setTimeout(callback) { timerCallback = callback; return 1; },
+        clearTimeout() {},
+        logger: { warn() {} },
+    });
+    assert.equal(scheduler.scheduleVehicleProfiles(store, staleArcadeSnapshot), true);
+
+    const raceBinding = bindArcadeVehicleRewards({ runType: 'weapon_race', vehicleId: 'ship1' });
+    assert.equal(awardBoundArcadeVehicleXpInStore(store, raceBinding, 80, 4).persisted, true,
+        'the post-terminal race retry is acknowledged before the delayed Arcade write');
+    assert.equal(typeof timerCallback, 'function');
+    assert.equal(scheduler.flushAll(), true);
+
+    const persisted = loadVehicleProfiles(store).ship1;
+    assert.equal(persisted.xp, 190, 'the delayed sector snapshot and later race XP both survive');
+    assert.equal(persisted.totalXpEarned, 190);
 });

@@ -165,9 +165,10 @@ export function createMatchSession({
     requestedMapKey,
     currentSession = null,
     isDesktopRuntime = null,
+    mapResolution: suppliedMapResolution = null,
 }) {
     const portalsEnabled = runtimeConfig?.session?.portalsEnabled ?? !!settings?.portalsEnabled;
-    const mapResolution = resolveMatchMap(runtimeConfig, requestedMapKey);
+    const mapResolution = suppliedMapResolution || resolveMatchMap(runtimeConfig, requestedMapKey);
     const effectiveMapKey = mapResolution.effectiveMapKey;
     const sessionKey = buildArenaSessionKey(
         mapResolution,

@@ -1,10 +1,13 @@
 // ============================================================
 // Abyssal Descent – Vertikaler Abstieg durch Hindernisringe
-// Schmaler Schacht, Ringe durchfliegen, 60s Zeitlimit
+// Schmaler Schacht, Ringe durchfliegen, 12s Zeitlimit je Abschnitt (kein Gesamtlimit)
 // ============================================================
+
+import { authoredWorld } from './world_appearance.js';
 
 export const ABYSSAL_DESCENT_MAP = {
     abyssal_descent: {
+        ...authoredWorld('abyssal_descent'),
         name: 'Abyssal Descent',
         size: [80, 200, 80],
         scaleAuthoredAnchors: true,

@@ -61,73 +61,23 @@ export function createShipFlightState() {
     };
 }
 
-// Hovering is an editor action, so it takes the first of these keys the player's game
-// bindings leave free.
-const HOVER_CANDIDATES = Object.freeze(['Space', 'KeyH', 'KeyB', 'KeyJ', 'KeyK', 'KeyL', 'KeyN', 'KeyM']);
-const KEY_LABELS = Object.freeze({
-    Space: 'Leertaste', ShiftLeft: 'Shift', ShiftRight: 'Shift', ControlLeft: 'Strg', ControlRight: 'Strg',
-    AltLeft: 'Alt', AltRight: 'Alt', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
-    Enter: 'Enter', Tab: 'Tab', Escape: 'Esc',
-});
-
 /**
- * Flight controls from the stored game settings: player one's key map and inverted pitch,
- * read through the game's own normalizer, so unset keys keep the game defaults.
- * @param {unknown} settings stored settings object (any shape)
- * @param {(source: unknown, fallback: Record<string, string>, options?: {guardCombatConflicts?: boolean}) => Record<string, string>} normalizeBindings
- */
-export function resolveShipFlightControls(settings, normalizeBindings) {
-    const source = settings && typeof settings === 'object' ? /** @type {Record<string, any>} */ (settings) : {};
-    // Same options as the settings sanitizer, so a stored combat-key clash resolves like in a match.
-    const keyMap = normalizeBindings(source.controls?.PLAYER_1, CONFIG_SECTIONS.KEYS.PLAYER_1, { guardCombatConflicts: true });
-    const usedCodes = new Set(Object.values(keyMap));
-    return {
-        keyMap,
-        invertPitch: source.invertPitch?.PLAYER_1 === true,
-        hoverCode: HOVER_CANDIDATES.find((code) => !usedCodes.has(code)) || HOVER_CANDIDATES[0],
-    };
-}
-
-export const DEFAULT_SHIP_FLIGHT_CONTROLS = Object.freeze({
-    keyMap: CONFIG_SECTIONS.KEYS.PLAYER_1,
-    invertPitch: false,
-    hoverCode: HOVER_CODES[0],
-});
-
-/** Short label of a KeyboardEvent.code for the flight hints. */
-export function describeFlightKey(code) {
-    const value = String(code || '');
-    if (KEY_LABELS[value]) return KEY_LABELS[value];
-    if (/^Key[A-Z]$/.test(value)) return value.slice(3);
-    if (/^Digit\d$/.test(value)) return value.slice(5);
-    if (/^Numpad\d$/.test(value)) return `Num ${value.slice(6)}`;
-    return value;
-}
-
-/**
- * Maps held KeyboardEvent.code values to flight input. Codes name physical keys, so the
- * bindings stay in place on any keyboard layout.
+ * Maps held KeyboardEvent.code values to flight input with the match key map of player one.
+ * Codes name physical keys, so W/A/S/D stay in place on any keyboard layout.
  * @param {Set<string>} pressedCodes
- * @param {{keyMap: Record<string, string>, invertPitch?: boolean, hoverCode?: string}} [controls]
+ * @param {Record<string, string>} [keyMap]
  */
-export function resolveShipFlightInput(pressedCodes, controls = DEFAULT_SHIP_FLIGHT_CONTROLS) {
-    const keyMap = controls.keyMap || CONFIG_SECTIONS.KEYS.PLAYER_1;
+export function resolveShipFlightInput(pressedCodes, keyMap = CONFIG_SECTIONS.KEYS.PLAYER_1) {
     const has = (code) => !!code && pressedCodes.has(code);
-    const up = has(keyMap.UP);
-    const down = has(keyMap.DOWN);
     return {
-        // Same as Player.invertPitchBase in a match: the pitch keys swap.
-        pitchUp: controls.invertPitch ? down : up,
-        pitchDown: controls.invertPitch ? up : down,
+        pitchUp: has(keyMap.UP),
+        pitchDown: has(keyMap.DOWN),
         yawLeft: has(keyMap.LEFT),
         yawRight: has(keyMap.RIGHT),
         rollLeft: has(keyMap.ROLL_LEFT),
         rollRight: has(keyMap.ROLL_RIGHT),
-        // Either Shift boosts as an extra only while the player has not bound it to anything else.
-        boost: has(keyMap.BOOST) || BOOST_CODES.some((code) => (
-            code !== controls.hoverCode && !Object.values(keyMap).includes(code) && has(code)
-        )),
-        hover: has(controls.hoverCode || HOVER_CODES[0]),
+        boost: has(keyMap.BOOST) || BOOST_CODES.some(has),
+        hover: HOVER_CODES.some(has),
         lookX: 0,
         lookY: 0,
     };

@@ -46,8 +46,9 @@ export function awardBoundArcadeVehicleXpInStore(store, binding, amount, nowMs =
     const profiles = loadVehicleProfiles(store);
     const result = awardBoundArcadeVehicleXp(profiles, binding, amount, nowMs);
     if (!result) return null;
+    const saveResult = saveVehicleProfiles(store, profiles);
     return {
         ...result,
-        persisted: saveVehicleProfiles(store, profiles) !== false,
+        persisted: saveResult === true || saveResult?.success === true || saveResult?.ok === true,
     };
 }

@@ -1,3 +1,5 @@
+import { ARCADE_COMPANION_KILL_SCORE_FACTOR, isArcadeCompanion } from '../../shared/contracts/ArcadeCompanionContract.js';
+
 function findPlayerByIndex(players, playerIndex) {
     if (!Number.isInteger(playerIndex) || !Array.isArray(players)) return null;
     for (let i = 0; i < players.length; i++) {
@@ -10,7 +12,8 @@ export function emitArcadeGameplayEvent(owner, event) {
     if (!event || typeof owner?.onArcadeGameplayEvent !== 'function') return;
     const playerIndex = Number(event.playerIndex);
     const sourcePlayer = findPlayerByIndex(owner.players, playerIndex);
-    if (sourcePlayer?.isBot === true) return;
+    // Bot events stay out of the run, except what an arcade companion achieves for its human.
+    if (sourcePlayer?.isBot === true && !(event.companion === true && isArcadeCompanion(sourcePlayer))) return;
     owner.onArcadeGameplayEvent(event);
 }
 
@@ -34,12 +37,15 @@ export function emitArcadeDamageEvent(owner, event) {
 
 export function emitArcadeEliminationEvents(owner, player, cause, options = {}) {
     const killer = options?.killer || null;
-    if (killer && killer !== player && killer.isBot !== true) {
+    const companionKill = isArcadeCompanion(killer);
+    if (killer && killer !== player && (killer.isBot !== true || companionKill)) {
         emitArcadeGameplayEvent(owner, {
             type: 'kill',
             playerIndex: killer.index,
             victimIndex: player?.index,
             count: 1,
+            // A companion kill counts for the sector goals at half the score weight.
+            ...(companionKill ? { companion: true, scoreFactor: ARCADE_COMPANION_KILL_SCORE_FACTOR } : {}),
             runId: options?.runId || '',
             botSlot: Number.isInteger(options?.botSlot) ? options.botSlot : null,
             activationGeneration: Number.isInteger(options?.activationGeneration)

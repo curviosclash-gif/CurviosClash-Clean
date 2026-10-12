@@ -390,6 +390,7 @@ export class PortalLayoutBuilder {
             visualB: def.modelB || def.model || null,
             orientationA: resolvePortalOrientation(def.forwardA, def.rotationA),
             orientationB: resolvePortalOrientation(def.forwardB, def.rotationB),
+            sourceIdA: def.sourceIdA, sourceIdB: def.sourceIdB,
         });
     }
 
@@ -471,8 +472,8 @@ export class PortalLayoutBuilder {
         this.arena.portals.push({
             posA,
             posB,
-            meshA,
-            meshB,
+            meshA, meshB,
+            sourceIdA: options.sourceIdA, sourceIdB: options.sourceIdB,
             color,
             forwardA: options.orientationA?.forward || null,
             forwardB: options.orientationB?.forward || null,

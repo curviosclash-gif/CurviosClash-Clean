@@ -7,6 +7,16 @@ description: Prüft die vollständige CurviosClash-Testsuite, erfasst alle roten
 
 Arbeite im Repository `CurviosClash-Clean`. Lies dessen aktuelle `AGENTS.md`, `package.json`, Testcluster-Konfiguration und Playwright-Wrapper; frühere Audit-Zahlen sind nur Vergleichswerte. Nutze einen vorhandenen aktuellen Ergebnisbericht statt eines neuen Vollaufs, wenn der Nutzer ausschließlich eine Folgeplanung daraus verlangt.
 
+## Lernschleife
+
+Prüfe vor jeder Schlussantwort die vorhandenen Belege auf eine wiederverwendbare Verbesserung, auch nach erfolgreicher QA oder abgebrochener Arbeit. Signale sind fehlende Tests, falsche Status- oder Dauerangaben, irreführende Katalogtreffer, wiederholte Wartezeiten oder Nutzerkorrekturen. Verwende die bereits erhobenen Laufdaten statt eines zusätzlichen Vollaufs.
+
+- Übernimm nur eine verstandene Ursache mit am betroffenen Fall verifizierter Abhilfe, die künftige Aufgaben betrifft. Einzelfälle, Vermutungen und bereits ausreichend geregelte Fälle erzeugen keine neue Regel.
+- Verbessere Erfassung und Auswertung im zuständigen bestehenden Wrapper oder Reporter mit Verhaltenstest; fehlende Audit-Entscheidungen hier. Trenne produktbezogene Reparaturen von der Pflege dieses Skills. Eine alte Fehlerliste oder ein einzelner schneller Lauf begründet keine dauerhafte Ausnahme.
+- Prüfe eine geänderte Auswertung am ursprünglichen Befund und einem benachbarten gültigen Fall, etwa Pass, Fail, Retry, Skip oder `didNotRun`. Gleiche Einzeltests und Summen ab; Laufzeitverbesserungen müssen die vollständige geforderte Matrix und Abnahmekriterien erhalten. Validiere geänderte Helfer mit den betroffenen Tests und Skill-Änderungen auf Format und Referenzlinks.
+
+Verifizierte aufgabenbezogene Pflege gehört zu diesem Ablauf. Nutzerumfang, Nur-Lese-Aufträge, Dateibesitz und Repository-Gates gelten weiterhin; ist die Pflege dadurch gesperrt, melde sie als ausstehend. Bewahre Auslöser, Geltungsbereich, Abhilfe und Prüfkriterium in der bestehenden zuständigen Regel oder Prüfung; keine Fehlerchronik oder neuen Prozessberichte. Nenne abschließend knapp das Ergebnis der Lernprüfung: keine neue Lehre, bereits abgedeckt, verbessert mit Prüfergebnis oder ausstehend.
+
 ## Vollständigen Lauf erfassen
 
 - Halte Commit, Branch, Arbeitsbaum und parallel belegte Ressourcen vor dem Lauf fest. Wenn Builds oder Tests Dateien erzeugen, nutze einen eigenen Worktree nach den aktuellen Repository-Regeln. Prüfe zuvor die Sitzungsgrenze. Berühre oder bereinige keine fremden Änderungen und keine untracked Dateien.

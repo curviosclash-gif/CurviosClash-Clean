@@ -149,7 +149,9 @@ export function applyComboAction(scoreState = null, event = null, config = null)
     const sourceScore = scoreState && typeof scoreState === 'object' ? scoreState : {};
     const sourceConfig = config && typeof config === 'object' ? config : {};
     const eventType = typeof event?.type === 'string' ? event.type : '';
-    const increment = COMBO_ACTION_INCREMENTS[eventType] ?? 0;
+    // scoreFactor weakens actions done for the player, e.g. an arcade companion's kill.
+    const scoreFactor = Number.isFinite(Number(event?.scoreFactor)) ? Math.max(0, Math.min(1, Number(event.scoreFactor))) : 1;
+    const increment = (COMBO_ACTION_INCREMENTS[eventType] ?? 0) * scoreFactor;
     if (increment <= 0) return sourceScore;
 
     const maxMultiplier = Math.max(1, clampInteger(sourceConfig.maxMultiplier, 1, 99, 8));

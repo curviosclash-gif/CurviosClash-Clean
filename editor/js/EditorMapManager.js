@@ -3,7 +3,9 @@ import { createEditorMesh, alignTunnelSegment as alignTunnelSegmentMesh } from '
 import { EditorObjectRegistry } from './EditorObjectRegistry.js';
 import { EDITOR_OUTLINE_LAYER } from './EditorLayers.js';
 import { generateJSONExport, importFromJSON } from './EditorMapSerializer.js';
+import { readEditorMapPresentationMetadata } from './EditorMapPresentationMetadata.js';
 import { getCustomMapConversionScale } from '../../src/entities/CustomMapLoader.js';
+import { parseMapJSON } from '../../src/entities/MapSchema.js';
 import {
     CHECKPOINT_RING_RADIUS_FACTOR,
     resolveCheckpointRingVisualRadius,
@@ -515,10 +517,20 @@ export class EditorMapManager {
     }
 
     generateJSONExport(arenaSize) {
-        return generateJSONExport(this, arenaSize);
+        const document = JSON.parse(generateJSONExport(this, arenaSize));
+        Object.assign(document, readEditorMapPresentationMetadata(this.mapDocumentMeta));
+        for (const key of ['waterZone', 'playableVolumes']) {
+            if (this.mapDocumentMeta[key] !== undefined) document[key] = this.mapDocumentMeta[key];
+        }
+        return JSON.stringify(document, null, 2);
     }
 
     importFromJSON(jsonString, options = {}) {
+        const source = parseMapJSON(jsonString).map;
         importFromJSON(this, jsonString, options);
+        Object.assign(this.mapDocumentMeta, readEditorMapPresentationMetadata(JSON.parse(jsonString)));
+        for (const key of ['waterZone', 'playableVolumes']) {
+            if (source[key] !== undefined) this.mapDocumentMeta[key] = source[key];
+        }
     }
 }

@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { MODE_ID } from './observation/ObservationSchemaV1.js';
 import {
+    BOT_HEURISTIC_TUNING_NEUTRAL_VALUE,
     isNeutralBotHeuristicProfileTuning,
     normalizeBotHeuristicProfileTuning,
     toBotHeuristicTuningOffset,
 } from '../../shared/contracts/BotHeuristicTuningContract.js';
+import { normalizeArcadeBotAggressiveness } from '../../shared/contracts/ArcadeBotAggressionContract.js';
 
 export const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -138,6 +140,18 @@ export function resolveEffectiveHeuristicProfile(profileName, tuning = null) {
         trafficAvoidanceBias: baseProfile.trafficAvoidanceBias,
         predictiveSafetyBias: baseProfile.predictiveSafetyBias,
     });
+}
+
+// An Arcade squad's aggressiveness (0..1, 0.5 neutral) shifts the profile's aggression axis, as
+// applyArcadeBotAggressiveness does for the rule bot. Outside Arcade nobody sets it, so it stays neutral.
+export function applyArcadeAggressionToHeuristicTuning(tuning, aggressiveness) {
+    const offset = normalizeArcadeBotAggressiveness(aggressiveness) - 0.5;
+    if (offset === 0) return tuning;
+    const normalized = normalizeBotHeuristicProfileTuning(tuning);
+    return {
+        ...normalized,
+        aggression: normalized.aggression + offset * 2 * BOT_HEURISTIC_TUNING_NEUTRAL_VALUE,
+    };
 }
 
 export const HEURISTIC_DIFFICULTIES = Object.freeze({

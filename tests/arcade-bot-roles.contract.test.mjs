@@ -24,6 +24,7 @@ function createRecordingPolicy() {
  * authored scenario unless one is passed, and a registry handing out recording policies.
  */
 function createSetupOwner({ runtimeConfig, mapDefinition = null }) {
+    const createdPolicyTypes = [];
     return {
         renderer: { addToScene() {}, removeFromScene() {}, getGraphicsStyle: () => 'modern' },
         entityRuntimeConfig: resolveEntityRuntimeConfig({}),
@@ -31,7 +32,8 @@ function createSetupOwner({ runtimeConfig, mapDefinition = null }) {
         arena: { currentMapDefinition: mapDefinition },
         players: [], humanPlayers: [], bots: [], botByPlayer: new Map(),
         botDifficulty: 'NORMAL', botPolicyType: 'rule-based',
-        botPolicyRegistry: { create: () => createRecordingPolicy() },
+        createdPolicyTypes,
+        botPolicyRegistry: { create(type) { createdPolicyTypes.push(type); return createRecordingPolicy(); } },
         gameModeStrategy: { isEndlessParcours: () => false },
         combatModeType: 'ARCADE',
     };
@@ -91,6 +93,31 @@ test('arcade sector bots spawn with their squad roles and role-adjusted aggressi
         }
     } finally {
         disposeBots(owner);
+    }
+});
+
+test('hunt-profile Arcade scenarios select role-aware combat AI while regular sectors keep configured policy', () => {
+    const scenarioOwner = createSetupOwner({
+        runtimeConfig: {
+            arcade: { enabled: true, scenarioId: 'worm_hunt', combatProfile: 'hunt' },
+            bot: { policyStrategy: 'auto', arcadeBotRoles: ['flanker', 'interceptor'] },
+        },
+    });
+    const regularOwner = createSetupOwner({
+        runtimeConfig: {
+            arcade: { enabled: true, scenarioId: null, combatProfile: '' },
+            bot: { policyStrategy: 'auto', arcadeBotRoles: ['flanker'] },
+        },
+    });
+    try {
+        setupBots(scenarioOwner, 2);
+        setupBots(regularOwner, 1);
+        assert.deepEqual(scenarioOwner.createdPolicyTypes, ['hunt', 'hunt']);
+        assert.deepEqual(scenarioOwner.bots.map(({ player }) => player.scenarioRole), ['flanker', 'interceptor']);
+        assert.deepEqual(regularOwner.createdPolicyTypes, ['rule-based']);
+    } finally {
+        disposeBots(scenarioOwner);
+        disposeBots(regularOwner);
     }
 });
 
