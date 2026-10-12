@@ -148,6 +148,9 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         projectile.flame = mesh.userData.flame || null;
         projectile.poolKey = type;
         projectile.owner = player;
+        projectile.ownerLifeSpawnedAtSeconds = type === 'SWAP' && Number.isFinite(player?.fightSpawnedAtSeconds)
+            ? player.fightSpawnedAtSeconds
+            : null;
         projectile.type = type;
         projectile.cosmeticStyleId = cosmeticStyleId;
         projectile.cosmeticColor = cosmeticStyleId === 'standard' ? null : cosmeticColor;

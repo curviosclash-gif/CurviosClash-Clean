@@ -32,6 +32,7 @@ export class ProjectileStatePool {
             flame: null,
             poolKey: '',
             owner: null,
+            ownerLifeSpawnedAtSeconds: null,
             type: null,
             blastDamage: 0,
             blastRadius: 0,
@@ -101,6 +102,7 @@ export class ProjectileStatePool {
         projectile.flame = null;
         projectile.poolKey = '';
         projectile.owner = null;
+        projectile.ownerLifeSpawnedAtSeconds = null;
         projectile.type = null;
         projectile.blastDamage = 0;
         projectile.blastRadius = 0;

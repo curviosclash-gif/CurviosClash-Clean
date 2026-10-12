@@ -13,12 +13,21 @@ export function resetDemolitionCombo(runtime) {
     return getDemolitionComboMultiplier(runtime);
 }
 
+/**
+ * Played time of the combo. Demolition skips the arcade run tick, so its support advances this
+ * clock per simulation tick; a pause therefore freezes the combo window instead of running it out.
+ */
+export function advanceDemolitionComboClock(runtime, dt) {
+    const state = runtime?._demolitionComboState;
+    if (!state) return;
+    state.gameplayTimeMs += Math.max(0, toSafeNumber(dt, 0)) * 1000;
+}
+
 export function applyDemolitionComboEvent(runtime, event) {
     if (!runtime._demolitionComboState) resetDemolitionCombo(runtime);
     const state = runtime._demolitionComboState;
-    const nowMs = Math.max(state.gameplayTimeMs, toSafeNumber(runtime.now(), state.gameplayTimeMs));
+    const nowMs = state.gameplayTimeMs;
     const score = applyArcadeComboDecay(state.score, state.config, nowMs, state.masteryPerks);
-    state.gameplayTimeMs = nowMs;
     state.score = applyComboAction(score, { ...event, type: 'kill', nowMs }, state.config);
     return getDemolitionComboMultiplier(runtime);
 }
