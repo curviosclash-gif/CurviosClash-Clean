@@ -85,11 +85,13 @@ test('custom score settings keep parcours times on the level board; companions a
 test('entries saved before the standard-settings rule stay on their board untouched', () => {
     // Before this rule a 20-sector run with a 25x cap was written to the standard board. Those rows
     // carry no settings, so they cannot be told apart and are deliberately kept, not filtered.
+    // Score v4 ranks on its own board; the old board is kept as it is, never merged or deleted.
     const legacy = { runId: 'legacy', vehicleId: 'ship5', vehicleLevel: 1, tierId: 'normal', score: 99_999,
         completedWaves: 0, completedSectors: 20, date: '2026-10-01T10:00:00.000Z' };
+    const legacyKey = 'gauntlet:normal:1-5';
     const key = resolveArcadeRankKey(createArcadeRankContext({ ...base, runType: 'gauntlet', runSettings: createDefaultArcadeRunSettings() }));
-    assert.equal(key, 'gauntlet:normal:1-5');
-    const records = new Map([[ARCADE_RANKED_STORAGE_KEY, { schemaVersion: ARCADE_RANKED_VERSION, boards: { [key]: [legacy] } }]]);
+    assert.equal(key, 'gauntlet:arcade-score.v4:normal:1-5');
+    const records = new Map([[ARCADE_RANKED_STORAGE_KEY, { schemaVersion: ARCADE_RANKED_VERSION, boards: { [legacyKey]: [legacy] } }]]);
     const store = {
         readJsonRecordResult: (k) => records.has(k) ? { status: 'found', value: structuredClone(records.get(k)) } : { status: 'missing' },
         loadJsonRecord: (k, fallback) => records.has(k) ? structuredClone(records.get(k)) : fallback,
@@ -100,11 +102,11 @@ test('entries saved before the standard-settings rule stay on their board untouc
 
     assert.equal(settleArcadeRunRanking(runFor({ ...createDefaultArcadeRunSettings(), sectorCount: 20 }, 'custom'),
         { succeeded: true, score: 123_456, completedSectors: 20 }), null);
-    assert.deepEqual(records.get(ARCADE_RANKED_STORAGE_KEY).boards[key], [legacy]);
+    assert.deepEqual(records.get(ARCADE_RANKED_STORAGE_KEY).boards[legacyKey], [legacy]);
 
     assert.equal(settleArcadeRunRanking(runFor(createDefaultArcadeRunSettings(), 'standard'),
-        { succeeded: true, score: 500, completedSectors: 5 }).rank, 2);
-    const rows = records.get(ARCADE_RANKED_STORAGE_KEY).boards[key];
-    assert.deepEqual(rows.map((row) => row.runId), ['legacy', 'standard']);
-    assert.deepEqual(rows[0], legacy);
+        { succeeded: true, score: 500, completedSectors: 5 }).rank, 1);
+    const boards = records.get(ARCADE_RANKED_STORAGE_KEY).boards;
+    assert.deepEqual(boards[key].map((row) => row.runId), ['standard']);
+    assert.deepEqual(boards[legacyKey], [legacy]);
 });
