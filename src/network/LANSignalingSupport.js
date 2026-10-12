@@ -92,14 +92,16 @@ export async function publishLanLobbyName({
 }
 
 // Announces the ship of one seat; like the name, only the seat's own token may change it.
-/** @param {{ signalingUrl?: string, playerId?: string, isHost?: boolean, token?: string, vehicleId?: string }} options */
-export async function publishLanLobbyVehicle({ signalingUrl, playerId, isHost, token, vehicleId } = {}) {
+// A host with a second player at its screen announces that seat's ship alongside its own.
+/** @param {{ signalingUrl?: string, playerId?: string, isHost?: boolean, token?: string, vehicleId?: string, secondVehicleId?: string }} options */
+export async function publishLanLobbyVehicle({ signalingUrl, playerId, isHost, token, vehicleId, secondVehicleId } = {}) {
     const res = await fetch(`${signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_VEHICLE}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             playerId,
             vehicleId: String(vehicleId ?? ''),
+            secondVehicleId: isHost && secondVehicleId !== undefined ? String(secondVehicleId ?? '') : undefined,
             hostToken: isHost ? token : undefined,
             playerToken: isHost ? undefined : token,
         }),

@@ -52,10 +52,17 @@ export function syncLocalLobbyVehicle({ settings = null, menuMultiplayerBridge =
     const localMember = members.find((member) => member?.isLocal === true);
     if (sessionState?.joined !== true || !localMember) return null;
     const vehicleId = resolveAnnouncedNetworkVehicleId(settings?.vehicles?.PLAYER_1);
-    if (normalizeLobbyVehicleId(localMember.vehicleId) === vehicleId) return null;
-    if (announcedVehicleByBridge.get(menuMultiplayerBridge) === vehicleId) return null;
-    announcedVehicleByBridge.set(menuMultiplayerBridge, vehicleId);
-    return Promise.resolve(menuMultiplayerBridge.setLobbyVehicle(vehicleId))
+    // A LAN host with two players at its screen announces the second seat's ship as well.
+    const hasSecondSeat = localMember.isHost === true && Number(sessionState.localPlayerCount) >= 2;
+    const secondVehicleId = hasSecondSeat ? resolveAnnouncedNetworkVehicleId(settings?.vehicles?.PLAYER_2) : '';
+    if (normalizeLobbyVehicleId(localMember.vehicleId) === vehicleId
+        && normalizeLobbyVehicleId(localMember.secondVehicleId) === secondVehicleId) return null;
+    const announcement = `${vehicleId}|${secondVehicleId}`;
+    if (announcedVehicleByBridge.get(menuMultiplayerBridge) === announcement) return null;
+    announcedVehicleByBridge.set(menuMultiplayerBridge, announcement);
+    return Promise.resolve(hasSecondSeat
+        ? menuMultiplayerBridge.setLobbyVehicle(vehicleId, { secondVehicleId })
+        : menuMultiplayerBridge.setLobbyVehicle(vehicleId))
         .then((result) => {
             if (result?.ok === false) announcedVehicleByBridge.delete(menuMultiplayerBridge);
             return result;

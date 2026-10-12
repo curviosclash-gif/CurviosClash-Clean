@@ -54,12 +54,14 @@ export async function setNetworkLobbyName(service, lobbyName) {
 
 // Announces the local ship. Quiet on failure: an older signaling server has no vehicle route,
 // and the match then simply flies the default ship for this seat, as before.
-export async function setNetworkLobbyVehicle(service, vehicleId) {
+// A LAN host with two players at its screen also passes the second seat's ship.
+export async function setNetworkLobbyVehicle(service, vehicleId, { secondVehicleId } = {}) {
     if (!service._transportSession.hasLobby() || !service.getSessionState().joined) {
         return { ok: false, code: 'not_in_lobby', sessionState: service.getSessionState() };
     }
     try {
-        await service._transportSession.setVehicle(normalizeLobbyVehicleId(vehicleId));
+        await service._transportSession.setVehicle(normalizeLobbyVehicleId(vehicleId), secondVehicleId === undefined
+            ? undefined : { secondVehicleId: normalizeLobbyVehicleId(secondVehicleId) });
     } catch (error) {
         return { ok: false, code: normalizeString(error?.code, 'lobby_vehicle_failed'), sessionState: service.getSessionState() };
     }

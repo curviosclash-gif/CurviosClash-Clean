@@ -406,7 +406,7 @@ export class NetworkLobbyService {
         return setNetworkLobbyName(this, lobbyName);
     }
 
-    setLobbyVehicle(vehicleId) { return setNetworkLobbyVehicle(this, vehicleId); }
+    setLobbyVehicle(vehicleId, options) { return setNetworkLobbyVehicle(this, vehicleId, options); }
 
     invalidateReadyForAll(reason = 'host_settings_changed') {
         return invalidateNetworkLobbyReadyForAll(this, reason);

@@ -33,6 +33,8 @@ export function normalizeLobbyMember(member, fallbackRole = MULTIPLAYER_SESSION_
         name: normalizeString(member?.name || member?.actorId, role === MULTIPLAYER_SESSION_ROLES.HOST ? 'Host' : peerId),
         lobbyName: normalizeOptionalMultiplayerPlayerName(member?.lobbyName),
         vehicleId: normalizeLobbyVehicleId(member?.vehicleId),
+        // Ship of the second player at a LAN host's screen; '' for everyone else.
+        secondVehicleId: normalizeLobbyVehicleId(member?.secondVehicleId),
         teamId: normalizeTeamId(member?.teamId),
         role,
         isHost: role === MULTIPLAYER_SESSION_ROLES.HOST,

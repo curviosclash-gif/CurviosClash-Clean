@@ -161,6 +161,7 @@ function buildLobbyState(lobby) {
         hostName: String(lobby.hostName || lobby.hostActorId || 'Host').trim() || 'Host',
         hostLobbyName: normalizeOptionalMultiplayerPlayerName(lobby.hostLobbyName),
         hostVehicleId: normalizeLobbyVehicleId(lobby.hostVehicleId),
+        hostSecondVehicleId: normalizeLobbyVehicleId(lobby.hostSecondVehicleId),
         memberCount: countLobbyMembers(lobby),
         localPlayerCount: normalizeLocalPlayerCount(lobby.localPlayerCount),
         playerCount: countLobbyPlayers(lobby),
@@ -439,6 +440,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             lobby.hostName = normalizeMultiplayerPlayerName(body.name || body.actorId, lobby.hostActorId);
             lobby.hostLobbyName = normalizeOptionalMultiplayerPlayerName(body.lobbyName);
             lobby.hostVehicleId = normalizeLobbyVehicleId(body.vehicleId);
+            lobby.hostSecondVehicleId = normalizeLobbyVehicleId(body.secondVehicleId);
             lobby.localPlayerCount = normalizeLocalPlayerCount(body.localPlayerCount);
             lobby.maxPlayers = Number.isFinite(requestedMaxPlayers)
                 ? Math.max(2, Math.min(DEFAULT_MAX_PLAYERS, Math.floor(requestedMaxPlayers)))
@@ -580,6 +582,11 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                     return;
                 }
                 lobby.hostVehicleId = vehicleId;
+                // The second player at the host screen has a ship of its own; only a request
+                // that names it changes it.
+                if (body.secondVehicleId !== undefined) {
+                    lobby.hostSecondVehicleId = normalizeLobbyVehicleId(body.secondVehicleId);
+                }
                 jsonResponse(res, { ok: true, sessionState: buildLobbyState(lobby) });
                 return;
             }

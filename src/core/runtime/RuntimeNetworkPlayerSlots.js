@@ -135,6 +135,8 @@ export function resolveRuntimeNetworkPlayerSlots({
                 role: 'client',
                 isLocal: !!resolvedLocalPeerId && memberPeerId === resolvedLocalPeerId,
                 name: `${displayName} 2`,
+                // The second player at the host screen flies its own announced ship, never the host's.
+                vehicleId: member?.secondVehicleId || '',
             }, true);
         }
     }

@@ -193,7 +193,7 @@ export class LANMatchLobby extends MatchLobby {
                 actorId: String(player?.actorId || existing?.actorId || player?.name || (peerId === hostPeerId ? 'Host' : peerId)).trim(),
                 name: String(player?.name || existing?.name || peerId).trim(),
                 lobbyName: typeof player?.lobbyName === 'string' ? player.lobbyName : (existing?.lobbyName || ''),
-                vehicleId: typeof player?.vehicleId === 'string' ? player.vehicleId : (existing?.vehicleId || ''),
+                vehicleId: typeof player?.vehicleId === 'string' ? player.vehicleId : (existing?.vehicleId || ''), secondVehicleId: typeof player?.secondVehicleId === 'string' ? player.secondVehicleId : (existing?.secondVehicleId || ''),
                 role: peerId === hostPeerId ? 'host' : fallbackRole,
                 ready: resolvedReady,
                 joinedAt: Number(existing?.joinedAt || now),
@@ -205,7 +205,7 @@ export class LANMatchLobby extends MatchLobby {
             playerId: hostPeerId,
             actorId: status.hostActorId,
             name: status.hostName || status.hostActorId || 'Host',
-            lobbyName: status.hostLobbyName, vehicleId: status.hostVehicleId,
+            lobbyName: status.hostLobbyName, vehicleId: status.hostVehicleId, secondVehicleId: status.hostSecondVehicleId,
             ready: status.hostReady === true,
         }, 'host');
         for (const player of serverPlayers) {
@@ -466,8 +466,8 @@ export class LANMatchLobby extends MatchLobby {
         return data;
     }
 
-    setVehicle(vehicleId) {
-        return publishLanLobbyVehicle({ signalingUrl: this._signalingUrl, playerId: this._localPeerId || 'host', isHost: this.isHost, token: this._localPeerToken, vehicleId })
+    setVehicle(vehicleId, { secondVehicleId } = {}) {
+        return publishLanLobbyVehicle({ signalingUrl: this._signalingUrl, playerId: this._localPeerId || 'host', isHost: this.isHost, token: this._localPeerToken, vehicleId, secondVehicleId })
             .then((data) => { this._processServerStatus(data); return data; });
     }
 
