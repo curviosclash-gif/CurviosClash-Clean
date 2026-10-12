@@ -65,6 +65,19 @@ test('the Arcade demolition run and the vault scenario still get the scenes', ()
     assert.equal(listSkippedBreakSceneModelIds(map, vault).size, 0);
 });
 
+// The desktop specs arcade-wave-three (bridge convoy) and arena-waves (Five Fronts on the tower)
+// wait for exactly the models the arena keeps; these are the counts behind those waits.
+test('the Arcade convoy and Five Fronts skip exactly the collapse scenes, HUNT keeps them', () => {
+    const bridge = MAP_PRESET_CATALOG.storm_bridge_siege;
+    const convoy = { ...session('ARCADE', { mapKey: 'storm_bridge_siege' }), arcade: { enabled: true, scenarioId: 'bridge_convoy' } };
+    assert.deepEqual([...listSkippedBreakSceneModelIds(bridge, convoy)], ['storm-bridge-collapse']);
+    assert.equal(listSkippedBreakSceneModelIds(bridge, session('HUNT')).size, 0);
+    const tower = MAP_PRESET_CATALOG.eiffel_tower_siege;
+    const fiveFronts = { ...session('ARCADE', { mapKey: 'eiffel_tower_siege' }), arcade: { enabled: true } };
+    assert.equal(listSkippedBreakSceneModelIds(tower, fiveFronts).size, 4);
+    assert.equal(listSkippedBreakSceneModelIds(tower, session('HUNT', { mapKey: 'eiffel_tower_siege' })).size, 0);
+});
+
 test('an unknown mode loads everything, so editor, hangar and tests are unchanged', () => {
     const map = MAP_PRESET_CATALOG.eiffel_tower_siege;
     assert.equal(listSkippedBreakSceneModelIds(map, null).size, 0);
