@@ -15,4 +15,5 @@ export {
 } from './mapSchema/MapSchemaMigrationOps.js';
 
 export { toArenaMapDefinition } from './mapSchema/MapSchemaRuntimeOps.js';
+export { fromArenaMapDefinition, EDITOR_UNITS_PER_MAP_UNIT } from './mapSchema/MapSchemaReverseOps.js';
 

@@ -16,12 +16,18 @@
 // vertically out of a wall: the nudge is a rescue, not a placement.
 
 import { listCompiledBoxObstacles, RING_CLEARANCE_WORLD_RADIUS } from '../../scripts/parcours-ring-clearance.mjs';
+import {
+    PLAYABLE_VOLUME_OUTSIDE,
+    probeArenaPlayableVolumes,
+    resolveArenaPlayableVolumes,
+} from '../../src/entities/arena/ArenaPlayableVolumes.js';
 import { normalizeMapLightSources } from '../../src/shared/contracts/MapLightSourcesContract.js';
 import { getPickupDefinition, normalizePickupType } from '../../src/shared/contracts/PickupRegistryContract.js';
 
 export const CHECKS = Object.freeze([
     'anchor-format',
     'bounds',
+    'obstacle-bounds',
     'in-solid',
     'free-directions',
     'item-type',
@@ -117,6 +123,44 @@ function outsideDescription(point, worldSize) {
     return axes.join(', ');
 }
 
+// Outer extent of an authored obstacle in world units: boxes (rotated about Y, tunnel walls
+// included) and tubes/beams (start/end plus radius). Null for entries without either shape.
+function obstacleExtent(obstacle, mapScale) {
+    if (Array.isArray(obstacle?.pos) && Array.isArray(obstacle?.size)) {
+        const rotateY = Number(obstacle.rotateY) || 0;
+        const hx = (obstacle.size[0] * mapScale) / 2;
+        const hz = (obstacle.size[2] * mapScale) / 2;
+        const reach = [
+            Math.abs(Math.cos(rotateY)) * hx + Math.abs(Math.sin(rotateY)) * hz,
+            (obstacle.size[1] * mapScale) / 2,
+            Math.abs(Math.sin(rotateY)) * hx + Math.abs(Math.cos(rotateY)) * hz,
+        ];
+        const center = obstacle.pos.map((value) => value * mapScale);
+        return { min: center.map((value, axis) => value - reach[axis]), max: center.map((value, axis) => value + reach[axis]) };
+    }
+    if (Array.isArray(obstacle?.start) && Array.isArray(obstacle?.end)) {
+        const radius = (Number(obstacle.radius) || 0) * mapScale;
+        const start = obstacle.start.map((value) => value * mapScale);
+        const end = obstacle.end.map((value) => value * mapScale);
+        return { min: start.map((value, axis) => Math.min(value, end[axis]) - radius), max: start.map((value, axis) => Math.max(value, end[axis]) + radius) };
+    }
+    return null;
+}
+
+// Sideways and upwards only: a base that sinks below the floor (y < 0) is a foundation on purpose.
+export const OBSTACLE_BOUNDS_TOLERANCE = 0.01;
+function obstacleOvershoot(extent, worldSize) {
+    const over = [];
+    const round = (value) => Math.round(value * 10) / 10;
+    for (const [axis, name] of [[0, 'x'], [2, 'z']]) {
+        const half = worldSize[axis] / 2;
+        if (extent.min[axis] < -half - OBSTACLE_BOUNDS_TOLERANCE) over.push(`${name} down to ${round(extent.min[axis])} beyond -${half}`);
+        if (extent.max[axis] > half + OBSTACLE_BOUNDS_TOLERANCE) over.push(`${name} up to ${round(extent.max[axis])} beyond +${half}`);
+    }
+    if (extent.max[1] > worldSize[1] + OBSTACLE_BOUNDS_TOLERANCE) over.push(`y up to ${round(extent.max[1])} beyond ${worldSize[1]}`);
+    return over;
+}
+
 function countFreeDirections(point, boxes, worldSize) {
     const free = [];
     const blocked = [];
@@ -194,11 +238,15 @@ export function analyzeMapAnchors(mapKey, map, mapScale) {
     const worldSize = resolveWorldSize(map, mapScale);
     const spawnWorldSize = resolveWorldSize(map, mapScale, { initial: true });
     const boxes = listSolidBoxes(map, mapScale);
+    const playableVolumes = resolveArenaPlayableVolumes(map, mapScale);
     const label = (entry, index, fallback) => (typeof entry?.id === 'string' && entry.id ? entry.id : `${fallback}${index}`);
 
     // Shared by every kind of placed point: bounds, then solid geometry.
     const checkPlacement = (point, world, size, name, { solid = true } = {}) => {
-        if (!insideWorld(world, size)) {
+        // A shaft or secret room below the floor is part of the arena (the reactor basin).
+        const inPlayableVolume = playableVolumes.length > 0
+            && probeArenaPlayableVolumes(playableVolumes, { x: world[0], y: world[1], z: world[2] }) !== PLAYABLE_VOLUME_OUTSIDE;
+        if (!inPlayableVolume && !insideWorld(world, size)) {
             add('bounds', point, `${fmt(world)} lies outside the arena: ${outsideDescription(world, size)}`);
             return false;
         }
@@ -223,6 +271,12 @@ export function analyzeMapAnchors(mapKey, map, mapScale) {
             add('free-directions', point, `only ${free.length}/6 axis directions free for ${FREE_DISTANCE} units at ${fmt(world)}; blocked: ${blocked.join(', ')}`);
         }
     };
+
+    (Array.isArray(map?.obstacles) ? map.obstacles : []).forEach((obstacle, index) => {
+        const extent = obstacleExtent(obstacle, mapScale);
+        const over = extent ? obstacleOvershoot(extent, worldSize) : [];
+        if (over.length) add('obstacle-bounds', `obstacles[${obstacle.id || index}]`, `obstacle reaches through the arena wall: ${over.join(', ')}`);
+    });
 
     if (map?.playerSpawn) checkSpawn(map.playerSpawn, 'playerSpawn');
     (Array.isArray(map?.botSpawns) ? map.botSpawns : []).forEach((entry, index) => checkSpawn(entry, `botSpawns[${index}]`));

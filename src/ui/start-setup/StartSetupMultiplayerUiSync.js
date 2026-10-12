@@ -202,6 +202,7 @@ function renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePrevie
     if (ui.mapPreview) {
         renderPreviewCard(ui.mapPreview, {
             title: mapPreview.name,
+            description: mapPreview.description,
             badges: [
                 formatMapRenderMode(mapPreview.renderMode),
                 mapPreview.hasParcours ? 'Parcours' : null,

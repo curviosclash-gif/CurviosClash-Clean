@@ -5,6 +5,7 @@ export const NEON_ABYSS_MAP = {
         // The corner pillars reach half a unit below the ground; the GLB placement follows them.
         ...authoredWorld('neon_abyss', -.5),
         name: 'Neon Abyss',
+        scaleAuthoredAnchors: true,
         // Held dark on purpose. The key is turned down and the exposure with it, so the neon in the
         // map reads as the light source it is drawn as instead of competing with a bright sun.
         lighting: {
@@ -93,7 +94,7 @@ export const NEON_ABYSS_MAP = {
             { a: [0, 37, 0], b: [0, 37, 65], color: 0x44ff88 },
             { a: [-50, 55, -50], b: [50, 55, 50], color: 0xff4444 },
             { a: [50, 55, -50], b: [-50, 55, 50], color: 0x4488ff },
-            { a: [0, 5, 0], b: [0, 70, 0], color: 0xffffff },
+            { a: [0, 10, 0], b: [0, 70, 0], color: 0xffffff },
             { a: [-40, 37, 0], b: [40, 37, 0], color: 0xff8800 },
         ],
         gates: [
@@ -143,15 +144,15 @@ export const NEON_ABYSS_MAP = {
             { x: 0, y: 7, z: 30 },
             { x: -50, y: 55, z: -50 },
             { x: 50, y: 55, z: 50 },
-            { x: 0, y: 67, z: 0 },
+            { x: 15, y: 67, z: 0 },
         ],
         items: [
-            { id: 'abyss_rocket_pit', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 0, y: 5, z: 0, weight: 1.5 },
+            { id: 'abyss_rocket_pit', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 0, y: 10, z: 0, weight: 1.5 },
             { id: 'abyss_shield_pit', type: 'item_shield', pickupType: 'SHIELD', x: -20, y: 5, z: 20, weight: 1.2 },
             { id: 'abyss_speed_bridge', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: 24, z: 0, weight: 1.8 },
             { id: 'abyss_shield_bridge', type: 'item_shield', pickupType: 'SHIELD', x: 40, y: 24, z: 0, weight: 1.0 },
-            { id: 'abyss_ghost_cage', type: 'item_coin', pickupType: 'GHOST', x: 20, y: 37, z: 20, weight: 1.3 },
-            { id: 'abyss_thick_cage', type: 'item_coin', pickupType: 'THICK', x: -20, y: 37, z: -20, weight: 1.0 },
+            { id: 'abyss_ghost_cage', type: 'item_coin', pickupType: 'GHOST', x: 20, y: 42, z: 20, weight: 1.3 },
+            { id: 'abyss_thick_cage', type: 'item_coin', pickupType: 'THICK', x: -20, y: 42, z: -20, weight: 1.0 },
             { id: 'abyss_rocket_crown', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 0, y: 70, z: 0, weight: 0.8 },
             { id: 'abyss_speed_crown', type: 'item_battery', pickupType: 'SPEED_UP', x: 30, y: 68, z: 0, weight: 1.5 },
         ],

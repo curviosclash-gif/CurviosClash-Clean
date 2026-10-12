@@ -132,7 +132,7 @@ export const FROZEN_HELIX_MAP = {
             { pos: [-40, 50, 40], size: [3, 10, 3], kind: 'foam' },
         ],
         portals: [
-            { a: [25, 50, -20], b: [-25, 32, 20], color: 0x88ddff },
+            { a: [25, 53, -20], b: [-25, 32, 20], color: 0x88ddff },
             { a: [20, 12, 35], b: [0, 95, 30], color: 0x4488ff },
         ],
         gates: [
@@ -172,6 +172,13 @@ export const FROZEN_HELIX_MAP = {
             { x: 8, y: 96, z: 38 },
             { x: -8, y: 96, z: 28 },
             { x: 8, y: 96, z: 28 },
+            // More levels for a ten player HUNT round; the first entries stay at the start line.
+            { x: -52, y: 8, z: -52 },
+            { x: 52, y: 8, z: 52 },
+            { x: 52, y: 48, z: -52 },
+            { x: -52, y: 32, z: 52 },
+            { x: -52, y: 72, z: -52 },
+            { x: 52, y: 56, z: 52 },
         ],
         items: [
             { id: 'fh_speed_top', type: 'item_battery', pickupType: 'SPEED_UP', x: 35, y: 88, z: 0, weight: 1.5 },

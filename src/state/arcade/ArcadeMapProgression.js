@@ -24,6 +24,8 @@ export const SECTOR_MAP_POOLS = Object.freeze({
 });
 
 import { createSeededRandom } from '../../shared/utils/ArcadeUtils.js';
+import { resolveMapDifficultyStage } from '../../shared/contracts/MapPickerMetaContract.js';
+import { getMapPickerMeta } from '../../shared/maps/MapPickerMeta.js';
 
 const DEFAULT_MAP = 'standard';
 
@@ -39,6 +41,29 @@ function pickValidMap(pool, randomFn, mapCatalog) {
     return validPool[Math.max(0, Math.min(validPool.length - 1, index))];
 }
 
+/**
+ * Parcours sectors form a campaign: the k-th of n parcours sectors of a run draws from the
+ * difficulty stage (teaching, craft, mastery) that matches its place, so easier maps come first
+ * and the last one is the hardest stage the pool offers. Chance only picks inside a stage, and a
+ * map already played in this run is skipped while its stage has others.
+ */
+function pickParcoursMap(pool, randomFn, mapCatalog, { index, count, played }) {
+    const validPool = Array.isArray(pool) ? pool.filter((key) => isValidMapKey(key, mapCatalog)) : [];
+    if (validPool.length === 0) return DEFAULT_MAP;
+    const stages = [];
+    validPool.forEach((key) => {
+        const stage = resolveMapDifficultyStage(getMapPickerMeta(key).difficulty);
+        const bucket = stages.find((entry) => entry.stage === stage);
+        if (bucket) bucket.maps.push(key);
+        else stages.push({ stage, maps: [key] });
+    });
+    stages.sort((left, right) => left.stage.min - right.stage.min);
+    const stageIndex = count > 1 ? Math.round((index * (stages.length - 1)) / (count - 1)) : 0;
+    const maps = stages[Math.max(0, Math.min(stages.length - 1, stageIndex))].maps;
+    const fresh = maps.filter((key) => !played.has(key));
+    const candidates = fresh.length > 0 ? fresh : maps;
+    return candidates[Math.max(0, Math.min(candidates.length - 1, Math.floor(randomFn() * candidates.length)))];
+}
 function resolveLockedMapKey(entry, mapCatalog) {
     if (entry?.mapKeyLocked !== true) return '';
     const mapKey = String(entry?.mapKey || '').trim();
@@ -57,6 +82,9 @@ export function resolveMapSequence(sectorPlan, seed, mapCatalog) {
     if (!sectorPlan || !Array.isArray(sectorPlan.sequence)) return [];
     const randomFn = createSeededRandom(`${seed}-mapseq`);
     const sequence = [];
+    const parcoursCount = sectorPlan.sequence.filter((entry) => entry?.templateId === 'sector_parcours').length;
+    const parcoursPlayed = new Set();
+    let parcoursIndex = 0;
 
     for (let i = 0; i < sectorPlan.sequence.length; i += 1) {
         const entry = sectorPlan.sequence[i];
@@ -64,10 +92,17 @@ export function resolveMapSequence(sectorPlan, seed, mapCatalog) {
         const pool = SECTOR_MAP_POOLS[templateId] || SECTOR_MAP_POOLS.sector_intro;
 
         const lockedMapKey = resolveLockedMapKey(entry, mapCatalog);
-        let mapKey = lockedMapKey || pickValidMap(pool, randomFn, mapCatalog);
+        const isParcours = templateId === 'sector_parcours';
+        let mapKey = lockedMapKey || (isParcours
+            ? pickParcoursMap(pool, randomFn, mapCatalog, { index: parcoursIndex, count: parcoursCount, played: parcoursPlayed })
+            : pickValidMap(pool, randomFn, mapCatalog));
+        if (isParcours) {
+            parcoursIndex += 1;
+            parcoursPlayed.add(mapKey);
+        }
 
         // Avoid consecutive duplicate maps when pool has alternatives
-        if (!lockedMapKey && i > 0 && mapKey === sequence[i - 1] && pool.length > 1) {
+        if (!lockedMapKey && !isParcours && i > 0 && mapKey === sequence[i - 1] && pool.length > 1) {
             const alternatives = pool.filter((k) => k !== mapKey && isValidMapKey(k, mapCatalog));
             if (alternatives.length > 0) {
                 mapKey = alternatives[Math.floor(randomFn() * alternatives.length)];

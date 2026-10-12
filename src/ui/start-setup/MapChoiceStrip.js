@@ -1,9 +1,12 @@
+import { describeMapDifficulty } from '../../shared/contracts/MapPickerMetaContract.js';
+
 export function readMapOptions(select) {
     return Array.from(select?.options || []).map((option) => ({
         id: String(option.value || '').trim(),
         label: String(option.textContent || option.value || '').trim(),
         collection: String(option.dataset?.mapCollection || 'other').trim(),
         collectionLabel: String(option.dataset?.mapCollectionLabel || 'Weitere Karten').trim(),
+        difficulty: option.dataset?.mapDifficulty ? Number(option.dataset.mapDifficulty) : null,
     })).filter((entry) => entry.id);
 }
 
@@ -38,6 +41,7 @@ function buildChoiceGroups(options) {
             button.dataset.mapKey = entry.id;
             button.setAttribute('role', 'option');
             button.textContent = entry.label;
+            if (Number.isFinite(entry.difficulty)) button.title = describeMapDifficulty(entry.difficulty);
             choices.appendChild(button);
         });
         groupNode.appendChild(choices);
@@ -52,7 +56,7 @@ export function createMapChoiceStrip({ strip, previousButton, nextButton } = {})
     return Object.freeze({
         render(options, selectedMapKey) {
             const nextSignature = options
-                .map((entry) => `${entry.collection}:${entry.id}:${entry.label}`)
+                .map((entry) => `${entry.collection}:${entry.id}:${entry.label}:${entry.difficulty ?? ''}`)
                 .join('|');
             if (nextSignature !== signature) {
                 signature = nextSignature;

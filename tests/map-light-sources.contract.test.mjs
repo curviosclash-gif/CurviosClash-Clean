@@ -109,3 +109,27 @@ test('Notre-Dame lights its interior and every preset stays inside the cap', () 
         assert.ok(colour.r > colour.b, `${light.id} is warm rather than cold`);
     }
 });
+
+test('a light can go out with a destructible segment and returns with the next round', () => {
+    const renderer = createRendererStub();
+    const rig = new AuthoredMapLightRig(renderer);
+    rig.build({
+        lights: [
+            { id: 'lantern', x: 0, y: 10, z: 0, distance: 40, intensity: 900, offWhenDestroyed: 'tower' },
+            { id: 'house', x: 5, y: 1, z: 0, distance: 10, intensity: 300 },
+        ],
+    }, 1);
+    assert.equal(normalizeMapLightSource({ id: 'a', offWhenDestroyed: ' tower ' }).offWhenDestroyed, 'tower');
+    assert.equal('offWhenDestroyed' in normalizeMapLightSource({ id: 'b' }), false);
+
+    const [lantern, house] = rig.lights;
+    rig.applyDestructibleState({ segments: [{ id: 'tower', destroyed: false }] });
+    assert.equal(lantern.intensity, 900);
+    rig.applyDestructibleState({ segments: [{ id: 'tower', destroyed: true }] });
+    assert.equal(lantern.intensity, 0, 'the lantern is out once the tower is down');
+    assert.equal(house.intensity, 300, 'other lights stay');
+    rig.applyDestructibleState({ segments: [{ id: 'tower', destroyed: false }] });
+    assert.equal(lantern.intensity, 900, 'a new round relights it');
+    rig.applyDestructibleState(null);
+    assert.equal(lantern.intensity, 900);
+});

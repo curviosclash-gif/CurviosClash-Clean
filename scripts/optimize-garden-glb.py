@@ -1,4 +1,9 @@
-"""Create lossless WebP game variants; retain all original model and animation data.
+"""Create WebP game variants; retain all original model and animation data.
+
+Textures keep their pixels (lossless WebP) except for two cases that cost memory without
+showing on screen: 1025..2048 px images are halved to MAX_TEXTURE_EDGE and encoded lossy
+(colour and normal maps) or lossless (data maps), and single-colour images shrink to
+CONSTANT_EDGE. The sky texture of BlackHole01 (4096 px) is left alone.
 
 Run with Python and Pillow: python scripts/optimize-garden-glb.py
 Original downloaded assets are never modified. Requires Pillow with WebP support.
@@ -13,6 +18,38 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'assets/models/downloaded_cc0/pm-avatar-garden'
 TARGET = ROOT / 'assets/models/optimized_cc0/pm-avatar-garden'
+MAX_TEXTURE_EDGE = 1024
+RESIZE_FROM_EDGE = 2048  # larger images (the galaxy sky) are showcase content and stay as they are
+CONSTANT_EDGE = 4
+LOSSY_QUALITY = 90
+
+
+def is_constant(image):
+    low, high = zip(*image.getextrema())
+    return low == high
+
+
+def encode(original, name):
+    """Return (webp bytes, pixels the game still sees) for one texture."""
+    if is_constant(original):
+        small = original.resize((CONSTANT_EDGE, CONSTANT_EDGE), Image.NEAREST)
+        return lossless(small), small
+    edge = max(original.size)
+    if MAX_TEXTURE_EDGE < edge <= RESIZE_FROM_EDGE:
+        scale = MAX_TEXTURE_EDGE / edge
+        small = original.resize((round(original.width * scale), round(original.height * scale)), Image.LANCZOS)
+        if 'metallic' in name.lower():
+            return lossless(small), small
+        encoded = io.BytesIO()
+        small.save(encoded, format='WEBP', quality=LOSSY_QUALITY, method=6)
+        return encoded.getvalue(), small
+    return lossless(original), original
+
+
+def lossless(image):
+    encoded = io.BytesIO()
+    image.save(encoded, format='WEBP', lossless=True, exact=True, method=6)
+    return encoded.getvalue()
 
 
 def optimize(source):
@@ -27,11 +64,11 @@ def optimize(source):
         payload = binary[offset:offset + view['byteLength']]
         if index in image_views:
             original = Image.open(io.BytesIO(payload)).convert('RGBA')
-            encoded = io.BytesIO()
-            original.save(encoded, format='WEBP', lossless=True, exact=True, method=6)
-            candidate = encoded.getvalue()
+            candidate, expected = encode(original, image_views[index].get('name', ''))
             decoded = Image.open(io.BytesIO(candidate)).convert('RGBA')
-            assert decoded.size == original.size and decoded.tobytes() == original.tobytes()
+            assert decoded.size == expected.size
+            if decoded.size == original.size:
+                assert decoded.tobytes() == original.tobytes()  # untouched size means untouched pixels
             if len(candidate) < len(payload):
                 payload = candidate
                 image_views[index]['mimeType'] = 'image/webp'

@@ -1,3 +1,4 @@
+import { BAZAAR_DUSK_LIGHTING } from './map_lighting_profiles.js';
 function glbModel(pack, name, position, targetSize, rotateY = 0, placementId = '') {
     return Object.freeze({
         id: `${pack}/${name}${placementId ? `#${placementId}` : ''}`,
@@ -130,6 +131,7 @@ const AETHER_RELAY_OBSTACLES = Object.freeze([
 export const GLB_ADVENTURE_MAPS = Object.freeze({
     rift_bazaar: Object.freeze({
         name: 'Rift-Bazaar',
+        lighting: BAZAAR_DUSK_LIGHTING,
         size: Object.freeze([150, 58, 150]),
         scaleAuthoredAnchors: true,
         glbModels: RIFT_BAZAAR_MODELS,
@@ -202,7 +204,7 @@ export const GLB_ADVENTURE_MAPS = Object.freeze({
             { id: 'relay_rocket_finish', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -14, y: 15, z: 35, weight: 0.8 },
         ]),
         missions: Object.freeze([
-            { type: 'TIME_TRIAL', params: { target: 52 }, weight: 1.7 },
+            { type: 'TIME_TRIAL', params: { target: 49 }, weight: 1.7 },
             { type: 'NO_DAMAGE', params: {}, weight: 1.0 },
             { type: 'ITEM_CHAIN', params: { target: 4 }, weight: 0.8 },
         ]),
